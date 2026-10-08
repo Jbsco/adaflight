@@ -92,6 +92,10 @@ ledger. The deviations so far:
   relax lowpass keeps the previous profile's cutoff until the next initialization; at boot
   it initializes twice and the second pass reads the first. The checker records the second
   pass.
+- The hyperbolic TPA table is sampled through the double-precision elementary functions of
+  the Ada runtime where the reference calls the C library's single-precision power; every
+  recorded sample matches. A sample the reference leaves infinite or beyond the signal
+  bound, where the curve's base cancels to zero at full throttle, saturates at the bound.
 
 ## D7. Linear history (2026-10-08)
 
