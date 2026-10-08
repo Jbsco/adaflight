@@ -59,7 +59,8 @@ A change is finished when `verify.do` is green.
 
 ## Verification policy
 
-- Every unit in `core/` is SPARK and proves free of run-time errors.
+- Every unit in `core/` is SPARK and proves free of run-time errors, except the one body
+  outside SPARK that `DESIGN.md` D15 names; the proof gate counts such bodies on every run.
 - No `pragma Assume` and no justified suppression. `prove.do` prints both counts.
 - A ported function keeps the operation order of the reference, so the host build
   reproduces its results bit for bit. The vector checker reports the distance in
