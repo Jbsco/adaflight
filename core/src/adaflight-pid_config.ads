@@ -108,6 +108,7 @@ package Adaflight.PID_Config with SPARK_Mode, Pure is
       TPA_Curve                  : PWL.Table;
       Use_Ez_Disarm              : Boolean := False;
       Landing_Disarm_Threshold   : Float range 0.0 .. 2500.0 := 0.0;
+      Throttle_Boost             : Float range 0.0 .. 10.0 := 0.5;
    end record;
 
    --  Derives the runtime constants. Has_Acc enables the launch control
