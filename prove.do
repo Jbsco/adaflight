@@ -12,7 +12,11 @@ cd core || exit 1
 # profile whatever a dependent crate's build left behind.
 alr -n build --stop-after=generation >/dev/null 2>&1
 echo "Running SPARK proofs..."
-PROVE_OUT=$(alr -n exec -- gnatprove -P adaflight_core.gpr -j0 --output=oneline 2>&1 | tee /dev/stderr)
+# PROVE_JOBS caps the prover parallelism on hosts that share their memory; the default
+# uses every core.
+# The transcript is echoed through the inherited stderr; reopening /dev/stderr would
+# truncate a log the caller redirected it to.
+PROVE_OUT=$(alr -n exec -- gnatprove -P adaflight_core.gpr -j"${PROVE_JOBS:-0}" --output=oneline 2>&1 | tee >(cat >&2))
 EXIT_CODE=${PIPESTATUS[0]}
 if [ $EXIT_CODE -ne 0 ]; then
     echo "=========================================="
