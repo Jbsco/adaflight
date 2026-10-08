@@ -16,6 +16,7 @@ with Adaflight.PID_Profile;
 with Adaflight.PID_Config;
 with Adaflight.PID_Filters;
 with Adaflight.PID_Controller;
+with Adaflight.Mixer;
 with Adaflight.Vectors;
 with Adaflight.PWL;
 with Adaflight.SDFT;
@@ -1176,6 +1177,7 @@ procedure Vector_Check is
          P.TPA_Curve_PID_Thr0 := Integer'Value (Str (4));
          P.TPA_Curve_PID_Thr100 := Integer'Value (Str (5));
          P.TPA_Curve_Expo := Integer'Value (Str (6));
+         Profiles (Index) := P;
          Configure (R, P, Profile_Loop_Times (Index), Has_Acc => False,
                     Serial_Rx_Is_CRSF => Profile_CRSF (Index));
          for I in 0 .. TPA_Curve_Points - 1 loop
@@ -1220,6 +1222,97 @@ procedure Vector_Check is
          Failures := Failures + 1;
       end if;
    end Check_PID_Thr_Line;
+
+   Mix_State    : Adaflight.Mixer.State;
+   Mix_Config   : Adaflight.Mixer.Config;
+   Mix_Ctl      : Adaflight.PID_Controller.State;
+   Mix_Runtime  : Adaflight.PID_Config.Runtime;
+   Mix_Profile  : Adaflight.PID_Profile.Profile;
+   Mix_Airmode  : Boolean := False;
+   Mix_AG       : Boolean := False;
+
+   procedure Check_Mix_Line is
+      use Adaflight.PID_Profile;
+      use Adaflight.PID_Config;
+      use Adaflight.PID_Controller;
+      use Adaflight.Mixer;
+      Name  : constant String := Str (1);
+      Index : constant Integer := Integer'Value (Str (2));
+      K     : Positive := 15;
+      procedure Expect_Float (N : String; Actual : Float) is
+      begin
+         Record_Result ("mixstep." & N, Bits (K), To_Bits (Actual));
+         K := K + 1;
+      end Expect_Float;
+   begin
+      if Name = "mixinit" then
+         Mix_Profile := Profiles (Index);
+         Mix_Profile.TPA_Terms := TPA_Mode'Val (Integer'Value (Str (4)));
+         Mix_Profile.Throttle_Boost := Integer'Value (Str (12));
+         Mix_Profile.TPA_Curve_Type := TPA_Curve_Kind'Val (Integer'Value (Str (20)));
+         Mix_Profile.TPA_Curve_Stall_Throttle := Integer'Value (Str (21));
+         Mix_Profile.TPA_Curve_PID_Thr0 := Integer'Value (Str (22));
+         Mix_Profile.TPA_Curve_PID_Thr100 := Integer'Value (Str (23));
+         Mix_Profile.TPA_Curve_Expo := Integer'Value (Str (24));
+         Mix_Config := (Kind => Mixer_Kind'Val (Integer'Value (Str (5))),
+                        Yaw_Reversed => Str (6) = "1",
+                        Throttle_Limit => Throttle_Limit_Kind'Val (Integer'Value (Str (7))),
+                        Throttle_Limit_Percent => Integer'Value (Str (15)),
+                        Output_Low => Flt (16), Output_High => Flt (17), Disarm_Output => Flt (18),
+                        others => <>);
+         Mix_Airmode := Str (13) = "1";
+         Mix_AG := Str (14) = "1";
+         Configure (Mix_Runtime, Mix_Profile, Integer'Value (Str (3)), Has_Acc => False,
+                    Serial_Rx_Is_CRSF => Profile_CRSF (Index));
+         Record_Result ("mixinit.throttle_boost", Bits (19), To_Bits (Mix_Runtime.Throttle_Boost));
+         Init (Mix_Ctl, Mix_Profile, Mix_Runtime);
+         Set_Stabilisation (Mix_Ctl, True);
+         Mix_State := (others => <>);
+      elsif Name = "mixstep" then
+         declare
+            Step      : constant Integer := Integer'Value (Str (3));
+            Loop_Time : constant Integer := Integer'Value (Str (4));
+            Inp       : Adaflight.PID_Controller.Inputs;
+            MInp      : Adaflight.Mixer.Inputs;
+         begin
+            for A in Adaflight.Axes.Axis loop
+               Inp.Gyro (A) := Flt (5 + Adaflight.Axes.Axis'Pos (A));
+               Inp.Setpoint (A) := Flt (8 + Adaflight.Axes.Axis'Pos (A));
+               Inp.Feedforward (A) := Flt (11 + Adaflight.Axes.Axis'Pos (A));
+            end loop;
+            Inp.Anti_Gravity_Enabled := Mix_AG;
+            Update (Mix_Ctl, Mix_Runtime, Mix_Profile, Inp);
+            MInp.RC_Throttle := Flt (14);
+            MInp.Time_Us := Interfaces.Unsigned_32 ((Step + 1) * Loop_Time);
+            MInp.Armed := True;
+            MInp.Airmode := Mix_Airmode;
+            Adaflight.Mixer.Update (Mix_State, Mix_Config, Mix_Ctl, Mix_Runtime, Mix_Profile, MInp);
+            for A in Adaflight.Axes.Axis loop
+               Expect_Float ("p", Mix_Ctl.Data (A).P); Expect_Float ("i", Mix_Ctl.Data (A).I);
+               Expect_Float ("d", Mix_Ctl.Data (A).D); Expect_Float ("f", Mix_Ctl.Data (A).F);
+               Expect_Float ("sum", Mix_Ctl.Data (A).Sum);
+            end loop;
+            Expect_Float ("iterm_accelerator", Mix_Ctl.Iterm_Accelerator);
+            Expect_Float ("tpa_factor", Mix_Ctl.TPA_Factor);
+            Expect_Float ("anti_gravity_throttle_d", Mix_Ctl.Anti_Gravity_Throttle_D);
+            Expect_Float ("throttle", Mix_State.Throttle);
+            Expect_Float ("rc_throttle", Mix_State.RC_Throttle);
+            Expect_Float ("mix_range", Mix_State.Mix_Range);
+            for M in 0 .. 3 loop
+               Expect_Float ("motor." & Mixer_Kind'Image (Mix_Config.Kind)
+                             & (if Mix_Airmode then ".air" else ".noair")
+                             & (if Mix_Config.Throttle_Limit = Off then "" else ".lim"), Mix_State.Motors (M));
+            end loop;
+            if K /= NF + 1 then
+               Put_Line ("mixstep: consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
+               Failures := Failures + 1;
+            end if;
+         end;
+      else
+         Put_Line ("unknown mix case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Mix_Line;
 
    procedure Check_PID_Line is
    begin
@@ -1280,6 +1373,8 @@ procedure Vector_Check is
                   Check_Rates_Line;
                elsif Kind = "pidthr" then
                   Check_PID_Thr_Line;
+               elsif Kind = "mix" then
+                  Check_Mix_Line;
                else
                   Check_PID_Line;
                end if;
@@ -1303,6 +1398,7 @@ begin
    Run (Dir & "/rates.csv", "rates");
    Run (Dir & "/pid.csv", "pid");
    Run (Dir & "/pidthr.csv", "pidthr");
+   Run (Dir & "/mix.csv", "mix");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");

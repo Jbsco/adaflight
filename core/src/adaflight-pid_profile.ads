@@ -113,6 +113,10 @@ package Adaflight.PID_Profile with SPARK_Mode, Pure is
       TPA_Curve_PID_Thr0       : Natural range 1 .. 1000 := 200;
       TPA_Curve_PID_Thr100     : Natural range 1 .. 1000 := 70;
       TPA_Curve_Expo           : Integer range -100 .. 100 := 20;
+      Throttle_Boost           : Percent := 5;
+      Ez_Landing_Threshold     : Natural range 0 .. 200 := 25;
+      Ez_Landing_Limit         : Natural range 0 .. 75 := 15;
+      Ez_Landing_Speed         : Natural range 0 .. 250 := 50;
       Landing_Disarm_Threshold : Natural range 0 .. 250 := 0;
    end record
      with Dynamic_Predicate =>

@@ -96,6 +96,9 @@ ledger. The deviations so far:
   the Ada runtime where the reference calls the C library's single-precision power; every
   recorded sample matches. A sample the reference leaves infinite or beyond the signal
   bound, where the curve's base cancels to zero at full throttle, saturates at the bound.
+- The EZ landing mixer adjustment divides by its limit factor to widen the recorded mix
+  range. Where that factor is zero the reference's range is infinite; it saturates at the
+  signal bound here. The motor outputs do not depend on it.
 
 ## D7. Linear history (2026-10-08)
 
@@ -188,3 +191,14 @@ analyzed at the call with a conversion check the provers cannot close. The call 
 lives in `Adaflight.Accurate_Power`, whose spec carries the bound the callers prove
 against and whose body is outside SPARK and saturates to honor it. The proof gate counts
 such bodies on every run, next to the assumes.
+
+## D16. Motor outputs are in range by type (2026-10-08)
+
+The mixer's postcondition states that every motor output lies between the disarm value or
+the low endpoint, whichever is lower, and the high endpoint, so the promise of the README
+is a proved property of `Adaflight.Mixer.Update` rather than a test. The per-motor mix is
+bounded at 16 in magnitude, which the scaled sums and the unit weights cannot reach, and
+the clamp the reference applies with a lower bound that rounding can place above the
+upper one is kept as written, with a postcondition that names which of the three values
+it returns. The reference seeds its motor maximum with the smallest normal float; the
+port keeps the seed to stay bit-exact.
