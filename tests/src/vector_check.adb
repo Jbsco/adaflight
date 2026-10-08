@@ -69,9 +69,13 @@ procedure Vector_Check is
       then -Integer_64 (B and 16#7FFF_FFFF#)
       else Integer_64 (B));
 
-   procedure Record_Result (Name : String; Expected, Actual : Unsigned_32; Tolerance : Integer_64 := 0) is
+   procedure Record_Result (Name : String; Expected, Actual : Unsigned_32; Tolerance : Integer_64 := 0;
+                            Absolute : Float := 0.0) is
       T : Tally;
-      D : constant Integer_64 := abs (Key (Expected) - Key (Actual));
+      D : constant Integer_64 :=
+        (if Absolute > 0.0 and then abs (To_Float (Expected) - To_Float (Actual)) <= Absolute
+         then Integer_64'Min (Tolerance, abs (Key (Expected) - Key (Actual)))
+         else abs (Key (Expected) - Key (Actual)));
    begin
       if Tallies.Contains (Name) then
          T := Tallies.Element (Name);
