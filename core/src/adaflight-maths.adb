@@ -259,6 +259,13 @@ package body Adaflight.Maths with SPARK_Mode is
    function Sqrt_Bounded (X : Non_Negative_Signal) return Root_Signal is
      (Float'Min (Root_Signal'Last, Ada.Numerics.Elementary_Functions.Sqrt (X)));
 
+   -----------------------
+   -- Sqrt_Non_Negative --
+   -----------------------
+
+   function Sqrt_Non_Negative (X : Float) return Float is
+     (Ada.Numerics.Elementary_Functions.Sqrt (X));
+
    ----------
    -- Lerp --
    ----------

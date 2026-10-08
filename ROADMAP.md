@@ -38,7 +38,7 @@ were recorded from. The adaflight column counts Ada lines on `main`.
 
 | Reference module | Reference lines | adaflight lines | Status |
 |---|---|---|---|
-| common (maths, filters, encodings) | 5481 | 1686 | maths and filters proved and vector-checked; exp and log deferred (D10) |
+| common (maths, filters, vectors, DFT, tables, encodings) | 5481 | 2491 | maths, filters, vectors, sliding DFT, and piecewise-linear tables proved and vector-checked; exp and log deferred (D10); encodings, CRC, bit arrays, stream buffers, GPS conversion, sensor alignment, chirp, color, time, and type conversion open |
 | flight (pid, mixer, imu, failsafe, rescue, nav) | 17554 | 0 | Phase 1 and 2 |
 | fc (core loop, rc, modes, adjustments, tasks) | 8228 | 0 | Phase 1 and 3 |
 | sensors | 8893 | 0 | Phase 2 |
@@ -48,4 +48,4 @@ were recorded from. The adaflight column counts Ada lines on `main`.
 | blackbox, osd, cms, telemetry, io | 59977 | 0 | Phase 6 |
 | drivers, target, build, msc | 55927 | 0 | Phase 7 |
 | platform (STM32, AT32, APM32, PICO, ESP32, SITL) | not counted | 0 | Phase 7 |
-| total measured | 195545 | 1686 | |
+| total measured | 195545 | 2491 | |
