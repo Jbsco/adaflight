@@ -65,4 +65,8 @@ package Adaflight.PID_Filters with SPARK_Mode, Pure is
 
    procedure Apply_Yaw_P (S : in out State; Input : Signal; Output : out Signal);
 
+   --  Moves the first D-term lowpass with the throttle, as the mixer requests
+   --  every loop.
+   procedure Update_Dynamic_Lowpass (S : in out State; R : Runtime; Throttle : Unit_Interval);
+
 end Adaflight.PID_Filters;
