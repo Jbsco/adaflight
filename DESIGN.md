@@ -74,6 +74,10 @@ ledger. The deviations so far:
 - The sliding DFT twiddle table is static. The reference computes it at first use, and
   bin 18 carries a negative zero real part there, which a static Ada constant cannot
   express. The two zeros compare at distance 0.
+- The varint encoder sets the continuation bit on every byte below the last. The
+  reference emits the value 128 as a single bare byte 16#80#, which its own decoder
+  treats as a continuation byte and rejects. The checker expects 16#80# 16#01# for that
+  value and the recorded result for every other.
 
 ## D7. Linear history (2026-10-08)
 
