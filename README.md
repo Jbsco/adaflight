@@ -26,13 +26,13 @@ The core holds the bounded maths with the fast exponential and logarithm, the fi
 set, three-axis vectors and rotations, the sliding DFT, piecewise-linear tables,
 integrity codes, the encodings, bit arrays, stream buffers, the Huffman encoder, GPS
 coordinate conversion, sensor alignment, color conversion, the chirp generator, the rate
-curves, and the PID profile with its runtime configuration, filter initialization, rate
-loop, and throttle-side features.
+curves, the PID profile with its runtime configuration, filter initialization, rate loop,
+and throttle-side features, and the motor mixer.
 
-- The core proves at Silver and Gold: 2131 checks, nothing unproved, no
+- The core proves at Silver and Gold: 2317 checks, nothing unproved, no
   `pragma Assume`, no justified suppression (`gnatprove` 16.1.0, level 2).
-- The recorded vectors replay bit for bit: 48224 lines over 130 cases, every case
-  exact except the seven declared deviations in `DESIGN.md` D6.
+- The recorded vectors replay bit for bit: 50542 lines over 132 cases, every case
+  exact except the eight declared deviations in `DESIGN.md` D6.
 - No target builds yet. `ROADMAP.md` carries the parity inventory and the phases.
 
 ## Repository layout
