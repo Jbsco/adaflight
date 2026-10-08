@@ -7,6 +7,7 @@
 --  produce an infinity whatever its input history.
 
 with Interfaces;
+with Adaflight.Axes;
 with Adaflight.Maths; use Adaflight.Maths;
 
 package Adaflight.Filters with SPARK_Mode, Pure is
@@ -128,7 +129,7 @@ package Adaflight.Filters with SPARK_Mode, Pure is
 
    --  A notch applied to three axes at once with a blend weight, as used
    --  for motor harmonic rejection.
-   type Axis is (Roll, Pitch, Yaw);
+   subtype Axis is Adaflight.Axes.Axis;
    type Axis_Signals is array (Axis) of Signal;
 
    type Weighted_Notch is record
