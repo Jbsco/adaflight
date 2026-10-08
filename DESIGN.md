@@ -106,6 +106,10 @@ ledger. The deviations so far:
   hyperbolic TPA curve's two PID percentages exclude zero, where the reference's table is
   infinite or undefined, and the throttle minimum check stays below 2000, where the
   reference's throttle scaling divides by zero.
+- The failsafe compares its deadlines through the wrapping difference of the millisecond
+  counters, where the reference compares the counters directly in three places. The two
+  agree while the counter is below its wrap, which the recorded vectors stay under; past
+  it the reference's deadlines invert for up to 49.7 days.
 
 ## D7. Contribution conventions (2026-10-08)
 
@@ -226,3 +230,14 @@ argument clamped to the cosine range where the reference takes the root of a neg
 number. Neither case occurs in the recorded vectors, which replay bit for bit. The
 accelerometer path, the magnetometer and course-over-ground heading errors, and the
 headfree frame are not in this unit.
+
+## D18. The failsafe reprocess loop is bounded (2026-10-08)
+
+The reference re-evaluates the failsafe stage within one update until a stage holds. The
+stages form a chain of at most five within one update, because the link state is fixed
+for the update and no stage returns to a stage it left under the same link state, so
+`Adaflight.Failsafe.Update` runs the stage dispatch in a loop bounded at eight passes and
+exits when a stage holds. The bound keeps the termination proof trivial and never
+triggers; the transient stages (loss detected, landed, recovered) are checked by the
+vectors, which never leave an update in one. The event counter saturates where the
+reference's 16-bit counter would overflow after 32767 failsafe events.
