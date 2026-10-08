@@ -2,7 +2,7 @@ with Adaflight.Maths; use Adaflight.Maths;
 
 package body Adaflight.PID_Config with SPARK_Mode is
 
-   subtype Loop_Dt is Float range 1.0e-6 .. 0.1;
+   subtype Loop_Dt is Float range 1.0e-4 .. 0.1;
 
    function Coefficients_Of (G : Axis_Gains) return Coefficients
      with Post => Coefficients_Of'Result.Kp <= 8.1 and then Coefficients_Of'Result.Ki <= 61.2

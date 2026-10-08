@@ -20,9 +20,9 @@ package Adaflight.PID_Config with SPARK_Mode, Pure is
    D_Max_Gain_Factor  : constant Float := 0.00008;
    Feedforward_Rx_Dt  : constant Float := 1.0 / 250.0;
 
-   subtype Loop_Time_Us is Natural range 1 .. 100_000;
-   subtype Seconds is Float range 1.0e-6 .. 0.1;
-   subtype Frequency is Float range 10.0 .. 1.0e6;
+   subtype Loop_Time_Us is Natural range 100 .. 100_000;
+   subtype Seconds is Float range 1.0e-4 .. 0.1;
+   subtype Frequency is Float range 10.0 .. 1.0e4;
 
    type Coefficients is record
       Kp : Float range 0.0 .. 8.1 := 0.0;
@@ -32,7 +32,10 @@ package Adaflight.PID_Config with SPARK_Mode, Pure is
    end record;
 
    type Axis_Coefficients is array (Axis) of Coefficients;
-   type Axis_Floats is array (Axis) of Float;
+   subtype Velocity is Float range 0.0 .. 5000.0;
+   subtype D_Max_Ratio is Float range 1.0 .. 250.0;
+   type Axis_Velocities is array (Axis) of Velocity;
+   type Axis_Ratios is array (Axis) of D_Max_Ratio;
 
    type Dyn_Lowpass is (None, PT1, SVF, PT2, PT3);
 
@@ -49,7 +52,7 @@ package Adaflight.PID_Config with SPARK_Mode, Pure is
       Horizon_Limit_Sticks_Inv   : Float range 0.49 .. 10.1 := 1.0;
       Horizon_Limit_Degrees      : Float range 10.0 .. 250.0 := 135.0;
       Horizon_Limit_Degrees_Inv  : Float range 0.0039 .. 0.11 := 0.0074;
-      Max_Velocity               : Axis_Floats := (others => 0.0);
+      Max_Velocity               : Axis_Velocities := (others => 0.0);
       Anti_Gravity_Gain          : Gain := 0;
       Anti_Gravity_Osd_Cutoff    : Float range 0.0 .. 6.25 := 0.0;
       Anti_Gravity_P_Gain        : Float range 0.0 .. 0.0085 := 0.0;
@@ -79,7 +82,7 @@ package Adaflight.PID_Config with SPARK_Mode, Pure is
       Launch_Control_Angle_Limit : Natural range 0 .. 80 := 0;
       Launch_Control_Ki          : Float range 0.0 .. 49.0 := 0.0;
       Thrust_Linearization       : Float range 0.0 .. 1.5 := 0.0;
-      D_Max_Percent              : Axis_Floats := (others => 1.0);
+      D_Max_Percent              : Axis_Ratios := (others => 1.0);
       D_Max_Gyro_Gain            : Float range 0.0 .. 0.00023 := 0.0;
       D_Max_Setpoint_Gain        : Float range 0.0 .. 0.00046 := 0.0;
       Feedforward_Transition     : Float range 0.0 .. 1.0 := 0.0;
