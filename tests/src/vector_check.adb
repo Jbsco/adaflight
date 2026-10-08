@@ -8,8 +8,10 @@ with Ada.Strings.Fixed;
 with Ada.Text_IO;
 with Ada.Unchecked_Conversion;
 with Interfaces;
+with Adaflight.Axes;
 with Adaflight.Maths;
 with Adaflight.Filters;
+with Adaflight.Rates;
 with Adaflight.Vectors;
 with Adaflight.PWL;
 with Adaflight.SDFT;
@@ -28,6 +30,7 @@ with Adaflight.Chirp;
 procedure Vector_Check is
 
    use Ada.Text_IO;
+   use Adaflight.Axes;
    use Adaflight.Maths;
    use Adaflight.Filters;
    use Adaflight.Vectors;
@@ -814,6 +817,30 @@ procedure Vector_Check is
       end if;
    end Check_Chirp_Line;
 
+   procedure Check_Rates_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "rate" then
+         declare
+            A : constant Adaflight.Axes.Axis := Adaflight.Axes.Axis'Val (Integer'Value (Str (3)));
+            P : Adaflight.Rates.Profile;
+            C : constant Adaflight.Rates.Command := Flt (9);
+         begin
+            P.Kind := Adaflight.Rates.Curve_Kind'Val (Integer'Value (Str (2)));
+            P.RC_Rates (A) := Integer'Value (Str (4));
+            P.RC_Expo (A) := Integer'Value (Str (5));
+            P.Super_Rates (A) := Integer'Value (Str (6));
+            P.Limits (A) := Integer'Value (Str (7));
+            P.Quick_Expo := Str (8) = "1";
+            Record_Result ("rate." & Adaflight.Rates.Curve_Kind'Image (P.Kind), Bits (10),
+                           To_Bits (Adaflight.Rates.Apply (P, A, C, abs C)));
+         end;
+      else
+         Put_Line ("unknown rates case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Rates_Line;
+
    --  The twiddle table is static; this confirms it against the fast
    --  trigonometry it was computed from.
    procedure Check_Twiddles is
@@ -853,8 +880,10 @@ procedure Vector_Check is
                   Check_Bytes_Line;
                elsif Kind = "extra" then
                   Check_Extra_Line;
-               else
+               elsif Kind = "chirp" then
                   Check_Chirp_Line;
+               else
+                  Check_Rates_Line;
                end if;
             end if;
          end;
@@ -873,6 +902,7 @@ begin
    Run (Dir & "/bytes.csv", "bytes");
    Run (Dir & "/extra.csv", "extra");
    Run (Dir & "/chirp.csv", "chirp");
+   Run (Dir & "/rates.csv", "rates");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
