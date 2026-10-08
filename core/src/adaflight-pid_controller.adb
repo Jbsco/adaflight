@@ -32,6 +32,23 @@ package body Adaflight.PID_Controller with SPARK_Mode is
       S.Stabilisation_Enabled := Enabled;
    end Set_Stabilisation;
 
+   function Apply_Thrust_Linearization (R : Runtime; Motor : Unit_Interval) return Float is
+      E   : constant Float := R.Thrust_Linearization;
+      Inv : constant Unit_Interval := 1.0 - Motor;
+   begin
+      return Motor * (1.0 + E * Inv * (1.0 + E * (Inv - Motor)));
+   end Apply_Thrust_Linearization;
+
+   function Compensate_Thrust_Linearization (R : Runtime; Throttle : Unit_Interval) return Float is
+      E : constant Float := R.Thrust_Linearization;
+   begin
+      if E /= 0.0 then
+         return Throttle * (1.0 - E * (1.0 - Throttle));
+      else
+         return Throttle;
+      end if;
+   end Compensate_Thrust_Linearization;
+
    ---------------------------
    -- Update_Throttle_Terms --
    ---------------------------
