@@ -258,6 +258,6 @@ package body Adaflight.Powers with SPARK_Mode is
        126 => 2.0 ** 126,
        127 => 2.0 ** 127);
 
-   function Power_Of_Two (E : Binary_Exponent) return Float is (Powers_Of_Two (E));
+   function Power_Of_Two (E : Normal_Exponent) return Float is (Powers_Of_Two (E));
 
 end Adaflight.Powers;
