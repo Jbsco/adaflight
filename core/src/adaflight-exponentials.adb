@@ -7,6 +7,12 @@ package body Adaflight.Exponentials with SPARK_Mode is
 
    Mantissa_Scale : constant Float := 2.0 ** (-23);
 
+   --  Product of a power of two and the polynomial factor, bounded by the
+   --  two input ranges alone.
+   function Scaled (Scale : Float; Poly : Float) return Float is (Scale * Poly)
+     with Pre  => Scale in 2.0 ** (-125) .. 2.0 ** 126 and then Poly in 0.99 .. 2.1,
+          Post => Scaled'Result in 0.0 .. Exp_Result_Max;
+
    --  Mantissa bits as the float in [1.0, 2.0) they denote.
    function Mantissa_Value (Bits : Interfaces.Unsigned_32) return Float is
      (1.0 + Float (Bits and 16#7F_FFFF#) * Mantissa_Scale)
@@ -27,9 +33,9 @@ package body Adaflight.Exponentials with SPARK_Mode is
    ----------------
 
    function Exp_Approx (X : Exp_Argument) return Float is
-      Scaled    : constant Float := 12102203.1615614 * X + 1065353216.0;
+      Mapped    : constant Float := 12102203.1615614 * X + 1065353216.0;
       Clamped   : constant Float :=
-        Float'Max (0.0, Float'Min (Scaled, 2139095040.0));
+        Float'Max (0.0, Float'Min (Mapped, 2139095040.0));
       Truncated : constant Float := Float'Truncation (Clamped);
       Bits      : constant Interfaces.Unsigned_32 := Interfaces.Unsigned_32 (Truncated);
       Exponent  : constant Integer := Integer (Interfaces.Shift_Right (Bits, 23));
@@ -39,12 +45,12 @@ package body Adaflight.Exponentials with SPARK_Mode is
       T2        : constant Float := 0.312146713032169896138863 + B * T3;
       Poly      : constant Float := 0.509871020343597804469416 + B * T2;
    begin
-      pragma Assert (Exponent in 1 .. 253);
+      pragma Assert (Exponent in 2 .. 253);
       pragma Assert (T4 in 0.01 .. 0.03);
       pragma Assert (T3 in 0.17 .. 0.23);
       pragma Assert (T2 in 0.48 .. 0.78);
       pragma Assert (Poly in 0.99 .. 2.1);
-      return Power_Of_Two (Exponent - 127) * Poly;
+      return Scaled (Power_Of_Two (Exponent - 127), Poly);
    end Exp_Approx;
 
    ----------------
