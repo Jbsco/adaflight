@@ -15,6 +15,7 @@ with Adaflight.Rates;
 with Adaflight.PID_Profile;
 with Adaflight.PID_Config;
 with Adaflight.PID_Filters;
+with Adaflight.PID_Controller;
 with Adaflight.Vectors;
 with Adaflight.PWL;
 with Adaflight.SDFT;
@@ -846,6 +847,9 @@ procedure Vector_Check is
 
    --  PID runtime configuration: the profile inputs occupy fields 5 to 78
    --  and the expected runtime values follow.
+   Profiles : array (0 .. 299) of Adaflight.PID_Profile.Profile;
+   Profile_CRSF : array (0 .. 299) of Boolean := (others => False);
+
    procedure Check_PID_Init_Line is
       use Adaflight.PID_Profile;
       use Adaflight.PID_Config;
@@ -870,6 +874,7 @@ procedure Vector_Check is
       end Expect_Int;
       Loop_Time : constant Integer := Integer'Value (Str (3));
       Is_CRSF   : constant Boolean := Str (4) = "1";
+      Index     : constant Integer := Integer'Value (Str (2));
    begin
       for A in Adaflight.Axes.Axis loop
          P.Gains (A).P := Next_Int; P.Gains (A).I := Next_Int; P.Gains (A).D := Next_Int;
@@ -904,6 +909,8 @@ procedure Vector_Check is
       P.Level_Race_Mode := Next_Int = 1; P.TPA_Rate := Next_Int; P.TPA_Breakpoint := Next_Int;
       P.TPA_Low_Rate := Next_Int; P.TPA_Low_Breakpoint := Next_Int; P.TPA_Low_Always := Next_Int = 1;
       P.Landing_Disarm_Threshold := Next_Int;
+      Profiles (Index) := P;
+      Profile_CRSF (Index) := Is_CRSF;
       Configure (R, P, Loop_Time, Has_Acc => False, Serial_Rx_Is_CRSF => Is_CRSF);
       Expect_Float ("dt", R.Dt); Expect_Float ("frequency", R.PID_Frequency);
       for A in Adaflight.Axes.Axis loop
@@ -1031,6 +1038,19 @@ procedure Vector_Check is
       P.Angle_Feedforward_Smoothing_Ms := Next_Int; P.Horizon_Delay_Ms := Next_Int;
       R.Dt := Float (Loop_Time) * 1.0e-6;
       Init (S, P, R);
+      declare
+         Index : constant Integer := Integer'Value (Str (2));
+      begin
+         Profiles (Index).Dterm_Notch_Hz := P.Dterm_Notch_Hz;
+         Profiles (Index).Dterm_Notch_Cutoff := P.Dterm_Notch_Cutoff;
+         Profiles (Index).Dterm_LPF1_Static_Hz := P.Dterm_LPF1_Static_Hz;
+         Profiles (Index).Dterm_LPF2_Static_Hz := P.Dterm_LPF2_Static_Hz;
+         Profiles (Index).Dterm_LPF2_Type := P.Dterm_LPF2_Type;
+         Profiles (Index).Yaw_Lowpass_Hz := P.Yaw_Lowpass_Hz;
+         Profiles (Index).Anti_Gravity_Cutoff_Hz := P.Anti_Gravity_Cutoff_Hz;
+         Profiles (Index).Throttle_Boost_Cutoff := P.Throttle_Boost_Cutoff;
+         Profiles (Index).Angle_Feedforward_Smoothing_Ms := P.Angle_Feedforward_Smoothing_Ms;
+      end;
       Expect_Int ("notch_used", Boolean'Pos (S.Notch_Used));
       if S.Notch_Used then
          for A in Adaflight.Axes.Axis loop
@@ -1078,12 +1098,64 @@ procedure Vector_Check is
       end if;
    end Check_PID_Filters_Line;
 
+   Step_State   : Adaflight.PID_Controller.State;
+   Step_Runtime : Adaflight.PID_Config.Runtime;
+   Step_Profile : Adaflight.PID_Profile.Profile;
+
+   procedure Check_PID_Step_Line is
+      use Adaflight.PID_Profile;
+      use Adaflight.PID_Config;
+      use Adaflight.PID_Controller;
+      Index    : constant Integer := Integer'Value (Str (2));
+      Step     : constant Integer := Integer'Value (Str (3));
+      Loop_Time : constant Integer := Integer'Value (Str (4));
+      Inp      : Inputs;
+      K        : Positive := 18;
+      procedure Expect_Float (Name : String; Actual : Float) is
+      begin
+         Record_Result ("pidstep." & Name, Bits (K), To_Bits (Actual));
+         K := K + 1;
+      end Expect_Float;
+   begin
+      if Step = 0 then
+         Step_Profile := Profiles (Index);
+         Step_Profile.TPA_Terms := TPA_Mode'Val (Integer'Value (Str (5)));
+         Configure (Step_Runtime, Step_Profile, Loop_Time, Has_Acc => False,
+                    Serial_Rx_Is_CRSF => Profile_CRSF (Index));
+         Init (Step_State, Step_Profile, Step_Runtime);
+         Set_Stabilisation (Step_State, True);
+      end if;
+      Inp.Anti_Gravity_Enabled := Str (6) = "1";
+      Inp.Zero_Throttle_Iterm_Reset := Str (7) = "1";
+      for A in Adaflight.Axes.Axis loop
+         Inp.Gyro (A) := Flt (8 + Adaflight.Axes.Axis'Pos (A));
+         Inp.Setpoint (A) := Flt (11 + Adaflight.Axes.Axis'Pos (A));
+         Inp.Feedforward (A) := Flt (14 + Adaflight.Axes.Axis'Pos (A));
+      end loop;
+      Update_Throttle_Terms (Step_State, Step_Runtime, Flt (17));
+      Expect_Float ("tpa_factor", Step_State.TPA_Factor);
+      Expect_Float ("anti_gravity_throttle_d", Step_State.Anti_Gravity_Throttle_D);
+      Update (Step_State, Step_Runtime, Step_Profile, Inp);
+      Expect_Float ("iterm_accelerator", Step_State.Iterm_Accelerator);
+      for A in Adaflight.Axes.Axis loop
+         Expect_Float ("p", Step_State.Data (A).P); Expect_Float ("i", Step_State.Data (A).I);
+         Expect_Float ("d", Step_State.Data (A).D); Expect_Float ("f", Step_State.Data (A).F);
+         Expect_Float ("sum", Step_State.Data (A).Sum);
+      end loop;
+      if K /= NF + 1 then
+         Put_Line ("pidstep: consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
+         Failures := Failures + 1;
+      end if;
+   end Check_PID_Step_Line;
+
    procedure Check_PID_Line is
    begin
       if Str (1) = "pidinit" then
          Check_PID_Init_Line;
       elsif Str (1) = "pidfilt" then
          Check_PID_Filters_Line;
+      elsif Str (1) = "pidstep" then
+         Check_PID_Step_Line;
       else
          Put_Line ("unknown pid case " & Str (1));
          Failures := Failures + 1;
