@@ -81,6 +81,9 @@ ledger. The deviations so far:
   reference emits the value 128 as a single bare byte 16#80#, which its own decoder
   treats as a continuation byte and rejects. The checker expects 16#80# 16#01# for that
   value and the recorded result for every other.
+- The PID runtime's low throttle TPA multiplier is zero when the low breakpoint is zero.
+  The reference divides by zero there and never reads the result. The checker expects
+  zero wherever the recorded value is infinite or undefined.
 
 ## D7. Linear history (2026-10-08)
 
@@ -134,3 +137,13 @@ helper with a postcondition, so the bit-level model of the float does not reach 
 arithmetic that follows. A function that reparses characters it already scanned carries a
 quantified invariant the provers handle badly, so the GPS coordinate parser collects its
 digits once into a bounded array and consumes them by count.
+
+## D12. Derived constant bounds carry rounding slack (2026-10-08)
+
+A runtime constant derived from bounded settings gets a range a little wider than the
+exact product or quotient of the setting bounds: 1001 where the arithmetic gives 1000,
+101 where it gives 100. A bound at the exact rounded result costs the provers minutes per
+check and sometimes fails, as the throttle PID attenuation multiplier did at 100.000001.
+The slack changes nothing downstream, where the bounds only exclude overflow and
+undefined values. A helper whose callers need different bounds states them as conditions
+on its input, so the postcondition carries what each caller needs.
