@@ -23,6 +23,7 @@ with Adaflight.GPS_Conversion;
 with Adaflight.Sensor_Alignment;
 with Adaflight.Color;
 with Adaflight.Exponentials;
+with Adaflight.Chirp;
 
 procedure Vector_Check is
 
@@ -774,6 +775,45 @@ procedure Vector_Check is
       end if;
    end Check_Extra_Line;
 
+   CG : Adaflight.Chirp.Generator;
+
+   procedure Check_Chirp_Line is
+      Name : constant String := Str (1);
+      Running : Boolean;
+   begin
+      if Name = "fmod" then
+         Record_Result (Name, Bits (4), To_Bits (Adaflight.Chirp.Fmod (Flt (2), Flt (3))));
+      elsif Name = "chirpinit" then
+         Adaflight.Chirp.Init (CG, Flt (3), Flt (4), Flt (5), Adaflight.Chirp.Unsigned_32'Value (Str (6)));
+         Record_Result ("chirpinit.ts", Bits (7), To_Bits (CG.Ts));
+         Record_Int ("chirpinit.n", Int (8), Integer_64 (CG.N));
+         Record_Result ("chirpinit.beta", Bits (9), To_Bits (CG.Beta));
+         Record_Result ("chirpinit.k0", Bits (10), To_Bits (CG.K0));
+         Record_Result ("chirpinit.k1", Bits (11), To_Bits (CG.K1));
+      elsif Name = "chirp" then
+         Adaflight.Chirp.Update (CG, Running);
+         Record_Int ("chirp.running", Int (3), Boolean'Pos (Running));
+         Record_Int ("chirp.count", Int (4), Integer_64 (CG.Count));
+         Record_Result ("chirp.fchirp", Bits (5), To_Bits (CG.F_Chirp));
+         Record_Result ("chirp.sinarg", Bits (6), To_Bits (CG.Sin_Arg));
+         Record_Int ("chirp.finished", Int (7), Boolean'Pos (CG.Is_Finished));
+      elsif Name = "chirpend" then
+         while CG.Count < CG.N + 3 and then not CG.Is_Finished loop
+            Adaflight.Chirp.Update (CG, Running);
+         end loop;
+         for K in 1 .. 3 loop
+            Adaflight.Chirp.Update (CG, Running);
+         end loop;
+         Record_Int ("chirpend.count", Int (3), Integer_64 (CG.Count));
+         Record_Int ("chirpend.finished", Int (4), Boolean'Pos (CG.Is_Finished));
+         Record_Result ("chirpend.fchirp", Bits (5), To_Bits (CG.F_Chirp));
+         Record_Result ("chirpend.sinarg", Bits (6), To_Bits (CG.Sin_Arg));
+      else
+         Put_Line ("unknown chirp case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Chirp_Line;
+
    --  The twiddle table is static; this confirms it against the fast
    --  trigonometry it was computed from.
    procedure Check_Twiddles is
@@ -811,8 +851,10 @@ procedure Vector_Check is
                   Check_Common_Line;
                elsif Kind = "bytes" then
                   Check_Bytes_Line;
-               else
+               elsif Kind = "extra" then
                   Check_Extra_Line;
+               else
+                  Check_Chirp_Line;
                end if;
             end if;
          end;
@@ -830,6 +872,7 @@ begin
    Run (Dir & "/common.csv", "common");
    Run (Dir & "/bytes.csv", "bytes");
    Run (Dir & "/extra.csv", "extra");
+   Run (Dir & "/chirp.csv", "chirp");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
