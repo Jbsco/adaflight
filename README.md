@@ -73,7 +73,9 @@ flight control firmware this project measures itself against. Betaflight's algor
 feature set, and configuration surface define parity here. The test vectors under
 `tests/vectors` were recorded from a host build of Betaflight at commit af0638839 by a
 separate tool, so the checker holds the port to the reference's exact results. Betaflight
-is licensed under the GPL-3.0, and so is this project.
+is licensed under the GPL-3.0, and so is this project. The rate curve families keep the
+order of Betaflight's `rates_type` values and are named after their distinctive setting:
+super rate, acro plus, RC curve, actual, quick.
 
 ## License
 
