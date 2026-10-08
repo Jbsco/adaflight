@@ -61,6 +61,11 @@ package Adaflight.Maths with SPARK_Mode, Pure is
 
    function Sqrt_Bounded (X : Non_Negative_Signal) return Root_Signal;
 
+   --  Square root of any non-negative finite value.
+   function Sqrt_Non_Negative (X : Float) return Float
+     with Pre  => X >= 0.0,
+          Post => Sqrt_Non_Negative'Result >= 0.0;
+
    --  Convex combination of two Signals. The result is saturated at the
    --  Signal bound: in exact arithmetic it lies between From and To, and the
    --  saturation only absorbs the rounding of the last operation at the
