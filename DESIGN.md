@@ -87,6 +87,11 @@ ledger. The deviations so far:
 - The PID runtime's low throttle TPA multiplier is zero when the low breakpoint is zero.
   The reference divides by zero there and never reads the result. The checker expects
   zero wherever the recorded value is infinite or undefined.
+- The PID filters are initialized from the configured runtime constants. The reference
+  initializes them before it derives those constants, so after a profile change its iterm
+  relax lowpass keeps the previous profile's cutoff until the next initialization; at boot
+  it initializes twice and the second pass reads the first. The checker records the second
+  pass.
 
 ## D7. Linear history (2026-10-08)
 
