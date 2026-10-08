@@ -57,6 +57,9 @@ the vector checks stay bit-exact. The price is one compare-select per first-orde
 and three per state-variable filter step. The cost on a flight target is to be measured
 before the control loop lands. The alternative, a ghost lemma carrying the tie-to-even
 argument as a single assume, is recorded here and rejected while Gold is the target.
+The state-variable filter coefficients follow the same rule: the warped angle saturates at
+the tangent approximation's bound inside the filter, so a caller proves nothing about the
+product of cutoff and period.
 
 ## D6. Parity criterion: bit-exact on the host (2026-10-08)
 

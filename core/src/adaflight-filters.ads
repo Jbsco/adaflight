@@ -21,8 +21,6 @@ package Adaflight.Filters with SPARK_Mode, Pure is
    --  Product of a cutoff frequency and a sample period, limited so that
    --  the coefficient computations of the state-variable filters stay away
    --  from the tangent singularity at half the sample rate.
-   Max_Normalized_Frequency : constant := 0.48;
-
    ---------------------------------------------------------------------------
    --  First, second, and third order low-pass filters
    ---------------------------------------------------------------------------
@@ -100,11 +98,9 @@ package Adaflight.Filters with SPARK_Mode, Pure is
    end record;
 
    procedure SVF_Lowpass_Init
-     (Filt : out SVF_Lowpass; Cutoff : Frequency; Dt : Period)
-     with Pre => Cutoff * Dt <= Max_Normalized_Frequency;
+     (Filt : out SVF_Lowpass; Cutoff : Frequency; Dt : Period);
    procedure SVF_Lowpass_Update
-     (Filt : in out SVF_Lowpass; Cutoff : Frequency; Dt : Period)
-     with Pre => Cutoff * Dt <= Max_Normalized_Frequency;
+     (Filt : in out SVF_Lowpass; Cutoff : Frequency; Dt : Period);
    procedure SVF_Lowpass_Apply
      (Filt : in out SVF_Lowpass; Input : Signal; Output : out Signal)
      with Inline;
@@ -118,11 +114,9 @@ package Adaflight.Filters with SPARK_Mode, Pure is
    end record;
 
    procedure SVF_Notch_Init
-     (Filt : out SVF_Notch; Center : Frequency; Dt : Period; Q : Quality)
-     with Pre => Center * Dt <= Max_Normalized_Frequency;
+     (Filt : out SVF_Notch; Center : Frequency; Dt : Period; Q : Quality);
    procedure SVF_Notch_Update
-     (Filt : in out SVF_Notch; Center : Frequency; Dt : Period; Q : Quality)
-     with Pre => Center * Dt <= Max_Normalized_Frequency;
+     (Filt : in out SVF_Notch; Center : Frequency; Dt : Period; Q : Quality);
    procedure SVF_Notch_Apply
      (Filt : in out SVF_Notch; Input : Signal; Output : out Signal)
      with Inline;
@@ -143,12 +137,10 @@ package Adaflight.Filters with SPARK_Mode, Pure is
 
    procedure Weighted_Notch_Init
      (Filt : out Weighted_Notch; Center : Frequency; Dt : Period;
-      Q : Quality; Weight : Unit_Interval)
-     with Pre => Center * Dt <= Max_Normalized_Frequency;
+      Q : Quality; Weight : Unit_Interval);
    procedure Weighted_Notch_Update
      (Filt : in out Weighted_Notch; Center : Frequency; Dt : Period;
-      Q : Quality; Weight : Unit_Interval)
-     with Pre => Center * Dt <= Max_Normalized_Frequency;
+      Q : Quality; Weight : Unit_Interval);
    procedure Weighted_Notch_Apply (Filt : in out Weighted_Notch; Values : in out Axis_Signals)
      with Inline;
 
