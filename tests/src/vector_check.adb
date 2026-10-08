@@ -12,6 +12,8 @@ with Adaflight.Axes;
 with Adaflight.Maths;
 with Adaflight.Filters;
 with Adaflight.Rates;
+with Adaflight.PID_Profile;
+with Adaflight.PID_Config;
 with Adaflight.Vectors;
 with Adaflight.PWL;
 with Adaflight.SDFT;
@@ -108,7 +110,7 @@ procedure Vector_Check is
       Tallies.Include (Name, T);
    end Record_Int;
 
-   Max_Fields : constant := 48;
+   Max_Fields : constant := 200;
    type Fields is array (1 .. Max_Fields) of String (1 .. 400);
    type Field_Lengths is array (1 .. Max_Fields) of Natural;
 
@@ -841,6 +843,150 @@ procedure Vector_Check is
       end if;
    end Check_Rates_Line;
 
+   --  PID runtime configuration: the profile inputs occupy fields 5 to 78
+   --  and the expected runtime values follow.
+   procedure Check_PID_Init_Line is
+      use Adaflight.PID_Profile;
+      use Adaflight.PID_Config;
+      P : Profile;
+      R : Runtime;
+      K : Positive := 5;
+      function Next_Int return Integer is
+         V : constant Integer := Integer'Value (Str (K));
+      begin
+         K := K + 1;
+         return V;
+      end Next_Int;
+      procedure Expect_Float (Name : String; Actual : Float) is
+      begin
+         Record_Result ("pidinit." & Name, Bits (K), To_Bits (Actual));
+         K := K + 1;
+      end Expect_Float;
+      procedure Expect_Int (Name : String; Actual : Integer_64) is
+      begin
+         Record_Int ("pidinit." & Name, Int (K), Actual);
+         K := K + 1;
+      end Expect_Int;
+      Loop_Time : constant Integer := Integer'Value (Str (3));
+      Is_CRSF   : constant Boolean := Str (4) = "1";
+   begin
+      for A in Adaflight.Axes.Axis loop
+         P.Gains (A).P := Next_Int; P.Gains (A).I := Next_Int; P.Gains (A).D := Next_Int;
+         P.Gains (A).F := Next_Int; P.Gains (A).S := Next_Int; P.D_Max (A) := Next_Int;
+      end loop;
+      P.Level.P := Next_Int; P.Level.I := Next_Int; P.Level.D := Next_Int; P.Level.F := Next_Int;
+      P.Angle_Earth_Ref := Next_Int; P.Horizon_Ignore_Sticks := Next_Int = 1;
+      P.Horizon_Limit_Degrees := Next_Int; P.Horizon_Delay_Ms := Next_Int;
+      P.Rate_Accel_Limit := Next_Int; P.Yaw_Rate_Accel_Limit := Next_Int;
+      P.Anti_Gravity_Gain := Next_Int; P.Anti_Gravity_P_Gain := Next_Int;
+      P.Crash_Time := Next_Int; P.Crash_Delay := Next_Int; P.Crash_Recovery_Angle := Next_Int;
+      P.Crash_Recovery_Rate := Next_Int; P.Crash_Gyro_Threshold := Next_Int;
+      P.Crash_Dterm_Threshold := Next_Int; P.Crash_Setpoint_Threshold := Next_Int;
+      P.Crash_Limit_Yaw := Next_Int;
+      P.Iterm_Windup := Next_Int; P.PID_Sum_Limit := Next_Int; P.PID_Sum_Limit_Yaw := Next_Int;
+      P.Iterm_Rotation := Next_Int = 1;
+      P.Iterm_Relax := Iterm_Relax_Mode'Val (Next_Int);
+      P.Iterm_Relax_Type := Iterm_Relax_Source'Val (Next_Int);
+      P.Iterm_Relax_Cutoff := Next_Int;
+      P.Acro_Trainer_Angle_Limit := Next_Int; P.Acro_Trainer_Lookahead_Ms := Next_Int;
+      P.Acro_Trainer_Debug_Axis := Next_Int; P.Acro_Trainer_Gain := Next_Int;
+      P.Dterm_LPF1_Dyn_Min_Hz := Next_Int; P.Dterm_LPF1_Dyn_Max_Hz := Next_Int;
+      P.Dterm_LPF1_Dyn_Expo := Next_Int; P.Dterm_LPF1_Type := Lowpass_Kind'Val (Next_Int);
+      P.Launch_Control := Launch_Control_Mode'Val (Next_Int);
+      P.Launch_Control_Angle_Limit := Next_Int; P.Launch_Control_Gain := Next_Int;
+      P.Thrust_Linearization := Next_Int; P.D_Max_Gain := Next_Int; P.D_Max_Advance := Next_Int;
+      P.Feedforward_Transition := Next_Int;
+      P.Feedforward_Average := Feedforward_Averaging'Val (Next_Int);
+      P.Feedforward_Smooth_Factor := Next_Int; P.Feedforward_Jitter_Factor := Next_Int;
+      P.Feedforward_Boost := Next_Int; P.Feedforward_Max_Rate_Limit := Next_Int;
+      P.Feedforward_Yaw_Hold_Gain := Next_Int; P.Feedforward_Yaw_Hold_Time := Next_Int;
+      P.Level_Race_Mode := Next_Int = 1; P.TPA_Rate := Next_Int; P.TPA_Breakpoint := Next_Int;
+      P.TPA_Low_Rate := Next_Int; P.TPA_Low_Breakpoint := Next_Int; P.TPA_Low_Always := Next_Int = 1;
+      P.Landing_Disarm_Threshold := Next_Int;
+      Configure (R, P, Loop_Time, Has_Acc => False, Serial_Rx_Is_CRSF => Is_CRSF);
+      Expect_Float ("dt", R.Dt); Expect_Float ("frequency", R.PID_Frequency);
+      for A in Adaflight.Axes.Axis loop
+         Expect_Float ("kp", R.Coefficient (A).Kp); Expect_Float ("ki", R.Coefficient (A).Ki);
+         Expect_Float ("kd", R.Coefficient (A).Kd); Expect_Float ("kf", R.Coefficient (A).Kf);
+      end loop;
+      Expect_Float ("angle_gain", R.Angle_Gain); Expect_Float ("angle_ff", R.Angle_Feedforward_Gain);
+      Expect_Float ("earth_ref", R.Angle_Earth_Ref); Expect_Float ("horizon_gain", R.Horizon_Gain);
+      Expect_Float ("horizon_ignore", R.Horizon_Ignore_Sticks);
+      Expect_Float ("horizon_sticks", R.Horizon_Limit_Sticks);
+      Expect_Float ("horizon_sticks_inv", R.Horizon_Limit_Sticks_Inv);
+      Expect_Float ("horizon_degrees", R.Horizon_Limit_Degrees);
+      Expect_Float ("horizon_degrees_inv", R.Horizon_Limit_Degrees_Inv);
+      for A in Adaflight.Axes.Axis loop
+         Expect_Float ("max_velocity", R.Max_Velocity (A));
+      end loop;
+      Expect_Int ("ag_gain", Integer_64 (R.Anti_Gravity_Gain));
+      Expect_Float ("ag_osd", R.Anti_Gravity_Osd_Cutoff); Expect_Float ("ag_p", R.Anti_Gravity_P_Gain);
+      Expect_Int ("crash_time", Integer_64 (R.Crash_Time_Limit_Us));
+      Expect_Int ("crash_delay", Integer_64 (R.Crash_Time_Delay_Us));
+      Expect_Int ("crash_angle", Integer_64 (R.Crash_Recovery_Angle_Dd));
+      Expect_Float ("crash_rate", R.Crash_Recovery_Rate); Expect_Float ("crash_gyro", R.Crash_Gyro_Threshold);
+      Expect_Float ("crash_dterm", R.Crash_Dterm_Threshold);
+      Expect_Float ("crash_setpoint", R.Crash_Setpoint_Threshold); Expect_Float ("crash_yaw", R.Crash_Limit_Yaw);
+      Expect_Float ("iterm_limit", R.Iterm_Limit); Expect_Float ("iterm_limit_yaw", R.Iterm_Limit_Yaw);
+      Expect_Int ("iterm_rotation", Boolean'Pos (R.Iterm_Rotation));
+      Expect_Int ("iterm_relax", Iterm_Relax_Mode'Pos (R.Iterm_Relax));
+      Expect_Int ("iterm_relax_type", Iterm_Relax_Source'Pos (R.Iterm_Relax_Type));
+      Expect_Int ("iterm_relax_cutoff", Integer_64 (R.Iterm_Relax_Cutoff));
+      Expect_Float ("acro_angle", R.Acro_Trainer_Angle_Limit);
+      Expect_Float ("acro_lookahead", R.Acro_Trainer_Lookahead);
+      Expect_Int ("acro_axis", Integer_64 (R.Acro_Trainer_Debug_Axis));
+      Expect_Float ("acro_gain", R.Acro_Trainer_Gain);
+      Expect_Int ("dyn_lpf", Dyn_Lowpass'Pos (R.Dyn_LPF_Filter));
+      Expect_Int ("dyn_min", Integer_64 (R.Dyn_LPF_Min)); Expect_Int ("dyn_max", Integer_64 (R.Dyn_LPF_Max));
+      Expect_Int ("dyn_expo", Integer_64 (R.Dyn_LPF_Curve_Expo));
+      Expect_Int ("launch_mode", Launch_Control_Mode'Pos (R.Launch_Control));
+      Expect_Int ("launch_angle", Integer_64 (R.Launch_Control_Angle_Limit));
+      Expect_Float ("launch_ki", R.Launch_Control_Ki); Expect_Float ("thrust_linear", R.Thrust_Linearization);
+      for A in Adaflight.Axes.Axis loop
+         Expect_Float ("dmax_percent", R.D_Max_Percent (A));
+      end loop;
+      Expect_Float ("dmax_gyro", R.D_Max_Gyro_Gain); Expect_Float ("dmax_setpoint", R.D_Max_Setpoint_Gain);
+      Expect_Float ("ff_transition", R.Feedforward_Transition);
+      Expect_Float ("ff_transition_inv", R.Feedforward_Transition_Inv);
+      Expect_Int ("ff_averaging", Feedforward_Averaging'Pos (R.Feedforward_Average));
+      Expect_Float ("ff_smooth", R.Feedforward_Smooth_Factor);
+      Expect_Int ("ff_jitter", Integer_64 (R.Feedforward_Jitter_Factor));
+      Expect_Float ("ff_jitter_inv", R.Feedforward_Jitter_Factor_Inv);
+      Expect_Float ("ff_boost", R.Feedforward_Boost_Factor);
+      Expect_Int ("ff_max_rate", Integer_64 (R.Feedforward_Max_Rate_Limit));
+      Expect_Int ("ff_interpolate", Boolean'Pos (R.Feedforward_Interpolate));
+      Expect_Float ("ff_yaw_time", R.Feedforward_Yaw_Hold_Time);
+      Expect_Float ("ff_yaw_gain", R.Feedforward_Yaw_Hold_Gain);
+      Expect_Int ("race_mode", Boolean'Pos (R.Level_Race_Mode));
+      Expect_Float ("tpa_breakpoint", R.TPA_Breakpoint); Expect_Float ("tpa_multiplier", R.TPA_Multiplier);
+      Expect_Float ("tpa_low_breakpoint", R.TPA_Low_Breakpoint);
+      --  Declared deviation (DESIGN.md D6): an infinite or undefined low
+      --  multiplier in the reference is zero here.
+      if (Bits (K) and 16#7F80_0000#) = 16#7F80_0000# then
+         Record_Result ("pidinit.tpa_low_multiplier", 0, To_Bits (R.TPA_Low_Multiplier));
+         K := K + 1;
+      else
+         Expect_Float ("tpa_low_multiplier", R.TPA_Low_Multiplier);
+      end if;
+      Expect_Int ("tpa_low_always", Boolean'Pos (R.TPA_Low_Always));
+      Expect_Int ("ez_disarm", Boolean'Pos (R.Use_Ez_Disarm));
+      Expect_Float ("landing_threshold", R.Landing_Disarm_Threshold);
+      if K /= NF + 1 then
+         Put_Line ("pidinit: consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
+         Failures := Failures + 1;
+      end if;
+   end Check_PID_Init_Line;
+
+   procedure Check_PID_Line is
+   begin
+      if Str (1) = "pidinit" then
+         Check_PID_Init_Line;
+      else
+         Put_Line ("unknown pid case " & Str (1));
+         Failures := Failures + 1;
+      end if;
+   end Check_PID_Line;
+
    --  The twiddle table is static; this confirms it against the fast
    --  trigonometry it was computed from.
    procedure Check_Twiddles is
@@ -882,8 +1028,10 @@ procedure Vector_Check is
                   Check_Extra_Line;
                elsif Kind = "chirp" then
                   Check_Chirp_Line;
-               else
+               elsif Kind = "rates" then
                   Check_Rates_Line;
+               else
+                  Check_PID_Line;
                end if;
             end if;
          end;
@@ -903,6 +1051,7 @@ begin
    Run (Dir & "/extra.csv", "extra");
    Run (Dir & "/chirp.csv", "chirp");
    Run (Dir & "/rates.csv", "rates");
+   Run (Dir & "/pid.csv", "pid");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
