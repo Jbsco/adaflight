@@ -77,6 +77,15 @@ package Adaflight.PID_Profile with SPARK_Mode, Pure is
       Dterm_LPF1_Dyn_Max_Hz    : Hertz := 150;
       Dterm_LPF1_Dyn_Expo      : Natural range 0 .. 10 := 5;
       Dterm_LPF1_Type          : Lowpass_Kind := PT1;
+      Dterm_LPF1_Static_Hz     : Hertz := 75;
+      Dterm_LPF2_Static_Hz     : Hertz := 150;
+      Dterm_LPF2_Type          : Lowpass_Kind := PT1;
+      Dterm_Notch_Hz           : Hertz := 0;
+      Dterm_Notch_Cutoff       : Hertz := 160;
+      Yaw_Lowpass_Hz           : Natural range 0 .. 500 := 100;
+      Anti_Gravity_Cutoff_Hz   : Natural range 2 .. 50 := 5;
+      Throttle_Boost_Cutoff    : Natural range 5 .. 50 := 15;
+      Angle_Feedforward_Smoothing_Ms : Natural range 10 .. 250 := 80;
       Launch_Control           : Launch_Control_Mode := Normal;
       Launch_Control_Angle_Limit : Natural range 0 .. 80 := 0;
       Launch_Control_Gain      : Natural range 0 .. 200 := 40;
