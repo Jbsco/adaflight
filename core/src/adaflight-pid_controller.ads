@@ -72,6 +72,13 @@ package Adaflight.PID_Controller with SPARK_Mode, Pure is
 
    procedure Set_Stabilisation (S : in out State; Enabled : Boolean);
 
+   --  Motor output shaped so that thrust grows with the command, and the
+   --  inverse applied to the base throttle so hover is preserved.
+   function Apply_Thrust_Linearization (R : Runtime; Motor : Unit_Interval) return Float
+     with Post => Apply_Thrust_Linearization'Result in -8.0 .. 8.0;
+   function Compensate_Thrust_Linearization (R : Runtime; Throttle : Unit_Interval) return Float
+     with Post => Compensate_Thrust_Linearization'Result in -1.0 .. 1.0;
+
    --  One loop of the rate controller.
    procedure Update (S : in out State; R : Runtime; P : Profile; Inp : Inputs);
 
