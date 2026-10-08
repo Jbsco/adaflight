@@ -182,7 +182,7 @@ package body Adaflight.Filters with SPARK_Mode is
      (Filt : in out SVF_Lowpass; Cutoff : Frequency; Dt : Period)
    is
       Inv_Butterworth_Q : constant Float := 1.41421356237;
-      F         : constant Warped_Frequency := Tan_Approx (Pi * Cutoff * Dt);
+      F         : constant Warped_Frequency := Tan_Approx (Constrain_F (Pi * Cutoff * Dt, 0.0, Max_Tan_Argument));
       Inv_Denom : constant Float := 1.0 / (1.0 + F * (F + Inv_Butterworth_Q));
    begin
       Filt.A1 := Inv_Denom;
@@ -231,7 +231,7 @@ package body Adaflight.Filters with SPARK_Mode is
    procedure SVF_Notch_Update
      (Filt : in out SVF_Notch; Center : Frequency; Dt : Period; Q : Quality)
    is
-      F         : constant Warped_Frequency := Tan_Approx (Pi * Center * Dt);
+      F         : constant Warped_Frequency := Tan_Approx (Constrain_F (Pi * Center * Dt, 0.0, Max_Tan_Argument));
       Inv_Q     : constant Float := 1.0 / Q;
       Inv_Denom : constant Float := 1.0 / (1.0 + F * (F + Inv_Q));
    begin
@@ -282,7 +282,7 @@ package body Adaflight.Filters with SPARK_Mode is
      (Filt : in out Weighted_Notch; Center : Frequency; Dt : Period;
       Q : Quality; Weight : Unit_Interval)
    is
-      F     : constant Warped_Frequency := Tan_Approx (Pi * Center * Dt);
+      F     : constant Warped_Frequency := Tan_Approx (Constrain_F (Pi * Center * Dt, 0.0, Max_Tan_Argument));
       Inv_Q : constant Float := 1.0 / Q;
       A1    : constant Float := 1.0 / (1.0 + F * (F + Inv_Q));
    begin
