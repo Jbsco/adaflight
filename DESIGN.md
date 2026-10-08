@@ -241,3 +241,14 @@ exits when a stage holds. The bound keeps the termination proof trivial and neve
 triggers; the transient stages (loss detected, landed, recovered) are checked by the
 vectors, which never leave an update in one. The event counter saturates where the
 reference's 16-bit counter would overflow after 32767 failsafe events.
+
+## D19. Mode activation lists are bounded by type (2026-10-08)
+
+`Adaflight.Modes` keeps the two lists the reference builds when it analyzes the
+activation conditions, the own-range conditions and the linked ones, as index arrays with
+counts whose sum the state's predicate bounds at the condition count, so the loop that
+fills them proves its indices from one invariant and the update loops read within them.
+The masks are Boolean arrays over the box enumeration rather than bit words, so a box
+identifier out of range cannot exist; the vector checker folds them back into the
+reference's words. The boot delay before a sticky box may disarm compares the microsecond
+counter directly, as the reference does, since the delay is a one-shot after boot.
