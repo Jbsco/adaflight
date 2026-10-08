@@ -19,6 +19,7 @@ with Adaflight.PID_Controller;
 with Adaflight.Mixer;
 with Adaflight.RC_Command;
 with Adaflight.Gyro_Filters;
+with Adaflight.Attitude;
 with Adaflight.Vectors;
 with Adaflight.PWL;
 with Adaflight.SDFT;
@@ -1581,6 +1582,68 @@ procedure Vector_Check is
       end if;
    end Check_Gyro_Line;
 
+   IMU_State  : Adaflight.Attitude.State;
+   IMU_Config : Adaflight.Attitude.Config;
+
+   procedure Check_IMU_Line is
+      use Adaflight.Attitude;
+      Name : constant String := Str (1);
+   begin
+      if Name = "imuinit" then
+         IMU_Config := Configure ((DCM_Kp                    => Integer (Int (3)),
+                                   DCM_Ki                    => Integer (Int (4)),
+                                   Small_Angle               => Integer (Int (5)),
+                                   Throttle_Correction_Angle => Integer (Int (6)),
+                                   Throttle_Correction_Value => Integer (Int (7))));
+         Init (IMU_State);
+      elsif Name = "imustep" then
+         declare
+            K : Positive := 14;
+            procedure Expect_Float (N : String; Actual : Float) is
+            begin
+               Record_Result ("imustep." & N, Bits (K), To_Bits (Actual));
+               K := K + 1;
+            end Expect_Float;
+            procedure Expect_Int (N : String; Actual : Integer_64) is
+            begin
+               Record_Int ("imustep." & N, Int (K), Actual);
+               K := K + 1;
+            end Expect_Int;
+            Gyro : constant Adaflight.Vectors.Vector3 := (X => Flt (7), Y => Flt (8), Z => Flt (9));
+            Acc  : constant Adaflight.Vectors.Vector3 := (X => Flt (10), Y => Flt (11), Z => Flt (12));
+         begin
+            Update (IMU_State, IMU_Config,
+                    Now           => Interfaces.Unsigned_32 (Int (4)),
+                    Gyro          => Gyro,
+                    Acc           => Acc,
+                    Acc_Magnitude => Flt (13),
+                    Armed         => Int (5) /= 0,
+                    Angle_Mode    => Int (6) /= 0);
+            Expect_Int ("roll", Integer_64 (IMU_State.Euler.Roll));
+            Expect_Int ("pitch", Integer_64 (IMU_State.Euler.Pitch));
+            Expect_Int ("yaw", Integer_64 (IMU_State.Euler.Yaw));
+            Expect_Float ("q.w", IMU_State.Q.W);
+            Expect_Float ("q.x", IMU_State.Q.X);
+            Expect_Float ("q.y", IMU_State.Q.Y);
+            Expect_Float ("q.z", IMU_State.Q.Z);
+            for Row in Adaflight.Vectors.Coordinate loop
+               for Col in Adaflight.Vectors.Coordinate loop
+                  Expect_Float ("rotation", IMU_State.Rotation (Row, Col));
+               end loop;
+            end loop;
+            Expect_Int ("correction", Integer_64 (IMU_State.Throttle_Correction));
+            Expect_Float ("cos_tilt", Cos_Tilt (IMU_State));
+            if K /= NF + 1 then
+               Put_Line ("imustep: consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
+               Failures := Failures + 1;
+            end if;
+         end;
+      else
+         Put_Line ("unknown imu case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_IMU_Line;
+
    procedure Check_PID_Line is
    begin
       if Str (1) = "pidinit" then
@@ -1646,6 +1709,8 @@ procedure Vector_Check is
                   Check_RC_Line;
                elsif Kind = "gyro" then
                   Check_Gyro_Line;
+               elsif Kind = "imu" then
+                  Check_IMU_Line;
                else
                   Check_PID_Line;
                end if;
@@ -1672,6 +1737,7 @@ begin
    Run (Dir & "/mix.csv", "mix");
    Run (Dir & "/rc.csv", "rc");
    Run (Dir & "/gyro.csv", "gyro");
+   Run (Dir & "/imu.csv", "imu");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
