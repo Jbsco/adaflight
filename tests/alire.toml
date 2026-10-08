@@ -1,0 +1,16 @@
+name = "adaflight_tests"
+description = "Vector-driven checks of the adaflight core against recorded behavior"
+version = "0.1.0-dev"
+
+authors = ["Jacob Seman"]
+maintainers = ["Jacob Seman <90524106+Jbsco@users.noreply.github.com>"]
+maintainers-logins = ["Jbsco"]
+licenses = "GPL-3.0-or-later"
+
+executables = ["vector_check"]
+
+[[depends-on]]
+adaflight_core = "*"
+
+[[pins]]
+adaflight_core = { path = "../core" }
