@@ -13,6 +13,9 @@ algorithm changes from the same source.
 The project targets feature and performance parity with the reference flight controller
 firmware named in the README. That is the only place the reference is named. Code,
 contracts, comments, and the other documents describe behavior in their own terms.
+Other firmware projects whose names label a rate curve family in the reference are not
+named either. Each family takes the name of its distinctive setting: super rate, acro
+plus, RC curve, actual, quick.
 The differential oracle that records test vectors from a host build of the reference
 lives outside this repository. The recorded vectors are data and are kept under
 `tests/vectors`.
