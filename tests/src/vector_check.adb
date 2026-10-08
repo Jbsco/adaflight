@@ -21,6 +21,7 @@ with Adaflight.RC_Command;
 with Adaflight.Gyro_Filters;
 with Adaflight.Attitude;
 with Adaflight.Failsafe;
+with Adaflight.Modes;
 with Adaflight.Vectors;
 with Adaflight.PWL;
 with Adaflight.SDFT;
@@ -1726,6 +1727,64 @@ procedure Vector_Check is
       end if;
    end Check_Failsafe_Line;
 
+   Modes_State      : Adaflight.Modes.State;
+   Modes_Conditions : Adaflight.Modes.Conditions;
+
+   procedure Check_Modes_Line is
+      use Adaflight.Modes;
+      Name : constant String := Str (1);
+      function Word (M : Mask; W : Natural) return Integer_64 is
+         V : Integer_64 := 0;
+      begin
+         for B in Box loop
+            if M (B) and then Box'Pos (B) / 32 = W then
+               V := V + 2 ** (Box'Pos (B) mod 32);
+            end if;
+         end loop;
+         return V;
+      end Word;
+   begin
+      if Name = "modesinit" then
+         for M in Condition_Index loop
+            declare
+               F : constant Positive := 4 + 6 * M;
+            begin
+               Modes_Conditions (M) :=
+                 (Mode      => Box'Val (Int (F)),
+                  Aux       => Integer (Int (F + 1)),
+                  Span      => (Start_Step => Integer (Int (F + 2)), End_Step => Integer (Int (F + 3))),
+                  Combine   => Logic'Val (Int (F + 4)),
+                  Linked_To => Box'Val (Int (F + 5)));
+            end;
+         end loop;
+         Modes_State := (others => <>);
+         Analyze (Modes_State, Modes_Conditions);
+         Record_Int ("modesinit.active_count", Int (124), Integer_64 (Modes_State.Active_Count));
+         Record_Int ("modesinit.linked_count", Int (125), Integer_64 (Modes_State.Linked_Count));
+      elsif Name = "modesstep" then
+         declare
+            Aux : Aux_Values;
+         begin
+            for Ch in Aux_Channel loop
+               Aux (Ch) := Flt (6 + Ch);
+            end loop;
+            Update (Modes_State, Modes_Conditions, Aux, Interfaces.Unsigned_32 (Int (4)), Int (5) /= 0);
+            Record_Int ("modesstep.mask0", Int_Hex (20), Word (Modes_State.Active_Mask, 0));
+            Record_Int ("modesstep.mask1", Int_Hex (21), Word (Modes_State.Active_Mask, 1));
+            Record_Int ("modesstep.airmode", Int (22), Boolean'Pos (Modes_State.Airmode_Enabled));
+            Record_Int ("modesstep.sticky0", Int_Hex (23), Word (Modes_State.Sticky_Ever_Disabled, 0));
+            Record_Int ("modesstep.sticky1", Int_Hex (24), Word (Modes_State.Sticky_Ever_Disabled, 1));
+            if NF /= 24 then
+               Put_Line ("modesstep: expected 24 fields, found" & Integer'Image (NF));
+               Failures := Failures + 1;
+            end if;
+         end;
+      else
+         Put_Line ("unknown modes case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Modes_Line;
+
    procedure Check_PID_Line is
    begin
       if Str (1) = "pidinit" then
@@ -1795,6 +1854,8 @@ procedure Vector_Check is
                   Check_IMU_Line;
                elsif Kind = "failsafe" then
                   Check_Failsafe_Line;
+               elsif Kind = "modes" then
+                  Check_Modes_Line;
                else
                   Check_PID_Line;
                end if;
@@ -1823,6 +1884,7 @@ begin
    Run (Dir & "/gyro.csv", "gyro");
    Run (Dir & "/imu.csv", "imu");
    Run (Dir & "/failsafe.csv", "failsafe");
+   Run (Dir & "/modes.csv", "modes");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
