@@ -58,7 +58,7 @@ package Adaflight.PID_Controller with SPARK_Mode, Pure is
       Iterm_Accelerator       : Float range 0.0 .. Throttle_D_Bound * 251.0 * 0.35 := 0.0;
       Anti_Gravity_Throttle_D : Float range 0.0 .. Throttle_D_Bound * 251.0 := 0.0;
       Previous_Throttle       : Unit_Interval := 0.0;
-      TPA_Factor              : Float range -1002.0 .. 1002.0 := 0.0;
+      TPA_Factor              : Signal := 0.0;
       TPA_Low_Faded           : Boolean := False;
       Stabilisation_Enabled   : Boolean := False;
    end record;
