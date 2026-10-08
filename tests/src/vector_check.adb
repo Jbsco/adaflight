@@ -989,7 +989,7 @@ procedure Vector_Check is
       use Adaflight.PID_Profile;
       use Adaflight.PID_Config;
       use Adaflight.PID_Filters;
-      P : Profile;
+      P : Profile := Profiles (Integer'Value (Str (2)));
       R : Runtime;
       S : State;
       K : Positive := 4;
@@ -1038,19 +1038,7 @@ procedure Vector_Check is
       P.Angle_Feedforward_Smoothing_Ms := Next_Int; P.Horizon_Delay_Ms := Next_Int;
       R.Dt := Float (Loop_Time) * 1.0e-6;
       Init (S, P, R);
-      declare
-         Index : constant Integer := Integer'Value (Str (2));
-      begin
-         Profiles (Index).Dterm_Notch_Hz := P.Dterm_Notch_Hz;
-         Profiles (Index).Dterm_Notch_Cutoff := P.Dterm_Notch_Cutoff;
-         Profiles (Index).Dterm_LPF1_Static_Hz := P.Dterm_LPF1_Static_Hz;
-         Profiles (Index).Dterm_LPF2_Static_Hz := P.Dterm_LPF2_Static_Hz;
-         Profiles (Index).Dterm_LPF2_Type := P.Dterm_LPF2_Type;
-         Profiles (Index).Yaw_Lowpass_Hz := P.Yaw_Lowpass_Hz;
-         Profiles (Index).Anti_Gravity_Cutoff_Hz := P.Anti_Gravity_Cutoff_Hz;
-         Profiles (Index).Throttle_Boost_Cutoff := P.Throttle_Boost_Cutoff;
-         Profiles (Index).Angle_Feedforward_Smoothing_Ms := P.Angle_Feedforward_Smoothing_Ms;
-      end;
+      Profiles (Integer'Value (Str (2))) := P;
       Expect_Int ("notch_used", Boolean'Pos (S.Notch_Used));
       if S.Notch_Used then
          for A in Adaflight.Axes.Axis loop
