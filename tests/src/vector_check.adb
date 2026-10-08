@@ -18,6 +18,11 @@ with Adaflight.Encoding;
 with Adaflight.Float_Bits;
 with Adaflight.Bit_Arrays;
 with Adaflight.Stream_Buffers;
+with Adaflight.Huffman;
+with Adaflight.GPS_Conversion;
+with Adaflight.Sensor_Alignment;
+with Adaflight.Color;
+with Adaflight.Exponentials;
 
 procedure Vector_Check is
 
@@ -31,6 +36,7 @@ procedure Vector_Check is
    use type Interfaces.Unsigned_32;
    use type Interfaces.Integer_64;
    use type Interfaces.Integer_32;
+   use type Interfaces.Integer_16;
 
    function To_Float is new Ada.Unchecked_Conversion (Unsigned_32, Float);
    function To_Bits is new Ada.Unchecked_Conversion (Float, Unsigned_32);
@@ -99,7 +105,7 @@ procedure Vector_Check is
    end Record_Int;
 
    Max_Fields : constant := 48;
-   type Fields is array (1 .. Max_Fields) of String (1 .. 160);
+   type Fields is array (1 .. Max_Fields) of String (1 .. 400);
    type Field_Lengths is array (1 .. Max_Fields) of Natural;
 
    F  : Fields;
@@ -700,6 +706,74 @@ procedure Vector_Check is
       end if;
    end Check_Bytes_Line;
 
+   --  Extra cases: the Huffman encoder, GPS coordinates, sensor alignment,
+   --  color conversion, and the fast exponential and logarithm.
+
+   Huff_Out : Byte_Array (0 .. 159) := (others => 16#AA#);
+   Huff     : Adaflight.Huffman.Encoder;
+
+   procedure Check_Extra_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "huffstart" then
+         Huff_Out := (others => 16#AA#);
+         Adaflight.Huffman.Start (Huff, Huff_Out, 2, Integer'Value (Str (3)));
+      elsif Name = "huffenc" then
+         declare
+            Input    : constant Byte_Array := Hex_Bytes (3);
+            Overflow : Boolean;
+            Expected : constant Byte_Array := Hex_Bytes (7);
+         begin
+            Adaflight.Huffman.Encode (Huff, Huff_Out, Input, Overflow);
+            Record_Int ("huffenc.status", Int (4), (if Overflow then -1 else 0));
+            Record_Int ("huffenc.written", Int (5), Integer_64 (Huff.Bytes_Written));
+            Record_Int ("huffenc.bit", Int_Hex (6), Integer_64 (Huff.Out_Bit));
+            Record_Bytes ("huffenc.bytes", Expected, Huff_Out (2 .. 2 + Expected'Length - 1));
+         end;
+      elsif Name = "gpscoord" then
+         Record_Int (Name, Int (3), Integer_64 (Adaflight.GPS_Conversion.Coordinate_To_Degrees (Str (2))));
+      elsif Name = "alignmat" then
+         declare
+            A : constant Adaflight.Sensor_Alignment.Alignment_Angles :=
+              (Roll => Adaflight.Sensor_Alignment.Decidegrees'Value (Str (2)),
+               Pitch => Adaflight.Sensor_Alignment.Decidegrees'Value (Str (3)),
+               Yaw => Adaflight.Sensor_Alignment.Decidegrees'Value (Str (4)));
+         begin
+            Record_Matrix (Name, Adaflight.Sensor_Alignment.Rotation_Matrix (A), 5);
+         end;
+      elsif Name = "alignstd" then
+         declare
+            A : Adaflight.Sensor_Alignment.Alignment_Angles := (Roll => 123, Pitch => -456, Yaw => 789);
+         begin
+            Adaflight.Sensor_Alignment.From_Standard
+              (A, Adaflight.Sensor_Alignment.Standard_Alignment'Val (Integer'Value (Str (2))));
+            Record_Int (Name & ".roll", Int (3), Integer_64 (A.Roll));
+            Record_Int (Name & ".pitch", Int (4), Integer_64 (A.Pitch));
+            Record_Int (Name & ".yaw", Int (5), Integer_64 (A.Yaw));
+         end;
+      elsif Name = "hsv2rgb" then
+         declare
+            C : constant Adaflight.Color.HSV :=
+              (H => Integer'Value (Str (2)), S => Adaflight.Color.Component'Value (Str (3)),
+               V => Adaflight.Color.Component'Value (Str (4)));
+            R : constant Adaflight.Color.RGB := Adaflight.Color.To_RGB (C);
+         begin
+            Record_Int (Name & ".r", Int (5), Integer_64 (R.R));
+            Record_Int (Name & ".g", Int (6), Integer_64 (R.G));
+            Record_Int (Name & ".b", Int (7), Integer_64 (R.B));
+         end;
+      elsif Name = "exp" then
+         Record_Result (Name, Bits (3), To_Bits (Adaflight.Exponentials.Exp_Approx (Flt (2))));
+      elsif Name = "log" then
+         Record_Result (Name, Bits (3), To_Bits (Adaflight.Exponentials.Log_Approx (Flt (2))));
+      elsif Name = "pow" then
+         Record_Result (Name, Bits (4), To_Bits (Adaflight.Exponentials.Pow_Approx (Flt (2), Flt (3))));
+      else
+         Put_Line ("unknown extra case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Extra_Line;
+
    --  The twiddle table is static; this confirms it against the fast
    --  trigonometry it was computed from.
    procedure Check_Twiddles is
@@ -735,8 +809,10 @@ procedure Vector_Check is
                   Check_Filters_Line;
                elsif Kind = "common" then
                   Check_Common_Line;
-               else
+               elsif Kind = "bytes" then
                   Check_Bytes_Line;
+               else
+                  Check_Extra_Line;
                end if;
             end if;
          end;
@@ -753,6 +829,7 @@ begin
    Run (Dir & "/filters.csv", "filters");
    Run (Dir & "/common.csv", "common");
    Run (Dir & "/bytes.csv", "bytes");
+   Run (Dir & "/extra.csv", "extra");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
