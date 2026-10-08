@@ -280,6 +280,7 @@ package body Adaflight.PID_Config with SPARK_Mode is
       end if;
       R.Use_Ez_Disarm := P.Landing_Disarm_Threshold > 0;
       R.Landing_Disarm_Threshold := Float (P.Landing_Disarm_Threshold) * 10.0;
+      R.Throttle_Boost := Float (P.Throttle_Boost) * 0.1;
    end Configure;
 
 end Adaflight.PID_Config;
