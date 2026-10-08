@@ -27,8 +27,7 @@ SUMMARY=$(printf '%s\n' "$PROVE_OUT" | sed -n 's/^Summary logged in //p' | tail 
 echo "=========================================="
 if [ -f "$SUMMARY" ]; then
     TOTAL=$(awk '/^Total/ {print $2; exit}' "$SUMMARY")
-    UNPROVED=$(awk '/^Total/ {print $NF; exit}' "$SUMMARY")
-    [ "$UNPROVED" = "." ] && UNPROVED=0
+    UNPROVED=$(awk '/^Total/ {print ($NF == "." ? 0 : $(NF - 1)); exit}' "$SUMMARY")
     if [ "$UNPROVED" = "0" ]; then
         echo "SPARK proofs: core 100% proved (${TOTAL:-?} checks)"
     else
