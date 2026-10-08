@@ -27,7 +27,7 @@ project Adaflight_Core is
       for Proof_Switches ("Ada") use
         ("--level=2",
          "--steps=200000",
-         "--timeout=120",
+         "--timeout=300",
          "--report=all",
          "--output-header",
          "--checks-as-errors=on",

@@ -101,9 +101,33 @@ Level 2, 200000 steps, a 120 second backstop, all checks reported, and the invoc
 header recorded in the summary. Steps are the operative bound because they do not vary
 with the machine. Raising the level needs a justification in this ledger.
 
+Amended 2026-10-08: the backstop is 300 seconds. The hosted runner is about two and a
+half times slower than the development host and reported a time limit on a product
+check the host closed in under a minute. The steps bound is unchanged.
+
 ## D10. Deferred: fast exponential and logarithm (2026-10-08)
 
 The reference builds these from the bit layout of a float. SPARK does not admit an
 unchecked conversion to a floating-point type, so the port needs a different
 construction. The single consumer is a telemetry scaling, so the port waits for that
 increment.
+
+Outcome, recorded when the port landed: SPARK rejects an unchecked conversion into a
+float and does not support the `Scaling`, `Exponent`, and `Fraction` attributes on
+non-static values, but accepts an unchecked conversion from a float. The exponential
+therefore takes its power of two from a static table of 254 constants and builds the
+mantissa factor as `1.0 + Float (bits) * 2.0 ** (-23)`, which is exact, and the
+logarithm reads the bit pattern of its argument. Both replay the recorded vectors bit
+for bit, so the construction is equivalent to the reference's.
+
+## D11. Proof context stays small: tables and bit casts live behind contracts (2026-10-08)
+
+A large constant aggregate in a unit enters the context of every verification condition
+of that unit, and the provers then time out on checks that are otherwise trivial. The
+Huffman code table (257 entries) and the power of two table (254 entries) therefore live
+in their own packages behind a lookup function whose postcondition states the bound the
+callers need. The same holds for an unchecked conversion from a float: it sits in a small
+helper with a postcondition, so the bit-level model of the float does not reach the
+arithmetic that follows. A function that reparses characters it already scanned carries a
+quantified invariant the provers handle badly, so the GPS coordinate parser collects its
+digits once into a bounded array and consumes them by count.
