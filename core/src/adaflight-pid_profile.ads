@@ -106,6 +106,7 @@ package Adaflight.PID_Profile with SPARK_Mode, Pure is
       TPA_Low_Rate             : Integer range -100 .. 100 := 20;
       TPA_Low_Breakpoint       : PWM_Value := 1050;
       TPA_Low_Always           : Boolean := False;
+      TPA_Terms                : TPA_Mode := D;
       Landing_Disarm_Threshold : Natural range 0 .. 250 := 0;
    end record;
 
