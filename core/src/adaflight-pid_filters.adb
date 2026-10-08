@@ -186,4 +186,56 @@ package body Adaflight.PID_Filters with SPARK_Mode is
       end if;
    end Apply_Yaw_P;
 
+   function Dynamic_Throttle (T : Unit_Interval) return Float is
+     (T * (1.0 - (T * T) / 3.0) * 1.5)
+     with Post => Dynamic_Throttle'Result in 0.0 .. 1.5;
+
+   function Dynamic_Cutoff (T : Unit_Interval; Min : Hertz; Max : Hertz; Expo : Natural) return Float
+     with Pre => Expo <= 10, Post => Dynamic_Cutoff'Result in -1300.0 .. 2300.0
+   is
+      Expo_F : constant Float := Float (Expo) / 10.0;
+      Curve  : constant Float := T * (1.0 - T) * Expo_F + T;
+   begin
+      pragma Assert (Curve in 0.0 .. 1.3);
+      return Float (Max - Min) * Curve + Float (Min);
+   end Dynamic_Cutoff;
+
+   ----------------------------
+   -- Update_Dynamic_Lowpass --
+   ----------------------------
+
+   procedure Update_Dynamic_Lowpass (S : in out State; R : Runtime; Throttle : Unit_Interval) is
+      Cutoff : Float;
+   begin
+      if R.Dyn_LPF_Filter = None then
+         return;
+      end if;
+      if R.Dyn_LPF_Curve_Expo > 0 then
+         Cutoff := Dynamic_Cutoff (Throttle, R.Dyn_LPF_Min, R.Dyn_LPF_Max, R.Dyn_LPF_Curve_Expo);
+      else
+         Cutoff := Float'Max (Dynamic_Throttle (Throttle) * Float (R.Dyn_LPF_Max), Float (R.Dyn_LPF_Min));
+      end if;
+      Cutoff := Constrain_F (Cutoff, 0.0, 2300.0);
+      case R.Dyn_LPF_Filter is
+         when None => null;
+         when PID_Config.PT1 =>
+            for A in Axis loop
+               PT1_Update_Cutoff (S.Lowpass1 (A).P1, PT1_Gain (Cutoff, R.Dt));
+            end loop;
+         when PID_Config.SVF =>
+            Cutoff := Float'Min (Cutoff, 0.475 / R.Dt);
+            for A in Axis loop
+               SVF_Lowpass_Update (S.Lowpass1 (A).S, Cutoff, R.Dt);
+            end loop;
+         when PID_Config.PT2 =>
+            for A in Axis loop
+               PT2_Update_Cutoff (S.Lowpass1 (A).P2, PT2_Gain (Cutoff, R.Dt));
+            end loop;
+         when PID_Config.PT3 =>
+            for A in Axis loop
+               PT3_Update_Cutoff (S.Lowpass1 (A).P3, PT3_Gain (Cutoff, R.Dt));
+            end loop;
+      end case;
+   end Update_Dynamic_Lowpass;
+
 end Adaflight.PID_Filters;

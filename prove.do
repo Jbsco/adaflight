@@ -36,7 +36,8 @@ if [ -f "$SUMMARY" ]; then
     fi
     ASSUMES=$(grep -h "pragma Assume" src/*.adb src/*.ads 2>/dev/null | wc -l)
     JUSTIFIED=$(grep -h "pragma Annotate (GNATprove" src/*.adb src/*.ads 2>/dev/null | wc -l)
-    echo "  ($ASSUMES pragma Assume, $JUSTIFIED justified check(s))"
+    OFF=$(grep -l "SPARK_Mode => Off" src/*.adb 2>/dev/null | wc -l)
+    echo "  ($ASSUMES pragma Assume, $JUSTIFIED justified check(s), $OFF body(ies) outside SPARK)"
 else
     echo "Summary file not found: $SUMMARY"
     exit 1

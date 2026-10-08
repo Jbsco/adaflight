@@ -26,13 +26,13 @@ The core holds the bounded maths with the fast exponential and logarithm, the fi
 set, three-axis vectors and rotations, the sliding DFT, piecewise-linear tables,
 integrity codes, the encodings, bit arrays, stream buffers, the Huffman encoder, GPS
 coordinate conversion, sensor alignment, color conversion, the chirp generator, the rate
-curves, and the PID profile with its runtime configuration, filter initialization, and
-rate loop.
+curves, and the PID profile with its runtime configuration, filter initialization, rate
+loop, and throttle-side features.
 
-- The core proves at Silver and Gold: 2029 checks, nothing unproved, no
+- The core proves at Silver and Gold: 2131 checks, nothing unproved, no
   `pragma Assume`, no justified suppression (`gnatprove` 16.1.0, level 2).
-- The recorded vectors replay bit for bit: 46873 lines over 127 cases, every case
-  exact except the six declared deviations in `DESIGN.md` D6.
+- The recorded vectors replay bit for bit: 48224 lines over 130 cases, every case
+  exact except the seven declared deviations in `DESIGN.md` D6.
 - No target builds yet. `ROADMAP.md` carries the parity inventory and the phases.
 
 ## Repository layout
@@ -59,7 +59,8 @@ A change is finished when `verify.do` is green.
 
 ## Verification policy
 
-- Every unit in `core/` is SPARK and proves free of run-time errors.
+- Every unit in `core/` is SPARK and proves free of run-time errors, except the one body
+  outside SPARK that `DESIGN.md` D15 names; the proof gate counts such bodies on every run.
 - No `pragma Assume` and no justified suppression. `prove.do` prints both counts.
 - A ported function keeps the operation order of the reference, so the host build
   reproduces its results bit for bit. The vector checker reports the distance in

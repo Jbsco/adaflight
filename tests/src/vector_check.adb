@@ -849,6 +849,7 @@ procedure Vector_Check is
    --  and the expected runtime values follow.
    Profiles : array (0 .. 299) of Adaflight.PID_Profile.Profile;
    Profile_CRSF : array (0 .. 299) of Boolean := (others => False);
+   Profile_Loop_Times : array (0 .. 299) of Integer := (others => 1000);
 
    procedure Check_PID_Init_Line is
       use Adaflight.PID_Profile;
@@ -911,6 +912,7 @@ procedure Vector_Check is
       P.Landing_Disarm_Threshold := Next_Int;
       Profiles (Index) := P;
       Profile_CRSF (Index) := Is_CRSF;
+      Profile_Loop_Times (Index) := Loop_Time;
       Configure (R, P, Loop_Time, Has_Acc => False, Serial_Rx_Is_CRSF => Is_CRSF);
       Expect_Float ("dt", R.Dt); Expect_Float ("frequency", R.PID_Frequency);
       for A in Adaflight.Axes.Axis loop
@@ -989,7 +991,7 @@ procedure Vector_Check is
       use Adaflight.PID_Profile;
       use Adaflight.PID_Config;
       use Adaflight.PID_Filters;
-      P : Profile;
+      P : Profile := Profiles (Integer'Value (Str (2)));
       R : Runtime;
       S : State;
       K : Positive := 4;
@@ -1038,19 +1040,7 @@ procedure Vector_Check is
       P.Angle_Feedforward_Smoothing_Ms := Next_Int; P.Horizon_Delay_Ms := Next_Int;
       R.Dt := Float (Loop_Time) * 1.0e-6;
       Init (S, P, R);
-      declare
-         Index : constant Integer := Integer'Value (Str (2));
-      begin
-         Profiles (Index).Dterm_Notch_Hz := P.Dterm_Notch_Hz;
-         Profiles (Index).Dterm_Notch_Cutoff := P.Dterm_Notch_Cutoff;
-         Profiles (Index).Dterm_LPF1_Static_Hz := P.Dterm_LPF1_Static_Hz;
-         Profiles (Index).Dterm_LPF2_Static_Hz := P.Dterm_LPF2_Static_Hz;
-         Profiles (Index).Dterm_LPF2_Type := P.Dterm_LPF2_Type;
-         Profiles (Index).Yaw_Lowpass_Hz := P.Yaw_Lowpass_Hz;
-         Profiles (Index).Anti_Gravity_Cutoff_Hz := P.Anti_Gravity_Cutoff_Hz;
-         Profiles (Index).Throttle_Boost_Cutoff := P.Throttle_Boost_Cutoff;
-         Profiles (Index).Angle_Feedforward_Smoothing_Ms := P.Angle_Feedforward_Smoothing_Ms;
-      end;
+      Profiles (Integer'Value (Str (2))) := P;
       Expect_Int ("notch_used", Boolean'Pos (S.Notch_Used));
       if S.Notch_Used then
          for A in Adaflight.Axes.Axis loop
@@ -1148,6 +1138,89 @@ procedure Vector_Check is
       end if;
    end Check_PID_Step_Line;
 
+   procedure Check_PID_Thr_Line is
+      use Adaflight.PID_Profile;
+      use Adaflight.PID_Config;
+      use Adaflight.PID_Filters;
+      Name  : constant String := Str (1);
+      Index : constant Integer := Integer'Value (Str (2));
+      P     : Profile := Profiles (Index);
+      R     : Runtime;
+      K     : Positive := 5;
+      procedure Expect_Float (Prefix : String; Actual : Float) is
+      begin
+         Record_Result (Prefix, Bits (K), To_Bits (Actual));
+         K := K + 1;
+      end Expect_Float;
+      function Stage_Kind (Stage : Lowpass_Stage) return Integer_64 is
+        (if not Stage.Used then 0
+         else (case Stage.Kind is
+                  when Adaflight.PID_Profile.PT1 => 1, when Adaflight.PID_Profile.SVF => 2,
+                  when Adaflight.PID_Profile.PT2 => 3, when Adaflight.PID_Profile.PT3 => 4));
+      procedure Expect_Stage (Stage : Lowpass_Stage) is
+      begin
+         case Stage_Kind (Stage) is
+            when 1 => Expect_Float ("piddyn.lpf1.k", Stage.P1.K); K := K + 3;
+            when 2 =>
+               Expect_Float ("piddyn.lpf1.f", Stage.S.F); Expect_Float ("piddyn.lpf1.a1", Stage.S.A1);
+               Expect_Float ("piddyn.lpf1.a2", Stage.S.A2); K := K + 1;
+            when 3 => Expect_Float ("piddyn.lpf1.k", Stage.P2.K); K := K + 3;
+            when 4 => Expect_Float ("piddyn.lpf1.k", Stage.P3.K); K := K + 3;
+            when others => K := K + 4;
+         end case;
+      end Expect_Stage;
+   begin
+      if Name = "pidtpa" then
+         P.TPA_Curve_Type := Hyperbolic;
+         P.TPA_Curve_Stall_Throttle := Integer'Value (Str (3));
+         P.TPA_Curve_PID_Thr0 := Integer'Value (Str (4));
+         P.TPA_Curve_PID_Thr100 := Integer'Value (Str (5));
+         P.TPA_Curve_Expo := Integer'Value (Str (6));
+         Configure (R, P, Profile_Loop_Times (Index), Has_Acc => False,
+                    Serial_Rx_Is_CRSF => Profile_CRSF (Index));
+         for I in 0 .. TPA_Curve_Points - 1 loop
+            if (Bits (7 + I) and 16#7F80_0000#) = 16#7F80_0000#
+              or else To_Float (Bits (7 + I)) > Adaflight.Maths.Signal_Bound
+            then
+               --  Declared deviation (DESIGN.md D6): a table entry the reference
+               --  leaves infinite or beyond the signal bound saturates here.
+               Record_Result ("pidtpa.y.saturated", To_Bits (Adaflight.Maths.Signal_Bound),
+                              To_Bits (R.TPA_Curve.Y (I)));
+            else
+               Record_Result ("pidtpa.y", Bits (7 + I), To_Bits (R.TPA_Curve.Y (I)), Tolerance => 0);
+            end if;
+         end loop;
+      elsif Name = "piddyn" then
+         declare
+            S : State;
+         begin
+            Configure (R, P, Integer'Value (Str (3)), Has_Acc => False,
+                       Serial_Rx_Is_CRSF => Profile_CRSF (Index));
+            Init (S, P, R);
+            Update_Dynamic_Lowpass (S, R, Flt (4));
+            Record_Int ("piddyn.lpf1_kind", Int (K), Stage_Kind (S.Lowpass1 (Adaflight.Axes.Roll)));
+            K := K + 1;
+            for A in Adaflight.Axes.Axis loop
+               Expect_Stage (S.Lowpass1 (A));
+            end loop;
+            if K /= NF + 1 then
+               Put_Line ("piddyn: consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
+               Failures := Failures + 1;
+            end if;
+         end;
+      elsif Name = "pidtl" then
+         Configure (R, P, Profile_Loop_Times (Index), Has_Acc => False,
+                    Serial_Rx_Is_CRSF => Profile_CRSF (Index));
+         Record_Result ("pidtl.apply", Bits (5),
+                        To_Bits (Adaflight.PID_Controller.Apply_Thrust_Linearization (R, Flt (3))));
+         Record_Result ("pidtl.compensate", Bits (6),
+                        To_Bits (Adaflight.PID_Controller.Compensate_Thrust_Linearization (R, Flt (4))));
+      else
+         Put_Line ("unknown pidthr case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_PID_Thr_Line;
+
    procedure Check_PID_Line is
    begin
       if Str (1) = "pidinit" then
@@ -1205,6 +1278,8 @@ procedure Vector_Check is
                   Check_Chirp_Line;
                elsif Kind = "rates" then
                   Check_Rates_Line;
+               elsif Kind = "pidthr" then
+                  Check_PID_Thr_Line;
                else
                   Check_PID_Line;
                end if;
@@ -1227,6 +1302,7 @@ begin
    Run (Dir & "/chirp.csv", "chirp");
    Run (Dir & "/rates.csv", "rates");
    Run (Dir & "/pid.csv", "pid");
+   Run (Dir & "/pidthr.csv", "pidthr");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");

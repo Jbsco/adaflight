@@ -1,3 +1,5 @@
+with Adaflight.PWL;
+
 package body Adaflight.PID_Controller with SPARK_Mode is
 
    function Saturate (X : Float) return Signal is
@@ -6,7 +8,7 @@ package body Adaflight.PID_Controller with SPARK_Mode is
    type Term_Kind is (Term_P, Term_D);
 
    function TPA_Factor_Of (S : State; Mode : TPA_Mode; Term : Term_Kind) return Float
-     with Post => TPA_Factor_Of'Result in -1002.0 .. 1002.0
+     with Post => TPA_Factor_Of'Result in Signal
    is
    begin
       case Term is
@@ -30,6 +32,23 @@ package body Adaflight.PID_Controller with SPARK_Mode is
       S.Stabilisation_Enabled := Enabled;
    end Set_Stabilisation;
 
+   function Apply_Thrust_Linearization (R : Runtime; Motor : Unit_Interval) return Float is
+      E   : constant Float := R.Thrust_Linearization;
+      Inv : constant Unit_Interval := 1.0 - Motor;
+   begin
+      return Motor * (1.0 + E * Inv * (1.0 + E * (Inv - Motor)));
+   end Apply_Thrust_Linearization;
+
+   function Compensate_Thrust_Linearization (R : Runtime; Throttle : Unit_Interval) return Float is
+      E : constant Float := R.Thrust_Linearization;
+   begin
+      if E /= 0.0 then
+         return Throttle * (1.0 - E * (1.0 - Throttle));
+      else
+         return Throttle;
+      end if;
+   end Compensate_Thrust_Linearization;
+
    ---------------------------
    -- Update_Throttle_Terms --
    ---------------------------
@@ -48,6 +67,10 @@ package body Adaflight.PID_Controller with SPARK_Mode is
       S.Previous_Throttle := Throttle;
       PT2_Apply (S.Filters.Anti_Gravity, Derivative, Filtered);
       S.Anti_Gravity_Throttle_D := Constrain_F (Filtered, 0.0, Throttle_D_Bound);
+      if R.TPA_Curve_Type = Hyperbolic then
+         S.TPA_Factor := Saturate (PWL.Interpolate (R.TPA_Curve, Throttle));
+         return;
+      end if;
       if Throttle >= R.TPA_Low_Breakpoint or else R.TPA_Low_Breakpoint <= 0.01
         or else S.TPA_Low_Faded
       then

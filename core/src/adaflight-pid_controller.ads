@@ -58,7 +58,7 @@ package Adaflight.PID_Controller with SPARK_Mode, Pure is
       Iterm_Accelerator       : Float range 0.0 .. Throttle_D_Bound * 251.0 * 0.35 := 0.0;
       Anti_Gravity_Throttle_D : Float range 0.0 .. Throttle_D_Bound * 251.0 := 0.0;
       Previous_Throttle       : Unit_Interval := 0.0;
-      TPA_Factor              : Float range -1002.0 .. 1002.0 := 0.0;
+      TPA_Factor              : Signal := 0.0;
       TPA_Low_Faded           : Boolean := False;
       Stabilisation_Enabled   : Boolean := False;
    end record;
@@ -71,6 +71,13 @@ package Adaflight.PID_Controller with SPARK_Mode, Pure is
    procedure Update_Throttle_Terms (S : in out State; R : Runtime; Throttle : Unit_Interval);
 
    procedure Set_Stabilisation (S : in out State; Enabled : Boolean);
+
+   --  Motor output shaped so that thrust grows with the command, and the
+   --  inverse applied to the base throttle so hover is preserved.
+   function Apply_Thrust_Linearization (R : Runtime; Motor : Unit_Interval) return Float
+     with Post => Apply_Thrust_Linearization'Result in -8.0 .. 8.0;
+   function Compensate_Thrust_Linearization (R : Runtime; Throttle : Unit_Interval) return Float
+     with Post => Compensate_Thrust_Linearization'Result in -1.0 .. 1.0;
 
    --  One loop of the rate controller.
    procedure Update (S : in out State; R : Runtime; P : Profile; Inp : Inputs);

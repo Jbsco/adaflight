@@ -92,6 +92,10 @@ ledger. The deviations so far:
   relax lowpass keeps the previous profile's cutoff until the next initialization; at boot
   it initializes twice and the second pass reads the first. The checker records the second
   pass.
+- The hyperbolic TPA table is sampled through the double-precision elementary functions of
+  the Ada runtime where the reference calls the C library's single-precision power; every
+  recorded sample matches. A sample the reference leaves infinite or beyond the signal
+  bound, where the curve's base cancels to zero at full throttle, saturates at the bound.
 
 ## D7. Linear history (2026-10-08)
 
@@ -165,3 +169,22 @@ bounds would exceed it, and the I term's own bound leaves room for the rotation 
 loops. On the recorded sequences none of these saturations engages, so the replay stays
 bit-exact. The classic TPA factor keeps the range its two multipliers admit, since the
 cancellation between a quotient and the product that undoes it is not provable in float.
+
+## D14. The profile carries the configuration validation rules (2026-10-08)
+
+The reference repairs two settings whenever it loads a configuration: a dynamic D-term
+lowpass minimum above its maximum becomes zero, and a notch center at or below its cutoff
+becomes zero. In flight no profile violates either rule, so the profile type states them
+as a predicate and the units that read the profile prove against them. The oracle applies
+the same rules after it draws its random settings, so the recorded vectors describe
+validated profiles only.
+
+## D15. One body outside SPARK: the power behind the TPA table (2026-10-08)
+
+The hyperbolic TPA table needs a power accurate to the single-precision rounding of the
+reference's C library, which the fast approximation of the core cannot give. The Ada
+runtime's double-precision exponential and logarithm give it, but their bodies are
+analyzed at the call with a conversion check the provers cannot close. The call therefore
+lives in `Adaflight.Accurate_Power`, whose spec carries the bound the callers prove
+against and whose body is outside SPARK and saturates to honor it. The proof gate counts
+such bodies on every run, next to the assumes.

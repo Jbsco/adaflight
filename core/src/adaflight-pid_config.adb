@@ -1,4 +1,6 @@
+with Adaflight.Accurate_Power;
 with Adaflight.Maths; use Adaflight.Maths;
+with Adaflight.Exponentials; use Adaflight.Exponentials;
 
 package body Adaflight.PID_Config with SPARK_Mode is
 
@@ -126,6 +128,59 @@ package body Adaflight.PID_Config with SPARK_Mode is
       end if;
    end TPA_Low_Multiplier_Of;
 
+   --  The hyperbolic attenuation curve sampled at a throttle position. The
+   --  sample saturates at the signal bound where the reference's value is
+   --  infinite or beyond it (D6).
+   function TPA_Curve_Sample (P : Profile; X : Unit_Interval) return Signal
+     with Post => TPA_Curve_Sample'Result >= 0.0
+   is
+      Thr_Stall  : constant Unit_Interval := Float (P.TPA_Curve_Stall_Throttle) / 100.0;
+      PID_Thr0   : constant Float := Float (P.TPA_Curve_PID_Thr0) / 100.0;
+      PID_Thr100 : constant Float := Float (P.TPA_Curve_PID_Thr100) / 100.0;
+      Divider    : constant Float := Float (P.TPA_Curve_Expo) / 10.0 - 1.0;
+      Expo       : constant Float := (if abs Divider > 1.0e-3 then 1.0 / Divider else 1.0e3);
+   begin
+      pragma Assert (PID_Thr0 in 0.01 .. 10.0 and then PID_Thr100 in 0.01 .. 10.0);
+      pragma Assert (Expo in -1000.0 .. 1000.0 and then abs Expo >= 1.0e-3);
+      if X <= Thr_Stall then
+         return PID_Thr0;
+      end if;
+      pragma Assert (Thr_Stall <= 0.99);
+      declare
+         X_Shifted : constant Unit_Interval :=
+           Constrain_F (Scale_Range_F (X, Thr_Stall, 1.0, 0.0, 1.0), 0.0, 1.0);
+         Ratio     : constant Float := PID_Thr0 / PID_Thr100;
+         Inner     : constant Float := Accurate_Power.Pow (Ratio, 1.0 / Expo);
+         Base      : constant Float := 1.0 + (Inner - 1.0) * X_Shifted;
+      begin
+         pragma Assert (Ratio in 0.0009 .. 1001.0);
+         if Base <= 0.0 then
+            return (if Expo > 0.0 then Signal_Bound else 0.0);
+         end if;
+         declare
+            Divisor : constant Float := Accurate_Power.Pow (Base, Expo);
+         begin
+            if Divisor >= Exp_Result_Max then
+               return 0.0;
+            elsif Divisor < 1.0e-37 then
+               return Signal_Bound;
+            end if;
+            return Constrain_F (PID_Thr0 / Divisor, 0.0, Signal_Bound);
+         end;
+      end;
+   end TPA_Curve_Sample;
+
+   procedure Fill_TPA_Curve (T : out PWL.Table; P : Profile)
+     with Post => T.Num_Points = TPA_Curve_Points
+   is
+   begin
+      PWL.Initialize (T, TPA_Curve_Points, 0.0, 1.0);
+      for I in 0 .. TPA_Curve_Points - 1 loop
+         pragma Loop_Invariant (T.X_Min = 0.0 and then T.X_Max = 1.0 and then T.DX = T.DX'Loop_Entry);
+         T.Y (I) := TPA_Curve_Sample (P, Constrain_F (T.X_Min + Float (I) * T.DX, 0.0, 1.0));
+      end loop;
+   end Fill_TPA_Curve;
+
    ---------------
    -- Configure --
    ---------------
@@ -219,6 +274,10 @@ package body Adaflight.PID_Config with SPARK_Mode is
       pragma Assert (R.TPA_Low_Breakpoint = 0.0 or else R.TPA_Low_Breakpoint >= 0.001);
       R.TPA_Low_Multiplier := TPA_Low_Multiplier_Of (P.TPA_Low_Rate, R.TPA_Low_Breakpoint);
       R.TPA_Low_Always := P.TPA_Low_Always;
+      R.TPA_Curve_Type := P.TPA_Curve_Type;
+      if P.TPA_Curve_Type = Hyperbolic then
+         Fill_TPA_Curve (R.TPA_Curve, P);
+      end if;
       R.Use_Ez_Disarm := P.Landing_Disarm_Threshold > 0;
       R.Landing_Disarm_Threshold := Float (P.Landing_Disarm_Threshold) * 10.0;
    end Configure;

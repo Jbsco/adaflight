@@ -35,6 +35,7 @@ package Adaflight.PID_Profile with SPARK_Mode, Pure is
    type Feedforward_Averaging is (Off, Two_Point, Three_Point, Four_Point);
    type Crash_Recovery_Mode is (Off, On, Beep, Disarm);
    type TPA_Mode is (PD, D);
+   type TPA_Curve_Kind is (Classic, Hyperbolic);
 
    subtype Percent is Natural range 0 .. 100;
    subtype Milliseconds is Natural range 0 .. 65535;
@@ -107,7 +108,17 @@ package Adaflight.PID_Profile with SPARK_Mode, Pure is
       TPA_Low_Breakpoint       : PWM_Value := 1050;
       TPA_Low_Always           : Boolean := False;
       TPA_Terms                : TPA_Mode := D;
+      TPA_Curve_Type           : TPA_Curve_Kind := Classic;
+      TPA_Curve_Stall_Throttle : Percent := 30;
+      TPA_Curve_PID_Thr0       : Natural range 1 .. 1000 := 200;
+      TPA_Curve_PID_Thr100     : Natural range 1 .. 1000 := 70;
+      TPA_Curve_Expo           : Integer range -100 .. 100 := 20;
       Landing_Disarm_Threshold : Natural range 0 .. 250 := 0;
-   end record;
+   end record
+     with Dynamic_Predicate =>
+       (Profile.Dterm_LPF1_Dyn_Min_Hz = 0
+          or else Profile.Dterm_LPF1_Dyn_Min_Hz <= Profile.Dterm_LPF1_Dyn_Max_Hz)
+       and then (Profile.Dterm_Notch_Hz = 0
+                   or else Profile.Dterm_Notch_Cutoff < Profile.Dterm_Notch_Hz);
 
 end Adaflight.PID_Profile;

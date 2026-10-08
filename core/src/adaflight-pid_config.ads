@@ -4,6 +4,7 @@
 with Interfaces;
 with Adaflight.Axes; use Adaflight.Axes;
 with Adaflight.PID_Profile; use Adaflight.PID_Profile;
+with Adaflight.PWL;
 
 package Adaflight.PID_Config with SPARK_Mode, Pure is
 
@@ -19,6 +20,7 @@ package Adaflight.PID_Config with SPARK_Mode, Pure is
    D_Max_Lowpass_Hz   : constant Float := 35.0;
    D_Max_Gain_Factor  : constant Float := 0.00008;
    Feedforward_Rx_Dt  : constant Float := 1.0 / 250.0;
+   TPA_Curve_Points   : constant := 17;
 
    subtype Loop_Time_Us is Natural range 100 .. 100_000;
    subtype Seconds is Float range 1.0e-4 .. 0.1;
@@ -102,6 +104,8 @@ package Adaflight.PID_Config with SPARK_Mode, Pure is
       TPA_Low_Breakpoint         : Float range 0.0 .. 1.0 := 0.05;
       TPA_Low_Multiplier         : Float range -1001.0 .. 1001.0 := 0.0;
       TPA_Low_Always             : Boolean := False;
+      TPA_Curve_Type             : TPA_Curve_Kind := Classic;
+      TPA_Curve                  : PWL.Table;
       Use_Ez_Disarm              : Boolean := False;
       Landing_Disarm_Threshold   : Float range 0.0 .. 2500.0 := 0.0;
    end record;
