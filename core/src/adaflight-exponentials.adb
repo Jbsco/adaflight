@@ -87,4 +87,15 @@ package body Adaflight.Exponentials with SPARK_Mode is
    function Pow_Approx (Base : Positive_Signal; Exponent : Float) return Float is
      (Exp_Approx (Exponent * Log_Approx (Base)));
 
+   --------------------------
+   -- Pow_Approx_Saturated --
+   --------------------------
+
+   function Pow_Approx_Saturated (Base : Positive_Signal; Exponent : Float) return Float is
+      L : constant Float := Log_Approx (Base);
+   begin
+      pragma Assert (abs L <= 128.0);
+      return Exp_Approx (Constrain_F (Exponent * L, Exp_Argument'First, Exp_Argument'Last));
+   end Pow_Approx_Saturated;
+
 end Adaflight.Exponentials;

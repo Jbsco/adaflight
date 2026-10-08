@@ -30,4 +30,10 @@ package Adaflight.Exponentials with SPARK_Mode, Pure is
        and then Exponent * Log_Approx (Base) in Exp_Argument,
           Post => Pow_Approx'Result in 0.0 .. Exp_Result_Max;
 
+   --  Power with the exponential argument saturated at the range the
+   --  exponential admits, identical to Pow_Approx inside that range.
+   function Pow_Approx_Saturated (Base : Positive_Signal; Exponent : Float) return Float
+     with Pre  => abs Exponent <= 2.0 ** 20,
+          Post => Pow_Approx_Saturated'Result in 0.0 .. Exp_Result_Max;
+
 end Adaflight.Exponentials;
