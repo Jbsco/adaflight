@@ -41,6 +41,13 @@ jobs:
           alr -n build --stop-after=post-fetch || true
           alr -n exec -- gnatprove --version
 
+      - name: Cache the proof session
+        uses: actions/cache@v4
+        with:
+          path: core/obj/development/gnatprove
+          key: proof-session-${{ runner.os }}-${{ github.sha }}
+          restore-keys: proof-session-${{ runner.os }}-
+
       - name: Run SPARK proofs
         run: |
           set -o pipefail
