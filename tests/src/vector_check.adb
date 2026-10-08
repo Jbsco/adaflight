@@ -14,6 +14,7 @@ with Adaflight.Filters;
 with Adaflight.Rates;
 with Adaflight.PID_Profile;
 with Adaflight.PID_Config;
+with Adaflight.PID_Filters;
 with Adaflight.Vectors;
 with Adaflight.PWL;
 with Adaflight.SDFT;
@@ -977,10 +978,112 @@ procedure Vector_Check is
       end if;
    end Check_PID_Init_Line;
 
+   procedure Check_PID_Filters_Line is
+      use Adaflight.PID_Profile;
+      use Adaflight.PID_Config;
+      use Adaflight.PID_Filters;
+      P : Profile;
+      R : Runtime;
+      S : State;
+      K : Positive := 4;
+      function Next_Int return Integer is
+         V : constant Integer := Integer'Value (Str (K));
+      begin
+         K := K + 1;
+         return V;
+      end Next_Int;
+      procedure Expect_Float (Name : String; Actual : Float) is
+      begin
+         Record_Result ("pidfilt." & Name, Bits (K), To_Bits (Actual));
+         K := K + 1;
+      end Expect_Float;
+      procedure Expect_Int (Name : String; Actual : Integer_64) is
+      begin
+         Record_Result ("pidfilt." & Name, Unsigned_32 (Integer_64'Value (Str (K))), Unsigned_32 (Actual));
+         K := K + 1;
+      end Expect_Int;
+      function Stage_Kind (Stage : Lowpass_Stage) return Integer_64 is
+        (if not Stage.Used then 0
+         else (case Stage.Kind is
+                  when Adaflight.PID_Profile.PT1 => 1, when Adaflight.PID_Profile.SVF => 2,
+                  when Adaflight.PID_Profile.PT2 => 3, when Adaflight.PID_Profile.PT3 => 4));
+      procedure Expect_Stage (Name : String; Stage : Lowpass_Stage) is
+      begin
+         case Stage_Kind (Stage) is
+            when 1 => Expect_Float (Name & ".k", Stage.P1.K); K := K + 3;
+            when 2 =>
+               Expect_Float (Name & ".f", Stage.S.F); Expect_Float (Name & ".a1", Stage.S.A1);
+               Expect_Float (Name & ".a2", Stage.S.A2); K := K + 1;
+            when 3 => Expect_Float (Name & ".k", Stage.P2.K); K := K + 3;
+            when 4 => Expect_Float (Name & ".k", Stage.P3.K); K := K + 3;
+            when others => K := K + 4;
+         end case;
+      end Expect_Stage;
+      Loop_Time : constant Integer := Integer'Value (Str (3));
+   begin
+      P.Dterm_Notch_Hz := Next_Int; P.Dterm_Notch_Cutoff := Next_Int;
+      P.Dterm_LPF1_Static_Hz := Next_Int; P.Dterm_LPF1_Dyn_Min_Hz := Next_Int;
+      P.Dterm_LPF1_Type := Lowpass_Kind'Val (Next_Int);
+      P.Dterm_LPF2_Static_Hz := Next_Int; P.Dterm_LPF2_Type := Lowpass_Kind'Val (Next_Int);
+      P.Yaw_Lowpass_Hz := Next_Int;
+      R.Iterm_Relax := Iterm_Relax_Mode'Val (Next_Int); R.Iterm_Relax_Cutoff := Next_Int;
+      P.Anti_Gravity_Cutoff_Hz := Next_Int; P.Throttle_Boost_Cutoff := Next_Int;
+      P.Angle_Feedforward_Smoothing_Ms := Next_Int; P.Horizon_Delay_Ms := Next_Int;
+      R.Dt := Float (Loop_Time) * 1.0e-6;
+      Init (S, P, R);
+      Expect_Int ("notch_used", Boolean'Pos (S.Notch_Used));
+      if S.Notch_Used then
+         for A in Adaflight.Axes.Axis loop
+            Expect_Float ("notch.a1", S.Notch (A).A1); Expect_Float ("notch.a2q", S.Notch (A).A2Q);
+            Expect_Float ("notch.fq", S.Notch (A).FQ);
+         end loop;
+      else
+         K := K + 9;
+      end if;
+      Expect_Int ("lpf1_kind", Stage_Kind (S.Lowpass1 (Adaflight.Axes.Roll)));
+      for A in Adaflight.Axes.Axis loop
+         Expect_Stage ("lpf1", S.Lowpass1 (A));
+      end loop;
+      Expect_Int ("lpf2_kind", Stage_Kind (S.Lowpass2 (Adaflight.Axes.Roll)));
+      for A in Adaflight.Axes.Axis loop
+         Expect_Stage ("lpf2", S.Lowpass2 (A));
+      end loop;
+      Expect_Int ("yaw_used", Boolean'Pos (S.Yaw_P_Used));
+      if S.Yaw_P_Used then
+         Expect_Float ("yaw_k", S.Yaw_P_Lowpass.K);
+      else
+         K := K + 1;
+      end if;
+      Expect_Float ("throttle_k", S.Throttle_Boost.K);
+      for A in Adaflight.Axes.Axis loop
+         Expect_Float ("windup_k", S.Windup (A).K);
+      end loop;
+      for A in Adaflight.Axes.Axis loop
+         Expect_Float ("dmax_range_k", S.D_Max_Range (A).K);
+      end loop;
+      for A in Adaflight.Axes.Axis loop
+         Expect_Float ("dmax_lowpass_k", S.D_Max_Lowpass (A).K);
+      end loop;
+      Expect_Float ("anti_gravity_k", S.Anti_Gravity.K);
+      for A in Level_Axis loop
+         Expect_Float ("attitude_k", S.Attitude (A).K);
+      end loop;
+      for A in Level_Axis loop
+         Expect_Float ("angle_feedforward_k", S.Angle_Feedforward (A).K);
+      end loop;
+      Expect_Float ("horizon_k", S.Horizon_Smoothing.K);
+      if K /= NF + 1 then
+         Put_Line ("pidfilt: consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
+         Failures := Failures + 1;
+      end if;
+   end Check_PID_Filters_Line;
+
    procedure Check_PID_Line is
    begin
       if Str (1) = "pidinit" then
          Check_PID_Init_Line;
+      elsif Str (1) = "pidfilt" then
+         Check_PID_Filters_Line;
       else
          Put_Line ("unknown pid case " & Str (1));
          Failures := Failures + 1;
