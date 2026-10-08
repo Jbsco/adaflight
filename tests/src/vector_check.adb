@@ -13,6 +13,11 @@ with Adaflight.Filters;
 with Adaflight.Vectors;
 with Adaflight.PWL;
 with Adaflight.SDFT;
+with Adaflight.Bytes;
+with Adaflight.Encoding;
+with Adaflight.Float_Bits;
+with Adaflight.Bit_Arrays;
+with Adaflight.Stream_Buffers;
 
 procedure Vector_Check is
 
@@ -20,6 +25,7 @@ procedure Vector_Check is
    use Adaflight.Maths;
    use Adaflight.Filters;
    use Adaflight.Vectors;
+   use Adaflight.Bytes;
 
    subtype Unsigned_32 is Interfaces.Unsigned_32;
    use type Interfaces.Unsigned_32;
@@ -93,7 +99,7 @@ procedure Vector_Check is
    end Record_Int;
 
    Max_Fields : constant := 48;
-   type Fields is array (1 .. Max_Fields) of String (1 .. 24);
+   type Fields is array (1 .. Max_Fields) of String (1 .. 160);
    type Field_Lengths is array (1 .. Max_Fields) of Natural;
 
    F  : Fields;
@@ -122,6 +128,7 @@ procedure Vector_Check is
    function Bits (I : Positive) return Unsigned_32 is (Unsigned_32'Value ("16#" & Str (I) & "#"));
    function Flt (I : Positive) return Float is (To_Float (Bits (I)));
    function Int (I : Positive) return Integer_64 is (Integer_64'Value (Str (I)));
+   function Int_Hex (I : Positive) return Integer_64 is (Integer_64'Value ("16#" & Str (I) & "#"));
    function I32 (I : Positive) return Integer_32 is (Integer_32'Value (Str (I)));
 
    --  Stateful sequences are keyed by the sequence number in field 2 and
@@ -483,6 +490,216 @@ procedure Vector_Check is
       end if;
    end Check_Common_Line;
 
+   --  Byte-level cases: integrity codes, encodings, bit arrays, and the
+   --  stream buffer sequences.
+
+   SB_Buffer : Byte_Array (0 .. 95) := (others => 16#EE#);
+   SB        : Adaflight.Stream_Buffers.Stream;
+   Seq_SB    : Integer_64 := -1;
+
+   function Hex_Bytes (I : Positive) return Byte_Array is
+      S : constant String := Str (I);
+      R : Byte_Array (0 .. S'Length / 2 - 1);
+   begin
+      for K in R'Range loop
+         R (K) := Byte'Value ("16#" & S (S'First + 2 * K .. S'First + 2 * K + 1) & "#");
+      end loop;
+      return R;
+   end Hex_Bytes;
+
+   function Hex_Words (I : Positive) return Adaflight.Bit_Arrays.Bit_Array is
+      S : constant String := Str (I);
+      R : Adaflight.Bit_Arrays.Bit_Array (0 .. S'Length / 8 - 1);
+   begin
+      for K in R'Range loop
+         R (K) := Adaflight.Bit_Arrays.Word'Value ("16#" & S (S'First + 8 * K .. S'First + 8 * K + 7) & "#");
+      end loop;
+      return R;
+   end Hex_Words;
+
+   procedure Record_Bytes (Name : String; Expected : Byte_Array; Actual : Byte_Array) is
+   begin
+      if Expected'Length /= Actual'Length then
+         Record_Int (Name & ".length", Integer_64 (Expected'Length), Integer_64 (Actual'Length));
+      else
+         for K in 0 .. Expected'Length - 1 loop
+            Record_Int (Name, Integer_64 (Expected (Expected'First + K)),
+                        Integer_64 (Actual (Actual'First + K)));
+         end loop;
+      end if;
+   end Record_Bytes;
+
+   procedure Record_Words (Name : String; Expected, Actual : Adaflight.Bit_Arrays.Bit_Array) is
+   begin
+      for K in Expected'Range loop
+         Record_Int (Name, Integer_64 (Expected (K)), Integer_64 (Actual (K)));
+      end loop;
+   end Record_Words;
+
+   procedure Check_Stream_Line is
+      Name : constant String := Str (1);
+   begin
+      if Int (2) /= Seq_SB then
+         Seq_SB := Int (2);
+         SB_Buffer := (others => 16#EE#);
+         Adaflight.Stream_Buffers.Init (SB, 0, 64);
+      end if;
+      if Name = "sbw8" then
+         Adaflight.Stream_Buffers.Write_U8 (SB_Buffer, SB, Byte (Int_Hex (3)));
+      elsif Name = "sbw16" then
+         Adaflight.Stream_Buffers.Write_U16 (SB_Buffer, SB, Unsigned_16 (Int_Hex (3)));
+      elsif Name = "sbw32" then
+         Adaflight.Stream_Buffers.Write_U32 (SB_Buffer, SB, Unsigned_32 (Int_Hex (3)));
+      elsif Name = "sbw16be" then
+         Adaflight.Stream_Buffers.Write_U16_Big_Endian (SB_Buffer, SB, Unsigned_16 (Int_Hex (3)));
+      elsif Name = "sbw32be" then
+         Adaflight.Stream_Buffers.Write_U32_Big_Endian (SB_Buffer, SB, Unsigned_32 (Int_Hex (3)));
+      elsif Name = "sbfill" then
+         Adaflight.Stream_Buffers.Fill (SB_Buffer, SB, Byte (Int_Hex (3)), Integer'Value (Str (4)));
+      elsif Name = "sbdata" then
+         Adaflight.Stream_Buffers.Write_Data (SB_Buffer, SB, Hex_Bytes (3));
+      elsif Name = "sbcrc16" then
+         Adaflight.Stream_Buffers.Append_CRC16_CCITT (SB_Buffer, SB, Integer'Value (Str (3)));
+      elsif Name = "sbcrc8" then
+         Adaflight.Stream_Buffers.Append_CRC8 (SB_Buffer, SB, Integer'Value (Str (3)), DVB_S2_Polynomial);
+      elsif Name = "sbxor" then
+         Adaflight.Stream_Buffers.Append_Xor (SB_Buffer, SB, Integer'Value (Str (3)));
+      elsif Name = "sbcontents" then
+         Record_Int ("sbcontents.written", Int (4), Integer_64 (SB.Next));
+         Record_Bytes ("sbcontents.bytes", Hex_Bytes (5), SB_Buffer (0 .. SB.Next - 1));
+         Adaflight.Stream_Buffers.Switch_To_Reader (SB, 0);
+      elsif Name = "sbr8" then
+         declare
+            V : Byte;
+         begin
+            Adaflight.Stream_Buffers.Read_U8 (SB_Buffer, SB, V);
+            Record_Int (Name, Int_Hex (3), Integer_64 (V));
+            Record_Int (Name & ".pos", Int (4), Integer_64 (SB.Next));
+         end;
+      elsif Name = "sbr16" then
+         declare
+            V : Unsigned_16;
+         begin
+            Adaflight.Stream_Buffers.Read_U16 (SB_Buffer, SB, V);
+            Record_Int (Name, Int_Hex (3), Integer_64 (V));
+            Record_Int (Name & ".pos", Int (4), Integer_64 (SB.Next));
+         end;
+      elsif Name = "sbr32" then
+         declare
+            V : Unsigned_32;
+         begin
+            Adaflight.Stream_Buffers.Read_U32 (SB_Buffer, SB, V);
+            Record_Int (Name, Int_Hex (3), Integer_64 (V));
+            Record_Int (Name & ".pos", Int (4), Integer_64 (SB.Next));
+         end;
+      elsif Name = "sbrdata" then
+         declare
+            Len : constant Natural := Integer'Value (Str (3));
+            D   : Byte_Array (0 .. Len - 1);
+         begin
+            Adaflight.Stream_Buffers.Read_Data (SB_Buffer, SB, D);
+            Record_Bytes (Name, Hex_Bytes (4), D);
+            Record_Int (Name & ".pos", Int (5), Integer_64 (SB.Next));
+         end;
+      elsif Name = "sbadvance" then
+         declare
+            Adv : constant Integer := Integer'Value (Str (3));
+         begin
+            Adaflight.Stream_Buffers.Advance (SB, Adv);
+            Record_Int (Name & ".pos", Int (4), Integer_64 (SB.Next));
+         end;
+      else
+         Put_Line ("unknown bytes case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Stream_Line;
+
+   procedure Check_Bytes_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "crc16" then
+         Record_Int (Name, Int_Hex (4), Integer_64 (CRC16_CCITT_Update (Unsigned_16 (Int_Hex (2)), Hex_Bytes (3))));
+      elsif Name = "crc8" then
+         Record_Int (Name, Int_Hex (5),
+                     Integer_64 (CRC8_Update (Byte (Int_Hex (2)), Hex_Bytes (4), Byte (Int_Hex (3)))));
+      elsif Name = "crc8xor" then
+         Record_Int (Name, Int_Hex (4), Integer_64 (CRC8_Xor_Update (Byte (Int_Hex (2)), Hex_Bytes (3))));
+      elsif Name = "fnv" then
+         Record_Int (Name, Int_Hex (4), Integer_64 (FNV_Update (Unsigned_32 (Int_Hex (2)), Hex_Bytes (3))));
+      elsif Name = "zigzag" then
+         Record_Int (Name, Int_Hex (3), Integer_64 (Adaflight.Encoding.Zigzag_Encode (I32 (2))));
+      elsif Name = "floatbits" then
+         Record_Int (Name, Int_Hex (3), Integer_64 (Adaflight.Float_Bits.Float_Bits (Flt (2))));
+      elsif Name = "uvarintenc" then
+         declare
+            Size    : constant Natural := Integer'Value (Str (3));
+            Buffer  : Byte_Array (0 .. Size - 1) := (others => 0);
+            Written : Natural;
+            R       : constant Integer_64 := Int (4);
+         begin
+            Adaflight.Encoding.Uvarint_Encode (Unsigned_32'Value (Str (2)), Buffer, Written);
+            --  Declared deviation (DESIGN.md D6): the reference emits the value
+            --  128 as one bare byte 16#80#; the core emits 16#80# 16#01#.
+            if Unsigned_32'Value (Str (2)) = 128 then
+               Record_Int ("uvarintenc.count", (if Size >= 2 then 2 else 0), Integer_64 (Written));
+               if Size >= 2 then
+                  Record_Bytes ("uvarintenc.bytes", (16#80#, 16#01#), Buffer (0 .. Written - 1));
+               end if;
+            else
+               Record_Int ("uvarintenc.count", (if R < 0 then 0 else R), Integer_64 (Written));
+               if R > 0 then
+                  Record_Bytes ("uvarintenc.bytes", Hex_Bytes (5), Buffer (0 .. Written - 1));
+               end if;
+            end if;
+         end;
+      elsif Name = "uvarintdec" then
+         declare
+            Input    : constant Byte_Array := Hex_Bytes (2);
+            Value    : Unsigned_32;
+            Consumed : Natural;
+            Status   : Adaflight.Encoding.Decode_Status;
+            R        : constant Integer_64 := Int (3);
+         begin
+            Adaflight.Encoding.Uvarint_Decode (Input, Value, Consumed, Status);
+            Record_Int ("uvarintdec.count", (if R < 0 then 0 else R), Integer_64 (Consumed));
+            Record_Int ("uvarintdec.status", (if R = -2 then 2 elsif R = -1 then 1 else 0),
+                        Adaflight.Encoding.Decode_Status'Pos (Status));
+            if R > 0 then
+               Record_Int ("uvarintdec.value", Integer_64 (Unsigned_32'Value (Str (4))), Integer_64 (Value));
+            end if;
+         end;
+      elsif Name = "bitget" then
+         Record_Int (Name, Int (4), Boolean'Pos (Adaflight.Bit_Arrays.Get (Hex_Words (2), Integer'Value (Str (3)))));
+      elsif Name = "bitset" or else Name = "bitclr" then
+         declare
+            A : Adaflight.Bit_Arrays.Bit_Array := Hex_Words (2);
+         begin
+            if Name = "bitset" then
+               Adaflight.Bit_Arrays.Set (A, Integer'Value (Str (3)));
+            else
+               Adaflight.Bit_Arrays.Clear (A, Integer'Value (Str (3)));
+            end if;
+            Record_Words (Name, Hex_Words (4), A);
+         end;
+      elsif Name = "bitcopy" then
+         declare
+            A : Adaflight.Bit_Arrays.Bit_Array := Hex_Words (2);
+         begin
+            Adaflight.Bit_Arrays.Copy_Bit (A, Integer'Value (Str (3)), Integer'Value (Str (4)));
+            Record_Words (Name, Hex_Words (5), A);
+         end;
+      elsif Name = "bitxor" then
+         declare
+            D : Adaflight.Bit_Arrays.Bit_Array (0 .. 3);
+         begin
+            Adaflight.Bit_Arrays.Xor_Into (D, Hex_Words (2), Hex_Words (3));
+            Record_Words (Name, Hex_Words (4), D);
+         end;
+      else
+         Check_Stream_Line;
+      end if;
+   end Check_Bytes_Line;
+
    --  The twiddle table is static; this confirms it against the fast
    --  trigonometry it was computed from.
    procedure Check_Twiddles is
@@ -516,8 +733,10 @@ procedure Vector_Check is
                   Check_Maths_Line;
                elsif Kind = "filters" then
                   Check_Filters_Line;
-               else
+               elsif Kind = "common" then
                   Check_Common_Line;
+               else
+                  Check_Bytes_Line;
                end if;
             end if;
          end;
@@ -533,6 +752,7 @@ begin
    Run (Dir & "/maths.csv", "maths");
    Run (Dir & "/filters.csv", "filters");
    Run (Dir & "/common.csv", "common");
+   Run (Dir & "/bytes.csv", "bytes");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
