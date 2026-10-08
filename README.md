@@ -22,17 +22,16 @@ type.
 
 ## Status
 
-The core holds the bounded maths and the filter set: fast trigonometry, range scaling,
-medians, running statistics, fixed-point helpers, first to third order low-pass filters,
-state-variable low-pass and notch filters, a weighted three-axis notch, a phase
-compensator, a slew limiter, a moving average, an integer low-pass, and a mean
-accumulator.
+The core holds the bounded maths with the fast exponential and logarithm, the filter
+set, three-axis vectors and rotations, the sliding DFT, piecewise-linear tables,
+integrity codes, the encodings, bit arrays, stream buffers, the Huffman encoder, GPS
+coordinate conversion, sensor alignment, color conversion, the chirp generator, the rate
+curves, and the PID profile with its runtime configuration.
 
-- The core proves at Silver and Gold: 649 checks, nothing unproved, no
+- The core proves at Silver and Gold: 1845 checks, nothing unproved, no
   `pragma Assume`, no justified suppression (`gnatprove` 16.1.0, level 2).
-- The recorded vectors replay bit for bit: 17969 lines over 49 functions, every case
-  exact except the moving average, which deviates on purpose (`DESIGN.md` D6) and stays
-  within 256 representable values of the reference.
+- The recorded vectors replay bit for bit: 44293 lines over 125 cases, every case
+  exact except the five declared deviations in `DESIGN.md` D6.
 - No target builds yet. `ROADMAP.md` carries the parity inventory and the phases.
 
 ## Repository layout
