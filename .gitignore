@@ -1,0 +1,18 @@
+# Build outputs
+**/obj/
+**/lib/
+**/bin/
+*.o
+*.ali
+.redo/
+
+# Alire workspace state is machine-specific; the lock pins the prover version used for proof results
+**/alire/*
+!**/alire/alire.lock
+**/config/
+
+# Prover transcripts
+gnatprove-run.txt
+
+# Editor noise
+*.swp

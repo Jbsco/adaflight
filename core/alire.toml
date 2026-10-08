@@ -1,0 +1,12 @@
+name = "adaflight_core"
+description = "Flight control core in SPARK: filters, control, mixing, protocols"
+version = "0.1.0-dev"
+
+authors = ["Jacob Seman"]
+maintainers = ["Jacob Seman <90524106+Jbsco@users.noreply.github.com>"]
+maintainers-logins = ["Jbsco"]
+licenses = "GPL-3.0-or-later"
+tags = ["spark", "flight-control", "embedded"]
+
+[[depends-on]]
+gnatprove = "^16.1.0"
