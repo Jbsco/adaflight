@@ -108,6 +108,11 @@ package Adaflight.PID_Profile with SPARK_Mode, Pure is
       TPA_Low_Always           : Boolean := False;
       TPA_Terms                : TPA_Mode := D;
       Landing_Disarm_Threshold : Natural range 0 .. 250 := 0;
-   end record;
+   end record
+     with Dynamic_Predicate =>
+       (Profile.Dterm_LPF1_Dyn_Min_Hz = 0
+          or else Profile.Dterm_LPF1_Dyn_Min_Hz <= Profile.Dterm_LPF1_Dyn_Max_Hz)
+       and then (Profile.Dterm_Notch_Hz = 0
+                   or else Profile.Dterm_Notch_Cutoff < Profile.Dterm_Notch_Hz);
 
 end Adaflight.PID_Profile;
