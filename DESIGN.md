@@ -155,3 +155,13 @@ check and sometimes fails, as the throttle PID attenuation multiplier did at 100
 The slack changes nothing downstream, where the bounds only exclude overflow and
 undefined values. A helper whose callers need different bounds states them as conditions
 on its input, so the postcondition carries what each caller needs.
+
+## D13. The rate loop takes bounded rates and saturates its terms (2026-10-08)
+
+The controller's inputs are rates in degrees per second bounded at 2 to the power 13, and
+the loop time is at least 100 microseconds, so the D term's difference quotient stays
+within the signal bound. Each term saturates at the signal bound where a product of
+bounds would exceed it, and the I term's own bound leaves room for the rotation between
+loops. On the recorded sequences none of these saturations engages, so the replay stays
+bit-exact. The classic TPA factor keeps the range its two multipliers admit, since the
+cancellation between a quotient and the product that undoes it is not provable in float.
