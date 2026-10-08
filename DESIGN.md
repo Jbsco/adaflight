@@ -100,12 +100,11 @@ ledger. The deviations so far:
   range. Where that factor is zero the reference's range is infinite; it saturates at the
   signal bound here. The motor outputs do not depend on it.
 
-## D7. Linear history (2026-10-08)
+## D7. Contribution conventions (2026-10-08)
 
-Branches start from and rebase onto `origin/main`. Pull requests merge by rebase only,
-one at a time, and every pull request re-runs the gates after its last rebase. The
-repository settings on the forge disable merge commits and squash merges and require a
-linear history on `main`. Commit messages are one imperative line, signed.
+Branches start from and rebase onto `origin/main`. Pull requests merge one at a time, and
+every pull request re-runs the gates after its last rebase. Commit messages are one
+imperative line, signed.
 
 ## D8. The gates (2026-10-08)
 
