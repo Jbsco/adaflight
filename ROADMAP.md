@@ -41,11 +41,11 @@ were recorded from. The adaflight column counts Ada lines on `main`.
 | common (maths, filters, vectors, DFT, tables, encodings, buffers, codecs) | 5481 | 4523 | maths with exp and log, filters, vectors, sliding DFT, piecewise-linear tables, integrity codes, encodings, bit arrays, stream buffers, Huffman encoder, GPS coordinates, sensor alignment, color conversion, and the chirp generator proved and vector-checked; time, type conversion, and the string helpers open |
 | flight (pid, mixer, imu, failsafe, rescue, nav) | 17554 | 1626 | PID profile, runtime configuration, filter initialization, the rate loop, the throttle-side features, and the motor mixer proved and vector-checked; level modes, IMU, failsafe, rescue, and navigation open |
 | fc (core loop, rc, modes, adjustments, tasks) | 8228 | 806 | rate curves and the RC command path (deadbands, throttle curve, setpoints, feedforward, smoothing) proved and vector-checked; core loop, modes, adjustments, and tasks open |
-| sensors | 8893 | 0 | Phase 2 |
+| sensors | 8893 | 276 | gyro filtering chain proved and vector-checked; calibration, overflow and spin checks, dynamic notch, RPM filter, accelerometer, attitude, barometer, compass, and battery open |
 | scheduler | 1144 | 0 | Phase 3 |
 | rx | 16964 | 0 | Phase 4 |
 | pg, config, cli, msp | 21377 | 0 | Phase 5 |
 | blackbox, osd, cms, telemetry, io | 59977 | 0 | Phase 6 |
 | drivers, target, build, msc | 55927 | 0 | Phase 7 |
 | platform (STM32, AT32, APM32, PICO, ESP32, SITL) | not counted | 0 | Phase 7 |
-| total measured | 195545 | 6956 | |
+| total measured | 195545 | 7246 | |
