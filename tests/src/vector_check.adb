@@ -10,12 +10,16 @@ with Ada.Unchecked_Conversion;
 with Interfaces;
 with Adaflight.Maths;
 with Adaflight.Filters;
+with Adaflight.Vectors;
+with Adaflight.PWL;
+with Adaflight.SDFT;
 
 procedure Vector_Check is
 
    use Ada.Text_IO;
    use Adaflight.Maths;
    use Adaflight.Filters;
+   use Adaflight.Vectors;
 
    subtype Unsigned_32 is Interfaces.Unsigned_32;
    use type Interfaces.Unsigned_32;
@@ -88,7 +92,7 @@ procedure Vector_Check is
       Tallies.Include (Name, T);
    end Record_Int;
 
-   Max_Fields : constant := 16;
+   Max_Fields : constant := 48;
    type Fields is array (1 .. Max_Fields) of String (1 .. 24);
    type Field_Lengths is array (1 .. Max_Fields) of Natural;
 
@@ -348,7 +352,155 @@ procedure Vector_Check is
       end if;
    end Check_Filters_Line;
 
-   procedure Run (Path : String; Maths : Boolean) is
+   PWL_Table : Adaflight.PWL.Table;
+   DFT       : Adaflight.SDFT.Transform;
+
+   function Thousand_Sine (X : Float) return Signal is
+     (1000.0 * Sin_Approx (Constrain_F (X, -Angle_Bound, Angle_Bound)));
+
+   procedure Fill_Sine is new Adaflight.PWL.Fill (F => Thousand_Sine);
+
+   procedure Record_Vec2 (Name : String; V : Vector2; First : Positive; Tolerance : Integer_64 := 0) is
+   begin
+      Record_Result (Name & ".x", Bits (First), To_Bits (V.X), Tolerance);
+      Record_Result (Name & ".y", Bits (First + 1), To_Bits (V.Y), Tolerance);
+   end Record_Vec2;
+
+   procedure Record_Vec3 (Name : String; V : Vector3; First : Positive; Tolerance : Integer_64 := 0) is
+   begin
+      Record_Result (Name & ".x", Bits (First), To_Bits (V.X), Tolerance);
+      Record_Result (Name & ".y", Bits (First + 1), To_Bits (V.Y), Tolerance);
+      Record_Result (Name & ".z", Bits (First + 2), To_Bits (V.Z), Tolerance);
+   end Record_Vec3;
+
+   procedure Record_Matrix (Name : String; M : Matrix33; First : Positive) is
+      I : Positive := First;
+   begin
+      for R in Coordinate loop
+         for C in Coordinate loop
+            Record_Result (Name, Bits (I), To_Bits (M (R, C)));
+            I := I + 1;
+         end loop;
+      end loop;
+   end Record_Matrix;
+
+   procedure Record_Bins (Name : String; Output : Adaflight.SDFT.Magnitudes; First : Positive) is
+   begin
+      for B in Adaflight.SDFT.Bin loop
+         Record_Result (Name, Bits (First + B), To_Bits (Output (B)));
+      end loop;
+   end Record_Bins;
+
+   function V2 (First : Positive) return Vector2 is (X => Flt (First), Y => Flt (First + 1));
+   function V3 (First : Positive) return Vector3 is
+     (X => Flt (First), Y => Flt (First + 1), Z => Flt (First + 2));
+   function RPY (First : Positive) return Euler_Angles is
+     (Roll => Flt (First), Pitch => Flt (First + 1), Yaw => Flt (First + 2));
+
+   procedure Check_Common_Line is
+      Name : constant String := Str (1);
+      Output : Adaflight.SDFT.Magnitudes;
+   begin
+      if Name = "v2add" then
+         Record_Vec2 (Name, Add (V2 (2), V2 (4)), 6);
+      elsif Name = "v2sub" then
+         Record_Vec2 (Name, Sub (V2 (2), V2 (4)), 6);
+      elsif Name = "v2scale" then
+         Record_Vec2 (Name, Scale (V2 (2), Flt (4)), 5);
+      elsif Name = "v2dot" then
+         Record_Result (Name, Bits (6), To_Bits (Dot (V2 (2), V2 (4))));
+      elsif Name = "v2cross" then
+         Record_Result (Name, Bits (6), To_Bits (Cross (V2 (2), V2 (4))));
+      elsif Name = "v2normsq" then
+         Record_Result (Name, Bits (4), To_Bits (Norm_Sq (V2 (2))));
+      elsif Name = "v2norm" then
+         Record_Result (Name, Bits (4), To_Bits (Norm (V2 (2))));
+      elsif Name = "v2normalize" then
+         Record_Vec2 (Name, Normalize (V2 (2)), 4, Tolerance => 1);
+      elsif Name = "v2rotate" then
+         Record_Vec2 (Name, Rotate (V2 (2), Flt (4)), 5);
+      elsif Name = "v3add" then
+         Record_Vec3 (Name, Add (V3 (2), V3 (5)), 8);
+      elsif Name = "v3sub" then
+         Record_Vec3 (Name, Sub (V3 (2), V3 (5)), 8);
+      elsif Name = "v3scale" then
+         Record_Vec3 (Name, Scale (V3 (2), Flt (5)), 6);
+      elsif Name = "v3dot" then
+         Record_Result (Name, Bits (8), To_Bits (Dot (V3 (2), V3 (5))));
+      elsif Name = "v3cross" then
+         Record_Vec3 (Name, Cross (V3 (2), V3 (5)), 8);
+      elsif Name = "v3normsq" then
+         Record_Result (Name, Bits (5), To_Bits (Norm_Sq (V3 (2))));
+      elsif Name = "v3norm" then
+         Record_Result (Name, Bits (5), To_Bits (Norm (V3 (2))));
+      elsif Name = "v3normalize" then
+         Record_Vec3 (Name, Normalize (V3 (2)), 5, Tolerance => 1);
+      elsif Name = "rotmat" then
+         Record_Matrix (Name, Rotation_Matrix (RPY (2)), 5);
+      elsif Name = "matmul" then
+         Record_Vec3 (Name, Multiply (Rotation_Matrix (RPY (2)), V3 (5)), 8);
+      elsif Name = "mattrnmul" then
+         Record_Vec3 (Name, Multiply_Transposed (Rotation_Matrix (RPY (2)), V3 (5)), 8);
+      elsif Name = "yawmat" then
+         Record_Matrix (Name, Yaw_Rotation_Z (Flt (2)), 3);
+      elsif Name = "pwlinit" then
+         declare
+            N : constant Adaflight.PWL.Point_Count := Integer'Value (Str (3));
+         begin
+            Adaflight.PWL.Initialize (PWL_Table, N, Flt (4), Flt (5));
+            Record_Result ("pwlinit.dx", Bits (6), To_Bits (PWL_Table.DX));
+            Fill_Sine (PWL_Table);
+            for I in 0 .. N - 1 loop
+               Record_Result ("pwlinit.y", Bits (7 + I), To_Bits (PWL_Table.Y (I)));
+            end loop;
+         end;
+      elsif Name = "pwl" then
+         Record_Result (Name, Bits (4), To_Bits (Adaflight.PWL.Interpolate (PWL_Table, Flt (3))));
+      elsif Name = "sdftinit" then
+         Adaflight.SDFT.Init (DFT, Integer'Value (Str (3)), Integer'Value (Str (4)), Integer'Value (Str (5)));
+         Record_Int ("sdftinit.start", Int (6), Integer_64 (DFT.Start_Bin));
+         Record_Int ("sdftinit.end", Int (7), Integer_64 (DFT.End_Bin));
+         Record_Int ("sdftinit.batch", Int (8), Integer_64 (DFT.Batch_Size));
+      elsif Name = "sdftpush" then
+         Adaflight.SDFT.Push (DFT, Flt (3));
+      elsif Name = "sdftpushbatch" then
+         Adaflight.SDFT.Push_Batch (DFT, Flt (3), Integer'Value (Str (4)));
+      elsif Name = "sdftmagsq" then
+         Output := (others => 0.0);
+         Adaflight.SDFT.Mag_Sq (DFT, Output);
+         Record_Bins (Name, Output, 3);
+      elsif Name = "sdftwinsq" then
+         Output := (others => 0.0);
+         Adaflight.SDFT.Win_Sq (DFT, Output);
+         Record_Bins (Name, Output, 3);
+      elsif Name = "sdftwindow" then
+         Output := (others => 0.0);
+         Adaflight.SDFT.Window (DFT, Output);
+         Record_Bins (Name, Output, 3);
+      else
+         Put_Line ("unknown common case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Common_Line;
+
+   --  The twiddle table is static; this confirms it against the fast
+   --  trigonometry it was computed from.
+   procedure Check_Twiddles is
+      C : constant Float := 2.0 * Pi / Float (Adaflight.SDFT.Sample_Size);
+   begin
+      for B in Adaflight.SDFT.Bin loop
+         declare
+            Phi : constant Float := C * Float (B);
+         begin
+            Record_Result ("twiddle.re", To_Bits (Adaflight.SDFT.Damping * Cos_Approx (Phi)),
+                           To_Bits (Adaflight.SDFT.Twiddle (B).Re));
+            Record_Result ("twiddle.im", To_Bits (Adaflight.SDFT.Damping * Sin_Approx (Phi)),
+                           To_Bits (Adaflight.SDFT.Twiddle (B).Im));
+         end;
+      end loop;
+   end Check_Twiddles;
+
+   procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
    begin
@@ -360,10 +512,12 @@ procedure Vector_Check is
             if Line'Length > 0 then
                Split (Line);
                Lines := Lines + 1;
-               if Maths then
+               if Kind = "maths" then
                   Check_Maths_Line;
-               else
+               elsif Kind = "filters" then
                   Check_Filters_Line;
+               else
+                  Check_Common_Line;
                end if;
             end if;
          end;
@@ -376,8 +530,10 @@ procedure Vector_Check is
      (if Ada.Command_Line.Argument_Count >= 1 then Ada.Command_Line.Argument (1) else "vectors");
 
 begin
-   Run (Dir & "/maths.csv", Maths => True);
-   Run (Dir & "/filters.csv", Maths => False);
+   Run (Dir & "/maths.csv", "maths");
+   Run (Dir & "/filters.csv", "filters");
+   Run (Dir & "/common.csv", "common");
+   Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
    for C in Tallies.Iterate loop
