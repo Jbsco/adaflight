@@ -8,9 +8,12 @@ if ! command -v alr >/dev/null 2>&1; then
     exit 0
 fi
 cd core || exit 1
+# Regenerate the crate configuration so the proof runs under the development
+# profile whatever a dependent crate's build left behind.
+alr -n build --stop-after=generation >/dev/null 2>&1
 echo "Running SPARK proofs..."
-alr -n exec -- gnatprove -P adaflight_core.gpr -j0 --output=oneline
-EXIT_CODE=$?
+PROVE_OUT=$(alr -n exec -- gnatprove -P adaflight_core.gpr -j0 --output=oneline 2>&1 | tee /dev/stderr)
+EXIT_CODE=${PIPESTATUS[0]}
 if [ $EXIT_CODE -ne 0 ]; then
     echo "=========================================="
     echo "SPARK proofs: gnatprove FAILED (exit $EXIT_CODE)"
@@ -18,7 +21,9 @@ if [ $EXIT_CODE -ne 0 ]; then
     echo "=========================================="
     exit $EXIT_CODE
 fi
-SUMMARY=obj/development/gnatprove/gnatprove.out
+# The summary lands under the active build profile; read the path the tool printed.
+SUMMARY=$(printf '%s\n' "$PROVE_OUT" | sed -n 's/^Summary logged in //p' | tail -1)
+[ -z "$SUMMARY" ] && SUMMARY=obj/development/gnatprove/gnatprove.out
 echo "=========================================="
 if [ -f "$SUMMARY" ]; then
     TOTAL=$(awk '/^Total/ {print $2; exit}' "$SUMMARY")
@@ -34,7 +39,7 @@ if [ -f "$SUMMARY" ]; then
     JUSTIFIED=$(grep -h "pragma Annotate (GNATprove" src/*.adb src/*.ads 2>/dev/null | wc -l)
     echo "  ($ASSUMES pragma Assume, $JUSTIFIED justified check(s))"
 else
-    echo "Summary file not found: core/$SUMMARY"
+    echo "Summary file not found: $SUMMARY"
     exit 1
 fi
 echo "=========================================="
