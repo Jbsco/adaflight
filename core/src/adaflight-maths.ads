@@ -80,7 +80,10 @@ package Adaflight.Maths with SPARK_Mode, Pure is
 
    function Constrain_F (Value : Float; Low : Float; High : Float) return Float
      with Pre  => Low <= High,
-          Post => Constrain_F'Result in Low .. High;
+          Post => Constrain_F'Result in Low .. High
+            and then (if Value < Low then Constrain_F'Result = Low
+                      elsif Value > High then Constrain_F'Result = High
+                      else Constrain_F'Result = Value);
 
    subtype Deadband_Width is Integer_32 range 0 .. Integer_32'Last;
 
