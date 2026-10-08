@@ -102,10 +102,14 @@ ledger. The deviations so far:
 
 ## D7. Linear history (2026-10-08)
 
-Branches start from and rebase onto `origin/main`. Pull requests merge by rebase only,
-one at a time, and every pull request re-runs the gates after its last rebase. The
-repository settings on the forge disable merge commits and squash merges and require a
-linear history on `main`. Commit messages are one imperative line, signed.
+Branches start from and rebase onto `origin/main`. Pull requests merge one at a time,
+and every pull request re-runs the gates after its last rebase. The repository settings
+on the forge disable merge commits and squash merges and require a linear history on
+`main`. Commit messages are one imperative line, signed. A merge is a fast-forward push
+of the rebased branch to `main` from the developer's machine, which the forge records as
+the pull request's merge; the forge's own rebase merge recreates the commits without
+their signatures, and the history it produced that way was re-signed and pushed back
+once (2026-10-08).
 
 ## D8. The gates (2026-10-08)
 
