@@ -61,10 +61,19 @@ A ported function keeps the operation order of the reference, so a host build of
 produces the same binary32 bit pattern for the same input. The vector checker compares
 bit patterns and reports the distance in representable values for every case. A
 deliberate deviation carries a declared tolerance in the checker and an entry in this
-ledger. The first deviation: the moving average recomputes its sum from the window on
-every update instead of keeping a running sum, which removes the rounding drift the
-reference accumulates. The measured distance from the reference is at most 256
-representable values over windows of 1 to 32 samples; the declared tolerance is 512.
+ledger. The deviations so far:
+
+- The moving average recomputes its sum from the window on every update instead of
+  keeping a running sum, which removes the rounding drift the reference accumulates. The
+  measured distance from the reference is at most 256 representable values over windows
+  of 1 to 32 samples; the declared tolerance is 512.
+- A normalized vector saturates each component at one. The reference can return a
+  component one representable value above one when rounding of the reciprocal root
+  lands high. The declared tolerance is 1; the saturation did not trigger in the
+  recorded vectors.
+- The sliding DFT twiddle table is static. The reference computes it at first use, and
+  bin 18 carries a negative zero real part there, which a static Ada constant cannot
+  express. The two zeros compare at distance 0.
 
 ## D7. Linear history (2026-10-08)
 
