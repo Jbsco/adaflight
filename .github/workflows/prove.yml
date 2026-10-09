@@ -10,6 +10,7 @@ on:
 jobs:
   prove:
     runs-on: ubuntu-latest
+    timeout-minutes: 300
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -49,6 +50,9 @@ jobs:
           restore-keys: proof-session-${{ runner.os }}-
 
       - name: Run SPARK proofs
+        env:
+          PROVE_JOBS: 1
+          PROVE_SWITCHES: --timeout=900
         run: |
           set -o pipefail
           bash prove.do 2>&1 | tee prove-output.log
