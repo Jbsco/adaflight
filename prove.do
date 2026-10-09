@@ -16,7 +16,9 @@ echo "Running SPARK proofs..."
 # uses every core.
 # The transcript is echoed through the inherited stderr; reopening /dev/stderr would
 # truncate a log the caller redirected it to.
-PROVE_OUT=$(alr -n exec -- gnatprove -P adaflight_core.gpr -j"${PROVE_JOBS:-0}" --output=oneline 2>&1 | tee >(cat >&2))
+# PROVE_SWITCHES adds switches after the project file's, so a host can trade time for
+# the memory and speed it lacks.
+PROVE_OUT=$(alr -n exec -- gnatprove -P adaflight_core.gpr -j"${PROVE_JOBS:-0}" ${PROVE_SWITCHES:-} --output=oneline 2>&1 | tee >(cat >&2))
 EXIT_CODE=${PIPESTATUS[0]}
 if [ $EXIT_CODE -ne 0 ]; then
     echo "=========================================="
