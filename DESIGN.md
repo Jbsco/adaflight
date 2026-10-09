@@ -110,6 +110,11 @@ ledger. The deviations so far:
   counters, where the reference compares the counters directly in three places. The two
   agree while the counter is below its wrap, which the recorded vectors stay under; past
   it the reference's deadlines invert for up to 49.7 days.
+- The barometric altitude takes its power from the double-precision elementary functions
+  (D15), which land within one unit in the last place of the C library's single-precision
+  power. The altitude subtracts the power from one, so near sea level the last bit of the
+  power becomes up to 2 ** (-21) * 4433000, about 2.2 cm; the declared tolerance is 3 cm,
+  and two samples of 6900 recorded needed it.
 
 ## D7. Contribution conventions (2026-10-08)
 
@@ -267,3 +272,16 @@ each offset in a 16-bit field that wraps when the mean exceeds it; the port satu
 offset at the field's range instead, which no sensor near one gravity reaches. The in-flight
 calibration, the board alignment, and the configuration flag that records a completed
 calibration are not in this unit.
+
+## D21. The barometric power saturates at eight (2026-10-08)
+
+`Adaflight.Barometer` turns a pressure into an altitude through the power of its ratio to
+the sea-level pressure. A pressure within the 32-bit range keeps that power below seven,
+so the power is held at eight before the altitude is formed, which bounds the altitude
+and the calibration sums by type; the saturation is inert. The device state machine that
+schedules the temperature and pressure reads is the driver's, and the port takes each
+pressure sample with the time of its read. The calibration keeps the reference's integer
+mean of the temperature and float mean of the altitude, with both sums saturating at
+their types' bounds, which one hundred samples cannot reach; the drift product is formed
+in 64 bits where the reference's 32-bit product would wrap above a two-degree-million
+difference, which no device reports.
