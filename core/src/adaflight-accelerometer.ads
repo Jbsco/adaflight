@@ -49,15 +49,24 @@ package Adaflight.Accelerometer with SPARK_Mode is
 
    type Axis_PT2 is array (Vectors.Coordinate) of Filters.PT2;
 
+   --  The bounds the alignment and the outputs keep, stated on the components
+   --  so that a write to one component checks that component alone.
+   subtype Rotation_Matrix is Vectors.Matrix33
+     with Dynamic_Predicate => Vectors.Bounded (Rotation_Matrix, 2.0);
+   subtype Acc_Vector is Vectors.Vector3
+     with Dynamic_Predicate => Vectors.Bounded (Acc_Vector, 2.0 ** 32);
+   subtype Jerk_Vector is Vectors.Vector3
+     with Dynamic_Predicate => Vectors.Bounded (Jerk_Vector, 2.0 ** 60);
+
    type State is record
       Lowpass_Hz       : Cutoff := 0;
       Filter           : Axis_PT2;
-      Rotation         : Vectors.Matrix33 := Vectors.Identity;
-      Board_Rotation   : Vectors.Matrix33 := Vectors.Identity;
+      Rotation         : Rotation_Matrix := Vectors.Identity;
+      Board_Rotation   : Rotation_Matrix := Vectors.Identity;
       One_G_Reciprocal : Float range 0.0 .. 1.0 := 1.0;
-      Acc              : Vectors.Vector3;
-      Jerk             : Vectors.Vector3;
-      Previous         : Vectors.Vector3;
+      Acc              : Acc_Vector := (0.0, 0.0, 0.0);
+      Jerk             : Jerk_Vector := (0.0, 0.0, 0.0);
+      Previous         : Acc_Vector := (0.0, 0.0, 0.0);
       Magnitude        : Float := 0.0;
       Jerk_Magnitude   : Float := 0.0;
       Zero             : Zero_Offsets := (others => 0);
@@ -66,11 +75,7 @@ package Adaflight.Accelerometer with SPARK_Mode is
       Calibrating      : Cycle_Count := 0;
       Totals           : Sums := (others => 0);
       Updated_Once     : Boolean := False;
-   end record
-     with Dynamic_Predicate =>
-       Vectors.Bounded (State.Rotation, 2.0) and then Vectors.Bounded (State.Board_Rotation, 2.0)
-       and then Vectors.Bounded (State.Acc, 2.0 ** 32) and then Vectors.Bounded (State.Previous, 2.0 ** 32)
-       and then Vectors.Bounded (State.Jerk, 2.0 ** 60);
+   end record;
 
    procedure Init (S : out State; C : Settings);
 

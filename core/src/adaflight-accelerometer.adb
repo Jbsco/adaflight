@@ -6,7 +6,9 @@ package body Adaflight.Accelerometer with SPARK_Mode is
 
    --  A calibration total is kept as an integer that the reference adds the
    --  float sample to and truncates back, so the sum follows the same path.
-   function Accumulate (Total : Sum; Value : Aligned) return Sum is
+   function Accumulate (Total : Sum; Value : Aligned) return Sum
+     with Post => abs Accumulate'Result <= 2 ** 28
+   is
       subtype Wide is Float range -2.0 ** 29 .. 2.0 ** 29;
       Total_F   : constant Wide := Float (Total);
       Added     : constant Wide := Total_F + Value;
@@ -19,6 +21,33 @@ package body Adaflight.Accelerometer with SPARK_Mode is
    function Offset (Total : Sum) return Zero_Count is
      (Integer (Interfaces.Integer_64'Max (-32_768, Interfaces.Integer_64'Min (Total, 32_767))));
 
+   function Reciprocal (One_G : Counts_Per_G) return Float is (1.0 / Float (One_G))
+     with Post => Reciprocal'Result in 0.0 .. 1.0;
+
+   --  The raw counts aligned to the body frame: the sensor's standard or
+   --  custom alignment, then the board rotation when the board is not level.
+   procedure Align_Sample (S : State; C : Settings; Sample : Raw_Vector; V : out Aligned_Vector)
+     with Post => (for all A in Coordinate => abs V (A) <= Aligned_Bound)
+   is
+      Raw_V : constant Vector3 := (X => Float (Sample (X)), Y => Float (Sample (Y)), Z => Float (Sample (Z)));
+      Rotated : constant Vector3 :=
+        (if C.Alignment = Sensor_Alignment.Custom then Apply_Rotation (Raw_V, S.Rotation)
+         else Sensor_Alignment.Align (Raw_V, C.Alignment));
+      --  A sensor-aligned count is within 2 ** 18; the bound is stated for
+      --  the board rotation's precondition.
+      Sensor_V : constant Vector3 :=
+        (X => Constrain_F (Rotated.X, -2.0 ** 18, 2.0 ** 18),
+         Y => Constrain_F (Rotated.Y, -2.0 ** 18, 2.0 ** 18),
+         Z => Constrain_F (Rotated.Z, -2.0 ** 18, 2.0 ** 18));
+      Aligned_V : constant Vector3 :=
+        (if Sensor_Alignment.Standard_Board (C.Board) then Sensor_V
+         else Apply_Rotation (Sensor_V, S.Board_Rotation));
+   begin
+      V := (X => Constrain_F (Aligned_V.X, -Aligned_Bound, Aligned_Bound),
+            Y => Constrain_F (Aligned_V.Y, -Aligned_Bound, Aligned_Bound),
+            Z => Constrain_F (Aligned_V.Z, -Aligned_Bound, Aligned_Bound));
+   end Align_Sample;
+
    ----------
    -- Init --
    ----------
@@ -29,7 +58,7 @@ package body Adaflight.Accelerometer with SPARK_Mode is
             Filter           => (others => (others => <>)),
             Rotation         => Sensor_Alignment.Rotation_Matrix (C.Custom_Angles),
             Board_Rotation   => Sensor_Alignment.Board_Rotation (C.Board),
-            One_G_Reciprocal => 1.0 / Float (C.One_G),
+            One_G_Reciprocal => Reciprocal (C.One_G),
             Acc              => (0.0, 0.0, 0.0),
             Jerk             => (0.0, 0.0, 0.0),
             Previous         => (0.0, 0.0, 0.0),
@@ -93,25 +122,7 @@ package body Adaflight.Accelerometer with SPARK_Mode is
          Out_Value := Trimmed;
       end Finish;
    begin
-      declare
-         Raw_V : constant Vector3 := (X => Float (Sample (X)), Y => Float (Sample (Y)), Z => Float (Sample (Z)));
-         Rotated : constant Vector3 :=
-           (if C.Alignment = Sensor_Alignment.Custom then Apply_Rotation (Raw_V, S.Rotation)
-            else Sensor_Alignment.Align (Raw_V, C.Alignment));
-         --  A sensor-aligned count is within 2 ** 18; the bound is stated for
-         --  the board rotation's precondition.
-         Sensor_V : constant Vector3 :=
-           (X => Constrain_F (Rotated.X, -2.0 ** 18, 2.0 ** 18),
-            Y => Constrain_F (Rotated.Y, -2.0 ** 18, 2.0 ** 18),
-            Z => Constrain_F (Rotated.Z, -2.0 ** 18, 2.0 ** 18));
-         Aligned_V : constant Vector3 :=
-           (if Sensor_Alignment.Standard_Board (C.Board) then Sensor_V
-            else Apply_Rotation (Sensor_V, S.Board_Rotation));
-      begin
-         V := (X => Constrain_F (Aligned_V.X, -Aligned_Bound, Aligned_Bound),
-               Y => Constrain_F (Aligned_V.Y, -Aligned_Bound, Aligned_Bound),
-               Z => Constrain_F (Aligned_V.Z, -Aligned_Bound, Aligned_Bound));
-      end;
+      Align_Sample (S, C, Sample, V);
       if S.Calibrating /= 0 then
          for A in Coordinate loop
             if S.Calibrating = Calibration_Cycles then

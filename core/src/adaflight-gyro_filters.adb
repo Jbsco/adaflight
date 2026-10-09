@@ -148,7 +148,11 @@ package body Adaflight.Gyro_Filters with SPARK_Mode is
                Value := S.Sample_Sum (A);
             else
                if S.Samples > 0 then
-                  Value := S.Sample_Sum (A) / Float (S.Samples);
+                  declare
+                     Count : constant Float range 1.0 .. 255.0 := Float (S.Samples);
+                  begin
+                     Value := S.Sample_Sum (A) / Count;
+                  end;
                end if;
                S.Sample_Sum (A) := 0.0;
             end if;
