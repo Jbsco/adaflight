@@ -25,6 +25,7 @@ with Adaflight.Modes;
 with Adaflight.Accelerometer;
 with Adaflight.Barometer;
 with Adaflight.Battery;
+with Adaflight.Arming;
 with Adaflight.Vectors;
 with Adaflight.PWL;
 with Adaflight.SDFT;
@@ -2004,6 +2005,193 @@ procedure Vector_Check is
       end if;
    end Check_Battery_Line;
 
+   Arming_State      : Adaflight.Arming.State;
+   Arming_Settings   : Adaflight.Arming.Settings;
+   Arming_Modes      : Adaflight.Modes.State;
+   Arming_Conditions : Adaflight.Modes.Conditions;
+
+   procedure Check_Arming_Line is
+      use Adaflight.Arming;
+      Name : constant String := Str (1);
+      function Reasons (D : Disable_Set) return Integer_64 is
+         V : Integer_64 := 0;
+      begin
+         for R in Disable_Reason loop
+            if D (R) then
+               V := V + 2 ** Disable_Reason'Pos (R);
+            end if;
+         end loop;
+         return V;
+      end Reasons;
+      function Mode_Bits (M : Mode_Set) return Integer_64 is
+         V : Integer_64 := 0;
+      begin
+         for F in Flight_Mode loop
+            if M (F) then
+               V := V + (case F is
+                           when Angle_Mode => 2 ** 0, when Horizon_Mode => 2 ** 1, when Mag_Mode => 2 ** 2,
+                           when Alt_Hold_Mode => 2 ** 3, when Pos_Hold_Mode => 2 ** 5, when Headfree_Mode => 2 ** 6,
+                           when Chirp_Mode => 2 ** 7, when Passthru_Mode => 2 ** 8, when Failsafe_Mode => 2 ** 10,
+                           when GPS_Rescue_Mode => 2 ** 11, when Autopilot_Mode => 2 ** 12,
+                           when Launch_Mode => 2 ** 13);
+            end if;
+         end loop;
+         return V;
+      end Mode_Bits;
+      function Box_Word (M : Adaflight.Modes.Mask; W : Natural) return Integer_64 is
+         V : Integer_64 := 0;
+      begin
+         for B in Adaflight.Modes.Box loop
+            if M (B) and then Adaflight.Modes.Box'Pos (B) / 32 = W then
+               V := V + 2 ** (Adaflight.Modes.Box'Pos (B) mod 32);
+            end if;
+         end loop;
+         return V;
+      end Box_Word;
+      function Beep_Code (B : Beep) return Integer_64 is
+        (case B is
+            when Silence => 100, when Arm_Tone => 5, when Disarm_Tone => 4, when Armed_Tone => 16,
+            when Disarm_Repeat_Tone => 15, when Rx_Set_Tone => 10, when Warning_Tones => 101,
+            when Confirmation_Tones => 102);
+      function Selected (Cmds : Command_Set; First, Last : Stick_Command) return Integer_64 is
+      begin
+         for Cmd in First .. Last loop
+            if Cmds (Cmd) then
+               return Integer_64 (Stick_Command'Pos (Cmd) - Stick_Command'Pos (First));
+            end if;
+         end loop;
+         return -1;
+      end Selected;
+   begin
+      if Name = "arminit" then
+         Arming_Settings :=
+           (Gyro_Cal_On_First_Arm      => Int (3) /= 0,
+            Auto_Disarm_Delay          => Integer (Int (4)),
+            Prearm_Allow_Rearm         => Int (5) /= 0,
+            Boot_Grace_Time            => Integer (Int (6)),
+            Stick_Arming               => Int (7) /= 0,
+            Mid_RC                     => Integer (Int (8)),
+            Min_Check                  => Integer (Int (9)),
+            Max_Check                  => Integer (Int (10)),
+            Airmode_Threshold          => Integer (Int (11)),
+            Three_D                    => Int (12) /= 0,
+            Switched_Mode_3D           => Int (13) /= 0,
+            Deadband_3D_Throttle       => Integer (Int (14)),
+            Motor_Stop                 => Int (15) /= 0,
+            Airmode_Feature            => Int (16) /= 0,
+            Anti_Gravity_Feature       => Int (17) /= 0,
+            Fixed_Wing                 => Int (18) /= 0,
+            PID_At_Min_Throttle        => Int (19) /= 0,
+            Launch_Control_Angle_Limit => Integer (Int (20)),
+            Sensors                    =>
+              (Gyro => Int (21) /= 0, Acc => Int (22) /= 0, Baro => Int (23) /= 0, Mag => Int (24) /= 0));
+         for M in Adaflight.Modes.Condition_Index loop
+            declare
+               F : constant Positive := 25 + 6 * M;
+            begin
+               Arming_Conditions (M) :=
+                 (Mode      => Adaflight.Modes.Box'Val (Int (F)),
+                  Aux       => Integer (Int (F + 1)),
+                  Span      => (Start_Step => Integer (Int (F + 2)), End_Step => Integer (Int (F + 3))),
+                  Combine   => Adaflight.Modes.Logic'Val (Int (F + 4)),
+                  Linked_To => Adaflight.Modes.Box'Val (Int (F + 5)));
+            end;
+         end loop;
+         Arming_Modes := (others => <>);
+         Adaflight.Modes.Analyze (Arming_Modes, Arming_Conditions);
+         Init (Arming_State, Arming_Settings, Arming_Conditions);
+         Record_Int ("arminit.sticks_arm", Int (145), Boolean'Pos (Arming_State.Sticks_Arm));
+      elsif Name = "armstep" then
+         declare
+            Now_Us   : constant Interfaces.Unsigned_32 := Interfaces.Unsigned_32 (Int (4));
+            Channels : Adaflight.RC_Command.Channel_Values;
+            Aux      : Adaflight.Modes.Aux_Values := (others => 1_500.0);
+            Sensed   : constant Inputs :=
+              (Rx_Signal                  => Int (16) /= 0,
+               Failsafe_Receiving         => Int (17) /= 0,
+               Failsafe_Active            => Int (18) /= 0,
+               Failsafe_Monitoring        => Int (19) /= 0,
+               Upright                    => Int (20) /= 0,
+               Gyro_Calibrated            => Int (21) /= 0,
+               Acc_Calibrated             => Int (22) /= 0,
+               Baro_Calibrated            => Int (23) /= 0,
+               Mag_Calibrated             => Int (24) /= 0,
+               Acc_Has_Calibration        => Int (25) /= 0,
+               First_Arm_Gyro_Cal_Running => Int (26) /= 0,
+               Motor_Protocol_Enabled     => Int (27) /= 0,
+               Headfree_Offset_Set        => Int (28) /= 0);
+            Step     : Outputs;
+            K        : Positive := 29;
+            procedure Expect_Int (N : String; Actual : Integer_64) is
+            begin
+               Record_Int ("armstep." & N, Int (K), Actual);
+               K := K + 1;
+            end Expect_Int;
+            procedure Expect_Hex (N : String; Actual : Integer_64) is
+            begin
+               Record_Int ("armstep." & N, Int_Hex (K), Actual);
+               K := K + 1;
+            end Expect_Hex;
+            Flags : Integer_64;
+         begin
+            for Ch in Adaflight.RC_Command.Channel loop
+               Channels (Ch) := Flt (6 + Ch);
+            end loop;
+            for Ch in 0 .. 5 loop
+               Aux (Ch) := Flt (10 + Ch);
+            end loop;
+            Process_Rx (Arming_State, Arming_Settings, Arming_Modes, Sensed, Channels, Now_Us, Step);
+            Process_Rx_Modes (Arming_State, Arming_Settings, Arming_Modes, Arming_Conditions, Aux, Sensed, Channels,
+                              Now_Us, Natural (Int (5)), Step);
+            Update_Status (Arming_State, Arming_Settings, Arming_Modes, Arming_Conditions, Sensed, Channels, Now_Us);
+            Flags := Boolean'Pos (Arming_State.Armed) + 2 * Boolean'Pos (Arming_State.Was_Ever_Armed)
+                     + 4 * Boolean'Pos (Arming_State.Armed_With_Prearm);
+            Expect_Int ("flags", Flags);
+            Expect_Hex ("disabled", Reasons (Arming_State.Disabled));
+            Expect_Int ("flight_modes", Mode_Bits (Arming_State.Flight_Modes));
+            Expect_Int ("last_disarm_us", Integer_64 (Arming_State.Last_Disarm_Us));
+            Expect_Int ("disarm_calls", Integer_64 (Step.Disarm_Calls));
+            Expect_Int ("disarm_reason", Disarm_Reason'Pos (Arming_State.Last_Disarm_Reason));
+            Expect_Int ("beep_calls", Integer_64 (Step.Beeper.Calls));
+            if Step.Beeper.Calls > 0 then
+               Expect_Int ("beep_last", Beep_Code (Step.Beeper.Last));
+            else
+               K := K + 1;
+            end if;
+            Expect_Int ("beep_count", Integer_64 (Step.Beeper.Count));
+            Expect_Int ("first_arm_gyro_cal", Integer_64 (Step.First_Arm_Gyro_Cal));
+            Expect_Int ("gyro_cal", Boolean'Pos (Step.Commands (Gyro_Calibration)));
+            Expect_Int ("baro_ground", Boolean'Pos (Step.Commands (Baro_Ground_Level)));
+            Expect_Int ("acc_cal", Boolean'Pos (Step.Commands (Acc_Calibration)));
+            Expect_Int ("mag_cal", Boolean'Pos (Step.Commands (Mag_Calibration)));
+            Expect_Int ("pid_profile", Selected (Step.Commands, PID_Profile_1, PID_Profile_3));
+            Expect_Int ("rate_profile", Selected (Step.Commands, Rate_Profile_1, Rate_Profile_4));
+            Expect_Int ("dashboard", Selected (Step.Commands, Dashboard_Cycling_Off, Dashboard_Cycling_On));
+            Expect_Int ("saves", Integer_64 (Step.Saves));
+            Expect_Int ("trim_roll", Integer_64 (Step.Trim_Roll));
+            Expect_Int ("trim_pitch", Integer_64 (Step.Trim_Pitch));
+            Expect_Int ("headfree_offsets", Integer_64 (Step.Headfree_Offsets));
+            Expect_Int ("failsafe_monitoring", Boolean'Pos (Step.Start_Failsafe_Monitoring));
+            Expect_Int ("stabilisation", Boolean'Pos (Step.Stabilisation_On));
+            Expect_Int ("iterm_reset", Boolean'Pos (Step.Iterm_Reset));
+            Expect_Int ("anti_gravity", Boolean'Pos (Step.Anti_Gravity));
+            Expect_Int ("last_reason", Integer_64 (Arming_State.Last_Disabled_Reason));
+            Expect_Int ("disarm_at", Integer_64 (Arming_State.Disarm_At));
+            Expect_Int ("throttle_raised", Boolean'Pos (Arming_State.Throttle_Raised));
+            Expect_Int ("disarm_requested", Boolean'Pos (Arming_State.Disarm_Requested));
+            Expect_Hex ("mask0", Box_Word (Arming_Modes.Active_Mask, 0));
+            Expect_Hex ("mask1", Box_Word (Arming_Modes.Active_Mask, 1));
+            if K /= NF + 1 then
+               Put_Line ("armstep: consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
+               Failures := Failures + 1;
+            end if;
+         end;
+      else
+         Put_Line ("unknown arming case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Arming_Line;
+
    procedure Check_PID_Line is
    begin
       if Str (1) = "pidinit" then
@@ -2081,6 +2269,8 @@ procedure Vector_Check is
                   Check_Baro_Line;
                elsif Kind = "battery" then
                   Check_Battery_Line;
+               elsif Kind = "arming" then
+                  Check_Arming_Line;
                else
                   Check_PID_Line;
                end if;
@@ -2113,6 +2303,7 @@ begin
    Run (Dir & "/acc.csv", "acc");
    Run (Dir & "/baro.csv", "baro");
    Run (Dir & "/battery.csv", "battery");
+   Run (Dir & "/arming.csv", "arming");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
