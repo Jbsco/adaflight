@@ -123,6 +123,11 @@ ledger. The deviations so far:
   first sample after a pack is detected, which spans the time since boot (findings F20).
   The recorded vectors keep that first sample small enough for the reference to stay in
   range, so the two agree on every step.
+- The automatic disarm deadline is compared through the wrapping difference. The reference
+  compares the microsecond counter and the deadline directly, so a deadline set in the last
+  seconds before the 71.6-minute wrap disarms at once, and one set before a wrap that the
+  counter has passed does not fire for the next 71 minutes (findings F21). The recorded
+  vectors stay clear of the wrap and replay bit for bit.
 
 ## D7. Contribution conventions (2026-10-08)
 
@@ -320,3 +325,23 @@ cases. The gyro zero offsets stay per raw axis, since the reference calibrates b
 aligns. The board rotation matrix is built from whole degrees through the same conversion
 and rotation the reference uses, and the matrices sit in the state with their entries
 bounded by two, which bounds the aligned counts by type.
+
+## D24. The arming logic as the reference's flag machine (2026-10-09)
+
+`Adaflight.Arming` holds the arming flags, the thirty disable reasons as a Boolean array in
+the reference's bit order, and the flight mode flags, so the reason the warning beeps count
+out is the first true element. The unit takes what the other units report (the link, the
+failsafe, the attitude, the calibrations, the motor protocol) in an input record per pass
+and returns what it asks of them (the beeps, the stick commands, the calibration and save
+requests, the stabilisation state) in an output record, so it depends on no unit that is
+not yet ported. The three passes keep the receiver task's order: the receiver pass, the
+modes pass with the stick combinations, the mode update and the flight mode selection, then
+the arming status. The throttle percent holds its fraction to the unit range and guards a
+zero divisor; both are inert within the configuration ranges (a minimum check below 2000
+microseconds, a 3D mid value and deadband that leave a span below full throttle). The
+automatic disarm deadline is compared through the wrapping difference where the reference
+compares the counters directly (D6). The stick hold time is the reference's 16-bit count
+with its saturation, and the disarm tick counter is its wrapping byte. Not in this unit:
+the DShot beacon delay, crash flip and spin direction, launch control, the GPS rescue arming
+checks, the runaway takeoff detection, the in-flight accelerometer calibration, the shared
+port telemetry switch, and the adjustments, which belong with their own units.
