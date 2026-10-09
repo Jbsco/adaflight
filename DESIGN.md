@@ -99,6 +99,13 @@ ledger. The deviations so far:
 - The EZ landing mixer adjustment divides by its limit factor to widen the recorded mix
   range. Where that factor is zero the reference's range is infinite; it saturates at the
   signal bound here. The motor outputs do not depend on it.
+- The averaged feedforward goes through the moving average above, so it carries that
+  deviation; the checker holds it within 512 representable values or a hundredth of a
+  degree per second, since the reference's running sum leaves a residue near zero.
+- Two settings keep a narrower domain than the configuration interface admits: the
+  hyperbolic TPA curve's two PID percentages exclude zero, where the reference's table is
+  infinite or undefined, and the throttle minimum check stays below 2000, where the
+  reference's throttle scaling divides by zero.
 
 ## D7. Contribution conventions (2026-10-08)
 

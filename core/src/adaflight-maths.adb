@@ -263,6 +263,15 @@ package body Adaflight.Maths with SPARK_Mode is
    -- Sqrt_Non_Negative --
    -----------------------
 
+   function Round_Half_Even (X : Float) return Rounded_Integer is
+      R : Integer := Integer (X);
+   begin
+      if abs (X - Float (R)) = 0.5 and then R mod 2 /= 0 then
+         R := R - (if X > 0.0 then 1 else -1);
+      end if;
+      return R;
+   end Round_Half_Even;
+
    function Sqrt_Non_Negative (X : Float) return Float is
      (Ada.Numerics.Elementary_Functions.Sqrt (X));
 

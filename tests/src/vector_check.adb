@@ -17,6 +17,7 @@ with Adaflight.PID_Config;
 with Adaflight.PID_Filters;
 with Adaflight.PID_Controller;
 with Adaflight.Mixer;
+with Adaflight.RC_Command;
 with Adaflight.Vectors;
 with Adaflight.PWL;
 with Adaflight.SDFT;
@@ -69,9 +70,13 @@ procedure Vector_Check is
       then -Integer_64 (B and 16#7FFF_FFFF#)
       else Integer_64 (B));
 
-   procedure Record_Result (Name : String; Expected, Actual : Unsigned_32; Tolerance : Integer_64 := 0) is
+   procedure Record_Result (Name : String; Expected, Actual : Unsigned_32; Tolerance : Integer_64 := 0;
+                            Absolute : Float := 0.0) is
       T : Tally;
-      D : constant Integer_64 := abs (Key (Expected) - Key (Actual));
+      D : constant Integer_64 :=
+        (if Absolute > 0.0 and then abs (To_Float (Expected) - To_Float (Actual)) <= Absolute
+         then Integer_64'Min (Tolerance, abs (Key (Expected) - Key (Actual)))
+         else abs (Key (Expected) - Key (Actual)));
    begin
       if Tallies.Contains (Name) then
          T := Tallies.Element (Name);
@@ -1314,6 +1319,133 @@ procedure Vector_Check is
       end if;
    end Check_Mix_Line;
 
+   RC_State   : Adaflight.RC_Command.State;
+   RC_Config  : Adaflight.RC_Command.Config;
+   RC_Runtime : Adaflight.PID_Config.Runtime;
+   RC_Time    : Interfaces.Unsigned_32 := 0;
+
+   procedure Check_RC_Line is
+      use Adaflight.RC_Command;
+      Name : constant String := Str (1);
+      K    : Positive := 10;
+      --  Declared deviation (DESIGN.md D6): the averaged feedforward carries the
+      --  moving average's recomputed sum, held within 512 representable values
+      --  or a hundredth of a degree per second.
+      procedure Expect_Float (N : String; Actual : Float; Tolerance : Integer_64 := 0) is
+      begin
+         Record_Result ("rcstep." & N, Bits (K), To_Bits (Actual), Tolerance,
+                        Absolute => (if Tolerance > 0 then 0.01 else 0.0));
+         K := K + 1;
+      end Expect_Float;
+   begin
+      if Name = "rcinit" then
+         declare
+            use Adaflight.Rates;
+            use Adaflight.PID_Config;
+            C : Config;
+            R : Runtime;
+            F : Positive := 5;
+         begin
+            C.Rates.Kind := Curve_Kind'Val (Integer'Value (Str (4)));
+            for A in Adaflight.Axes.Axis loop
+               C.Rates.RC_Rates (A) := Integer'Value (Str (F));
+               C.Rates.RC_Expo (A) := Integer'Value (Str (F + 1));
+               C.Rates.Super_Rates (A) := Integer'Value (Str (F + 2));
+               C.Rates.Limits (A) := Integer'Value (Str (F + 3));
+               F := F + 4;
+            end loop;
+            C.Rates.Quick_Expo := Str (17) = "1";
+            C.Rates.Throttle_Mid := Integer'Value (Str (18));
+            C.Rates.Throttle_Expo := Integer'Value (Str (19));
+            C.Rates.Throttle_Hover := Integer'Value (Str (20));
+            C.Receiver.Mid_RC := Integer'Value (Str (21));
+            C.Receiver.Min_Check := Integer'Value (Str (22));
+            C.Receiver.Smoothing := Str (23) = "1";
+            C.Receiver.Auto_Factor_Setpoint := Integer'Value (Str (24));
+            C.Receiver.Auto_Factor_Throttle := Integer'Value (Str (25));
+            C.Receiver.Setpoint_Cutoff := Integer'Value (Str (26));
+            C.Receiver.Throttle_Cutoff := Integer'Value (Str (27));
+            C.Controls.Deadband := Integer'Value (Str (28));
+            C.Controls.Yaw_Deadband := Integer'Value (Str (29));
+            C.Controls.Yaw_Reversed := Str (30) = "1";
+            C.Loop_Time := Integer'Value (Str (3));
+            R.Feedforward_Smooth_Factor := Flt (31);
+            R.Feedforward_Interpolate := Str (32) = "1";
+            R.Feedforward_Jitter_Factor_Inv := Flt (33);
+            R.Feedforward_Boost_Factor := Flt (34);
+            R.Feedforward_Max_Rate_Limit := Integer'Value (Str (35));
+            R.Feedforward_Yaw_Hold_Time := Flt (36);
+            R.Feedforward_Yaw_Hold_Gain := Flt (37);
+            R.Feedforward_Transition := Flt (38);
+            R.Feedforward_Transition_Inv := Flt (39);
+            R.Feedforward_Average :=
+              Adaflight.PID_Profile.Feedforward_Averaging'Val (Integer'Value (Str (40)));
+            RC_Config := C;
+            RC_Runtime := R;
+            RC_Time := 0;
+            Init (RC_State, RC_Config, RC_Runtime);
+            for I in Table_Index loop
+               Record_Int ("rcinit.table", Int (41 + I), Integer_64 (RC_State.Table (I)));
+            end loop;
+            for A in Adaflight.Axes.Axis loop
+               Record_Result ("rcinit.max_rate", Bits (53 + Adaflight.Axes.Axis'Pos (A)),
+                              To_Bits (RC_State.Max_Rate (A)));
+            end loop;
+            Record_Result ("rcinit.divider", Bits (56), To_Bits (RC_State.Command_Divider));
+            Record_Result ("rcinit.yaw_divider", Bits (57), To_Bits (RC_State.Yaw_Divider));
+         end;
+      elsif Name = "rcstep" then
+         declare
+            Interval : constant Integer := Integer'Value (Str (4));
+            Loops    : constant Integer := Integer'Value (Str (5));
+            Data     : Channel_Values;
+            FF_Tol   : constant Integer_64 := (if RC_State.Averaging > 0 then 512 else 0);
+         begin
+            RC_Time := RC_Time + Interfaces.Unsigned_32 (Interval);
+            Update_Refresh_Rate (RC_State, RC_Time, True, RC_Time);
+            for Ch in Channel loop
+               Data (Ch) := Flt (6 + Ch);
+            end loop;
+            Update_Commands (RC_State, RC_Config, Data);
+            Process (RC_State, RC_Config, RC_Runtime);
+            for J in 2 .. Loops loop
+               Process (RC_State, RC_Config, RC_Runtime);
+            end loop;
+            for Ch in Channel loop
+               Expect_Float ("command", RC_State.Command (Ch));
+            end loop;
+            for A in Adaflight.Axes.Axis loop
+               Expect_Float ("raw_setpoint", RC_State.Raw_Setpoint (A));
+            end loop;
+            for A in Adaflight.Axes.Axis loop
+               Expect_Float ("setpoint_rate", RC_State.Setpoint_Rate (A));
+            end loop;
+            for A in Adaflight.Axes.Axis loop
+               Expect_Float ("feedforward_raw", RC_State.Feedforward_Raw (A), FF_Tol);
+            end loop;
+            for A in Adaflight.Axes.Axis loop
+               Expect_Float ("feedforward_smoothed", RC_State.Feedforward_Smoothed (A), FF_Tol);
+            end loop;
+            for A in Adaflight.Axes.Axis loop
+               Expect_Float ("deflection", RC_State.Deflection (A));
+            end loop;
+            Expect_Float ("max_deflection", RC_State.Max_Deflection_Abs);
+            Expect_Float ("setpoint_cutoff", Float (RC_State.Setpoint_Cutoff_Hz));
+            Expect_Float ("throttle_cutoff", Float (RC_State.Throttle_Cutoff_Hz));
+            Expect_Float ("smoothed_rate", RC_State.Smoothed_Rate_Hz);
+            Record_Int ("rcstep.rate_valid", Int (K), Boolean'Pos (RC_State.Rate_Valid));
+            K := K + 1;
+            if K /= NF + 1 then
+               Put_Line ("rcstep: consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
+               Failures := Failures + 1;
+            end if;
+         end;
+      else
+         Put_Line ("unknown rc case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_RC_Line;
+
    procedure Check_PID_Line is
    begin
       if Str (1) = "pidinit" then
@@ -1375,6 +1507,8 @@ procedure Vector_Check is
                   Check_PID_Thr_Line;
                elsif Kind = "mix" then
                   Check_Mix_Line;
+               elsif Kind = "rc" then
+                  Check_RC_Line;
                else
                   Check_PID_Line;
                end if;
@@ -1399,6 +1533,7 @@ begin
    Run (Dir & "/pid.csv", "pid");
    Run (Dir & "/pidthr.csv", "pidthr");
    Run (Dir & "/mix.csv", "mix");
+   Run (Dir & "/rc.csv", "rc");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");

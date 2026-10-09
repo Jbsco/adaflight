@@ -25,6 +25,9 @@ package Adaflight.Rates with SPARK_Mode, Pure is
       Super_Rates    : Axis_Settings := (others => 67);
       Limits         : Axis_Limits := (others => Max_Rate_Limit);
       Quick_Expo     : Boolean := False;
+      Throttle_Mid   : Expo_Setting := 50;
+      Throttle_Expo  : Expo_Setting := 0;
+      Throttle_Hover : Expo_Setting := 50;
    end record;
 
    --  Stick command normalized to the unit range and its magnitude.

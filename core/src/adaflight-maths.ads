@@ -61,6 +61,13 @@ package Adaflight.Maths with SPARK_Mode, Pure is
 
    function Sqrt_Bounded (X : Non_Negative_Signal) return Root_Signal;
 
+   --  Nearest integer with ties to even, as the C library rounds in its
+   --  default mode.
+   Rounding_Bound : constant := 2 ** 24;
+   subtype Rounded_Integer is Integer range -Rounding_Bound .. Rounding_Bound;
+   function Round_Half_Even (X : Float) return Rounded_Integer
+     with Pre => abs X <= Float (Rounding_Bound) - 1.0;
+
    --  Square root of any non-negative finite value.
    function Sqrt_Non_Negative (X : Float) return Float
      with Pre  => X >= 0.0,
