@@ -1,4 +1,5 @@
-with Interfaces; use type Interfaces.Integer_64;
+with Interfaces; use type Interfaces.Integer_32;
+with Adaflight.Clock;
 
 package body Adaflight.Attitude with SPARK_Mode is
    use Vectors;
@@ -42,19 +43,6 @@ package body Adaflight.Attitude with SPARK_Mode is
      (Integer'Max (Low, Integer'Min (V, High)))
      with Pre  => Low <= High,
           Post => Clamp'Result in Low .. High;
-
-   --  The signed difference of two wrapping microsecond counters.
-   function Elapsed (Later : Time_Us; Earlier : Time_Us) return Integer is
-      D : constant Interfaces.Integer_64 := Interfaces.Integer_64 (Later) - Interfaces.Integer_64 (Earlier);
-   begin
-      if D > Interfaces.Integer_64 (Integer'Last) then
-         return Integer (D - 2 ** 32);
-      elsif D < Interfaces.Integer_64 (Integer'First) then
-         return Integer (D + 2 ** 32);
-      else
-         return Integer (D);
-      end if;
-   end Elapsed;
 
    ---------------
    -- Configure --
@@ -145,7 +133,7 @@ package body Adaflight.Attitude with SPARK_Mode is
    is
       procedure Quiet_Step is
       begin
-         if Elapsed (Now, S.Phase_Timeout) >= 0 then
+         if Clock.Elapsed (Now, S.Phase_Timeout) >= 0 then
             S.Phase_Timeout := Now + Reset_Active_Time;
             S.Reset_Phase := Reset;
          end if;
@@ -171,7 +159,7 @@ package body Adaflight.Attitude with SPARK_Mode is
             Quiet_Step;
             Gain := C.Kp;
          when Reset =>
-            if Elapsed (Now, S.Phase_Timeout) >= 0 then
+            if Clock.Elapsed (Now, S.Phase_Timeout) >= 0 then
                S.Reset_Phase := Disarmed;
             end if;
             Gain := C.Kp * 100.0;
@@ -314,7 +302,10 @@ package body Adaflight.Attitude with SPARK_Mode is
    -- Throttle_Correction_Of --
    ----------------------------
 
-   --  Zero when inverted, vertical, or within a small angle of level.
+   --  Zero when inverted, vertical, or within a small angle of level. The
+   --  contract keeps the rounding checks out of the update's context.
+   function Throttle_Correction_Of (S : State; C : Config) return Correction
+     with Post => (if Cos_Tilt (S) <= 0.015 then Throttle_Correction_Of'Result = 0);
    function Throttle_Correction_Of (S : State; C : Config) return Correction is
       Tilt : constant Float := Cos_Tilt (S);
    begin
@@ -347,7 +338,7 @@ package body Adaflight.Attitude with SPARK_Mode is
       Armed         : Boolean;
       Angle_Mode    : Boolean
    ) is
-      Dt      : constant Delta_Seconds := Float (Elapsed (Now, S.Previous_Time)) * 1.0e-6;
+      Dt      : constant Delta_Seconds := Float (Clock.Elapsed (Now, S.Previous_Time)) * 1.0e-6;
       Use_Acc : constant Boolean := 0.9 < Acc_Magnitude and then Acc_Magnitude < 1.1;
       Kp_Gain : Scheduled_Gain;
    begin

@@ -1,4 +1,5 @@
-with Interfaces; use type Interfaces.Unsigned_32; use type Interfaces.Integer_64;
+with Interfaces; use type Interfaces.Unsigned_32;
+with Adaflight.Clock;
 with Adaflight.PID_Profile;
 
 package body Adaflight.RC_Command with SPARK_Mode is
@@ -117,18 +118,6 @@ package body Adaflight.RC_Command with SPARK_Mode is
      (S : in out State; Time_Us : Unsigned_32; Receiving : Boolean; Frame_Time_Us : Unsigned_32)
    is
       Delta_Us : Integer := 0;
-      --  The signed difference of two wrapping microsecond counters.
-      function Elapsed (Later : Unsigned_32; Earlier : Unsigned_32) return Integer is
-         D : constant Integer_64 := Integer_64 (Later) - Integer_64 (Earlier);
-      begin
-         if D > Integer_64 (Integer'Last) then
-            return Integer (D - 2 ** 32);
-         elsif D < Integer_64 (Integer'First) then
-            return Integer (D + 2 ** 32);
-         else
-            return Integer (D);
-         end if;
-      end Elapsed;
    begin
       if Receiving then
          S.Previous_Interval_Us := S.Current_Interval_Us;
@@ -136,12 +125,12 @@ package body Adaflight.RC_Command with SPARK_Mode is
             Rx_Time : constant Unsigned_32 := (if Frame_Time_Us /= 0 then Frame_Time_Us else Time_Us);
          begin
             if S.Last_Rx_Time_Us /= 0 then
-               Delta_Us := Elapsed (Rx_Time, S.Last_Rx_Time_Us);
+               Delta_Us := Integer (Clock.Elapsed (Rx_Time, S.Last_Rx_Time_Us));
             end if;
             S.Last_Rx_Time_Us := Rx_Time;
          end;
       elsif S.Last_Rx_Time_Us /= 0 then
-         Delta_Us := Elapsed (Time_Us, S.Last_Rx_Time_Us);
+         Delta_Us := Integer (Clock.Elapsed (Time_Us, S.Last_Rx_Time_Us));
       end if;
       S.Current_Interval_Us := Integer'Max (Interval_Us'First, Integer'Min (Interval_Us'Last, Delta_Us));
       S.Current_Rate_Hz := 1.0e6 / Float (S.Current_Interval_Us);

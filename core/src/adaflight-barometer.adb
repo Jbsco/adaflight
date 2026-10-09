@@ -1,23 +1,11 @@
 with Adaflight.Accurate_Power;
+with Adaflight.Clock;
 
 package body Adaflight.Barometer with SPARK_Mode is
 
    Sea_Level_Pa      : constant Float := 101_325.0;
    Altitude_Exponent : constant Float := 0.190295;
    Altitude_Scale    : constant Float := 4_433_000.0;
-
-   --  The signed difference of two wrapping microsecond counters.
-   function Elapsed (Later : Time_Us; Earlier : Time_Us) return Integer_32 is
-      D : constant Interfaces.Integer_64 := Interfaces.Integer_64 (Later) - Interfaces.Integer_64 (Earlier);
-   begin
-      if D > Interfaces.Integer_64 (Integer_32'Last) then
-         return Integer_32 (D - 2 ** 32);
-      elsif D < Interfaces.Integer_64 (Integer_32'First) then
-         return Integer_32 (D + 2 ** 32);
-      else
-         return Integer_32 (D);
-      end if;
-   end Elapsed;
 
    --  A positive pressure count as a float, in a context of its own.
    function Counts_Of (Pressure : Integer_32) return Float
@@ -152,7 +140,7 @@ package body Adaflight.Barometer with SPARK_Mode is
          end;
          if S.Last_Data_Time_Us /= 0 then
             declare
-               Interval : constant Integer_32 := Elapsed (Now_Us, S.Last_Data_Time_Us);
+               Interval : constant Integer_32 := Clock.Elapsed (Now_Us, S.Last_Data_Time_Us);
             begin
                if Interval > 0 then
                   S.Data_Interval_Us := Interval;
