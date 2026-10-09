@@ -2,6 +2,8 @@ with Adaflight.PWL;
 
 package body Adaflight.PID_Controller with SPARK_Mode is
 
+   use type Interfaces.Unsigned_32;
+
    function Saturate (X : Float) return Signal is
      (Constrain_F (X, -Signal_Bound, Signal_Bound));
 
@@ -148,10 +150,13 @@ package body Adaflight.PID_Controller with SPARK_Mode is
    --  Attenuates the I term error while the setpoint moves fast.
    procedure Apply_Iterm_Relax
      (S : in out State; A : Axis; R : Runtime; Previous_Iterm : Iterm; Gyro_Rate : Rate;
-      Iterm_Error_Rate : in out Signal; Current_Setpoint : Rate)
+      Iterm_Error_Rate : in out Signal; Current_Setpoint : Rate; Angle_Mode : Boolean)
    is
       Setpoint_Lpf : Signal;
       Setpoint_Hpf : Deadband_Width_F;
+      --  Angle mode relaxes at a fifth of the setpoint threshold.
+      Threshold    : constant Float range 8.0 .. 40.0 :=
+        (if Angle_Mode then Iterm_Relax_Setpoint_Threshold * 0.2 else Iterm_Relax_Setpoint_Threshold);
    begin
       PT1_Apply (S.Filters.Windup (A), Current_Setpoint, Setpoint_Lpf);
       Setpoint_Hpf := Constrain_F (abs (Current_Setpoint - Setpoint_Lpf), 0.0, Signal_Bound);
@@ -159,7 +164,7 @@ package body Adaflight.PID_Controller with SPARK_Mode is
          if A /= Yaw or else R.Iterm_Relax in RPY | RPY_Inc then
             declare
                Factor : constant Unit_Interval :=
-                 Float'Max (0.0, 1.0 - Setpoint_Hpf / Iterm_Relax_Setpoint_Threshold);
+                 Float'Max (0.0, 1.0 - Setpoint_Hpf / Threshold);
                Decreasing : constant Boolean :=
                  (Previous_Iterm > 0.0 and then Iterm_Error_Rate < 0.0)
                  or else (Previous_Iterm < 0.0 and then Iterm_Error_Rate > 0.0);
@@ -181,9 +186,124 @@ package body Adaflight.PID_Controller with SPARK_Mode is
    -- Update --
    ------------
 
+   type Level_Kind is (Level_Off, Level_Roll, Level_Roll_Pitch);
+
+   --  The horizon strength: full levelling flat with centered sticks, none
+   --  at the angle and stick limits, held to the gain, and smoothed on the
+   --  way up. The type bound is the product of the configuration bounds; the
+   --  value stays within one in practice.
+   subtype Strength is Float range 0.0 .. 600.0;
+
+   procedure Horizon_Strength (S : in out State; R : Runtime; Inp : Inputs; H : out Strength) is
+      Inclination : constant Float range 0.0 .. 181.0 :=
+        Float (Integer'Max (abs Inp.Attitude (Roll), abs Inp.Attitude (Pitch))) * 0.1;
+      Stick       : constant Float range 0.0 .. 1.0 :=
+        Float'Max (abs Inp.Deflection (Roll), abs Inp.Deflection (Pitch));
+      By_Angle    : constant Float range -20.0 .. 28.0 :=
+        (R.Horizon_Limit_Degrees - Inclination) * R.Horizon_Limit_Degrees_Inv;
+      By_Sticks   : constant Float range -10.0 .. 21.0 :=
+        (R.Horizon_Limit_Sticks - Stick) * R.Horizon_Limit_Sticks_Inv;
+      Level       : Float range 0.0 .. 600.0 := (if By_Angle > 0.0 then By_Angle else 0.0);
+      Smoothed    : Signal;
+   begin
+      Level := Level * (if By_Sticks > R.Horizon_Ignore_Sticks then By_Sticks else R.Horizon_Ignore_Sticks);
+      Level := Level * R.Horizon_Gain;
+      PT1_Apply (S.Filters.Horizon_Smoothing, Level, Smoothed);
+      --  The smoothed strength is never negative, which the filter's type
+      --  cannot say; the final branch is inert.
+      H := (if Level < Smoothed then Level elsif Smoothed > 0.0 then Smoothed else 0.0);
+   end Horizon_Strength;
+
+   --  The angle error rate of a level axis from the stick's angle target,
+   --  the attitude less the trim, the angle feedforward, and the yaw
+   --  compensation while rolled or pitched, blended into the acro setpoint
+   --  by the horizon strength.
+   procedure Level_Setpoint (
+      S        : in out State;
+      R        : Runtime;
+      P        : Profile;
+      Inp      : Inputs;
+      A        : Level_Axis;
+      H        : Strength;
+      Setpoint : in out Rate
+   ) is
+      Angle_Limit : constant Float range 10.0 .. 90.0 := Float (P.Angle_Limit);
+      Inv         : constant Float range 0.0004 .. 2.1 := 1.0 / Inp.Max_RC_Rate (A);
+      Raw_FF      : constant Float range -4.0e6 .. 4.0e6 :=
+        Angle_Limit * Inp.Feedforward (A) * R.Angle_Feedforward_Gain * Inv;
+      Feedforward : Signal;
+      Target      : constant Angle_Degrees :=
+        Constrain_F (Angle_Limit * Setpoint * Inv, -Angle_Limit, Angle_Limit);
+      Current     : constant Float range -211.0 .. 211.0 := Float (Inp.Attitude (A) - Inp.Trims (A)) / 10.0;
+      Error       : constant Float range -302.0 .. 302.0 := Target - Current;
+      Other       : constant Level_Axis := (if A = Roll then Pitch else Roll);
+      Sin_Angle   : Cosine := Sin_Approx (S.Angle_Target (Other) * Rad_Per_Degree);
+      Angle_Rate  : Signal;
+      Filtered    : Signal;
+   begin
+      PT3_Apply (S.Filters.Angle_Feedforward (A), Raw_FF, Feedforward);
+      Angle_Rate := Saturate (Error * R.Angle_Gain + Feedforward);
+      if A = Roll then
+         Sin_Angle := -Sin_Angle;
+      end if;
+      Angle_Rate := Saturate (Angle_Rate + S.Angle_Yaw_Setpoint * Sin_Angle * R.Angle_Earth_Ref);
+      S.Angle_Target (A) := Target;
+      PT3_Apply (S.Filters.Attitude (A), Angle_Rate, Filtered);
+      if Inp.Angle_Mode then
+         Setpoint := Constrain_F (Filtered, -Rate_Bound, Rate_Bound);
+      else
+         Setpoint := Constrain_F (Setpoint * (1.0 - H) + Filtered * H, -Rate_Bound, Rate_Bound);
+      end if;
+   end Level_Setpoint;
+
+   --  The yaw setpoint attenuated by the cosine of the larger angle target
+   --  while the craft is levelled, and kept for the roll and pitch
+   --  compensation.
+   procedure Attenuate_Yaw (
+      S        : in out State;
+      R        : Runtime;
+      Inp      : Inputs;
+      H        : Strength;
+      Setpoint : in out Rate
+   ) with Post => (if R.Angle_Earth_Ref = 0.0 then Setpoint = Setpoint'Old and then S = S'Old);
+   procedure Attenuate_Yaw (
+      S        : in out State;
+      R        : Runtime;
+      Inp      : Inputs;
+      H        : Strength;
+      Setpoint : in out Rate
+   ) is
+   begin
+      if R.Angle_Earth_Ref /= 0.0 then
+         S.Angle_Yaw_Setpoint := Setpoint;
+         declare
+            Largest : Float range 0.0 .. 54_001.0 :=
+              R.Angle_Earth_Ref * Float'Max (abs S.Angle_Target (Roll), abs S.Angle_Target (Pitch));
+         begin
+            if Inp.Horizon_Mode then
+               Largest := Largest * H;
+            end if;
+            Setpoint := Setpoint * Cos_Approx (Largest * Rad_Per_Degree);
+         end;
+      end if;
+   end Attenuate_Yaw;
+
    procedure Update (S : in out State; R : Runtime; P : Profile; Inp : Inputs) is
       Gyro_Dterm : Axis_Signals;
+      Level      : Level_Kind := Level_Off;
+      H          : Strength := 0.0;
    begin
+      if Inp.Angle_Mode or else Inp.Horizon_Mode then
+         Level := (if R.Level_Race_Mode then Level_Roll else Level_Roll_Pitch);
+         if S.Level_Mode_Start_Us = 0 then
+            S.Level_Mode_Start_Us := Inp.Now_Us;
+         end if;
+         if Inp.Horizon_Mode then
+            Horizon_Strength (S, R, Inp, H);
+         end if;
+      else
+         S.Level_Mode_Start_Us := 0;
+      end if;
       if Inp.Anti_Gravity_Enabled then
          S.Anti_Gravity_Throttle_D := Constrain_F
            (S.Anti_Gravity_Throttle_D * Float (R.Anti_Gravity_Gain), 0.0, Throttle_D_Bound * 251.0);
@@ -208,15 +328,27 @@ package body Adaflight.PID_Controller with SPARK_Mode is
             Ki             : Float;
             Iterm_Limit    : Float;
             Iterm_Change   : Float;
-            Setpoint_Delta : constant Rate := Inp.Feedforward (A);
+            Setpoint_Delta : Rate := Inp.Feedforward (A);
             Term           : Float;
          begin
             if R.Max_Velocity (A) /= 0.0 then
                Acceleration_Limit (S, A, R, Setpoint);
             end if;
+            S.Axis_In_Angle_Mode (A) := False;
+            if A /= Yaw then
+               if Level = Level_Roll_Pitch or else (Level = Level_Roll and then A = Roll) then
+                  S.Axis_In_Angle_Mode (A) := True;
+                  Level_Setpoint (S, R, P, Inp, A, H, Setpoint);
+               end if;
+            elsif Level = Level_Roll_Pitch then
+               Attenuate_Yaw (S, R, Inp, H, Setpoint);
+            end if;
+            if Inp.Angle_Mode and then S.Axis_In_Angle_Mode (A) then
+               Setpoint_Delta := 0.0;
+            end if;
             Error_Rate := Setpoint - Gyro_Rate;
             Iterm_Error := Error_Rate;
-            Apply_Iterm_Relax (S, A, R, Previous_Iterm, Gyro_Rate, Iterm_Error, Setpoint);
+            Apply_Iterm_Relax (S, A, R, Previous_Iterm, Gyro_Rate, Iterm_Error, Setpoint, Inp.Angle_Mode);
             Error_Rate := Setpoint - Gyro_Rate;
             Term := R.Coefficient (A).Kp * Error_Rate;
             S.Data (A).P := Saturate (Term * TPA_Factor_Of (S, P.TPA_Terms, Term_P));

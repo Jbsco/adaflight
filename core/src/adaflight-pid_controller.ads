@@ -1,8 +1,10 @@
 --  The PID rate loop: the P, I, D, and F terms per axis from the gyro rate
---  and the setpoint, with the acceleration limit, iterm relax, iterm
---  rotation, the D-term filter chain and D-max, the throttle-side TPA factor
---  and anti-gravity terms, in the operation order of the reference.
+--  and the setpoint, with the acceleration limit, the angle and horizon
+--  level modes that turn the setpoint into an angle error rate, iterm relax,
+--  iterm rotation, the D-term filter chain and D-max, the throttle-side TPA
+--  factor and anti-gravity terms, in the operation order of the reference.
 
+with Interfaces;
 with Adaflight.Axes; use Adaflight.Axes;
 with Adaflight.Maths; use Adaflight.Maths;
 with Adaflight.Filters; use Adaflight.Filters;
@@ -41,12 +43,34 @@ package Adaflight.PID_Controller with SPARK_Mode, Pure is
 
    type Axis_Terms is array (Axis) of Terms;
 
+   --  The level modes read the attitude in decidegrees less the trims, the
+   --  stick deflections, and the rate the rates give at full deflection.
+   subtype Level_Axis is PID_Filters.Level_Axis;
+   subtype Decidegrees is Integer range -1_800 .. 1_800;
+   subtype Trim is Integer range -300 .. 300;
+   subtype Deflection is Float range -1.0 .. 1.0;
+   subtype Max_Rate is Float range 0.5 .. 2_000.0;
+   subtype Angle_Degrees is Float range -90.0 .. 90.0;
+   type Level_Angles is array (Level_Axis) of Decidegrees;
+   type Level_Trims is array (Level_Axis) of Trim;
+   type Level_Deflections is array (Level_Axis) of Deflection;
+   type Level_Rates is array (Level_Axis) of Max_Rate;
+   type Level_Targets is array (Level_Axis) of Angle_Degrees;
+   type Axis_Flags is array (Axis) of Boolean;
+
    type Inputs is record
       Gyro                      : Axis_Rates := (others => 0.0);
       Setpoint                  : Axis_Rates := (others => 0.0);
       Feedforward               : Axis_Rates := (others => 0.0);
       Anti_Gravity_Enabled      : Boolean := False;
       Zero_Throttle_Iterm_Reset : Boolean := False;
+      Angle_Mode                : Boolean := False;
+      Horizon_Mode              : Boolean := False;
+      Attitude                  : Level_Angles := (others => 0);
+      Trims                     : Level_Trims := (others => 0);
+      Deflection                : Level_Deflections := (others => 0.0);
+      Max_RC_Rate               : Level_Rates := (others => 670.0);
+      Now_Us                    : Interfaces.Unsigned_32 := 0;
    end record;
 
    type State is record
@@ -61,6 +85,10 @@ package Adaflight.PID_Controller with SPARK_Mode, Pure is
       TPA_Factor              : Signal := 0.0;
       TPA_Low_Faded           : Boolean := False;
       Stabilisation_Enabled   : Boolean := False;
+      Angle_Target            : Level_Targets := (others => 0.0);
+      Angle_Yaw_Setpoint      : Rate := 0.0;
+      Axis_In_Angle_Mode      : Axis_Flags := (others => False);
+      Level_Mode_Start_Us     : Interfaces.Unsigned_32 := 0;
    end record;
 
    --  Prepares the controller from a profile and its runtime constants.

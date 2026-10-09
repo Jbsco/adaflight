@@ -345,3 +345,19 @@ with its saturation, and the disarm tick counter is its wrapping byte. Not in th
 the DShot beacon delay, crash flip and spin direction, launch control, the GPS rescue arming
 checks, the runaway takeoff detection, the in-flight accelerometer calibration, the shared
 port telemetry switch, and the adjustments, which belong with their own units.
+
+## D25. Level modes inside the rate loop (2026-10-09)
+
+The angle and horizon modes stay where the reference keeps them, in the rate loop between
+the acceleration limit and the iterm relax, so the loop's order holds: the angle target from
+the stick through the angle limit and the rate at full deflection, the attitude less the
+trims, the angle feedforward through its own filter, the yaw compensation while rolled or
+pitched, the attitude filter, and the horizon crossfade. The attitude, the trims, the stick
+deflections, and the full-deflection rates arrive as inputs of the loop, since the units
+that produce them run before it. The horizon strength and the level rate carry the type
+bounds their configuration ranges allow (a strength of up to six hundred, a feedforward of
+up to four million degrees per second), and saturate at the signal bound and the rate bound
+where the reference's floats run on; none of the saturations is reached in the recorded
+vectors. The level mode start time is kept for the crash recovery guard, which is not yet
+ported, and the GPS rescue, altitude hold, position hold, and launch inputs to the level
+target are not in this unit.
