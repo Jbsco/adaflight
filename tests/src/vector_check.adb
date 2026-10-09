@@ -28,6 +28,7 @@ with Adaflight.Accelerometer;
 with Adaflight.Barometer;
 with Adaflight.Battery;
 with Adaflight.Arming;
+with Adaflight.Compass;
 with Adaflight.Vectors;
 with Adaflight.PWL;
 with Adaflight.SDFT;
@@ -1742,6 +1743,95 @@ procedure Vector_Check is
       end if;
    end Check_Gyro_Line;
 
+   Comp_State    : Adaflight.Compass.State;
+   Comp_Settings : Adaflight.Compass.Settings;
+   Comp_Saves    : Integer_64 := 0;
+
+   procedure Check_Compass_Line is
+      use Adaflight.Compass;
+      Name : constant String := Str (1);
+      function Beep_Code (B : Beep) return Integer_64 is
+        (case B is
+            when Silence => -1, when Calibration_Start => 11, when Movement_Start => 13,
+            when Calibrated => 1, when Calibration_Failed => 12);
+   begin
+      if Name = "compinit" then
+         Comp_Settings :=
+           (Alignment     => Adaflight.Sensor_Alignment.Standard_Alignment'Val (Int (3)),
+            Custom_Angles => (Roll  => Adaflight.Sensor_Alignment.Decidegrees (Int (4)),
+                              Pitch => Adaflight.Sensor_Alignment.Decidegrees (Int (5)),
+                              Yaw   => Adaflight.Sensor_Alignment.Decidegrees (Int (6))),
+            Board         => (Roll => Integer (Int (7)), Pitch => Integer (Int (8)), Yaw => Integer (Int (9))),
+            Zero          => (Adaflight.Vectors.X => Integer (Int (10)),
+                              Adaflight.Vectors.Y => Integer (Int (11)),
+                              Adaflight.Vectors.Z => Integer (Int (12))));
+         Init (Comp_State, Comp_Settings);
+         Comp_Saves := 0;
+         Record_Int ("compinit.alignment", Int (13),
+                     Adaflight.Sensor_Alignment.Standard_Alignment'Pos (Comp_State.Alignment));
+         Record_Int ("compinit.calibrated", Int (14), Boolean'Pos (Comp_State.Calibrated));
+         Record_Result ("compinit.lambda", Bits (15), To_Bits (Comp_State.Estimator.Lambda));
+         Record_Result ("compinit.d0", Bits (16), To_Bits (Comp_State.Estimator.D (0)));
+         Record_Result ("compinit.threshold", Bits (17), To_Bits (Movement_Threshold));
+      elsif Name = "compstep" then
+         declare
+            Sample : constant Raw_Vector :=
+              (Adaflight.Vectors.X => Integer (Int (4)),
+               Adaflight.Vectors.Y => Integer (Int (5)),
+               Adaflight.Vectors.Z => Integer (Int (6)));
+            Gyro   : constant Adaflight.Vectors.Vector3 := (X => Flt (7), Y => Flt (8), Z => Flt (9));
+            Now    : constant Interfaces.Unsigned_32 := Interfaces.Unsigned_32 (Int (10));
+            K      : Positive := 12;
+            procedure Expect_Float (N : String; Actual : Float) is
+            begin
+               Record_Result ("compstep." & N, Bits (K), To_Bits (Actual));
+               K := K + 1;
+            end Expect_Float;
+            procedure Expect_Int (N : String; Actual : Integer_64) is
+            begin
+               Record_Int ("compstep." & N, Int (K), Actual);
+               K := K + 1;
+            end Expect_Int;
+         begin
+            if Int (11) /= 0 then
+               Start_Calibration (Comp_State, Now);
+               Record_Int ("compstep.beep_start", Int (22), Beep_Code (Comp_State.Beeper));
+            end if;
+            Update (Comp_State, Comp_Settings, Sample, Gyro, Now);
+            if Comp_State.Save_Requested then
+               Comp_Saves := Comp_Saves + 1;
+            end if;
+            for A in Adaflight.Vectors.Coordinate loop
+               Expect_Float ("field", Comp_State.Field (A));
+            end loop;
+            Expect_Int ("calibrating", Boolean'Pos (Comp_State.Calibrating));
+            Expect_Int ("moved", Boolean'Pos (Comp_State.Movement_Started));
+            Expect_Int ("end_us", Integer_64 (Comp_State.Calibration_End_Us));
+            Expect_Int ("calibrated", Boolean'Pos (Comp_State.Calibrated));
+            for A in Adaflight.Vectors.Coordinate loop
+               Expect_Int ("zero", Integer_64 (Comp_State.Zero (A)));
+            end loop;
+            K := K + 1;
+            Expect_Int ("beep", Beep_Code (Comp_State.Beeper));
+            Expect_Int ("saves", Comp_Saves);
+            Expect_Float ("lambda", Comp_State.Estimator.Lambda);
+            for A in Adaflight.Vectors.Coordinate loop
+               Expect_Float ("bias", Comp_State.Estimator.B (A));
+            end loop;
+            for P in Parameter_Index loop
+               Expect_Float ("theta", Comp_State.Estimator.Theta (P));
+            end loop;
+            if K /= NF + 1 then
+               Put_Line ("compstep: consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
+               Failures := Failures + 1;
+            end if;
+         end;
+      else
+         Put_Line ("unknown compass case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Compass_Line;
+
    IMU_State  : Adaflight.Attitude.State;
    IMU_Config : Adaflight.Attitude.Config;
 
@@ -2420,6 +2510,8 @@ procedure Vector_Check is
                   Check_Battery_Line;
                elsif Kind = "arming" then
                   Check_Arming_Line;
+               elsif Kind = "compass" then
+                  Check_Compass_Line;
                else
                   Check_PID_Line;
                end if;
@@ -2453,6 +2545,7 @@ begin
    Run (Dir & "/baro.csv", "baro");
    Run (Dir & "/battery.csv", "battery");
    Run (Dir & "/arming.csv", "arming");
+   Run (Dir & "/compass.csv", "compass");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
