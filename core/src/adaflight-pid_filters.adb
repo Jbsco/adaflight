@@ -81,6 +81,15 @@ package body Adaflight.PID_Filters with SPARK_Mode is
    -- Init --
    ----------
 
+   --  The cutoff of a smoothing time constant in milliseconds, in a body of
+   --  its own so its bound carries none of the profile.
+   function Cutoff_Of_Period (Ms : Positive) return Filters.Frequency
+     with Pre => Ms in 10 .. 5_000, Post => Cutoff_Of_Period'Result <= 16.0;
+   function Cutoff_Of_Period (Ms : Positive) return Filters.Frequency is
+   begin
+      return 1000.0 / (Two_Pi * Float (Ms));
+   end Cutoff_Of_Period;
+
    procedure Init (S : out State; P : Profile; R : Runtime) is
       Limit    : constant Natural := Nyquist_Limit (R.Dt);
       Notch_Hz : Natural := 0;
@@ -133,10 +142,9 @@ package body Adaflight.PID_Filters with SPARK_Mode is
       PT2_Init (S.Anti_Gravity, PT2_Gain (Float (P.Anti_Gravity_Cutoff_Hz), R.Dt));
       declare
          Attitude_K     : constant Unit_Interval := PT3_Gain (Attitude_Cutoff_Hz, R.Dt);
-         Angle_Cutoff   : constant Float :=
-           1000.0 / (Two_Pi * Float (P.Angle_Feedforward_Smoothing_Ms));
+         Angle_Cutoff   : constant Filters.Frequency := Cutoff_Of_Period (P.Angle_Feedforward_Smoothing_Ms);
          Angle_K        : constant Unit_Interval := PT3_Gain (Angle_Cutoff, R.Dt);
-         Horizon_Cutoff : constant Float := 1000.0 / (Two_Pi * Float (P.Horizon_Delay_Ms));
+         Horizon_Cutoff : constant Filters.Frequency := Cutoff_Of_Period (P.Horizon_Delay_Ms);
       begin
          S.Horizon_Delay_Ms := P.Horizon_Delay_Ms;
          PT1_Init (S.Horizon_Smoothing, PT1_Gain (Horizon_Cutoff, R.Dt));
