@@ -22,6 +22,7 @@ with Adaflight.Gyro_Filters;
 with Adaflight.Attitude;
 with Adaflight.Failsafe;
 with Adaflight.Modes;
+with Adaflight.Accelerometer;
 with Adaflight.Vectors;
 with Adaflight.PWL;
 with Adaflight.SDFT;
@@ -1785,6 +1786,74 @@ procedure Vector_Check is
       end if;
    end Check_Modes_Line;
 
+   Acc_State    : Adaflight.Accelerometer.State;
+   Acc_Settings : Adaflight.Accelerometer.Settings;
+
+   procedure Check_Acc_Line is
+      use Adaflight.Accelerometer;
+      Name : constant String := Str (1);
+   begin
+      if Name = "accinit" then
+         Acc_Settings :=
+           (Sample_Rate_Hz => Integer (Int (3)),
+            Lowpass_Hz     => Integer (Int (4)),
+            Alignment      => Adaflight.Sensor_Alignment.Standard_Alignment'Val (Int (5)),
+            Custom_Angles  => (Roll  => Adaflight.Sensor_Alignment.Decidegrees (Int (6)),
+                               Pitch => Adaflight.Sensor_Alignment.Decidegrees (Int (7)),
+                               Yaw   => Adaflight.Sensor_Alignment.Decidegrees (Int (8))),
+            One_G          => Integer (Int (9)),
+            Roll_Trim      => Interfaces.Integer_16 (Int (12)),
+            Pitch_Trim     => Interfaces.Integer_16 (Int (13)));
+         Init (Acc_State, Acc_Settings);
+         Record_Result ("accinit.one_g_rec", Bits (10), To_Bits (Acc_State.One_G_Reciprocal));
+         if Acc_Settings.Lowpass_Hz /= 0 then
+            Record_Result ("accinit.k", Bits (11), To_Bits (Acc_State.Filter (Adaflight.Vectors.X).K));
+         end if;
+         Start_Calibration (Acc_State);
+      elsif Name = "accstep" then
+         declare
+            Sample : constant Raw_Vector :=
+              (Adaflight.Vectors.X => Integer (Int (4)),
+               Adaflight.Vectors.Y => Integer (Int (5)),
+               Adaflight.Vectors.Z => Integer (Int (6)));
+            K : Positive := 8;
+            procedure Expect_Float (N : String; Actual : Float) is
+            begin
+               Record_Result ("accstep." & N, Bits (K), To_Bits (Actual));
+               K := K + 1;
+            end Expect_Float;
+            procedure Expect_Int (N : String; Actual : Integer_64) is
+            begin
+               Record_Int ("accstep." & N, Int (K), Actual);
+               K := K + 1;
+            end Expect_Int;
+         begin
+            Update (Acc_State, Acc_Settings, Sample);
+            Expect_Float ("acc", Acc_State.Acc.X);
+            Expect_Float ("acc", Acc_State.Acc.Y);
+            Expect_Float ("acc", Acc_State.Acc.Z);
+            Expect_Float ("jerk", Acc_State.Jerk.X);
+            Expect_Float ("jerk", Acc_State.Jerk.Y);
+            Expect_Float ("jerk", Acc_State.Jerk.Z);
+            Expect_Float ("magnitude", Acc_State.Magnitude);
+            Expect_Float ("jerk_magnitude", Acc_State.Jerk_Magnitude);
+            for A in Adaflight.Vectors.Coordinate loop
+               Expect_Int ("zero", Integer_64 (Acc_State.Zero (A)));
+            end loop;
+            Expect_Int ("complete", Boolean'Pos (Calibration_Complete (Acc_State)));
+            Expect_Int ("roll_trim", Integer_64 (Acc_State.Roll_Trim));
+            Expect_Int ("pitch_trim", Integer_64 (Acc_State.Pitch_Trim));
+            if K /= NF + 1 then
+               Put_Line ("accstep: consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
+               Failures := Failures + 1;
+            end if;
+         end;
+      else
+         Put_Line ("unknown acc case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Acc_Line;
+
    procedure Check_PID_Line is
    begin
       if Str (1) = "pidinit" then
@@ -1856,6 +1925,8 @@ procedure Vector_Check is
                   Check_Failsafe_Line;
                elsif Kind = "modes" then
                   Check_Modes_Line;
+               elsif Kind = "acc" then
+                  Check_Acc_Line;
                else
                   Check_PID_Line;
                end if;
@@ -1885,6 +1956,7 @@ begin
    Run (Dir & "/imu.csv", "imu");
    Run (Dir & "/failsafe.csv", "failsafe");
    Run (Dir & "/modes.csv", "modes");
+   Run (Dir & "/acc.csv", "acc");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");

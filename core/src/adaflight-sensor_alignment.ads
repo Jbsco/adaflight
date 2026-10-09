@@ -30,4 +30,12 @@ package Adaflight.Sensor_Alignment with SPARK_Mode, Pure is
    --  the angles unchanged.
    procedure From_Standard (Angles : in out Alignment_Angles; Alignment : Standard_Alignment);
 
+   --  A standard alignment applied to a sensor reading: quarter turns about
+   --  yaw permute and negate the axes, the flipped variants negate the
+   --  vertical axis. Default, CW0, and Custom leave the reading unchanged.
+   function Align (V : Vectors.Vector3; Alignment : Standard_Alignment) return Vectors.Vector3
+     with Post => abs Align'Result.X <= Float'Max (abs V.X, abs V.Y)
+                  and then abs Align'Result.Y <= Float'Max (abs V.X, abs V.Y)
+                  and then abs Align'Result.Z = abs V.Z;
+
 end Adaflight.Sensor_Alignment;
