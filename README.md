@@ -28,12 +28,12 @@ integrity codes, the encodings, bit arrays, stream buffers, the Huffman encoder,
 coordinate conversion, sensor alignment, color conversion, the chirp generator, the rate
 curves, the RC command path with its smoothing and feedforward, the PID profile with
 its runtime configuration, filter initialization, rate loop, and throttle-side features,
-the motor mixer, the gyro filtering chain, the attitude estimator, and the failsafe state
-machine.
+the motor mixer, the gyro filtering chain, the attitude estimator, the failsafe state
+machine, and the runtime modes.
 
-- The core proves at Silver and Gold: 2984 checks, nothing unproved, no
+- The core proves at Silver and Gold: 3014 checks, nothing unproved, no
   `pragma Assume`, no justified suppression (`gnatprove` 16.1.0, level 2).
-- The recorded vectors replay bit for bit: 70462 lines over 140 cases, every case
+- The recorded vectors replay bit for bit: 76492 lines over 142 cases, every case
   exact except the eleven declared deviations in `DESIGN.md` D6.
 - No target builds yet. `ROADMAP.md` carries the parity inventory and the phases.
 
