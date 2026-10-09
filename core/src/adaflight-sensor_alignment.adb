@@ -40,4 +40,30 @@ package body Adaflight.Sensor_Alignment with SPARK_Mode is
                  Yaw   => 900 * Quarter_Turns);
    end From_Standard;
 
+   -----------
+   -- Align --
+   -----------
+
+   function Align (V : Vectors.Vector3; Alignment : Standard_Alignment) return Vectors.Vector3 is
+   begin
+      case Alignment is
+         when Default | CW0 | Custom =>
+            return V;
+         when CW90 =>
+            return (X => V.Y, Y => -V.X, Z => V.Z);
+         when CW180 =>
+            return (X => -V.X, Y => -V.Y, Z => V.Z);
+         when CW270 =>
+            return (X => -V.Y, Y => V.X, Z => V.Z);
+         when CW0_Flip =>
+            return (X => -V.X, Y => V.Y, Z => -V.Z);
+         when CW90_Flip =>
+            return (X => V.Y, Y => V.X, Z => -V.Z);
+         when CW180_Flip =>
+            return (X => V.X, Y => -V.Y, Z => -V.Z);
+         when CW270_Flip =>
+            return (X => -V.Y, Y => -V.X, Z => -V.Z);
+      end case;
+   end Align;
+
 end Adaflight.Sensor_Alignment;
