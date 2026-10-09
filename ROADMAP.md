@@ -41,11 +41,11 @@ were recorded from. The adaflight column counts Ada lines on `main`.
 | common (maths, filters, vectors, DFT, tables, encodings, buffers, codecs) | 5481 | 4557 | maths with exp and log, filters, vectors, sliding DFT, piecewise-linear tables, integrity codes, encodings, bit arrays, stream buffers, Huffman encoder, GPS coordinates, sensor alignment, color conversion, and the chirp generator proved and vector-checked; time, type conversion, and the string helpers open |
 | flight (pid, mixer, imu, failsafe, rescue, nav) | 17554 | 2428 | PID profile, runtime configuration, filter initialization, the rate loop, the throttle-side features, the motor mixer, the attitude estimator, and the failsafe state machine proved and vector-checked; level modes, rescue, and navigation open |
 | fc (core loop, rc, modes, adjustments, tasks) | 8228 | 1028 | rate curves, the RC command path (deadbands, throttle curve, setpoints, feedforward, smoothing), and the runtime modes proved and vector-checked; core loop, adjustments, and tasks open |
-| sensors | 8893 | 706 | gyro filtering chain, the accelerometer path, and the barometer altitude proved and vector-checked; gyro calibration, overflow and spin checks, dynamic notch, RPM filter, board alignment, compass, and battery open |
+| sensors | 8893 | 1167 | gyro filtering chain, the accelerometer path, the barometer altitude, and the battery meters and states proved and vector-checked; gyro calibration, overflow and spin checks, dynamic notch, RPM filter, board alignment, compass, and battery open |
 | scheduler | 1144 | 0 | Phase 3 |
 | rx | 16964 | 0 | Phase 4 |
 | pg, config, cli, msp | 21377 | 0 | Phase 5 |
 | blackbox, osd, cms, telemetry, io | 59977 | 0 | Phase 6 |
 | drivers, target, build, msc | 55927 | 0 | Phase 7 |
 | platform (STM32, AT32, APM32, PICO, ESP32, SITL) | not counted | 0 | Phase 7 |
-| total measured | 195545 | 8734 | |
+| total measured | 195545 | 9195 | |

@@ -24,6 +24,7 @@ with Adaflight.Failsafe;
 with Adaflight.Modes;
 with Adaflight.Accelerometer;
 with Adaflight.Barometer;
+with Adaflight.Battery;
 with Adaflight.Vectors;
 with Adaflight.PWL;
 with Adaflight.SDFT;
@@ -1911,6 +1912,92 @@ procedure Vector_Check is
       end if;
    end Check_Baro_Line;
 
+   Battery_State_V  : Adaflight.Battery.State;
+   Battery_Settings : Adaflight.Battery.Settings;
+
+   procedure Check_Battery_Line is
+      use Adaflight.Battery;
+      Name : constant String := Str (1);
+   begin
+      if Name = "batinit" then
+         Battery_Settings :=
+           (Voltage_Meter                  => Voltage_Source'Val (Int (3)),
+            Current_Meter                  => Current_Source'Val (Int (4)),
+            Not_Present_Cell_Voltage       => Integer (Int (5)),
+            LVC_Percentage                 => Integer (Int (6)),
+            Voltage_Alerts                 => Int (7) /= 0,
+            Consumption_Alerts             => Int (8) /= 0,
+            Hysteresis                     => Integer (Int (9)),
+            Display_Filter_Period          => Integer (Int (10)),
+            Current_Filter_Period          => Integer (Int (11)),
+            Duration_For_Warning           => Integer (Int (12)),
+            Duration_For_Critical          => Integer (Int (13)),
+            Max_Cell_Voltage               => Integer (Int (14)),
+            Min_Cell_Voltage               => Integer (Int (15)),
+            Warning_Cell_Voltage           => Integer (Int (16)),
+            Full_Cell_Voltage              => Integer (Int (17)),
+            Capacity_mAh                   => Integer (Int (18)),
+            Force_Cell_Count               => Integer (Int (19)),
+            Consumption_Warning_Percentage => Integer (Int (20)),
+            Voltage_Scale                  => Integer (Int (21)),
+            Voltage_Divider                => Integer (Int (22)),
+            Voltage_Multiplier             => Integer (Int (23)),
+            Current_Scale                  => Integer (Int (24)),
+            Current_Offset                 => Integer (Int (25)));
+         Init (Battery_State_V, Battery_Settings);
+      elsif Name = "batstep" then
+         declare
+            Now_Us : constant Interfaces.Unsigned_32 := Interfaces.Unsigned_32 (Int (4));
+            Now_Ms : constant Interfaces.Unsigned_32 := Now_Us / 1_000;
+            K      : Positive := 10;
+            A      : Alert := Silence;
+            procedure Expect_Int (N : String; Actual : Integer_64) is
+            begin
+               Record_Int ("batstep." & N, Int (K), Actual);
+               K := K + 1;
+            end Expect_Int;
+         begin
+            Update_Voltage (Battery_State_V, Battery_Settings, Integer (Int (5)), Now_Ms);
+            Update_Current (Battery_State_V, Battery_Settings, Integer (Int (6)), Now_Us);
+            if Int (8) /= 0 then
+               if Int (9) /= 0 then
+                  Update_Presence (Battery_State_V, Battery_Settings);
+               end if;
+               Update_States (Battery_State_V, Battery_Settings, Now_Us, Now_Ms);
+               A := Alarm (Battery_State_V, Battery_Settings);
+            end if;
+            Expect_Int ("display", Integer_64 (Battery_State_V.Voltage.Display_Filtered));
+            Expect_Int ("unfiltered", Integer_64 (Battery_State_V.Voltage.Unfiltered));
+            Expect_Int ("stable_bits", Integer_64 (Battery_State_V.Voltage.Stable_Bits));
+            Expect_Int ("stable_prev", Integer_64 (Battery_State_V.Voltage.Stable_Prev_Filtered));
+            Expect_Int ("amperage", Integer_64 (Battery_State_V.Current.Amperage));
+            Expect_Int ("amperage_latest", Integer_64 (Battery_State_V.Current.Amperage_Latest));
+            Expect_Int ("mah", Integer_64 (Battery_State_V.Current.mAh_Drawn));
+            Expect_Int ("cells", Integer_64 (Battery_State_V.Cells));
+            Expect_Int ("voltage_state", Battery_State'Pos (Battery_State_V.Voltage_State));
+            Expect_Int ("consumption_state", Battery_State'Pos (Battery_State_V.Consumption_State));
+            Expect_Int ("state", Battery_State'Pos (Battery_State_V.Overall));
+            Expect_Int ("warning_v", Integer_64 (Battery_State_V.Warning_Voltage));
+            Expect_Int ("critical_v", Integer_64 (Battery_State_V.Critical_Voltage));
+            Expect_Int ("warning_hyst", Integer_64 (Battery_State_V.Warning_Hysteresis));
+            Expect_Int ("critical_hyst", Integer_64 (Battery_State_V.Critical_Hysteresis));
+            Expect_Int ("lvc_enabled", Boolean'Pos (Battery_State_V.LVC_Enabled));
+            Expect_Int ("lvc_percent", Integer_64 (Battery_State_V.LVC_Percentage));
+            Record_Result ("batstep.watt_hours", Bits (K), To_Bits (Battery_State_V.Watt_Hours));
+            K := K + 1;
+            Expect_Int ("percent", Integer_64 (Percentage_Remaining (Battery_State_V, Battery_Settings)));
+            Expect_Int ("beeper", (case A is when Silence => -1, when Low => 8, when Critical_Low => 7));
+            if K /= NF + 1 then
+               Put_Line ("batstep: consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
+               Failures := Failures + 1;
+            end if;
+         end;
+      else
+         Put_Line ("unknown battery case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Battery_Line;
+
    procedure Check_PID_Line is
    begin
       if Str (1) = "pidinit" then
@@ -1986,6 +2073,8 @@ procedure Vector_Check is
                   Check_Acc_Line;
                elsif Kind = "baro" then
                   Check_Baro_Line;
+               elsif Kind = "battery" then
+                  Check_Battery_Line;
                else
                   Check_PID_Line;
                end if;
@@ -2017,6 +2106,7 @@ begin
    Run (Dir & "/modes.csv", "modes");
    Run (Dir & "/acc.csv", "acc");
    Run (Dir & "/baro.csv", "baro");
+   Run (Dir & "/battery.csv", "battery");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");

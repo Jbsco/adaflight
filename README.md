@@ -29,12 +29,13 @@ coordinate conversion, sensor alignment, color conversion, the chirp generator, 
 curves, the RC command path with its smoothing and feedforward, the PID profile with
 its runtime configuration, filter initialization, rate loop, and throttle-side features,
 the motor mixer, the gyro filtering chain, the attitude estimator, the failsafe state
-machine, the runtime modes, the accelerometer path, and the barometer altitude.
+machine, the runtime modes, the accelerometer path, the barometer altitude, and the battery
+meters and states.
 
-- The core proves at Silver and Gold: 3162 checks, nothing unproved, no
+- The core proves at Silver and Gold: 3280 checks, nothing unproved, no
   `pragma Assume`, no justified suppression (`gnatprove` 16.1.0, level 2).
-- The recorded vectors replay bit for bit: 94442 lines over 146 cases, every case
-  exact except the twelve declared deviations in `DESIGN.md` D6.
+- The recorded vectors replay bit for bit: 109472 lines over 148 cases, every case
+  exact except the thirteen declared deviations in `DESIGN.md` D6.
 - No target builds yet. `ROADMAP.md` carries the parity inventory and the phases.
 
 ## Repository layout

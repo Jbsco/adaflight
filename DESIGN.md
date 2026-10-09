@@ -115,6 +115,11 @@ ledger. The deviations so far:
   power. The altitude subtracts the power from one, so near sea level the last bit of the
   power becomes up to 2 ** (-21) * 4433000, about 2.2 cm; the declared tolerance is 3 cm,
   and two samples of 6900 recorded needed it.
+- The battery's charge integration multiplies the latest current by the microseconds since
+  the meter was last serviced in 64 bits, where the reference's 32-bit product wraps on the
+  first sample after a pack is detected, which spans the time since boot (findings F20).
+  The recorded vectors keep that first sample small enough for the reference to stay in
+  range, so the two agree on every step.
 
 ## D7. Contribution conventions (2026-10-08)
 
@@ -285,3 +290,15 @@ mean of the temperature and float mean of the altitude, with both sums saturatin
 their types' bounds, which one hundred samples cannot reach; the drift product is formed
 in 64 bits where the reference's 32-bit product would wrap above a two-degree-million
 difference, which no device reports.
+
+## D22. Battery meters in the reference's integer arithmetic (2026-10-08)
+
+`Adaflight.Battery` keeps the voltage and current meters in the reference's integer
+arithmetic: the divider scaling in 32-bit unsigned steps held to the 16-bit field it stores
+into, the current scaling in 32-bit signed steps, the cell thresholds in 16-bit unsigned
+products, and the filtered analog counts truncated back to counts before scaling, as the
+reference converts them. The stability record is the reference's shifted bit mask. Only the
+analog meters are ported; the ESC, virtual, and MSP sources reset their meter as the
+reference does when a source is absent. The cutoff percentage is held to its range where
+the reference's byte leaves it after a clock wrap during the ramp, and the charge sum and
+energy saturate at their float types' bounds, which no pack reaches.
