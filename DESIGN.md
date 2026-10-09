@@ -210,3 +210,19 @@ the clamp the reference applies with a lower bound that rounding can place above
 upper one is kept as written, with a postcondition that names which of the three values
 it returns. The reference seeds its motor maximum with the smallest normal float; the
 port keeps the seed to stay bit-exact.
+
+## D17. Quaternion components saturate at two (2026-10-08)
+
+The attitude estimator keeps the quaternion of the body frame in `Adaflight.Attitude`. A
+normalized component lies within one plus the rounding of the normalization, which the
+prover cannot see through the square root, so the estimator saturates each component at
+two after it normalizes, and the rotation matrix entries follow at seventeen by type. The
+saturation is inert: no normalized component reaches it. The Euler angles and the throttle
+correction are held to their decidegree and correction ranges after rounding, which the
+rounding of a bounded argument cannot leave. Two guards keep the reference's
+infinities and NaNs out of the state. A quaternion whose norm vanishes resets to identity
+where the reference divides by zero, and the arc cosines of the rotation matrix take their
+argument clamped to the cosine range where the reference takes the root of a negative
+number. Neither case occurs in the recorded vectors, which replay bit for bit. The
+accelerometer path, the magnetometer and course-over-ground heading errors, and the
+headfree frame are not in this unit.
