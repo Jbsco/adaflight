@@ -28,12 +28,12 @@ curves, the RC command path with its smoothing and feedforward, the PID profile 
 its runtime configuration, filter initialization, rate loop, and throttle-side features,
 the motor mixer, the gyro filtering chain, the attitude estimator, the failsafe state
 machine, the runtime modes, the accelerometer path, the barometer altitude, the battery
-meters and states, and the sensor and board alignment.
+meters and states, the sensor and board alignment, and the arming logic.
 
-- The core proves at Silver and Gold: 3346 checks, nothing unproved, no
+- The core proves at Silver and Gold: 3374 checks, nothing unproved, no
   `pragma Assume`, no justified suppression (`gnatprove` 16.1.0, level 2).
-- The recorded vectors replay bit for bit: 109472 lines over 148 cases, every case
-  exact except the thirteen declared deviations in `DESIGN.md` D6.
+- The recorded vectors replay bit for bit: 124502 lines over 150 cases, every case
+  exact except the fourteen declared deviations in `DESIGN.md` D6.
 - No target builds yet. `ROADMAP.md` carries the parity inventory and the phases.
 
 ## Repository layout
