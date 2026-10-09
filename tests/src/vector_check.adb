@@ -23,6 +23,7 @@ with Adaflight.Attitude;
 with Adaflight.Failsafe;
 with Adaflight.Modes;
 with Adaflight.Accelerometer;
+with Adaflight.Barometer;
 with Adaflight.Vectors;
 with Adaflight.PWL;
 with Adaflight.SDFT;
@@ -1854,6 +1855,62 @@ procedure Vector_Check is
       end if;
    end Check_Acc_Line;
 
+   Baro_State    : Adaflight.Barometer.State;
+   Baro_Settings : Adaflight.Barometer.Settings;
+
+   procedure Check_Baro_Line is
+      use Adaflight.Barometer;
+      Name : constant String := Str (1);
+   begin
+      if Name = "baroinit" then
+         Baro_Settings := (Temperature_Drift_Cm_Per_10C => Integer (Int (4)), Virtual_Device => Int (3) /= 0);
+         Init (Baro_State);
+         Start_Calibration (Baro_State, Baro_Settings);
+      elsif Name = "barostep" then
+         declare
+            K : Positive := 8;
+            procedure Expect_Float (N : String; Actual : Float) is
+            begin
+               Record_Result ("barostep." & N, Bits (K), To_Bits (Actual));
+               K := K + 1;
+            end Expect_Float;
+            procedure Expect_Int (N : String; Actual : Integer_64) is
+            begin
+               Record_Int ("barostep." & N, Int (K), Actual);
+               K := K + 1;
+            end Expect_Int;
+         begin
+            if Int (7) /= 0 then
+               Set_Ground_Level (Baro_State);
+            end if;
+            Sample (Baro_State, Baro_Settings,
+                    Pressure    => Interfaces.Integer_32 (Int (5)),
+                    Temperature => Interfaces.Integer_32 (Int (6)),
+                    Now_Us      => Interfaces.Unsigned_32 (Int (4)));
+            --  The power's last-bit rounding, amplified by the subtraction
+            --  from one near sea level: at most 2.2 cm (DESIGN.md D6).
+            Record_Result ("barostep.altitude", Bits (K), To_Bits (Baro_State.Altitude), Absolute => 3.0);
+            K := K + 1;
+            Expect_Int ("pressure", Integer_64 (Baro_State.Pressure));
+            Expect_Int ("temperature", Integer_64 (Baro_State.Temperature));
+            Expect_Int ("last_time", Integer_64 (Baro_State.Last_Data_Time_Us));
+            Expect_Int ("interval", Integer_64 (Baro_State.Data_Interval_Us));
+            Expect_Int ("calibrated", Boolean'Pos (Baro_State.Calibrated));
+            Expect_Float ("ground", Baro_State.Ground_Altitude);
+            Expect_Int ("temp_at_cal", Integer_64 (Baro_State.Temperature_At_Calibration));
+            Expect_Int ("count", Integer_64 (Baro_State.Count));
+            Expect_Int ("cycles", Integer_64 (Baro_State.Cycles));
+            if K /= NF + 1 then
+               Put_Line ("barostep: consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
+               Failures := Failures + 1;
+            end if;
+         end;
+      else
+         Put_Line ("unknown baro case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Baro_Line;
+
    procedure Check_PID_Line is
    begin
       if Str (1) = "pidinit" then
@@ -1927,6 +1984,8 @@ procedure Vector_Check is
                   Check_Modes_Line;
                elsif Kind = "acc" then
                   Check_Acc_Line;
+               elsif Kind = "baro" then
+                  Check_Baro_Line;
                else
                   Check_PID_Line;
                end if;
@@ -1957,6 +2016,7 @@ begin
    Run (Dir & "/failsafe.csv", "failsafe");
    Run (Dir & "/modes.csv", "modes");
    Run (Dir & "/acc.csv", "acc");
+   Run (Dir & "/baro.csv", "baro");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
