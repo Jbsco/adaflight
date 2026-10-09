@@ -19,6 +19,7 @@ with Adaflight.PID_Controller;
 with Adaflight.Mixer;
 with Adaflight.RC_Command;
 with Adaflight.Gyro_Filters;
+with Adaflight.Dyn_Notch;
 with Adaflight.Attitude;
 with Adaflight.Failsafe;
 with Adaflight.Modes;
@@ -1535,16 +1536,20 @@ procedure Vector_Check is
             C.Notch1_Cutoff := Integer'Value (Str (22));
             C.Notch2_Hz := Integer'Value (Str (23));
             C.Notch2_Cutoff := Integer'Value (Str (24));
-            C.Calibration_Duration := Integer (Int (NF - 7));
-            C.Movement_Threshold := Integer (Int (NF - 6));
-            C.Offset_Yaw := Integer (Int (NF - 5));
-            C.Check_Overflow := Overflow_Check'Val (Int (NF - 4));
-            C.Yaw_Spin := Spin_Recovery'Val (Int (NF - 3));
-            C.Yaw_Spin_Threshold := Integer (Int (NF - 2));
-            C.Overflow_Protected := Int (NF - 1) /= 0;
+            C.Calibration_Duration := Integer (Int (NF - 12));
+            C.Movement_Threshold := Integer (Int (NF - 11));
+            C.Offset_Yaw := Integer (Int (NF - 10));
+            C.Check_Overflow := Overflow_Check'Val (Int (NF - 9));
+            C.Yaw_Spin := Spin_Recovery'Val (Int (NF - 8));
+            C.Yaw_Spin_Threshold := Integer (Int (NF - 7));
+            C.Overflow_Protected := Int (NF - 6) /= 0;
+            C.Dynamic_Notch := (Count  => Integer (Int (NF - 4)), Q => Integer (Int (NF - 3)),
+                                Min_Hz => Integer (Int (NF - 2)), Max_Hz => Integer (Int (NF - 1)));
             Gyro_Settings := C;
             Init (Gyro_State, Gyro_Settings);
-            Init_Yaw_Spin_Recovery (Gyro_State, Gyro_Settings, Natural (Int (NF)));
+            Init_Yaw_Spin_Recovery (Gyro_State, Gyro_Settings, Natural (Int (NF - 5)));
+            Record_Int ("gyroinit.dyn_active", Int (NF),
+                        Boolean'Pos (Gyro_State.Dyn.Active));
             Record_Int ("gyroinit.downsample", Int (25), Boolean'Pos (Gyro_State.Downsample_Filter));
             Record_Int ("gyroinit.lpf1_kind", Int (K), Stage_Kind (Gyro_State.Lowpass1 (Adaflight.Axes.Roll)));
             K := K + 1;
@@ -1583,7 +1588,7 @@ procedure Vector_Check is
             Record_Int ("gyroinit.dyn_min", Int (K + 1), Integer_64 (Gyro_State.Dyn_LPF_Min));
             Record_Int ("gyroinit.dyn_max", Int (K + 2), Integer_64 (Gyro_State.Dyn_LPF_Max));
             Record_Int ("gyroinit.dyn_expo", Int (K + 3), Integer_64 (Gyro_State.Dyn_LPF_Expo));
-            if K + 3 /= NF - 8 then
+            if K + 3 /= NF - 13 then
                Put_Line ("gyroinit: settings end at" & Integer'Image (K + 3) & " of" & Integer'Image (NF) & " fields");
                Failures := Failures + 1;
             end if;
@@ -1604,13 +1609,14 @@ procedure Vector_Check is
                Gyro_Cal_Samples := Gyro_Cal_Samples + 1;
                if Gyro_Cal_Samples mod Gyro_Denom = 0 then
                   Filter (Gyro_State, Gyro_Settings,
-                          Interfaces.Unsigned_32 (Gyro_Cal_Samples * Gyro_Settings.Sample_Time_Us));
+                          Interfaces.Unsigned_32 (Gyro_Cal_Samples * Gyro_Settings.Sample_Time_Us), 0);
                end if;
                K := K + 3;
             end loop;
          end;
       elsif Name = "gyrocaldone" then
-         Filter (Gyro_State, Gyro_Settings, Interfaces.Unsigned_32 (Gyro_Cal_Samples * Gyro_Settings.Sample_Time_Us));
+         Filter (Gyro_State, Gyro_Settings,
+                 Interfaces.Unsigned_32 (Gyro_Cal_Samples * Gyro_Settings.Sample_Time_Us), 0);
          Record_Int ("gyrocaldone.samples", Int (3), Integer_64 (Gyro_Cal_Samples));
          for A in Adaflight.Axes.Axis loop
             Record_Result ("gyrocaldone.zero", Bits (4 + Adaflight.Axes.Axis'Pos (A)), To_Bits (Gyro_State.Zero (A)));
@@ -1623,7 +1629,7 @@ procedure Vector_Check is
          Gyro_Now_Us := Interfaces.Unsigned_32 (Gyro_Cal_Samples * Gyro_Settings.Sample_Time_Us);
       elsif Name = "gyrostep" then
          declare
-            K   : Positive := 6;
+            K   : Positive := 7;
             Thr : constant Float := Flt (4);
             Finished : Boolean;
             procedure Expect_Float (N : String; Actual : Float) is
@@ -1645,7 +1651,7 @@ procedure Vector_Check is
                K := K + 3;
             end loop;
             Gyro_Now_Us := Gyro_Now_Us + Interfaces.Unsigned_32 (Gyro_Settings.Loop_Time_Us);
-            Filter (Gyro_State, Gyro_Settings, Gyro_Now_Us);
+            Filter (Gyro_State, Gyro_Settings, Gyro_Now_Us, Natural (Int (6)));
             for A in Adaflight.Axes.Axis loop
                Expect_Float ("rate", Gyro_State.Rate (A));
             end loop;
@@ -1662,8 +1668,15 @@ procedure Vector_Check is
             Record_Int ("gyrostep.overflow", Int (K + 1), Boolean'Pos (Gyro_State.Overflow_Detected));
             Record_Int ("gyrostep.yaw_spin", Int (K + 2), Boolean'Pos (Gyro_State.Yaw_Spin_Detected));
             Record_Int ("gyrostep.now", Int (K + 3), Integer_64 (Gyro_Now_Us));
-            if K + 3 /= NF then
-               Put_Line ("gyrostep: consumed" & Integer'Image (K + 3) & " of" & Integer'Image (NF) & " fields");
+            K := K + 4;
+            for A in Adaflight.Axes.Axis loop
+               for P in Adaflight.Dyn_Notch.Notch_Index loop
+                  Expect_Float ("center", Gyro_State.Dyn.Center (A, P));
+               end loop;
+            end loop;
+            Record_Int ("gyrostep.max_center", Int (K), Integer_64 (Gyro_State.Dyn.Max_Center));
+            if K /= NF then
+               Put_Line ("gyrostep: consumed" & Integer'Image (K) & " of" & Integer'Image (NF) & " fields");
                Failures := Failures + 1;
             end if;
          end;
