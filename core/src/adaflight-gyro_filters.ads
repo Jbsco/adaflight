@@ -9,6 +9,8 @@ with Adaflight.Filters; use Adaflight.Filters;
 with Adaflight.PID_Profile; use Adaflight.PID_Profile;
 with Adaflight.PID_Config; use Adaflight.PID_Config;
 with Adaflight.PID_Filters;
+with Adaflight.Sensor_Alignment;
+with Adaflight.Vectors;
 
 package Adaflight.Gyro_Filters with SPARK_Mode, Pure is
 
@@ -38,6 +40,9 @@ package Adaflight.Gyro_Filters with SPARK_Mode, Pure is
       Loop_Time_Us     : PID_Config.Loop_Time_Us := 125;
       Scale            : Float range 2.0 ** (-10) .. 1.0 := 1.0;
       Zero             : Offsets := (others => 0.0);
+      Alignment        : Sensor_Alignment.Standard_Alignment := Sensor_Alignment.CW0;
+      Custom_Angles    : Sensor_Alignment.Alignment_Angles;
+      Board            : Sensor_Alignment.Board_Angles;
    end record
      with Dynamic_Predicate =>
        (Settings.LPF1_Dyn_Min_Hz = 0 or else Settings.LPF1_Dyn_Min_Hz <= Settings.LPF1_Dyn_Max_Hz)
@@ -69,7 +74,11 @@ package Adaflight.Gyro_Filters with SPARK_Mode, Pure is
       Downsampled       : Axis_Signals := (others => 0.0);
       Sample_Sum        : Axis_Signals := (others => 0.0);
       Samples           : Sample_Count := 0;
-   end record;
+      Sensor_Rotation   : Vectors.Matrix33 := Vectors.Identity;
+      Board_Rotation    : Vectors.Matrix33 := Vectors.Identity;
+   end record
+     with Dynamic_Predicate =>
+       Vectors.Bounded (State.Sensor_Rotation, 2.0) and then Vectors.Bounded (State.Board_Rotation, 2.0);
 
    procedure Init (S : out State; C : Settings);
 

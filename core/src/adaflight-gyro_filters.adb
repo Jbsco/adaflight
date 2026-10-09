@@ -59,6 +59,8 @@ package body Adaflight.Gyro_Filters with SPARK_Mode is
         (if C.LPF1_Dyn_Min_Hz > 0 then C.LPF1_Dyn_Min_Hz else C.LPF1_Static_Hz);
    begin
       S := (others => <>);
+      S.Sensor_Rotation := Sensor_Alignment.Rotation_Matrix (C.Custom_Angles);
+      S.Board_Rotation := Sensor_Alignment.Board_Rotation (C.Board);
       for A in Axis loop
          PID_Filters.Init_Stage
            (S.Lowpass1 (A), C.LPF1_Type, LPF1_Hz, Nyquist_Limit (C.Loop_Time_Us), Dt_Loop, Inclusive => True);
@@ -94,10 +96,30 @@ package body Adaflight.Gyro_Filters with SPARK_Mode is
    ----------------
 
    procedure Accumulate (S : in out State; C : Settings; Sample : Raw_Vector) is
+      use type Sensor_Alignment.Standard_Alignment;
+      --  The zeroed counts aligned to the body frame before the scale, as the
+      --  reference orders them.
+      Centered : Vectors.Vector3 :=
+        (X => Float (Sample (Roll)) - C.Zero (Roll),
+         Y => Float (Sample (Pitch)) - C.Zero (Pitch),
+         Z => Float (Sample (Yaw)) - C.Zero (Yaw));
    begin
-      for A in Axis loop
-         S.Rate (A) := (Float (Sample (A)) - C.Zero (A)) * C.Scale;
-      end loop;
+      if C.Alignment = Sensor_Alignment.Custom then
+         Centered := Vectors.Apply_Rotation (Centered, S.Sensor_Rotation);
+      else
+         Centered := Sensor_Alignment.Align (Centered, C.Alignment);
+      end if;
+      if not Sensor_Alignment.Standard_Board (C.Board) then
+         --  A sensor-aligned count is within 2 ** 19; the bound is stated for
+         --  the board rotation's precondition.
+         Centered := (X => Constrain_F (Centered.X, -2.0 ** 19, 2.0 ** 19),
+                      Y => Constrain_F (Centered.Y, -2.0 ** 19, 2.0 ** 19),
+                      Z => Constrain_F (Centered.Z, -2.0 ** 19, 2.0 ** 19));
+         Centered := Vectors.Apply_Rotation (Centered, S.Board_Rotation);
+      end if;
+      S.Rate (Roll) := Constrain_F (Centered.X * C.Scale, -Signal_Bound, Signal_Bound);
+      S.Rate (Pitch) := Constrain_F (Centered.Y * C.Scale, -Signal_Bound, Signal_Bound);
+      S.Rate (Yaw) := Constrain_F (Centered.Z * C.Scale, -Signal_Bound, Signal_Bound);
       if S.Downsample_Filter then
          for A in Axis loop
             PID_Filters.Apply_Stage (S.Lowpass2 (A), S.Rate (A), S.Sample_Sum (A));
