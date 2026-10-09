@@ -20,6 +20,7 @@ with Adaflight.Mixer;
 with Adaflight.RC_Command;
 with Adaflight.Gyro_Filters;
 with Adaflight.Attitude;
+with Adaflight.Failsafe;
 with Adaflight.Vectors;
 with Adaflight.PWL;
 with Adaflight.SDFT;
@@ -1644,6 +1645,87 @@ procedure Vector_Check is
       end if;
    end Check_IMU_Line;
 
+   FS_State    : Adaflight.Failsafe.State;
+   FS_Settings : Adaflight.Failsafe.Settings;
+   FS_Disarms  : Integer_64 := 0;
+
+   procedure Check_Failsafe_Line is
+      use Adaflight.Failsafe;
+      Name : constant String := Str (1);
+   begin
+      if Name = "fsinit" then
+         FS_Settings := (Throttle_Low_Delay => Integer (Int (3)),
+                         Signal_Delay       => Integer (Int (4)),
+                         Landing_Time       => Integer (Int (5)),
+                         Switch             => Switch_Mode'Val (Int (6)),
+                         Action             => Procedure_Kind'Val (Int (7)),
+                         Recovery_Delay     => Integer (Int (8)));
+         Init (FS_State, FS_Settings);
+         FS_Disarms := 0;
+         Record_Int ("fsinit.failure_period", Int (9), Integer_64 (FS_State.Rx_Data_Failure_Period));
+         Record_Int ("fsinit.recovery_period", Int (10), Integer_64 (FS_State.Rx_Data_Recovery_Period));
+      elsif Name = "fsstep" then
+         declare
+            Now       : constant Time_Ms := Time_Ms (Int (4));
+            In_Flight : constant Inputs :=
+              (Armed               => Int (5) /= 0,
+               Switch_On           => Int (6) /= 0,
+               Throttle_Low        => Int (7) /= 0,
+               Configurator_Active => Int (8) /= 0,
+               Crash_Recovery      => Int (9) /= 0);
+            Event     : constant Integer_64 := Int (10);
+            Beeper    : Beep;
+            Disarm    : Boolean;
+            K         : Positive := 13;
+            procedure Expect_Int (N : String; Actual : Integer_64) is
+            begin
+               Record_Int ("fsstep." & N, Int (K), Actual);
+               K := K + 1;
+            end Expect_Int;
+            function Flags return Integer_64 is
+              ((if FS_State.Arming_Disabled then 2 else 0) + (if FS_State.Arming_Disabled_Rx then 4 else 0));
+         begin
+            if Int (12) /= 0 then
+               Start_Monitoring (FS_State);
+            end if;
+            case Event is
+               when 1 => On_Valid_Data_Received (FS_State, Now);
+               when 2 => On_Valid_Data_Failed (FS_State, Now);
+               when 3 => Check_Data_Failure_Period (FS_State, Now);
+               when 4 => On_Rx_Suspend (FS_State, Interfaces.Unsigned_32 (Int (11)));
+               when 5 => On_Rx_Resume (FS_State, Now);
+               when others => null;
+            end case;
+            Update (FS_State, FS_Settings, Now, In_Flight, Beeper, Disarm);
+            if Disarm then
+               FS_Disarms := FS_Disarms + 1;
+            end if;
+            Expect_Int ("phase", Phase'Pos (FS_State.Current));
+            Expect_Int ("link", Link'Pos (FS_State.Rx_Link));
+            Expect_Int ("active", Boolean'Pos (FS_State.Active));
+            Expect_Int ("monitoring", Boolean'Pos (FS_State.Monitoring));
+            Expect_Int ("events", Integer_64 (FS_State.Events));
+            Expect_Int ("throttle_low_period", Integer_64 (FS_State.Throttle_Low_Period));
+            Expect_Int ("landing_deadline", Integer_64 (FS_State.Landing_Should_Be_Finished_At));
+            Expect_Int ("receiving_period", Integer_64 (FS_State.Receiving_Rx_Data_Period));
+            Expect_Int ("receiving_preset", Integer_64 (FS_State.Receiving_Rx_Data_Period_Preset));
+            Expect_Int ("received_at", Integer_64 (FS_State.Valid_Rx_Data_Received_At));
+            Expect_Int ("failed_at", Integer_64 (FS_State.Valid_Rx_Data_Failed_At));
+            Expect_Int ("flight_mode", (if FS_State.Failsafe_Mode then 1024 else 0));
+            Expect_Int ("arming_disabled", Flags);
+            Expect_Int ("disarms", FS_Disarms);
+            Expect_Int ("beeper", (case Beeper is when Silence => -1, when Rx_Lost => 2, when Rx_Lost_Landing => 3));
+            if K /= NF + 1 then
+               Put_Line ("fsstep: consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
+               Failures := Failures + 1;
+            end if;
+         end;
+      else
+         Put_Line ("unknown failsafe case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Failsafe_Line;
+
    procedure Check_PID_Line is
    begin
       if Str (1) = "pidinit" then
@@ -1711,6 +1793,8 @@ procedure Vector_Check is
                   Check_Gyro_Line;
                elsif Kind = "imu" then
                   Check_IMU_Line;
+               elsif Kind = "failsafe" then
+                  Check_Failsafe_Line;
                else
                   Check_PID_Line;
                end if;
@@ -1738,6 +1822,7 @@ begin
    Run (Dir & "/rc.csv", "rc");
    Run (Dir & "/gyro.csv", "gyro");
    Run (Dir & "/imu.csv", "imu");
+   Run (Dir & "/failsafe.csv", "failsafe");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
