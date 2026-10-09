@@ -40,6 +40,19 @@ package body Adaflight.Sensor_Alignment with SPARK_Mode is
                  Yaw   => 900 * Quarter_Turns);
    end From_Standard;
 
+   --------------------
+   -- Board_Rotation --
+   --------------------
+
+   function Board_Rotation (B : Board_Angles) return Vectors.Matrix33 is
+      subtype Board_Radians is Maths.Angle range -7.0 .. 7.0;
+      Roll  : constant Board_Radians := Float (B.Roll) * Maths.Rad_Per_Degree;
+      Pitch : constant Board_Radians := Float (B.Pitch) * Maths.Rad_Per_Degree;
+      Yaw   : constant Board_Radians := Float (B.Yaw) * Maths.Rad_Per_Degree;
+   begin
+      return Vectors.Rotation_Matrix ((Roll => Roll, Pitch => Pitch, Yaw => Yaw));
+   end Board_Rotation;
+
    -----------
    -- Align --
    -----------
