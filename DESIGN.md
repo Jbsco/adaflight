@@ -252,3 +252,18 @@ The masks are Boolean arrays over the box enumeration rather than bit words, so 
 identifier out of range cannot exist; the vector checker folds them back into the
 reference's words. The boot delay before a sticky box may disarm compares the microsecond
 counter directly, as the reference does, since the delay is a one-shot after boot.
+
+## D20. Accelerometer counts and offsets are held to their ranges (2026-10-08)
+
+`Adaflight.Accelerometer` follows the reference's path from the raw counts to the values
+the attitude estimator reads. Two bounds are stated where the reference relies on its
+types silently. An aligned count is held within 2 ** 18, which a standard alignment cannot
+reach and a custom rotation, whose matrix entries are within two, cannot exceed on 16-bit
+counts, so the saturation is inert. The calibration totals follow the reference's path,
+each cycle adding the float sample to an integer total and truncating back, and saturate
+at 2 ** 28, which 400 cycles of such counts cannot reach; the offsets are the rounded
+means less the gravity count on the vertical axis. The reference stores
+each offset in a 16-bit field that wraps when the mean exceeds it; the port saturates the
+offset at the field's range instead, which no sensor near one gravity reaches. The in-flight
+calibration, the board alignment, and the configuration flag that records a completed
+calibration are not in this unit.
