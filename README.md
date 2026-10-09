@@ -24,15 +24,15 @@ The core holds the bounded maths with the fast exponential and logarithm, the fi
 set, three-axis vectors and rotations, the sliding DFT, piecewise-linear tables,
 integrity codes, the encodings, bit arrays, stream buffers, the Huffman encoder, GPS
 coordinate conversion, sensor alignment, color conversion, the chirp generator, the rate
-curves, the RC command path with its smoothing and feedforward, the PID profile with
-its runtime configuration, filter initialization, rate loop, throttle-side features, and
-crash recovery, the motor mixer, the gyro calibration, filtering chain, dynamic notch, RPM filter, and
-full-scale detections, the attitude estimator, the failsafe state machine, the runtime
-modes, the accelerometer path, the barometer altitude, the compass with its bias
-calibration, the battery meters and states, the sensor and board alignment, the arming
-logic, and the angle and horizon level modes.
+curves, the RC command path with its smoothing and feedforward, the PID profile with its
+runtime configuration, filter initialization, rate loop, throttle-side features, and
+crash recovery, the motor mixer, the gyro calibration, filtering chain, dynamic notch,
+RPM filter, and full-scale detections, the attitude estimator with the compass heading,
+the failsafe state machine, the runtime modes, the accelerometer path, the barometer
+altitude, the compass with its bias calibration, the battery meters and states, the
+sensor and board alignment, the arming logic, and the angle and horizon level modes.
 
-- The core proves at Silver and Gold: 3952 checks, nothing unproved, no
+- The core proves at Silver and Gold: 4024 checks, nothing unproved, no
   `pragma Assume`, no justified suppression (`gnatprove` 16.1.0, level 2).
 - The recorded vectors replay bit for bit: 131986 lines over 154 cases, every case
   exact except the fourteen declared deviations in `DESIGN.md` D6.
