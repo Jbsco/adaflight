@@ -5,12 +5,9 @@
 --  stable. They are static constants computed once from the fast sine and
 --  cosine, so the package has no elaboration.
 
-with Interfaces;
 with Adaflight.Maths; use Adaflight.Maths;
 
 package Adaflight.SDFT with SPARK_Mode, Pure is
-
-   use type Interfaces.Integer_32;
 
    Sample_Size : constant := 72;
    Bin_Count   : constant := Sample_Size / 2;
@@ -52,7 +49,10 @@ package Adaflight.SDFT with SPARK_Mode, Pure is
    --  bin into the bin range, the end bin to at least the start bin, and
    --  the batch count to at least one.
    procedure Init (T : out Transform; Start_Bin : Integer; End_Bin : Integer; Num_Batches : Integer)
-     with Post => T.Idx = 0;
+     with Post => T.Idx = 0
+       and then T.Start_Bin = Integer'Max (0, Integer'Min (Bin_Count - 1, Start_Bin))
+       and then T.End_Bin = Integer'Max (T.Start_Bin, Integer'Min (Bin_Count - 1, End_Bin))
+       and then T.Num_Batches = Integer'Max (1, Integer'Min (Bin_Count, Num_Batches));
 
    procedure Push (T : in out Transform; Sample : Signal)
      with Post => T.Start_Bin = T.Start_Bin'Old and then T.End_Bin = T.End_Bin'Old
