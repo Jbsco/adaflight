@@ -381,3 +381,23 @@ rate against the threshold the setting or the rates' maximum yaw rate gives, wit
 reference's integer truncation reproduced as a comparison against the next whole number.
 The slew limiter the reference compiles only for three gyro devices on large targets is
 not in this unit.
+
+## D27. The dynamic notch as a unit of its own behind the gyro lowpass (2026-10-09)
+
+`Adaflight.Dyn_Notch` holds the three sliding transforms, the peak list, the notch centers,
+and the four-step cycle the reference runs one step per loop, one axis per four steps. The
+gyro unit pushes each filtered rate into it, filters the rate through its notches, and
+runs its update once per loop, in the reference's order. The state's predicate ties the
+transforms to the batch count and keeps their bins where the windowed spectrum can read
+one bin to each side, which the SDFT initialization now states in its postcondition. The
+spectral sums are held to a power bound no saturated transform reaches, and three guards
+stand where the reference's floats run on: the parabola offset is taken only when the
+numerator is within the denominator, which a peak between two lower neighbours always
+satisfies; the speed-up of the center smoothing takes its limit directly when the peak is
+at least ten times the floor or the floor is zero, and one when the floor is negative, as
+the reference's clamp of an infinite or negative quotient gives; and the start bin stays
+one short of the last readable bin, where the reference reads past its spectrum for a
+range above 250 Hz at a resolution under eight. The record of the highest center takes
+the reference's truncation of the center to a whole number. None of the guards changes a
+recorded vector. The slew of the notch at a loop slower than 500 microseconds is the
+reference's: the filter stays inactive.

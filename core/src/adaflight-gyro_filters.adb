@@ -65,6 +65,7 @@ package body Adaflight.Gyro_Filters with SPARK_Mode is
    begin
       S := (others => <>);
       S.Sensor_Rotation := Sensor_Alignment.Rotation_Matrix (C.Custom_Angles);
+      Dyn_Notch.Init (S.Dyn, C.Dynamic_Notch, C.Loop_Time_Us);
       S.Board_Rotation := Sensor_Alignment.Board_Rotation (C.Board);
       for A in Axis loop
          PID_Filters.Init_Stage
@@ -263,7 +264,7 @@ package body Adaflight.Gyro_Filters with SPARK_Mode is
       end if;
    end Check_Yaw_Spin;
 
-   procedure Filter (S : in out State; C : Settings; Now_Us : Time_Us) is
+   procedure Filter (S : in out State; C : Settings; Now_Us : Time_Us; Throttle_Percent : Natural) is
    begin
       for A in Axis loop
          declare
@@ -291,10 +292,18 @@ package body Adaflight.Gyro_Filters with SPARK_Mode is
                Value := Stage_Out;
             end if;
             PID_Filters.Apply_Stage (S.Lowpass1 (A), Value, Stage_Out);
-            S.Filtered (A) := Stage_Out;
+            Value := Stage_Out;
+            if S.Dyn.Active then
+               Dyn_Notch.Push (S.Dyn, A, Value);
+               Dyn_Notch.Filter (S.Dyn, A, Value);
+            end if;
+            S.Filtered (A) := Value;
          end;
       end loop;
       S.Samples := 0;
+      if S.Dyn.Active then
+         Dyn_Notch.Update (S.Dyn, Throttle_Percent);
+      end if;
       if C.Check_Overflow /= No_Check and then not C.Overflow_Protected then
          Check_Overflow (S, C, Now_Us);
       end if;
