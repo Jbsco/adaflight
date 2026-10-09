@@ -187,6 +187,8 @@ becomes zero. In flight no profile violates either rule, so the profile type sta
 as a predicate and the units that read the profile prove against them. The oracle applies
 the same rules after it draws its random settings, so the recorded vectors describe
 validated profiles only.
+The gyro filter settings carry the same two rules for their own lowpass range and their
+two notches.
 
 ## D15. One body outside SPARK: the power behind the TPA table (2026-10-08)
 

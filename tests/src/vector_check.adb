@@ -18,6 +18,7 @@ with Adaflight.PID_Filters;
 with Adaflight.PID_Controller;
 with Adaflight.Mixer;
 with Adaflight.RC_Command;
+with Adaflight.Gyro_Filters;
 with Adaflight.Vectors;
 with Adaflight.PWL;
 with Adaflight.SDFT;
@@ -1446,6 +1447,140 @@ procedure Vector_Check is
       end if;
    end Check_RC_Line;
 
+   Gyro_State    : Adaflight.Gyro_Filters.State;
+   Gyro_Settings : Adaflight.Gyro_Filters.Settings;
+   Gyro_Denom    : Integer := 1;
+
+   procedure Check_Gyro_Line is
+      use Adaflight.Gyro_Filters;
+      Name : constant String := Str (1);
+   begin
+      if Name = "gyroinit" then
+         declare
+            C : Settings;
+            K : Positive := 22;
+            function Stage_Kind (St : Stage) return Integer_64 is
+              (if not St.Used then 0
+               else (case St.Kind is
+                        when Adaflight.PID_Profile.PT1 => 1, when Adaflight.PID_Profile.SVF => 2,
+                        when Adaflight.PID_Profile.PT2 => 3, when Adaflight.PID_Profile.PT3 => 4));
+            procedure Expect_Float (N : String; Actual : Float) is
+            begin
+               Record_Result ("gyroinit." & N, Bits (K), To_Bits (Actual));
+               K := K + 1;
+            end Expect_Float;
+            procedure Expect_Stage (N : String; St : Stage) is
+            begin
+               case Stage_Kind (St) is
+                  when 1 => Expect_Float (N & ".k", St.P1.K); K := K + 3;
+                  when 2 =>
+                     Expect_Float (N & ".f", St.S.F);
+                     Expect_Float (N & ".a1", St.S.A1);
+                     Expect_Float (N & ".a2", St.S.A2);
+                     K := K + 1;
+                  when 3 => Expect_Float (N & ".k", St.P2.K); K := K + 3;
+                  when 4 => Expect_Float (N & ".k", St.P3.K); K := K + 3;
+                  when others => K := K + 4;
+               end case;
+            end Expect_Stage;
+         begin
+            C.Loop_Time_Us := Integer'Value (Str (3));
+            C.Sample_Time_Us := Integer'Value (Str (4));
+            Gyro_Denom := Integer'Value (Str (5));
+            C.Scale := Flt (6);
+            for A in Adaflight.Axes.Axis loop
+               C.Zero (A) := Flt (7 + Adaflight.Axes.Axis'Pos (A));
+            end loop;
+            C.LPF1_Type := Adaflight.PID_Profile.Lowpass_Kind'Val (Integer'Value (Str (10)));
+            C.LPF1_Static_Hz := Integer'Value (Str (11));
+            C.LPF1_Dyn_Min_Hz := Integer'Value (Str (12));
+            C.LPF1_Dyn_Max_Hz := Integer'Value (Str (13));
+            C.LPF1_Dyn_Expo := Integer'Value (Str (14));
+            C.LPF2_Type := Adaflight.PID_Profile.Lowpass_Kind'Val (Integer'Value (Str (15)));
+            C.LPF2_Static_Hz := Integer'Value (Str (16));
+            C.Notch1_Hz := Integer'Value (Str (17));
+            C.Notch1_Cutoff := Integer'Value (Str (18));
+            C.Notch2_Hz := Integer'Value (Str (19));
+            C.Notch2_Cutoff := Integer'Value (Str (20));
+            Gyro_Settings := C;
+            Init (Gyro_State, Gyro_Settings);
+            Record_Int ("gyroinit.downsample", Int (21), Boolean'Pos (Gyro_State.Downsample_Filter));
+            Record_Int ("gyroinit.lpf1_kind", Int (K), Stage_Kind (Gyro_State.Lowpass1 (Adaflight.Axes.Roll)));
+            K := K + 1;
+            for A in Adaflight.Axes.Axis loop
+               Expect_Stage ("lpf1", Gyro_State.Lowpass1 (A));
+            end loop;
+            Record_Int ("gyroinit.lpf2_kind", Int (K), Stage_Kind (Gyro_State.Lowpass2 (Adaflight.Axes.Roll)));
+            K := K + 1;
+            for A in Adaflight.Axes.Axis loop
+               Expect_Stage ("lpf2", Gyro_State.Lowpass2 (A));
+            end loop;
+            Record_Int ("gyroinit.notch1_used", Int (K), Boolean'Pos (Gyro_State.Notch1_Used));
+            K := K + 1;
+            if Gyro_State.Notch1_Used then
+               for A in Adaflight.Axes.Axis loop
+                  Expect_Float ("notch1.a1", Gyro_State.Notch1 (A).A1);
+                  Expect_Float ("notch1.a2q", Gyro_State.Notch1 (A).A2Q);
+                  Expect_Float ("notch1.fq", Gyro_State.Notch1 (A).FQ);
+               end loop;
+            else
+               K := K + 9;
+            end if;
+            Record_Int ("gyroinit.notch2_used", Int (K), Boolean'Pos (Gyro_State.Notch2_Used));
+            K := K + 1;
+            if Gyro_State.Notch2_Used then
+               for A in Adaflight.Axes.Axis loop
+                  Expect_Float ("notch2.a1", Gyro_State.Notch2 (A).A1);
+                  Expect_Float ("notch2.a2q", Gyro_State.Notch2 (A).A2Q);
+                  Expect_Float ("notch2.fq", Gyro_State.Notch2 (A).FQ);
+               end loop;
+            else
+               K := K + 9;
+            end if;
+            Expect_Float ("imu_k", Gyro_State.IMU_Filter (Adaflight.Axes.Roll).K);
+            Record_Int ("gyroinit.dyn_filter", Int (K), Adaflight.PID_Config.Dyn_Lowpass'Pos (Gyro_State.Dyn_LPF));
+            Record_Int ("gyroinit.dyn_min", Int (K + 1), Integer_64 (Gyro_State.Dyn_LPF_Min));
+            Record_Int ("gyroinit.dyn_max", Int (K + 2), Integer_64 (Gyro_State.Dyn_LPF_Max));
+            Record_Int ("gyroinit.dyn_expo", Int (K + 3), Integer_64 (Gyro_State.Dyn_LPF_Expo));
+         end;
+      elsif Name = "gyrostep" then
+         declare
+            K : Positive := 5;
+            Thr : constant Float := Flt (4);
+            procedure Expect_Float (N : String; Actual : Float) is
+            begin
+               Record_Result ("gyrostep." & N, Bits (K), To_Bits (Actual));
+               K := K + 1;
+            end Expect_Float;
+         begin
+            if Thr >= 0.0 then
+               Update_Dynamic_Lowpass (Gyro_State, Gyro_Settings, Thr);
+            end if;
+            for S in 1 .. Gyro_Denom loop
+               declare
+                  Sample : Raw_Vector;
+               begin
+                  for A in Adaflight.Axes.Axis loop
+                     Sample (A) := Integer (Int (K)); K := K + 1;
+                  end loop;
+                  Accumulate (Gyro_State, Gyro_Settings, Sample);
+               end;
+            end loop;
+            Filter (Gyro_State, Gyro_Settings);
+            for A in Adaflight.Axes.Axis loop Expect_Float ("rate", Gyro_State.Rate (A)); end loop;
+            for A in Adaflight.Axes.Axis loop Expect_Float ("filtered", Gyro_State.Filtered (A)); end loop;
+            for A in Adaflight.Axes.Axis loop Expect_Float ("downsampled", Gyro_State.Downsampled (A)); end loop;
+            if K /= NF + 1 then
+               Put_Line ("gyrostep: consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
+               Failures := Failures + 1;
+            end if;
+         end;
+      else
+         Put_Line ("unknown gyro case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Gyro_Line;
+
    procedure Check_PID_Line is
    begin
       if Str (1) = "pidinit" then
@@ -1509,6 +1644,8 @@ procedure Vector_Check is
                   Check_Mix_Line;
                elsif Kind = "rc" then
                   Check_RC_Line;
+               elsif Kind = "gyro" then
+                  Check_Gyro_Line;
                else
                   Check_PID_Line;
                end if;
@@ -1534,6 +1671,7 @@ begin
    Run (Dir & "/pidthr.csv", "pidthr");
    Run (Dir & "/mix.csv", "mix");
    Run (Dir & "/rc.csv", "rc");
+   Run (Dir & "/gyro.csv", "gyro");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");

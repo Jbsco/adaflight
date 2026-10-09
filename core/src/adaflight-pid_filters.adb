@@ -2,22 +2,14 @@ package body Adaflight.PID_Filters with SPARK_Mode is
 
    Two_Pi : constant Float := 2.0 * Pi;
 
-   Limit_Max : constant := 475_000;
-
-   procedure Lemma_Convert_Monotone (A : Natural; B : Natural)
-     with Ghost, Global => null,
-          Pre  => A <= B and then B <= Limit_Max,
-          Post => Float (A) <= Float (B)
-   is
+   procedure Lemma_Convert_Monotone (A : Natural; B : Natural) is
+      pragma Unreferenced (A, B);
    begin
       null;
    end Lemma_Convert_Monotone;
 
-   procedure Lemma_Convert_Successor (N : Natural)
-     with Ghost, Global => null,
-          Pre  => N < Limit_Max,
-          Post => Float (N + 1) = Float (N) + 1.0
-   is
+   procedure Lemma_Convert_Successor (N : Natural) is
+      pragma Unreferenced (N);
    begin
       null;
    end Lemma_Convert_Successor;
@@ -47,12 +39,9 @@ package body Adaflight.PID_Filters with SPARK_Mode is
       return Floor_Of (Limit);
    end Nyquist_Limit;
 
-   --  Builds one lowpass stage as the controller selects it; a state-variable
-   --  stage at or above the limit is left unused.
    procedure Init_Stage
      (Stage : out Lowpass_Stage; Kind : Lowpass_Kind; Cutoff : Hertz;
-      Limit : Natural; Dt : Seconds)
-     with Pre => Limit <= Limit_Max
+      Limit : Natural; Dt : Seconds; Inclusive : Boolean := False)
    is
    begin
       Stage := (Kind => Kind, Used => Cutoff > 0, others => <>);
@@ -61,7 +50,7 @@ package body Adaflight.PID_Filters with SPARK_Mode is
             when PID_Profile.PT1 =>
                PT1_Init (Stage.P1, PT1_Gain (Float (Cutoff), Dt));
             when PID_Profile.SVF =>
-               if Cutoff < Limit then
+               if (if Inclusive then Cutoff <= Limit else Cutoff < Limit) then
                   SVF_Lowpass_Init (Stage.S, Float (Cutoff), Dt);
                else
                   Stage.Used := False;
@@ -91,6 +80,15 @@ package body Adaflight.PID_Filters with SPARK_Mode is
    ----------
    -- Init --
    ----------
+
+   --  The cutoff of a smoothing time constant in milliseconds, in a body of
+   --  its own so its bound carries none of the profile.
+   function Cutoff_Of_Period (Ms : Positive) return Filters.Frequency
+     with Pre => Ms in 10 .. 5_000, Post => Cutoff_Of_Period'Result <= 16.0;
+   function Cutoff_Of_Period (Ms : Positive) return Filters.Frequency is
+   begin
+      return 1000.0 / (Two_Pi * Float (Ms));
+   end Cutoff_Of_Period;
 
    procedure Init (S : out State; P : Profile; R : Runtime) is
       Limit    : constant Natural := Nyquist_Limit (R.Dt);
@@ -144,10 +142,9 @@ package body Adaflight.PID_Filters with SPARK_Mode is
       PT2_Init (S.Anti_Gravity, PT2_Gain (Float (P.Anti_Gravity_Cutoff_Hz), R.Dt));
       declare
          Attitude_K     : constant Unit_Interval := PT3_Gain (Attitude_Cutoff_Hz, R.Dt);
-         Angle_Cutoff   : constant Float :=
-           1000.0 / (Two_Pi * Float (P.Angle_Feedforward_Smoothing_Ms));
+         Angle_Cutoff   : constant Filters.Frequency := Cutoff_Of_Period (P.Angle_Feedforward_Smoothing_Ms);
          Angle_K        : constant Unit_Interval := PT3_Gain (Angle_Cutoff, R.Dt);
-         Horizon_Cutoff : constant Float := 1000.0 / (Two_Pi * Float (P.Horizon_Delay_Ms));
+         Horizon_Cutoff : constant Filters.Frequency := Cutoff_Of_Period (P.Horizon_Delay_Ms);
       begin
          S.Horizon_Delay_Ms := P.Horizon_Delay_Ms;
          PT1_Init (S.Horizon_Smoothing, PT1_Gain (Horizon_Cutoff, R.Dt));
@@ -187,12 +184,9 @@ package body Adaflight.PID_Filters with SPARK_Mode is
    end Apply_Yaw_P;
 
    function Dynamic_Throttle (T : Unit_Interval) return Float is
-     (T * (1.0 - (T * T) / 3.0) * 1.5)
-     with Post => Dynamic_Throttle'Result in 0.0 .. 1.5;
+     (T * (1.0 - (T * T) / 3.0) * 1.5);
 
-   function Dynamic_Cutoff (T : Unit_Interval; Min : Hertz; Max : Hertz; Expo : Natural) return Float
-     with Pre => Expo <= 10, Post => Dynamic_Cutoff'Result in -1300.0 .. 2300.0
-   is
+   function Dynamic_Cutoff (T : Unit_Interval; Min : Hertz; Max : Hertz; Expo : Natural) return Float is
       Expo_F : constant Float := Float (Expo) / 10.0;
       Curve  : constant Float := T * (1.0 - T) * Expo_F + T;
    begin

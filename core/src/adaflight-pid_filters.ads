@@ -53,6 +53,34 @@ package Adaflight.PID_Filters with SPARK_Mode, Pure is
       Horizon_Delay_Ms  : Natural range 10 .. 5000 := 500;
    end record;
 
+   Limit_Max : constant := 475_000;
+
+   --  Builds one lowpass stage as the controllers select it; a state-variable
+   --  stage at the limit, or beyond it, is left unused. The gyro admits a
+   --  cutoff equal to the limit, the D term only one below it.
+   procedure Init_Stage
+     (Stage : out Lowpass_Stage; Kind : Lowpass_Kind; Cutoff : Hertz;
+      Limit : Natural; Dt : Seconds; Inclusive : Boolean := False)
+     with Pre => Limit <= Limit_Max;
+
+   procedure Apply_Stage (Stage : in out Lowpass_Stage; Input : Signal; Output : out Signal);
+
+   --  Integer-to-float facts the provers do not reach inside a large body.
+   procedure Lemma_Convert_Monotone (A : Natural; B : Natural)
+     with Ghost, Global => null,
+          Pre  => A <= B and then B <= Limit_Max,
+          Post => Float (A) <= Float (B);
+   procedure Lemma_Convert_Successor (N : Natural)
+     with Ghost, Global => null,
+          Pre  => N < Limit_Max,
+          Post => Float (N + 1) = Float (N) + 1.0;
+
+   --  The throttle shaping and the expo curve of the dynamic lowpass cutoff.
+   function Dynamic_Throttle (T : Unit_Interval) return Float
+     with Post => Dynamic_Throttle'Result in 0.0 .. 1.5;
+   function Dynamic_Cutoff (T : Unit_Interval; Min : Hertz; Max : Hertz; Expo : Natural) return Float
+     with Pre => Expo <= 10, Post => Dynamic_Cutoff'Result in -1300.0 .. 2300.0;
+
    --  Center limit of the notch and the state-variable lowpass stages: 95
    --  percent of the Nyquist frequency of the loop, truncated.
    function Nyquist_Limit (Dt : Seconds) return Natural
