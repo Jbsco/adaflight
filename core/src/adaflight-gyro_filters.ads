@@ -14,6 +14,7 @@ with Adaflight.PID_Config; use Adaflight.PID_Config;
 with Adaflight.PID_Filters;
 with Adaflight.Sensor_Alignment;
 with Adaflight.Vectors;
+with Adaflight.Dyn_Notch;
 
 package Adaflight.Gyro_Filters with SPARK_Mode, Pure is
 
@@ -58,6 +59,7 @@ package Adaflight.Gyro_Filters with SPARK_Mode, Pure is
       Overflow_Protected   : Boolean := True;
       Yaw_Spin             : Spin_Recovery := Auto;
       Yaw_Spin_Threshold   : Spin_Threshold := 1_950;
+      Dynamic_Notch        : Dyn_Notch.Settings;
    end record
      with Dynamic_Predicate =>
        (Settings.LPF1_Dyn_Min_Hz = 0 or else Settings.LPF1_Dyn_Min_Hz <= Settings.LPF1_Dyn_Max_Hz)
@@ -112,6 +114,7 @@ package Adaflight.Gyro_Filters with SPARK_Mode, Pure is
       Yaw_Spin_Limit    : Spin_Threshold := 1_950;
       Yaw_Spin_Detected : Boolean := False;
       Yaw_Spin_Time_Us  : Time_Us := 0;
+      Dyn               : Dyn_Notch.State;
    end record
      with Dynamic_Predicate =>
        Vectors.Bounded (State.Sensor_Rotation, 2.0) and then Vectors.Bounded (State.Board_Rotation, 2.0);
@@ -141,10 +144,12 @@ package Adaflight.Gyro_Filters with SPARK_Mode, Pure is
    --  check, when the reference sounds its tone.
    procedure Accumulate (S : in out State; C : Settings; Sample : Raw_Vector; Finished : out Boolean);
 
-   --  One loop: the downsampled rate through the notches and the lowpass, the
-   --  overflow and yaw spin checks, and the attitude lowpass while no
-   --  overflow is detected.
-   procedure Filter (S : in out State; C : Settings; Now_Us : Time_Us);
+   --  One loop: the downsampled rate through the notches, the lowpass, and
+   --  the dynamic notches, the dynamic notch update, the overflow and yaw
+   --  spin checks, and the attitude lowpass while no overflow is detected.
+   --  The throttle percent gates the dynamic notch's record of its highest
+   --  center.
+   procedure Filter (S : in out State; C : Settings; Now_Us : Time_Us; Throttle_Percent : Natural);
 
    --  The first lowpass follows the throttle, as the mixer requests.
    procedure Update_Dynamic_Lowpass (S : in out State; C : Settings; Throttle : Unit_Interval);
