@@ -66,6 +66,7 @@ package body Adaflight.Gyro_Filters with SPARK_Mode is
       S := (others => <>);
       S.Sensor_Rotation := Sensor_Alignment.Rotation_Matrix (C.Custom_Angles);
       Dyn_Notch.Init (S.Dyn, C.Dynamic_Notch, C.Loop_Time_Us);
+      RPM_Filter.Init (S.RPM, C.RPM, C.Loop_Time_Us, C.Motors, C.Motor_Telemetry);
       S.Board_Rotation := Sensor_Alignment.Board_Rotation (C.Board);
       for A in Axis loop
          PID_Filters.Init_Stage
@@ -264,25 +265,32 @@ package body Adaflight.Gyro_Filters with SPARK_Mode is
       end if;
    end Check_Yaw_Spin;
 
-   procedure Filter (S : in out State; C : Settings; Now_Us : Time_Us; Throttle_Percent : Natural) is
+   procedure Filter
+     (S : in out State; C : Settings; Now_Us : Time_Us; Throttle_Percent : Natural;
+      Motor_Hz : RPM_Filter.Motor_Frequencies; Dt_Scale : RPM_Filter.Cycle_Multiplier)
+   is
+      Values : Axis_Signals := (others => 0.0);
    begin
       for A in Axis loop
+         if S.Downsample_Filter then
+            Values (A) := S.Sample_Sum (A);
+         else
+            if S.Samples > 0 then
+               declare
+                  Count : constant Float range 1.0 .. 255.0 := Float (S.Samples);
+               begin
+                  Values (A) := S.Sample_Sum (A) / Count;
+               end;
+            end if;
+            S.Sample_Sum (A) := 0.0;
+         end if;
+      end loop;
+      RPM_Filter.Run (S.RPM, Motor_Hz, Dt_Scale, Values);
+      for A in Axis loop
          declare
-            Value : Signal := 0.0;
+            Value : Signal := Values (A);
             Stage_Out : Signal;
          begin
-            if S.Downsample_Filter then
-               Value := S.Sample_Sum (A);
-            else
-               if S.Samples > 0 then
-                  declare
-                     Count : constant Float range 1.0 .. 255.0 := Float (S.Samples);
-                  begin
-                     Value := S.Sample_Sum (A) / Count;
-                  end;
-               end if;
-               S.Sample_Sum (A) := 0.0;
-            end if;
             if S.Notch1_Used then
                SVF_Notch_Apply (S.Notch1 (A), Value, Stage_Out);
                Value := Stage_Out;
