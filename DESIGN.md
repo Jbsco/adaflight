@@ -302,3 +302,15 @@ analog meters are ported; the ESC, virtual, and MSP sources reset their meter as
 reference does when a source is absent. The cutoff percentage is held to its range where
 the reference's byte leaves it after a clock wrap during the ramp, and the charge sum and
 energy saturate at their float types' bounds, which no pack reaches.
+
+## D23. Sensor readings are aligned before they are scaled (2026-10-08)
+
+The gyro and the accelerometer carry their alignment as the reference orders it: the
+counts, less the gyro's zero offsets, go through the sensor's standard rotation or its
+custom rotation matrix, then through the board rotation when the board angles are not all
+zero, and only then through the scale. The permutations of a standard rotation commute
+with the scale but the matrices do not, so the order is kept for the custom and board
+cases. The gyro zero offsets stay per raw axis, since the reference calibrates before it
+aligns. The board rotation matrix is built from whole degrees through the same conversion
+and rotation the reference uses, and the matrices sit in the state with their entries
+bounded by two, which bounds the aligned counts by type.

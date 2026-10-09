@@ -28,6 +28,7 @@ package body Adaflight.Accelerometer with SPARK_Mode is
       S := (Lowpass_Hz       => C.Lowpass_Hz,
             Filter           => (others => (others => <>)),
             Rotation         => Sensor_Alignment.Rotation_Matrix (C.Custom_Angles),
+            Board_Rotation   => Sensor_Alignment.Board_Rotation (C.Board),
             One_G_Reciprocal => 1.0 / Float (C.One_G),
             Acc              => (0.0, 0.0, 0.0),
             Jerk             => (0.0, 0.0, 0.0),
@@ -94,9 +95,18 @@ package body Adaflight.Accelerometer with SPARK_Mode is
    begin
       declare
          Raw_V : constant Vector3 := (X => Float (Sample (X)), Y => Float (Sample (Y)), Z => Float (Sample (Z)));
-         Aligned_V : constant Vector3 :=
+         Rotated : constant Vector3 :=
            (if C.Alignment = Sensor_Alignment.Custom then Apply_Rotation (Raw_V, S.Rotation)
             else Sensor_Alignment.Align (Raw_V, C.Alignment));
+         --  A sensor-aligned count is within 2 ** 18; the bound is stated for
+         --  the board rotation's precondition.
+         Sensor_V : constant Vector3 :=
+           (X => Constrain_F (Rotated.X, -2.0 ** 18, 2.0 ** 18),
+            Y => Constrain_F (Rotated.Y, -2.0 ** 18, 2.0 ** 18),
+            Z => Constrain_F (Rotated.Z, -2.0 ** 18, 2.0 ** 18));
+         Aligned_V : constant Vector3 :=
+           (if Sensor_Alignment.Standard_Board (C.Board) then Sensor_V
+            else Apply_Rotation (Sensor_V, S.Board_Rotation));
       begin
          V := (X => Constrain_F (Aligned_V.X, -Aligned_Bound, Aligned_Bound),
                Y => Constrain_F (Aligned_V.Y, -Aligned_Bound, Aligned_Bound),

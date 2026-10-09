@@ -23,6 +23,7 @@ package Adaflight.Accelerometer with SPARK_Mode is
       Lowpass_Hz     : Cutoff := 25;
       Alignment      : Sensor_Alignment.Standard_Alignment := Sensor_Alignment.CW0;
       Custom_Angles  : Sensor_Alignment.Alignment_Angles;
+      Board          : Sensor_Alignment.Board_Angles;
       One_G          : Counts_Per_G := 256;
       Roll_Trim      : Integer_16 := 0;
       Pitch_Trim     : Integer_16 := 0;
@@ -31,9 +32,10 @@ package Adaflight.Accelerometer with SPARK_Mode is
    Calibration_Cycles : constant := 400;
    subtype Cycle_Count is Natural range 0 .. Calibration_Cycles;
 
-   --  An aligned count: a standard alignment permutes the raw counts and a
-   --  custom rotation matrix, whose entries are within two, mixes them.
-   Aligned_Bound : constant := 2.0 ** 18;
+   --  An aligned count: a standard alignment permutes the raw counts, and the
+   --  custom and board rotation matrices, whose entries are within two, mix
+   --  them twice.
+   Aligned_Bound : constant := 2.0 ** 21;
    subtype Aligned is Float range -Aligned_Bound .. Aligned_Bound;
    type Aligned_Vector is array (Vectors.Coordinate) of Aligned;
 
@@ -51,6 +53,7 @@ package Adaflight.Accelerometer with SPARK_Mode is
       Lowpass_Hz       : Cutoff := 0;
       Filter           : Axis_PT2;
       Rotation         : Vectors.Matrix33 := Vectors.Identity;
+      Board_Rotation   : Vectors.Matrix33 := Vectors.Identity;
       One_G_Reciprocal : Float range 0.0 .. 1.0 := 1.0;
       Acc              : Vectors.Vector3;
       Jerk             : Vectors.Vector3;
@@ -65,7 +68,7 @@ package Adaflight.Accelerometer with SPARK_Mode is
       Updated_Once     : Boolean := False;
    end record
      with Dynamic_Predicate =>
-       Vectors.Bounded (State.Rotation, 2.0)
+       Vectors.Bounded (State.Rotation, 2.0) and then Vectors.Bounded (State.Board_Rotation, 2.0)
        and then Vectors.Bounded (State.Acc, 2.0 ** 32) and then Vectors.Bounded (State.Previous, 2.0 ** 32)
        and then Vectors.Bounded (State.Jerk, 2.0 ** 60);
 
