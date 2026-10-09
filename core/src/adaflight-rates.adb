@@ -7,11 +7,21 @@ package body Adaflight.Rates with SPARK_Mode is
    subtype Unit is Float range -1.0 .. 1.0;
    subtype Fraction is Float range 0.0 .. 1.0;
 
-   function Cube (X : Unit) return Unit is (X * X * X)
+   --  The odd powers of a unit value. Bodies rather than expression functions,
+   --  so the callers see only the bound and not the polynomial.
+   function Cube (X : Unit) return Unit
      with Post => abs Cube'Result <= abs X;
+   function Cube (X : Unit) return Unit is
+   begin
+      return X * X * X;
+   end Cube;
 
-   function Fifth (X : Unit) return Unit is (X * X * X * X * X)
+   function Fifth (X : Unit) return Unit
      with Post => abs Fifth'Result <= abs X;
+   function Fifth (X : Unit) return Unit is
+   begin
+      return X * X * X * X * X;
+   end Fifth;
 
    --  Expo blend of a command with its cube, which stays within the unit
    --  range because both parts do.
@@ -55,95 +65,136 @@ package body Adaflight.Rates with SPARK_Mode is
       end if;
    end Base_Rate_Of;
 
-   function Apply_Super_Rate (P : Profile; A : Axis; Cmd : Command; Cmd_Abs : Magnitude)
-     return Angle_Rate
-   is
+   function Apply_Super_Rate (
+      RC_S    : Positive_Setting;
+      Super_S : Setting;
+      Expo_S  : Expo_Setting;
+      Cmd     : Command;
+      Cmd_Abs : Magnitude
+   ) return Angle_Rate is
+      subtype Scaled_Rate is Float range -2_201.0 .. 2_201.0;
       Command_Curved : Unit := Cmd;
-      RC_Rate        : constant Base_Rate := Base_Rate_Of (P.RC_Rates (A));
-      Rate           : Float;
+      RC_Rate        : constant Base_Rate := Base_Rate_Of (RC_S);
+      Rate           : Scaled_Rate;
    begin
-      if P.RC_Expo (A) /= 0 then
-         Command_Curved := Cmd * Cube (Cmd_Abs) * (Float (P.RC_Expo (A)) / 100.0)
-           + Cmd * (1.0 - Float (P.RC_Expo (A)) / 100.0);
+      if Expo_S /= 0 then
+         declare
+            Expo   : constant Fraction := Float (Expo_S) / 100.0;
+            Shaped : constant Float range -1.01 .. 1.01 := Cmd * Cube (Cmd_Abs);
+            Curved : constant Float range -1.05 .. 1.05 := Shaped * Expo;
+            Linear : constant Float range -1.01 .. 1.01 := Cmd * (1.0 - Expo);
+         begin
+            Command_Curved := Constrain_F (Curved + Linear, -1.0, 1.0);
+         end;
       end if;
-      Rate := 200.0 * RC_Rate * Command_Curved;
-      pragma Assert (abs Rate <= 2201.0);
-      if P.Super_Rates (A) /= 0 then
-         Rate := Rate * Super_Factor (Cmd_Abs, P.Super_Rates (A));
+      Rate := Float'(200.0 * RC_Rate) * Command_Curved;
+      if Super_S /= 0 then
+         return Constrain_F (Rate * Super_Factor (Cmd_Abs, Super_S), -Max_Angle_Rate, Max_Angle_Rate);
       end if;
       return Constrain_F (Rate, -Max_Angle_Rate, Max_Angle_Rate);
    end Apply_Super_Rate;
 
-   function Apply_Acro_Plus (P : Profile; A : Axis; Cmd : Command; Cmd_Abs : Magnitude)
-     return Angle_Rate
-   is
-      Expo_Term : constant Float := 0.01 * Float (P.RC_Expo (A)) * (Cmd * Cmd - 1.0);
-      Curved    : Float;
-      Rate      : Float;
+   function Apply_Acro_Plus (
+      RC_S    : Positive_Setting;
+      Super_S : Setting;
+      Expo_S  : Expo_Setting;
+      Cmd     : Command;
+      Cmd_Abs : Magnitude
+   ) return Angle_Rate is
+      Expo_F    : constant Float range 0.0 .. 1.01 := 0.01 * Float (Expo_S);
+      Sq_Minus  : constant Float range -1.0 .. 0.0 := Cmd * Cmd - 1.0;
+      Expo_Term : constant Float range -1.01 .. 0.0 := Expo_F * Sq_Minus;
+      Curved    : constant Float range -1.01 .. 1.01 := (1.0 + Expo_Term) * Cmd;
+      Rate      : constant Float range -2_600.0 .. 2_600.0 := Float'(10.0 * Float (RC_S)) * Curved;
+      Factor    : constant Float range 1.0 .. 3.6 := 1.0 + Cmd_Abs * Float (Super_S) * 0.01;
    begin
-      pragma Assert (Expo_Term in -1.0 .. 0.0);
-      Curved := (1.0 + Expo_Term) * Cmd;
-      pragma Assert (abs Curved <= 1.0);
-      Rate := 10.0 * Float (P.RC_Rates (A)) * Curved;
-      pragma Assert (abs Rate <= 2600.0);
-      Rate := Rate * (1.0 + Cmd_Abs * Float (P.Super_Rates (A)) * 0.01);
-      return Constrain_F (Rate, -Max_Angle_Rate, Max_Angle_Rate);
+      return Constrain_F (Rate * Factor, -Max_Angle_Rate, Max_Angle_Rate);
    end Apply_Acro_Plus;
 
-   function Apply_RC_Curve (P : Profile; A : Axis; Cmd : Command; Cmd_Abs : Magnitude)
-     return Angle_Rate
-   is
-      Curve     : constant Fraction := Float (P.RC_Expo (A)) / 100.0;
-      Use_Rates : constant Float := Super_Factor (Cmd_Abs, P.Super_Rates (A));
+   function Apply_RC_Curve (
+      RC_S    : Positive_Setting;
+      Super_S : Setting;
+      Expo_S  : Expo_Setting;
+      Cmd     : Command;
+      Cmd_Abs : Magnitude
+   ) return Angle_Rate is
+      Curve     : constant Fraction := Float (Expo_S) / 100.0;
+      Use_Rates : constant Float range 1.0 .. 100.0 := Super_Factor (Cmd_Abs, Super_S);
       Blend     : constant Unit := Expo_Curve (Cmd, Cube (Cmd), Curve);
-      Curved    : constant Float := Blend * (Float (P.RC_Rates (A)) / 1000.0);
+      Scale     : constant Float range 0.0 .. 0.26 := Float (RC_S) / 1000.0;
+      Curved    : constant Float range -0.26 .. 0.26 := Blend * Scale;
    begin
-      pragma Assert (abs Curved <= 0.26);
-      return Constrain_F ((2000.0 * Use_Rates) * Curved, -Setpoint_Limit, Setpoint_Limit);
+      return Constrain_F (Float'(2000.0 * Use_Rates) * Curved, -Setpoint_Limit, Setpoint_Limit);
    end Apply_RC_Curve;
 
-   function Apply_Actual (P : Profile; A : Axis; Cmd : Command; Cmd_Abs : Magnitude)
-     return Angle_Rate
-   is
-      Expo               : constant Fraction := Float (P.RC_Expo (A)) / 100.0;
-      Center_Sensitivity : constant Float := Float (P.RC_Rates (A)) * 10.0;
-      Stick_Movement     : constant Float :=
-        Float'Max (0.0, Float (P.Super_Rates (A)) * 10.0 - Center_Sensitivity);
-      Shaped             : constant Unit := Expo_Curve (Cmd, Fifth (Cmd), Expo);
-      Weighted           : constant Float := Cmd_Abs * Shaped;
+   subtype Travel is Float range 0.0 .. 2_550.0;
+   subtype Config_Ratio is Float range 0.0 .. 1_275.0;
+
+   --  The stick travel beyond the center sensitivity, in bodies of their own
+   --  so their range checks carry no other context.
+   function Movement_Of (Super : Setting; Center : Travel) return Travel
+     with Post => (if Float (Super) * 10.0 <= Center then Movement_Of'Result = 0.0);
+   function Movement_Of (Super : Setting; Center : Travel) return Travel is
    begin
-      pragma Assert (Center_Sensitivity in 0.0 .. 2550.0);
-      pragma Assert (Stick_Movement in 0.0 .. 2550.0);
-      pragma Assert (abs Weighted <= 1.0);
+      return Float'Max (0.0, Float (Super) * 10.0 - Center);
+   end Movement_Of;
+
+   function Super_Config_Of (Ratio : Float) return Config_Ratio
+     with Pre => Ratio in 1.0 .. 1_275.0;
+   function Super_Config_Of (Ratio : Float) return Config_Ratio is
+   begin
+      return Float'Max (0.0, Float'Min (1_275.0, (Ratio - 1.0) / Ratio));
+   end Super_Config_Of;
+
+   function Apply_Actual (
+      RC_S    : Positive_Setting;
+      Super_S : Setting;
+      Expo_S  : Expo_Setting;
+      Cmd     : Command;
+      Cmd_Abs : Magnitude
+   ) return Angle_Rate is
+      Expo               : constant Fraction := Float (Expo_S) / 100.0;
+      Center_Sensitivity : constant Travel := Float (RC_S) * 10.0;
+      Stick_Movement     : constant Travel := Movement_Of (Super_S, Center_Sensitivity);
+      Shaped             : constant Unit := Expo_Curve (Cmd, Fifth (Cmd), Expo);
+      Weighted           : constant Float range -1.01 .. 1.01 := Float'Max (-1.01, Float'Min (1.01, Cmd_Abs * Shaped));
+   begin
       return Constrain_F (Cmd * Center_Sensitivity + Stick_Movement * Weighted,
                           -Max_Angle_Rate, Max_Angle_Rate);
    end Apply_Actual;
 
-   function Apply_Quick (P : Profile; A : Axis; Cmd : Command; Cmd_Abs : Magnitude)
-     return Angle_Rate
-   is
-      RC_Rate      : constant Positive := P.RC_Rates (A) * 2;
-      Max_DPS      : constant Positive := Natural'Max (P.Super_Rates (A) * 10, RC_Rate);
-      Expo         : constant Fraction := Float (P.RC_Expo (A)) / 100.0;
-      Ratio        : constant Float := Float (Max_DPS) / Float (RC_Rate);
-      Super_Config : Float;
+   function Apply_Quick (
+      RC_S       : Positive_Setting;
+      Super_S    : Setting;
+      Expo_S     : Expo_Setting;
+      Quick_Expo : Boolean;
+      Cmd        : Command;
+      Cmd_Abs    : Magnitude
+   ) return Angle_Rate is
+      RC_Rate      : constant Positive := RC_S * 2;
+      Max_DPS      : constant Positive := Natural'Max (Super_S * 10, RC_Rate);
+      Expo         : constant Fraction := Float (Expo_S) / 100.0;
+      --  The quotient of a numerator no smaller than its denominator.
+      Ratio        : constant Float range 1.0 .. 1_275.0 := Float'Max (1.0, Float (Max_DPS) / Float (RC_Rate));
+      Super_Config : constant Config_Ratio := Super_Config_Of (Ratio);
       Curve        : Unit;
-      Super        : Float;
-      Rate         : Float;
+      Denominator  : Float range 0.01 .. 1.0;
+      Super        : Float range 1.0 .. 101.0;
+      Scaled       : Float range -520.0 .. 520.0;
+      Rate         : Float range -53_000.0 .. 53_000.0;
    begin
-      pragma Assert (Ratio in 1.0 .. 2550.0);
-      Super_Config := (Ratio - 1.0) / Ratio;
-      pragma Assert (Super_Config in 0.0 .. 1.0);
-      if P.Quick_Expo then
+      if Quick_Expo then
          Curve := Expo_Curve (Cmd, Cube (Cmd), Expo);
-         Super := 1.0 / Constrain_F (1.0 - (Cmd_Abs * Super_Config), 0.01, 1.0);
-         pragma Assert (Super in 1.0 .. 100.0);
-         Rate := Curve * Float (RC_Rate) * Super;
+         Denominator := Constrain_F (1.0 - (Cmd_Abs * Super_Config), 0.01, 1.0);
+         Super := 1.0 / Denominator;
+         Scaled := Constrain_F (Curve * Float (RC_Rate), -520.0, 520.0);
+         Rate := Constrain_F (Scaled * Super, -53_000.0, 53_000.0);
       else
          Curve := Expo_Curve (Cmd_Abs, Cube (Cmd_Abs), Expo);
-         Super := 1.0 / Constrain_F (1.0 - (Curve * Super_Config), 0.01, 1.0);
-         pragma Assert (Super in 1.0 .. 100.0);
-         Rate := Cmd * Float (RC_Rate) * Super;
+         Denominator := Constrain_F (1.0 - (Curve * Super_Config), 0.01, 1.0);
+         Super := 1.0 / Denominator;
+         Scaled := Constrain_F (Cmd * Float (RC_Rate), -520.0, 520.0);
+         Rate := Constrain_F (Scaled * Super, -53_000.0, 53_000.0);
       end if;
       return Constrain_F (Rate, -Setpoint_Limit, Setpoint_Limit);
    end Apply_Quick;
@@ -152,13 +203,26 @@ package body Adaflight.Rates with SPARK_Mode is
    -- Apply --
    -----------
 
+   --  The curves take the axis settings as scalars, so their checks carry
+   --  none of the profile.
    function Apply (P : Profile; A : Axis; Cmd : Command; Cmd_Abs : Magnitude) return Angle_Rate is
-     (case P.Kind is
-        when Super_Rate => Apply_Super_Rate (P, A, Cmd, Cmd_Abs),
-        when Acro_Plus  => Apply_Acro_Plus (P, A, Cmd, Cmd_Abs),
-        when RC_Curve   => Apply_RC_Curve (P, A, Cmd, Cmd_Abs),
-        when Actual     => Apply_Actual (P, A, Cmd, Cmd_Abs),
-        when Quick      => Apply_Quick (P, A, Cmd, Cmd_Abs));
+      RC_S    : constant Positive_Setting := P.RC_Rates (A);
+      Super_S : constant Setting := P.Super_Rates (A);
+      Expo_S  : constant Expo_Setting := P.RC_Expo (A);
+   begin
+      case P.Kind is
+         when Super_Rate =>
+            return Apply_Super_Rate (RC_S, Super_S, Expo_S, Cmd, Cmd_Abs);
+         when Acro_Plus =>
+            return Apply_Acro_Plus (RC_S, Super_S, Expo_S, Cmd, Cmd_Abs);
+         when RC_Curve =>
+            return Apply_RC_Curve (RC_S, Super_S, Expo_S, Cmd, Cmd_Abs);
+         when Actual =>
+            return Apply_Actual (RC_S, Super_S, Expo_S, Cmd, Cmd_Abs);
+         when Quick =>
+            return Apply_Quick (RC_S, Super_S, Expo_S, P.Quick_Expo, Cmd, Cmd_Abs);
+      end case;
+   end Apply;
 
    -----------------
    -- Setpoint_Of --
