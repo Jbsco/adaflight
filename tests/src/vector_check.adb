@@ -1844,11 +1844,12 @@ procedure Vector_Check is
                                    DCM_Ki                    => Integer (Int (4)),
                                    Small_Angle               => Integer (Int (5)),
                                    Throttle_Correction_Angle => Integer (Int (6)),
-                                   Throttle_Correction_Value => Integer (Int (7))));
+                                   Throttle_Correction_Value => Integer (Int (7)),
+                                   Mag_Declination           => Integer (Int (8))));
          Init (IMU_State);
       elsif Name = "imustep" then
          declare
-            K : Positive := 14;
+            K : Positive := 18;
             procedure Expect_Float (N : String; Actual : Float) is
             begin
                Record_Result ("imustep." & N, Bits (K), To_Bits (Actual));
@@ -1861,12 +1862,15 @@ procedure Vector_Check is
             end Expect_Int;
             Gyro : constant Adaflight.Vectors.Vector3 := (X => Flt (7), Y => Flt (8), Z => Flt (9));
             Acc  : constant Adaflight.Vectors.Vector3 := (X => Flt (10), Y => Flt (11), Z => Flt (12));
+            Mag  : constant Adaflight.Vectors.Vector3 := (X => Flt (14), Y => Flt (15), Z => Flt (16));
          begin
             Update (IMU_State, IMU_Config,
                     Now           => Interfaces.Unsigned_32 (Int (4)),
                     Gyro          => Gyro,
                     Acc           => Acc,
                     Acc_Magnitude => Flt (13),
+                    Mag           => Mag,
+                    Use_Mag       => Int (17) /= 0,
                     Armed         => Int (5) /= 0,
                     Angle_Mode    => Int (6) /= 0);
             Expect_Int ("roll", Integer_64 (IMU_State.Euler.Roll));
