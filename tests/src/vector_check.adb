@@ -924,6 +924,7 @@ procedure Vector_Check is
       P.Level_Race_Mode := Next_Int = 1; P.TPA_Rate := Next_Int; P.TPA_Breakpoint := Next_Int;
       P.TPA_Low_Rate := Next_Int; P.TPA_Low_Breakpoint := Next_Int; P.TPA_Low_Always := Next_Int = 1;
       P.Landing_Disarm_Threshold := Next_Int;
+      P.Angle_Limit := Next_Int;
       Profiles (Index) := P;
       Profile_CRSF (Index) := Is_CRSF;
       Profile_Loop_Times (Index) := Loop_Time;
@@ -1136,6 +1137,17 @@ procedure Vector_Check is
          Inp.Setpoint (A) := Flt (11 + Adaflight.Axes.Axis'Pos (A));
          Inp.Feedforward (A) := Flt (14 + Adaflight.Axes.Axis'Pos (A));
       end loop;
+      if NF >= 50 then
+         Inp.Angle_Mode := Int (36) mod 2 = 1;
+         Inp.Horizon_Mode := (Int (36) / 2) mod 2 = 1;
+         for A in Level_Axis loop
+            Inp.Attitude (A) := Integer (Int (37 + Adaflight.Axes.Axis'Pos (A)));
+            Inp.Trims (A) := Integer (Int (39 + Adaflight.Axes.Axis'Pos (A)));
+            Inp.Deflection (A) := Flt (41 + Adaflight.Axes.Axis'Pos (A));
+            Inp.Max_RC_Rate (A) := Flt (43 + Adaflight.Axes.Axis'Pos (A));
+         end loop;
+         Inp.Now_Us := Interfaces.Unsigned_32 ((Step + 1) * Loop_Time);
+      end if;
       Update_Throttle_Terms (Step_State, Step_Runtime, Flt (17));
       Expect_Float ("tpa_factor", Step_State.TPA_Factor);
       Expect_Float ("anti_gravity_throttle_d", Step_State.Anti_Gravity_Throttle_D);
@@ -1146,6 +1158,16 @@ procedure Vector_Check is
          Expect_Float ("d", Step_State.Data (A).D); Expect_Float ("f", Step_State.Data (A).F);
          Expect_Float ("sum", Step_State.Data (A).Sum);
       end loop;
+      if NF >= 50 then
+         K := 45;
+         Expect_Float ("angle_target_roll", Step_State.Angle_Target (Roll));
+         Expect_Float ("angle_target_pitch", Step_State.Angle_Target (Pitch));
+         Expect_Float ("angle_yaw_setpoint", Step_State.Angle_Yaw_Setpoint);
+         for A in Adaflight.Axes.Axis loop
+            Record_Int ("pidstep.axis_in_angle_mode", Int (K), Boolean'Pos (Step_State.Axis_In_Angle_Mode (A)));
+            K := K + 1;
+         end loop;
+      end if;
       if K /= NF + 1 then
          Put_Line ("pidstep: consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
          Failures := Failures + 1;
