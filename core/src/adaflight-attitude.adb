@@ -52,13 +52,77 @@ package body Adaflight.Attitude with SPARK_Mode is
       Kp    : constant Float := Float (S.DCM_Kp) / 10_000.0;
       Ki    : constant Float := Float (S.DCM_Ki) / 10_000.0;
       Scale : constant Float := Decidegrees_Per_Radian * (900.0 / Float (S.Throttle_Correction_Angle));
+      Declination : constant Float := Float (S.Mag_Declination) / 10.0 * Rad_Per_Degree;
+      Sin_D : Cosine;
+      Cos_D : Cosine;
    begin
+      Sin_Cos_Approx (Declination, Sin_D, Cos_D);
       return (Kp                   => Kp,
               Ki                   => Ki,
               Small_Angle_Cos      => Cos_Approx (Float (S.Small_Angle) * Rad_Per_Degree),
               Throttle_Angle_Scale => Scale,
-              Throttle_Angle_Value => S.Throttle_Correction_Value);
+              Throttle_Angle_Value => S.Throttle_Correction_Value,
+              North                => (X => Cos_D, Y => -Sin_D));
    end Configure;
+
+   -----------------
+   -- Mag_Error --
+   -----------------
+
+   subtype Heading_Error is Float range -4.0 .. 4.0;
+
+   --  The heading error from the compass: the field in the earth frame,
+   --  normalized, against magnetic north in the ground plane; the sine of
+   --  the angle between them while the field points forward, else the full
+   --  norm toward the shorter turn. Zero for a field within a tenth of a
+   --  count. The result is held to four, outside the one a unit field
+   --  reaches (DESIGN.md D31).
+   Earth_Field_Bound : constant := 2.0 ** 30;
+
+   --  The field turned into the earth frame by a rotation within the matrix
+   --  bound: three products of an entry and a count per component.
+   function Earth_Field (R : Matrix33; Mag : Vector3) return Vector3
+     with Pre  => Bounded (R, Matrix_Bound) and then Bounded (Mag, Mag_Bound),
+          Post => Bounded (Earth_Field'Result, Earth_Field_Bound)
+   is
+      subtype Term is Float range -2.0 ** 27 .. 2.0 ** 27;
+      subtype Pair is Float range -2.0 ** 28 .. 2.0 ** 28;
+   begin
+      return (X => Pair'(Term'(R (X, X) * Mag.X) + Term'(R (X, Y) * Mag.Y)) + Term'(R (X, Z) * Mag.Z),
+              Y => Pair'(Term'(R (Y, X) * Mag.X) + Term'(R (Y, Y) * Mag.Y)) + Term'(R (Y, Z) * Mag.Z),
+              Z => Pair'(Term'(R (Z, X) * Mag.X) + Term'(R (Z, Y) * Mag.Y)) + Term'(R (Z, Z) * Mag.Z));
+   end Earth_Field;
+
+   function Mag_Error (S : State; C : Config; Mag : Vector3) return Heading_Error
+     with Pre => Bounded (Mag, Mag_Bound) and then Bounded (S.Rotation, Matrix_Bound)
+   is
+      subtype Mag_Square is Float range 0.0 .. 2.0 ** 46;
+      subtype Mag_Reciprocal is Float range 0.0 .. 10.0;
+      subtype Plane_Component is Float range -2.0 ** 34 .. 2.0 ** 34;
+      Norm_Sq : constant Mag_Square := Mag_Square'(Mag_Square'(Mag.X * Mag.X + Mag.Y * Mag.Y) + Mag.Z * Mag.Z);
+      Root    : constant Float := Sqrt_Non_Negative (Norm_Sq);
+   begin
+      --  A squared norm above a hundredth has a root of at least a tenth.
+      if Norm_Sq > 0.01 and then Root >= 0.1 then
+         declare
+            Ef    : constant Vector3 := Earth_Field (S.Rotation, Mag);
+            Recip : constant Mag_Reciprocal := 1.0 / Root;
+            Px    : constant Plane_Component := Ef.X * Recip;
+            Py    : constant Plane_Component := Ef.Y * Recip;
+            Plane : constant Vector2 := (X => Px, Y => Py);
+            D     : constant Float := Dot (Plane, C.North);
+            Cr    : constant Float := Cross (Plane, C.North);
+         begin
+            if D > 0.0 then
+               return Constrain_F (Cr, -4.0, 4.0);
+            else
+               return Constrain_F ((if Cr < 0.0 then -1.0 else 1.0) * Norm (Plane), -4.0, 4.0);
+            end if;
+         end;
+      else
+         return 0.0;
+      end if;
+   end Mag_Error;
 
    ----------------------
    -- Compute_Rotation --
@@ -181,6 +245,7 @@ package body Adaflight.Attitude with SPARK_Mode is
       Gyro    : Vector3;
       Use_Acc : Boolean;
       Acc     : Vector3;
+      Heading_Err : Heading_Error;
       Kp_Gain : Scheduled_Gain
    ) with Pre  => Bounded (Gyro, Rate_Bound) and then Bounded (Acc, Acc_Bound)
                   and then Bounded (S.Integral, Signal_Bound) and then Bounded (S.Rotation, Matrix_Bound),
@@ -190,11 +255,11 @@ package body Adaflight.Attitude with SPARK_Mode is
    is
       subtype Rad_Rate is Float range -200.0 .. 200.0;
       subtype Rate_Square is Float range 0.0 .. 2.0 ** 17;
-      subtype Error is Float range -70.0 .. 70.0;
+      subtype Error is Float range -150.0 .. 150.0;
       subtype Acc_Square is Float range 0.0 .. 2.0 ** 35;
-      subtype Ki_Error is Float range -300.0 .. 300.0;
-      subtype Integral_Step is Float range -7.0e5 .. 7.0e5;
-      subtype Kp_Error is Float range -30_000.0 .. 30_000.0;
+      subtype Ki_Error is Float range -600.0 .. 600.0;
+      subtype Integral_Step is Float range -1.4e6 .. 1.4e6;
+      subtype Kp_Error is Float range -61_000.0 .. 61_000.0;
       subtype Corrected_Rate is Float range -2.0 ** 33 .. 2.0 ** 33;
       --  The rate with the proportional and integral feedback added, in a
       --  context of its own so the bound is checked on the three operands.
@@ -217,6 +282,9 @@ package body Adaflight.Attitude with SPARK_Mode is
       Acc_Norm_Sq : constant Acc_Square := Acc_Square'(Acc_Square'(Acc.X * Acc.X + Acc.Y * Acc.Y) + Acc.Z * Acc.Z);
       R : Matrix33 renames S.Rotation;
    begin
+      Ex := Ex + R (Z, X) * Heading_Err;
+      Ey := Ey + R (Z, Y) * Heading_Err;
+      Ez := Ez + R (Z, Z) * Heading_Err;
       if Use_Acc and then Acc_Norm_Sq > 0.01 then
          declare
             Recip : constant Reciprocal := Inverse_Root (Acc_Norm_Sq);
@@ -335,16 +403,19 @@ package body Adaflight.Attitude with SPARK_Mode is
       Gyro          : Vectors.Vector3;
       Acc           : Vectors.Vector3;
       Acc_Magnitude : Float;
+      Mag           : Vectors.Vector3;
+      Use_Mag       : Boolean;
       Armed         : Boolean;
       Angle_Mode    : Boolean
    ) is
       Dt      : constant Delta_Seconds := Float (Clock.Elapsed (Now, S.Previous_Time)) * 1.0e-6;
       Use_Acc : constant Boolean := 0.9 < Acc_Magnitude and then Acc_Magnitude < 1.1;
+      Heading : constant Heading_Error := (if Use_Mag then Mag_Error (S, C, Mag) else 0.0);
       Kp_Gain : Scheduled_Gain;
    begin
       S.Previous_Time := Now;
       Schedule_Gain (S, C, Now, Use_Acc, Gyro, Armed, Kp_Gain);
-      Mahony_Update (S, C, Dt, Gyro, Use_Acc, Acc, Kp_Gain);
+      Mahony_Update (S, C, Dt, Gyro, Use_Acc, Acc, Heading, Kp_Gain);
       Update_Euler (S);
       if C.Throttle_Angle_Value /= 0 and then Angle_Mode and then Armed then
          S.Throttle_Correction := Throttle_Correction_Of (S, C);
