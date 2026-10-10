@@ -15,9 +15,8 @@ concurrency:
 
 jobs:
   prove:
-    # Self-hosted (terra): the host provides alr and the GNAT and gnatprove
-    # toolchains natively; the hosted-only steps below are gated, so moving
-    # this job back to GitHub-hosted is the one-line revert
+    # The hosted-only steps below are gated on the runner environment, so
+    # moving this job back to GitHub-hosted is the one-line change
     # `runs-on: ubuntu-latest`.
     runs-on: [self-hosted, linux]
     timeout-minutes: 300
@@ -25,7 +24,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          # A self-hosted checkout keeps its Alire build between runs.
+          # Only a GitHub-hosted runner starts from a clean checkout.
           clean: ${{ runner.environment == 'github-hosted' }}
 
       - name: Cache Alire
