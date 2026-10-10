@@ -532,3 +532,19 @@ stick's come with the navigation port. One guard covers the reference's division
 stick beyond the receiver's range against a hover throttle at the range's edge leaves the
 stick factor at zero. The target velocity is held to a bound a stick within the receiver's
 range cannot reach. No recorded vector reaches a guard.
+
+## D35. Launch control inside the rate loop (2026-10-09)
+
+The rate loop carries the reference's launch control where the reference keeps it: while
+the mode is active the setpoint is twice the stick's deflection within a half, scaled to the
+launch rate, on pitch alone or on every axis, and on pitch run down to the minimum rate over
+the last ten degrees before the angle limit and to zero past it; the iterm relax is skipped;
+the integral gain is the launch gain on every axis, with the yaw windup limit and the
+anti-gravity accelerator left as they were; the D term and the feedforward are zero; and
+after each axis the yaw I term is held to its launch limit and, in the pitch-only mode, the
+roll P and I terms and the yaw P term to zero and the pitch I term to at or above zero, so
+each axis's sum sees the holds the reference's loop applies before it. The loop takes the
+mode's activity and the yaw stick as inputs; the activation from the mode switch, the throttle
+trigger, and the arming delay stay with the core loop's port. The launch setpoint and the
+held terms are contracted helpers, and the setpoint's scaling over the angle window is held to
+the launch rate, which a stick within a half cannot exceed. No recorded vector reaches a guard.

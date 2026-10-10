@@ -77,6 +77,11 @@ package Adaflight.PID_Controller with SPARK_Mode, Pure is
       Acc_Present               : Boolean := False;
       Gyro_Overflow             : Boolean := False;
       Motor_Mix_Range           : Signal := 0.0;
+      --  Launch control holds the setpoints to the stick's small deflections
+      --  while the craft sits on the ground; the yaw deflection joins the
+      --  level axes' for its full mode.
+      Launch_Control_Active     : Boolean := False;
+      Yaw_Deflection            : Float range -1.0 .. 1.0 := 0.0;
    end record;
 
    type State is record
