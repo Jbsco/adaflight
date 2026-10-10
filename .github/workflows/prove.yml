@@ -74,7 +74,7 @@ jobs:
 
       - name: Run SPARK proofs
         env:
-          PROVE_JOBS: 4
+          PROVE_JOBS: 8
         run: |
           set -o pipefail
           bash prove.do 2>&1 | tee prove-output.log
