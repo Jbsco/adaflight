@@ -1,4 +1,5 @@
-with Interfaces; use type Interfaces.Integer_64;
+with Interfaces; use type Interfaces.Integer_32; use type Interfaces.Integer_64;
+with Adaflight.Clock;
 
 package body Adaflight.Failsafe with SPARK_Mode is
 
@@ -6,25 +7,12 @@ package body Adaflight.Failsafe with SPARK_Mode is
    Millis_Per_Second : constant Time_Ms := 1_000;
    Max_Passes        : constant := 8;
 
-   --  The signed difference of two wrapping millisecond counters.
-   function Elapsed (Later : Time_Ms; Earlier : Time_Ms) return Integer is
-      D : constant Interfaces.Integer_64 := Interfaces.Integer_64 (Later) - Interfaces.Integer_64 (Earlier);
-   begin
-      if D > Interfaces.Integer_64 (Integer'Last) then
-         return Integer (D - 2 ** 32);
-      elsif D < Interfaces.Integer_64 (Integer'First) then
-         return Integer (D + 2 ** 32);
-      else
-         return Integer (D);
-      end if;
-   end Elapsed;
-
    --  Now is past the deadline. Wrap-safe where the reference compares the
    --  counters directly (DESIGN.md D6).
    function After (Now : Time_Ms; Deadline : Time_Ms) return Boolean is
-     (Elapsed (Now, Deadline) > 0);
+     (Clock.Elapsed (Now, Deadline) > 0);
 
-   function Longer_Than (Difference : Integer; Period : Time_Ms) return Boolean is
+   function Longer_Than (Difference : Interfaces.Integer_32; Period : Time_Ms) return Boolean is
      (Interfaces.Integer_64 (Difference) > Interfaces.Integer_64 (Period));
 
    -----------
@@ -76,7 +64,7 @@ package body Adaflight.Failsafe with SPARK_Mode is
          S.Valid_Rx_Data_Failed_At := S.Valid_Rx_Data_Received_At;
          S.Arming_Disabled_Rx := True;
       end if;
-      if Longer_Than (Elapsed (S.Valid_Rx_Data_Received_At, S.Valid_Rx_Data_Failed_At),
+      if Longer_Than (Clock.Elapsed (S.Valid_Rx_Data_Received_At, S.Valid_Rx_Data_Failed_At),
                       S.Receiving_Rx_Data_Period_Preset)
       then
          S.Rx_Link := Up;
@@ -92,7 +80,9 @@ package body Adaflight.Failsafe with SPARK_Mode is
    begin
       S.Arming_Disabled_Rx := True;
       S.Valid_Rx_Data_Failed_At := Now;
-      if Longer_Than (Elapsed (S.Valid_Rx_Data_Failed_At, S.Valid_Rx_Data_Received_At), S.Rx_Data_Failure_Period) then
+      if Longer_Than (Clock.Elapsed (S.Valid_Rx_Data_Failed_At, S.Valid_Rx_Data_Received_At),
+                      S.Rx_Data_Failure_Period)
+      then
          S.Rx_Link := Down;
       end if;
    end On_Valid_Data_Failed;
@@ -103,7 +93,7 @@ package body Adaflight.Failsafe with SPARK_Mode is
 
    procedure Check_Data_Failure_Period (S : in out State; Now : Time_Ms) is
    begin
-      if Longer_Than (Elapsed (Now, S.Valid_Rx_Data_Received_At), S.Rx_Data_Failure_Period) then
+      if Longer_Than (Clock.Elapsed (Now, S.Valid_Rx_Data_Received_At), S.Rx_Data_Failure_Period) then
          S.Rx_Link := Down;
          S.Arming_Disabled_Rx := True;
       end if;

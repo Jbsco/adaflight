@@ -1,4 +1,5 @@
 with Adaflight.Maths; use Adaflight.Maths;
+with Adaflight.Clock;
 
 package body Adaflight.Battery with SPARK_Mode is
 
@@ -12,19 +13,6 @@ package body Adaflight.Battery with SPARK_Mode is
    Stable_Bits_Threshold    : constant := 10;
    Max_Auto_Detect_Cells    : constant := 8;
    LVC_Affect_Time_Us       : constant := 10_000_000;
-
-   --  The signed difference of two wrapping counters.
-   function Elapsed (Later : Unsigned_32; Earlier : Unsigned_32) return Integer_32 is
-      D : constant Interfaces.Integer_64 := Interfaces.Integer_64 (Later) - Interfaces.Integer_64 (Earlier);
-   begin
-      if D > Interfaces.Integer_64 (Integer_32'Last) then
-         return Integer_32 (D - 2 ** 32);
-      elsif D < Interfaces.Integer_64 (Integer_32'First) then
-         return Integer_32 (D + 2 ** 32);
-      else
-         return Integer_32 (D);
-      end if;
-   end Elapsed;
 
    --  The cutoff of a battery filter from its period in tenths of a second.
    function Period_Cutoff (Period : Positive) return Float is
@@ -116,7 +104,7 @@ package body Adaflight.Battery with SPARK_Mode is
          S.Voltage.Stable_Prev_Filtered := S.Voltage.Display_Filtered;
          S.Voltage.Stable_Bits := S.Voltage.Stable_Bits and not 1;
       end if;
-      if Elapsed (Now_Ms, S.Voltage.Stable_Last_Update) >= Stable_Tick_Ms then
+      if Clock.Elapsed (Now_Ms, S.Voltage.Stable_Last_Update) >= Stable_Tick_Ms then
          S.Voltage.Stable_Bits := Interfaces.Shift_Left (S.Voltage.Stable_Bits, 1) or 1;
          S.Voltage.Stable_Last_Update := Now_Ms;
       end if;
@@ -133,7 +121,7 @@ package body Adaflight.Battery with SPARK_Mode is
          return;
       end if;
       declare
-         Since_Last : constant Integer_32 := Elapsed (Now_Us, S.Current_Serviced_Us);
+         Since_Last : constant Integer_32 := Clock.Elapsed (Now_Us, S.Current_Serviced_Us);
       begin
          S.Current_Serviced_Us := Now_Us;
          case C.Current_Meter is
@@ -245,7 +233,7 @@ package body Adaflight.Battery with SPARK_Mode is
       case S.Voltage_State is
          when OK =>
             if S.Voltage.Display_Filtered <= S.Warning_Hysteresis then
-               if Elapsed (Now_Ms, S.Last_Voltage_Change_Ms) >= Integer_32 (C.Duration_For_Warning) * 100 then
+               if Clock.Elapsed (Now_Ms, S.Last_Voltage_Change_Ms) >= Integer_32 (C.Duration_For_Warning) * 100 then
                   S.Voltage_State := Warning;
                end if;
             else
@@ -253,7 +241,7 @@ package body Adaflight.Battery with SPARK_Mode is
             end if;
          when Warning =>
             if S.Voltage.Display_Filtered <= S.Critical_Hysteresis then
-               if Elapsed (Now_Ms, S.Last_Voltage_Change_Ms) >= Integer_32 (C.Duration_For_Critical) * 100 then
+               if Clock.Elapsed (Now_Ms, S.Last_Voltage_Change_Ms) >= Integer_32 (C.Duration_For_Critical) * 100 then
                   S.Voltage_State := Critical;
                end if;
             else
@@ -293,7 +281,7 @@ package body Adaflight.Battery with SPARK_Mode is
          end if;
          if S.LVC_Enabled then
             declare
-               Since : constant Integer_32 := Elapsed (Now_Us, S.LVC_Start_Us);
+               Since : constant Integer_32 := Clock.Elapsed (Now_Us, S.LVC_Start_Us);
             begin
                if Since < LVC_Affect_Time_Us then
                   --  Held to the percent range, which the reference's byte leaves
