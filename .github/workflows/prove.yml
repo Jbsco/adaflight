@@ -67,6 +67,11 @@ jobs:
           key: proof-session-${{ runner.os }}-${{ github.sha }}
           restore-keys: proof-session-${{ runner.os }}-
 
+      - name: Clear the proof session on a rerun
+        # A kept session replays the stored verdicts of the failed attempt.
+        if: github.run_attempt != 1
+        run: rm -rf core/obj/development/gnatprove
+
       - name: Run SPARK proofs
         env:
           PROVE_JOBS: 4
