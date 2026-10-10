@@ -806,3 +806,24 @@ position below the frame length while a frame comes in and at zero otherwise, an
 length to the provider. The frame writes and the unpackers' reads are therefore proved within
 the buffer without clamps. The completion check moves ahead of the position increment to keep
 the predicate. The serial port stays with the port layer. No guard was needed.
+## D47. The Jeti EX Bus protocol (2026-10-10)
+
+The Jeti EX Bus unit carries the reference's EX Bus receiver. Each byte arrives with its time,
+and a gap over a millisecond drops the frame in progress. A frame starts on the channel or the
+request sync byte into its own buffer. The second byte says whether the receiver may transmit.
+The sixth byte's message length takes the frame when it is within its buffer's range and drops
+it otherwise. A byte at the buffer's end drops the frame. The last byte of the length completes
+the frame with its time: the channel frame for the status poll, the request frame for the
+telemetry. The status poll takes a received channel frame once. When the CRC over the frame
+reads zero, the poll decodes the channels and keeps the frame's time. It decodes as many words
+as the data length holds, up to sixteen, each word's eighth, when the header names channel data
+with or without a request. The raw value is the channel value itself. The unit keeps the
+received frame's length beside the buffer, where the reference reads the buffer's length byte
+again at the poll. The byte cannot change between the completion and the poll, since a new
+frame into that buffer takes the state out of received first, so the two reads agree. The
+state's predicate keeps the position within the size of the buffer the bytes go to, so the
+buffer writes are proved without clamps. The CRC runs on eight- and sixteen-bit modular words as
+the reference's nibble-wise form does. The decode trusts the header's data length over the
+message length as the reference does (finding F36). The request frame, its state and time, the
+transmit permission, and the serial port stay with the telemetry and port layers. No guard was
+needed.
