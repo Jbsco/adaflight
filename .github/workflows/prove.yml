@@ -7,6 +7,12 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# The self-hosted runners share one host, and two proof runs on it push the
+# provers past their time limits, so the runs queue.
+concurrency:
+  group: spark-proofs
+  cancel-in-progress: false
+
 jobs:
   prove:
     # Self-hosted (terra): the host provides alr and the GNAT and gnatprove
@@ -60,6 +66,11 @@ jobs:
           path: core/obj/development/gnatprove
           key: proof-session-${{ runner.os }}-${{ github.sha }}
           restore-keys: proof-session-${{ runner.os }}-
+
+      - name: Clear the proof session on a rerun
+        # A kept session replays the stored verdicts of the failed attempt.
+        if: github.run_attempt != 1
+        run: rm -rf core/obj/development/gnatprove
 
       - name: Run SPARK proofs
         env:
