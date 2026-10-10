@@ -480,3 +480,18 @@ order. The result is held to four, where a unit field against a unit north reach
 the error terms keep their ranges; the ranges of the error and the integral step widened
 for the added term. The GPS course over ground that shares the term, and the compass's
 suppression of it, come with the GPS port. No recorded vector reaches the guard.
+
+## D32. The position filter with bounded gains and covariances (2026-10-09)
+
+`Adaflight.Position_Filter` is the reference's three-state Kalman filter for one axis, in
+its operation order: the constant-jerk prediction through the two matrix accumulations,
+the position and acceleration updates on their own diagonal entries, and the velocity and
+position updates through their shared covariance in Joseph form. Proof covers the floating
+point of every path: the state is held to 2 to the 24 centimeters, the covariance entries to
+2 to the 40, each gain to 2 to the 16, and the two accumulations to typed intermediates, so
+no product can overflow whatever the sequence of updates. The gains stay within one for a
+consistent covariance and within the ratio of two variances otherwise, and the covariance
+of a flight stays within a few million, so the guards sit far from the values the filter
+produces; the reference's return on an innovation covariance below a nanobillionth is kept
+as it is. The altitude estimator that feeds this filter from the barometer and the
+accelerometer comes next. No recorded vector reaches a guard.
