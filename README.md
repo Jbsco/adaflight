@@ -27,6 +27,7 @@ The core holds:
   encodings, bit arrays, stream buffers, and the Huffman encoder
 - GPS coordinate conversion, sensor alignment, color conversion, and the chirp generator
 - the rate curves and the RC command path with its smoothing and feedforward
+- the in-flight adjustments and the simplified tuning of the PID gains
 - the PID profile with its runtime configuration, filter initialization, rate loop,
   throttle-side features, crash recovery, and launch control
 - the motor mixer
@@ -41,10 +42,10 @@ The core holds:
 
 The state of `main`:
 
-- The core proves at Silver and Gold: 4456 checks, nothing unproved, no
+- The core proves at Silver and Gold: 4788 checks, nothing unproved, no
   `pragma Assume`, no justified suppression (`gnatprove` 16.1.0, level 2).
-- The recorded vectors replay bit for bit: 165076 lines over 161 cases, every case
-  exact except the fifteen declared deviations in `DESIGN.md` D6.
+- The recorded vectors replay bit for bit: 172614 lines over 164 cases, every case
+  exact except the sixteen declared deviations in `DESIGN.md` D6.
 - No target builds yet. `ROADMAP.md` carries the parity inventory, the phases, and the
   question for after parity: whether a proved core leaves room on the F4 boards for
   features Betaflight has to leave out for these targets.
