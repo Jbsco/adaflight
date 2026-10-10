@@ -33,15 +33,14 @@ the barometer altitude, the compass with its bias calibration, the battery meter
 states, the sensor and board alignment, the arming logic with launch control and runaway
 takeoff prevention, the angle and horizon level modes, the position Kalman filter, the
 altitude estimator, the altitude hold, the in-flight adjustments, the simplified tuning
-of the PID gains, the cooperative scheduler, and the beeper.
+of the PID gains, the cooperative scheduler, the beeper, and the receiver's channel
+processing.
 
-- The core proves at Silver and Gold: 4940 checks, nothing unproved, no
+- The core proves at Silver and Gold: 5103 checks, nothing unproved, no
   `pragma Assume`, no justified suppression (`gnatprove` 16.1.0, level 2).
-- The recorded vectors replay bit for bit: 204738 lines over 172 cases, every case
-  exact except the sixteen declared deviations in `DESIGN.md` D6.
-- No target builds yet. `ROADMAP.md` carries the parity inventory, the phases, and the
-  question for after parity: whether a proved core leaves room on the F4 boards for
-  features Betaflight has to leave out for these targets.
+- The recorded vectors replay bit for bit: 214128 lines over 175 cases, every case
+  exact except the seventeen declared deviations in `DESIGN.md` D6.
+- No target builds yet. `ROADMAP.md` carries the parity inventory and the phases.
 
 ## Repository layout
 
