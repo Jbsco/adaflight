@@ -137,6 +137,13 @@ ledger. The deviations so far:
 - The runaway takeoff trigger deadline is compared through the wrapping difference as well,
   where the reference compares the counter and the deadline directly (findings F24). The
   recorded vectors stay clear of the wrap and replay bit for bit.
+- The in-flight adjustments hold the feedforward gain at the configuration maximum of 1000,
+  where the reference's step and dial adjustments reach 2000, and the horizon strength at or
+  above the configuration minimum of 10, where the reference's selection reaches zero
+  (findings F25 and F26). The recorded vectors keep both within the configuration bounds:
+  the oracle starts the feedforward gains below 600, gives at most two feedforward ranges
+  per sequence with low dial settings, and keeps the switch channels at or above 960
+  microseconds.
 
 ## D7. Contribution conventions (2026-10-08)
 
@@ -575,3 +582,26 @@ and the sticks' deflections join the inputs, because their units own them, and t
 attempt zeroes the runaway timers. The trigger deadline uses the wrapping difference, which
 D6 records. The GPS rescue's hold on the runaway check and the temporary disable other
 features request come with their ports.
+
+## D37. In-flight adjustments (2026-10-09)
+
+The adjustments unit carries the reference's adjustment task: the ranges that are set are
+listed once into the steps, whose center is zero and whose function steps, and the dials;
+each pass runs the steps whose range is active, with the half-second ready timer, one step
+per hold of the switch past four tenths of its deflection from the configured center, and the
+switch back at the center arming the next step at once; then, while the receiver has a
+signal, the dials whose switch channel moved, selecting a profile, the horizon strength, the
+master multiplier, or a peripheral mode by the position of the channel over the range of the
+mode steps, or setting a stepping function from the dial through its scale and center. Every
+step and dial change applies to the rate profile that was active when the pass began, as the
+reference's task passes that profile by pointer. The unit owns the selections the profiles
+and the peripherals read, the display the on-screen element names for two seconds after a
+change, and the sticky configuration-dirty flag; it reports the confirmation beeps and the
+PID, RC, and battery reinitializations a pass asks for, because their units own those. The
+master multiplier runs the simplified tuning of the PID gains, ported in its own unit from the
+reference defaults; the simplified filter sliders come with the configuration phase, as do the
+OSD profiles. Two guards cover the reference's undefined behavior: a range whose function is
+None is skipped where the reference reads outside its function table (finding F27), and a
+dial value is held within two to the thirtieth before its conversion to an integer. The
+feedforward and horizon strength holds are declared in D6. The display and the timers compare
+through the wrapping difference as the reference does. No recorded vector reaches a guard.
