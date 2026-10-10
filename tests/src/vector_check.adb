@@ -57,6 +57,7 @@ with Adaflight.SUMD;
 with Adaflight.SUMH;
 with Adaflight.IBUS;
 with Adaflight.Spektrum;
+with Adaflight.XBUS;
 
 procedure Vector_Check is
 
@@ -3919,6 +3920,74 @@ procedure Vector_Check is
       end if;
    end Check_Spek_Line;
 
+   XBUS_State : Adaflight.XBUS.State;
+   XBUS_Clock : Unsigned_32 := 0;
+
+   procedure Check_XBUS_Line is
+      use Adaflight.XBUS;
+      Name : constant String := Str (1);
+      K    : Positive := 1;
+      procedure Expect_Next (N : String; Actual : Integer_64) is
+      begin
+         Record_Int (Name & "." & N, Int (K), Actual);
+         K := K + 1;
+      end Expect_Next;
+      procedure Check_Fields is
+      begin
+         if K /= NF + 1 then
+            Put_Line (Name & ": consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
+            Failures := Failures + 1;
+         end if;
+      end Check_Fields;
+   begin
+      if Name = "xbusinit" then
+         Init (XBUS_State, (if Int (3) = 6 then Mode_B_RJ01 else Mode_B));
+         XBUS_Clock := Unsigned_32 (Int (4));
+         K := 5;
+         Expect_Next ("count", Channel_Count);
+         Expect_Next ("length", Integer_64 (XBUS_State.Length));
+         Expect_Next ("channels", Channel_Count);
+         for Ch in Channel loop
+            Expect_Next ("data", Integer_64 (XBUS_State.Data (Ch)));
+         end loop;
+         Check_Fields;
+      elsif Name = "xbusburst" then
+         declare
+            Count  : constant Natural := Integer (Int (4));
+            Status : Adaflight.Receiver.Frame_Report;
+         begin
+            K := 5;
+            for B in 1 .. Count loop
+               XBUS_Clock := XBUS_Clock + Unsigned_32 (Int (K));
+               Receive_Byte (XBUS_State, Integer (Int (K + 1)), XBUS_Clock);
+               K := K + 2;
+            end loop;
+            XBUS_Clock := Unsigned_32 (Int (K));
+            K := K + 1;
+            if Int (K + 1) /= 0 then
+               Frame_Status (XBUS_State, Status);
+               Expect_Next ("status", Boolean'Pos (Status.Complete));
+            else
+               K := K + 1;
+            end if;
+            K := K + 1;
+            Expect_Next ("received", Boolean'Pos (XBUS_State.Frame_Received));
+            Expect_Next ("incoming", Boolean'Pos (XBUS_State.Data_Incoming));
+            Expect_Next ("position", Integer_64 (XBUS_State.Position));
+            Expect_Next ("length", Integer_64 (XBUS_State.Length));
+            for Ch in Channel loop
+               Expect_Next ("data", Integer_64 (XBUS_State.Data (Ch)));
+               Record_Result (Name & ".raw", Bits (K), To_Bits (Read_Raw (XBUS_State, Ch)));
+               K := K + 1;
+            end loop;
+            Check_Fields;
+         end;
+      else
+         Put_Line ("unknown xbus case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_XBUS_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -3993,6 +4062,8 @@ procedure Vector_Check is
                   Check_IBUS_Line;
                elsif Kind = "spek" then
                   Check_Spek_Line;
+               elsif Kind = "xbus" then
+                  Check_XBUS_Line;
                else
                   Check_PID_Line;
                end if;
@@ -4039,6 +4110,7 @@ begin
    Run (Dir & "/sumd.csv", "sumd");
    Run (Dir & "/ibus.csv", "ibus");
    Run (Dir & "/spek.csv", "spek");
+   Run (Dir & "/xbus.csv", "xbus");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
