@@ -851,3 +851,13 @@ buffer as the reference's. The RSSI scaling and the legacy rescaling keep the re
 sixteen-bit wraps of their negative results (findings F37, F38), so the recorded vectors match.
 The telemetry content, the MSP handling, the idle callback's source, and the serial port stay
 with their layers. No guard was needed.
+## D49. The MSP receiver (2026-10-10)
+
+The MSP receiver unit carries the reference's receiver fed over MSP. A frame from the command
+handler sets the channels it carries and resets the ones it leaves out to zero. It marks the
+frame done for the receiver and for the override path, and keeps its time and channel count. A
+channel is fresh while a frame has ever arrived, the last frame carried it, and the frame
+arrived within the last 300 milliseconds. The status poll reports complete once per frame and
+stamps the frame at the poll. The override poll reports complete once per frame. The raw value
+is the channel value itself. The command handler bounds the count at eighteen, so the count is
+a subtype. The millisecond difference is the reference's unsigned one. No guard was needed.
