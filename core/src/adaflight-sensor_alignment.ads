@@ -30,6 +30,22 @@ package Adaflight.Sensor_Alignment with SPARK_Mode, Pure is
    --  the angles unchanged.
    procedure From_Standard (Angles : in out Alignment_Angles; Alignment : Standard_Alignment);
 
+   --  The board's mounting in whole degrees; all zero means the board sits in
+   --  the body frame and the sensors need no second rotation.
+   subtype Board_Degrees is Integer range -180 .. 360;
+
+   type Board_Angles is record
+      Roll  : Board_Degrees := 0;
+      Pitch : Board_Degrees := 0;
+      Yaw   : Board_Degrees := 0;
+   end record;
+
+   function Standard_Board (B : Board_Angles) return Boolean is
+     (B.Roll = 0 and then B.Pitch = 0 and then B.Yaw = 0);
+
+   function Board_Rotation (B : Board_Angles) return Vectors.Matrix33
+     with Post => Vectors.Bounded (Board_Rotation'Result, 2.0);
+
    --  A standard alignment applied to a sensor reading: quarter turns about
    --  yaw permute and negate the axes, the flipped variants negate the
    --  vertical axis. Default, CW0, and Custom leave the reading unchanged.

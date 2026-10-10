@@ -1464,7 +1464,7 @@ procedure Vector_Check is
       if Name = "gyroinit" then
          declare
             C : Settings;
-            K : Positive := 22;
+            K : Positive := 29;
             function Stage_Kind (St : Stage) return Integer_64 is
               (if not St.Used then 0
                else (case St.Kind is
@@ -1497,20 +1497,25 @@ procedure Vector_Check is
             for A in Adaflight.Axes.Axis loop
                C.Zero (A) := Flt (7 + Adaflight.Axes.Axis'Pos (A));
             end loop;
-            C.LPF1_Type := Adaflight.PID_Profile.Lowpass_Kind'Val (Integer'Value (Str (10)));
-            C.LPF1_Static_Hz := Integer'Value (Str (11));
-            C.LPF1_Dyn_Min_Hz := Integer'Value (Str (12));
-            C.LPF1_Dyn_Max_Hz := Integer'Value (Str (13));
-            C.LPF1_Dyn_Expo := Integer'Value (Str (14));
-            C.LPF2_Type := Adaflight.PID_Profile.Lowpass_Kind'Val (Integer'Value (Str (15)));
-            C.LPF2_Static_Hz := Integer'Value (Str (16));
-            C.Notch1_Hz := Integer'Value (Str (17));
-            C.Notch1_Cutoff := Integer'Value (Str (18));
-            C.Notch2_Hz := Integer'Value (Str (19));
-            C.Notch2_Cutoff := Integer'Value (Str (20));
+            C.LPF1_Type := Adaflight.PID_Profile.Lowpass_Kind'Val (Integer'Value (Str (17)));
+            C.LPF1_Static_Hz := Integer'Value (Str (18));
+            C.LPF1_Dyn_Min_Hz := Integer'Value (Str (19));
+            C.LPF1_Dyn_Max_Hz := Integer'Value (Str (20));
+            C.LPF1_Dyn_Expo := Integer'Value (Str (21));
+            C.LPF2_Type := Adaflight.PID_Profile.Lowpass_Kind'Val (Integer'Value (Str (22)));
+            C.LPF2_Static_Hz := Integer'Value (Str (23));
+            C.Notch1_Hz := Integer'Value (Str (24));
+            C.Notch1_Cutoff := Integer'Value (Str (25));
+            C.Notch2_Hz := Integer'Value (Str (26));
+            C.Notch2_Cutoff := Integer'Value (Str (27));
+            C.Alignment := Adaflight.Sensor_Alignment.Standard_Alignment'Val (Int (10));
+            C.Custom_Angles := (Roll  => Adaflight.Sensor_Alignment.Decidegrees (Int (11)),
+                                Pitch => Adaflight.Sensor_Alignment.Decidegrees (Int (12)),
+                                Yaw   => Adaflight.Sensor_Alignment.Decidegrees (Int (13)));
+            C.Board := (Roll => Integer (Int (14)), Pitch => Integer (Int (15)), Yaw => Integer (Int (16)));
             Gyro_Settings := C;
             Init (Gyro_State, Gyro_Settings);
-            Record_Int ("gyroinit.downsample", Int (21), Boolean'Pos (Gyro_State.Downsample_Filter));
+            Record_Int ("gyroinit.downsample", Int (28), Boolean'Pos (Gyro_State.Downsample_Filter));
             Record_Int ("gyroinit.lpf1_kind", Int (K), Stage_Kind (Gyro_State.Lowpass1 (Adaflight.Axes.Roll)));
             K := K + 1;
             for A in Adaflight.Axes.Axis loop
@@ -1803,13 +1808,14 @@ procedure Vector_Check is
             Custom_Angles  => (Roll  => Adaflight.Sensor_Alignment.Decidegrees (Int (6)),
                                Pitch => Adaflight.Sensor_Alignment.Decidegrees (Int (7)),
                                Yaw   => Adaflight.Sensor_Alignment.Decidegrees (Int (8))),
-            One_G          => Integer (Int (9)),
-            Roll_Trim      => Interfaces.Integer_16 (Int (12)),
-            Pitch_Trim     => Interfaces.Integer_16 (Int (13)));
+            Board          => (Roll => Integer (Int (9)), Pitch => Integer (Int (10)), Yaw => Integer (Int (11))),
+            One_G          => Integer (Int (12)),
+            Roll_Trim      => Interfaces.Integer_16 (Int (15)),
+            Pitch_Trim     => Interfaces.Integer_16 (Int (16)));
          Init (Acc_State, Acc_Settings);
-         Record_Result ("accinit.one_g_rec", Bits (10), To_Bits (Acc_State.One_G_Reciprocal));
+         Record_Result ("accinit.one_g_rec", Bits (13), To_Bits (Acc_State.One_G_Reciprocal));
          if Acc_Settings.Lowpass_Hz /= 0 then
-            Record_Result ("accinit.k", Bits (11), To_Bits (Acc_State.Filter (Adaflight.Vectors.X).K));
+            Record_Result ("accinit.k", Bits (14), To_Bits (Acc_State.Filter (Adaflight.Vectors.X).K));
          end if;
          Start_Calibration (Acc_State);
       elsif Name = "accstep" then
