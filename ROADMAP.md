@@ -54,7 +54,7 @@ commit the vectors were recorded from. The adaflight column counts Ada lines on 
 | scheduler | 1144 | 890 | the cooperative scheduler (task table, queue, gyro lock, dynamic priorities, check functions, fit and guard margins, statistics) proved and vector-checked; the main loop and the initialization order open |
 | rx | 16964 | 0 | Phase 4 |
 | pg, config, cli, msp | 21377 | 79 | simplified tuning of the PID gains proved and vector-checked; the rest Phase 5 |
-| blackbox, osd, cms, telemetry, io | 59977 | 0 | Phase 6 |
+| blackbox, osd, cms, telemetry, io | 59977 | 406 | the beeper (sound table, sequences, multi-beep fills, bench suppression, DShot beacon) proved and vector-checked; the rest Phase 6 |
 | drivers, target, build, msc | 55927 | 0 | Phase 7 |
 | platform (STM32, AT32, APM32, PICO, ESP32, SITL) | not counted | 0 | Phase 7 |
-| total measured | 195545 | 14720 | |
+| total measured | 195545 | 15126 | |
