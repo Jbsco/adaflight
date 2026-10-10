@@ -827,3 +827,27 @@ the reference's nibble-wise form does. The decode trusts the header's data lengt
 message length as the reference does (finding F36). The request frame, its state and time, the
 transmit permission, and the serial port stay with the telemetry and port layers. No guard was
 needed.
+## D48. The Ghost protocol (2026-10-10)
+
+The GHST unit carries the reference's Ghost receiver. Each byte arrives with its time, and a
+byte after the frame time of 500 microseconds starts a new frame. The frame is five bytes long
+until its length byte is in, and that byte plus two after. A byte is kept while the frame has
+room. The last byte of a frame addressed to the flight controller swaps the two buffers, marks
+the frame available, and stamps its end. The status poll takes an available frame once. The
+frame is complete with processing to do when the CRC over its type and payload matches its last
+byte, and dropped otherwise. With no frame available, the poll asks for processing alone when a
+telemetry reply waits and the bus has been quiet for more than one and less than two
+milliseconds since the last frame. The processing sends the reply in that window and then
+decodes the validated frame. A statistics frame sets the RF protocol with the telemetry it
+allows and gives the receiver its RSSI, dBm, and link quality. The aux frames name the four
+channels they carry in turn. Once the protocol is known, the four primary channels come from
+their packed twelve bits, the aux four widened from eight, and a legacy frame is rescaled to
+the twelve-bit range. The MSP frames go to the MSP layer with their payload length. The raw
+value is a quarter of a primary count or an aux count as it is, plus 988. The unit keeps the
+completed frame's length beside the buffers, where the reference reads the length byte again
+at the poll and the processing. The validated buffer is not written until the next swap, so
+the two agree. The swap itself is kept so the stale bytes of a short frame come from the same
+buffer as the reference's. The RSSI scaling and the legacy rescaling keep the reference's
+sixteen-bit wraps of their negative results (findings F37, F38), so the recorded vectors match.
+The telemetry content, the MSP handling, the idle callback's source, and the serial port stay
+with their layers. No guard was needed.
