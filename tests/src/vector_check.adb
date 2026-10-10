@@ -53,6 +53,8 @@ with Adaflight.Sensor_Alignment;
 with Adaflight.Color;
 with Adaflight.Exponentials;
 with Adaflight.Chirp;
+with Adaflight.SUMD;
+with Adaflight.SUMH;
 
 procedure Vector_Check is
 
@@ -3662,6 +3664,92 @@ procedure Vector_Check is
       end if;
    end Check_CRSF_Line;
 
+   SUMD_State : Adaflight.SUMD.State;
+   SUMH_State : Adaflight.SUMH.State;
+   SUM_Clock  : Unsigned_32 := 0;
+
+   procedure Check_SUM_Line is
+      Name : constant String := Str (1);
+      K    : Positive := 1;
+      procedure Expect_Next (N : String; Actual : Integer_64) is
+      begin
+         Record_Int (Name & "." & N, Int (K), Actual);
+         K := K + 1;
+      end Expect_Next;
+      procedure Check_Fields is
+      begin
+         if K /= NF + 1 then
+            Put_Line (Name & ": consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
+            Failures := Failures + 1;
+         end if;
+      end Check_Fields;
+      function Code (Status : Adaflight.Receiver.Frame_Report) return Integer_64 is
+        ((if Status.Complete then 1 else 0) + (if Status.Failsafe then 2 else 0) + (if Status.Dropped then 8 else 0));
+   begin
+      if Name = "sumdinit" then
+         Adaflight.SUMD.Init (SUMD_State);
+         SUM_Clock := Unsigned_32 (Int (3));
+      elsif Name = "sumhinit" then
+         Adaflight.SUMH.Init (SUMH_State);
+         SUM_Clock := Unsigned_32 (Int (3));
+      elsif Name = "sumdburst" or else Name = "sumhburst" then
+         declare
+            Count  : constant Natural := Integer (Int (4));
+            SUMH   : constant Boolean := Name = "sumhburst";
+            Status : Adaflight.Receiver.Frame_Report;
+            Polled : Boolean;
+         begin
+            K := 5;
+            for B in 1 .. Count loop
+               SUM_Clock := SUM_Clock + Unsigned_32 (Int (K));
+               if SUMH then
+                  Adaflight.SUMH.Receive_Byte (SUMH_State, Integer (Int (K + 1)), SUM_Clock);
+               else
+                  Adaflight.SUMD.Receive_Byte (SUMD_State, Integer (Int (K + 1)), SUM_Clock);
+               end if;
+               K := K + 2;
+            end loop;
+            Polled := Int (K) /= 0;
+            K := K + 1;
+            SUM_Clock := Unsigned_32 (Int (K));
+            K := K + 1;
+            if Polled then
+               if SUMH then
+                  Adaflight.SUMH.Frame_Status (SUMH_State, Status);
+               else
+                  Adaflight.SUMD.Frame_Status (SUMD_State, Status);
+               end if;
+               Expect_Next ("status", Code (Status));
+            else
+               K := K + 1;
+            end if;
+            if SUMH then
+               Expect_Next ("done", Boolean'Pos (SUMH_State.Done));
+               for Ch in 0 .. Adaflight.SUMH.Channel_Count loop
+                  Expect_Next ("data",
+                               (if Ch < Adaflight.SUMH.Channel_Count then Integer_64 (SUMH_State.Data (Ch)) else 0));
+                  Record_Result (Name & ".raw", Bits (K), To_Bits (Adaflight.SUMH.Read_Raw (SUMH_State, Ch)));
+                  K := K + 1;
+               end loop;
+            else
+               Expect_Next ("done", Boolean'Pos (SUMD_State.Done));
+               Expect_Next ("count", Integer_64 (SUMD_State.Channel_Count));
+               Expect_Next ("crc", Integer_64 (SUMD_State.CRC));
+               Expect_Next ("frame_time", Integer_64 (SUMD_State.Last_Frame_Us));
+               for Ch in Adaflight.SUMD.Channel loop
+                  Expect_Next ("data", Integer_64 (SUMD_State.Data (Ch)));
+                  Record_Result (Name & ".raw", Bits (K), To_Bits (Adaflight.SUMD.Read_Raw (SUMD_State, Ch)));
+                  K := K + 1;
+               end loop;
+            end if;
+            Check_Fields;
+         end;
+      else
+         Put_Line ("unknown sum case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_SUM_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -3730,6 +3818,8 @@ procedure Vector_Check is
                   Check_SBUS_Line;
                elsif Kind = "crsf" then
                   Check_CRSF_Line;
+               elsif Kind = "sumd" then
+                  Check_SUM_Line;
                else
                   Check_PID_Line;
                end if;
@@ -3773,6 +3863,7 @@ begin
    Run (Dir & "/rx.csv", "rx");
    Run (Dir & "/sbus.csv", "sbus");
    Run (Dir & "/crsf.csv", "crsf");
+   Run (Dir & "/sumd.csv", "sumd");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
