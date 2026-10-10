@@ -2,23 +2,26 @@
 
 Decisions are dated and numbered. A reversal gets a new entry, never an edit.
 
-## D1. License: GPL-3.0-or-later (2026-10-08)
+## D1. The GPL-3.0-or-later license (2026-10-08)
 
-The control algorithms are ported from a code base under GPL-3.0. Keeping the same
-license removes any question about derivative work and lets the project take future
-algorithm changes from the same source.
+The control algorithms are ported from [Betaflight](https://github.com/betaflight/betaflight),
+which is under GPL-3.0. Keeping the same license removes any question about derivative work
+and lets the project take future algorithm changes from the same source.
 
-## D2. One reference, named once (2026-10-08)
+## D2. The reference firmware (2026-10-08)
 
-The project targets feature and performance parity with the reference flight controller
-firmware named in the README. That is the only place the reference is named. Code,
-contracts, comments, and the other documents describe behavior in their own terms.
-Other firmware projects whose names label a rate curve family in the reference are not
-named either. Each family takes the name of its distinctive setting: super rate, acro
-plus, RC curve, actual, quick.
-The differential oracle that records test vectors from a host build of the reference
-lives outside this repository. The recorded vectors are data and are kept under
-`tests/vectors`.
+The project targets feature and performance parity with Betaflight, the flight control
+firmware it is ported from. The README names Betaflight in its first paragraph, and this
+ledger names it where a decision needs the name. Code, contracts, comments, and the other
+documents describe behavior in their own terms. The other firmware projects whose names
+label a rate curve family in Betaflight are not named either. Each family takes the name of
+its distinctive setting: super rate, acro plus, RC curve, actual, quick. The differential
+oracle that records test vectors from a host build of Betaflight lives outside this
+repository. The recorded vectors are data and are kept under `tests/vectors`.
+
+Amended 2026-10-10: the first version of this entry allowed the name only in a README
+section of its own. That section is gone. The name now stands in the README's first
+paragraph and in this ledger, with the link.
 
 ## D3. Repository layout (2026-10-08)
 
@@ -61,7 +64,7 @@ The state-variable filter coefficients follow the same rule: the warped angle sa
 the tangent approximation's bound inside the filter, so a caller proves nothing about the
 product of cutoff and period.
 
-## D6. Parity criterion: bit-exact on the host (2026-10-08)
+## D6. The parity criterion (2026-10-08)
 
 A ported function keeps the operation order of the reference, so a host build of both
 produces the same binary32 bit pattern for the same input. The vector checker compares
@@ -72,11 +75,11 @@ ledger. The deviations so far:
 - The moving average recomputes its sum from the window on every update instead of
   keeping a running sum, which removes the rounding drift the reference accumulates. The
   measured distance from the reference is at most 256 representable values over windows
-  of 1 to 32 samples; the declared tolerance is 512.
+  of 1 to 32 samples. The declared tolerance is 512.
 - A normalized vector saturates each component at one. The reference can return a
   component one representable value above one when rounding of the reciprocal root
-  lands high. The declared tolerance is 1; the saturation did not trigger in the
-  recorded vectors.
+  lands high. The declared tolerance is 1. The saturation did not trigger in the recorded
+  vectors.
 - The sliding DFT twiddle table is static. The reference computes it at first use, and
   bin 18 carries a negative zero real part there, which a static Ada constant cannot
   express. The two zeros compare at distance 0.
@@ -89,18 +92,18 @@ ledger. The deviations so far:
   zero wherever the recorded value is infinite or undefined.
 - The PID filters are initialized from the configured runtime constants. The reference
   initializes them before it derives those constants, so after a profile change its iterm
-  relax lowpass keeps the previous profile's cutoff until the next initialization; at boot
+  relax lowpass keeps the previous profile's cutoff until the next initialization. At boot
   it initializes twice and the second pass reads the first. The checker records the second
   pass.
 - The hyperbolic TPA table is sampled through the double-precision elementary functions of
-  the Ada runtime where the reference calls the C library's single-precision power; every
+  the Ada runtime where the reference calls the C library's single-precision power. Every
   recorded sample matches. A sample the reference leaves infinite or beyond the signal
   bound, where the curve's base cancels to zero at full throttle, saturates at the bound.
 - The EZ landing mixer adjustment divides by its limit factor to widen the recorded mix
-  range. Where that factor is zero the reference's range is infinite; it saturates at the
+  range. Where that factor is zero the reference's range is infinite. It saturates at the
   signal bound here. The motor outputs do not depend on it.
 - The averaged feedforward goes through the moving average above, so it carries that
-  deviation; the checker holds it within 512 representable values or a hundredth of a
+  deviation. The checker holds it within 512 representable values or a hundredth of a
   degree per second, since the reference's running sum leaves a residue near zero.
 - Two settings keep a narrower domain than the configuration interface admits: the
   hyperbolic TPA curve's two PID percentages exclude zero, where the reference's table is
@@ -108,12 +111,12 @@ ledger. The deviations so far:
   reference's throttle scaling divides by zero.
 - The failsafe compares its deadlines through the wrapping difference of the millisecond
   counters, where the reference compares the counters directly in three places. The two
-  agree while the counter is below its wrap, which the recorded vectors stay under; past
-  it the reference's deadlines invert for up to 49.7 days.
+  agree while the counter is below its wrap, which the recorded vectors stay under. Past
+  the wrap the reference's deadlines invert for up to 49.7 days.
 - The barometric altitude takes its power from the double-precision elementary functions
   (D15), which land within one unit in the last place of the C library's single-precision
   power. The altitude subtracts the power from one, so near sea level the last bit of the
-  power becomes up to 2 ** (-21) * 4433000, about 2.2 cm; the declared tolerance is 3 cm,
+  power becomes up to 2 ** (-21) * 4433000, about 2.2 cm. The declared tolerance is 3 cm,
   and two samples of 6900 recorded needed it.
 - The battery's charge integration multiplies the latest current by the microseconds since
   the meter was last serviced in 64 bits, where the reference's 32-bit product wraps on the
@@ -131,7 +134,8 @@ imperative line, signed.
 
 `style.do` compiles both crates from clean and fails on any warning, renders every
 markdown file through the local viewer's renderer, and scans tracked files for local
-paths and for references to other projects outside the README. `test.do` replays the
+paths and for references to other projects outside the README and this ledger. `test.do`
+replays the
 vectors. `prove.do` runs the SPARK proof and prints the unproved count and the assume
 count. `verify.do` runs all three, cheapest first. The three CI workflows run the same
 scripts.
@@ -146,7 +150,7 @@ Amended 2026-10-08: the backstop is 300 seconds. The hosted runner is about two 
 half times slower than the development host and reported a time limit on a product
 check the host closed in under a minute. The steps bound is unchanged.
 
-## D10. Deferred: fast exponential and logarithm (2026-10-08)
+## D10. The fast exponential and logarithm (2026-10-08)
 
 The reference builds these from the bit layout of a float. SPARK does not admit an
 unchecked conversion to a floating-point type, so the port needs a different
@@ -161,7 +165,7 @@ mantissa factor as `1.0 + Float (bits) * 2.0 ** (-23)`, which is exact, and the
 logarithm reads the bit pattern of its argument. Both replay the recorded vectors bit
 for bit, so the construction is equivalent to the reference's.
 
-## D11. Proof context stays small: tables and bit casts live behind contracts (2026-10-08)
+## D11. Tables and bit casts behind contracts (2026-10-08)
 
 A large constant aggregate in a unit enters the context of every verification condition
 of that unit, and the provers then time out on checks that are otherwise trivial. The
@@ -204,7 +208,7 @@ validated profiles only.
 The gyro filter settings carry the same two rules for their own lowpass range and their
 two notches.
 
-## D15. One body outside SPARK: the power behind the TPA table (2026-10-08)
+## D15. The accurate power outside SPARK (2026-10-08)
 
 The hyperbolic TPA table needs a power accurate to the single-precision rounding of the
 reference's C library, which the fast approximation of the core cannot give. The Ada
@@ -222,7 +226,7 @@ is a proved property of `Adaflight.Mixer.Update` rather than a test. The per-mot
 bounded at 16 in magnitude, which the scaled sums and the unit weights cannot reach, and
 the clamp the reference applies with a lower bound that rounding can place above the
 upper one is kept as written, with a postcondition that names which of the three values
-it returns. The reference seeds its motor maximum with the smallest normal float; the
+it returns. The reference seeds its motor maximum with the smallest normal float. The
 port keeps the seed to stay bit-exact.
 
 ## D17. Quaternion components saturate at two (2026-10-08)
@@ -248,7 +252,7 @@ stages form a chain of at most five within one update, because the link state is
 for the update and no stage returns to a stage it left under the same link state, so
 `Adaflight.Failsafe.Update` runs the stage dispatch in a loop bounded at eight passes and
 exits when a stage holds. The bound keeps the termination proof trivial and never
-triggers; the transient stages (loss detected, landed, recovered) are checked by the
+triggers. The transient stages (loss detected, landed, recovered) are checked by the
 vectors, which never leave an update in one. The event counter saturates where the
 reference's 16-bit counter would overflow after 32767 failsafe events.
 
@@ -259,7 +263,7 @@ activation conditions, the own-range conditions and the linked ones, as index ar
 counts whose sum the state's predicate bounds at the condition count, so the loop that
 fills them proves its indices from one invariant and the update loops read within them.
 The masks are Boolean arrays over the box enumeration rather than bit words, so a box
-identifier out of range cannot exist; the vector checker folds them back into the
+identifier out of range cannot exist. The vector checker folds them back into the
 reference's words. The boot delay before a sticky box may disarm compares the microsecond
 counter directly, as the reference does, since the delay is a one-shot after boot.
 
@@ -271,9 +275,9 @@ types silently. An aligned count is held within 2 ** 18, which a standard alignm
 reach and a custom rotation, whose matrix entries are within two, cannot exceed on 16-bit
 counts, so the saturation is inert. The calibration totals follow the reference's path,
 each cycle adding the float sample to an integer total and truncating back, and saturate
-at 2 ** 28, which 400 cycles of such counts cannot reach; the offsets are the rounded
+at 2 ** 28, which 400 cycles of such counts cannot reach. The offsets are the rounded
 means less the gravity count on the vertical axis. The reference stores each offset in a
-16-bit field that wraps when the mean exceeds it; the port saturates the offset at the
+16-bit field that wraps when the mean exceeds it. The port saturates the offset at the
 field's range instead, which no sensor near one gravity reaches. The in-flight
 calibration, the board alignment, and the configuration flag that records a completed
 calibration are not in this unit. The magnitudes take the norms of the acceleration and
@@ -285,11 +289,11 @@ reach, so their scaling by the reciprocal of one g proves apart from the update.
 `Adaflight.Barometer` turns a pressure into an altitude through the power of its ratio to
 the sea-level pressure. A pressure within the 32-bit range keeps that power below seven,
 so the power is held at eight before the altitude is formed, which bounds the altitude
-and the calibration sums by type; the saturation is inert. The device state machine that
+and the calibration sums by type. The saturation is inert. The device state machine that
 schedules the temperature and pressure reads is the driver's, and the port takes each
 pressure sample with the time of its read. The calibration keeps the reference's integer
 mean of the temperature and float mean of the altitude, with both sums saturating at
-their types' bounds, which one hundred samples cannot reach; the drift product is formed
+their types' bounds, which one hundred samples cannot reach. The drift product is formed
 in 64 bits where the reference's 32-bit product would wrap above a two-degree-million
 difference, which no device reports.
 
@@ -300,7 +304,7 @@ arithmetic: the divider scaling in 32-bit unsigned steps held to the 16-bit fiel
 into, the current scaling in 32-bit signed steps, the cell thresholds in 16-bit unsigned
 products, and the filtered analog counts truncated back to counts before scaling, as the
 reference converts them. The stability record is the reference's shifted bit mask. Only the
-analog meters are ported; the ESC, virtual, and MSP sources reset their meter as the
+analog meters are ported. The ESC, virtual, and MSP sources reset their meter as the
 reference does when a source is absent. The cutoff percentage is held to its range where
 the reference's byte leaves it after a clock wrap during the ramp, and the charge sum and
 energy saturate at their float types' bounds, which no pack reaches.
