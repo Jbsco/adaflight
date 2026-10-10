@@ -31,6 +31,7 @@ with Adaflight.Arming;
 with Adaflight.Compass;
 with Adaflight.Position_Filter;
 with Adaflight.Altitude_Estimator;
+with Adaflight.Altitude_Hold;
 with Adaflight.Vectors;
 with Adaflight.PWL;
 with Adaflight.SDFT;
@@ -1798,6 +1799,69 @@ procedure Vector_Check is
       end if;
    end Check_Position_Line;
 
+   AH_State    : Adaflight.Altitude_Hold.State;
+   AH_Settings : Adaflight.Altitude_Hold.Settings;
+
+   procedure Check_Alt_Hold_Line is
+      use Adaflight.Altitude_Hold;
+      Name : constant String := Str (1);
+   begin
+      if Name = "ahinit" then
+         AH_Settings := (Hover_Throttle => Integer (Int (3)),
+                         Throttle_Min   => Integer (Int (4)),
+                         Throttle_Max   => Integer (Int (5)),
+                         Altitude_P     => Integer (Int (6)),
+                         Altitude_I     => Integer (Int (7)),
+                         Altitude_D     => Integer (Int (8)),
+                         Altitude_A     => Integer (Int (9)),
+                         Altitude_F     => Integer (Int (10)),
+                         Climb_Rate     => Integer (Int (11)),
+                         Deadband       => Integer (Int (12)),
+                         Min_Check      => Integer (Int (13)));
+         Init (AH_State, AH_Settings, Altitude_Cm => Flt (22));
+         Record_Result ("ahinit.kp", Bits (14), To_Bits (AH_State.Kp));
+         Record_Result ("ahinit.ki", Bits (15), To_Bits (AH_State.Ki));
+         Record_Result ("ahinit.kd", Bits (16), To_Bits (AH_State.Kd));
+         Record_Result ("ahinit.ka", Bits (17), To_Bits (AH_State.Ka));
+         Record_Result ("ahinit.kf", Bits (18), To_Bits (AH_State.Kf));
+         Record_Result ("ahinit.deadband", Bits (19), To_Bits (AH_State.Deadband));
+         Record_Result ("ahinit.max_climb", Bits (20), To_Bits (AH_State.Max_Climb_Rate));
+         Record_Int ("ahinit.allow_stick", Int (21), Boolean'Pos (AH_State.Allow_Stick));
+         Record_Result ("ahinit.target", Bits (23), To_Bits (AH_State.Target_Altitude_Cm));
+      elsif Name = "ahstep" then
+         declare
+            Inp : constant Inputs :=
+              (Hold_Mode             => Int (6) /= 0,
+               Interval_Us           => Interfaces.Integer_32 (Int (5)),
+               Throttle_Command      => Flt (7),
+               Throttle_Low          => Int (8) /= 0,
+               Failsafe_Active       => Int (9) /= 0,
+               Emergency_Descent     => Int (10) /= 0,
+               Emergency_Rate_Cms    => Flt (11),
+               Altitude_Cm           => Flt (12),
+               Vertical_Velocity     => Flt (13),
+               Vertical_Acceleration => Flt (14),
+               Cos_Tilt              => Flt (15));
+         begin
+            Update (AH_State, AH_Settings, Inp);
+            Record_Int ("ahstep.active", Int (16), Boolean'Pos (AH_State.Active));
+            Record_Result ("ahstep.target", Bits (17), To_Bits (AH_State.Target_Altitude_Cm));
+            Record_Result ("ahstep.target_velocity", Bits (18), To_Bits (AH_State.Target_Velocity));
+            Record_Result ("ahstep.integral", Bits (19), To_Bits (AH_State.Altitude_I));
+            Record_Result ("ahstep.throttle", Bits (20), To_Bits (AH_State.Throttle_Out));
+            Record_Int ("ahstep.captured_hover", Int (21), Integer_64 (AH_State.Captured_Hover));
+            Record_Int ("ahstep.hover", Int (22), Integer_64 (Hover_Throttle (AH_State, AH_Settings)));
+            if NF /= 22 then
+               Put_Line ("ahstep: expected 22 fields, got" & Integer'Image (NF));
+               Failures := Failures + 1;
+            end if;
+         end;
+      else
+         Put_Line ("unknown alt hold case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Alt_Hold_Line;
+
    Alt_State    : Adaflight.Altitude_Estimator.State;
    Alt_Settings : Adaflight.Altitude_Estimator.Settings;
    Alt_Present  : Boolean := False;
@@ -2660,6 +2724,8 @@ procedure Vector_Check is
                   Check_Position_Line;
                elsif Kind = "altitude" then
                   Check_Altitude_Line;
+               elsif Kind = "althold" then
+                  Check_Alt_Hold_Line;
                else
                   Check_PID_Line;
                end if;
@@ -2696,6 +2762,7 @@ begin
    Run (Dir & "/compass.csv", "compass");
    Run (Dir & "/position.csv", "position");
    Run (Dir & "/altitude.csv", "altitude");
+   Run (Dir & "/althold.csv", "althold");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
