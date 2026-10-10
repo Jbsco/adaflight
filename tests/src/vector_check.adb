@@ -56,6 +56,7 @@ with Adaflight.Chirp;
 with Adaflight.SUMD;
 with Adaflight.SUMH;
 with Adaflight.IBUS;
+with Adaflight.Spektrum;
 
 procedure Vector_Check is
 
@@ -3827,6 +3828,97 @@ procedure Vector_Check is
       end if;
    end Check_IBUS_Line;
 
+   Spek_State : Adaflight.Spektrum.State;
+   Spek_Clock : Unsigned_32 := 0;
+
+   procedure Check_Spek_Line is
+      use Adaflight.Spektrum;
+      Name : constant String := Str (1);
+      K    : Positive := 1;
+      procedure Expect_Next (N : String; Actual : Integer_64) is
+      begin
+         Record_Int (Name & "." & N, Int (K), Actual);
+         K := K + 1;
+      end Expect_Next;
+      procedure Check_Fields is
+      begin
+         if K /= NF + 1 then
+            Put_Line (Name & ": consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
+            Failures := Failures + 1;
+         end if;
+      end Check_Fields;
+   begin
+      if Name = "spekinit" then
+         Init (Spek_State,
+               (Kind         => (case Int (3) is
+                                   when 15 => Spektrum_1024, when 10 => SRXL, when others => Spektrum_2048),
+                Telemetry    => Int (4) /= 0,
+                RSSI_Channel => Integer (Int (5))));
+         Spek_Clock := Unsigned_32 (Int (6));
+         K := 7;
+         Expect_Next ("srxl", Boolean'Pos (Spek_State.SRXL_Enabled));
+         Expect_Next ("resolution", Integer_64 (Spek_State.Resolution));
+         Expect_Next ("count", Integer_64 (Spek_State.Channel_Count));
+         Expect_Next ("rssi_channel", Integer_64 (Spek_State.RSSI_Channel));
+         Expect_Next ("shift", Integer_64 (Spek_State.Shift));
+         Expect_Next ("mask", Integer_64 (Spek_State.Mask));
+         Expect_Next ("hires", Boolean'Pos (Spek_State.Hi_Res));
+         for Ch in Channel loop
+            Expect_Next ("data", Integer_64 (Spek_State.Data (Ch)));
+         end loop;
+         Check_Fields;
+      elsif Name = "spekburst" then
+         declare
+            Count   : constant Natural := Integer (Int (4));
+            Status  : Adaflight.Receiver.Frame_Report;
+            VTX     : VTX_Request;
+            Written : Boolean := False;
+         begin
+            K := 5;
+            for B in 1 .. Count loop
+               Spek_Clock := Spek_Clock + Unsigned_32 (Int (K));
+               Receive_Byte (Spek_State, Integer (Int (K + 1)), Spek_Clock);
+               K := K + 2;
+            end loop;
+            if Int (K) >= 0 then
+               Queue_Telemetry (Spek_State, Integer (Int (K)));
+            end if;
+            Spek_Clock := Unsigned_32 (Int (K + 1));
+            K := K + 2;
+            if Int (K + 1) /= 0 then
+               Frame_Status (Spek_State, Spek_Clock, Status, VTX);
+               Expect_Next ("status",
+                            (if Status.Complete then 1 else 0) + (if Status.Processing_Required then 4 else 0));
+               if Status.Processing_Required then
+                  Process_Frame (Spek_State, Written);
+               end if;
+            else
+               K := K + 1;
+            end if;
+            K := K + 1;
+            Expect_Next ("vtx", Boolean'Pos (VTX.Present));
+            Expect_Next ("vtx_word", Integer_64 (VTX.Word));
+            Expect_Next ("written", Boolean'Pos (Written));
+            Expect_Next ("complete", Boolean'Pos (Spek_State.Frame_Complete));
+            Expect_Next ("frame_time", Integer_64 (Spek_State.Last_Frame_Time_Us));
+            Expect_Next ("internal", Boolean'Pos (Spek_State.Sat_Internal));
+            Expect_Next ("fade_sec", Integer_64 (Spek_State.Fade_Last_Sec));
+            Expect_Next ("fade_count", Integer_64 (Spek_State.Fade_Last_Sec_Count));
+            Expect_Next ("telemetry_len", Integer_64 (Spek_State.Telemetry_Length));
+            Expect_Next ("buffer_empty", Boolean'Pos (Telemetry_Buffer_Empty (Spek_State)));
+            for Ch in Channel loop
+               Expect_Next ("data", Integer_64 (Spek_State.Data (Ch)));
+               Record_Result (Name & ".raw", Bits (K), To_Bits (Read_Raw (Spek_State, Ch)));
+               K := K + 1;
+            end loop;
+            Check_Fields;
+         end;
+      else
+         Put_Line ("unknown spektrum case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Spek_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -3899,6 +3991,8 @@ procedure Vector_Check is
                   Check_SUM_Line;
                elsif Kind = "ibus" then
                   Check_IBUS_Line;
+               elsif Kind = "spek" then
+                  Check_Spek_Line;
                else
                   Check_PID_Line;
                end if;
@@ -3944,6 +4038,7 @@ begin
    Run (Dir & "/crsf.csv", "crsf");
    Run (Dir & "/sumd.csv", "sumd");
    Run (Dir & "/ibus.csv", "ibus");
+   Run (Dir & "/spek.csv", "spek");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
