@@ -61,6 +61,7 @@ with Adaflight.XBUS;
 with Adaflight.Jeti_Ex_Bus;
 with Adaflight.GHST;
 with Adaflight.MSP_Receiver;
+with Adaflight.SRXL2;
 
 procedure Vector_Check is
 
@@ -4246,6 +4247,132 @@ procedure Vector_Check is
       end if;
    end Check_MSP_Rx_Line;
 
+   SRXL2_State    : Adaflight.SRXL2.State;
+   SRXL2_Rx       : Adaflight.Receiver.State;
+   SRXL2_Settings : Adaflight.Receiver.Settings;
+   SRXL2_Clock    : Unsigned_32 := 0;
+
+   procedure Check_SRXL2_Line is
+      use Adaflight.SRXL2;
+      Name : constant String := Str (1);
+      K    : Positive := 1;
+      procedure Expect_Next (N : String; Actual : Integer_64) is
+      begin
+         Record_Int (Name & "." & N, Int (K), Actual);
+         K := K + 1;
+      end Expect_Next;
+      procedure Check_Fields is
+      begin
+         if K /= NF + 1 then
+            Put_Line (Name & ": consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
+            Failures := Failures + 1;
+         end if;
+      end Check_Fields;
+      function Write_CRC return Integer_64 is
+         CRC : Interfaces.Unsigned_16 := 0;
+      begin
+         for I in 0 .. SRXL2_State.Write_Length - 1 loop
+            CRC := Adaflight.Bytes.CRC16_CCITT (CRC, Adaflight.Bytes.Byte (SRXL2_State.Write_Buffer (I)));
+         end loop;
+         return Integer_64 (CRC);
+      end Write_CRC;
+   begin
+      if Name = "srxl2init" then
+         SRXL2_Settings := (others => <>);
+         SRXL2_Clock := Unsigned_32 (Int (5));
+         Adaflight.Receiver.Init (SRXL2_Rx, SRXL2_Settings, SRXL2_Clock / 1_000,
+                                  Adaflight.Receiver.RSSI_Source'Val (Int (6)), Adaflight.Receiver.None);
+         Init (SRXL2_State, (Unit_Id => Integer (Int (3)), Baud_Fast => Integer (Int (4))), SRXL2_Clock);
+         K := 7;
+         Expect_Next ("state", Link_State'Pos (SRXL2_State.Link));
+         Expect_Next ("timeout", Integer_64 (SRXL2_State.Timeout_Us));
+         for Ch in Channel loop
+            Expect_Next ("data", Integer_64 (SRXL2_State.Data (Ch)));
+         end loop;
+         Check_Fields;
+      elsif Name = "srxl2step" then
+         declare
+            Count   : constant Natural := Integer (Int (4));
+            Status  : Adaflight.Receiver.Frame_Report;
+            VTX     : VTX_Request;
+            Written : Boolean := False;
+            Fill    : Integer_64;
+         begin
+            SRXL2_Clock := SRXL2_Clock + Unsigned_32 (Int (5));
+            K := 6;
+            for B in 1 .. Count loop
+               SRXL2_Clock := SRXL2_Clock + Unsigned_32 (Int (K));
+               Receive_Byte (SRXL2_State, Integer (Int (K + 1)), SRXL2_Clock);
+               K := K + 2;
+            end loop;
+            if Int (K) >= 0 then
+               SRXL2_Clock := SRXL2_Clock + Unsigned_32 (Int (K));
+               Idle (SRXL2_State, SRXL2_Clock);
+            end if;
+            K := K + 1;
+            if Int (K) /= 0 then
+               Bind (SRXL2_State);
+            end if;
+            K := K + 1;
+            Fill := Int (K);
+            K := K + 1;
+            if Fill >= 0 then
+               Begin_Telemetry_Frame (SRXL2_State);
+               for B in 1 .. Integer (Fill) loop
+                  Add_Telemetry_Byte (SRXL2_State, Integer (Int (K)));
+                  K := K + 1;
+               end loop;
+               Finish_Telemetry_Frame (SRXL2_State);
+            end if;
+            SRXL2_Clock := Unsigned_32 (Int (K));
+            K := K + 1;
+            if Int (K) /= 0 then
+               Frame_Status (SRXL2_State, SRXL2_Rx, SRXL2_Clock, Status, VTX);
+               K := K + 1;
+               Expect_Next ("status",
+                            (if Status.Complete then 1 else 0) + (if Status.Failsafe then 2 else 0)
+                            + (if Status.Processing_Required then 4 else 0) + (if Status.Dropped then 8 else 0));
+               if Int (K) >= 0 then
+                  SRXL2_Clock := SRXL2_Clock + Unsigned_32 (Int (K));
+                  Process_Frame (SRXL2_State, SRXL2_Clock, Written);
+               end if;
+               K := K + 1;
+            else
+               K := K + 3;
+            end if;
+            Expect_Next ("state", Link_State'Pos (SRXL2_State.Link));
+            Expect_Next ("baud", (case SRXL2_State.Baud is
+                                     when Default_Rate => Default_Baud_Rate,
+                                     when High_Rate    => High_Baud_Rate));
+            Expect_Next ("bus_master", Integer_64 (SRXL2_State.Bus_Master));
+            Expect_Next ("telemetry_requested", Boolean'Pos (SRXL2_State.Telemetry_Requested));
+            Expect_Next ("write_length", Integer_64 (SRXL2_State.Write_Length));
+            Expect_Next ("write_crc", Write_CRC);
+            Expect_Next ("transmitting", Boolean'Pos (SRXL2_State.Transmitting));
+            Expect_Next ("timeout", Integer_64 (SRXL2_State.Timeout_Us));
+            Expect_Next ("full_timeout", Integer_64 (SRXL2_State.Full_Timeout_Us));
+            Expect_Next ("last_valid", Integer_64 (SRXL2_State.Last_Valid_Us));
+            Expect_Next ("last_receive", Integer_64 (SRXL2_State.Last_Receive_Us));
+            Expect_Next ("last_idle", Integer_64 (SRXL2_State.Last_Idle_Us));
+            Expect_Next ("frame_time", Integer_64 (SRXL2_State.Last_Frame_Time_Us));
+            Expect_Next ("vtx", Boolean'Pos (VTX.Present));
+            Expect_Next ("vtx_word", Integer_64 (VTX.Word));
+            Expect_Next ("written", Boolean'Pos (Written));
+            Expect_Next ("rssi", Integer_64 (SRXL2_Rx.RSSI));
+            Expect_Next ("rssi_raw", Integer_64 (SRXL2_Rx.RSSI_Raw));
+            for Ch in Channel loop
+               Expect_Next ("data", Integer_64 (SRXL2_State.Data (Ch)));
+               Record_Result (Name & ".raw", Bits (K), To_Bits (Read_Raw (SRXL2_State, Ch)));
+               K := K + 1;
+            end loop;
+            Check_Fields;
+         end;
+      else
+         Put_Line ("unknown srxl2 case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_SRXL2_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -4328,6 +4455,8 @@ procedure Vector_Check is
                   Check_GHST_Line;
                elsif Kind = "msprx" then
                   Check_MSP_Rx_Line;
+               elsif Kind = "srxl2" then
+                  Check_SRXL2_Line;
                else
                   Check_PID_Line;
                end if;
@@ -4378,6 +4507,7 @@ begin
    Run (Dir & "/jeti.csv", "jeti");
    Run (Dir & "/ghst.csv", "ghst");
    Run (Dir & "/msp.csv", "msprx");
+   Run (Dir & "/srxl2.csv", "srxl2");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
