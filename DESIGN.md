@@ -134,6 +134,9 @@ ledger. The deviations so far:
   seconds before the 71.6-minute wrap disarms at once, and one set before a wrap that the
   counter has passed does not fire for the next 71 minutes (findings F21). The recorded
   vectors stay clear of the wrap and replay bit for bit.
+- The runaway takeoff trigger deadline is compared through the wrapping difference as well,
+  where the reference compares the counter and the deadline directly (findings F24). The
+  recorded vectors stay clear of the wrap and replay bit for bit.
 
 ## D7. Contribution conventions (2026-10-08)
 
@@ -554,3 +557,21 @@ mode's activity and the yaw stick as inputs; the activation from the mode switch
 trigger, and the arming delay stay with the core loop's port. The launch setpoint and the
 held terms are contracted helpers, and the setpoint's scaling over the angle window is held to
 the launch rate, which a stick within a half cannot exceed. No recorded vector reaches a guard.
+
+## D36. Launch control activation and runaway takeoff prevention in the core loop (2026-10-09)
+
+The arming unit carries the reference's two core-loop guards in their places. Launch control
+activates at arming when the switch is on, arming is by switch, the motors run or airmode is
+on, there is no 3D, and no flight mode is selected; it triggers when the throttle passes its
+percentage, which also requests an I term reset, and it clears on disarm, or on a trigger
+only when the switch is off and the trigger reset is allowed; while active it keeps the
+stabilisation on and airmode from latching. Runaway takeoff prevention runs after the
+controller: a sum past 600 with a rate past 15 degrees per second on roll or pitch or 50 on
+yaw, held for 75 milliseconds while armed and the motors run, disarms with its own reason and
+disable flag; stable flight, with the throttle above the deactivation level and the sticks
+active or above twice that level, and every sum under 100, ends the check once the delay has
+accumulated, halved at high throttle. The controller's sums, the gyro's whole-degree rates,
+and the sticks' deflections join the inputs, because their units own them, and the arming
+attempt zeroes the runaway timers. The trigger deadline uses the wrapping difference, which
+D6 records. The GPS rescue's hold on the runaway check and the temporary disable other
+features request come with their ports.
