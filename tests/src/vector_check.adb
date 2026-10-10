@@ -30,6 +30,7 @@ with Adaflight.Battery;
 with Adaflight.Arming;
 with Adaflight.Compass;
 with Adaflight.Position_Filter;
+with Adaflight.Altitude_Estimator;
 with Adaflight.Vectors;
 with Adaflight.PWL;
 with Adaflight.SDFT;
@@ -1797,6 +1798,91 @@ procedure Vector_Check is
       end if;
    end Check_Position_Line;
 
+   Alt_State    : Adaflight.Altitude_Estimator.State;
+   Alt_Settings : Adaflight.Altitude_Estimator.Settings;
+   Alt_Present  : Boolean := False;
+   Alt_One_G_Reciprocal : Adaflight.Altitude_Estimator.Acc_Scale := 1.0 / 4_096.0;
+
+   procedure Check_Altitude_Line is
+      use Adaflight.Altitude_Estimator;
+      Name : constant String := Str (1);
+   begin
+      if Name = "altinit" then
+         Alt_Settings := (Source         => Altitude_Source'Val (Int (3)),
+                          Prefer_Baro    => Integer (Int (4)),
+                          Altitude_LPF   => Integer (Int (5)),
+                          Derivative_LPF => Integer (Int (6)));
+         Alt_Present := Int (7) /= 0;
+         Alt_One_G_Reciprocal := Flt (8);
+         Init (Alt_State, Alt_Settings, Armed => False);
+         Record_Result ("altinit.altitude_k", Bits (9), To_Bits (Alt_State.Altitude_Filter.K));
+         Record_Result ("altinit.derivative_k", Bits (10), To_Bits (Alt_State.Derivative_Filter.K));
+      elsif Name = "altstep" then
+         declare
+            Inp : Inputs;
+            K   : Positive := 21;
+            procedure Expect_Float (N : String; Actual : Float) is
+            begin
+               Record_Result ("altstep." & N, Bits (K), To_Bits (Actual));
+               K := K + 1;
+            end Expect_Float;
+            procedure Expect_Int (N : String; Actual : Integer_64) is
+            begin
+               Record_Int ("altstep." & N, Int (K), Actual);
+               K := K + 1;
+            end Expect_Int;
+         begin
+            Inp.Now_Us := Interfaces.Unsigned_32 (Int (4));
+            Inp.Armed := Int (5) /= 0;
+            Inp.Baro_Altitude_Cm := Flt (6);
+            Inp.Baro_Sample_Time_Us := Interfaces.Unsigned_32 (Int (7));
+            Inp.Baro_Interval_Us := Interfaces.Integer_32 (Int (8));
+            Inp.Acc := (X => Flt (9), Y => Flt (10), Z => Flt (11));
+            for Row in Adaflight.Vectors.Coordinate loop
+               for Col in Adaflight.Vectors.Coordinate loop
+                  Inp.Rotation (Row, Col) :=
+                    Flt (12 + 3 * Adaflight.Vectors.Coordinate'Pos (Row) + Adaflight.Vectors.Coordinate'Pos (Col));
+               end loop;
+            end loop;
+            Inp.Baro_Present := Alt_Present;
+            Inp.One_G_Reciprocal := Alt_One_G_Reciprocal;
+            Update (Alt_State, Alt_Settings, Inp);
+            for Comp in Adaflight.Position_Filter.Component loop
+               Expect_Float ("x", Alt_State.Up.X (Comp));
+            end loop;
+            for Row in Adaflight.Position_Filter.Component loop
+               for Col in Adaflight.Position_Filter.Component loop
+                  Expect_Float ("p", Alt_State.Up.P (Row, Col));
+               end loop;
+            end loop;
+            Expect_Float ("baro_offset", Alt_State.Baro_Offset_Cm);
+            Expect_Int ("baro_offset_set", Boolean'Pos (Alt_State.Baro_Offset_Set));
+            Expect_Int ("baro_available", Boolean'Pos (Alt_State.Baro_Data_Available));
+            Expect_Int ("baro_timestamp", Integer_64 (Alt_State.Baro_Timestamp_Us));
+            Expect_Int ("baro_hold", Integer_64 (Alt_State.Baro_Hold_Us));
+            Expect_Float ("gate_last", Alt_State.Baro_Gate.Last_Accepted_Cm);
+            Expect_Int ("gate_reference", Boolean'Pos (Alt_State.Baro_Gate.Has_Reference));
+            Expect_Int ("gate_rejects", Integer_64 (Alt_State.Baro_Gate.Rejects));
+            Expect_Int ("last_z", Integer_64 (Alt_State.Last_Z_Measurement_Us));
+            Expect_Int ("valid_z", Boolean'Pos (Alt_State.Valid_Z));
+            Expect_Float ("trust_z", Alt_State.Trust_Z);
+            Expect_Float ("altitude", Alt_State.Filtered_Altitude_Cm);
+            Expect_Float ("derivative", Alt_State.Filtered_Derivative);
+            Expect_Float ("control_altitude", Alt_State.Control_Altitude_Cm);
+            Expect_Float ("control_derivative", Alt_State.Control_Derivative);
+            Expect_Float ("control_acceleration", Alt_State.Control_Acceleration);
+            Expect_Int ("estimated", Integer_64 (Estimated_Altitude_Cm (Alt_State)));
+            if K /= NF + 1 then
+               Put_Line ("altstep: consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
+               Failures := Failures + 1;
+            end if;
+         end;
+      else
+         Put_Line ("unknown altitude case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Altitude_Line;
+
    Comp_State    : Adaflight.Compass.State;
    Comp_Settings : Adaflight.Compass.Settings;
    Comp_Saves    : Integer_64 := 0;
@@ -2572,6 +2658,8 @@ procedure Vector_Check is
                   Check_Compass_Line;
                elsif Kind = "position" then
                   Check_Position_Line;
+               elsif Kind = "altitude" then
+                  Check_Altitude_Line;
                else
                   Check_PID_Line;
                end if;
@@ -2607,6 +2695,7 @@ begin
    Run (Dir & "/arming.csv", "arming");
    Run (Dir & "/compass.csv", "compass");
    Run (Dir & "/position.csv", "position");
+   Run (Dir & "/altitude.csv", "altitude");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
