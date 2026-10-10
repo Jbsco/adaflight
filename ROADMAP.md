@@ -17,7 +17,7 @@ Silver with no assume, and pass the gates on `main`.
   accelerometer calibration, attitude estimation, board alignment, barometer,
   compass, battery and current sensing. The sensor task set remains.
 - Phase 3, open. Scheduler and task set. Cooperative scheduler, task table, the main loop,
-  initialization order.
+  initialization order. The scheduler and the task table are in.
 - Phase 4, open. Receivers. Serial protocol decoders, SPI receivers, channel mapping,
   link statistics, bind.
 - Phase 5, open. Configuration and ground link. Parameter groups, settings table, the CLI,
@@ -51,10 +51,10 @@ commit the vectors were recorded from. The adaflight column counts Ada lines on 
 | flight (pid, mixer, imu, failsafe, rescue, nav) | 17554 | 4311 | PID profile, runtime configuration, filter initialization, the rate loop, the throttle-side features, the crash recovery, the launch control, the motor mixer, the attitude estimator with the compass heading, the failsafe state machine, the angle and horizon level modes, the dynamic notch filter, the RPM filter, the position Kalman filter, the altitude estimator from the barometer and the accelerometer, and the altitude hold with the autopilot's altitude controller proved and vector-checked; the horizontal position estimate, position hold, rescue, and navigation open |
 | fc (core loop, rc, modes, adjustments, tasks) | 8228 | 2795 | rate curves, the RC command path (deadbands, throttle curve, setpoints, feedforward, smoothing), the runtime modes, the arming logic (flags and disable reasons, throttle status, stick arming and commands, automatic disarm, flight mode selection, launch control activation, runaway takeoff prevention), and the in-flight adjustments (steps, dials, selections, display, beeps) proved and vector-checked; the rest of the core loop and the tasks open |
 | sensors | 8893 | 1817 | gyro calibration, filtering chain, and overflow and yaw spin detection, the dynamic and RPM notches, the accelerometer path, the barometer altitude, the compass with its bias calibration, the battery meters and states, and the sensor and board alignment proved and vector-checked |
-| scheduler | 1144 | 0 | Phase 3 |
+| scheduler | 1144 | 890 | the cooperative scheduler (task table, queue, gyro lock, dynamic priorities, check functions, fit and guard margins, statistics) proved and vector-checked; the main loop and the initialization order open |
 | rx | 16964 | 0 | Phase 4 |
 | pg, config, cli, msp | 21377 | 79 | simplified tuning of the PID gains proved and vector-checked; the rest Phase 5 |
 | blackbox, osd, cms, telemetry, io | 59977 | 0 | Phase 6 |
 | drivers, target, build, msc | 55927 | 0 | Phase 7 |
 | platform (STM32, AT32, APM32, PICO, ESP32, SITL) | not counted | 0 | Phase 7 |
-| total measured | 195545 | 13830 | |
+| total measured | 195545 | 14720 | |
