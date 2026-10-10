@@ -118,6 +118,7 @@ package Adaflight.PID_Profile with SPARK_Mode, Pure is
       Ez_Landing_Limit         : Natural range 0 .. 75 := 15;
       Ez_Landing_Speed         : Natural range 0 .. 250 := 50;
       Landing_Disarm_Threshold : Natural range 0 .. 250 := 0;
+      Angle_Limit              : Natural range 10 .. 90 := 60;
    end record
      with Dynamic_Predicate =>
        (Profile.Dterm_LPF1_Dyn_Min_Hz = 0
