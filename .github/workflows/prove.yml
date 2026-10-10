@@ -7,6 +7,12 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# The self-hosted runners share one host, and two proof runs on it push the
+# provers past their time limits, so the runs queue.
+concurrency:
+  group: spark-proofs
+  cancel-in-progress: false
+
 jobs:
   prove:
     # Self-hosted (terra): the host provides alr and the GNAT and gnatprove
