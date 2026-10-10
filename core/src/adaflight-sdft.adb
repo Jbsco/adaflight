@@ -34,10 +34,9 @@ package body Adaflight.SDFT with SPARK_Mode is
    ----------
 
    procedure Init (T : out Transform; Start_Bin : Integer; End_Bin : Integer; Num_Batches : Integer) is
-      S : constant Bin := Bin (Constrain (Integer_32 (Start_Bin), 0, Bin_Count - 1));
-      E : constant Bin := Bin (Constrain (Integer_32 (End_Bin), Integer_32 (S), Bin_Count - 1));
-      N : constant Batch_Count :=
-        Batch_Count (Constrain (Integer_32 (Num_Batches), 1, Bin_Count));
+      S : constant Bin := Integer'Max (0, Integer'Min (Bin_Count - 1, Start_Bin));
+      E : constant Bin := Integer'Max (S, Integer'Min (Bin_Count - 1, End_Bin));
+      N : constant Batch_Count := Integer'Max (1, Integer'Min (Bin_Count, Num_Batches));
    begin
       T := (Idx         => 0,
             Start_Bin   => S,
