@@ -151,9 +151,9 @@ Level 2, 200000 steps, a 120 second backstop, all checks reported, and the invoc
 header recorded in the summary. Steps are the operative bound because they do not vary
 with the machine. Raising the level needs a justification in this ledger.
 
-Amended 2026-10-08: the backstop is 300 seconds. The hosted runner is about two and a
-half times slower than the development host and reported a time limit on a product
-check the host closed in under a minute. The steps bound is unchanged.
+Amended 2026-10-08: the backstop is 300 seconds, so a check that proves within the
+steps bound is not cut short by the clock on a slower machine. The steps bound is
+unchanged.
 
 ## D10. The fast exponential and logarithm (2026-10-08)
 
