@@ -4,21 +4,24 @@ Decisions are dated and numbered. A reversal gets a new entry, never an edit.
 
 ## D1. License: GPL-3.0-or-later (2026-10-08)
 
-The control algorithms are ported from a code base under GPL-3.0. Keeping the same
-license removes any question about derivative work and lets the project take future
-algorithm changes from the same source.
+The control algorithms are ported from [Betaflight](https://github.com/betaflight/betaflight),
+which is under GPL-3.0. Keeping the same license removes any question about derivative work
+and lets the project take future algorithm changes from the same source.
 
-## D2. One reference, named once (2026-10-08)
+## D2. The reference firmware (2026-10-08)
 
-The project targets feature and performance parity with the reference flight controller
-firmware named in the README. That is the only place the reference is named. Code,
-contracts, comments, and the other documents describe behavior in their own terms.
-Other firmware projects whose names label a rate curve family in the reference are not
-named either. Each family takes the name of its distinctive setting: super rate, acro
-plus, RC curve, actual, quick.
-The differential oracle that records test vectors from a host build of the reference
-lives outside this repository. The recorded vectors are data and are kept under
-`tests/vectors`.
+The project targets feature and performance parity with Betaflight, the flight control
+firmware it is ported from. The README names Betaflight in its first paragraph, and this
+ledger names it where a decision needs the name. Code, contracts, comments, and the other
+documents describe behavior in their own terms. The other firmware projects whose names
+label a rate curve family in Betaflight are not named either. Each family takes the name of
+its distinctive setting: super rate, acro plus, RC curve, actual, quick. The differential
+oracle that records test vectors from a host build of Betaflight lives outside this
+repository. The recorded vectors are data and are kept under `tests/vectors`.
+
+Amended 2026-10-10: the first version of this entry allowed the name only in a README
+section of its own. That section is gone. The name now stands in the README's first
+paragraph and in this ledger, with the link.
 
 ## D3. Repository layout (2026-10-08)
 
@@ -131,7 +134,8 @@ imperative line, signed.
 
 `style.do` compiles both crates from clean and fails on any warning, renders every
 markdown file through the local viewer's renderer, and scans tracked files for local
-paths and for references to other projects outside the README. `test.do` replays the
+paths and for references to other projects outside the README and this ledger. `test.do`
+replays the
 vectors. `prove.do` runs the SPARK proof and prints the unproved count and the assume
 count. `verify.do` runs all three, cheapest first. The three CI workflows run the same
 scripts.

@@ -4,12 +4,11 @@
 [![Vector Checks](https://github.com/Jbsco/adaflight/actions/workflows/test.yml/badge.svg)](https://github.com/Jbsco/adaflight/actions/workflows/test.yml)
 [![Style](https://github.com/Jbsco/adaflight/actions/workflows/style.yml/badge.svg)](https://github.com/Jbsco/adaflight/actions/workflows/style.yml)
 
-Flight control firmware for multirotors and wings, written in SPARK and Ada. The goal is
-feature and performance parity with the reference firmware named under
-[Inspiration](#inspiration), with a proved core where proof gives assurance that testing
-cannot: no filter or controller can produce an infinity or a NaN whatever its input
-history, no decoder can index outside its buffer, and every motor command is in range by
-type.
+Flight control firmware for multirotors and wings, written in SPARK and Ada as a port of
+[Betaflight](https://github.com/betaflight/betaflight). The goal is feature and performance
+parity with Betaflight, with a proved core where proof gives assurance that testing cannot:
+no filter or controller can produce an infinity or a NaN whatever its input history, no
+decoder can index outside its buffer, and every motor command is in range by type.
 
 ## Contents
 
@@ -17,7 +16,6 @@ type.
 - [Repository layout](#repository-layout)
 - [Development](#development)
 - [Verification policy](#verification-policy)
-- [Inspiration](#inspiration)
 - [License](#license)
 
 ## Status
@@ -63,23 +61,15 @@ A change is finished when `verify.do` is green.
 ## Verification policy
 
 - Every unit in `core/` is SPARK and proves free of run-time errors, except the one body
-  outside SPARK that `DESIGN.md` D15 names; the proof gate counts such bodies on every run.
+  outside SPARK that `DESIGN.md` D15 names. The proof gate counts such bodies on every run.
 - No `pragma Assume` and no justified suppression. `prove.do` prints both counts.
 - A ported function keeps the operation order of the reference, so the host build
   reproduces its results bit for bit. The vector checker reports the distance in
   representable values for every case.
 - A deliberate deviation carries a tolerance in the checker and an entry in `DESIGN.md`.
-
-## Inspiration
-
-adaflight is a port of [Betaflight](https://github.com/betaflight/betaflight), the
-flight control firmware this project measures itself against. Betaflight's algorithms,
-feature set, and configuration surface define parity here. The test vectors under
-`tests/vectors` were recorded from a host build of Betaflight at commit af0638839 by a
-separate tool, so the checker holds the port to the reference's exact results. Betaflight
-is licensed under the GPL-3.0, and so is this project. The rate curve families keep the
-order of Betaflight's `rates_type` values and are named after their distinctive setting:
-super rate, acro plus, RC curve, actual, quick.
+- The vectors under `tests/vectors` were recorded from a host build of the reference at
+  commit af0638839 by a tool outside this repository, so the checker holds the port to the
+  reference's exact results.
 
 ## License
 
