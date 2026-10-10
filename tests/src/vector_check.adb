@@ -32,6 +32,7 @@ with Adaflight.Compass;
 with Adaflight.Position_Filter;
 with Adaflight.Altitude_Estimator;
 with Adaflight.Altitude_Hold;
+with Adaflight.Adjustments;
 with Adaflight.Vectors;
 with Adaflight.PWL;
 with Adaflight.SDFT;
@@ -132,7 +133,7 @@ procedure Vector_Check is
       Tallies.Include (Name, T);
    end Record_Int;
 
-   Max_Fields : constant := 200;
+   Max_Fields : constant := 300;
    type Fields is array (1 .. Max_Fields) of String (1 .. 400);
    type Field_Lengths is array (1 .. Max_Fields) of Natural;
 
@@ -1869,6 +1870,151 @@ procedure Vector_Check is
       end if;
    end Check_Alt_Hold_Line;
 
+   Adj_State    : Adaflight.Adjustments.State;
+   Adj_Settings : Adaflight.Adjustments.Settings;
+   Adj_Ranges   : Adaflight.Adjustments.Ranges;
+   Adj_Rates    : Adaflight.Adjustments.Rate_Profiles;
+   Adj_PID      : Adaflight.PID_Profile.Profile;
+
+   procedure Check_Adjust_Line is
+      use Adaflight.Adjustments;
+      Name : constant String := Str (1);
+      K    : Positive := 1;
+      function Next return Integer is
+         V : constant Integer := Integer (Int (K));
+      begin
+         K := K + 1;
+         return V;
+      end Next;
+      procedure Read_Ranges is
+      begin
+         for M in Range_Index loop
+            Adj_Ranges (M).Aux := Next;
+            Adj_Ranges (M).Span.Start_Step := Next;
+            Adj_Ranges (M).Span.End_Step := Next;
+            Adj_Ranges (M).Kind := Function_Kind'Val (Next);
+            Adj_Ranges (M).Switch_Aux := Next;
+            Adj_Ranges (M).Center := Next;
+            Adj_Ranges (M).Scale := Next;
+         end loop;
+      end Read_Ranges;
+      procedure Expect_Int (N : String; Actual : Integer_64) is
+      begin
+         Record_Int ("adjstep." & N, Int (K), Actual);
+         K := K + 1;
+      end Expect_Int;
+      procedure Check_Fields (Of_Case : String) is
+      begin
+         if K /= NF + 1 then
+            Put_Line (Of_Case & ": consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
+            Failures := Failures + 1;
+         end if;
+      end Check_Fields;
+   begin
+      if Name = "adjinit" then
+         K := 4;
+         Adj_Settings.Mid_RC := Next;
+         Adj_Settings.Rate_Profile_6_Position := Next /= 0;
+         Adj_State := (others => <>);
+         Adj_State.Selected.Rate_Profile := Next;
+         Adj_State.Selected.Battery_Profile := Next;
+         Read_Ranges;
+         for P in Rate_Profile_Index loop
+            for A in Adaflight.Axes.Axis loop
+               Adj_Rates (P).RC_Rates (A) := Next;
+            end loop;
+            for A in Adaflight.Axes.Axis loop
+               Adj_Rates (P).RC_Expo (A) := Next;
+            end loop;
+            for A in Adaflight.Axes.Axis loop
+               Adj_Rates (P).Super_Rates (A) := Next;
+            end loop;
+            Adj_Rates (P).Throttle_Expo := Next;
+         end loop;
+         Adj_PID := (others => <>);
+         for A in Adaflight.Axes.Axis loop
+            Adj_PID.Gains (A).P := Next;
+            Adj_PID.Gains (A).I := Next;
+            Adj_PID.Gains (A).D := Next;
+            Adj_PID.Gains (A).F := Next;
+         end loop;
+         for A in Adaflight.Axes.Axis loop
+            Adj_PID.D_Max (A) := Next;
+         end loop;
+         Adj_PID.Level.D := Next;
+         Adj_PID.Feedforward_Transition := Next;
+         Adj_PID.Simplified_Master_Multiplier := Next;
+         Adj_PID.Simplified_PIDs_Mode := Adaflight.PID_Profile.Simplified_Mode'Val (Next);
+         Adj_PID.Simplified_Roll_Pitch_Ratio := Next;
+         Adj_PID.Simplified_I_Gain := Next;
+         Adj_PID.Simplified_D_Gain := Next;
+         Adj_PID.Simplified_PI_Gain := Next;
+         Adj_PID.Simplified_D_Max_Gain := Next;
+         Adj_PID.Simplified_Feedforward_Gain := Next;
+         Adj_PID.Simplified_Pitch_PI_Gain := Next;
+         Check_Fields ("adjinit");
+      elsif Name = "adjranges" then
+         K := 4;
+         Read_Ranges;
+         Reset_List (Adj_State);
+         Check_Fields ("adjranges");
+      elsif Name = "adjstep" then
+         declare
+            Inp : Inputs;
+            Res : Outputs;
+         begin
+            Inp.Now_Ms := Interfaces.Unsigned_32 (Int (4));
+            Inp.Rx_Signal := Int (5) /= 0;
+            for Ch in Adaflight.Modes.Aux_Channel loop
+               Inp.Aux (Ch) := Flt (6 + Ch);
+            end loop;
+            Process (Adj_State, Adj_Settings, Adj_Ranges, Adj_Rates, Adj_PID, Inp, Res);
+            K := 20;
+            Expect_Int ("rate_profile", Integer_64 (Adj_State.Selected.Rate_Profile));
+            for P in Rate_Profile_Index loop
+               for A in Adaflight.Axes.Axis loop
+                  Expect_Int ("rc_rate", Integer_64 (Adj_Rates (P).RC_Rates (A)));
+               end loop;
+               for A in Adaflight.Axes.Axis loop
+                  Expect_Int ("rc_expo", Integer_64 (Adj_Rates (P).RC_Expo (A)));
+               end loop;
+               for A in Adaflight.Axes.Axis loop
+                  Expect_Int ("rate", Integer_64 (Adj_Rates (P).Super_Rates (A)));
+               end loop;
+               Expect_Int ("throttle_expo", Integer_64 (Adj_Rates (P).Throttle_Expo));
+            end loop;
+            for A in Adaflight.Axes.Axis loop
+               Expect_Int ("p", Integer_64 (Adj_PID.Gains (A).P));
+               Expect_Int ("i", Integer_64 (Adj_PID.Gains (A).I));
+               Expect_Int ("d", Integer_64 (Adj_PID.Gains (A).D));
+               Expect_Int ("f", Integer_64 (Adj_PID.Gains (A).F));
+            end loop;
+            for A in Adaflight.Axes.Axis loop
+               Expect_Int ("d_max", Integer_64 (Adj_PID.D_Max (A)));
+            end loop;
+            Expect_Int ("level_d", Integer_64 (Adj_PID.Level.D));
+            Expect_Int ("ff_transition", Integer_64 (Adj_PID.Feedforward_Transition));
+            Expect_Int ("master", Integer_64 (Adj_PID.Simplified_Master_Multiplier));
+            Expect_Int ("battery_profile", Integer_64 (Adj_State.Selected.Battery_Profile));
+            Expect_Int ("audio", Audio_Mode'Pos (Adj_State.Selected.Audio));
+            Expect_Int ("led_profile", Integer_64 (Adj_State.Selected.LED_Profile));
+            Expect_Int ("led_brightness", Integer_64 (Adj_State.Selected.LED_Brightness));
+            Expect_Int ("display_kind", Function_Kind'Pos (Adj_State.Shown.Kind));
+            Expect_Int ("display_value", Integer_64 (Adj_State.Shown.Value));
+            Expect_Int ("beep_requests", Integer_64 (Res.Beep_Requests));
+            Expect_Int ("beeps", Integer_64 (Res.Beeps));
+            Expect_Int ("pid_reinit", Boolean'Pos (Res.PID_Reinit));
+            Expect_Int ("rc_reinit", Boolean'Pos (Res.RC_Reinit));
+            Expect_Int ("config_dirty", Boolean'Pos (Adj_State.Config_Dirty));
+            Expect_Int ("battery_reinit", Boolean'Pos (Res.Battery_Reinit));
+            Check_Fields ("adjstep");
+         end;
+      else
+         Put_Line ("unknown adjust case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Adjust_Line;
+
    Alt_State    : Adaflight.Altitude_Estimator.State;
    Alt_Settings : Adaflight.Altitude_Estimator.Settings;
    Alt_Present  : Boolean := False;
@@ -2754,6 +2900,8 @@ procedure Vector_Check is
                   Check_Altitude_Line;
                elsif Kind = "althold" then
                   Check_Alt_Hold_Line;
+               elsif Kind = "adjust" then
+                  Check_Adjust_Line;
                else
                   Check_PID_Line;
                end if;
@@ -2791,6 +2939,7 @@ begin
    Run (Dir & "/position.csv", "position");
    Run (Dir & "/altitude.csv", "altitude");
    Run (Dir & "/althold.csv", "althold");
+   Run (Dir & "/adjust.csv", "adjust");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
