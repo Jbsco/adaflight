@@ -51,8 +51,8 @@ jobs:
 
       - name: Run SPARK proofs
         env:
-          PROVE_JOBS: 1
-          PROVE_SWITCHES: --timeout=900
+          PROVE_JOBS: 2
+          PROVE_SWITCHES: --timeout=600
         run: |
           set -o pipefail
           bash prove.do 2>&1 | tee prove-output.log
