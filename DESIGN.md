@@ -361,3 +361,23 @@ where the reference's floats run on; none of the saturations is reached in the r
 vectors. The level mode start time is kept for the crash recovery guard, which is not yet
 ported, and the GPS rescue, altitude hold, position hold, and launch inputs to the level
 target are not in this unit.
+
+## D26. Gyro calibration and the full-scale detections in the gyro unit (2026-10-09)
+
+The zero offset calibration lives with the gyro filtering, where the reference keeps it:
+while cycles remain, each sensor sample joins the per-axis sums and the Welford statistics
+instead of becoming a rate, the rate the loop downsamples stays stale as the reference's
+does, and the final cycle turns the sums into the zero offsets, less the configured yaw
+offset, unless an axis's deviation exceeds the movement limit, which restarts the
+calibration. The zero offsets moved from the settings into the state for this reason. The
+sums are held to a bound no configured duration reaches and the statistics stop counting
+at their cap, both inert. The first arming calibration starts once per boot and reports
+itself to the arming logic; the tone the reference sounds on the final cycle is a request
+the caller places, since it depends on the arming flags. The overflow detection compares
+the filtered rates against the sensor's full scale through the configured scale, on the yaw
+axis or on all three, only for a device without overflow protection, and holds the
+attitude lowpass while an overflow stands; the yaw spin detection compares the filtered yaw
+rate against the threshold the setting or the rates' maximum yaw rate gives, with the
+reference's integer truncation reproduced as a comparison against the next whole number.
+The slew limiter the reference compiles only for three gyro devices on large targets is
+not in this unit.
