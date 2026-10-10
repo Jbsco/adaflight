@@ -36,11 +36,13 @@ package Adaflight.PID_Profile with SPARK_Mode, Pure is
    type Crash_Recovery_Mode is (Off, On, Beep, Disarm);
    type TPA_Mode is (PD, D);
    type TPA_Curve_Kind is (Classic, Hyperbolic);
+   type Simplified_Mode is (Off, RP, RPY);
 
    subtype Percent is Natural range 0 .. 100;
    subtype Milliseconds is Natural range 0 .. 65535;
    subtype Hertz is Natural range 0 .. 1000;
    subtype PWM_Value is Natural range 1000 .. 2000;
+   subtype Tuning_Factor is Natural range 0 .. 200;
 
    type Profile is record
       Gains                    : Axis_Gain_Set;
@@ -119,6 +121,17 @@ package Adaflight.PID_Profile with SPARK_Mode, Pure is
       Ez_Landing_Speed         : Natural range 0 .. 250 := 50;
       Landing_Disarm_Threshold : Natural range 0 .. 250 := 0;
       Angle_Limit              : Natural range 10 .. 90 := 60;
+      Simplified_PIDs_Mode     : Simplified_Mode := RPY;
+      Simplified_Master_Multiplier : Tuning_Factor := 100;
+      Simplified_Roll_Pitch_Ratio : Tuning_Factor := 100;
+      Simplified_I_Gain        : Tuning_Factor := 100;
+      Simplified_D_Gain        : Tuning_Factor := 100;
+      Simplified_PI_Gain       : Tuning_Factor := 100;
+      Simplified_D_Max_Gain    : Tuning_Factor := 100;
+      Simplified_Feedforward_Gain : Tuning_Factor := 100;
+      Simplified_Pitch_PI_Gain : Tuning_Factor := 100;
+      Simplified_Dterm_Filter  : Boolean := True;
+      Simplified_Dterm_Filter_Multiplier : Natural range 10 .. 200 := 100;
    end record
      with Dynamic_Predicate =>
        (Profile.Dterm_LPF1_Dyn_Min_Hz = 0
