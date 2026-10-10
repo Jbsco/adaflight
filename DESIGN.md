@@ -605,3 +605,29 @@ None is skipped where the reference reads outside its function table (finding F2
 dial value is held within two to the thirtieth before its conversion to an integer. The
 feedforward and horizon strength holds are declared in D6. The display and the timers compare
 through the wrapping difference as the reference does. No recorded vector reaches a guard.
+
+## D38. The cooperative scheduler as phases around the clock reads (2026-10-09)
+
+The scheduler unit carries the reference's task scheduler: the task table with each task's
+period, static priority, and check function; the queue of enabled tasks ordered by static
+priority with equal priorities in order of arrival; the gyro cycle the realtime gyro,
+filter, and PID tasks lock to, with the recovery from a gross overrun, the start wait tuned
+up when the loop arrives late and down when it polls, the gyro rate measured over 25000
+interrupts, and the skew to the interrupts removed every 50; the dynamic priorities that
+grow with the periods a task has waited, the check functions that signal the event-driven
+tasks, and the fit of the highest-priority task into the time left before the next gyro
+cycle, with the measured check time and the guard margin tuned on each run's overrun, the
+deferral that lets an unfit task run every eighth pass, and the tenth cut from the estimate
+of a task skipped often enough; and the execution statistics in the reference's units. One
+pass of the reference runs the tasks and reads the clocks inline, so the unit splits it into
+phases at those points: the pass begins with the first cycle reading, the caller polls up to
+the target and runs the realtime tasks between the execution prologue and epilogue, the
+realtime block ends with the gyro lock, the selection begins with the second reading and
+takes each queued task in turn with its check's result, ends with the third, the fourth
+confirms the fit, and the fifth follows the run. The caller reads the cycle counter at the
+same points the reference does, so the replay of the recorded passes, with a cycle per read
+and the recorded durations, matches cycle for cycle. Every count keeps the reference's
+32-bit wrapping arithmetic through the two casts between the signed and unsigned counts.
+Two guards cover the reference's divisions by zero: the overrun recovery and the skew run
+only while the gyro period in cycles is positive, where the reference divides by it as it
+stands. No recorded vector reaches a guard.
