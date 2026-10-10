@@ -25,8 +25,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          # A self-hosted checkout keeps its build and proof session between
-          # runs, so the proofs re-run only the changed units.
+          # A self-hosted checkout keeps its Alire build between runs.
           clean: ${{ runner.environment == 'github-hosted' }}
 
       - name: Cache Alire
@@ -67,14 +66,15 @@ jobs:
           key: proof-session-${{ runner.os }}-${{ github.sha }}
           restore-keys: proof-session-${{ runner.os }}-
 
-      - name: Clear the proof session on a rerun
-        # A kept session replays the stored verdicts of the failed attempt.
-        if: github.run_attempt != 1
+      - name: Clear the proof session
+        # A kept session replays a changed unit's goals with the step counts of
+        # its old proofs as their limits, which fails checks a fresh session
+        # proves at once.
         run: rm -rf core/obj/development/gnatprove
 
       - name: Run SPARK proofs
         env:
-          PROVE_JOBS: 4
+          PROVE_JOBS: 8
         run: |
           set -o pipefail
           bash prove.do 2>&1 | tee prove-output.log
