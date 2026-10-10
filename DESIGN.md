@@ -272,11 +272,13 @@ reach and a custom rotation, whose matrix entries are within two, cannot exceed 
 counts, so the saturation is inert. The calibration totals follow the reference's path,
 each cycle adding the float sample to an integer total and truncating back, and saturate
 at 2 ** 28, which 400 cycles of such counts cannot reach; the offsets are the rounded
-means less the gravity count on the vertical axis. The reference stores
-each offset in a 16-bit field that wraps when the mean exceeds it; the port saturates the
-offset at the field's range instead, which no sensor near one gravity reaches. The in-flight
+means less the gravity count on the vertical axis. The reference stores each offset in a
+16-bit field that wraps when the mean exceeds it; the port saturates the offset at the
+field's range instead, which no sensor near one gravity reaches. The in-flight
 calibration, the board alignment, and the configuration flag that records a completed
-calibration are not in this unit.
+calibration are not in this unit. The magnitudes take the norms of the acceleration and
+the jerk held to bounds the root of three squares within their component ranges cannot
+reach, so their scaling by the reciprocal of one g proves apart from the update.
 
 ## D21. The barometric power saturates at eight (2026-10-08)
 

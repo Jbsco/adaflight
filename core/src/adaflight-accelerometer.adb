@@ -149,8 +149,15 @@ package body Adaflight.Accelerometer with SPARK_Mode is
          Finish (V (Y), S.Zero (Y), Use_Filter, C.Sample_Rate_Hz, S.Filter (Y), S.Previous.Y, S.Acc.Y, S.Jerk.Y);
          Finish (V (Z), S.Zero (Z), Use_Filter, C.Sample_Rate_Hz, S.Filter (Z), S.Previous.Z, S.Acc.Z, S.Jerk.Z);
       end;
-      S.Magnitude := Norm (S.Acc) * S.One_G_Reciprocal;
-      S.Jerk_Magnitude := Norm (S.Jerk) * S.One_G_Reciprocal;
+      declare
+         --  The norms of vectors within their component bounds, held to a
+         --  bound the root of three such squares cannot reach.
+         Acc_Norm  : constant Float range 0.0 .. 2.0 ** 34 := Constrain_F (Norm (S.Acc), 0.0, 2.0 ** 34);
+         Jerk_Norm : constant Float range 0.0 .. 2.0 ** 62 := Constrain_F (Norm (S.Jerk), 0.0, 2.0 ** 62);
+      begin
+         S.Magnitude := Acc_Norm * S.One_G_Reciprocal;
+         S.Jerk_Magnitude := Jerk_Norm * S.One_G_Reciprocal;
+      end;
       S.Updated_Once := True;
    end Update;
 
