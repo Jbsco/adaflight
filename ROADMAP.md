@@ -52,9 +52,9 @@ commit the vectors were recorded from. The adaflight column counts Ada lines on 
 | fc (core loop, rc, modes, adjustments, tasks) | 8228 | 2795 | rate curves, the RC command path (deadbands, throttle curve, setpoints, feedforward, smoothing), the runtime modes, the arming logic (flags and disable reasons, throttle status, stick arming and commands, automatic disarm, flight mode selection, launch control activation, runaway takeoff prevention), and the in-flight adjustments (steps, dials, selections, display, beeps) proved and vector-checked; the rest of the core loop and the tasks open |
 | sensors | 8893 | 1817 | gyro calibration, filtering chain, and overflow and yaw spin detection, the dynamic and RPM notches, the accelerometer path, the barometer altitude, the compass with its bias calibration, the battery meters and states, and the sensor and board alignment proved and vector-checked |
 | scheduler | 1144 | 890 | the cooperative scheduler (task table, queue, gyro lock, dynamic priorities, check functions, fit and guard margins, statistics) proved and vector-checked; the main loop and the initialization order open |
-| rx | 16964 | 932 | the receiver core (channel map and ranges, pulse validity, signal loss behaviour, failsafe channel settings, pulse receiver averaging, link quality, RSSI sources and smoothing) and the SBUS protocol proved and vector-checked; the other protocol decoders, the SPI receivers, and bind open |
+| rx | 16964 | 1317 | the receiver core (channel map and ranges, pulse validity, signal loss behaviour, failsafe channel settings, pulse receiver averaging, link quality, RSSI sources and smoothing) and the SBUS and CRSF protocols proved and vector-checked; the other protocol decoders, the SPI receivers, and bind open |
 | pg, config, cli, msp | 21377 | 79 | simplified tuning of the PID gains proved and vector-checked; the rest Phase 5 |
 | blackbox, osd, cms, telemetry, io | 59977 | 406 | the beeper (sound table, sequences, multi-beep fills, bench suppression, DShot beacon) proved and vector-checked; the rest Phase 6 |
 | drivers, target, build, msc | 55927 | 0 | Phase 7 |
 | platform (STM32, AT32, APM32, PICO, ESP32, SITL) | not counted | 0 | Phase 7 |
-| total measured | 195545 | 16058 | |
+| total measured | 195545 | 16443 | |
