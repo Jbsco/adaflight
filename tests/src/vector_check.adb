@@ -29,6 +29,7 @@ with Adaflight.Barometer;
 with Adaflight.Battery;
 with Adaflight.Arming;
 with Adaflight.Compass;
+with Adaflight.Position_Filter;
 with Adaflight.Vectors;
 with Adaflight.PWL;
 with Adaflight.SDFT;
@@ -1743,6 +1744,59 @@ procedure Vector_Check is
       end if;
    end Check_Gyro_Line;
 
+   Pos_Filter : Adaflight.Position_Filter.Filter;
+   Pos_Op     : Integer_64 := 9;
+   Pos_Meas   : Float := 0.0;
+   Pos_R      : Float := 0.0;
+
+   procedure Check_Position_Line is
+      use Adaflight.Position_Filter;
+      Name : constant String := Str (1);
+      procedure Expect_State (Prefix : String; First : Positive) is
+         K : Positive := First;
+      begin
+         for C in Component loop
+            Record_Result (Prefix & ".x", Bits (K), To_Bits (Pos_Filter.X (C)));
+            K := K + 1;
+         end loop;
+         for Row in Component loop
+            for Col in Component loop
+               Record_Result (Prefix & ".p", Bits (K), To_Bits (Pos_Filter.P (Row, Col)));
+               K := K + 1;
+            end loop;
+         end loop;
+         if K /= NF + 1 then
+            Put_Line (Prefix & ": consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
+            Failures := Failures + 1;
+         end if;
+      end Expect_State;
+   begin
+      if Name = "posinit" then
+         Init (Pos_Filter, Pos => Flt (3), Vel => Flt (4), Acc => Flt (5),
+               Pos_Var => Flt (6), Vel_Var => Flt (7), Acc_Var => Flt (8), Q_Jerk => Flt (9));
+         Expect_State ("posinit", 10);
+      elsif Name = "posstep" then
+         Pos_Op := Int (5);
+         Pos_Meas := Flt (6);
+         Pos_R := Flt (7);
+         Predict (Pos_Filter, Flt (4));
+         Expect_State ("posstep", 8);
+      elsif Name = "posupd" then
+         case Pos_Op is
+            when 0 | 1 | 2 => Update_Position (Pos_Filter, Pos_Meas, Pos_R);
+            when 3 | 4     => Update_Acceleration (Pos_Filter, Pos_Meas, Pos_R);
+            when 5 | 6     => Update_Velocity_To_Position (Pos_Filter, Pos_Meas, Pos_R);
+            when 7         => Update_Position_To_Velocity (Pos_Filter, Pos_Meas, Pos_R);
+            when 8         => Shift_Position (Pos_Filter, Pos_Meas);
+            when others    => null;
+         end case;
+         Expect_State ("posupd", 5);
+      else
+         Put_Line ("unknown position case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Position_Line;
+
    Comp_State    : Adaflight.Compass.State;
    Comp_Settings : Adaflight.Compass.Settings;
    Comp_Saves    : Integer_64 := 0;
@@ -2516,6 +2570,8 @@ procedure Vector_Check is
                   Check_Arming_Line;
                elsif Kind = "compass" then
                   Check_Compass_Line;
+               elsif Kind = "position" then
+                  Check_Position_Line;
                else
                   Check_PID_Line;
                end if;
@@ -2550,6 +2606,7 @@ begin
    Run (Dir & "/battery.csv", "battery");
    Run (Dir & "/arming.csv", "arming");
    Run (Dir & "/compass.csv", "compass");
+   Run (Dir & "/position.csv", "position");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
