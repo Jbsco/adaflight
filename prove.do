@@ -20,6 +20,11 @@ echo "Running SPARK proofs..."
 # the memory and speed it lacks.
 PROVE_OUT=$(alr -n exec -- gnatprove -P adaflight_core.gpr -j"${PROVE_JOBS:-0}" ${PROVE_SWITCHES:-} --output=oneline 2>&1 | tee >(cat >&2))
 EXIT_CODE=${PIPESTATUS[0]}
+# A unit that fails to compile is dropped from the analysis without a nonzero
+# exit, so any error line fails the gate.
+if [ $EXIT_CODE -eq 0 ] && printf '%s\n' "$PROVE_OUT" | grep -q ': error: '; then
+    EXIT_CODE=1
+fi
 if [ $EXIT_CODE -ne 0 ]; then
     echo "=========================================="
     echo "SPARK proofs: gnatprove FAILED (exit $EXIT_CODE)"
