@@ -33,6 +33,8 @@ with Adaflight.Position_Filter;
 with Adaflight.Altitude_Estimator;
 with Adaflight.Altitude_Hold;
 with Adaflight.Adjustments;
+with Adaflight.Scheduler;
+with Adaflight.Clock;
 with Adaflight.Vectors;
 with Adaflight.PWL;
 with Adaflight.SDFT;
@@ -133,7 +135,7 @@ procedure Vector_Check is
       Tallies.Include (Name, T);
    end Record_Int;
 
-   Max_Fields : constant := 300;
+   Max_Fields : constant := 600;
    type Fields is array (1 .. Max_Fields) of String (1 .. 400);
    type Field_Lengths is array (1 .. Max_Fields) of Natural;
 
@@ -2015,6 +2017,338 @@ procedure Vector_Check is
       end if;
    end Check_Adjust_Line;
 
+   --  The scheduler replays the reference's passes with the simulated clocks
+   --  of the oracle: one cycle per read of the cycle counter and the recorded
+   --  durations while a task or a check runs.
+   Sched_State    : Adaflight.Scheduler.State;
+   Sched_Settings : Adaflight.Scheduler.Settings;
+   Sched_Clock    : Unsigned_32 := 0;
+   Sched_Tasks    : array (0 .. 63) of Adaflight.Scheduler.Task_Id := (others => Adaflight.Scheduler.System);
+   Sched_Task_Count : Natural := 0;
+
+   procedure Check_Sched_Line is
+      use Adaflight.Scheduler;
+      Name : constant String := Str (1);
+      K    : Positive := 1;
+
+      function Next return Integer_64 is
+         V : constant Integer_64 := Int (K);
+      begin
+         K := K + 1;
+         return V;
+      end Next;
+
+      function Next_Task return Task_Id is
+         T : constant Task_Id := Task_Id'Value (Str (K));
+      begin
+         K := K + 1;
+         return T;
+      end Next_Task;
+
+      procedure Expect (N : String; Expected : Integer_64; Actual : Integer_64) is
+      begin
+         Record_Int (Name & "." & N, Expected, Actual);
+      end Expect;
+
+      procedure Expect_Next (N : String; Actual : Integer_64) is
+      begin
+         Record_Int (Name & "." & N, Int (K), Actual);
+         K := K + 1;
+      end Expect_Next;
+
+      procedure Check_Fields is
+      begin
+         if K /= NF + 1 then
+            Put_Line (Name & ": consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
+            Failures := Failures + 1;
+         end if;
+      end Check_Fields;
+
+      function Read_Cycles return Unsigned_32 is
+      begin
+         Sched_Clock := Sched_Clock + 1;
+         return Sched_Clock;
+      end Read_Cycles;
+
+      function Micros return Unsigned_32 is (Sched_Clock / Unsigned_32 (Sched_Settings.Cycles_Per_Us));
+      function Millis return Unsigned_32 is (Micros / 1_000);
+
+      procedure Expect_Task (T : Task_Id) is
+         R : Task_State renames Sched_State.Tasks (T);
+      begin
+         Expect_Next ("dynamic", Integer_64 (R.Dynamic));
+         Expect_Next ("age", Integer_64 (R.Age_Periods));
+         Expect_Next ("latest_delta", Integer_64 (R.Latest_Delta_Us));
+         Expect_Next ("last_executed", Integer_64 (R.Last_Executed_Us));
+         Expect_Next ("last_signaled", Integer_64 (R.Last_Signaled_Us));
+         Expect_Next ("last_desired", Integer_64 (R.Last_Desired_Us));
+         Expect_Next ("anticipated", Integer_64 (R.Anticipated));
+         Expect_Next ("moving_delta", Integer_64 (R.Moving_Sum_Delta));
+         Expect_Next ("moving_exec", Integer_64 (R.Moving_Sum_Exec));
+         Expect_Next ("max_exec", Integer_64 (R.Max_Exec_Us));
+         Expect_Next ("total_exec", Integer_64 (R.Total_Exec_Us));
+         Expect_Next ("last_stats", Integer_64 (R.Last_Stats_Us));
+         Expect_Next ("exec_since_states", Integer_64 (R.Exec_Since_States));
+         Expect_Next ("moving_states_exec", Integer_64 (R.Moving_Sum_States_Exec));
+         Expect_Next ("max_states_exec", Integer_64 (R.Max_States_Exec_Us));
+      end Expect_Task;
+
+      --  The events of one pass, read ahead so the pass can consume them in
+      --  the order the scheduler asks for them.
+      type Event is record
+         Run        : Boolean := True;
+         Task_Of    : Task_Id := System;
+         Duration   : Unsigned_32 := 0;
+         Rate       : Boolean := False;
+         Time       : Boolean := False;
+         Next_State : Integer_64 := -1;
+         Result     : Boolean := False;
+      end record;
+      Events      : array (1 .. 80) of Event;
+      Event_Count : Natural := 0;
+      Event_Next  : Positive := 1;
+      Run_Events  : array (1 .. 80) of Task_Id := (others => System);
+      Run_Count   : Natural := 0;
+
+      function Take (Run : Boolean; T : Task_Id) return Event is
+         E : Event;
+      begin
+         if Event_Next > Event_Count then
+            Put_Line (Name & ": the scheduler asked for " & (if Run then "a run of " else "a check of ")
+                      & Task_Id'Image (T) & " past the recorded events");
+            Failures := Failures + 1;
+            return E;
+         end if;
+         E := Events (Event_Next);
+         Event_Next := Event_Next + 1;
+         if E.Run /= Run or else E.Task_Of /= T then
+            Put_Line (Name & ": the scheduler asked for " & (if Run then "a run of " else "a check of ")
+                      & Task_Id'Image (T) & " where the reference recorded "
+                      & (if E.Run then "a run of " else "a check of ") & Task_Id'Image (E.Task_Of));
+            Failures := Failures + 1;
+         end if;
+         return E;
+      end Take;
+
+      procedure Run_Body (T : Task_Id) is
+         Before : constant Unsigned_32 := Micros;
+         E      : constant Event := Take (True, T);
+      begin
+         Sched_Clock := Sched_Clock + E.Duration;
+         if T = System then
+            System_Load (Sched_State, Before);
+         end if;
+         if E.Rate then
+            Ignore_Task_Exec_Rate (Sched_State);
+         end if;
+         if E.Time then
+            Ignore_Task_Exec_Time (Sched_State);
+         end if;
+         if E.Next_State >= 0 then
+            Set_Next_State_Time (Sched_State, Time_Delta (E.Next_State));
+         end if;
+         Execute_End (Sched_State, Before, Micros);
+      end Run_Body;
+
+      procedure Run_Task (T : Task_Id; Now_Us : Unsigned_32) is
+      begin
+         Execute_Begin (Sched_State, T, Now_Us);
+         Run_Body (T);
+      end Run_Task;
+
+      procedure Pass is
+         G        : Gyro_Status;
+         Poll     : Boolean;
+         Proceed  : Boolean;
+         Selected : Boolean;
+         Run_It   : Boolean;
+         Now      : Unsigned_32;
+         Filter_Ready, PID_Ready : Boolean;
+         Failsafe_Checks : Natural := 0;
+      begin
+         Sched_Clock := Unsigned_32 (Int (4));
+         G := (Interrupts => Int (5) /= 0, Detected => Unsigned_32 (Int (6)), Sync_Cycles => Unsigned_32 (Int (7)));
+         Filter_Ready := Int (8) /= 0;
+         PID_Ready := Int (9) /= 0;
+         Now := (if Sched_State.Gyro_Enabled then Read_Cycles else 0);
+         Begin_Pass (Sched_State, Now, Poll);
+         if Poll then
+            while Adaflight.Clock.Elapsed (Sched_State.Pass.Next_Target, Now) > 0 loop
+               Now := Read_Cycles;
+            end loop;
+            declare
+               Now_Us : constant Unsigned_32 := Micros;
+            begin
+               Run_Task (Gyro, Now_Us);
+               if Filter_Ready then
+                  Run_Task (Filter, Now_Us);
+               end if;
+               if PID_Ready then
+                  Run_Task (PID, Now_Us);
+               end if;
+            end;
+            if Failsafe_Due (Sched_State, Millis) then
+               Failsafe_Checks := 1;
+               Failsafe_Checked (Sched_State, Millis);
+            end if;
+            End_Realtime (Sched_State, Now, G);
+         end if;
+         Now := Read_Cycles;
+         Begin_Selection (Sched_State, Sched_Settings, Now, Micros, Proceed);
+         if Proceed then
+            for Q in 0 .. Sched_State.Queue_Size - 1 loop
+               if Needs_Check (Sched_State, Q) then
+                  declare
+                     E : constant Event := Take (False, Queued (Sched_State, Q));
+                  begin
+                     Sched_Clock := Sched_Clock + E.Duration;
+                     Consider (Sched_State, Sched_Settings, Q, E.Result, Micros);
+                  end;
+               else
+                  Consider (Sched_State, Sched_Settings, Q, False, 0);
+               end if;
+            end loop;
+            End_Selection (Sched_State, Read_Cycles, Selected);
+            if Selected then
+               Confirm (Sched_State, Sched_Settings, Read_Cycles, Run_It);
+               if Run_It then
+                  Run_Selected_Begin (Sched_State);
+                  Run_Body (Sched_State.Current);
+                  After_Run (Sched_State, Read_Cycles);
+               end if;
+            end if;
+         end if;
+         End_Pass (Sched_State);
+         if Event_Next <= Event_Count then
+            Put_Line (Name & ": the reference recorded" & Integer'Image (Event_Count - Event_Next + 1)
+                      & " more events than the scheduler asked for");
+            Failures := Failures + 1;
+         end if;
+         if Name = "schedpass" then
+            Expect ("after", Int (10), Integer_64 (Sched_Clock));
+            K := 11;
+         else
+            Expect_Next ("after", Integer_64 (Sched_Clock));
+            Expect_Next ("last_target", Integer_64 (Sched_State.Last_Target_Cycles));
+            Expect_Next ("desired_period", Integer_64 (Sched_State.Desired_Period_Cycles));
+            Expect_Next ("loop_start", Integer_64 (Sched_State.Loop_Start_Cycles));
+            Expect_Next ("guard", Integer_64 (Sched_State.Guard_Cycles));
+            Expect_Next ("skipped_rx", Integer_64 (Sched_State.Skipped_Rx));
+            Expect_Next ("skipped_osd", Integer_64 (Sched_State.Skipped_OSD));
+            Expect_Next ("load", Integer_64 (Sched_State.Average_Load_Percent));
+            Expect_Next ("failsafe_ms", Integer_64 (Sched_State.Last_Failsafe_Ms));
+            Expect_Next ("failsafe_checks", Integer_64 (Failsafe_Checks));
+            Expect_Next ("check_max", Integer_64 (Sched_State.Checks.Max_Exec_Us));
+            Expect_Next ("check_total", Integer_64 (Sched_State.Checks.Total_Exec_Us));
+            Expect_Next ("check_moving_exec", Integer_64 (Sched_State.Checks.Moving_Sum_Exec_Us));
+            Expect_Next ("check_moving_delta", Integer_64 (Sched_State.Checks.Moving_Sum_Delta_Us));
+            Expect_Next ("total_exec", Integer_64 (Sched_State.Total_Exec_Us));
+            for R in 1 .. Run_Count loop
+               Expect_Task (Run_Events (R));
+            end loop;
+         end if;
+      end Pass;
+   begin
+      if Name = "schedinit" then
+         K := 3;
+         Sched_Settings.Cycles_Per_Us := Integer (Next);
+         Sched_Settings.Rx_Relax := Integer (Next);
+         Sched_Settings.OSD_Relax := Integer (Next);
+         declare
+            Gyro_Period  : constant Integer_64 := Next;
+            Gyro_Enabled : constant Boolean := Next /= 0;
+            Count        : constant Natural := Integer (Next);
+            Queue_Start  : constant Positive := K + 5 * Count;
+            Clock_After  : constant Integer_64 := Int (Queue_Start + 1 + Integer (Int (Queue_Start)));
+         begin
+            Sched_Task_Count := Count;
+            Sched_Clock := Unsigned_32 (Clock_After) - 1;
+            Init (Sched_State, Sched_Settings, Read_Cycles);
+            Reschedule (Sched_State, Sched_Settings, Gyro, Time_Delta (Gyro_Period));
+            for T in 0 .. Count - 1 loop
+               declare
+                  Id : constant Task_Id := Next_Task;
+               begin
+                  Sched_Tasks (T) := Id;
+                  Expect ("period", Next, Integer_64 (Sched_State.Tasks (Id).Period));
+                  Expect ("priority", Next, Integer_64 (Defaults (Id).Priority));
+                  Expect ("has_check", Next, Boolean'Pos (Defaults (Id).Has_Check));
+                  if Next /= 0 then
+                     Set_Task_Enabled (Sched_State, Id, True);
+                  end if;
+               end;
+            end loop;
+            if Gyro_Enabled then
+               Enable_Gyro (Sched_State);
+            end if;
+            Expect_Next ("queue_size", Integer_64 (Sched_State.Queue_Size));
+            for Q in 0 .. Sched_State.Queue_Size - 1 loop
+               declare
+                  Id : constant Task_Id := Next_Task;
+               begin
+                  Expect ("queue", Task_Id'Pos (Id), Task_Id'Pos (Sched_State.Queue (Q)));
+               end;
+            end loop;
+            Expect_Next ("clock", Integer_64 (Sched_Clock));
+         end;
+         Check_Fields;
+      elsif Name = "schedenable" then
+         K := 4;
+         declare
+            Id : constant Task_Id := Next_Task;
+         begin
+            Set_Task_Enabled (Sched_State, Id, Next /= 0);
+         end;
+         Check_Fields;
+      elsif Name = "schedresched" then
+         K := 4;
+         declare
+            Id : constant Task_Id := Next_Task;
+         begin
+            Reschedule (Sched_State, Sched_Settings, Id, Time_Delta (Next));
+         end;
+         Check_Fields;
+      elsif Name = "schedtasks" then
+         K := 4;
+         for T in 0 .. Sched_Task_Count - 1 loop
+            Expect_Task (Sched_Tasks (T));
+         end loop;
+         Check_Fields;
+      elsif Name = "schedpass" then
+         Pass;
+         Check_Fields;
+      elsif Name = "schedstep" then
+         Event_Count := Integer (Int (10));
+         K := 11;
+         for E in 1 .. Event_Count loop
+            declare
+               Run : constant Boolean := Str (K) = "r";
+               Ev  : Event;
+            begin
+               K := K + 1;
+               Ev.Run := Run;
+               Ev.Task_Of := Next_Task;
+               Ev.Duration := Unsigned_32 (Next);
+               if Run then
+                  Ev.Rate := Next /= 0;
+                  Ev.Time := Next /= 0;
+                  Ev.Next_State := Next;
+                  Run_Count := Run_Count + 1;
+                  Run_Events (Run_Count) := Ev.Task_Of;
+               else
+                  Ev.Result := Next /= 0;
+               end if;
+               Events (E) := Ev;
+            end;
+         end loop;
+         Pass;
+         Check_Fields;
+      else
+         Put_Line ("unknown sched case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Sched_Line;
+
    Alt_State    : Adaflight.Altitude_Estimator.State;
    Alt_Settings : Adaflight.Altitude_Estimator.Settings;
    Alt_Present  : Boolean := False;
@@ -2902,6 +3236,8 @@ procedure Vector_Check is
                   Check_Alt_Hold_Line;
                elsif Kind = "adjust" then
                   Check_Adjust_Line;
+               elsif Kind = "sched" then
+                  Check_Sched_Line;
                else
                   Check_PID_Line;
                end if;
@@ -2940,6 +3276,7 @@ begin
    Run (Dir & "/altitude.csv", "altitude");
    Run (Dir & "/althold.csv", "althold");
    Run (Dir & "/adjust.csv", "adjust");
+   Run (Dir & "/sched.csv", "sched");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
