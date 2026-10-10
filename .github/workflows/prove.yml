@@ -9,13 +9,18 @@ on:
 
 jobs:
   prove:
-    runs-on: ubuntu-latest
+    # Self-hosted (terra): the host provides alr and the GNAT and gnatprove
+    # toolchains natively; the hosted-only steps below are gated, so moving
+    # this job back to GitHub-hosted is the one-line revert
+    # `runs-on: ubuntu-latest`.
+    runs-on: [self-hosted, linux]
     timeout-minutes: 300
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Cache Alire
+        if: runner.environment == 'github-hosted'
         uses: actions/cache@v4
         with:
           path: |
@@ -26,11 +31,13 @@ jobs:
           restore-keys: alire-prove-${{ runner.os }}-
 
       - name: Install Alire
+        if: runner.environment == 'github-hosted'
         uses: alire-project/setup-alire@v3
         with:
           version: 2.1.1
 
       - name: Select GNAT toolchain
+        if: runner.environment == 'github-hosted'
         run: |
           cd core
           alr -n toolchain --select gnat_native
@@ -43,6 +50,7 @@ jobs:
           alr -n exec -- gnatprove --version
 
       - name: Cache the proof session
+        if: runner.environment == 'github-hosted'
         uses: actions/cache@v4
         with:
           path: core/obj/development/gnatprove
@@ -51,8 +59,7 @@ jobs:
 
       - name: Run SPARK proofs
         env:
-          PROVE_JOBS: 1
-          PROVE_SWITCHES: --timeout=900
+          PROVE_JOBS: 4
         run: |
           set -o pipefail
           bash prove.do 2>&1 | tee prove-output.log

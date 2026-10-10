@@ -9,12 +9,17 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # Self-hosted (terra): the host provides alr and the GNAT and gnatprove
+    # toolchains natively; the hosted-only steps below are gated, so moving
+    # this job back to GitHub-hosted is the one-line revert
+    # `runs-on: ubuntu-latest`.
+    runs-on: [self-hosted, linux]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Cache Alire
+        if: runner.environment == 'github-hosted'
         uses: actions/cache@v4
         with:
           path: |
@@ -25,11 +30,13 @@ jobs:
           restore-keys: alire-test-${{ runner.os }}-
 
       - name: Install Alire
+        if: runner.environment == 'github-hosted'
         uses: alire-project/setup-alire@v3
         with:
           version: 2.1.1
 
       - name: Select GNAT toolchain
+        if: runner.environment == 'github-hosted'
         run: |
           cd tests
           alr -n toolchain --select gnat_native
