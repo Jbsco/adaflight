@@ -31,11 +31,11 @@ RPM filter, and full-scale detections, the attitude estimator with the compass h
 the failsafe state machine, the runtime modes, the accelerometer path, the barometer
 altitude, the compass with its bias calibration, the battery meters and states, the
 sensor and board alignment, the arming logic, the angle and horizon level modes, the
-position Kalman filter, and the altitude estimator.
+position Kalman filter, the altitude estimator, and the altitude hold.
 
-- The core proves at Silver and Gold: 4289 checks, nothing unproved, no
+- The core proves at Silver and Gold: 4417 checks, nothing unproved, no
   `pragma Assume`, no justified suppression (`gnatprove` 16.1.0, level 2).
-- The recorded vectors replay bit for bit: 156046 lines over 159 cases, every case
+- The recorded vectors replay bit for bit: 165076 lines over 161 cases, every case
   exact except the fourteen declared deviations in `DESIGN.md` D6.
 - No target builds yet. `ROADMAP.md` carries the parity inventory and the phases.
 
