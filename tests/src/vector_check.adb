@@ -2537,6 +2537,11 @@ procedure Vector_Check is
             Fixed_Wing                 => Int (18) /= 0,
             PID_At_Min_Throttle        => Int (19) /= 0,
             Launch_Control_Angle_Limit => Integer (Int (20)),
+            Launch_Trigger_Throttle    => Integer (Int (146)),
+            Launch_Trigger_Reset       => Int (147) /= 0,
+            Runaway_Prevention         => Int (149) /= 0,
+            Runaway_Deactivate_Delay   => Integer (Int (150)),
+            Runaway_Deactivate_Throttle => Integer (Int (151)),
             Sensors                    =>
               (Gyro => Int (21) /= 0, Acc => Int (22) /= 0, Baro => Int (23) /= 0, Mag => Int (24) /= 0));
          for M in Adaflight.Modes.Condition_Index loop
@@ -2573,7 +2578,14 @@ procedure Vector_Check is
                Acc_Has_Calibration        => Int (25) /= 0,
                First_Arm_Gyro_Cal_Running => Int (26) /= 0,
                Motor_Protocol_Enabled     => Int (27) /= 0,
-               Headfree_Offset_Set        => Int (28) /= 0);
+               Headfree_Offset_Set        => Int (28) /= 0,
+               PID_Sums                   => (Adaflight.Axes.Roll => Flt (60), Adaflight.Axes.Pitch => Flt (61),
+                                              Adaflight.Axes.Yaw => Flt (62)),
+               Gyro_Abs_Dps               => (Adaflight.Axes.Roll  => Integer (Int (63)),
+                                              Adaflight.Axes.Pitch => Integer (Int (64)),
+                                              Adaflight.Axes.Yaw   => Integer (Int (65))),
+               Deflection_Abs             => (Adaflight.Axes.Roll => Flt (66), Adaflight.Axes.Pitch => Flt (67),
+                                              Adaflight.Axes.Yaw => Flt (68)));
             Step     : Outputs;
             K        : Positive := 29;
             procedure Expect_Int (N : String; Actual : Integer_64) is
@@ -2597,6 +2609,7 @@ procedure Vector_Check is
             Process_Rx (Arming_State, Arming_Settings, Arming_Modes, Sensed, Channels, Now_Us, Step);
             Process_Rx_Modes (Arming_State, Arming_Settings, Arming_Modes, Arming_Conditions, Aux, Sensed, Channels,
                               Now_Us, Natural (Int (5)), Step);
+            Process_PID_Loop (Arming_State, Arming_Settings, Arming_Modes, Sensed, Channels, Now_Us, Step);
             Update_Status (Arming_State, Arming_Settings, Arming_Modes, Arming_Conditions, Sensed, Channels, Now_Us);
             Flags := Boolean'Pos (Arming_State.Armed) + 2 * Boolean'Pos (Arming_State.Was_Ever_Armed)
                      + 4 * Boolean'Pos (Arming_State.Armed_With_Prearm);
@@ -2635,6 +2648,14 @@ procedure Vector_Check is
             Expect_Int ("disarm_requested", Boolean'Pos (Arming_State.Disarm_Requested));
             Expect_Hex ("mask0", Box_Word (Arming_Modes.Active_Mask, 0));
             Expect_Hex ("mask1", Box_Word (Arming_Modes.Active_Mask, 1));
+            K := K + 9;
+            Expect_Int ("launch_state", Launch_State'Pos (Arming_State.Launch));
+            Expect_Int ("runaway_check_disabled", Boolean'Pos (Arming_State.Runaway_Check_Disabled));
+            Expect_Int ("runaway_deactivate_us", Integer_64 (Arming_State.Runaway_Deactivate_Us));
+            Expect_Int ("runaway_accumulated_us", Integer_64 (Arming_State.Runaway_Accumulated_Us));
+            Expect_Int ("runaway_trigger_us", Integer_64 (Arming_State.Runaway_Trigger_Us));
+            Expect_Int ("iterm_resets", Integer_64 (Step.Iterm_Resets));
+            Expect_Int ("launch_active", Boolean'Pos (Launch_Control_Active (Arming_State)));
             if K /= NF + 1 then
                Put_Line ("armstep: consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
                Failures := Failures + 1;
