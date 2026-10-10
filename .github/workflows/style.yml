@@ -18,8 +18,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          # A self-hosted checkout keeps its build and proof session between
-          # runs, so the proofs re-run only the changed units.
+          # A self-hosted checkout keeps its Alire build between runs.
           clean: ${{ runner.environment == 'github-hosted' }}
 
       - name: Cache Alire
