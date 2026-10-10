@@ -55,6 +55,7 @@ with Adaflight.Exponentials;
 with Adaflight.Chirp;
 with Adaflight.SUMD;
 with Adaflight.SUMH;
+with Adaflight.IBUS;
 
 procedure Vector_Check is
 
@@ -3750,6 +3751,82 @@ procedure Vector_Check is
       end if;
    end Check_SUM_Line;
 
+   IBUS_State : Adaflight.IBUS.State;
+   IBUS_Clock : Unsigned_32 := 0;
+
+   procedure Check_IBUS_Line is
+      use Adaflight.IBUS;
+      Name : constant String := Str (1);
+      K    : Positive := 1;
+      procedure Expect_Next (N : String; Actual : Integer_64) is
+      begin
+         Record_Int (Name & "." & N, Int (K), Actual);
+         K := K + 1;
+      end Expect_Next;
+      procedure Check_Fields is
+      begin
+         if K /= NF + 1 then
+            Put_Line (Name & ": consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
+            Failures := Failures + 1;
+         end if;
+      end Check_Fields;
+   begin
+      if Name = "ibusinit" then
+         Init (IBUS_State);
+         IBUS_Clock := Unsigned_32 (Int (3));
+         K := 4;
+         for Ch in Channel loop
+            Expect_Next ("data", Integer_64 (IBUS_State.Data (Ch)));
+         end loop;
+         Check_Fields;
+      elsif Name = "ibusburst" then
+         declare
+            Count   : constant Natural := Integer (Int (4));
+            Status  : Adaflight.Receiver.Frame_Report;
+            Request : Boolean := False;
+         begin
+            K := 5;
+            for B in 1 .. Count loop
+               IBUS_Clock := IBUS_Clock + Unsigned_32 (Int (K));
+               Receive_Byte (IBUS_State, Integer (Int (K + 1)), IBUS_Clock);
+               K := K + 2;
+            end loop;
+            IBUS_Clock := Unsigned_32 (Int (K));
+            K := K + 1;
+            if Int (K + 1) /= 0 then
+               Frame_Status (IBUS_State, Status, Request);
+               Expect_Next ("status", Boolean'Pos (Status.Complete));
+               K := K + 1;
+               Expect_Next ("request", Boolean'Pos (Request));
+               if Request then
+                  Ignore_Echo (IBUS_State, Integer (Int (K)));
+               end if;
+               K := K + 1;
+            else
+               K := K + 4;
+            end if;
+            Expect_Next ("model", Model'Pos (IBUS_State.Kind));
+            Expect_Next ("sync", Integer_64 (IBUS_State.Sync_Byte));
+            Expect_Next ("frame_size", Integer_64 (IBUS_State.Frame_Size));
+            Expect_Next ("offset", Integer_64 (IBUS_State.Channel_Offset));
+            Expect_Next ("ignore", Integer_64 (IBUS_State.Bytes_To_Ignore));
+            Expect_Next ("checksum", Integer_64 (IBUS_State.Checksum));
+            Expect_Next ("done", Boolean'Pos (IBUS_State.Done));
+            Expect_Next ("completed_at", Integer_64 (IBUS_State.Completed_At_Us));
+            Expect_Next ("frame_time", Integer_64 (IBUS_State.Last_Frame_Time_Us));
+            for Ch in Channel loop
+               Expect_Next ("data", Integer_64 (IBUS_State.Data (Ch)));
+               Record_Result (Name & ".raw", Bits (K), To_Bits (Read_Raw (IBUS_State, Ch)));
+               K := K + 1;
+            end loop;
+            Check_Fields;
+         end;
+      else
+         Put_Line ("unknown ibus case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_IBUS_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -3820,6 +3897,8 @@ procedure Vector_Check is
                   Check_CRSF_Line;
                elsif Kind = "sumd" then
                   Check_SUM_Line;
+               elsif Kind = "ibus" then
+                  Check_IBUS_Line;
                else
                   Check_PID_Line;
                end if;
@@ -3864,6 +3943,7 @@ begin
    Run (Dir & "/sbus.csv", "sbus");
    Run (Dir & "/crsf.csv", "crsf");
    Run (Dir & "/sumd.csv", "sumd");
+   Run (Dir & "/ibus.csv", "ibus");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
