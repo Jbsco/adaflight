@@ -724,3 +724,21 @@ guards cover values the reference's conversions leave undefined: a scaled RSSI b
 held at zero, and a frame whose declared length escaped the check is held to the frame size. The
 receiver takes the protocol's claims of the RSSI and the link quality at its own init. No
 recorded vector reaches a guard.
+## D43. The SUMD and SUMH protocols (2026-10-10)
+
+The SUMD unit carries the reference's SUMD receiver. Each byte arrives with its time, and a gap
+over four milliseconds restarts the frame. The sync byte starts the frame and clears the CRC.
+The third byte gives the channel count. The bytes are kept while the buffer has room. The CRC
+runs over the header and the channels, and the frame completes two bytes after the channels.
+The status poll takes a complete frame only when its CRC matches the two bytes after the
+channels. The state byte makes the frame failsafe or complete, and up to eighteen channels are
+copied. The raw value is the channel's eighth. A frame that declares more than thirty-two
+channels is dropped at the poll, where the reference reads its CRC bytes past the buffer
+(finding F32). The caller takes the unit's frame time for a frame that is not failsafe, as the
+reference publishes it. The SUMH unit carries the simpler SUMH receiver: twenty-one bytes, with
+a restart after a gap over five milliseconds. The poll takes the eight channels when the sync
+byte and the zero before the last byte check. Each goes through the reference's scale, a sixth
+and four tenths less 375, and is held at zero where the reference's conversion of a negative
+value is undefined. The raw value reads zero past the eighth channel. The recorded vectors keep
+the channel words where that conversion is defined. The serial ports stay with the port layer.
+No recorded vector reaches a guard.
