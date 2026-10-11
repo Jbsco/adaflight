@@ -1,8 +1,8 @@
 # Roadmap
 
-Mission: a flight controller in SPARK and Ada at feature and performance parity with the
-reference firmware named in the README, proved where proof buys assurance that tests
-cannot. Every phase serves that sentence.
+Mission: a flight controller in SPARK and Ada at feature and performance parity with
+[Betaflight](https://github.com/betaflight/betaflight), proved where proof buys assurance
+that tests cannot. Every phase serves that sentence.
 
 A phase is complete when its modules replay the recorded vectors bit for bit, prove at
 Silver with no assume, and pass the gates on `main`.
@@ -25,18 +25,18 @@ Silver with no assume, and pass the gates on `main`.
 - Phase 6, open. Flight features. Blackbox, OSD, menu system, telemetry protocols, LED
   strip, beeper, VTX control, GPS with rescue and position modes, servos and wing
   support.
-- Phase 7, open. Targets. STM32F4 first, then F7 and H7, then the other families in the
-  reference, plus a host simulator target. Drivers for SPI, I2C, DMA, timers, UART, USB,
+- Phase 7, open. Targets. STM32F4 first, then F7 and H7, then the other families Betaflight
+  runs on, plus a host simulator target. Drivers for SPI, I2C, DMA, timers, UART, USB,
   flash, SD card, DShot.
-- Phase 8, open. Tooling. A native Linux flashing tool over DFU with the reference's
-  feature set and faster transfers, then the configuration path.
+- Phase 8, open. Tooling. A native Linux flashing tool over DFU with the features of the
+  Betaflight flasher and faster transfers, then the configuration path.
 
 ## Parity inventory
 
-Line counts of the reference modules, C sources and headers, at the commit the vectors
-were recorded from. The adaflight column counts Ada lines on `main`.
+Line counts of the Betaflight modules, C sources and headers, at commit af0638839, the
+commit the vectors were recorded from. The adaflight column counts Ada lines on `main`.
 
-| Reference module | Reference lines | adaflight lines | Status |
+| Betaflight module | Betaflight lines | adaflight lines | Status |
 |---|---|---|---|
 | common (maths, filters, vectors, DFT, tables, encodings, buffers, codecs) | 5481 | 4587 | maths with exp and log, filters, vectors, sliding DFT, piecewise-linear tables, integrity codes, encodings, bit arrays, stream buffers, Huffman encoder, GPS coordinates, sensor alignment, color conversion, the chirp generator, and the wrapping clock difference proved and vector-checked; type conversion and the string helpers open |
 | flight (pid, mixer, imu, failsafe, rescue, nav) | 17554 | 4298 | PID profile, runtime configuration, filter initialization, the rate loop, the throttle-side features, the crash recovery, the launch control, the motor mixer, the attitude estimator with the compass heading, the failsafe state machine, the angle and horizon level modes, the dynamic notch filter, the RPM filter, the position Kalman filter, the altitude estimator from the barometer and the accelerometer, and the altitude hold with the autopilot's altitude controller proved and vector-checked; the horizontal position estimate, position hold, rescue, and navigation open |
