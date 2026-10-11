@@ -66,13 +66,13 @@ A change is finished when `verify.do` is green.
 - Every unit in `core/` is SPARK and proves free of run-time errors, except the one body
   outside SPARK that `DESIGN.md` D15 names. The proof gate counts such bodies on every run.
 - No `pragma Assume` and no justified suppression. `prove.do` prints both counts.
-- A ported function keeps the operation order of the reference, so the host build
-  reproduces its results bit for bit. The vector checker reports the distance in
+- A ported function keeps the operation order of its Betaflight original, so the host
+  build reproduces its results bit for bit. The vector checker reports the distance in
   representable values for every case.
 - A deliberate deviation carries a tolerance in the checker and an entry in `DESIGN.md`.
-- The vectors under `tests/vectors` were recorded from a host build of the reference at
-  commit af0638839 by a tool outside this repository, so the checker holds the port to the
-  reference's exact results.
+- The vectors under `tests/vectors` were recorded from a host build of Betaflight at
+  commit af0638839 by a tool outside this repository, so the checker holds the port to
+  Betaflight's exact results.
 
 ## License
 
