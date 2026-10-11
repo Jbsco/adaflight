@@ -338,16 +338,23 @@ package body Adaflight.Filters with SPARK_Mode is
      (Filt : in out Phase_Comp; Center : Frequency; Phase : Phase_Degrees;
       Loop_Time : Loop_Time_Us)
    is
-      W     : constant Float := Two_Pi * Center * Float (Loop_Time) * 1.0e-6;
+      --  The precondition keeps the normalized frequency below the root of
+      --  twelve, so Alpha stays positive and A0 within the unit interval, and
+      --  the bounds below hold each coefficient product to a cheap check.
+      subtype Normalized is Float range 6.0e-6 .. 2.6;
+      subtype Alpha_Range is Float range 0.0 .. 4.0e8;
+      subtype Gain_Range is Float range 0.0 .. 2.1e4;
+      W     : constant Normalized := Two_Pi * Center * Float (Loop_Time) * 1.0e-6;
       SN    : constant Cosine := Sin_Approx (Phase * Rad_Per_Degree);
-      Gain  : constant Float := Float'Max (0.0, 1.0 + SN) / Float'Max (1.0e-4, 1.0 - SN);
+      Gain  : constant Gain_Range := Float'Max (0.0, 1.0 + SN) / Float'Max (1.0e-4, 1.0 - SN);
       Root  : constant Float := Float'Max (1.0e-3, Sqrt_Bounded (Gain));
-      Alpha : constant Float := (12.0 - W * W) / (6.0 * W * Root);
+      Alpha : constant Alpha_Range := (12.0 - W * W) / (6.0 * W * Root);
       B0    : constant Float := 1.0 + Alpha * Gain;
       B1    : constant Float := 2.0 - B0;
       A1    : constant Float := 1.0 - Alpha;
-      A0    : constant Float := 1.0 / (1.0 + Alpha);
+      A0    : constant Unit_Interval := 1.0 / (1.0 + Alpha);
    begin
+      pragma Assert (B0 in 1.0 .. 1.0e13);
       Filt.B0 := Constrain_F (B0 * A0, Comp_Coefficient'First, Comp_Coefficient'Last);
       Filt.B1 := Constrain_F (B1 * A0, Comp_Coefficient'First, Comp_Coefficient'Last);
       Filt.A1 := Constrain_F (A1 * A0, Comp_Coefficient'First, Comp_Coefficient'Last);
