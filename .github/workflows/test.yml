@@ -9,19 +9,12 @@ on:
 
 jobs:
   test:
-    # The hosted-only steps below are gated on the runner environment, so
-    # moving this job back to GitHub-hosted is the one-line change
-    # `runs-on: ubuntu-latest`.
-    runs-on: [self-hosted, linux]
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          # Only a GitHub-hosted runner starts from a clean checkout.
-          clean: ${{ runner.environment == 'github-hosted' }}
 
       - name: Cache Alire
-        if: runner.environment == 'github-hosted'
         uses: actions/cache@v4
         with:
           path: |
@@ -32,13 +25,11 @@ jobs:
           restore-keys: alire-test-${{ runner.os }}-
 
       - name: Install Alire
-        if: runner.environment == 'github-hosted'
         uses: alire-project/setup-alire@v3
         with:
           version: 2.1.1
 
       - name: Select GNAT toolchain
-        if: runner.environment == 'github-hosted'
         run: |
           cd tests
           alr -n toolchain --select gnat_native
