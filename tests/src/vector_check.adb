@@ -20,6 +20,7 @@ with Adaflight.Mixer;
 with Adaflight.RC_Command;
 with Adaflight.Gyro_Filters;
 with Adaflight.Dyn_Notch;
+with Adaflight.RPM_Filter;
 with Adaflight.Attitude;
 with Adaflight.Failsafe;
 with Adaflight.Modes;
@@ -1482,6 +1483,8 @@ procedure Vector_Check is
    Gyro_Denom    : Integer := 1;
    Gyro_Cal_Samples : Natural := 0;
    Gyro_Now_Us      : Interfaces.Unsigned_32 := 0;
+   Gyro_Motor_Hz    : Adaflight.RPM_Filter.Motor_Frequencies := (others => 0.0);
+   Gyro_Dt_Scale    : Adaflight.RPM_Filter.Cycle_Multiplier := 1.0;
 
    procedure Check_Gyro_Line is
       use Adaflight.Gyro_Filters;
@@ -1491,6 +1494,7 @@ procedure Vector_Check is
          declare
             C : Settings;
             K : Positive := 26;
+            T : constant Positive := NF - 24;
             function Stage_Kind (St : Stage) return Integer_64 is
               (if not St.Used then 0
                else (case St.Kind is
@@ -1536,20 +1540,32 @@ procedure Vector_Check is
             C.Notch1_Cutoff := Integer'Value (Str (22));
             C.Notch2_Hz := Integer'Value (Str (23));
             C.Notch2_Cutoff := Integer'Value (Str (24));
-            C.Calibration_Duration := Integer (Int (NF - 12));
-            C.Movement_Threshold := Integer (Int (NF - 11));
-            C.Offset_Yaw := Integer (Int (NF - 10));
-            C.Check_Overflow := Overflow_Check'Val (Int (NF - 9));
-            C.Yaw_Spin := Spin_Recovery'Val (Int (NF - 8));
-            C.Yaw_Spin_Threshold := Integer (Int (NF - 7));
-            C.Overflow_Protected := Int (NF - 6) /= 0;
-            C.Dynamic_Notch := (Count  => Integer (Int (NF - 4)), Q => Integer (Int (NF - 3)),
-                                Min_Hz => Integer (Int (NF - 2)), Max_Hz => Integer (Int (NF - 1)));
+            C.Calibration_Duration := Integer (Int (T));
+            C.Movement_Threshold := Integer (Int (T + 1));
+            C.Offset_Yaw := Integer (Int (T + 2));
+            C.Check_Overflow := Overflow_Check'Val (Int (T + 3));
+            C.Yaw_Spin := Spin_Recovery'Val (Int (T + 4));
+            C.Yaw_Spin_Threshold := Integer (Int (T + 5));
+            C.Overflow_Protected := Int (T + 6) /= 0;
+            C.Dynamic_Notch := (Count  => Integer (Int (T + 8)), Q => Integer (Int (T + 9)),
+                                Min_Hz => Integer (Int (T + 10)), Max_Hz => Integer (Int (T + 11)));
+            C.RPM := (Harmonics     => Integer (Int (T + 13)),
+                      Weights       => (0 => Integer (Int (T + 14)), 1 => Integer (Int (T + 15)),
+                                        2 => Integer (Int (T + 16))),
+                      Min_Hz        => Integer (Int (T + 17)),
+                      Fade_Range_Hz => Integer (Int (T + 18)),
+                      Q             => Integer (Int (T + 19)));
+            C.Motors := Integer (Int (T + 20));
+            C.Motor_Telemetry := Int (T + 21) /= 0;
             Gyro_Settings := C;
             Init (Gyro_State, Gyro_Settings);
-            Init_Yaw_Spin_Recovery (Gyro_State, Gyro_Settings, Natural (Int (NF - 5)));
-            Record_Int ("gyroinit.dyn_active", Int (NF),
-                        Boolean'Pos (Gyro_State.Dyn.Active));
+            Init_Yaw_Spin_Recovery (Gyro_State, Gyro_Settings, Natural (Int (T + 7)));
+            Record_Int ("gyroinit.dyn_active", Int (T + 12), Boolean'Pos (Gyro_State.Dyn.Active));
+            Record_Int ("gyroinit.rpm_harmonics", Int (T + 22), Integer_64 (Gyro_State.RPM.Harmonics));
+            Record_Result ("gyroinit.rpm_max_hz", Bits (T + 23), To_Bits (Gyro_State.RPM.Max_Hz));
+            Record_Int ("gyroinit.rpm_updates", Int (T + 24), Integer_64 (Gyro_State.RPM.Updates_Per_Loop));
+            Gyro_Motor_Hz := (others => 0.0);
+            Gyro_Dt_Scale := 1.0;
             Record_Int ("gyroinit.downsample", Int (25), Boolean'Pos (Gyro_State.Downsample_Filter));
             Record_Int ("gyroinit.lpf1_kind", Int (K), Stage_Kind (Gyro_State.Lowpass1 (Adaflight.Axes.Roll)));
             K := K + 1;
@@ -1588,7 +1604,7 @@ procedure Vector_Check is
             Record_Int ("gyroinit.dyn_min", Int (K + 1), Integer_64 (Gyro_State.Dyn_LPF_Min));
             Record_Int ("gyroinit.dyn_max", Int (K + 2), Integer_64 (Gyro_State.Dyn_LPF_Max));
             Record_Int ("gyroinit.dyn_expo", Int (K + 3), Integer_64 (Gyro_State.Dyn_LPF_Expo));
-            if K + 3 /= NF - 13 then
+            if K + 3 /= T - 1 then
                Put_Line ("gyroinit: settings end at" & Integer'Image (K + 3) & " of" & Integer'Image (NF) & " fields");
                Failures := Failures + 1;
             end if;
@@ -1609,14 +1625,16 @@ procedure Vector_Check is
                Gyro_Cal_Samples := Gyro_Cal_Samples + 1;
                if Gyro_Cal_Samples mod Gyro_Denom = 0 then
                   Filter (Gyro_State, Gyro_Settings,
-                          Interfaces.Unsigned_32 (Gyro_Cal_Samples * Gyro_Settings.Sample_Time_Us), 0);
+                          Interfaces.Unsigned_32 (Gyro_Cal_Samples * Gyro_Settings.Sample_Time_Us), 0,
+                          Gyro_Motor_Hz, Gyro_Dt_Scale);
                end if;
                K := K + 3;
             end loop;
          end;
       elsif Name = "gyrocaldone" then
          Filter (Gyro_State, Gyro_Settings,
-                 Interfaces.Unsigned_32 (Gyro_Cal_Samples * Gyro_Settings.Sample_Time_Us), 0);
+                 Interfaces.Unsigned_32 (Gyro_Cal_Samples * Gyro_Settings.Sample_Time_Us), 0,
+                 Gyro_Motor_Hz, Gyro_Dt_Scale);
          Record_Int ("gyrocaldone.samples", Int (3), Integer_64 (Gyro_Cal_Samples));
          for A in Adaflight.Axes.Axis loop
             Record_Result ("gyrocaldone.zero", Bits (4 + Adaflight.Axes.Axis'Pos (A)), To_Bits (Gyro_State.Zero (A)));
@@ -1629,7 +1647,7 @@ procedure Vector_Check is
          Gyro_Now_Us := Interfaces.Unsigned_32 (Gyro_Cal_Samples * Gyro_Settings.Sample_Time_Us);
       elsif Name = "gyrostep" then
          declare
-            K   : Positive := 7;
+            K   : Positive := 16;
             Thr : constant Float := Flt (4);
             Finished : Boolean;
             procedure Expect_Float (N : String; Actual : Float) is
@@ -1638,6 +1656,10 @@ procedure Vector_Check is
                K := K + 1;
             end Expect_Float;
          begin
+            Gyro_Dt_Scale := Flt (7);
+            for M in Adaflight.RPM_Filter.Motor_Index loop
+               Gyro_Motor_Hz (M) := Flt (8 + M);
+            end loop;
             if Thr >= 0.0 then
                Update_Dynamic_Lowpass (Gyro_State, Gyro_Settings, Thr);
             end if;
@@ -1651,7 +1673,7 @@ procedure Vector_Check is
                K := K + 3;
             end loop;
             Gyro_Now_Us := Gyro_Now_Us + Interfaces.Unsigned_32 (Gyro_Settings.Loop_Time_Us);
-            Filter (Gyro_State, Gyro_Settings, Gyro_Now_Us, Natural (Int (6)));
+            Filter (Gyro_State, Gyro_Settings, Gyro_Now_Us, Natural (Int (6)), Gyro_Motor_Hz, Gyro_Dt_Scale);
             for A in Adaflight.Axes.Axis loop
                Expect_Float ("rate", Gyro_State.Rate (A));
             end loop;
@@ -1675,7 +1697,18 @@ procedure Vector_Check is
                end loop;
             end loop;
             Record_Int ("gyrostep.max_center", Int (K), Integer_64 (Gyro_State.Dyn.Max_Center));
-            if K /= NF then
+            Record_Int ("gyrostep.rpm_motor", Int (K + 1), Integer_64 (Gyro_State.RPM.Motor));
+            Record_Int ("gyrostep.rpm_harmonic", Int (K + 2), Integer_64 (Gyro_State.RPM.Harmonic_Index));
+            K := K + 3;
+            if Gyro_State.RPM.Harmonics > 0 then
+               Expect_Float ("rpm_f", Gyro_State.RPM.Notches (0, 0).F);
+               Expect_Float ("rpm_a1", Gyro_State.RPM.Notches (0, 0).A1);
+               Expect_Float ("rpm_a2", Gyro_State.RPM.Notches (0, 0).A2);
+               Expect_Float ("rpm_wq", Gyro_State.RPM.Notches (0, 0).WQ);
+            else
+               K := K + 4;
+            end if;
+            if K /= NF + 1 then
                Put_Line ("gyrostep: consumed" & Integer'Image (K) & " of" & Integer'Image (NF) & " fields");
                Failures := Failures + 1;
             end if;

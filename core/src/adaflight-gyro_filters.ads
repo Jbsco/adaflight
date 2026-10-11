@@ -1,9 +1,10 @@
 --  The gyro: the zero offset calibration with its movement check, then per
 --  sensor sample the zeroed, aligned, and scaled rate accumulated at the
 --  sensor rate with the optional second lowpass as the downsampler, then per
---  loop the two notches, the first lowpass with its dynamic cutoff, the
---  overflow and yaw spin detection, and the lowpass that feeds the attitude
---  estimate, in the operation order of the reference.
+--  loop the RPM notches, the two static notches, the first lowpass with its
+--  dynamic cutoff, the dynamic notches, the overflow and yaw spin detection,
+--  and the lowpass that feeds the attitude estimate, in the operation order
+--  of the reference.
 
 with Adaflight.Clock;
 with Adaflight.Axes; use Adaflight.Axes;
@@ -15,6 +16,7 @@ with Adaflight.PID_Filters;
 with Adaflight.Sensor_Alignment;
 with Adaflight.Vectors;
 with Adaflight.Dyn_Notch;
+with Adaflight.RPM_Filter;
 
 package Adaflight.Gyro_Filters with SPARK_Mode, Pure is
 
@@ -60,6 +62,9 @@ package Adaflight.Gyro_Filters with SPARK_Mode, Pure is
       Yaw_Spin             : Spin_Recovery := Auto;
       Yaw_Spin_Threshold   : Spin_Threshold := 1_950;
       Dynamic_Notch        : Dyn_Notch.Settings;
+      RPM                  : RPM_Filter.Settings;
+      Motors               : RPM_Filter.Motor_Count := 4;
+      Motor_Telemetry      : Boolean := False;
    end record
      with Dynamic_Predicate =>
        (Settings.LPF1_Dyn_Min_Hz = 0 or else Settings.LPF1_Dyn_Min_Hz <= Settings.LPF1_Dyn_Max_Hz)
@@ -115,6 +120,7 @@ package Adaflight.Gyro_Filters with SPARK_Mode, Pure is
       Yaw_Spin_Detected : Boolean := False;
       Yaw_Spin_Time_Us  : Time_Us := 0;
       Dyn               : Dyn_Notch.State;
+      RPM               : RPM_Filter.State;
    end record
      with Dynamic_Predicate =>
        Vectors.Bounded (State.Sensor_Rotation, 2.0) and then Vectors.Bounded (State.Board_Rotation, 2.0);
@@ -144,12 +150,16 @@ package Adaflight.Gyro_Filters with SPARK_Mode, Pure is
    --  check, when the reference sounds its tone.
    procedure Accumulate (S : in out State; C : Settings; Sample : Raw_Vector; Finished : out Boolean);
 
-   --  One loop: the downsampled rate through the notches, the lowpass, and
+   --  One loop: the downsampled rates through the RPM notches at the motors'
+   --  frequencies, then each through the static notches, the lowpass, and
    --  the dynamic notches, the dynamic notch update, the overflow and yaw
    --  spin checks, and the attitude lowpass while no overflow is detected.
    --  The throttle percent gates the dynamic notch's record of its highest
-   --  center.
-   procedure Filter (S : in out State; C : Settings; Now_Us : Time_Us; Throttle_Percent : Natural);
+   --  center; the cycle multiplier corrects the RPM notch period to the
+   --  loop's measured period.
+   procedure Filter
+     (S : in out State; C : Settings; Now_Us : Time_Us; Throttle_Percent : Natural;
+      Motor_Hz : RPM_Filter.Motor_Frequencies; Dt_Scale : RPM_Filter.Cycle_Multiplier);
 
    --  The first lowpass follows the throttle, as the mixer requests.
    procedure Update_Dynamic_Lowpass (S : in out State; C : Settings; Throttle : Unit_Interval);
