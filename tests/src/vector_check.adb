@@ -93,6 +93,8 @@ with Adaflight.Nav_Trail;
 with Adaflight.GPS_Frames;
 with Adaflight.GPS_Link;
 with Adaflight.UBX_Config;
+with Adaflight.Position_Control;
+with Adaflight.Position_Hold;
 
 procedure Vector_Check is
 
@@ -7580,6 +7582,177 @@ procedure Vector_Check is
       end if;
    end Check_Posest_Line;
 
+   PH_State    : Adaflight.Position_Hold.State;
+   PH_Settings : Adaflight.Position_Hold.Settings;
+   PC_Settings : Adaflight.Position_Control.Settings;
+
+   procedure Check_Poshold_Line is
+      use Adaflight.Position_Control;
+      Name : constant String := Str (1);
+   begin
+      if Name = "phinit" then
+         PC_Settings := (Position_P       => Integer (Int (3)),
+                         Position_I       => Integer (Int (4)),
+                         Position_D       => Integer (Int (5)),
+                         Position_A       => Integer (Int (6)),
+                         Position_F       => Integer (Int (7)),
+                         Position_Cutoff  => Integer (Int (8)),
+                         Stop_Threshold   => Integer (Int (9)),
+                         Max_Angle        => Integer (Int (10)),
+                         Drag_Coefficient => Integer (Int (11)),
+                         Max_Velocity     => Integer (Int (12)),
+                         Stick_Deadband   => Integer (Int (13)),
+                         Yaw_P            => Integer (Int (14)),
+                         Max_Yaw_Rate     => Integer (Int (15)),
+                         Yaw_Reversed     => Int (16) /= 0);
+         PH_Settings := (Deadband => Integer (Int (17)));
+         Adaflight.Position_Hold.Init (PH_State, PH_Settings, PC_Settings);
+         Record_Result ("phinit.kp", Bits (20), To_Bits (PH_State.Control.Pid.Kp));
+         Record_Result ("phinit.ki", Bits (21), To_Bits (PH_State.Control.Pid.Ki));
+         Record_Result ("phinit.kd", Bits (22), To_Bits (PH_State.Control.Pid.Kd));
+         Record_Result ("phinit.ka", Bits (23), To_Bits (PH_State.Control.Pid.Ka));
+         Record_Result ("phinit.kf", Bits (24), To_Bits (PH_State.Control.Pid.Kf));
+         Record_Result ("phinit.kdrag", Bits (25), To_Bits (PH_State.Control.Pid.K_Drag));
+         Record_Result ("phinit.yawkp", Bits (26), To_Bits (PH_State.Control.Yaw_Kp));
+         Record_Result ("phinit.maxangle", Bits (27), To_Bits (PH_State.Control.Max_Angle));
+         Record_Result ("phinit.lpfdt", Bits (28), To_Bits (PH_State.Control.Lpf_Dt_S));
+         Record_Result ("phinit.lpfk", Bits (29), To_Bits (PH_State.Control.F_East.K));
+      elsif Name = "phstep" then
+         declare
+            Inp       : Inputs;
+            K         : Positive := 33;
+            Enable_XY : Boolean;
+            Event     : constant Integer_64 := Int (28);
+            Ev_A      : constant Float := Flt (29);
+            Ev_B      : constant Float := Flt (30);
+            Ev_C      : constant Boolean := Int (31) /= 0;
+            procedure Expect_Float (N : String; Actual : Float) is
+            begin
+               Record_Result ("phstep." & N, Bits (K), To_Bits (Actual));
+               K := K + 1;
+            end Expect_Float;
+            procedure Expect_Int (N : String; Actual : Integer_64) is
+            begin
+               Record_Int ("phstep." & N, Int (K), Actual);
+               K := K + 1;
+            end Expect_Int;
+            procedure Expect_Bool (N : String; Actual : Boolean) is
+            begin
+               Expect_Int (N, Boolean'Pos (Actual));
+            end Expect_Bool;
+            procedure Expect_PT3 (N : String; F : Adaflight.Filters.PT3) is
+            begin
+               Expect_Float (N & ".state", F.State);
+               Expect_Float (N & ".state1", F.State1);
+               Expect_Float (N & ".state2", F.State2);
+               Expect_Float (N & ".k", F.K);
+            end Expect_PT3;
+         begin
+            Inp.Armed := Int (4) /= 0;
+            Inp.Failsafe_Active := Int (5) /= 0;
+            Inp.Pos_Hold_Mode := Int (6) /= 0;
+            Inp.Rescue_Mode := Int (7) /= 0;
+            Inp.Autopilot_Mode := Int (8) /= 0;
+            Inp.Mag_Mode := Int (9) /= 0;
+            Inp.Interval_Us := Interfaces.Integer_32 (Int (10));
+            Inp.Position := (X => Flt (11), Y => Flt (12));
+            Inp.Velocity := (X => Flt (13), Y => Flt (14));
+            Inp.Acceleration := (X => Flt (15), Y => Flt (16));
+            Inp.Valid_XY := Int (17) /= 0;
+            Inp.Heading_Required := Int (18) /= 0;
+            Inp.Yaw := Integer (Int (19));
+            Inp.Heading_Valid := Int (20) /= 0;
+            Inp.Setpoint_Pitch := Flt (21);
+            Inp.Setpoint_Roll := Flt (22);
+            Inp.Max_Rate_Pitch := Flt (23);
+            Inp.Max_Rate_Roll := Flt (24);
+            Inp.Yaw_Command := Flt (25);
+            Inp.Deflection_Pitch := Flt (26);
+            Inp.Deflection_Roll := Flt (27);
+            case Event is
+               when 1 => Set_Target_Velocity (PH_State.Control, (X => Ev_A, Y => Ev_B), Ev_C);
+               when 2 => Set_Yaw_Target (PH_State.Control, Ev_A);
+               when 3 => Set_Heading_Recovery (PH_State.Control, Ev_C, Ev_A);
+               when 4 => Set_Force_Level_Park (PH_State.Control, Ev_C);
+               when 5 => Set_Yaw_Rate_Limit (PH_State.Control, Ev_A);
+               when 6 => Set_Heading_Recovery (PH_State.Control, Ev_C, 35.0);
+               when 7 => Disable_Yaw_Control (PH_State.Control);
+               when others => null;
+            end case;
+            Adaflight.Position_Hold.Update (PH_State, PC_Settings, Inp, Enable_XY);
+            Update_Heading_Hold (PH_State.Control, PC_Settings, Inp);
+            Record_Int ("phstep.enable_xy", Int (32), Boolean'Pos (Enable_XY));
+            Expect_Float ("angle_roll", PH_State.Control.Angle_Roll);
+            Expect_Float ("angle_pitch", PH_State.Control.Angle_Pitch);
+            Expect_Float ("yaw_rate", PH_State.Control.Yaw_Rate_Dps);
+            Expect_Bool ("yaw_active", PH_State.Control.Yaw_Active);
+            Expect_Float ("attenuator", PH_State.Control.Yaw_Attenuator);
+            Expect_Int ("reason", Integer_64 (PH_State.Control.Yaw_Disable_Reason));
+            Expect_Bool ("rate_limited", PH_State.Control.Yaw_Rate_Limit > 0.0);
+            Expect_Bool ("hold_heading_valid", PH_State.Control.Hold_Heading_Valid);
+            Expect_Float ("hold_heading", PH_State.Control.Hold_Heading_Deg);
+            Expect_Float ("external_target", PH_State.Control.External_Yaw_Target);
+            Expect_Float ("yaw_rate_limit", PH_State.Control.Yaw_Rate_Limit);
+            Expect_Bool ("position_held", PH_State.Control.Position_Held);
+            Expect_Float ("target_x", PH_State.Control.Target_Position.X);
+            Expect_Float ("target_y", PH_State.Control.Target_Position.Y);
+            Expect_Float ("target_vel_x", PH_State.Control.Target_Velocity.X);
+            Expect_Float ("target_vel_y", PH_State.Control.Target_Velocity.Y);
+            Expect_Float ("prev_target_x", PH_State.Control.Previous_Target.X);
+            Expect_Float ("prev_target_y", PH_State.Control.Previous_Target.Y);
+            Expect_Float ("start_x", PH_State.Control.Hold_Start.X);
+            Expect_Float ("start_y", PH_State.Control.Hold_Start.Y);
+            Expect_Float ("error_x", PH_State.Control.Distance_Error.X);
+            Expect_Float ("error_y", PH_State.Control.Distance_Error.Y);
+            Expect_Float ("integral_x", PH_State.Control.Distance_Integral.X);
+            Expect_Float ("integral_y", PH_State.Control.Distance_Integral.Y);
+            Expect_Float ("prev_vel_x", PH_State.Control.Previous_Velocity.X);
+            Expect_Float ("prev_vel_y", PH_State.Control.Previous_Velocity.Y);
+            Expect_PT3 ("f_east", PH_State.Control.F_East);
+            Expect_PT3 ("f_north", PH_State.Control.F_North);
+            Expect_Float ("lpf_dt", PH_State.Control.Lpf_Dt_S);
+            Expect_Float ("sanity", PH_State.Control.Sanity_Distance);
+            Expect_Float ("violation", PH_State.Control.Sanity_Violation_S);
+            Expect_Float ("violation_free", PH_State.Control.Violation_Free_S);
+            Expect_Bool ("retry_used", PH_State.Control.Sanity_Retry_Used);
+            Expect_Bool ("sticks", PH_State.Control.Sticks_Active);
+            Expect_Bool ("was_sticks", PH_State.Control.Was_Sticks_Active);
+            Expect_Float ("speed", PH_State.Control.Speed_XY);
+            Expect_Float ("trend", PH_State.Control.Speed_Trend);
+            Expect_Bool ("slowing", PH_State.Control.Speed_Slowing);
+            Expect_Bool ("braking", PH_State.Control.Braking);
+            Expect_Float ("braking_time", PH_State.Control.Braking_Time_S);
+            Expect_Float ("entry_x", PH_State.Control.Braking_Entry_Direction.X);
+            Expect_Float ("entry_y", PH_State.Control.Braking_Entry_Direction.Y);
+            Expect_Float ("exit_speed", PH_State.Control.Braking_Exit_Speed);
+            Expect_Int ("anchor", Integer_64 (Anchor_Mode'Pos (PH_State.Control.Anchor)));
+            Expect_Int ("ipolicy", Integer_64 (Integral_Policy'Pos (PH_State.Control.I_Policy)));
+            Expect_Int ("mode", (case PH_State.Control.Mode is
+                                   when Settled_Hold => 0, when Braking => 1, when Stick_Velocity => 2,
+                                   when Rescue_Velocity => 6));
+            Expect_Bool ("abort", PH_State.Control.Abort_Requested);
+            Expect_Bool ("heading_recovery", PH_State.Control.Heading_Recovery);
+            Expect_Float ("recovery_pitch", PH_State.Control.Heading_Recovery_Pitch);
+            Expect_Bool ("force_level_park", PH_State.Control.Force_Level_Park);
+            Expect_Bool ("was_saturated", PH_State.Control.Was_Angle_Saturated);
+            Expect_Bool ("enabled", PH_State.Enabled);
+            Expect_Bool ("control_ok", PH_State.Control_Ok);
+            Expect_Bool ("sensors_ok", PH_State.Sensors_Ok);
+            Expect_Bool ("failure", Adaflight.Position_Hold.Failure (PH_State, Inp));
+            Expect_Bool ("ready", Adaflight.Position_Hold.Ready (Inp));
+            Expect_Bool ("in_control", Adaflight.Position_Hold.In_Control (PH_State));
+            Expect_Bool ("yaw_control_active", Yaw_Control_Active (PH_State.Control, Inp));
+            if K /= NF + 1 then
+               Put_Line ("phstep: consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
+               Failures := Failures + 1;
+            end if;
+         end;
+      else
+         Put_Line ("unknown poshold case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Poshold_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -7728,6 +7901,8 @@ procedure Vector_Check is
                   Check_GPS_Link_Line;
                elsif Kind = "posest" then
                   Check_Posest_Line;
+               elsif Kind = "poshold" then
+                  Check_Poshold_Line;
                else
                   Check_PID_Line;
                end if;
@@ -7811,6 +7986,7 @@ begin
    Run (Dir & "/ubxcfg.csv", "ubxcfg");
    Run (Dir & "/gpslink.csv", "gpslink");
    Run (Dir & "/posest.csv", "posest");
+   Run (Dir & "/poshold.csv", "poshold");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
