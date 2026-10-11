@@ -1,4 +1,5 @@
 with Adaflight.PWL;
+with Adaflight.Clock;
 
 package body Adaflight.PID_Controller with SPARK_Mode is
 
@@ -288,11 +289,110 @@ package body Adaflight.PID_Controller with SPARK_Mode is
       end if;
    end Attenuate_Yaw;
 
+   use type Interfaces.Integer_32;
+
+   Crash_Detection_Delay_Us : constant := 1_000_000;
+
+   --  Crash recovery once the delay after the detection has passed: the yaw
+   --  error held to its limit, roll and pitch levelled through the angle gain
+   --  while an accelerometer is present, the I term dropped, and the recovery
+   --  ended after its time limit or once the craft is slow and, with an
+   --  accelerometer, level.
+   procedure Handle_Crash_Recovery
+     (S : in out State; R : Runtime; Mode : Crash_Recovery_Mode; Inp : Inputs; A : Axis;
+      Gyro_Rate : Rate; Setpoint : in out Rate; Error_Rate : in out Float)
+     with Pre  => Error_Rate in -2.0 * Rate_Bound .. 2.0 * Rate_Bound,
+          Post => Error_Rate in -2.0 * Rate_Bound .. 2.0 * Rate_Bound
+   is
+      Since : constant Interfaces.Integer_32 := Clock.Elapsed (Inp.Now_Us, S.Crash_Detected_Us);
+   begin
+      if not S.In_Crash_Recovery or else Since <= R.Crash_Time_Delay_Us then
+         return;
+      end if;
+      if Mode = Beep then
+         S.Crash_Beep := True;
+      end if;
+      if A = Yaw then
+         Error_Rate := Constrain_F (Error_Rate, -R.Crash_Limit_Yaw, R.Crash_Limit_Yaw);
+      elsif Inp.Acc_Present then
+         declare
+            Error_Angle : constant Float range -210.0 .. 210.0 :=
+              Float (-(Inp.Attitude (A) - Inp.Trims (A))) / 10.0;
+         begin
+            Setpoint := Error_Angle * R.Angle_Gain;
+            Error_Rate := Setpoint - Gyro_Rate;
+         end;
+      end if;
+      S.Data (A).I := 0.0;
+      if Since > R.Crash_Time_Limit_Us
+        or else (Inp.Motor_Mix_Range < 1.0
+                 and then abs Inp.Gyro (Roll) < R.Crash_Recovery_Rate
+                 and then abs Inp.Gyro (Pitch) < R.Crash_Recovery_Rate
+                 and then abs Inp.Gyro (Yaw) < R.Crash_Recovery_Rate)
+      then
+         if Inp.Acc_Present then
+            if Interfaces.Integer_32 (abs (Inp.Attitude (Roll) - Inp.Trims (Roll))) < R.Crash_Recovery_Angle_Dd
+              and then Interfaces.Integer_32 (abs (Inp.Attitude (Pitch) - Inp.Trims (Pitch)))
+                       < R.Crash_Recovery_Angle_Dd
+            then
+               S.In_Crash_Recovery := False;
+               S.Crash_Beep := False;
+            end if;
+         else
+            S.In_Crash_Recovery := False;
+            S.Crash_Beep := False;
+         end if;
+      end if;
+   end Handle_Crash_Recovery;
+
+   --  Crash detection while armed with the gyro in range: a saturated mixer,
+   --  a D term delta and an error rate past their thresholds, and a setpoint
+   --  under its threshold start the recovery, or request the disarm when so
+   --  configured; a recovery still inside its delay ends when the error rate
+   --  drops or the setpoint rises, and any recovery ends when disarmed.
+   procedure Detect_Crash
+     (S : in out State; R : Runtime; Mode : Crash_Recovery_Mode; Inp : Inputs; A : Axis;
+      Delta_Rate : Signal; Error_Rate : Float)
+     with Post => (if not Inp.Armed and then Mode /= Off and then not Inp.Gyro_Overflow
+                   then not S.In_Crash_Recovery)
+   is
+   begin
+      if Mode = Off or else Inp.Gyro_Overflow then
+         return;
+      end if;
+      if Inp.Armed then
+         if Inp.Motor_Mix_Range >= 1.0 and then not S.In_Crash_Recovery
+           and then abs Delta_Rate > R.Crash_Dterm_Threshold
+           and then abs Error_Rate > R.Crash_Gyro_Threshold
+           and then abs Inp.Setpoint (A) < R.Crash_Setpoint_Threshold
+         then
+            if Mode = Disarm then
+               S.Crash_Disarm_Requested := True;
+            else
+               S.In_Crash_Recovery := True;
+               S.Crash_Detected_Us := Inp.Now_Us;
+            end if;
+         end if;
+         if S.In_Crash_Recovery
+           and then Clock.Elapsed (Inp.Now_Us, S.Crash_Detected_Us) < R.Crash_Time_Delay_Us
+           and then (abs Error_Rate < R.Crash_Gyro_Threshold
+                     or else abs Inp.Setpoint (A) > R.Crash_Setpoint_Threshold)
+         then
+            S.In_Crash_Recovery := False;
+            S.Crash_Beep := False;
+         end if;
+      elsif S.In_Crash_Recovery then
+         S.In_Crash_Recovery := False;
+         S.Crash_Beep := False;
+      end if;
+   end Detect_Crash;
+
    procedure Update (S : in out State; R : Runtime; P : Profile; Inp : Inputs) is
       Gyro_Dterm : Axis_Signals;
       Level      : Level_Kind := Level_Off;
       H          : Strength := 0.0;
    begin
+      S.Crash_Disarm_Requested := False;
       if Inp.Angle_Mode or else Inp.Horizon_Mode then
          Level := (if R.Level_Race_Mode then Level_Roll else Level_Roll_Pitch);
          if S.Level_Mode_Start_Us = 0 then
@@ -322,7 +422,7 @@ package body Adaflight.PID_Controller with SPARK_Mode is
          declare
             Setpoint       : Rate := Inp.Setpoint (A);
             Gyro_Rate      : constant Rate := Inp.Gyro (A);
-            Previous_Iterm : constant Iterm := S.Data (A).I;
+            Previous_Iterm : Iterm;
             Error_Rate     : Float;
             Iterm_Error    : Signal;
             Ki             : Float;
@@ -347,9 +447,13 @@ package body Adaflight.PID_Controller with SPARK_Mode is
                Setpoint_Delta := 0.0;
             end if;
             Error_Rate := Setpoint - Gyro_Rate;
+            Handle_Crash_Recovery (S, R, P.Crash_Recovery, Inp, A, Gyro_Rate, Setpoint, Error_Rate);
+            Previous_Iterm := S.Data (A).I;
             Iterm_Error := Error_Rate;
-            Apply_Iterm_Relax (S, A, R, Previous_Iterm, Gyro_Rate, Iterm_Error, Setpoint, Inp.Angle_Mode);
-            Error_Rate := Setpoint - Gyro_Rate;
+            if not S.In_Crash_Recovery then
+               Apply_Iterm_Relax (S, A, R, Previous_Iterm, Gyro_Rate, Iterm_Error, Setpoint, Inp.Angle_Mode);
+               Error_Rate := Setpoint - Gyro_Rate;
+            end if;
             Term := R.Coefficient (A).Kp * Error_Rate;
             S.Data (A).P := Saturate (Term * TPA_Factor_Of (S, P.TPA_Terms, Term_P));
             if A = Yaw then
@@ -379,6 +483,9 @@ package body Adaflight.PID_Controller with SPARK_Mode is
                   Range_Out  : Signal;
                   Smoothed   : Signal;
                begin
+                  if Clock.Elapsed (Inp.Now_Us, S.Level_Mode_Start_Us) > Crash_Detection_Delay_Us then
+                     Detect_Crash (S, R, P.Crash_Recovery, Inp, A, Gyro_Delta, Error_Rate);
+                  end if;
                   if R.D_Max_Percent (A) > 1.0 then
                      PT2_Apply (S.Filters.D_Max_Range (A), Gyro_Delta, Range_Out);
                      declare
@@ -412,7 +519,7 @@ package body Adaflight.PID_Controller with SPARK_Mode is
               Saturate (S.Data (A).P + S.Data (A).I + S.Data (A).D + S.Data (A).F);
          end;
       end loop;
-      if not S.Stabilisation_Enabled then
+      if not S.Stabilisation_Enabled or else Inp.Gyro_Overflow then
          for A in Axis loop
             S.Data (A) := (others => 0.0);
          end loop;

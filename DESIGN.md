@@ -424,3 +424,21 @@ tangent there grows without bound and turns negative past a quarter turn. The sh
 bank updated per loop is the reference's rounded-up quotient, held to its type by a clamp
 no loop time reaches. The recorded vectors keep the period ratio at or under one, so the
 tangent guard is not exercised by a vector; the others change none.
+
+## D29. Crash recovery inside the rate loop (2026-10-09)
+
+The rate loop carries the reference's crash recovery where the reference keeps it: the
+handling right after the error rate is formed, and the detection inside the D term once the
+loop has run a second past the last entry into a level mode. The loop takes the arming
+state, the accelerometer's presence, the gyro overflow, and the mixer's motor range as
+inputs, because the arming, sensor, and mixer units own them, and it reports the recovery
+state, the beeper request, and a disarm request that the arming unit consumes each loop.
+While recovering, the yaw error is held to its limit, roll and pitch are levelled through
+the angle gain when an accelerometer is present, the I term is dropped before it
+accumulates, and the iterm relax is skipped; the recovery ends after its time limit or once
+the craft is slow and, with an accelerometer, level. A gyro overflow zeroes every term, as
+the reference does for an overflow or a disabled stabilisation. The GPS rescue mode's
+enabling of the detection comes with the rescue port. Proof covers the setpoint the
+levelling forms from the attitude and trim ranges through the angle gain, which stays inside
+the rate type without a clamp, and the time comparisons through the wrapping clock
+difference. No vector deviates.
