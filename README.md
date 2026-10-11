@@ -34,11 +34,11 @@ states, the sensor and board alignment, the arming logic with launch control and
 takeoff prevention, the angle and horizon level modes, the position Kalman filter, the
 altitude estimator, the altitude hold, the in-flight adjustments, the simplified tuning
 of the PID gains, the cooperative scheduler, the beeper, the receiver's channel
-processing, and the SBUS, CRSF, SUMD, SUMH, IBUS, Spektrum, XBUS, Jeti EX Bus, Ghost, SRXL2 and FPORT protocols, and the MSP and MAVLink receivers.
+processing, and the SBUS, CRSF, SUMD, SUMH, IBUS, Spektrum, XBUS, Jeti EX Bus, Ghost, SRXL2 and FPORT protocols, the MSP and MAVLink receivers, and the MSP serial port.
 
-- The core proves at Silver and Gold: 5662 checks, nothing unproved, no
+- The core proves at Silver and Gold: 5843 checks, nothing unproved, no
   `pragma Assume`, no justified suppression (`gnatprove` 16.1.0, level 2).
-- The recorded vectors replay bit for bit: 284373 lines over 202 cases, every case
+- The recorded vectors replay bit for bit: 290393 lines over 204 cases, every case
   exact except the seventeen declared deviations in `DESIGN.md` D6.
 - No target builds yet. `ROADMAP.md` carries the parity inventory and the phases.
 
