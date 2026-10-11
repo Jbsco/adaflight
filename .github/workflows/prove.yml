@@ -1,10 +1,11 @@
 name: SPARK Proofs
 
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
+  schedule:
+    # The whole core, nightly, at 03:00 Mountain time.
+    - cron: '0 9 * * *'
   workflow_dispatch:
 
 # A new push to a branch supersedes the proof run of its previous tip.
@@ -19,6 +20,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # The unit selection diffs against main, which needs the history.
+          fetch-depth: 0
 
       - name: Cache Alire
         uses: actions/cache@v4
@@ -47,13 +51,34 @@ jobs:
           alr -n build --stop-after=post-fetch || true
           alr -n exec -- gnatprove --version
 
+      # A pull request proves the units it changed and the units that depend on a
+      # changed specification; main is proven and the branch holds its tip, so the
+      # rest is proven already. The nightly run proves the whole core.
+      - name: Select the units to prove
+        id: units
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git fetch -q origin main
+            python3 tools/changed-units.py origin/main > units.txt
+          else
+            ls core/src/*.adb | xargs -n1 basename > units.txt
+          fi
+          echo "count=$(wc -l < units.txt)" >> "$GITHUB_OUTPUT"
+          cat units.txt
+
       # Every run proves from a fresh session. A kept session replays the
       # stored verdicts of an earlier run against the changed units.
       - name: Run SPARK proofs
+        if: steps.units.outputs.count != '0'
         env:
           PROVE_JOBS: 4
+          PROVE_SWITCHES: --timeout=900
         run: |
           set -o pipefail
-          bash prove.do 2>&1 | tee prove-output.log
+          PROVE_UNITS="$(tr '\n' ' ' < units.txt)" bash prove.do 2>&1 | tee prove-output.log
           grep -q "core 100% proved" prove-output.log
           grep -q "(0 pragma Assume, 0 justified" prove-output.log
+
+      - name: No unit changed
+        if: steps.units.outputs.count == '0'
+        run: echo "no core unit changed; the proof of main stands"

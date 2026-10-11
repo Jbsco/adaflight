@@ -68,6 +68,8 @@ A change is finished when `verify.do` is green.
 - Every unit in `core/` is SPARK and proves free of run-time errors, except the one body
   outside SPARK that `DESIGN.md` D15 names. The proof gate counts such bodies on every run.
 - No `pragma Assume` and no justified suppression. `prove.do` prints both counts.
+- A pull request proves the units it changed and the units that depend on a changed
+  specification (`tools/changed-units.py`). A nightly run proves the whole core.
 - A ported function keeps the operation order of its Betaflight original, so the host
   build reproduces its results bit for bit. The vector checker reports the distance in
   representable values for every case.
