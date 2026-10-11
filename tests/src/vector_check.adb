@@ -66,6 +66,7 @@ with Adaflight.FPORT;
 with Adaflight.MAVLink;
 with Adaflight.MSP_Port;
 with Adaflight.ExpressLRS;
+with Adaflight.ExpressLRS_Telemetry;
 
 procedure Vector_Check is
 
@@ -4894,6 +4895,113 @@ procedure Vector_Check is
       end if;
    end Check_ELRS_Line;
 
+   TLM_Sender   : Adaflight.ExpressLRS_Telemetry.Sender;
+   TLM_Receiver : Adaflight.ExpressLRS_Telemetry.Receiver;
+
+   procedure Check_Telemetry_Line is
+      use Adaflight.ExpressLRS_Telemetry;
+      Name : constant String := Str (1);
+      K    : Positive := 1;
+      procedure Expect_Next (N : String; Actual : Integer_64) is
+      begin
+         Record_Int (Name & "." & N, Int (K), Actual);
+         K := K + 1;
+      end Expect_Next;
+      procedure Expect_State is
+      begin
+         Expect_Next ("state", Sender_State'Pos (TLM_Sender.State));
+         Expect_Next ("offset", Integer_64 (TLM_Sender.Offset));
+         Expect_Next ("bytes_last", Integer_64 (TLM_Sender.Bytes_Last_Payload));
+         Expect_Next ("package", Integer_64 (TLM_Sender.Current_Package));
+         Expect_Next ("wait_until", Boolean'Pos (TLM_Sender.Wait_Until_Confirm));
+         Expect_Next ("wait_count", Integer_64 (TLM_Sender.Wait_Count));
+         Expect_Next ("max_wait", Integer_64 (TLM_Sender.Max_Wait_Count));
+         Expect_Next ("active", Boolean'Pos (Is_Active (TLM_Sender)));
+         Expect_Next ("msp_offset", Integer_64 (TLM_Receiver.Offset));
+         Expect_Next ("msp_package", Integer_64 (TLM_Receiver.Current_Package));
+         Expect_Next ("msp_confirm", Boolean'Pos (TLM_Receiver.Confirm));
+         Expect_Next ("msp_finished", Boolean'Pos (Has_Finished (TLM_Receiver)));
+         Record_Result (Name & ".msp_digest", Bits (K),
+                        FNV_Update (FNV_Offset_Basis, TLM_Receiver.Data (0 .. TLM_Receiver.Length - 1)));
+         K := K + 1;
+         if K /= NF + 1 then
+            Put_Line (Name & ": consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
+            Failures := Failures + 1;
+         end if;
+      end Expect_State;
+   begin
+      if Name = "tlminit" then
+         Reset_Sender (TLM_Sender);
+         TLM_Receiver := (others => <>);
+         Set_Receive_Length (TLM_Receiver, MSP_Buffer_Size);
+         K := 3;
+         Expect_State;
+      elsif Name = "tlmstep" then
+         declare
+            Op : constant Integer_64 := Int (4);
+         begin
+            K := 5;
+            case Op is
+               when 0 =>
+                  declare
+                     Len  : constant Natural := Integer (Int (K));
+                     Data : Byte_Array (0 .. Frame_Max - 1);
+                  begin
+                     for J in 0 .. Frame_Max - 1 loop
+                        Data (J) := Byte ((Integer (Int (2)) * 7 + Integer (Int (3)) + 13 * J) mod 256);
+                     end loop;
+                     Set_Data (TLM_Sender, Data (0 .. Len - 1));
+                     K := K + 1;
+                  end;
+               when 1 =>
+                  declare
+                     Max_Len : constant Chunk_Length := Integer (Int (K));
+                     Out_Data : Chunk;
+                     Index    : Byte;
+                  begin
+                     K := K + 2;
+                     Current_Payload (TLM_Sender, Out_Data, Max_Len, Index);
+                     Expect_Next ("index", Integer_64 (Index));
+                     Expect_Next ("bytes_last", Integer_64 (TLM_Sender.Bytes_Last_Payload));
+                     for B in 0 .. TLM_Sender.Bytes_Last_Payload - 1 loop
+                        Expect_Next ("byte", Integer_64 (Out_Data (B)));
+                     end loop;
+                  end;
+               when 2 =>
+                  if Int (K) >= 0 then
+                     Confirm (TLM_Sender, Int (K) /= 0);
+                  end if;
+                  K := K + 1;
+               when 3 =>
+                  Update_Rate (TLM_Sender, Integer (Int (K)), Integer (Int (K + 1)));
+                  K := K + 2;
+               when 4 =>
+                  TLM_Receiver.Data := (others => 0);
+                  Set_Receive_Length (TLM_Receiver, Integer (Int (K)));
+                  K := K + 1;
+               when 5 =>
+                  declare
+                     Payload : Chunk;
+                  begin
+                     for B in 0 .. Bytes_Per_Call - 1 loop
+                        Payload (B) := Byte (Int (K + 1 + B));
+                     end loop;
+                     Receive (TLM_Receiver, Byte (Int (K)), Payload);
+                     K := K + 1 + Bytes_Per_Call;
+                  end;
+               when 6 =>
+                  Unlock (TLM_Receiver);
+               when others =>
+                  Reset_Receiver (TLM_Receiver);
+            end case;
+            Expect_State;
+         end;
+      else
+         Put_Line ("unknown telemetry case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Telemetry_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -4986,6 +5094,8 @@ procedure Vector_Check is
                   Check_MSP_Serial_Line;
                elsif Kind = "elrs" then
                   Check_ELRS_Line;
+               elsif Kind = "elrstlm" then
+                  Check_Telemetry_Line;
                else
                   Check_PID_Line;
                end if;
@@ -5041,6 +5151,7 @@ begin
    Run (Dir & "/mavlink.csv", "mavlink");
    Run (Dir & "/mspserial.csv", "mspserial");
    Run (Dir & "/elrs.csv", "elrs");
+   Run (Dir & "/elrstlm.csv", "elrstlm");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
