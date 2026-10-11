@@ -495,3 +495,21 @@ of a flight stays within a few million, so the guards sit far from the values th
 produces; the reference's return on an innovation covariance below a nanobillionth is kept
 as it is. The altitude estimator that feeds this filter from the barometer and the
 accelerometer comes next. No recorded vector reaches a guard.
+
+## D33. The altitude estimator from the barometer and the accelerometer (2026-10-09)
+
+`Adaflight.Altitude_Estimator` is the vertical axis of the reference's position estimator
+with the barometer and the accelerometer as its sources, in the reference's order per
+position task: a change of arming resets the filter, the barometer's offset and gate, and
+the smoothing; the vertical acceleration from the up row of the attitude rotation over the
+scaled counts, zero while disarmed, corrects the filter and the prediction advances it; a
+new barometer sample within its hold interval, less the offset taken from the first sample,
+passes the step gate and corrects position and velocity together, or position alone after
+ten rejections; and the validity, the trust, and the smoothed altitude and climb rate follow.
+The GPS, rangefinder, and optical flow sources, the ground effect scaling they drive, and
+the cross-calibration they anchor come with their ports; without an anchoring source the
+reference leaves the barometer's offset untouched, as this unit does. The estimator takes
+the sensors and the attitude as inputs because their units own them. Proof covers the
+vertical acceleration through typed products and the filter's bounds; the trust is one
+where the position variance is below zero, which no filter step produces, and the displayed
+altitude is held to the rounding range. No recorded vector reaches a guard.
