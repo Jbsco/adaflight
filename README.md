@@ -40,7 +40,7 @@ The core holds:
 
 The state of `main`:
 
-- The core proves at Silver and Gold: 4441 checks, nothing unproved, no
+- The core proves at Silver and Gold: 4445 checks, nothing unproved, no
   `pragma Assume`, no justified suppression (`gnatprove` 16.1.0, level 2).
 - The recorded vectors replay bit for bit: 165076 lines over 161 cases, every case
   exact except the fourteen declared deviations in `DESIGN.md` D6.
