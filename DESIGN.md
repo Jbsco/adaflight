@@ -1565,3 +1565,43 @@ while the GPS is the horizontal source. The altitude hold now takes its centimet
 the position filter. Distances and altitudes beyond the filter's state bound of 167 km are
 held at it; the oracle keeps the fixes within range and short of the antimeridian. Every
 recorded vector replays exactly, the earlier altitude vectors unchanged.
+## D82. Position hold with the autopilot's horizontal control (2026-10-11)
+
+`Adaflight.Position_Control` is the autopilot's horizontal controller and
+`Adaflight.Position_Hold` the mode around it. The hold engages from its flight mode or a
+rescue: the controller resets, captures the hold point, enters braking against the speed
+carried in, and asks the estimator for the horizontal axes; it releases with the sticks
+cleared and the yaw controller stood down. Each task reads the sticks against the deadband,
+unless a failsafe or a rescue holds them, and checks the sensors for a valid horizontal
+estimate and, where the estimator requires one, a heading, with a heading recovery standing
+in; sensors returning after a dropout re-anchor the hold where the craft is. The controller
+measures its interval between a quarter and four times the nominal and retunes the
+feedforward filters when it moves by a twentieth. A missing estimate, an abort or a forced
+level park fail the hold with the errors dropped; a heading recovery levels the roll and
+pitches forward instead. The ground speed and its half-second trend feed the braking stop
+and the fence. The mode follows the rescue, the sticks and the braking. A rescue flies the
+velocity the rescue sets, the target walking at it with the fence on the target and the
+integral accumulating. The sticks fly their velocity,
+turned from the body frame by the heading, with the distance error integrated from the
+velocity error while the integral freezes. Braking drags the target to the craft with the
+integral frozen until the speed falls under the configured fraction of the entry speed, the
+velocity reverses along the entry direction, or 1.2 seconds pass, then captures the point.
+The settled hold anchors to the point and integrates against the wind, with the target
+velocity zero outside a rescue. The fence is the greater of twenty metres and twice the
+ground speed: a settled hold beyond it keeps the previous lean until a second has passed,
+then spends the one re-anchor a clean ten seconds earns back, or levels out and fails; a
+brake beyond it moves the fence ahead of a craft still slowing and runs the same clock
+otherwise. The law per axis takes the error and its integral, each within twenty metres,
+the proportional and integral terms, damping on the velocity with a boost of a half per
+thousand centimetres a second less the drag, the acceleration term, and the feedforward
+from the target velocity through the same boosted gain and from its rate of change through
+its own, smoothed by a third order filter; the sum turns into the body frame by the heading
+and is held to the lean limit, and a saturated lean stops the virtual error from winding
+up. The yaw controller steers to the rescue's heading or holds the heading captured at
+engagement or where the pilot last left the yaw stick, ramped in over a second, held to the
+configured and any external rate limit, and reversed with the yaw setting; it stands down
+while disarmed, without a mode that wants it, or without a trusted heading, and the heading
+hold task drives it alone outside a hold or a rescue. The navigation modes, their yaw
+modes and the velocity buildup clamp come with the navigation port; there is no optical
+flow. A feedforward term beyond the signal bound and a target velocity beyond 2 to the 26
+centimetres per second are held at those bounds. Every recorded vector replays exactly.
