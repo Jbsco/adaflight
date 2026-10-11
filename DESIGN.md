@@ -1538,3 +1538,30 @@ distance over the local flat earth and the bearing use the maths approximations 
 wrapped coordinate difference (finding F58); the ENU distance vector stays with the position
 estimate. The task time budget that stops the byte loop belongs to the caller, which decides
 how many bytes a call takes. Every recorded vector replays exactly.
+## D81. The horizontal position estimate from the GPS (2026-10-11)
+
+`Adaflight.Position_Estimator` takes over the altitude estimator of D33 and adds the east
+and north filters of the earth frame. The horizontal axes run while armed and asked for, by
+the position hold or rescue mode or by a GPS fix under a horizontal source setting that
+allows the GPS; starting them resets the two filters and takes the origin from the fix at
+hand, or from the first fix after. The linear acceleration comes from the north, west and up
+rows of the attitude rotation over the scaled counts, east being the negated west row, and
+corrects and predicts the horizontal filters while a measurement is less than two seconds
+old, else discards their state and keeps the origin. A fix is fused when its solution count
+has advanced or within the hold interval its rate gives, the velocity before the position,
+each with a noise scaled by the reported accuracy between one and ten times its base. The
+east and north distances from the origin follow the longitude difference, wrapped in
+thirty-two bits (finding F58) and corrected across the antimeridian, scaled by the cosine of
+the home latitude and by the centimetres per unit, that constant rounded at each step as the
+C forms it. Under an altitude source that allows the GPS, the fix also corrects the vertical
+filter, velocity then position against the first GPS altitude, and the barometer then
+corrects position alone, since the GPS measures the vertical velocity; below the default
+barometer preference the fix anchors a slow calibration of the barometer offset toward the
+offset the estimate implies, at a time constant of two hundred seconds times the accuracy
+scale, while armed and both fed in the task. The validity of each plane needs a measurement
+within two seconds, the trust falls with the mean position variance, and each task raises
+the update events the altitude and position hold tasks take once. A heading is required
+while the GPS is the horizontal source. The altitude hold now takes its centimetre type from
+the position filter. Distances and altitudes beyond the filter's state bound of 167 km are
+held at it; the oracle keeps the fixes within range and short of the antimeridian. Every
+recorded vector replays exactly, the earlier altitude vectors unchanged.

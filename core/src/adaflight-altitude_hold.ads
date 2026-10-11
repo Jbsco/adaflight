@@ -5,12 +5,12 @@
 --  into a throttle fraction.
 with Interfaces;
 with Adaflight.Maths; use Adaflight.Maths;
-with Adaflight.Altitude_Estimator;
+with Adaflight.Position_Filter;
 
 package Adaflight.Altitude_Hold with SPARK_Mode is
    use type Interfaces.Integer_32;
    subtype Integer_32 is Interfaces.Integer_32;
-   subtype Altitude_Cm is Altitude_Estimator.Altitude_Cm;
+   subtype Altitude_Cm is Position_Filter.Value;
 
    --  The configuration interface's ranges: the hover throttle in
    --  microseconds (zero to capture it from the stick), the throttle limits,
