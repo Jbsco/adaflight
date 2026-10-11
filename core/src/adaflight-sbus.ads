@@ -24,6 +24,12 @@ package Adaflight.SBUS with SPARK_Mode is
    subtype Frame_Index is Natural range 0 .. Frame_Size - 1;
    type Frame_Bytes is array (Frame_Index) of Byte;
 
+   --  The twenty-two channel bytes and the flags byte that the SBUS frame
+   --  and the FPORT control frame both carry.
+   Block_Size : constant := 23;
+   subtype Block_Index is Natural range 0 .. Block_Size - 1;
+   type Channel_Block is array (Block_Index) of Byte;
+
    Begin_Byte          : constant := 16#0F#;
    Digital_Channel_Min : constant := 173;
    Digital_Channel_Max : constant := 1_812;
@@ -50,13 +56,20 @@ package Adaflight.SBUS with SPARK_Mode is
    --  byte, and the twenty-fifth byte completes it.
    procedure Receive_Byte (S : in out State; C : Serial_Word; Now_Us : Time_Us);
 
-   --  The frame's status when one is complete, with the channels decoded:
-   --  failsafe when the receiver flags it, dropped when it flags a signal
-   --  loss, and the frame's start kept as the frame time otherwise.
+   --  The channel block decoded: the sixteen eleven-bit channels from the
+   --  little-endian bit stream, the two digital channels from their flags,
+   --  and the status complete, with failsafe when the receiver flags it and
+   --  dropped when it flags a signal loss.
+   procedure Decode (Block : Channel_Block; Data : in out Channel_Data; Status : out Receiver.Frame_Report);
+
+   --  The frame's status when one is complete, with the channels decoded
+   --  and the frame's start kept as the frame time unless the receiver
+   --  flags failsafe or a signal loss.
    procedure Frame_Status (S : in out State; Status : out Receiver.Frame_Report);
 
-   --  The channel value in microseconds, as fitted to the X4R.
-   function Read_Raw (S : State; Ch : Channel) return Float is
-     (5.0 * Float (S.Data (Ch)) / 8.0 + 880.0);
+   --  A channel count in microseconds, as fitted to the X4R.
+   function Raw_Us (V : Channel_Value) return Float is (5.0 * Float (V) / 8.0 + 880.0);
+
+   function Read_Raw (S : State; Ch : Channel) return Float is (Raw_Us (S.Data (Ch)));
 
 end Adaflight.SBUS;
