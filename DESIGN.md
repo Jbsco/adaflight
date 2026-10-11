@@ -465,3 +465,18 @@ negative, where the reference's gain goes past one or through a division by zero
 nearest whole count of the bias is held to the offset range, where the reference wraps the
 rounded value into sixteen bits. The read interval the reference derives from the device's
 data rate belongs to the scheduler. No recorded vector reaches a guard.
+
+## D31. The compass heading in the attitude estimate (2026-10-09)
+
+The attitude estimator takes the compass field and a flag for a calibrated compass each
+update, since the compass unit owns both, and forms the reference's heading error: the
+field turned into the earth frame by the current rotation and normalized, then set against
+magnetic north in the ground plane, the north vector turned by the declination at
+configuration. The error is the sine of the angle between them while the field points
+forward, else the field's full ground-plane norm toward the shorter turn, and zero for a
+field within a tenth of a count. The Mahony update adds the error, scaled by the earth-up
+row of the rotation, to its error terms before the accelerometer's, in the reference's
+order. The result is held to four, where a unit field against a unit north reaches one, so
+the error terms keep their ranges; the ranges of the error and the integral step widened
+for the added term. The GPS course over ground that shares the term, and the compass's
+suppression of it, come with the GPS port. No recorded vector reaches the guard.

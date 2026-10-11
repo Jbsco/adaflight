@@ -19,11 +19,14 @@ package Adaflight.Attitude with SPARK_Mode is
       Small_Angle               : Natural range 0 .. 180 := 25;
       Throttle_Correction_Angle : Positive range 1 .. 900 := 800;
       Throttle_Correction_Value : Natural range 0 .. 150 := 0;
+      Mag_Declination           : Integer range -300 .. 300 := 0;
    end record;
 
    subtype Gain is Float range 0.0 .. 4.0;
    subtype Angle_Scale is Float range 0.0 .. 6.0e5;
    subtype Correction_Value is Natural range 0 .. 150;
+   subtype Unit_Vector2 is Vectors.Vector2
+     with Dynamic_Predicate => Vectors.Bounded (Unit_Vector2, 1.0);
 
    type Config is record
       Kp                   : Gain := 0.25;
@@ -31,6 +34,9 @@ package Adaflight.Attitude with SPARK_Mode is
       Small_Angle_Cos      : Cosine := 0.0;
       Throttle_Angle_Scale : Angle_Scale := 0.0;
       Throttle_Angle_Value : Correction_Value := 0;
+      --  Magnetic north in the ground plane, north and west, turned by the
+      --  declination.
+      North                : Unit_Vector2 := (X => 1.0, Y => 0.0);
    end record;
 
    function Configure (S : Settings) return Config;
@@ -83,10 +89,11 @@ package Adaflight.Attitude with SPARK_Mode is
        Vectors.Bounded (State.Rotation, Matrix_Bound)
        and then Vectors.Bounded (State.Integral, Signal_Bound);
 
-   --  Gyro rates in degrees per second and accelerometer readings in device
-   --  units within these bounds.
+   --  Gyro rates in degrees per second, accelerometer readings in device
+   --  units, and the compass field in counts within these bounds.
    Rate_Bound : constant := 2.0 ** 13;
    Acc_Bound  : constant := 2.0 ** 16;
+   Mag_Bound  : constant := 2.0 ** 22;
 
    procedure Init (S : out State);
 
@@ -97,11 +104,14 @@ package Adaflight.Attitude with SPARK_Mode is
       Gyro          : Vectors.Vector3;
       Acc           : Vectors.Vector3;
       Acc_Magnitude : Float;
+      Mag           : Vectors.Vector3;
+      Use_Mag       : Boolean;
       Armed         : Boolean;
       Angle_Mode    : Boolean
    ) with Pre => Vectors.Bounded (Gyro, Rate_Bound)
                  and then Vectors.Bounded (Acc, Acc_Bound)
-                 and then Acc_Magnitude in 0.0 .. 1.0e3;
+                 and then Acc_Magnitude in 0.0 .. 1.0e3
+                 and then Vectors.Bounded (Mag, Mag_Bound);
 
    function Cos_Tilt (S : State) return Float is
      (S.Rotation (Vectors.Z, Vectors.Z));
