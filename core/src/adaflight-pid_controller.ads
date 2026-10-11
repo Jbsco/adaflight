@@ -71,6 +71,12 @@ package Adaflight.PID_Controller with SPARK_Mode, Pure is
       Deflection                : Level_Deflections := (others => 0.0);
       Max_RC_Rate               : Level_Rates := (others => 670.0);
       Now_Us                    : Interfaces.Unsigned_32 := 0;
+      --  The crash recovery reads the arming state, the accelerometer's
+      --  presence, the gyro overflow, and the mixer's motor range.
+      Armed                     : Boolean := False;
+      Acc_Present               : Boolean := False;
+      Gyro_Overflow             : Boolean := False;
+      Motor_Mix_Range           : Signal := 0.0;
    end record;
 
    type State is record
@@ -89,6 +95,10 @@ package Adaflight.PID_Controller with SPARK_Mode, Pure is
       Angle_Yaw_Setpoint      : Rate := 0.0;
       Axis_In_Angle_Mode      : Axis_Flags := (others => False);
       Level_Mode_Start_Us     : Interfaces.Unsigned_32 := 0;
+      In_Crash_Recovery       : Boolean := False;
+      Crash_Detected_Us       : Interfaces.Unsigned_32 := 0;
+      Crash_Beep              : Boolean := False;
+      Crash_Disarm_Requested  : Boolean := False;
    end record;
 
    --  Prepares the controller from a profile and its runtime constants.
@@ -99,6 +109,8 @@ package Adaflight.PID_Controller with SPARK_Mode, Pure is
    procedure Update_Throttle_Terms (S : in out State; R : Runtime; Throttle : Unit_Interval);
 
    procedure Set_Stabilisation (S : in out State; Enabled : Boolean);
+
+   function Crash_Recovery_Active (S : State) return Boolean is (S.In_Crash_Recovery);
 
    --  Motor output shaped so that thrust grows with the command, and the
    --  inverse applied to the base throttle so hover is preserved.

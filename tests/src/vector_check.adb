@@ -1127,6 +1127,14 @@ procedure Vector_Check is
       if Step = 0 then
          Step_Profile := Profiles (Index);
          Step_Profile.TPA_Terms := TPA_Mode'Val (Integer'Value (Str (5)));
+         if NF >= 65 then
+            Step_Profile.Crash_Recovery := Crash_Recovery_Mode'Val (Int (51));
+            Step_Profile.Crash_Time := Integer (Int (52));
+            Step_Profile.Crash_Delay := Integer (Int (53));
+            Step_Profile.Crash_Gyro_Threshold := Integer (Int (54));
+            Step_Profile.Crash_Dterm_Threshold := Integer (Int (55));
+            Step_Profile.Crash_Setpoint_Threshold := Integer (Int (56));
+         end if;
          Configure (Step_Runtime, Step_Profile, Loop_Time, Has_Acc => False,
                     Serial_Rx_Is_CRSF => Profile_CRSF (Index));
          Init (Step_State, Step_Profile, Step_Runtime);
@@ -1150,6 +1158,13 @@ procedure Vector_Check is
          end loop;
          Inp.Now_Us := Interfaces.Unsigned_32 ((Step + 1) * Loop_Time);
       end if;
+      if NF >= 65 then
+         Inp.Now_Us := Interfaces.Unsigned_32 (Int (57));
+         Inp.Armed := Int (58) /= 0;
+         Inp.Acc_Present := Int (59) /= 0;
+         Inp.Gyro_Overflow := Int (60) /= 0;
+         Inp.Motor_Mix_Range := Flt (61);
+      end if;
       Update_Throttle_Terms (Step_State, Step_Runtime, Flt (17));
       Expect_Float ("tpa_factor", Step_State.TPA_Factor);
       Expect_Float ("anti_gravity_throttle_d", Step_State.Anti_Gravity_Throttle_D);
@@ -1169,6 +1184,14 @@ procedure Vector_Check is
             Record_Int ("pidstep.axis_in_angle_mode", Int (K), Boolean'Pos (Step_State.Axis_In_Angle_Mode (A)));
             K := K + 1;
          end loop;
+      end if;
+      if NF >= 65 then
+         K := 62;
+         Record_Int ("pidstep.in_crash_recovery", Int (K), Boolean'Pos (Step_State.In_Crash_Recovery));
+         Record_Int ("pidstep.crash_detected_us", Int (K + 1), Integer_64 (Step_State.Crash_Detected_Us));
+         Record_Int ("pidstep.crash_beep", Int (K + 2), Boolean'Pos (Step_State.Crash_Beep));
+         Record_Int ("pidstep.crash_disarm", Int (K + 3), Boolean'Pos (Step_State.Crash_Disarm_Requested));
+         K := K + 4;
       end if;
       if K /= NF + 1 then
          Put_Line ("pidstep: consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
