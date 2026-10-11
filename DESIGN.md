@@ -401,3 +401,26 @@ range above 250 Hz at a resolution under eight. The record of the highest center
 the reference's truncation of the center to a whole number. None of the guards changes a
 recorded vector. The slew of the notch at a loop slower than 500 microseconds is the
 reference's: the filter stays inactive.
+
+## D28. The RPM notches as a bank the gyro unit runs ahead of its static notches (2026-10-09)
+
+`Adaflight.RPM_Filter` holds one weighted notch per motor and harmonic over the three
+rates, the harmonic weights, and the schedule that moves a share of the bank to the motors'
+reported frequencies each loop. The gyro unit runs it on the downsampled rates before the
+static notches, in the reference's order, and takes the motors' frequencies and the loop's
+measured period ratio as inputs each loop, because the motor telemetry and the scheduler
+are outside it; the motor count and the telemetry flag join the gyro settings for the same
+reason. Proof covers the schedule's wrap over the harmonics and motors and the bounds of
+every coefficient for every loop time, motor count, and harmonic count at once, which a
+test can only sample. Three points differ from the reference's floats. The filter stays off
+when the minimum frequency is above the notch ceiling of the loop, a configuration the
+reference admits with a pid loop slower than 480000 divided by the minimum frequency, in
+microseconds (a 4 millisecond loop with a 150 Hz minimum), where its fade weight turns
+negative or infinite. The fade weight is formed from a margin that the clamp of the
+frequency to its range holds at or above zero, so the weight stays within one. The notch's
+warped frequency keeps the tangent domain of the maths unit, 1.51 radians, which a notch at
+the ceiling reaches only when the loop runs more than 0.125 percent slow; the reference's
+tangent there grows without bound and turns negative past a quarter turn. The share of the
+bank updated per loop is the reference's rounded-up quotient, held to its type by a clamp
+no loop time reaches. The recorded vectors keep the period ratio at or under one, so the
+tangent guard is not exercised by a vector; the others change none.
