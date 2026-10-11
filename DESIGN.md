@@ -23,6 +23,12 @@ Amended 2026-10-10: the first version of this entry allowed the name only in a R
 section of its own. That section is gone. The name now stands in the README's first
 paragraph and in this ledger, with the link.
 
+Amended 2026-10-11: the roadmap and the README's verification policy name Betaflight as
+well. A document written for readers says Betaflight where Betaflight is the subject,
+instead of sending the reader to the README for the name. This ledger keeps "the
+reference" as its short name for Betaflight at the pinned commit. The sanitization gate
+in `style.do` lists the documents allowed to carry the name.
+
 ## D3. Repository layout (2026-10-08)
 
 - `core/` is the SPARK library crate: hardware independent, proved, no platform code.

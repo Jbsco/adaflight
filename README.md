@@ -37,7 +37,9 @@ modes, the position Kalman filter, the altitude estimator, and the altitude hold
   `pragma Assume`, no justified suppression (`gnatprove` 16.1.0, level 2).
 - The recorded vectors replay bit for bit: 165076 lines over 161 cases, every case
   exact except the fourteen declared deviations in `DESIGN.md` D6.
-- No target builds yet. `ROADMAP.md` carries the parity inventory and the phases.
+- No target builds yet. `ROADMAP.md` carries the parity inventory, the phases, and the
+  question for after parity: whether a proved core leaves room on the F4 boards for
+  features Betaflight has to leave out of them today.
 
 ## Repository layout
 
@@ -66,13 +68,13 @@ A change is finished when `verify.do` is green.
 - Every unit in `core/` is SPARK and proves free of run-time errors, except the one body
   outside SPARK that `DESIGN.md` D15 names. The proof gate counts such bodies on every run.
 - No `pragma Assume` and no justified suppression. `prove.do` prints both counts.
-- A ported function keeps the operation order of the reference, so the host build
-  reproduces its results bit for bit. The vector checker reports the distance in
+- A ported function keeps the operation order of its Betaflight original, so the host
+  build reproduces its results bit for bit. The vector checker reports the distance in
   representable values for every case.
 - A deliberate deviation carries a tolerance in the checker and an entry in `DESIGN.md`.
-- The vectors under `tests/vectors` were recorded from a host build of the reference at
-  commit af0638839 by a tool outside this repository, so the checker holds the port to the
-  reference's exact results.
+- The vectors under `tests/vectors` were recorded from a host build of Betaflight at
+  commit af0638839 by a tool outside this repository, so the checker holds the port to
+  Betaflight's exact results.
 
 ## License
 

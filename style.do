@@ -43,9 +43,9 @@ if [ -n "$PATHS" ]; then
     FAIL=1
 fi
 LEAK=$(git ls-files -z | xargs -0 grep -nliE 'betaflight|cleanflight|inav|ema-gnc|lasp' 2>/dev/null \
-       | grep -v '^style.do$' | grep -v '^README.md$' | grep -v '^DESIGN.md$' || true)
+       | grep -v '^style.do$' | grep -v '^README.md$' | grep -v '^DESIGN.md$' | grep -v '^ROADMAP.md$' || true)
 if [ -n "$LEAK" ]; then
-    echo "  reference to another project outside the README and the design ledger:"
+    echo "  reference to another project outside the README, the roadmap and the design ledger:"
     echo "$LEAK" | sed 's/^/    /'
     FAIL=1
 fi
