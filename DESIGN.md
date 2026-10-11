@@ -1117,3 +1117,20 @@ receiver buffer before every pass, so its check before the schedule is always tr
 port has no such gate. The MSP buffer and the display port chunks stay with their units.
 Proof covers every frame against the room of the longest, the sixteen bit conversions, the
 angle reduction, and the slot and baud table indices. Every recorded vector replays exactly.
+## D60. The ESC telemetry over the serial line (2026-10-11)
+
+`Adaflight.ESC_Sensor` polls each motor in turn for the ten byte telemetry frame: a boot
+delay of five seconds, then a request for the motor in turn, then the reply decoded once
+complete and checked with the eight bit checksum over its first nine bytes, or the reading
+aged on a bad checksum or after a hundred milliseconds without a complete frame. The
+request itself is the caller's, so the unit reports it and the motor it is for. The byte
+receiver keeps bytes only while a frame is in flight. The readings hold the temperature,
+voltage, current, consumption and electrical rate of each motor with the age of the
+reading, and the combined reading takes the oldest age, the highest temperature, the
+average voltage and rate, and the summed current and consumption, cached until a reading
+changes. The reference counts timeouts and checksum errors only inside its debug mode
+(finding F52), so the port carries no such counters. An outside source may replace a
+motor's reading or age it. Current and consumption from such a source are bounded by a
+predicate so the sums over every motor fit, which the serial frames' sixteen bit values
+always do. The frame fill never passes the frame size by the same predicate. Every recorded
+vector replays exactly.
