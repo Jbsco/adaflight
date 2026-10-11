@@ -49,7 +49,7 @@ commit the vectors were recorded from. The adaflight column counts Ada lines on 
 |---|---|---|---|
 | common (maths, filters, vectors, DFT, tables, encodings, buffers, codecs) | 5481 | 4587 | maths with exp and log, filters, vectors, sliding DFT, piecewise-linear tables, integrity codes, encodings, bit arrays, stream buffers, Huffman encoder, GPS coordinates, sensor alignment, color conversion, the chirp generator, and the wrapping clock difference proved and vector-checked; type conversion and the string helpers open |
 | flight (pid, mixer, imu, failsafe, rescue, nav) | 17554 | 4298 | PID profile, runtime configuration, filter initialization, the rate loop, the throttle-side features, the crash recovery, the launch control, the motor mixer, the attitude estimator with the compass heading, the failsafe state machine, the angle and horizon level modes, the dynamic notch filter, the RPM filter, the position Kalman filter, the altitude estimator from the barometer and the accelerometer, and the altitude hold with the autopilot's altitude controller proved and vector-checked; the horizontal position estimate, position hold, rescue, and navigation open |
-| fc (core loop, rc, modes, adjustments, tasks) | 8228 | 1880 | rate curves, the RC command path (deadbands, throttle curve, setpoints, feedforward, smoothing), the runtime modes, and the arming logic (flags and disable reasons, throttle status, stick arming and commands, automatic disarm, flight mode selection) proved and vector-checked; the rest of the core loop, adjustments, and tasks open |
+| fc (core loop, rc, modes, adjustments, tasks) | 8228 | 2056 | rate curves, the RC command path (deadbands, throttle curve, setpoints, feedforward, smoothing), the runtime modes, and the arming logic (flags and disable reasons, throttle status, stick arming and commands, automatic disarm, flight mode selection, launch control activation, runaway takeoff prevention) proved and vector-checked; the rest of the core loop, adjustments, and tasks open |
 | sensors | 8893 | 1817 | gyro calibration, filtering chain, and overflow and yaw spin detection, the dynamic and RPM notches, the accelerometer path, the barometer altitude, the compass with its bias calibration, the battery meters and states, and the sensor and board alignment proved and vector-checked |
 | scheduler | 1144 | 0 | Phase 3 |
 | rx | 16964 | 0 | Phase 4 |
@@ -57,4 +57,4 @@ commit the vectors were recorded from. The adaflight column counts Ada lines on 
 | blackbox, osd, cms, telemetry, io | 59977 | 0 | Phase 6 |
 | drivers, target, build, msc | 55927 | 0 | Phase 7 |
 | platform (STM32, AT32, APM32, PICO, ESP32, SITL) | not counted | 0 | Phase 7 |
-| total measured | 195545 | 12597 | |
+| total measured | 195545 | 12773 | |

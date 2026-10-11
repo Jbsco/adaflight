@@ -33,17 +33,18 @@ The core holds:
 - the gyro calibration, filtering chain, dynamic notch, RPM filter, and full-scale
   detections
 - the attitude estimator with the compass heading, and the angle and horizon level modes
-- the failsafe state machine, the runtime modes, and the arming logic
+- the failsafe state machine, the runtime modes, and the arming logic with launch
+  control and runaway takeoff prevention
 - the accelerometer path, the barometer altitude, the compass with its bias calibration,
   the battery meters and states, and the sensor and board alignment
 - the position Kalman filter, the altitude estimator, and the altitude hold
 
 The state of `main`:
 
-- The core proves at Silver and Gold: 4445 checks, nothing unproved, no
+- The core proves at Silver and Gold: 4456 checks, nothing unproved, no
   `pragma Assume`, no justified suppression (`gnatprove` 16.1.0, level 2).
 - The recorded vectors replay bit for bit: 165076 lines over 161 cases, every case
-  exact except the fourteen declared deviations in `DESIGN.md` D6.
+  exact except the fifteen declared deviations in `DESIGN.md` D6.
 - No target builds yet. `ROADMAP.md` carries the parity inventory, the phases, and the
   question for after parity: whether a proved core leaves room on the F4 boards for
   features Betaflight has to leave out for these targets.

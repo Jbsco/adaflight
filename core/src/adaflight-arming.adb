@@ -1,4 +1,5 @@
 package body Adaflight.Arming with SPARK_Mode is
+   use type Interfaces.Integer_64;
 
    Arm_Delay_Ms               : constant := 500;
    Stick_Delay_Ms             : constant := 50;
@@ -250,6 +251,24 @@ package body Adaflight.Arming with SPARK_Mode is
    -- Try_Arm --
    -------------
 
+   --  Launch control arms only by a switch, with the launch box active, the
+   --  motors running or airmode on, no 3D, and no flight mode selected.
+   function Can_Use_Launch_Control (S : State; C : Settings; M : Modes.State) return Boolean is
+     (not C.Fixed_Wing and then not S.Sticks_Arm and then Modes.Is_Active (M, Modes.Launch_Control)
+      and then (not C.Motor_Stop or else M.Airmode_Enabled) and then not C.Three_D
+      and then (for all F in Flight_Mode => not S.Flight_Modes (F)));
+
+   Runaway_Sum_Threshold      : constant Float := 600.0;
+   Runaway_Activate_Delay_Us  : constant := 75_000;
+   Runaway_Stick_Percent      : constant Float := 15.0;
+   Runaway_Sum_Limit          : constant Float := 100.0;
+   Runaway_Gyro_Limit_RP      : constant := 15;
+   Runaway_Gyro_Limit_Yaw     : constant := 50;
+   Runaway_High_Throttle      : constant := 75;
+
+   function Sticks_Active (Sensed : Inputs; Limit : Float) return Boolean is
+     (for some A in Axes.Axis => Sensed.Deflection_Abs (A) * 100.0 >= Limit);
+
    procedure Try_Arm (
       S        : in out State;
       C        : Settings;
@@ -269,7 +288,13 @@ package body Adaflight.Arming with SPARK_Mode is
          if S.Armed then
             return;
          end if;
+         if Can_Use_Launch_Control (S, C, M) and then S.Launch = Launch_Disabled then
+            S.Launch := Launch_Active;
+         end if;
          S.Armed := True;
+         S.Runaway_Deactivate_Us := 0;
+         S.Runaway_Accumulated_Us := 0;
+         S.Runaway_Trigger_Us := 0;
          if Modes.Condition_Present (Conds, Modes.Prearm) then
             S.Armed_With_Prearm := True;
          end if;
@@ -293,6 +318,58 @@ package body Adaflight.Arming with SPARK_Mode is
    -- Process_Rx --
    ----------------
 
+   --  Stable flight ends the runaway check: the throttle above the
+   --  deactivation level with the sticks active, or above twice it, with every
+   --  sum under its limit for the delay, halved at high throttle, summed over
+   --  the stable spells.
+   procedure Deactivate_Runaway_Check
+     (S : in out State; C : Settings; M : Modes.State; Sensed : Inputs; Percent : Natural;
+      Throttle_Active : Boolean; Now_Us : Time_Us)
+     with Pre  => Percent <= 100,
+          Post => S.Armed = S.Armed'Old and then S.Launch = S.Launch'Old and then S.Disabled = S.Disabled'Old
+   is
+      In_Stable_Flight : Boolean := False;
+   begin
+      if not C.Motor_Stop or else M.Airmode_Enabled or else Throttle_Active then
+         declare
+            Low : constant Natural := C.Runaway_Deactivate_Throttle;
+            Mid : constant Natural := Integer'Min (Low * 2, Runaway_High_Throttle);
+         begin
+            if ((Percent >= Low and then Sticks_Active (Sensed, Runaway_Stick_Percent)) or else Percent >= Mid)
+              and then abs Sensed.PID_Sums (Axes.Pitch) < Runaway_Sum_Limit
+              and then abs Sensed.PID_Sums (Axes.Roll) < Runaway_Sum_Limit
+              and then abs Sensed.PID_Sums (Axes.Yaw) < Runaway_Sum_Limit
+            then
+               In_Stable_Flight := True;
+               if S.Runaway_Deactivate_Us = 0 then
+                  S.Runaway_Deactivate_Us := Now_Us;
+               end if;
+            end if;
+         end;
+      end if;
+      if In_Stable_Flight then
+         if S.Runaway_Deactivate_Us = 0 then
+            S.Runaway_Deactivate_Us := Now_Us;
+         end if;
+         declare
+            Delay_Ms : constant Natural := (if Percent >= Runaway_High_Throttle then C.Runaway_Deactivate_Delay / 2
+                                            else C.Runaway_Deactivate_Delay);
+            Stable_Us : constant Interfaces.Integer_64 :=
+              Interfaces.Integer_64 (Clock.Elapsed (Now_Us, S.Runaway_Deactivate_Us))
+              + Interfaces.Integer_64 (S.Runaway_Accumulated_Us);
+         begin
+            if Stable_Us > Interfaces.Integer_64 (Delay_Ms) * 1_000 then
+               S.Runaway_Check_Disabled := True;
+            end if;
+         end;
+      else
+         if S.Runaway_Deactivate_Us /= 0 then
+            S.Runaway_Accumulated_Us := S.Runaway_Accumulated_Us + (Now_Us - S.Runaway_Deactivate_Us);
+         end if;
+         S.Runaway_Deactivate_Us := 0;
+      end if;
+   end Deactivate_Runaway_Check;
+
    procedure Process_Rx (
       S        : in out State;
       C        : Settings;
@@ -305,6 +382,7 @@ package body Adaflight.Arming with SPARK_Mode is
       Three_D_Switch  : constant Boolean := Modes.Is_Active (M, Modes.Three_D);
       Throttle_Active : constant Boolean := Throttle_Status (C, Channels, Three_D_Switch) /= Throttle_Low;
       Percent         : constant Natural := abs Throttle_Percent (C, Channels, Three_D_Switch);
+      In_Launch       : constant Boolean := S.Launch = Launch_Active;
    begin
       if C.Three_D and then not Modes.Is_Active (M, Modes.Arm) then
          Disarm (S, Switch, Now_Us, Out_Step);
@@ -316,21 +394,77 @@ package body Adaflight.Arming with SPARK_Mode is
          if Percent >= C.Airmode_Threshold then
             S.Throttle_Raised := True;
          end if;
-         if M.Airmode_Enabled then
+         if M.Airmode_Enabled and then not In_Launch then
             S.Airmode_Active := S.Throttle_Raised;
          end if;
       else
          S.Throttle_Raised := False;
          S.Airmode_Active := False;
       end if;
-      if S.Armed and then (S.Airmode_Active or else Throttle_Active or else C.Fixed_Wing) then
+      if S.Armed and then (S.Airmode_Active or else Throttle_Active or else In_Launch or else C.Fixed_Wing) then
          Out_Step.Iterm_Reset := False;
          Out_Step.Stabilisation_On := True;
       else
          Out_Step.Iterm_Reset := True;
          Out_Step.Stabilisation_On := C.PID_At_Min_Throttle;
       end if;
+      if S.Armed and then C.Runaway_Prevention and then not S.Runaway_Check_Disabled and then not C.Fixed_Wing then
+         Deactivate_Runaway_Check (S, C, M, Sensed, Percent, Throttle_Active, Now_Us);
+      end if;
+      if S.Armed then
+         if In_Launch and then Percent > C.Launch_Trigger_Throttle then
+            S.Launch := Launch_Triggered;
+            Bump (Out_Step.Iterm_Resets);
+         end if;
+      elsif S.Launch = Launch_Triggered then
+         if C.Launch_Trigger_Reset and then not Modes.Is_Active (M, Modes.Launch_Control) then
+            S.Launch := Launch_Disabled;
+         end if;
+      else
+         S.Launch := Launch_Disabled;
+      end if;
    end Process_Rx;
+
+   ----------------------
+   -- Process_PID_Loop --
+   ----------------------
+
+   procedure Process_PID_Loop (
+      S        : in out State;
+      C        : Settings;
+      M        : Modes.State;
+      Sensed   : Inputs;
+      Channels : RC_Command.Channel_Values;
+      Now_Us   : Time_Us;
+      Out_Step : in out Outputs
+   ) is
+      Three_D_Switch  : constant Boolean := Modes.Is_Active (M, Modes.Three_D);
+      Throttle_Active : constant Boolean := Throttle_Status (C, Channels, Three_D_Switch) /= Throttle_Low;
+   begin
+      if S.Armed and then not C.Fixed_Wing and then C.Runaway_Prevention and then not S.Runaway_Check_Disabled
+        and then not S.Flight_Modes (GPS_Rescue_Mode)
+        and then (not C.Motor_Stop or else M.Airmode_Enabled or else Throttle_Active)
+      then
+         if (abs Sensed.PID_Sums (Axes.Pitch) >= Runaway_Sum_Threshold
+             or else abs Sensed.PID_Sums (Axes.Roll) >= Runaway_Sum_Threshold
+             or else abs Sensed.PID_Sums (Axes.Yaw) >= Runaway_Sum_Threshold)
+           and then (Sensed.Gyro_Abs_Dps (Axes.Pitch) > Runaway_Gyro_Limit_RP
+                     or else Sensed.Gyro_Abs_Dps (Axes.Roll) > Runaway_Gyro_Limit_RP
+                     or else Sensed.Gyro_Abs_Dps (Axes.Yaw) > Runaway_Gyro_Limit_Yaw)
+         then
+            if S.Runaway_Trigger_Us = 0 then
+               S.Runaway_Trigger_Us := Now_Us + Runaway_Activate_Delay_Us;
+            elsif Clock.Elapsed (Now_Us, S.Runaway_Trigger_Us) > 0 then
+               S.Disabled (Runaway_Disarm) := True;
+               Disarm (S, Runaway_Takeoff, Now_Us, Out_Step);
+            end if;
+         else
+            S.Runaway_Trigger_Us := 0;
+         end if;
+      else
+         S.Runaway_Trigger_Us := 0;
+      end if;
+   end Process_PID_Loop;
 
    ---------------------
    -- Stick_Positions --

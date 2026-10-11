@@ -5,6 +5,7 @@
 --  throttle, and the flight modes the mode boxes select.
 with Interfaces;
 with Adaflight.Clock;
+with Adaflight.Axes;
 with Adaflight.Modes;
 with Adaflight.RC_Command;
 
@@ -75,6 +76,7 @@ package Adaflight.Arming with SPARK_Mode is
       Stabilisation_On          : Boolean := False;
       Iterm_Reset               : Boolean := True;
       Anti_Gravity              : Boolean := False;
+      Iterm_Resets              : Small_Count := 0;
    end record;
 
    type Sensor_Set is record
@@ -105,8 +107,23 @@ package Adaflight.Arming with SPARK_Mode is
       Fixed_Wing                 : Boolean := False;
       PID_At_Min_Throttle        : Boolean := True;
       Launch_Control_Angle_Limit : Natural range 0 .. 90 := 0;
+      --  The launch trigger throttle in percent and whether a trigger resets
+      --  with the switch; the runaway takeoff prevention with its
+      --  deactivation delay in milliseconds and throttle in percent.
+      Launch_Trigger_Throttle    : Natural range 0 .. 100 := 20;
+      Launch_Trigger_Reset       : Boolean := True;
+      Runaway_Prevention         : Boolean := True;
+      Runaway_Deactivate_Delay   : Natural range 100 .. 1_000 := 500;
+      Runaway_Deactivate_Throttle : Natural range 0 .. 100 := 20;
       Sensors                    : Sensor_Set;
    end record;
+
+   --  The controller's sums, the gyro's absolute rates to the whole degree
+   --  per second, and the sticks' absolute deflections, as the runaway check
+   --  reads them.
+   type Axis_Sums is array (Axes.Axis) of Float range -2.0 ** 32 .. 2.0 ** 32;
+   type Axis_Rates_Dps is array (Axes.Axis) of Natural range 0 .. 65_535;
+   type Axis_Deflections is array (Axes.Axis) of Float range 0.0 .. 1.0;
 
    --  What the other units report at each pass.
    type Inputs is record
@@ -123,7 +140,12 @@ package Adaflight.Arming with SPARK_Mode is
       First_Arm_Gyro_Cal_Running : Boolean := False;
       Motor_Protocol_Enabled     : Boolean := True;
       Headfree_Offset_Set        : Boolean := True;
+      PID_Sums                   : Axis_Sums := (others => 0.0);
+      Gyro_Abs_Dps               : Axis_Rates_Dps := (others => 0);
+      Deflection_Abs             : Axis_Deflections := (others => 0.0);
    end record;
+
+   type Launch_State is (Launch_Disabled, Launch_Active, Launch_Triggered);
 
    subtype Reason_Index is Natural range 0 .. 30;
    subtype Hold_Time is Integer range -32_768 .. 32_767;
@@ -149,7 +171,14 @@ package Adaflight.Arming with SPARK_Mode is
       Disarm_Ticks         : Small_Count := 0;
       Do_Not_Repeat        : Boolean := False;
       Pending_Trim_Save    : Boolean := False;
+      Launch               : Launch_State := Launch_Disabled;
+      Runaway_Check_Disabled : Boolean := False;
+      Runaway_Deactivate_Us  : Time_Us := 0;
+      Runaway_Accumulated_Us : Time_Us := 0;
+      Runaway_Trigger_Us     : Time_Us := 0;
    end record;
+
+   function Launch_Control_Active (S : State) return Boolean is (S.Launch = Launch_Active);
 
    function Arming_Disabled (S : State) return Boolean is
      (for some R in Disable_Reason => S.Disabled (R));
@@ -193,8 +222,21 @@ package Adaflight.Arming with SPARK_Mode is
       Out_Step : in out Outputs
    );
 
+   --  The controller pass: the runaway takeoff detection on the controller's
+   --  sums and the gyro's rates while armed, which disarms after its delay.
+   procedure Process_PID_Loop (
+      S        : in out State;
+      C        : Settings;
+      M        : Modes.State;
+      Sensed   : Inputs;
+      Channels : RC_Command.Channel_Values;
+      Now_Us   : Time_Us;
+      Out_Step : in out Outputs
+   );
+
    --  The receiver pass: the 3D switch disarm, the failsafe monitoring start,
-   --  the raised throttle and airmode latches, and the stabilisation state.
+   --  the raised throttle and airmode latches, the stabilisation state, the
+   --  runaway check's deactivation in stable flight, and the launch trigger.
    procedure Process_Rx (
       S        : in out State;
       C        : Settings;
