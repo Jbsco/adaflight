@@ -68,6 +68,7 @@ with Adaflight.MSP_Port;
 with Adaflight.ExpressLRS;
 with Adaflight.ExpressLRS_Telemetry;
 with Adaflight.Blackbox_Encoding;
+with Adaflight.Text;
 
 procedure Vector_Check is
 
@@ -5105,6 +5106,117 @@ procedure Vector_Check is
       Expect_Bytes;
    end Check_Blackbox_Line;
 
+   function Hex_String (I : Positive) return String is
+      S : constant String := Str (I);
+      R : String (1 .. S'Length / 2);
+   begin
+      for K in R'Range loop
+         R (K) := Character'Val (Natural'Value ("16#" & S (S'First + 2 * (K - 1) .. S'First + 2 * K - 1) & "#"));
+      end loop;
+      return R;
+   end Hex_String;
+
+   procedure Record_Text (Name : String; Expected, Actual : String) is
+   begin
+      if Expected'Length /= Actual'Length then
+         Record_Int (Name & ".length", Integer_64 (Expected'Length), Integer_64 (Actual'Length));
+      else
+         for K in 0 .. Expected'Length - 1 loop
+            Record_Int (Name, Integer_64 (Character'Pos (Expected (Expected'First + K))),
+                        Integer_64 (Character'Pos (Actual (Actual'First + K))));
+         end loop;
+      end if;
+   end Record_Text;
+
+   Text_Buffer : String (1 .. 400) := (others => ' ');
+   Text_Pool   : String (1 .. 256) := (others => ' ');
+
+   procedure Check_Text_Line is
+      use Adaflight.Text;
+      Name   : constant String := Str (1);
+      Sub    : constant Integer_64 := Int (4);
+      Length : Natural := 0;
+   begin
+      if Name = "textnum" then
+         if Sub = 0 then
+            Put_Unsigned (Unsigned_32 (Int (5)), Adaflight.Text.Number_Base (Int (6)), Int (7) = 1,
+                          Text_Buffer, Length);
+            Record_Text (Name, Hex_String (8), Text_Buffer (1 .. Length));
+         elsif Sub = 1 then
+            Put_Integer (I32 (5), Text_Buffer, Length);
+            Record_Text (Name, Hex_String (6), Text_Buffer (1 .. Length));
+         else
+            Put_Integer_In_Base (I32 (5), Integer (Int (6)), Text_Buffer, Length);
+            Record_Text (Name, Hex_String (7), Text_Buffer (1 .. Length));
+         end if;
+      elsif Name = "textfixed" then
+         Put_Fixed (Flt (5), Text_Buffer, Length);
+         Record_Text (Name, Hex_String (6), Text_Buffer (1 .. Length));
+      elsif Name = "textfloat" then
+         Record_Result (Name, Bits (6), To_Bits (To_Float (Hex_String (5))));
+      elsif Name = "textcase" then
+         if Sub = 0 then
+            Record_Int (Name & ".count", Int (8),
+                        Integer_64 (Compare_Ignoring_Case (Hex_String (5), Hex_String (6), Natural (Int (7)))));
+         elsif Sub = 1 then
+            Record_Int (Name, Int (7), Integer_64 (Compare_Ignoring_Case (Hex_String (5), Hex_String (6))));
+         else
+            declare
+               H : constant String := Hex_String (5);
+               R : constant Natural := Find_Ignoring_Case (H, Hex_String (6));
+            begin
+               Record_Int (Name & ".find", Int (7), (if R = 0 then -1 else Integer_64 (R - H'First)));
+            end;
+         end if;
+      elsif Name = "textclass" then
+         declare
+            C : constant Character := Character'Val (Int (5));
+         begin
+            Record_Int (Name & ".alnum", Int (6), Boolean'Pos (Is_Alnum (C)));
+            Record_Int (Name & ".digit", Int (7), Boolean'Pos (Is_Digit (C)));
+            Record_Int (Name & ".upper", Int (8), Boolean'Pos (Is_Upper (C)));
+            Record_Int (Name & ".lower", Int (9), Boolean'Pos (Is_Lower (C)));
+            Record_Int (Name & ".space", Int (10), Boolean'Pos (Is_Space (C)));
+            Record_Int (Name & ".tolower", Int (11), Integer_64 (Character'Pos (To_Lower (C))));
+            Record_Int (Name & ".toupper", Int (12), Integer_64 (Character'Pos (To_Upper (C))));
+         end;
+      elsif Name = "textfmt" then
+         declare
+            Template : constant String := Hex_String (5);
+            Count    : constant Natural := Natural (Int (6));
+            Args     : Argument_List (1 .. 4);
+            K        : Positive := 7;
+            Pool_Len : Natural := 0;
+         begin
+            for J in 1 .. Count loop
+               case Int (K) is
+                  when 0 =>
+                     Args (J) := Int_Argument (I32 (K + 1));
+                  when 1 =>
+                     Args (J) := Unsigned_Argument (Unsigned_32 (Int (K + 1)));
+                  when 2 =>
+                     Args (J) := Char_Argument (Character'Val (Int (K + 1)));
+                  when others =>
+                     declare
+                        S : constant String := Hex_String (K + 1);
+                     begin
+                        Text_Pool (Pool_Len + 1 .. Pool_Len + S'Length) := S;
+                        Args (J) := Text_Argument (Pool_Len + 1, Pool_Len + S'Length);
+                        Pool_Len := Pool_Len + S'Length;
+                     end;
+               end case;
+               K := K + 2;
+            end loop;
+            Format (Template, Args (1 .. Count), Text_Pool (1 .. Pool_Len), Text_Buffer, Length);
+            Record_Int (Name & ".written", Int (K), Integer_64 (Length));
+            Record_Text (Name, Hex_String (K + 1), Text_Buffer (1 .. Length));
+         end;
+      else
+         Put_Line ("unknown text case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Text_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -5201,6 +5313,8 @@ procedure Vector_Check is
                   Check_Telemetry_Line;
                elsif Kind = "bbenc" then
                   Check_Blackbox_Line;
+               elsif Kind = "text" then
+                  Check_Text_Line;
                else
                   Check_PID_Line;
                end if;
@@ -5258,6 +5372,7 @@ begin
    Run (Dir & "/elrs.csv", "elrs");
    Run (Dir & "/elrstlm.csv", "elrstlm");
    Run (Dir & "/bbenc.csv", "bbenc");
+   Run (Dir & "/text.csv", "text");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
