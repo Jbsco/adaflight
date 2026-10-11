@@ -70,6 +70,7 @@ with Adaflight.ExpressLRS_Telemetry;
 with Adaflight.Blackbox_Encoding;
 with Adaflight.Text;
 with Adaflight.DShot;
+with Adaflight.CRSF_Telemetry;
 
 procedure Vector_Check is
 
@@ -5361,6 +5362,224 @@ procedure Vector_Check is
       end if;
    end Check_DShot_Line;
 
+   function Hex_Chars (I : Positive) return String is
+      S : constant String := Str (I);
+      R : String (1 .. S'Length / 2);
+   begin
+      for K in R'Range loop
+         R (K) := Character'Val (Natural'Value ("16#" & S (S'First + 2 * (K - 1) .. S'First + 2 * K - 1) & "#"));
+      end loop;
+      return R;
+   end Hex_Chars;
+
+   CRSF_Seq   : Integer_64 := -1;
+   CT_State : Adaflight.CRSF_Telemetry.Telemetry;
+   CRSF_Out   : Byte_Array (0 .. 1023) := (others => 0);
+
+   --  The sources start at field K in the order the generator prints them.
+   function CRSF_Sources (K : Positive) return Adaflight.CRSF_Telemetry.Sources is
+      use Adaflight.CRSF_Telemetry;
+      Src  : Sources;
+      Name : constant String := Hex_Chars (K + 61);
+   begin
+      Src.GPS := (Latitude => I32 (K), Longitude => I32 (K + 1), Altitude_Cm => I32 (K + 2),
+                  Ground_Speed => Interfaces.Unsigned_16 (Int (K + 3)),
+                  Ground_Course => Interfaces.Unsigned_16 (Int (K + 4)),
+                  Satellites => Interfaces.Unsigned_8 (Int (K + 5)), Fix => Int (K + 6) = 1,
+                  Time => Unsigned_32 (Int (K + 7)),
+                  Velocity_North => Interfaces.Integer_16 (Int (K + 8)),
+                  Velocity_East => Interfaces.Integer_16 (Int (K + 9)),
+                  Velocity_Down => Interfaces.Integer_16 (Int (K + 10)),
+                  Horizontal_Accuracy => Unsigned_32 (Int (K + 11)), Vertical_Accuracy => Unsigned_32 (Int (K + 12)),
+                  Speed_Accuracy => Unsigned_32 (Int (K + 13)), Heading_Accuracy => Unsigned_32 (Int (K + 14)),
+                  HDOP => Interfaces.Unsigned_16 (Int (K + 15)), VDOP => Interfaces.Unsigned_16 (Int (K + 16)),
+                  Date_Valid => Int (K + 17) = 1, Year => Interfaces.Unsigned_16 (Int (K + 18)),
+                  Month => Interfaces.Unsigned_8 (Int (K + 19)), Day => Interfaces.Unsigned_8 (Int (K + 20)),
+                  Hour => Interfaces.Unsigned_8 (Int (K + 21)), Minute => Interfaces.Unsigned_8 (Int (K + 22)),
+                  Second => Interfaces.Unsigned_8 (Int (K + 23)), Millisecond => Interfaces.Unsigned_16 (Int (K + 24)));
+      Src.Baro := (Pressure => I32 (K + 25), Temperature => I32 (K + 26), Altitude_Cm => Flt (K + 27));
+      Src.Vario := Interfaces.Integer_16 (Int (K + 28));
+      Src.Mag := (X => Flt (K + 29), Y => Flt (K + 30), Z => Flt (K + 31));
+      Src.Battery := (Legacy_Voltage => Interfaces.Unsigned_16 (Int (K + 32)),
+                      Cell_Voltage => Interfaces.Unsigned_16 (Int (K + 33)),
+                      Amperage => I32 (K + 34), Drawn_Mah => I32 (K + 35),
+                      Remaining_Percent => Interfaces.Unsigned_8 (Int (K + 36)),
+                      Report_Cell_Voltage => Int (K + 37) = 1);
+      Src.Attitude := (Pitch => Interfaces.Integer_16 (Int (K + 38)), Roll => Interfaces.Integer_16 (Int (K + 39)),
+                       Yaw => Interfaces.Integer_16 (Int (K + 40)));
+      Src.IMU := (Fresh => Int (K + 41) = 1, Gyro => (Flt (K + 42), Flt (K + 43), Flt (K + 44)),
+                  Acc => (Flt (K + 45), Flt (K + 46), Flt (K + 47)), Acc_1G_Reciprocal => Flt (K + 48),
+                  Temperature => Interfaces.Integer_16 (Int (K + 49)));
+      Src.Flight := (Mode_Flags => Interfaces.Unsigned_16 (Bits (K + 50)), Armed => Int (K + 51) = 1,
+                     Failsafe_Switch => Int (K + 52) = 1, Rescue_Switch => Int (K + 53) = 1,
+                     Rescue_Plan => Int (K + 54) = 1, Position_Hold_Failure => Int (K + 55) = 1,
+                     Airmode => Int (K + 56) = 1, Arming_Disabled => Int (K + 57) = 1,
+                     GPS_Feature => Int (K + 58) = 1, Rescue_Configured => Int (K + 59) = 1,
+                     Rescue_Min_Satellites => Interfaces.Unsigned_8 (Int (K + 60)));
+      Src.Name (1 .. Name'Length) := Name;
+      Src.Name_Last := Name'Length;
+      return Src;
+   end CRSF_Sources;
+
+   --  Compares the frames written between two stream positions with the
+   --  hex fields from K on, one frame per field, and returns the frame count.
+   function CRSF_Frames (Name : String; From, To : Natural; K : Positive) return Natural is
+      P     : Natural := From;
+      Count : Natural := 0;
+   begin
+      while P < To loop
+         declare
+            Len  : constant Natural := Natural (CRSF_Out (P + 1)) + 2;
+            Last : constant Natural := Natural'Min (P + Len - 1, To - 1);
+         begin
+            if K + Count <= NF then
+               Record_Bytes (Name, Hex_Bytes (K + Count), CRSF_Out (P .. Last));
+            else
+               Record_Int (Name & ".extra", 0, 1);
+            end if;
+            Count := Count + 1;
+            P := P + Len;
+         end;
+      end loop;
+      return Count;
+   end CRSF_Frames;
+
+   procedure Check_CRSF_Telemetry_Line is
+      use Adaflight.CRSF_Telemetry;
+      use type Interfaces.Unsigned_8;
+      use type Interfaces.Unsigned_16;
+      Name : constant String := Str (1);
+      S    : Adaflight.Stream_Buffers.Stream;
+   begin
+      if Int (2) /= CRSF_Seq then
+         CRSF_Seq := Int (2);
+         CT_State := (others => <>);
+      end if;
+      Adaflight.Stream_Buffers.Init (S, 0, 1024);
+      if Name = "crsfinit" then
+         declare
+            Mask : constant Integer_64 := Int (4);
+            Cfg  : constant Config :=
+              (Gyro_Present => Mask mod 2 = 1, Acc_Present => (Mask / 2) mod 2 = 1,
+               Baro_Present => (Mask / 4) mod 2 = 1,
+               Mag_Present => (Mask / 8) mod 2 = 1, Disabled_Kinds => Bits (5), Voltage_Configured => Int (7) = 1,
+               Amperage_Configured => Int (8) = 1, GPS_Feature => Int (9) = 1, Event_Driven => Int (10) = 1,
+               Use_Negotiated_Baud => Int (11) = 1, Inertial_Frames => Int (12) = 1, Telemetry_Feature => Int (13) = 1);
+            Count : constant Natural := Natural (Int (14));
+         begin
+            Init (CT_State, Cfg, True);
+            Record_Int (Name & ".count", Int (14), Integer_64 (CT_State.Count));
+            for J in 0 .. Natural'Min (Count, CT_State.Count) - 1 loop
+               Record_Int (Name & ".slot", Int_Hex (15 + J), Integer_64 (CT_State.Schedule (J)));
+            end loop;
+            Record_Int (Name & ".timed", Int_Hex (15 + Count), Integer_64 (CT_State.Timed));
+         end;
+      elsif Name = "crsfstep" then
+         declare
+            Now      : constant Unsigned_32 := Unsigned_32 (Int (4));
+            Src      : constant Sources := CRSF_Sources (11);
+            K        : constant Positive := 73;
+            Run      : Boolean;
+            New_Baud : Unsigned_32;
+            Mid      : Natural;
+            Count    : Natural;
+         begin
+            if Int (8) = 1 then
+               declare
+                  Rate    : constant Unsigned_32 := Unsigned_32 (Int (9));
+                  Payload : constant Byte_Array (0 .. 7) :=
+                    (Command_General, Command_Speed_Proposal, Byte (Int (10)),
+                     Byte (Interfaces.Shift_Right (Rate, 24) and 255), Byte (Interfaces.Shift_Right (Rate, 16) and 255),
+                     Byte (Interfaces.Shift_Right (Rate, 8) and 255), Byte (Rate and 255), 0);
+               begin
+                  Process_Command (CT_State, Payload);
+               end;
+            end if;
+            if Int (6) = 1 then
+               Schedule_Response (CT_State);
+            end if;
+            if Int (7) = 1 then
+               Schedule_Device_Info (CT_State);
+            end if;
+            Update_Check (CT_State, Now, Run);
+            Negotiate (CT_State, Now, CRSF_Out, S, New_Baud);
+            Mid := S.Next;
+            Update (CT_State, Now, Src, CRSF_Out, S);
+            Record_Int (Name & ".check", Int (K), Boolean'Pos (Run));
+            Record_Int (Name & ".negotiating", Int (K + 1), Boolean'Pos (Negotiation_In_Progress (CT_State)));
+            Record_Int (Name & ".desired", Int (K + 2), Integer_64 (Desired_Speed (CT_State)));
+            Record_Int (Name & ".v3", Int (K + 3), Boolean'Pos (CT_State.V3_Running));
+            Record_Int (Name & ".pending", Int (K + 4), Boolean'Pos (CT_State.Speed.Pending_Reply));
+            Record_Int (Name & ".baud", Int (K + 5), Integer_64 (New_Baud));
+            Record_Int (Name & ".devinfo", Int (K + 6), Boolean'Pos (CT_State.Device_Info_Pending));
+            Record_Int (Name & ".response", Int (K + 7), Boolean'Pos (CT_State.Response_Pending));
+            Count := CRSF_Frames (Name & ".frame", 0, S.Next, K + 10);
+            Record_Int (Name & ".negotiation_frames", Int (K + 8),
+                        Integer_64 (CRSF_Frames (Name & ".nframe", 0, Mid, K + 10)));
+            Record_Int (Name & ".frames", Int (K + 9), Integer_64 (Count));
+         end;
+      elsif Name = "crsfframe" then
+         declare
+            Kind : constant String := Str (4);
+            Src  : constant Sources := CRSF_Sources (5);
+            K    : Positive := 67;
+         begin
+            if Kind = "gps" then
+               Write_GPS (CRSF_Out, S, Src.GPS);
+            elsif Kind = "gpstime" then
+               Write_GPS_Time (CRSF_Out, S, Src.GPS);
+            elsif Kind = "gpsext" then
+               Write_GPS_Extended (CRSF_Out, S, Src.GPS);
+            elsif Kind = "vario" then
+               Write_Vario (CRSF_Out, S, Src.Vario);
+            elsif Kind = "baro" then
+               Write_Baro (CRSF_Out, S, Src.Baro);
+            elsif Kind = "mag" then
+               Write_Mag (CRSF_Out, S, Src.Mag);
+            elsif Kind = "battery" then
+               Write_Battery (CRSF_Out, S, Src.Battery);
+            elsif Kind = "altitude" then
+               Write_Altitude (CRSF_Out, S, Src.Baro, Src.Vario);
+            elsif Kind = "heartbeat" then
+               Write_Heartbeat (CRSF_Out, S);
+            elsif Kind = "ping" then
+               Write_Ping (CRSF_Out, S);
+            elsif Kind = "attitude" then
+               Write_Attitude (CRSF_Out, S, Src.Attitude);
+            elsif Kind = "flightmode" then
+               Write_Flight_Mode (CRSF_Out, S, Src.Flight, Src.GPS.Satellites, Src.GPS.Fix);
+            elsif Kind = "deviceinfo" then
+               Write_Device_Info (CRSF_Out, S, Src.Name (1 .. Src.Name_Last));
+            elsif Kind = "accgyro" then
+               Write_Inertial (CRSF_Out, S, Unsigned_32 (Int (67)), Src.IMU);
+               K := 68;
+            else
+               Put_Line ("unknown crsf frame " & Kind);
+               Failures := Failures + 1;
+            end if;
+            Record_Int (Name & "." & Kind & ".length", Int (K), Integer_64 (S.Next));
+            if S.Next > 0 then
+               Record_Bytes (Name & "." & Kind, Hex_Bytes (K + 1), CRSF_Out (0 .. S.Next - 1));
+            end if;
+         end;
+      elsif Name = "crsfpack" then
+         Record_Int (Name & ".altitude", Int (6), Integer_64 (Packed_Altitude (I32 (4))));
+         Record_Int (Name & ".climb", Int (7), Integer_64 (Packed_Climb (Interfaces.Integer_16 (Int (5)))));
+         Record_Int (Name & ".radians", Int (9), Integer_64 (Radians_10000 (Interfaces.Integer_16 (Int (8)))));
+      elsif Name = "crsfmsp" then
+         declare
+            Payload : constant Byte_Array := Hex_Bytes (5);
+         begin
+            Write_MSP_Response (CRSF_Out, S, Address_Radio_Transmitter, Payload);
+            Record_Int (Name & ".length", Int (6), Integer_64 (S.Next));
+            Record_Bytes (Name, Hex_Bytes (7), CRSF_Out (0 .. S.Next - 1));
+         end;
+      else
+         Put_Line ("unknown crsf case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_CRSF_Telemetry_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -5461,6 +5680,8 @@ procedure Vector_Check is
                   Check_Text_Line;
                elsif Kind = "dshot" then
                   Check_DShot_Line;
+               elsif Kind = "crsftlm" then
+                  Check_CRSF_Telemetry_Line;
                else
                   Check_PID_Line;
                end if;
@@ -5520,6 +5741,7 @@ begin
    Run (Dir & "/bbenc.csv", "bbenc");
    Run (Dir & "/text.csv", "text");
    Run (Dir & "/dshot.csv", "dshot");
+   Run (Dir & "/crsftlm.csv", "crsftlm");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
