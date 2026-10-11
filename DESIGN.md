@@ -442,3 +442,26 @@ enabling of the detection comes with the rescue port. Proof covers the setpoint 
 levelling forms from the attitude and trim ranges through the angle gain, which stays inside
 the rate type without a clamp, and the time comparisons through the wrapping clock
 difference. No vector deviates.
+
+## D30. The compass with its sphere fit held to bounds (2026-10-09)
+
+`Adaflight.Compass` aligns the raw field as the accelerometer path does, through the
+sensor's standard alignment or the rotation built from the negated custom angles, then the
+board rotation, and keeps the reference's calibration: a wait for the gyro norm to pass
+350 degrees per second within fifteen seconds, thirty seconds of the sphere fit while the
+craft tumbles, the rounded bias as the new zero with a save request, and the zero
+subtracted from every read. The fit is the reference's recursive least squares on the
+factored covariance, in its operation order. Proof covers its floating point: every stored
+quantity carries a range (the factor entries within 2 to the 24, the diagonal within 2 to
+the 10, the parameters within 2 to the 16, the bias within 2 to the 20) and the projections,
+gains, and weighted sums inside a step are held to theirs, so no product in the recursion
+can overflow for a field within the aligned range. The bounds sit far outside the values a
+magnetometer produces: over the recorded sequences the factor entries stay under twenty,
+the diagonal under 110, and the parameters under one ten-thousandth. Two guards cover the
+reference's own undefined cases. The bias is zero while the first parameter is within 2 to
+the minus 100 of zero, where the reference divides by it and stores the result; and the
+forgetting factor keeps its previous innovation gain when the weighted innovation turns
+negative, where the reference's gain goes past one or through a division by zero. The
+nearest whole count of the bias is held to the offset range, where the reference wraps the
+rounded value into sixteen bits. The read interval the reference derives from the device's
+data rate belongs to the scheduler. No recorded vector reaches a guard.
