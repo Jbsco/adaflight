@@ -915,3 +915,33 @@ the MSP handling, and the serial port stay with their layers. A reply the teleme
 writes drops the frame in progress through Begin_Reply. The raw value is the SBUS fit of the
 channel count. The ring indices, the frame position, and the escape and request flags keep
 the state the recorded vectors see. No guard was needed.
+## D52. The MAVLink receiver (2026-10-10)
+
+The MAVLink unit carries the MAVLink receiver with the library's frame parser, and the
+MAVLink_Entries unit carries the library's message table behind the same bisection. Each
+serial byte goes through the parser's states in the library's order. A start byte of either
+framing version opens a frame and resets the checksum. The version one header has no flag
+bytes and a one-byte id, the version two header carries two flag bytes and a three-byte id,
+and an incompatibility flag other than the signing bit drops the frame. The payload bytes
+fold into the X.25 checksum as they arrive, and the message's CRC extra folds in last when
+the table knows the id. An unknown id, or a checksum byte that disagrees, marks the frame bad
+but the parser still reads it to the end. A signed frame waits for its thirteen signature
+bytes and passes without a signing key, as the receiver holds none. A complete frame is
+copied out of the parser, with the wire's checksum in place of the computed one when the
+two disagree, and the copy's length follows the parser's length on every byte. A bad
+checksum returns the parser to idle, or to the start state when the byte itself is a version
+two start byte. A good RC channels override message takes its
+eighteen channels as consecutive words from its first channel, so the ninth word is the two
+target ids and the following words are each one channel early, and channel eighteen is never
+read (finding F41). A word of zero or all ones leaves the channel as it was. The byte's time
+is the frame time. A good radio status message keeps the transmitter's free buffer, scales
+the remote RSSI from the negative dBm range onto the receiver's range, where a report below
+the range minimum wraps (finding F42), and gives the receiver the dBm, the noise as the SNR,
+and the local RSSI as the link quality. Every other good message goes into a queue of sixteen
+for the telemetry task. The status poll is complete once after each override message. The
+telemetry may send when the last radio status left more free buffer than the configured
+minimum. The raw value is the channel as it is. The payload index is held below the payload
+size and the signature count above zero by guards the recorded vectors never reach. The
+signature bytes, the parse error count, and the parser's status copy are not kept, since
+nothing reads them. The
+serial port and the telemetry task stay with their layers.
