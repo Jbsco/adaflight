@@ -7,57 +7,20 @@ on:
     branches: [main]
   workflow_dispatch:
 
-permissions:
-  contents: read
-  actions: read
-
-# Pull request proof runs queue one at a time, and main-branch runs queue
-# among themselves, so a push to main never holds a pull request's proofs.
+# A new push to a branch supersedes the proof run of its previous tip.
 concurrency:
-  group: spark-proofs-${{ github.event_name }}
-  cancel-in-progress: false
+  group: spark-proofs-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   prove:
-    # The hosted-only steps below are gated on the runner environment, so
-    # moving this job back to GitHub-hosted is the one-line change
-    # `runs-on: ubuntu-latest`.
-    runs-on: [self-hosted, linux]
+    runs-on: ubuntu-latest
     timeout-minutes: 300
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          # Only a GitHub-hosted runner starts from a clean checkout.
-          clean: ${{ runner.environment == 'github-hosted' }}
-          # A merge commit's parents are needed to find the run that proved it.
-          fetch-depth: 2
-
-      # A pull request branch rebased onto main merges with the tree of its tip,
-      # and the pull request run proved that tree, so a main-branch run with a
-      # parent of the same tree and a successful pull request run on it has
-      # nothing left to prove.
-      - name: Look for a pull request run that proved this tree
-        id: proved
-        if: github.event_name == 'push'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          tree=$(git rev-parse 'HEAD^{tree}')
-          for parent in $(git rev-parse 'HEAD^@'); do
-            if [ "$(git rev-parse "$parent^{tree}")" = "$tree" ]; then
-              runs=$(gh api "repos/${{ github.repository }}/actions/workflows/prove.yml/runs?event=pull_request&status=success&head_sha=$parent" --jq '.total_count')
-              if [ "${runs:-0}" -gt 0 ]; then
-                echo "proved=yes" >> "$GITHUB_OUTPUT"
-                echo "The pull request run of $parent proved this tree."
-                exit 0
-              fi
-            fi
-          done
-          echo "proved=no" >> "$GITHUB_OUTPUT"
 
       - name: Cache Alire
-        if: runner.environment == 'github-hosted'
         uses: actions/cache@v4
         with:
           path: |
@@ -68,44 +31,27 @@ jobs:
           restore-keys: alire-prove-${{ runner.os }}-
 
       - name: Install Alire
-        if: runner.environment == 'github-hosted'
         uses: alire-project/setup-alire@v3
         with:
           version: 2.1.1
 
       - name: Select GNAT toolchain
-        if: runner.environment == 'github-hosted'
         run: |
           cd core
           alr -n toolchain --select gnat_native
 
       - name: Fetch dependencies
-        if: steps.proved.outputs.proved != 'yes'
         run: |
           cd core
           alr -n update
           alr -n build --stop-after=post-fetch || true
           alr -n exec -- gnatprove --version
 
-      - name: Cache the proof session
-        if: runner.environment == 'github-hosted'
-        uses: actions/cache@v4
-        with:
-          path: core/obj/development/gnatprove
-          key: proof-session-${{ runner.os }}-${{ github.sha }}
-          restore-keys: proof-session-${{ runner.os }}-
-
-      - name: Clear the proof session
-        if: steps.proved.outputs.proved != 'yes'
-        # A kept session replays a changed unit's goals with the step counts of
-        # its old proofs as their limits, which fails checks a fresh session
-        # proves at once.
-        run: rm -rf core/obj/development/gnatprove
-
+      # Every run proves from a fresh session. A kept session replays the
+      # stored verdicts of an earlier run against the changed units.
       - name: Run SPARK proofs
-        if: steps.proved.outputs.proved != 'yes'
         env:
-          PROVE_JOBS: 8
+          PROVE_JOBS: 4
         run: |
           set -o pipefail
           bash prove.do 2>&1 | tee prove-output.log
