@@ -37,7 +37,9 @@ modes, the position Kalman filter, the altitude estimator, and the altitude hold
   `pragma Assume`, no justified suppression (`gnatprove` 16.1.0, level 2).
 - The recorded vectors replay bit for bit: 165076 lines over 161 cases, every case
   exact except the fourteen declared deviations in `DESIGN.md` D6.
-- No target builds yet. `ROADMAP.md` carries the parity inventory and the phases.
+- No target builds yet. `ROADMAP.md` carries the parity inventory, the phases, and the
+  question for after parity: whether a proved core leaves room on the F4 boards for
+  features Betaflight has to leave out of them today.
 
 ## Repository layout
 

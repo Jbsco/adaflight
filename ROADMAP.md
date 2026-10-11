@@ -31,6 +31,15 @@ Silver with no assume, and pass the gates on `main`.
 - Phase 8, open. Tooling. A native Linux flashing tool over DFU with the features of the
   Betaflight flasher and faster transfers, then the configuration path.
 
+## After parity
+
+Parity comes first. Then the size and speed of the port get measured on the STM32F4, F7
+and H7 boards against Betaflight's images for the same feature set. A proved core runs
+with its run-time checks off at no loss of safety, so its generated code starts at the
+size and speed of the C, and it seems plausible that the port ends up smaller on the F4
+boards. Whatever room that opens goes to features the F4 builds have to leave out today,
+with more room on F7 and H7. The measurement decides.
+
 ## Parity inventory
 
 Line counts of the Betaflight modules, C sources and headers, at commit af0638839, the
