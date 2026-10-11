@@ -1013,3 +1013,22 @@ at the length, which a frame replaced between the chunk and its confirm could pa
 never does, since the transmitter flips its bit only for a chunk it received. The CRSF frames
 the sender carries, the device info reply, and the MSP frame handling behind the receiver come
 with the CRSF telemetry port.
+## D56. The flight log field encodings (2026-10-11)
+
+`Adaflight.Blackbox_Encoding` writes the field encodings of the flight log into a stream over a
+caller owned array: unsigned variable byte integers (seven bits per byte, low bits first, the
+high bit set while more follow), signed values through the zigzag mapping, the 16-bit and 32-bit
+words low byte first, the float as its bit pattern, and the packed groups. The group of three
+takes a two-bit selector for 2, 4, or 6 bits per field, or 32-bit fields of 1 to 4 bytes each
+behind a second selector of byte counts, the first field in the low bits; the variable group
+uses the 5-5-4 and 8-7-7 bit splits instead and returns its selector. The group of four takes a
+one-byte selector of field widths (none, 4, 8, or 16 bits) and packs the fields by nibbles, the
+high nibble first, with a closing nibble when one is left open. The group of up to eight writes
+one field bare and more behind a header byte that marks the fields that are not zero, the first
+field in the low bit, then those fields as signed variable bytes. The bytes come from the two's
+complement bits of each value, so a field wider than its selected width is cut to it. Every
+encoder asks for the room its longest form needs (five bytes per variable byte integer, thirteen
+for a group of three, ten for the group of four, one plus five per field for the group of eight)
+and proof covers every write through the stream's contract, so no encoder can run past the
+array. The header lines in text and the frame logic that chooses the encodings come with the log
+itself.
