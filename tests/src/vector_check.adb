@@ -90,6 +90,7 @@ with Adaflight.Internal_ADC;
 with Adaflight.Flight_Stats;
 with Adaflight.Wing_Launch;
 with Adaflight.Nav_Trail;
+with Adaflight.GPS_Frames;
 
 procedure Vector_Check is
 
@@ -7082,6 +7083,114 @@ procedure Vector_Check is
       end if;
    end Check_Nav_Trail_Line;
 
+   GPS_Seq   : Integer_64 := -1;
+   GPS_State : Adaflight.GPS_Frames.Receiver;
+   GPS_Clock : Adaflight.GPS_Frames.Clock_Request;
+
+   procedure Check_GPS_Line is
+      use Adaflight.GPS_Frames;
+      Name      : constant String := Str (1);
+      UBX_Line  : constant Boolean := Int (4) = 1;
+      Event     : constant Integer_64 := Int (5);
+      Fed       : constant Byte_Array := Hex_Bytes (9);
+      Has_Time  : Boolean := Int (7) = 1;
+      New_Count : Natural := 0;
+      Sets      : Natural := 0;
+      New_Sol   : Boolean;
+      Clock     : Clock_Request;
+      K         : Positive;
+   begin
+      if Int (2) /= GPS_Seq then
+         GPS_Seq := Int (2);
+         GPS_State := (others => <>);
+         GPS_Clock := (others => <>);
+      end if;
+      if Event = 1 then
+         GPS_State.UBX.Ack := Waiting;
+         GPS_State.UBX.Ack_Message := Interfaces.Unsigned_8 (Int (6));
+      end if;
+      for B of Fed loop
+         if UBX_Line then
+            Receive_UBX (GPS_State, B, Has_Time, New_Sol, Clock);
+         else
+            Receive_NMEA (GPS_State, B, Has_Time, New_Sol, Clock);
+         end if;
+         if New_Sol then
+            New_Count := New_Count + 1;
+         end if;
+         if Clock.Set then
+            Has_Time := True;
+            Sets := Sets + 1;
+            GPS_Clock := Clock;
+         end if;
+      end loop;
+      Record_Int (Name & ".new", Int (10), Integer_64 (New_Count));
+      Record_Int (Name & ".fix", Int (11), Boolean'Pos (GPS_State.Fix));
+      Record_Int (Name & ".fix_ever", Int (12), Boolean'Pos (GPS_State.Fix_Ever));
+      Record_Int (Name & ".lat", Int (13), Integer_64 (GPS_State.Sol.Llh.Lat));
+      Record_Int (Name & ".lon", Int (14), Integer_64 (GPS_State.Sol.Llh.Lon));
+      Record_Int (Name & ".alt", Int (15), Integer_64 (GPS_State.Sol.Llh.Alt_Cm));
+      Record_Int (Name & ".pdop", Int (16), Integer_64 (GPS_State.Sol.Dop.Pdop));
+      Record_Int (Name & ".hdop", Int (17), Integer_64 (GPS_State.Sol.Dop.Hdop));
+      Record_Int (Name & ".vdop", Int (18), Integer_64 (GPS_State.Sol.Dop.Vdop));
+      Record_Int (Name & ".hacc", Int (19), Integer_64 (GPS_State.Sol.Acc.Horizontal));
+      Record_Int (Name & ".vacc", Int (20), Integer_64 (GPS_State.Sol.Acc.Vertical));
+      Record_Int (Name & ".sacc", Int (21), Integer_64 (GPS_State.Sol.Acc.Speed));
+      Record_Int (Name & ".headacc", Int (22), Integer_64 (GPS_State.Sol.Acc.Heading));
+      Record_Int (Name & ".veln", Int (23), Integer_64 (GPS_State.Sol.Velned.North));
+      Record_Int (Name & ".vele", Int (24), Integer_64 (GPS_State.Sol.Velned.East));
+      Record_Int (Name & ".veld", Int (25), Integer_64 (GPS_State.Sol.Velned.Down));
+      Record_Int (Name & ".speed3d", Int (26), Integer_64 (GPS_State.Sol.Speed_3d));
+      Record_Int (Name & ".gspeed", Int (27), Integer_64 (GPS_State.Sol.Ground_Speed));
+      Record_Int (Name & ".gcourse", Int (28), Integer_64 (GPS_State.Sol.Ground_Course));
+      Record_Int (Name & ".numsat", Int (29), Integer_64 (GPS_State.Sol.Num_Sat));
+      Record_Int (Name & ".time", Int (30), Integer_64 (GPS_State.Sol.Time));
+      Record_Int (Name & ".navint", Int (31), Integer_64 (GPS_State.Sol.Nav_Interval_Ms));
+      Record_Int (Name & ".year", Int (32), Integer_64 (GPS_State.Sol.Utc.Year));
+      Record_Int (Name & ".month", Int (33), Integer_64 (GPS_State.Sol.Utc.Month));
+      Record_Int (Name & ".day", Int (34), Integer_64 (GPS_State.Sol.Utc.Day));
+      Record_Int (Name & ".hour", Int (35), Integer_64 (GPS_State.Sol.Utc.Hour));
+      Record_Int (Name & ".minute", Int (36), Integer_64 (GPS_State.Sol.Utc.Minute));
+      Record_Int (Name & ".second", Int (37), Integer_64 (GPS_State.Sol.Utc.Second));
+      Record_Int (Name & ".millis", Int (38), Integer_64 (GPS_State.Sol.Utc.Millis));
+      Record_Int (Name & ".valid", Int (39), Boolean'Pos (GPS_State.Sol.Utc.Valid));
+      Record_Int (Name & ".lastnav", Int (40), Integer_64 (GPS_State.Last_Nav_Time));
+      Record_Int (Name & ".numch", Int (41), Integer_64 (GPS_State.Num_Channels));
+      Record_Int (Name & ".phase", Int (42), Integer_64 (UBX_Phase'Pos (GPS_State.UBX.Phase)));
+      Record_Int (Name & ".class", Int (43), Integer_64 (GPS_State.UBX.Class));
+      Record_Int (Name & ".id", Int (44), Integer_64 (GPS_State.UBX.Id));
+      Record_Int (Name & ".length", Int (45), Integer_64 (GPS_State.UBX.Length));
+      Record_Int (Name & ".counter", Int (46), Integer_64 (GPS_State.UBX.Counter));
+      Record_Int (Name & ".cka", Int (47), Integer_64 (GPS_State.UBX.Ck_A));
+      Record_Int (Name & ".ckb", Int (48), Integer_64 (GPS_State.UBX.Ck_B));
+      Record_Int (Name & ".validfix", Int (49), Boolean'Pos (GPS_State.UBX.Valid_Fix));
+      Record_Int (Name & ".newpos", Int (50), Boolean'Pos (GPS_State.UBX.New_Position));
+      Record_Int (Name & ".newspeed", Int (51), Boolean'Pos (GPS_State.UBX.New_Speed));
+      Record_Int (Name & ".almost", Int (52), Boolean'Pos (GPS_State.UBX.Almost_Done));
+      Record_Int (Name & ".ack", Int (53), Integer_64 (Ack_State'Pos (GPS_State.UBX.Ack)));
+      Record_Int (Name & ".ackid", Int (54), Integer_64 (GPS_State.UBX.Ack_Message));
+      Record_Int (Name & ".version", Int (55), Integer_64 (Platform'Pos (GPS_State.UBX.Version)));
+      Record_Int (Name & ".m7", Int (56), Boolean'Pos (GPS_State.UBX.M7_Or_Above));
+      Record_Int (Name & ".m8", Int (57), Boolean'Pos (GPS_State.UBX.M8_Or_Above));
+      Record_Int (Name & ".m9", Int (58), Boolean'Pos (GPS_State.UBX.M9_Or_Above));
+      Record_Int (Name & ".sets", Int (59), Integer_64 (Sets));
+      Record_Int (Name & ".cyear", Int (60), Integer_64 (GPS_Clock.Year));
+      Record_Int (Name & ".cmonth", Int (61), Integer_64 (GPS_Clock.Month));
+      Record_Int (Name & ".cday", Int (62), Integer_64 (GPS_Clock.Day));
+      Record_Int (Name & ".chours", Int (63), Integer_64 (GPS_Clock.Hours));
+      Record_Int (Name & ".cminutes", Int (64), Integer_64 (GPS_Clock.Minutes));
+      Record_Int (Name & ".cseconds", Int (65), Integer_64 (GPS_Clock.Seconds));
+      Record_Int (Name & ".cmillis", Int (66), Integer_64 (GPS_Clock.Millis));
+      K := 67;
+      for S in Satellite_Index loop
+         Record_Int (Name & ".chn", Int (K), Integer_64 (GPS_State.Sats (S).Channel));
+         Record_Int (Name & ".svid", Int (K + 1), Integer_64 (GPS_State.Sats (S).Id));
+         Record_Int (Name & ".quality", Int (K + 2), Integer_64 (GPS_State.Sats (S).Quality));
+         Record_Int (Name & ".cno", Int (K + 3), Integer_64 (GPS_State.Sats (S).Cno));
+         K := K + 4;
+      end loop;
+   end Check_GPS_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -7222,6 +7331,8 @@ procedure Vector_Check is
                   Check_Wing_Launch_Line;
                elsif Kind = "trail" then
                   Check_Nav_Trail_Line;
+               elsif Kind = "gps" then
+                  Check_GPS_Line;
                else
                   Check_PID_Line;
                end if;
@@ -7301,6 +7412,7 @@ begin
    Run (Dir & "/stats.csv", "stats");
    Run (Dir & "/wlaunch.csv", "wlaunch");
    Run (Dir & "/trail.csv", "trail");
+   Run (Dir & "/gps.csv", "gps");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
