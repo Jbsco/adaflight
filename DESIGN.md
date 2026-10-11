@@ -945,3 +945,26 @@ size and the signature count above zero by guards the recorded vectors never rea
 signature bytes, the parse error count, and the parser's status copy are not kept, since
 nothing reads them. The
 serial port and the telemetry task stay with their layers.
+## D53. The MSP serial port with its frame decoder and reply encoder (2026-10-11)
+
+`Adaflight.MSP_Port` is the serial port of the configurator protocol. The decoder takes one byte
+at a time through the three framings (version 1, version 2 carried in a version 1 frame, and
+version 2 native) with the exclusive-or checksum of version 1 and the CRC-8 of version 2, and
+rejects a header whose size passes the 192-byte receive buffer. Between frames a frame start
+cancels a pending request, the reboot character and the hash mark set one, a start of text
+enters the command line, and any other byte cancels a pending reboot. A pending request fires
+once the port has been quiet for a hundred milliseconds. One call of `Process` is one scheduler
+pass: it completes at most one frame and leaves the bytes after it for the next call. The caller
+answers a command frame itself and hands the reply to `Encode`, which lays out the header for
+the request's framing with the jumbo size past 254 payload bytes and closes the frame with its
+checksums. The send rule (an empty transmit buffer, or room for the frame) and the five-second
+configurator activity window are functions beside it. The caller supplies per call whether the
+bytes between frames are read as requests, whether a device streams on the port, the reboot
+character, and whether the command line kept the port, since the serial layer and the command
+line own that state. Proof covers the receive buffer index through a predicate on the port
+record: the position is zero before a header, at most the header size while a header fills, and
+below the data size while a payload fills, with the data size held to the buffer by the header
+checks, so no byte can land past the buffer. The encoder's frame buffer is sized for the longest
+header, the largest reply, and both checksums. The reference writes the jumbo size of a
+combined-framing reply after the version 2 header instead of after the version 1 header, and the
+encoder keeps that order so the recorded vectors match (finding F43).
