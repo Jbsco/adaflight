@@ -387,6 +387,70 @@ package body Adaflight.PID_Controller with SPARK_Mode is
       end if;
    end Detect_Crash;
 
+   Launch_Max_Rate     : constant Float := 100.0;
+   Launch_Min_Rate     : constant Float := 5.0;
+   Launch_Angle_Window : constant Float := 10.0;
+   Launch_Yaw_Iterm_Limit : constant Float := 50.0;
+
+   --  The launch control setpoint: twice the stick's deflection within a
+   --  half, scaled to the launch rate, on pitch alone or on every axis, and
+   --  on pitch run down to the minimum rate over the last ten degrees before
+   --  the angle limit, zero past it.
+   function Launch_Setpoint (R : Runtime; Inp : Inputs; A : Axis) return Rate
+     with Post => abs Launch_Setpoint'Result <= Launch_Max_Rate
+   is
+      Result : Float range -Launch_Max_Rate .. Launch_Max_Rate := 0.0;
+   begin
+      if A = Pitch or else R.Launch_Control /= Pitch_Only then
+         declare
+            Stick : constant Float range -0.5 .. 0.5 :=
+              Constrain_F ((if A = Yaw then Inp.Yaw_Deflection else Inp.Deflection (A)), -0.5, 0.5);
+         begin
+            Result := Launch_Max_Rate * Stick * 2.0;
+         end;
+      end if;
+      if A = Pitch and then R.Launch_Control_Angle_Limit > 0 and then Result > 0.0 then
+         declare
+            Current_Angle : constant Float range -210.0 .. 210.0 :=
+              Float (Inp.Attitude (Pitch) - Inp.Trims (Pitch)) / 10.0;
+            Limit         : constant Float range 1.0 .. 80.0 := Float (R.Launch_Control_Angle_Limit);
+         begin
+            if Current_Angle >= Limit then
+               Result := 0.0;
+            else
+               declare
+                  Angle_Delta : constant Float range 0.0 .. 300.0 := Limit - Current_Angle;
+               begin
+                  if Angle_Delta <= Launch_Angle_Window then
+                     Result :=
+                       Constrain_F (Scale_Range_F (Angle_Delta, 0.0, Launch_Angle_Window, Launch_Min_Rate, Result),
+                                    -Launch_Max_Rate, Launch_Max_Rate);
+                  end if;
+               end;
+            end if;
+         end;
+      end if;
+      return Result;
+   end Launch_Setpoint;
+
+   --  The terms held while launch control is active: the yaw I term within
+   --  its launch limit, and in the pitch-only mode the roll P and I terms
+   --  and the yaw P term at zero and the pitch I term at or above zero.
+   procedure Hold_Launch_Terms (S : in out State; Mode : Launch_Control_Mode)
+     with Post => S.Previous_Gyro_Dterm = S.Previous_Gyro_Dterm'Old
+                  and then S.Level_Mode_Start_Us = S.Level_Mode_Start_Us'Old
+   is
+      Yaw_Limit : constant Float := (if Mode = Full then Launch_Yaw_Iterm_Limit else 0.0);
+   begin
+      S.Data (Yaw).I := Constrain_F (S.Data (Yaw).I, -Yaw_Limit, Yaw_Limit);
+      if Mode = Pitch_Only then
+         S.Data (Roll).P := 0.0;
+         S.Data (Roll).I := 0.0;
+         S.Data (Yaw).P := 0.0;
+         S.Data (Pitch).I := (if 0.0 > S.Data (Pitch).I then 0.0 else S.Data (Pitch).I);
+      end if;
+   end Hold_Launch_Terms;
+
    procedure Update (S : in out State; R : Runtime; P : Profile; Inp : Inputs) is
       Gyro_Dterm : Axis_Signals;
       Level      : Level_Kind := Level_Off;
@@ -446,11 +510,14 @@ package body Adaflight.PID_Controller with SPARK_Mode is
             if Inp.Angle_Mode and then S.Axis_In_Angle_Mode (A) then
                Setpoint_Delta := 0.0;
             end if;
+            if Inp.Launch_Control_Active then
+               Setpoint := Launch_Setpoint (R, Inp, A);
+            end if;
             Error_Rate := Setpoint - Gyro_Rate;
             Handle_Crash_Recovery (S, R, P.Crash_Recovery, Inp, A, Gyro_Rate, Setpoint, Error_Rate);
             Previous_Iterm := S.Data (A).I;
             Iterm_Error := Error_Rate;
-            if not S.In_Crash_Recovery then
+            if not Inp.Launch_Control_Active and then not S.In_Crash_Recovery then
                Apply_Iterm_Relax (S, A, R, Previous_Iterm, Gyro_Rate, Iterm_Error, Setpoint, Inp.Angle_Mode);
                Error_Rate := Setpoint - Gyro_Rate;
             end if;
@@ -466,7 +533,9 @@ package body Adaflight.PID_Controller with SPARK_Mode is
             end if;
             Ki := R.Coefficient (A).Ki;
             Iterm_Limit := R.Iterm_Limit;
-            if A = Yaw then
+            if Inp.Launch_Control_Active then
+               Ki := R.Launch_Control_Ki;
+            elsif A = Yaw then
                Iterm_Limit := R.Iterm_Limit_Yaw;
                S.Iterm_Accelerator := 0.0;
             end if;
@@ -474,7 +543,7 @@ package body Adaflight.PID_Controller with SPARK_Mode is
             Iterm_Change := Iterm_Change * Iterm_Error;
             S.Data (A).I := Constrain_F (Previous_Iterm + Iterm_Change, -Iterm_Limit, Iterm_Limit);
             S.Previous_PID_Setpoint (A) := Setpoint;
-            if R.Coefficient (A).Kd > 0.0 then
+            if R.Coefficient (A).Kd > 0.0 and then not Inp.Launch_Control_Active then
                declare
                   Gyro_Delta : constant Signal :=
                     Saturate ((-(Gyro_Dterm (A) - S.Previous_Gyro_Dterm (A))) * R.PID_Frequency);
@@ -505,7 +574,10 @@ package body Adaflight.PID_Controller with SPARK_Mode is
                S.Data (A).D := 0.0;
             end if;
             S.Previous_Gyro_Dterm (A) := Gyro_Dterm (A);
-            S.Data (A).F := R.Coefficient (A).Kf * Setpoint_Delta;
+            S.Data (A).F := (if Inp.Launch_Control_Active then 0.0 else R.Coefficient (A).Kf) * Setpoint_Delta;
+            if Inp.Launch_Control_Active then
+               Hold_Launch_Terms (S, R.Launch_Control);
+            end if;
             if A /= Yaw then
                declare
                   Attenuator : constant Float := Float'Max (abs Setpoint / 50.0, 1.0);

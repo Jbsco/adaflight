@@ -1139,7 +1139,7 @@ procedure Vector_Check is
             Step_Profile.Crash_Dterm_Threshold := Integer (Int (55));
             Step_Profile.Crash_Setpoint_Threshold := Integer (Int (56));
          end if;
-         Configure (Step_Runtime, Step_Profile, Loop_Time, Has_Acc => False,
+         Configure (Step_Runtime, Step_Profile, Loop_Time, Has_Acc => NF >= 68 and then Int (68) /= 0,
                     Serial_Rx_Is_CRSF => Profile_CRSF (Index));
          Init (Step_State, Step_Profile, Step_Runtime);
          Set_Stabilisation (Step_State, True);
@@ -1169,6 +1169,10 @@ procedure Vector_Check is
          Inp.Gyro_Overflow := Int (60) /= 0;
          Inp.Motor_Mix_Range := Flt (61);
       end if;
+      if NF >= 68 then
+         Inp.Launch_Control_Active := Int (66) /= 0;
+         Inp.Yaw_Deflection := Flt (67);
+      end if;
       Update_Throttle_Terms (Step_State, Step_Runtime, Flt (17));
       Expect_Float ("tpa_factor", Step_State.TPA_Factor);
       Expect_Float ("anti_gravity_throttle_d", Step_State.Anti_Gravity_Throttle_D);
@@ -1196,6 +1200,9 @@ procedure Vector_Check is
          Record_Int ("pidstep.crash_beep", Int (K + 2), Boolean'Pos (Step_State.Crash_Beep));
          Record_Int ("pidstep.crash_disarm", Int (K + 3), Boolean'Pos (Step_State.Crash_Disarm_Requested));
          K := K + 4;
+      end if;
+      if NF >= 68 then
+         K := K + 3;
       end if;
       if K /= NF + 1 then
          Put_Line ("pidstep: consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
