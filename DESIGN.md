@@ -1089,3 +1089,31 @@ that is not a permutation of its indices to the identity, and the postcondition 
 every entry by the length. Proof covers the sample indices against the count, the shifts,
 the margin narrowing to a byte, the bounded period, the rate bounds, and the order bounds.
 Every recorded vector replays exactly.
+## D59. The CRSF telemetry frames (2026-10-11)
+
+`Adaflight.CRSF_Telemetry` writes every telemetry frame of the link from readings the caller
+supplies, so the sensors, the battery meter, the attitude estimate and the flight state stay
+with their units. A frame is the sync byte, the length, the type, the payload and the
+checksum over type and payload. The position frame scales speed and course and holds the
+altitude to zero to five thousand meters, the extended position frame derives the fix type
+from the fix flag and the satellite count, the battery frame carries the drawn charge in three
+bytes, the attitude frame reduces each decidegree angle into a half turn and scales it by the
+single precision product of pi over 180 and a thousand, and the compass frame truncates three
+times the field. The flight mode frame picks its name by priority and adds one character
+while disarmed outside a failsafe. The device info frame takes its name from the caller.
+
+The packed altitude of the barometer frame keeps the reference's wrap above 32767 meters
+(finding F51), and the packed climb rate goes through the logarithm approximation and the
+ties-to-even rounding of the maths unit. The inertial frame scales rates and accelerations to
+sixteen bits through a clamp that proof needs and the values never reach.
+
+The schedule has one slot per enabled kind, heartbeats fill it to five slots unless inertial
+frames run, and the position and barometer frames are timed rather than slotted. The slots
+keep stale entries past the count and the slot index survives a new schedule, so a shorter
+schedule reads them until the index wraps, which the vectors cover. The speed negotiation
+answers a proposal with the command frame and its second checksum, applies the rate after
+four milliseconds and marks the third version running. The reference drains its one-frame
+receiver buffer before every pass, so its check before the schedule is always true and the
+port has no such gate. The MSP buffer and the display port chunks stay with their units.
+Proof covers every frame against the room of the longest, the sixteen bit conversions, the
+angle reduction, and the slot and baud table indices. Every recorded vector replays exactly.
