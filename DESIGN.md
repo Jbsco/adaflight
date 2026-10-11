@@ -513,3 +513,22 @@ the sensors and the attitude as inputs because their units own them. Proof cover
 vertical acceleration through typed products and the filter's bounds; the trust is one
 where the position variance is below zero, which no filter step produces, and the displayed
 altitude is held to the rounding range. No recorded vector reaches a guard.
+
+## D34. The altitude hold with the autopilot's altitude controller (2026-10-09)
+
+`Adaflight.Altitude_Hold` keeps the reference's hold in its order per task: the engagement
+from the flight mode, which resets the controller, takes the target from the current
+altitude, and captures the hover throttle from the stick when no setting gives one; the
+release, which resets the controller and drops the captured throttle; the target moved by
+the stick outside its deadband around the hover throttle, or driven down at a rate that grows
+with the altitude under a failsafe or an emergency descent, while the estimate stays within a
+second of climb from the target; and the autopilot's altitude controller with the relaxed
+integral, the proportional term held through the derivative gain, the boosted derivative, the
+acceleration and feedforward terms, the hover offset, the tilt compensation, and the throttle
+limits into a fraction of the receiver's range. The hold takes the mode, the task interval,
+the stick and its low status, the failsafe, the emergency descent, the altitude estimate, and
+the tilt as inputs, because their units own them; the navigation targets that can replace the
+stick's come with the navigation port. One guard covers the reference's division by zero: a
+stick beyond the receiver's range against a hover throttle at the range's edge leaves the
+stick factor at zero. The target velocity is held to a bound a stick within the receiver's
+range cannot reach. No recorded vector reaches a guard.
