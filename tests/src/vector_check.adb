@@ -67,6 +67,7 @@ with Adaflight.MAVLink;
 with Adaflight.MSP_Port;
 with Adaflight.ExpressLRS;
 with Adaflight.ExpressLRS_Telemetry;
+with Adaflight.Blackbox_Encoding;
 
 procedure Vector_Check is
 
@@ -5002,6 +5003,108 @@ procedure Vector_Check is
       end if;
    end Check_Telemetry_Line;
 
+   BB_Buffer : Byte_Array (0 .. 63) := (others => 0);
+   BB_Stream : Adaflight.Stream_Buffers.Stream;
+
+   procedure Check_Blackbox_Line is
+      use Adaflight.Blackbox_Encoding;
+      Name : constant String := Str (1);
+      Kind : constant Integer_64 := Int (4);
+      K    : Positive := 5;
+      procedure Expect_Next (N : String; Actual : Integer_64) is
+      begin
+         Record_Int (Name & "." & N, Int (K), Actual);
+         K := K + 1;
+      end Expect_Next;
+      procedure Expect_Bytes is
+      begin
+         Expect_Next ("count", Integer_64 (BB_Stream.Next));
+         for I in 0 .. BB_Stream.Next - 1 loop
+            Expect_Next ("byte", Integer_64 (BB_Buffer (I)));
+         end loop;
+         if K /= NF + 1 then
+            Put_Line (Name & ": consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
+            Failures := Failures + 1;
+         end if;
+      end Expect_Bytes;
+      function Values (Count : Natural) return Int32_Array is
+         V : Int32_Array (0 .. 7) := (others => 0);
+      begin
+         for J in 0 .. Count - 1 loop
+            V (J) := Interfaces.Integer_32 (Int (K + J));
+         end loop;
+         return V;
+      end Values;
+   begin
+      if Name /= "bbenc" then
+         Put_Line ("unknown blackbox case " & Name);
+         Failures := Failures + 1;
+         return;
+      end if;
+      BB_Buffer := (others => 0);
+      Adaflight.Stream_Buffers.Init (BB_Stream, 0, 64);
+      case Kind is
+         when 0 =>
+            Write_Unsigned_VB (BB_Buffer, BB_Stream, Unsigned_32 (Int (K)));
+            K := K + 1;
+         when 1 =>
+            Write_Signed_VB (BB_Buffer, BB_Stream, Interfaces.Integer_32 (Int (K)));
+            K := K + 1;
+         when 2 =>
+            Write_S16 (BB_Buffer, BB_Stream, Interfaces.Integer_16 (Int (K)));
+            K := K + 1;
+         when 3 =>
+            Write_Tag2_3S32 (BB_Buffer, BB_Stream, Values (3) (0 .. 2));
+            K := K + 3;
+         when 4 =>
+            declare
+               Selector : Natural;
+            begin
+               Write_Tag2_3S_Variable (BB_Buffer, BB_Stream, Values (3) (0 .. 2), Selector);
+               K := K + 3;
+               Expect_Next ("selector", Integer_64 (Selector));
+            end;
+         when 5 =>
+            Write_Tag8_4S16 (BB_Buffer, BB_Stream, Values (4) (0 .. 3));
+            K := K + 4;
+         when 6 =>
+            declare
+               Count : constant Natural := Integer (Int (K));
+            begin
+               K := K + 1;
+               Write_Tag8_8SVB (BB_Buffer, BB_Stream, Values (Count), Count);
+               K := K + Count;
+            end;
+         when 7 =>
+            Write_U32 (BB_Buffer, BB_Stream, Unsigned_32'Mod (Int (K)));
+            K := K + 1;
+         when 8 =>
+            Write_Float (BB_Buffer, BB_Stream, Flt (K));
+            K := K + 1;
+         when 9 =>
+            declare
+               Count : constant Natural := Integer (Int (K));
+            begin
+               K := K + 1;
+               Write_Signed_VB_Array (BB_Buffer, BB_Stream, Values (Count) (0 .. Count - 1));
+               K := K + Count;
+            end;
+         when others =>
+            declare
+               Count : constant Natural := Integer (Int (K));
+               V     : Int16_Array (0 .. 3) := (others => 0);
+            begin
+               K := K + 1;
+               for J in 0 .. Count - 1 loop
+                  V (J) := Interfaces.Integer_16 (Int (K + J));
+               end loop;
+               Write_Signed16_VB_Array (BB_Buffer, BB_Stream, V (0 .. Count - 1));
+               K := K + Count;
+            end;
+      end case;
+      Expect_Bytes;
+   end Check_Blackbox_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -5096,6 +5199,8 @@ procedure Vector_Check is
                   Check_ELRS_Line;
                elsif Kind = "elrstlm" then
                   Check_Telemetry_Line;
+               elsif Kind = "bbenc" then
+                  Check_Blackbox_Line;
                else
                   Check_PID_Line;
                end if;
@@ -5152,6 +5257,7 @@ begin
    Run (Dir & "/mspserial.csv", "mspserial");
    Run (Dir & "/elrs.csv", "elrs");
    Run (Dir & "/elrstlm.csv", "elrstlm");
+   Run (Dir & "/bbenc.csv", "bbenc");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
