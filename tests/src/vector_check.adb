@@ -71,6 +71,7 @@ with Adaflight.Blackbox_Encoding;
 with Adaflight.Text;
 with Adaflight.DShot;
 with Adaflight.CRSF_Telemetry;
+with Adaflight.ESC_Sensor;
 
 procedure Vector_Check is
 
@@ -5580,6 +5581,65 @@ procedure Vector_Check is
       end if;
    end Check_CRSF_Telemetry_Line;
 
+   ESC_Seq   : Integer_64 := -1;
+   ESC_State : Adaflight.ESC_Sensor.Sensor;
+
+   procedure Record_ESC_Reading (Name : String; K : Positive; R : Adaflight.ESC_Sensor.Reading) is
+   begin
+      Record_Int (Name & ".age", Int (K), Integer_64 (R.Data_Age));
+      Record_Int (Name & ".temperature", Int (K + 1), Integer_64 (R.Temperature));
+      Record_Int (Name & ".voltage", Int (K + 2), Integer_64 (R.Voltage));
+      Record_Int (Name & ".current", Int (K + 3), Integer_64 (R.Current));
+      Record_Int (Name & ".consumption", Int (K + 4), Integer_64 (R.Consumption));
+      Record_Int (Name & ".rpm", Int (K + 5), Integer_64 (R.Rpm));
+   end Record_ESC_Reading;
+
+   procedure Check_ESC_Line is
+      use Adaflight.ESC_Sensor;
+      Name    : constant String := Str (1);
+      Count   : constant Motor_Count := Motor_Count (Int (5));
+      Event   : constant Integer_64 := Int (7);
+      Motor   : constant Natural := Natural (Int (8));
+      Fed     : constant Byte_Array := Hex_Bytes (16);
+      Request : Boolean;
+      R       : Reading;
+   begin
+      if Int (2) /= ESC_Seq then
+         ESC_Seq := Int (2);
+         ESC_State := (others => <>);
+         Init (ESC_State);
+      end if;
+      if Event = 1 and then Motor in Motor_Index then
+         Set_External (ESC_State, Motor,
+                       (Data_Age => Interfaces.Unsigned_8 (Int (9)), Temperature => Interfaces.Unsigned_8 (Int (10)),
+                        Voltage => Interfaces.Unsigned_16 (Int (11)), Current => I32 (12), Consumption => I32 (13),
+                        Rpm => Interfaces.Integer_16 (Int (14))));
+      elsif Event = 2 and then Motor in Motor_Index then
+         External_Age (ESC_State, Motor);
+      elsif Event = 3 then
+         Init (ESC_State);
+      end if;
+      for B of Fed loop
+         Receive (ESC_State, B);
+      end loop;
+      Process (ESC_State, Unsigned_32 (Int (4)), Count, Int (6) = 1, Request);
+      Record_Int (Name & ".requests", Int (17), Boolean'Pos (Request));
+      if Request then
+         Record_Int (Name & ".requested", Int (18), Integer_64 (ESC_State.Motor));
+      end if;
+      Record_Int (Name & ".state", Int (19), Integer_64 (Trigger_State'Pos (ESC_State.State)));
+      Record_Int (Name & ".motor", Int (20), Integer_64 (ESC_State.Motor));
+      Record_Int (Name & ".trigger", Int (21), Integer_64 (ESC_State.Trigger_Time_Ms));
+      Record_Int (Name & ".position", Int (22), Integer_64 (ESC_State.Position));
+      Record_Int (Name & ".size", Int (23), Integer_64 (ESC_State.Size));
+      Record_Int (Name & ".stale", Int (26), Boolean'Pos (ESC_State.Combined_Stale));
+      Combined_Reading (ESC_State, Count, R);
+      Record_ESC_Reading (Name & ".combined", 27, R);
+      for M in 0 .. Count - 1 loop
+         Record_ESC_Reading (Name & ".motor", 33 + 6 * M, ESC_State.Data (M));
+      end loop;
+   end Check_ESC_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -5682,6 +5742,8 @@ procedure Vector_Check is
                   Check_DShot_Line;
                elsif Kind = "crsftlm" then
                   Check_CRSF_Telemetry_Line;
+               elsif Kind = "escsensor" then
+                  Check_ESC_Line;
                else
                   Check_PID_Line;
                end if;
@@ -5742,6 +5804,7 @@ begin
    Run (Dir & "/text.csv", "text");
    Run (Dir & "/dshot.csv", "dshot");
    Run (Dir & "/crsftlm.csv", "crsftlm");
+   Run (Dir & "/escsensor.csv", "escsensor");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
