@@ -18,7 +18,12 @@ echo "Running SPARK proofs..."
 # truncate a log the caller redirected it to.
 # PROVE_SWITCHES adds switches after the project file's, so a host can trade time for
 # the memory and speed it lacks.
-PROVE_OUT=$(alr -n exec -- gnatprove -P adaflight_core.gpr -j"${PROVE_JOBS:-0}" ${PROVE_SWITCHES:-} --output=oneline 2>&1 | tee >(cat >&2))
+# PROVE_UNITS names the source files to analyze, one -u each; unset, the whole core is
+# analyzed. A pull request run passes the units it changed and their dependents.
+UNIT_ARGS=""
+for unit in ${PROVE_UNITS:-}; do UNIT_ARGS="$UNIT_ARGS -u $unit"; done
+[ -n "$UNIT_ARGS" ] && echo "Units:${PROVE_UNITS// / }" | tr ' ' '\n' | sed '1!s/^/  /'
+PROVE_OUT=$(alr -n exec -- gnatprove -P adaflight_core.gpr -j"${PROVE_JOBS:-0}" ${PROVE_SWITCHES:-} $UNIT_ARGS --output=oneline 2>&1 | tee >(cat >&2))
 EXIT_CODE=${PIPESTATUS[0]}
 # A unit that fails to compile is dropped from the analysis without a nonzero
 # exit, so any error line fails the gate.
