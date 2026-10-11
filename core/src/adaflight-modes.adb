@@ -2,14 +2,6 @@ package body Adaflight.Modes with SPARK_Mode is
 
    Sticky_Boot_Delay_Us : constant Unsigned_32 := 5_000_000;
 
-   --  A pulse width in microseconds as the normalized channel value: minus one
-   --  at 1000, one at 2000, not clamped.
-   function Normalized (Pulse : Signal) return Float is
-     ((Pulse - 1_500.0) * 2.0 / 1_000.0);
-
-   function Step_Normalized (Step : Range_Step) return Float is
-     (Normalized (Float (900 + 25 * Step)));
-
    ------------------
    -- Range_Active --
    ------------------

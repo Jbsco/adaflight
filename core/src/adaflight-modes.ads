@@ -54,6 +54,14 @@ package Adaflight.Modes with SPARK_Mode is
    type Mask is array (Box) of Boolean;
    type Aux_Values is array (Aux_Channel) of Signal;
 
+   --  A pulse width in microseconds as the normalized channel value: minus one
+   --  at 1000, one at 2000, not clamped; and the value at a range step.
+   function Normalized (Pulse : Signal) return Float is
+     ((Pulse - 1_500.0) * 2.0 / 1_000.0);
+
+   function Step_Normalized (Step : Range_Step) return Float is
+     (Normalized (Float (900 + 25 * Step)));
+
    subtype List_Count is Natural range 0 .. Max_Conditions;
    type Index_List is array (Condition_Index) of Condition_Index;
 
