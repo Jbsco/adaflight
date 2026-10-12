@@ -1641,3 +1641,39 @@ their own targets; the caller owns the controller state and the horizontal contr
 as the autopilot shares them, and passes both in. A target altitude change below a
 sixteen-millionth of a centimetre counts as none for the progress ratio, which the reference
 divides by. Every recorded vector replays exactly, the earlier altitude hold vectors unchanged.
+## D84. The video transmitter table and the SmartAudio driver (2026-10-11)
+
+`Adaflight.VTX_Table` holds up to eight bands of eight channels with their frequencies, names
+and letters, the factory band flags, and up to eight power levels with their values and
+labels, cleared to numbered defaults. It answers the lookups: the frequency of a band and
+channel, the band and channel of a frequency searched from the last band down so a frequency
+in two bands names the later one, and the value of a power index.
+
+`Adaflight.SmartAudio` drives a SmartAudio transmitter over one half-duplex serial line the
+caller owns: the caller hands in the bytes received and carries out the bytes and the line
+rate a call asks for. A request builds its frame (the two preamble bytes, the command code,
+the length, the payload and the checksum over the whole frame) into the buffer of its kind and
+queues the kind, five deep; a later request of the same kind replaces the bytes before they go
+out (finding F65). A call sends one frame: the outstanding command again 120 ms after its
+last transmission, else the next queued frame, else a settings poll while a command went out
+within the last second and 150 ms have passed since the last transmission. A disabled control
+drops the frame and clears the outstanding command. Received bytes are reassembled through
+the preamble, the code, a length up to nineteen, the payload and the checksum over the code,
+the length and the payload; the echo of a command fails that check and is passed over by its
+odd code. A response clears the outstanding command by its code, or by a settings code of a
+later version, and counts an out-of-order reply otherwise. The settings response gives the
+version from its code, the channel, the mode, the frequency, the boot flag while in pit mode,
+the power as the table index of the reported value, and the dBm levels of a 2.1 device. The
+line rate moves one step of 50 between 4800 and 4950 when fewer than seven frames in ten are
+answered. The start polls the settings, then asks a version 2 device for its pit mode
+frequency. Band and channel are set through the table as the device numbers them, the power
+by the table value with the dBm flag on a 2.1 device, the pit mode by the mode flags or, on a
+2.1 device not booting into pit mode, by a zero dBm power or a clearing mode, and the
+frequency within 5000 to 5999 MHz, through a neighbouring frequency when the device already
+holds it in channel mode. The getters give band and channel from the device's channel number
+split by the table's channel count (a zero count divides as the hardware does, finding F66),
+the power index, the frequency from the table in channel mode, the pit mode status, the power
+levels in dBm and in milliwatts through the C library's power function, and the status bytes
+for the ground link. The table value sent as the power is its low byte (finding F67). The menu
+hooks and the debug print of the reference are not ported. Every recorded vector replays
+exactly.
