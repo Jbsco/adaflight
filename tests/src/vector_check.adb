@@ -80,6 +80,7 @@ with Adaflight.HoTT_Telemetry;
 with Adaflight.GHST_Telemetry;
 with Adaflight.Transponder;
 with Adaflight.SRXL_Telemetry;
+with Adaflight.FrSky_OSD;
 
 procedure Vector_Check is
 
@@ -167,7 +168,7 @@ procedure Vector_Check is
    end Record_Int;
 
    Max_Fields : constant := 1000;
-   type Fields is array (1 .. Max_Fields) of String (1 .. 800);
+   type Fields is array (1 .. Max_Fields) of String (1 .. 4200);
    type Field_Lengths is array (1 .. Max_Fields) of Natural;
 
    F  : Fields;
@@ -6283,6 +6284,128 @@ procedure Vector_Check is
       end if;
    end Check_SRXL_Telemetry_Line;
 
+   OS_Seq  : Integer_64 := -1;
+   OS_Link : Adaflight.FrSky_OSD.Link;
+
+   procedure Check_FrSky_OSD_Line is
+      use Adaflight.FrSky_OSD;
+      Name : constant String := Str (1);
+
+      function Col (I : Positive) return Color is (Color'Val (Int (I)));
+
+      procedure Record_State (B : Positive) is
+      begin
+         Record_Int (Name & ".initialized", Int (B), (if OS_Link.Initialized then 1 else 0));
+         Record_Int (Name & ".major", Int (B + 1), Integer_64 (OS_Link.Major));
+         Record_Int (Name & ".minor", Int (B + 2), Integer_64 (OS_Link.Minor));
+         Record_Int (Name & ".rows", Int (B + 3), Integer_64 (OS_Link.Rows));
+         Record_Int (Name & ".columns", Int (B + 4), Integer_64 (OS_Link.Columns));
+         Record_Int (Name & ".width", Int (B + 5), Integer_64 (OS_Link.Width));
+         Record_Int (Name & ".height", Int (B + 6), Integer_64 (OS_Link.Height));
+         Record_Int (Name & ".nextinfo", Int (B + 7), Integer_64 (OS_Link.Next_Info_Ms));
+         Record_Int (Name & ".sendpos", Int (B + 8), Integer_64 (OS_Link.Send_Pos));
+         Record_Int (Name & ".recvstate", Int (B + 9), Integer_64 (Receive_State'Pos (OS_Link.Recv_State)));
+         Record_Int (Name & ".recvpos", Int (B + 10), Integer_64 (OS_Link.Recv_Pos));
+         Record_Int (Name & ".expected", Int (B + 11), Integer_64 (OS_Link.Expected));
+         Record_Int (Name & ".fontaddr", Int (B + 12), Integer_64 (OS_Link.Font_Address));
+      end Record_State;
+   begin
+      if Name = "osdinit" then
+         declare
+            O : Output;
+         begin
+            OS_Seq := Int (2);
+            Init (OS_Link, Int (3) = 1, Interfaces.Unsigned_32 (Int (4)), O);
+            Record_Bytes (Name & ".tx", Hex_Bytes (5), O.Tx (0 .. O.Count - 1));
+            Record_State (6);
+         end;
+      elsif Name = "osdstep" then
+         if Int (2) /= OS_Seq then
+            Put_Line ("frsky osd step without its start");
+            Failures := Failures + 1;
+            return;
+         end if;
+         declare
+            Op     : constant Integer_64 := Int (4);
+            Now    : constant Interfaces.Unsigned_32 := Interfaces.Unsigned_32 (Int (5));
+            S      : constant Byte_Array := Hex_Bytes (12);
+            Before : constant Byte_Array := Hex_Bytes (13);
+            Reply  : constant Byte_Array := Hex_Bytes (14);
+            O      : Output;
+            OK     : Boolean := False;
+
+            function Arg (I : Positive) return Integer is (Integer (Int (I)));
+         begin
+            case Op is
+               when 0 => Update (OS_Link, Before, Now, O);
+               when 1 =>
+                  Begin_Transaction (OS_Link, (Profiled => Arg (6) mod 2 = 1, Reset_Drawing => Arg (6) / 2 mod 2 = 1),
+                                     O);
+               when 2 => Commit_Transaction (OS_Link, O);
+               when 3 => Flush (OS_Link, O);
+               when 4 => Draw_String_In_Grid (OS_Link, Interfaces.Unsigned_8 (Arg (6)), Interfaces.Unsigned_8 (Arg (7)),
+                                              S, O);
+               when 5 => Draw_Char_In_Grid (OS_Link, Interfaces.Unsigned_8 (Arg (6)), Interfaces.Unsigned_8 (Arg (7)),
+                                            Interfaces.Unsigned_16 (Arg (8)), O);
+               when 6 => Clear_Screen (OS_Link, O);
+               when 7 => Set_Stroke_Color (OS_Link, Col (6), O);
+               when 8 => Set_Fill_Color (OS_Link, Col (6), O);
+               when 9 => Set_Stroke_And_Fill_Color (OS_Link, Col (6), O);
+               when 10 => Set_Color_Inversion (OS_Link, Arg (6) = 1, O);
+               when 11 => Set_Pixel (OS_Link, Arg (6), Arg (7), Col (8), O);
+               when 12 => Set_Pixel_To_Stroke_Color (OS_Link, Arg (6), Arg (7), O);
+               when 13 => Set_Pixel_To_Fill_Color (OS_Link, Arg (6), Arg (7), O);
+               when 14 => Set_Stroke_Width (OS_Link, Interfaces.Unsigned_8 (Arg (6)), O);
+               when 15 => Set_Line_Outline_Type (OS_Link, Interfaces.Unsigned_8 (Arg (6)), O);
+               when 16 => Set_Line_Outline_Color (OS_Link, Col (6), O);
+               when 17 => Clip_To_Rect (OS_Link, Arg (6), Arg (7), Arg (8), Arg (9), O);
+               when 18 => Clear_Rect (OS_Link, Arg (6), Arg (7), Arg (8), Arg (9), O);
+               when 19 => Reset_Drawing_State (OS_Link, O);
+               when 20 => Draw_Character (OS_Link, Arg (6), Arg (7), Interfaces.Unsigned_16 (Arg (8)),
+                                          Interfaces.Unsigned_8 (Arg (9)), O);
+               when 21 => Draw_Character_Mask (OS_Link, Arg (6), Arg (7), Interfaces.Unsigned_16 (Arg (8)), Col (9),
+                                               Interfaces.Unsigned_8 (Arg (10)), O);
+               when 22 => Draw_String (OS_Link, Arg (6), Arg (7), S, Interfaces.Unsigned_8 (Arg (8)), O);
+               when 23 => Draw_String_Mask (OS_Link, Arg (6), Arg (7), S, Col (8), Interfaces.Unsigned_8 (Arg (9)), O);
+               when 24 => Move_To_Point (OS_Link, Arg (6), Arg (7), O);
+               when 25 => Stroke_Line_To_Point (OS_Link, Arg (6), Arg (7), O);
+               when 26 => Stroke_Triangle (OS_Link, Arg (6), Arg (7), Arg (8), Arg (9), Arg (10), Arg (11), O);
+               when 27 => Fill_Triangle (OS_Link, Arg (6), Arg (7), Arg (8), Arg (9), Arg (10), Arg (11), O);
+               when 28 => Fill_Stroke_Triangle (OS_Link, Arg (6), Arg (7), Arg (8), Arg (9), Arg (10), Arg (11), O);
+               when 29 => Stroke_Rect (OS_Link, Arg (6), Arg (7), Arg (8), Arg (9), O);
+               when 30 => Fill_Rect (OS_Link, Arg (6), Arg (7), Arg (8), Arg (9), O);
+               when 31 => Fill_Stroke_Rect (OS_Link, Arg (6), Arg (7), Arg (8), Arg (9), O);
+               when 32 => Stroke_Ellipse_In_Rect (OS_Link, Arg (6), Arg (7), Arg (8), Arg (9), O);
+               when 33 => Fill_Ellipse_In_Rect (OS_Link, Arg (6), Arg (7), Arg (8), Arg (9), O);
+               when 34 => Fill_Stroke_Ellipse_In_Rect (OS_Link, Arg (6), Arg (7), Arg (8), Arg (9), O);
+               when 35 => Ctm_Reset (OS_Link, O);
+               when 36 => Ctm_Set (OS_Link, Flt (6), Flt (7), Flt (8), Flt (9), Flt (10), Flt (11), O);
+               when 37 => Ctm_Translate (OS_Link, Flt (6), Flt (7), O);
+               when 38 => Ctm_Scale (OS_Link, Flt (6), Flt (7), O);
+               when 39 => Ctm_Rotate (OS_Link, Flt (6), O);
+               when 40 => Context_Push (OS_Link, O);
+               when 41 => Context_Pop (OS_Link, O);
+               when 42 =>
+                  Read_Font_Character (OS_Link, Interfaces.Unsigned_16 (Arg (6)), Before, Reply, O, OK);
+                  Record_Int (Name & ".ok", Int (16), (if OK then 1 else 0));
+                  if OK then
+                     Record_Bytes (Name & ".chr", Hex_Bytes (17), OS_Link.Font);
+                  end if;
+               when 43 =>
+                  Write_Font_Character (OS_Link, Interfaces.Unsigned_16 (Arg (6)), S, Before, Reply, O);
+               when others =>
+                  Put_Line ("unknown frsky osd op");
+                  Failures := Failures + 1;
+            end case;
+            Record_Bytes (Name & ".tx", Hex_Bytes (15), O.Tx (0 .. O.Count - 1));
+            Record_State (18);
+         end;
+      else
+         Put_Line ("unknown frsky osd case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_FrSky_OSD_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -6403,6 +6526,8 @@ procedure Vector_Check is
                   Check_Transponder_Line;
                elsif Kind = "srxltlm" then
                   Check_SRXL_Telemetry_Line;
+               elsif Kind = "frskyosd" then
+                  Check_FrSky_OSD_Line;
                else
                   Check_PID_Line;
                end if;
@@ -6472,6 +6597,7 @@ begin
    Run (Dir & "/ghsttlm.csv", "ghsttlm");
    Run (Dir & "/transponder.csv", "transponder");
    Run (Dir & "/srxltlm.csv", "srxltlm");
+   Run (Dir & "/frskyosd.csv", "frskyosd");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
