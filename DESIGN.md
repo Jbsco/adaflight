@@ -1274,3 +1274,21 @@ signed difference to the next time is not negative, and sets the next time from 
 and a tenth of its jitter times the next step of a fixed table of fifteen; no coding means no
 transmission. The timer period and the hardware are the target's. The unit is SPARK for the toggle
 buffer indexes, which the reference drives through a static offset.
+## D68. SRXL telemetry frames (2026-10-11)
+
+The SRXL telemetry unit carries the reference's frame schedule and encoders for the Spektrum
+receivers: three slots in turn, the link quality frame and the rate frame always, then one user
+frame cycling over the flight pack current, the GPS status, the GPS location and the text generator
+line, the text line taking the slot whatever the cycle while the menu is on this display; each
+frame two address bytes, a length, sixteen payload bytes and the CRC-16 over the payload, handed
+to the receiver driver when its buffer is empty, a slot whose frame has nothing to say passing in
+silence. The rate frame carries the period between pulses from the ESC rate, or the DShot average
+when the ESC gives none, bounded to the shown range, the pack or cell voltage and the core
+temperature in Fahrenheit, big-endian; the flight pack frame goes when the current or the charge
+changed or two seconds passed; the GPS frames go with the GPS feature, a fix and four satellites,
+their values in binary coded decimals narrowed as the reference's conversions narrow them, the low
+altitude field through a sixteen-bit integer before its digits (finding F85); the text frame sends
+the next line not yet sent, or the next in turn when all were, and the menu system's characters
+mark their line through `Put_Char`. The video transmitter frame follows the VTX control branch,
+where the schedule grows by one user frame. The unit is SPARK for the frame and text indexes and
+the narrowing arithmetic.
