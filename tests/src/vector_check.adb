@@ -102,6 +102,7 @@ with Adaflight.Altitude_Control;
 with Adaflight.VTX_Table;
 with Adaflight.SmartAudio;
 with Adaflight.LTM_Telemetry;
+with Adaflight.GPS_Lap_Timer;
 
 procedure Vector_Check is
 
@@ -8359,6 +8360,73 @@ procedure Vector_Check is
       Record_Bytes ("ltm.frames", Hex_Bytes (25), O.Data (0 .. O.Count - 1));
    end Check_LTM_Line;
 
+   LT_Seq      : Integer_64 := -1;
+   LT_Timer    : Adaflight.GPS_Lap_Timer.Timer;
+   LT_Settings : Adaflight.GPS_Lap_Timer.Settings;
+   LT_Cos_Lat  : Adaflight.Maths.Cosine := 1.0;
+
+   procedure Check_Lap_Timer_Line is
+      package LT renames Adaflight.GPS_Lap_Timer;
+      Name : constant String := Str (1);
+
+      procedure Record_State (K : Positive) is
+         T : LT.Timer renames LT_Timer;
+      begin
+         Record_Int (Name & ".gatelat", Int (K), Integer_64 (T.Gate.Lat));
+         Record_Int (Name & ".gatelon", Int (K + 1), Integer_64 (T.Gate.Lon));
+         Record_Int (Name & ".nset", Int (K + 2), Integer_64 (T.Set_Readings));
+         Record_Int (Name & ".dist", Int (K + 3), Integer_64 (T.Distance_To_Gate_Cm));
+         Record_Int (Name & ".dir", Int (K + 4), Integer_64 (T.Direction_To_Gate));
+         Record_Int (Name & ".running", Int (K + 5), Boolean'Pos (T.Timer_Running));
+         Record_Int (Name & ".lastlap", Int (K + 6), Integer_64 (T.Time_Of_Last_Lap));
+         Record_Int (Name & ".nlaps", Int (K + 7), Integer_64 (T.Laps_Recorded));
+         Record_Int (Name & ".best", Int (K + 8), Integer_64 (T.Best_Lap_Time));
+         Record_Int (Name & ".best3", Int (K + 9), Integer_64 (T.Best_Three));
+         for I in LT.Lap_Index loop
+            Record_Int (Name & ".prev", Int (K + 10 + I), Integer_64 (T.Previous (I)));
+         end loop;
+         Record_Int (Name & ".mindist", Int (K + 13), Integer_64 (T.Min_Distance));
+         Record_Int (Name & ".mindisttime", Int (K + 14), Integer_64 (T.Min_Distance_Time));
+         Record_Int (Name & ".wasin", Int (K + 15), Boolean'Pos (T.Was_In_Circle));
+         Record_Int (Name & ".setting", Int (K + 16), Boolean'Pos (T.Setting_Gate));
+         Record_Int (Name & ".cfglat", Int (K + 17), Integer_64 (LT_Settings.Gate_Lat));
+         Record_Int (Name & ".cfglon", Int (K + 18), Integer_64 (LT_Settings.Gate_Lon));
+      end Record_State;
+   begin
+      if Name = "ltinit" then
+         LT_Seq := Int (2);
+         LT_Settings := (Gate_Lat           => Interfaces.Integer_32 (Int (3)),
+                         Gate_Lon           => Interfaces.Integer_32 (Int (4)),
+                         Minimum_Lap_Time_S => Interfaces.Unsigned_16 (Int (5)),
+                         Gate_Tolerance_M   => Interfaces.Unsigned_8 (Int (6)));
+         LT_Cos_Lat := Flt (7);
+         LT_Timer := (Gate => (others => 0), others => <>);
+         LT.Init (LT_Timer, LT_Settings);
+      elsif Name = "ltstep" then
+         if Int (2) /= LT_Seq then
+            Put_Line ("lap timer step without its start");
+            Failures := Failures + 1;
+            return;
+         end if;
+         case Int (4) is
+            when 0 =>
+               LT.New_GPS_Data (LT_Timer, LT_Settings,
+                                (Lat    => Interfaces.Integer_32 (Int (5)),
+                                 Lon    => Interfaces.Integer_32 (Int (6)),
+                                 Alt_Cm => 0),
+                                Interfaces.Unsigned_32 (Int (7)), LT_Cos_Lat, Int (8) /= 0);
+            when 1 =>
+               LT.Start_Set_Gate (LT_Timer);
+            when others =>
+               LT.End_Set_Gate (LT_Timer, LT_Settings);
+         end case;
+         Record_State (9);
+      else
+         Put_Line ("unknown lap timer case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Lap_Timer_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -8519,6 +8587,8 @@ procedure Vector_Check is
                   Check_Tramp_Line;
                elsif Kind = "ltm" then
                   Check_LTM_Line;
+               elsif Kind = "laptimer" then
+                  Check_Lap_Timer_Line;
                else
                   Check_PID_Line;
                end if;
@@ -8608,6 +8678,7 @@ begin
    Run (Dir & "/vtxctl.csv", "vtxctl");
    Run (Dir & "/vtxtramp.csv", "vtxtramp");
    Run (Dir & "/ltm.csv", "ltm");
+   Run (Dir & "/laptimer.csv", "laptimer");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
