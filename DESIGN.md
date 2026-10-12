@@ -1311,3 +1311,26 @@ was queued, then the bytes arriving during the wait are all taken, the first com
 deciding the outcome, and the caller carries the time the wait took. The strings are bounded to
 the payload the reference writes them into, which a longer string would overrun (finding F87). The
 unit is SPARK for the queue, frame and payload indexes.
+## D70. LED strip (2026-10-11)
+
+The LED strip unit carries the reference's strip: the layout derived once from the configuration
+(the LEDs in use up to the first empty one, the ring and scanner counts, the ring sequence length,
+the grid halves for the indicator, the overlay timers nothing uses, the bar lengths); the status
+profile, which paints every LED from its function (a palette color blended toward its neighbours by
+the auxiliary channel, the mode color of its first direction, the arm state, the battery, signal,
+GPS and altitude hues offset by the value, the bars) and then runs the overlay layers on their own
+timers in the reference's order (rainbow, blink, scanner, ring, indicator, GPS, battery, signal,
+warning), each layer repainting its LEDs every call and stepping its state when its time came, a
+timer more than five seconds behind restarted; the race and beacon profiles painting the whole
+strip one color, the race color flashing for the beeper switch or failsafe, the beacon on its
+period, the strip repainted on a change or every second; and the driver update scaling each LED by
+the brightness and converting it to red, green and blue, every LED after a change of count and the
+LEDs in use otherwise. The configuration text of a LED and of a color parse as the reference reads
+them, a chunk of more than ten characters failing and a color component over its limit or below
+zero failing. Two reference behaviours are kept: a function mask also matches the functions whose
+numbers hold its bits, so the battery, signal and GPS layers repaint the bar and ring LEDs too
+(finding F88), and the ring timer's rate reaches zero for a throttle of 861 to 880 while armed,
+where the reference divides by it and the unit adds nothing (finding F89). The video transmitter
+layer and the race color that follows the transmitter frequency wait for the VTX branches, the
+layer leaving its timer alone. The unit is SPARK for the LED, palette and timer indexes and the
+hue arithmetic.
