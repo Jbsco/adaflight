@@ -861,3 +861,30 @@ arrived within the last 300 milliseconds. The status poll reports complete once 
 stamps the frame at the poll. The override poll reports complete once per frame. The raw value
 is the channel value itself. The command handler bounds the count at eighteen, so the count is
 a subtype. The millisecond difference is the reference's unsigned one. No guard was needed.
+## D50. The SRXL2 protocol (2026-10-10)
+
+The SRXL2 unit carries the reference's SRXL2 receiver. Each byte arrives with its time and goes
+into the read buffer while it is free and has room. Otherwise the packet is dropped. The port's
+idle ends a transmission, frees the read buffer when nothing came in, or hands the packet over
+by swapping the two buffers with the idle time kept. The status poll processes the handed-over
+packet. The packet is dropped unless its id, its length byte, and its CRC over the whole packet
+check, and then it is valid at the poll's time. A broadcast handshake names the bus master,
+takes the fast rate when the master supports it, and runs the link. A handshake to this unit
+gets the reply with the ids swapped, the priority, and the rate offered. Control data requests
+telemetry when its reply id is this unit's. Its channel data gives the RSSI percent onto the
+receiver's range when it is not negative, a dropped frame when the mask is empty, and each
+channel under the mask from the next word. Its failsafe sets the RSSI to zero. Its VTX data is
+packed into the Spektrum control word for the VTX layer. The link state machine then runs. It
+listens for activity and toggles the rate while bytes come without a valid packet. At its
+timeout it moves to sending or listening for a handshake. When a handshake or the frames time
+out, it falls back to listening at the default rate with a failsafe result. Processing is asked
+for when the write buffer holds a reply, and the processing sends it once the bus has been idle
+for the reply quiescence. The bind request and the telemetry frame the telemetry layer fills go
+out through the same write buffer with the CRC in their last two bytes. The raw value is the
+count's quarter over sixteen plus 988. The reference reads a handshake's or a control packet's
+fields without checking the packet's length against them, so a short packet yields stale buffer
+bytes. The unit reads the same bytes from the same buffer so the recorded vectors match
+(finding F39). The sending state asks for processing without a reply to send (finding F40),
+kept as the reference has it. The baud rate the unit asks of the port is kept as its own field,
+where the reference asks the port back. The telemetry content, the MSP and VTX handling, the
+serial port, and the idle callback's source stay with their layers. No guard was needed.
