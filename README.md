@@ -55,12 +55,13 @@ The core holds:
 - the SRXL telemetry frames with the text generator
 - the FrSky OSD device link
 - the LED strip with its status, race and beacon profiles
+- the rangefinder readings with their median, signal ratio and tilt correction
 
 The state of `main`:
 
-- The core proves at Silver and Gold: 8846 checks, nothing unproved, no
+- The core proves at Silver and Gold: 8885 checks, nothing unproved, no
   `pragma Assume`, no justified suppression (`gnatprove` 16.1.0, level 2).
-- The recorded vectors replay bit for bit: 461516 lines over 259 cases, every case
+- The recorded vectors replay bit for bit: 476526 lines over 261 cases, every case
   exact except the seventeen declared deviations in `DESIGN.md` D6.
 - No target builds yet. `ROADMAP.md` carries the parity inventory, the phases, and the
   question for after parity: whether a proved core leaves room on the F4 boards for

@@ -1334,3 +1334,16 @@ where the reference divides by it and the unit adds nothing (finding F89). The v
 layer and the race color that follows the transmitter frequency wait for the VTX branches, the
 layer leaving its timer alone. The unit is SPARK for the LED, palette and timer indexes and the
 hue arithmetic.
+## D71. Rangefinder readings (2026-10-11)
+
+The rangefinder unit carries the reference's processing of the distance a driver reports: the
+reading's time and the interval between readings, a median of the last five readings in range
+with the reading itself until five were seen, the pseudo signal ratio as the sum of the last five
+squared changes over ten each bounded, the dynamic ceiling on the usable distance raised to three
+quarters of the reading while the ratio stays quiet and frozen once the ratio crosses six hundred,
+and the altitude from the reading and the cosine of the craft's tilt, out of range past the
+sensor's extended cone. The surface altitude is usable with positive readings, a quiet ratio and,
+once the ceiling froze, a reading under it; the sensor is healthy within half a second of a valid
+reading. The detection, the drivers and the legacy bounds the altitude estimator reads come with
+the target, the bounds computed here from the range and the tilt limit. The unit is SPARK for the
+sample windows and the integer bounds.
