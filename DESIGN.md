@@ -1416,3 +1416,16 @@ the values the chips carry, so the products stay in 32 bits where the reference 
 (finding F96). One guard covers the reference's division: an averaged reference reading of zero
 gives a supply of zero, the quotient the target's core produces (F97). No recorded vector reaches
 the guard.
+## D76. Flight statistics (2026-10-11)
+
+The flight statistics unit carries the reference's counters without the configuration store, the
+beeper and the scheduler: an arm records the millisecond clock and the distance flown so far, and
+a disarm, when the minimum armed time is not off, adds a flight, the armed seconds and the metres
+flown since the arm to the totals and records the battery draw, once the armed time reaches the
+minimum, then asks for the save after half a second while a save is owed. The save, when the
+platform runs it, does nothing while armed; while disarmed it writes the configuration and repeats
+the disarm beep when the craft lies still under the movement limit, or when the limit is zero,
+asks for another pass otherwise, and in either case clears the owed save; a configuration change
+waiting for its own save leaves the statistics to it. The seconds and the metres wrap as the
+reference's unsigned arithmetic, and a negative battery draw lands in the unsigned total as the
+reference stores it. No guard was needed.
