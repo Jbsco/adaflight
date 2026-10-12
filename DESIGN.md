@@ -284,256 +284,239 @@ reference's 16-bit counter would overflow after 32767 failsafe events.
 
 ## D19. Mode activation lists are bounded by type (2026-10-08)
 
-`Adaflight.Modes` keeps the two lists the reference builds when it analyzes the
-activation conditions, the own-range conditions and the linked ones, as index arrays with
-counts whose sum the state's predicate bounds at the condition count, so the loop that
-fills them proves its indices from one invariant and the update loops read within them.
-The masks are Boolean arrays over the box enumeration rather than bit words, so a box
-identifier out of range cannot exist. The vector checker folds them back into the
+`Adaflight.Modes` keeps the two lists of activation conditions, the own-range conditions and the
+linked ones, as index arrays with counts whose sum the state's predicate bounds at the condition
+count, so the loop that fills them proves its indices from one invariant and the update loops
+read within them. The masks are Boolean arrays over the box enumeration rather than bit words,
+so a box identifier out of range cannot exist. The vector checker folds them back into the
 reference's words. The boot delay before a sticky box may disarm compares the microsecond
-counter directly, as the reference does, since the delay is a one-shot after boot.
+counter directly, since the delay is a one-shot after boot.
 
 ## D20. Accelerometer counts and offsets are held to their ranges (2026-10-08)
 
-`Adaflight.Accelerometer` follows the reference's path from the raw counts to the values
-the attitude estimator reads. Two bounds are stated where the reference relies on its
-types silently. An aligned count is held within 2 ** 18, which a standard alignment cannot
-reach and a custom rotation, whose matrix entries are within two, cannot exceed on 16-bit
-counts, so the saturation is inert. The calibration totals follow the reference's path,
-each cycle adding the float sample to an integer total and truncating back, and saturate
-at 2 ** 28, which 400 cycles of such counts cannot reach. The offsets are the rounded
-means less the gravity count on the vertical axis. The reference stores each offset in a
-16-bit field that wraps when the mean exceeds it. The port saturates the offset at the
-field's range instead, which no sensor near one gravity reaches. The in-flight
-calibration, the board alignment, and the configuration flag that records a completed
-calibration are not in this unit. The magnitudes take the norms of the acceleration and
-the jerk held to bounds the root of three squares within their component ranges cannot
-reach, so their scaling by the reciprocal of one g proves apart from the update.
+`Adaflight.Accelerometer` carries the path from the raw counts to the values the attitude
+estimator reads. Two bounds are stated where the reference relies on its types silently. An
+aligned count is held within 2 ** 18, which a standard alignment cannot reach and a custom
+rotation, whose matrix entries are within two, cannot exceed on 16-bit counts, so the saturation
+is inert. The calibration totals add each cycle's float sample to an integer total and truncate
+back, and saturate at 2 ** 28, which 400 cycles of such counts cannot reach. The offsets are the
+rounded means less the gravity count on the vertical axis. The reference stores each offset in a
+16-bit field that wraps when the mean exceeds it. The port saturates the offset at the field's
+range instead, which no sensor near one gravity reaches. The in-flight calibration, the board
+alignment, and the configuration flag that records a completed calibration are not in this unit.
+The magnitudes take the norms of the acceleration and the jerk held to bounds the root of three
+squares within their component ranges cannot reach, so their scaling by the reciprocal of one g
+proves apart from the update.
 
 ## D21. The barometric power saturates at eight (2026-10-08)
 
-`Adaflight.Barometer` turns a pressure into an altitude through the power of its ratio to
-the sea-level pressure. A pressure within the 32-bit range keeps that power below seven,
-so the power is held at eight before the altitude is formed, which bounds the altitude
-and the calibration sums by type. The saturation is inert. The device state machine that
-schedules the temperature and pressure reads is the driver's, and the port takes each
-pressure sample with the time of its read. The calibration keeps the reference's integer
-mean of the temperature and float mean of the altitude, with both sums saturating at
-their types' bounds, which one hundred samples cannot reach. The drift product is formed
-in 64 bits where the reference's 32-bit product would wrap above a two-degree-million
-difference, which no device reports.
+`Adaflight.Barometer` turns a pressure into an altitude through the power of its ratio to the
+sea-level pressure. A pressure within the 32-bit range keeps that power below seven, so the
+power is held at eight before the altitude is formed, which bounds the altitude and the
+calibration sums by type. The saturation is inert. The device state machine that schedules the
+temperature and pressure reads is the driver's, and the port takes each pressure sample with the
+time of its read. The calibration keeps an integer mean of the temperature and a float mean of
+the altitude, with both sums saturating at their types' bounds, which one hundred samples cannot
+reach. The drift product is formed in 64 bits where the reference's 32-bit product would wrap
+above a two-degree-million difference, which no device reports.
 
-## D22. Battery meters in the reference's integer arithmetic (2026-10-08)
+## D22. Battery meters in integer arithmetic (2026-10-08)
 
-`Adaflight.Battery` keeps the voltage and current meters in the reference's integer
-arithmetic: the divider scaling in 32-bit unsigned steps held to the 16-bit field it stores
-into, the current scaling in 32-bit signed steps, the cell thresholds in 16-bit unsigned
-products, and the filtered analog counts truncated back to counts before scaling, as the
-reference converts them. The stability record is the reference's shifted bit mask. Only the
-analog meters are ported. The ESC, virtual, and MSP sources reset their meter as the
-reference does when a source is absent. The cutoff percentage is held to its range where
-the reference's byte leaves it after a clock wrap during the ramp, and the charge sum and
-energy saturate at their float types' bounds, which no pack reaches.
+`Adaflight.Battery` keeps the voltage and current meters in integer arithmetic: the divider
+scaling in 32-bit unsigned steps held to the 16-bit field it stores into, the current scaling in
+32-bit signed steps, the cell thresholds in 16-bit unsigned products, and the filtered analog
+counts truncated back to counts before scaling. The stability record is a shifted bit mask. Only
+the analog meters are ported. The ESC, virtual, and MSP sources reset their meter when a source
+is absent. The cutoff percentage is held to its range where the reference's byte leaves it after
+a clock wrap during the ramp, and the charge sum and energy saturate at their float types'
+bounds, which no pack reaches.
 
 ## D23. Sensor readings are aligned before they are scaled (2026-10-08)
 
-The gyro and the accelerometer carry their alignment as the reference orders it: the
-counts, less the gyro's zero offsets, go through the sensor's standard rotation or its
-custom rotation matrix, then through the board rotation when the board angles are not all
-zero, and only then through the scale. The permutations of a standard rotation commute
-with the scale but the matrices do not, so the order is kept for the custom and board
-cases. The gyro zero offsets stay per raw axis, since the reference calibrates before it
-aligns. The board rotation matrix is built from whole degrees through the same conversion
-and rotation the reference uses, and the matrices sit in the state with their entries
-bounded by two, which bounds the aligned counts by type.
+The gyro and the accelerometer carry their alignment in one order: the counts, less the gyro's
+zero offsets, go through the sensor's standard rotation or its custom rotation matrix, then
+through the board rotation when the board angles are not all zero, and only then through the
+scale. The permutations of a standard rotation commute with the scale but the matrices do not,
+so the order is kept for the custom and board cases. The gyro zero offsets stay per raw axis,
+since the calibration runs before the alignment. The board rotation matrix is built from whole
+degrees through the same conversion and rotation as the sensor's, and the matrices sit in the
+state with their entries bounded by two, which bounds the aligned counts by type.
 
-## D24. The arming logic as the reference's flag machine (2026-10-09)
+## D24. The arming logic as a flag machine (2026-10-09)
 
 `Adaflight.Arming` holds the arming flags, the thirty disable reasons as a Boolean array in
-the reference's bit order, and the flight mode flags, so the reason the warning beeps count
-out is the first true element. The unit takes what the other units report (the link, the
-failsafe, the attitude, the calibrations, the motor protocol) in an input record per pass
-and returns what it asks of them (the beeps, the stick commands, the calibration and save
-requests, the stabilisation state) in an output record, so it depends on no unit that is
-not yet ported. The three passes keep the receiver task's order: the receiver pass, the
-modes pass with the stick combinations, the mode update and the flight mode selection, then
-the arming status. The throttle percent holds its fraction to the unit range and guards a
-zero divisor; both are inert within the configuration ranges (a minimum check below 2000
-microseconds, a 3D mid value and deadband that leave a span below full throttle). The
-automatic disarm deadline is compared through the wrapping difference where the reference
-compares the counters directly (D6). The stick hold time is the reference's 16-bit count
-with its saturation, and the disarm tick counter is its wrapping byte. Not in this unit:
-the DShot beacon delay, crash flip and spin direction, launch control, the GPS rescue arming
-checks, the runaway takeoff detection, the in-flight accelerometer calibration, the shared
-port telemetry switch, and the adjustments, which belong with their own units.
+their bit order, and the flight mode flags, so the reason the warning beeps count out is the
+first true element. The unit takes what the other units report (the link, the failsafe, the
+attitude, the calibrations, the motor protocol) in an input record per pass and returns what it
+asks of them (the beeps, the stick commands, the calibration and save requests, the
+stabilisation state) in an output record, so it depends on no unit that is not yet ported. The
+three passes keep the receiver task's order: the receiver pass, the modes pass with the stick
+combinations, the mode update and the flight mode selection, then the arming status. The
+throttle percent holds its fraction to the unit range and guards a zero divisor. Both are inert
+within the configuration ranges (a minimum check below 2000 microseconds, a 3D mid value and
+deadband that leave a span below full throttle). The automatic disarm deadline is compared
+through the wrapping difference where the reference compares the counters directly (D6). The
+stick hold time is a 16-bit count with its saturation, and the disarm tick counter a wrapping
+byte. Not in this unit: the DShot beacon delay, crash flip and spin direction, launch control,
+the GPS rescue arming checks, the runaway takeoff detection, the in-flight accelerometer
+calibration, the shared port telemetry switch, and the adjustments, which belong with their own
+units.
 
 ## D25. Level modes inside the rate loop (2026-10-09)
 
-The angle and horizon modes stay where the reference keeps them, in the rate loop between
-the acceleration limit and the iterm relax, so the loop's order holds: the angle target from
-the stick through the angle limit and the rate at full deflection, the attitude less the
-trims, the angle feedforward through its own filter, the yaw compensation while rolled or
-pitched, the attitude filter, and the horizon crossfade. The attitude, the trims, the stick
-deflections, and the full-deflection rates arrive as inputs of the loop, since the units
-that produce them run before it. The horizon strength and the level rate carry the type
-bounds their configuration ranges allow (a strength of up to six hundred, a feedforward of
-up to four million degrees per second), and saturate at the signal bound and the rate bound
-where the reference's floats run on; none of the saturations is reached in the recorded
-vectors. The level mode start time is kept for the crash recovery guard, which is not yet
-ported, and the GPS rescue, altitude hold, position hold, and launch inputs to the level
-target are not in this unit.
+The angle and horizon modes stay in the rate loop between the acceleration limit and the iterm
+relax, so the loop's order holds: the angle target from the stick through the angle limit and
+the rate at full deflection, the attitude less the trims, the angle feedforward through its own
+filter, the yaw compensation while rolled or pitched, the attitude filter, and the horizon
+crossfade. The attitude, the trims, the stick deflections, and the full-deflection rates arrive
+as inputs of the loop, since the units that produce them run before it. The horizon strength and
+the level rate carry the type bounds their configuration ranges allow (a strength of up to six
+hundred, a feedforward of up to four million degrees per second), and saturate at the signal
+bound and the rate bound where the reference's floats run on. None of the saturations is reached
+in the recorded vectors. The level mode start time is kept for the crash recovery guard, which
+is not yet ported, and the GPS rescue, altitude hold, position hold, and launch inputs to the
+level target are not in this unit.
 
 ## D26. Gyro calibration and the full-scale detections in the gyro unit (2026-10-09)
 
-The zero offset calibration lives with the gyro filtering, where the reference keeps it:
-while cycles remain, each sensor sample joins the per-axis sums and the Welford statistics
-instead of becoming a rate, the rate the loop downsamples stays stale as the reference's
-does, and the final cycle turns the sums into the zero offsets, less the configured yaw
-offset, unless an axis's deviation exceeds the movement limit, which restarts the
-calibration. The zero offsets moved from the settings into the state for this reason. The
-sums are held to a bound no configured duration reaches and the statistics stop counting
-at their cap, both inert. The first arming calibration starts once per boot and reports
-itself to the arming logic; the tone the reference sounds on the final cycle is a request
-the caller places, since it depends on the arming flags. The overflow detection compares
-the filtered rates against the sensor's full scale through the configured scale, on the yaw
-axis or on all three, only for a device without overflow protection, and holds the
-attitude lowpass while an overflow stands; the yaw spin detection compares the filtered yaw
-rate against the threshold the setting or the rates' maximum yaw rate gives, with the
-reference's integer truncation reproduced as a comparison against the next whole number.
-The slew limiter the reference compiles only for three gyro devices on large targets is
-not in this unit.
+The zero offset calibration lives with the gyro filtering. While cycles remain, each sensor
+sample joins the per-axis sums and the Welford statistics instead of becoming a rate, the rate
+the loop downsamples stays stale, and the final cycle turns the sums into the zero offsets, less
+the configured yaw offset, unless an axis's deviation exceeds the movement limit, which restarts
+the calibration. The zero offsets moved from the settings into the state for this reason. The
+sums are held to a bound no configured duration reaches and the statistics stop counting at
+their cap, both inert. The first arming calibration starts once per boot and reports itself to
+the arming logic. The tone the reference sounds on the final cycle is a request the caller
+places, since it depends on the arming flags. The overflow detection compares the filtered rates
+against the sensor's full scale through the configured scale, on the yaw axis or on all three,
+only for a device without overflow protection, and holds the attitude lowpass while an overflow
+stands. The yaw spin detection compares the filtered yaw rate against the threshold the setting
+or the rates' maximum yaw rate gives, with the integer truncation of the rate reproduced as a
+comparison against the next whole number. The slew limiter the reference compiles only for three
+gyro devices on large targets is not in this unit.
 
 ## D27. The dynamic notch as a unit of its own behind the gyro lowpass (2026-10-09)
 
-`Adaflight.Dyn_Notch` holds the three sliding transforms, the peak list, the notch centers,
-and the four-step cycle the reference runs one step per loop, one axis per four steps. The
-gyro unit pushes each filtered rate into it, filters the rate through its notches, and
-runs its update once per loop, in the reference's order. The state's predicate ties the
-transforms to the batch count and keeps their bins where the windowed spectrum can read
-one bin to each side, which the SDFT initialization now states in its postcondition. The
-spectral sums are held to a power bound no saturated transform reaches, and three guards
-stand where the reference's floats run on: the parabola offset is taken only when the
-numerator is within the denominator, which a peak between two lower neighbours always
-satisfies; the speed-up of the center smoothing takes its limit directly when the peak is
-at least ten times the floor or the floor is zero, and one when the floor is negative, as
-the reference's clamp of an infinite or negative quotient gives; and the start bin stays
-one short of the last readable bin, where the reference reads past its spectrum for a
-range above 250 Hz at a resolution under eight. The record of the highest center takes
-the reference's truncation of the center to a whole number. None of the guards changes a
-recorded vector. The slew of the notch at a loop slower than 500 microseconds is the
-reference's: the filter stays inactive.
+`Adaflight.Dyn_Notch` holds the three sliding transforms, the peak list, the notch centers, and
+the four-step cycle that runs one step per loop, one axis per four steps. The gyro unit pushes
+each filtered rate into it, filters the rate through its notches, and runs its update once per
+loop. The state's predicate ties the transforms to the batch count and keeps their bins where
+the windowed spectrum can read one bin to each side, which the SDFT initialization now states in
+its postcondition. The spectral sums are held to a power bound no saturated transform reaches,
+and three guards stand where the reference's floats run on: the parabola offset is taken only
+when the numerator is within the denominator, which a peak between two lower neighbours always
+satisfies. The speed-up of the center smoothing takes its limit directly when the peak is at
+least ten times the floor or the floor is zero, and one when the floor is negative, as the
+reference's clamp of an infinite or negative quotient gives. The start bin stays one short of
+the last readable bin, where the reference reads past its spectrum for a range above 250 Hz at a
+resolution under eight. The record of the highest center truncates the center to a whole number.
+None of the guards changes a recorded vector. At a loop slower than 500 microseconds the filter
+stays inactive.
 
 ## D28. The RPM notches as a bank the gyro unit runs ahead of its static notches (2026-10-09)
 
-`Adaflight.RPM_Filter` holds one weighted notch per motor and harmonic over the three
-rates, the harmonic weights, and the schedule that moves a share of the bank to the motors'
-reported frequencies each loop. The gyro unit runs it on the downsampled rates before the
-static notches, in the reference's order, and takes the motors' frequencies and the loop's
-measured period ratio as inputs each loop, because the motor telemetry and the scheduler
-are outside it; the motor count and the telemetry flag join the gyro settings for the same
-reason. Proof covers the schedule's wrap over the harmonics and motors and the bounds of
-every coefficient for every loop time, motor count, and harmonic count at once, which a
-test can only sample. Three points differ from the reference's floats. The filter stays off
-when the minimum frequency is above the notch ceiling of the loop, a configuration the
-reference admits with a pid loop slower than 480000 divided by the minimum frequency, in
-microseconds (a 4 millisecond loop with a 150 Hz minimum), where its fade weight turns
-negative or infinite. The fade weight is formed from a margin that the clamp of the
+`Adaflight.RPM_Filter` holds one weighted notch per motor and harmonic over the three rates, the
+harmonic weights, and the schedule that moves a share of the bank to the motors' reported
+frequencies each loop. The gyro unit runs it on the downsampled rates before the static notches,
+and takes the motors' frequencies and the loop's measured period ratio as inputs each loop,
+because the motor telemetry and the scheduler are outside it. The motor count and the telemetry
+flag join the gyro settings for the same reason. Proof covers the schedule's wrap over the
+harmonics and motors and the bounds of every coefficient for every loop time, motor count, and
+harmonic count at once, which a test can only sample. Three points differ from the reference's
+floats. The filter stays off when the minimum frequency is above the notch ceiling of the loop,
+a configuration the reference admits with a pid loop slower than 480000 divided by the minimum
+frequency, in microseconds (a 4 millisecond loop with a 150 Hz minimum), where its fade weight
+turns negative or infinite. The fade weight is formed from a margin that the clamp of the
 frequency to its range holds at or above zero, so the weight stays within one. The notch's
-warped frequency keeps the tangent domain of the maths unit, 1.51 radians, which a notch at
-the ceiling reaches only when the loop runs more than 0.125 percent slow; the reference's
-tangent there grows without bound and turns negative past a quarter turn. The share of the
-bank updated per loop is the reference's rounded-up quotient, held to its type by a clamp
-no loop time reaches. The recorded vectors keep the period ratio at or under one, so the
-tangent guard is not exercised by a vector; the others change none.
+warped frequency keeps the tangent domain of the maths unit, 1.51 radians, which a notch at the
+ceiling reaches only when the loop runs more than 0.125 percent slow. The reference's tangent
+there grows without bound and turns negative past a quarter turn. The share of the bank updated
+per loop is the rounded-up quotient, held to its type by a clamp no loop time reaches. The
+recorded vectors keep the period ratio at or under one, so the tangent guard is not exercised by
+a vector. The others change none.
 
 ## D29. Crash recovery inside the rate loop (2026-10-09)
 
-The rate loop carries the reference's crash recovery where the reference keeps it: the
-handling right after the error rate is formed, and the detection inside the D term once the
-loop has run a second past the last entry into a level mode. The loop takes the arming
-state, the accelerometer's presence, the gyro overflow, and the mixer's motor range as
-inputs, because the arming, sensor, and mixer units own them, and it reports the recovery
-state, the beeper request, and a disarm request that the arming unit consumes each loop.
-While recovering, the yaw error is held to its limit, roll and pitch are levelled through
-the angle gain when an accelerometer is present, the I term is dropped before it
-accumulates, and the iterm relax is skipped; the recovery ends after its time limit or once
-the craft is slow and, with an accelerometer, level. A gyro overflow zeroes every term, as
-the reference does for an overflow or a disabled stabilisation. The GPS rescue mode's
-enabling of the detection comes with the rescue port. Proof covers the setpoint the
-levelling forms from the attitude and trim ranges through the angle gain, which stays inside
-the rate type without a clamp, and the time comparisons through the wrapping clock
-difference. No vector deviates.
+The rate loop carries the crash recovery at two points: the handling right after the error rate
+is formed, and the detection inside the D term once the loop has run a second past the last
+entry into a level mode. The loop takes the arming state, the accelerometer's presence, the gyro
+overflow, and the mixer's motor range as inputs, because the arming, sensor, and mixer units own
+them, and it reports the recovery state, the beeper request, and a disarm request that the
+arming unit consumes each loop. While recovering, the yaw error is held to its limit, roll and
+pitch are levelled through the angle gain when an accelerometer is present, the I term is
+dropped before it accumulates, and the iterm relax is skipped. The recovery ends after its time
+limit or once the craft is slow and, with an accelerometer, level. A gyro overflow zeroes every
+term, as a disabled stabilisation does. The GPS rescue mode's enabling of the detection comes
+with the rescue port. Proof covers the setpoint the levelling forms from the attitude and trim
+ranges through the angle gain, which stays inside the rate type without a clamp, and the time
+comparisons through the wrapping clock difference. No vector deviates.
 
 ## D30. The compass with its sphere fit held to bounds (2026-10-09)
 
-`Adaflight.Compass` aligns the raw field as the accelerometer path does, through the
-sensor's standard alignment or the rotation built from the negated custom angles, then the
-board rotation, and keeps the reference's calibration: a wait for the gyro norm to pass
-350 degrees per second within fifteen seconds, thirty seconds of the sphere fit while the
-craft tumbles, the rounded bias as the new zero with a save request, and the zero
-subtracted from every read. The fit is the reference's recursive least squares on the
-factored covariance, in its operation order. Proof covers its floating point: every stored
-quantity carries a range (the factor entries within 2 to the 24, the diagonal within 2 to
+`Adaflight.Compass` aligns the raw field as the accelerometer path does, through the sensor's
+standard alignment or the rotation built from the negated custom angles, then the board
+rotation, and keeps the calibration: a wait for the gyro norm to pass 350 degrees per second
+within fifteen seconds, thirty seconds of the sphere fit while the craft tumbles, the rounded
+bias as the new zero with a save request, and the zero subtracted from every read. The fit is a
+recursive least squares on the factored covariance. Proof covers its floating point: every
+stored quantity carries a range (the factor entries within 2 to the 24, the diagonal within 2 to
 the 10, the parameters within 2 to the 16, the bias within 2 to the 20) and the projections,
-gains, and weighted sums inside a step are held to theirs, so no product in the recursion
-can overflow for a field within the aligned range. The bounds sit far outside the values a
-magnetometer produces: over the recorded sequences the factor entries stay under twenty,
-the diagonal under 110, and the parameters under one ten-thousandth. Two guards cover the
-reference's own undefined cases. The bias is zero while the first parameter is within 2 to
-the minus 100 of zero, where the reference divides by it and stores the result; and the
-forgetting factor keeps its previous innovation gain when the weighted innovation turns
-negative, where the reference's gain goes past one or through a division by zero. The
-nearest whole count of the bias is held to the offset range, where the reference wraps the
-rounded value into sixteen bits. The read interval the reference derives from the device's
-data rate belongs to the scheduler. No recorded vector reaches a guard.
+gains, and weighted sums inside a step are held to theirs, so no product in the recursion can
+overflow for a field within the aligned range. The bounds sit far outside the values a
+magnetometer produces: over the recorded sequences the factor entries stay under twenty, the
+diagonal under 110, and the parameters under one ten-thousandth. Two guards cover the
+reference's own undefined cases. The bias is zero while the first parameter is within 2 to the
+minus 100 of zero, where the reference divides by it and stores the result. The forgetting
+factor keeps its previous innovation gain when the weighted innovation turns negative, where the
+reference's gain goes past one or through a division by zero. The nearest whole count of the
+bias is held to the offset range, where the reference wraps the rounded value into sixteen bits.
+The read interval derived from the device's data rate belongs to the scheduler. No recorded
+vector reaches a guard.
 
 ## D31. The compass heading in the attitude estimate (2026-10-09)
 
-The attitude estimator takes the compass field and a flag for a calibrated compass each
-update, since the compass unit owns both, and forms the reference's heading error: the
-field turned into the earth frame by the current rotation and normalized, then set against
-magnetic north in the ground plane, the north vector turned by the declination at
-configuration. The error is the sine of the angle between them while the field points
-forward, else the field's full ground-plane norm toward the shorter turn, and zero for a
-field within a tenth of a count. The Mahony update adds the error, scaled by the earth-up
-row of the rotation, to its error terms before the accelerometer's, in the reference's
-order. The result is held to four, where a unit field against a unit north reaches one, so
-the error terms keep their ranges; the ranges of the error and the integral step widened
+The attitude estimator takes the compass field and a flag for a calibrated compass each update,
+since the compass unit owns both, and forms the heading error: the field turned into the earth
+frame by the current rotation and normalized, then set against magnetic north in the ground
+plane, the north vector turned by the declination at configuration. The error is the sine of the
+angle between them while the field points forward, else the field's full ground-plane norm
+toward the shorter turn, and zero for a field within a tenth of a count. The Mahony update adds
+the error, scaled by the earth-up row of the rotation, to its error terms before the
+accelerometer's. The result is held to four, where a unit field against a unit north reaches
+one, so the error terms keep their ranges. The ranges of the error and the integral step widened
 for the added term. The GPS course over ground that shares the term, and the compass's
 suppression of it, come with the GPS port. No recorded vector reaches the guard.
 
 ## D32. The position filter with bounded gains and covariances (2026-10-09)
 
-`Adaflight.Position_Filter` is the reference's three-state Kalman filter for one axis, in
-its operation order: the constant-jerk prediction through the two matrix accumulations,
-the position and acceleration updates on their own diagonal entries, and the velocity and
-position updates through their shared covariance in Joseph form. Proof covers the floating
-point of every path: the state is held to 2 to the 24 centimeters, the covariance entries to
-2 to the 40, each gain to 2 to the 16, and the two accumulations to typed intermediates, so
-no product can overflow whatever the sequence of updates. The gains stay within one for a
-consistent covariance and within the ratio of two variances otherwise, and the covariance
-of a flight stays within a few million, so the guards sit far from the values the filter
-produces; the reference's return on an innovation covariance below a nanobillionth is kept
-as it is. The altitude estimator that feeds this filter from the barometer and the
-accelerometer comes next. No recorded vector reaches a guard.
+`Adaflight.Position_Filter` is a three-state Kalman filter for one axis: the constant-jerk
+prediction through the two matrix accumulations, the position and acceleration updates on their
+own diagonal entries, and the velocity and position updates through their shared covariance in
+Joseph form. Proof covers the floating point of every path: the state is held to 2 to the 24
+centimeters, the covariance entries to 2 to the 40, each gain to 2 to the 16, and the two
+accumulations to typed intermediates, so no product can overflow whatever the sequence of
+updates. The gains stay within one for a consistent covariance and within the ratio of two
+variances otherwise, and the covariance of a flight stays within a few million, so the guards
+sit far from the values the filter produces. The early return on an innovation covariance below
+a nanobillionth is kept. The altitude estimator that feeds this filter from the barometer and
+the accelerometer comes next. No recorded vector reaches a guard.
 
 ## D33. The altitude estimator from the barometer and the accelerometer (2026-10-09)
 
-`Adaflight.Altitude_Estimator` is the vertical axis of the reference's position estimator
-with the barometer and the accelerometer as its sources, in the reference's order per
-position task: a change of arming resets the filter, the barometer's offset and gate, and
-the smoothing; the vertical acceleration from the up row of the attitude rotation over the
-scaled counts, zero while disarmed, corrects the filter and the prediction advances it; a
-new barometer sample within its hold interval, less the offset taken from the first sample,
-passes the step gate and corrects position and velocity together, or position alone after
-ten rejections; and the validity, the trust, and the smoothed altitude and climb rate follow.
-The GPS, rangefinder, and optical flow sources, the ground effect scaling they drive, and
-the cross-calibration they anchor come with their ports; without an anchoring source the
-reference leaves the barometer's offset untouched, as this unit does. The estimator takes
-the sensors and the attitude as inputs because their units own them. Proof covers the
-vertical acceleration through typed products and the filter's bounds; the trust is one
-where the position variance is below zero, which no filter step produces, and the displayed
-altitude is held to the rounding range. No recorded vector reaches a guard.
+`Adaflight.Altitude_Estimator` is the vertical axis of the position estimator with the barometer
+and the accelerometer as its sources, per position task. A change of arming resets the filter,
+the barometer's offset and gate, and the smoothing. The vertical acceleration from the up row of
+the attitude rotation over the scaled counts, zero while disarmed, corrects the filter and the
+prediction advances it. A new barometer sample within its hold interval, less the offset taken
+from the first sample, passes the step gate and corrects position and velocity together, or
+position alone after ten rejections. The validity, the trust, and the smoothed altitude and
+climb rate follow. The GPS, rangefinder, and optical flow sources, the ground effect scaling
+they drive, and the cross-calibration they anchor come with their ports. Without an anchoring
+source the barometer's offset stays untouched. The estimator takes the sensors and the attitude
+as inputs because their units own them. Proof covers the vertical acceleration through typed
+products and the filter's bounds. The trust is one where the position variance is below zero,
+which no filter step produces, and the displayed altitude is held to the rounding range. No
+recorded vector reaches a guard.
 
 ## D34. The altitude hold with the autopilot's altitude controller (2026-10-09)
 
