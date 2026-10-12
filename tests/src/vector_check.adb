@@ -82,6 +82,7 @@ with Adaflight.SRXL_Telemetry;
 with Adaflight.FrSky_OSD;
 with Adaflight.LED_Strip;
 with Adaflight.Color;
+with Adaflight.Rangefinder;
 
 procedure Vector_Check is
 
@@ -6576,6 +6577,49 @@ procedure Vector_Check is
       end if;
    end Check_LED_Strip_Line;
 
+   RF_Seq    : Integer_64 := -1;
+   RF_Sensor : Adaflight.Rangefinder.Sensor;
+
+   procedure Check_Rangefinder_Line is
+      use Adaflight.Rangefinder;
+      Name : constant String := Str (1);
+   begin
+      if Name = "rfinit" then
+         RF_Seq := Int (2);
+         Init (RF_Sensor, (Max_Range_Cm => Range_Cm (Int (3)), Cone_Extended_Decidegrees => Decidegrees (Int (4))),
+               Interfaces.Unsigned_32 (Int (5)));
+         Record_Result (Name & ".maxtiltcos", Bits (6), To_Bits (RF_Sensor.Max_Tilt_Cos));
+         Record_Int (Name & ".maxalt", Int (7), Integer_64 (RF_Sensor.Max_Alt_With_Tilt_Cm));
+         Record_Int (Name & ".cfalt", Int (8), Integer_64 (RF_Sensor.Cf_Altitude_Cm));
+      elsif Name = "rfstep" then
+         if Int (2) /= RF_Seq then
+            Put_Line ("rangefinder step without its start");
+            Failures := Failures + 1;
+            return;
+         end if;
+         declare
+            Processed : Boolean;
+            Now_Ms    : constant Interfaces.Unsigned_32 := Interfaces.Unsigned_32 (Int (5));
+         begin
+            Process (RF_Sensor, Interfaces.Unsigned_32 (Int (4)), Now_Ms, Reading (Int (6)), Flt (7), Processed);
+            Record_Int (Name & ".processed", Int (8), (if Processed then 1 else 0));
+            Record_Int (Name & ".raw", Int (9), Integer_64 (RF_Sensor.Raw_Altitude));
+            Record_Int (Name & ".calc", Int (10), Integer_64 (RF_Sensor.Calculated_Altitude));
+            Record_Int (Name & ".snr", Int (11), Integer_64 (RF_Sensor.Snr));
+            Record_Int (Name & ".reached", Int (12), (if RF_Sensor.Threshold_Reached then 1 else 0));
+            Record_Int (Name & ".dynamic", Int (13), Integer_64 (RF_Sensor.Dynamic_Threshold));
+            Record_Int (Name & ".lastvalid", Int (14), Integer_64 (RF_Sensor.Last_Valid_Ms));
+            Record_Int (Name & ".lastdata", Int (15), Integer_64 (RF_Sensor.Last_Data_Us));
+            Record_Int (Name & ".interval", Int (16), Integer_64 (RF_Sensor.Interval_Us));
+            Record_Int (Name & ".healthy", Int (17), (if Is_Healthy (RF_Sensor, Now_Ms) then 1 else 0));
+            Record_Int (Name & ".valid", Int (18), (if Surface_Altitude_Valid (RF_Sensor) then 1 else 0));
+         end;
+      else
+         Put_Line ("unknown rangefinder case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Rangefinder_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -6700,6 +6744,8 @@ procedure Vector_Check is
                   Check_FrSky_OSD_Line;
                elsif Kind = "ledstrip" then
                   Check_LED_Strip_Line;
+               elsif Kind = "rangefinder" then
+                  Check_Rangefinder_Line;
                else
                   Check_PID_Line;
                end if;
@@ -6771,6 +6817,7 @@ begin
    Run (Dir & "/srxltlm.csv", "srxltlm");
    Run (Dir & "/frskyosd.csv", "frskyosd");
    Run (Dir & "/ledstrip.csv", "ledstrip");
+   Run (Dir & "/rangefinder.csv", "rangefinder");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
