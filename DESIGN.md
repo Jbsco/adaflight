@@ -1779,3 +1779,22 @@ build's features, sensors and settings stays with the target, which hands it in 
 harness replays 20000 steps of random active sets, flags, switches, user names, pages and buffer
 sizes, half from a host build and half from a wing build, and checks the packed words and count,
 every serialized byte of both replies and the lookup by permanent id. No guard was needed.
+
+## D90. The dispatch queue (2026-10-12)
+
+The dispatch unit carries the reference's delayed-call queue over target numbers up to a
+capacity of eight, with the handlers left to the caller: the reference links entries that
+carry a function pointer, and SPARK keeps the entry table and the order while the caller
+numbers its targets and runs each one the queue hands back. An added target takes its due time from the clock plus the delay,
+which wraps as the reference's unsigned sum does for a negative delay, and goes before the
+first entry not due earlier on the wrapping clock difference; a target already queued stays
+where it is. A processing pass takes the head while it is due, unlinks it first and hands it
+back, so the handler can queue it again as the reference's can; the caller loops until nothing
+is due. The queue keeps its entries in an array by position rather than through pointers, with
+one slot per target; the one guard refuses an addition at full capacity, which one entry per
+target never reaches. Adaflight.Dispatch_Targets numbers the three calls the reference
+queues: the statistics save, the MSP reboot, and the settings write and read. The harness
+replays 20000 operations over the eight targets of adds with
+positive and negative delays, clock advances that wrap, enabling, and processing passes whose
+handlers requeue themselves at random, checking the fired order with every requeue, the
+queue's order, and each entry's due time and flag.
