@@ -1761,3 +1761,21 @@ sixteen and thirty-two bits as the reference's do. The harness replays 20000 ste
 courses that loop through the gate, hover at it while it is set, pulse the reset, cap the
 readings and wrap the millisecond clock, and checks every figure, the file-level state and the
 settings' gate.
+
+## D89. The MSP box table (2026-10-12)
+
+The MSP box unit carries the reference's box table and its MSP services. The table names each
+flight and switch mode box and gives it the permanent id that identifies it to the configurator
+for life, with lookups by box and by permanent id. The box name serializer writes a user box's
+custom name of up to sixteen characters when its first character is set and the table's name
+otherwise, each with the semicolon separator, or nothing when they would not fit; the permanent
+id serializer writes the one byte or nothing. The box reply walks the active boxes in their
+order and serializes the thirty-two of the requested page, stopping at the first that does not
+fit. A box's state is the arming flag for the arm box, the flight mode flag for the flight mode
+boxes, the launch flight mode for the launch box on a wing build, and the switch state
+otherwise. The status packing sets one bit per active box in the order they are counted, in two
+32-bit words as the reference's bit array, and returns the count. The active set from the
+build's features, sensors and settings stays with the target, which hands it in as a mask. The
+harness replays 20000 steps of random active sets, flags, switches, user names, pages and buffer
+sizes, half from a host build and half from a wing build, and checks the packed words and count,
+every serialized byte of both replies and the lookup by permanent id. No guard was needed.
