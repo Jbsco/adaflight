@@ -1468,3 +1468,28 @@ stored, a later one when its distance from the last reaches the spacing, compare
 kilometres, before the point goes in. The stored points live in the record and the harness
 checks their count, the spacing, the last point and a hash over every point. No guard was
 needed.
+## D79. The GPS frame decoders (2026-10-11)
+
+`Adaflight.GPS_Frames` decodes the two serial protocols of a GPS module into one solution
+record: the position, altitude, dilution, accuracy, velocity, speeds, satellite count, time of
+week and calendar time, with the fix flags, the satellite list, and the request to set the
+clock while it has no time. The NMEA decoder gathers a sentence field by field into a fifteen
+character buffer, identifies GGA, RMC, GSV and GSA sentences from the three letters after the
+talker id, parses each field as it ends, and writes the gathered values to the solution once
+the parity after the star matches. The fix state follows the GGA quality field as the field
+arrives, before the parity check (finding F53). The UBX decoder walks the preamble, class,
+id, length, payload and the two Fletcher checksums, keeps up to 392 payload bytes, restarts
+on a declared length past 776 or on a bad checksum, and interprets a complete message by
+class and id: NAV-PVT, NAV-POSLLH, NAV-STATUS, NAV-DOP, NAV-SOL, NAV-VELNED, NAV-SAT,
+NAV-SVINFO, MON-VER and the acknowledgements. A message is read from the payload buffer at
+its field offsets whatever length arrived, so a short message takes the stale bytes of
+earlier ones from the shared buffer, the same bytes Betaflight reads. The configuration reply that
+makes the module transmit (CFG-GNSS) belongs with the autoconfiguration and is passed over.
+The narrowing conversions are kept: the speed in knots times 5144 over 1000 in thirty-two
+bits, the millisecond field of the clock request computed from the time with a bitwise and
+(finding F54), and the saturating hexadecimal read of the hardware version. The port departs
+from Betaflight only where its behaviour is undefined: the field cut that would land outside
+the buffer is dropped (F55), a satellite number of zero skips the list (F56), and a month
+outside the calendar counts thirty-one days (F57). The oracle feeds bursts of sentences and
+messages with cut frames, bad checksums, stale buffers and runs of garbage, built with
+unsigned characters as the targets are, and every recorded vector replays exactly.
