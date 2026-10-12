@@ -40,6 +40,7 @@ with Adaflight.SBUS;
 with Adaflight.CRSF;
 with Adaflight.Clock;
 with Adaflight.VTX;
+with Adaflight.Tramp;
 with Adaflight.Vectors;
 with Adaflight.PWL;
 with Adaflight.SDFT;
@@ -7982,6 +7983,62 @@ procedure Vector_Check is
       end if;
    end Record_SA_State;
 
+   --  The Tramp driver state and its getters from field K on.
+   procedure Record_Tramp_State (Name : String; K : Positive; D : Adaflight.Tramp.Driver;
+                                 T : Adaflight.VTX_Table.Table) is
+      use Adaflight.Tramp;
+      Band   : Interfaces.Unsigned_8;
+      Chan   : Interfaces.Unsigned_8;
+      Index  : Interfaces.Unsigned_8 := 0;
+      Freq   : Interfaces.Unsigned_16;
+      Known  : Boolean;
+      Pit    : Boolean;
+      Locked : Boolean;
+   begin
+      Record_Int (Name & ".status", Int (K), Integer_64 (Status'Pos (D.Current)));
+      Record_Int (Name & ".rfmin", Int (K + 1), Integer_64 (D.Freq_Min));
+      Record_Int (Name & ".rfmax", Int (K + 2), Integer_64 (D.Freq_Max));
+      Record_Int (Name & ".pmax", Int (K + 3), Integer_64 (D.Power_Max));
+      Record_Int (Name & ".curfreq", Int (K + 4), Integer_64 (D.Cur_Freq));
+      Record_Int (Name & ".curconfpower", Int (K + 5), Integer_64 (D.Cur_Conf_Power));
+      Record_Int (Name & ".curactpower", Int (K + 6), Integer_64 (D.Cur_Act_Power));
+      Record_Int (Name & ".curpit", Int (K + 7), Integer_64 (D.Cur_Pit_Mode));
+      Record_Int (Name & ".curtemp", Int (K + 8), Integer_64 (D.Cur_Temp));
+      Record_Int (Name & ".curctrl", Int (K + 9), Integer_64 (D.Cur_Control_Mode));
+      Record_Int (Name & ".conffreq", Int (K + 10), Integer_64 (D.Conf_Freq));
+      Record_Int (Name & ".confpower", Int (K + 11), Integer_64 (D.Conf_Power));
+      Record_Int (Name & ".confpit", Int (K + 12), Integer_64 (D.Conf_Pit_Mode));
+      Record_Int (Name & ".lastconffreq", Int (K + 13), Integer_64 (D.Last_Conf_Freq));
+      Record_Int (Name & ".lastconfpower", Int (K + 14), Integer_64 (D.Last_Conf_Power));
+      Record_Int (Name & ".lastconfpit", Int (K + 15), Integer_64 (D.Last_Conf_Pit_Mode));
+      Record_Int (Name & ".retry", Int (K + 16), Integer_64 (D.Retry_Count));
+      Record_Int (Name & ".rxstate", Int (K + 17), Integer_64 (Receive_Phase'Pos (D.Phase)));
+      Record_Int (Name & ".rxpos", Int (K + 18), Integer_64 (D.Rx_Pos));
+      Record_Int (Name & ".lasttime", Int (K + 19), Integer_64 (D.Last_Time_Us));
+      Record_Int (Name & ".ready", Int (K + 20), Boolean'Pos (Ready (D)));
+      Get_Band_Channel (D, Band, Chan, Known);
+      Record_Int (Name & ".bc_known", Int (K + 21), Boolean'Pos (Known));
+      Record_Int (Name & ".band", Int (K + 22), Integer_64 (Band));
+      Record_Int (Name & ".chan", Int (K + 23), Integer_64 (Chan));
+      Get_Power_Index (D, T, Index, Known);
+      Record_Int (Name & ".pi_known", Int (K + 24), Boolean'Pos (Known));
+      Record_Int (Name & ".pindex", Int (K + 25), Integer_64 (Index));
+      Get_Frequency (D, Freq, Known);
+      Record_Int (Name & ".fr_known", Int (K + 26), Boolean'Pos (Known));
+      Record_Int (Name & ".frequency", Int (K + 27), Integer_64 (Freq));
+      Get_Status (D, Pit, Locked, Known);
+      Record_Int (Name & ".st_known", Int (K + 28), Boolean'Pos (Known));
+      Record_Int (Name & ".status_bits", Int (K + 29), Boolean'Pos (Pit) + 2 * Boolean'Pos (Locked));
+      Record_Int (Name & ".actpower", Int (K + 30), Integer_64 (Actual_Power (D)));
+      Record_Int (Name & ".temp", Int (K + 31), Integer_64 (Interfaces.Unsigned_16'Mod (Temperature (D))));
+   end Record_Tramp_State;
+
+   --  The bytes a device case still holds for its driver, ahead of the
+   --  next step's bytes.
+   Max_Pending : constant := 8192;
+   subtype Pending_Count is Natural range 0 .. Max_Pending;
+   subtype Pending_Bytes is Byte_Array (0 .. Max_Pending - 1);
+
    --  The table of an init line from field F on: the counts, the
    --  frequencies, the factory flags, the level count and the values.
    procedure Read_Table (T : out Adaflight.VTX_Table.Table; F : Positive) is
@@ -8060,11 +8117,66 @@ procedure Vector_Check is
       end if;
    end Check_SmartAudio_Line;
 
+   TM_Seq     : Integer_64 := -1;
+   TM_Driver  : Adaflight.Tramp.Driver;
+   TM_Table   : Adaflight.VTX_Table.Table;
+   TM_Pending : Pending_Bytes := (others => 0);
+   TM_Count   : Pending_Count := 0;
+
+   procedure Check_Tramp_Line is
+      use Adaflight.Tramp;
+      Name : constant String := Str (1);
+   begin
+      if Name = "vtxtrinit" then
+         TM_Seq := Int (2);
+         Read_Table (TM_Table, 12);
+         TM_Count := 0;
+         Init (TM_Driver, Int (3) = 1);
+         Record_Int (Name & ".init_ok", Int (95), Boolean'Pos (TM_Driver.Port_Open));
+         Record_Tramp_State (Name, 96, TM_Driver, TM_Table);
+      elsif Name = "vtxtrstep" then
+         if Int (2) /= TM_Seq then
+            Put_Line ("tramp step without its start");
+            Failures := Failures + 1;
+            return;
+         end if;
+         declare
+            Fresh    : constant Byte_Array := Hex_Bytes (10);
+            Rx       : constant Byte_Array := TM_Pending (0 .. TM_Count - 1) & Fresh;
+            Op       : constant Integer_64 := Int (6);
+            A1       : constant Integer_64 := Int (7);
+            E        : Events;
+            Consumed : Natural;
+         begin
+            if TM_Driver.Port_Open then
+               case Op is
+                  when 2 => Set_Power_Index (TM_Driver, TM_Table, Interfaces.Unsigned_8 (A1));
+                  when 3 => Set_Pit_Mode (TM_Driver, A1 = 1);
+                  when 4 => Set_Frequency (TM_Driver, Interfaces.Unsigned_16 (A1));
+                  when others => null;
+               end case;
+            end if;
+            Process (TM_Driver, Unsigned_32 (Int (4)), Rx, Int (5) = 1, E, Consumed);
+            Record_Tramp_State (Name, 11, TM_Driver, TM_Table);
+            Record_Bytes (Name & ".tx", Hex_Bytes (44), E.Tx (0 .. E.Tx_Count - 1));
+            Record_Int (Name & ".consumed", Int (45), Integer_64 (Consumed));
+            TM_Count := Rx'Length - Consumed;
+            TM_Pending (0 .. TM_Count - 1) := Rx (Rx'First + Consumed .. Rx'Last);
+         end;
+      else
+         Put_Line ("unknown tramp case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Tramp_Line;
+
    VC_Seq        : Integer_64 := -1;
    VC_State      : Adaflight.VTX.State;
    VC_Settings   : Adaflight.VTX.Settings;
    VC_Table      : Adaflight.VTX_Table.Table;
    VC_Conditions : Adaflight.VTX.Conditions;
+   VC_Pending    : Pending_Bytes := (others => 0);
+   VC_Count      : Pending_Count := 0;
+   VC_Kind       : Adaflight.VTX.Device_Kind := Adaflight.VTX.SmartAudio_Device;
 
    procedure Check_VTX_Control_Line is
       use Adaflight.VTX;
@@ -8107,10 +8219,16 @@ procedure Vector_Check is
                                  Adaflight.Modes.Range_Step (Int (F + 5))));
                end;
             end loop;
-            Init (VC_State, VC_Settings, VC_Table, Int (5) = 1, Int (6) = 1, Save);
+            VC_Count := 0;
+            VC_Kind := (if Int (219) = 1 then Tramp_Device else SmartAudio_Device);
+            Init (VC_State, VC_Settings, VC_Table, VC_Kind, Int (5) = 1, Int (6) = 1, Save);
             Record_Int (Name & ".save", Int (157), Boolean'Pos (Save));
             Record_Settings (158);
-            Record_SA_State (Name, 164, VC_State.Driver, VC_Table);
+            if VC_Kind = Tramp_Device then
+               Record_Tramp_State (Name, 164, VC_State.TR, VC_Table);
+            else
+               Record_SA_State (Name, 164, VC_State.SA, VC_Table);
+            end if;
          end;
       elsif Name = "vtxcstep" then
          if Int (2) /= VC_Seq then
@@ -8124,10 +8242,11 @@ procedure Vector_Check is
             Op  : constant Integer_64 := Int (11);
             A1  : constant Integer_64 := Int (12);
             A2  : constant Integer_64 := Int (13);
-            Rx  : constant Byte_Array := Hex_Bytes (30);
+            Rx  : constant Byte_Array := VC_Pending (0 .. VC_Count - 1) & Hex_Bytes (30);
             E   : Events;
          begin
             Inp.Now_Ms := Unsigned_32 (Int (4));
+            Inp.Now_Us := Unsigned_32 (Int (4)) * 1000;
             Inp.Armed := Int (5) = 1;
             Inp.Was_Ever_Armed := Int (6) = 1;
             Inp.Failsafe := Int (7) = 1;
@@ -8175,11 +8294,19 @@ procedure Vector_Check is
             Record_Int (Name & ".selband", Int (39), Integer_64 (VC_State.Selected_Band));
             Record_Int (Name & ".selchan", Int (40), Integer_64 (VC_State.Selected_Channel));
             Record_Int (Name & ".spekword", Int (41), Integer_64 (VC_State.Spektrum_Word));
-            Record_SA_State (Name, 42, VC_State.Driver, VC_Table);
-            Record_Bytes (Name & ".tx", Hex_Bytes (98), E.Device.Tx (0 .. E.Device.Tx_Count - 1));
+            if VC_Kind = Tramp_Device then
+               Record_Tramp_State (Name, 42, VC_State.TR, VC_Table);
+               Record_Bytes (Name & ".tx", Hex_Bytes (98), E.Tramp_Tx.Tx (0 .. E.Tramp_Tx.Tx_Count - 1));
+            else
+               Record_SA_State (Name, 42, VC_State.SA, VC_Table);
+               Record_Bytes (Name & ".tx", Hex_Bytes (98), E.Device.Tx (0 .. E.Device.Tx_Count - 1));
+            end if;
             Record_Int (Name & ".baudset", Int (99),
                         (if E.Device.Baud_Changed then Integer_64 (Adaflight.SmartAudio.Rate_Of (E.Device.New_Baud))
                          else 0));
+            Record_Int (Name & ".consumed", Int (100), Integer_64 (E.Consumed));
+            VC_Count := Rx'Length - E.Consumed;
+            VC_Pending (0 .. VC_Count - 1) := Rx (Rx'First + E.Consumed .. Rx'Last);
          end;
       else
          Put_Line ("unknown vtx control case " & Name);
@@ -8343,6 +8470,8 @@ procedure Vector_Check is
                   Check_SmartAudio_Line;
                elsif Kind = "vtxctl" then
                   Check_VTX_Control_Line;
+               elsif Kind = "vtxtramp" then
+                  Check_Tramp_Line;
                else
                   Check_PID_Line;
                end if;
@@ -8430,6 +8559,7 @@ begin
    Run (Dir & "/rescue.csv", "rescue");
    Run (Dir & "/vtxsa.csv", "vtxsa");
    Run (Dir & "/vtxctl.csv", "vtxctl");
+   Run (Dir & "/vtxtramp.csv", "vtxtramp");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");

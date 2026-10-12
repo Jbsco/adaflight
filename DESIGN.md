@@ -1704,3 +1704,25 @@ only until the first arm, the power always; the cycle commands step from the dev
 channel and power and wrap within the table, the power below the level count (finding F71). A
 Spektrum band past the five known ones is not a table band (finding F70). Every recorded
 vector replays exactly.
+
+## D86. The Tramp driver and the device dispatch (2026-10-11)
+
+`Adaflight.Tramp` drives a Tramp transmitter over one half-duplex serial line the caller owns,
+in sixteen-byte frames: a start byte, a command, twelve payload bytes, a checksum over the
+command and the payload, and a zero. The driver queries the device's limits every 200 ms until
+it answers, then its settings, then watches the frequency, the power and the pit mode against
+the configuration: one change goes out per 200 ms while retries remain, twenty from each
+configuration change, the frequency and the power held back under the device's race lock; a
+settings query follows each change, every second otherwise, and a temperature query follows
+each settings reply. The received bytes are read up to the first complete and valid reply and
+the count taken is returned, so the caller offers the rest again. A reply whose first word is
+zero is the echo of a request and is passed over, so a device reporting zero limits never comes
+online (finding F73). After a temperature reply the driver stays in the temperature state until
+the request period passes (finding F74). The frequency is accepted within the device's limits,
+or the user range while they are unknown; the power index is looked up in the table from the
+configured power, unknown for a value outside it; the status carries the configured pit mode and
+the race lock. `Adaflight.VTX` now drives either device: the device of the kind in use takes the
+frequency, the power, the pit mode and the queries, a factory band goes to a SmartAudio device
+as band and channel and to a Tramp device not at all, and the Spektrum power steps map to each
+device's indices. The protocol library beside the Tramp driver is not ported (finding F72).
+Every recorded vector replays exactly, the control vectors now over both devices.
