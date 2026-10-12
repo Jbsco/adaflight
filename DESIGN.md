@@ -159,6 +159,13 @@ ledger. The deviations so far:
   adds nothing past it, where the reference's 32-bit sum of 8-bit readings overflows after
   that many packets without a telemetry response (findings F100). The recorded vectors stay
   far below the count and replay bit for bit.
+- The position navigation target holds its commanded velocities within 2 ** 60 metres per
+  second, walks a target flown at a stated velocity within 262 kilometres of the origin,
+  takes the vertical ramp's slew deceleration as 2 ** 100 metres per second squared where the
+  remaining altitude error is below half a micrometre, starts a leg picked up with a chase
+  velocity below a ten-billionth of a metre per second from rest, and holds the settle time at
+  2 ** 30 seconds, where the reference's floats run on to infinity or carry a vanishing
+  velocity. The recorded vectors stay far inside every one of these and replay bit for bit.
 
 ## D7. Contribution conventions (2026-10-08)
 
@@ -1909,3 +1916,32 @@ scripted, disarms finishing the log and events and reinitializations between the
 checking every byte written, the log state, the iteration counters and intervals, the header
 transmission, the budget, the histories and the request counts after each of the 22800
 steps.
+
+## D94. The position navigation target (2026-10-12)
+
+The position navigation unit contains the reference's navigation target: a leg's target east,
+north and up in metres with its cruise speed, arrival radius and completion speed; the
+horizontal velocity toward it under the position gain, braked onto the target at the
+approach deceleration and held within the acceleration limits, or the velocity the owner
+states for a leg it profiles itself; the vertical ramp that walks the commanded altitude at
+the leg's rate, braked into the leg altitude, slewed out of the rate of a leg it takes over
+from and leashed to the craft; and the arrival test on the radius and the altitude window
+with their hysteresis, the completion speed and the settle timeout. A new leg takes over the
+velocity commanded so far, a moved target flies on without disturbing the ramp or the
+arrival state, and the sequence survives a reset so a consumer still sees the next leg as a
+change.
+
+The owner that issues the legs stays with the target. The reference calls the leg's
+callback inside its update, and a callback that issues the next leg keeps the velocity
+flowing where a silent one has it cleared; the port's update reports the leg reached, and
+the owner either sets the next leg or finishes the reached one, which clears the horizontal
+velocity and the leg when it clears itself. The port's bounds are the estimator's position
+bound, a kilometre per second of stated speed and the saturations declared in D6.
+
+The harness replays six sequences of 2500 operations recorded from the reference: legs set,
+moved, lowered and cleared, vertical profiles, acceleration limits, stated velocities,
+approach brakes, arrival policies, settle timeouts, resets, approach speed queries, and
+updates against an estimate on a random walk that drifts toward the target, with the
+reached callback silent or issuing the next leg, checking every field of the leg, the
+velocities, the arrival windows and the altitude and rate queries after each of the 15000
+operations.

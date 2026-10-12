@@ -39,7 +39,8 @@ The core holds:
 - the accelerometer path, the barometer altitude, the compass with its bias calibration,
   the battery meters and states, and the sensor and board alignment
 - the position Kalman filter, the position estimator from the barometer, the accelerometer
-  and the GPS, the altitude hold, the position hold, and the GPS rescue
+  and the GPS, the altitude hold, the position hold, the GPS rescue, and the position
+  navigation target
 - the cooperative scheduler, the beeper, and the receiver's channel processing
 - the SBUS, CRSF, SUMD, SUMH, IBUS, Spektrum, XBUS, Jeti EX Bus, Ghost, SRXL2 and FPORT
   protocols, and the MSP and MAVLink receivers
@@ -76,10 +77,10 @@ The core holds:
 
 The state of `main`:
 
-- The core proves at Silver and Gold: 12190 checks, nothing unproved, no
+- The core proves at Silver and Gold: 12355 checks, nothing unproved, no
   `pragma Assume`, no justified suppression (`gnatprove` 16.1.0, level 2).
-- The recorded vectors replay bit for bit: 799335 lines over 295 cases, every case
-  exact except the nineteen declared deviations in `DESIGN.md` D6.
+- The recorded vectors replay bit for bit: 814341 lines over 296 cases, every case
+  exact except the twenty declared deviations in `DESIGN.md` D6.
 - No target builds yet. `ROADMAP.md` carries the parity inventory, the phases, and the
   question for after parity: whether a proved core leaves room on the F4 boards for
   features Betaflight has to leave out for these targets.
