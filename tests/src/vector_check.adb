@@ -95,6 +95,8 @@ with Adaflight.GPS_Link;
 with Adaflight.UBX_Config;
 with Adaflight.Position_Control;
 with Adaflight.Position_Hold;
+with Adaflight.GPS_Rescue;
+with Adaflight.Altitude_Control;
 
 procedure Vector_Check is
 
@@ -7753,6 +7755,159 @@ procedure Vector_Check is
       end if;
    end Check_Poshold_Line;
 
+   RS_State    : Adaflight.GPS_Rescue.State;
+   RS_Settings : Adaflight.GPS_Rescue.Settings;
+   RS_AC       : Adaflight.Altitude_Control.Settings;
+   RS_Altitude : Adaflight.Altitude_Control.State;
+   RS_PC       : Adaflight.Position_Control.Settings;
+   RS_Hold     : Adaflight.Position_Hold.State;
+   RS_Max_Rate_Pitch, RS_Max_Rate_Roll : Float := 670.0;
+
+   procedure Check_Rescue_Line is
+      use Adaflight.GPS_Rescue;
+      Name : constant String := Str (1);
+   begin
+      if Name = "rsinit" then
+         RS_Settings := (Min_Start_Distance_M => Integer (Int (3)),
+                         Mode                 => Altitude_Mode'Val (Int (4)),
+                         Initial_Climb_M      => Integer (Int (5)),
+                         Ascend_Rate          => Integer (Int (6)),
+                         Return_Altitude_M    => Integer (Int (7)),
+                         Ground_Speed_Cms     => Integer (Int (8)),
+                         Descent_Distance_M   => Integer (Int (9)),
+                         Descend_Rate         => Integer (Int (10)),
+                         Sanity               => Sanity_Checks'Val (Int (11)),
+                         Min_Sats             => Integer (Int (12)),
+                         Landing_Altitude_M   => Integer (Int (14)),
+                         Set_Home_Once        => Int (13) /= 0);
+         RS_AC := (Hover_Throttle => Integer (Int (15)),
+                   Throttle_Min   => Integer (Int (16)),
+                   Throttle_Max   => Integer (Int (17)),
+                   Altitude_P     => Integer (Int (18)),
+                   Altitude_I     => Integer (Int (19)),
+                   Altitude_D     => Integer (Int (20)),
+                   Altitude_A     => Integer (Int (21)),
+                   Altitude_F     => Integer (Int (24)),
+                   Min_Check      => Integer (Int (25)));
+         RS_Max_Rate_Pitch := Flt (22);
+         RS_Max_Rate_Roll := Flt (23);
+         RS_PC := (others => <>);
+         Adaflight.Altitude_Control.Init (RS_Altitude, RS_AC);
+         Adaflight.Position_Hold.Init (RS_Hold, (Deadband => 5), RS_PC);
+         Init (RS_State, RS_Settings);
+         Record_Result ("rsinit.initial_climb", Bits (26), To_Bits (RS_State.Want.Initial_Climb_Cm));
+         Record_Result ("rsinit.descent_distance", Bits (27), To_Bits (RS_State.Want.Descent_Distance_Cm));
+         Record_Result ("rsinit.slowdown", Bits (28), To_Bits (RS_State.Want.Slowdown_Distance_Cm));
+      elsif Name = "rsstep" then
+         declare
+            Inp   : Inputs;
+            P_Inp : Adaflight.Position_Control.Inputs;
+            K     : Positive := 27;
+            Disarm, Arming_Disabled, Enable_XY : Boolean;
+            procedure Expect_Float (N : String; Actual : Float; Tolerance : Integer_64 := 0) is
+            begin
+               Record_Result ("rsstep." & N, Bits (K), To_Bits (Actual), Tolerance);
+               K := K + 1;
+            end Expect_Float;
+            procedure Expect_Int (N : String; Actual : Integer_64) is
+            begin
+               Record_Int ("rsstep." & N, Int (K), Actual);
+               K := K + 1;
+            end Expect_Int;
+            procedure Expect_Bool (N : String; Actual : Boolean) is
+            begin
+               Expect_Int (N, Boolean'Pos (Actual));
+            end Expect_Bool;
+         begin
+            Inp.Now_Us := Interfaces.Unsigned_32 (Int (4));
+            Inp.Rescue_Mode := Int (5) /= 0;
+            Inp.Armed := Int (6) /= 0;
+            Inp.GPS_Stamp := Interfaces.Unsigned_16 (Int (7));
+            Inp.Heading_Valid := Int (8) /= 0;
+            Inp.GPS_Healthy := Int (9) /= 0;
+            Inp.Altitude_Control_Cm := Flt (10);
+            Inp.Altitude_Filtered_Cm := Flt (11);
+            Inp.Altitude_Available := Int (12) /= 0;
+            Inp.Valid_XY := Int (13) /= 0;
+            Inp.Position := (X => Flt (14), Y => Flt (15));
+            Inp.Velocity := (X => Flt (16), Y => Flt (17));
+            Inp.Yaw := Integer (Int (18));
+            Inp.GPS_Fix := Int (19) /= 0;
+            Inp.GPS_Fix_Home := Int (20) /= 0;
+            Inp.Num_Sat := Interfaces.Unsigned_8 (Int (21));
+            Inp.Crash_Recovery_Active := Int (22) /= 0;
+            Inp.Rx_Receiving := Int (23) /= 0;
+            Inp.Vertical_Velocity := Flt (24);
+            Inp.Vertical_Acceleration := Flt (25);
+            Inp.Cos_Tilt := 1.0;
+            P_Inp.Armed := Inp.Armed;
+            P_Inp.Rescue_Mode := Inp.Rescue_Mode;
+            P_Inp.Interval_Us := 10_000;
+            P_Inp.Position := Inp.Position;
+            P_Inp.Velocity := Inp.Velocity;
+            P_Inp.Acceleration := (X => Flt (NF - 1), Y => Flt (NF));
+            P_Inp.Valid_XY := Inp.Valid_XY;
+            P_Inp.Heading_Required := Int (26) /= 0;
+            P_Inp.Yaw := Inp.Yaw;
+            P_Inp.Heading_Valid := Inp.Heading_Valid;
+            P_Inp.Max_Rate_Pitch := RS_Max_Rate_Pitch;
+            P_Inp.Max_Rate_Roll := RS_Max_Rate_Roll;
+            Update (RS_State, RS_Settings, Inp, RS_AC, RS_Altitude, RS_PC, P_Inp, RS_Hold.Control,
+                    Disarm, Arming_Disabled);
+            Adaflight.Position_Hold.Update (RS_Hold, RS_PC, P_Inp, Enable_XY);
+            Expect_Bool ("disarm", Disarm);
+            Expect_Bool ("arming_disabled", Arming_Disabled);
+            Expect_Bool ("enable_xy", Enable_XY);
+            Expect_Int ("phase", Integer_64 (Rescue_Phase'Pos (RS_State.Phase)));
+            Expect_Int ("failure", Integer_64 (Failure_State'Pos (RS_State.Failure)));
+            Expect_Bool ("available", RS_State.Is_Available);
+            Expect_Bool ("ok", RS_State.Is_OK);
+            Expect_Bool ("new_gps", RS_State.Sense.New_GPS_Data);
+            Expect_Bool ("xy_available", RS_State.Sense.Position_XY_Available);
+            Expect_Float ("heading", RS_State.Sense.Aircraft_Heading_Deg);
+            Expect_Float ("error_angle", RS_State.Sense.Error_Angle_Deg, Tolerance => 256);
+            Expect_Bool ("heading_ok", RS_State.Sense.Heading_OK);
+            Expect_Float ("distance", RS_State.Sense.Distance_To_Home_Cm);
+            Expect_Float ("speed", RS_State.Sense.Current_Speed_Cms);
+            Expect_Float ("position_x", RS_State.Sense.Current_Position.X);
+            Expect_Float ("position_y", RS_State.Sense.Current_Position.Y);
+            Expect_Float ("max_altitude", RS_State.Want.Max_Altitude_Cm);
+            Expect_Float ("return_altitude", RS_State.Want.Return_Altitude_Cm);
+            Expect_Float ("target_altitude", RS_State.Want.Target_Altitude_Cm);
+            Expect_Float ("target_altitude_vel", RS_State.Want.Target_Altitude_Vel);
+            Expect_Int ("seconds_failing", Integer_64 (RS_State.Want.Seconds_Failing));
+            Expect_Float ("yaw_attenuator", RS_State.Want.Yaw_Attenuator);
+            Expect_Float ("target_heading", RS_State.Want.Target_Heading_Deg, Tolerance => 1);
+            Expect_Float ("xy_attenuator", RS_State.Want.XY_Start_Attenuator);
+            Expect_Float ("target_speed", RS_State.Want.Target_Speed_Cms);
+            Expect_Float ("target_vel_x", RS_State.Want.Target_Velocity.X);
+            Expect_Float ("target_vel_y", RS_State.Want.Target_Velocity.Y);
+            Expect_Float ("altitude_i", RS_Altitude.Altitude_I);
+            Expect_Float ("throttle", RS_Altitude.Throttle_Out);
+            Expect_Float ("yaw_target", RS_Hold.Control.External_Yaw_Target);
+            Expect_Float ("ap_target_vel_x", RS_Hold.Control.Target_Velocity.X);
+            Expect_Float ("ap_target_vel_y", RS_Hold.Control.Target_Velocity.Y);
+            Expect_Float ("recovery_pitch", RS_Hold.Control.Heading_Recovery_Pitch);
+            Expect_Bool ("heading_recovery", RS_Hold.Control.Heading_Recovery);
+            Expect_Float ("yaw_rate", RS_Hold.Control.Yaw_Rate_Dps);
+            Expect_Bool ("abort", RS_Hold.Control.Abort_Requested);
+            Expect_Bool ("hold_enabled", RS_Hold.Enabled);
+            Expect_Float ("angle_roll", RS_Hold.Control.Angle_Roll);
+            Expect_Float ("angle_pitch", RS_Hold.Control.Angle_Pitch);
+            Expect_Bool ("control_ok", RS_Hold.Control_Ok);
+            Expect_Bool ("sensors_ok", RS_Hold.Sensors_Ok);
+            Expect_Bool ("position_held", RS_Hold.Control.Position_Held);
+            if K /= NF - 1 then
+               Put_Line ("rsstep: consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
+               Failures := Failures + 1;
+            end if;
+         end;
+      else
+         Put_Line ("unknown rescue case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Rescue_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -7903,6 +8058,8 @@ procedure Vector_Check is
                   Check_Posest_Line;
                elsif Kind = "poshold" then
                   Check_Poshold_Line;
+               elsif Kind = "rescue" then
+                  Check_Rescue_Line;
                else
                   Check_PID_Line;
                end if;
@@ -7987,6 +8144,7 @@ begin
    Run (Dir & "/gpslink.csv", "gpslink");
    Run (Dir & "/posest.csv", "posest");
    Run (Dir & "/poshold.csv", "poshold");
+   Run (Dir & "/rescue.csv", "rescue");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
