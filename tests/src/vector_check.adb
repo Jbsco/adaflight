@@ -39,6 +39,7 @@ with Adaflight.Receiver;
 with Adaflight.SBUS;
 with Adaflight.CRSF;
 with Adaflight.Clock;
+with Adaflight.VTX;
 with Adaflight.Vectors;
 with Adaflight.PWL;
 with Adaflight.SDFT;
@@ -7915,94 +7916,104 @@ procedure Vector_Check is
    SA_Table   : Adaflight.VTX_Table.Table;
    SA_Prepend : Boolean := False;
 
+   function Signed (M : Interfaces.Unsigned_8) return Integer_64 is
+     (if Integer_64 (M) >= 128 then Integer_64 (M) - 256 else Integer_64 (M));
+
+   --  The SmartAudio driver state and its getters from field K on.
+   procedure Record_SA_State (Name : String; K : Positive; D : Adaflight.SmartAudio.Driver;
+                              T : Adaflight.VTX_Table.Table) is
+      use Adaflight.SmartAudio;
+      Band   : Interfaces.Unsigned_8;
+      Chan   : Interfaces.Unsigned_8;
+      Index  : Interfaces.Unsigned_8;
+      Freq   : Interfaces.Unsigned_16;
+      Known  : Boolean;
+      Pit    : Boolean;
+      Count  : Level_Count;
+      Levels : Level_Values;
+      Powers : Level_Values;
+   begin
+      Record_Int (Name & ".version", Int (K), Integer_64 (Version'Pos (D.Device.Version_Seen)));
+      Record_Int (Name & ".channel", Int (K + 1), Integer_64 (D.Device.Channel));
+      Record_Int (Name & ".power", Int (K + 2), Integer_64 (D.Device.Power));
+      Record_Int (Name & ".mode", Int (K + 3), Signed (D.Device.Mode));
+      Record_Int (Name & ".freq", Int (K + 4), Integer_64 (D.Device.Freq));
+      Record_Int (Name & ".pitfreq", Int (K + 5), Integer_64 (D.Device.Pit_Freq));
+      Record_Int (Name & ".willboot", Int (K + 6), Boolean'Pos (D.Device.Will_Boot_Into_Pit_Mode));
+      Record_Int (Name & ".sent", Int (K + 7), Integer_64 (D.Stat.Sent));
+      Record_Int (Name & ".received", Int (K + 8), Integer_64 (D.Stat.Received));
+      Record_Int (Name & ".badpre", Int (K + 9), Integer_64 (D.Stat.Bad_Preamble));
+      Record_Int (Name & ".badlen", Int (K + 10), Integer_64 (D.Stat.Bad_Length));
+      Record_Int (Name & ".crc", Int (K + 11), Integer_64 (D.Stat.Crc_Errors));
+      Record_Int (Name & ".ooo", Int (K + 12), Integer_64 (D.Stat.Out_Of_Order));
+      Record_Int (Name & ".badcode", Int (K + 13), Integer_64 (D.Stat.Bad_Code));
+      Record_Int (Name & ".baud", Int (K + 14), Integer_64 (Rate_Of (D.Smart_Baud)));
+      Record_Int (Name & ".outstanding", Int (K + 15), Integer_64 (D.Outstanding));
+      Record_Int (Name & ".lasttx", Int (K + 16), Integer_64 (D.Last_Tx_Ms));
+      Record_Int (Name & ".queued", Int (K + 17), Integer_64 ((D.Head + Queue_Size - D.Tail) mod Queue_Size));
+      Record_Int (Name & ".nlevels", Int (K + 18), Integer_64 (D.Levels));
+      for I in 0 .. 7 loop
+         Record_Int (Name & ".level", Int (K + 19 + I), Integer_64 (D.Level_Value (I)));
+      end loop;
+      Record_Int (Name & ".ready", Int (K + 27), Boolean'Pos (Ready (D)));
+      Get_Band_Channel (D, T, Band, Chan, Known);
+      Record_Int (Name & ".bc_known", Int (K + 28), Boolean'Pos (Known));
+      Record_Int (Name & ".band", Int (K + 29), Integer_64 (Band));
+      Record_Int (Name & ".chan", Int (K + 30), Integer_64 (Chan));
+      Get_Power_Index (D, Index, Known);
+      Record_Int (Name & ".pi_known", Int (K + 31), Boolean'Pos (Known));
+      Record_Int (Name & ".pindex", Int (K + 32), Integer_64 (Index));
+      Get_Frequency (D, T, Freq, Known);
+      Record_Int (Name & ".fr_known", Int (K + 33), Boolean'Pos (Known));
+      Record_Int (Name & ".frequency", Int (K + 34), Integer_64 (Freq));
+      Get_Status (D, Pit, Known);
+      Record_Int (Name & ".st_known", Int (K + 35), Boolean'Pos (Known));
+      Record_Int (Name & ".status", Int (K + 36), Boolean'Pos (Pit));
+      Get_Power_Levels (D, Count, Levels, Powers);
+      Record_Int (Name & ".nl", Int (K + 37), Integer_64 (Count));
+      for I in 0 .. 7 loop
+         Record_Int (Name & ".levels", Int (K + 38 + I), Integer_64 (Levels (I)));
+         Record_Int (Name & ".powers", Int (K + 46 + I), Integer_64 (Powers (I)));
+      end loop;
+      if D.Port_Open then
+         Record_Bytes (Name & ".custom", Hex_Bytes (K + 54), Custom_Status (D));
+      else
+         Record_Int (Name & ".custom_len", Integer_64 (Hex_Bytes (K + 54)'Length), 0);
+      end if;
+   end Record_SA_State;
+
+   --  The table of an init line from field F on: the counts, the
+   --  frequencies, the factory flags, the level count and the values.
+   procedure Read_Table (T : out Adaflight.VTX_Table.Table; F : Positive) is
+      use Adaflight.VTX_Table;
+   begin
+      T := Default;
+      T.Bands := Band_Count (Int (F));
+      T.Channels := Channel_Count (Int (F + 1));
+      for B in Band_Index loop
+         for C in Channel_Index loop
+            T.Frequency (B, C) := Interfaces.Unsigned_16 (Int (F + 2 + (B - 1) * 8 + (C - 1)));
+         end loop;
+         T.Is_Factory (B) := Int (F + 65 + B) = 1;
+      end loop;
+      T.Power_Levels := Power_Count (Int (F + 74));
+      for P in Power_Index loop
+         T.Power_Value (P) := Interfaces.Unsigned_16 (Int (F + 74 + P));
+      end loop;
+   end Read_Table;
+
    procedure Check_SmartAudio_Line is
       use Adaflight.SmartAudio;
       use Adaflight.VTX_Table;
       Name : constant String := Str (1);
-
-      function Signed (M : Interfaces.Unsigned_8) return Integer_64 is
-        (if Integer_64 (M) >= 128 then Integer_64 (M) - 256 else Integer_64 (M));
-
-      procedure Record_State (K : Positive) is
-         D      : Driver renames SA_Driver;
-         Band   : Interfaces.Unsigned_8;
-         Chan   : Interfaces.Unsigned_8;
-         Index  : Interfaces.Unsigned_8;
-         Freq   : Interfaces.Unsigned_16;
-         Known  : Boolean;
-         Pit    : Boolean;
-         Count  : Level_Count;
-         Levels : Level_Values;
-         Powers : Level_Values;
-      begin
-         Record_Int (Name & ".version", Int (K), Integer_64 (Version'Pos (D.Device.Version_Seen)));
-         Record_Int (Name & ".channel", Int (K + 1), Integer_64 (D.Device.Channel));
-         Record_Int (Name & ".power", Int (K + 2), Integer_64 (D.Device.Power));
-         Record_Int (Name & ".mode", Int (K + 3), Signed (D.Device.Mode));
-         Record_Int (Name & ".freq", Int (K + 4), Integer_64 (D.Device.Freq));
-         Record_Int (Name & ".pitfreq", Int (K + 5), Integer_64 (D.Device.Pit_Freq));
-         Record_Int (Name & ".willboot", Int (K + 6), Boolean'Pos (D.Device.Will_Boot_Into_Pit_Mode));
-         Record_Int (Name & ".sent", Int (K + 7), Integer_64 (D.Stat.Sent));
-         Record_Int (Name & ".received", Int (K + 8), Integer_64 (D.Stat.Received));
-         Record_Int (Name & ".badpre", Int (K + 9), Integer_64 (D.Stat.Bad_Preamble));
-         Record_Int (Name & ".badlen", Int (K + 10), Integer_64 (D.Stat.Bad_Length));
-         Record_Int (Name & ".crc", Int (K + 11), Integer_64 (D.Stat.Crc_Errors));
-         Record_Int (Name & ".ooo", Int (K + 12), Integer_64 (D.Stat.Out_Of_Order));
-         Record_Int (Name & ".badcode", Int (K + 13), Integer_64 (D.Stat.Bad_Code));
-         Record_Int (Name & ".baud", Int (K + 14), Integer_64 (Rate_Of (D.Smart_Baud)));
-         Record_Int (Name & ".outstanding", Int (K + 15), Integer_64 (D.Outstanding));
-         Record_Int (Name & ".lasttx", Int (K + 16), Integer_64 (D.Last_Tx_Ms));
-         Record_Int (Name & ".queued", Int (K + 17), Integer_64 ((D.Head + Queue_Size - D.Tail) mod Queue_Size));
-         Record_Int (Name & ".nlevels", Int (K + 18), Integer_64 (D.Levels));
-         for I in 0 .. 7 loop
-            Record_Int (Name & ".level", Int (K + 19 + I), Integer_64 (D.Level_Value (I)));
-         end loop;
-         Record_Int (Name & ".ready", Int (K + 27), Boolean'Pos (Ready (D)));
-         Get_Band_Channel (D, SA_Table, Band, Chan, Known);
-         Record_Int (Name & ".bc_known", Int (K + 28), Boolean'Pos (Known));
-         Record_Int (Name & ".band", Int (K + 29), Integer_64 (Band));
-         Record_Int (Name & ".chan", Int (K + 30), Integer_64 (Chan));
-         Get_Power_Index (D, Index, Known);
-         Record_Int (Name & ".pi_known", Int (K + 31), Boolean'Pos (Known));
-         Record_Int (Name & ".pindex", Int (K + 32), Integer_64 (Index));
-         Get_Frequency (D, SA_Table, Freq, Known);
-         Record_Int (Name & ".fr_known", Int (K + 33), Boolean'Pos (Known));
-         Record_Int (Name & ".frequency", Int (K + 34), Integer_64 (Freq));
-         Get_Status (D, Pit, Known);
-         Record_Int (Name & ".st_known", Int (K + 35), Boolean'Pos (Known));
-         Record_Int (Name & ".status", Int (K + 36), Boolean'Pos (Pit));
-         Get_Power_Levels (D, Count, Levels, Powers);
-         Record_Int (Name & ".nl", Int (K + 37), Integer_64 (Count));
-         for I in 0 .. 7 loop
-            Record_Int (Name & ".levels", Int (K + 38 + I), Integer_64 (Levels (I)));
-            Record_Int (Name & ".powers", Int (K + 46 + I), Integer_64 (Powers (I)));
-         end loop;
-         if D.Port_Open then
-            Record_Bytes (Name & ".custom", Hex_Bytes (K + 54), Custom_Status (D));
-         else
-            Record_Int (Name & ".custom_len", Integer_64 (Hex_Bytes (K + 54)'Length), 0);
-         end if;
-      end Record_State;
    begin
       if Name = "vtxsainit" then
          SA_Seq := Int (2);
-         SA_Table := Default;
-         SA_Table.Bands := Band_Count (Int (8));
-         SA_Table.Channels := Channel_Count (Int (9));
-         for B in Band_Index loop
-            for C in Channel_Index loop
-               SA_Table.Frequency (B, C) := Interfaces.Unsigned_16 (Int (10 + (B - 1) * 8 + (C - 1)));
-            end loop;
-            SA_Table.Is_Factory (B) := Int (73 + B) = 1;
-         end loop;
-         SA_Table.Power_Levels := Power_Count (Int (82));
-         for P in Power_Index loop
-            SA_Table.Power_Value (P) := Interfaces.Unsigned_16 (Int (82 + P));
-         end loop;
+         Read_Table (SA_Table, 8);
          SA_Prepend := Int (6) = 1 and then Int (7) = 1;
          Init (SA_Driver, Int (5) = 1);
          Record_Int (Name & ".init_ok", Int (91), Boolean'Pos (SA_Driver.Port_Open));
-         Record_State (92);
+         Record_SA_State (Name, 92, SA_Driver, SA_Table);
       elsif Name = "vtxsastep" then
          if Int (2) /= SA_Seq then
             Put_Line ("smartaudio step without its start");
@@ -8039,7 +8050,7 @@ procedure Vector_Check is
                   null;
             end case;
             Process (SA_Driver, SA_Table, Unsigned_32 (Int (4)), Rx, Disabled, SA_Prepend, E);
-            Record_State (11);
+            Record_SA_State (Name, 11, SA_Driver, SA_Table);
             Record_Bytes (Name & ".tx", Hex_Bytes (67), E.Tx (0 .. E.Tx_Count - 1));
             Record_Int (Name & ".baudset", Int (68), (if E.Baud_Changed then Integer_64 (Rate_Of (E.New_Baud)) else 0));
          end;
@@ -8048,6 +8059,133 @@ procedure Vector_Check is
          Failures := Failures + 1;
       end if;
    end Check_SmartAudio_Line;
+
+   VC_Seq        : Integer_64 := -1;
+   VC_State      : Adaflight.VTX.State;
+   VC_Settings   : Adaflight.VTX.Settings;
+   VC_Table      : Adaflight.VTX_Table.Table;
+   VC_Conditions : Adaflight.VTX.Conditions;
+
+   procedure Check_VTX_Control_Line is
+      use Adaflight.VTX;
+      Name : constant String := Str (1);
+
+      procedure Record_Settings (K : Positive) is
+      begin
+         Record_Int (Name & ".band", Int (K), Integer_64 (VC_Settings.Band));
+         Record_Int (Name & ".channel", Int (K + 1), Integer_64 (VC_Settings.Channel));
+         Record_Int (Name & ".power", Int (K + 2), Integer_64 (VC_Settings.Power));
+         Record_Int (Name & ".freq", Int (K + 3), Integer_64 (VC_Settings.Freq));
+         Record_Int (Name & ".pitfreq", Int (K + 4), Integer_64 (VC_Settings.Pit_Mode_Freq));
+         Record_Int (Name & ".lowpower", Int (K + 5), Integer_64 (Low_Power_Disarm'Pos (VC_Settings.Low_Power)));
+      end Record_Settings;
+   begin
+      if Name = "vtxcinit" then
+         declare
+            Save : Boolean;
+         begin
+            VC_Seq := Int (2);
+            Read_Table (VC_Table, 8);
+            VC_Settings := (others => <>);
+            VC_Settings.Softserial_Alt := Int (7) = 1;
+            VC_Settings.Band := Interfaces.Unsigned_8 (Int (91));
+            VC_Settings.Channel := Interfaces.Unsigned_8 (Int (92));
+            VC_Settings.Power := Interfaces.Unsigned_8 (Int (93));
+            VC_Settings.Freq := Interfaces.Unsigned_16 (Int (94));
+            VC_Settings.Pit_Mode_Freq := Interfaces.Unsigned_16 (Int (95));
+            VC_Settings.Low_Power := Low_Power_Disarm'Val (Int (96));
+            for I in Condition_Index loop
+               declare
+                  F : constant Positive := 97 + (I - 1) * 6;
+               begin
+                  VC_Conditions (I) :=
+                    (Aux     => Adaflight.Modes.Aux_Channel (Int (F)),
+                     Band    => Interfaces.Unsigned_8 (Int (F + 1)),
+                     Channel => Interfaces.Unsigned_8 (Int (F + 2)),
+                     Power   => Interfaces.Unsigned_8 (Int (F + 3)),
+                     Span    => (Adaflight.Modes.Range_Step (Int (F + 4)),
+                                 Adaflight.Modes.Range_Step (Int (F + 5))));
+               end;
+            end loop;
+            Init (VC_State, VC_Settings, VC_Table, Int (5) = 1, Int (6) = 1, Save);
+            Record_Int (Name & ".save", Int (157), Boolean'Pos (Save));
+            Record_Settings (158);
+            Record_SA_State (Name, 164, VC_State.Driver, VC_Table);
+         end;
+      elsif Name = "vtxcstep" then
+         if Int (2) /= VC_Seq then
+            Put_Line ("vtx control step without its start");
+            Failures := Failures + 1;
+            return;
+         end if;
+         declare
+            Inp : Inputs;
+            Aux : Adaflight.Modes.Aux_Values;
+            Op  : constant Integer_64 := Int (11);
+            A1  : constant Integer_64 := Int (12);
+            A2  : constant Integer_64 := Int (13);
+            Rx  : constant Byte_Array := Hex_Bytes (30);
+            E   : Events;
+         begin
+            Inp.Now_Ms := Unsigned_32 (Int (4));
+            Inp.Armed := Int (5) = 1;
+            Inp.Was_Ever_Armed := Int (6) = 1;
+            Inp.Failsafe := Int (7) = 1;
+            Inp.Cli_Mode := Int (8) = 1;
+            Inp.Pit_Switch := Int (9) = 1;
+            Inp.Control_Disabled := Int (10) = 1;
+            for C in Adaflight.Modes.Aux_Channel loop
+               Aux (C) := Flt (15 + C);
+            end loop;
+            case Op is
+               when 1 =>
+                  Increment_Band (VC_State, VC_Settings, Inp.Armed);
+               when 2 =>
+                  Decrement_Band (VC_State, VC_Settings, Inp.Armed);
+               when 3 =>
+                  Increment_Channel (VC_State, VC_Settings, Inp.Armed);
+               when 4 =>
+                  Decrement_Channel (VC_State, VC_Settings, Inp.Armed);
+               when 5 =>
+                  Cycle_Band_Or_Channel (VC_State, VC_Settings, VC_Table, Interfaces.Unsigned_8 (A1),
+                                         Interfaces.Unsigned_8 (A2));
+               when 6 =>
+                  Cycle_Power (VC_State, VC_Settings, VC_Table, Interfaces.Unsigned_8 (A1));
+               when 7 =>
+                  case A1 is
+                     when 1 => VC_Settings.Band := Interfaces.Unsigned_8 (A2);
+                     when 2 => VC_Settings.Channel := Interfaces.Unsigned_8 (A2);
+                     when 3 => VC_Settings.Power := Interfaces.Unsigned_8 (A2);
+                     when 4 => VC_Settings.Freq := Interfaces.Unsigned_16 (A2);
+                     when 5 => VC_Settings.Pit_Mode_Freq := Interfaces.Unsigned_16 (A2);
+                     when others => VC_Settings.Low_Power := Low_Power_Disarm'Val (A2);
+                  end case;
+               when 8 =>
+                  Offer_Spektrum_Control (VC_State, Unsigned_32 (A1));
+               when others =>
+                  null;
+            end case;
+            if Int (14) = 1 then
+               Update_Activated_Channel (VC_State, VC_Settings, VC_Conditions, Aux, Inp.Armed);
+            end if;
+            Update (VC_State, VC_Settings, VC_Table, Inp, Rx, E);
+            Record_Int (Name & ".save", Int (31), Boolean'Pos (E.Save));
+            Record_Settings (32);
+            Record_Int (Name & ".locked", Int (38), Boolean'Pos (VC_State.Locked));
+            Record_Int (Name & ".selband", Int (39), Integer_64 (VC_State.Selected_Band));
+            Record_Int (Name & ".selchan", Int (40), Integer_64 (VC_State.Selected_Channel));
+            Record_Int (Name & ".spekword", Int (41), Integer_64 (VC_State.Spektrum_Word));
+            Record_SA_State (Name, 42, VC_State.Driver, VC_Table);
+            Record_Bytes (Name & ".tx", Hex_Bytes (98), E.Device.Tx (0 .. E.Device.Tx_Count - 1));
+            Record_Int (Name & ".baudset", Int (99),
+                        (if E.Device.Baud_Changed then Integer_64 (Adaflight.SmartAudio.Rate_Of (E.Device.New_Baud))
+                         else 0));
+         end;
+      else
+         Put_Line ("unknown vtx control case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_VTX_Control_Line;
 
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
@@ -8203,6 +8341,8 @@ procedure Vector_Check is
                   Check_Rescue_Line;
                elsif Kind = "vtxsa" then
                   Check_SmartAudio_Line;
+               elsif Kind = "vtxctl" then
+                  Check_VTX_Control_Line;
                else
                   Check_PID_Line;
                end if;
@@ -8289,6 +8429,7 @@ begin
    Run (Dir & "/poshold.csv", "poshold");
    Run (Dir & "/rescue.csv", "rescue");
    Run (Dir & "/vtxsa.csv", "vtxsa");
+   Run (Dir & "/vtxctl.csv", "vtxctl");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
