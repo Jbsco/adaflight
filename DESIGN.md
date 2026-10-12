@@ -1347,3 +1347,20 @@ once the ceiling froze, a reading under it; the sensor is healthy within half a 
 reading. The detection, the drivers and the legacy bounds the altitude estimator reads come with
 the target, the bounds computed here from the range and the tilt limit. The unit is SPARK for the
 sample windows and the integer bounds.
+## D72. Optical flow readings (2026-10-11)
+
+The optical flow unit carries the reference's sensor processing without its drivers: each read
+of the driver sets the quality, and a sample whose time stamp moved is turned into the craft
+frame by the cosine and sine of the mounting rotation, with the x axis flipped when configured.
+One filtered gyro reading is kept per sample in a ring of sixteen with its time stamp, and the
+slot whose age is nearest the driver's gyro delay supplies the roll and pitch rates that are
+subtracted from the flow after their conversion to radians per second. An axis whose matched
+gyro rate exceeds two hundred degrees per second keeps its previous processed rate and loses
+its validity, so a consumer can skip the axis instead of reading a zero as rest. A slot still
+at time zero is passed over, as is a sample stamped zero, in the reference's order. The health
+check compares the clock with the last sample through the wrapping difference. The cosine and
+sine of the configured rotation come from the platform's trigonometry at init, because the
+reference computes them once with the C library and the unit keeps no transcendental code. One
+guard covers the reference's undefined behavior: the age error of a slot is computed in 64
+bits where the reference subtracts the delay from a 32-bit age that can be near its minimum
+after a long silence (finding F90). No recorded vector reaches the guard.
