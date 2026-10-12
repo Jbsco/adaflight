@@ -1401,3 +1401,18 @@ month that indexes the day table, the default date showing otherwise (F92), and 
 outside the settable span of two to the sixty-second milliseconds is rejected on read. The
 five-digit year the text can carry fits the 30-character result (F94). No recorded vector reaches
 a guard.
+## D75. Internal ADC channels (2026-10-11)
+
+The internal ADC unit carries the reference's averaging and compensation without the conversions:
+the platform reads the band gap reference and the temperature sensor and hands the two 12-bit
+values to each pass, which runs each through a moving average of eight with the sum kept as the
+sum of the window by a record predicate, computes the analog supply in millivolts as the chip's
+calibration word times 3300 over the averaged reference, and the core temperature as the
+averaged sensor reading scaled by the supply over 3300, less the calibration point at thirty
+degrees, times the slope in thousandths of a degree, rounded to degrees and offset by thirty,
+with the reference's narrowing to sixteen bits. The nine conversions of the reference's init are
+nine passes driven by the platform. The calibration word, the point and the slope are bounded to
+the values the chips carry, so the products stay in 32 bits where the reference would overflow
+(finding F96). One guard covers the reference's division: an averaged reference reading of zero
+gives a supply of zero, the quotient the target's core produces (F97). No recorded vector reaches
+the guard.
