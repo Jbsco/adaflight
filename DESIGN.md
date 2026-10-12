@@ -1494,7 +1494,7 @@ outside the calendar counts thirty-one days (F57). The oracle feeds bursts of se
 messages with cut frames, bad checksums, stale buffers and runs of garbage, built with
 unsigned characters as the targets are, and every recorded vector replays exactly.
 
-## D62. The GPS link (2026-10-11)
+## D80. The GPS link (2026-10-11)
 
 `Adaflight.UBX_Config` builds the configuration messages for a u-blox module: the frame around
 a class, an id and a payload with the two running checksum bytes, the polls, the message rates,
