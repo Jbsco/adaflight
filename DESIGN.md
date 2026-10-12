@@ -1454,3 +1454,17 @@ aircraft straight back with a handover of one. While the launch owns the aircraf
 the angle targets the level controller reads, zero roll and the climb angle as a nose-down pitch;
 the targets live with the caller and keep their values otherwise, as the reference's globals do.
 The times compare through the wrapping difference. No guard was needed.
+## D78. Navigation trail (2026-10-12)
+
+The navigation trail unit carries the reference's breadcrumb recorder for the OSD map without
+its GPS: the platform hands each poll the position east and north of home in centimetres, which
+the reference computes from the home and current coordinates. The poll runs at ten hertz on the
+wrapping clock, starts the line over on the arm edge before the cycle's position can land, and
+takes a position only while armed with a fix and a home. A position becomes whole metres east
+and north, rounded to the nearest and held in sixteen bits before the distance gate, so a glitch
+past the range leaves the stored point and the gate's arithmetic agreeing; the first point is
+stored, a later one when its distance from the last reaches the spacing, compared as squares in
+64 bits. A full store of 240 points keeps every second point and doubles the spacing, up to five
+kilometres, before the point goes in. The stored points live in the record and the harness
+checks their count, the spacing, the last point and a hash over every point. No guard was
+needed.

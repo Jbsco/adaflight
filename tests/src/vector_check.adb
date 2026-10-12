@@ -89,6 +89,7 @@ with Adaflight.RTC;
 with Adaflight.Internal_ADC;
 with Adaflight.Flight_Stats;
 with Adaflight.Wing_Launch;
+with Adaflight.Nav_Trail;
 
 procedure Vector_Check is
 
@@ -7026,6 +7027,61 @@ procedure Vector_Check is
       end if;
    end Check_Wing_Launch_Line;
 
+   TR_Seq   : Integer_64 := -1;
+   TR_Trail : Adaflight.Nav_Trail.Trail;
+
+   procedure Check_Nav_Trail_Line is
+      use Adaflight.Nav_Trail;
+      Name : constant String := Str (1);
+
+      function Trail_Hash return Unsigned_32 is
+         H : Unsigned_32 := 2166136261;
+      begin
+         for I in 0 .. TR_Trail.Length - 1 loop
+            H := (H xor Unsigned_32 (Interfaces.Unsigned_16'Mod (TR_Trail.Points (I).East_M))) * 16777619;
+            H := (H xor Unsigned_32 (Interfaces.Unsigned_16'Mod (TR_Trail.Points (I).North_M))) * 16777619;
+         end loop;
+         return H;
+      end Trail_Hash;
+   begin
+      if Name = "trinit" then
+         TR_Seq := Int (2);
+         TR_Trail := (Points         => (others => (East_M => 0, North_M => 0)),
+                      Length         => 0,
+                      Spacing_Now    => Spacing_M,
+                      Was_Armed      => False,
+                      Last_Update_Us => 0);
+      elsif Name = "trstep" then
+         if Int (2) /= TR_Seq then
+            Put_Line ("trail step without its start");
+            Failures := Failures + 1;
+            return;
+         end if;
+         case Int (4) is
+            when 0 =>
+               Update (TR_Trail, Interfaces.Unsigned_32 (Int (5)), Int (6) /= 0, Int (7) /= 0, Int (8) /= 0,
+                       Flt (9), Flt (10));
+            when 1 =>
+               Ingest (TR_Trail, Flt (9), Flt (10));
+            when others =>
+               Reset (TR_Trail);
+         end case;
+         Record_Int (Name & ".count", Int (11), Integer_64 (TR_Trail.Length));
+         Record_Int (Name & ".spacing", Int (12), Integer_64 (TR_Trail.Spacing_Now));
+         if TR_Trail.Length > 0 then
+            Record_Int (Name & ".laste", Int (13), Integer_64 (Point_At (TR_Trail, TR_Trail.Length - 1).East_M));
+            Record_Int (Name & ".lastn", Int (14), Integer_64 (Point_At (TR_Trail, TR_Trail.Length - 1).North_M));
+         else
+            Record_Int (Name & ".laste", Int (13), 0);
+            Record_Int (Name & ".lastn", Int (14), 0);
+         end if;
+         Record_Result (Name & ".hash", Bits (15), Trail_Hash);
+      else
+         Put_Line ("unknown trail case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Nav_Trail_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -7164,6 +7220,8 @@ procedure Vector_Check is
                   Check_Flight_Stats_Line;
                elsif Kind = "wlaunch" then
                   Check_Wing_Launch_Line;
+               elsif Kind = "trail" then
+                  Check_Nav_Trail_Line;
                else
                   Check_PID_Line;
                end if;
@@ -7242,6 +7300,7 @@ begin
    Run (Dir & "/adcint.csv", "adcint");
    Run (Dir & "/stats.csv", "stats");
    Run (Dir & "/wlaunch.csv", "wlaunch");
+   Run (Dir & "/trail.csv", "trail");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
