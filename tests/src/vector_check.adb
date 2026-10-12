@@ -72,6 +72,7 @@ with Adaflight.Text;
 with Adaflight.DShot;
 with Adaflight.CRSF_Telemetry;
 with Adaflight.ESC_Sensor;
+with Adaflight.SmartPort_Telemetry;
 
 procedure Vector_Check is
 
@@ -5640,6 +5641,132 @@ procedure Vector_Check is
       end loop;
    end Check_ESC_Line;
 
+   SP_Seq     : Integer_64 := -1;
+   SP_Stream  : Adaflight.SmartPort_Telemetry.Stream;
+   SP_Base    : Adaflight.SmartPort_Telemetry.Inputs;
+   SP_Pending : Byte_Array (0 .. 4095) := (others => 0);
+   SP_Count   : Natural := 0;
+   SP_ESC     : Boolean := False;
+
+   procedure Check_SmartPort_Line is
+      use Adaflight.SmartPort_Telemetry;
+      Name : constant String := Str (1);
+   begin
+      if Name = "sportinit" then
+         declare
+            Disabled : constant Integer_64 := Int (3);
+            B        : Build_Inputs;
+         begin
+            SP_Seq := Int (2);
+            SP_Stream := (others => <>);
+            SP_Count := 0;
+            for Se in Sensor loop
+               B.Enabled (Se) := (Disabled / 2 ** Sensor'Pos (Se)) mod 2 = 0;
+            end loop;
+            B.Voltage_Configured := Int (6) = 1;
+            B.Amperage_Configured := Int (7) = 1;
+            B.Acc_Present := Int (8) = 1;
+            B.Baro_Present := Int (9) = 1;
+            B.GPS_Feature := Int (10) = 1;
+            SP_Base := (others => <>);
+            SP_Base.Report_Cell_Voltage := Int (4) = 1;
+            SP_Base.Pid_Values := Int (5) = 1;
+            SP_Base.GPS_Feature := Int (10) = 1;
+            SP_ESC := Int (11) = 1;
+            SP_Base.Motors := Motor_Count (Int (12));
+            SP_Base.Pole_Count := Interfaces.Unsigned_8 (Int (13));
+            SP_Base.Acc_1G_Rec := Flt (14);
+            SP_Base.Capacity_Set := Int (15) > 0;
+            SP_Base.P := (Interfaces.Unsigned_8 (Int (42)), Interfaces.Unsigned_8 (Int (46)),
+                          Interfaces.Unsigned_8 (Int (50)));
+            SP_Base.I := (Interfaces.Unsigned_8 (Int (43)), Interfaces.Unsigned_8 (Int (47)),
+                          Interfaces.Unsigned_8 (Int (51)));
+            SP_Base.D := (Interfaces.Unsigned_8 (Int (44)), Interfaces.Unsigned_8 (Int (48)),
+                          Interfaces.Unsigned_8 (Int (52)));
+            SP_Base.Rates := (Interfaces.Unsigned_8 (Int (45)), Interfaces.Unsigned_8 (Int (49)),
+                              Interfaces.Unsigned_8 (Int (53)));
+            Build (SP_Stream, B);
+            Record_Int (Name & ".size", Int (16), Integer_64 (SP_Stream.Size));
+            for I in 1 .. 20 loop
+               Record_Int (Name & ".id", Int (16 + I), Integer_64 (SP_Stream.Table (I)));
+            end loop;
+            Record_Int (Name & ".escsize", Int (37), Integer_64 (SP_Stream.ESC_Size));
+            for I in 1 .. Max_ESC_Values loop
+               Record_Int (Name & ".escid", Int (37 + I), Integer_64 (SP_Stream.ESC_Table (I)));
+            end loop;
+         end;
+      elsif Name = "sportstep" then
+         if Int (2) /= SP_Seq then
+            Put_Line ("smartport step without its start");
+            Failures := Failures + 1;
+            return;
+         end if;
+         declare
+            Inp      : Inputs := SP_Base;
+            Modes    : constant Integer_64 := Int (20);
+            Rx       : constant Byte_Array := SP_Pending (0 .. SP_Count - 1) & Hex_Bytes (69);
+            O        : Output;
+            Consumed : Natural;
+
+            function Flag (Bit : Natural) return Boolean is ((Modes / 2 ** Bit) mod 2 = 1);
+         begin
+            Inp.Voltage_Cv := Interfaces.Unsigned_16 (Int (4));
+            Inp.Cell_Voltage_Cv := Interfaces.Unsigned_16 (Int (5));
+            Inp.Amperage_Ca := I32 (7);
+            Inp.Mah_Drawn := I32 (8);
+            Inp.Percent_Remaining := Interfaces.Unsigned_8 (Int (9));
+            Inp.Altitude_Cm := I32 (10);
+            Inp.Vario_Cms := Interfaces.Integer_16 (Int (11));
+            Inp.Pitch := Interfaces.Integer_16 (Int (12));
+            Inp.Roll := Interfaces.Integer_16 (Int (13));
+            Inp.Yaw := Interfaces.Integer_16 (Int (14));
+            Inp.Acc_X := Flt (15);
+            Inp.Acc_Y := Flt (16);
+            Inp.Acc_Z := Flt (17);
+            Inp.Arming_Disabled := Int (18) = 1;
+            Inp.Armed := Int (19) mod 2 = 1;
+            Inp.Angle_Like := Flag (0) or else Flag (3) or else Flag (5);
+            Inp.Horizon := Flag (1);
+            Inp.Passthru := Flag (8);
+            Inp.Mag := Flag (2);
+            Inp.Headfree := Flag (6);
+            Inp.GPS_Present := Int (21) = 1;
+            Inp.Fix := Int (22) = 1;
+            Inp.Fix_Home := Int (23) = 1;
+            Inp.Pdop := Interfaces.Unsigned_16 (Int (24));
+            Inp.Num_Sat := Interfaces.Unsigned_8 (Int (25));
+            Inp.Ground_Speed := Interfaces.Unsigned_16 (Int (26));
+            Inp.Lat := I32 (27);
+            Inp.Lon := I32 (28);
+            Inp.Home_Distance_M := Interfaces.Unsigned_16 (Int (29));
+            Inp.Core_Temperature := Interfaces.Integer_16 (Int (30));
+            Inp.GPS_Altitude_Cm := I32 (31);
+            for M in 0 .. 7 loop
+               Inp.ESC (M) := (Present     => SP_ESC and then M < Inp.Motors,
+                               Voltage     => Interfaces.Unsigned_16 (Int (32 + 4 * M)),
+                               Current     => I32 (33 + 4 * M),
+                               Temperature => Interfaces.Unsigned_8 (Int (34 + 4 * M)),
+                               Rpm         => Interfaces.Integer_16 (Int (35 + 4 * M)));
+            end loop;
+            Inp.ESC_Combined := (Present     => SP_ESC,
+                                 Voltage     => Interfaces.Unsigned_16 (Int (64)),
+                                 Current     => I32 (65),
+                                 Temperature => Interfaces.Unsigned_8 (Int (66)),
+                                 Rpm         => Interfaces.Integer_16 (Int (67)));
+            Update (SP_Stream, Inp, Rx, 9, O, Consumed);
+            Record_Int (Name & ".consumed", Int (70), Integer_64 (Consumed));
+            Record_Int (Name & ".index", Int (71), Integer_64 (SP_Stream.Index));
+            Record_Int (Name & ".escindex", Int (72), Integer_64 (SP_Stream.ESC_Index));
+            Record_Bytes (Name & ".tx", Hex_Bytes (74), O.Tx (0 .. O.Count - 1));
+            SP_Count := Rx'Length - Consumed;
+            SP_Pending (0 .. SP_Count - 1) := Rx (Rx'First + Consumed .. Rx'Last);
+         end;
+      else
+         Put_Line ("unknown smartport case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_SmartPort_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -5744,6 +5871,8 @@ procedure Vector_Check is
                   Check_CRSF_Telemetry_Line;
                elsif Kind = "escsensor" then
                   Check_ESC_Line;
+               elsif Kind = "sport" then
+                  Check_SmartPort_Line;
                else
                   Check_PID_Line;
                end if;
@@ -5805,6 +5934,7 @@ begin
    Run (Dir & "/dshot.csv", "dshot");
    Run (Dir & "/crsftlm.csv", "crsftlm");
    Run (Dir & "/escsensor.csv", "escsensor");
+   Run (Dir & "/sport.csv", "sport");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
