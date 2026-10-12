@@ -63,13 +63,14 @@ The core holds:
 - the flight statistics with their save gate
 - the wing launch with its throw detection and its handover
 - the navigation trail with its distance gate and its decimation
-- the GPS frame decoders for NMEA sentences and UBX messages
+- the GPS frame decoders for NMEA sentences and UBX messages, the UBX configuration messages,
+  and the GPS link with its rate detection, autoconfiguration and home distances
 
 The state of `main`:
 
-- The core proves at Silver and Gold: 9456 checks, nothing unproved, no
+- The core proves at Silver and Gold: 9807 checks, nothing unproved, no
   `pragma Assume`, no justified suppression (`gnatprove` 16.1.0, level 2).
-- The recorded vectors replay bit for bit: 587596 lines over 276 cases, every case
+- The recorded vectors replay bit for bit: 610108 lines over 279 cases, every case
   exact except the seventeen declared deviations in `DESIGN.md` D6.
 - No target builds yet. `ROADMAP.md` carries the parity inventory, the phases, and the
   question for after parity: whether a proved core leaves room on the F4 boards for
