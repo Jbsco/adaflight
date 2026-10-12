@@ -107,6 +107,7 @@ with Adaflight.MSP_Box;
 with Adaflight.Dispatch;
 with Adaflight.ExpressLRS_Receiver;
 with Adaflight.Blackbox_Header;
+with Adaflight.Blackbox;
 
 procedure Vector_Check is
 
@@ -8951,6 +8952,208 @@ procedure Vector_Check is
       end if;
    end Check_Blackbox_Header_Line;
 
+   package BR renames Adaflight.Blackbox;
+   BR_Seq  : Integer_64 := -1;
+   BR_L    : BR.Recorder;
+   BR_C    : BR.Settings;
+   BR_In   : BR.Inputs;
+   BR_Loop : BR.Loop_Time_Us := 125;
+   BR_Buf  : Byte_Array (0 .. 8191) := (others => 0);
+
+   function BR_I32 (I : Positive) return Interfaces.Integer_32 is (Interfaces.Integer_32 (Int (I)));
+   function BR_U32 (I : Positive) return Unsigned_32 is (Unsigned_32 (Int (I)));
+   function BR_U16 (I : Positive) return Interfaces.Unsigned_16 is (Interfaces.Unsigned_16 (Int (I)));
+   function BR_I16 (I : Positive) return Interfaces.Integer_16 is (Interfaces.Integer_16 (Int (I)));
+   function BR_Axis (I : Positive) return BR.Axis_Floats is (Flt (I), Flt (I + 1), Flt (I + 2));
+   function BR_Signed_Start (V : Unsigned_32) return Integer_64 is
+     (if V >= 2 ** 31 then Integer_64 (V) - 2 ** 32 else Integer_64 (V));
+
+   procedure BR_Text (T : in out Adaflight.Blackbox_Header.Text; I : Positive) is
+      Raw : constant Byte_Array := Hex_Bytes (I);
+      L   : constant Natural := Natural'Min (Raw'Length, Adaflight.Blackbox_Header.Text_Max);
+   begin
+      T.Data := (others => ' ');
+      for K in 0 .. L - 1 loop
+         T.Data (1 + K) := Character'Val (Raw (Raw'First + K));
+      end loop;
+      T.Length := L;
+   end BR_Text;
+
+   procedure Check_Blackbox_Recorder_Line is
+      Name : constant String := Str (1);
+      use type BR.Log_State;
+   begin
+      if Name = "recinit" then
+         BR_Seq := Int (2);
+         BR_C := (Fields_Disabled_Mask => BR_U32 (8), Sample_Rate => Natural (Int (5)),
+                  Device => Adaflight.Blackbox_Header.Device_Kind'Val (Int (4)), Mode => BR.Log_Mode'Val (Int (6)),
+                  High_Resolution => Int (7) = 1, Serial_Fast_Baud => Int (9) = 1, Wing => Int (3) = 1);
+         BR_Loop := BR.Loop_Time_Us (Int (10));
+         BR_In := (others => <>);
+         BR_In.Device.Buffer_Size := Natural (Int (11));
+         BR_In.Conditions := (Motors => Natural (Int (12)), Has_Servos => Int (13) = 1, DShot_Telemetry => Int (14) = 1,
+                              Mag_Present => Int (15) = 1, Baro_Present => Int (16) = 1,
+                              Rangefinder_Present => Int (17) = 1, Acc_Present => Int (18) = 1,
+                              RSSI_Configured => Int (19) = 1, Debug_Active => Int (20) = 1,
+                              Voltage_Meter => Adaflight.Battery.Voltage_Source'Val (Int (21)),
+                              Current_Meter => Adaflight.Battery.Current_Source'Val (Int (22)),
+                              PID_D => (BR_I32 (23), BR_I32 (24), BR_I32 (25)),
+                              PID_S => (BR_I32 (26), BR_I32 (27), BR_I32 (28)), others => <>);
+         BR_In.GPS_Feature := Int (29) = 1;
+         BR_In.Mode_Activation_Present := Int (30) = 1;
+         for V in Adaflight.Blackbox_Header.Value_Name loop
+            BR_In.Info.Values (V) := BR_I32 (32 + Adaflight.Blackbox_Header.Value_Name'Pos (V));
+         end loop;
+         for T in Adaflight.Blackbox_Header.Text_Name loop
+            BR_Text (BR_In.Info.Texts (T), 294 + Adaflight.Blackbox_Header.Text_Name'Pos (T));
+         end loop;
+         BR.Init (BR_L, BR_C, BR_Loop);
+         Record_Int (Name & ".rate", Int (5), Integer_64 (BR_C.Sample_Rate));
+         Record_Int (Name & ".state", Int (308), Integer_64 (BR.Log_State'Pos (BR_L.State)));
+         Record_Int (Name & ".iinterval", Int (309), Integer_64 (BR_L.I_Interval));
+         Record_Int (Name & ".pinterval", Int (310), Integer_64 (BR_L.P_Interval));
+         Record_Int (Name & ".sinterval", Int (311), Integer_64 (BR_L.S_Interval));
+      elsif Name = "recstep" then
+         if Int (2) /= BR_Seq then
+            Put_Line ("flight log step without its start");
+            Failures := Failures + 1;
+            return;
+         end if;
+         declare
+            Op   : constant Integer_64 := Int (4);
+            Strm : Adaflight.Stream_Buffers.Stream;
+            M    : BR.Main_Inputs renames BR_In.Main;
+         begin
+            BR_In.Now_Us := BR_U32 (5);
+            BR_In.Now_Ms := BR_U32 (6);
+            BR_In.Armed := Int (7) = 1;
+            BR_In.Blackbox_Box := Int (8) = 1;
+            BR_In.Erase_Box := Int (9) = 1;
+            BR_In.Motors_Running := Int (10) = 1;
+            BR_In.GPS_Feature := Int (11) = 1;
+            BR_In.Mode_Activation_Present := Int (12) = 1;
+            BR_In.Arming_Beep_Time_Us := BR_U32 (13);
+            BR_In.Battery_Voltage := BR_U16 (14);
+            BR_In.Device := (Free => Natural (Int (15)), Open_OK => Int (16) = 1, Buffer_Size => Natural (Int (17)),
+                             Begin_Log_Done => Int (18) = 1, End_Log_Done => Int (19) = 1,
+                             Flush_Complete => Int (20) = 1, Flush_Forced => Int (21) = 1, Full => Int (22) = 1,
+                             Erased => Int (23) = 1, Shared_MSP_Port => Int (24) = 1);
+            M.PID_P := BR_Axis (25);
+            M.PID_I := BR_Axis (28);
+            M.PID_D := BR_Axis (31);
+            M.PID_F := BR_Axis (34);
+            M.PID_S := BR_Axis (37);
+            M.Gyro_Filtered := BR_Axis (40);
+            M.Gyro_Raw := BR_Axis (43);
+            M.Acc := BR_Axis (46);
+            M.Mag := BR_Axis (49);
+            M.Quaternion_W := Flt (52);
+            M.Quaternion_XYZ := (Flt (53), Flt (54), Flt (55));
+            M.RC_Command := (Flt (56), Flt (57), Flt (58), Flt (59));
+            M.Setpoint := BR_Axis (60);
+            M.Throttle := Flt (63);
+            for I in 0 .. 7 loop
+               M.Debug (I) := BR_I16 (64 + I);
+               M.Motor (I) := Flt (72 + I);
+               M.ERPM (I) := BR_U16 (80 + I);
+               M.Servo (I) := BR_I16 (95 + I);
+            end loop;
+            M.VBat_Latest := BR_U16 (88);
+            M.Amperage_Latest := BR_I32 (89);
+            M.Baro_Alt := BR_I32 (90);
+            M.Surface_Raw := BR_I32 (91);
+            M.RSSI := BR_U16 (92);
+            M.Airspeed := Flt (93);
+            M.Diff_Pressure := Flt (94);
+            M.Motor_Output_Low := Flt (103);
+            BR_In.Slow := (Flight_Mode_Flags => BR_U32 (104), State_Flags => Byte (Int (105)),
+                           Failsafe_Phase => Adaflight.Failsafe.Phase'Val (Int (106)),
+                           RX_Signal_Received => Int (107) = 1, RX_Flight_Channels_Valid => Int (108) = 1);
+            BR_In.GPS := (Home => (Lat => BR_I32 (109), Lon => BR_I32 (110), Alt_Cm => BR_I32 (111)),
+                          Position => (Lat => BR_I32 (112), Lon => BR_I32 (113), Alt_Cm => BR_I32 (114)),
+                          Num_Sat => Byte (Int (115)), Speed_3D => BR_U16 (116), Ground_Speed => BR_U16 (117),
+                          Ground_Course => BR_U16 (118), Vel_N => BR_I16 (119), Vel_E => BR_I16 (120),
+                          Vel_D => BR_I16 (121), Time_Ms => BR_U32 (122), Epoch => BR_U32 (123),
+                          Use_3D_Speed => Int (124) = 1);
+            Adaflight.Stream_Buffers.Init (Strm, 0, BR_Buf'Length);
+            case Op is
+               when 1 =>
+                  BR.Update (BR_L, BR_C, BR_In, BR_Buf, Strm);
+               when 2 =>
+                  BR.Finish (BR_L, BR_In.Now_Ms, BR_Buf, Strm);
+               when 3 =>
+                  declare
+                     Kind : constant BR.Event_Kind :=
+                       (case Int (125) is
+                          when 0 => BR.Sync_Beep, when 13 => BR.Inflight_Adjustment, when 14 => BR.Logging_Resume,
+                          when 15 => BR.Disarm, when 30 => BR.Flight_Mode, when others => BR.Log_End);
+                  begin
+                     BR.Log_Event (BR_L, Kind,
+                                   (Time_Us => BR_U32 (126), Flags => BR_U32 (127), Last_Flags => BR_U32 (128),
+                                    Reason => BR_U32 (129), Adjustment_Function => Byte (Int (130)),
+                                    Float_Flag => Int (131) = 1, New_Value => BR_I32 (132), New_Float => Flt (133),
+                                    Log_Iteration => BR_U32 (134), Current_Time => BR_U32 (135)),
+                                   BR_Buf, Strm);
+                  end;
+               when others =>
+                  BR.Init (BR_L, BR_C, BR_Loop);
+            end case;
+            Record_Bytes (Name & ".bytes", Hex_Bytes (136), BR_Buf (0 .. Strm.Next - 1));
+            Record_Int (Name & ".state", Int (137), Integer_64 (BR.Log_State'Pos (BR_L.State)));
+            Record_Int (Name & ".iteration", Int (138), Integer_64 (BR_L.Iteration));
+            Record_Int (Name & ".loopindex", Int (139), Integer_64 (BR_L.Loop_Index));
+            Record_Int (Name & ".pframe", Int (140), Integer_64 (BR_L.P_Frame_Index));
+            Record_Int (Name & ".iframe", Int (141), Integer_64 (BR_L.I_Frame_Index));
+            Record_Int (Name & ".slowtimer", Int (142), Integer_64 (BR_L.Slow_Frame_Timer));
+            Record_Int (Name & ".loggedany", Int (143), Boolean'Pos (BR_L.Logged_Any_Frames));
+            Record_Int (Name & ".headerindex", Int (144), Integer_64 (BR_L.Header_St.Index));
+            if BR_L.State in BR.Send_Main_Field_Header .. BR.Send_Sysinfo then
+               Record_Int (Name & ".field", Int (145), Integer_64 (BR_L.Header_St.Field));
+            elsif BR_L.State in BR.Send_Header | BR.Shutting_Down then
+               Record_Int (Name & ".start", Int (145), BR_Signed_Start (BR_L.Header_St.Start_Time_Ms));
+            end if;
+            Record_Int (Name & ".budget", Int (146), Integer_64 (BR_L.Writer.Budget));
+            Record_Int (Name & ".vbatref", Int (147), Integer_64 (BR_L.VBat_Reference));
+            Record_Int (Name & ".testmode", Int (148), Boolean'Pos (BR_L.Started_In_Test_Mode));
+            Record_Int (Name & ".lastbeep", Int (149), Integer_64 (BR_L.Last_Arming_Beep));
+            Record_Int (Name & ".lastflags", Int (150), Integer_64 (BR_L.Last_Flight_Mode_Flags));
+            Record_Int (Name & ".modeact", Int (151), Boolean'Pos (BR_L.Mode_Condition_Present));
+            Record_Int (Name & ".homelat", Int (152), Integer_64 (BR_L.GPS_Hist.Home.Lat));
+            Record_Int (Name & ".homelon", Int (153), Integer_64 (BR_L.GPS_Hist.Home.Lon));
+            Record_Int (Name & ".homealt", Int (154), Integer_64 (BR_L.GPS_Hist.Home.Alt_Cm));
+            Record_Int (Name & ".poslat", Int (155), Integer_64 (BR_L.GPS_Hist.Position.Lat));
+            Record_Int (Name & ".poslon", Int (156), Integer_64 (BR_L.GPS_Hist.Position.Lon));
+            Record_Int (Name & ".posalt", Int (157), Integer_64 (BR_L.GPS_Hist.Position.Alt_Cm));
+            Record_Int (Name & ".numsat", Int (158), Integer_64 (BR_L.GPS_Hist.Num_Sat));
+            Record_Int (Name & ".slowflags", Int (159), Integer_64 (BR_L.Slow_Hist.Flight_Mode_Flags));
+            Record_Int (Name & ".slowstate", Int (160), Integer_64 (BR_L.Slow_Hist.State_Flags));
+            Record_Int (Name & ".slowphase", Int (161), Integer_64 (BR_L.Slow_Hist.Failsafe_Phase));
+            Record_Int (Name & ".slowsig", Int (162), Boolean'Pos (BR_L.Slow_Hist.RX_Signal_Received));
+            Record_Int (Name & ".slowvalid", Int (163), Boolean'Pos (BR_L.Slow_Hist.RX_Flight_Channels_Valid));
+            if Int (164) in 0 .. 2 then
+               Record_Int (Name & ".ring0", Int (164), Integer_64 (BR_L.Current));
+               Record_Int (Name & ".ring1", Int (165), Integer_64 (BR_L.Previous));
+               Record_Int (Name & ".ring2", Int (166), Integer_64 (BR_L.Previous_2));
+            end if;
+            for R in BR.Ring_Index loop
+               Record_Int (Name & ".ringtime", Int (167 + Integer (R)), Integer_64 (BR_L.Ring (R).Time));
+            end loop;
+            Record_Int (Name & ".flushes", Int (170), Integer_64 (BR_L.Flush_Requests));
+            Record_Int (Name & ".forces", Int (171), Integer_64 (BR_L.Flush_Forces) + Integer_64 (BR_L.Writer.Flushes));
+            Record_Int (Name & ".erases", Int (172), Integer_64 (BR_L.Erase_Requests));
+            Record_Int (Name & ".beeps", Int (173), Integer_64 (BR_L.Beeps));
+            Record_Int (Name & ".opens", Int (174), Integer_64 (BR_L.Opens));
+            Record_Int (Name & ".closes", Int (175), Integer_64 (BR_L.Closes));
+            Record_Int (Name & ".iinterval", Int (176), Integer_64 (BR_L.I_Interval));
+            Record_Int (Name & ".pinterval", Int (177), Integer_64 (BR_L.P_Interval));
+            Record_Int (Name & ".sinterval", Int (178), Integer_64 (BR_L.S_Interval));
+         end;
+      else
+         Put_Line ("unknown flight log case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Blackbox_Recorder_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -9121,6 +9324,8 @@ procedure Vector_Check is
                   Check_ELRS_Receiver_Line;
                elsif Kind = "bbhdr" then
                   Check_Blackbox_Header_Line;
+               elsif Kind = "bbrec" then
+                  Check_Blackbox_Recorder_Line;
                else
                   Check_PID_Line;
                end if;
@@ -9215,6 +9420,7 @@ begin
    Run (Dir & "/dispatch.csv", "dispatch");
    Run (Dir & "/elrsrx.csv", "elrsrx");
    Run (Dir & "/bbhdr.csv", "bbhdr");
+   Run (Dir & "/bbrec.csv", "bbrec");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
