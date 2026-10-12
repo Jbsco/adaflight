@@ -111,6 +111,7 @@ with Adaflight.Blackbox;
 with Adaflight.Position_Nav;
 with Adaflight.OSD_Warnings;
 with Adaflight.MSP_Telemetry;
+with Adaflight.OSD_Format;
 
 procedure Vector_Check is
 
@@ -9488,6 +9489,110 @@ procedure Vector_Check is
       end if;
    end Check_MSP_Tunnel_Line;
 
+   --  The OSD formatting: each helper under its scripted readings, the
+   --  text compared as bytes.
+
+   OSF_Seq : Integer_64 := -1;
+
+   type OSF_Format_Table is array (0 .. 3) of Adaflight.OSD_Format.Number_Format;
+   OSF_Formats : constant OSF_Format_Table :=
+     (0 => Adaflight.OSD_Format.Default_Format,
+      1 => (Lead => '-', Has_Lead => True, Width => 2, Zero_Pad => True),
+      2 => (Lead => ' ', Has_Lead => True, Width => 2, Zero_Pad => True),
+      3 => (Lead => ' ', Has_Lead => False, Width => 3, Zero_Pad => False));
+
+   procedure OSF_Record_Text (Name : String; Field : Positive; T : Adaflight.OSD_Format.Text) is
+      Actual : Byte_Array (0 .. T.Length - 1);
+   begin
+      for K in Actual'Range loop
+         Actual (K) := Byte (Character'Pos (T.Data (K + 1)));
+      end loop;
+      Record_Bytes (Name, Hex_Bytes (Field), Actual);
+   end OSF_Record_Text;
+
+   procedure Check_OSD_Format_Line is
+      use Adaflight.OSD_Format;
+      Name : constant String := Str (1);
+      T    : Adaflight.OSD_Format.Text;
+      function Units (I : Positive) return Unit_System is (Unit_System'Val (Int (I)));
+      function Variant (I : Positive) return Element_Type is (Element_Type'Val (Int (I)));
+      function Chr (I : Positive) return Character is (Character'Val (Int (I)));
+      function I32 (I : Positive) return Interfaces.Integer_32 is (Interfaces.Integer_32 (Int (I)));
+      function U32 (I : Positive) return Interfaces.Unsigned_32 is (Interfaces.Unsigned_32 (Int (I)));
+   begin
+      if Name = "ofinit" then
+         OSF_Seq := Int (2);
+      elsif Int (2) /= OSF_Seq then
+         Put_Line ("OSD format line without its start");
+         Failures := Failures + 1;
+      elsif Name = "ofpf" then
+         Print_Float (T, Chr (4), Flt (5), OSF_Formats (Integer (Int (6))), Integer (Int (7)), Int (8) = 1,
+                      Chr (9));
+         OSF_Record_Text (Name, 10, T);
+         Record_Int (Name & ".pos", Int (11), Integer_64 (T.Length));
+      elsif Name = "ofalt" then
+         Altitude_String (T, I32 (4), Variant (5), Flt (6), Units (3));
+         OSF_Record_Text (Name, 7, T);
+      elsif Name = "ofcoord" then
+         Adaflight.OSD_Format.Coordinate (T, Int (4) = 1, Variant (5), Int (6) = 1, I32 (7), I32 (8));
+         OSF_Record_Text (Name, 9, T);
+      elsif Name = "ofdist" then
+         Distance_String (T, I32 (4), Chr (5), Units (3));
+         OSF_Record_Text (Name, 6, T);
+      elsif Name = "ofpid" then
+         declare
+            L     : constant Byte_Array := Hex_Bytes (3);
+            Label : String (1 .. L'Length);
+         begin
+            for K in Label'Range loop
+               Label (K) := Character'Val (L (L'First + K - 1));
+            end loop;
+            PID_Line (T, Label, Interfaces.Unsigned_8 (Int (4)), Interfaces.Unsigned_8 (Int (5)),
+                      Interfaces.Unsigned_8 (Int (6)), Interfaces.Unsigned_8 (Int (7)),
+                      Interfaces.Unsigned_8 (Int (8)));
+            OSF_Record_Text (Name, 9, T);
+         end;
+      elsif Name = "ofrtc" then
+         declare
+            D : constant Adaflight.RTC.Date_Time :=
+              (Year => Interfaces.Unsigned_16 (Int (5)), Month => Interfaces.Unsigned_8 (Int (6)),
+               Day => Interfaces.Unsigned_8 (Int (7)), Hours => Interfaces.Unsigned_8 (Int (8)),
+               Minutes => Interfaces.Unsigned_8 (Int (9)), Seconds => Interfaces.Unsigned_8 (Int (10)),
+               Millis => Interfaces.Unsigned_16 (Int (11)));
+            Z     : constant Adaflight.RTC.Settings := (Zone => Interfaces.Integer_16 (Int (12)));
+            Valid : Boolean;
+         begin
+            RTC_Date_Time (T, Variant (3), Int (4) = 1, D, Z, Valid);
+            OSF_Record_Text (Name, 13, T);
+            Record_Int (Name & ".valid", Int (14), Boolean'Pos (Valid));
+         end;
+      elsif Name = "oftime" then
+         Time_String (T, Integer (Int (3)), U32 (4));
+         OSF_Record_Text (Name, 5, T);
+      elsif Name = "oftimer" then
+         Timer_String (T, Int (4) = 1, Int (5) = 1, Interfaces.Unsigned_16 (Int (3)),
+                       (Now_Us => U32 (6), Fly_Time_Us => U32 (7), Armed_Time_Us => U32 (8),
+                        Launch_Time_Us => U32 (9), Armed => Int (10) = 1));
+         OSF_Record_Text (Name, 11, T);
+      elsif Name = "ofbatt" then
+         Record_Int (Name, Int (7),
+                     Character'Pos (Battery_Symbol (Integer (Int (3)),
+                                                    Adaflight.Battery.Battery_State'Val (Int (4)),
+                                                    Interfaces.Unsigned_16 (Int (5)),
+                                                    Interfaces.Unsigned_16 (Int (6)))));
+      elsif Name = "ofdir" then
+         Record_Int (Name, Int (4), Character'Pos (Direction_Symbol (Integer (Int (3)))));
+      elsif Name = "ofunit" then
+         Record_Result (Name & ".meters", Bits (5), To_Bits (Meters_To_Unit (I32 (4), Units (3))));
+         Record_Int (Name & ".msym", Int (6), Character'Pos (Meters_Symbol (Units (3))));
+         Record_Int (Name & ".speed", Int (8), Integer_64 (Speed_To_Unit (I32 (7), Units (3))));
+         Record_Int (Name & ".ssym", Int (9), Character'Pos (Speed_Symbol (Units (3))));
+         Record_Int (Name & ".vsym", Int (10), Character'Pos (Vario_Symbol (Units (3))));
+         Record_Int (Name & ".temp", Int (12), Integer_64 (Temperature_In_Units (Integer (Int (11)), Units (3))));
+         Record_Int (Name & ".tsym", Int (13), Character'Pos (Temperature_Symbol (Units (3))));
+      end if;
+   end Check_OSD_Format_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -9666,6 +9771,8 @@ procedure Vector_Check is
                   Check_OSD_Warnings_Line;
                elsif Kind = "msptun" then
                   Check_MSP_Tunnel_Line;
+               elsif Kind = "osdfmt" then
+                  Check_OSD_Format_Line;
                else
                   Check_PID_Line;
                end if;
@@ -9764,6 +9871,7 @@ begin
    Run (Dir & "/posnav.csv", "posnav");
    Run (Dir & "/osdwarn.csv", "osdwarn");
    Run (Dir & "/msptun.csv", "msptun");
+   Run (Dir & "/osdfmt.csv", "osdfmt");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
