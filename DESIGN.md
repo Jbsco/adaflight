@@ -1221,3 +1221,24 @@ to four and the checksum over that many bytes less two matches its last two byte
 reference sums past the window for other length bytes (finding F80), so those never match here.
 Every byte offered is taken, and an answer that would not fit the output is dropped, which no
 recorded vector reaches. The unit is SPARK for the window, the frame and the output indexes.
+## D65. HoTT telemetry link (2026-10-11)
+
+The HoTT unit carries the reference's binary mode: the receiver asks on the single wire with two
+bytes, a request id and a sensor address, and the link answers the electric air module address
+with its message and the GPS module address with its message when a GPS is present, a byte per
+call with three milliseconds between bytes and the running sum after the last, the line turned
+to send on the call after the request and back to receive, with every byte waiting flushed, on
+the call after the sum. A request is seen when exactly two bytes wait on two checks four
+milliseconds apart; more than two are flushed; the count is read as a byte, so a receive buffer
+of exactly 256 bytes reads as empty and stays until more bytes arrive (finding F81). The two
+messages are prepared
+from the sensors five times a second, while one may be on its way out, so the bytes after a
+preparation carry the new values: the voltage into the main and first battery fields, the alarm
+and its inverse flag once per configured interval from the voltage or the charge state, the
+current and the charge used in tenths, the altitude offset by five hundred metres, the climb rate
+offset by thirty thousand and the three-second rate by one hundred and twenty; the satellites and
+the fix character always, and with a fix the position in degrees and minutes with hundredths of a
+second, the speed in kilometres per hour, the home distance, the altitude bounded to the field,
+and the home direction in two-degree steps. Each field narrows as the reference's byte stores do.
+The text mode waits for the menu system. The unit is SPARK for the message indexes and the send
+position.
