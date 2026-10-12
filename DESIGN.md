@@ -1292,3 +1292,22 @@ the next line not yet sent, or the next in turn when all were, and the menu syst
 mark their line through `Put_Char`. The video transmitter frame follows the VTX control branch,
 where the schedule grows by one user frame. The unit is SPARK for the frame and text indexes and
 the narrowing arithmetic.
+## D69. FrSky OSD device link (2026-10-11)
+
+The FrSky OSD unit carries the reference's device link: the drawing, transform, context, grid and
+font commands queued into a buffer of 192 bytes, the queue flushed when a command would not fit,
+on a commit, on a request that waits and on the information request, each flush one frame of the
+preamble, the length as a varint, the commands and the checksum over the length and commands; a
+commit of a transaction with nothing drawn dropped with its beginning; the coordinates packed two
+to three bytes of twelve bits each; the transform values as the bits of the floats. The bytes
+received pass the frame states with the varint length, a complete response handled once per call
+and the bytes after it dropped until then; the information response sets the version and the grid,
+the first one clearing the screen and resetting the drawing; the font read fills the character
+being read. The information request goes out once a second for the life of the link, as the field
+meant to pace it after the device answered is never set (finding F86). The two font exchanges wait
+for their reply in the reference; the unit takes the bytes waiting before the request, handling a
+complete response among them and dropping a partial one, then the request goes out with whatever
+was queued, then the bytes arriving during the wait are all taken, the first complete response
+deciding the outcome, and the caller carries the time the wait took. The strings are bounded to
+the payload the reference writes them into, which a longer string would overrun (finding F87). The
+unit is SPARK for the queue, frame and payload indexes.
