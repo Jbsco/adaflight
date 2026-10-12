@@ -742,3 +742,24 @@ and four tenths less 375, and is held at zero where the reference's conversion o
 value is undefined. The raw value reads zero past the eighth channel. The recorded vectors keep
 the channel words where that conversion is defined. The serial ports stay with the port layer.
 No recorded vector reaches a guard.
+## D44. The IBUS protocol (2026-10-10)
+
+The IBUS unit carries the reference's IBUS receiver for its two receiver families. Each byte
+arrives with its time. A gap over 500 microseconds starts a new frame and ends any echo skip. A
+byte of a telemetry reply's echo is skipped. A frame starts on an IA6B length byte (four for a
+telemetry request, thirty-two for channels), on the IA6 sync byte before any family is known,
+or on the known sync byte. The last byte of the frame's length completes it. The status poll
+takes a complete frame once its checksum matches: the IA6B subtraction from all ones over the
+bytes before the two checksum bytes, or the IA6 sum of the fourteen slots onto the seed. The
+poll decodes the eighteen channels, fourteen from the slots' twelve bits and four from the
+spare high bits, or reports a telemetry request from a short IA6B frame. The reference checks
+that the frame has room for each of the four high-bit channels, which holds for both families'
+offsets, so the unit reads them without the check. The telemetry layer hands back the length of
+its reply so its echo is skipped. The raw value is the channel count itself. The state's
+predicate ties the family to its sync byte, frame length, and slot offset and keeps the frame's
+first byte equal to the sync byte. The checksum and channel reads are therefore proved within
+the frame without clamps, and a frame start writes those fields as one aggregate to keep the
+predicate. A byte is kept only while the frame has room. The reference writes past its buffer
+when a zero byte before any sync is known is followed by more than thirty-one bytes without a
+gap (finding F33). The telemetry reply itself is Phase 6, and the serial port stays with the
+port layer. No recorded vector reaches the guard.
