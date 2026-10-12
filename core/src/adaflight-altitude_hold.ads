@@ -4,11 +4,10 @@
 --  descent, and the autopilot's altitude controller that turns the error
 --  into a throttle fraction.
 with Interfaces;
-with Adaflight.Maths; use Adaflight.Maths;
+with Adaflight.Altitude_Control;
 with Adaflight.Position_Filter;
 
 package Adaflight.Altitude_Hold with SPARK_Mode is
-   use type Interfaces.Integer_32;
    subtype Integer_32 is Interfaces.Integer_32;
    subtype Altitude_Cm is Position_Filter.Value;
 
@@ -57,12 +56,15 @@ package Adaflight.Altitude_Hold with SPARK_Mode is
       Cos_Tilt              : Cosine := 1.0;
    end record;
 
-   subtype Gain is Float range 0.0 .. 8.0;
    subtype Deadband_Fraction is Float range 0.0 .. 0.7;
    subtype Climb_Limit is Float range 0.0 .. 2_000.0;
    subtype Target_Velocity is Float range -2.0 ** 16 .. 2.0 ** 16;
-   subtype Integral is Float range -150.0 .. 150.0;
-   subtype Captured_Throttle is Natural range 0 .. 1_700;
+
+   --  The autopilot's altitude controller's share of the settings.
+   function Control_Settings (C : Settings) return Altitude_Control.Settings is
+     (Hover_Throttle => C.Hover_Throttle, Throttle_Min => C.Throttle_Min, Throttle_Max => C.Throttle_Max,
+      Altitude_P => C.Altitude_P, Altitude_I => C.Altitude_I, Altitude_D => C.Altitude_D,
+      Altitude_A => C.Altitude_A, Altitude_F => C.Altitude_F, Min_Check => C.Min_Check);
 
    type State is record
       Active             : Boolean := False;
@@ -72,14 +74,7 @@ package Adaflight.Altitude_Hold with SPARK_Mode is
       Deadband           : Deadband_Fraction := 0.2;
       Allow_Stick        : Boolean := True;
       Emergency_Rate     : Climb_Rate_Cms := 0.0;
-      Kp                 : Gain := 0.0;
-      Ki                 : Gain := 0.0;
-      Kd                 : Gain := 0.0;
-      Ka                 : Gain := 0.0;
-      Kf                 : Gain := 0.0;
-      Altitude_I         : Integral := 0.0;
-      Throttle_Out       : Unit_Interval := 0.0;
-      Captured_Hover     : Captured_Throttle := 0;
+      Control            : Altitude_Control.State;
    end record;
 
    --  The gains from their settings, the deadband and climb rate, and the
@@ -88,7 +83,8 @@ package Adaflight.Altitude_Hold with SPARK_Mode is
 
    --  The hover throttle in use: the setting, else the stick captured at
    --  engagement, else the default.
-   function Hover_Throttle (S : State; C : Settings) return Positive
+   function Hover_Throttle (S : State; C : Settings) return Positive is
+     (Altitude_Control.Hover_Throttle (S.Control, Control_Settings (C)))
      with Post => Hover_Throttle'Result <= 1_700;
 
    --  One hold task: the engagement or release with the controller reset,

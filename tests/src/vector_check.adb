@@ -1875,11 +1875,11 @@ procedure Vector_Check is
                          Deadband       => Integer (Int (12)),
                          Min_Check      => Integer (Int (13)));
          Init (AH_State, AH_Settings, Altitude_Cm => Flt (22));
-         Record_Result ("ahinit.kp", Bits (14), To_Bits (AH_State.Kp));
-         Record_Result ("ahinit.ki", Bits (15), To_Bits (AH_State.Ki));
-         Record_Result ("ahinit.kd", Bits (16), To_Bits (AH_State.Kd));
-         Record_Result ("ahinit.ka", Bits (17), To_Bits (AH_State.Ka));
-         Record_Result ("ahinit.kf", Bits (18), To_Bits (AH_State.Kf));
+         Record_Result ("ahinit.kp", Bits (14), To_Bits (AH_State.Control.Kp));
+         Record_Result ("ahinit.ki", Bits (15), To_Bits (AH_State.Control.Ki));
+         Record_Result ("ahinit.kd", Bits (16), To_Bits (AH_State.Control.Kd));
+         Record_Result ("ahinit.ka", Bits (17), To_Bits (AH_State.Control.Ka));
+         Record_Result ("ahinit.kf", Bits (18), To_Bits (AH_State.Control.Kf));
          Record_Result ("ahinit.deadband", Bits (19), To_Bits (AH_State.Deadband));
          Record_Result ("ahinit.max_climb", Bits (20), To_Bits (AH_State.Max_Climb_Rate));
          Record_Int ("ahinit.allow_stick", Int (21), Boolean'Pos (AH_State.Allow_Stick));
@@ -1903,9 +1903,9 @@ procedure Vector_Check is
             Record_Int ("ahstep.active", Int (16), Boolean'Pos (AH_State.Active));
             Record_Result ("ahstep.target", Bits (17), To_Bits (AH_State.Target_Altitude_Cm));
             Record_Result ("ahstep.target_velocity", Bits (18), To_Bits (AH_State.Target_Velocity));
-            Record_Result ("ahstep.integral", Bits (19), To_Bits (AH_State.Altitude_I));
-            Record_Result ("ahstep.throttle", Bits (20), To_Bits (AH_State.Throttle_Out));
-            Record_Int ("ahstep.captured_hover", Int (21), Integer_64 (AH_State.Captured_Hover));
+            Record_Result ("ahstep.integral", Bits (19), To_Bits (AH_State.Control.Altitude_I));
+            Record_Result ("ahstep.throttle", Bits (20), To_Bits (AH_State.Control.Throttle_Out));
+            Record_Int ("ahstep.captured_hover", Int (21), Integer_64 (AH_State.Control.Captured_Hover));
             Record_Int ("ahstep.hover", Int (22), Integer_64 (Hover_Throttle (AH_State, AH_Settings)));
             if NF /= 22 then
                Put_Line ("ahstep: expected 22 fields, got" & Integer'Image (NF));
