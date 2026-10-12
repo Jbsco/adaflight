@@ -31,7 +31,7 @@ package body Adaflight.Blackbox_Header with SPARK_Mode is
                Status := Permanent_Failure;
             else
                if Bytes > W.Free then
-                  W.Flush_Requested := True;
+                  W.Flushes := W.Flushes + 1;
                end if;
                Status := Temporary_Failure;
             end if;
@@ -643,11 +643,11 @@ package body Adaflight.Blackbox_Header with SPARK_Mode is
       Status       : Reserve_Status;
    begin
       More := True;
+      if H.Index >= Header_Count then
+         More := False;
+         return;
+      end if;
       if H.Field = -1 then
-         if H.Index >= Header_Count then
-            More := False;
-            return;
-         end if;
          declare
             Name  : constant String := Header_Name (H.Index);
             Bytes : constant Natural := 11 + Name'Length;

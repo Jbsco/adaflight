@@ -34,15 +34,16 @@ package Adaflight.Blackbox_Header with SPARK_Mode is
 
    --  The byte budget the header writers spend, replenished each iteration
    --  from the device's free space up to the accumulated limit, the device's
-   --  free space and buffer size as the target reports them, and the counts
-   --  of bytes written and dropped.
+   --  free space and buffer size as the target reports them, the flushes a
+   --  flash reservation asked for, and the counts of bytes written and
+   --  dropped.
    type Writer is record
       Kind              : Device_Kind := No_Device;
       Budget            : Budget_Count := 0;
       Max_Per_Iteration : Budget_Per_Iteration := 0;
       Free              : Device_Space := 0;
       Buffer_Size       : Device_Space := 0;
-      Flush_Requested   : Boolean := False;
+      Flushes           : Unsigned_32 := 0;
       Written           : Unsigned_32 := 0;
       Dropped           : Unsigned_32 := 0;
    end record;
@@ -50,7 +51,7 @@ package Adaflight.Blackbox_Header with SPARK_Mode is
    --  The device settings and the budget of W are those of Old.
    function Same_Device (W, Old : Writer) return Boolean is
      (W.Kind = Old.Kind and then W.Budget = Old.Budget and then W.Max_Per_Iteration = Old.Max_Per_Iteration
-      and then W.Buffer_Size = Old.Buffer_Size and then W.Flush_Requested = Old.Flush_Requested);
+      and then W.Buffer_Size = Old.Buffer_Size and then W.Flushes = Old.Flushes);
 
    --  The budget after an iteration: the device's free space or the budget
    --  grown by the per-iteration allowance, whichever is less, held at the
@@ -58,7 +59,7 @@ package Adaflight.Blackbox_Header with SPARK_Mode is
    procedure Replenish (W : in out Writer)
      with Post => W.Kind = W.Kind'Old and then W.Max_Per_Iteration = W.Max_Per_Iteration'Old
                   and then W.Buffer_Size = W.Buffer_Size'Old and then W.Free = W.Free'Old
-                  and then W.Flush_Requested = W.Flush_Requested'Old;
+                  and then W.Flushes = W.Flushes'Old;
 
    --  Whether Bytes can go out now: within the budget, or a failure that is
    --  permanent when the device's buffer could never hold them.
@@ -344,13 +345,11 @@ package Adaflight.Blackbox_Header with SPARK_Mode is
 
    --  One header line of a field table per call, continued across calls
    --  under the budget; More is clear once the table's lines are all sent.
-   --  A line in progress keeps the state within the table's lines.
    procedure Send_Field_Definition (H : in out Header_State; W : in out Writer; B : in out Byte_Array;
                                     S : in out Stream; T : Header_Table; Wing : Boolean;
                                     Cache : Condition_Set; More : out Boolean)
-     with Pre  => Fits (S, B) and then (H.Field = -1 or else H.Index < Header_Count_Of (T)),
-          Post => Fits (S, B) and then S.Last = S.Last'Old
-                  and then (H.Field = -1 or else H.Index < Header_Count_Of (T));
+     with Pre  => Fits (S, B),
+          Post => Fits (S, B) and then S.Last = S.Last'Old;
 
    --  One system information line per call; Done once the lines are all
    --  sent.
