@@ -1179,3 +1179,24 @@ reply failing its checksum leaves the request waiting with its count full, where
 storing at the buffer's end and the reference writes past it (finding F79). With the port closed
 a call does nothing, as the task never runs then. The unit is SPARK for the reply and request
 buffers, whose indexes the reference does not bound.
+## D63. FrSky hub telemetry (2026-10-11)
+
+The FrSky hub unit carries the reference's hub encoder: every 125 ms by the signed difference of
+the microsecond clock, a cycle counted one to forty, and in it the frames of a header, an id and
+a sixteen-bit value low byte first with its two bytes stuffed, then the tail. Every cycle sends
+the three accelerations in thousandths of a g, truncated to whole g first, and the climb rate;
+every fourth the altitude in metres and centimetres, zero for the first five seconds after boot,
+and the heading in whole degrees with a zero fraction; every eighth the ESC temperature and rate
+in tens of revolutions per minute, the cell voltage with its cell number in two-millivolt steps
+and the pack voltage in tenths or in fifths, the current and the fuel as the percentage left or
+the charge used, the ground speed in knots with a fix, the GPS altitude, the satellite count or
+the dilution while it is poor on the first half of every sixteen cycles in the configured unit,
+and the position in degrees and minutes with the hemisphere letters, the configured position
+until the first fix and the last known one after it, or one degree each with a compass and no
+GPS; every fortieth the minutes and the seconds of the uptime. Each value narrows to sixteen
+bits as the reference's frame parameter does, and the configured no-fix coordinates are bounded
+to eighteen thousand hundredths so their conversion stays within the reference's defined range.
+The sensors present and the configuration are settings of the stream; the cell voltage's cell
+counter and the fix memory are its state. The ESC branches of the temperature and the rate are
+the ones the default build compiles. The unit is SPARK for the output buffer and the narrowing
+arithmetic.
