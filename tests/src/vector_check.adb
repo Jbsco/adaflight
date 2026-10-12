@@ -86,6 +86,7 @@ with Adaflight.Rangefinder;
 with Adaflight.Optical_Flow;
 with Adaflight.Pitot;
 with Adaflight.RTC;
+with Adaflight.Internal_ADC;
 
 procedure Vector_Check is
 
@@ -6829,6 +6830,48 @@ procedure Vector_Check is
       end if;
    end Check_RTC_Line;
 
+   ADC_Seq     : Integer_64 := -1;
+   ADC_Cal     : Adaflight.Internal_ADC.Calibration;
+   ADC_Sampler : Adaflight.Internal_ADC.Sampler;
+
+   procedure Check_Internal_ADC_Line is
+      use Adaflight.Internal_ADC;
+      Name : constant String := Str (1);
+
+      procedure Expect_State (First : Positive) is
+      begin
+         Record_Int (Name & ".vrefmv", Int (First), Integer_64 (ADC_Sampler.Vref_Mv));
+         Record_Int (Name & ".temperature", Int (First + 1), Integer_64 (ADC_Sampler.Core_Temperature));
+         Record_Int (Name & ".vrefvalue", Int (First + 2), Integer_64 (ADC_Sampler.Vref_Value));
+         Record_Int (Name & ".tempvalue", Int (First + 3), Integer_64 (ADC_Sampler.Temp_Value));
+      end Expect_State;
+   begin
+      if Name = "adcinit" then
+         ADC_Seq := Int (2);
+         ADC_Cal := (Vrefint_Cal => Interfaces.Integer_32 (Int (3)),
+                     Ts_Cal1     => Interfaces.Integer_32 (Int (4)),
+                     Ts_Slope_K  => Interfaces.Integer_32 (Int (5)));
+         Init (ADC_Sampler);
+         for I in 0 .. 8 loop
+            Process (ADC_Sampler, ADC_Cal, ADC_Value (Int (6 + 2 * I)), ADC_Value (Int (7 + 2 * I)));
+         end loop;
+         Expect_State (24);
+      elsif Name = "adcstep" then
+         if Int (2) /= ADC_Seq then
+            Put_Line ("internal ADC step without its start");
+            Failures := Failures + 1;
+            return;
+         end if;
+         if Int (4) = 0 then
+            Process (ADC_Sampler, ADC_Cal, ADC_Value (Int (5)), ADC_Value (Int (6)));
+         end if;
+         Expect_State (7);
+      else
+         Put_Line ("unknown internal ADC case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Internal_ADC_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -6961,6 +7004,8 @@ procedure Vector_Check is
                   Check_Pitot_Line;
                elsif Kind = "rtc" then
                   Check_RTC_Line;
+               elsif Kind = "adcint" then
+                  Check_Internal_ADC_Line;
                else
                   Check_PID_Line;
                end if;
@@ -7036,6 +7081,7 @@ begin
    Run (Dir & "/opticalflow.csv", "opticalflow");
    Run (Dir & "/pitot.csv", "pitot");
    Run (Dir & "/rtc.csv", "rtc");
+   Run (Dir & "/adcint.csv", "adcint");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
