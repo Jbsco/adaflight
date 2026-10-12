@@ -46,12 +46,13 @@ The core holds:
   field encodings, the text conversions, and the DShot protocol
 - the CRSF telemetry frames and the ESC sensor telemetry
 - the SmartPort telemetry stream
+- the RunCam device protocol with the camera buttons and the five key cable
 
 The state of `main`:
 
-- The core proves at Silver and Gold: 7193 checks, nothing unproved, no
+- The core proves at Silver and Gold: 7303 checks, nothing unproved, no
   `pragma Assume`, no justified suppression (`gnatprove` 16.1.0, level 2).
-- The recorded vectors replay bit for bit: 362863 lines over 239 cases, every case
+- The recorded vectors replay bit for bit: 371973 lines over 241 cases, every case
   exact except the seventeen declared deviations in `DESIGN.md` D6.
 - No target builds yet. `ROADMAP.md` carries the parity inventory, the phases, and the
   question for after parity: whether a proved core leaves room on the F4 boards for

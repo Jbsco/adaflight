@@ -73,6 +73,7 @@ with Adaflight.DShot;
 with Adaflight.CRSF_Telemetry;
 with Adaflight.ESC_Sensor;
 with Adaflight.SmartPort_Telemetry;
+with Adaflight.RunCam_Device;
 
 procedure Vector_Check is
 
@@ -5767,6 +5768,95 @@ procedure Vector_Check is
       end if;
    end Check_SmartPort_Line;
 
+   RC_Seq     : Integer_64 := -1;
+   RC_Dev     : Adaflight.RunCam_Device.Device;
+   RC_Set     : Adaflight.RunCam_Device.Settings;
+   RC_Pending : Byte_Array (0 .. 8191) := (others => 0);
+   RC_Count   : Natural := 0;
+
+   procedure Check_RunCam_Line is
+      use Adaflight.RunCam_Device;
+      Name : constant String := Str (1);
+
+      function Flag (B : Boolean) return Integer_64 is (if B then 1 else 0);
+
+      procedure Record_State (B : Positive) is
+         Version : constant Integer_64 := Int (B + 5);
+         Active  : constant Boolean := RC_Dev.Wait.Active;
+      begin
+         Record_Int (Name & ".wait", Int (B), Flag (Active));
+         Record_Int (Name & ".waitcmd", Int (B + 1), (if Active then Integer_64 (RC_Dev.Wait.Command) else 0));
+         Record_Int (Name & ".waitrecv", Int (B + 2), (if Active then Integer_64 (RC_Dev.Wait.Received) else 0));
+         Record_Int (Name & ".retries", Int (B + 3), (if Active then Integer_64 (RC_Dev.Wait.Retries) else 0));
+         Record_Int (Name & ".timeout", Int (B + 4), (if Active then Integer_64 (RC_Dev.Wait.Timeout_At) else 0));
+         Record_Int (Name & ".version", (if Version > 2 then 2 else Version),
+                     Integer_64 (Protocol'Pos (RC_Dev.Device_Info.Version)));
+         Record_Int (Name & ".features", Int (B + 6), Integer_64 (RC_Dev.Device_Info.Features));
+         Record_Int (Name & ".ready", Int (B + 7), Flag (RC_Dev.Ready));
+         Record_Int (Name & ".inmenu", Int (B + 8), Flag (RC_Dev.In_Menu));
+         Record_Int (Name & ".pressed", Int (B + 9), Flag (RC_Dev.Button_Pressed));
+         Record_Int (Name & ".waiting", Int (B + 10), Flag (RC_Dev.Waiting_Response));
+         for I in 1 .. 3 loop
+            Record_Int (Name & ".switch", Int (B + 10 + I), Flag (RC_Dev.Switch_Active (I)));
+         end loop;
+         Record_Int (Name & ".reqstate", Int (B + 14), Integer_64 (RC_Dev.Req.State));
+         Record_Int (Name & ".reqdone", Int (B + 15), Flag (RC_Dev.Req.Done));
+         Record_Int (Name & ".reqcmd", Int (B + 16), Integer_64 (RC_Dev.Req.Command));
+         Record_Int (Name & ".reqlast", Int (B + 17), Integer_64 (RC_Dev.Req.Last_Byte_Ms));
+      end Record_State;
+   begin
+      if Name = "rcdinit" then
+         declare
+            E : Events;
+         begin
+            RC_Seq := Int (2);
+            RC_Count := 0;
+            RC_Set := (Protocol_Setting => (case Int (6) is when 0 => Split, when 1 => V1_0, when others => Unknown),
+                       Feature          => Interfaces.Unsigned_16 (Int (5)),
+                       Init_Attempts    => Natural (Int (3)),
+                       Init_Interval_Ms => Interfaces.Unsigned_32 (Int (4)));
+            Init (RC_Dev, RC_Set, Int (7) = 1, Interfaces.Unsigned_32 (Int (8)), E);
+            Record_Bytes (Name & ".tx", Hex_Bytes (10), E.Line.Tx (0 .. E.Line.Count - 1));
+            Record_State (11);
+         end;
+      elsif Name = "rcdstep" then
+         if Int (2) /= RC_Seq then
+            Put_Line ("rcdevice step without its start");
+            Failures := Failures + 1;
+            return;
+         end if;
+         declare
+            Inp : Inputs;
+            Rx  : constant Byte_Array := RC_Pending (0 .. RC_Count - 1) & Hex_Bytes (20);
+            E   : Events;
+         begin
+            Inp.Now_Ms := Interfaces.Unsigned_32 (Int (4));
+            Inp.Armed := Int (5) = 1;
+            Inp.Blocked := Int (6) = 1;
+            Inp.Menu_Open := Int (7) = 1;
+            Inp.Sticks_Disabled := Int (8) = 1;
+            Inp.Camera := (Int (9) = 1, Int (10) = 1, Int (11) = 1);
+            Inp.Throttle := Float (Int (12));
+            Inp.Roll := Float (Int (13));
+            Inp.Pitch := Float (Int (14));
+            Inp.Yaw := Float (Int (15));
+            Inp.Att_Roll := Interfaces.Integer_16 (Int (16));
+            Inp.Att_Pitch := Interfaces.Integer_16 (Int (17));
+            Inp.Att_Yaw := Interfaces.Integer_16 (Int (18));
+            Update (RC_Dev, RC_Set, Inp, Rx, E);
+            Record_Bytes (Name & ".tx", Hex_Bytes (22), E.Line.Tx (0 .. E.Line.Count - 1));
+            Record_Int (Name & ".beep", Int (23), Integer_64 (Beep'Pos (E.Sound)));
+            Record_Int (Name & ".consumed", Int (24), Integer_64 (E.Consumed));
+            Record_State (25);
+            RC_Count := Rx'Length - E.Consumed;
+            RC_Pending (0 .. RC_Count - 1) := Rx (Rx'First + E.Consumed .. Rx'Last);
+         end;
+      else
+         Put_Line ("unknown rcdevice case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_RunCam_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -5873,6 +5963,8 @@ procedure Vector_Check is
                   Check_ESC_Line;
                elsif Kind = "sport" then
                   Check_SmartPort_Line;
+               elsif Kind = "rcdevice" then
+                  Check_RunCam_Line;
                else
                   Check_PID_Line;
                end if;
@@ -5935,6 +6027,7 @@ begin
    Run (Dir & "/crsftlm.csv", "crsftlm");
    Run (Dir & "/escsensor.csv", "escsensor");
    Run (Dir & "/sport.csv", "sport");
+   Run (Dir & "/rcdevice.csv", "rcdevice");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
