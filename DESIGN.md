@@ -1873,3 +1873,39 @@ text, the field definition lines of each table, and the sysinfo lines, each step
 scripted free space, a replenished budget and a clock advance, checking every byte written,
 the budget, the header index, the field cursor and the completion flag after each of the
 13505 steps.
+
+## D93. The flight log recorder (2026-10-12)
+
+The flight log recorder unit contains the reference's recorder over the header unit (D92)
+and the field encodings (D56): the log states from disabled and stopped through the log
+file, the header, the field definitions, the sysinfo and the cache flush to running, paused
+and shutting down, with the erase states beside them; the intra frame with every field its
+condition admits, the delta frame against the previous frame or the average of the two
+before it, with the compact encodings of the term, command and optional field groups; the
+slow frame on change or at its interval; the GPS and GPS home frames; the events, with the
+arming beep and flight mode changes logged as they happen; and the iteration policy that
+places the frames by the intra and delta intervals derived from the loop time and the sample
+rate. The motor test and always-on modes start and stop the log around the motors running
+while disarmed, and a full device stops it.
+
+The device, the sensors, the settings and the clock stay with the target. Each update
+brings the device's answers (its free space, whether it opened with its buffer size,
+whether the log file is ready and closed, whether its buffers are flushed, whether it is
+full or erased, and whether a serial port is shared), the state to log as the reference
+reads it (the controller terms, rates, commands and setpoints as values, the quaternion,
+the motors, servos, battery, altitude and GPS solution, and the date and time already
+converted to seconds), and the sysinfo settings; the recorder rounds the values as the
+reference rounds them, keeps the three-deep history, and appends the bytes to a caller
+owned array through the header unit's writer, so a full serial port drops them as the
+reference's port does. The counts of the flushes, forced flushes, erases, beeps, opens and
+closes the target carries out stand in for the device calls. The first motor's intra frame
+field saturates at zero where the motor output is below the output low, which the reference
+leaves undefined (findings F101).
+
+The harness replays ten logs of 2500 iterations recorded from the reference's recorder and
+device layer over serial, flash, SD card and no device, eight multirotor and two wing, with
+the flight state on random walks, the device's answers, the boxes, the arming and the clock
+scripted, disarms finishing the log and events and reinitializations between the updates,
+checking every byte written, the log state, the iteration counters and intervals, the header
+transmission, the budget, the histories and the request counts after each of the 22800
+steps.
