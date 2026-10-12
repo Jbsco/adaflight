@@ -88,6 +88,7 @@ with Adaflight.Pitot;
 with Adaflight.RTC;
 with Adaflight.Internal_ADC;
 with Adaflight.Flight_Stats;
+with Adaflight.Wing_Launch;
 
 procedure Vector_Check is
 
@@ -6932,6 +6933,99 @@ procedure Vector_Check is
       end if;
    end Check_Flight_Stats_Line;
 
+   WL_Seq         : Integer_64 := -1;
+   WL_Config      : Adaflight.Wing_Launch.Settings;
+   WL_Launch      : Adaflight.Wing_Launch.Launch;
+   WL_Angle_Roll  : Adaflight.Wing_Launch.Angle_Deg := 0.0;
+   WL_Angle_Pitch : Adaflight.Wing_Launch.Angle_Deg := 0.0;
+
+   procedure Check_Wing_Launch_Line is
+      use Adaflight.Wing_Launch;
+      Name : constant String := Str (1);
+
+      function U8 (I : Positive) return Interfaces.Unsigned_8 is (Interfaces.Unsigned_8 (Int (I)));
+      function U16 (I : Positive) return Interfaces.Unsigned_16 is (Interfaces.Unsigned_16 (Int (I)));
+      function Flag (I : Positive) return Boolean is (Int (I) /= 0);
+   begin
+      if Name = "wlinit" then
+         WL_Seq := Int (2);
+         WL_Config := (Climb_Angle_Deg        => U8 (3),
+                       Max_Angle_Deg          => U8 (4),
+                       Detect_Accel_Decig     => U8 (5),
+                       Detect_Velocity_Cms    => U16 (6),
+                       Detect_Time_Ms         => U16 (7),
+                       Idle_Throttle_Percent  => U8 (8),
+                       Idle_Delay_Ms          => U16 (9),
+                       Throttle_Percent       => U8 (10),
+                       Motor_Delay_Ms         => U16 (11),
+                       Spinup_Time_Ms         => U16 (12),
+                       Min_Time_Ms            => U16 (13),
+                       Timeout_Ms             => U16 (14),
+                       Max_Altitude_M         => U16 (15),
+                       End_Time_Ms            => U16 (16),
+                       Abort_Deadband_Percent => U8 (17),
+                       Abort_Angle_Deg        => U8 (18));
+         Init (WL_Launch);
+         WL_Angle_Roll := 0.0;
+         WL_Angle_Pitch := 0.0;
+      elsif Name = "wlstep" then
+         if Int (2) /= WL_Seq then
+            Put_Line ("wing launch step without its start");
+            Failures := Failures + 1;
+            return;
+         end if;
+         declare
+            Inp : constant Inputs := (Now_Us              => Interfaces.Unsigned_32 (Int (5)),
+                                      Launch_Mode         => Flag (9),
+                                      Failsafe_Active     => Flag (10),
+                                      Throttle_Low        => Flag (11),
+                                      Roll_Deflection     => Flt (12),
+                                      Pitch_Deflection    => Flt (13),
+                                      Attitude_Roll       => Interfaces.Integer_16 (Int (14)),
+                                      Attitude_Pitch      => Interfaces.Integer_16 (Int (15)),
+                                      Acc_X               => Flt (16),
+                                      Acc_Y               => Flt (17),
+                                      Acc_1G_Rec          => Flt (18),
+                                      Acc_Magnitude       => Flt (19),
+                                      Gyro_Roll           => Flt (20),
+                                      Gyro_Pitch          => Flt (21),
+                                      Gyro_Yaw            => Flt (22),
+                                      Cos_Tilt            => Flt (23),
+                                      Altitude_Available  => Flag (24),
+                                      Altitude_Cm         => Flt (25),
+                                      Altitude_Derivative => Flt (26),
+                                      GPS_Fix             => Flag (27),
+                                      Num_Sat             => U8 (28),
+                                      Ground_Speed_Cms    => U16 (29));
+         begin
+            case Int (4) is
+               when 0 =>
+                  Arm (WL_Launch, Flag (6), Flag (7), Flag (8), Inp);
+               when 1 =>
+                  Init (WL_Launch);
+               when 2 =>
+                  Switch_Off (WL_Launch);
+               when others =>
+                  Update (WL_Launch, WL_Config, Inp, WL_Angle_Roll, WL_Angle_Pitch);
+            end case;
+            Record_Int (Name & ".state", Int (30), Integer_64 (State'Pos (WL_Launch.Current)));
+            Record_Int (Name & ".latched", Int (31), (if WL_Launch.Latched then 1 else 0));
+            Record_Result (Name & ".throttle", Bits (32), To_Bits (WL_Launch.Throttle));
+            Record_Result (Name & ".pitch", Bits (33), To_Bits (WL_Launch.Pitch_Target_Deg));
+            Record_Result (Name & ".handover", Bits (34), To_Bits (WL_Launch.Handover));
+            Record_Int (Name & ".exit", Int (35), Integer_64 (Exit_Reason'Pos (WL_Launch.Why)));
+            Record_Int (Name & ".active", Int (36), (if Is_Active (WL_Launch) then 1 else 0));
+            Record_Int (Name & ".prelaunch", Int (37), (if Is_Pre_Launch (WL_Launch) then 1 else 0));
+            Record_Int (Name & ".holds", Int (38), (if Holds_Iterm (WL_Launch) then 1 else 0));
+            Record_Result (Name & ".angleroll", Bits (39), To_Bits (WL_Angle_Roll));
+            Record_Result (Name & ".anglepitch", Bits (40), To_Bits (WL_Angle_Pitch));
+         end;
+      else
+         Put_Line ("unknown wing launch case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Wing_Launch_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -7068,6 +7162,8 @@ procedure Vector_Check is
                   Check_Internal_ADC_Line;
                elsif Kind = "stats" then
                   Check_Flight_Stats_Line;
+               elsif Kind = "wlaunch" then
+                  Check_Wing_Launch_Line;
                else
                   Check_PID_Line;
                end if;
@@ -7145,6 +7241,7 @@ begin
    Run (Dir & "/rtc.csv", "rtc");
    Run (Dir & "/adcint.csv", "adcint");
    Run (Dir & "/stats.csv", "stats");
+   Run (Dir & "/wlaunch.csv", "wlaunch");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");

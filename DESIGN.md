@@ -1429,3 +1429,28 @@ asks for another pass otherwise, and in either case clears the owed save; a conf
 waiting for its own save leaves the statistics to it. The seconds and the metres wrap as the
 reference's unsigned arithmetic, and a negative battery draw lands in the unsigned total as the
 reference stores it. No guard was needed.
+## D77. Wing launch (2026-10-12)
+
+The wing launch unit carries the reference's launch state machine without its sensors, receiver
+and modes, which the platform hands to each pass as inputs. An arm latches the launch when the
+switch is on, the airframe is a fixed wing with an accelerometer and it lies at rest: specific
+force within 0.15 g of one g, every gyro rate under 25 degrees per second, a vertical speed under
+a metre per second when an altitude exists, and a ground speed under half a metre per second when
+the fix has five satellites. The pass then walks the reference's states in its order: the throttle
+wait, which restarts its clock while the throttle is low and leaves after the idle delay; the idle
+ramp of a second and a half for the throttle and the climb angle; the detection wait, which holds
+the idle throttle and the climb angle and needs a bungee pull, a swing or a run to hold for the
+detection time, a frame without one seeding the clock again; the motor delay; the spin-up ramp
+from the idle to the launch throttle; the climb-out until the altitude, the timeout or the sticks;
+and the finish, a cross-fade of the handover factor to the pilot that any stick input ends early.
+A bungee pull is the forward specific force past the threshold while level within the tilt gate;
+a swing is the tangential speed about the thrower's shoulder, the sideways force times gravity
+over the yaw rate in radians, past the velocity threshold with a forward force; a run is the
+ground speed past the same threshold with a forward force and a fix of five satellites. From the
+motor delay on, a bank past the abort angle either way or a dive past it, held for a tenth of a
+second, aborts; the sticks abort past the deadband once the minimum time from detection has run;
+the mode going off or the failsafe aborts at once, as does the switch. Every exit hands the
+aircraft straight back with a handover of one. While the launch owns the aircraft the pass writes
+the angle targets the level controller reads, zero roll and the climb angle as a nose-down pitch;
+the targets live with the caller and keep their values otherwise, as the reference's globals do.
+The times compare through the wrapping difference. No guard was needed.
