@@ -1726,3 +1726,16 @@ frequency, the power, the pit mode and the queries, a factory band goes to a Sma
 as band and channel and to a Tramp device not at all, and the Spektrum power steps map to each
 device's indices. The protocol library beside the Tramp driver is not ported (finding F72).
 Every recorded vector replays exactly, the control vectors now over both devices.
+## D87. The LTM telemetry stream (2026-10-11)
+
+`Adaflight.LTM_Telemetry` writes the light telemetry stream: every 100 ms while enabled, an
+attitude frame with the pitch, roll and yaw in whole degrees, then on alternate cycles a status
+frame (the battery in millivolts, the charge drawn held to sixteen bits, the signal scaled from
+its 1023 range to a byte, no airspeed, and the mode code with the armed and failsafe bits) or a
+GPS frame (the position, the ground speed in metres per second, the altitude and the satellite
+count with the fix type, left out while no GPS is present), and on every tenth cycle an origin
+frame with the home position, no home altitude, the display flag and the home fix. Each frame
+is the two start bytes, the frame letter, the little-endian fields and the exclusive-or of the
+fields. The mode code follows the precedence of the flags: passthrough, headfree, angle,
+horizon, rescue, position hold, altitude hold, then rate. The port handling that enables the
+stream belongs to the caller, which passes the enable. Every recorded vector replays exactly.
