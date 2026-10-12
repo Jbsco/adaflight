@@ -50,7 +50,6 @@ with Adaflight.Stream_Buffers;
 with Adaflight.Huffman;
 with Adaflight.GPS_Conversion;
 with Adaflight.Sensor_Alignment;
-with Adaflight.Color;
 with Adaflight.Exponentials;
 with Adaflight.Chirp;
 with Adaflight.SUMD;
@@ -81,6 +80,8 @@ with Adaflight.GHST_Telemetry;
 with Adaflight.Transponder;
 with Adaflight.SRXL_Telemetry;
 with Adaflight.FrSky_OSD;
+with Adaflight.LED_Strip;
+with Adaflight.Color;
 
 procedure Vector_Check is
 
@@ -6406,6 +6407,175 @@ procedure Vector_Check is
       end if;
    end Check_FrSky_OSD_Line;
 
+   LS_Seq    : Integer_64 := -1;
+   LS_Set    : Adaflight.LED_Strip.Settings;
+   LS_Layout : Adaflight.LED_Strip.Layout;
+   LS_Strip  : Adaflight.LED_Strip.Strip;
+
+   procedure Check_LED_Strip_Line is
+      use Adaflight.LED_Strip;
+      Name : constant String := Str (1);
+
+      function Text_Of (I : Positive) return String is
+         B : constant Byte_Array := Hex_Bytes (I);
+         R : String (1 .. B'Length);
+      begin
+         for K in R'Range loop
+            R (K) := Character'Val (B (B'First + K - 1));
+         end loop;
+         return R;
+      end Text_Of;
+
+      procedure Record_Output (I : Positive) is
+         Expected : constant Byte_Array := Hex_Bytes (I);
+      begin
+         if Expected'Length = 3 * Max_Leds then
+            for K in Led_Index loop
+               Record_Int (Name & ".r", Integer_64 (Expected (3 * K)), Integer_64 (LS_Strip.Output (K).R));
+               Record_Int (Name & ".g", Integer_64 (Expected (3 * K + 1)), Integer_64 (LS_Strip.Output (K).G));
+               Record_Int (Name & ".b", Integer_64 (Expected (3 * K + 2)), Integer_64 (LS_Strip.Output (K).B));
+            end loop;
+         else
+            Record_Int (Name & ".rgblength", Integer_64 (Expected'Length), 3 * Max_Leds);
+         end if;
+      end Record_Output;
+   begin
+      if Name = "ledcfg" then
+         declare
+            Cfg : Interfaces.Unsigned_32;
+            OK  : Boolean;
+         begin
+            if Int (2) /= LS_Seq then
+               LS_Seq := Int (2);
+               LS_Set := (others => <>);
+               for I in Color_Index loop
+                  LS_Set.Colors (I) := (case I is
+                                          when 0 => (0, 0, 0), when 1 => (0, 255, 255), when 2 => (0, 0, 255),
+                                          when 3 => (15, 0, 255), when 4 => (50, 0, 255), when 5 => (100, 0, 255),
+                                          when 6 => (115, 0, 255), when 7 => (125, 0, 255), when 8 => (180, 0, 255),
+                                          when 9 => (210, 0, 255), when 10 => (240, 0, 255), when 11 => (270, 0, 255),
+                                          when 12 => (300, 0, 255), when 13 => (330, 0, 255), when others => (0, 0, 0));
+               end loop;
+            end if;
+            Parse_Led (Text_Of (4), Cfg, OK);
+            Record_Int (Name & ".ok", Int (5), (if OK then 1 else 0));
+            Record_Int (Name & ".cfg", Int (6), Integer_64 (Cfg));
+            LS_Set.Leds (Led_Index (Int (3))) := Cfg;
+         end;
+      elsif Name = "ledcolor" then
+         declare
+            C  : Adaflight.Color.HSV;
+            OK : Boolean;
+         begin
+            Parse_Color (Text_Of (4), C, OK);
+            Record_Int (Name & ".ok", Int (5), (if OK then 1 else 0));
+            Record_Int (Name & ".h", Int (6), Integer_64 (C.H));
+            Record_Int (Name & ".s", Int (7), Integer_64 (C.S));
+            Record_Int (Name & ".v", Int (8), Integer_64 (C.V));
+            LS_Set.Colors (Color_Index (Int (3))) := C;
+         end;
+      elsif Name = "ledinit" then
+         declare
+            Modes    : constant Byte_Array := Hex_Bytes (14);
+            Specials : constant Byte_Array := Hex_Bytes (15);
+         begin
+            if Int (2) /= LS_Seq then
+               LS_Seq := Int (2);
+               LS_Set := (others => <>);
+            end if;
+            LS_Set.Visual_Beeper := Int (3) = 1;
+            LS_Set.Prof := (case Int (4) is when 0 => Race, when 1 => Beacon, when others => Status);
+            LS_Set.Race_Color := Named_Color (Int (5));
+            LS_Set.Beacon_Color := Named_Color (Int (6));
+            LS_Set.Beacon_Period := Period_Ms (Int (7));
+            LS_Set.Beacon_Percent := Interfaces.Unsigned_8 (Int (8));
+            LS_Set.Visual_Beeper_Color := Named_Color (Int (9));
+            LS_Set.Brightness := Brightness_Percent (Int (10));
+            LS_Set.Rainbow_Delta := Interfaces.Unsigned_16 (Int (11));
+            LS_Set.Rainbow_Freq := Interfaces.Unsigned_16 (Int (12));
+            LS_Set.Aux_Channel := Channel_Index (Int (13));
+            for M in Mode_Id loop
+               for D in Direction_Id loop
+                  LS_Set.Modes (M) (D) :=
+                    Color_Index (Modes (Mode_Id'Pos (M) * 6 + Direction_Id'Pos (D)));
+               end loop;
+            end loop;
+            for Sp in Special_Id loop
+               LS_Set.Specials (Sp) := Color_Index (Specials (Special_Id'Pos (Sp)));
+            end loop;
+            LS_Layout := Evaluate (LS_Set);
+            Record_Int (Name & ".count", Int (16), Integer_64 (LS_Layout.Count));
+            Record_Int (Name & ".ring", Int (17), Integer_64 (LS_Layout.Ring));
+            Record_Int (Name & ".larson", Int (18), Integer_64 (LS_Layout.Larson));
+            Record_Int (Name & ".seqlen", Int (19), Integer_64 (LS_Layout.Ring_Seq_Len));
+            Record_Int (Name & ".ynorth", Int (20), Integer_64 (LS_Layout.Highest_Y_North));
+            Record_Int (Name & ".ysouth", Int (21), Integer_64 (LS_Layout.Lowest_Y_South));
+            Record_Int (Name & ".xwest", Int (22), Integer_64 (LS_Layout.Highest_X_West));
+            Record_Int (Name & ".xeast", Int (23), Integer_64 (LS_Layout.Lowest_X_East));
+            declare
+               Mask : Integer_64 := 0;
+            begin
+               for T in Timer_Id loop
+                  if LS_Layout.Disabled (T) then
+                     Mask := Mask + 2 ** Timer_Id'Pos (T);
+                  end if;
+               end loop;
+               Record_Int (Name & ".disabled", Int (24), Mask);
+            end;
+            Record_Int (Name & ".gpsbars", Int (25), Integer_64 (LS_Layout.GPS_Bars));
+            Record_Int (Name & ".batterybars", Int (26), Integer_64 (LS_Layout.Battery_Bars));
+            Init (LS_Strip, LS_Set, LS_Layout);
+            Record_Output (27);
+         end;
+      elsif Name = "ledstep" then
+         if Int (2) /= LS_Seq then
+            Put_Line ("led strip step without its start");
+            Failures := Failures + 1;
+            return;
+         end if;
+         declare
+            Inp     : Inputs;
+            Flags   : constant Integer_64 := Int (13);
+            Updated : Boolean;
+         begin
+            Inp.Now_Us := Interfaces.Unsigned_32 (Int (4));
+            Inp.Now_Ms := Interfaces.Unsigned_32 (Int (5));
+            Inp.Led_Low := Int (6) = 1;
+            Inp.Beeper_Box := Int (7) = 1;
+            Inp.Armed := Int (8) = 1;
+            Inp.Arming_Disabled := Int (9) = 1;
+            Inp.Failsafe := Int (10) = 1;
+            Inp.Crash_Flip := Int (11) = 1;
+            Inp.Beeper_On := Int (12) = 1;
+            Inp.Headfree := Flags mod 2 = 1;
+            Inp.Mag := (Flags / 2) mod 2 = 1;
+            Inp.Horizon := (Flags / 4) mod 2 = 1;
+            Inp.Angle := (Flags / 8) mod 2 = 1;
+            Inp.Battery := (case Int (14) is when 0 => OK, when 1 => Warning, when 2 => Critical, when 3 => Not_Present,
+                            when others => Init_State);
+            Inp.Voltage_Meter := Int (15) = 1;
+            Inp.Battery_Percent := Interfaces.Unsigned_8 (Int (16));
+            Inp.Rssi_Percent := Interfaces.Unsigned_8 (Int (17));
+            Inp.Rx_Signal := Int (18) = 1;
+            Inp.GPS_Present := Int (19) = 1;
+            Inp.Fix := Int (20) = 1;
+            Inp.Num_Sat := Interfaces.Unsigned_8 (Int (21));
+            Inp.Min_Sats := Interfaces.Unsigned_8 (Int (22));
+            Inp.Altitude_Cm := I32 (23);
+            Inp.Roll_Command := Flt (24);
+            Inp.Pitch_Command := Flt (25);
+            Inp.Aux := Flt (26);
+            Inp.Throttle := Flt (27);
+            Update (LS_Strip, LS_Set, LS_Layout, Inp, Updated);
+            Record_Int (Name & ".updated", Int (28), (if Updated then 1 else 0));
+            Record_Output (29);
+         end;
+      else
+         Put_Line ("unknown led strip case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_LED_Strip_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -6528,6 +6698,8 @@ procedure Vector_Check is
                   Check_SRXL_Telemetry_Line;
                elsif Kind = "frskyosd" then
                   Check_FrSky_OSD_Line;
+               elsif Kind = "ledstrip" then
+                  Check_LED_Strip_Line;
                else
                   Check_PID_Line;
                end if;
@@ -6598,6 +6770,7 @@ begin
    Run (Dir & "/transponder.csv", "transponder");
    Run (Dir & "/srxltlm.csv", "srxltlm");
    Run (Dir & "/frskyosd.csv", "frskyosd");
+   Run (Dir & "/ledstrip.csv", "ledstrip");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
