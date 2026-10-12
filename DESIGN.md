@@ -149,6 +149,12 @@ ledger. The deviations so far:
   undefined; the target's conversion saturates to zero, and the oracle's host wraps. The
   checker expects zero wherever the recorded value is above 32767, which no defined value
   reaches, and the RSSI percentage of that value as zero with it.
+- The GPS rescue takes the bearing home from the double-precision arctangent of the Ada
+  runtime rounded to single (D83), where the reference calls the C library's
+  single-precision one. That function's last bit differs between glibc 2.39 and 2.44, and
+  the recorded vectors carry the values of the host that recorded them, which the double
+  route reproduces. The declared tolerance is 1 on the target heading and 256 on the error
+  angle, the difference of two headings.
 
 ## D7. Contribution conventions (2026-10-08)
 
@@ -1605,3 +1611,33 @@ hold task drives it alone outside a hold or a rescue. The navigation modes, thei
 modes and the velocity buildup clamp come with the navigation port; there is no optical
 flow. A feedforward term beyond the signal bound and a target velocity beyond 2 to the 26
 centimetres per second are held at those bounds. Every recorded vector replays exactly.
+
+## D83. The GPS rescue over the autopilot's controllers (2026-10-11)
+
+`Adaflight.GPS_Rescue` is the rescue of the default target build, where the flight plan is off
+and the rescue flies its own phases. Each task reads the sensors (the fix count, the heading
+and its validity, the GPS health, the altitude, the estimate while valid, the distance and
+speed from home, the bearing home from the C library's arctangent past the twenty centimetre
+acceptance radius, and the heading error), decides availability, runs the sanity checks, then
+the phase. The initialization fixes the return altitude from the mode, or a climb above the
+current altitude close to home, holds the heading and resets the ramps and the altitude
+controller. The climb runs at the ascend or descend rate until the return altitude is crossed,
+then the turn toward home with the yaw target ramped in over a second, or a forward pitch while
+the heading is unknown, until the error is within thirty degrees; the flight home at the
+ground speed, slowed within twice the descent distance and ramped in at the start, hands the
+horizontal controller a velocity toward home and the yaw target; the descent sets a rate from
+three times the setting at fifty metres to six tenths at ten, then the landing holds the
+velocity at zero and the emergency descent aborts the horizontal control. The sanity checks
+disarm on a start within the acceptance radius below the landing altitude or on a crash flip,
+answer a failure by the setting with an emergency descent when an altitude is available, and
+once a second record the GPS health, the satellite count over fifteen seconds, and the phase's
+own progress: the altitude change against the target change, the velocity home against a fifth
+of the target speed, and the seconds spent turning, pitching forward, descending or landing.
+The do-nothing phase is kept though the sanity check disarms first under its condition
+(finding F59). Headings in decidegrees reach the rescue through an integer division, so the
+rescue works in whole degrees (finding F60). The autopilot's altitude controller moves from
+the altitude hold into `Adaflight.Altitude_Control`, which the hold and the rescue drive with
+their own targets; the caller owns the controller state and the horizontal controller state,
+as the autopilot shares them, and passes both in. A target altitude change below a
+sixteen-millionth of a centimetre counts as none for the progress ratio, which the reference
+divides by. Every recorded vector replays exactly, the earlier altitude hold vectors unchanged.
