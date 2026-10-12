@@ -101,6 +101,7 @@ with Adaflight.GPS_Rescue;
 with Adaflight.Altitude_Control;
 with Adaflight.VTX_Table;
 with Adaflight.SmartAudio;
+with Adaflight.LTM_Telemetry;
 
 procedure Vector_Check is
 
@@ -8314,6 +8315,50 @@ procedure Vector_Check is
       end if;
    end Check_VTX_Control_Line;
 
+   LTM_Seq    : Integer_64 := -1;
+   LTM_Stream : Adaflight.LTM_Telemetry.Stream;
+
+   procedure Check_LTM_Line is
+      use Adaflight.LTM_Telemetry;
+      Modes : constant Integer_64 := Int (9);
+      Inp   : Inputs;
+      O     : Output;
+
+      function Flag (Bit : Natural) return Boolean is ((Modes / 2 ** Bit) mod 2 = 1);
+   begin
+      if Int (2) /= LTM_Seq then
+         LTM_Seq := Int (2);
+         LTM_Stream := (others => <>);
+      end if;
+      Inp.Pitch := Interfaces.Integer_16 (Int (6));
+      Inp.Roll := Interfaces.Integer_16 (Int (7));
+      Inp.Yaw := Interfaces.Integer_16 (Int (8));
+      Inp.Angle := Flag (0);
+      Inp.Horizon := Flag (1);
+      Inp.Altitude_Hold := Flag (3);
+      Inp.Position_Hold := Flag (5);
+      Inp.Headfree := Flag (6);
+      Inp.Passthru := Flag (8);
+      Inp.Rescue := Flag (11);
+      Inp.Armed := Int (10) mod 2 = 1;
+      Inp.Failsafe := Int (11) = 1;
+      Inp.Voltage_Cv := Interfaces.Unsigned_16 (Int (12));
+      Inp.Mah_Drawn := I32 (13);
+      Inp.Rssi := Interfaces.Unsigned_16 (Int (14));
+      Inp.GPS_Present := Int (15) = 1;
+      Inp.Fix := Int (16) = 1;
+      Inp.Num_Sat := Interfaces.Unsigned_8 (Int (17));
+      Inp.Lat := I32 (18);
+      Inp.Lon := I32 (19);
+      Inp.Ground_Speed := Interfaces.Unsigned_16 (Int (20));
+      Inp.Altitude_Cm := I32 (21);
+      Inp.Home_Lat := I32 (22);
+      Inp.Home_Lon := I32 (23);
+      Inp.Fix_Home := Int (24) = 1;
+      Update (LTM_Stream, Inp, Unsigned_32 (Int (4)), Int (5) = 1, O);
+      Record_Bytes ("ltm.frames", Hex_Bytes (25), O.Data (0 .. O.Count - 1));
+   end Check_LTM_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -8472,6 +8517,8 @@ procedure Vector_Check is
                   Check_VTX_Control_Line;
                elsif Kind = "vtxtramp" then
                   Check_Tramp_Line;
+               elsif Kind = "ltm" then
+                  Check_LTM_Line;
                else
                   Check_PID_Line;
                end if;
@@ -8560,6 +8607,7 @@ begin
    Run (Dir & "/vtxsa.csv", "vtxsa");
    Run (Dir & "/vtxctl.csv", "vtxctl");
    Run (Dir & "/vtxtramp.csv", "vtxtramp");
+   Run (Dir & "/ltm.csv", "ltm");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
