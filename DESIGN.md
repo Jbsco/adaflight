@@ -1978,3 +1978,34 @@ The harness replays six sequences of 2000 frames recorded from the reference, ea
 under its own settings and enabled set, the frames under a precedence depth that holds off
 the conditions above it so every message gets its turn. Every message of the 12000 frames
 replays byte for byte with its blink, its severity and the beeper flag.
+
+## D96. The MSP tunnel over telemetry (2026-10-12)
+
+The MSP telemetry unit contains the reference's tunnel that carries MSP over a telemetry
+link. A request arrives in chunks behind a status byte that holds the chunk's sequence
+number, a start flag and the protocol version. The first chunk declares the request: the
+command and payload size of a version 1 frame, the jumbo size past 254 bytes, or the flags,
+the 16-bit command and the size of a version 2 frame; a version above two answers with a
+mismatch error, a size past the 192-byte request buffer with a too-big error. The chunks
+that follow continue the request while their sequence numbers run on from the last; a
+chunk out of sequence drops the request, a chunk without a start is ignored, and a chunk
+shorter than its header is ignored. The last chunk completes the request at the declared
+size, extra bytes ignored, and a completed EEPROM write command reports itself so the
+owner skips a few telemetry requests before replying. The reply goes back in chunks of the
+link's size behind the same status byte: the first chunk carries the start flag, the error
+bit for a failed request and the reply header in the request's framing, and every chunk
+fills the link's size until the last carries the remainder; a reply that ends exactly on
+a chunk boundary is followed by a chunk of the status byte alone.
+
+The command processor stays with the target. The reference runs it inside the chunk
+handler; the port's chunk handler reports a request ready, the owner processes it and
+hands back the verdict and the payload, which the tunnel stores with an error byte
+appended for a failed verdict, in the same state the reference leaves. The reply's flags
+byte is zero, as the reference never sets it.
+
+The harness replays six sequences of 400 operations recorded from the reference: requests
+of every framing in chunks of random sizes with lost and out-of-sequence chunks, truncated
+headers, trailing bytes and lone chunks, the processor's reply of random size under a
+random verdict, requests arriving while a reply is still going out, and the replies pulled
+at the SmartPort, CRSF and random chunk sizes. Every chunk, request state and reply state
+of the 28655 lines replays byte for byte.
