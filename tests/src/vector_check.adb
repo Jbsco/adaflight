@@ -74,6 +74,7 @@ with Adaflight.CRSF_Telemetry;
 with Adaflight.ESC_Sensor;
 with Adaflight.SmartPort_Telemetry;
 with Adaflight.RunCam_Device;
+with Adaflight.FrSky_Hub_Telemetry;
 
 procedure Vector_Check is
 
@@ -5857,6 +5858,82 @@ procedure Vector_Check is
       end if;
    end Check_RunCam_Line;
 
+   FH_Seq    : Integer_64 := -1;
+   FH_Stream : Adaflight.FrSky_Hub_Telemetry.Stream;
+   FH_Set    : Adaflight.FrSky_Hub_Telemetry.Settings;
+
+   procedure Check_FrSky_Hub_Line is
+      use Adaflight.FrSky_Hub_Telemetry;
+      Name : constant String := Str (1);
+   begin
+      if Name = "fhubinit" then
+         declare
+            Disabled : constant Integer_64 := Int (3);
+         begin
+            FH_Seq := Int (2);
+            FH_Stream := (others => <>);
+            FH_Set := (others => <>);
+            for Se in Sensor loop
+               FH_Set.Enabled (Se) := (Disabled / 2 ** Sensor'Pos (Se)) mod 2 = 0;
+            end loop;
+            FH_Set.Format := (if Int (4) = 0 then DMS else NMEA);
+            FH_Set.Unit := (if Int (5) = 0 then Imperial else Metric);
+            FH_Set.Precision := (if Int (6) = 0 then Low else High);
+            FH_Set.Report_Cell_Voltage := Int (7) = 1;
+            FH_Set.No_Fix_Latitude := No_Fix_Coordinate (Int (8));
+            FH_Set.No_Fix_Longitude := No_Fix_Coordinate (Int (9));
+            FH_Set.Acc_Present := Int (10) = 1;
+            FH_Set.Altitude_Present := Int (11) = 1;
+            FH_Set.GPS_Present := Int (12) = 1;
+            FH_Set.Mag_Present := Int (13) = 1;
+            FH_Set.Pole_Count := Interfaces.Unsigned_8 (Int (14));
+            FH_Set.Acc_1G_Rec := Flt (15);
+         end;
+      elsif Name = "fhubstep" then
+         if Int (2) /= FH_Seq then
+            Put_Line ("frsky hub step without its start");
+            Failures := Failures + 1;
+            return;
+         end if;
+         declare
+            Inp : Inputs;
+            O   : Output;
+         begin
+            Inp.Now_Us := Interfaces.Unsigned_32 (Int (4));
+            Inp.Now_Ms := Interfaces.Unsigned_32 (Int (5));
+            Inp.Acc_X := Flt (6);
+            Inp.Acc_Y := Flt (7);
+            Inp.Acc_Z := Flt (8);
+            Inp.ESC_Valid := Int (9) = 1;
+            Inp.ESC_Rpm := Interfaces.Integer_16 (Int (10));
+            Inp.ESC_Temperature := Interfaces.Unsigned_8 (Int (11));
+            Inp.Fix := Int (12) = 1;
+            Inp.Lat := I32 (13);
+            Inp.Lon := I32 (14);
+            Inp.Alt_Cm := I32 (15);
+            Inp.Ground_Speed := Interfaces.Unsigned_16 (Int (16));
+            Inp.Num_Sat := Interfaces.Unsigned_8 (Int (17));
+            Inp.Pdop := Interfaces.Unsigned_16 (Int (18));
+            Inp.Voltage_Configured := Int (19) = 1;
+            Inp.Amperage_Configured := Int (20) = 1;
+            Inp.Cell_Count := Interfaces.Unsigned_8 (Int (21));
+            Inp.Voltage_Cv := Interfaces.Unsigned_16 (Int (22));
+            Inp.Amperage_Ca := I32 (23);
+            Inp.Capacity := Interfaces.Unsigned_16 (Int (24));
+            Inp.Percent := Interfaces.Unsigned_8 (Int (25));
+            Inp.Mah_Drawn := I32 (26);
+            Inp.Vario_Cms := Interfaces.Integer_16 (Int (27));
+            Inp.Altitude_Cm := I32 (28);
+            Inp.Yaw := Interfaces.Integer_16 (Int (29));
+            Update (FH_Stream, FH_Set, Inp, O);
+            Record_Bytes (Name & ".tx", Hex_Bytes (31), O.Tx (0 .. O.Count - 1));
+         end;
+      else
+         Put_Line ("unknown frsky hub case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_FrSky_Hub_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -5965,6 +6042,8 @@ procedure Vector_Check is
                   Check_SmartPort_Line;
                elsif Kind = "rcdevice" then
                   Check_RunCam_Line;
+               elsif Kind = "frskyhub" then
+                  Check_FrSky_Hub_Line;
                else
                   Check_PID_Line;
                end if;
@@ -6028,6 +6107,7 @@ begin
    Run (Dir & "/escsensor.csv", "escsensor");
    Run (Dir & "/sport.csv", "sport");
    Run (Dir & "/rcdevice.csv", "rcdevice");
+   Run (Dir & "/frskyhub.csv", "frskyhub");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
