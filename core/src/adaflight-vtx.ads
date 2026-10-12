@@ -5,13 +5,14 @@
 --  or while a change is pending. The band and channel follow the stick
 --  commands and the switch conditions until the first arm, the power
 --  follows the switch conditions always, and a Spektrum control word from
---  the receiver sets band, channel, power and pit mode. Only the SmartAudio
---  device is driven so far.
+--  the receiver sets band, channel, power and pit mode. The SmartAudio and
+--  the Tramp devices are driven, each through its own driver.
 with Interfaces;
 with Adaflight.Bytes; use Adaflight.Bytes;
 with Adaflight.Modes;
 with Adaflight.VTX_Table;
 with Adaflight.SmartAudio;
+with Adaflight.Tramp;
 
 package Adaflight.VTX with SPARK_Mode is
    use type Interfaces.Unsigned_8;
@@ -58,8 +59,12 @@ package Adaflight.VTX with SPARK_Mode is
    Spektrum_Frame_Mask : constant Unsigned_32 := 16#F000_F000#;
    Spektrum_Frame      : constant Unsigned_32 := 16#E000_E000#;
 
+   type Device_Kind is (No_Device, SmartAudio_Device, Tramp_Device);
+
    type State is record
-      Driver           : SmartAudio.Driver;
+      Kind             : Device_Kind := No_Device;
+      SA               : SmartAudio.Driver;
+      TR               : Tramp.Driver;
       Device_Present   : Boolean := False;
       Prepend_Zero     : Boolean := False;
       Schedule         : Parameter := Power_Param;
@@ -73,6 +78,7 @@ package Adaflight.VTX with SPARK_Mode is
 
    type Inputs is record
       Now_Ms           : Unsigned_32 := 0;
+      Now_Us           : Unsigned_32 := 0;
       Armed            : Boolean := False;
       Was_Ever_Armed   : Boolean := False;
       Failsafe         : Boolean := False;
@@ -81,21 +87,26 @@ package Adaflight.VTX with SPARK_Mode is
       Control_Disabled : Boolean := False;
    end record;
 
+   --  The device events of the kind in use; Consumed counts the received
+   --  bytes taken, the rest to be offered again.
    type Events is record
-      Device : SmartAudio.Events;
-      Save   : Boolean := False;
+      Device   : SmartAudio.Events;
+      Tramp_Tx : Tramp.Events;
+      Consumed : Natural := 0;
+      Save     : Boolean := False;
    end record;
 
    --  The driver starts with the port, and the settings are made whole: the
    --  frequency of a configured band and channel, and the pit mode
    --  frequency raised to the user range. Save asks for the settings to be
    --  stored when one changed.
-   procedure Init (V : out State; S : in out Settings; T : VTX_Table.Table; Port_Opened, Softserial : Boolean;
-                   Save : out Boolean);
+   procedure Init (V : out State; S : in out Settings; T : VTX_Table.Table; Kind : Device_Kind;
+                   Port_Opened, Softserial : Boolean; Save : out Boolean);
 
    --  One task call with the bytes received from the device.
    procedure Update (V : in out State; S : in out Settings; T : VTX_Table.Table; Inp : Inputs; Rx : Byte_Array;
-                     E : out Events);
+                     E : out Events)
+     with Post => E.Consumed <= Rx'Length;
 
    --  A control word from the Spektrum receiver, taken at the next call.
    procedure Offer_Spektrum_Control (V : in out State; Word : Unsigned_32);

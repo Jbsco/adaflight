@@ -1,5 +1,4 @@
 package body Adaflight.VTX with SPARK_Mode is
-   use Adaflight.SmartAudio;
 
    Spektrum_Band_Mask     : constant Unsigned_32 := 16#00E0_0000#;
    Spektrum_Channel_Mask  : constant Unsigned_32 := 16#000F_0000#;
@@ -17,16 +16,128 @@ package body Adaflight.VTX with SPARK_Mode is
          when 4 => 1,
          when others => 0);
 
-   --  The Spektrum power steps as SmartAudio power indices.
-   function Spektrum_Power (P : Unsigned_32) return Unsigned_8 is
-     (case P is
-         when 0 | 1 | 2 | 3 => 1,
-         when 4             => 2,
-         when 5             => 3,
-         when 6             => 4,
-         when others        => 2);
+   --  The Spektrum power steps as power indices of the device in use: off,
+   --  under 14, 25, under 99, under 299, under 600, more and manual.
+   function Spektrum_Power (P : Unsigned_32; Kind : Device_Kind) return Unsigned_8 is
+     (case Kind is
+         when Tramp_Device =>
+           (case P is
+               when 0 | 1 | 2 => 1,
+               when 3         => 2,
+               when 4         => 3,
+               when 5         => 4,
+               when 6         => 5,
+               when others    => 3),
+         when SmartAudio_Device =>
+           (case P is
+               when 0 | 1 | 2 | 3 => 1,
+               when 4             => 2,
+               when 5             => 3,
+               when 6             => 4,
+               when others        => 2),
+         when No_Device => 0);
 
-   --  The common layer over the one device.
+   --  The device of the kind in use.
+
+   procedure Device_Set_Frequency (V : in out State; Freq : Unsigned_16) is
+   begin
+      case V.Kind is
+         when SmartAudio_Device => SmartAudio.Set_Frequency (V.SA, Freq);
+         when Tramp_Device      => Tramp.Set_Frequency (V.TR, Freq);
+         when No_Device         => null;
+      end case;
+   end Device_Set_Frequency;
+
+   procedure Device_Set_Power_Index (V : in out State; T : VTX_Table.Table; Index : Unsigned_8) is
+   begin
+      case V.Kind is
+         when SmartAudio_Device => SmartAudio.Set_Power_Index (V.SA, T, Index);
+         when Tramp_Device      => Tramp.Set_Power_Index (V.TR, T, Index);
+         when No_Device         => null;
+      end case;
+   end Device_Set_Power_Index;
+
+   procedure Device_Set_Pit_Mode (V : in out State; On : Boolean) is
+   begin
+      case V.Kind is
+         when SmartAudio_Device => SmartAudio.Set_Pit_Mode (V.SA, On);
+         when Tramp_Device      => Tramp.Set_Pit_Mode (V.TR, On);
+         when No_Device         => null;
+      end case;
+   end Device_Set_Pit_Mode;
+
+   procedure Device_Get_Band_Channel (V : State; T : VTX_Table.Table; Band, Channel : out Unsigned_8;
+                                      Known : out Boolean) is
+   begin
+      Band := 0;
+      Channel := 0;
+      Known := False;
+      case V.Kind is
+         when SmartAudio_Device => SmartAudio.Get_Band_Channel (V.SA, T, Band, Channel, Known);
+         when Tramp_Device      => Tramp.Get_Band_Channel (V.TR, Band, Channel, Known);
+         when No_Device         => null;
+      end case;
+   end Device_Get_Band_Channel;
+
+   procedure Device_Get_Power_Index (V : State; T : VTX_Table.Table; Index : in out Unsigned_8; Known : out Boolean) is
+      I : Unsigned_8;
+   begin
+      Known := False;
+      case V.Kind is
+         when SmartAudio_Device =>
+            SmartAudio.Get_Power_Index (V.SA, I, Known);
+            if Known then
+               Index := I;
+            end if;
+         when Tramp_Device =>
+            Tramp.Get_Power_Index (V.TR, T, Index, Known);
+         when No_Device =>
+            null;
+      end case;
+   end Device_Get_Power_Index;
+
+   --  The power index for the state check, left as it is when unknown.
+   procedure Device_Read_Power_Index (V : State; T : VTX_Table.Table; Index : in out Unsigned_8) is
+      I     : Unsigned_8;
+      Known : Boolean;
+   begin
+      case V.Kind is
+         when SmartAudio_Device =>
+            SmartAudio.Get_Power_Index (V.SA, I, Known);
+            if Known then
+               Index := I;
+            end if;
+         when Tramp_Device =>
+            Tramp.Read_Power_Index (V.TR, T, Index);
+         when No_Device =>
+            null;
+      end case;
+   end Device_Read_Power_Index;
+
+   procedure Device_Get_Frequency (V : State; T : VTX_Table.Table; Freq : out Unsigned_16; Known : out Boolean) is
+   begin
+      Freq := 0;
+      Known := False;
+      case V.Kind is
+         when SmartAudio_Device => SmartAudio.Get_Frequency (V.SA, T, Freq, Known);
+         when Tramp_Device      => Tramp.Get_Frequency (V.TR, Freq, Known);
+         when No_Device         => null;
+      end case;
+   end Device_Get_Frequency;
+
+   procedure Device_Get_Status (V : State; Pit : out Boolean; Known : out Boolean) is
+   begin
+      Pit := False;
+      Known := False;
+      case V.Kind is
+         when SmartAudio_Device => SmartAudio.Get_Status (V.SA, Pit, Known);
+         when Tramp_Device      => Tramp.Get_Pit_Mode (V.TR, Pit, Known);
+         when No_Device         => null;
+      end case;
+   end Device_Get_Status;
+
+   --  The common layer: a factory band goes to a SmartAudio device as band
+   --  and channel, any other band as its frequency.
 
    procedure Common_Set_Band_Channel (V : in out State; T : VTX_Table.Table; Band, Channel : Unsigned_8) is
       Freq : constant Unsigned_16 := VTX_Table.Frequency_Of (T, Natural (Band), Natural (Channel));
@@ -34,10 +145,11 @@ package body Adaflight.VTX with SPARK_Mode is
       if Freq /= 0 then
          V.Selected_Channel := Channel;
          V.Selected_Band := Band;
-         if T.Is_Factory (Natural (Band)) then
-            Set_Band_Channel (V.Driver, T, Band, Channel);
-         else
-            Set_Frequency (V.Driver, Freq);
+         if V.Kind = SmartAudio_Device and then T.Is_Factory (Natural (Band)) then
+            SmartAudio.Set_Band_Channel (V.SA, T, Band, Channel);
+         end if;
+         if not T.Is_Factory (Natural (Band)) then
+            Device_Set_Frequency (V, Freq);
          end if;
       end if;
    end Common_Set_Band_Channel;
@@ -45,7 +157,7 @@ package body Adaflight.VTX with SPARK_Mode is
    procedure Common_Set_Power_Index (V : in out State; T : VTX_Table.Table; Index : Unsigned_8) is
    begin
       if Natural (Index) <= T.Power_Levels then
-         Set_Power_Index (V.Driver, T, Index);
+         Device_Set_Power_Index (V, T, Index);
       end if;
    end Common_Set_Power_Index;
 
@@ -53,7 +165,7 @@ package body Adaflight.VTX with SPARK_Mode is
    begin
       V.Selected_Band := 0;
       V.Selected_Channel := 0;
-      Set_Frequency (V.Driver, Freq);
+      Device_Set_Frequency (V, Freq);
    end Common_Set_Frequency;
 
    --  Band and channel from the device, or from its frequency through the
@@ -67,7 +179,7 @@ package body Adaflight.VTX with SPARK_Mode is
       TB     : VTX_Table.Band_Count;
       TC     : VTX_Table.Channel_Count;
    begin
-      Get_Band_Channel (V.Driver, T, B, C, Known);
+      Device_Get_Band_Channel (V, T, B, C, Known);
       if Known then
          Band := B;
          Channel := C;
@@ -76,7 +188,7 @@ package body Adaflight.VTX with SPARK_Mode is
         and then V.Selected_Band in 1 .. VTX_Table.Max_Bands and then V.Selected_Channel /= 0
         and then not T.Is_Factory (Natural (V.Selected_Band))
       then
-         Get_Frequency (V.Driver, T, Freq, Found);
+         Device_Get_Frequency (V, T, Freq, Found);
          Known := Found;
          if Known then
             VTX_Table.Band_Channel_Of (T, Freq, TB, TC);
@@ -86,19 +198,15 @@ package body Adaflight.VTX with SPARK_Mode is
       end if;
    end Common_Get_Band_Channel;
 
-   procedure Common_Get_Power_Index (V : State; Index : in out Unsigned_8; Known : out Boolean) is
-      I : Unsigned_8;
+   procedure Common_Get_Power_Index (V : State; T : VTX_Table.Table; Index : in out Unsigned_8; Known : out Boolean) is
    begin
-      Get_Power_Index (V.Driver, I, Known);
-      if Known then
-         Index := I;
-      end if;
+      Device_Get_Power_Index (V, T, Index, Known);
    end Common_Get_Power_Index;
 
    procedure Common_Get_Frequency (V : State; T : VTX_Table.Table; Freq : in out Unsigned_16; Known : out Boolean) is
       F : Unsigned_16;
    begin
-      Get_Frequency (V.Driver, T, F, Known);
+      Device_Get_Frequency (V, T, F, Known);
       if Known then
          Freq := F;
       end if;
@@ -169,7 +277,7 @@ package body Adaflight.VTX with SPARK_Mode is
       Wanted : Settings;
    begin
       Pending := False;
-      Common_Get_Power_Index (V, Index, Known);
+      Common_Get_Power_Index (V, T, Index, Known);
       if Known then
          Wanted := Effective (S, Inp);
          if Index /= Wanted.Power then
@@ -187,7 +295,7 @@ package body Adaflight.VTX with SPARK_Mode is
       if Inp.Armed then
          return;
       end if;
-      Get_Status (V.Driver, Pit, Known);
+      Device_Get_Status (V, Pit, Known);
       if not Known then
          return;
       end if;
@@ -198,11 +306,11 @@ package body Adaflight.VTX with SPARK_Mode is
                return;
             end if;
             if not Pit then
-               Set_Pit_Mode (V.Driver, True);
+               Device_Set_Pit_Mode (V, True);
                Pending := True;
             end if;
          elsif Pit then
-            Set_Pit_Mode (V.Driver, False);
+            Device_Set_Pit_Mode (V, False);
             Pending := True;
          end if;
       end if;
@@ -220,7 +328,7 @@ package body Adaflight.VTX with SPARK_Mode is
       else
          Common_Get_Frequency (V, T, Seen.Freq, Known);
       end if;
-      Common_Get_Power_Index (V, Seen.Power, Known);
+      Device_Read_Power_Index (V, T, Seen.Power);
       return Seen.Band /= Wanted.Band or else Seen.Channel /= Wanted.Channel or else Seen.Power /= Wanted.Power
         or else Seen.Freq /= Wanted.Freq;
    end Process_State_Update;
@@ -256,13 +364,13 @@ package body Adaflight.VTX with SPARK_Mode is
             New_S.Channel := Channel;
             New_S.Freq := VTX_Table.Frequency_Of (T, Natural (Band), Natural (Channel));
          end if;
-         Power := Spektrum_Power (Word and Spektrum_Power_Mask);
+         Power := Spektrum_Power (Word and Spektrum_Power_Mask, V.Kind);
          if S.Power /= Power then
             New_S.Power := Power;
          end if;
-         Get_Status (V.Driver, Pit, Known);
+         Device_Get_Status (V, Pit, Known);
          if Known and then Pit /= Pit_Wanted then
-            Set_Pit_Mode (V.Driver, Pit_Wanted);
+            Device_Set_Pit_Mode (V, Pit_Wanted);
          end if;
       end if;
       if New_S.Band /= S.Band or else New_S.Channel /= S.Channel or else New_S.Power /= S.Power
@@ -280,16 +388,18 @@ package body Adaflight.VTX with SPARK_Mode is
    -- Init --
    ----------
 
-   procedure Init (V : out State; S : in out Settings; T : VTX_Table.Table; Port_Opened, Softserial : Boolean;
-                   Save : out Boolean) is
+   procedure Init (V : out State; S : in out Settings; T : VTX_Table.Table; Kind : Device_Kind;
+                   Port_Opened, Softserial : Boolean; Save : out Boolean) is
       Freq : Unsigned_16;
    begin
       V := (others => <>);
       Save := False;
-      SmartAudio.Init (V.Driver, Port_Opened);
-      if not Port_Opened then
+      SmartAudio.Init (V.SA, Port_Opened and then Kind = SmartAudio_Device);
+      Tramp.Init (V.TR, Port_Opened and then Kind = Tramp_Device);
+      if not Port_Opened or else Kind = No_Device then
          return;
       end if;
+      V.Kind := Kind;
       V.Device_Present := True;
       V.Prepend_Zero := Softserial and then S.Softserial_Alt;
       Freq := VTX_Table.Frequency_Of (T, Natural (S.Band), Natural (S.Channel));
@@ -337,7 +447,15 @@ package body Adaflight.VTX with SPARK_Mode is
          exit when Pending or else V.Schedule = Start;
       end loop;
       if not Inp.Armed or else Pending then
-         Process (V.Driver, T, Inp.Now_Ms, Rx, Inp.Control_Disabled, V.Prepend_Zero, E.Device);
+         case V.Kind is
+            when SmartAudio_Device =>
+               SmartAudio.Process (V.SA, T, Inp.Now_Ms, Rx, Inp.Control_Disabled, V.Prepend_Zero, E.Device);
+               E.Consumed := Rx'Length;
+            when Tramp_Device =>
+               Tramp.Process (V.TR, Inp.Now_Us, Rx, Inp.Control_Disabled, E.Tramp_Tx, E.Consumed);
+            when No_Device =>
+               null;
+         end case;
       end if;
    end Update;
 
@@ -458,7 +576,7 @@ package body Adaflight.VTX with SPARK_Mode is
       if not V.Device_Present then
          return;
       end if;
-      Common_Get_Power_Index (V, Power, Known);
+      Common_Get_Power_Index (V, T, Power, Known);
       if not Known then
          return;
       end if;
