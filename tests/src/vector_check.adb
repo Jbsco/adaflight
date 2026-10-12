@@ -59,6 +59,7 @@ with Adaflight.IBUS;
 with Adaflight.Spektrum;
 with Adaflight.XBUS;
 with Adaflight.Jeti_Ex_Bus;
+with Adaflight.GHST;
 
 procedure Vector_Check is
 
@@ -4063,6 +4064,109 @@ procedure Vector_Check is
       end if;
    end Check_Jeti_Line;
 
+   GHST_State    : Adaflight.GHST.State;
+   GHST_Rx       : Adaflight.Receiver.State;
+   GHST_Settings : Adaflight.Receiver.Settings;
+   GHST_Clock    : Unsigned_32 := 0;
+
+   procedure Check_GHST_Line is
+      use Adaflight.GHST;
+      Name : constant String := Str (1);
+      K    : Positive := 1;
+      procedure Expect_Next (N : String; Actual : Integer_64) is
+      begin
+         Record_Int (Name & "." & N, Int (K), Actual);
+         K := K + 1;
+      end Expect_Next;
+      procedure Check_Fields is
+      begin
+         if K /= NF + 1 then
+            Put_Line (Name & ": consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
+            Failures := Failures + 1;
+         end if;
+      end Check_Fields;
+   begin
+      if Name = "ghstinit" then
+         GHST_Settings := (others => <>);
+         GHST_Settings.Mid_RC := Integer (Int (3));
+         GHST_Settings.RSSI_Smoothing := Integer (Int (4));
+         GHST_Clock := Unsigned_32 (Int (5));
+         Adaflight.Receiver.Init (GHST_Rx, GHST_Settings, GHST_Clock / 1_000,
+                                  Adaflight.Receiver.RSSI_Source'Val (Int (6)),
+                                  Adaflight.Receiver.Link_Quality_Source'Val (Int (7)));
+         Init (GHST_State);
+         K := 8;
+         for Ch in Channel loop
+            Expect_Next ("data", Integer_64 (GHST_State.Data (Ch)));
+         end loop;
+         Check_Fields;
+      elsif Name = "ghststep" then
+         declare
+            Count     : constant Natural := Integer (Int (4));
+            Status    : Adaflight.Receiver.Frame_Report;
+            Result    : Process_Outputs;
+            Processed : Boolean := False;
+         begin
+            K := 5;
+            for B in 1 .. Count loop
+               GHST_Clock := GHST_Clock + Unsigned_32 (Int (K));
+               Receive_Byte (GHST_State, Integer (Int (K + 1)), GHST_Clock);
+               K := K + 2;
+            end loop;
+            if Int (K) >= 0 then
+               Queue_Telemetry (GHST_State, Integer (Int (K)));
+            end if;
+            GHST_Clock := Unsigned_32 (Int (K + 1));
+            K := K + 2;
+            if Int (K + 1) /= 0 then
+               Frame_Status (GHST_State, GHST_Clock, Status);
+               Expect_Next ("status",
+                            (if Status.Complete then 1 else 0) + (if Status.Processing_Required then 4 else 0)
+                            + (if Status.Dropped then 8 else 0));
+               if Status.Processing_Required then
+                  Process_Frame (GHST_State, GHST_Rx, GHST_Clock, Result);
+                  Processed := True;
+               end if;
+            else
+               K := K + 1;
+            end if;
+            K := K + 1;
+            Expect_Next ("processed", Boolean'Pos (Processed));
+            if Int (K) /= 0 then
+               Idle (GHST_State);
+            end if;
+            K := K + 1;
+            Expect_Next ("msp", Boolean'Pos (Result.MSP /= None));
+            Expect_Next ("msp_type",
+                         (case Result.MSP is when None => 0, when Request => MSP_Request, when Write => MSP_Write));
+            Expect_Next ("telemetry_sent", Boolean'Pos (Result.Telemetry_Sent));
+            Expect_Next ("available", Boolean'Pos (GHST_State.Frame_Available));
+            Expect_Next ("validated", Boolean'Pos (GHST_State.Validated_Available));
+            Expect_Next ("transmitting", Boolean'Pos (GHST_State.Transmitting_Telemetry));
+            Expect_Next ("telemetry_enabled", Boolean'Pos (GHST_State.Telemetry_Enabled));
+            Expect_Next ("rf_protocol", Integer_64 (GHST_State.RF_Protocol));
+            Expect_Next ("telemetry_len", Integer_64 (GHST_State.Telemetry_Length));
+            Expect_Next ("start_at", Integer_64 (GHST_State.Frame_Start_At_Us));
+            Expect_Next ("end_at", Integer_64 (GHST_State.Frame_End_At_Us));
+            Expect_Next ("frame_time", Integer_64 (GHST_State.Last_Frame_Time_Us));
+            Expect_Next ("rssi", Integer_64 (GHST_Rx.RSSI));
+            Expect_Next ("rssi_raw", Integer_64 (GHST_Rx.RSSI_Raw));
+            Expect_Next ("rssi_dbm", Integer_64 (GHST_Rx.RSSI_Dbm));
+            Expect_Next ("rssi_dbm_raw", Integer_64 (GHST_Rx.RSSI_Dbm_Raw));
+            Expect_Next ("link_quality", Integer_64 (GHST_Rx.Link_Quality));
+            for Ch in Channel loop
+               Expect_Next ("data", Integer_64 (GHST_State.Data (Ch)));
+               Record_Result (Name & ".raw", Bits (K), To_Bits (Read_Raw (GHST_State, Ch)));
+               K := K + 1;
+            end loop;
+            Check_Fields;
+         end;
+      else
+         Put_Line ("unknown ghst case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_GHST_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -4141,6 +4245,8 @@ procedure Vector_Check is
                   Check_XBUS_Line;
                elsif Kind = "jeti" then
                   Check_Jeti_Line;
+               elsif Kind = "ghst" then
+                  Check_GHST_Line;
                else
                   Check_PID_Line;
                end if;
@@ -4189,6 +4295,7 @@ begin
    Run (Dir & "/spek.csv", "spek");
    Run (Dir & "/xbus.csv", "xbus");
    Run (Dir & "/jeti.csv", "jeti");
+   Run (Dir & "/ghst.csv", "ghst");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
