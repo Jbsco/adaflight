@@ -91,6 +91,8 @@ with Adaflight.Flight_Stats;
 with Adaflight.Wing_Launch;
 with Adaflight.Nav_Trail;
 with Adaflight.GPS_Frames;
+with Adaflight.GPS_Link;
+with Adaflight.UBX_Config;
 
 procedure Vector_Check is
 
@@ -7191,6 +7193,251 @@ procedure Vector_Check is
       end loop;
    end Check_GPS_Line;
 
+   procedure Check_UBX_Config_Line is
+      use Adaflight.UBX_Config;
+      Kind  : constant Integer_64 := Int (4);
+      M8    : constant Boolean := Int (7) = 1;
+      M9    : constant Boolean := Int (8) = 1;
+      Sbas  : constant Sbas_Mode := Sbas_Mode'Val (Int (9));
+      Integ : constant Boolean := Int (10) = 1;
+      UTC   : constant UTC_Standard := UTC_Standard'Val (Int (11));
+      Gal   : constant Boolean := Int (12) = 1;
+      A1    : constant Integer_64 := Int (13);
+      A2    : constant Integer_64 := Int (14);
+      A3    : constant Integer_64 := Int (15);
+      Reply : constant Byte_Array := Hex_Bytes (17);
+      Sent  : Boolean := True;
+      F     : Frame;
+   begin
+      case Kind is
+         when 0 =>
+            F := Poll (Class_Mon, Msg_Mon_Ver);
+         when 1 =>
+            F := Poll (Class_Cfg, Msg_Cfg_Gnss);
+         when 2 =>
+            F := Message_Rate (Unsigned_8 (A1), Unsigned_8 (A2), Unsigned_8 (A3));
+         when 3 =>
+            F := Message_Rate_Key ((case A1 is
+                                      when 0      => Key_Nav_Pvt_UART1,
+                                      when 1      => Key_Nav_Sat_UART1,
+                                      when others => Key_Nav_Dop_UART1), Unsigned_8 (A2));
+         when 4 =>
+            F := Nav_Rate (Measurement_Rate_Hz (A1), Unsigned_16 (A2), Unsigned_8 (A3), M9);
+         when 5 =>
+            F := Model_Message (Dynamic_Model'Val (A1), UTC, M9);
+         when 6 =>
+            F := Assistance_Message (M9);
+         when 7 =>
+            if M8 or M9 then
+               F := Power_Mode_Message (M9);
+            else
+               Sent := False;
+            end if;
+         when 8 =>
+            F := Sbas_Message (Sbas, Integ, M9);
+         when 9 =>
+            F := Disable_NMEA_Message;
+         when 10 =>
+            F := Satellite_Info_Rate (Unsigned_8 (A1), M8, M9);
+         when others =>
+            declare
+               Full : Gnss_Reply := (others => 0);
+            begin
+               for I in Reply'Range loop
+                  Full (I) := Reply (I);
+               end loop;
+               F := Gnss_Message (Full, Sbas = None, Gal);
+            end;
+      end case;
+      if Sent then
+         Record_Bytes ("ubxcfg.frame", Hex_Bytes (19), Byte_Array (F.Data (0 .. F.Length - 1)));
+         Record_Int ("ubxcfg.ack", Int (20), (if F.Skip_Ack then 2 else 1));
+         Record_Int ("ubxcfg.ackid", Int (21), Integer_64 (F.Id));
+         Record_Int ("ubxcfg.sent_at", Int (22), Int (16));
+      else
+         Record_Int ("ubxcfg.len", Int (18), 0);
+         Record_Int ("ubxcfg.ack", Int (20), 0);
+         Record_Int ("ubxcfg.ackid", Int (21), 0);
+         Record_Int ("ubxcfg.sent_at", Int (22), 0);
+      end if;
+   end Check_UBX_Config_Line;
+
+   GPSL_Seq      : Integer_64 := -1;
+   GPSL_Link     : Adaflight.GPS_Link.Link;
+   GPSL_Receiver : Adaflight.GPS_Frames.Receiver;
+   GPSL_Settings : Adaflight.GPS_Link.Settings;
+   GPSL_Has_Time : Boolean := False;
+   GPSL_Clock    : Adaflight.GPS_Frames.Clock_Request;
+
+   procedure Check_GPS_Link_Line is
+      use Adaflight.GPS_Link;
+      use Adaflight.GPS_Frames;
+      Name : constant String := Str (1);
+
+      function State_Code (S : Link_State) return Integer_64 is
+        (if S = Lost_Communication then 7 else Link_State'Pos (S));
+
+      function Rate_Code (B : Baud_Rate; Open : Boolean) return Integer_64 is
+        (if Open then Integer_64 (Rate_Of (B)) else 0);
+
+      procedure Record_Link (K : Positive) is
+         L : Link renames GPSL_Link;
+         R : Receiver renames GPSL_Receiver;
+      begin
+         Record_Int (Name & ".state", Int (K), State_Code (L.State));
+         Record_Int (Name & ".position", Int (K + 1), Integer_64 (L.Position));
+         Record_Int (Name & ".ack", Int (K + 2), Integer_64 (Ack_State'Pos (R.UBX.Ack)));
+         Record_Int (Name & ".ackid", Int (K + 3), Integer_64 (R.UBX.Ack_Message));
+         Record_Int (Name & ".version", Int (K + 4), Integer_64 (Platform'Pos (R.UBX.Version)));
+         Record_Int (Name & ".m7", Int (K + 5), Boolean'Pos (R.UBX.M7_Or_Above));
+         Record_Int (Name & ".m8", Int (K + 6), Boolean'Pos (R.UBX.M8_Or_Above));
+         Record_Int (Name & ".m9", Int (K + 7), Boolean'Pos (R.UBX.M9_Or_Above));
+         Record_Int (Name & ".flightmodel", Int (K + 8), Boolean'Pos (L.Using_Flight_Model));
+         Record_Int (Name & ".userbaud", Int (K + 9), Integer_64 (Baud_Rate'Pos (L.User_Baud)));
+         Record_Int (Name & ".tempbaud", Int (K + 10), Integer_64 (Baud_Rate'Pos (L.Temp_Baud)));
+         Record_Int (Name & ".rate", Int (K + 11), Integer_64 (L.Update_Rate));
+         Record_Int (Name & ".timeouts", Int (K + 12), Integer_64 (L.Timeouts));
+         Record_Int (Name & ".lastnav", Int (K + 13), Integer_64 (L.Last_Nav_Message));
+         Record_Int (Name & ".lastsent", Int (K + 14), Integer_64 (L.Last_Message_Sent));
+         Record_Int (Name & ".state_ts", Int (K + 15), Integer_64 (L.State_Ts));
+         Record_Int (Name & ".sensor", Int (K + 16), Boolean'Pos (L.Sensor_Present));
+         Record_Int (Name & ".fix", Int (K + 17), Boolean'Pos (R.Fix));
+         Record_Int (Name & ".fixhome", Int (K + 18), Boolean'Pos (L.Fix_Home));
+         Record_Int (Name & ".fixever", Int (K + 19), Boolean'Pos (R.Fix_Ever));
+         Record_Int (Name & ".tick", Int (K + 20), Boolean'Pos (L.Tick));
+         Record_Int (Name & ".pending", Int (K + 21), Boolean'Pos (L.Solution_Offered));
+         Record_Int (Name & ".numsat", Int (K + 22), Integer_64 (R.Sol.Num_Sat));
+         Record_Int (Name & ".navint", Int (K + 23), Integer_64 (R.Sol.Nav_Interval_Ms));
+         Record_Int (Name & ".lat", Int (K + 24), Integer_64 (R.Sol.Llh.Lat));
+         Record_Int (Name & ".lon", Int (K + 25), Integer_64 (R.Sol.Llh.Lon));
+         Record_Int (Name & ".alt", Int (K + 26), Integer_64 (R.Sol.Llh.Alt_Cm));
+         Record_Int (Name & ".homelat", Int (K + 27), Integer_64 (L.Home.Lat));
+         Record_Int (Name & ".homelon", Int (K + 28), Integer_64 (L.Home.Lon));
+         Record_Int (Name & ".homealt", Int (K + 29), Integer_64 (L.Home.Alt_Cm));
+         Record_Int (Name & ".disthome_m", Int (K + 30), Integer_64 (L.Distance_To_Home_M));
+         Record_Int (Name & ".disthome_cm", Int (K + 31), Integer_64 (L.Distance_To_Home_Cm));
+         Record_Int (Name & ".dirhome", Int (K + 32), Integer_64 (L.Direction_To_Home));
+         Record_Int (Name & ".flown", Int (K + 33), Integer_64 (L.Distance_Flown_Cm));
+         Record_Result (Name & ".coslat", Bits (K + 34), To_Bits (L.Cos_Lat));
+         Record_Result (Name & ".interval", Bits (K + 35), To_Bits (L.Data_Interval_S));
+         Record_Result (Name & ".frequency", Bits (K + 36), To_Bits (L.Data_Frequency_Hz));
+         Record_Int (Name & ".stamp", Int (K + 37), Integer_64 (L.Stamp));
+         Record_Int (Name & ".portbaud", Int (K + 38), Rate_Code (L.Port_Baud, L.Port_Open));
+      end Record_Link;
+   begin
+      if Name = "gpslinit" then
+         GPSL_Seq := Int (2);
+         GPSL_Receiver := (others => <>);
+         GPSL_Has_Time := False;
+         GPSL_Clock := (others => <>);
+         GPSL_Settings := (others => <>);
+         GPSL_Settings.Source := (case Int (3) is when 0 => NMEA, when 1 => UBlox, when others => MSP);
+         GPSL_Settings.Sbas := Adaflight.UBX_Config.Sbas_Mode'Val (Int (4));
+         GPSL_Settings.Auto_Config := Int (5) = 1;
+         GPSL_Settings.Acquire_Model := Adaflight.UBX_Config.Dynamic_Model'Val (Int (6));
+         GPSL_Settings.Flight_Model := Adaflight.UBX_Config.Dynamic_Model'Val (Int (7));
+         GPSL_Settings.Update_Rate := Update_Rate_Hz (Int (8));
+         GPSL_Settings.Use_Galileo := Int (9) = 1;
+         GPSL_Settings.Set_Home_Once := Int (10) = 1;
+         GPSL_Settings.Use_3D_Speed := Int (11) = 1;
+         GPSL_Settings.Sbas_Integrity := Int (12) = 1;
+         GPSL_Settings.UTC := Adaflight.UBX_Config.UTC_Standard'Val (Int (13));
+         GPSL_Settings.Enable_Assistance := Int (14) = 1;
+         GPSL_Settings.Baud := (case Int (15) is
+                                   when 1      => B_9600,
+                                   when 2      => B_19200,
+                                   when 3      => B_38400,
+                                   when 4      => B_57600,
+                                   when 5      => B_115200,
+                                   when others => B_230400);
+         GPSL_Settings.Min_Sats := Satellite_Minimum (Int (16));
+         declare
+            Cmds : constant Byte_Array := Hex_Bytes (17);
+         begin
+            GPSL_Settings.Commands_Length := Cmds'Length;
+            for I in Cmds'Range loop
+               GPSL_Settings.Commands (I + 1) := Character'Val (Cmds (I));
+            end loop;
+         end;
+         GPSL_Settings.Port_Assigned := Int (18) = 1;
+         Init (GPSL_Link, GPSL_Receiver, GPSL_Settings, Unsigned_32 (Int (20)), Int (19) = 1);
+         Record_Int (Name & ".state", Int (21), State_Code (GPSL_Link.State));
+         Record_Int (Name & ".position", Int (22), Integer_64 (GPSL_Link.Position));
+         Record_Int (Name & ".userbaud", Int (23), Integer_64 (Baud_Rate'Pos (GPSL_Link.User_Baud)));
+         Record_Int (Name & ".tempbaud", Int (24), Integer_64 (Baud_Rate'Pos (GPSL_Link.Temp_Baud)));
+         Record_Int (Name & ".rate", Int (25), Integer_64 (GPSL_Link.Update_Rate));
+         Record_Int (Name & ".timeouts", Int (26), Integer_64 (GPSL_Link.Timeouts));
+         Record_Int (Name & ".state_ts", Int (27), Integer_64 (GPSL_Link.State_Ts));
+         Record_Int (Name & ".lastnav", Int (28), Integer_64 (GPSL_Link.Last_Nav_Message));
+         Record_Int (Name & ".ack", Int (29), Integer_64 (Ack_State'Pos (GPSL_Receiver.UBX.Ack)));
+         Record_Int (Name & ".version", Int (30), Integer_64 (Platform'Pos (GPSL_Receiver.UBX.Version)));
+         Record_Int (Name & ".portbaud", Int (31), Rate_Code (GPSL_Link.Port_Baud, GPSL_Link.Port_Open));
+         Record_Int (Name & ".sensor", Int (32), Boolean'Pos (GPSL_Link.Sensor_Present));
+         Record_Int (Name & ".sweep", Int (33), Integer_64 (GPSL_Link.Sweep_Steps));
+         Record_Int (Name & ".lastsweep", Int (34), Integer_64 (GPSL_Link.Last_Sweep_Step));
+      elsif Name = "gpslstep" then
+         if Int (2) /= GPSL_Seq then
+            Put_Line ("gps link step without its start");
+            Failures := Failures + 1;
+            return;
+         end if;
+         declare
+            Rx      : constant Byte_Array := Hex_Bytes (19);
+            Armed   : constant Boolean := Int (6) = 1;
+            E       : Events;
+            Home_Tx : Transmission;
+            Tx      : Byte_Array (0 .. 2 * Max_Tx - 1) := (others => 0);
+            Tx_Len  : Natural := 0;
+         begin
+            if Int (9) = 1 then
+               GPSL_Has_Time := False;
+            end if;
+            Record_Int (Name & ".hastime", Int (10), Boolean'Pos (GPSL_Has_Time));
+            if Int (11) = 1 then
+               Offer_Solution (GPSL_Link, GPSL_Receiver, Int (12) = 1, Interfaces.Unsigned_8 (Int (13)),
+                               I32 (14), I32 (15), Interfaces.Unsigned_16 (Int (16)),
+                               Interfaces.Unsigned_16 (Int (17)));
+            end if;
+            if Int (7) = 1 then
+               Reset_Home (GPSL_Link, GPSL_Receiver, GPSL_Settings, Home_Tx);
+               for I in 0 .. Home_Tx.Length - 1 loop
+                  Tx (Tx_Len + I) := Home_Tx.Data (I);
+               end loop;
+               Tx_Len := Tx_Len + Home_Tx.Length;
+            end if;
+            Update (GPSL_Link, GPSL_Receiver, GPSL_Settings, Unsigned_32 (Int (4)), Unsigned_32 (Int (5)), Rx,
+                    Int (8) = 1, Armed, GPSL_Has_Time, E);
+            for I in 0 .. E.Tx.Length - 1 loop
+               Tx (Tx_Len + I) := E.Tx.Data (I);
+            end loop;
+            Tx_Len := Tx_Len + E.Tx.Length;
+            if E.Clock_Sets > 0 then
+               GPSL_Clock := E.Clock;
+            end if;
+            Record_Link (20);
+            Record_Int (Name & ".baudset", Int (59), (if E.Baud_Changed then Integer_64 (Rate_Of (E.New_Baud)) else 0));
+            Record_Int (Name & ".taskrate", Int (60), Integer_64 (Task_Rate'Pos (E.Rate)));
+            Record_Int (Name & ".indicator", Int (61), Boolean'Pos (E.Indicator));
+            Record_Int (Name & ".beep", Int (62), Boolean'Pos (E.Ready_Beep));
+            Record_Int (Name & ".clocksets", Int (63), Integer_64 (E.Clock_Sets));
+            Record_Int (Name & ".cyear", Int (64), Integer_64 (GPSL_Clock.Year));
+            Record_Int (Name & ".cmonth", Int (65), Integer_64 (GPSL_Clock.Month));
+            Record_Int (Name & ".cday", Int (66), Integer_64 (GPSL_Clock.Day));
+            Record_Int (Name & ".chours", Int (67), Integer_64 (GPSL_Clock.Hours));
+            Record_Int (Name & ".cminutes", Int (68), Integer_64 (GPSL_Clock.Minutes));
+            Record_Int (Name & ".cseconds", Int (69), Integer_64 (GPSL_Clock.Seconds));
+            Record_Int (Name & ".cmillis", Int (70), Integer_64 (GPSL_Clock.Millis));
+            Record_Bytes (Name & ".tx", Hex_Bytes (72), Tx (0 .. Tx_Len - 1));
+            Record_Int (Name & ".overflow", 0, Boolean'Pos (E.Tx.Overflow or else Home_Tx.Overflow));
+            Record_Int (Name & ".sweep", Int (73), Integer_64 (GPSL_Link.Sweep_Steps));
+            Record_Int (Name & ".lastsweep", Int (74), Integer_64 (GPSL_Link.Last_Sweep_Step));
+         end;
+      else
+         Put_Line ("unknown gps link case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_GPS_Link_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -7333,6 +7580,10 @@ procedure Vector_Check is
                   Check_Nav_Trail_Line;
                elsif Kind = "gps" then
                   Check_GPS_Line;
+               elsif Kind = "ubxcfg" then
+                  Check_UBX_Config_Line;
+               elsif Kind = "gpslink" then
+                  Check_GPS_Link_Line;
                else
                   Check_PID_Line;
                end if;
@@ -7413,6 +7664,8 @@ begin
    Run (Dir & "/wlaunch.csv", "wlaunch");
    Run (Dir & "/trail.csv", "trail");
    Run (Dir & "/gps.csv", "gps");
+   Run (Dir & "/ubxcfg.csv", "ubxcfg");
+   Run (Dir & "/gpslink.csv", "gpslink");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
