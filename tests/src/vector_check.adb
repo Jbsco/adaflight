@@ -108,6 +108,7 @@ with Adaflight.Dispatch;
 with Adaflight.ExpressLRS_Receiver;
 with Adaflight.Blackbox_Header;
 with Adaflight.Blackbox;
+with Adaflight.Position_Nav;
 
 procedure Vector_Check is
 
@@ -9154,6 +9155,162 @@ procedure Vector_Check is
       end if;
    end Check_Blackbox_Recorder_Line;
 
+   package PN renames Adaflight.Position_Nav;
+   PN_Seq          : Integer_64 := -1;
+   PN_N            : PN.Navigator;
+   PN_Next_Pending : Boolean := False;
+   PN_Next_Target  : PN.Position_M;
+   PN_Next_Cruise  : PN.Speed_Mps := 0.0;
+   PN_Next_Radius  : PN.Radius_M := 0.0;
+   PN_Next_Done    : PN.Speed_Mps := 0.0;
+   PN_Next_Alt     : Boolean := False;
+
+   procedure PN_Record_State (Name : String; S : Positive) is
+      C : PN.Command renames PN_N.Cmd;
+   begin
+      Record_Int (Name & ".active", Int (S), Boolean'Pos (C.Active));
+      Record_Int (Name & ".sequence", Int (S + 1), Integer_64 (C.Sequence));
+      Record_Int (Name & ".completed", Int (S + 2), Boolean'Pos (C.Completed));
+      Record_Int (Name & ".signalled", Int (S + 3), Boolean'Pos (C.Completion_Signalled));
+      Record_Result (Name & ".te", Bits (S + 4), To_Bits (C.Target.East));
+      Record_Result (Name & ".tn", Bits (S + 5), To_Bits (C.Target.North));
+      Record_Result (Name & ".tu", Bits (S + 6), To_Bits (C.Target.Up));
+      Record_Int (Name & ".fixed", Int (S + 7), Boolean'Pos (C.Fixed_Target));
+      Record_Int (Name & ".incalt", Int (S + 8), Boolean'Pos (C.Include_Altitude));
+      Record_Result (Name & ".cruise", Bits (S + 9), To_Bits (C.Cruise_Speed));
+      Record_Result (Name & ".vertrate", Bits (S + 10), To_Bits (C.Vert_Rate));
+      Record_Result (Name & ".radius", Bits (S + 11), To_Bits (C.Acceptance_Radius));
+      Record_Result (Name & ".completion", Bits (S + 12), To_Bits (C.Completion_Speed));
+      Record_Result (Name & ".settletimeout", Bits (S + 13), To_Bits (C.Settle_Timeout));
+      Record_Result (Name & ".settle", Bits (S + 14), To_Bits (C.Settle));
+      Record_Result (Name & ".rampalt", Bits (S + 15), To_Bits (C.Ramp_Alt));
+      Record_Int (Name & ".rampvalid", Int (S + 16), Boolean'Pos (C.Ramp_Valid));
+      Record_Result (Name & ".ramprate", Bits (S + 17), To_Bits (C.Ramp_Rate));
+      Record_Int (Name & ".rampslewed", Int (S + 18), Boolean'Pos (C.Ramp_Rate_Slewed));
+      Record_Result (Name & ".apdecel", Bits (S + 19), To_Bits (C.Approach_Decel));
+      Record_Result (Name & ".apstillr", Bits (S + 20), To_Bits (C.Approach_Still_Radius));
+      Record_Int (Name & ".apstill", Int (S + 21), Boolean'Pos (C.Approach_Still));
+      Record_Int (Name & ".ffvalid", Int (S + 22), Boolean'Pos (C.Velocity_FF_Valid));
+      Record_Result (Name & ".ffe", Bits (S + 23), To_Bits (C.Velocity_FF.East));
+      Record_Result (Name & ".ffn", Bits (S + 24), To_Bits (C.Velocity_FF.North));
+      Record_Int (Name & ".fromcraft", Int (S + 25), Boolean'Pos (C.Velocity_From_Craft));
+      Record_Result (Name & ".maxaccel", Bits (S + 26), To_Bits (C.Max_Accel));
+      Record_Result (Name & ".maxdecel", Bits (S + 27), To_Bits (C.Max_Decel));
+      Record_Result (Name & ".maxangle", Bits (S + 28), To_Bits (C.Max_Angle));
+      Record_Int (Name & ".autoclear", Int (S + 29), Boolean'Pos (C.Auto_Clear_On_Reach));
+      Record_Int (Name & ".altarrival", Int (S + 30), Boolean'Pos (C.Altitude_Arrival_Required));
+      Record_Result (Name & ".preve", Bits (S + 31), To_Bits (PN_N.Previous_Vel.East));
+      Record_Result (Name & ".prevn", Bits (S + 32), To_Bits (PN_N.Previous_Vel.North));
+      Record_Result (Name & ".prevu", Bits (S + 33), To_Bits (PN_N.Previous_Vel.Up));
+      Record_Int (Name & ".prevvalid", Int (S + 34), Boolean'Pos (PN_N.Previous_Valid));
+      Record_Result (Name & ".cure", Bits (S + 35), To_Bits (PN_N.Target_Vel.East));
+      Record_Result (Name & ".curn", Bits (S + 36), To_Bits (PN_N.Target_Vel.North));
+      Record_Result (Name & ".curu", Bits (S + 37), To_Bits (PN_N.Target_Vel.Up));
+      Record_Int (Name & ".withinr", Int (S + 38), Boolean'Pos (PN_N.Within_Radius));
+      Record_Int (Name & ".withina", Int (S + 39), Boolean'Pos (PN_N.Within_Altitude));
+      Record_Result (Name & ".targetalt", Bits (S + 40), To_Bits (PN.Target_Altitude_Cm (PN_N)));
+      Record_Result (Name & ".vertlimit", Bits (S + 41), To_Bits (PN.Vertical_Rate_Limit_Cm_S (PN_N)));
+      Record_Int (Name & ".hasactive", Int (S + 42), Boolean'Pos (PN.Has_Active_Target (PN_N)));
+      Record_Int (Name & ".reached", Int (S + 43), Boolean'Pos (PN.Target_Reached (PN_N)));
+   end PN_Record_State;
+
+   procedure Check_Position_Nav_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "pninit" then
+         PN_Seq := Int (2);
+         PN_N := (others => <>);
+         PN.Init (PN_N);
+         PN_Next_Pending := False;
+      elsif Name = "pnstep" then
+         if Int (2) /= PN_Seq then
+            Put_Line ("position nav step without its start");
+            Failures := Failures + 1;
+            return;
+         end if;
+         case Int (4) is
+            when 1 =>
+               PN_Next_Pending := Int (12) = 1;
+               PN_Next_Target := (East => Flt (13), North => Flt (14), Up => Flt (15));
+               PN_Next_Cruise := Flt (16);
+               PN_Next_Radius := Flt (17);
+               PN_Next_Done := Flt (18);
+               PN_Next_Alt := Int (19) = 1;
+               PN.Set_Target (PN_N, (East => Flt (5), North => Flt (6), Up => Flt (7)), Flt (8), Flt (9), Flt (10),
+                              Int (11) = 1);
+               PN_Record_State (Name, 20);
+            when 2 =>
+               PN.Move_Target (PN_N, (East => Flt (5), North => Flt (6), Up => Flt (7)));
+               PN_Record_State (Name, 8);
+            when 3 =>
+               PN.Lower_Target_Altitude (PN_N, Flt (5));
+               PN_Record_State (Name, 6);
+            when 4 =>
+               PN.Clear_Target (PN_N);
+               PN_Record_State (Name, 5);
+            when 5 =>
+               PN.Set_Vertical_Profile (PN_N, Flt (5), Flt (6));
+               PN_Record_State (Name, 7);
+            when 6 =>
+               PN.Set_Accel_Limits (PN_N, Flt (5), Flt (6));
+               PN_Record_State (Name, 7);
+            when 7 =>
+               PN.Set_Velocity_Feedforward (PN_N, (East => Flt (5), North => Flt (6)));
+               PN_Record_State (Name, 7);
+            when 8 =>
+               PN.Start_Afresh (PN_N);
+               PN_Record_State (Name, 5);
+            when 9 =>
+               PN.Set_Approach_Brake (PN_N, Flt (5), Flt (6));
+               PN_Record_State (Name, 7);
+            when 10 =>
+               PN.Set_Altitude_Arrival_Required (PN_N, Int (5) = 1);
+               PN_Record_State (Name, 6);
+            when 11 =>
+               PN.Set_Settle_Timeout (PN_N, Flt (5));
+               PN_Record_State (Name, 6);
+            when 12 =>
+               PN.Set_Max_Angle (PN_N, Flt (5));
+               PN_Record_State (Name, 6);
+            when 13 =>
+               PN.Set_Auto_Clear_On_Reach (PN_N, Int (5) = 1);
+               PN_Record_State (Name, 6);
+            when 14 =>
+               declare
+                  Est     : constant PN.Estimate :=
+                    (Position => (East => Flt (6), North => Flt (7), Up => Flt (8)),
+                     Velocity => (East => Flt (9), North => Flt (10), Up => Flt (11)));
+                  Reached : Boolean;
+               begin
+                  PN.Update (PN_N, Flt (5), Est, Reached);
+                  Record_Int (Name & ".reachednow", Int (12), Boolean'Pos (Reached));
+                  if Reached then
+                     if PN_Next_Pending then
+                        PN.Set_Target (PN_N, PN_Next_Target, PN_Next_Cruise, PN_Next_Radius, PN_Next_Done, PN_Next_Alt);
+                        PN_Next_Pending := False;
+                     else
+                        PN.Finish_Leg (PN_N);
+                     end if;
+                  end if;
+                  PN_Record_State (Name, 14);
+               end;
+            when 15 =>
+               Record_Result (Name & ".approach", Bits (9),
+                              To_Bits (PN.Approach_Speed (Flt (5), Flt (6), Flt (7), Flt (8))));
+               PN_Record_State (Name, 10);
+            when 16 =>
+               PN.Reset (PN_N);
+               PN_Record_State (Name, 5);
+            when others =>
+               PN.Init (PN_N);
+               PN_Record_State (Name, 5);
+         end case;
+      else
+         Put_Line ("unknown position nav case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Position_Nav_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -9326,6 +9483,8 @@ procedure Vector_Check is
                   Check_Blackbox_Header_Line;
                elsif Kind = "bbrec" then
                   Check_Blackbox_Recorder_Line;
+               elsif Kind = "posnav" then
+                  Check_Position_Nav_Line;
                else
                   Check_PID_Line;
                end if;
@@ -9421,6 +9580,7 @@ begin
    Run (Dir & "/elrsrx.csv", "elrsrx");
    Run (Dir & "/bbhdr.csv", "bbhdr");
    Run (Dir & "/bbrec.csv", "bbrec");
+   Run (Dir & "/posnav.csv", "posnav");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
