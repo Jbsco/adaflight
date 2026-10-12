@@ -57,12 +57,13 @@ The core holds:
 - the LED strip with its status, race and beacon profiles
 - the rangefinder readings with their median, signal ratio and tilt correction
 - the optical flow readings with their rotation and gyro compensation
+- the pitot airspeed with its zeroing and its source fallback
 
 The state of `main`:
 
-- The core proves at Silver and Gold: 8908 checks, nothing unproved, no
+- The core proves at Silver and Gold: 8930 checks, nothing unproved, no
   `pragma Assume`, no justified suppression (`gnatprove` 16.1.0, level 2).
-- The recorded vectors replay bit for bit: 491536 lines over 263 cases, every case
+- The recorded vectors replay bit for bit: 506546 lines over 265 cases, every case
   exact except the seventeen declared deviations in `DESIGN.md` D6.
 - No target builds yet. `ROADMAP.md` carries the parity inventory, the phases, and the
   question for after parity: whether a proved core leaves room on the F4 boards for
