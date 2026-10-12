@@ -1032,3 +1032,29 @@ for a group of three, ten for the group of four, one plus five per field for the
 and proof covers every write through the stream's contract, so no encoder can run past the
 array. The header lines in text and the frame logic that chooses the encodings come with the log
 itself.
+## D57. The text conversions (2026-10-11)
+
+`Adaflight.Text` holds the conversions the command line, the display, and the log headers need:
+the digits of a number in a base from two to thirty-six with lower or upper case letters past
+nine, a signed number in decimal or in a base with uppercase letters where a base outside the
+range reads as ten, the fixed form of a float with three decimals behind a leading space or
+minus sign and rounded half away from zero, a float read from its text, the character classes
+and case folds over the basic letters alone, the comparison and the search that ignore case,
+and the formatter. Every writer takes the caller's buffer and reports the length it used, and
+each contract asks for the room of the longest form, so no writer can run past its buffer: the
+fixed form accepts magnitudes to two million and asks for twelve characters, where the
+reference's declared buffer of eleven overflows from a magnitude of one hundred thousand
+(finding F45). The float reader keeps the operation order of the reference and adds three
+rules: a mantissa or a divisor past 3.0E37 takes no further digit, the scale of an exponent
+comes from a table of the thirty-nine values that the repeated products of 1.0E8 and 10.0
+produce, and the product of mantissa and scale is formed in double precision and saturates at
+Float'Last where the reference overflows to infinity, so every finite result matches and no
+float operation can overflow. The formatter takes its arguments as a list of 32-bit values and
+slices of a caller's text pool, fills the d, u, x, X, c, s, and %% conversions behind an
+optional zero flag and width, treats the l modifier as nothing since every number is 32 bits,
+stops at a template that ends inside a conversion, writes nothing for a conversion with no
+argument left, and holds the output to the buffer's length. Its width parser takes a letter a
+or A after a width digit as a digit of ten, the comparison of the reference kept so the vectors
+match (finding F44). The search returns no match for an empty text, where the reference reads
+past it (finding F46). Proof covers every buffer index and the float bounds of the reader. No
+recorded vector reaches the saturation or the empty-text guard.
