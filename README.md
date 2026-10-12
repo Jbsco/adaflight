@@ -20,32 +20,24 @@ decoder can index outside its buffer, and every motor command is in range by typ
 
 ## Status
 
-The core holds:
+The core holds the bounded maths with the fast exponential and logarithm, the filter
+set, three-axis vectors and rotations, the sliding DFT, piecewise-linear tables,
+integrity codes, the encodings, bit arrays, stream buffers, the Huffman encoder, GPS
+coordinate conversion, sensor alignment, color conversion, the chirp generator, the rate
+curves, the RC command path with its smoothing and feedforward, the PID profile with its
+runtime configuration, filter initialization, rate loop, throttle-side features, crash
+recovery, and launch control, the motor mixer, the gyro calibration, filtering chain,
+dynamic notch, RPM filter, and full-scale detections, the attitude estimator with the
+compass heading, the failsafe state machine, the runtime modes, the accelerometer path,
+the barometer altitude, the compass with its bias calibration, the battery meters and
+states, the sensor and board alignment, the arming logic with launch control and runaway
+takeoff prevention, the angle and horizon level modes, the position Kalman filter, the
+altitude estimator, the altitude hold, the in-flight adjustments, the simplified tuning
+of the PID gains, the cooperative scheduler, and the beeper.
 
-- the bounded maths with the fast exponential and logarithm, the filter set, three-axis
-  vectors and rotations, the sliding DFT, piecewise-linear tables, integrity codes, the
-  encodings, bit arrays, stream buffers, and the Huffman encoder
-- GPS coordinate conversion, sensor alignment, color conversion, and the chirp generator
-- the rate curves and the RC command path with its smoothing and feedforward
-- the in-flight adjustments and the simplified tuning of the PID gains
-- the PID profile with its runtime configuration, filter initialization, rate loop,
-  throttle-side features, crash recovery, and launch control
-- the motor mixer
-- the gyro calibration, filtering chain, dynamic notch, RPM filter, and full-scale
-  detections
-- the attitude estimator with the compass heading, and the angle and horizon level modes
-- the failsafe state machine, the runtime modes, and the arming logic with launch
-  control and runaway takeoff prevention
-- the accelerometer path, the barometer altitude, the compass with its bias calibration,
-  the battery meters and states, and the sensor and board alignment
-- the position Kalman filter, the altitude estimator, and the altitude hold
-- the cooperative scheduler
-
-The state of `main`:
-
-- The core proves at Silver and Gold: 4876 checks, nothing unproved, no
+- The core proves at Silver and Gold: 4940 checks, nothing unproved, no
   `pragma Assume`, no justified suppression (`gnatprove` 16.1.0, level 2).
-- The recorded vectors replay bit for bit: 192708 lines over 170 cases, every case
+- The recorded vectors replay bit for bit: 204738 lines over 172 cases, every case
   exact except the sixteen declared deviations in `DESIGN.md` D6.
 - No target builds yet. `ROADMAP.md` carries the parity inventory, the phases, and the
   question for after parity: whether a proved core leaves room on the F4 boards for

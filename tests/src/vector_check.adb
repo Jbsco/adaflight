@@ -34,6 +34,7 @@ with Adaflight.Altitude_Estimator;
 with Adaflight.Altitude_Hold;
 with Adaflight.Adjustments;
 with Adaflight.Scheduler;
+with Adaflight.Beeper;
 with Adaflight.Clock;
 with Adaflight.Vectors;
 with Adaflight.PWL;
@@ -2349,6 +2350,105 @@ procedure Vector_Check is
       end if;
    end Check_Sched_Line;
 
+   Beep_State    : Adaflight.Beeper.State;
+   Beep_Settings : Adaflight.Beeper.Settings;
+
+   procedure Check_Beeper_Line is
+      use Adaflight.Beeper;
+      Name : constant String := Str (1);
+      K    : Positive := 1;
+      function Next return Integer_64 is
+         V : constant Integer_64 := Int (K);
+      begin
+         K := K + 1;
+         return V;
+      end Next;
+      function Flags_Of (Bits : Integer_64) return Mode_Flags is
+         F : Mode_Flags := (others => False);
+      begin
+         for M in Sound loop
+            F (M) := (Bits / 2 ** (Adaflight.Beeper.Mode'Pos (M) - 1)) mod 2 = 1;
+         end loop;
+         return F;
+      end Flags_Of;
+      procedure Expect_Next (N : String; Actual : Integer_64) is
+      begin
+         Record_Int (Name & "." & N, Int (K), Actual);
+         K := K + 1;
+      end Expect_Next;
+   begin
+      if Name = "beepinit" then
+         K := 3;
+         Beep_Settings.Off_Flags := Flags_Of (Next);
+         Beep_Settings.Beacon_Off_Flags := Flags_Of (Next);
+         Beep_Settings.Beacon_Tone := Integer (Next);
+         Beep_State := (others => <>);
+      elsif Name = "beepstep" then
+         declare
+            Cond   : Conditions;
+            Result : Update_Outputs;
+            Now_Us : constant Unsigned_32 := Unsigned_32 (Int (4));
+            Events : constant Natural := Integer (Int (19));
+         begin
+            Cond.Battery_Present := Int (5) /= 0;
+            Cond.USB_Active := Int (6) /= 0;
+            Cond.Configurator_Active := Int (7) /= 0;
+            Cond.Mute_Switch := Int (8) /= 0;
+            Cond.Beep_Switch := Int (9) /= 0;
+            Cond.Satellite_Switch := Int (10) /= 0;
+            Cond.GPS_Feature := Int (11) /= 0;
+            Cond.GPS_Fix := Int (12) /= 0;
+            Cond.Satellites := Integer (Int (13));
+            Cond.Motors_Running := Int (14) /= 0;
+            Cond.Failsafe_Monitoring := Int (15) /= 0;
+            Cond.Failsafe_Receiving := Int (16) /= 0;
+            Cond.Last_Disarm_Us := Unsigned_32 (Int (17));
+            Cond.Trying_To_Arm := Int (18) /= 0;
+            K := 20;
+            for E in 1 .. Events loop
+               declare
+                  Kind : constant String := Str (K);
+                  Arg  : constant Integer := Integer (Int (K + 1));
+               begin
+                  K := K + 2;
+                  if Kind = "m" then
+                     Request (Beep_State, Beep_Settings, Cond, Adaflight.Beeper.Mode'Val (Arg));
+                  elsif Kind = "c" then
+                     Confirmation_Beeps (Beep_State, Beep_Settings, Cond, Arg);
+                  elsif Kind = "w" then
+                     Warning_Beeps (Beep_State, Beep_Settings, Cond, Arg);
+                  else
+                     Silence_Beeper (Beep_State);
+                  end if;
+               end;
+            end loop;
+            Update (Beep_State, Beep_Settings, Cond, Now_Us, Result);
+            Expect_Next ("on", Boolean'Pos (Beep_State.Is_On));
+            Expect_Next ("led", Boolean'Pos (Beep_State.Warning_Led));
+            Expect_Next ("current", Adaflight.Beeper.Mode'Pos (Beep_State.Current));
+            Expect_Next ("pos", Integer_64 (Beep_State.Pos));
+            Expect_Next ("next_toggle", Integer_64 (Beep_State.Next_Toggle_Us));
+            Expect_Next ("arming_time", Integer_64 (Beep_State.Arming_Beep_Us));
+            Expect_Next ("last_beacon", Integer_64 (Beep_State.Last_Beacon_Us));
+            Expect_Next ("visual", Boolean'Pos (Result.Visual_Beep));
+            Expect_Next ("beacon", Boolean'Pos (Result.Beacon_Command));
+            Expect_Next ("beacon_tone", (if Result.Beacon_Command then Integer_64 (Beep_Settings.Beacon_Tone) else 0));
+            Expect_Next ("beacon_motors", (if Result.Beacon_Command then 4 else 0));
+            Expect_Next ("ignore", Boolean'Pos (Result.Ignore_Exec_Time));
+            for I in Step_Index loop
+               Expect_Next ("multi", Integer_64 (Beep_State.Multi (I)));
+            end loop;
+            if K /= NF + 1 then
+               Put_Line ("beepstep: consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
+               Failures := Failures + 1;
+            end if;
+         end;
+      else
+         Put_Line ("unknown beeper case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Beeper_Line;
+
    Alt_State    : Adaflight.Altitude_Estimator.State;
    Alt_Settings : Adaflight.Altitude_Estimator.Settings;
    Alt_Present  : Boolean := False;
@@ -3238,6 +3338,8 @@ procedure Vector_Check is
                   Check_Adjust_Line;
                elsif Kind = "sched" then
                   Check_Sched_Line;
+               elsif Kind = "beeper" then
+                  Check_Beeper_Line;
                else
                   Check_PID_Line;
                end if;
@@ -3277,6 +3379,7 @@ begin
    Run (Dir & "/althold.csv", "althold");
    Run (Dir & "/adjust.csv", "adjust");
    Run (Dir & "/sched.csv", "sched");
+   Run (Dir & "/beeper.csv", "beeper");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");

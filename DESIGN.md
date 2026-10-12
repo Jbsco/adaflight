@@ -631,3 +631,26 @@ and the recorded durations, matches cycle for cycle. Every count keeps the refer
 Two guards cover the reference's divisions by zero: the overrun recovery and the skew run
 only while the gyro period in cycles is positive, where the reference divides by it as it
 stands. No recorded vector reaches a guard.
+
+## D39. The beeper (2026-10-09)
+
+The beeper unit carries the reference's beeper: the sound table in priority order, a
+request that starts its sound only when it outranks the one playing and that silences the
+beeper for the silence mode, the mute switch, or the bench suppression of the USB flag with no
+battery and a USB or configurator link; the sequences of on and off durations in tens of
+milliseconds, a leading zero for a pause first, ended by a stop or a repeat; the multi-beep
+buffer the confirmation beeps, the warning beeps, and the satellite count fill and play through
+the multi-beep entry, with room kept for the stop; and the periodic update, which requests the
+beep switch's sound or the satellite count, raises the DShot beacon when the motors are stopped
+and the link is lost without a configurator or the beep switch is on with a link, past the
+guard after a disarm, not while arming, and at most every 450 milliseconds, clamps the beacon
+time to a minute's age, and then plays the next step of the sequence once its toggle time has
+passed, recording the first on step of an arming sound as the arming beep's time. The unit
+owns the beeper's on state, the warning LED's enable, and the visual beep's edge; it reports
+the beacon command, the visual beep, and the scheduler's exec-time waiver as the update's
+outputs, because their units own those. The conditions the beeper reads from the battery, the
+links, the mode boxes, the GPS, the motors, the failsafe, and the arming state come in as a
+record. The arming beep's time is the update's time, where the reference reads the clock
+again. One guard covers the reference's read past its buffer: a sequence that reaches the end
+of the buffer without a stop ends as an error and silences the beeper, where the reference
+walks into adjacent memory (finding F29). No recorded vector reaches a guard.
