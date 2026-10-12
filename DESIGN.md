@@ -2009,3 +2009,40 @@ headers, trailing bytes and lone chunks, the processor's reply of random size un
 random verdict, requests arriving while a reply is still going out, and the replies pulled
 at the SmartPort, CRSF and random chunk sizes. Every chunk, request state and reply state
 of the 28655 lines replays byte for byte.
+
+## D97. The OSD formatting (2026-10-12)
+
+The OSD format unit contains the reference's formatting helpers, the functions the OSD
+elements call to turn readings into text. A number prints with a leading and a trailing
+symbol, its decimals, rounded half to even or cut at the last decimal, the integer part in
+a width with zeros or spaces and a character before it, and a minus sign when the value is
+negative and the digits are not all zero. Altitudes print in the selected unit with one
+decimal or none, above the launch point or above sea level. Coordinates print from
+ten-millionths of a degree with seven or four decimals, as degrees, minutes, seconds and
+tenths with the hemisphere letter, or as the eleven-digit plus code, and read as zero until
+the first fix. Distances print in feet or metres below a mile or a kilometre and in miles or
+kilometres above with one decimal from ten and two below. A PID line prints its label and the
+five gains in three places each. The clock prints the reference's short local form, the month,
+day, hours and minutes, or the time alone, and prints nothing without a clock. Timers print
+minutes and seconds with hundredths or tenths by their precision from the source their
+setting names, the on time, the flight time, the last armed time, one or the other by the
+arming state, or the launch time, with the source's symbol before them. The battery symbol
+is the critical one or the cell voltage's step over the profile's range, the direction
+symbol the heading's sector of sixteen, and the unit conversions cover metres, speeds,
+climb rates and temperatures with their symbols.
+
+The plus code unit contains the reference library's encoder for the grid lengths, the
+only lengths the OSD asks for: the latitude clipped to its range and the pole moved half
+a precision south, the longitude wrapped into its range, the two positions scaled to
+integers at the grid precision, the five grid digits from the five by four refinement and
+the ten pair digits from the base twenty alphabet with the separator after the eighth.
+
+The warnings line now takes its unit system and its temperature conversion and symbol
+from the format unit, where the reference's warnings call the elements file. The battery
+symbol requires the profile's cell voltage limits to differ, where the reference divides
+by their difference (finding F103). The readings and the settings stay with the target.
+
+The harness replays six sequences of 1500 calls recorded from the reference, each call to
+one helper under random readings, units, variants and symbols, the clock set to times
+before the reference's conversion limit (finding F104) and the formats of the elements'
+calls. Every text, symbol and conversion of the 9006 lines replays byte for byte.
