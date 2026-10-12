@@ -64,6 +64,7 @@ with Adaflight.MSP_Receiver;
 with Adaflight.SRXL2;
 with Adaflight.FPORT;
 with Adaflight.MAVLink;
+with Adaflight.MSP_Port;
 
 procedure Vector_Check is
 
@@ -4580,6 +4581,136 @@ procedure Vector_Check is
       end if;
    end Check_MAVLink_Line;
 
+   MSP_Serial_Port   : Adaflight.MSP_Port.Port;
+   MSP_Serial_Queue  : Byte_Array (0 .. 16_383) := (others => 0);
+   MSP_Serial_Len    : Natural := 0;
+   MSP_Serial_Clock  : Unsigned_32 := 0;
+   MSP_Serial_Reboot : Byte := 0;
+
+   procedure Check_MSP_Serial_Line is
+      use Adaflight.MSP_Port;
+      Name : constant String := Str (1);
+      K    : Positive := 1;
+      procedure Expect_Next (N : String; Actual : Integer_64) is
+      begin
+         Record_Int (Name & "." & N, Int (K), Actual);
+         K := K + 1;
+      end Expect_Next;
+      procedure Expect_Bits (N : String; Actual : Unsigned_32) is
+      begin
+         Record_Result (Name & "." & N, Bits (K), Actual);
+         K := K + 1;
+      end Expect_Bits;
+      procedure Check_Fields is
+      begin
+         if K /= NF + 1 then
+            Put_Line (Name & ": consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
+            Failures := Failures + 1;
+         end if;
+      end Check_Fields;
+   begin
+      if Name = "mspserialinit" then
+         Init (MSP_Serial_Port);
+         MSP_Serial_Len := 0;
+         MSP_Serial_Reboot := Byte (Int (3));
+         MSP_Serial_Clock := Unsigned_32 (Int (4));
+         K := 5;
+         Expect_Next ("phase", Port_Phase'Pos (MSP_Serial_Port.Phase));
+         Expect_Next ("decoder", Decoder_Phase'Pos (MSP_Serial_Port.Decoder));
+         Check_Fields;
+      elsif Name = "mspserialstep" then
+         declare
+            Count    : constant Natural := Integer (Int (4));
+            Opt      : Options;
+            Tx_Empty : Boolean;
+            Tx_Free  : Natural;
+            Consumed : Natural;
+            Ev       : Event;
+         begin
+            MSP_Serial_Clock := MSP_Serial_Clock + Unsigned_32 (Int (5));
+            Opt.Evaluate_Non_MSP := Int (6) /= 0;
+            Opt.Peripheral := Int (7) /= 0;
+            Tx_Empty := Int (8) /= 0;
+            Tx_Free := Integer (Int (9));
+            Opt.CLI_Running := Int (10) /= 0;
+            Opt.Reboot_Character := MSP_Serial_Reboot;
+            K := 11;
+            for B in 1 .. Count loop
+               MSP_Serial_Queue (MSP_Serial_Len) := Byte (Int (K));
+               MSP_Serial_Len := MSP_Serial_Len + 1;
+               K := K + 1;
+            end loop;
+            Process (MSP_Serial_Port, MSP_Serial_Queue (0 .. MSP_Serial_Len - 1), Consumed, MSP_Serial_Clock, Opt, Ev);
+            MSP_Serial_Queue (0 .. MSP_Serial_Len - Consumed - 1) := MSP_Serial_Queue (Consumed .. MSP_Serial_Len - 1);
+            MSP_Serial_Len := MSP_Serial_Len - Consumed;
+            Expect_Next ("consumed", Integer_64 (Consumed));
+            Expect_Next ("phase", Port_Phase'Pos (MSP_Serial_Port.Phase));
+            Expect_Next ("decoder", Decoder_Phase'Pos (MSP_Serial_Port.Decoder));
+            Expect_Next ("kind", Packet_Kind'Pos (MSP_Serial_Port.Kind));
+            Expect_Next ("version", Framing'Pos (MSP_Serial_Port.Version));
+            Expect_Next ("command", Integer_64 (MSP_Serial_Port.Command_Id));
+            Expect_Next ("flags", Integer_64 (MSP_Serial_Port.Flags));
+            Expect_Next ("data_size", Integer_64 (MSP_Serial_Port.Data_Size));
+            Expect_Next ("offset", Integer_64 (MSP_Serial_Port.Offset));
+            Expect_Next ("checksum_1", Integer_64 (MSP_Serial_Port.Checksum_1));
+            Expect_Next ("checksum_2", Integer_64 (MSP_Serial_Port.Checksum_2));
+            Expect_Next ("pending", Pending_Request'Pos (MSP_Serial_Port.Pending));
+            Expect_Next ("activity", Integer_64 (MSP_Serial_Port.Last_Activity_Ms));
+            Expect_Next ("event", Event'Pos (Ev));
+            Expect_Bits ("frame_hash",
+                         (if Ev in Command_Frame | Reply_Frame
+                          then FNV_Update (FNV_Offset_Basis, MSP_Serial_Port.Data (0 .. MSP_Serial_Port.Data_Size - 1))
+                          else 0));
+            declare
+               --  The recorded command processor: the result (none, acknowledged, error), the
+               --  reply flags, and the reply payload follow from the command, its flags, and its size.
+               Lengths : constant array (0 .. 13) of Natural :=
+                 (0, 1, 2, 5, 32, 100, 200, 248, 249, 254, 255, 256, 300, 500);
+               Cmd     : constant Natural := MSP_Serial_Port.Command_Id;
+               Sz      : constant Natural := MSP_Serial_Port.Data_Size;
+               Flg     : constant Natural := Natural (MSP_Serial_Port.Flags);
+               Sel     : constant Natural := (Cmd + Sz) mod 8;
+               Len     : constant Natural := Lengths ((Cmd * 7 + Sz * 3 + Flg) mod 14);
+               Result  : Natural := 0;
+               Tx_Len  : Natural := 0;
+               Hdr_Len : Natural := 0;
+               Length  : Positive := 1;
+               Frame   : Frame_Buffer := (others => 0);
+               Payload : Byte_Array (0 .. Max_Payload - 1) := (others => 0);
+            begin
+               if Ev = Command_Frame then
+                  Result := (if Sel = 0 then 0 elsif Sel = 1 then 2 else 1);
+                  for J in 0 .. Len - 1 loop
+                     Payload (J) := Byte ((Cmd + 3 * J + Flg + Sz) mod 256);
+                  end loop;
+                  if Result /= 0 then
+                     Encode (MSP_Serial_Port.Version, Cmd,
+                             (if Sel = 3 then Byte ((Unsigned_32 (Cmd) xor 16#5A#) mod 256) else 0),
+                             Error => Result = 2, Payload => Payload (0 .. Len - 1), Frame => Frame, Length => Length);
+                     if May_Send (Length, Tx_Empty, Tx_Free) then
+                        Tx_Len := Length;
+                        Hdr_Len := Header_Length (MSP_Serial_Port.Version, Len);
+                     end if;
+                  end if;
+               end if;
+               Expect_Next ("result", Integer_64 (Result));
+               Expect_Next ("tx_len", Integer_64 (Tx_Len));
+               Expect_Bits ("tx_hash", FNV_Update (FNV_Offset_Basis, Frame (0 .. Tx_Len - 1)));
+               Expect_Next ("hdr_len", Integer_64 (Hdr_Len));
+               for B in 0 .. Hdr_Len - 1 loop
+                  Expect_Next ("hdr", Integer_64 (Frame (B)));
+               end loop;
+            end;
+            Expect_Next ("active",
+                         Boolean'Pos (Configurator_Active (MSP_Serial_Port, MSP_Serial_Clock, Opt.Peripheral)));
+            Check_Fields;
+         end;
+      else
+         Put_Line ("unknown mspserial case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_MSP_Serial_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -4668,6 +4799,8 @@ procedure Vector_Check is
                   Check_FPORT_Line;
                elsif Kind = "mavlink" then
                   Check_MAVLink_Line;
+               elsif Kind = "mspserial" then
+                  Check_MSP_Serial_Line;
                else
                   Check_PID_Line;
                end if;
@@ -4721,6 +4854,7 @@ begin
    Run (Dir & "/srxl2.csv", "srxl2");
    Run (Dir & "/fport.csv", "fport");
    Run (Dir & "/mavlink.csv", "mavlink");
+   Run (Dir & "/mspserial.csv", "mspserial");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
