@@ -104,6 +104,7 @@ with Adaflight.SmartAudio;
 with Adaflight.LTM_Telemetry;
 with Adaflight.GPS_Lap_Timer;
 with Adaflight.MSP_Box;
+with Adaflight.Dispatch;
 
 procedure Vector_Check is
 
@@ -8523,6 +8524,113 @@ procedure Vector_Check is
       end if;
    end Check_MSP_Box_Line;
 
+   subtype DQ_Target is Adaflight.Dispatch.Target;
+   package DQ renames Adaflight.Dispatch;
+   DQ_Seq   : Integer_64 := -1;
+   DQ_Queue : DQ.Queue;
+
+   procedure Check_Dispatch_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "dqinit" then
+         DQ_Seq := Int (2);
+         DQ_Queue := (others => <>);
+      elsif Name = "dqstep" then
+         if Int (2) /= DQ_Seq then
+            Put_Line ("dispatch step without its start");
+            Failures := Failures + 1;
+            return;
+         end if;
+         declare
+            Now   : constant Unsigned_32 := Unsigned_32 (Int (7));
+            Fired : constant String := Str (8);
+            Pos   : Positive := Fired'First;
+            T     : DQ_Target;
+            Due   : Boolean;
+            Seen  : Natural := 0;
+            Want  : Natural := 0;
+         begin
+            case Int (4) is
+               when 0 =>
+                  DQ.Add (DQ_Queue, DQ_Target'Val (Int (5)), Now, Interfaces.Integer_32 (Int (6)));
+               when 2 =>
+                  --  each fired item is a target, with its requeue delay after a colon
+                  if Fired /= "-" then
+                     for C of Fired loop
+                        if C = ';' then
+                           Want := Want + 1;
+                        end if;
+                     end loop;
+                     Want := Want + 1;
+                  end if;
+                  loop
+                     DQ.Take_Due (DQ_Queue, Now, T, Due);
+                     exit when not Due;
+                     Seen := Seen + 1;
+                     if Seen > Want then
+                        Record_Int (Name & ".fired", Integer_64 (Want), Integer_64 (Seen));
+                        exit;
+                     end if;
+                     declare
+                        Item_End : Natural := Pos;
+                     begin
+                        while Item_End <= Fired'Last and then Fired (Item_End) /= ';' loop
+                           Item_End := Item_End + 1;
+                        end loop;
+                        declare
+                           Item  : constant String := Fired (Pos .. Item_End - 1);
+                           Colon : Natural := 0;
+                        begin
+                           for I in Item'Range loop
+                              if Item (I) = ':' then
+                                 Colon := I;
+                              end if;
+                           end loop;
+                           if Colon = 0 then
+                              Record_Int (Name & ".fired", Integer_64'Value (Item), Integer_64 (DQ_Target'Pos (T)));
+                           else
+                              Record_Int (Name & ".fired", Integer_64'Value (Item (Item'First .. Colon - 1)),
+                                          Integer_64 (DQ_Target'Pos (T)));
+                              DQ.Add (DQ_Queue, T, Now,
+                                      Interfaces.Integer_32 (Integer_64'Value (Item (Colon + 1 .. Item'Last))));
+                           end if;
+                        end;
+                        Pos := Item_End + 1;
+                     end;
+                  end loop;
+                  if Seen < Want then
+                     Record_Int (Name & ".fired", Integer_64 (Want), Integer_64 (Seen));
+                  end if;
+               when 3 =>
+                  DQ.Enable (DQ_Queue);
+               when others =>
+                  null;
+            end case;
+            Record_Int (Name & ".enabled", Int (9), Boolean'Pos (DQ_Queue.Enabled));
+            Record_Int (Name & ".length", Int (10), Integer_64 (DQ_Queue.Length));
+            declare
+               Order : String (1 .. DQ_Queue.Length);
+            begin
+               for I in Order'Range loop
+                  Order (I) := Character'Val (Character'Pos ('0') + DQ_Target'Pos (DQ_Queue.Queued (I)));
+               end loop;
+               if Order'Length = 0 then
+                  Record_Int (Name & ".order", (if Str (11) = "-" then 0 else 1), 0);
+               else
+                  Record_Int (Name & ".order", (if Str (11) = Order then 0 else 1), 0);
+               end if;
+            end;
+            for E in DQ_Target loop
+               Record_Int (Name & ".due", Int (12 + 2 * DQ_Target'Pos (E)), Integer_64 (DQ_Queue.Due_Us (E)));
+               Record_Int (Name & ".inq", Int (13 + 2 * DQ_Target'Pos (E)), Boolean'Pos (DQ_Queue.In_Queue (E)));
+            end loop;
+         end;
+      else
+         Put_Line ("unknown dispatch case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Dispatch_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -8687,6 +8795,8 @@ procedure Vector_Check is
                   Check_Lap_Timer_Line;
                elsif Kind = "mspbox" then
                   Check_MSP_Box_Line;
+               elsif Kind = "dispatch" then
+                  Check_Dispatch_Line;
                else
                   Check_PID_Line;
                end if;
@@ -8778,6 +8888,7 @@ begin
    Run (Dir & "/ltm.csv", "ltm");
    Run (Dir & "/laptimer.csv", "laptimer");
    Run (Dir & "/mspbox.csv", "mspbox");
+   Run (Dir & "/dispatch.csv", "dispatch");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
