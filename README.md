@@ -39,7 +39,7 @@ The core holds:
 - the accelerometer path, the barometer altitude, the compass with its bias calibration,
   the battery meters and states, and the sensor and board alignment
 - the position Kalman filter, the position estimator from the barometer, the accelerometer
-  and the GPS, and the altitude hold
+  and the GPS, the altitude hold, and the position hold
 - the cooperative scheduler, the beeper, and the receiver's channel processing
 - the SBUS, CRSF, SUMD, SUMH, IBUS, Spektrum, XBUS, Jeti EX Bus, Ghost, SRXL2 and FPORT
   protocols, and the MSP and MAVLink receivers
@@ -69,9 +69,9 @@ The core holds:
 
 The state of `main`:
 
-- The core proves at Silver and Gold: 9914 checks, nothing unproved, no
+- The core proves at Silver and Gold: 10298 checks, nothing unproved, no
   `pragma Assume`, no justified suppression (`gnatprove` 16.1.0, level 2).
-- The recorded vectors replay bit for bit: 618128 lines over 280 cases, every case
+- The recorded vectors replay bit for bit: 627140 lines over 281 cases, every case
   exact except the seventeen declared deviations in `DESIGN.md` D6.
 - No target builds yet. `ROADMAP.md` carries the parity inventory, the phases, and the
   question for after parity: whether a proved core leaves room on the F4 boards for
