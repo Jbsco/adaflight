@@ -144,6 +144,11 @@ ledger. The deviations so far:
   the oracle starts the feedforward gains below 600, gives at most two feedforward ranges
   per sequence with low dial settings, and keeps the switch channels at or above 960
   microseconds.
+- The receiver's reported RSSI is held at zero where the inverted, scaled, and offset value
+  is negative. The reference converts that value to an unsigned 16-bit count, which is
+  undefined; the target's conversion saturates to zero, and the oracle's host wraps. The
+  checker expects zero wherever the recorded value is above 32767, which no defined value
+  reaches, and the RSSI percentage of that value as zero with it.
 
 ## D7. Contribution conventions (2026-10-08)
 
@@ -654,3 +659,29 @@ record. The arming beep's time is the update's time, where the reference reads t
 again. One guard covers the reference's read past its buffer: a sequence that reaches the end
 of the buffer without a stop ends as an error and silences the beeper, where the reference
 walks into adjacent memory (finding F29). No recorded vector reaches a guard.
+
+## D40. The receiver (2026-10-09)
+
+The receiver unit carries the reference's channel processing: the raw channels of the active
+provider read through the map into flight order, the four flight channels scaled through
+their calibration ranges, which invert a channel whose low end is above its high end and
+which the type keeps from equal ends, where the reference's scale divides by zero (finding
+F31); the frame check that marks the signal and the data to process on a received frame,
+drops the signal 150 milliseconds after the last frame and asks for the loss to be processed
+and then rechecks every 50 milliseconds; the signal loss behaviour that resets a good
+channel's hold timer, holds a bad channel at its last value for 300 milliseconds and then at
+its failsafe setting, declares the flight channels invalid on a bad flight channel past that,
+applies the failsafe switch's settings at once, and in stage two keeps the valid flight
+channels and sets the failsafe throttle and the center on the others and the settings on the
+aux channels; the three-sample moving average of the pulse receivers with their suspension and
+their two skipped samples; the link quality from the last sixteen frames; and the RSSI from an
+aux channel, the frame errors over each 100 milliseconds, the analog input every 20
+milliseconds, the protocol, or the configurator with its 1.5-second timeout, smoothed toward
+its raw value with the dBm and the SNR. The frame's flags, the raw channels, the failsafe
+switch, the 3D switch, the stage, and the task's state come in; the data to process, the
+auxiliary frame to process, and the validity the failsafe hears go out, because their units
+own them. The frame error sum keeps the reference's 16-bit wrap (finding F30). Every
+conversion of a channel value to a 16-bit count holds a value outside the count at the
+bound, where the reference's conversion is undefined; the negative RSSI case is declared in
+D6, and the recorded vectors keep the pulses and the ranges where the scaled values stay
+within the count. No recorded vector reaches a guard.

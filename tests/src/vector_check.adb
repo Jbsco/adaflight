@@ -35,6 +35,7 @@ with Adaflight.Altitude_Hold;
 with Adaflight.Adjustments;
 with Adaflight.Scheduler;
 with Adaflight.Beeper;
+with Adaflight.Receiver;
 with Adaflight.Clock;
 with Adaflight.Vectors;
 with Adaflight.PWL;
@@ -2449,6 +2450,209 @@ procedure Vector_Check is
       end if;
    end Check_Beeper_Line;
 
+   Rx_State    : Adaflight.Receiver.State;
+   Rx_Settings : Adaflight.Receiver.Settings;
+   Rx_Raw      : Adaflight.Receiver.Raw_Values := (others => 0);
+   --  The frame the driver holds until a frame check that is not skipped
+   --  for a running task consumes it.
+   Rx_Frame    : Adaflight.Receiver.Frame_Report;
+
+   procedure Check_Rx_Line is
+      use Adaflight.Receiver;
+      Name : constant String := Str (1);
+      K    : Positive := 1;
+      function Next return Integer_64 is
+         V : constant Integer_64 := Int (K);
+      begin
+         K := K + 1;
+         return V;
+      end Next;
+      procedure Expect_Next (N : String; Actual : Integer_64) is
+      begin
+         Record_Int (Name & "." & N, Int (K), Actual);
+         K := K + 1;
+      end Expect_Next;
+      procedure Expect_Float_Next (N : String; Actual : Float) is
+      begin
+         Record_Result (Name & "." & N, Bits (K), To_Bits (Actual));
+         K := K + 1;
+      end Expect_Float_Next;
+      procedure Check_Fields is
+      begin
+         if K /= NF + 1 then
+            Put_Line (Name & ": consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
+            Failures := Failures + 1;
+         end if;
+      end Check_Fields;
+   begin
+      if Name = "rxinit" then
+         declare
+            Protocol_RSSI    : RSSI_Source;
+            Protocol_Quality : Link_Quality_Source;
+            Arm_Aux, Arm_Start, Arm_End : Integer;
+            Now_Ms : Unsigned_32;
+         begin
+            K := 3;
+            Rx_Settings.Source := Provider'Val (Next);
+            Rx_Settings.Reported_Channels := Integer (Next);
+            for M in Mappable_Channel loop
+               Rx_Settings.Map (M) := Integer (Next);
+            end loop;
+            for F in Flight_Channel loop
+               Rx_Settings.Ranges (F).Low := Integer (Next);
+               Rx_Settings.Ranges (F).High := Integer (Next);
+            end loop;
+            for Ch in Channel loop
+               Rx_Settings.Failsafe (Ch).Mode := Failsafe_Mode'Val (Next);
+               Rx_Settings.Failsafe (Ch).Step := Integer (Next);
+            end loop;
+            Rx_Settings.Min_Usec := Integer (Next);
+            Rx_Settings.Max_Usec := Integer (Next);
+            Rx_Settings.Mid_RC := Integer (Next);
+            Rx_Settings.Max_Aux := Integer (Next);
+            Rx_Settings.RSSI_ADC := Next /= 0;
+            Rx_Settings.RSSI_Channel := Integer (Next);
+            Rx_Settings.RSSI_Scale := Integer (Next);
+            Rx_Settings.RSSI_Offset := Integer (Next);
+            Rx_Settings.RSSI_Invert := Next /= 0;
+            Rx_Settings.RSSI_Smoothing := Integer (Next);
+            Rx_Settings.Frame_LPF_Period := Integer (Next);
+            Rx_Settings.Feature_3D := Next /= 0;
+            Rx_Settings.Switched_Mode_3D := Next /= 0;
+            Rx_Settings.Failsafe_Throttle := Integer (Next);
+            Protocol_RSSI := RSSI_Source'Val (Next);
+            Protocol_Quality := Link_Quality_Source'Val (Next);
+            Arm_Aux := Integer (Next);
+            Arm_Start := Integer (Next);
+            Arm_End := Integer (Next);
+            Now_Ms := Unsigned_32 (Next);
+            Init (Rx_State, Rx_Settings, Now_Ms, Protocol_RSSI, Protocol_Quality);
+            if Arm_Aux >= 0 then
+               Init_Arm_Switch (Rx_State, Arm_Aux, (Start_Step => Arm_Start, End_Step => Arm_End));
+            end if;
+            Rx_Raw := (others => 1500);
+            Rx_Frame := (others => False);
+            Expect_Next ("channels", Integer_64 (Rx_State.Channels));
+            Expect_Next ("rssi_source", RSSI_Source'Pos (Rx_State.RSSI_From));
+            for Ch in Channel loop
+               Expect_Float_Next ("data", Rx_State.Data (Ch));
+            end loop;
+            for F in Flight_Channel loop
+               Expect_Float_Next ("scale", Rx_State.Scales (F).Scale);
+               Expect_Float_Next ("offset", Rx_State.Scales (F).Offset);
+            end loop;
+            Check_Fields;
+         end;
+      elsif Name = "rxstep" then
+         declare
+            Now_Us : constant Unsigned_32 := Unsigned_32 (Int (4));
+            Delta_Us : constant Interfaces.Integer_32 := Interfaces.Integer_32 (Int (5));
+            Box_Failsafe : constant Boolean := Int (6) /= 0;
+            Box_3D : constant Boolean := Int (7) /= 0;
+            Failsafe_Active : constant Boolean := Int (8) /= 0;
+            Task_In_Progress : constant Boolean := Int (9) /= 0;
+            ADC_Sample : constant Natural := Integer (Int (10));
+            Events : constant Natural := Integer (Int (11));
+            Processed, Frame_Processed : Boolean;
+            Valid : Validity;
+         begin
+            K := 12;
+            for E in 1 .. Events loop
+               declare
+                  Kind : constant String := Str (K);
+                  A1   : constant Integer := Integer (Int (K + 1));
+                  A2   : constant Integer := Integer (Int (K + 2));
+               begin
+                  K := K + 3;
+                  if Kind = "f" then
+                     Rx_Frame := (Complete => A1 mod 2 = 1, Failsafe => (A1 / 2) mod 2 = 1,
+                                  Processing_Required => (A1 / 4) mod 2 = 1, Dropped => (A1 / 8) mod 2 = 1,
+                                  PPM_Received => False, PWM_Received => False);
+                  elsif Kind = "p" then
+                     Rx_Frame.PPM_Received := True;
+                  elsif Kind = "r" then
+                     Set_RSSI (Rx_State, A1, RSSI_Source'Val (A2));
+                  elsif Kind = "d" then
+                     Set_RSSI_Direct (Rx_State, A1, RSSI_Source'Val (A2));
+                  elsif Kind = "m" then
+                     Set_RSSI_MSP (Rx_State, A1, Now_Us);
+                  elsif Kind = "b" then
+                     Set_RSSI_Dbm (Rx_State, A1, RSSI_Source'Val (A2));
+                  elsif Kind = "n" then
+                     Set_RSNR (Rx_State, A1);
+                  elsif Kind = "q" then
+                     Set_Link_Quality_Direct (Rx_State, A1);
+                  elsif Kind = "s" then
+                     Suspend (Rx_State, Rx_Settings, Now_Us);
+                  elsif Kind = "u" then
+                     Resume (Rx_State, Rx_Settings, Now_Us);
+                  else
+                     Put_Line ("rxstep: unknown event " & Kind);
+                     Failures := Failures + 1;
+                  end if;
+               end;
+            end loop;
+            for Ch in Channel loop
+               Rx_Raw (Ch) := Integer (Next);
+            end loop;
+            Frame_Check (Rx_State, Rx_Settings, Now_Us, Delta_Us, Task_In_Progress, Rx_Frame);
+            if not Task_In_Progress then
+               Rx_Frame := (others => False);
+            end if;
+            Calculate_Channels (Rx_State, Rx_Settings, Now_Us, Now_Us / 1_000, Rx_Raw, Box_Failsafe, Box_3D,
+                                Failsafe_Active, Processed, Frame_Processed, Valid);
+            Update_RSSI (Rx_State, Rx_Settings, Now_Us, ADC_Sample);
+            Expect_Next ("processed", Boolean'Pos (Processed));
+            Expect_Next ("frame_processed", Boolean'Pos (Frame_Processed));
+            Expect_Next ("valid_received", Boolean'Pos (Valid = Data_Received));
+            Expect_Next ("valid_failed", Boolean'Pos (Valid = Data_Failed));
+            Expect_Next ("signal", Boolean'Pos (Rx_State.Signal_Received));
+            Expect_Next ("flight_valid", Boolean'Pos (Rx_State.Flight_Valid));
+            Expect_Next ("processing_required", Boolean'Pos (Rx_State.Processing_Required));
+            Expect_Next ("aux_required", Boolean'Pos (Rx_State.Aux_Required));
+            Expect_Next ("skip", Integer_64 (Rx_State.Skip_Samples));
+            Expect_Next ("need_before", Integer_64 (Rx_State.Need_Signal_Before));
+            Expect_Next ("suspend_until", Integer_64 (Rx_State.Suspend_Until));
+            Expect_Next ("sample_index", Integer_64 (Rx_State.Sample_Index));
+            Expect_Next ("rssi", Integer_64 (Rx_State.RSSI));
+            Expect_Next ("rssi_raw", Integer_64 (Rx_State.RSSI_Raw));
+            --  A negative reported RSSI wraps on the oracle's host where the target saturates to zero (DESIGN.md D6).
+            declare
+               Wrapped : constant Boolean := Int (K) > 32_767;
+            begin
+               Record_Int (Name & ".rssi_out", (if Wrapped then 0 else Int (K)),
+                           Integer_64 (RSSI (Rx_State, Rx_Settings)));
+               K := K + 1;
+               Record_Int (Name & ".rssi_percent", (if Wrapped then 0 else Int (K)),
+                           Integer_64 (RSSI_Percent (Rx_State, Rx_Settings)));
+               K := K + 1;
+            end;
+            Expect_Next ("link_quality", Integer_64 (Rx_State.Link_Quality));
+            Expect_Next ("rssi_dbm", Integer_64 (Rx_State.RSSI_Dbm));
+            Expect_Next ("rsnr", Integer_64 (Rx_State.RSNR));
+            Expect_Next ("lq_percent", Integer_64 (Link_Quality_Percent (Rx_State)));
+            Expect_Next ("last_smoothing", Integer_64 (Rx_State.Last_Smoothing_Us));
+            Expect_Next ("rssi_source", RSSI_Source'Pos (Rx_State.RSSI_From));
+            for Ch in Channel loop
+               Expect_Float_Next ("data", Rx_State.Data (Ch));
+            end loop;
+            Check_Fields;
+         end;
+      elsif Name = "rxdump" then
+         K := 4;
+         for Ch in Channel loop
+            Expect_Float_Next ("raw", Rx_State.Raw (Ch));
+         end loop;
+         for Ch in Channel loop
+            Expect_Next ("valid_until", Integer_64 (Rx_State.Valid_Until_Ms (Ch)));
+         end loop;
+         Check_Fields;
+      else
+         Put_Line ("unknown rx case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Rx_Line;
+
    Alt_State    : Adaflight.Altitude_Estimator.State;
    Alt_Settings : Adaflight.Altitude_Estimator.Settings;
    Alt_Present  : Boolean := False;
@@ -3340,6 +3544,8 @@ procedure Vector_Check is
                   Check_Sched_Line;
                elsif Kind = "beeper" then
                   Check_Beeper_Line;
+               elsif Kind = "rx" then
+                  Check_Rx_Line;
                else
                   Check_PID_Line;
                end if;
@@ -3380,6 +3586,7 @@ begin
    Run (Dir & "/adjust.csv", "adjust");
    Run (Dir & "/sched.csv", "sched");
    Run (Dir & "/beeper.csv", "beeper");
+   Run (Dir & "/rx.csv", "rx");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
