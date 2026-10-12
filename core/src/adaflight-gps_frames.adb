@@ -738,10 +738,9 @@ package body Adaflight.GPS_Frames with SPARK_Mode is
       Clock_From_Solution (R, Clock_Has_Time, Clock);
    end Parse_Velned;
 
-   --  A complete message by class and id. The configuration reply that
-   --  makes the module transmit (CFG-GNSS) belongs with the configuration
-   --  and is passed over here. New_Solution needs a new position and a new
-   --  speed together.
+   --  A complete message by class and id. The GNSS configuration reply
+   --  raises its flag for the link, which answers it. New_Solution needs a
+   --  new position and a new speed together.
    procedure Parse_Message (R : in out Receiver; Clock_Has_Time : Boolean; New_Solution : out Boolean;
                             Clock : in out Clock_Request) is
       Known : Boolean := True;
@@ -787,6 +786,12 @@ package body Adaflight.GPS_Frames with SPARK_Mode is
                when others =>
                   Known := False;
             end case;
+         when 16#06# =>
+            if R.UBX.Id = 16#3E# then
+               R.UBX.Gnss_Reply := True;
+            else
+               Known := False;
+            end if;
          when 16#0A# =>
             if R.UBX.Id = 16#04# then
                Parse_Version (R.UBX);

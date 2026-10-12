@@ -144,6 +144,7 @@ package Adaflight.GPS_Frames with SPARK_Mode is
       Almost_Done  : Boolean := False;
       Ack          : Ack_State := Idle;
       Ack_Message  : Unsigned_8 := 0;
+      Gnss_Reply   : Boolean := False;
       Version      : Platform := Undefined;
       M7_Or_Above  : Boolean := False;
       M8_Or_Above  : Boolean := False;
@@ -159,6 +160,10 @@ package Adaflight.GPS_Frames with SPARK_Mode is
       NMEA          : NMEA_Decoder;
       UBX           : UBX_Decoder;
    end record;
+
+   --  The interval between solutions from the time of week, held between
+   --  50 and 2500 milliseconds.
+   procedure Nav_Interval (R : in out Receiver);
 
    --  One byte of an NMEA stream. New_Solution reports a GGA sentence that
    --  passed its parity. Clock carries the setting an RMC sentence asks for
