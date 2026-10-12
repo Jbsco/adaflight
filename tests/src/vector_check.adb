@@ -30,7 +30,7 @@ with Adaflight.Battery;
 with Adaflight.Arming;
 with Adaflight.Compass;
 with Adaflight.Position_Filter;
-with Adaflight.Altitude_Estimator;
+with Adaflight.Position_Estimator;
 with Adaflight.Altitude_Hold;
 with Adaflight.Adjustments;
 with Adaflight.Scheduler;
@@ -2765,20 +2765,21 @@ procedure Vector_Check is
       end if;
    end Check_SBUS_Line;
 
-   Alt_State    : Adaflight.Altitude_Estimator.State;
-   Alt_Settings : Adaflight.Altitude_Estimator.Settings;
+   Alt_State    : Adaflight.Position_Estimator.State;
+   Alt_Settings : Adaflight.Position_Estimator.Settings;
    Alt_Present  : Boolean := False;
-   Alt_One_G_Reciprocal : Adaflight.Altitude_Estimator.Acc_Scale := 1.0 / 4_096.0;
+   Alt_One_G_Reciprocal : Adaflight.Position_Estimator.Acc_Scale := 1.0 / 4_096.0;
 
    procedure Check_Altitude_Line is
-      use Adaflight.Altitude_Estimator;
+      use Adaflight.Position_Estimator;
       Name : constant String := Str (1);
    begin
       if Name = "altinit" then
          Alt_Settings := (Source         => Altitude_Source'Val (Int (3)),
                           Prefer_Baro    => Integer (Int (4)),
                           Altitude_LPF   => Integer (Int (5)),
-                          Derivative_LPF => Integer (Int (6)));
+                          Derivative_LPF => Integer (Int (6)),
+                          Horizontal     => Auto);
          Alt_Present := Int (7) /= 0;
          Alt_One_G_Reciprocal := Flt (8);
          Init (Alt_State, Alt_Settings, Armed => False);
@@ -7438,6 +7439,147 @@ procedure Vector_Check is
       end if;
    end Check_GPS_Link_Line;
 
+   Pos_State            : Adaflight.Position_Estimator.State;
+   Pos_Settings         : Adaflight.Position_Estimator.Settings;
+   Pos_Baro_Present     : Boolean := False;
+   Pos_GPS_Present      : Boolean := False;
+   Pos_One_G_Reciprocal : Float := 1.0 / 4096.0;
+
+   procedure Check_Posest_Line is
+      use Adaflight.Position_Estimator;
+      Name : constant String := Str (1);
+   begin
+      if Name = "posinit" then
+         Pos_Settings := (Source         => Altitude_Source'Val (Int (3)),
+                          Prefer_Baro    => Integer (Int (4)),
+                          Altitude_LPF   => Integer (Int (5)),
+                          Derivative_LPF => Integer (Int (6)),
+                          Horizontal     => Horizontal_Source'Val (Int (7)));
+         Pos_Baro_Present := Int (8) /= 0;
+         Pos_GPS_Present := Int (9) /= 0;
+         Pos_One_G_Reciprocal := Flt (10);
+         Init (Pos_State, Pos_Settings, Armed => False);
+         Record_Result ("posinit.altitude_k", Bits (11), To_Bits (Pos_State.Altitude_Filter.K));
+         Record_Result ("posinit.derivative_k", Bits (12), To_Bits (Pos_State.Derivative_Filter.K));
+      elsif Name = "posstep" then
+         declare
+            Inp   : Inputs;
+            K     : Positive := 39;
+            Taken : Boolean;
+            procedure Expect_Float (N : String; Actual : Float) is
+            begin
+               Record_Result ("posstep." & N, Bits (K), To_Bits (Actual));
+               K := K + 1;
+            end Expect_Float;
+            procedure Expect_Int (N : String; Actual : Integer_64) is
+            begin
+               Record_Int ("posstep." & N, Int (K), Actual);
+               K := K + 1;
+            end Expect_Int;
+            procedure Expect_Filter (N : String; F : Adaflight.Position_Filter.Filter) is
+            begin
+               for Comp in Adaflight.Position_Filter.Component loop
+                  Expect_Float (N & ".x", F.X (Comp));
+               end loop;
+               for Row in Adaflight.Position_Filter.Component loop
+                  for Col in Adaflight.Position_Filter.Component loop
+                     Expect_Float (N & ".p", F.P (Row, Col));
+                  end loop;
+               end loop;
+            end Expect_Filter;
+         begin
+            Inp.Now_Us := Interfaces.Unsigned_32 (Int (4));
+            Inp.Armed := Int (5) /= 0;
+            Inp.Baro_Altitude_Cm := Flt (6);
+            Inp.Baro_Sample_Time_Us := Interfaces.Unsigned_32 (Int (7));
+            Inp.Baro_Interval_Us := Interfaces.Integer_32 (Int (8));
+            Inp.Acc := (X => Flt (9), Y => Flt (10), Z => Flt (11));
+            for Row in Adaflight.Vectors.Coordinate loop
+               for Col in Adaflight.Vectors.Coordinate loop
+                  Inp.Rotation (Row, Col) :=
+                    Flt (12 + 3 * Adaflight.Vectors.Coordinate'Pos (Row) + Adaflight.Vectors.Coordinate'Pos (Col));
+               end loop;
+            end loop;
+            Inp.Baro_Present := Pos_Baro_Present;
+            Inp.One_G_Reciprocal := Pos_One_G_Reciprocal;
+            Inp.GPS_Present := Pos_GPS_Present;
+            Inp.GPS_Fix := Int (21) /= 0;
+            Inp.GPS_Stamp := Interfaces.Unsigned_16 (Int (22));
+            Inp.GPS_Rate_Hz := Flt (23);
+            Inp.GPS_Location := (Lat => I32 (24), Lon => I32 (25), Alt_Cm => I32 (26));
+            Inp.GPS_Velocity_North := Interfaces.Integer_16 (Int (27));
+            Inp.GPS_Velocity_East := Interfaces.Integer_16 (Int (28));
+            Inp.GPS_Velocity_Down := Interfaces.Integer_16 (Int (29));
+            Inp.GPS_H_Acc := Interfaces.Unsigned_32 (Int (30));
+            Inp.GPS_S_Acc := Interfaces.Unsigned_32 (Int (31));
+            Inp.GPS_V_Acc := Interfaces.Unsigned_32 (Int (32));
+            Inp.Cos_Lat := Flt (33);
+            Inp.Position_Hold_Mode := Int (34) /= 0;
+            Inp.Rescue_Mode := Int (35) /= 0;
+            if Int (36) = 1 then
+               Take_Update (Pos_State, Consumer'Val (Int (37)), Taken);
+               Record_Int ("posstep.taken", Int (38), Boolean'Pos (Taken));
+            elsif Int (36) = 2 then
+               Enable_XY (Pos_State, Inp, True);
+            end if;
+            Update (Pos_State, Pos_Settings, Inp);
+            Expect_Filter ("up", Pos_State.Up);
+            Expect_Filter ("east", Pos_State.East);
+            Expect_Filter ("north", Pos_State.North);
+            Expect_Float ("baro_offset", Pos_State.Baro_Offset_Cm);
+            Expect_Int ("baro_offset_set", Boolean'Pos (Pos_State.Baro_Offset_Set));
+            Expect_Int ("baro_available", Boolean'Pos (Pos_State.Baro_Data_Available));
+            Expect_Int ("baro_timestamp", Integer_64 (Pos_State.Baro_Timestamp_Us));
+            Expect_Int ("baro_hold", Integer_64 (Pos_State.Baro_Hold_Us));
+            Expect_Float ("gate_last", Pos_State.Baro_Gate.Last_Accepted_Cm);
+            Expect_Int ("gate_reference", Boolean'Pos (Pos_State.Baro_Gate.Has_Reference));
+            Expect_Int ("gate_rejects", Integer_64 (Pos_State.Baro_Gate.Rejects));
+            Expect_Float ("baro_raw", Pos_State.Baro_Raw_Cm);
+            Expect_Int ("xy_enabled", Boolean'Pos (Pos_State.XY_Enabled));
+            Expect_Int ("last_xy", Integer_64 (Pos_State.Last_XY_Measurement_Us));
+            Expect_Int ("gps_stamp", Integer_64 (Pos_State.GPS_Stamp));
+            Expect_Int ("gps_available", Boolean'Pos (Pos_State.GPS_Data_Available));
+            Expect_Int ("gps_received", Integer_64 (Pos_State.GPS_Received_At_Us));
+            Expect_Int ("gps_hold", Integer_64 (Pos_State.GPS_Hold_Us));
+            Expect_Int ("origin_set", Boolean'Pos (Pos_State.Origin_Set));
+            Expect_Int ("origin_lat", Integer_64 (Pos_State.Origin.Lat));
+            Expect_Int ("origin_lon", Integer_64 (Pos_State.Origin.Lon));
+            Expect_Int ("origin_alt", Integer_64 (Pos_State.Origin.Alt_Cm));
+            Expect_Float ("gps_alt_offset", Pos_State.GPS_Alt_Offset_Cm);
+            Expect_Int ("gps_alt_offset_set", Boolean'Pos (Pos_State.GPS_Alt_Offset_Set));
+            Expect_Float ("anchor_tau", Pos_State.GPS_Anchor_Tau_S);
+            Expect_Int ("last_z", Integer_64 (Pos_State.Last_Z_Measurement_Us));
+            Expect_Int ("valid_z", Boolean'Pos (Pos_State.Valid_Z));
+            Expect_Int ("valid_xy", Boolean'Pos (Pos_State.Valid_XY));
+            Expect_Float ("trust_z", Pos_State.Trust_Z);
+            Expect_Float ("trust_xy", Pos_State.Trust_XY);
+            Expect_Float ("position_east", Pos_State.Position_East);
+            Expect_Float ("position_north", Pos_State.Position_North);
+            Expect_Float ("position_up", Pos_State.Position_Up);
+            Expect_Float ("velocity_east", Pos_State.Velocity_East);
+            Expect_Float ("velocity_north", Pos_State.Velocity_North);
+            Expect_Float ("velocity_up", Pos_State.Velocity_Up);
+            Expect_Float ("acceleration_east", Pos_State.Acceleration_East);
+            Expect_Float ("acceleration_north", Pos_State.Acceleration_North);
+            Expect_Float ("acceleration_up", Pos_State.Acceleration_Up);
+            Expect_Int ("heading_required", Boolean'Pos (Heading_Required (Pos_Settings, Inp)));
+            Expect_Float ("altitude", Pos_State.Filtered_Altitude_Cm);
+            Expect_Float ("derivative", Pos_State.Filtered_Derivative);
+            Expect_Float ("control_altitude", Pos_State.Control_Altitude_Cm);
+            Expect_Float ("control_derivative", Pos_State.Control_Derivative);
+            Expect_Float ("control_acceleration", Pos_State.Control_Acceleration);
+            Expect_Int ("estimated", Integer_64 (Estimated_Altitude_Cm (Pos_State)));
+            if K /= NF + 1 then
+               Put_Line ("posstep: consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
+               Failures := Failures + 1;
+            end if;
+         end;
+      else
+         Put_Line ("unknown posest case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Posest_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -7584,6 +7726,8 @@ procedure Vector_Check is
                   Check_UBX_Config_Line;
                elsif Kind = "gpslink" then
                   Check_GPS_Link_Line;
+               elsif Kind = "posest" then
+                  Check_Posest_Line;
                else
                   Check_PID_Line;
                end if;
@@ -7666,6 +7810,7 @@ begin
    Run (Dir & "/gps.csv", "gps");
    Run (Dir & "/ubxcfg.csv", "ubxcfg");
    Run (Dir & "/gpslink.csv", "gpslink");
+   Run (Dir & "/posest.csv", "posest");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");

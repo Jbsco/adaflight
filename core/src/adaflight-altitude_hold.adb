@@ -23,7 +23,7 @@ package body Adaflight.Altitude_Hold with SPARK_Mode is
       else Hover_Default);
 
    function Held (V : Float) return Altitude_Cm is
-     (Constrain_F (V, -Altitude_Estimator.Altitude_Cm'Last, Altitude_Estimator.Altitude_Cm'Last));
+     (Constrain_F (V, -Altitude_Cm'Last, Altitude_Cm'Last));
 
    function Climb_Limit_Of (S : State) return Climb_Rate_Cms is
      (if S.Emergency_Rate > 0.0 then S.Emergency_Rate else S.Max_Climb_Rate);
