@@ -1200,3 +1200,24 @@ The sensors present and the configuration are settings of the stream; the cell v
 counter and the fix memory are its state. The ESC branches of the temperature and the rate are
 the ones the default build compiles. The unit is SPARK for the output buffer and the narrowing
 arithmetic.
+## D64. iBus telemetry sensors (2026-10-11)
+
+The iBus telemetry unit carries the reference's sensor protocol and its port handler: the
+receiver polls the half-duplex line with four byte requests of a length, a command with the
+address in its low nibble and a two byte checksum, and the link answers from a table of fifteen
+sensor ids, the first nonzero address polled becoming the base of the table, an address below
+the base, past the table or at an empty entry getting no answer. The three commands answer the
+discovery with the address, the type with the id and its length, and the measurement with the
+value: two bytes for most sensors, four for the pressure, the positions and the altitudes, and
+the parts in turn for the three combined sensors. The values follow the reference's conversions
+and narrowing: the temperature in tenths offset by forty degrees from the barometer when present,
+else from the gyro; the throttle, zero with the motors stopped, or the capacity as the rate; the
+mode code with the last matching flag deciding; the accelerations in thousandths of a g; the
+attitude in hundredths of a degree wrapping past the sixteen bits; the GPS values zero without
+the sensor or a fix, the status always carrying the fix type and the satellites; the pressure
+with the temperature in its high bits. The bytes received pass a four byte window, the echo of
+each answer skipped by its length, and a request is seen when the window's length byte is two
+to four and the checksum over that many bytes less two matches its last two bytes; the
+reference sums past the window for other length bytes (finding F80), so those never match here.
+Every byte offered is taken, and an answer that would not fit the output is dropped, which no
+recorded vector reaches. The unit is SPARK for the window, the frame and the output indexes.

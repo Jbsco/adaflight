@@ -75,6 +75,7 @@ with Adaflight.ESC_Sensor;
 with Adaflight.SmartPort_Telemetry;
 with Adaflight.RunCam_Device;
 with Adaflight.FrSky_Hub_Telemetry;
+with Adaflight.IBus_Telemetry;
 
 procedure Vector_Check is
 
@@ -5934,6 +5935,84 @@ procedure Vector_Check is
       end if;
    end Check_FrSky_Hub_Line;
 
+   IB_Seq  : Integer_64 := -1;
+   IB_Link : Adaflight.IBus_Telemetry.Link;
+   IB_Set  : Adaflight.IBus_Telemetry.Settings;
+
+   procedure Check_IBus_Telemetry_Line is
+      use Adaflight.IBus_Telemetry;
+      Name : constant String := Str (1);
+   begin
+      if Name = "ibusinit" then
+         IB_Seq := Int (2);
+         IB_Link := (others => <>);
+         IB_Set := (others => <>);
+         for I in Sensor_Table'Range loop
+            IB_Set.Sensors (I) := Interfaces.Unsigned_8 (Int (3 + I));
+         end loop;
+         IB_Set.Report_Cell_Voltage := Int (18) = 1;
+         IB_Set.Acc_1G_Rec := Flt (19);
+      elsif Name = "ibusstep" then
+         if Int (2) /= IB_Seq then
+            Put_Line ("ibus telemetry step without its start");
+            Failures := Failures + 1;
+            return;
+         end if;
+         declare
+            Inp   : Inputs;
+            Modes : constant Integer_64 := Int (14);
+            O     : Output;
+
+            function Flag (Bit : Natural) return Boolean is ((Modes / 2 ** Bit) mod 2 = 1);
+         begin
+            Inp.Voltage_Cv := Interfaces.Unsigned_16 (Int (4));
+            Inp.Cell_Cv := Interfaces.Unsigned_16 (Int (5));
+            Inp.Amperage_Ca := I32 (6);
+            Inp.Capacity := Interfaces.Unsigned_16 (Int (7));
+            Inp.Percent := Interfaces.Unsigned_8 (Int (8));
+            Inp.Mah_Drawn := I32 (9);
+            Inp.Armed := Int (10) = 1;
+            Inp.Throttle_Low := Int (11) = 1;
+            Inp.Motor_Stop := Int (12) = 1;
+            Inp.Throttle := Flt (13);
+            Inp.Angle_Like := Flag (0) or else Flag (3) or else Flag (5);
+            Inp.Passthru := Flag (8);
+            Inp.Headfree_Or_Mag := Flag (2) or else Flag (6);
+            Inp.Horizon := Flag (1);
+            Inp.Failsafe := Flag (10);
+            Inp.Acc_X := Flt (15);
+            Inp.Acc_Y := Flt (16);
+            Inp.Acc_Z := Flt (17);
+            Inp.Roll := Interfaces.Integer_16 (Int (18));
+            Inp.Pitch := Interfaces.Integer_16 (Int (19));
+            Inp.Yaw := Interfaces.Integer_16 (Int (20));
+            Inp.Baro_Present := Int (21) = 1;
+            Inp.Baro_Temperature := I32 (22);
+            Inp.Baro_Pressure := I32 (23);
+            Inp.Baro_Altitude := Flt (24);
+            Inp.Gyro_Temperature := Interfaces.Integer_16 (Int (25));
+            Inp.Vario_Cms := Interfaces.Integer_16 (Int (26));
+            Inp.GPS_Present := Int (27) = 1;
+            Inp.Fix := Int (28) = 1;
+            Inp.Num_Sat := Interfaces.Unsigned_8 (Int (29));
+            Inp.Ground_Speed := Interfaces.Unsigned_16 (Int (30));
+            Inp.Ground_Course := Interfaces.Unsigned_16 (Int (31));
+            Inp.Lat := I32 (32);
+            Inp.Lon := I32 (33);
+            Inp.Alt_Cm := I32 (34);
+            Inp.Distance_Home := Interfaces.Unsigned_16 (Int (35));
+            Update (IB_Link, IB_Set, Inp, Hex_Bytes (37), O);
+            Record_Bytes (Name & ".tx", Hex_Bytes (39), O.Tx (0 .. O.Count - 1));
+            Record_Int (Name & ".base", Int (40), Integer_64 (IB_Link.Base_Address));
+            Record_Int (Name & ".ignore", Int (41), Integer_64 (IB_Link.Ignore));
+            Record_Bytes (Name & ".window", Hex_Bytes (42), IB_Link.Window);
+         end;
+      else
+         Put_Line ("unknown ibus telemetry case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_IBus_Telemetry_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -6044,6 +6123,8 @@ procedure Vector_Check is
                   Check_RunCam_Line;
                elsif Kind = "frskyhub" then
                   Check_FrSky_Hub_Line;
+               elsif Kind = "ibustlm" then
+                  Check_IBus_Telemetry_Line;
                else
                   Check_PID_Line;
                end if;
@@ -6108,6 +6189,7 @@ begin
    Run (Dir & "/sport.csv", "sport");
    Run (Dir & "/rcdevice.csv", "rcdevice");
    Run (Dir & "/frskyhub.csv", "frskyhub");
+   Run (Dir & "/ibustlm.csv", "ibustlm");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
