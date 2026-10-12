@@ -1739,3 +1739,25 @@ is the two start bytes, the frame letter, the little-endian fields and the exclu
 fields. The mode code follows the precedence of the flags: passthrough, headfree, angle,
 horizon, rescue, position hold, altitude hold, then rate. The port handling that enables the
 stream belongs to the caller, which passes the enable. Every recorded vector replays exactly.
+
+## D88. The GPS lap timer (2026-10-12)
+
+The GPS lap timer unit carries the reference's gate timer over the fixes the platform hands
+it: the position, the fix time in milliseconds, the cosine of the latitude the GPS link keeps
+for the local flat earth, and the reset switch's state. Every fix first takes the distance and
+bearing to the gate through the GPS link's flat-earth arithmetic (D80), the bearing through
+the fast arctangent in hundredths of a degree. While the gate is being set the fix joins a
+running average of up to a thousand readings whose sums live in the timer in 64 bits, bounded
+by the readings counted so the averages fit the gate; the count moves before the sums so the
+bound holds at every step, which the reference's order leaves unobservable, and the quotient
+is held at the coordinate bound it never reaches. Ending the set writes the averaged gate into
+the settings. The reset switch clears the gate from the settings and every lap figure but
+keeps the circle tracking, as the reference's file statics do. A lap is looked for while the
+timer is stopped or the shortest lap has passed since the last one: inside the gate's circle
+the closest approach and its time are tracked, and leaving the circle records a lap from that
+time, moves the three previous laps along, keeps the best lap and the best sum of three in a
+row, and restarts the timer from the closest approach. The lap count and the sums wrap in
+sixteen and thirty-two bits as the reference's do. The harness replays 20000 steps over ten
+courses that loop through the gate, hover at it while it is set, pulse the reset, cap the
+readings and wrap the millisecond clock, and checks every figure, the file-level state and the
+settings' gate.
