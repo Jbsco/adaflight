@@ -1677,3 +1677,30 @@ levels in dBm and in milliwatts through the C library's power function, and the 
 for the ground link. The table value sent as the power is its low byte (finding F67). The menu
 hooks and the debug print of the reference are not ported. Every recorded vector replays
 exactly.
+
+## D85. The video transmitter settings update and control (2026-10-11)
+
+`Adaflight.VTX` keeps the configured band, channel, power, frequency, pit mode frequency and
+low power disarm policy as settings the caller holds, since the sticks, the switches and the
+receiver change them at run time. The start makes the settings whole: the frequency of a
+configured band and channel, and a pit mode frequency raised to the user range, each asking
+for the settings to be stored. Each task call outside the menu brings one parameter to the
+device, moving through the power, the band and channel (or the frequency when no band is
+configured), the pit mode and a confirmation of the device state, and stopping at the first
+parameter that needed a change; the device is then driven while disarmed or while a change is
+pending. The settings in force put the pit mode frequency and the default power in place at
+the pit mode switch, and the default power while disarmed outside failsafe under the low
+power policy. The pit mode follows the switch's edges while disarmed and the device reports
+its status, except when a pit mode frequency is configured. The common layer over the one
+device selects a band and channel through the table, sends the device the band and channel of
+a factory band or the frequency of another, and reads band and channel back from the device
+or, while a non-factory band is selected, from the device's frequency through the table; the
+outputs keep their values when the device has none. A control word from the Spektrum
+receiver, once per change, sets band and channel through the table, the power through the
+device's steps and the pit mode at once, and stores the settings when they moved. The stick
+commands step the band or channel bytes without bounds (finding F69) and lock from the first
+arm on; the switch conditions apply in order, the later one winning a field, band and channel
+only until the first arm, the power always; the cycle commands step from the device's band,
+channel and power and wrap within the table, the power below the level count (finding F71). A
+Spektrum band past the five known ones is not a table band (finding F70). Every recorded
+vector replays exactly.
