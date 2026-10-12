@@ -53,12 +53,13 @@ The core holds:
 - the Ghost telemetry frames
 - the race transponder codings and their repeat schedule
 - the SRXL telemetry frames with the text generator
+- the FrSky OSD device link
 
 The state of `main`:
 
-- The core proves at Silver and Gold: 8213 checks, nothing unproved, no
+- The core proves at Silver and Gold: 8524 checks, nothing unproved, no
   `pragma Assume`, no justified suppression (`gnatprove` 16.1.0, level 2).
-- The recorded vectors replay bit for bit: 435384 lines over 253 cases, every case
+- The recorded vectors replay bit for bit: 446244 lines over 255 cases, every case
   exact except the seventeen declared deviations in `DESIGN.md` D6.
 - No target builds yet. `ROADMAP.md` carries the parity inventory, the phases, and the
   question for after parity: whether a proved core leaves room on the F4 boards for
