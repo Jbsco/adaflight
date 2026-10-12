@@ -1134,7 +1134,7 @@ motor's reading or age it. Current and consumption from such a source are bounde
 predicate so the sums over every motor fit, which the serial frames' sixteen bit values
 always do. The frame fill never passes the frame size by the same predicate. Every recorded
 vector replays exactly.
-## D38. The SmartPort telemetry stream (2026-10-11)
+## D61. The SmartPort telemetry stream (2026-10-11)
 
 `Adaflight.SmartPort_Telemetry` answers the receiver's polls on the half-duplex line. The value
 table is built once from the sensors enabled in the configuration and the sensors present: the
