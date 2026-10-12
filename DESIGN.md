@@ -990,3 +990,26 @@ the count changes. The telemetry ratio value is a byte, so the standard marker r
 the disarmed marker one, as the sync packet carries them. The CRC table entry is computed per
 byte instead of held in a table of 256 words, the same function of the byte. The receiver's
 packet handling, the connection states, and the telemetry link follow in their own units.
+## D55. The ExpressLRS telemetry link (2026-10-11)
+
+`Adaflight.ExpressLRS_Telemetry` carries a telemetry frame to the transmitter and assembles the
+transmitter's MSP frames, five bytes per packet each way, with the stubborn confirm scheme of
+the link. The sender keeps the frame under way (copied in, up to the 64 bytes of a CRSF frame),
+the chunk position, the size of the last chunk handed out, the package number, the confirm bit
+it awaits, and the count of wrong bits against a limit. A telemetry slot takes the next chunk
+with its package number: the resync marker (63) while resyncing, zero for the last chunk of a
+frame of more than one, else the package number. The transmitter's bit comes back in every
+packet: the awaited value advances the frame, flips the awaited bit, and ends the frame or,
+after a first package, waits for one more confirm so the transmitter can tell a new frame from a
+resend. A wrong bit counts, and past the limit the sender resyncs. A frame set while another is
+under way resyncs first. The limit is the packets between telemetry slots (the ratio times one
+plus the burst, over the burst) times twenty missed packets, eighty at reset. The receiver takes
+the transmitter's chunks by package number: the marker restarts the frame and flips its bit, the
+expected package or a final package is taken and flips the bit, a first package in mid frame
+restarts the frame, and a package after the last is ignored until the caller unlocks it. Proof
+covers both buffers through predicates on the records: the position never passes the length, so
+a chunk copied in or out stays within the frame. The sender's advance by the last chunk is held
+at the length, which a frame replaced between the chunk and its confirm could pass; the protocol
+never does, since the transmitter flips its bit only for a chunk it received. The CRSF frames
+the sender carries, the device info reply, and the MSP frame handling behind the receiver come
+with the CRSF telemetry port.
