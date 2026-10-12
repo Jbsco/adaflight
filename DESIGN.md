@@ -763,3 +763,28 @@ predicate. A byte is kept only while the frame has room. The reference writes pa
 when a zero byte before any sync is known is followed by more than thirty-one bytes without a
 gap (finding F33). The telemetry reply itself is Phase 6, and the serial port stays with the
 port layer. No recorded vector reaches the guard.
+## D45. The Spektrum protocols (2026-10-10)
+
+The Spektrum unit carries the reference's DSM receiver for its two resolutions and the SRXL
+variant. Each byte arrives with its time. A gap over five milliseconds starts a new frame, and
+the sixteenth byte completes the frame at its own time. The status poll takes a complete frame
+once and fills the RSSI channel first. For SRXL the RSSI channel comes from the dBm report in
+the first byte, held through four fades and dropped to the minimum at the fifth, through the
+range table onto the resolution. For a satellite receiver it comes from the fade count: one
+byte with the system type while the receiver reads as bound by the flight controller, and two
+bytes once a frame says otherwise. The count is differenced over the half second and mapped
+from the fade limit down to zero, with the reference's sixteen-bit conversion wrapping it. The
+poll then takes the VTX control word from the last four bytes of a first-phase frame for the
+VTX layer and leaves those bytes out of the channels. The channel pairs that remain are decoded
+by the resolution's shift and mask into the channels below the count, and the RSSI channel is
+skipped. A first-phase frame opens the SRXL telemetry request. Once a queued reply has waited
+a millisecond after the request, the poll asks for processing, which sends the reply and clears
+it. The raw value is zero past the channel count, half the count plus 988 at the high
+resolution, and the count plus 988 otherwise. The settings give the provider, whether the
+telemetry feature is on with the port unshared, and the one-based RSSI channel. A channel past
+the count is dropped, as the reference's byte wrap drops zero. The range table's interpolation
+runs on typed intermediates sized from the table, so it proves without clamps. The fade
+mapping's wrap is the reference's own. The VTX control handling, the telemetry content, the
+bind pulses, and the serial port stay with their layers. The reference assembles the VTX
+control word with a shift that overflows a signed integer on every control frame (finding
+F34). The unit shifts the unsigned word. No guard was needed.
