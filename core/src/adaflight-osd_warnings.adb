@@ -1,4 +1,3 @@
-with Adaflight.Maths;
 with Adaflight.Text;
 
 package body Adaflight.OSD_Warnings with SPARK_Mode is
@@ -9,8 +8,6 @@ package body Adaflight.OSD_Warnings with SPARK_Mode is
    Beacon_Guard_Delay_Us : constant := 1_200_000;
    Rescue_Warning_Us     : constant := 5_000_000;
    Symbol_Temperature    : constant Character := Character'Val (16#7A#);
-   Symbol_Celsius        : constant Character := Character'Val (16#0E#);
-   Symbol_Fahrenheit     : constant Character := Character'Val (16#0D#);
 
    function To_Int32 (U : Unsigned_32) return Integer_32 is
      (if U >= 2 ** 31 then Integer_32 (Interfaces.Integer_64 (U) - 2 ** 32) else Integer_32 (U));
@@ -180,10 +177,6 @@ package body Adaflight.OSD_Warnings with SPARK_Mode is
 
    function Capacity_Alarm (C : Settings; In_Flight : Inputs) return Natural is
      (if In_Flight.Battery_Capacity > 0 then In_Flight.Battery_Capacity else C.Cap_Alarm);
-
-   function Temperature_In_Units (C : Settings; Celsius : Integer_16) return Integer_32 is
-     (if C.Units = Imperial then Integer_32 (Adaflight.Maths.Round_Half_Even (Float (Celsius) * 9.0 / 5.0 + 32.0))
-      else Integer_32 (Celsius));
 
    procedure Render (S : in out State; C : Settings; In_Flight : Inputs; Line : out Text; Blinking : out Boolean;
                      Attr : out Severity; Beeper_Shown : out Boolean) is
@@ -369,8 +362,10 @@ package body Adaflight.OSD_Warnings with SPARK_Mode is
       end if;
       if C.Enabled (Core_Temperature) and then Integer (In_Flight.Core_Temperature) >= C.Core_Temp_Alarm then
          Set (Line, "CORE " & Symbol_Temperature & ": ");
-         Append_Integer_Width_3 (Line, Temperature_In_Units (C, In_Flight.Core_Temperature));
-         Append (Line, (1 => (if C.Units = Imperial then Symbol_Fahrenheit else Symbol_Celsius)));
+         Append_Integer_Width_3
+           (Line, Integer_32 (Adaflight.OSD_Format.Temperature_In_Units (Integer (In_Flight.Core_Temperature),
+                                                                         C.Units)));
+         Append (Line, (1 => Adaflight.OSD_Format.Temperature_Symbol (C.Units)));
          Attr := Warning;
          Blinking := True;
          return;
