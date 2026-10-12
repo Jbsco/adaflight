@@ -84,6 +84,7 @@ with Adaflight.LED_Strip;
 with Adaflight.Color;
 with Adaflight.Rangefinder;
 with Adaflight.Optical_Flow;
+with Adaflight.Pitot;
 
 procedure Vector_Check is
 
@@ -6664,6 +6665,55 @@ procedure Vector_Check is
       end if;
    end Check_Optical_Flow_Line;
 
+   PT_Seq    : Integer_64 := -1;
+   PT_Config : Adaflight.Pitot.Settings;
+   PT_Sensor : Adaflight.Pitot.Sensor;
+
+   procedure Check_Pitot_Line is
+      use Adaflight.Pitot;
+      Name : constant String := Str (1);
+   begin
+      if Name = "ptinit" then
+         PT_Seq := Int (2);
+         PT_Config := (Hardware => Source'Val (Int (3)));
+         Init (PT_Sensor, PT_Config, Int (4) /= 0);
+         Record_Int (Name & ".i2cready", Int (5), (if PT_Sensor.I2C_Ready then 1 else 0));
+      elsif Name = "ptstep" then
+         if Int (2) /= PT_Seq then
+            Put_Line ("pitot step without its start");
+            Failures := Failures + 1;
+            return;
+         end if;
+         declare
+            Inp : constant Inputs := (Now_Us          => Interfaces.Unsigned_32 (Int (4)),
+                                      Armed           => Int (5) /= 0,
+                                      I2C_Read        => Int (6) /= 0,
+                                      I2C_Pressure    => Flt (7),
+                                      I2C_Temperature => Flt (8),
+                                      Can_Frame       => Int (9) /= 0,
+                                      Can_Pressure    => Flt (10),
+                                      Can_Temperature => Flt (11),
+                                      Can_Update_Us   => Interfaces.Unsigned_32 (Int (12)));
+         begin
+            if Int (13) /= 0 then
+               Start_Calibration (PT_Sensor);
+            end if;
+            Update (PT_Sensor, PT_Config, Inp);
+            Record_Int (Name & ".active", Int (14), Integer_64 (Source'Pos (PT_Sensor.Active)));
+            Record_Result (Name & ".airspeed", Bits (15), To_Bits (PT_Sensor.Airspeed));
+            Record_Result (Name & ".diff", Bits (16), To_Bits (PT_Sensor.Diff_Pressure));
+            Record_Result (Name & ".temp", Bits (17), To_Bits (PT_Sensor.Temperature));
+            Record_Result (Name & ".zero", Bits (18), To_Bits (PT_Sensor.Pressure_Zero));
+            Record_Int (Name & ".calcount", Int (19), Integer_64 (PT_Sensor.Calibration_Count));
+            Record_Int (Name & ".calibrated", Int (20), (if Is_Calibrated (PT_Sensor) then 1 else 0));
+            Record_Int (Name & ".lastvalid", Int (21), Integer_64 (PT_Sensor.Last_Valid_Us));
+         end;
+      else
+         Put_Line ("unknown pitot case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Pitot_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -6792,6 +6842,8 @@ procedure Vector_Check is
                   Check_Rangefinder_Line;
                elsif Kind = "opticalflow" then
                   Check_Optical_Flow_Line;
+               elsif Kind = "pitot" then
+                  Check_Pitot_Line;
                else
                   Check_PID_Line;
                end if;
@@ -6865,6 +6917,7 @@ begin
    Run (Dir & "/ledstrip.csv", "ledstrip");
    Run (Dir & "/rangefinder.csv", "rangefinder");
    Run (Dir & "/opticalflow.csv", "opticalflow");
+   Run (Dir & "/pitot.csv", "pitot");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
