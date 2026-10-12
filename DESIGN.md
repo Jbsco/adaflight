@@ -888,3 +888,30 @@ bytes. The unit reads the same bytes from the same buffer so the recorded vector
 kept as the reference has it. The baud rate the unit asks of the port is kept as its own field,
 where the reference asks the port back. The telemetry content, the MSP and VTX handling, the
 serial port, and the idle callback's source stay with their layers. No guard was needed.
+
+## D51. The FPORT protocol (2026-10-10)
+
+The FPORT unit carries the FrSky FPORT receiver. Each serial byte arrives with its time. A
+marker byte closes the frame in progress when it holds two bytes or more. The frame goes into
+a ring of three buffers when the ring has room, a telemetry request opens the reply window and
+stamps its time, and the marker starts the next frame. A byte after the escape has its fifth
+bit flipped, the byte in the type position marks a telemetry request, and a byte is kept
+while the frame has room. A frame older than the frame time plus half a millisecond is
+dropped, and so is one that outgrows its buffer. The status poll takes one frame from the
+ring. The frame counts when its length byte agrees with the frame and the FrSky checksum
+folds to all ones. A control frame decodes its channels and flags through the SBUS channel
+block, which the SBUS unit now exposes for both protocols, scales its RSSI from a percentage
+onto the receiver's range, stamps the control time, and keeps its start as the frame time
+unless the receiver flags failsafe or a signal loss. A telemetry request counts only while
+the telemetry layer is on. A data frame hands the frame rate to the receiver and asks for a
+reply. A null frame asks for a reply until two have gone unanswered while the receiver does
+not drive the rate, unless an MSP payload waits. A read or write frame keeps its payload for
+the telemetry layer. The poll asks for processing when a reply or a payload waits and half a
+millisecond has passed since the window opened, and it drops the RSSI to zero half a second
+after the last control frame. The processing closes the window two milliseconds after it
+opened, consults the telemetry layer while it is open, sends the empty reply when the layer
+left the window unused, and consumes the payload. The reply's bytes, the telemetry content,
+the MSP handling, and the serial port stay with their layers. A reply the telemetry layer
+writes drops the frame in progress through Begin_Reply. The raw value is the SBUS fit of the
+channel count. The ring indices, the frame position, and the escape and request flags keep
+the state the recorded vectors see. No guard was needed.

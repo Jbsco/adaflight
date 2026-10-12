@@ -62,6 +62,7 @@ with Adaflight.Jeti_Ex_Bus;
 with Adaflight.GHST;
 with Adaflight.MSP_Receiver;
 with Adaflight.SRXL2;
+with Adaflight.FPORT;
 
 procedure Vector_Check is
 
@@ -4373,6 +4374,101 @@ procedure Vector_Check is
       end if;
    end Check_SRXL2_Line;
 
+   FPORT_State    : Adaflight.FPORT.State;
+   FPORT_Rx       : Adaflight.Receiver.State;
+   FPORT_Settings : Adaflight.Receiver.Settings;
+   FPORT_Clock    : Unsigned_32 := 0;
+
+   procedure Check_FPORT_Line is
+      use Adaflight.FPORT;
+      Name : constant String := Str (1);
+      K    : Positive := 1;
+      procedure Expect_Next (N : String; Actual : Integer_64) is
+      begin
+         Record_Int (Name & "." & N, Int (K), Actual);
+         K := K + 1;
+      end Expect_Next;
+      procedure Check_Fields is
+      begin
+         if K /= NF + 1 then
+            Put_Line (Name & ": consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
+            Failures := Failures + 1;
+         end if;
+      end Check_Fields;
+   begin
+      if Name = "fportinit" then
+         FPORT_Settings := (others => <>);
+         FPORT_Settings.Mid_RC := Integer (Int (3));
+         FPORT_Settings.RSSI_Smoothing := Integer (Int (4));
+         FPORT_Clock := Unsigned_32 (Int (6));
+         Adaflight.Receiver.Init (FPORT_Rx, FPORT_Settings, FPORT_Clock / 1_000,
+                                  Adaflight.Receiver.Rx_Protocol, Adaflight.Receiver.None);
+         Init (FPORT_State, Integer (Int (3)), Telemetry => Int (5) /= 0);
+         K := 7;
+         Expect_Next ("rssi_source", Adaflight.Receiver.RSSI_Source'Pos (FPORT_Rx.RSSI_From));
+         for Ch in Channel loop
+            Expect_Next ("data", Integer_64 (FPORT_State.Data (Ch)));
+         end loop;
+         Check_Fields;
+      elsif Name = "fportstep" then
+         declare
+            Count   : constant Natural := Integer (Int (4));
+            Status  : Adaflight.Receiver.Frame_Report;
+            Result  : Process_Outputs;
+            Handled : Boolean;
+         begin
+            K := 5;
+            for B in 1 .. Count loop
+               FPORT_Clock := FPORT_Clock + Unsigned_32 (Int (K));
+               Receive_Byte (FPORT_State, Integer (Int (K + 1)), FPORT_Clock);
+               K := K + 2;
+            end loop;
+            Handled := Int (K) /= 0;
+            FPORT_Clock := Unsigned_32 (Int (K + 1));
+            K := K + 2;
+            if Int (K) /= 0 then
+               K := K + 1;
+               Frame_Status (FPORT_State, FPORT_Rx, FPORT_Clock, Status);
+               Expect_Next ("status",
+                            (if Status.Complete then 1 else 0) + (if Status.Failsafe then 2 else 0)
+                            + (if Status.Processing_Required then 4 else 0) + (if Status.Dropped then 8 else 0));
+               if Status.Processing_Required then
+                  FPORT_Clock := FPORT_Clock + Unsigned_32 (Int (K));
+                  Process_Frame (FPORT_State, FPORT_Clock, Handled, Result);
+               end if;
+               K := K + 1;
+            else
+               K := K + 3;
+            end if;
+            Expect_Next ("write_index", Integer_64 (FPORT_State.Write_Index));
+            Expect_Next ("read_index", Integer_64 (FPORT_State.Read_Index));
+            Expect_Next ("position", Integer_64 (FPORT_State.Position));
+            Expect_Next ("clear_to_send", Boolean'Pos (FPORT_State.Clear_To_Send));
+            Expect_Next ("telemetry_at", Integer_64 (FPORT_State.Last_Telemetry_At_Us));
+            Expect_Next ("has_msp", Boolean'Pos (FPORT_State.Has_MSP));
+            Expect_Next ("msp_frame_id", (if FPORT_State.Has_MSP then Integer_64 (FPORT_State.MSP.Frame_Id) else 0));
+            Expect_Next ("msp_value_id", (if FPORT_State.Has_MSP then Integer_64 (FPORT_State.MSP.Value_Id) else 0));
+            Expect_Next ("msp_data", (if FPORT_State.Has_MSP then Integer_64 (FPORT_State.MSP.Data) else 0));
+            Expect_Next ("control_at_ms", Integer_64 (FPORT_State.Last_Control_At_Ms));
+            Expect_Next ("frame_time", Integer_64 (FPORT_State.Last_Frame_Time_Us));
+            Expect_Next ("consulted", Boolean'Pos (Result.Consulted));
+            Expect_Next ("consulted_with_payload", Boolean'Pos (Result.Consulted_With_Payload));
+            Expect_Next ("sent_empty", Boolean'Pos (Result.Sent_Empty_Reply));
+            Expect_Next ("rssi", Integer_64 (FPORT_Rx.RSSI));
+            Expect_Next ("rssi_raw", Integer_64 (FPORT_Rx.RSSI_Raw));
+            for Ch in Channel loop
+               Expect_Next ("data", Integer_64 (FPORT_State.Data (Ch)));
+               Record_Result (Name & ".raw", Bits (K), To_Bits (Read_Raw (FPORT_State, Ch)));
+               K := K + 1;
+            end loop;
+            Check_Fields;
+         end;
+      else
+         Put_Line ("unknown fport case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_FPORT_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -4457,6 +4553,8 @@ procedure Vector_Check is
                   Check_MSP_Rx_Line;
                elsif Kind = "srxl2" then
                   Check_SRXL2_Line;
+               elsif Kind = "fport" then
+                  Check_FPORT_Line;
                else
                   Check_PID_Line;
                end if;
@@ -4508,6 +4606,7 @@ begin
    Run (Dir & "/ghst.csv", "ghst");
    Run (Dir & "/msp.csv", "msprx");
    Run (Dir & "/srxl2.csv", "srxl2");
+   Run (Dir & "/fport.csv", "fport");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
