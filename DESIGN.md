@@ -1134,3 +1134,24 @@ motor's reading or age it. Current and consumption from such a source are bounde
 predicate so the sums over every motor fit, which the serial frames' sixteen bit values
 always do. The frame fill never passes the frame size by the same predicate. Every recorded
 vector replays exactly.
+## D61. The SmartPort telemetry stream (2026-10-11)
+
+`Adaflight.SmartPort_Telemetry` answers the receiver's polls on the half-duplex line. The value
+table is built once from the sensors enabled in the configuration and the sensors present: the
+mode words, the core temperature, the battery and cell voltages, the current with the fuel and
+the charge used, the heading, the attitude and the accelerations, the altitude and the climb
+rate, and with the GPS feature the ground speed, the two coordinate words, the home distance and
+the GPS altitude; the ESC table holds the voltage, current, rate and temperature ids that the
+configuration leaves to the ESCs. Received bytes are reassembled through the start byte, the
+sensor id and the escaped payload with its checksum, and a poll of this sensor's id as the last
+byte waiting clears the stream to send; the bytes are read up to the first complete payload and
+the count taken is returned, so the caller offers the rest again. Once cleared, the next value
+goes out within the attempts the caller allows, which stand for the reference's time budget of
+one millisecond: the table position moves on each attempt, every seventh value comes from the
+ESC table over each motor and the combined reading in turn, and a value with nothing to report
+(a GPS value without a fix, an ESC value without a reading, the mode word without a source)
+passes its turn. The frame is the frame id, the value id, the value and the FrSky checksum,
+each byte escaped when it is one of the two reserved bytes. The table positions count in a byte
+as the reference does, and a read past the table gives no value (finding F75); the table holds
+all twenty-one ids a configuration can enable (finding F76). The MSP tunnel over the stream waits
+for the MSP serial port. Every recorded vector replays exactly.
