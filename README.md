@@ -69,12 +69,13 @@ The core holds:
 - the video transmitter table, the SmartAudio and Tramp drivers, and the transmitter settings
   update with the stick, switch and Spektrum control
 - the LTM telemetry stream
+- the GPS lap timer with its averaged gate and its best three laps
 
 The state of `main`:
 
-- The core proves at Silver and Gold: 10878 checks, nothing unproved, no
+- The core proves at Silver and Gold: 10960 checks, nothing unproved, no
   `pragma Assume`, no justified suppression (`gnatprove` 16.1.0, level 2).
-- The recorded vectors replay bit for bit: 682980 lines over 289 cases, every case
+- The recorded vectors replay bit for bit: 702990 lines over 290 cases, every case
   exact except the eighteen declared deviations in `DESIGN.md` D6.
 - No target builds yet. `ROADMAP.md` carries the parity inventory, the phases, and the
   question for after parity: whether a proved core leaves room on the F4 boards for
