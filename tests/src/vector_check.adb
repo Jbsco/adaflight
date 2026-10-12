@@ -76,6 +76,7 @@ with Adaflight.SmartPort_Telemetry;
 with Adaflight.RunCam_Device;
 with Adaflight.FrSky_Hub_Telemetry;
 with Adaflight.IBus_Telemetry;
+with Adaflight.HoTT_Telemetry;
 
 procedure Vector_Check is
 
@@ -163,7 +164,7 @@ procedure Vector_Check is
    end Record_Int;
 
    Max_Fields : constant := 1000;
-   type Fields is array (1 .. Max_Fields) of String (1 .. 400);
+   type Fields is array (1 .. Max_Fields) of String (1 .. 600);
    type Field_Lengths is array (1 .. Max_Fields) of Natural;
 
    F  : Fields;
@@ -6013,6 +6014,81 @@ procedure Vector_Check is
       end if;
    end Check_IBus_Telemetry_Line;
 
+   HT_Seq     : Integer_64 := -1;
+   HT_Link    : Adaflight.HoTT_Telemetry.Link;
+   HT_Set     : Adaflight.HoTT_Telemetry.Settings;
+   HT_Pending : Byte_Array (0 .. 4095) := (others => 0);
+   HT_Count   : Natural := 0;
+
+   procedure Check_HoTT_Line is
+      use Adaflight.HoTT_Telemetry;
+      Name : constant String := Str (1);
+
+      function State (I : Positive) return Battery_State is
+        (case Int (I) is when 0 => OK, when 1 => Warning, when 2 => Critical, when 3 => Not_Present,
+         when others => Init_State);
+   begin
+      if Name = "hottinit" then
+         HT_Seq := Int (2);
+         HT_Count := 0;
+         HT_Set := (Alarm_Interval_S => Interfaces.Unsigned_8 (Int (3)), GPS_Present => Int (4) = 1);
+         Init (HT_Link);
+         Record_Bytes (Name & ".eam", Hex_Bytes (5), HT_Link.EAM);
+         Record_Bytes (Name & ".gps", Hex_Bytes (6), HT_Link.GPS);
+      elsif Name = "hottstep" then
+         if Int (2) /= HT_Seq then
+            Put_Line ("hott step without its start");
+            Failures := Failures + 1;
+            return;
+         end if;
+         declare
+            Inp : Inputs;
+            Rx  : constant Byte_Array := HT_Pending (0 .. HT_Count - 1) & Hex_Bytes (21);
+            O   : Output;
+         begin
+            Inp.Now_Us := Interfaces.Unsigned_32 (Int (4));
+            Inp.Now_Ms := Interfaces.Unsigned_32 (Int (5));
+            Inp.Voltage_Dv := Interfaces.Unsigned_16 (Int (6));
+            Inp.Voltage_State := State (7);
+            Inp.Consumption_State := State (8);
+            Inp.Amperage_Ca := I32 (9);
+            Inp.Mah_Drawn := I32 (10);
+            Inp.Altitude_Cm := I32 (11);
+            Inp.Vario_Cms := Interfaces.Integer_16 (Int (12));
+            Inp.Fix := Int (13) = 1;
+            Inp.Num_Sat := Interfaces.Unsigned_8 (Int (14));
+            Inp.Lat := I32 (15);
+            Inp.Lon := I32 (16);
+            Inp.Ground_Speed := Interfaces.Unsigned_16 (Int (17));
+            Inp.Distance_Home := Interfaces.Unsigned_16 (Int (18));
+            Inp.Direction_Home := Interfaces.Integer_16 (Int (19));
+            Update (HT_Link, HT_Set, Inp, Rx, O);
+            if O.Sent then
+               Record_Bytes (Name & ".tx", Hex_Bytes (23), Byte_Array'(0 => O.B));
+            else
+               Record_Int (Name & ".tx", Int (22), 0);
+            end if;
+            Record_Int (Name & ".consumed", Int (24), Integer_64 (O.Consumed));
+            Record_Int (Name & ".sending", Int (25), (if HT_Link.Sending then 1 else 0));
+            Record_Int (Name & ".kind", Int (26), Integer_64 (Message_Kind'Pos (HT_Link.Pending)));
+            Record_Int (Name & ".position", Int (27),
+                        (if HT_Link.Pending = No_Message then 0 else Integer_64 (HT_Link.Position)));
+            Record_Int (Name & ".remaining", Int (28), Integer_64 (HT_Link.Remaining));
+            Record_Int (Name & ".crc", Int (29), Integer_64 (HT_Link.Crc));
+            Record_Int (Name & ".lastrequest", Int (30), Integer_64 (HT_Link.Last_Request_Us));
+            Record_Int (Name & ".lastprepared", Int (31), Integer_64 (HT_Link.Last_Prepared_Us));
+            Record_Int (Name & ".lastalarm", Int (32), Integer_64 (HT_Link.Last_Alarm_Ms));
+            Record_Bytes (Name & ".eam", Hex_Bytes (33), HT_Link.EAM);
+            Record_Bytes (Name & ".gps", Hex_Bytes (34), HT_Link.GPS);
+            HT_Count := Rx'Length - O.Consumed;
+            HT_Pending (0 .. HT_Count - 1) := Rx (Rx'First + O.Consumed .. Rx'Last);
+         end;
+      else
+         Put_Line ("unknown hott case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_HoTT_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -6125,6 +6201,8 @@ procedure Vector_Check is
                   Check_FrSky_Hub_Line;
                elsif Kind = "ibustlm" then
                   Check_IBus_Telemetry_Line;
+               elsif Kind = "hott" then
+                  Check_HoTT_Line;
                else
                   Check_PID_Line;
                end if;
@@ -6190,6 +6268,7 @@ begin
    Run (Dir & "/rcdevice.csv", "rcdevice");
    Run (Dir & "/frskyhub.csv", "frskyhub");
    Run (Dir & "/ibustlm.csv", "ibustlm");
+   Run (Dir & "/hott.csv", "hott");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
