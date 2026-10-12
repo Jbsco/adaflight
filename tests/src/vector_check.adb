@@ -83,6 +83,7 @@ with Adaflight.FrSky_OSD;
 with Adaflight.LED_Strip;
 with Adaflight.Color;
 with Adaflight.Rangefinder;
+with Adaflight.Optical_Flow;
 
 procedure Vector_Check is
 
@@ -6620,6 +6621,49 @@ procedure Vector_Check is
       end if;
    end Check_Rangefinder_Line;
 
+   OF_Seq    : Integer_64 := -1;
+   OF_Sensor : Adaflight.Optical_Flow.Sensor;
+
+   procedure Check_Optical_Flow_Line is
+      use Adaflight.Optical_Flow;
+      Name : constant String := Str (1);
+   begin
+      if Name = "ofinit" then
+         OF_Seq := Int (2);
+         Init (OF_Sensor, (Rotation_Degrees => Interfaces.Unsigned_16 (Int (3)), Flip_X => Int (4) /= 0),
+               Flt (7), Flt (8), Gyro_Delay (Int (5)), Interfaces.Unsigned_32 (Int (6)));
+         Record_Int (Name & ".quality", Int (9), Integer_64 (OF_Sensor.Quality));
+         Record_Int (Name & ".stamp", Int (10), Integer_64 (OF_Sensor.Time_Stamp_Us));
+      elsif Name = "ofstep" then
+         if Int (2) /= OF_Seq then
+            Put_Line ("optical flow step without its start");
+            Failures := Failures + 1;
+            return;
+         end if;
+         declare
+            D      : constant Sample := (Time_Stamp_Us => Interfaces.Unsigned_32 (Int (5)),
+                                         Quality       => Interfaces.Integer_16 (Int (6)),
+                                         Flow_X        => Flt (7),
+                                         Flow_Y        => Flt (8));
+            Now_Us : constant Interfaces.Unsigned_32 := Interfaces.Unsigned_32 (Int (4));
+         begin
+            Process (OF_Sensor, D, Flt (9), Flt (10));
+            Record_Int (Name & ".quality", Int (11), Integer_64 (OF_Sensor.Quality));
+            Record_Result (Name & ".rawx", Bits (12), To_Bits (OF_Sensor.Raw_Flow.X));
+            Record_Result (Name & ".rawy", Bits (13), To_Bits (OF_Sensor.Raw_Flow.Y));
+            Record_Result (Name & ".procx", Bits (14), To_Bits (OF_Sensor.Processed_Flow.X));
+            Record_Result (Name & ".procy", Bits (15), To_Bits (OF_Sensor.Processed_Flow.Y));
+            Record_Int (Name & ".xvalid", Int (16), (if OF_Sensor.X_Valid then 1 else 0));
+            Record_Int (Name & ".yvalid", Int (17), (if OF_Sensor.Y_Valid then 1 else 0));
+            Record_Int (Name & ".stamp", Int (18), Integer_64 (OF_Sensor.Time_Stamp_Us));
+            Record_Int (Name & ".healthy", Int (19), (if Is_Healthy (OF_Sensor, Now_Us) then 1 else 0));
+         end;
+      else
+         Put_Line ("unknown optical flow case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Optical_Flow_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -6746,6 +6790,8 @@ procedure Vector_Check is
                   Check_LED_Strip_Line;
                elsif Kind = "rangefinder" then
                   Check_Rangefinder_Line;
+               elsif Kind = "opticalflow" then
+                  Check_Optical_Flow_Line;
                else
                   Check_PID_Line;
                end if;
@@ -6818,6 +6864,7 @@ begin
    Run (Dir & "/frskyosd.csv", "frskyosd");
    Run (Dir & "/ledstrip.csv", "ledstrip");
    Run (Dir & "/rangefinder.csv", "rangefinder");
+   Run (Dir & "/opticalflow.csv", "opticalflow");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
