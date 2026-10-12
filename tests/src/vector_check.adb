@@ -60,6 +60,7 @@ with Adaflight.Spektrum;
 with Adaflight.XBUS;
 with Adaflight.Jeti_Ex_Bus;
 with Adaflight.GHST;
+with Adaflight.MSP_Receiver;
 
 procedure Vector_Check is
 
@@ -4167,6 +4168,84 @@ procedure Vector_Check is
       end if;
    end Check_GHST_Line;
 
+   MSP_Rx_State : Adaflight.MSP_Receiver.State;
+   MSP_Rx_Clock : Unsigned_32 := 0;
+
+   procedure Check_MSP_Rx_Line is
+      use Adaflight.MSP_Receiver;
+      Name : constant String := Str (1);
+      K    : Positive := 1;
+      procedure Expect_Next (N : String; Actual : Integer_64) is
+      begin
+         Record_Int (Name & "." & N, Int (K), Actual);
+         K := K + 1;
+      end Expect_Next;
+      procedure Check_Fields is
+      begin
+         if K /= NF + 1 then
+            Put_Line (Name & ": consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
+            Failures := Failures + 1;
+         end if;
+      end Check_Fields;
+   begin
+      if Name = "mspinit" then
+         Init (MSP_Rx_State);
+         MSP_Rx_Clock := Unsigned_32 (Int (3));
+         K := 4;
+         Expect_Next ("count", Channel_Count);
+         for Ch in Channel loop
+            Expect_Next ("data", Integer_64 (MSP_Rx_State.Data (Ch)));
+         end loop;
+         Check_Fields;
+      elsif Name = "mspstep" then
+         declare
+            Has_Frame : constant Boolean := Int (4) /= 0;
+            Count     : constant Count_Range := Integer (Int (5));
+            Frame     : Channel_Data;
+            Status    : Adaflight.Receiver.Frame_Report;
+            Complete  : Boolean := False;
+         begin
+            K := 6;
+            for Ch in Channel loop
+               Frame (Ch) := Integer (Int (K));
+               K := K + 1;
+            end loop;
+            if Has_Frame then
+               Frame_Receive (MSP_Rx_State, Frame, Count, Unsigned_32 (Int (K)) / 1_000);
+            end if;
+            MSP_Rx_Clock := Unsigned_32 (Int (K + 1));
+            K := K + 2;
+            if Int (K) /= 0 then
+               Frame_Status (MSP_Rx_State, MSP_Rx_Clock, Status);
+               Expect_Next ("polled", 1);
+               Expect_Next ("status", Boolean'Pos (Status.Complete));
+            else
+               K := K + 2;
+            end if;
+            if Int (K) /= 0 then
+               Override_Frame_Status (MSP_Rx_State, Complete);
+               Expect_Next ("override_polled", 1);
+               Expect_Next ("override_status", Boolean'Pos (Complete));
+            else
+               K := K + 2;
+            end if;
+            Expect_Next ("frame_time", Integer_64 (MSP_Rx_State.Last_Frame_Time_Us));
+            for Ch in Channel loop
+               Expect_Next ("fresh", Boolean'Pos (Is_Channel_Fresh (MSP_Rx_State, Ch, MSP_Rx_Clock / 1_000)));
+            end loop;
+            for Ch in Channel loop
+               Expect_Next ("data", Integer_64 (MSP_Rx_State.Data (Ch)));
+               Record_Result (Name & ".raw", Bits (K), To_Bits (Read_Raw (MSP_Rx_State, Ch)));
+               K := K + 1;
+            end loop;
+            Check_Fields;
+         end;
+      else
+         Put_Line ("unknown msp receiver case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_MSP_Rx_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -4247,6 +4326,8 @@ procedure Vector_Check is
                   Check_Jeti_Line;
                elsif Kind = "ghst" then
                   Check_GHST_Line;
+               elsif Kind = "msprx" then
+                  Check_MSP_Rx_Line;
                else
                   Check_PID_Line;
                end if;
@@ -4296,6 +4377,7 @@ begin
    Run (Dir & "/xbus.csv", "xbus");
    Run (Dir & "/jeti.csv", "jeti");
    Run (Dir & "/ghst.csv", "ghst");
+   Run (Dir & "/msp.csv", "msprx");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
