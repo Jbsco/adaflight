@@ -1155,3 +1155,27 @@ each byte escaped when it is one of the two reserved bytes. The table positions 
 as the reference does, and a read past the table gives no value (finding F75); the table holds
 all twenty-one ids a configuration can enable (finding F76). The MSP tunnel over the stream waits
 for the MSP serial port. Every recorded vector replays exactly.
+## D62. RunCam device protocol (2026-10-11)
+
+The RunCam device unit carries the reference's device protocol and camera control: the packet of
+header, command, data and a checksum over all of them, and the five byte command of the older
+cameras with its high-first checksum computed with the tail in the checksum's place; at the start
+the device information request with the configured retries and interval, and after its last
+failure the older command sent once; one request at a time waiting for its reply, the reply taken
+from its header byte to the expected length, checked, parsed, and dropped on success, sent again
+at the timeout while retries remain, else parsed as timed out; the camera's own requests parsed
+from the bytes a waiting request leaves, the attitude request answered with roll, pitch and the
+yaw in whole degrees as little-endian words; the three camera buttons once per switch activation,
+the wifi and mode buttons held while armed or while arming is blocked by a runaway takeoff or a
+crash; and the five key cable from the sticks: the connection opened with yaw high and closed with
+yaw low at centred throttle, roll and pitch, the keys from roll and pitch while in the menu, the
+set key from yaw high, the release when the three sticks return to centre, each with the beep the
+connection result asks for. The bytes a call does not take are offered again, as the reference's
+port keeps them, and a request flushes them all before it is sent, whether or not the one slot is
+free. Three reference behaviours are kept: an unsupported request parks the parser in an invalid
+state and the 200 ms reset returns it to the command state (finding F77); the older-protocol
+request after a failed device information request never waits for its reply (finding F78); and a
+reply failing its checksum leaves the request waiting with its count full, where the unit stops
+storing at the buffer's end and the reference writes past it (finding F79). With the port closed
+a call does nothing, as the task never runs then. The unit is SPARK for the reply and request
+buffers, whose indexes the reference does not bound.
