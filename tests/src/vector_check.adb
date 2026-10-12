@@ -36,6 +36,7 @@ with Adaflight.Adjustments;
 with Adaflight.Scheduler;
 with Adaflight.Beeper;
 with Adaflight.Receiver;
+with Adaflight.SBUS;
 with Adaflight.Clock;
 with Adaflight.Vectors;
 with Adaflight.PWL;
@@ -2653,6 +2654,76 @@ procedure Vector_Check is
       end if;
    end Check_Rx_Line;
 
+   SBUS_State : Adaflight.SBUS.State;
+   SBUS_Clock : Unsigned_32 := 0;
+
+   procedure Check_SBUS_Line is
+      use Adaflight.SBUS;
+      Name : constant String := Str (1);
+      K    : Positive := 1;
+      procedure Expect_Next (N : String; Actual : Integer_64) is
+      begin
+         Record_Int (Name & "." & N, Int (K), Actual);
+         K := K + 1;
+      end Expect_Next;
+      procedure Check_Fields is
+      begin
+         if K /= NF + 1 then
+            Put_Line (Name & ": consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
+            Failures := Failures + 1;
+         end if;
+      end Check_Fields;
+   begin
+      if Name = "sbusinit" then
+         Init (SBUS_State, Integer (Int (3)));
+         SBUS_Clock := Unsigned_32 (Int (4));
+         K := 5;
+         for Ch in Channel loop
+            Expect_Next ("data", Integer_64 (SBUS_State.Data (Ch)));
+         end loop;
+         Check_Fields;
+      elsif Name = "sbusburst" then
+         declare
+            Count  : constant Natural := Integer (Int (4));
+            Status : Adaflight.Receiver.Frame_Report;
+            Polled : Boolean;
+            Code   : Integer_64 := 0;
+         begin
+            K := 5;
+            for B in 1 .. Count loop
+               SBUS_Clock := SBUS_Clock + Unsigned_32 (Int (K));
+               Receive_Byte (SBUS_State, Integer (Int (K + 1)), SBUS_Clock);
+               K := K + 2;
+            end loop;
+            SBUS_Clock := Unsigned_32 (Int (K));
+            K := K + 1;
+            Polled := Int (K + 4) /= 0;
+            if Polled then
+               Frame_Status (SBUS_State, Status);
+               Code := (if Status.Complete then 1 else 0) + (if Status.Failsafe then 2 else 0)
+                 + (if Status.Dropped then 8 else 0);
+               Expect_Next ("status", Code);
+            else
+               K := K + 1;
+            end if;
+            Expect_Next ("position", Integer_64 (SBUS_State.Frame.Position));
+            Expect_Next ("done", Boolean'Pos (SBUS_State.Frame.Done));
+            Expect_Next ("start_at", Integer_64 (SBUS_State.Frame.Start_At_Us));
+            K := K + 1;
+            Expect_Next ("frame_time", Integer_64 (SBUS_State.Last_Frame_Time_Us));
+            for Ch in Channel loop
+               Expect_Next ("data", Integer_64 (SBUS_State.Data (Ch)));
+               Record_Result (Name & ".raw", Bits (K), To_Bits (Read_Raw (SBUS_State, Ch)));
+               K := K + 1;
+            end loop;
+            Check_Fields;
+         end;
+      else
+         Put_Line ("unknown sbus case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_SBUS_Line;
+
    Alt_State    : Adaflight.Altitude_Estimator.State;
    Alt_Settings : Adaflight.Altitude_Estimator.Settings;
    Alt_Present  : Boolean := False;
@@ -3546,6 +3617,8 @@ procedure Vector_Check is
                   Check_Beeper_Line;
                elsif Kind = "rx" then
                   Check_Rx_Line;
+               elsif Kind = "sbus" then
+                  Check_SBUS_Line;
                else
                   Check_PID_Line;
                end if;
@@ -3587,6 +3660,7 @@ begin
    Run (Dir & "/sched.csv", "sched");
    Run (Dir & "/beeper.csv", "beeper");
    Run (Dir & "/rx.csv", "rx");
+   Run (Dir & "/sbus.csv", "sbus");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");

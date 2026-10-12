@@ -33,12 +33,12 @@ the barometer altitude, the compass with its bias calibration, the battery meter
 states, the sensor and board alignment, the arming logic with launch control and runaway
 takeoff prevention, the angle and horizon level modes, the position Kalman filter, the
 altitude estimator, the altitude hold, the in-flight adjustments, the simplified tuning
-of the PID gains, the cooperative scheduler, the beeper, and the receiver's channel
-processing.
+of the PID gains, the cooperative scheduler, the beeper, the receiver's channel
+processing, and the SBUS protocol.
 
-- The core proves at Silver and Gold: 5103 checks, nothing unproved, no
+- The core proves at Silver and Gold: 5133 checks, nothing unproved, no
   `pragma Assume`, no justified suppression (`gnatprove` 16.1.0, level 2).
-- The recorded vectors replay bit for bit: 214128 lines over 175 cases, every case
+- The recorded vectors replay bit for bit: 219148 lines over 177 cases, every case
   exact except the seventeen declared deviations in `DESIGN.md` D6.
 - No target builds yet. `ROADMAP.md` carries the parity inventory and the phases.
 

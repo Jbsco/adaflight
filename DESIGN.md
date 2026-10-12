@@ -685,3 +685,17 @@ conversion of a channel value to a 16-bit count holds a value outside the count 
 bound, where the reference's conversion is undefined; the negative RSSI case is declared in
 D6, and the recorded vectors keep the pulses and the ranges where the scaled values stay
 within the count. No recorded vector reaches a guard.
+
+## D41. The SBUS protocol (2026-10-10)
+
+The SBUS unit carries the reference's SBUS receiver. Each serial byte arrives with its time.
+A gap of more than five byte times restarts the frame. A frame starts only on the begin byte,
+and the twenty-fifth byte completes it. The status poll decodes a complete frame once: the
+sixteen eleven-bit channels from the little-endian bit stream of the twenty-two channel bytes,
+and the two digital channels from their flags. The poll reports failsafe when the receiver flags
+it and dropped when it flags a signal loss. Otherwise it keeps the frame's start as the frame
+time. The raw value the receiver reads is the channel's fit to the X4R, five eighths of the
+count plus 880. Every channel starts at the count that reads as the configured center. The
+serial port and the telemetry sharing stay with the port layer. The reference's packed bit
+fields are unpacked by position, so the decoded channels agree bit for bit. No guard was
+needed.
