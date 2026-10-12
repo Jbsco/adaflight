@@ -77,6 +77,7 @@ with Adaflight.RunCam_Device;
 with Adaflight.FrSky_Hub_Telemetry;
 with Adaflight.IBus_Telemetry;
 with Adaflight.HoTT_Telemetry;
+with Adaflight.GHST_Telemetry;
 
 procedure Vector_Check is
 
@@ -6089,6 +6090,77 @@ procedure Vector_Check is
       end if;
    end Check_HoTT_Line;
 
+   GT_Seq  : Integer_64 := -1;
+   GT_Link : Adaflight.GHST_Telemetry.Link;
+   GT_Set  : Adaflight.GHST_Telemetry.Settings;
+
+   procedure Check_GHST_Telemetry_Line is
+      use Adaflight.GHST_Telemetry;
+      Name : constant String := Str (1);
+   begin
+      if Name = "ghstinit" then
+         declare
+            Disabled : constant Integer_64 := Int (3);
+            function Enabled (Bit : Natural) return Boolean is ((Disabled / 2 ** Bit) mod 2 = 0);
+         begin
+            GT_Seq := Int (2);
+            GT_Set := (Voltage_Enabled      => Enabled (0),
+                       Current_Enabled      => Enabled (1),
+                       Fuel_Enabled         => Enabled (2),
+                       Altitude_Enabled     => Enabled (10),
+                       Lat_Long_Enabled     => Enabled (12),
+                       Ground_Speed_Enabled => Enabled (13),
+                       Heading_Enabled      => Enabled (9),
+                       Report_Cell_Voltage  => Int (4) = 1,
+                       Voltage_Configured   => Int (5) = 1,
+                       Amperage_Configured  => Int (6) = 1,
+                       GPS_Feature          => Int (7) = 1,
+                       Baro_Present         => Int (8) = 1,
+                       Mag_Present          => Int (9) = 1);
+            Init (GT_Link, GT_Set);
+            Record_Int (Name & ".count", Int (10), Integer_64 (GT_Link.Count));
+            for I in Schedule_Index loop
+               Record_Int (Name & ".entry", Int (11 + I),
+                           (if I < GT_Link.Count then 2 ** Frame_Kind'Pos (GT_Link.Table (I)) else 0));
+            end loop;
+         end;
+      elsif Name = "ghststep" then
+         if Int (2) /= GT_Seq then
+            Put_Line ("ghst telemetry step without its start");
+            Failures := Failures + 1;
+            return;
+         end if;
+         declare
+            Inp : Inputs;
+            O   : Output;
+         begin
+            Inp.Now_Us := Interfaces.Unsigned_32 (Int (4));
+            Inp.Voltage_Cv := Interfaces.Unsigned_16 (Int (5));
+            Inp.Cell_Cv := Interfaces.Unsigned_16 (Int (6));
+            Inp.Amperage_Ca := I32 (7);
+            Inp.Mah_Drawn := I32 (8);
+            Inp.Armed := Int (9) = 1;
+            Inp.Lat := I32 (10);
+            Inp.Lon := I32 (11);
+            Inp.Alt_Cm := I32 (12);
+            Inp.Fix := Int (13) = 1;
+            Inp.Fix_Home := Int (14) = 1;
+            Inp.Ground_Speed := Interfaces.Unsigned_16 (Int (15));
+            Inp.Ground_Course := Interfaces.Unsigned_16 (Int (16));
+            Inp.Num_Sat := Interfaces.Unsigned_8 (Int (17));
+            Inp.Distance_Home := Interfaces.Unsigned_16 (Int (18));
+            Inp.Direction_Home := Interfaces.Integer_16 (Int (19));
+            Inp.Altitude_Cm := I32 (21);
+            Inp.Yaw := Interfaces.Integer_16 (Int (22));
+            Update (GT_Link, GT_Set, Inp, O);
+            Record_Bytes (Name & ".tx", Hex_Bytes (24), O.Tx (0 .. O.Count - 1));
+         end;
+      else
+         Put_Line ("unknown ghst telemetry case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_GHST_Telemetry_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -6203,6 +6275,8 @@ procedure Vector_Check is
                   Check_IBus_Telemetry_Line;
                elsif Kind = "hott" then
                   Check_HoTT_Line;
+               elsif Kind = "ghsttlm" then
+                  Check_GHST_Telemetry_Line;
                else
                   Check_PID_Line;
                end if;
@@ -6269,6 +6343,7 @@ begin
    Run (Dir & "/frskyhub.csv", "frskyhub");
    Run (Dir & "/ibustlm.csv", "ibustlm");
    Run (Dir & "/hott.csv", "hott");
+   Run (Dir & "/ghsttlm.csv", "ghsttlm");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
