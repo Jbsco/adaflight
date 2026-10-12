@@ -1242,3 +1242,20 @@ second, the speed in kilometres per hour, the home distance, the altitude bounde
 and the home direction in two-degree steps. Each field narrows as the reference's byte stores do.
 The text mode waits for the menu system. The unit is SPARK for the message indexes and the send
 position.
+## D66. Ghost telemetry frames (2026-10-11)
+
+The Ghost telemetry unit carries the reference's frame scheduler and encoders: a schedule of up to
+four frame types built once from the configuration and the sensors present, the battery frame
+when a voltage or current meter is configured and reported, the two GPS frames with the GPS
+feature and their sensors reported, and the heading and altitude frame with a compass or a
+barometer reported; then one frame per cycle of a tenth of a second divided by the schedule
+length, in order, each frame the receiver address, the length, the type, ten payload bytes and
+the checksum over the type and payload, handed to the receiver driver to send. The battery frame
+carries the pack or cell voltage, the current and the charge used in tens, and the disarmed flag;
+the first GPS frame the position and the altitude in metres, zero without a fix; the second the
+speed, course, satellites, the home distance and direction in tens, and the fix flags; the last
+the heading and the altitude in metres bounded to the field with their flags. Each value narrows
+as the reference's writers do. The climb rate of the last frame stays zero and its flag clear,
+as the reference tests a sensor bit no sensor sets (finding F82), and an empty schedule sends
+nothing, where the reference divides by its length (finding F83). The unit is SPARK for the frame
+and schedule indexes.
