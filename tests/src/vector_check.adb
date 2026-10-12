@@ -63,6 +63,7 @@ with Adaflight.GHST;
 with Adaflight.MSP_Receiver;
 with Adaflight.SRXL2;
 with Adaflight.FPORT;
+with Adaflight.MAVLink;
 
 procedure Vector_Check is
 
@@ -149,7 +150,7 @@ procedure Vector_Check is
       Tallies.Include (Name, T);
    end Record_Int;
 
-   Max_Fields : constant := 600;
+   Max_Fields : constant := 1000;
    type Fields is array (1 .. Max_Fields) of String (1 .. 400);
    type Field_Lengths is array (1 .. Max_Fields) of Natural;
 
@@ -4469,6 +4470,116 @@ procedure Vector_Check is
       end if;
    end Check_FPORT_Line;
 
+   Mav_State    : Adaflight.MAVLink.State;
+   Mav_Rx       : Adaflight.Receiver.State;
+   Mav_Settings : Adaflight.Receiver.Settings;
+   Mav_Clock    : Unsigned_32 := 0;
+   Mav_Min_Free : Adaflight.MAVLink.Byte := 0;
+
+   procedure Check_MAVLink_Line is
+      use Adaflight.MAVLink;
+      Name : constant String := Str (1);
+      K    : Positive := 1;
+      procedure Expect_Next (N : String; Actual : Integer_64) is
+      begin
+         Record_Int (Name & "." & N, Int (K), Actual);
+         K := K + 1;
+      end Expect_Next;
+      procedure Check_Fields is
+      begin
+         if K /= NF + 1 then
+            Put_Line (Name & ": consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
+            Failures := Failures + 1;
+         end if;
+      end Check_Fields;
+   begin
+      if Name = "mavinit" then
+         Mav_Settings := (others => <>);
+         Mav_Settings.Mid_RC := Integer (Int (3));
+         Mav_Settings.RSSI_Smoothing := Integer (Int (4));
+         Mav_Clock := Unsigned_32 (Int (5));
+         Adaflight.Receiver.Init (Mav_Rx, Mav_Settings, Mav_Clock / 1_000,
+                                  Adaflight.Receiver.Protocol_Mavlink, Adaflight.Receiver.Mavlink);
+         Init (Mav_State, Integer (Int (3)));
+         K := 6;
+         Expect_Next ("rssi_source", Adaflight.Receiver.RSSI_Source'Pos (Mav_Rx.RSSI_From));
+         Expect_Next ("quality_source", Adaflight.Receiver.Link_Quality_Source'Pos (Mav_Rx.Quality_From));
+         Mav_Min_Free := Integer (Int (K));
+         K := K + 1;
+         for Ch in Channel loop
+            Expect_Next ("data", Integer_64 (Mav_State.Data (Ch)));
+         end loop;
+         Check_Fields;
+      elsif Name = "mavstep" then
+         declare
+            Count  : constant Natural := Integer (Int (4));
+            Status : Adaflight.Receiver.Frame_Report;
+            Msg    : Message;
+            Got    : Boolean := False;
+         begin
+            K := 5;
+            for B in 1 .. Count loop
+               Mav_Clock := Mav_Clock + Unsigned_32 (Int (K));
+               Receive_Byte (Mav_State, Mav_Rx, Integer (Int (K + 1)), Mav_Clock);
+               K := K + 2;
+            end loop;
+            Mav_Clock := Unsigned_32 (Int (K));
+            K := K + 1;
+            if Int (K) /= 0 then
+               K := K + 1;
+               Frame_Status (Mav_State, Status);
+               Expect_Next ("status", Boolean'Pos (Status.Complete));
+            else
+               K := K + 2;
+            end if;
+            if Int (K) /= 0 then
+               Pop_Queue (Mav_State, Msg, Got);
+            end if;
+            K := K + 1;
+            Expect_Next ("got", Boolean'Pos (Got));
+            Expect_Next ("popped_id", (if Got then Integer_64 (Msg.Id) else 0));
+            Expect_Next ("popped_len", (if Got then Integer_64 (Msg.Len) else 0));
+            Expect_Next ("popped_seq", (if Got then Integer_64 (Msg.Seq) else 0));
+            Expect_Next ("parse_state", Parse_State'Pos (Mav_State.Status.State));
+            Expect_Next ("packet_idx", Integer_64 (Mav_State.Status.Packet_Idx));
+            Expect_Next ("success_count", Integer_64 (Mav_State.Status.Success_Count));
+            Expect_Next ("flags", Integer_64 (Mav_State.Status.Flags));
+            Expect_Next ("signature_left", Integer_64 (Mav_State.Status.Signature_Left));
+            Expect_Next ("rx_len", Integer_64 (Mav_State.Rx.Len));
+            Expect_Next ("rx_checksum", Integer_64 (Mav_State.Rx.Checksum));
+            Expect_Next ("recv_id", Integer_64 (Mav_State.Received.Id));
+            Expect_Next ("recv_len", Integer_64 (Mav_State.Received.Len));
+            Expect_Next ("recv_seq", Integer_64 (Mav_State.Received.Seq));
+            Expect_Next ("recv_sysid", Integer_64 (Mav_State.Received.Sysid));
+            Expect_Next ("recv_compid", Integer_64 (Mav_State.Received.Compid));
+            Expect_Next ("recv_checksum", Integer_64 (Mav_State.Received.Checksum));
+            Expect_Next ("frame_received", Boolean'Pos (Mav_State.Frame_Received));
+            Expect_Next ("head", Integer_64 (Mav_State.Head));
+            Expect_Next ("tail", Integer_64 (Mav_State.Tail));
+            Expect_Next ("tx_valid", Boolean'Pos (Mav_State.Tx_Buffer_Valid));
+            Expect_Next ("tx_free", Integer_64 (Mav_State.Tx_Buffer_Free));
+            Expect_Next ("should_send", Boolean'Pos (Should_Send_Telemetry (Mav_State, Mav_Min_Free)));
+            Expect_Next ("frame_time", Integer_64 (Mav_State.Last_Frame_Time_Us));
+            Expect_Next ("rssi", Integer_64 (Mav_Rx.RSSI));
+            Expect_Next ("rssi_raw", Integer_64 (Mav_Rx.RSSI_Raw));
+            Expect_Next ("rssi_dbm", Integer_64 (Mav_Rx.RSSI_Dbm));
+            Expect_Next ("rssi_dbm_raw", Integer_64 (Mav_Rx.RSSI_Dbm_Raw));
+            Expect_Next ("rsnr", Integer_64 (Mav_Rx.RSNR));
+            Expect_Next ("rsnr_raw", Integer_64 (Mav_Rx.RSNR_Raw));
+            Expect_Next ("link_quality", Integer_64 (Mav_Rx.Link_Quality));
+            for Ch in Channel loop
+               Expect_Next ("data", Integer_64 (Mav_State.Data (Ch)));
+               Record_Result (Name & ".raw", Bits (K), To_Bits (Read_Raw (Mav_State, Ch)));
+               K := K + 1;
+            end loop;
+            Check_Fields;
+         end;
+      else
+         Put_Line ("unknown mavlink case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_MAVLink_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -4555,6 +4666,8 @@ procedure Vector_Check is
                   Check_SRXL2_Line;
                elsif Kind = "fport" then
                   Check_FPORT_Line;
+               elsif Kind = "mavlink" then
+                  Check_MAVLink_Line;
                else
                   Check_PID_Line;
                end if;
@@ -4607,6 +4720,7 @@ begin
    Run (Dir & "/msp.csv", "msprx");
    Run (Dir & "/srxl2.csv", "srxl2");
    Run (Dir & "/fport.csv", "fport");
+   Run (Dir & "/mavlink.csv", "mavlink");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
