@@ -87,6 +87,7 @@ with Adaflight.Optical_Flow;
 with Adaflight.Pitot;
 with Adaflight.RTC;
 with Adaflight.Internal_ADC;
+with Adaflight.Flight_Stats;
 
 procedure Vector_Check is
 
@@ -6872,6 +6873,65 @@ procedure Vector_Check is
       end if;
    end Check_Internal_ADC_Line;
 
+   ST_Seq     : Integer_64 := -1;
+   ST_Config  : Adaflight.Flight_Stats.Settings;
+   ST_Totals  : Adaflight.Flight_Stats.Totals;
+   ST_Tracker : Adaflight.Flight_Stats.Tracker;
+
+   procedure Check_Flight_Stats_Line is
+      use Adaflight.Flight_Stats;
+      Name : constant String := Str (1);
+   begin
+      if Name = "stinit" then
+         ST_Seq := Int (2);
+         ST_Config := (Min_Armed_Time_S => Interfaces.Integer_8 (Int (3)),
+                       Save_Move_Limit  => Interfaces.Unsigned_8 (Int (4)));
+         ST_Totals := (Flights  => Interfaces.Unsigned_32 (Int (5)),
+                       Time_S   => Interfaces.Unsigned_32 (Int (6)),
+                       Dist_M   => Interfaces.Unsigned_32 (Int (7)),
+                       Mah_Used => Interfaces.Unsigned_32 (Int (8)));
+         ST_Tracker := (Arm_Ms => 0, Arm_Distance_Cm => 0, Save_Required => False);
+      elsif Name = "ststep" then
+         if Int (2) /= ST_Seq then
+            Put_Line ("statistics step without its start");
+            Failures := Failures + 1;
+            return;
+         end if;
+         declare
+            Now       : constant Interfaces.Unsigned_32 := Interfaces.Unsigned_32 (Int (4));
+            Scheduled : Boolean := False;
+            Written   : Boolean := False;
+         begin
+            case Int (5) is
+               when 0 =>
+                  On_Arm (ST_Tracker, Now, Interfaces.Unsigned_32 (Int (6)));
+               when 1 =>
+                  On_Disarm (ST_Tracker, ST_Config, ST_Totals, Now, Interfaces.Unsigned_32 (Int (6)),
+                             Interfaces.Integer_32 (Int (7)), Scheduled);
+               when others =>
+                  declare
+                     Action : Save_Action;
+                  begin
+                     Write (ST_Tracker, ST_Config, Int (6) /= 0, Int (7) /= 0, Flt (8), Flt (9), Flt (10), Action);
+                     Written := Action = Save;
+                     Scheduled := Action = Retry;
+                  end;
+            end case;
+            Record_Int (Name & ".flights", Int (12), Integer_64 (ST_Totals.Flights));
+            Record_Int (Name & ".time", Int (13), Integer_64 (ST_Totals.Time_S));
+            Record_Int (Name & ".dist", Int (14), Integer_64 (ST_Totals.Dist_M));
+            Record_Int (Name & ".mah", Int (15), Integer_64 (ST_Totals.Mah_Used));
+            Record_Int (Name & ".pending", Int (16), (if ST_Tracker.Save_Required then 1 else 0));
+            Record_Int (Name & ".scheduled", Int (17), (if Scheduled then 1 else 0));
+            Record_Int (Name & ".written", Int (18), (if Written then 1 else 0));
+            Record_Int (Name & ".beeped", Int (19), (if Written then 1 else 0));
+         end;
+      else
+         Put_Line ("unknown statistics case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Flight_Stats_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -7006,6 +7066,8 @@ procedure Vector_Check is
                   Check_RTC_Line;
                elsif Kind = "adcint" then
                   Check_Internal_ADC_Line;
+               elsif Kind = "stats" then
+                  Check_Flight_Stats_Line;
                else
                   Check_PID_Line;
                end if;
@@ -7082,6 +7144,7 @@ begin
    Run (Dir & "/pitot.csv", "pitot");
    Run (Dir & "/rtc.csv", "rtc");
    Run (Dir & "/adcint.csv", "adcint");
+   Run (Dir & "/stats.csv", "stats");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
