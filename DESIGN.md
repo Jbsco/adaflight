@@ -1844,3 +1844,32 @@ passes with the system ready flag and bind requests, and channel decodes of fres
 payloads, over both bands, a bound or unbound unique id and every telemetry ratio,
 checking the decoded payload and channels, the telemetry response, the hop and status
 results and ninety-two state fields after every operation.
+
+## D92. The flight log header (2026-10-12)
+
+The flight log header unit contains the reference's log header: the field definition tables of
+the main, GPS, GPS home and slow frames with each field's name, index, sign, predictors,
+encodings and condition, the condition cache built once at the log start, and the chunked
+writers that send the fixed header text, the field definition lines and the system information
+lines under the device's byte budget. The budget is replenished each iteration from the
+device's free space, grown by the per-iteration allowance and held at the accumulated limit,
+and a reservation the budget cannot cover fails for the iteration, permanently when the
+device's buffer could never hold the bytes. The writer appends to a caller owned array, lowers
+the device's free space by one per byte, and drops a byte a serial port with no room cannot
+take. A wing's main table has the three stabilization terms after the feedforward terms and
+its sysinfo lists the stabilization settings in place of the autopilot and rescue settings, so
+one unit serves both crafts through a flag.
+
+The device, the settings and the clock stay with the target: it reports the device kind, the
+per-iteration allowance, the buffer size and the free space, fills the sysinfo's values and
+texts (the firmware identity, the board, the craft name and the debug mode name are texts the
+target provides, and the motor outputs and receiver rate arrive already rounded), and reads
+the writer's budget and counts. The P ratio line divides the intervals in the reference's
+16-bit width.
+
+The harness replays ten header transmissions recorded from the reference's recorder and
+device layer over serial, flash and SD card stubs, seven multirotor and three wing: the fixed
+text, the field definition lines of each table, and the sysinfo lines, each step with a
+scripted free space, a replenished budget and a clock advance, checking every byte written,
+the budget, the header index, the field cursor and the completion flag after each of the
+13505 steps.

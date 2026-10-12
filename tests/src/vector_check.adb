@@ -106,6 +106,7 @@ with Adaflight.GPS_Lap_Timer;
 with Adaflight.MSP_Box;
 with Adaflight.Dispatch;
 with Adaflight.ExpressLRS_Receiver;
+with Adaflight.Blackbox_Header;
 
 procedure Vector_Check is
 
@@ -8841,6 +8842,115 @@ procedure Vector_Check is
       end if;
    end Check_ELRS_Receiver_Line;
 
+   package BH renames Adaflight.Blackbox_Header;
+   BH_Seq   : Integer_64 := -1;
+   BH_Wing  : Boolean := False;
+   BH_W     : BH.Writer;
+   BH_H     : BH.Header_State;
+   BH_In    : BH.Condition_Inputs;
+   BH_Cache : BH.Condition_Set := (others => False);
+   BH_Info  : BH.Sysinfo;
+   BH_Buf   : Byte_Array (0 .. 4095) := (others => 0);
+
+   procedure Check_Blackbox_Header_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "hdrinit" then
+         BH_Seq := Int (2);
+         BH_Wing := Int (3) = 1;
+         BH_W := (Kind => BH.Device_Kind'Val (Int (4)), Max_Per_Iteration => Natural (Int (5)),
+                  Buffer_Size => Natural (Int (6)), others => <>);
+         BH_In := (Fields_Disabled_Mask => Unsigned_32 (Int (7)), Motors => Natural (Int (8)),
+                   Has_Servos => Int (9) = 1, DShot_Telemetry => Int (10) = 1, Mag_Present => Int (11) = 1,
+                   Baro_Present => Int (12) = 1, Rangefinder_Present => Int (13) = 1, Acc_Present => Int (14) = 1,
+                   RSSI_Configured => Int (15) = 1, Debug_Active => Int (16) = 1,
+                   Voltage_Meter => Adaflight.Battery.Voltage_Source'Val (Int (17)),
+                   Current_Meter => Adaflight.Battery.Current_Source'Val (Int (18)),
+                   PID_D => (Interfaces.Integer_32 (Int (19)), Interfaces.Integer_32 (Int (20)),
+                             Interfaces.Integer_32 (Int (21))),
+                   PID_S => (Interfaces.Integer_32 (Int (22)), Interfaces.Integer_32 (Int (23)),
+                             Interfaces.Integer_32 (Int (24))),
+                   I_Interval => Interfaces.Integer_32 (Int (27)), P_Interval => Interfaces.Integer_32 (Int (28)));
+         BH.Build_Cache (BH_Cache, BH_In);
+         for V in BH.Value_Name loop
+            BH_Info.Values (V) := Interfaces.Integer_32 (Int (27 + BH.Value_Name'Pos (V)));
+         end loop;
+         for T in BH.Text_Name loop
+            declare
+               Raw : constant Byte_Array := Hex_Bytes (289 + BH.Text_Name'Pos (T));
+               L   : constant Natural := Natural'Min (Raw'Length, BH.Text_Max);
+            begin
+               BH_Info.Texts (T).Data := (others => ' ');
+               for K in 0 .. L - 1 loop
+                  BH_Info.Texts (T).Data (1 + K) := Character'Val (Raw (Raw'First + K));
+               end loop;
+               BH_Info.Texts (T).Length := L;
+            end;
+         end loop;
+         BH_H := (others => <>);
+      elsif Name = "hdrstep" then
+         if Int (2) /= BH_Seq then
+            Put_Line ("flight log header step without its start");
+            Failures := Failures + 1;
+            return;
+         end if;
+         declare
+            Op     : constant Integer_64 := Int (4);
+            Now    : constant Unsigned_32 := Unsigned_32 (Int (5));
+            Strm   : Adaflight.Stream_Buffers.Stream;
+            Result : Boolean := False;
+         begin
+            Adaflight.Stream_Buffers.Init (Strm, 0, BH_Buf'Length);
+            case Op is
+               when 10 =>
+                  BH_W.Budget := 0;
+                  BH_H.Index := 0;
+                  BH_H.Start_Time_Ms := Now;
+               when 11 =>
+                  BH_H.Index := 0;
+                  BH_H.Field := -1;
+               when 12 =>
+                  BH_H.Index := 0;
+               when 0 .. 5 =>
+                  BH_W.Free := Natural (Int (6));
+                  BH.Replenish (BH_W);
+                  case Op is
+                     when 0 =>
+                        BH.Send_Header_Text (BH_H, BH_W, BH_Buf, Strm, Now, Result);
+                     when 1 =>
+                        BH.Send_Field_Definition (BH_H, BH_W, BH_Buf, Strm, BH.Main_Fields, BH_Wing, BH_Cache, Result);
+                     when 2 =>
+                        BH.Send_Field_Definition (BH_H, BH_W, BH_Buf, Strm, BH.GPS_Home_Fields, BH_Wing, BH_Cache,
+                                                  Result);
+                     when 3 =>
+                        BH.Send_Field_Definition (BH_H, BH_W, BH_Buf, Strm, BH.GPS_Fields, BH_Wing, BH_Cache, Result);
+                     when 4 =>
+                        BH.Send_Field_Definition (BH_H, BH_W, BH_Buf, Strm, BH.Slow_Fields, BH_Wing, BH_Cache, Result);
+                     when others =>
+                        BH.Send_Sysinfo (BH_H, BH_W, BH_Buf, Strm, BH_Wing, BH_Info, BH_Cache, BH_In.Current_Meter,
+                                         Result);
+                  end case;
+               when others =>
+                  null;
+            end case;
+            if Op in 0 .. 5 then
+               Record_Int (Name & ".result", Int (7), Boolean'Pos (Result));
+            end if;
+            Record_Int (Name & ".budget", Int (8), Integer_64 (BH_W.Budget));
+            Record_Int (Name & ".index", Int (9), Integer_64 (BH_H.Index));
+            if Op in 0 | 10 then
+               Record_Int (Name & ".start", Int (10), Integer_64 (BH_H.Start_Time_Ms));
+            else
+               Record_Int (Name & ".field", Int (10), Integer_64 (BH_H.Field));
+            end if;
+            Record_Bytes (Name & ".bytes", Hex_Bytes (11), BH_Buf (0 .. Strm.Next - 1));
+         end;
+      else
+         Put_Line ("unknown flight log header case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Blackbox_Header_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -9009,6 +9119,8 @@ procedure Vector_Check is
                   Check_Dispatch_Line;
                elsif Kind = "elrsrx" then
                   Check_ELRS_Receiver_Line;
+               elsif Kind = "bbhdr" then
+                  Check_Blackbox_Header_Line;
                else
                   Check_PID_Line;
                end if;
@@ -9102,6 +9214,7 @@ begin
    Run (Dir & "/mspbox.csv", "mspbox");
    Run (Dir & "/dispatch.csv", "dispatch");
    Run (Dir & "/elrsrx.csv", "elrsrx");
+   Run (Dir & "/bbhdr.csv", "bbhdr");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
