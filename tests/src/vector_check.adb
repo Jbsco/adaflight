@@ -79,6 +79,7 @@ with Adaflight.IBus_Telemetry;
 with Adaflight.HoTT_Telemetry;
 with Adaflight.GHST_Telemetry;
 with Adaflight.Transponder;
+with Adaflight.SRXL_Telemetry;
 
 procedure Vector_Check is
 
@@ -6216,6 +6217,72 @@ procedure Vector_Check is
       end if;
    end Check_Transponder_Line;
 
+   SX_Seq    : Integer_64 := -1;
+   SX_Stream : Adaflight.SRXL_Telemetry.Stream;
+   SX_Set    : Adaflight.SRXL_Telemetry.Settings;
+
+   procedure Check_SRXL_Telemetry_Line is
+      use Adaflight.SRXL_Telemetry;
+      Name : constant String := Str (1);
+   begin
+      if Name = "srxlinit" then
+         SX_Seq := Int (2);
+         SX_Stream := (others => <>);
+         SX_Set := (Report_Cell_Voltage => Int (3) = 1, GPS_Feature => Int (4) = 1);
+      elsif Name = "srxlstep" then
+         if Int (2) /= SX_Seq then
+            Put_Line ("srxl telemetry step without its start");
+            Failures := Failures + 1;
+            return;
+         end if;
+         declare
+            Inp   : Inputs;
+            O     : Output;
+            Text  : constant Byte_Array := Hex_Bytes (30);
+            Flags : constant String := Str (31);
+         begin
+            Inp.Now_Us := Interfaces.Unsigned_32 (Int (4));
+            Inp.Buffer_Empty := Int (5) = 1;
+            Inp.Menu_On_Display := Int (6) = 1;
+            Inp.Voltage_Cv := Interfaces.Unsigned_16 (Int (7));
+            Inp.Cell_Cv := Interfaces.Unsigned_16 (Int (8));
+            Inp.Core_Temperature := Interfaces.Integer_16 (Int (9));
+            Inp.ESC_Valid := Int (10) = 1;
+            Inp.ESC_Rpm := Interfaces.Integer_16 (Int (11));
+            Inp.Dshot_Telemetry := Int (12) = 1;
+            Inp.Dshot_Rpm := Flt (13);
+            Inp.Amperage_Ca := I32 (14);
+            Inp.Mah_Drawn := I32 (15);
+            Inp.Fix := Int (16) = 1;
+            Inp.Num_Sat := Interfaces.Unsigned_8 (Int (17));
+            Inp.Lat := I32 (18);
+            Inp.Lon := I32 (19);
+            Inp.Alt_Cm := I32 (20);
+            Inp.Ground_Speed := Interfaces.Unsigned_16 (Int (21));
+            Inp.Ground_Course := Interfaces.Unsigned_16 (Int (22));
+            Inp.Pdop := Interfaces.Unsigned_16 (Int (23));
+            if Int (24) = 1 then
+               Put_Char (SX_Stream, Natural (Int (25)), Natural (Int (26)), Byte (Int (27)));
+            end if;
+            Update (SX_Stream, SX_Set, Inp, O);
+            Record_Bytes (Name & ".tx", Hex_Bytes (29), O.Tx (0 .. O.Count - 1));
+            if Text'Length = Rows * Columns then
+               for R in Row_Index loop
+                  for Col in Column_Index loop
+                     Record_Int (Name & ".text", Integer_64 (Text (R * Columns + Col)),
+                                 Integer_64 (SX_Stream.Text (R, Col)));
+                  end loop;
+                  Record_Int (Name & ".linesent", (if Flags (Flags'First + R) = '1' then 1 else 0),
+                              (if SX_Stream.Line_Sent (R) then 1 else 0));
+               end loop;
+            end if;
+         end;
+      else
+         Put_Line ("unknown srxl telemetry case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_SRXL_Telemetry_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -6334,6 +6401,8 @@ procedure Vector_Check is
                   Check_GHST_Telemetry_Line;
                elsif Kind = "transponder" then
                   Check_Transponder_Line;
+               elsif Kind = "srxltlm" then
+                  Check_SRXL_Telemetry_Line;
                else
                   Check_PID_Line;
                end if;
@@ -6402,6 +6471,7 @@ begin
    Run (Dir & "/hott.csv", "hott");
    Run (Dir & "/ghsttlm.csv", "ghsttlm");
    Run (Dir & "/transponder.csv", "transponder");
+   Run (Dir & "/srxltlm.csv", "srxltlm");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
