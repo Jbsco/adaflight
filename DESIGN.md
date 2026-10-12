@@ -788,3 +788,21 @@ mapping's wrap is the reference's own. The VTX control handling, the telemetry c
 bind pulses, and the serial port stay with their layers. The reference assembles the VTX
 control word with a shift that overflows a signed integer on every control frame (finding
 F34). The unit shifts the unsigned word. No guard was needed.
+## D46. The XBUS protocol (2026-10-10)
+
+The XBUS unit carries the reference's XBUS receiver for the Mode B and RJ01 providers. Each
+byte arrives with its time, and a gap over eight milliseconds drops the frame in progress. A
+frame starts on the twelve-channel start byte, or on the sixteen-channel one in Mode B, with
+the length the provider and the start byte give it. The last byte of that length unpacks the
+frame where the reference does, in the receive path rather than at the status poll. A Mode B
+frame yields its twelve channels through the pulse conversion, 800 plus the word's 1400
+fraction of 4096, once the CRC-16 over all but its last two bytes matches them. An RJ01 outer
+frame yields the Mode B frame three bytes in once its length byte reads 30 and the Dallas CRC-8
+over all but its last byte matches that byte. The status poll reports complete once per
+unpacked frame. The raw value is the channel value itself. The reference's Mode B case falls
+through into the RJ01 check after its own unpack (finding F35). The unit keeps that order so
+the recorded vectors match, stale buffer bytes included. The state's predicate keeps the
+position below the frame length while a frame comes in and at zero otherwise, and ties the
+length to the provider. The frame writes and the unpackers' reads are therefore proved within
+the buffer without clamps. The completion check moves ahead of the position increment to keep
+the predicate. The serial port stays with the port layer. No guard was needed.
