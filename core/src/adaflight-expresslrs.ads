@@ -50,7 +50,7 @@ package Adaflight.ExpressLRS with SPARK_Mode is
    type Perf_Params is record
       Index                         : Rate_Index;
       Rate                          : RF_Rate;
-      Sensitivity_Dbm               : Integer;
+      Sensitivity_Dbm               : Integer range -130 .. -80;
       Time_On_Air_Us                : Natural;
       Disconnect_Timeout_Ms         : Natural;
       Lock_Timeout_Ms               : Natural;
@@ -206,11 +206,13 @@ package Adaflight.ExpressLRS with SPARK_Mode is
      ((Natural (Nonce and 7) + Natural (Interfaces.Shift_Right (Nonce, 3) and 1)) mod 8);
 
    --  The telemetry ratio as packets per telemetry packet, in a byte: one for
-   --  no telemetry, 128 down to 2 for the ratios, and the standard and
-   --  disarmed markers fall outside the byte or read one.
+   --  no telemetry, 128 down to 2 for the ratios, zero for the standard marker
+   --  and one for the disarmed marker.
    function Ratio_Value (R : Telemetry_Ratio) return Byte is
-     (if R = No_Telemetry then 1
-      else Byte'Mod (2 ** (8 + Telemetry_Ratio'Pos (No_Telemetry) - Telemetry_Ratio'Pos (R))));
+     (case R is
+        when Ratio_Standard => 0, when No_Telemetry => 1, when Ratio_1_128 => 128, when Ratio_1_64 => 64,
+        when Ratio_1_32 => 32, when Ratio_1_16 => 16, when Ratio_1_8 => 8, when Ratio_1_4 => 4,
+        when Ratio_1_2 => 2, when Ratio_Disarmed => 1);
 
    function Rate_Hz (R : RF_Rate) return Natural is
      (case R is

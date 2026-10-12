@@ -43,8 +43,8 @@ The core holds:
 - the cooperative scheduler, the beeper, and the receiver's channel processing
 - the SBUS, CRSF, SUMD, SUMH, IBUS, Spektrum, XBUS, Jeti EX Bus, Ghost, SRXL2 and FPORT
   protocols, and the MSP and MAVLink receivers
-- the MSP serial port, the ExpressLRS hopping tables and telemetry link, the flight log
-  field encodings, the text conversions, and the DShot protocol
+- the MSP serial port, the ExpressLRS hopping tables, telemetry link and receiver, the
+  flight log field encodings, the text conversions, and the DShot protocol
 - the CRSF telemetry frames and the ESC sensor telemetry
 - the SmartPort telemetry stream
 - the RunCam device protocol with the camera buttons and the five key cable
@@ -75,10 +75,10 @@ The core holds:
 
 The state of `main`:
 
-- The core proves at Silver and Gold: 11031 checks, nothing unproved, no
+- The core proves at Silver and Gold: 11546 checks, nothing unproved, no
   `pragma Assume`, no justified suppression (`gnatprove` 16.1.0, level 2).
-- The recorded vectors replay bit for bit: 743010 lines over 292 cases, every case
-  exact except the eighteen declared deviations in `DESIGN.md` D6.
+- The recorded vectors replay bit for bit: 763020 lines over 293 cases, every case
+  exact except the nineteen declared deviations in `DESIGN.md` D6.
 - No target builds yet. `ROADMAP.md` carries the parity inventory, the phases, and the
   question for after parity: whether a proved core leaves room on the F4 boards for
   features Betaflight has to leave out for these targets.

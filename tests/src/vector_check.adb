@@ -105,6 +105,7 @@ with Adaflight.LTM_Telemetry;
 with Adaflight.GPS_Lap_Timer;
 with Adaflight.MSP_Box;
 with Adaflight.Dispatch;
+with Adaflight.ExpressLRS_Receiver;
 
 procedure Vector_Check is
 
@@ -8631,6 +8632,215 @@ procedure Vector_Check is
       end if;
    end Check_Dispatch_Line;
 
+   ER_Seq      : Integer_64 := -1;
+   ER_Receiver : Adaflight.ExpressLRS_Receiver.Receiver;
+   ER_Settings : Adaflight.ExpressLRS_Receiver.Settings;
+   ER_Payload  : Adaflight.ExpressLRS_Receiver.Packet := (others => 0);
+   ER_Channels : Adaflight.ExpressLRS_Receiver.Channels := (others => 0);
+
+   procedure Check_ELRS_Receiver_Line is
+      package ER renames Adaflight.ExpressLRS_Receiver;
+      use type Adaflight.ExpressLRS_Receiver.Tick_Tock;
+      Name : constant String := Str (1);
+
+      function Packet_Of (I : Positive) return ER.Packet is
+         Raw : constant Byte_Array := Hex_Bytes (I);
+         P   : ER.Packet := (others => 0);
+      begin
+         for K in P'Range loop
+            exit when K > Raw'Last;
+            P (K) := Raw (K);
+         end loop;
+         return P;
+      end Packet_Of;
+
+      procedure Record_State (S : Positive) is
+         R : ER.Receiver renames ER_Receiver;
+         T : ER.Timer renames ER_Receiver.Timing;
+         L : ER.Phase_Lock renames ER_Receiver.Lock;
+         G : ER.Radio_Config renames ER_Receiver.Config;
+      begin
+         Record_Int (Name & ".connection", Int (S), Integer_64 (ER.Connection_State'Pos (R.Connection)));
+         Record_Int (Name & ".timerstate", Int (S + 1), Integer_64 (ER.Timer_State'Pos (R.Timer_St)));
+         Record_Int (Name & ".nonce", Int (S + 2), Integer_64 (R.Nonce));
+         Record_Int (Name & ".rate", Int (S + 3), Integer_64 (R.Rate));
+         Record_Int (Name & ".nextrate", Int (S + 4), Integer_64 (R.Next_Rate));
+         Record_Int (Name & ".switchmode", Int (S + 5), Integer_64 (R.Switch_Mode));
+         Record_Int (Name & ".binding", Int (S + 6), Boolean'Pos (R.In_Binding_Mode));
+         Record_Int (Name & ".started", Int (S + 7), Boolean'Pos (R.Started));
+         Record_Int (Name & ".cfgchanged", Int (S + 8), Boolean'Pos (R.Config_Changed));
+         Record_Int (Name & ".initpending", Int (S + 9), Boolean'Pos (R.Initialize_Pending));
+         Record_Int (Name & ".lockrf", Int (S + 10), Boolean'Pos (R.Lock_RF_Mode));
+         Record_Int (Name & ".alreadyfhss", Int (S + 11), Boolean'Pos (R.Already_FHSS));
+         Record_Int (Name & ".alreadytelem", Int (S + 12), Boolean'Pos (R.Already_Telem_Resp));
+         Record_Int (Name & ".freqoffset", Int (S + 13), Integer_64 (R.Freq_Offset));
+         Record_Int (Name & ".currentfreq", Int (S + 14), Integer_64 (R.Current_Freq));
+         Record_Int (Name & ".cycleinterval", Int (S + 15), Integer_64 (R.Cycle_Interval_Ms));
+         Record_Int (Name & ".cyclemult", Int (S + 16), Integer_64 (R.RF_Mode_Cycle_Multiplier));
+         Record_Int (Name & ".rssi", Int (S + 17), Integer_64 (R.RSSI));
+         Record_Int (Name & ".snr", Int (S + 18), Integer_64 (R.SNR));
+         Record_Int (Name & ".rssifiltered", Int (S + 19), Integer_64 (R.RSSI_Filtered));
+         Record_Int (Name & ".rsnrfiltered", Int (S + 20), Integer_64 (R.RSNR_Filtered));
+         Record_Int (Name & ".uplinklq", Int (S + 21), Integer_64 (R.Uplink_LQ));
+         Record_Int (Name & ".lq", Int (S + 22), Integer_64 (R.LQ.Value));
+         Record_Int (Name & ".modelmatch", Int (S + 23), Boolean'Pos (R.Model_Match));
+         Record_Int (Name & ".txpower", Int (S + 24), Integer_64 (R.Tx_Power));
+         Record_Int (Name & ".wideindex", Int (S + 25), Integer_64 (R.Wide_Switch_Index));
+         Record_Int (Name & ".tlmdenom", Int (S + 26), Integer_64 (R.Tlm_Denom));
+         Record_Int (Name & ".nexttelem", Int (S + 27), Integer_64 (ER.Telemetry_Type'Pos (R.Next_Telemetry) + 1));
+         Record_Int (Name & ".burstcount", Int (S + 28), Integer_64 (R.Burst_Count));
+         Record_Int (Name & ".burstmax", Int (S + 29), Integer_64 (R.Burst_Max));
+         Record_Int (Name & ".burstvalid", Int (S + 30), Boolean'Pos (R.Burst_Valid));
+         Record_Int (Name & ".lost", Int (S + 31), Integer_64 (R.Lost_Connections));
+         Record_Int (Name & ".crcinit", Int (S + 32), Integer_64 (R.CRC_Initializer));
+         Record_Bytes (Name & ".uid", Hex_Bytes (S + 33), R.UID);
+         Record_Int (Name & ".cfgrate", Int (S + 34), Integer_64 (ER_Settings.Rate));
+         Record_Int (Name & ".cfgmodel", Int (S + 35), Integer_64 (ER_Settings.Model_Id));
+         Record_Bytes (Name & ".cfguid", Hex_Bytes (S + 36), ER_Settings.UID);
+         Record_Int (Name & ".trunning", Int (S + 37), Boolean'Pos (T.Running));
+         Record_Int (Name & ".tphase", Int (S + 38), Integer_64 (ER.Tick_Tock'Pos (T.Phase)));
+         Record_Int (Name & ".tinterval", Int (S + 39), Integer_64 (T.Interval));
+         Record_Int (Name & ".tticks", Int (S + 40), Integer_64 (T.Frequency_Offset_Ticks));
+         Record_Int (Name & ".tshift", Int (S + 41), Integer_64 (T.Phase_Shift_Us));
+         Record_Int (Name & ".tperiod", Int (S + 42), Integer_64 (T.Period));
+         Record_Int (Name & ".tmaxperiod", Int (S + 43), Integer_64 (T.Max_Period));
+         Record_Int (Name & ".tperiods", Int (S + 44), Integer_64 (T.Period_Count));
+         Record_Int (Name & ".tresets", Int (S + 45), Integer_64 (T.Counter_Resets));
+         Record_Int (Name & ".plraw", Int (S + 46), Integer_64 (L.Raw_Offset_Us));
+         Record_Int (Name & ".plprev", Int (S + 47), Integer_64 (L.Previous_Raw_Offset_Us));
+         Record_Int (Name & ".ploffset", Int (S + 48), Integer_64 (L.Offset_Us));
+         Record_Int (Name & ".pldelta", Int (S + 49), Integer_64 (L.Offset_Delta_Us));
+         Record_Int (Name & ".evinternal", Int (S + 50), Boolean'Pos (R.Events.Internal_Seen));
+         Record_Int (Name & ".evexternal", Int (S + 51), Boolean'Pos (R.Events.External_Seen));
+         Record_Int (Name & ".configs", Int (S + 52), Integer_64 (R.Config_Count));
+         Record_Int (Name & ".cfgbw", Int (S + 53), Integer_64 (G.Bandwidth));
+         Record_Int (Name & ".cfgsf", Int (S + 54), Integer_64 (G.Spreading));
+         Record_Int (Name & ".cfgcr", Int (S + 55), Integer_64 (G.Coding));
+         Record_Int (Name & ".cfgfreq", Int (S + 56), Integer_64 (G.Frequency));
+         Record_Int (Name & ".cfgpre", Int (S + 57), Integer_64 (G.Preamble));
+         Record_Int (Name & ".cfgiq", Int (S + 58), Boolean'Pos (G.IQ_Inverted));
+         Record_Int (Name & ".cfgsync", Int (S + 59), Integer_64 (G.FLRC_Sync_Word));
+         Record_Int (Name & ".cfgseed", Int (S + 60), Integer_64 (G.FLRC_CRC_Seed));
+         Record_Int (Name & ".cfgflrc", Int (S + 61), Boolean'Pos (G.Is_FLRC));
+         Record_Int (Name & ".starts", Int (S + 62), Integer_64 (R.Start_Count));
+         Record_Int (Name & ".powers", Int (S + 63), Integer_64 (R.Power_Count));
+         Record_Int (Name & ".rfmode", Int (S + 64), Integer_64 (R.RF_Mode_Report));
+         Record_Int (Name & ".rssireport", Int (S + 65), Integer_64 (R.RSSI_Report));
+         Record_Int (Name & ".rssidirect", Int (S + 66), Boolean'Pos (R.RSSI_Direct));
+         Record_Int (Name & ".rssidbm", Int (S + 67), Integer_64 (R.RSSI_Dbm_Report));
+         Record_Int (Name & ".rsnrreport", Int (S + 68), Integer_64 (R.RSNR_Report));
+         Record_Int (Name & ".lqreport", Int (S + 69), Integer_64 (R.LQ_Report));
+         Record_Int (Name & ".uplinkpower", Int (S + 70), Integer_64 (R.Uplink_Power_Report));
+         Record_Int (Name & ".reports", Int (S + 71), Integer_64 (R.Report_Count));
+         Record_Int (Name & ".saves", Int (S + 72), Integer_64 (R.Save_Count));
+         Record_Int (Name & ".mspready", Int (S + 73), Integer_64 (R.MSP_Ready_Count));
+         Record_Int (Name & ".fhssindex", Int (S + 74), Integer_64 (R.Hops.Index));
+         Record_Int (Name & ".snrsum", Int (S + 75), Integer_64 (R.SNR_Mean.Sum));
+         Record_Int (Name & ".snrcount", Int (S + 76), Integer_64 (R.SNR_Mean.Count));
+         Record_Bytes (Name & ".telemetry", Hex_Bytes (S + 77), R.Telemetry_Packet);
+         Record_Int (Name & ".packetstatus", Int (S + 78), Integer_64 (ER.Packet_Status'Pos (R.Packet_St)));
+         Record_Int (Name & ".mspconfirm", Int (S + 79), Boolean'Pos (R.MSP.Confirm));
+         Record_Int (Name & ".senderstate", Int (S + 80),
+                     Integer_64 (Adaflight.ExpressLRS_Telemetry.Sender_State'Pos (R.Sender.State)));
+         Record_Int (Name & ".senderoffset", Int (S + 81), Integer_64 (R.Sender.Offset));
+         Record_Int (Name & ".senderlength", Int (S + 82), Integer_64 (R.Sender.Length));
+         Record_Int (Name & ".senderpackage", Int (S + 83), Integer_64 (R.Sender.Current_Package));
+         Record_Int (Name & ".senderwait", Int (S + 84), Boolean'Pos (R.Sender.Wait_Until_Confirm));
+         Record_Int (Name & ".senderwaitcount", Int (S + 85), Integer_64 (R.Sender.Wait_Count));
+         Record_Int (Name & ".sendermaxwait", Int (S + 86), Integer_64 (R.Sender.Max_Wait_Count));
+         Record_Int (Name & ".senderlast", Int (S + 87), Integer_64 (R.Sender.Bytes_Last_Payload));
+         Record_Int (Name & ".mspoffset", Int (S + 88), Integer_64 (R.MSP.Offset));
+         Record_Int (Name & ".msppackage", Int (S + 89), Integer_64 (R.MSP.Current_Package));
+         Record_Int (Name & ".msplength", Int (S + 90), Integer_64 (R.MSP.Length));
+         Record_Int (Name & ".mspfinished", Int (S + 91), Boolean'Pos (R.MSP.Finished));
+      end Record_State;
+   begin
+      if Name = "erinit" then
+         ER_Seq := Int (2);
+         ER_Settings := (Domain   => Adaflight.ExpressLRS.Frequency_Domain'Val (Int (3)),
+                         Rate     => Natural (Int (4)),
+                         UID      => Packet_Of (5) (0 .. 5),
+                         Model_Id => Byte (Int (6)));
+         ER_Payload := (others => 0);
+         ER_Channels := (others => 0);
+         ER.Init (ER_Receiver, ER_Settings, Unsigned_32 (Int (8)));
+         Record_State (9);
+      elsif Name = "erstep" then
+         if Int (2) /= ER_Seq then
+            Put_Line ("receiver step without its start");
+            Failures := Failures + 1;
+            return;
+         end if;
+         declare
+            Op     : constant Integer_64 := Int (4);
+            Now_Us : constant Unsigned_32 := Unsigned_32 (Int (5));
+            Now_Ms : constant Unsigned_32 := Unsigned_32 (Int (6));
+            Status : ER.Packet_Status;
+            Hop    : Boolean := False;
+         begin
+            case Op is
+               when 0 =>
+                  declare
+                     Frame : constant Byte_Array := Hex_Bytes (15);
+                     Len   : constant Natural := Natural (Int (11));
+                  begin
+                     ER.Process_Packet (ER_Receiver, ER_Settings, Packet_Of (10), Now_Us, Now_Ms,
+                                        Interfaces.Integer_8 (Int (7)), Interfaces.Integer_8 (Int (8)),
+                                        ER_Payload, Status);
+                     ER.Hop_Required (ER_Receiver, Hop);
+                     if ER.Telemetry_Response_Required (ER_Receiver) then
+                        ER.Do_Telemetry (ER_Receiver, Frame (0 .. Len - 1), Int (9) /= 0);
+                     end if;
+                     Record_Int (Name & ".hop", Int (12), Boolean'Pos (Hop));
+                     Record_Bytes (Name & ".payload", Hex_Bytes (14), ER_Payload);
+                  end;
+               when 1 =>
+                  declare
+                     Was_Tock : constant Boolean := ER_Receiver.Timing.Phase = ER.Tock;
+                  begin
+                     if Int (9) /= 0 then
+                        ER.Timer_Update (ER_Receiver, ER_Settings, Now_Us);
+                     end if;
+                     if Was_Tock then
+                        ER.Hop_Required (ER_Receiver, Hop);
+                     end if;
+                     Record_Int (Name & ".hop", Int (12), Boolean'Pos (Hop));
+                  end;
+               when 2 =>
+                  ER.Data_Received (ER_Receiver, ER_Settings, Now_Ms, Int (7) /= 0, Int (8) /= 0, Status);
+                  Record_Int (Name & ".status", Int (12), Integer_64 (ER.Packet_Status'Pos (Status)));
+               when others =>
+                  ER.Set_RC_Data (ER_Receiver, Packet_Of (10), ER_Channels);
+                  declare
+                     Text : constant String := Str (14);
+                     From : Positive := Text'First;
+                     Ch   : Natural := 0;
+                  begin
+                     for I in Text'Range loop
+                        if Text (I) = ';' or else I = Text'Last then
+                           declare
+                              Last : constant Natural := (if Text (I) = ';' then I - 1 else I);
+                           begin
+                              if Ch <= ER.Channel_Index'Last then
+                                 Record_Int (Name & ".rc", Integer_64'Value (Text (From .. Last)),
+                                             Integer_64 (ER_Channels (Ch)));
+                              end if;
+                           end;
+                           Ch := Ch + 1;
+                           From := I + 1;
+                        end if;
+                     end loop;
+                  end;
+            end case;
+            Record_Int (Name & ".freq", Int (13), Integer_64 (ER_Receiver.Current_Freq));
+            Record_State (16);
+         end;
+      else
+         Put_Line ("unknown receiver case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_ELRS_Receiver_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -8797,6 +9007,8 @@ procedure Vector_Check is
                   Check_MSP_Box_Line;
                elsif Kind = "dispatch" then
                   Check_Dispatch_Line;
+               elsif Kind = "elrsrx" then
+                  Check_ELRS_Receiver_Line;
                else
                   Check_PID_Line;
                end if;
@@ -8889,6 +9101,7 @@ begin
    Run (Dir & "/laptimer.csv", "laptimer");
    Run (Dir & "/mspbox.csv", "mspbox");
    Run (Dir & "/dispatch.csv", "dispatch");
+   Run (Dir & "/elrsrx.csv", "elrsrx");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
