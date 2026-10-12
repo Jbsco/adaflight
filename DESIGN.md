@@ -155,6 +155,10 @@ ledger. The deviations so far:
   the recorded vectors carry the values of the host that recorded them, which the double
   route reproduces. The declared tolerance is 1 on the target heading and 256 on the error
   angle, the difference of two headings.
+- The ExpressLRS receiver's signal to noise mean holds its sample count at 2 ** 24 - 1 and
+  adds nothing past it, where the reference's 32-bit sum of 8-bit readings overflows after
+  that many packets without a telemetry response (findings F100). The recorded vectors stay
+  far below the count and replay bit for bit.
 
 ## D7. Contribution conventions (2026-10-08)
 
@@ -1798,3 +1802,45 @@ replays 20000 operations over the eight targets of adds with
 positive and negative delays, clock advances that wrap, enabling, and processing passes whose
 handlers requeue themselves at random, checking the fired order with every requeue, the
 queue's order, and each entry's due time and flag.
+
+## D91. The ExpressLRS receiver (2026-10-12)
+
+The ExpressLRS receiver unit contains the reference's SPI receiver over the hopping tables
+and link quality counter (D54) and the telemetry link (D55). A packet from the radio is
+checked against its 14-bit CRC seeded from the unique id, with the CRC's upper bits cleared
+from its first byte in place as the reference clears them before the check, so the payload
+copy contains the cleared byte. It is then decoded by type: a channel packet is copied to
+the payload for the channel decode, a sync packet contains the rate, the switch mode, the
+telemetry ratio and the model match that drive the connection, an MSP packet with the bind
+command writes the unique id while binding, and any other MSP packet feeds the MSP receiver
+on a connection, whose finished frame sets the model id or is handed to the target. The
+telemetry slot builds the response from the link statistics or from the sender's next
+chunk, counting the burst the rate and telemetry ratio allow, and the next frame the target
+offers starts in the sender when it is idle. The timer's tick advances the nonce and the
+link quality window after the phase lock update, the tock records its time for the lock,
+and each programs the next half-period with the lock's frequency offset and phase shift.
+The receiver task runs the delayed start, a pending initialization, a bind request, the
+connection states with the rate cycling while disconnected, the configuration write-back
+and the link statistics reports. The radio, the timer hardware, the bind button and the
+LEDs stay with the target, which reads the radio configuration, the timer period, the
+start, power and save requests and the reports the unit records.
+
+The receiver record keeps the reference's receiver structure and its file-level state side
+by side under one predicate that holds every rate within its band's table, so the 900 MHz
+bands' four rates and the 2.4 GHz band's six are never mixed. Initialization takes the
+time, which the reference reads from the clock for the rate cycle. The telemetry frame
+comes in through the telemetry slot's parameters where the reference calls out for it, and
+the sender keeps its own copy, as the reference's static frame buffer is rewritten only
+while the sender is idle. The signal to noise mean holds its sample count at 2 ** 24 - 1
+(D6). The burst limit keeps the reference's 8-bit wrap at 1000 Hz with a 1:2 telemetry
+ratio (findings F99).
+
+The harness replays ten sequences of 2000 operations recorded from the reference compiled
+with its driver and telemetry sources: the transmitter's packets at the rate's cadence
+(sync packets with rate, switch mode and telemetry ratio changes, channel packets in the
+wide and hybrid switch modes, bind packets, MSP chunks with model id commands, and
+corrupted, lost and off-rate packets), timer overflows at the programmed period, task
+passes with the system ready flag and bind requests, and channel decodes of fresh
+payloads, over both bands, a bound or unbound unique id and every telemetry ratio,
+checking the decoded payload and channels, the telemetry response, the hop and status
+results and ninety-two state fields after every operation.
