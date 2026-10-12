@@ -103,6 +103,7 @@ with Adaflight.VTX_Table;
 with Adaflight.SmartAudio;
 with Adaflight.LTM_Telemetry;
 with Adaflight.GPS_Lap_Timer;
+with Adaflight.MSP_Box;
 
 procedure Vector_Check is
 
@@ -8427,6 +8428,101 @@ procedure Vector_Check is
       end if;
    end Check_Lap_Timer_Line;
 
+   MB_Seq    : Integer_64 := -1;
+   MB_Wing   : Boolean := False;
+   MB_Buffer : Byte_Array (0 .. 1023) := (others => 0);
+
+   procedure Check_MSP_Box_Line is
+      package MB renames Adaflight.MSP_Box;
+      use type Interfaces.Unsigned_8;
+      Name : constant String := Str (1);
+
+      function Mask_Of (Low, High : Integer_64) return MB.Active_Mask is
+         M : MB.Active_Mask := (others => False);
+         W : constant array (0 .. 1) of Unsigned_32 := (Unsigned_32 (Low), Unsigned_32 (High));
+      begin
+         for Bx in MB.Box loop
+            M (Bx) := (W (MB.Box'Pos (Bx) / 32) and Interfaces.Shift_Left (1, MB.Box'Pos (Bx) mod 32)) /= 0;
+         end loop;
+         return M;
+      end Mask_Of;
+
+      function Modes_Of (Bits : Integer_64) return MB.Mode_Set is
+         Shift : constant array (Adaflight.Arming.Flight_Mode) of Natural :=
+           (Adaflight.Arming.Angle_Mode => 0, Adaflight.Arming.Horizon_Mode => 1, Adaflight.Arming.Mag_Mode => 2,
+            Adaflight.Arming.Alt_Hold_Mode => 3, Adaflight.Arming.Pos_Hold_Mode => 5,
+            Adaflight.Arming.Headfree_Mode => 6, Adaflight.Arming.Chirp_Mode => 7,
+            Adaflight.Arming.Passthru_Mode => 8, Adaflight.Arming.Failsafe_Mode => 10,
+            Adaflight.Arming.GPS_Rescue_Mode => 11, Adaflight.Arming.Autopilot_Mode => 12,
+            Adaflight.Arming.Launch_Mode => 13);
+         M : MB.Mode_Set := (others => False);
+      begin
+         for F in Adaflight.Arming.Flight_Mode loop
+            M (F) := (Unsigned_32 (Bits) and Interfaces.Shift_Left (1, Shift (F))) /= 0;
+         end loop;
+         return M;
+      end Modes_Of;
+
+      function User_Name_Of (I : Positive) return MB.User_Name is
+         Raw : constant Byte_Array := Hex_Bytes (I);
+         N   : MB.User_Name;
+      begin
+         for K in Raw'Range loop
+            exit when Raw (K) = 0;
+            N.Text (K + 1) := Character'Val (Raw (K));
+            N.Length := K + 1;
+         end loop;
+         return N;
+      end User_Name_Of;
+   begin
+      if Name = "mbinit" then
+         MB_Seq := Int (2);
+         MB_Wing := Int (3) /= 0;
+      elsif Name = "mbstep" then
+         if Int (2) /= MB_Seq then
+            Put_Line ("box step without its start");
+            Failures := Failures + 1;
+            return;
+         end if;
+         declare
+            Active   : constant MB.Active_Mask := Mask_Of (Int (5), Int (6));
+            Flight   : constant MB.Mode_Set := Modes_Of (Int (7));
+            Armed    : constant Boolean := Int (8) /= 0;
+            Switches : constant MB.Active_Mask := Mask_Of (Int (9), Int (10));
+            Page     : constant Natural := Natural (Int (11));
+            Name_Cap : constant Natural := Natural (Int (12));
+            Id_Cap   : constant Natural := Natural (Int (13));
+            Names    : constant MB.User_Names :=
+              (Adaflight.Modes.User_1 => User_Name_Of (14), Adaflight.Modes.User_2 => User_Name_Of (15),
+               Adaflight.Modes.User_3 => User_Name_Of (16), Adaflight.Modes.User_4 => User_Name_Of (17));
+            Perm     : constant Byte := Byte (Int (18));
+            Packed   : MB.Packed_Words;
+            Count    : Natural;
+            S        : Adaflight.Stream_Buffers.Stream;
+            Found    : Boolean;
+            Which    : MB.Box;
+         begin
+            MB.Pack_Flight_Mode_Flags (Active, Armed, Flight, Switches, MB_Wing, Packed, Count);
+            Record_Int (Name & ".count", Int (19), Integer_64 (Count));
+            Record_Int (Name & ".packed0", Int (20), Integer_64 (Packed (0)));
+            Record_Int (Name & ".packed1", Int (21), Integer_64 (Packed (1)));
+            Adaflight.Stream_Buffers.Init (S, 0, Name_Cap);
+            MB.Serialize_Box_Reply (MB_Buffer, S, Active, Page, MB.Box_Names, Names);
+            Record_Int (Name & ".namelen", Int (22), Integer_64 (S.Next));
+            Record_Bytes (Name & ".names", Hex_Bytes (23), MB_Buffer (0 .. S.Next - 1));
+            Adaflight.Stream_Buffers.Init (S, 0, Id_Cap);
+            MB.Serialize_Box_Reply (MB_Buffer, S, Active, Page, MB.Box_Permanent_Ids, Names);
+            Record_Int (Name & ".idlen", Int (24), Integer_64 (S.Next));
+            Record_Bytes (Name & ".ids", Hex_Bytes (25), MB_Buffer (0 .. S.Next - 1));
+            MB.Find_By_Permanent_Id (Perm, Found, Which);
+            Record_Int (Name & ".found", Int (26), (if Found then Integer_64 (MB.Box'Pos (Which)) else -1));
+         end;
+      else
+         Put_Line ("unknown box case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_MSP_Box_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -8589,6 +8685,8 @@ procedure Vector_Check is
                   Check_LTM_Line;
                elsif Kind = "laptimer" then
                   Check_Lap_Timer_Line;
+               elsif Kind = "mspbox" then
+                  Check_MSP_Box_Line;
                else
                   Check_PID_Line;
                end if;
@@ -8679,6 +8777,7 @@ begin
    Run (Dir & "/vtxtramp.csv", "vtxtramp");
    Run (Dir & "/ltm.csv", "ltm");
    Run (Dir & "/laptimer.csv", "laptimer");
+   Run (Dir & "/mspbox.csv", "mspbox");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
