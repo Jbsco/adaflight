@@ -1364,3 +1364,20 @@ reference computes them once with the C library and the unit keeps no transcende
 guard covers the reference's undefined behavior: the age error of a slot is computed in 64
 bits where the reference subtracts the delay from a 32-bit age that can be near its minimum
 after a long silence (finding F90). No recorded vector reaches the guard.
+## D73. Pitot airspeed (2026-10-11)
+
+The pitot unit carries the reference's airspeed task without its drivers: the platform reads
+the I2C sensor and the latest DroneCAN frame each pass, and the unit picks the source in the
+reference's order, the configured one alone or, for the default, the I2C sensor first and the
+DroneCAN frame when it is less than half a second old. The pressure of the source that answered
+goes through a first-order low-pass at five hertz over the twenty hertz task period; a source
+that takes over resets the filter and, while disarmed and not yet zeroed, starts its
+calibration, twenty filtered samples averaged into the source's zero, abandoned by arming. The
+zero-corrected pressure gives the indicated airspeed as the square root of twice the pressure
+over the sea-level air density, signed by the flow direction and in centimetres per second. A
+pass without a sample keeps the last values for one second, then drops the source and zeroes
+the pressure and the airspeed. Two bounds hold the proof without touching a value in range: the
+accumulation of the calibration is held within twenty signal bounds, the most twenty samples
+can sum to, and the root of the pressure is capped at one million before the multiplication to
+centimetres, a bound no pressure within the signal bound reaches. The time comparisons use the
+wrapping difference. No recorded vector reaches a guard.
