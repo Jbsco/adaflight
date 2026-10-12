@@ -58,6 +58,7 @@ with Adaflight.SUMH;
 with Adaflight.IBUS;
 with Adaflight.Spektrum;
 with Adaflight.XBUS;
+with Adaflight.Jeti_Ex_Bus;
 
 procedure Vector_Check is
 
@@ -3988,6 +3989,80 @@ procedure Vector_Check is
       end if;
    end Check_XBUS_Line;
 
+   Jeti_State : Adaflight.Jeti_Ex_Bus.State;
+   Jeti_Clock : Unsigned_32 := 0;
+
+   procedure Check_Jeti_Line is
+      use Adaflight.Jeti_Ex_Bus;
+      Name : constant String := Str (1);
+      K    : Positive := 1;
+      procedure Expect_Next (N : String; Actual : Integer_64) is
+      begin
+         Record_Int (Name & "." & N, Int (K), Actual);
+         K := K + 1;
+      end Expect_Next;
+      procedure Check_Fields is
+      begin
+         if K /= NF + 1 then
+            Put_Line (Name & ": consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
+            Failures := Failures + 1;
+         end if;
+      end Check_Fields;
+   begin
+      if Name = "jetiinit" then
+         Init (Jeti_State);
+         Jeti_Clock := Unsigned_32 (Int (3));
+         K := 4;
+         Expect_Next ("count", Channel_Count);
+         Expect_Next ("position", Integer_64 (Jeti_State.Position));
+         Expect_Next ("length", Integer_64 (Jeti_State.Length));
+         for Ch in Channel loop
+            Expect_Next ("data", Integer_64 (Jeti_State.Data (Ch)));
+         end loop;
+         Check_Fields;
+      elsif Name = "jetiburst" then
+         declare
+            Count  : constant Natural := Integer (Int (4));
+            Status : Adaflight.Receiver.Frame_Report;
+         begin
+            K := 5;
+            for B in 1 .. Count loop
+               Jeti_Clock := Jeti_Clock + Unsigned_32 (Int (K));
+               Receive_Byte (Jeti_State, Integer (Int (K + 1)), Jeti_Clock);
+               K := K + 2;
+            end loop;
+            Jeti_Clock := Unsigned_32 (Int (K));
+            K := K + 1;
+            if Int (K + 1) /= 0 then
+               Frame_Status (Jeti_State, Status);
+               Expect_Next ("status", Boolean'Pos (Status.Complete));
+            else
+               K := K + 1;
+            end if;
+            K := K + 1;
+            Expect_Next ("frame_state", Frame_State_Kind'Pos (Jeti_State.Frame_State));
+            Expect_Next ("request_state", Frame_State_Kind'Pos (Jeti_State.Request_State));
+            Expect_Next ("can_tx", Boolean'Pos (Jeti_State.Can_Tx));
+            Expect_Next ("position", Integer_64 (Jeti_State.Position));
+            Expect_Next ("length", Integer_64 (Jeti_State.Length));
+            Expect_Next ("channel_stamp", Integer_64 (Jeti_State.Channel_Stamp_Us));
+            Expect_Next ("request_stamp", Integer_64 (Jeti_State.Request_Stamp_Us));
+            Expect_Next ("frame_time", Integer_64 (Jeti_State.Last_Frame_Time_Us));
+            Expect_Next ("channel_crc", Integer_64 (Frame_CRC16 (Jeti_State.Channel_Frame, Max_Channel_Frame)));
+            Expect_Next ("request_crc", Integer_64 (Frame_CRC16 (Jeti_State.Request_Frame, Max_Request_Frame)));
+            for Ch in Channel loop
+               Expect_Next ("data", Integer_64 (Jeti_State.Data (Ch)));
+               Record_Result (Name & ".raw", Bits (K), To_Bits (Read_Raw (Jeti_State, Ch)));
+               K := K + 1;
+            end loop;
+            Check_Fields;
+         end;
+      else
+         Put_Line ("unknown jeti case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Jeti_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -4064,6 +4139,8 @@ procedure Vector_Check is
                   Check_Spek_Line;
                elsif Kind = "xbus" then
                   Check_XBUS_Line;
+               elsif Kind = "jeti" then
+                  Check_Jeti_Line;
                else
                   Check_PID_Line;
                end if;
@@ -4111,6 +4188,7 @@ begin
    Run (Dir & "/ibus.csv", "ibus");
    Run (Dir & "/spek.csv", "spek");
    Run (Dir & "/xbus.csv", "xbus");
+   Run (Dir & "/jeti.csv", "jeti");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
