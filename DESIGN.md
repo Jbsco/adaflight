@@ -1259,3 +1259,18 @@ as the reference's writers do. The climb rate of the last frame stays zero and i
 as the reference tests a sensor bit no sensor sets (finding F82), and an empty schedule sends
 nothing, where the reference divides by its length (finding F83). The unit is SPARK for the frame
 and schedule indexes.
+## D67. Race transponder codings (2026-10-11)
+
+The transponder unit carries the reference's three infrared codings and its repeat schedule. Each
+coding turns the configured code into the toggles a timer plays out on the carrier: ILAP sends
+six bytes, each a pulsed start bit, its eight bits low first and a silent stop bit, eleven toggles
+and a gap per bit, 720 toggles in all; Arcitimer sends nine bytes, each bit low first as four
+toggles, in a buffer of 620 with silence after the 288 of the bits; ERLT sends the inverted code's
+six low bits high first between two start bits and a parity bit, a one as twenty-five cycles and a
+zero as ten, pulsed on the odd bits, with a silent cycle after the parity, so its length follows
+the code. The pulse value of the ERLT coding passes through a byte, as the reference's helper
+narrows it (finding F84). The schedule starts a transmission when the hardware is ready and the
+signed difference to the next time is not negative, and sets the next time from the coding's delay
+and a tenth of its jitter times the next step of a fixed table of fifteen; no coding means no
+transmission. The timer period and the hardware are the target's. The unit is SPARK for the toggle
+buffer indexes, which the reference drives through a static offset.
