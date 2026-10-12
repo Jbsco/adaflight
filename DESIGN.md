@@ -1493,3 +1493,48 @@ the buffer is dropped (F55), a satellite number of zero skips the list (F56), an
 outside the calendar counts thirty-one days (F57). The oracle feeds bursts of sentences and
 messages with cut frames, bad checksums, stale buffers and runs of garbage, built with
 unsigned characters as the targets are, and every recorded vector replays exactly.
+
+## D62. The GPS link (2026-10-11)
+
+`Adaflight.UBX_Config` builds the configuration messages for a u-blox module: the frame around
+a class, an id and a payload with the two running checksum bytes, the polls, the message rates,
+the navigation rate, the dynamic model with the fixed defaults of the other navigation settings,
+the autonomous assistance, the full power mode, the SBAS selection with the scan mask of the
+selected system and the NMEA output disable, each in the legacy form and, from the ninth
+generation, the keyed value form, and the GNSS configuration sent back from the module's own
+reply with SBAS and Galileo set as selected. A frame carries the id its acknowledgement names
+and whether the sender counts it acknowledged at once: the legacy navigation rate and every
+keyed message but the navigation rate are. The GNSS message holds at most seven blocks
+(finding F61).
+
+`Adaflight.GPS_Link` runs the connection over a serial port the caller owns. The caller hands
+over the bytes received since the last call and carries out what the call asks for: the bytes
+to send, the port rate to set, the indicator toggle, the ready beep, the clock to set and the
+task rate, fast while bytes arrive and normal one call after the last. The detection polls
+the version three times, 330 ms apart, at each rate of a sweep that starts at the configured
+rate, moves through the faster rates and wraps to 9600 upward; after two passes a step waits
+30 s. A version reply sends the module's own rate change sentence, the port follows a second
+later, and the configuration starts after another second: one step every 110 ms while no
+acknowledgement is awaited, each step moving on at the acknowledgement or 150 ms after the
+message, a negative acknowledgement of the first step restarting the configuration. The
+steps slow the navigation rate, turn the six NMEA sentences off, set the acquisition model,
+the assistance, the SBAS selection and the power mode where the generation has them, pick the
+solution messages of the generation (PVT from the seventh, the five legacy messages below),
+ask for the satellite information at a fifth of the rate, set the configured rate and poll
+the GNSS configuration when SBAS is off or Galileo is on; the reply is answered as it is
+received. Receiving, a fix switches the module to the flight model once, and 2.5 s without a
+solution counts a timeout, drops the fix and the satellite count and restarts the detection.
+An NMEA module keeps its own rate: the port is set to the configured rate and one custom
+command goes out, half a second apart; the next command waits for the next connection
+(finding F63). The ground link source takes offered solutions and starts initialized; after
+a loss it stays in the detection state (finding F62). Every solution with a fix counts the
+stamp, sets the interval and the frequency of the solutions, the distance and the direction
+home and, armed, the distance flown above 15 cm/s. The home position is set on request from
+a fix with at least the minimum satellites, unless it is kept once set; the request also
+turns the satellite information off on a u-blox module. Disarmed, the home fix clears each
+call unless kept, and the ready beep sounds once at a fix with enough satellites. The link's
+clock starts at zero, so the first version poll is counted against zero (finding F64). The
+distance over the local flat earth and the bearing use the maths approximations and the
+wrapped coordinate difference (finding F58); the ENU distance vector stays with the position
+estimate. The task time budget that stops the byte loop belongs to the caller, which decides
+how many bytes a call takes. Every recorded vector replays exactly.
