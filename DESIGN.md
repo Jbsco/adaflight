@@ -1058,3 +1058,51 @@ or A after a width digit as a digit of ten, the comparison of the reference kept
 match (finding F44). The search returns no match for an empty text, where the reference reads
 past it (finding F46). Proof covers every buffer index and the float bounds of the reader. No
 recorded vector reaches the saturation or the empty-text guard.
+## D58. The DShot protocol (2026-10-11)
+
+`Adaflight.DShot` holds the protocol pieces that need no output hardware. The frame puts
+eleven value bits over the telemetry request bit and the checksum of the three nibbles
+above it, inverted when the reply shares the signal line. The command conversions map the
+1000 to 2000 range onto 48 to 2047 and back, each linear map as one factor and one offset
+written as nine-digit literals of the single-precision constants a compiled reference
+folds, so every product and sum rounds once as the compiled form does. The reverse map
+rounds to the nearest command with a tie going to the even one, through a helper that
+takes the exact fraction above the truncated value, because the hosted rounding attribute
+is outside the proof tool's support and the maths unit's rounding has no postcondition
+that ties its result to its argument, which the command range needs. The endpoints take
+the idle setting in hundredths of a percent and the output limit as a fraction and write
+the low and high outputs and the stop. The two deadband edges of the two direction mode
+are written only in that mode.
+
+The sampled reply decoder keeps the preamble skip, the smallest margin and the next check
+time in a record the caller owns. It finds the first low sample, then reads the samples
+one at a time within the count, closing a run at every level change that is not the last
+position in reach. The reference's unrolled scan reads up to three samples past the count
+when the preamble ends within sixty-nine samples of it. Those reads never change the
+result, so the single reads are the same decoder without the over-read (finding F48). The
+groups decode through the table of sixteen five-bit codes with the invalid marker, and the
+nibble checksum gates the twelve bit value. The period decode shifts nine mantissa bits by
+the three exponent bits and divides sixty million hundredths by the period, with the all
+ones value as a stopped motor and a zero period as invalid, and proof bounds the result at
+six hundred thousand.
+
+The telemetry record carries the raw value, the last value per kind, the received set as a
+byte and the highest temperature per motor, the processing state, the motor count, the
+rate factor from the pole count, the forced extended decode, the rate filters, and the
+rates. Update decodes every motor once per marked frame, keeps the kind's value as a
+16-bit word, folds the rate, then runs the rate filters over the stored words and takes
+their minimum. A rate above 65535 hundredths wraps in the stored word while the per-motor
+rate uses the full value, as the reference does (finding F50). The sensor record gives the
+period word as a signed 16-bit value. The pole count is one to 255, so the rate factor
+stays below four. The reference accepts a zero pole count from the ground link and divides
+by it (finding F49).
+
+The quality record counts replies per hundred millisecond bucket over ten buckets with the
+two running sums. The invalid share is the rounded ratio in hundredths of a percent. A
+share at or above 9999.5 is returned as the whole without the rounding helper, which is
+the value the rounding gives there, and this keeps the result in its range when the sums
+disagree, a state no counting sequence produces. The output order check resets an order
+that is not a permutation of its indices to the identity, and the postcondition bounds
+every entry by the length. Proof covers the sample indices against the count, the shifts,
+the margin narrowing to a byte, the bounded period, the rate bounds, and the order bounds.
+Every recorded vector replays exactly.

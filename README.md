@@ -36,12 +36,12 @@ altitude estimator, the altitude hold, the in-flight adjustments, the simplified
 the PID gains, the cooperative scheduler, the beeper, the receiver's channel processing,
 and the SBUS, CRSF, SUMD, SUMH, IBUS, Spektrum, XBUS, Jeti EX Bus, Ghost, SRXL2 and FPORT
 protocols, the MSP and MAVLink receivers, the MSP serial port, the ExpressLRS hopping
-tables, the ExpressLRS telemetry link, the flight log field encodings, and the text
-conversions.
+tables, the ExpressLRS telemetry link, the flight log field encodings, the text
+conversions, and the DShot protocol.
 
-- The core proves at Silver and Gold: 6428 checks, nothing unproved, no
+- The core proves at Silver and Gold: 6639 checks, nothing unproved, no
   `pragma Assume`, no justified suppression (`gnatprove` 16.1.0, level 2).
-- The recorded vectors replay bit for bit: 326531 lines over 222 cases, every case
+- The recorded vectors replay bit for bit: 334733 lines over 231 cases, every case
   exact except the seventeen declared deviations in `DESIGN.md` D6.
 - No target builds yet. `ROADMAP.md` carries the parity inventory and the phases.
 

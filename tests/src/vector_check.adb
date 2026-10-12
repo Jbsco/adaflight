@@ -69,6 +69,7 @@ with Adaflight.ExpressLRS;
 with Adaflight.ExpressLRS_Telemetry;
 with Adaflight.Blackbox_Encoding;
 with Adaflight.Text;
+with Adaflight.DShot;
 
 procedure Vector_Check is
 
@@ -5217,6 +5218,149 @@ procedure Vector_Check is
       end if;
    end Check_Text_Line;
 
+   DShot_Seq     : Integer_64 := -1;
+   Edge_State    : Adaflight.DShot.Edge_Decoder;
+   Quality_State : Adaflight.DShot.Quality;
+   Tlm           : Adaflight.DShot.Telemetry;
+   Edge_Buffer   : Adaflight.DShot.Samples (0 .. Adaflight.DShot.Max_Samples - 1) := (others => 0);
+
+   procedure Check_DShot_Line is
+      use Adaflight.DShot;
+      use type Interfaces.Unsigned_8;
+      use type Interfaces.Unsigned_16;
+      subtype Unsigned_8 is Interfaces.Unsigned_8;
+      subtype Unsigned_16 is Interfaces.Unsigned_16;
+      subtype Integer_16 is Interfaces.Integer_16;
+      Name : constant String := Str (1);
+   begin
+      if Int (2) /= DShot_Seq then
+         DShot_Seq := Int (2);
+         Edge_State := (others => <>);
+         Quality_State := (others => <>);
+         Tlm := (others => <>);
+      end if;
+      if Name = "dsframe" then
+         Record_Int (Name, Int_Hex (7), Integer_64 (Frame (Natural (Int (4)), Int (5) = 1, Int (6) = 1)));
+      elsif Name = "dsconv" then
+         if Int (4) = 0 then
+            Record_Result (Name & ".from", Bits (7), To_Bits (From_External (Unsigned_16 (Int (6)), Int (5) = 1)));
+         else
+            Record_Int (Name & ".to", Int (7), Integer_64 (To_External (Flt (6), Int (5) = 1)));
+         end if;
+      elsif Name = "dsend" then
+         declare
+            Low, High, Disarm : Motor_Value;
+            DBH, DBL          : Float := 0.0;
+         begin
+            Endpoints (Natural (Int (5)), Flt (6), Int (4) = 1, Low, High, Disarm, DBH, DBL);
+            Record_Result (Name & ".low", Bits (7), To_Bits (Low));
+            Record_Result (Name & ".high", Bits (8), To_Bits (High));
+            Record_Result (Name & ".disarm", Bits (9), To_Bits (Disarm));
+            Record_Result (Name & ".dbhigh", Bits (10), To_Bits (DBH));
+            Record_Result (Name & ".dblow", Bits (11), To_Bits (DBL));
+         end;
+      elsif Name = "dsedge" then
+         declare
+            Count  : constant Natural := Natural (Int (6));
+            K      : constant Positive := 7 + Count;
+            Result : Unsigned_32;
+         begin
+            for J in 0 .. Count - 1 loop
+               Edge_Buffer (J) := Unsigned_16 (Int (7 + J));
+            end loop;
+            Decode_Samples (Edge_State, Edge_Buffer, Count, Natural (Int (5)), Unsigned_32 (Int (4)), Result);
+            Record_Int (Name, Int (K), Integer_64 (Result));
+            Record_Int (Name & ".skip", Int (K + 1), Integer_64 (Edge_State.Preamble_Skip));
+            Record_Int (Name & ".margin", Int (K + 2), Integer_64 (Edge_State.Min_Margin));
+            Record_Int (Name & ".next", Int (K + 3), Integer_64 (Edge_State.Next_Margin_Check));
+         end;
+      elsif Name = "dserpm" then
+         declare
+            Value : Unsigned_32;
+            Kind  : Telemetry_Kind;
+         begin
+            Decode_Value (Raw_Value (Int (4)), Int (6) = 1 or else (Unsigned_8 (Int (5)) and 16#FE#) /= 0, Value, Kind);
+            Record_Int (Name, Int (7), Integer_64 (Value));
+            Record_Int (Name & ".kind", Int (8), Integer_64 (Telemetry_Kind'Pos (Kind)));
+         end;
+      elsif Name = "dstlminit" then
+         Init (Tlm, Natural (Int (4)), Positive (Int (5)), Int (6) = 2, Natural (Int (7)), Positive (Int (8)));
+         Record_Result (Name & ".factor", Bits (9), To_Bits (Tlm.Erpm_To_Hz));
+      elsif Name = "dstlm" then
+         declare
+            Op      : constant Integer_64 := Int (4);
+            Count   : constant Natural := Natural (Int (5));
+            K       : Positive := 7;
+            Present : Boolean;
+            Erpm_H  : Integer_16;
+            Temp    : Unsigned_8;
+            Cur     : Unsigned_16;
+         begin
+            Tlm.State := Raw_State'Val (Int (6));
+            if Op = 0 then
+               for M in 0 .. Count - 1 loop
+                  Tlm.Motors (M).Raw := Raw_Value (Int (K));
+                  K := K + 1;
+               end loop;
+               Update (Tlm);
+            elsif Op = 1 then
+               Clean (Tlm);
+            end if;
+            Record_Int (Name & ".state", Int (K), Integer_64 (Raw_State'Pos (Tlm.State)));
+            Record_Result (Name & ".average", Bits (K + 1), To_Bits (Tlm.Rpm_Average));
+            Record_Result (Name & ".minfreq", Bits (K + 2), To_Bits (Tlm.Min_Frequency));
+            Record_Int (Name & ".active", Int (K + 3), Boolean'Pos (Active (Tlm)));
+            K := K + 4;
+            for M in 0 .. Count - 1 loop
+               for Kind in Telemetry_Kind loop
+                  Record_Int (Name & ".value", Int (K), Integer_64 (Tlm.Motors (M).Values (Kind)));
+                  K := K + 1;
+               end loop;
+               Record_Int (Name & ".received", Int (K), Integer_64 (Tlm.Motors (M).Received));
+               Record_Int (Name & ".maxtemp", Int (K + 1), Integer_64 (Tlm.Motors (M).Max_Temperature));
+               Record_Result (Name & ".rpm", Bits (K + 2), To_Bits (Tlm.Rpm (M)));
+               Record_Result (Name & ".freq", Bits (K + 3), To_Bits (Tlm.Frequency (M)));
+               K := K + 4;
+            end loop;
+            Sensor_Data (Tlm, 0, Present, Erpm_H, Temp, Cur);
+            Record_Int (Name & ".present", Int (K), Boolean'Pos (Present));
+            Record_Int (Name & ".erpm16", Int (K + 1), Integer_64 (Erpm_H));
+            Record_Int (Name & ".temp", Int (K + 2), Integer_64 (Temp));
+            Record_Int (Name & ".current", Int (K + 3), Integer_64 (Cur));
+            if K + 3 /= NF then
+               Put_Line ("dstlm: consumed" & Integer'Image (K + 3) & " of" & Integer'Image (NF) & " fields");
+               Failures := Failures + 1;
+            end if;
+         end;
+      elsif Name = "dsqual" then
+         Count_Packet (Quality_State, Int (4) = 1, Unsigned_32 (Int (5)));
+         Record_Int (Name & ".packets", Int (7), Integer_64 (Quality_State.Packet_Sum));
+         Record_Int (Name & ".invalids", Int (8), Integer_64 (Quality_State.Invalid_Sum));
+         Record_Int (Name & ".last", Int (9), Integer_64 (Quality_State.Last_Bucket));
+         for B in Bucket_Index loop
+            Record_Int (Name & ".bucket", Int (10 + B), Integer_64 (Quality_State.Packets (B)));
+            Record_Int (Name & ".invalid", Int (20 + B), Integer_64 (Quality_State.Invalids (B)));
+         end loop;
+         Record_Int (Name & ".percent", Int (30), Integer_64 (Invalid_Percent (Quality_State, Int (6) = 1)));
+      elsif Name = "dsorder" then
+         declare
+            N     : constant Natural := Natural (Int (4));
+            Order : Output_Order (0 .. N - 1);
+         begin
+            for J in 0 .. N - 1 loop
+               Order (J) := Unsigned_8 (Int (5 + J));
+            end loop;
+            Validate_Order (Order);
+            for J in 0 .. N - 1 loop
+               Record_Int (Name, Int (5 + N + J), Integer_64 (Order (J)));
+            end loop;
+         end;
+      else
+         Put_Line ("unknown dshot case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_DShot_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -5315,6 +5459,8 @@ procedure Vector_Check is
                   Check_Blackbox_Line;
                elsif Kind = "text" then
                   Check_Text_Line;
+               elsif Kind = "dshot" then
+                  Check_DShot_Line;
                else
                   Check_PID_Line;
                end if;
@@ -5373,6 +5519,7 @@ begin
    Run (Dir & "/elrstlm.csv", "elrstlm");
    Run (Dir & "/bbenc.csv", "bbenc");
    Run (Dir & "/text.csv", "text");
+   Run (Dir & "/dshot.csv", "dshot");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
