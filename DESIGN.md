@@ -968,3 +968,25 @@ checks, so no byte can land past the buffer. The encoder's frame buffer is sized
 header, the largest reply, and both checksums. The reference writes the jumbo size of a
 combined-framing reply after the version 2 header instead of after the version 1 header, and the
 encoder keeps that order so the recorded vectors match (finding F43).
+## D54. The ExpressLRS hopping tables and link counters (2026-10-11)
+
+`Adaflight.ExpressLRS` holds the common part of the ExpressLRS link ahead of its receiver: the
+air rate and performance tables of the 900 MHz and 2.4 GHz bands as constants, the eight
+frequency domains with their first and last channel as register values and their channel count,
+the hopping sequence, the 14-bit CRC of the over-the-air packet, the link quality counter, and
+the conversions of switches, telemetry ratios, rates, power indices, and the air rate index of a
+sync packet. The sequence generator fills whole blocks of the channel count with the sync
+channel first (the channel count halved plus one, where the version 3 protocol places it), the
+channel that would repeat the sync channel as channel zero, and the others in order, then swaps
+every entry but the first of each block with an entry drawn by the seeded linear congruential
+generator from the same block, in the draw order of a single pass. Proof covers the sequence
+indices through the block structure (an entry and its swap partner stay within the block, and
+the blocks within the 256 entries), the frequency arithmetic in modular 32-bit words as the
+radio registers hold it, and the link quality window through a predicate on its record (the bit
+position stays below four in the last word, so the window wraps where the hundred periods end
+and the word index never passes the fourth word). The current index stays below the sequence
+count by the record's predicate, and a regeneration reduces the index into the new count before
+the count changes. The telemetry ratio value is a byte, so the standard marker reads zero and
+the disarmed marker one, as the sync packet carries them. The CRC table entry is computed per
+byte instead of held in a table of 256 words, the same function of the byte. The receiver's
+packet handling, the connection states, and the telemetry link follow in their own units.

@@ -65,6 +65,7 @@ with Adaflight.SRXL2;
 with Adaflight.FPORT;
 with Adaflight.MAVLink;
 with Adaflight.MSP_Port;
+with Adaflight.ExpressLRS;
 
 procedure Vector_Check is
 
@@ -4711,6 +4712,188 @@ procedure Vector_Check is
       end if;
    end Check_MSP_Serial_Line;
 
+   ELRS_Hop : Adaflight.ExpressLRS.Hopping;
+   ELRS_LQ  : Adaflight.ExpressLRS.Link_Quality;
+
+   procedure Check_ELRS_Line is
+      use Adaflight.ExpressLRS;
+      Name : constant String := Str (1);
+      K    : Positive := 1;
+      procedure Expect_Next (N : String; Actual : Integer_64) is
+      begin
+         Record_Int (Name & "." & N, Int (K), Actual);
+         K := K + 1;
+      end Expect_Next;
+      procedure Check_Fields is
+      begin
+         if K /= NF + 1 then
+            Put_Line (Name & ": consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
+            Failures := Failures + 1;
+         end if;
+      end Check_Fields;
+   begin
+      if Name = "elrstable" then
+         declare
+            R : constant Rate_Index := Integer (Int (3));
+            M : constant Mod_Settings := (if Int (2) = 0 then Rates_900 (R) else Rates_2400 (R));
+            P : constant Perf_Params := (if Int (2) = 0 then Perf_900 (R) else Perf_2400 (R));
+         begin
+            K := 4;
+            Expect_Next ("index", Integer_64 (M.Index));
+            Expect_Next ("radio", Radio_Type'Pos (M.Radio));
+            Expect_Next ("rate", RF_Rate'Pos (M.Rate));
+            Expect_Next ("v4_rate", Integer_64 (M.V4_Rate));
+            Expect_Next ("bandwidth", Integer_64 (M.Bandwidth));
+            Expect_Next ("spreading", Integer_64 (M.Spreading));
+            Expect_Next ("coding", Integer_64 (M.Coding));
+            Expect_Next ("interval", Integer_64 (M.Interval_Us));
+            Expect_Next ("ratio", Telemetry_Ratio'Pos (M.Ratio));
+            Expect_Next ("hop_interval", Integer_64 (M.Hop_Interval));
+            Expect_Next ("preamble", Integer_64 (M.Preamble));
+            Expect_Next ("perf_index", Integer_64 (P.Index));
+            Expect_Next ("perf_rate", RF_Rate'Pos (P.Rate));
+            Expect_Next ("sensitivity", Integer_64 (P.Sensitivity_Dbm));
+            Expect_Next ("time_on_air", Integer_64 (P.Time_On_Air_Us));
+            Expect_Next ("disconnect", Integer_64 (P.Disconnect_Timeout_Ms));
+            Expect_Next ("lock", Integer_64 (P.Lock_Timeout_Ms));
+            Expect_Next ("sync_disconnected", Integer_64 (P.Sync_Interval_Disconnected_Ms));
+            Expect_Next ("sync_connected", Integer_64 (P.Sync_Interval_Connected_Ms));
+            Check_Fields;
+         end;
+      elsif Name = "elrsdomain" then
+         declare
+            D : constant Domain_Config := Domains (Frequency_Domain'Val (Int (2)));
+         begin
+            K := 3;
+            Expect_Next ("domain", Int (2));
+            Expect_Next ("start", Integer_64 (D.Start_Reg));
+            Expect_Next ("stop", Integer_64 (D.Stop_Reg));
+            Expect_Next ("channels", Integer_64 (D.Channels));
+            Check_Fields;
+         end;
+      elsif Name = "elrsinit" then
+         declare
+            UID  : Byte_Array (0 .. 5);
+            Seed : Unsigned_32;
+         begin
+            for B in 0 .. 5 loop
+               UID (B) := Byte (Int (3 + B));
+            end loop;
+            Seed := UID_Seed (UID);
+            Reset (ELRS_LQ);
+            K := 9;
+            Record_Int (Name & ".seed", Int (K), Integer_64 (Seed));
+            K := K + 1;
+            ELRS_Hop := (others => <>);
+            Generate (ELRS_Hop, Seed, Frequency_Domain'Val (Int (K)));
+            K := K + 1;
+            Expect_Next ("count", Integer_64 (ELRS_Hop.Count));
+            Expect_Next ("sync_channel", Integer_64 (ELRS_Hop.Sync_Channel));
+            Expect_Next ("spread", Integer_64 (ELRS_Hop.Spread));
+            Expect_Next ("entries", Integer_64 (Entry_Count (ELRS_Hop)));
+            Expect_Next ("index", Integer_64 (ELRS_Hop.Index));
+            for I in 0 .. ELRS_Hop.Count - 1 loop
+               Expect_Next ("sequence", Integer_64 (ELRS_Hop.Sequence (I)));
+            end loop;
+            Check_Fields;
+         end;
+      elsif Name = "elrshop" then
+         declare
+            Correction : constant Interfaces.Integer_32 := Interfaces.Integer_32 (Int (4));
+            Freq       : Unsigned_32;
+         begin
+            if Int (5) >= 0 then
+               Set_Index (ELRS_Hop, Byte (Int (5)));
+            end if;
+            K := 6;
+            Expect_Next ("initial", Integer_64 (Initial_Frequency (ELRS_Hop, Correction)));
+            Next_Frequency (ELRS_Hop, Correction, Freq);
+            Expect_Next ("next", Integer_64 (Freq));
+            Expect_Next ("index", Integer_64 (ELRS_Hop.Index));
+            Check_Fields;
+         end;
+      elsif Name = "elrscrc" then
+         declare
+            Len  : constant Natural := Integer (Int (4));
+            Data : Byte_Array (0 .. 15) := (others => 0);
+         begin
+            for B in 0 .. Len - 1 loop
+               Data (B) := Byte (Int (6 + B));
+            end loop;
+            K := 6 + Len;
+            Expect_Next ("crc", Integer_64 (CRC14 (Data (0 .. Len - 1), Unsigned_16 (Int (5)))));
+            Check_Fields;
+         end;
+      elsif Name = "elrslq" then
+         case Int (4) is
+            when 0 => Reset (ELRS_LQ);
+            when 1 => New_Period (ELRS_LQ);
+            when 2 => Increase (ELRS_LQ);
+            when others =>
+               New_Period (ELRS_LQ);
+               Increase (ELRS_LQ);
+         end case;
+         K := 5;
+         Expect_Next ("value", Integer_64 (ELRS_LQ.Value));
+         Expect_Next ("period_set", Boolean'Pos (Period_Is_Set (ELRS_LQ)));
+         Expect_Next ("index", Integer_64 (ELRS_LQ.Index));
+         Expect_Next ("mask", Integer_64 (Mask (ELRS_LQ)));
+         for W in 0 .. LQ_Depth - 1 loop
+            Expect_Next ("bits", Integer_64 (ELRS_LQ.Bits (W)));
+         end loop;
+         Check_Fields;
+      elsif Name = "elrsconv" then
+         K := 3;
+         for V in 0 .. 1 loop
+            Expect_Next ("switch_1b", Integer_64 (Switch_1b (V)));
+         end loop;
+         for V in 0 .. 7 loop
+            Expect_Next ("switch_3b", Integer_64 (Switch_3b (V)));
+         end loop;
+         for J in 1 .. 12 loop
+            declare
+               V   : constant Natural := Integer (Int (K));
+               Max : constant Natural := Integer (Int (K + 1));
+            begin
+               K := K + 2;
+               Expect_Next ("switch_nb", Integer_64 (Switch_Nb (V, Max)));
+            end;
+         end loop;
+         for R in Telemetry_Ratio loop
+            Expect_Next ("ratio", Integer_64 (Ratio_Value (R)));
+         end loop;
+         for R in RF_Rate loop
+            Expect_Next ("rate_hz", Integer_64 (Rate_Hz (R)));
+         end loop;
+         for P in 0 .. 9 loop
+            Expect_Next ("power", Integer_64 (Power_Mw (P)));
+         end loop;
+         Check_Fields;
+      elsif Name = "elrsair" then
+         K := 3;
+         for A in 0 .. 7 loop
+            for C in Rate_Index loop
+               Expect_Next ("index_900", Integer_64 (Rate_Index_900 (A, C)));
+            end loop;
+         end loop;
+         for A in 0 .. 15 loop
+            for C in Rate_Index loop
+               Expect_Next ("index_2400", Integer_64 (Rate_Index_2400 (A, C)));
+            end loop;
+         end loop;
+         Check_Fields;
+      elsif Name = "elrsnonce" then
+         K := 4;
+         for N in 0 .. 127 loop
+            Expect_Next ("switch_index", Integer_64 (Hybrid_Wide_Switch_Index (Byte (Integer (Int (3)) * 128 + N))));
+         end loop;
+         Check_Fields;
+      else
+         Put_Line ("unknown elrs case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_ELRS_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -4801,6 +4984,8 @@ procedure Vector_Check is
                   Check_MAVLink_Line;
                elsif Kind = "mspserial" then
                   Check_MSP_Serial_Line;
+               elsif Kind = "elrs" then
+                  Check_ELRS_Line;
                else
                   Check_PID_Line;
                end if;
@@ -4855,6 +5040,7 @@ begin
    Run (Dir & "/fport.csv", "fport");
    Run (Dir & "/mavlink.csv", "mavlink");
    Run (Dir & "/mspserial.csv", "mspserial");
+   Run (Dir & "/elrs.csv", "elrs");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
