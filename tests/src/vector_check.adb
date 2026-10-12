@@ -78,6 +78,7 @@ with Adaflight.FrSky_Hub_Telemetry;
 with Adaflight.IBus_Telemetry;
 with Adaflight.HoTT_Telemetry;
 with Adaflight.GHST_Telemetry;
+with Adaflight.Transponder;
 
 procedure Vector_Check is
 
@@ -165,7 +166,7 @@ procedure Vector_Check is
    end Record_Int;
 
    Max_Fields : constant := 1000;
-   type Fields is array (1 .. Max_Fields) of String (1 .. 600);
+   type Fields is array (1 .. Max_Fields) of String (1 .. 800);
    type Field_Lengths is array (1 .. Max_Fields) of Natural;
 
    F  : Fields;
@@ -6161,6 +6162,60 @@ procedure Vector_Check is
       end if;
    end Check_GHST_Telemetry_Line;
 
+   TP_Seq   : Integer_64 := -1;
+   TP_Sched : Adaflight.Transponder.Schedule;
+
+   procedure Check_Transponder_Line is
+      use Adaflight.Transponder;
+      Name : constant String := Str (1);
+   begin
+      if Name = "tpcode" then
+         declare
+            P      : constant Provider := Provider'Val (Int (3));
+            Toggle : constant Interfaces.Unsigned_16 := Interfaces.Unsigned_16 (Int (4));
+            S      : constant String := Str (15);
+            Data   : Code;
+            R      : Pattern;
+         begin
+            if Int (2) /= TP_Seq then
+               TP_Seq := Int (2);
+               TP_Sched := (others => <>);
+            end if;
+            for I in Code'Range loop
+               Data (I) := Interfaces.Unsigned_8 (Int (5 + I));
+            end loop;
+            Encode (P, Data, Toggle, R);
+            Record_Int (Name & ".length", Int (14), Integer_64 (R.Length));
+            if Integer_64 (R.Length) = Int (14) and then S'Length = R.Length then
+               for I in 0 .. R.Length - 1 loop
+                  Record_Int (Name & ".toggle",
+                              (case S (S'First + I) is
+                                 when '0' => 0,
+                                 when '1' => Integer_64 (Toggle),
+                                 when others => Integer_64 (Toggle) mod 256),
+                              Integer_64 (R.Buffer (I)));
+               end loop;
+            end if;
+         end;
+      elsif Name = "tpstep" then
+         if Int (2) /= TP_Seq then
+            Put_Line ("transponder step without its code");
+            Failures := Failures + 1;
+            return;
+         end if;
+         declare
+            Transmit : Boolean;
+         begin
+            Update (TP_Sched, Provider'Val (Int (6)), Interfaces.Unsigned_32 (Int (4)), Int (5) = 1, Transmit);
+            Record_Int (Name & ".transmit", Int (7), (if Transmit then 1 else 0));
+            Record_Int (Name & ".next", Int (8), Integer_64 (TP_Sched.Next_Update_Us));
+         end;
+      else
+         Put_Line ("unknown transponder case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Transponder_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -6277,6 +6332,8 @@ procedure Vector_Check is
                   Check_HoTT_Line;
                elsif Kind = "ghsttlm" then
                   Check_GHST_Telemetry_Line;
+               elsif Kind = "transponder" then
+                  Check_Transponder_Line;
                else
                   Check_PID_Line;
                end if;
@@ -6344,6 +6401,7 @@ begin
    Run (Dir & "/ibustlm.csv", "ibustlm");
    Run (Dir & "/hott.csv", "hott");
    Run (Dir & "/ghsttlm.csv", "ghsttlm");
+   Run (Dir & "/transponder.csv", "transponder");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
