@@ -1381,3 +1381,23 @@ accumulation of the calibration is held within twenty signal bounds, the most tw
 can sum to, and the root of the pressure is capped at one million before the multiplication to
 centimetres, a bound no pressure within the signal bound reaches. The time comparisons use the
 wrapping difference. No recorded vector reaches a guard.
+## D74. Real-time clock calendar (2026-10-11)
+
+The clock unit carries the reference's calendar without its time source: the platform supplies the
+millisecond uptime, and the clock keeps the set time less that uptime, zero while nothing was
+set. A date becomes milliseconds since 1970 through the reference's four-year leap cycle, the year
+from 2000, a table of days to the start of each month, and the hours, minutes and seconds, in
+32-bit unsigned arithmetic that wraps as the reference's does and lands in a signed second count;
+the reverse conversion divides the seconds out and walks the table from the end. A time zone in
+minutes moves a date through the time and back. The text of a date is the reference's ISO 8601
+form with the zone, or the short form, each field padded with zeros to its width; a date outside
+the valid ranges shows as the first of January of the year zero. A split finds the letter T that
+separates the date from the time. The time with the zone applied is stored as two 32-bit words
+across a reset and read back when either word is set. The conversions reproduce the reference's
+wraps: a date past January 2038 lands before 1970 (finding F91), a negative zone under an hour
+prints as positive (F93), and a set time equal to the uptime reads as no time (F95). Two guards
+cover the reference's undefined behavior and its one buffer: the zone offset is applied only to a
+month that indexes the day table, the default date showing otherwise (F92), and a stored time
+outside the settable span of two to the sixty-second milliseconds is rejected on read. The
+five-digit year the text can carry fits the 30-character result (F94). No recorded vector reaches
+a guard.
