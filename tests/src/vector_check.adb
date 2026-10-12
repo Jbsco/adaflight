@@ -37,6 +37,7 @@ with Adaflight.Scheduler;
 with Adaflight.Beeper;
 with Adaflight.Receiver;
 with Adaflight.SBUS;
+with Adaflight.CRSF;
 with Adaflight.Clock;
 with Adaflight.Vectors;
 with Adaflight.PWL;
@@ -3553,6 +3554,114 @@ procedure Vector_Check is
       end loop;
    end Check_Twiddles;
 
+   CRSF_State    : Adaflight.CRSF.State;
+   CRSF_Rx       : Adaflight.Receiver.State;
+   CRSF_Settings : Adaflight.Receiver.Settings;
+   CRSF_Clock    : Unsigned_32 := 0;
+
+   procedure Check_CRSF_Line is
+      use Adaflight.CRSF;
+      Name : constant String := Str (1);
+      K    : Positive := 1;
+      procedure Expect_Next (N : String; Actual : Integer_64) is
+      begin
+         Record_Int (Name & "." & N, Int (K), Actual);
+         K := K + 1;
+      end Expect_Next;
+      procedure Check_Fields is
+      begin
+         if K /= NF + 1 then
+            Put_Line (Name & ": consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
+            Failures := Failures + 1;
+         end if;
+      end Check_Fields;
+   begin
+      if Name = "crsfinit" then
+         CRSF_Settings := (others => <>);
+         CRSF_Settings.Mid_RC := Integer (Int (3));
+         CRSF_Clock := Unsigned_32 (Int (4));
+         Adaflight.Receiver.Init (CRSF_Rx, CRSF_Settings, CRSF_Clock / 1_000,
+                                  Adaflight.Receiver.RSSI_Source'Val (Int (5)),
+                                  Adaflight.Receiver.Link_Quality_Source'Val (Int (6)));
+         Init (CRSF_State, Integer (Int (3)));
+         K := 7;
+         for Ch in Channel loop
+            Expect_Next ("data", Integer_64 (CRSF_State.Data (Ch)));
+         end loop;
+         Check_Fields;
+      elsif Name = "crsfbaud" then
+         Update_Baudrate (CRSF_State, Unsigned_32 (Int (4)));
+         K := 5;
+         Expect_Next ("frame_time", Integer_64 (CRSF_State.Frame_Time_Us));
+         Expect_Next ("event_telemetry", Boolean'Pos (CRSF_State.Event_Telemetry));
+         Check_Fields;
+      elsif Name = "crsfstep" then
+         declare
+            Negotiating : constant Boolean := Int (4) /= 0;
+            Eeprom      : constant Boolean := Int (5) /= 0;
+            Count       : constant Natural := Integer (Int (6));
+            Result      : Byte_Outputs;
+            Defaults, Commands, Responses : Natural := 0;
+            Status      : Adaflight.Receiver.Frame_Report;
+            Polled      : Boolean;
+         begin
+            K := 7;
+            for B in 1 .. Count loop
+               CRSF_Clock := CRSF_Clock + Unsigned_32 (Int (K));
+               Receive_Byte (CRSF_State, CRSF_Rx, Integer (Int (K + 1)), CRSF_Clock, Negotiating, Eeprom, Result);
+               if Result.Default_Speed then
+                  Defaults := Defaults + 1;
+               end if;
+               if Result.Command then
+                  Commands := Commands + 1;
+               end if;
+               if Result.Telemetry_Response then
+                  Responses := Responses + 1;
+               end if;
+               K := K + 2;
+            end loop;
+            Polled := Int (K) /= 0;
+            K := K + 1;
+            CRSF_Clock := Unsigned_32 (Int (K));
+            K := K + 1;
+            if Polled then
+               Frame_Status (CRSF_State, CRSF_Rx, CRSF_Clock, Status);
+               Expect_Next ("status", (if Status.Complete then 1 else 0) + (if Status.Dropped then 8 else 0));
+            else
+               K := K + 1;
+            end if;
+            Expect_Next ("done", Boolean'Pos (CRSF_State.Done));
+            Expect_Next ("start_at", Integer_64 (CRSF_State.Start_At_Us));
+            Expect_Next ("last_stats", Integer_64 (CRSF_State.Last_Stats_Us));
+            Record_Result (Name & ".scale", Bits (K), To_Bits (CRSF_State.Scale));
+            K := K + 1;
+            Expect_Next ("frame_time", Integer_64 (CRSF_State.Last_Frame_Us));
+            Expect_Next ("default_speed", Integer_64 (Defaults));
+            Expect_Next ("commands", Integer_64 (Commands));
+            Expect_Next ("responses", Integer_64 (Responses));
+            Expect_Next ("rssi", Integer_64 (CRSF_Rx.RSSI));
+            Expect_Next ("rssi_raw", Integer_64 (CRSF_Rx.RSSI_Raw));
+            Expect_Next ("rssi_dbm", Integer_64 (CRSF_Rx.RSSI_Dbm));
+            Expect_Next ("rssi_dbm_raw", Integer_64 (CRSF_Rx.RSSI_Dbm_Raw));
+            Expect_Next ("rsnr", Integer_64 (CRSF_Rx.RSNR));
+            Expect_Next ("rsnr_raw", Integer_64 (CRSF_Rx.RSNR_Raw));
+            Expect_Next ("link_quality", Integer_64 (CRSF_Rx.Link_Quality));
+            Expect_Next ("rf_mode", Integer_64 (CRSF_Rx.RF_Mode));
+            Expect_Next ("uplink_power", Integer_64 (CRSF_Rx.Uplink_Power_mW));
+            Expect_Next ("antenna", Integer_64 (CRSF_Rx.Active_Antenna));
+            for Ch in Channel loop
+               Expect_Next ("data", Integer_64 (CRSF_State.Data (Ch)));
+               Record_Result (Name & ".raw", Bits (K), To_Bits (Read_Raw (CRSF_State, Ch)));
+               K := K + 1;
+            end loop;
+            Check_Fields;
+         end;
+      else
+         Put_Line ("unknown crsf case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_CRSF_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -3619,6 +3728,8 @@ procedure Vector_Check is
                   Check_Rx_Line;
                elsif Kind = "sbus" then
                   Check_SBUS_Line;
+               elsif Kind = "crsf" then
+                  Check_CRSF_Line;
                else
                   Check_PID_Line;
                end if;
@@ -3661,6 +3772,7 @@ begin
    Run (Dir & "/beeper.csv", "beeper");
    Run (Dir & "/rx.csv", "rx");
    Run (Dir & "/sbus.csv", "sbus");
+   Run (Dir & "/crsf.csv", "crsf");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");

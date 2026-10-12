@@ -699,3 +699,28 @@ count plus 880. Every channel starts at the count that reads as the configured c
 serial port and the telemetry sharing stay with the port layer. The reference's packed bit
 fields are unpacked by position, so the decoded channels agree bit for bit. No guard was
 needed.
+## D42. The CRSF protocol (2026-10-10)
+
+The CRSF unit carries the reference's CRSF receiver. Each serial byte arrives with its time into
+a frame. The frame restarts after the time a frame needs at the current rate, and a restart with
+a frame under way counts an error. The declared length is checked as it arrives, and an invalid
+one drops the frame without an error. The CRC runs over the type and the payload with the
+DVB-S2 polynomial. A good frame clears the error count and asks for a telemetry response. The RC
+channel frames for the flight controller are copied for the status poll. The poll unpacks the
+sixteen eleven-bit channels of the packed frame, or the subset frame's channels at its ten to
+thirteen-bit resolution from its start channel. A subset with no channels or a start past the
+last is dropped. The link statistics for the flight controller go into the receiver: the active
+antenna's RSSI in dBm scaled onto the RSSI range when the protocol owns the RSSI, the dBm, the
+antenna, the SNR, the link quality and RF mode when the protocol owns the quality, and the
+uplink power from its table. The transmitter statistics of the third version go the same way.
+The 250-millisecond statistics timeout at each poll zeroes the owned values. A command frame for
+the flight controller is checked by the command CRC and reported for the port layer to process.
+The error count asks for the default speed at three, unless a baud negotiation or an EEPROM
+write is under way. The raw channel value goes through the frame type's scale. A negotiated
+rate recomputes the frame time, and above the default rate the inbound frames drive the
+telemetry. The serial port, the telemetry, and the configurator frames stay with their layers.
+The frame time and the frame's start are kept in the unit, as the SBUS unit keeps them. Two
+guards cover values the reference's conversions leave undefined: a scaled RSSI below zero is
+held at zero, and a frame whose declared length escaped the check is held to the frame size. The
+receiver takes the protocol's claims of the RSSI and the link quality at its own init. No
+recorded vector reaches a guard.
