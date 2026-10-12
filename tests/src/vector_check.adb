@@ -85,6 +85,7 @@ with Adaflight.Color;
 with Adaflight.Rangefinder;
 with Adaflight.Optical_Flow;
 with Adaflight.Pitot;
+with Adaflight.RTC;
 
 procedure Vector_Check is
 
@@ -6714,6 +6715,120 @@ procedure Vector_Check is
       end if;
    end Check_Pitot_Line;
 
+   RTC_Seq    : Integer_64 := -1;
+   RTC_Config : Adaflight.RTC.Settings;
+   RTC_Clock  : Adaflight.RTC.Clock;
+
+   procedure Check_RTC_Line is
+      use Adaflight.RTC;
+      Name : constant String := Str (1);
+      Now  : constant Interfaces.Unsigned_32 := Interfaces.Unsigned_32 (Int (4));
+
+      function Date_Arg return Date_Time is
+        ((Year    => Interfaces.Unsigned_16 (Int (6)),
+          Month   => Interfaces.Unsigned_8 (Int (7)),
+          Day     => Interfaces.Unsigned_8 (Int (8)),
+          Hours   => Interfaces.Unsigned_8 (Int (9)),
+          Minutes => Interfaces.Unsigned_8 (Int (10)),
+          Seconds => Interfaces.Unsigned_8 (Int (11)),
+          Millis  => Interfaces.Unsigned_16 (Int (12))));
+
+      procedure Expect_Date (D : Date_Time) is
+      begin
+         Record_Int (Name & ".year", Int (16), Integer_64 (D.Year));
+         Record_Int (Name & ".month", Int (17), Integer_64 (D.Month));
+         Record_Int (Name & ".day", Int (18), Integer_64 (D.Day));
+         Record_Int (Name & ".hours", Int (19), Integer_64 (D.Hours));
+         Record_Int (Name & ".minutes", Int (20), Integer_64 (D.Minutes));
+         Record_Int (Name & ".seconds", Int (21), Integer_64 (D.Seconds));
+         Record_Int (Name & ".millis", Int (22), Integer_64 (D.Millis));
+      end Expect_Date;
+
+      procedure Expect_Clock is
+         D  : Date_Time;
+         OK : Boolean;
+      begin
+         Get_Date_Time (RTC_Clock, Now, D, OK);
+         Record_Int (Name & ".ok", Int (14), (if OK then 1 else 0));
+         Record_Int (Name & ".t", Int (15), (if OK then Get (RTC_Clock, Now) else 0));
+         Expect_Date (D);
+      end Expect_Clock;
+
+      procedure Expect_Text (Text : Formatted; Length : Natural; Valid : Boolean) is
+         Actual : Byte_Array (0 .. Length - 1);
+      begin
+         for I in Actual'Range loop
+            Actual (I) := Interfaces.Unsigned_8 (Character'Pos (Text (I + 1)));
+         end loop;
+         Record_Int (Name & ".valid", Int (23), (if Valid then 1 else 0));
+         Record_Bytes (Name & ".text", Hex_Bytes (24), Actual);
+      end Expect_Text;
+
+      Text   : Formatted;
+      Length : Natural;
+      Valid  : Boolean;
+   begin
+      if Name = "rtcinit" then
+         RTC_Seq := Int (2);
+         RTC_Config := (Zone => Zone_Minutes (Int (3)));
+         RTC_Clock := (Started => 0);
+         Record_Int (Name & ".hastime", Int (5), (if Has_Time (RTC_Clock) then 1 else 0));
+      elsif Name = "rtcstep" then
+         if Int (2) /= RTC_Seq then
+            Put_Line ("clock step without its start");
+            Failures := Failures + 1;
+            return;
+         end if;
+         case Int (5) is
+            when 0 =>
+               Set (RTC_Clock, Int (6), Now);
+               Expect_Clock;
+            when 1 =>
+               Set_Date_Time (RTC_Clock, Date_Arg, Now);
+               Expect_Clock;
+            when 2 =>
+               Format_UTC (Date_Arg, Text, Length, Valid);
+               Expect_Text (Text, Length, Valid);
+            when 3 =>
+               Format_Local (Date_Arg, RTC_Config, Text, Length, Valid);
+               Expect_Text (Text, Length, Valid);
+            when 4 =>
+               Format_Local_Short (Date_Arg, RTC_Config, Text, Length, Valid);
+               Expect_Text (Text, Length, Valid);
+            when 5 =>
+               Expect_Date (UTC_To_Local (Date_Arg, RTC_Config));
+            when 6 =>
+               Format_UTC (Date_Arg, Text, Length, Valid);
+               Expect_Text (Text, Length, Valid);
+               declare
+                  Position : Natural;
+                  Found    : Boolean;
+               begin
+                  Split (Text (1 .. Length), Position, Found);
+                  Record_Int (Name & ".pos", Int (25), (if Found then Integer_64 (Position) else 0));
+               end;
+            when 7 =>
+               declare
+                  High, Low : Interfaces.Unsigned_32;
+                  T         : Time;
+                  OK        : Boolean;
+               begin
+                  Persist_Write (RTC_Clock, Now, Zone_Minutes (Int (6)), High, Low);
+                  Record_Int (Name & ".high", Int (26), Integer_64 (High));
+                  Record_Int (Name & ".low", Int (27), Integer_64 (Low));
+                  Persist_Read (High, Low, T, OK);
+                  Record_Int (Name & ".ok", Int (14), (if OK then 1 else 0));
+                  Record_Int (Name & ".t", Int (15), (if OK then T else 0));
+               end;
+            when others =>
+               Expect_Clock;
+         end case;
+      else
+         Put_Line ("unknown clock case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_RTC_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -6844,6 +6959,8 @@ procedure Vector_Check is
                   Check_Optical_Flow_Line;
                elsif Kind = "pitot" then
                   Check_Pitot_Line;
+               elsif Kind = "rtc" then
+                  Check_RTC_Line;
                else
                   Check_PID_Line;
                end if;
@@ -6918,6 +7035,7 @@ begin
    Run (Dir & "/rangefinder.csv", "rangefinder");
    Run (Dir & "/opticalflow.csv", "opticalflow");
    Run (Dir & "/pitot.csv", "pitot");
+   Run (Dir & "/rtc.csv", "rtc");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
