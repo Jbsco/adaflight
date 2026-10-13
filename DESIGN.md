@@ -3348,3 +3348,20 @@ total space in kilobytes once the card is ready.
 The harness replays 4800 requests recorded from the reference MSP processor, in a build with every
 option the replies branch on and one without, on random configurations and storage states. Every
 result, length and byte of the 4808 lines replays exactly.
+
+## D150. MSP peripheral replies (2026-10-13)
+
+`Adaflight.MSP_Peripheral_Out` contains the MSP out messages that report the peripherals: the
+servo outputs, the servos' configuration and mix rules, the motor output order, the LED colors,
+the LED strip and its mode colors, the video transmitter's configuration, and the wing's tuning.
+The caller gathers the outputs, the configuration, the transmitter's state, the target's servo
+count and strip length, and the build's options into a snapshot. Signed values wrap to their
+fields. The servo, LED and transmitter replies exist only with their option built, and a strip
+built without its status mode reports every LED as zero. The transmitter's type, pit mode and
+readiness come from its device when one is present. The reply for the MSP transmitter's own port
+also marks that transmitter ready, and that call stays with the caller.
+
+The harness replays 4800 requests recorded from the reference MSP processor, in a build with the
+servos, the 64-LED strip with its status mode and the transmitter with its table, and one
+without them, on random outputs, configurations and devices. Every result, length and byte of the
+4808 lines replays exactly.
