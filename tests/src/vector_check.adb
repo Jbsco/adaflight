@@ -115,6 +115,7 @@ with Adaflight.OSD_Format;
 with Adaflight.VTX_MSP;
 with Adaflight.Display_Port_MSP;
 with Adaflight.OSD_Stats;
+with Adaflight.OSD_Page;
 
 procedure Vector_Check is
 
@@ -10059,6 +10060,336 @@ procedure Vector_Check is
       end if;
    end Check_OSD_Stats_Line;
 
+   --  The OSD page: the cycle's steps, the page refresh, the armed and
+   --  boot screens, each against the display writes the reference made.
+
+   OP_Seq     : Integer_64 := -1;
+   OP_Version : String (1 .. 20) := (others => ' ');
+   OP_Len     : Natural := 0;
+   OP_State   : Adaflight.OSD_Page.State;
+   OP_Stats   : Adaflight.OSD_Stats.Statistics;
+
+   procedure OP_Settings (F : Positive; C : out Adaflight.OSD_Page.Settings) is
+   begin
+      C := (others => <>);
+      C.Rows := Interfaces.Unsigned_8 (Int (F));
+      C.Cols := Interfaces.Unsigned_8 (Int (F + 1));
+      for St in Adaflight.OSD_Stats.Stat loop
+         C.Enabled (St) := (Bits (F + 2) and Interfaces.Shift_Left (1, Adaflight.OSD_Stats.Stat'Pos (St))) /= 0;
+      end loop;
+      C.Logo_On_Arming := Integer (Int (F + 3));
+      C.Logo_Duration_Tenths := Interfaces.Unsigned_8 (Int (F + 4));
+      C.Arming_Logo := Integer (Int (F + 5));
+      C.Logo_Supported := Int (F + 6) = 1;
+      C.Aux_Scale := Interfaces.Unsigned_16 (Int (F + 7));
+      C.Aux_Visible := Int (F + 8) = 1;
+      C.G_Force_Visible := Int (F + 9) = 1;
+      C.Warnings_Visible := Int (F + 10) = 1;
+   end OP_Settings;
+
+   procedure OP_Read_Page (F : Positive; P : out Adaflight.OSD_Stats.Page) is
+   begin
+      P := (others => <>);
+      P.Units := Adaflight.OSD_Format.Unit_System'Val (Int (F));
+      P.Timer_1 := Interfaces.Unsigned_16 (Int (F + 1));
+      P.Timer_2 := Interfaces.Unsigned_16 (Int (F + 2));
+      P.Clocks := (Now_Us => Interfaces.Unsigned_32 (Int (F + 3)), Fly_Time_Us => Interfaces.Unsigned_32 (Int (F + 4)),
+                   Armed_Time_Us => Interfaces.Unsigned_32 (Int (F + 5)),
+                   Launch_Time_Us => Interfaces.Unsigned_32 (Int (F + 6)), Armed => Int (F + 7) = 1);
+      P.Show_Cell_Value := Int (F + 8) = 1;
+      P.GPS_Feature := Int (F + 9) = 1;
+      P.Current_Meter := Int (F + 10) = 1;
+      P.Pack_Voltage := Interfaces.Unsigned_16 (Int (F + 11));
+      P.Cell_Voltage := Interfaces.Unsigned_16 (Int (F + 12));
+      P.Flight_Distance_Cm := Interfaces.Unsigned_32 (Int (F + 13));
+      P.MAh_Drawn := Interfaces.Integer_32 (Int (F + 14));
+      P.Wh_Drawn := Flt (F + 15);
+      P.Blackbox_Device := Integer (Int (F + 16));
+      P.Blackbox_Working := Int (F + 17) = 1;
+      P.SD_Blocks := Interfaces.Unsigned_32 (Int (F + 18));
+      P.SD_Free_Bytes := Interfaces.Unsigned_32 (Int (F + 19));
+      P.Flash_Sectors := Interfaces.Unsigned_32 (Int (F + 20));
+      P.Flash_Sector_Size := Interfaces.Unsigned_32 (Int (F + 21));
+      P.Flash_Offset := Interfaces.Unsigned_32 (Int (F + 22));
+      P.Log_Number := Interfaces.Integer_32 (Int (F + 23));
+      P.Acc_Present := Int (F + 24) = 1;
+      P.Dyn_Notch_Active := Int (F + 25) = 1;
+      P.Max_FFT := Interfaces.Integer_32 (Int (F + 26));
+      P.Total_Flights := Interfaces.Unsigned_32 (Int (F + 27));
+      P.Total_Time_S := Interfaces.Unsigned_32 (Int (F + 28));
+      P.Total_Dist_M := Interfaces.Unsigned_32 (Int (F + 29));
+      P.Best_3_Consec_Ms := Interfaces.Unsigned_32 (Int (F + 30));
+      P.Best_Lap_Ms := Interfaces.Unsigned_32 (Int (F + 31));
+      P.Full_Throttle_Time_Us := Interfaces.Unsigned_32 (Int (F + 32));
+      P.Full_Throttle_Count := Interfaces.Unsigned_32 (Int (F + 33));
+      P.Average_Throttle := Interfaces.Integer_8 (Int (F + 34));
+      P.RTC_Variant := Adaflight.OSD_Format.Element_Type'Val (Int (F + 35));
+      P.Has_Time := Int (F + 36) = 1;
+      P.Date := (Year => Interfaces.Unsigned_16 (Int (F + 37)), Month => Interfaces.Unsigned_8 (Int (F + 38)),
+                 Day => Interfaces.Unsigned_8 (Int (F + 39)), Hours => Interfaces.Unsigned_8 (Int (F + 40)),
+                 Minutes => Interfaces.Unsigned_8 (Int (F + 41)), Seconds => Interfaces.Unsigned_8 (Int (F + 42)),
+                 Millis => Interfaces.Unsigned_16 (Int (F + 43)));
+      P.Zone := (Zone => Interfaces.Integer_16 (Int (F + 44)));
+   end OP_Read_Page;
+
+   procedure OP_Read_Readings (F : Positive; R : out Adaflight.OSD_Stats.Readings) is
+   begin
+      R := (others => <>);
+      R.Speed_3D := Interfaces.Unsigned_16 (Int (F));
+      R.Ground_Speed := Interfaces.Unsigned_16 (Int (F + 1));
+      R.Use_3D_Speed := Int (F + 2) = 1;
+      R.Pack_Voltage := Interfaces.Unsigned_16 (Int (F + 3));
+      R.Cell_Voltage := Interfaces.Unsigned_16 (Int (F + 4));
+      R.Show_Cell_Value := Int (F + 5) = 1;
+      R.Amperage := Interfaces.Integer_32 (Int (F + 6));
+      R.RSSI_Percent := Interfaces.Unsigned_8 (Int (F + 7));
+      R.Altitude_Cm := Interfaces.Integer_32 (Int (F + 8));
+      R.Acceleration := Flt (F + 9);
+      R.Link_Quality_Percent := Interfaces.Unsigned_16 (Int (F + 10));
+      R.RSSI_Dbm := Interfaces.Integer_16 (Int (F + 11));
+      R.RSNR := Interfaces.Integer_16 (Int (F + 12));
+      R.GPS_Fix := Int (F + 13) = 1;
+      R.GPS_Fix_Home := Int (F + 14) = 1;
+      R.Distance_To_Home := Interfaces.Unsigned_16 (Int (F + 15));
+      R.ESC_Sensor_Feature := Int (F + 16) = 1;
+      R.ESC_Temperature := Interfaces.Unsigned_8 (Int (F + 17));
+      R.ESC_Erpm := Integer (Int (F + 18));
+      R.Erpm_To_Hz := Flt (F + 19);
+      R.DShot_Telemetry := Int (F + 20) = 1;
+      R.Motors := Integer (Int (F + 21));
+      for K in Adaflight.OSD_Stats.Motor_Index loop
+         R.DShot_Max_Temp (K) := Interfaces.Unsigned_8 (Int (F + 22 + K));
+      end loop;
+      R.DShot_RPM_Average := Flt (F + 30);
+   end OP_Read_Readings;
+
+   procedure OP_Set_Stats (F : Positive) is
+   begin
+      OP_Stats := (Armed_Time_Us => Interfaces.Unsigned_32 (Int (F)),
+                   Max_Speed => Interfaces.Integer_16 (Int (F + 1)),
+                   Min_Voltage => Interfaces.Integer_16 (Int (F + 2)),
+                   End_Voltage => Interfaces.Unsigned_16 (Int (F + 3)),
+                   Max_Current => Interfaces.Integer_16 (Int (F + 4)),
+                   Min_RSSI => Interfaces.Unsigned_8 (Int (F + 5)),
+                   Max_Altitude => Interfaces.Integer_32 (Int (F + 6)),
+                   Max_Distance => Interfaces.Integer_16 (Int (F + 7)),
+                   Max_G_Force => Flt (F + 8),
+                   Max_ESC_Temp_Ix => Interfaces.Integer_16 (Int (F + 9)),
+                   Max_ESC_Temp => Interfaces.Integer_16 (Int (F + 10)),
+                   Max_ESC_RPM => Interfaces.Integer_32 (Int (F + 11)),
+                   Min_Link_Quality => Interfaces.Unsigned_16 (Int (F + 12)),
+                   Min_RSSI_Dbm => Interfaces.Integer_16 (Int (F + 13)),
+                   Min_RSNR => Interfaces.Integer_16 (Int (F + 14)));
+   end OP_Set_Stats;
+
+   procedure OP_Record_Stats (Name : String; F : Positive) is
+   begin
+      Record_Int (Name & ".armedtime", Int (F), Integer_64 (OP_Stats.Armed_Time_Us));
+      Record_Int (Name & ".maxspeed", Int (F + 1), Integer_64 (OP_Stats.Max_Speed));
+      Record_Int (Name & ".minvolt", Int (F + 2), Integer_64 (OP_Stats.Min_Voltage));
+      Record_Int (Name & ".endvolt", Int (F + 3), Integer_64 (OP_Stats.End_Voltage));
+      Record_Int (Name & ".maxcurrent", Int (F + 4), Integer_64 (OP_Stats.Max_Current));
+      Record_Int (Name & ".minrssi", Int (F + 5), Integer_64 (OP_Stats.Min_RSSI));
+      Record_Int (Name & ".maxalt", Int (F + 6), Integer_64 (OP_Stats.Max_Altitude));
+      Record_Int (Name & ".maxdist", Int (F + 7), Integer_64 (OP_Stats.Max_Distance));
+      Record_Result (Name & ".maxg", Bits (F + 8), To_Bits (OP_Stats.Max_G_Force));
+      Record_Int (Name & ".esctempix", Int (F + 9), Integer_64 (OP_Stats.Max_ESC_Temp_Ix));
+      Record_Int (Name & ".esctemp", Int (F + 10), Integer_64 (OP_Stats.Max_ESC_Temp));
+      Record_Int (Name & ".escrpm", Int (F + 11), Integer_64 (OP_Stats.Max_ESC_RPM));
+      Record_Int (Name & ".minlq", Int (F + 12), Integer_64 (OP_Stats.Min_Link_Quality));
+      Record_Int (Name & ".minrssidbm", Int (F + 13), Integer_64 (OP_Stats.Min_RSSI_Dbm));
+      Record_Int (Name & ".minrsnr", Int (F + 14), Integer_64 (OP_Stats.Min_RSNR));
+   end OP_Record_Stats;
+
+   procedure OP_Record_State (Name : String; F : Positive) is
+   begin
+      Record_Int (Name & ".armstate", Int (F), Boolean'Pos (OP_State.Arm_State));
+      Record_Int (Name & ".statsenabled", Int (F + 1), Boolean'Pos (OP_State.Stats_Enabled));
+      Record_Int (Name & ".statsvisible", Int (F + 2), Boolean'Pos (OP_State.Stats_Visible));
+      Record_Int (Name & ".resume", Int (F + 3), Integer_64 (OP_State.Resume_Refresh_At));
+      Record_Int (Name & ".flytime", Int (F + 4), Integer_64 (OP_State.Fly_Time_Us));
+      Record_Int (Name & ".launchtime", Int (F + 5), Integer_64 (OP_State.Launch_Time_Us));
+      Record_Int (Name & ".auxvalue", Int (F + 6), Integer_64 (OP_State.Aux_Value));
+      Record_Result (Name & ".gforce", Bits (F + 7), To_Bits (OP_State.G_Force));
+      Record_Int (Name & ".suppress", Int (F + 8), Boolean'Pos (OP_State.Suppress_Stats));
+   end OP_Record_State;
+
+   --  The writes expected: their count at F, then each as kind, wait,
+   --  column, row, font and text.
+   procedure OP_Record_Writes (Name : String; F : Positive; W : Adaflight.OSD_Page.Writes) is
+      use Adaflight.OSD_Page;
+   begin
+      Record_Int (Name & ".writes", Int (F), Integer_64 (W.Count));
+      if Integer_64 (W.Count) /= Int (F) then
+         return;
+      end if;
+      for I in 1 .. W.Count loop
+         declare
+            B      : constant Positive := F + 1 + 6 * (I - 1);
+            Item   : constant Write := W.List (I);
+            Actual : Byte_Array (0 .. (if Item.Kind = Char_Write then 0 else Item.Text.Length - 1));
+         begin
+            Record_Int (Name & ".kind", Int (B), Write_Kind'Pos (Item.Kind));
+            Record_Int (Name & ".wait", Int (B + 1), Boolean'Pos (Item.Wait));
+            Record_Int (Name & ".x", Int (B + 2), Integer_64 (Item.X));
+            Record_Int (Name & ".y", Int (B + 3), Integer_64 (Item.Y));
+            Record_Int (Name & ".font", Int (B + 4), Integer_64 (Item.Font_Sel));
+            if Item.Kind = Char_Write then
+               Actual (0) := Byte (Character'Pos (Item.Char));
+            else
+               for K in Actual'Range loop
+                  Actual (K) := Byte (Character'Pos (Item.Text.Data (K + 1)));
+               end loop;
+            end if;
+            if Item.Kind in Char_Write | Text_Write then
+               Record_Bytes (Name & ".text", Hex_Bytes (B + 5), Actual);
+            end if;
+         end;
+      end loop;
+   end OP_Record_Writes;
+
+   procedure Check_OSD_Page_Line is
+      use Adaflight.OSD_Page;
+      Name : constant String := Str (1);
+      C    : Settings;
+      W    : Writes;
+   begin
+      if Name = "opinit" then
+         OP_Seq := Int (2);
+         OP_State := (others => <>);
+         OP_Stats := (others => <>);
+         declare
+            V : constant Byte_Array := Hex_Bytes (3);
+         begin
+            OP_Len := V'Length;
+            for K in 1 .. OP_Len loop
+               OP_Version (K) := Character'Val (V (V'First + K - 1));
+            end loop;
+         end;
+      elsif Int (2) /= OP_Seq then
+         Put_Line ("OSD page line without its start");
+         Failures := Failures + 1;
+      elsif Name = "opstep1" then
+         declare
+            Inp     : Inputs;
+            R       : Adaflight.OSD_Stats.Readings;
+            Armed   : Boolean;
+            Cleared : Boolean;
+            Refresh : Boolean;
+         begin
+            Inp.Now_Us := Interfaces.Unsigned_32 (Int (3));
+            Inp.Armed := Int (4) = 1;
+            Inp.Was_Ever_Armed := Int (5) = 1;
+            Inp.Has_Link_Quality_Source := Int (6) = 1;
+            Inp.Failsafe_Active := Int (7) = 1;
+            Inp.Runaway_Or_Crash_Disable := Int (8) = 1;
+            Inp.Display_Grabbed := Int (9) = 1;
+            Inp.OSD_Switch := Int (10) = 1;
+            Inp.Launch_Control_Active := Int (11) = 1;
+            Inp.Aux_Rc := Flt (12);
+            Inp.Crash_Flip_Active := Int (13) = 1;
+            OP_Settings (14, C);
+            OP_Read_Readings (25, R);
+            OP_State.Suppress_Stats := Int (65) = 1;
+            OP_State.G_Force := Flt (34);
+            Process_Stats_1 (OP_State, OP_Stats, C, Inp, R, Armed, Cleared, Refresh);
+            Record_Int (Name & ".refresh", Int (56), Boolean'Pos (Refresh));
+            OP_Record_State (Name, 57);
+            OP_Record_Stats (Name, 66);
+            if Armed then
+               Show_Armed (C, Inp, W);
+            elsif Cleared then
+               Clear_Writes (W);
+               W.Count := 1;
+               W.List (1) := (Kind => Clear, others => <>);
+            else
+               Clear_Writes (W);
+            end if;
+            OP_Record_Writes (Name, 81, W);
+         end;
+      elsif Name = "oprefresh" then
+         declare
+            P         : Adaflight.OSD_Stats.Page;
+            Completed : Boolean;
+         begin
+            OP_Settings (3, C);
+            OP_Read_Page (14, P);
+            OP_Set_Stats (59);
+            OP_State.Fly_Time_Us := P.Clocks.Fly_Time_Us;
+            OP_State.Launch_Time_Us := P.Clocks.Launch_Time_Us;
+            Refresh_Stats (OP_State, C, OP_Stats, P, W, Completed);
+            Record_Int (Name & ".completed", Int (74), Boolean'Pos (Completed));
+            Record_Int (Name & ".row", Int (75), Integer_64 (OP_State.Render.Row));
+            Record_Int (Name & ".index", Int (76), Integer_64 (OP_State.Render.Index));
+            Record_Int (Name & ".rowcount", Int (77), Integer_64 (OP_State.Render.Row_Count));
+            OP_Record_Writes (Name, 78, W);
+         end;
+      elsif Name = "opstep2" then
+         declare
+            Inp     : Inputs;
+            Skip    : Boolean;
+            Cleared : Boolean;
+         begin
+            Inp.Now_Us := Interfaces.Unsigned_32 (Int (3));
+            Inp.Armed := Int (4) = 1;
+            Inp.Throttle_High := Int (5) = 1;
+            Inp.Pitch_High := Int (6) = 1;
+            Inp.Crash_Flip_Box := Int (7) = 1;
+            OP_State.Resume_Refresh_At := Interfaces.Unsigned_32 (Int (8));
+            OP_State.Suppress_Stats := Int (17) = 1;
+            OP_State.G_Force := Flt (16);
+            Process_Stats_2 (OP_State, OP_Stats, Inp, Skip, Cleared);
+            OP_Record_State (Name, 9);
+            OP_Record_Stats (Name, 18);
+            Clear_Writes (W);
+            if Cleared then
+               W.Count := 1;
+               W.List (1) := (Kind => Clear, others => <>);
+            end if;
+            OP_Record_Writes (Name, 33, W);
+         end;
+      elsif Name = "opstep3" then
+         declare
+            Inp : Inputs;
+         begin
+            Inp.Acc_Present := Int (3) = 1;
+            Inp.Acc_Magnitude := Flt (4);
+            OP_Settings (5, C);
+            Process_Stats_3 (OP_State, C, Inp);
+            Record_Result (Name & ".gforce", Bits (16), To_Bits (OP_State.G_Force));
+         end;
+      elsif Name = "oparmed" then
+         declare
+            Inp : Inputs;
+         begin
+            Inp.Was_Ever_Armed := Int (3) = 1;
+            Inp.Crash_Flip_Active := Int (4) = 1;
+            OP_Settings (5, C);
+            Show_Armed (C, Inp, W);
+            Record_Int (Name & ".delay", Int (16), Integer_64 (Armed_Delay_Us (C, Inp.Was_Ever_Armed)));
+            OP_Record_Writes (Name, 17, W);
+         end;
+      elsif Name = "opboot" then
+         declare
+            D : constant Adaflight.RTC.Date_Time :=
+              (Year => Interfaces.Unsigned_16 (Int (6)), Month => Interfaces.Unsigned_8 (Int (7)),
+               Day => Interfaces.Unsigned_8 (Int (8)), Hours => Interfaces.Unsigned_8 (Int (9)),
+               Minutes => Interfaces.Unsigned_8 (Int (10)), Seconds => Interfaces.Unsigned_8 (Int (11)),
+               Millis => Interfaces.Unsigned_16 (Int (12)));
+            Z : constant Adaflight.RTC.Settings := (Zone => Interfaces.Integer_16 (Int (13)));
+         begin
+            OP_Settings (14, C);
+            Boot_Screen (C, OP_Version (1 .. OP_Len), Adaflight.OSD_Format.Element_Type'Val (Int (4)),
+               Int (5) = 1, D, Z,
+                         W);
+            OP_State.Arm_State := Int (26) = 1;
+            OP_State.Resume_Refresh_At := Interfaces.Unsigned_32 (Int (3)) + 4 * Refresh_1S;
+            Record_Int (Name & ".resume", Int (25), Integer_64 (OP_State.Resume_Refresh_At));
+            OP_Record_Writes (Name, 27, W);
+         end;
+      end if;
+   end Check_OSD_Page_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -10245,6 +10576,8 @@ procedure Vector_Check is
                   Check_Display_Port_MSP_Line;
                elsif Kind = "osdstats" then
                   Check_OSD_Stats_Line;
+               elsif Kind = "osdpage" then
+                  Check_OSD_Page_Line;
                else
                   Check_PID_Line;
                end if;
@@ -10347,6 +10680,7 @@ begin
    Run (Dir & "/vtxmsp.csv", "vtxmsp");
    Run (Dir & "/dpmsp.csv", "dpmsp");
    Run (Dir & "/osdstats.csv", "osdstats");
+   Run (Dir & "/osdpage.csv", "osdpage");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
