@@ -2369,3 +2369,32 @@ the one before. The settings, readings and version stay with the target, which w
 The harness replays six sequences of 600 calls recorded from the reference under random limits,
 motors, gains, batteries and display sizes. Every row's text, position and completion of the
 3606 lines replays byte for byte.
+
+## D109. OSD task (2026-10-13)
+
+The OSD task unit contains the reference's OSD task: the update check and the update state
+machine. The check wakes an idle task once the clock passes the frame's due time, which steps past
+the clock by whole frames of a second over the frame rate, or starts one frame ahead; a check or
+transfer state waits while the display transfers. Each update runs one state. The boot state, once
+the display is ready, selects the foreground, opens a transaction, draws the boot screen, sets a
+four-second pause, resets the element state and analyzes the active elements. Then come the
+heartbeat; the three statistics steps with the arming screen and the clears they ask for, the
+statistics page between the first and second when due, and the second opening a transaction each
+time; the alarms, skipped while the menu holds the display; the canvas, which waits out the pause,
+clears for the OSD switch, clears or copies the background layer, re-analyzes the elements when the
+GPS sensor appears or goes, and syncs the blink; the draw cycle's element draws and displays; the
+spec prearm screen after the elements while disarmed when the setting asks for it; the commit; and
+the transfer, repeated while the display reports more to draw. Each update keeps a running peak
+time per state, and per element place for the draws, decaying by one and replaced by a longer time,
+and names the next state's anticipated time to the scheduler; the state times wrap past 2047 µs in
+sixteen bits (F113). The display port's answers come in with the call and its operations go back in
+order; the clock is read where the reference reads it. The statistics page renders only when its
+readings fit the page's bounds, which every physical altitude does. Settings, readings and the
+display stay with the target.
+
+The harness replays six sequences of 1500 scheduler steps recorded from the reference, each a check
+and, when due, an update, over MAX7456, MSP and FrSky displays with and without the logo and with
+random answers, arming, switches, sticks, sensors and readings, six elements visible, the
+statistics page off, and clocks that sometimes run a state past 2 ms. Every check result, state,
+scheduler flag and time, page state, statistic and display operation of the 17162 lines replays
+byte for byte.
