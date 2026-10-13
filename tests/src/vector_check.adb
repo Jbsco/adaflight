@@ -12895,7 +12895,7 @@ procedure Vector_Check is
          declare
             Command : constant Interfaces.Unsigned_16 := Interfaces.Unsigned_16 (Int (4));
             V       : Snapshot;
-            Buffer  : Byte_Array (0 .. 63) := (others => 0);
+            Buffer  : Byte_Array (0 .. 255) := (others => 0);
             St      : Adaflight.Stream_Buffers.Stream;
             Arming  : constant Unsigned_32 := Bits (14);
          begin
@@ -12960,6 +12960,92 @@ procedure Vector_Check is
          end;
       end if;
    end Check_MSP_Out_Line;
+
+   MX_Seq : Integer_64 := -1;
+
+   procedure Check_MSP_GPS_ESC_Line is
+      use Adaflight.MSP_Out;
+      Name : constant String := Str (1);
+   begin
+      if Name = "mxinit" then
+         MX_Seq := Int (2);
+         Record_Int (Name & ".motors", Int (3), Motor_Count);
+         Record_Int (Name & ".satellites", Int (4), Max_Satellites);
+         Record_Int (Name & ".fix_flag", Int (5), GPS_Fix_Flag);
+      elsif Int (2) /= MX_Seq then
+         Put_Line ("MSP GPS and ESC line without its start");
+         Failures := Failures + 1;
+      elsif Name = "mxstep" then
+         declare
+            Command : constant Interfaces.Unsigned_16 := Interfaces.Unsigned_16 (Int (4));
+            V       : Snapshot;
+            Buffer  : Byte_Array (0 .. 255) := (others => 0);
+            St      : Adaflight.Stream_Buffers.Stream;
+            Sats    : constant Byte_Array := Hex_Bytes (20);
+         begin
+            V.GPS.Fix := Int (5) / 2 mod 2 = 1;
+            V.GPS.Satellite_Count := Interfaces.Unsigned_8 (Int (6));
+            V.GPS.Latitude := Interfaces.Integer_32 (Int (7));
+            V.GPS.Longitude := Interfaces.Integer_32 (Int (8));
+            V.GPS.Altitude_Cm := Interfaces.Integer_32 (Int (9));
+            V.GPS.Ground_Speed := Interfaces.Unsigned_16 (Int (10));
+            V.GPS.Ground_Course := Interfaces.Unsigned_16 (Int (11));
+            V.GPS.PDOP := Interfaces.Unsigned_16 (Int (12));
+            V.GPS.HDOP := Interfaces.Unsigned_16 (Int (13));
+            V.GPS.VDOP := Interfaces.Unsigned_16 (Int (14));
+            V.GPS.In_View := Interfaces.Unsigned_8 (Int (15));
+            V.GPS.Distance_To_Home := Interfaces.Unsigned_16 (Int (16));
+            V.GPS.Direction_To_Home := Interfaces.Integer_16 (Int (17));
+            V.GPS.Update := Interfaces.Unsigned_8 (Int (18));
+            V.GPS.Channels := Natural (Int (19));
+            for I in 0 .. V.GPS.Channels - 1 loop
+               V.GPS.Satellites (I) := (Channel => Sats (Sats'First + 4 * I),
+                                        Id      => Sats (Sats'First + 4 * I + 1),
+                                        Quality => Sats (Sats'First + 4 * I + 2),
+                                        Signal  => Sats (Sats'First + 4 * I + 3));
+            end loop;
+            V.ESC.ESC_Sensor := Int (21) /= 0;
+            V.ESC.DShot_Telemetry := Int (22) /= 0;
+            V.ESC.Count := Natural (Int (23));
+            for I in Adaflight.MSP_Out.Motor_Index loop
+               declare
+                  K : constant Positive := 24 + 13 * I;
+               begin
+                  V.ESC.Motors (I) := (DShot_Rpm       => To_Float (Bits (K)),
+                                       DShot_Active    => Int (K + 1) /= 0,
+                                       Invalid_Percent => Interfaces.Integer_16 (Int (K + 2)),
+                                       Kinds           => Interfaces.Unsigned_8 (Int (K + 3)),
+                                       Temperature     => Interfaces.Unsigned_16 (Int (K + 4)),
+                                       Voltage         => Interfaces.Unsigned_16 (Int (K + 5)),
+                                       Current         => Interfaces.Unsigned_16 (Int (K + 6)),
+                                       ESC_Temperature => Interfaces.Unsigned_8 (Int (K + 7)),
+                                       ESC_Voltage     => Interfaces.Unsigned_16 (Int (K + 8)),
+                                       ESC_Current     => Interfaces.Integer_32 (Int (K + 9)),
+                                       ESC_Consumption => Interfaces.Integer_32 (Int (K + 10)),
+                                       ESC_Erpm        => Interfaces.Integer_16 (Int (K + 11)),
+                                       ESC_Rpm         => To_Float (Bits (K + 12)));
+               end;
+            end loop;
+            V.Pitot := (Airspeed => To_Float (Bits (128)), Diff_Pressure => To_Float (Bits (129)));
+            V.RSSI_Source := Adaflight.Receiver.RSSI_Source'Val (Int (130));
+            V.Clock := (Valid   => Int (131) /= 0,
+                        Year    => Interfaces.Unsigned_16 (Int (132)),
+                        Month   => Interfaces.Unsigned_8 (Int (133)),
+                        Day     => Interfaces.Unsigned_8 (Int (134)),
+                        Hours   => Interfaces.Unsigned_8 (Int (135)),
+                        Minutes => Interfaces.Unsigned_8 (Int (136)),
+                        Seconds => Interfaces.Unsigned_8 (Int (137)),
+                        Millis  => Interfaces.Unsigned_16 (Int (138)));
+            Adaflight.Stream_Buffers.Init (St, 0, Buffer'Length);
+            Reply (Buffer, St, Command, V);
+            Record_Int (Name & ".result", Int (139), (if Supported (Command, V) then 1 else -1));
+            Record_Int (Name & ".command", Int (140), Integer_64 (Command));
+            Record_Int (Name & ".length", Int (141), Integer_64 (St.Next));
+            Record_Bytes (Name & ".reply", (if NF >= 142 then Hex_Bytes (142) else Buffer (1 .. 0)),
+                          Buffer (0 .. St.Next - 1));
+         end;
+      end if;
+   end Check_MSP_GPS_ESC_Line;
 
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
@@ -13189,6 +13275,8 @@ procedure Vector_Check is
                   Check_Baro_Task_Line;
                elsif Kind = "mspout" then
                   Check_MSP_Out_Line;
+               elsif Kind = "mspout2" then
+                  Check_MSP_GPS_ESC_Line;
                else
                   Check_PID_Line;
                end if;
@@ -13313,6 +13401,7 @@ begin
    Run (Dir & "/rxtask.csv", "rxtask");
    Run (Dir & "/barotask.csv", "barotask");
    Run (Dir & "/mspout.csv", "mspout");
+   Run (Dir & "/mspout2.csv", "mspout2");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
