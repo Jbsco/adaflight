@@ -36,7 +36,7 @@ The core holds:
 - failsafe state machine, runtime modes with ground station overrides, and arming logic with
   launch control and runaway takeoff prevention
 - accelerometer path, barometer altitude and read cycle, compass with bias calibration, battery
-  meters and states, and sensor and board alignment
+  meters (analog, ESC sensor, virtual, MSP) and states, and sensor and board alignment
 - position Kalman filter, position estimator from barometer, accelerometer and GPS, altitude hold,
   position hold, GPS rescue, and position navigation target
 - cooperative scheduler, beeper, and receiver's channel processing with MSP override
@@ -102,9 +102,9 @@ The core holds:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 15974 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 16012 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
-- Recorded vectors replay bit for bit: 1277854 lines over 334 cases, every case exact except
+- Recorded vectors replay bit for bit: 1289860 lines over 335 cases, every case exact except
   twenty-one declared deviations in `DESIGN.md` D6.
 - No target builds yet. `ROADMAP.md` contains phases, parity inventory, and one question for after
   parity: whether a proved core leaves room on F4 boards for features Betaflight has to leave out
