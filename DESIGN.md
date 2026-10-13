@@ -177,9 +177,11 @@ ledger. The deviations so far:
   origin in each axis, the navigation's bound, so a waypoint further out is flown toward the
   held point. It holds the carrot's velocity within 1000 metres per second in each axis and
   its speed at 1000, a unit direction within 2 in each component, the filtered along-track
-  distance within 10,000 kilometres, and the time a heading fault has lasted at a million
-  seconds, where the reference's floats run on. The recorded plans stay within a kilometre of
-  the origin and replay bit for bit.
+  distance within 10,000 kilometres, the time a heading fault has lasted at a million seconds,
+  and the hold pattern's phase within 10 radians, which a pattern started at its quarter radian
+  a second never reaches, where the reference's floats run on. The geofence return's altitude
+  saturates at the 32-bit range. The recorded plans stay within 200 kilometres of the origin and
+  replay bit for bit.
 
 ## D7. Contribution conventions (2026-10-08)
 
@@ -3189,4 +3191,37 @@ The harness replays 3000 calls recorded from the reference executor on random ex
 states, navigator legs and plans within their ranges: half of them dispatches, a quarter
 arrivals, and a quarter landings followed by up to 30 cycles of the touchdown watch. Every
 executor field, navigator field and call of the 22175 lines replays exactly.
+
+## D143. Flight plan executor update (2026-10-13)
+
+`Adaflight.Flight_Plan_Nav` contains the fourth part of the executor: its cycle, its engagement
+and the plans it takes. Each update takes its interval from the last, at most 0.25 s. The
+rescue's heading recovery waits for the GPS course to stay within 5 degrees of the nose at speed
+for half a second, or 2 s after the attitude trusts its heading, then turns in onto the next
+leg, and aborts after 15 s without a heading. An idle executor dispatches again until the
+estimator has an origin, and a leg the position controller lost is dispatched afresh. A landing
+runs its touchdown watch. While a leg or a hold flies, an invalid estimate aborts, and past the
+geofence's distance from home the executor returns home at the return altitude or lands in
+place. A delay's end restores the leg's cruise. The rescue's blind climb keeps its target over
+the craft and pitches forward once the climb's drift has died away or after 5 s. A leg runs nose
+control, swaps a nose hold for the real target once the nose is round, flies a carrot or checks
+progress, and on a heading fault parks the craft level and aborts. A hold counts time in
+per-update deltas, starts a pattern once arrival braking has settled or after 5 s, advances
+pattern phase every 0.2 s, and on expiry lands or moves on.
+
+Engaging clears heading-fault park, nose command, modifiers and nose gate, captures altitude
+frame, and flies a staged rescue plan or the stored plan from the waypoint a set-current chose
+while idle. Disengaging drops plan and target. An injected plan of one to four waypoints
+replaces the stored one while the executor is active, and a set-current moves the stored plan's
+current waypoint, or the next engage's start while idle. Queries give distance and bearing in
+tenths of a degree to the waypoint, and time to it at the craft's ground speed, at most 65535 s.
+
+The harness replays 3600 calls recorded from the reference executor on random executor states,
+navigator legs and plans within their ranges: half of them updates, the rest engages,
+disengages, injections, set-currents and initializations. Every executor field, navigator
+field, call and query of the 7200 lines replays exactly. Every line of the executor's body runs
+except three the reference never reaches: landing in place when a return plan cannot be
+injected, which the update only reaches while the executor is active; a point leg's progress
+check without a target, which the update dispatches afresh first; and orbit period saturation,
+beyond hold radius and cruise ranges.
 

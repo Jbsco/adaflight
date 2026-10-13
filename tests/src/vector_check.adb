@@ -14581,8 +14581,9 @@ procedure Vector_Check is
    --  semicolon, or a dash for none: H and the bits of a held heading, R for
    --  the nose handed back, E with the request and the bits of the pitch for
    --  the heading recovery, Y and the bits of the yaw rate limit, P with the
-   --  request for the level park, D for the disarm, and L with the index of
-   --  a reached waypoint.
+   --  request for the level park, D for the disarm, L with the index of a
+   --  reached waypoint, and A with the request and the bits of the rate for
+   --  alt hold's emergency descent.
    procedure Expect_Executor_Calls (Name : String; Log : String; O : Adaflight.Flight_Plan_Nav.Executor_Output) is
       use Adaflight.Flight_Plan_Nav;
       K     : Natural := Log'First;
@@ -14590,12 +14591,13 @@ procedure Vector_Check is
 
       function Code (C : Outgoing_Call) return Integer_64 is
         (case C.Kind is
-            when Nose_Override    => Boolean'Pos (C.On),
-            when Heading_Recovery => 2 + Boolean'Pos (C.On),
-            when Yaw_Rate_Limit   => 4,
-            when Level_Park       => 5 + Boolean'Pos (C.On),
-            when Disarm           => 7,
-            when Reached_Waypoint => 8);
+            when Nose_Override     => Boolean'Pos (C.On),
+            when Heading_Recovery  => 2 + Boolean'Pos (C.On),
+            when Yaw_Rate_Limit    => 4,
+            when Level_Park        => 5 + Boolean'Pos (C.On),
+            when Disarm            => 7,
+            when Reached_Waypoint  => 8,
+            when Emergency_Descent => 9 + Boolean'Pos (C.On));
 
       function Hex (T : String) return Unsigned_32 is (Unsigned_32'Value ("16#" & T & "#"));
    begin
@@ -14630,6 +14632,9 @@ procedure Vector_Check is
                         Expected := 5 + Integer_64'Value (T (T'First + 1 .. T'Last));
                      when 'D' =>
                         Expected := 7;
+                     when 'A' =>
+                        Expected := 9 + Integer_64'Value (T (T'First + 1 .. T'First + 1));
+                        Record_Result (Name & ".call_value", Hex (T (T'First + 2 .. T'Last)), To_Bits (Actual.Value));
                      when 'L' =>
                         Expected := 8;
                         Record_Int (Name & ".call_index", Integer_64'Value (T (T'First + 1 .. T'Last)),
@@ -14864,7 +14869,8 @@ procedure Vector_Check is
                Yaw_Mode       => Interfaces.Unsigned_8 (Int (18)),
                Touchdown_Cms  => Interfaces.Unsigned_8 (Int (19)),
                Touchdown_Ds   => Interfaces.Unsigned_8 (Int (20)),
-               Descent_Dist_M => Interfaces.Unsigned_16 (Int (21)));
+               Descent_Dist_M => Interfaces.Unsigned_16 (Int (21)),
+               others         => <>);
             Disp_Plan := (Count => Count, Waypoints => (others => (others => <>)));
             for W in 0 .. Count - 1 loop
                Disp_Plan.Waypoints (W) := Executor_Waypoint (23 + 9 * W);
@@ -14884,7 +14890,8 @@ procedure Vector_Check is
                Heading_Required => Int (B + 13) /= 0,
                Below_Landing    => Int (B + 14) /= 0,
                Listener         => Int (B + 15) /= 0,
-               Position_Error   => (X => Flt (B + 16), Y => Flt (B + 17)));
+               Position_Error   => (X => Flt (B + 16), Y => Flt (B + 17)),
+               others           => <>);
             Disp_State := (others => <>);
             Read_Executor_State (B + 20, Disp_State);
             Disp_Nav := (others => <>);

@@ -37,7 +37,10 @@ package Adaflight.Flight_Plan_Nav with SPARK_Mode is
    --  alt hold flies at in cm/s, the carrot's lead time in tenths of a
    --  second and lead limit in centimeters, the pre-turn distance in
    --  centimeters, the yaw mode, the touchdown's speed in cm/s and time in
-   --  tenths of a second, and the rescue's descent distance in metres.
+   --  tenths of a second, the rescue's descent distance in metres, the
+   --  geofence's distance from home in metres with its action, a return home
+   --  or a landing in place, and the return's altitude above home in metres
+   --  and speed in cm/s.
    type Settings is record
       Max_Angle      : Unsigned_8 range 10 .. 70 := 50;
       Arrival_Radius : Unsigned_16 range 100 .. 5_000 := 500;
@@ -56,6 +59,10 @@ package Adaflight.Flight_Plan_Nav with SPARK_Mode is
       Touchdown_Cms  : Unsigned_8 range 10 .. 200 := 50;
       Touchdown_Ds   : Unsigned_8 range 5 .. 50 := 10;
       Descent_Dist_M : Unsigned_16 range 5 .. 500 := 20;
+      Fence_M        : Unsigned_16 range 0 .. 10_000 := 0;
+      Fence_Return   : Boolean := False;
+      Return_Alt_M   : Unsigned_16 range 5 .. 1_000 := 30;
+      Return_Cms     : Unsigned_16 range 0 .. 3_000 := 750;
    end record;
 
    Injected_Max : constant := 4;
@@ -82,7 +89,8 @@ package Adaflight.Flight_Plan_Nav with SPARK_Mode is
    --  it aborted, the current waypoint and the one a set-current chose while
    --  idle, the hold's start and time held, the staged modifiers, the
    --  injected plan that replaces the stored one while it holds waypoints,
-   --  and the altitude frame offset; the leg's target, arrival radius,
+   --  the rescue plan staged for the next engage, and the altitude frame
+   --  offset; the leg's target, arrival radius,
    --  cruise, vertical rate, approach deceleration and line, and whether it
    --  is a carrot leg turning in with its lean capped; the nose behaviour
    --  with its held heading and gate; the carrot with its velocity and
@@ -109,6 +117,8 @@ package Adaflight.Flight_Plan_Nav with SPARK_Mode is
       Yaw_Rate_Cap_Dps    : Float range 0.0 .. 65_535.0 := 0.0;
       Injected            : Injected_List := (others => (others => <>));
       Injected_Waypoints  : Injected_Count := 0;
+      Staged              : Injected_List := (others => (others => <>));
+      Staged_Count        : Injected_Count := 0;
       Z_Bias_M            : Float range -1.0e6 .. 1.0e6 := 0.0;
       Leg_Is_Pass_Gate    : Boolean := False;
       Leg_Target          : ENU;
@@ -169,9 +179,10 @@ package Adaflight.Flight_Plan_Nav with SPARK_Mode is
       Landing_Established : Boolean := False;
    end record;
 
-   --  What every cycle of a carrot leg keeps: the leg's points and the
-   --  carrot within the navigator's bound, the carrot's velocity within its
-   --  stated speed, and the filtered along-track distance within 10^7 m.
+   --  What every cycle of the executor keeps: the leg's points, the carrot
+   --  and the hold pattern's centre within the navigator's bound, the
+   --  carrot's velocity within its stated speed, and the filtered
+   --  along-track distance within 10^7 m.
    function Leg_Bounded (S : State) return Boolean is
      (abs S.Leg_Target.East <= Position_Nav.Metres_Bound and then abs S.Leg_Target.North <= Position_Nav.Metres_Bound
       and then abs S.Leg_Target.Up <= Position_Nav.Metres_Bound
@@ -179,15 +190,21 @@ package Adaflight.Flight_Plan_Nav with SPARK_Mode is
       and then abs S.Leg_Anchor.X <= Position_Nav.Metres_Bound and then abs S.Leg_Anchor.Y <= Position_Nav.Metres_Bound
       and then abs S.Carrot.X <= Position_Nav.Metres_Bound and then abs S.Carrot.Y <= Position_Nav.Metres_Bound
       and then abs S.Carrot_Velocity.X <= 1_000.0 and then abs S.Carrot_Velocity.Y <= 1_000.0
-      and then abs S.Along_Filt_M <= 1.0e7);
+      and then abs S.Along_Filt_M <= 1.0e7
+      and then abs S.Pattern_Centre.East <= Position_Nav.Metres_Bound
+      and then abs S.Pattern_Centre.North <= Position_Nav.Metres_Bound
+      and then abs S.Pattern_Centre.Up <= Position_Nav.Metres_Bound);
 
    --  What a cycle reads: the estimate, the time since the last cycle and
    --  the clock, the nose's yaw in decidegrees, the GPS course in decidegrees
    --  and ground speed in cm/s, the estimator's GPS origin with the
    --  longitude scale, whether the attitude trusts its heading and the
    --  estimator needs one, whether the craft is below the landing altitude,
-   --  whether a listener takes the reached waypoints, and the position
-   --  controller's error in centimetres.
+   --  whether a listener takes the reached waypoints, the position
+   --  controller's error in centimetres, whether the estimate's position is
+   --  valid, the GPS home with whether it is fixed and the distance to it in
+   --  metres, the GPS altitude in centimetres, and the estimator's altitude
+   --  in centimetres.
    type Leg_Inputs is record
       Est             : Position_Nav.Estimate;
       Dt_S            : Float range 0.0 .. 0.25 := 0.0;
@@ -203,14 +220,22 @@ package Adaflight.Flight_Plan_Nav with SPARK_Mode is
       Below_Landing    : Boolean := False;
       Listener         : Boolean := False;
       Position_Error   : Vector_2;
+      Estimator_Valid  : Boolean := True;
+      Home_Fix         : Boolean := False;
+      Home_Distance_M  : Unsigned_16 := 0;
+      Home             : Position_Estimator.Location;
+      GPS_Alt_Cm       : Integer_32 := 0;
+      Estimator_Alt_Cm : Float range -2.0 ** 24 .. 2.0 ** 24 := 0.0;
    end record;
 
    --  The executor's calls out in call order: the nose held on a heading in
    --  degrees or handed back to the configured yaw mode, the heading
    --  recovery's pitch-forward in degrees started or ended, the yaw rate
    --  limit in degrees a second, the level park set or cleared, the disarm
-   --  on touchdown, and a reached waypoint's index to its listener.
-   type Call_Kind is (Nose_Override, Heading_Recovery, Yaw_Rate_Limit, Level_Park, Disarm, Reached_Waypoint);
+   --  on touchdown, a reached waypoint's index to its listener, and alt
+   --  hold's emergency descent set or cleared with its rate in cm/s.
+   type Call_Kind is
+     (Nose_Override, Heading_Recovery, Yaw_Rate_Limit, Level_Park, Disarm, Reached_Waypoint, Emergency_Descent);
    type Outgoing_Call is record
       Kind  : Call_Kind := Nose_Override;
       On    : Boolean := False;
@@ -264,7 +289,9 @@ package Adaflight.Flight_Plan_Nav with SPARK_Mode is
    procedure Capture_Altitude_Frame
      (S : in out State; Has_Origin : Boolean; Origin_Alt_Cm : Integer_32; Estimator_Alt_Cm : Float;
       GPS_Alt_Cm : Integer_32)
-     with Global => null, Pre => Estimator_Alt_Cm in -2.0 ** 24 .. 2.0 ** 24;
+     with Global => null,
+          Pre    => Estimator_Alt_Cm in -2.0 ** 24 .. 2.0 ** 24,
+          Post   => (if Leg_Bounded (S'Old) then Leg_Bounded (S));
 
    --  The rate a leg climbs or descends at in m/s: its own, or the landing
    --  rate on a landing and the alt hold climb rate on any other.
@@ -312,16 +339,22 @@ package Adaflight.Flight_Plan_Nav with SPARK_Mode is
 
    --  The distance to the navigator's target, without the up part when the
    --  leg leaves the altitude out.
-   function Nav_Target_Delta (N : Position_Nav.Navigator; Est : Position_Nav.Estimate) return ENU;
+   function Nav_Target_Delta (N : Position_Nav.Navigator; Est : Position_Nav.Estimate) return ENU
+     with Post => abs Nav_Target_Delta'Result.East <= 5.0e5 and then abs Nav_Target_Delta'Result.North <= 5.0e5
+                  and then abs Nav_Target_Delta'Result.Up <= 5.0e5;
 
    function Distance_To_Nav_Target (N : Position_Nav.Navigator; Est : Position_Nav.Estimate) return Float
-     with Post => Distance_To_Nav_Target'Result >= 0.0;
+     with Post => Distance_To_Nav_Target'Result in 0.0 .. 9.0e5;
 
    --  The distance to the waypoint: the leg's target on a carrot leg, where
    --  the navigator's target is the carrot.
    function Nav_Waypoint_Delta (S : State; N : Position_Nav.Navigator; Est : Position_Nav.Estimate) return ENU
-     with Pre => abs S.Leg_Target.East <= 1.0e9 and then abs S.Leg_Target.North <= 1.0e9
-                 and then abs S.Leg_Target.Up <= 1.0e9;
+     with Pre  => abs S.Leg_Target.East <= 1.0e9 and then abs S.Leg_Target.North <= 1.0e9
+                  and then abs S.Leg_Target.Up <= 1.0e9,
+          Post => (if Leg_Bounded (S)
+                   then abs Nav_Waypoint_Delta'Result.East <= 5.0e5
+                        and then abs Nav_Waypoint_Delta'Result.North <= 5.0e5
+                        and then abs Nav_Waypoint_Delta'Result.Up <= 5.0e5);
 
    --  How far the craft goes before its speed turns round: the braking
    --  distance at the lean, the speed carried through the reversal, and a
@@ -451,6 +484,89 @@ package Adaflight.Flight_Plan_Nav with SPARK_Mode is
      with Global => null,
           Pre    => Leg_Bounded (S),
           Post   => Leg_Bounded (S);
+
+   --  The executor at power-up: idle, with no plan, modifiers or nose.
+   procedure Init (S : in out State; O : in out Executor_Output)
+     with Global => null,
+          Pre    => Leg_Bounded (S),
+          Post   => Leg_Bounded (S);
+
+   --  The plan flown from its start when the autopilot engages: a staged
+   --  rescue plan in place of the stored one, or the stored plan from the
+   --  waypoint a set-current chose while idle.
+   procedure Engage
+     (S : in out State; N : in out Position_Nav.Navigator; P : Flight_Plan.Plan; I : Leg_Inputs; C : Settings;
+      O : in out Executor_Output)
+     with Global => null,
+          Pre    => Leg_Bounded (S),
+          Post   => Leg_Bounded (S);
+
+   --  The executor stopped, its plan and target dropped, the nose handed
+   --  back.
+   procedure Disengage (S : in out State; N : in out Position_Nav.Navigator; O : in out Executor_Output)
+     with Global => null,
+          Pre    => Leg_Bounded (S),
+          Post   => Leg_Bounded (S);
+
+   --  A plan of one to four waypoints flown in place of the stored one while
+   --  the executor is active; Accepted is false otherwise.
+   procedure Inject_Plan
+     (S        : in out State;
+      N        : in out Position_Nav.Navigator;
+      P        : Flight_Plan.Plan;
+      I        : Leg_Inputs;
+      C        : Settings;
+      O        : in out Executor_Output;
+      Plan     : Injected_List;
+      Count    : Natural;
+      Accepted : out Boolean)
+     with Global => null,
+          Pre    => Leg_Bounded (S),
+          Post   => Leg_Bounded (S);
+
+   function Is_Injected_Plan_Active (S : State) return Boolean is (S.Active and then S.Injected_Waypoints > 0);
+
+   --  The stored plan's waypoint flown next, now while active or from the
+   --  next engage; Accepted is false for an index past the plan or while an
+   --  injected plan flies.
+   procedure Set_Current_Index
+     (S        : in out State;
+      N        : in out Position_Nav.Navigator;
+      P        : Flight_Plan.Plan;
+      I        : Leg_Inputs;
+      C        : Settings;
+      O        : in out Executor_Output;
+      Index    : Unsigned_8;
+      Accepted : out Boolean)
+     with Global => null,
+          Pre    => Leg_Bounded (S),
+          Post   => Leg_Bounded (S);
+
+   --  One cycle of the executor: the rescue's heading recovery, a dispatch
+   --  retried, the landing, the estimator and geofence checks, the delay's
+   --  end, the rescue's blind climb, the leg with its nose and heading-fault
+   --  check, and the hold with its pattern and expiry.
+   procedure Update
+     (S : in out State; N : in out Position_Nav.Navigator; P : Flight_Plan.Plan; I : Leg_Inputs; C : Settings;
+      O : in out Executor_Output)
+     with Global => null,
+          Pre    => Leg_Bounded (S),
+          Post   => Leg_Bounded (S);
+
+   --  The distance to the waypoint in metres, -1 without an active leg.
+   function Distance_To_Waypoint (S : State; N : Position_Nav.Navigator; Est : Position_Nav.Estimate) return Float
+     with Pre => Leg_Bounded (S);
+
+   --  The bearing to the waypoint in tenths of a degree from north, -1
+   --  without an active leg.
+   function Bearing_To_Waypoint (S : State; N : Position_Nav.Navigator; Est : Position_Nav.Estimate) return Integer_32
+     with Pre  => Leg_Bounded (S),
+          Post => Bearing_To_Waypoint'Result in -1 .. 3_599;
+
+   --  The seconds to the waypoint at the craft's ground speed, 0 without an
+   --  active leg or below 0.5 m/s.
+   function Eta_Seconds (S : State; N : Position_Nav.Navigator; Est : Position_Nav.Estimate) return Unsigned_16
+     with Pre => Leg_Bounded (S);
 
    --  The orbit's period in tenths of a second at Speed in cm/s, the maximum
    --  velocity for 0, never below 1 m/s and never above the pattern's
