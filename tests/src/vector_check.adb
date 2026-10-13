@@ -11973,6 +11973,26 @@ procedure Vector_Check is
             Inp.Now_Us := Interfaces.Unsigned_32 (Int (13));
             Inp.Now_Ms := Inp.Now_Us / 1_000;
             Inp.Bind_Pin_Level := True;
+            FD_Config.Telemetry := Int (21) /= 0;
+            declare
+               use Adaflight.FrSky_Hub_Telemetry;
+            begin
+               for Se in Sensor loop
+                  FD_Config.Hub.Enabled (Se) := (Int (22) / 2 ** Sensor'Pos (Se)) mod 2 = 0;
+               end loop;
+               FD_Config.Hub.Format := (if Int (23) = 0 then DMS else NMEA);
+               FD_Config.Hub.Unit := (if Int (24) = 0 then Imperial else Metric);
+               FD_Config.Hub.Precision := (if Int (25) = 0 then Low else High);
+               FD_Config.Hub.Report_Cell_Voltage := Int (26) = 1;
+               FD_Config.Hub.No_Fix_Latitude := No_Fix_Coordinate (Int (27));
+               FD_Config.Hub.No_Fix_Longitude := No_Fix_Coordinate (Int (28));
+               FD_Config.Hub.Acc_Present := Int (29) = 1;
+               FD_Config.Hub.Altitude_Present := Int (30) = 1;
+               FD_Config.Hub.GPS_Present := Int (31) = 1;
+               FD_Config.Hub.Mag_Present := Int (32) = 1;
+               FD_Config.Hub.Pole_Count := 14;
+               FD_Config.Hub.Acc_1G_Rec := Flt (33);
+            end;
             FSP.Start (FD_State, FD_Config, Inp, O, Ok, Claim);
             FD_Rc := (others => 1_500);
             Record_Int (Name & ".ok", Int (14), Boolean'Pos (Ok));
@@ -12001,6 +12021,30 @@ procedure Vector_Check is
             Inp.ADC_External := Interfaces.Unsigned_16 (Int (9));
             Inp.ADC_RSSI := Interfaces.Unsigned_16 (Int (10));
             Inp.Battery_Voltage := Interfaces.Unsigned_16 (Int (11));
+            Inp.Hub.Acc_X := Flt (29);
+            Inp.Hub.Acc_Y := Flt (30);
+            Inp.Hub.Acc_Z := Flt (31);
+            Inp.Hub.ESC_Valid := Int (32) = 1;
+            Inp.Hub.ESC_Rpm := Interfaces.Integer_16 (Int (33));
+            Inp.Hub.ESC_Temperature := Interfaces.Unsigned_8 (Int (34));
+            Inp.Hub.Fix := Int (35) = 1;
+            Inp.Hub.Lat := I32 (36);
+            Inp.Hub.Lon := I32 (37);
+            Inp.Hub.Alt_Cm := I32 (38);
+            Inp.Hub.Ground_Speed := Interfaces.Unsigned_16 (Int (39));
+            Inp.Hub.Num_Sat := Interfaces.Unsigned_8 (Int (40));
+            Inp.Hub.Pdop := Interfaces.Unsigned_16 (Int (41));
+            Inp.Hub.Voltage_Configured := Int (42) = 1;
+            Inp.Hub.Amperage_Configured := Int (43) = 1;
+            Inp.Hub.Cell_Count := Interfaces.Unsigned_8 (Int (44));
+            Inp.Hub.Voltage_Cv := Interfaces.Unsigned_16 (Int (45));
+            Inp.Hub.Amperage_Ca := I32 (46);
+            Inp.Hub.Capacity := Interfaces.Unsigned_16 (Int (47));
+            Inp.Hub.Percent := Interfaces.Unsigned_8 (Int (48));
+            Inp.Hub.Mah_Drawn := I32 (49);
+            Inp.Hub.Vario_Cms := Interfaces.Integer_16 (Int (50));
+            Inp.Hub.Altitude_Cm := I32 (51);
+            Inp.Hub.Yaw := Interfaces.Integer_16 (Int (52));
             if Int (7) /= 0 then
                FSP.Request_Bind (FD_State);
             end if;
@@ -12044,6 +12088,7 @@ procedure Vector_Check is
             end;
             Record_Int (Name & ".rssi_dbm", Int (27), Integer_64 (FD_State.RSSI_Dbm));
             Record_Text (Name & ".ops", Str (28), FD_Ops (O));
+            Record_Int (Name & ".hub_generated", Int (53), Integer_64 (FD_State.Hub_Generated));
          end;
       end if;
    end Check_FrSky_D_Line;
