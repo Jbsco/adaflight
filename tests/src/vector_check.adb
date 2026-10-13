@@ -110,6 +110,7 @@ with Adaflight.Blackbox_Header;
 with Adaflight.Blackbox;
 with Adaflight.Position_Nav;
 with Adaflight.OSD_Warnings;
+with Adaflight.MSP_Telemetry;
 
 procedure Vector_Check is
 
@@ -9431,6 +9432,62 @@ procedure Vector_Check is
       end if;
    end Check_OSD_Warnings_Line;
 
+   --  The MSP tunnel over telemetry: request chunks, the scripted processor's
+   --  reply, and the reply chunks pulled at the links' sizes.
+
+   MT_Seq : Integer_64 := -1;
+   MT_T   : Adaflight.MSP_Telemetry.Tunnel;
+
+   procedure Check_MSP_Tunnel_Line is
+      use Adaflight.MSP_Telemetry;
+      Name : constant String := Str (1);
+   begin
+      if Name = "mtinit" then
+         MT_Seq := Int (2);
+         MT_T := (others => <>);
+      elsif Int (2) /= MT_Seq then
+         Put_Line ("MSP tunnel line without its start");
+         Failures := Failures + 1;
+      elsif Name = "mtframe" then
+         declare
+            Frame  : constant Byte_Array := Hex_Bytes (3);
+            Result : Outcome;
+            EEPROM : Boolean;
+         begin
+            Handle_Frame (MT_T, Frame, Result, EEPROM);
+            Record_Int (Name & ".ret", Int (4), Boolean'Pos (Result /= Ignored));
+            Record_Int (Name & ".skips", Int (5), (if EEPROM then Skips_After_EEPROM_Write else 0));
+            Record_Int (Name & ".processed", Int (6), Boolean'Pos (Result = Request_Ready));
+            Record_Int (Name & ".reqcmd", Int (9), Integer_64 (MT_T.Request_Command));
+            Record_Int (Name & ".reqflags", Int (10), Integer_64 (MT_T.Request_Flags));
+            Record_Int (Name & ".expected", Int (11), Integer_64 (MT_T.Request_Expected));
+            Record_Int (Name & ".filled", Int (12), Integer_64 (MT_T.Request_Filled));
+            if Result = Request_Ready then
+               Record_Bytes (Name & ".reqdata", Hex_Bytes (13), Request_Data (MT_T));
+               Prepare_Reply (MT_T, Integer (Int (7)), Hex_Bytes (8));
+            else
+               Record_Bytes (Name & ".reqdata", Hex_Bytes (13), MT_T.Request_Buffer (0 .. MT_T.Request_Filled - 1));
+            end if;
+            if Result /= Ignored then
+               Record_Int (Name & ".respcmd", Int (14), Integer_64 (MT_T.Response_Command));
+               Record_Int (Name & ".respresult", Int (15), Integer_64 (MT_T.Response_Result));
+               Record_Int (Name & ".resplen", Int (16), Integer_64 (MT_T.Response_Length));
+               Record_Bytes (Name & ".respdata", Hex_Bytes (17), Response_Data (MT_T));
+            end if;
+         end;
+      elsif Name = "mtchunk" then
+         declare
+            Chunk  : Chunk_Buffer;
+            Length : Natural;
+            More   : Boolean;
+         begin
+            Send_Reply (MT_T, Integer (Int (3)), Chunk, Length, More);
+            Record_Bytes (Name, Hex_Bytes (4), Chunk (0 .. Length - 1));
+            Record_Int (Name & ".more", Int (5), Boolean'Pos (More));
+         end;
+      end if;
+   end Check_MSP_Tunnel_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -9607,6 +9664,8 @@ procedure Vector_Check is
                   Check_Position_Nav_Line;
                elsif Kind = "osdwarn" then
                   Check_OSD_Warnings_Line;
+               elsif Kind = "msptun" then
+                  Check_MSP_Tunnel_Line;
                else
                   Check_PID_Line;
                end if;
@@ -9704,6 +9763,7 @@ begin
    Run (Dir & "/bbrec.csv", "bbrec");
    Run (Dir & "/posnav.csv", "posnav");
    Run (Dir & "/osdwarn.csv", "osdwarn");
+   Run (Dir & "/msptun.csv", "msptun");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
