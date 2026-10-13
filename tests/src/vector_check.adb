@@ -119,6 +119,7 @@ with Adaflight.Four_Way;
 with Adaflight.Gimbal_Control;
 with Adaflight.OSD_Custom_Text;
 with Adaflight.PID_Audio;
+with Adaflight.PINIO_Box;
 with Adaflight.Dispatch;
 with Adaflight.ExpressLRS_Receiver;
 with Adaflight.Blackbox_Header;
@@ -13356,6 +13357,51 @@ procedure Vector_Check is
       end if;
    end Check_PID_Audio_Line;
 
+   PB_Seq   : Integer_64 := -1;
+   PB_State : Adaflight.PINIO_Box.State;
+
+   procedure Check_PINIO_Box_Line is
+      use Adaflight.PINIO_Box;
+      Name : constant String := Str (1);
+   begin
+      if Name = "pbinit" then
+         PB_Seq := Int (2);
+         declare
+            Ids : Permanent_Ids;
+         begin
+            for I in PINIO_Index loop
+               Ids (I) := Byte (Int (3 + I));
+            end loop;
+            Init (PB_State, Ids);
+            for I in PINIO_Index loop
+               Record_Int (Name & ".box", Int (7 + I),
+                           (if PB_State (I).Assigned then Adaflight.Modes.Box'Pos (PB_State (I).Which) else 255));
+            end loop;
+         end;
+      elsif Int (2) /= PB_Seq then
+         Put_Line ("PINIO box line without its start");
+         Failures := Failures + 1;
+      elsif Name = "pbstep" then
+         declare
+            On, Present : Box_Flags := (others => False);
+            R           : Output_Sets;
+         begin
+            for I in PINIO_Index loop
+               if PB_State (I).Assigned then
+                  On (PB_State (I).Which) := Int (4) / 2 ** I mod 2 = 1;
+                  Present (PB_State (I).Which) := Int (5) / 2 ** I mod 2 = 1;
+               end if;
+            end loop;
+            R := Update (PB_State, On);
+            for I in PINIO_Index loop
+               Record_Int (Name & ".set", Int (6 + 2 * I), Boolean'Pos (R (I).Set));
+               Record_Int (Name & ".level", Int (7 + 2 * I), Boolean'Pos (R (I).Set and then R (I).Level));
+            end loop;
+            Record_Int (Name & ".task", Int (14), Boolean'Pos (Task_Enabled (PB_State, Present)));
+         end;
+      end if;
+   end Check_PINIO_Box_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -13594,6 +13640,8 @@ procedure Vector_Check is
                   Check_OSD_Custom_Text_Line;
                elsif Kind = "pidaudio" then
                   Check_PID_Audio_Line;
+               elsif Kind = "piniobox" then
+                  Check_PINIO_Box_Line;
                else
                   Check_PID_Line;
                end if;
@@ -13723,6 +13771,7 @@ begin
    Run (Dir & "/gimbal.csv", "gimbal");
    Run (Dir & "/osdtext.csv", "osdtext");
    Run (Dir & "/pidaudio.csv", "pidaudio");
+   Run (Dir & "/piniobox.csv", "piniobox");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
