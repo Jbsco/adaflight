@@ -23,8 +23,9 @@ echo "Running SPARK proofs..."
 UNIT_ARGS=""
 for unit in ${PROVE_UNITS:-}; do UNIT_ARGS="$UNIT_ARGS -u $unit"; done
 [ -n "$UNIT_ARGS" ] && echo "Units:${PROVE_UNITS// / }" | tr ' ' '\n' | sed '1!s/^/  /'
-PROVE_OUT=$(alr -n exec -- gnatprove -P adaflight_core.gpr -j"${PROVE_JOBS:-0}" ${PROVE_SWITCHES:-} $UNIT_ARGS --output=oneline 2>&1 | tee >(cat >&2))
-EXIT_CODE=${PIPESTATUS[0]}
+# The substitution exits with the status of gnatprove, not of tee.
+PROVE_OUT=$(alr -n exec -- gnatprove -P adaflight_core.gpr -j"${PROVE_JOBS:-0}" ${PROVE_SWITCHES:-} $UNIT_ARGS --output=oneline 2>&1 | tee >(cat >&2); exit "${PIPESTATUS[0]}")
+EXIT_CODE=$?
 # A unit that fails to compile is dropped from the analysis without a nonzero
 # exit, so any error line fails the gate.
 if [ $EXIT_CODE -eq 0 ] && printf '%s\n' "$PROVE_OUT" | grep -q ': error: '; then
