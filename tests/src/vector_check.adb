@@ -128,6 +128,7 @@ with Adaflight.MSP_Text_Out;
 with Adaflight.MSP_Simplified_Tuning;
 with Adaflight.MSP_OSD_Out;
 with Adaflight.Serial_Feature_Map;
+with Adaflight.MSP_Serial_Out;
 with Adaflight.MSP_Out;
 with Adaflight.Four_Way;
 with Adaflight.Gimbal_Control;
@@ -16578,6 +16579,48 @@ procedure Vector_Check is
       end if;
    end Check_Serial_Map_Line;
 
+   MS_Options    : Adaflight.Serial_Feature_Map.Options;
+   MS_Ports      : Adaflight.Serial_Feature_Map.Port_List (1 .. Adaflight.Serial_Feature_Map.Max_Ports) :=
+     (others => -1);
+   MS_Port_Count : Natural := 0;
+
+   procedure Check_MSP_Serial_Config_Line is
+      package MSO renames Adaflight.MSP_Serial_Out;
+      Name : constant String := Str (1);
+      K    : Positive := 5;
+   begin
+      if Name = "msscinit" then
+         K := 4;
+         Read_Serial_Options (Name, K, MS_Options, MS_Ports, MS_Port_Count);
+      elsif Name = "msscstep" then
+         declare
+            Command : constant Interfaces.Unsigned_16 := Interfaces.Unsigned_16 (Int (4));
+            V       : MSO.Snapshot;
+            Buffer  : Byte_Array (0 .. 511) := (others => 0);
+            St      : Adaflight.Stream_Buffers.Stream;
+         begin
+            V.Options := MS_Options;
+            Read_Serial_Assignments (K, V.Assignments);
+            V.Port_Count := MS_Port_Count;
+            for I in 1 .. MS_Port_Count loop
+               V.Ports (I) := (Port => MS_Ports (I), Available => Int (K) /= 0);
+               K := K + 1;
+            end loop;
+            Adaflight.Stream_Buffers.Init (St, 0, Buffer'Last + 1);
+            MSO.Reply (Buffer, St, Command, V);
+            Record_Int (Name & ".result", Int (K), (if MSO.Handles (Command) then 1 else -1));
+            Record_Int (Name & ".length", Int (K + 1), Integer_64 (St.Next));
+            Record_Bytes (Name & ".reply", Hex_Bytes (K + 2), Buffer (0 .. St.Next - 1));
+            if K + 2 /= NF then
+               Put_Line ("msscstep: consumed" & Integer'Image (K + 2) & " of" & Integer'Image (NF) & " fields");
+               Failures := Failures + 1;
+            end if;
+         end;
+      else
+         Put_Line ("unknown MSP serial case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_MSP_Serial_Config_Line;
 
    AP_State    : Adaflight.Position_Hold.State;
    AP_Settings : Adaflight.Position_Control.Settings;
@@ -17114,6 +17157,8 @@ procedure Vector_Check is
                   Check_MSP_OSD_Line;
                elsif Kind = "serialmap" then
                   Check_Serial_Map_Line;
+               elsif Kind = "mspsercfg" then
+                  Check_MSP_Serial_Config_Line;
                else
                   Check_PID_Line;
                end if;
@@ -17268,6 +17313,7 @@ begin
    Run (Dir & "/mspsimp.csv", "mspsimp");
    Run (Dir & "/msposd.csv", "msposd");
    Run (Dir & "/serialmap.csv", "serialmap");
+   Run (Dir & "/mspsercfg.csv", "mspsercfg");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
