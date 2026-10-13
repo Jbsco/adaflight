@@ -29,6 +29,8 @@ with Adaflight.Barometer;
 with Adaflight.Barometer_Task;
 with Adaflight.Battery;
 with Adaflight.Flash_FS;
+with Adaflight.Flight_Plan;
+with Adaflight.Flight_Plan_Capture;
 with Adaflight.Arming;
 with Adaflight.Compass;
 with Adaflight.Position_Filter;
@@ -13865,6 +13867,84 @@ procedure Vector_Check is
       end if;
    end Check_Flash_FS_Line;
 
+   Capture_State : Adaflight.Flight_Plan_Capture.Capture;
+   Capture_Plan  : Adaflight.Flight_Plan.Plan;
+
+   procedure Check_Flight_Plan_Capture_Line is
+      use Adaflight.Flight_Plan_Capture;
+      Name : constant String := Str (1);
+   begin
+      if Name = "fpinit" then
+         Capture_State := (others => <>);
+         Capture_Plan := (Count => Integer (Int (3)), Waypoints => <>);
+         for I in Capture_Plan.Waypoints'Range loop
+            declare
+               K : constant Positive := 5 + 9 * I;
+            begin
+               Capture_Plan.Waypoints (I) :=
+                 (Latitude      => Interfaces.Integer_32 (Int (K)),
+                  Longitude     => Interfaces.Integer_32 (Int (K + 1)),
+                  Altitude      => Interfaces.Integer_32 (Int (K + 2)),
+                  Speed         => Interfaces.Unsigned_16 (Int (K + 3)),
+                  Duration_Ds   => Interfaces.Unsigned_16 (Int (K + 4)),
+                  Vert_Rate     => Interfaces.Unsigned_16 (Int (K + 5)),
+                  Kind          => Interfaces.Unsigned_8 (Int (K + 6)),
+                  Pattern       => Interfaces.Unsigned_8 (Int (K + 7)),
+                  Yaw_Behaviour => Interfaces.Unsigned_8 (Int (K + 8)));
+            end;
+         end loop;
+      elsif Name = "fpstep" then
+         declare
+            Now   : constant Unsigned_32 := Unsigned_32 (Int (4));
+            Valid : Boolean;
+         begin
+            Update (Capture_State, Capture_Plan, Now,
+                    Switch_Active  => Int (5) /= 0,
+                    Channels_Valid => Int (6) /= 0,
+                    Plan_Active    => Int (7) /= 0,
+                    Where          => (Fix         => Int (8) /= 0,
+                                       Latitude    => Interfaces.Integer_32 (Int (9)),
+                                       Longitude   => Interfaces.Integer_32 (Int (10)),
+                                       Altitude_Cm => Interfaces.Integer_32 (Int (11))));
+            Read_Message (Capture_State, Now, Valid);
+            Record_Int ("fpstep.switch_was", Int (12), Boolean'Pos (Capture_State.Switch_Was));
+            Record_Int ("fpstep.press_time", Int (13), Integer_64 (Capture_State.Press_Time_Us));
+            Record_Int ("fpstep.delete_fired", Int (14), Boolean'Pos (Capture_State.Delete_Fired));
+            Record_Int ("fpstep.pending_valid", Int (15), Boolean'Pos (Capture_State.Pending_Valid));
+            Record_Int ("fpstep.press_accepted", Int (16), Boolean'Pos (Capture_State.Press_Accepted));
+            Record_Int ("fpstep.message_valid", Int (17), Boolean'Pos (Capture_State.Message_Valid));
+            Record_Int ("fpstep.count", Int (18), Integer_64 (Capture_Plan.Count));
+            Record_Int ("fpstep.message_expire", Int (19), Integer_64 (Capture_State.Message_Expire_Us));
+            declare
+               W : Adaflight.Flight_Plan.Waypoint renames
+                 Capture_Plan.Waypoints (if Capture_Plan.Count > 0 then Capture_Plan.Count - 1 else 0);
+            begin
+               Record_Int ("fpstep.latitude", Int (20), Integer_64 (W.Latitude));
+               Record_Int ("fpstep.longitude", Int (21), Integer_64 (W.Longitude));
+               Record_Int ("fpstep.altitude", Int (22), Integer_64 (W.Altitude));
+               Record_Int ("fpstep.speed", Int (23), Integer_64 (W.Speed));
+               Record_Int ("fpstep.duration", Int (24), Integer_64 (W.Duration_Ds));
+               Record_Int ("fpstep.vert_rate", Int (25), Integer_64 (W.Vert_Rate));
+               Record_Int ("fpstep.kind", Int (26), Integer_64 (W.Kind));
+               Record_Int ("fpstep.pattern", Int (27), Integer_64 (W.Pattern));
+               Record_Int ("fpstep.yaw", Int (28), Integer_64 (W.Yaw_Behaviour));
+            end;
+            declare
+               Expected : constant String := Str (29);
+               Actual   : constant String := (if Valid then Message_Text (Capture_State) else "-");
+            begin
+               Record_Int ("fpstep.message", 1, (if Expected = Actual then 1 else 0));
+               if Expected /= Actual and then Failures <= 20 then
+                  Put_Line ("  expected " & Expected & " got " & Actual);
+               end if;
+            end;
+         end;
+      else
+         Put_Line ("unknown flight plan capture case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Flight_Plan_Capture_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -14117,6 +14197,8 @@ procedure Vector_Check is
                   Check_Battery_Meter_Line;
                elsif Kind = "flashfs" then
                   Check_Flash_FS_Line;
+               elsif Kind = "fpcapture" then
+                  Check_Flight_Plan_Capture_Line;
                else
                   Check_PID_Line;
                end if;
@@ -14253,6 +14335,7 @@ begin
    Run (Dir & "/h83d.csv", "h83d");
    Run (Dir & "/battmeter.csv", "battmeter");
    Run (Dir & "/flashfs.csv", "flashfs");
+   Run (Dir & "/fpcapture.csv", "fpcapture");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
