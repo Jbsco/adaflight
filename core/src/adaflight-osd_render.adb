@@ -1308,4 +1308,50 @@ package body Adaflight.OSD_Render with SPARK_Mode is
       end case;
    end Render_Background;
 
+   procedure Link_Quality_Message (Inp : Inputs; O : in out Output)
+     with Global => null
+   is
+   begin
+      Append_String (O.Line, "LQ ");
+      case Inp.Link_Source is
+         when CRSF =>
+            Append_Natural (O.Line, Natural (Inp.RF_Mode), 2, False);
+            Append (O.Line, ':');
+            Append_Natural (O.Line, Natural (Inp.Link_Quality), 3, True);
+            Append (O.Line, ' ');
+            Append_Integer (O.Line, Integer_32 (Inp.RSSI_Dbm), 3, False);
+         when GHST =>
+            Append_Natural (O.Line, Natural (Inp.Link_Quality), 3, True);
+            Append (O.Line, ' ');
+            Append_Integer (O.Line, Integer_32 (Inp.RSSI_Dbm), 3, False);
+         when None | MAVLink =>
+            Append_Natural (O.Line, Natural'Min (Natural (Inp.Link_Quality) * 10 / 1023, 9), 1, False);
+      end case;
+   end Link_Quality_Message;
+
+   procedure Render_Warnings
+     (WS : in out Adaflight.OSD_Warnings.State; WC : Adaflight.OSD_Warnings.Settings;
+      WI : Adaflight.OSD_Warnings.Inputs; Craft_Name_Messages, Blink_State : Boolean; Inp : Inputs;
+      Craft : in out Craft_Name_Buffer; O : out Output; Beeper_Shown : out Boolean)
+   is
+      Line     : Adaflight.OSD_Warnings.Text;
+      Blinking : Boolean;
+      Attr     : Severity;
+   begin
+      O := (others => <>);
+      Adaflight.OSD_Warnings.Render (WS, WC, WI, Line, Blinking, Attr, Beeper_Shown);
+      O.Attr := Attr;
+      O.Blink := (if Blinking then Set else Clear);
+      Append_String (O.Line, Line.Data (1 .. Line.Length));
+      if Craft_Name_Messages then
+         if Blink_State or else Line.Length = 0 then
+            O.Line := (others => <>);
+            Link_Quality_Message (Inp, O);
+         end if;
+         for K in 1 .. Max_Name - 1 loop
+            Craft (K) := (if K <= O.Line.Length then O.Line.Data (K) else Character'Val (0));
+         end loop;
+      end if;
+   end Render_Warnings;
+
 end Adaflight.OSD_Render;
