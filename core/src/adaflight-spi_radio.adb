@@ -30,6 +30,20 @@ package body Adaflight.SPI_Radio with SPARK_Mode is
       end loop;
    end Write_All;
 
+   procedure Write_Block (O : in out Output; Command : Unsigned_8; Data : Byte_Array) is
+      Used : constant Natural := O.Block_Used;
+   begin
+      if Data'Length > Block_Size - Used then
+         return;
+      end if;
+      for K in 0 .. Data'Length - 1 loop
+         O.Blocks (Used + K) := Data (Data'First + K);
+      end loop;
+      Add (O, (Kind => Write_Block, A => Command, B => Unsigned_8 (Data'Length), Value => Unsigned_16 (Used),
+               others => <>));
+      O.Block_Used := Used + Data'Length;
+   end Write_Block;
+
    procedure Calibrate_Channels (O : in out Output; Count, Step, Base : Unsigned_8) is
    begin
       Add (O, (Kind => Calibrate, A => Count, B => Step, Value => Unsigned_16 (Base), others => <>));

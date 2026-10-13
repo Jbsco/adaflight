@@ -2656,3 +2656,30 @@ at the transmitter's period, failsafe and settings packets, wrong ids, failed CR
 reception, transmit completions after the replies, dropouts, strong and weak signals, bind presses
 and commands, and a clock near its wrap. Every operation, channel value, bind result, timer and
 state of the 24008 lines replays byte for byte.
+
+## D120. Spektrum SPI receiver (2026-10-13)
+
+The Spektrum SPI unit contains the DSM2 and DSMX receiver on a CYRF6936 radio. The SPI radio unit
+gains the CYRF6936's block writes, kept in a byte area of the output, and a write the target repeats
+until the register reads it back. Start-up wakes the radio with that write, resets it, checks its
+framing register and configures it. A radio that does not answer fails the start-up.
+
+Unbound, the receiver listens for bind packets on channel 13 and moves two channels on every 11 ms.
+A bind packet whose id repeats and whose two checksums agree gives the manufacturer id, the channel
+count and the protocol, which the receiver saves. It then answers with 501 bind packets, one every
+11 ms, and starts the transfer. The id gives the CRC seed and the code columns, and for DSMX the 23
+hop channels from a linear congruential sequence, at most 8, 7 and 8 in its three bands. DSM2 steps
+through the channels until it finds its two. Bound, a packet whose first two bytes match the id, as
+sent or inverted by protocol, gives seven channel words, each naming its channel, and the receiver
+hops on with the RSSI from the radio. Misses hop on with a timeout chosen by CRC seed and channel
+count, and after 31 the receiver searches again. With the telemetry feature on, a packet on the
+id's own seed is answered every 176 ms with the battery voltage and the RSSI percentage. A packet
+length from the radio is taken up to 16 bytes with zeros for the bytes not read, where the
+reference reads any length into a 16-byte buffer (F130).
+
+The harness replays seven sequences of 3000 calls and one start-up with no radio, recorded from the
+reference with a scripted transmitter for each protocol: bind packets with broken repeats and
+checksums, two packets per 11 or 22 ms frame, receive errors with and without a bad CRC, short
+counts, other ids, dropouts, bind presses and commands, the telemetry feature and a clock near its
+wrap. Every operation, channel value, bind result, timer and state of the 21008 lines replays byte
+for byte.

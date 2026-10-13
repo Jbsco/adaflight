@@ -24,7 +24,7 @@ package Adaflight.SPI_Radio with SPARK_Mode is
    type Op_Kind is
      (Reset, Startup_Speed, Normal_Speed, Strobe, Write_Register, Read_Fifo, Write_Fifo, Set_Power, Delay_Ms,
       Delay_Us, Calibrate, Pin_High, Pin_Low, Pin_Toggle, Set_RSSI, Set_RSSI_Direct, Save_Config, Write_Id,
-      Read_Register, Await_Clear, Reset_Exti);
+      Read_Register, Await_Clear, Reset_Exti, Write_Block, Await_Value);
    type Pin is (LED, Tx_Enable, LNA_Enable, Antenna_Select);
 
    --  One operation: the strobe, register, byte count or power level, the
@@ -43,6 +43,10 @@ package Adaflight.SPI_Radio with SPARK_Mode is
 
    type Tx_Bytes is array (0 .. 63) of Unsigned_8;
 
+   Block_Size : constant := 256;
+   type Block_Bytes is array (0 .. Block_Size - 1) of Unsigned_8;
+   type Byte_Array is array (Natural range <>) of Unsigned_8;
+
    type Register_Value is record
       Register : Unsigned_8;
       Value    : Unsigned_8;
@@ -52,11 +56,14 @@ package Adaflight.SPI_Radio with SPARK_Mode is
    --  The frequency synthesizer calibration of one channel.
    type Calibration is array (0 .. 2) of Unsigned_8;
 
-   --  The operations in order, and the FIFO bytes a write sends.
+   --  The operations in order, the FIFO bytes a write sends, and the bytes
+   --  of the block writes, each found by its operation's offset.
    type Output is record
-      Ops     : Op_List;
-      Count   : Natural range 0 .. Max_Ops := 0;
-      Tx_Data : Tx_Bytes := (others => 0);
+      Ops        : Op_List;
+      Count      : Natural range 0 .. Max_Ops := 0;
+      Tx_Data    : Tx_Bytes := (others => 0);
+      Blocks     : Block_Bytes := (others => 0);
+      Block_Used : Natural range 0 .. Block_Size := 0;
    end record;
 
    --  The pins the board has, and whether the chip is checked at start-up.
@@ -101,6 +108,11 @@ package Adaflight.SPI_Radio with SPARK_Mode is
 
    procedure Write_All (O : in out Output; List : Register_List)
      with Global => null;
+
+   --  A write of several bytes in one command, with its bytes kept in the
+   --  output's block area while room remains.
+   procedure Write_Block (O : in out Output; Command : Unsigned_8; Data : Byte_Array)
+     with Global => null, Pre => Data'Length <= 32;
 
    --  The calibration of Count channels, the first at Base and each one Step
    --  above the one before, which the target measures and hands back.
