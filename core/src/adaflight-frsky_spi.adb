@@ -1,7 +1,7 @@
 with Adaflight.Clock;
 
 package body Adaflight.FrSky_SPI with SPARK_Mode is
-   use Adaflight.CC2500_Radio;
+   use Adaflight.SPI_Radio;
    use type Interfaces.Integer_8;
    use type Interfaces.Integer_32;
 
@@ -433,7 +433,9 @@ package body Adaflight.FrSky_SPI with SPARK_Mode is
                   Set_Pin (O, Tx_Enable, True);
                end if;
                Strobe (O, SIDLE);
-               O.Tx_Data := Tx_Bytes (S.Frame);
+               for K in S.Frame'Range loop
+                  O.Tx_Data (K) := S.Frame (K);
+               end loop;
                Add (O, (Kind => Write_Fifo, A => S.Frame (0) + 1, others => <>));
                S.Protocol := Data;
                S.Last_Packet_Us := Current;
@@ -657,7 +659,9 @@ package body Adaflight.FrSky_SPI with SPARK_Mode is
                   Set_Pin (O, Tx_Enable, True);
                end if;
                Strobe (O, SIDLE);
-               O.Tx_Data := Tx_Bytes (S.Frame);
+               for K in S.Frame'Range loop
+                  O.Tx_Data (K) := S.Frame (K);
+               end loop;
                Add (O, (Kind => Write_Fifo, A => S.Frame (0) + 1, others => <>));
                S.Protocol := Resume;
             end if;
@@ -702,7 +706,7 @@ package body Adaflight.FrSky_SPI with SPARK_Mode is
       O := (others => <>);
       Ok := False;
       Claim_RSSI := False;
-      Adaflight.CC2500_Radio.Start (S.Radio, C.Pins, Inp.Bind_Pin_Level, Inp.Chip_Ok, O, Pins_Ok);
+      Adaflight.SPI_Radio.Start (S.Radio, C.Pins, Inp.Bind_Pin_Level, Inp.Chip_Ok, O, Pins_Ok);
       if not Pins_Ok then
          return;
       end if;

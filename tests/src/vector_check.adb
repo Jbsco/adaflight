@@ -61,10 +61,11 @@ with Adaflight.Spektrum;
 with Adaflight.XBUS;
 with Adaflight.Jeti_Ex_Bus;
 with Adaflight.Jeti_Telemetry;
-with Adaflight.CC2500_Radio;
+with Adaflight.SPI_Radio;
 with Adaflight.FrSky_SPI;
 with Adaflight.SFHSS;
 with Adaflight.Redpine;
+with Adaflight.FlySky;
 with Adaflight.GHST;
 with Adaflight.MSP_Receiver;
 with Adaflight.SRXL2;
@@ -11828,8 +11829,8 @@ procedure Vector_Check is
    end Check_Jeti_Telemetry_Line;
 
    package FSP renames Adaflight.FrSky_SPI;
-   package CCR renames Adaflight.CC2500_Radio;
-   use type CCR.Op_Kind;
+   package SPR renames Adaflight.SPI_Radio;
+   use type SPR.Op_Kind;
    use type FSP.Received;
    FD_Seq    : Integer_64 := -1;
    FD_State  : FSP.State;
@@ -11872,23 +11873,23 @@ procedure Vector_Check is
          Len := Len + T'Length;
       end Put;
 
-      function Pin_Letter (P : CCR.Pin) return Character is
+      function Pin_Letter (P : SPR.Pin) return Character is
         (case P is
-            when CCR.LED => 'L', when CCR.Tx_Enable => 'T', when CCR.LNA_Enable => 'N',
-            when CCR.Antenna_Select => 'A');
+            when SPR.LED => 'L', when SPR.Tx_Enable => 'T', when SPR.LNA_Enable => 'N',
+            when SPR.Antenna_Select => 'A');
    begin
       for K in 1 .. O.Count loop
          declare
-            X : constant CCR.Op := O.Ops (K);
+            X : constant SPR.Op := O.Ops (K);
          begin
             case X.Kind is
-               when CCR.Reset => Put ("x");
-               when CCR.Startup_Speed => Put ("h");
-               when CCR.Normal_Speed => Put ("n");
-               when CCR.Strobe => Put ("s" & FD_Hex (Natural (X.A), 2));
-               when CCR.Write_Register => Put ("w" & FD_Hex (Natural (X.A), 2) & FD_Hex (Natural (X.B), 2));
-               when CCR.Read_Fifo => Put ("r" & FD_Short_Hex (Natural (X.A)));
-               when CCR.Write_Fifo =>
+               when SPR.Reset => Put ("x");
+               when SPR.Startup_Speed => Put ("h");
+               when SPR.Normal_Speed => Put ("n");
+               when SPR.Strobe => Put ("s" & FD_Hex (Natural (X.A), 2));
+               when SPR.Write_Register => Put ("w" & FD_Hex (Natural (X.A), 2) & FD_Hex (Natural (X.B), 2));
+               when SPR.Read_Fifo => Put ("r" & FD_Short_Hex (Natural (X.A)));
+               when SPR.Write_Fifo =>
                   declare
                      T : String (1 .. 1 + 2 * Natural (X.A));
                   begin
@@ -11898,16 +11899,21 @@ procedure Vector_Check is
                      end loop;
                      Put (T);
                   end;
-               when CCR.Set_Power => Put ("p" & FD_Short_Hex (Natural (X.A)));
-               when CCR.Delay_Ms => Put ("d" & FD_Short_Hex (Natural (X.Value)));
-               when CCR.Delay_Us => Put ("u" & FD_Short_Hex (Natural (X.Value)));
-               when CCR.Calibrate => Put ("C");
-               when CCR.Pin_High => Put (Pin_Letter (X.On) & "1");
-               when CCR.Pin_Low => Put (Pin_Letter (X.On) & "0");
-               when CCR.Pin_Toggle => Put (Pin_Letter (X.On) & "t");
-               when CCR.Set_RSSI => Put ("R" & FD_Short_Hex (Natural (X.Value)) & ".3");
-               when CCR.Set_RSSI_Direct => Put ("D" & FD_Short_Hex (Natural (X.Value)) & ".3");
-               when CCR.Save_Config => Put ("E");
+               when SPR.Set_Power => Put ("p" & FD_Short_Hex (Natural (X.A)));
+               when SPR.Delay_Ms => Put ("d" & FD_Short_Hex (Natural (X.Value)));
+               when SPR.Delay_Us => Put ("u" & FD_Short_Hex (Natural (X.Value)));
+               when SPR.Calibrate => Put ("C");
+               when SPR.Pin_High => Put (Pin_Letter (X.On) & "1");
+               when SPR.Pin_Low => Put (Pin_Letter (X.On) & "0");
+               when SPR.Pin_Toggle => Put (Pin_Letter (X.On) & "t");
+               when SPR.Set_RSSI => Put ("R" & FD_Short_Hex (Natural (X.Value)) & ".3");
+               when SPR.Set_RSSI_Direct => Put ("D" & FD_Short_Hex (Natural (X.Value)) & ".3");
+               when SPR.Save_Config => Put ("E");
+               when SPR.Write_Id =>
+                  Put ("i" & FD_Hex (Natural (X.Word / 2 ** 16), 4) & FD_Hex (Natural (X.Word mod 2 ** 16), 4));
+               when SPR.Read_Register => Put ("q" & FD_Hex (Natural (X.A), 2));
+               when SPR.Await_Clear => Put ("a" & FD_Hex (Natural (X.A), 2));
+               when SPR.Reset_Exti => Put ("X");
             end case;
          end;
       end loop;
@@ -11918,7 +11924,7 @@ procedure Vector_Check is
       Table : FSP.Calibration_Table := (others => (others => 0));
    begin
       for K in 1 .. O.Count loop
-         if O.Ops (K).Kind = CCR.Calibrate then
+         if O.Ops (K).Kind = SPR.Calibrate then
             for Ch in 0 .. 254 loop
                Table (Ch) :=
                  (Interfaces.Unsigned_8 ((Ch * 37 + 5) mod 256), Interfaces.Unsigned_8 ((Ch * 59 + 16) mod 256),
@@ -12116,7 +12122,7 @@ procedure Vector_Check is
       Table : SFH.Calibration_Table := (others => (others => 0));
    begin
       for K in 1 .. O.Count loop
-         if O.Ops (K).Kind = CCR.Calibrate then
+         if O.Ops (K).Kind = SPR.Calibrate then
             for C in SFH.Calibration_Table'Range loop
                declare
                   Ch : constant Natural := C * 6 + 16;
@@ -12254,7 +12260,7 @@ procedure Vector_Check is
       Table : RPN.Calibration_Table := (others => (others => 0));
    begin
       for K in 1 .. O.Count loop
-         if O.Ops (K).Kind = CCR.Calibrate then
+         if O.Ops (K).Kind = SPR.Calibrate then
             for Ch in RPN.Calibration_Table'Range loop
                Table (Ch) :=
                  (Interfaces.Unsigned_8 ((Ch * 37 + 5) mod 256), Interfaces.Unsigned_8 ((Ch * 59 + 16) mod 256),
@@ -12396,6 +12402,140 @@ procedure Vector_Check is
          end;
       end if;
    end Check_Redpine_Line;
+
+   package FSK renames Adaflight.FlySky;
+   use type FSK.Received;
+   FY_Seq    : Integer_64 := -1;
+   FY_State  : FSK.State;
+   FY_Config : FSK.Settings;
+   FY_Rc     : FSK.Channel_Values := (others => 1_500);
+
+   function Hex_Word (I : Positive) return Interfaces.Unsigned_32 is
+      B : constant Byte_Array := Hex_Bytes (I);
+      W : Interfaces.Unsigned_32 := 0;
+   begin
+      for K in B'Range loop
+         W := W * 256 + Interfaces.Unsigned_32 (B (K));
+      end loop;
+      return W;
+   end Hex_Word;
+
+   function Word_Text (W : Interfaces.Unsigned_32) return String is
+     (FD_Hex (Natural (W / 2 ** 16), 4) & FD_Hex (Natural (W mod 2 ** 16), 4));
+
+   function Map_Text (M : FSK.Channel_Map) return String is
+      R : String (1 .. 32);
+   begin
+      for K in M'Range loop
+         R (1 + 2 * K .. 2 + 2 * K) := FD_Hex (Natural (M (K)), 2);
+      end loop;
+      return R;
+   end Map_Text;
+
+   procedure Check_FlySky_Line is
+      Name : constant String := Str (1);
+
+      function Rc_Text return String is
+         Image : String (1 .. 128);
+         Len   : Natural := 0;
+      begin
+         for K in 0 .. FSK.Channel_Count (FY_Config) - 1 loop
+            declare
+               T : constant String := Interfaces.Unsigned_16'Image (FY_Rc (K));
+            begin
+               if K > 0 then
+                  Len := Len + 1;
+                  Image (Len) := '.';
+               end if;
+               Image (Len + 1 .. Len + T'Length - 1) := T (T'First + 1 .. T'Last);
+               Len := Len + T'Length - 1;
+            end;
+         end loop;
+         return Image (1 .. Len);
+      end Rc_Text;
+   begin
+      if Name = "fyinit" then
+         FY_Seq := Int (2);
+         declare
+            Map    : constant Byte_Array := Hex_Bytes (10);
+            Before : constant Integer_64 := Int (15);
+            Inp    : FSK.Inputs;
+            O      : FSK.Output;
+            Ok     : Boolean;
+            Claim  : Boolean;
+         begin
+            FY_Config :=
+              (Protocol    => (if Int (3) /= 0 then FSK.AFHDS_2A else FSK.AFHDS),
+               Tx_Id       => Hex_Word (9),
+               Rf_Map      => (others => 0),
+               Receiver_Id => Hex_Word (11),
+               Pins        =>
+                 (LED => Int (4) /= 0, LED_Inversion => Int (5) /= 0, Bind => Int (6) /= 0, others => <>));
+            for K in FSK.Channel_Map'Range loop
+               FY_Config.Rf_Map (K) := Interfaces.Unsigned_8 (Map (Map'First + K));
+            end loop;
+            Inp.Now_Us := Interfaces.Unsigned_32 (Int (7));
+            Inp.Now_Ms := Inp.Now_Us / 1_000;
+            Inp.Bind_Pin_Level := True;
+            FSK.Start (FY_State, FY_Config, Inp, O, Ok, Claim);
+            FY_Rc := (others => 1_500);
+            Record_Int (Name & ".ok", Int (8), Boolean'Pos (Ok));
+            Record_Int (Name & ".rssi_source", Int (12), (if Before = 0 and then Claim then 3 else Before));
+            Record_Int (Name & ".channels", Int (13), Integer_64 (FSK.Channel_Count (FY_Config)));
+            Record_Text (Name & ".ops", Str (14), FD_Ops (O));
+         end;
+      elsif Int (2) /= FY_Seq then
+         Put_Line ("FlySky line without its start");
+         Failures := Failures + 1;
+      elsif Name = "fystep" then
+         declare
+            Inp    : FSK.Inputs;
+            O      : FSK.Output;
+            Result : FSK.Received;
+            Fifo   : constant Byte_Array := Hex_Bytes (11);
+            Mode   : constant Byte_Array := Hex_Bytes (6);
+            Level  : constant Byte_Array := Hex_Bytes (7);
+         begin
+            Inp.Now_Us := Interfaces.Unsigned_32 (Int (3));
+            Inp.Now_Ms := Inp.Now_Us / 1_000;
+            Inp.Exti_Flag := Int (4) /= 0;
+            Inp.Exti_Time_Us := Interfaces.Unsigned_32 (Int (5));
+            Inp.Mode_Register := Interfaces.Unsigned_8 (Mode (Mode'First));
+            Inp.RSSI_Register := Interfaces.Unsigned_8 (Level (Level'First));
+            Inp.Bind_Pin_Level := Int (8) /= 0;
+            Inp.Battery_Voltage := Interfaces.Unsigned_16 (Int (10));
+            for K in Fifo'Range loop
+               Inp.Fifo (K - Fifo'First) := Interfaces.Unsigned_8 (Fifo (K));
+            end loop;
+            if Int (9) /= 0 then
+               FSK.Request_Bind (FY_State);
+            end if;
+            FSK.Data_Received (FY_State, FY_Config, Inp, O, Result);
+            if Result = FSK.Data_Ready then
+               FSK.Set_Rc_Data (FY_State, FY_Config, FY_Rc);
+            end if;
+            Record_Int (Name & ".result", Int (12), (case Result is when FSK.None => 0, when FSK.Bind_Done => 1,
+                                                                     when FSK.Data_Ready => 2));
+            Record_Int (Name & ".bound", Int (13), Boolean'Pos (FY_State.Bound));
+            Record_Text (Name & ".tx_id", Str (14), Word_Text (FY_State.Tx_Id));
+            Record_Int (Name & ".timeout", Int (15), Integer_64 (FY_State.Timeout_Us));
+            Record_Int (Name & ".last_packet", Int (16), Integer_64 (FY_State.Last_Packet_Us));
+            Record_Int (Name & ".count_timeout", Int (17), Integer_64 (FY_State.Count_Timeout));
+            Record_Int (Name & ".count_packet", Int (18), Integer_64 (FY_State.Count_Packet));
+            Record_Int (Name & ".error_rate", Int (19), Integer_64 (FY_State.Error_Rate));
+            Record_Int (Name & ".rssi_dbm", Int (20), Integer_64 (FY_State.RSSI_Dbm));
+            Record_Int (Name & ".send_telemetry", Int (21), Boolean'Pos (FY_State.Send_Telemetry));
+            Record_Int (Name & ".wait_tx", Int (22), Boolean'Pos (FY_State.Wait_Tx));
+            Record_Text (Name & ".map", Str (23), Map_Text (FY_State.Rf_Map));
+            Record_Text (Name & ".config_tx_id", Str (24), Word_Text (FY_Config.Tx_Id));
+            Record_Text (Name & ".config_map", Str (25), Map_Text (FY_Config.Rf_Map));
+            Record_Text (Name & ".rc", Str (26), Rc_Text);
+            Record_Int (Name & ".consume_exti", Int (27), Boolean'Pos (FY_State.Consume_Exti));
+            Record_Int (Name & ".bind_requested", Int (28), Boolean'Pos (FY_State.Radio.Bind_Requested));
+            Record_Text (Name & ".ops", Str (29), FD_Ops (O));
+         end;
+      end if;
+   end Check_FlySky_Line;
 
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
@@ -12613,6 +12753,8 @@ procedure Vector_Check is
                   Check_SFHSS_Line;
                elsif Kind = "redpine" then
                   Check_Redpine_Line;
+               elsif Kind = "flysky" then
+                  Check_FlySky_Line;
                else
                   Check_PID_Line;
                end if;
@@ -12731,6 +12873,7 @@ begin
    Run (Dir & "/frskyx.csv", "frskyd");
    Run (Dir & "/sfhss.csv", "sfhss");
    Run (Dir & "/redpine.csv", "redpine");
+   Run (Dir & "/flysky.csv", "flysky");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");

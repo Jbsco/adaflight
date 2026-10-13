@@ -11,7 +11,7 @@
 --  which carries out the operations in order, hands back the calibration and
 --  shows the receive FIFO.
 with Interfaces;
-with Adaflight.CC2500_Radio;
+with Adaflight.SPI_Radio;
 
 package Adaflight.SFHSS with SPARK_Mode is
    use type Interfaces.Unsigned_8;
@@ -30,11 +30,11 @@ package Adaflight.SFHSS with SPARK_Mode is
    type Settings is record
       Bind_Tx_Id  : Tx_Id := (others => 0);
       Bind_Offset : Integer_8 := 0;
-      Pins        : Adaflight.CC2500_Radio.Pins;
+      Pins        : Adaflight.SPI_Radio.Pins;
    end record;
 
    Calibrated_Channels : constant := 30;
-   type Calibration_Table is array (0 .. Calibrated_Channels - 1) of Adaflight.CC2500_Radio.Calibration;
+   type Calibration_Table is array (0 .. Calibrated_Channels - 1) of Adaflight.SPI_Radio.Calibration;
 
    Packet_Length : constant := 15;
    type Packet_Bytes is array (0 .. Packet_Length - 1) of Unsigned_8;
@@ -63,14 +63,14 @@ package Adaflight.SFHSS with SPARK_Mode is
       Next_Hop_Us     : Unsigned_32 := 0;
       Low_Seen        : Boolean := False;
       High_Seen       : Boolean := False;
-      Radio           : Adaflight.CC2500_Radio.Radio;
+      Radio           : Adaflight.SPI_Radio.Radio;
       Packet          : Packet_Bytes := (others => 0);
    end record;
 
    --  A channel past 31 arises only under a hop code of 30 or 31.
    function Hops_Valid (S : State) return Boolean is (S.Channel <= 31 or else S.Code >= 30);
 
-   subtype Output is Adaflight.CC2500_Radio.Output;
+   subtype Output is Adaflight.SPI_Radio.Output;
 
    --  What a call reads: the clocks, the radio's interrupt line, the bytes in
    --  its receive FIFO and the bind pin; at start-up, the chip check.

@@ -1,10 +1,10 @@
---  CC2500 radio helpers shared by the SPI receivers: the operations a
---  protocol hands the target in order, the receiver's pins, the LED with its
---  blink timer, the bind button and bind requests, the RSSI from a packet's
---  status byte, and the antenna switch.
+--  Radio helpers shared by the SPI receivers: the operations a protocol
+--  hands the target in order, the receiver's pins, the LED with its blink
+--  timer, the bind button and bind requests, the RSSI from a packet's status
+--  byte, the antenna switch, and the CC2500 strobes.
 with Interfaces;
 
-package Adaflight.CC2500_Radio with SPARK_Mode is
+package Adaflight.SPI_Radio with SPARK_Mode is
    use type Interfaces.Unsigned_8;
    use type Interfaces.Unsigned_32;
    use type Interfaces.Integer_8;
@@ -15,6 +15,7 @@ package Adaflight.CC2500_Radio with SPARK_Mode is
    subtype Integer_8 is Interfaces.Integer_8;
    subtype Integer_16 is Interfaces.Integer_16;
 
+   --  CC2500 strobes.
    SIDLE : constant := 16#36#;
    SRX   : constant := 16#34#;
    SFRX  : constant := 16#3A#;
@@ -22,23 +23,25 @@ package Adaflight.CC2500_Radio with SPARK_Mode is
 
    type Op_Kind is
      (Reset, Startup_Speed, Normal_Speed, Strobe, Write_Register, Read_Fifo, Write_Fifo, Set_Power, Delay_Ms,
-      Delay_Us, Calibrate, Pin_High, Pin_Low, Pin_Toggle, Set_RSSI, Set_RSSI_Direct, Save_Config);
+      Delay_Us, Calibrate, Pin_High, Pin_Low, Pin_Toggle, Set_RSSI, Set_RSSI_Direct, Save_Config, Write_Id,
+      Read_Register, Await_Clear, Reset_Exti);
    type Pin is (LED, Tx_Enable, LNA_Enable, Antenna_Select);
 
    --  One operation: the strobe, register, byte count or power level, the
-   --  register value, the pin, and the RSSI or the delay.
+   --  register value, the pin, the RSSI or the delay, and the radio id.
    type Op is record
       Kind  : Op_Kind := Strobe;
       A     : Unsigned_8 := 0;
       B     : Unsigned_8 := 0;
       On    : Pin := LED;
       Value : Unsigned_16 := 0;
+      Word  : Unsigned_32 := 0;
    end record;
 
    Max_Ops : constant := 200;
    type Op_List is array (1 .. Max_Ops) of Op;
 
-   type Tx_Bytes is array (0 .. 19) of Unsigned_8;
+   type Tx_Bytes is array (0 .. 63) of Unsigned_8;
 
    type Register_Value is record
       Register : Unsigned_8;
@@ -68,8 +71,8 @@ package Adaflight.CC2500_Radio with SPARK_Mode is
    end record;
 
    --  The RSSI in dBm, the antenna pin when start-up set it, the antenna in
-   --  use, the bind request with the bind pin's last level, and the LED's
-   --  last blink.
+   --  use, the bind request with the bind pin's last level, the LED's last
+   --  blink and its last link loss blink.
    type Radio is record
       RSSI_Dbm       : Integer_16 := 0;
       Antenna_Pin    : Boolean := False;
@@ -77,6 +80,7 @@ package Adaflight.CC2500_Radio with SPARK_Mode is
       Bind_Requested : Boolean := False;
       Last_Bind_Pin  : Boolean := False;
       LED_Blink_Ms   : Unsigned_32 := 0;
+      Rx_Loss_Ms     : Unsigned_32 := 0;
    end record;
 
    procedure Add (O : in out Output; Item : Op)
@@ -116,9 +120,17 @@ package Adaflight.CC2500_Radio with SPARK_Mode is
    procedure LED_Blink (R : in out Radio; P : Pins; O : in out Output; Now_Ms : Unsigned_32; Period_Ms : Unsigned_32)
      with Global => null;
 
-   --  The pins at start-up: the LED off, the bind pin's level, the chip
-   --  check, the LNA and antenna pins raised and the transmit pin lowered;
-   --  false when the checked chip does not answer.
+   --  The LED with a link: on for data, else a toggle once a second.
+   procedure LED_Blink_Rx_Loss (R : in out Radio; P : Pins; O : in out Output; Now_Ms : Unsigned_32; Data : Boolean)
+     with Global => null;
+
+   --  The common pins at start-up: the LED off and the bind pin's level.
+   procedure Start_Common (R : out Radio; P : Pins; Bind_Pin_Level : Boolean; O : in out Output)
+     with Global => null;
+
+   --  The pins at start-up: the common pins, the chip check, the LNA and
+   --  antenna pins raised and the transmit pin lowered; false when the
+   --  checked chip does not answer.
    procedure Start (R : out Radio; P : Pins; Bind_Pin_Level, Chip_Ok : Boolean; O : in out Output; Ok : out Boolean)
      with Global => null;
 
@@ -135,4 +147,4 @@ package Adaflight.CC2500_Radio with SPARK_Mode is
    procedure Switch_Antennae (R : in out Radio; O : in out Output)
      with Global => null;
 
-end Adaflight.CC2500_Radio;
+end Adaflight.SPI_Radio;

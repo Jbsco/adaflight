@@ -12,7 +12,7 @@
 --  the target, which carries out the operations in order, hands back the
 --  calibration and shows the receive FIFO.
 with Interfaces;
-with Adaflight.CC2500_Radio;
+with Adaflight.SPI_Radio;
 
 package Adaflight.Redpine with SPARK_Mode is
    use type Interfaces.Unsigned_8;
@@ -37,11 +37,11 @@ package Adaflight.Redpine with SPARK_Mode is
       Bind_Tx_Id    : Tx_Id := (others => 0);
       Bind_Offset   : Integer_8 := 0;
       Bind_Hop_Data : Hop_Table := (others => 0);
-      Pins          : Adaflight.CC2500_Radio.Pins;
+      Pins          : Adaflight.SPI_Radio.Pins;
    end record;
 
    Calibrated_Channels : constant := 255;
-   type Calibration_Table is array (0 .. Calibrated_Channels - 1) of Adaflight.CC2500_Radio.Calibration;
+   type Calibration_Table is array (0 .. Calibrated_Channels - 1) of Adaflight.SPI_Radio.Calibration;
 
    Packet_Length : constant := 13;
    type Packet_Bytes is array (0 .. Packet_Length - 1) of Unsigned_8;
@@ -72,11 +72,11 @@ package Adaflight.Redpine with SPARK_Mode is
       Packet_Timer_Us   : Unsigned_32 := 0;
       Total_Timer_Us    : Unsigned_32 := 0;
       Protocol_Timer_Us : Unsigned_32 := 0;
-      Radio             : Adaflight.CC2500_Radio.Radio;
+      Radio             : Adaflight.SPI_Radio.Radio;
       Packet            : Packet_Bytes := (others => 0);
    end record;
 
-   subtype Output is Adaflight.CC2500_Radio.Output;
+   subtype Output is Adaflight.SPI_Radio.Output;
 
    --  What a call reads: the clocks, the radio's interrupt line, the bytes in
    --  its receive FIFO and the bind pin; at start-up, the chip check.

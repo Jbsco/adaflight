@@ -2620,3 +2620,39 @@ an offset window, a window too narrow for the coarse sweep, data packets at the 
 time with VTX frames, wrong ids and short FIFOs, noise, gaps up to 4 s, auto bind with a 3 s gap,
 bind presses, bind commands, arming changes and a clock near its wrap. Every operation, channel
 value, bind result, hop table and state of the 28008 lines replays byte for byte.
+
+## D119. FlySky receivers (2026-10-13)
+
+The FlySky unit contains the FlySky receivers on an A7105 radio: AFHDS with eight channels and
+AFHDS 2A with fourteen. The CC2500 radio unit becomes the SPI radio unit, shared by both radios, and
+gains what the A7105 needs: an id write, FIFO writes of up to 64 bytes, a discarded register read,
+a wait for a register to clear, the interrupt flag reset, and the LED's link loss blink. Start-up
+resets the A7105, writes its id and registers, starts its calibration and waits for it, then
+listens on the bind channel, or on the stored map when bound.
+
+The radio raises an interrupt when it finishes a transmission or a reception. The target shows the
+interrupt flag and its time, the mode and RSSI registers and the receive FIFO on each call, and
+clears the flag on each reset operation. After a strobe to receive or transmit the receiver takes
+the next interrupt, and after any other strobe it ignores the flag. After a transmission the
+receiver hops when bound and listens again. A reception with a good CRC is a packet, and any other
+answer restarts reception.
+
+Unbound, an AFHDS bind packet gives the transmitter id, which chooses one of 16 channel tables and
+an offset. An AFHDS 2A bind packet gives the id and the channel map, and the receiver answers it
+0.5 ms later with its own id. Binding completes 200 ms after the last bind packet and saves the id
+and the map. Bound, a packet with the transmitter's id, and for AFHDS 2A the receiver's id, gives
+the channels as two bytes each, updates a 16-sample RSSI average and hops on. AFHDS 2A answers a
+channel packet with telemetry every 57 ms: battery voltage, RSSI and error rate, the full frame the
+first time and its changing part after that. Without packets the receiver hops by the packet times
+missed, and after 32 timeouts lengthens its timeout and drops the RSSI. The error rate is the
+number of packets short of 100 in each period of 101 packet times. The RSSI conversion leaves 0 to
+1023 at both ends, and adaflight passes the values on as computed (F128). Unbound, AFHDS 2A reads
+27 bytes of a packet, and adaflight reads zeros for the rest where the reference copies unread
+bytes into five channels (F129).
+
+The harness replays eight sequences of 3000 calls, five AFHDS 2A and three AFHDS, recorded from the
+reference with a scripted transmitter: bind packets with and without a channel map, channel packets
+at the transmitter's period, failsafe and settings packets, wrong ids, failed CRCs and disabled
+reception, transmit completions after the replies, dropouts, strong and weak signals, bind presses
+and commands, and a clock near its wrap. Every operation, channel value, bind result, timer and
+state of the 24008 lines replays byte for byte.

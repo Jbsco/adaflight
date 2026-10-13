@@ -1,4 +1,4 @@
-package body Adaflight.CC2500_Radio with SPARK_Mode is
+package body Adaflight.SPI_Radio with SPARK_Mode is
 
    procedure Add (O : in out Output; Item : Op) is
    begin
@@ -65,14 +65,35 @@ package body Adaflight.CC2500_Radio with SPARK_Mode is
       LED_Toggle (O, P);
    end LED_Blink;
 
-   procedure Start (R : out Radio; P : Pins; Bind_Pin_Level, Chip_Ok : Boolean; O : in out Output; Ok : out Boolean) is
+   procedure LED_Blink_Rx_Loss (R : in out Radio; P : Pins; O : in out Output; Now_Ms : Unsigned_32; Data : Boolean) is
+   begin
+      if not P.LED then
+         return;
+      end if;
+      if Data then
+         LED_On (O, P);
+      else
+         if R.Rx_Loss_Ms + 1_000 > Now_Ms then
+            return;
+         end if;
+         LED_Toggle (O, P);
+      end if;
+      R.Rx_Loss_Ms := Now_Ms;
+   end LED_Blink_Rx_Loss;
+
+   procedure Start_Common (R : out Radio; P : Pins; Bind_Pin_Level : Boolean; O : in out Output) is
    begin
       R := (others => <>);
-      Ok := False;
       LED_Off (O, P);
       if P.Bind then
          R.Last_Bind_Pin := Bind_Pin_Level;
       end if;
+   end Start_Common;
+
+   procedure Start (R : out Radio; P : Pins; Bind_Pin_Level, Chip_Ok : Boolean; O : in out Output; Ok : out Boolean) is
+   begin
+      Start_Common (R, P, Bind_Pin_Level, O);
+      Ok := False;
       if P.Chip_Detect then
          Add (O, (Kind => Reset, others => <>));
          if not Chip_Ok then
@@ -123,4 +144,4 @@ package body Adaflight.CC2500_Radio with SPARK_Mode is
       end if;
    end Switch_Antennae;
 
-end Adaflight.CC2500_Radio;
+end Adaflight.SPI_Radio;
