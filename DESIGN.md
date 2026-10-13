@@ -2932,3 +2932,23 @@ the SPI commands, the chip enable pin and the clock stubbed: both data rates, a 
 settling time, a clock near its wrap, bind packets, data packets with the bound id and with
 corrupted ids, bind packets after binding, and gaps that make the receiver hop. Every operation,
 result, channel and binding state of the 15006 lines replays exactly.
+
+## D134. SYMA receivers (2026-10-13)
+
+The SYMA unit contains the SYMA X and X5C receivers on the NRF24L01. The X starts unbound on a fixed
+address at 250 kbit/s and binds to a 10-byte packet with three bind marks, whose first five bytes
+give its transmitter's address in reverse; the address's low five bits pick four hop channels,
+computed as one 32-bit word stored low byte first. The X5C starts bound at 1 Mbit/s on its own
+address and fifteen channels. Data packets give the throttle, the three sticks in sign and magnitude
+scaled onto 1000 to 2000, a three-position rate, and four switches from the flag bytes. The receiver
+hops every second packet and after 10 ms without one. The timeout compares a plain 32-bit sum, so
+within 10 ms of the clock's wrap every call hops (F136). The X reads its headless switch from byte
+14, which a 10-byte packet never writes, so the switch stays low (F137); the caller hands back the
+receiver's buffer with the bytes a shorter packet leaves. The unit is SPARK for the hop table and
+the channel scaling.
+
+The harness replays six sequences of 2500 calls recorded from the reference driver and protocol with
+the SPI commands, the chip enable pin and the clock stubbed, and the receiver's buffer static and
+zeroed as on the target: both variants, bind packets with a scripted address, data packets, gaps
+that make the receiver hop, a start inside the settling time, and three clocks near their wrap.
+Every operation, result, channel, hop and address of the 15006 lines replays exactly.

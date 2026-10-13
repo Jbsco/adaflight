@@ -47,7 +47,7 @@ The core holds:
 - Redpine receiver with fast and slow modes, bind tuning and hop table
 - FlySky AFHDS and AFHDS 2A receivers with binding, hopping and telemetry
 - Spektrum DSM2 and DSMX SPI receiver with binding, hopping and telemetry
-- V202 receiver over NRF24L01 driver
+- V202 and SYMA receivers over NRF24L01 driver
 - RC statistics for full throttle time and count and average throttle
 - receiver task's state machine with step time estimates
 - MSP serial port, ExpressLRS hopping tables, telemetry link and receiver, flight log field
@@ -102,9 +102,9 @@ The core holds:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 15894 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 15923 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
-- Recorded vectors replay bit for bit: 1247842 lines over 332 cases, every case exact except
+- Recorded vectors replay bit for bit: 1262848 lines over 333 cases, every case exact except
   twenty-one declared deviations in `DESIGN.md` D6.
 - No target builds yet. `ROADMAP.md` contains phases, parity inventory, and one question for after
   parity: whether a proved core leaves room on F4 boards for features Betaflight has to leave out

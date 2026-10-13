@@ -122,6 +122,7 @@ with Adaflight.PID_Audio;
 with Adaflight.PINIO_Box;
 with Adaflight.Warning_LED;
 with Adaflight.V202;
+with Adaflight.SYMA;
 with Adaflight.Dispatch;
 with Adaflight.ExpressLRS_Receiver;
 with Adaflight.Blackbox_Header;
@@ -13488,6 +13489,69 @@ procedure Vector_Check is
       end if;
    end Check_V202_Line;
 
+   SYMA_Seq    : Integer_64 := -1;
+   SYMA_State  : Adaflight.SYMA.State;
+   SYMA_RC     : Adaflight.SYMA.RC_Channels := (others => 0);
+   SYMA_Buffer : Adaflight.SYMA.Payload_Buffer := (others => 0);
+
+   procedure Check_SYMA_Line is
+      use Adaflight.SYMA;
+      Name : constant String := Str (1);
+      O    : FSP.Output;
+   begin
+      if Name = "syinit" then
+         SYMA_Seq := Int (2);
+         SYMA_RC := (others => 0);
+         SYMA_Buffer := (others => 0);
+         Init (SYMA_State, (if Int (3) = 0 then X else X5C), Interfaces.Unsigned_32 (Int (4)), O);
+         Record_Int (Name & ".channels", Int (5), RC_Channel_Count);
+         Record_Text (Name & ".ops", Str (6), FD_Ops (O));
+      elsif Int (2) /= SYMA_Seq then
+         Put_Line ("SYMA line without its start");
+         Failures := Failures + 1;
+      elsif Name = "systep" then
+         declare
+            R : Result;
+         begin
+            if Str (6) /= "-" then
+               declare
+                  B : constant Byte_Array := Hex_Bytes (6);
+               begin
+                  for I in 0 .. Natural (SYMA_State.Payload_Size) - 1 loop
+                     SYMA_Buffer (I) := B (B'First + I);
+                  end loop;
+               end;
+            end if;
+            Data_Received (SYMA_State, Interfaces.Unsigned_32 (Int (4)), Interfaces.Unsigned_8 (Bits (5)), SYMA_Buffer,
+                           O, R);
+            if R = Data_Received_Result then
+               Set_RC_Data (SYMA_State, SYMA_Buffer, SYMA_RC);
+            end if;
+            Record_Int (Name & ".result", Int (7), Result'Pos (R));
+            Record_Text (Name & ".ops", Str (8), FD_Ops (O));
+            for I in RC_Index loop
+               Record_Int (Name & ".rc", Int (9 + I), Integer_64 (SYMA_RC (I)));
+            end loop;
+            Record_Int (Name & ".state", Int (18), Protocol_State'Pos (SYMA_State.Phase));
+            Record_Int (Name & ".hop", Int (19), Integer_64 (SYMA_State.Channel_Index));
+            Record_Int (Name & ".packets", Int (20), Integer_64 (SYMA_State.Packet_Count));
+            Record_Int (Name & ".last_hop", Int (21), Integer_64 (SYMA_State.Time_Of_Last_Hop));
+            declare
+               C : constant Byte_Array := Hex_Bytes (22);
+               A : constant Byte_Array := Hex_Bytes (23);
+            begin
+               for I in Hop_Index loop
+                  Record_Int (Name & ".channel", Integer_64 (C (C'First + I)), Integer_64 (SYMA_State.Channels (I)));
+               end loop;
+               for I in 0 .. 4 loop
+                  Record_Int (Name & ".address", Integer_64 (A (A'First + I)),
+                              Integer_64 (SYMA_State.Rx_Tx_Address (I)));
+               end loop;
+            end;
+         end;
+      end if;
+   end Check_SYMA_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -13732,6 +13796,8 @@ procedure Vector_Check is
                   Check_Warning_LED_Line;
                elsif Kind = "v202" then
                   Check_V202_Line;
+               elsif Kind = "syma" then
+                  Check_SYMA_Line;
                else
                   Check_PID_Line;
                end if;
@@ -13864,6 +13930,7 @@ begin
    Run (Dir & "/piniobox.csv", "piniobox");
    Run (Dir & "/warnled.csv", "warnled");
    Run (Dir & "/v202.csv", "v202");
+   Run (Dir & "/syma.csv", "syma");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
