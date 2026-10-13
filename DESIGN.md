@@ -3298,3 +3298,20 @@ reply exists only with the beeper built in.
 The harness replays 4800 requests recorded from the reference MSP processor in two builds, one
 with every option the replies branch on and one without, on random identities, configurations
 and meter readings. Every result, length and byte of the 4808 lines replays exactly.
+
+## D147. MSP tuning replies (2026-10-13)
+
+`Adaflight.MSP_Tuning_Out` contains the MSP out messages that report the tuning: the PID gains
+with their names and controller, the rate profile, the advanced configuration, the filter
+configuration, the advanced PID configuration, the board and sensor alignment, the arming
+configuration, the 3D throttle and the stick deadbands. The caller gathers the active PID and
+rate profiles, the gyro, filter, motor and system configuration and the build's options into a
+snapshot. Each value keeps its configuration width and the reply narrows it to the protocol's
+field: the first gyro cutoff wraps to a byte, the board alignment in degrees wraps to sixteen
+bits, and the signed gyro yaw offset, compass alignment and profile cell count wrap to their
+fields. A value whose option is left out of the build goes out as zero. Retired fields keep
+their place in the layout and go out as zero, or one for the retired gyro sync divider.
+
+The harness replays 4800 requests recorded from the reference MSP processor with the reference
+PID names, in a build with every option the replies branch on and one without, on random
+profiles and configurations. Every result, length and byte of the 4808 lines replays exactly.
