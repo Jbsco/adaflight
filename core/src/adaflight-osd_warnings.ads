@@ -10,6 +10,7 @@
 with Interfaces;
 with Adaflight.Arming;
 with Adaflight.Battery;
+with Adaflight.OSD_Format;
 
 package Adaflight.OSD_Warnings with SPARK_Mode is
    use type Interfaces.Unsigned_32;
@@ -34,7 +35,7 @@ package Adaflight.OSD_Warnings with SPARK_Mode is
       Link_Quality, RSSI_Dbm, Over_Cap, RSNR, Load, Pos_Hold_Failed, Autopilot_Abort);
    type Warning_Set is array (Warning_Kind) of Boolean;
 
-   type Unit_System is (Imperial, Metric, British);
+   subtype Unit_System is Adaflight.OSD_Format.Unit_System;
 
    Alarm_Off : constant := -1;
 
@@ -42,7 +43,7 @@ package Adaflight.OSD_Warnings with SPARK_Mode is
    --  temperature alarm is off at zero, the other ESC alarms at minus one.
    type Settings is record
       Enabled            : Warning_Set := (others => True);
-      Units              : Unit_System := Metric;
+      Units              : Unit_System := Adaflight.OSD_Format.Metric;
       RSSI_Alarm         : Natural range 0 .. 100 := 20;
       RSSI_Dbm_Alarm     : Integer range -130 .. 0 := -60;
       RSNR_Alarm         : Integer range -30 .. 20 := 4;
