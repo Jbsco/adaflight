@@ -83,13 +83,14 @@ The core holds:
 - the OSD page with the arming and boot screens and the cycle steps around them
 - the OSD element set with alarms and renderers, the warnings element, draw cycle, spec prearm
   screen and OSD task
-- the MAVLink telemetry streams with their intervals and arming status text
+- the MAVLink telemetry streams with their intervals and arming status text, and the MAVLink
+  commands with their replies and requests
 
 The state of `main`:
 
-- The core proves at Silver and Gold: 14117 checks, nothing unproved, no
+- The core proves at Silver and Gold: 14392 checks, nothing unproved, no
   `pragma Assume`, no justified suppression (`gnatprove` 16.1.0, level 2).
-- The recorded vectors replay bit for bit: 937445 lines over 312 cases, every case
+- The recorded vectors replay bit for bit: 940451 lines over 313 cases, every case
   exact except the twenty-one declared deviations in `DESIGN.md` D6.
 - No target builds yet. `ROADMAP.md` contains the parity inventory, the phases, and the
   question for after parity: whether a proved core leaves room on the F4 boards for
