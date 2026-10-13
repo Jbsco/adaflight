@@ -120,6 +120,7 @@ with Adaflight.OSD_Elements;
 with Adaflight.OSD_Render;
 with Adaflight.OSD_Draw;
 with Adaflight.OSD_Spec;
+with Adaflight.OSD_Task;
 
 procedure Vector_Check is
 
@@ -11252,6 +11253,179 @@ procedure Vector_Check is
       end if;
    end Check_OSD_Spec_Line;
 
+   OT_Seq     : Integer_64 := -1;
+   OT_OSD     : Adaflight.OSD_Task.OSD;
+   OT_Context : Adaflight.OSD_Task.Context;
+   OT_Sched   : Adaflight.Scheduler.State;
+
+   procedure OT_Record_Ops (Name : String; F : Positive; O : Adaflight.OSD_Task.Ops) is
+      use Adaflight.OSD_Task;
+      Count : constant Natural := Natural (Int (F));
+   begin
+      Record_Int (Name & ".ops", Int (F), Integer_64 (O.Count));
+      for K in 1 .. Natural'Min (Count, O.Count) loop
+         declare
+            P      : constant Op := O.List (K);
+            G      : constant Positive := F + 1 + (K - 1) * 5;
+            Actual : Byte_Array (0 .. (if P.Kind in Write | Write_Char then P.Line.Length else 0) - 1);
+         begin
+            Record_Int (Name & ".opkind", Int (G), Op_Kind'Pos (P.Kind));
+            Record_Int (Name & ".opx", Int (G + 1), Integer_64 (P.X));
+            Record_Int (Name & ".opy", Int (G + 2), Integer_64 (P.Y));
+            Record_Int (Name & ".opattr", Int (G + 3), Integer_64 (P.Attr));
+            for J in Actual'Range loop
+               Actual (J) := Byte (Character'Pos (P.Line.Data (J + 1)));
+            end loop;
+            Record_Bytes (Name & ".optext", Hex_Bytes (G + 4), Actual);
+         end;
+      end loop;
+   end OT_Record_Ops;
+
+   procedure Check_OSD_Task_Line is
+      use Adaflight.OSD_Task;
+      Name : constant String := Str (1);
+      C    : Context renames OT_Context;
+   begin
+      if Name = "otinit" then
+         OT_Seq := Int (2);
+         OT_OSD := (others => <>);
+         C := (others => <>);
+         C.Device := Device_Kind'Val (Int (3));
+         OP_Settings (4, C.Page_Settings);
+         C.Alarm_Settings.Units := Adaflight.OSD_Format.Unit_System'Val (Int (15));
+         C.Alarm_Settings.RSSI_Alarm := Interfaces.Unsigned_8 (Int (16));
+         C.Alarm_Settings.RSSI_Dbm_Alarm := Interfaces.Integer_16 (Int (17));
+         C.Alarm_Settings.Link_Quality_Alarm := Interfaces.Unsigned_16 (Int (18));
+         C.Alarm_Settings.Timers := (Interfaces.Unsigned_16 (Int (19)), Interfaces.Unsigned_16 (Int (20)));
+         C.Alarm_Settings.Cap_Alarm := Interfaces.Unsigned_16 (Int (21));
+         C.Alarm_Settings.Alt_Alarm := Interfaces.Unsigned_16 (Int (22));
+         C.Alarm_Settings.Distance_Alarm := Interfaces.Unsigned_16 (Int (23));
+         C.Alarm_Settings.ESC_Temp_Alarm := Interfaces.Unsigned_8 (Int (24));
+         C.Alarm_Settings.Rescue_Min_Sats := Interfaces.Unsigned_8 (Int (27));
+         C.Rate_Hz := Interfaces.Unsigned_16 (Int (25));
+         C.Show_Spec := Int (26) = 1;
+         C.Alarm_Inputs.Rescue_Configured := Int (28) = 1;
+         C.Alarm_Inputs.Profile_Capacity := Interfaces.Unsigned_16 (Int (29));
+         C.Spec_Settings.Min_Cell := Interfaces.Unsigned_16 (Int (30));
+         C.Spec_Settings.RPM_Limit := Int (31) = 1;
+         C.Spec_Inputs.Bidir_DShot := Int (32) = 1;
+         C.Spec_Settings.RPM_Limit_Value := Interfaces.Unsigned_16 (Int (33));
+         C.Spec_Settings.RPM_Limit_P := Interfaces.Unsigned_16 (Int (34));
+         C.Spec_Settings.RPM_Limit_I := Interfaces.Unsigned_16 (Int (35));
+         C.Spec_Settings.RPM_Limit_D := Interfaces.Unsigned_16 (Int (36));
+         C.Spec_Settings.KV := Interfaces.Unsigned_16 (Int (37));
+         C.Spec_Settings.Pole_Count := Interfaces.Unsigned_8 (Int (38));
+         C.Spec_Settings.Throttle_Limit := Natural (Int (39));
+         C.Spec_Settings.Throttle_Limit_Percent := Interfaces.Unsigned_8 (Int (40));
+         C.Spec_Settings.Max_Cell := Interfaces.Unsigned_16 (Int (41));
+         C.Spec_Settings.Motor_Output_Limit := Interfaces.Unsigned_8 (Int (42));
+         C.Draw.Settings.RSSI_Alarm := Interfaces.Unsigned_8 (Int (16));
+         C.Draw.Settings.Units := Adaflight.OSD_Format.Unit_System'Val (Int (15));
+         C.Draw.Settings.Timers := (Interfaces.Unsigned_16 (Int (19)), Interfaces.Unsigned_16 (Int (20)));
+         C.Draw.Settings.Framerate_Hz := Interfaces.Unsigned_16 (Int (25));
+         for I in Adaflight.OSD_Elements.Item loop
+            C.Positions (I) := Interfaces.Unsigned_16 (Bits (43 + Adaflight.OSD_Elements.Item'Pos (I)));
+         end loop;
+         declare
+            Craft   : constant Byte_Array := Hex_Bytes (132);
+            Version : constant Byte_Array := Hex_Bytes (133);
+         begin
+            for K in Craft'Range loop
+               OT_OSD.Craft (K - Craft'First + 1) := Character'Val (Craft (K));
+            end loop;
+            C.Version_Length := Version'Length;
+            for K in Version'Range loop
+               C.Version (K - Version'First + 1) := Character'Val (Version (K));
+            end loop;
+         end;
+      elsif Int (2) /= OT_Seq then
+         Put_Line ("OSD task line without its start");
+         Failures := Failures + 1;
+      elsif Name = "otcheck" then
+         declare
+            Due : Boolean;
+         begin
+            Record_Int (Name & ".before", Int (5), Task_State'Pos (OT_OSD.State));
+            Update_Check (OT_OSD, C, Interfaces.Unsigned_32 (Int (3)), Int (4) = 1, Due);
+            Record_Int (Name & ".due", Int (6), Boolean'Pos (Due));
+            Record_Int (Name & ".after", Int (7), Task_State'Pos (OT_OSD.State));
+         end;
+      elsif Name = "otupdate" then
+         declare
+            Answers : constant Display_Answers :=
+              (Ready => Int (6) = 1, Transfer_In_Progress => Int (7) = 1, Heartbeat_Taken => Int (8) = 1,
+               More_To_Draw => Int (9) = 1, Grabbed => Int (10) = 1);
+            O       : Ops;
+         begin
+            C.Page_Inputs := (others => <>);
+            C.Page_Inputs.Now_Us := Interfaces.Unsigned_32 (Int (3));
+            C.Page_Inputs.Armed := Int (11) = 1;
+            C.Page_Inputs.Was_Ever_Armed := Int (12) = 1;
+            C.Page_Inputs.Has_Link_Quality_Source := Int (13) = 1;
+            C.Page_Inputs.Failsafe_Active := Int (14) = 1;
+            C.Page_Inputs.Display_Grabbed := Int (10) = 1;
+            C.Page_Inputs.OSD_Switch := Int (15) = 1;
+            C.Page_Inputs.Launch_Control_Active := Int (16) = 1;
+            C.Page_Inputs.Crash_Flip_Box := Int (17) = 1;
+            C.Page_Inputs.Crash_Flip_Active := Int (18) = 1;
+            C.Page_Inputs.Aux_Rc := Flt (19);
+            C.Page_Inputs.Throttle_High := Int (20) = 1;
+            C.Page_Inputs.Pitch_High := Int (21) = 1;
+            C.Page_Inputs.Acc_Present := Int (22) = 1;
+            C.Page_Inputs.Acc_Magnitude := Flt (23);
+            OP_Read_Readings (24, C.Readings);
+            C.Alarm_Inputs.Altitude_Cm := Interfaces.Integer_32 (Int (32));
+            C.Alarm_Inputs.RSSI_Percent := Interfaces.Unsigned_8 (Int (31));
+            C.Alarm_Inputs.RSSI_Dbm := Interfaces.Integer_16 (Int (35));
+            C.Alarm_Inputs.Link_Quality := Interfaces.Unsigned_16 (Int (34));
+            C.Alarm_Inputs.Battery := Adaflight.Battery.Battery_State'Val (Int (55));
+            C.Alarm_Inputs.GPS_Present := Int (57) = 1;
+            C.Alarm_Inputs.GPS_Fix := Int (37) = 1;
+            C.Alarm_Inputs.GPS_Fix_Home := Int (38) = 1;
+            C.Alarm_Inputs.Satellites := Interfaces.Unsigned_8 (Int (56));
+            C.Alarm_Inputs.MAh_Drawn := Interfaces.Integer_32 (Int (58));
+            C.Alarm_Inputs.Home_Distance_M := Interfaces.Unsigned_16 (Int (39));
+            C.Alarm_Inputs.ESC_Sensor_Feature := Int (40) = 1;
+            C.Alarm_Inputs.ESC_Temperature := Interfaces.Unsigned_8 (Int (41));
+            C.Alarm_Inputs.Motors := Natural (Int (45));
+            for K in Adaflight.OSD_Elements.Motor_Index loop
+               C.Alarm_Inputs.DShot (K) := (Has_Temperature => (Int (60 + 2 * K) / 2) mod 2 = 1,
+                                            Temperature     => Interfaces.Unsigned_16 (Int (61 + 2 * K)));
+            end loop;
+            C.Element_Inputs := (Acc_Present => Int (22) = 1, GPS_Present => Int (57) = 1,
+                                 ESC_Sensor_Feature => Int (40) = 1, DShot_Telemetry => Int (44) = 1);
+            C.Draw.Inputs.RSSI_Percent := Interfaces.Unsigned_8 (Int (31));
+            C.Spec_Inputs.Pack_Voltage := Interfaces.Unsigned_16 (Int (27));
+            C.Spec_Inputs.Cell_Voltage := Interfaces.Unsigned_16 (Int (28));
+            C.Spec_Inputs.Battery := Adaflight.Battery.Battery_State'Val (Int (55));
+            C.RTC_Variant := Adaflight.OSD_Format.Element_Type'Val (Int (76));
+            C.Has_Time := Int (77) = 1;
+            if C.Has_Time then
+               C.Date := (Year    => Interfaces.Unsigned_16 (Int (78)), Month => Interfaces.Unsigned_8 (Int (79)),
+                          Day     => Interfaces.Unsigned_8 (Int (80)), Hours => Interfaces.Unsigned_8 (Int (81)),
+                          Minutes => Interfaces.Unsigned_8 (Int (82)), Seconds => Interfaces.Unsigned_8 (Int (83)),
+                          Millis  => Interfaces.Unsigned_16 (Int (84)));
+            end if;
+            C.Zone := (Zone => Interfaces.Integer_16 (Int (85)));
+            Record_Int (Name & ".before", Int (86), Task_State'Pos (OT_OSD.State));
+            OT_Sched.Ignore_Exec_Rate := False;
+            OT_Sched.Ignore_Exec_Time := False;
+            OT_Sched.Next_State_Time := -1;
+            Update (OT_OSD, C, Interfaces.Unsigned_32 (Int (3)), Interfaces.Unsigned_32 (Int (4)),
+                    Interfaces.Unsigned_32 (Int (5)), Answers, OT_Sched, O);
+            Record_Int (Name & ".after", Int (87), Task_State'Pos (OT_OSD.State));
+            Record_Int (Name & ".ignorerate", Int (89), Boolean'Pos (OT_Sched.Ignore_Exec_Rate));
+            Record_Int (Name & ".ignoretime", Int (90), Boolean'Pos (OT_Sched.Ignore_Exec_Time));
+            Record_Int (Name & ".nextstate", Int (92), Integer_64 (OT_Sched.Next_State_Time));
+            OP_State := OT_OSD.Page;
+            OP_Record_State (Name, 93);
+            OP_Stats := OT_OSD.Stats;
+            OP_Record_Stats (Name, 102);
+            OT_Record_Ops (Name, 117, O);
+         end;
+      end if;
+   end Check_OSD_Task_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -11454,6 +11628,8 @@ procedure Vector_Check is
                   Check_OSD_Draw_Line;
                elsif Kind = "osdspec" then
                   Check_OSD_Spec_Line;
+               elsif Kind = "osdtask" then
+                  Check_OSD_Task_Line;
                else
                   Check_PID_Line;
                end if;
@@ -11564,6 +11740,7 @@ begin
    Run (Dir & "/osdwarnel.csv", "osdwarnel");
    Run (Dir & "/osddraw.csv", "osddraw");
    Run (Dir & "/osdspec.csv", "osdspec");
+   Run (Dir & "/osdtask.csv", "osdtask");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
