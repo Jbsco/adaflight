@@ -384,7 +384,7 @@ package body Adaflight.Receiver with SPARK_Mode is
       for Ch in 0 .. S.Channels - 1 loop
          declare
             Raw_Ch : constant Channel := (if Ch < Mappable_Count then C.Map (Ch) else Ch);
-            Value  : Signal := Float (Raw (Raw_Ch));
+            Value  : Signal := Raw (Raw_Ch);
          begin
             if Ch < Flight_Channel_Count and then Value /= 0.0 then
                Value := Value * S.Scales (Ch).Scale + S.Scales (Ch).Offset;

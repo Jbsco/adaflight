@@ -2533,7 +2533,7 @@ procedure Vector_Check is
 
    Rx_State    : Adaflight.Receiver.State;
    Rx_Settings : Adaflight.Receiver.Settings;
-   Rx_Raw      : Adaflight.Receiver.Raw_Values := (others => 0);
+   Rx_Raw      : Adaflight.Receiver.Raw_Values := (others => 0.0);
    --  The frame the driver holds until a frame check that is not skipped
    --  for a running task consumes it.
    Rx_Frame    : Adaflight.Receiver.Frame_Report;
@@ -2611,7 +2611,7 @@ procedure Vector_Check is
             if Arm_Aux >= 0 then
                Init_Arm_Switch (Rx_State, Arm_Aux, (Start_Step => Arm_Start, End_Step => Arm_End));
             end if;
-            Rx_Raw := (others => 1500);
+            Rx_Raw := (others => 1500.0);
             Rx_Frame := (others => False);
             Expect_Next ("channels", Integer_64 (Rx_State.Channels));
             Expect_Next ("rssi_source", RSSI_Source'Pos (Rx_State.RSSI_From));
@@ -2674,7 +2674,7 @@ procedure Vector_Check is
                end;
             end loop;
             for Ch in Channel loop
-               Rx_Raw (Ch) := Integer (Next);
+               Rx_Raw (Ch) := Float (Next);
             end loop;
             Frame_Check (Rx_State, Rx_Settings, Now_Us, Delta_Us, Task_In_Progress, Rx_Frame);
             if not Task_In_Progress then

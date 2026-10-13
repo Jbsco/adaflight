@@ -37,7 +37,7 @@ package Adaflight.Receiver with SPARK_Mode is
    Pulse_Min : constant := 750;
    Pulse_Max : constant := 2250;
    subtype Pulse_Us is Natural range Pulse_Min .. Pulse_Max;
-   subtype Raw_Value is Natural range 0 .. 65_535;
+   subtype Raw_Value is Float range 0.0 .. 65_535.0;
    type Raw_Values is array (Channel) of Raw_Value;
 
    --  A calibration range inverts the channel when its low end is above its
