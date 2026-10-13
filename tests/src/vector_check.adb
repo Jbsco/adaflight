@@ -117,6 +117,7 @@ with Adaflight.MSP_Box;
 with Adaflight.MSP_Out;
 with Adaflight.Four_Way;
 with Adaflight.Gimbal_Control;
+with Adaflight.OSD_Custom_Text;
 with Adaflight.Dispatch;
 with Adaflight.ExpressLRS_Receiver;
 with Adaflight.Blackbox_Header;
@@ -13303,6 +13304,27 @@ procedure Vector_Check is
       end if;
    end Check_Gimbal_Line;
 
+   Text_Seq   : Integer_64 := -1;
+   Text_State : Adaflight.OSD_Custom_Text.State;
+   Text_Ends  : Adaflight.OSD_Custom_Text.Terminator := Adaflight.OSD_Custom_Text.Line_Feed;
+
+   procedure Check_OSD_Custom_Text_Line is
+      use Adaflight.OSD_Custom_Text;
+      Name : constant String := Str (1);
+   begin
+      if Name = "ctinit" then
+         Text_Seq := Int (2);
+         Text_Ends := (if Int (4) /= 0 then Null_Byte else Line_Feed);
+         Init (Text_State, Port_Configured => Int (3) /= 0);
+      elsif Int (2) /= Text_Seq then
+         Put_Line ("OSD custom text line without its start");
+         Failures := Failures + 1;
+      elsif Name = "ctstep" then
+         Update (Text_State, Text_Ends, Hex_Bytes (4));
+         Record_Bytes (Name & ".text", Hex_Bytes (5), Text_State.Display (0 .. Text_State.Display_Length - 1));
+      end if;
+   end Check_OSD_Custom_Text_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -13537,6 +13559,8 @@ procedure Vector_Check is
                   Check_Four_Way_Line;
                elsif Kind = "gimbal" then
                   Check_Gimbal_Line;
+               elsif Kind = "osdtext" then
+                  Check_OSD_Custom_Text_Line;
                else
                   Check_PID_Line;
                end if;
@@ -13664,6 +13688,7 @@ begin
    Run (Dir & "/mspout2.csv", "mspout2");
    Run (Dir & "/fourway.csv", "fourway");
    Run (Dir & "/gimbal.csv", "gimbal");
+   Run (Dir & "/osdtext.csv", "osdtext");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");

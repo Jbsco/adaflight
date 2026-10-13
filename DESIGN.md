@@ -2854,3 +2854,17 @@ valid frames, frames with broken checks, broken opcodes, passthrough bytes, gaps
 a clock near its wrap, and a sequence without a port. The sticks start centred with the throttle at
 its minimum, as the receiver leaves them before the gimbal starts. Every frame and output byte of
 the 10061 lines replays exactly.
+
+## D129. OSD custom text (2026-10-13)
+
+The OSD custom text unit contains the text that a serial port sends for the OSD's custom text
+element. A message ends with a line feed or a null as configured. Carriage returns are dropped, and
+so are nulls when the line feed ends messages. The unit keeps the first 63 bytes of a message and
+drops the rest up to the end of the message, and the text shows the first 31. An empty message
+clears the text. Without a configured port the text stays empty. The port opening with its baud
+rate default stays with the target. The unit is SPARK for the two buffers.
+
+The harness replays six sequences of updates recorded from the reference source with its settings
+registered and the port stubbed: messages from empty to 90 bytes with both terminators, carriage
+returns, stray nulls and high bytes, unterminated messages, chunks of up to 50 bytes, and a sequence
+without a port. Every text of the 5284 lines replays exactly.
