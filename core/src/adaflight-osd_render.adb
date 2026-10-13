@@ -823,6 +823,300 @@ package body Adaflight.OSD_Render with SPARK_Mode is
       end if;
    end Lidar_Element;
 
+   Sine_25_Degrees           : constant Float := 0.422618261740699;
+   Quarter_Pi                : constant Float := Adaflight.Maths.Pi / 4.0;
+   Symbol_AH_Bar             : constant := 16#80#;
+   Symbol_AH_Left            : constant Character := Character'Val (16#03#);
+   Symbol_AH_Right           : constant Character := Character'Val (16#02#);
+   Symbol_AH_Decoration      : constant Character := Character'Val (16#13#);
+   Symbol_Overlay_Vertical   : constant Character := Character'Val (16#16#);
+   Symbol_Overlay_Horizontal : constant Character := Character'Val (16#17#);
+   Symbol_Overlay_Centre     : constant Character := Character'Val (16#0B#);
+   Symbol_Sprite_High        : constant := 16#08#;
+   Blink_Attribute           : constant Unsigned_8 := 16#80#;
+   Sidebar_Width             : constant := 7;
+   Sidebar_Height            : constant := 3;
+   Overlay_Width             : constant := 7;
+   Overlay_Height            : constant := 5;
+   Overlay_Sprite_Height     : constant := 3;
+   Frame_Min_Width           : constant := 2;
+   Frame_Max_Width           : constant := 30;
+   Frame_Min_Height          : constant := 2;
+   Frame_Max_Height          : constant := 16;
+   Roll_Channel              : constant RC_Channel_Index := 0;
+   Pitch_Channel             : constant RC_Channel_Index := 1;
+   Yaw_Channel               : constant RC_Channel_Index := 2;
+   Throttle_Channel          : constant RC_Channel_Index := 3;
+
+   --  The sticks each radio mode puts on the left and right overlays.
+   type Radio_Channels is record
+      Left_Vertical, Left_Horizontal, Right_Vertical, Right_Horizontal : RC_Channel_Index;
+   end record;
+   Radio_Modes : constant array (Radio_Mode) of Radio_Channels :=
+     (1 => (Pitch_Channel, Yaw_Channel, Throttle_Channel, Roll_Channel),
+      2 => (Throttle_Channel, Yaw_Channel, Pitch_Channel, Roll_Channel),
+      3 => (Pitch_Channel, Roll_Channel, Throttle_Channel, Yaw_Channel),
+      4 => (Throttle_Channel, Roll_Channel, Pitch_Channel, Yaw_Channel));
+
+   procedure Write_Char (O : in out Output; Inp : Inputs; X, Y : Integer; Char : Character)
+     with Global => null,
+          Pre    => O.Written < Max_Writes,
+          Post   => O.Written = O.Written'Old + 1
+   is
+   begin
+      O.Written := O.Written + 1;
+      O.Writes (O.Written) := (X => Unsigned_8 (X mod 256), Y => Unsigned_8 (Y mod 256),
+                               Attr => (if Inp.Item_Blinks then Blink_Attribute else 0), Char => Char);
+   end Write_Char;
+
+   procedure Horizon_Element (S : in out State; C : Settings; Inp : Inputs; O : in out Output)
+     with Global => null
+   is
+      Max_Pitch   : constant Integer_32 := Integer_32 (C.AH_Max_Pitch) * 10;
+      Max_Roll    : constant Integer_32 := Integer_32 (C.AH_Max_Roll) * 10;
+      Sign        : constant Integer_32 := (if C.AH_Invert then -1 else 1);
+      Roll_Angle  : constant Integer_32 :=
+        Adaflight.Maths.Constrain (Integer_32 (Inp.Roll) * Sign, -Max_Roll, Max_Roll);
+      Pitch_Angle : Integer_32 := Adaflight.Maths.Constrain (Integer_32 (Inp.Pitch) * Sign, -Max_Pitch, Max_Pitch);
+      Y           : Integer_32;
+   begin
+      if Max_Pitch > 0 then
+         Pitch_Angle := (Pitch_Angle * 25) / Max_Pitch;
+      end if;
+      Pitch_Angle := Pitch_Angle - 41;
+      Y := (((-Roll_Angle) * Integer_32 (S.Horizon_X)) / 64) - Pitch_Angle;
+      if Y in 0 .. 81 then
+         O.Offset_X := Unsigned_8 (S.Horizon_X mod 256);
+         O.Offset_Y := Unsigned_8 (Y / 9);
+         Append (O.Line, Character'Val (Symbol_AH_Bar + Integer (Y mod 9)));
+      else
+         O.Draw := False;
+      end if;
+      if S.Horizon_X = 4 then
+         S.Horizon_X := -4;
+      else
+         O.Rendered := False;
+         S.Horizon_X := S.Horizon_X + 1;
+      end if;
+   end Horizon_Element;
+
+   function Round_Offset (X : Float) return Integer is
+     (if abs X <= 1_000.0 then Adaflight.Maths.Round_Half_Even (X) else 0);
+
+   function Stick_Position (Value : Float; Positions : Integer_32) return Integer_32 is
+     ((Positions * (Adaflight.Maths.Constrain (Integer_32 (Float'Truncation (Value)), 1000, 1999) - 1000)) / 1000)
+     with Pre  => Value in RC_Low .. RC_High and then Positions in 1 .. 15,
+          Post => Stick_Position'Result in 0 .. Positions - 1;
+
+   procedure Up_Down_Element (Inp : Inputs; O : in out Output)
+     with Global => null
+   is
+      Up    : constant Axis_Vector := (-Inp.Earth_Up (0), -Inp.Earth_Up (1), -Inp.Earth_Up (2));
+      Theta : Float range -1.0 .. 1.0;
+      Psi   : Float range -1.0 .. 1.0;
+   begin
+      if abs Up (2) < Sine_25_Degrees and then abs Up (1) < Sine_25_Degrees then
+         if Inp.Pitch > 0 then
+            Theta := -Up (2);
+            Psi := -Up (1);
+         else
+            Theta := Up (2);
+            Psi := Up (1);
+         end if;
+         O.Offset_X := Unsigned_8
+           (Round_Offset (Adaflight.Maths.Scale_Range_F (Psi, -Quarter_Pi, Quarter_Pi, -14.0, 14.0)) mod 256);
+         O.Offset_Y := Unsigned_8
+           (Round_Offset (Adaflight.Maths.Scale_Range_F (Theta, -Quarter_Pi, Quarter_Pi, -8.0, 8.0)) mod 256);
+         Append (O.Line, (if Inp.Pitch > 0 then 'D' else 'U'));
+      end if;
+   end Up_Down_Element;
+
+   procedure Overlay_Element (I : Item; C : Settings; Inp : Inputs; O : in out Output)
+     with Global => null
+   is
+      M        : constant Radio_Channels := Radio_Modes (C.Overlay_Radio_Mode);
+      V        : constant RC_Channel_Index := (if I = Stick_Overlay_Left then M.Left_Vertical else M.Right_Vertical);
+      H        : constant RC_Channel_Index :=
+        (if I = Stick_Overlay_Left then M.Left_Horizontal else M.Right_Horizontal);
+      Cursor_X : constant Integer_32 := Stick_Position (Inp.RC_Data (H), Overlay_Width);
+      Cursor_Y : constant Integer_32 :=
+        Overlay_Height * Overlay_Sprite_Height - 1
+        - Stick_Position (Inp.RC_Data (V), Overlay_Height * Overlay_Sprite_Height);
+   begin
+      Append (O.Line, Character'Val ((Symbol_Sprite_High + Integer (Cursor_Y mod Overlay_Sprite_Height)) mod 256));
+      O.Offset_X := Unsigned_8 (Cursor_X mod 256);
+      O.Offset_Y := Unsigned_8 ((Cursor_Y / Overlay_Sprite_Height) mod 256);
+   end Overlay_Element;
+
+   procedure RC_Channels_Element (S : in out State; C : Settings; Inp : Inputs; O : in out Output)
+     with Global => null
+   is
+      Ch : constant RC_Channel_Setting := C.RC_Channels (S.RC_Channel);
+   begin
+      if Ch >= 0 then
+         Append_Integer
+           (O.Line,
+            Adaflight.Maths.Scale_Range
+              (Integer_32 (Float'Truncation (Inp.RC_Data (RC_Channel_Index (Ch)))), 1000, 2000, -1000, 1000),
+            5, False);
+         O.Offset_Y := Unsigned_8 (S.RC_Channel);
+      end if;
+      if S.RC_Channel = 3 then
+         S.RC_Channel := 0;
+      else
+         S.RC_Channel := S.RC_Channel + 1;
+         O.Rendered := False;
+      end if;
+   end RC_Channels_Element;
+
+   procedure VTX_Element (Variant : Element_Type; C : Settings; Inp : Inputs; O : in out Output)
+     with Global => null
+   is
+      use Adaflight.VTX_Table;
+      Band      : Natural := Natural (C.VTX_Band);
+      Channel   : Natural := Natural (C.VTX_Channel);
+      Power     : Unsigned_8 := C.VTX_Power;
+      Status    : Unsigned_8 := 0;
+      Indicator : Character := Character'Val (0);
+      B         : Band_Count;
+      Ch        : Channel_Count;
+   begin
+      if Band = 0 then
+         if Inp.VTX_Present then
+            Band_Channel_Of (Inp.VTX, C.VTX_Frequency, B, Ch);
+            Band := B;
+            Channel := Ch;
+         else
+            Channel := 0;
+         end if;
+      end if;
+      if Inp.VTX_Present then
+         if Inp.VTX_Status_OK then
+            Status := Inp.VTX_Status;
+         end if;
+         if C.VTX_Low_Power_Disarm /= 0 and then Inp.VTX_Power_OK then
+            Power := Inp.VTX_Power_Index;
+         end if;
+      end if;
+      if Inp.VTX_Control_Disable_Box then
+         Indicator := 'D';
+      elsif (Status and 1) /= 0 then
+         Indicator := 'P';
+      end if;
+      declare
+         Letter : constant Character := (if Inp.VTX_Present then Band_Letter_Of (Inp.VTX, Band) else '?');
+         Name   : constant Character := (if Inp.VTX_Present then Channel_Name_Of (Inp.VTX, Channel) else '?');
+         Label  : constant String := (if Inp.VTX_Present then Power_Label_Of (Inp.VTX, Natural (Power)) else "?");
+      begin
+         if Variant = Type_2 then
+            Append_String (O.Line, Label);
+         elsif (Status and 2) /= 0 then
+            Append_String (O.Line, "-:-:-:L");
+         else
+            Append (O.Line, Letter);
+            Append (O.Line, ':');
+            Append (O.Line, Name);
+            Append (O.Line, ':');
+            Append_String (O.Line, Label);
+            if Indicator /= Character'Val (0) then
+               Append (O.Line, ':');
+               Append (O.Line, Indicator);
+            end if;
+         end if;
+      end;
+   end VTX_Element;
+
+   procedure Sidebars_Background (S : in out State; Inp : Inputs; Pos_X, Pos_Y : Unsigned_8; O : in out Output)
+     with Global => null,
+          Pre    => O.Written = 0
+   is
+      X : constant Integer := Integer (Pos_X);
+      Y : constant Integer := Integer (Pos_Y);
+   begin
+      if S.Sidebar_Level then
+         Write_Char (O, Inp, X - Sidebar_Width + 1, Y, Symbol_AH_Left);
+         Write_Char (O, Inp, X + Sidebar_Width - 1, Y, Symbol_AH_Right);
+         S.Sidebar_Level := False;
+      else
+         Write_Char (O, Inp, X - Sidebar_Width, Y + S.Sidebar_Y, Symbol_AH_Decoration);
+         Write_Char (O, Inp, X + Sidebar_Width, Y + S.Sidebar_Y, Symbol_AH_Decoration);
+         if S.Sidebar_Y = Sidebar_Height then
+            S.Sidebar_Y := -Sidebar_Height;
+            S.Sidebar_Level := True;
+         else
+            S.Sidebar_Y := S.Sidebar_Y + 1;
+         end if;
+         O.Rendered := False;
+      end if;
+      O.Draw := False;
+   end Sidebars_Background;
+
+   procedure Frame_Background
+     (S : in out State; C : Settings; Inp : Inputs; Pos_X, Pos_Y : Unsigned_8; O : in out Output)
+     with Global => null,
+          Pre    => O.Written = 0
+   is
+      Width  : constant Integer_32 :=
+        Adaflight.Maths.Constrain (Integer_32 (C.Camera_Frame_Width), Frame_Min_Width, Frame_Max_Width);
+      Height : constant Integer_32 :=
+        Adaflight.Maths.Constrain (Integer_32 (C.Camera_Frame_Height), Frame_Min_Height, Frame_Max_Height);
+      X      : constant Integer := Integer (Pos_X);
+      Y      : constant Integer := Integer (Pos_Y);
+   begin
+      if S.Frame_Phase /= Bottom then
+         O.Rendered := False;
+      end if;
+      if S.Frame_Phase = Middle then
+         Write_Char (O, Inp, X, Y + Integer (S.Frame_Row), Symbol_Overlay_Vertical);
+         Write_Char (O, Inp, X + Integer (Width) - 1, Y + Integer (S.Frame_Row), Symbol_Overlay_Vertical);
+         O.Draw := False;
+         S.Frame_Row := S.Frame_Row + 1;
+         if S.Frame_Row = Unsigned_8 (Height) then
+            S.Frame_Row := 1;
+            S.Frame_Phase := Bottom;
+         end if;
+      else
+         Append (O.Line, Symbol_Overlay_Centre);
+         for K in 2 .. Width - 1 loop
+            Append (O.Line, Symbol_Overlay_Horizontal);
+         end loop;
+         Append (O.Line, Symbol_Overlay_Centre);
+         if S.Frame_Phase = Top then
+            S.Frame_Phase := Middle;
+         else
+            O.Offset_Y := Unsigned_8 (Height - 1);
+            S.Frame_Phase := Top;
+         end if;
+      end if;
+   end Frame_Background;
+
+   procedure Overlay_Background (S : in out State; O : in out Output)
+     with Global => null
+   is
+   begin
+      if S.Overlay_Vertical then
+         Append (O.Line, Symbol_Overlay_Vertical);
+         O.Offset_X := (Overlay_Width - 1) / 2;
+         O.Offset_Y := S.Overlay_Y;
+         S.Overlay_Y := S.Overlay_Y + 1;
+         if S.Overlay_Y = (Overlay_Height - 1) / 2 then
+            S.Overlay_Y := S.Overlay_Y + 1;
+         end if;
+         if S.Overlay_Y = Overlay_Height then
+            S.Overlay_Y := 0;
+            S.Overlay_Vertical := False;
+         end if;
+         O.Rendered := False;
+      else
+         for K in 1 .. Overlay_Width loop
+            Append (O.Line, Symbol_Overlay_Horizontal);
+         end loop;
+         O.Line.Data ((Overlay_Width - 1) / 2 + 1) := Symbol_Overlay_Centre;
+         O.Offset_Y := (Overlay_Height - 1) / 2;
+         S.Overlay_Vertical := True;
+      end if;
+   end Overlay_Background;
+
    procedure Init (S : out State; C : Settings) is
    begin
       S := (others => <>);
@@ -971,12 +1265,23 @@ package body Adaflight.OSD_Render with SPARK_Mode is
             Adjustment_Element (Inp, O);
          when Lidar_Distance =>
             Lidar_Element (Inp, O);
+         when Artificial_Horizon =>
+            Horizon_Element (S, C, Inp, O);
+         when Up_Down_Reference =>
+            Up_Down_Element (Inp, O);
+         when Stick_Overlay_Left | Stick_Overlay_Right =>
+            Overlay_Element (I, C, Inp, O);
+         when RC_Channels =>
+            RC_Channels_Element (S, C, Inp, O);
+         when VTX_Channel =>
+            VTX_Element (Variant, C, Inp, O);
          when others =>
             O.Draw := False;
       end case;
    end Render;
 
-   procedure Render_Background (I : Item; Inp : Inputs; O : out Output) is
+   procedure Render_Background (I : Item; S : in out State; C : Settings; Inp : Inputs; Pos_X, Pos_Y : Unsigned_8;
+                                O : out Output) is
    begin
       O := (others => <>);
       case I is
@@ -992,6 +1297,12 @@ package body Adaflight.OSD_Render with SPARK_Mode is
             else
                Append_Name (O, Inp.Pilot_Name, True);
             end if;
+         when Horizon_Sidebars =>
+            Sidebars_Background (S, Inp, Pos_X, Pos_Y, O);
+         when Camera_Frame =>
+            Frame_Background (S, C, Inp, Pos_X, Pos_Y, O);
+         when Stick_Overlay_Left | Stick_Overlay_Right =>
+            Overlay_Background (S, O);
          when others =>
             O.Draw := False;
       end case;

@@ -1,13 +1,16 @@
 --  The OSD element renderers: the readings (altitude, angles, battery,
 --  heading, vario, PIDs, power, timers, signal, flight mode, flip arrow and
---  clock), the GPS, link, ESC, motor, log, name and text elements, and the
---  craft and pilot name backgrounds. Each renders one element from the
---  readings into its text, offsets, severity, blink and flags, as the draw
---  cycle hands them to the display. The graphics come later; settings,
---  sensors and readings stay with the target.
+--  clock), the GPS, link, ESC, motor, log, name and text elements, the
+--  graphics (artificial horizon, up and down reference, stick overlays, RC
+--  channels) and the VTX channel, with the craft name, pilot name, horizon
+--  sidebar, camera frame and stick overlay backgrounds. Each renders one
+--  element from the readings into its text, offsets, severity, blink, direct
+--  writes and flags, as the draw cycle hands them to the display. The draw
+--  cycle comes later; settings, sensors and readings stay with the target.
 with Interfaces;
 with Adaflight.Battery;
 with Adaflight.Filters;
+with Adaflight.VTX_Table;
 with Adaflight.RTC;
 with Adaflight.OSD_Format;
 with Adaflight.OSD_Elements;
@@ -73,6 +76,26 @@ package Adaflight.OSD_Render with SPARK_Mode is
    --  Whether a render sets or clears its element's blink bit.
    type Blink_Change is (Keep, Set, Clear);
 
+   --  A character a renderer writes to the display itself, with the blink
+   --  bit in its attribute while the element blinks.
+   type Char_Write is record
+      X, Y, Attr : Unsigned_8 := 0;
+      Char       : Character := ' ';
+   end record;
+   Max_Writes : constant := 2;
+   subtype Write_Count is Natural range 0 .. Max_Writes;
+   type Char_Writes is array (1 .. Max_Writes) of Char_Write;
+
+   subtype RC_Channel_Index is Natural range 0 .. 17;
+   RC_Low  : constant := 800.0;
+   RC_High : constant := 2200.0;
+   type RC_Values is array (RC_Channel_Index) of Float range RC_Low .. RC_High;
+   subtype RC_Channel_Setting is Integer_8 range -1 .. 17;
+   type RC_Channel_Settings is array (0 .. 3) of RC_Channel_Setting;
+   type Axis_Vector is array (0 .. 2) of Float range -1.0 .. 1.0;
+   subtype Radio_Mode is Positive range 1 .. 4;
+   type Frame_Phases is (Top, Middle, Bottom);
+
    --  What a renderer hands the draw cycle: the text, the offsets from the
    --  element's position, the severity, the blink bit's change, whether the
    --  text is drawn and whether the element is complete.
@@ -84,6 +107,8 @@ package Adaflight.OSD_Render with SPARK_Mode is
       Blink    : Blink_Change := Keep;
       Draw     : Boolean := True;
       Rendered : Boolean := True;
+      Written  : Write_Count := 0;
+      Writes   : Char_Writes;
    end record;
 
    --  The settings the renderers read.
@@ -100,6 +125,18 @@ package Adaflight.OSD_Render with SPARK_Mode is
       OSD_Profile_Index  : Profile_Number := 1;
       OSD_Profile_Names  : Profile_Names;
       Framerate_Hz       : Unsigned_16 range 1 .. 60 := 12;
+      AH_Max_Pitch         : Unsigned_8 := 20;
+      AH_Max_Roll          : Unsigned_8 := 40;
+      AH_Invert            : Boolean := False;
+      Overlay_Radio_Mode   : Radio_Mode := 2;
+      RC_Channels          : RC_Channel_Settings := (others => -1);
+      Camera_Frame_Width   : Unsigned_8 := 24;
+      Camera_Frame_Height  : Unsigned_8 := 11;
+      VTX_Band             : Unsigned_8 := 0;
+      VTX_Channel          : Unsigned_8 := 0;
+      VTX_Frequency        : Unsigned_16 := 0;
+      VTX_Power            : Unsigned_8 := 0;
+      VTX_Low_Power_Disarm : Unsigned_8 := 0;
    end record;
 
    subtype Axis_Index is Natural range 0 .. 2;
@@ -239,15 +276,33 @@ package Adaflight.OSD_Render with SPARK_Mode is
       Adjustment_Name       : Name;
       Adjustment_Value      : Integer_32 := 0;
       Rangefinder_Cm        : Integer_32 := 0;
+      Earth_Up                : Axis_Vector := (others => 0.0);
+      RC_Data                 : RC_Values := (others => 1500.0);
+      VTX                     : Adaflight.VTX_Table.Table;
+      VTX_Present             : Boolean := False;
+      VTX_Status_OK           : Boolean := False;
+      VTX_Status              : Unsigned_8 := 0;
+      VTX_Power_OK            : Boolean := False;
+      VTX_Power_Index         : Unsigned_8 := 0;
+      VTX_Control_Disable_Box : Boolean := False;
+      Item_Blinks             : Boolean := False;
    end record;
 
    --  What persists between renders: the diversity latch of the RSSI dBm
-   --  element, set once a second antenna reports, the efficiency filter and
-   --  the motor the ESC elements are on.
+   --  element, set once a second antenna reports, the efficiency filter, the
+   --  motor the ESC elements are on, and the rows the graphics walk.
    type State is record
-      Diversity  : Boolean := False;
-      Efficiency : Adaflight.Filters.PT1;
-      ESC_Motor  : Unsigned_8 := 0;
+      Diversity        : Boolean := False;
+      Efficiency       : Adaflight.Filters.PT1;
+      ESC_Motor        : Unsigned_8 := 0;
+      Horizon_X        : Integer range -4 .. 4 := -4;
+      Sidebar_Level    : Boolean := False;
+      Sidebar_Y        : Integer range -3 .. 3 := -3;
+      Frame_Phase      : Frame_Phases := Top;
+      Frame_Row        : Unsigned_8 := 1;
+      Overlay_Vertical : Boolean := True;
+      Overlay_Y        : Unsigned_8 := 0;
+      RC_Channel       : Natural range 0 .. 3 := 0;
    end record;
 
    --  The state at the OSD's start: the efficiency filter at half a hertz
@@ -267,10 +322,12 @@ package Adaflight.OSD_Render with SPARK_Mode is
          | GPS_Lap_Time_Previous | GPS_Lap_Time_Best3 | Link_Quality | TX_Uplink_Power | Log_Status | ESC_Temperature
          | ESC_RPM | ESC_RPM_Frequency | Motor_Diagnostics | Rate_Profile_Name | PID_Profile_Name | Profile_Name
          | Battery_Profile_Name | Custom_Message_0 | Custom_Message_1 | Custom_Message_2 | Custom_Message_3
-         | Custom_Serial_Text | Adjustment_Range | Lidar_Distance);
+         | Custom_Serial_Text | Adjustment_Range | Lidar_Distance | Artificial_Horizon | Up_Down_Reference
+         | Stick_Overlay_Left | Stick_Overlay_Right | RC_Channels | VTX_Channel);
 
    --  The items whose background this unit renders.
-   function Background_Supported (I : Item) return Boolean is (I in Craft_Name | Pilot_Name);
+   function Background_Supported (I : Item) return Boolean is
+     (I in Craft_Name | Pilot_Name | Horizon_Sidebars | Camera_Frame | Stick_Overlay_Left | Stick_Overlay_Right);
 
    procedure Render (I : Item; Variant : Adaflight.OSD_Format.Element_Type; S : in out State; C : Settings;
                      Inp : Inputs; O : out Output)
@@ -279,7 +336,8 @@ package Adaflight.OSD_Render with SPARK_Mode is
                           > Integer_32 (Float'Truncation (Inp.Output_Low))
                  and then (if I in ESC_RPM | ESC_RPM_Frequency then S.ESC_Motor < Unsigned_8 (Inp.Motors));
 
-   procedure Render_Background (I : Item; Inp : Inputs; O : out Output)
+   procedure Render_Background (I : Item; S : in out State; C : Settings; Inp : Inputs; Pos_X, Pos_Y : Unsigned_8;
+                                O : out Output)
      with Pre => Background_Supported (I);
 
 end Adaflight.OSD_Render;

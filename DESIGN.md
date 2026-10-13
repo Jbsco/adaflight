@@ -166,6 +166,9 @@ ledger. The deviations so far:
   velocity below a ten-billionth of a metre per second from rest, and holds the settle time at
   2 ** 30 seconds, where the reference's floats run on to infinity or carry a vanishing
   velocity. The recorded vectors stay far inside every one of these and replay bit for bit.
+- The up and down reference prints U or D for the zenith or nadir. The reference formats
+  the symbol string's pointer with a character conversion and prints the low byte of its
+  address (finding F110).
 
 ## D7. Contribution conventions (2026-10-08)
 
@@ -2277,3 +2280,30 @@ under random fixes, positions, satellites, speeds, laps, links, logs, ESC teleme
 outputs, names, messages and texts, with the efficiency filter carried between renders.
 Every text, offset, severity, blink, flag and filter state of the 3006 lines replays byte
 for byte.
+
+## D105. OSD element renderers for graphics and the VTX channel (2026-10-12)
+
+The OSD render unit grows by the reference's graphics renderers, the VTX channel and the
+remaining backgrounds: artificial horizon, up and down reference, the left and right stick
+overlays, RC channels, VTX channel, and the horizon sidebar, camera frame and stick overlay
+backgrounds. The artificial horizon walks nine columns one a render, each bar character from
+the roll and pitch held to their limits and scaled, drawn only when its row falls on the
+ladder; the up and down reference marks the zenith or nadir from the attitude matrix's up
+row within twenty-five degrees, its offsets scaled from the small angles; the stick overlay
+places the cursor sprite from the radio mode's sticks and draws its cross one row a render;
+the RC channels print one channel a render scaled to thousandths; the VTX channel prints the
+band letter, channel name and power label from the table, the band and channel looked up
+from the frequency when the band is zero, the power from the transmitter while it limits
+power disarmed, dashes when locked, with the disable or pit mode mark. The horizon sidebars
+write their decorations row by row and then the level marks; the camera frame writes its
+top, its sides row by row and its bottom. A renderer's direct writes are one-character
+string writes with the blink bit while the element blinks. The reference prints the up and
+down reference's symbol as the low byte of its string's address (F110); adaflight prints the
+letter, a deviation declared in D6. Settings, sensors, sticks, tables and readings stay with
+the target; the draw cycle comes next.
+
+The harness replays six sequences of 500 renders recorded from the reference, each element
+under random attitude, limits, sticks, radio modes, channel settings, frame sizes, tables,
+transmitter states and blink bits, with the rows walked between renders. Every text, offset,
+severity, flag and direct write of the 3006 lines replays byte for byte, the up and down
+reference's letters standing for the bytes the reference printed.

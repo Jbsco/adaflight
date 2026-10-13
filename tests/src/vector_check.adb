@@ -10734,7 +10734,8 @@ procedure Vector_Check is
             Inp.Adjustment_Value := Interfaces.Integer_32 (Int (114));
             Inp.Rangefinder_Cm := Interfaces.Integer_32 (Int (115));
             if Name = "o2bg" then
-               Render_Background (I, Inp, O);
+               Render_Background
+                 (I, OR2_State, C, Inp, Interfaces.Unsigned_8 (Int (5)), Interfaces.Unsigned_8 (Int (6)), O);
             else
                Render (I, Adaflight.OSD_Format.Element_Type'Val (Int (4)), OR2_State, C, Inp, O);
             end if;
