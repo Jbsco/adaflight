@@ -2178,3 +2178,41 @@ displays that draw the logo themselves and ones that do not; the second step und
 sticks, switch and pauses; the third step; the arming screen; and the boot screen with
 the version and the clock. Every state field, extreme, write and position of the 11803
 lines replays byte for byte.
+
+## D102. OSD element set, alarms and active list (2026-10-12)
+
+The OSD elements unit contains the reference's item set with its position fields, the blink
+the alarms drive and the list of the active elements. The item set is the eighty-nine items
+of a one-megabyte target without flight plan, map or pitot, in the reference's order, which
+fixes each item's place in the position table and in the blink bits. A position field holds
+the column in five bits with a sixth above the row for wide displays, the row in five bits,
+the three profile bits and the variant in the top two; an item is visible when its profile
+bits meet the active profile's bit, the first profile standing in for profile zero. The blink
+has a bit per item and a state the half second cadence sets from the clock, on in the first
+half; an item blinks while its bit is set in the on half, and a reset clears every bit.
+
+The alarms set the bits each cycle: RSSI, RSSI dBm and link quality under their thresholds;
+battery voltage and cell voltage while the battery state is not OK; satellites without a fix,
+under four, or under the rescue's minimum when the rescue is configured; each timer whose
+source has reached its alarm minutes, taken times sixty million in thirty-two bits, which
+wraps past seventy-one minutes (F107); charge drawn and remaining time estimate at the
+capacity alarm; battery usage at the capacity alarm, or on a low battery without one;
+altitude at its alarm while armed; home distance at its alarm while armed with a home fix;
+and ESC temperature at its alarm from the ESC sensor's combined reading, or from the first
+motor whose DShot telemetry contains one. The capacity alarm is the battery profile's
+capacity when it has one, else the setting. The altitude compared is the selected unit's
+value over a hundred, truncated.
+
+The active list is built from the positions and the active profile: horizon, g force and up
+and down reference with an accelerometer, then the display order of seventy-three items,
+then the eight GPS items with a GPS, the three ESC items with an ESC sensor or DShot
+telemetry, the three lap times with a GPS, and the total flights. The up and down reference
+and the total flights are listed twice when visible, and the list holds the ninety-one adds
+of a list with every item visible (F106). Six items ask for the accelerometer when active.
+Settings, sensors, clocks and readings stay with the target.
+
+The harness replays six sequences of 400 operations recorded from the reference: the active
+list under random positions, profiles, sensors and features; the alarms under random
+thresholds, readings, clocks, battery profiles and motor telemetry, with the blink synced to
+the clock and one item's blink read back; and the reset. Every count, listed item,
+accelerometer need, blink word and state of the 2406 lines replays byte for byte.
