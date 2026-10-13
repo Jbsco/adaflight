@@ -2,16 +2,20 @@
 --  status with the mode flags and the arming disable flags, the raw sensor
 --  readings, the motor outputs, the RC channels, the attitude as angles and
 --  as a quaternion, the estimated and rangefinder altitudes, the battery
---  readings and state, and the debug values. The caller gathers the state
---  into a snapshot. Each reply narrows its values to the field widths of
---  the protocol: integers wrap, readings round to the nearest integer with
---  ties to even, pulses truncate, and the battery readings saturate.
+--  readings and state, the debug values, the GPS solution, home vector and
+--  satellites, the ESC sensor and motor telemetry, the pitot readings, the
+--  transmitter information and the real-time clock. The caller gathers the
+--  state into a snapshot. Each reply narrows its values to the field widths
+--  of the protocol: integers wrap, readings and rates round to the nearest
+--  integer with ties to even, pulses and pitot readings truncate, and the
+--  battery readings and GPS altitude saturate.
 with Interfaces;
 with Adaflight.Bytes; use Adaflight.Bytes;
 with Adaflight.Stream_Buffers;
 with Adaflight.MSP_Box;
 with Adaflight.Arming;
 with Adaflight.Battery;
+with Adaflight.Receiver;
 
 package Adaflight.MSP_Out with SPARK_Mode is
    use type Interfaces.Unsigned_16;
@@ -34,6 +38,14 @@ package Adaflight.MSP_Out with SPARK_Mode is
    Status_Ex_Command           : constant := 150;
    Attitude_Quaternion_Command : constant := 167;
    Debug_Command               : constant := 254;
+   Raw_GPS_Command             : constant := 106;
+   Comp_GPS_Command            : constant := 107;
+   ESC_Sensor_Data_Command     : constant := 134;
+   Motor_Telemetry_Command     : constant := 139;
+   GPS_SV_Info_Command         : constant := 164;
+   Pitot_Command               : constant := 170;
+   TX_Info_Command             : constant := 187;
+   RTC_Command                 : constant := 247;
 
    PID_Profile_Count          : constant := 4;
    Control_Rate_Profile_Count : constant := 4;
@@ -43,7 +55,9 @@ package Adaflight.MSP_Out with SPARK_Mode is
    Debug_Count                : constant := 8;
    Arming_Flag_Count          : constant :=
      Adaflight.Arming.Disable_Reason'Pos (Adaflight.Arming.Disable_Reason'Last) + 1;
-   Max_Reply_Length           : constant := 2 * Channel_Count;
+   Max_Satellites             : constant := 32;
+   GPS_Fix_Flag               : constant := 2;
+   Max_Reply_Length           : constant := 1 + 4 * Max_Satellites;
 
    type Sensor is (Acc, Baro, Mag, GPS, Rangefinder, Gyro, Optical_Flow, Pitot);
    type Sensor_Set is array (Sensor) of Boolean;
@@ -134,29 +148,124 @@ package Adaflight.MSP_Out with SPARK_Mode is
    subtype Debug_Index is Natural range 0 .. Debug_Count - 1;
    type Debug_Values is array (Debug_Index) of Integer_16;
 
+   type Satellite is record
+      Channel : Unsigned_8 := 0;
+      Id      : Unsigned_8 := 0;
+      Quality : Unsigned_8 := 0;
+      Signal  : Unsigned_8 := 0;
+   end record;
+   subtype Satellite_Index is Natural range 0 .. Max_Satellites - 1;
+   type Satellite_Infos is array (Satellite_Index) of Satellite;
+
+   --  The solution, the home vector with the direction in tenths of a degree,
+   --  the update toggle, and the satellites the receiver reports.
+   type GPS_Values is record
+      Fix               : Boolean := False;
+      Satellite_Count   : Unsigned_8 := 0;
+      Latitude          : Integer_32 := 0;
+      Longitude         : Integer_32 := 0;
+      Altitude_Cm       : Integer_32 := 0;
+      Ground_Speed      : Unsigned_16 := 0;
+      Ground_Course     : Unsigned_16 := 0;
+      PDOP              : Unsigned_16 := 0;
+      HDOP              : Unsigned_16 := 0;
+      VDOP              : Unsigned_16 := 0;
+      In_View           : Unsigned_8 := 0;
+      Distance_To_Home  : Unsigned_16 := 0;
+      Direction_To_Home : Integer_16 := 0;
+      Update            : Unsigned_8 := 0;
+      Channels          : Natural range 0 .. Max_Satellites := 0;
+      Satellites        : Satellite_Infos := (others => (others => 0));
+   end record;
+
+   subtype Rpm_Value is Float range 0.0 .. 2.0E9;
+   subtype ESC_Rpm_Value is Float range 0.0 .. 16_000_000.0;
+
+   --  One motor's telemetry from both sources: the DShot rate, activity,
+   --  invalid share in hundredths of a percent, the kinds received with the
+   --  extended values, and the ESC sensor's record with its rate in hundreds
+   --  of electrical revolutions per minute and that rate as revolutions per
+   --  minute.
+   type Motor_Telemetry is record
+      DShot_Rpm       : Rpm_Value := 0.0;
+      DShot_Active    : Boolean := False;
+      Invalid_Percent : Integer_16 := 0;
+      Kinds           : Unsigned_8 := 0;
+      Temperature     : Unsigned_16 := 0;
+      Voltage         : Unsigned_16 := 0;
+      Current         : Unsigned_16 := 0;
+      ESC_Temperature : Unsigned_8 := 0;
+      ESC_Voltage     : Unsigned_16 := 0;
+      ESC_Current     : Integer_32 := 0;
+      ESC_Consumption : Integer_32 := 0;
+      ESC_Erpm        : Integer_16 := 0;
+      ESC_Rpm         : ESC_Rpm_Value := 0.0;
+   end record;
+   type Motor_Telemetries is array (Motor_Index) of Motor_Telemetry;
+
+   type ESC_Values is record
+      ESC_Sensor      : Boolean := False;
+      DShot_Telemetry : Boolean := False;
+      Count           : Natural range 0 .. Motor_Count := 0;
+      Motors          : Motor_Telemetries;
+   end record;
+
+   subtype Pitot_Reading is Float range -2.0E9 .. 2.0E9;
+
+   --  Airspeed in centimeters per second and the differential pressure in
+   --  pascals.
+   type Pitot_Values is record
+      Airspeed      : Pitot_Reading := 0.0;
+      Diff_Pressure : Pitot_Reading := 0.0;
+   end record;
+
+   type Clock_Values is record
+      Valid   : Boolean := False;
+      Year    : Unsigned_16 := 0;
+      Month   : Unsigned_8 := 0;
+      Day     : Unsigned_8 := 0;
+      Hours   : Unsigned_8 := 0;
+      Minutes : Unsigned_8 := 0;
+      Seconds : Unsigned_8 := 0;
+      Millis  : Unsigned_16 := 0;
+   end record;
+
    type Snapshot is record
-      Status   : Status_Values;
-      IMU      : IMU_Values;
-      Motors   : Motor_Values;
-      RC       : RC_Values;
-      Attitude : Attitude_Values;
-      Altitude : Altitude_Values;
-      Battery  : Battery_Values;
-      Debug    : Debug_Values := (others => 0);
+      Status      : Status_Values;
+      IMU         : IMU_Values;
+      Motors      : Motor_Values;
+      RC          : RC_Values;
+      Attitude    : Attitude_Values;
+      Altitude    : Altitude_Values;
+      Battery     : Battery_Values;
+      Debug       : Debug_Values := (others => 0);
+      GPS         : GPS_Values;
+      ESC         : ESC_Values;
+      Pitot       : Pitot_Values;
+      RSSI_Source : Adaflight.Receiver.RSSI_Source := Adaflight.Receiver.None;
+      Clock       : Clock_Values;
    end record;
 
    function Handles (Command : Unsigned_16) return Boolean is
      (Command in Sonar_Altitude_Command | Status_Command | Raw_IMU_Command | Motor_Command | RC_Command
                | Attitude_Command | Altitude_Command | Analog_Command | Battery_State_Command
-               | Status_Ex_Command | Attitude_Quaternion_Command | Debug_Command);
+               | Status_Ex_Command | Attitude_Quaternion_Command | Debug_Command | Raw_GPS_Command
+               | Comp_GPS_Command | ESC_Sensor_Data_Command | Motor_Telemetry_Command | GPS_SV_Info_Command
+               | Pitot_Command | TX_Info_Command | RTC_Command);
 
-   --  The reply to one of these out messages; any other command writes
-   --  nothing.
+   --  Whether the reply exists for this state: the ESC data needs the ESC
+   --  sensor or the DShot telemetry. An unsupported reply is an error.
+   function Supported (Command : Unsigned_16; V : Snapshot) return Boolean is
+     (Handles (Command)
+      and then (Command /= ESC_Sensor_Data_Command or else V.ESC.ESC_Sensor or else V.ESC.DShot_Telemetry));
+
+   --  The reply to one of these out messages; any other command, or one not
+   --  supported, writes nothing.
    procedure Reply (B : in out Byte_Array; S : in out Stream; Command : Unsigned_16; V : Snapshot)
      with Pre  => Adaflight.Stream_Buffers.Fits (S, B)
                   and then Adaflight.Stream_Buffers.Remaining (S) >= Max_Reply_Length,
           Post => Adaflight.Stream_Buffers.Fits (S, B) and then S.Last = S.Last'Old
                   and then S.Next - S.Next'Old in 0 .. Max_Reply_Length
-                  and then (if not Handles (Command) then S.Next = S.Next'Old);
+                  and then (if not Supported (Command, V) then S.Next = S.Next'Old);
 
 end Adaflight.MSP_Out;

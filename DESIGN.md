@@ -2779,3 +2779,26 @@ the target's accelerometer, motor, rangefinder, vario, internal ADC and I2C swit
 state it reads stubbed: random snapshots with values inside and outside each field's range, ties
 in the readings, and channel counts from 0 to 18. Every result, length and byte of the 4008 lines
 replays exactly.
+
+## D126. MSP GPS, ESC and clock replies (2026-10-13)
+
+The MSP out unit adds the replies for the GPS solution, the home vector and the satellites, the
+ESC sensor data and the motor telemetry, the pitot readings, the transmitter information and the
+real-time clock. The GPS solution reports the fix as the reference's state flag value 2 and the
+altitude in whole metres saturated to 16 bits, and the home direction drops to whole degrees. The
+satellite list holds up to 32 entries. The ESC data comes from the ESC sensor when that feature is
+on, from the DShot telemetry otherwise, and without either the reply is an error. The motor
+telemetry takes the rate from the DShot telemetry ahead of the ESC sensor, the invalid share as the
+whole without an active motor, and the extended DShot values when the motor reported them, which
+the ESC sensor's record then overrides. Rates round to the nearest integer with ties to even, and
+the pitot readings truncate to 32-bit integers. The clock reply is empty while the clock is unset.
+The caller gathers each source's values into the snapshot, the ESC sensor's rate converted to
+revolutions per minute by the DShot unit. The longest reply is the satellite list at 129 bytes.
+
+The harness replays eight sequences of 400 requests recorded from the reference MSP processor with
+the target's GPS, ESC sensor, DShot telemetry, clock and pitot switches on and the state stubbed:
+random solutions, home vectors and satellite counts up to 16 or 32, both telemetry sources on and
+off, motor counts from 0 to 8, pitot readings near the 32-bit limits, every RSSI source, and a set
+and unset clock. The ESC sensor's rate stays non-negative, since the reference sign-extends a
+negative 16-bit value into its unsigned rate conversion. Every result, length and byte of the 3208
+lines replays exactly.
