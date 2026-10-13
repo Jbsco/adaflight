@@ -119,7 +119,7 @@ package Adaflight.OSD_Format with SPARK_Mode is
    procedure Distance_String (T : out Text; Distance_M : Integer_32; Leading : Character; Units : Unit_System)
      with Pre => Distance_M in -Negative_Distance_Bound .. Distance_Bound;
 
-   procedure PID_Line (T : out Text; Label : String; P, I, D, D_Max, F : Unsigned_8)
+   procedure PID_Line (T : out Text; Label : String; P, I, D, D_Max : Unsigned_8; F : Unsigned_16)
      with Pre => Label'Length <= 8;
 
    --  The clock in local time: the reference's short date form, the month,

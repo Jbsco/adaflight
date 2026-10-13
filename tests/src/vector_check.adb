@@ -9554,7 +9554,7 @@ procedure Vector_Check is
             end loop;
             PID_Line (T, Label, Interfaces.Unsigned_8 (Int (4)), Interfaces.Unsigned_8 (Int (5)),
                       Interfaces.Unsigned_8 (Int (6)), Interfaces.Unsigned_8 (Int (7)),
-                      Interfaces.Unsigned_8 (Int (8)));
+                      Interfaces.Unsigned_16 (Int (8)));
             OSF_Record_Text (Name, 9, T);
          end;
       elsif Name = "ofrtc" then
