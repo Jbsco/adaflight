@@ -36,8 +36,8 @@ The core holds:
 - the attitude estimator with the compass heading, and the angle and horizon level modes
 - the failsafe state machine, the runtime modes with ground station overrides, and the
   arming logic with launch control and runaway takeoff prevention
-- the accelerometer path, the barometer altitude, the compass with its bias calibration,
-  the battery meters and states, and the sensor and board alignment
+- the accelerometer path, the barometer altitude and read cycle, the compass with its bias
+  calibration, the battery meters and states, and the sensor and board alignment
 - the position Kalman filter, the position estimator from the barometer, the accelerometer
   and the GPS, the altitude hold, the position hold, the GPS rescue, and the position
   navigation target
@@ -97,9 +97,9 @@ The core holds:
 
 The state of `main`:
 
-- The core proves at Silver and Gold: 15187 checks, nothing unproved, no
+- The core proves at Silver and Gold: 15198 checks, nothing unproved, no
   `pragma Assume`, no justified suppression (`gnatprove` 16.1.0, level 2).
-- The recorded vectors replay bit for bit: 1154723 lines over 322 cases, every case
+- The recorded vectors replay bit for bit: 1174731 lines over 323 cases, every case
   exact except the twenty-one declared deviations in `DESIGN.md` D6.
 - No target builds yet. `ROADMAP.md` contains the parity inventory, the phases, and the
   question for after parity: whether a proved core leaves room on the F4 boards for
