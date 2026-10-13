@@ -2046,3 +2046,34 @@ The harness replays six sequences of 1500 calls recorded from the reference, eac
 one helper under random readings, units, variants and symbols, the clock set to times
 before the reference's conversion limit (finding F104) and the formats of the elements'
 calls. Every text, symbol and conversion of the 9006 lines replays byte for byte.
+
+## D98. The transmitter driver over MSP (2026-10-12)
+
+The VTX MSP unit contains the reference's transmitter driver for a video transmitter
+reached over the MSP link, the goggle systems' way. The driver starts offline and is ready
+once the transmitter has answered on the driver's link and the table has bands, channels and
+power levels. The configuration it holds is what the control layer sets, band and channel,
+the power looked up in the table by index, the pit mode and the frequency, each marking
+the configuration changed when it differs. Each cycle, once ready, a change of the low
+power state marks the configuration changed too, and a changed configuration goes out once
+two hundred milliseconds have passed since the last: the fifteen-byte frame with the device
+type, the settings' band, channel and power, the lowest power while low power disarmed, the
+pit mode, the frequency, the readiness, the low power setting, the pit mode frequency and
+the table's counts, as an MSP reply carrying the transmitter configuration command. The
+same frame wrapped for the CRSF telemetry buffer gets the sync byte, the length, the MSP
+response type, the receiver and flight controller addresses, the header of a first chunk
+in version 2, the MSP checksum and the frame checksum. The configuration reads back once
+ready: the band and channel, the power index found in the table or zero for no power, the
+frequency of the band and channel, the pit mode, and the table's power levels in
+decibel-milliwatts and in milliwatts through the C library's power function.
+
+The link, the port sharing that decides between the serial push and the CRSF wrapper, the
+port selection of the initialization, and the command processor that reports the
+transmitter's answer stay with the target: the owner tells the driver its link answered,
+and pushes the frame the cycle hands back by the way its link requires.
+
+The harness replays six sequences of 1200 operations recorded from the reference, each
+sequence under its own table and settings, the operations the control layer's setters and
+getters, the link's readiness with matching and foreign descriptors, the cycle under random
+times, arming, failsafe and link flags, and the frame preparation alone. Every state field,
+reply frame, wrapped frame and reading of the 7206 lines replays byte for byte.

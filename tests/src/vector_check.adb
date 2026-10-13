@@ -112,6 +112,7 @@ with Adaflight.Position_Nav;
 with Adaflight.OSD_Warnings;
 with Adaflight.MSP_Telemetry;
 with Adaflight.OSD_Format;
+with Adaflight.VTX_MSP;
 
 procedure Vector_Check is
 
@@ -9593,6 +9594,169 @@ procedure Vector_Check is
       end if;
    end Check_OSD_Format_Line;
 
+   --  The transmitter over MSP: the driver under its table and settings, each
+   --  operation followed by its state and the frames it sends.
+
+   VM_Seq      : Integer_64 := -1;
+   VM_Table    : Adaflight.VTX_Table.Table;
+   VM_Settings : Adaflight.VTX.Settings;
+   VM_Driver   : Adaflight.VTX_MSP.Driver;
+
+   procedure VM_Record_State (Name : String) is
+      use Adaflight.VTX_MSP;
+   begin
+      Record_Int (Name & ".conffreq", Int (9), Integer_64 (VM_Driver.Conf_Freq));
+      Record_Int (Name & ".confband", Int (10), Integer_64 (VM_Driver.Conf_Band));
+      Record_Int (Name & ".confchan", Int (11), Integer_64 (VM_Driver.Conf_Channel));
+      Record_Int (Name & ".confpower", Int (12), Integer_64 (VM_Driver.Conf_Power));
+      Record_Int (Name & ".confpit", Int (13), Integer_64 (VM_Driver.Conf_Pit_Mode));
+      Record_Int (Name & ".changed", Int (14), Boolean'Pos (VM_Driver.Config_Changed));
+      Record_Int (Name & ".lasttime", Int (15), Integer_64 (VM_Driver.Last_Time_Us));
+      Record_Int (Name & ".prevlow", Int (16), Boolean'Pos (VM_Driver.Prev_Low_Power));
+      Record_Int (Name & ".status", Int (17), Status'Pos (VM_Driver.Current));
+      Record_Int (Name & ".packets", Int (18), Integer_64 (VM_Driver.Packets));
+   end VM_Record_State;
+
+   procedure VM_Record_Frame (Name : String; Field : Positive; F : Byte_Array) is
+   begin
+      Record_Bytes (Name, Hex_Bytes (Field), F);
+   end VM_Record_Frame;
+
+   procedure Check_VTX_MSP_Line is
+      use Adaflight.VTX_MSP;
+      Name : constant String := Str (1);
+   begin
+      if Name = "vminit" then
+         VM_Seq := Int (2);
+         Read_Table (VM_Table, 3);
+         VM_Driver := (others => <>);
+         VM_Settings := (others => <>);
+      elsif Int (2) /= VM_Seq then
+         Put_Line ("VTX MSP line without its start");
+         Failures := Failures + 1;
+      elsif Name = "vmstep" then
+         VM_Settings.Band := Interfaces.Unsigned_8 (Int (19));
+         VM_Settings.Channel := Interfaces.Unsigned_8 (Int (20));
+         VM_Settings.Power := Interfaces.Unsigned_8 (Int (21));
+         VM_Settings.Freq := Interfaces.Unsigned_16 (Int (22));
+         VM_Settings.Pit_Mode_Freq := Interfaces.Unsigned_16 (Int (23));
+         VM_Settings.Low_Power := Adaflight.VTX.Low_Power_Disarm'Val (Int (24));
+         case Int (3) is
+            when 0 =>
+               declare
+                  Inp   : constant Inputs := (Now_Us => Interfaces.Unsigned_32 (Int (4)), Armed => Int (5) = 1,
+                                              Was_Ever_Armed => Int (6) = 1, Failsafe => Int (7) = 1);
+                  Frame : Config_Frame;
+                  Send  : Boolean;
+               begin
+                  Process (VM_Driver, VM_Settings, VM_Table, Inp, Frame, Send);
+                  VM_Record_State (Name);
+                  Record_Int (Name & ".sent", Int (25) + Int (30), Boolean'Pos (Send));
+                  if Send then
+                     if Int (8) = 1 then
+                        declare
+                           Wrapped : CRSF_Frame;
+                           Length  : Natural;
+                        begin
+                           CRSF_Push (Config_Command, Frame, Wrapped, Length);
+                           Record_Int (Name & ".crsfsends", Int (31), 2);
+                           VM_Record_Frame (Name & ".crsf", 32, Wrapped (0 .. Length - 1));
+                        end;
+                     else
+                        Record_Int (Name & ".pushcmd", Int (26), Config_Command);
+                        Record_Int (Name & ".pushdir", Int (27), 0);
+                        Record_Int (Name & ".pushver", Int (28), 2);
+                        VM_Record_Frame (Name & ".push", 29, Frame);
+                     end if;
+                  end if;
+               end;
+            when 1 =>
+               Set_Band_Channel (VM_Driver, Interfaces.Unsigned_8 (Int (4)), Interfaces.Unsigned_8 (Int (5)));
+               VM_Record_State (Name);
+            when 2 =>
+               Set_Power_Index (VM_Driver, VM_Table, Interfaces.Unsigned_8 (Int (4)));
+               VM_Record_State (Name);
+            when 3 =>
+               Set_Pit_Mode (VM_Driver, Int (4) = 1);
+               VM_Record_State (Name);
+            when 4 =>
+               Set_Frequency (VM_Driver, Interfaces.Unsigned_16 (Int (4)));
+               VM_Record_State (Name);
+            when 5 =>
+               Set_Ready (VM_Driver, VM_Table, Int (5) = (if Int (4) = 1 then 7 else 3) or else Int (5) = 5);
+               VM_Record_State (Name);
+            when 6 =>
+               declare
+                  Band, Channel : Interfaces.Unsigned_8;
+                  Known         : Boolean;
+               begin
+                  Get_Band_Channel (VM_Driver, Band, Channel, Known);
+                  VM_Record_State (Name);
+                  Record_Int (Name & ".known", Int (25), Boolean'Pos (Known));
+                  if Known then
+                     Record_Int (Name & ".band", Int (26), Integer_64 (Band));
+                     Record_Int (Name & ".chan", Int (27), Integer_64 (Channel));
+                  end if;
+               end;
+            when 7 =>
+               declare
+                  Index : Interfaces.Unsigned_8 := 16#AA#;
+                  Known : Boolean;
+               begin
+                  Get_Power_Index (VM_Driver, VM_Table, Index, Known);
+                  VM_Record_State (Name);
+                  Record_Int (Name & ".known", Int (25), Boolean'Pos (Known));
+                  Record_Int (Name & ".index", Int (26), Integer_64 (Index));
+               end;
+            when 8 =>
+               declare
+                  Freq  : Interfaces.Unsigned_16;
+                  Known : Boolean;
+               begin
+                  Get_Frequency (VM_Driver, VM_Table, Freq, Known);
+                  VM_Record_State (Name);
+                  Record_Int (Name & ".known", Int (25), Boolean'Pos (Known));
+                  if Known then
+                     Record_Int (Name & ".freq", Int (26), Integer_64 (Freq));
+                  end if;
+               end;
+            when 9 =>
+               declare
+                  Pit_Mode, Known : Boolean;
+               begin
+                  Get_Status (VM_Driver, Pit_Mode, Known);
+                  VM_Record_State (Name);
+                  Record_Int (Name & ".known", Int (25), Boolean'Pos (Known));
+                  if Known then
+                     Record_Int (Name & ".status", Int (26), Boolean'Pos (Pit_Mode));
+                  end if;
+               end;
+            when 10 =>
+               declare
+                  Count          : Adaflight.VTX_Table.Power_Count;
+                  Levels, Powers : Level_Values;
+               begin
+                  Get_Power_Levels (VM_Driver, VM_Table, Count, Levels, Powers);
+                  VM_Record_State (Name);
+                  Record_Int (Name & ".count", Int (25), Integer_64 (Count));
+                  for I in 1 .. Count loop
+                     Record_Int (Name & ".level", Int (24 + 2 * I), Integer_64 (Levels (I)));
+                     Record_Int (Name & ".power", Int (25 + 2 * I), Integer_64 (Powers (I)));
+                  end loop;
+               end;
+            when others =>
+               declare
+                  Frame : Config_Frame;
+               begin
+                  Prepare_Frame (VM_Driver, VM_Settings, VM_Table,
+                                 Low_Power_Disarmed (VM_Settings, Int (5) = 1, Int (6) = 1, Int (7) = 1), Frame);
+                  VM_Record_State (Name);
+                  VM_Record_Frame (Name & ".frame", 25, Frame);
+               end;
+         end case;
+      end if;
+   end Check_VTX_MSP_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -9773,6 +9937,8 @@ procedure Vector_Check is
                   Check_MSP_Tunnel_Line;
                elsif Kind = "osdfmt" then
                   Check_OSD_Format_Line;
+               elsif Kind = "vtxmsp" then
+                  Check_VTX_MSP_Line;
                else
                   Check_PID_Line;
                end if;
@@ -9872,6 +10038,7 @@ begin
    Run (Dir & "/osdwarn.csv", "osdwarn");
    Run (Dir & "/msptun.csv", "msptun");
    Run (Dir & "/osdfmt.csv", "osdfmt");
+   Run (Dir & "/vtxmsp.csv", "vtxmsp");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
