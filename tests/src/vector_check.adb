@@ -116,6 +116,7 @@ with Adaflight.GPS_Lap_Timer;
 with Adaflight.MSP_Box;
 with Adaflight.MSP_Out;
 with Adaflight.Four_Way;
+with Adaflight.Gimbal_Control;
 with Adaflight.Dispatch;
 with Adaflight.ExpressLRS_Receiver;
 with Adaflight.Blackbox_Header;
@@ -13251,6 +13252,57 @@ procedure Vector_Check is
       end if;
    end Check_Four_Way_Line;
 
+   GB_Seq      : Integer_64 := -1;
+   GB_State    : Adaflight.Gimbal_Control.State;
+   GB_Settings : Adaflight.Gimbal_Control.Settings;
+
+   procedure Check_Gimbal_Line is
+      use Adaflight.Gimbal_Control;
+      Name : constant String := Str (1);
+
+      function Sticks_At (K : Positive) return Sticks is
+        (Roll     => To_Float (Bits (K)),
+         Pitch    => To_Float (Bits (K + 1)),
+         Yaw      => To_Float (Bits (K + 2)),
+         Throttle => To_Float (Bits (K + 3)));
+   begin
+      if Name = "gbinit" then
+         GB_Seq := Int (2);
+         GB_Settings := (Port_Configured        => Int (3) /= 0,
+                         Roll_RC_Gain           => Integer (Int (9)),
+                         Pitch_RC_Throttle_Gain => Integer (Int (10)),
+                         Pitch_RC_Low_Gain      => Integer (Int (11)),
+                         Pitch_RC_High_Gain     => Integer (Int (12)),
+                         Yaw_RC_Gain            => Integer (Int (13)),
+                         Roll_Gain              => Integer (Int (14)),
+                         Roll_Offset            => Integer (Int (15)),
+                         Roll_Limit             => Integer (Int (16)),
+                         Pitch_Gain             => Integer (Int (17)),
+                         Pitch_Offset           => Integer (Int (18)),
+                         Pitch_Low_Limit        => Integer (Int (19)),
+                         Pitch_High_Limit       => Integer (Int (20)),
+                         Yaw_Gain               => Integer (Int (21)),
+                         Yaw_Offset             => Integer (Int (22)),
+                         Yaw_Limit              => Integer (Int (23)),
+                         Stabilisation          => Integer (Int (24)),
+                         Sensitivity            => Integer (Int (25)),
+                         Mid_RC                 => Natural (Int (4)));
+         Init (GB_State, GB_Settings, Sticks_At (5));
+         Record_Bytes (Name & ".frame", Hex_Bytes (26), GB_State.Sent);
+      elsif Int (2) /= GB_Seq then
+         Put_Line ("gimbal line without its start");
+         Failures := Failures + 1;
+      elsif Name = "gbstep" then
+         declare
+            O : Output;
+         begin
+            Update (GB_State, GB_Settings, Sticks_At (5), Interfaces.Unsigned_32 (Int (4)), Hex_Bytes (9), O);
+            Record_Bytes (Name & ".output", Hex_Bytes (10), O.Bytes (0 .. O.Length - 1));
+            Record_Int (Name & ".disabled", Int (11), Boolean'Pos (O.Disable_Task));
+         end;
+      end if;
+   end Check_Gimbal_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -13483,6 +13535,8 @@ procedure Vector_Check is
                   Check_MSP_GPS_ESC_Line;
                elsif Kind = "fourway" then
                   Check_Four_Way_Line;
+               elsif Kind = "gimbal" then
+                  Check_Gimbal_Line;
                else
                   Check_PID_Line;
                end if;
@@ -13609,6 +13663,7 @@ begin
    Run (Dir & "/mspout.csv", "mspout");
    Run (Dir & "/mspout2.csv", "mspout2");
    Run (Dir & "/fourway.csv", "fourway");
+   Run (Dir & "/gimbal.csv", "gimbal");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");

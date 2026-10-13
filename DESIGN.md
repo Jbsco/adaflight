@@ -2830,3 +2830,27 @@ stray bytes between frames, scripted bootloader answers and device signatures, a
 without ESCs. Every operation, bootloader call with its arguments, and reply byte of the 5530 lines
 replays exactly. The host platform defines every pin configuration as 0, so the oracle gives the
 input, output and alternate settings distinct values.
+
+## D128. Gimbal control (2026-10-13)
+
+The gimbal control unit moves a camera gimbal from a head tracker's frames and the sticks. The head
+tracker's frames arrive on the gimbal port mixed with bytes for the gimbal, which pass through. A
+frame is the opcode 16#5AA5#, the stabilisation mode and the sensitivity, the roll, pitch and yaw as
+12-bit angles, and a CRC-16 CCITT sent high byte first. A valid frame goes on to the gimbal with
+its angles scaled by the gains, the roll, pitch, yaw and throttle sticks added by theirs, the pitch
+stick with separate gains below and above the centre, the offsets added, the limits applied, and
+the configured mode and sensitivity. A frame with a broken check is dropped. After 250 ms without
+bytes from the head tracker, each update sends the frame for the sticks alone. A byte after the
+first opcode byte that is not the second goes on behind a byte 1 in place of the held-back first
+opcode byte (F135). Without a configured port the control asks for its task to stop. The sticks lie
+within the receiver's pulse limits, where every sum of the reference's 16-bit arithmetic stays in
+range, and the integer scale truncates its division as C does. The output holds twice the input and
+one frame, which no update exceeds. The unit is SPARK for the 12-bit field packing, the scale
+arithmetic and the buffers.
+
+The harness replays six sequences of about 1670 updates recorded from the reference with its
+settings registered and the port and sticks scripted: default and random gains, offsets and limits,
+valid frames, frames with broken checks, broken opcodes, passthrough bytes, gaps past the timeout,
+a clock near its wrap, and a sequence without a port. The sticks start centred with the throttle at
+its minimum, as the receiver leaves them before the gimbal starts. Every frame and output byte of
+the 10061 lines replays exactly.
