@@ -2077,3 +2077,30 @@ sequence under its own table and settings, the operations the control layer's se
 getters, the link's readiness with matching and foreign descriptors, the cycle under random
 times, arming, failsafe and link flags, and the frame preparation alone. Every state field,
 reply frame, wrapped frame and reading of the 7206 lines replays byte for byte.
+
+## D99. The MSP display port (2026-10-12)
+
+The display port MSP unit contains the reference's display port over the MSP link, the
+OSD canvas of a goggle system. Each operation is a display port payload the target sends
+as an MSP reply in the first framing: the heartbeat, the release, the clear, the draw, a
+string at its column and row with the attribute byte, a system element at its column and
+row, and a font character at its address with the sixty-four bytes of the glyph. The
+attribute byte takes the profile's font bank for the element's severity and the device
+blink bit for a blinking element; a string is cut at thirty characters, an empty string
+sends nothing, and a character is the string of that character, the null character an
+empty one. The initialization takes the canvas size from the configuration for a high
+definition system and the standard lines of PAL or NTSC with the standard columns
+otherwise, each with the profile's adjustment, and sends a clear and a draw. The display
+layer's bookkeeping over the port is in the unit: a grab sends the heartbeat and a clear
+and counts, a release the release payload, a clear marks the screen cleared and the
+cursor off, and the device reports itself synced, ready and never mid-transfer.
+
+The MSP link, the serial port the display answers on, the port selection of the
+initialization and the eighty millisecond pause after a font character stay with the
+target.
+
+The harness replays six sequences of 600 operations recorded from the reference behind
+its display layer, each sequence under its own profile, video system and canvas: grabs,
+releases, clears, draws, heartbeats, redraws, strings of every length and attribute,
+characters, system elements, font characters and the state queries. Every state field,
+payload and result of the 3606 lines replays byte for byte.
