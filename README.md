@@ -94,38 +94,39 @@ The core contains:
 - MSP text replies: names, texts by type, transmitter table rows, LED strip values and battery
   profiles
 - MSP simplified tuning messages: slider read and write, gain and filter calculations, validation
-- MSP state replies: status, sensor readings, motors, RC channels, attitude, altitudes, battery,
-  debug values, GPS, ESC and motor telemetry, pitot, transmitter information and clock
-- BLHeli 4-way interface for ESC configuration through flight controller
-- gimbal control from a head tracker and sticks
-- OSD custom text from a serial port
-- PID audio tone
-- PINIO outputs switched by boxes
-- warning LED
-- dispatch queue of delayed calls
-- OSD warnings line with precedence, arming reason rotation and ESC alarms
-- MSP tunnel over telemetry with chunked requests and replies
-- OSD formatting of numbers, altitudes, distances, coordinates with plus codes, clock and timers,
-  with battery and direction symbols
-- MSP display port with payloads, attribute byte and canvas size
-- OSD statistics with extremes and page texts
-- OSD page with arming and boot screens and cycle steps around them
-- OSD element set with alarms and renderers, warnings element, draw cycle, spec prearm screen and
-  OSD task
-- MAVLink telemetry streams with intervals and arming status text, and MAVLink commands with
-  replies and requests
-- MAVLink mission protocol with uploads, downloads, fence store and current item reports
-- Jeti EX Bus telemetry with sensor descriptions and value messages
+- MSP OSD replies: configuration and warnings line
+- the MSP state replies: status, sensor readings, motors, RC channels, attitude, altitudes,
+  battery, debug values, GPS, ESC and motor telemetry, pitot, transmitter information and clock
+- the BLHeli 4-way interface for ESC configuration through the flight controller
+- the gimbal control from a head tracker and the sticks
+- the OSD custom text from a serial port
+- the PID audio tone
+- the PINIO outputs switched by boxes
+- the warning LED
+- the dispatch queue of delayed calls
+- the OSD warnings line with its precedence, its arming reason rotation and its ESC alarms
+- the MSP tunnel over telemetry with its chunked requests and replies
+- the OSD formatting of numbers, altitudes, distances, coordinates with their plus codes, the clock
+  and timers, with the battery and direction symbols
+- the MSP display port with its payloads, attribute byte and canvas size
+- the OSD statistics with their extremes and page texts
+- the OSD page with the arming and boot screens and the cycle steps around them
+- the OSD element set with alarms and renderers, the warnings element, draw cycle, spec prearm
+  screen and OSD task
+- the MAVLink telemetry streams with their intervals and arming status text, and the MAVLink
+  commands with their replies and requests
+- the MAVLink mission protocol with its uploads, downloads, fence store and current item reports
+- the Jeti EX Bus telemetry with its sensor descriptions and value messages
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 18848 checks, nothing unproved, no `pragma Assume`, no justified
-  suppression (`gnatprove` 16.1.0, level 2).
-- Recorded vectors replay bit for bit: 1489889 lines over 352 cases, every case exact except
-  twenty-three declared deviations in `DESIGN.md` D6.
-- No target builds yet. `ROADMAP.md` contains phases, parity inventory, and one question for after
-  parity: whether a proved core leaves room on F4 boards for features Betaflight has to leave out
-  there.
+- The core proves at Silver and Gold: 14392 checks, nothing unproved, no
+  `pragma Assume`, no justified suppression (`gnatprove` 16.1.0, level 2).
+- The recorded vectors replay bit for bit: 1494697 lines over 353 cases, every case
+  exact except the twenty-three declared deviations in `DESIGN.md` D6.
+- No target builds yet. `ROADMAP.md` contains the parity inventory, the phases, and the
+  question for after parity: whether a proved core leaves room on the F4 boards for
+  features Betaflight has to leave out for these targets.
 
 ## Repository layout
 
