@@ -1637,8 +1637,7 @@ engagement or where the pilot last left the yaw stick, ramped in over a second, 
 configured and any external rate limit, and reversed with the yaw setting; it stands down
 while disarmed, without a mode that wants it, or without a trusted heading, and the heading
 hold task drives it alone outside a hold or a rescue. The navigation modes, their yaw
-modes and the velocity buildup clamp come with the navigation port; there is no optical
-flow. A feedforward term beyond the signal bound and a target velocity beyond 2 to the 26
+modes and the velocity buildup clamp are in D145; there is no optical flow. A feedforward term beyond the signal bound and a target velocity beyond 2 to the 26
 centimetres per second are held at those bounds. Every recorded vector replays exactly.
 
 ## D83. The GPS rescue over the autopilot's controllers (2026-10-11)
@@ -3240,3 +3239,40 @@ The harness replays 1440 stagings and 960 descents of up to 32 cycles recorded f
 reference executor on random executor states, navigator legs, GPS fixes and settings within
 their ranges. Every executor field, navigator field and call of the 21766 lines replays exactly.
 
+## D145. Autopilot navigation modes (2026-10-13)
+
+`Adaflight.Position_Control` contains the autopilot's three navigation modes over the navigation
+target (D94). A target flown at a velocity its owner states is tracked as a moving anchor. A fixed
+target is approached through a reference point, seeded where the position error stands, walked
+onto the target at the navigator's velocity and held within 5 m of the craft in each axis. A
+target its owner moves without a stated velocity is tracked from within 5 m until it is 7.5 m
+away and flown by the navigator's velocity otherwise, and each new leg starts unanchored.
+Navigation takes up a leg with the feedforward filters at the nominal interval, the distance
+error, its integral and the target velocity's history dropped, and no braking. A heading
+recovery ends that continuity, so the leg is taken up afresh after it. On a leg the distance
+error is held within 5 m, the integral stays at zero, and a leg's own lean limit applies below
+the configured one. A leg whose velocity starts from the craft's motion seeds the feedforward
+filters and the target velocity's history with the current command, on the first task of
+navigation and on each new leg. Flying by velocity, the damping and feedforward drive that
+builds speed is held to the configured buildup lean, and a drive that sheds speed is left
+whole. On a leg the nose takes the override heading when one is set, and otherwise follows the
+configured yaw mode. The velocity mode steers along the course over the ground above the
+minimum forward speed and releases it below three quarters of that speed. The bearing mode
+steers at the target outside its acceptance radius, or along a stated velocity above half a
+metre a second. The hybrid mode steers along the course and falls back to the bearing. A rescue
+flown as a plan leaves the rescue's own velocity mode to the navigation modes.
+
+The navigator updates between the checks that fail a hold and the rest of the task, and a
+reached leg's owner runs there, so a leg its owner replaces on arrival is flown on the same
+task. `Begin_Step` and `Finish_Step` split the task at that point, and `Adaflight.Position_Hold`
+offers the same split around its engagement and sensor checks. Its single `Update` finishes a
+reached leg with no owner. The navigator's velocity is held at 2 ** 26 centimetres per second,
+the bound of the controller's target velocity (D82).
+
+The harness replays 16 flights of 900 tasks recorded from the reference autopilot and position
+hold with the navigation module, 12 with the rescue flown by its own velocity and 4 with the
+rescue flown as a plan: legs to fixed, moved and velocity-stated targets with every setter, an
+owner that issues the next leg from inside the navigator's update on 18 of 31 arrivals,
+retargets, clears, nose overrides, sticks, heading recoveries, level parks, estimate dropouts
+and rescue windows, in every yaw mode. Every controller field, navigator field, lean and yaw
+rate of the 14416 lines replays exactly.

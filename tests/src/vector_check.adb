@@ -7698,6 +7698,7 @@ procedure Vector_Check is
    PH_State    : Adaflight.Position_Hold.State;
    PH_Settings : Adaflight.Position_Hold.Settings;
    PC_Settings : Adaflight.Position_Control.Settings;
+   PH_Nav      : Adaflight.Position_Nav.Navigator;
 
    procedure Check_Poshold_Line is
       use Adaflight.Position_Control;
@@ -7717,9 +7718,12 @@ procedure Vector_Check is
                          Stick_Deadband   => Integer (Int (13)),
                          Yaw_P            => Integer (Int (14)),
                          Max_Yaw_Rate     => Integer (Int (15)),
-                         Yaw_Reversed     => Int (16) /= 0);
+                         Yaw_Reversed     => Int (16) /= 0,
+                         others           => <>);
          PH_Settings := (Deadband => Integer (Int (17)));
          Adaflight.Position_Hold.Init (PH_State, PH_Settings, PC_Settings);
+         PH_Nav := (others => <>);
+         Adaflight.Position_Nav.Init (PH_Nav);
          Record_Result ("phinit.kp", Bits (20), To_Bits (PH_State.Control.Pid.Kp));
          Record_Result ("phinit.ki", Bits (21), To_Bits (PH_State.Control.Pid.Ki));
          Record_Result ("phinit.kd", Bits (22), To_Bits (PH_State.Control.Pid.Kd));
@@ -7792,8 +7796,8 @@ procedure Vector_Check is
                when 7 => Disable_Yaw_Control (PH_State.Control);
                when others => null;
             end case;
-            Adaflight.Position_Hold.Update (PH_State, PC_Settings, Inp, Enable_XY);
-            Update_Heading_Hold (PH_State.Control, PC_Settings, Inp);
+            Adaflight.Position_Hold.Update (PH_State, PC_Settings, Inp, PH_Nav, Enable_XY);
+            Update_Heading_Hold (PH_State.Control, PC_Settings, Inp, PH_Nav);
             Record_Int ("phstep.enable_xy", Int (32), Boolean'Pos (Enable_XY));
             Expect_Float ("angle_roll", PH_State.Control.Angle_Roll);
             Expect_Float ("angle_pitch", PH_State.Control.Angle_Pitch);
@@ -7840,9 +7844,7 @@ procedure Vector_Check is
             Expect_Float ("exit_speed", PH_State.Control.Braking_Exit_Speed);
             Expect_Int ("anchor", Integer_64 (Anchor_Mode'Pos (PH_State.Control.Anchor)));
             Expect_Int ("ipolicy", Integer_64 (Integral_Policy'Pos (PH_State.Control.I_Policy)));
-            Expect_Int ("mode", (case PH_State.Control.Mode is
-                                   when Settled_Hold => 0, when Braking => 1, when Stick_Velocity => 2,
-                                   when Rescue_Velocity => 6));
+            Expect_Int ("mode", Integer_64 (Control_Mode'Pos (PH_State.Control.Mode)));
             Expect_Bool ("abort", PH_State.Control.Abort_Requested);
             Expect_Bool ("heading_recovery", PH_State.Control.Heading_Recovery);
             Expect_Float ("recovery_pitch", PH_State.Control.Heading_Recovery_Pitch);
@@ -7872,6 +7874,7 @@ procedure Vector_Check is
    RS_Altitude : Adaflight.Altitude_Control.State;
    RS_PC       : Adaflight.Position_Control.Settings;
    RS_Hold     : Adaflight.Position_Hold.State;
+   RS_Nav      : Adaflight.Position_Nav.Navigator;
    RS_Max_Rate_Pitch, RS_Max_Rate_Roll : Float := 670.0;
 
    procedure Check_Rescue_Line is
@@ -7905,6 +7908,8 @@ procedure Vector_Check is
          RS_PC := (others => <>);
          Adaflight.Altitude_Control.Init (RS_Altitude, RS_AC);
          Adaflight.Position_Hold.Init (RS_Hold, (Deadband => 5), RS_PC);
+         RS_Nav := (others => <>);
+         Adaflight.Position_Nav.Init (RS_Nav);
          Init (RS_State, RS_Settings);
          Record_Result ("rsinit.initial_climb", Bits (26), To_Bits (RS_State.Want.Initial_Climb_Cm));
          Record_Result ("rsinit.descent_distance", Bits (27), To_Bits (RS_State.Want.Descent_Distance_Cm));
@@ -7965,7 +7970,7 @@ procedure Vector_Check is
             P_Inp.Max_Rate_Roll := RS_Max_Rate_Roll;
             Update (RS_State, RS_Settings, Inp, RS_AC, RS_Altitude, RS_PC, P_Inp, RS_Hold.Control,
                     Disarm, Arming_Disabled);
-            Adaflight.Position_Hold.Update (RS_Hold, RS_PC, P_Inp, Enable_XY);
+            Adaflight.Position_Hold.Update (RS_Hold, RS_PC, P_Inp, RS_Nav, Enable_XY);
             Expect_Bool ("disarm", Disarm);
             Expect_Bool ("arming_disabled", Arming_Disabled);
             Expect_Bool ("enable_xy", Enable_XY);
