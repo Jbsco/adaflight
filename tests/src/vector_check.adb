@@ -120,6 +120,7 @@ with Adaflight.Gimbal_Control;
 with Adaflight.OSD_Custom_Text;
 with Adaflight.PID_Audio;
 with Adaflight.PINIO_Box;
+with Adaflight.Warning_LED;
 with Adaflight.Dispatch;
 with Adaflight.ExpressLRS_Receiver;
 with Adaflight.Blackbox_Header;
@@ -13402,6 +13403,40 @@ procedure Vector_Check is
       end if;
    end Check_PINIO_Box_Line;
 
+   Warn_Seq : Integer_64 := -1;
+   Warn_LED : Adaflight.Warning_LED.State;
+
+   procedure Check_Warning_LED_Line is
+      use Adaflight.Warning_LED;
+      Name : constant String := Str (1);
+   begin
+      if Name = "wninit" then
+         Warn_Seq := Int (2);
+         Warn_LED := (others => <>);
+      elsif Int (2) /= Warn_Seq then
+         Put_Line ("warning LED line without its start");
+         Failures := Failures + 1;
+      elsif Name = "wnstep" then
+         declare
+            Now  : constant Interfaces.Unsigned_32 := Interfaces.Unsigned_32 (Int (4));
+            Call : LED_Call;
+         begin
+            case Int (5) is
+               when 1 => Disable (Warn_LED);
+               when 2 => Enable (Warn_LED);
+               when 3 => Flash (Warn_LED);
+               when others => null;
+            end case;
+            if Int (6) /= 0 then
+               Refresh (Warn_LED, Now, Call);
+            else
+               Update (Warn_LED, Now, Call);
+            end if;
+            Record_Int (Name & ".call", Int (7), LED_Call'Pos (Call));
+         end;
+      end if;
+   end Check_Warning_LED_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -13642,6 +13677,8 @@ procedure Vector_Check is
                   Check_PID_Audio_Line;
                elsif Kind = "piniobox" then
                   Check_PINIO_Box_Line;
+               elsif Kind = "warnled" then
+                  Check_Warning_LED_Line;
                else
                   Check_PID_Line;
                end if;
@@ -13772,6 +13809,7 @@ begin
    Run (Dir & "/osdtext.csv", "osdtext");
    Run (Dir & "/pidaudio.csv", "pidaudio");
    Run (Dir & "/piniobox.csv", "piniobox");
+   Run (Dir & "/warnled.csv", "warnled");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
