@@ -114,6 +114,7 @@ with Adaflight.SmartAudio;
 with Adaflight.LTM_Telemetry;
 with Adaflight.GPS_Lap_Timer;
 with Adaflight.MSP_Box;
+with Adaflight.MSP_Out;
 with Adaflight.Dispatch;
 with Adaflight.ExpressLRS_Receiver;
 with Adaflight.Blackbox_Header;
@@ -12873,6 +12874,93 @@ procedure Vector_Check is
       end if;
    end Check_Baro_Task_Line;
 
+   MO_Seq : Integer_64 := -1;
+
+   procedure Check_MSP_Out_Line is
+      use Adaflight.MSP_Out;
+      Name : constant String := Str (1);
+   begin
+      if Name = "moinit" then
+         MO_Seq := Int (2);
+         Record_Int (Name & ".pid_profiles", Int (3), PID_Profile_Count);
+         Record_Int (Name & ".rate_profiles", Int (4), Control_Rate_Profile_Count);
+         Record_Int (Name & ".battery_profiles", Int (5), Battery_Profile_Count);
+         Record_Int (Name & ".arming_flags", Int (6), Arming_Flag_Count);
+         Record_Int (Name & ".motors", Int (7), Motor_Count);
+         Record_Int (Name & ".channels", Int (8), Channel_Count);
+      elsif Int (2) /= MO_Seq then
+         Put_Line ("MSP out line without its start");
+         Failures := Failures + 1;
+      elsif Name = "mostep" then
+         declare
+            Command : constant Interfaces.Unsigned_16 := Interfaces.Unsigned_16 (Int (4));
+            V       : Snapshot;
+            Buffer  : Byte_Array (0 .. 63) := (others => 0);
+            St      : Adaflight.Stream_Buffers.Stream;
+            Arming  : constant Unsigned_32 := Bits (14);
+         begin
+            V.Status.PID_Delta_Us := Interfaces.Integer_32 (Int (5));
+            V.Status.I2C_Errors := Interfaces.Unsigned_16 (Int (6));
+            for K in Adaflight.MSP_Out.Sensor loop
+               V.Status.Sensors (K) := Int (7) / 2 ** Adaflight.MSP_Out.Sensor'Pos (K) mod 2 = 1;
+            end loop;
+            V.Status.Mode_Flags := (0 => Bits (8), 1 => Bits (9));
+            V.Status.Mode_Flag_Count := Natural (Int (10));
+            V.Status.PID_Profile := Natural (Int (11));
+            V.Status.Load_Percent := Interfaces.Unsigned_16 (Int (12));
+            V.Status.Rate_Profile := Natural (Int (13));
+            for R in Adaflight.Arming.Disable_Reason loop
+               V.Status.Arming_Disabled (R) := Arming / 2 ** Adaflight.Arming.Disable_Reason'Pos (R) mod 2 = 1;
+            end loop;
+            V.Status.Reboot_Required := Int (15) /= 0;
+            V.Status.Core_Temperature := Interfaces.Integer_16 (Int (16));
+            V.Status.Battery_Profile := Natural (Int (17));
+            for I in Adaflight.MSP_Out.Axis loop
+               V.IMU.Acc (I) := To_Float (Bits (18 + 3 * I));
+               V.IMU.Gyro_Dps (I) := Interfaces.Integer_16 (Int (19 + 3 * I));
+               V.IMU.Mag (I) := To_Float (Bits (20 + 3 * I));
+            end loop;
+            V.Motors.Enabled := Int (27) /= 0;
+            for I in Adaflight.MSP_Out.Motor_Index loop
+               V.Motors.Motor_Enabled (I) := Int (28 + 2 * I) /= 0;
+               V.Motors.External (I) := Interfaces.Unsigned_16 (Int (29 + 2 * I));
+            end loop;
+            V.RC.Count := Natural (Int (44));
+            for I in Adaflight.MSP_Out.Channel_Index loop
+               V.RC.Channels (I) := To_Float (Bits (45 + I));
+            end loop;
+            V.Attitude := (Roll  => Interfaces.Integer_16 (Int (63)),
+                           Pitch => Interfaces.Integer_16 (Int (64)),
+                           Yaw   => Interfaces.Integer_16 (Int (65)),
+                           W     => To_Float (Bits (66)),
+                           X     => To_Float (Bits (67)),
+                           Y     => To_Float (Bits (68)),
+                           Z     => To_Float (Bits (69)));
+            V.Altitude := (Estimate_Cm    => Interfaces.Integer_32 (Int (70)),
+                           Vario          => Interfaces.Integer_16 (Int (71)),
+                           Rangefinder_Cm => Interfaces.Integer_32 (Int (72)));
+            V.Battery := (Legacy_Voltage => Interfaces.Unsigned_16 (Int (73)),
+                          MAh_Drawn      => Interfaces.Integer_32 (Int (74)),
+                          RSSI           => Interfaces.Unsigned_16 (Int (75)),
+                          Amperage       => Interfaces.Integer_32 (Int (76)),
+                          Voltage        => Interfaces.Unsigned_16 (Int (77)),
+                          Cell_Count     => Interfaces.Unsigned_8 (Int (86)),
+                          Capacity_MAh   => Interfaces.Unsigned_16 (Int (87)),
+                          State          => Adaflight.Battery.Battery_State'Val (Int (88)));
+            for I in Adaflight.MSP_Out.Debug_Index loop
+               V.Debug (I) := Interfaces.Integer_16 (Int (78 + I));
+            end loop;
+            Adaflight.Stream_Buffers.Init (St, 0, Buffer'Length);
+            Reply (Buffer, St, Command, V);
+            Record_Int (Name & ".result", Int (89), Boolean'Pos (Handles (Command)));
+            Record_Int (Name & ".command", Int (90), Integer_64 (Command));
+            Record_Int (Name & ".length", Int (91), Integer_64 (St.Next));
+            Record_Bytes (Name & ".reply", (if NF >= 92 then Hex_Bytes (92) else Buffer (1 .. 0)),
+                          Buffer (0 .. St.Next - 1));
+         end;
+      end if;
+   end Check_MSP_Out_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -13099,6 +13187,8 @@ procedure Vector_Check is
                   Check_RX_Task_Line;
                elsif Kind = "barotask" then
                   Check_Baro_Task_Line;
+               elsif Kind = "mspout" then
+                  Check_MSP_Out_Line;
                else
                   Check_PID_Line;
                end if;
@@ -13222,6 +13312,7 @@ begin
    Run (Dir & "/rcstats.csv", "rcstats");
    Run (Dir & "/rxtask.csv", "rxtask");
    Run (Dir & "/barotask.csv", "barotask");
+   Run (Dir & "/mspout.csv", "mspout");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
