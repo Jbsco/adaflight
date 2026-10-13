@@ -10734,7 +10734,8 @@ procedure Vector_Check is
             Inp.Adjustment_Value := Interfaces.Integer_32 (Int (114));
             Inp.Rangefinder_Cm := Interfaces.Integer_32 (Int (115));
             if Name = "o2bg" then
-               Render_Background (I, Inp, O);
+               Render_Background
+                 (I, OR2_State, C, Inp, Interfaces.Unsigned_8 (Int (5)), Interfaces.Unsigned_8 (Int (6)), O);
             else
                Render (I, Adaflight.OSD_Format.Element_Type'Val (Int (4)), OR2_State, C, Inp, O);
             end if;
@@ -10758,6 +10759,138 @@ procedure Vector_Check is
          end;
       end if;
    end Check_OSD_Render_2_Line;
+
+   OR3_Seq   : Integer_64 := -1;
+   OR3_State : Adaflight.OSD_Render.State;
+   OR3_Table : Adaflight.VTX_Table.Table;
+
+   procedure OR3_Read_Table (F : Positive) is
+      use Adaflight.VTX_Table;
+      Letters : constant Byte_Array := Hex_Bytes (F + 66);
+      Names   : constant Byte_Array := Hex_Bytes (F + 67);
+   begin
+      OR3_Table := Default;
+      OR3_Table.Bands := Band_Count (Int (F));
+      OR3_Table.Channels := Channel_Count (Int (F + 1));
+      for B in Band_Index loop
+         for C in Channel_Index loop
+            OR3_Table.Frequency (B, C) := Interfaces.Unsigned_16 (Int (F + 2 + (B - 1) * 8 + (C - 1)));
+         end loop;
+         OR3_Table.Letters (B) := Character'Val (Letters (Letters'First + B - 1));
+         OR3_Table.Is_Factory (B) := Int (F + 67 + B) = 1;
+      end loop;
+      for C in Channel_Index loop
+         OR3_Table.Channel_Name (C) := Character'Val (Names (Names'First + C - 1));
+      end loop;
+      OR3_Table.Power_Levels := Power_Count (Int (F + 76));
+      for P in Power_Index loop
+         OR3_Table.Power_Value (P) := Interfaces.Unsigned_16 (Int (F + 76 + P));
+         declare
+            L : constant Byte_Array := Hex_Bytes (F + 84 + P);
+         begin
+            for K in 1 .. 3 loop
+               OR3_Table.Label (P) (K) := Character'Val (L (L'First + K - 1));
+            end loop;
+         end;
+      end loop;
+   end OR3_Read_Table;
+
+   procedure Check_OSD_Render_3_Line is
+      use Adaflight.OSD_Render;
+      use type Adaflight.OSD_Elements.Item;
+      Name : constant String := Str (1);
+      C    : Settings;
+      Inp  : Inputs;
+      O    : Output;
+   begin
+      if Name = "o3init" then
+         OR3_Seq := Int (2);
+         Record_Int (Name & ".framew", Int (3), 30);
+         Record_Int (Name & ".frameh", Int (4), 16);
+         OR3_Read_Table (5);
+         Init (OR3_State, C);
+      elsif Int (2) /= OR3_Seq then
+         Put_Line ("OSD render line without its start");
+         Failures := Failures + 1;
+      elsif Name = "o3render" or else Name = "o3bg" then
+         declare
+            I        : constant Item := Item'Val (Int (3));
+            Expected : constant Byte_Array := Hex_Bytes (43);
+            Writes   : constant Natural := Natural (Int (49));
+         begin
+            Inp.Item_Blinks := Int (7) = 1;
+            C.AH_Max_Pitch := Interfaces.Unsigned_8 (Int (8));
+            C.AH_Max_Roll := Interfaces.Unsigned_8 (Int (9));
+            C.AH_Invert := Int (10) = 1;
+            C.Overlay_Radio_Mode := Positive (Int (11));
+            for K in 0 .. 3 loop
+               C.RC_Channels (K) := Interfaces.Integer_8 (Int (12 + K));
+            end loop;
+            C.Camera_Frame_Width := Interfaces.Unsigned_8 (Int (16));
+            C.Camera_Frame_Height := Interfaces.Unsigned_8 (Int (17));
+            C.VTX_Band := Interfaces.Unsigned_8 (Int (18));
+            C.VTX_Channel := Interfaces.Unsigned_8 (Int (19));
+            C.VTX_Frequency := Interfaces.Unsigned_16 (Int (20));
+            C.VTX_Power := Interfaces.Unsigned_8 (Int (21));
+            C.VTX_Low_Power_Disarm := Interfaces.Unsigned_8 (Int (22));
+            Inp.Roll := Interfaces.Integer_16 (Int (23));
+            Inp.Pitch := Interfaces.Integer_16 (Int (24));
+            Inp.Yaw := Interfaces.Integer_16 (Int (25));
+            for K in 0 .. 2 loop
+               Inp.Earth_Up (K) := Flt (26 + K);
+            end loop;
+            for K in 0 .. 7 loop
+               Inp.RC_Data (K) := Flt (29 + K);
+            end loop;
+            Inp.VTX := OR3_Table;
+            Inp.VTX_Present := Int (37) = 1;
+            Inp.VTX_Status_OK := Int (38) = 1;
+            Inp.VTX_Status := Interfaces.Unsigned_8 (Int (39));
+            Inp.VTX_Power_OK := Int (40) = 1;
+            Inp.VTX_Power_Index := Interfaces.Unsigned_8 (Int (41));
+            Inp.VTX_Control_Disable_Box := Int (42) = 1;
+            if Name = "o3bg" then
+               Render_Background
+                 (I, OR3_State, C, Inp, Interfaces.Unsigned_8 (Int (5)), Interfaces.Unsigned_8 (Int (6)), O);
+            else
+               Render (I, Adaflight.OSD_Format.Element_Type'Val (Int (4)), OR3_State, C, Inp, O);
+            end if;
+            Record_Int (Name & ".len", Integer_64 (Expected'Length), Integer_64 (O.Line.Length));
+            for K in 1 .. Natural'Min (Expected'Length, O.Line.Length) loop
+               declare
+                  E : Integer_64 := Integer_64 (Expected (Expected'First + K - 1));
+               begin
+                  --  The reference prints the low byte of the symbol's address
+                  --  for the up and down reference (DESIGN.md D6); the bytes
+                  --  recorded stand for U and D.
+                  if I = Adaflight.OSD_Elements.Up_Down_Reference then
+                     E := (if E = 255 then Character'Pos ('U') elsif E = 1 then Character'Pos ('D') else E);
+                  end if;
+                  Record_Int (Name & ".text", E, Integer_64 (Character'Pos (O.Line.Data (K))));
+               end;
+            end loop;
+            Record_Int (Name & ".offx", Int (44), Integer_64 (O.Offset_X));
+            Record_Int (Name & ".offy", Int (45), Integer_64 (O.Offset_Y));
+            Record_Int (Name & ".attr", Int (46), Integer_64 (Severity'Pos (O.Attr)));
+            Record_Int (Name & ".draw", Int (47), Boolean'Pos (O.Draw));
+            Record_Int (Name & ".rendered", Int (48), Boolean'Pos (O.Rendered));
+            Record_Int (Name & ".writes", Int (49), Integer_64 (O.Written));
+            for W in 1 .. Natural'Min (Writes, O.Written) loop
+               declare
+                  F : constant Positive := 50 + (W - 1) * 5;
+                  T : constant Byte_Array := Hex_Bytes (F + 4);
+               begin
+                  Record_Int (Name & ".wkind", Int (F), 1);
+                  Record_Int (Name & ".wx", Int (F + 1), Integer_64 (O.Writes (W).X));
+                  Record_Int (Name & ".wy", Int (F + 2), Integer_64 (O.Writes (W).Y));
+                  Record_Int (Name & ".wattr", Int (F + 3), Integer_64 (O.Writes (W).Attr));
+                  Record_Int (Name & ".wchar", (if T'Length = 1 then Integer_64 (T (T'First)) else -1),
+                              Integer_64 (Character'Pos (O.Writes (W).Char)));
+               end;
+            end loop;
+         end;
+      end if;
+   end Check_OSD_Render_3_Line;
 
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
@@ -10953,6 +11086,8 @@ procedure Vector_Check is
                   Check_OSD_Render_Line;
                elsif Kind = "osdrender2" then
                   Check_OSD_Render_2_Line;
+               elsif Kind = "osdrender3" then
+                  Check_OSD_Render_3_Line;
                else
                   Check_PID_Line;
                end if;
@@ -11059,6 +11194,7 @@ begin
    Run (Dir & "/osdelem.csv", "osdelem");
    Run (Dir & "/osdrender.csv", "osdrender");
    Run (Dir & "/osdrender2.csv", "osdrender2");
+   Run (Dir & "/osdrender3.csv", "osdrender3");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
