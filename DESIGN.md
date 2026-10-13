@@ -2104,3 +2104,37 @@ its display layer, each sequence under its own profile, video system and canvas:
 releases, clears, draws, heartbeats, redraws, strings of every length and attribute,
 characters, system elements, font characters and the state queries. Every state field,
 payload and result of the 3606 lines replays byte for byte.
+
+## D100. The OSD statistics (2026-10-12)
+
+The OSD stats unit contains the reference's flight statistics: the extremes tracked while
+armed and the text of every statistic on the page after a flight. The reset at arming
+sets each extreme at its far end, the link quality floor at 99 without a link quality
+source and 100 with one. Each update takes the readings of the cycle through the
+reference's sixteen-bit comparisons: the speed in three dimensions or over the ground,
+the voltage of the pack or the average cell by the setting, the current, the signal
+percent, the altitude, the acceleration, the link quality, the signal strength and the
+noise ratio, the home distance under a fix and a home fix, the ESC temperature from the
+sensor's combined reading when its feature is on and from the telemetry's per-motor
+maxima otherwise with the motor that set it, and the average ESC rotation from the sensor
+converted or the telemetry averaged. A reading past sixteen bits wraps as the reference
+wraps it, so a home distance past 32767 metres records negative (finding F105).
+
+The page's text for a statistic comes with its label beside the value, or the value alone
+across the label's place for the clock, and reports when the statistic is not shown: the
+speed, distance and flight distance only with the GPS feature, the current, charge and
+energy only with a current meter, the flight log status only for a flash or card device,
+the log number only when there is one, the acceleration only with an accelerometer, the
+peak frequency only with the dynamic notch active. The timer statistics print the timer
+without its symbol under its precision unless its source is the on time, and label it with
+the source's name; the lap times print seconds and hundredths rounded or a blank; the
+flight log status prints the storage used in percent from the card's blocks and free
+space or the flash partition's sectors and offset, or a fault. The display, the readings
+and the settings stay with the target, which places the label thirteen columns left of the
+middle, the colon five right and the value seven right.
+
+The harness replays six sequences of 1500 operations recorded from the reference: resets
+with and without a link quality source, updates under random readings with the wrapping
+ones among them, and each statistic's text under random settings, clocks, meters, devices
+and totals, checked against the display writes the reference made with their columns and
+rows. Every extreme, text and position of the 9006 lines replays byte for byte.
