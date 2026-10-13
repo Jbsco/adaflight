@@ -11,6 +11,7 @@
 --  which carries out the operations in order, hands back the calibration and
 --  shows the receive FIFO.
 with Interfaces;
+with Adaflight.CC2500_Radio;
 with Adaflight.FrSky_Hub_Telemetry;
 
 package Adaflight.FrSky_SPI with SPARK_Mode is
@@ -40,19 +41,13 @@ package Adaflight.FrSky_SPI with SPARK_Mode is
       Bind_Hop_Data : Hop_Table := (others => 0);
       Rx_Num        : Unsigned_8 := 0;
       A1            : A1_Source := Battery_Voltage;
-      Chip_Detect   : Boolean := True;
-      Tx_Enable_Pin : Boolean := False;
-      LNA_Pin       : Boolean := False;
-      Antenna_Pin   : Boolean := False;
-      LED_Pin       : Boolean := False;
-      LED_Inversion : Boolean := False;
-      Bind_Pin      : Boolean := False;
+      Pins          : Adaflight.CC2500_Radio.Pins;
       Telemetry     : Boolean := False;
       Hub           : Adaflight.FrSky_Hub_Telemetry.Settings;
    end record;
 
    Calibrated_Channels : constant := 255;
-   type Calibration is array (0 .. 2) of Unsigned_8;
+   subtype Calibration is Adaflight.CC2500_Radio.Calibration;
    type Calibration_Table is array (0 .. 255) of Calibration;
 
    Payload_Size : constant := 35;
@@ -95,10 +90,7 @@ package Adaflight.FrSky_SPI with SPARK_Mode is
       Bind_Offset_Min   : Integer_8 := 0;
       Bind_Offset_Max   : Integer_8 := 0;
       Channel           : Unsigned_8 := 0;
-      RSSI_Dbm          : Integer_16 := 0;
-      Other_Antenna     : Boolean := True;
-      Bind_Requested    : Boolean := False;
-      Last_Bind_Pin     : Boolean := False;
+      Radio             : Adaflight.CC2500_Radio.Radio;
       Last_Packet_Us    : Unsigned_32 := 0;
       Telemetry_Us      : Unsigned_32 := 0;
       Data_Errors       : Unsigned_16 := 0;
@@ -132,30 +124,7 @@ package Adaflight.FrSky_SPI with SPARK_Mode is
       Hub_Id_Expected   : Unsigned_8 := 0;
    end record;
 
-   type Op_Kind is
-     (Reset, Startup_Speed, Normal_Speed, Strobe, Write_Register, Read_Fifo, Write_Fifo, Set_Power, Delay_Ms,
-      Delay_Us, Calibrate, Pin_High, Pin_Low, Pin_Toggle, Set_RSSI, Set_RSSI_Direct, Save_Config);
-   type Pin is (LED, Tx_Enable, LNA_Enable, Antenna_Select);
-
-   --  One operation: the strobe, register, byte count or power level, the
-   --  register value, the pin, and the RSSI or the delay.
-   type Op is record
-      Kind  : Op_Kind := Strobe;
-      A     : Unsigned_8 := 0;
-      B     : Unsigned_8 := 0;
-      On    : Pin := LED;
-      Value : Unsigned_16 := 0;
-   end record;
-
-   Max_Ops : constant := 200;
-   type Op_List is array (1 .. Max_Ops) of Op;
-
-   --  The operations in order, and the FIFO bytes a write sends.
-   type Output is record
-      Ops       : Op_List;
-      Count     : Natural range 0 .. Max_Ops := 0;
-      Fifo_Data : Frame_Bytes := (others => 0);
-   end record;
+   subtype Output is Adaflight.CC2500_Radio.Output;
 
    --  What a call reads: the clocks, the radio's interrupt line, the bytes in
    --  its receive FIFO, the bind pin, the telemetry's analog readings and the

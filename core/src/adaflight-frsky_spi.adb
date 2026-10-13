@@ -1,12 +1,9 @@
 with Adaflight.Clock;
 
 package body Adaflight.FrSky_SPI with SPARK_Mode is
+   use Adaflight.CC2500_Radio;
    use type Interfaces.Integer_8;
    use type Interfaces.Integer_32;
-
-   SIDLE : constant := 16#36#;
-   SRX   : constant := 16#34#;
-   SFRX  : constant := 16#3A#;
 
    FSCTRL0  : constant := 16#0C#;
    MCSM0    : constant := 16#18#;
@@ -21,12 +18,6 @@ package body Adaflight.FrSky_SPI with SPARK_Mode is
 
    Sync_Delay_Max  : constant := 9_000;
    Max_Missing     : constant := 100;
-
-   type Register_Value is record
-      Register : Unsigned_8;
-      Value    : Unsigned_8;
-   end record;
-   type Register_List is array (Positive range <>) of Register_Value;
 
    Base_Config : constant Register_List :=
      ((16#02#, 16#01#), (16#18#, 16#18#), (16#07#, 16#05#), (16#3E#, 16#FF#), (16#0C#, 16#00#), (16#0D#, 16#5C#),
@@ -63,77 +54,6 @@ package body Adaflight.FrSky_SPI with SPARK_Mode is
       xor (Crc_Short (Natural ((Unsigned_8 (Interfaces.Shift_Right (Crc, 8)) xor Byte) and 16#0F#))
            xor (16#1081# * Unsigned_16 ((Unsigned_8 (Interfaces.Shift_Right (Crc, 8)) xor Byte) / 16))));
 
-   procedure Add (O : in out Output; Item : Op)
-     with Global => null, Post => O.Count = Natural'Min (O.Count'Old + 1, Max_Ops)
-   is
-   begin
-      if O.Count < Max_Ops then
-         O.Count := O.Count + 1;
-         O.Ops (O.Count) := Item;
-      end if;
-   end Add;
-
-   procedure Strobe (O : in out Output; Command : Unsigned_8)
-     with Global => null
-   is
-   begin
-      Add (O, (Kind => Strobe, A => Command, others => <>));
-   end Strobe;
-
-   procedure Write (O : in out Output; Register, Value : Unsigned_8)
-     with Global => null
-   is
-   begin
-      Add (O, (Kind => Write_Register, A => Register, B => Value, others => <>));
-   end Write;
-
-   procedure Set_Pin (O : in out Output; On : Pin; High : Boolean)
-     with Global => null
-   is
-   begin
-      Add (O, (Kind => (if High then Pin_High else Pin_Low), On => On, others => <>));
-   end Set_Pin;
-
-   procedure LED_On (O : in out Output; C : Settings)
-     with Global => null
-   is
-   begin
-      if C.LED_Pin then
-         Set_Pin (O, LED, not C.LED_Inversion);
-      end if;
-   end LED_On;
-
-   procedure LED_Toggle (O : in out Output; C : Settings)
-     with Global => null
-   is
-   begin
-      if C.LED_Pin then
-         Add (O, (Kind => Pin_Toggle, On => LED, others => <>));
-      end if;
-   end LED_Toggle;
-
-   function Byte_Of (V : Integer_8) return Unsigned_8 is
-     (if V >= 0 then Unsigned_8 (V) else Unsigned_8 (Integer (V) + 256));
-
-   --  A bind request: a falling edge on the bind pin raises one, and a check
-   --  that resets takes it.
-   procedure Check_Bind_Requested
-     (S : in out State; C : Settings; Inp : Inputs; Reset : Boolean; Requested : out Boolean)
-     with Global => null
-   is
-   begin
-      if C.Bind_Pin then
-         if S.Last_Bind_Pin and then not Inp.Bind_Pin_Level then
-            S.Bind_Requested := True;
-         end if;
-         S.Last_Bind_Pin := Inp.Bind_Pin_Level;
-      end if;
-      Requested := S.Bind_Requested;
-      if Requested and then Reset then
-         S.Bind_Requested := False;
-      end if;
-   end Check_Bind_Requested;
-
    procedure Read_Packet (S : in out State; Inp : Inputs; O : in out Output; Count : Natural)
      with Global => null, Pre => Count in 20 .. 35
    is
@@ -148,15 +68,6 @@ package body Adaflight.FrSky_SPI with SPARK_Mode is
      ((if C.Protocol = FrSky_D or else Is_V2 (C) then (S.Payload (S.Packet_Length - 1) and 16#80#) /= 0)
       and then Natural (S.Payload (0)) = S.Packet_Length - 3 and then S.Payload (1) = 16#03#
       and then S.Payload (2) = 16#01#);
-
-   procedure Write_All (O : in out Output; List : Register_List)
-     with Global => null
-   is
-   begin
-      for R of List loop
-         Write (O, R.Register, R.Value);
-      end loop;
-   end Write_All;
 
    procedure Initialise (C : Settings; O : in out Output)
      with Global => null
@@ -179,7 +90,7 @@ package body Adaflight.FrSky_SPI with SPARK_Mode is
             Write_All (O, X_LBT_Config);
             Write_All (O, X_LBT_V2_Config);
       end case;
-      Add (O, (Kind => Calibrate, others => <>));
+      Calibrate_Channels (O, Count => 255, Step => 1, Base => 0);
       Add (O, (Kind => Normal_Speed, others => <>));
    end Initialise;
 
@@ -363,25 +274,6 @@ package body Adaflight.FrSky_SPI with SPARK_Mode is
       end if;
    end Next_Channel;
 
-   procedure Set_RSSI_Dbm (S : in out State; O : in out Output; Value : Unsigned_8)
-     with Global => null
-   is
-      Scaled : constant Integer := (Integer (Value) * 18) / 32;
-   begin
-      S.RSSI_Dbm := Integer_16 (if Value >= 128 then Scaled - 82 else Scaled + 65);
-      Add (O, (Kind => Set_RSSI, Value => Unsigned_16 ((Integer (S.RSSI_Dbm) * 8) mod 65_536), others => <>));
-   end Set_RSSI_Dbm;
-
-   procedure Switch_Antennae (S : in out State; C : Settings; O : in out Output)
-     with Global => null
-   is
-   begin
-      if C.Antenna_Pin then
-         Set_Pin (O, Antenna_Select, not S.Other_Antenna);
-         S.Other_Antenna := not S.Other_Antenna;
-      end if;
-   end Switch_Antennae;
-
    --  The hub stream's bytes for the frame: a new burst once the last is
    --  sent and its last frame acknowledged, a resend when the transmitter
    --  asks again, at most ten bytes a frame. The send position wraps at the
@@ -442,7 +334,7 @@ package body Adaflight.FrSky_SPI with SPARK_Mode is
       S.Frame (2) := C.Bind_Tx_Id (1);
       S.Frame (3) := A1_Value;
       S.Frame (4) := Unsigned_8 ((Inp.ADC_RSSI / 16) and 16#FF#);
-      S.Frame (5) := Unsigned_8 ((Integer (S.RSSI_Dbm) + 65_536) mod 256);
+      S.Frame (5) := Unsigned_8 ((Integer (S.Radio.RSSI_Dbm) + 65_536) mod 256);
       if S.Telemetry_Enabled then
          Append_Hub_Data (S, C, Inp, Used);
       end if;
@@ -469,7 +361,7 @@ package body Adaflight.FrSky_SPI with SPARK_Mode is
             if S.Protocol = Update then
                S.Last_Packet_Us := Current;
                S.Protocol := Data;
-               Check_Bind_Requested (S, C, Inp, False, Requested);
+               Check_Bind_Requested (S.Radio, C.Pins, Inp.Bind_Pin_Level, False, Requested);
                if Requested then
                   S.Last_Packet_Us := 0;
                   S.Timeout_Us := 50;
@@ -489,9 +381,9 @@ package body Adaflight.FrSky_SPI with SPARK_Mode is
                      if S.Payload (0) = 16#11# and then S.Payload (1) = C.Bind_Tx_Id (0)
                        and then S.Payload (2) = C.Bind_Tx_Id (1) and then S.Payload (5) = C.Bind_Tx_Id (2)
                      then
-                        LED_On (O, C);
+                        LED_On (O, C.Pins);
                         Next_Channel (S, C, O, 1);
-                        Set_RSSI_Dbm (S, O, S.Payload (18));
+                        Set_RSSI_Dbm (S.Radio, O, S.Payload (18));
                         if S.Payload (3) mod 4 = 2 then
                            S.Telemetry_Us := Inp.Now_Us;
                            Build_Telemetry_Frame (S, C, Inp);
@@ -511,12 +403,12 @@ package body Adaflight.FrSky_SPI with SPARK_Mode is
             end if;
             if Integer (Adaflight.Clock.Elapsed (Current, S.Last_Packet_Us)) > Integer (S.Timeout_Us) * Sync_Delay_Max
             then
-               if C.Tx_Enable_Pin then
+               if C.Pins.Tx_Enable then
                   Set_Pin (O, Tx_Enable, False);
                end if;
                if S.Timeout_Us = 1 then
                   if S.Missing_Packets >= 2 then
-                     Switch_Antennae (S, C, O);
+                     Switch_Antennae (S.Radio, C.Pins, O);
                   end if;
                   if S.Missing_Packets > Max_Missing then
                      S.Timeout_Us := 50;
@@ -525,7 +417,7 @@ package body Adaflight.FrSky_SPI with SPARK_Mode is
                   S.Missing_Packets := S.Missing_Packets + 1;
                   Next_Channel (S, C, O, 1);
                else
-                  LED_Toggle (O, C);
+                  LED_Toggle (O, C.Pins);
                   Add (O, (Kind => Set_RSSI, Value => 0, others => <>));
                   Next_Channel (S, C, O, 13);
                end if;
@@ -537,11 +429,11 @@ package body Adaflight.FrSky_SPI with SPARK_Mode is
                Strobe (O, SIDLE);
                Add (O, (Kind => Set_Power, A => 6, others => <>));
                Strobe (O, SFRX);
-               if C.Tx_Enable_Pin then
+               if C.Pins.Tx_Enable then
                   Set_Pin (O, Tx_Enable, True);
                end if;
                Strobe (O, SIDLE);
-               O.Fifo_Data := S.Frame;
+               O.Tx_Data := Tx_Bytes (S.Frame);
                Add (O, (Kind => Write_Fifo, A => S.Frame (0) + 1, others => <>));
                S.Protocol := Data;
                S.Last_Packet_Us := Current;
@@ -600,7 +492,7 @@ package body Adaflight.FrSky_SPI with SPARK_Mode is
       S.Frame (2) := C.Bind_Tx_Id (1);
       S.Frame (3) := (if Is_V2 (C) then C.Bind_Tx_Id (2) else S.Payload (3));
       if S.Even_Run then
-         S.Frame (4) := Unsigned_8 ((Integer (S.RSSI_Dbm) + 65_536) mod 256) or 16#80#;
+         S.Frame (4) := Unsigned_8 ((Integer (S.Radio.RSSI_Dbm) + 65_536) mod 256) or 16#80#;
       else
          S.Frame (4) :=
            (case C.A1 is
@@ -705,7 +597,7 @@ package body Adaflight.FrSky_SPI with SPARK_Mode is
                S.Protocol := Data;
                S.Frame_Received := False;
                S.Receive_Delay_Us := 5_300;
-               Check_Bind_Requested (S, C, Inp, False, Requested);
+               Check_Bind_Requested (S.Radio, C.Pins, Inp.Bind_Pin_Level, False, Requested);
                if Requested then
                   S.Packet_Timer_Us := 0;
                   S.Timeout_Us := 50;
@@ -722,14 +614,14 @@ package body Adaflight.FrSky_SPI with SPARK_Mode is
                   S.Missing_Packets := 0;
                   S.Timeout_Us := 1;
                   S.Receive_Delay_Us := 0;
-                  LED_On (O, C);
+                  LED_On (O, C.Pins);
                   if S.Skip_Channels then
                      S.Channels_To_Skip :=
                        Interfaces.Shift_Left (S.Payload (5), 2) or Interfaces.Shift_Right (S.Payload (4), 6);
                      S.Telemetry_Received := True;
                      S.Skip_Channels := False;
                   end if;
-                  Set_RSSI_Dbm (S, O, S.Payload (S.Packet_Length - 2));
+                  Set_RSSI_Dbm (S.Radio, O, S.Payload (S.Packet_Length - 2));
                   Take_Remote_Frame (S);
                   S.Packet_Timer_Us := Inp.Now_Us;
                   S.Frame_Received := True;
@@ -745,7 +637,7 @@ package body Adaflight.FrSky_SPI with SPARK_Mode is
                Build_X_Telemetry_Frame (S, C, Inp);
             end if;
             if Integer (Since) > Integer (S.Timeout_Us) * Sync_Delay_Max then
-               LED_Toggle (O, C);
+               LED_Toggle (O, C.Pins);
                Add (O, (Kind => Set_RSSI_Direct, Value => 0, others => <>));
                Next_Channel (S, C, O, 1);
                Strobe (O, SRX);
@@ -761,11 +653,11 @@ package body Adaflight.FrSky_SPI with SPARK_Mode is
                Add (O, (Kind => Set_Power, A => 6, others => <>));
                Strobe (O, SFRX);
                Add (O, (Kind => Delay_Us, Value => 30, others => <>));
-               if C.Tx_Enable_Pin then
+               if C.Pins.Tx_Enable then
                   Set_Pin (O, Tx_Enable, True);
                end if;
                Strobe (O, SIDLE);
-               O.Fifo_Data := S.Frame;
+               O.Tx_Data := Tx_Bytes (S.Frame);
                Add (O, (Kind => Write_Fifo, A => S.Frame (0) + 1, others => <>));
                S.Protocol := Resume;
             end if;
@@ -776,11 +668,11 @@ package body Adaflight.FrSky_SPI with SPARK_Mode is
                S.Frame_Received := False;
                Next_Channel (S, C, O, S.Channels_To_Skip);
                Strobe (O, SRX);
-               if C.Tx_Enable_Pin then
+               if C.Pins.Tx_Enable then
                   Set_Pin (O, Tx_Enable, False);
                end if;
                if S.Missing_Packets >= 2 then
-                  Switch_Antennae (S, C, O);
+                  Switch_Antennae (S.Radio, C.Pins, O);
                end if;
                if S.Missing_Packets > Max_Missing then
                   S.Timeout_Us := 50;
@@ -804,31 +696,15 @@ package body Adaflight.FrSky_SPI with SPARK_Mode is
    procedure Start
      (S : out State; C : Settings; Inp : Inputs; O : out Output; Ok : out Boolean; Claim_RSSI : out Boolean)
    is
+      Pins_Ok : Boolean;
    begin
       S := (others => <>);
       O := (others => <>);
       Ok := False;
       Claim_RSSI := False;
-      if C.LED_Pin then
-         Set_Pin (O, LED, C.LED_Inversion);
-      end if;
-      if C.Bind_Pin then
-         S.Last_Bind_Pin := Inp.Bind_Pin_Level;
-      end if;
-      if C.Chip_Detect then
-         Add (O, (Kind => Reset, others => <>));
-         if not Inp.Chip_Ok then
-            return;
-         end if;
-      end if;
-      if C.LNA_Pin then
-         Set_Pin (O, LNA_Enable, True);
-      end if;
-      if C.Antenna_Pin then
-         Set_Pin (O, Antenna_Select, True);
-      end if;
-      if C.Tx_Enable_Pin then
-         Set_Pin (O, Tx_Enable, False);
+      Adaflight.CC2500_Radio.Start (S.Radio, C.Pins, Inp.Bind_Pin_Level, Inp.Chip_Ok, O, Pins_Ok);
+      if not Pins_Ok then
+         return;
       end if;
       case C.Protocol is
          when FrSky_D =>
@@ -870,7 +746,7 @@ package body Adaflight.FrSky_SPI with SPARK_Mode is
 
    procedure Request_Bind (S : in out State) is
    begin
-      S.Bind_Requested := True;
+      S.Radio.Bind_Requested := True;
    end Request_Bind;
 
    -------------------
@@ -892,9 +768,9 @@ package body Adaflight.FrSky_SPI with SPARK_Mode is
                S.Protocol := Bind;
             end if;
          when Bind =>
-            Check_Bind_Requested (S, C, Inp, True, Requested);
+            Check_Bind_Requested (S.Radio, C.Pins, Inp.Bind_Pin_Level, True, Requested);
             if Requested or else C.Auto_Bind then
-               LED_On (O, C);
+               LED_On (O, C.Pins);
                Init_Tune_Rx (S, Inp, O);
                S.Protocol := Bind_Tuning_Low;
             else
@@ -928,7 +804,7 @@ package body Adaflight.FrSky_SPI with SPARK_Mode is
                Add (O, (Kind => Save_Config, others => <>));
             else
                for K in 1 .. 80 loop
-                  LED_Toggle (O, C);
+                  LED_Toggle (O, C.Pins);
                   Add (O, (Kind => Delay_Ms, Value => 50, others => <>));
                end loop;
             end if;

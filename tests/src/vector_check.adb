@@ -61,6 +61,7 @@ with Adaflight.Spektrum;
 with Adaflight.XBUS;
 with Adaflight.Jeti_Ex_Bus;
 with Adaflight.Jeti_Telemetry;
+with Adaflight.CC2500_Radio;
 with Adaflight.FrSky_SPI;
 with Adaflight.GHST;
 with Adaflight.MSP_Receiver;
@@ -11825,7 +11826,8 @@ procedure Vector_Check is
    end Check_Jeti_Telemetry_Line;
 
    package FSP renames Adaflight.FrSky_SPI;
-   use type FSP.Op_Kind;
+   package CCR renames Adaflight.CC2500_Radio;
+   use type CCR.Op_Kind;
    use type FSP.Received;
    FD_Seq    : Integer_64 := -1;
    FD_State  : FSP.State;
@@ -11868,42 +11870,42 @@ procedure Vector_Check is
          Len := Len + T'Length;
       end Put;
 
-      function Pin_Letter (P : FSP.Pin) return Character is
+      function Pin_Letter (P : CCR.Pin) return Character is
         (case P is
-            when FSP.LED => 'L', when FSP.Tx_Enable => 'T', when FSP.LNA_Enable => 'N',
-            when FSP.Antenna_Select => 'A');
+            when CCR.LED => 'L', when CCR.Tx_Enable => 'T', when CCR.LNA_Enable => 'N',
+            when CCR.Antenna_Select => 'A');
    begin
       for K in 1 .. O.Count loop
          declare
-            X : constant FSP.Op := O.Ops (K);
+            X : constant CCR.Op := O.Ops (K);
          begin
             case X.Kind is
-               when FSP.Reset => Put ("x");
-               when FSP.Startup_Speed => Put ("h");
-               when FSP.Normal_Speed => Put ("n");
-               when FSP.Strobe => Put ("s" & FD_Hex (Natural (X.A), 2));
-               when FSP.Write_Register => Put ("w" & FD_Hex (Natural (X.A), 2) & FD_Hex (Natural (X.B), 2));
-               when FSP.Read_Fifo => Put ("r" & FD_Short_Hex (Natural (X.A)));
-               when FSP.Write_Fifo =>
+               when CCR.Reset => Put ("x");
+               when CCR.Startup_Speed => Put ("h");
+               when CCR.Normal_Speed => Put ("n");
+               when CCR.Strobe => Put ("s" & FD_Hex (Natural (X.A), 2));
+               when CCR.Write_Register => Put ("w" & FD_Hex (Natural (X.A), 2) & FD_Hex (Natural (X.B), 2));
+               when CCR.Read_Fifo => Put ("r" & FD_Short_Hex (Natural (X.A)));
+               when CCR.Write_Fifo =>
                   declare
                      T : String (1 .. 1 + 2 * Natural (X.A));
                   begin
                      T (1) := 'f';
                      for B in 0 .. Natural (X.A) - 1 loop
-                        T (2 + 2 * B .. 3 + 2 * B) := FD_Hex (Natural (O.Fifo_Data (B)), 2);
+                        T (2 + 2 * B .. 3 + 2 * B) := FD_Hex (Natural (O.Tx_Data (B)), 2);
                      end loop;
                      Put (T);
                   end;
-               when FSP.Set_Power => Put ("p" & FD_Short_Hex (Natural (X.A)));
-               when FSP.Delay_Ms => Put ("d" & FD_Short_Hex (Natural (X.Value)));
-               when FSP.Delay_Us => Put ("u" & FD_Short_Hex (Natural (X.Value)));
-               when FSP.Calibrate => Put ("C");
-               when FSP.Pin_High => Put (Pin_Letter (X.On) & "1");
-               when FSP.Pin_Low => Put (Pin_Letter (X.On) & "0");
-               when FSP.Pin_Toggle => Put (Pin_Letter (X.On) & "t");
-               when FSP.Set_RSSI => Put ("R" & FD_Short_Hex (Natural (X.Value)) & ".3");
-               when FSP.Set_RSSI_Direct => Put ("D" & FD_Short_Hex (Natural (X.Value)) & ".3");
-               when FSP.Save_Config => Put ("E");
+               when CCR.Set_Power => Put ("p" & FD_Short_Hex (Natural (X.A)));
+               when CCR.Delay_Ms => Put ("d" & FD_Short_Hex (Natural (X.Value)));
+               when CCR.Delay_Us => Put ("u" & FD_Short_Hex (Natural (X.Value)));
+               when CCR.Calibrate => Put ("C");
+               when CCR.Pin_High => Put (Pin_Letter (X.On) & "1");
+               when CCR.Pin_Low => Put (Pin_Letter (X.On) & "0");
+               when CCR.Pin_Toggle => Put (Pin_Letter (X.On) & "t");
+               when CCR.Set_RSSI => Put ("R" & FD_Short_Hex (Natural (X.Value)) & ".3");
+               when CCR.Set_RSSI_Direct => Put ("D" & FD_Short_Hex (Natural (X.Value)) & ".3");
+               when CCR.Save_Config => Put ("E");
             end case;
          end;
       end loop;
@@ -11914,7 +11916,7 @@ procedure Vector_Check is
       Table : FSP.Calibration_Table := (others => (others => 0));
    begin
       for K in 1 .. O.Count loop
-         if O.Ops (K).Kind = FSP.Calibrate then
+         if O.Ops (K).Kind = CCR.Calibrate then
             for Ch in 0 .. 254 loop
                Table (Ch) :=
                  (Interfaces.Unsigned_8 ((Ch * 37 + 5) mod 256), Interfaces.Unsigned_8 ((Ch * 59 + 16) mod 256),
@@ -11955,13 +11957,14 @@ procedure Vector_Check is
               (Auto_Bind     => Int (3) /= 0,
                Bind_Offset   => Interfaces.Integer_8 (Int (4)),
                A1            => FSP.A1_Source'Val (Int (5)),
-               Chip_Detect   => Int (6) /= 0,
-               Tx_Enable_Pin => Int (7) /= 0,
-               LNA_Pin       => Int (8) /= 0,
-               Antenna_Pin   => Int (9) /= 0,
-               LED_Pin       => Int (10) /= 0,
-               LED_Inversion => Int (11) /= 0,
-               Bind_Pin      => Int (12) /= 0,
+               Pins          =>
+                 (Chip_Detect   => Int (6) /= 0,
+                  Tx_Enable     => Int (7) /= 0,
+                  LNA           => Int (8) /= 0,
+                  Antenna       => Int (9) /= 0,
+                  LED           => Int (10) /= 0,
+                  LED_Inversion => Int (11) /= 0,
+                  Bind          => Int (12) /= 0),
                Rx_Num        => Interfaces.Unsigned_8 (Int (19)),
                others        => <>);
             for K in 0 .. 2 loop
@@ -12070,7 +12073,7 @@ procedure Vector_Check is
             Record_Int (Name & ".offset_max", Int (18), Integer_64 (FD_State.Bind_Offset_Max));
             Record_Int (Name & ".bind_state", Int (19), Integer_64 (FD_State.Bind_State));
             Record_Int (Name & ".list_length", Int (20), Integer_64 (FD_State.List_Length));
-            Record_Int (Name & ".bind_requested", Int (21), Boolean'Pos (FD_State.Bind_Requested));
+            Record_Int (Name & ".bind_requested", Int (21), Boolean'Pos (FD_State.Radio.Bind_Requested));
             Record_Text (Name & ".tx_id", Str (22), FD_Tx_Id);
             Record_Text (Name & ".hops", Str (23), FD_Hops);
             Record_Int (Name & ".config_offset", Int (24), Integer_64 (FD_Config.Bind_Offset));
@@ -12093,7 +12096,7 @@ procedure Vector_Check is
                end loop;
                Record_Text (Name & ".rc", Rc_Text, Image (1 .. Len));
             end;
-            Record_Int (Name & ".rssi_dbm", Int (27), Integer_64 (FD_State.RSSI_Dbm));
+            Record_Int (Name & ".rssi_dbm", Int (27), Integer_64 (FD_State.Radio.RSSI_Dbm));
             Record_Text (Name & ".ops", Str (28), FD_Ops (O));
             Record_Int (Name & ".hub_generated", Int (53), Integer_64 (FD_State.Hub_Generated));
          end;
