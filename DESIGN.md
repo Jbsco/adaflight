@@ -264,6 +264,9 @@ lives in `Adaflight.Accurate_Power`, whose spec carries the bound the callers pr
 against and whose body is outside SPARK and saturates to honor it. The proof gate counts
 such bodies on every run, next to the assumes.
 
+Amended 2026-10-13: the GPS rescue's two-argument arctangent (D6, D83) takes the same route
+through the double-precision elementary functions, and its body is the second outside SPARK.
+
 ## D16. Motor outputs are in range by type (2026-10-08)
 
 The mixer's postcondition states that every motor output lies between the disarm value or
