@@ -3035,3 +3035,23 @@ while a transfer is in flight, and has each pending completion delivered before 
 that waits for one. Every operation, program byte, result and state field of the 12008 lines
 replays exactly.
 
+## D138. Flight plan storage and waypoint capture (2026-10-13)
+
+`Adaflight.Flight_Plan` contains the stored plan: up to 30 waypoints with their position in 1e-7
+degrees and centimeters, speed, duration, climb rate, type, hold pattern and yaw behaviour. The
+last three stay the configuration's bytes, for the executor to check. `Adaflight.Flight_Plan_Capture`
+contains the capture gesture on the capture switch. A press samples the GPS position while the
+executor is idle and the fix is good. A release before 1.5 s appends the sampled point as a fly-by
+waypoint or reports the plan full, and a hold of 1.5 s deletes the last waypoint once per press,
+so a hold works on a full plan. Edits are refused while the executor flies the plan, and invalid
+channels freeze the gesture with its press time. Each edit leaves its message, formatted with the
+printf-style formatter, for 2.5 s on the wrapping microsecond clock, and the OSD's read clears an
+expired one. The OSD warnings line shows the message in the reference. That line gains it with
+the executor. The unit is SPARK for the plan's bounds and the message buffer.
+
+The harness replays six sequences of 2500 steps recorded from the reference capture with the plan,
+the executor's activity, the fix, the position, the switch, the channel validity and the clock
+scripted: short and long presses, signal losses during a press, an executor that starts and
+stops, empty, nearly full and full plans, and a clock across its wrap. Every gesture state, plan
+count, last waypoint and message of the 15006 lines replays exactly.
+
