@@ -57,6 +57,13 @@ package Adaflight.Position_Estimator with SPARK_Mode is
    --  The cosine of the home latitude as the GPS module approximates it.
    subtype Longitude_Scale is Float range -1.01 .. 1.01;
 
+   --  The east and north distance from one location to another in
+   --  centimetres, the longitude difference taken the short way round the
+   --  antimeridian and scaled by the cosine of the home latitude.
+   procedure Distance_2d (From, To : Location; Cos_Lat : Longitude_Scale; East, North : out Float)
+     with Global => null,
+          Post   => abs East <= 2.5e9 and then abs North <= 2.5e9;
+
    --  The accelerometer in device counts with its scale, the attitude
    --  rotation, the barometer's altitude with the time and interval of its
    --  latest sample, the GPS as its module reports it (the sensor present,
