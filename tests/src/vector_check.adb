@@ -67,6 +67,7 @@ with Adaflight.SFHSS;
 with Adaflight.Redpine;
 with Adaflight.FlySky;
 with Adaflight.Spektrum_SPI;
+with Adaflight.RC_Stats;
 with Adaflight.GHST;
 with Adaflight.MSP_Receiver;
 with Adaflight.SRXL2;
@@ -12689,6 +12690,44 @@ procedure Vector_Check is
       end if;
    end Check_Spektrum_Line;
 
+   RS_Seq   : Integer_64 := -1;
+   RS_Stats : Adaflight.RC_Stats.Stats;
+   RS_Armed : Boolean := False;
+
+   procedure Check_RC_Stats_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "rcsinit" then
+         RS_Seq := Int (2);
+         RS_Stats := (others => <>);
+         RS_Armed := False;
+      elsif Int (2) /= RS_Seq then
+         Put_Line ("RC statistics line without its start");
+         Failures := Failures + 1;
+      elsif Name = "rcsstep" then
+         declare
+            Armed : constant Boolean := Int (4) /= 0;
+         begin
+            if Armed and then not RS_Armed then
+               Adaflight.RC_Stats.Notify_Arming (RS_Stats);
+            end if;
+            RS_Armed := Armed;
+            Adaflight.RC_Stats.Update (RS_Stats, Interfaces.Unsigned_32 (Int (3)), Armed, Int (5) /= 0,
+                                       Adaflight.RC_Stats.Throttle_Percent (Int (6)));
+            Record_Int (Name & ".raised", Int (7), Boolean'Pos (RS_Stats.Throttle_Raised));
+            Record_Int (Name & ".count", Int (8), Integer_64 (RS_Stats.Count));
+            Record_Int (Name & ".total", Int (9), Integer_64 (RS_Stats.Total));
+            Record_Int (Name & ".full_us", Int (10), Integer_64 (RS_Stats.Full_Throttle_Us));
+            Record_Int (Name & ".full_count", Int (11), Integer_64 (RS_Stats.Full_Throttles));
+            Record_Int (Name & ".previous", Int (12), Integer_64 (RS_Stats.Previous_Percent));
+            Record_Int (Name & ".previous_us", Int (13), Integer_64 (RS_Stats.Previous_Us));
+            if Str (14) /= "-" then
+               Record_Int (Name & ".average", Int (14), Integer_64 (Adaflight.RC_Stats.Average_Throttle (RS_Stats)));
+            end if;
+         end;
+      end if;
+   end Check_RC_Stats_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -12909,6 +12948,8 @@ procedure Vector_Check is
                   Check_FlySky_Line;
                elsif Kind = "spektrum" then
                   Check_Spektrum_Line;
+               elsif Kind = "rcstats" then
+                  Check_RC_Stats_Line;
                else
                   Check_PID_Line;
                end if;
@@ -13029,6 +13070,7 @@ begin
    Run (Dir & "/redpine.csv", "redpine");
    Run (Dir & "/flysky.csv", "flysky");
    Run (Dir & "/spektrum.csv", "spektrum");
+   Run (Dir & "/rcstats.csv", "rcstats");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
