@@ -2717,3 +2717,20 @@ override compiled in: fractional pulses throughout, six with an override mask an
 settings, the override mode switched on and off, MSP channels inside and outside the limits,
 random freshness and override frame status. The 30 earlier sequences record byte for byte as
 before. Every value of the 11894 lines replays exactly.
+
+## D123. Receiver task (2026-10-13)
+
+The RX task unit contains the receiver task's state machine. One call checks the receiver, the
+next updates the modes when the check found data, and the next updates the RC commands and the
+arming status; the caller runs the step the unit names. Every step but the last tells the
+scheduler to ignore the task's rate. Unless the scheduler ignores the call's time, the estimate of
+the step just run takes the scheduler's anticipated time when that differs, then the execution time
+plus a microsecond when that is longer, and otherwise decays by a 64th of a microsecond. The
+estimate of the next step goes to the scheduler. The unit takes the scheduler's values as inputs
+and names its outputs, so it stays independent of the scheduler unit, and the target joins them.
+An execution past 33 seconds counts as 33 seconds, where the reference's shift would overflow.
+
+The harness replays four sequences of 4000 calls recorded from the reference task source with the
+processing and the scheduler's hooks stubbed: random check results, execution times, ignored
+execution times, anticipated times that echo the last estimate or change, and a clock near its
+wrap. Every step, hook call, estimate and state of the 16004 lines replays exactly.

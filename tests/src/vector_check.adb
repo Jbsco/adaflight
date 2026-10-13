@@ -68,6 +68,7 @@ with Adaflight.Redpine;
 with Adaflight.FlySky;
 with Adaflight.Spektrum_SPI;
 with Adaflight.RC_Stats;
+with Adaflight.RX_Task;
 with Adaflight.GHST;
 with Adaflight.MSP_Receiver;
 with Adaflight.SRXL2;
@@ -12770,6 +12771,43 @@ procedure Vector_Check is
       end if;
    end Check_RC_Stats_Line;
 
+   RT_Seq  : Integer_64 := -1;
+   RT_Task : Adaflight.RX_Task.State;
+
+   procedure Check_RX_Task_Line is
+      use Adaflight.RX_Task;
+      Name : constant String := Str (1);
+   begin
+      if Name = "rtinit" then
+         RT_Seq := Int (2);
+         RT_Task := (others => <>);
+      elsif Int (2) /= RT_Seq then
+         Put_Line ("receiver task line without its start");
+         Failures := Failures + 1;
+      elsif Name = "rtstep" then
+         declare
+            Before : constant Step := Current_Step (RT_Task);
+            Next   : Interfaces.Integer_32;
+         begin
+            Record_Int (Name & ".before", Int (8), Step'Pos (Before));
+            Record_Int (Name & ".rx_called", Int (10), Boolean'Pos (Before = Check));
+            Record_Int (Name & ".modes_called", Int (11), Boolean'Pos (Before = Modes));
+            Record_Int (Name & ".update_called", Int (12), Boolean'Pos (Before = Update));
+            Record_Int (Name & ".arming_called", Int (13), Boolean'Pos (Before = Update));
+            Record_Int (Name & ".ignore_rate", Int (14), Boolean'Pos (Ignore_Rate (RT_Task)));
+            Finish (RT_Task, Rx_Ready => Int (4) /= 0, Ignore_Exec_Time => Int (6) /= 0,
+                    Anticipated_Us => Execution_Us (Int (7)), Elapsed_Us => Interfaces.Unsigned_32 (Int (5)),
+                    Next_State_Us => Next);
+            Record_Int (Name & ".after", Int (9), Step'Pos (Current_Step (RT_Task)));
+            Record_Int (Name & ".next_set", Int (15), 1);
+            Record_Int (Name & ".next_state", Int (16), Integer_64 (Next));
+            Record_Int (Name & ".estimate", Int (17), Integer_64 (RT_Task.Duration (Before)) / 64
+                        - (if RT_Task.Duration (Before) < 0 then 1 else 0));
+            Record_Int (Name & ".in_progress", Int (18), Boolean'Pos (In_Progress (RT_Task)));
+         end;
+      end if;
+   end Check_RX_Task_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -12992,6 +13030,8 @@ procedure Vector_Check is
                   Check_Spektrum_Line;
                elsif Kind = "rcstats" then
                   Check_RC_Stats_Line;
+               elsif Kind = "rxtask" then
+                  Check_RX_Task_Line;
                else
                   Check_PID_Line;
                end if;
@@ -13113,6 +13153,7 @@ begin
    Run (Dir & "/flysky.csv", "flysky");
    Run (Dir & "/spektrum.csv", "spektrum");
    Run (Dir & "/rcstats.csv", "rcstats");
+   Run (Dir & "/rxtask.csv", "rxtask");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
