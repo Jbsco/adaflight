@@ -2882,3 +2882,16 @@ The harness replays four sequences of 3000 updates recorded from the reference w
 output, the box and the sums stubbed: the box toggled at random, the mode changed now and then
 across all four, and sums with fractions, whole values near the limit and magnitudes up to about
 3.75 million. Every call and tone of the 12004 lines replays exactly.
+
+## D131. PINIO boxes (2026-10-13)
+
+The PINIO box unit sets each of the four PINIO outputs to the state of the box that its setting
+names by permanent id, looked up in the MSP box table at start. An unknown or unset id leaves its
+output alone. The task runs while any assigned box has a mode condition. The caller computes the
+box states with the box unit and drives the outputs. The unit is SPARK for the box lookup and the
+output contract.
+
+The harness replays six sequences of 1000 updates recorded from the reference with the box table
+for the permanent ids and the box states, mode conditions, outputs and task switch stubbed:
+permanent ids that name a box, unset ones, and unknown ones, with the states and conditions drawn
+at random. Every assignment, output and task state of the 6006 lines replays exactly.
