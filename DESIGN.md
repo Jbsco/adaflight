@@ -2457,3 +2457,17 @@ port and the receiver's queue: heartbeats, pings, time syncs, and command long a
 messages with random targets and parameters (NaN, infinities, signed zeros, subnormals, handler
 bounds), unknown messages, MAVLink 1 frames, noise and corrupted frames. Every reply byte, request,
 home value, interval, sequence number and parser state of the 3006 lines replays byte for byte.
+
+## D112. MAVLink mode overrides (2026-10-13)
+
+The mode update takes a mask of overridden boxes and forces them on after the switches vote. A
+ground station sets these boxes through the MAVLink commands (D111). The mask lives in the arming
+state, where every disarm clears it before anything else, and the arming unit hands it to the mode
+update. The reference keeps the mask with the mode state and clears it from the disarm path, which
+gives the same order. Boxes are forced on or released one at a time, and the whole mask clears at
+once.
+
+The arming vectors were recorded again with a third random stream that clears, sets and releases
+overrides before each step. Of the 15030 lines, 4015 change from the earlier recording. Overrides
+are active in 3789 of the 15000 steps, and a disarm clears them 15 times. Every line replays byte
+for byte.

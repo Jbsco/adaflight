@@ -3534,6 +3534,19 @@ procedure Vector_Check is
             for Ch in 0 .. 5 loop
                Aux (Ch) := Flt (10 + Ch);
             end loop;
+            case Int (NF - 3) is
+               when 1 =>
+                  Clear_Mode_Overrides (Arming_State);
+               when 2 =>
+                  Clear_Mode_Overrides (Arming_State);
+                  Set_Mode_Override (Arming_State, Adaflight.Modes.Box'Val (Int (NF - 2)), True);
+               when 3 =>
+                  Set_Mode_Override (Arming_State, Adaflight.Modes.Box'Val (Int (NF - 2)), True);
+               when 4 =>
+                  Set_Mode_Override (Arming_State, Adaflight.Modes.Box'Val (Int (NF - 2)), False);
+               when others =>
+                  null;
+            end case;
             Process_Rx (Arming_State, Arming_Settings, Arming_Modes, Sensed, Channels, Now_Us, Step);
             Process_Rx_Modes (Arming_State, Arming_Settings, Arming_Modes, Arming_Conditions, Aux, Sensed, Channels,
                               Now_Us, Natural (Int (5)), Step);
@@ -3584,6 +3597,9 @@ procedure Vector_Check is
             Expect_Int ("runaway_trigger_us", Integer_64 (Arming_State.Runaway_Trigger_Us));
             Expect_Int ("iterm_resets", Integer_64 (Step.Iterm_Resets));
             Expect_Int ("launch_active", Boolean'Pos (Launch_Control_Active (Arming_State)));
+            K := K + 2;
+            Expect_Hex ("overrides0", Box_Word (Arming_State.Mode_Overrides, 0));
+            Expect_Hex ("overrides1", Box_Word (Arming_State.Mode_Overrides, 1));
             if K /= NF + 1 then
                Put_Line ("armstep: consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
                Failures := Failures + 1;

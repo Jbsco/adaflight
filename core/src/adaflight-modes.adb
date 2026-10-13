@@ -45,7 +45,8 @@ package body Adaflight.Modes with SPARK_Mode is
       C               : Conditions;
       Aux             : Aux_Values;
       Now_Us          : Unsigned_32;
-      Airmode_Feature : Boolean
+      Airmode_Feature : Boolean;
+      Overrides       : Mask := (others => False)
    ) is
       And_Mask : Mask := (others => False);
       New_Mask : Mask := (others => False);
@@ -108,7 +109,7 @@ package body Adaflight.Modes with SPARK_Mode is
          end;
       end loop;
       for B in Box loop
-         S.Active_Mask (B) := New_Mask (B) xor And_Mask (B);
+         S.Active_Mask (B) := (New_Mask (B) xor And_Mask (B)) or else Overrides (B);
       end loop;
       S.Airmode_Enabled := Airmode_Feature or else S.Active_Mask (Airmode);
    end Update;

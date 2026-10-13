@@ -34,8 +34,8 @@ The core holds:
 - the gyro calibration, filtering chain, dynamic notch, RPM filter, and full-scale
   detections
 - the attitude estimator with the compass heading, and the angle and horizon level modes
-- the failsafe state machine, the runtime modes, and the arming logic with launch
-  control and runaway takeoff prevention
+- the failsafe state machine, the runtime modes with ground station overrides, and the
+  arming logic with launch control and runaway takeoff prevention
 - the accelerometer path, the barometer altitude, the compass with its bias calibration,
   the battery meters and states, and the sensor and board alignment
 - the position Kalman filter, the position estimator from the barometer, the accelerometer
@@ -88,7 +88,7 @@ The core holds:
 
 The state of `main`:
 
-- The core proves at Silver and Gold: 14392 checks, nothing unproved, no
+- The core proves at Silver and Gold: 14394 checks, nothing unproved, no
   `pragma Assume`, no justified suppression (`gnatprove` 16.1.0, level 2).
 - The recorded vectors replay bit for bit: 940451 lines over 313 cases, every case
   exact except the twenty-one declared deviations in `DESIGN.md` D6.
