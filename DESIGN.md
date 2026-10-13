@@ -2868,3 +2868,17 @@ The harness replays six sequences of updates recorded from the reference source 
 registered and the port stubbed: messages from empty to 90 bytes with both terminators, carriage
 returns, stray nulls and high bytes, unterminated messages, chunks of up to 50 bytes, and a sequence
 without a port. Every text of the 5284 lines replays exactly.
+
+## D130. PID audio (2026-10-13)
+
+The PID audio unit plays the PID sum as a tone while its mode box is on. The output starts with
+white noise when the box turns on and goes silent when it turns off. Each update with the box on
+plays a tone from the roll sum, the pitch sum, or the mean of their magnitudes, as the mode the
+in-flight adjustments select says: the magnitude up to 500, truncated to an integer, maps onto 63
+down to 0 with the truncating integer division of C. The off mode plays the middle tone, 32. The
+unit is SPARK for the tone range.
+
+The harness replays four sequences of 3000 updates recorded from the reference with the audio
+output, the box and the sums stubbed: the box toggled at random, the mode changed now and then
+across all four, and sums with fractions, whole values near the limit and magnitudes up to about
+3.75 million. Every call and tone of the 12004 lines replays exactly.
