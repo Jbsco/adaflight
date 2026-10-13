@@ -84,10 +84,10 @@ The core holds:
 
 The state of `main`:
 
-- The core proves at Silver and Gold: 13631 checks, nothing unproved, no
+- The core proves at Silver and Gold: 13744 checks, nothing unproved, no
   `pragma Assume`, no justified suppression (`gnatprove` 16.1.0, level 2).
-- The recorded vectors replay bit for bit: 904047 lines over 306 cases, every case
-  exact except the twenty declared deviations in `DESIGN.md` D6.
+- The recorded vectors replay bit for bit: 907053 lines over 307 cases, every case
+  exact except the twenty-one declared deviations in `DESIGN.md` D6.
 - No target builds yet. `ROADMAP.md` carries the parity inventory, the phases, and the
   question for after parity: whether a proved core leaves room on the F4 boards for
   features Betaflight has to leave out for these targets.
