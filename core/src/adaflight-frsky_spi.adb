@@ -1,7 +1,7 @@
 with Adaflight.Clock;
 
 package body Adaflight.FrSky_SPI with SPARK_Mode is
-   use Adaflight.CC2500_Radio;
+   use Adaflight.SPI_Radio;
    use type Interfaces.Integer_8;
    use type Interfaces.Integer_32;
 
@@ -702,7 +702,7 @@ package body Adaflight.FrSky_SPI with SPARK_Mode is
       O := (others => <>);
       Ok := False;
       Claim_RSSI := False;
-      Adaflight.CC2500_Radio.Start (S.Radio, C.Pins, Inp.Bind_Pin_Level, Inp.Chip_Ok, O, Pins_Ok);
+      Adaflight.SPI_Radio.Start (S.Radio, C.Pins, Inp.Bind_Pin_Level, Inp.Chip_Ok, O, Pins_Ok);
       if not Pins_Ok then
          return;
       end if;

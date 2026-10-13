@@ -1,7 +1,7 @@
 with Adaflight.Clock;
 
 package body Adaflight.Redpine with SPARK_Mode is
-   use Adaflight.CC2500_Radio;
+   use Adaflight.SPI_Radio;
    use type Interfaces.Unsigned_16;
 
    FSCTRL0  : constant := 16#0C#;
@@ -270,7 +270,7 @@ package body Adaflight.Redpine with SPARK_Mode is
    begin
       S := (others => <>);
       O := (others => <>);
-      Adaflight.CC2500_Radio.Start (S.Radio, C.Pins, Inp.Bind_Pin_Level, Inp.Chip_Ok, O, Ok);
+      Adaflight.SPI_Radio.Start (S.Radio, C.Pins, Inp.Bind_Pin_Level, Inp.Chip_Ok, O, Ok);
       Claim_RSSI := Ok;
       if not Ok then
          return;

@@ -11,7 +11,7 @@
 --  which carries out the operations in order, hands back the calibration and
 --  shows the receive FIFO.
 with Interfaces;
-with Adaflight.CC2500_Radio;
+with Adaflight.SPI_Radio;
 with Adaflight.FrSky_Hub_Telemetry;
 
 package Adaflight.FrSky_SPI with SPARK_Mode is
@@ -41,13 +41,13 @@ package Adaflight.FrSky_SPI with SPARK_Mode is
       Bind_Hop_Data : Hop_Table := (others => 0);
       Rx_Num        : Unsigned_8 := 0;
       A1            : A1_Source := Battery_Voltage;
-      Pins          : Adaflight.CC2500_Radio.Pins;
+      Pins          : Adaflight.SPI_Radio.Pins;
       Telemetry     : Boolean := False;
       Hub           : Adaflight.FrSky_Hub_Telemetry.Settings;
    end record;
 
    Calibrated_Channels : constant := 255;
-   subtype Calibration is Adaflight.CC2500_Radio.Calibration;
+   subtype Calibration is Adaflight.SPI_Radio.Calibration;
    type Calibration_Table is array (0 .. 255) of Calibration;
 
    Payload_Size : constant := 35;
@@ -90,7 +90,7 @@ package Adaflight.FrSky_SPI with SPARK_Mode is
       Bind_Offset_Min   : Integer_8 := 0;
       Bind_Offset_Max   : Integer_8 := 0;
       Channel           : Unsigned_8 := 0;
-      Radio             : Adaflight.CC2500_Radio.Radio;
+      Radio             : Adaflight.SPI_Radio.Radio;
       Last_Packet_Us    : Unsigned_32 := 0;
       Telemetry_Us      : Unsigned_32 := 0;
       Data_Errors       : Unsigned_16 := 0;
@@ -124,7 +124,7 @@ package Adaflight.FrSky_SPI with SPARK_Mode is
       Hub_Id_Expected   : Unsigned_8 := 0;
    end record;
 
-   subtype Output is Adaflight.CC2500_Radio.Output;
+   subtype Output is Adaflight.SPI_Radio.Output;
 
    --  What a call reads: the clocks, the radio's interrupt line, the bytes in
    --  its receive FIFO, the bind pin, the telemetry's analog readings and the

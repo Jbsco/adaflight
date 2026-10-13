@@ -1,7 +1,7 @@
 with Adaflight.Clock;
 
 package body Adaflight.SFHSS with SPARK_Mode is
-   use Adaflight.CC2500_Radio;
+   use Adaflight.SPI_Radio;
    use type Interfaces.Unsigned_16;
    use type Interfaces.Integer_32;
 
@@ -237,7 +237,7 @@ package body Adaflight.SFHSS with SPARK_Mode is
    begin
       S := (others => <>);
       O := (others => <>);
-      Adaflight.CC2500_Radio.Start (S.Radio, C.Pins, Inp.Bind_Pin_Level, Inp.Chip_Ok, O, Claim_RSSI);
+      Adaflight.SPI_Radio.Start (S.Radio, C.Pins, Inp.Bind_Pin_Level, Inp.Chip_Ok, O, Claim_RSSI);
       S.Start_Time_Ms := Inp.Now_Ms;
       S.Protocol := Init;
       Ok := True;

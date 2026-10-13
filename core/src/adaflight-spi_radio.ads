@@ -1,10 +1,10 @@
---  CC2500 radio helpers shared by the SPI receivers: the operations a
---  protocol hands the target in order, the receiver's pins, the LED with its
---  blink timer, the bind button and bind requests, the RSSI from a packet's
---  status byte, and the antenna switch.
+--  Radio helpers shared by the SPI receivers: the operations a protocol
+--  hands the target in order, the receiver's pins, the LED with its blink
+--  timer, the bind button and bind requests, the RSSI from a packet's status
+--  byte, the antenna switch, and the CC2500 strobes.
 with Interfaces;
 
-package Adaflight.CC2500_Radio with SPARK_Mode is
+package Adaflight.SPI_Radio with SPARK_Mode is
    use type Interfaces.Unsigned_8;
    use type Interfaces.Unsigned_32;
    use type Interfaces.Integer_8;
@@ -15,6 +15,7 @@ package Adaflight.CC2500_Radio with SPARK_Mode is
    subtype Integer_8 is Interfaces.Integer_8;
    subtype Integer_16 is Interfaces.Integer_16;
 
+   --  CC2500 strobes.
    SIDLE : constant := 16#36#;
    SRX   : constant := 16#34#;
    SFRX  : constant := 16#3A#;
@@ -135,4 +136,4 @@ package Adaflight.CC2500_Radio with SPARK_Mode is
    procedure Switch_Antennae (R : in out Radio; O : in out Output)
      with Global => null;
 
-end Adaflight.CC2500_Radio;
+end Adaflight.SPI_Radio;

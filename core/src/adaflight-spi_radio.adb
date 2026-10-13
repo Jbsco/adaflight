@@ -1,4 +1,4 @@
-package body Adaflight.CC2500_Radio with SPARK_Mode is
+package body Adaflight.SPI_Radio with SPARK_Mode is
 
    procedure Add (O : in out Output; Item : Op) is
    begin
@@ -123,4 +123,4 @@ package body Adaflight.CC2500_Radio with SPARK_Mode is
       end if;
    end Switch_Antennae;
 
-end Adaflight.CC2500_Radio;
+end Adaflight.SPI_Radio;

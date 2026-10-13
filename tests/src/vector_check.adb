@@ -61,7 +61,7 @@ with Adaflight.Spektrum;
 with Adaflight.XBUS;
 with Adaflight.Jeti_Ex_Bus;
 with Adaflight.Jeti_Telemetry;
-with Adaflight.CC2500_Radio;
+with Adaflight.SPI_Radio;
 with Adaflight.FrSky_SPI;
 with Adaflight.SFHSS;
 with Adaflight.Redpine;
@@ -11828,8 +11828,8 @@ procedure Vector_Check is
    end Check_Jeti_Telemetry_Line;
 
    package FSP renames Adaflight.FrSky_SPI;
-   package CCR renames Adaflight.CC2500_Radio;
-   use type CCR.Op_Kind;
+   package SPR renames Adaflight.SPI_Radio;
+   use type SPR.Op_Kind;
    use type FSP.Received;
    FD_Seq    : Integer_64 := -1;
    FD_State  : FSP.State;
@@ -11872,23 +11872,23 @@ procedure Vector_Check is
          Len := Len + T'Length;
       end Put;
 
-      function Pin_Letter (P : CCR.Pin) return Character is
+      function Pin_Letter (P : SPR.Pin) return Character is
         (case P is
-            when CCR.LED => 'L', when CCR.Tx_Enable => 'T', when CCR.LNA_Enable => 'N',
-            when CCR.Antenna_Select => 'A');
+            when SPR.LED => 'L', when SPR.Tx_Enable => 'T', when SPR.LNA_Enable => 'N',
+            when SPR.Antenna_Select => 'A');
    begin
       for K in 1 .. O.Count loop
          declare
-            X : constant CCR.Op := O.Ops (K);
+            X : constant SPR.Op := O.Ops (K);
          begin
             case X.Kind is
-               when CCR.Reset => Put ("x");
-               when CCR.Startup_Speed => Put ("h");
-               when CCR.Normal_Speed => Put ("n");
-               when CCR.Strobe => Put ("s" & FD_Hex (Natural (X.A), 2));
-               when CCR.Write_Register => Put ("w" & FD_Hex (Natural (X.A), 2) & FD_Hex (Natural (X.B), 2));
-               when CCR.Read_Fifo => Put ("r" & FD_Short_Hex (Natural (X.A)));
-               when CCR.Write_Fifo =>
+               when SPR.Reset => Put ("x");
+               when SPR.Startup_Speed => Put ("h");
+               when SPR.Normal_Speed => Put ("n");
+               when SPR.Strobe => Put ("s" & FD_Hex (Natural (X.A), 2));
+               when SPR.Write_Register => Put ("w" & FD_Hex (Natural (X.A), 2) & FD_Hex (Natural (X.B), 2));
+               when SPR.Read_Fifo => Put ("r" & FD_Short_Hex (Natural (X.A)));
+               when SPR.Write_Fifo =>
                   declare
                      T : String (1 .. 1 + 2 * Natural (X.A));
                   begin
@@ -11898,16 +11898,16 @@ procedure Vector_Check is
                      end loop;
                      Put (T);
                   end;
-               when CCR.Set_Power => Put ("p" & FD_Short_Hex (Natural (X.A)));
-               when CCR.Delay_Ms => Put ("d" & FD_Short_Hex (Natural (X.Value)));
-               when CCR.Delay_Us => Put ("u" & FD_Short_Hex (Natural (X.Value)));
-               when CCR.Calibrate => Put ("C");
-               when CCR.Pin_High => Put (Pin_Letter (X.On) & "1");
-               when CCR.Pin_Low => Put (Pin_Letter (X.On) & "0");
-               when CCR.Pin_Toggle => Put (Pin_Letter (X.On) & "t");
-               when CCR.Set_RSSI => Put ("R" & FD_Short_Hex (Natural (X.Value)) & ".3");
-               when CCR.Set_RSSI_Direct => Put ("D" & FD_Short_Hex (Natural (X.Value)) & ".3");
-               when CCR.Save_Config => Put ("E");
+               when SPR.Set_Power => Put ("p" & FD_Short_Hex (Natural (X.A)));
+               when SPR.Delay_Ms => Put ("d" & FD_Short_Hex (Natural (X.Value)));
+               when SPR.Delay_Us => Put ("u" & FD_Short_Hex (Natural (X.Value)));
+               when SPR.Calibrate => Put ("C");
+               when SPR.Pin_High => Put (Pin_Letter (X.On) & "1");
+               when SPR.Pin_Low => Put (Pin_Letter (X.On) & "0");
+               when SPR.Pin_Toggle => Put (Pin_Letter (X.On) & "t");
+               when SPR.Set_RSSI => Put ("R" & FD_Short_Hex (Natural (X.Value)) & ".3");
+               when SPR.Set_RSSI_Direct => Put ("D" & FD_Short_Hex (Natural (X.Value)) & ".3");
+               when SPR.Save_Config => Put ("E");
             end case;
          end;
       end loop;
@@ -11918,7 +11918,7 @@ procedure Vector_Check is
       Table : FSP.Calibration_Table := (others => (others => 0));
    begin
       for K in 1 .. O.Count loop
-         if O.Ops (K).Kind = CCR.Calibrate then
+         if O.Ops (K).Kind = SPR.Calibrate then
             for Ch in 0 .. 254 loop
                Table (Ch) :=
                  (Interfaces.Unsigned_8 ((Ch * 37 + 5) mod 256), Interfaces.Unsigned_8 ((Ch * 59 + 16) mod 256),
@@ -12116,7 +12116,7 @@ procedure Vector_Check is
       Table : SFH.Calibration_Table := (others => (others => 0));
    begin
       for K in 1 .. O.Count loop
-         if O.Ops (K).Kind = CCR.Calibrate then
+         if O.Ops (K).Kind = SPR.Calibrate then
             for C in SFH.Calibration_Table'Range loop
                declare
                   Ch : constant Natural := C * 6 + 16;
@@ -12254,7 +12254,7 @@ procedure Vector_Check is
       Table : RPN.Calibration_Table := (others => (others => 0));
    begin
       for K in 1 .. O.Count loop
-         if O.Ops (K).Kind = CCR.Calibrate then
+         if O.Ops (K).Kind = SPR.Calibrate then
             for Ch in RPN.Calibration_Table'Range loop
                Table (Ch) :=
                  (Interfaces.Unsigned_8 ((Ch * 37 + 5) mod 256), Interfaces.Unsigned_8 ((Ch * 59 + 16) mod 256),
