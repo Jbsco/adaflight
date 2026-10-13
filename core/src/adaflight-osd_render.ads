@@ -1,11 +1,13 @@
---  The OSD element renderers that format readings: altitude, angles,
---  battery, heading, vario, PIDs, power, timers, signal, flight mode, flip
---  arrow and clock. Each renders one element from the readings into its
---  text, offsets, severity and flags, as the draw cycle hands them to the
---  display. The graphics, GPS, link, ESC and name elements come later;
---  settings, sensors and readings stay with the target.
+--  The OSD element renderers: the readings (altitude, angles, battery,
+--  heading, vario, PIDs, power, timers, signal, flight mode, flip arrow and
+--  clock), the GPS, link, ESC, motor, log, name and text elements, and the
+--  craft and pilot name backgrounds. Each renders one element from the
+--  readings into its text, offsets, severity, blink and flags, as the draw
+--  cycle hands them to the display. The graphics come later; settings,
+--  sensors and readings stay with the target.
 with Interfaces;
 with Adaflight.Battery;
+with Adaflight.Filters;
 with Adaflight.RTC;
 with Adaflight.OSD_Format;
 with Adaflight.OSD_Elements;
@@ -35,14 +37,51 @@ package Adaflight.OSD_Render with SPARK_Mode is
    subtype Severity is Adaflight.OSD_Warnings.Severity;
    subtype Text is Adaflight.OSD_Format.Text;
 
+   Max_Name : constant := 16;
+
+   --  A name as the configuration stores it, up to sixteen characters.
+   type Name is record
+      Data   : String (1 .. Max_Name) := (others => ' ');
+      Length : Natural range 0 .. Max_Name := 0;
+   end record;
+
+   Max_Custom_Text : constant := 40;
+
+   --  The custom text a serial port supplies.
+   type Custom_Text is record
+      Data   : String (1 .. Max_Custom_Text) := (others => ' ');
+      Length : Natural range 0 .. Max_Custom_Text := 0;
+   end record;
+
+   subtype Profile_Number is Adaflight.OSD_Elements.Profile_Number;
+   type Profile_Names is array (Profile_Number) of Name;
+   subtype Message_Index is Natural range 0 .. 3;
+   type Message_Names is array (Message_Index) of Name;
+
+   type Link_Quality_Source is (None, CRSF, GHST, MAVLink);
+
+   subtype Motor_Count is Positive range 1 .. 8;
+   subtype Motor_Index is Adaflight.OSD_Elements.Motor_Index;
+   RPM_Bound    : constant := 1_000_000.0;
+   Output_Bound : constant := 3_000.0;
+   type Motor_RPMs is array (Motor_Index) of Float range 0.0 .. RPM_Bound;
+   type Motor_ERPMs is array (Motor_Index) of Natural range 0 .. 32_767;
+   type Motor_Outputs is array (Motor_Index) of Float range 0.0 .. Output_Bound;
+
+   subtype Coordinate_Range is Integer_32 range Integer_32'First + 1 .. Integer_32'Last;
+
+   --  Whether a render sets or clears its element's blink bit.
+   type Blink_Change is (Keep, Set, Clear);
+
    --  What a renderer hands the draw cycle: the text, the offsets from the
-   --  element's position, the severity, whether the text is drawn and
-   --  whether the element is complete.
+   --  element's position, the severity, the blink bit's change, whether the
+   --  text is drawn and whether the element is complete.
    type Output is record
       Line     : Text;
       Offset_X : Unsigned_8 := 0;
       Offset_Y : Unsigned_8 := 0;
       Attr     : Severity := Adaflight.OSD_Warnings.Normal;
+      Blink    : Blink_Change := Keep;
       Draw     : Boolean := True;
       Rendered : Boolean := True;
    end record;
@@ -54,8 +93,13 @@ package Adaflight.OSD_Render with SPARK_Mode is
       Cap_Alarm      : Unsigned_16 := 2200;
       RSSI_Alarm     : Unsigned_8 := 20;
       RSSI_Dbm_Alarm : Integer_16 := -60;
-      Timers         : Adaflight.OSD_Elements.Timer_Settings := (16#0A00#, 16#0A01#);
-      Aux_Symbol     : Unsigned_8 := Character'Pos ('A');
+      Timers             : Adaflight.OSD_Elements.Timer_Settings := (16#0A00#, 16#0A01#);
+      Aux_Symbol         : Unsigned_8 := Character'Pos ('A');
+      Link_Quality_Alarm : Unsigned_16 := 80;
+      Show_PDOP          : Boolean := False;
+      OSD_Profile_Index  : Profile_Number := 1;
+      OSD_Profile_Names  : Profile_Names;
+      Framerate_Hz       : Unsigned_16 range 1 .. 60 := 12;
    end record;
 
    subtype Axis_Index is Natural range 0 .. 2;
@@ -139,13 +183,77 @@ package Adaflight.OSD_Render with SPARK_Mode is
       Has_Time              : Boolean := False;
       Date                  : Adaflight.RTC.Date_Time;
       Zone                  : Adaflight.RTC.Settings;
+      GPS_Fix_Home          : Boolean := False;
+      GPS_Fix_Ever          : Boolean := False;
+      Latitude              : Coordinate_Range := 0;
+      Longitude             : Coordinate_Range := 0;
+      Satellites            : Unsigned_8 := 0;
+      PDOP                  : Unsigned_16 := 0;
+      Speed_3D              : Unsigned_16 := 0;
+      Ground_Speed          : Unsigned_16 := 0;
+      GPS_Time_Ms           : Unsigned_32 := 0;
+      Home_Distance_M       : Unsigned_16 := 0;
+      Home_Direction        : Yaw_Decidegrees := 0;
+      Flown_Cm              : Unsigned_32 := 0;
+      Use_3D_Speed          : Boolean := False;
+      GPS_Healthy           : Boolean := False;
+      Lap_Running           : Boolean := False;
+      Lap_Last_Ms           : Unsigned_32 := 0;
+      Lap_Previous_Ms       : Unsigned_32 := 0;
+      Lap_Best3_Ms          : Unsigned_32 := 0;
+      Lap_Direction_Cdeg    : Integer_32 range 0 .. 35_999 := 0;
+      Lap_Distance_Cm       : Unsigned_32 range 0 .. 100_000_000 := 0;
+      Rescue_Min_Sats       : Unsigned_8 := 8;
+      Rescue_Configured     : Boolean := False;
+      Link_Source           : Link_Quality_Source := None;
+      Link_Quality          : Unsigned_16 range 0 .. 1023 := 0;
+      RF_Mode               : Unsigned_8 := 0;
+      Link_Quality_Percent  : Unsigned_16 := 0;
+      Uplink_Mw             : Unsigned_16 := 0;
+      Blackbox_Box          : Boolean := False;
+      Blackbox_Working      : Boolean := False;
+      Blackbox_Full         : Boolean := False;
+      Log_Number            : Integer_32 := 0;
+      ESC_Sensor_Feature    : Boolean := False;
+      ESC_Temperature       : Unsigned_8 := 0;
+      Motors                : Motor_Count := 4;
+      DShot                 : Adaflight.OSD_Elements.Motor_Telemetry_Array;
+      DShot_Telemetry       : Boolean := False;
+      DShot_RPM             : Motor_RPMs := (others => 0.0);
+      ESC_RPM               : Motor_ERPMs := (others => 0);
+      ERPM_To_Hz            : Float range 0.0 .. 1.0 := 0.0;
+      Motors_Running        : Boolean := False;
+      Motor_Output          : Motor_Outputs := (others => 0.0);
+      Output_Low            : Float range 0.0 .. Output_Bound := 1000.0;
+      Output_High           : Float range 0.0 .. Output_Bound := 2000.0;
+      Craft_Name            : Name;
+      Pilot_Name            : Name;
+      Rate_Profile_Name     : Name;
+      PID_Profile_Name      : Name;
+      Battery_Index         : Unsigned_8 := 0;
+      Battery_Profile_Name  : Name;
+      Messages              : Message_Names;
+      Custom_Text_Present   : Boolean := False;
+      Custom                : Custom_Text;
+      Adjustment_Present    : Boolean := False;
+      Adjustment_Name       : Name;
+      Adjustment_Value      : Integer_32 := 0;
+      Rangefinder_Cm        : Integer_32 := 0;
    end record;
 
    --  What persists between renders: the diversity latch of the RSSI dBm
-   --  element, set once a second antenna reports.
+   --  element, set once a second antenna reports, the efficiency filter and
+   --  the motor the ESC elements are on.
    type State is record
-      Diversity : Boolean := False;
+      Diversity  : Boolean := False;
+      Efficiency : Adaflight.Filters.PT1;
+      ESC_Motor  : Unsigned_8 := 0;
    end record;
+
+   --  The state at the OSD's start: the efficiency filter at half a hertz
+   --  over the frame period.
+   procedure Init (S : out State; C : Settings)
+     with Post => S.Diversity = False and then S.ESC_Motor = 0;
 
    --  The items this unit renders.
    function Supported (I : Item) return Boolean is
@@ -154,10 +262,24 @@ package Adaflight.OSD_Render with SPARK_Mode is
          | Main_Battery_Usage | Main_Battery_Voltage | Numerical_Heading | Numerical_Vario | PID_Rate_Profile
          | Roll_PIDs | Pitch_PIDs | Yaw_PIDs | Power | Remaining_Time_Estimate | RSSI_Value | RSSI_Dbm_Value
          | RSNR_Value | Throttle_Position | Timer_1 | Timer_2 | Aux_Value | Ready_Mode | Position_Hold_Ready
-         | Total_Flights | Flip_Arrow | Fly_Mode | RTC_Date_Time);
+         | Total_Flights | Flip_Arrow | Fly_Mode | RTC_Date_Time | Flight_Distance | Home_Direction | Home_Distance
+         | GPS_Longitude | GPS_Latitude | GPS_Sats | GPS_Speed | Efficiency | GPS_Lap_Time_Current
+         | GPS_Lap_Time_Previous | GPS_Lap_Time_Best3 | Link_Quality | TX_Uplink_Power | Log_Status | ESC_Temperature
+         | ESC_RPM | ESC_RPM_Frequency | Motor_Diagnostics | Rate_Profile_Name | PID_Profile_Name | Profile_Name
+         | Battery_Profile_Name | Custom_Message_0 | Custom_Message_1 | Custom_Message_2 | Custom_Message_3
+         | Custom_Serial_Text | Adjustment_Range | Lidar_Distance);
+
+   --  The items whose background this unit renders.
+   function Background_Supported (I : Item) return Boolean is (I in Craft_Name | Pilot_Name);
 
    procedure Render (I : Item; Variant : Adaflight.OSD_Format.Element_Type; S : in out State; C : Settings;
                      Inp : Inputs; O : out Output)
-     with Pre => Supported (I) and then Inp.Min_Cell /= Inp.Max_Cell and then Inp.Date.Month in 1 .. 12;
+     with Pre => Supported (I) and then Inp.Min_Cell /= Inp.Max_Cell and then Inp.Date.Month in 1 .. 12
+                 and then Integer_32 (Float'Truncation (Inp.Output_High))
+                          > Integer_32 (Float'Truncation (Inp.Output_Low))
+                 and then (if I in ESC_RPM | ESC_RPM_Frequency then S.ESC_Motor < Unsigned_8 (Inp.Motors));
+
+   procedure Render_Background (I : Item; Inp : Inputs; O : out Output)
+     with Pre => Background_Supported (I);
 
 end Adaflight.OSD_Render;
