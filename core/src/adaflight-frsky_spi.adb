@@ -408,7 +408,7 @@ package body Adaflight.FrSky_SPI with SPARK_Mode is
                end if;
                if S.Timeout_Us = 1 then
                   if S.Missing_Packets >= 2 then
-                     Switch_Antennae (S.Radio, C.Pins, O);
+                     Switch_Antennae (S.Radio, O);
                   end if;
                   if S.Missing_Packets > Max_Missing then
                      S.Timeout_Us := 50;
@@ -672,7 +672,7 @@ package body Adaflight.FrSky_SPI with SPARK_Mode is
                   Set_Pin (O, Tx_Enable, False);
                end if;
                if S.Missing_Packets >= 2 then
-                  Switch_Antennae (S.Radio, C.Pins, O);
+                  Switch_Antennae (S.Radio, O);
                end if;
                if S.Missing_Packets > Max_Missing then
                   S.Timeout_Us := 50;

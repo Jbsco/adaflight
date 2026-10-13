@@ -2561,3 +2561,32 @@ variant, with a scripted transmitter: bind packets, D16 packets with random skip
 numbers, failsafe flags, shifted channels and telemetry markers with init and resend requests,
 corrupted and short packets, noise and dropouts up to 900 calls. Every operation, frame byte,
 channel value, bind result and state of the 32008 lines replays byte for byte.
+
+## D117. S-FHSS receiver (2026-10-13)
+
+The S-FHSS unit contains the S-FHSS receiver on a CC2500 radio. The CC2500 radio unit now contains
+what the SPI receivers share: the operations in order, the pins, the LED with its blink timer, bind
+requests, the RSSI from a status byte, the antenna switch, register lists and channel calibration.
+The antenna switch follows the antenna pin that start-up set. The first protocol call after 10 ms
+resets and configures the radio and calibrates its 30 channels, six channel numbers apart from 16.
+The target measures the calibration and hands it back.
+
+Binding listens on channel 15. The frequency offset rises by 16 every 220 ms until a packet arrives
+with a link quality above 40, which gives the transmitter id. The offset then widens by 4 up and
+down while packets keep arriving within 880 ms, and the midpoint becomes the bind offset, or
+binding starts over when the two ends meet. The coarse sweep wraps from 112 to -128 as a signed
+byte (F125). Bound, the receiver hunts with a hop every 500 ms until a packet with channels 5 to 8
+arrives, then hops 0.5 ms after that half, 3.5 ms after the other half, or 6.8 ms after a miss. It
+switches antennas after two missed hops and hunts again after 100. Each packet's hop code moves the
+channel. A code of 30 or 31 moves it past the calibrated channels, where adaflight writes zero
+calibration and the reference reads past its table (F123). The proof shows that the hop loop ends
+in every state the receiver can reach. Start-up reports success when the chip does not answer,
+without the radio's pins or the RSSI source (F124).
+
+The harness replays ten sequences of 3000 calls recorded from the reference with a scripted
+transmitter: packets inside an offset window during binding with poor link quality, failed CRCs,
+bad headers and other ids, a transmitter that goes quiet after the coarse sweep, channel packets
+with failsafe flags, wrong channels and short FIFOs, hop codes 28 and 29 and an occasional code of
+30 or 31, noise, dropouts up to 260 calls, bind presses and bind commands, a clock near its wrap
+and a chip that does not answer. Every operation, channel value, bind result and state of the
+30010 lines replays byte for byte.

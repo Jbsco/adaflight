@@ -67,10 +67,12 @@ package Adaflight.CC2500_Radio with SPARK_Mode is
       Bind          : Boolean := False;
    end record;
 
-   --  The RSSI in dBm, the antenna in use, the bind request with the bind
-   --  pin's last level, and the LED's last blink.
+   --  The RSSI in dBm, the antenna pin when start-up set it, the antenna in
+   --  use, the bind request with the bind pin's last level, and the LED's
+   --  last blink.
    type Radio is record
       RSSI_Dbm       : Integer_16 := 0;
+      Antenna_Pin    : Boolean := False;
       Other_Antenna  : Boolean := True;
       Bind_Requested : Boolean := False;
       Last_Bind_Pin  : Boolean := False;
@@ -130,7 +132,7 @@ package Adaflight.CC2500_Radio with SPARK_Mode is
    procedure Set_RSSI_Dbm (R : in out Radio; O : in out Output; Value : Unsigned_8)
      with Global => null;
 
-   procedure Switch_Antennae (R : in out Radio; P : Pins; O : in out Output)
+   procedure Switch_Antennae (R : in out Radio; O : in out Output)
      with Global => null;
 
 end Adaflight.CC2500_Radio;

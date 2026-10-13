@@ -85,6 +85,7 @@ package body Adaflight.CC2500_Radio with SPARK_Mode is
       if P.Antenna then
          Set_Pin (O, Antenna_Select, True);
       end if;
+      R.Antenna_Pin := P.Antenna;
       if P.Tx_Enable then
          Set_Pin (O, Tx_Enable, False);
       end if;
@@ -114,9 +115,9 @@ package body Adaflight.CC2500_Radio with SPARK_Mode is
       Add (O, (Kind => Set_RSSI, Value => Unsigned_16 ((Integer (R.RSSI_Dbm) * 8) mod 65_536), others => <>));
    end Set_RSSI_Dbm;
 
-   procedure Switch_Antennae (R : in out Radio; P : Pins; O : in out Output) is
+   procedure Switch_Antennae (R : in out Radio; O : in out Output) is
    begin
-      if P.Antenna then
+      if R.Antenna_Pin then
          Set_Pin (O, Antenna_Select, not R.Other_Antenna);
          R.Other_Antenna := not R.Other_Antenna;
       end if;
