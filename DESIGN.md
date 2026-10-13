@@ -2495,3 +2495,32 @@ frames, stray bytes, waits up to 5 ms and busy ports, under random sensor sets, 
 data. One sequence enables a single sensor, and one enables none and stops inside the text phase.
 Every request state, permission, sensor set and frame byte of the 15707 lines replays byte for
 byte.
+
+## D114. FrSky SPI receiver, D8 (2026-10-13)
+
+The FrSky SPI unit contains the reference's FrSky receiver on a CC2500 radio for the D8 protocol,
+with the SPI receiver's LED and bind button handling and the CC2500 helpers. Start-up checks the
+chip when the setting asks, raises the LNA and antenna pins, lowers the transmit enable pin and
+claims the RSSI source. The first protocol call after 10 ms resets and configures the radio and
+calibrates every channel. The target measures the calibration and hands it back.
+
+Binding, on a bind request or with auto bind, tunes the frequency offset up and then down in steps
+of two every 50 ms until a bind packet arrives at each end, keeps the midpoint, and collects the
+transmitter id and the hop table in ten chunks of five. Bound, the receiver hops over 47 channels.
+A packet from its transmitter with the CRC bit set hops on, sets the RSSI from its status byte, and
+every fourth one is answered 1.38 ms later with the telemetry frame: transmitter id, A1 and A2
+values and RSSI. Without packets the receiver hops on, switches antennas after two misses, drops
+the RSSI after 100, and searches with a 13-channel skip at the slow timeout. Channels decode at two
+thirds of their 12-bit values and are kept unless one leaves 800 to 2200.
+
+Radio operations, pin changes, RSSI updates, delays and the configuration save go out in order. The
+target runs them and shows the receive FIFO and the interrupt line on each call. A bind chunk index
+past the hop table writes nothing beyond it, where the reference writes into the settings after it
+(F120). Hub telemetry data in the frame is open.
+
+The harness replays six sequences of 3000 calls recorded from the reference with a scripted
+transmitter: bind packets with random chunks, bad headers and missing CRC bits, data packets with
+telemetry slots, wrong ids and short FIFOs, noise, dropouts of up to 300 calls, bind button presses
+and bind commands, under random pins, LED inversion, auto bind, A1 sources and bound or unbound
+settings. Every operation, channel value, bind result, hop table and state of the 18006 lines
+replays byte for byte.
