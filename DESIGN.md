@@ -2423,3 +2423,34 @@ The harness replays six sequences of 500 steps recorded from the reference: tele
 random readings, rates, arming reasons and clocks, interval sets including unknown messages, and
 interval reads. Every frame byte, due time, interval and sequence number of the 3006 lines replays
 byte for byte.
+
+## D111. MAVLink commands (2026-10-13)
+
+The MAVLink commands unit contains the incoming side of the reference's telemetry file. Messages
+from a ground station arrive two ways: drained from the telemetry's own port, up to 64 bytes a
+pass through a frame parser of its own, or popped from the MAVLink receiver's queue, up to sixteen
+a pass. The parser state moves out of the receiver's record into a record of its own so both
+parsers share the code. MAVLink 2 framing moves into a unit of its own, shared by the stream
+messages and the replies with one sequence number.
+
+Ping and time sync requests are answered. A command long or command int addressed to this system,
+or to every system, is executed and acknowledged. Command long also requests the autopilot
+version, protocol version, component information, available modes, modes monitor and a message's
+interval, and sets a message's interval. Both execute disarm, mode selection, return to launch,
+set home and reboot. Arming over the link is a build option the default leaves out, so it answers
+unsupported. Float parameters are decoded from their bits. A parameter counts as a whole number
+only when finite, not negative and not above the handler's maximum.
+
+Disarms, mode override clears and sets, and home resets and sets go out as requests in call order,
+for the target to apply to the arming, modes and GPS units. An accepted reboot waits for the end of
+the port's drain and goes out as a reboot request. One accepted from the receiver's queue stays
+pending (F116). Coordinates, altitudes and intervals past the range of the reference's float
+conversions saturate, where the reference is undefined (F117). A set-home altitude goes out as
+commanded, and the home position telemetry multiplies it by ten (F118). The modes unit's override
+mask, which the reference adds to the switch-selected modes and clears at each disarm, is open.
+
+The harness replays six sequences of 500 steps recorded from the reference, alternating the owned
+port and the receiver's queue: heartbeats, pings, time syncs, and command long and command int
+messages with random targets and parameters (NaN, infinities, signed zeros, subnormals, handler
+bounds), unknown messages, MAVLink 1 frames, noise and corrupted frames. Every reply byte, request,
+home value, interval, sequence number and parser state of the 3006 lines replays byte for byte.
