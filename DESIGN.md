@@ -2590,3 +2590,33 @@ with failsafe flags, wrong channels and short FIFOs, hop codes 28 and 29 and an 
 30 or 31, noise, dropouts up to 260 calls, bind presses and bind commands, a clock near its wrap
 and a chip that does not answer. Every operation, channel value, bind result and state of the
 30010 lines replays byte for byte.
+
+## D118. Redpine receiver (2026-10-13)
+
+The Redpine unit contains the Redpine receiver on a CC2500 radio, in a fast and a slow mode with
+their own radio configurations. The first protocol call after 10 ms resets and configures the radio
+for its mode and calibrates 255 channels, which the target measures and hands back.
+
+Binding switches to the fast mode, configures and calibrates again, and listens on channel 0 with
+the hop table cleared. The frequency offset rises by 16 every 220 ms until a bind packet arrives,
+then widens by 2 up and down while bind packets keep arriving within 880 ms. Each bind packet gives
+the transmitter id and five hop table entries at its chunk index. A chunk past the table writes
+nothing beyond it, where the reference writes into the settings after it (F126). Binding starts
+over when the two ends are 10 or less apart, and returns to the coarse sweep without clearing the
+table while an entry is still zero. The midpoint becomes the bind offset. Auto bind blinks the LED
+80 times over 4 s instead of saving, and restarts binding after any 2 s without packets (F127). The
+coarse sweep wraps from 112 to -128 as a signed byte (F125).
+
+Bound, the receiver hops over 49 channels. A 13-byte packet from its transmitter gives the loop
+time, 100 µs or 1 ms per count by mode, and the RSSI from its status byte, and the receiver hops on.
+Without one, it hops on after a loop time and an eighth, switches antennas after two misses,
+resynchronizes after 50 loop times, and switches modes after 2 s. Channels decode as four sticks
+from eleven bits, scaled by two thirds onto 817 to 2182, and twelve switches at 1000 or 2000. A
+status frame instead asks for video transmitter band, channel and power while disarmed.
+
+The harness replays seven sequences of 4000 calls and one start-up with no chip, recorded from the
+reference with a scripted transmitter in fast or slow mode: bind packets with random chunks inside
+an offset window, a window too narrow for the coarse sweep, data packets at the transmitter's loop
+time with VTX frames, wrong ids and short FIFOs, noise, gaps up to 4 s, auto bind with a 3 s gap,
+bind presses, bind commands, arming changes and a clock near its wrap. Every operation, channel
+value, bind result, hop table and state of the 28008 lines replays byte for byte.
