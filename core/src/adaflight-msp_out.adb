@@ -3,6 +3,7 @@ with Adaflight.Maths;
 package body Adaflight.MSP_Out with SPARK_Mode is
    use Adaflight.Stream_Buffers;
    use type Interfaces.Unsigned_32;
+   use type Interfaces.Unsigned_8;
    use type Interfaces.Integer_16;
    use type Interfaces.Integer_32;
 
@@ -11,6 +12,14 @@ package body Adaflight.MSP_Out with SPARK_Mode is
    function Rounded_16 (X : Float) return Unsigned_16 is
      (Unsigned_16'Mod (Adaflight.Maths.Round_Half_Even (X)))
      with Pre => abs X <= Float (Adaflight.Maths.Rounding_Bound) - 1.0;
+
+   --  A rate rounded to the nearest integer with ties to even; past 2 ** 24
+   --  every float is whole.
+   function Rounded_Rpm (X : Rpm_Value) return Integer_32 is
+     (if X < 16_777_215.0 then Integer_32 (Adaflight.Maths.Round_Half_Even (X)) else Integer_32 (X));
+
+   function Truncated (X : Pitot_Reading) return Interfaces.Unsigned_32 is
+     (Interfaces.Unsigned_32'Mod (Integer_32 (Float'Truncation (X))));
 
    function Saturated_8 (V : Unsigned_16) return Byte is (Byte (Unsigned_16'Min (V, 255)));
 
@@ -135,6 +144,115 @@ package body Adaflight.MSP_Out with SPARK_Mode is
             Write_U16 (B, S, Saturated_Amperage (V.Battery.Amperage));
             Write_U8 (B, S, Adaflight.Battery.Battery_State'Pos (V.Battery.State));
             Write_U16 (B, S, V.Battery.Voltage);
+         when Raw_GPS_Command =>
+            Write_U8 (B, S, (if V.GPS.Fix then GPS_Fix_Flag else 0));
+            Write_U8 (B, S, V.GPS.Satellite_Count);
+            Write_U32 (B, S, Interfaces.Unsigned_32'Mod (V.GPS.Latitude));
+            Write_U32 (B, S, Interfaces.Unsigned_32'Mod (V.GPS.Longitude));
+            Write_U16 (B, S, Unsigned_16 (Integer_32'Max (0, Integer_32'Min (65_535, V.GPS.Altitude_Cm / 100))));
+            Write_U16 (B, S, V.GPS.Ground_Speed);
+            Write_U16 (B, S, V.GPS.Ground_Course);
+            Write_U16 (B, S, V.GPS.PDOP);
+            Write_U16 (B, S, V.GPS.HDOP);
+            Write_U16 (B, S, V.GPS.VDOP);
+            Write_U8 (B, S, V.GPS.In_View);
+         when Comp_GPS_Command =>
+            Write_U16 (B, S, V.GPS.Distance_To_Home);
+            Write_U16 (B, S, Unsigned_16'Mod (V.GPS.Direction_To_Home / 10));
+            Write_U8 (B, S, V.GPS.Update and 1);
+         when GPS_SV_Info_Command =>
+            Write_U8 (B, S, Byte (V.GPS.Channels));
+            for I in 0 .. V.GPS.Channels - 1 loop
+               pragma Loop_Invariant (Fits (S, B) and then S.Last = S.Last'Loop_Entry
+                                      and then S.Next = S.Next'Loop_Entry + 4 * I);
+               Write_U8 (B, S, V.GPS.Satellites (I).Channel);
+               Write_U8 (B, S, V.GPS.Satellites (I).Id);
+               Write_U8 (B, S, V.GPS.Satellites (I).Quality);
+               Write_U8 (B, S, V.GPS.Satellites (I).Signal);
+            end loop;
+         when ESC_Sensor_Data_Command =>
+            if V.ESC.ESC_Sensor then
+               Write_U8 (B, S, Byte (V.ESC.Count));
+               for I in 0 .. V.ESC.Count - 1 loop
+                  pragma Loop_Invariant (Fits (S, B) and then S.Last = S.Last'Loop_Entry
+                                         and then S.Next = S.Next'Loop_Entry + 3 * I);
+                  Write_U8 (B, S, V.ESC.Motors (I).ESC_Temperature);
+                  Write_U16 (B, S, Unsigned_16'Mod (V.ESC.Motors (I).ESC_Erpm));
+               end loop;
+            elsif V.ESC.DShot_Telemetry then
+               Write_U8 (B, S, Byte (V.ESC.Count));
+               for I in 0 .. V.ESC.Count - 1 loop
+                  pragma Loop_Invariant (Fits (S, B) and then S.Last = S.Last'Loop_Entry
+                                         and then S.Next = S.Next'Loop_Entry + 3 * I);
+                  Write_U8 (B, S, Byte'Mod (V.ESC.Motors (I).Temperature));
+                  Write_U16 (B, S, Unsigned_16'Mod (Rounded_Rpm (V.ESC.Motors (I).DShot_Rpm)));
+               end loop;
+            end if;
+         when Motor_Telemetry_Command =>
+            Write_U8 (B, S, Byte (V.ESC.Count));
+            for I in 0 .. V.ESC.Count - 1 loop
+               pragma Loop_Invariant (Fits (S, B) and then S.Last = S.Last'Loop_Entry
+                                      and then S.Next = S.Next'Loop_Entry + 13 * I);
+               declare
+                  M           : Motor_Telemetry renames V.ESC.Motors (I);
+                  Rpm         : Integer_32 := 0;
+                  Have_Rpm    : Boolean := False;
+                  Invalid     : Integer_16 := 0;
+                  Temperature : Byte := 0;
+                  Voltage     : Unsigned_16 := 0;
+                  Current     : Unsigned_16 := 0;
+                  Consumption : Unsigned_16 := 0;
+               begin
+                  if V.ESC.DShot_Telemetry then
+                     Rpm := Rounded_Rpm (M.DShot_Rpm);
+                     Have_Rpm := True;
+                     Invalid := (if M.DShot_Active then M.Invalid_Percent else 10_000);
+                     if (M.Kinds and 16#FE#) /= 0 then
+                        if (M.Kinds and 2) /= 0 then
+                           Temperature := Byte'Mod (M.Temperature);
+                        end if;
+                        if (M.Kinds and 8) /= 0 then
+                           Current := M.Current;
+                        end if;
+                        if (M.Kinds and 4) /= 0 then
+                           Voltage := M.Voltage / 4;
+                        end if;
+                     end if;
+                  end if;
+                  if V.ESC.ESC_Sensor then
+                     if not Have_Rpm then
+                        Rpm := Rounded_Rpm (M.ESC_Rpm);
+                        Have_Rpm := True;
+                     end if;
+                     Temperature := M.ESC_Temperature;
+                     Voltage := M.ESC_Voltage;
+                     Current := Unsigned_16'Mod (M.ESC_Current);
+                     Consumption := Unsigned_16'Mod (M.ESC_Consumption);
+                  end if;
+                  Write_U32 (B, S, (if Have_Rpm then Interfaces.Unsigned_32'Mod (Rpm) else 0));
+                  Write_U16 (B, S, Unsigned_16'Mod (Invalid));
+                  Write_U8 (B, S, Temperature);
+                  Write_U16 (B, S, Voltage);
+                  Write_U16 (B, S, Current);
+                  Write_U16 (B, S, Consumption);
+               end;
+            end loop;
+         when Pitot_Command =>
+            Write_U32 (B, S, Truncated (V.Pitot.Airspeed));
+            Write_U32 (B, S, Truncated (V.Pitot.Diff_Pressure));
+         when TX_Info_Command =>
+            Write_U8 (B, S, Adaflight.Receiver.RSSI_Source'Pos (V.RSSI_Source));
+            Write_U8 (B, S, Boolean'Pos (V.Clock.Valid));
+         when RTC_Command =>
+            if V.Clock.Valid then
+               Write_U16 (B, S, V.Clock.Year);
+               Write_U8 (B, S, V.Clock.Month);
+               Write_U8 (B, S, V.Clock.Day);
+               Write_U8 (B, S, V.Clock.Hours);
+               Write_U8 (B, S, V.Clock.Minutes);
+               Write_U8 (B, S, V.Clock.Seconds);
+               Write_U16 (B, S, V.Clock.Millis);
+            end if;
          when others =>
             null;
       end case;
