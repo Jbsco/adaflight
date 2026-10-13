@@ -1,100 +1,14 @@
-with Adaflight.Float_Bits;
-with Adaflight.MAVLink;
+with Adaflight.MAVLink_Frames; use Adaflight.MAVLink_Frames;
 
 package body Adaflight.MAVLink_Telemetry with SPARK_Mode is
    use type Interfaces.Unsigned_64;
    use type Adaflight.Battery.Battery_State;
-
-   Max_Payload : constant := 60;
-   subtype Payload_Index is Natural range 0 .. Max_Payload - 1;
-   type Payload is array (Payload_Index) of Unsigned_8;
-
-   System_Id    : constant := 1;
-   Component_Id : constant := 1;
 
    function Bits_16 (V : Integer_32) return Unsigned_16 is
      (Unsigned_16 (Interfaces.Integer_64 (V) mod 65_536));
 
    function Bits_32 (V : Integer_32) return Unsigned_32 is
      (Unsigned_32 (Interfaces.Integer_64 (V) mod 2 ** 32));
-
-   procedure Put_U8 (P : in out Payload; At_Byte : Payload_Index; V : Unsigned_8)
-     with Global => null
-   is
-   begin
-      P (At_Byte) := V;
-   end Put_U8;
-
-   procedure Put_U16 (P : in out Payload; At_Byte : Payload_Index; V : Unsigned_16)
-     with Global => null, Pre => At_Byte <= Max_Payload - 2
-   is
-   begin
-      P (At_Byte) := Unsigned_8 (V and 16#FF#);
-      P (At_Byte + 1) := Unsigned_8 (Interfaces.Shift_Right (V, 8));
-   end Put_U16;
-
-   procedure Put_U32 (P : in out Payload; At_Byte : Payload_Index; V : Unsigned_32)
-     with Global => null, Pre => At_Byte <= Max_Payload - 4
-   is
-   begin
-      for K in 0 .. 3 loop
-         P (At_Byte + K) := Unsigned_8 (Interfaces.Shift_Right (V, 8 * K) and 16#FF#);
-      end loop;
-   end Put_U32;
-
-   procedure Put_U64 (P : in out Payload; At_Byte : Payload_Index; V : Interfaces.Unsigned_64)
-     with Global => null, Pre => At_Byte <= Max_Payload - 8
-   is
-   begin
-      for K in 0 .. 7 loop
-         P (At_Byte + K) := Unsigned_8 (Interfaces.Shift_Right (V, 8 * K) and 16#FF#);
-      end loop;
-   end Put_U64;
-
-   procedure Put_F32 (P : in out Payload; At_Byte : Payload_Index; V : Float)
-     with Global => null, Pre => At_Byte <= Max_Payload - 4
-   is
-   begin
-      Put_U32 (P, At_Byte, Adaflight.Float_Bits.Float_Bits (V));
-   end Put_F32;
-
-   procedure Frame
-     (S : in out State; O : in out Output; Id : Natural; CRC_Extra : Unsigned_8; P : Payload; Max_Len : Positive)
-     with Global => null, Pre => Id <= 255 and then Max_Len <= Max_Payload
-   is
-      Len    : Natural := Max_Len;
-      Header : constant array (1 .. 9) of Unsigned_8 :=
-        (0, 0, 0, S.Tx_Seq, System_Id, Component_Id, Unsigned_8 (Id), 0, 0);
-      CRC    : Adaflight.MAVLink.CRC_Word := Adaflight.MAVLink.CRC_Init;
-   begin
-      while Len > 1 and then P (Len - 1) = 0 loop
-         pragma Loop_Invariant (Len in 2 .. Max_Len);
-         Len := Len - 1;
-      end loop;
-      if O.Length > Max_Output - (12 + Len) then
-         return;
-      end if;
-      CRC := Adaflight.MAVLink.Accumulate (CRC, Len);
-      for K in 2 .. Header'Last loop
-         CRC := Adaflight.MAVLink.Accumulate (CRC, Natural (Header (K)));
-      end loop;
-      for K in 0 .. Len - 1 loop
-         CRC := Adaflight.MAVLink.Accumulate (CRC, Natural (P (K)));
-      end loop;
-      CRC := Adaflight.MAVLink.Accumulate (CRC, Natural (CRC_Extra));
-      O.Data (O.Length + 1) := 16#FD#;
-      O.Data (O.Length + 2) := Unsigned_8 (Len);
-      for K in 2 .. Header'Last loop
-         O.Data (O.Length + 1 + K) := Header (K);
-      end loop;
-      for K in 0 .. Len - 1 loop
-         O.Data (O.Length + 11 + K) := P (K);
-      end loop;
-      O.Data (O.Length + 11 + Len) := Unsigned_8 (CRC and 16#FF#);
-      O.Data (O.Length + 12 + Len) := Unsigned_8 (Interfaces.Shift_Right (CRC, 8));
-      O.Length := O.Length + 12 + Len;
-      S.Tx_Seq := S.Tx_Seq + 1;
-   end Frame;
 
    procedure Send_System_Time (S : in out State; Inp : Inputs; Now_Ms : Unsigned_32; O : in out Output)
      with Global => null
@@ -107,7 +21,7 @@ package body Adaflight.MAVLink_Telemetry with SPARK_Mode is
       end if;
       Put_U64 (P, 0, Unix);
       Put_U32 (P, 8, Now_Ms);
-      Frame (S, O, 2, 137, P, 12);
+      Frame (S.Tx_Seq, O.Data, O.Length, 2, 137, P, 12);
    end Send_System_Time;
 
    procedure Send_Sys_Status (S : in out State; Inp : Inputs; Now_Ms : Unsigned_32; O : in out Output)
@@ -145,7 +59,7 @@ package body Adaflight.MAVLink_Telemetry with SPARK_Mode is
       Put_U16 (P, 14, Voltage);
       Put_U16 (P, 16, Current);
       Put_U8 (P, 30, Remaining);
-      Frame (S, O, 1, 124, P, 43);
+      Frame (S.Tx_Seq, O.Data, O.Length, 1, 124, P, 43);
       Send_System_Time (S, Inp, Now_Ms, O);
    end Send_Sys_Status;
 
@@ -161,7 +75,7 @@ package body Adaflight.MAVLink_Telemetry with SPARK_Mode is
          end if;
       end loop;
       Put_U8 (P, 21, Unsigned_8 (((254 * Unsigned_32 (Inp.RSSI)) / 1023) mod 256));
-      Frame (S, O, 35, 244, P, 22);
+      Frame (S.Tx_Seq, O.Data, O.Length, 35, 244, P, 22);
    end Send_RC_Channels;
 
    procedure Send_GPS_Raw (S : in out State; Inp : Inputs; Now_Us : Unsigned_32; O : in out Output)
@@ -189,7 +103,7 @@ package body Adaflight.MAVLink_Telemetry with SPARK_Mode is
       Put_U32 (P, 38, Inp.V_Acc);
       Put_U32 (P, 42, Inp.S_Acc);
       Put_U32 (P, 46, Unsigned_32'Last);
-      Frame (S, O, 24, 24, P, 52);
+      Frame (S.Tx_Seq, O.Data, O.Length, 24, 24, P, 52);
    end Send_GPS_Raw;
 
    procedure Send_Global_Position (S : in out State; Inp : Inputs; Now_Us : Unsigned_32; O : in out Output)
@@ -209,7 +123,7 @@ package body Adaflight.MAVLink_Telemetry with SPARK_Mode is
       Put_U16 (P, 22, Bits_16 (Integer_32 (Inp.Vel_E)));
       Put_U16 (P, 24, Bits_16 (Integer_32 (Inp.Vel_D)));
       Put_U16 (P, 26, Bits_16 (Integer_32 (Inp.Yaw) * 10));
-      Frame (S, O, 33, 104, P, 28);
+      Frame (S.Tx_Seq, O.Data, O.Length, 33, 104, P, 28);
    end Send_Global_Position;
 
    procedure Send_Global_Origin (S : in out State; Inp : Inputs; Now_Us : Unsigned_32; O : in out Output)
@@ -224,7 +138,7 @@ package body Adaflight.MAVLink_Telemetry with SPARK_Mode is
       Put_U32 (P, 4, Bits_32 (Inp.Home_Longitude));
       Put_U32 (P, 8, Bits_32 (Inp.Home_Altitude_Cm * 10));
       Put_U64 (P, 12, Interfaces.Unsigned_64 (Now_Us));
-      Frame (S, O, 49, 39, P, 20);
+      Frame (S.Tx_Seq, O.Data, O.Length, 49, 39, P, 20);
    end Send_Global_Origin;
 
    procedure Send_Home_Position (S : in out State; Inp : Inputs; Now_Us : Unsigned_32; O : in out Output)
@@ -240,7 +154,7 @@ package body Adaflight.MAVLink_Telemetry with SPARK_Mode is
       Put_U32 (P, 8, Bits_32 (Inp.Home_Altitude_Cm * 10));
       Put_F32 (P, 24, 1.0);
       Put_U64 (P, 52, Interfaces.Unsigned_64 (Now_Us));
-      Frame (S, O, 242, 104, P, 60);
+      Frame (S.Tx_Seq, O.Data, O.Length, 242, 104, P, 60);
    end Send_Home_Position;
 
    Decidegree_Radians : constant Float := 0.0174532925;
@@ -254,7 +168,7 @@ package body Adaflight.MAVLink_Telemetry with SPARK_Mode is
       Put_F32 (P, 4, Float (Inp.Roll) / 10.0 * Decidegree_Radians);
       Put_F32 (P, 8, Float (-Integer_32 (Inp.Pitch)) / 10.0 * Decidegree_Radians);
       Put_F32 (P, 12, Float (Inp.Yaw) / 10.0 * Decidegree_Radians);
-      Frame (S, O, 30, 39, P, 28);
+      Frame (S.Tx_Seq, O.Data, O.Length, 30, 39, P, 28);
    end Send_Attitude;
 
    function Custom_Mode (Inp : Inputs) return Unsigned_32 is
@@ -295,7 +209,7 @@ package body Adaflight.MAVLink_Telemetry with SPARK_Mode is
       Put_U8 (P, 6, Base);
       Put_U8 (P, 7, (if Inp.Armed then (if Inp.Failsafe_Active then 5 else 4) else 3));
       Put_U8 (P, 8, 3);
-      Frame (S, O, 0, 50, P, 9);
+      Frame (S.Tx_Seq, O.Data, O.Length, 0, 50, P, 9);
    end Send_Heartbeat;
 
    procedure Send_HUD (S : in out State; C : Settings; Inp : Inputs; O : in out Output)
@@ -313,7 +227,7 @@ package body Adaflight.MAVLink_Telemetry with SPARK_Mode is
       Put_F32 (P, 8, Float (Inp.Estimated_Alt_Cm) / 100.0);
       Put_U16 (P, 16, Bits_16 (Heading));
       Put_U16 (P, 18, Unsigned_16 ((100 * (Throttle - 1_000)) / 1_000));
-      Frame (S, O, 74, 20, P, 20);
+      Frame (S.Tx_Seq, O.Data, O.Length, 74, 20, P, 20);
    end Send_HUD;
 
    procedure Send_Battery (S : in out State; C : Settings; Inp : Inputs; O : in out Output)
@@ -343,7 +257,7 @@ package body Adaflight.MAVLink_Telemetry with SPARK_Mode is
       end if;
       Put_U16 (P, 30, (if Inp.Amperage_Configured then Bits_16 (Inp.Amperage) else 16#FFFF#));
       Put_U8 (P, 35, (if Inp.Voltage_Configured then Inp.Battery_Percent else 16#FF#));
-      Frame (S, O, 147, 154, P, 54);
+      Frame (S.Tx_Seq, O.Data, O.Length, 147, 154, P, 54);
    end Send_Battery;
 
    procedure Send_Arming_Text (S : in out State; Inp : Inputs; O : in out Output)
@@ -386,7 +300,7 @@ package body Adaflight.MAVLink_Telemetry with SPARK_Mode is
       for K in Text'Range loop
          P (1 + K) := Text (K);
       end loop;
-      Frame (S, O, 253, 83, P, 54);
+      Frame (S.Tx_Seq, O.Data, O.Length, 253, 83, P, 54);
    end Send_Arming_Text;
 
    function Config_Interval (C : Settings; St : Stream) return Unsigned_32 is

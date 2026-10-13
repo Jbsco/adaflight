@@ -8,6 +8,7 @@
 with Interfaces;
 with Adaflight.Arming;
 with Adaflight.Battery;
+with Adaflight.MAVLink_Frames;
 
 package Adaflight.MAVLink_Telemetry with SPARK_Mode is
    use type Interfaces.Unsigned_8;
@@ -126,7 +127,7 @@ package Adaflight.MAVLink_Telemetry with SPARK_Mode is
    end record;
 
    Max_Output : constant := 640;
-   type Output_Bytes is array (1 .. Max_Output) of Unsigned_8;
+   subtype Output_Bytes is Adaflight.MAVLink_Frames.Byte_Buffer (1 .. Max_Output);
    type Output is record
       Data   : Output_Bytes := (others => 0);
       Length : Natural range 0 .. Max_Output := 0;
