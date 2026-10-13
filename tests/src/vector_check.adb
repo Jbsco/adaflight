@@ -123,6 +123,7 @@ with Adaflight.PINIO_Box;
 with Adaflight.Warning_LED;
 with Adaflight.V202;
 with Adaflight.SYMA;
+with Adaflight.H8_3D;
 with Adaflight.Dispatch;
 with Adaflight.ExpressLRS_Receiver;
 with Adaflight.Blackbox_Header;
@@ -13552,6 +13553,64 @@ procedure Vector_Check is
       end if;
    end Check_SYMA_Line;
 
+   H83_Seq    : Integer_64 := -1;
+   H83_State  : Adaflight.H8_3D.State;
+   H83_RC     : Adaflight.H8_3D.RC_Channels := (others => 0);
+   H83_Buffer : Adaflight.H8_3D.Payload_Buffer := (others => 0);
+
+   procedure Check_H8_3D_Line is
+      use Adaflight.H8_3D;
+      Name : constant String := Str (1);
+      O    : FSP.Output;
+   begin
+      if Name = "h3init" then
+         H83_Seq := Int (2);
+         H83_RC := (others => 0);
+         H83_Buffer := (others => 0);
+         Init (H83_State, Interfaces.Unsigned_32 (Int (3)), Interfaces.Unsigned_32 (Int (4)), O);
+         Record_Int (Name & ".channels", Int (5), RC_Channel_Count);
+         Record_Text (Name & ".ops", Str (6), FD_Ops (O));
+      elsif Int (2) /= H83_Seq then
+         Put_Line ("H8_3D line without its start");
+         Failures := Failures + 1;
+      elsif Name = "h3step" then
+         declare
+            R : Result;
+         begin
+            if Str (6) /= "-" then
+               declare
+                  B : constant Byte_Array := Hex_Bytes (6);
+               begin
+                  for I in 0 .. Payload_Size + CRC_Length - 1 loop
+                     H83_Buffer (I) := B (B'First + I);
+                  end loop;
+               end;
+            end if;
+            Data_Received (H83_State, Interfaces.Unsigned_32 (Int (4)), Interfaces.Unsigned_8 (Bits (5)), H83_Buffer,
+                           O, R);
+            if R = Data_Received_Result then
+               Set_RC_Data (H83_Buffer, H83_RC);
+            end if;
+            Record_Int (Name & ".result", Int (7), Result'Pos (R));
+            Record_Text (Name & ".ops", Str (8), FD_Ops (O));
+            for I in RC_Index loop
+               Record_Int (Name & ".rc", Int (9 + I), Integer_64 (H83_RC (I)));
+            end loop;
+            Record_Int (Name & ".state", Int (23), Protocol_State'Pos (H83_State.Phase));
+            Record_Int (Name & ".hop", Int (24), Integer_64 (H83_State.Channel_Index));
+            Record_Int (Name & ".last_hop", Int (25), Integer_64 (H83_State.Time_Of_Last_Hop));
+            Record_Int (Name & ".stored_id", Int (26), Integer_64 (H83_State.Stored_Id));
+            declare
+               C : constant Byte_Array := Hex_Bytes (27);
+            begin
+               for I in 0 .. 3 loop
+                  Record_Int (Name & ".channel", Integer_64 (C (C'First + I)), Integer_64 (H83_State.Channels (I)));
+               end loop;
+            end;
+         end;
+      end if;
+   end Check_H8_3D_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -13798,6 +13857,8 @@ procedure Vector_Check is
                   Check_V202_Line;
                elsif Kind = "syma" then
                   Check_SYMA_Line;
+               elsif Kind = "h83d" then
+                  Check_H8_3D_Line;
                else
                   Check_PID_Line;
                end if;
@@ -13931,6 +13992,7 @@ begin
    Run (Dir & "/warnled.csv", "warnled");
    Run (Dir & "/v202.csv", "v202");
    Run (Dir & "/syma.csv", "syma");
+   Run (Dir & "/h83d.csv", "h83d");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
