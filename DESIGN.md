@@ -2471,3 +2471,27 @@ The arming vectors were recorded again with a third random stream that clears, s
 overrides before each step. Of the 15030 lines, 4015 change from the earlier recording. Overrides
 are active in 3789 of the 15000 steps, and a disarm clears them 15 times. Every line replays byte
 for byte.
+
+## D113. Jeti EX Bus telemetry (2026-10-13)
+
+The Jeti telemetry unit contains the reference's answer to a transmitter's telemetry request. A call
+answers when the receiver may transmit, the request is a telemetry request no older than 3 ms with
+a good CRC, and no byte waits on the port. A stale or failed request is dropped, and an answer ends
+the permission to transmit. The receiver's request state gains the processed state an answer sets.
+
+The first 255 answers are text messages that describe the enabled sensors and the two device
+descriptions in turn. The answers after them carry sensor values: each message starts at the next
+sensor and holds the following enabled sensors of its group of fifteen, at most four values. A
+value takes three bytes with its decimals in the top byte, and a GPS coordinate takes four bytes of
+degrees and thousandths of a minute with the longitude and sign flags. The GPS sensors leave the
+values when the text phase ends with the GPS feature on, and return once a GPS is detected. The RPM
+value averages the motors with fresh ESC data and rounds ties to even. With no sensor enabled the
+reference reads a value length past its table (F119), and adaflight sends no value frame. A power
+product past 32 bits wraps as the target's multiply does, and a G-force past 16 bits saturates.
+
+The harness replays seven sequences recorded from the reference, each request frame fed through the
+receiver byte by byte: telemetry requests, other requests, channel frames, corrupted and cut
+frames, stray bytes, waits up to 5 ms and busy ports, under random sensor sets, readings and ESC
+data. One sequence enables a single sensor, and one enables none and stops inside the text phase.
+Every request state, permission, sensor set and frame byte of the 15707 lines replays byte for
+byte.

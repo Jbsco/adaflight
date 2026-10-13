@@ -40,7 +40,7 @@ package Adaflight.Jeti_Ex_Bus with SPARK_Mode is
    type Frame_Bytes is array (Frame_Index) of Byte;
    subtype Frame_Length is Natural range Header_Len + CRC_Len .. Max_Channel_Frame;
 
-   type Frame_State_Kind is (Zero, In_Progress, Received);
+   type Frame_State_Kind is (Zero, In_Progress, Received, Processed);
    type Buffer_Choice is (Channel_Buffer, Request_Buffer);
 
    function Max_Size (Target : Buffer_Choice) return Natural is

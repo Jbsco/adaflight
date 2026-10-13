@@ -60,6 +60,7 @@ with Adaflight.IBUS;
 with Adaflight.Spektrum;
 with Adaflight.XBUS;
 with Adaflight.Jeti_Ex_Bus;
+with Adaflight.Jeti_Telemetry;
 with Adaflight.GHST;
 with Adaflight.MSP_Receiver;
 with Adaflight.SRXL2;
@@ -11712,6 +11713,116 @@ procedure Vector_Check is
       end if;
    end Check_MAVLink_Commands_Line;
 
+   package JTL renames Adaflight.Jeti_Telemetry;
+   JT_Seq    : Integer_64 := -1;
+   JT_State  : JTL.State;
+   JT_Config : JTL.Settings;
+   JT_Rx     : Adaflight.Jeti_Ex_Bus.State;
+   JT_Clock  : Interfaces.Unsigned_32 := 0;
+   JT_One_G  : Positive := 1;
+   JT_Erpm   : Float := 0.0;
+   JT_Motors : Natural := 0;
+
+   function JT_Mask return Integer_64 is
+      M : Integer_64 := 0;
+   begin
+      for I in JTL.Sensor_Index loop
+         if JT_State.Enabled (I) then
+            M := M + 2 ** I;
+         end if;
+      end loop;
+      return M;
+   end JT_Mask;
+
+   procedure Check_Jeti_Telemetry_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "jtinit" then
+         JT_Seq := Int (2);
+         JT_Config :=
+           (Voltage_Meter => Int (3) /= 0,
+            Current_Meter => Int (4) /= 0,
+            Baro          => Int (5) / 4 mod 2 = 1,
+            Acc           => Int (5) / 2 mod 2 = 1,
+            Mag           => Int (5) / 8 mod 2 = 1,
+            GPS_Feature   => Int (6) / 2 ** 7 mod 2 = 1,
+            ESC_Feature   => Int (6) / 2 ** 27 mod 2 = 1,
+            Debug_Mode    => Int (7) /= 0);
+         JT_One_G := Positive (Int (8));
+         JT_Erpm := To_Float (Bits (9));
+         JT_Motors := Natural (Int (10));
+         JT_Clock := Interfaces.Unsigned_32 (Int (11));
+         Adaflight.Jeti_Ex_Bus.Init (JT_Rx);
+         JTL.Init (JT_State, JT_Config);
+         Record_Int (Name & ".enabled", Int_Hex (12), JT_Mask);
+         Record_Int (Name & ".first", Int (13), Integer_64 (JT_State.First_Active));
+      elsif Int (2) /= JT_Seq then
+         Put_Line ("Jeti telemetry line without its start");
+         Failures := Failures + 1;
+      elsif Name = "jtstep" then
+         declare
+            Incoming : constant Byte_Array := Hex_Bytes (6);
+            Inp      : JTL.Inputs;
+            O        : JTL.Output;
+         begin
+            JT_Clock := JT_Clock + Interfaces.Unsigned_32 (Int (3));
+            for K in Incoming'Range loop
+               if K > Incoming'First then
+                  JT_Clock := JT_Clock + 87;
+               end if;
+               Adaflight.Jeti_Ex_Bus.Receive_Byte (JT_Rx, Natural (Incoming (K)), JT_Clock);
+            end loop;
+            JT_Clock := JT_Clock + Interfaces.Unsigned_32 (Int (7));
+            Record_Int (Name & ".clock", Int (4), Integer_64 (JT_Clock));
+            Inp.Legacy_Voltage := Interfaces.Unsigned_16 (Int (9));
+            Inp.Pack_Voltage := Interfaces.Unsigned_16 (Int (10));
+            Inp.Amperage := Interfaces.Integer_32 (Int (11));
+            Inp.Altitude_Cm := Interfaces.Integer_32 (Int (12));
+            Inp.MAh_Drawn := Interfaces.Integer_32 (Int (13));
+            Inp.Vario := Interfaces.Integer_16 (Int (14));
+            Inp.Roll := Interfaces.Integer_16 (Int (15));
+            Inp.Pitch := Interfaces.Integer_16 (Int (16));
+            Inp.Yaw := Interfaces.Integer_16 (Int (17));
+            Inp.Satellites := Interfaces.Unsigned_8 (Int (18));
+            Inp.Longitude := Interfaces.Integer_32 (Int (19));
+            Inp.Latitude := Interfaces.Integer_32 (Int (20));
+            Inp.Ground_Speed := Interfaces.Unsigned_16 (Int (21));
+            Inp.Home_Distance := Interfaces.Unsigned_16 (Int (22));
+            Inp.Home_Direction := Interfaces.Integer_16 (Int (23));
+            Inp.Ground_Course := Interfaces.Unsigned_16 (Int (24));
+            Inp.GPS_Altitude_Cm := Interfaces.Integer_32 (Int (25));
+            Inp.GPS_Sensor := Int (26) / 2 ** 5 mod 2 = 1;
+            for A in 0 .. 2 loop
+               Inp.Acc_ADC (A) := To_Float (Bits (27 + A));
+            end loop;
+            Inp.One_G := JT_One_G;
+            Inp.Motor_Count := JT_Motors;
+            for M in JTL.Motor_Index loop
+               Inp.Rpm (M) := Natural (Int (30 + 2 * M));
+               Inp.Data_Age (M) := Interfaces.Unsigned_8 (Int (31 + 2 * M));
+            end loop;
+            Inp.Erpm_To_Hz := JT_Erpm;
+            for D in 0 .. 7 loop
+               Inp.Debug (D) := Interfaces.Integer_16 (Int (46 + D));
+            end loop;
+            JTL.Handle (JT_State, JT_Rx, JT_Config, Inp, JT_Clock, Natural (Int (8)), O);
+            Record_Int
+              (Name & ".request_state", Int (54), Adaflight.Jeti_Ex_Bus.Frame_State_Kind'Pos (JT_Rx.Request_State));
+            Record_Int (Name & ".can_tx", Int (55), Boolean'Pos (JT_Rx.Can_Tx));
+            Record_Int (Name & ".enabled", Int_Hex (56), JT_Mask);
+            declare
+               Actual : Byte_Array (0 .. O.Length - 1);
+            begin
+               for K in Actual'Range loop
+                  Actual (K) := Byte (O.Data (K + 1));
+               end loop;
+               Record_Int (Name & ".length", Int (57), Integer_64 (O.Length));
+               Record_Bytes (Name & ".bytes", Hex_Bytes (58), Actual);
+            end;
+         end;
+      end if;
+   end Check_Jeti_Telemetry_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -11920,6 +12031,8 @@ procedure Vector_Check is
                   Check_MAVLink_Telemetry_Line;
                elsif Kind = "mavcmd" then
                   Check_MAVLink_Commands_Line;
+               elsif Kind = "jetitlm" then
+                  Check_Jeti_Telemetry_Line;
                else
                   Check_PID_Line;
                end if;
@@ -12033,6 +12146,7 @@ begin
    Run (Dir & "/osdtask.csv", "osdtask");
    Run (Dir & "/mavtlm.csv", "mavtlm");
    Run (Dir & "/mavcmd.csv", "mavcmd");
+   Run (Dir & "/jetitlm.csv", "jetitlm");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
