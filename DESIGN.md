@@ -3464,3 +3464,19 @@ types and telemetry port sharing check, in a build with every feature that names
 without the ESC sensor, RC device, gimbal, Tramp and MSP VTX, rangefinder, optical flow, MSP
 display port and MSP over telemetry, on random assignments, half of them sparse. Every function
 mask, claim, baud rate, conflict, check result and assignment of the 4808 lines replays exactly.
+
+## D156. MSP serial port replies (2026-10-13)
+
+`Adaflight.MSP_Serial_Out` contains the MSP out messages of the serial ports in the legacy and the
+common layout: each available port's identifier, an empty function mask and its baud rate of each
+class from the serial feature map (D155), with the common layout led by the count of available
+ports and carrying a 32-bit mask. Port functions live in the features' settings and the command
+line shows them, so both layouts give an empty mask, which an older configurator reads as an
+unassigned port. The caller gives the target's ports with their availability, which the serial
+layer's initialization and port removals decide, the build's options and the feature assignments
+in a snapshot.
+
+The harness replays 4800 requests recorded from the reference MSP processor with the reference
+feature map and serial layer linked, in the full and the reduced build of D155, on random
+assignments with soft serial on or off and random ports removed. Every result, length and byte of
+the 4808 lines replays exactly.
