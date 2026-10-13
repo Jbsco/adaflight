@@ -113,6 +113,7 @@ with Adaflight.OSD_Warnings;
 with Adaflight.MSP_Telemetry;
 with Adaflight.OSD_Format;
 with Adaflight.VTX_MSP;
+with Adaflight.Display_Port_MSP;
 
 procedure Vector_Check is
 
@@ -9757,6 +9758,150 @@ procedure Vector_Check is
       end if;
    end Check_VTX_MSP_Line;
 
+   --  The MSP display port: the port under its profile, each operation
+   --  followed by its state and the payloads it pushed.
+
+   DP_Seq  : Integer_64 := -1;
+   DP_Font : Adaflight.Display_Port_MSP.Font_Selection;
+   DP_Port : Adaflight.Display_Port_MSP.Port;
+
+   procedure DP_Record_State (Name : String; F : Positive) is
+   begin
+      Record_Int (Name & ".rows", Int (F), Integer_64 (DP_Port.Rows));
+      Record_Int (Name & ".cols", Int (F + 1), Integer_64 (DP_Port.Cols));
+      Record_Int (Name & ".grabs", Int (F + 2), Integer_64 (DP_Port.Grab_Count));
+      Record_Int (Name & ".cleared", Int (F + 3), Boolean'Pos (DP_Port.Cleared));
+      Record_Int (Name & ".cursor", Int (F + 4), Integer_64 (DP_Port.Cursor_Row));
+      Record_Int (Name & ".devblink", Int (F + 5), Boolean'Pos (DP_Port.Use_Device_Blink));
+   end DP_Record_State;
+
+   --  The pushes expected after an operation: their count at F, then each
+   --  as the command, direction, version and payload.
+   procedure DP_Record_Push (Name : String; F : Positive; Index : Natural;
+                             Data : Adaflight.Display_Port_MSP.Payload; Length : Natural) is
+      B : constant Positive := F + 1 + 4 * Index;
+   begin
+      Record_Int (Name & ".cmd", Int (B), Adaflight.Display_Port_MSP.Command);
+      Record_Int (Name & ".dir", Int (B + 1), 0);
+      Record_Int (Name & ".ver", Int (B + 2), 0);
+      Record_Bytes (Name & ".payload", Hex_Bytes (B + 3), Data (0 .. Length - 1));
+   end DP_Record_Push;
+
+   procedure Check_Display_Port_MSP_Line is
+      use Adaflight.Display_Port_MSP;
+      Name   : constant String := Str (1);
+      Data   : Payload;
+      Length : Natural;
+   begin
+      if Name = "dpinit" then
+         DP_Seq := Int (2);
+         DP_Font := (Interfaces.Unsigned_8 (Int (4)), Interfaces.Unsigned_8 (Int (5)), Interfaces.Unsigned_8 (Int (6)),
+                     Interfaces.Unsigned_8 (Int (7)));
+         Init (DP_Port, Video_System'Val (Int (3)),
+               (Font => DP_Font, Use_Device_Blink => Int (8) = 1, Row_Adjust => Interfaces.Integer_8 (Int (9)),
+                Col_Adjust => Interfaces.Integer_8 (Int (10))),
+               Interfaces.Unsigned_8 (Int (11)), Interfaces.Unsigned_8 (Int (12)));
+         DP_Record_State (Name, 13);
+         Record_Int (Name & ".pushes", Int (19), 2);
+         Clear_Screen_Payload (Data, Length);
+         DP_Record_Push (Name, 19, 0, Data, Length);
+         Draw_Screen_Payload (Data, Length);
+         DP_Record_Push (Name, 19, 1, Data, Length);
+      elsif Int (2) /= DP_Seq then
+         Put_Line ("display port line without its start");
+         Failures := Failures + 1;
+      elsif Name = "dpstep" then
+         declare
+            Op     : constant Integer_64 := Int (3);
+            A1     : constant Interfaces.Unsigned_8 := Interfaces.Unsigned_8 (Int (4) mod 256);
+            A2     : constant Interfaces.Unsigned_8 := Interfaces.Unsigned_8 (Int (5));
+            A3     : constant Interfaces.Unsigned_8 := Interfaces.Unsigned_8 (Int (6));
+            Bytes  : constant Byte_Array := Hex_Bytes (7);
+            Pushes : Natural := 0;
+         begin
+            case Op is
+               when 0 =>
+                  Grab (DP_Port);
+                  Heartbeat (Data, Length);
+                  DP_Record_Push (Name, 15, 0, Data, Length);
+                  Clear_Screen_Payload (Data, Length);
+                  DP_Record_Push (Name, 15, 1, Data, Length);
+                  Pushes := 2;
+               when 1 =>
+                  Release (DP_Port);
+                  Release_Payload (Data, Length);
+                  DP_Record_Push (Name, 15, 0, Data, Length);
+                  Pushes := 1;
+               when 2 =>
+                  Release_All (DP_Port);
+                  Release_Payload (Data, Length);
+                  DP_Record_Push (Name, 15, 0, Data, Length);
+                  Pushes := 1;
+               when 3 =>
+                  Clear (DP_Port);
+                  Clear_Screen_Payload (Data, Length);
+                  DP_Record_Push (Name, 15, 0, Data, Length);
+                  Pushes := 1;
+               when 4 | 6 =>
+                  Draw_Screen_Payload (Data, Length);
+                  DP_Record_Push (Name, 15, 0, Data, Length);
+                  Record_Int (Name & ".result", Int (8), 0);
+                  Pushes := 1;
+               when 5 =>
+                  Heartbeat (Data, Length);
+                  DP_Record_Push (Name, 15, 0, Data, Length);
+                  Record_Int (Name & ".result", Int (8), 0);
+                  Pushes := 1;
+               when 7 =>
+                  Record_Int (Name & ".result", Int (8), Boolean'Pos (Is_Grabbed (DP_Port)));
+               when 8 =>
+                  Record_Int (Name & ".result", Int (8), Integer_64 (Screen_Size (DP_Port)));
+               when 10 =>
+                  declare
+                     Text : String (1 .. Bytes'Length);
+                  begin
+                     for K in Text'Range loop
+                        Text (K) := Character'Val (Bytes (Bytes'First + K - 1));
+                     end loop;
+                     Write_String (DP_Font, A1, A2, A3, Text, Data, Length);
+                     Record_Int (Name & ".result", Int (8), Integer_64 (Length));
+                     if Length > 0 then
+                        DP_Record_Push (Name, 15, 0, Data, Length);
+                        Pushes := 1;
+                     end if;
+                  end;
+               when 11 =>
+                  Write_Char (DP_Font, A1, A2, A3,
+                              (if Bytes'Length = 0 then Character'Val (0) else Character'Val (Bytes (Bytes'First))),
+                              Data, Length);
+                  Record_Int (Name & ".result", Int (8), Integer_64 (Length));
+                  DP_Record_Push (Name, 15, 0, Data, Length);
+                  Pushes := 1;
+               when 12 =>
+                  Write_Sys (A1, A2, A3, Data, Length);
+                  Record_Int (Name & ".result", Int (8), Integer_64 (Length));
+                  DP_Record_Push (Name, 15, 0, Data, Length);
+                  Pushes := 1;
+               when 13 =>
+                  Write_Font_Character (Interfaces.Unsigned_16 (Int (4)), Bytes, Data, Length);
+                  Record_Int (Name & ".result", Int (8), 11);
+                  DP_Record_Push (Name, 15, 0, Data, Length);
+                  Pushes := 1;
+               when 14 =>
+                  Record_Int (Name & ".result", Int (8),
+                              Boolean'Pos (Is_Ready) * 2 + Boolean'Pos (Transfer_In_Progress)
+                              + 4 * Boolean'Pos (Is_Synced));
+               when others =>
+                  null;
+            end case;
+            DP_Record_State (Name, 9);
+            if Op /= 9 then
+               Record_Int (Name & ".pushes", Int (15), Integer_64 (Pushes));
+            end if;
+         end;
+      end if;
+   end Check_Display_Port_MSP_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -9939,6 +10084,8 @@ procedure Vector_Check is
                   Check_OSD_Format_Line;
                elsif Kind = "vtxmsp" then
                   Check_VTX_MSP_Line;
+               elsif Kind = "dpmsp" then
+                  Check_Display_Port_MSP_Line;
                else
                   Check_PID_Line;
                end if;
@@ -10039,6 +10186,7 @@ begin
    Run (Dir & "/msptun.csv", "msptun");
    Run (Dir & "/osdfmt.csv", "osdfmt");
    Run (Dir & "/vtxmsp.csv", "vtxmsp");
+   Run (Dir & "/dpmsp.csv", "dpmsp");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
