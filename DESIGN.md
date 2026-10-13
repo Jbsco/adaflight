@@ -2138,3 +2138,43 @@ with and without a link quality source, updates under random readings with the w
 ones among them, and each statistic's text under random settings, clocks, meters, devices
 and totals, checked against the display writes the reference made with their columns and
 rows. Every extreme, text and position of the 9006 lines replays byte for byte.
+
+## D101. The OSD page and the arming screen (2026-10-12)
+
+The OSD page unit contains the reference's statistics page, its arming and boot screens,
+and the three steps the OSD runs around them each cycle. The page is laid out one row per
+step from the statistics enabled, in the reference's display order, each row the label
+thirteen columns left of the middle, a colon five right and the value seven right, or the
+clock alone at the label's place; a counting pass finds the row count, then the page is
+centred vertically with its heading when the rows fit, and the refresh walks its phases of
+the first clear, the count, the clear between and the rows until the page is complete or
+the rows run out. The arming screen clears the display, draws the logo when the setting
+shows it always or until the first arming, writes the armed word in the middle and the
+crash flip warning below it when that mode is on; the pause after it lasts the logo's
+duration or half a second. The boot screen clears the display and draws the logo, the
+version in capitals, the menu help and the clock when there is one, with a pause of four
+seconds. The logo goes to the display as a whole when the display draws it itself, else as
+the font's logo characters row by row.
+
+The first step of a cycle sees the arming transitions: arming resets the statistics and
+starts the pause with the arming screen; disarming enables the page when a statistic is
+enabled, the page is not suppressed, no failsafe is active, and the disarm was not a
+runaway or crash with the warnings visible, keeping the end voltage and resetting the row
+count. While armed the extremes update and the flight and launch times grow by the cycle,
+the launch time resetting while launch control is active; while disarmed with the page
+enabled, a grabbed display drops the page, the switch hides it and shows it again, and a
+shown page refreshes every second. The auxiliary value follows its channel every second.
+The second step keeps the pause: while it lasts the cycle draws nothing, and a high
+throttle or pitch stick or the crash flip switch while disarmed ends it early; once it has
+passed the display clears and the page is dropped. The third step reads the acceleration
+when the element shows it or its statistic is enabled. The display, the sticks, the
+switches, the arming disable reasons and the readings stay with the target, which draws
+the writes each step hands back; the counting pass sees the display's rows and columns.
+
+The harness replays six sequences of 500 operations recorded from the reference: the
+first step under random times, arming, failsafe, grabbing, switch, launch control and
+readings; the refresh walked to completion under random settings, pages and extremes with
+displays that draw the logo themselves and ones that do not; the second step under random
+sticks, switch and pauses; the third step; the arming screen; and the boot screen with
+the version and the clock. Every state field, extreme, write and position of the 11803
+lines replays byte for byte.
