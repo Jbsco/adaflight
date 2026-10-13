@@ -119,6 +119,7 @@ with Adaflight.LTM_Telemetry;
 with Adaflight.GPS_Lap_Timer;
 with Adaflight.MSP_Box;
 with Adaflight.MSP_Common_Out;
+with Adaflight.MSP_Tuning_Out;
 with Adaflight.MSP_Out;
 with Adaflight.Four_Way;
 with Adaflight.Gimbal_Control;
@@ -15371,6 +15372,172 @@ procedure Vector_Check is
       end if;
    end Check_MSP_Common_Line;
 
+   MT_Build       : Adaflight.MSP_Tuning_Out.Build_Options;
+   MT_Debug_Count : Interfaces.Unsigned_8 := 0;
+
+   procedure Check_MSP_Tuning_Line is
+      use Adaflight.MSP_Tuning_Out;
+      Name : constant String := Str (1);
+      K    : Positive := 5;
+      function Next return Integer_64 is
+      begin
+         K := K + 1;
+         return Int (K - 1);
+      end Next;
+      function U8 return Interfaces.Unsigned_8 is (Interfaces.Unsigned_8 (Next));
+      function U16 return Interfaces.Unsigned_16 is (Interfaces.Unsigned_16 (Next));
+   begin
+      if Name = "mtuinit" then
+         MT_Build := (Feedforward          => Int (4) /= 0,
+                      Iterm_Relax          => Int (5) /= 0,
+                      Throttle_Boost       => Int (6) /= 0,
+                      Acro_Trainer         => Int (7) /= 0,
+                      D_Max                => Int (8) /= 0,
+                      Dyn_Idle             => Int (9) /= 0,
+                      Sag_Compensation     => Int (10) /= 0,
+                      Thrust_Linearization => Int (11) /= 0,
+                      Dyn_LPF              => Int (12) /= 0,
+                      Dyn_Notch            => Int (13) /= 0,
+                      RPM_Filter           => Int (14) /= 0,
+                      Position_Hold        => Int (15) /= 0,
+                      Mag                  => Int (16) /= 0);
+         MT_Debug_Count := Interfaces.Unsigned_8 (Int (17));
+      elsif Name = "mtustep" then
+         declare
+            Command : constant Interfaces.Unsigned_16 := Interfaces.Unsigned_16 (Int (4));
+            V       : Snapshot;
+            Buffer  : Byte_Array (0 .. 255) := (others => 0);
+            St      : Adaflight.Stream_Buffers.Stream;
+         begin
+            V.Build := MT_Build;
+            V.Debug_Mode_Count := MT_Debug_Count;
+            for G of V.PID.Gains loop
+               G.P := U8;
+               G.I := U8;
+               G.D := U8;
+               G.F := U16;
+            end loop;
+            V.PID.Dterm_LPF1_Static_Hz := U16;
+            V.PID.Yaw_Lowpass_Hz := U16;
+            V.PID.Dterm_Notch_Hz := U16;
+            V.PID.Dterm_Notch_Cutoff := U16;
+            V.PID.Dterm_LPF1_Type := U8;
+            V.PID.Dterm_LPF2_Static_Hz := U16;
+            V.PID.Dterm_LPF2_Type := U8;
+            V.PID.Dterm_LPF1_Dyn_Min_Hz := U16;
+            V.PID.Dterm_LPF1_Dyn_Max_Hz := U16;
+            V.PID.Dterm_LPF1_Dyn_Expo := U8;
+            V.PID.Feedforward_Transition := U8;
+            V.PID.Rate_Accel_Limit := U16;
+            V.PID.Yaw_Rate_Accel_Limit := U16;
+            V.PID.Angle_Limit := U8;
+            V.PID.Anti_Gravity_Gain := U8;
+            V.PID.Iterm_Rotation := U8;
+            V.PID.Iterm_Relax := U8;
+            V.PID.Iterm_Relax_Type := U8;
+            V.PID.Iterm_Relax_Cutoff := U8;
+            V.PID.Throttle_Boost := U8;
+            V.PID.Acro_Trainer_Angle_Limit := U8;
+            for D of V.PID.D_Max loop
+               D := U8;
+            end loop;
+            V.PID.D_Max_Gain := U8;
+            V.PID.D_Max_Advance := U8;
+            V.PID.Motor_Output_Limit := U8;
+            V.PID.Auto_Profile_Cell_Count := Interfaces.Integer_8 (Next);
+            V.PID.Dyn_Idle_Min_RPM := U8;
+            V.PID.Feedforward_Averaging := U8;
+            V.PID.Feedforward_Smooth_Factor := U8;
+            V.PID.Feedforward_Boost := U8;
+            V.PID.Feedforward_Max_Rate_Limit := U8;
+            V.PID.Feedforward_Jitter_Factor := U8;
+            V.PID.Sag_Compensation := U8;
+            V.PID.Thrust_Linearization := U8;
+            V.PID.TPA_Mode := U8;
+            V.PID.TPA_Rate := U8;
+            V.PID.TPA_Breakpoint := U16;
+            for Axis in 1 .. Axis_Count loop
+               V.Rates.RC_Rates (Axis) := U8;
+               V.Rates.RC_Expo (Axis) := U8;
+               V.Rates.Rates (Axis) := U8;
+               V.Rates.Rate_Limit (Axis) := U16;
+            end loop;
+            V.Rates.Throttle_Mid := U8;
+            V.Rates.Throttle_Expo := U8;
+            V.Rates.Throttle_Limit_Type := U8;
+            V.Rates.Throttle_Limit_Percent := U8;
+            V.Rates.Rates_Type := U8;
+            V.Rates.Throttle_Hover := U8;
+            V.Gyro.LPF1_Static_Hz := U16;
+            V.Gyro.LPF2_Static_Hz := U16;
+            V.Gyro.Notch_Hz_1 := U16;
+            V.Gyro.Notch_Cutoff_1 := U16;
+            V.Gyro.Notch_Hz_2 := U16;
+            V.Gyro.Notch_Cutoff_2 := U16;
+            V.Gyro.Hardware_LPF := U8;
+            V.Gyro.LPF1_Type := U8;
+            V.Gyro.LPF2_Type := U8;
+            V.Gyro.LPF1_Dyn_Min_Hz := U16;
+            V.Gyro.LPF1_Dyn_Max_Hz := U16;
+            V.Gyro.High_FSR := U8;
+            V.Gyro.Movement_Calibration_Threshold := U8;
+            V.Gyro.Calibration_Duration := U16;
+            V.Gyro.Offset_Yaw := Interfaces.Integer_16 (Next);
+            V.Gyro.Check_Overflow := U8;
+            V.Gyro.Enabled_Bitmask := U8;
+            V.Gyro.Alignment := U8;
+            V.Gyro.Detected_Flags := U8;
+            V.Notches.Dyn_Notch_Q := U16;
+            V.Notches.Dyn_Notch_Min_Hz := U16;
+            V.Notches.Dyn_Notch_Max_Hz := U16;
+            V.Notches.Dyn_Notch_Count := U8;
+            V.Notches.RPM_Harmonics := U8;
+            V.Notches.RPM_Min_Hz := U8;
+            V.Notches.RPM_Fade_Range_Hz := U16;
+            V.Notches.RPM_Q := U16;
+            for W of V.Notches.RPM_Weights loop
+               W := U8;
+            end loop;
+            V.Motor.PID_Process_Denom := U8;
+            V.Motor.Continuous_Update := U8;
+            V.Motor.Protocol := U8;
+            V.Motor.PWM_Rate := U16;
+            V.Motor.Idle := U16;
+            V.Motor.Inversion := U8;
+            V.Debug_Mode := U8;
+            V.Auto_Disarm_Delay := U8;
+            V.Small_Angle := U8;
+            V.Gyro_Cal_On_First_Arm := U8;
+            V.Board_Roll := Interfaces.Integer_32 (Next);
+            V.Board_Pitch := Interfaces.Integer_32 (Next);
+            V.Board_Yaw := Interfaces.Integer_32 (Next);
+            V.Deadband_3D_Low := U16;
+            V.Deadband_3D_High := U16;
+            V.Neutral_3D := U16;
+            V.Deadband_3D_Throttle := U16;
+            V.Deadband := U8;
+            V.Yaw_Deadband := U8;
+            V.Pos_Hold_Deadband := U8;
+            V.Mag_Alignment := U8;
+            for A of V.Mag_Custom_Alignment loop
+               A := Interfaces.Integer_16 (Next);
+            end loop;
+            Adaflight.Stream_Buffers.Init (St, 0, Buffer'Last + 1);
+            Reply (Buffer, St, Command, V);
+            Record_Int (Name & ".result", Int (K), (if Handles (Command) then 1 else -1));
+            Record_Int (Name & ".length", Int (K + 1), Integer_64 (St.Next));
+            Record_Bytes (Name & ".reply", Hex_Bytes (K + 2), Buffer (0 .. St.Next - 1));
+            if K + 2 /= NF then
+               Put_Line ("mtustep: consumed" & Integer'Image (K + 2) & " of" & Integer'Image (NF) & " fields");
+               Failures := Failures + 1;
+            end if;
+         end;
+      else
+         Put_Line ("unknown MSP tuning case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_MSP_Tuning_Line;
+
    AP_State    : Adaflight.Position_Hold.State;
    AP_Settings : Adaflight.Position_Control.Settings;
    AP_Nav      : Adaflight.Position_Nav.Navigator;
@@ -15888,6 +16055,8 @@ procedure Vector_Check is
                   Check_Apnav_Line;
                elsif Kind = "mspcommon" then
                   Check_MSP_Common_Line;
+               elsif Kind = "msptuning" then
+                  Check_MSP_Tuning_Line;
                else
                   Check_PID_Line;
                end if;
@@ -16033,6 +16202,7 @@ begin
    Run (Dir & "/fpnrescue.csv", "fpnrescue");
    Run (Dir & "/apnav.csv", "apnav");
    Run (Dir & "/mspcommon.csv", "mspcommon");
+   Run (Dir & "/msptuning.csv", "msptuning");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
