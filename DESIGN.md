@@ -2734,3 +2734,27 @@ The harness replays four sequences of 4000 calls recorded from the reference tas
 processing and the scheduler's hooks stubbed: random check results, execution times, ignored
 execution times, anticipated times that echo the last estimate or change, and a clock near its
 wrap. Every step, hook call, estimate and state of the 16004 lines replays exactly.
+
+## D124. Barometer read cycle (2026-10-13)
+
+The barometer task unit contains the barometer's read cycle. One call starts a temperature
+conversion, the next calls read and sample it, and the same three steps follow for the pressure.
+The pressure sample computes the altitude through the barometer unit and starts the cycle over,
+from the pressure when the device reads both values at once. A start sleeps for the device's
+conversion delay, and a restart sleeps for the rest of the 40 Hz period when the cycle was shorter.
+Other calls sleep 1 ms. A read or sample the device has not finished keeps the phase and tells the
+scheduler to ignore the call's time. A busy bus keeps the phase and tells the scheduler to ignore
+the state's time. Every phase but the pressure start tells the scheduler to ignore the task's rate.
+The unit keeps the longest execution of each phase without decay (F133) and names the next phase's
+to the scheduler as a signed time delta, which wraps past 2 ** 31 microseconds. The caller makes
+the device call the unit names and passes its answer, and after a finished pressure sample the
+device's pressure and temperature. The unit is SPARK for its state machine and the time delta
+conversion.
+
+The harness replays eight sequences of 2500 calls recorded from the reference barometer with the
+device, the bus and the scheduler's hooks stubbed: separate and combined reads, a device without
+temperature delay, slow pressure conversions, unfinished reads, a busy bus, invalid pressures, a
+ground level reset, execution times past 2 ** 31 microseconds, and clocks that start at zero or
+near their wrap. Every phase, device call, hook call, sleep time, estimate and barometer value of
+the 20008 lines replays exactly, with the altitude in the declared 3 cm tolerance (D6): 4 of 20000
+altitudes needed it.
