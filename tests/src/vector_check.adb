@@ -116,6 +116,7 @@ with Adaflight.VTX_MSP;
 with Adaflight.Display_Port_MSP;
 with Adaflight.OSD_Stats;
 with Adaflight.OSD_Page;
+with Adaflight.OSD_Elements;
 
 procedure Vector_Check is
 
@@ -10390,6 +10391,109 @@ procedure Vector_Check is
       end if;
    end Check_OSD_Page_Line;
 
+   OE_Seq   : Integer_64 := -1;
+   OE_Blink : Adaflight.OSD_Elements.Blink;
+
+   procedure OE_Record_Bits (Name : String; F : Positive) is
+      use Adaflight.OSD_Elements;
+      Words : array (0 .. 2) of Unsigned_32 := (others => 0);
+   begin
+      for I in Item loop
+         if OE_Blink.Bits (I) then
+            Words (Item'Pos (I) / 32) := Words (Item'Pos (I) / 32) or Interfaces.Shift_Left (1, Item'Pos (I) mod 32);
+         end if;
+      end loop;
+      for W in Words'Range loop
+         Record_Result (Name & ".bits", Bits (F + W), Words (W));
+      end loop;
+      Record_Int (Name & ".state", Int (F + 3), Boolean'Pos (OE_Blink.State));
+   end OE_Record_Bits;
+
+   procedure Check_OSD_Elements_Line is
+      use Adaflight.OSD_Elements;
+      Name : constant String := Str (1);
+   begin
+      if Name = "oeinit" then
+         OE_Seq := Int (2);
+         OE_Blink := (others => <>);
+         Record_Int (Name & ".items", Int (3), Item_Count);
+         Record_Int (Name & ".order", Int (4), Display_Order'Length);
+      elsif Int (2) /= OE_Seq then
+         Put_Line ("OSD elements line without its start");
+         Failures := Failures + 1;
+      elsif Name = "oeactive" then
+         declare
+            Inp   : Element_Inputs;
+            Pos   : Positions;
+            A     : Active_List;
+            Count : Natural;
+         begin
+            Inp.Acc_Present := Int (4) = 1;
+            Inp.GPS_Present := Int (5) = 1;
+            Inp.ESC_Sensor_Feature := Int (6) = 1;
+            Inp.DShot_Telemetry := Int (7) = 1;
+            for I in Item loop
+               Pos (I) := Interfaces.Unsigned_16 (Bits (8 + Item'Pos (I)));
+            end loop;
+            Add_Active_Elements (A, Pos, Profile_Of (Integer (Int (3))), Inp);
+            Count := Natural (Int (8 + Item_Count));
+            Record_Int (Name & ".count", Int (8 + Item_Count), Integer_64 (A.Count));
+            for K in 1 .. Natural'Min (Count, A.Count) loop
+               Record_Int (Name & ".item", Int (8 + Item_Count + K), Integer_64 (Item'Pos (A.Items (K))));
+            end loop;
+            Record_Int (Name & ".needacc", Int (9 + Item_Count + Count), Boolean'Pos (Need_Accelerometer (A)));
+         end;
+      elsif Name = "oealarm" then
+         declare
+            C   : Alarm_Settings;
+            Inp : Alarm_Inputs;
+         begin
+            C.Units := Adaflight.OSD_Format.Unit_System'Val (Int (3));
+            C.RSSI_Alarm := Interfaces.Unsigned_8 (Int (4));
+            C.RSSI_Dbm_Alarm := Interfaces.Integer_16 (Int (5));
+            C.Link_Quality_Alarm := Interfaces.Unsigned_16 (Int (6));
+            C.Timers := (Interfaces.Unsigned_16 (Int (7)), Interfaces.Unsigned_16 (Int (8)));
+            C.Cap_Alarm := Interfaces.Unsigned_16 (Int (9));
+            C.Alt_Alarm := Interfaces.Unsigned_16 (Int (10));
+            C.Distance_Alarm := Interfaces.Unsigned_16 (Int (11));
+            C.ESC_Temp_Alarm := Interfaces.Unsigned_8 (Int (12));
+            C.Rescue_Min_Sats := Interfaces.Unsigned_8 (Int (13));
+            Inp.Altitude_Cm := Interfaces.Integer_32 (Int (14));
+            Inp.RSSI_Percent := Interfaces.Unsigned_8 (Int (15));
+            Inp.RSSI_Dbm := Interfaces.Integer_16 (Int (16));
+            Inp.Link_Quality := Interfaces.Unsigned_16 (Int (17));
+            Inp.Battery := Adaflight.Battery.Battery_State'Val (Int (18));
+            Inp.GPS_Present := Int (19) = 1;
+            Inp.GPS_Fix := Int (20) = 1;
+            Inp.GPS_Fix_Home := Int (21) = 1;
+            Inp.Satellites := Interfaces.Unsigned_8 (Int (22));
+            Inp.Rescue_Configured := Int (23) = 1;
+            Inp.Clocks := (Now_Us         => Interfaces.Unsigned_32 (Int (24)),
+                           Fly_Time_Us    => Interfaces.Unsigned_32 (Int (25)),
+                           Armed_Time_Us  => Interfaces.Unsigned_32 (Int (26)),
+                           Launch_Time_Us => Interfaces.Unsigned_32 (Int (27)),
+                           Armed          => Int (28) = 1);
+            Inp.Profile_Capacity := (if Int (29) = 1 then Interfaces.Unsigned_16 (Int (30)) else 0);
+            Inp.MAh_Drawn := Interfaces.Integer_32 (Int (31));
+            Inp.Home_Distance_M := Interfaces.Unsigned_16 (Int (32));
+            Inp.ESC_Sensor_Feature := Int (33) = 1;
+            Inp.ESC_Temperature := Interfaces.Unsigned_8 (Int (34));
+            Inp.Motors := Natural (Int (35));
+            for K in Adaflight.OSD_Elements.Motor_Index loop
+               Inp.DShot (K) := (Has_Temperature => (Int (36 + 2 * K) / 2) mod 2 = 1,
+                                 Temperature     => Interfaces.Unsigned_16 (Int (37 + 2 * K)));
+            end loop;
+            Update_Alarms (OE_Blink, C, Inp);
+            Sync_Blink (OE_Blink, Inp.Clocks.Now_Us);
+            OE_Record_Bits (Name, 52);
+            Record_Int (Name & ".isblink", Int (57), Boolean'Pos (Is_Blink (OE_Blink, Item'Val (Int (56)))));
+         end;
+      elsif Name = "oereset" then
+         Reset_Alarms (OE_Blink);
+         OE_Record_Bits (Name, 3);
+      end if;
+   end Check_OSD_Elements_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -10578,6 +10682,8 @@ procedure Vector_Check is
                   Check_OSD_Stats_Line;
                elsif Kind = "osdpage" then
                   Check_OSD_Page_Line;
+               elsif Kind = "osdelem" then
+                  Check_OSD_Elements_Line;
                else
                   Check_PID_Line;
                end if;
@@ -10681,6 +10787,7 @@ begin
    Run (Dir & "/dpmsp.csv", "dpmsp");
    Run (Dir & "/osdstats.csv", "osdstats");
    Run (Dir & "/osdpage.csv", "osdpage");
+   Run (Dir & "/osdelem.csv", "osdelem");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");

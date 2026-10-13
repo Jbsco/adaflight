@@ -84,9 +84,9 @@ The core holds:
 
 The state of `main`:
 
-- The core proves at Silver and Gold: 13257 checks, nothing unproved, no
+- The core proves at Silver and Gold: 13314 checks, nothing unproved, no
   `pragma Assume`, no justified suppression (`gnatprove` 16.1.0, level 2).
-- The recorded vectors replay bit for bit: 895629 lines over 303 cases, every case
+- The recorded vectors replay bit for bit: 898035 lines over 304 cases, every case
   exact except the twenty declared deviations in `DESIGN.md` D6.
 - No target builds yet. `ROADMAP.md` carries the parity inventory, the phases, and the
   question for after parity: whether a proved core leaves room on the F4 boards for
