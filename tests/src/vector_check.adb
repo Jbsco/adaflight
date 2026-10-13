@@ -119,6 +119,7 @@ with Adaflight.OSD_Page;
 with Adaflight.OSD_Elements;
 with Adaflight.OSD_Render;
 with Adaflight.OSD_Draw;
+with Adaflight.OSD_Spec;
 
 procedure Vector_Check is
 
@@ -11185,6 +11186,72 @@ procedure Vector_Check is
       end if;
    end Check_OSD_Draw_Line;
 
+   PS_Seq     : Integer_64 := -1;
+   PS_State   : Adaflight.OSD_Spec.State;
+   PS_Version : String (1 .. 31) := (others => ' ');
+   PS_Length  : Natural := 0;
+
+   procedure Check_OSD_Spec_Line is
+      use Adaflight.OSD_Spec;
+      Name : constant String := Str (1);
+   begin
+      if Name = "psinit" then
+         PS_Seq := Int (2);
+         PS_State := (others => <>);
+         declare
+            V : constant Byte_Array := Hex_Bytes (3);
+         begin
+            PS_Length := V'Length;
+            for K in 1 .. PS_Length loop
+               PS_Version (K) := Character'Val (V (V'First + K - 1));
+            end loop;
+         end;
+      elsif Int (2) /= PS_Seq then
+         Put_Line ("OSD spec line without its start");
+         Failures := Failures + 1;
+      elsif Name = "psstep" then
+         declare
+            C        : Settings;
+            Inp      : Inputs;
+            X, Y     : Interfaces.Unsigned_8;
+            Line     : Adaflight.OSD_Format.Text;
+            Complete : Boolean;
+         begin
+            C.RPM_Limit := Int (5) = 1;
+            Inp.Bidir_DShot := Int (6) = 1;
+            C.RPM_Limit_Value := Interfaces.Unsigned_16 (Int (7));
+            C.RPM_Limit_P := Interfaces.Unsigned_16 (Int (8));
+            C.RPM_Limit_I := Interfaces.Unsigned_16 (Int (9));
+            C.RPM_Limit_D := Interfaces.Unsigned_16 (Int (10));
+            C.KV := Interfaces.Unsigned_16 (Int (11));
+            C.Pole_Count := Interfaces.Unsigned_8 (Int (12));
+            C.Throttle_Limit := Natural (Int (13));
+            C.Throttle_Limit_Percent := Interfaces.Unsigned_8 (Int (14));
+            C.Motor_Output_Limit := Interfaces.Unsigned_8 (Int (15));
+            Inp.Pack_Voltage := Interfaces.Unsigned_16 (Int (16));
+            Inp.Cell_Voltage := Interfaces.Unsigned_16 (Int (17));
+            Inp.Battery := Adaflight.Battery.Battery_State'Val (Int (18));
+            C.Min_Cell := Interfaces.Unsigned_16 (Int (19));
+            C.Max_Cell := Interfaces.Unsigned_16 (Int (20));
+            Draw (PS_State, C, Inp, Interfaces.Unsigned_8 (Int (3)), Interfaces.Unsigned_8 (Int (4)),
+                  PS_Version (1 .. PS_Length), X, Y, Line, Complete);
+            Record_Int (Name & ".done", Int (21), Boolean'Pos (Complete));
+            Record_Int (Name & ".writes", Int (22), 1);
+            Record_Int (Name & ".x", Int (23), Integer_64 (X));
+            Record_Int (Name & ".y", Int (24), Integer_64 (Y));
+            Record_Int (Name & ".attr", Int (25), 0);
+            declare
+               Actual : Byte_Array (0 .. Line.Length - 1);
+            begin
+               for K in Actual'Range loop
+                  Actual (K) := Byte (Character'Pos (Line.Data (K + 1)));
+               end loop;
+               Record_Bytes (Name & ".text", Hex_Bytes (26), Actual);
+            end;
+         end;
+      end if;
+   end Check_OSD_Spec_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -11385,6 +11452,8 @@ procedure Vector_Check is
                   Check_OSD_Warnings_Element_Line;
                elsif Kind = "osddraw" then
                   Check_OSD_Draw_Line;
+               elsif Kind = "osdspec" then
+                  Check_OSD_Spec_Line;
                else
                   Check_PID_Line;
                end if;
@@ -11494,6 +11563,7 @@ begin
    Run (Dir & "/osdrender3.csv", "osdrender3");
    Run (Dir & "/osdwarnel.csv", "osdwarnel");
    Run (Dir & "/osddraw.csv", "osddraw");
+   Run (Dir & "/osdspec.csv", "osdspec");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
