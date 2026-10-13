@@ -114,6 +114,7 @@ with Adaflight.MSP_Telemetry;
 with Adaflight.OSD_Format;
 with Adaflight.VTX_MSP;
 with Adaflight.Display_Port_MSP;
+with Adaflight.OSD_Stats;
 
 procedure Vector_Check is
 
@@ -9902,6 +9903,162 @@ procedure Vector_Check is
       end if;
    end Check_Display_Port_MSP_Line;
 
+   --  The OSD statistics: resets, updates under scripted readings, and the
+   --  text of each statistic against the display writes the reference made.
+
+   OST_Seq   : Integer_64 := -1;
+   OST_Cols  : Natural := 30;
+   OST_Stats : Adaflight.OSD_Stats.Statistics;
+
+   procedure OST_Record_Stats (Name : String; F : Positive) is
+   begin
+      Record_Int (Name & ".armedtime", Int (F), Integer_64 (OST_Stats.Armed_Time_Us));
+      Record_Int (Name & ".maxspeed", Int (F + 1), Integer_64 (OST_Stats.Max_Speed));
+      Record_Int (Name & ".minvolt", Int (F + 2), Integer_64 (OST_Stats.Min_Voltage));
+      Record_Int (Name & ".endvolt", Int (F + 3), Integer_64 (OST_Stats.End_Voltage));
+      Record_Int (Name & ".maxcurrent", Int (F + 4), Integer_64 (OST_Stats.Max_Current));
+      Record_Int (Name & ".minrssi", Int (F + 5), Integer_64 (OST_Stats.Min_RSSI));
+      Record_Int (Name & ".maxalt", Int (F + 6), Integer_64 (OST_Stats.Max_Altitude));
+      Record_Int (Name & ".maxdist", Int (F + 7), Integer_64 (OST_Stats.Max_Distance));
+      Record_Result (Name & ".maxg", Bits (F + 8), To_Bits (OST_Stats.Max_G_Force));
+      Record_Int (Name & ".esctempix", Int (F + 9), Integer_64 (OST_Stats.Max_ESC_Temp_Ix));
+      Record_Int (Name & ".esctemp", Int (F + 10), Integer_64 (OST_Stats.Max_ESC_Temp));
+      Record_Int (Name & ".escrpm", Int (F + 11), Integer_64 (OST_Stats.Max_ESC_RPM));
+      Record_Int (Name & ".minlq", Int (F + 12), Integer_64 (OST_Stats.Min_Link_Quality));
+      Record_Int (Name & ".minrssidbm", Int (F + 13), Integer_64 (OST_Stats.Min_RSSI_Dbm));
+      Record_Int (Name & ".minrsnr", Int (F + 14), Integer_64 (OST_Stats.Min_RSNR));
+   end OST_Record_Stats;
+
+   procedure OST_Record_Text (Name : String; Field : Positive; T : Adaflight.OSD_Format.Text) is
+      Actual : Byte_Array (0 .. T.Length - 1);
+   begin
+      for K in Actual'Range loop
+         Actual (K) := Byte (Character'Pos (T.Data (K + 1)));
+      end loop;
+      Record_Bytes (Name, Hex_Bytes (Field), Actual);
+   end OST_Record_Text;
+
+   procedure Check_OSD_Stats_Line is
+      use Adaflight.OSD_Stats;
+      Name : constant String := Str (1);
+   begin
+      if Name = "osinit" then
+         OST_Seq := Int (2);
+         OST_Cols := Integer (Int (3));
+         OST_Stats := (others => <>);
+      elsif Int (2) /= OST_Seq then
+         Put_Line ("OSD stats line without its start");
+         Failures := Failures + 1;
+      elsif Name = "osreset" then
+         Reset (OST_Stats, Int (3) = 1);
+         OST_Record_Stats (Name, 4);
+      elsif Name = "osupdate" then
+         declare
+            R : Readings;
+         begin
+            R.Speed_3D := Interfaces.Unsigned_16 (Int (3));
+            R.Ground_Speed := Interfaces.Unsigned_16 (Int (4));
+            R.Use_3D_Speed := Int (5) = 1;
+            R.Pack_Voltage := Interfaces.Unsigned_16 (Int (6));
+            R.Cell_Voltage := Interfaces.Unsigned_16 (Int (7));
+            R.Show_Cell_Value := Int (8) = 1;
+            R.Amperage := Interfaces.Integer_32 (Int (9));
+            R.RSSI_Percent := Interfaces.Unsigned_8 (Int (10));
+            R.Altitude_Cm := Interfaces.Integer_32 (Int (11));
+            R.Acceleration := Flt (12);
+            R.Link_Quality_Percent := Interfaces.Unsigned_16 (Int (13));
+            R.RSSI_Dbm := Interfaces.Integer_16 (Int (14));
+            R.RSNR := Interfaces.Integer_16 (Int (15));
+            R.GPS_Fix := Int (16) = 1;
+            R.GPS_Fix_Home := Int (17) = 1;
+            R.Distance_To_Home := Interfaces.Unsigned_16 (Int (18));
+            R.ESC_Sensor_Feature := Int (19) = 1;
+            R.ESC_Temperature := Interfaces.Unsigned_8 (Int (20));
+            R.ESC_Erpm := Integer (Int (21));
+            R.Erpm_To_Hz := Flt (22);
+            R.DShot_Telemetry := Int (23) = 1;
+            R.Motors := Integer (Int (24));
+            for K in Motor_Index loop
+               R.DShot_Max_Temp (K) := Interfaces.Unsigned_8 (Int (25 + K));
+            end loop;
+            R.DShot_RPM_Average := Flt (33);
+            Update (OST_Stats, R);
+            OST_Record_Stats (Name, 34);
+         end;
+      elsif Name = "osstat" then
+         declare
+            P     : Adaflight.OSD_Stats.Page;
+            Line  : Stat_Line;
+            Which : constant Stat := Stat'Val (Int (3));
+            Mid   : constant Integer_64 := Integer_64 (OST_Cols / 2);
+         begin
+            P.Units := Adaflight.OSD_Format.Unit_System'Val (Int (4));
+            P.Timer_1 := Interfaces.Unsigned_16 (Int (5));
+            P.Timer_2 := Interfaces.Unsigned_16 (Int (6));
+            OST_Stats.Armed_Time_Us := Interfaces.Unsigned_32 (Int (9));
+            P.Clocks := (Now_Us => Interfaces.Unsigned_32 (Int (7)), Fly_Time_Us => Interfaces.Unsigned_32 (Int (8)),
+                         Armed_Time_Us => Interfaces.Unsigned_32 (Int (9)),
+                         Launch_Time_Us => Interfaces.Unsigned_32 (Int (10)), Armed => Int (11) = 1);
+            P.Show_Cell_Value := Int (12) = 1;
+            P.GPS_Feature := Int (13) = 1;
+            P.Current_Meter := Int (14) = 1;
+            P.Pack_Voltage := Interfaces.Unsigned_16 (Int (15));
+            P.Cell_Voltage := Interfaces.Unsigned_16 (Int (16));
+            P.Flight_Distance_Cm := Interfaces.Unsigned_32 (Int (17));
+            P.MAh_Drawn := Interfaces.Integer_32 (Int (18));
+            P.Wh_Drawn := Flt (19);
+            P.Blackbox_Device := Integer (Int (20));
+            P.Blackbox_Working := Int (21) = 1;
+            P.SD_Blocks := Interfaces.Unsigned_32 (Int (22));
+            P.SD_Free_Bytes := Interfaces.Unsigned_32 (Int (23));
+            P.Flash_Sectors := Interfaces.Unsigned_32 (Int (24));
+            P.Flash_Sector_Size := Interfaces.Unsigned_32 (Int (25));
+            P.Flash_Offset := Interfaces.Unsigned_32 (Int (26));
+            P.Log_Number := Interfaces.Integer_32 (Int (27));
+            P.Acc_Present := Int (28) = 1;
+            P.Dyn_Notch_Active := Int (29) = 1;
+            P.Max_FFT := Interfaces.Integer_32 (Int (30));
+            P.Total_Flights := Interfaces.Unsigned_32 (Int (31));
+            P.Total_Time_S := Interfaces.Unsigned_32 (Int (32));
+            P.Total_Dist_M := Interfaces.Unsigned_32 (Int (33));
+            P.Best_3_Consec_Ms := Interfaces.Unsigned_32 (Int (34));
+            P.Best_Lap_Ms := Interfaces.Unsigned_32 (Int (35));
+            P.Full_Throttle_Time_Us := Interfaces.Unsigned_32 (Int (36));
+            P.Full_Throttle_Count := Interfaces.Unsigned_32 (Int (37));
+            P.Average_Throttle := Interfaces.Integer_8 (Int (38));
+            P.RTC_Variant := Adaflight.OSD_Format.Element_Type'Val (Int (39));
+            P.Has_Time := Int (40) = 1;
+            P.Date := (Year => Interfaces.Unsigned_16 (Int (41)), Month => Interfaces.Unsigned_8 (Int (42)),
+                       Day => Interfaces.Unsigned_8 (Int (43)), Hours => Interfaces.Unsigned_8 (Int (44)),
+                       Minutes => Interfaces.Unsigned_8 (Int (45)), Seconds => Interfaces.Unsigned_8 (Int (46)),
+                       Millis => Interfaces.Unsigned_16 (Int (47)));
+            P.Zone := (Zone => Interfaces.Integer_16 (Int (48)));
+            Stat_Text (Which, OST_Stats, P, Line);
+            Record_Int (Name & ".shown", Int (49), Boolean'Pos (Line.Shown));
+            if Line.Shown then
+               if Line.Labeled then
+                  Record_Int (Name & ".writes", Int (51), 3);
+                  Record_Int (Name & ".labelx", Int (52), (Mid - 13) mod 256);
+                  Record_Int (Name & ".labely", Int (53), Int (50));
+                  OST_Record_Text (Name & ".label", 54, Line.Label);
+                  Record_Int (Name & ".colonx", Int (55), (Mid + 5) mod 256);
+                  Record_Bytes (Name & ".colon", Hex_Bytes (57), (0 => Character'Pos (':')));
+                  Record_Int (Name & ".valuex", Int (58), (Mid + 7) mod 256);
+                  Record_Int (Name & ".valuey", Int (59), Int (50));
+                  OST_Record_Text (Name & ".value", 60, Line.Value);
+               else
+                  Record_Int (Name & ".writes", Int (51), 1);
+                  Record_Int (Name & ".valuex", Int (52), (Mid - 13) mod 256);
+                  Record_Int (Name & ".valuey", Int (53), Int (50));
+                  OST_Record_Text (Name & ".value", 54, Line.Value);
+               end if;
+            else
+               Record_Int (Name & ".writes", Int (51), 0);
+            end if;
+         end;
+      end if;
+   end Check_OSD_Stats_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -10086,6 +10243,8 @@ procedure Vector_Check is
                   Check_VTX_MSP_Line;
                elsif Kind = "dpmsp" then
                   Check_Display_Port_MSP_Line;
+               elsif Kind = "osdstats" then
+                  Check_OSD_Stats_Line;
                else
                   Check_PID_Line;
                end if;
@@ -10187,6 +10346,7 @@ begin
    Run (Dir & "/osdfmt.csv", "osdfmt");
    Run (Dir & "/vtxmsp.csv", "vtxmsp");
    Run (Dir & "/dpmsp.csv", "dpmsp");
+   Run (Dir & "/osdstats.csv", "osdstats");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
