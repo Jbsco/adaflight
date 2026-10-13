@@ -127,6 +127,7 @@ with Adaflight.MSP_Peripheral_Out;
 with Adaflight.MSP_Text_Out;
 with Adaflight.MSP_Simplified_Tuning;
 with Adaflight.MSP_OSD_Out;
+with Adaflight.Serial_Feature_Map;
 with Adaflight.MSP_Out;
 with Adaflight.Four_Way;
 with Adaflight.Gimbal_Control;
@@ -16323,6 +16324,231 @@ procedure Vector_Check is
       end if;
    end Check_MSP_OSD_Line;
 
+   SM_Options    : Adaflight.Serial_Feature_Map.Options;
+   SM_Ports      : Adaflight.Serial_Feature_Map.Port_List (1 .. Adaflight.Serial_Feature_Map.Max_Ports) :=
+     (others => -1);
+   SM_Port_Count : Natural := 0;
+
+   procedure Check_Serial_Map_Line is
+      package SFM renames Adaflight.Serial_Feature_Map;
+      Name : constant String := Str (1);
+      K    : Positive := 5;
+      A    : SFM.Assignments;
+      function Next return Integer_64 is
+      begin
+         K := K + 1;
+         return Int (K - 1);
+      end Next;
+      function VTX_Of (Code : Integer_64) return SFM.VTX_Device is
+        (case Code is
+            when 0 => SFM.Unsupported,
+            when 1 => SFM.RTC6705,
+            when 3 => SFM.SmartAudio,
+            when 4 => SFM.Tramp,
+            when 5 => SFM.MSP_VTX,
+            when others => SFM.Unknown);
+      function VTX_Code (D : SFM.VTX_Device) return Integer_64 is
+        (case D is
+            when SFM.Unsupported => 0,
+            when SFM.RTC6705 => 1,
+            when SFM.SmartAudio => 3,
+            when SFM.Tramp => 4,
+            when SFM.MSP_VTX => 5,
+            when SFM.Unknown => 255);
+      procedure Read_State is
+      begin
+         for S in SFM.MSP_Slot loop
+            A.MSP_Port (S) := Integer (Next);
+         end loop;
+         for S in SFM.MSP_Slot loop
+            A.MSP_Baud (S) := Natural (Next);
+         end loop;
+         A.GPS_Port := Integer (Next);
+         A.GPS_Baud := Natural (Next);
+         A.RX_Port := Integer (Next);
+         A.RX_Provider := SFM.Serial_RX'Val (Next);
+         A.Blackbox_Port := Integer (Next);
+         A.Blackbox_Baud := Natural (Next);
+         A.ESC_Sensor_Port := Integer (Next);
+         A.RCDevice_Port := Integer (Next);
+         A.Gimbal_Port := Integer (Next);
+         A.VTX_Port := Integer (Next);
+         A.VTX_Type := VTX_Of (Next);
+         A.Rangefinder_Port := Integer (Next);
+         A.Rangefinder_On_MSP := Next /= 0;
+         A.Optical_Flow_Port := Integer (Next);
+         A.Optical_Flow_On_MSP := Next /= 0;
+         A.OSD_Port := Integer (Next);
+         A.Display_Device := Adaflight.OSD_Task.Device_Kind'Val (Next);
+         A.Custom_Text_Port := Integer (Next);
+         A.Custom_Text_Baud := Natural (Next);
+         for T in SFM.Telemetry_Slot loop
+            A.Telemetry (T).Protocol := SFM.Telemetry_Protocol'Val (Next);
+            A.Telemetry (T).Port := Integer (Next);
+            A.Telemetry (T).Baud := Natural (Next);
+         end loop;
+      end Read_State;
+      procedure Expect (Field : String; Actual : Integer_64) is
+      begin
+         Record_Int (Name & "." & Field, Int (K), Actual);
+         K := K + 1;
+      end Expect;
+      procedure Expect_State is
+      begin
+         for S in SFM.MSP_Slot loop
+            Expect ("msp_port", Integer_64 (A.MSP_Port (S)));
+         end loop;
+         for S in SFM.MSP_Slot loop
+            Expect ("msp_baud", Integer_64 (A.MSP_Baud (S)));
+         end loop;
+         Expect ("gps_port", Integer_64 (A.GPS_Port));
+         Expect ("gps_baud", Integer_64 (A.GPS_Baud));
+         Expect ("rx_port", Integer_64 (A.RX_Port));
+         Expect ("rx_provider", SFM.Serial_RX'Pos (A.RX_Provider));
+         Expect ("blackbox_port", Integer_64 (A.Blackbox_Port));
+         Expect ("blackbox_baud", Integer_64 (A.Blackbox_Baud));
+         Expect ("esc_port", Integer_64 (A.ESC_Sensor_Port));
+         Expect ("rcdevice_port", Integer_64 (A.RCDevice_Port));
+         Expect ("gimbal_port", Integer_64 (A.Gimbal_Port));
+         Expect ("vtx_port", Integer_64 (A.VTX_Port));
+         Expect ("vtx_type", VTX_Code (A.VTX_Type));
+         Expect ("rangefinder_port", Integer_64 (A.Rangefinder_Port));
+         Expect ("rangefinder_msp", Boolean'Pos (A.Rangefinder_On_MSP));
+         Expect ("opticalflow_port", Integer_64 (A.Optical_Flow_Port));
+         Expect ("opticalflow_msp", Boolean'Pos (A.Optical_Flow_On_MSP));
+         Expect ("osd_port", Integer_64 (A.OSD_Port));
+         Expect ("display_device", Adaflight.OSD_Task.Device_Kind'Pos (A.Display_Device));
+         Expect ("custom_text_port", Integer_64 (A.Custom_Text_Port));
+         Expect ("custom_text_baud", Integer_64 (A.Custom_Text_Baud));
+         for T in SFM.Telemetry_Slot loop
+            Expect ("telemetry_protocol", SFM.Telemetry_Protocol'Pos (A.Telemetry (T).Protocol));
+            Expect ("telemetry_port", Integer_64 (A.Telemetry (T).Port));
+            Expect ("telemetry_baud", Integer_64 (A.Telemetry (T).Baud));
+         end loop;
+      end Expect_State;
+      function Text_Or_Dash (T : String) return String is (if T = "" then "-" else T);
+   begin
+      if Name = "smapinit" then
+         K := 4;
+         SM_Options.GPS := Next /= 0;
+         SM_Options.Receiver := Next /= 0;
+         SM_Options.Blackbox := Next /= 0;
+         SM_Options.ESC_Sensor := Next /= 0;
+         SM_Options.RCDevice := Next /= 0;
+         SM_Options.Gimbal := Next /= 0;
+         SM_Options.VTX := Next /= 0;
+         SM_Options.SmartAudio := Next /= 0;
+         SM_Options.Tramp := Next /= 0;
+         SM_Options.VTX_MSP := Next /= 0;
+         SM_Options.Rangefinder := Next /= 0;
+         SM_Options.Rangefinder_MSP := Next /= 0;
+         SM_Options.Optical_Flow := Next /= 0;
+         SM_Options.Optical_Flow_MSP := Next /= 0;
+         SM_Options.OSD := Next /= 0;
+         SM_Options.MSP_Display_Port := Next /= 0;
+         SM_Options.Telemetry := Next /= 0;
+         SM_Options.FrSky_Hub := Next /= 0;
+         SM_Options.HoTT := Next /= 0;
+         SM_Options.LTM := Next /= 0;
+         SM_Options.SmartPort := Next /= 0;
+         SM_Options.MAVLink := Next /= 0;
+         SM_Options.IBus := Next /= 0;
+         SM_Options.MSP_Over_Telemetry := Next /= 0;
+         Record_Int (Name & ".telemetry_slots", Next, Integer_64 (SFM.Telemetry_Slots (SM_Options)));
+         SM_Options.Soft_Serial_Ports := Natural (Next);
+         SM_Port_Count := Natural (Next);
+         for I in 1 .. SM_Port_Count loop
+            SM_Ports (I) := Integer (Next);
+         end loop;
+         return;
+      elsif Name /= "smapstep" then
+         Put_Line ("unknown serial map case " & Name);
+         Failures := Failures + 1;
+         return;
+      end if;
+      Read_State;
+      declare
+         Op    : constant Integer_64 := Int (4);
+         Ports : SFM.Port_List renames SM_Ports (1 .. SM_Port_Count);
+      begin
+         case Op is
+            when 0 =>
+               declare
+                  Port   : constant SFM.Port_Id := Integer (Next);
+                  Limit  : constant SFM.Claim_Count := Natural (Next);
+                  Claims : SFM.Claim_Array;
+                  Count  : SFM.Claim_Count;
+               begin
+                  Record_Int (Name & ".mask", Next, Integer_64 (SFM.Function_Mask (SM_Options, A, Port)));
+                  SFM.Port_Claims (SM_Options, A, Port, Limit, Claims, Count);
+                  Record_Int (Name & ".claims", Int (K), Integer_64 (Count));
+                  if Int (K) = Integer_64 (Count) then
+                     K := K + 1;
+                     for I in 1 .. Count loop
+                        Record_Text (Name & ".claim_name", Str (K), SFM.Claim_Name (Claims (I).Kind));
+                        Record_Text (Name & ".claim_setting", Str (K + 1), SFM.Claim_Setting (Claims (I).Kind));
+                        Record_Text (Name & ".claim_selector", Str (K + 2),
+                                     Text_Or_Dash (SFM.Claim_Selector (Claims (I).Kind)));
+                        Record_Text (Name & ".claim_baud", Str (K + 3),
+                                     Text_Or_Dash (SFM.Claim_Baud_Setting (Claims (I).Kind)));
+                        Record_Int (Name & ".claim_mask", Int (K + 4), Integer_64 (Claims (I).Mask));
+                        K := K + 5;
+                     end loop;
+                     for C in SFM.Baud_Class loop
+                        Expect ("baud", Integer_64 (SFM.Port_Baud (SM_Options, A, Port, C)));
+                     end loop;
+                     Expect ("conflict", Boolean'Pos (SFM.Functions_Conflict (SM_Options, A, Port)));
+                  else
+                     return;
+                  end if;
+               end;
+            when 1 =>
+               declare
+                  Port    : constant SFM.Port_Id := Integer (Next);
+                  Mask    : constant Interfaces.Unsigned_32 := Interfaces.Unsigned_32 (Next);
+                  Applied : Boolean;
+               begin
+                  SFM.Apply_Function_Mask (SM_Options, A, Port, Mask, Applied);
+                  Expect ("applied", Boolean'Pos (Applied));
+               end;
+            when 2 =>
+               declare
+                  Port  : constant SFM.Port_Id := Integer (Next);
+                  Class : constant SFM.Baud_Class := SFM.Baud_Class'Val (Next);
+               begin
+                  SFM.Apply_Port_Baud (SM_Options, A, Port, Class, Natural (Next));
+               end;
+            when 3 =>
+               declare
+                  Limit : constant Natural := Natural (Next);
+                  Ports_Out : SFM.Implied_Ports;
+                  Count : Natural;
+               begin
+                  SFM.Implied_MSP_Ports (SM_Options, A, Limit, Ports_Out, Count);
+                  Expect ("implied_count", Integer_64 (Count));
+                  for I in 1 .. Count loop
+                     Expect ("implied_port", Integer_64 (Ports_Out (I)));
+                  end loop;
+               end;
+            when 4 =>
+               Expect ("valid", Boolean'Pos (SFM.Config_Valid (SM_Options, A, Ports)));
+            when 5 =>
+               SFM.Drop_Conflicting_Assignments (SM_Options, A, Ports);
+            when 6 =>
+               SFM.Reset_Feature_Assignments (SM_Options, A, Ports);
+            when others =>
+               Expect ("valid_before", Boolean'Pos (SFM.Config_Valid (SM_Options, A, Ports)));
+               SFM.Fix (SM_Options, A, Ports);
+               Expect ("valid_after", Boolean'Pos (SFM.Config_Valid (SM_Options, A, Ports)));
+         end case;
+      end;
+      Expect_State;
+      if K - 1 /= NF then
+         Put_Line ("smapstep: consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
+         Failures := Failures + 1;
+      end if;
+   end Check_Serial_Map_Line;
+
    AP_State    : Adaflight.Position_Hold.State;
    AP_Settings : Adaflight.Position_Control.Settings;
    AP_Nav      : Adaflight.Position_Nav.Navigator;
@@ -16856,6 +17082,8 @@ procedure Vector_Check is
                   Check_MSP_Simplified_Line;
                elsif Kind = "msposd" then
                   Check_MSP_OSD_Line;
+               elsif Kind = "serialmap" then
+                  Check_Serial_Map_Line;
                else
                   Check_PID_Line;
                end if;
@@ -17009,6 +17237,7 @@ begin
    Run (Dir & "/simpfilt.csv", "simpfilt");
    Run (Dir & "/mspsimp.csv", "mspsimp");
    Run (Dir & "/msposd.csv", "msposd");
+   Run (Dir & "/serialmap.csv", "serialmap");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
