@@ -10906,6 +10906,64 @@ procedure Vector_Check is
       end if;
    end Check_OSD_Render_3_Line;
 
+   WE_Seq    : Integer_64 := -1;
+   WE_Config : Adaflight.OSD_Warnings.Settings;
+   WE_Const  : Adaflight.OSD_Warnings.Inputs;
+   WE_State  : Adaflight.OSD_Warnings.State;
+
+   procedure Check_OSD_Warnings_Element_Line is
+      use Adaflight.OSD_Render;
+      Name : constant String := Str (1);
+   begin
+      if Name = "weinit" then
+         WE_Seq := Int (2);
+         WE_State := (others => <>);
+         OW_Read_Init (WE_Config, WE_Const);
+      elsif Int (2) /= WE_Seq then
+         Put_Line ("OSD warnings element line without its start");
+         Failures := Failures + 1;
+      elsif Name = "westep" then
+         declare
+            WI     : Adaflight.OSD_Warnings.Inputs;
+            B      : Positive;
+            Inp    : Inputs;
+            O      : Output;
+            Beeper : Boolean;
+            Craft  : Craft_Name_Buffer;
+         begin
+            OW_Read_Step (WE_Const, WI, B);
+            Inp.Link_Source := Link_Quality_Source'Val (Int (B + 28));
+            Inp.Link_Quality := Interfaces.Unsigned_16 (Int (B + 29));
+            Inp.RF_Mode := Interfaces.Unsigned_8 (Int (B + 30));
+            Inp.RSSI_Dbm := WI.RSSI_Dbm;
+            declare
+               Before : constant Byte_Array := Hex_Bytes (B + 32);
+            begin
+               for K in Craft'Range loop
+                  Craft (K) := Character'Val (Before (Before'First + K - 1));
+               end loop;
+            end;
+            Render_Warnings (WE_State, WE_Config, WI, Int (B + 27) = 1, Int (B + 31) = 1, Inp, Craft, O, Beeper);
+            declare
+               Actual : Byte_Array (0 .. O.Line.Length - 1);
+               After  : Byte_Array (0 .. Craft'Length - 1);
+            begin
+               for K in Actual'Range loop
+                  Actual (K) := Byte (Character'Pos (O.Line.Data (K + 1)));
+               end loop;
+               for K in After'Range loop
+                  After (K) := Byte (Character'Pos (Craft (Craft'First + K)));
+               end loop;
+               Record_Bytes (Name & ".text", Hex_Bytes (B + 33), Actual);
+               Record_Bytes (Name & ".craft", Hex_Bytes (B + 37), After);
+            end;
+            Record_Int (Name & ".blink", Int (B + 34), Boolean'Pos (O.Blink = Set));
+            Record_Int (Name & ".attr", Int (B + 35), Severity'Pos (O.Attr));
+            Record_Int (Name & ".beeper", Int (B + 36), Boolean'Pos (Beeper));
+         end;
+      end if;
+   end Check_OSD_Warnings_Element_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -11102,6 +11160,8 @@ procedure Vector_Check is
                   Check_OSD_Render_2_Line;
                elsif Kind = "osdrender3" then
                   Check_OSD_Render_3_Line;
+               elsif Kind = "osdwarnel" then
+                  Check_OSD_Warnings_Element_Line;
                else
                   Check_PID_Line;
                end if;
@@ -11209,6 +11269,7 @@ begin
    Run (Dir & "/osdrender.csv", "osdrender");
    Run (Dir & "/osdrender2.csv", "osdrender2");
    Run (Dir & "/osdrender3.csv", "osdrender3");
+   Run (Dir & "/osdwarnel.csv", "osdwarnel");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
