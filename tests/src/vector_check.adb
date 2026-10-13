@@ -14273,6 +14273,230 @@ procedure Vector_Check is
       end if;
    end Check_Executor_Helper_Line;
 
+   Leg_State   : Adaflight.Flight_Plan_Nav.State;
+   Leg_Nav     : Adaflight.Position_Nav.Navigator;
+   Leg_Plan    : Adaflight.Flight_Plan.Plan;
+   Leg_Config  : Adaflight.Flight_Plan_Nav.Settings;
+   Leg_Origin  : Adaflight.Position_Estimator.Location;
+   Leg_Cos_Lat : Float := 1.0;
+   Leg_Has_Origin : Boolean := False;
+
+   procedure Check_Executor_Leg_Line is
+      use Adaflight.Flight_Plan_Nav;
+      Name : constant String := Str (1);
+
+      function F (I : Positive) return Float is (To_Float (Bits (I)));
+
+      procedure Expect (N : String; I : Positive; Actual : Float) is
+      begin
+         Record_Result ("flstep." & N, Bits (I), To_Bits (Actual));
+      end Expect;
+
+      procedure Expect_Flag (N : String; I : Positive; Actual : Boolean) is
+      begin
+         Record_Int ("flstep." & N, Int (I), Boolean'Pos (Actual));
+      end Expect_Flag;
+
+      --  The autopilot calls against the oracle's log, each closed by a
+      --  semicolon, or a dash for none: H and the bits of a held heading, R
+      --  for the nose handed back, and E with the request and the bits of
+      --  the pitch for the heading recovery.
+      procedure Expect_Calls (I : Positive; O : Autopilot_Output) is
+         Log   : constant String := Str (I);
+         K     : Natural := Log'First;
+         Count : Natural := 0;
+      begin
+         if Log /= "-" then
+            while K <= Log'Last loop
+               Count := Count + 1;
+               declare
+                  Actual   : constant Autopilot_Call :=
+                    (if Count <= O.Count then O.Calls (Count) else (Kind => Nose_Override, On => False, Value => -1.0));
+                  Expected : constant Integer_64 :=
+                    (case Log (K) is
+                        when 'H'    => 1,
+                        when 'R'    => 0,
+                        when others => 2 + Integer_64'Value (Log (K + 1 .. K + 1)));
+               begin
+                  Record_Int ("flstep.call", Expected,
+                              (case Actual.Kind is
+                                 when Nose_Override    => Boolean'Pos (Actual.On),
+                                 when Heading_Recovery => 2 + Boolean'Pos (Actual.On)));
+                  case Log (K) is
+                     when 'H' =>
+                        Record_Result ("flstep.call_value", Unsigned_32'Value ("16#" & Log (K + 1 .. K + 8) & "#"),
+                                       To_Bits (Actual.Value));
+                        K := K + 10;
+                     when 'R' =>
+                        K := K + 2;
+                     when others =>
+                        Record_Result ("flstep.call_value", Unsigned_32'Value ("16#" & Log (K + 2 .. K + 9) & "#"),
+                                       To_Bits (Actual.Value));
+                        K := K + 11;
+                  end case;
+               end;
+            end loop;
+         end if;
+         Record_Int ("flstep.calls", Integer_64 (Count), Integer_64 (O.Count));
+      end Expect_Calls;
+   begin
+      if Name = "flinit" then
+         declare
+            Count : constant Natural := Natural (Int (20));
+            B     : constant Positive := 22 + 9 * Count;
+         begin
+            Leg_Config :=
+              (Max_Angle      => Interfaces.Unsigned_8 (Int (4)),
+               Arrival_Radius => Interfaces.Unsigned_16 (Int (5)),
+               Radius         => Interfaces.Unsigned_16 (Int (6)),
+               Max_Speed      => Interfaces.Unsigned_16 (Int (7)),
+               Nav_Accel      => Interfaces.Unsigned_16 (Int (8)),
+               Landing_Rate   => Interfaces.Unsigned_8 (Int (9)),
+               Climb_Rate     => 100.0,
+               Corner_Speed   => Interfaces.Unsigned_16 (Int (10)),
+               Corner_Delta_V => Interfaces.Unsigned_16 (Int (11)),
+               Nav_Decel      => Interfaces.Unsigned_16 (Int (12)),
+               Lead_Time      => Interfaces.Unsigned_8 (Int (13)),
+               Lead_Max       => Interfaces.Unsigned_16 (Int (14)),
+               Preturn_Dist   => Interfaces.Unsigned_16 (Int (15)),
+               Yaw_Mode       => Interfaces.Unsigned_8 (Int (16)));
+            Leg_Origin := (Lat => I32 (17), Lon => I32 (18), Alt_Cm => I32 (19));
+            Leg_Plan := (Count => Count, Waypoints => (others => (others => <>)));
+            for W in 0 .. Count - 1 loop
+               declare
+                  K : constant Positive := 22 + 9 * W;
+               begin
+                  Leg_Plan.Waypoints (W) :=
+                    (Latitude      => I32 (K),
+                     Longitude     => I32 (K + 1),
+                     Altitude      => I32 (K + 2),
+                     Speed         => Interfaces.Unsigned_16 (Int (K + 3)),
+                     Duration_Ds   => Interfaces.Unsigned_16 (Int (K + 4)),
+                     Vert_Rate     => Interfaces.Unsigned_16 (Int (K + 5)),
+                     Kind          => Interfaces.Unsigned_8 (Int (K + 6)),
+                     Pattern       => Interfaces.Unsigned_8 (Int (K + 7)),
+                     Yaw_Behaviour => Interfaces.Unsigned_8 (Int (K + 8)));
+               end;
+            end loop;
+            Leg_State := (others => <>);
+            Leg_State.Active := True;
+            Leg_State.Mode := Targeting;
+            Leg_State.Current_Index := Interfaces.Unsigned_8 (Int (21));
+            Leg_State.Leg_Is_Pass_Gate := True;
+            Leg_State.Leg_Target := (East => F (B), North => F (B + 1), Up => F (B + 2));
+            Leg_State.Leg_Arrive_Radius := F (B + 3);
+            Leg_State.Leg_Cruise := F (B + 4);
+            Leg_State.Leg_Approach_Decel := F (B + 5);
+            Leg_State.Leg_Yaw_Behaviour := Interfaces.Unsigned_8 (Int (B + 6));
+            Leg_State.Leg_Yaw_Hold_Deg := F (B + 7);
+            Leg_State.Leg_Yaw_Gate_Start := Unsigned_32 (Int (B + 8));
+            Leg_State.Leg_Yaw_Gated := Int (B + 9) /= 0;
+            Leg_State.Leg_Yaw_Braked := Int (B + 10) /= 0;
+            Leg_State.Leg_Turn_In := Int (B + 11) /= 0;
+            Leg_State.Leg_Turn_Capped := Int (B + 12) /= 0;
+            Leg_State.Leg_Anchor_Valid := Int (B + 13) /= 0;
+            Leg_State.Leg_Anchor := (X => F (B + 14), Y => F (B + 15));
+            Leg_State.Last_Progress_Us := Unsigned_32 (Int (B + 16));
+            Leg_State.Carrot := (X => F (B + 23), Y => F (B + 24));
+            Leg_State.Carrot_Velocity := (X => F (B + 25), Y => F (B + 26));
+            Leg_State.Carrot_Speed := F (B + 28);
+            Leg_State.Is_Rescue_Plan := Int (B + 29) /= 0;
+            Leg_State.Rescue_Blind_Climb := Int (B + 30) /= 0;
+            Leg_State.Rescue_Climbed := Int (B + 31) /= 0;
+            Leg_State.Rescue_Heading_Hold := Int (B + 32) /= 0;
+            Leg_Cos_Lat := F (B + 27);
+            Adaflight.Position_Nav.Init (Leg_Nav);
+            Adaflight.Position_Nav.Set_Target
+              (Leg_Nav, (East => Leg_State.Carrot.X, North => Leg_State.Carrot.Y, Up => Leg_State.Leg_Target.Up),
+               Leg_State.Leg_Cruise, -1.0, 1_000.0, True);
+            Adaflight.Position_Nav.Set_Accel_Limits (Leg_Nav, 0.0, 0.0);
+            Adaflight.Position_Nav.Set_Altitude_Arrival_Required (Leg_Nav, False);
+            Adaflight.Position_Nav.Set_Velocity_Feedforward
+              (Leg_Nav, (East => Leg_State.Carrot_Velocity.X, North => Leg_State.Carrot_Velocity.Y));
+            if Leg_State.Leg_Turn_Capped then
+               Adaflight.Position_Nav.Set_Max_Angle (Leg_Nav, Float (Rescue_Stop_Max_Angle (Leg_Config)));
+            end if;
+            Leg_Has_Origin := Int (B + 33) /= 0;
+         end;
+      elsif Name = "flstep" then
+         declare
+            I       : constant Leg_Inputs :=
+              (Est             => (Position => (East => F (10), North => F (11), Up => F (12)),
+                                   Velocity => (East => F (13), North => F (14), Up => F (15))),
+               Dt_S            => F (6),
+               Now_Us          => Unsigned_32 (Int (5)),
+               Yaw_Decidegrees => I32 (7),
+               Ground_Course   => Interfaces.Unsigned_16 (Int (8)),
+               Ground_Speed    => Interfaces.Unsigned_16 (Int (9)),
+               Has_Origin      => Leg_Has_Origin,
+               Origin          => Leg_Origin,
+               Cos_Lat         => Leg_Cos_Lat);
+            O       : Autopilot_Output;
+            Gate    : Boolean;
+            Fault   : Integer_64 := -1;
+            Faulted : Boolean;
+            Reached : Boolean;
+         begin
+            Update_Leg_Yaw (Leg_State, Leg_Plan, I, O);
+            Update_Leg_Carrot (Leg_State, Leg_Nav, Leg_Plan, I, Leg_Config, O, Gate);
+            if not Gate and then Leg_State.Mode = Targeting then
+               if Adaflight.Position_Nav.Has_Active_Target (Leg_Nav) then
+                  Check_Heading_Fault (Leg_State, Leg_Nav, I, Leg_Config, Faulted);
+                  Fault := Boolean'Pos (Faulted);
+               end if;
+               Adaflight.Position_Nav.Update (Leg_Nav, I.Dt_S, I.Est, Reached);
+            end if;
+            Expect_Flag ("gate", 16, Gate);
+            Record_Int ("flstep.fault", Int (17), Fault);
+            Expect_Calls (18, O);
+            Record_Int ("flstep.state", Int (19), Integer_64 (Nav_State'Pos (Leg_State.Mode)));
+            Record_Int ("flstep.reason", Int (20), Integer_64 (Abort_Reason'Pos (Leg_State.Reason)));
+            Expect ("carrot_x", 21, Leg_State.Carrot.X);
+            Expect ("carrot_y", 22, Leg_State.Carrot.Y);
+            Expect ("carrot_vel_x", 23, Leg_State.Carrot_Velocity.X);
+            Expect ("carrot_vel_y", 24, Leg_State.Carrot_Velocity.Y);
+            Expect ("carrot_speed", 25, Leg_State.Carrot_Speed);
+            Expect_Flag ("leg_valid", 26, Leg_State.Leg_Valid);
+            Expect ("leg_start_x", 27, Leg_State.Leg_Start.X);
+            Expect ("leg_start_y", 28, Leg_State.Leg_Start.Y);
+            Expect_Flag ("anchor_valid", 29, Leg_State.Leg_Anchor_Valid);
+            Expect_Flag ("pre_turn", 30, Leg_State.In_Pre_Turn);
+            Expect_Flag ("turn_in", 31, Leg_State.Leg_Turn_In);
+            Expect_Flag ("turn_capped", 32, Leg_State.Leg_Turn_Capped);
+            Expect_Flag ("yaw_gated", 33, Leg_State.Leg_Yaw_Gated);
+            Expect_Flag ("yaw_timed_out", 34, Leg_State.Leg_Yaw_Timed_Out);
+            Expect_Flag ("yaw_braked", 35, Leg_State.Leg_Yaw_Braked);
+            Expect ("anchor_x", 36, Leg_State.Leg_Anchor.X);
+            Expect ("anchor_y", 37, Leg_State.Leg_Anchor.Y);
+            Expect_Flag ("filter_valid", 38, Leg_State.Meas_Filt_Valid);
+            Expect ("along", 39, Leg_State.Along_Filt_M);
+            Expect_Flag ("best_valid", 40, Leg_State.Best_Valid);
+            Expect ("best", 41, (if Leg_State.Best_Valid then Leg_State.Best_Distance_M else 0.0));
+            Expect ("margin", 42, Leg_State.Flyaway_Margin_M);
+            Record_Int ("flstep.progress_us", Int (43), Integer_64 (Leg_State.Last_Progress_Us));
+            Expect ("fault_time", 44, Leg_State.Hdg_Fault_Time_S);
+            Expect_Flag ("cmd_active", 45, Leg_Nav.Cmd.Active);
+            Expect ("cmd_east", 46, Leg_Nav.Cmd.Target.East);
+            Expect ("cmd_north", 47, Leg_Nav.Cmd.Target.North);
+            Expect ("cmd_up", 48, Leg_Nav.Cmd.Target.Up);
+            Expect_Flag ("ff_valid", 49, Leg_Nav.Cmd.Velocity_FF_Valid);
+            Expect_Flag ("fixed", 50, Leg_Nav.Cmd.Fixed_Target);
+            Expect ("ff_east", 51, Leg_Nav.Cmd.Velocity_FF.East);
+            Expect ("ff_north", 52, Leg_Nav.Cmd.Velocity_FF.North);
+            Expect ("max_angle", 53, Leg_Nav.Cmd.Max_Angle);
+            Expect_Flag ("blind_climb", 54, Leg_State.Rescue_Blind_Climb);
+            Expect_Flag ("climbed", 55, Leg_State.Rescue_Climbed);
+            Expect_Flag ("heading_hold", 56, Leg_State.Rescue_Heading_Hold);
+            Expect ("vel_east", 57, Leg_Nav.Target_Vel.East);
+            Expect ("vel_north", 58, Leg_Nav.Target_Vel.North);
+            Expect ("vel_up", 59, Leg_Nav.Target_Vel.Up);
+         end;
+      else
+         Put_Line ("unknown executor leg case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Executor_Leg_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -14531,6 +14755,8 @@ procedure Vector_Check is
                   Check_MAVLink_Mission_Line;
                elsif Kind = "fpnhelpers" then
                   Check_Executor_Helper_Line;
+               elsif Kind = "fpnlegs" then
+                  Check_Executor_Leg_Line;
                else
                   Check_PID_Line;
                end if;
@@ -14670,6 +14896,7 @@ begin
    Run (Dir & "/fpcapture.csv", "fpcapture");
    Run (Dir & "/mavmission.csv", "mavmission");
    Run (Dir & "/fpnhelpers.csv", "fpnhelpers");
+   Run (Dir & "/fpnlegs.csv", "fpnlegs");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
