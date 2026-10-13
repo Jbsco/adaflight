@@ -3315,3 +3315,19 @@ their place in the layout and go out as zero, or one for the retired gyro sync d
 The harness replays 4800 requests recorded from the reference MSP processor with the reference
 PID names, in a build with every option the replies branch on and one without, on random
 profiles and configurations. Every result, length and byte of the 4808 lines replays exactly.
+
+## D148. MSP receiver and mode replies (2026-10-13)
+
+`Adaflight.MSP_Receiver_Out` contains the MSP out messages that report the receiver and the
+switches: the mode ranges, their logic and links, the adjustment ranges, the receiver
+configuration, the failsafe configuration, each channel's failsafe, the RSSI channel and the
+channel map. The mode replies name each box by its permanent id from `Adaflight.MSP_Box`, and a
+channel's failsafe step goes out as its pulse, 750 microseconds and 25 more per step. The caller
+gathers the configured conditions and ranges, the receiver and failsafe settings, the runtime
+channel count and the build's options into a snapshot. The SPI receiver's settings, RC
+smoothing, the USB device type and the ExpressLRS binding go out as zero when their option is
+left out of the build, and the retired fields keep their place as zero.
+
+The harness replays 4800 requests recorded from the reference MSP processor with its box table,
+in a build with every option the replies branch on and one without, on random configurations
+within their ranges. Every result, length and byte of the 4808 lines replays exactly.
