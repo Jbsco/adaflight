@@ -2895,3 +2895,15 @@ The harness replays six sequences of 1000 updates recorded from the reference wi
 for the permanent ids and the box states, mode conditions, outputs and task switch stubbed:
 permanent ids that name a box, unset ones, and unknown ones, with the states and conditions drawn
 at random. Every assignment, output and task state of the 6006 lines replays exactly.
+
+## D132. Warning LED (2026-10-13)
+
+The warning LED unit holds the LED the arming status drives: off, on, or flashing. A refresh sets
+the LED off, on, or toggles it, and sets the next refresh 500 ms later. An update refreshes once
+that time has come, compared by the wrapping difference. The caller drives the LED. The unit is
+SPARK for the wrapping time.
+
+The harness replays four sequences of 3000 steps recorded from the reference with the LED calls
+stubbed into a log and the clock scripted: mode switches at random, updates at intervals from none
+to two seconds and around 500 ms, direct refreshes, and a clock near its wrap. Every LED call of the
+12004 lines replays exactly.

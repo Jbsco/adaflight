@@ -84,6 +84,7 @@ The core holds:
 - OSD custom text from a serial port
 - PID audio tone
 - PINIO outputs switched by boxes
+- warning LED
 - dispatch queue of delayed calls
 - OSD warnings line with precedence, arming reason rotation and ESC alarms
 - MSP tunnel over telemetry with chunked requests and replies
@@ -100,9 +101,9 @@ The core holds:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 15848 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 15855 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
-- Recorded vectors replay bit for bit: 1220832 lines over 330 cases, every case exact except
+- Recorded vectors replay bit for bit: 1232836 lines over 331 cases, every case exact except
   twenty-one declared deviations in `DESIGN.md` D6.
 - No target builds yet. `ROADMAP.md` contains phases, parity inventory, and one question for after
   parity: whether a proved core leaves room on F4 boards for features Betaflight has to leave out
