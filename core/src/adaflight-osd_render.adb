@@ -48,7 +48,9 @@ package body Adaflight.OSD_Render with SPARK_Mode is
    function To_Signed (U : Unsigned_32) return Integer_32 is
      (if U >= 2 ** 31 then Integer_32 (Interfaces.Integer_64 (U) - 2 ** 32) else Integer_32 (U));
 
-   procedure Battery_Severity (Inp : Inputs; O : in out Output) is
+   procedure Battery_Severity (Inp : Inputs; O : in out Output)
+     with Global => null
+   is
    begin
       if Inp.Battery = Adaflight.Battery.Warning then
          O.Attr := Warning;
@@ -57,7 +59,9 @@ package body Adaflight.OSD_Render with SPARK_Mode is
       end if;
    end Battery_Severity;
 
-   procedure Altitude_Element (Variant : Element_Type; C : Settings; Inp : Inputs; O : in out Output) is
+   procedure Altitude_Element (Variant : Element_Type; C : Settings; Inp : Inputs; O : in out Output)
+     with Global => null
+   is
    begin
       if Adaflight.OSD_Elements.Alarm_Altitude (Inp.Altitude_Cm, C.Units) >= Integer_32 (C.Alt_Alarm)
         and then Inp.Clocks.Armed
@@ -72,7 +76,9 @@ package body Adaflight.OSD_Render with SPARK_Mode is
       end if;
    end Altitude_Element;
 
-   procedure Angle_Element (I : Item; Inp : Inputs; O : in out Output) is
+   procedure Angle_Element (I : Item; Inp : Inputs; O : in out Output)
+     with Global => null
+   is
       Angle : constant Float := Float (if I = Pitch_Angle then Inp.Pitch else Inp.Roll) / 10.0;
    begin
       Print_Float (O.Line, (if I = Pitch_Angle then Symbol_Pitch else Symbol_Roll), abs Angle,
@@ -81,7 +87,8 @@ package body Adaflight.OSD_Render with SPARK_Mode is
    end Angle_Element;
 
    procedure Cell_Voltage_Element (Inp : Inputs; O : in out Output)
-     with Pre => Inp.Min_Cell /= Inp.Max_Cell
+     with Global => null,
+          Pre => Inp.Min_Cell /= Inp.Max_Cell
    is
    begin
       Battery_Severity (Inp, O);
@@ -89,13 +96,17 @@ package body Adaflight.OSD_Render with SPARK_Mode is
                    Float (Inp.Cell_Voltage) / 100.0, Default_Format, 2, False, Symbol_Volt);
    end Cell_Voltage_Element;
 
-   procedure Compass_Element (Inp : Inputs; O : in out Output) is
+   procedure Compass_Element (Inp : Inputs; O : in out Output)
+     with Global => null
+   is
       Sector : constant Natural := Heading_Sector (Integer (Inp.Yaw) / 10, 16);
    begin
       Append_String (O.Line, Compass (Sector + 1 .. Sector + 9));
    end Compass_Element;
 
-   procedure Core_Temperature_Element (C : Settings; Inp : Inputs; O : in out Output) is
+   procedure Core_Temperature_Element (C : Settings; Inp : Inputs; O : in out Output)
+     with Global => null
+   is
    begin
       Append (O.Line, 'C');
       Append (O.Line, Symbol_Temperature);
@@ -103,14 +114,17 @@ package body Adaflight.OSD_Render with SPARK_Mode is
       Append (O.Line, Temperature_Symbol (C.Units));
    end Core_Temperature_Element;
 
-   procedure Current_Element (Inp : Inputs; O : in out Output) is
+   procedure Current_Element (Inp : Inputs; O : in out Output)
+     with Global => null
+   is
    begin
       Print_Float (O.Line, Symbol_None, abs (Float (Inp.Amperage) / 100.0),
                    (Lead => ' ', Has_Lead => False, Width => 3, Zero_Pad => False), 2, False, Symbol_Amp);
    end Current_Element;
 
    procedure Debug_Element (First : Debug_Index; Label : String; Inp : Inputs; O : in out Output)
-     with Pre => First <= 4 and then Label'Length <= 4
+     with Global => null,
+          Pre => First <= 4 and then Label'Length <= 4
    is
    begin
       Append_String (O.Line, Label);
@@ -120,7 +134,9 @@ package body Adaflight.OSD_Render with SPARK_Mode is
       end loop;
    end Debug_Element;
 
-   procedure MAh_Element (C : Settings; Inp : Inputs; O : in out Output) is
+   procedure MAh_Element (C : Settings; Inp : Inputs; O : in out Output)
+     with Global => null
+   is
    begin
       if Over_Capacity (C, Inp) then
          O.Attr := Critical;
@@ -129,7 +145,9 @@ package body Adaflight.OSD_Render with SPARK_Mode is
       Append (O.Line, Symbol_MAh);
    end MAh_Element;
 
-   procedure Watt_Hours_Element (C : Settings; Inp : Inputs; O : in out Output) is
+   procedure Watt_Hours_Element (C : Settings; Inp : Inputs; O : in out Output)
+     with Global => null
+   is
       Whole, Decimal : Integer;
    begin
       if Over_Capacity (C, Inp) then
@@ -160,7 +178,9 @@ package body Adaflight.OSD_Render with SPARK_Mode is
       end if;
    end Watt_Hours_Element;
 
-   procedure Usage_Element (Variant : Element_Type; C : Settings; Inp : Inputs; O : in out Output) is
+   procedure Usage_Element (Variant : Element_Type; C : Settings; Inp : Inputs; O : in out Output)
+     with Global => null
+   is
       Capacity     : constant Integer_32 := Integer_32 (Inp.Profile_Capacity);
       Alarm        : constant Unsigned_16 := Capacity_Alarm (C, Inp);
       Used         : constant Integer_32 := Inp.MAh_Drawn;
@@ -235,7 +255,8 @@ package body Adaflight.OSD_Render with SPARK_Mode is
    end Usage_Element;
 
    procedure Voltage_Element (Inp : Inputs; O : in out Output)
-     with Pre => Inp.Min_Cell /= Inp.Max_Cell
+     with Global => null,
+          Pre => Inp.Min_Cell /= Inp.Max_Cell
    is
       Voltage : constant Float := Float (Inp.Pack_Voltage) / 100.0;
    begin
@@ -244,14 +265,18 @@ package body Adaflight.OSD_Render with SPARK_Mode is
                    Voltage, Default_Format, (if Voltage >= 10.0 then 1 else 2), True, Symbol_Volt);
    end Voltage_Element;
 
-   procedure Heading_Element (Inp : Inputs; O : in out Output) is
+   procedure Heading_Element (Inp : Inputs; O : in out Output)
+     with Global => null
+   is
       Heading : constant Integer := Integer (Inp.Yaw) / 10;
    begin
       Append (O.Line, Direction_Symbol (Heading));
       Append_Natural (O.Line, Heading, 3, True);
    end Heading_Element;
 
-   procedure Vario_Element (C : Settings; Inp : Inputs; O : in out Output) is
+   procedure Vario_Element (C : Settings; Inp : Inputs; O : in out Output)
+     with Global => null
+   is
    begin
       if Inp.Baro_Present or else (Inp.GPS_Present and then Inp.GPS_Fix) then
          declare
@@ -265,7 +290,9 @@ package body Adaflight.OSD_Render with SPARK_Mode is
       end if;
    end Vario_Element;
 
-   procedure Profile_Element (Inp : Inputs; O : in out Output) is
+   procedure Profile_Element (Inp : Inputs; O : in out Output)
+     with Global => null
+   is
    begin
       Append_Natural (O.Line, Natural (Inp.PID_Index) + 1, 1, False);
       Append (O.Line, '-');
@@ -273,19 +300,24 @@ package body Adaflight.OSD_Render with SPARK_Mode is
    end Profile_Element;
 
    procedure PID_Element (Label : String; G : PID_Gains; O : in out Output)
-     with Pre => Label'Length <= 8
+     with Global => null,
+          Pre => Label'Length <= 8
    is
    begin
       PID_Line (O.Line, Label, G.P, G.I, G.D, G.D_Max, G.F);
    end PID_Element;
 
-   procedure Power_Element (Inp : Inputs; O : in out Output) is
+   procedure Power_Element (Inp : Inputs; O : in out Output)
+     with Global => null
+   is
    begin
       Append_Integer (O.Line, (Inp.Amperage * Integer_32 (Inp.Pack_Voltage)) / 10_000, 4, False);
       Append (O.Line, 'W');
    end Power_Element;
 
-   procedure Remaining_Time_Element (C : Settings; Inp : Inputs; O : in out Output) is
+   procedure Remaining_Time_Element (C : Settings; Inp : Inputs; O : in out Output)
+     with Global => null
+   is
       Alarm : constant Unsigned_16 := Capacity_Alarm (C, Inp);
       MAh   : constant Integer_32 := Inp.MAh_Drawn;
    begin
@@ -309,7 +341,9 @@ package body Adaflight.OSD_Render with SPARK_Mode is
       end if;
    end Remaining_Time_Element;
 
-   procedure RSSI_Element (C : Settings; Inp : Inputs; O : in out Output) is
+   procedure RSSI_Element (C : Settings; Inp : Inputs; O : in out Output)
+     with Global => null
+   is
    begin
       if Inp.RSSI_Percent < C.RSSI_Alarm then
          O.Attr := Critical;
@@ -318,7 +352,9 @@ package body Adaflight.OSD_Render with SPARK_Mode is
       Append_Natural (O.Line, Natural'Min (Natural (Inp.RSSI_Percent), 99), 2, False);
    end RSSI_Element;
 
-   procedure RSSI_Dbm_Element (S : in out State; C : Settings; Inp : Inputs; O : in out Output) is
+   procedure RSSI_Dbm_Element (S : in out State; C : Settings; Inp : Inputs; O : in out Output)
+     with Global => null
+   is
    begin
       if Inp.RSSI_Dbm < C.RSSI_Dbm_Alarm then
          O.Attr := Critical;
@@ -332,7 +368,9 @@ package body Adaflight.OSD_Render with SPARK_Mode is
       end if;
    end RSSI_Dbm_Element;
 
-   procedure Timer_Element (I : Item; C : Settings; Inp : Inputs; O : in out Output) is
+   procedure Timer_Element (I : Item; C : Settings; Inp : Inputs; O : in out Output)
+     with Global => null
+   is
    begin
       for T in Adaflight.OSD_Elements.Timer_Index loop
          declare
@@ -348,7 +386,9 @@ package body Adaflight.OSD_Render with SPARK_Mode is
       Timer_String (O.Line, True, True, C.Timers (if I = Timer_1 then 0 else 1), Inp.Clocks);
    end Timer_Element;
 
-   procedure Flip_Arrow_Element (Inp : Inputs; O : in out Output) is
+   procedure Flip_Arrow_Element (Inp : Inputs; O : in out Output)
+     with Global => null
+   is
       Roll_Angle  : Integer := Integer (Inp.Roll) / 10;
       Pitch_Angle : constant Integer := Integer (Inp.Pitch) / 10;
    begin
@@ -375,7 +415,9 @@ package body Adaflight.OSD_Render with SPARK_Mode is
 
    Axis_Chars : constant String := "RPY";
 
-   procedure Mode_Element (Inp : Inputs; O : in out Output) is
+   procedure Mode_Element (Inp : Inputs; O : in out Output)
+     with Global => null
+   is
       Axis_Char : constant Character := Axis_Chars (Inp.Chirp_Axis + 1);
    begin
       if Inp.Modes.Failsafe then
@@ -421,7 +463,8 @@ package body Adaflight.OSD_Render with SPARK_Mode is
    end Mode_Element;
 
    procedure Clock_Element (Variant : Element_Type; Inp : Inputs; O : in out Output)
-     with Pre => Inp.Date.Month in 1 .. 12
+     with Global => null,
+          Pre => Inp.Date.Month in 1 .. 12
    is
       Valid : Boolean;
    begin
@@ -430,6 +473,361 @@ package body Adaflight.OSD_Render with SPARK_Mode is
          O.Line := (others => <>);
       end if;
    end Clock_Element;
+
+   Symbol_Total_Distance : constant Character := Character'Val (16#71#);
+   Symbol_Over_Home      : constant Character := Character'Val (16#05#);
+   Symbol_Home_Flag      : constant Character := Character'Val (16#11#);
+   Symbol_Speed          : constant Character := Character'Val (16#70#);
+   Symbol_Previous_Lap   : constant Character := Character'Val (16#79#);
+   Symbol_Checkered_Flag : constant Character := Character'Val (16#24#);
+   Symbol_Link_Quality   : constant Character := Character'Val (16#7B#);
+   Symbol_Blackbox_Log   : constant Character := Character'Val (16#10#);
+   Motor_Bar_Top         : constant := 16#88#;
+   Motor_Stopped_RPM     : constant := 1000;
+
+   function To_Upper (C : Character) return Character is
+     (if C in 'a' .. 'z' then Character'Val (Character'Pos (C) - 32) else C);
+
+   procedure Append_Name (O : in out Output; N : Name; Upper : Boolean)
+     with Global => null
+   is
+   begin
+      for K in 1 .. N.Length loop
+         Append (O.Line, (if Upper then To_Upper (N.Data (K)) else N.Data (K)));
+      end loop;
+   end Append_Name;
+
+   --  The motor's rotation count a minute from DShot telemetry or the ESC
+   --  sensor, zero without either.
+   function ESC_RPM_Of (Inp : Inputs; K : Motor_Index) return Integer_32 is
+     (if Inp.DShot_Telemetry then Integer_32 (Adaflight.Maths.Round_Half_Even (Inp.DShot_RPM (K)))
+      elsif Inp.ESC_Sensor_Feature
+      then Integer_32 (Adaflight.Maths.Round_Half_Even (Float (Inp.ESC_RPM (K)) * Inp.ERPM_To_Hz * 60.0))
+      else 0);
+
+   function Wrap_16 (V : Integer_32) return Integer_16 is
+     (Integer_16 ((Interfaces.Integer_64 (V) + 32_768) mod 65_536 - 32_768));
+
+   procedure Flight_Distance_Element (C : Settings; Inp : Inputs; O : in out Output)
+     with Global => null
+   is
+   begin
+      if Inp.GPS_Fix and then Inp.GPS_Fix_Home then
+         Distance_String (O.Line, Integer_32 (Inp.Flown_Cm / 100), Symbol_Total_Distance, C.Units);
+      else
+         Append (O.Line, Symbol_Total_Distance);
+         Append (O.Line, Symbol_Hyphen);
+      end if;
+   end Flight_Distance_Element;
+
+   procedure Home_Direction_Element (Inp : Inputs; O : in out Output)
+     with Global => null
+   is
+      Direction : Integer := Integer (Inp.Home_Direction);
+   begin
+      if Inp.GPS_Fix and then Inp.GPS_Fix_Home then
+         if Inp.Home_Distance_M > 0 then
+            if Inp.Lap_Running then
+               Direction := Integer'Min
+                 (3600, Integer'Max (0, Adaflight.Maths.Round_Half_Even (Float (Inp.Lap_Direction_Cdeg) * 0.1)));
+            end if;
+            Append (O.Line, Direction_Symbol ((Direction - Integer (Inp.Yaw)) / 10));
+         else
+            Append (O.Line, Symbol_Over_Home);
+         end if;
+      else
+         Append (O.Line, Symbol_Hyphen);
+      end if;
+   end Home_Direction_Element;
+
+   procedure Home_Distance_Element (C : Settings; Inp : Inputs; O : in out Output)
+     with Global => null
+   is
+      Distance : Integer_32 := Integer_32 (Inp.Home_Distance_M);
+   begin
+      if Inp.GPS_Fix and then Inp.GPS_Fix_Home then
+         if Inp.Lap_Running then
+            Distance :=
+              Integer_32 (Integer'Max (0, Adaflight.Maths.Round_Half_Even (Float (Inp.Lap_Distance_Cm) * 0.01)));
+         end if;
+         Distance_String (O.Line, Distance, Symbol_Home_Flag, C.Units);
+      else
+         Append (O.Line, Symbol_Home_Flag);
+         Append (O.Line, Symbol_Hyphen);
+      end if;
+   end Home_Distance_Element;
+
+   procedure Coordinate_Element (I : Item; Variant : Element_Type; Inp : Inputs; O : in out Output)
+     with Global => null
+   is
+   begin
+      Coordinate (O.Line, I = GPS_Longitude, Variant, Inp.GPS_Fix_Ever, Inp.Latitude, Inp.Longitude);
+      O.Blink := (if Inp.GPS_Fix_Ever and then not Inp.GPS_Fix then Set else Clear);
+   end Coordinate_Element;
+
+   procedure Satellites_Element (C : Settings; Inp : Inputs; O : in out Output)
+     with Global => null
+   is
+      PDOP : Text;
+   begin
+      if not Inp.GPS_Fix or else Inp.Satellites < 4 then
+         O.Attr := Critical;
+      elsif Inp.Satellites < Inp.Rescue_Min_Sats and then Inp.Rescue_Configured then
+         O.Attr := Warning;
+      end if;
+      Append (O.Line, Symbol_Sat_Left);
+      Append (O.Line, Symbol_Sat_Right);
+      if not Inp.GPS_Healthy then
+         Append_String (O.Line, "NC");
+      else
+         Append_Natural (O.Line, Natural (Inp.Satellites), 2, False);
+         if C.Show_PDOP then
+            Append (O.Line, ' ');
+            Print_Float (PDOP, Symbol_None, Float (Inp.PDOP) / 100.0, Default_Format, 1, True, Symbol_None);
+            Append_String (O.Line, PDOP.Data (1 .. PDOP.Length));
+         end if;
+      end if;
+   end Satellites_Element;
+
+   procedure Speed_Element (C : Settings; Inp : Inputs; O : in out Output)
+     with Global => null
+   is
+   begin
+      Append (O.Line, Symbol_Speed);
+      if Inp.GPS_Fix then
+         Append_Integer
+           (O.Line, Speed_To_Unit (Integer_32 (if Inp.Use_3D_Speed then Inp.Speed_3D else Inp.Ground_Speed), C.Units),
+            3, False);
+      else
+         Append (O.Line, Symbol_Hyphen);
+      end if;
+      Append (O.Line, Speed_Symbol (C.Units));
+   end Speed_Element;
+
+   procedure Efficiency_Element (S : in out State; C : Settings; Inp : Inputs; O : in out Output)
+     with Global => null
+   is
+      Efficiency : Integer := 0;
+   begin
+      if Inp.GPS_Present and then Inp.Clocks.Armed and then Inp.GPS_Fix and then Inp.Ground_Speed >= 100 then
+         declare
+            Speed    : constant Float := Float (Speed_To_Unit (Integer_32 (Inp.Ground_Speed), C.Units));
+            Current  : constant Float := Float (Inp.Amperage) * 10.0;
+            Filtered : Adaflight.Maths.Signal;
+         begin
+            pragma Assert (Speed >= 2.0);
+            Adaflight.Filters.PT1_Apply (S.Efficiency, Current / Speed, Filtered);
+            Efficiency :=
+              (if abs Filtered < 2.0 ** 24 - 1.0 then Adaflight.Maths.Round_Half_Even (Filtered) else 10_000);
+         end;
+      end if;
+      if Efficiency in 1 .. 9999 then
+         Append_Integer (O.Line, Integer_32 (Efficiency), 4, False);
+      else
+         Append_String (O.Line, "----");
+      end if;
+      Append (O.Line, Symbol_MAh);
+      Append (O.Line, '/');
+      Append (O.Line, (if C.Units = Adaflight.OSD_Format.Imperial then Symbol_Miles else Symbol_Kilometres));
+   end Efficiency_Element;
+
+   procedure Lap_Time (O : in out Output; Time_Ms : Unsigned_32; Symbol : Character)
+     with Global => null
+   is
+      T : constant Unsigned_32 := Time_Ms + 5;
+   begin
+      Append (O.Line, Symbol);
+      Append_Natural (O.Line, Natural (T / 1000), 3, False);
+      Append (O.Line, '.');
+      Append_Natural (O.Line, Natural ((T mod 1000) / 10), 2, True);
+   end Lap_Time;
+
+   procedure Link_Quality_Element (Variant : Element_Type; C : Settings; Inp : Inputs; O : in out Output)
+     with Global => null
+   is
+      Quality : Natural;
+   begin
+      if Inp.Link_Quality_Percent < C.Link_Quality_Alarm then
+         O.Attr := Critical;
+      end if;
+      Append (O.Line, Symbol_Link_Quality);
+      case Inp.Link_Source is
+         when CRSF =>
+            if Variant /= Type_2 then
+               Append_Natural (O.Line, Natural (Inp.RF_Mode), 1, False);
+               Append (O.Line, ':');
+            end if;
+            Append_Natural (O.Line, Natural (Inp.Link_Quality), 2, False);
+         when GHST | MAVLink =>
+            Append_Natural (O.Line, Natural (Inp.Link_Quality), 2, False);
+         when None =>
+            Quality := Natural'Min (Natural (Inp.Link_Quality) * 10 / 1023, 9);
+            Append_Natural (O.Line, Quality, 1, False);
+      end case;
+   end Link_Quality_Element;
+
+   procedure Uplink_Power_Element (Inp : Inputs; O : in out Output)
+     with Global => null
+   is
+   begin
+      if Inp.Uplink_Mw < 1000 then
+         Append (O.Line, Symbol_RSSI);
+         Append_Natural (O.Line, Natural (Inp.Uplink_Mw), 3, False);
+         Append_String (O.Line, "MW");
+      else
+         Print_Float (O.Line, Symbol_RSSI, Float (Inp.Uplink_Mw) / 1000.0, Default_Format, 1, False, 'W');
+      end if;
+   end Uplink_Power_Element;
+
+   procedure Log_Status_Element (Inp : Inputs; O : in out Output)
+     with Global => null
+   is
+   begin
+      if Inp.Blackbox_Box then
+         Append (O.Line, Symbol_Blackbox_Log);
+         if not Inp.Blackbox_Working then
+            Append (O.Line, '!');
+         elsif Inp.Blackbox_Full then
+            Append (O.Line, '>');
+         elsif Inp.Log_Number >= 0 then
+            Append_Integer (O.Line, Inp.Log_Number, 1, False);
+         end if;
+      end if;
+   end Log_Status_Element;
+
+   procedure ESC_Temperature_Element (C : Settings; Inp : Inputs; O : in out Output)
+     with Global => null
+   is
+   begin
+      Append (O.Line, 'E');
+      Append (O.Line, Symbol_Temperature);
+      if Inp.ESC_Sensor_Feature then
+         Append_Integer (O.Line, Integer_32 (Temperature_In_Units (Integer (Inp.ESC_Temperature), C.Units)), 3, False);
+         Append (O.Line, Temperature_Symbol (C.Units));
+      else
+         for K in 0 .. Inp.Motors - 1 loop
+            if Inp.DShot (K).Has_Temperature then
+               Append_Integer (O.Line, Integer_32 (Temperature_In_Units (Integer (Inp.DShot (K).Temperature), C.Units)),
+                               3, False);
+            else
+               Append_String (O.Line, "  0");
+            end if;
+            Append (O.Line, Temperature_Symbol (C.Units));
+         end loop;
+      end if;
+   end ESC_Temperature_Element;
+
+   procedure ESC_RPM_Element (I : Item; S : in out State; Inp : Inputs; O : in out Output)
+     with Global => null,
+          Pre => S.ESC_Motor < Unsigned_8 (Inp.Motors)
+   is
+      RPM : Integer_32 := ESC_RPM_Of (Inp, Motor_Index (S.ESC_Motor));
+   begin
+      if I = ESC_RPM_Frequency then
+         RPM := RPM / 60;
+      end if;
+      Append_Integer (O.Line, Integer_32'Min (RPM, 99_999), 1, False);
+      O.Offset_Y := S.ESC_Motor;
+      S.ESC_Motor := S.ESC_Motor + 1;
+      if S.ESC_Motor = Unsigned_8 (Inp.Motors) then
+         S.ESC_Motor := 0;
+      else
+         O.Rendered := False;
+      end if;
+   end ESC_RPM_Element;
+
+   procedure Motor_Diagnostics_Element (Inp : Inputs; O : in out Output)
+     with Global => null,
+          Pre => Integer_32 (Float'Truncation (Inp.Output_High)) > Integer_32 (Float'Truncation (Inp.Output_Low))
+   is
+      Low   : constant Integer_32 := Integer_32 (Float'Truncation (Inp.Output_Low));
+      High  : constant Integer_32 := Integer_32 (Float'Truncation (Inp.Output_High));
+      Level : Integer_32;
+   begin
+      for K in 0 .. Inp.Motors - 1 loop
+         if Inp.Motors_Running then
+            Level :=
+              Adaflight.Maths.Scale_Range (Integer_32 (Float'Truncation (Inp.Motor_Output (K))), Low, High, 0, 8);
+            if ESC_RPM_Of (Inp, K) < Motor_Stopped_RPM then
+               Append (O.Line, 'S');
+            else
+               Append (O.Line, Character'Val ((Motor_Bar_Top - Interfaces.Integer_64 (Level)) mod 256));
+            end if;
+         else
+            Append (O.Line, Character'Val (Motor_Bar_Top));
+         end if;
+      end loop;
+   end Motor_Diagnostics_Element;
+
+   procedure Profile_Name_Element (Label : String; Index : Unsigned_8; N : Name; O : in out Output)
+     with Global => null,
+          Pre => Label'Length <= 8
+   is
+   begin
+      if N.Length = 0 then
+         Append_String (O.Line, Label);
+         Append_Natural (O.Line, Natural (Index) + 1, 1, False);
+      else
+         Append_Name (O, N, True);
+      end if;
+   end Profile_Name_Element;
+
+   procedure Message_Element (I : Item; Inp : Inputs; O : in out Output)
+     with Global => null,
+          Pre    => I in Custom_Message_0 .. Custom_Message_3
+   is
+      Index : constant Message_Index := Item'Pos (I) - Item'Pos (Custom_Message_0);
+   begin
+      if Inp.Messages (Index).Length = 0 then
+         Append_String (O.Line, "CUSTOM_MSG");
+         Append_Natural (O.Line, Index + 1, 1, False);
+      else
+         Append_Name (O, Inp.Messages (Index), False);
+      end if;
+   end Message_Element;
+
+   procedure Custom_Text_Element (Inp : Inputs; O : in out Output)
+     with Global => null
+   is
+   begin
+      if Inp.Custom_Text_Present and then Inp.Custom.Length > 0 then
+         for K in 1 .. Natural'Min (Inp.Custom.Length, Max_Length) loop
+            Append (O.Line, Inp.Custom.Data (K));
+         end loop;
+      else
+         Append_String (O.Line, "---");
+      end if;
+   end Custom_Text_Element;
+
+   procedure Adjustment_Element (Inp : Inputs; O : in out Output)
+     with Global => null
+   is
+   begin
+      if Inp.Adjustment_Present then
+         Append_Name (O, Inp.Adjustment_Name, False);
+         Append_String (O.Line, ": ");
+         Append_Integer (O.Line, Inp.Adjustment_Value, 3, False);
+      end if;
+   end Adjustment_Element;
+
+   procedure Lidar_Element (Inp : Inputs; O : in out Output)
+     with Global => null
+   is
+      Distance : constant Integer_16 := Wrap_16 (Inp.Rangefinder_Cm);
+   begin
+      Append_String (O.Line, "RF:");
+      if Distance > 0 then
+         Append_Integer (O.Line, Integer_32 (Distance), 3, False);
+      else
+         Append_String (O.Line, "---");
+      end if;
+   end Lidar_Element;
+
+   procedure Init (S : out State; C : Settings) is
+   begin
+      S := (others => <>);
+      Adaflight.Filters.PT1_Init (S.Efficiency, Adaflight.Filters.PT1_Gain (0.5, 1.0 / Float (C.Framerate_Hz)));
+   end Init;
 
    procedure Render (I : Item; Variant : Adaflight.OSD_Format.Element_Type; S : in out State; C : Settings;
                      Inp : Inputs; O : out Output) is
@@ -524,9 +922,79 @@ package body Adaflight.OSD_Render with SPARK_Mode is
             Mode_Element (Inp, O);
          when RTC_Date_Time =>
             Clock_Element (Variant, Inp, O);
+         when Flight_Distance =>
+            Flight_Distance_Element (C, Inp, O);
+         when Home_Direction =>
+            Home_Direction_Element (Inp, O);
+         when Home_Distance =>
+            Home_Distance_Element (C, Inp, O);
+         when GPS_Longitude | GPS_Latitude =>
+            Coordinate_Element (I, Variant, Inp, O);
+         when GPS_Sats =>
+            Satellites_Element (C, Inp, O);
+         when GPS_Speed =>
+            Speed_Element (C, Inp, O);
+         when Efficiency =>
+            Efficiency_Element (S, C, Inp, O);
+         when GPS_Lap_Time_Current =>
+            Lap_Time (O, (if Inp.Lap_Running then Inp.GPS_Time_Ms - Inp.Lap_Last_Ms else 0), Symbol_Total_Distance);
+         when GPS_Lap_Time_Previous =>
+            Lap_Time (O, Inp.Lap_Previous_Ms, Symbol_Previous_Lap);
+         when GPS_Lap_Time_Best3 =>
+            Lap_Time (O, Inp.Lap_Best3_Ms, Symbol_Checkered_Flag);
+         when Link_Quality =>
+            Link_Quality_Element (Variant, C, Inp, O);
+         when TX_Uplink_Power =>
+            Uplink_Power_Element (Inp, O);
+         when Log_Status =>
+            Log_Status_Element (Inp, O);
+         when ESC_Temperature =>
+            ESC_Temperature_Element (C, Inp, O);
+         when ESC_RPM | ESC_RPM_Frequency =>
+            ESC_RPM_Element (I, S, Inp, O);
+         when Motor_Diagnostics =>
+            Motor_Diagnostics_Element (Inp, O);
+         when Rate_Profile_Name =>
+            Profile_Name_Element ("RATE_", Inp.Rate_Index, Inp.Rate_Profile_Name, O);
+         when PID_Profile_Name =>
+            Profile_Name_Element ("PID_", Inp.PID_Index, Inp.PID_Profile_Name, O);
+         when Profile_Name =>
+            Profile_Name_Element
+              ("OSD_", Unsigned_8 (C.OSD_Profile_Index) - 1, C.OSD_Profile_Names (C.OSD_Profile_Index), O);
+         when Battery_Profile_Name =>
+            Profile_Name_Element ("BAT", Inp.Battery_Index, Inp.Battery_Profile_Name, O);
+         when Custom_Message_0 | Custom_Message_1 | Custom_Message_2 | Custom_Message_3 =>
+            Message_Element (I, Inp, O);
+         when Custom_Serial_Text =>
+            Custom_Text_Element (Inp, O);
+         when Adjustment_Range =>
+            Adjustment_Element (Inp, O);
+         when Lidar_Distance =>
+            Lidar_Element (Inp, O);
          when others =>
             O.Draw := False;
       end case;
    end Render;
+
+   procedure Render_Background (I : Item; Inp : Inputs; O : out Output) is
+   begin
+      O := (others => <>);
+      case I is
+         when Craft_Name =>
+            if Inp.Craft_Name.Length = 0 then
+               Append_String (O.Line, "CRAFT_NAME");
+            else
+               Append_Name (O, Inp.Craft_Name, True);
+            end if;
+         when Pilot_Name =>
+            if Inp.Pilot_Name.Length = 0 then
+               Append_String (O.Line, "PILOT_NAME");
+            else
+               Append_Name (O, Inp.Pilot_Name, True);
+            end if;
+         when others =>
+            O.Draw := False;
+      end case;
+   end Render_Background;
 
 end Adaflight.OSD_Render;

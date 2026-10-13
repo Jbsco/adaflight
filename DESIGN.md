@@ -2248,3 +2248,32 @@ elements and the draw cycle come later.
 The harness replays six sequences of 500 renders recorded from the reference, each element
 under random settings, readings, attitude, battery profile, gains, clocks, switches, modes
 and clock. Every text, offset, severity and flag of the 3006 lines replays byte for byte.
+
+## D104. OSD element renderers for GPS, link, ESC and names (2026-10-12)
+
+The OSD render unit grows by the reference's GPS, link, ESC, motor, log, name and text
+renderers, twenty-nine items, and the craft and pilot name backgrounds: flight distance,
+home direction and distance, the two coordinates, satellites, speed, efficiency, the three
+lap times, link quality, uplink power, log status, ESC temperature, ESC rotation and
+frequency, motor diagnostics, the rate, PID, OSD and battery profile names, the four custom
+messages, the custom serial text, the adjustment range and the lidar distance. The GPS
+elements print their values with a fix and a hyphen without one; the home direction points
+to the lap timer's start while a lap runs and the home distance measures to it; the
+coordinates set their blink while a fix once held is lost. The satellite count is critical
+without a fix or under four and a warning under the rescue's minimum, with the dilution
+appended on request; the efficiency filters the current over the speed at half a hertz and
+prints up to four digits. The link quality prints by its source, with the mode before it
+for Crossfire except in the second variant; the uplink power prints in milliwatts below a
+watt. The ESC temperature prints the sensor's combined reading or each motor's telemetry
+and stops at the text's thirty-one characters where the reference writes past its buffer
+(F109); the ESC rotation elements walk the motors one row a render; the motor diagnostics
+scale each output into a bar and mark a stopped motor. A name prints in capitals, or its
+default with the profile's number when empty; a custom message prints as stored or its
+number; the serial text prints up to thirty-one characters or dashes. Settings, sensors and
+readings stay with the target; the graphics and the draw cycle come later.
+
+The harness replays six sequences of 500 renders recorded from the reference, each element
+under random fixes, positions, satellites, speeds, laps, links, logs, ESC telemetry, motor
+outputs, names, messages and texts, with the efficiency filter carried between renders.
+Every text, offset, severity, blink, flag and filter state of the 3006 lines replays byte
+for byte.
