@@ -38,7 +38,7 @@ The core contains:
 - accelerometer path, barometer altitude and read cycle, compass with bias calibration, battery
   meters (analog, ESC sensor, virtual, MSP) and states, and sensor and board alignment
 - position Kalman filter, position estimator from barometer, accelerometer and GPS, altitude hold,
-  position hold, GPS rescue, and position navigation target
+  position hold with autopilot's navigation modes, GPS rescue, and position navigation target
 - flight plan storage with waypoint capture gesture, and executor's plan queries, leg geometry,
   carrot legs, dispatch, landing, update cycle, engagement, plan injection, geofence return,
   rescue plan and descent, and waypoint distance, bearing and time
@@ -107,9 +107,9 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 17514 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 17586 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
-- Recorded vectors replay bit for bit: 1435817 lines over 343 cases, every case exact except
+- Recorded vectors replay bit for bit: 1450233 lines over 344 cases, every case exact except
   twenty-three declared deviations in `DESIGN.md` D6.
 - No target builds yet. `ROADMAP.md` contains phases, parity inventory, and one question for after
   parity: whether a proved core leaves room on F4 boards for features Betaflight has to leave out
