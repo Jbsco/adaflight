@@ -10616,6 +10616,149 @@ procedure Vector_Check is
       end if;
    end Check_OSD_Render_Line;
 
+   OR2_Seq   : Integer_64 := -1;
+   OR2_State : Adaflight.OSD_Render.State;
+   OR2_Bits  : Adaflight.OSD_Elements.Item_Set := (others => False);
+
+   function OR2_Name (I : Positive) return Adaflight.OSD_Render.Name is
+      B : constant Byte_Array := Hex_Bytes (I);
+      N : Adaflight.OSD_Render.Name;
+   begin
+      N.Length := Natural'Min (B'Length, Adaflight.OSD_Render.Max_Name);
+      for K in 1 .. N.Length loop
+         N.Data (K) := Character'Val (B (B'First + K - 1));
+      end loop;
+      return N;
+   end OR2_Name;
+
+   procedure Check_OSD_Render_2_Line is
+      use Adaflight.OSD_Render;
+      Name : constant String := Str (1);
+      C    : Settings;
+      Inp  : Inputs;
+      O    : Output;
+   begin
+      if Name = "o2init" then
+         OR2_Seq := Int (2);
+         C.Framerate_Hz := Interfaces.Unsigned_16 (Int (3));
+         Init (OR2_State, C);
+         OR2_Bits := (others => False);
+      elsif Int (2) /= OR2_Seq then
+         Put_Line ("OSD render line without its start");
+         Failures := Failures + 1;
+      elsif Name = "o2render" or else Name = "o2bg" then
+         declare
+            I        : constant Item := Item'Val (Int (3));
+            Expected : constant Byte_Array := Hex_Bytes (116);
+         begin
+            C.Units := Adaflight.OSD_Format.Unit_System'Val (Int (7));
+            C.Link_Quality_Alarm := Interfaces.Unsigned_16 (Int (8));
+            C.Show_PDOP := Int (9) = 1;
+            C.OSD_Profile_Index := Positive (Int (10));
+            for P in Profile_Number loop
+               C.OSD_Profile_Names (P) := OR2_Name (10 + P);
+            end loop;
+            Inp.GPS_Fix := Int (14) = 1;
+            Inp.GPS_Fix_Home := Int (15) = 1;
+            Inp.GPS_Fix_Ever := Int (16) = 1;
+            Inp.Latitude := Interfaces.Integer_32 (Int (17));
+            Inp.Longitude := Interfaces.Integer_32 (Int (18));
+            Inp.Satellites := Interfaces.Unsigned_8 (Int (19));
+            Inp.PDOP := Interfaces.Unsigned_16 (Int (20));
+            Inp.Speed_3D := Interfaces.Unsigned_16 (Int (21));
+            Inp.Ground_Speed := Interfaces.Unsigned_16 (Int (22));
+            Inp.GPS_Time_Ms := Interfaces.Unsigned_32 (Int (23));
+            Inp.Home_Distance_M := Interfaces.Unsigned_16 (Int (24));
+            Inp.Home_Direction := Interfaces.Integer_16 (Int (25));
+            Inp.Flown_Cm := Interfaces.Unsigned_32 (Int (26));
+            Inp.Use_3D_Speed := Int (27) = 1;
+            Inp.GPS_Healthy := Int (28) = 1;
+            Inp.Lap_Running := Int (29) = 1;
+            Inp.Lap_Last_Ms := Interfaces.Unsigned_32 (Int (30));
+            Inp.Lap_Previous_Ms := Interfaces.Unsigned_32 (Int (31));
+            Inp.Lap_Best3_Ms := Interfaces.Unsigned_32 (Int (32));
+            Inp.Lap_Direction_Cdeg := Interfaces.Integer_32 (Int (33));
+            Inp.Lap_Distance_Cm := Interfaces.Unsigned_32 (Int (34));
+            Inp.Yaw := Interfaces.Integer_16 (Int (35));
+            Inp.Rescue_Min_Sats := Interfaces.Unsigned_8 (Int (36));
+            Inp.Rescue_Configured := Int (37) = 1;
+            Inp.GPS_Present := Int (38) = 1;
+            Inp.Clocks.Armed := Int (39) = 1;
+            Inp.Amperage := Interfaces.Integer_32 (Int (40));
+            Inp.Link_Source := Link_Quality_Source'Val (Int (41));
+            Inp.Link_Quality := Interfaces.Unsigned_16 (Int (42));
+            Inp.RF_Mode := Interfaces.Unsigned_8 (Int (43));
+            Inp.Link_Quality_Percent := Interfaces.Unsigned_16 (Int (44));
+            Inp.Uplink_Mw := Interfaces.Unsigned_16 (Int (45));
+            Inp.Blackbox_Box := Int (46) = 1;
+            Inp.Blackbox_Working := Int (47) = 1;
+            Inp.Blackbox_Full := Int (48) = 1;
+            Inp.Log_Number := Interfaces.Integer_32 (Int (49));
+            Inp.ESC_Sensor_Feature := Int (50) = 1;
+            Inp.ESC_Temperature := Interfaces.Unsigned_8 (Int (51));
+            Inp.Motors := Positive (Int (52));
+            for K in Motor_Index loop
+               Inp.DShot (K) := (Has_Temperature => (Int (53 + 2 * K) / 2) mod 2 = 1,
+                                 Temperature     => Interfaces.Unsigned_16 (Int (54 + 2 * K)));
+               Inp.DShot_RPM (K) := Flt (70 + K);
+               Inp.ESC_RPM (K) := Natural (Int (78 + K));
+               Inp.Motor_Output (K) := Flt (88 + K);
+            end loop;
+            Inp.DShot_Telemetry := Int (69) = 1;
+            Inp.ERPM_To_Hz := Flt (86);
+            Inp.Motors_Running := Int (87) = 1;
+            Inp.Output_Low := Flt (96);
+            Inp.Output_High := Flt (97);
+            Inp.Craft_Name := OR2_Name (98);
+            Inp.Pilot_Name := OR2_Name (99);
+            Inp.Rate_Profile_Name := OR2_Name (100);
+            Inp.PID_Profile_Name := OR2_Name (101);
+            Inp.Rate_Index := Interfaces.Unsigned_8 (Int (102));
+            Inp.PID_Index := Interfaces.Unsigned_8 (Int (103));
+            Inp.Battery_Index := Interfaces.Unsigned_8 (Int (104));
+            Inp.Battery_Profile_Name := OR2_Name (105);
+            for M in Message_Index loop
+               Inp.Messages (M) := OR2_Name (106 + M);
+            end loop;
+            Inp.Custom_Text_Present := Int (110) = 1;
+            declare
+               B : constant Byte_Array := Hex_Bytes (111);
+            begin
+               Inp.Custom.Length := Natural'Min (B'Length, Max_Custom_Text);
+               for K in 1 .. Inp.Custom.Length loop
+                  Inp.Custom.Data (K) := Character'Val (B (B'First + K - 1));
+               end loop;
+            end;
+            Inp.Adjustment_Present := Int (112) = 1;
+            Inp.Adjustment_Name := OR2_Name (113);
+            Inp.Adjustment_Value := Interfaces.Integer_32 (Int (114));
+            Inp.Rangefinder_Cm := Interfaces.Integer_32 (Int (115));
+            if Name = "o2bg" then
+               Render_Background (I, Inp, O);
+            else
+               Render (I, Adaflight.OSD_Format.Element_Type'Val (Int (4)), OR2_State, C, Inp, O);
+            end if;
+            case O.Blink is
+               when Set => OR2_Bits (I) := True;
+               when Clear => OR2_Bits (I) := False;
+               when Keep => null;
+            end case;
+            Record_Int (Name & ".len", Integer_64 (Expected'Length), Integer_64 (O.Line.Length));
+            for K in 1 .. Natural'Min (Expected'Length, O.Line.Length) loop
+               Record_Int (Name & ".text", Integer_64 (Expected (Expected'First + K - 1)),
+                           Integer_64 (Character'Pos (O.Line.Data (K))));
+            end loop;
+            Record_Int (Name & ".offx", Int (117), Integer_64 (O.Offset_X));
+            Record_Int (Name & ".offy", Int (118), Integer_64 (O.Offset_Y));
+            Record_Int (Name & ".attr", Int (119), Integer_64 (Severity'Pos (O.Attr)));
+            Record_Int (Name & ".draw", Int (120), Boolean'Pos (O.Draw));
+            Record_Int (Name & ".rendered", Int (121), Boolean'Pos (O.Rendered));
+            Record_Int (Name & ".blink", Int (122), Boolean'Pos (OR2_Bits (I)));
+            Record_Result (Name & ".filter", Bits (123), To_Bits (OR2_State.Efficiency.State));
+         end;
+      end if;
+   end Check_OSD_Render_2_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -10808,6 +10951,8 @@ procedure Vector_Check is
                   Check_OSD_Elements_Line;
                elsif Kind = "osdrender" then
                   Check_OSD_Render_Line;
+               elsif Kind = "osdrender2" then
+                  Check_OSD_Render_2_Line;
                else
                   Check_PID_Line;
                end if;
@@ -10913,6 +11058,7 @@ begin
    Run (Dir & "/osdpage.csv", "osdpage");
    Run (Dir & "/osdelem.csv", "osdelem");
    Run (Dir & "/osdrender.csv", "osdrender");
+   Run (Dir & "/osdrender2.csv", "osdrender2");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
