@@ -28,6 +28,7 @@ with Adaflight.Accelerometer;
 with Adaflight.Barometer;
 with Adaflight.Barometer_Task;
 with Adaflight.Battery;
+with Adaflight.Flash_FS;
 with Adaflight.Arming;
 with Adaflight.Compass;
 with Adaflight.Position_Filter;
@@ -13666,6 +13667,204 @@ procedure Vector_Check is
       end if;
    end Check_Battery_Meter_Line;
 
+   Flash_State : Adaflight.Flash_FS.File_System;
+
+   procedure Check_Flash_FS_Line is
+      use Adaflight.Flash_FS;
+      Name : constant String := Str (1);
+
+      --  The operations in the oracle's notation.
+      function Image (O : Output) return String is
+         Text : String (1 .. 8_000);
+         Last : Natural := 0;
+         Hex  : constant String := "0123456789abcdef";
+         procedure Put (S : String) is
+         begin
+            Text (Last + 1 .. Last + S'Length) := S;
+            Last := Last + S'Length;
+         end Put;
+         function Num (V : Unsigned_32) return String is
+            Img : constant String := Unsigned_32'Image (V);
+         begin
+            return Img (Img'First + 1 .. Img'Last);
+         end Num;
+      begin
+         for K in 1 .. O.Count loop
+            if K > 1 then
+               Put (";");
+            end if;
+            declare
+               P : Op renames O.Ops (K);
+            begin
+               case P.Kind is
+                  when Ready_Check | Ready_Wait =>
+                     Put ("R");
+                  when Program =>
+                     Put ("P" & Num (P.Address) & ":" & Num (Unsigned_32 (P.First)) & ":"
+                          & Num (Unsigned_32 (P.Second)) & ":");
+                     for J in 0 .. P.First + P.Second - 1 loop
+                        declare
+                           B : constant Natural := Natural (O.Data (P.Data_At + J));
+                        begin
+                           Put (Hex (B / 16 + 1) & Hex (B mod 16 + 1));
+                        end;
+                     end loop;
+                  when Erase_Sector =>
+                     Put ("E" & Num (P.Address));
+                  when Erase_Chip =>
+                     Put ("C");
+                  when Read =>
+                     Put ("D" & Num (P.Address) & ":" & Num (Unsigned_32 (P.Length)) & ":"
+                          & Num (Unsigned_32 (P.Length)));
+                  when Flush =>
+                     Put ("F");
+                  when LED_Toggle =>
+                     Put ("L1x");
+                  when LED_Off =>
+                     Put ("L1o");
+               end case;
+            end;
+         end loop;
+         return Text (1 .. Last);
+      end Image;
+
+      procedure Expect_Ops (Expected, Actual : String) is
+      begin
+         Record_Int (Name & ".ops", 1, (if Expected = Actual then 1 else 0));
+         if Expected /= Actual and then Failures <= 20 then
+            Put_Line ("  expected " & Expected);
+            Put_Line ("  got      " & Actual);
+         end if;
+      end Expect_Ops;
+
+      --  The state the oracle prints from field First on.
+      procedure Expect_State (First : Positive) is
+         FS : Adaflight.Flash_FS.File_System renames Flash_State;
+      begin
+         Record_Int (Name & ".head", Int (First), Integer_64 (FS.Head));
+         Record_Int (Name & ".tail", Int (First + 1), Integer_64 (FS.Tail));
+         Record_Int (Name & ".tail_address", Int (First + 2), Integer_64 (FS.Tail_Address));
+         Record_Int (Name & ".data_written", Int (First + 3), Boolean'Pos (FS.Data_Written));
+         Record_Int (Name & ".erasing", Int (First + 4), Boolean'Pos (FS.Erasing));
+         Record_Int (Name & ".erase_sector", Int (First + 5), Integer_64 (FS.Erase_Sector));
+         Record_Int (Name & ".chip_erase", Int (First + 6), Boolean'Pos (FS.Chip_Erase));
+         Record_Int (Name & ".size", Int (First + 7), Integer_64 (FS.Size));
+         Record_Int (Name & ".offset", Int (First + 8), Integer_64 (Offset (FS)));
+         Record_Int (Name & ".free", Int (First + 9), Integer_64 (Free_Space (FS)));
+         Record_Int (Name & ".eof", Int (First + 10), Boolean'Pos (Is_EOF (FS)));
+         Record_Int (Name & ".pending", Int (First + 11), Boolean'Pos (not FS.Data_Written));
+      end Expect_State;
+   begin
+      if Name = "ffinit" then
+         Init (Flash_State, (Kind              => (if Int (3) = 0 then NOR else NAND),
+                             Sectors           => Interfaces.Unsigned_16 (Int (4)),
+                             Page_Size         => Integer (Int (5)),
+                             Sector_Size       => Unsigned_32 (Int (6)),
+                             Partition_Count   => Integer (Int (7)),
+                             Has_Partition     => Int (8) /= 0,
+                             Start_Sector      => Interfaces.Unsigned_16 (Int (9)),
+                             End_Sector        => Interfaces.Unsigned_16 (Int (10)),
+                             Inline_Completion => Int (11) /= 0));
+         if Is_Supported (Flash_State) then
+            declare
+               S     : Search;
+               O     : Output;
+               Reads : constant String := Str (25);
+               From  : Positive := Reads'First;
+            begin
+               Search_Start (S, Flash_State);
+               --  Each read is D<address>:16:<count>:<sixteen bytes>.
+               while From <= Reads'Last loop
+                  declare
+                     Stop  : Natural := Ada.Strings.Fixed.Index (Reads (From .. Reads'Last), ";");
+                     Token : constant String := Reads (From .. (if Stop = 0 then Reads'Last else Stop - 1));
+                     C1    : constant Natural := Ada.Strings.Fixed.Index (Token, ":");
+                     C2    : constant Natural := Ada.Strings.Fixed.Index (Token (C1 + 1 .. Token'Last), ":");
+                     C3    : constant Natural := Ada.Strings.Fixed.Index (Token (C2 + 1 .. Token'Last), ":");
+                     Block : Test_Block;
+                  begin
+                     for B in Block'Range loop
+                        Block (B) := Interfaces.Unsigned_8'Value
+                          ("16#" & Token (C3 + 1 + 2 * B .. C3 + 2 + 2 * B) & "#");
+                     end loop;
+                     Record_Int ("ffinit.search_done", 0, Boolean'Pos (Search_Done (S)));
+                     Record_Int ("ffinit.search_address", Integer_64'Value (Token (Token'First + 1 .. C1 - 1)),
+                                 Integer_64 (Search_Address (S)));
+                     Search_Next (S, Integer'Value (Token (C2 + 1 .. C3 - 1)), Block);
+                     if Stop = 0 then
+                        Stop := Reads'Last;
+                     end if;
+                     From := Stop + 1;
+                  end;
+               end loop;
+               Record_Int ("ffinit.search_done", 1, Boolean'Pos (Search_Done (S)));
+               Seek_Abs (Flash_State, Search_Offset (S), O);
+               Expect_Ops ("", Image (O));
+            end;
+         end if;
+         Expect_State (13);
+      elsif Name = "ffstep" then
+         declare
+            O        : Output;
+            Call     : constant Integer_64 := Int (4);
+            A1       : constant Integer_64 := Int (5);
+            A2       : constant Integer_64 := Int (6);
+            Ready    : constant Boolean := Int (7) /= 0;
+            Result   : Integer_64 := 0;
+            Expected : constant String := Str (22);
+         begin
+            case Call is
+               when 0 =>
+                  Program_Complete (Flash_State, Integer (A1));
+               when 1 =>
+                  Write_Byte (Flash_State, Interfaces.Unsigned_8 (A1), Ready, O);
+               when 2 =>
+                  Write (Flash_State, Hex_Bytes (9), A2 /= 0, Ready, O);
+               when 3 =>
+                  declare
+                     Done : Boolean;
+                  begin
+                     Flush_Async (Flash_State, A1 /= 0, Ready, O, Done);
+                     Result := Boolean'Pos (Done);
+                  end;
+               when 4 =>
+                  Flush_Sync (Flash_State, O);
+               when 5 =>
+                  Erase_Completely (Flash_State, O);
+               when 6 =>
+                  Erase_Async (Flash_State, Ready, O);
+               when 7 =>
+                  Seek_Abs (Flash_State, Unsigned_32 (A1), O);
+               when 8 =>
+                  declare
+                     Length : Natural;
+                  begin
+                     Read_Abs (Flash_State, Unsigned_32 (A1), Integer (A2), O, Length);
+                     Result := Integer_64 (Length);
+                  end;
+               when 9 =>
+                  Close (Flash_State, O);
+               when others =>
+                  --  The query polls the flash only when the volume is idle.
+                  Result := Boolean'Pos (Is_Ready (Flash_State, Ready));
+                  if Is_Supported (Flash_State) and then not Flash_State.Erasing then
+                     Add_Ready_Check : declare
+                     begin
+                        O.Count := 1;
+                        O.Ops (1) := (Kind => Ready_Check, others => <>);
+                     end Add_Ready_Check;
+                  end if;
+            end case;
+            Record_Int ("ffstep.result", Int (8), Result);
+            Expect_Ops (Expected, Image (O));
+            Expect_State (10);
+         end;
+      else
+         Put_Line ("unknown flash filesystem case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Flash_FS_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -13916,6 +14115,8 @@ procedure Vector_Check is
                   Check_H8_3D_Line;
                elsif Kind = "battmeter" then
                   Check_Battery_Meter_Line;
+               elsif Kind = "flashfs" then
+                  Check_Flash_FS_Line;
                else
                   Check_PID_Line;
                end if;
@@ -14051,6 +14252,7 @@ begin
    Run (Dir & "/syma.csv", "syma");
    Run (Dir & "/h83d.csv", "h83d");
    Run (Dir & "/battmeter.csv", "battmeter");
+   Run (Dir & "/flashfs.csv", "flashfs");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
