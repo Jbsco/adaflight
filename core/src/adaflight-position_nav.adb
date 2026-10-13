@@ -31,7 +31,7 @@ package body Adaflight.Position_Nav with SPARK_Mode is
    end Reset;
 
    procedure Set_Target (N : in out Navigator; Target : Position_M; Cruise_Speed : Speed_Mps;
-                         Acceptance_Radius : Radius_M; Completion_Speed : Speed_Mps; Include_Altitude : Boolean) is
+                         Acceptance_Radius : Acceptance_M; Completion_Speed : Speed_Mps; Include_Altitude : Boolean) is
       Hand_Over : constant Boolean := N.Cmd.Active;
    begin
       N.Cmd.Active := True;
