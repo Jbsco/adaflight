@@ -2802,3 +2802,31 @@ off, motor counts from 0 to 8, pitot readings near the 32-bit limits, every RSSI
 and unset clock. The ESC sensor's rate stays non-negative, since the reference sign-extends a
 negative 16-bit value into its unsigned rate conversion. Every result, length and byte of the 3208
 lines replays exactly.
+
+## D127. BLHeli 4-way interface (2026-10-13)
+
+The four-way unit contains the BLHeli 4-way interface that ESC configurators reach through the MSP
+passthrough. A host frame is an escape byte, a command, a 16-bit address, a parameter length with 0
+for 256, the parameters and a CRC-16/XMODEM. The reply repeats the command and the address and adds
+the output parameters, the acknowledgement and its own check. The unit takes the host's bytes one
+at a time, where the reference blocks in a loop on the port, and asks the caller for each bootloader
+operation in turn with the selected ESC, the address, the count and the data. A connect tries up to
+three times, each with the STK500v2 bootloader first unless the interface is in the ARM mode, then
+the BLHeli bootloader, and keeps the first device whose signature matches an Atmel, SiLabs or ARM
+part. The other commands read, write, erase and verify the flash and EEPROM through the bootloader
+of the interface mode, set that mode, restart the ESC with an optional 300 ms low pulse on its pin,
+and report the interface name and versions. A flash write in the power-on C2 mode replies OK
+without a bootloader call (F134). Starting the interface stops the motors and takes the pins of the
+enabled motors as the ESCs. The exit command hands the pins back and restarts the motors when every
+motor took its pin back. The receive LED lights from the escape byte to the reply, the transmit LED
+from the check to the end of the reply. The interface mode, the device information and the selected
+ESC carry over between sessions. The unit is SPARK for the 256-byte parameter buffer, the reply
+length and the operation list.
+
+The harness replays six sessions recorded from the reference interface with both bootloader
+protocols on and the port, the pins, the motors, the LEDs and the bootloader calls stubbed: 120
+frames each of every command with random addresses, lengths up to 256 and data, broken checks,
+stray bytes between frames, scripted bootloader answers and device signatures, and one session
+without ESCs. Every operation, bootloader call with its arguments, and reply byte of the 5530 lines
+replays exactly. The host platform defines every pin configuration as 0, so the oracle gives the
+input, output and alternate settings distinct values.

@@ -83,6 +83,7 @@ The core holds:
 - the MSP box table with its paged replies and status bits
 - the MSP state replies: status, sensor readings, motors, RC channels, attitude, altitudes,
   battery, debug values, GPS, ESC and motor telemetry, pitot, transmitter information and clock
+- the BLHeli 4-way interface for ESC configuration through the flight controller
 - the dispatch queue of delayed calls
 - the OSD warnings line with its precedence, its arming reason rotation and its ESC alarms
 - the MSP tunnel over telemetry with its chunked requests and replies
@@ -99,9 +100,9 @@ The core holds:
 
 The state of `main`:
 
-- The core proves at Silver and Gold: 15444 checks, nothing unproved, no
+- The core proves at Silver and Gold: 15565 checks, nothing unproved, no
   `pragma Assume`, no justified suppression (`gnatprove` 16.1.0, level 2).
-- The recorded vectors replay bit for bit: 1181947 lines over 325 cases, every case
+- The recorded vectors replay bit for bit: 1187477 lines over 326 cases, every case
   exact except the twenty-one declared deviations in `DESIGN.md` D6.
 - No target builds yet. `ROADMAP.md` contains the parity inventory, the phases, and the
   question for after parity: whether a proved core leaves room on the F4 boards for

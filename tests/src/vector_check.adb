@@ -115,6 +115,7 @@ with Adaflight.LTM_Telemetry;
 with Adaflight.GPS_Lap_Timer;
 with Adaflight.MSP_Box;
 with Adaflight.MSP_Out;
+with Adaflight.Four_Way;
 with Adaflight.Dispatch;
 with Adaflight.ExpressLRS_Receiver;
 with Adaflight.Blackbox_Header;
@@ -13047,6 +13048,209 @@ procedure Vector_Check is
       end if;
    end Check_MSP_GPS_ESC_Line;
 
+   package FW renames Adaflight.Four_Way;
+   use type FW.Op_Kind;
+
+   FW_Seq        : Integer_64 := -1;
+   FW_State      : FW.State;
+   FW_Queue      : FW.Op_List;
+   FW_Head       : Natural := 1;
+   FW_Tail       : Natural := 0;
+   FW_Reply      : FW.Reply_Bytes := (others => 0);
+   FW_Reply_Len  : Natural := 0;
+   FW_Wait       : Natural := 0;
+   FW_All_Back   : Boolean := True;
+
+   procedure FW_Take (O : FW.Output) is
+   begin
+      for K in 1 .. O.Count loop
+         if FW_Tail < FW_Queue'Last then
+            FW_Tail := FW_Tail + 1;
+            FW_Queue (FW_Tail) := O.Ops (K);
+         else
+            Put_Line ("4-way operation queue full");
+            Failures := Failures + 1;
+         end if;
+         if O.Ops (K).Kind = FW.Send_Reply then
+            FW_Reply := O.Reply;
+            FW_Reply_Len := O.Length;
+         end if;
+      end loop;
+   end FW_Take;
+
+   --  The next queued operation, with the waits folded into the high that
+   --  follows them.
+   function FW_Next return FW.Op is
+      R : FW.Op := (Kind => FW.Send_Reply, Index => 0, Value => 0);
+   begin
+      while FW_Head <= FW_Tail and then FW_Queue (FW_Head).Kind = FW.Wait_Ms loop
+         FW_Wait := FW_Queue (FW_Head).Value;
+         FW_Head := FW_Head + 1;
+      end loop;
+      if FW_Head <= FW_Tail then
+         R := FW_Queue (FW_Head);
+         FW_Head := FW_Head + 1;
+      else
+         Put_Line ("4-way operation missing");
+         Failures := Failures + 1;
+      end if;
+      if FW_Head > FW_Tail then
+         FW_Head := 1;
+         FW_Tail := 0;
+      end if;
+      return R;
+   end FW_Next;
+
+   function FW_Kind_Of (Name : String) return FW.Op_Kind is
+     (if Name = "motordisable" then FW.Disable_Motors
+      elsif Name = "motorenable" then FW.Enable_Motors_If_Reinstated
+      elsif Name = "release" then FW.Release_Pin
+      elsif Name = "reinstate" then FW.Reinstate_Pin
+      elsif Name = "input" then FW.Pin_Input
+      elsif Name = "output" then FW.Pin_Output
+      elsif Name = "af" then FW.Pin_Alternate
+      elsif Name = "high" then FW.Pin_High
+      elsif Name = "low" then FW.Pin_Low
+      elsif Name = "ledon" then FW.LED_On
+      elsif Name = "ledoff" then FW.LED_Off
+      elsif Name = "silence" then FW.Silence_Beeper
+      else FW.Send_Reply);
+
+   function FW_Request_Of (Name : String) return FW.Request_Kind is
+     (if Name = "stkconnect" then FW.STK_Connect
+      elsif Name = "blconnect" then FW.BL_Connect
+      elsif Name = "blkeepalive" then FW.BL_Keep_Alive
+      elsif Name = "stksignon" then FW.STK_Sign_On
+      elsif Name = "blrestart" then FW.BL_Restart
+      elsif Name = "stkerase" then FW.STK_Chip_Erase
+      elsif Name = "blpageerase" then FW.BL_Page_Erase
+      elsif Name = "blreadflash" then FW.BL_Read_Flash
+      elsif Name = "stkreadflash" then FW.STK_Read_Flash
+      elsif Name = "blreadeeprom" then FW.BL_Read_EEPROM
+      elsif Name = "stkreadeeprom" then FW.STK_Read_EEPROM
+      elsif Name = "blwriteflash" then FW.BL_Write_Flash
+      elsif Name = "stkwriteflash" then FW.STK_Write_Flash
+      elsif Name = "blwriteeeprom" then FW.BL_Write_EEPROM
+      elsif Name = "stkwriteeeprom" then FW.STK_Write_EEPROM
+      else FW.BL_Verify_Flash);
+
+   procedure Check_Four_Way_Line is
+      use FW;
+      Name : constant String := Str (1);
+      O    : Output;
+   begin
+      if Name = "fwinit" then
+         FW_Seq := Int (2);
+         FW_State := (others => <>);
+         FW_Head := 1;
+         FW_Tail := 0;
+         FW_Wait := 0;
+         FW_All_Back := True;
+         declare
+            Enabled, Has_Pin : Motor_Flags;
+         begin
+            for I in Motor_Index loop
+               Enabled (I) := Int (4 + 2 * I) /= 0;
+               Has_Pin (I) := Int (5 + 2 * I) /= 0;
+            end loop;
+            Init (FW_State, Enabled, Has_Pin, 0, O);
+            FW_Take (O);
+         end;
+      elsif Int (2) /= FW_Seq then
+         Put_Line ("4-way line without its start");
+         Failures := Failures + 1;
+      elsif Name = "fwcount" then
+         Record_Int (Name, Int (3), Integer_64 (FW_State.ESC_Total));
+         Start (FW_State, O);
+         FW_Take (O);
+      elsif Name = "fwin" then
+         declare
+            Bytes : constant Byte_Array := Hex_Bytes (3);
+         begin
+            for K in Bytes'Range loop
+               if Awaiting (FW_State) or else Finished (FW_State) then
+                  Put_Line ("4-way byte while not reading");
+                  Failures := Failures + 1;
+               else
+                  Receive (FW_State, Bytes (K), O);
+                  FW_Take (O);
+               end if;
+            end loop;
+         end;
+      elsif Name = "fwop" then
+         declare
+            Kind : constant Op_Kind := FW_Kind_Of (Str (3));
+            Got  : constant Op := FW_Next;
+         begin
+            Record_Int ("fwop.kind", Op_Kind'Pos (Kind), Op_Kind'Pos (Got.Kind));
+            if Kind = Enable_Motors_If_Reinstated then
+               Record_Int ("fwop.enable", 1, Boolean'Pos (FW_All_Back));
+            elsif Kind not in Disable_Motors | Silence_Beeper then
+               Record_Int ("fwop.index", Int (4), Integer_64 (Got.Index));
+            end if;
+            if Kind = Reinstate_Pin then
+               FW_All_Back := FW_All_Back and then Int (5) /= 0;
+            elsif Kind = Pin_High then
+               Record_Int ("fwop.wait", Int (5), Integer_64 (FW_Wait));
+               FW_Wait := 0;
+            end if;
+         end;
+      elsif Name = "fwcall" then
+         declare
+            Kind : constant Request_Kind := FW_Request_Of (Str (3));
+            Q    : constant Request := Pending (FW_State);
+            R    : Result;
+            Sent : constant Byte_Array := Hex_Bytes (9);
+            Back : constant Byte_Array := (if NF >= 11 then Hex_Bytes (11) else Hex_Bytes (9) (1 .. 0));
+         begin
+            Record_Int ("fwcall.awaiting", 1, Boolean'Pos (Awaiting (FW_State)));
+            Record_Int ("fwcall.kind", Request_Kind'Pos (Kind), Request_Kind'Pos (Q.Kind));
+            Record_Int ("fwcall.esc", Int (4), Integer_64 (Q.ESC));
+            if Kind = BL_Read_Flash then
+               Record_Int ("fwcall.mode", Int (5), Integer_64 (Q.Mode));
+            end if;
+            if Kind in BL_Page_Erase .. BL_Verify_Flash then
+               Record_Int ("fwcall.address_high", Int (6), Integer_64 (Q.Address_High));
+               Record_Int ("fwcall.address_low", Int (7), Integer_64 (Q.Address_Low));
+            end if;
+            if Kind in BL_Read_Flash .. BL_Verify_Flash then
+               Record_Int ("fwcall.count", Int (8), Integer_64 (Q.Count));
+            end if;
+            if Kind in BL_Write_Flash .. BL_Verify_Flash then
+               Record_Bytes ("fwcall.data", Sent, FW_State.Params (0 .. Span (Q.Count) - 1));
+            elsif Kind = BL_Restart then
+               Record_Bytes ("fwcall.info", Sent, Byte_Array (FW_State.Info));
+            end if;
+            R.Code := Byte (Int (10));
+            if Kind in STK_Connect | BL_Connect and then Back'Length = 4 then
+               R.Info := (Back (Back'First), Back (Back'First + 1), Back (Back'First + 2), Back (Back'First + 3));
+            elsif Back'Length > 0 then
+               for K in 0 .. Back'Length - 1 loop
+                  R.Data (K) := Back (Back'First + K);
+               end loop;
+            end if;
+            if Awaiting (FW_State) then
+               Complete (FW_State, R, O);
+               FW_Take (O);
+            end if;
+         end;
+      elsif Name = "fwout" then
+         declare
+            Got : constant Op := FW_Next;
+         begin
+            Record_Int ("fwout.kind", Op_Kind'Pos (Send_Reply), Op_Kind'Pos (Got.Kind));
+            Record_Bytes ("fwout.reply", Hex_Bytes (3), FW_Reply (0 .. FW_Reply_Len - 1));
+         end;
+      elsif Name = "fwend" then
+         if FW_Head <= FW_Tail and then FW_Queue (FW_Head).Kind = Enable_Motors_If_Reinstated then
+            Record_Int ("fwend.enable", 0, Boolean'Pos (FW_All_Back));
+            FW_Head := FW_Head + 1;
+         end if;
+         Record_Int ("fwend.finished", 1, Boolean'Pos (Finished (FW_State)));
+         Record_Int ("fwend.left", 0, Integer_64 (Integer'Max (0, FW_Tail - FW_Head + 1)));
+      end if;
+   end Check_Four_Way_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -13277,6 +13481,8 @@ procedure Vector_Check is
                   Check_MSP_Out_Line;
                elsif Kind = "mspout2" then
                   Check_MSP_GPS_ESC_Line;
+               elsif Kind = "fourway" then
+                  Check_Four_Way_Line;
                else
                   Check_PID_Line;
                end if;
@@ -13402,6 +13608,7 @@ begin
    Run (Dir & "/barotask.csv", "barotask");
    Run (Dir & "/mspout.csv", "mspout");
    Run (Dir & "/mspout2.csv", "mspout2");
+   Run (Dir & "/fourway.csv", "fourway");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
