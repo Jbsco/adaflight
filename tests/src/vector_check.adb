@@ -65,6 +65,7 @@ with Adaflight.SPI_Radio;
 with Adaflight.FrSky_SPI;
 with Adaflight.SFHSS;
 with Adaflight.Redpine;
+with Adaflight.FlySky;
 with Adaflight.GHST;
 with Adaflight.MSP_Receiver;
 with Adaflight.SRXL2;
@@ -11908,6 +11909,11 @@ procedure Vector_Check is
                when SPR.Set_RSSI => Put ("R" & FD_Short_Hex (Natural (X.Value)) & ".3");
                when SPR.Set_RSSI_Direct => Put ("D" & FD_Short_Hex (Natural (X.Value)) & ".3");
                when SPR.Save_Config => Put ("E");
+               when SPR.Write_Id =>
+                  Put ("i" & FD_Hex (Natural (X.Word / 2 ** 16), 4) & FD_Hex (Natural (X.Word mod 2 ** 16), 4));
+               when SPR.Read_Register => Put ("q" & FD_Hex (Natural (X.A), 2));
+               when SPR.Await_Clear => Put ("a" & FD_Hex (Natural (X.A), 2));
+               when SPR.Reset_Exti => Put ("X");
             end case;
          end;
       end loop;
@@ -12397,6 +12403,140 @@ procedure Vector_Check is
       end if;
    end Check_Redpine_Line;
 
+   package FSK renames Adaflight.FlySky;
+   use type FSK.Received;
+   FY_Seq    : Integer_64 := -1;
+   FY_State  : FSK.State;
+   FY_Config : FSK.Settings;
+   FY_Rc     : FSK.Channel_Values := (others => 1_500);
+
+   function Hex_Word (I : Positive) return Interfaces.Unsigned_32 is
+      B : constant Byte_Array := Hex_Bytes (I);
+      W : Interfaces.Unsigned_32 := 0;
+   begin
+      for K in B'Range loop
+         W := W * 256 + Interfaces.Unsigned_32 (B (K));
+      end loop;
+      return W;
+   end Hex_Word;
+
+   function Word_Text (W : Interfaces.Unsigned_32) return String is
+     (FD_Hex (Natural (W / 2 ** 16), 4) & FD_Hex (Natural (W mod 2 ** 16), 4));
+
+   function Map_Text (M : FSK.Channel_Map) return String is
+      R : String (1 .. 32);
+   begin
+      for K in M'Range loop
+         R (1 + 2 * K .. 2 + 2 * K) := FD_Hex (Natural (M (K)), 2);
+      end loop;
+      return R;
+   end Map_Text;
+
+   procedure Check_FlySky_Line is
+      Name : constant String := Str (1);
+
+      function Rc_Text return String is
+         Image : String (1 .. 128);
+         Len   : Natural := 0;
+      begin
+         for K in 0 .. FSK.Channel_Count (FY_Config) - 1 loop
+            declare
+               T : constant String := Interfaces.Unsigned_16'Image (FY_Rc (K));
+            begin
+               if K > 0 then
+                  Len := Len + 1;
+                  Image (Len) := '.';
+               end if;
+               Image (Len + 1 .. Len + T'Length - 1) := T (T'First + 1 .. T'Last);
+               Len := Len + T'Length - 1;
+            end;
+         end loop;
+         return Image (1 .. Len);
+      end Rc_Text;
+   begin
+      if Name = "fyinit" then
+         FY_Seq := Int (2);
+         declare
+            Map    : constant Byte_Array := Hex_Bytes (10);
+            Before : constant Integer_64 := Int (15);
+            Inp    : FSK.Inputs;
+            O      : FSK.Output;
+            Ok     : Boolean;
+            Claim  : Boolean;
+         begin
+            FY_Config :=
+              (Protocol    => (if Int (3) /= 0 then FSK.AFHDS_2A else FSK.AFHDS),
+               Tx_Id       => Hex_Word (9),
+               Rf_Map      => (others => 0),
+               Receiver_Id => Hex_Word (11),
+               Pins        =>
+                 (LED => Int (4) /= 0, LED_Inversion => Int (5) /= 0, Bind => Int (6) /= 0, others => <>));
+            for K in FSK.Channel_Map'Range loop
+               FY_Config.Rf_Map (K) := Interfaces.Unsigned_8 (Map (Map'First + K));
+            end loop;
+            Inp.Now_Us := Interfaces.Unsigned_32 (Int (7));
+            Inp.Now_Ms := Inp.Now_Us / 1_000;
+            Inp.Bind_Pin_Level := True;
+            FSK.Start (FY_State, FY_Config, Inp, O, Ok, Claim);
+            FY_Rc := (others => 1_500);
+            Record_Int (Name & ".ok", Int (8), Boolean'Pos (Ok));
+            Record_Int (Name & ".rssi_source", Int (12), (if Before = 0 and then Claim then 3 else Before));
+            Record_Int (Name & ".channels", Int (13), Integer_64 (FSK.Channel_Count (FY_Config)));
+            Record_Text (Name & ".ops", Str (14), FD_Ops (O));
+         end;
+      elsif Int (2) /= FY_Seq then
+         Put_Line ("FlySky line without its start");
+         Failures := Failures + 1;
+      elsif Name = "fystep" then
+         declare
+            Inp    : FSK.Inputs;
+            O      : FSK.Output;
+            Result : FSK.Received;
+            Fifo   : constant Byte_Array := Hex_Bytes (11);
+            Mode   : constant Byte_Array := Hex_Bytes (6);
+            Level  : constant Byte_Array := Hex_Bytes (7);
+         begin
+            Inp.Now_Us := Interfaces.Unsigned_32 (Int (3));
+            Inp.Now_Ms := Inp.Now_Us / 1_000;
+            Inp.Exti_Flag := Int (4) /= 0;
+            Inp.Exti_Time_Us := Interfaces.Unsigned_32 (Int (5));
+            Inp.Mode_Register := Interfaces.Unsigned_8 (Mode (Mode'First));
+            Inp.RSSI_Register := Interfaces.Unsigned_8 (Level (Level'First));
+            Inp.Bind_Pin_Level := Int (8) /= 0;
+            Inp.Battery_Voltage := Interfaces.Unsigned_16 (Int (10));
+            for K in Fifo'Range loop
+               Inp.Fifo (K - Fifo'First) := Interfaces.Unsigned_8 (Fifo (K));
+            end loop;
+            if Int (9) /= 0 then
+               FSK.Request_Bind (FY_State);
+            end if;
+            FSK.Data_Received (FY_State, FY_Config, Inp, O, Result);
+            if Result = FSK.Data_Ready then
+               FSK.Set_Rc_Data (FY_State, FY_Config, FY_Rc);
+            end if;
+            Record_Int (Name & ".result", Int (12), (case Result is when FSK.None => 0, when FSK.Bind_Done => 1,
+                                                                     when FSK.Data_Ready => 2));
+            Record_Int (Name & ".bound", Int (13), Boolean'Pos (FY_State.Bound));
+            Record_Text (Name & ".tx_id", Str (14), Word_Text (FY_State.Tx_Id));
+            Record_Int (Name & ".timeout", Int (15), Integer_64 (FY_State.Timeout_Us));
+            Record_Int (Name & ".last_packet", Int (16), Integer_64 (FY_State.Last_Packet_Us));
+            Record_Int (Name & ".count_timeout", Int (17), Integer_64 (FY_State.Count_Timeout));
+            Record_Int (Name & ".count_packet", Int (18), Integer_64 (FY_State.Count_Packet));
+            Record_Int (Name & ".error_rate", Int (19), Integer_64 (FY_State.Error_Rate));
+            Record_Int (Name & ".rssi_dbm", Int (20), Integer_64 (FY_State.RSSI_Dbm));
+            Record_Int (Name & ".send_telemetry", Int (21), Boolean'Pos (FY_State.Send_Telemetry));
+            Record_Int (Name & ".wait_tx", Int (22), Boolean'Pos (FY_State.Wait_Tx));
+            Record_Text (Name & ".map", Str (23), Map_Text (FY_State.Rf_Map));
+            Record_Text (Name & ".config_tx_id", Str (24), Word_Text (FY_Config.Tx_Id));
+            Record_Text (Name & ".config_map", Str (25), Map_Text (FY_Config.Rf_Map));
+            Record_Text (Name & ".rc", Str (26), Rc_Text);
+            Record_Int (Name & ".consume_exti", Int (27), Boolean'Pos (FY_State.Consume_Exti));
+            Record_Int (Name & ".bind_requested", Int (28), Boolean'Pos (FY_State.Radio.Bind_Requested));
+            Record_Text (Name & ".ops", Str (29), FD_Ops (O));
+         end;
+      end if;
+   end Check_FlySky_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -12613,6 +12753,8 @@ procedure Vector_Check is
                   Check_SFHSS_Line;
                elsif Kind = "redpine" then
                   Check_Redpine_Line;
+               elsif Kind = "flysky" then
+                  Check_FlySky_Line;
                else
                   Check_PID_Line;
                end if;
@@ -12731,6 +12873,7 @@ begin
    Run (Dir & "/frskyx.csv", "frskyd");
    Run (Dir & "/sfhss.csv", "sfhss");
    Run (Dir & "/redpine.csv", "redpine");
+   Run (Dir & "/flysky.csv", "flysky");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
