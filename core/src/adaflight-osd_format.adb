@@ -170,15 +170,15 @@ package body Adaflight.OSD_Format with SPARK_Mode is
       end if;
    end Distance_String;
 
-   procedure PID_Line (T : out Text; Label : String; P, I, D, D_Max, F : Unsigned_8) is
-      type Values is array (1 .. 5) of Unsigned_8;
-      V : constant Values := (P, I, D, D_Max, F);
+   procedure PID_Line (T : out Text; Label : String; P, I, D, D_Max : Unsigned_8; F : Unsigned_16) is
+      type Values is array (1 .. 5) of Integer_32;
+      V : constant Values := (Integer_32 (P), Integer_32 (I), Integer_32 (D), Integer_32 (D_Max), Integer_32 (F));
    begin
       T := (others => <>);
       Append_String (T, Label);
       for K in V'Range loop
          Append (T, ' ');
-         Append_Integer (T, Integer_32 (V (K)), 3, False);
+         Append_Integer (T, V (K), 3, False);
       end loop;
    end PID_Line;
 

@@ -2216,3 +2216,35 @@ list under random positions, profiles, sensors and features; the alarms under ra
 thresholds, readings, clocks, battery profiles and motor telemetry, with the blink synced to
 the clock and one item's blink read back; and the reset. Every count, listed item,
 accelerometer need, blink word and state of the 2406 lines replays byte for byte.
+
+## D103. OSD element renderers for readings (2026-10-12)
+
+The OSD render unit contains the reference's element renderers that format readings,
+thirty-eight of the seventy-six: altitude, pitch and roll angles, anti gravity, average
+cell voltage, compass bar, core temperature, crosshairs, current, the two debug lines,
+disarmed, g force, charge drawn, watt hours, battery usage, battery voltage, numerical
+heading, vario, PID and rate profile, the three PID lines, power, remaining time estimate,
+RSSI, RSSI dBm, RSNR, throttle, the two timers, auxiliary value, ready mode, position hold
+ready, total flights, flip arrow, flight mode and clock. Each render starts from an empty
+text, offsets at zero, normal severity, drawn and complete, and fills them as its element
+does: the altitude in the unit when a barometer or a GPS fix supplies it, else the altitude
+symbol and a hyphen, critical past the altitude alarm while armed; the angles with a sign
+and two digits; the cell and pack voltages with the battery symbol, warning and critical by
+the battery state, the pack voltage with one decimal from ten volts; the compass bar as nine
+characters of the heading strip; charge, watt hours and remaining time critical past the
+capacity alarm, the remaining time as the flight time scaled by the charge left over the
+charge drawn, dashes below a tenth of the capacity and zero past it; the battery usage as a
+percentage of the profile's capacity or of the voltage estimate, or as a bar of eleven cells
+with a half cell; the RSSI capped at ninety-nine and critical under its alarm; the RSSI dBm
+with the antenna once a second antenna has reported; the timers critical when either alarm
+has passed; the flip arrow from the folded roll and the pitch while crash flip is on or the
+craft lies disarmed off its feet; the flight mode in the reference's precedence from
+failsafe to acro, with the chirp's axis, repeat and finish; the clock in the variant's form
+when the clock is set. The remaining time's conversion to microseconds saturates at the
+signed thirty-two-bit limit (F108). The PID line's feedforward widens to sixteen bits (D97).
+Settings, sensors and readings stay with the target; the graphics, GPS, link, ESC and name
+elements and the draw cycle come later.
+
+The harness replays six sequences of 500 renders recorded from the reference, each element
+under random settings, readings, attitude, battery profile, gains, clocks, switches, modes
+and clock. Every text, offset, severity and flag of the 3006 lines replays byte for byte.
