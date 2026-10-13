@@ -118,6 +118,7 @@ with Adaflight.SmartAudio;
 with Adaflight.LTM_Telemetry;
 with Adaflight.GPS_Lap_Timer;
 with Adaflight.MSP_Box;
+with Adaflight.MSP_Common_Out;
 with Adaflight.MSP_Out;
 with Adaflight.Four_Way;
 with Adaflight.Gimbal_Control;
@@ -15195,6 +15196,181 @@ procedure Vector_Check is
       end if;
    end Check_Executor_Rescue_Line;
 
+   --  The target of the MSP common reply oracle: its options, build option
+   --  codes and meter tables, from the start of each sequence.
+   type MC_Option is (Beeper, Transponder, OSD, Board_Info, MAX7456, VCP, Soft_Serial, Flash_Boot_Loader, RX_Bind,
+                      Acc, ESC_Sensor, Virtual_Meter, Signature, SPI, I2C);
+   MC_Options        : array (MC_Option) of Boolean := (others => False);
+   MC_Build          : Adaflight.MSP_Common_Out.Build_Options := (others => 0);
+   MC_Build_Count    : Natural := 0;
+   type MC_Ids is array (1 .. Adaflight.MSP_Common_Out.Max_Meters) of Interfaces.Unsigned_8;
+   MC_Voltage_Ids    : MC_Ids := (others => 0);
+   MC_Voltage_Count  : Natural := 0;
+   MC_Current_Ids    : MC_Ids := (others => 0);
+   MC_Current_Count  : Natural := 0;
+   MC_Sensor_Ids     : MC_Ids := (others => 0);
+   MC_Sensor_Count   : Natural := 1;
+
+   procedure Check_MSP_Common_Line is
+      use Adaflight.MSP_Common_Out;
+      Name : constant String := Str (1);
+      K    : Positive := 2;
+      function Next return Integer_64 is
+      begin
+         K := K + 1;
+         return Int (K - 1);
+      end Next;
+      function Next_Text return Text is
+         T     : Text;
+         Bytes : Byte_Array (0 .. Max_Text - 1);
+         Last  : Integer;
+      begin
+         T.Length := Natural (Next);
+         Last := Hex_Bytes (K)'Length - 1;
+         if T.Length > 0 then
+            Bytes (0 .. Last) := Hex_Bytes (K);
+            for I in 1 .. T.Length loop
+               T.Data (I) := Character'Val (Bytes (I - 1));
+            end loop;
+         end if;
+         K := K + 1;
+         return T;
+      end Next_Text;
+   begin
+      if Name = "mcoinit" then
+         K := 4;
+         for O in MC_Option loop
+            MC_Options (O) := Next /= 0;
+         end loop;
+         MC_Build_Count := Natural (Next);
+         for I in 1 .. MC_Build_Count loop
+            MC_Build (I) := Interfaces.Unsigned_16 (Next);
+         end loop;
+         MC_Voltage_Count := Natural (Next);
+         for I in 1 .. MC_Voltage_Count loop
+            MC_Voltage_Ids (I) := Interfaces.Unsigned_8 (Next);
+         end loop;
+         MC_Current_Count := Natural (Next);
+         for I in 1 .. MC_Current_Count loop
+            MC_Current_Ids (I) := Interfaces.Unsigned_8 (Next);
+         end loop;
+         MC_Sensor_Count := Natural (Next);
+         for I in 1 .. MC_Sensor_Count loop
+            MC_Sensor_Ids (I) := Interfaces.Unsigned_8 (Next);
+         end loop;
+      elsif Name = "mcostep" then
+         declare
+            Command : constant Interfaces.Unsigned_16 := Interfaces.Unsigned_16 (Int (4));
+            V       : Snapshot;
+            Buffer  : Byte_Array (0 .. 255) := (others => 0);
+            St      : Adaflight.Stream_Buffers.Stream;
+         begin
+            K := 5;
+            V.VTX_Port := Next /= 0;
+            V.Firmware.Variant := Str (K);
+            K := K + 1;
+            V.Firmware.Year := Natural (Next);
+            V.Firmware.Month := Interfaces.Unsigned_8 (Next);
+            V.Firmware.Patch := Interfaces.Unsigned_8 (Next);
+            V.Firmware.Version := Next_Text;
+            V.Firmware.MCU_Name := Next_Text;
+            V.Board.Target_Name := Next_Text;
+            V.Board.Board_Name := Next_Text;
+            V.Board.Manufacturer := Next_Text;
+            V.Firmware.Build_Date := Str (K);
+            V.Firmware.Build_Time := Str (K + 1);
+            V.Firmware.Revision := Str (K + 2);
+            K := K + 3;
+            for I in V.Firmware.UID'Range loop
+               V.Firmware.UID (I) := Unsigned_32 (Next);
+            end loop;
+            V.Firmware.Options := MC_Build;
+            V.Firmware.Option_Count := MC_Build_Count;
+            V.Board.Identifier := Str (K);
+            K := K + 1;
+            V.Board.Hardware_Revision := Interfaces.Unsigned_16 (Next);
+            if MC_Options (Signature) then
+               V.Board.Signature := Hex_Bytes (K);
+            end if;
+            K := K + 1;
+            V.Board.Configuration_State := Interfaces.Unsigned_8 (Next);
+            V.Board.RX_Bind := MC_Options (RX_Bind) and then Next /= 0;
+            if not MC_Options (RX_Bind) then
+               K := K + 1;
+            end if;
+            V.Board.Acc_Needs_Calibration := MC_Options (Acc) and then Int (K) = 0;
+            K := K + 1;
+            V.Board.Motor_Protocol_Disabled := Next = 0;
+            V.Board.SPI_Devices := (if MC_Options (SPI) then Interfaces.Unsigned_8 (Int (K)) else 0);
+            V.Board.I2C_Devices := (if MC_Options (I2C) then Interfaces.Unsigned_8 (Int (K + 1)) else 0);
+            K := K + 2;
+            V.Board.Gyro_Rate_Hz := Unsigned_32 (Next);
+            V.Board.MAX7456 := MC_Options (MAX7456);
+            V.Board.VCP := MC_Options (VCP);
+            V.Board.Soft_Serial := MC_Options (Soft_Serial);
+            V.Board.Flash_Boot_Loader := MC_Options (Flash_Boot_Loader);
+            V.Board.Board_Info := MC_Options (Board_Info);
+            V.Features := Unsigned_32 (Next);
+            V.Beeper := MC_Options (Beeper);
+            V.Beeper_Off_Flags := Unsigned_32 (Next);
+            V.Beacon_Tone := Interfaces.Unsigned_8 (Next);
+            V.Beacon_Off_Flags := Unsigned_32 (Next);
+            V.Meters.Motor_Count := Natural (Next);
+            V.Meters.ESC_Sensor := MC_Options (ESC_Sensor);
+            V.Meters.Voltage_Count := MC_Voltage_Count;
+            for I in 1 .. MC_Voltage_Count loop
+               V.Meters.Voltages (I) := (Id => MC_Voltage_Ids (I), Display_Filtered => Interfaces.Unsigned_16 (Next));
+            end loop;
+            V.Meters.Current_Count := MC_Current_Count;
+            for I in 1 .. MC_Current_Count loop
+               V.Meters.Currents (I) := (Id        => MC_Current_Ids (I),
+                                         mAh_Drawn => Interfaces.Integer_32 (Int (K)),
+                                         Amperage  => Interfaces.Integer_32 (Int (K + 1)));
+               K := K + 2;
+            end loop;
+            V.Meters.Sensor_Count := MC_Sensor_Count;
+            for I in 1 .. MC_Sensor_Count loop
+               V.Meters.Sensors (I) := (Id         => MC_Sensor_Ids (I),
+                                        Scale      => Interfaces.Unsigned_8 (Int (K)),
+                                        Divider    => Interfaces.Unsigned_8 (Int (K + 1)),
+                                        Multiplier => Interfaces.Unsigned_8 (Int (K + 2)));
+               K := K + 3;
+            end loop;
+            V.Meters.Current_Scale := Interfaces.Integer_16 (Next);
+            V.Meters.Current_Offset := Interfaces.Integer_16 (Next);
+            V.Meters.Virtual := MC_Options (Virtual_Meter);
+            V.Meters.Virtual_Scale := Interfaces.Integer_16 (Next);
+            V.Meters.Virtual_Offset := Interfaces.Integer_16 (Next);
+            V.Battery := (Min_Cell       => Interfaces.Unsigned_16 (Int (K)),
+                          Max_Cell       => Interfaces.Unsigned_16 (Int (K + 1)),
+                          Warning_Cell   => Interfaces.Unsigned_16 (Int (K + 2)),
+                          Capacity       => Interfaces.Unsigned_16 (Int (K + 3)),
+                          Voltage_Source => Interfaces.Unsigned_8 (Int (K + 4)),
+                          Current_Source => Interfaces.Unsigned_8 (Int (K + 5)));
+            K := K + 6;
+            V.Transponder.Built_In := MC_Options (Transponder);
+            V.Transponder.Provider := Natural (Next);
+            V.Transponder.Data := Hex_Bytes (K);
+            K := K + 1;
+            V.OSD := MC_Options (OSD);
+            V.Canvas_Columns := Interfaces.Unsigned_8 (Next);
+            V.Canvas_Rows := Interfaces.Unsigned_8 (Next);
+            Adaflight.Stream_Buffers.Init (St, 0, Buffer'Last + 1);
+            Reply (Buffer, St, Command, V);
+            Record_Int (Name & ".result", Int (K), (if Supported (Command, V) then 1 else -1));
+            Record_Int (Name & ".length", Int (K + 1), Integer_64 (St.Next));
+            Record_Bytes (Name & ".reply", Hex_Bytes (K + 2), Buffer (0 .. St.Next - 1));
+            if K + 2 /= NF then
+               Put_Line ("mcostep: consumed" & Integer'Image (K + 2) & " of" & Integer'Image (NF) & " fields");
+               Failures := Failures + 1;
+            end if;
+         end;
+      else
+         Put_Line ("unknown MSP common case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_MSP_Common_Line;
+
    AP_State    : Adaflight.Position_Hold.State;
    AP_Settings : Adaflight.Position_Control.Settings;
    AP_Nav      : Adaflight.Position_Nav.Navigator;
@@ -15710,6 +15886,8 @@ procedure Vector_Check is
                   Check_Executor_Rescue_Line;
                elsif Kind = "apnav" then
                   Check_Apnav_Line;
+               elsif Kind = "mspcommon" then
+                  Check_MSP_Common_Line;
                else
                   Check_PID_Line;
                end if;
@@ -15854,6 +16032,7 @@ begin
    Run (Dir & "/fpnupdate.csv", "fpnupdate");
    Run (Dir & "/fpnrescue.csv", "fpnrescue");
    Run (Dir & "/apnav.csv", "apnav");
+   Run (Dir & "/mspcommon.csv", "mspcommon");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
