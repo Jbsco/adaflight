@@ -121,6 +121,7 @@ with Adaflight.MSP_Box;
 with Adaflight.MSP_Common_Out;
 with Adaflight.MSP_Tuning_Out;
 with Adaflight.MSP_Receiver_Out;
+with Adaflight.MSP_Hardware_Out;
 with Adaflight.MSP_Out;
 with Adaflight.Four_Way;
 with Adaflight.Gimbal_Control;
@@ -15641,6 +15642,138 @@ procedure Vector_Check is
       end if;
    end Check_MSP_Receiver_Line;
 
+   type MH_Option is (Mag, GPS, Rescue, Acc, Baro, Rangefinder, Optical_Flow, Pitot, Gyro, Blackbox, Flash, SD_Card,
+                      DShot_Telemetry, ESC_Sensor);
+   MH_Options    : array (MH_Option) of Boolean := (others => False);
+   MH_Gyro_Count : Natural := 0;
+
+   procedure Check_MSP_Hardware_Line is
+      use Adaflight.MSP_Hardware_Out;
+      Name : constant String := Str (1);
+      K    : Positive := 5;
+      function Next return Integer_64 is
+      begin
+         K := K + 1;
+         return Int (K - 1);
+      end Next;
+      function U8 return Interfaces.Unsigned_8 is (Interfaces.Unsigned_8 (Next));
+      function U16 return Interfaces.Unsigned_16 is (Interfaces.Unsigned_16 (Next));
+      function U32 return Interfaces.Unsigned_32 is (Interfaces.Unsigned_32 (Next));
+      function Bool return Boolean is (Next /= 0);
+   begin
+      if Name = "mhinit" then
+         K := 4;
+         for O in MH_Option loop
+            MH_Options (O) := Bool;
+         end loop;
+         MH_Gyro_Count := Natural (Next);
+      elsif Name = "mhstep" then
+         declare
+            Command : constant Interfaces.Unsigned_16 := Interfaces.Unsigned_16 (Int (4));
+            V       : Snapshot;
+            Buffer  : Byte_Array (0 .. 255) := (others => 0);
+            St      : Adaflight.Stream_Buffers.Stream;
+            R       : Rescue_Values renames V.Rescue_Settings;
+         begin
+            V.Mixer_Mode := U8;
+            V.Yaw_Reversed := Bool;
+            V.Motor.Max_Throttle := U16;
+            V.Motor.Min_Command := U16;
+            V.Motor.Pole_Count := U8;
+            V.Motor.KV := U16;
+            V.Motor.Use_DShot_Telemetry := Bool;
+            V.Mag_Declination := Interfaces.Integer_16 (Next);
+            V.GPS_Provider := U8;
+            V.SBAS_Mode := U8;
+            V.Auto_Config := U8;
+            V.Auto_Baud := U8;
+            V.Set_Home_Once := Bool;
+            V.Use_Galileo := Bool;
+            R.Return_Altitude_M := U16;
+            R.Descent_Distance_M := U16;
+            R.Ground_Speed_Cm_S := U16;
+            R.Ascend_Rate := U16;
+            R.Descend_Rate := U16;
+            R.Min_Start_Dist_M := U16;
+            R.Initial_Climb_M := U16;
+            R.Sanity_Checks := U8;
+            R.Min_Sats := U8;
+            R.Allow_Arming_Without_Fix := U8;
+            R.Altitude_Mode := U8;
+            R.Yaw_P := U8;
+            R.Max_Angle := U8;
+            R.Altitude_P := U8;
+            R.Altitude_I := U8;
+            R.Altitude_D := U8;
+            R.Position_P := U8;
+            R.Position_I := U8;
+            R.Position_D := U8;
+            R.Throttle_Min := U16;
+            R.Throttle_Max := U16;
+            R.Hover_Throttle := U16;
+            V.Trim_Pitch := Interfaces.Integer_16 (Next);
+            V.Trim_Roll := Interfaces.Integer_16 (Next);
+            V.Blackbox.Device := U8;
+            V.Blackbox.Sample_Rate := U8;
+            V.Blackbox.Fields_Disabled := U32;
+            for Which in Sensor loop
+               V.Selected (Which) := U8;
+            end loop;
+            for Which in Sensor loop
+               V.Detected (Which) := U8;
+            end loop;
+            V.Gyro_Count := MH_Gyro_Count;
+            for I in 1 .. MH_Gyro_Count loop
+               V.Detected_Gyros (I) := U8;
+            end loop;
+            V.Motor.Motor_Count := U8;
+            V.Motor.ESC_Sensor_Feature := Bool;
+            V.Blackbox.Rate_Denom := U8;
+            V.Blackbox.P_Ratio := U16;
+            V.Flash.Supported := Bool;
+            V.Flash.Ready := Bool;
+            V.Flash.Start_Sector := U16;
+            V.Flash.End_Sector := U16;
+            V.Flash.Size := U32;
+            V.Flash.Offset := U32;
+            V.SD_Card.Configured := Next /= 0;
+            V.SD_Card.Inserted := Bool;
+            V.SD_Card.Functional := Bool;
+            V.SD_Card.Initialized := Bool;
+            V.SD_Card.State := File_System_State'Val (Next);
+            V.SD_Card.Last_Error := U8;
+            V.SD_Card.Free_Bytes := U32;
+            V.SD_Card.Block_Count := U32;
+            V.Built := (Gyro         => MH_Options (Gyro),
+                        Acc          => MH_Options (Acc),
+                        Baro         => MH_Options (Baro),
+                        Mag          => MH_Options (Mag),
+                        Rangefinder  => MH_Options (Rangefinder),
+                        Optical_Flow => MH_Options (Optical_Flow),
+                        Pitot        => MH_Options (Pitot));
+            V.GPS := MH_Options (GPS);
+            V.Rescue := MH_Options (Rescue);
+            V.Blackbox.Built := MH_Options (Blackbox);
+            V.Flash.Built := MH_Options (Flash);
+            V.SD_Card.Built := MH_Options (SD_Card);
+            V.Motor.DShot_Telemetry := MH_Options (DShot_Telemetry);
+            V.Motor.ESC_Sensor := MH_Options (ESC_Sensor);
+            Adaflight.Stream_Buffers.Init (St, 0, Buffer'Last + 1);
+            Reply (Buffer, St, Command, V);
+            Record_Int (Name & ".result", Int (K), (if Supported (Command, V) then 1 else -1));
+            Record_Int (Name & ".length", Int (K + 1), Integer_64 (St.Next));
+            Record_Bytes (Name & ".reply", Hex_Bytes (K + 2), Buffer (0 .. St.Next - 1));
+            if K + 2 /= NF then
+               Put_Line ("mhstep: consumed" & Integer'Image (K + 2) & " of" & Integer'Image (NF) & " fields");
+               Failures := Failures + 1;
+            end if;
+         end;
+      else
+         Put_Line ("unknown MSP hardware case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_MSP_Hardware_Line;
+
    AP_State    : Adaflight.Position_Hold.State;
    AP_Settings : Adaflight.Position_Control.Settings;
    AP_Nav      : Adaflight.Position_Nav.Navigator;
@@ -16162,6 +16295,8 @@ procedure Vector_Check is
                   Check_MSP_Tuning_Line;
                elsif Kind = "mspreceiver" then
                   Check_MSP_Receiver_Line;
+               elsif Kind = "msphardware" then
+                  Check_MSP_Hardware_Line;
                else
                   Check_PID_Line;
                end if;
@@ -16309,6 +16444,7 @@ begin
    Run (Dir & "/mspcommon.csv", "mspcommon");
    Run (Dir & "/msptuning.csv", "msptuning");
    Run (Dir & "/mspreceiver.csv", "mspreceiver");
+   Run (Dir & "/msphardware.csv", "msphardware");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
