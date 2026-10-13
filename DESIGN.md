@@ -3276,3 +3276,25 @@ owner that issues the next leg from inside the navigator's update on 18 of 31 ar
 retargets, clears, nose overrides, sticks, heading recoveries, level parks, estimate dropouts
 and rescue windows, in every yaw mode. Every controller field, navigator field, lean and yaw
 rate of the 14416 lines replays exactly.
+
+## D146. MSP identification and meter replies (2026-10-13)
+
+`Adaflight.MSP_Common_Out` contains the MSP out messages every MSP host answers: the protocol and
+API versions, the firmware variant and calendar version, the MCU name, the board information,
+the build information with its option codes, the unique id, the feature and beeper
+configuration, the voltage and current meters, the analog voltage sensors, the analog and virtual
+current sensors, the battery and transponder configuration, and the OSD canvas. The board
+information covers the target's capabilities, names, signature, configuration state, gyro rate,
+configuration problems and bus device counts. The version reply leaves out the version text for a
+request from the port an HD video transmitter shares. The caller gathers the firmware's identity,
+the target's options, the configuration and the meter readings into a snapshot, so the replies
+hold no identity of their own. With the ESC sensor built in, both meter replies leave out the
+per-motor slots past the motor count. The current meters keep the reference's trim, which drops
+the MSP meter when that meter is built as well (findings F141). A displayed voltage rounds to
+tenths within a byte, consumption and current in milliamperes saturate at the field's range, and
+the year since 2000 and the cell voltages in tenths wrap to a byte. The beeper configuration
+reply exists only with the beeper built in.
+
+The harness replays 4800 requests recorded from the reference MSP processor in two builds, one
+with every option the replies branch on and one without, on random identities, configurations
+and meter readings. Every result, length and byte of the 4808 lines replays exactly.
