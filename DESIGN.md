@@ -2307,3 +2307,20 @@ under random attitude, limits, sticks, radio modes, channel settings, frame size
 transmitter states and blink bits, with the rows walked between renders. Every text, offset,
 severity, flag and direct write of the 3006 lines replays byte for byte, the up and down
 reference's letters standing for the bytes the reference printed.
+
+## D106. OSD warnings element (2026-10-12)
+
+The OSD render unit contains the reference's warnings element: the warnings line from the
+warnings unit (D95) with its severity, and the element's blink bit set while the line
+blinks and cleared otherwise. With the craft name messages on, a link quality message
+replaces the line while the blink is in its hidden half or the line is empty: the mode,
+quality and RSSI dBm for Crossfire, the quality and RSSI dBm for Ghost, else the quality
+scaled to one digit. The element then copies its first fifteen characters into the craft
+name, zero filled after a shorter text; a text of fifteen characters or more leaves the
+name's sixteenth byte as it was (F111). The craft name buffer, the blink and the readings
+stay with the target.
+
+The harness replays six sequences of 500 steps recorded from the reference, the warnings
+scripted as for D95 with the craft name messages, link sources, qualities, modes, blink
+halves and stored names added. Every text, blink bit, severity, beeper flag and craft name
+byte of the 3006 lines replays byte for byte.

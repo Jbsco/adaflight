@@ -340,4 +340,17 @@ package Adaflight.OSD_Render with SPARK_Mode is
                                 O : out Output)
      with Pre => Background_Supported (I);
 
+   --  The craft name as the configuration stores it: sixteen characters and
+   --  the terminator.
+   subtype Craft_Name_Buffer is String (1 .. Max_Name + 1);
+
+   --  The warnings element: the warnings line with its blink and severity.
+   --  With the craft name messages on, the link quality replaces the line
+   --  while the blink hides it or the line is empty, and the first fifteen
+   --  characters go to the craft name, zero filled after a shorter text.
+   procedure Render_Warnings
+     (WS : in out Adaflight.OSD_Warnings.State; WC : Adaflight.OSD_Warnings.Settings;
+      WI : Adaflight.OSD_Warnings.Inputs; Craft_Name_Messages, Blink_State : Boolean; Inp : Inputs;
+      Craft : in out Craft_Name_Buffer; O : out Output; Beeper_Shown : out Boolean);
+
 end Adaflight.OSD_Render;
