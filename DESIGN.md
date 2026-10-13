@@ -2524,3 +2524,17 @@ telemetry slots, wrong ids and short FIFOs, noise, dropouts of up to 300 calls, 
 and bind commands, under random pins, LED inversion, auto bind, A1 sources and bound or unbound
 settings. Every operation, channel value, bind result, hop table and state of the 18006 lines
 replays byte for byte.
+
+## D115. FrSky SPI D8 hub telemetry (2026-10-13)
+
+The FrSky SPI unit gains the D8 telemetry frame's hub data. With the telemetry feature on and the
+FrSky hub stream free of a serial port, the receiver owns the hub stream. When the transmitter
+acknowledges the last frame, the next frame starts a hub burst once the previous one is sent; when
+it asks again, the unacknowledged bytes go out again. A burst lands in a 64-byte buffer and goes
+out ten bytes a frame. A burst of 64 bytes or more fills the buffer and stalls it for good, as in
+the reference (F122).
+
+The harness replays the six D8 sequences of D114 unchanged and three more with telemetry on: one
+with every sensor and a GPS fix, where the eighth hub cycle stalls the buffer, and two with random
+sensor sets and settings, the scripted transmitter acknowledging nine telemetry frames in ten.
+Every operation, frame byte and buffer count of the 27009 lines replays byte for byte.

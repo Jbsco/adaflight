@@ -3,11 +3,13 @@
 --  frequency offset up and down on bind packets, then collects the hop table
 --  and the transmitter id from them. Bound, the receiver hops over the table,
 --  takes channel packets from its transmitter with the RSSI from their status
---  byte, answers in the telemetry slot, and on timeouts hops on, switches
---  antennas and drops the RSSI. The radio and the pins stay with the target,
+--  byte, answers in the telemetry slot with the FrSky hub stream's bytes
+--  ten at a time, and on timeouts hops on, switches antennas and drops the
+--  RSSI. The radio and the pins stay with the target,
 --  which carries out the operations in order, hands back the calibration and
 --  shows the receive FIFO.
 with Interfaces;
+with Adaflight.FrSky_Hub_Telemetry;
 
 package Adaflight.FrSky_SPI with SPARK_Mode is
    use type Interfaces.Unsigned_8;
@@ -41,6 +43,8 @@ package Adaflight.FrSky_SPI with SPARK_Mode is
       LED_Pin       : Boolean := False;
       LED_Inversion : Boolean := False;
       Bind_Pin      : Boolean := False;
+      Telemetry     : Boolean := False;
+      Hub           : Adaflight.FrSky_Hub_Telemetry.Settings;
    end record;
 
    Calibrated_Channels : constant := 255;
@@ -59,6 +63,9 @@ package Adaflight.FrSky_SPI with SPARK_Mode is
       Telemetry, Resume);
 
    type Frame_Bytes is array (0 .. 19) of Unsigned_8;
+
+   Hub_Buffer_Size : constant := 64;
+   type Hub_Bytes is array (0 .. Hub_Buffer_Size - 1) of Unsigned_8;
 
    --  The protocol state, the timers, the calibration, the bind tuning, the
    --  hop position, the RSSI, the antenna, the bind request and the frames.
@@ -84,6 +91,13 @@ package Adaflight.FrSky_SPI with SPARK_Mode is
       Data_Errors       : Unsigned_16 := 0;
       Frame             : Frame_Bytes := (others => 0);
       Payload           : Payload_Bytes := (others => 0);
+      Telemetry_Enabled : Boolean := False;
+      Hub               : Adaflight.FrSky_Hub_Telemetry.Stream;
+      Hub_Data          : Hub_Bytes := (others => 0);
+      Hub_Generated     : Natural range 0 .. Hub_Buffer_Size := 0;
+      Hub_Sent          : Natural range 0 .. Hub_Buffer_Size - 1 := 0;
+      Hub_Acknowledged  : Natural range 0 .. Hub_Buffer_Size - 1 := 0;
+      Hub_Id_Expected   : Unsigned_8 := 0;
    end record;
 
    type Op_Kind is
@@ -112,7 +126,9 @@ package Adaflight.FrSky_SPI with SPARK_Mode is
    end record;
 
    --  What a call reads: the clocks, the radio's interrupt line, the bytes in
-   --  its receive FIFO, the bind pin, and the telemetry's analog readings.
+   --  its receive FIFO, the bind pin, the telemetry's analog readings and the
+   --  hub stream's readings; at start-up, the chip check and whether the hub
+   --  stream is free for this receiver.
    type Inputs is record
       Now_Us          : Unsigned_32 := 0;
       Now_Ms          : Unsigned_32 := 0;
@@ -123,7 +139,9 @@ package Adaflight.FrSky_SPI with SPARK_Mode is
       ADC_External    : Unsigned_16 := 0;
       ADC_RSSI        : Unsigned_16 := 0;
       Battery_Voltage : Unsigned_16 := 0;
+      Hub             : Adaflight.FrSky_Hub_Telemetry.Inputs;
       Chip_Ok         : Boolean := True;
+      Hub_Free        : Boolean := True;
    end record;
 
    type Received is (None, Bind_Done, Data_Ready);
