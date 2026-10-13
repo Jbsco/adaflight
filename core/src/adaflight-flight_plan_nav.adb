@@ -4,6 +4,7 @@ with Adaflight.Clock;
 package body Adaflight.Flight_Plan_Nav with SPARK_Mode is
 
    use type Interfaces.Integer_64;
+   use type Interfaces.Unsigned_32;
 
    Min_Cruise_Mps        : constant := 1.0;
    Pattern_Max_Rate_Rads : constant := 0.25;
@@ -34,21 +35,32 @@ package body Adaflight.Flight_Plan_Nav with SPARK_Mode is
    Carrot_Brake_Lag_S    : constant := 0.50;
    Approach_Decel_Mps2   : constant := 0.3;
    Rescue_Still_Radius_M : constant := 0.3;
+   Carrot_No_Arrival_M   : constant := -1.0;
+   Completion_Any_Mps    : constant := 1_000.0;
+   Delay_Min_Cruise_Mps  : constant := 0.1;
+   Rescue_Approach_Decel : constant := 1.0;
+   Rescue_Stop_Still_Mps : constant := 0.5;
+   Rescue_Stop_Settle_S  : constant := 3.0;
+   Rescue_Pitch_Fwd_Deg  : constant := 35.0;
+   Rescue_Drift_Still_Sq : constant := 10_000.0;
+   Landing_Depth_M       : constant := 200.0;
+   Landing_Min_Rate_Mps  : constant := 0.3;
+   Landing_Establish_Us  : constant := 5_000_000;
 
    --  Degrees in radians, rounded as the C rounds its product: the turn-in
    --  rate and the angle a turn-in counts as done within.
    Rad_30 : constant Float := Float'Machine (30.0 * Maths.Rad_Per_Degree);
    Rad_15 : constant Float := Float'Machine (15.0 * Maths.Rad_Per_Degree);
 
-   procedure Call (O : in out Autopilot_Output; Kind : Autopilot_Call_Kind; On : Boolean; Value : Float) is
+   procedure Call (O : in out Executor_Output; Kind : Call_Kind; On : Boolean; Value : Float) is
    begin
-      if O.Count < Max_Autopilot_Calls then
+      if O.Count < Max_Calls then
          O.Count := O.Count + 1;
          O.Calls (O.Count) := (Kind => Kind, On => On, Value => Value);
       end if;
    end Call;
 
-   procedure Command_Nose (O : in out Autopilot_Output; Override : Boolean; Heading : Float) is
+   procedure Command_Nose (O : in out Executor_Output; Override : Boolean; Heading : Float) is
    begin
       Call (O, Nose_Override, Override, Heading);
    end Command_Nose;
@@ -379,13 +391,9 @@ package body Adaflight.Flight_Plan_Nav with SPARK_Mode is
               Up    => S.Pattern_Centre.Up);
    end Pattern_Carrot;
 
-   -------------------
-   -- Abort_Mission --
-   -------------------
-
-   procedure Abort_Mission
-     (S : in out State; N : in out Position_Nav.Navigator; Reason : Abort_Reason; O : in out Autopilot_Output)
-   is
+   --  The attitude handed back to position control from either stage of the
+   --  rescue's heading recovery.
+   procedure End_Heading_Recovery (S : in out State; O : in out Executor_Output) is
    begin
       if S.Rescue_Blind_Climb or else S.Rescue_Heading_Hold then
          Call (O, Heading_Recovery, False, 0.0);
@@ -393,6 +401,17 @@ package body Adaflight.Flight_Plan_Nav with SPARK_Mode is
       S.Rescue_Blind_Climb := False;
       S.Rescue_Climbed := False;
       S.Rescue_Heading_Hold := False;
+   end End_Heading_Recovery;
+
+   -------------------
+   -- Abort_Mission --
+   -------------------
+
+   procedure Abort_Mission
+     (S : in out State; N : in out Position_Nav.Navigator; Reason : Abort_Reason; O : in out Executor_Output)
+   is
+   begin
+      End_Heading_Recovery (S, O);
       S.Mode := Aborted;
       S.Reason := Reason;
       S.Pattern_Pending := False;
@@ -408,7 +427,7 @@ package body Adaflight.Flight_Plan_Nav with SPARK_Mode is
 
    procedure Update_Progress_Tracking
      (S : in out State; N : in out Position_Nav.Navigator; Distance_M : Float; I : Leg_Inputs; C : Settings;
-      O : in out Autopilot_Output)
+      O : in out Executor_Output)
    is
    begin
       if not S.Best_Valid then
@@ -471,7 +490,7 @@ package body Adaflight.Flight_Plan_Nav with SPARK_Mode is
    --------------------
 
    procedure Update_Leg_Yaw
-     (S : in out State; P : Flight_Plan.Plan; I : Leg_Inputs; O : in out Autopilot_Output)
+     (S : in out State; P : Flight_Plan.Plan; I : Leg_Inputs; O : in out Executor_Output)
    is
       Face    : ENU := S.Leg_Target;
       Bearing : Float;
@@ -647,7 +666,7 @@ package body Adaflight.Flight_Plan_Nav with SPARK_Mode is
       Nose_Bearing  : Float;
       Aligned       : Boolean;
       Profile_Speed : Float;
-      O             : in out Autopilot_Output)
+      O             : in out Executor_Output)
      with Global => null,
           Pre    => Leg_Bounded (S) and then abs Dir.X <= 2.0 and then abs Dir.Y <= 2.0
                     and then abs To_Wp.X <= 1.0e6 and then abs To_Wp.Y <= 1.0e6
@@ -830,7 +849,7 @@ package body Adaflight.Flight_Plan_Nav with SPARK_Mode is
       Have_Next    : Boolean;
       Arrive       : Float;
       Corner       : Float;
-      O            : in out Autopilot_Output)
+      O            : in out Executor_Output)
      with Global => null,
           Pre    => Leg_Bounded (S) and then abs Craft.X <= 2.0e5 and then abs Craft.Y <= 2.0e5
                     and then abs To_Wp.X <= 1.0e6 and then abs To_Wp.Y <= 1.0e6
@@ -924,7 +943,7 @@ package body Adaflight.Flight_Plan_Nav with SPARK_Mode is
       P            : Flight_Plan.Plan;
       I            : Leg_Inputs;
       C            : Settings;
-      O            : in out Autopilot_Output;
+      O            : in out Executor_Output;
       Gate_Crossed : out Boolean)
    is
       Craft      : constant Vector_2 := (X => I.Est.Position.East * 0.01, Y => I.Est.Position.North * 0.01);
@@ -1001,6 +1020,519 @@ package body Adaflight.Flight_Plan_Nav with SPARK_Mode is
          end;
       end;
    end Update_Leg_Carrot;
+
+   --  The plan over: the target dropped and the nose handed back.
+   procedure Complete_Plan (S : in out State; N : in out Position_Nav.Navigator; O : in out Executor_Output)
+     with Global => null,
+          Pre    => Leg_Bounded (S),
+          Post   => Leg_Bounded (S)
+   is
+   begin
+      S.Mode := Complete;
+      Position_Nav.Clear_Target (N);
+      Command_Nose (O, False, 0.0);
+   end Complete_Plan;
+
+   --  The current waypoint and those after it walked past while they are
+   --  modifiers, each staged for the next leg: an altitude override, a delay
+   --  window, and a yaw rate cap. Found is false when the plan ends first.
+   procedure Drain_Modifiers
+     (S      : in out State;
+      P      : Flight_Plan.Plan;
+      Now_Us : Unsigned_32;
+      O      : in out Executor_Output;
+      W      : out Flight_Plan.Waypoint;
+      Found  : out Boolean)
+     with Global => null,
+          Pre    => Leg_Bounded (S),
+          Post   => Leg_Bounded (S) and then S.Injected_Waypoints = S.Injected_Waypoints'Old
+                    and then (if Found then Natural (S.Current_Index) < Active_Count (S, P))
+   is
+   begin
+      W := (others => <>);
+      Found := False;
+      for Guard in 1 .. Flight_Plan.Max_Waypoints loop
+         pragma Loop_Invariant (Leg_Bounded (S) and then S.Injected_Waypoints = S.Injected_Waypoints'Loop_Entry);
+         if Natural (S.Current_Index) >= Active_Count (S, P) then
+            return;
+         end if;
+         W := Active_Waypoint (S, P, Natural (S.Current_Index));
+         case W.Kind is
+            when Flight_Plan.Type_Alt_Change =>
+               S.Alt_Override_Pending := True;
+               S.Alt_Override_Cm := W.Altitude;
+               S.Alt_Override_Mode := W.Pattern;
+            when Flight_Plan.Type_Delay =>
+               S.Delay_Active := True;
+               S.Delay_Duration_Ds := W.Duration_Ds;
+               S.Delay_End_Us := Now_Us + Unsigned_32 (W.Duration_Ds) * 100_000;
+            when Flight_Plan.Type_Yaw_Rate =>
+               S.Yaw_Rate_Cap_Dps := Float (W.Speed);
+               Call (O, Yaw_Rate_Limit, True, S.Yaw_Rate_Cap_Dps);
+            when others =>
+               Found := True;
+               return;
+         end case;
+         S.Current_Index := S.Current_Index + 1;
+         if Natural (S.Current_Index) >= Active_Count (S, P) then
+            return;
+         end if;
+      end loop;
+   end Drain_Modifiers;
+
+   function Is_Rescue_Stop (S : State) return Boolean is (S.Is_Rescue_Plan and then S.Current_Index = 0);
+
+   --  A target held within the navigator's bound, which no waypoint within
+   --  the estimator's reach of the origin comes near.
+   function Held_Target (T : ENU) return ENU is
+     (East  => Held (T.East, Position_Nav.Metres_Bound),
+      North => Held (T.North, Position_Nav.Metres_Bound),
+      Up    => Held (T.Up, Position_Nav.Metres_Bound));
+
+   --  The leg to a waypoint whose target is known: its radius, approach and
+   --  cruise, the nose and its gate, then the carrot, the hold while the
+   --  nose comes round, or the point leg handed to the navigator.
+   procedure Dispatch_Leg
+     (S         : in out State;
+      N         : in out Position_Nav.Navigator;
+      P         : Flight_Plan.Plan;
+      I         : Leg_Inputs;
+      C         : Settings;
+      O         : in out Executor_Output;
+      Effective : Flight_Plan.Waypoint;
+      Computed  : ENU)
+     with Global => null,
+          Pre    => Leg_Bounded (S) and then Natural (S.Current_Index) < Active_Count (S, P)
+                    and then abs Computed.East <= 2.5e7 and then abs Computed.North <= 2.5e7
+                    and then abs Computed.Up <= 4.5e7,
+          Post   => Leg_Bounded (S)
+   is
+      Est             : Position_Nav.Estimate renames I.Est;
+      Craft           : constant Vector_2 := (X => Est.Position.East * 0.01, Y => Est.Position.North * 0.01);
+      Blind_Climb     : constant Boolean :=
+        Is_Rescue_Stop (S) and then Active_Count (S, P) > 1 and then I.Heading_Required and then not I.Heading_Valid;
+      Rescue_Stop     : constant Boolean := Is_Rescue_Stop (S) and then not Blind_Climb;
+      Station         : constant Boolean := Is_Station_Keeping (Effective.Kind);
+      Approach_Rescue : constant Boolean :=
+        S.Is_Rescue_Plan and then not Rescue_Stop
+        and then (Effective.Kind = Flight_Plan.Type_Flyover or else Effective.Kind = Flight_Plan.Type_Land);
+      Face_Target     : constant Boolean := Effective.Yaw_Behaviour = Flight_Plan.Yaw_Face_Target;
+      Pass_Gate       : constant Boolean := Flown_As_Carrot_Leg (S, P, Effective, Natural (S.Current_Index));
+      Turn_In         : constant Boolean := S.Turn_In_Requested and then Pass_Gate;
+      Target          : ENU := Computed;
+      Arrival         : Float range 0.0 .. 500.0 :=
+        (if Station then Float (C.Radius) * 0.01 else Float'Min (Float (C.Arrival_Radius) * 0.01, Pass_Max_M));
+      Cruise          : Float range 0.0 .. 1_000.0 :=
+        (if Effective.Speed > 0 then Float (Effective.Speed) * 0.01 else Float (C.Max_Speed) * 0.01);
+   begin
+      --  A takeoff climbs where the craft is; the rescue's stop holds where
+      --  the craft comes to rest.
+      if Effective.Kind = Flight_Plan.Type_Takeoff then
+         Target.East := Craft.X;
+         Target.North := Craft.Y;
+      end if;
+      if Rescue_Stop then
+         declare
+            Hold : constant Vector_2 := Rest_Point (Est, (X => 0.0, Y => 0.0), Rescue_Stop_Max_Angle (C));
+         begin
+            Target.East := Hold.X;
+            Target.North := Hold.Y;
+         end;
+      end if;
+      Target := Held_Target (Target);
+      if Approach_Rescue then
+         Arrival := Float'Max (Arrival, Float (C.Descent_Dist_M));
+      end if;
+      S.Leg_Arrive_Radius := Arrival;
+      S.Leg_Approach_Decel := (if Approach_Rescue then Rescue_Approach_Decel else 0.0);
+      if Cruise < Min_Cruise_Mps then
+         Cruise := Min_Cruise_Mps;
+      end if;
+
+      --  A delay stretches the leg from where the craft is over its time.
+      if S.Delay_Active then
+         declare
+            Delay_S : constant Float range 0.0 .. 6_553.6 := Float (S.Delay_Duration_Ds) * 0.1;
+            Leg_E   : constant Float range -6.0e5 .. 6.0e5 := Target.East - Est.Position.East * 0.01;
+            Leg_N   : constant Float range -6.0e5 .. 6.0e5 := Target.North - Est.Position.North * 0.01;
+            Leg_U   : constant Float range -6.0e5 .. 6.0e5 := Target.Up - Est.Position.Up * 0.01;
+            Leg_Len : constant Float range 0.0 .. 1.1e6 := Root (Leg_E * Leg_E + Leg_N * Leg_N + Leg_U * Leg_U, 1.1e6);
+         begin
+            if Delay_S > 0.0 and then Leg_Len > 0.1 then
+               Cruise := Float'Min (Cruise, Float'Max (Delay_Min_Cruise_Mps, Leg_Len / Delay_S));
+            end if;
+         end;
+      end if;
+
+      S.Turn_In_Requested := False;
+      S.Leg_Turn_In := Turn_In;
+      S.Pattern_Pending := False;
+      S.Pattern_Active := False;
+      if not Pass_Gate then
+         S.Carrot_Valid := False;
+         S.Leg_Anchor_Valid := False;
+      end if;
+      S.Leg_Is_Pass_Gate := Pass_Gate;
+      S.Leg_Valid := False;
+      S.Leg_Target := Target;
+      S.Leg_Cruise := Cruise;
+      S.Leg_Vert_Rate_Mps := Leg_Vert_Rate (Effective, C);
+      S.Leg_Yaw_Behaviour := Effective.Yaw_Behaviour;
+      S.Leg_Yaw_Hold_Deg := Float (I.Yaw_Decidegrees) * 0.1;
+      S.In_Pre_Turn := False;
+
+      declare
+         Start_Alt    : constant Float := Commanded_Altitude (N, Est);
+         Handing_Over : constant Boolean := Position_Nav.Has_Active_Target (N) and then not S.Dispatch_Afresh;
+      begin
+         --  The gate belongs to the waypoint: a leg dispatched again keeps
+         --  the wait it has served.
+         if S.Leg_Yaw_Index /= S.Current_Index then
+            S.Leg_Yaw_Index := S.Current_Index;
+            S.Leg_Yaw_Gate_Start := I.Now_Us;
+            S.Leg_Yaw_Timed_Out := False;
+            S.Leg_Yaw_Braked := Handing_Over and then Pass_Gate;
+         end if;
+         S.Leg_Yaw_Gated :=
+           Face_Target and then not Turn_In and then not S.Leg_Yaw_Timed_Out
+           and then not Leg_Nose_On_Target (Est, Target, I.Yaw_Decidegrees);
+         S.Leg_Yaw_Holding := S.Leg_Yaw_Gated and then not Pass_Gate;
+         if not Pass_Gate and then Effective.Yaw_Behaviour = Flight_Plan.Yaw_Default then
+            Command_Nose (O, False, 0.0);
+         end if;
+
+         if Pass_Gate then
+            if not S.Carrot_Valid then
+               if Turn_In then
+                  S.Carrot_Velocity :=
+                    (X => Held (Est.Velocity.East * 0.01, 1_000.0), Y => Held (Est.Velocity.North * 0.01, 1_000.0));
+                  S.Carrot := Craft;
+               elsif Handing_Over then
+                  declare
+                     Commanded : constant Position_Nav.Velocity_3_Cm_S := Position_Nav.Target_Velocity_Cm_S (N);
+                     Held_At   : constant Vector_2 :=
+                       (X => I.Position_Error.X * 0.01 + Craft.X, Y => I.Position_Error.Y * 0.01 + Craft.Y);
+                  begin
+                     S.Carrot_Velocity :=
+                       (X => Held (Commanded.East * 0.01, 1_000.0), Y => Held (Commanded.North * 0.01, 1_000.0));
+                     S.Carrot := Place_Carrot (Est, S.Carrot_Velocity, Held_At, C);
+                  end;
+               else
+                  declare
+                     Leg_X   : constant Float range -6.0e5 .. 6.0e5 := Target.East - Craft.X;
+                     Leg_Y   : constant Float range -6.0e5 .. 6.0e5 := Target.North - Craft.Y;
+                     Leg_Len : constant Float range 0.0 .. 1.0e6 := Root (Leg_X * Leg_X + Leg_Y * Leg_Y, 1.0e6);
+                     Dir_X   : Float range -2.0 .. 2.0 := 0.0;
+                     Dir_Y   : Float range -2.0 .. 2.0 := 0.0;
+                  begin
+                     if Leg_Len > 1.0 then
+                        declare
+                           Inverse : constant Float range 0.0 .. 1.0 := 1.0 / Leg_Len;
+                        begin
+                           Dir_X := Unit_Held (Leg_X * Inverse);
+                           Dir_Y := Unit_Held (Leg_Y * Inverse);
+                        end;
+                     end if;
+                     declare
+                        Along : constant Float range -1.0e6 .. 1.0e6 :=
+                          (Est.Velocity.East * Dir_X + Est.Velocity.North * Dir_Y) * 0.01;
+                        Speed : constant Float range 0.0 .. 1_000.0 :=
+                          (if S.Leg_Yaw_Gated then 0.0 else Constrain (Along, 0.0, Cruise));
+                        Rest  : Vector_2;
+                     begin
+                        S.Carrot_Velocity := (X => Held (Dir_X * Speed, 1_000.0), Y => Held (Dir_Y * Speed, 1_000.0));
+                        Rest := Rest_Point (Est, S.Carrot_Velocity, Lean_Degrees (C.Max_Angle));
+                        S.Carrot := (X => Held (Rest.X, Position_Nav.Metres_Bound),
+                                     Y => Held (Rest.Y, Position_Nav.Metres_Bound));
+                     end;
+                  end;
+               end if;
+               S.Carrot_Speed :=
+                 Float'Min (1_000.0, Root (S.Carrot_Velocity.X * S.Carrot_Velocity.X
+                                           + S.Carrot_Velocity.Y * S.Carrot_Velocity.Y, 1.5e3));
+               S.Carrot_Valid := True;
+               S.Leg_Anchor_Valid := False;
+            else
+               S.Carrot := Read_Back_Carrot (N);
+            end if;
+            Position_Nav.Set_Target (N, (East => S.Carrot.X, North => S.Carrot.Y, Up => Target.Up), Cruise,
+                                     Carrot_No_Arrival_M, Completion_Any_Mps, True);
+            S.Leg_Turn_Capped := Turn_In;
+            if Turn_In then
+               Position_Nav.Set_Max_Angle (N, Float (Rescue_Stop_Max_Angle (C)));
+            end if;
+            Position_Nav.Set_Accel_Limits (N, 0.0, 0.0);
+            Position_Nav.Set_Altitude_Arrival_Required (N, False);
+            Position_Nav.Set_Velocity_Feedforward (N, (East => S.Carrot_Velocity.X, North => S.Carrot_Velocity.Y));
+         elsif S.Leg_Yaw_Holding then
+            --  Held where the craft is, at the leg's altitude, until the
+            --  nose has come round.
+            Position_Nav.Set_Target (N, (East => Craft.X, North => Craft.Y, Up => Target.Up), Cruise,
+                                     Carrot_No_Arrival_M, Completion_Any_Mps, True);
+            Position_Nav.Set_Accel_Limits (N, 0.0, Approach_Decel_Mps2);
+            Position_Nav.Set_Altitude_Arrival_Required (N, False);
+         else
+            Position_Nav.Set_Target
+              (N, (East => Target.East, North => Target.North, Up => Target.Up), Cruise, Arrival,
+               (if Rescue_Stop then Rescue_Stop_Still_Mps else Completion_Any_Mps), True, Handler => True);
+            Position_Nav.Set_Accel_Limits
+              (N, Point_Leg_Accel (S, C), (if S.Leg_Approach_Decel > 0.0 then 0.0 else Approach_Decel_Mps2));
+            Position_Nav.Set_Approach_Brake (N, S.Leg_Approach_Decel, Rescue_Still_Radius_M);
+            Position_Nav.Set_Altitude_Arrival_Required
+              (N, Station and then not (S.Is_Rescue_Plan and then Effective.Kind = Flight_Plan.Type_Land));
+            if Rescue_Stop then
+               Position_Nav.Set_Velocity_Feedforward (N, (East => 0.0, North => 0.0));
+               Position_Nav.Set_Settle_Timeout (N, Rescue_Stop_Settle_S);
+               Position_Nav.Set_Max_Angle (N, Float (Rescue_Stop_Max_Angle (C)));
+            end if;
+         end if;
+         if S.Dispatch_Afresh then
+            Position_Nav.Start_Afresh (N);
+            S.Dispatch_Afresh := False;
+         end if;
+         if Blind_Climb then
+            S.Rescue_Blind_Climb := True;
+            S.Rescue_Climbed := False;
+            Call (O, Heading_Recovery, True, 0.0);
+         end if;
+         --  The altitude walks to the waypoint at the leg's rate from the
+         --  altitude already commanded.
+         Position_Nav.Set_Vertical_Profile (N, S.Leg_Vert_Rate_Mps, Start_Alt);
+      end;
+      Update_Leg_Yaw (S, P, I, O);
+      S.Mode := Targeting;
+      S.Hold_Duration_Ds := Effective.Duration_Ds;
+      S.Best_Valid := False;
+      S.Last_Progress_Us := I.Now_Us;
+      S.Hdg_Fault_Time_S := 0.0;
+   end Dispatch_Leg;
+
+   -----------------------
+   -- Dispatch_Waypoint --
+   -----------------------
+
+   procedure Dispatch_Waypoint
+     (S          : in out State;
+      N          : in out Position_Nav.Navigator;
+      P          : Flight_Plan.Plan;
+      I          : Leg_Inputs;
+      C          : Settings;
+      O          : in out Executor_Output;
+      Dispatched : out Boolean)
+   is
+      W     : Flight_Plan.Waypoint;
+      Found : Boolean;
+   begin
+      Dispatched := False;
+      Drain_Modifiers (S, P, I.Now_Us, O, W, Found);
+      if not Found then
+         Complete_Plan (S, N, O);
+         return;
+      end if;
+      declare
+         Effective : Flight_Plan.Waypoint := W;
+         Target    : ENU;
+         Ok        : Boolean;
+      begin
+         --  The staged altitude override holds for the whole leg.
+         if S.Alt_Override_Pending then
+            Effective.Altitude := S.Alt_Override_Cm;
+         end if;
+         Compute_Target (S, Effective, I.Has_Origin, I.Origin, I.Cos_Lat, Target, Ok);
+         if not Ok then
+            S.Mode := Idle;
+            return;
+         end if;
+         Dispatch_Leg (S, N, P, I, C, O, Effective, Target);
+         Dispatched := True;
+      end;
+   end Dispatch_Waypoint;
+
+   --  The next waypoint dispatched with the leg's modifiers cleared, or the
+   --  plan complete after its last.
+   procedure Advance_To_Next
+     (S : in out State; N : in out Position_Nav.Navigator; P : Flight_Plan.Plan; I : Leg_Inputs; C : Settings;
+      O : in out Executor_Output)
+     with Global => null,
+          Pre    => Leg_Bounded (S),
+          Post   => Leg_Bounded (S)
+   is
+      Dispatched : Boolean;
+   begin
+      S.Alt_Override_Pending := False;
+      S.Pattern_Pending := False;
+      S.Pattern_Active := False;
+      if Natural (S.Current_Index) + 1 >= Active_Count (S, P) then
+         Complete_Plan (S, N, O);
+         return;
+      end if;
+      S.Current_Index := S.Current_Index + 1;
+      Dispatch_Waypoint (S, N, P, I, C, O, Dispatched);
+      pragma Unreferenced (Dispatched);
+   end Advance_To_Next;
+
+   --  The landing's target below the craft, its descent rate, and the leg
+   --  handed to the navigator; a landing at the end of an approach brake
+   --  closes the rest of it on the way down.
+   procedure Start_Landing
+     (S            : in out State;
+      N            : in out Position_Nav.Navigator;
+      I            : Leg_Inputs;
+      C            : Settings;
+      East, North  : Float;
+      Descent_Rate : Float)
+     with Global => null,
+          Pre    => Leg_Bounded (S) and then abs East <= Position_Nav.Metres_Bound
+                    and then abs North <= Position_Nav.Metres_Bound and then Descent_Rate in 0.0 .. 1_000.0,
+          Post   => Leg_Bounded (S)
+   is
+      Start_Alt : constant Float := Commanded_Altitude (N, I.Est);
+      Descent   : constant Float range 0.3 .. 1_000.0 := Float'Max (Landing_Min_Rate_Mps, Descent_Rate);
+      Continued : constant Boolean := S.Leg_Approach_Decel > 0.0;
+   begin
+      Position_Nav.Set_Target
+        (N, (East => East, North => North, Up => I.Est.Position.Up * 0.01 - Landing_Depth_M),
+         (if Continued then S.Leg_Cruise else Descent), 1.0, 0.1, True);
+      Position_Nav.Set_Accel_Limits (N, Point_Leg_Accel (S, C), (if Continued then 0.0 else Approach_Decel_Mps2));
+      Position_Nav.Set_Approach_Brake (N, S.Leg_Approach_Decel, Rescue_Still_Radius_M);
+      Position_Nav.Set_Vertical_Profile (N, Descent, Start_Alt);
+      S.Landing_Rate_Mps := Descent;
+      S.Mode := Landing;
+      S.Landing_Start_Us := I.Now_Us;
+      S.Touchdown_Quiet_Us := 0;
+      S.Landing_Established := False;
+   end Start_Landing;
+
+   ----------------------------
+   -- Start_Landing_In_Place --
+   ----------------------------
+
+   procedure Start_Landing_In_Place (S : in out State; N : in out Position_Nav.Navigator; I : Leg_Inputs; C : Settings)
+   is
+   begin
+      Start_Landing
+        (S, N, I, C, I.Est.Position.East * 0.01, I.Est.Position.North * 0.01, Float (C.Landing_Rate) * 0.01);
+      Position_Nav.Start_Afresh (N);
+   end Start_Landing_In_Place;
+
+   ---------------------------------
+   -- Start_Landing_At_Nav_Target --
+   ---------------------------------
+
+   procedure Start_Landing_At_Nav_Target
+     (S : in out State; N : in out Position_Nav.Navigator; P : Flight_Plan.Plan; I : Leg_Inputs; C : Settings;
+      O : in out Executor_Output)
+   is
+      Dispatched : Boolean;
+   begin
+      if not Position_Nav.Has_Active_Target (N) then
+         Dispatch_Waypoint (S, N, P, I, C, O, Dispatched);
+         pragma Unreferenced (Dispatched);
+         return;
+      end if;
+      Start_Landing (S, N, I, C, N.Cmd.Target.East, N.Cmd.Target.North, S.Leg_Vert_Rate_Mps);
+   end Start_Landing_At_Nav_Target;
+
+   --------------------
+   -- Update_Landing --
+   --------------------
+
+   procedure Update_Landing
+     (S : in out State; N : in out Position_Nav.Navigator; I : Leg_Inputs; C : Settings; O : in out Executor_Output)
+   is
+      Vertical  : constant Float := I.Est.Velocity.Up;
+      Commanded : constant Float range 0.0 .. 1.0e5 := S.Landing_Rate_Mps * 100.0;
+   begin
+      if S.Mode = Landing then
+         Position_Nav.Lower_Target_Altitude (N, I.Est.Position.Up * 0.01 - Landing_Depth_M);
+      end if;
+      if not S.Landing_Established and then Vertical < -0.25 * Commanded then
+         S.Landing_Established := True;
+      end if;
+      if not S.Landing_Established
+        and then not (I.Below_Landing and then Clock.Elapsed (I.Now_Us, S.Landing_Start_Us) >= Landing_Establish_Us)
+      then
+         return;
+      end if;
+      --  A descent at the commanded rate is never quiet.
+      if Vertical > -0.25 * Commanded and then abs Vertical < Float (C.Touchdown_Cms) then
+         if S.Touchdown_Quiet_Us = 0 then
+            S.Touchdown_Quiet_Us := I.Now_Us;
+         elsif Clock.Elapsed (I.Now_Us, S.Touchdown_Quiet_Us) >= Integer_32 (C.Touchdown_Ds) * 100_000 then
+            Complete_Plan (S, N, O);
+            Call (O, Disarm, True, 0.0);
+         end if;
+      else
+         S.Touchdown_Quiet_Us := 0;
+      end if;
+   end Update_Landing;
+
+   --  The pitch-forward that teaches the attitude its heading from the GPS
+   --  course before the rescue's return leg.
+   procedure Start_Rescue_Pitch_Forward (S : in out State; I : Leg_Inputs; O : in out Executor_Output) is
+   begin
+      S.Rescue_Blind_Climb := False;
+      S.Rescue_Climbed := False;
+      S.Rescue_Heading_Hold := True;
+      S.Rescue_Heading_Start_Us := I.Now_Us;
+      S.Rescue_Heading_Trusted := False;
+      Call (O, Heading_Recovery, True, Rescue_Pitch_Fwd_Deg);
+   end Start_Rescue_Pitch_Forward;
+
+   ----------------------
+   -- Waypoint_Reached --
+   ----------------------
+
+   procedure Waypoint_Reached
+     (S : in out State; N : in out Position_Nav.Navigator; P : Flight_Plan.Plan; I : Leg_Inputs; C : Settings;
+      O : in out Executor_Output)
+   is
+   begin
+      if not S.Active then
+         return;
+      end if;
+      if Natural (S.Current_Index) >= Active_Count (S, P) then
+         Complete_Plan (S, N, O);
+         return;
+      end if;
+      declare
+         W : constant Flight_Plan.Waypoint := Active_Waypoint (S, P, Natural (S.Current_Index));
+      begin
+         --  The listener follows the stored mission, not an injected plan.
+         if I.Listener and then S.Injected_Waypoints = 0 then
+            Call (O, Reached_Waypoint, True, Float (S.Current_Index));
+         end if;
+         --  The rescue's stop without a heading climbs, then pitches forward.
+         if Is_Rescue_Stop (S) and then Active_Count (S, P) > 1 and then not I.Heading_Valid then
+            if S.Rescue_Blind_Climb
+              and then I.Est.Velocity.East * I.Est.Velocity.East + I.Est.Velocity.North * I.Est.Velocity.North
+                         >= Rescue_Drift_Still_Sq
+            then
+               S.Rescue_Climbed := True;
+               S.Rescue_Climbed_Us := I.Now_Us;
+            else
+               Start_Rescue_Pitch_Forward (S, I, O);
+            end if;
+            return;
+         end if;
+         End_Heading_Recovery (S, O);
+         if Is_Station_Keeping (W.Kind) and then S.Hold_Duration_Ds > 0 then
+            S.Mode := Holding;
+            S.Hold_Start_Us := I.Now_Us;
+            S.Hold_Last_Update_Us := S.Hold_Start_Us;
+            S.Hold_Elapsed_Us := 0;
+            if W.Kind = Flight_Plan.Type_Hold and then W.Pattern /= Flight_Plan.Pattern_None then
+               S.Pattern_Pending := True;
+            end if;
+            return;
+         end if;
+         if W.Kind = Flight_Plan.Type_Land then
+            Start_Landing_At_Nav_Target (S, N, P, I, C, O);
+            return;
+         end if;
+         Advance_To_Next (S, N, P, I, C, O);
+      end;
+   end Waypoint_Reached;
 
    ---------------------
    -- Orbit_Period_Ds --

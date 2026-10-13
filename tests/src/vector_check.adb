@@ -14273,6 +14273,75 @@ procedure Vector_Check is
       end if;
    end Check_Executor_Helper_Line;
 
+   --  The executor's calls against the oracle's log, each closed by a
+   --  semicolon, or a dash for none: H and the bits of a held heading, R for
+   --  the nose handed back, E with the request and the bits of the pitch for
+   --  the heading recovery, Y and the bits of the yaw rate limit, P with the
+   --  request for the level park, D for the disarm, and L with the index of
+   --  a reached waypoint.
+   procedure Expect_Executor_Calls (Name : String; Log : String; O : Adaflight.Flight_Plan_Nav.Executor_Output) is
+      use Adaflight.Flight_Plan_Nav;
+      K     : Natural := Log'First;
+      Count : Natural := 0;
+
+      function Code (C : Outgoing_Call) return Integer_64 is
+        (case C.Kind is
+            when Nose_Override    => Boolean'Pos (C.On),
+            when Heading_Recovery => 2 + Boolean'Pos (C.On),
+            when Yaw_Rate_Limit   => 4,
+            when Level_Park       => 5 + Boolean'Pos (C.On),
+            when Disarm           => 7,
+            when Reached_Waypoint => 8);
+
+      function Hex (T : String) return Unsigned_32 is (Unsigned_32'Value ("16#" & T & "#"));
+   begin
+      if Log /= "-" then
+         while K <= Log'Last loop
+            Count := Count + 1;
+            declare
+               Actual : constant Outgoing_Call :=
+                 (if Count <= O.Count then O.Calls (Count) else (Kind => Nose_Override, On => False, Value => -1.0));
+               Stop   : Natural := K;
+            begin
+               while Log (Stop) /= ';' loop
+                  Stop := Stop + 1;
+               end loop;
+               declare
+                  T        : constant String := Log (K .. Stop - 1);
+                  Expected : Integer_64 := -1;
+               begin
+                  case T (T'First) is
+                     when 'H' =>
+                        Expected := 1;
+                        Record_Result (Name & ".call_value", Hex (T (T'First + 1 .. T'Last)), To_Bits (Actual.Value));
+                     when 'R' =>
+                        Expected := 0;
+                     when 'E' =>
+                        Expected := 2 + Integer_64'Value (T (T'First + 1 .. T'First + 1));
+                        Record_Result (Name & ".call_value", Hex (T (T'First + 2 .. T'Last)), To_Bits (Actual.Value));
+                     when 'Y' =>
+                        Expected := 4;
+                        Record_Result (Name & ".call_value", Hex (T (T'First + 1 .. T'Last)), To_Bits (Actual.Value));
+                     when 'P' =>
+                        Expected := 5 + Integer_64'Value (T (T'First + 1 .. T'Last));
+                     when 'D' =>
+                        Expected := 7;
+                     when 'L' =>
+                        Expected := 8;
+                        Record_Int (Name & ".call_index", Integer_64'Value (T (T'First + 1 .. T'Last)),
+                                    Integer_64 (Actual.Value));
+                     when others =>
+                        null;
+                  end case;
+                  Record_Int (Name & ".call", Expected, Code (Actual));
+               end;
+               K := Stop + 1;
+            end;
+         end loop;
+      end if;
+      Record_Int (Name & ".calls", Integer_64 (Count), Integer_64 (O.Count));
+   end Expect_Executor_Calls;
+
    Leg_State   : Adaflight.Flight_Plan_Nav.State;
    Leg_Nav     : Adaflight.Position_Nav.Navigator;
    Leg_Plan    : Adaflight.Flight_Plan.Plan;
@@ -14297,48 +14366,6 @@ procedure Vector_Check is
          Record_Int ("flstep." & N, Int (I), Boolean'Pos (Actual));
       end Expect_Flag;
 
-      --  The autopilot calls against the oracle's log, each closed by a
-      --  semicolon, or a dash for none: H and the bits of a held heading, R
-      --  for the nose handed back, and E with the request and the bits of
-      --  the pitch for the heading recovery.
-      procedure Expect_Calls (I : Positive; O : Autopilot_Output) is
-         Log   : constant String := Str (I);
-         K     : Natural := Log'First;
-         Count : Natural := 0;
-      begin
-         if Log /= "-" then
-            while K <= Log'Last loop
-               Count := Count + 1;
-               declare
-                  Actual   : constant Autopilot_Call :=
-                    (if Count <= O.Count then O.Calls (Count) else (Kind => Nose_Override, On => False, Value => -1.0));
-                  Expected : constant Integer_64 :=
-                    (case Log (K) is
-                        when 'H'    => 1,
-                        when 'R'    => 0,
-                        when others => 2 + Integer_64'Value (Log (K + 1 .. K + 1)));
-               begin
-                  Record_Int ("flstep.call", Expected,
-                              (case Actual.Kind is
-                                 when Nose_Override    => Boolean'Pos (Actual.On),
-                                 when Heading_Recovery => 2 + Boolean'Pos (Actual.On)));
-                  case Log (K) is
-                     when 'H' =>
-                        Record_Result ("flstep.call_value", Unsigned_32'Value ("16#" & Log (K + 1 .. K + 8) & "#"),
-                                       To_Bits (Actual.Value));
-                        K := K + 10;
-                     when 'R' =>
-                        K := K + 2;
-                     when others =>
-                        Record_Result ("flstep.call_value", Unsigned_32'Value ("16#" & Log (K + 2 .. K + 9) & "#"),
-                                       To_Bits (Actual.Value));
-                        K := K + 11;
-                  end case;
-               end;
-            end loop;
-         end if;
-         Record_Int ("flstep.calls", Integer_64 (Count), Integer_64 (O.Count));
-      end Expect_Calls;
    begin
       if Name = "flinit" then
          declare
@@ -14359,7 +14386,8 @@ procedure Vector_Check is
                Lead_Time      => Interfaces.Unsigned_8 (Int (13)),
                Lead_Max       => Interfaces.Unsigned_16 (Int (14)),
                Preturn_Dist   => Interfaces.Unsigned_16 (Int (15)),
-               Yaw_Mode       => Interfaces.Unsigned_8 (Int (16)));
+               Yaw_Mode       => Interfaces.Unsigned_8 (Int (16)),
+               others         => <>);
             Leg_Origin := (Lat => I32 (17), Lon => I32 (18), Alt_Cm => I32 (19));
             Leg_Plan := (Count => Count, Waypoints => (others => (others => <>)));
             for W in 0 .. Count - 1 loop
@@ -14430,8 +14458,9 @@ procedure Vector_Check is
                Ground_Speed    => Interfaces.Unsigned_16 (Int (9)),
                Has_Origin      => Leg_Has_Origin,
                Origin          => Leg_Origin,
-               Cos_Lat         => Leg_Cos_Lat);
-            O       : Autopilot_Output;
+               Cos_Lat         => Leg_Cos_Lat,
+               others          => <>);
+            O       : Executor_Output;
             Gate    : Boolean;
             Fault   : Integer_64 := -1;
             Faulted : Boolean;
@@ -14448,7 +14477,7 @@ procedure Vector_Check is
             end if;
             Expect_Flag ("gate", 16, Gate);
             Record_Int ("flstep.fault", Int (17), Fault);
-            Expect_Calls (18, O);
+            Expect_Executor_Calls ("flstep", Str (18), O);
             Record_Int ("flstep.state", Int (19), Integer_64 (Nav_State'Pos (Leg_State.Mode)));
             Record_Int ("flstep.reason", Int (20), Integer_64 (Abort_Reason'Pos (Leg_State.Reason)));
             Expect ("carrot_x", 21, Leg_State.Carrot.X);

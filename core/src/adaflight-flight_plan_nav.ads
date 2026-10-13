@@ -3,7 +3,8 @@
 --  waypoint in the estimator's frame, the braking distance and the point the
 --  craft comes to rest at, the carrot's placement within the controller's
 --  reach, the bearing and the nose test, the hold pattern's carrot, and the
---  orbit's period.
+--  orbit's period; a carrot leg's cycle; and the dispatch of a leg, the
+--  arrival at a waypoint, and the landing.
 with Interfaces;
 with Adaflight.Flight_Plan;
 with Adaflight.Maths;
@@ -17,6 +18,7 @@ package Adaflight.Flight_Plan_Nav with SPARK_Mode is
    subtype Unsigned_8 is Interfaces.Unsigned_8;
    subtype Unsigned_16 is Interfaces.Unsigned_16;
    subtype Unsigned_32 is Interfaces.Unsigned_32;
+   subtype Unsigned_64 is Interfaces.Unsigned_64;
    subtype Integer_32 is Interfaces.Integer_32;
 
    --  The hold radius in centimeters and the autopilot's maximum velocity in
@@ -34,7 +36,8 @@ package Adaflight.Flight_Plan_Nav with SPARK_Mode is
    --  in centimeters and cm/s, the accelerations in cm/s/s, the climb rate
    --  alt hold flies at in cm/s, the carrot's lead time in tenths of a
    --  second and lead limit in centimeters, the pre-turn distance in
-   --  centimeters, and the yaw mode.
+   --  centimeters, the yaw mode, the touchdown's speed in cm/s and time in
+   --  tenths of a second, and the rescue's descent distance in metres.
    type Settings is record
       Max_Angle      : Unsigned_8 range 10 .. 70 := 50;
       Arrival_Radius : Unsigned_16 range 100 .. 5_000 := 500;
@@ -50,6 +53,9 @@ package Adaflight.Flight_Plan_Nav with SPARK_Mode is
       Lead_Max       : Unsigned_16 range 600 .. 6_000 := 2_000;
       Preturn_Dist   : Unsigned_16 range 500 .. 5_000 := 1_500;
       Yaw_Mode       : Unsigned_8 range 0 .. 4 := 0;
+      Touchdown_Cms  : Unsigned_8 range 10 .. 200 := 50;
+      Touchdown_Ds   : Unsigned_8 range 5 .. 50 := 10;
+      Descent_Dist_M : Unsigned_16 range 5 .. 500 := 20;
    end record;
 
    Injected_Max : constant := 4;
@@ -73,20 +79,34 @@ package Adaflight.Flight_Plan_Nav with SPARK_Mode is
    subtype Bearing_Degrees is Float range -400.0 .. 400.0;
 
    --  The executor's state: whether it flies a plan and in which state, why
-   --  it aborted, the current waypoint, the injected plan that replaces the
-   --  stored one while it holds waypoints, and the altitude frame offset;
-   --  the leg's target, arrival radius, cruise, approach deceleration and
-   --  line, and whether it is a carrot leg turning in with its lean capped;
-   --  the nose behaviour with its held heading and gate; the carrot with its
-   --  velocity and speed, the anchor the next leg starts from, the pre-turn
-   --  and the filtered along-track position; the progress tracking and the
-   --  heading-fault time; the hold pattern; and the rescue's heading
-   --  recovery stages.
+   --  it aborted, the current waypoint and the one a set-current chose while
+   --  idle, the hold's start and time held, the staged modifiers, the
+   --  injected plan that replaces the stored one while it holds waypoints,
+   --  and the altitude frame offset; the leg's target, arrival radius,
+   --  cruise, vertical rate, approach deceleration and line, and whether it
+   --  is a carrot leg turning in with its lean capped; the nose behaviour
+   --  with its held heading and gate; the carrot with its velocity and
+   --  speed, the anchor the next leg starts from, the pre-turn and the
+   --  filtered along-track position; the progress tracking and the
+   --  heading-fault time; the hold pattern; the rescue's heading recovery
+   --  stages; and the landing.
    type State is record
       Active              : Boolean := False;
       Mode                : Nav_State := Idle;
       Reason              : Abort_Reason := None;
       Current_Index       : Unsigned_8 := 0;
+      Pending_Start_Index : Unsigned_8 := 0;
+      Hold_Start_Us       : Unsigned_32 := 0;
+      Hold_Last_Update_Us : Unsigned_32 := 0;
+      Hold_Elapsed_Us     : Unsigned_64 := 0;
+      Hold_Duration_Ds    : Unsigned_16 := 0;
+      Alt_Override_Pending : Boolean := False;
+      Alt_Override_Cm     : Integer_32 := 0;
+      Alt_Override_Mode   : Unsigned_8 := 0;
+      Delay_Active        : Boolean := False;
+      Delay_Duration_Ds   : Unsigned_16 := 0;
+      Delay_End_Us        : Unsigned_32 := 0;
+      Yaw_Rate_Cap_Dps    : Float range 0.0 .. 65_535.0 := 0.0;
       Injected            : Injected_List := (others => (others => <>));
       Injected_Waypoints  : Injected_Count := 0;
       Z_Bias_M            : Float range -1.0e6 .. 1.0e6 := 0.0;
@@ -94,6 +114,7 @@ package Adaflight.Flight_Plan_Nav with SPARK_Mode is
       Leg_Target          : ENU;
       Leg_Arrive_Radius   : Float range 0.0 .. 100_000.0 := 0.0;
       Leg_Cruise          : Speed := 0.0;
+      Leg_Vert_Rate_Mps   : Speed := 0.0;
       Leg_Approach_Decel  : Float range 0.0 .. 1_000.0 := 0.0;
       Leg_Valid           : Boolean := False;
       Leg_Start           : Vector_2;
@@ -102,15 +123,20 @@ package Adaflight.Flight_Plan_Nav with SPARK_Mode is
       Leg_Yaw_Behaviour   : Unsigned_8 := Flight_Plan.Yaw_Default;
       Leg_Yaw_Hold_Deg    : Bearing_Degrees := 0.0;
       Leg_Yaw_Gated       : Boolean := False;
+      Leg_Yaw_Holding     : Boolean := False;
       Leg_Yaw_Gate_Start  : Unsigned_32 := 0;
       Leg_Yaw_Timed_Out   : Boolean := False;
       Leg_Yaw_Braked      : Boolean := False;
+      Leg_Yaw_Index       : Unsigned_8 := Unsigned_8'Last;
       Carrot              : Vector_2;
       Carrot_Velocity     : Vector_2;
       Carrot_Speed        : Speed := 0.0;
+      Carrot_Valid        : Boolean := False;
+      Turn_In_Requested   : Boolean := False;
       Leg_Anchor          : Vector_2;
       Leg_Anchor_Valid    : Boolean := False;
       In_Pre_Turn         : Boolean := False;
+      Dispatch_Afresh     : Boolean := False;
       Along_Filt_M        : Distance := 0.0;
       Meas_Filt_Valid     : Boolean := False;
       Best_Valid          : Boolean := False;
@@ -118,14 +144,29 @@ package Adaflight.Flight_Plan_Nav with SPARK_Mode is
       Flyaway_Margin_M    : Float range 0.0 .. 100.0 := 0.0;
       Last_Progress_Us    : Unsigned_32 := 0;
       Hdg_Fault_Time_S    : Float range 0.0 .. 1.0e6 := 0.0;
+      Last_Update_Us      : Unsigned_32 := 0;
       Pattern_Pending     : Boolean := False;
       Pattern_Active      : Boolean := False;
       Pattern_Type        : Unsigned_8 := Flight_Plan.Pattern_None;
       Pattern_Centre      : ENU;
+      Pattern_Phase_Rad   : Float range -10.0 .. 10.0 := 0.0;
+      Pattern_Speed_Mps   : Speed := 0.0;
+      Pattern_Cruise_Mps  : Speed := 0.0;
+      Pattern_Last_Update_Us : Unsigned_32 := 0;
       Is_Rescue_Plan      : Boolean := False;
       Rescue_Blind_Climb  : Boolean := False;
       Rescue_Climbed      : Boolean := False;
+      Rescue_Climbed_Us   : Unsigned_32 := 0;
       Rescue_Heading_Hold : Boolean := False;
+      Rescue_Heading_Start_Us : Unsigned_32 := 0;
+      Rescue_Heading_Trusted : Boolean := False;
+      Rescue_Heading_Trusted_Us : Unsigned_32 := 0;
+      Rescue_Heading_Off_Course_Us : Unsigned_32 := 0;
+      Rescue_Descent_Active : Boolean := False;
+      Landing_Rate_Mps    : Speed := 0.0;
+      Landing_Start_Us    : Unsigned_32 := 0;
+      Touchdown_Quiet_Us  : Unsigned_32 := 0;
+      Landing_Established : Boolean := False;
    end record;
 
    --  What every cycle of a carrot leg keeps: the leg's points and the
@@ -140,10 +181,13 @@ package Adaflight.Flight_Plan_Nav with SPARK_Mode is
       and then abs S.Carrot_Velocity.X <= 1_000.0 and then abs S.Carrot_Velocity.Y <= 1_000.0
       and then abs S.Along_Filt_M <= 1.0e7);
 
-   --  What a leg's cycle reads: the estimate, the time since the last cycle
-   --  and the clock, the nose's yaw in decidegrees, the GPS course in
-   --  decidegrees and ground speed in cm/s, and the estimator's GPS origin
-   --  with the longitude scale.
+   --  What a cycle reads: the estimate, the time since the last cycle and
+   --  the clock, the nose's yaw in decidegrees, the GPS course in decidegrees
+   --  and ground speed in cm/s, the estimator's GPS origin with the
+   --  longitude scale, whether the attitude trusts its heading and the
+   --  estimator needs one, whether the craft is below the landing altitude,
+   --  whether a listener takes the reached waypoints, and the position
+   --  controller's error in centimetres.
    type Leg_Inputs is record
       Est             : Position_Nav.Estimate;
       Dt_S            : Float range 0.0 .. 0.25 := 0.0;
@@ -154,22 +198,29 @@ package Adaflight.Flight_Plan_Nav with SPARK_Mode is
       Has_Origin      : Boolean := False;
       Origin          : Position_Estimator.Location;
       Cos_Lat         : Position_Estimator.Longitude_Scale := 1.0;
+      Heading_Valid    : Boolean := True;
+      Heading_Required : Boolean := False;
+      Below_Landing    : Boolean := False;
+      Listener         : Boolean := False;
+      Position_Error   : Vector_2;
    end record;
 
-   --  The executor's calls into the autopilot in call order: the nose held
-   --  on a heading in degrees or handed back to the configured yaw mode, and
-   --  the heading recovery's pitch-forward in degrees started or ended.
-   type Autopilot_Call_Kind is (Nose_Override, Heading_Recovery);
-   type Autopilot_Call is record
-      Kind  : Autopilot_Call_Kind := Nose_Override;
+   --  The executor's calls out in call order: the nose held on a heading in
+   --  degrees or handed back to the configured yaw mode, the heading
+   --  recovery's pitch-forward in degrees started or ended, the yaw rate
+   --  limit in degrees a second, the level park set or cleared, the disarm
+   --  on touchdown, and a reached waypoint's index to its listener.
+   type Call_Kind is (Nose_Override, Heading_Recovery, Yaw_Rate_Limit, Level_Park, Disarm, Reached_Waypoint);
+   type Outgoing_Call is record
+      Kind  : Call_Kind := Nose_Override;
       On    : Boolean := False;
       Value : Float := 0.0;
    end record;
-   Max_Autopilot_Calls : constant := 16;
-   type Autopilot_Call_List is array (1 .. Max_Autopilot_Calls) of Autopilot_Call;
-   type Autopilot_Output is record
-      Calls : Autopilot_Call_List;
-      Count : Natural range 0 .. Max_Autopilot_Calls := 0;
+   Max_Calls : constant := 16;
+   type Outgoing_Call_List is array (1 .. Max_Calls) of Outgoing_Call;
+   type Executor_Output is record
+      Calls : Outgoing_Call_List;
+      Count : Natural range 0 .. Max_Calls := 0;
    end record;
 
    function Active_Count (S : State; P : Flight_Plan.Plan) return Natural is
@@ -306,7 +357,7 @@ package Adaflight.Flight_Plan_Nav with SPARK_Mode is
    --  that stops closing for 30 s or falls back past its margin aborts.
    procedure Update_Progress_Tracking
      (S : in out State; N : in out Position_Nav.Navigator; Distance_M : Float; I : Leg_Inputs; C : Settings;
-      O : in out Autopilot_Output)
+      O : in out Executor_Output)
      with Global => null,
           Pre    => Distance_M in 0.0 .. 1.0e12,
           Post   => (if Leg_Bounded (S'Old) then Leg_Bounded (S));
@@ -314,7 +365,7 @@ package Adaflight.Flight_Plan_Nav with SPARK_Mode is
    --  The plan stopped with its reason: the nose handed back and the target
    --  cleared, so position hold keeps the craft where it is.
    procedure Abort_Mission
-     (S : in out State; N : in out Position_Nav.Navigator; Reason : Abort_Reason; O : in out Autopilot_Output)
+     (S : in out State; N : in out Position_Nav.Navigator; Reason : Abort_Reason; O : in out Executor_Output)
      with Global => null,
           Post   => S.Mode = Aborted and then (if Leg_Bounded (S'Old) then Leg_Bounded (S));
 
@@ -330,7 +381,7 @@ package Adaflight.Flight_Plan_Nav with SPARK_Mode is
    --  The nose command of a leg that states its yaw behaviour, and the gate
    --  a face-the-target leg waits at until the nose has come round.
    procedure Update_Leg_Yaw
-     (S : in out State; P : Flight_Plan.Plan; I : Leg_Inputs; O : in out Autopilot_Output)
+     (S : in out State; P : Flight_Plan.Plan; I : Leg_Inputs; O : in out Executor_Output)
      with Global => null,
           Pre    => Leg_Bounded (S),
           Post   => Leg_Bounded (S);
@@ -345,8 +396,58 @@ package Adaflight.Flight_Plan_Nav with SPARK_Mode is
       P            : Flight_Plan.Plan;
       I            : Leg_Inputs;
       C            : Settings;
-      O            : in out Autopilot_Output;
+      O            : in out Executor_Output;
       Gate_Crossed : out Boolean)
+     with Global => null,
+          Pre    => Leg_Bounded (S),
+          Post   => Leg_Bounded (S);
+
+   --  The next leg from the current waypoint on: the modifiers before it
+   --  staged, its target, radius, cruise and nose, the carrot or the point
+   --  leg handed to the navigator, and the leg's progress tracking reset.
+   --  Dispatched is false when the plan ends first or the estimator has no
+   --  origin.
+   procedure Dispatch_Waypoint
+     (S          : in out State;
+      N          : in out Position_Nav.Navigator;
+      P          : Flight_Plan.Plan;
+      I          : Leg_Inputs;
+      C          : Settings;
+      O          : in out Executor_Output;
+      Dispatched : out Boolean)
+     with Global => null,
+          Pre    => Leg_Bounded (S),
+          Post   => Leg_Bounded (S);
+
+   --  A waypoint reached: the listener told, the rescue's heading recovery
+   --  staged, a hold or a landing started, or the plan advanced.
+   procedure Waypoint_Reached
+     (S : in out State; N : in out Position_Nav.Navigator; P : Flight_Plan.Plan; I : Leg_Inputs; C : Settings;
+      O : in out Executor_Output)
+     with Global => null,
+          Pre    => Leg_Bounded (S),
+          Post   => Leg_Bounded (S);
+
+   --  A landing where the craft is, at the configured descent rate.
+   procedure Start_Landing_In_Place (S : in out State; N : in out Position_Nav.Navigator; I : Leg_Inputs; C : Settings)
+     with Global => null,
+          Pre    => Leg_Bounded (S),
+          Post   => Leg_Bounded (S);
+
+   --  A landing at the leg's target at the leg's rate, or the leg flown
+   --  again when the navigator has lost it.
+   procedure Start_Landing_At_Nav_Target
+     (S : in out State; N : in out Position_Nav.Navigator; P : Flight_Plan.Plan; I : Leg_Inputs; C : Settings;
+      O : in out Executor_Output)
+     with Global => null,
+          Pre    => Leg_Bounded (S),
+          Post   => Leg_Bounded (S);
+
+   --  One cycle of a landing: the target kept below the craft, and the plan
+   --  complete with a disarm once the descent has stopped for the touchdown
+   --  time.
+   procedure Update_Landing
+     (S : in out State; N : in out Position_Nav.Navigator; I : Leg_Inputs; C : Settings; O : in out Executor_Output)
      with Global => null,
           Pre    => Leg_Bounded (S),
           Post   => Leg_Bounded (S);
