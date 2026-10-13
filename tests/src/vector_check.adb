@@ -15195,6 +15195,253 @@ procedure Vector_Check is
       end if;
    end Check_Executor_Rescue_Line;
 
+   AP_State    : Adaflight.Position_Hold.State;
+   AP_Settings : Adaflight.Position_Control.Settings;
+   AP_Nav      : Adaflight.Position_Nav.Navigator;
+
+   --  A leg of the navigation oracle from field G: the target and how to
+   --  fly it, then the setters in the oracle's order.
+   procedure Apply_Leg (G : Positive; N : in out Adaflight.Position_Nav.Navigator) is
+      package PN renames Adaflight.Position_Nav;
+   begin
+      PN.Set_Target (N, (East => Flt (G), North => Flt (G + 1), Up => Flt (G + 2)), Flt (G + 3), Flt (G + 4),
+                     Flt (G + 5), Int (G + 6) /= 0, Handler => Int (G + 7) /= 0);
+      if Int (G + 8) /= 0 then
+         PN.Set_Vertical_Profile (N, Flt (G + 9), Flt (G + 10));
+      end if;
+      if Int (G + 11) /= 0 then
+         PN.Set_Accel_Limits (N, Flt (G + 12), Flt (G + 13));
+      end if;
+      if Int (G + 14) /= 0 then
+         PN.Set_Velocity_Feedforward (N, (East => Flt (G + 15), North => Flt (G + 16)));
+      end if;
+      if Int (G + 17) /= 0 then
+         PN.Start_Afresh (N);
+      end if;
+      if Int (G + 18) /= 0 then
+         PN.Set_Approach_Brake (N, Flt (G + 19), Flt (G + 20));
+      end if;
+      if Int (G + 21) /= 0 then
+         PN.Set_Altitude_Arrival_Required (N, Int (G + 22) /= 0);
+      end if;
+      if Int (G + 23) /= 0 then
+         PN.Set_Settle_Timeout (N, Flt (G + 24));
+      end if;
+      if Int (G + 25) /= 0 then
+         PN.Set_Max_Angle (N, Flt (G + 26));
+      end if;
+      if Int (G + 27) /= 0 then
+         PN.Set_Auto_Clear_On_Reach (N, True);
+      end if;
+   end Apply_Leg;
+
+   procedure Check_Apnav_Line is
+      use Adaflight.Position_Control;
+      package PN renames Adaflight.Position_Nav;
+      Name : constant String := Str (1);
+   begin
+      if Name = "apinit" then
+         AP_Settings := (Position_P           => Integer (Int (3)),
+                         Position_I           => Integer (Int (4)),
+                         Position_D           => Integer (Int (5)),
+                         Position_A           => Integer (Int (6)),
+                         Position_F           => Integer (Int (7)),
+                         Position_Cutoff      => Integer (Int (8)),
+                         Stop_Threshold       => Integer (Int (9)),
+                         Max_Angle            => Integer (Int (10)),
+                         Drag_Coefficient     => Integer (Int (11)),
+                         Max_Velocity         => Integer (Int (12)),
+                         Stick_Deadband       => Integer (Int (13)),
+                         Yaw_P                => Integer (Int (14)),
+                         Max_Yaw_Rate         => Integer (Int (15)),
+                         Yaw_Reversed         => Int (16) /= 0,
+                         Nav_Yaw_Mode         => Yaw_Mode'Val (Int (20)),
+                         Min_Forward_Velocity => Integer (Int (21)),
+                         Buildup_Max_Pitch    => Integer (Int (22)),
+                         Rescue_Plan          => Int (23) /= 0);
+         Adaflight.Position_Hold.Init (AP_State, (Deadband => Integer (Int (17))), AP_Settings);
+         AP_Nav := (others => <>);
+         PN.Init (AP_Nav);
+      elsif Name = "apstep" then
+         declare
+            Inp       : Inputs;
+            K         : Positive := 98;
+            Enable_XY : Boolean;
+            Proceed   : Boolean;
+            Reached   : Boolean;
+            Fired     : Boolean := False;
+            Event     : constant Integer_64 := Int (30);
+            Ev_A      : constant Float := Flt (31);
+            Ev_B      : constant Float := Flt (32);
+            Ev_C      : constant Boolean := Int (33) /= 0;
+            procedure Expect_Float (N : String; Actual : Float) is
+            begin
+               Record_Result ("apstep." & N, Bits (K), To_Bits (Actual));
+               K := K + 1;
+            end Expect_Float;
+            procedure Expect_Int (N : String; Actual : Integer_64) is
+            begin
+               Record_Int ("apstep." & N, Int (K), Actual);
+               K := K + 1;
+            end Expect_Int;
+            procedure Expect_Bool (N : String; Actual : Boolean) is
+            begin
+               Expect_Int (N, Boolean'Pos (Actual));
+            end Expect_Bool;
+            procedure Expect_PT3 (N : String; F : Adaflight.Filters.PT3) is
+            begin
+               Expect_Float (N & ".state", F.State);
+               Expect_Float (N & ".state1", F.State1);
+               Expect_Float (N & ".state2", F.State2);
+               Expect_Float (N & ".k", F.K);
+            end Expect_PT3;
+            C : Adaflight.Position_Control.State renames AP_State.Control;
+         begin
+            Inp.Armed := Int (4) /= 0;
+            Inp.Failsafe_Active := Int (5) /= 0;
+            Inp.Pos_Hold_Mode := Int (6) /= 0;
+            Inp.Rescue_Mode := Int (7) /= 0;
+            Inp.Autopilot_Mode := Int (8) /= 0;
+            Inp.Mag_Mode := Int (9) /= 0;
+            Inp.Interval_Us := Interfaces.Integer_32 (Int (10));
+            Inp.Position := (X => Flt (11), Y => Flt (12));
+            Inp.Velocity := (X => Flt (13), Y => Flt (14));
+            Inp.Acceleration := (X => Flt (15), Y => Flt (16));
+            Inp.Valid_XY := Int (17) /= 0;
+            Inp.Heading_Required := Int (18) /= 0;
+            Inp.Yaw := Integer (Int (19));
+            Inp.Heading_Valid := Int (20) /= 0;
+            Inp.Position_Up := Flt (21);
+            Inp.Velocity_Up := Flt (22);
+            Inp.Setpoint_Pitch := Flt (23);
+            Inp.Setpoint_Roll := Flt (24);
+            Inp.Max_Rate_Pitch := Flt (25);
+            Inp.Max_Rate_Roll := Flt (26);
+            Inp.Yaw_Command := Flt (27);
+            Inp.Deflection_Pitch := Flt (28);
+            Inp.Deflection_Roll := Flt (29);
+            case Event is
+               when 1 => Set_Target_Velocity (C, (X => Ev_A, Y => Ev_B), Ev_C);
+               when 2 => Set_Yaw_Target (C, Ev_A);
+               when 3 => Set_Heading_Recovery (C, Ev_C, Ev_A);
+               when 4 => Set_Force_Level_Park (C, Ev_C);
+               when 5 => Set_Yaw_Rate_Limit (C, Ev_A);
+               when 7 => Disable_Yaw_Control (C);
+               when others => null;
+            end case;
+            case Int (34) is
+               when 1 => Apply_Leg (35, AP_Nav);
+               when 2 => PN.Move_Target (AP_Nav, (East => Flt (63), North => Flt (64), Up => Flt (65)));
+               when 3 => PN.Clear_Target (AP_Nav);
+               when 4 => PN.Lower_Target_Altitude (AP_Nav, Flt (65));
+               when 5 => Set_Nav_Heading_Override (C, Int (66) /= 0, Flt (63));
+               when others => null;
+            end case;
+            Adaflight.Position_Hold.Begin_Update (AP_State, AP_Settings, Inp, AP_Nav, Enable_XY, Proceed);
+            if Proceed then
+               PN.Update (AP_Nav, Interval (Inp.Interval_Us), Nav_Estimate (Inp), Reached);
+               if Reached then
+                  declare
+                     Sequence : constant Interfaces.Unsigned_32 := AP_Nav.Cmd.Sequence;
+                  begin
+                     if AP_Nav.Cmd.Handler then
+                        Fired := True;
+                        if Int (68) /= 0 then
+                           Apply_Leg (69, AP_Nav);
+                        end if;
+                     end if;
+                     if AP_Nav.Cmd.Sequence = Sequence then
+                        PN.Finish_Leg (AP_Nav);
+                     end if;
+                  end;
+               end if;
+               Adaflight.Position_Hold.Finish_Update (AP_State, AP_Settings, Inp, AP_Nav);
+            end if;
+            Update_Heading_Hold (C, AP_Settings, Inp, AP_Nav);
+            Record_Int ("apstep.cb_fired", Int (67), Boolean'Pos (Fired));
+            Record_Int ("apstep.enable_xy", Int (97), Boolean'Pos (Enable_XY));
+            Expect_Float ("angle_roll", C.Angle_Roll);
+            Expect_Float ("angle_pitch", C.Angle_Pitch);
+            Expect_Float ("yaw_rate", C.Yaw_Rate_Dps);
+            Expect_Bool ("yaw_active", C.Yaw_Active);
+            Expect_Float ("attenuator", C.Yaw_Attenuator);
+            Expect_Int ("reason", Integer_64 (C.Yaw_Disable_Reason));
+            Expect_Bool ("rate_limited", C.Yaw_Rate_Limit > 0.0);
+            Expect_Bool ("hold_heading_valid", C.Hold_Heading_Valid);
+            Expect_Float ("hold_heading", C.Hold_Heading_Deg);
+            Expect_Float ("external_target", C.External_Yaw_Target);
+            Expect_Float ("yaw_rate_limit", C.Yaw_Rate_Limit);
+            Expect_Bool ("position_held", C.Position_Held);
+            Expect_Float ("target_x", C.Target_Position.X);
+            Expect_Float ("target_y", C.Target_Position.Y);
+            Expect_Float ("target_vel_x", C.Target_Velocity.X);
+            Expect_Float ("target_vel_y", C.Target_Velocity.Y);
+            Expect_Float ("prev_target_x", C.Previous_Target.X);
+            Expect_Float ("prev_target_y", C.Previous_Target.Y);
+            Expect_Float ("start_x", C.Hold_Start.X);
+            Expect_Float ("start_y", C.Hold_Start.Y);
+            Expect_Float ("error_x", C.Distance_Error.X);
+            Expect_Float ("error_y", C.Distance_Error.Y);
+            Expect_Float ("integral_x", C.Distance_Integral.X);
+            Expect_Float ("integral_y", C.Distance_Integral.Y);
+            Expect_Float ("prev_vel_x", C.Previous_Velocity.X);
+            Expect_Float ("prev_vel_y", C.Previous_Velocity.Y);
+            Expect_PT3 ("f_east", C.F_East);
+            Expect_PT3 ("f_north", C.F_North);
+            Expect_Float ("lpf_dt", C.Lpf_Dt_S);
+            Expect_Float ("sanity", C.Sanity_Distance);
+            Expect_Float ("violation", C.Sanity_Violation_S);
+            Expect_Float ("violation_free", C.Violation_Free_S);
+            Expect_Bool ("retry_used", C.Sanity_Retry_Used);
+            Expect_Bool ("sticks", C.Sticks_Active);
+            Expect_Bool ("was_sticks", C.Was_Sticks_Active);
+            Expect_Float ("speed", C.Speed_XY);
+            Expect_Float ("trend", C.Speed_Trend);
+            Expect_Bool ("slowing", C.Speed_Slowing);
+            Expect_Bool ("braking", C.Braking);
+            Expect_Float ("braking_time", C.Braking_Time_S);
+            Expect_Float ("entry_x", C.Braking_Entry_Direction.X);
+            Expect_Float ("entry_y", C.Braking_Entry_Direction.Y);
+            Expect_Float ("exit_speed", C.Braking_Exit_Speed);
+            Expect_Int ("anchor", Integer_64 (Anchor_Mode'Pos (C.Anchor)));
+            Expect_Int ("ipolicy", Integer_64 (Integral_Policy'Pos (C.I_Policy)));
+            Expect_Int ("mode", Integer_64 (Control_Mode'Pos (C.Mode)));
+            Expect_Bool ("abort", C.Abort_Requested);
+            Expect_Bool ("heading_recovery", C.Heading_Recovery);
+            Expect_Float ("recovery_pitch", C.Heading_Recovery_Pitch);
+            Expect_Bool ("force_level_park", C.Force_Level_Park);
+            Expect_Bool ("was_saturated", C.Was_Angle_Saturated);
+            Expect_Bool ("enabled", AP_State.Enabled);
+            Expect_Bool ("control_ok", AP_State.Control_Ok);
+            Expect_Bool ("sensors_ok", AP_State.Sensors_Ok);
+            Expect_Bool ("failure", Adaflight.Position_Hold.Failure (AP_State, Inp));
+            Expect_Bool ("ready", Adaflight.Position_Hold.Ready (Inp));
+            Expect_Bool ("in_control", Adaflight.Position_Hold.In_Control (AP_State));
+            Expect_Bool ("yaw_control_active", Yaw_Control_Active (C, Inp));
+            Expect_Bool ("nav_active", C.Nav_Active);
+            Expect_Bool ("was_nav_active", C.Was_Nav_Active);
+            Expect_Bool ("nav_anchored", C.Nav_Anchored);
+            Expect_Int ("nav_anchor_seq", Integer_64 (C.Nav_Anchor_Seq));
+            Expect_Bool ("nav_point_valid", C.Nav_Point_Valid);
+            Expect_Int ("nav_point_seq", Integer_64 (C.Nav_Point_Seq));
+            Expect_Float ("nav_ref_x", C.Nav_Point_Reference.X);
+            Expect_Float ("nav_ref_y", C.Nav_Point_Reference.Y);
+            Expect_Int ("nav_ff_seq", Integer_64 (C.Nav_Feedforward_Seq));
+            Expect_Bool ("override_valid", C.Nav_Override_Valid);
+            Expect_Float ("override_deg", C.Nav_Override_Deg);
+            Expect_Bool ("course_valid", C.Yaw_Course_Valid);
+            Expect_Navigator ("apstep.nav", K, AP_Nav);
+            if K + 40 /= NF then
+               Put_Line ("apstep: consumed" & Integer'Image (K + 40) & " of" & Integer'Image (NF) & " fields");
+               Failures := Failures + 1;
+            end if;
+         end;
+      else
+         Put_Line ("unknown apnav case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Apnav_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -15461,6 +15708,8 @@ procedure Vector_Check is
                   Check_Executor_Update_Line;
                elsif Kind = "fpnrescue" then
                   Check_Executor_Rescue_Line;
+               elsif Kind = "apnav" then
+                  Check_Apnav_Line;
                else
                   Check_PID_Line;
                end if;
@@ -15604,6 +15853,7 @@ begin
    Run (Dir & "/fpndispatch.csv", "fpndispatch");
    Run (Dir & "/fpnupdate.csv", "fpnupdate");
    Run (Dir & "/fpnrescue.csv", "fpnrescue");
+   Run (Dir & "/apnav.csv", "apnav");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
