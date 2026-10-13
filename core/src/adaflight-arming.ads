@@ -196,6 +196,7 @@ package Adaflight.Arming with SPARK_Mode is
       Runaway_Deactivate_Us  : Time_Us := 0;
       Runaway_Accumulated_Us : Time_Us := 0;
       Runaway_Trigger_Us     : Time_Us := 0;
+      Mode_Overrides         : Modes.Mask := (others => False);
    end record;
 
    function Launch_Control_Active (S : State) return Boolean is (S.Launch = Launch_Active);
@@ -227,6 +228,14 @@ package Adaflight.Arming with SPARK_Mode is
       Channels : RC_Command.Channel_Values;
       Now_Us   : Time_Us
    );
+
+   --  A box a ground station forces on over the switches, or releases; every
+   --  disarm releases them all.
+   procedure Set_Mode_Override (S : in out State; B : Modes.Box; Enabled : Boolean)
+     with Post => S.Armed = S.Armed'Old;
+
+   procedure Clear_Mode_Overrides (S : in out State)
+     with Post => S.Armed = S.Armed'Old;
 
    procedure Disarm (S : in out State; Reason : Disarm_Reason; Now_Us : Time_Us; Out_Step : in out Outputs)
      with Post => not S.Armed;

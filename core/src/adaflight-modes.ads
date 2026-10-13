@@ -87,12 +87,14 @@ package Adaflight.Modes with SPARK_Mode is
    --  list, in configuration order.
    procedure Analyze (S : in out State; C : Conditions);
 
+   --  The boxes the conditions vote on, with the overridden boxes forced on.
    procedure Update (
       S               : in out State;
       C               : Conditions;
       Aux             : Aux_Values;
       Now_Us          : Unsigned_32;
-      Airmode_Feature : Boolean
+      Airmode_Feature : Boolean;
+      Overrides       : Mask := (others => False)
    ) with Post => S.Airmode_Enabled = (Airmode_Feature or else S.Active_Mask (Airmode))
                   and then S.Active_Count = S.Active_Count'Old and then S.Linked_Count = S.Linked_Count'Old
                   and then S.Active = S.Active'Old and then S.Linked = S.Linked'Old;

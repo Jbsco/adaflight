@@ -233,8 +233,19 @@ package body Adaflight.Arming with SPARK_Mode is
    -- Disarm --
    ------------
 
+   procedure Set_Mode_Override (S : in out State; B : Modes.Box; Enabled : Boolean) is
+   begin
+      S.Mode_Overrides (B) := Enabled;
+   end Set_Mode_Override;
+
+   procedure Clear_Mode_Overrides (S : in out State) is
+   begin
+      S.Mode_Overrides := (others => False);
+   end Clear_Mode_Overrides;
+
    procedure Disarm (S : in out State; Reason : Disarm_Reason; Now_Us : Time_Us; Out_Step : in out Outputs) is
    begin
+      Clear_Mode_Overrides (S);
       Bump (Out_Step.Disarm_Calls);
       S.Last_Disarm_Reason := Reason;
       if S.Armed then
@@ -756,7 +767,7 @@ package body Adaflight.Arming with SPARK_Mode is
          Process_Sticks (S, C, M, Conds, Sensed, Channels, Now_Us, Delta_Us, Out_Step);
       end if;
 
-      Modes.Update (M, Conds, Aux, Now_Us, C.Airmode_Feature);
+      Modes.Update (M, Conds, Aux, Now_Us, C.Airmode_Feature, S.Mode_Overrides);
 
       Select_Flight_Modes (S, C, M, Sensed, Out_Step);
    end Process_Rx_Modes;
