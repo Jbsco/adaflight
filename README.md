@@ -79,12 +79,13 @@ The core holds:
 - the OSD formatting of numbers, altitudes, distances, coordinates with their plus codes, the clock
   and timers, with the battery and direction symbols
 - the MSP display port with its payloads, attribute byte and canvas size
+- the OSD statistics with their extremes and page texts
 
 The state of `main`:
 
-- The core proves at Silver and Gold: 13012 checks, nothing unproved, no
+- The core proves at Silver and Gold: 13150 checks, nothing unproved, no
   `pragma Assume`, no justified suppression (`gnatprove` 16.1.0, level 2).
-- The recorded vectors replay bit for bit: 874820 lines over 301 cases, every case
+- The recorded vectors replay bit for bit: 883826 lines over 302 cases, every case
   exact except the twenty declared deviations in `DESIGN.md` D6.
 - No target builds yet. `ROADMAP.md` carries the parity inventory, the phases, and the
   question for after parity: whether a proved core leaves room on the F4 boards for
