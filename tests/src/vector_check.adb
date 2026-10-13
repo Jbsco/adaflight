@@ -109,6 +109,7 @@ with Adaflight.ExpressLRS_Receiver;
 with Adaflight.Blackbox_Header;
 with Adaflight.Blackbox;
 with Adaflight.Position_Nav;
+with Adaflight.OSD_Warnings;
 
 procedure Vector_Check is
 
@@ -9311,6 +9312,125 @@ procedure Vector_Check is
       end if;
    end Check_Position_Nav_Line;
 
+   --  The OSD warnings line: the settings and the per-sequence readings
+   --  from the start line, the rest per step, the line compared as bytes.
+
+   OW_Seq    : Integer_64 := -1;
+   OW_Config : Adaflight.OSD_Warnings.Settings;
+   OW_Const  : Adaflight.OSD_Warnings.Inputs;
+   OW_State  : Adaflight.OSD_Warnings.State;
+
+   procedure Check_OSD_Warnings_Line is
+      use Adaflight.OSD_Warnings;
+      Name : constant String := Str (1);
+   begin
+      if Name = "owinit" then
+         OW_Seq := Int (2);
+         OW_State := (others => <>);
+         OW_Config := (others => <>);
+         for W in Warning_Kind loop
+            OW_Config.Enabled (W) := (Bits (3) and Interfaces.Shift_Left (1, Warning_Kind'Pos (W))) /= 0;
+         end loop;
+         OW_Config.Units := Unit_System'Val (Int (4));
+         OW_Config.RSSI_Alarm := Integer (Int (5));
+         OW_Config.RSSI_Dbm_Alarm := Integer (Int (6));
+         OW_Config.RSNR_Alarm := Integer (Int (7));
+         OW_Config.Link_Quality_Alarm := Integer (Int (8));
+         OW_Config.Core_Temp_Alarm := Integer (Int (9));
+         OW_Config.Cap_Alarm := Integer (Int (10));
+         OW_Config.ESC_RPM_Alarm := Integer (Int (11));
+         OW_Config.ESC_Current_Alarm := Integer (Int (12));
+         OW_Config.ESC_Temp_Alarm := Integer (Int (13));
+         OW_Const := (others => <>);
+         OW_Const.Motors := Integer (Int (14));
+         OW_Const.Erpm_To_Hz := Flt (15);
+         OW_Const.Battery_Capacity := Integer (Int (16));
+         OW_Const.Full_Cell_Voltage := Integer (Int (17));
+         OW_Const.Launch_Throttle_Percent := Integer (Int (18));
+      elsif Name = "owstep" then
+         if Int (2) /= OW_Seq then
+            Put_Line ("OSD warnings step without its start");
+            Failures := Failures + 1;
+            return;
+         end if;
+         declare
+            I        : Inputs := OW_Const;
+            M        : constant Natural := I.Motors;
+            B        : constant Positive := 16 + 9 * M;
+            Line     : Text;
+            Blinking : Boolean;
+            Attr     : Severity;
+            Beeper   : Boolean;
+         begin
+            I.Now_Us := Interfaces.Unsigned_32 (Int (3));
+            I.Battery := Adaflight.Battery.Battery_State'Val (Int (4));
+            I.Armed := Int (5) = 1;
+            I.Was_Ever_Armed := Int (6) = 1;
+            I.GPS_Rescue_Mode := Int (7) = 1;
+            I.GPS_Rescue_OK := Int (8) = 1;
+            I.Arm_Box := Int (9) = 1;
+            for R in Adaflight.Arming.Disable_Reason loop
+               I.Disable_Flags (R) :=
+                 (Bits (10) and Interfaces.Shift_Left (1, Adaflight.Arming.Disable_Reason'Pos (R))) /= 0;
+            end loop;
+            I.Trying_To_Arm := Int (11) = 1;
+            I.Last_Beacon_Time_Us := Interfaces.Unsigned_32 (Int (12));
+            I.Failsafe_Active := Int (13) = 1;
+            I.ESC_Sensor_Feature := Int (14) = 1;
+            I.DShot_Telemetry := Int (15) = 1;
+            for K in 0 .. M - 1 loop
+               I.ESC_Sensor (K) := (Present => Int (16 + 4 * K) = 1, RPM => Interfaces.Integer_16 (Int (17 + 4 * K)),
+                                    Current => Interfaces.Integer_32 (Int (18 + 4 * K)),
+                                    Temperature => Interfaces.Unsigned_8 (Int (19 + 4 * K)));
+               I.DShot_Sensor (K) := (Present => Int (16 + 4 * M + 4 * K) = 1,
+                                      RPM => Interfaces.Integer_16 (Int (17 + 4 * M + 4 * K)),
+                                      Current => Interfaces.Integer_32 (Int (18 + 4 * M + 4 * K)),
+                                      Temperature => Interfaces.Unsigned_8 (Int (19 + 4 * M + 4 * K)));
+               I.Motor_Active (K) := Int (16 + 8 * M + K) = 1;
+            end loop;
+            I.Crash_Flip_Box := Int (B) = 1;
+            I.Crash_Flip_Active := Int (B + 1) = 1;
+            I.Launch_Control_Active := Int (B + 2) = 1;
+            I.Acc_Present := Int (B + 3) = 1;
+            I.Pitch_Decidegrees := Interfaces.Integer_16 (Int (B + 4));
+            I.Pitch_Trim := Interfaces.Integer_16 (Int (B + 5));
+            I.Throttle_Percent := Integer (Int (B + 6));
+            I.RSSI_Percent := Integer (Int (B + 7));
+            I.RSSI_Dbm := Interfaces.Integer_16 (Int (B + 8));
+            I.RSNR := Interfaces.Integer_16 (Int (B + 9));
+            I.Link_Quality_Percent := Integer (Int (B + 10));
+            I.Rescue_Configured := Int (B + 11) = 1;
+            I.Rescue_Available := Int (B + 12) = 1;
+            I.Rescue_Heading_OK := Int (B + 13) = 1;
+            I.Armed_Time_Us := Interfaces.Unsigned_32 (Int (B + 14));
+            I.Pos_Hold_Failure := Int (B + 15) = 1;
+            I.Headfree_Mode := Int (B + 16) = 1;
+            I.Core_Temperature := Interfaces.Integer_16 (Int (B + 17));
+            I.MAh_Drawn := Integer (Int (B + 18));
+            I.Has_Used_MAh := Int (B + 19) = 1;
+            I.Average_Cell_Voltage := Integer (Int (B + 20));
+            I.Visual_Beeper := Int (B + 21) = 1;
+            I.Chirp_Repeat_Total := Integer (Int (B + 22));
+            I.Chirp_Repeat_Current := Integer (Int (B + 23));
+            I.Chirp_Finished := Int (B + 24) = 1;
+            I.Chirp_Series_Finished := Int (B + 25) = 1;
+            I.Chirp_Axis := Integer (Int (B + 26));
+            Render (OW_State, OW_Config, I, Line, Blinking, Attr, Beeper);
+            declare
+               Actual : Byte_Array (0 .. Line.Length - 1);
+            begin
+               for K in Actual'Range loop
+                  Actual (K) := Byte (Character'Pos (Line.Data (K + 1)));
+               end loop;
+               Record_Bytes (Name & ".text", Hex_Bytes (B + 27), Actual);
+            end;
+            Record_Int (Name & ".blink", Int (B + 28), Boolean'Pos (Blinking));
+            Record_Int (Name & ".attr", Int (B + 29), Severity'Pos (Attr));
+            Record_Int (Name & ".beeper", Int (B + 30), Boolean'Pos (Beeper));
+         end;
+      end if;
+   end Check_OSD_Warnings_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -9485,6 +9605,8 @@ procedure Vector_Check is
                   Check_Blackbox_Recorder_Line;
                elsif Kind = "posnav" then
                   Check_Position_Nav_Line;
+               elsif Kind = "osdwarn" then
+                  Check_OSD_Warnings_Line;
                else
                   Check_PID_Line;
                end if;
@@ -9581,6 +9703,7 @@ begin
    Run (Dir & "/bbhdr.csv", "bbhdr");
    Run (Dir & "/bbrec.csv", "bbrec");
    Run (Dir & "/posnav.csv", "posnav");
+   Run (Dir & "/osdwarn.csv", "osdwarn");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");

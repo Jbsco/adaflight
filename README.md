@@ -74,12 +74,13 @@ The core holds:
 - the GPS lap timer with its averaged gate and its best three laps
 - the MSP box table with its paged replies and status bits
 - the dispatch queue of delayed calls
+- the OSD warnings line with its precedence, its arming reason rotation and its ESC alarms
 
 The state of `main`:
 
-- The core proves at Silver and Gold: 12355 checks, nothing unproved, no
+- The core proves at Silver and Gold: 12536 checks, nothing unproved, no
   `pragma Assume`, no justified suppression (`gnatprove` 16.1.0, level 2).
-- The recorded vectors replay bit for bit: 814341 lines over 296 cases, every case
+- The recorded vectors replay bit for bit: 826347 lines over 297 cases, every case
   exact except the twenty declared deviations in `DESIGN.md` D6.
 - No target builds yet. `ROADMAP.md` carries the parity inventory, the phases, and the
   question for after parity: whether a proved core leaves room on the F4 boards for

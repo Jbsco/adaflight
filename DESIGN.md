@@ -1945,3 +1945,36 @@ updates against an estimate on a random walk that drifts toward the target, with
 reached callback silent or issuing the next leg, checking every field of the leg, the
 velocities, the arrival windows and the altitude and rate queries after each of the 15000
 operations.
+
+## D95. The OSD warnings line (2026-10-12)
+
+The OSD warnings unit contains the reference's warnings line: one message chosen in the
+reference's order of precedence, with its severity and its blink. Rescue failure comes
+first. Arming disable reasons follow, rotated every half second to the next reason set
+above the one on display and round to the lowest, with the arm switch dropped unless it is
+the only reason. Then the DShot beacon guard, which shows the beacon for its first half
+second and the tenths of a second until arming after it; the failsafe; and the ESC alarms
+from the ESC sensor and then from the DShot telemetry, each alarmed motor with its letters,
+R for a rotation at or below the alarm while the motor runs, C and T for a current and a
+temperature at or above theirs, a plus where the thirty-one characters run out, and the
+line centred in twelve when shorter than eleven. Below those come the crash flip, active or
+switched on while disarmed; the launch control with the pitch in degrees when an
+accelerometer is present, blinking within ten percent of the launch throttle; the RSSI,
+RSSI dBm, SNR and link quality alarms; the critical battery; the CPU load; the rescue
+unavailable in the first five seconds armed and the heading not yet known; the position
+hold failure; the headfree mode; the core temperature in the selected unit with its symbol;
+the low battery; the capacity alarm from the battery profile's capacity, else the setting;
+the battery continued; the battery not full before the first arming; the visual beeper,
+which the line reports shown so the target clears it; and the chirp excitation finished,
+its series finished or one axis done.
+
+The port follows the multirotor default build. The flight plan cues and the flight plan's
+rescue descent, compiled out on default targets, and the wing launch cues, wing targets
+only, are not in it. The settings, the sensors, the modes and the clock stay with the
+target, which brings the values the line reads; the reason on display and the time it was
+chosen are the only state the line keeps.
+
+The harness replays six sequences of 2000 frames recorded from the reference, each sequence
+under its own settings and enabled set, the frames under a precedence depth that holds off
+the conditions above it so every message gets its turn. Every message of the 12000 frames
+replays byte for byte with its blink, its severity and the beeper flag.
