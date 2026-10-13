@@ -40,6 +40,9 @@ package Adaflight.MAVLink with SPARK_Mode is
    Radio_Status_Id : constant := 109;
    RSSI_Dbm_Min    : constant := -130;
 
+   --  The X.25 checksum over one more byte, as the library accumulates it.
+   function Accumulate (CRC : CRC_Word; Data : Byte) return CRC_Word;
+
    type Framing is (Incomplete, OK, Bad_CRC, Bad_Signature);
 
    --  The parser's states, in the library's order.

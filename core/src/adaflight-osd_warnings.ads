@@ -139,24 +139,7 @@ package Adaflight.OSD_Warnings with SPARK_Mode is
    end record;
 
    --  The reference's name of a reason.
-   function Reason_Name (R : Adaflight.Arming.Disable_Reason) return String is
-     (case R is
-        when Adaflight.Arming.No_Gyro => "NOGYRO", when Adaflight.Arming.Failsafe_Active => "FAILSAFE",
-        when Adaflight.Arming.Rx_Loss => "RXLOSS", when Adaflight.Arming.Not_Disarmed => "NOT_DISARMED",
-        when Adaflight.Arming.Box_Failsafe => "BOXFAILSAFE", when Adaflight.Arming.Runaway_Disarm => "RUNAWAY",
-        when Adaflight.Arming.Crash_Disarm => "CRASH", when Adaflight.Arming.Throttle => "THROTTLE",
-        when Adaflight.Arming.Angle => "ANGLE", when Adaflight.Arming.Boot_Grace => "BOOTGRACE",
-        when Adaflight.Arming.No_Prearm => "NOPREARM", when Adaflight.Arming.CPU_Load => "LOAD",
-        when Adaflight.Arming.Calibrating => "CALIB", when Adaflight.Arming.CLI_Open => "CLI",
-        when Adaflight.Arming.CMS_Open => "CMS", when Adaflight.Arming.BST_Open => "BST",
-        when Adaflight.Arming.MSP_Open => "MSP", when Adaflight.Arming.Paralyzed => "PARALYZE",
-        when Adaflight.Arming.No_GPS_Fix => "GPS", when Adaflight.Arming.Rescue_Switch => "RESCUE_SW",
-        when Adaflight.Arming.DShot_Telemetry => "DSHOT_TELEM",
-        when Adaflight.Arming.Reboot_Required => "REBOOT_REQD",
-        when Adaflight.Arming.DShot_Bitbang => "DSHOT_BBANG", when Adaflight.Arming.Acc_Uncalibrated => "NO_ACC_CAL",
-        when Adaflight.Arming.Motor_Protocol => "MOTOR_PROTO", when Adaflight.Arming.Crash_Flip_Block => "FLIP_SWITCH",
-        when Adaflight.Arming.Alt_Hold_Switch => "ALT_HOLD_SW", when Adaflight.Arming.Pos_Hold_Switch => "POS_HOLD_SW",
-        when Adaflight.Arming.Autopilot_Switch => "AUTOPILOT_SW", when Adaflight.Arming.Arm_Switch => "ARM_SWITCH");
+   function Reason_Name (R : Adaflight.Arming.Disable_Reason) return String is (Adaflight.Arming.Disable_Name (R));
 
    --  The line for this frame, its blink and severity, and whether it showed
    --  the visual beeper, which the target then clears.

@@ -121,6 +121,7 @@ with Adaflight.OSD_Render;
 with Adaflight.OSD_Draw;
 with Adaflight.OSD_Spec;
 with Adaflight.OSD_Task;
+with Adaflight.MAVLink_Telemetry;
 
 procedure Vector_Check is
 
@@ -11426,6 +11427,123 @@ procedure Vector_Check is
       end if;
    end Check_OSD_Task_Line;
 
+   package MVT renames Adaflight.MAVLink_Telemetry;
+   MV_Seq    : Integer_64 := -1;
+   MV_State  : Adaflight.MAVLink_Telemetry.State;
+   MV_Config : Adaflight.MAVLink_Telemetry.Settings;
+
+   procedure MV_Record_Streams (Name : String; F : Positive) is
+   begin
+      for M in MVT.Output_Message loop
+         Record_Int
+           (Name & ".interval", Int (F + 2 * MVT.Output_Message'Pos (M)),
+            Integer_64 (MV_State.Streams (M).Interval_Ms));
+         Record_Int
+           (Name & ".due", Int (F + 1 + 2 * MVT.Output_Message'Pos (M)), Integer_64 (MV_State.Streams (M).Due_Ms));
+      end loop;
+      Record_Int (Name & ".seq", Int (F + 20), Integer_64 (MV_State.Tx_Seq));
+   end MV_Record_Streams;
+
+   procedure Check_MAVLink_Telemetry_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "mvinit" then
+         MV_Seq := Int (2);
+         MV_State := (others => <>);
+         MV_Config := (others => <>);
+         for St in MVT.Stream loop
+            MV_Config.Rates (St) := Interfaces.Unsigned_8 (Int (3 + MVT.Stream'Pos (St)));
+         end loop;
+         MVT.Configure_Intervals (MV_State, MV_Config, Interfaces.Unsigned_32 (Int (9)));
+         MV_Record_Streams (Name, 10);
+      elsif Int (2) /= MV_Seq then
+         Put_Line ("MAVLink telemetry line without its start");
+         Failures := Failures + 1;
+      elsif Name = "mvhandle" then
+         declare
+            Inp   : MVT.Inputs;
+            O     : MVT.Output;
+            Flags : constant Unsigned_32 := Bits (56);
+         begin
+            Inp.Battery := Adaflight.Battery.Battery_State'Val (Int (5));
+            Inp.Voltage_Configured := Int (6) = 1;
+            Inp.Amperage_Configured := Int (7) = 1;
+            Inp.Pack_Voltage := Interfaces.Unsigned_16 (Int (8));
+            Inp.Cell_Voltage := Interfaces.Unsigned_16 (Int (9));
+            Inp.Amperage := Interfaces.Integer_32 (Int (10));
+            Inp.MAh_Drawn := Interfaces.Integer_32 (Int (11));
+            Inp.Battery_Percent := Interfaces.Unsigned_8 (Int (12));
+            Inp.Cell_Count := Interfaces.Unsigned_8 (Int (13));
+            Inp.RSSI := Interfaces.Unsigned_16 (Int (14));
+            Inp.Channel_Count := Natural (Int (15));
+            for K in 0 .. 7 loop
+               Inp.RC (K) := Flt (16 + K);
+            end loop;
+            Inp.Roll := Interfaces.Integer_16 (Int (24));
+            Inp.Pitch := Interfaces.Integer_16 (Int (25));
+            Inp.Yaw := Interfaces.Integer_16 (Int (26));
+            Inp.GPS_Present := Int (27) = 1;
+            Inp.Mag_Present := Int (28) = 1;
+            Inp.Baro_Present := Int (29) = 1;
+            Inp.GPS_Fix := Int (30) = 1;
+            Inp.GPS_Fix_Home := Int (31) = 1;
+            Inp.Latitude := Interfaces.Integer_32 (Int (32));
+            Inp.Longitude := Interfaces.Integer_32 (Int (33));
+            Inp.Altitude_Cm := Interfaces.Integer_32 (Int (34));
+            Inp.HDOP := Interfaces.Unsigned_16 (Int (35));
+            Inp.VDOP := Interfaces.Unsigned_16 (Int (36));
+            Inp.Ground_Speed := Interfaces.Unsigned_16 (Int (37));
+            Inp.Ground_Course := Interfaces.Unsigned_16 (Int (38));
+            Inp.Satellites := Interfaces.Unsigned_8 (Int (39));
+            Inp.H_Acc := Interfaces.Unsigned_32 (Int (40));
+            Inp.V_Acc := Interfaces.Unsigned_32 (Int (41));
+            Inp.S_Acc := Interfaces.Unsigned_32 (Int (42));
+            Inp.Vel_N := Interfaces.Integer_16 (Int (43));
+            Inp.Vel_E := Interfaces.Integer_16 (Int (44));
+            Inp.Vel_D := Interfaces.Integer_16 (Int (45));
+            Inp.Home_Latitude := Interfaces.Integer_32 (Int (46));
+            Inp.Home_Longitude := Interfaces.Integer_32 (Int (47));
+            Inp.Home_Altitude_Cm := Interfaces.Integer_32 (Int (48));
+            Inp.Estimated_Alt_Cm := Interfaces.Integer_32 (Int (49));
+            Inp.Mixer_Mode := Interfaces.Unsigned_8 (Int (50));
+            Inp.Armed := Int (51) = 1;
+            Inp.Failsafe_Active := Int (52) = 1;
+            Inp.Modes := Interfaces.Unsigned_16 (Int_Hex (53));
+            Inp.Has_Time := Int (54) = 1;
+            Inp.RTC_Ms := Int (55);
+            for R in Adaflight.Arming.Disable_Reason loop
+               Inp.Disable_Flags (R) :=
+                 (Flags and Interfaces.Shift_Left (1, Adaflight.Arming.Disable_Reason'Pos (R))) /= 0;
+            end loop;
+            MV_Config.MAh_Heading_Divisor := Interfaces.Unsigned_16 (Int (59));
+            MV_Config.Report_Cell_Voltage := Int (60) = 1;
+            MVT.Handle (MV_State, MV_Config, Inp, Interfaces.Unsigned_32 (Int (3)), Interfaces.Unsigned_32 (Int (4)),
+                    Int (57) = 1, Int (58) = 1, O);
+            Record_Int (Name & ".lastsend", Int (61), Integer_64 (MV_State.Last_Message_Us));
+            MV_Record_Streams (Name, 62);
+            declare
+               Actual : Byte_Array (0 .. O.Length - 1);
+            begin
+               for K in Actual'Range loop
+                  Actual (K) := Byte (O.Data (K + 1));
+               end loop;
+               Record_Int (Name & ".length", Int (83), Integer_64 (O.Length));
+               Record_Bytes (Name & ".bytes", Hex_Bytes (84), Actual);
+            end;
+         end;
+      elsif Name = "mvsetint" then
+         declare
+            Found : Boolean;
+         begin
+            MVT.Set_Message_Interval (MV_State, MV_Config, Natural (Int (3)), Interfaces.Unsigned_32 (Int (4)), Found);
+            Record_Int (Name & ".found", Int (5), Boolean'Pos (Found));
+            MV_Record_Streams (Name, 6);
+         end;
+      elsif Name = "mvgetint" then
+         Record_Int (Name & ".interval", Int (4), Integer_64 (MVT.Message_Interval_Us (MV_State, Natural (Int (3)))));
+      end if;
+   end Check_MAVLink_Telemetry_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -11630,6 +11748,8 @@ procedure Vector_Check is
                   Check_OSD_Spec_Line;
                elsif Kind = "osdtask" then
                   Check_OSD_Task_Line;
+               elsif Kind = "mavtlm" then
+                  Check_MAVLink_Telemetry_Line;
                else
                   Check_PID_Line;
                end if;
@@ -11741,6 +11861,7 @@ begin
    Run (Dir & "/osddraw.csv", "osddraw");
    Run (Dir & "/osdspec.csv", "osdspec");
    Run (Dir & "/osdtask.csv", "osdtask");
+   Run (Dir & "/mavtlm.csv", "mavtlm");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");

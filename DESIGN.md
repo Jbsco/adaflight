@@ -2398,3 +2398,28 @@ random answers, arming, switches, sticks, sensors and readings, six elements vis
 statistics page off, and clocks that sometimes run a state past 2 ms. Every check result, state,
 scheduler flag and time, page state, statistic and display operation of the 17162 lines replays
 byte for byte.
+
+## D110. MAVLink telemetry streams (2026-10-13)
+
+The MAVLink telemetry unit contains the reference's stream messages: system status with system
+time, raw RC channels, raw GPS, global position, GPS origin, home position, attitude, heartbeat,
+HUD and battery status. Each message is packed in the library's wire order and framed as MAVLink 2
+with trailing payload zeros trimmed, the link's sequence number and the message's CRC extra.
+
+A pass runs when the receiver's buffer report asks for one, or 20 ms after the last pass when no
+report is valid. It sends each message past its due time in table order and moves that due time
+one interval past the clock, whether or not the message had anything to send. The pass ends with
+the arming report: a status text of the disable reasons, cut at 49 characters, sent when the
+reasons change to a nonzero set. The disable reason names move from the OSD warnings unit into the
+arming unit, which both readers share.
+
+Stream rates set the intervals, at least 20 ms, each first due one interval plus 3 ms per table
+place ahead. A ground station sets one message's interval, zero restoring the rate's, and reads it
+back in microseconds. The reply wraps above 4294967 ms (F115). Global position sends the
+microsecond clock in its millisecond boot time field (F114). Port, receiver link and readings stay
+with the target. Incoming commands and the mission protocol are open.
+
+The harness replays six sequences of 500 steps recorded from the reference: telemetry passes under
+random readings, rates, arming reasons and clocks, interval sets including unknown messages, and
+interval reads. Every frame byte, due time, interval and sequence number of the 3006 lines replays
+byte for byte.
