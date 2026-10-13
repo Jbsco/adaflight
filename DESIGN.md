@@ -2354,3 +2354,18 @@ visible at random positions and variants, an occasional re-analysis with new pos
 sensors, and displays with and without a background layer and their own blink. Every return,
 pending flag, element number, blink bit, craft name byte and display operation of the 3612 lines
 replays byte for byte.
+
+## D108. OSD spec prearm screen (2026-10-12)
+
+The OSD spec unit contains the reference's spec prearm screen, drawn one row a call. The first
+row is the RPM limit: on with its value when the limit is set and the motors run bidirectional
+DShot, else off; with the limit on, the screen adds the motor's KV and pole count and the
+limit's three gains. The throttle limit follows with its kind and, unless off, its percentage,
+then the motor output limit, the pack voltage with two decimals and the battery symbol, and the
+version, after which the screen is complete and starts again. Each row is centred on the
+display's middle column; the first goes three rows above the middle row and each next row below
+the one before. The settings, readings and version stay with the target, which writes each row.
+
+The harness replays six sequences of 600 calls recorded from the reference under random limits,
+motors, gains, batteries and display sizes. Every row's text, position and completion of the
+3606 lines replays byte for byte.
