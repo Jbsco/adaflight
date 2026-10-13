@@ -63,6 +63,7 @@ with Adaflight.Jeti_Ex_Bus;
 with Adaflight.Jeti_Telemetry;
 with Adaflight.CC2500_Radio;
 with Adaflight.FrSky_SPI;
+with Adaflight.SFHSS;
 with Adaflight.GHST;
 with Adaflight.MSP_Receiver;
 with Adaflight.SRXL2;
@@ -12103,6 +12104,140 @@ procedure Vector_Check is
       end if;
    end Check_FrSky_D_Line;
 
+   package SFH renames Adaflight.SFHSS;
+   use type SFH.Received;
+   SF_Seq    : Integer_64 := -1;
+   SF_State  : SFH.State;
+   SF_Config : SFH.Settings;
+   SF_Rc     : SFH.Channel_Values := (others => 1_500);
+
+   procedure SF_Calibrate (O : SFH.Output) is
+      Table : SFH.Calibration_Table := (others => (others => 0));
+   begin
+      for K in 1 .. O.Count loop
+         if O.Ops (K).Kind = CCR.Calibrate then
+            for C in SFH.Calibration_Table'Range loop
+               declare
+                  Ch : constant Natural := C * 6 + 16;
+               begin
+                  Table (C) :=
+                    (Interfaces.Unsigned_8 ((Ch * 37 + 5) mod 256), Interfaces.Unsigned_8 ((Ch * 59 + 16) mod 256),
+                     Interfaces.Unsigned_8 ((Ch * 83 + 27) mod 256));
+               end;
+            end loop;
+            SFH.Set_Calibration (SF_State, Table);
+         end if;
+      end loop;
+   end SF_Calibrate;
+
+   procedure Check_SFHSS_Line is
+      Name : constant String := Str (1);
+
+      function State_Code (P : SFH.Protocol_State) return Integer_64 is
+        (case P is
+            when SFH.Init => 0, when SFH.Hunt => 1, when SFH.Sync => 2, when SFH.Bind => 10,
+            when SFH.Bind_Tuning_1 => 11, when SFH.Bind_Tuning_2 => 12, when SFH.Bind_Tuning_3 => 13,
+            when SFH.Bind_Complete => 14);
+
+      function Tx_Id_Text return String is
+        (FD_Hex (Natural (SF_Config.Bind_Tx_Id (0)), 2) & FD_Hex (Natural (SF_Config.Bind_Tx_Id (1)), 2));
+
+      function Rc_Text return String is
+         Image : String (1 .. 64);
+         Len   : Natural := 0;
+      begin
+         for K in SF_Rc'Range loop
+            declare
+               T : constant String := Interfaces.Unsigned_16'Image (SF_Rc (K));
+            begin
+               if K > 0 then
+                  Len := Len + 1;
+                  Image (Len) := '.';
+               end if;
+               Image (Len + 1 .. Len + T'Length - 1) := T (T'First + 1 .. T'Last);
+               Len := Len + T'Length - 1;
+            end;
+         end loop;
+         return Image (1 .. Len);
+      end Rc_Text;
+   begin
+      if Name = "sfinit" then
+         SF_Seq := Int (2);
+         declare
+            Ids    : constant Byte_Array := Hex_Bytes (13);
+            Before : constant Integer_64 := Int (18);
+            Inp    : SFH.Inputs;
+            O      : SFH.Output;
+            Ok     : Boolean;
+            Claim  : Boolean;
+         begin
+            SF_Config :=
+              (Bind_Tx_Id  => (Interfaces.Unsigned_8 (Ids (Ids'First)), Interfaces.Unsigned_8 (Ids (Ids'First + 1))),
+               Bind_Offset => Interfaces.Integer_8 (Int (14)),
+               Pins        =>
+                 (Chip_Detect   => Int (3) /= 0,
+                  Tx_Enable     => Int (5) /= 0,
+                  LNA           => Int (6) /= 0,
+                  Antenna       => Int (7) /= 0,
+                  LED           => Int (8) /= 0,
+                  LED_Inversion => Int (9) /= 0,
+                  Bind          => Int (10) /= 0));
+            Inp.Now_Us := Interfaces.Unsigned_32 (Int (11));
+            Inp.Now_Ms := Inp.Now_Us / 1_000;
+            Inp.Bind_Pin_Level := True;
+            Inp.Chip_Ok := Int (4) /= 0;
+            SFH.Start (SF_State, SF_Config, Inp, O, Ok, Claim);
+            SF_Rc := (others => 1_500);
+            Record_Int (Name & ".ok", Int (12), Boolean'Pos (Ok));
+            Record_Int (Name & ".rssi_source", Int (15), (if Before = 0 and then Claim then 3 else Before));
+            Record_Int (Name & ".channels", Int (16), SFH.Channel_Count);
+            Record_Text (Name & ".ops", Str (17), FD_Ops (O));
+         end;
+      elsif Int (2) /= SF_Seq then
+         Put_Line ("S-FHSS line without its start");
+         Failures := Failures + 1;
+      elsif Name = "sfstep" then
+         declare
+            Inp    : SFH.Inputs;
+            O      : SFH.Output;
+            Result : SFH.Received;
+            Fifo   : constant Byte_Array := Hex_Bytes (8);
+         begin
+            Inp.Now_Us := Interfaces.Unsigned_32 (Int (3));
+            Inp.Now_Ms := Inp.Now_Us / 1_000;
+            Inp.Exti := Int (4) /= 0;
+            Inp.Rx_Bytes := Interfaces.Unsigned_8 (Int (5));
+            Inp.Bind_Pin_Level := Int (6) /= 0;
+            for K in Fifo'Range loop
+               Inp.Fifo (K - Fifo'First) := Interfaces.Unsigned_8 (Fifo (K));
+            end loop;
+            if Int (7) /= 0 then
+               SFH.Request_Bind (SF_State);
+            end if;
+            SFH.Data_Received (SF_State, SF_Config, Inp, O, Result);
+            if Result = SFH.Data_Ready then
+               SFH.Set_Rc_Data (SF_State, SF_Rc);
+            end if;
+            SF_Calibrate (O);
+            Record_Int (Name & ".result", Int (9), (case Result is when SFH.None => 0, when SFH.Bind_Done => 1,
+                                                                    when SFH.Data_Ready => 2));
+            Record_Int (Name & ".state", Int (10), State_Code (SF_State.Protocol));
+            Record_Int (Name & ".missing", Int (11), Integer_64 (SF_State.Missing_Packets));
+            Record_Int (Name & ".channel", Int (12), Integer_64 (SF_State.Channel));
+            Record_Int (Name & ".code", Int (13), Integer_64 (SF_State.Code));
+            Record_Int (Name & ".offset_min", Int (14), Integer_64 (SF_State.Offset_Min));
+            Record_Int (Name & ".offset_max", Int (15), Integer_64 (SF_State.Offset_Max));
+            Record_Int (Name & ".tuned_ms", Int (16), Integer_64 (SF_State.Time_Tuned_Ms));
+            Record_Text (Name & ".tx_id", Str (17), Tx_Id_Text);
+            Record_Int (Name & ".config_offset", Int (18), Integer_64 (SF_Config.Bind_Offset));
+            Record_Text (Name & ".rc", Str (19), Rc_Text);
+            Record_Int (Name & ".rssi_dbm", Int (20), Integer_64 (SF_State.Radio.RSSI_Dbm));
+            Record_Int (Name & ".bind_requested", Int (21), Boolean'Pos (SF_State.Radio.Bind_Requested));
+            Record_Text (Name & ".ops", Str (22), FD_Ops (O));
+         end;
+      end if;
+   end Check_SFHSS_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -12315,6 +12450,8 @@ procedure Vector_Check is
                   Check_Jeti_Telemetry_Line;
                elsif Kind = "frskyd" then
                   Check_FrSky_D_Line;
+               elsif Kind = "sfhss" then
+                  Check_SFHSS_Line;
                else
                   Check_PID_Line;
                end if;
@@ -12431,6 +12568,7 @@ begin
    Run (Dir & "/jetitlm.csv", "jetitlm");
    Run (Dir & "/frskyd.csv", "frskyd");
    Run (Dir & "/frskyx.csv", "frskyd");
+   Run (Dir & "/sfhss.csv", "sfhss");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
