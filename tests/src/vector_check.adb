@@ -66,6 +66,7 @@ with Adaflight.FrSky_SPI;
 with Adaflight.SFHSS;
 with Adaflight.Redpine;
 with Adaflight.FlySky;
+with Adaflight.Spektrum_SPI;
 with Adaflight.GHST;
 with Adaflight.MSP_Receiver;
 with Adaflight.SRXL2;
@@ -11914,6 +11915,17 @@ procedure Vector_Check is
                when SPR.Read_Register => Put ("q" & FD_Hex (Natural (X.A), 2));
                when SPR.Await_Clear => Put ("a" & FD_Hex (Natural (X.A), 2));
                when SPR.Reset_Exti => Put ("X");
+               when SPR.Write_Block =>
+                  declare
+                     T : String (1 .. 3 + 2 * Natural (X.B));
+                  begin
+                     T (1 .. 3) := "b" & FD_Hex (Natural (X.A), 2);
+                     for B in 0 .. Natural (X.B) - 1 loop
+                        T (4 + 2 * B .. 5 + 2 * B) := FD_Hex (Natural (O.Blocks (Natural (X.Value) + B)), 2);
+                     end loop;
+                     Put (T);
+                  end;
+               when SPR.Await_Value => Put ("a" & FD_Hex (Natural (X.A), 2));
             end case;
          end;
       end loop;
@@ -12537,6 +12549,146 @@ procedure Vector_Check is
       end if;
    end Check_FlySky_Line;
 
+   package SPK renames Adaflight.Spektrum_SPI;
+   use type SPK.Received;
+   SK_Seq    : Integer_64 := -1;
+   SK_State  : SPK.State;
+   SK_Config : SPK.Settings;
+   SK_Rc     : SPK.Channel_Values := (others => 1_500);
+
+   function SK_Mfg_Text (M : SPK.Manufacturer_Id) return String is
+     (FD_Hex (Natural (M (0)), 2) & FD_Hex (Natural (M (1)), 2) & FD_Hex (Natural (M (2)), 2)
+      & FD_Hex (Natural (M (3)), 2));
+
+   procedure Check_Spektrum_Line is
+      Name : constant String := Str (1);
+
+      function Channels_Text return String is
+         R : String (1 .. 46);
+      begin
+         for K in SPK.Channel_List'Range loop
+            R (1 + 2 * K .. 2 + 2 * K) := FD_Hex (Natural (SK_State.Rf_Channels (K)), 2);
+         end loop;
+         return R;
+      end Channels_Text;
+
+      function Rc_Text return String is
+         Image : String (1 .. 128);
+         Len   : Natural := 0;
+      begin
+         for K in 0 .. SPK.Channel_Count - 1 loop
+            declare
+               T : constant String := Interfaces.Unsigned_16'Image (SK_Rc (K));
+            begin
+               if K > 0 then
+                  Len := Len + 1;
+                  Image (Len) := '.';
+               end if;
+               Image (Len + 1 .. Len + T'Length - 1) := T (T'First + 1 .. T'Last);
+               Len := Len + T'Length - 1;
+            end;
+         end loop;
+         return Image (1 .. Len);
+      end Rc_Text;
+
+      function Byte_At (I : Positive) return Interfaces.Unsigned_8 is
+         B : constant Byte_Array := Hex_Bytes (I);
+      begin
+         return Interfaces.Unsigned_8 (B (B'First));
+      end Byte_At;
+   begin
+      if Name = "spinit" then
+         SK_Seq := Int (2);
+         declare
+            Mfg    : constant Byte_Array := Hex_Bytes (10);
+            Before : constant Integer_64 := Int (15);
+            Inp    : SPK.Inputs;
+            O      : SPK.Output;
+            Ok     : Boolean;
+            Claim  : Boolean;
+         begin
+            SK_Config :=
+              (Protocol     => Byte_At (9),
+               Mfg_Id       => (others => 0),
+               Num_Channels => Interfaces.Unsigned_8 (Int (11)),
+               Telemetry    => Int (16) /= 0,
+               Pins         =>
+                 (LED => Int (4) /= 0, LED_Inversion => Int (5) /= 0, Bind => Int (6) /= 0, others => <>));
+            for K in SPK.Manufacturer_Id'Range loop
+               SK_Config.Mfg_Id (K) := Interfaces.Unsigned_8 (Mfg (Mfg'First + K));
+            end loop;
+            Inp.Now_Us := Interfaces.Unsigned_32 (Int (7));
+            Inp.Now_Ms := Inp.Now_Us / 1_000;
+            Inp.Bind_Pin_Level := True;
+            Inp.Chip_Ok := Int (3) /= 0;
+            SPK.Start (SK_State, SK_Config, Inp, O, Ok, Claim);
+            SK_Rc := (others => 1_500);
+            Record_Int (Name & ".ok", Int (8), Boolean'Pos (Ok));
+            Record_Int (Name & ".rssi_source", Int (12), (if Before = 0 and then Claim then 3 else Before));
+            Record_Int (Name & ".channels", Int (13), SPK.Channel_Count);
+            Record_Text (Name & ".ops", Str (14), FD_Ops (O));
+         end;
+      elsif Int (2) /= SK_Seq then
+         Put_Line ("Spektrum line without its start");
+         Failures := Failures + 1;
+      elsif Name = "spstep" then
+         declare
+            Inp    : SPK.Inputs;
+            O      : SPK.Output;
+            Result : SPK.Received;
+            Fifo   : constant Byte_Array := Hex_Bytes (14);
+         begin
+            Inp.Now_Us := Interfaces.Unsigned_32 (Int (3));
+            Inp.Now_Ms := Inp.Now_Us / 1_000;
+            Inp.Exti_Flag := Int (4) /= 0;
+            Inp.Exti_Time_Us := Interfaces.Unsigned_32 (Int (5));
+            Inp.IRQ_Status := Byte_At (6);
+            Inp.Rx_Count := Byte_At (7);
+            Inp.Rx_Status := Byte_At (8);
+            Inp.RSSI_Register := Byte_At (9);
+            Inp.Bind_Pin_Level := Int (10) /= 0;
+            Inp.Battery_Voltage := Interfaces.Unsigned_16 (Int (12));
+            Inp.RSSI_Percent := Interfaces.Unsigned_8 (Int (13));
+            for K in Fifo'Range loop
+               Inp.Fifo (K - Fifo'First) := Interfaces.Unsigned_8 (Fifo (K));
+            end loop;
+            if Int (11) /= 0 then
+               SPK.Request_Bind (SK_State);
+            end if;
+            SPK.Data_Received (SK_State, SK_Config, Inp, O, Result);
+            if Result = SPK.Data_Ready then
+               SPK.Set_Rc_Data (SK_State, SK_Rc);
+            end if;
+            Record_Int (Name & ".result", Int (15), (case Result is when SPK.None => 0, when SPK.Bind_Done => 1,
+                                                                     when SPK.Data_Ready => 2));
+            Record_Int (Name & ".status", Int (16), SPK.Receiver_Status'Pos (SK_State.Status));
+            Record_Int (Name & ".bound", Int (17), Boolean'Pos (SK_State.Bound));
+            Record_Int (Name & ".protocol", Integer_64 (Byte_At (18)), Integer_64 (SK_State.Protocol));
+            Record_Text (Name & ".mfg", Str (19), SK_Mfg_Text (SK_State.Mfg_Id));
+            Record_Int (Name & ".channel", Int (20), Integer_64 (SK_State.Rf_Channel));
+            Record_Int (Name & ".channel_idx", Int (21), Integer_64 (SK_State.Rf_Channel_Idx));
+            Record_Int (Name & ".sop_col", Int (22), Integer_64 (SK_State.Sop_Col));
+            Record_Int (Name & ".data_col", Int (23), Integer_64 (SK_State.Data_Col));
+            Record_Text (Name & ".crc_seed", Str (24), FD_Hex (Natural (SK_State.Crc_Seed), 4));
+            Record_Int (Name & ".missed", Int (25), Integer_64 (SK_State.Missed_Packets));
+            Record_Int (Name & ".num_channels", Int (26), Integer_64 (SK_State.Num_Channels));
+            Record_Int (Name & ".timeout", Int (27), Integer_64 (SK_State.Timeout_Us));
+            Record_Int (Name & ".last_packet", Int (28), Integer_64 (SK_State.Last_Packet_Us));
+            Record_Int (Name & ".bind_packets", Int (29), Integer_64 (SK_State.Bind_Packets));
+            Record_Int (Name & ".last_telemetry", Int (30), Integer_64 (SK_State.Last_Telemetry_Us));
+            Record_Int (Name & ".send_telemetry", Int (31), Boolean'Pos (SK_State.Send_Telemetry));
+            Record_Int (Name & ".is_error", Int (32), Boolean'Pos (SK_State.Is_Error));
+            Record_Text (Name & ".channels", Str (33), Channels_Text);
+            Record_Int (Name & ".config_protocol", Integer_64 (Byte_At (34)), Integer_64 (SK_Config.Protocol));
+            Record_Text (Name & ".config_mfg", Str (35), SK_Mfg_Text (SK_Config.Mfg_Id));
+            Record_Int (Name & ".config_channels", Int (36), Integer_64 (SK_Config.Num_Channels));
+            Record_Text (Name & ".rc", Str (37), Rc_Text);
+            Record_Int (Name & ".bind_requested", Int (38), Boolean'Pos (SK_State.Radio.Bind_Requested));
+            Record_Text (Name & ".ops", Str (39), FD_Ops (O));
+         end;
+      end if;
+   end Check_Spektrum_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -12755,6 +12907,8 @@ procedure Vector_Check is
                   Check_Redpine_Line;
                elsif Kind = "flysky" then
                   Check_FlySky_Line;
+               elsif Kind = "spektrum" then
+                  Check_Spektrum_Line;
                else
                   Check_PID_Line;
                end if;
@@ -12874,6 +13028,7 @@ begin
    Run (Dir & "/sfhss.csv", "sfhss");
    Run (Dir & "/redpine.csv", "redpine");
    Run (Dir & "/flysky.csv", "flysky");
+   Run (Dir & "/spektrum.csv", "spektrum");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
