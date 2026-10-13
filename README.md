@@ -120,8 +120,9 @@ A change is finished when `verify.do` is green.
 
 ## Verification policy
 
-- Every unit in `core/` is SPARK and proves free of run-time errors, except the one body
-  outside SPARK that `DESIGN.md` D15 names. The proof gate counts such bodies on every run.
+- Every unit in `core/` is SPARK and proves free of run-time errors, except two bodies
+  outside SPARK: the accurate power (`DESIGN.md` D15) and the GPS rescue's arctangent (D6).
+  The proof gate counts such bodies on every run.
 - No `pragma Assume` and no justified suppression. `prove.do` prints both counts.
 - A pull request proves the units whose sources it changed (`tools/changed-units.py`).
   A nightly run proves the whole core.
