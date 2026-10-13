@@ -46,6 +46,7 @@ The core holds:
   protocols, and the MSP and MAVLink receivers
 - the FrSky SPI D8 and X receivers with their binding, hopping, hub data and telemetry
   transport
+- the S-FHSS receiver with its offset tuning, hunt and hop code
 - the MSP serial port, the ExpressLRS hopping tables, telemetry link and receiver, the
   flight log field encodings, header and recorder, the text conversions, and the DShot
   protocol
@@ -91,9 +92,9 @@ The core holds:
 
 The state of `main`:
 
-- The core proves at Silver and Gold: 14766 checks, nothing unproved, no
+- The core proves at Silver and Gold: 14875 checks, nothing unproved, no
   `pragma Assume`, no justified suppression (`gnatprove` 16.1.0, level 2).
-- The recorded vectors replay bit for bit: 1015175 lines over 316 cases, every case
+- The recorded vectors replay bit for bit: 1045185 lines over 317 cases, every case
   exact except the twenty-one declared deviations in `DESIGN.md` D6.
 - No target builds yet. `ROADMAP.md` contains the parity inventory, the phases, and the
   question for after parity: whether a proved core leaves room on the F4 boards for
