@@ -3394,7 +3394,8 @@ procedure Vector_Check is
             Voltage_Divider                => Integer (Int (22)),
             Voltage_Multiplier             => Integer (Int (23)),
             Current_Scale                  => Integer (Int (24)),
-            Current_Offset                 => Integer (Int (25)));
+            Current_Offset                 => Integer (Int (25)),
+            others                         => <>);
          Init (Battery_State_V, Battery_Settings);
       elsif Name = "batstep" then
          declare
@@ -13611,6 +13612,60 @@ procedure Vector_Check is
       end if;
    end Check_H8_3D_Line;
 
+   Meter_State    : Adaflight.Battery.State;
+   Meter_Settings : Adaflight.Battery.Settings;
+   Meter_Inputs_V : Adaflight.Battery.Meter_Inputs;
+
+   procedure Check_Battery_Meter_Line is
+      use Adaflight.Battery;
+      Name : constant String := Str (1);
+   begin
+      if Name = "bminit" then
+         Meter_Settings := (Voltage_Meter         => Voltage_Source'Val (Int (3)),
+                            Current_Meter         => Current_Source'Val (Int (4)),
+                            Display_Filter_Period => Integer (Int (5)),
+                            Current_Filter_Period => Integer (Int (6)),
+                            ESC_Current_Offset    => Integer (Int (9)),
+                            Virtual_Scale         => Integer (Int (10)),
+                            Virtual_Offset        => Integer (Int (11)),
+                            others                => <>);
+         Meter_Inputs_V := (ESC_Sensor => Int (7) /= 0, Motor_Stop => Int (8) /= 0, others => <>);
+         Init (Meter_State, Meter_Settings);
+      elsif Name = "bmstep" then
+         declare
+            Now_Us : constant Unsigned_32 := Unsigned_32 (Int (4));
+         begin
+            Meter_State.Cells := Integer (Int (5));
+            Meter_Inputs_V.Armed := Int (6) /= 0;
+            Meter_Inputs_V.Throttle_Low := Int (7) /= 0;
+            Meter_Inputs_V.Throttle := To_Float (Bits (8));
+            Meter_Inputs_V.ESC := (Data_Age    => Integer (Int (9)),
+                                   Voltage     => Integer (Int (10)),
+                                   Current     => Interfaces.Integer_32 (Int (11)),
+                                   Consumption => Interfaces.Integer_32 (Int (12)));
+            Meter_Inputs_V.Now_Ms := Now_Us / 1_000;
+            if Int (13) /= 0 then
+               Set_MSP_Current (Meter_State, Interfaces.Unsigned_16 (Int (14)), Interfaces.Unsigned_16 (Int (15)));
+            end if;
+            Update_Voltage (Meter_State, Meter_Settings, 0, Now_Us / 1_000, Meter_Inputs_V);
+            Update_Current (Meter_State, Meter_Settings, 0, Now_Us, Meter_Inputs_V);
+            Record_Int ("bmstep.msp_amperage", Int (14), Integer_64 (Meter_State.MSP_Amperage));
+            Record_Int ("bmstep.msp_mah", Int (15), Integer_64 (Meter_State.MSP_mAh));
+            Record_Int ("bmstep.display", Int (16), Integer_64 (Meter_State.Voltage.Display_Filtered));
+            Record_Int ("bmstep.unfiltered", Int (17), Integer_64 (Meter_State.Voltage.Unfiltered));
+            Record_Int ("bmstep.stable_bits", Int (18), Integer_64 (Meter_State.Voltage.Stable_Bits));
+            Record_Int ("bmstep.stable_prev", Int (19), Integer_64 (Meter_State.Voltage.Stable_Prev_Filtered));
+            Record_Int ("bmstep.amperage", Int (20), Integer_64 (Meter_State.Current.Amperage));
+            Record_Int ("bmstep.amperage_latest", Int (21), Integer_64 (Meter_State.Current.Amperage_Latest));
+            Record_Int ("bmstep.mah", Int (22), Integer_64 (Meter_State.Current.mAh_Drawn));
+            Record_Int ("bmstep.requests", Int (23), Boolean'Pos (Meter_State.MSP_Request));
+         end;
+      else
+         Put_Line ("unknown battery meter case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Battery_Meter_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -13859,6 +13914,8 @@ procedure Vector_Check is
                   Check_SYMA_Line;
                elsif Kind = "h83d" then
                   Check_H8_3D_Line;
+               elsif Kind = "battmeter" then
+                  Check_Battery_Meter_Line;
                else
                   Check_PID_Line;
                end if;
@@ -13993,6 +14050,7 @@ begin
    Run (Dir & "/v202.csv", "v202");
    Run (Dir & "/syma.csv", "syma");
    Run (Dir & "/h83d.csv", "h83d");
+   Run (Dir & "/battmeter.csv", "battmeter");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");

@@ -13,6 +13,29 @@ package body Adaflight.Battery with SPARK_Mode is
    Stable_Bits_Threshold    : constant := 10;
    Max_Auto_Detect_Cells    : constant := 8;
    LVC_Affect_Time_Us       : constant := 10_000_000;
+   ESC_Age_Max              : constant := 10;
+   MSP_Request_Period_Us    : constant := 100_000;
+
+   --  The whole part of a throttle in thousandths, shared by the rounding
+   --  below and its postcondition.
+   function Whole_Part (X : Float) return Natural is (Natural (Float'Truncation (X)))
+     with Pre => X in 0.0 .. 1_000.0;
+
+   --  The nearest whole number with a tie going to the even one, as the C
+   --  library rounds in its default mode.
+   function Round_To_Even (X : Float) return Natural
+     with Pre  => X in 0.0 .. 1_000.0,
+          Post => Round_To_Even'Result in Whole_Part (X) .. Whole_Part (X) + 1
+   is
+      Base     : constant Natural := Whole_Part (X);
+      Fraction : constant Float := X - Float'Truncation (X);
+   begin
+      if Fraction > 0.5 or else (Fraction = 0.5 and then Base mod 2 = 1) then
+         return Base + 1;
+      else
+         return Base;
+      end if;
+   end Round_To_Even;
 
    --  The cutoff of a battery filter from its period in tenths of a second.
    function Period_Cutoff (Period : Positive) return Float is
@@ -69,7 +92,7 @@ package body Adaflight.Battery with SPARK_Mode is
    procedure Init (S : out State; C : Settings) is
    begin
       S := (others => <>);
-      if C.Voltage_Meter = Analog then
+      if C.Voltage_Meter in Analog | ESC then
          Filters.PT1_Init (S.Display_Filter,
                            Filters.PT1_Gain (Period_Cutoff (C.Display_Filter_Period), 1.0 / Voltage_Task_Hz));
       end if;
@@ -83,7 +106,9 @@ package body Adaflight.Battery with SPARK_Mode is
    -- Update_Voltage --
    --------------------
 
-   procedure Update_Voltage (S : in out State; C : Settings; Raw : ADC_Count; Now_Ms : Time_Ms) is
+   procedure Update_Voltage (S : in out State; C : Settings; Raw : ADC_Count; Now_Ms : Time_Ms;
+                             Meters : Meter_Inputs := No_Meters)
+   is
    begin
       case C.Voltage_Meter is
          when Analog =>
@@ -94,7 +119,20 @@ package body Adaflight.Battery with SPARK_Mode is
                S.Voltage.Display_Filtered := Count_To_Centivolts (To_Count (Filtered), C);
                S.Voltage.Unfiltered := Count_To_Centivolts (Raw, C);
             end;
-         when None | ESC =>
+         when ESC =>
+            if Meters.ESC_Sensor then
+               declare
+                  Unfiltered : constant Centivolts :=
+                    (if Meters.ESC.Data_Age <= ESC_Age_Max then Meters.ESC.Voltage else 0);
+                  Filtered   : Signal;
+               begin
+                  Filters.PT1_Apply (S.Display_Filter, Float (Unfiltered), Filtered);
+                  S.Voltage.Display_Filtered :=
+                    Centivolts (Float'Truncation (Float'Max (0.0, Float'Min (Float (Centivolts'Last), Filtered))));
+                  S.Voltage.Unfiltered := Unfiltered;
+               end;
+            end if;
+         when None =>
             S.Voltage := (others => <>);
       end case;
       --  The stability record: a jump beyond the delta clears the current
@@ -114,8 +152,21 @@ package body Adaflight.Battery with SPARK_Mode is
    -- Update_Current --
    --------------------
 
-   procedure Update_Current (S : in out State; C : Settings; Raw : ADC_Count; Now_Us : Time_Us) is
+   procedure Update_Current (S : in out State; C : Settings; Raw : ADC_Count; Now_Us : Time_Us;
+                             Meters : Meter_Inputs := No_Meters)
+   is
+      --  The charge of the latest current over the time since the last call,
+      --  in a 64-bit product (DESIGN.md D6).
+      procedure Accumulate (Latest : Centiamps; Since_Last : Integer_32) is
+         Product : constant Interfaces.Integer_64 :=
+           Interfaces.Integer_64 (Latest) * Interfaces.Integer_64 (Since_Last);
+         Drawn   : constant Float := S.Current.mAh_Drawn_F + Float (Product) / (100.0 * 1_000.0 * 3_600.0);
+      begin
+         S.Current.mAh_Drawn_F := Float'Max (-2.0 ** 30, Float'Min (2.0 ** 30, Drawn));
+         S.Current.mAh_Drawn := Charge_mAh (Float'Truncation (S.Current.mAh_Drawn_F));
+      end Accumulate;
    begin
+      S.MSP_Request := False;
       if S.Cells = 0 then
          S.Current := (Amperage => 0, Amperage_Latest => 0, mAh_Drawn => 0, mAh_Drawn_F => S.Current.mAh_Drawn_F);
          return;
@@ -129,22 +180,76 @@ package body Adaflight.Battery with SPARK_Mode is
                declare
                   Filtered : Signal;
                   Latest   : constant Centiamps := Count_To_Centiamps (Raw, C);
-                  Product  : constant Interfaces.Integer_64 :=
-                    Interfaces.Integer_64 (Latest) * Interfaces.Integer_64 (Since_Last);
-                  Drawn    : constant Float :=
-                    S.Current.mAh_Drawn_F + Float (Product) / (100.0 * 1_000.0 * 3_600.0);
                begin
                   Filters.PT1_Apply (S.Current_Filter, Float (Raw), Filtered);
                   S.Current.Amperage_Latest := Latest;
                   S.Current.Amperage := Count_To_Centiamps (To_Count (Filtered), C);
-                  S.Current.mAh_Drawn_F := Float'Max (-2.0 ** 30, Float'Min (2.0 ** 30, Drawn));
-                  S.Current.mAh_Drawn := Charge_mAh (Float'Truncation (S.Current.mAh_Drawn_F));
+                  Accumulate (Latest, Since_Last);
                end;
-            when None | Virtual | ESC | MSP =>
+            when Virtual =>
+               declare
+                  Amperage : Centiamps := Integer_32 (C.Virtual_Offset);
+               begin
+                  if Meters.Armed then
+                     declare
+                        subtype Throttle_Offset is Natural range 0 .. 1_001;
+                        subtype Throttle_Factor is Integer_32 range 0 .. 21_041;
+                        Offset : constant Throttle_Offset :=
+                          (if Meters.Throttle_Low and then Meters.Motor_Stop then 0
+                           else Round_To_Even (Meters.Throttle * 1_000.0));
+                        Factor : constant Throttle_Factor := Integer_32 (Offset + Offset * Offset / 50);
+                     begin
+                        Amperage := Amperage + Factor * Integer_32 (C.Virtual_Scale) / 1_000;
+                     end;
+                  end if;
+                  S.Current.Amperage_Latest := Amperage;
+                  S.Current.Amperage := Amperage;
+                  Accumulate (Amperage, Since_Last);
+               end;
+            when ESC =>
+               if Meters.ESC_Sensor then
+                  if Meters.ESC.Data_Age <= ESC_Age_Max then
+                     declare
+                        --  The offset's charge from the 32-bit unsigned product
+                        --  of the offset and the clock (DESIGN.md D136).
+                        Product  : constant Unsigned_32 := Unsigned_32 (C.ESC_Current_Offset) * Meters.Now_Ms;
+                        Share    : constant Float range 0.0 .. 1_200.0 := Float (Product) / (1_000.0 * 3_600.0);
+                        Consumed : constant Float range -2.0 ** 23 .. 2.0 ** 23 := Float (Meters.ESC.Consumption);
+                        Drawn    : constant Float range -2.0 ** 24 .. 2.0 ** 24 := Consumed + Share;
+                     begin
+                        S.Current.Amperage := Meters.ESC.Current + Integer_32 (C.ESC_Current_Offset / 10);
+                        S.Current.Amperage_Latest := S.Current.Amperage;
+                        S.Current.mAh_Drawn := Charge_mAh (Float'Truncation (Drawn));
+                     end;
+                  else
+                     S.Current.Amperage := 0;
+                     S.Current.Amperage_Latest := 0;
+                     S.Current.mAh_Drawn := 0;
+                  end if;
+               end if;
+            when MSP =>
+               if Clock.Elapsed (Now_Us, S.MSP_Request_At) > 0 then
+                  S.MSP_Request_At := Now_Us + MSP_Request_Period_Us;
+                  S.MSP_Request := True;
+               end if;
+               S.Current.Amperage_Latest := Integer_32 (S.MSP_Amperage);
+               S.Current.Amperage := Integer_32 (S.MSP_Amperage);
+               S.Current.mAh_Drawn := Integer_32 (S.MSP_mAh);
+            when None =>
                S.Current := (Amperage => 0, Amperage_Latest => 0, mAh_Drawn => 0, mAh_Drawn_F => S.Current.mAh_Drawn_F);
          end case;
       end;
    end Update_Current;
+
+   ---------------------
+   -- Set_MSP_Current --
+   ---------------------
+
+   procedure Set_MSP_Current (S : in out State; Amperage : Unsigned_16; mAh : Unsigned_16) is
+   begin
+      S.MSP_Amperage := Amperage;
+      S.MSP_mAh := mAh;
+   end Set_MSP_Current;
 
    ---------------------
    -- Update_Presence --

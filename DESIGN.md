@@ -124,11 +124,12 @@ ledger. The deviations so far:
   power. The altitude subtracts the power from one, so near sea level the last bit of the
   power becomes up to 2 ** (-21) * 4433000, about 2.2 cm. The declared tolerance is 3 cm,
   and two samples of 6900 recorded needed it.
-- The battery's charge integration multiplies the latest current by the microseconds since
-  the meter was last serviced in 64 bits, where the reference's 32-bit product wraps on the
-  first sample after a pack is detected, which spans the time since boot (findings F20).
-  The recorded vectors keep that first sample small enough for the reference to stay in
-  range, so the two agree on every step.
+- The battery's charge integration for the analog and virtual meters multiplies the latest
+  current by the microseconds since the meter was last serviced in 64 bits, where the
+  reference's 32-bit product wraps on the first sample after a pack is detected, which spans
+  the time since boot, and on every sample of a virtual estimate above 1073 A (findings
+  F20). The recorded vectors keep that first sample and the virtual meter's scale small
+  enough for the reference to stay in range, so the two agree on every step.
 - The automatic disarm deadline is compared through the wrapping difference. The reference
   compares the microsecond counter and the deadline directly, so a deadline set in the last
   seconds before the 71.6-minute wrap disarms at once, and one set before a wrap that the
@@ -348,9 +349,8 @@ above a two-degree-million difference, which no device reports.
 `Adaflight.Battery` keeps the voltage and current meters in integer arithmetic: the divider
 scaling in 32-bit unsigned steps held to the 16-bit field it stores into, the current scaling in
 32-bit signed steps, the cell thresholds in 16-bit unsigned products, and the filtered analog
-counts truncated back to counts before scaling. The stability record is a shifted bit mask. Only
-the analog meters are ported. The ESC, virtual, and MSP sources reset their meter when a source
-is absent. The cutoff percentage is held to its range where the reference's byte leaves it after
+counts truncated back to counts before scaling. The stability record is a shifted bit mask. D136
+adds the ESC sensor, virtual and MSP meters. The cutoff percentage is held to its range where the reference's byte leaves it after
 a clock wrap during the ramp, and the charge sum and energy saturate at their float types'
 bounds, which no pack reaches.
 
@@ -2975,3 +2975,27 @@ scrambles its packets with the reference's tables, bind packets with good and br
 data packets with the sticks inside and outside their ends, broken checks, gaps that make the
 receiver hop, a stored id at start, a start inside the settling time, and two clocks near their
 wrap. Every operation, result, channel, hop and stored id of the 15006 lines replays exactly.
+
+## D136. Battery meter sources (2026-10-13)
+
+`Adaflight.Battery` contains the ESC sensor, virtual and MSP meters beside the analog ones. The
+ESC voltage meter runs the combined ESC reading through the display filter while the ESC sensor
+feature is on and reads zero once the data is more than 10 sensor periods old. With the feature
+off the voltage meter keeps its last values. The virtual current meter starts from its offset and,
+while armed, adds the throttle factor times the scale over 1000. The factor is the mixer throttle
+in thousandths, rounded with a tie going to the even one, plus its square over 50, or zero at low
+throttle with motor stop on. Its charge accumulates as the analog meter's does (D6). The ESC
+current meter adds a tenth of the configured offset to the combined current, and the offset's
+charge over the millisecond clock to the consumption. That charge comes from a 32-bit unsigned
+product that wraps after 268 s at 16000 mA (F139), and the unit forms the same product. The MSP
+meter reports the current and the capacity of the last analog reply and asks for a new reply
+every 100 ms on the wrapping microsecond comparison. The rounding helper sits in the unit, so its
+postcondition bounds the throttle factor for the proof.
+
+The harness replays six sequences of 2000 steps recorded from the reference voltage, current and
+battery logic with the ESC sensor reading, the throttle, the arming flag, the MSP replies and the
+cell count scripted: ESC meters with fresh and stale data, the ESC feature off, the virtual meter
+with motor stop and a clock across its wrap, the MSP meter's requests, and a 16000 mA ESC offset
+past the wrap of its charge product. The virtual meter's scale stays within 1000 and its offset
+within 2000, and the generator checks that the reference's charge product stays in range. Every
+meter field and request of the 12006 lines replays exactly.
