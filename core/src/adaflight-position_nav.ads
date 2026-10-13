@@ -73,7 +73,8 @@ package Adaflight.Position_Nav with SPARK_Mode is
    end record;
 
    --  A leg: its target and how to fly it, the vertical ramp's state, the
-   --  approach, the stated velocity, the limits, and the arrival policy.
+   --  approach, the stated velocity, the limits, the arrival policy, and
+   --  whether its owner handles the arrival.
    type Command is record
       Active                    : Boolean := False;
       Sequence                  : Unsigned_32 := 0;
@@ -103,6 +104,7 @@ package Adaflight.Position_Nav with SPARK_Mode is
       Max_Angle                 : Angle_Deg := 0.0;
       Auto_Clear_On_Reach       : Boolean := False;
       Altitude_Arrival_Required : Boolean := False;
+      Handler                   : Boolean := False;
    end record;
 
    --  The navigator: the leg, the velocity commanded before this cycle, the
@@ -123,9 +125,11 @@ package Adaflight.Position_Nav with SPARK_Mode is
    procedure Init (N : in out Navigator) renames Reset;
 
    --  A new leg, taking over the velocity commanded so far and, from a leg
-   --  still flying, the ramp's rate to slew out of.
+   --  still flying, the ramp's rate to slew out of. Handler marks a leg whose
+   --  owner runs its reached handler when the leg is reached.
    procedure Set_Target (N : in out Navigator; Target : Position_M; Cruise_Speed : Speed_Mps;
-                         Acceptance_Radius : Acceptance_M; Completion_Speed : Speed_Mps; Include_Altitude : Boolean);
+                         Acceptance_Radius : Acceptance_M; Completion_Speed : Speed_Mps; Include_Altitude : Boolean;
+                         Handler : Boolean := False);
 
    --  The active leg's target moved without disturbing the ramp or the
    --  arrival state; the leg flies a moving target from then on.
