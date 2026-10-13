@@ -31,6 +31,7 @@ with Adaflight.Battery;
 with Adaflight.Flash_FS;
 with Adaflight.Flight_Plan;
 with Adaflight.Flight_Plan_Capture;
+with Adaflight.Flight_Plan_Nav;
 with Adaflight.Arming;
 with Adaflight.Compass;
 with Adaflight.Position_Filter;
@@ -14109,6 +14110,168 @@ procedure Vector_Check is
       end if;
    end Check_MAVLink_Mission_Line;
 
+   Helper_State : Adaflight.Flight_Plan_Nav.State;
+
+   procedure Check_Executor_Helper_Line is
+      use Adaflight.Flight_Plan_Nav;
+      Name : constant String := Str (1);
+
+      function F (I : Positive) return Float is (To_Float (Bits (I)));
+
+      function Config (First : Positive) return Settings is
+        (Max_Angle      => Interfaces.Unsigned_8 (Int (First)),
+         Arrival_Radius => Interfaces.Unsigned_16 (Int (First + 1)),
+         Radius         => Interfaces.Unsigned_16 (Int (First + 2)),
+         Max_Speed      => Interfaces.Unsigned_16 (Int (First + 3)),
+         Nav_Accel      => Interfaces.Unsigned_16 (Int (First + 4)),
+         Landing_Rate   => Interfaces.Unsigned_8 (Int (First + 5)),
+         Climb_Rate     => F (First + 6));
+
+      function Estimate (First : Positive) return Adaflight.Position_Nav.Estimate is
+        (Position => (East => F (First), North => F (First + 1), Up => F (First + 2)),
+         Velocity => (East => F (First + 3), North => F (First + 4), Up => F (First + 5)));
+
+      function Waypoint (First : Positive) return Adaflight.Flight_Plan.Waypoint is
+        (Latitude      => Interfaces.Integer_32 (Int (First)),
+         Longitude     => Interfaces.Integer_32 (Int (First + 1)),
+         Altitude      => Interfaces.Integer_32 (Int (First + 2)),
+         Speed         => Interfaces.Unsigned_16 (Int (First + 3)),
+         Duration_Ds   => Interfaces.Unsigned_16 (Int (First + 4)),
+         Vert_Rate     => Interfaces.Unsigned_16 (Int (First + 5)),
+         Kind          => Interfaces.Unsigned_8 (Int (First + 6)),
+         Pattern       => Interfaces.Unsigned_8 (Int (First + 7)),
+         Yaw_Behaviour => Interfaces.Unsigned_8 (Int (First + 8)));
+
+      procedure Expect (N : String; I : Positive; Actual : Float) is
+      begin
+         Record_Result (Name & "." & N, Bits (I), To_Bits (Actual));
+      end Expect;
+   begin
+      if Name = "fhplan" then
+         declare
+            P : Adaflight.Flight_Plan.Plan;
+         begin
+            P.Count := Integer (Int (4));
+            Helper_State.Injected_Waypoints := Integer (Int (5));
+            for I in P.Waypoints'Range loop
+               P.Waypoints (I).Kind := Interfaces.Unsigned_8 (Int (6 + 2 * I));
+               P.Waypoints (I).Yaw_Behaviour := Interfaces.Unsigned_8 (Int (7 + 2 * I));
+            end loop;
+            for I in Helper_State.Injected'Range loop
+               Helper_State.Injected (I).Kind := Interfaces.Unsigned_8 (Int (66 + 2 * I));
+               Helper_State.Injected (I).Yaw_Behaviour := Interfaces.Unsigned_8 (Int (67 + 2 * I));
+            end loop;
+            Record_Int ("fhplan.count", Int (74), Integer_64 (Active_Count (Helper_State, P)));
+            for From in 0 .. 30 loop
+               Record_Int ("fhplan.next", Int (75 + From), Integer_64 (Next_Positional_Index (Helper_State, P, From)));
+            end loop;
+            for I in 0 .. Active_Count (Helper_State, P) - 1 loop
+               Record_Int ("fhplan.carrot", Int (106 + I),
+                           Boolean'Pos (Flown_As_Carrot_Leg
+                             (Helper_State, P, Active_Waypoint (Helper_State, P, I), I)));
+            end loop;
+         end;
+      elsif Name = "fhtarget" then
+         declare
+            T  : ENU;
+            Ok : Boolean;
+         begin
+            Helper_State.Z_Bias_M := F (9);
+            Compute_Target (Helper_State, Waypoint (10), Int (4) /= 0,
+                            (Lat    => Interfaces.Integer_32 (Int (5)),
+                             Lon    => Interfaces.Integer_32 (Int (6)),
+                             Alt_Cm => Interfaces.Integer_32 (Int (7))),
+                            F (8), T, Ok);
+            Record_Int ("fhtarget.ok", Int (19), Boolean'Pos (Ok));
+            Expect ("east", 20, T.East);
+            Expect ("north", 21, T.North);
+            Expect ("up", 22, T.Up);
+         end;
+      elsif Name = "fhframe" then
+         Capture_Altitude_Frame (Helper_State, Int (4) /= 0, Interfaces.Integer_32 (Int (5)), F (6),
+                                 Interfaces.Integer_32 (Int (7)));
+         Expect ("bias", 8, Helper_State.Z_Bias_M);
+      elsif Name = "fhvert" then
+         Expect ("rate", 20, Leg_Vert_Rate (Waypoint (11), Config (4)));
+      elsif Name = "fhcmd" then
+         declare
+            N   : Adaflight.Position_Nav.Navigator;
+            Est : constant Adaflight.Position_Nav.Estimate := Estimate (11);
+            D1  : ENU;
+            D2  : ENU;
+         begin
+            N.Cmd.Active := Int (4) /= 0;
+            N.Cmd.Include_Altitude := Int (5) /= 0;
+            N.Cmd.Ramp_Valid := Int (6) /= 0;
+            N.Cmd.Target := (East => F (7), North => F (8), Up => F (9));
+            N.Cmd.Ramp_Alt := F (10);
+            Expect ("altitude", 17, Commanded_Altitude (N, Est));
+            D1 := Nav_Target_Delta (N, Est);
+            Expect ("target_east", 18, D1.East);
+            Expect ("target_north", 19, D1.North);
+            Expect ("target_up", 20, D1.Up);
+            Expect ("distance", 21, Distance_To_Nav_Target (N, Est));
+            Helper_State.Leg_Is_Pass_Gate := Int (22) /= 0;
+            Helper_State.Leg_Target := (East => F (23), North => F (24), Up => F (25));
+            D2 := Nav_Waypoint_Delta (Helper_State, N, Est);
+            Expect ("waypoint_east", 26, D2.East);
+            Expect ("waypoint_north", 27, D2.North);
+            Expect ("waypoint_up", 28, D2.Up);
+         end;
+      elsif Name = "fhbrake" then
+         declare
+            C    : constant Settings := Config (4);
+            Est  : constant Adaflight.Position_Nav.Estimate := Estimate (11);
+            Rest : Vector_2;
+         begin
+            Expect ("decel", 18, Braking_Decel (Integer (Int (17))));
+            Helper_State.Leg_Turn_In := Int (19) /= 0;
+            Expect ("distance", 20, Braking_Distance (Helper_State, Est, C));
+            Helper_State.Leg_Approach_Decel := F (21);
+            Expect ("point_accel", 22, Point_Leg_Accel (Helper_State, C));
+            Expect ("stop_angle", 23, Float (Rescue_Stop_Max_Angle (C)));
+            Rest := Rest_Point (Est, (X => F (24), Y => F (25)), Integer (Int (17)));
+            Expect ("rest_x", 26, Rest.X);
+            Expect ("rest_y", 27, Rest.Y);
+            Helper_State.Carrot_Velocity := (X => F (28), Y => F (29));
+            Place_Carrot (Helper_State, Est, (X => F (30), Y => F (31)), C);
+            Expect ("carrot_x", 32, Helper_State.Carrot.X);
+            Expect ("carrot_y", 33, Helper_State.Carrot.Y);
+         end;
+      elsif Name = "fhangle" then
+         declare
+            Est     : constant Adaflight.Position_Nav.Estimate := Estimate (6);
+            Point   : constant ENU := (East => F (13), North => F (14), Up => 0.0);
+            Bearing : Float;
+            Ok      : Boolean;
+         begin
+            Expect ("wrap", 5, Wrap_Deg_180 (F (4)));
+            Bearing_To_Point (Est, Point, Bearing, Ok);
+            Record_Int ("fhangle.bearing_ok", Int (15), Boolean'Pos (Ok));
+            Expect ("bearing", 16, Bearing);
+            Record_Int ("fhangle.nose_on", Int (17),
+                        Boolean'Pos (Leg_Nose_On_Target (Est, Point, Interfaces.Integer_32 (Int (12)))));
+         end;
+      elsif Name = "fhpattern" then
+         declare
+            C  : constant Settings := Config (13);
+            PC : ENU;
+         begin
+            Helper_State.Pattern_Type := Interfaces.Unsigned_8 (Int (4));
+            Helper_State.Pattern_Centre := (East => F (5), North => F (6), Up => F (7));
+            PC := Pattern_Carrot (Helper_State, F (8), F (9));
+            Expect ("east", 10, PC.East);
+            Expect ("north", 11, PC.North);
+            Expect ("up", 12, PC.Up);
+            Record_Int ("fhpattern.period", Int (21),
+                        Integer_64 (Orbit_Period_Ds (Interfaces.Unsigned_16 (Int (20)), C.Radius, C.Max_Speed)));
+         end;
+      else
+         Put_Line ("unknown executor helper case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Executor_Helper_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -14365,6 +14528,8 @@ procedure Vector_Check is
                   Check_Flight_Plan_Capture_Line;
                elsif Kind = "mavmission" then
                   Check_MAVLink_Mission_Line;
+               elsif Kind = "fpnhelpers" then
+                  Check_Executor_Helper_Line;
                else
                   Check_PID_Line;
                end if;
@@ -14503,6 +14668,7 @@ begin
    Run (Dir & "/flashfs.csv", "flashfs");
    Run (Dir & "/fpcapture.csv", "fpcapture");
    Run (Dir & "/mavmission.csv", "mavmission");
+   Run (Dir & "/fpnhelpers.csv", "fpnhelpers");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
