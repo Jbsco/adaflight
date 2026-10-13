@@ -3365,3 +3365,21 @@ The harness replays 4800 requests recorded from the reference MSP processor, in 
 servos, the 64-LED strip with its status mode and the transmitter with its table, and one
 without them, on random outputs, configurations and devices. Every result, length and byte of the
 4808 lines replays exactly.
+
+## D151. MSP text, table and battery profile replies (2026-10-13)
+
+`Adaflight.MSP_Text_Out` contains the MSP out messages that answer with text, a table row or a
+profile: the craft name, a text by its type, a video transmitter band or power level from the
+frequency table, the LED strip's brightness and rainbow, and a battery profile. The request's
+first byte selects the text type, the band, the level or the profile, and the profile falls back
+to the active one without it. An unknown text type, a text the build leaves out, a band or level
+outside the table and a profile beyond the third are errors that write nothing. The caller
+gathers the names, the build key and release name, the battery profiles, the strip settings and
+the table into a snapshot. The table replies exist only with the table built and the strip
+values only with the strip. A band or level reply to the MSP transmitter's own port also marks
+that transmitter ready, and that call stays with the caller.
+
+The harness replays 4800 requests recorded from the reference MSP processor with the reference
+build strings, in a build with the table, the strip, a build key and a release name, and one
+without, on random names, profiles, tables and request bytes. Every result, length and byte of
+the 4808 lines replays exactly.
