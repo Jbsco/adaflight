@@ -50,6 +50,7 @@ The core holds:
 - the Redpine receiver with its fast and slow modes, bind tuning and hop table
 - the FlySky AFHDS and AFHDS 2A receivers with their binding, hopping and telemetry
 - the Spektrum DSM2 and DSMX SPI receiver with its binding, hopping and telemetry
+- the RC statistics for full throttle time and count and the average throttle
 - the MSP serial port, the ExpressLRS hopping tables, telemetry link and receiver, the
   flight log field encodings, header and recorder, the text conversions, and the DShot
   protocol
@@ -95,9 +96,9 @@ The core holds:
 
 The state of `main`:
 
-- The core proves at Silver and Gold: 15150 checks, nothing unproved, no
+- The core proves at Silver and Gold: 15165 checks, nothing unproved, no
   `pragma Assume`, no justified suppression (`gnatprove` 16.1.0, level 2).
-- The recorded vectors replay bit for bit: 1118209 lines over 320 cases, every case
+- The recorded vectors replay bit for bit: 1136215 lines over 321 cases, every case
   exact except the twenty-one declared deviations in `DESIGN.md` D6.
 - No target builds yet. `ROADMAP.md` contains the parity inventory, the phases, and the
   question for after parity: whether a proved core leaves room on the F4 boards for
