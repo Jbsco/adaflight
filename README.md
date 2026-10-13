@@ -82,6 +82,8 @@ The core contains:
 - LTM telemetry stream
 - GPS lap timer with averaged gate and best three laps
 - MSP box table with paged replies and status bits
+- MSP common replies: versions, board and build information, unique id, feature and beeper
+  configuration, meters and sensors, battery and transponder configuration, OSD canvas
 - MSP state replies: status, sensor readings, motors, RC channels, attitude, altitudes, battery,
   debug values, GPS, ESC and motor telemetry, pitot, transmitter information and clock
 - BLHeli 4-way interface for ESC configuration through flight controller
@@ -107,9 +109,9 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 17586 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 17806 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
-- Recorded vectors replay bit for bit: 1450233 lines over 344 cases, every case exact except
+- Recorded vectors replay bit for bit: 1455041 lines over 345 cases, every case exact except
   twenty-three declared deviations in `DESIGN.md` D6.
 - No target builds yet. `ROADMAP.md` contains phases, parity inventory, and one question for after
   parity: whether a proved core leaves room on F4 boards for features Betaflight has to leave out
