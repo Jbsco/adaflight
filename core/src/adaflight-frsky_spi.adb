@@ -433,7 +433,9 @@ package body Adaflight.FrSky_SPI with SPARK_Mode is
                   Set_Pin (O, Tx_Enable, True);
                end if;
                Strobe (O, SIDLE);
-               O.Tx_Data := Tx_Bytes (S.Frame);
+               for K in S.Frame'Range loop
+                  O.Tx_Data (K) := S.Frame (K);
+               end loop;
                Add (O, (Kind => Write_Fifo, A => S.Frame (0) + 1, others => <>));
                S.Protocol := Data;
                S.Last_Packet_Us := Current;
@@ -657,7 +659,9 @@ package body Adaflight.FrSky_SPI with SPARK_Mode is
                   Set_Pin (O, Tx_Enable, True);
                end if;
                Strobe (O, SIDLE);
-               O.Tx_Data := Tx_Bytes (S.Frame);
+               for K in S.Frame'Range loop
+                  O.Tx_Data (K) := S.Frame (K);
+               end loop;
                Add (O, (Kind => Write_Fifo, A => S.Frame (0) + 1, others => <>));
                S.Protocol := Resume;
             end if;
