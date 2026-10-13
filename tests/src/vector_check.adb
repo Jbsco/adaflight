@@ -64,6 +64,7 @@ with Adaflight.Jeti_Telemetry;
 with Adaflight.CC2500_Radio;
 with Adaflight.FrSky_SPI;
 with Adaflight.SFHSS;
+with Adaflight.Redpine;
 with Adaflight.GHST;
 with Adaflight.MSP_Receiver;
 with Adaflight.SRXL2;
@@ -12238,6 +12239,164 @@ procedure Vector_Check is
       end if;
    end Check_SFHSS_Line;
 
+   package RPN renames Adaflight.Redpine;
+   use type RPN.Received;
+   RP_Seq     : Integer_64 := -1;
+   RP_State   : RPN.State;
+   RP_Config  : RPN.Settings;
+   RP_Rc      : RPN.Channel_Values := (others => 1_500);
+   RP_Band    : Integer_64 := 1;
+   RP_Channel : Integer_64 := 1;
+   RP_Power   : Integer_64 := 0;
+   RP_Saves   : Integer_64 := 0;
+
+   procedure RP_Calibrate (O : RPN.Output) is
+      Table : RPN.Calibration_Table := (others => (others => 0));
+   begin
+      for K in 1 .. O.Count loop
+         if O.Ops (K).Kind = CCR.Calibrate then
+            for Ch in RPN.Calibration_Table'Range loop
+               Table (Ch) :=
+                 (Interfaces.Unsigned_8 ((Ch * 37 + 5) mod 256), Interfaces.Unsigned_8 ((Ch * 59 + 16) mod 256),
+                  Interfaces.Unsigned_8 ((Ch * 83 + 27) mod 256));
+            end loop;
+            RPN.Set_Calibration (RP_State, Table);
+         end if;
+      end loop;
+   end RP_Calibrate;
+
+   procedure Check_Redpine_Line is
+      Name : constant String := Str (1);
+
+      function Hops_Text return String is
+         R : String (1 .. 100);
+      begin
+         for K in RPN.Hop_Table'Range loop
+            R (1 + 2 * K .. 2 + 2 * K) := FD_Hex (Natural (RP_Config.Bind_Hop_Data (K)), 2);
+         end loop;
+         return R;
+      end Hops_Text;
+
+      function Tx_Id_Text return String is
+        (FD_Hex (Natural (RP_Config.Bind_Tx_Id (0)), 2) & FD_Hex (Natural (RP_Config.Bind_Tx_Id (1)), 2));
+
+      function Rc_Text return String is
+         Image : String (1 .. 128);
+         Len   : Natural := 0;
+      begin
+         for K in RP_Rc'Range loop
+            declare
+               T : constant String := Interfaces.Unsigned_16'Image (RP_Rc (K));
+            begin
+               if K > 0 then
+                  Len := Len + 1;
+                  Image (Len) := '.';
+               end if;
+               Image (Len + 1 .. Len + T'Length - 1) := T (T'First + 1 .. T'Last);
+               Len := Len + T'Length - 1;
+            end;
+         end loop;
+         return Image (1 .. Len);
+      end Rc_Text;
+   begin
+      if Name = "rpinit" then
+         RP_Seq := Int (2);
+         declare
+            Ids    : constant Byte_Array := Hex_Bytes (14);
+            Hops   : constant Byte_Array := Hex_Bytes (16);
+            Before : constant Integer_64 := Int (20);
+            Inp    : RPN.Inputs;
+            O      : RPN.Output;
+            Ok     : Boolean;
+            Claim  : Boolean;
+         begin
+            RP_Config :=
+              (Auto_Bind     => Int (3) /= 0,
+               Bind_Tx_Id    => (Interfaces.Unsigned_8 (Ids (Ids'First)), Interfaces.Unsigned_8 (Ids (Ids'First + 1))),
+               Bind_Offset   => Interfaces.Integer_8 (Int (15)),
+               Bind_Hop_Data => (others => 0),
+               Pins          =>
+                 (Chip_Detect   => Int (4) /= 0,
+                  Tx_Enable     => Int (6) /= 0,
+                  LNA           => Int (7) /= 0,
+                  Antenna       => Int (8) /= 0,
+                  LED           => Int (9) /= 0,
+                  LED_Inversion => Int (10) /= 0,
+                  Bind          => Int (11) /= 0));
+            for K in RPN.Hop_Table'Range loop
+               RP_Config.Bind_Hop_Data (K) := Interfaces.Unsigned_8 (Hops (Hops'First + K));
+            end loop;
+            Inp.Now_Us := Interfaces.Unsigned_32 (Int (12));
+            Inp.Now_Ms := Inp.Now_Us / 1_000;
+            Inp.Bind_Pin_Level := True;
+            Inp.Chip_Ok := Int (5) /= 0;
+            RPN.Start (RP_State, RP_Config, Inp, O, Ok, Claim);
+            RP_Rc := (others => 1_500);
+            RP_Band := 1;
+            RP_Channel := 1;
+            RP_Power := 0;
+            RP_Saves := 0;
+            Record_Int (Name & ".ok", Int (13), Boolean'Pos (Ok));
+            Record_Int (Name & ".rssi_source", Int (17), (if Before = 0 and then Claim then 3 else Before));
+            Record_Int (Name & ".channels", Int (18), (if Ok then RPN.Channel_Count else 0));
+            Record_Text (Name & ".ops", Str (19), FD_Ops (O));
+         end;
+      elsif Int (2) /= RP_Seq then
+         Put_Line ("Redpine line without its start");
+         Failures := Failures + 1;
+      elsif Name = "rpstep" then
+         declare
+            Inp    : RPN.Inputs;
+            O      : RPN.Output;
+            Result : RPN.Received;
+            VTX    : RPN.VTX_Request;
+            Fifo   : constant Byte_Array := Hex_Bytes (9);
+         begin
+            Inp.Now_Us := Interfaces.Unsigned_32 (Int (3));
+            Inp.Now_Ms := Inp.Now_Us / 1_000;
+            Inp.Exti := Int (4) /= 0;
+            Inp.Rx_Bytes := Interfaces.Unsigned_8 (Int (5));
+            Inp.Bind_Pin_Level := Int (6) /= 0;
+            for K in Fifo'Range loop
+               Inp.Fifo (K - Fifo'First) := Interfaces.Unsigned_8 (Fifo (K));
+            end loop;
+            if Int (7) /= 0 then
+               RPN.Request_Bind (RP_State);
+            end if;
+            RPN.Data_Received (RP_State, RP_Config, Inp, O, Result);
+            if Result = RPN.Data_Ready then
+               RPN.Set_Rc_Data (RP_State, Int (8) /= 0, RP_Rc, VTX);
+               if VTX.Present then
+                  RP_Band := Integer_64 (VTX.Band);
+                  RP_Channel := Integer_64 (VTX.Channel);
+                  RP_Power := Integer_64 (VTX.Power);
+                  RP_Saves := RP_Saves + 1;
+               end if;
+            end if;
+            RP_Calibrate (O);
+            Record_Int (Name & ".result", Int (10), (case Result is when RPN.None => 0, when RPN.Bind_Done => 1,
+                                                                     when RPN.Data_Ready => 2));
+            Record_Int (Name & ".state", Int (11), RPN.Protocol_State'Pos (RP_State.Protocol));
+            Record_Int (Name & ".missing", Int (12), Integer_64 (RP_State.Missing_Packets));
+            Record_Int (Name & ".offset_min", Int (13), Integer_64 (RP_State.Offset_Min));
+            Record_Int (Name & ".offset_max", Int (14), Integer_64 (RP_State.Offset_Max));
+            Record_Int (Name & ".tuned_ms", Int (15), Integer_64 (RP_State.Time_Tuned_Ms));
+            Record_Int (Name & ".fast", Int (16), Boolean'Pos (RP_State.Fast));
+            Record_Text (Name & ".tx_id", Str (17), Tx_Id_Text);
+            Record_Int (Name & ".config_offset", Int (18), Integer_64 (RP_Config.Bind_Offset));
+            Record_Text (Name & ".hops", Str (19), Hops_Text);
+            Record_Text (Name & ".rc", Str (20), Rc_Text);
+            Record_Int (Name & ".rssi_dbm", Int (21), Integer_64 (RP_State.Radio.RSSI_Dbm));
+            Record_Int (Name & ".bind_requested", Int (22), Boolean'Pos (RP_State.Radio.Bind_Requested));
+            Record_Int (Name & ".vtx_band", Int (23), RP_Band);
+            Record_Int (Name & ".vtx_channel", Int (24), RP_Channel);
+            Record_Int (Name & ".vtx_power", Int (25), RP_Power);
+            Record_Int (Name & ".saves", Int (26), RP_Saves);
+            Record_Text (Name & ".ops", Str (27), FD_Ops (O));
+         end;
+      end if;
+   end Check_Redpine_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -12452,6 +12611,8 @@ procedure Vector_Check is
                   Check_FrSky_D_Line;
                elsif Kind = "sfhss" then
                   Check_SFHSS_Line;
+               elsif Kind = "redpine" then
+                  Check_Redpine_Line;
                else
                   Check_PID_Line;
                end if;
@@ -12569,6 +12730,7 @@ begin
    Run (Dir & "/frskyd.csv", "frskyd");
    Run (Dir & "/frskyx.csv", "frskyd");
    Run (Dir & "/sfhss.csv", "sfhss");
+   Run (Dir & "/redpine.csv", "redpine");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
