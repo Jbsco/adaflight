@@ -117,6 +117,7 @@ with Adaflight.Display_Port_MSP;
 with Adaflight.OSD_Stats;
 with Adaflight.OSD_Page;
 with Adaflight.OSD_Elements;
+with Adaflight.OSD_Render;
 
 procedure Vector_Check is
 
@@ -10494,6 +10495,127 @@ procedure Vector_Check is
       end if;
    end Check_OSD_Elements_Line;
 
+   OR_Seq   : Integer_64 := -1;
+   OR_State : Adaflight.OSD_Render.State;
+
+   procedure Check_OSD_Render_Line is
+      use Adaflight.OSD_Render;
+      Name : constant String := Str (1);
+   begin
+      if Name = "orinit" then
+         OR_Seq := Int (2);
+         OR_State := (others => <>);
+      elsif Int (2) /= OR_Seq then
+         Put_Line ("OSD render line without its start");
+         Failures := Failures + 1;
+      elsif Name = "orrender" then
+         declare
+            C        : Settings;
+            Inp      : Inputs;
+            O        : Output;
+            Modes    : constant Unsigned_32 := Bits (79);
+            Expected : constant Byte_Array := Hex_Bytes (96);
+         begin
+            C.Units := Adaflight.OSD_Format.Unit_System'Val (Int (7));
+            C.Alt_Alarm := Interfaces.Unsigned_16 (Int (8));
+            C.Cap_Alarm := Interfaces.Unsigned_16 (Int (9));
+            C.RSSI_Alarm := Interfaces.Unsigned_8 (Int (10));
+            C.RSSI_Dbm_Alarm := Interfaces.Integer_16 (Int (11));
+            C.Timers := (Interfaces.Unsigned_16 (Int (12)), Interfaces.Unsigned_16 (Int (13)));
+            C.Aux_Symbol := Interfaces.Unsigned_8 (Int (14));
+            Inp.Altitude_Cm := Interfaces.Integer_32 (Int (15));
+            Inp.Altitude_Asl_Cm := Flt (16);
+            Inp.Baro_Present := Int (17) = 1;
+            Inp.GPS_Present := Int (18) = 1;
+            Inp.GPS_Fix := Int (19) = 1;
+            Inp.Roll := Interfaces.Integer_16 (Int (21));
+            Inp.Pitch := Interfaces.Integer_16 (Int (22));
+            Inp.Yaw := Interfaces.Integer_16 (Int (23));
+            Inp.Anti_Gravity := Int (24) = 1;
+            Inp.Cell_Voltage := Interfaces.Unsigned_16 (Int (25));
+            Inp.Battery := Adaflight.Battery.Battery_State'Val (Int (26));
+            Inp.Min_Cell := Interfaces.Unsigned_16 (Int (27));
+            Inp.Max_Cell := Interfaces.Unsigned_16 (Int (28));
+            Inp.Core_Temperature := Interfaces.Integer_16 (Int (29));
+            Inp.Amperage := Interfaces.Integer_32 (Int (30));
+            for K in Debug_Index loop
+               Inp.Debug (K) := Interfaces.Integer_16 (Int (31 + K));
+            end loop;
+            Inp.G_Force := Flt (39);
+            Inp.MAh_Drawn := Interfaces.Integer_32 (Int (40));
+            Inp.Wh_Drawn := Flt (41);
+            Inp.Profile_Capacity := Interfaces.Unsigned_16 (Int (42));
+            Inp.Battery_Percent := Interfaces.Unsigned_8 (Int (43));
+            Inp.Pack_Voltage := Interfaces.Unsigned_16 (Int (44));
+            Inp.Vario_Cm_S := Interfaces.Integer_16 (Int (45));
+            Inp.PID_Index := Interfaces.Unsigned_8 (Int (46));
+            Inp.Rate_Index := Interfaces.Unsigned_8 (Int (47));
+            for A in Axis_Index loop
+               Inp.PIDs (A) := (P     => Interfaces.Unsigned_8 (Int (48 + 5 * A)),
+                                I     => Interfaces.Unsigned_8 (Int (49 + 5 * A)),
+                                D     => Interfaces.Unsigned_8 (Int (50 + 5 * A)),
+                                F     => Interfaces.Unsigned_16 (Int (51 + 5 * A)),
+                                D_Max => Interfaces.Unsigned_8 (Int (52 + 5 * A)));
+            end loop;
+            Inp.Clocks := (Now_Us         => Interfaces.Unsigned_32 (Int (63)),
+                           Fly_Time_Us    => Interfaces.Unsigned_32 (Int (64)),
+                           Armed_Time_Us  => Interfaces.Unsigned_32 (Int (65)),
+                           Launch_Time_Us => Interfaces.Unsigned_32 (Int (66)),
+                           Armed          => Int (20) = 1);
+            Inp.RSSI_Percent := Interfaces.Unsigned_8 (Int (67));
+            Inp.RSSI_Dbm := Interfaces.Integer_16 (Int (68));
+            Inp.Antenna := Interfaces.Integer_8 (Int (69));
+            Inp.RSNR := Interfaces.Integer_16 (Int (70));
+            Inp.Throttle_Percent := Interfaces.Integer_8 (Int (71));
+            Inp.Aux_Value := Interfaces.Unsigned_16 (Int (72));
+            Inp.Ready_Box := Int (73) = 1;
+            Inp.Pos_Hold_Ready := Int (74) = 1;
+            Inp.Total_Flights := Interfaces.Unsigned_32 (Int (75));
+            Inp.Crash_Flip := Int (76) = 1;
+            Inp.Upright := Int (77) = 1;
+            Inp.Small_Angle := Interfaces.Unsigned_8 (Int (78));
+            Inp.Modes := (Failsafe   => (Modes and 1024) /= 0,
+                          GPS_Rescue => (Modes and 2048) /= 0,
+                          Headfree   => (Modes and 64) /= 0,
+                          Passthru   => (Modes and 256) /= 0,
+                          Pos_Hold   => (Modes and 32) /= 0,
+                          Alt_Hold   => (Modes and 8) /= 0,
+                          Chirp      => (Modes and 128) /= 0,
+                          Angle      => (Modes and 1) /= 0,
+                          Horizon    => (Modes and 2) /= 0);
+            Inp.Acro_Trainer_Box := Int (80) = 1;
+            Inp.Airmode := Int (81) = 1;
+            Inp.Chirp_Total := Interfaces.Unsigned_8 (Int (82));
+            Inp.Chirp_Current := Interfaces.Unsigned_8 (Int (83));
+            Inp.Chirp_Finished := Int (84) = 1;
+            Inp.Chirp_Series_Finished := Int (85) = 1;
+            Inp.Chirp_Axis := Natural (Int (86));
+            Inp.Has_Time := Int (87) = 1;
+            if Inp.Has_Time then
+               Inp.Date := (Year    => Interfaces.Unsigned_16 (Int (88)),
+                            Month   => Interfaces.Unsigned_8 (Int (89)),
+                            Day     => Interfaces.Unsigned_8 (Int (90)),
+                            Hours   => Interfaces.Unsigned_8 (Int (91)),
+                            Minutes => Interfaces.Unsigned_8 (Int (92)),
+                            Seconds => Interfaces.Unsigned_8 (Int (93)),
+                            Millis  => Interfaces.Unsigned_16 (Int (94)));
+            end if;
+            Inp.Zone := (Zone => Interfaces.Integer_16 (Int (95)));
+            Render (Item'Val (Int (3)), Adaflight.OSD_Format.Element_Type'Val (Int (4)), OR_State, C, Inp, O);
+            Record_Int (Name & ".len", Integer_64 (Expected'Length), Integer_64 (O.Line.Length));
+            for K in 1 .. Natural'Min (Expected'Length, O.Line.Length) loop
+               Record_Int (Name & ".text", Integer_64 (Expected (Expected'First + K - 1)),
+                           Integer_64 (Character'Pos (O.Line.Data (K))));
+            end loop;
+            Record_Int (Name & ".offx", Int (97), Integer_64 (O.Offset_X));
+            Record_Int (Name & ".offy", Int (98), Integer_64 (O.Offset_Y));
+            Record_Int (Name & ".attr", Int (99), Integer_64 (Severity'Pos (O.Attr)));
+            Record_Int (Name & ".draw", Int (100), Boolean'Pos (O.Draw));
+            Record_Int (Name & ".rendered", Int (101), Boolean'Pos (O.Rendered));
+         end;
+      end if;
+   end Check_OSD_Render_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -10684,6 +10806,8 @@ procedure Vector_Check is
                   Check_OSD_Page_Line;
                elsif Kind = "osdelem" then
                   Check_OSD_Elements_Line;
+               elsif Kind = "osdrender" then
+                  Check_OSD_Render_Line;
                else
                   Check_PID_Line;
                end if;
@@ -10788,6 +10912,7 @@ begin
    Run (Dir & "/osdstats.csv", "osdstats");
    Run (Dir & "/osdpage.csv", "osdpage");
    Run (Dir & "/osdelem.csv", "osdelem");
+   Run (Dir & "/osdrender.csv", "osdrender");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
