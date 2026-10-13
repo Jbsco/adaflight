@@ -96,11 +96,13 @@ package Adaflight.OSD_Render with SPARK_Mode is
    subtype Radio_Mode is Positive range 1 .. 4;
    type Frame_Phases is (Top, Middle, Bottom);
 
-   --  What a renderer hands the draw cycle: the text, the offsets from the
-   --  element's position, the severity, the blink bit's change, whether the
-   --  text is drawn and whether the element is complete.
+   --  What a renderer hands the draw cycle: the text, whether it stored the
+   --  text (the element buffer keeps its old text otherwise), the offsets
+   --  from the element's position, the severity, the blink bit's change,
+   --  whether the text is drawn and whether the element is complete.
    type Output is record
       Line     : Text;
+      Wrote    : Boolean := True;
       Offset_X : Unsigned_8 := 0;
       Offset_Y : Unsigned_8 := 0;
       Attr     : Severity := Adaflight.OSD_Warnings.Normal;

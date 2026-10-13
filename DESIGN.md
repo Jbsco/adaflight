@@ -2324,3 +2324,33 @@ The harness replays six sequences of 500 steps recorded from the reference, the 
 scripted as for D95 with the craft name messages, link sources, qualities, modes, blink
 halves and stored names added. Every text, blink bit, severity, beeper flag and craft name
 byte of the 3006 lines replays byte for byte.
+
+## D107. OSD draw cycle (2026-10-12)
+
+The OSD draw unit contains the reference's element draw cycle. Each call takes the element on
+turn from the active list. Where the display has no background layer and the element has a
+background not yet drawn, the call draws the background; otherwise it draws the foreground and
+moves to the next element once the renderer reports the element complete, returning false after
+the last element and starting again at the first. A foreground draw is skipped for an element
+without a foreground, and for an element whose blink is in its hidden half unless the display
+blinks it itself. A system element goes to the display as a system write at its position, the
+warnings element renders through the warnings unit with the craft name messages, and every other
+element renders through the render unit with its variant, its blink bit taking the renderer's
+change. A render stores its text in the element buffer when it writes one, and the buffer keeps
+its old text otherwise, so renderer outputs gain a flag for whether they stored their text. The
+pending write goes to the display at the element's position plus its offsets, with its severity
+and the blink attribute while its blink bit is set, a background's before a foreground's; an
+empty buffer writes nothing. The background pass after an analysis selects and clears a
+background layer and draws every active element's background to completion into it, or asks a
+display without the layer to redraw its background; the pass writes the renderers' own
+characters and leaves text backgrounds pending (F112). The element on turn keeps its number
+across an analysis that shortens the list, and the bound checks restart the cycle. The display,
+active list, blink, settings and readings stay with the target, which carries out the operations
+each call hands back.
+
+The harness replays six sequences recorded from the reference as the OSD task steps the cycle,
+one draw or display call at a time with readings rescripted between calls: eighteen elements
+visible at random positions and variants, an occasional re-analysis with new positions and
+sensors, and displays with and without a background layer and their own blink. Every return,
+pending flag, element number, blink bit, craft name byte and display operation of the 3612 lines
+replays byte for byte.

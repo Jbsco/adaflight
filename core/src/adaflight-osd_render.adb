@@ -410,6 +410,8 @@ package body Adaflight.OSD_Render with SPARK_Mode is
          else
             Append (O.Line, (if Roll_Angle > 0 then Symbol_Arrow_West else Symbol_Arrow_East));
          end if;
+      else
+         O.Wrote := False;
       end if;
    end Flip_Arrow_Element;
 
@@ -692,6 +694,8 @@ package body Adaflight.OSD_Render with SPARK_Mode is
          elsif Inp.Log_Number >= 0 then
             Append_Integer (O.Line, Inp.Log_Number, 1, False);
          end if;
+      else
+         O.Wrote := False;
       end if;
    end Log_Status_Element;
 
@@ -807,6 +811,8 @@ package body Adaflight.OSD_Render with SPARK_Mode is
          Append_Name (O, Inp.Adjustment_Name, False);
          Append_String (O.Line, ": ");
          Append_Integer (O.Line, Inp.Adjustment_Value, 3, False);
+      else
+         O.Wrote := False;
       end if;
    end Adjustment_Element;
 
@@ -891,6 +897,7 @@ package body Adaflight.OSD_Render with SPARK_Mode is
          Append (O.Line, Character'Val (Symbol_AH_Bar + Integer (Y mod 9)));
       else
          O.Draw := False;
+         O.Wrote := False;
       end if;
       if S.Horizon_X = 4 then
          S.Horizon_X := -4;
@@ -928,6 +935,8 @@ package body Adaflight.OSD_Render with SPARK_Mode is
          O.Offset_Y := Unsigned_8
            (Round_Offset (Adaflight.Maths.Scale_Range_F (Theta, -Quarter_Pi, Quarter_Pi, -8.0, 8.0)) mod 256);
          Append (O.Line, (if Inp.Pitch > 0 then 'D' else 'U'));
+      else
+         O.Wrote := False;
       end if;
    end Up_Down_Element;
 
@@ -960,6 +969,8 @@ package body Adaflight.OSD_Render with SPARK_Mode is
               (Integer_32 (Float'Truncation (Inp.RC_Data (RC_Channel_Index (Ch)))), 1000, 2000, -1000, 1000),
             5, False);
          O.Offset_Y := Unsigned_8 (S.RC_Channel);
+      else
+         O.Wrote := False;
       end if;
       if S.RC_Channel = 3 then
          S.RC_Channel := 0;
@@ -1049,6 +1060,7 @@ package body Adaflight.OSD_Render with SPARK_Mode is
          O.Rendered := False;
       end if;
       O.Draw := False;
+      O.Wrote := False;
    end Sidebars_Background;
 
    procedure Frame_Background
@@ -1070,6 +1082,7 @@ package body Adaflight.OSD_Render with SPARK_Mode is
          Write_Char (O, Inp, X, Y + Integer (S.Frame_Row), Symbol_Overlay_Vertical);
          Write_Char (O, Inp, X + Integer (Width) - 1, Y + Integer (S.Frame_Row), Symbol_Overlay_Vertical);
          O.Draw := False;
+         O.Wrote := False;
          S.Frame_Row := S.Frame_Row + 1;
          if S.Frame_Row = Unsigned_8 (Height) then
             S.Frame_Row := 1;
@@ -1135,6 +1148,8 @@ package body Adaflight.OSD_Render with SPARK_Mode is
          when Anti_Gravity =>
             if Inp.Anti_Gravity then
                Append_String (O.Line, "AG");
+            else
+               O.Wrote := False;
             end if;
          when Average_Cell_Voltage =>
             Cell_Voltage_Element (Inp, O);
@@ -1155,6 +1170,8 @@ package body Adaflight.OSD_Render with SPARK_Mode is
          when Disarmed =>
             if not Inp.Clocks.Armed then
                Append_String (O.Line, "DISARMED");
+            else
+               O.Wrote := False;
             end if;
          when G_Force =>
             Print_Float (O.Line, Symbol_None, Inp.G_Force, Default_Format, 1, True, 'G');
@@ -1202,10 +1219,14 @@ package body Adaflight.OSD_Render with SPARK_Mode is
          when Ready_Mode =>
             if Inp.Ready_Box and then not Inp.Clocks.Armed then
                Append_String (O.Line, "READY");
+            else
+               O.Wrote := False;
             end if;
          when Position_Hold_Ready =>
             if Inp.Pos_Hold_Ready then
                Append_String (O.Line, "POSH RDY");
+            else
+               O.Wrote := False;
             end if;
          when Total_Flights =>
             Append (O.Line, '#');
