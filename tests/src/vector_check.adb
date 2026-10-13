@@ -26,6 +26,7 @@ with Adaflight.Failsafe;
 with Adaflight.Modes;
 with Adaflight.Accelerometer;
 with Adaflight.Barometer;
+with Adaflight.Barometer_Task;
 with Adaflight.Battery;
 with Adaflight.Arming;
 with Adaflight.Compass;
@@ -12808,6 +12809,70 @@ procedure Vector_Check is
       end if;
    end Check_RX_Task_Line;
 
+   BT_Seq      : Integer_64 := -1;
+   BT_Task     : Adaflight.Barometer_Task.State;
+   BT_Device   : Adaflight.Barometer_Task.Device;
+   BT_Baro     : Adaflight.Barometer.State;
+   BT_Settings : Adaflight.Barometer.Settings;
+
+   procedure Check_Baro_Task_Line is
+      use Adaflight.Barometer_Task;
+      Name : constant String := Str (1);
+   begin
+      if Name = "btinit" then
+         BT_Seq := Int (2);
+         BT_Task := (others => <>);
+         BT_Device := (Combined_Read        => Int (6) /= 0,
+                       Temperature_Delay_Us => Interfaces.Unsigned_16 (Int (7)),
+                       Pressure_Delay_Us    => Interfaces.Unsigned_16 (Int (8)));
+         BT_Settings := (Temperature_Drift_Cm_Per_10C => Integer (Int (5)), Virtual_Device => Int (4) /= 0);
+         Adaflight.Barometer.Init (BT_Baro);
+         Adaflight.Barometer.Start_Calibration (BT_Baro, BT_Settings);
+      elsif Int (2) /= BT_Seq then
+         Put_Line ("barometer task line without its start");
+         Failures := Failures + 1;
+      elsif Name = "btstep" then
+         declare
+            Bus_Busy : constant Boolean := Int (5) /= 0;
+            Done     : constant Boolean := Int (6) /= 0;
+            R        : Report;
+            Next     : Interfaces.Integer_32 := 0;
+         begin
+            if Int (10) /= 0 then
+               Adaflight.Barometer.Set_Ground_Level (BT_Baro);
+            end if;
+            Record_Int (Name & ".before", Int (11), Phase'Pos (BT_Task.Current));
+            Record_Int (Name & ".call", Int (12), (if Bus_Busy then 0 else Device_Call'Pos (Call (BT_Task)) + 1));
+            Record_Int (Name & ".calls", Int (13), (if Bus_Busy then 0 else 1));
+            Record_Int (Name & ".calculate", Int (14),
+                        Boolean'Pos (not Bus_Busy and then Takes_Sample (BT_Task, Done)));
+            Step (BT_Task, BT_Baro, BT_Settings, BT_Device,
+                  Now_Us      => Interfaces.Unsigned_32 (Int (4)),
+                  Bus_Busy    => Bus_Busy,
+                  Done        => Done,
+                  Pressure    => Interfaces.Integer_32 (Int (8)),
+                  Temperature => Interfaces.Integer_32 (Int (9)),
+                  R           => R);
+            if not Bus_Busy then
+               Finish (BT_Task, R.Ran, Interfaces.Unsigned_32 (Int (7)), Next);
+            end if;
+            Record_Int (Name & ".ignore_state", Int (15), Boolean'Pos (R.Ignore_State_Time));
+            Record_Int (Name & ".ignore_exec", Int (16), Boolean'Pos (R.Ignore_Exec_Time));
+            Record_Int (Name & ".ignore_rate", Int (17), Boolean'Pos (R.Ignore_Exec_Rate));
+            Record_Int (Name & ".next_set", Int (18), Boolean'Pos (not Bus_Busy));
+            Record_Int (Name & ".next_state", Int (19), Integer_64 (Next));
+            Record_Int (Name & ".sleep", Int (20), Integer_64 (R.Sleep_Us));
+            --  The power's last-bit rounding, as in the barometer case.
+            Record_Result (Name & ".altitude", Bits (21), To_Bits (BT_Baro.Altitude), Absolute => 3.0);
+            Record_Int (Name & ".pressure", Int (22), Integer_64 (BT_Baro.Pressure));
+            Record_Int (Name & ".temperature", Int (23), Integer_64 (BT_Baro.Temperature));
+            Record_Int (Name & ".last_time", Int (24), Integer_64 (BT_Baro.Last_Data_Time_Us));
+            Record_Int (Name & ".interval", Int (25), Integer_64 (BT_Baro.Data_Interval_Us));
+            Record_Int (Name & ".calibrated", Int (26), Boolean'Pos (BT_Baro.Calibrated));
+         end;
+      end if;
+   end Check_Baro_Task_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -13032,6 +13097,8 @@ procedure Vector_Check is
                   Check_RC_Stats_Line;
                elsif Kind = "rxtask" then
                   Check_RX_Task_Line;
+               elsif Kind = "barotask" then
+                  Check_Baro_Task_Line;
                else
                   Check_PID_Line;
                end if;
@@ -13154,6 +13221,7 @@ begin
    Run (Dir & "/spektrum.csv", "spektrum");
    Run (Dir & "/rcstats.csv", "rcstats");
    Run (Dir & "/rxtask.csv", "rxtask");
+   Run (Dir & "/barotask.csv", "barotask");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
