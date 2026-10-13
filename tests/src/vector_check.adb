@@ -118,6 +118,7 @@ with Adaflight.MSP_Out;
 with Adaflight.Four_Way;
 with Adaflight.Gimbal_Control;
 with Adaflight.OSD_Custom_Text;
+with Adaflight.PID_Audio;
 with Adaflight.Dispatch;
 with Adaflight.ExpressLRS_Receiver;
 with Adaflight.Blackbox_Header;
@@ -13325,6 +13326,36 @@ procedure Vector_Check is
       end if;
    end Check_OSD_Custom_Text_Line;
 
+   Audio_Seq   : Integer_64 := -1;
+   Audio_State : Adaflight.PID_Audio.State;
+
+   procedure Check_PID_Audio_Line is
+      use Adaflight.PID_Audio;
+      Name : constant String := Str (1);
+   begin
+      if Name = "auinit" then
+         Audio_Seq := Int (2);
+         Audio_State := (others => <>);
+         Record_Int (Name & ".mode", Int (3), Audio_Mode'Pos (Audio_State.Mode));
+      elsif Int (2) /= Audio_Seq then
+         Put_Line ("PID audio line without its start");
+         Failures := Failures + 1;
+      elsif Name = "austep" then
+         declare
+            C : Calls;
+         begin
+            if Int (4) >= 0 then
+               Set_Mode (Audio_State, Audio_Mode'Val (Int (4)));
+            end if;
+            Update (Audio_State, Int (5) /= 0, To_Float (Bits (6)), To_Float (Bits (7)), C);
+            Record_Int (Name & ".start", Int (8), Boolean'Pos (C.Start_Noise));
+            Record_Int (Name & ".silence", Int (9), Boolean'Pos (C.Silence));
+            Record_Int (Name & ".play", Int (10), Boolean'Pos (C.Play));
+            Record_Int (Name & ".tone", Int (11), (if C.Play then Integer_64 (C.Played) else -1));
+         end;
+      end if;
+   end Check_PID_Audio_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -13561,6 +13592,8 @@ procedure Vector_Check is
                   Check_Gimbal_Line;
                elsif Kind = "osdtext" then
                   Check_OSD_Custom_Text_Line;
+               elsif Kind = "pidaudio" then
+                  Check_PID_Audio_Line;
                else
                   Check_PID_Line;
                end if;
@@ -13689,6 +13722,7 @@ begin
    Run (Dir & "/fourway.csv", "fourway");
    Run (Dir & "/gimbal.csv", "gimbal");
    Run (Dir & "/osdtext.csv", "osdtext");
+   Run (Dir & "/pidaudio.csv", "pidaudio");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
