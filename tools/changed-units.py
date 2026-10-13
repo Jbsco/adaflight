@@ -11,7 +11,7 @@ import sys
 base = sys.argv[1] if len(sys.argv) > 1 else "origin/main"
 src = pathlib.Path("core/src")
 full_triggers = ("core/alire.toml", "core/adaflight_core.gpr", "prove.do",
-                 "tools/changed-units.py", ".github/workflows/prove.yml")
+                 "tools/changed-units.py", "tools/split-units.py", ".github/workflows/prove.yml")
 
 changed = subprocess.run(["git", "diff", "--name-only", f"{base}...HEAD"],
                          check=True, capture_output=True, text=True).stdout.split()
