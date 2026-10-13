@@ -11973,6 +11973,11 @@ procedure Vector_Check is
             Inp.Now_Us := Interfaces.Unsigned_32 (Int (13));
             Inp.Now_Ms := Inp.Now_Us / 1_000;
             Inp.Bind_Pin_Level := True;
+            FD_Config.Protocol :=
+              (if NF < 36 then FSP.FrSky_D
+               else (case Int (36) is
+                        when 9 => FSP.FrSky_X, when 15 => FSP.FrSky_X_LBT, when 17 => FSP.FrSky_X_V2,
+                        when 18 => FSP.FrSky_X_LBT_V2, when others => FSP.FrSky_D));
             FD_Config.Telemetry := Int (21) /= 0;
             declare
                use Adaflight.FrSky_Hub_Telemetry;
@@ -11996,6 +12001,7 @@ procedure Vector_Check is
             FSP.Start (FD_State, FD_Config, Inp, O, Ok, Claim);
             FD_Rc := (others => 1_500);
             Record_Int (Name & ".ok", Int (14), Boolean'Pos (Ok));
+            Record_Int (Name & ".channels", Int (18), Integer_64 (FSP.Channel_Count (FD_Config)));
             Record_Int (Name & ".claim", 1, Boolean'Pos (Claim));
             Record_Text (Name & ".ops", Str (20), FD_Ops (O));
          end;
@@ -12021,6 +12027,7 @@ procedure Vector_Check is
             Inp.ADC_External := Interfaces.Unsigned_16 (Int (9));
             Inp.ADC_RSSI := Interfaces.Unsigned_16 (Int (10));
             Inp.Battery_Voltage := Interfaces.Unsigned_16 (Int (11));
+            Inp.Legacy_Voltage := Interfaces.Unsigned_16 ((Int (11) + 5) / 10);
             Inp.Hub.Acc_X := Flt (29);
             Inp.Hub.Acc_Y := Flt (30);
             Inp.Hub.Acc_Z := Flt (31);
@@ -12050,7 +12057,7 @@ procedure Vector_Check is
             end if;
             FSP.Data_Received (FD_State, FD_Config, Inp, O, Result);
             if Result = FSP.Data_Ready then
-               FSP.Set_Rc_Data (FD_State, FD_Rc);
+               FSP.Set_Rc_Data (FD_State, FD_Config, FD_Rc);
             end if;
             FD_Calibrate (O);
             Record_Int (Name & ".result", Int (12), (case Result is when FSP.None => 0, when FSP.Bind_Done => 1,
@@ -12069,10 +12076,10 @@ procedure Vector_Check is
             Record_Int (Name & ".config_offset", Int (24), Integer_64 (FD_Config.Bind_Offset));
             Record_Int (Name & ".rx_num", Int (25), Integer_64 (FD_Config.Rx_Num));
             declare
-               Image : String (1 .. 64);
+               Image : String (1 .. 128);
                Len   : Natural := 0;
             begin
-               for K in FSP.Channel_Values'Range loop
+               for K in 0 .. FSP.Channel_Count (FD_Config) - 1 loop
                   declare
                      T : constant String := Interfaces.Unsigned_16'Image (FD_Rc (K));
                   begin
@@ -12420,6 +12427,7 @@ begin
    Run (Dir & "/mavcmd.csv", "mavcmd");
    Run (Dir & "/jetitlm.csv", "jetitlm");
    Run (Dir & "/frskyd.csv", "frskyd");
+   Run (Dir & "/frskyx.csv", "frskyd");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");

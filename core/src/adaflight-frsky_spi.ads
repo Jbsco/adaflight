@@ -1,11 +1,13 @@
---  FrSky SPI receiver on a CC2500 radio, D8 protocol. Start-up resets,
---  configures and calibrates the radio on every channel. Binding tunes the
---  frequency offset up and down on bind packets, then collects the hop table
---  and the transmitter id from them. Bound, the receiver hops over the table,
---  takes channel packets from its transmitter with the RSSI from their status
---  byte, answers in the telemetry slot with the FrSky hub stream's bytes
---  ten at a time, and on timeouts hops on, switches antennas and drops the
---  RSSI. The radio and the pins stay with the target,
+--  FrSky SPI receiver on a CC2500 radio, D8 and the four D16 (X) variants.
+--  Start-up resets, configures and calibrates the radio on every channel.
+--  Binding tunes the frequency offset up and down on bind packets, then
+--  collects the hop table and the transmitter id from them, or for the V2
+--  variants takes the id from one packet and generates the table. Bound, the
+--  receiver hops over the table, takes channel packets from its transmitter
+--  with the RSSI from their status byte, and answers in the telemetry slot:
+--  D8 with the FrSky hub stream's bytes ten at a time, X with the sequenced
+--  telemetry transport. On timeouts it hops on, switches antennas and drops
+--  the RSSI. The radio and the pins stay with the target,
 --  which carries out the operations in order, hands back the calibration and
 --  shows the receive FIFO.
 with Interfaces;
@@ -26,10 +28,12 @@ package Adaflight.FrSky_SPI with SPARK_Mode is
    type Hop_Table is array (0 .. 49) of Unsigned_8;
    type Tx_Id is array (0 .. 2) of Unsigned_8;
    type A1_Source is (Battery_Voltage, External_ADC, Constant_Value);
+   type SPI_Protocol is (FrSky_D, FrSky_X, FrSky_X_LBT, FrSky_X_V2, FrSky_X_LBT_V2);
 
    --  The receiver's settings, the bind results among them, and the pins the
    --  board has.
    type Settings is record
+      Protocol      : SPI_Protocol := FrSky_D;
       Auto_Bind     : Boolean := False;
       Bind_Tx_Id    : Tx_Id := (others => 0);
       Bind_Offset   : Integer_8 := 0;
@@ -64,6 +68,15 @@ package Adaflight.FrSky_SPI with SPARK_Mode is
 
    type Frame_Bytes is array (0 .. 19) of Unsigned_8;
 
+   subtype Sequence_Id is Natural range 0 .. 3;
+   type Telemetry_Data is array (0 .. 5) of Unsigned_8;
+   type Remote_Frame is record
+      Data             : Telemetry_Data := (others => 0);
+      Needs_Processing : Boolean := False;
+   end record;
+   type Remote_Frames is array (Sequence_Id) of Remote_Frame;
+   type Local_Frames is array (Sequence_Id) of Telemetry_Data;
+
    Hub_Buffer_Size : constant := 64;
    type Hub_Bytes is array (0 .. Hub_Buffer_Size - 1) of Unsigned_8;
 
@@ -91,6 +104,25 @@ package Adaflight.FrSky_SPI with SPARK_Mode is
       Data_Errors       : Unsigned_16 := 0;
       Frame             : Frame_Bytes := (others => 0);
       Payload           : Payload_Bytes := (others => 0);
+      Packet_Length     : Natural range 20 .. 35 := 20;
+      Telemetry_Delay   : Integer_32 range 0 .. 1_500 := 0;
+      Retry_Count       : Natural range 0 .. 5 := 0;
+      Skip_Channels     : Boolean := True;
+      Remote_Ack_Id     : Sequence_Id := 0;
+      Packet_Timer_Us   : Unsigned_32 := 0;
+      Frame_Received    : Boolean := False;
+      Receive_Delay_Us  : Integer_32 range 0 .. 5_300 := 0;
+      Channels_To_Skip  : Unsigned_8 := 1;
+      Packet_Errors     : Unsigned_32 := 0;
+      Telemetry_Received : Boolean := False;
+      Remote            : Remote_Frames;
+      Response          : Unsigned_8 := 0;
+      Sent              : Local_Frames := (others => (others => 0));
+      Local_Packet_Id   : Sequence_Id := 0;
+      Even_Run          : Boolean := False;
+      Out_Data          : Hub_Bytes := (others => 0);
+      Out_Writer        : Natural range 0 .. Hub_Buffer_Size - 1 := 0;
+      Out_Reader        : Natural range 0 .. Hub_Buffer_Size - 1 := 0;
       Telemetry_Enabled : Boolean := False;
       Hub               : Adaflight.FrSky_Hub_Telemetry.Stream;
       Hub_Data          : Hub_Bytes := (others => 0);
@@ -139,6 +171,7 @@ package Adaflight.FrSky_SPI with SPARK_Mode is
       ADC_External    : Unsigned_16 := 0;
       ADC_RSSI        : Unsigned_16 := 0;
       Battery_Voltage : Unsigned_16 := 0;
+      Legacy_Voltage  : Unsigned_16 := 0;
       Hub             : Adaflight.FrSky_Hub_Telemetry.Inputs;
       Chip_Ok         : Boolean := True;
       Hub_Free        : Boolean := True;
@@ -146,8 +179,8 @@ package Adaflight.FrSky_SPI with SPARK_Mode is
 
    type Received is (None, Bind_Done, Data_Ready);
 
-   --  Start-up: the pins, the chip check, and the D8 protocol from its
-   --  initial state; false when the chip does not answer. The RSSI source
+   --  Start-up: the pins, the chip check, and the protocol from its initial
+   --  state; false when the chip does not answer. The RSSI source
    --  passes to the protocol when none is set.
    procedure Start
      (S : out State; C : Settings; Inp : Inputs; O : out Output; Ok : out Boolean; Claim_RSSI : out Boolean);
@@ -158,14 +191,20 @@ package Adaflight.FrSky_SPI with SPARK_Mode is
    --  A bind request from outside, as the bind command makes it.
    procedure Request_Bind (S : in out State);
 
-   --  One protocol call: the start-up, the bind states, then the D8 states.
+   --  One protocol call: the start-up, the bind states, then the protocol's
+   --  own states.
    procedure Data_Received
      (S : in out State; C : in out Settings; Inp : Inputs; O : out Output; Result : out Received);
 
-   Channel_Count : constant := 8;
-   type Channel_Values is array (0 .. Channel_Count - 1) of Unsigned_16;
+   Max_Channels : constant := 16;
+   type Channel_Values is array (0 .. Max_Channels - 1) of Unsigned_16;
 
-   --  The channels of the last data packet, kept unless one is out of range.
-   procedure Set_Rc_Data (S : in out State; Rc : in out Channel_Values);
+   --  The channels a protocol carries: eight for D8, sixteen for X.
+   function Channel_Count (C : Settings) return Natural is (if C.Protocol = FrSky_D then 8 else 16);
+
+   --  The channels of the last data packet: D8 keeps them unless one is out
+   --  of range, X skips a failsafe packet and places a channel with its
+   --  shift bit eight higher.
+   procedure Set_Rc_Data (S : in out State; C : Settings; Rc : in out Channel_Values);
 
 end Adaflight.FrSky_SPI;

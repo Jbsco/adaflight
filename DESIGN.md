@@ -2538,3 +2538,26 @@ The harness replays the six D8 sequences of D114 unchanged and three more with t
 with every sensor and a GPS fix, where the eighth hub cycle stalls the buffer, and two with random
 sensor sets and settings, the scripted transmitter acknowledging nine telemetry frames in ten.
 Every operation, frame byte and buffer count of the 27009 lines replays byte for byte.
+
+## D116. FrSky SPI X receivers (2026-10-13)
+
+The FrSky SPI unit gains the four D16 variants: FCC, LBT, and their V2 forms, each with its radio
+configuration, packet length and telemetry delay. A V2 bind is one packet, decoded with the 0xA7
+mask, whose transmitter id seeds a generated hop table that steps around each band's reserved
+channels. A packet passes the D16 CRC over its body, the transmitter id, and the receiver number
+when both sides set one. The first good packet after a reset gives the hop skip.
+
+Each good packet stores the transmitter's telemetry slot by its sequence id and answers with
+either a resend request for the first missing slot or an acknowledgement of the slots received in
+order. Five resend requests in a row reset the transport. The receiver's own telemetry frame
+alternates the RSSI and the A1 value, answers an init request, resends a slot on request, or fills
+the next slot with up to five SmartPort bytes, and carries the D16 CRC. After the telemetry slot
+the receiver waits 3.7 ms, hops by the skip, switches antennas after two misses, and resets the hop
+skip after 100. Channels decode as eleven-bit values with a shift bit that moves a channel eight
+up, and a failsafe packet leaves them as they were. SmartPort payloads over the link are open.
+
+The harness replays eight sequences of 4000 calls recorded from the reference, two for each
+variant, with a scripted transmitter: bind packets, D16 packets with random skips, receiver
+numbers, failsafe flags, shifted channels and telemetry markers with init and resend requests,
+corrupted and short packets, noise and dropouts up to 900 calls. Every operation, frame byte,
+channel value, bind result and state of the 32008 lines replays byte for byte.
