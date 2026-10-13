@@ -2683,3 +2683,20 @@ checksums, two packets per 11 or 22 ms frame, receive errors with and without a 
 counts, other ids, dropouts, bind presses and commands, the telemetry feature and a clock near its
 wrap. Every operation, channel value, bind result, timer and state of the 21008 lines replays byte
 for byte.
+
+## D121. RC statistics (2026-10-13)
+
+The RC statistics unit contains the statistics the OSD statistics page shows as full throttle time,
+full throttle count and average throttle. Each update at 100 Hz takes the throttle percentage. Once
+the throttle passes 15% after arming, each update while armed and out of crash flip counts a
+sample, adds the percentage to the sum, adds the time since the last update while the throttle is
+at 100%, and counts each new arrival at 100%. Arming clears only the raised flag, so the statistics
+run from power-on across flights, as in the reference. The average is the float quotient of the sum
+by the count plus 0.5, truncated. Before the first sample adaflight returns 0, and when 3D reverse
+throttle has wrapped the unsigned sum it returns 127, where the reference conversions are undefined
+(F131).
+
+The harness replays six sequences of 3000 updates recorded from the reference: flights with arming
+and disarming, throttle ramps and holds at full throttle, crash flip, irregular update times, one
+sequence with 3D reverse throttle and one with a clock near its wrap. Every count, sum, time and
+defined average of the 18006 lines replays exactly.
