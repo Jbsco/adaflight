@@ -3111,3 +3111,40 @@ The harness replays 1200 calls of each group of helpers recorded from the refere
 random plans, waypoints, estimates, leg states and settings within the configuration interface's
 ranges. Every result of the 9600 lines replays exactly.
 
+
+## D141. Flight plan executor legs (2026-10-13)
+
+`Adaflight.Flight_Plan_Nav` contains the second part of the executor: one cycle of a carrot leg.
+The tracker reads back the carrot the navigation has walked and finds the next positional waypoint.
+The corner speed comes from a constant velocity-change budget, and a point leg next lowers it to
+its braking speed. The gate is the corner speed's radius on a fly-by and the arrival radius on a
+fly-over. It is crossed at the waypoint, at the carrot where the leg turns, or past the waypoint
+inside an 8 m corridor. Before the gate, the stall and flyaway checks judge the distance to the
+waypoint: 30 s without closing by 2 m, or a fall back past a margin of 20 m to 100 m, aborts the
+plan. The carrot marches along the leg line at a trapezoid speed keyed on the filtered along-track
+distance and steers toward a point one lead ahead within the carrot acceleration, which goes to the
+turn first. Its brake starts early by the distance the carrot covers in the craft's 0.5 s lag.
+Through the approach the nose blends onto the next leg. A turn-in heads straight at the waypoint at
+up to 4 m/s and releases its lean cap once the craft's course is within 15 degrees. A leg that
+states its yaw holds the nose or faces its target or the next waypoint, and a face-the-target leg
+waits until the nose has come round, for at most 10 s. The heading-fault detector reports a GPS
+course 70 degrees off the nose for 2 s at speed while the nose is on the waypoint. Each cycle
+returns its calls into the autopilot in order. The caller advances the plan on a crossed gate,
+which is the executor's next part.
+
+The unit is SPARK for the leg's bounds. Every cycle keeps the leg's points and the carrot within
+the navigator's 2^18 m bound and the carrot's velocity within 1000 m/s in each component. Each
+intermediate of the tracker has a stated range, and the steering, its turn, the corner speed and
+the leg line are separate subprograms, so each proof runs in a small context. The leg's direction
+and the steering aim are held within 2 in each component, which a unit vector never reaches, and
+the carrot's velocity within 1000 m/s, which no cruise reaches, so no hold acts. The time a fault
+is held saturates at 10^6 s, past the 2 s abort. `Adaflight.Maths.Atan2_Approx` now takes any
+finite arguments, as the reference's does: the turn-in's course test passes it products of the
+craft's velocity and its distance to the waypoint.
+
+The harness replays 120 scenarios recorded from the reference executor with its rescue plan
+compiled in. Each sets up a carrot leg through the navigation's own calls, with a craft that
+follows the commanded velocity or only drifts, a nose that turns toward the commanded heading at
+90 degrees a second, and a GPS course that follows the nose, off by a bias in some scenarios. Every
+state field, autopilot call and commanded velocity of the 43076 steps replays exactly, and every
+line of the executor's body runs.

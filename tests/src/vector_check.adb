@@ -14125,7 +14125,8 @@ procedure Vector_Check is
          Max_Speed      => Interfaces.Unsigned_16 (Int (First + 3)),
          Nav_Accel      => Interfaces.Unsigned_16 (Int (First + 4)),
          Landing_Rate   => Interfaces.Unsigned_8 (Int (First + 5)),
-         Climb_Rate     => F (First + 6));
+         Climb_Rate     => F (First + 6),
+         others         => <>);
 
       function Estimate (First : Positive) return Adaflight.Position_Nav.Estimate is
         (Position => (East => F (First), North => F (First + 1), Up => F (First + 2)),
@@ -14234,7 +14235,7 @@ procedure Vector_Check is
             Expect ("rest_x", 26, Rest.X);
             Expect ("rest_y", 27, Rest.Y);
             Helper_State.Carrot_Velocity := (X => F (28), Y => F (29));
-            Place_Carrot (Helper_State, Est, (X => F (30), Y => F (31)), C);
+            Helper_State.Carrot := Place_Carrot (Est, Helper_State.Carrot_Velocity, (X => F (30), Y => F (31)), C);
             Expect ("carrot_x", 32, Helper_State.Carrot.X);
             Expect ("carrot_y", 33, Helper_State.Carrot.Y);
          end;
