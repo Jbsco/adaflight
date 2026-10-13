@@ -3423,3 +3423,21 @@ gyro configurations, about a third of them already at their sliders' result, wit
 their ranges, short, long, or with one field outside its range. Every result, length, reply byte
 and setting of the 4025 requests within their ranges replays exactly, and each of the 775 outside
 them is an error that leaves the settings unchanged.
+
+## D154. MSP OSD replies (2026-10-13)
+
+`Adaflight.MSP_OSD_Out` contains the MSP out messages of the OSD: configuration and warnings line.
+The configuration reply holds OSD flags from the display device's type and readiness, video
+system, units, alarms, element positions, statistics enabled, timers, warnings enabled as low half
+and full mask, profile count and selection, stick overlay mode, camera frame, and link quality and
+RSSI dBm alarms. A reply to the MSP display port's own serial port keeps the layout of the first
+80 elements without the RSSI dBm alarm. A build without the video system, profile or stick
+overlay options reports the HD video system, one profile selected, or overlay mode zero. The
+warnings reply gives the line's severity with the blink bit and the line as a length-prefixed
+string. The element set is the 89 items of D102. The caller gathers the settings, the display
+device's type and readiness and the rendered warnings line into a snapshot.
+
+The harness replays 4800 requests recorded from the reference MSP processor, in a build with the
+video system, profiles, stick overlay, MSP display port with its font and frame buffer OSD and
+one without, on random settings, devices and warnings lines. Every result, length and byte of the
+4808 lines replays exactly.
