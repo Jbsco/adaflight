@@ -25,10 +25,11 @@ package Adaflight.SPI_Radio with SPARK_Mode is
      (Reset, Startup_Speed, Normal_Speed, Strobe, Write_Register, Read_Fifo, Write_Fifo, Set_Power, Delay_Ms,
       Delay_Us, Calibrate, Pin_High, Pin_Low, Pin_Toggle, Set_RSSI, Set_RSSI_Direct, Save_Config, Write_Id,
       Read_Register, Await_Clear, Reset_Exti, Write_Block, Await_Value);
-   type Pin is (LED, Tx_Enable, LNA_Enable, Antenna_Select);
+   type Pin is (LED, Tx_Enable, LNA_Enable, Antenna_Select, Chip_Enable);
 
    --  One operation: the strobe, register, byte count or power level, the
-   --  register value, the pin, the RSSI or the delay, and the radio id.
+   --  register value, the pin, the RSSI or the delay, and the radio id or a
+   --  delay too long for sixteen bits.
    type Op is record
       Kind  : Op_Kind := Strobe;
       A     : Unsigned_8 := 0;

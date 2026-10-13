@@ -121,6 +121,7 @@ with Adaflight.OSD_Custom_Text;
 with Adaflight.PID_Audio;
 with Adaflight.PINIO_Box;
 with Adaflight.Warning_LED;
+with Adaflight.V202;
 with Adaflight.Dispatch;
 with Adaflight.ExpressLRS_Receiver;
 with Adaflight.Blackbox_Header;
@@ -11929,7 +11930,7 @@ procedure Vector_Check is
       function Pin_Letter (P : SPR.Pin) return Character is
         (case P is
             when SPR.LED => 'L', when SPR.Tx_Enable => 'T', when SPR.LNA_Enable => 'N',
-            when SPR.Antenna_Select => 'A');
+            when SPR.Antenna_Select => 'A', when SPR.Chip_Enable => 'E');
    begin
       for K in 1 .. O.Count loop
          declare
@@ -11954,7 +11955,8 @@ procedure Vector_Check is
                   end;
                when SPR.Set_Power => Put ("p" & FD_Short_Hex (Natural (X.A)));
                when SPR.Delay_Ms => Put ("d" & FD_Short_Hex (Natural (X.Value)));
-               when SPR.Delay_Us => Put ("u" & FD_Short_Hex (Natural (X.Value)));
+               when SPR.Delay_Us =>
+                  Put ("u" & FD_Short_Hex (if X.Word /= 0 then Natural (X.Word) else Natural (X.Value)));
                when SPR.Calibrate => Put ("C");
                when SPR.Pin_High => Put (Pin_Letter (X.On) & "1");
                when SPR.Pin_Low => Put (Pin_Letter (X.On) & "0");
@@ -13437,6 +13439,55 @@ procedure Vector_Check is
       end if;
    end Check_Warning_LED_Line;
 
+   V202_Seq   : Integer_64 := -1;
+   V202_State : Adaflight.V202.State;
+   V202_RC    : Adaflight.V202.RC_Channels := (others => 0);
+
+   procedure Check_V202_Line is
+      use Adaflight.V202;
+      Name : constant String := Str (1);
+      O    : FSP.Output;
+   begin
+      if Name = "nvinit" then
+         V202_Seq := Int (2);
+         V202_RC := (others => 0);
+         Init (V202_State, (if Int (3) = 0 then Rate_250K else Rate_1M), Interfaces.Unsigned_32 (Int (4)), O);
+         Record_Int (Name & ".channels", Int (5), RC_Channel_Count);
+         Record_Text (Name & ".ops", Str (6), FD_Ops (O));
+      elsif Int (2) /= V202_Seq then
+         Put_Line ("V202 line without its start");
+         Failures := Failures + 1;
+      elsif Name = "nvstep" then
+         declare
+            Channel_Of : constant array (RC_Index) of RC_Index := (2, 3, 1, 0, 4, 5, 6, 7, 8, 9, 10);
+            Payload    : Packet := (others => 0);
+            R          : Result;
+         begin
+            if Str (6) /= "-" then
+               declare
+                  B : constant Byte_Array := Hex_Bytes (6);
+               begin
+                  for I in Payload'Range loop
+                     Payload (I) := B (B'First + I);
+                  end loop;
+               end;
+            end if;
+            Data_Received (V202_State, Interfaces.Unsigned_32 (Int (4)), Interfaces.Unsigned_8 (Bits (5)), Payload,
+                           V202_RC, O, R);
+            Record_Int (Name & ".result", Int (7), Result'Pos (R));
+            Record_Text (Name & ".ops", Str (8), FD_Ops (O));
+            for I in RC_Index loop
+               Record_Int (Name & ".rc", Int (9 + I), Integer_64 (V202_RC (Channel_Of (I))));
+            end loop;
+            Record_Int (Name & ".bound", Int (20), Bind_Phase'Pos (V202_State.Phase));
+            Record_Int (Name & ".hop", Int (21), Integer_64 (V202_State.Channel_Index));
+            Record_Int (Name & ".tx_id", Integer_64 (Bits (22)),
+                        Integer_64 (V202_State.Tx_Id (0)) * 65536 + Integer_64 (V202_State.Tx_Id (1)) * 256
+                        + Integer_64 (V202_State.Tx_Id (2)));
+         end;
+      end if;
+   end Check_V202_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -13679,6 +13730,8 @@ procedure Vector_Check is
                   Check_PINIO_Box_Line;
                elsif Kind = "warnled" then
                   Check_Warning_LED_Line;
+               elsif Kind = "v202" then
+                  Check_V202_Line;
                else
                   Check_PID_Line;
                end if;
@@ -13810,6 +13863,7 @@ begin
    Run (Dir & "/pidaudio.csv", "pidaudio");
    Run (Dir & "/piniobox.csv", "piniobox");
    Run (Dir & "/warnled.csv", "warnled");
+   Run (Dir & "/v202.csv", "v202");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");

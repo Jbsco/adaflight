@@ -2907,3 +2907,28 @@ The harness replays four sequences of 3000 steps recorded from the reference wit
 stubbed into a log and the clock scripted: mode switches at random, updates at intervals from none
 to two seconds and around 500 ms, direct refreshes, and a clock near its wrap. Every LED call of the
 12004 lines replays exactly.
+
+## D133. NRF24L01 driver and V202 receiver (2026-10-13)
+
+The NRF24L01 unit contains the radio driver the NRF24 receivers share. Register writes go out as
+SPI commands with the write bit, address registers as block writes, the payload read and the FIFO
+flushes as their commands, and the chip enable pin sets the standby, receive and transmit modes.
+The power-up waits out the chip's 100 ms settling time from start before it writes the
+configuration, then 4.5 ms. Register reads, the status and the FIFO status, are inputs the target
+supplies. The SPI radio unit gains the chip enable pin and a delay longer than sixteen bits for
+that settling wait.
+
+The V202 unit contains the V202 receiver. It takes 16-byte packets with a two-byte CRC on a fixed
+address. Unbound, it hops the first row of the frequency table every millisecond and binds to the
+first packet with both bind flags, whose transmitter id picks a table row and an offset for its
+sixteen channels. Bound, a packet with that id gives the throttle, the three sticks in sign and
+magnitude scaled onto 1000 to 2000 in integer arithmetic, four switches from the flag byte and three
+from the mode byte; a bound receiver ignores bind packets and other ids. The receiver hops after
+each packet, and after the timeout of 1 ms while binding or 10 ms once data arrives. The unit is
+SPARK for the hop table and the channel scaling.
+
+The harness replays six sequences of 2500 calls recorded from the reference driver and protocol with
+the SPI commands, the chip enable pin and the clock stubbed: both data rates, a start inside the
+settling time, a clock near its wrap, bind packets, data packets with the bound id and with
+corrupted ids, bind packets after binding, and gaps that make the receiver hop. Every operation,
+result, channel and binding state of the 15006 lines replays exactly.
