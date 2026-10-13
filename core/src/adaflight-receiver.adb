@@ -285,7 +285,8 @@ package body Adaflight.Receiver with SPARK_Mode is
       Now_Us           : Time_Us;
       Delta_Us         : Time_Delta;
       Task_In_Progress : Boolean;
-      Frame            : Frame_Report
+      Frame            : Frame_Report;
+      Override         : Override_Report
    ) is
       Received    : Boolean := False;
       Data_Driven : Boolean := True;
@@ -320,6 +321,11 @@ package body Adaflight.Receiver with SPARK_Mode is
          S.Signal_Received := False;
          S.Need_Signal_Before := S.Need_Signal_Before + Recheck_Interval_Us;
          S.Processing_Required := True;
+      end if;
+      if Override_Polled (C, Override.Box) and then Override.Complete then
+         S.Signal_Received := True;
+         S.Processing_Required := True;
+         S.Need_Signal_Before := Now_Us + Loss_Trigger_Us;
       end if;
    end Frame_Check;
 
@@ -379,12 +385,37 @@ package body Adaflight.Receiver with SPARK_Mode is
 
    --  The raw channels through the map and, for the flight channels, the
    --  calibration; a timed-out pulse of zero stays zero.
-   procedure Read_Channels (S : in out State; C : Settings; Raw : Raw_Values) is
+   --  A value as a 16-bit count holds it, truncated.
+   function Whole (Value : Raw_Value) return Raw_Value is
+      Truncated : constant Float := Float'Truncation (Value);
+   begin
+      pragma Assert (Truncated <= Value);
+      pragma Assert (Truncated >= 0.0);
+      return Truncated;
+   end Whole;
+
+   --  The override's sample of a raw channel: the MSP channel within the
+   --  pulse limits when the override is on and the channel is set and
+   --  fresh, else the provider's channel, both as whole microseconds.
+   function Override_Sample (C : Settings; Provider : Raw_Value; Override : Override_Report; Ch : Channel)
+     return Raw_Value
+   is
+      MSP : constant Raw_Value :=
+        Float'Max (Float (C.Min_Usec), Float'Min (Override.Raw (Ch), Float (C.Max_Usec)));
+   begin
+      if Override.Box and then C.Override_Channels (Ch) and then Override.Fresh (Ch) then
+         return Whole (MSP);
+      end if;
+      return Whole (Provider);
+   end Override_Sample;
+
+   procedure Read_Channels (S : in out State; C : Settings; Raw : Raw_Values; Override : Override_Report) is
    begin
       for Ch in 0 .. S.Channels - 1 loop
          declare
             Raw_Ch : constant Channel := (if Ch < Mappable_Count then C.Map (Ch) else Ch);
-            Value  : Signal := Float (Raw (Raw_Ch));
+            Value  : Signal :=
+              (if Override_Configured (C) then Override_Sample (C, Raw (Raw_Ch), Override, Raw_Ch) else Raw (Raw_Ch));
          begin
             if Ch < Flight_Channel_Count and then Value /= 0.0 then
                Value := Value * S.Scales (Ch).Scale + S.Scales (Ch).Offset;
@@ -465,6 +496,7 @@ package body Adaflight.Receiver with SPARK_Mode is
       Now_Us          : Time_Us;
       Now_Ms          : Time_Ms;
       Raw             : Raw_Values;
+      Override        : Override_Report;
       Box_Failsafe    : Boolean;
       Box_3D          : Boolean;
       Failsafe_Active : Boolean;
@@ -491,7 +523,7 @@ package body Adaflight.Receiver with SPARK_Mode is
          Processed := True;
          return;
       end if;
-      Read_Channels (S, C, Raw);
+      Read_Channels (S, C, Raw, Override);
       Detect_Signal_Loss (S, C, Now_Ms, Box_Failsafe, Box_3D, Failsafe_Active, Valid);
       S.Sample_Index := (S.Sample_Index + 1) mod 256;
       Processed := True;

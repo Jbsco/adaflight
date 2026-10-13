@@ -2700,3 +2700,20 @@ The harness replays six sequences of 3000 updates recorded from the reference: f
 and disarming, throttle ramps and holds at full throttle, crash flip, irregular update times, one
 sequence with 3D reverse throttle and one with a clock near its wrap. Every count, sum, time and
 defined average of the 18006 lines replays exactly.
+
+## D122. MSP override in the receiver (2026-10-13)
+
+The receiver takes its raw channels as floats, so a provider's fraction of a microsecond reaches
+the channel ranges as it does in the reference. The receiver unit adds the MSP override: the
+channels set for it and whether it may stand in for a lost link. While any channel is set, every
+channel reads as a whole microsecond. A channel that is set and fresh on the MSP receiver reads the
+MSP channel within the pulse limits when the override mode is on, and the provider's channel
+otherwise. The reference truncates every channel this way (F132). With the override mode on and
+the link setting on, a complete override frame counts as a received frame in the frame check. The
+frame check reads the MSP receiver's override status only then, since a read consumes it.
+
+The receiver vectors gain eight sequences of 300 steps recorded from the reference with the
+override compiled in: fractional pulses throughout, six with an override mask and random link
+settings, the override mode switched on and off, MSP channels inside and outside the limits,
+random freshness and override frame status. The 30 earlier sequences record byte for byte as
+before. Every value of the 11894 lines replays exactly.

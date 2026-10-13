@@ -2533,7 +2533,19 @@ procedure Vector_Check is
 
    Rx_State    : Adaflight.Receiver.State;
    Rx_Settings : Adaflight.Receiver.Settings;
-   Rx_Raw      : Adaflight.Receiver.Raw_Values := (others => 0);
+   Rx_Raw      : Adaflight.Receiver.Raw_Values := (others => 0.0);
+   Rx_Override : Adaflight.Receiver.Override_Report;
+   Rx_Override_Fields : Boolean := False;
+
+   --  A raw channel field: a whole pulse, or a fractional one as its float bits after an h.
+   function Raw_Field (I : Positive) return Float is
+      T : constant String := Str (I);
+   begin
+      if T (T'First) = 'h' then
+         return To_Float (Unsigned_32'Value ("16#" & T (T'First + 1 .. T'Last) & "#"));
+      end if;
+      return Float (Int (I));
+   end Raw_Field;
    --  The frame the driver holds until a frame check that is not skipped
    --  for a running task consumes it.
    Rx_Frame    : Adaflight.Receiver.Frame_Report;
@@ -2611,7 +2623,7 @@ procedure Vector_Check is
             if Arm_Aux >= 0 then
                Init_Arm_Switch (Rx_State, Arm_Aux, (Start_Step => Arm_Start, End_Step => Arm_End));
             end if;
-            Rx_Raw := (others => 1500);
+            Rx_Raw := (others => 1500.0);
             Rx_Frame := (others => False);
             Expect_Next ("channels", Integer_64 (Rx_State.Channels));
             Expect_Next ("rssi_source", RSSI_Source'Pos (Rx_State.RSSI_From));
@@ -2622,6 +2634,20 @@ procedure Vector_Check is
                Expect_Float_Next ("scale", Rx_State.Scales (F).Scale);
                Expect_Float_Next ("offset", Rx_State.Scales (F).Offset);
             end loop;
+            Rx_Override_Fields := K <= NF;
+            Rx_Override := (others => <>);
+            Rx_Settings.Override_Channels := (others => False);
+            Rx_Settings.Override_Failsafe := False;
+            if Rx_Override_Fields then
+               declare
+                  Mask : constant Integer_64 := Next;
+               begin
+                  for Ch in Channel loop
+                     Rx_Settings.Override_Channels (Ch) := (Mask / 2 ** Ch) mod 2 = 1;
+                  end loop;
+               end;
+               Rx_Settings.Override_Failsafe := Next /= 0;
+            end if;
             Check_Fields;
          end;
       elsif Name = "rxstep" then
@@ -2674,14 +2700,30 @@ procedure Vector_Check is
                end;
             end loop;
             for Ch in Channel loop
-               Rx_Raw (Ch) := Integer (Next);
+               Rx_Raw (Ch) := Raw_Field (K);
+               K := K + 1;
             end loop;
-            Frame_Check (Rx_State, Rx_Settings, Now_Us, Delta_Us, Task_In_Progress, Rx_Frame);
+            if Rx_Override_Fields then
+               Rx_Override.Box := Next /= 0;
+               Rx_Override.Complete := Next mod 2 = 1;
+               for Ch in Channel loop
+                  Rx_Override.Raw (Ch) := Raw_Field (K);
+                  K := K + 1;
+               end loop;
+               declare
+                  Fresh : constant Integer_64 := Next;
+               begin
+                  for Ch in Channel loop
+                     Rx_Override.Fresh (Ch) := (Fresh / 2 ** Ch) mod 2 = 1;
+                  end loop;
+               end;
+            end if;
+            Frame_Check (Rx_State, Rx_Settings, Now_Us, Delta_Us, Task_In_Progress, Rx_Frame, Rx_Override);
             if not Task_In_Progress then
                Rx_Frame := (others => False);
             end if;
-            Calculate_Channels (Rx_State, Rx_Settings, Now_Us, Now_Us / 1_000, Rx_Raw, Box_Failsafe, Box_3D,
-                                Failsafe_Active, Processed, Frame_Processed, Valid);
+            Calculate_Channels (Rx_State, Rx_Settings, Now_Us, Now_Us / 1_000, Rx_Raw, Rx_Override, Box_Failsafe,
+                                Box_3D, Failsafe_Active, Processed, Frame_Processed, Valid);
             Update_RSSI (Rx_State, Rx_Settings, Now_Us, ADC_Sample);
             Expect_Next ("processed", Boolean'Pos (Processed));
             Expect_Next ("frame_processed", Boolean'Pos (Frame_Processed));

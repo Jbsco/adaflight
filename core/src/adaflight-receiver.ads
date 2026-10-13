@@ -37,8 +37,9 @@ package Adaflight.Receiver with SPARK_Mode is
    Pulse_Min : constant := 750;
    Pulse_Max : constant := 2250;
    subtype Pulse_Us is Natural range Pulse_Min .. Pulse_Max;
-   subtype Raw_Value is Natural range 0 .. 65_535;
+   subtype Raw_Value is Float range 0.0 .. 65_535.0;
    type Raw_Values is array (Channel) of Raw_Value;
+   type Channel_Set is array (Channel) of Boolean;
 
    --  A calibration range inverts the channel when its low end is above its
    --  high end; equal ends would scale by an infinite factor (DESIGN.md D40).
@@ -82,6 +83,8 @@ package Adaflight.Receiver with SPARK_Mode is
       Feature_3D        : Boolean := False;
       Switched_Mode_3D  : Boolean := False;
       Failsafe_Throttle : Natural range 1000 .. 2000 := 1000;
+      Override_Channels : Channel_Set := (others => False);
+      Override_Failsafe : Boolean := False;
    end record;
 
    type Values is array (Channel) of Signal;
@@ -166,6 +169,23 @@ package Adaflight.Receiver with SPARK_Mode is
 
    type Validity is (No_Report, Data_Received, Data_Failed);
 
+   --  The MSP receiver as the override reads it: the override mode's box,
+   --  whether its override frame is complete, its channels, and which of
+   --  them are fresh.
+   type Override_Report is record
+      Box      : Boolean := False;
+      Complete : Boolean := False;
+      Raw      : Raw_Values := (others => 0.0);
+      Fresh    : Channel_Set := (others => False);
+   end record;
+
+   function Override_Configured (C : Settings) return Boolean is (for some Ch in Channel => C.Override_Channels (Ch));
+
+   --  Whether the frame check reads the override frame status, which a read
+   --  consumes on the MSP receiver.
+   function Override_Polled (C : Settings; Box : Boolean) return Boolean is
+     (Box and then Override_Configured (C) and then C.Override_Failsafe);
+
    --  The channels start at the center, the throttle at its minimum, the
    --  scalers come from the ranges, the RSSI source is the analog input, the
    --  channel, or else the source a protocol claimed, and the filters come
@@ -198,26 +218,31 @@ package Adaflight.Receiver with SPARK_Mode is
    --  The frame check of each scheduler pass: a received frame marks the
    --  signal and the data to process; silence past the trigger interval
    --  drops the signal and asks for the loss to be processed, then rechecks
-   --  every 50 milliseconds.
+   --  every 50 milliseconds. A complete override frame, when the frame
+   --  check polls it, counts as a received frame.
    procedure Frame_Check (
       S                : in out State;
       C                : Settings;
       Now_Us           : Time_Us;
       Delta_Us         : Time_Delta;
       Task_In_Progress : Boolean;
-      Frame            : Frame_Report
+      Frame            : Frame_Report;
+      Override         : Override_Report
    );
 
    --  The receiver task: the auxiliary frame processed first, then, when
    --  data waits and no samples are skipped, the raw channels read, mapped,
    --  and scaled, and the signal loss behaviour applied; Valid says what the
-   --  caller tells the failsafe.
+   --  caller tells the failsafe. While any channel is set for the override,
+   --  each channel reads as a whole microsecond, from the MSP receiver when
+   --  the override is on and the channel is set and fresh.
    procedure Calculate_Channels (
       S               : in out State;
       C               : Settings;
       Now_Us          : Time_Us;
       Now_Ms          : Time_Ms;
       Raw             : Raw_Values;
+      Override        : Override_Report;
       Box_Failsafe    : Boolean;
       Box_3D          : Boolean;
       Failsafe_Active : Boolean;
