@@ -6,9 +6,7 @@ package body Adaflight.OSD_Format with SPARK_Mode is
    use type Interfaces.Integer_64;
    subtype Integer_64 is Interfaces.Integer_64;
 
-   procedure Append (T : in out Text; C : Character)
-     with Post => T.Length = Natural'Min (Max_Length, T.Length'Old + 1)
-   is
+   procedure Append (T : in out Text; C : Character) is
    begin
       if T.Length < Max_Length then
          T.Length := T.Length + 1;
@@ -16,10 +14,7 @@ package body Adaflight.OSD_Format with SPARK_Mode is
       end if;
    end Append;
 
-   procedure Append_String (T : in out Text; S : String)
-     with Pre  => S'Length <= Max_Length,
-          Post => T.Length = Natural'Min (Max_Length, T.Length'Old + S'Length)
-   is
+   procedure Append_String (T : in out Text; S : String) is
    begin
       for K in S'Range loop
          pragma Loop_Invariant (T.Length = Natural'Min (Max_Length, T.Length'Loop_Entry + (K - S'First)));
@@ -39,9 +34,7 @@ package body Adaflight.OSD_Format with SPARK_Mode is
       Append_String (T, Image);
    end Append_Padded;
 
-   procedure Append_Natural (T : in out Text; N : Natural; Width : Natural; Zero_Pad : Boolean)
-     with Pre => Width <= 9
-   is
+   procedure Append_Natural (T : in out Text; N : Natural; Width : Natural; Zero_Pad : Boolean) is
       Buffer : String (1 .. Adaflight.Text.Max_Decimal_Length) := (others => ' ');
       Length : Natural;
    begin
@@ -49,9 +42,7 @@ package body Adaflight.OSD_Format with SPARK_Mode is
       Append_Padded (T, Buffer (1 .. Length), Width, Zero_Pad);
    end Append_Natural;
 
-   procedure Append_Integer (T : in out Text; V : Integer_32; Width : Natural; Zero_Pad : Boolean)
-     with Pre => Width <= 9
-   is
+   procedure Append_Integer (T : in out Text; V : Integer_32; Width : Natural; Zero_Pad : Boolean) is
       Buffer : String (1 .. Adaflight.Text.Max_Decimal_Length) := (others => ' ');
       Length : Natural;
    begin

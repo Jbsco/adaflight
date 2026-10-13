@@ -54,6 +54,22 @@ package Adaflight.OSD_Format with SPARK_Mode is
    Symbol_Metres_S    : constant Character := Character'Val (16#9F#);
    Symbol_Fahrenheit  : constant Character := Character'Val (16#0D#);
    Symbol_Celsius     : constant Character := Character'Val (16#0E#);
+   Symbol_Volt        : constant Character := Character'Val (16#06#);
+   Symbol_Amp         : constant Character := Character'Val (16#9A#);
+   Symbol_MAh         : constant Character := Character'Val (16#07#);
+
+   --  Text appended a character, a string, or a number padded on the left
+   --  to a width with zeros or spaces, as the reference's printf pads a
+   --  field; past the maximum the text stops.
+   procedure Append (T : in out Text; C : Character)
+     with Post => T.Length = Natural'Min (Max_Length, T.Length'Old + 1);
+   procedure Append_String (T : in out Text; S : String)
+     with Pre  => S'Length <= Max_Length,
+          Post => T.Length = Natural'Min (Max_Length, T.Length'Old + S'Length);
+   procedure Append_Natural (T : in out Text; N : Natural; Width : Natural; Zero_Pad : Boolean)
+     with Pre => Width <= 9;
+   procedure Append_Integer (T : in out Text; V : Integer_32; Width : Natural; Zero_Pad : Boolean)
+     with Pre => Width <= 9;
 
    --  How the integer part prints: a character before it, the width and
    --  whether zeros pad it; the default is a width of one.
@@ -94,12 +110,14 @@ package Adaflight.OSD_Format with SPARK_Mode is
                          Lat, Lon : Integer_32)
      with Pre => Lat > Integer_32'First and then Lon > Integer_32'First;
 
-   Distance_Bound : constant := 1_000_000_000;
+   Distance_Bound          : constant := 1_000_000_000;
+   Negative_Distance_Bound : constant := 4_000_000;
 
    --  A distance in metres in the unit, in the small unit below a mile or a
-   --  kilometre and in the large one with one or two decimals above.
+   --  kilometre and in the large one with one or two decimals above; a
+   --  negative distance prints with its sign in the small unit.
    procedure Distance_String (T : out Text; Distance_M : Integer_32; Leading : Character; Units : Unit_System)
-     with Pre => Distance_M in 0 .. Distance_Bound;
+     with Pre => Distance_M in -Negative_Distance_Bound .. Distance_Bound;
 
    procedure PID_Line (T : out Text; Label : String; P, I, D, D_Max, F : Unsigned_8)
      with Pre => Label'Length <= 8;
