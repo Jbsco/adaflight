@@ -39,8 +39,10 @@ package Adaflight.Flight_Plan_Nav with SPARK_Mode is
    --  centimeters, the yaw mode, the touchdown's speed in cm/s and time in
    --  tenths of a second, the rescue's descent distance in metres, the
    --  geofence's distance from home in metres with its action, a return home
-   --  or a landing in place, and the return's altitude above home in metres
-   --  and speed in cm/s.
+   --  or a landing in place, the return's altitude above home in metres and
+   --  speed in cm/s, and the rescue's minimum start distance and initial
+   --  climb in metres, ascent and descent rates in cm/s, and altitude mode:
+   --  0 the highest altitude flown, 1 fixed above home, 2 the current one.
    type Settings is record
       Max_Angle      : Unsigned_8 range 10 .. 70 := 50;
       Arrival_Radius : Unsigned_16 range 100 .. 5_000 := 500;
@@ -63,6 +65,11 @@ package Adaflight.Flight_Plan_Nav with SPARK_Mode is
       Fence_Return   : Boolean := False;
       Return_Alt_M   : Unsigned_16 range 5 .. 1_000 := 30;
       Return_Cms     : Unsigned_16 range 0 .. 3_000 := 750;
+      Min_Start_M    : Unsigned_16 range 5 .. 30 := 15;
+      Initial_Climb_M : Unsigned_16 range 0 .. 100 := 10;
+      Ascend_Cms     : Unsigned_16 range 50 .. 2_500 := 750;
+      Descend_Cms    : Unsigned_16 range 25 .. 500 := 150;
+      Rescue_Alt_Mode : Unsigned_8 range 0 .. 2 := 0;
    end record;
 
    Injected_Max : constant := 4;
@@ -203,7 +210,8 @@ package Adaflight.Flight_Plan_Nav with SPARK_Mode is
    --  whether a listener takes the reached waypoints, the position
    --  controller's error in centimetres, whether the estimate's position is
    --  valid, the GPS home with whether it is fixed and the distance to it in
-   --  metres, the GPS altitude in centimetres, and the estimator's altitude
+   --  metres, the GPS location with whether it has a fix, the estimator's
+   --  altitude in centimetres, and the highest altitude the rescue has seen
    --  in centimetres.
    type Leg_Inputs is record
       Est             : Position_Nav.Estimate;
@@ -224,8 +232,10 @@ package Adaflight.Flight_Plan_Nav with SPARK_Mode is
       Home_Fix         : Boolean := False;
       Home_Distance_M  : Unsigned_16 := 0;
       Home             : Position_Estimator.Location;
-      GPS_Alt_Cm       : Integer_32 := 0;
+      GPS_Fix          : Boolean := False;
+      GPS              : Position_Estimator.Location;
       Estimator_Alt_Cm : Float range -2.0 ** 24 .. 2.0 ** 24 := 0.0;
+      Rescue_Max_Alt_Cm : Float range -2.0 ** 24 .. 2.0 ** 24 := 0.0;
    end record;
 
    --  The executor's calls out in call order: the nose held on a heading in
@@ -552,6 +562,37 @@ package Adaflight.Flight_Plan_Nav with SPARK_Mode is
      with Global => null,
           Pre    => Leg_Bounded (S),
           Post   => Leg_Bounded (S);
+
+   --  The failsafe rescue's plan, flown at once while the executor is
+   --  active or staged for the next engage: a climb where the craft comes to
+   --  a stop, the return home and a landing there, or a landing where it
+   --  stops when that is near home. Staged is false without a GPS fix and
+   --  home, or near home without a heading.
+   procedure Stage_Rescue_Plan
+     (S      : in out State;
+      N      : in out Position_Nav.Navigator;
+      P      : Flight_Plan.Plan;
+      I      : Leg_Inputs;
+      C      : Settings;
+      O      : in out Executor_Output;
+      Staged : out Boolean)
+     with Global => null,
+          Pre    => Leg_Bounded (S),
+          Post   => Leg_Bounded (S);
+
+   function Is_Rescue_Plan_Active (S : State) return Boolean is (S.Active and then S.Is_Rescue_Plan);
+
+   --  The altitude-only descent the rescue falls back to without a plan:
+   --  alt hold's emergency descent at the rescue's rate while requested,
+   --  with the landing's touchdown watch.
+   procedure Rescue_Descent
+     (S : in out State; N : in out Position_Nav.Navigator; I : Leg_Inputs; C : Settings; O : in out Executor_Output;
+      Request : Boolean)
+     with Global => null,
+          Pre    => Leg_Bounded (S),
+          Post   => Leg_Bounded (S);
+
+   function Is_Rescue_Descent_Active (S : State) return Boolean is (S.Rescue_Descent_Active);
 
    --  The distance to the waypoint in metres, -1 without an active leg.
    function Distance_To_Waypoint (S : State; N : Position_Nav.Navigator; Est : Position_Nav.Estimate) return Float

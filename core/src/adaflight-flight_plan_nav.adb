@@ -1645,7 +1645,7 @@ package body Adaflight.Flight_Plan_Nav with SPARK_Mode is
       Command_Nose (O, False, 0.0);
       Clear_Modifier_State (S, O);
       Clear_Leg_Yaw_State (S);
-      Capture_Altitude_Frame (S, I.Has_Origin, I.Origin.Alt_Cm, I.Estimator_Alt_Cm, I.GPS_Alt_Cm);
+      Capture_Altitude_Frame (S, I.Has_Origin, I.Origin.Alt_Cm, I.Estimator_Alt_Cm, I.GPS.Alt_Cm);
       Position_Nav.Set_Auto_Clear_On_Reach (N, False);
       S.Is_Rescue_Plan := False;
       End_Heading_Recovery (S, O);
@@ -1870,7 +1870,7 @@ package body Adaflight.Flight_Plan_Nav with SPARK_Mode is
         Interfaces.Integer_64 (I.Home.Alt_Cm) + Interfaces.Integer_64 (C.Return_Alt_M) * 100;
       Return_Alt : constant Integer_32 :=
         Integer_32'Max (Integer_32 (Interfaces.Integer_64'Min (Interfaces.Integer_64 (Integer_32'Last), Wanted)),
-                        I.GPS_Alt_Cm);
+                        I.GPS.Alt_Cm);
       Plan       : Injected_List := (others => (others => <>));
       Accepted   : Boolean;
    begin
@@ -2151,6 +2151,153 @@ package body Adaflight.Flight_Plan_Nav with SPARK_Mode is
          Update_Holding (S, N, P, Cycle, C, O);
       end if;
    end Update;
+
+   --  Whether the craft comes to a stop within the rescue's minimum start
+   --  distance of home, braking at the rescue's lean.
+   function Rescue_Stops_Near_Home (I : Leg_Inputs; C : Settings) return Boolean is
+      Rest     : constant Vector_2 := Rest_Point (I.Est, (X => 0.0, Y => 0.0), Rescue_Stop_Max_Angle (C));
+      East_Cm  : Float;
+      North_Cm : Float;
+   begin
+      Position_Estimator.Distance_2d (I.Home, I.GPS, I.Cos_Lat, East_Cm, North_Cm);
+      declare
+         East_M  : constant Float range -7.0e11 .. 7.0e11 := East_Cm * 0.01 + Rest.X - I.Est.Position.East * 0.01;
+         North_M : constant Float range -7.0e11 .. 7.0e11 := North_Cm * 0.01 + Rest.Y - I.Est.Position.North * 0.01;
+      begin
+         return East_M * East_M + North_M * North_M < Float (C.Min_Start_M) * Float (C.Min_Start_M);
+      end;
+   end Rescue_Stops_Near_Home;
+
+   --  An altitude in centimetres held within the 32-bit range.
+   function Held_Altitude (Cm : Interfaces.Integer_64) return Integer_32 is
+     (Integer_32 (Interfaces.Integer_64'Max (Interfaces.Integer_64 (Integer_32'First),
+                                             Interfaces.Integer_64'Min (Interfaces.Integer_64 (Integer_32'Last), Cm))));
+
+   --  The failsafe rescue's plan: a climb where the craft comes to a stop, the
+   --  return home at the altitude its mode gives, never lower than the craft,
+   --  and a landing at home; or a landing where the craft stops when that is
+   --  near home, none without a heading to hold it there.
+   procedure Build_Rescue_Plan (I : Leg_Inputs; C : Settings; Plan : out Injected_List; Count : out Natural)
+     with Global => null,
+          Post   => Count <= 3
+   is
+      Speed       : constant Unsigned_16 := C.Return_Cms;
+      Current_Alt : constant Integer_32 := I.GPS.Alt_Cm;
+   begin
+      Plan := (others => (others => <>));
+      Count := 0;
+      if not I.Home_Fix or else not I.GPS_Fix then
+         return;
+      end if;
+      if Rescue_Stops_Near_Home (I, C) then
+         if I.Heading_Required and then not I.Heading_Valid then
+            return;
+         end if;
+         Plan (0) := (Latitude => I.GPS.Lat, Longitude => I.GPS.Lon, Altitude => Current_Alt, Speed => Speed,
+                      Duration_Ds => 0, Vert_Rate => C.Descend_Cms, Kind => Flight_Plan.Type_Land, Pattern => 0,
+                      Yaw_Behaviour => Flight_Plan.Yaw_Hold);
+         Count := 1;
+         return;
+      end if;
+      declare
+         Home_Alt   : constant Interfaces.Integer_64 := Interfaces.Integer_64 (I.Home.Alt_Cm);
+         Climb      : constant Interfaces.Integer_64 := Interfaces.Integer_64 (C.Initial_Climb_M) * 100;
+         Wanted     : constant Interfaces.Integer_64 :=
+           (case C.Rescue_Alt_Mode is
+               when 1      => Home_Alt + Interfaces.Integer_64 (C.Return_Alt_M) * 100,
+               when 2      => Interfaces.Integer_64 (Current_Alt) + Climb,
+               when others =>
+                  Home_Alt + Interfaces.Integer_64 (Float'Truncation (I.Rescue_Max_Alt_Cm)) + Climb);
+         Return_Alt : constant Integer_32 := Integer_32'Max (Held_Altitude (Wanted), Current_Alt);
+      begin
+         Plan (0) := (Latitude => I.GPS.Lat, Longitude => I.GPS.Lon, Altitude => Return_Alt, Speed => 0,
+                      Duration_Ds => 0, Vert_Rate => C.Ascend_Cms, Kind => Flight_Plan.Type_Hold, Pattern => 0,
+                      Yaw_Behaviour => Flight_Plan.Yaw_Face_Next);
+         Plan (1) := (Latitude => I.Home.Lat, Longitude => I.Home.Lon, Altitude => Return_Alt, Speed => Speed,
+                      Duration_Ds => 0, Vert_Rate => C.Ascend_Cms, Kind => Flight_Plan.Type_Flyover, Pattern => 0,
+                      Yaw_Behaviour => Flight_Plan.Yaw_Face_Target);
+         Plan (2) := (Latitude => I.Home.Lat, Longitude => I.Home.Lon, Altitude => Return_Alt, Speed => Speed,
+                      Duration_Ds => 0, Vert_Rate => C.Descend_Cms, Kind => Flight_Plan.Type_Land, Pattern => 0,
+                      Yaw_Behaviour => Flight_Plan.Yaw_Default);
+         Count := 3;
+      end;
+   end Build_Rescue_Plan;
+
+   -----------------------
+   -- Stage_Rescue_Plan --
+   -----------------------
+
+   procedure Stage_Rescue_Plan
+     (S      : in out State;
+      N      : in out Position_Nav.Navigator;
+      P      : Flight_Plan.Plan;
+      I      : Leg_Inputs;
+      C      : Settings;
+      O      : in out Executor_Output;
+      Staged : out Boolean)
+   is
+      Plan  : Injected_List;
+      Count : Natural;
+   begin
+      Staged := False;
+      Build_Rescue_Plan (I, C, Plan, Count);
+      if Count = 0 then
+         return;
+      end if;
+      --  A plan already flying is replaced at once.
+      if S.Active then
+         Capture_Altitude_Frame (S, I.Has_Origin, I.Origin.Alt_Cm, I.Estimator_Alt_Cm, I.GPS.Alt_Cm);
+         for K in 0 .. Count - 1 loop
+            pragma Loop_Invariant (Leg_Bounded (S));
+            S.Injected (K) := Plan (K);
+         end loop;
+         S.Injected_Waypoints := Count;
+         S.Current_Index := 0;
+         S.Reason := None;
+         S.Is_Rescue_Plan := True;
+         End_Heading_Recovery (S, O);
+         S.Staged_Count := 0;
+         S.Dispatch_Afresh := True;
+         Clear_Modifier_State (S, O);
+         Clear_Leg_Yaw_State (S);
+         Dispatch (S, N, P, I, C, O);
+         Staged := True;
+         return;
+      end if;
+      for K in 0 .. Count - 1 loop
+         pragma Loop_Invariant (Leg_Bounded (S));
+         S.Staged (K) := Plan (K);
+      end loop;
+      S.Staged_Count := Count;
+      Staged := True;
+   end Stage_Rescue_Plan;
+
+   --------------------
+   -- Rescue_Descent --
+   --------------------
+
+   procedure Rescue_Descent
+     (S : in out State; N : in out Position_Nav.Navigator; I : Leg_Inputs; C : Settings; O : in out Executor_Output;
+      Request : Boolean)
+   is
+   begin
+      if not Request then
+         if S.Rescue_Descent_Active then
+            S.Rescue_Descent_Active := False;
+            Call (O, Emergency_Descent, False, 0.0);
+         end if;
+         return;
+      end if;
+      if not S.Rescue_Descent_Active then
+         S.Rescue_Descent_Active := True;
+         S.Landing_Rate_Mps := Float'Max (Landing_Min_Rate_Mps, Float (C.Descend_Cms) * 0.01);
+         S.Landing_Start_Us := I.Now_Us;
+         S.Touchdown_Quiet_Us := 0;
+         S.Landing_Established := False;
+         Call (O, Emergency_Descent, True, Float (C.Descend_Cms));
+      end if;
+      Update_Landing (S, N, I, C, O);
+   end Rescue_Descent;
 
    --------------------------
    -- Distance_To_Waypoint --

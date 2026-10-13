@@ -14987,7 +14987,8 @@ procedure Vector_Check is
                Fence_M        => Interfaces.Unsigned_16 (Int (K0 + 17)),
                Fence_Return   => Int (K0 + 18) /= 0,
                Return_Alt_M   => Interfaces.Unsigned_16 (Int (K0 + 19)),
-               Return_Cms     => Interfaces.Unsigned_16 (Int (K0 + 20)));
+               Return_Cms     => Interfaces.Unsigned_16 (Int (K0 + 20)),
+               others         => <>);
             Upd_Plan := (Count => Count, Waypoints => (others => (others => <>)));
             for W in 0 .. Count - 1 loop
                Upd_Plan.Waypoints (W) := Executor_Waypoint (K0 + 22 + 9 * W);
@@ -15012,8 +15013,9 @@ procedure Vector_Check is
                Home_Fix         => Int (B + 21) /= 0,
                Home_Distance_M  => Interfaces.Unsigned_16 (Int (B + 22)),
                Home             => (Lat => I32 (B + 23), Lon => I32 (B + 24), Alt_Cm => I32 (B + 25)),
-               GPS_Alt_Cm       => I32 (B + 26),
-               Estimator_Alt_Cm => Flt (B + 27));
+               GPS              => (Lat => 0, Lon => 0, Alt_Cm => I32 (B + 26)),
+               Estimator_Alt_Cm => Flt (B + 27),
+               others           => <>);
             Upd_State := (others => <>);
             Read_Executor_State (B + 30, Upd_State);
             Upd_State.Staged_Count := Natural (Int (B + 149));
