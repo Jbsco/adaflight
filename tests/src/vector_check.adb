@@ -11929,7 +11929,7 @@ procedure Vector_Check is
       function Pin_Letter (P : SPR.Pin) return Character is
         (case P is
             when SPR.LED => 'L', when SPR.Tx_Enable => 'T', when SPR.LNA_Enable => 'N',
-            when SPR.Antenna_Select => 'A');
+            when SPR.Antenna_Select => 'A', when SPR.Chip_Enable => 'E');
    begin
       for K in 1 .. O.Count loop
          declare
@@ -11954,7 +11954,8 @@ procedure Vector_Check is
                   end;
                when SPR.Set_Power => Put ("p" & FD_Short_Hex (Natural (X.A)));
                when SPR.Delay_Ms => Put ("d" & FD_Short_Hex (Natural (X.Value)));
-               when SPR.Delay_Us => Put ("u" & FD_Short_Hex (Natural (X.Value)));
+               when SPR.Delay_Us =>
+                  Put ("u" & FD_Short_Hex (if X.Word /= 0 then Natural (X.Word) else Natural (X.Value)));
                when SPR.Calibrate => Put ("C");
                when SPR.Pin_High => Put (Pin_Letter (X.On) & "1");
                when SPR.Pin_Low => Put (Pin_Letter (X.On) & "0");
