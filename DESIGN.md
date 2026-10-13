@@ -2952,3 +2952,26 @@ the SPI commands, the chip enable pin and the clock stubbed, and the receiver's 
 zeroed as on the target: both variants, bind packets with a scripted address, data packets, gaps
 that make the receiver hop, a start inside the settling time, and three clocks near their wrap.
 Every operation, result, channel, hop and address of the 15006 lines replays exactly.
+
+## D135. XN297 payloads and H8_3D receiver (2026-10-13)
+
+The XN297 unit contains the payload helpers for NRF24L01 receivers that talk to XN297
+transmitters. The unscramble works in place: each byte as received joins a CRC-16 CCITT that
+starts from 16#B5D2# over the receive address in reverse, then is XORed with its scramble byte and
+bit-reversed; the CRC takes a final value per length.
+
+The H8_3D unit contains the H8_3D receiver. Unbound, it hops the bind channels 6 to 38 every
+millisecond and binds to a packet with a good check, three bind marks and a checksum over its
+transmitter id. The id picks four hop channels and, when the receiver's id setting is empty,
+becomes that setting; a stored id at start binds at once. A data packet with a good check gives the
+four sticks between their ends with the truncating division of C, a three-position rate, six
+switches, the camera tilt and three trims, each wrapped to sixteen bits. The receiver hops after
+each data packet and after 5 ms without one, and the timeout compares a plain 32-bit sum (F136). The
+unit is SPARK for the hop channels, the channel arithmetic and the buffer.
+
+The harness replays six sequences of 2500 calls recorded from the reference driver, XN297 helpers
+and protocol with the SPI commands, the chip enable pin and the clock stubbed: a transmitter that
+scrambles its packets with the reference's tables, bind packets with good and broken checksums,
+data packets with the sticks inside and outside their ends, broken checks, gaps that make the
+receiver hop, a stored id at start, a start inside the settling time, and two clocks near their
+wrap. Every operation, result, channel, hop and stored id of the 15006 lines replays exactly.
