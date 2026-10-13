@@ -2758,3 +2758,24 @@ ground level reset, execution times past 2 ** 31 microseconds, and clocks that s
 near their wrap. Every phase, device call, hook call, sleep time, estimate and barometer value of
 the 20008 lines replays exactly, with the altitude in the declared 3 cm tolerance (D6): 4 of 20000
 altitudes needed it.
+
+## D125. MSP state replies (2026-10-13)
+
+The MSP out unit contains the replies that report the flight controller's state: the status and
+extended status, the raw accelerometer, gyro and compass readings, the motor outputs, the RC
+channels, the attitude as angles and as a quaternion, the estimated altitude with the vario, the
+rangefinder altitude, the analog and battery state readings, and the debug values. The caller
+gathers the state into a snapshot: the packed mode flags from the box unit, the arming disable
+reasons, the sensors present, the profiles, the readings and the motor protocol's external
+values. Each reply writes its fields in the protocol's order and width. Integers wrap to their
+field. Readings and quaternion components round to the nearest integer with ties to even, and
+pulses truncate. The battery voltage, drawn capacity and current saturate to their fields, and the
+load to 100%. The extended mode flag bytes follow the count of active boxes. Any other command
+writes nothing. The unit is SPARK for the reply length, which stays within the 36 bytes of a full
+RC reply, and for the conversions.
+
+The harness replays eight sequences of 500 requests recorded from the reference MSP processor with
+the target's accelerometer, motor, rangefinder, vario, internal ADC and I2C switches on and the
+state it reads stubbed: random snapshots with values inside and outside each field's range, ties
+in the readings, and channel counts from 0 to 18. Every result, length and byte of the 4008 lines
+replays exactly.
