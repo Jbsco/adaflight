@@ -118,6 +118,7 @@ with Adaflight.OSD_Stats;
 with Adaflight.OSD_Page;
 with Adaflight.OSD_Elements;
 with Adaflight.OSD_Render;
+with Adaflight.OSD_Draw;
 
 procedure Vector_Check is
 
@@ -10964,6 +10965,226 @@ procedure Vector_Check is
       end if;
    end Check_OSD_Warnings_Element_Line;
 
+   OD_Seq          : Integer_64 := -1;
+   OD_Cycle        : Adaflight.OSD_Draw.Cycle;
+   OD_Context      : Adaflight.OSD_Draw.Context;
+   OD_Render_State : Adaflight.OSD_Render.State;
+   OD_Warn_State   : Adaflight.OSD_Warnings.State;
+   OD_Active       : Adaflight.OSD_Elements.Active_List;
+   OD_Pos          : Adaflight.OSD_Elements.Positions := (others => 0);
+   OD_Device_Blink : Boolean := False;
+
+   function OD_Craft (F : Positive) return Adaflight.OSD_Render.Craft_Name_Buffer is
+      Raw : constant Byte_Array := Hex_Bytes (F);
+      C   : Adaflight.OSD_Render.Craft_Name_Buffer;
+   begin
+      for K in C'Range loop
+         C (K) := Character'Val (Raw (Raw'First + K - 1));
+      end loop;
+      return C;
+   end OD_Craft;
+
+   procedure OD_Read_Blink (F : Positive; B : out Adaflight.OSD_Elements.Blink) is
+      use Adaflight.OSD_Elements;
+   begin
+      B := (others => <>);
+      for I in Item loop
+         B.Bits (I) := (Bits (F + Item'Pos (I) / 32) and Interfaces.Shift_Left (1, Item'Pos (I) mod 32)) /= 0;
+      end loop;
+   end OD_Read_Blink;
+
+   procedure OD_Record_Blink (Name : String; F : Positive; B : Adaflight.OSD_Elements.Blink) is
+      use Adaflight.OSD_Elements;
+      Words : array (0 .. 2) of Unsigned_32 := (others => 0);
+   begin
+      for I in Item loop
+         if B.Bits (I) then
+            Words (Item'Pos (I) / 32) := Words (Item'Pos (I) / 32) or Interfaces.Shift_Left (1, Item'Pos (I) mod 32);
+         end if;
+      end loop;
+      for W in Words'Range loop
+         Record_Result (Name & ".blink", Bits (F + W), Words (W));
+      end loop;
+   end OD_Record_Blink;
+
+   procedure OD_Record_Ops (Name : String; F : Positive; O : Adaflight.OSD_Draw.Ops) is
+      use Adaflight.OSD_Draw;
+      Count : constant Natural := Natural (Int (F));
+   begin
+      Record_Int (Name & ".ops", Int (F), Integer_64 (O.Count));
+      for K in 1 .. Natural'Min (Count, O.Count) loop
+         declare
+            P    : constant Op := O.List (K);
+            G    : constant Positive := F + 1 + (K - 1) * 5;
+            Kind : constant Integer_64 :=
+              (case P.Kind is
+                 when Write => 1, when Write_Sys => 2, when Select_Layer => 3, when Clear_Screen => 4,
+                 when Redraw_Background => 5);
+            Attr : constant Integer_64 :=
+              (case P.Kind is
+                 when Write => Integer_64 (P.Attr), when Write_Sys => Integer_64 (P.Sys),
+                 when Select_Layer => Layer'Pos (P.Target), when Clear_Screen => Integer_64 (P.Attr),
+                 when Redraw_Background => 0);
+            Actual : Byte_Array (0 .. (if P.Kind = Write then P.Line.Length else 0) - 1);
+         begin
+            Record_Int (Name & ".opkind", Int (G), Kind);
+            Record_Int (Name & ".opx", Int (G + 1), Integer_64 (P.X));
+            Record_Int (Name & ".opy", Int (G + 2), Integer_64 (P.Y));
+            Record_Int (Name & ".opattr", Int (G + 3), Attr);
+            for J in Actual'Range loop
+               Actual (J) := Byte (Character'Pos (P.Line.Data (J + 1)));
+            end loop;
+            Record_Bytes (Name & ".optext", Hex_Bytes (G + 4), Actual);
+         end;
+      end loop;
+   end OD_Record_Ops;
+
+   procedure OD_Read_Readings (X : in out Adaflight.OSD_Draw.Context) is
+   begin
+      X.Inputs.Roll := Interfaces.Integer_16 (Int (3));
+      X.Inputs.Pitch := Interfaces.Integer_16 (Int (4));
+      X.Inputs.RSSI_Percent := Interfaces.Unsigned_8 (Int (5));
+      X.Warn_Inputs.RSSI_Percent := Integer (Int (5));
+      X.Warn_Inputs.Battery := Adaflight.Battery.Battery_State'Val (Int (6));
+      X.Inputs.Battery := Adaflight.Battery.Battery_State'Val (Int (6));
+      X.Inputs.Clocks := (Now_Us         => Interfaces.Unsigned_32 (Int (8)),
+                          Fly_Time_Us    => Interfaces.Unsigned_32 (Int (9)),
+                          Armed_Time_Us  => Interfaces.Unsigned_32 (Int (10)),
+                          Launch_Time_Us => Interfaces.Unsigned_32 (Int (11)),
+                          Armed          => Int (7) = 1);
+      X.Warn_Inputs.Armed := Int (7) = 1;
+      X.Warn_Inputs.Now_Us := Interfaces.Unsigned_32 (Int (8));
+      X.Inputs.Throttle_Percent := Interfaces.Integer_8 (Int (12));
+      for K in 0 .. 3 loop
+         X.Inputs.Debug (K) := Interfaces.Integer_16 (Int (13 + K));
+      end loop;
+      for K in 0 .. 7 loop
+         X.Inputs.RC_Data (K) := Flt (17 + K);
+         X.Inputs.DShot_RPM (K) := Flt (25 + K);
+         X.Inputs.ESC_RPM (K) := Natural (Int (33 + K));
+      end loop;
+      X.Inputs.ERPM_To_Hz := Flt (41);
+      X.Inputs.GPS_Fix := Int (42) = 1;
+      X.Inputs.GPS_Fix_Ever := Int (43) = 1;
+      X.Inputs.Latitude := Interfaces.Integer_32 (Int (44));
+      X.Inputs.Longitude := Interfaces.Integer_32 (Int (45));
+      X.Inputs.Link_Source := Adaflight.OSD_Render.Link_Quality_Source'Val (Int (50));
+      X.Inputs.Link_Quality := Interfaces.Unsigned_16 (Int (51));
+      X.Inputs.RF_Mode := Interfaces.Unsigned_8 (Int (52));
+      X.Inputs.RSSI_Dbm := Interfaces.Integer_16 (Int (53));
+   end OD_Read_Readings;
+
+   procedure Check_OSD_Draw_Line is
+      use Adaflight.OSD_Draw;
+      Name : constant String := Str (1);
+   begin
+      if Name = "odinit" then
+         OD_Seq := Int (2);
+         OD_Context := (others => <>);
+         OD_Warn_State := (others => <>);
+         OD_Active := (others => <>);
+         OD_Pos := (others => 0);
+         Init (OD_Cycle, Int (3) = 1);
+         OD_Device_Blink := Int (4) = 1;
+         OD_Context.Settings.RSSI_Alarm := Interfaces.Unsigned_8 (Int (5));
+         OD_Context.Warn_Settings.RSSI_Alarm := Integer (Int (5));
+         OD_Context.Settings.Units := Adaflight.OSD_Format.Unit_System'Val (Int (6));
+         OD_Context.Warn_Settings.Units := Adaflight.OSD_Warnings.Unit_System'Val (Int (6));
+         OD_Context.Settings.Timers := (Interfaces.Unsigned_16 (Int (7)), Interfaces.Unsigned_16 (Int (8)));
+         OD_Context.Settings.AH_Max_Pitch := Interfaces.Unsigned_8 (Int (9));
+         OD_Context.Settings.AH_Max_Roll := Interfaces.Unsigned_8 (Int (10));
+         OD_Context.Settings.AH_Invert := Int (11) = 1;
+         OD_Context.Settings.Camera_Frame_Width := Interfaces.Unsigned_8 (Int (12));
+         OD_Context.Settings.Camera_Frame_Height := Interfaces.Unsigned_8 (Int (13));
+         OD_Context.Settings.Overlay_Radio_Mode := Positive (Int (14));
+         for K in 0 .. 3 loop
+            OD_Context.Settings.RC_Channels (K) := Interfaces.Integer_8 (Int (15 + K));
+         end loop;
+         OD_Context.Craft_Name_Messages := Int (19) = 1;
+         OD_Context.Inputs.Motors := Positive (Int (20));
+         for W in Adaflight.OSD_Warnings.Warning_Kind loop
+            OD_Context.Warn_Settings.Enabled (W) :=
+              (Bits (21) and Interfaces.Shift_Left (1, Adaflight.OSD_Warnings.Warning_Kind'Pos (W))) /= 0;
+         end loop;
+         declare
+            Pilot : constant Adaflight.OSD_Render.Craft_Name_Buffer := OD_Craft (22);
+         begin
+            OD_Context.Inputs.Pilot_Name.Length := 0;
+            for K in 1 .. Adaflight.OSD_Render.Max_Name loop
+               exit when Pilot (K) = Character'Val (0);
+               OD_Context.Inputs.Pilot_Name.Data (K) := Pilot (K);
+               OD_Context.Inputs.Pilot_Name.Length := K;
+            end loop;
+         end;
+         Adaflight.OSD_Render.Init (OD_Render_State, OD_Context.Settings);
+      elsif Int (2) /= OD_Seq then
+         Put_Line ("OSD draw line without its start");
+         Failures := Failures + 1;
+      elsif Name = "odanalyze" then
+         declare
+            Inp   : Adaflight.OSD_Elements.Element_Inputs;
+            B     : Adaflight.OSD_Elements.Blink;
+            O     : Ops;
+            N     : constant Natural := Natural (Int (100));
+            Craft : constant Adaflight.OSD_Render.Craft_Name_Buffer := OD_Craft (99);
+         begin
+            Inp := (Acc_Present => Int (3) = 1, GPS_Present => Int (4) = 1, ESC_Sensor_Feature => Int (5) = 1,
+                    DShot_Telemetry => Int (6) = 1);
+            OD_Context.Inputs.ESC_Sensor_Feature := Inp.ESC_Sensor_Feature;
+            OD_Context.Inputs.DShot_Telemetry := Inp.DShot_Telemetry;
+            OD_Context.Inputs.GPS_Present := Inp.GPS_Present;
+            for I in Adaflight.OSD_Elements.Item loop
+               OD_Pos (I) := Interfaces.Unsigned_16 (Bits (7 + Adaflight.OSD_Elements.Item'Pos (I)));
+            end loop;
+            OD_Read_Blink (96, B);
+            Adaflight.OSD_Elements.Add_Active_Elements (OD_Active, OD_Pos, 1, Inp);
+            Record_Int (Name & ".count", Int (100), Integer_64 (OD_Active.Count));
+            for K in 1 .. Natural'Min (N, OD_Active.Count) loop
+               Record_Int (Name & ".item", Int (100 + K),
+                           Integer_64 (Adaflight.OSD_Elements.Item'Pos (OD_Active.Items (K))));
+            end loop;
+            Draw_Backgrounds (OD_Cycle, OD_Active, OD_Pos, B, OD_Render_State, OD_Context, Craft, O);
+            Record_Int (Name & ".pendingbg", Int (101 + N), Boolean'Pos (OD_Cycle.Pending_Background));
+            Record_Int (Name & ".pendingfg", Int (102 + N), Boolean'Pos (OD_Cycle.Pending_Foreground));
+            Record_Int (Name & ".number", Int (103 + N), Integer_64 (OD_Cycle.Active_Number));
+            OD_Record_Ops (Name, 104 + N, O);
+         end;
+      elsif Name = "oddraw" or else Name = "oddisplay" then
+         declare
+            B     : Adaflight.OSD_Elements.Blink;
+            O     : Ops;
+            More  : Boolean;
+            Craft : Adaflight.OSD_Render.Craft_Name_Buffer := OD_Craft (54);
+         begin
+            OD_Read_Readings (OD_Context);
+            OD_Read_Blink (46, B);
+            B.State := Int (49) = 1;
+            if Name = "oddraw" then
+               Draw_Next (OD_Cycle, OD_Active, OD_Pos, B, OD_Device_Blink, OD_Render_State, OD_Warn_State, OD_Context,
+                          Craft, More, O);
+            else
+               Display_Active (OD_Cycle, OD_Active, B, More, O);
+            end if;
+            Record_Int (Name & ".ret", Int (55), Boolean'Pos (More));
+            Record_Int (Name & ".pendingbg", Int (56), Boolean'Pos (OD_Cycle.Pending_Background));
+            Record_Int (Name & ".pendingfg", Int (57), Boolean'Pos (OD_Cycle.Pending_Foreground));
+            Record_Int (Name & ".number", Int (58), Integer_64 (OD_Cycle.Active_Number));
+            OD_Record_Blink (Name, 59, B);
+            declare
+               Expected : constant Adaflight.OSD_Render.Craft_Name_Buffer := OD_Craft (62);
+               E, A     : Byte_Array (0 .. Craft'Length - 1);
+            begin
+               for K in E'Range loop
+                  E (K) := Byte (Character'Pos (Expected (Expected'First + K)));
+                  A (K) := Byte (Character'Pos (Craft (Craft'First + K)));
+               end loop;
+               Record_Bytes (Name & ".craft", E, A);
+            end;
+            OD_Record_Ops (Name, 63, O);
+         end;
+      end if;
+   end Check_OSD_Draw_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -11162,6 +11383,8 @@ procedure Vector_Check is
                   Check_OSD_Render_3_Line;
                elsif Kind = "osdwarnel" then
                   Check_OSD_Warnings_Element_Line;
+               elsif Kind = "osddraw" then
+                  Check_OSD_Draw_Line;
                else
                   Check_PID_Line;
                end if;
@@ -11270,6 +11493,7 @@ begin
    Run (Dir & "/osdrender2.csv", "osdrender2");
    Run (Dir & "/osdrender3.csv", "osdrender3");
    Run (Dir & "/osdwarnel.csv", "osdwarnel");
+   Run (Dir & "/osddraw.csv", "osddraw");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
