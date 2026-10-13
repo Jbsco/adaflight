@@ -289,9 +289,55 @@ package body Adaflight.FrSky_SPI with SPARK_Mode is
       end if;
    end Switch_Antennae;
 
+   --  The hub stream's bytes for the frame: a new burst once the last is
+   --  sent and its last frame acknowledged, a resend when the transmitter
+   --  asks again, at most ten bytes a frame. The send position wraps at the
+   --  buffer's size, so a burst that fills the buffer never completes.
+   procedure Append_Hub_Data (S : in out State; C : Settings; Inp : Inputs; Count : out Natural)
+     with Global => null, Post => Count <= 10
+   is
+      Id : constant Unsigned_8 := S.Payload (4);
+   begin
+      if Id = S.Hub_Id_Expected then
+         S.Hub_Acknowledged := S.Hub_Sent;
+         S.Hub_Id_Expected := (Id + 1) and 16#1F#;
+         if S.Hub_Generated = 0 then
+            S.Hub_Sent := 0;
+            declare
+               Hub_Inp : Adaflight.FrSky_Hub_Telemetry.Inputs := Inp.Hub;
+               Hub_Out : Adaflight.FrSky_Hub_Telemetry.Output;
+            begin
+               Hub_Inp.Now_Us := Inp.Now_Us;
+               Hub_Inp.Now_Ms := Inp.Now_Ms;
+               Adaflight.FrSky_Hub_Telemetry.Update (S.Hub, C.Hub, Hub_Inp, Hub_Out);
+               for K in 0 .. Hub_Out.Count - 1 loop
+                  if S.Hub_Generated < Hub_Buffer_Size then
+                     S.Hub_Data (S.Hub_Generated) := Hub_Out.Tx (K);
+                     S.Hub_Generated := S.Hub_Generated + 1;
+                  end if;
+               end loop;
+            end;
+         end if;
+      else
+         S.Hub_Sent := S.Hub_Acknowledged;
+      end if;
+      Count := 0;
+      for K in 0 .. 9 loop
+         pragma Loop_Invariant (Count = K);
+         if S.Hub_Sent = S.Hub_Generated then
+            S.Hub_Generated := 0;
+            exit;
+         end if;
+         S.Frame (8 + K) := S.Hub_Data (S.Hub_Sent);
+         S.Hub_Sent := (S.Hub_Sent + 1) mod Hub_Buffer_Size;
+         Count := Count + 1;
+      end loop;
+   end Append_Hub_Data;
+
    procedure Build_Telemetry_Frame (S : in out State; C : Settings; Inp : Inputs)
      with Global => null
    is
+      Used : Natural := 0;
       A1_Value : constant Unsigned_8 :=
         (case C.A1 is
            when External_ADC    => Unsigned_8 ((Inp.ADC_External and 16#FF0#) / 16),
@@ -304,7 +350,10 @@ package body Adaflight.FrSky_SPI with SPARK_Mode is
       S.Frame (3) := A1_Value;
       S.Frame (4) := Unsigned_8 ((Inp.ADC_RSSI / 16) and 16#FF#);
       S.Frame (5) := Unsigned_8 ((Integer (S.RSSI_Dbm) + 65_536) mod 256);
-      S.Frame (6) := 0;
+      if S.Telemetry_Enabled then
+         Append_Hub_Data (S, C, Inp, Used);
+      end if;
+      S.Frame (6) := Unsigned_8 (Used);
       S.Frame (7) := S.Payload (4);
    end Build_Telemetry_Frame;
 
@@ -442,6 +491,7 @@ package body Adaflight.FrSky_SPI with SPARK_Mode is
       if C.Tx_Enable_Pin then
          Set_Pin (O, Tx_Enable, False);
       end if;
+      S.Telemetry_Enabled := C.Telemetry and then Inp.Hub_Free;
       Claim_RSSI := True;
       S.Missing_Packets := 0;
       S.Timeout_Us := 50;
