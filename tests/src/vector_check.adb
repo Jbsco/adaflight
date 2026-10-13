@@ -61,6 +61,7 @@ with Adaflight.Spektrum;
 with Adaflight.XBUS;
 with Adaflight.Jeti_Ex_Bus;
 with Adaflight.Jeti_Telemetry;
+with Adaflight.FrSky_SPI;
 with Adaflight.GHST;
 with Adaflight.MSP_Receiver;
 with Adaflight.SRXL2;
@@ -11823,6 +11824,230 @@ procedure Vector_Check is
       end if;
    end Check_Jeti_Telemetry_Line;
 
+   package FSP renames Adaflight.FrSky_SPI;
+   use type FSP.Op_Kind;
+   use type FSP.Received;
+   FD_Seq    : Integer_64 := -1;
+   FD_State  : FSP.State;
+   FD_Config : FSP.Settings;
+   FD_Rc     : FSP.Channel_Values := (others => 1_500);
+
+   function FD_Hex (V : Natural; Width : Natural) return String is
+      Digits_Of : constant String := "0123456789abcdef";
+      R         : String (1 .. Width);
+      X         : Natural := V;
+   begin
+      for K in reverse R'Range loop
+         R (K) := Digits_Of (X mod 16 + 1);
+         X := X / 16;
+      end loop;
+      return R;
+   end FD_Hex;
+
+   function FD_Short_Hex (V : Natural) return String is
+      Img : constant String := FD_Hex (V, 8);
+      K   : Positive := Img'First;
+   begin
+      while K < Img'Last and then Img (K) = '0' loop
+         K := K + 1;
+      end loop;
+      return Img (K .. Img'Last);
+   end FD_Short_Hex;
+
+   function FD_Ops (O : FSP.Output) return String is
+      Buffer : String (1 .. 8192);
+      Len    : Natural := 0;
+
+      procedure Put (T : String) is
+      begin
+         if Len > 0 then
+            Len := Len + 1;
+            Buffer (Len) := ':';
+         end if;
+         Buffer (Len + 1 .. Len + T'Length) := T;
+         Len := Len + T'Length;
+      end Put;
+
+      function Pin_Letter (P : FSP.Pin) return Character is
+        (case P is
+            when FSP.LED => 'L', when FSP.Tx_Enable => 'T', when FSP.LNA_Enable => 'N',
+            when FSP.Antenna_Select => 'A');
+   begin
+      for K in 1 .. O.Count loop
+         declare
+            X : constant FSP.Op := O.Ops (K);
+         begin
+            case X.Kind is
+               when FSP.Reset => Put ("x");
+               when FSP.Startup_Speed => Put ("h");
+               when FSP.Normal_Speed => Put ("n");
+               when FSP.Strobe => Put ("s" & FD_Hex (Natural (X.A), 2));
+               when FSP.Write_Register => Put ("w" & FD_Hex (Natural (X.A), 2) & FD_Hex (Natural (X.B), 2));
+               when FSP.Read_Fifo => Put ("r" & FD_Short_Hex (Natural (X.A)));
+               when FSP.Write_Fifo =>
+                  declare
+                     T : String (1 .. 1 + 2 * Natural (X.A));
+                  begin
+                     T (1) := 'f';
+                     for B in 0 .. Natural (X.A) - 1 loop
+                        T (2 + 2 * B .. 3 + 2 * B) := FD_Hex (Natural (O.Fifo_Data (B)), 2);
+                     end loop;
+                     Put (T);
+                  end;
+               when FSP.Set_Power => Put ("p" & FD_Short_Hex (Natural (X.A)));
+               when FSP.Delay_Ms => Put ("d" & FD_Short_Hex (Natural (X.Value)));
+               when FSP.Delay_Us => Put ("u" & FD_Short_Hex (Natural (X.Value)));
+               when FSP.Calibrate => Put ("C");
+               when FSP.Pin_High => Put (Pin_Letter (X.On) & "1");
+               when FSP.Pin_Low => Put (Pin_Letter (X.On) & "0");
+               when FSP.Pin_Toggle => Put (Pin_Letter (X.On) & "t");
+               when FSP.Set_RSSI => Put ("R" & FD_Short_Hex (Natural (X.Value)) & ".3");
+               when FSP.Set_RSSI_Direct => Put ("D" & FD_Short_Hex (Natural (X.Value)) & ".3");
+               when FSP.Save_Config => Put ("E");
+            end case;
+         end;
+      end loop;
+      return (if Len = 0 then "-" else Buffer (1 .. Len));
+   end FD_Ops;
+
+   procedure FD_Calibrate (O : FSP.Output) is
+      Table : FSP.Calibration_Table := (others => (others => 0));
+   begin
+      for K in 1 .. O.Count loop
+         if O.Ops (K).Kind = FSP.Calibrate then
+            for Ch in 0 .. 254 loop
+               Table (Ch) :=
+                 (Interfaces.Unsigned_8 ((Ch * 37 + 5) mod 256), Interfaces.Unsigned_8 ((Ch * 59 + 16) mod 256),
+                  Interfaces.Unsigned_8 ((Ch * 83 + 27) mod 256));
+            end loop;
+            FSP.Set_Calibration (FD_State, Table);
+         end if;
+      end loop;
+   end FD_Calibrate;
+
+   function FD_Hops return String is
+      R : String (1 .. 100);
+   begin
+      for K in FSP.Hop_Table'Range loop
+         R (1 + 2 * K .. 2 + 2 * K) := FD_Hex (Natural (FD_Config.Bind_Hop_Data (K)), 2);
+      end loop;
+      return R;
+   end FD_Hops;
+
+   function FD_Tx_Id return String is
+     (FD_Hex (Natural (FD_Config.Bind_Tx_Id (0)), 2) & FD_Hex (Natural (FD_Config.Bind_Tx_Id (1)), 2)
+      & FD_Hex (Natural (FD_Config.Bind_Tx_Id (2)), 2));
+
+   procedure Check_FrSky_D_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "fdinit" then
+         FD_Seq := Int (2);
+         declare
+            Ids  : constant Byte_Array := Hex_Bytes (15);
+            Hops : constant Byte_Array := Hex_Bytes (16);
+            Inp  : FSP.Inputs;
+            O    : FSP.Output;
+            Ok   : Boolean;
+            Claim : Boolean;
+         begin
+            FD_Config :=
+              (Auto_Bind     => Int (3) /= 0,
+               Bind_Offset   => Interfaces.Integer_8 (Int (4)),
+               A1            => FSP.A1_Source'Val (Int (5)),
+               Chip_Detect   => Int (6) /= 0,
+               Tx_Enable_Pin => Int (7) /= 0,
+               LNA_Pin       => Int (8) /= 0,
+               Antenna_Pin   => Int (9) /= 0,
+               LED_Pin       => Int (10) /= 0,
+               LED_Inversion => Int (11) /= 0,
+               Bind_Pin      => Int (12) /= 0,
+               Rx_Num        => Interfaces.Unsigned_8 (Int (19)),
+               others        => <>);
+            for K in 0 .. 2 loop
+               FD_Config.Bind_Tx_Id (K) := Interfaces.Unsigned_8 (Ids (Ids'First + K));
+            end loop;
+            for K in FSP.Hop_Table'Range loop
+               FD_Config.Bind_Hop_Data (K) := Interfaces.Unsigned_8 (Hops (Hops'First + K));
+            end loop;
+            Inp.Now_Us := Interfaces.Unsigned_32 (Int (13));
+            Inp.Now_Ms := Inp.Now_Us / 1_000;
+            Inp.Bind_Pin_Level := True;
+            FSP.Start (FD_State, FD_Config, Inp, O, Ok, Claim);
+            FD_Rc := (others => 1_500);
+            Record_Int (Name & ".ok", Int (14), Boolean'Pos (Ok));
+            Record_Int (Name & ".claim", 1, Boolean'Pos (Claim));
+            Record_Text (Name & ".ops", Str (20), FD_Ops (O));
+         end;
+      elsif Int (2) /= FD_Seq then
+         Put_Line ("FrSky D line without its start");
+         Failures := Failures + 1;
+      elsif Name = "fdstep" then
+         declare
+            Inp    : FSP.Inputs;
+            O      : FSP.Output;
+            Result : FSP.Received;
+            Fifo   : constant Byte_Array := Hex_Bytes (8);
+            Rc_Text : constant String := Str (26);
+         begin
+            Inp.Now_Us := Interfaces.Unsigned_32 (Int (3));
+            Inp.Now_Ms := Inp.Now_Us / 1_000;
+            Inp.Exti := Int (4) /= 0;
+            Inp.Rx_Bytes := Interfaces.Unsigned_8 (Int (5));
+            Inp.Bind_Pin_Level := Int (6) /= 0;
+            for K in Fifo'Range loop
+               Inp.Fifo (K - Fifo'First) := Interfaces.Unsigned_8 (Fifo (K));
+            end loop;
+            Inp.ADC_External := Interfaces.Unsigned_16 (Int (9));
+            Inp.ADC_RSSI := Interfaces.Unsigned_16 (Int (10));
+            Inp.Battery_Voltage := Interfaces.Unsigned_16 (Int (11));
+            if Int (7) /= 0 then
+               FSP.Request_Bind (FD_State);
+            end if;
+            FSP.Data_Received (FD_State, FD_Config, Inp, O, Result);
+            if Result = FSP.Data_Ready then
+               FSP.Set_Rc_Data (FD_State, FD_Rc);
+            end if;
+            FD_Calibrate (O);
+            Record_Int (Name & ".result", Int (12), (case Result is when FSP.None => 0, when FSP.Bind_Done => 1,
+                                                                    when FSP.Data_Ready => 2));
+            Record_Int (Name & ".state", Int (13), FSP.Protocol_State'Pos (FD_State.Protocol));
+            Record_Int (Name & ".missing", Int (14), Integer_64 (FD_State.Missing_Packets));
+            Record_Int (Name & ".timeout", Int (15), Integer_64 (FD_State.Timeout_Us));
+            Record_Int (Name & ".offset", Int (16), Integer_64 (FD_State.Bind_Offset));
+            Record_Int (Name & ".offset_min", Int (17), Integer_64 (FD_State.Bind_Offset_Min));
+            Record_Int (Name & ".offset_max", Int (18), Integer_64 (FD_State.Bind_Offset_Max));
+            Record_Int (Name & ".bind_state", Int (19), Integer_64 (FD_State.Bind_State));
+            Record_Int (Name & ".list_length", Int (20), Integer_64 (FD_State.List_Length));
+            Record_Int (Name & ".bind_requested", Int (21), Boolean'Pos (FD_State.Bind_Requested));
+            Record_Text (Name & ".tx_id", Str (22), FD_Tx_Id);
+            Record_Text (Name & ".hops", Str (23), FD_Hops);
+            Record_Int (Name & ".config_offset", Int (24), Integer_64 (FD_Config.Bind_Offset));
+            Record_Int (Name & ".rx_num", Int (25), Integer_64 (FD_Config.Rx_Num));
+            declare
+               Image : String (1 .. 64);
+               Len   : Natural := 0;
+            begin
+               for K in FSP.Channel_Values'Range loop
+                  declare
+                     T : constant String := Interfaces.Unsigned_16'Image (FD_Rc (K));
+                  begin
+                     if K > 0 then
+                        Len := Len + 1;
+                        Image (Len) := '.';
+                     end if;
+                     Image (Len + 1 .. Len + T'Length - 1) := T (T'First + 1 .. T'Last);
+                     Len := Len + T'Length - 1;
+                  end;
+               end loop;
+               Record_Text (Name & ".rc", Rc_Text, Image (1 .. Len));
+            end;
+            Record_Int (Name & ".rssi_dbm", Int (27), Integer_64 (FD_State.RSSI_Dbm));
+            Record_Text (Name & ".ops", Str (28), FD_Ops (O));
+         end;
+      end if;
+   end Check_FrSky_D_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -12033,6 +12258,8 @@ procedure Vector_Check is
                   Check_MAVLink_Commands_Line;
                elsif Kind = "jetitlm" then
                   Check_Jeti_Telemetry_Line;
+               elsif Kind = "frskyd" then
+                  Check_FrSky_D_Line;
                else
                   Check_PID_Line;
                end if;
@@ -12147,6 +12374,7 @@ begin
    Run (Dir & "/mavtlm.csv", "mavtlm");
    Run (Dir & "/mavcmd.csv", "mavcmd");
    Run (Dir & "/jetitlm.csv", "jetitlm");
+   Run (Dir & "/frskyd.csv", "frskyd");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
