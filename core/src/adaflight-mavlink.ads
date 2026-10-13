@@ -80,12 +80,18 @@ package Adaflight.MAVLink with SPARK_Mode is
       Signature_Left : Signature_Count := 0;
    end record;
 
+   --  A frame parser: the frame being filled, the parser's status and the
+   --  last complete frame.
+   type Frame_Parser is record
+      Rx       : Message;
+      Status   : Parser;
+      Received : Message;
+   end record;
+
    type Message_Queue is array (Queue_Index) of Message;
 
    type State is record
-      Rx                 : Message;
-      Status             : Parser;
-      Received           : Message;
+      Frames             : Frame_Parser;
       Queue              : Message_Queue;
       Head               : Queue_Index := 0;
       Tail               : Queue_Index := 0;
@@ -99,6 +105,11 @@ package Adaflight.MAVLink with SPARK_Mode is
    --  Every channel starts at the configured center; the receiver takes the
    --  protocol's RSSI and link quality claims at its own init.
    procedure Init (S : out State; Mid_RC : Channel_Value);
+
+   --  One byte through the frame parser. A bad checksum or signature
+   --  restarts the parser, on the start byte when the byte is one; a
+   --  complete frame with a good checksum is left as the received frame.
+   procedure Parse_Byte (L : in out Frame_Parser; C : Byte; Result : out Framing);
 
    --  One byte from the serial port at its arrival time, through the frame
    --  parser. A complete frame with a good checksum is an RC channels

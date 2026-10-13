@@ -121,6 +121,8 @@ with Adaflight.OSD_Render;
 with Adaflight.OSD_Draw;
 with Adaflight.OSD_Spec;
 with Adaflight.OSD_Task;
+with Adaflight.MAVLink_Commands;
+with Adaflight.MAVLink_Frames;
 with Adaflight.MAVLink_Telemetry;
 
 procedure Vector_Check is
@@ -4599,19 +4601,19 @@ procedure Vector_Check is
             Expect_Next ("popped_id", (if Got then Integer_64 (Msg.Id) else 0));
             Expect_Next ("popped_len", (if Got then Integer_64 (Msg.Len) else 0));
             Expect_Next ("popped_seq", (if Got then Integer_64 (Msg.Seq) else 0));
-            Expect_Next ("parse_state", Parse_State'Pos (Mav_State.Status.State));
-            Expect_Next ("packet_idx", Integer_64 (Mav_State.Status.Packet_Idx));
-            Expect_Next ("success_count", Integer_64 (Mav_State.Status.Success_Count));
-            Expect_Next ("flags", Integer_64 (Mav_State.Status.Flags));
-            Expect_Next ("signature_left", Integer_64 (Mav_State.Status.Signature_Left));
-            Expect_Next ("rx_len", Integer_64 (Mav_State.Rx.Len));
-            Expect_Next ("rx_checksum", Integer_64 (Mav_State.Rx.Checksum));
-            Expect_Next ("recv_id", Integer_64 (Mav_State.Received.Id));
-            Expect_Next ("recv_len", Integer_64 (Mav_State.Received.Len));
-            Expect_Next ("recv_seq", Integer_64 (Mav_State.Received.Seq));
-            Expect_Next ("recv_sysid", Integer_64 (Mav_State.Received.Sysid));
-            Expect_Next ("recv_compid", Integer_64 (Mav_State.Received.Compid));
-            Expect_Next ("recv_checksum", Integer_64 (Mav_State.Received.Checksum));
+            Expect_Next ("parse_state", Parse_State'Pos (Mav_State.Frames.Status.State));
+            Expect_Next ("packet_idx", Integer_64 (Mav_State.Frames.Status.Packet_Idx));
+            Expect_Next ("success_count", Integer_64 (Mav_State.Frames.Status.Success_Count));
+            Expect_Next ("flags", Integer_64 (Mav_State.Frames.Status.Flags));
+            Expect_Next ("signature_left", Integer_64 (Mav_State.Frames.Status.Signature_Left));
+            Expect_Next ("rx_len", Integer_64 (Mav_State.Frames.Rx.Len));
+            Expect_Next ("rx_checksum", Integer_64 (Mav_State.Frames.Rx.Checksum));
+            Expect_Next ("recv_id", Integer_64 (Mav_State.Frames.Received.Id));
+            Expect_Next ("recv_len", Integer_64 (Mav_State.Frames.Received.Len));
+            Expect_Next ("recv_seq", Integer_64 (Mav_State.Frames.Received.Seq));
+            Expect_Next ("recv_sysid", Integer_64 (Mav_State.Frames.Received.Sysid));
+            Expect_Next ("recv_compid", Integer_64 (Mav_State.Frames.Received.Compid));
+            Expect_Next ("recv_checksum", Integer_64 (Mav_State.Frames.Received.Checksum));
             Expect_Next ("frame_received", Boolean'Pos (Mav_State.Frame_Received));
             Expect_Next ("head", Integer_64 (Mav_State.Head));
             Expect_Next ("tail", Integer_64 (Mav_State.Tail));
@@ -11544,6 +11546,156 @@ procedure Vector_Check is
       end if;
    end Check_MAVLink_Telemetry_Line;
 
+   package MVC renames Adaflight.MAVLink_Commands;
+   MC_Seq       : Integer_64 := -1;
+   MC_Queue     : Boolean := False;
+   MC_State     : MVC.State;
+   MC_Config    : MVC.Settings;
+   MC_Link      : Adaflight.MAVLink_Telemetry.State;
+   MC_Link_Conf : Adaflight.MAVLink_Telemetry.Settings;
+   MC_Rx        : Adaflight.MAVLink.State;
+   MC_Receiver  : Adaflight.Receiver.State;
+   MC_Fifo      : Adaflight.MAVLink_Frames.Byte_Buffer (1 .. 8192) := (others => 0);
+   MC_Waiting   : Natural := 0;
+
+   procedure MC_Record_State (Name : String; F : Positive) is
+   begin
+      for M in MVT.Output_Message loop
+         Record_Int
+           (Name & ".interval", Int (F + MVT.Output_Message'Pos (M)), Integer_64 (MC_Link.Streams (M).Interval_Ms));
+      end loop;
+      Record_Int (Name & ".seq", Int (F + 10), Integer_64 (MC_Link.Tx_Seq));
+      Record_Int
+        (Name & ".parse_state", Int (F + 11), Adaflight.MAVLink.Parse_State'Pos (MC_State.Port.Status.State));
+      Record_Int (Name & ".packet_idx", Int (F + 12), Integer_64 (MC_State.Port.Status.Packet_Idx));
+      Record_Int (Name & ".pending", Int (F + 13), Boolean'Pos (MC_State.Reboot_Pending));
+      Record_Int (Name & ".bootloader", Int (F + 14), Boolean'Pos (MC_State.To_Bootloader));
+   end MC_Record_State;
+
+   procedure Check_MAVLink_Commands_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "mcinit" then
+         MC_Seq := Int (2);
+         MC_Queue := Int (3) = 1;
+         MC_State := (others => <>);
+         MC_Config := (others => <>);
+         MC_Link := (others => <>);
+         MC_Link_Conf := (others => <>);
+         MC_Waiting := 0;
+         for K in 0 .. 2 loop
+            MC_Config.UID (K) := Interfaces.Unsigned_32 (Int (4 + K));
+         end loop;
+         for St in MVT.Stream loop
+            MC_Link_Conf.Rates (St) := Interfaces.Unsigned_8 (Int (7 + MVT.Stream'Pos (St)));
+         end loop;
+         MVT.Configure_Intervals (MC_Link, MC_Link_Conf, Interfaces.Unsigned_32 (Int (13)));
+         Adaflight.MAVLink.Init (MC_Rx, 1500);
+         MC_Record_State (Name, 14);
+      elsif Int (2) /= MC_Seq then
+         Put_Line ("MAVLink command line without its start");
+         Failures := Failures + 1;
+      elsif Name = "mcstep" then
+         declare
+            Inp      : MVC.Inputs;
+            O        : MVC.Output;
+            R        : MVC.Requests;
+            Incoming : constant Byte_Array := Hex_Bytes (12);
+            Consumed : Natural;
+            Ops      : String (1 .. 80);
+            Op_Count : Natural := 0;
+            Boxes    : String (1 .. 200);
+            Box_Len  : Natural := 0;
+            Overrides : Natural := 0;
+            Fix_Home : Boolean := Int (7) = 1;
+            Lat      : Integer_64 := Int (8);
+            Lon      : Integer_64 := Int (9);
+            Alt      : Integer_64 := Int (10);
+
+            procedure Op (C : Character) is
+            begin
+               Op_Count := Op_Count + 1;
+               Ops (Op_Count) := C;
+            end Op;
+         begin
+            Inp.Armed := Int (5) = 1;
+            Inp.GPS_Fix := Int (6) = 1;
+            Inp.Now_Us := Interfaces.Unsigned_32 (Int (3));
+            Inp.Now_Ms := Interfaces.Unsigned_32 (Int (4));
+            if MC_Queue then
+               for B of Incoming loop
+                  Adaflight.MAVLink.Receive_Byte (MC_Rx, MC_Receiver, Natural (B), Inp.Now_Us);
+               end loop;
+               MVC.Process_Queue (MC_State, MC_Link, MC_Link_Conf, MC_Config, Inp, MC_Rx, O, R);
+               Record_Int
+                 (Name & ".queue", Int (14),
+                  Integer_64
+                    ((MC_Rx.Head - MC_Rx.Tail + Adaflight.MAVLink.Queue_Size) mod Adaflight.MAVLink.Queue_Size));
+            else
+               for B of Incoming loop
+                  MC_Waiting := MC_Waiting + 1;
+                  MC_Fifo (MC_Waiting) := Interfaces.Unsigned_8 (B);
+               end loop;
+               MVC.Process_Port
+                 (MC_State, MC_Link, MC_Link_Conf, MC_Config, Inp, MC_Fifo (1 .. MC_Waiting), Consumed, O, R);
+               MC_Fifo (1 .. MC_Waiting - Consumed) := MC_Fifo (Consumed + 1 .. MC_Waiting);
+               MC_Waiting := MC_Waiting - Consumed;
+               Record_Int (Name & ".waiting", Int (13), Integer_64 (MC_Waiting));
+            end if;
+            declare
+               Actual : Byte_Array (0 .. O.Length - 1);
+            begin
+               for K in Actual'Range loop
+                  Actual (K) := Byte (O.Data (K + 1));
+               end loop;
+               Record_Int (Name & ".length", Int (15), Integer_64 (O.Length));
+               Record_Bytes (Name & ".bytes", Hex_Bytes (16), Actual);
+            end;
+            for K in 1 .. R.Count loop
+               case R.List (K).Kind is
+                  when MVC.Disarm =>
+                     Op ('D');
+                  when MVC.Clear_Overrides =>
+                     Op ('C');
+                  when MVC.Set_Override =>
+                     Op ('S');
+                     declare
+                        Img : constant String := Integer'Image (Adaflight.Modes.Box'Pos (R.List (K).Box));
+                     begin
+                        if Overrides > 0 then
+                           Box_Len := Box_Len + 1;
+                           Boxes (Box_Len) := ':';
+                        end if;
+                        Boxes (Box_Len + 1 .. Box_Len + Img'Length - 1) := Img (Img'First + 1 .. Img'Last);
+                        Box_Len := Box_Len + Img'Length - 1;
+                        Overrides := Overrides + 1;
+                     end;
+                  when MVC.Reset_Home =>
+                     Op ('H');
+                  when MVC.Set_Home =>
+                     Fix_Home := True;
+                     Lat := Integer_64 (R.List (K).Latitude);
+                     Lon := Integer_64 (R.List (K).Longitude);
+                     Alt := Integer_64 (R.List (K).Altitude_Cm);
+               end case;
+            end loop;
+            case R.Reboot is
+               when MVC.None => null;
+               when MVC.Reset => Op ('W'); Op ('M'); Op ('R');
+               when MVC.Bootloader => Op ('W'); Op ('M'); Op ('B');
+            end case;
+            Record_Text (Name & ".ops", Str (17), (if Op_Count = 0 then "-" else Ops (1 .. Op_Count)));
+            Record_Int (Name & ".overrides", Int (18), Integer_64 (Overrides));
+            Record_Text (Name & ".boxes", Str (19), Boxes (1 .. Box_Len));
+            Record_Int (Name & ".fix_home", Int (20), Boolean'Pos (Fix_Home));
+            Record_Int (Name & ".home_lat", Int (21), Lat);
+            Record_Int (Name & ".home_lon", Int (22), Lon);
+            Record_Int (Name & ".home_alt", Int (23), Alt);
+            MC_Record_State (Name, 24);
+         end;
+      end if;
+   end Check_MAVLink_Commands_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -11750,6 +11902,8 @@ procedure Vector_Check is
                   Check_OSD_Task_Line;
                elsif Kind = "mavtlm" then
                   Check_MAVLink_Telemetry_Line;
+               elsif Kind = "mavcmd" then
+                  Check_MAVLink_Commands_Line;
                else
                   Check_PID_Line;
                end if;
@@ -11862,6 +12016,7 @@ begin
    Run (Dir & "/osdspec.csv", "osdspec");
    Run (Dir & "/osdtask.csv", "osdtask");
    Run (Dir & "/mavtlm.csv", "mavtlm");
+   Run (Dir & "/mavcmd.csv", "mavcmd");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
