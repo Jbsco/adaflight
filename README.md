@@ -68,8 +68,8 @@ The core holds:
 - the navigation trail with its distance gate and its decimation
 - the GPS frame decoders for NMEA sentences and UBX messages, the UBX configuration messages,
   and the GPS link with its rate detection, autoconfiguration and home distances
-- the video transmitter table, the SmartAudio and Tramp drivers, and the transmitter settings
-  update with the stick, switch and Spektrum control
+- the video transmitter table, the SmartAudio, Tramp and MSP drivers, and the transmitter
+  settings update with the stick, switch and Spektrum control
 - the LTM telemetry stream
 - the GPS lap timer with its averaged gate and its best three laps
 - the MSP box table with its paged replies and status bits
@@ -81,9 +81,9 @@ The core holds:
 
 The state of `main`:
 
-- The core proves at Silver and Gold: 12917 checks, nothing unproved, no
+- The core proves at Silver and Gold: 12970 checks, nothing unproved, no
   `pragma Assume`, no justified suppression (`gnatprove` 16.1.0, level 2).
-- The recorded vectors replay bit for bit: 864008 lines over 299 cases, every case
+- The recorded vectors replay bit for bit: 871214 lines over 300 cases, every case
   exact except the twenty declared deviations in `DESIGN.md` D6.
 - No target builds yet. `ROADMAP.md` carries the parity inventory, the phases, and the
   question for after parity: whether a proved core leaves room on the F4 boards for
