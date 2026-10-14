@@ -3441,3 +3441,26 @@ The harness replays 4800 requests recorded from the reference MSP processor, in 
 video system, profiles, stick overlay, MSP display port with its font and frame buffer OSD and
 one without, on random settings, devices and warnings lines. Every result, length and byte of the
 4808 lines replays exactly.
+
+## D155. Serial feature map (2026-10-13)
+
+`Adaflight.Serial_Feature_Map` contains the map between the features that name a serial port in
+their own settings and the per-port view of function bits and baud rates: a port's function bits
+and its baud rate of a class from the features naming it, the claims on a port with their setting
+names, a function mask applied to a port, a baud rate applied to a port's features of a class,
+implied MSP ports, port conflict rule, configuration check and its fix. Applying a mask clears
+every claim on the port first, and changes nothing when the mask asks for two VTX protocols or for
+more MSP or telemetry slots than are free. A port's functions conflict when MSP or a serial
+receiver is on a soft serial port, when an MSP VTX is alone on its port, or when shared functions
+are neither MSP with functions that share with it nor a serial receiver with telemetry it carries.
+The fix drops every claim but MSP on each conflicting port and, when the assignment is still
+invalid, clears every claim and puts MSP on the target's first port at its default baud rate. The
+build's features, telemetry protocols and soft serial ports come in as options, with one telemetry
+slot per protocol built, at most three. The rangefinder's and optical flow's hardware enter as
+whether they talk MSP.
+
+The harness replays 4800 operations recorded from the reference feature map, conflict rule, port
+types and telemetry port sharing check, in a build with every feature that names a port and one
+without the ESC sensor, RC device, gimbal, Tramp and MSP VTX, rangefinder, optical flow, MSP
+display port and MSP over telemetry, on random assignments, half of them sparse. Every function
+mask, claim, baud rate, conflict, check result and assignment of the 4808 lines replays exactly.
