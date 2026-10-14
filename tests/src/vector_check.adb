@@ -18413,6 +18413,7 @@ begin
    Run (Dir & "/clidiff.csv", "cliset");
    Run (Dir & "/cliall.csv", "cliset");
    Run (Dir & "/clibrd.csv", "cliset");
+   Run (Dir & "/clitune.csv", "cliset");
    if Settings_Seen /= Adaflight.Settings_Table.Setting'Pos (Adaflight.Settings_Table.Setting'Last) + 1 then
       Put_Line ("settings: the vectors hold" & Settings_Seen'Image & " settings");
       Failures := Failures + 1;
