@@ -220,6 +220,13 @@ ledger. The deviations so far:
   map, where a stored value outside its setting's values reads as no port, the automatic rate or no
   protocol. A legacy line writes back only what changes in that reading, where the reference writes
   over the stored value. The recorded command lines keep every setting within its values.
+- The command line's `mixer` prints no name for a mixer mode outside the names table, where the
+  reference reads outside the table (findings F161).
+- The command line's float reader takes a number past the float range as the largest float and
+  zero with an exponent past the range as zero, where the reference reads infinity and
+  not-a-number, and `mmix` prints every value in full, where the reference writes values of 100000
+  or more past its text buffers (findings F159, F160). The recorded command lines keep their values
+  below 100000.
 
 ## D7. Contribution conventions (2026-10-08)
 
@@ -3936,3 +3943,27 @@ functions and masks the map refuses, rates in and out of their classes' ranges, 
 doubled spaces, and writes of the port, selection and baud settings between them. With the earlier
 sequences, all 32586 replies match the reference's byte for byte, and so does the configuration's
 hash after every command.
+
+## D175. Command line mixer and motor mix (2026-10-14)
+
+`Adaflight.Command_Line` gains the `mixer` and `mmix` commands. `mixer` alone prints the mixer
+mode's name, `mixer list` and its prefixes print every name, and a name or a prefix of one sets the
+first mode it starts, then prints the name. `mmix` alone prints the custom motor mix up to its first
+motor without throttle. `mmix reset` clears every motor's throttle. `mmix load` with a name or
+prefix clears the throttles, loads the first matching mode's motor table and prints the mix. An
+index from 0 to 7 with throttle, roll, pitch and yaw stores each value as it is read, so a line with
+fewer values keeps the ones it gave and is the argument count error. The two commands take only the
+configuration groups they read or write: the mixer mode and the custom motor mix.
+
+`Adaflight.CLI_Text` gains the reference's float reader and float text. The reader takes digits,
+fraction digits and exponent steps in the reference's order, and forms each product exactly in
+double precision before one rounding to single precision, to give the reference's single-precision
+results bit for bit (D6 at the float range's end). The text rounds half away from zero to
+thousandths and converts with the target's saturation at the 32-bit range.
+
+The harness replays two sequences of 2000 command lines recorded from the oracle: mixer queries,
+lists, names and prefixes in mixed case and unknown names, motor mix lists, resets, loads of every
+table and unknown names, and motor lines with values in plain, fraction and exponent forms, signs,
+values that round at the thousandths, and texts that are not numbers. With the earlier sequences,
+all 36586 replies match the reference's byte for byte, and so does the configuration's hash after
+every command.
