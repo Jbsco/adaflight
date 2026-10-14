@@ -132,6 +132,7 @@ with Adaflight.MSP_Serial_Out;
 with Adaflight.MSP_VTX_Status_Out;
 with Adaflight.Config_Store;
 with Adaflight.Mixer_Init;
+with Adaflight.Task_Init;
 with Adaflight.MSP_Out;
 with Adaflight.Four_Way;
 with Adaflight.Gimbal_Control;
@@ -2135,7 +2136,7 @@ procedure Vector_Check is
    --  of the oracle: one cycle per read of the cycle counter and the recorded
    --  durations while a task or a check runs.
    Sched_State    : Adaflight.Scheduler.State;
-   Sched_Settings : Adaflight.Scheduler.Settings;
+   Sched_Settings : Adaflight.Scheduler.Settings := (Delay_Limit_Us => 1, others => <>);
    Sched_Clock    : Unsigned_32 := 0;
    Sched_Tasks    : array (0 .. 63) of Adaflight.Scheduler.Task_Id := (others => Adaflight.Scheduler.System);
    Sched_Task_Count : Natural := 0;
@@ -16922,6 +16923,134 @@ procedure Vector_Check is
       end if;
    end Check_Mixer_Init_Line;
 
+   TI_Options : Adaflight.Task_Init.Options;
+   TI_Count   : Natural := 0;
+   TI_Tasks   : array (1 .. Adaflight.Scheduler.Task_Count) of Adaflight.Scheduler.Task_Id :=
+     (others => Adaflight.Scheduler.System);
+
+   procedure Check_Task_Init_Line is
+      package TI renames Adaflight.Task_Init;
+      package SC renames Adaflight.Scheduler;
+      Name : constant String := Str (1);
+      K    : Positive := 4;
+      function Next return Integer_64 is
+      begin
+         K := K + 1;
+         return Int (K - 1);
+      end Next;
+      function Flag return Boolean is (Next /= 0);
+   begin
+      if Name = "tskinit" then
+         TI_Options := (others => False);
+         TI_Options.Sag_Compensation := Int (4) /= 0;
+         TI_Options.MSP_Display_Port := Int (5) /= 0;
+         TI_Options.VTX_Driver := Int (6) /= 0;
+         TI_Count := Natural (Int (7));
+         for I in 1 .. TI_Count loop
+            TI_Tasks (I) := SC.Task_Id'Value (Str (7 + I));
+            case TI_Tasks (I) is
+               when SC.Accel | SC.Attitude => TI_Options.Accel := True;
+               when SC.Beeper => TI_Options.Beeper := True;
+               when SC.GPS => TI_Options.GPS := True;
+               when SC.GPS_Rescue => TI_Options.GPS_Rescue := True;
+               when SC.Alt_Hold => TI_Options.Alt_Hold := True;
+               when SC.Pos_Hold => TI_Options.Pos_Hold := True;
+               when SC.Mag_Hold | SC.Compass => TI_Options.Mag := True;
+               when SC.Baro => TI_Options.Baro := True;
+               when SC.Rangefinder => TI_Options.Rangefinder := True;
+               when SC.Optical_Flow => TI_Options.Optical_Flow := True;
+               when SC.Pitot => TI_Options.Pitot := True;
+               when SC.Dashboard => TI_Options.Dashboard := True;
+               when SC.Telemetry => TI_Options.Telemetry := True;
+               when SC.LED_Strip => TI_Options.LED_Strip := True;
+               when SC.Transponder => TI_Options.Transponder := True;
+               when SC.Stack_Check => TI_Options.Stack_Check := True;
+               when SC.OSD => TI_Options.OSD := True;
+               when SC.BST_Master => TI_Options.BST := True;
+               when SC.ESC_Sensor => TI_Options.ESC_Sensor := True;
+               when SC.CMS => TI_Options.CMS := True;
+               when SC.VTX_Control => TI_Options.VTX_Control := True;
+               when SC.Camera_Control => TI_Options.Camera_Control := True;
+               when SC.RC_Device => TI_Options.RC_Device := True;
+               when SC.ADC_Internal => TI_Options.ADC_Internal := True;
+               when SC.PINIO_Box => TI_Options.PINIO_Box := True;
+               when SC.Speed_Negotiation => TI_Options.CRSF_V3 := True;
+               when SC.RC_Stats => TI_Options.RC_Stats := True;
+               when SC.Gimbal => TI_Options.Gimbal := True;
+               when SC.OSD_Custom_Text => TI_Options.OSD_Custom_Text := True;
+               when SC.DroneCAN => TI_Options.DroneCAN := True;
+               when SC.System | SC.Main | SC.Gyro | SC.Filter | SC.PID | SC.Rx | SC.Serial | SC.Dispatch
+                  | SC.Battery_Voltage | SC.Battery_Current | SC.Battery_Alerts | SC.Position => null;
+            end case;
+         end loop;
+         return;
+      elsif Name /= "tskstep" then
+         Put_Line ("unknown task setup case " & Name);
+         Failures := Failures + 1;
+         return;
+      end if;
+      declare
+         I        : TI.Inputs;
+         S        : SC.State;
+         Settings : constant SC.Settings := (Delay_Limit_Us => 1, Gyro_Period_Us => 100, others => <>);
+         Regate   : Boolean;
+         New_Mode : Boolean;
+         New_Mag  : Boolean;
+         Receiver : Integer_64;
+      begin
+         I.Serial_Update_Rate_Hz := Positive (Next);
+         I.Voltage_Meter := Flag;
+         I.Current_Meter := Flag;
+         I.Voltage_Alerts := Flag;
+         I.Consumption_Alerts := Flag;
+         I.Sag_Compensation := Flag;
+         I.Gyro_Detected := Flag;
+         I.Acc_Detected := Flag;
+         I.Rangefinder_Detected := Flag;
+         I.Optical_Flow_Detected := Flag;
+         I.Baro_Detected := Flag;
+         I.Mag_Detected := Flag;
+         I.Feature_OSD := Flag;
+         I.Feature_Rangefinder := Flag;
+         I.Feature_Optical_Flow := Flag;
+         I.Feature_GPS := Flag;
+         I.Feature_Dashboard := Flag;
+         I.Feature_Telemetry := Flag;
+         I.Feature_LED_Strip := Flag;
+         I.Feature_Transponder := Flag;
+         I.Feature_ESC_Sensor := Flag;
+         I.Gyro_Sample_Looptime_Us := SC.Time_Delta (Next);
+         I.Gyro_Target_Looptime_Us := SC.Time_Delta (Next);
+         I.Acc_Sample_Rate_Hz := Natural (Next);
+         I.Dispatch_Enabled := Flag;
+         I.Mag_Mode_Present := Flag;
+         I.Pitot_Configured := Flag;
+         I.OSD_Display_Port := Flag;
+         I.RC_Device_Enabled := Flag;
+         I.PINIO_Box_Enabled := Flag;
+         I.DroneCAN_Initialised := Flag;
+         Receiver := Next;
+         I.Receiver := (case Receiver is when 2 => TI.CRSF, when 1 => TI.Jeti_ExBus, when others => TI.Other_Receiver);
+         I.OSD_Framerate_Hz := Positive (Next);
+         Regate := Flag;
+         New_Mode := Flag;
+         New_Mag := Flag;
+         TI.Init (S, Settings, 0, TI_Options, I);
+         if Regate then
+            TI.Update_Mode_Gated_Enables (S, TI_Options, New_Mag, New_Mode);
+         end if;
+         for T of TI_Tasks (1 .. TI_Count) loop
+            Record_Int (Name & ".enabled", Int (K), Boolean'Pos (SC.Enabled (S, T)));
+            Record_Int (Name & ".period", Int (K + 1), Integer_64 (S.Tasks (T).Period));
+            K := K + 2;
+         end loop;
+      end;
+      if K - 1 /= NF then
+         Put_Line ("tskstep: consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
+         Failures := Failures + 1;
+      end if;
+   end Check_Task_Init_Line;
+
    AP_State    : Adaflight.Position_Hold.State;
    AP_Settings : Adaflight.Position_Control.Settings;
    AP_Nav      : Adaflight.Position_Nav.Navigator;
@@ -17465,6 +17594,8 @@ procedure Vector_Check is
                   Check_Config_Store_Line;
                elsif Kind = "mixinit" then
                   Check_Mixer_Init_Line;
+               elsif Kind = "taskinit" then
+                  Check_Task_Init_Line;
                else
                   Check_PID_Line;
                end if;
@@ -17623,6 +17754,7 @@ begin
    Run (Dir & "/vtxstatus.csv", "vtxstatus");
    Run (Dir & "/cfgstore.csv", "cfgstore");
    Run (Dir & "/mixinit.csv", "mixinit");
+   Run (Dir & "/taskinit.csv", "taskinit");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");

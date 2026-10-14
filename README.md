@@ -43,6 +43,7 @@ The core contains:
   carrot legs, dispatch, landing, update cycle, engagement, plan injection, geofence return,
   rescue plan and descent, and waypoint distance, bearing and time
 - cooperative scheduler, beeper, and receiver's channel processing with MSP override
+- task setup: tasks enabled at boot and periods from build, features, sensors and settings
 - SBUS, CRSF, SUMD, SUMH, IBUS, Spektrum, XBUS, Jeti EX Bus, Ghost, SRXL2 and FPORT protocols, and
   MSP and MAVLink receivers
 - FrSky SPI D8 and X receivers with binding, hopping, hub data and telemetry transport
@@ -126,9 +127,9 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 19343 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 19348 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
-- Recorded vectors replay bit for bit: 1518737 lines over 358 cases, every case exact except
+- Recorded vectors replay bit for bit: 1523545 lines over 359 cases, every case exact except
   twenty-three declared deviations in `DESIGN.md` D6.
 - No target builds yet. `ROADMAP.md` contains phases, parity inventory, and one question for after
   parity: whether a proved core leaves room on F4 boards for features Betaflight has to leave out
