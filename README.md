@@ -122,6 +122,7 @@ The core contains:
 - command line LEDs: LED configurations, colors and mode colors
 - command line VTX settings: VTX channel conditions and VTX table
 - command line flight plan: waypoint lists, edits and status with executor's report
+- command line master dump: section commands, master settings and selected profiles, version line
 - MSP state replies: status, sensor readings, motors, RC channels, attitude, altitudes, battery,
   debug values, GPS, ESC and motor telemetry, pitot, transmitter information and clock
 - BLHeli 4-way interface for ESC configuration through flight controller
@@ -147,9 +148,9 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 21762 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 21855 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
-- Recorded vectors replay bit for bit: 1727497 lines over 378 cases, every case exact except
+- Recorded vectors replay bit for bit: 1734589 lines over 379 cases, every case exact except
   thirty-six declared deviations in `DESIGN.md` D6.
 - No target builds yet. `ROADMAP.md` contains phases, parity inventory, and one question for after
   parity: whether a proved core leaves room on F4 boards for features Betaflight has to leave out
