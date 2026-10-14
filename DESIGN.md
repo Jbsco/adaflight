@@ -3670,3 +3670,22 @@ indexing.
 
 The harness compares every setting's default through `Get` and `Get_Text` with the oracle's dump.
 All 789 settings replay exactly.
+
+## D165. Writing settings (2026-10-13)
+
+`Adaflight.Config_Groups` gains `Set`, which writes a setting's value as the reference's command
+line writes it: the value truncated to the setting's type as a C assignment stores it, into the low
+bytes alone of a field wider than the type, a bit setting's bit, an array setting's element, a
+profile setting's profile. Of the 19 settings whose type and field differ in width in the
+reference's structs, the board alignment angles show what the partial write does: a negative angle
+stores 65536 minus its size (F149). `Lowest` and `Highest` give the values a setting's type holds,
+and a value between them reads back unchanged. The range a setting accepts, the lookup by name and
+the texts belong to the command line and the MSP commands that call `Set`. Each group has its own
+writer, which keeps each writer's proof small. The unit is SPARK for the indexing of profiles and
+elements.
+
+The harness replays four sequences of 1500 writes recorded from the oracle from the reset
+configuration, each setting, profile, element and value at random within what the setting's range or
+type allows. After each write the setting reads back the written value, and a weighted sum over
+every value of every setting but the texts matches the reference's, so no write touches another
+setting. All 6000 writes replay exactly.

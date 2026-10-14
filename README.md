@@ -104,8 +104,8 @@ The core contains:
   power levels and device block
 - configuration storage image: structure and version checks, record lookup, load and save
 - settings table: names, types, scopes, ranges and lookup tables of command line's 789 settings
-- configuration groups: a record per parameter group with Betaflight's defaults and every
-  setting's value
+- configuration groups: a record per parameter group with Betaflight's defaults, and every
+  setting's value and write
 - MSP state replies: status, sensor readings, motors, RC channels, attitude, altitudes, battery,
   debug values, GPS, ESC and motor telemetry, pitot, transmitter information and clock
 - BLHeli 4-way interface for ESC configuration through flight controller
@@ -131,9 +131,9 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 19687 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 19812 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
-- Recorded vectors replay bit for bit: 1555219 lines over 363 cases, every case exact except
+- Recorded vectors replay bit for bit: 1561223 lines over 364 cases, every case exact except
   twenty-three declared deviations in `DESIGN.md` D6.
 - No target builds yet. `ROADMAP.md` contains phases, parity inventory, and one question for after
   parity: whether a proved core leaves room on F4 boards for features Betaflight has to leave out

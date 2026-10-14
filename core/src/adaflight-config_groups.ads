@@ -1262,6 +1262,18 @@ package Adaflight.Config_Groups with SPARK_Mode is
      return Integer_64
      with Pre => Profile < Profile_Count (S) and then Index < Element_Count (S);
 
+   --  The values a setting's type holds: its bit or flag for a bit or flag setting.
+   function Lowest (S : Setting) return Integer_64;
+   function Highest (S : Setting) return Integer_64;
+
+   --  Writes a setting's value as the reference's command line writes it: the
+   --  value truncated to the field's width, a bit setting's bit, an array
+   --  setting's element, a profile setting's profile; text settings keep
+   --  their characters. A value between Lowest and Highest reads back.
+   procedure Set (C : in out Configuration; S : Setting; Value : Integer_64; Profile : Natural := 0;
+                  Index : Natural := 0)
+     with Pre => Profile < Profile_Count (S) and then Index < Element_Count (S);
+
    --  A text setting's characters before the first zero, empty for the others.
    function Get_Text (C : Configuration; S : Setting; Profile : Natural := 0) return String
      with Pre => Profile < Profile_Count (S);
