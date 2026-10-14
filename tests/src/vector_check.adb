@@ -123,6 +123,7 @@ with Adaflight.MSP_Tuning_Out;
 with Adaflight.MSP_Receiver_Out;
 with Adaflight.MSP_Hardware_Out;
 with Adaflight.MSP_Peripheral_Out;
+with Adaflight.MSP_Text_Out;
 with Adaflight.MSP_Out;
 with Adaflight.Four_Way;
 with Adaflight.Gimbal_Control;
@@ -15907,6 +15908,112 @@ procedure Vector_Check is
       end if;
    end Check_MSP_Peripheral_Line;
 
+   MX_Table, MX_Strip : Boolean := False;
+   MX_Build_Key, MX_Release : Adaflight.MSP_Text_Out.Optional_Text;
+
+   procedure Check_MSP_Text_Line is
+      use Adaflight.MSP_Text_Out;
+      Name : constant String := Str (1);
+      K    : Positive := 7;
+      function Next return Integer_64 is
+      begin
+         K := K + 1;
+         return Int (K - 1);
+      end Next;
+      function U8 return Interfaces.Unsigned_8 is (Interfaces.Unsigned_8 (Next));
+      function U16 return Interfaces.Unsigned_16 is (Interfaces.Unsigned_16 (Next));
+      function Next_Text return Text is
+         T     : Text;
+         Count : constant Integer_64 := Next;
+      begin
+         if Count > 0 then
+            T.Length := Natural (Count);
+            declare
+               Bytes : constant Byte_Array := Hex_Bytes (K);
+            begin
+               for I in 1 .. T.Length loop
+                  T.Data (I) := Character'Val (Bytes (Bytes'First + I - 1));
+               end loop;
+            end;
+         end if;
+         K := K + 1;
+         return T;
+      end Next_Text;
+   begin
+      if Name = "mxtinit" then
+         K := 4;
+         MX_Table := Next /= 0;
+         MX_Strip := Next /= 0;
+         MX_Build_Key.Present := Int (K) >= 0;
+         MX_Build_Key.Value := Next_Text;
+         MX_Release.Present := Int (K) >= 0;
+         MX_Release.Value := Next_Text;
+      elsif Name = "mxtstep" then
+         declare
+            Command : constant Interfaces.Unsigned_16 := Interfaces.Unsigned_16 (Int (4));
+            Request : constant Byte_Array (0 .. 0) := (0 => Interfaces.Unsigned_8 (Int (6)));
+            V       : Snapshot;
+            Buffer  : Byte_Array (0 .. 255) := (others => 0);
+            St      : Adaflight.Stream_Buffers.Stream;
+            Ok      : Boolean;
+         begin
+            V.Pilot_Name := Next_Text;
+            V.Craft_Name := Next_Text;
+            V.PID_Profile_Name := Next_Text;
+            V.Rate_Profile_Name := Next_Text;
+            V.Active_Battery := Natural (Next);
+            for P of V.Batteries loop
+               P.Min_Cell := U16;
+               P.Max_Cell := U16;
+               P.Warning_Cell := U16;
+               P.Full_Cell := U16;
+               P.Capacity := U16;
+               P.Force_Cell_Count := U8;
+               P.Consumption_Warning := U8;
+               P.Name := Next_Text;
+            end loop;
+            V.Brightness := U8;
+            V.Rainbow_Delta := U16;
+            V.Rainbow_Freq := U16;
+            V.Table.Channels := Natural (Next);
+            for Band in 1 .. Band_Count loop
+               V.Table.Letters (Band) := U8;
+               V.Table.Factory (Band) := U8;
+               V.Table.Names (Band) := Hex_Bytes (K);
+               K := K + 1;
+               for Channel in 1 .. Channel_Count loop
+                  V.Table.Frequencies (Band) (Channel) := U16;
+               end loop;
+            end loop;
+            for Level in 1 .. Power_Count loop
+               V.Table.Powers (Level) := U16;
+               V.Table.Labels (Level) := Hex_Bytes (K);
+               K := K + 1;
+            end loop;
+            V.Table.Built := MX_Table;
+            V.LED_Strip := MX_Strip;
+            V.Build_Key := MX_Build_Key;
+            V.Release_Name := MX_Release;
+            Adaflight.Stream_Buffers.Init (St, 0, Buffer'Last + 1);
+            if Int (5) > 0 then
+               Reply (Buffer, St, Command, Request, V, Ok);
+            else
+               Reply (Buffer, St, Command, Request (1 .. 0), V, Ok);
+            end if;
+            Record_Int (Name & ".result", Int (K), (if Handles (Command, V) and then Ok then 1 else -1));
+            Record_Int (Name & ".length", Int (K + 1), Integer_64 (St.Next));
+            Record_Bytes (Name & ".reply", Hex_Bytes (K + 2), Buffer (0 .. St.Next - 1));
+            if K + 2 /= NF then
+               Put_Line ("mxtstep: consumed" & Integer'Image (K + 2) & " of" & Integer'Image (NF) & " fields");
+               Failures := Failures + 1;
+            end if;
+         end;
+      else
+         Put_Line ("unknown MSP text case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_MSP_Text_Line;
+
    AP_State    : Adaflight.Position_Hold.State;
    AP_Settings : Adaflight.Position_Control.Settings;
    AP_Nav      : Adaflight.Position_Nav.Navigator;
@@ -16432,6 +16539,8 @@ procedure Vector_Check is
                   Check_MSP_Hardware_Line;
                elsif Kind = "mspperipheral" then
                   Check_MSP_Peripheral_Line;
+               elsif Kind = "msptext" then
+                  Check_MSP_Text_Line;
                else
                   Check_PID_Line;
                end if;
@@ -16581,6 +16690,7 @@ begin
    Run (Dir & "/mspreceiver.csv", "mspreceiver");
    Run (Dir & "/msphardware.csv", "msphardware");
    Run (Dir & "/mspperipheral.csv", "mspperipheral");
+   Run (Dir & "/msptext.csv", "msptext");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
