@@ -31,7 +31,8 @@ package body Adaflight.Position_Nav with SPARK_Mode is
    end Reset;
 
    procedure Set_Target (N : in out Navigator; Target : Position_M; Cruise_Speed : Speed_Mps;
-                         Acceptance_Radius : Acceptance_M; Completion_Speed : Speed_Mps; Include_Altitude : Boolean) is
+                         Acceptance_Radius : Acceptance_M; Completion_Speed : Speed_Mps; Include_Altitude : Boolean;
+                         Handler : Boolean := False) is
       Hand_Over : constant Boolean := N.Cmd.Active;
    begin
       N.Cmd.Active := True;
@@ -58,6 +59,7 @@ package body Adaflight.Position_Nav with SPARK_Mode is
       N.Cmd.Settle := 0.0;
       N.Cmd.Max_Angle := 0.0;
       N.Cmd.Altitude_Arrival_Required := True;
+      N.Cmd.Handler := Handler;
       N.Previous_Vel.East := N.Target_Vel.East * 0.01;
       N.Previous_Vel.North := N.Target_Vel.North * 0.01;
       N.Previous_Vel.Up := 0.0;

@@ -39,8 +39,8 @@ The core contains:
   meters (analog, ESC sensor, virtual, MSP) and states, and sensor and board alignment
 - position Kalman filter, position estimator from barometer, accelerometer and GPS, altitude hold,
   position hold, GPS rescue, and position navigation target
-- flight plan storage with waypoint capture gesture, and executor's plan queries, leg geometry and
-  carrot legs
+- flight plan storage with waypoint capture gesture, and executor's plan queries, leg geometry,
+  carrot legs, dispatch and landing
 - cooperative scheduler, beeper, and receiver's channel processing with MSP override
 - SBUS, CRSF, SUMD, SUMH, IBUS, Spektrum, XBUS, Jeti EX Bus, Ghost, SRXL2 and FPORT protocols, and
   MSP and MAVLink receivers
@@ -106,10 +106,10 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 17015 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 17231 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
-- Recorded vectors replay bit for bit: 1384676 lines over 340 cases, every case exact except
-  twenty-two declared deviations in `DESIGN.md` D6.
+- Recorded vectors replay bit for bit: 1406851 lines over 341 cases, every case exact except
+  twenty-three declared deviations in `DESIGN.md` D6.
 - No target builds yet. `ROADMAP.md` contains phases, parity inventory, and one question for after
   parity: whether a proved core leaves room on F4 boards for features Betaflight has to leave out
   there.

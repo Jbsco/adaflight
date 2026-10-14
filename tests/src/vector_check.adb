@@ -14273,6 +14273,379 @@ procedure Vector_Check is
       end if;
    end Check_Executor_Helper_Line;
 
+   --  A waypoint of the executor's lines: latitude, longitude, altitude,
+   --  speed, duration, vertical rate, kind, pattern and yaw behaviour.
+   function Executor_Waypoint (First : Positive) return Adaflight.Flight_Plan.Waypoint is
+     (Latitude      => I32 (First),
+      Longitude     => I32 (First + 1),
+      Altitude      => I32 (First + 2),
+      Speed         => Interfaces.Unsigned_16 (Int (First + 3)),
+      Duration_Ds   => Interfaces.Unsigned_16 (Int (First + 4)),
+      Vert_Rate     => Interfaces.Unsigned_16 (Int (First + 5)),
+      Kind          => Interfaces.Unsigned_8 (Int (First + 6)),
+      Pattern       => Interfaces.Unsigned_8 (Int (First + 7)),
+      Yaw_Behaviour => Interfaces.Unsigned_8 (Int (First + 8)));
+
+   procedure Expect_Waypoint (Name : String; First : Positive; W : Adaflight.Flight_Plan.Waypoint) is
+   begin
+      Record_Int (Name & ".lat", Int (First), Integer_64 (W.Latitude));
+      Record_Int (Name & ".lon", Int (First + 1), Integer_64 (W.Longitude));
+      Record_Int (Name & ".alt", Int (First + 2), Integer_64 (W.Altitude));
+      Record_Int (Name & ".speed", Int (First + 3), Integer_64 (W.Speed));
+      Record_Int (Name & ".duration", Int (First + 4), Integer_64 (W.Duration_Ds));
+      Record_Int (Name & ".vertrate", Int (First + 5), Integer_64 (W.Vert_Rate));
+      Record_Int (Name & ".kind", Int (First + 6), Integer_64 (W.Kind));
+      Record_Int (Name & ".pattern", Int (First + 7), Integer_64 (W.Pattern));
+      Record_Int (Name & ".yaw", Int (First + 8), Integer_64 (W.Yaw_Behaviour));
+   end Expect_Waypoint;
+
+   --  The executor's state block of the oracle's lines, read and compared
+   --  field by field in its print order.
+   procedure Read_Executor_State (F : Positive; S : in out Adaflight.Flight_Plan_Nav.State) is
+      use Adaflight.Flight_Plan_Nav;
+   begin
+      S.Mode := Nav_State'Val (Int (F));
+      S.Current_Index := Interfaces.Unsigned_8 (Int (F + 1));
+      S.Pending_Start_Index := Interfaces.Unsigned_8 (Int (F + 2));
+      S.Hold_Start_Us := Interfaces.Unsigned_32 (Int (F + 3));
+      S.Hold_Last_Update_Us := Interfaces.Unsigned_32 (Int (F + 4));
+      S.Hold_Elapsed_Us := Interfaces.Unsigned_64'Value (Str (F + 5));
+      S.Hold_Duration_Ds := Interfaces.Unsigned_16 (Int (F + 6));
+      S.Active := Int (F + 7) /= 0;
+      S.Z_Bias_M := Flt (F + 8);
+      S.Alt_Override_Pending := Int (F + 9) /= 0;
+      S.Alt_Override_Cm := Interfaces.Integer_32 (Int (F + 10));
+      S.Alt_Override_Mode := Interfaces.Unsigned_8 (Int (F + 11));
+      S.Delay_Active := Int (F + 12) /= 0;
+      S.Delay_Duration_Ds := Interfaces.Unsigned_16 (Int (F + 13));
+      S.Delay_End_Us := Interfaces.Unsigned_32 (Int (F + 14));
+      S.Yaw_Rate_Cap_Dps := Flt (F + 15);
+      S.Reason := Abort_Reason'Val (Int (F + 16));
+      S.Injected_Waypoints := Natural (Int (F + 17));
+      S.Injected (0) := Executor_Waypoint (F + 18);
+      S.Injected (1) := Executor_Waypoint (F + 27);
+      S.Injected (2) := Executor_Waypoint (F + 36);
+      S.Injected (3) := Executor_Waypoint (F + 45);
+      S.Is_Rescue_Plan := Int (F + 54) /= 0;
+      S.Rescue_Blind_Climb := Int (F + 55) /= 0;
+      S.Rescue_Climbed := Int (F + 56) /= 0;
+      S.Rescue_Climbed_Us := Interfaces.Unsigned_32 (Int (F + 57));
+      S.Rescue_Heading_Hold := Int (F + 58) /= 0;
+      S.Rescue_Heading_Start_Us := Interfaces.Unsigned_32 (Int (F + 59));
+      S.Rescue_Heading_Trusted := Int (F + 60) /= 0;
+      S.Rescue_Heading_Trusted_Us := Interfaces.Unsigned_32 (Int (F + 61));
+      S.Rescue_Heading_Off_Course_Us := Interfaces.Unsigned_32 (Int (F + 62));
+      S.Rescue_Descent_Active := Int (F + 63) /= 0;
+      S.Pattern_Pending := Int (F + 64) /= 0;
+      S.Pattern_Active := Int (F + 65) /= 0;
+      S.Pattern_Type := Interfaces.Unsigned_8 (Int (F + 66));
+      S.Pattern_Centre.East := Flt (F + 67);
+      S.Pattern_Centre.North := Flt (F + 68);
+      S.Pattern_Centre.Up := Flt (F + 69);
+      S.Pattern_Phase_Rad := Flt (F + 70);
+      S.Pattern_Speed_Mps := Flt (F + 71);
+      S.Pattern_Cruise_Mps := Flt (F + 72);
+      S.Pattern_Last_Update_Us := Interfaces.Unsigned_32 (Int (F + 73));
+      S.Best_Valid := Int (F + 74) /= 0;
+      S.Best_Distance_M := Flt (F + 75);
+      S.Flyaway_Margin_M := Flt (F + 76);
+      S.Last_Progress_Us := Interfaces.Unsigned_32 (Int (F + 77));
+      S.Hdg_Fault_Time_S := Flt (F + 78);
+      S.Last_Update_Us := Interfaces.Unsigned_32 (Int (F + 79));
+      S.Leg_Is_Pass_Gate := Int (F + 80) /= 0;
+      S.Leg_Arrive_Radius := Flt (F + 81);
+      S.Leg_Approach_Decel := Flt (F + 82);
+      S.Leg_Valid := Int (F + 83) /= 0;
+      S.Leg_Target.East := Flt (F + 84);
+      S.Leg_Target.North := Flt (F + 85);
+      S.Leg_Target.Up := Flt (F + 86);
+      S.Leg_Cruise := Flt (F + 87);
+      S.Leg_Vert_Rate_Mps := Flt (F + 88);
+      S.Leg_Yaw_Behaviour := Interfaces.Unsigned_8 (Int (F + 89));
+      S.Leg_Yaw_Hold_Deg := Flt (F + 90);
+      S.Leg_Yaw_Gated := Int (F + 91) /= 0;
+      S.Leg_Yaw_Holding := Int (F + 92) /= 0;
+      S.Leg_Yaw_Gate_Start := Interfaces.Unsigned_32 (Int (F + 93));
+      S.Leg_Yaw_Timed_Out := Int (F + 94) /= 0;
+      S.Leg_Yaw_Braked := Int (F + 95) /= 0;
+      S.Leg_Yaw_Index := Interfaces.Unsigned_8 (Int (F + 96));
+      S.Leg_Start.X := Flt (F + 97);
+      S.Leg_Start.Y := Flt (F + 98);
+      S.Carrot_Speed := Flt (F + 99);
+      S.Carrot.X := Flt (F + 100);
+      S.Carrot.Y := Flt (F + 101);
+      S.Carrot_Velocity.X := Flt (F + 102);
+      S.Carrot_Velocity.Y := Flt (F + 103);
+      S.Carrot_Valid := Int (F + 104) /= 0;
+      S.Turn_In_Requested := Int (F + 105) /= 0;
+      S.Leg_Turn_In := Int (F + 106) /= 0;
+      S.Leg_Turn_Capped := Int (F + 107) /= 0;
+      S.Leg_Anchor.X := Flt (F + 108);
+      S.Leg_Anchor.Y := Flt (F + 109);
+      S.Leg_Anchor_Valid := Int (F + 110) /= 0;
+      S.In_Pre_Turn := Int (F + 111) /= 0;
+      S.Dispatch_Afresh := Int (F + 112) /= 0;
+      S.Along_Filt_M := Flt (F + 113);
+      S.Meas_Filt_Valid := Int (F + 114) /= 0;
+      S.Landing_Rate_Mps := Flt (F + 115);
+      S.Landing_Start_Us := Interfaces.Unsigned_32 (Int (F + 116));
+      S.Touchdown_Quiet_Us := Interfaces.Unsigned_32 (Int (F + 117));
+      S.Landing_Established := Int (F + 118) /= 0;
+   end Read_Executor_State;
+
+   procedure Expect_Executor_State (Name : String; F : Positive; S : Adaflight.Flight_Plan_Nav.State) is
+      use Adaflight.Flight_Plan_Nav;
+   begin
+      Record_Int (Name & ".mode", Int (F), Integer_64 (Nav_State'Pos (S.Mode)));
+      Record_Int (Name & ".current_index", Int (F + 1), Integer_64 (S.Current_Index));
+      Record_Int (Name & ".pending_start_index", Int (F + 2), Integer_64 (S.Pending_Start_Index));
+      Record_Int (Name & ".hold_start_us", Int (F + 3), Integer_64 (S.Hold_Start_Us));
+      Record_Int (Name & ".hold_last_update_us", Int (F + 4), Integer_64 (S.Hold_Last_Update_Us));
+      Record_Int (Name & ".hold_elapsed_us", Integer_64'Value (Str (F + 5)), Integer_64 (S.Hold_Elapsed_Us));
+      Record_Int (Name & ".hold_duration_ds", Int (F + 6), Integer_64 (S.Hold_Duration_Ds));
+      Record_Int (Name & ".active", Int (F + 7), Boolean'Pos (S.Active));
+      Record_Result (Name & ".z_bias_m", Bits (F + 8), To_Bits (S.Z_Bias_M));
+      Record_Int (Name & ".alt_override_pending", Int (F + 9), Boolean'Pos (S.Alt_Override_Pending));
+      Record_Int (Name & ".alt_override_cm", Int (F + 10), Integer_64 (S.Alt_Override_Cm));
+      Record_Int (Name & ".alt_override_mode", Int (F + 11), Integer_64 (S.Alt_Override_Mode));
+      Record_Int (Name & ".delay_active", Int (F + 12), Boolean'Pos (S.Delay_Active));
+      Record_Int (Name & ".delay_duration_ds", Int (F + 13), Integer_64 (S.Delay_Duration_Ds));
+      Record_Int (Name & ".delay_end_us", Int (F + 14), Integer_64 (S.Delay_End_Us));
+      Record_Result (Name & ".yaw_rate_cap_dps", Bits (F + 15), To_Bits (S.Yaw_Rate_Cap_Dps));
+      Record_Int (Name & ".reason", Int (F + 16), Integer_64 (Abort_Reason'Pos (S.Reason)));
+      Record_Int (Name & ".injected_waypoints", Int (F + 17), Integer_64 (S.Injected_Waypoints));
+      Expect_Waypoint (Name & ".injected0", F + 18, S.Injected (0));
+      Expect_Waypoint (Name & ".injected1", F + 27, S.Injected (1));
+      Expect_Waypoint (Name & ".injected2", F + 36, S.Injected (2));
+      Expect_Waypoint (Name & ".injected3", F + 45, S.Injected (3));
+      Record_Int (Name & ".is_rescue_plan", Int (F + 54), Boolean'Pos (S.Is_Rescue_Plan));
+      Record_Int (Name & ".rescue_blind_climb", Int (F + 55), Boolean'Pos (S.Rescue_Blind_Climb));
+      Record_Int (Name & ".rescue_climbed", Int (F + 56), Boolean'Pos (S.Rescue_Climbed));
+      Record_Int (Name & ".rescue_climbed_us", Int (F + 57), Integer_64 (S.Rescue_Climbed_Us));
+      Record_Int (Name & ".rescue_heading_hold", Int (F + 58), Boolean'Pos (S.Rescue_Heading_Hold));
+      Record_Int (Name & ".rescue_heading_start_us", Int (F + 59), Integer_64 (S.Rescue_Heading_Start_Us));
+      Record_Int (Name & ".rescue_heading_trusted", Int (F + 60), Boolean'Pos (S.Rescue_Heading_Trusted));
+      Record_Int (Name & ".rescue_heading_trusted_us", Int (F + 61), Integer_64 (S.Rescue_Heading_Trusted_Us));
+      Record_Int (Name & ".rescue_heading_off_course_us", Int (F + 62), Integer_64 (S.Rescue_Heading_Off_Course_Us));
+      Record_Int (Name & ".rescue_descent_active", Int (F + 63), Boolean'Pos (S.Rescue_Descent_Active));
+      Record_Int (Name & ".pattern_pending", Int (F + 64), Boolean'Pos (S.Pattern_Pending));
+      Record_Int (Name & ".pattern_active", Int (F + 65), Boolean'Pos (S.Pattern_Active));
+      Record_Int (Name & ".pattern_type", Int (F + 66), Integer_64 (S.Pattern_Type));
+      Record_Result (Name & ".pattern_centre_east", Bits (F + 67), To_Bits (S.Pattern_Centre.East));
+      Record_Result (Name & ".pattern_centre_north", Bits (F + 68), To_Bits (S.Pattern_Centre.North));
+      Record_Result (Name & ".pattern_centre_up", Bits (F + 69), To_Bits (S.Pattern_Centre.Up));
+      Record_Result (Name & ".pattern_phase_rad", Bits (F + 70), To_Bits (S.Pattern_Phase_Rad));
+      Record_Result (Name & ".pattern_speed_mps", Bits (F + 71), To_Bits (S.Pattern_Speed_Mps));
+      Record_Result (Name & ".pattern_cruise_mps", Bits (F + 72), To_Bits (S.Pattern_Cruise_Mps));
+      Record_Int (Name & ".pattern_last_update_us", Int (F + 73), Integer_64 (S.Pattern_Last_Update_Us));
+      Record_Int (Name & ".best_valid", Int (F + 74), Boolean'Pos (S.Best_Valid));
+      Record_Result (Name & ".best_distance_m", Bits (F + 75),
+                     To_Bits (if S.Best_Valid then S.Best_Distance_M else 0.0));
+      Record_Result (Name & ".flyaway_margin_m", Bits (F + 76), To_Bits (S.Flyaway_Margin_M));
+      Record_Int (Name & ".last_progress_us", Int (F + 77), Integer_64 (S.Last_Progress_Us));
+      Record_Result (Name & ".hdg_fault_time_s", Bits (F + 78), To_Bits (S.Hdg_Fault_Time_S));
+      Record_Int (Name & ".last_update_us", Int (F + 79), Integer_64 (S.Last_Update_Us));
+      Record_Int (Name & ".leg_is_pass_gate", Int (F + 80), Boolean'Pos (S.Leg_Is_Pass_Gate));
+      Record_Result (Name & ".leg_arrive_radius", Bits (F + 81), To_Bits (S.Leg_Arrive_Radius));
+      Record_Result (Name & ".leg_approach_decel", Bits (F + 82), To_Bits (S.Leg_Approach_Decel));
+      Record_Int (Name & ".leg_valid", Int (F + 83), Boolean'Pos (S.Leg_Valid));
+      Record_Result (Name & ".leg_target_east", Bits (F + 84), To_Bits (S.Leg_Target.East));
+      Record_Result (Name & ".leg_target_north", Bits (F + 85), To_Bits (S.Leg_Target.North));
+      Record_Result (Name & ".leg_target_up", Bits (F + 86), To_Bits (S.Leg_Target.Up));
+      Record_Result (Name & ".leg_cruise", Bits (F + 87), To_Bits (S.Leg_Cruise));
+      Record_Result (Name & ".leg_vert_rate_mps", Bits (F + 88), To_Bits (S.Leg_Vert_Rate_Mps));
+      Record_Int (Name & ".leg_yaw_behaviour", Int (F + 89), Integer_64 (S.Leg_Yaw_Behaviour));
+      Record_Result (Name & ".leg_yaw_hold_deg", Bits (F + 90), To_Bits (S.Leg_Yaw_Hold_Deg));
+      Record_Int (Name & ".leg_yaw_gated", Int (F + 91), Boolean'Pos (S.Leg_Yaw_Gated));
+      Record_Int (Name & ".leg_yaw_holding", Int (F + 92), Boolean'Pos (S.Leg_Yaw_Holding));
+      Record_Int (Name & ".leg_yaw_gate_start", Int (F + 93), Integer_64 (S.Leg_Yaw_Gate_Start));
+      Record_Int (Name & ".leg_yaw_timed_out", Int (F + 94), Boolean'Pos (S.Leg_Yaw_Timed_Out));
+      Record_Int (Name & ".leg_yaw_braked", Int (F + 95), Boolean'Pos (S.Leg_Yaw_Braked));
+      Record_Int (Name & ".leg_yaw_index", Int (F + 96), Integer_64 (S.Leg_Yaw_Index));
+      Record_Result (Name & ".leg_start_x", Bits (F + 97), To_Bits (S.Leg_Start.X));
+      Record_Result (Name & ".leg_start_y", Bits (F + 98), To_Bits (S.Leg_Start.Y));
+      Record_Result (Name & ".carrot_speed", Bits (F + 99), To_Bits (S.Carrot_Speed));
+      Record_Result (Name & ".carrot_x", Bits (F + 100), To_Bits (S.Carrot.X));
+      Record_Result (Name & ".carrot_y", Bits (F + 101), To_Bits (S.Carrot.Y));
+      Record_Result (Name & ".carrot_velocity_x", Bits (F + 102), To_Bits (S.Carrot_Velocity.X));
+      Record_Result (Name & ".carrot_velocity_y", Bits (F + 103), To_Bits (S.Carrot_Velocity.Y));
+      Record_Int (Name & ".carrot_valid", Int (F + 104), Boolean'Pos (S.Carrot_Valid));
+      Record_Int (Name & ".turn_in_requested", Int (F + 105), Boolean'Pos (S.Turn_In_Requested));
+      Record_Int (Name & ".leg_turn_in", Int (F + 106), Boolean'Pos (S.Leg_Turn_In));
+      Record_Int (Name & ".leg_turn_capped", Int (F + 107), Boolean'Pos (S.Leg_Turn_Capped));
+      Record_Result (Name & ".leg_anchor_x", Bits (F + 108), To_Bits (S.Leg_Anchor.X));
+      Record_Result (Name & ".leg_anchor_y", Bits (F + 109), To_Bits (S.Leg_Anchor.Y));
+      Record_Int (Name & ".leg_anchor_valid", Int (F + 110), Boolean'Pos (S.Leg_Anchor_Valid));
+      Record_Int (Name & ".in_pre_turn", Int (F + 111), Boolean'Pos (S.In_Pre_Turn));
+      Record_Int (Name & ".dispatch_afresh", Int (F + 112), Boolean'Pos (S.Dispatch_Afresh));
+      Record_Result (Name & ".along_filt_m", Bits (F + 113), To_Bits (S.Along_Filt_M));
+      Record_Int (Name & ".meas_filt_valid", Int (F + 114), Boolean'Pos (S.Meas_Filt_Valid));
+      Record_Result (Name & ".landing_rate_mps", Bits (F + 115), To_Bits (S.Landing_Rate_Mps));
+      Record_Int (Name & ".landing_start_us", Int (F + 116), Integer_64 (S.Landing_Start_Us));
+      Record_Int (Name & ".touchdown_quiet_us", Int (F + 117), Integer_64 (S.Touchdown_Quiet_Us));
+      Record_Int (Name & ".landing_established", Int (F + 118), Boolean'Pos (S.Landing_Established));
+   end Expect_Executor_State;
+
+   --  The navigator's block of the executor's lines.
+   procedure Read_Navigator (G : Positive; N : in out Adaflight.Position_Nav.Navigator) is
+   begin
+      N.Cmd.Active := Int (G) /= 0;
+      N.Cmd.Sequence := Interfaces.Unsigned_32 (Int (G + 1));
+      N.Cmd.Completed := Int (G + 2) /= 0;
+      N.Cmd.Completion_Signalled := Int (G + 3) /= 0;
+      N.Cmd.Target.East := Flt (G + 4);
+      N.Cmd.Target.North := Flt (G + 5);
+      N.Cmd.Target.Up := Flt (G + 6);
+      N.Cmd.Fixed_Target := Int (G + 7) /= 0;
+      N.Cmd.Include_Altitude := Int (G + 8) /= 0;
+      N.Cmd.Cruise_Speed := Flt (G + 9);
+      N.Cmd.Vert_Rate := Flt (G + 10);
+      N.Cmd.Acceptance_Radius := Flt (G + 11);
+      N.Cmd.Completion_Speed := Flt (G + 12);
+      N.Cmd.Settle_Timeout := Flt (G + 13);
+      N.Cmd.Settle := Flt (G + 14);
+      N.Cmd.Ramp_Alt := Flt (G + 15);
+      N.Cmd.Ramp_Valid := Int (G + 16) /= 0;
+      N.Cmd.Ramp_Rate := Flt (G + 17);
+      N.Cmd.Ramp_Rate_Slewed := Int (G + 18) /= 0;
+      N.Cmd.Approach_Decel := Flt (G + 19);
+      N.Cmd.Approach_Still_Radius := Flt (G + 20);
+      N.Cmd.Approach_Still := Int (G + 21) /= 0;
+      N.Cmd.Velocity_FF_Valid := Int (G + 22) /= 0;
+      N.Cmd.Velocity_FF.East := Flt (G + 23);
+      N.Cmd.Velocity_FF.North := Flt (G + 24);
+      N.Cmd.Velocity_From_Craft := Int (G + 25) /= 0;
+      N.Cmd.Max_Accel := Flt (G + 26);
+      N.Cmd.Max_Decel := Flt (G + 27);
+      N.Cmd.Max_Angle := Flt (G + 28);
+      N.Cmd.Auto_Clear_On_Reach := Int (G + 29) /= 0;
+      N.Cmd.Altitude_Arrival_Required := Int (G + 30) /= 0;
+      N.Cmd.Handler := Int (G + 31) /= 0;
+      N.Previous_Vel.East := Flt (G + 32);
+      N.Previous_Vel.North := Flt (G + 33);
+      N.Previous_Vel.Up := Flt (G + 34);
+      N.Previous_Valid := Int (G + 35) /= 0;
+      N.Target_Vel.East := Flt (G + 36);
+      N.Target_Vel.North := Flt (G + 37);
+      N.Target_Vel.Up := Flt (G + 38);
+      N.Within_Radius := Int (G + 39) /= 0;
+      N.Within_Altitude := Int (G + 40) /= 0;
+   end Read_Navigator;
+
+   procedure Expect_Navigator (Name : String; G : Positive; N : Adaflight.Position_Nav.Navigator) is
+   begin
+      Record_Int (Name & ".cmd_active", Int (G), Boolean'Pos (N.Cmd.Active));
+      Record_Int (Name & ".cmd_sequence", Int (G + 1), Integer_64 (N.Cmd.Sequence));
+      Record_Int (Name & ".cmd_completed", Int (G + 2), Boolean'Pos (N.Cmd.Completed));
+      Record_Int (Name & ".cmd_completion_signalled", Int (G + 3), Boolean'Pos (N.Cmd.Completion_Signalled));
+      Record_Result (Name & ".cmd_target_east", Bits (G + 4), To_Bits (N.Cmd.Target.East));
+      Record_Result (Name & ".cmd_target_north", Bits (G + 5), To_Bits (N.Cmd.Target.North));
+      Record_Result (Name & ".cmd_target_up", Bits (G + 6), To_Bits (N.Cmd.Target.Up));
+      Record_Int (Name & ".cmd_fixed_target", Int (G + 7), Boolean'Pos (N.Cmd.Fixed_Target));
+      Record_Int (Name & ".cmd_include_altitude", Int (G + 8), Boolean'Pos (N.Cmd.Include_Altitude));
+      Record_Result (Name & ".cmd_cruise_speed", Bits (G + 9), To_Bits (N.Cmd.Cruise_Speed));
+      Record_Result (Name & ".cmd_vert_rate", Bits (G + 10), To_Bits (N.Cmd.Vert_Rate));
+      Record_Result (Name & ".cmd_acceptance_radius", Bits (G + 11), To_Bits (N.Cmd.Acceptance_Radius));
+      Record_Result (Name & ".cmd_completion_speed", Bits (G + 12), To_Bits (N.Cmd.Completion_Speed));
+      Record_Result (Name & ".cmd_settle_timeout", Bits (G + 13), To_Bits (N.Cmd.Settle_Timeout));
+      Record_Result (Name & ".cmd_settle", Bits (G + 14), To_Bits (N.Cmd.Settle));
+      Record_Result (Name & ".cmd_ramp_alt", Bits (G + 15), To_Bits (N.Cmd.Ramp_Alt));
+      Record_Int (Name & ".cmd_ramp_valid", Int (G + 16), Boolean'Pos (N.Cmd.Ramp_Valid));
+      Record_Result (Name & ".cmd_ramp_rate", Bits (G + 17), To_Bits (N.Cmd.Ramp_Rate));
+      Record_Int (Name & ".cmd_ramp_rate_slewed", Int (G + 18), Boolean'Pos (N.Cmd.Ramp_Rate_Slewed));
+      Record_Result (Name & ".cmd_approach_decel", Bits (G + 19), To_Bits (N.Cmd.Approach_Decel));
+      Record_Result (Name & ".cmd_approach_still_radius", Bits (G + 20), To_Bits (N.Cmd.Approach_Still_Radius));
+      Record_Int (Name & ".cmd_approach_still", Int (G + 21), Boolean'Pos (N.Cmd.Approach_Still));
+      Record_Int (Name & ".cmd_velocity_ff_valid", Int (G + 22), Boolean'Pos (N.Cmd.Velocity_FF_Valid));
+      Record_Result (Name & ".cmd_velocity_ff_east", Bits (G + 23), To_Bits (N.Cmd.Velocity_FF.East));
+      Record_Result (Name & ".cmd_velocity_ff_north", Bits (G + 24), To_Bits (N.Cmd.Velocity_FF.North));
+      Record_Int (Name & ".cmd_velocity_from_craft", Int (G + 25), Boolean'Pos (N.Cmd.Velocity_From_Craft));
+      Record_Result (Name & ".cmd_max_accel", Bits (G + 26), To_Bits (N.Cmd.Max_Accel));
+      Record_Result (Name & ".cmd_max_decel", Bits (G + 27), To_Bits (N.Cmd.Max_Decel));
+      Record_Result (Name & ".cmd_max_angle", Bits (G + 28), To_Bits (N.Cmd.Max_Angle));
+      Record_Int (Name & ".cmd_auto_clear_on_reach", Int (G + 29), Boolean'Pos (N.Cmd.Auto_Clear_On_Reach));
+      Record_Int (Name & ".cmd_altitude_arrival_required", Int (G + 30), Boolean'Pos (N.Cmd.Altitude_Arrival_Required));
+      Record_Int (Name & ".cmd_handler", Int (G + 31), Boolean'Pos (N.Cmd.Handler));
+      Record_Result (Name & ".previous_vel_east", Bits (G + 32), To_Bits (N.Previous_Vel.East));
+      Record_Result (Name & ".previous_vel_north", Bits (G + 33), To_Bits (N.Previous_Vel.North));
+      Record_Result (Name & ".previous_vel_up", Bits (G + 34), To_Bits (N.Previous_Vel.Up));
+      Record_Int (Name & ".previous_valid", Int (G + 35), Boolean'Pos (N.Previous_Valid));
+      Record_Result (Name & ".target_vel_east", Bits (G + 36), To_Bits (N.Target_Vel.East));
+      Record_Result (Name & ".target_vel_north", Bits (G + 37), To_Bits (N.Target_Vel.North));
+      Record_Result (Name & ".target_vel_up", Bits (G + 38), To_Bits (N.Target_Vel.Up));
+      Record_Int (Name & ".within_radius", Int (G + 39), Boolean'Pos (N.Within_Radius));
+      Record_Int (Name & ".within_altitude", Int (G + 40), Boolean'Pos (N.Within_Altitude));
+   end Expect_Navigator;
+
+   --  The executor's calls against the oracle's log, each closed by a
+   --  semicolon, or a dash for none: H and the bits of a held heading, R for
+   --  the nose handed back, E with the request and the bits of the pitch for
+   --  the heading recovery, Y and the bits of the yaw rate limit, P with the
+   --  request for the level park, D for the disarm, and L with the index of
+   --  a reached waypoint.
+   procedure Expect_Executor_Calls (Name : String; Log : String; O : Adaflight.Flight_Plan_Nav.Executor_Output) is
+      use Adaflight.Flight_Plan_Nav;
+      K     : Natural := Log'First;
+      Count : Natural := 0;
+
+      function Code (C : Outgoing_Call) return Integer_64 is
+        (case C.Kind is
+            when Nose_Override    => Boolean'Pos (C.On),
+            when Heading_Recovery => 2 + Boolean'Pos (C.On),
+            when Yaw_Rate_Limit   => 4,
+            when Level_Park       => 5 + Boolean'Pos (C.On),
+            when Disarm           => 7,
+            when Reached_Waypoint => 8);
+
+      function Hex (T : String) return Unsigned_32 is (Unsigned_32'Value ("16#" & T & "#"));
+   begin
+      if Log /= "-" then
+         while K <= Log'Last loop
+            Count := Count + 1;
+            declare
+               Actual : constant Outgoing_Call :=
+                 (if Count <= O.Count then O.Calls (Count) else (Kind => Nose_Override, On => False, Value => -1.0));
+               Stop   : Natural := K;
+            begin
+               while Log (Stop) /= ';' loop
+                  Stop := Stop + 1;
+               end loop;
+               declare
+                  T        : constant String := Log (K .. Stop - 1);
+                  Expected : Integer_64 := -1;
+               begin
+                  case T (T'First) is
+                     when 'H' =>
+                        Expected := 1;
+                        Record_Result (Name & ".call_value", Hex (T (T'First + 1 .. T'Last)), To_Bits (Actual.Value));
+                     when 'R' =>
+                        Expected := 0;
+                     when 'E' =>
+                        Expected := 2 + Integer_64'Value (T (T'First + 1 .. T'First + 1));
+                        Record_Result (Name & ".call_value", Hex (T (T'First + 2 .. T'Last)), To_Bits (Actual.Value));
+                     when 'Y' =>
+                        Expected := 4;
+                        Record_Result (Name & ".call_value", Hex (T (T'First + 1 .. T'Last)), To_Bits (Actual.Value));
+                     when 'P' =>
+                        Expected := 5 + Integer_64'Value (T (T'First + 1 .. T'Last));
+                     when 'D' =>
+                        Expected := 7;
+                     when 'L' =>
+                        Expected := 8;
+                        Record_Int (Name & ".call_index", Integer_64'Value (T (T'First + 1 .. T'Last)),
+                                    Integer_64 (Actual.Value));
+                     when others =>
+                        null;
+                  end case;
+                  Record_Int (Name & ".call", Expected, Code (Actual));
+               end;
+               K := Stop + 1;
+            end;
+         end loop;
+      end if;
+      Record_Int (Name & ".calls", Integer_64 (Count), Integer_64 (O.Count));
+   end Expect_Executor_Calls;
+
    Leg_State   : Adaflight.Flight_Plan_Nav.State;
    Leg_Nav     : Adaflight.Position_Nav.Navigator;
    Leg_Plan    : Adaflight.Flight_Plan.Plan;
@@ -14297,48 +14670,6 @@ procedure Vector_Check is
          Record_Int ("flstep." & N, Int (I), Boolean'Pos (Actual));
       end Expect_Flag;
 
-      --  The autopilot calls against the oracle's log, each closed by a
-      --  semicolon, or a dash for none: H and the bits of a held heading, R
-      --  for the nose handed back, and E with the request and the bits of
-      --  the pitch for the heading recovery.
-      procedure Expect_Calls (I : Positive; O : Autopilot_Output) is
-         Log   : constant String := Str (I);
-         K     : Natural := Log'First;
-         Count : Natural := 0;
-      begin
-         if Log /= "-" then
-            while K <= Log'Last loop
-               Count := Count + 1;
-               declare
-                  Actual   : constant Autopilot_Call :=
-                    (if Count <= O.Count then O.Calls (Count) else (Kind => Nose_Override, On => False, Value => -1.0));
-                  Expected : constant Integer_64 :=
-                    (case Log (K) is
-                        when 'H'    => 1,
-                        when 'R'    => 0,
-                        when others => 2 + Integer_64'Value (Log (K + 1 .. K + 1)));
-               begin
-                  Record_Int ("flstep.call", Expected,
-                              (case Actual.Kind is
-                                 when Nose_Override    => Boolean'Pos (Actual.On),
-                                 when Heading_Recovery => 2 + Boolean'Pos (Actual.On)));
-                  case Log (K) is
-                     when 'H' =>
-                        Record_Result ("flstep.call_value", Unsigned_32'Value ("16#" & Log (K + 1 .. K + 8) & "#"),
-                                       To_Bits (Actual.Value));
-                        K := K + 10;
-                     when 'R' =>
-                        K := K + 2;
-                     when others =>
-                        Record_Result ("flstep.call_value", Unsigned_32'Value ("16#" & Log (K + 2 .. K + 9) & "#"),
-                                       To_Bits (Actual.Value));
-                        K := K + 11;
-                  end case;
-               end;
-            end loop;
-         end if;
-         Record_Int ("flstep.calls", Integer_64 (Count), Integer_64 (O.Count));
-      end Expect_Calls;
    begin
       if Name = "flinit" then
          declare
@@ -14359,7 +14690,8 @@ procedure Vector_Check is
                Lead_Time      => Interfaces.Unsigned_8 (Int (13)),
                Lead_Max       => Interfaces.Unsigned_16 (Int (14)),
                Preturn_Dist   => Interfaces.Unsigned_16 (Int (15)),
-               Yaw_Mode       => Interfaces.Unsigned_8 (Int (16)));
+               Yaw_Mode       => Interfaces.Unsigned_8 (Int (16)),
+               others         => <>);
             Leg_Origin := (Lat => I32 (17), Lon => I32 (18), Alt_Cm => I32 (19));
             Leg_Plan := (Count => Count, Waypoints => (others => (others => <>)));
             for W in 0 .. Count - 1 loop
@@ -14430,8 +14762,9 @@ procedure Vector_Check is
                Ground_Speed    => Interfaces.Unsigned_16 (Int (9)),
                Has_Origin      => Leg_Has_Origin,
                Origin          => Leg_Origin,
-               Cos_Lat         => Leg_Cos_Lat);
-            O       : Autopilot_Output;
+               Cos_Lat         => Leg_Cos_Lat,
+               others          => <>);
+            O       : Executor_Output;
             Gate    : Boolean;
             Fault   : Integer_64 := -1;
             Faulted : Boolean;
@@ -14448,7 +14781,7 @@ procedure Vector_Check is
             end if;
             Expect_Flag ("gate", 16, Gate);
             Record_Int ("flstep.fault", Int (17), Fault);
-            Expect_Calls (18, O);
+            Expect_Executor_Calls ("flstep", Str (18), O);
             Record_Int ("flstep.state", Int (19), Integer_64 (Nav_State'Pos (Leg_State.Mode)));
             Record_Int ("flstep.reason", Int (20), Integer_64 (Abort_Reason'Pos (Leg_State.Reason)));
             Expect ("carrot_x", 21, Leg_State.Carrot.X);
@@ -14496,6 +14829,108 @@ procedure Vector_Check is
          Failures := Failures + 1;
       end if;
    end Check_Executor_Leg_Line;
+
+   Disp_State  : Adaflight.Flight_Plan_Nav.State;
+   Disp_Nav    : Adaflight.Position_Nav.Navigator;
+   Disp_Plan   : Adaflight.Flight_Plan.Plan;
+   Disp_Config : Adaflight.Flight_Plan_Nav.Settings;
+   Disp_Inputs : Adaflight.Flight_Plan_Nav.Leg_Inputs;
+   Disp_Kind   : Integer_64 := 0;
+
+   procedure Check_Executor_Dispatch_Line is
+      use Adaflight.Flight_Plan_Nav;
+      Name : constant String := Str (1);
+   begin
+      if Name = "fdin" then
+         declare
+            Count : constant Natural := Natural (Int (22));
+            B     : constant Positive := 23 + 9 * Count;
+         begin
+            Disp_Kind := Int (4);
+            Disp_Config :=
+              (Max_Angle      => Interfaces.Unsigned_8 (Int (5)),
+               Arrival_Radius => Interfaces.Unsigned_16 (Int (6)),
+               Radius         => Interfaces.Unsigned_16 (Int (7)),
+               Max_Speed      => Interfaces.Unsigned_16 (Int (8)),
+               Nav_Accel      => Interfaces.Unsigned_16 (Int (9)),
+               Landing_Rate   => Interfaces.Unsigned_8 (Int (10)),
+               Climb_Rate     => Flt (11),
+               Corner_Speed   => Interfaces.Unsigned_16 (Int (12)),
+               Corner_Delta_V => Interfaces.Unsigned_16 (Int (13)),
+               Nav_Decel      => Interfaces.Unsigned_16 (Int (14)),
+               Lead_Time      => Interfaces.Unsigned_8 (Int (15)),
+               Lead_Max       => Interfaces.Unsigned_16 (Int (16)),
+               Preturn_Dist   => Interfaces.Unsigned_16 (Int (17)),
+               Yaw_Mode       => Interfaces.Unsigned_8 (Int (18)),
+               Touchdown_Cms  => Interfaces.Unsigned_8 (Int (19)),
+               Touchdown_Ds   => Interfaces.Unsigned_8 (Int (20)),
+               Descent_Dist_M => Interfaces.Unsigned_16 (Int (21)));
+            Disp_Plan := (Count => Count, Waypoints => (others => (others => <>)));
+            for W in 0 .. Count - 1 loop
+               Disp_Plan.Waypoints (W) := Executor_Waypoint (23 + 9 * W);
+            end loop;
+            Disp_Inputs :=
+              (Est              => (Position => (East => Flt (B + 1), North => Flt (B + 2), Up => Flt (B + 3)),
+                                    Velocity => (East => Flt (B + 4), North => Flt (B + 5), Up => Flt (B + 6))),
+               Dt_S             => 0.0,
+               Now_Us           => Unsigned_32 (Int (B)),
+               Yaw_Decidegrees  => I32 (B + 7),
+               Ground_Course    => 0,
+               Ground_Speed     => 0,
+               Has_Origin       => Int (B + 8) /= 0,
+               Origin           => (Lat => I32 (B + 9), Lon => I32 (B + 10), Alt_Cm => I32 (B + 11)),
+               Cos_Lat          => Flt (B + 19),
+               Heading_Valid    => Int (B + 12) /= 0,
+               Heading_Required => Int (B + 13) /= 0,
+               Below_Landing    => Int (B + 14) /= 0,
+               Listener         => Int (B + 15) /= 0,
+               Position_Error   => (X => Flt (B + 16), Y => Flt (B + 17)));
+            Disp_State := (others => <>);
+            Read_Executor_State (B + 20, Disp_State);
+            Disp_Nav := (others => <>);
+            Read_Navigator (B + 139, Disp_Nav);
+         end;
+      elsif Name = "fdout" then
+         declare
+            O          : Executor_Output;
+            Dispatched : Boolean := False;
+         begin
+            case Disp_Kind is
+               when 0 =>
+                  Dispatch_Waypoint (Disp_State, Disp_Nav, Disp_Plan, Disp_Inputs, Disp_Config, O, Dispatched);
+               when 1 =>
+                  Waypoint_Reached (Disp_State, Disp_Nav, Disp_Plan, Disp_Inputs, Disp_Config, O);
+               when 2 =>
+                  Start_Landing_In_Place (Disp_State, Disp_Nav, Disp_Inputs, Disp_Config);
+               when others =>
+                  Start_Landing_At_Nav_Target (Disp_State, Disp_Nav, Disp_Plan, Disp_Inputs, Disp_Config, O);
+            end case;
+            Record_Int ("fdout.result", Int (4), Boolean'Pos (Dispatched));
+            Expect_Executor_Calls ("fdout", Str (5), O);
+            Expect_Executor_State ("fdout", 6, Disp_State);
+            Expect_Navigator ("fdout.nav", 125, Disp_Nav);
+         end;
+      elsif Name = "fdland" then
+         declare
+            O : Executor_Output;
+         begin
+            Disp_Inputs.Now_Us := Unsigned_32 (Int (5));
+            Disp_Inputs.Est.Position.Up := Flt (6);
+            Disp_Inputs.Est.Velocity.Up := Flt (7);
+            Disp_Inputs.Below_Landing := Int (8) /= 0;
+            Update_Landing (Disp_State, Disp_Nav, Disp_Inputs, Disp_Config, O);
+            Expect_Executor_Calls ("fdland", Str (9), O);
+            Record_Int ("fdland.state", Int (10), Integer_64 (Nav_State'Pos (Disp_State.Mode)));
+            Record_Int ("fdland.established", Int (11), Boolean'Pos (Disp_State.Landing_Established));
+            Record_Int ("fdland.quiet", Int (12), Integer_64 (Disp_State.Touchdown_Quiet_Us));
+            Record_Int ("fdland.active", Int (13), Boolean'Pos (Disp_Nav.Cmd.Active));
+            Record_Result ("fdland.target_up", Bits (14), To_Bits (Disp_Nav.Cmd.Target.Up));
+         end;
+      else
+         Put_Line ("unknown executor dispatch case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Executor_Dispatch_Line;
 
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
@@ -14757,6 +15192,8 @@ procedure Vector_Check is
                   Check_Executor_Helper_Line;
                elsif Kind = "fpnlegs" then
                   Check_Executor_Leg_Line;
+               elsif Kind = "fpndispatch" then
+                  Check_Executor_Dispatch_Line;
                else
                   Check_PID_Line;
                end if;
@@ -14897,6 +15334,7 @@ begin
    Run (Dir & "/mavmission.csv", "mavmission");
    Run (Dir & "/fpnhelpers.csv", "fpnhelpers");
    Run (Dir & "/fpnlegs.csv", "fpnlegs");
+   Run (Dir & "/fpndispatch.csv", "fpndispatch");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");

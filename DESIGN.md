@@ -173,6 +173,13 @@ ledger. The deviations so far:
 - A mission item's altitude converts to centimeters toward zero and saturates at the 32-bit
   range, where the reference's conversion and its sum with the home altitude are undefined
   beyond it. The recorded items stay within the range.
+- The flight plan executor holds a leg's target and its carrot within 262 kilometres of the
+  origin in each axis, the navigation's bound, so a waypoint further out is flown toward the
+  held point. It holds the carrot's velocity within 1000 metres per second in each axis and
+  its speed at 1000, a unit direction within 2 in each component, the filtered along-track
+  distance within 10,000 kilometres, and the time a heading fault has lasted at a million
+  seconds, where the reference's floats run on. The recorded plans stay within a kilometre of
+  the origin and replay bit for bit.
 
 ## D7. Contribution conventions (2026-10-08)
 
@@ -3148,3 +3155,38 @@ follows the commanded velocity or only drifts, a nose that turns toward the comm
 90 degrees a second, and a GPS course that follows the nose, off by a bias in some scenarios. Every
 state field, autopilot call and commanded velocity of the 43076 steps replays exactly, and every
 line of the executor's body runs.
+
+## D142. Flight plan executor dispatch and landing (2026-10-13)
+
+`Adaflight.Flight_Plan_Nav` contains the third part of the executor: the dispatch of a leg,
+the arrival at a waypoint, and the landing. The dispatch walks past the modifier waypoints and
+stages each for the next leg: an altitude override, a delay window, and a yaw rate cap the
+autopilot is told of. The leg's target comes from the GPS distance, at the craft for a takeoff
+and at the craft's resting point for the rescue's first stop. Its radius is the hold radius on
+a station-keeping waypoint and the arrival radius, at most 12 m, on any other, and a rescue
+leg arrives at the descent distance and brakes onto its point. A delay lowers the cruise to
+cover the rest of the leg in the delay's time, never below 0.1 m/s. A carrot leg starts on the
+craft when it turns in, from the carrot the leg before held the craft to, or from where the
+craft comes to rest at its speed along the leg. A point leg goes to the navigator with its
+arrival and the executor's reached handler, which the owner runs when the navigator reports
+the leg reached. A face-the-target point leg first holds the craft where it is while the nose
+comes round. The rescue's first stop without a heading starts the heading recovery's level
+climb.
+
+On arrival the listener hears the stored plan's index, a station-keeping waypoint with a
+duration holds, a landing waypoint lands at the leg's target, and the plan advances or
+completes. The rescue's first stop without a heading pitches forward instead, or waits for
+the climb's drift to die away. A landing descends at no less than 0.3 m/s toward a target kept
+200 m below the craft. It watches for touchdown once the descent is established, or once the
+craft has been below the landing altitude for 5 s, and completes the plan with a disarm when
+the descent has stopped for the touchdown time.
+
+The navigator's command records whether its owner handles the arrival, in place of the
+reference's callback. The executor's outputs became a list of the calls it makes out, to the
+autopilot, to the arming, and to the reached waypoint's listener.
+
+The harness replays 3000 calls recorded from the reference executor on random executor
+states, navigator legs and plans within their ranges: half of them dispatches, a quarter
+arrivals, and a quarter landings followed by up to 30 cycles of the touchdown watch. Every
+executor field, navigator field and call of the 22175 lines replays exactly.
+
