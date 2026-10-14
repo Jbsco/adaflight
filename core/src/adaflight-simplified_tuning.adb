@@ -10,17 +10,14 @@ package body Adaflight.Simplified_Tuning with SPARK_Mode is
 
    D_Max_Defaults : constant Axis_Gain_Values := (Roll => 40, Pitch => 46, Yaw => 0);
 
-   subtype Factor is Float range 0.0 .. 2.0;
-   subtype Product is Float range -1.0e6 .. 1.0e6;
-   subtype Share is Float range -256.0 .. 256.0;
-
-   function Hundredths (V : Tuning_Factor) return Factor is (Float (V) / 100.0);
+   subtype Product is Float range -1.0e7 .. 1.0e7;
+   subtype Share is Float range -512.0 .. 512.0;
 
    --  The D max slider's share, with the rest at the ratio of the D default
    --  to the D max default.
    function D_Max_Share (Slider : Factor; D_Default : Gain; D_Max_Default : Positive) return Share is
-      Rest   : constant Float range -1.0 .. 1.0 := 1.0 - Slider;
-      Scaled : constant Float range -250.0 .. 250.0 := Rest * Float (D_Default);
+      Rest   : constant Float range -2.0 .. 1.0 := 1.0 - Slider;
+      Scaled : constant Float range -500.0 .. 500.0 := Rest * Float (D_Default);
    begin
       return Slider + Scaled / Float (D_Max_Default);
    end D_Max_Share;
@@ -30,57 +27,60 @@ package body Adaflight.Simplified_Tuning with SPARK_Mode is
      (Integer'Min (Integer'Max (Integer (Float'Truncation (V)), 0), High))
      with Post => Whole'Result <= High;
 
+   -----------
+   -- Tuned --
+   -----------
+
+   function Tuned (S : Sliders; A : Axis) return Tuned_Gains is
+      P_Value : constant Product := Float (Defaults (A).P) * S.Master * S.PI_Gain * S.Pitch_PI_Gain;
+      I_Value : constant Product := Float (Defaults (A).I) * S.Master * S.PI_Gain * S.I_Gain * S.Pitch_PI_Gain;
+      D_Value : constant Product := Float (Defaults (A).D) * S.Master * S.D_Gain * S.Pitch_D_Gain;
+      F_Value : constant Product := Float (Defaults (A).F) * S.Master * S.Pitch_PI_Gain * S.FF_Gain;
+      D_Max_Gain : constant Share :=
+        (if D_Max_Defaults (A) > 0
+         then D_Max_Share (S.D_Max_Slider, Defaults (A).D, D_Max_Defaults (A))
+         else 1.0);
+      D_Max_Value : constant Product :=
+        Float (D_Max_Defaults (A)) * S.Master * S.D_Gain * S.Pitch_D_Gain * D_Max_Gain;
+   begin
+      return (P     => Whole (P_Value, Gain_Max),
+              I     => Whole (I_Value, Gain_Max),
+              D     => Whole (D_Value, Gain_Max),
+              F     => Whole (F_Value, F_Gain_Max),
+              D_Max => Whole (D_Max_Value, Gain_Max));
+   end Tuned;
+
    ----------------
    -- Apply_PIDs --
    ----------------
 
    procedure Apply_PIDs (P : in out PID_Profile.Profile) is
-      Master  : constant Factor := Hundredths (P.Simplified_Master_Multiplier);
-      PI_Gain : constant Factor := Hundredths (P.Simplified_PI_Gain);
-      D_Gain  : constant Factor := Hundredths (P.Simplified_D_Gain);
-      FF_Gain : constant Factor := Hundredths (P.Simplified_Feedforward_Gain);
-      I_Gain  : constant Factor := Hundredths (P.Simplified_I_Gain);
-      D_Max_Slider : constant Factor := Hundredths (P.Simplified_D_Max_Gain);
-      Last    : constant Axis := (if P.Simplified_PIDs_Mode = RP then Pitch else Yaw);
+      Last : constant Axis := (if P.Simplified_PIDs_Mode = RP then Pitch else Yaw);
    begin
       if P.Simplified_PIDs_Mode = Off then
          return;
       end if;
       for A in Roll .. Last loop
          declare
-            Pitch_D_Gain  : constant Factor :=
-              (if A = Pitch then Hundredths (P.Simplified_Roll_Pitch_Ratio) else 1.0);
-            Pitch_PI_Gain : constant Factor :=
-              (if A = Pitch then Hundredths (P.Simplified_Pitch_PI_Gain) else 1.0);
-            P_Value : constant Product := Float (Defaults (A).P) * Master * PI_Gain * Pitch_PI_Gain;
-            I_Value : constant Product :=
-              Float (Defaults (A).I) * Master * PI_Gain * I_Gain * Pitch_PI_Gain;
-            D_Value : constant Product := Float (Defaults (A).D) * Master * D_Gain * Pitch_D_Gain;
-            F_Value : constant Product := Float (Defaults (A).F) * Master * Pitch_PI_Gain * FF_Gain;
-            D_Max_Gain : constant Share :=
-              (if D_Max_Defaults (A) > 0
-               then D_Max_Share (D_Max_Slider, Defaults (A).D, D_Max_Defaults (A))
-               else 1.0);
-            D_Max_Value : constant Product :=
-              Float (D_Max_Defaults (A)) * Master * D_Gain * Pitch_D_Gain * D_Max_Gain;
+            T : constant Tuned_Gains :=
+              Tuned ((Master        => Hundredths (P.Simplified_Master_Multiplier),
+                      PI_Gain       => Hundredths (P.Simplified_PI_Gain),
+                      D_Gain        => Hundredths (P.Simplified_D_Gain),
+                      FF_Gain       => Hundredths (P.Simplified_Feedforward_Gain),
+                      I_Gain        => Hundredths (P.Simplified_I_Gain),
+                      D_Max_Slider  => Hundredths (P.Simplified_D_Max_Gain),
+                      Pitch_D_Gain  => (if A = Pitch then Hundredths (P.Simplified_Roll_Pitch_Ratio) else 1.0),
+                      Pitch_PI_Gain => (if A = Pitch then Hundredths (P.Simplified_Pitch_PI_Gain) else 1.0)),
+                     A);
          begin
-            P.Gains (A).P := Whole (P_Value, Gain_Max);
-            P.Gains (A).I := Whole (I_Value, Gain_Max);
-            P.Gains (A).D := Whole (D_Value, Gain_Max);
-            P.Gains (A).F := Whole (F_Value, F_Gain_Max);
-            P.D_Max (A) := Whole (D_Max_Value, Gain_Max);
+            P.Gains (A).P := T.P;
+            P.Gains (A).I := T.I;
+            P.Gains (A).D := T.D;
+            P.Gains (A).F := T.F;
+            P.D_Max (A) := T.D_Max;
          end;
       end loop;
    end Apply_PIDs;
-
-   Dyn_LPF_Max_Hz : constant := 1_000;
-   LPF_Max_Hz     : constant := 1_000;
-
-   --  A default cutoff through a filter slider in percent, held to a limit.
-   function Scaled (Default : Positive; Multiplier : Natural; Limit : Positive) return PID_Profile.Hertz is
-     (Natural'Min (Default * Multiplier / 100, Limit))
-     with Pre  => Default <= 1_000 and then Multiplier <= 200 and then Limit <= 1_000,
-          Post => Scaled'Result <= Limit;
 
    -------------------------
    -- Apply_Dterm_Filters --
