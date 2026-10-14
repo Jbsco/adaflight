@@ -132,6 +132,7 @@ with Adaflight.MSP_Serial_Out;
 with Adaflight.MSP_VTX_Status_Out;
 with Adaflight.Config_Store;
 with Adaflight.Mixer_Init;
+with Adaflight.PWM_Output;
 with Adaflight.Task_Init;
 with Adaflight.MSP_Out;
 with Adaflight.Four_Way;
@@ -5431,6 +5432,21 @@ procedure Vector_Check is
             Record_Result (Name & ".disarm", Bits (9), To_Bits (Disarm));
             Record_Result (Name & ".dbhigh", Bits (10), To_Bits (DBH));
             Record_Result (Name & ".dblow", Bits (11), To_Bits (DBL));
+         end;
+      elsif Name = "anend" then
+         declare
+            Low, High, Disarm : Float;
+            DBH, DBL          : Float := 0.0;
+         begin
+            Adaflight.PWM_Output.Endpoints
+              (Natural (Int (5)), Natural (Int (6)), Natural (Int (7)), Natural (Int (8)), Natural (Int (9)),
+               Natural (Int (10)), Natural (Int (11)), Natural (Int (12)), Flt (13), Int (4) = 1, Low, High, Disarm,
+               DBH, DBL);
+            Record_Result (Name & ".low", Bits (14), To_Bits (Low));
+            Record_Result (Name & ".high", Bits (15), To_Bits (High));
+            Record_Result (Name & ".disarm", Bits (16), To_Bits (Disarm));
+            Record_Result (Name & ".dbhigh", Bits (17), To_Bits (DBH));
+            Record_Result (Name & ".dblow", Bits (18), To_Bits (DBL));
          end;
       elsif Name = "dsedge" then
          declare
