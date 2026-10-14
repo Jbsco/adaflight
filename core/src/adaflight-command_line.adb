@@ -36,6 +36,34 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Put (Into, CRLF);
    end Put_Hash_Line;
 
+   --  How a dump prints a section: every line, or for a diff only the lines
+   --  off their defaults; with Show_Defaults a changed line's default comes
+   --  first after a number sign.
+   type Dump_Mode is record
+      Diff          : Boolean := False;
+      Show_Defaults : Boolean := False;
+   end record;
+
+   Listing : constant Dump_Mode := (Diff => False, Show_Defaults => False);
+
+   function Shows_Default (Mode : Dump_Mode; Equal : Boolean) return Boolean is
+     (Mode.Show_Defaults and then not Equal);
+
+   function Shows_Line (Mode : Dump_Mode; Equal : Boolean) return Boolean is
+     (not Mode.Diff or else not Equal);
+
+   --  A pending heading: printed outside a diff, or in a diff before a
+   --  changed line, then no longer pending.
+   procedure Put_Heading
+     (Into : in out Sink; Mode : Dump_Mode; Changed : Boolean; Heading : String; Pending : in out Boolean)
+   is
+   begin
+      if Pending and then (not Mode.Diff or else Changed) then
+         Put_Hash_Line (Into, Heading);
+         Pending := False;
+      end if;
+   end Put_Heading;
+
    --  The profile a setting reads: its scope's, none outside the profiles.
    function Profile_Of (S : Setting; P : Profiles) return Natural is
      (case Profile_Count (S) is
@@ -545,27 +573,21 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  after its default for Show_Defaults.
    procedure Dump_Values
      (Into : in out Sink; C : Configuration; Where : Value_Scope; P : Profiles; Heading : String; Command : String;
-      Diff : Boolean; Show_Defaults : Boolean; Ports : Port_List)
+      Mode : Dump_Mode; Ports : Port_List)
      with Pre => Valid (P) and then Ports'Length <= Serial_Feature_Map.Max_Ports
    is
       Pending : Boolean := True;
    begin
-      if not Diff then
-         Put_Hash_Line (Into, Heading);
-         Pending := False;
-      end if;
+      Put_Heading (Into, Mode, False, Heading, Pending);
       for S in Setting loop
          if Describe (S).Where = Where or else (Where = Master and then Describe (S).Where = Hardware) then
             declare
                Profile : constant Natural := Profile_Of (S, P);
                Equal   : constant Boolean := Equals_Default (C, S, Profile);
             begin
-               if Diff and then Pending and then not Equal then
-                  Put_Hash_Line (Into, Heading);
-                  Pending := False;
-               end if;
-               if not Diff or else not Equal then
-                  if Show_Defaults and then not Equal then
+               Put_Heading (Into, Mode, not Equal, Heading, Pending);
+               if Shows_Line (Mode, Equal) then
+                  if Shows_Default (Mode, Equal) then
                      Put (Into, "#set ");
                      Put (Into, Name (S));
                      Put (Into, " = ");
@@ -585,8 +607,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
 
    --  A profile's line, then its settings under its heading.
    procedure Dump_Profile
-     (Into : in out Sink; C : Configuration; Kind : Profile_Kind; Index : Natural; Command : String; Diff : Boolean;
-      Show_Defaults : Boolean; Ports : Port_List)
+     (Into : in out Sink; C : Configuration; Kind : Profile_Kind; Index : Natural; Command : String; Mode : Dump_Mode;
+      Ports : Port_List)
      with Pre => Ports'Length <= Serial_Feature_Map.Max_Ports
    is
    begin
@@ -603,7 +625,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          (PID     => (if Kind = PID then Index else 0),
           Rate    => (if Kind = Rate then Index else 0),
           Battery => (if Kind = Battery then Index else 0)),
-         Profile_Word (Kind) & " " & Decimal (Integer_64 (Index)), Command, Diff, Show_Defaults, Ports);
+         Profile_Word (Kind) & " " & Decimal (Integer_64 (Index)), Command, Mode, Ports);
    end Dump_Profile;
 
    --  Whether a text starts a word, without regard to case.
@@ -703,18 +725,49 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end;
    end Feature_Command;
 
-   --  The features as commands: every feature disabled, then each enabled
-   --  one enabled.
-   procedure Put_Feature_Dump (Into : in out Sink; Mask : Unsigned_32) is
+   --  The features as commands: every feature disabled, then each enabled one
+   --  enabled. A diff keeps a feature's disabled line when it was enabled by
+   --  default and its enabled line when it was disabled; the default lines
+   --  print for the opposite changes, and only the kept lines' changes print
+   --  the heading.
+   procedure Put_Feature_Dump
+     (Into : in out Sink; Mask : Unsigned_32; Default : Unsigned_32 := Defaults.Feature_Config.Enabled_Features;
+      Mode : Dump_Mode := Listing; Heading : String := "")
+   is
+      Pending : Boolean := Heading'Length > 0;
    begin
+      Put_Heading (Into, Mode, False, Heading, Pending);
       for Bit in Feature_Bit loop
          if Feature_Name (Bit)'Length > 0 then
-            Put (Into, "feature -" & Feature_Name (Bit) & CRLF);
+            declare
+               B     : constant Unsigned_32 := Shift_Left (1, Bit);
+               Equal : constant Boolean := (((not Default) or Mask) and B) /= 0;
+            begin
+               Put_Heading (Into, Mode, not Equal, Heading, Pending);
+               if Shows_Default (Mode, ((Default or not Mask) and B) /= 0) then
+                  Put (Into, "#feature -" & Feature_Name (Bit) & CRLF);
+               end if;
+               if Shows_Line (Mode, Equal) then
+                  Put (Into, "feature -" & Feature_Name (Bit) & CRLF);
+               end if;
+            end;
          end if;
       end loop;
       for Bit in Feature_Bit loop
-         if Feature_Name (Bit)'Length > 0 and then (Mask and Shift_Left (1, Bit)) /= 0 then
-            Put (Into, "feature " & Feature_Name (Bit) & CRLF);
+         if Feature_Name (Bit)'Length > 0 then
+            declare
+               B : constant Unsigned_32 := Shift_Left (1, Bit);
+            begin
+               if (Default and B) /= 0 and then Shows_Default (Mode, (((not Default) or Mask) and B) /= 0) then
+                  Put (Into, "#feature " & Feature_Name (Bit) & CRLF);
+               end if;
+               if (Mask and B) /= 0 then
+                  Put_Heading (Into, Mode, ((Default or not Mask) and B) = 0, Heading, Pending);
+                  if Shows_Line (Mode, ((Default or not Mask) and B) /= 0) then
+                     Put (Into, "feature " & Feature_Name (Bit) & CRLF);
+                  end if;
+               end if;
+            end;
          end if;
       end loop;
    end Put_Feature_Dump;
@@ -820,14 +873,33 @@ package body Adaflight.Command_Line with SPARK_Mode is
    Beacon_Allowed : constant Unsigned_32 := 16#202#;
 
    --  The beeper or beacon conditions as commands: each allowed one but ALL
-   --  enabled or, after a minus, disabled.
-   procedure Put_Beeper_Dump (Into : in out Sink; Command : String; Flags : Unsigned_32; Allowed : Unsigned_32) is
+   --  enabled or, after a minus, disabled. A changed condition's default
+   --  prints before the heading.
+   procedure Put_Beeper_Dump
+     (Into : in out Sink; Command : String; Flags : Unsigned_32; Default : Unsigned_32; Allowed : Unsigned_32;
+      Mode : Dump_Mode; Heading : String)
+   is
+      Pending : Boolean := Heading'Length > 0;
    begin
+      Put_Heading (Into, Mode, False, Heading, Pending);
       for I in 0 .. All_Beepers - 1 loop
          pragma Loop_Invariant (I in 0 .. All_Beepers - 1);
          if (Beeper_Mask (I) and Allowed) /= 0 then
-            Put (Into, Command);
-            Put (Into, (if (Flags and Beeper_Mask (I)) /= 0 then " -" else " ") & Beeper_Name (I) & CRLF);
+            declare
+               Off   : constant Boolean := (Flags and Beeper_Mask (I)) /= 0;
+               Equal : constant Boolean := ((not (Flags xor Default)) and Beeper_Mask (I)) /= 0;
+            begin
+               if Shows_Default (Mode, Equal) then
+                  Put (Into, "#");
+                  Put (Into, Command);
+                  Put (Into, (if Off then " " else " -") & Beeper_Name (I) & CRLF);
+               end if;
+               Put_Heading (Into, Mode, not Equal, Heading, Pending);
+               if Shows_Line (Mode, Equal) then
+                  Put (Into, Command);
+                  Put (Into, (if Off then " -" else " ") & Beeper_Name (I) & CRLF);
+               end if;
+            end;
          end if;
       end loop;
    end Put_Beeper_Dump;
@@ -882,14 +954,30 @@ package body Adaflight.Command_Line with SPARK_Mode is
      (if From > Text'Last then 0 else CLI_Text.To_Integer (Text (From .. Text'Last)))
      with Pre => From >= Text'First and then Text'Last < Positive'Last;
 
-   --  Every mode condition whose mode is in the box table.
-   procedure Put_Conditions (Into : in out Sink; Conditions : Mode_Activation_Condition_Record_List_20) is
+   --  Every mode condition whose mode is in the box table, a changed one's
+   --  default first for Show_Defaults when its mode is in the table.
+   procedure Put_Conditions
+     (Into : in out Sink; Conditions : Mode_Activation_Condition_Record_List_20;
+      Default : Mode_Activation_Condition_Record_List_20 := Defaults.Mode_Activation_Conditions;
+      Mode : Dump_Mode := Listing; Heading : String := "")
+   is
+      Pending : Boolean := Heading'Length > 0;
    begin
+      Put_Heading (Into, Mode, False, Heading, Pending);
       for I in Conditions'Range loop
          pragma Loop_Invariant (I in Conditions'Range);
-         if Conditions (I).Mode_Id <= Modes.Box'Pos (Modes.Box'Last) then
-            Put_Condition (Into, I, Conditions (I));
-         end if;
+         declare
+            Equal : constant Boolean := Conditions (I) = Default (I);
+         begin
+            Put_Heading (Into, Mode, not Equal, Heading, Pending);
+            if Shows_Default (Mode, Equal) and then Default (I).Mode_Id <= Modes.Box'Pos (Modes.Box'Last) then
+               Put (Into, "#");
+               Put_Condition (Into, I, Default (I));
+            end if;
+            if Shows_Line (Mode, Equal) and then Conditions (I).Mode_Id <= Modes.Box'Pos (Modes.Box'Last) then
+               Put_Condition (Into, I, Conditions (I));
+            end if;
+         end;
       end loop;
    end Put_Conditions;
 
@@ -994,12 +1082,30 @@ package body Adaflight.Command_Line with SPARK_Mode is
            & CRLF);
    end Put_Adjustment_Range;
 
-   --  Every adjustment range's line.
-   procedure Put_Adjustment_Ranges (Into : in out Sink; Ranges : Adjustment_Range_Record_List_30) is
+   --  Every adjustment range's line, a changed one's default first for
+   --  Show_Defaults.
+   procedure Put_Adjustment_Ranges
+     (Into : in out Sink; Ranges : Adjustment_Range_Record_List_30;
+      Default : Adjustment_Range_Record_List_30 := Defaults.Adjustment_Ranges; Mode : Dump_Mode := Listing;
+      Heading : String := "")
+   is
+      Pending : Boolean := Heading'Length > 0;
    begin
+      Put_Heading (Into, Mode, False, Heading, Pending);
       for I in Ranges'Range loop
          pragma Loop_Invariant (I in Ranges'Range);
-         Put_Adjustment_Range (Into, I, Ranges (I));
+         declare
+            Equal : constant Boolean := Ranges (I) = Default (I);
+         begin
+            Put_Heading (Into, Mode, not Equal, Heading, Pending);
+            if Shows_Default (Mode, Equal) then
+               Put (Into, "#");
+               Put_Adjustment_Range (Into, I, Default (I));
+            end if;
+            if Shows_Line (Mode, Equal) then
+               Put_Adjustment_Range (Into, I, Ranges (I));
+            end if;
+         end;
       end loop;
    end Put_Adjustment_Ranges;
 
@@ -1366,20 +1472,43 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Put (Into, CRLF);
    end Mixer_Command;
 
-   --  The custom motor mix up to its first motor without throttle.
-   procedure Put_Motor_Mix (Into : in out Sink; Mix : Motor_Mixer_Record_List_8) is
+   --  One motor's mix line.
+   procedure Put_Motor (Into : in out Sink; Index : Natural; M : Motor_Mixer_Record) is
+   begin
+      Put (Into, "mmix " & Decimal (Integer_64 (Index)) & " ");
+      Put (Into, CLI_Text.Float_Text (M.Throttle));
+      Put (Into, " ");
+      Put (Into, CLI_Text.Float_Text (M.Roll));
+      Put (Into, " ");
+      Put (Into, CLI_Text.Float_Text (M.Pitch));
+      Put (Into, " ");
+      Put (Into, CLI_Text.Float_Text (M.Yaw));
+      Put (Into, CRLF);
+   end Put_Motor;
+
+   --  The custom motor mix up to its first motor without throttle, every
+   --  motor's line in a diff too, a changed one's default first for
+   --  Show_Defaults; a changed motor prints the heading.
+   procedure Put_Motor_Mix
+     (Into : in out Sink; Mix : Motor_Mixer_Record_List_8;
+      Default : Motor_Mixer_Record_List_8 := Defaults.Custom_Motor_Mixer; Mode : Dump_Mode := Listing;
+      Heading : String := "")
+   is
+      Pending : Boolean := Heading'Length > 0;
    begin
       for I in Mix'Range loop
+         pragma Loop_Invariant (I in Mix'Range);
          exit when Mix (I).Throttle = 0.0;
-         Put (Into, "mmix " & Decimal (Integer_64 (I)) & " ");
-         Put (Into, CLI_Text.Float_Text (Mix (I).Throttle));
-         Put (Into, " ");
-         Put (Into, CLI_Text.Float_Text (Mix (I).Roll));
-         Put (Into, " ");
-         Put (Into, CLI_Text.Float_Text (Mix (I).Pitch));
-         Put (Into, " ");
-         Put (Into, CLI_Text.Float_Text (Mix (I).Yaw));
-         Put (Into, CRLF);
+         declare
+            Equal : constant Boolean := Mix (I) = Default (I);
+         begin
+            Put_Heading (Into, Mode, not Equal, Heading, Pending);
+            if Shows_Default (Mode, Equal) then
+               Put (Into, "#");
+               Put_Motor (Into, I, Default (I));
+            end if;
+            Put_Motor (Into, I, Mix (I));
+         end;
       end loop;
    end Put_Motor_Mix;
 
@@ -1477,26 +1606,59 @@ package body Adaflight.Command_Line with SPARK_Mode is
 
    Input_Source_Count : constant := 14;
 
-   --  Each servo's line, then a reverse line for each input source it
-   --  reverses.
-   procedure Put_Servos (Into : in out Sink; Params : Servo_Param_Record_List_8) is
+   --  One servo's parameter line.
+   procedure Put_Servo (Into : in out Sink; Index : Natural; P : Servo_Param_Record) is
    begin
+      Put (Into, "servo " & Decimal (Integer_64 (Index)) & " " & Decimal (Integer_64 (P.Min)) & " "
+           & Decimal (Integer_64 (P.Max)) & " " & Decimal (Integer_64 (P.Middle)) & " "
+           & Decimal (Integer_64 (P.Rate)) & " " & Decimal (Integer_64 (P.Forward_From_Channel)) & CRLF);
+   end Put_Servo;
+
+   --  Each servo's line, then a reverse line for each input source it
+   --  reverses. A changed servo's default line, and a reverse line the
+   --  defaults have and the servo no longer has, come first for
+   --  Show_Defaults; only a changed servo prints the heading.
+   procedure Put_Servos
+     (Into : in out Sink; Params : Servo_Param_Record_List_8;
+      Default : Servo_Param_Record_List_8 := Defaults.Servo_Params; Mode : Dump_Mode := Listing;
+      Heading : String := "")
+   is
+      Pending : Boolean := Heading'Length > 0;
+   begin
+      Put_Heading (Into, Mode, False, Heading, Pending);
       for I in Params'Range loop
          pragma Loop_Invariant (I in Params'Range);
-         Put (Into, "servo " & Decimal (Integer_64 (I)) & " " & Decimal (Integer_64 (Params (I).Min)) & " "
-              & Decimal (Integer_64 (Params (I).Max)) & " "
-              & Decimal (Integer_64 (Params (I).Middle)) & " "
-              & Decimal (Integer_64 (Params (I).Rate)) & " "
-              & Decimal (Integer_64 (Params (I).Forward_From_Channel)) & CRLF);
+         declare
+            Equal : constant Boolean := Params (I) = Default (I);
+         begin
+            Put_Heading (Into, Mode, not Equal, Heading, Pending);
+            if Shows_Default (Mode, Equal) then
+               Put (Into, "#");
+               Put_Servo (Into, I, Default (I));
+            end if;
+            if Shows_Line (Mode, Equal) then
+               Put_Servo (Into, I, Params (I));
+            end if;
+         end;
       end loop;
       for I in Params'Range loop
          pragma Loop_Invariant (I in Params'Range);
          for Input in 0 .. Input_Source_Count - 1 loop
             pragma Loop_Invariant (Input in 0 .. Input_Source_Count - 1);
-            if (Params (I).Reversed_Sources and Shift_Left (1, Input)) /= 0 then
-               Put (Into, "smix reverse " & Decimal (Integer_64 (I)) & " " & Decimal (Integer_64 (Input)) & " r"
-                    & CRLF);
-            end if;
+            declare
+               Bit   : constant Unsigned_32 := Shift_Left (1, Input);
+               Equal : constant Boolean :=
+                 ((not (Params (I).Reversed_Sources xor Default (I).Reversed_Sources)) and Bit) /= 0;
+               Line  : constant String :=
+                 "smix reverse " & Decimal (Integer_64 (I)) & " " & Decimal (Integer_64 (Input)) & " r" & CRLF;
+            begin
+               if (Default (I).Reversed_Sources and Bit) /= 0 and then Shows_Default (Mode, Equal) then
+                  Put (Into, "#" & Line);
+               end if;
+               if (Params (I).Reversed_Sources and Bit) /= 0 and then Shows_Line (Mode, Equal) then
+                  Put (Into, Line);
+               end if;
+            end;
          end loop;
       end loop;
    end Put_Servos;
@@ -1570,19 +1732,39 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end;
    end Servo_Command;
 
-   --  The servo rules up to the first without a rate.
-   procedure Put_Servo_Rules (Into : in out Sink; Rules : Servo_Mixer_Record_List_16) is
+   --  One servo rule's line.
+   procedure Put_Rule (Into : in out Sink; Index : Natural; R : Servo_Mixer_Record) is
    begin
+      Put (Into, "smix " & Decimal (Integer_64 (Index)) & " " & Decimal (Integer_64 (R.Target_Channel)) & " "
+           & Decimal (Integer_64 (R.Input_Source)) & " " & Decimal (Integer_64 (R.Rate)) & " "
+           & Decimal (Integer_64 (R.Speed)) & " " & Decimal (Integer_64 (R.Min)) & " "
+           & Decimal (Integer_64 (R.Max)) & " " & Decimal (Integer_64 (R.Box)) & CRLF);
+   end Put_Rule;
+
+   --  The servo rules up to the first without a rate, a changed one's default
+   --  first for Show_Defaults.
+   procedure Put_Servo_Rules
+     (Into : in out Sink; Rules : Servo_Mixer_Record_List_16;
+      Default : Servo_Mixer_Record_List_16 := Defaults.Custom_Servo_Mixers; Mode : Dump_Mode := Listing;
+      Heading : String := "")
+   is
+      Pending : Boolean := Heading'Length > 0;
+   begin
+      Put_Heading (Into, Mode, False, Heading, Pending);
       for I in Rules'Range loop
          pragma Loop_Invariant (I in Rules'Range);
          exit when Rules (I).Rate = 0;
          declare
-            R : constant Servo_Mixer_Record := Rules (I);
+            Equal : constant Boolean := Rules (I) = Default (I);
          begin
-            Put (Into, "smix " & Decimal (Integer_64 (I)) & " " & Decimal (Integer_64 (R.Target_Channel)) & " "
-                 & Decimal (Integer_64 (R.Input_Source)) & " " & Decimal (Integer_64 (R.Rate)) & " "
-                 & Decimal (Integer_64 (R.Speed)) & " " & Decimal (Integer_64 (R.Min)) & " "
-                 & Decimal (Integer_64 (R.Max)) & " " & Decimal (Integer_64 (R.Box)) & CRLF);
+            Put_Heading (Into, Mode, not Equal, Heading, Pending);
+            if Shows_Default (Mode, Equal) then
+               Put (Into, "#");
+               Put_Rule (Into, I, Default (I));
+            end if;
+            if Shows_Line (Mode, Equal) then
+               Put_Rule (Into, I, Rules (I));
+            end if;
          end;
       end loop;
    end Put_Servo_Rules;
@@ -1815,14 +1997,29 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Put (Into, Decimal (Integer_64 (Shift_Right (Config, 22) and 16#F#)));
    end Put_Led_Text;
 
-   --  Every LED's configuration line.
-   procedure Put_Leds (Into : in out Sink; Configs : Unsigned_32_List_32) is
+   --  Every LED's configuration line, a changed one's default first for
+   --  Show_Defaults.
+   procedure Put_Leds
+     (Into : in out Sink; Configs : Unsigned_32_List_32;
+      Default : Unsigned_32_List_32 := Defaults.Led_Strip_Status_Mode_Config.Led_Configs; Mode : Dump_Mode := Listing;
+      Heading : String := "")
+   is
+      Pending : Boolean := Heading'Length > 0;
    begin
+      Put_Heading (Into, Mode, False, Heading, Pending);
       for I in Configs'Range loop
          pragma Loop_Invariant (I in Configs'Range);
-         Put (Into, "led " & Decimal (Integer_64 (I)) & " ");
-         Put_Led_Text (Into, Configs (I));
-         Put (Into, CRLF);
+         Put_Heading (Into, Mode, Configs (I) /= Default (I), Heading, Pending);
+         if Shows_Default (Mode, Configs (I) = Default (I)) then
+            Put (Into, "#led " & Decimal (Integer_64 (I)) & " ");
+            Put_Led_Text (Into, Default (I));
+            Put (Into, CRLF);
+         end if;
+         if Shows_Line (Mode, Configs (I) = Default (I)) then
+            Put (Into, "led " & Decimal (Integer_64 (I)) & " ");
+            Put_Led_Text (Into, Configs (I));
+            Put (Into, CRLF);
+         end if;
       end loop;
    end Put_Leds;
 
@@ -1874,15 +2071,36 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end;
    end Led_Command;
 
-   --  Every color's line.
-   procedure Put_Colors (Into : in out Sink; Colors : Hsv_Color_Record_List_16) is
+   --  One color's line.
+   procedure Put_Color (Into : in out Sink; Index : Natural; Color : Hsv_Color_Record) is
    begin
+      Put (Into, "color " & Decimal (Integer_64 (Index)) & " " & Decimal (Integer_64 (Color.H)) & ","
+           & Decimal (Integer_64 (Color.S)) & "," & Decimal (Integer_64 (Color.V)) & CRLF);
+   end Put_Color;
+
+   --  Every color's line, a changed one's default first for Show_Defaults.
+   procedure Put_Colors
+     (Into : in out Sink; Colors : Hsv_Color_Record_List_16;
+      Default : Hsv_Color_Record_List_16 := Defaults.Led_Strip_Status_Mode_Config.Colors; Mode : Dump_Mode := Listing;
+      Heading : String := "")
+   is
+      Pending : Boolean := Heading'Length > 0;
+   begin
+      Put_Heading (Into, Mode, False, Heading, Pending);
       for I in Colors'Range loop
          pragma Loop_Invariant (I in Colors'Range);
-         Put (Into, "color " & Decimal (Integer_64 (I)) & " "
-              & Decimal (Integer_64 (Colors (I).H)) & ","
-              & Decimal (Integer_64 (Colors (I).S)) & ","
-              & Decimal (Integer_64 (Colors (I).V)) & CRLF);
+         declare
+            Equal : constant Boolean := Colors (I) = Default (I);
+         begin
+            Put_Heading (Into, Mode, not Equal, Heading, Pending);
+            if Shows_Default (Mode, Equal) then
+               Put (Into, "#");
+               Put_Color (Into, I, Default (I));
+            end if;
+            if Shows_Line (Mode, Equal) then
+               Put_Color (Into, I, Colors (I));
+            end if;
+         end;
       end loop;
    end Put_Colors;
 
@@ -1962,23 +2180,54 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end;
    end Color_Command;
 
-   --  Every mode's direction colors, the special colors and the aux channel.
-   procedure Put_Mode_Colors (Into : in out Sink; L : Led_Strip_Status_Mode_Config_Record) is
+   --  One mode color's line, its default first for Show_Defaults when they
+   --  differ; a difference prints the heading.
+   procedure Put_Mode_Color
+     (Into : in out Sink; Mode : Dump_Mode; M, D : Natural; Color, Default : Unsigned_8; Heading : String;
+      Pending : in out Boolean)
+   is
+      Text : constant String := "mode_color " & Decimal (Integer_64 (M)) & " " & Decimal (Integer_64 (D)) & " ";
    begin
+      Put_Heading (Into, Mode, Color /= Default, Heading, Pending);
+      if Shows_Default (Mode, Color = Default) then
+         Put (Into, "#" & Text & Decimal (Integer_64 (Default)) & CRLF);
+      end if;
+      if Shows_Line (Mode, Color = Default) then
+         Put (Into, Text & Decimal (Integer_64 (Color)) & CRLF);
+      end if;
+   end Put_Mode_Color;
+
+   --  Every mode's direction colors, the special colors and the aux channel.
+   procedure Put_Mode_Colors
+     (Into : in out Sink; L : Led_Strip_Status_Mode_Config_Record;
+      Default : Led_Strip_Status_Mode_Config_Record := Defaults.Led_Strip_Status_Mode_Config;
+      Mode : Dump_Mode := Listing; Heading : String := "")
+   is
+      Pending : Boolean := Heading'Length > 0;
+   begin
+      Put_Heading (Into, Mode, False, Heading, Pending);
       for M in L.Mode_Colors'Range loop
          pragma Loop_Invariant (M in L.Mode_Colors'Range);
          for D in L.Mode_Colors (M).Color'Range loop
             pragma Loop_Invariant (D in L.Mode_Colors (M).Color'Range);
-            Put (Into, "mode_color " & Decimal (Integer_64 (M)) & " " & Decimal (Integer_64 (D)) & " "
-                 & Decimal (Integer_64 (L.Mode_Colors (M).Color (D))) & CRLF);
+            Put_Mode_Color
+              (Into, Mode, M, D, L.Mode_Colors (M).Color (D), Default.Mode_Colors (M).Color (D), Heading, Pending);
          end loop;
       end loop;
       for D in L.Special_Colors.Color'Range loop
          pragma Loop_Invariant (D in L.Special_Colors.Color'Range);
-         Put (Into, "mode_color 6 " & Decimal (Integer_64 (D)) & " "
-              & Decimal (Integer_64 (L.Special_Colors.Color (D))) & CRLF);
+         Put_Mode_Color
+           (Into, Mode, 6, D, L.Special_Colors.Color (D), Default.Special_Colors.Color (D), Heading, Pending);
       end loop;
-      Put (Into, "mode_color 7 0 " & Decimal (Integer_64 (L.Ledstrip_Aux_Channel)) & CRLF);
+      if Pending and then Shows_Line (Mode, L.Ledstrip_Aux_Channel = Default.Ledstrip_Aux_Channel) then
+         Put_Hash_Line (Into, Heading);
+      end if;
+      if Shows_Default (Mode, L.Ledstrip_Aux_Channel = Default.Ledstrip_Aux_Channel) then
+         Put (Into, "#mode_color 7 0 " & Decimal (Integer_64 (Default.Ledstrip_Aux_Channel)) & CRLF);
+      end if;
+      if Shows_Line (Mode, L.Ledstrip_Aux_Channel = Default.Ledstrip_Aux_Channel) then
+         Put (Into, "mode_color 7 0 " & Decimal (Integer_64 (L.Ledstrip_Aux_Channel)) & CRLF);
+      end if;
    end Put_Mode_Colors;
 
    --  mode_color: every mode's direction colors, the special colors and the
@@ -2047,12 +2296,31 @@ package body Adaflight.Command_Line with SPARK_Mode is
            & " " & Decimal (900 + 25 * Integer_64 (V.Range_Value.End_Step)) & CRLF);
    end Put_Vtx_Condition;
 
-   --  Every VTX channel condition's line.
-   procedure Put_Vtx_Conditions (Into : in out Sink; Conditions : Vtx_Channel_Activation_Condition_Record_List_10) is
+   --  Every VTX channel condition's line, a changed one's default first for
+   --  Show_Defaults.
+   procedure Put_Vtx_Conditions
+     (Into : in out Sink; Conditions : Vtx_Channel_Activation_Condition_Record_List_10;
+      Default : Vtx_Channel_Activation_Condition_Record_List_10 :=
+        Defaults.Vtx_Config.Vtx_Channel_Activation_Conditions;
+      Mode : Dump_Mode := Listing; Heading : String := "")
+   is
+      Pending : Boolean := Heading'Length > 0;
    begin
+      Put_Heading (Into, Mode, False, Heading, Pending);
       for I in Conditions'Range loop
          pragma Loop_Invariant (I in Conditions'Range);
-         Put_Vtx_Condition (Into, I, Conditions (I));
+         declare
+            Equal : constant Boolean := Conditions (I) = Default (I);
+         begin
+            Put_Heading (Into, Mode, not Equal, Heading, Pending);
+            if Shows_Default (Mode, Equal) then
+               Put (Into, "#");
+               Put_Vtx_Condition (Into, I, Default (I));
+            end if;
+            if Shows_Line (Mode, Equal) then
+               Put_Vtx_Condition (Into, I, Conditions (I));
+            end if;
+         end;
       end loop;
    end Put_Vtx_Conditions;
 
@@ -2204,41 +2472,47 @@ package body Adaflight.Command_Line with SPARK_Mode is
       T.Is_Factory_Band (Band) := False;
    end Clear_Band;
 
-   --  The table's bands, channels, each band's line, power levels, power
-   --  values and power labels.
-   procedure Put_Vtx_Table (Into : in out Sink; T : Vtx_Table_Config_Record) is
+   --  A band's line: its number, name, letter, factory flag and the
+   --  frequencies of a channel count.
+   procedure Put_Band (Into : in out Sink; T : Vtx_Table_Config_Record; Band : Natural; Channels : Unsigned_8)
+     with Pre => Band < Table_Bands
+   is
    begin
-      Put (Into, "vtxtable bands " & Decimal (Integer_64 (T.Bands)) & CRLF);
-      Put (Into, "vtxtable channels " & Decimal (Integer_64 (T.Channels)) & CRLF);
-      for Band in 0 .. Natural'Min (Natural (T.Bands), Table_Bands) - 1 loop
-         pragma Loop_Invariant (Band < Table_Bands);
-         Put (Into, "vtxtable band " & Decimal (Integer_64 (Band + 1)) & " ");
-         Put (Into, Stored_Text (T.Band_Names (Band)));
-         Put (Into, " " & Character'Val (T.Band_Letters (Band))
-              & (if T.Is_Factory_Band (Band) then " FACTORY" else " CUSTOM "));
-         for C in 0 .. Natural'Min (Natural (T.Channels), Table_Channels) - 1 loop
-            pragma Loop_Invariant (C < Table_Channels);
-            declare
-               Digits_Text : constant String := Decimal (Integer_64 (T.Frequency (Band) (C)));
-            begin
-               Put (Into, " ");
-               if Digits_Text'Length < 4 then
-                  Put (Into, (1 .. 4 - Digits_Text'Length => ' '));
-               end if;
-               Put (Into, Digits_Text);
-            end;
-         end loop;
-         Put (Into, CRLF);
+      Put (Into, "vtxtable band " & Decimal (Integer_64 (Band + 1)) & " ");
+      Put (Into, Stored_Text (T.Band_Names (Band)));
+      Put (Into, " " & Character'Val (T.Band_Letters (Band))
+           & (if T.Is_Factory_Band (Band) then " FACTORY" else " CUSTOM "));
+      for C in 0 .. Natural'Min (Natural (Channels), Table_Channels) - 1 loop
+         pragma Loop_Invariant (C < Table_Channels);
+         declare
+            Digits_Text : constant String := Decimal (Integer_64 (T.Frequency (Band) (C)));
+         begin
+            Put (Into, " ");
+            if Digits_Text'Length < 4 then
+               Put (Into, (1 .. 4 - Digits_Text'Length => ' '));
+            end if;
+            Put (Into, Digits_Text);
+         end;
       end loop;
-      Put (Into, "vtxtable powerlevels " & Decimal (Integer_64 (T.Power_Levels)) & CRLF);
+      Put (Into, CRLF);
+   end Put_Band;
+
+   --  The power values of a level count.
+   procedure Put_Power_Values (Into : in out Sink; T : Vtx_Table_Config_Record; Levels : Natural) is
+   begin
       Put (Into, "vtxtable powervalues");
-      for L in 0 .. Natural'Min (Natural (T.Power_Levels), Table_Powers) - 1 loop
+      for L in 0 .. Natural'Min (Levels, Table_Powers) - 1 loop
          pragma Loop_Invariant (L < Table_Powers);
          Put (Into, " " & Decimal (Integer_64 (T.Power_Values (L))));
       end loop;
       Put (Into, CRLF);
+   end Put_Power_Values;
+
+   --  The power labels of a level count, each up to its first space.
+   procedure Put_Power_Labels (Into : in out Sink; T : Vtx_Table_Config_Record; Levels : Natural) is
+   begin
       Put (Into, "vtxtable powerlabels");
-      for L in 0 .. Natural'Min (Natural (T.Power_Levels), Table_Powers) - 1 loop
+      for L in 0 .. Natural'Min (Levels, Table_Powers) - 1 loop
          pragma Loop_Invariant (L < Table_Powers);
          declare
             Label : constant String := Stored_Text (T.Power_Labels (L));
@@ -2255,6 +2529,89 @@ package body Adaflight.Command_Line with SPARK_Mode is
          end;
       end loop;
       Put (Into, CRLF);
+   end Put_Power_Labels;
+
+   --  The table's bands, channels, each band's line, power levels, power
+   --  values and power labels, a changed part's default first for
+   --  Show_Defaults. A band compares its name without regard to case, its
+   --  letter and its frequencies, and its default line has the default
+   --  channel count; the power values and labels compare and print all eight
+   --  defaults.
+   procedure Put_Vtx_Table
+     (Into : in out Sink; T : Vtx_Table_Config_Record; Default : Vtx_Table_Config_Record := Defaults.Vtx_Table_Config;
+      Mode : Dump_Mode := Listing; Heading : String := "")
+   is
+      Pending : Boolean := Heading'Length > 0;
+   begin
+      Put_Heading (Into, Mode, False, Heading, Pending);
+      Put_Heading (Into, Mode, T.Bands /= Default.Bands, Heading, Pending);
+      if Shows_Default (Mode, T.Bands = Default.Bands) then
+         Put (Into, "#vtxtable bands " & Decimal (Integer_64 (Default.Bands)) & CRLF);
+      end if;
+      if Shows_Line (Mode, T.Bands = Default.Bands) then
+         Put (Into, "vtxtable bands " & Decimal (Integer_64 (T.Bands)) & CRLF);
+      end if;
+      Put_Heading (Into, Mode, T.Channels /= Default.Channels, Heading, Pending);
+      if Shows_Default (Mode, T.Channels = Default.Channels) then
+         Put (Into, "#vtxtable channels " & Decimal (Integer_64 (Default.Channels)) & CRLF);
+      end if;
+      if Shows_Line (Mode, T.Channels = Default.Channels) then
+         Put (Into, "vtxtable channels " & Decimal (Integer_64 (T.Channels)) & CRLF);
+      end if;
+      for Band in 0 .. Natural'Min (Natural (T.Bands), Table_Bands) - 1 loop
+         pragma Loop_Invariant (Band < Table_Bands);
+         declare
+            Equal : constant Boolean :=
+              CLI_Text.Same_Ignoring_Case (Stored_Text (T.Band_Names (Band)), Stored_Text (Default.Band_Names (Band)))
+              and then T.Band_Letters (Band) = Default.Band_Letters (Band)
+              and then T.Frequency (Band) = Default.Frequency (Band);
+         begin
+            Put_Heading (Into, Mode, not Equal, Heading, Pending);
+            if Shows_Default (Mode, Equal) then
+               Put (Into, "#");
+               Put_Band (Into, Default, Band, Default.Channels);
+            end if;
+            if Shows_Line (Mode, Equal) then
+               Put_Band (Into, T, Band, T.Channels);
+            end if;
+         end;
+      end loop;
+      Put_Heading (Into, Mode, T.Power_Levels /= Default.Power_Levels, Heading, Pending);
+      if Shows_Default (Mode, T.Power_Levels = Default.Power_Levels) then
+         Put (Into, "#vtxtable powerlevels " & Decimal (Integer_64 (Default.Power_Levels)) & CRLF);
+      end if;
+      if Shows_Line (Mode, T.Power_Levels = Default.Power_Levels) then
+         Put (Into, "vtxtable powerlevels " & Decimal (Integer_64 (T.Power_Levels)) & CRLF);
+      end if;
+      Put_Heading (Into, Mode, T.Power_Values /= Default.Power_Values, Heading, Pending);
+      if Shows_Default (Mode, T.Power_Values = Default.Power_Values) then
+         Put (Into, "#");
+         Put_Power_Values (Into, Default, Table_Powers);
+      end if;
+      if Shows_Line (Mode, T.Power_Values = Default.Power_Values) then
+         Put_Power_Values (Into, T, Natural (T.Power_Levels));
+      end if;
+      declare
+         Equal : Boolean := True;
+      begin
+         for L in 0 .. Table_Powers - 1 loop
+            if not CLI_Text.Same_Ignoring_Case
+              (Stored_Text (T.Power_Labels (L)), Stored_Text (Default.Power_Labels (L)))
+            then
+               Equal := False;
+            end if;
+         end loop;
+         if Pending and then Shows_Line (Mode, Equal) then
+            Put_Hash_Line (Into, Heading);
+         end if;
+         if Shows_Default (Mode, Equal) then
+            Put (Into, "#");
+            Put_Power_Labels (Into, Default, Table_Powers);
+         end if;
+         if Shows_Line (Mode, Equal) then
+            Put_Power_Labels (Into, T, Natural (T.Power_Levels));
+         end if;
+      end;
    end Put_Vtx_Table;
 
    --  vtxtable: the table, or one of its parts set: the band count, the
@@ -2542,21 +2899,57 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end;
    end Centimeters;
 
-   --  The plan as a clear line and an insert line for each waypoint.
-   procedure Put_Waypoints (Into : in out Sink; Count : Unsigned_8; Points : Waypoint_List) is
+   --  One waypoint's insert line.
+   procedure Put_Waypoint (Into : in out Sink; Index : Natural; W : Waypoint) is
    begin
-      Put (Into, "waypoint clear" & CRLF);
-      for I in 0 .. Natural'Min (Natural (Count), Max_Waypoints) - 1 loop
+      Put (Into, "waypoint insert " & Decimal (Integer_64 (Index)) & " " & CLI_Text.Coordinate_Text (W.Latitude) & " "
+           & CLI_Text.Coordinate_Text (W.Longitude) & " " & Decimal (Integer_64 (W.Altitude)) & " "
+           & Decimal (Integer_64 (W.Speed)) & " ");
+      Put (Into, Type_Name (W.Type_Value) & " " & Decimal (Integer_64 (W.Duration)) & " "
+           & Pattern_Name (W.Pattern) & " " & Decimal (Integer_64 (W.Vert_Rate)) & " "
+           & Yaw_Name (W.Yaw_Behaviour) & CRLF);
+   end Put_Waypoint;
+
+   --  The plan as a clear line and an insert line for each waypoint. A diff
+   --  keeps the clear line when the plan differs from the default plan, and
+   --  a waypoint past the default plan's count prints no heading; a changed
+   --  waypoint within it prints its default first for Show_Defaults.
+   procedure Put_Waypoints
+     (Into : in out Sink; Count : Unsigned_8; Points : Waypoint_List;
+      Default_Count : Unsigned_8 := Defaults.Flight_Plan_Config.Waypoint_Count;
+      Default : Waypoint_List := Defaults.Flight_Plan_Config.Waypoints; Mode : Dump_Mode := Listing;
+      Heading : String := "")
+   is
+      Last      : constant Natural := Natural'Min (Natural (Count), Max_Waypoints);
+      All_Equal : Boolean := Count = Default_Count;
+      Pending   : Boolean := Heading'Length > 0;
+   begin
+      Put_Heading (Into, Mode, False, Heading, Pending);
+      if All_Equal then
+         for I in 0 .. Last - 1 loop
+            if Points (I) /= Default (I) then
+               All_Equal := False;
+            end if;
+         end loop;
+      end if;
+      if Shows_Line (Mode, All_Equal) then
+         Put (Into, "waypoint clear" & CRLF);
+      end if;
+      for I in 0 .. Last - 1 loop
          pragma Loop_Invariant (I < Max_Waypoints);
          declare
-            W : constant Waypoint := Points (I);
+            Equal : constant Boolean := I < Natural (Default_Count) and then Points (I) = Default (I);
          begin
-            Put (Into, "waypoint insert " & Decimal (Integer_64 (I)) & " " & CLI_Text.Coordinate_Text (W.Latitude) & " "
-                 & CLI_Text.Coordinate_Text (W.Longitude) & " " & Decimal (Integer_64 (W.Altitude)) & " "
-                 & Decimal (Integer_64 (W.Speed)) & " ");
-            Put (Into, Type_Name (W.Type_Value) & " " & Decimal (Integer_64 (W.Duration)) & " "
-                 & Pattern_Name (W.Pattern) & " " & Decimal (Integer_64 (W.Vert_Rate)) & " "
-                 & Yaw_Name (W.Yaw_Behaviour) & CRLF);
+            if I < Natural (Default_Count) then
+               Put_Heading (Into, Mode, not Equal, Heading, Pending);
+               if Shows_Default (Mode, Equal) then
+                  Put (Into, "#");
+                  Put_Waypoint (Into, I, Default (I));
+               end if;
+            end if;
+            if Shows_Line (Mode, Equal) then
+               Put_Waypoint (Into, I, Points (I));
+            end if;
          end;
       end loop;
    end Put_Waypoints;
@@ -2891,7 +3284,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
 
    --  The map line: each stick's letter at its channel over a starting text,
    --  up to the first position without a letter.
-   procedure Put_Map (Into : in out Sink; Start : Map_Text; Rcmap : Bytes_8) is
+   procedure Put_Map_Line (Into : in out Sink; Start : Map_Text; Rcmap : Bytes_8) is
       Buffer : Map_Text := Start;
       Last   : Natural := 0;
    begin
@@ -2906,6 +3299,22 @@ package body Adaflight.Command_Line with SPARK_Mode is
          pragma Loop_Invariant (Last = I);
       end loop;
       Put (Into, "map " & Buffer (1 .. Last) & CRLF);
+   end Put_Map_Line;
+
+   --  The map line from a cleared buffer, a changed map's default first for
+   --  Show_Defaults.
+   procedure Put_Map (Into : in out Sink; Rcmap : Bytes_8; Default : Bytes_8; Mode : Dump_Mode; Heading : String) is
+   begin
+      if Heading'Length > 0 and then Shows_Line (Mode, Rcmap = Default) then
+         Put_Hash_Line (Into, Heading);
+      end if;
+      if Shows_Default (Mode, Rcmap = Default) then
+         Put (Into, "#");
+         Put_Map_Line (Into, (others => ASCII.NUL), Default);
+      end if;
+      if Shows_Line (Mode, Rcmap = Default) then
+         Put_Map_Line (Into, (others => ASCII.NUL), Rcmap);
+      end if;
    end Put_Map;
 
    --  map: a new channel order of the eight mappable channels, each letter
@@ -2935,16 +3344,40 @@ package body Adaflight.Command_Line with SPARK_Mode is
          Put (Into, "###ERROR IN map: INVALID ARGUMENT COUNT###" & CRLF);
          return;
       end if;
-      Put_Map (Into, Buffer, C.Rx_Config.Rcmap);
+      Put_Map_Line (Into, Buffer, C.Rx_Config.Rcmap);
    end Map_Command;
 
-   --  The four sticks' channel range lines.
-   procedure Put_Ranges (Into : in out Sink; Ranges : Rx_Channel_Range_Config_Record_List_4) is
+   --  One stick's channel range line.
+   procedure Put_Range_Line (Into : in out Sink; Index : Natural; R : Rx_Channel_Range_Config_Record) is
    begin
+      Put (Into, "rxrange " & Decimal (Integer_64 (Index)) & " " & Decimal (Integer_64 (R.Min)) & " "
+           & Decimal (Integer_64 (R.Max)) & CRLF);
+   end Put_Range_Line;
+
+   --  The four sticks' channel range lines, a changed one's default first for
+   --  Show_Defaults.
+   procedure Put_Ranges
+     (Into : in out Sink; Ranges : Rx_Channel_Range_Config_Record_List_4;
+      Default : Rx_Channel_Range_Config_Record_List_4 := Defaults.Rx_Channel_Range_Configs;
+      Mode : Dump_Mode := Listing; Heading : String := "")
+   is
+      Pending : Boolean := Heading'Length > 0;
+   begin
+      Put_Heading (Into, Mode, False, Heading, Pending);
       for I in Ranges'Range loop
          pragma Loop_Invariant (I in Ranges'Range);
-         Put (Into, "rxrange " & Decimal (Integer_64 (I)) & " " & Decimal (Integer_64 (Ranges (I).Min)) & " "
-              & Decimal (Integer_64 (Ranges (I).Max)) & CRLF);
+         declare
+            Equal : constant Boolean := Ranges (I) = Default (I);
+         begin
+            Put_Heading (Into, Mode, not Equal, Heading, Pending);
+            if Shows_Default (Mode, Equal) then
+               Put (Into, "#");
+               Put_Range_Line (Into, I, Default (I));
+            end if;
+            if Shows_Line (Mode, Equal) then
+               Put_Range_Line (Into, I, Ranges (I));
+            end if;
+         end;
       end loop;
    end Put_Ranges;
 
@@ -2996,24 +3429,46 @@ package body Adaflight.Command_Line with SPARK_Mode is
 
    Failsafe_Characters : constant String := "ahs";
 
-   --  A channel's failsafe line: its mode's letter and, for the set mode, its
+   --  A channel's failsafe line: its mode's letter and, with a value, its
    --  value.
-   procedure Put_Failsafe (Into : in out Sink; Channel : Natural; F : Rx_Failsafe_Channel_Config_Record) is
+   procedure Put_Failsafe
+     (Into : in out Sink; Channel : Natural; F : Rx_Failsafe_Channel_Config_Record; With_Value : Boolean)
+   is
    begin
       Put (Into, "rxfail " & Decimal (Integer_64 (Channel)) & " "
            & (if F.Mode <= 2 then (1 => Failsafe_Characters (Natural (F.Mode) + 1)) else ""));
-      if F.Mode = 2 then
+      if With_Value then
          Put (Into, " " & Decimal (750 + 25 * Integer_64 (F.Step)));
       end if;
       Put (Into, CRLF);
    end Put_Failsafe;
 
-   --  Every channel's failsafe line.
-   procedure Put_Failsafes (Into : in out Sink; Configs : Rx_Failsafe_Channel_Config_Record_List_18) is
+   --  Every channel's failsafe line, with its value for the set mode, and a
+   --  changed one's default first for Show_Defaults, with a value when the
+   --  channel's own mode is the set mode.
+   procedure Put_Failsafes
+     (Into : in out Sink; Configs : Rx_Failsafe_Channel_Config_Record_List_18;
+      Default : Rx_Failsafe_Channel_Config_Record_List_18 := Defaults.Rx_Failsafe_Channel_Configs;
+      Mode : Dump_Mode := Listing; Heading : String := "")
+   is
+      Pending : Boolean := Heading'Length > 0;
    begin
+      Put_Heading (Into, Mode, False, Heading, Pending);
       for I in Configs'Range loop
          pragma Loop_Invariant (I in Configs'Range);
-         Put_Failsafe (Into, I, Configs (I));
+         declare
+            Equal      : constant Boolean := Configs (I) = Default (I);
+            With_Value : constant Boolean := Configs (I).Mode = 2;
+         begin
+            Put_Heading (Into, Mode, not Equal, Heading, Pending);
+            if Shows_Default (Mode, Equal) then
+               Put (Into, "#");
+               Put_Failsafe (Into, I, Default (I), With_Value);
+            end if;
+            if Shows_Line (Mode, Equal) then
+               Put_Failsafe (Into, I, Configs (I), With_Value);
+            end if;
+         end;
       end loop;
    end Put_Failsafes;
 
@@ -3075,7 +3530,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
             end if;
             C.Rx_Failsafe_Channel_Configs (Index).Mode := Mode;
          end if;
-         Put_Failsafe (Into, Index, C.Rx_Failsafe_Channel_Configs (Index));
+         Put_Failsafe
+           (Into, Index, C.Rx_Failsafe_Channel_Configs (Index), C.Rx_Failsafe_Channel_Configs (Index).Mode = 2);
       end;
    end Failsafe_Command;
 
@@ -3219,21 +3675,84 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end if;
    end Version_Command;
 
+   --  A mixer mode's name; none outside the names.
+   procedure Put_Mixer_Name (Into : in out Sink; Mode : Unsigned_8) is
+   begin
+      if Mode in 1 .. Mixer_Init.Mixer_Mode'Pos (Mixer_Init.Mixer_Mode'Last) + 1 then
+         Put (Into, Mixer_Name (Mixer_Init.Mixer_Mode'Val (Mode - 1)));
+      end if;
+   end Put_Mixer_Name;
+
+   --  The dump's sections from the mixer on, each under its heading: the
+   --  mixer with its custom motor mix, the servos, the servo rules, the
+   --  beepers, the beacons, the channel map, the LEDs, the colors, the mode
+   --  colors, the mode conditions, the adjustment ranges, the channel ranges,
+   --  the VTX table, the VTX conditions, the channel failsafe and the flight
+   --  plan. The motor mix's and the servo rules' reset lines follow the
+   --  default configuration's first motor and first rule, and without the
+   --  servo rules' reset line the rules print their heading.
+   procedure Put_Sections (Into : in out Sink; C : Configuration; Mode : Dump_Mode) is
+      Mixer   : constant Unsigned_8 := C.Mixer_Config.Mixer_Mode;
+      Default : constant Unsigned_8 := Defaults.Mixer_Config.Mixer_Mode;
+      Pending : Boolean := True;
+   begin
+      Put_Heading (Into, Mode, Mixer /= Default, "mixer", Pending);
+      if Shows_Default (Mode, Mixer = Default) then
+         Put (Into, "#mixer ");
+         Put_Mixer_Name (Into, Default);
+         Put (Into, CRLF);
+      end if;
+      if Shows_Line (Mode, Mixer = Default) then
+         Put (Into, "mixer ");
+         Put_Mixer_Name (Into, Mixer);
+         Put (Into, CRLF);
+      end if;
+      if Shows_Line (Mode, Defaults.Custom_Motor_Mixer (0).Throttle = 0.0) then
+         Put (Into, CRLF & "mmix reset" & CRLF & CRLF);
+      end if;
+      Put_Motor_Mix (Into, C.Custom_Motor_Mixer, Mode => Mode, Heading => (if Pending then "mixer" else ""));
+      Put_Servos (Into, C.Servo_Params, Mode => Mode, Heading => "servo");
+      if not Mode.Diff or else Defaults.Custom_Servo_Mixers (0).Rate /= 0 then
+         Put_Hash_Line (Into, "servo mixer");
+         Put (Into, "smix reset" & CRLF & CRLF);
+         Put_Servo_Rules (Into, C.Custom_Servo_Mixers, Mode => Mode);
+      else
+         Put_Servo_Rules (Into, C.Custom_Servo_Mixers, Mode => Mode, Heading => "servo mixer");
+      end if;
+      Put_Beeper_Dump
+        (Into, "beeper", C.Beeper_Config.Beeper_Off_Flags, Defaults.Beeper_Config.Beeper_Off_Flags, Beeper_Allowed,
+         Mode, "beeper");
+      Put_Beeper_Dump
+        (Into, "beacon", C.Beeper_Config.Dshot_Beacon_Off_Flags, Defaults.Beeper_Config.Dshot_Beacon_Off_Flags,
+         Beacon_Allowed, Mode, "beacon");
+      Put_Map (Into, C.Rx_Config.Rcmap, Defaults.Rx_Config.Rcmap, Mode, "map");
+      Put_Leds (Into, C.Led_Strip_Status_Mode_Config.Led_Configs, Mode => Mode, Heading => "led");
+      Put_Colors (Into, C.Led_Strip_Status_Mode_Config.Colors, Mode => Mode, Heading => "color");
+      Put_Mode_Colors (Into, C.Led_Strip_Status_Mode_Config, Mode => Mode, Heading => "mode_color");
+      Put_Conditions (Into, C.Mode_Activation_Conditions, Mode => Mode, Heading => "aux");
+      Put_Adjustment_Ranges (Into, C.Adjustment_Ranges, Mode => Mode, Heading => "adjrange");
+      Put_Ranges (Into, C.Rx_Channel_Range_Configs, Mode => Mode, Heading => "rxrange");
+      Put_Vtx_Table (Into, C.Vtx_Table_Config, Mode => Mode, Heading => "vtxtable");
+      Put_Vtx_Conditions (Into, C.Vtx_Config.Vtx_Channel_Activation_Conditions, Mode => Mode, Heading => "vtx");
+      Put_Failsafes (Into, C.Rx_Failsafe_Channel_Configs, Mode => Mode, Heading => "rxfail");
+      Put_Waypoints
+        (Into, C.Flight_Plan_Config.Waypoint_Count, C.Flight_Plan_Config.Waypoints, Mode => Mode,
+         Heading => "waypoint");
+   end Put_Sections;
+
    --  The master dump: the version line with the default board identifier,
    --  the command batch's start, the board's name and manufacturer, the craft
-   --  name, then under their headings the features, the mixer with its custom
-   --  motor mix, the servos, the servo rules, the beepers, the beacons, the
-   --  channel map, the LEDs, the colors, the mode colors, the mode
-   --  conditions, the adjustment ranges, the channel ranges, the VTX table,
-   --  the VTX conditions, the channel failsafe, the flight plan and the
-   --  master settings, then the selected profiles and the batch's end. A bare
-   --  dump leaves out the batch.
+   --  name, the features, the sections from the mixer on, and the master
+   --  settings, then the selected profiles and the batch's end. A bare dump
+   --  leaves out the batch; a diff leaves out an empty board name,
+   --  manufacturer and craft name. The hardware dump keeps the board's lines,
+   --  the features and the hardware settings.
    procedure Dump_Master
-     (Into : in out Sink; C : Configuration; Env : Environment; Command : String; Bare : Boolean; Ports : Port_List)
+     (Into : in out Sink; C : Configuration; Env : Environment; Command : String; Mode : Dump_Mode; Bare : Boolean;
+      Hardware_Only : Boolean; Ports : Port_List)
      with Pre => Valid (Current (C)) and then Ports'Length <= Serial_Feature_Map.Max_Ports
    is
       Craft : constant String := Stored_Text (C.Pilot_Config.Craft_Name);
-      Mode  : constant Unsigned_8 := C.Mixer_Config.Mixer_Mode;
    begin
       Put_Hash_Line (Into, "version");
       Put_Version (Into, Env, Defaults.System_Config.Board_Identifier);
@@ -3241,67 +3760,42 @@ package body Adaflight.Command_Line with SPARK_Mode is
          Put_Hash_Line (Into, "start the command batch");
          Put (Into, "batch start" & CRLF);
       end if;
-      Put (Into, CRLF & "board_name ");
-      Put (Into, Text_Of (Env.Board_Name));
-      Put (Into, CRLF & "manufacturer_id ");
-      Put (Into, Text_Of (Env.Manufacturer_Id));
-      Put (Into, CRLF & CRLF & "# name: ");
-      Put (Into, (if Craft'Length = 0 then "-" else Craft));
       Put (Into, CRLF);
-      Put_Hash_Line (Into, "feature");
-      Put_Feature_Dump (Into, C.Feature_Config.Enabled_Features);
-      Put_Hash_Line (Into, "mixer");
-      Put (Into, "mixer ");
-      if Mode in 1 .. Mixer_Init.Mixer_Mode'Pos (Mixer_Init.Mixer_Mode'Last) + 1 then
-         Put (Into, Mixer_Name (Mixer_Init.Mixer_Mode'Val (Mode - 1)));
+      if not Mode.Diff or else Env.Board_Name.Length > 0 then
+         Put (Into, "board_name ");
+         Put (Into, Text_Of (Env.Board_Name));
+         Put (Into, CRLF);
       end if;
-      Put (Into, CRLF & CRLF & "mmix reset" & CRLF & CRLF);
-      Put_Motor_Mix (Into, C.Custom_Motor_Mixer);
-      Put_Hash_Line (Into, "servo");
-      Put_Servos (Into, C.Servo_Params);
-      Put_Hash_Line (Into, "servo mixer");
-      Put (Into, "smix reset" & CRLF & CRLF);
-      Put_Servo_Rules (Into, C.Custom_Servo_Mixers);
-      Put_Hash_Line (Into, "beeper");
-      Put_Beeper_Dump (Into, "beeper", C.Beeper_Config.Beeper_Off_Flags, Beeper_Allowed);
-      Put_Hash_Line (Into, "beacon");
-      Put_Beeper_Dump (Into, "beacon", C.Beeper_Config.Dshot_Beacon_Off_Flags, Beacon_Allowed);
-      Put_Hash_Line (Into, "map");
-      Put_Map (Into, (others => ASCII.NUL), C.Rx_Config.Rcmap);
-      Put_Hash_Line (Into, "led");
-      Put_Leds (Into, C.Led_Strip_Status_Mode_Config.Led_Configs);
-      Put_Hash_Line (Into, "color");
-      Put_Colors (Into, C.Led_Strip_Status_Mode_Config.Colors);
-      Put_Hash_Line (Into, "mode_color");
-      Put_Mode_Colors (Into, C.Led_Strip_Status_Mode_Config);
-      Put_Hash_Line (Into, "aux");
-      Put_Conditions (Into, C.Mode_Activation_Conditions);
-      Put_Hash_Line (Into, "adjrange");
-      Put_Adjustment_Ranges (Into, C.Adjustment_Ranges);
-      Put_Hash_Line (Into, "rxrange");
-      Put_Ranges (Into, C.Rx_Channel_Range_Configs);
-      Put_Hash_Line (Into, "vtxtable");
-      Put_Vtx_Table (Into, C.Vtx_Table_Config);
-      Put_Hash_Line (Into, "vtx");
-      Put_Vtx_Conditions (Into, C.Vtx_Config.Vtx_Channel_Activation_Conditions);
-      Put_Hash_Line (Into, "rxfail");
-      Put_Failsafes (Into, C.Rx_Failsafe_Channel_Configs);
-      Put_Hash_Line (Into, "waypoint");
-      Put_Waypoints (Into, C.Flight_Plan_Config.Waypoint_Count, C.Flight_Plan_Config.Waypoints);
-      Dump_Values (Into, C, Master, Current (C), "master", Command, False, False, Ports);
-      Dump_Profile (Into, C, PID, Natural (C.System_Config.Pid_Profile_Index), Command, False, False, Ports);
-      Dump_Profile (Into, C, Rate, Natural (C.System_Config.Active_Rate_Profile), Command, False, False, Ports);
-      Dump_Profile (Into, C, Battery, Natural (C.System_Config.Active_Battery_Profile), Command, False, False, Ports);
+      if not Mode.Diff or else Env.Manufacturer_Id.Length > 0 then
+         Put (Into, "manufacturer_id ");
+         Put (Into, Text_Of (Env.Manufacturer_Id));
+         Put (Into, CRLF);
+      end if;
+      if not Hardware_Only and then Shows_Line (Mode, Craft'Length = 0) then
+         Put (Into, CRLF & "# name: ");
+         Put (Into, (if Craft'Length = 0 then "-" else Craft));
+         Put (Into, CRLF);
+      end if;
+      Put_Feature_Dump (Into, C.Feature_Config.Enabled_Features, Mode => Mode, Heading => "feature");
+      if Hardware_Only then
+         Dump_Values (Into, C, Hardware, Current (C), "master", Command, Mode, Ports);
+      else
+         Put_Sections (Into, C, Mode);
+         Dump_Values (Into, C, Master, Current (C), "master", Command, Mode, Ports);
+         Dump_Profile (Into, C, PID, Natural (C.System_Config.Pid_Profile_Index), Command, Mode, Ports);
+         Dump_Profile (Into, C, Rate, Natural (C.System_Config.Active_Rate_Profile), Command, Mode, Ports);
+         Dump_Profile (Into, C, Battery, Natural (C.System_Config.Active_Battery_Profile), Command, Mode, Ports);
+      end if;
       if not Bare then
          Put_Hash_Line (Into, "end the command batch");
          Put (Into, "batch end" & CRLF);
       end if;
    end Dump_Master;
 
-   --  dump or diff: a profile's or a rate profile's settings, with their
-   --  defaults after the option defaults, or the master dump, without the
-   --  command batch after the option bare; Known is false for other sections
-   --  and for a master diff or a master dump with defaults.
+   --  dump or diff: a profile's or a rate profile's settings, or the master
+   --  or hardware dump, each with defaults after the option defaults and the
+   --  master and hardware dumps without the command batch after the option
+   --  bare; Known is false for the dump of every profile.
    procedure Print_Config
      (Into : in out Sink; C : Configuration; Env : Environment; Buffer : Line_Buffer; Arguments : Positive;
       Command : String; Diff : Boolean; Ports : Port_List; Known : out Boolean)
@@ -3321,6 +3815,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          else Arguments);
       Show_Defaults : constant Boolean := Command_At (Buffer, Options, "defaults") > 0;
       Bare          : constant Boolean := not Show_Defaults and then Command_At (Buffer, Options, "bare") > 0;
+      Mode          : constant Dump_Mode := (Diff => Diff, Show_Defaults => Show_Defaults);
    begin
       Known := False;
       if Profile_At > 0 or else Rates_At > 0 then
@@ -3328,10 +3823,10 @@ package body Adaflight.Command_Line with SPARK_Mode is
          Dump_Profile
            (Into, C, (if Profile_At > 0 then PID else Rate),
             Natural (if Profile_At > 0 then C.System_Config.Pid_Profile_Index else C.System_Config.Active_Rate_Profile),
-            Command, Diff, Show_Defaults, Ports);
-      elsif Hardware_At = 0 and then All_At = 0 and then not Diff and then not Show_Defaults then
+            Command, Mode, Ports);
+      elsif All_At = 0 then
          Known := True;
-         Dump_Master (Into, C, Env, Command, Bare, Ports);
+         Dump_Master (Into, C, Env, Command, Mode, Bare, Hardware_At > 0, Ports);
       end if;
    end Print_Config;
 
