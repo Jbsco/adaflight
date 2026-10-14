@@ -29,6 +29,13 @@ instead of sending the reader to the README for the name. This ledger keeps "the
 reference" as its short name for Betaflight at the pinned commit. The sanitization gate
 in `style.do` lists the documents allowed to carry the name.
 
+Amended 2026-10-13: the settings table keeps the reference's setting names and lookup
+strings verbatim, so the command line reads and writes the reference's text and its diffs
+paste. Four of those lookup strings name other projects: three rate types and one SPI
+receiver protocol. The user ruled this exception for the generated table on 2026-10-13.
+The sanitization gate allows the two of them it would reject, as whole upper-case strings,
+in that table and its vectors, and nothing else.
+
 ## D3. Repository layout (2026-10-08)
 
 - `core/` is the SPARK library crate: hardware independent, proved, no platform code.
