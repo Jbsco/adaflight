@@ -14183,7 +14183,7 @@ procedure Vector_Check is
       MCU_Id          => (0, 1, 2));
    CLI_Env      : CLI.Environment := CLI_Identity;
    CLI_Board    : CLI.Board_State;
-   CLI_Reply    : CLI_Sink;
+   CLI_Reply    : CLI.Output;
    CLI_Expected : Ada.Strings.Unbounded.Unbounded_String;
 
    --  The reference's command line over a sequence of command lines from the
@@ -14230,8 +14230,10 @@ procedure Vector_Check is
             CLI_Config := Groups.Defaults;
             CLI_Env := CLI_Identity;
             CLI_Board := (others => <>);
+            CLI_Reply.Batch_Active := False;
+            CLI_Reply.Batch_Error := False;
          end if;
-         CLI_Reply.Text := Null_Unbounded_String;
+         CLI_Reply.Target.Text := Null_Unbounded_String;
          CLI_Expected := Null_Unbounded_String;
          declare
             Command : constant String := Hex_String (3);
@@ -14296,7 +14298,7 @@ procedure Vector_Check is
       elsif Str (1) = "clo" then
          Append (CLI_Expected, Hex_String (3));
       else
-         Record_Text ("cli.reply", To_String (CLI_Expected), To_String (CLI_Reply.Text));
+         Record_Text ("cli.reply", To_String (CLI_Expected), To_String (CLI_Reply.Target.Text));
          declare
             D        : Adaflight.Config_Codec.Data;
             Hash     : Interfaces.Unsigned_64 := 16#CBF2_9CE4_8422_2325#;

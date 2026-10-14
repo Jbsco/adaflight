@@ -8,7 +8,8 @@
 --  differs from the defaults; version prints the firmware's version line,
 --  mcu_id the MCU's unique id, and board_name, manufacturer_id and signature
 --  show or set the board's information.
---  The text goes out through Put into a sink.
+--  The text goes out through Put into a sink, inside an Output that also
+--  holds the batch's state.
 with Interfaces;
 with Adaflight.Config_Groups; use Adaflight.Config_Groups;
 with Adaflight.CLI_Text;
@@ -38,15 +39,23 @@ package Adaflight.Command_Line with SPARK_Mode is
       Rate    => Natural (C.System_Config.Active_Rate_Profile),
       Battery => Natural (C.System_Config.Active_Battery_Profile));
 
+   --  Where the text goes, with the command batch's state: whether a batch
+   --  is open, and whether a command in it printed an error.
+   type Output is limited record
+      Target       : Sink;
+      Batch_Active : Boolean := False;
+      Batch_Error  : Boolean := False;
+   end record;
+
    --  Every setting whose name contains the fragment without regard to case,
    --  or an invalid name error; Command names the command in errors.
-   procedure Get (Into : in out Sink; C : Configuration; Command : String; Fragment : String; Ports : Port_List)
+   procedure Get (Into : in out Output; C : Configuration; Command : String; Fragment : String; Ports : Port_List)
      with Pre => Valid (Current (C)) and then Ports'Length <= Serial_Feature_Map.Max_Ports;
 
    --  Every setting's value, with each direct setting's range for an
    --  asterisk; a value for the setting named before an equals sign; or get
    --  for arguments without one.
-   procedure Set (Into : in out Sink; C : in out Configuration; Arguments : String; Ports : Port_List)
+   procedure Set (Into : in out Output; C : in out Configuration; Arguments : String; Ports : Port_List)
      with Pre => Valid (Current (C)) and then Ports'Length <= Serial_Feature_Map.Max_Ports
                  and then Arguments'Last < Positive'Last;
 
@@ -131,7 +140,7 @@ package Adaflight.Command_Line with SPARK_Mode is
    --  line naming no command, and for defaults without nosave, whose save and
    --  restart wait for the save command.
    procedure Process_Line
-     (Into : in out Sink; C : in out Configuration; Line : String; Ports : Port_List; Env : Environment;
+     (Into : in out Output; C : in out Configuration; Line : String; Ports : Port_List; Env : Environment;
       Board : in out Board_State; Known : out Boolean; Changes : out Effects)
      with Pre => Valid (Current (C)) and then Ports'Length <= Serial_Feature_Map.Max_Ports;
 

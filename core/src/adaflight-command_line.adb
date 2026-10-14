@@ -30,8 +30,27 @@ package body Adaflight.Command_Line with SPARK_Mode is
 
    function Text_Of (T : Identity_Text) return String is (T.Data (1 .. T.Length));
 
+   procedure Put (Into : in out Output; Text : String)
+     with Global => null
+   is
+   begin
+      Put (Into.Target, Text);
+   end Put;
+
+   --  An error's text after "###ERROR IN ", noted for an open batch.
+   procedure Put_Error (Into : in out Output; Text : String)
+     with Global => null
+   is
+   begin
+      Put (Into, "###ERROR IN ");
+      Put (Into, Text);
+      if Into.Batch_Active then
+         Into.Batch_Error := True;
+      end if;
+   end Put_Error;
+
    --  A heading after an empty line, after a number sign.
-   procedure Put_Hash_Line (Into : in out Sink; Heading : String) is
+   procedure Put_Hash_Line (Into : in out Output; Heading : String) is
    begin
       Put (Into, CRLF & "# ");
       Put (Into, Heading);
@@ -57,7 +76,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  A pending heading: printed outside a diff, or in a diff before a
    --  changed line, then no longer pending.
    procedure Put_Heading
-     (Into : in out Sink; Mode : Dump_Mode; Changed : Boolean; Heading : String; Pending : in out Boolean)
+     (Into : in out Output; Mode : Dump_Mode; Changed : Boolean; Heading : String; Pending : in out Boolean)
    is
    begin
       if Pending and then (not Mode.Diff or else Changed) then
@@ -78,7 +97,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  A value's text, with the direct range after it for Full, then a
    --  corrupted value's error on a line of its own.
    procedure Put_Value
-     (Into : in out Sink; C : Configuration; S : Setting; Profile : Natural; Command : String; Full : Boolean;
+     (Into : in out Output; C : Configuration; S : Setting; Profile : Natural; Command : String; Full : Boolean;
       Ports : Port_List)
      with Pre => Profile < Profile_Count (S) and then Ports'Length <= Serial_Feature_Map.Max_Ports
    is
@@ -147,8 +166,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end case;
       if Corrupted then
          Put (Into, CRLF);
-         Put (Into, "###ERROR IN ");
-         Put (Into, Command);
+         Put_Error (Into, Command);
          Put (Into, ": CORRUPTED CONFIG: ");
          Put (Into, Name (S));
          Put (Into, " = " & Decimal (if I.Kind = U32 and then V > 2 ** 31 - 1 then V - 2 ** 32 else V) & "###");
@@ -156,7 +174,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    end Put_Value;
 
    --  The values a setting takes, on a line; nothing for a port.
-   procedure Put_Range (Into : in out Sink; S : Setting) is
+   procedure Put_Range (Into : in out Output; S : Setting) is
       I     : constant Info := Describe (S);
       First : Boolean := True;
    begin
@@ -224,7 +242,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    -- Get --
    ---------
 
-   procedure Get (Into : in out Sink; C : Configuration; Command : String; Fragment : String; Ports : Port_List)
+   procedure Get (Into : in out Output; C : Configuration; Command : String; Fragment : String; Ports : Port_List)
    is
       P       : constant Profiles := Current (C);
       Matched : Boolean := False;
@@ -258,8 +276,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          end if;
       end loop;
       if not Matched then
-         Put (Into, "###ERROR IN ");
-         Put (Into, Command);
+         Put_Error (Into, Command);
          Put (Into, ": INVALID NAME: ");
          Put (Into, Fragment);
          Put (Into, "###" & CRLF);
@@ -365,7 +382,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    -- Set --
    ---------
 
-   procedure Set (Into : in out Sink; C : in out Configuration; Arguments : String; Ports : Port_List) is
+   procedure Set (Into : in out Output; C : in out Configuration; Arguments : String; Ports : Port_List) is
       P      : constant Profiles := Current (C);
       Equals : Natural := 0;
    begin
@@ -413,7 +430,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
             end if;
          end loop;
          if not Found then
-            Put (Into, "###ERROR IN set: INVALID NAME: ");
+            Put_Error (Into, "set: INVALID NAME: ");
             Put (Into, Arguments);
             Put (Into, "###" & CRLF);
             return;
@@ -502,7 +519,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
                            Profile);
                         Changed := True;
                      else
-                        Put (Into, "###ERROR IN set: STRING MUST BE 1-" & Decimal (Integer_64 (I.Count))
+                        Put_Error (Into, "set: STRING MUST BE 1-" & Decimal (Integer_64 (I.Count))
                              & " CHARACTERS OR '-' FOR EMPTY###" & CRLF);
                      end if;
                   end;
@@ -512,7 +529,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
                Put (Into, " set to ");
                Put_Value (Into, C, Target, Profile, "set", False, Ports);
             else
-               Put (Into, "###ERROR IN set: INVALID VALUE###" & CRLF);
+               Put_Error (Into, "set: INVALID VALUE###" & CRLF);
                Put_Range (Into, Target);
             end if;
          end;
@@ -530,7 +547,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  The selected profile, or a profile selected by number with its
    --  runtime work asked for.
    procedure Profile_Command
-     (Into : in out Sink; C : in out Configuration; Kind : Profile_Kind; Arguments : String;
+     (Into : in out Output; C : in out Configuration; Kind : Profile_Kind; Arguments : String;
       Changes : in out Effects)
      with Pre => Arguments'First >= 1 and then Arguments'Last < Positive'Last
                  and then Arguments'First <= Arguments'Last + 1
@@ -541,7 +558,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
       if Arguments'Length > 0 then
          Index := CLI_Text.To_Integer (Arguments);
          if Index not in 0 .. Count - 1 then
-            Put (Into, "###ERROR IN " & Profile_Word (Kind) & ": "
+            Put_Error (Into, Profile_Word (Kind) & ": "
                  & (case Kind is
                        when PID => "PROFILE",
                        when Rate => "RATE PROFILE",
@@ -574,7 +591,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  off their default, under a heading printed with the first of them, each
    --  after its default for Show_Defaults.
    procedure Dump_Values
-     (Into : in out Sink; C : Configuration; Where : Value_Scope; P : Profiles; Heading : String; Command : String;
+     (Into : in out Output; C : Configuration; Where : Value_Scope; P : Profiles; Heading : String; Command : String;
       Mode : Dump_Mode; Ports : Port_List)
      with Pre => Valid (P) and then Ports'Length <= Serial_Feature_Map.Max_Ports
    is
@@ -609,7 +626,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
 
    --  A profile's line, then its settings under its heading.
    procedure Dump_Profile
-     (Into : in out Sink; C : Configuration; Kind : Profile_Kind; Index : Natural; Command : String; Mode : Dump_Mode;
+     (Into : in out Output; C : Configuration; Kind : Profile_Kind; Index : Natural; Command : String; Mode : Dump_Mode;
       Ports : Port_List)
      with Pre => Ports'Length <= Serial_Feature_Map.Max_Ports
    is
@@ -668,7 +685,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
 
    --  A header, then the names of a mask's features, each after a space but
    --  the first feature's.
-   procedure Put_Features (Into : in out Sink; Header : String; Mask : Unsigned_32) is
+   procedure Put_Features (Into : in out Output; Header : String; Mask : Unsigned_32) is
    begin
       Put (Into, Header);
       for Bit in Feature_Bit loop
@@ -685,7 +702,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  feature: the enabled, available and unavailable features; a feature,
    --  the first whose name the text starts, enabled or, after a minus,
    --  disabled in the configuration.
-   procedure Feature_Command (Into : in out Sink; C : in out Configuration; Arguments : String)
+   procedure Feature_Command (Into : in out Output; C : in out Configuration; Arguments : String)
      with Pre => Arguments'Last < Positive'Last
    is
       Mask      : constant Unsigned_32 := C.Feature_Config.Enabled_Features;
@@ -721,7 +738,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
                return;
             end if;
          end loop;
-         Put (Into, "###ERROR IN feature: INVALID NAME: ");
+         Put_Error (Into, "feature: INVALID NAME: ");
          Put (Into, Text);
          Put (Into, "###" & CRLF);
       end;
@@ -733,7 +750,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  print for the opposite changes, and only the kept lines' changes print
    --  the heading.
    procedure Put_Feature_Dump
-     (Into : in out Sink; Mask : Unsigned_32; Default : Unsigned_32 := Defaults.Feature_Config.Enabled_Features;
+     (Into : in out Output; Mask : Unsigned_32; Default : Unsigned_32 := Defaults.Feature_Config.Enabled_Features;
       Mode : Dump_Mode := Listing; Heading : String := "")
      with Global => null
    is
@@ -818,7 +835,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  condition, the first allowed one whose name the text starts, enabled
    --  or, after a minus, disabled; ALL sets every allowed one.
    procedure Beeper_Command
-     (Into : in out Sink; Command : String; Flags : in out Unsigned_32; Allowed : Unsigned_32; Arguments : String)
+     (Into : in out Output; Command : String; Flags : in out Unsigned_32; Allowed : Unsigned_32; Arguments : String)
      with Pre => Arguments'Last < Positive'Last
    is
    begin
@@ -864,8 +881,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
                return;
             end if;
          end loop;
-         Put (Into, "###ERROR IN ");
-         Put (Into, Command);
+         Put_Error (Into, Command);
          Put (Into, ": INVALID NAME: ");
          Put (Into, Text);
          Put (Into, "###" & CRLF);
@@ -879,7 +895,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  enabled or, after a minus, disabled. A changed condition's default
    --  prints before the heading.
    procedure Put_Beeper_Dump
-     (Into : in out Sink; Command : String; Flags : Unsigned_32; Default : Unsigned_32; Allowed : Unsigned_32;
+     (Into : in out Output; Command : String; Flags : Unsigned_32; Default : Unsigned_32; Allowed : Unsigned_32;
       Mode : Dump_Mode; Heading : String)
      with Global => null
    is
@@ -916,7 +932,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
 
    --  A mode condition as an aux line: index, mode's permanent id, aux channel,
    --  range ends as channel values, logic, and the linked mode's permanent id.
-   procedure Put_Condition (Into : in out Sink; Index : Natural; M : Mode_Activation_Condition_Record) is
+   procedure Put_Condition (Into : in out Output; Index : Natural; M : Mode_Activation_Condition_Record) is
    begin
       Put (Into, "aux " & Decimal (Integer_64 (Index)) & " " & Decimal (Integer_64 (Permanent_Of (M.Mode_Id))) & " "
            & Decimal (Integer_64 (M.Aux_Channel_Index)) & " "
@@ -961,7 +977,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  Every mode condition whose mode is in the box table, a changed one's
    --  default first for Show_Defaults when its mode is in the table.
    procedure Put_Conditions
-     (Into : in out Sink; Conditions : Mode_Activation_Condition_Record_List_20;
+     (Into : in out Output; Conditions : Mode_Activation_Condition_Record_List_20;
       Default : Mode_Activation_Condition_Record_List_20 := Defaults.Mode_Activation_Conditions;
       Mode : Dump_Mode := Listing; Heading : String := "")
      with Global => null
@@ -990,7 +1006,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  logic and link from its arguments, the valid ones counted; four valid
    --  take the default logic and no link, five no link, and any other count
    --  clears the condition. A negative index gets the index range error.
-   procedure Aux_Command (Into : in out Sink; C : in out Configuration; Arguments : String; Changes : in out Effects)
+   procedure Aux_Command (Into : in out Output; C : in out Configuration; Arguments : String; Changes : in out Effects)
      with Pre => Arguments'First >= 1 and then Arguments'Last < Positive'Last
                  and then Arguments'First <= Arguments'Last + 1
    is
@@ -1004,7 +1020,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end if;
       Index := CLI_Text.To_Integer (Arguments);
       if Index not in 0 .. Condition_Count - 1 then
-         Put (Into, "###ERROR IN aux: INDEX NOT BETWEEN 0 AND " & Decimal (Condition_Count - 1) & "###" & CRLF);
+         Put_Error (Into, "aux: INDEX NOT BETWEEN 0 AND " & Decimal (Condition_Count - 1) & "###" & CRLF);
          return;
       end if;
       declare
@@ -1074,7 +1090,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    end Aux_Command;
 
    --  One adjustment range's line.
-   procedure Put_Adjustment_Range (Into : in out Sink; Index : Natural; A : Adjustment_Range_Record)
+   procedure Put_Adjustment_Range (Into : in out Output; Index : Natural; A : Adjustment_Range_Record)
      with Pre => Index <= 29
    is
    begin
@@ -1090,7 +1106,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  Every adjustment range's line, a changed one's default first for
    --  Show_Defaults.
    procedure Put_Adjustment_Ranges
-     (Into : in out Sink; Ranges : Adjustment_Range_Record_List_30;
+     (Into : in out Output; Ranges : Adjustment_Range_Record_List_30;
       Default : Adjustment_Range_Record_List_30 := Defaults.Adjustment_Ranges; Mode : Dump_Mode := Listing;
       Heading : String := "")
      with Global => null
@@ -1121,7 +1137,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  count than six clears the range. A negative index gets the index range
    --  error.
    procedure Adjustment_Range_Command
-     (Into : in out Sink; C : in out Configuration; Arguments : String; Changes : in out Effects)
+     (Into : in out Output; C : in out Configuration; Arguments : String; Changes : in out Effects)
      with Pre => Arguments'First >= 1 and then Arguments'Last < Positive'Last
                  and then Arguments'First <= Arguments'Last + 1
    is
@@ -1138,7 +1154,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end if;
       Index := CLI_Text.To_Integer (Arguments);
       if Index not in 0 .. Range_Count - 1 then
-         Put (Into, "###ERROR IN adjrange: INDEX NOT BETWEEN 0 AND " & Decimal (Range_Count - 1) & "###" & CRLF);
+         Put_Error (Into, "adjrange: INDEX NOT BETWEEN 0 AND " & Decimal (Range_Count - 1) & "###" & CRLF);
          return;
       end if;
       declare
@@ -1190,7 +1206,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          if Valid /= 6 then
             A := (Aux_Channel_Index => 0, Range_Value => (Start_Step => 0, End_Step => 0), Adjustment_Config => 0,
                   Aux_Switch_Channel_Index => 0, Adjustment_Center => 0, Adjustment_Scale => 0);
-            Put (Into, "###ERROR IN adjrange: INVALID ARGUMENT COUNT###" & CRLF);
+            Put_Error (Into, "adjrange: INVALID ARGUMENT COUNT###" & CRLF);
             return;
          end if;
          A.Adjustment_Center := 0;
@@ -1230,7 +1246,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  or a port, a function mask and the msp, gps, telemetry and blackbox
    --  baud rates, each within its class's range, moved onto the feature
    --  settings, then a deprecation line and the port's claims.
-   procedure Serial_Command (Into : in out Sink; C : in out Configuration; Arguments : String; Ports : Port_List)
+   procedure Serial_Command (Into : in out Output; C : in out Configuration; Arguments : String; Ports : Port_List)
      with Pre => Arguments'First >= 1 and then Arguments'Last < Positive'Last
                  and then Arguments'First <= Arguments'Last + 1
                  and then Ports'Length <= Serial_Feature_Map.Max_Ports
@@ -1336,7 +1352,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          end;
       end if;
       if Id = -1 or else not (for some Port of Ports => Integer_64 (Port) = Id) then
-         Put (Into, "###ERROR IN serial: PARSING FAILED###" & CRLF);
+         Put_Error (Into, "serial: PARSING FAILED###" & CRLF);
          return;
       end if;
       Valid := 1;
@@ -1377,7 +1393,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          end;
       end loop;
       if Valid < 6 then
-         Put (Into, "###ERROR IN serial: INVALID ARGUMENT COUNT###" & CRLF);
+         Put_Error (Into, "serial: INVALID ARGUMENT COUNT###" & CRLF);
          return;
       end if;
       declare
@@ -1388,7 +1404,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
       begin
          Map.Apply_Function_Mask (Config_Fix.Serial_Options, A, Port, Mask, Applied);
          if not Applied then
-            Put (Into, "###ERROR IN serial: PARSING FAILED###" & CRLF);
+            Put_Error (Into, "serial: PARSING FAILED###" & CRLF);
             return;
          end if;
          for K in Map.Baud_Class loop
@@ -1447,7 +1463,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
 
    --  mixer: the mixer mode's name, the list of names, or the first mode a
    --  name starts set and its name. A mode outside the names prints no name.
-   procedure Mixer_Command (Into : in out Sink; Mode : in out Unsigned_8; Arguments : String) is
+   procedure Mixer_Command (Into : in out Output; Mode : in out Unsigned_8; Arguments : String) is
       use Mixer_Init;
       Found : Boolean;
       M     : Mixer_Mode;
@@ -1464,7 +1480,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          end if;
          Find_Mixer (Arguments, Found, M);
          if not Found then
-            Put (Into, "###ERROR IN mixer: INVALID NAME: ");
+            Put_Error (Into, "mixer: INVALID NAME: ");
             Put (Into, Arguments);
             Put (Into, "###" & CRLF);
             return;
@@ -1479,7 +1495,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    end Mixer_Command;
 
    --  One motor's mix line.
-   procedure Put_Motor (Into : in out Sink; Index : Natural; M : Motor_Mixer_Record) is
+   procedure Put_Motor (Into : in out Output; Index : Natural; M : Motor_Mixer_Record) is
    begin
       Put (Into, "mmix " & Decimal (Integer_64 (Index)) & " ");
       Put (Into, CLI_Text.Float_Text (M.Throttle));
@@ -1496,7 +1512,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  motor's line in a diff too, a changed one's default first for
    --  Show_Defaults; a changed motor prints the heading.
    procedure Put_Motor_Mix
-     (Into : in out Sink; Mix : Motor_Mixer_Record_List_8;
+     (Into : in out Output; Mix : Motor_Mixer_Record_List_8;
       Default : Motor_Mixer_Record_List_8 := Defaults.Custom_Motor_Mixer; Mode : Dump_Mode := Listing;
       Heading : String := "")
      with Global => null
@@ -1523,7 +1539,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  table loaded by the first name the text starts, or one motor's
    --  throttle, roll, pitch and yaw, each argument read as a float and kept
    --  even when fewer than four are given.
-   procedure Motor_Mix_Command (Into : in out Sink; Mix : in out Motor_Mixer_Record_List_8; Arguments : String)
+   procedure Motor_Mix_Command (Into : in out Output; Mix : in out Motor_Mixer_Record_List_8; Arguments : String)
      with Pre => Arguments'First >= 1 and then Arguments'Last < Positive'Last
                  and then Arguments'First <= Arguments'Last + 1
    is
@@ -1546,7 +1562,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          if P > 0 and then P <= Arguments'Last then
             Find_Mixer (Arguments (P .. Arguments'Last), Found, M);
             if not Found then
-               Put (Into, "###ERROR IN mmix: INVALID NAME: ");
+               Put_Error (Into, "mmix: INVALID NAME: ");
                Put (Into, Arguments);
                Put (Into, "###" & CRLF);
                return;
@@ -1578,7 +1594,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
             Count : Natural := 0;
          begin
             if Index >= Unsigned_32 (Mix'Length) then
-               Put (Into, "###ERROR IN mmix: INDEX NOT BETWEEN 0 AND 7###" & CRLF);
+               Put_Error (Into, "mmix: INDEX NOT BETWEEN 0 AND 7###" & CRLF);
                return;
             end if;
             P := Arguments'First;
@@ -1603,7 +1619,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
                end if;
             end loop;
             if Count /= 4 then
-               Put (Into, "###ERROR IN mmix: INVALID ARGUMENT COUNT###" & CRLF);
+               Put_Error (Into, "mmix: INVALID ARGUMENT COUNT###" & CRLF);
             else
                Put_Motor_Mix (Into, Mix);
             end if;
@@ -1614,7 +1630,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    Input_Source_Count : constant := 14;
 
    --  One servo's parameter line.
-   procedure Put_Servo (Into : in out Sink; Index : Natural; P : Servo_Param_Record) is
+   procedure Put_Servo (Into : in out Output; Index : Natural; P : Servo_Param_Record) is
    begin
       Put (Into, "servo " & Decimal (Integer_64 (Index)) & " " & Decimal (Integer_64 (P.Min)) & " "
            & Decimal (Integer_64 (P.Max)) & " " & Decimal (Integer_64 (P.Middle)) & " "
@@ -1626,7 +1642,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  defaults have and the servo no longer has, come first for
    --  Show_Defaults; only a changed servo prints the heading.
    procedure Put_Servos
-     (Into : in out Sink; Params : Servo_Param_Record_List_8;
+     (Into : in out Output; Params : Servo_Param_Record_List_8;
       Default : Servo_Param_Record_List_8 := Defaults.Servo_Params; Mode : Dump_Mode := Listing;
       Heading : String := "")
      with Global => null
@@ -1674,7 +1690,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  servo: every servo's parameters, or one servo's minimum, maximum,
    --  middle, rate and forwarded channel from six numbers, each wrapped to
    --  16 bits; anything but numbers and spaces is the parse error.
-   procedure Servo_Command (Into : in out Sink; Params : in out Servo_Param_Record_List_8; Arguments : String)
+   procedure Servo_Command (Into : in out Output; Params : in out Servo_Param_Record_List_8; Arguments : String)
      with Pre => Arguments'First >= 1 and then Arguments'Last < Positive'Last
                  and then Arguments'First <= Arguments'Last + 1
    is
@@ -1691,7 +1707,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          pragma Loop_Variant (Increases => P);
          if Arguments (P) = '-' or else Arguments (P) in '0' .. '9' then
             if Count >= 6 then
-               Put (Into, "###ERROR IN servo: INVALID ARGUMENT COUNT###" & CRLF);
+               Put_Error (Into, "servo: INVALID ARGUMENT COUNT###" & CRLF);
                return;
             end if;
             Values (Count) :=
@@ -1710,19 +1726,19 @@ package body Adaflight.Command_Line with SPARK_Mode is
             exit when P = Arguments'Last;
             P := P + 1;
          else
-            Put (Into, "###ERROR IN servo: PARSING FAILED###" & CRLF);
+            Put_Error (Into, "servo: PARSING FAILED###" & CRLF);
             return;
          end if;
       end loop;
       if Count /= 6 or else Values (0) not in 0 .. 7 then
-         Put (Into, "###ERROR IN servo: INVALID ARGUMENT COUNT###" & CRLF);
+         Put_Error (Into, "servo: INVALID ARGUMENT COUNT###" & CRLF);
          return;
       end if;
       if Values (1) not in 500 .. 2500 or else Values (2) not in 500 .. 2500 or else Values (3) < Values (1)
         or else Values (3) > Values (2) or else Values (1) > Values (2) or else Values (4) not in -100 .. 100
         or else Values (5) >= 18
       then
-         Put (Into, "###ERROR IN servo: ARGUMENT OUT OF RANGE###" & CRLF);
+         Put_Error (Into, "servo: ARGUMENT OUT OF RANGE###" & CRLF);
          return;
       end if;
       declare
@@ -1741,7 +1757,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    end Servo_Command;
 
    --  One servo rule's line.
-   procedure Put_Rule (Into : in out Sink; Index : Natural; R : Servo_Mixer_Record) is
+   procedure Put_Rule (Into : in out Output; Index : Natural; R : Servo_Mixer_Record) is
    begin
       Put (Into, "smix " & Decimal (Integer_64 (Index)) & " " & Decimal (Integer_64 (R.Target_Channel)) & " "
            & Decimal (Integer_64 (R.Input_Source)) & " " & Decimal (Integer_64 (R.Rate)) & " "
@@ -1752,7 +1768,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  The servo rules up to the first without a rate, a changed one's default
    --  first for Show_Defaults.
    procedure Put_Servo_Rules
-     (Into : in out Sink; Rules : Servo_Mixer_Record_List_16;
+     (Into : in out Output; Rules : Servo_Mixer_Record_List_16;
       Default : Servo_Mixer_Record_List_16 := Defaults.Custom_Servo_Mixers; Mode : Dump_Mode := Listing;
       Heading : String := "")
      with Global => null
@@ -1779,7 +1795,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    end Put_Servo_Rules;
 
    --  Each servo's reversed input sources as a table.
-   procedure Put_Reversed (Into : in out Sink; Params : Servo_Param_Record_List_8) is
+   procedure Put_Reversed (Into : in out Output; Params : Servo_Param_Record_List_8) is
    begin
       Put (Into, "s");
       for Input in 0 .. Input_Source_Count - 1 loop
@@ -1832,7 +1848,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  sources, one source of one servo reversed or not, or one rule's servo,
    --  input, rate, speed, range and box from eight numbers.
    procedure Servo_Mix_Command
-     (Into : in out Sink; Rules : in out Servo_Mixer_Record_List_16; Params : in out Servo_Param_Record_List_8;
+     (Into : in out Output; Rules : in out Servo_Mixer_Record_List_16; Params : in out Servo_Param_Record_List_8;
       Arguments : String)
      with Pre => Arguments'First >= 1 and then Arguments'Last < Positive'Last
                  and then Arguments'First <= Arguments'Last + 1
@@ -1858,7 +1874,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          if P > 0 and then P <= Arguments'Last then
             Find_Mixer (Arguments (P .. Arguments'Last), Found, M);
             if not Found then
-               Put (Into, "###ERROR IN smix: INVALID NAME: ");
+               Put_Error (Into, "smix: INVALID NAME: ");
                Put (Into, Arguments);
                Put (Into, "###" & CRLF);
                return;
@@ -1911,13 +1927,13 @@ package body Adaflight.Command_Line with SPARK_Mode is
                   end if;
                end if;
                if First = 0 then
-                  Put (Into, "###ERROR IN smix: INVALID ARGUMENT COUNT###" & CRLF);
+                  Put_Error (Into, "smix: INVALID ARGUMENT COUNT###" & CRLF);
                   return;
                end if;
                if Servo not in 0 .. 7 or else Input not in 0 .. Input_Source_Count - 1
                  or else Arguments (First) not in 'r' | 'n'
                then
-                  Put (Into, "###ERROR IN smix: servo NOT BETWEEN 0 AND 8###" & CRLF);
+                  Put_Error (Into, "smix: servo NOT BETWEEN 0 AND 8###" & CRLF);
                   return;
                end if;
                if Arguments (First) = 'r' then
@@ -1947,7 +1963,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
                From := Last + 1;
             end loop;
             if First > 0 or else Count /= 8 then
-               Put (Into, "###ERROR IN smix: INVALID ARGUMENT COUNT###" & CRLF);
+               Put_Error (Into, "smix: INVALID ARGUMENT COUNT###" & CRLF);
                return;
             end if;
             if Values (0) in 0 .. 15 and then Values (1) in 0 .. 7 and then Values (2) in 0 .. Input_Source_Count - 1
@@ -1960,7 +1976,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
                   Max => Integer_8 (Values (6)), Box => Unsigned_8 (Values (7)));
                Put_Servo_Rules (Into, Rules);
             else
-               Put (Into, "###ERROR IN smix: ARGUMENT OUT OF RANGE###" & CRLF);
+               Put_Error (Into, "smix: ARGUMENT OUT OF RANGE###" & CRLF);
             end if;
          end;
       end if;
@@ -1969,7 +1985,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  A LED's configuration as text: position, direction letters, function
    --  letter with overlay letters, and color. A function past the function
    --  letters has no letter.
-   procedure Put_Led_Text (Into : in out Sink; Config : Unsigned_32) is
+   procedure Put_Led_Text (Into : in out Output; Config : Unsigned_32) is
       Direction_Codes : constant String := "NESWUD";
       Function_Codes  : constant String := "CFALSGRPEU";
       Overlay_Codes   : constant String := "TYOBVIW";
@@ -2009,7 +2025,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  Every LED's configuration line, a changed one's default first for
    --  Show_Defaults.
    procedure Put_Leds
-     (Into : in out Sink; Configs : Unsigned_32_List_32;
+     (Into : in out Output; Configs : Unsigned_32_List_32;
       Default : Unsigned_32_List_32 := Defaults.Led_Strip_Status_Mode_Config.Led_Configs; Mode : Dump_Mode := Listing;
       Heading : String := "")
      with Global => null
@@ -2036,7 +2052,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  led: every LED's configuration, or one LED's configuration cleared and
    --  then read from its text; a reading LED asks for the strip's layout.
    procedure Led_Command
-     (Into : in out Sink; Configs : in out Unsigned_32_List_32; Arguments : String; Changes : in out Effects)
+     (Into : in out Output; Configs : in out Unsigned_32_List_32; Arguments : String; Changes : in out Effects)
      with Pre => Arguments'First >= 1 and then Arguments'Last < Positive'Last
                  and then Arguments'First <= Arguments'Last + 1
    is
@@ -2049,17 +2065,17 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end if;
       Index := CLI_Text.To_Integer (Arguments);
       if Index not in 0 .. 31 then
-         Put (Into, "###ERROR IN led: INDEX NOT BETWEEN 0 AND 31###" & CRLF);
+         Put_Error (Into, "led: INDEX NOT BETWEEN 0 AND 31###" & CRLF);
          return;
       end if;
       P := Next_Argument (Arguments, Arguments'First);
       if P = 0 then
-         Put (Into, "###ERROR IN led: INVALID ARGUMENT COUNT###" & CRLF);
+         Put_Error (Into, "led: INVALID ARGUMENT COUNT###" & CRLF);
          return;
       end if;
       Configs (Natural (Index)) := 0;
       if Arguments'Last - P + 1 > LED_Strip.Max_Text then
-         Put (Into, "###ERROR IN led: PARSING FAILED###" & CRLF);
+         Put_Error (Into, "led: PARSING FAILED###" & CRLF);
          return;
       end if;
       declare
@@ -2070,7 +2086,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
       begin
          LED_Strip.Parse_Led (Text, Config, OK);
          if not OK then
-            Put (Into, "###ERROR IN led: PARSING FAILED###" & CRLF);
+            Put_Error (Into, "led: PARSING FAILED###" & CRLF);
             return;
          end if;
          Configs (Natural (Index)) := Config;
@@ -2082,7 +2098,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    end Led_Command;
 
    --  One color's line.
-   procedure Put_Color (Into : in out Sink; Index : Natural; Color : Hsv_Color_Record) is
+   procedure Put_Color (Into : in out Output; Index : Natural; Color : Hsv_Color_Record) is
    begin
       Put (Into, "color " & Decimal (Integer_64 (Index)) & " " & Decimal (Integer_64 (Color.H)) & ","
            & Decimal (Integer_64 (Color.S)) & "," & Decimal (Integer_64 (Color.V)) & CRLF);
@@ -2090,7 +2106,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
 
    --  Every color's line, a changed one's default first for Show_Defaults.
    procedure Put_Colors
-     (Into : in out Sink; Colors : Hsv_Color_Record_List_16;
+     (Into : in out Output; Colors : Hsv_Color_Record_List_16;
       Default : Hsv_Color_Record_List_16 := Defaults.Led_Strip_Status_Mode_Config.Colors; Mode : Dump_Mode := Listing;
       Heading : String := "")
      with Global => null
@@ -2118,7 +2134,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  color: every color, or one color's hue, saturation and value read in
    --  turn, each stored as it is read and the color cleared when one is past
    --  its limit or a comma is missing.
-   procedure Color_Command (Into : in out Sink; Colors : in out Hsv_Color_Record_List_16; Arguments : String)
+   procedure Color_Command (Into : in out Output; Colors : in out Hsv_Color_Record_List_16; Arguments : String)
      with Pre => Arguments'First >= 1 and then Arguments'Last < Positive'Last
                  and then Arguments'First <= Arguments'Last + 1
    is
@@ -2131,12 +2147,12 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end if;
       Index := CLI_Text.To_Integer (Arguments);
       if Index not in 0 .. 15 then
-         Put (Into, "###ERROR IN color: INDEX NOT BETWEEN 0 AND 15###" & CRLF);
+         Put_Error (Into, "color: INDEX NOT BETWEEN 0 AND 15###" & CRLF);
          return;
       end if;
       P := Next_Argument (Arguments, Arguments'First);
       if P = 0 then
-         Put (Into, "###ERROR IN color: INVALID ARGUMENT COUNT###" & CRLF);
+         Put_Error (Into, "color: INVALID ARGUMENT COUNT###" & CRLF);
          return;
       end if;
       declare
@@ -2181,7 +2197,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          end loop;
          if not OK then
             Colors (Slot) := (H => 0, S => 0, V => 0);
-            Put (Into, "###ERROR IN color: PARSING FAILED###" & CRLF);
+            Put_Error (Into, "color: PARSING FAILED###" & CRLF);
             return;
          end if;
          Put (Into, "color " & Decimal (Integer_64 (Slot)) & " "
@@ -2194,7 +2210,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  One mode color's line, its default first for Show_Defaults when they
    --  differ; a difference prints the heading.
    procedure Put_Mode_Color
-     (Into : in out Sink; Mode : Dump_Mode; M, D : Natural; Color, Default : Unsigned_8; Heading : String;
+     (Into : in out Output; Mode : Dump_Mode; M, D : Natural; Color, Default : Unsigned_8; Heading : String;
       Pending : in out Boolean)
    is
       Text : constant String := "mode_color " & Decimal (Integer_64 (M)) & " " & Decimal (Integer_64 (D)) & " ";
@@ -2210,7 +2226,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
 
    --  Every mode's direction colors, the special colors and the aux channel.
    procedure Put_Mode_Colors
-     (Into : in out Sink; L : Led_Strip_Status_Mode_Config_Record;
+     (Into : in out Output; L : Led_Strip_Status_Mode_Config_Record;
       Default : Led_Strip_Status_Mode_Config_Record := Defaults.Led_Strip_Status_Mode_Config;
       Mode : Dump_Mode := Listing; Heading : String := "")
      with Global => null
@@ -2244,7 +2260,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
 
    --  mode_color: every mode's direction colors, the special colors and the
    --  strip's aux channel, or one of them set from three numbers.
-   procedure Mode_Color_Command (Into : in out Sink; L : in out Led_Strip_Status_Mode_Config_Record; Arguments : String)
+   procedure Mode_Color_Command
+     (Into : in out Output; L : in out Led_Strip_Status_Mode_Config_Record; Arguments : String)
      with Pre => Arguments'First >= 1 and then Arguments'Last < Positive'Last
                  and then Arguments'First <= Arguments'Last + 1
    is
@@ -2268,7 +2285,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          From := Last + 1;
       end loop;
       if First > 0 or else Count /= 3 then
-         Put (Into, "###ERROR IN mode_color: INVALID ARGUMENT COUNT###" & CRLF);
+         Put_Error (Into, "mode_color: INVALID ARGUMENT COUNT###" & CRLF);
          return;
       end if;
       if Values (2) in 0 .. 15 then
@@ -2290,7 +2307,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          end if;
       end if;
       if not OK then
-         Put (Into, "###ERROR IN mode_color: PARSING FAILED###" & CRLF);
+         Put_Error (Into, "mode_color: PARSING FAILED###" & CRLF);
          return;
       end if;
       Put (Into, "mode_color " & Decimal (Integer_64 (Values (0))) & " " & Decimal (Integer_64 (Values (1))) & " "
@@ -2298,7 +2315,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    end Mode_Color_Command;
 
    --  One VTX channel condition's line.
-   procedure Put_Vtx_Condition (Into : in out Sink; Index : Natural; V : Vtx_Channel_Activation_Condition_Record)
+   procedure Put_Vtx_Condition (Into : in out Output; Index : Natural; V : Vtx_Channel_Activation_Condition_Record)
      with Pre => Index <= 9
    is
    begin
@@ -2311,7 +2328,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  Every VTX channel condition's line, a changed one's default first for
    --  Show_Defaults.
    procedure Put_Vtx_Conditions
-     (Into : in out Sink; Conditions : Vtx_Channel_Activation_Condition_Record_List_10;
+     (Into : in out Output; Conditions : Vtx_Channel_Activation_Condition_Record_List_10;
       Default : Vtx_Channel_Activation_Condition_Record_List_10 :=
         Defaults.Vtx_Config.Vtx_Channel_Activation_Conditions;
       Mode : Dump_Mode := Listing; Heading : String := "")
@@ -2342,7 +2359,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  counted against the VTX table's counts; any other count than six
    --  clears the condition. A negative index gets the index range error.
    procedure Vtx_Command
-     (Into : in out Sink; Conditions : in out Vtx_Channel_Activation_Condition_Record_List_10;
+     (Into : in out Output; Conditions : in out Vtx_Channel_Activation_Condition_Record_List_10;
       Table : Vtx_Table_Config_Record; Arguments : String)
      with Pre => Arguments'First >= 1 and then Arguments'Last < Positive'Last
                  and then Arguments'First <= Arguments'Last + 1
@@ -2358,7 +2375,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end if;
       Index := CLI_Text.To_Integer (Arguments);
       if Index not in 0 .. 9 then
-         Put (Into, "###ERROR IN vtx: INDEX NOT BETWEEN 0 AND 9###" & CRLF);
+         Put_Error (Into, "vtx: INDEX NOT BETWEEN 0 AND 9###" & CRLF);
          return;
       end if;
       declare
@@ -2414,7 +2431,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          if Valid /= 6 then
             V := (Aux_Channel_Index => 0, Band => 0, Channel => 0, Power => 0,
                   Range_Value => (Start_Step => 0, End_Step => 0));
-            Put (Into, "###ERROR IN vtx: INVALID ARGUMENT COUNT###" & CRLF);
+            Put_Error (Into, "vtx: INVALID ARGUMENT COUNT###" & CRLF);
          else
             Put_Vtx_Condition (Into, Slot, V);
          end if;
@@ -2487,7 +2504,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
 
    --  A band's line: its number, name, letter, factory flag and the
    --  frequencies of a channel count.
-   procedure Put_Band (Into : in out Sink; T : Vtx_Table_Config_Record; Band : Natural; Channels : Unsigned_8)
+   procedure Put_Band (Into : in out Output; T : Vtx_Table_Config_Record; Band : Natural; Channels : Unsigned_8)
      with Pre => Band < Table_Bands
    is
    begin
@@ -2511,7 +2528,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    end Put_Band;
 
    --  The power values of a level count.
-   procedure Put_Power_Values (Into : in out Sink; T : Vtx_Table_Config_Record; Levels : Natural) is
+   procedure Put_Power_Values (Into : in out Output; T : Vtx_Table_Config_Record; Levels : Natural) is
    begin
       Put (Into, "vtxtable powervalues");
       for L in 0 .. Natural'Min (Levels, Table_Powers) - 1 loop
@@ -2522,7 +2539,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    end Put_Power_Values;
 
    --  The power labels of a level count, each up to its first space.
-   procedure Put_Power_Labels (Into : in out Sink; T : Vtx_Table_Config_Record; Levels : Natural) is
+   procedure Put_Power_Labels (Into : in out Output; T : Vtx_Table_Config_Record; Levels : Natural) is
    begin
       Put (Into, "vtxtable powerlabels");
       for L in 0 .. Natural'Min (Levels, Table_Powers) - 1 loop
@@ -2551,7 +2568,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  channel count; the power values and labels compare and print all eight
    --  defaults.
    procedure Put_Vtx_Table
-     (Into : in out Sink; T : Vtx_Table_Config_Record; Default : Vtx_Table_Config_Record := Defaults.Vtx_Table_Config;
+     (Into : in out Output; T : Vtx_Table_Config_Record; Default : Vtx_Table_Config_Record := Defaults.Vtx_Table_Config;
       Mode : Dump_Mode := Listing; Heading : String := "")
      with Global => null
    is
@@ -2631,7 +2648,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  vtxtable: the table, or one of its parts set: the band count, the
    --  channel count, the power level count, the power values, the power
    --  labels, or one band's name, letter, factory flag and frequencies.
-   procedure Vtx_Table_Command (Into : in out Sink; T : in out Vtx_Table_Config_Record; Arguments : String)
+   procedure Vtx_Table_Command (Into : in out Output; T : in out Vtx_Table_Config_Record; Arguments : String)
      with Pre => Arguments'First >= 1 and then Arguments'Last < Positive'Last
                  and then Arguments'First <= Arguments'Last + 1
    is
@@ -2670,9 +2687,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
          if CLI_Text.Same_Ignoring_Case (Sub, "bands") then
             Read_Number (From, Found, Value);
             if not Found then
-               Put (Into, "###ERROR IN vtxtable: INVALID ARGUMENT COUNT###" & CRLF);
+               Put_Error (Into, "vtxtable: INVALID ARGUMENT COUNT###" & CRLF);
             elsif Value not in 0 .. Table_Bands then
-               Put (Into, "###ERROR IN vtxtable: BAND COUNT NOT BETWEEN 0 AND 8###" & CRLF);
+               Put_Error (Into, "vtxtable: BAND COUNT NOT BETWEEN 0 AND 8###" & CRLF);
             else
                for Band in Natural (Value) .. Natural'Min (Natural (T.Bands), Table_Bands) - 1 loop
                   Clear_Band (T, Band);
@@ -2682,9 +2699,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
          elsif CLI_Text.Same_Ignoring_Case (Sub, "channels") then
             Read_Number (From, Found, Value);
             if not Found then
-               Put (Into, "###ERROR IN vtxtable: INVALID ARGUMENT COUNT###" & CRLF);
+               Put_Error (Into, "vtxtable: INVALID ARGUMENT COUNT###" & CRLF);
             elsif Value not in 0 .. Table_Channels then
-               Put (Into, "###ERROR IN vtxtable: CHANNEL COUNT NOT BETWEEN 0 AND 8###" & CRLF);
+               Put_Error (Into, "vtxtable: CHANNEL COUNT NOT BETWEEN 0 AND 8###" & CRLF);
             else
                if Unsigned_8 (Value) < T.Channels then
                   for Band in 0 .. Table_Bands - 1 loop
@@ -2697,7 +2714,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
             Read_Number (From, Found, Value);
             if Found then
                if Value not in 0 .. Table_Powers then
-                  Put (Into, "###ERROR IN vtxtable: POWER LEVEL COUNT NOT BETWEEN 0 AND 8###" & CRLF);
+                  Put_Error (Into, "vtxtable: POWER LEVEL COUNT NOT BETWEEN 0 AND 8###" & CRLF);
                else
                   if Unsigned_8 (Value) < T.Power_Levels then
                      for L in Natural (Value) .. Table_Powers - 1 loop
@@ -2726,10 +2743,10 @@ package body Adaflight.Command_Line with SPARK_Mode is
                   Count := Count + 1;
                end loop;
                if Count < Natural (T.Power_Levels) then
-                  Put (Into, "###ERROR IN vtxtable: NOT ENOUGH VALUES (EXPECTED "
+                  Put_Error (Into, "vtxtable: NOT ENOUGH VALUES (EXPECTED "
                        & Decimal (Integer_64 (T.Power_Levels)) & ")###" & CRLF);
                elsif Has_Word (From) then
-                  Put (Into, "###ERROR IN vtxtable: TOO MANY VALUES (EXPECTED "
+                  Put_Error (Into, "vtxtable: TOO MANY VALUES (EXPECTED "
                        & Decimal (Integer_64 (T.Power_Levels)) & ")###" & CRLF);
                else
                   T.Power_Values := Power;
@@ -2755,10 +2772,10 @@ package body Adaflight.Command_Line with SPARK_Mode is
                   Count := Count + 1;
                end loop;
                if Count < Natural (T.Power_Levels) then
-                  Put (Into, "###ERROR IN vtxtable: NOT ENOUGH LABELS (EXPECTED "
+                  Put_Error (Into, "vtxtable: NOT ENOUGH LABELS (EXPECTED "
                        & Decimal (Integer_64 (T.Power_Levels)) & ")###" & CRLF);
                elsif Has_Word (From) then
-                  Put (Into, "###ERROR IN vtxtable: TOO MANY LABELS (EXPECTED "
+                  Put_Error (Into, "vtxtable: TOO MANY LABELS (EXPECTED "
                        & Decimal (Integer_64 (T.Power_Levels)) & ")###" & CRLF);
                else
                   for L in 0 .. Count - 1 loop
@@ -2783,7 +2800,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
                end if;
                Band := Integer_64 (CLI_Text.To_Integer (Arguments (First .. Last))) - 1;
                if Band < 0 or else Band >= Integer_64 (T.Bands) or else Band >= Table_Bands then
-                  Put (Into, "###ERROR IN vtxtable: BAND NUMBER NOT BETWEEN 1 AND " & Decimal (Integer_64 (T.Bands))
+                  Put_Error (Into, "vtxtable: BAND NUMBER NOT BETWEEN 1 AND " & Decimal (Integer_64 (T.Bands))
                        & "###" & CRLF);
                   return;
                end if;
@@ -2813,7 +2830,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
                      elsif CLI_Text.Same_Ignoring_Case (Arguments (First .. Last), "CUSTOM") then
                         Factory := False;
                      else
-                        Put (Into, "###ERROR IN vtxtable: INVALID FACTORY FLAG ");
+                        Put_Error (Into, "vtxtable: INVALID FACTORY FLAG ");
                         Put (Into, Arguments (First .. Last));
                         Put (Into, " (EXPECTED FACTORY OR CUSTOM)###" & CRLF);
                         return;
@@ -2821,7 +2838,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
                   else
                      Value := CLI_Text.To_Integer (Arguments (First .. Last));
                      if Value < 0 then
-                        Put (Into, "###ERROR IN vtxtable: INVALID FREQUENCY ");
+                        Put_Error (Into, "vtxtable: INVALID FREQUENCY ");
                         Put (Into, Arguments (First .. Last));
                         Put (Into, "###" & CRLF);
                         return;
@@ -2831,10 +2848,10 @@ package body Adaflight.Command_Line with SPARK_Mode is
                   end if;
                end loop;
                if Channel < Natural (T.Channels) then
-                  Put (Into, "###ERROR IN vtxtable: NOT ENOUGH FREQUENCIES (EXPECTED "
+                  Put_Error (Into, "vtxtable: NOT ENOUGH FREQUENCIES (EXPECTED "
                        & Decimal (Integer_64 (T.Channels)) & ")###" & CRLF);
                elsif Has_Word (From) then
-                  Put (Into, "###ERROR IN vtxtable: TOO MANY FREQUENCIES (EXPECTED "
+                  Put_Error (Into, "vtxtable: TOO MANY FREQUENCIES (EXPECTED "
                        & Decimal (Integer_64 (T.Channels)) & ")###" & CRLF);
                else
                   Store_Padded (T.Band_Names (Natural (Band)), Name (1 .. Name_Size), Band_Name_Length);
@@ -2846,7 +2863,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
                end if;
             end;
          else
-            Put (Into, "###ERROR IN vtxtable: INVALID SUBCOMMAND ");
+            Put_Error (Into, "vtxtable: INVALID SUBCOMMAND ");
             Put (Into, Sub);
             Put (Into, "###" & CRLF);
          end if;
@@ -2876,7 +2893,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
      with Post => Yaw_Name'Result'Length in 4 .. 11;
 
    --  A length in centimeters as meters with two decimals.
-   procedure Put_Meters (Into : in out Sink; Length_Cm : Integer_64)
+   procedure Put_Meters (Into : in out Output; Length_Cm : Integer_64)
      with Pre => Length_Cm in -2 ** 32 .. 2 ** 32
    is
       Magnitude  : constant Integer_64 := abs Length_Cm;
@@ -2914,7 +2931,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    end Centimeters;
 
    --  One waypoint's insert line.
-   procedure Put_Waypoint (Into : in out Sink; Index : Natural; W : Waypoint) is
+   procedure Put_Waypoint (Into : in out Output; Index : Natural; W : Waypoint) is
    begin
       Put (Into, "waypoint insert " & Decimal (Integer_64 (Index)) & " " & CLI_Text.Coordinate_Text (W.Latitude) & " "
            & CLI_Text.Coordinate_Text (W.Longitude) & " " & Decimal (Integer_64 (W.Altitude)) & " "
@@ -2929,7 +2946,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  a waypoint past the default plan's count prints no heading; a changed
    --  waypoint within it prints its default first for Show_Defaults.
    procedure Put_Waypoints
-     (Into : in out Sink; Count : Unsigned_8; Points : Waypoint_List;
+     (Into : in out Output; Count : Unsigned_8; Points : Waypoint_List;
       Default_Count : Unsigned_8 := Defaults.Flight_Plan_Config.Waypoint_Count;
       Default : Waypoint_List := Defaults.Flight_Plan_Config.Waypoints; Mode : Dump_Mode := Listing;
       Heading : String := "")
@@ -2975,7 +2992,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  optional vertical rate and yaw behaviour. A stored count past the plan
    --  is cleared first.
    procedure Waypoint_Command
-     (Into : in out Sink; Plan : in out Flight_Plan_Config_Record; Navigation : Navigation_Status;
+     (Into : in out Output; Plan : in out Flight_Plan_Config_Record; Navigation : Navigation_Status;
       Arguments : String)
      with Pre => Arguments'First >= 1 and then Arguments'Last < Positive'Last
                  and then Arguments'First <= Arguments'Last + 1
@@ -2998,7 +3015,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
 
       procedure Error (Text : String) is
       begin
-         Put (Into, "###ERROR IN waypoint: ");
+         Put_Error (Into, "waypoint: ");
          Put (Into, Text);
          Put (Into, "###" & CRLF);
       end Error;
@@ -3299,7 +3316,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
 
    --  The map line: each stick's letter at its channel over a starting text,
    --  up to the first position without a letter.
-   procedure Put_Map_Line (Into : in out Sink; Start : Map_Text; Rcmap : Bytes_8) is
+   procedure Put_Map_Line (Into : in out Output; Start : Map_Text; Rcmap : Bytes_8) is
       Buffer : Map_Text := Start;
       Last   : Natural := 0;
    begin
@@ -3318,7 +3335,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
 
    --  The map line from a cleared buffer, a changed map's default first for
    --  Show_Defaults.
-   procedure Put_Map (Into : in out Sink; Rcmap : Bytes_8; Default : Bytes_8; Mode : Dump_Mode; Heading : String)
+   procedure Put_Map (Into : in out Output; Rcmap : Bytes_8; Default : Bytes_8; Mode : Dump_Mode; Heading : String)
      with Global => null
    is
    begin
@@ -3337,7 +3354,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  map: a new channel order of the eight mappable channels, each letter
    --  once, then the order as a map line, each channel's letter at its
    --  position over the typed text, or over a cleared buffer for a query.
-   procedure Map_Command (Into : in out Sink; C : in out Configuration; Arguments : String) is
+   procedure Map_Command (Into : in out Output; C : in out Configuration; Arguments : String) is
       Buffer : Map_Text := (others => ASCII.NUL);
    begin
       if Arguments'Length = Mappable then
@@ -3348,7 +3365,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
             if Letter_Position (Buffer (I)) = 0
               or else (for some J in I + 1 .. Mappable => Buffer (J) = Buffer (I))
             then
-               Put (Into, "###ERROR IN map: PARSING FAILED###" & CRLF);
+               Put_Error (Into, "map: PARSING FAILED###" & CRLF);
                return;
             end if;
          end loop;
@@ -3358,14 +3375,14 @@ package body Adaflight.Command_Line with SPARK_Mode is
             end if;
          end loop;
       elsif Arguments'Length > 0 then
-         Put (Into, "###ERROR IN map: INVALID ARGUMENT COUNT###" & CRLF);
+         Put_Error (Into, "map: INVALID ARGUMENT COUNT###" & CRLF);
          return;
       end if;
       Put_Map_Line (Into, Buffer, C.Rx_Config.Rcmap);
    end Map_Command;
 
    --  One stick's channel range line.
-   procedure Put_Range_Line (Into : in out Sink; Index : Natural; R : Rx_Channel_Range_Config_Record) is
+   procedure Put_Range_Line (Into : in out Output; Index : Natural; R : Rx_Channel_Range_Config_Record) is
    begin
       Put (Into, "rxrange " & Decimal (Integer_64 (Index)) & " " & Decimal (Integer_64 (R.Min)) & " "
            & Decimal (Integer_64 (R.Max)) & CRLF);
@@ -3374,7 +3391,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  The four sticks' channel range lines, a changed one's default first for
    --  Show_Defaults.
    procedure Put_Ranges
-     (Into : in out Sink; Ranges : Rx_Channel_Range_Config_Record_List_4;
+     (Into : in out Output; Ranges : Rx_Channel_Range_Config_Record_List_4;
       Default : Rx_Channel_Range_Config_Record_List_4 := Defaults.Rx_Channel_Range_Configs;
       Mode : Dump_Mode := Listing; Heading : String := "")
      with Global => null
@@ -3401,7 +3418,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
 
    --  rxrange: the four sticks' channel ranges, all reset to 1000 to 2000, or
    --  one stick's range of two values within 750 to 2250.
-   procedure Range_Command (Into : in out Sink; C : in out Configuration; Arguments : String)
+   procedure Range_Command (Into : in out Output; C : in out Configuration; Arguments : String)
      with Pre => Arguments'First >= 1 and then Arguments'Last < Positive'Last
                  and then Arguments'First <= Arguments'Last + 1
    is
@@ -3421,7 +3438,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end if;
       Index := CLI_Text.To_Integer (Arguments);
       if Index not in 0 .. 3 then
-         Put (Into, "###ERROR IN rxrange: CHANNEL NOT BETWEEN 0 AND 3###" & CRLF);
+         Put_Error (Into, "rxrange: CHANNEL NOT BETWEEN 0 AND 3###" & CRLF);
          return;
       end if;
       P := Next_Argument (Arguments, Arguments'First);
@@ -3435,9 +3452,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
          Count := Count + 1;
       end if;
       if Count /= 2 then
-         Put (Into, "###ERROR IN rxrange: INVALID ARGUMENT COUNT###" & CRLF);
+         Put_Error (Into, "rxrange: INVALID ARGUMENT COUNT###" & CRLF);
       elsif Low not in 750 .. 2250 or else High not in 750 .. 2250 then
-         Put (Into, "###ERROR IN rxrange: range min/max NOT BETWEEN 750 AND 2250###" & CRLF);
+         Put_Error (Into, "rxrange: range min/max NOT BETWEEN 750 AND 2250###" & CRLF);
       else
          C.Rx_Channel_Range_Configs (Natural (Index)) := (Min => Unsigned_16 (Low), Max => Unsigned_16 (High));
          Put (Into, "rxrange " & Decimal (Integer_64 (Index)) & " " & Decimal (Integer_64 (Low)) & " "
@@ -3450,7 +3467,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  A channel's failsafe line: its mode's letter and, with a value, its
    --  value.
    procedure Put_Failsafe
-     (Into : in out Sink; Channel : Natural; F : Rx_Failsafe_Channel_Config_Record; With_Value : Boolean)
+     (Into : in out Output; Channel : Natural; F : Rx_Failsafe_Channel_Config_Record; With_Value : Boolean)
    is
    begin
       Put (Into, "rxfail " & Decimal (Integer_64 (Channel)) & " "
@@ -3465,7 +3482,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  changed one's default first for Show_Defaults, with a value when the
    --  channel's own mode is the set mode.
    procedure Put_Failsafes
-     (Into : in out Sink; Configs : Rx_Failsafe_Channel_Config_Record_List_18;
+     (Into : in out Output; Configs : Rx_Failsafe_Channel_Config_Record_List_18;
       Default : Rx_Failsafe_Channel_Config_Record_List_18 := Defaults.Rx_Failsafe_Channel_Configs;
       Mode : Dump_Mode := Listing; Heading : String := "")
      with Global => null
@@ -3493,7 +3510,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
 
    --  rxfail: every channel's failsafe line, or one channel's mode and, for
    --  the set mode, its value; the channel number is taken modulo 256.
-   procedure Failsafe_Command (Into : in out Sink; C : in out Configuration; Arguments : String)
+   procedure Failsafe_Command (Into : in out Output; C : in out Configuration; Arguments : String)
      with Pre => Arguments'First >= 1 and then Arguments'Last < Positive'Last
                  and then Arguments'First <= Arguments'Last + 1
    is
@@ -3507,7 +3524,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end if;
       Channel := Unsigned_8'Mod (CLI_Text.To_Integer (Arguments));
       if Channel >= Channel_Count then
-         Put (Into, "###ERROR IN rxfail: CHANNEL NOT BETWEEN 0 AND 17###" & CRLF);
+         Put_Error (Into, "rxfail: CHANNEL NOT BETWEEN 0 AND 17###" & CRLF);
          return;
       end if;
       declare
@@ -3529,7 +3546,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
                end loop;
             end if;
             if Requested = 0 or else (Index >= 4 and then Requested = 1) then
-               Put (Into, "###ERROR IN rxfail: PARSING FAILED###" & CRLF);
+               Put_Error (Into, "rxfail: PARSING FAILED###" & CRLF);
                return;
             end if;
             Mode := Unsigned_8 (Requested - 1);
@@ -3537,14 +3554,14 @@ package body Adaflight.Command_Line with SPARK_Mode is
             P := Next_Argument (Arguments, P);
             if P > 0 then
                if not Require_Value then
-                  Put (Into, "###ERROR IN rxfail: PARSING FAILED###" & CRLF);
+                  Put_Error (Into, "rxfail: PARSING FAILED###" & CRLF);
                   return;
                end if;
                Value := Unsigned_16'Mod (Argument (Arguments, P));
                Value := (Unsigned_16'Max (750, Unsigned_16'Min (2250, Value)) - 750) / 25;
                C.Rx_Failsafe_Channel_Configs (Index).Step := Unsigned_8 (Value);
             elsif Require_Value then
-               Put (Into, "###ERROR IN rxfail: INVALID ARGUMENT COUNT###" & CRLF);
+               Put_Error (Into, "rxfail: INVALID ARGUMENT COUNT###" & CRLF);
                return;
             end if;
             C.Rx_Failsafe_Channel_Configs (Index).Mode := Mode;
@@ -3674,7 +3691,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
 
    --  simplified_tuning: the simplified tuning of every PID profile with the
    --  gyro settings applied, or every slider turned off.
-   procedure Simplified_Tuning_Command (Into : in out Sink; C : in out Configuration; Arguments : String) is
+   procedure Simplified_Tuning_Command (Into : in out Output; C : in out Configuration; Arguments : String) is
    begin
       if CLI_Text.Same_Ignoring_Case (Arguments, "apply") then
          Apply_Tuning (C);
@@ -3685,7 +3702,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          end loop;
          Put (Into, "Disabled simplified tuning." & CRLF);
       else
-         Put (Into, "###ERROR IN simplified_tuning: PARSING FAILED###" & CRLF);
+         Put_Error (Into, "simplified_tuning: PARSING FAILED###" & CRLF);
       end if;
    end Simplified_Tuning_Command;
 
@@ -3695,7 +3712,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  configuration first. A word with neither group_id nor nosave, a zero
    --  group or a missing one is the parse error. Known is false without
    --  nosave, whose save and restart wait for the save command.
-   procedure Defaults_Command (Into : in out Sink; C : in out Configuration; Arguments : String; Known : out Boolean)
+   procedure Defaults_Command
+     (Into : in out Output; C : in out Configuration; Arguments : String; Known : out Boolean)
      with Pre => Arguments'First >= 1 and then Arguments'Last < Positive'Last
    is
       Save   : Boolean := True;
@@ -3715,7 +3733,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
             Group := Unsigned_16'Mod (CLI_Text.To_Integer (Arguments (First .. Last)));
             Expect := False;
             if Group = 0 then
-               Put (Into, "###ERROR IN defaults: PARSING FAILED###" & CRLF);
+               Put_Error (Into, "defaults: PARSING FAILED###" & CRLF);
                return;
             end if;
          elsif CLI_Text.Contains_Ignoring_Case (Arguments (First .. Last), "group_id") then
@@ -3723,14 +3741,14 @@ package body Adaflight.Command_Line with SPARK_Mode is
          elsif CLI_Text.Contains_Ignoring_Case (Arguments (First .. Last), "nosave") then
             Save := False;
          else
-            Put (Into, "###ERROR IN defaults: PARSING FAILED###" & CRLF);
+            Put_Error (Into, "defaults: PARSING FAILED###" & CRLF);
             return;
          end if;
          exit when Last >= Arguments'Last;
          P := Last + 1;
       end loop;
       if Expect then
-         Put (Into, "###ERROR IN defaults: PARSING FAILED###" & CRLF);
+         Put_Error (Into, "defaults: PARSING FAILED###" & CRLF);
          return;
       end if;
       if Save then
@@ -3765,7 +3783,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  The version line: the firmware's name, the target's name, a board
    --  identifier, the version, the build's date, time and revision, and the
    --  MSP API version.
-   procedure Put_Version (Into : in out Sink; Env : Environment; Identifier : Bytes_6) is
+   procedure Put_Version (Into : in out Output; Env : Environment; Identifier : Bytes_6) is
    begin
       Put (Into, "# ");
       Put (Into, Text_Of (Env.Firmware));
@@ -3787,7 +3805,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
 
    --  version: the version line with the configuration's board identifier,
    --  then the board's manufacturer and name when both are known.
-   procedure Version_Command (Into : in out Sink; C : Configuration; Env : Environment; Board : Board_State) is
+   procedure Version_Command (Into : in out Output; C : Configuration; Env : Environment; Board : Board_State) is
    begin
       Put_Version (Into, Env, C.System_Config.Board_Identifier);
       if Board.Manufacturer.Length > 0 and then Board.Name.Length > 0 then
@@ -3822,7 +3840,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  length is taken while the stored information is not set or the value
    --  is empty; a different value for a set one is the error.
    procedure Board_Text_Command
-     (Into : in out Sink; Command : String; Label : String; Value : in out Identity_Text; Limit : Natural;
+     (Into : in out Output; Command : String; Label : String; Value : in out Identity_Text; Limit : Natural;
       Information_Set : Boolean; Updated : in out Boolean; Arguments : String)
      with Pre => Limit <= Identity_Max and then Arguments'Last < Positive'Last
    is
@@ -3830,8 +3848,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
       if Arguments'Length > 0 and then Value.Length /= 0 and then Information_Set
         and then Arguments /= Text_Of (Value)
       then
-         Put (Into, "###ERROR IN ");
-         Put (Into, Command);
+         Put_Error (Into, Command);
          Put (Into, ": ");
          Put (Into, Label);
          Put (Into, " CANNOT BE CHANGED. CURRENT VALUE: '");
@@ -3854,7 +3871,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    end Board_Text_Command;
 
    --  A mixer mode's name; none outside the names.
-   procedure Put_Mixer_Name (Into : in out Sink; Mode : Unsigned_8) is
+   procedure Put_Mixer_Name (Into : in out Output; Mode : Unsigned_8) is
    begin
       if Mode in 1 .. Mixer_Init.Mixer_Mode'Pos (Mixer_Init.Mixer_Mode'Last) + 1 then
          Put (Into, Mixer_Name (Mixer_Init.Mixer_Mode'Val (Mode - 1)));
@@ -3869,7 +3886,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  plan. The motor mix's and the servo rules' reset lines follow the
    --  default configuration's first motor and first rule, and without the
    --  servo rules' reset line the rules print their heading.
-   procedure Put_Sections (Into : in out Sink; C : Configuration; Mode : Dump_Mode)
+   procedure Put_Sections (Into : in out Output; C : Configuration; Mode : Dump_Mode)
      with Global => null
    is
       Mixer   : constant Unsigned_8 := C.Mixer_Config.Mixer_Mode;
@@ -3935,13 +3952,13 @@ package body Adaflight.Command_Line with SPARK_Mode is
    end Hex_Text;
 
    --  The MCU's unique id as 24 hexadecimal digits.
-   procedure Put_MCU_Id (Into : in out Sink; Id : MCU_Words) is
+   procedure Put_MCU_Id (Into : in out Output; Id : MCU_Words) is
    begin
       Put (Into, "mcu_id " & Hex_Text (Id (1), 8) & Hex_Text (Id (2), 8) & Hex_Text (Id (3), 8) & CRLF);
    end Put_MCU_Id;
 
    --  A signature as 64 hexadecimal digits.
-   procedure Put_Signature_Digits (Into : in out Sink; Signature : Signature_Bytes) is
+   procedure Put_Signature_Digits (Into : in out Output; Signature : Signature_Bytes) is
    begin
       for B of Signature loop
          Put (Into, Hex_Text (Unsigned_32 (B), 2));
@@ -3950,7 +3967,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
 
    --  The board's signature line: its 64 hexadecimal digits when it is set
    --  or a command changed it, nothing otherwise.
-   procedure Put_Signature (Into : in out Sink; Board : Board_State) is
+   procedure Put_Signature (Into : in out Output; Board : Board_State) is
    begin
       Put (Into, "signature ");
       if Board.Signature_Updated or else Board.Signature_Set then
@@ -4002,14 +4019,14 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  signature: the board's signature, after a new one of 64 hexadecimal
    --  digits is taken while no signature is stored; a different signature
    --  for a stored one is the error.
-   procedure Signature_Command (Into : in out Sink; Board : in out Board_State; Arguments : String)
+   procedure Signature_Command (Into : in out Output; Board : in out Board_State; Arguments : String)
      with Pre => Arguments'Last < Positive'Last
    is
       New_Signature : Signature_Bytes := (others => 0);
    begin
       if Arguments'Length > 0 then
          if Arguments'Length /= 2 * Signature_Bytes'Length then
-            Put (Into, "###ERROR IN signature: INVALID LENGTH: " & Decimal (Integer_64 (Arguments'Length))
+            Put_Error (Into, "signature: INVALID LENGTH: " & Decimal (Integer_64 (Arguments'Length))
                  & " (EXPECTED: 64)###" & CRLF);
             return;
          end if;
@@ -4023,14 +4040,14 @@ package body Adaflight.Command_Line with SPARK_Mode is
             begin
                Read_Hex_Pair (Pair, Value, Stop);
                if Stop /= 3 then
-                  Put (Into, "###ERROR IN signature: INVALID CHARACTER FOUND: " & Pair (Stop) & "###" & CRLF);
+                  Put_Error (Into, "signature: INVALID CHARACTER FOUND: " & Pair (Stop) & "###" & CRLF);
                   return;
                end if;
                New_Signature (I) := Value;
             end;
          end loop;
          if Board.Signature_Set and then New_Signature /= Board.Signature then
-            Put (Into, "###ERROR IN signature: SIGNATURE CANNOT BE CHANGED. CURRENT VALUE: '");
+            Put_Error (Into, "signature: SIGNATURE CANNOT BE CHANGED. CURRENT VALUE: '");
             Put_Signature_Digits (Into, Board.Signature);
             Put (Into, "'###" & CRLF);
             return;
@@ -4048,7 +4065,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  every battery profile; unless bare, the selected profiles restored and
    --  a save without its line end.
    procedure Dump_Every_Profile
-     (Into : in out Sink; C : Configuration; Command : String; Mode : Dump_Mode; Bare : Boolean; Ports : Port_List)
+     (Into : in out Output; C : Configuration; Command : String; Mode : Dump_Mode; Bare : Boolean; Ports : Port_List)
      with Pre => Ports'Length <= Serial_Feature_Map.Max_Ports
    is
    begin
@@ -4086,7 +4103,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  every profile, for a diff after a reset to the defaults at the batch's
    --  start.
    procedure Dump_Master
-     (Into : in out Sink; C : Configuration; Env : Environment; Board : Board_State; Command : String;
+     (Into : in out Output; C : Configuration; Env : Environment; Board : Board_State; Command : String;
       Mode : Dump_Mode; Bare : Boolean; Hardware_Only : Boolean; Every_Profile : Boolean; Ports : Port_List)
      with Pre => Valid (Current (C)) and then Ports'Length <= Serial_Feature_Map.Max_Ports
    is
@@ -4147,7 +4164,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  after the option defaults, and the last three without the command batch
    --  after the option bare.
    procedure Print_Config
-     (Into : in out Sink; C : Configuration; Env : Environment; Board : Board_State; Buffer : Line_Buffer;
+     (Into : in out Output; C : Configuration; Env : Environment; Board : Board_State; Buffer : Line_Buffer;
       Arguments : Positive; Command : String; Diff : Boolean; Ports : Port_List)
      with Pre => Valid (Current (C)) and then Ports'Length <= Serial_Feature_Map.Max_Ports
    is
@@ -4182,7 +4199,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    ------------------
 
    procedure Process_Line
-     (Into : in out Sink; C : in out Configuration; Line : String; Ports : Port_List; Env : Environment;
+     (Into : in out Output; C : in out Configuration; Line : String; Ports : Port_List; Env : Environment;
       Board : in out Board_State; Known : out Boolean; Changes : out Effects)
    is
       Buffer    : Line_Buffer := (others => ASCII.NUL);
