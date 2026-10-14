@@ -14106,7 +14106,9 @@ procedure Vector_Check is
       Revision        => CLI.To_Identity ("0123abc"),
       Board_Name      => <>,
       Manufacturer_Id => <>,
-      MCU_Id          => (0, 1, 2));
+      MCU_Id          => (0, 1, 2),
+      Signature       => <>,
+      Signature_Set   => False);
    CLI_Env      : CLI.Environment := CLI_Identity;
    CLI_Reply    : CLI_Sink;
    CLI_Expected : Ada.Strings.Unbounded.Unbounded_String;

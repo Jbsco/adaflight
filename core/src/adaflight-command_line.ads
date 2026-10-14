@@ -91,11 +91,13 @@ package Adaflight.Command_Line with SPARK_Mode is
           Post => To_Identity'Result.Length = Text'Length;
 
    type MCU_Words is array (1 .. 3) of Interfaces.Unsigned_32;
+   type Signature_Bytes is array (0 .. 31) of Interfaces.Unsigned_8;
 
    --  What the commands report from outside the configuration: the flight
    --  plan executor's state, the firmware's name, the target's name, the
    --  version, the build's date, time and revision, the board's name and
-   --  manufacturer, and the MCU's unique id.
+   --  manufacturer, the MCU's unique id, and the board's signature with
+   --  whether it is set.
    type Environment is record
       Navigation      : Navigation_Status;
       Firmware        : Identity_Text;
@@ -107,12 +109,14 @@ package Adaflight.Command_Line with SPARK_Mode is
       Board_Name      : Identity_Text;
       Manufacturer_Id : Identity_Text;
       MCU_Id          : MCU_Words := (others => 0);
+      Signature       : Signature_Bytes := (others => 0);
+      Signature_Set   : Boolean := False;
    end record;
 
    --  A typed line without its line end: printable characters past the
    --  leading spaces, up to 255 of them, a comment from the first number sign
    --  and trailing spaces cut, then its command run. Known is false for a
-   --  line naming no command and for a dump or diff of every profile.
+   --  line naming no command.
    procedure Process_Line
      (Into : in out Sink; C : in out Configuration; Line : String; Ports : Port_List; Env : Environment;
       Known : out Boolean; Changes : out Effects)
