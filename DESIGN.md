@@ -3689,3 +3689,23 @@ configuration, each setting, profile, element and value at random within what th
 type allows. After each write the setting reads back the written value, and a weighted sum over
 every value of every setting but the texts matches the reference's, so no write touches another
 setting. All 6000 writes replay exactly.
+
+## D166. Configuration bytes (2026-10-13)
+
+`Adaflight.Config_Codec` contains the configuration as bytes in adaflight's layout: every field of
+every parameter group in declaration order, little-endian, without padding, and the groups one after
+another, 4591 bytes for the settings oracle's build. `Registry` gives each group's number, version,
+offset and size for the storage image (D158), whose image of all groups is 5203 bytes. `Encode`
+writes a configuration's bytes and `Decode` reads them back into the groups. A local tool generates
+both from the group records of D164. `Groups_Within` proves that every group lies inside the data,
+which the storage image's load and save require. The specification is SPARK and the body is not:
+every offset is a constant and every encode and decode runs every statement, so the vectors show
+what a proof of the body would, and the proof of the PID profile's record alone ran for over 20
+minutes without finishing.
+
+The settings oracle lays out the reference's groups the same way, from a leaf table the tool writes
+with the unit. The harness compares the reset configuration's bytes with the oracle's in full, then
+replays the four sequences of setting writes of D165 and compares an FNV-1a hash of the bytes after
+each write. It also takes each configuration through its bytes and back, and the reset
+configurations and every 250th write through a saved and loaded storage image as well. All 6004
+encodings match, and every configuration comes back equal in every field.

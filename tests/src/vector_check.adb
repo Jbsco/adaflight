@@ -147,6 +147,7 @@ with Adaflight.CX10;
 with Adaflight.Ack_Payload_Receiver;
 with Adaflight.Settings_Table;
 with Adaflight.Config_Groups;
+with Adaflight.Config_Codec;
 with Adaflight.Dispatch;
 with Adaflight.ExpressLRS_Receiver;
 with Adaflight.Blackbox_Header;
@@ -13909,6 +13910,92 @@ procedure Vector_Check is
       return Sum;
    end Settings_Fingerprint;
 
+   --  The configuration through its bytes and back, and through a storage
+   --  image when Through_Image: equal to the configuration in every field.
+   procedure Check_Config_Round_Trip (C : Adaflight.Config_Groups.Configuration; Through_Image : Boolean) is
+      use Adaflight.Config_Groups;
+      package Codec renames Adaflight.Config_Codec;
+      package Store renames Adaflight.Config_Store;
+      D, Defaults_Data, Loaded : Codec.Data;
+      Back  : Configuration := Defaults;
+   begin
+      Codec.Encode (C, D);
+      Codec.Decode (D, Back);
+      Record_Int ("confcodec.round_trip", 1, Boolean'Pos (Back = C));
+      if Through_Image then
+         declare
+            Image   : Adaflight.Bytes.Byte_Array (0 .. 8_191) := (others => 16#FF#);
+            Hashes  : Store.Hash_List (Codec.Registry'Range) := (others => 0);
+            Written, Fits, Success : Boolean;
+         begin
+            Codec.Encode (Defaults, Defaults_Data);
+            Store.Save (Codec.Registry, D, Hashes, Image, Written, Fits);
+            Record_Int ("confcodec.image_written", 1, Boolean'Pos (Written and then Fits));
+            Loaded := Defaults_Data;
+            Store.Load (Image, Codec.Registry, Defaults_Data, Loaded, Hashes, Success);
+            Record_Int ("confcodec.image_loaded", 1, Boolean'Pos (Success));
+            Back := Defaults;
+            Codec.Decode (Loaded, Back);
+            Record_Int ("confcodec.image_round_trip", 1, Boolean'Pos (Back = C));
+         end;
+      end if;
+   end Check_Config_Round_Trip;
+
+   Codec_Config : Adaflight.Config_Groups.Configuration := Adaflight.Config_Groups.Defaults;
+
+   --  The configuration's bytes in adaflight's layout against the reference's
+   --  structs laid out the same way: in full from the reset, then by their
+   --  FNV-1a 64 hash after each write.
+   procedure Check_Config_Codec_Line is
+      use Adaflight.Settings_Table;
+      use Adaflight.Config_Groups;
+      use type Interfaces.Unsigned_64;
+      package Codec renames Adaflight.Config_Codec;
+      D : Codec.Data;
+   begin
+      if Str (1) = "codecstart" then
+         Codec_Config := Defaults;
+         Codec.Encode (Codec_Config, D);
+         declare
+            Text : String (1 .. 2 * D'Length);
+         begin
+            for I in D'Range loop
+               Text (2 * I + 1 .. 2 * I + 2) := FD_Hex (Natural (D (I)), 2);
+            end loop;
+            declare
+               Expected : String (1 .. 2 * D'Length);
+               Last     : Natural := 0;
+            begin
+               for F in 3 .. NF loop
+                  Expected (Last + 1 .. Last + Str (F)'Length) := Str (F);
+                  Last := Last + Str (F)'Length;
+               end loop;
+               Record_Text ("confcodec.reset_bytes", Expected (1 .. Last), Text);
+            end;
+         end;
+         return;
+      end if;
+      for S in Setting loop
+         if Name (S) = Str (3) then
+            Set (Codec_Config, S, Int (6), Natural (Int (4)), Natural (Int (5)));
+            Codec.Encode (Codec_Config, D);
+            declare
+               Hash     : Interfaces.Unsigned_64 := 16#CBF2_9CE4_8422_2325#;
+               Expected : constant Interfaces.Unsigned_64 := Interfaces.Unsigned_64'Value (Str (7));
+            begin
+               for B of D loop
+                  Hash := (Hash xor Interfaces.Unsigned_64 (B)) * 16#100_0000_01B3#;
+               end loop;
+               Record_Int ("confcodec.hash_low", Integer_64 (Expected mod 2 ** 32), Integer_64 (Hash mod 2 ** 32));
+               Record_Int ("confcodec.hash_high", Integer_64 (Expected / 2 ** 32), Integer_64 (Hash / 2 ** 32));
+            end;
+            return;
+         end if;
+      end loop;
+      Put_Line ("confcodec: no setting named " & Str (3));
+      Failures := Failures + 1;
+   end Check_Config_Codec_Line;
+
    procedure Check_Config_Set_Line is
       use Adaflight.Settings_Table;
       use Adaflight.Config_Groups;
@@ -13925,6 +14012,7 @@ procedure Vector_Check is
       if Str (1) = "setstart" then
          Set_Config := Defaults;
          Record_Fingerprint (3);
+         Check_Config_Round_Trip (Set_Config, True);
          return;
       end if;
       for S in Setting loop
@@ -13940,6 +14028,7 @@ procedure Vector_Check is
                   Set (Set_Config, S, Value, Profile, Index);
                   Record_Int ("confset.read_back", Int (7), Get (Set_Config, S, Profile, Index));
                   Record_Fingerprint (8);
+                  Check_Config_Round_Trip (Set_Config, Int (2) mod 250 = 249);
                else
                   Put_Line ("confset: value outside the setting for " & Str (3));
                   Failures := Failures + 1;
@@ -17871,6 +17960,8 @@ procedure Vector_Check is
                   Check_Config_Groups_Line;
                elsif Kind = "confset" then
                   Check_Config_Set_Line;
+               elsif Kind = "confcodec" then
+                  Check_Config_Codec_Line;
                elsif Kind = "battmeter" then
                   Check_Battery_Meter_Line;
                elsif Kind = "flashfs" then
@@ -18060,6 +18151,7 @@ begin
    Run (Dir & "/settings.csv", "settings");
    Run (Dir & "/confgroups.csv", "confgroups");
    Run (Dir & "/confset.csv", "confset");
+   Run (Dir & "/confcodec.csv", "confcodec");
    if Settings_Seen /= Adaflight.Settings_Table.Setting'Pos (Adaflight.Settings_Table.Setting'Last) + 1 then
       Put_Line ("settings: the vectors hold" & Settings_Seen'Image & " settings");
       Failures := Failures + 1;
