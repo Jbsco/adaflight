@@ -179,9 +179,9 @@ ledger. The deviations so far:
   its speed at 1000, a unit direction within 2 in each component, the filtered along-track
   distance within 10,000 kilometres, the time a heading fault has lasted at a million seconds,
   and the hold pattern's phase within 10 radians, which a pattern started at its quarter radian
-  a second never reaches, where the reference's floats run on. The geofence return's altitude
-  saturates at the 32-bit range. The recorded plans stay within 200 kilometres of the origin and
-  replay bit for bit.
+  a second never reaches, where the reference's floats run on. The geofence return's and the
+  rescue's altitudes saturate at the 32-bit range. The recorded plans stay within 200 kilometres
+  of the origin and replay bit for bit.
 
 ## D7. Contribution conventions (2026-10-08)
 
@@ -3224,4 +3224,19 @@ except three the reference never reaches: landing in place when a return plan ca
 injected, which the update only reaches while the executor is active; a point leg's progress
 check without a target, which the update dispatches afresh first; and orbit period saturation,
 beyond hold radius and cruise ranges.
+
+## D144. Flight plan executor rescue plan (2026-10-13)
+
+`Adaflight.Flight_Plan_Nav` contains the last part of the executor: the failsafe rescue's plan.
+With a GPS fix and home, the plan climbs where the craft comes to a stop, returns home and lands
+there. Its altitude is the highest flown plus the initial climb, a fixed height above home, or
+the current altitude plus the initial climb, and never below the craft. A craft that stops
+within the minimum start distance of home lands where it stops instead, and gets no plan without
+a heading to hold that point. The plan replaces one already flying at once, or waits for the
+next engage. Without a plan the rescue descends on altitude alone: alt hold's emergency descent
+at the rescue's rate, with the landing's touchdown watch and disarm.
+
+The harness replays 1440 stagings and 960 descents of up to 32 cycles recorded from the
+reference executor on random executor states, navigator legs, GPS fixes and settings within
+their ranges. Every executor field, navigator field and call of the 21766 lines replays exactly.
 

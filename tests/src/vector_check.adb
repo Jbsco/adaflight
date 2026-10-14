@@ -14987,7 +14987,8 @@ procedure Vector_Check is
                Fence_M        => Interfaces.Unsigned_16 (Int (K0 + 17)),
                Fence_Return   => Int (K0 + 18) /= 0,
                Return_Alt_M   => Interfaces.Unsigned_16 (Int (K0 + 19)),
-               Return_Cms     => Interfaces.Unsigned_16 (Int (K0 + 20)));
+               Return_Cms     => Interfaces.Unsigned_16 (Int (K0 + 20)),
+               others         => <>);
             Upd_Plan := (Count => Count, Waypoints => (others => (others => <>)));
             for W in 0 .. Count - 1 loop
                Upd_Plan.Waypoints (W) := Executor_Waypoint (K0 + 22 + 9 * W);
@@ -15012,8 +15013,9 @@ procedure Vector_Check is
                Home_Fix         => Int (B + 21) /= 0,
                Home_Distance_M  => Interfaces.Unsigned_16 (Int (B + 22)),
                Home             => (Lat => I32 (B + 23), Lon => I32 (B + 24), Alt_Cm => I32 (B + 25)),
-               GPS_Alt_Cm       => I32 (B + 26),
-               Estimator_Alt_Cm => Flt (B + 27));
+               GPS              => (Lat => 0, Lon => 0, Alt_Cm => I32 (B + 26)),
+               Estimator_Alt_Cm => Flt (B + 27),
+               others           => <>);
             Upd_State := (others => <>);
             Read_Executor_State (B + 30, Upd_State);
             Upd_State.Staged_Count := Natural (Int (B + 149));
@@ -15065,6 +15067,128 @@ procedure Vector_Check is
          Failures := Failures + 1;
       end if;
    end Check_Executor_Update_Line;
+
+   Rsc_State  : Adaflight.Flight_Plan_Nav.State;
+   Rsc_Nav    : Adaflight.Position_Nav.Navigator;
+   Rsc_Plan   : Adaflight.Flight_Plan.Plan;
+   Rsc_Config : Adaflight.Flight_Plan_Nav.Settings;
+   Rsc_Inputs : Adaflight.Flight_Plan_Nav.Leg_Inputs;
+
+   procedure Check_Executor_Rescue_Line is
+      use Adaflight.Flight_Plan_Nav;
+      Name : constant String := Str (1);
+   begin
+      if Name = "frin" then
+         declare
+            K0    : constant Positive := 5;
+            Count : constant Natural := Natural (Int (K0 + 26));
+            B     : constant Positive := K0 + 27 + 9 * Count;
+         begin
+            Rsc_Config :=
+              (Max_Angle       => Interfaces.Unsigned_8 (Int (K0)),
+               Arrival_Radius  => Interfaces.Unsigned_16 (Int (K0 + 1)),
+               Radius          => Interfaces.Unsigned_16 (Int (K0 + 2)),
+               Max_Speed       => Interfaces.Unsigned_16 (Int (K0 + 3)),
+               Nav_Accel       => Interfaces.Unsigned_16 (Int (K0 + 4)),
+               Landing_Rate    => Interfaces.Unsigned_8 (Int (K0 + 5)),
+               Climb_Rate      => Flt (K0 + 6),
+               Corner_Speed    => Interfaces.Unsigned_16 (Int (K0 + 7)),
+               Corner_Delta_V  => Interfaces.Unsigned_16 (Int (K0 + 8)),
+               Nav_Decel       => Interfaces.Unsigned_16 (Int (K0 + 9)),
+               Lead_Time       => Interfaces.Unsigned_8 (Int (K0 + 10)),
+               Lead_Max        => Interfaces.Unsigned_16 (Int (K0 + 11)),
+               Preturn_Dist    => Interfaces.Unsigned_16 (Int (K0 + 12)),
+               Yaw_Mode        => Interfaces.Unsigned_8 (Int (K0 + 13)),
+               Touchdown_Cms   => Interfaces.Unsigned_8 (Int (K0 + 14)),
+               Touchdown_Ds    => Interfaces.Unsigned_8 (Int (K0 + 15)),
+               Descent_Dist_M  => Interfaces.Unsigned_16 (Int (K0 + 16)),
+               Fence_M         => Interfaces.Unsigned_16 (Int (K0 + 17)),
+               Fence_Return    => Int (K0 + 18) /= 0,
+               Return_Alt_M    => Interfaces.Unsigned_16 (Int (K0 + 19)),
+               Return_Cms      => Interfaces.Unsigned_16 (Int (K0 + 20)),
+               Min_Start_M     => Interfaces.Unsigned_16 (Int (K0 + 21)),
+               Initial_Climb_M => Interfaces.Unsigned_16 (Int (K0 + 22)),
+               Ascend_Cms      => Interfaces.Unsigned_16 (Int (K0 + 23)),
+               Descend_Cms     => Interfaces.Unsigned_16 (Int (K0 + 24)),
+               Rescue_Alt_Mode => Interfaces.Unsigned_8 (Int (K0 + 25)));
+            Rsc_Plan := (Count => Count, Waypoints => (others => (others => <>)));
+            for W in 0 .. Count - 1 loop
+               Rsc_Plan.Waypoints (W) := Executor_Waypoint (K0 + 27 + 9 * W);
+            end loop;
+            Rsc_Inputs :=
+              (Est               => (Position => (East => Flt (B + 1), North => Flt (B + 2), Up => Flt (B + 3)),
+                                     Velocity => (East => Flt (B + 4), North => Flt (B + 5), Up => Flt (B + 6))),
+               Dt_S              => 0.0,
+               Now_Us            => Unsigned_32 (Int (B)),
+               Yaw_Decidegrees   => I32 (B + 7),
+               Ground_Course     => Interfaces.Unsigned_16 (Int (B + 28)),
+               Ground_Speed      => Interfaces.Unsigned_16 (Int (B + 29)),
+               Has_Origin        => Int (B + 8) /= 0,
+               Origin            => (Lat => I32 (B + 9), Lon => I32 (B + 10), Alt_Cm => I32 (B + 11)),
+               Cos_Lat           => Flt (B + 19),
+               Heading_Valid     => Int (B + 12) /= 0,
+               Heading_Required  => Int (B + 13) /= 0,
+               Below_Landing     => Int (B + 14) /= 0,
+               Listener          => Int (B + 15) /= 0,
+               Position_Error    => (X => Flt (B + 16), Y => Flt (B + 17)),
+               Estimator_Valid   => Int (B + 20) /= 0,
+               Home_Fix          => Int (B + 21) /= 0,
+               Home_Distance_M   => Interfaces.Unsigned_16 (Int (B + 22)),
+               Home              => (Lat => I32 (B + 23), Lon => I32 (B + 24), Alt_Cm => I32 (B + 25)),
+               GPS_Fix           => Int (B + 30) /= 0,
+               GPS               => (Lat => I32 (B + 31), Lon => I32 (B + 32), Alt_Cm => I32 (B + 26)),
+               Estimator_Alt_Cm  => Flt (B + 27),
+               Rescue_Max_Alt_Cm => Flt (B + 33));
+            Rsc_State := (others => <>);
+            Read_Executor_State (B + 34, Rsc_State);
+            Rsc_State.Staged_Count := Natural (Int (B + 153));
+            for W in 0 .. Injected_Max - 1 loop
+               Rsc_State.Staged (W) := Executor_Waypoint (B + 154 + 9 * W);
+            end loop;
+            Rsc_Nav := (others => <>);
+            Read_Navigator (B + 190, Rsc_Nav);
+         end;
+      elsif Name = "frout" then
+         declare
+            O      : Executor_Output;
+            Staged : Boolean;
+         begin
+            Stage_Rescue_Plan (Rsc_State, Rsc_Nav, Rsc_Plan, Rsc_Inputs, Rsc_Config, O, Staged);
+            Record_Int ("frout.staged", Int (4), Boolean'Pos (Staged));
+            Expect_Executor_Calls ("frout", Str (5), O);
+            Expect_Executor_State ("frout", 6, Rsc_State);
+            Record_Int ("frout.staged_count", Int (125), Integer_64 (Rsc_State.Staged_Count));
+            for W in 0 .. Injected_Max - 1 loop
+               Expect_Waypoint ("frout.staged", 126 + 9 * W, Rsc_State.Staged (W));
+            end loop;
+            Expect_Navigator ("frout.nav", 162, Rsc_Nav);
+            Record_Int ("frout.plan_active", Int (203), Boolean'Pos (Is_Rescue_Plan_Active (Rsc_State)));
+            Record_Int ("frout.descent_active", Int (204), Boolean'Pos (Is_Rescue_Descent_Active (Rsc_State)));
+         end;
+      elsif Name = "frdesc" then
+         declare
+            O : Executor_Output;
+         begin
+            Rsc_Inputs.Now_Us := Unsigned_32 (Int (6));
+            Rsc_Inputs.Est.Position.Up := Flt (7);
+            Rsc_Inputs.Est.Velocity.Up := Flt (8);
+            Rsc_Inputs.Below_Landing := Int (9) /= 0;
+            Rescue_Descent (Rsc_State, Rsc_Nav, Rsc_Inputs, Rsc_Config, O, Int (5) /= 0);
+            Expect_Executor_Calls ("frdesc", Str (10), O);
+            Record_Int ("frdesc.state", Int (11), Integer_64 (Nav_State'Pos (Rsc_State.Mode)));
+            Record_Int ("frdesc.active", Int (12), Boolean'Pos (Rsc_State.Rescue_Descent_Active));
+            Record_Int ("frdesc.established", Int (13), Boolean'Pos (Rsc_State.Landing_Established));
+            Record_Int ("frdesc.quiet", Int (14), Integer_64 (Rsc_State.Touchdown_Quiet_Us));
+            Record_Result ("frdesc.rate", Bits (15), To_Bits (Rsc_State.Landing_Rate_Mps));
+            Record_Int ("frdesc.start", Int (16), Integer_64 (Rsc_State.Landing_Start_Us));
+            Record_Int ("frdesc.cmd_active", Int (17), Boolean'Pos (Rsc_Nav.Cmd.Active));
+            Record_Result ("frdesc.target_up", Bits (18), To_Bits (Rsc_Nav.Cmd.Target.Up));
+         end;
+      else
+         Put_Line ("unknown executor rescue case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Executor_Rescue_Line;
 
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
@@ -15330,6 +15454,8 @@ procedure Vector_Check is
                   Check_Executor_Dispatch_Line;
                elsif Kind = "fpnupdate" then
                   Check_Executor_Update_Line;
+               elsif Kind = "fpnrescue" then
+                  Check_Executor_Rescue_Line;
                else
                   Check_PID_Line;
                end if;
@@ -15472,6 +15598,7 @@ begin
    Run (Dir & "/fpnlegs.csv", "fpnlegs");
    Run (Dir & "/fpndispatch.csv", "fpndispatch");
    Run (Dir & "/fpnupdate.csv", "fpnupdate");
+   Run (Dir & "/fpnrescue.csv", "fpnrescue");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
