@@ -149,6 +149,8 @@ with Adaflight.Settings_Table;
 with Adaflight.Config_Groups;
 with Adaflight.Config_Codec;
 with Adaflight.Config_Fix;
+with Adaflight.Command_Line;
+with Ada.Strings.Unbounded;
 with Adaflight.Dispatch;
 with Adaflight.ExpressLRS_Receiver;
 with Adaflight.Blackbox_Header;
@@ -14082,6 +14084,100 @@ procedure Vector_Check is
       Record_Int ("conffix.runtime_features", Integer_64 (C.Feature_Config.Enabled_Features), Integer_64 (Runtime));
    end Check_Config_Fix_Line;
 
+   type CLI_Sink is record
+      Text : Ada.Strings.Unbounded.Unbounded_String;
+   end record;
+
+   procedure CLI_Put (Into : in out CLI_Sink; Text : String) is
+   begin
+      Ada.Strings.Unbounded.Append (Into.Text, Text);
+   end CLI_Put;
+
+   package CLI is new Adaflight.Command_Line (CLI_Sink, CLI_Put);
+
+   CLI_Config   : Adaflight.Config_Groups.Configuration := Adaflight.Config_Groups.Defaults;
+   CLI_Reply    : CLI_Sink;
+   CLI_Expected : Ada.Strings.Unbounded.Unbounded_String;
+
+   --  The reference's command line over a sequence of command lines from the
+   --  reset configuration: each command, its reply in chunks, and an FNV-1a
+   --  hash of the configuration after it. A line "!profiles p r b" selects the
+   --  profiles and "!raw name profile index value" stores a value whatever its
+   --  range.
+   procedure Check_CLI_Line is
+      use Ada.Strings.Unbounded;
+      use type Interfaces.Unsigned_64;
+      package Groups renames Adaflight.Config_Groups;
+      Ports : constant Adaflight.Serial_Feature_Map.Port_List := (20, 51, 52, 53, 54, 55, 56, 30, 31);
+
+      --  The words of a driver line after its first.
+      function Word (Text : String; N : Natural) return String is
+         Count : Natural := 0;
+         First : Positive := Text'First;
+      begin
+         for K in Text'Range loop
+            if Text (K) = ' ' or else K = Text'Last then
+               declare
+                  Last : constant Natural := (if Text (K) = ' ' then K - 1 else K);
+               begin
+                  if Last >= First then
+                     if Count = N then
+                        return Text (First .. Last);
+                     end if;
+                     Count := Count + 1;
+                  end if;
+               end;
+               First := K + 1;
+            end if;
+         end loop;
+         return "";
+      end Word;
+   begin
+      if Str (1) = "cli" then
+         if Int (2) = 0 then
+            CLI_Config := Groups.Defaults;
+         end if;
+         CLI_Reply.Text := Null_Unbounded_String;
+         CLI_Expected := Null_Unbounded_String;
+         declare
+            Command : constant String := Hex_String (3);
+            Known   : Boolean;
+         begin
+            if Word (Command, 0) = "!profiles" then
+               CLI_Config.System_Config.Pid_Profile_Index := Interfaces.Unsigned_8'Value (Word (Command, 1));
+               CLI_Config.System_Config.Active_Rate_Profile := Interfaces.Unsigned_8'Value (Word (Command, 2));
+               CLI_Config.System_Config.Active_Battery_Profile := Interfaces.Unsigned_8'Value (Word (Command, 3));
+            elsif Word (Command, 0) = "!raw" then
+               for S in Adaflight.Settings_Table.Setting loop
+                  if Adaflight.Settings_Table.Name (S) = Word (Command, 1) then
+                     Groups.Set (CLI_Config, S, Integer_64'Value (Word (Command, 4)), Natural'Value (Word (Command, 2)),
+                                 Natural'Value (Word (Command, 3)));
+                  end if;
+               end loop;
+            else
+               CLI.Process_Line (CLI_Reply, CLI_Config, Command, Ports, Known);
+               Record_Int ("cli.known", 1, Boolean'Pos (Known or else Command (Command'First) = '#'));
+            end if;
+         end;
+      elsif Str (1) = "clo" then
+         Append (CLI_Expected, Hex_String (3));
+      else
+         Record_Text ("cli.reply", To_String (CLI_Expected), To_String (CLI_Reply.Text));
+         declare
+            D        : Adaflight.Config_Codec.Data;
+            Hash     : Interfaces.Unsigned_64 := 16#CBF2_9CE4_8422_2325#;
+            Expected : constant Interfaces.Unsigned_64 := Interfaces.Unsigned_64'Value (Str (3));
+         begin
+            Adaflight.Config_Codec.Encode (CLI_Config, D);
+            for B of D loop
+               Hash := (Hash xor Interfaces.Unsigned_64 (B)) * 16#100_0000_01B3#;
+            end loop;
+            Record_Int ("cli.hash_low", Integer_64 (Expected mod 2 ** 32), Integer_64 (Hash mod 2 ** 32));
+            Record_Int ("cli.hash_high", Integer_64 (Expected / 2 ** 32), Integer_64 (Hash / 2 ** 32));
+         end;
+      end if;
+   end Check_CLI_Line;
+
    procedure Check_Config_Set_Line is
       use Adaflight.Settings_Table;
       use Adaflight.Config_Groups;
@@ -18050,6 +18146,8 @@ procedure Vector_Check is
                   Check_Config_Codec_Line;
                elsif Kind = "conffix" then
                   Check_Config_Fix_Line;
+               elsif Kind = "cliset" then
+                  Check_CLI_Line;
                elsif Kind = "battmeter" then
                   Check_Battery_Meter_Line;
                elsif Kind = "flashfs" then
@@ -18241,6 +18339,7 @@ begin
    Run (Dir & "/confset.csv", "confset");
    Run (Dir & "/confcodec.csv", "confcodec");
    Run (Dir & "/conffix.csv", "conffix");
+   Run (Dir & "/cliset.csv", "cliset");
    if Settings_Seen /= Adaflight.Settings_Table.Setting'Pos (Adaflight.Settings_Table.Setting'Last) + 1 then
       Put_Line ("settings: the vectors hold" & Settings_Seen'Image & " settings");
       Failures := Failures + 1;
