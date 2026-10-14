@@ -3587,8 +3587,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Beeper_Command_Word, Color_Command_Word, Diff_Command, Dump_Command, Feature_Command_Word, Get_Command,
       Led_Command_Word, Map_Command_Word, Mode_Color_Command_Word,
       Mixer_Command_Word, Motor_Mix_Command_Word, Profile_Command, Rate_Profile_Command, Rx_Failsafe_Command,
-      Rx_Range_Command, Serial_Command_Word, Servo_Command_Word, Servo_Mix_Command_Word, Set_Command,
-      Version_Command_Word, Vtx_Command_Word, Vtx_Table_Command_Word, Waypoint_Command_Word);
+      MCU_Id_Command_Word, Rx_Range_Command, Serial_Command_Word, Servo_Command_Word, Servo_Mix_Command_Word,
+      Set_Command, Version_Command_Word, Vtx_Command_Word, Vtx_Table_Command_Word, Waypoint_Command_Word);
    subtype Known_Command is Command_Kind range Adjustment_Range_Command_Word .. Waypoint_Command_Word;
 
    function Command_Word (K : Known_Command) return String is
@@ -3606,6 +3606,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when Led_Command_Word => "led",
          when Mode_Color_Command_Word => "mode_color",
          when Map_Command_Word => "map",
+         when MCU_Id_Command_Word => "mcu_id",
          when Mixer_Command_Word => "mixer",
          when Motor_Mix_Command_Word => "mmix",
          when Profile_Command => "profile",
@@ -3739,6 +3740,26 @@ package body Adaflight.Command_Line with SPARK_Mode is
         (Into, C.Flight_Plan_Config.Waypoint_Count, C.Flight_Plan_Config.Waypoints, Mode => Mode,
          Heading => "waypoint");
    end Put_Sections;
+
+   Hex_Digits : constant String (1 .. 16) := "0123456789abcdef";
+
+   --  A number's low hexadecimal digits in lower case.
+   function Hex_Text (V : Unsigned_32; Width : Positive) return String
+     with Pre => Width <= 8, Post => Hex_Text'Result'Length = Width
+   is
+      Text : String (1 .. Width);
+   begin
+      for K in 1 .. Width loop
+         Text (K) := Hex_Digits (Natural (Shift_Right (V, 4 * (Width - K)) and 16#F#) + 1);
+      end loop;
+      return Text;
+   end Hex_Text;
+
+   --  The MCU's unique id as 24 hexadecimal digits.
+   procedure Put_MCU_Id (Into : in out Sink; Id : MCU_Words) is
+   begin
+      Put (Into, "mcu_id " & Hex_Text (Id (1), 8) & Hex_Text (Id (2), 8) & Hex_Text (Id (3), 8) & CRLF);
+   end Put_MCU_Id;
 
    --  The master dump: the version line with the default board identifier,
    --  the command batch's start, the board's name and manufacturer, the craft
@@ -3914,6 +3935,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when Map_Command_Word =>
             Known := True;
             Map_Command (Into, C, Text_At (Buffer, Arguments));
+         when MCU_Id_Command_Word =>
+            Known := True;
+            Put_MCU_Id (Into, Env.MCU_Id);
          when Mixer_Command_Word =>
             Known := True;
             Mixer_Command (Into, C.Mixer_Config.Mixer_Mode, Text_At (Buffer, Arguments));

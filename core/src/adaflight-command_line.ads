@@ -5,7 +5,8 @@
 --  name; profile, rateprofile and battery_profile show or select a profile;
 --  dump and diff list a profile's or a rate profile's settings, and the whole
 --  configuration or its hardware part as commands, all of it or only what
---  differs from the defaults; version prints the firmware's version line.
+--  differs from the defaults; version prints the firmware's version line and
+--  mcu_id the MCU's unique id.
 --  The text goes out through Put into a sink.
 with Interfaces;
 with Adaflight.Config_Groups; use Adaflight.Config_Groups;
@@ -89,10 +90,12 @@ package Adaflight.Command_Line with SPARK_Mode is
      with Pre  => Text'Length <= Identity_Max,
           Post => To_Identity'Result.Length = Text'Length;
 
+   type MCU_Words is array (1 .. 3) of Interfaces.Unsigned_32;
+
    --  What the commands report from outside the configuration: the flight
    --  plan executor's state, the firmware's name, the target's name, the
-   --  version, the build's date, time and revision, and the board's name and
-   --  manufacturer.
+   --  version, the build's date, time and revision, the board's name and
+   --  manufacturer, and the MCU's unique id.
    type Environment is record
       Navigation      : Navigation_Status;
       Firmware        : Identity_Text;
@@ -103,6 +106,7 @@ package Adaflight.Command_Line with SPARK_Mode is
       Revision        : Identity_Text;
       Board_Name      : Identity_Text;
       Manufacturer_Id : Identity_Text;
+      MCU_Id          : MCU_Words := (others => 0);
    end record;
 
    --  A typed line without its line end: printable characters past the
