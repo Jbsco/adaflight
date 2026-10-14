@@ -187,6 +187,11 @@ ledger. The deviations so far:
   message checks the whole request before it stores anything, so a short request, which the
   reference stores as zero filter cutoffs, is an error (findings F142). The checker expects the
   error and unchanged settings for the recorded requests outside the ranges.
+- The configuration storage image reads bytes past its region as erased and does not write an
+  image longer than the region (D158), where the reference leaves both to the target and reads
+  past a corrupted region's end. Its reported size is the image's length, 2 bytes less than the
+  reference reports on 32-bit targets (findings F143). The recorded images never read past the
+  region, and the checker takes the reference's extra bytes off its size.
 
 ## D7. Contribution conventions (2026-10-08)
 
@@ -3496,3 +3501,23 @@ goes out without a device. The RTC6705 driver is not ported, so its device does 
 The harness replays 4800 device states drawn into the reference common transmitter layer and its
 SmartAudio, Tramp and MSP drivers, with random frequency tables, each step making one device
 current or none. Every length and byte of the 4808 lines replays exactly.
+
+## D158. Configuration storage image (2026-10-13)
+
+`Adaflight.Config_Store` contains the storage image of the parameter groups: header with storage
+version 178 and magic byte, one record per group with its size, group number, version and class,
+zero terminator, and the CRC over all of it, inverted and big-endian, so the CRC of the whole image
+is a constant. The structure check scans the records to the terminator, each record at least its
+own header long and ending before the region does. Lookup finds a group's first record of a class
+with the same scan. Loading resets every group to its defaults, takes its stored bytes when a
+system record has the group's version, as many as the group holds, and hashes each group with
+FNV-1a. Saving writes only when the image's version or structure is invalid or a group's bytes no
+longer match its hash; it zeroes the region, as the reference's RAM storage does, then writes
+header, records, terminator and CRC. Each group's bytes are adaflight's own layout, so an image
+the reference writes does not load. Bytes past the region read as erased and an image longer than
+the region is not written (D6).
+
+The harness replays 4800 operations recorded from the reference storage code over a 512-byte RAM
+region with six parameter groups: structure checks, lookups, loads and saves on images built from
+random records, about a third of them clean and the rest often corrupted, never one whose scan
+reads past the region. Every result, group, hash and image byte of the 4808 lines replays exactly.
