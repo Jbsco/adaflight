@@ -106,6 +106,9 @@ The core contains:
 - settings table: names, types, scopes, ranges and lookup tables of command line's 789 settings
 - configuration groups: a record per parameter group with Betaflight's defaults, every setting's
   value and write, and groups' bytes for storage image
+- configuration fix: checks of every load and save over mixer mode, telemetry slots, serial ports,
+  filter cutoffs, receiver features, mode links, DShot settings, PID loop rate, profile
+  selections, rates and battery voltages
 - MSP state replies: status, sensor readings, motors, RC channels, attitude, altitudes, battery,
   debug values, GPS, ESC and motor telemetry, pitot, transmitter information and clock
 - BLHeli 4-way interface for ESC configuration through flight controller
@@ -131,10 +134,10 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 19814 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 19874 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
-- Recorded vectors replay bit for bit: 1567227 lines over 365 cases, every case exact except
-  twenty-three declared deviations in `DESIGN.md` D6.
+- Recorded vectors replay bit for bit: 1571227 lines over 366 cases, every case exact except
+  twenty-six declared deviations in `DESIGN.md` D6.
 - No target builds yet. `ROADMAP.md` contains phases, parity inventory, and one question for after
   parity: whether a proved core leaves room on F4 boards for features Betaflight has to leave out
   there.
@@ -163,9 +166,10 @@ A change is finished when `verify.do` is green.
 
 ## Verification policy
 
-- Every unit in `core/` is SPARK and proves free of run-time errors, except the three bodies
-  outside SPARK that `DESIGN.md` names: the accurate power (D15), the rescue's arctangent (D83)
-  and the configuration codec (D166). The proof gate counts such bodies on every run.
+- Every unit in `core/` is SPARK and proves free of run-time errors, except the four bodies
+  outside SPARK that `DESIGN.md` names: the accurate power (D15), the rescue's arctangent (D83),
+  the configuration codec (D166) and the configuration fix's call sequence (D167). The proof gate
+  counts such bodies on every run.
 - No `pragma Assume` and no justified suppression. `prove.do` prints both counts.
 - A pull request proves the units whose sources it changed (`tools/changed-units.py`).
   A nightly run proves the whole core.
