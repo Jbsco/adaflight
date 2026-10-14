@@ -810,6 +810,17 @@ package body Adaflight.Command_Line with SPARK_Mode is
      (if From > Text'Last then 0 else CLI_Text.To_Integer (Text (From .. Text'Last)))
      with Pre => From >= Text'First and then Text'Last < Positive'Last;
 
+   --  Every mode condition whose mode is in the box table.
+   procedure Put_Conditions (Into : in out Sink; Conditions : Mode_Activation_Condition_Record_List_20) is
+   begin
+      for I in Conditions'Range loop
+         pragma Loop_Invariant (I in Conditions'Range);
+         if Conditions (I).Mode_Id <= Modes.Box'Pos (Modes.Box'Last) then
+            Put_Condition (Into, I, Conditions (I));
+         end if;
+      end loop;
+   end Put_Conditions;
+
    --  aux: every mode condition, or one condition's mode, aux channel, range,
    --  logic and link from its arguments, the valid ones counted; four valid
    --  take the default logic and no link, five no link, and any other count
@@ -823,11 +834,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
       P     : Natural;
    begin
       if Arguments'Length = 0 then
-         for I in 0 .. Condition_Count - 1 loop
-            if C.Mode_Activation_Conditions (I).Mode_Id <= Modes.Box'Pos (Modes.Box'Last) then
-               Put_Condition (Into, I, C.Mode_Activation_Conditions (I));
-            end if;
-         end loop;
+         Put_Conditions (Into, C.Mode_Activation_Conditions);
          return;
       end if;
       Index := CLI_Text.To_Integer (Arguments);
@@ -901,6 +908,29 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end;
    end Aux_Command;
 
+   --  One adjustment range's line.
+   procedure Put_Adjustment_Range (Into : in out Sink; Index : Natural; A : Adjustment_Range_Record)
+     with Pre => Index <= 29
+   is
+   begin
+      Put (Into, "adjrange " & Decimal (Integer_64 (Index)) & " 0 "
+           & Decimal (Integer_64 (A.Aux_Channel_Index)) & " "
+           & Decimal (900 + 25 * Integer_64 (A.Range_Value.Start_Step)) & " "
+           & Decimal (900 + 25 * Integer_64 (A.Range_Value.End_Step)) & " "
+           & Decimal (Integer_64 (A.Adjustment_Config)) & " " & Decimal (Integer_64 (A.Aux_Switch_Channel_Index))
+           & " " & Decimal (Integer_64 (A.Adjustment_Center)) & " " & Decimal (Integer_64 (A.Adjustment_Scale))
+           & CRLF);
+   end Put_Adjustment_Range;
+
+   --  Every adjustment range's line.
+   procedure Put_Adjustment_Ranges (Into : in out Sink; Ranges : Adjustment_Range_Record_List_30) is
+   begin
+      for I in Ranges'Range loop
+         pragma Loop_Invariant (I in Ranges'Range);
+         Put_Adjustment_Range (Into, I, Ranges (I));
+      end loop;
+   end Put_Adjustment_Ranges;
+
    --  adjrange: every adjustment range, or one range's aux channel, range ends,
    --  function and switch channel from the arguments after a slot argument,
    --  each valid one counted, then its optional center and scale. Any other
@@ -914,25 +944,12 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Range_Count    : constant := Adjustment_Range_Record_List_30'Length;
       Function_Count : constant := Adjustments.Function_Kind'Pos (Adjustments.Function_Kind'Last) + 1;
 
-      procedure Put_Range (Index : Natural; A : Adjustment_Range_Record) is
-      begin
-         Put (Into, "adjrange " & Decimal (Integer_64 (Index)) & " 0 "
-              & Decimal (Integer_64 (A.Aux_Channel_Index)) & " "
-              & Decimal (900 + 25 * Integer_64 (A.Range_Value.Start_Step)) & " "
-              & Decimal (900 + 25 * Integer_64 (A.Range_Value.End_Step)) & " "
-              & Decimal (Integer_64 (A.Adjustment_Config)) & " " & Decimal (Integer_64 (A.Aux_Switch_Channel_Index))
-              & " " & Decimal (Integer_64 (A.Adjustment_Center)) & " " & Decimal (Integer_64 (A.Adjustment_Scale))
-              & CRLF);
-      end Put_Range;
-
       Index : Integer_32;
       Valid : Natural := 0;
       P     : Natural;
    begin
       if Arguments'Length = 0 then
-         for I in 0 .. Range_Count - 1 loop
-            Put_Range (I, C.Adjustment_Ranges (I));
-         end loop;
+         Put_Adjustment_Ranges (Into, C.Adjustment_Ranges);
          return;
       end if;
       Index := CLI_Text.To_Integer (Arguments);
@@ -1003,7 +1020,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
             A.Adjustment_Scale := Unsigned_16'Mod (Argument (Arguments, P));
          end if;
          Changes.Adjustments := True;
-         Put_Range (Slot, A);
+         Put_Adjustment_Range (Into, Slot, A);
       end;
    end Adjustment_Range_Command;
 
@@ -1726,6 +1743,17 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Put (Into, Decimal (Integer_64 (Shift_Right (Config, 22) and 16#F#)));
    end Put_Led_Text;
 
+   --  Every LED's configuration line.
+   procedure Put_Leds (Into : in out Sink; Configs : Unsigned_32_List_32) is
+   begin
+      for I in Configs'Range loop
+         pragma Loop_Invariant (I in Configs'Range);
+         Put (Into, "led " & Decimal (Integer_64 (I)) & " ");
+         Put_Led_Text (Into, Configs (I));
+         Put (Into, CRLF);
+      end loop;
+   end Put_Leds;
+
    --  led: every LED's configuration, or one LED's configuration cleared and
    --  then read from its text; a reading LED asks for the strip's layout.
    procedure Led_Command
@@ -1737,12 +1765,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
       P     : Natural;
    begin
       if Arguments'Length = 0 then
-         for I in Configs'Range loop
-            pragma Loop_Invariant (I in Configs'Range);
-            Put (Into, "led " & Decimal (Integer_64 (I)) & " ");
-            Put_Led_Text (Into, Configs (I));
-            Put (Into, CRLF);
-         end loop;
+         Put_Leds (Into, Configs);
          return;
       end if;
       Index := CLI_Text.To_Integer (Arguments);
@@ -1779,6 +1802,18 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end;
    end Led_Command;
 
+   --  Every color's line.
+   procedure Put_Colors (Into : in out Sink; Colors : Hsv_Color_Record_List_16) is
+   begin
+      for I in Colors'Range loop
+         pragma Loop_Invariant (I in Colors'Range);
+         Put (Into, "color " & Decimal (Integer_64 (I)) & " "
+              & Decimal (Integer_64 (Colors (I).H)) & ","
+              & Decimal (Integer_64 (Colors (I).S)) & ","
+              & Decimal (Integer_64 (Colors (I).V)) & CRLF);
+      end loop;
+   end Put_Colors;
+
    --  color: every color, or one color's hue, saturation and value read in
    --  turn, each stored as it is read and the color cleared when one is past
    --  its limit or a comma is missing.
@@ -1790,13 +1825,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
       P     : Natural;
    begin
       if Arguments'Length = 0 then
-         for I in Colors'Range loop
-            pragma Loop_Invariant (I in Colors'Range);
-            Put (Into, "color " & Decimal (Integer_64 (I)) & " "
-                 & Decimal (Integer_64 (Colors (I).H)) & ","
-                 & Decimal (Integer_64 (Colors (I).S)) & ","
-                 & Decimal (Integer_64 (Colors (I).V)) & CRLF);
-         end loop;
+         Put_Colors (Into, Colors);
          return;
       end if;
       Index := CLI_Text.To_Integer (Arguments);
@@ -1861,6 +1890,25 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end;
    end Color_Command;
 
+   --  Every mode's direction colors, the special colors and the aux channel.
+   procedure Put_Mode_Colors (Into : in out Sink; L : Led_Strip_Status_Mode_Config_Record) is
+   begin
+      for M in L.Mode_Colors'Range loop
+         pragma Loop_Invariant (M in L.Mode_Colors'Range);
+         for D in L.Mode_Colors (M).Color'Range loop
+            pragma Loop_Invariant (D in L.Mode_Colors (M).Color'Range);
+            Put (Into, "mode_color " & Decimal (Integer_64 (M)) & " " & Decimal (Integer_64 (D)) & " "
+                 & Decimal (Integer_64 (L.Mode_Colors (M).Color (D))) & CRLF);
+         end loop;
+      end loop;
+      for D in L.Special_Colors.Color'Range loop
+         pragma Loop_Invariant (D in L.Special_Colors.Color'Range);
+         Put (Into, "mode_color 6 " & Decimal (Integer_64 (D)) & " "
+              & Decimal (Integer_64 (L.Special_Colors.Color (D))) & CRLF);
+      end loop;
+      Put (Into, "mode_color 7 0 " & Decimal (Integer_64 (L.Ledstrip_Aux_Channel)) & CRLF);
+   end Put_Mode_Colors;
+
    --  mode_color: every mode's direction colors, the special colors and the
    --  strip's aux channel, or one of them set from three numbers.
    procedure Mode_Color_Command (Into : in out Sink; L : in out Led_Strip_Status_Mode_Config_Record; Arguments : String)
@@ -1874,20 +1922,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
       OK          : Boolean := False;
    begin
       if Arguments'Length = 0 then
-         for M in L.Mode_Colors'Range loop
-            pragma Loop_Invariant (M in L.Mode_Colors'Range);
-            for D in L.Mode_Colors (M).Color'Range loop
-               pragma Loop_Invariant (D in L.Mode_Colors (M).Color'Range);
-               Put (Into, "mode_color " & Decimal (Integer_64 (M)) & " " & Decimal (Integer_64 (D)) & " "
-                    & Decimal (Integer_64 (L.Mode_Colors (M).Color (D))) & CRLF);
-            end loop;
-         end loop;
-         for D in L.Special_Colors.Color'Range loop
-            pragma Loop_Invariant (D in L.Special_Colors.Color'Range);
-            Put (Into, "mode_color 6 " & Decimal (Integer_64 (D)) & " "
-                 & Decimal (Integer_64 (L.Special_Colors.Color (D))) & CRLF);
-         end loop;
-         Put (Into, "mode_color 7 0 " & Decimal (Integer_64 (L.Ledstrip_Aux_Channel)) & CRLF);
+         Put_Mode_Colors (Into, L);
          return;
       end if;
       loop
@@ -1929,6 +1964,26 @@ package body Adaflight.Command_Line with SPARK_Mode is
            & Decimal (Integer_64 (Values (2))) & CRLF);
    end Mode_Color_Command;
 
+   --  One VTX channel condition's line.
+   procedure Put_Vtx_Condition (Into : in out Sink; Index : Natural; V : Vtx_Channel_Activation_Condition_Record)
+     with Pre => Index <= 9
+   is
+   begin
+      Put (Into, "vtx " & Decimal (Integer_64 (Index)) & " " & Decimal (Integer_64 (V.Aux_Channel_Index)) & " "
+           & Decimal (Integer_64 (V.Band)) & " " & Decimal (Integer_64 (V.Channel)) & " "
+           & Decimal (Integer_64 (V.Power)) & " " & Decimal (900 + 25 * Integer_64 (V.Range_Value.Start_Step))
+           & " " & Decimal (900 + 25 * Integer_64 (V.Range_Value.End_Step)) & CRLF);
+   end Put_Vtx_Condition;
+
+   --  Every VTX channel condition's line.
+   procedure Put_Vtx_Conditions (Into : in out Sink; Conditions : Vtx_Channel_Activation_Condition_Record_List_10) is
+   begin
+      for I in Conditions'Range loop
+         pragma Loop_Invariant (I in Conditions'Range);
+         Put_Vtx_Condition (Into, I, Conditions (I));
+      end loop;
+   end Put_Vtx_Conditions;
+
    --  vtx: every VTX channel condition, or one condition's aux channel, band,
    --  channel, power and range ends from its arguments, each valid one
    --  counted against the VTX table's counts; any other count than six
@@ -1939,23 +1994,13 @@ package body Adaflight.Command_Line with SPARK_Mode is
      with Pre => Arguments'First >= 1 and then Arguments'Last < Positive'Last
                  and then Arguments'First <= Arguments'Last + 1
    is
-      procedure Put_Condition (Index : Natural; V : Vtx_Channel_Activation_Condition_Record) is
-      begin
-         Put (Into, "vtx " & Decimal (Integer_64 (Index)) & " " & Decimal (Integer_64 (V.Aux_Channel_Index)) & " "
-              & Decimal (Integer_64 (V.Band)) & " " & Decimal (Integer_64 (V.Channel)) & " "
-              & Decimal (Integer_64 (V.Power)) & " " & Decimal (900 + 25 * Integer_64 (V.Range_Value.Start_Step))
-              & " " & Decimal (900 + 25 * Integer_64 (V.Range_Value.End_Step)) & CRLF);
-      end Put_Condition;
 
       Index : Integer_32;
       Valid : Natural := 0;
       P     : Natural;
    begin
       if Arguments'Length = 0 then
-         for I in Conditions'Range loop
-            pragma Loop_Invariant (I in Conditions'Range);
-            Put_Condition (I, Conditions (I));
-         end loop;
+         Put_Vtx_Conditions (Into, Conditions);
          return;
       end if;
       Index := CLI_Text.To_Integer (Arguments);
@@ -2018,7 +2063,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
                   Range_Value => (Start_Step => 0, End_Step => 0));
             Put (Into, "###ERROR IN vtx: INVALID ARGUMENT COUNT###" & CRLF);
          else
-            Put_Condition (Slot, V);
+            Put_Vtx_Condition (Into, Slot, V);
          end if;
       end;
    end Vtx_Command;
@@ -2770,12 +2815,32 @@ package body Adaflight.Command_Line with SPARK_Mode is
       return 0;
    end Letter_Position;
 
+   subtype Map_Text is String (1 .. Mappable);
+
+   --  The map line: each stick's letter at its channel over a starting text,
+   --  up to the first position without a letter.
+   procedure Put_Map (Into : in out Sink; Start : Map_Text; Rcmap : Bytes_8) is
+      Buffer : Map_Text := Start;
+      Last   : Natural := 0;
+   begin
+      for I in 0 .. Mappable - 1 loop
+         if Rcmap (I) < Mappable then
+            Buffer (Natural (Rcmap (I)) + 1) := Channel_Letters (Channel_Letters'First + I);
+         end if;
+      end loop;
+      for I in 1 .. Mappable loop
+         exit when Buffer (I) = ASCII.NUL;
+         Last := I;
+         pragma Loop_Invariant (Last = I);
+      end loop;
+      Put (Into, "map " & Buffer (1 .. Last) & CRLF);
+   end Put_Map;
+
    --  map: a new channel order of the eight mappable channels, each letter
    --  once, then the order as a map line, each channel's letter at its
    --  position over the typed text, or over a cleared buffer for a query.
    procedure Map_Command (Into : in out Sink; C : in out Configuration; Arguments : String) is
-      Buffer : String (1 .. Mappable) := (others => ASCII.NUL);
-      Last   : Natural := 0;
+      Buffer : Map_Text := (others => ASCII.NUL);
    begin
       if Arguments'Length = Mappable then
          for I in 0 .. Mappable - 1 loop
@@ -2798,18 +2863,18 @@ package body Adaflight.Command_Line with SPARK_Mode is
          Put (Into, "###ERROR IN map: INVALID ARGUMENT COUNT###" & CRLF);
          return;
       end if;
-      for I in 0 .. Mappable - 1 loop
-         if C.Rx_Config.Rcmap (I) < Mappable then
-            Buffer (Natural (C.Rx_Config.Rcmap (I)) + 1) := Channel_Letters (Channel_Letters'First + I);
-         end if;
-      end loop;
-      for I in 1 .. Mappable loop
-         exit when Buffer (I) = ASCII.NUL;
-         Last := I;
-         pragma Loop_Invariant (Last = I);
-      end loop;
-      Put (Into, "map " & Buffer (1 .. Last) & CRLF);
+      Put_Map (Into, Buffer, C.Rx_Config.Rcmap);
    end Map_Command;
+
+   --  The four sticks' channel range lines.
+   procedure Put_Ranges (Into : in out Sink; Ranges : Rx_Channel_Range_Config_Record_List_4) is
+   begin
+      for I in Ranges'Range loop
+         pragma Loop_Invariant (I in Ranges'Range);
+         Put (Into, "rxrange " & Decimal (Integer_64 (I)) & " " & Decimal (Integer_64 (Ranges (I).Min)) & " "
+              & Decimal (Integer_64 (Ranges (I).Max)) & CRLF);
+      end loop;
+   end Put_Ranges;
 
    --  rxrange: the four sticks' channel ranges, all reset to 1000 to 2000, or
    --  one stick's range of two values within 750 to 2250.
@@ -2824,11 +2889,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
       P     : Natural;
    begin
       if Arguments'Length = 0 then
-         for I in C.Rx_Channel_Range_Configs'Range loop
-            Put (Into, "rxrange " & Decimal (Integer_64 (I)) & " "
-                 & Decimal (Integer_64 (C.Rx_Channel_Range_Configs (I).Min)) & " "
-                 & Decimal (Integer_64 (C.Rx_Channel_Range_Configs (I).Max)) & CRLF);
-         end loop;
+         Put_Ranges (Into, C.Rx_Channel_Range_Configs);
          return;
       end if;
       if CLI_Text.Same_Ignoring_Case (Arguments, "reset") then
@@ -2863,6 +2924,27 @@ package body Adaflight.Command_Line with SPARK_Mode is
 
    Failsafe_Characters : constant String := "ahs";
 
+   --  A channel's failsafe line: its mode's letter and, for the set mode, its
+   --  value.
+   procedure Put_Failsafe (Into : in out Sink; Channel : Natural; F : Rx_Failsafe_Channel_Config_Record) is
+   begin
+      Put (Into, "rxfail " & Decimal (Integer_64 (Channel)) & " "
+           & (if F.Mode <= 2 then (1 => Failsafe_Characters (Natural (F.Mode) + 1)) else ""));
+      if F.Mode = 2 then
+         Put (Into, " " & Decimal (750 + 25 * Integer_64 (F.Step)));
+      end if;
+      Put (Into, CRLF);
+   end Put_Failsafe;
+
+   --  Every channel's failsafe line.
+   procedure Put_Failsafes (Into : in out Sink; Configs : Rx_Failsafe_Channel_Config_Record_List_18) is
+   begin
+      for I in Configs'Range loop
+         pragma Loop_Invariant (I in Configs'Range);
+         Put_Failsafe (Into, I, Configs (I));
+      end loop;
+   end Put_Failsafes;
+
    --  rxfail: every channel's failsafe line, or one channel's mode and, for
    --  the set mode, its value; the channel number is taken modulo 256.
    procedure Failsafe_Command (Into : in out Sink; C : in out Configuration; Arguments : String)
@@ -2870,27 +2952,11 @@ package body Adaflight.Command_Line with SPARK_Mode is
                  and then Arguments'First <= Arguments'Last + 1
    is
       Channel_Count : constant := Rx_Failsafe_Channel_Config_Record_List_18'Length;
-
-      procedure Put_Line_Of (Channel : Natural; Require_Value : Boolean)
-        with Pre => Channel < Channel_Count
-      is
-         F : constant Rx_Failsafe_Channel_Config_Record := C.Rx_Failsafe_Channel_Configs (Channel);
-      begin
-         Put (Into, "rxfail " & Decimal (Integer_64 (Channel)) & " "
-              & (if F.Mode <= 2 then (1 => Failsafe_Characters (Natural (F.Mode) + 1)) else ""));
-         if Require_Value then
-            Put (Into, " " & Decimal (750 + 25 * Integer_64 (F.Step)));
-         end if;
-         Put (Into, CRLF);
-      end Put_Line_Of;
-
-      Channel : Unsigned_8;
-      P       : Natural;
+      Channel       : Unsigned_8;
+      P             : Natural;
    begin
       if Arguments'Length = 0 then
-         for I in 0 .. Channel_Count - 1 loop
-            Put_Line_Of (I, C.Rx_Failsafe_Channel_Configs (I).Mode = 2);
-         end loop;
+         Put_Failsafes (Into, C.Rx_Failsafe_Channel_Configs);
          return;
       end if;
       Channel := Unsigned_8'Mod (CLI_Text.To_Integer (Arguments));
@@ -2900,8 +2966,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end if;
       declare
          Index         : constant Natural := Natural (Channel);
-         Mode          : Unsigned_8 := C.Rx_Failsafe_Channel_Configs (Index).Mode;
-         Require_Value : Boolean := Mode = 2;
+         Mode          : Unsigned_8;
+         Require_Value : Boolean;
          Requested     : Natural;
          Value         : Unsigned_16;
       begin
@@ -2937,7 +3003,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
             end if;
             C.Rx_Failsafe_Channel_Configs (Index).Mode := Mode;
          end if;
-         Put_Line_Of (Index, Require_Value);
+         Put_Failsafe (Into, Index, C.Rx_Failsafe_Channel_Configs (Index));
       end;
    end Failsafe_Command;
 
