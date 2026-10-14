@@ -3595,3 +3595,29 @@ a start inside the settling time, and four clocks near their wrap. During the 10
 finds the FIFO full a scripted number of times, so 88 answers wait out the rest of 1 ms, 10 use
 exactly 1 ms and 10 use more. Every operation, result, channel, hop and id of the 15012 lines
 replays exactly.
+
+## D162. Acknowledgment payload receiver (2026-10-13)
+
+`Adaflight.Ack_Payload_Receiver` contains the remaining NRF24 receiver, the one that uses the
+radio's automatic acknowledgments. The reference names it after another firmware project. As with
+the rate curve families (D2), the unit takes the name of what sets it apart: the radio answers each
+packet with a payload the receiver queued. Unbound, the receiver listens on channel 76 at a fixed
+address for a packet with the two bind marks. It queues the bind reply, the packet with two reply
+marks, the hop count and the payload size, takes the transmitter's address from the packet with four
+hop channels from its first byte, and goes to data. A data packet gives the four sticks and four
+auxiliary channels at ten bits, a three-position rate, five switches and two eight-bit channels on
+eighteen channels. The last two stay zero. A bind packet while bound queues the bind reply again.
+The receiver hops after each data packet and after 5 ms without one, and the timeout compares a
+plain 32-bit sum (F136). Every start binds anew, and a bind never stores the address (F147). The
+data acknowledgment payload stays empty, and the received power is read and dropped (F148). The unit
+is SPARK for the hop table and the channel arithmetic.
+
+The NRF24L01 unit gains the acknowledgment payload write, the activate command, a register read
+whose value goes unused, and the feature register.
+
+The harness replays twelve sequences of 1250 calls recorded from the reference driver and protocol
+with the SPI commands, the chip enable pin and the clock stubbed: bind packets with and without both
+marks, bind packets that continue after the bind, data packets, gaps that make the receiver hop, a
+start with an id setting, a late bind, sparse packets, a start inside the settling time, and four
+clocks near their wrap. Every operation, result, channel, hop and address of the 15012 lines replays
+exactly.
