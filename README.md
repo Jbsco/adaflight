@@ -114,6 +114,7 @@ The core contains:
 - command line profiles, dump and diff: profile selection, profile and rate sections with defaults
 - command line features and beepers: feature, beeper and beacon lists and switches
 - command line mode conditions: aux lists and writes
+- command line receiver channels: channel map, stick ranges and failsafe values
 - MSP state replies: status, sensor readings, motors, RC channels, attitude, altitudes, battery,
   debug values, GPS, ESC and motor telemetry, pitot, transmitter information and clock
 - BLHeli 4-way interface for ESC configuration through flight controller
@@ -139,10 +140,10 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 20449 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 20534 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
-- Recorded vectors replay bit for bit: 1633081 lines over 370 cases, every case exact except
-  twenty-seven declared deviations in `DESIGN.md` D6.
+- Recorded vectors replay bit for bit: 1645041 lines over 371 cases, every case exact except
+  twenty-eight declared deviations in `DESIGN.md` D6.
 - No target builds yet. `ROADMAP.md` contains phases, parity inventory, and one question for after
   parity: whether a proved core leaves room on F4 boards for features Betaflight has to leave out
   there.
