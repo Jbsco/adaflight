@@ -460,48 +460,223 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end;
    end Set;
 
+   type Profile_Kind is (PID, Rate, Battery);
+
+   function Profile_Word (Kind : Profile_Kind) return String is
+     (case Kind is
+         when PID => "profile",
+         when Rate => "rateprofile",
+         when Battery => "battery_profile");
+
+   --  The selected profile, or a profile selected by number with its
+   --  runtime work asked for.
+   procedure Profile_Command
+     (Into : in out Sink; C : in out Configuration; Kind : Profile_Kind; Arguments : String;
+      Changes : in out Effects)
+     with Pre => Arguments'First >= 1 and then Arguments'Last < Positive'Last
+                 and then Arguments'First <= Arguments'Last + 1
+   is
+      Count : constant Integer_32 := (if Kind = Battery then 3 else 4);
+      Index : Integer_32;
+   begin
+      if Arguments'Length > 0 then
+         Index := CLI_Text.To_Integer (Arguments);
+         if Index not in 0 .. Count - 1 then
+            Put (Into, "###ERROR IN " & Profile_Word (Kind) & ": "
+                 & (case Kind is
+                       when PID => "PROFILE",
+                       when Rate => "RATE PROFILE",
+                       when Battery => "BATTERY PROFILE")
+                 & " OUTSIDE OF [0.." & Decimal (Integer_64 (Count - 1)) & "]###" & CRLF);
+            return;
+         end if;
+         case Kind is
+            when PID =>
+               C.System_Config.Pid_Profile_Index := Unsigned_8 (Index);
+               Changes.PID_Profile := True;
+            when Rate =>
+               C.System_Config.Active_Rate_Profile := Unsigned_8 (Index);
+               Changes.Rate_Profile := True;
+            when Battery =>
+               C.System_Config.Active_Battery_Profile := Unsigned_8 (Index);
+               Changes.Battery_Profile := True;
+         end case;
+      end if;
+      Put (Into, Profile_Word (Kind) & " "
+           & Decimal (Integer_64 (case Kind is
+                                     when PID => C.System_Config.Pid_Profile_Index,
+                                     when Rate => C.System_Config.Active_Rate_Profile,
+                                     when Battery => C.System_Config.Active_Battery_Profile))
+           & CRLF);
+   end Profile_Command;
+
+   --  A profile's or a rate profile's settings as set lines under a heading;
+   --  for a diff only those off their default, under a heading printed with
+   --  the first of them, each after its default for Show_Defaults.
+   procedure Dump_Profile
+     (Into : in out Sink; C : Configuration; Kind : Profile_Kind; Index : Natural; Command : String; Diff : Boolean;
+      Show_Defaults : Boolean; Ports : Port_List)
+     with Pre => Kind in PID | Rate and then Ports'Length <= Serial_Feature_Map.Max_Ports
+   is
+      P       : constant Profiles := (PID => Index, Rate => Index, Battery => 0);
+      Pending : Boolean := True;
+   begin
+      if Index >= 4 then
+         return;
+      end if;
+      Put (Into, CRLF & Profile_Word (Kind) & " " & Decimal (Integer_64 (Index)) & CRLF);
+      if not Diff then
+         Put (Into, CRLF & "# " & Profile_Word (Kind) & " " & Decimal (Integer_64 (Index)) & CRLF);
+         Pending := False;
+      end if;
+      for S in Setting loop
+         if Describe (S).Where = (if Kind = PID then PID_Profile else Rate_Profile) then
+            declare
+               Profile : constant Natural := Profile_Of (S, P);
+               Equal   : constant Boolean := Equals_Default (C, S, Profile);
+            begin
+               if Diff and then Pending and then not Equal then
+                  Put (Into, CRLF & "# " & Profile_Word (Kind) & " " & Decimal (Integer_64 (Index)) & CRLF);
+                  Pending := False;
+               end if;
+               if not Diff or else not Equal then
+                  if Show_Defaults and then not Equal then
+                     Put (Into, "#set ");
+                     Put (Into, Name (S));
+                     Put (Into, " = ");
+                     Put_Value (Into, Defaults, S, Profile, Command, False, Ports);
+                     Put (Into, CRLF);
+                  end if;
+                  Put (Into, "set ");
+                  Put (Into, Name (S));
+                  Put (Into, " = ");
+                  Put_Value (Into, C, S, Profile, Command, False, Ports);
+                  Put (Into, CRLF);
+               end if;
+            end;
+         end if;
+      end loop;
+   end Dump_Profile;
+
+   subtype Line_Buffer is String (1 .. Line_Size);
+
+   --  The text from a position up to the next terminator in the buffer.
+   function Text_At (Buffer : Line_Buffer; From : Positive) return String
+     with Post => Text_At'Result'First >= 1 and then Text_At'Result'Last <= Line_Size
+                  and then Text_At'Result'First <= Text_At'Result'Last + 1
+   is
+      Last : Natural;
+   begin
+      if From > Line_Size then
+         return "";
+      end if;
+      Last := From - 1;
+      while Last < Line_Size and then Buffer (Last + 1) /= ASCII.NUL loop
+         pragma Loop_Invariant (Last in From - 1 .. Line_Size - 1);
+         pragma Loop_Variant (Increases => Last);
+         Last := Last + 1;
+      end loop;
+      return Buffer (From .. Last);
+   end Text_At;
+
+   --  The position of the arguments after a command word at a position, past
+   --  the one character after the word and any spaces; zero when the text
+   --  there does not start with the word followed by a space or a terminator.
+   function Command_At (Buffer : Line_Buffer; From : Positive; Word : String) return Natural
+     with Pre  => Word'Length in 1 .. 15,
+          Post => Command_At'Result <= Line_Size + 1
+   is
+      Next : Positive;
+   begin
+      if From > Line_Size or else Word'Length > Line_Size - From then
+         return 0;
+      end if;
+      if not CLI_Text.Same_Ignoring_Case (Buffer (From .. From + Word'Length - 1), Word)
+        or else Buffer (From + Word'Length) not in ' ' | ASCII.NUL
+      then
+         return 0;
+      end if;
+      Next := From + Word'Length + 1;
+      for K in Next .. Line_Size loop
+         pragma Loop_Invariant (Next = K);
+         exit when Buffer (K) /= ' ';
+         Next := K + 1;
+      end loop;
+      return Next;
+   end Command_At;
+
+   type Command_Kind is
+     (No_Command, Battery_Profile_Command, Diff_Command, Dump_Command, Get_Command, Profile_Command,
+      Rate_Profile_Command, Set_Command);
+   subtype Known_Command is Command_Kind range Battery_Profile_Command .. Set_Command;
+
+   function Command_Word (K : Known_Command) return String is
+     (case K is
+         when Battery_Profile_Command => "battery_profile",
+         when Diff_Command => "diff",
+         when Dump_Command => "dump",
+         when Get_Command => "get",
+         when Profile_Command => "profile",
+         when Rate_Profile_Command => "rateprofile",
+         when Set_Command => "set")
+     with Post => Command_Word'Result'Length in 1 .. 15;
+
+   --  The line's command and the position of its arguments.
+   procedure Find_Command (Buffer : Line_Buffer; Kind : out Command_Kind; Arguments : out Natural)
+     with Post => Arguments <= Line_Size + 1 and then (Kind = No_Command or else Arguments >= 1)
+   is
+   begin
+      for K in Known_Command loop
+         Arguments := Command_At (Buffer, 1, Command_Word (K));
+         if Arguments > 0 then
+            Kind := K;
+            return;
+         end if;
+      end loop;
+      Kind := No_Command;
+      Arguments := 0;
+   end Find_Command;
+
+   --  dump or diff: a profile's or a rate profile's settings, with their
+   --  defaults after the option defaults; Known is false for other sections.
+   procedure Print_Config
+     (Into : in out Sink; C : Configuration; Buffer : Line_Buffer; Arguments : Positive; Command : String;
+      Diff : Boolean; Ports : Port_List; Known : out Boolean)
+     with Pre => Ports'Length <= Serial_Feature_Map.Max_Ports
+   is
+      Options : Natural := Command_At (Buffer, Arguments, "profile");
+      Kind    : Profile_Kind := PID;
+   begin
+      Known := False;
+      if Options = 0 then
+         Options := Command_At (Buffer, Arguments, "rates");
+         Kind := Rate;
+         if Options = 0 then
+            return;
+         end if;
+      end if;
+      Known := True;
+      Dump_Profile
+        (Into, C, Kind,
+         Natural (if Kind = PID then C.System_Config.Pid_Profile_Index else C.System_Config.Active_Rate_Profile),
+         Command, Diff, Command_At (Buffer, Options, "defaults") > 0, Ports);
+   end Print_Config;
+
    ------------------
    -- Process_Line --
    ------------------
 
    procedure Process_Line
-     (Into : in out Sink; C : in out Configuration; Line : String; Ports : Port_List; Known : out Boolean)
+     (Into : in out Sink; C : in out Configuration; Line : String; Ports : Port_List; Known : out Boolean;
+      Changes : out Effects)
    is
-      Buffer : String (1 .. Line_Size) := (others => ASCII.NUL);
-      Length : Natural := 0;
-
-      --  The arguments after a command word: past the one character after
-      --  the word and any spaces, up to the next terminator in the buffer.
-      function Arguments (Word_Length : Positive) return String
-        with Pre  => Word_Length <= Line_Size - 1,
-             Post => Arguments'Result'Last <= Line_Size
-      is
-         First : Positive := Word_Length + 2;
-         Last  : Natural;
-      begin
-         while First <= Line_Size and then Buffer (First) = ' ' loop
-            pragma Loop_Invariant (First in Word_Length + 2 .. Line_Size);
-            pragma Loop_Variant (Increases => First);
-            First := First + 1;
-         end loop;
-         Last := First - 1;
-         while Last < Line_Size and then Buffer (Last + 1) /= ASCII.NUL loop
-            pragma Loop_Invariant (Last in First - 1 .. Line_Size - 1);
-            pragma Loop_Variant (Increases => Last);
-            Last := Last + 1;
-         end loop;
-         return Buffer (First .. Last);
-      end Arguments;
-
-      --  Whether the line starts with a command word followed by a space or
-      --  the line's end.
-      function Is_Command (Word : String) return Boolean is
-        (Word'Length < Line_Size
-         and then CLI_Text.Same_Ignoring_Case (Buffer (1 .. Word'Length), Word)
-         and then Buffer (Word'Length + 1) in ' ' | ASCII.NUL)
-        with Pre => Word'Length in 1 .. Line_Size - 1;
+      Buffer    : Line_Buffer := (others => ASCII.NUL);
+      Length    : Natural := 0;
+      Kind      : Command_Kind;
+      Arguments : Natural;
    begin
       Known := False;
+      Changes := (others => False);
       for Ch of Line loop
          if Length < Line_Size - 1 and then Ch in ' ' .. '~' and then (Length > 0 or else Ch /= ' ') then
             Length := Length + 1;
@@ -528,13 +703,30 @@ package body Adaflight.Command_Line with SPARK_Mode is
          return;
       end if;
       Buffer (Length + 1) := ASCII.NUL;
-      if Is_Command ("get") then
-         Known := True;
-         Get (Into, C, "get", Arguments (3), Ports);
-      elsif Is_Command ("set") then
-         Known := True;
-         Set (Into, C, Arguments (3), Ports);
-      end if;
+      Find_Command (Buffer, Kind, Arguments);
+      case Kind is
+         when No_Command =>
+            null;
+         when Battery_Profile_Command =>
+            Known := True;
+            Profile_Command (Into, C, Battery, Text_At (Buffer, Arguments), Changes);
+         when Diff_Command =>
+            Print_Config (Into, C, Buffer, Arguments, "diff", True, Ports, Known);
+         when Dump_Command =>
+            Print_Config (Into, C, Buffer, Arguments, "dump", False, Ports, Known);
+         when Get_Command =>
+            Known := True;
+            Get (Into, C, "get", Text_At (Buffer, Arguments), Ports);
+         when Profile_Command =>
+            Known := True;
+            Profile_Command (Into, C, PID, Text_At (Buffer, Arguments), Changes);
+         when Rate_Profile_Command =>
+            Known := True;
+            Profile_Command (Into, C, Rate, Text_At (Buffer, Arguments), Changes);
+         when Set_Command =>
+            Known := True;
+            Set (Into, C, Text_At (Buffer, Arguments), Ports);
+      end case;
    end Process_Line;
 
 end Adaflight.Command_Line;
