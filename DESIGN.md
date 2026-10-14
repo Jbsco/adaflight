@@ -207,12 +207,12 @@ ledger. The deviations so far:
   past the limit table as they are, and takes an MSP override condition's aux channel past 27 to
   name no bit, where the reference reads past its tables or shifts past the mask's width
   (findings F150 to F152). The recorded configurations stay within the tables and the mask.
-- The command line's `map` query prints from a cleared buffer, so a position no mappable channel
-  holds ends the map text, and `map` skips a stored position past the eight, where the reference
-  prints what its stack buffer held and writes past the buffer (findings F156). `rxfail` prints no
-  mode letter for a stored mode past the three letters, where the reference prints its letter
-  string's terminator or the bytes after it. The recorded command lines map only the eight
-  mappable channels.
+- The command line's `map` query and the master dump print the map from a cleared buffer, so a
+  position no mappable channel holds ends the map text, and `map` skips a stored position past the
+  eight, where the reference prints what its stack buffer held and writes past the buffer (findings
+  F156). `rxfail` prints no mode letter for a stored mode past the three letters, where the
+  reference prints its letter string's terminator or the bytes after it. The recorded command lines
+  map only the eight mappable channels.
 - The command line's `adjrange` answers a negative range index with the index range error, where
   the reference writes the range's fields before the start of the adjustment ranges (findings
   F157). The recorded command lines keep their indexes at zero or above.
@@ -220,8 +220,8 @@ ledger. The deviations so far:
   map, where a stored value outside its setting's values reads as no port, the automatic rate or no
   protocol. A legacy line writes back only what changes in that reading, where the reference writes
   over the stored value. The recorded command lines keep every setting within its values.
-- The command line's `mixer` prints no name for a mixer mode outside the names table, where the
-  reference reads outside the table (findings F161).
+- The command line's `mixer` and the master dump print no name for a mixer mode outside the names
+  table, where the reference reads outside the table (findings F161).
 - The command line's float reader takes a number past the float range as the largest float and
   zero with an exponent past the range as zero, where the reference reads infinity and
   not-a-number, and `mmix` prints every value in full, where the reference writes values of 100000
@@ -4089,3 +4089,28 @@ executor whose report the `!nav` lines set: lists, clears, status reports over e
 removals, inserts and updates with coordinates, numbers and names in and out of range or malformed,
 wrong counts, full plans and unknown operations. With the earlier sequences, all 52946 replies match
 the reference's byte for byte, and so does the configuration's hash after every command.
+
+## D180. Command line master dump (2026-10-14)
+
+`Adaflight.Command_Line` gains the master dump. `dump` alone, with
+`master`, or with options that name no section prints the version line, the command batch's start,
+the board's name and manufacturer, and the craft name, or `-` without one. Each section follows
+under its heading: features, mixer with its custom motor mix, servos, servo rules, beepers, beacons,
+channel map, LEDs, colors, mode colors, mode conditions, adjustment ranges, channel ranges, VTX
+table, VTX conditions, channel failsafe and flight plan. The master and hardware settings follow as
+set lines, then the selected PID, rate and battery profiles, then the batch's end. `bare` leaves out
+the batch lines. A dump with `defaults`, a diff of the master section, and the `hardware` and `all`
+sections stay unknown to `Process_Line`.
+
+Where a listing command prints the same lines as its dump section, the two share one printer. The
+dump's version line names the default configuration's board identifier.
+
+`Process_Line` takes an `Environment` from its caller in place of the navigation report. It contains
+the flight plan executor's report, the firmware's name, the target's name, the version, the build's
+date, time and revision, and the board's name and manufacturer.
+
+The harness replays two sequences of 2274 command lines in all, recorded from the oracle: rounds of
+the earlier modes' commands, settings in and out of range, profile selections, stored values past
+their ranges and craft names, each round ended by a master dump, plain, bare or with an ignored
+option, or by a version line, 40 in all. With the earlier sequences, all 55220 replies match the
+reference's byte for byte, and so does the configuration's hash after every command.

@@ -14096,7 +14096,17 @@ procedure Vector_Check is
    package CLI is new Adaflight.Command_Line (CLI_Sink, CLI_Put);
 
    CLI_Config   : Adaflight.Config_Groups.Configuration := Adaflight.Config_Groups.Defaults;
-   CLI_Nav      : CLI.Navigation_Status;
+   CLI_Identity : constant CLI.Environment :=
+     (Navigation      => <>,
+      Firmware        => CLI.To_Identity ("Adaflight"),
+      Target          => CLI.To_Identity ("TESTF405"),
+      Version         => CLI.To_Identity ("0.1.0"),
+      Build_Date      => CLI.To_Identity ("Jan 01 2026"),
+      Build_Time      => CLI.To_Identity ("00:00:00"),
+      Revision        => CLI.To_Identity ("0123abc"),
+      Board_Name      => <>,
+      Manufacturer_Id => <>);
+   CLI_Env      : CLI.Environment := CLI_Identity;
    CLI_Reply    : CLI_Sink;
    CLI_Expected : Ada.Strings.Unbounded.Unbounded_String;
 
@@ -14105,7 +14115,9 @@ procedure Vector_Check is
    --  hash of the configuration after it. A line "!profiles p r b" selects the
    --  profiles, "!raw name profile index value" stores a value whatever its
    --  range, and "!nav active state index distance bearing eta reason" sets
-   --  the flight plan executor's report.
+   --  the flight plan executor's report. The version line names the
+   --  recording's firmware, target, version, build date, build time and
+   --  revision.
    procedure Check_CLI_Line is
       use Ada.Strings.Unbounded;
       use type Interfaces.Unsigned_64;
@@ -14138,7 +14150,7 @@ procedure Vector_Check is
       if Str (1) = "cli" then
          if Int (2) = 0 then
             CLI_Config := Groups.Defaults;
-            CLI_Nav := (others => <>);
+            CLI_Env := CLI_Identity;
          end if;
          CLI_Reply.Text := Null_Unbounded_String;
          CLI_Expected := Null_Unbounded_String;
@@ -14159,7 +14171,7 @@ procedure Vector_Check is
                   end if;
                end loop;
             elsif Word (Command, 0) = "!nav" then
-               CLI_Nav :=
+               CLI_Env.Navigation :=
                  (Active        => Word (Command, 1) /= "0",
                   State         => Interfaces.Unsigned_8'Value (Word (Command, 2)),
                   Current_Index => Interfaces.Unsigned_8'Value (Word (Command, 3)),
@@ -14168,7 +14180,7 @@ procedure Vector_Check is
                   ETA_S         => Interfaces.Unsigned_16'Value (Word (Command, 6)),
                   Abort_Reason  => Interfaces.Unsigned_8'Value (Word (Command, 7)));
             else
-               CLI.Process_Line (CLI_Reply, CLI_Config, Command, Ports, CLI_Nav, Known, Changes);
+               CLI.Process_Line (CLI_Reply, CLI_Config, Command, Ports, CLI_Env, Known, Changes);
                Record_Int ("cli.known", 1, Boolean'Pos (Known or else Command (Command'First) = '#'));
             end if;
          end;
