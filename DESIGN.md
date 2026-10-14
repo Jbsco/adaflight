@@ -3331,3 +3331,20 @@ left out of the build, and the retired fields keep their place as zero.
 The harness replays 4800 requests recorded from the reference MSP processor with its box table,
 in a build with every option the replies branch on and one without, on random configurations
 within their ranges. Every result, length and byte of the 4808 lines replays exactly.
+
+## D149. MSP hardware replies (2026-10-13)
+
+`Adaflight.MSP_Hardware_Out` contains the MSP out messages that report the hardware
+configuration: the mixer, the motors, the compass declination, the GPS receiver, the GPS rescue
+and its gains, the accelerometer trims, the flight log, the sensors selected and detected, the
+gyros detected, and the flash and SD card storage. The caller gathers the configuration, the
+recorder's rate divider and P ratio, the sensors detected, the storage state and the build's
+options into a snapshot. The compass, GPS, rescue and trim replies exist only with their option
+built. A sensor left out of the build reports its hardware selection as none and its detection as
+16#FF#. The flash summary counts the partition's sectors from its first and last, and the SD card
+summary merges the card's presence and health with the file system's state, giving the free and
+total space in kilobytes once the card is ready.
+
+The harness replays 4800 requests recorded from the reference MSP processor, in a build with every
+option the replies branch on and one without, on random configurations and storage states. Every
+result, length and byte of the 4808 lines replays exactly.
