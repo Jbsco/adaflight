@@ -38,6 +38,8 @@ package Adaflight.Position_Nav with SPARK_Mode is
    subtype Ramp_Rate_Mps is Float range -Ramp_Rate_Bound .. Ramp_Rate_Bound;
    subtype Accel_Mps2 is Float range 0.0 .. 1_000.0;
    subtype Radius_M is Float range 0.0 .. 100_000.0;
+   --  An acceptance radius below zero never lets a leg arrive by itself.
+   subtype Acceptance_M is Float range -1.0 .. 100_000.0;
    subtype Seconds is Float range 0.0 .. 100.0;
    subtype Settle_Seconds is Float range 0.0 .. 2.0 ** 30;
    subtype Angle_Deg is Float range 0.0 .. 90.0;
@@ -82,7 +84,7 @@ package Adaflight.Position_Nav with SPARK_Mode is
       Include_Altitude          : Boolean := False;
       Cruise_Speed              : Speed_Mps := 0.0;
       Vert_Rate                 : Stated_Speed_Mps := 0.0;
-      Acceptance_Radius         : Radius_M := 0.0;
+      Acceptance_Radius         : Acceptance_M := 0.0;
       Completion_Speed          : Speed_Mps := 0.0;
       Settle_Timeout            : Seconds := 0.0;
       Settle                    : Settle_Seconds := 0.0;
@@ -123,7 +125,7 @@ package Adaflight.Position_Nav with SPARK_Mode is
    --  A new leg, taking over the velocity commanded so far and, from a leg
    --  still flying, the ramp's rate to slew out of.
    procedure Set_Target (N : in out Navigator; Target : Position_M; Cruise_Speed : Speed_Mps;
-                         Acceptance_Radius : Radius_M; Completion_Speed : Speed_Mps; Include_Altitude : Boolean);
+                         Acceptance_Radius : Acceptance_M; Completion_Speed : Speed_Mps; Include_Altitude : Boolean);
 
    --  The active leg's target moved without disturbing the ramp or the
    --  arrival state; the leg flies a moving target from then on.

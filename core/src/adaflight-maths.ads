@@ -49,7 +49,7 @@ package Adaflight.Maths with SPARK_Mode, Pure is
 
    function Tan_Approx (X : Tan_Argument) return Tangent;
 
-   function Atan2_Approx (Y : Signal; X : Signal) return Half_Turn;
+   function Atan2_Approx (Y : Float; X : Float) return Half_Turn;
    function Acos_Approx (X : Cosine) return Float
      with Post => Acos_Approx'Result in 0.0 .. Pi;
    function Asin_Approx (X : Cosine) return Quarter_Turn;

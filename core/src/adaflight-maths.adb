@@ -161,7 +161,7 @@ package body Adaflight.Maths with SPARK_Mode is
    -- Atan2_Approx --
    ------------------
 
-   function Atan2_Approx (Y : Signal; X : Signal) return Half_Turn is
+   function Atan2_Approx (Y : Float; X : Float) return Half_Turn is
       P1 : constant Float := 3.14551665884836e-07;
       P2 : constant Float := 0.99997356613987;
       P3 : constant Float := 0.14744007058297684;
