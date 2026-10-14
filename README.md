@@ -30,7 +30,7 @@ The core contains:
 - in-flight adjustments and simplified tuning of PID gains and filters
 - PID profile with runtime configuration, filter initialization, rate loop, throttle-side
   features, crash recovery, and launch control
-- motor mixer
+- motor mixer with mixer setup: frame tables, custom mixes, launch control mix
 - gyro calibration, filtering chain, dynamic notch, RPM filter, and full-scale detections
 - attitude estimator with compass heading, and angle and horizon level modes
 - failsafe state machine, runtime modes with ground station overrides, and arming logic with
@@ -126,9 +126,9 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 19318 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 19343 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
-- Recorded vectors replay bit for bit: 1513929 lines over 357 cases, every case exact except
+- Recorded vectors replay bit for bit: 1518737 lines over 358 cases, every case exact except
   twenty-three declared deviations in `DESIGN.md` D6.
 - No target builds yet. `ROADMAP.md` contains phases, parity inventory, and one question for after
   parity: whether a proved core leaves room on F4 boards for features Betaflight has to leave out
