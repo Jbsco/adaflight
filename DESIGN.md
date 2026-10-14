@@ -246,6 +246,10 @@ ledger. The deviations so far:
 - The simplified tuning of a stored PIDs mode past RPY covers every axis, where the reference's axis
   loop runs to the mode's value and reads past its default gains (findings F177). The recorded
   configurations keep the mode within its names.
+- A runtime record built from the stored configuration holds each field to its runtime range and
+  each code to its names (D187), where the reference computes with the stored value. A stored value
+  leaves its setting's range only through a foreign image, and the recorded configurations keep
+  every value within it.
 
 ## D7. Contribution conventions (2026-10-08)
 
@@ -4228,3 +4232,24 @@ each printer: 1.9 gigabytes at the master dump, 3.9 at the diff and 5.3 at the d
 contracts, each printer is its own proof target and the dump's context contains only their
 contracts, so the unit's largest prover process holds 3.2 gigabytes, for the VTX table command. The
 listing loops keep their invariants (D176).
+
+## D187. Runtime records from the stored configuration (2026-10-14)
+
+`Adaflight.Config_Runtime` builds the runtime records the control units take from the stored
+configuration, starting with `PID_Profile.Profile` from a stored PID profile. The constructor is an
+expression function: one aggregate names every field's source, so the mapping is the specification
+and a wrong field is a proof failure. Each number is held to its runtime range, each code to its
+names, and the level gains come from the fourth PID entry with the angle feedforward in the low byte
+of its feedforward gain. The runtime record's predicate, the dynamic lowpass and the notch in order,
+comes from the configuration fix: `Config_Fix.Fixed_PID_Profile` states what the profile checks
+leave, is their postcondition, and is the constructor's precondition. A field the fix does not
+establish is a proof failure at the constructor, so the fix's coverage is checked at proof time.
+
+The stored configuration keeps every value a foreign image can hold, which the command line and MSP
+recordings need (D6). The runtime records keep the narrow ranges the control proofs rest on. The
+constructor is the one boundary between them; a stored value outside its range is held to the range
+there (D6).
+
+The harness builds the four PID profiles of every fixed configuration in the configuration fix
+recordings, 16000 in all, with the precondition and the predicate checked at run time, and compares
+the roll P gain.
