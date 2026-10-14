@@ -143,6 +143,7 @@ with Adaflight.Warning_LED;
 with Adaflight.V202;
 with Adaflight.SYMA;
 with Adaflight.H8_3D;
+with Adaflight.CX10;
 with Adaflight.Dispatch;
 with Adaflight.ExpressLRS_Receiver;
 with Adaflight.Blackbox_Header;
@@ -11941,9 +11942,13 @@ procedure Vector_Check is
       return Img (K .. Img'Last);
    end FD_Short_Hex;
 
-   function FD_Ops (O : FSP.Output) return String is
-      Buffer : String (1 .. 8192);
-      Len    : Natural := 0;
+   --  Polls gives, one digit per Await_Set, the reads that find its bits
+   --  clear.
+   function FD_Ops (O : FSP.Output; Polls : String := "") return String is
+      Buffer    : String (1 .. 8192);
+      Len       : Natural := 0;
+      Waited    : Natural := 0;
+      Wait_Next : Positive := Polls'First;
 
       procedure Put (T : String) is
       begin
@@ -12008,6 +12013,23 @@ procedure Vector_Check is
                      Put (T);
                   end;
                when SPR.Await_Value => Put ("a" & FD_Hex (Natural (X.A), 2));
+               when SPR.Await_Set =>
+                  declare
+                     Reads : constant Natural :=
+                       (if Wait_Next <= Polls'Last then Character'Pos (Polls (Wait_Next)) - Character'Pos ('0')
+                        else 0);
+                  begin
+                     for N in 1 .. Reads loop
+                        Put ("u" & FD_Short_Hex (Natural (X.Value)));
+                     end loop;
+                     Waited := Waited + Reads * Natural (X.Value);
+                     Wait_Next := Wait_Next + 1;
+                     Put ("a" & FD_Hex (Natural (X.A), 2));
+                  end;
+               when SPR.Delay_Rest =>
+                  if Waited < Natural (X.Value) then
+                     Put ("u" & FD_Short_Hex (Natural (X.Value) - Waited));
+                  end if;
             end case;
          end;
       end loop;
@@ -13636,6 +13658,65 @@ procedure Vector_Check is
          end;
       end if;
    end Check_H8_3D_Line;
+
+   CX10_Seq    : Integer_64 := -1;
+   CX10_State  : Adaflight.CX10.State;
+   CX10_RC     : Adaflight.CX10.RC_Channels := (others => 0);
+   CX10_Buffer : Adaflight.CX10.Payload_Buffer := (others => 0);
+
+   procedure Check_CX10_Line is
+      use Adaflight.CX10;
+      Name : constant String := Str (1);
+      O    : FSP.Output;
+   begin
+      if Name = "cxinit" then
+         CX10_Seq := Int (2);
+         CX10_RC := (others => 0);
+         CX10_Buffer := (others => 0);
+         Init (CX10_State, (if Int (3) = 0 then CX10 else CX10A), Interfaces.Unsigned_32 (Int (4)), O);
+         Record_Int (Name & ".channels", Int (5), RC_Channel_Count);
+         Record_Text (Name & ".ops", Str (6), FD_Ops (O));
+      elsif Int (2) /= CX10_Seq then
+         Put_Line ("CX10 line without its start");
+         Failures := Failures + 1;
+      elsif Name = "cxstep" then
+         declare
+            R : Result;
+         begin
+            if Str (6) /= "-" then
+               declare
+                  B : constant Byte_Array := Hex_Bytes (6);
+               begin
+                  for I in 0 .. Payload_Size (CX10_State.Kind) + CRC_Length - 1 loop
+                     CX10_Buffer (I) := B (B'First + I);
+                  end loop;
+               end;
+            end if;
+            Data_Received (CX10_State, Interfaces.Unsigned_32 (Int (4)), Interfaces.Unsigned_8 (Bits (5)), CX10_Buffer,
+                           O, R);
+            if R = Data_Received_Result then
+               Set_RC_Data (CX10_State, CX10_Buffer, CX10_RC);
+            end if;
+            Record_Int (Name & ".result", Int (8), Result'Pos (R));
+            Record_Text (Name & ".ops", Str (9), FD_Ops (O, (if Str (7) = "-" then "" else Str (7))));
+            for I in RC_Index loop
+               Record_Int (Name & ".rc", Int (10 + I), Integer_64 (CX10_RC (I)));
+            end loop;
+            Record_Int (Name & ".state", Int (19), Protocol_State'Pos (CX10_State.Phase));
+            Record_Int (Name & ".hop", Int (20), Integer_64 (CX10_State.Channel_Index));
+            Record_Int (Name & ".last_hop", Int (21), Integer_64 (CX10_State.Time_Of_Last_Hop));
+            declare
+               C : constant Byte_Array := Hex_Bytes (22);
+               T : constant Byte_Array := Hex_Bytes (23);
+            begin
+               for I in 0 .. 3 loop
+                  Record_Int (Name & ".channel", Integer_64 (C (C'First + I)), Integer_64 (CX10_State.Channels (I)));
+                  Record_Int (Name & ".tx_id", Integer_64 (T (T'First + I)), Integer_64 (CX10_State.Tx_Id (I)));
+               end loop;
+            end;
+         end;
+      end if;
+   end Check_CX10_Line;
 
    Meter_State    : Adaflight.Battery.State;
    Meter_Settings : Adaflight.Battery.Settings;
@@ -17546,6 +17627,8 @@ procedure Vector_Check is
                   Check_SYMA_Line;
                elsif Kind = "h83d" then
                   Check_H8_3D_Line;
+               elsif Kind = "cx10" then
+                  Check_CX10_Line;
                elsif Kind = "battmeter" then
                   Check_Battery_Meter_Line;
                elsif Kind = "flashfs" then
@@ -17730,6 +17813,7 @@ begin
    Run (Dir & "/v202.csv", "v202");
    Run (Dir & "/syma.csv", "syma");
    Run (Dir & "/h83d.csv", "h83d");
+   Run (Dir & "/cx10.csv", "cx10");
    Run (Dir & "/battmeter.csv", "battmeter");
    Run (Dir & "/flashfs.csv", "flashfs");
    Run (Dir & "/fpcapture.csv", "fpcapture");

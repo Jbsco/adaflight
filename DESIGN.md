@@ -3566,3 +3566,32 @@ with every task but BST, whose bus header the host build lacks, and one without 
 speed negotiation, DroneCAN, custom OSD text, sag compensation and the MSP display port, on random
 boot inputs, a third of them followed by a mode change. Every task's enable and period of the 4808
 lines replays exactly, on the oracle platform's floor of 1 microsecond and gyro period of 100 (D38).
+
+## D161. CX10 receivers (2026-10-13)
+
+The CX10 unit contains the CX10 and CX10A receivers on the NRF24L01 with XN297 payloads. The
+receiver listens on bind channel 2 for a packet with a good check and the bind mark 16#AA#, whose
+transmitter id picks four hop channels. It then answers the transmitter in nine calls. Each answer
+sends the received packet with byte 9 set to 1 on the bind channel and on each hop channel, waits
+for every send to leave the transmit FIFO, and waits out the rest of 1 ms. Bound, a packet with a
+good check gives the four sticks, a three-position rate and four switches on nine channels. The
+CX10A packet holds them four bytes later. The receiver hops after each packet and after 1.5 ms
+(CX10) or 6.5 ms (CX10A) without one, and the timeout compares a plain 32-bit sum (F136). The unit
+is SPARK for the hop channels, the channel arithmetic and the buffer.
+
+The SPI radio unit gains two operations for the answers: a register wait with a delay after each
+read that finds the bits clear, and a delay for what remains of a period after those waits. The
+NRF24L01 unit gains the payload write, and the XN297 unit the payload as an XN297 transmitter sends
+it, scrambled after the reversed address and followed by its CRC.
+
+The KN receiver stays out: its start-up reads the protocol setting from the receiver configuration
+instead of the SPI receiver configuration, so no reference build compiles it (F145).
+
+The harness replays twelve sequences of 1250 calls recorded from the reference driver, XN297 helpers
+and protocol with the SPI commands, the chip enable pin and the clock stubbed: both variants, a
+transmitter that scrambles its packets with the reference's tables, bind packets with and without
+the mark, broken checks, sticks with the flag bit set, gaps that make the receiver hop, a late bind,
+a start inside the settling time, and four clocks near their wrap. During the 108 answers, each wait
+finds the FIFO full a scripted number of times, so 88 answers wait out the rest of 1 ms, 10 use
+exactly 1 ms and 10 use more. Every operation, result, channel, hop and id of the 15012 lines
+replays exactly.

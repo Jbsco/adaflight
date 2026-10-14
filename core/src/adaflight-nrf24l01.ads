@@ -1,7 +1,8 @@
 --  The NRF24L01 radio driver the NRF24 receivers share: register writes as
---  SPI commands, the payload read, the FIFO flushes, the power-up with its
---  settling wait, and the standby, receive and transmit modes through the
---  chip enable pin. Register reads are inputs the target supplies.
+--  SPI commands, the payload write and read, the FIFO flushes, the power-up
+--  with its settling wait, and the standby, receive and transmit modes
+--  through the chip enable pin. Register reads are inputs the target
+--  supplies.
 with Interfaces;
 with Adaflight.SPI_Radio;
 
@@ -34,6 +35,7 @@ package Adaflight.NRF24L01 with SPARK_Mode is
    STATUS_TX_DS   : constant := 16#20#;
    STATUS_MAX_RT  : constant := 16#10#;
    FIFO_RX_EMPTY  : constant := 16#01#;
+   FIFO_TX_EMPTY  : constant := 16#10#;
 
    RF_DR_250K : constant := 16#20#;
    RF_DR_1M   : constant := 16#00#;
@@ -48,6 +50,9 @@ package Adaflight.NRF24L01 with SPARK_Mode is
      with Global => null;
 
    procedure Write_Register_Multi (O : in out Output; Register : Unsigned_8; Data : Adaflight.SPI_Radio.Byte_Array)
+     with Global => null, Pre => Data'Length <= 32;
+
+   procedure Write_Payload (O : in out Output; Data : Adaflight.SPI_Radio.Byte_Array)
      with Global => null, Pre => Data'Length <= 32;
 
    --  A payload of Length bytes from the receive FIFO into the target's
