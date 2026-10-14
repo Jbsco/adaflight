@@ -34,8 +34,6 @@ package body Adaflight.Config_Fix with SPARK_Mode is
    Failsafe_GPS_Rescue : constant Unsigned_8 := 2;
    Failsafe_Count      : constant Unsigned_8 := 3;
 
-   Serial_Options : constant Map.Options := (others => <>);
-
    function Is_DShot (Protocol : Unsigned_8) return Boolean is
      (Protocol in Protocol_DShot_150 .. Protocol_ProShot_1000);
 
@@ -176,6 +174,64 @@ package body Adaflight.Config_Fix with SPARK_Mode is
          Write_Port (Uarts (Integer (S) - 1), Before (S), After (S));
       end loop;
    end Write_MSP_Ports;
+
+   function Serial_Assignments (C : Configuration) return Map.Assignments is
+     (Assignments_Of
+        (C.Msp_Config, C.Gps_Config, C.Rx_Config, C.Blackbox_Config, C.Esc_Sensor_Config, C.Rcdevice_Config,
+         C.Gimbal_Track_Config, C.Vtx_Settings_Config, C.Rangefinder_Config, C.Opticalflow_Config, C.Osd_Config,
+         C.Telemetry_Config));
+
+   procedure Write_Baud (Setting : in out Unsigned_8; Before : Map.Baud_Index; After : Map.Baud_Index) is
+   begin
+      if After /= Before then
+         Setting := Unsigned_8 (After);
+      end if;
+   end Write_Baud;
+
+   VTX_Device_Numbers : constant array (Map.VTX_Device) of Unsigned_8 :=
+     (Map.Unsupported => 0, Map.RTC6705 => 1, Map.SmartAudio => 3, Map.Tramp => 4, Map.MSP_VTX => 5,
+      Map.Unknown => 255);
+
+   procedure Store_Serial_Assignments (C : in out Configuration; Before, After : Map.Assignments) is
+      use type Map.VTX_Device;
+      use type Map.Telemetry_Protocol;
+      use type OSD_Task.Device_Kind;
+   begin
+      Write_MSP_Ports (C.Msp_Config.Msp_Uart, Before.MSP_Port, After.MSP_Port);
+      for S in Map.MSP_Slot loop
+         Write_Baud (C.Msp_Config.Msp_Baud (Integer (S) - 1), Before.MSP_Baud (S), After.MSP_Baud (S));
+      end loop;
+      Write_Port (C.Gps_Config.Gps_Uart, Before.GPS_Port, After.GPS_Port);
+      Write_Baud (C.Gps_Config.Gps_Baud, Before.GPS_Baud, After.GPS_Baud);
+      Write_Port (C.Rx_Config.Rx_Uart, Before.RX_Port, After.RX_Port);
+      Write_Port (C.Blackbox_Config.Blackbox_Uart, Before.Blackbox_Port, After.Blackbox_Port);
+      Write_Baud (C.Blackbox_Config.Blackbox_Baud, Before.Blackbox_Baud, After.Blackbox_Baud);
+      Write_Port (C.Esc_Sensor_Config.Esc_Sensor_Uart, Before.ESC_Sensor_Port, After.ESC_Sensor_Port);
+      Write_Port (C.Rcdevice_Config.Rcdevice_Uart, Before.RCDevice_Port, After.RCDevice_Port);
+      Write_Port (C.Gimbal_Track_Config.Gimbal_Uart, Before.Gimbal_Port, After.Gimbal_Port);
+      Write_Port (C.Vtx_Settings_Config.Vtx_Uart, Before.VTX_Port, After.VTX_Port);
+      if After.VTX_Type /= Before.VTX_Type then
+         C.Vtx_Settings_Config.Vtx_Type := VTX_Device_Numbers (After.VTX_Type);
+      end if;
+      Write_Port (C.Rangefinder_Config.Rangefinder_Uart, Before.Rangefinder_Port, After.Rangefinder_Port);
+      Write_Port (C.Opticalflow_Config.Opticalflow_Uart, Before.Optical_Flow_Port, After.Optical_Flow_Port);
+      Write_Port (C.Osd_Config.Osd_Uart, Before.OSD_Port, After.OSD_Port);
+      if After.Display_Device /= Before.Display_Device then
+         C.Osd_Config.Display_Port_Device := OSD_Task.Device_Kind'Pos (After.Display_Device);
+      end if;
+      Write_Port (C.Osd_Config.Osd_Custom_Text_Uart, Before.Custom_Text_Port, After.Custom_Text_Port);
+      Write_Baud (C.Osd_Config.Osd_Custom_Text_Baud, Before.Custom_Text_Baud, After.Custom_Text_Baud);
+      for S in Map.Telemetry_Slot loop
+         if After.Telemetry (S).Protocol /= Before.Telemetry (S).Protocol then
+            C.Telemetry_Config.Providers (Integer (S) - 1).Protocol :=
+              Map.Telemetry_Protocol'Pos (After.Telemetry (S).Protocol);
+         end if;
+         Write_Port (C.Telemetry_Config.Providers (Integer (S) - 1).Uart, Before.Telemetry (S).Port,
+                     After.Telemetry (S).Port);
+         Write_Baud (C.Telemetry_Config.Providers (Integer (S) - 1).Baud, Before.Telemetry (S).Baud,
+                     After.Telemetry (S).Baud);
+      end loop;
+   end Store_Serial_Assignments;
 
    --  A provider the serial check cleared loses its protocol and port.
    procedure Write_Providers
