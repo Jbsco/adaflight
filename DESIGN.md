@@ -29,6 +29,13 @@ instead of sending the reader to the README for the name. This ledger keeps "the
 reference" as its short name for Betaflight at the pinned commit. The sanitization gate
 in `style.do` lists the documents allowed to carry the name.
 
+Amended 2026-10-13: the settings table keeps the reference's setting names and lookup
+strings verbatim, so the command line reads and writes the reference's text and its diffs
+paste. Four of those lookup strings name other projects: three rate types and one SPI
+receiver protocol. The user ruled this exception for the generated table on 2026-10-13.
+The sanitization gate allows the two of them it would reject, as whole upper-case strings,
+in that table and its vectors, and nothing else.
+
 ## D3. Repository layout (2026-10-08)
 
 - `core/` is the SPARK library crate: hardware independent, proved, no platform code.
@@ -3621,3 +3628,22 @@ marks, bind packets that continue after the bind, data packets, gaps that make t
 start with an id setting, a late bind, sparse packets, a start inside the settling time, and four
 clocks near their wrap. Every operation, result, channel, hop and address of the 15012 lines replays
 exactly.
+
+## D163. Settings table (2026-10-13)
+
+`Adaflight.Settings_Table` contains the command line's 789 settings in the reference's table order:
+each one's name, value type, scope (master, PID profile, rate profile, hardware, battery profile)
+and mode (a direct value with its range, a lookup, an array, a bit, a text, a serial port
+identifier) with its limits, and the parameter group that holds it; and the 72 lookup tables of
+value names. A local tool generates the unit from a settings oracle: the reference's settings table
+and parameter group sources built for the host with the option set of an STM32F405 board and the
+options of the features adaflight implements beyond it (acro trainer, 3D speed, chirp, Galileo,
+gimbal, GPS lap timer, pitot with its MS4525 driver, the flight plan, the MSP current meter, PID
+audio, the UPT1 optical flow and two soft serial ports). Names and lookup strings are verbatim (D2).
+A lookup entry the build leaves out, a driver compiled away, has an empty name, which the command
+line skips. The values, their defaults and the groups' records follow in the next steps of the
+configuration layer, and the hardware settings wait for Phase 7. The unit is SPARK at no cost, and
+its lookups prove in range.
+
+The harness compares every setting's name, type, scope, mode, limits and group, and every lookup
+table's count and names, with the oracle's dump. All 789 settings and 72 tables replay exactly.

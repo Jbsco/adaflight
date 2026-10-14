@@ -145,6 +145,7 @@ with Adaflight.SYMA;
 with Adaflight.H8_3D;
 with Adaflight.CX10;
 with Adaflight.Ack_Payload_Receiver;
+with Adaflight.Settings_Table;
 with Adaflight.Dispatch;
 with Adaflight.ExpressLRS_Receiver;
 with Adaflight.Blackbox_Header;
@@ -13782,6 +13783,63 @@ procedure Vector_Check is
       end if;
    end Check_Ack_Receiver_Line;
 
+   Settings_Seen : Natural := 0;
+
+   procedure Check_Settings_Line is
+      use Adaflight.Settings_Table;
+      Kind_Names  : constant array (Value_Type) of String (1 .. 3) :=
+        ("u8 ", "i8 ", "u16", "i16", "u32", "i32");
+      Scope_Names : constant array (Value_Scope) of String (1 .. 8) :=
+        ("master  ", "profile ", "rate    ", "hardware", "battery ");
+      Mode_Names  : constant array (Value_Mode) of String (1 .. 10) :=
+        ("direct    ", "lookup    ", "array     ", "bitset    ", "string    ", "identifier");
+
+      function Trim (T : String) return String is
+        (T (T'First .. Ada.Strings.Fixed.Index_Non_Blank (T, Ada.Strings.Backward)));
+   begin
+      if Str (1) = "setting" then
+         if Settings_Seen > Setting'Pos (Setting'Last) then
+            Put_Line ("settings: more settings than the table holds");
+            Failures := Failures + 1;
+            return;
+         end if;
+         declare
+            S : constant Setting := Setting'Val (Settings_Seen);
+            D : constant Info := Describe (S);
+            Text_Mode : constant Boolean := Str (5) = "string";
+         begin
+            Settings_Seen := Settings_Seen + 1;
+            Record_Text ("settings.name", Str (2), Name (S));
+            Record_Text ("settings.type", Str (3), Trim (Kind_Names (D.Kind)));
+            Record_Text ("settings.scope", Str (4), Trim (Scope_Names (D.Where)));
+            Record_Text ("settings.mode", Str (5), Trim (Mode_Names (D.How)));
+            case D.How is
+               when Direct =>
+                  Record_Int ("settings.min", Int (6), D.Min);
+                  Record_Int ("settings.max", Int (7), D.Max);
+               when Lookup =>
+                  Record_Int ("settings.table", Int (6), Lookup_Table'Pos (D.Table));
+               when List | Bitset | Identifier =>
+                  Record_Int ("settings.count", Int (6), Integer_64 (D.Count));
+               when Text =>
+                  Record_Int ("settings.min_length", Int (6), Integer_64 (D.Min_Length));
+                  Record_Int ("settings.count", Int (7), Integer_64 (D.Count));
+                  Record_Int ("settings.write_once", Int (8) mod 2, Boolean'Pos (D.Write_Once));
+            end case;
+            Record_Int ("settings.group", Int (if Text_Mode then 9 else 8), Integer_64 (D.Group));
+         end;
+      elsif Str (1) = "lookup" then
+         declare
+            T : constant Lookup_Table := Lookup_Table'Val (Int (2));
+         begin
+            Record_Int ("settings.lookup_count", Int (3), Integer_64 (Value_Count (T)));
+            for I in 0 .. Natural'Min (Value_Count (T), NF - 3) - 1 loop
+               Record_Text ("settings.lookup_name", Str (4 + I), Value_Name (T, I));
+            end loop;
+         end;
+      end if;
+   end Check_Settings_Line;
+
    Meter_State    : Adaflight.Battery.State;
    Meter_Settings : Adaflight.Battery.Settings;
    Meter_Inputs_V : Adaflight.Battery.Meter_Inputs;
@@ -17695,6 +17753,8 @@ procedure Vector_Check is
                   Check_CX10_Line;
                elsif Kind = "ackrx" then
                   Check_Ack_Receiver_Line;
+               elsif Kind = "settings" then
+                  Check_Settings_Line;
                elsif Kind = "battmeter" then
                   Check_Battery_Meter_Line;
                elsif Kind = "flashfs" then
@@ -17881,6 +17941,11 @@ begin
    Run (Dir & "/h83d.csv", "h83d");
    Run (Dir & "/cx10.csv", "cx10");
    Run (Dir & "/ackrx.csv", "ackrx");
+   Run (Dir & "/settings.csv", "settings");
+   if Settings_Seen /= Adaflight.Settings_Table.Setting'Pos (Adaflight.Settings_Table.Setting'Last) + 1 then
+      Put_Line ("settings: the vectors hold" & Settings_Seen'Image & " settings");
+      Failures := Failures + 1;
+   end if;
    Run (Dir & "/battmeter.csv", "battmeter");
    Run (Dir & "/flashfs.csv", "flashfs");
    Run (Dir & "/fpcapture.csv", "fpcapture");
