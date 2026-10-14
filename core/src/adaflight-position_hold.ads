@@ -5,9 +5,11 @@
 --  the display shows.
 with Adaflight.Maths; use Adaflight.Maths;
 with Adaflight.Position_Control;
+with Adaflight.Position_Nav;
 
 package Adaflight.Position_Hold with SPARK_Mode is
    subtype Inputs is Position_Control.Inputs;
+   subtype Navigator is Position_Nav.Navigator;
 
    --  The stick deadband in percent of the deflection.
    type Settings is record
@@ -25,9 +27,22 @@ package Adaflight.Position_Hold with SPARK_Mode is
 
    procedure Init (S : out State; C : Settings; PC : Position_Control.Settings);
 
-   --  One position hold task. Enable_XY asks the estimator to run the
+   --  One position hold task over the navigator, a reached leg finishing
+   --  with no owner to hand it to. Enable_XY asks the estimator to run the
    --  horizontal axes when the controller starts.
-   procedure Update (S : in out State; PC : Position_Control.Settings; Inp : Inputs; Enable_XY : out Boolean)
+   procedure Update
+     (S : in out State; PC : Position_Control.Settings; Inp : Inputs; N : in out Navigator; Enable_XY : out Boolean)
+     with Pre => Position_Control.Bounded (Inp);
+
+   --  The task up to the navigator's update. Proceed asks the caller to
+   --  update the navigator, hand a reached leg to its owner and call
+   --  Finish_Update.
+   procedure Begin_Update
+     (S : in out State; PC : Position_Control.Settings; Inp : Inputs; N : in out Navigator; Enable_XY : out Boolean;
+      Proceed : out Boolean)
+     with Pre => Position_Control.Bounded (Inp);
+
+   procedure Finish_Update (S : in out State; PC : Position_Control.Settings; Inp : Inputs; N : Navigator)
      with Pre => Position_Control.Bounded (Inp);
 
    --  Whether a valid horizontal estimate and, where required, a heading
