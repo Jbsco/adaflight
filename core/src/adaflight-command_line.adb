@@ -1928,6 +1928,442 @@ package body Adaflight.Command_Line with SPARK_Mode is
            & Decimal (Integer_64 (Values (2))) & CRLF);
    end Mode_Color_Command;
 
+   --  vtx: every VTX channel condition, or one condition's aux channel, band,
+   --  channel, power and range ends from its arguments, each valid one
+   --  counted against the VTX table's counts; any other count than six
+   --  clears the condition. A negative index gets the index range error.
+   procedure Vtx_Command
+     (Into : in out Sink; Conditions : in out Vtx_Channel_Activation_Condition_Record_List_10;
+      Table : Vtx_Table_Config_Record; Arguments : String)
+     with Pre => Arguments'First >= 1 and then Arguments'Last < Positive'Last
+                 and then Arguments'First <= Arguments'Last + 1
+   is
+      procedure Put_Condition (Index : Natural; V : Vtx_Channel_Activation_Condition_Record) is
+      begin
+         Put (Into, "vtx " & Decimal (Integer_64 (Index)) & " " & Decimal (Integer_64 (V.Aux_Channel_Index)) & " "
+              & Decimal (Integer_64 (V.Band)) & " " & Decimal (Integer_64 (V.Channel)) & " "
+              & Decimal (Integer_64 (V.Power)) & " " & Decimal (900 + 25 * Integer_64 (V.Range_Value.Start_Step))
+              & " " & Decimal (900 + 25 * Integer_64 (V.Range_Value.End_Step)) & CRLF);
+      end Put_Condition;
+
+      Index : Integer_32;
+      Valid : Natural := 0;
+      P     : Natural;
+   begin
+      if Arguments'Length = 0 then
+         for I in Conditions'Range loop
+            pragma Loop_Invariant (I in Conditions'Range);
+            Put_Condition (I, Conditions (I));
+         end loop;
+         return;
+      end if;
+      Index := CLI_Text.To_Integer (Arguments);
+      if Index not in 0 .. 9 then
+         Put (Into, "###ERROR IN vtx: INDEX NOT BETWEEN 0 AND 9###" & CRLF);
+         return;
+      end if;
+      declare
+         Slot : constant Natural := Natural (Index);
+         V    : Vtx_Channel_Activation_Condition_Record renames Conditions (Slot);
+         Val  : Integer_32;
+      begin
+         P := Next_Argument (Arguments, Arguments'First + 1);
+         if P > 0 then
+            Val := Argument (Arguments, P);
+            if Val in 0 .. Modes.Aux_Channel_Count - 1 then
+               V.Aux_Channel_Index := Unsigned_8 (Val);
+               Valid := Valid + 1;
+            end if;
+         end if;
+         P := Next_Argument (Arguments, P);
+         if P > 0 then
+            Val := Argument (Arguments, P);
+            if Val >= 0 and then Val <= Integer_32 (Table.Bands) then
+               V.Band := Unsigned_8 (Val);
+               Valid := Valid + 1;
+            end if;
+         end if;
+         P := Next_Argument (Arguments, P);
+         if P > 0 then
+            Val := Argument (Arguments, P);
+            if Val >= 0 and then Val <= Integer_32 (Table.Channels) then
+               V.Channel := Unsigned_8 (Val);
+               Valid := Valid + 1;
+            end if;
+         end if;
+         P := Next_Argument (Arguments, P);
+         if P > 0 then
+            Val := Argument (Arguments, P);
+            if Val >= 0 and then Val <= Integer_32 (Table.Power_Levels) then
+               V.Power := Unsigned_8 (Val);
+               Valid := Valid + 1;
+            end if;
+         end if;
+         for End_Index in 0 .. 1 loop
+            P := Next_Argument (Arguments, P);
+            if P > 0 then
+               Val := Argument (Arguments, P);
+               Val := (Integer_32'Max (900, Integer_32'Min (2100, Val)) - 900) / 25;
+               if End_Index = 0 then
+                  V.Range_Value.Start_Step := Unsigned_8 (Val);
+               else
+                  V.Range_Value.End_Step := Unsigned_8 (Val);
+               end if;
+               Valid := Valid + 1;
+            end if;
+         end loop;
+         if Valid /= 6 then
+            V := (Aux_Channel_Index => 0, Band => 0, Channel => 0, Power => 0,
+                  Range_Value => (Start_Step => 0, End_Step => 0));
+            Put (Into, "###ERROR IN vtx: INVALID ARGUMENT COUNT###" & CRLF);
+         else
+            Put_Condition (Slot, V);
+         end if;
+      end;
+   end Vtx_Command;
+
+   Table_Bands      : constant := 8;
+   Table_Channels   : constant := 8;
+   Table_Powers     : constant := 8;
+   Band_Name_Length : constant := 8;
+   Label_Length     : constant := 3;
+
+   function Upper_Char (Ch : Character) return Character is
+     (if Ch in 'a' .. 'z' then Character'Val (Character'Pos (Ch) - 32) else Ch);
+
+   --  A stored text up to its first zero byte.
+   function Stored_Text (B : Bytes) return String
+     with Pre => B'Length <= 16, Post => Stored_Text'Result'First = 1 and then Stored_Text'Result'Length <= B'Length
+   is
+      Text : String (1 .. B'Length) := (others => ' ');
+      Last : Natural := 0;
+   begin
+      for K in B'Range loop
+         pragma Loop_Invariant (Last = K - B'First and then Last < B'Length);
+         exit when B (K) = 0;
+         Last := Last + 1;
+         Text (Last) := Character'Val (B (K));
+      end loop;
+      return Text (1 .. Last);
+   end Stored_Text;
+
+   --  A text copied into stored bytes up to a length, padded with spaces,
+   --  then ended with a zero byte.
+   procedure Store_Padded (Dst : out Bytes; Src : String; Length : Natural)
+     with Pre => Length <= 16 and then Dst'First = 0 and then Dst'Last = Length and then Src'Length <= Length
+   is
+   begin
+      Dst := (others => 0);
+      for K in 0 .. Length - 1 loop
+         Dst (Dst'First + K) :=
+           (if K < Src'Length then Character'Pos (Src (Src'First + K)) else Character'Pos (' '));
+      end loop;
+   end Store_Padded;
+
+   --  A band's channels from one on set to zero.
+   procedure Clear_Channels (T : in out Vtx_Table_Config_Record; Band : Natural; From : Natural)
+     with Pre => Band < Table_Bands
+   is
+   begin
+      for C in From .. Table_Channels - 1 loop
+         T.Frequency (Band) (C) := 0;
+      end loop;
+   end Clear_Channels;
+
+   --  A band cleared: its frequencies zero, every channel named by its
+   --  number, the band named BAND and its number, lettered by its number, and
+   --  custom.
+   procedure Clear_Band (T : in out Vtx_Table_Config_Record; Band : Natural)
+     with Pre => Band < Table_Bands
+   is
+   begin
+      Clear_Channels (T, Band, 0);
+      for C in 0 .. Table_Channels - 1 loop
+         T.Channel_Names (C) := (Unsigned_8 (Character'Pos ('1') + C), 0);
+      end loop;
+      Store_Padded (T.Band_Names (Band), "BAND" & Character'Val (Character'Pos ('1') + Band), Band_Name_Length);
+      T.Band_Letters (Band) := Unsigned_8 (Character'Pos ('1') + Band);
+      T.Is_Factory_Band (Band) := False;
+   end Clear_Band;
+
+   --  The table's bands, channels, each band's line, power levels, power
+   --  values and power labels.
+   procedure Put_Vtx_Table (Into : in out Sink; T : Vtx_Table_Config_Record) is
+   begin
+      Put (Into, "vtxtable bands " & Decimal (Integer_64 (T.Bands)) & CRLF);
+      Put (Into, "vtxtable channels " & Decimal (Integer_64 (T.Channels)) & CRLF);
+      for Band in 0 .. Natural'Min (Natural (T.Bands), Table_Bands) - 1 loop
+         pragma Loop_Invariant (Band < Table_Bands);
+         Put (Into, "vtxtable band " & Decimal (Integer_64 (Band + 1)) & " ");
+         Put (Into, Stored_Text (T.Band_Names (Band)));
+         Put (Into, " " & Character'Val (T.Band_Letters (Band))
+              & (if T.Is_Factory_Band (Band) then " FACTORY" else " CUSTOM "));
+         for C in 0 .. Natural'Min (Natural (T.Channels), Table_Channels) - 1 loop
+            pragma Loop_Invariant (C < Table_Channels);
+            declare
+               Digits_Text : constant String := Decimal (Integer_64 (T.Frequency (Band) (C)));
+            begin
+               Put (Into, " ");
+               if Digits_Text'Length < 4 then
+                  Put (Into, (1 .. 4 - Digits_Text'Length => ' '));
+               end if;
+               Put (Into, Digits_Text);
+            end;
+         end loop;
+         Put (Into, CRLF);
+      end loop;
+      Put (Into, "vtxtable powerlevels " & Decimal (Integer_64 (T.Power_Levels)) & CRLF);
+      Put (Into, "vtxtable powervalues");
+      for L in 0 .. Natural'Min (Natural (T.Power_Levels), Table_Powers) - 1 loop
+         pragma Loop_Invariant (L < Table_Powers);
+         Put (Into, " " & Decimal (Integer_64 (T.Power_Values (L))));
+      end loop;
+      Put (Into, CRLF);
+      Put (Into, "vtxtable powerlabels");
+      for L in 0 .. Natural'Min (Natural (T.Power_Levels), Table_Powers) - 1 loop
+         pragma Loop_Invariant (L < Table_Powers);
+         declare
+            Label : constant String := Stored_Text (T.Power_Labels (L));
+            Cut   : Natural := Label'Length;
+         begin
+            for K in Label'Range loop
+               if Label (K) = ' ' then
+                  Cut := K - Label'First;
+                  exit;
+               end if;
+            end loop;
+            Put (Into, " ");
+            Put (Into, Label (Label'First .. Label'First + Cut - 1));
+         end;
+      end loop;
+      Put (Into, CRLF);
+   end Put_Vtx_Table;
+
+   --  vtxtable: the table, or one of its parts set: the band count, the
+   --  channel count, the power level count, the power values, the power
+   --  labels, or one band's name, letter, factory flag and frequencies.
+   procedure Vtx_Table_Command (Into : in out Sink; T : in out Vtx_Table_Config_Record; Arguments : String)
+     with Pre => Arguments'First >= 1 and then Arguments'Last < Positive'Last
+                 and then Arguments'First <= Arguments'Last + 1
+   is
+      --  Whether a word follows a position.
+      function Has_Word (At_Position : Positive) return Boolean is
+        (for some K in At_Position .. Arguments'Last => Arguments (K) /= ' ')
+        with Pre => At_Position >= Arguments'First;
+
+      --  The number the next word from a position starts, as atoi reads it,
+      --  and whether there is a word.
+      procedure Read_Number (At_Position : Positive; Found : out Boolean; Value : out Integer_32)
+        with Pre => Arguments'First >= 1 and then Arguments'Last < Positive'Last
+                    and then At_Position in Arguments'First .. Arguments'Last + 1
+      is
+         F, L : Natural;
+      begin
+         Next_Word (Arguments, At_Position, F, L);
+         Found := F > 0;
+         Value := (if F > 0 then CLI_Text.To_Integer (Arguments (F .. L)) else 0);
+      end Read_Number;
+
+      First, Last : Natural;
+      From        : Positive;
+      Found       : Boolean;
+      Value       : Integer_32;
+   begin
+      Next_Word (Arguments, Arguments'First, First, Last);
+      if First = 0 then
+         Put_Vtx_Table (Into, T);
+         return;
+      end if;
+      From := Last + 1;
+      declare
+         Sub : constant String := Arguments (First .. Last);
+      begin
+         if CLI_Text.Same_Ignoring_Case (Sub, "bands") then
+            Read_Number (From, Found, Value);
+            if not Found then
+               Put (Into, "###ERROR IN vtxtable: INVALID ARGUMENT COUNT###" & CRLF);
+            elsif Value not in 0 .. Table_Bands then
+               Put (Into, "###ERROR IN vtxtable: BAND COUNT NOT BETWEEN 0 AND 8###" & CRLF);
+            else
+               for Band in Natural (Value) .. Natural'Min (Natural (T.Bands), Table_Bands) - 1 loop
+                  Clear_Band (T, Band);
+               end loop;
+               T.Bands := Unsigned_8 (Value);
+            end if;
+         elsif CLI_Text.Same_Ignoring_Case (Sub, "channels") then
+            Read_Number (From, Found, Value);
+            if not Found then
+               Put (Into, "###ERROR IN vtxtable: INVALID ARGUMENT COUNT###" & CRLF);
+            elsif Value not in 0 .. Table_Channels then
+               Put (Into, "###ERROR IN vtxtable: CHANNEL COUNT NOT BETWEEN 0 AND 8###" & CRLF);
+            else
+               if Unsigned_8 (Value) < T.Channels then
+                  for Band in 0 .. Table_Bands - 1 loop
+                     Clear_Channels (T, Band, Natural (Value));
+                  end loop;
+               end if;
+               T.Channels := Unsigned_8 (Value);
+            end if;
+         elsif CLI_Text.Same_Ignoring_Case (Sub, "powerlevels") then
+            Read_Number (From, Found, Value);
+            if Found then
+               if Value not in 0 .. Table_Powers then
+                  Put (Into, "###ERROR IN vtxtable: POWER LEVEL COUNT NOT BETWEEN 0 AND 8###" & CRLF);
+               else
+                  if Unsigned_8 (Value) < T.Power_Levels then
+                     for L in Natural (Value) .. Table_Powers - 1 loop
+                        T.Power_Values (L) := 0;
+                     end loop;
+                     for L in Natural (Value) .. Table_Powers - 1 loop
+                        Store_Padded (T.Power_Labels (L), "LV" & Character'Val (Character'Pos ('0') + L), Label_Length);
+                     end loop;
+                  end if;
+                  T.Power_Levels := Unsigned_8 (Value);
+               end if;
+            end if;
+         elsif CLI_Text.Same_Ignoring_Case (Sub, "powervalues") then
+            declare
+               Levels : constant Natural := Natural'Min (Natural (T.Power_Levels), Table_Powers);
+               Power  : Unsigned_16_List_8 := (others => 0);
+               Count  : Natural := 0;
+            begin
+               while Count < Levels loop
+                  pragma Loop_Invariant (Count < Levels and then From in Arguments'First .. Arguments'Last + 1);
+                  pragma Loop_Variant (Increases => Count);
+                  Next_Word (Arguments, From, First, Last);
+                  exit when First = 0;
+                  Power (Count) := Unsigned_16'Mod (CLI_Text.To_Integer (Arguments (First .. Last)));
+                  From := Last + 1;
+                  Count := Count + 1;
+               end loop;
+               if Count < Natural (T.Power_Levels) then
+                  Put (Into, "###ERROR IN vtxtable: NOT ENOUGH VALUES (EXPECTED "
+                       & Decimal (Integer_64 (T.Power_Levels)) & ")###" & CRLF);
+               elsif Has_Word (From) then
+                  Put (Into, "###ERROR IN vtxtable: TOO MANY VALUES (EXPECTED "
+                       & Decimal (Integer_64 (T.Power_Levels)) & ")###" & CRLF);
+               else
+                  T.Power_Values := Power;
+               end if;
+            end;
+         elsif CLI_Text.Same_Ignoring_Case (Sub, "powerlabels") then
+            declare
+               Levels : constant Natural := Natural'Min (Natural (T.Power_Levels), Table_Powers);
+               Labels : array (0 .. Table_Powers - 1) of String (1 .. Label_Length) := (others => (others => ' '));
+               Sizes  : array (0 .. Table_Powers - 1) of Natural range 0 .. Label_Length := (others => 0);
+               Count  : Natural := 0;
+            begin
+               while Count < Levels loop
+                  pragma Loop_Invariant (Count < Levels and then From in Arguments'First .. Arguments'Last + 1);
+                  pragma Loop_Variant (Increases => Count);
+                  Next_Word (Arguments, From, First, Last);
+                  exit when First = 0;
+                  Sizes (Count) := Natural'Min (Last - First + 1, Label_Length);
+                  for K in 1 .. Sizes (Count) loop
+                     Labels (Count) (K) := Upper_Char (Arguments (First + K - 1));
+                  end loop;
+                  From := Last + 1;
+                  Count := Count + 1;
+               end loop;
+               if Count < Natural (T.Power_Levels) then
+                  Put (Into, "###ERROR IN vtxtable: NOT ENOUGH LABELS (EXPECTED "
+                       & Decimal (Integer_64 (T.Power_Levels)) & ")###" & CRLF);
+               elsif Has_Word (From) then
+                  Put (Into, "###ERROR IN vtxtable: TOO MANY LABELS (EXPECTED "
+                       & Decimal (Integer_64 (T.Power_Levels)) & ")###" & CRLF);
+               else
+                  for L in 0 .. Count - 1 loop
+                     Store_Padded (T.Power_Labels (L), Labels (L) (1 .. Sizes (L)), Label_Length);
+                  end loop;
+               end if;
+            end;
+         elsif CLI_Text.Same_Ignoring_Case (Sub, "band") then
+            declare
+               Band      : Integer_64;
+               Name      : String (1 .. Band_Name_Length) := (others => ' ');
+               Name_Size : Natural range 0 .. Band_Name_Length;
+               Letter    : Character;
+               Freqs     : Unsigned_16_List_8 := (others => 0);
+               Channel   : Natural := 0;
+               Channels  : constant Natural := Natural'Min (Natural (T.Channels), Table_Channels);
+               Factory   : Boolean := False;
+            begin
+               Next_Word (Arguments, From, First, Last);
+               if First = 0 then
+                  return;
+               end if;
+               Band := Integer_64 (CLI_Text.To_Integer (Arguments (First .. Last))) - 1;
+               if Band < 0 or else Band >= Integer_64 (T.Bands) or else Band >= Table_Bands then
+                  Put (Into, "###ERROR IN vtxtable: BAND NUMBER NOT BETWEEN 1 AND " & Decimal (Integer_64 (T.Bands))
+                       & "###" & CRLF);
+                  return;
+               end if;
+               Next_Word (Arguments, Last + 1, First, Last);
+               if First = 0 then
+                  return;
+               end if;
+               Name_Size := Natural'Min (Last - First + 1, Band_Name_Length);
+               for K in 1 .. Name_Size loop
+                  Name (K) := Upper_Char (Arguments (First + K - 1));
+               end loop;
+               Next_Word (Arguments, Last + 1, First, Last);
+               if First = 0 then
+                  return;
+               end if;
+               Letter := Upper_Char (Arguments (First));
+               From := Last + 1;
+               while Channel < Channels loop
+                  pragma Loop_Invariant (Channel < Channels and then From in Arguments'First .. Arguments'Last + 1);
+                  pragma Loop_Variant (Increases => From);
+                  Next_Word (Arguments, From, First, Last);
+                  exit when First = 0;
+                  From := Last + 1;
+                  if Channel = 0 and then Arguments (First) not in '0' .. '9' then
+                     if CLI_Text.Same_Ignoring_Case (Arguments (First .. Last), "FACTORY") then
+                        Factory := True;
+                     elsif CLI_Text.Same_Ignoring_Case (Arguments (First .. Last), "CUSTOM") then
+                        Factory := False;
+                     else
+                        Put (Into, "###ERROR IN vtxtable: INVALID FACTORY FLAG ");
+                        Put (Into, Arguments (First .. Last));
+                        Put (Into, " (EXPECTED FACTORY OR CUSTOM)###" & CRLF);
+                        return;
+                     end if;
+                  else
+                     Value := CLI_Text.To_Integer (Arguments (First .. Last));
+                     if Value < 0 then
+                        Put (Into, "###ERROR IN vtxtable: INVALID FREQUENCY ");
+                        Put (Into, Arguments (First .. Last));
+                        Put (Into, "###" & CRLF);
+                        return;
+                     end if;
+                     Freqs (Channel) := Unsigned_16'Mod (Value);
+                     Channel := Channel + 1;
+                  end if;
+               end loop;
+               if Channel < Natural (T.Channels) then
+                  Put (Into, "###ERROR IN vtxtable: NOT ENOUGH FREQUENCIES (EXPECTED "
+                       & Decimal (Integer_64 (T.Channels)) & ")###" & CRLF);
+               elsif Has_Word (From) then
+                  Put (Into, "###ERROR IN vtxtable: TOO MANY FREQUENCIES (EXPECTED "
+                       & Decimal (Integer_64 (T.Channels)) & ")###" & CRLF);
+               else
+                  Store_Padded (T.Band_Names (Natural (Band)), Name (1 .. Name_Size), Band_Name_Length);
+                  T.Band_Letters (Natural (Band)) := Character'Pos (Letter);
+                  for C in 0 .. Channel - 1 loop
+                     T.Frequency (Natural (Band)) (C) := Freqs (C);
+                  end loop;
+                  T.Is_Factory_Band (Natural (Band)) := Factory;
+               end if;
+            end;
+         else
+            Put (Into, "###ERROR IN vtxtable: INVALID SUBCOMMAND ");
+            Put (Into, Sub);
+            Put (Into, "###" & CRLF);
+         end if;
+      end;
+   end Vtx_Table_Command;
+
    Channel_Letters : constant String := "AERT12345678abcdefgh";
    Mappable        : constant := 8;
 
@@ -2170,8 +2606,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Beeper_Command_Word, Color_Command_Word, Diff_Command, Dump_Command, Feature_Command_Word, Get_Command,
       Led_Command_Word, Map_Command_Word, Mode_Color_Command_Word,
       Mixer_Command_Word, Motor_Mix_Command_Word, Profile_Command, Rate_Profile_Command, Rx_Failsafe_Command,
-      Rx_Range_Command, Serial_Command_Word, Servo_Command_Word, Servo_Mix_Command_Word, Set_Command);
-   subtype Known_Command is Command_Kind range Adjustment_Range_Command_Word .. Set_Command;
+      Rx_Range_Command, Serial_Command_Word, Servo_Command_Word, Servo_Mix_Command_Word, Set_Command,
+      Vtx_Command_Word, Vtx_Table_Command_Word);
+   subtype Known_Command is Command_Kind range Adjustment_Range_Command_Word .. Vtx_Table_Command_Word;
 
    function Command_Word (K : Known_Command) return String is
      (case K is
@@ -2197,7 +2634,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when Serial_Command_Word => "serial",
          when Servo_Command_Word => "servo",
          when Servo_Mix_Command_Word => "smix",
-         when Set_Command => "set")
+         when Set_Command => "set",
+         when Vtx_Command_Word => "vtx",
+         when Vtx_Table_Command_Word => "vtxtable")
      with Post => Command_Word'Result'Length in 1 .. 15;
 
    --  The line's command and the position of its arguments.
@@ -2354,6 +2793,13 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when Set_Command =>
             Known := True;
             Set (Into, C, Text_At (Buffer, Arguments), Ports);
+         when Vtx_Command_Word =>
+            Known := True;
+            Vtx_Command
+              (Into, C.Vtx_Config.Vtx_Channel_Activation_Conditions, C.Vtx_Table_Config, Text_At (Buffer, Arguments));
+         when Vtx_Table_Command_Word =>
+            Known := True;
+            Vtx_Table_Command (Into, C.Vtx_Table_Config, Text_At (Buffer, Arguments));
       end case;
    end Process_Line;
 
