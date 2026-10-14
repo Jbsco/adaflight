@@ -216,6 +216,10 @@ ledger. The deviations so far:
 - The command line's `adjrange` answers a negative range index with the index range error, where
   the reference writes the range's fields before the start of the adjustment ranges (findings
   F157). The recorded command lines keep their indexes at zero or above.
+- The command line's `serial` reads ports, baud rates and telemetry protocols through the serial
+  map, where a stored value outside its setting's values reads as no port, the automatic rate or no
+  protocol. A legacy line writes back only what changes in that reading, where the reference writes
+  over the stored value. The recorded command lines keep every setting within its values.
 
 ## D7. Contribution conventions (2026-10-08)
 
@@ -3906,4 +3910,29 @@ The harness replays two sequences of 2000 adjrange command lines recorded from t
 valid and invalid indexes, every count of arguments, channels, range ends and functions in and out
 of range, centers and scales past 16 bits, and arguments that are not numbers. With the earlier
 sequences, all 28586 replies match the reference's byte for byte, and so does the configuration's
+hash after every command.
+
+## D174. Command line serial ports (2026-10-14)
+
+`Adaflight.Command_Line` gains the `serial` command. Without arguments it prints every claim on the
+board's ports, port by port in the board's order: the claim's port setting naming the port, then its
+selection setting and its baud setting where each differs from its default. With arguments it reads
+the earlier line form, split at each single space, so a doubled space gives an empty argument
+(findings F158): a port by its name or number, where numbers below 20 count from UART1, a function
+mask, and the msp, gps, telemetry and blackbox baud rates. A rate counts when it is one of the baud
+table's rates within its class's range: 9600 to 1000000 for msp, 9600 to 230400 for gps, automatic
+or up to 460800 for telemetry, and 19200 to 2470000 for blackbox. A port the board does not have,
+or a mask the serial map refuses, is the parse error, and fewer than six counted arguments the
+argument count error. Otherwise the mask moves the features onto the port, the four rates go to the
+port's features of each class, and the reply is a deprecation line and the port's claims.
+
+`Adaflight.Config_Fix` now gives the serial assignments a configuration's port settings make, and
+writes the ports, rates, VTX device, display device and telemetry providers that an assignment
+changes back into the configuration (D6).
+
+The harness replays two sequences of 2000 command lines recorded from the oracle: claim lists,
+legacy lines with port names and numbers in and out of the board's ports, masks of up to three
+functions and masks the map refuses, rates in and out of their classes' ranges, short lines and
+doubled spaces, and writes of the port, selection and baud settings between them. With the earlier
+sequences, all 32586 replies match the reference's byte for byte, and so does the configuration's
 hash after every command.
