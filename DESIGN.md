@@ -2999,3 +2999,39 @@ with motor stop and a clock across its wrap, the MSP meter's requests, and a 160
 past the wrap of its charge product. The virtual meter's scale stays within 1000 and its offset
 within 2000, and the generator checks that the reference's charge product stays in range. Every
 meter field and request of the 12006 lines replays exactly.
+
+## D137. Flash filesystem (2026-10-13)
+
+`Adaflight.Flash_FS` contains the volume the flight log writes to on SPI flash. The volume starts at
+the start of the flash and spans the filesystem partition. Bytes go into a 128-byte ring buffer
+that holds up to 127 of them. Once 64 are in use, an asynchronous flush hands the buffered runs to
+the flash as one page program at the tail address, trimmed at the page boundary as the flash layer
+trims it, and the tail address and the ring's tail advance when the program ends. A byte past a
+full buffer empties it and loses the buffered bytes. The erase takes the chip erase when one
+partition covers a whole NOR chip and otherwise erases one sector per call, toggling the status
+LED, and turns the LED off at the end. The search for the start of the free space reads the first
+sixteen bytes of 2048-byte blocks in a binary search and stops at a short read. A close puts the
+tail on the next 2048-byte boundary, after the flash's flush and the next page on NAND. Synchronous
+flushes, seeks and reads wait for the flash before and after their program.
+
+The unit hands the flash its operations in order, as the SPI receivers do: ready checks and waits,
+page programs with their bytes, erases, reads, the NAND flush and the status LED. Each call takes
+the flash's readiness as it stands at the call, where the reference polls the flash at every check.
+A flash that completes a program inside the program call, as a bus without background transfers
+does, ends the program at once. On a bus with background transfers the caller reports each
+program's end between calls, and a synchronous flush ends its own program after its wait, as the
+reference's wait for the flash does. The unit applies every end the caller reports, where the
+reference's flash layer drops the end of a program still in flight when an erase or a read starts
+(F140). A synchronous write needs a flash that completes inside the call. The range erase has no
+caller and stays out, as do the test pattern and the verify tool. The unit is SPARK for the ring
+indices, the trimmed program lengths and the search bounds.
+
+The harness replays eight sequences of 1500 calls recorded from the reference flash layer and
+filesystem over a stub chip whose memory is an array: NOR and NAND layouts, one partition and two,
+completions inside the call and between calls, completions that arrive late so the buffer fills
+past its end, a short read in the search, a nearly full volume, sector and chip erases, seeks and
+reads past the end, and closes. The stub completes programs as the m25p16 driver does, is busy
+while a transfer is in flight, and has each pending completion delivered before an erase or a call
+that waits for one. Every operation, program byte, result and state field of the 12008 lines
+replays exactly.
+

@@ -20,7 +20,7 @@ decoder can index outside its buffer, and every motor command is in range by typ
 
 ## Status
 
-The core holds:
+The core contains:
 
 - bounded maths with fast exponential and logarithm, filter set, three-axis vectors and rotations,
   sliding DFT, piecewise-linear tables, integrity codes, encodings, bit arrays, stream buffers,
@@ -52,6 +52,7 @@ The core holds:
 - receiver task's state machine with step time estimates
 - MSP serial port, ExpressLRS hopping tables, telemetry link and receiver, flight log field
   encodings, header and recorder, text conversions, and DShot protocol
+- flash filesystem for flight log, with ring buffer, erases and free space search
 - CRSF telemetry frames and ESC sensor telemetry
 - SmartPort telemetry stream
 - RunCam device protocol with camera buttons and five key cable
@@ -102,9 +103,9 @@ The core holds:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 16012 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 16116 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
-- Recorded vectors replay bit for bit: 1289860 lines over 335 cases, every case exact except
+- Recorded vectors replay bit for bit: 1301868 lines over 336 cases, every case exact except
   twenty-one declared deviations in `DESIGN.md` D6.
 - No target builds yet. `ROADMAP.md` contains phases, parity inventory, and one question for after
   parity: whether a proved core leaves room on F4 boards for features Betaflight has to leave out
