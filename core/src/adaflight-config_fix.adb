@@ -365,10 +365,7 @@ package body Adaflight.Config_Fix with SPARK_Mode is
 
    --  The gyro filter cutoffs within their limit and in order.
    procedure Fix_Gyro_Filters (G : in out Gyro_Config_Record)
-     with Post => G.Gyro_Lpf1_Static_Hz <= LPF_Max_Hz and then G.Gyro_Lpf2_Static_Hz <= LPF_Max_Hz
-                  and then (G.Gyro_Soft_Notch_Hz_1 = 0 or else G.Gyro_Soft_Notch_Cutoff_1 < G.Gyro_Soft_Notch_Hz_1)
-                  and then (G.Gyro_Soft_Notch_Hz_2 = 0 or else G.Gyro_Soft_Notch_Cutoff_2 < G.Gyro_Soft_Notch_Hz_2)
-                  and then G.Gyro_Lpf1_Dyn_Min_Hz <= G.Gyro_Lpf1_Dyn_Max_Hz
+     with Post => Fixed_Gyro_Filters (G)
    is
    begin
       Limit_Filter (G.Gyro_Lpf1_Static_Hz, LPF_Max_Hz);
