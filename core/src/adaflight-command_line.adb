@@ -3619,7 +3619,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
    end Command_At;
 
    type Command_Kind is
-     (No_Command, Adjustment_Range_Command_Word, Aux_Command_Word, Battery_Profile_Command, Beacon_Command,
+     (No_Command, Adjustment_Range_Command_Word, Aux_Command_Word, Batch_Command_Word, Battery_Profile_Command,
+      Beacon_Command,
       Beeper_Command_Word, Board_Name_Command_Word, Defaults_Command_Word, Manufacturer_Id_Command_Word,
       Signature_Command_Word, Color_Command_Word, Diff_Command, Dump_Command, Feature_Command_Word, Get_Command,
       Led_Command_Word, Map_Command_Word, Mode_Color_Command_Word, Mixer_Command_Word, Motor_Mix_Command_Word,
@@ -3632,6 +3633,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
      (case K is
          when Adjustment_Range_Command_Word => "adjrange",
          when Aux_Command_Word => "aux",
+         when Batch_Command_Word => "batch",
          when Battery_Profile_Command => "battery_profile",
          when Beacon_Command => "beacon",
          when Beeper_Command_Word => "beeper",
@@ -3706,12 +3708,42 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end if;
    end Simplified_Tuning_Command;
 
+   --  batch: start opens a batch, clearing its error unless one is open
+   --  already; end closes it, with the error line when a command in it
+   --  printed an error; any other option is the error. An option only has
+   --  to begin with its word, in any case.
+   procedure Batch_Command (Into : in out Output; Arguments : String) is
+      function Begins_With (Word : String) return Boolean is
+        (Arguments'Length >= Word'Length
+         and then CLI_Text.Same_Ignoring_Case
+                    (Arguments (Arguments'First .. Arguments'First + (Word'Length - 1)), Word));
+   begin
+      if Begins_With ("start") then
+         if not Into.Batch_Active then
+            Into.Batch_Active := True;
+            Into.Batch_Error := False;
+         end if;
+         Put (Into, "Command batch started" & CRLF);
+      elsif Begins_With ("end") then
+         if Into.Batch_Active and then Into.Batch_Error then
+            Put_Error (Into, "batch: ERRORS WERE DETECTED - PLEASE REVIEW BEFORE CONTINUING###" & CRLF);
+         else
+            Put (Into, "Command batch ended" & CRLF);
+         end if;
+         Into.Batch_Active := False;
+         Into.Batch_Error := False;
+      else
+         Put_Error (Into, "batch: Invalid option###" & CRLF);
+      end if;
+   end Batch_Command;
+
    --  defaults with nosave: the configuration reset to its defaults, or one
    --  parameter group's after group_id and its number taken modulo 2 ** 16,
    --  with the simplified tuning applied to every PID profile of the reset
    --  configuration first. A word with neither group_id nor nosave, a zero
-   --  group or a missing one is the parse error. Known is false without
-   --  nosave, whose save and restart wait for the save command.
+   --  group or a missing one is the parse error. A reset clears an open
+   --  batch's error. Known is false without nosave, whose save and restart
+   --  wait for the save command.
    procedure Defaults_Command
      (Into : in out Output; C : in out Configuration; Arguments : String; Known : out Boolean)
      with Pre => Arguments'First >= 1 and then Arguments'Last < Positive'Last
@@ -3778,6 +3810,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
             Config_Codec.Decode (Kept, C);
          end;
       end if;
+      Into.Batch_Error := False;
    end Defaults_Command;
 
    --  The version line: the firmware's name, the target's name, a board
@@ -4245,6 +4278,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when Aux_Command_Word =>
             Known := True;
             Aux_Command (Into, C, Text_At (Buffer, Arguments), Changes);
+         when Batch_Command_Word =>
+            Known := True;
+            Batch_Command (Into, Text_At (Buffer, Arguments));
          when Battery_Profile_Command =>
             Known := True;
             Profile_Command (Into, C, Battery, Text_At (Buffer, Arguments), Changes);

@@ -7,7 +7,8 @@
 --  configuration or its hardware part as commands, all of it or only what
 --  differs from the defaults; version prints the firmware's version line,
 --  mcu_id the MCU's unique id, and board_name, manufacturer_id and signature
---  show or set the board's information.
+--  show or set the board's information; batch brackets a command batch and
+--  reports an error printed inside it.
 --  The text goes out through Put into a sink, inside an Output that also
 --  holds the batch's state.
 with Interfaces;
