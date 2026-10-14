@@ -1278,6 +1278,11 @@ package Adaflight.Config_Groups with SPARK_Mode is
    function Get_Text (C : Configuration; S : Setting; Profile : Natural := 0) return String
      with Pre => Profile < Profile_Count (S);
 
+   --  Writes a text setting as the command line writes it: the setting's
+   --  longest length of bytes cleared, then the text, cut at that length.
+   procedure Set_Text (C : in out Configuration; S : Setting; Text : String; Profile : Natural := 0)
+     with Pre => Profile < Profile_Count (S);
+
 private
 
    Defaults : constant Configuration :=

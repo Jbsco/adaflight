@@ -4106,4 +4106,134 @@ package body Adaflight.Config_Groups with SPARK_Mode is
       end case;
    end Set;
 
+   --  The first Max bytes cleared, then the text, cut at Max.
+   procedure Put_Text (B : in out Bytes; Max : Natural; Text : String) is
+      Last : constant Natural := Natural'Min (Max, B'Length);
+   begin
+      for I in 0 .. Last - 1 loop
+         B (B'First + I) := 0;
+      end loop;
+      for I in 0 .. Natural'Min (Text'Length, Last) - 1 loop
+         B (B'First + I) := Character'Pos (Text (Text'First + I));
+      end loop;
+   end Put_Text;
+
+   procedure Set_Text_Battery_Profiles_Profile (G : in out Battery_Profile_Record; S : Setting; Text : String)
+     with Pre => S in Battery_Profile_Name
+   is
+   begin
+      case S is
+         when Battery_Profile_Name =>
+            Put_Text (G.Profile_Name, 8, Text);
+         when others =>
+            null;
+      end case;
+   end Set_Text_Battery_Profiles_Profile;
+
+   procedure Set_Text_Control_Rate_Profiles_Profile (G : in out Control_Rate_Config_Record; S : Setting; Text : String)
+     with Pre => S in Rateprofile_Name
+   is
+   begin
+      case S is
+         when Rateprofile_Name =>
+            Put_Text (G.Profile_Name, 8, Text);
+         when others =>
+            null;
+      end case;
+   end Set_Text_Control_Rate_Profiles_Profile;
+
+   procedure Set_Text_Gps_Config (G : in out Gps_Config_Record; S : Setting; Text : String)
+     with Pre => S in Gps_Nmea_Custom_Commands
+   is
+   begin
+      case S is
+         when Gps_Nmea_Custom_Commands =>
+            Put_Text (G.Nmea_Custom_Commands, 64, Text);
+         when others =>
+            null;
+      end case;
+   end Set_Text_Gps_Config;
+
+   procedure Set_Text_Pid_Profiles_Profile (G : in out Pid_Profile_Record; S : Setting; Text : String)
+     with Pre => S in Profile_Name
+   is
+   begin
+      case S is
+         when Profile_Name =>
+            Put_Text (G.Profile_Name, 8, Text);
+         when others =>
+            null;
+      end case;
+   end Set_Text_Pid_Profiles_Profile;
+
+   procedure Set_Text_Osd_Config (G : in out Osd_Config_Record; S : Setting; Text : String)
+     with Pre => S in Osd_Profile_1_Name | Osd_Profile_2_Name | Osd_Profile_3_Name
+   is
+   begin
+      case S is
+         when Osd_Profile_1_Name =>
+            Put_Text (G.Profile (0), 16, Text);
+         when Osd_Profile_2_Name =>
+            Put_Text (G.Profile (1), 16, Text);
+         when Osd_Profile_3_Name =>
+            Put_Text (G.Profile (2), 16, Text);
+         when others =>
+            null;
+      end case;
+   end Set_Text_Osd_Config;
+
+   procedure Set_Text_Pilot_Config (G : in out Pilot_Config_Record; S : Setting; Text : String)
+     with Pre => S in Craft_Name | Pilot_Name
+   is
+   begin
+      case S is
+         when Craft_Name =>
+            Put_Text (G.Craft_Name, 16, Text);
+         when Pilot_Name =>
+            Put_Text (G.Pilot_Name, 16, Text);
+         when others =>
+            null;
+      end case;
+   end Set_Text_Pilot_Config;
+
+   procedure Set_Text_Mode_Activation_Config (G : in out Mode_Activation_Config_Record; S : Setting; Text : String)
+     with Pre => S in Box_User_1_Name | Box_User_2_Name | Box_User_3_Name | Box_User_4_Name
+   is
+   begin
+      case S is
+         when Box_User_1_Name =>
+            Put_Text (G.Box_User_Names (0), 16, Text);
+         when Box_User_2_Name =>
+            Put_Text (G.Box_User_Names (1), 16, Text);
+         when Box_User_3_Name =>
+            Put_Text (G.Box_User_Names (2), 16, Text);
+         when Box_User_4_Name =>
+            Put_Text (G.Box_User_Names (3), 16, Text);
+         when others =>
+            null;
+      end case;
+   end Set_Text_Mode_Activation_Config;
+
+   procedure Set_Text (C : in out Configuration; S : Setting; Text : String; Profile : Natural := 0) is
+   begin
+      case S is
+         when Battery_Profile_Name =>
+            Set_Text_Battery_Profiles_Profile (C.Battery_Profiles (Profile), S, Text);
+         when Rateprofile_Name =>
+            Set_Text_Control_Rate_Profiles_Profile (C.Control_Rate_Profiles (Profile), S, Text);
+         when Gps_Nmea_Custom_Commands =>
+            Set_Text_Gps_Config (C.Gps_Config, S, Text);
+         when Profile_Name =>
+            Set_Text_Pid_Profiles_Profile (C.Pid_Profiles (Profile), S, Text);
+         when Osd_Profile_1_Name | Osd_Profile_2_Name | Osd_Profile_3_Name =>
+            Set_Text_Osd_Config (C.Osd_Config, S, Text);
+         when Craft_Name | Pilot_Name =>
+            Set_Text_Pilot_Config (C.Pilot_Config, S, Text);
+         when Box_User_1_Name | Box_User_2_Name | Box_User_3_Name | Box_User_4_Name =>
+            Set_Text_Mode_Activation_Config (C.Mode_Activation_Config, S, Text);
+         when others =>
+            null;
+      end case;
+   end Set_Text;
+
 end Adaflight.Config_Groups;
