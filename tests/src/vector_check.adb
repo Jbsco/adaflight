@@ -122,6 +122,7 @@ with Adaflight.MSP_Common_Out;
 with Adaflight.MSP_Tuning_Out;
 with Adaflight.MSP_Receiver_Out;
 with Adaflight.MSP_Hardware_Out;
+with Adaflight.MSP_Peripheral_Out;
 with Adaflight.MSP_Out;
 with Adaflight.Four_Way;
 with Adaflight.Gimbal_Control;
@@ -15774,6 +15775,138 @@ procedure Vector_Check is
       end if;
    end Check_MSP_Hardware_Line;
 
+   MP_Servos, MP_Strip, MP_Status_Mode, MP_VTX, MP_VTX_Table : Boolean := False;
+   MP_Servo_Count, MP_LED_Length, MP_Motor_Count : Natural := 0;
+
+   procedure Check_MSP_Peripheral_Line is
+      use Adaflight.MSP_Peripheral_Out;
+      Name : constant String := Str (1);
+      K    : Positive := 5;
+      function Next return Integer_64 is
+      begin
+         K := K + 1;
+         return Int (K - 1);
+      end Next;
+      function U8 return Interfaces.Unsigned_8 is (Interfaces.Unsigned_8 (Next));
+      function U16 return Interfaces.Unsigned_16 is (Interfaces.Unsigned_16 (Next));
+      function I8 return Interfaces.Integer_8 is (Interfaces.Integer_8 (Next));
+      function I16 return Interfaces.Integer_16 is (Interfaces.Integer_16 (Next));
+   begin
+      if Name = "mpinit" then
+         MP_Servos := Int (4) /= 0;
+         MP_Servo_Count := Natural (Int (5));
+         MP_Strip := Int (6) /= 0;
+         MP_Status_Mode := Int (7) /= 0;
+         MP_LED_Length := Natural (Int (8));
+         MP_VTX := Int (9) /= 0;
+         MP_VTX_Table := Int (10) /= 0;
+         MP_Motor_Count := Natural (Int (11));
+      elsif Name = "mpstep" then
+         declare
+            Command : constant Interfaces.Unsigned_16 := Interfaces.Unsigned_16 (Int (4));
+            V       : Snapshot;
+            Buffer  : Byte_Array (0 .. 511) := (others => 0);
+            St      : Adaflight.Stream_Buffers.Stream;
+         begin
+            V.Servos := MP_Servos;
+            V.Servo_Count := MP_Servo_Count;
+            for O of V.Outputs loop
+               O := I16;
+            end loop;
+            for P of V.Params loop
+               P.Min := I16;
+               P.Max := I16;
+               P.Middle := I16;
+               P.Rate := I8;
+               P.Forward_From_Channel := I8;
+               P.Reversed_Sources := Interfaces.Unsigned_32 (Next);
+            end loop;
+            for R of V.Rules loop
+               R.Target_Channel := U8;
+               R.Input_Source := U8;
+               R.Rate := I8;
+               R.Speed := U8;
+               R.Min := I8;
+               R.Max := I8;
+               R.Box := U8;
+            end loop;
+            for I in 1 .. MP_Motor_Count loop
+               V.Motors (I) := U8;
+            end loop;
+            for C of V.LED.Colors loop
+               C.H := U16;
+               C.S := U8;
+               C.V := U8;
+            end loop;
+            for L of V.LED.Configs loop
+               L := Interfaces.Unsigned_32 (Next);
+            end loop;
+            for M of V.LED.Modes loop
+               for D of M loop
+                  D := U8;
+               end loop;
+            end loop;
+            for C of V.LED.Specials loop
+               C := U8;
+            end loop;
+            V.LED.Aux_Channel := U8;
+            V.LED.Profile := U8;
+            V.LED.Strip := MP_Strip;
+            V.LED.Status_Mode := MP_Status_Mode;
+            V.LED.Length := MP_LED_Length;
+            V.VTX.Built := MP_VTX;
+            V.VTX.Device := Next /= 0;
+            V.VTX.Device_Type := U8;
+            V.VTX.Pit_Mode := Next /= 0;
+            V.VTX.Ready := Next /= 0;
+            V.VTX.Band := U8;
+            V.VTX.Channel := U8;
+            V.VTX.Power := U8;
+            V.VTX.Frequency := U16;
+            V.VTX.Low_Power_Disarm := U8;
+            V.VTX.Pit_Frequency := U16;
+            V.VTX.Table := MP_VTX_Table;
+            V.VTX.Table_Bands := U8;
+            V.VTX.Table_Channels := U8;
+            V.VTX.Table_Powers := U8;
+            for Axis in 1 .. Axis_Count loop
+               V.Wing.S_Gains (Axis) := U8;
+               V.Wing.SPA_Center (Axis) := U16;
+               V.Wing.SPA_Width (Axis) := U16;
+               V.Wing.SPA_Mode (Axis) := U8;
+            end loop;
+            V.Wing.TPA_Curve_Type := U8;
+            V.Wing.TPA_Curve_Stall := U8;
+            V.Wing.TPA_Curve_PID_Thr0 := U16;
+            V.Wing.TPA_Curve_PID_Thr100 := U16;
+            V.Wing.TPA_Curve_Expo := I8;
+            V.Wing.TPA_Speed_Type := U8;
+            V.Wing.TPA_Speed_Delay := U16;
+            V.Wing.TPA_Speed_Gravity := U16;
+            V.Wing.TPA_Speed_Prop_Pitch := U16;
+            V.Wing.TPA_Speed_Mass := U16;
+            V.Wing.TPA_Speed_Drag_K := U16;
+            V.Wing.TPA_Speed_Thrust := U16;
+            V.Wing.TPA_Speed_Max_Voltage := U16;
+            V.Wing.TPA_Speed_Pitch_Offset := I16;
+            V.Wing.Yaw_Type := U8;
+            V.Wing.Angle_Pitch_Offset := I16;
+            Adaflight.Stream_Buffers.Init (St, 0, Buffer'Last + 1);
+            Reply (Buffer, St, Command, V);
+            Record_Int (Name & ".result", Int (K), (if Supported (Command, V) then 1 else -1));
+            Record_Int (Name & ".length", Int (K + 1), Integer_64 (St.Next));
+            Record_Bytes (Name & ".reply", Hex_Bytes (K + 2), Buffer (0 .. St.Next - 1));
+            if K + 2 /= NF then
+               Put_Line ("mpstep: consumed" & Integer'Image (K + 2) & " of" & Integer'Image (NF) & " fields");
+               Failures := Failures + 1;
+            end if;
+         end;
+      else
+         Put_Line ("unknown MSP peripheral case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_MSP_Peripheral_Line;
+
    AP_State    : Adaflight.Position_Hold.State;
    AP_Settings : Adaflight.Position_Control.Settings;
    AP_Nav      : Adaflight.Position_Nav.Navigator;
@@ -16297,6 +16430,8 @@ procedure Vector_Check is
                   Check_MSP_Receiver_Line;
                elsif Kind = "msphardware" then
                   Check_MSP_Hardware_Line;
+               elsif Kind = "mspperipheral" then
+                  Check_MSP_Peripheral_Line;
                else
                   Check_PID_Line;
                end if;
@@ -16445,6 +16580,7 @@ begin
    Run (Dir & "/msptuning.csv", "msptuning");
    Run (Dir & "/mspreceiver.csv", "mspreceiver");
    Run (Dir & "/msphardware.csv", "msphardware");
+   Run (Dir & "/mspperipheral.csv", "mspperipheral");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
