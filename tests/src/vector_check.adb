@@ -130,6 +130,7 @@ with Adaflight.MSP_OSD_Out;
 with Adaflight.Serial_Feature_Map;
 with Adaflight.MSP_Serial_Out;
 with Adaflight.MSP_VTX_Status_Out;
+with Adaflight.Config_Store;
 with Adaflight.MSP_Out;
 with Adaflight.Four_Way;
 with Adaflight.Gimbal_Control;
@@ -16693,6 +16694,129 @@ procedure Vector_Check is
       end if;
    end Check_VTX_Status_Line;
 
+   CS_Max_Groups : constant := 8;
+   CS_Reg        : Adaflight.Config_Store.Registry (1 .. CS_Max_Groups);
+   CS_Count      : Natural := 0;
+   CS_Total      : Natural := 0;
+   CS_Region     : Natural := 0;
+   CS_Pointer    : Natural := 0;
+   CS_Defaults   : Byte_Array (0 .. 4095) := (others => 0);
+
+   procedure Check_Config_Store_Line is
+      package CS renames Adaflight.Config_Store;
+      Name : constant String := Str (1);
+      K    : Positive := 5;
+      function Next return Integer_64 is
+      begin
+         K := K + 1;
+         return Int (K - 1);
+      end Next;
+   begin
+      if Name = "cfsinit" then
+         CS_Region := Natural (Int (3));
+         CS_Pointer := Natural (Int (4));
+         CS_Count := Natural (Int (5));
+         CS_Total := 0;
+         K := 6;
+         for I in 1 .. CS_Count loop
+            CS_Reg (I) := (Number  => Interfaces.Unsigned_16 (Next),
+                           Version => Interfaces.Unsigned_8 (Next),
+                           Offset  => CS_Total,
+                           Size    => Natural (Next));
+            declare
+               Bytes : constant Byte_Array := Hex_Bytes (K);
+            begin
+               CS_Defaults (CS_Total .. CS_Total + Bytes'Length - 1) := Bytes;
+            end;
+            K := K + 1;
+            CS_Total := CS_Total + CS_Reg (I).Size;
+         end loop;
+         return;
+      elsif Name /= "cfsstep" then
+         Put_Line ("unknown config store case " & Name);
+         Failures := Failures + 1;
+         return;
+      end if;
+      declare
+         Reg      : CS.Registry renames CS_Reg (1 .. CS_Count);
+         Defaults : Byte_Array renames CS_Defaults (0 .. CS_Total - 1);
+         Data     : Byte_Array (0 .. CS_Total - 1) := (others => 0);
+         Hashes   : CS.Hash_List (1 .. CS_Count) := (others => 0);
+         Image    : Byte_Array (0 .. CS_Region - 1);
+         Op       : constant Integer_64 := Int (4);
+         procedure Expect (Field : String; Actual : Integer_64) is
+         begin
+            Record_Int (Name & "." & Field, Int (K), Actual);
+            K := K + 1;
+         end Expect;
+         procedure Expect_Groups (Prefix : String) is
+         begin
+            for G of Reg loop
+               Record_Bytes (Name & "." & Prefix & "data", Hex_Bytes (K), Data (G.Offset .. G.Offset + G.Size - 1));
+               K := K + 1;
+            end loop;
+            for H of Hashes loop
+               Expect (Prefix & "hash", Integer_64 (H));
+            end loop;
+         end Expect_Groups;
+      begin
+         for G of Reg loop
+            Data (G.Offset .. G.Offset + G.Size - 1) := Hex_Bytes (K);
+            K := K + 1;
+         end loop;
+         for H of Hashes loop
+            H := Interfaces.Unsigned_32 (Next);
+         end loop;
+         Image := Hex_Bytes (K);
+         K := K + 1;
+         case Op is
+            when 0 =>
+               declare
+                  Valid : Boolean;
+                  Size  : Natural;
+               begin
+                  Expect ("version_valid", Boolean'Pos (CS.Version_Valid (Image)));
+                  CS.Check_Structure (Image, Valid, Size);
+                  Expect ("structure_valid", Boolean'Pos (Valid));
+                  Record_Int (Name & ".size", (if Int (K) < 0 then 0 else Int (K) - Integer_64 (CS_Pointer) + 2),
+                              Integer_64 (Size));
+                  K := K + 1;
+               end;
+            when 1 =>
+               for G of Reg loop
+                  declare
+                     Class : constant Interfaces.Unsigned_8 := Interfaces.Unsigned_8 (Next);
+                  begin
+                     Expect ("find", Integer_64 (CS.Find (Image, G.Number, Class)));
+                  end;
+               end loop;
+            when 2 =>
+               declare
+                  Ok : Boolean;
+               begin
+                  CS.Load (Image, Reg, Defaults, Data, Hashes, Ok);
+                  Expect ("load_ok", Boolean'Pos (Ok));
+                  Expect_Groups ("loaded_");
+               end;
+            when others =>
+               declare
+                  Written, Fits : Boolean;
+               begin
+                  Image (Image'Last) := 16#A5#;
+                  CS.Save (Reg, Data, Hashes, Image, Written, Fits);
+                  Expect ("save_ok", Boolean'Pos (Fits));
+                  Expect ("written", Boolean'Pos (Written));
+                  Record_Bytes (Name & ".image", Hex_Bytes (K), Image);
+                  K := K + 1;
+               end;
+         end case;
+      end;
+      if K - 1 /= NF then
+         Put_Line ("cfsstep: consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
+         Failures := Failures + 1;
+      end if;
+   end Check_Config_Store_Line;
+
    AP_State    : Adaflight.Position_Hold.State;
    AP_Settings : Adaflight.Position_Control.Settings;
    AP_Nav      : Adaflight.Position_Nav.Navigator;
@@ -17232,6 +17356,8 @@ procedure Vector_Check is
                   Check_MSP_Serial_Config_Line;
                elsif Kind = "vtxstatus" then
                   Check_VTX_Status_Line;
+               elsif Kind = "cfgstore" then
+                  Check_Config_Store_Line;
                else
                   Check_PID_Line;
                end if;
@@ -17388,6 +17514,7 @@ begin
    Run (Dir & "/serialmap.csv", "serialmap");
    Run (Dir & "/mspsercfg.csv", "mspsercfg");
    Run (Dir & "/vtxstatus.csv", "vtxstatus");
+   Run (Dir & "/cfgstore.csv", "cfgstore");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");

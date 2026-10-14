@@ -100,6 +100,7 @@ The core contains:
 - MSP serial port replies: available ports with baud rates in legacy and common layouts
 - MSP transmitter device status: type, readiness, band and channel, power, frequency, status,
   power levels and device block
+- configuration storage image: structure and version checks, record lookup, load and save
 - MSP state replies: status, sensor readings, motors, RC channels, attitude, altitudes, battery,
   debug values, GPS, ESC and motor telemetry, pitot, transmitter information and clock
 - BLHeli 4-way interface for ESC configuration through flight controller
@@ -125,9 +126,9 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 19136 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 19318 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
-- Recorded vectors replay bit for bit: 1509121 lines over 356 cases, every case exact except
+- Recorded vectors replay bit for bit: 1513929 lines over 357 cases, every case exact except
   twenty-three declared deviations in `DESIGN.md` D6.
 - No target builds yet. `ROADMAP.md` contains phases, parity inventory, and one question for after
   parity: whether a proved core leaves room on F4 boards for features Betaflight has to leave out
