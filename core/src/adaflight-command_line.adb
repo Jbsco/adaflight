@@ -1,4 +1,5 @@
 with Interfaces; use Interfaces;
+with Adaflight.Config_Fix;
 with Adaflight.Settings_Table; use Adaflight.Settings_Table;
 
 package body Adaflight.Command_Line with SPARK_Mode is
@@ -558,6 +559,200 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end loop;
    end Dump_Profile;
 
+   --  Whether a text starts a word, without regard to case.
+   function Starts (Text, Word : String) return Boolean is
+     (Text'Length <= Word'Length
+      and then CLI_Text.Same_Ignoring_Case (Text, Word (Word'First .. Word'First + (Text'Length - 1))));
+
+   subtype Feature_Bit is Natural range 0 .. 28;
+
+   function Feature_Name (Bit : Feature_Bit) return String is
+     (case Bit is
+         when 0 => "RX_PPM",
+         when 1 => "RX_UDP",
+         when 2 => "INFLIGHT_ACC_CAL",
+         when 3 => "RX_SERIAL",
+         when 4 => "MOTOR_STOP",
+         when 5 => "SERVO_TILT",
+         when 6 => "SOFTSERIAL",
+         when 7 => "GPS",
+         when 8 => "OPTICALFLOW",
+         when 9 => "RANGEFINDER",
+         when 10 => "TELEMETRY",
+         when 12 => "3D",
+         when 13 => "RX_PARALLEL_PWM",
+         when 14 => "RX_MSP",
+         when 15 => "RSSI_ADC",
+         when 16 => "LED_STRIP",
+         when 17 => "DISPLAY",
+         when 18 => "OSD",
+         when 20 => "CHANNEL_FORWARDING",
+         when 21 => "TRANSPONDER",
+         when 22 => "AIRMODE",
+         when 25 => "RX_SPI",
+         when 27 => "ESC_SENSOR",
+         when 28 => "ANTI_GRAVITY",
+         when 11 | 19 | 23 | 24 | 26 => "")
+     with Post => Feature_Name'Result'Length <= 18;
+
+   --  A header, then the names of a mask's features, each after a space but
+   --  the first feature's.
+   procedure Put_Features (Into : in out Sink; Header : String; Mask : Unsigned_32) is
+   begin
+      Put (Into, Header);
+      for Bit in Feature_Bit loop
+         if Feature_Name (Bit)'Length > 0 and then (Mask and Shift_Left (1, Bit)) /= 0 then
+            if Bit > 0 then
+               Put (Into, " ");
+            end if;
+            Put (Into, Feature_Name (Bit));
+         end if;
+      end loop;
+      Put (Into, CRLF);
+   end Put_Features;
+
+   --  feature: the enabled, available and unavailable features; a feature,
+   --  the first whose name the text starts, enabled or, after a minus,
+   --  disabled in the configuration.
+   procedure Feature_Command (Into : in out Sink; C : in out Configuration; Arguments : String)
+     with Pre => Arguments'Last < Positive'Last
+   is
+      Mask      : constant Unsigned_32 := C.Feature_Config.Enabled_Features;
+      Supported : constant Unsigned_32 := Config_Fix.Supported_Features;
+   begin
+      if Arguments'Length = 0 or else Starts (Arguments, "list") then
+         Put_Features (Into, "Enabled: ", Mask);
+         Put_Features (Into, "Available: ", (not Mask) and Supported);
+         Put_Features (Into, "Unavailable: ", not Supported);
+         return;
+      end if;
+      declare
+         Remove : constant Boolean := Arguments (Arguments'First) = '-';
+         Text   : constant String :=
+           (if Remove then Arguments (Arguments'First + 1 .. Arguments'Last) else Arguments);
+      begin
+         for Bit in Feature_Bit loop
+            if Feature_Name (Bit)'Length > 0 and then Starts (Text, Feature_Name (Bit)) then
+               declare
+                  Feature : constant Unsigned_32 := Shift_Left (1, Bit);
+               begin
+                  if (Feature and Supported) = 0 then
+                     Put (Into, "Unavailable");
+                  elsif Remove then
+                     C.Feature_Config.Enabled_Features := C.Feature_Config.Enabled_Features and not Feature;
+                     Put (Into, (if (Mask and Feature) /= 0 then "Disabled" else "AlreadyDisabled"));
+                  else
+                     C.Feature_Config.Enabled_Features := C.Feature_Config.Enabled_Features or Feature;
+                     Put (Into, (if (Mask and Feature) /= 0 then "AlreadyEnabled" else "Enabled"));
+                  end if;
+                  Put (Into, " " & Feature_Name (Bit) & CRLF);
+               end;
+               return;
+            end if;
+         end loop;
+         Put (Into, "###ERROR IN feature: INVALID NAME: ");
+         Put (Into, Text);
+         Put (Into, "###" & CRLF);
+      end;
+   end Feature_Command;
+
+   subtype Beeper_Index is Natural range 0 .. 23;
+   All_Beepers : constant Beeper_Index := 23;
+
+   function Beeper_Name (I : Beeper_Index) return String is
+     (case I is
+         when 0 => "GYRO_CALIBRATED",
+         when 1 => "RX_LOST",
+         when 2 => "RX_LOST_LANDING",
+         when 3 => "DISARMING",
+         when 4 => "ARMING",
+         when 5 => "ARMING_GPS_FIX",
+         when 6 => "ARMING_GPS_NO_FIX",
+         when 7 => "BAT_CRIT_LOW",
+         when 8 => "BAT_LOW",
+         when 9 => "GPS_STATUS",
+         when 10 => "RX_SET",
+         when 11 => "ACC_CALIBRATION",
+         when 12 => "ACC_CALIBRATION_FAIL",
+         when 13 => "READY_BEEP",
+         when 14 => "MULTI_BEEPS",
+         when 15 => "DISARM_REPEAT",
+         when 16 => "ARMED",
+         when 17 => "SYSTEM_INIT",
+         when 18 => "ON_USB",
+         when 19 => "BLACKBOX_ERASE",
+         when 20 => "CRASHFLIP",
+         when 21 => "CAM_CONNECTION_OPEN",
+         when 22 => "CAM_CONNECTION_CLOSE",
+         when 23 => "ALL")
+     with Post => Beeper_Name'Result'Length in 1 .. 20;
+
+   --  The flag of a beeper table entry's mode.
+   function Beeper_Mask (I : Beeper_Index) return Unsigned_32 is
+     (Shift_Left (1, (case I is
+                         when 6 => 22,
+                         when 7 .. 22 => I - 1,
+                         when 23 => 23,
+                         when 0 .. 5 => I)));
+
+   --  beeper and beacon: the disabled conditions, the available ones, or a
+   --  condition, the first allowed one whose name the text starts, enabled
+   --  or, after a minus, disabled; ALL sets every allowed one.
+   procedure Beeper_Command
+     (Into : in out Sink; Command : String; Flags : in out Unsigned_32; Allowed : Unsigned_32; Arguments : String)
+     with Pre => Arguments'Last < Positive'Last
+   is
+   begin
+      if Arguments'Length = 0 then
+         Put (Into, "Disabled:");
+         for I in 0 .. All_Beepers - 1 loop
+            if (Beeper_Mask (I) and Flags) /= 0 then
+               Put (Into, "  " & Beeper_Name (I));
+            end if;
+         end loop;
+         if Flags = 0 then
+            Put (Into, "  none");
+         end if;
+         Put (Into, CRLF);
+         return;
+      end if;
+      if Starts (Arguments, "list") then
+         Put (Into, "Available:");
+         for I in Beeper_Index loop
+            if (Beeper_Mask (I) and Allowed) /= 0 then
+               Put (Into, " " & Beeper_Name (I));
+            end if;
+         end loop;
+         Put (Into, CRLF);
+         return;
+      end if;
+      declare
+         Remove : constant Boolean := Arguments (Arguments'First) = '-';
+         Text   : constant String :=
+           (if Remove then Arguments (Arguments'First + 1 .. Arguments'Last) else Arguments);
+      begin
+         for I in Beeper_Index loop
+            if Starts (Text, Beeper_Name (I)) and then (Beeper_Mask (I) and (Allowed or Beeper_Mask (All_Beepers))) /= 0
+            then
+               if Remove then
+                  Flags := (if I = All_Beepers then Allowed else Flags or Beeper_Mask (I));
+                  Put (Into, "Disabled");
+               else
+                  Flags := (if I = All_Beepers then 0 else Flags and not Beeper_Mask (I));
+                  Put (Into, "Enabled");
+               end if;
+               Put (Into, " " & Beeper_Name (I) & CRLF);
+               return;
+            end if;
+         end loop;
+         Put (Into, "###ERROR IN ");
+         Put (Into, Command);
+         Put (Into, ": INVALID NAME: ");
+         Put (Into, Text);
+         Put (Into, "###" & CRLF);
+      end;
+   end Beeper_Command;
+
    subtype Line_Buffer is String (1 .. Line_Size);
 
    --  The text from a position up to the next terminator in the buffer.
@@ -606,15 +801,18 @@ package body Adaflight.Command_Line with SPARK_Mode is
    end Command_At;
 
    type Command_Kind is
-     (No_Command, Battery_Profile_Command, Diff_Command, Dump_Command, Get_Command, Profile_Command,
-      Rate_Profile_Command, Set_Command);
+     (No_Command, Battery_Profile_Command, Beacon_Command, Beeper_Command_Word, Diff_Command, Dump_Command,
+      Feature_Command_Word, Get_Command, Profile_Command, Rate_Profile_Command, Set_Command);
    subtype Known_Command is Command_Kind range Battery_Profile_Command .. Set_Command;
 
    function Command_Word (K : Known_Command) return String is
      (case K is
          when Battery_Profile_Command => "battery_profile",
+         when Beacon_Command => "beacon",
+         when Beeper_Command_Word => "beeper",
          when Diff_Command => "diff",
          when Dump_Command => "dump",
+         when Feature_Command_Word => "feature",
          when Get_Command => "get",
          when Profile_Command => "profile",
          when Rate_Profile_Command => "rateprofile",
@@ -710,10 +908,20 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when Battery_Profile_Command =>
             Known := True;
             Profile_Command (Into, C, Battery, Text_At (Buffer, Arguments), Changes);
+         when Beacon_Command =>
+            Known := True;
+            Beeper_Command
+              (Into, "beacon", C.Beeper_Config.Dshot_Beacon_Off_Flags, 16#202#, Text_At (Buffer, Arguments));
+         when Beeper_Command_Word =>
+            Known := True;
+            Beeper_Command (Into, "beeper", C.Beeper_Config.Beeper_Off_Flags, 16#7F_FFFF#, Text_At (Buffer, Arguments));
          when Diff_Command =>
             Print_Config (Into, C, Buffer, Arguments, "diff", True, Ports, Known);
          when Dump_Command =>
             Print_Config (Into, C, Buffer, Arguments, "dump", False, Ports, Known);
+         when Feature_Command_Word =>
+            Known := True;
+            Feature_Command (Into, C, Text_At (Buffer, Arguments));
          when Get_Command =>
             Known := True;
             Get (Into, C, "get", Text_At (Buffer, Arguments), Ports);

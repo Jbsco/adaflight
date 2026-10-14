@@ -3806,3 +3806,23 @@ selections in and out of range, dumps and diffs of both sections with their opti
 of profile settings and values stored past their range. With the get and set sequences of D168,
 all 12586 replies match the reference's byte for byte, 2393071 bytes in all, and so does the
 configuration's hash after every command.
+
+## D170. Command line features and beepers (2026-10-14)
+
+`Adaflight.Command_Line` gains the `feature`, `beeper` and `beacon` commands. `feature` without
+arguments, or with a start of `list`, prints the enabled features, the build's features that are
+off, and the features the build lacks. With a name it enables, or after a minus disables, the first
+feature in bit order whose name the text starts, in the configuration's feature mask, and prints the
+verb with the name. A feature the build lacks is reported unavailable. `beeper` and `beacon` print
+the disabled conditions or the available ones, and enable or disable the first allowed condition
+whose name the text starts, ALL standing for every allowed one: the beeper's 23 conditions for
+`beeper`, RX_LOST and RX_SET for `beacon`. Each beeper table entry's flag comes from its mode, and
+ARMING_GPS_NO_FIX sits in the table before its flag's order.
+
+Prefix matching takes the first match (F154): `feature R` enables RX_PPM and `feature -` disables
+it. adaflight reproduces it.
+
+The harness replays two sequences of 2000 feature, beeper and beacon commands recorded from the
+oracle: lists, names in mixed case, prefixes, minus forms and names no table holds. With the
+sequences of D168 and D169, all 16586 replies match the reference's byte for byte, and so does the
+configuration's hash after every command.
