@@ -73,4 +73,99 @@ package body Adaflight.Simplified_Tuning with SPARK_Mode is
       end loop;
    end Apply_PIDs;
 
+   Dyn_LPF_Max_Hz : constant := 1_000;
+   LPF_Max_Hz     : constant := 1_000;
+
+   --  A default cutoff through a filter slider in percent, held to a limit.
+   function Scaled (Default : Positive; Multiplier : Natural; Limit : Positive) return PID_Profile.Hertz is
+     (Natural'Min (Default * Multiplier / 100, Limit))
+     with Pre  => Default <= 1_000 and then Multiplier <= 200 and then Limit <= 1_000,
+          Post => Scaled'Result <= Limit;
+
+   -------------------------
+   -- Apply_Dterm_Filters --
+   -------------------------
+
+   procedure Apply_Dterm_Filters (P : in out PID_Profile.Profile) is
+      M : constant Natural := P.Simplified_Dterm_Filter_Multiplier;
+   begin
+      if not P.Simplified_Dterm_Filter then
+         return;
+      end if;
+      if P.Dterm_LPF1_Dyn_Min_Hz /= 0 then
+         declare
+            New_Min : constant PID_Profile.Hertz := Scaled (75, M, Dyn_LPF_Max_Hz);
+            New_Max : constant PID_Profile.Hertz := Scaled (150, M, Dyn_LPF_Max_Hz);
+         begin
+            if P.Dterm_LPF1_Dyn_Min_Hz <= New_Max then
+               P.Dterm_LPF1_Dyn_Max_Hz := New_Max;
+               P.Dterm_LPF1_Dyn_Min_Hz := New_Min;
+            else
+               P.Dterm_LPF1_Dyn_Min_Hz := New_Min;
+               P.Dterm_LPF1_Dyn_Max_Hz := New_Max;
+            end if;
+         end;
+      end if;
+      if P.Dterm_LPF1_Static_Hz /= 0 then
+         P.Dterm_LPF1_Static_Hz := Scaled (75, M, Dyn_LPF_Max_Hz);
+      end if;
+      if P.Dterm_LPF2_Static_Hz /= 0 then
+         P.Dterm_LPF2_Static_Hz := Scaled (150, M, LPF_Max_Hz);
+      end if;
+   end Apply_Dterm_Filters;
+
+   ------------------------
+   -- Apply_Gyro_Filters --
+   ------------------------
+
+   procedure Apply_Gyro_Filters (G : in out Gyro_Filters.Settings) is
+      M : constant Natural := G.Simplified_Filter_Multiplier;
+   begin
+      if not G.Simplified_Filter then
+         return;
+      end if;
+      if G.LPF1_Dyn_Min_Hz /= 0 then
+         declare
+            New_Min : constant PID_Profile.Hertz := Scaled (250, M, Dyn_LPF_Max_Hz);
+            New_Max : constant PID_Profile.Hertz := Scaled (500, M, Dyn_LPF_Max_Hz);
+         begin
+            if G.LPF1_Dyn_Min_Hz <= New_Max then
+               G.LPF1_Dyn_Max_Hz := New_Max;
+               G.LPF1_Dyn_Min_Hz := New_Min;
+            else
+               G.LPF1_Dyn_Min_Hz := New_Min;
+               G.LPF1_Dyn_Max_Hz := New_Max;
+            end if;
+         end;
+      end if;
+      if G.LPF1_Static_Hz /= 0 then
+         G.LPF1_Static_Hz := Scaled (250, M, Dyn_LPF_Max_Hz);
+      end if;
+      if G.LPF2_Static_Hz /= 0 then
+         G.LPF2_Static_Hz := Scaled (500, M, LPF_Max_Hz);
+      end if;
+   end Apply_Gyro_Filters;
+
+   -----------
+   -- Apply --
+   -----------
+
+   procedure Apply (P : in out PID_Profile.Profile; G : in out Gyro_Filters.Settings) is
+   begin
+      Apply_PIDs (P);
+      Apply_Dterm_Filters (P);
+      Apply_Gyro_Filters (G);
+   end Apply;
+
+   -------------
+   -- Disable --
+   -------------
+
+   procedure Disable (P : in out PID_Profile.Profile; G : in out Gyro_Filters.Settings) is
+   begin
+      P.Simplified_PIDs_Mode := Off;
+      P.Simplified_Dterm_Filter := False;
+      G.Simplified_Filter := False;
+   end Disable;
+
 end Adaflight.Simplified_Tuning;

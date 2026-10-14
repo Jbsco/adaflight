@@ -622,8 +622,8 @@ and the peripherals read, the display the on-screen element names for two second
 change, and the sticky configuration-dirty flag; it reports the confirmation beeps and the
 PID, RC, and battery reinitializations a pass asks for, because their units own those. The
 master multiplier runs the simplified tuning of the PID gains, ported in its own unit from the
-reference defaults; the simplified filter sliders come with the configuration phase, as do the
-OSD profiles. Two guards cover the reference's undefined behavior: a range whose function is
+reference defaults; the simplified filter sliders are in D152, and the OSD profiles come with the
+configuration phase. Two guards cover the reference's undefined behavior: a range whose function is
 None is skipped where the reference reads outside its function table (finding F27), and a
 dial value is held within two to the thirtieth before its conversion to an integer. The
 feedforward and horizon strength holds are declared in D6. The display and the timers compare
@@ -3383,3 +3383,19 @@ The harness replays 4800 requests recorded from the reference MSP processor with
 build strings, in a build with the table, the strip, a build key and a release name, and one
 without, on random names, profiles, tables and request bytes. Every result, length and byte of
 the 4808 lines replays exactly.
+
+## D152. Simplified tuning filter sliders (2026-10-13)
+
+`Adaflight.Simplified_Tuning` contains the filter sliders beside the gain sliders. With the D term
+filter slider on, each D term lowpass cutoff in use is set from its default through the slider in
+percent: the dynamic range from 75 and 150 hertz, the first static cutoff from 75 and the second
+from 150, each held to 1000 hertz. The gyro filter slider does the same for the gyro lowpass
+filters from 250 and 500 hertz. A cutoff that is off stays off. Apply runs the gains, the D term
+filters and the gyro filters in that order, and Disable turns every slider off.
+`Adaflight.Gyro_Filters.Settings` gains the gyro filter slider and its multiplier. The dynamic
+range's ends are written in the order that keeps the lower end at or below the upper end at every
+step, the invariant the profile and gyro settings state.
+
+The harness replays 6000 calls recorded from the reference simplified tuning on random profiles
+and gyro configurations within their ranges, each applying one slider set or turning the sliders
+off. Every gain, cutoff and flag of the 6000 lines replays exactly.

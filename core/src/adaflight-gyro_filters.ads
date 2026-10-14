@@ -65,6 +65,8 @@ package Adaflight.Gyro_Filters with SPARK_Mode, Pure is
       RPM                  : RPM_Filter.Settings;
       Motors               : RPM_Filter.Motor_Count := 4;
       Motor_Telemetry      : Boolean := False;
+      Simplified_Filter    : Boolean := True;
+      Simplified_Filter_Multiplier : Natural range 10 .. 200 := 100;
    end record
      with Dynamic_Predicate =>
        (Settings.LPF1_Dyn_Min_Hz = 0 or else Settings.LPF1_Dyn_Min_Hz <= Settings.LPF1_Dyn_Max_Hz)
