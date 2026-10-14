@@ -3647,3 +3647,26 @@ its lookups prove in range.
 
 The harness compares every setting's name, type, scope, mode, limits and group, and every lookup
 table's count and names, with the oracle's dump. All 789 settings and 72 tables replay exactly.
+
+## D164. Configuration groups (2026-10-13)
+
+`Adaflight.Config_Groups` contains the configuration as a record per parameter group of the settings
+oracle's build (D163): 101 groups, from the system, feature and arming settings through the PID,
+rate and battery profiles, the mode and adjustment ranges, the mixers, the OSD, the telemetry and
+the flight plan, to the hardware groups of buses, pins and DMA. A local tool generates the 110
+record types from the reference's group types as the oracle's debug information describes them. Each
+field keeps its C type's width and sign, a union keeps its array member, and a character array is
+bytes. The record layout is adaflight's own, and the codecs to the storage image (D158) follow.
+`Defaults` holds the reference's reset values, read from the oracle's groups after a reset of all of
+them, so the hardware groups hold the values of a board without pins.
+
+`Get` gives a setting's value in a configuration as the reference's command line reads it: the
+setting's own type over the field's bytes, a bit setting's bit, an array setting's element, a
+profile setting's profile. For 13 settings the setting's type differs from the field's in sign, and
+for 7 the field is wider than the setting's type, so only its low bytes are read; no setting's range
+holds a value outside the field's type. `Get_Text` gives a text setting's characters before the
+first zero. Writing values follows in the next step. The unit is SPARK for the profile and element
+indexing.
+
+The harness compares every setting's default through `Get` and `Get_Text` with the oracle's dump.
+All 789 settings replay exactly.
