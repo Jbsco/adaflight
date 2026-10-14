@@ -199,6 +199,10 @@ ledger. The deviations so far:
   past a corrupted region's end. Its reported size is the image's length, 2 bytes less than the
   reference reports on 32-bit targets (findings F143). The recorded images never read past the
   region, and the checker takes the reference's extra bytes off its size.
+- The configuration fix leaves a mixer mode past the mixer table and the rates of a rates type
+  past the limit table as they are, and takes an MSP override condition's aux channel past 27 to
+  name no bit, where the reference reads past its tables or shifts past the mask's width
+  (findings F150 to F152). The recorded configurations stay within the tables and the mask.
 
 ## D7. Contribution conventions (2026-10-08)
 
@@ -3709,3 +3713,42 @@ replays the four sequences of setting writes of D165 and compares an FNV-1a hash
 each write. It also takes each configuration through its bytes and back, and the reset
 configurations and every 250th write through a saved and loaded storage image as well. All 6004
 encodings match, and every configuration comes back equal in every field.
+
+## D167. Configuration fix (2026-10-14)
+
+`Adaflight.Config_Fix` contains the checks a configuration passes after every load and before every
+save, in order: unsupported mixer modes to a custom mode, telemetry protocols repeated in a later
+slot dropped, conflicting serial ports cleared through the serial feature map (D155), filter cutoffs
+past 1000 hertz and notches above their cutoff reset, receiver features reduced to one, linked mode
+chains and the GPS rescue mode without GPS taken out, DShot settings the protocol or timers cannot
+run reset, PID loop slowed to the motor protocol's update rate, profile selections past their
+counts back to the first, rates held to their type's limits, and battery voltages out of order back
+to their defaults. `Fix_Gyro` is the gyro's part alone, which also runs once the gyro's sample rate
+is known and after the MSP advanced and filter configuration writes.
+
+Hardware inputs: gyro sample rate, motors in use, timer behind each pin and board's serial ports.
+The runtime feature mask is a parameter: a load starts it from the configuration's features, a save
+passes the running mask, and the ADC's RSSI channel follows it. The results name the serial port the
+MSP display port draws over and the GPS port taken out of use, for the caller to apply to the
+running ports. A port setting outside the serial map's identifiers stands for a port the board does
+not have, and a port setting changes only where the serial check changed it.
+
+Three inputs make the reference read past a table or shift past a word: a mixer mode past 27
+(F150), a rates type past 4 (F151) and an MSP override condition's aux channel past 27 (F152).
+adaflight leaves such a mode and such rates as they are and takes such a channel to name no bit
+(D6). Sensor alignment codes past the custom one wrap onto the eight standard alignments.
+
+Each check is a procedure over the groups it reads and writes, SPARK for the indexing of the mode
+conditions, the shifts of the override mask, the conversions of port settings and of the PID loop
+ratio, with postconditions for the filter cutoffs, motor output limit, cell count and battery
+voltage order. The body of `Fix` is outside SPARK. It contains only the calls that pass each group
+of the configuration to those procedures. gnatwhy3 grew past 2 GB for over three minutes without
+starting a prover on a body that passed the whole configuration to five calls. With that body
+outside SPARK the unit proves in under a minute.
+
+The harness replays 4000 configurations the oracle runs through the reference's fix: the reset
+configuration after up to 40 random setting writes and direct changes to the fields the fix checks,
+with a gyro rate from none to 9 kHz, zero to eight motors and a timer kind for each pin. Each input
+is decoded from its bytes, fixed, and compared on changed bytes, an FNV-1a hash of the output, MSP
+display port and GPS port taken out of use. All 4000 match exactly: 3998 change the configuration,
+201 name a display port and 52 take a GPS port out of use.
