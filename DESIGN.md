@@ -182,6 +182,11 @@ ledger. The deviations so far:
   a second never reaches, where the reference's floats run on. The geofence return's and the
   rescue's altitudes saturate at the 32-bit range. The recorded plans stay within 200 kilometres
   of the origin and replay bit for bit.
+- MSP simplified tuning requests with a field outside its setting's range are errors that write
+  and change nothing (D153), where the reference stores and computes with any byte. The in
+  message checks the whole request before it stores anything, so a short request, which the
+  reference stores as zero filter cutoffs, is an error (findings F142). The checker expects the
+  error and unchanged settings for the recorded requests outside the ranges.
 
 ## D7. Contribution conventions (2026-10-08)
 
@@ -3399,3 +3404,22 @@ step, the invariant the profile and gyro settings state.
 The harness replays 6000 calls recorded from the reference simplified tuning on random profiles
 and gyro configurations within their ranges, each applying one slider set or turning the sliders
 off. Every gain, cutoff and flag of the 6000 lines replays exactly.
+
+## D153. MSP simplified tuning messages (2026-10-13)
+
+`Adaflight.MSP_Simplified_Tuning` contains the MSP messages of simplified tuning: slider read with
+D term and gyro cutoffs, gains, D term filters or gyro filters computed from a requested slider set
+without storing them, validation of gains, gyro filters and D term filters against their sliders,
+and an in message that stores a slider set with its cutoffs and applies every slider. A request
+reads zero past its end. A request with a field outside its setting's range is an error that
+writes and changes nothing: mode beyond roll, pitch and yaw, gain slider above 200, filter switch
+above one, filter multiplier outside 10 to 200, cutoff above 1000 hertz, or dynamic range with its
+lower end above its upper end (D6). The in message checks the whole request before it stores
+anything. Dynamic range ends are written in the order that keeps the lower end at or below the
+upper end at every step.
+
+The harness replays 4800 requests recorded from the reference MSP processor on random profiles and
+gyro configurations, about a third of them already at their sliders' result, with requests within
+their ranges, short, long, or with one field outside its range. Every result, length, reply byte
+and setting of the 4025 requests within their ranges replays exactly, and each of the 775 outside
+them is an error that leaves the settings unchanged.

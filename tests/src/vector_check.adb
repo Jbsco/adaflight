@@ -125,6 +125,7 @@ with Adaflight.MSP_Receiver_Out;
 with Adaflight.MSP_Hardware_Out;
 with Adaflight.MSP_Peripheral_Out;
 with Adaflight.MSP_Text_Out;
+with Adaflight.MSP_Simplified_Tuning;
 with Adaflight.MSP_Out;
 with Adaflight.Four_Way;
 with Adaflight.Gimbal_Control;
@@ -16110,6 +16111,127 @@ procedure Vector_Check is
       end if;
    end Check_Simplified_Filter_Line;
 
+   procedure Check_MSP_Simplified_Line is
+      use Adaflight.PID_Profile;
+      package MST renames Adaflight.MSP_Simplified_Tuning;
+      Name : constant String := Str (1);
+      K    : Positive := 8;
+      P    : Profile;
+      G    : Adaflight.Gyro_Filters.Settings;
+      function Next return Integer_64 is
+      begin
+         K := K + 1;
+         return Int (K - 1);
+      end Next;
+      --  The profile and gyro fields against the state from a field on.
+      procedure Expect_State (Prefix : String; First : Positive) is
+         F : Positive := First;
+         procedure Expect (Field : String; Actual : Integer_64) is
+         begin
+            Record_Int (Name & "." & Prefix & Field, Int (F), Actual);
+            F := F + 1;
+         end Expect;
+      begin
+         for A in Adaflight.Axes.Axis loop
+            Expect ("p", Integer_64 (P.Gains (A).P));
+            Expect ("i", Integer_64 (P.Gains (A).I));
+            Expect ("d", Integer_64 (P.Gains (A).D));
+            Expect ("f", Integer_64 (P.Gains (A).F));
+            Expect ("d_max", Integer_64 (P.D_Max (A)));
+         end loop;
+         Expect ("pids_mode", Simplified_Mode'Pos (P.Simplified_PIDs_Mode));
+         Expect ("master", Integer_64 (P.Simplified_Master_Multiplier));
+         Expect ("roll_pitch", Integer_64 (P.Simplified_Roll_Pitch_Ratio));
+         Expect ("i_gain", Integer_64 (P.Simplified_I_Gain));
+         Expect ("d_gain", Integer_64 (P.Simplified_D_Gain));
+         Expect ("pi_gain", Integer_64 (P.Simplified_PI_Gain));
+         Expect ("d_max_gain", Integer_64 (P.Simplified_D_Max_Gain));
+         Expect ("ff_gain", Integer_64 (P.Simplified_Feedforward_Gain));
+         Expect ("pitch_pi_gain", Integer_64 (P.Simplified_Pitch_PI_Gain));
+         Expect ("dterm_filter", Boolean'Pos (P.Simplified_Dterm_Filter));
+         Expect ("dterm_multiplier", Integer_64 (P.Simplified_Dterm_Filter_Multiplier));
+         Expect ("dterm_lpf1", Integer_64 (P.Dterm_LPF1_Static_Hz));
+         Expect ("dterm_lpf2", Integer_64 (P.Dterm_LPF2_Static_Hz));
+         Expect ("dterm_dyn_min", Integer_64 (P.Dterm_LPF1_Dyn_Min_Hz));
+         Expect ("dterm_dyn_max", Integer_64 (P.Dterm_LPF1_Dyn_Max_Hz));
+         Expect ("gyro_filter", Boolean'Pos (G.Simplified_Filter));
+         Expect ("gyro_multiplier", Integer_64 (G.Simplified_Filter_Multiplier));
+         Expect ("gyro_lpf1", Integer_64 (G.LPF1_Static_Hz));
+         Expect ("gyro_lpf2", Integer_64 (G.LPF2_Static_Hz));
+         Expect ("gyro_dyn_min", Integer_64 (G.LPF1_Dyn_Min_Hz));
+         Expect ("gyro_dyn_max", Integer_64 (G.LPF1_Dyn_Max_Hz));
+      end Expect_State;
+   begin
+      if Name = "msiminit" then
+         return;
+      elsif Name /= "msimstep" then
+         Put_Line ("unknown MSP simplified tuning case " & Name);
+         Failures := Failures + 1;
+         return;
+      end if;
+      for A in Adaflight.Axes.Axis loop
+         P.Gains (A).P := Natural (Next);
+         P.Gains (A).I := Natural (Next);
+         P.Gains (A).D := Natural (Next);
+         P.Gains (A).F := Natural (Next);
+         P.D_Max (A) := Natural (Next);
+      end loop;
+      P.Simplified_PIDs_Mode := Simplified_Mode'Val (Next);
+      P.Simplified_Master_Multiplier := Natural (Next);
+      P.Simplified_Roll_Pitch_Ratio := Natural (Next);
+      P.Simplified_I_Gain := Natural (Next);
+      P.Simplified_D_Gain := Natural (Next);
+      P.Simplified_PI_Gain := Natural (Next);
+      P.Simplified_D_Max_Gain := Natural (Next);
+      P.Simplified_Feedforward_Gain := Natural (Next);
+      P.Simplified_Pitch_PI_Gain := Natural (Next);
+      P.Simplified_Dterm_Filter := Next /= 0;
+      P.Simplified_Dterm_Filter_Multiplier := Natural (Next);
+      P.Dterm_LPF1_Static_Hz := Natural (Next);
+      P.Dterm_LPF2_Static_Hz := Natural (Next);
+      P.Dterm_LPF1_Dyn_Min_Hz := 0;
+      P.Dterm_LPF1_Dyn_Max_Hz := Natural (Int (K + 1));
+      P.Dterm_LPF1_Dyn_Min_Hz := Natural (Int (K));
+      K := K + 2;
+      G.Simplified_Filter := Next /= 0;
+      G.Simplified_Filter_Multiplier := Natural (Next);
+      G.LPF1_Static_Hz := Natural (Next);
+      G.LPF2_Static_Hz := Natural (Next);
+      G.LPF1_Dyn_Min_Hz := 0;
+      G.LPF1_Dyn_Max_Hz := Natural (Int (K + 1));
+      G.LPF1_Dyn_Min_Hz := Natural (Int (K));
+      K := K + 2;
+      declare
+         Command       : constant Interfaces.Unsigned_16 := Interfaces.Unsigned_16 (Int (4));
+         Request       : constant Byte_Array := Hex_Bytes (6);
+         Valid_Request : constant Boolean := Int (7) /= 0;
+         Buffer        : Byte_Array (0 .. 255) := (others => 0);
+         St            : Adaflight.Stream_Buffers.Stream;
+         Ok            : Boolean;
+      begin
+         Adaflight.Stream_Buffers.Init (St, 0, Buffer'Last + 1);
+         if Int (4) = MST.Set_Simplified_Tuning_Command then
+            MST.Set (Request, P, G, Ok);
+         else
+            MST.Reply (Buffer, St, Command, Request, P, G, Ok);
+         end if;
+         Record_Int (Name & ".valid", Int (7), Boolean'Pos (Ok));
+         if Valid_Request then
+            Record_Int (Name & ".result", Int (K), (if Ok then 1 else -1));
+            Record_Int (Name & ".length", Int (K + 1), Integer_64 (St.Next));
+            Record_Bytes (Name & ".reply", Hex_Bytes (K + 2), Buffer (0 .. St.Next - 1));
+            Expect_State ("", K + 3);
+         else
+            Record_Int (Name & ".error_length", 0, Integer_64 (St.Next));
+            Expect_State ("kept_", 8);
+         end if;
+      end;
+      if NF /= K + 2 + 36 then
+         Put_Line ("msimstep: expected" & Integer'Image (K + 2 + 36) & " fields, found" & Integer'Image (NF));
+         Failures := Failures + 1;
+      end if;
+   end Check_MSP_Simplified_Line;
+
    AP_State    : Adaflight.Position_Hold.State;
    AP_Settings : Adaflight.Position_Control.Settings;
    AP_Nav      : Adaflight.Position_Nav.Navigator;
@@ -16639,6 +16761,8 @@ procedure Vector_Check is
                   Check_MSP_Text_Line;
                elsif Kind = "simpfilt" then
                   Check_Simplified_Filter_Line;
+               elsif Kind = "mspsimp" then
+                  Check_MSP_Simplified_Line;
                else
                   Check_PID_Line;
                end if;
@@ -16790,6 +16914,7 @@ begin
    Run (Dir & "/mspperipheral.csv", "mspperipheral");
    Run (Dir & "/msptext.csv", "msptext");
    Run (Dir & "/simpfilt.csv", "simpfilt");
+   Run (Dir & "/mspsimp.csv", "mspsimp");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
