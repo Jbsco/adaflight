@@ -3480,3 +3480,19 @@ The harness replays 4800 requests recorded from the reference MSP processor with
 feature map and serial layer linked, in the full and the reduced build of D155, on random
 assignments with soft serial on or off and random ports removed. Every result, length and byte of
 the 4808 lines replays exactly.
+
+## D157. MSP transmitter device status (2026-10-13)
+
+`Adaflight.MSP_VTX_Status_Out` contains the MSP out message of the video transmitter's device
+status: device type and readiness, band and channel, power index, frequency and status with whether
+the device knows each, power levels in decibel-milliwatts and milliwatts, and the device's own
+status block. The values come from the driver of the device in use, SmartAudio (D84), Tramp (D86)
+or MSP (D98), and a value the device does not know goes out as zero. The status has the pit mode
+bit and, for Tramp, the race lock bit. SmartAudio reports its own power levels from version 2 on,
+the MSP device reports the table's, and Tramp reports none. Only SmartAudio has a status block of
+its own: version, mode, pit mode frequency and boot flag; the others send a zero length. Nothing
+goes out without a device. The RTC6705 driver is not ported, so its device does not appear.
+
+The harness replays 4800 device states drawn into the reference common transmitter layer and its
+SmartAudio, Tramp and MSP drivers, with random frequency tables, each step making one device
+current or none. Every length and byte of the 4808 lines replays exactly.
