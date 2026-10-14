@@ -149,6 +149,7 @@ with Adaflight.Settings_Table;
 with Adaflight.Config_Groups;
 with Adaflight.Config_Codec;
 with Adaflight.Config_Fix;
+with Adaflight.Config_Runtime;
 with Adaflight.Command_Line;
 with Ada.Strings.Unbounded;
 with Adaflight.Dispatch;
@@ -14066,6 +14067,15 @@ procedure Vector_Check is
       end loop;
       Runtime := C.Feature_Config.Enabled_Features;
       Fix.Fix (C, H, Ports, Runtime, R);
+      for I in C.Pid_Profiles'Range loop
+         declare
+            P : constant Adaflight.PID_Profile.Profile := Adaflight.Config_Runtime.PID_Profile_Of (C.Pid_Profiles (I));
+         begin
+            Record_Int ("conffix.profile_gain",
+                        Integer_64 (Interfaces.Unsigned_8'Min (250, C.Pid_Profiles (I).Pid (0).P)),
+                        Integer_64 (P.Gains (Adaflight.Axes.Roll).P));
+         end;
+      end loop;
       Codec.Encode (C, Output);
       Record_Text ("conffix.changes", Str (7), Diff_Text (Input, Output));
       declare
