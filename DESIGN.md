@@ -4092,7 +4092,7 @@ the reference's byte for byte, and so does the configuration's hash after every 
 
 ## D180. Command line master dump (2026-10-14)
 
-`Adaflight.Command_Line` gains the master dump. `dump` alone, with
+`Adaflight.Command_Line` gains the master dump and the `version` command. `dump` alone, with
 `master`, or with options that name no section prints the version line, the command batch's start,
 the board's name and manufacturer, and the craft name, or `-` without one. Each section follows
 under its heading: features, mixer with its custom motor mix, servos, servo rules, beepers, beacons,
@@ -4103,7 +4103,8 @@ the batch lines. A dump with `defaults`, a diff of the master section, and the `
 sections stay unknown to `Process_Line`.
 
 Where a listing command prints the same lines as its dump section, the two share one printer. The
-dump's version line names the default configuration's board identifier.
+dump's version line names the default configuration's board identifier, and `version` names the
+stored one.
 
 `Process_Line` takes an `Environment` from its caller in place of the navigation report. It contains
 the flight plan executor's report, the firmware's name, the target's name, the version, the build's

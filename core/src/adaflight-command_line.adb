@@ -3132,7 +3132,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Led_Command_Word, Map_Command_Word, Mode_Color_Command_Word,
       Mixer_Command_Word, Motor_Mix_Command_Word, Profile_Command, Rate_Profile_Command, Rx_Failsafe_Command,
       Rx_Range_Command, Serial_Command_Word, Servo_Command_Word, Servo_Mix_Command_Word, Set_Command,
-      Vtx_Command_Word, Vtx_Table_Command_Word, Waypoint_Command_Word);
+      Version_Command_Word, Vtx_Command_Word, Vtx_Table_Command_Word, Waypoint_Command_Word);
    subtype Known_Command is Command_Kind range Adjustment_Range_Command_Word .. Waypoint_Command_Word;
 
    function Command_Word (K : Known_Command) return String is
@@ -3160,6 +3160,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when Servo_Command_Word => "servo",
          when Servo_Mix_Command_Word => "smix",
          when Set_Command => "set",
+         when Version_Command_Word => "version",
          when Vtx_Command_Word => "vtx",
          when Vtx_Table_Command_Word => "vtxtable",
          when Waypoint_Command_Word => "waypoint")
@@ -3203,6 +3204,20 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Put (Into, ") MSP API: " & Decimal (MSP_Common_Out.API_Version_Major) & "."
            & Decimal (MSP_Common_Out.API_Version_Minor) & CRLF);
    end Put_Version;
+
+   --  version: the version line with the configuration's board identifier,
+   --  then the board's manufacturer and name when both are known.
+   procedure Version_Command (Into : in out Sink; C : Configuration; Env : Environment) is
+   begin
+      Put_Version (Into, Env, C.System_Config.Board_Identifier);
+      if Env.Manufacturer_Id.Length > 0 and then Env.Board_Name.Length > 0 then
+         Put (Into, "# board: manufacturer_id: ");
+         Put (Into, Text_Of (Env.Manufacturer_Id));
+         Put (Into, ", board_name: ");
+         Put (Into, Text_Of (Env.Board_Name));
+         Put (Into, CRLF);
+      end if;
+   end Version_Command;
 
    --  The master dump: the version line with the default board identifier,
    --  the command batch's start, the board's name and manufacturer, the craft
@@ -3434,6 +3449,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when Set_Command =>
             Known := True;
             Set (Into, C, Text_At (Buffer, Arguments), Ports);
+         when Version_Command_Word =>
+            Known := True;
+            Version_Command (Into, C, Env);
          when Vtx_Command_Word =>
             Known := True;
             Vtx_Command

@@ -4,8 +4,8 @@
 --  default; set lists every setting, or reads a value for one setting by its
 --  name; profile, rateprofile and battery_profile show or select a profile;
 --  dump and diff list a profile's or a rate profile's settings, and dump the
---  whole configuration as commands. The text goes out through Put into a
---  sink.
+--  whole configuration as commands; version prints the firmware's version
+--  line. The text goes out through Put into a sink.
 with Interfaces;
 with Adaflight.Config_Groups; use Adaflight.Config_Groups;
 with Adaflight.CLI_Text;
