@@ -131,6 +131,7 @@ with Adaflight.Serial_Feature_Map;
 with Adaflight.MSP_Serial_Out;
 with Adaflight.MSP_VTX_Status_Out;
 with Adaflight.Config_Store;
+with Adaflight.Mixer_Init;
 with Adaflight.MSP_Out;
 with Adaflight.Four_Way;
 with Adaflight.Gimbal_Control;
@@ -16817,6 +16818,110 @@ procedure Vector_Check is
       end if;
    end Check_Config_Store_Line;
 
+   MX_Options : Adaflight.Mixer_Init.Options;
+
+   procedure Check_Mixer_Init_Line is
+      package MI renames Adaflight.Mixer_Init;
+      Name : constant String := Str (1);
+      K    : Positive := 7;
+      function Read_Mix return MI.Mix_Table is
+         T : MI.Mix_Table := (others => <>);
+      begin
+         if Str (K) = "-" then
+            K := K + 1;
+            return T;
+         end if;
+         for I in T'Range loop
+            T (I) := (Throttle => Flt (K), Roll => Flt (K + 1), Pitch => Flt (K + 2), Yaw => Flt (K + 3));
+            K := K + 4;
+         end loop;
+         return T;
+      end Read_Mix;
+      procedure Expect_Mix (Field : String; T : MI.Mix_Table) is
+      begin
+         if Str (K) = "-" then
+            K := K + 1;
+            return;
+         end if;
+         for I in T'Range loop
+            Record_Result (Name & "." & Field & "_throttle", Bits (K), To_Bits (T (I).Throttle));
+            Record_Result (Name & "." & Field & "_roll", Bits (K + 1), To_Bits (T (I).Roll));
+            Record_Result (Name & "." & Field & "_pitch", Bits (K + 2), To_Bits (T (I).Pitch));
+            Record_Result (Name & "." & Field & "_yaw", Bits (K + 3), To_Bits (T (I).Yaw));
+            K := K + 4;
+         end loop;
+      end Expect_Mix;
+   begin
+      if Name = "mxiinit" then
+         MX_Options := (Quad_Only      => Int (3) /= 0,
+                        Uncommon       => Int (4) /= 0,
+                        Max_Motors     => Natural (Int (5)),
+                        Launch_Control => Int (6) /= 0);
+         return;
+      elsif Name /= "mxistep" then
+         Put_Line ("unknown mixer setup case " & Name);
+         Failures := Failures + 1;
+         return;
+      end if;
+      declare
+         Mode      : constant MI.Mixer_Mode := MI.Mixer_Mode'Val (Int (4) - 1);
+         Load_Mode : constant MI.Mixer_Mode := MI.Mixer_Mode'Val (Int (5) - 1);
+         Armed     : constant Boolean := Int (6) /= 0;
+         Current   : MI.Mix_Table := Read_Mix;
+         Launch    : MI.Mix_Table := Read_Mix;
+         Custom_PG : constant MI.Mix_Table := Read_Mix;
+         Custom    : MI.Mix_Table := Read_Mix;
+         Disarm    : constant Float := Flt (K);
+         Disarmed  : MI.Motor_Outputs := (others => 0.0);
+         Motors    : MI.Motor_Outputs := (others => 0.0);
+         Count     : Natural;
+      begin
+         K := K + 1;
+         for I in Disarmed'Range loop
+            Disarmed (I) := Flt (K);
+            Motors (I) := Flt (K + 1);
+            K := K + 2;
+         end loop;
+         declare
+            Max_Throttle : constant Float := Float (Int (K));
+         begin
+            K := K + 1;
+            MI.Configure_Output (MX_Options, Mode, Custom_PG, Disarm, Current, Count, Launch, Disarmed);
+            for I in Disarmed'Range loop
+               if I < MX_Options.Max_Motors then
+                  Record_Result (Name & ".disarmed_reset", Bits (K), To_Bits (Disarmed (I)));
+               end if;
+               K := K + 1;
+            end loop;
+            for I in Disarmed'Range loop
+               Disarmed (I) := Flt (K);
+               K := K + 1;
+            end loop;
+            if MX_Options.Quad_Only then
+               K := K + 2;
+            else
+               MI.Load_Mix (MX_Options, Load_Mode, Custom);
+               Record_Int (Name & ".servos", Int (K), Boolean'Pos (MI.Uses_Servos (Mode)));
+               Record_Int (Name & ".fixed_wing", Int (K + 1), Boolean'Pos (MI.Is_Fixed_Wing (Mode)));
+               K := K + 2;
+            end if;
+            Record_Int (Name & ".count", Int (K), Integer_64 (Count));
+            Record_Int (Name & ".running", Int (K + 1),
+                        Boolean'Pos (MI.Motors_Running (Armed, Disarmed, Count, Disarm)));
+            Record_Int (Name & ".saturated", Int (K + 2),
+                        Boolean'Pos (MI.Motors_Saturated (Motors, Count, Max_Throttle)));
+            K := K + 3;
+         end;
+         Expect_Mix ("current", Current);
+         Expect_Mix ("launch", Launch);
+         Expect_Mix ("custom", Custom);
+      end;
+      if K - 1 /= NF then
+         Put_Line ("mxistep: consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
+         Failures := Failures + 1;
+      end if;
+   end Check_Mixer_Init_Line;
+
    AP_State    : Adaflight.Position_Hold.State;
    AP_Settings : Adaflight.Position_Control.Settings;
    AP_Nav      : Adaflight.Position_Nav.Navigator;
@@ -17358,6 +17463,8 @@ procedure Vector_Check is
                   Check_VTX_Status_Line;
                elsif Kind = "cfgstore" then
                   Check_Config_Store_Line;
+               elsif Kind = "mixinit" then
+                  Check_Mixer_Init_Line;
                else
                   Check_PID_Line;
                end if;
@@ -17515,6 +17622,7 @@ begin
    Run (Dir & "/mspsercfg.csv", "mspsercfg");
    Run (Dir & "/vtxstatus.csv", "vtxstatus");
    Run (Dir & "/cfgstore.csv", "cfgstore");
+   Run (Dir & "/mixinit.csv", "mixinit");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
