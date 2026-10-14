@@ -6,12 +6,32 @@ with Interfaces; use Interfaces;
 with Adaflight.Axes; use Adaflight.Axes;
 with Adaflight.Config_Fix;
 with Adaflight.Config_Groups; use Adaflight.Config_Groups;
+with Adaflight.Dyn_Notch;
+with Adaflight.Gyro_Filters;
+with Adaflight.Mixer;
+with Adaflight.PID_Config;
 with Adaflight.PID_Profile; use Adaflight.PID_Profile;
+with Adaflight.RPM_Filter;
+with Adaflight.Sensor_Alignment;
 
 package Adaflight.Config_Runtime with SPARK_Mode is
 
    function PID_Profile_Of (P : Pid_Profile_Record) return PID_Profile.Profile
      with Pre => Config_Fix.Fixed_PID_Profile (P);
+
+   --  The gyro settings from the stored gyro, dynamic notch, RPM filter,
+   --  gyro device, board alignment, motor and PID loop groups, with what the
+   --  hardware gives: the sample time, whose product with the loop ratio is
+   --  the loop time, the gyro's scale, the motors in use, and whether the
+   --  gyro protects against overflow.
+   function Gyro_Settings_Of
+     (G : Gyro_Config_Record; N : Dyn_Notch_Config_Record; R : Rpm_Filter_Config_Record;
+      Device : Gyro_Device_Config_Record; Board : Board_Alignment_Record; Motor : Motor_Config_Record;
+      Loop_Rate : Pid_Config_Record; Sample_Time_Us : PID_Config.Loop_Time_Us; Scale : Float;
+      Motors : Mixer.Motor_Count; Overflow_Protected : Boolean) return Gyro_Filters.Settings
+     with Pre => Config_Fix.Fixed_Gyro_Filters (G) and then Loop_Rate.Pid_Process_Denom >= 1
+                 and then Sample_Time_Us * Integer (Loop_Rate.Pid_Process_Denom) <= PID_Config.Loop_Time_Us'Last
+                 and then Scale in 2.0 ** (-10) .. 1.0;
 
 private
 
@@ -138,5 +158,63 @@ private
       Simplified_Pitch_PI_Gain => Held (Integer (P.Simplified_Pitch_Pi_Gain), 0, 200),
       Simplified_Dterm_Filter  => P.Simplified_Dterm_Filter /= 0,
       Simplified_Dterm_Filter_Multiplier => Held (Integer (P.Simplified_Dterm_Filter_Multiplier), 10, 200));
+
+   function Gyro_Settings_Of
+     (G : Gyro_Config_Record; N : Dyn_Notch_Config_Record; R : Rpm_Filter_Config_Record;
+      Device : Gyro_Device_Config_Record; Board : Board_Alignment_Record; Motor : Motor_Config_Record;
+      Loop_Rate : Pid_Config_Record; Sample_Time_Us : PID_Config.Loop_Time_Us; Scale : Float;
+      Motors : Mixer.Motor_Count; Overflow_Protected : Boolean) return Gyro_Filters.Settings is
+     (LPF1_Type          => Lowpass_Kind'Val (Code (G.Gyro_Lpf1_Type, Lowpass_Kind'Pos (Lowpass_Kind'Last))),
+      LPF1_Static_Hz     => Held (Integer (G.Gyro_Lpf1_Static_Hz), 0, 1000),
+      LPF1_Dyn_Min_Hz    => Held (Integer (G.Gyro_Lpf1_Dyn_Min_Hz), 0, 1000),
+      LPF1_Dyn_Max_Hz    => Held (Integer (G.Gyro_Lpf1_Dyn_Max_Hz), 0, 1000),
+      LPF1_Dyn_Expo      => Held (Integer (G.Gyro_Lpf1_Dyn_Expo), 0, 10),
+      LPF2_Type          => Lowpass_Kind'Val (Code (G.Gyro_Lpf2_Type, Lowpass_Kind'Pos (Lowpass_Kind'Last))),
+      LPF2_Static_Hz     => Held (Integer (G.Gyro_Lpf2_Static_Hz), 0, 1000),
+      Notch1_Hz          => Held (Integer (G.Gyro_Soft_Notch_Hz_1), 0, 1000),
+      Notch1_Cutoff      => Held (Integer (G.Gyro_Soft_Notch_Cutoff_1), 0, 1000),
+      Notch2_Hz          => Held (Integer (G.Gyro_Soft_Notch_Hz_2), 0, 1000),
+      Notch2_Cutoff      => Held (Integer (G.Gyro_Soft_Notch_Cutoff_2), 0, 1000),
+      Sample_Time_Us     => Sample_Time_Us,
+      Loop_Time_Us       => Sample_Time_Us * Integer (Loop_Rate.Pid_Process_Denom),
+      Scale              => Scale,
+      Alignment          =>
+        Sensor_Alignment.Standard_Alignment'Val
+          (Code (Device.Alignment, Sensor_Alignment.Standard_Alignment'Pos (Sensor_Alignment.Standard_Alignment'Last))),
+      Custom_Angles      =>
+        (Roll  => Sensor_Alignment.Decidegrees (Held (Integer (Device.Custom_Alignment (0)), -3600, 3600)),
+         Pitch => Sensor_Alignment.Decidegrees (Held (Integer (Device.Custom_Alignment (1)), -3600, 3600)),
+         Yaw   => Sensor_Alignment.Decidegrees (Held (Integer (Device.Custom_Alignment (2)), -3600, 3600))),
+      Board              =>
+        (Roll  => Held (Integer (Board.Roll_Degrees), -180, 360),
+         Pitch => Held (Integer (Board.Pitch_Degrees), -180, 360),
+         Yaw   => Held (Integer (Board.Yaw_Degrees), -180, 360)),
+      Calibration_Duration => Held (Integer (G.Gyro_Calibration_Duration), 1, 3_000),
+      Movement_Threshold => Held (Integer (G.Gyro_Movement_Calibration_Threshold), 0, 200),
+      Offset_Yaw         => Held (Integer (G.Gyro_Offset_Yaw), -1_000, 1_000),
+      Check_Overflow     =>
+        Gyro_Filters.Overflow_Check'Val
+          (Code (G.Check_Overflow, Gyro_Filters.Overflow_Check'Pos (Gyro_Filters.Overflow_Check'Last))),
+      Overflow_Protected => Overflow_Protected,
+      Yaw_Spin           =>
+        Gyro_Filters.Spin_Recovery'Val
+          (Code (G.Yaw_Spin_Recovery, Gyro_Filters.Spin_Recovery'Pos (Gyro_Filters.Spin_Recovery'Last))),
+      Yaw_Spin_Threshold => Held (Integer (G.Yaw_Spin_Threshold), 500, 1_950),
+      Dynamic_Notch      =>
+        (Count  => Held (Integer (N.Dyn_Notch_Count), 0, Dyn_Notch.Max_Notches),
+         Q      => Held (Integer (N.Dyn_Notch_Q), 1, 1_000),
+         Min_Hz => Held (Integer (N.Dyn_Notch_Min_Hz), 20, 250),
+         Max_Hz => Held (Integer (N.Dyn_Notch_Max_Hz), 200, 1_000)),
+      RPM                =>
+        (Harmonics     => Held (Integer (R.Rpm_Filter_Harmonics), 0, RPM_Filter.Max_Harmonics),
+         Weights       => (0 => Integer (R.Rpm_Filter_Weights (0)), 1 => Integer (R.Rpm_Filter_Weights (1)),
+                           2 => Integer (R.Rpm_Filter_Weights (2))),
+         Min_Hz        => Held (Integer (R.Rpm_Filter_Min_Hz), 30, 200),
+         Fade_Range_Hz => Held (Integer (R.Rpm_Filter_Fade_Range_Hz), 0, 1_000),
+         Q             => Held (Integer (R.Rpm_Filter_Q), 250, 3_000)),
+      Motors             => Motors,
+      Motor_Telemetry    => Motor.Dev.Use_Dshot_Telemetry /= 0,
+      Simplified_Filter  => G.Simplified_Gyro_Filter /= 0,
+      Simplified_Filter_Multiplier => Held (Integer (G.Simplified_Gyro_Filter_Multiplier), 10, 200));
 
 end Adaflight.Config_Runtime;

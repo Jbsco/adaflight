@@ -4250,6 +4250,14 @@ recordings need (D6). The runtime records keep the narrow ranges the control pro
 constructor is the one boundary between them; a stored value outside its range is held to the range
 there (D6).
 
+`Gyro_Settings_Of` builds `Gyro_Filters.Settings` from the stored gyro, dynamic notch, RPM filter,
+gyro device, board alignment, motor and PID loop groups. What the hardware gives comes in as
+parameters: the sample time, whose product with the PID loop ratio is the loop time, the gyro's
+scale, the motors in use and whether the gyro protects against overflow.
+`Config_Fix.Fixed_Gyro_Filters` is the gyro filter checks' postcondition and the constructor's
+precondition in the same way.
+
 The harness builds the four PID profiles of every fixed configuration in the configuration fix
-recordings, 16000 in all, with the precondition and the predicate checked at run time, and compares
-the roll P gain.
+recordings, 16000 in all, and the gyro settings of each with a running gyro and motors, 3082, with
+the preconditions and the predicates checked at run time, and compares the roll P gain and the first
+lowpass cutoff.
