@@ -253,6 +253,9 @@ ledger. The deviations so far:
 - The runtime receiver settings widen an equal channel range by one step and read a zero RSSI frame
   period as one (D187), where the reference scales by a zero span and divides a filter gain by zero.
   The recorded configurations keep their ranges apart and their periods above zero.
+- The runtime mode conditions make a condition whose stored mode is outside the box table never
+  active, and a link outside it no link (D187), where the reference dereferences an empty box lookup
+  (findings F155). The recorded configurations keep their modes within the table.
 
 ## D7. Contribution conventions (2026-10-08)
 
@@ -4271,6 +4274,12 @@ receiver's failsafe throttle takes the full pulse range its setting has, where t
 to 1000 to 2000. An equal channel range is widened by one step, and a zero RSSI frame period reads
 as one (D6).
 
+`Arming_Settings_Of` builds `Arming.Settings` from the stored arming, system, receiver, 3D, mixer
+and PID loop groups, the current PID profile, the features in use and the sensors found at boot; the
+fixed wing flag comes from the mixer mode through `Mixer_Init.Is_Fixed_Wing`. `Conditions_Of` builds
+the mode conditions, a condition whose mode is outside the box table never active and a link outside
+it no link (D6).
+
 The harness builds the four PID profiles and the four rate profiles of every fixed configuration in
 the configuration fix recordings, 16000 of each, and the gyro settings of each with a running gyro
 and motors, 3082, with the preconditions and the predicates checked at run time, and compares the
@@ -4296,6 +4305,6 @@ plain GPS rescue stage of a build without the flight plan is in the state machin
 as in the reference's build with it.
 
 The harness builds the four PID profiles and the four rate profiles of every fixed configuration in
-the configuration fix recordings, 16000 of each, the failsafe and receiver settings of each, 4000 of
-each, and the gyro settings of each with a running gyro and motors, 3082, with the preconditions and
-the predicates checked at run time, and compares one field of each.
+the configuration fix recordings, 16000 of each, the arming, failsafe and receiver settings and the
+mode conditions of each, 4000 of each, and the gyro settings of each with a running gyro and motors,
+3082, with the preconditions and the predicates checked at run time, and compares one field of each.
