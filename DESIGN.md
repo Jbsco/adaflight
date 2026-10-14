@@ -3786,3 +3786,23 @@ then random gets of name fragments, and sets with values inside, at and past eac
 names in mixed case, array and text values, spacing and comment variations, profile selections and
 values stored past their range. Every reply matches the reference's byte for byte, 576301 bytes in
 all, and so does the configuration's hash after every command.
+
+## D169. Command line profiles, dump and diff (2026-10-14)
+
+`Adaflight.Command_Line` gains the `profile`, `rateprofile` and `battery_profile` commands and the
+profile and rate sections of `dump` and `diff`. A profile command without arguments prints the
+selected profile, and with a number in range selects it and reports the runtime work it asks for:
+the selected PID, rate or battery profile changed. A number out of range is an error. `dump profile`
+and `dump rates` print the selected profile's or rate profile's settings as set lines under a
+heading, `diff` prints only those off their default under a heading printed with the first of them,
+and the option `defaults` adds each changed setting's default as a commented set line. The other
+sections of `dump` and `diff` come with the commands they print.
+
+The line's command words are read from the line buffer by position, so an option after a section
+name that a comment cut off still applies (F153): `dump profile#defaults` dumps with defaults.
+
+The harness replays two sequences of 2500 command lines recorded from the oracle: profile
+selections in and out of range, dumps and diffs of both sections with their options, sets and gets
+of profile settings and values stored past their range. With the get and set sequences of D168,
+all 12586 replies match the reference's byte for byte, 2393071 bytes in all, and so does the
+configuration's hash after every command.

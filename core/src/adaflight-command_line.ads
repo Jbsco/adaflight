@@ -1,8 +1,10 @@
 --  Command line: the line a user types, its comment and trailing spaces cut,
---  and the get and set commands over the configuration's settings. get lists
---  every setting whose name contains a fragment, with its value, profile,
---  range and default; set lists every setting, or reads a value for one
---  setting by its name. The text goes out through Put into a sink.
+--  and the commands over the configuration's settings. get lists every
+--  setting whose name contains a fragment, with its value, profile, range and
+--  default; set lists every setting, or reads a value for one setting by its
+--  name; profile, rateprofile and battery_profile show or select a profile;
+--  dump and diff list a profile's or a rate profile's settings. The text goes
+--  out through Put into a sink.
 with Adaflight.Config_Groups; use Adaflight.Config_Groups;
 with Adaflight.CLI_Text;
 with Adaflight.Serial_Feature_Map;
@@ -45,12 +47,21 @@ package Adaflight.Command_Line with SPARK_Mode is
 
    Line_Size : constant := 256;
 
+   --  The runtime work a command asks for: a profile selected.
+   type Effects is record
+      PID_Profile     : Boolean := False;
+      Rate_Profile    : Boolean := False;
+      Battery_Profile : Boolean := False;
+   end record;
+
    --  A typed line without its line end: printable characters past the
    --  leading spaces, up to 255 of them, a comment from the first number sign
-   --  and trailing spaces cut, then get or set run. Known is false for a
-   --  line naming neither.
+   --  and trailing spaces cut, then its command run. Known is false for a
+   --  line naming no command, and for dump and diff of other sections than a
+   --  profile's and a rate profile's.
    procedure Process_Line
-     (Into : in out Sink; C : in out Configuration; Line : String; Ports : Port_List; Known : out Boolean)
+     (Into : in out Sink; C : in out Configuration; Line : String; Ports : Port_List; Known : out Boolean;
+      Changes : out Effects)
      with Pre => Valid (Current (C)) and then Ports'Length <= Serial_Feature_Map.Max_Ports;
 
 end Adaflight.Command_Line;
