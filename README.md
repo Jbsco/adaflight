@@ -109,6 +109,8 @@ The core contains:
 - configuration fix: checks of every load and save over mixer mode, telemetry slots, serial ports,
   filter cutoffs, receiver features, mode links, DShot settings, PID loop rate, profile
   selections, rates and battery voltages
+- command line get and set: line handling, setting values, ranges and defaults, value parsing and
+  error lines
 - MSP state replies: status, sensor readings, motors, RC channels, attitude, altitudes, battery,
   debug values, GPS, ESC and motor telemetry, pitot, transmitter information and clock
 - BLHeli 4-way interface for ESC configuration through flight controller
@@ -134,9 +136,9 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 19874 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 20275 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
-- Recorded vectors replay bit for bit: 1571227 lines over 366 cases, every case exact except
+- Recorded vectors replay bit for bit: 1593712 lines over 367 cases, every case exact except
   twenty-six declared deviations in `DESIGN.md` D6.
 - No target builds yet. `ROADMAP.md` contains phases, parity inventory, and one question for after
   parity: whether a proved core leaves room on F4 boards for features Betaflight has to leave out

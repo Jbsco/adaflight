@@ -3752,3 +3752,37 @@ with a gyro rate from none to 9 kHz, zero to eight motors and a timer kind for e
 is decoded from its bytes, fixed, and compared on changed bytes, an FNV-1a hash of the output, MSP
 display port and GPS port taken out of use. All 4000 match exactly: 3998 change the configuration,
 201 name a display port and 52 take a GPS port out of use.
+
+## D168. Command line get and set (2026-10-14)
+
+`Adaflight.Command_Line` contains the command line's line handling and its `get` and `set` commands
+over the configuration's settings. A line keeps its printable characters past the leading spaces,
+up to 255 of them, loses a comment from the first number sign and its trailing spaces, and names a
+command by its first word without regard to case. `get` lists every setting whose name contains a
+fragment without regard to case, with its value, its profile for a profile setting, its allowed
+values and its default where the value differs. `set` lists every setting, with each direct
+setting's range after an asterisk, or reads a value for the setting named before an equals sign: a
+decimal number within the setting's range, a lookup or bit name without regard to case, a serial
+port name, numbers between commas for an array, or a text. A value a stored configuration holds
+outside its setting's range prints with a corrupted configuration error.
+
+The unit is the core's first generic. Its text goes out through a formal `Put` into a sink, which
+the harness points at an unbounded string and a target will point at its serial port.
+`Adaflight.Reply_Command_Line` instantiates it over a reply record of 4096 characters, through which
+the generic's body is proved. `Adaflight.CLI_Text` contains the decimal numbers as the command
+line's C library reads them on a 32-bit target, held at the 32-bit range, the comparisons without
+case, and the board's serial port names. `Config_Groups.Set_Text` writes a text setting, and the
+settings table's direct limits are bounded to the 32-bit types.
+
+A command word followed directly by a comment takes the comment as its arguments (F153), so
+`get#motor_pwm_rate` prints that setting. adaflight reproduces it. On the oracle's 64-bit host the
+C library reads a number past the 32-bit range by its low 32 bits, where a 32-bit target holds it
+at the range. adaflight follows the target. The recorded numbers stay within the range, where the
+two agree.
+
+The harness replays two sequences of command lines, 7582 in all, recorded from the oracle, which
+runs the reference's command line over the settings oracle's configuration: get of every setting,
+then random gets of name fragments, and sets with values inside, at and past each setting's range,
+names in mixed case, array and text values, spacing and comment variations, profile selections and
+values stored past their range. Every reply matches the reference's byte for byte, 576301 bytes in
+all, and so does the configuration's hash after every command.

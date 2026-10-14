@@ -1,5 +1,4 @@
 package body Adaflight.Settings_Table with SPARK_Mode is
-   use type Interfaces.Integer_64;
 
    Infos : constant array (Setting) of Info :=
      (Gyro_Hardware_Lpf =>

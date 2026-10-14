@@ -5,6 +5,8 @@ with Interfaces;
 
 package Adaflight.Settings_Table with SPARK_Mode is
 
+   use type Interfaces.Integer_64;
+
    type Value_Type is (U8, I8, U16, I16, U32, I32);
    type Value_Scope is (Master, PID_Profile, Rate_Profile, Hardware, Battery_Profile);
    type Value_Mode is (Direct, Lookup, List, Bitset, Text, Identifier);
@@ -190,6 +192,9 @@ package Adaflight.Settings_Table with SPARK_Mode is
       Gimbal_Pitch_High_Limit, Gimbal_Yaw_Gain, Gimbal_Yaw_Offset, Gimbal_Yaw_Limit, Gimbal_Stabilisation,
       Gimbal_Sensitivity, Gimbal_Uart);
 
+   --  The bounds of the 32-bit value types.
+   subtype Limit is Interfaces.Integer_64 range -2 ** 32 .. 2 ** 32;
+
    --  Min and Max bound a direct value; Table names a lookup; Count is an
    --  array's length, a bit's position or a text's longest length, and
    --  Min_Length a text's shortest.
@@ -197,8 +202,8 @@ package Adaflight.Settings_Table with SPARK_Mode is
       Kind       : Value_Type := U8;
       Where      : Value_Scope := Master;
       How        : Value_Mode := Direct;
-      Min        : Interfaces.Integer_64 := 0;
-      Max        : Interfaces.Integer_64 := 0;
+      Min        : Limit := 0;
+      Max        : Limit := 0;
       Table      : Lookup_Table := Table_Off_On;
       Count      : Natural := 0;
       Min_Length : Natural := 0;
