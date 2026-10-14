@@ -13887,6 +13887,71 @@ procedure Vector_Check is
       end;
    end Check_Config_Groups_Line;
 
+   Set_Config : Adaflight.Config_Groups.Configuration := Adaflight.Config_Groups.Defaults;
+
+   --  A weighted sum of every value of every setting but the texts, in 64 bits.
+   function Settings_Fingerprint (C : Adaflight.Config_Groups.Configuration) return Interfaces.Unsigned_64 is
+      use Adaflight.Settings_Table;
+      use Adaflight.Config_Groups;
+      use type Interfaces.Unsigned_64;
+      Sum : Interfaces.Unsigned_64 := 0;
+   begin
+      for S in Setting loop
+         if Describe (S).How /= Text then
+            for P in 0 .. Profile_Count (S) - 1 loop
+               for K in 0 .. Element_Count (S) - 1 loop
+                  Sum := Sum + Interfaces.Unsigned_64 ((Setting'Pos (S) + 1) * 31 + P * 7 + K)
+                    * Interfaces.Unsigned_64'Mod (Get (C, S, P, K));
+               end loop;
+            end loop;
+         end if;
+      end loop;
+      return Sum;
+   end Settings_Fingerprint;
+
+   procedure Check_Config_Set_Line is
+      use Adaflight.Settings_Table;
+      use Adaflight.Config_Groups;
+      use type Interfaces.Unsigned_64;
+
+      procedure Record_Fingerprint (Field : Positive) is
+         Expected : constant Interfaces.Unsigned_64 := Interfaces.Unsigned_64'Value (Str (Field));
+         Actual   : constant Interfaces.Unsigned_64 := Settings_Fingerprint (Set_Config);
+      begin
+         Record_Int ("confset.fingerprint_low", Integer_64 (Expected mod 2 ** 32), Integer_64 (Actual mod 2 ** 32));
+         Record_Int ("confset.fingerprint_high", Integer_64 (Expected / 2 ** 32), Integer_64 (Actual / 2 ** 32));
+      end Record_Fingerprint;
+   begin
+      if Str (1) = "setstart" then
+         Set_Config := Defaults;
+         Record_Fingerprint (3);
+         return;
+      end if;
+      for S in Setting loop
+         if Name (S) = Str (3) then
+            declare
+               Profile : constant Natural := Natural (Int (4));
+               Index   : constant Natural := Natural (Int (5));
+               Value   : constant Integer_64 := Int (6);
+            begin
+               if Profile < Profile_Count (S) and then Index < Element_Count (S)
+                 and then Value in Lowest (S) .. Highest (S)
+               then
+                  Set (Set_Config, S, Value, Profile, Index);
+                  Record_Int ("confset.read_back", Int (7), Get (Set_Config, S, Profile, Index));
+                  Record_Fingerprint (8);
+               else
+                  Put_Line ("confset: value outside the setting for " & Str (3));
+                  Failures := Failures + 1;
+               end if;
+            end;
+            return;
+         end if;
+      end loop;
+      Put_Line ("confset: no setting named " & Str (3));
+      Failures := Failures + 1;
+   end Check_Config_Set_Line;
+
    Meter_State    : Adaflight.Battery.State;
    Meter_Settings : Adaflight.Battery.Settings;
    Meter_Inputs_V : Adaflight.Battery.Meter_Inputs;
@@ -17804,6 +17869,8 @@ procedure Vector_Check is
                   Check_Settings_Line;
                elsif Kind = "confgroups" then
                   Check_Config_Groups_Line;
+               elsif Kind = "confset" then
+                  Check_Config_Set_Line;
                elsif Kind = "battmeter" then
                   Check_Battery_Meter_Line;
                elsif Kind = "flashfs" then
@@ -17992,6 +18059,7 @@ begin
    Run (Dir & "/ackrx.csv", "ackrx");
    Run (Dir & "/settings.csv", "settings");
    Run (Dir & "/confgroups.csv", "confgroups");
+   Run (Dir & "/confset.csv", "confset");
    if Settings_Seen /= Adaflight.Settings_Table.Setting'Pos (Adaflight.Settings_Table.Setting'Last) + 1 then
       Put_Line ("settings: the vectors hold" & Settings_Seen'Image & " settings");
       Failures := Failures + 1;
