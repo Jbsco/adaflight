@@ -14128,6 +14128,12 @@ procedure Vector_Check is
               C.Failsafe_Config, Runtime, 18);
          AJ : constant Adaflight.Adjustments.Settings :=
            Adaflight.Config_Runtime.Adjustment_Settings_Of (C.Rx_Config, C.System_Config);
+         MX : constant Adaflight.Mixer.Config :=
+           Adaflight.Config_Runtime.Mixer_Config_Of
+             (C.Mixer_Config, C.Motor_Config, C.Flight3_D_Config, C.Rx_Config,
+              C.Control_Rate_Profiles (Natural (C.System_Config.Active_Rate_Profile)),
+              C.Pid_Profiles (Natural (C.System_Config.Pid_Profile_Index)), C.Custom_Motor_Mixer, Runtime,
+              (others => <>));
       begin
          Record_Int ("conffix.arming_min_check",
                      Integer_64 (Interfaces.Unsigned_16'Max
@@ -14146,6 +14152,12 @@ procedure Vector_Check is
                      Integer_64 (RX.Mid_RC));
          Record_Int ("conffix.adjustment_six_position", Integer_64 (C.System_Config.Rate_Profile6_Pos_Switch),
                      Boolean'Pos (AJ.Rate_Profile_6_Position));
+         Record_Int ("conffix.mixer_limit_percent",
+                     Integer_64 (Interfaces.Unsigned_8'Max
+                                   (25, Interfaces.Unsigned_8'Min (100, C.Control_Rate_Profiles
+                                      (Natural (C.System_Config.Active_Rate_Profile)).Throttle_Limit_Percent))),
+                     Integer_64 (MX.Throttle_Limit_Percent));
+         Record_Int ("conffix.mixer_range", 1, Boolean'Pos (MX.Output_Low < MX.Output_High));
       end;
       if H.Gyro_Sample_Rate_Hz in 10 .. 10_000 and then H.Motors in 1 .. 8
         and then Integer (1_000_000 / H.Gyro_Sample_Rate_Hz) * Integer (C.Pid_Config.Pid_Process_Denom)
