@@ -4065,3 +4065,27 @@ they clear, power values and labels of every count, band lines with names, lette
 frequencies in and out of range, missing parts, and unknown subcommands. With the earlier sequences,
 all 48586 replies match the reference's byte for byte, and so does the configuration's hash after
 every command.
+
+## D179. Command line flight plan (2026-10-14)
+
+`Adaflight.Command_Line` gains the `waypoint` command over the flight plan. Alone or with `list` it
+prints a clear line and an insert line for each waypoint, and `clear` empties the plan. `status`
+prints the waypoint count, each waypoint's coordinates, altitude in meters and type, and the flight
+plan executor's report: inactive, or its state, current waypoint, distance, bearing, time to the
+waypoint and abort reason. `remove` takes a waypoint index and moves the later waypoints down.
+`insert` and `update` take an index, latitude and longitude in degrees with up to seven decimals,
+altitude in centimeters, speed, type, duration and pattern, with an optional vertical rate and yaw
+behaviour. Each number must be the whole word, each name one of its list without regard to case,
+and the coordinates within the latitude and longitude ranges. An insert into a full plan of 30
+waypoints is refused, and a stored count past 30 is cleared first.
+
+`Process_Line` takes the executor's report from its caller as a `Navigation_Status`. The distance
+rounds to centimeters with ties to even, held at the 32-bit range as the target holds it.
+`Adaflight.CLI_Text` gains the coordinate reader with its overflow checks, the coordinate text, and
+a whole-word number reader that keeps numbers past the 32-bit range apart from those within it.
+
+The harness replays two sequences of command lines, 4360 in all, recorded from the oracle with a stub
+executor whose report the `!nav` lines set: lists, clears, status reports over every executor state,
+removals, inserts and updates with coordinates, numbers and names in and out of range or malformed,
+wrong counts, full plans and unknown operations. With the earlier sequences, all 52946 replies match
+the reference's byte for byte, and so does the configuration's hash after every command.
