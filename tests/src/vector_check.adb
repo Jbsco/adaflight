@@ -144,6 +144,7 @@ with Adaflight.V202;
 with Adaflight.SYMA;
 with Adaflight.H8_3D;
 with Adaflight.CX10;
+with Adaflight.Ack_Payload_Receiver;
 with Adaflight.Dispatch;
 with Adaflight.ExpressLRS_Receiver;
 with Adaflight.Blackbox_Header;
@@ -13718,6 +13719,69 @@ procedure Vector_Check is
       end if;
    end Check_CX10_Line;
 
+   Ack_Seq    : Integer_64 := -1;
+   Ack_State  : Adaflight.Ack_Payload_Receiver.State;
+   Ack_RC     : Adaflight.Ack_Payload_Receiver.RC_Channels := (others => 0);
+   Ack_Buffer : Adaflight.Ack_Payload_Receiver.Payload_Buffer := (others => 0);
+
+   procedure Check_Ack_Receiver_Line is
+      use Adaflight.Ack_Payload_Receiver;
+      Name : constant String := Str (1);
+      O    : FSP.Output;
+   begin
+      if Name = "akinit" then
+         Ack_Seq := Int (2);
+         Ack_RC := (others => 0);
+         Ack_Buffer := (others => 0);
+         Init (Ack_State, Interfaces.Unsigned_32 (Int (3)), O);
+         Record_Int (Name & ".channels", Int (4), RC_Channel_Count);
+         Record_Text (Name & ".ops", Str (5), FD_Ops (O));
+      elsif Int (2) /= Ack_Seq then
+         Put_Line ("Acknowledgment receiver line without its start");
+         Failures := Failures + 1;
+      elsif Name = "akstep" then
+         declare
+            R : Result;
+         begin
+            if Str (6) /= "-" then
+               declare
+                  B : constant Byte_Array := Hex_Bytes (6);
+               begin
+                  for I in 0 .. Payload_Size - 1 loop
+                     Ack_Buffer (I) := B (B'First + I);
+                  end loop;
+               end;
+            end if;
+            Data_Received (Ack_State, Interfaces.Unsigned_32 (Int (4)), Interfaces.Unsigned_8 (Bits (5)), Ack_Buffer,
+                           O, R);
+            if R = Data_Received_Result then
+               Set_RC_Data (Ack_Buffer, Ack_RC);
+            end if;
+            Record_Int (Name & ".result", Int (7), Result'Pos (R));
+            Record_Text (Name & ".ops", Str (8), FD_Ops (O));
+            for I in RC_Index loop
+               Record_Int (Name & ".rc", Int (9 + I), Integer_64 (Ack_RC (I)));
+            end loop;
+            Record_Int (Name & ".state", Int (27), Protocol_State'Pos (Ack_State.Phase));
+            Record_Int (Name & ".hop", Int (28), Integer_64 (Ack_State.Channel_Index));
+            Record_Int (Name & ".hop_count", Int (29), Integer_64 (Ack_State.Channel_Count));
+            Record_Int (Name & ".last_hop", Int (30), Integer_64 (Ack_State.Time_Of_Last_Hop));
+            declare
+               C : constant Byte_Array := Hex_Bytes (31);
+               A : constant Byte_Array := Hex_Bytes (32);
+            begin
+               for I in Hop_Table'Range loop
+                  Record_Int (Name & ".channel", Integer_64 (C (C'First + I)), Integer_64 (Ack_State.Channels (I)));
+               end loop;
+               for I in Address'Range loop
+                  Record_Int (Name & ".address", Integer_64 (A (A'First + I)),
+                              Integer_64 (Ack_State.Rx_Tx_Address (I)));
+               end loop;
+            end;
+         end;
+      end if;
+   end Check_Ack_Receiver_Line;
+
    Meter_State    : Adaflight.Battery.State;
    Meter_Settings : Adaflight.Battery.Settings;
    Meter_Inputs_V : Adaflight.Battery.Meter_Inputs;
@@ -17629,6 +17693,8 @@ procedure Vector_Check is
                   Check_H8_3D_Line;
                elsif Kind = "cx10" then
                   Check_CX10_Line;
+               elsif Kind = "ackrx" then
+                  Check_Ack_Receiver_Line;
                elsif Kind = "battmeter" then
                   Check_Battery_Meter_Line;
                elsif Kind = "flashfs" then
@@ -17814,6 +17880,7 @@ begin
    Run (Dir & "/syma.csv", "syma");
    Run (Dir & "/h83d.csv", "h83d");
    Run (Dir & "/cx10.csv", "cx10");
+   Run (Dir & "/ackrx.csv", "ackrx");
    Run (Dir & "/battmeter.csv", "battmeter");
    Run (Dir & "/flashfs.csv", "flashfs");
    Run (Dir & "/fpcapture.csv", "fpcapture");
