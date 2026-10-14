@@ -128,6 +128,7 @@ with Adaflight.MSP_Text_Out;
 with Adaflight.MSP_Simplified_Tuning;
 with Adaflight.MSP_OSD_Out;
 with Adaflight.Serial_Feature_Map;
+with Adaflight.MSP_Serial_Out;
 with Adaflight.MSP_Out;
 with Adaflight.Four_Way;
 with Adaflight.Gimbal_Control;
@@ -16329,11 +16330,11 @@ procedure Vector_Check is
      (others => -1);
    SM_Port_Count : Natural := 0;
 
-   procedure Check_Serial_Map_Line is
+   --  The 34 assignment fields from a field on: MSP ports and baud rates,
+   --  GPS, receiver, flight log, ESC sensor, RC device, gimbal, VTX,
+   --  rangefinder, optical flow, OSD, custom text and telemetry slots.
+   procedure Read_Serial_Assignments (K : in out Positive; A : out Adaflight.Serial_Feature_Map.Assignments) is
       package SFM renames Adaflight.Serial_Feature_Map;
-      Name : constant String := Str (1);
-      K    : Positive := 5;
-      A    : SFM.Assignments;
       function Next return Integer_64 is
       begin
          K := K + 1;
@@ -16347,6 +16348,97 @@ procedure Vector_Check is
             when 4 => SFM.Tramp,
             when 5 => SFM.MSP_VTX,
             when others => SFM.Unknown);
+   begin
+      A := (others => <>);
+      for S in SFM.MSP_Slot loop
+         A.MSP_Port (S) := Integer (Next);
+      end loop;
+      for S in SFM.MSP_Slot loop
+         A.MSP_Baud (S) := Natural (Next);
+      end loop;
+      A.GPS_Port := Integer (Next);
+      A.GPS_Baud := Natural (Next);
+      A.RX_Port := Integer (Next);
+      A.RX_Provider := SFM.Serial_RX'Val (Next);
+      A.Blackbox_Port := Integer (Next);
+      A.Blackbox_Baud := Natural (Next);
+      A.ESC_Sensor_Port := Integer (Next);
+      A.RCDevice_Port := Integer (Next);
+      A.Gimbal_Port := Integer (Next);
+      A.VTX_Port := Integer (Next);
+      A.VTX_Type := VTX_Of (Next);
+      A.Rangefinder_Port := Integer (Next);
+      A.Rangefinder_On_MSP := Next /= 0;
+      A.Optical_Flow_Port := Integer (Next);
+      A.Optical_Flow_On_MSP := Next /= 0;
+      A.OSD_Port := Integer (Next);
+      A.Display_Device := Adaflight.OSD_Task.Device_Kind'Val (Next);
+      A.Custom_Text_Port := Integer (Next);
+      A.Custom_Text_Baud := Natural (Next);
+      for T in SFM.Telemetry_Slot loop
+         A.Telemetry (T).Protocol := SFM.Telemetry_Protocol'Val (Next);
+         A.Telemetry (T).Port := Integer (Next);
+         A.Telemetry (T).Baud := Natural (Next);
+      end loop;
+   end Read_Serial_Assignments;
+
+   --  The build's 24 option flags, the telemetry slots checked, the soft
+   --  serial ports and the target's port list from a field on.
+   procedure Read_Serial_Options
+     (Name : String; K : in out Positive; O : out Adaflight.Serial_Feature_Map.Options;
+      Ports : out Adaflight.Serial_Feature_Map.Port_List; Count : out Natural)
+   is
+      package SFM renames Adaflight.Serial_Feature_Map;
+      function Next return Integer_64 is
+      begin
+         K := K + 1;
+         return Int (K - 1);
+      end Next;
+   begin
+      O := (others => <>);
+      Ports := (others => -1);
+      O.GPS := Next /= 0;
+      O.Receiver := Next /= 0;
+      O.Blackbox := Next /= 0;
+      O.ESC_Sensor := Next /= 0;
+      O.RCDevice := Next /= 0;
+      O.Gimbal := Next /= 0;
+      O.VTX := Next /= 0;
+      O.SmartAudio := Next /= 0;
+      O.Tramp := Next /= 0;
+      O.VTX_MSP := Next /= 0;
+      O.Rangefinder := Next /= 0;
+      O.Rangefinder_MSP := Next /= 0;
+      O.Optical_Flow := Next /= 0;
+      O.Optical_Flow_MSP := Next /= 0;
+      O.OSD := Next /= 0;
+      O.MSP_Display_Port := Next /= 0;
+      O.Telemetry := Next /= 0;
+      O.FrSky_Hub := Next /= 0;
+      O.HoTT := Next /= 0;
+      O.LTM := Next /= 0;
+      O.SmartPort := Next /= 0;
+      O.MAVLink := Next /= 0;
+      O.IBus := Next /= 0;
+      O.MSP_Over_Telemetry := Next /= 0;
+      Record_Int (Name & ".telemetry_slots", Next, Integer_64 (SFM.Telemetry_Slots (O)));
+      O.Soft_Serial_Ports := Natural (Next);
+      Count := Natural (Next);
+      for I in 1 .. Count loop
+         Ports (Ports'First + I - 1) := Integer (Next);
+      end loop;
+   end Read_Serial_Options;
+
+   procedure Check_Serial_Map_Line is
+      package SFM renames Adaflight.Serial_Feature_Map;
+      Name : constant String := Str (1);
+      K    : Positive := 5;
+      A    : SFM.Assignments;
+      function Next return Integer_64 is
+      begin
+         K := K + 1;
+         return Int (K - 1);
+      end Next;
       function VTX_Code (D : SFM.VTX_Device) return Integer_64 is
         (case D is
             when SFM.Unsupported => 0,
@@ -16355,39 +16447,6 @@ procedure Vector_Check is
             when SFM.Tramp => 4,
             when SFM.MSP_VTX => 5,
             when SFM.Unknown => 255);
-      procedure Read_State is
-      begin
-         for S in SFM.MSP_Slot loop
-            A.MSP_Port (S) := Integer (Next);
-         end loop;
-         for S in SFM.MSP_Slot loop
-            A.MSP_Baud (S) := Natural (Next);
-         end loop;
-         A.GPS_Port := Integer (Next);
-         A.GPS_Baud := Natural (Next);
-         A.RX_Port := Integer (Next);
-         A.RX_Provider := SFM.Serial_RX'Val (Next);
-         A.Blackbox_Port := Integer (Next);
-         A.Blackbox_Baud := Natural (Next);
-         A.ESC_Sensor_Port := Integer (Next);
-         A.RCDevice_Port := Integer (Next);
-         A.Gimbal_Port := Integer (Next);
-         A.VTX_Port := Integer (Next);
-         A.VTX_Type := VTX_Of (Next);
-         A.Rangefinder_Port := Integer (Next);
-         A.Rangefinder_On_MSP := Next /= 0;
-         A.Optical_Flow_Port := Integer (Next);
-         A.Optical_Flow_On_MSP := Next /= 0;
-         A.OSD_Port := Integer (Next);
-         A.Display_Device := Adaflight.OSD_Task.Device_Kind'Val (Next);
-         A.Custom_Text_Port := Integer (Next);
-         A.Custom_Text_Baud := Natural (Next);
-         for T in SFM.Telemetry_Slot loop
-            A.Telemetry (T).Protocol := SFM.Telemetry_Protocol'Val (Next);
-            A.Telemetry (T).Port := Integer (Next);
-            A.Telemetry (T).Baud := Natural (Next);
-         end loop;
-      end Read_State;
       procedure Expect (Field : String; Actual : Integer_64) is
       begin
          Record_Int (Name & "." & Field, Int (K), Actual);
@@ -16430,43 +16489,14 @@ procedure Vector_Check is
    begin
       if Name = "smapinit" then
          K := 4;
-         SM_Options.GPS := Next /= 0;
-         SM_Options.Receiver := Next /= 0;
-         SM_Options.Blackbox := Next /= 0;
-         SM_Options.ESC_Sensor := Next /= 0;
-         SM_Options.RCDevice := Next /= 0;
-         SM_Options.Gimbal := Next /= 0;
-         SM_Options.VTX := Next /= 0;
-         SM_Options.SmartAudio := Next /= 0;
-         SM_Options.Tramp := Next /= 0;
-         SM_Options.VTX_MSP := Next /= 0;
-         SM_Options.Rangefinder := Next /= 0;
-         SM_Options.Rangefinder_MSP := Next /= 0;
-         SM_Options.Optical_Flow := Next /= 0;
-         SM_Options.Optical_Flow_MSP := Next /= 0;
-         SM_Options.OSD := Next /= 0;
-         SM_Options.MSP_Display_Port := Next /= 0;
-         SM_Options.Telemetry := Next /= 0;
-         SM_Options.FrSky_Hub := Next /= 0;
-         SM_Options.HoTT := Next /= 0;
-         SM_Options.LTM := Next /= 0;
-         SM_Options.SmartPort := Next /= 0;
-         SM_Options.MAVLink := Next /= 0;
-         SM_Options.IBus := Next /= 0;
-         SM_Options.MSP_Over_Telemetry := Next /= 0;
-         Record_Int (Name & ".telemetry_slots", Next, Integer_64 (SFM.Telemetry_Slots (SM_Options)));
-         SM_Options.Soft_Serial_Ports := Natural (Next);
-         SM_Port_Count := Natural (Next);
-         for I in 1 .. SM_Port_Count loop
-            SM_Ports (I) := Integer (Next);
-         end loop;
+         Read_Serial_Options (Name, K, SM_Options, SM_Ports, SM_Port_Count);
          return;
       elsif Name /= "smapstep" then
          Put_Line ("unknown serial map case " & Name);
          Failures := Failures + 1;
          return;
       end if;
-      Read_State;
+      Read_Serial_Assignments (K, A);
       declare
          Op    : constant Integer_64 := Int (4);
          Ports : SFM.Port_List renames SM_Ports (1 .. SM_Port_Count);
@@ -16548,6 +16578,49 @@ procedure Vector_Check is
          Failures := Failures + 1;
       end if;
    end Check_Serial_Map_Line;
+
+   MS_Options    : Adaflight.Serial_Feature_Map.Options;
+   MS_Ports      : Adaflight.Serial_Feature_Map.Port_List (1 .. Adaflight.Serial_Feature_Map.Max_Ports) :=
+     (others => -1);
+   MS_Port_Count : Natural := 0;
+
+   procedure Check_MSP_Serial_Config_Line is
+      package MSO renames Adaflight.MSP_Serial_Out;
+      Name : constant String := Str (1);
+      K    : Positive := 5;
+   begin
+      if Name = "msscinit" then
+         K := 4;
+         Read_Serial_Options (Name, K, MS_Options, MS_Ports, MS_Port_Count);
+      elsif Name = "msscstep" then
+         declare
+            Command : constant Interfaces.Unsigned_16 := Interfaces.Unsigned_16 (Int (4));
+            V       : MSO.Snapshot;
+            Buffer  : Byte_Array (0 .. 511) := (others => 0);
+            St      : Adaflight.Stream_Buffers.Stream;
+         begin
+            V.Options := MS_Options;
+            Read_Serial_Assignments (K, V.Assignments);
+            V.Port_Count := MS_Port_Count;
+            for I in 1 .. MS_Port_Count loop
+               V.Ports (I) := (Port => MS_Ports (I), Available => Int (K) /= 0);
+               K := K + 1;
+            end loop;
+            Adaflight.Stream_Buffers.Init (St, 0, Buffer'Last + 1);
+            MSO.Reply (Buffer, St, Command, V);
+            Record_Int (Name & ".result", Int (K), (if MSO.Handles (Command) then 1 else -1));
+            Record_Int (Name & ".length", Int (K + 1), Integer_64 (St.Next));
+            Record_Bytes (Name & ".reply", Hex_Bytes (K + 2), Buffer (0 .. St.Next - 1));
+            if K + 2 /= NF then
+               Put_Line ("msscstep: consumed" & Integer'Image (K + 2) & " of" & Integer'Image (NF) & " fields");
+               Failures := Failures + 1;
+            end if;
+         end;
+      else
+         Put_Line ("unknown MSP serial case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_MSP_Serial_Config_Line;
 
    AP_State    : Adaflight.Position_Hold.State;
    AP_Settings : Adaflight.Position_Control.Settings;
@@ -17084,6 +17157,8 @@ procedure Vector_Check is
                   Check_MSP_OSD_Line;
                elsif Kind = "serialmap" then
                   Check_Serial_Map_Line;
+               elsif Kind = "mspsercfg" then
+                  Check_MSP_Serial_Config_Line;
                else
                   Check_PID_Line;
                end if;
@@ -17238,6 +17313,7 @@ begin
    Run (Dir & "/mspsimp.csv", "mspsimp");
    Run (Dir & "/msposd.csv", "msposd");
    Run (Dir & "/serialmap.csv", "serialmap");
+   Run (Dir & "/mspsercfg.csv", "mspsercfg");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
