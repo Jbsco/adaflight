@@ -207,6 +207,12 @@ ledger. The deviations so far:
   past the limit table as they are, and takes an MSP override condition's aux channel past 27 to
   name no bit, where the reference reads past its tables or shifts past the mask's width
   (findings F150 to F152). The recorded configurations stay within the tables and the mask.
+- The command line's `map` query prints from a cleared buffer, so a position no mappable channel
+  holds ends the map text, and `map` skips a stored position past the eight, where the reference
+  prints what its stack buffer held and writes past the buffer (findings F156). `rxfail` prints no
+  mode letter for a stored mode past the three letters, where the reference prints its letter
+  string's terminator or the bytes after it. The recorded command lines map only the eight
+  mappable channels.
 
 ## D7. Contribution conventions (2026-10-08)
 
@@ -3848,4 +3854,33 @@ The harness replays two sequences of 2000 aux command lines recorded from the or
 and invalid indexes, every count of arguments, permanent ids in and out of the table, channels and
 range ends in and out of range, and arguments that are not numbers. With the earlier sequences,
 all 20586 replies match the reference's byte for byte, and so does the configuration's hash after
+every command.
+
+## D172. Command line receiver channels (2026-10-14)
+
+`Adaflight.Command_Line` gains the `map`, `rxrange` and `rxfail` commands.
+
+`map` takes eight characters. It checks each, in upper case, against the channel letters and the
+characters after it, then puts each mappable channel it names at that character's position. Other
+lengths are the argument count error. The reply writes each mappable channel's letter at its
+stored position over the typed text, or over a cleared buffer for a query (D6), and ends at the
+first unset position.
+
+`rxrange` without arguments prints the four stick channels' ranges, and `reset` sets them to 1000
+to 2000 microseconds without a reply. An index from 0 to 3 and two values from 750 to 2250 set that
+channel's range, and the reply is its range line. Fewer than two values are the argument count
+error, values past the pulse limits the range error.
+
+`rxfail` without arguments prints the failsafe line of all 18 channels. A channel number below 18,
+taken modulo 256, prints that channel's line, after its mode and value are set when a mode letter
+follows: `a`, `h` or `s` on the stick channels, `h` or `s` on the aux channels. Another letter, or
+a value after `a` or `h`, is the parse error, and `s` without a value the argument count error.
+The value is held to 750 to 2250 and stored in 25 microsecond steps from 750, rounded down. A
+stored mode past the three letters prints no letter (D6).
+
+The harness replays two sequences of 2000 receiver command lines recorded from the oracle: queries,
+orders of the eight mappable channels in mixed case, repeated and unknown characters, wrong
+lengths, range resets, indexes and values in and out of range, every mode letter on stick and aux
+channels, values past 16 bits, and arguments that are not numbers. With the earlier sequences, all
+24586 replies match the reference's byte for byte, and so does the configuration's hash after
 every command.
