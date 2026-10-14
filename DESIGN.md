@@ -3547,3 +3547,22 @@ The harness replays 4800 setups recorded from the reference mixer setup, in a bu
 frame, launch control and 8 motors, one without the uncommon frames and launch control for 6
 motors, and one for quad X only, on random previous and custom mixes and outputs. Every count,
 flag and weight of the 4808 lines replays exactly.
+
+## D160. Task setup (2026-10-13)
+
+`Adaflight.Task_Init` contains the task setup over the scheduler's task table: which tasks run
+from boot and at what period, from the build's options, the features, the sensors detected and
+the settings, in the reference's order. The serial task takes its update rate, the voltage task
+the fast rate with sag compensation, the gyro, filter and PID tasks the gyro's sample and loop
+periods, the accelerometer task its sample rate, the telemetry task 500 hertz on a Jeti Ex Bus or
+CRSF receiver, and the OSD task its frame rate. The battery alert task runs with a meter and an
+alert or the OSD, the position task with any measurement source, the hold tasks with their
+sources, and the menu task with the MSP display port or the OSD or dashboard. The heading hold
+task follows the compass and a heading mode on a switch, and is set again whenever the modes
+change. The caller gives the PINIO box task's state, which `Adaflight.PINIO_Box` decides.
+
+The harness replays 4800 setups recorded from the reference task setup and scheduler, in a build
+with every task but BST, whose bus header the host build lacks, and one without pitot, stack check,
+speed negotiation, DroneCAN, custom OSD text, sag compensation and the MSP display port, on random
+boot inputs, a third of them followed by a mode change. Every task's enable and period of the 4808
+lines replays exactly, on the oracle platform's floor of 1 microsecond and gyro period of 100 (D38).
