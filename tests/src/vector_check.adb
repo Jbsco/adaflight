@@ -14096,6 +14096,23 @@ procedure Vector_Check is
                         Integer_64 (R.RC_Rates (Adaflight.Axes.Roll)));
          end;
       end loop;
+      declare
+         FS : constant Adaflight.Failsafe.Settings :=
+           Adaflight.Config_Runtime.Failsafe_Settings_Of (C.Failsafe_Config, C.Autopilot_Config);
+         RX : constant Adaflight.Receiver.Settings :=
+           Adaflight.Config_Runtime.Receiver_Settings_Of
+             (C.Rx_Config, C.Rx_Channel_Range_Configs, C.Rx_Failsafe_Channel_Configs, C.Flight3_D_Config,
+              C.Failsafe_Config, Runtime, 18);
+      begin
+         Record_Int ("conffix.failsafe_delay",
+                     Integer_64 (Interfaces.Unsigned_8'Max
+                                   (1, Interfaces.Unsigned_8'Min (200, C.Failsafe_Config.Failsafe_Delay))),
+                     Integer_64 (FS.Signal_Delay));
+         Record_Int ("conffix.receiver_mid",
+                     Integer_64 (Interfaces.Unsigned_16'Max
+                                   (1200, Interfaces.Unsigned_16'Min (1700, C.Rx_Config.Midrc))),
+                     Integer_64 (RX.Mid_RC));
+      end;
       if H.Gyro_Sample_Rate_Hz in 10 .. 10_000 and then H.Motors in 1 .. 8
         and then Integer (1_000_000 / H.Gyro_Sample_Rate_Hz) * Integer (C.Pid_Config.Pid_Process_Denom)
                  in 100 .. 100_000
