@@ -14097,6 +14097,13 @@ procedure Vector_Check is
          end;
       end loop;
       declare
+         AS : constant Adaflight.Arming.Settings :=
+           Adaflight.Config_Runtime.Arming_Settings_Of
+             (C.Arming_Config, C.System_Config, C.Rx_Config, C.Flight3_D_Config, C.Mixer_Config.Mixer_Mode,
+              C.Pid_Config, C.Pid_Profiles (Natural (C.System_Config.Pid_Profile_Index)), Runtime,
+              (Gyro => True, Acc => True, Baro => False, Mag => False));
+         MC : constant Adaflight.Modes.Conditions :=
+           Adaflight.Config_Runtime.Conditions_Of (C.Mode_Activation_Conditions);
          FS : constant Adaflight.Failsafe.Settings :=
            Adaflight.Config_Runtime.Failsafe_Settings_Of (C.Failsafe_Config, C.Autopilot_Config);
          RX : constant Adaflight.Receiver.Settings :=
@@ -14104,6 +14111,13 @@ procedure Vector_Check is
              (C.Rx_Config, C.Rx_Channel_Range_Configs, C.Rx_Failsafe_Channel_Configs, C.Flight3_D_Config,
               C.Failsafe_Config, Runtime, 18);
       begin
+         Record_Int ("conffix.arming_min_check",
+                     Integer_64 (Interfaces.Unsigned_16'Max
+                                   (750, Interfaces.Unsigned_16'Min (2250, C.Rx_Config.Mincheck))),
+                     Integer_64 (AS.Min_Check));
+         Record_Int ("conffix.condition_aux",
+                     Integer_64 (Interfaces.Unsigned_8'Min (13, C.Mode_Activation_Conditions (0).Aux_Channel_Index)),
+                     Integer_64 (if Natural (C.Mode_Activation_Conditions (0).Mode_Id) <= 50 then MC (0).Aux else 0));
          Record_Int ("conffix.failsafe_delay",
                      Integer_64 (Interfaces.Unsigned_8'Max
                                    (1, Interfaces.Unsigned_8'Min (200, C.Failsafe_Config.Failsafe_Delay))),
