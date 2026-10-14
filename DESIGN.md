@@ -4218,3 +4218,13 @@ of every group, whole and single-group resets with keywords in any case and insi
 unknown, wrapped and negative group numbers, malformed resets, profile selections, and diffs and
 gets of the results. With the earlier sequences, all 61592 replies match the reference's byte for
 byte, and so does the configuration's hash after every command.
+
+## D186. Command line proof context (2026-10-14)
+
+Each section printer of the command line's dump has a `Global => null` contract. Without one,
+GNATprove's contextual analysis folds a contract-free local subprogram into every caller, so the
+master dump's proof context contained every printer's body, and its largest prover process grew with
+each printer: 1.9 gigabytes at the master dump, 3.9 at the diff and 5.3 at the defaults. With the
+contracts, each printer is its own proof target and the dump's context contains only their
+contracts, so the unit's largest prover process holds 3.2 gigabytes, for the VTX table command. The
+listing loops keep their invariants (D176).
