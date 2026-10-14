@@ -10,6 +10,7 @@ with Adaflight.Config_Fix;
 with Adaflight.Config_Groups; use Adaflight.Config_Groups;
 with Adaflight.Dyn_Notch;
 with Adaflight.Failsafe;
+with Adaflight.Float_Bits;
 with Adaflight.Gyro_Filters;
 with Adaflight.Mixer;
 with Adaflight.Mixer_Init;
@@ -86,6 +87,19 @@ package Adaflight.Config_Runtime with SPARK_Mode is
    --  The adjustment settings from the stored receiver and system groups.
    function Adjustment_Settings_Of (R : Rx_Config_Record; Sys : System_Config_Record) return Adjustments.Settings;
 
+   --  The mixer configuration from the stored mixer, motor, 3D and receiver
+   --  groups, the current rate and PID profiles, the custom motor mix, the
+   --  features in use and the build's mixers. The output range comes from
+   --  the protocol family's endpoints, with a range the motor values do not
+   --  hold, or an inverted one, held to a range at least one step wide; a
+   --  disabled protocol's range is zero to one. A mode outside the table
+   --  reads as quad X, a weight that is not a number as zero, and a custom
+   --  mix without motors as one motor with a zero mix (D6).
+   function Mixer_Config_Of
+     (M : Mixer_Config_Record; Motor : Motor_Config_Record; Flight_3D : Flight3_D_Config_Record;
+      R : Rx_Config_Record; Rate : Control_Rate_Config_Record; P : Pid_Profile_Record;
+      Custom : Motor_Mixer_Record_List_8; Features : Unsigned_32; O : Mixer_Init.Options) return Mixer.Config;
+
 private
 
    function Held (V : Integer; Low : Integer; High : Integer) return Integer is
@@ -96,6 +110,24 @@ private
    --  A code held to the last of its names.
    function Code (V : Unsigned_8; Last : Natural) return Natural is (Natural'Min (Natural (V), Last))
      with Post => Code'Result <= Last;
+
+   function Held_F (V : Float; Low : Float; High : Float) return Float is
+     (Float'Min (High, Float'Max (Low, V)))
+     with Pre  => Low <= High,
+          Post => Held_F'Result in Low .. High;
+
+   --  Whether a stored float is a number: its exponent bits are not all set.
+   function Is_Number (X : Float) return Boolean is
+     ((Float_Bits.Float_Bits (X) and 16#7F80_0000#) /= 16#7F80_0000#);
+
+   function Weight_Of (X : Float) return Mixer.Weight is
+     (if Is_Number (X) then Held_F (X, Mixer.Weight'First, Mixer.Weight'Last) else 0.0);
+
+   --  The motor protocol families: PWM, OneShot, MultiShot and brushed are
+   --  analog, codes 0 to 4; the DShot speeds and ProShot are DShot, codes 5
+   --  to 8; 9 is disabled.
+   function Is_Analog (Protocol : Unsigned_8) return Boolean is (Protocol <= 4);
+   function Is_DShot (Protocol : Unsigned_8) return Boolean is (Protocol in 5 .. 8);
 
    function Axis_Gains_Of (G : Pidf_Record) return Axis_Gains is
      (P => Held (Integer (G.P), 0, Gain_Max),
