@@ -120,6 +120,7 @@ with Adaflight.GPS_Lap_Timer;
 with Adaflight.MSP_Box;
 with Adaflight.MSP_Common_Out;
 with Adaflight.MSP_Tuning_Out;
+with Adaflight.MSP_Receiver_Out;
 with Adaflight.MSP_Out;
 with Adaflight.Four_Way;
 with Adaflight.Gimbal_Control;
@@ -15538,6 +15539,108 @@ procedure Vector_Check is
       end if;
    end Check_MSP_Tuning_Line;
 
+   MR_RX_SPI, MR_Smoothing, MR_USB_HID, MR_ExpressLRS : Boolean := False;
+
+   procedure Check_MSP_Receiver_Line is
+      use Adaflight.MSP_Receiver_Out;
+      Name : constant String := Str (1);
+      K    : Positive := 5;
+      function Next return Integer_64 is
+      begin
+         K := K + 1;
+         return Int (K - 1);
+      end Next;
+      function U8 return Interfaces.Unsigned_8 is (Interfaces.Unsigned_8 (Next));
+      function U16 return Interfaces.Unsigned_16 is (Interfaces.Unsigned_16 (Next));
+   begin
+      if Name = "mrinit" then
+         MR_RX_SPI := Int (4) /= 0;
+         MR_Smoothing := Int (5) /= 0;
+         MR_USB_HID := Int (6) /= 0;
+         MR_ExpressLRS := Int (7) /= 0;
+      elsif Name = "mrstep" then
+         declare
+            package M renames Adaflight.Modes;
+            package A renames Adaflight.Adjustments;
+            package R renames Adaflight.Receiver;
+            Command : constant Interfaces.Unsigned_16 := Interfaces.Unsigned_16 (Int (4));
+            V       : Snapshot;
+            Buffer  : Byte_Array (0 .. 511) := (others => 0);
+            St      : Adaflight.Stream_Buffers.Stream;
+         begin
+            for C of V.Conditions loop
+               C.Mode := M.Box'Val (Next);
+               C.Aux := Natural (Next);
+               C.Span.Start_Step := Natural (Next);
+               C.Span.End_Step := Natural (Next);
+               C.Combine := M.Logic'Val (Next);
+               C.Linked_To := M.Box'Val (Next);
+            end loop;
+            for J of V.Adjustments loop
+               J.Aux := Natural (Next);
+               J.Span.Start_Step := Natural (Next);
+               J.Span.End_Step := Natural (Next);
+               J.Kind := A.Function_Kind'Val (Next);
+               J.Switch_Aux := Natural (Next);
+               J.Center := Natural (Next);
+               J.Scale := Natural (Next);
+            end loop;
+            V.RX.Provider := U8;
+            V.RX.Max_Check := U16;
+            V.RX.Mid_RC := U16;
+            V.RX.Min_Check := U16;
+            V.RX.Spektrum_Sat_Bind := U8;
+            V.RX.Min_Usec := U16;
+            V.RX.Max_Usec := U16;
+            V.RX.Airmode_Threshold := U8;
+            V.RX.FPV_Cam_Angle := U8;
+            V.RX.Setpoint_Cutoff := U8;
+            V.RX.Throttle_Cutoff := U8;
+            V.RX.Auto_Factor_Throttle := U8;
+            V.RX.Auto_Factor_RPY := U8;
+            V.RX.Smoothing := U8;
+            V.RX.RSSI_Channel := U8;
+            for T of V.Map loop
+               T := Natural (Next);
+            end loop;
+            V.RX.RX_SPI := MR_RX_SPI;
+            V.RX.SPI_Protocol := U8;
+            V.RX.SPI_Id := Interfaces.Unsigned_32 (Next);
+            V.RX.SPI_Channel_Count := U8;
+            V.RX.USB_HID := MR_USB_HID;
+            V.RX.USB_Type := U8;
+            V.RX.ExpressLRS := MR_ExpressLRS;
+            V.RX.UID := Hex_Bytes (K);
+            K := K + 1;
+            V.RX.Model_Id := U8;
+            V.RX.RC_Smoothing := MR_Smoothing;
+            V.Failsafe.Failsafe_Delay := U8;
+            V.Failsafe.Landing_Time := U8;
+            V.Failsafe.Throttle := U16;
+            V.Failsafe.Switch_Mode := U8;
+            V.Failsafe.Throttle_Low_Delay := U16;
+            V.Failsafe.Procedure_Kind := U8;
+            for C of V.Channels loop
+               C.Mode := R.Failsafe_Mode'Val (Next);
+               C.Step := Natural (Next);
+            end loop;
+            V.Channel_Count := Natural (Next);
+            Adaflight.Stream_Buffers.Init (St, 0, Buffer'Last + 1);
+            Reply (Buffer, St, Command, V);
+            Record_Int (Name & ".result", Int (K), (if Handles (Command) then 1 else -1));
+            Record_Int (Name & ".length", Int (K + 1), Integer_64 (St.Next));
+            Record_Bytes (Name & ".reply", Hex_Bytes (K + 2), Buffer (0 .. St.Next - 1));
+            if K + 2 /= NF then
+               Put_Line ("mrstep: consumed" & Integer'Image (K + 2) & " of" & Integer'Image (NF) & " fields");
+               Failures := Failures + 1;
+            end if;
+         end;
+      else
+         Put_Line ("unknown MSP receiver case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_MSP_Receiver_Line;
+
    AP_State    : Adaflight.Position_Hold.State;
    AP_Settings : Adaflight.Position_Control.Settings;
    AP_Nav      : Adaflight.Position_Nav.Navigator;
@@ -16057,6 +16160,8 @@ procedure Vector_Check is
                   Check_MSP_Common_Line;
                elsif Kind = "msptuning" then
                   Check_MSP_Tuning_Line;
+               elsif Kind = "mspreceiver" then
+                  Check_MSP_Receiver_Line;
                else
                   Check_PID_Line;
                end if;
@@ -16203,6 +16308,7 @@ begin
    Run (Dir & "/apnav.csv", "apnav");
    Run (Dir & "/mspcommon.csv", "mspcommon");
    Run (Dir & "/msptuning.csv", "msptuning");
+   Run (Dir & "/mspreceiver.csv", "mspreceiver");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
