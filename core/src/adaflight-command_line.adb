@@ -896,6 +896,196 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end;
    end Aux_Command;
 
+   Channel_Letters : constant String := "AERT12345678abcdefgh";
+   Mappable        : constant := 8;
+
+   function Upper (Ch : Character) return Character is
+     (if Ch in 'a' .. 'z' then Character'Val (Character'Pos (Ch) - 32) else Ch);
+
+   --  The position of a character in the channel letters, zero when absent.
+   function Letter_Position (Ch : Character) return Natural
+     with Post => Letter_Position'Result <= Channel_Letters'Length
+   is
+   begin
+      for K in Channel_Letters'Range loop
+         if Channel_Letters (K) = Ch then
+            return K;
+         end if;
+      end loop;
+      return 0;
+   end Letter_Position;
+
+   --  map: a new channel order of the eight mappable channels, each letter
+   --  once, then the order as a map line, each channel's letter at its
+   --  position over the typed text, or over a cleared buffer for a query.
+   procedure Map_Command (Into : in out Sink; C : in out Configuration; Arguments : String) is
+      Buffer : String (1 .. Mappable) := (others => ASCII.NUL);
+      Last   : Natural := 0;
+   begin
+      if Arguments'Length = Mappable then
+         for I in 0 .. Mappable - 1 loop
+            Buffer (I + 1) := Upper (Arguments (Arguments'First + I));
+         end loop;
+         for I in 1 .. Mappable loop
+            if Letter_Position (Buffer (I)) = 0
+              or else (for some J in I + 1 .. Mappable => Buffer (J) = Buffer (I))
+            then
+               Put (Into, "###ERROR IN map: PARSING FAILED###" & CRLF);
+               return;
+            end if;
+         end loop;
+         for I in 1 .. Mappable loop
+            if Letter_Position (Buffer (I)) in 1 .. Mappable then
+               C.Rx_Config.Rcmap (Letter_Position (Buffer (I)) - 1) := Unsigned_8 (I - 1);
+            end if;
+         end loop;
+      elsif Arguments'Length > 0 then
+         Put (Into, "###ERROR IN map: INVALID ARGUMENT COUNT###" & CRLF);
+         return;
+      end if;
+      for I in 0 .. Mappable - 1 loop
+         if C.Rx_Config.Rcmap (I) < Mappable then
+            Buffer (Natural (C.Rx_Config.Rcmap (I)) + 1) := Channel_Letters (Channel_Letters'First + I);
+         end if;
+      end loop;
+      for I in 1 .. Mappable loop
+         exit when Buffer (I) = ASCII.NUL;
+         Last := I;
+         pragma Loop_Invariant (Last = I);
+      end loop;
+      Put (Into, "map " & Buffer (1 .. Last) & CRLF);
+   end Map_Command;
+
+   --  rxrange: the four sticks' channel ranges, all reset to 1000 to 2000, or
+   --  one stick's range of two values within 750 to 2250.
+   procedure Range_Command (Into : in out Sink; C : in out Configuration; Arguments : String)
+     with Pre => Arguments'First >= 1 and then Arguments'Last < Positive'Last
+                 and then Arguments'First <= Arguments'Last + 1
+   is
+      Index : Integer_32;
+      Count : Natural := 0;
+      Low   : Integer_32 := 750;
+      High  : Integer_32 := 2250;
+      P     : Natural;
+   begin
+      if Arguments'Length = 0 then
+         for I in C.Rx_Channel_Range_Configs'Range loop
+            Put (Into, "rxrange " & Decimal (Integer_64 (I)) & " "
+                 & Decimal (Integer_64 (C.Rx_Channel_Range_Configs (I).Min)) & " "
+                 & Decimal (Integer_64 (C.Rx_Channel_Range_Configs (I).Max)) & CRLF);
+         end loop;
+         return;
+      end if;
+      if CLI_Text.Same_Ignoring_Case (Arguments, "reset") then
+         C.Rx_Channel_Range_Configs := (others => (Min => 1000, Max => 2000));
+         return;
+      end if;
+      Index := CLI_Text.To_Integer (Arguments);
+      if Index not in 0 .. 3 then
+         Put (Into, "###ERROR IN rxrange: CHANNEL NOT BETWEEN 0 AND 3###" & CRLF);
+         return;
+      end if;
+      P := Next_Argument (Arguments, Arguments'First);
+      if P > 0 then
+         Low := Argument (Arguments, P);
+         Count := Count + 1;
+      end if;
+      P := Next_Argument (Arguments, P);
+      if P > 0 then
+         High := Argument (Arguments, P);
+         Count := Count + 1;
+      end if;
+      if Count /= 2 then
+         Put (Into, "###ERROR IN rxrange: INVALID ARGUMENT COUNT###" & CRLF);
+      elsif Low not in 750 .. 2250 or else High not in 750 .. 2250 then
+         Put (Into, "###ERROR IN rxrange: range min/max NOT BETWEEN 750 AND 2250###" & CRLF);
+      else
+         C.Rx_Channel_Range_Configs (Natural (Index)) := (Min => Unsigned_16 (Low), Max => Unsigned_16 (High));
+         Put (Into, "rxrange " & Decimal (Integer_64 (Index)) & " " & Decimal (Integer_64 (Low)) & " "
+              & Decimal (Integer_64 (High)) & CRLF);
+      end if;
+   end Range_Command;
+
+   Failsafe_Characters : constant String := "ahs";
+
+   --  rxfail: every channel's failsafe line, or one channel's mode and, for
+   --  the set mode, its value; the channel number is taken modulo 256.
+   procedure Failsafe_Command (Into : in out Sink; C : in out Configuration; Arguments : String)
+     with Pre => Arguments'First >= 1 and then Arguments'Last < Positive'Last
+                 and then Arguments'First <= Arguments'Last + 1
+   is
+      Channel_Count : constant := Rx_Failsafe_Channel_Config_Record_List_18'Length;
+
+      procedure Put_Line_Of (Channel : Natural; Require_Value : Boolean)
+        with Pre => Channel < Channel_Count
+      is
+         F : constant Rx_Failsafe_Channel_Config_Record := C.Rx_Failsafe_Channel_Configs (Channel);
+      begin
+         Put (Into, "rxfail " & Decimal (Integer_64 (Channel)) & " "
+              & (if F.Mode <= 2 then (1 => Failsafe_Characters (Natural (F.Mode) + 1)) else ""));
+         if Require_Value then
+            Put (Into, " " & Decimal (750 + 25 * Integer_64 (F.Step)));
+         end if;
+         Put (Into, CRLF);
+      end Put_Line_Of;
+
+      Channel : Unsigned_8;
+      P       : Natural;
+   begin
+      if Arguments'Length = 0 then
+         for I in 0 .. Channel_Count - 1 loop
+            Put_Line_Of (I, C.Rx_Failsafe_Channel_Configs (I).Mode = 2);
+         end loop;
+         return;
+      end if;
+      Channel := Unsigned_8'Mod (CLI_Text.To_Integer (Arguments));
+      if Channel >= Channel_Count then
+         Put (Into, "###ERROR IN rxfail: CHANNEL NOT BETWEEN 0 AND 17###" & CRLF);
+         return;
+      end if;
+      declare
+         Index         : constant Natural := Natural (Channel);
+         Mode          : Unsigned_8 := C.Rx_Failsafe_Channel_Configs (Index).Mode;
+         Require_Value : Boolean := Mode = 2;
+         Requested     : Natural;
+         Value         : Unsigned_16;
+      begin
+         P := Next_Argument (Arguments, Arguments'First + 1);
+         if P > 0 then
+            Requested := 0;
+            if P <= Arguments'Last then
+               for K in Failsafe_Characters'Range loop
+                  if Failsafe_Characters (K) = Arguments (P) then
+                     Requested := K;
+                     exit;
+                  end if;
+               end loop;
+            end if;
+            if Requested = 0 or else (Index >= 4 and then Requested = 1) then
+               Put (Into, "###ERROR IN rxfail: PARSING FAILED###" & CRLF);
+               return;
+            end if;
+            Mode := Unsigned_8 (Requested - 1);
+            Require_Value := Mode = 2;
+            P := Next_Argument (Arguments, P);
+            if P > 0 then
+               if not Require_Value then
+                  Put (Into, "###ERROR IN rxfail: PARSING FAILED###" & CRLF);
+                  return;
+               end if;
+               Value := Unsigned_16'Mod (Argument (Arguments, P));
+               Value := (Unsigned_16'Max (750, Unsigned_16'Min (2250, Value)) - 750) / 25;
+               C.Rx_Failsafe_Channel_Configs (Index).Step := Unsigned_8 (Value);
+            elsif Require_Value then
+               Put (Into, "###ERROR IN rxfail: INVALID ARGUMENT COUNT###" & CRLF);
+               return;
+            end if;
+            C.Rx_Failsafe_Channel_Configs (Index).Mode := Mode;
+         end if;
+         Put_Line_Of (Index, Require_Value);
+      end;
+   end Failsafe_Command;
+
    subtype Line_Buffer is String (1 .. Line_Size);
 
    --  The text from a position up to the next terminator in the buffer.
@@ -945,7 +1135,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
 
    type Command_Kind is
      (No_Command, Aux_Command_Word, Battery_Profile_Command, Beacon_Command, Beeper_Command_Word, Diff_Command,
-      Dump_Command, Feature_Command_Word, Get_Command, Profile_Command, Rate_Profile_Command, Set_Command);
+      Dump_Command, Feature_Command_Word, Get_Command, Map_Command_Word, Profile_Command, Rate_Profile_Command,
+      Rx_Failsafe_Command, Rx_Range_Command, Set_Command);
    subtype Known_Command is Command_Kind range Aux_Command_Word .. Set_Command;
 
    function Command_Word (K : Known_Command) return String is
@@ -958,8 +1149,11 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when Dump_Command => "dump",
          when Feature_Command_Word => "feature",
          when Get_Command => "get",
+         when Map_Command_Word => "map",
          when Profile_Command => "profile",
          when Rate_Profile_Command => "rateprofile",
+         when Rx_Failsafe_Command => "rxfail",
+         when Rx_Range_Command => "rxrange",
          when Set_Command => "set")
      with Post => Command_Word'Result'Length in 1 .. 15;
 
@@ -1072,12 +1266,21 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when Get_Command =>
             Known := True;
             Get (Into, C, "get", Text_At (Buffer, Arguments), Ports);
+         when Map_Command_Word =>
+            Known := True;
+            Map_Command (Into, C, Text_At (Buffer, Arguments));
          when Profile_Command =>
             Known := True;
             Profile_Command (Into, C, PID, Text_At (Buffer, Arguments), Changes);
          when Rate_Profile_Command =>
             Known := True;
             Profile_Command (Into, C, Rate, Text_At (Buffer, Arguments), Changes);
+         when Rx_Failsafe_Command =>
+            Known := True;
+            Failsafe_Command (Into, C, Text_At (Buffer, Arguments));
+         when Rx_Range_Command =>
+            Known := True;
+            Range_Command (Into, C, Text_At (Buffer, Arguments));
          when Set_Command =>
             Known := True;
             Set (Into, C, Text_At (Buffer, Arguments), Ports);
