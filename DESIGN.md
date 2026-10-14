@@ -4264,3 +4264,28 @@ The harness builds the four PID profiles and the four rate profiles of every fix
 the configuration fix recordings, 16000 of each, and the gyro settings of each with a running gyro
 and motors, 3082, with the preconditions and the predicates checked at run time, and compares the
 roll P gain, the roll RC rate and the first lowpass cutoff.
+
+## D188. Failsafe rescue and autopilot stages (2026-10-14)
+
+`Adaflight.Failsafe` gains the GPS rescue procedure and the autopilot stage of the build with the
+flight plan, which the failsafe recordings had left out: their oracle compiled the reference's
+failsafe without the rescue and flight plan options, so the port had the landing and drop procedures
+only. The oracle now builds with them and records the inputs the stages read.
+
+The GPS rescue procedure asks the caller to stage the executor's rescue plan, through the
+`Stage_Rescue` output of `Update`, and takes whether a plan is possible as an input. With a possible
+plan the failsafe enters the autopilot stage with a grace period of one second for the caller to
+engage the plan; without one it lands. A link loss during a mission enters the autopilot stage at
+once when the autopilot's loss policy continues the mission, or lands when the policy lands; the
+mission's own throttle keeps the low-throttle shortcut from disarming. In the autopilot stage the
+failsafe recovers on stick movement or a switch, lands when disarmed, waits through the grace period
+while the plan is not yet engaged, falls back to the configured procedure, auto-landing in place of
+the rescue, when the mission ended or never engaged, and sounds the landing tone otherwise. The
+plain GPS rescue stage of a build without the flight plan is in the state machine but not entered,
+as in the reference's build with it.
+
+The failsafe's inputs gain the autopilot flight mode, whether the executor flies a plan, whether
+that plan ended, whether a rescue plan is possible and whether the sticks moved; its settings gain
+the autopilot's loss policy. The harness replays 30 regenerated sequences of 300 steps with the
+procedure drawn from all three, the policy from all three and the new inputs drawn each step: 42
+steps in the autopilot stage, every state field, flag, tone and staging request exact.
