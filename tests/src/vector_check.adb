@@ -129,6 +129,7 @@ with Adaflight.MSP_Simplified_Tuning;
 with Adaflight.MSP_OSD_Out;
 with Adaflight.Serial_Feature_Map;
 with Adaflight.MSP_Serial_Out;
+with Adaflight.MSP_VTX_Status_Out;
 with Adaflight.MSP_Out;
 with Adaflight.Four_Way;
 with Adaflight.Gimbal_Control;
@@ -16622,6 +16623,76 @@ procedure Vector_Check is
       end if;
    end Check_MSP_Serial_Config_Line;
 
+   procedure Check_VTX_Status_Line is
+      package VS renames Adaflight.MSP_VTX_Status_Out;
+      Name : constant String := Str (1);
+      K    : Positive := 4;
+      V    : VS.Snapshot;
+      function Next return Integer_64 is
+      begin
+         K := K + 1;
+         return Int (K - 1);
+      end Next;
+   begin
+      if Name = "vdsinit" then
+         return;
+      elsif Name /= "vdsstep" then
+         Put_Line ("unknown VTX status case " & Name);
+         Failures := Failures + 1;
+         return;
+      end if;
+      V.VTX_Common := True;
+      V.Kind := VS.Device'Val (Next);
+      V.Table.Bands := Natural (Next);
+      V.Table.Channels := Natural (Next);
+      for Bd in Adaflight.VTX_Table.Band_Index loop
+         for C in Adaflight.VTX_Table.Channel_Index loop
+            V.Table.Frequency (Bd, C) := Interfaces.Unsigned_16 (Next);
+         end loop;
+      end loop;
+      V.Table.Power_Levels := Natural (Next);
+      for I in Adaflight.VTX_Table.Power_Index loop
+         V.Table.Power_Value (I) := Interfaces.Unsigned_16 (Next);
+      end loop;
+      V.SA.Port_Open := True;
+      V.SA.Device.Version_Seen := Adaflight.SmartAudio.Version'Val (Next);
+      V.SA.Device.Channel := Interfaces.Integer_8 (Next);
+      V.SA.Device.Power := Interfaces.Integer_8 (Next);
+      V.SA.Device.Mode := Interfaces.Unsigned_8 (Next);
+      V.SA.Device.Freq := Interfaces.Unsigned_16 (Next);
+      V.SA.Device.Pit_Freq := Interfaces.Unsigned_16 (Next);
+      V.SA.Device.Will_Boot_Into_Pit_Mode := Next /= 0;
+      V.SA.Levels := Natural (Next);
+      for I in V.SA.Level_Value'Range loop
+         V.SA.Level_Value (I) := Interfaces.Unsigned_16 (Next);
+      end loop;
+      V.TR.Port_Open := True;
+      V.TR.Current := Adaflight.Tramp.Status'Val (Next);
+      V.TR.Conf_Power := Interfaces.Unsigned_16 (Next);
+      V.TR.Cur_Freq := Interfaces.Unsigned_32 (Next);
+      V.TR.Conf_Pit_Mode := Interfaces.Unsigned_8 (Next);
+      V.TR.Cur_Control_Mode := Interfaces.Unsigned_8 (Next);
+      V.MD.Current := Adaflight.VTX_MSP.Status'Val (Next);
+      V.MD.Conf_Band := Interfaces.Unsigned_8 (Next);
+      V.MD.Conf_Channel := Interfaces.Unsigned_8 (Next);
+      V.MD.Conf_Power := Interfaces.Unsigned_16 (Next);
+      V.MD.Conf_Pit_Mode := Interfaces.Unsigned_8 (Next);
+      V.MD.Conf_Freq := Interfaces.Unsigned_16 (Next);
+      declare
+         Buffer : Byte_Array (0 .. 255) := (others => 0);
+         St     : Adaflight.Stream_Buffers.Stream;
+      begin
+         Adaflight.Stream_Buffers.Init (St, 0, Buffer'Last + 1);
+         VS.Reply (Buffer, St, VS.Device_Status_Command, V);
+         Record_Int (Name & ".length", Int (K), Integer_64 (St.Next));
+         Record_Bytes (Name & ".reply", Hex_Bytes (K + 1), Buffer (0 .. St.Next - 1));
+      end;
+      if K + 1 /= NF then
+         Put_Line ("vdsstep: consumed" & Integer'Image (K + 1) & " of" & Integer'Image (NF) & " fields");
+         Failures := Failures + 1;
+      end if;
+   end Check_VTX_Status_Line;
+
    AP_State    : Adaflight.Position_Hold.State;
    AP_Settings : Adaflight.Position_Control.Settings;
    AP_Nav      : Adaflight.Position_Nav.Navigator;
@@ -17159,6 +17230,8 @@ procedure Vector_Check is
                   Check_Serial_Map_Line;
                elsif Kind = "mspsercfg" then
                   Check_MSP_Serial_Config_Line;
+               elsif Kind = "vtxstatus" then
+                  Check_VTX_Status_Line;
                else
                   Check_PID_Line;
                end if;
@@ -17314,6 +17387,7 @@ begin
    Run (Dir & "/msposd.csv", "msposd");
    Run (Dir & "/serialmap.csv", "serialmap");
    Run (Dir & "/mspsercfg.csv", "mspsercfg");
+   Run (Dir & "/vtxstatus.csv", "vtxstatus");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
