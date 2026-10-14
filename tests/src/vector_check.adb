@@ -148,6 +148,7 @@ with Adaflight.Ack_Payload_Receiver;
 with Adaflight.Settings_Table;
 with Adaflight.Config_Groups;
 with Adaflight.Config_Codec;
+with Adaflight.Config_Fix;
 with Adaflight.Dispatch;
 with Adaflight.ExpressLRS_Receiver;
 with Adaflight.Blackbox_Header;
@@ -13996,6 +13997,91 @@ procedure Vector_Check is
       Failures := Failures + 1;
    end Check_Config_Codec_Line;
 
+   --  The reference's configuration fix over a perturbed configuration: the
+   --  input as its bytes that differ from the reset configuration's, the
+   --  scripted gyro rate, motor count and timers, then the bytes the fix
+   --  changed, the output's FNV-1a 64 hash, the MSP display port and the
+   --  GPS port taken out of use.
+   procedure Check_Config_Fix_Line is
+      use Adaflight.Config_Groups;
+      use type Interfaces.Unsigned_8;
+      use type Interfaces.Unsigned_64;
+      package Codec renames Adaflight.Config_Codec;
+      package Fix renames Adaflight.Config_Fix;
+      Ports : constant Adaflight.Serial_Feature_Map.Port_List := (20, 51, 52, 53, 54, 55, 56, 30, 31);
+      Input, Output : Codec.Data;
+      C       : Configuration := Defaults;
+      H       : Fix.Hardware;
+      Runtime : Interfaces.Unsigned_32;
+      R       : Fix.Results;
+
+      procedure Apply_Diffs (Text : String; D : in out Codec.Data) is
+         Start : Positive := Text'First;
+      begin
+         if Text = "-" then
+            return;
+         end if;
+         for I in Text'First .. Text'Last + 1 loop
+            if I > Text'Last or else Text (I) = ';' then
+               declare
+                  Item  : constant String := Text (Start .. I - 1);
+                  Colon : constant Natural := Ada.Strings.Fixed.Index (Item, ":");
+               begin
+                  D (Natural'Value (Item (Item'First .. Colon - 1))) :=
+                    Interfaces.Unsigned_8'Value ("16#" & Item (Colon + 1 .. Item'Last) & "#");
+               end;
+               Start := I + 1;
+            end if;
+         end loop;
+      end Apply_Diffs;
+
+      function Diff_Text (From, To : Codec.Data) return String is
+         Text : String (1 .. 9 * Codec.Data_Size);
+         Last : Natural := 0;
+      begin
+         for I in From'Range loop
+            if From (I) /= To (I) then
+               declare
+                  Item : constant String :=
+                    (if Last > 0 then ";" else "") & Ada.Strings.Fixed.Trim (Natural'Image (I), Ada.Strings.Left)
+                    & ":" & FD_Hex (Natural (To (I)), 2);
+               begin
+                  Text (Last + 1 .. Last + Item'Length) := Item;
+                  Last := Last + Item'Length;
+               end;
+            end if;
+         end loop;
+         return (if Last = 0 then "-" else Text (1 .. Last));
+      end Diff_Text;
+   begin
+      Codec.Encode (Defaults, Input);
+      Apply_Diffs (Str (6), Input);
+      Codec.Decode (Input, C);
+      H.Gyro_Sample_Rate_Hz := Fix.Gyro_Rate (Int (4));
+      H.Motors := Fix.Motor_Count (Int (5));
+      for T in H.Timers'Range loop
+         H.Timers (T) := Fix.Timer_Kind'Val (Natural (T) mod 3);
+      end loop;
+      Runtime := C.Feature_Config.Enabled_Features;
+      Fix.Fix (C, H, Ports, Runtime, R);
+      Codec.Encode (C, Output);
+      Record_Text ("conffix.changes", Str (7), Diff_Text (Input, Output));
+      declare
+         Hash     : Interfaces.Unsigned_64 := 16#CBF2_9CE4_8422_2325#;
+         Expected : constant Interfaces.Unsigned_64 := Interfaces.Unsigned_64'Value (Str (8));
+      begin
+         for B of Output loop
+            Hash := (Hash xor Interfaces.Unsigned_64 (B)) * 16#100_0000_01B3#;
+         end loop;
+         Record_Int ("conffix.hash_low", Integer_64 (Expected mod 2 ** 32), Integer_64 (Hash mod 2 ** 32));
+         Record_Int ("conffix.hash_high", Integer_64 (Expected / 2 ** 32), Integer_64 (Hash / 2 ** 32));
+      end;
+      Record_Int ("conffix.display_port", Int (9), Integer_64 (R.MSP_Display_Port));
+      Record_Int ("conffix.removed_gps_port", (if Int (10) = -99 then -1 else Int (10)),
+                  Integer_64 (R.Removed_GPS_Port));
+      Record_Int ("conffix.runtime_features", Integer_64 (C.Feature_Config.Enabled_Features), Integer_64 (Runtime));
+   end Check_Config_Fix_Line;
+
    procedure Check_Config_Set_Line is
       use Adaflight.Settings_Table;
       use Adaflight.Config_Groups;
@@ -17962,6 +18048,8 @@ procedure Vector_Check is
                   Check_Config_Set_Line;
                elsif Kind = "confcodec" then
                   Check_Config_Codec_Line;
+               elsif Kind = "conffix" then
+                  Check_Config_Fix_Line;
                elsif Kind = "battmeter" then
                   Check_Battery_Meter_Line;
                elsif Kind = "flashfs" then
@@ -18152,6 +18240,7 @@ begin
    Run (Dir & "/confgroups.csv", "confgroups");
    Run (Dir & "/confset.csv", "confset");
    Run (Dir & "/confcodec.csv", "confcodec");
+   Run (Dir & "/conffix.csv", "conffix");
    if Settings_Seen /= Adaflight.Settings_Table.Setting'Pos (Adaflight.Settings_Table.Setting'Last) + 1 then
       Put_Line ("settings: the vectors hold" & Settings_Seen'Image & " settings");
       Failures := Failures + 1;
