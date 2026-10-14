@@ -4308,3 +4308,28 @@ The harness builds the four PID profiles and the four rate profiles of every fix
 the configuration fix recordings, 16000 of each, the arming, failsafe and receiver settings and the
 mode conditions of each, 4000 of each, and the gyro settings of each with a running gyro and motors,
 3082, with the preconditions and the predicates checked at run time, and compares one field of each.
+
+## D189. Command line batches (2026-10-14)
+
+The command line's text goes out through an `Output` record: the sink the instantiation supplies,
+and the command batch's state, whether a batch is open and whether a command in it printed an
+error. Every error goes through one printer, `Put_Error`, which prints `###ERROR IN ` and the
+text, and notes the error when a batch is open. `batch start` opens a batch and clears its error,
+unless one is open already, and prints `Command batch started`. `batch end` prints `Command batch
+ended`, or the error line `ERRORS WERE DETECTED - PLEASE REVIEW BEFORE CONTINUING` when a command
+in the batch printed an error, and closes the batch either way. Any other option is the `Invalid
+option` error. An option only has to begin with its word, in any case (findings F180). A
+`defaults` reset clears the batch's error and leaves the batch open.
+
+A line naming no command gets the reply `ERR_CMD_NA: ` and the line, with its comment and trailing
+spaces cut, and no error is noted. This is the reply of the reference's non-interactive stream,
+which the oracle records. Its interactive session prints the `UNKNOWN COMMAND, TRY 'HELP'` error
+instead, which notes the error (findings F179); that error, the echo and the prompt belong to the
+target phase's interactive session. `Process_Line` reports Handled false only for `defaults`
+without `nosave`.
+
+The harness replays two sequences of 1019 command lines in all, recorded from the oracle: batch
+starts and ends in any case and with trailing text, settings and commands with and without errors
+between them, unknown lines, stored values past a setting's range and their gets, diffs and resets
+inside batches, and batch commands with bad options. With the earlier sequences, all 62611 replies
+match the reference's byte for byte, and so does the configuration's hash after every command.

@@ -14237,7 +14237,7 @@ procedure Vector_Check is
          CLI_Expected := Null_Unbounded_String;
          declare
             Command : constant String := Hex_String (3);
-            Known   : Boolean;
+            Handled : Boolean;
             Changes : CLI.Effects;
          begin
             if Word (Command, 0) = "!profiles" then
@@ -14291,8 +14291,8 @@ procedure Vector_Check is
                   ETA_S         => Interfaces.Unsigned_16'Value (Word (Command, 6)),
                   Abort_Reason  => Interfaces.Unsigned_8'Value (Word (Command, 7)));
             else
-               CLI.Process_Line (CLI_Reply, CLI_Config, Command, Ports, CLI_Env, CLI_Board, Known, Changes);
-               Record_Int ("cli.known", 1, Boolean'Pos (Known or else Command (Command'First) = '#'));
+               CLI.Process_Line (CLI_Reply, CLI_Config, Command, Ports, CLI_Env, CLI_Board, Handled, Changes);
+               Record_Int ("cli.handled", 1, Boolean'Pos (Handled));
             end if;
          end;
       elsif Str (1) = "clo" then

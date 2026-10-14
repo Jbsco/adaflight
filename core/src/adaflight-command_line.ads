@@ -8,7 +8,8 @@
 --  differs from the defaults; version prints the firmware's version line,
 --  mcu_id the MCU's unique id, and board_name, manufacturer_id and signature
 --  show or set the board's information; batch brackets a command batch and
---  reports an error printed inside it.
+--  reports an error printed inside it. A line naming no command gets the
+--  ERR_CMD_NA reply.
 --  The text goes out through Put into a sink, inside an Output that also
 --  holds the batch's state.
 with Interfaces;
@@ -137,12 +138,12 @@ package Adaflight.Command_Line with SPARK_Mode is
 
    --  A typed line without its line end: printable characters past the
    --  leading spaces, up to 255 of them, a comment from the first number sign
-   --  and trailing spaces cut, then its command run. Known is false for a
-   --  line naming no command, and for defaults without nosave, whose save and
-   --  restart wait for the save command.
+   --  and trailing spaces cut, then its command run, or the ERR_CMD_NA reply
+   --  for a line naming no command. Handled is false only for defaults
+   --  without nosave, whose save and restart wait for the save command.
    procedure Process_Line
      (Into : in out Output; C : in out Configuration; Line : String; Ports : Port_List; Env : Environment;
-      Board : in out Board_State; Known : out Boolean; Changes : out Effects)
+      Board : in out Board_State; Handled : out Boolean; Changes : out Effects)
      with Pre => Valid (Current (C)) and then Ports'Length <= Serial_Feature_Map.Max_Ports;
 
 end Adaflight.Command_Line;

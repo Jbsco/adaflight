@@ -3742,10 +3742,10 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  with the simplified tuning applied to every PID profile of the reset
    --  configuration first. A word with neither group_id nor nosave, a zero
    --  group or a missing one is the parse error. A reset clears an open
-   --  batch's error. Known is false without nosave, whose save and restart
+   --  batch's error. Handled is false without nosave, whose save and restart
    --  wait for the save command.
    procedure Defaults_Command
-     (Into : in out Output; C : in out Configuration; Arguments : String; Known : out Boolean)
+     (Into : in out Output; C : in out Configuration; Arguments : String; Handled : out Boolean)
      with Pre => Arguments'First >= 1 and then Arguments'Last < Positive'Last
    is
       Save   : Boolean := True;
@@ -3755,7 +3755,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
       First  : Natural;
       Last   : Natural;
    begin
-      Known := True;
+      Handled := True;
       loop
          pragma Loop_Invariant (P >= Arguments'First);
          pragma Loop_Variant (Increases => P);
@@ -3784,7 +3784,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          return;
       end if;
       if Save then
-         Known := False;
+         Handled := False;
          return;
       end if;
       if Group = 0 then
@@ -4233,14 +4233,14 @@ package body Adaflight.Command_Line with SPARK_Mode is
 
    procedure Process_Line
      (Into : in out Output; C : in out Configuration; Line : String; Ports : Port_List; Env : Environment;
-      Board : in out Board_State; Known : out Boolean; Changes : out Effects)
+      Board : in out Board_State; Handled : out Boolean; Changes : out Effects)
    is
       Buffer    : Line_Buffer := (others => ASCII.NUL);
       Length    : Natural := 0;
       Kind      : Command_Kind;
       Arguments : Natural;
    begin
-      Known := False;
+      Handled := True;
       Changes := (others => False);
       for Ch of Line loop
          if Length < Line_Size - 1 and then Ch in ' ' .. '~' and then (Length > 0 or else Ch /= ' ') then
@@ -4271,114 +4271,83 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Find_Command (Buffer, Kind, Arguments);
       case Kind is
          when No_Command =>
-            null;
+            Put (Into, "ERR_CMD_NA: ");
+            Put (Into, Buffer (1 .. Length));
+            Put (Into, CRLF);
          when Adjustment_Range_Command_Word =>
-            Known := True;
             Adjustment_Range_Command (Into, C, Text_At (Buffer, Arguments), Changes);
          when Aux_Command_Word =>
-            Known := True;
             Aux_Command (Into, C, Text_At (Buffer, Arguments), Changes);
          when Batch_Command_Word =>
-            Known := True;
             Batch_Command (Into, Text_At (Buffer, Arguments));
          when Battery_Profile_Command =>
-            Known := True;
             Profile_Command (Into, C, Battery, Text_At (Buffer, Arguments), Changes);
          when Beacon_Command =>
-            Known := True;
             Beeper_Command
               (Into, "beacon", C.Beeper_Config.Dshot_Beacon_Off_Flags, Beacon_Allowed, Text_At (Buffer, Arguments));
          when Board_Name_Command_Word =>
-            Known := True;
             Board_Text_Command
               (Into, "board_name", "BOARD_NAME", Board.Name, Board_Name_Length, Board.Information_Set,
                Board.Information_Updated, Text_At (Buffer, Arguments));
          when Manufacturer_Id_Command_Word =>
-            Known := True;
             Board_Text_Command
               (Into, "manufacturer_id", "MANUFACTURER_ID", Board.Manufacturer, Manufacturer_Length,
                Board.Information_Set, Board.Information_Updated, Text_At (Buffer, Arguments));
          when Signature_Command_Word =>
-            Known := True;
             Signature_Command (Into, Board, Text_At (Buffer, Arguments));
          when Beeper_Command_Word =>
-            Known := True;
             Beeper_Command
               (Into, "beeper", C.Beeper_Config.Beeper_Off_Flags, Beeper_Allowed, Text_At (Buffer, Arguments));
          when Defaults_Command_Word =>
-            Defaults_Command (Into, C, Text_At (Buffer, Arguments), Known);
+            Defaults_Command (Into, C, Text_At (Buffer, Arguments), Handled);
          when Diff_Command =>
-            Known := True;
             Print_Config (Into, C, Env, Board, Buffer, Arguments, "diff", True, Ports);
          when Dump_Command =>
-            Known := True;
             Print_Config (Into, C, Env, Board, Buffer, Arguments, "dump", False, Ports);
          when Feature_Command_Word =>
-            Known := True;
             Feature_Command (Into, C, Text_At (Buffer, Arguments));
          when Get_Command =>
-            Known := True;
             Get (Into, C, "get", Text_At (Buffer, Arguments), Ports);
          when Color_Command_Word =>
-            Known := True;
             Color_Command (Into, C.Led_Strip_Status_Mode_Config.Colors, Text_At (Buffer, Arguments));
          when Led_Command_Word =>
-            Known := True;
             Led_Command (Into, C.Led_Strip_Status_Mode_Config.Led_Configs, Text_At (Buffer, Arguments), Changes);
          when Mode_Color_Command_Word =>
-            Known := True;
             Mode_Color_Command (Into, C.Led_Strip_Status_Mode_Config, Text_At (Buffer, Arguments));
          when Map_Command_Word =>
-            Known := True;
             Map_Command (Into, C, Text_At (Buffer, Arguments));
          when MCU_Id_Command_Word =>
-            Known := True;
             Put_MCU_Id (Into, Env.MCU_Id);
          when Mixer_Command_Word =>
-            Known := True;
             Mixer_Command (Into, C.Mixer_Config.Mixer_Mode, Text_At (Buffer, Arguments));
          when Motor_Mix_Command_Word =>
-            Known := True;
             Motor_Mix_Command (Into, C.Custom_Motor_Mixer, Text_At (Buffer, Arguments));
          when Profile_Command =>
-            Known := True;
             Profile_Command (Into, C, PID, Text_At (Buffer, Arguments), Changes);
          when Rate_Profile_Command =>
-            Known := True;
             Profile_Command (Into, C, Rate, Text_At (Buffer, Arguments), Changes);
          when Rx_Failsafe_Command =>
-            Known := True;
             Failsafe_Command (Into, C, Text_At (Buffer, Arguments));
          when Rx_Range_Command =>
-            Known := True;
             Range_Command (Into, C, Text_At (Buffer, Arguments));
          when Servo_Command_Word =>
-            Known := True;
             Servo_Command (Into, C.Servo_Params, Text_At (Buffer, Arguments));
          when Servo_Mix_Command_Word =>
-            Known := True;
             Servo_Mix_Command (Into, C.Custom_Servo_Mixers, C.Servo_Params, Text_At (Buffer, Arguments));
          when Serial_Command_Word =>
-            Known := True;
             Serial_Command (Into, C, Text_At (Buffer, Arguments), Ports);
          when Set_Command =>
-            Known := True;
             Set (Into, C, Text_At (Buffer, Arguments), Ports);
          when Simplified_Tuning_Command_Word =>
-            Known := True;
             Simplified_Tuning_Command (Into, C, Text_At (Buffer, Arguments));
          when Version_Command_Word =>
-            Known := True;
             Version_Command (Into, C, Env, Board);
          when Vtx_Command_Word =>
-            Known := True;
             Vtx_Command
               (Into, C.Vtx_Config.Vtx_Channel_Activation_Conditions, C.Vtx_Table_Config, Text_At (Buffer, Arguments));
          when Vtx_Table_Command_Word =>
-            Known := True;
             Vtx_Table_Command (Into, C.Vtx_Table_Config, Text_At (Buffer, Arguments));
          when Waypoint_Command_Word =>
-            Known := True;
             Waypoint_Command (Into, C.Flight_Plan_Config, Env.Navigation, Text_At (Buffer, Arguments));
       end case;
    end Process_Line;
