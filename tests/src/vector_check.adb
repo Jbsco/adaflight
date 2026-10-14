@@ -146,6 +146,7 @@ with Adaflight.H8_3D;
 with Adaflight.CX10;
 with Adaflight.Ack_Payload_Receiver;
 with Adaflight.Settings_Table;
+with Adaflight.Config_Groups;
 with Adaflight.Dispatch;
 with Adaflight.ExpressLRS_Receiver;
 with Adaflight.Blackbox_Header;
@@ -13840,6 +13841,52 @@ procedure Vector_Check is
       end if;
    end Check_Settings_Line;
 
+   Defaults_Seen : Natural := 0;
+
+   procedure Check_Config_Groups_Line is
+      use Adaflight.Settings_Table;
+      use Adaflight.Config_Groups;
+   begin
+      if Defaults_Seen > Setting'Pos (Setting'Last) then
+         Put_Line ("confgroups: more settings than the table holds");
+         Failures := Failures + 1;
+         return;
+      end if;
+      declare
+         S : constant Setting := Setting'Val (Defaults_Seen);
+         V : constant String := Str (3);
+      begin
+         Defaults_Seen := Defaults_Seen + 1;
+         Record_Text ("confgroups.name", Str (2), Name (S));
+         case Describe (S).How is
+            when Text =>
+               Record_Text ("confgroups.text", V (V'First + 1 .. V'Last - 1), Get_Text (Defaults, S));
+            when List =>
+               declare
+                  From  : Positive := V'First;
+                  Index : Natural := 0;
+               begin
+                  for I in V'First .. V'Last + 1 loop
+                     if I > V'Last or else V (I) = ':' then
+                        if Index < Element_Count (S) then
+                           Record_Int ("confgroups.element", Integer_64'Value (V (From .. I - 1)),
+                                       Get (Defaults, S, 0, Index));
+                        else
+                           Record_Int ("confgroups.element_count", Integer_64 (Index + 1),
+                                       Integer_64 (Element_Count (S)));
+                        end if;
+                        Index := Index + 1;
+                        From := I + 1;
+                     end if;
+                  end loop;
+                  Record_Int ("confgroups.element_count", Integer_64 (Index), Integer_64 (Element_Count (S)));
+               end;
+            when Direct | Lookup | Bitset | Identifier =>
+               Record_Int ("confgroups.value", Integer_64'Value (V), Get (Defaults, S));
+         end case;
+      end;
+   end Check_Config_Groups_Line;
+
    Meter_State    : Adaflight.Battery.State;
    Meter_Settings : Adaflight.Battery.Settings;
    Meter_Inputs_V : Adaflight.Battery.Meter_Inputs;
@@ -17755,6 +17802,8 @@ procedure Vector_Check is
                   Check_Ack_Receiver_Line;
                elsif Kind = "settings" then
                   Check_Settings_Line;
+               elsif Kind = "confgroups" then
+                  Check_Config_Groups_Line;
                elsif Kind = "battmeter" then
                   Check_Battery_Meter_Line;
                elsif Kind = "flashfs" then
@@ -17942,6 +17991,7 @@ begin
    Run (Dir & "/cx10.csv", "cx10");
    Run (Dir & "/ackrx.csv", "ackrx");
    Run (Dir & "/settings.csv", "settings");
+   Run (Dir & "/confgroups.csv", "confgroups");
    if Settings_Seen /= Adaflight.Settings_Table.Setting'Pos (Adaflight.Settings_Table.Setting'Last) + 1 then
       Put_Line ("settings: the vectors hold" & Settings_Seen'Image & " settings");
       Failures := Failures + 1;
