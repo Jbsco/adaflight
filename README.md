@@ -100,14 +100,15 @@ The core contains:
   OSD task
 - MAVLink telemetry streams with intervals and arming status text, and MAVLink commands with
   replies and requests
+- MAVLink mission protocol with uploads, downloads, fence store and current item reports
 - Jeti EX Bus telemetry with sensor descriptions and value messages
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 16130 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 16354 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
-- Recorded vectors replay bit for bit: 1316874 lines over 337 cases, every case exact except
-  twenty-one declared deviations in `DESIGN.md` D6.
+- Recorded vectors replay bit for bit: 1331880 lines over 338 cases, every case exact except
+  twenty-two declared deviations in `DESIGN.md` D6.
 - No target builds yet. `ROADMAP.md` contains phases, parity inventory, and one question for after
   parity: whether a proved core leaves room on F4 boards for features Betaflight has to leave out
   there.

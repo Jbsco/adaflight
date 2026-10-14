@@ -170,6 +170,9 @@ ledger. The deviations so far:
 - The up and down reference prints U or D for the zenith or nadir. The reference formats
   the symbol string's pointer with a character conversion and prints the low byte of its
   address (finding F110).
+- A mission item's altitude converts to centimeters toward zero and saturates at the 32-bit
+  range, where the reference's conversion and its sum with the home altitude are undefined
+  beyond it. The recorded items stay within the range.
 
 ## D7. Contribution conventions (2026-10-08)
 
@@ -3054,4 +3057,33 @@ the executor's activity, the fix, the position, the switch, the channel validity
 scripted: short and long presses, signal losses during a press, an executor that starts and
 stops, empty, nearly full and full plans, and a clock across its wrap. Every gesture state, plan
 count, last waypoint and message of the 15006 lines replays exactly.
+
+## D139. MAVLink mission protocol (2026-10-13)
+
+`Adaflight.MAVLink_Mission` contains the MAVLink mission protocol over the flight plan, and
+`Adaflight.Flight_Plan_Nav` contains the executor's orbit period it converts loiter turns with. A
+ground station uploads a plan with a count and then each item on request. The unit asks for the
+first item, for the next one as each arrives, and again after 1.5 s up to five times before it
+cancels. Waypoints and splines become fly-by waypoints with their dwell. Loiter times, turns,
+unlimited loiters, loiters to an altitude and follows become holds. The landing and takeoff forms
+become landings and takeoffs, and altitude changes, delays and yaw speeds become the modifier
+types. A return to launch in the last slot ends the plan. An item with a non-finite parameter, a
+position out of range, an unsupported frame or a relative altitude without a home fix is refused
+with its reason. The plan's count drops to zero when an upload starts and takes the received
+count, less a final return to launch, at its end. A download answers requests for the next item or
+the one before it, each stored item sent in the command that carries its type. A fence of up to 16
+items is kept in memory the same way, without enforcement. Uploads and clears of the plan are
+denied in the autopilot mode. A set-current request goes to the executor, and the caller hands its
+answer back: the current item report when it took the index, an error acknowledgement when not.
+The unit reports the current item every second and each waypoint the executor reaches. Wire floats
+are decoded from their bits in exact steps, so the unit stays SPARK, and altitudes beyond the
+32-bit range saturate (D6). The unit is SPARK for the payload offsets, the stores' indices and the
+float decoding.
+
+The harness replays six sequences of 2500 steps recorded from the reference protocol with the
+reference executor's orbit period: uploads and downloads of missions and fences with every item
+command, faults in sequence, type, partner and target, non-finite parameters, bad frames and
+positions, retries to cancellation, set-current answers, clears, autopilot denials and a clock
+across its wrap. Every frame, request and state field of the 15006 lines replays exactly, with the
+stored plan and fence compared through a hash.
 

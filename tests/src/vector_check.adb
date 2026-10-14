@@ -146,6 +146,7 @@ with Adaflight.OSD_Spec;
 with Adaflight.OSD_Task;
 with Adaflight.MAVLink_Commands;
 with Adaflight.MAVLink_Frames;
+with Adaflight.MAVLink_Mission;
 with Adaflight.MAVLink_Telemetry;
 
 procedure Vector_Check is
@@ -13945,6 +13946,169 @@ procedure Vector_Check is
       end if;
    end Check_Flight_Plan_Capture_Line;
 
+   Mission_State    : Adaflight.MAVLink_Mission.State;
+   Mission_Plan     : Adaflight.Flight_Plan.Plan;
+   Mission_Inputs   : Adaflight.MAVLink_Mission.Inputs;
+   Mission_Seq      : Interfaces.Unsigned_8 := 0;
+
+   procedure Check_MAVLink_Mission_Line is
+      use Adaflight.MAVLink_Mission;
+      Name : constant String := Str (1);
+
+      function Hex_Text (Data : Adaflight.MAVLink_Frames.Byte_Buffer) return String is
+         Digits_Hex : constant String := "0123456789abcdef";
+         Text       : String (1 .. 2 * Data'Length + 1) := (others => '-');
+      begin
+         for K in Data'Range loop
+            declare
+               B : constant Natural := Natural (Data (K));
+               J : constant Positive := 2 * (K - Data'First) + 1;
+            begin
+               Text (J) := Digits_Hex (B / 16 + 1);
+               Text (J + 1) := Digits_Hex (B mod 16 + 1);
+            end;
+         end loop;
+         return (if Data'Length = 0 then "-" else Text (1 .. 2 * Data'Length));
+      end Hex_Text;
+
+      --  FNV-1a over the stored items, as the oracle hashes them.
+      function Hash (Fence : Boolean) return Unsigned_32 is
+         H : Unsigned_32 := 2166136261;
+         procedure Put (V : Unsigned_32; Bytes : Positive) is
+            W : Unsigned_32 := V;
+         begin
+            for K in 1 .. Bytes loop
+               H := (H xor (W and 16#FF#)) * 16777619;
+               W := Interfaces.Shift_Right (W, 8);
+            end loop;
+         end Put;
+         function Bits (V : Interfaces.Integer_32) return Unsigned_32 is (Unsigned_32'Mod (V));
+      begin
+         if Fence then
+            for F of Mission_State.Fence loop
+               Put (Unsigned_32 (F.Command), 2);
+               Put (Bits (F.Latitude), 4);
+               Put (Bits (F.Longitude), 4);
+               Put (F.Param1_Bits, 4);
+            end loop;
+         else
+            for W of Mission_Plan.Waypoints loop
+               Put (Bits (W.Latitude), 4);
+               Put (Bits (W.Longitude), 4);
+               Put (Bits (W.Altitude), 4);
+               Put (Unsigned_32 (W.Speed), 2);
+               Put (Unsigned_32 (W.Duration_Ds), 2);
+               Put (Unsigned_32 (W.Vert_Rate), 2);
+               Put (Unsigned_32 (W.Kind), 1);
+               Put (Unsigned_32 (W.Pattern), 1);
+               Put (Unsigned_32 (W.Yaw_Behaviour), 1);
+            end loop;
+         end if;
+         return H;
+      end Hash;
+   begin
+      if Name = "mminit" then
+         Init (Mission_State);
+         Mission_Seq := 0;
+         Mission_Inputs := (Radius           => Interfaces.Unsigned_16 (Int (3)),
+                            Max_Speed        => Interfaces.Unsigned_16 (Int (4)),
+                            Home_Altitude_Cm => Interfaces.Integer_32 (Int (6)),
+                            others           => <>);
+         Mission_Plan := (Count => Integer (Int (5)), Waypoints => <>);
+         for I in Mission_Plan.Waypoints'Range loop
+            declare
+               K : constant Positive := 8 + 9 * I;
+            begin
+               Mission_Plan.Waypoints (I) :=
+                 (Latitude      => Interfaces.Integer_32 (Int (K)),
+                  Longitude     => Interfaces.Integer_32 (Int (K + 1)),
+                  Altitude      => Interfaces.Integer_32 (Int (K + 2)),
+                  Speed         => Interfaces.Unsigned_16 (Int (K + 3)),
+                  Duration_Ds   => Interfaces.Unsigned_16 (Int (K + 4)),
+                  Vert_Rate     => Interfaces.Unsigned_16 (Int (K + 5)),
+                  Kind          => Interfaces.Unsigned_8 (Int (K + 6)),
+                  Pattern       => Interfaces.Unsigned_8 (Int (K + 7)),
+                  Yaw_Behaviour => Interfaces.Unsigned_8 (Int (K + 8)));
+            end;
+         end loop;
+      elsif Name = "mmstep" then
+         declare
+            O       : Output;
+            Handled : Integer_64 := -1;
+         begin
+            Mission_Inputs.Now_Ms := Unsigned_32 (Int (4));
+            Mission_Inputs.Executor := (Active        => Int (5) /= 0,
+                                        Injected      => Int (6) /= 0,
+                                        Current_Index => Interfaces.Unsigned_8 (Int (7)),
+                                        Complete      => Int (8) = 3);
+            Mission_Inputs.Autopilot_Mode := Int (10) /= 0;
+            Mission_Inputs.Home_Fix := Int (11) /= 0;
+            if Str (14) /= "-" then
+               declare
+                  Wire   : constant Byte_Array := Hex_Bytes (14);
+                  Parser : Adaflight.MAVLink.Frame_Parser;
+                  Result : Adaflight.MAVLink.Framing := Adaflight.MAVLink.Incomplete;
+                  Done   : Boolean;
+               begin
+                  for B of Wire loop
+                     Adaflight.MAVLink.Parse_Byte (Parser, Natural (B), Result);
+                  end loop;
+                  if Adaflight.MAVLink."/=" (Result, Adaflight.MAVLink.OK) then
+                     Put_Line ("mmstep: oracle frame did not parse");
+                     Failures := Failures + 1;
+                  end if;
+                  Handle (Mission_State, Mission_Plan, Parser.Received, Mission_Inputs, Mission_Seq, O, Done);
+                  Handled := Boolean'Pos (Done);
+                  if O.Set_Current then
+                     Complete_Set_Current (Mission_State, Mission_Plan, Int (9) /= 0, Mission_Inputs, Mission_Seq, O);
+                  end if;
+               end;
+            end if;
+            if Int (12) >= 0 then
+               Waypoint_Reached (Mission_State, Interfaces.Unsigned_8 (Int (12)));
+            end if;
+            Update (Mission_State, Mission_Plan, Mission_Inputs, Mission_Seq, O);
+            Record_Int ("mmstep.handled", Int (13), Handled);
+            declare
+               Expected : constant String := Str (15);
+               Actual   : constant String := Hex_Text (O.Data (1 .. O.Length));
+            begin
+               Record_Int ("mmstep.frames", 1, (if Expected = Actual then 1 else 0));
+               if Expected /= Actual and then Failures <= 20 then
+                  Put_Line ("  at " & Str (2) & "/" & Str (3) & " expected " & Expected);
+                  Put_Line ("  got " & Actual);
+               end if;
+            end;
+            declare
+               Index : constant String := Interfaces.Unsigned_8'Image (O.Set_Current_Index);
+               Ops   : constant String :=
+                 (if O.Set_Current then "C" & Index (Index'First + 1 .. Index'Last) & ";" else "")
+                 & (if O.Save_Config then "S;" else "");
+            begin
+               Record_Int ("mmstep.ops", 1, (if Str (16) = (if Ops = "" then "-" else Ops) then 1 else 0));
+            end;
+            Record_Int ("mmstep.transfer", Int (17), Transfer_State'Pos (Mission_State.Transfer));
+            Record_Int ("mmstep.mission_type", Int (18), Integer_64 (Mission_State.Mission_Type));
+            Record_Int ("mmstep.next_seq", Int (19), Integer_64 (Mission_State.Next_Seq));
+            Record_Int ("mmstep.total_count", Int (20), Integer_64 (Mission_State.Total_Count));
+            Record_Int ("mmstep.partner_sys", Int (21), Integer_64 (Mission_State.Partner_Sys));
+            Record_Int ("mmstep.partner_comp", Int (22), Integer_64 (Mission_State.Partner_Comp));
+            Record_Int ("mmstep.last_activity", Int (23), Integer_64 (Mission_State.Last_Activity_Ms));
+            Record_Int ("mmstep.retries", Int (24), Integer_64 (Mission_State.Retries));
+            Record_Int ("mmstep.last_current", Int (25), Integer_64 (Mission_State.Last_Current_Tx_Ms));
+            Record_Int ("mmstep.pending_reached", Int (26), Integer_64 (Mission_State.Pending_Reached));
+            Record_Int ("mmstep.rtl", Int (27), Boolean'Pos (Mission_State.RTL_Terminator));
+            Record_Int ("mmstep.plan_count", Int (28), Integer_64 (Mission_Plan.Count));
+            Record_Int ("mmstep.plan_hash", Int_Hex (29), Integer_64 (Hash (False)));
+            Record_Int ("mmstep.fence_count", Int (30), Integer_64 (Mission_State.Fence_Count));
+            Record_Int ("mmstep.fence_hash", Int_Hex (31), Integer_64 (Hash (True)));
+         end;
+      else
+         Put_Line ("unknown MAVLink mission case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_MAVLink_Mission_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -14199,6 +14363,8 @@ procedure Vector_Check is
                   Check_Flash_FS_Line;
                elsif Kind = "fpcapture" then
                   Check_Flight_Plan_Capture_Line;
+               elsif Kind = "mavmission" then
+                  Check_MAVLink_Mission_Line;
                else
                   Check_PID_Line;
                end if;
@@ -14336,6 +14502,7 @@ begin
    Run (Dir & "/battmeter.csv", "battmeter");
    Run (Dir & "/flashfs.csv", "flashfs");
    Run (Dir & "/fpcapture.csv", "fpcapture");
+   Run (Dir & "/mavmission.csv", "mavmission");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
