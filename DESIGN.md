@@ -3521,3 +3521,21 @@ The harness replays 4800 operations recorded from the reference storage code ove
 region with six parameter groups: structure checks, lookups, loads and saves on images built from
 random records, about a third of them clean and the rest often corrupted, never one whose scan
 reads past the region. Every result, group, hash and image byte of the 4808 lines replays exactly.
+
+## D159. Mixer setup (2026-10-13)
+
+`Adaflight.Mixer_Init` contains the mixer setup: each mixer mode's motor count, whether it drives
+servos, and its motor table where the build has it; the motors in use and their mix, from the
+mode or, for the custom modes, from the custom table up to its first entry without throttle, at
+most the build's motors; the launch control mix, which holds every motor that pitches the nose up
+at zero; disarmed outputs reset to the disarm value; a mode's table loaded into the custom table
+for the command line; and whether the motors run or saturate. The modes keep the configuration's
+order, from tri to octo X8 plus. The build's options select quad X only, the uncommon frames, the
+motor count and launch control. A mode whose table the build leaves out keeps the previous mix
+for its motor count, as the reference does (findings F144). The motor mixer (D16) takes the count
+and the mix.
+
+The harness replays 4800 setups recorded from the reference mixer setup, in a build with every
+frame, launch control and 8 motors, one without the uncommon frames and launch control for 6
+motors, and one for quad X only, on random previous and custom mixes and outputs. Every count,
+flag and weight of the 4808 lines replays exactly.
