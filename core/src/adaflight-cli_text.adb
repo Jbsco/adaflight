@@ -285,6 +285,132 @@ package body Adaflight.CLI_Text with SPARK_Mode is
       end;
    end Float_Text;
 
+   --  The divisor that scales a fraction of some digits to seven.
+   function Fraction_Scale (Count : Natural) return Integer_32 is
+     (case Count is
+         when 0 => 10_000_000, when 1 => 1_000_000, when 2 => 100_000, when 3 => 10_000, when 4 => 1_000,
+         when 5 => 100, when 6 => 10, when others => 1);
+
+   procedure Parse_Coordinate (Text : String; Value : out Integer_32; OK : out Boolean) is
+      I        : Positive := Text'First;
+      Negative : Boolean := False;
+      Whole    : Integer_32 := 0;
+      Fraction : Integer_32 := 0;
+      Divisor  : Integer_32 := 10_000_000;
+      Count    : Natural := 0;
+      D        : Integer_32;
+   begin
+      Value := 0;
+      OK := False;
+      if I <= Text'Last and then Text (I) = '-' then
+         Negative := True;
+         I := I + 1;
+      elsif I <= Text'Last and then Text (I) = '+' then
+         I := I + 1;
+      end if;
+      if I > Text'Last or else Text (I) not in '0' .. '9' then
+         return;
+      end if;
+      while I <= Text'Last and then Text (I) in '0' .. '9' loop
+         pragma Loop_Invariant (I in Text'Range and then Whole >= 0);
+         pragma Loop_Variant (Increases => I);
+         D := Character'Pos (Text (I)) - Character'Pos ('0');
+         if Whole > (Integer_32'Last - D) / 10 then
+            return;
+         end if;
+         Whole := Whole * 10 + D;
+         I := I + 1;
+      end loop;
+      if I <= Text'Last and then Text (I) = '.' then
+         I := I + 1;
+         while I <= Text'Last and then Text (I) in '0' .. '9' and then Count < 7 loop
+            pragma Loop_Invariant
+              (I in Text'Range and then Count < 7 and then Divisor = Fraction_Scale (Count)
+               and then Fraction in 0 .. 10 ** Count - 1);
+            pragma Loop_Variant (Increases => I);
+            D := Character'Pos (Text (I)) - Character'Pos ('0');
+            if Fraction > (Integer_32'Last - D) / 10 then
+               return;
+            end if;
+            Fraction := Fraction * 10 + D;
+            Divisor := Divisor / 10;
+            Count := Count + 1;
+            I := I + 1;
+         end loop;
+         while I <= Text'Last and then Text (I) in '0' .. '9' loop
+            pragma Loop_Invariant (I in Text'Range);
+            pragma Loop_Variant (Increases => I);
+            I := I + 1;
+         end loop;
+         if Divisor > 0 and then Fraction > Integer_32'Last / Divisor then
+            return;
+         end if;
+         Fraction := Fraction * Divisor;
+      end if;
+      if I <= Text'Last then
+         return;
+      end if;
+      if Whole > (Integer_32'Last - Fraction) / 10_000_000 then
+         return;
+      end if;
+      Value := Whole * 10_000_000 + Fraction;
+      if Negative then
+         Value := -Value;
+      end if;
+      OK := True;
+   end Parse_Coordinate;
+
+   function Coordinate_Text (Value : Integer_32) return String is
+      Magnitude : constant Integer_64 := abs Integer_64 (Value);
+      Whole     : constant Integer_64 := Magnitude / 10_000_000;
+      Sign      : constant Natural := (if Value < 0 then 1 else 0);
+      Width     : constant Positive := (if Whole >= 100 then 3 elsif Whole >= 10 then 2 else 1);
+      Text      : String (1 .. Sign + Width + 8) := (others => '0');
+      W         : Integer_64 := Whole;
+      F         : Integer_64 := Magnitude mod 10_000_000;
+   begin
+      if Sign = 1 then
+         Text (1) := '-';
+      end if;
+      for K in reverse 1 .. Width loop
+         pragma Loop_Invariant (W >= 0);
+         Text (Sign + K) := Character'Val (Character'Pos ('0') + Natural (W mod 10));
+         W := W / 10;
+      end loop;
+      Text (Sign + Width + 1) := '.';
+      for K in reverse 1 .. 7 loop
+         pragma Loop_Invariant (F >= 0);
+         Text (Sign + Width + 1 + K) := Character'Val (Character'Pos ('0') + Natural (F mod 10));
+         F := F / 10;
+      end loop;
+      return Text;
+   end Coordinate_Text;
+
+   procedure Parse_Whole (Text : String; Value : out Integer_64; OK : out Boolean) is
+      I        : Positive := Text'First;
+      Negative : Boolean := False;
+   begin
+      Value := 0;
+      OK := False;
+      if I <= Text'Last and then Text (I) in '-' | '+' then
+         Negative := Text (I) = '-';
+         I := I + 1;
+      end if;
+      if I > Text'Last or else Text (I) not in '0' .. '9' then
+         return;
+      end if;
+      while I <= Text'Last and then Text (I) in '0' .. '9' loop
+         pragma Loop_Invariant (I in Text'Range and then Value in 0 .. 10 ** 12);
+         pragma Loop_Variant (Increases => I);
+         Value := Integer_64'Min (10 ** 12, Value * 10 + Integer_64 (Character'Pos (Text (I)) - Character'Pos ('0')));
+         I := I + 1;
+      end loop;
+      OK := I > Text'Last;
+      if Negative then
+         Value := -Value;
+      end if;
+   end Parse_Whole;
+
    function Decimal (V : Integer_64) return String is
       Buffer    : String (1 .. 21) := (others => '0');
       First     : Positive range 2 .. 21 := 21;
