@@ -14142,6 +14142,7 @@ procedure Vector_Check is
          declare
             Command : constant String := Hex_String (3);
             Known   : Boolean;
+            Changes : CLI.Effects;
          begin
             if Word (Command, 0) = "!profiles" then
                CLI_Config.System_Config.Pid_Profile_Index := Interfaces.Unsigned_8'Value (Word (Command, 1));
@@ -14155,7 +14156,7 @@ procedure Vector_Check is
                   end if;
                end loop;
             else
-               CLI.Process_Line (CLI_Reply, CLI_Config, Command, Ports, Known);
+               CLI.Process_Line (CLI_Reply, CLI_Config, Command, Ports, Known, Changes);
                Record_Int ("cli.known", 1, Boolean'Pos (Known or else Command (Command'First) = '#'));
             end if;
          end;
@@ -18340,6 +18341,7 @@ begin
    Run (Dir & "/confcodec.csv", "confcodec");
    Run (Dir & "/conffix.csv", "conffix");
    Run (Dir & "/cliset.csv", "cliset");
+   Run (Dir & "/cliprof.csv", "cliset");
    if Settings_Seen /= Adaflight.Settings_Table.Setting'Pos (Adaflight.Settings_Table.Setting'Last) + 1 then
       Put_Line ("settings: the vectors hold" & Settings_Seen'Image & " settings");
       Failures := Failures + 1;
