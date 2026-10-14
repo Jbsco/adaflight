@@ -1,6 +1,10 @@
+with Adaflight.NRF24L01;
+
 package body Adaflight.XN297 with SPARK_Mode is
    use type Interfaces.Unsigned_8;
    use type Interfaces.Unsigned_16;
+
+   CRC_Length : constant := 2;
 
    type Scramble_Table is array (0 .. 29) of Byte;
    Data_Scramble : constant Scramble_Table :=
@@ -41,5 +45,25 @@ package body Adaflight.XN297 with SPARK_Mode is
       end loop;
       CRC := CRC xor CRC_Xorout (Length);
    end Unscramble;
+
+   procedure Write_Payload (O : in out Adaflight.SPI_Radio.Output; Data : Byte_Array; Length : Natural;
+                            Rx_Address : Address)
+   is
+      Packet : Adaflight.SPI_Radio.Byte_Array (0 .. Address_Length + Length + CRC_Length - 1) := (others => 0);
+      CRC    : Interfaces.Unsigned_16 := 16#B5D2#;
+   begin
+      for I in Address'Range loop
+         Packet (I) := Rx_Address (Address_Length - 1 - I);
+         CRC := Adaflight.Bytes.CRC16_CCITT (CRC, Packet (I));
+      end loop;
+      for I in 0 .. Length - 1 loop
+         Packet (Address_Length + I) := Bit_Reverse (Data (I)) xor Data_Scramble (I);
+         CRC := Adaflight.Bytes.CRC16_CCITT (CRC, Packet (Address_Length + I));
+      end loop;
+      CRC := CRC xor CRC_Xorout (Length);
+      Packet (Address_Length + Length) := Byte (Interfaces.Shift_Right (CRC, 8));
+      Packet (Address_Length + Length + 1) := Byte (CRC and 16#FF#);
+      Adaflight.NRF24L01.Write_Payload (O, Packet);
+   end Write_Payload;
 
 end Adaflight.XN297;
