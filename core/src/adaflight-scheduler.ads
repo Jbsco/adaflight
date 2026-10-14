@@ -39,10 +39,11 @@ package Adaflight.Scheduler with SPARK_Mode is
    High        : constant := 5;
    subtype Static_Priority is Integer range -1 .. 255;
 
-   --  The scheduling delay limit of 100 microseconds, 10 kHz, keeps a
-   --  rescheduled period from clogging the scheduler.
-   Delay_Limit_Us : constant := 100;
-   subtype Period_Us is Time_Delta range Delay_Limit_Us .. Time_Delta'Last;
+   --  The platform's floor on a rescheduled period: 10 microseconds on the
+   --  STM32 F4 and later, 100 on AT32 and the older STM32, 1 on the
+   --  simulator.
+   subtype Delay_Limit is Time_Delta range 1 .. 100;
+   subtype Period_Us is Time_Delta range 1 .. Time_Delta'Last;
 
    type Attributes is record
       Period    : Period_Us;
@@ -100,9 +101,11 @@ package Adaflight.Scheduler with SPARK_Mode is
       DroneCAN          => (Hz_1 / 50, Low, False));
 
    type Settings is record
-      Cycles_Per_Us : Positive range 1 .. 1_000 := 168;
-      Rx_Relax      : Natural range 0 .. 65_535 := 25;
-      OSD_Relax     : Natural range 0 .. 65_535 := 25;
+      Cycles_Per_Us  : Positive range 1 .. 1_000 := 168;
+      Rx_Relax       : Natural range 0 .. 65_535 := 25;
+      OSD_Relax      : Natural range 0 .. 65_535 := 25;
+      Delay_Limit_Us : Delay_Limit := 10;
+      Gyro_Period_Us : Period_Us := 125;
    end record;
 
    subtype Dynamic_Priority is Natural range 0 .. 65_535;
@@ -112,7 +115,7 @@ package Adaflight.Scheduler with SPARK_Mode is
    --  times in microseconds, moving sums in tenths over eight samples, the
    --  anticipated execution time in 128ths of a microsecond.
    type Task_State is record
-      Period                : Period_Us := Delay_Limit_Us;
+      Period                : Period_Us := 1;
       Dynamic               : Dynamic_Priority := 0;
       Age_Periods           : Age := 0;
       Latest_Delta_Us       : Time_Delta := 0;

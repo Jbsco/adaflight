@@ -2135,7 +2135,7 @@ procedure Vector_Check is
    --  of the oracle: one cycle per read of the cycle counter and the recorded
    --  durations while a task or a check runs.
    Sched_State    : Adaflight.Scheduler.State;
-   Sched_Settings : Adaflight.Scheduler.Settings;
+   Sched_Settings : Adaflight.Scheduler.Settings := (Delay_Limit_Us => 1, others => <>);
    Sched_Clock    : Unsigned_32 := 0;
    Sched_Tasks    : array (0 .. 63) of Adaflight.Scheduler.Task_Id := (others => Adaflight.Scheduler.System);
    Sched_Task_Count : Natural := 0;

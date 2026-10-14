@@ -80,7 +80,7 @@ package body Adaflight.Scheduler with SPARK_Mode is
       S := (Tasks => (others => <>), Queue => (others => System), Queue_Size => 0,
             Checks => <>, Pass => <>, others => <>);
       for T in Task_Id loop
-         S.Tasks (T).Period := Defaults (T).Period;
+         S.Tasks (T).Period := (if T in Gyro | Filter | PID then C.Gyro_Period_Us else Defaults (T).Period);
       end loop;
       Queue_Add (S, System);
       S.Loop_Start_Min := To_Signed (Micros_To_Cycles (C, Start_Loop_Min_Us));
@@ -131,7 +131,7 @@ package body Adaflight.Scheduler with SPARK_Mode is
 
    procedure Reschedule (S : in out State; C : Settings; Id : Task_Id; New_Period_Us : Time_Delta) is
    begin
-      S.Tasks (Id).Period := Time_Delta'Max (Delay_Limit_Us, New_Period_Us);
+      S.Tasks (Id).Period := Time_Delta'Max (C.Delay_Limit_Us, New_Period_Us);
       if Id = Gyro then
          S.Desired_Period_Cycles := Gyro_Period_Cycles (S, C);
       end if;
@@ -435,7 +435,9 @@ package body Adaflight.Scheduler with SPARK_Mode is
       if A.Has_Check then
          if S.Tasks (Id).Dynamic > 0 then
             S.Tasks (Id).Age_Periods :=
-              Natural ((1 + Clock.Elapsed (Now, S.Tasks (Id).Last_Signaled_Us) / S.Tasks (Id).Period) mod 65_536);
+              Natural
+                ((1 + Interfaces.Integer_64 (Clock.Elapsed (Now, S.Tasks (Id).Last_Signaled_Us) / S.Tasks (Id).Period))
+                 mod 65_536);
             S.Tasks (Id).Dynamic := (1 + A.Priority * S.Tasks (Id).Age_Periods) mod 65_536;
          elsif Check_Result then
             declare

@@ -661,6 +661,14 @@ confirms the fit, and the fifth follows the run. The caller reads the cycle coun
 same points the reference does, so the replay of the recorded passes, with a cycle per read
 and the recorded durations, matches cycle for cycle. Every count keeps the reference's
 32-bit wrapping arithmetic through the two casts between the signed and unsigned counts.
+
+Amended 2026-10-13: the floor on a rescheduled period and the gyro loop's period are the
+platform's, settings: 10 and 125 microseconds on the STM32 F4 and later, 100 and 1000 on AT32
+and the older STM32, 1 and 100 on the simulator. The unit had held the floor at 100 for every
+platform. With a floor of 1, a checked task's age, one plus its waiting time
+over its period, can pass the 32-bit range, so the sum is taken in 64 bits and keeps the low 16
+bits the reference stores. The recorded passes reschedule at 125 microseconds and up, so they
+replay the same, and the checker gives the scheduler the oracle platform's floor of 1.
 Two guards cover the reference's divisions by zero: the overrun recovery and the skew run
 only while the gyro period in cycles is positive, where the reference divides by it as it
 stands. No recorded vector reaches a guard.
