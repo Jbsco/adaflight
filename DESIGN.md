@@ -4200,3 +4200,21 @@ reference's simplified tuning linked: slider, mode and lowpass settings of every
 gyro, profile selections, applies and disables, malformed arguments, and gets, profile dumps and
 diffs of the results. With the earlier sequences, all 60592 replies match the reference's byte for
 byte, and so does the configuration's hash after every command.
+
+## D185. Command line defaults (2026-10-14)
+
+The command line's `defaults` with `nosave` resets the configuration to its defaults, then applies
+the simplified tuning to every PID profile. With `group_id` and a number it resets one parameter
+group: the reset configuration, tuned, is encoded with `Config_Codec`, and that group's bytes
+replace the group in the encoded configuration before it is decoded back. A word with neither
+keyword, a missing group or a zero group is the parse error. A word only has to contain its keyword,
+and the group number wraps to 16 bits (findings F178).
+
+Without `nosave` the reset is followed by a save and a restart, which wait for the `save` command,
+and `Process_Line` returns Known false.
+
+The harness replays two sequences of 1000 command lines in all, recorded from the oracle: settings
+of every group, whole and single-group resets with keywords in any case and inside other words,
+unknown, wrapped and negative group numbers, malformed resets, profile selections, and diffs and
+gets of the results. With the earlier sequences, all 61592 replies match the reference's byte for
+byte, and so does the configuration's hash after every command.
