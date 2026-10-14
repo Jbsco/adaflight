@@ -3087,3 +3087,27 @@ positions, retries to cancellation, set-current answers, clears, autopilot denia
 across its wrap. Every frame, request and state field of the 15006 lines replays exactly, with the
 stored plan and fence compared through a hash.
 
+## D140. Flight plan executor helpers (2026-10-13)
+
+`Adaflight.Flight_Plan_Nav` contains the first part of the flight plan executor: the plan it flies
+and the geometry its legs are built from. The plan is the stored mission or, while it holds
+waypoints, an injected one of up to four. The next positional waypoint skips the modifiers, and a
+fly-over or fly-by waypoint with another positional one after it, or one that faces its target,
+flies a carrot along its leg. A waypoint's target comes from the GPS distance to the estimator's
+origin, now public in `Adaflight.Position_Estimator`, with the altitude offset between the
+estimator and the GPS frame. The braking deceleration at a lean of 10 to 70 whole degrees takes its
+tangent from a static table of the correctly rounded single-precision values, which the C
+library's tangent gives at every entry, so the unit needs no elementary function. The rest point,
+the carrot placed within the controller's 5 m reach of the craft or of its rest point, the braking
+distance with a turn-in's width, the navigation deltas, the bearing with its 2 m floor and the nose
+test follow the reference's operations. The angle wrap takes the remainder of the division by 360
+by one exact subtraction of the whole turns, which equals the C library's remainder over the
+inputs the executor gives it. The pattern carrot is an orbit or a figure eight through the centre.
+The unit is SPARK for the plan's indices, the table and the geometry's bounds. Each square root is
+held at a bound whose square covers its input, as the core's other bounded roots are, so the hold
+never acts.
+
+The harness replays 1200 calls of each group of helpers recorded from the reference executor with
+random plans, waypoints, estimates, leg states and settings within the configuration interface's
+ranges. Every result of the 9600 lines replays exactly.
+

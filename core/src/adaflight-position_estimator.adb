@@ -343,9 +343,10 @@ package body Adaflight.Position_Estimator with SPARK_Mode is
       return Base * Scale;
    end Accuracy_R;
 
-   --  The east and north distance from one location to another in
-   --  centimetres, the longitude difference taken the short way round the
-   --  antimeridian and scaled by the cosine of the home latitude.
+   -----------------
+   -- Distance_2d --
+   -----------------
+
    procedure Distance_2d (From, To : Location; Cos_Lat : Longitude_Scale; East, North : out Float) is
       Delta_Lon : Integer_32 := Wrapped_Difference (To.Lon, From.Lon);
       Delta_Lat : constant Integer_32 := Wrapped_Difference (To.Lat, From.Lat);
@@ -357,8 +358,16 @@ package body Adaflight.Position_Estimator with SPARK_Mode is
          Delta_Lon := Delta_Lon + Deg_180;
          Delta_Lon := Delta_Lon + Deg_180;
       end if;
-      East := (Float (Delta_Lon) * Cos_Lat) * Earth_Angle_To_Cm;
-      North := Float (Delta_Lat) * Earth_Angle_To_Cm;
+      declare
+         subtype Local_Cm is Float range -2.5e9 .. 2.5e9;
+         Lon      : constant Float range -2.15e9 .. 2.15e9 := Float (Delta_Lon);
+         Scaled   : constant Float range -2.18e9 .. 2.18e9 := Lon * Cos_Lat;
+         East_Cm  : constant Local_Cm := Scaled * Earth_Angle_To_Cm;
+         North_Cm : constant Local_Cm := Float (Delta_Lat) * Earth_Angle_To_Cm;
+      begin
+         East := East_Cm;
+         North := North_Cm;
+      end;
    end Distance_2d;
 
    --  The GPS fix into the horizontal filters against the origin, with the
