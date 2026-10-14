@@ -11941,9 +11941,13 @@ procedure Vector_Check is
       return Img (K .. Img'Last);
    end FD_Short_Hex;
 
-   function FD_Ops (O : FSP.Output) return String is
-      Buffer : String (1 .. 8192);
-      Len    : Natural := 0;
+   --  Polls gives, one digit per Await_Set, the reads that find its bits
+   --  clear.
+   function FD_Ops (O : FSP.Output; Polls : String := "") return String is
+      Buffer    : String (1 .. 8192);
+      Len       : Natural := 0;
+      Waited    : Natural := 0;
+      Wait_Next : Positive := Polls'First;
 
       procedure Put (T : String) is
       begin
@@ -12008,6 +12012,23 @@ procedure Vector_Check is
                      Put (T);
                   end;
                when SPR.Await_Value => Put ("a" & FD_Hex (Natural (X.A), 2));
+               when SPR.Await_Set =>
+                  declare
+                     Reads : constant Natural :=
+                       (if Wait_Next <= Polls'Last then Character'Pos (Polls (Wait_Next)) - Character'Pos ('0')
+                        else 0);
+                  begin
+                     for N in 1 .. Reads loop
+                        Put ("u" & FD_Short_Hex (Natural (X.Value)));
+                     end loop;
+                     Waited := Waited + Reads * Natural (X.Value);
+                     Wait_Next := Wait_Next + 1;
+                     Put ("a" & FD_Hex (Natural (X.A), 2));
+                  end;
+               when SPR.Delay_Rest =>
+                  if Waited < Natural (X.Value) then
+                     Put ("u" & FD_Short_Hex (Natural (X.Value) - Waited));
+                  end if;
             end case;
          end;
       end loop;

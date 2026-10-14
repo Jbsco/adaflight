@@ -21,10 +21,14 @@ package Adaflight.SPI_Radio with SPARK_Mode is
    SFRX  : constant := 16#3A#;
    SCAL  : constant := 16#33#;
 
+   --  Await_Set reads register A until a bit of B reads set, with a delay of
+   --  Value microseconds after each read that shows them clear. Delay_Rest
+   --  waits what remains of Value microseconds after those delays in the
+   --  list.
    type Op_Kind is
      (Reset, Startup_Speed, Normal_Speed, Strobe, Write_Register, Read_Fifo, Write_Fifo, Set_Power, Delay_Ms,
       Delay_Us, Calibrate, Pin_High, Pin_Low, Pin_Toggle, Set_RSSI, Set_RSSI_Direct, Save_Config, Write_Id,
-      Read_Register, Await_Clear, Reset_Exti, Write_Block, Await_Value);
+      Read_Register, Await_Clear, Reset_Exti, Write_Block, Await_Value, Await_Set, Delay_Rest);
    type Pin is (LED, Tx_Enable, LNA_Enable, Antenna_Select, Chip_Enable);
 
    --  One operation: the strobe, register, byte count or power level, the
