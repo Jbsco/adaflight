@@ -21,21 +21,27 @@ package Adaflight.NRF24L01 with SPARK_Mode is
    RF_CH       : constant := 16#05#;
    RF_SETUP    : constant := 16#06#;
    STATUS      : constant := 16#07#;
+   RPD         : constant := 16#09#;
    RX_ADDR_P0  : constant := 16#0A#;
    TX_ADDR     : constant := 16#10#;
    RX_PW_P0    : constant := 16#11#;
    FIFO_STATUS : constant := 16#17#;
    DYNPD       : constant := 16#1C#;
+   FEATURE     : constant := 16#1D#;
 
-   CONFIG_EN_CRC  : constant := 16#08#;
-   CONFIG_CRCO    : constant := 16#04#;
-   CONFIG_PWR_UP  : constant := 16#02#;
-   CONFIG_PRIM_RX : constant := 16#01#;
-   STATUS_RX_DR   : constant := 16#40#;
-   STATUS_TX_DS   : constant := 16#20#;
-   STATUS_MAX_RT  : constant := 16#10#;
-   FIFO_RX_EMPTY  : constant := 16#01#;
-   FIFO_TX_EMPTY  : constant := 16#10#;
+   CONFIG_MASK_TX_DS  : constant := 16#20#;
+   CONFIG_MASK_MAX_RT : constant := 16#10#;
+   CONFIG_EN_CRC      : constant := 16#08#;
+   CONFIG_CRCO        : constant := 16#04#;
+   CONFIG_PWR_UP      : constant := 16#02#;
+   CONFIG_PRIM_RX     : constant := 16#01#;
+   STATUS_RX_DR       : constant := 16#40#;
+   STATUS_TX_DS       : constant := 16#20#;
+   STATUS_MAX_RT      : constant := 16#10#;
+   FIFO_RX_EMPTY      : constant := 16#01#;
+   FIFO_TX_EMPTY      : constant := 16#10#;
+   FEATURE_EN_DPL     : constant := 16#04#;
+   FEATURE_EN_ACK_PAY : constant := 16#02#;
 
    RF_DR_250K : constant := 16#20#;
    RF_DR_1M   : constant := 16#00#;
@@ -54,6 +60,19 @@ package Adaflight.NRF24L01 with SPARK_Mode is
 
    procedure Write_Payload (O : in out Output; Data : Adaflight.SPI_Radio.Byte_Array)
      with Global => null, Pre => Data'Length <= 32;
+
+   --  A payload the radio sends with its next acknowledgment on the pipe.
+   procedure Write_Ack_Payload (O : in out Output; Data : Adaflight.SPI_Radio.Byte_Array; Pipe : Unsigned_8)
+     with Global => null, Pre => Data'Length <= 32;
+
+   --  A register read whose value the receiver does not use.
+   procedure Read_Reg (O : in out Output; Register : Unsigned_8)
+     with Global => null;
+
+   --  The command that enables the payload width read and the acknowledgment
+   --  payloads.
+   procedure Activate (O : in out Output; Code : Unsigned_8)
+     with Global => null;
 
    --  A payload of Length bytes from the receive FIFO into the target's
    --  buffer.

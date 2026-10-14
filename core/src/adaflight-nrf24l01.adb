@@ -4,7 +4,9 @@ package body Adaflight.NRF24L01 with SPARK_Mode is
 
    W_REGISTER    : constant := 16#20#;
    REGISTER_MASK : constant := 16#1F#;
+   ACTIVATE_CMD  : constant := 16#50#;
    W_TX_PAYLOAD  : constant := 16#A0#;
+   W_ACK_PAYLOAD : constant := 16#A8#;
    FLUSH_TX_CMD  : constant := 16#E1#;
    FLUSH_RX_CMD  : constant := 16#E2#;
    Settling_Us   : constant := 100_000;
@@ -24,6 +26,21 @@ package body Adaflight.NRF24L01 with SPARK_Mode is
    begin
       Write_Block (O, W_TX_PAYLOAD, Data);
    end Write_Payload;
+
+   procedure Write_Ack_Payload (O : in out Output; Data : Adaflight.SPI_Radio.Byte_Array; Pipe : Unsigned_8) is
+   begin
+      Write_Block (O, W_ACK_PAYLOAD or (Pipe and 16#07#), Data);
+   end Write_Ack_Payload;
+
+   procedure Read_Reg (O : in out Output; Register : Unsigned_8) is
+   begin
+      Add (O, (Kind => Read_Register, A => Register and REGISTER_MASK, others => <>));
+   end Read_Reg;
+
+   procedure Activate (O : in out Output; Code : Unsigned_8) is
+   begin
+      Write (O, ACTIVATE_CMD, Code);
+   end Activate;
 
    procedure Read_Payload (O : in out Output; Length : Unsigned_8) is
    begin
