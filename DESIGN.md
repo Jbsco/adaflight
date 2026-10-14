@@ -230,6 +230,10 @@ ledger. The deviations so far:
 - The command line's `smix load` of the last frame loads no servo rules, where the reference reads
   the frame's rules from past the end of its rule table (findings F47). The recorded command lines
   load the other frames.
+- The command line's LED text prints in full, where the reference writes a text of 20 characters or
+  more past its 20-byte buffer, and with no function letter for a stored function past the ten
+  letters, where the reference reads past its letter table (findings F163). The recorded LED texts
+  have 19 characters or fewer.
 
 ## D7. Contribution conventions (2026-10-08)
 
@@ -4002,3 +4006,26 @@ lines with values in and out of range, wrapped values, negative forwarded channe
 malformed lines, rule lists, resets, loads of every frame but the last, reversed source tables and
 changes, and rule lines in and out of range. With the earlier sequences, all 40586 replies match the
 reference's byte for byte, and so does the configuration's hash after every command.
+
+## D177. Command line LEDs (2026-10-14)
+
+`Adaflight.Command_Line` gains the `led`, `color` and `mode_color` commands. `led` alone prints each
+of the 32 LEDs' configuration as text: position, direction letters, function letter with overlay
+letters, and color. With an index from 0 to 31 and a text it clears the LED and reads the text with
+the LED strip's parser. A text that reads is stored and printed, and asks for the strip's layout. A
+text that does not read leaves the LED cleared and is the parse error. `color` alone prints the 16
+colors, and with an index and three comma-separated values it reads hue, saturation and value in
+turn, each stored as it is read and wrapped to its field (findings F164). A value past its limit or
+a missing comma clears the color and is the parse error. `mode_color` alone prints each mode's
+direction colors, the special colors and the strip's aux channel, and three numbers set one of them
+to a color index below 16.
+
+Each command takes only the LED strip's configuration or the part of it it changes, and the listing
+loops have loop invariants (D176).
+
+The harness replays two sequences of 2000 command lines recorded from the oracle: LED lists and
+texts with positions, directions, functions, overlays and colors in and out of range, broken
+separators and long chunks, color lists and values in and out of range with missing and extra
+components, and mode color lists and writes in and out of range. With the earlier sequences, all
+44586 replies match the reference's byte for byte, and so does the configuration's hash after every
+command.
