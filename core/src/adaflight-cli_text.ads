@@ -1,0 +1,55 @@
+--  Command line text: decimal numbers as the command line's C library
+--  reads and prints them on a 32-bit target, letters compared without case,
+--  and the board's serial port names.
+with Interfaces; use Interfaces;
+with Adaflight.Serial_Feature_Map;
+
+package Adaflight.CLI_Text with SPARK_Mode is
+
+   function Lower (Ch : Character) return Character is
+     (if Ch in 'A' .. 'Z' then Character'Val (Character'Pos (Ch) + 32) else Ch);
+
+   --  Whether two texts are equal without regard to case.
+   function Same_Ignoring_Case (A, B : String) return Boolean is
+     (A'Length = B'Length
+      and then (for all I in 0 .. A'Length - 1 => Lower (A (A'First + I)) = Lower (B (B'First + I))));
+
+   --  Whether a text contains a fragment without regard to case; an empty
+   --  fragment is in every text.
+   function Contains_Ignoring_Case (Text, Fragment : String) return Boolean;
+
+   --  A decimal number after leading spaces and an optional sign, its value
+   --  held at the 32-bit range, and the index after its last digit, or the
+   --  text's first index and zero when no digit follows.
+   procedure Parse_Signed (Text : String; Value : out Integer_32; Next : out Positive)
+     with Pre  => Text'First >= 1 and then Text'Last < Positive'Last and then Text'First <= Text'Last + 1,
+          Post => Next in Text'First .. Text'Last + 1,
+          Always_Terminates;
+
+   --  The same for an unsigned number: held at the unsigned 32-bit maximum,
+   --  and a minus sign negates it modulo 2 ** 32.
+   procedure Parse_Unsigned (Text : String; Value : out Unsigned_32; Next : out Positive)
+     with Pre  => Text'First >= 1 and then Text'Last < Positive'Last and then Text'First <= Text'Last + 1,
+          Post => Next in Text'First .. Text'Last + 1,
+          Always_Terminates;
+
+   --  A number as the C library's atoi reads it on a 32-bit target.
+   function To_Integer (Text : String) return Integer_32
+     with Pre => Text'First >= 1 and then Text'Last < Positive'Last and then Text'First <= Text'Last + 1;
+
+   --  A number's decimal digits with its sign, without a leading space.
+   function Decimal (V : Integer_64) return String
+     with Post => Decimal'Result'Length in 1 .. 21;
+
+   subtype Port_List is Serial_Feature_Map.Port_List;
+
+   --  A serial port's name among the board's ports: NONE for no port, empty
+   --  for an identifier the board does not have.
+   function Port_Name (Id : Integer_64; Ports : Port_List) return String
+     with Pre => Ports'Length <= Serial_Feature_Map.Max_Ports;
+
+   --  The port a name names among the board's ports, without regard to case.
+   procedure Port_From_Name (Name : String; Ports : Port_List; Found : out Boolean; Id : out Integer_64)
+     with Pre => Ports'Length <= Serial_Feature_Map.Max_Ports;
+
+end Adaflight.CLI_Text;
