@@ -126,6 +126,7 @@ with Adaflight.MSP_Hardware_Out;
 with Adaflight.MSP_Peripheral_Out;
 with Adaflight.MSP_Text_Out;
 with Adaflight.MSP_Simplified_Tuning;
+with Adaflight.MSP_OSD_Out;
 with Adaflight.MSP_Out;
 with Adaflight.Four_Way;
 with Adaflight.Gimbal_Control;
@@ -16232,6 +16233,96 @@ procedure Vector_Check is
       end if;
    end Check_MSP_Simplified_Line;
 
+   MO_Options : Adaflight.MSP_OSD_Out.Snapshot;
+
+   procedure Check_MSP_OSD_Line is
+      use Adaflight.MSP_OSD_Out;
+      Name : constant String := Str (1);
+      K    : Positive := 5;
+      function Next return Integer_64 is
+      begin
+         K := K + 1;
+         return Int (K - 1);
+      end Next;
+   begin
+      if Name = "msoinit" then
+         if Int (4) /= Item_Count then
+            Put_Line ("msoinit: reference item count" & Integer_64'Image (Int (4)));
+            Failures := Failures + 1;
+         end if;
+         MO_Options.OSD := True;
+         MO_Options.Video_System_Option := Int (5) /= 0;
+         MO_Options.Profiles := Int (6) /= 0;
+         MO_Options.Stick_Overlay := Int (7) /= 0;
+         MO_Options.Display_Port_Font := Int (9) /= 0;
+         MO_Options.Frame_Buffer_OSD := Int (10) /= 0;
+      elsif Name = "msostep" then
+         declare
+            Command : constant Interfaces.Unsigned_16 := Interfaces.Unsigned_16 (Int (4));
+            V       : Snapshot := MO_Options;
+            Buffer  : Byte_Array (0 .. 511) := (others => 0);
+            St      : Adaflight.Stream_Buffers.Stream;
+         begin
+            V.VTX_Port := Next /= 0;
+            V.Device := Adaflight.OSD_Task.Device_Kind'Val (Next);
+            V.Device_Ready := Next /= 0;
+            V.Video_System := Interfaces.Unsigned_8 (Next);
+            V.Units := Adaflight.OSD_Format.Unit_System'Val (Next);
+            V.RSSI_Alarm := Interfaces.Unsigned_8 (Next);
+            V.Cap_Alarm := Interfaces.Unsigned_16 (Next);
+            V.Alt_Alarm := Interfaces.Unsigned_16 (Next);
+            for I in Adaflight.OSD_Elements.Item loop
+               V.Positions (I) := Interfaces.Unsigned_16 (Next);
+            end loop;
+            declare
+               Bits : constant Integer_64 := Next;
+            begin
+               for St_Kind in Adaflight.OSD_Stats.Stat loop
+                  V.Stats (St_Kind) := (Bits / 2 ** Adaflight.OSD_Stats.Stat'Pos (St_Kind)) mod 2 = 1;
+               end loop;
+            end;
+            V.Timers (0) := Interfaces.Unsigned_16 (Next);
+            V.Timers (1) := Interfaces.Unsigned_16 (Next);
+            declare
+               Bits : constant Integer_64 := Next;
+            begin
+               for W in Adaflight.OSD_Warnings.Warning_Kind loop
+                  V.Warnings (W) := (Bits / 2 ** Adaflight.OSD_Warnings.Warning_Kind'Pos (W)) mod 2 = 1;
+               end loop;
+            end;
+            V.Profile_Index := Positive (Next);
+            V.Overlay_Radio_Mode := Interfaces.Unsigned_8 (Next);
+            V.Camera_Frame_Width := Interfaces.Unsigned_8 (Next);
+            V.Camera_Frame_Height := Interfaces.Unsigned_8 (Next);
+            V.Link_Quality_Alarm := Interfaces.Unsigned_16 (Next);
+            V.RSSI_Dbm_Alarm := Interfaces.Integer_16 (Next);
+            V.Warning_Line.Length := Natural (Next);
+            declare
+               Bytes : constant Byte_Array := Hex_Bytes (K);
+            begin
+               for I in 1 .. V.Warning_Line.Length loop
+                  V.Warning_Line.Data (I) := Character'Val (Bytes (Bytes'First + I - 1));
+               end loop;
+               K := K + 1;
+            end;
+            V.Warning_Blinking := Next /= 0;
+            V.Warning_Severity := Adaflight.OSD_Warnings.Severity'Val (Next);
+            Adaflight.Stream_Buffers.Init (St, 0, Buffer'Last + 1);
+            Reply (Buffer, St, Command, V);
+            Record_Int (Name & ".result", Int (K), (if Handles (Command, V) then 1 else -1));
+            Record_Int (Name & ".length", Int (K + 1), Integer_64 (St.Next));
+            Record_Bytes (Name & ".reply", Hex_Bytes (K + 2), Buffer (0 .. St.Next - 1));
+            if K + 2 /= NF then
+               Put_Line ("msostep: consumed" & Integer'Image (K + 2) & " of" & Integer'Image (NF) & " fields");
+               Failures := Failures + 1;
+            end if;
+         end;
+      else
+         Put_Line ("unknown MSP OSD case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_MSP_OSD_Line;
+
    AP_State    : Adaflight.Position_Hold.State;
    AP_Settings : Adaflight.Position_Control.Settings;
    AP_Nav      : Adaflight.Position_Nav.Navigator;
@@ -16763,6 +16854,8 @@ procedure Vector_Check is
                   Check_Simplified_Filter_Line;
                elsif Kind = "mspsimp" then
                   Check_MSP_Simplified_Line;
+               elsif Kind = "msposd" then
+                  Check_MSP_OSD_Line;
                else
                   Check_PID_Line;
                end if;
@@ -16915,6 +17008,7 @@ begin
    Run (Dir & "/msptext.csv", "msptext");
    Run (Dir & "/simpfilt.csv", "simpfilt");
    Run (Dir & "/mspsimp.csv", "mspsimp");
+   Run (Dir & "/msposd.csv", "msposd");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
