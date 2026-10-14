@@ -1,5 +1,7 @@
 with Interfaces; use Interfaces;
 with Adaflight.Config_Fix;
+with Adaflight.Modes;
+with Adaflight.MSP_Box;
 with Adaflight.Settings_Table; use Adaflight.Settings_Table;
 
 package body Adaflight.Command_Line with SPARK_Mode is
@@ -753,6 +755,147 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end;
    end Beeper_Command;
 
+   Condition_Count : constant := Mode_Activation_Condition_Record_List_20'Length;
+
+   --  A box's permanent id by its box id; 0 for an id outside the box table.
+   function Permanent_Of (Box_Id : Unsigned_8) return Unsigned_8 is
+     (if Box_Id <= Modes.Box'Pos (Modes.Box'Last) then MSP_Box.Permanent_Id (Modes.Box'Val (Box_Id)) else 0);
+
+   --  A mode condition as an aux line: index, mode's permanent id, aux channel,
+   --  range ends as channel values, logic, and the linked mode's permanent id.
+   procedure Put_Condition (Into : in out Sink; Index : Natural; M : Mode_Activation_Condition_Record) is
+   begin
+      Put (Into, "aux " & Decimal (Integer_64 (Index)) & " " & Decimal (Integer_64 (Permanent_Of (M.Mode_Id))) & " "
+           & Decimal (Integer_64 (M.Aux_Channel_Index)) & " "
+           & Decimal (900 + 25 * Integer_64 (M.Range_Value.Start_Step)) & " "
+           & Decimal (900 + 25 * Integer_64 (M.Range_Value.End_Step)) & " "
+           & Decimal (Integer_64 (M.Mode_Logic)) & " " & Decimal (Integer_64 (Permanent_Of (M.Linked_To))) & CRLF);
+   end Put_Condition;
+
+   --  The position of the next argument: past the first space at or after a
+   --  position and the spaces that follow; zero when no space follows.
+   function Next_Argument (Text : String; From : Natural) return Natural
+     with Pre  => Text'Last < Positive'Last,
+          Post => Next_Argument'Result = 0 or else Next_Argument'Result in Text'First .. Text'Last + 1
+   is
+      P : Natural := 0;
+   begin
+      if From = 0 or else From < Text'First then
+         return 0;
+      end if;
+      for K in From .. Text'Last loop
+         if Text (K) = ' ' then
+            P := K;
+            exit;
+         end if;
+      end loop;
+      if P = 0 then
+         return 0;
+      end if;
+      while P <= Text'Last and then Text (P) = ' ' loop
+         pragma Loop_Invariant (P in Text'First .. Text'Last);
+         pragma Loop_Variant (Increases => P);
+         P := P + 1;
+      end loop;
+      return P;
+   end Next_Argument;
+
+   --  The number an argument starts, as atoi reads it.
+   function Argument (Text : String; From : Positive) return Integer_32 is
+     (if From > Text'Last then 0 else CLI_Text.To_Integer (Text (From .. Text'Last)))
+     with Pre => From >= Text'First and then Text'Last < Positive'Last;
+
+   --  aux: every mode condition, or one condition's mode, aux channel, range,
+   --  logic and link from its arguments, the valid ones counted; four valid
+   --  take the default logic and no link, five no link, and any other count
+   --  clears the condition. A negative index gets the index range error.
+   procedure Aux_Command (Into : in out Sink; C : in out Configuration; Arguments : String; Changes : in out Effects)
+     with Pre => Arguments'First >= 1 and then Arguments'Last < Positive'Last
+                 and then Arguments'First <= Arguments'Last + 1
+   is
+      Index : Integer_32;
+      Valid : Natural := 0;
+      P     : Natural;
+   begin
+      if Arguments'Length = 0 then
+         for I in 0 .. Condition_Count - 1 loop
+            if C.Mode_Activation_Conditions (I).Mode_Id <= Modes.Box'Pos (Modes.Box'Last) then
+               Put_Condition (Into, I, C.Mode_Activation_Conditions (I));
+            end if;
+         end loop;
+         return;
+      end if;
+      Index := CLI_Text.To_Integer (Arguments);
+      if Index not in 0 .. Condition_Count - 1 then
+         Put (Into, "###ERROR IN aux: INDEX NOT BETWEEN 0 AND " & Decimal (Condition_Count - 1) & "###" & CRLF);
+         return;
+      end if;
+      declare
+         Slot  : constant Natural := Natural (Index);
+         M     : Mode_Activation_Condition_Record renames C.Mode_Activation_Conditions (Slot);
+         Found : Boolean;
+         B     : Modes.Box;
+         V     : Integer_32;
+      begin
+         P := Next_Argument (Arguments, Arguments'First + 1);
+         if P > 0 then
+            MSP_Box.Find_By_Permanent_Id (Unsigned_8'Mod (Argument (Arguments, P)), Found, B);
+            if Found then
+               M.Mode_Id := Modes.Box'Pos (B);
+               Valid := Valid + 1;
+            end if;
+         end if;
+         P := Next_Argument (Arguments, P);
+         if P > 0 then
+            V := Argument (Arguments, P);
+            if V in 0 .. Modes.Aux_Channel_Count - 1 then
+               M.Aux_Channel_Index := Unsigned_8 (V);
+               Valid := Valid + 1;
+            end if;
+         end if;
+         for End_Index in 0 .. 1 loop
+            P := Next_Argument (Arguments, P);
+            if P > 0 then
+               V := Argument (Arguments, P);
+               V := (Integer_32'Max (900, Integer_32'Min (2100, V)) - 900) / 25;
+               if End_Index = 0 then
+                  M.Range_Value.Start_Step := Unsigned_8 (V);
+               else
+                  M.Range_Value.End_Step := Unsigned_8 (V);
+               end if;
+               Valid := Valid + 1;
+            end if;
+         end loop;
+         P := Next_Argument (Arguments, P);
+         if P > 0 then
+            V := Argument (Arguments, P);
+            if V in 0 .. 1 then
+               M.Mode_Logic := Unsigned_8 (V);
+               Valid := Valid + 1;
+            end if;
+         end if;
+         P := Next_Argument (Arguments, P);
+         if P > 0 then
+            MSP_Box.Find_By_Permanent_Id (Unsigned_8'Mod (Argument (Arguments, P)), Found, B);
+            if Found then
+               M.Linked_To := Modes.Box'Pos (B);
+               Valid := Valid + 1;
+            end if;
+         end if;
+         if Valid = 4 then
+            M.Mode_Logic := 0;
+            M.Linked_To := 0;
+         elsif Valid = 5 then
+            M.Linked_To := 0;
+         elsif Valid /= 6 then
+            M := (Mode_Id => 0, Aux_Channel_Index => 0, Range_Value => (Start_Step => 0, End_Step => 0),
+                  Mode_Logic => 0, Linked_To => 0);
+         end if;
+         Changes.Modes := True;
+         Put_Condition (Into, Slot, M);
+      end;
+   end Aux_Command;
+
    subtype Line_Buffer is String (1 .. Line_Size);
 
    --  The text from a position up to the next terminator in the buffer.
@@ -801,12 +944,13 @@ package body Adaflight.Command_Line with SPARK_Mode is
    end Command_At;
 
    type Command_Kind is
-     (No_Command, Battery_Profile_Command, Beacon_Command, Beeper_Command_Word, Diff_Command, Dump_Command,
-      Feature_Command_Word, Get_Command, Profile_Command, Rate_Profile_Command, Set_Command);
-   subtype Known_Command is Command_Kind range Battery_Profile_Command .. Set_Command;
+     (No_Command, Aux_Command_Word, Battery_Profile_Command, Beacon_Command, Beeper_Command_Word, Diff_Command,
+      Dump_Command, Feature_Command_Word, Get_Command, Profile_Command, Rate_Profile_Command, Set_Command);
+   subtype Known_Command is Command_Kind range Aux_Command_Word .. Set_Command;
 
    function Command_Word (K : Known_Command) return String is
      (case K is
+         when Aux_Command_Word => "aux",
          when Battery_Profile_Command => "battery_profile",
          when Beacon_Command => "beacon",
          when Beeper_Command_Word => "beeper",
@@ -905,6 +1049,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
       case Kind is
          when No_Command =>
             null;
+         when Aux_Command_Word =>
+            Known := True;
+            Aux_Command (Into, C, Text_At (Buffer, Arguments), Changes);
          when Battery_Profile_Command =>
             Known := True;
             Profile_Command (Into, C, Battery, Text_At (Buffer, Arguments), Changes);
