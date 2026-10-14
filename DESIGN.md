@@ -199,6 +199,10 @@ ledger. The deviations so far:
   past a corrupted region's end. Its reported size is the image's length, 2 bytes less than the
   reference reports on 32-bit targets (findings F143). The recorded images never read past the
   region, and the checker takes the reference's extra bytes off its size.
+- The command line's `aux` answers a negative condition index with the index range error, where
+  the reference writes the condition's fields before the start of the conditions, and prints 0 for
+  a mode or link outside the box table in its reply line, where the reference dereferences an
+  empty box lookup (findings F155). The recorded command lines keep their indexes at zero or above.
 - The configuration fix leaves a mixer mode past the mixer table and the rates of a rates type
   past the limit table as they are, and takes an MSP override condition's aux channel past 27 to
   name no bit, where the reference reads past its tables or shifts past the mask's width
@@ -3826,3 +3830,22 @@ The harness replays two sequences of 2000 feature, beeper and beacon commands re
 oracle: lists, names in mixed case, prefixes, minus forms and names no table holds. With the
 sequences of D168 and D169, all 16586 replies match the reference's byte for byte, and so does the
 configuration's hash after every command.
+
+## D171. Command line mode conditions (2026-10-14)
+
+`Adaflight.Command_Line` gains the `aux` command. Without arguments it prints every mode condition
+whose mode is in the box table as an aux line: index, the mode's permanent id, aux channel, range
+ends as channel values, logic, and the linked mode's permanent id or 0. With an index it reads the
+condition's mode, aux channel, range ends, logic and link from the arguments that follow, each
+argument as `atoi` reads it and each valid one counted: a mode or link by its permanent id, an aux
+channel below 14, a range end of any number held to 900 to 2100 microseconds, and a logic of 0 or
+1. Four valid arguments take the default logic and no link, five no link, and any other count
+clears the condition. The reply is the condition's aux line, and the runtime work it asks for is
+the mode conditions changed. An index past the 20 conditions, or below 0 (D6), is the index range
+error.
+
+The harness replays two sequences of 2000 aux command lines recorded from the oracle: lists, valid
+and invalid indexes, every count of arguments, permanent ids in and out of the table, channels and
+range ends in and out of range, and arguments that are not numbers. With the earlier sequences,
+all 20586 replies match the reference's byte for byte, and so does the configuration's hash after
+every command.
