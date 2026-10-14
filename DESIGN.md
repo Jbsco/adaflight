@@ -4157,3 +4157,24 @@ The harness replays two sequences of 1022 command lines in all, recorded from th
 MCU id 0, 1 and 2: the dump mode's rounds, each ended by a dump or diff of every profile, plain,
 bare or with defaults, or by `mcu_id`, 20 in all. With the earlier sequences, all 58592 replies
 match the reference's byte for byte, and so does the configuration's hash after every command.
+
+## D183. Command line board information (2026-10-14)
+
+`Adaflight.Command_Line` gains the `board_name`, `manufacturer_id` and `signature` commands over a
+`Board_State` that `Process_Line` takes in and out: the board's name and manufacturer, whether the
+stored configuration set them, whether a command changed them, and the same for the signature.
+`Init_Board` takes the stored information in as the board starts: the name and manufacturer only
+when stored, the signature only when stored.
+
+Each command prints its value, after taking a new one while nothing is stored or the stored value is
+empty: up to 20 characters of a name, 4 of a manufacturer, or 64 hexadecimal digits of a signature.
+A different value for a stored one is the error. The signature reads each pair with spaces and a
+sign allowed before its digits, a minus negating the byte (findings F175), and a long name or
+manufacturer keeps its first characters (F176). The dumps and `version` print the board's lines from
+this state.
+
+The harness replays two sequences of 800 command lines in all, recorded from the oracle with
+`!board` lines that store the board's information: names, manufacturers and signatures of every
+length, malformed signature pairs, values for stored information, `version` lines and diffs. With
+the earlier sequences, all 59392 replies match the reference's byte for byte, and so does the
+configuration's hash after every command.

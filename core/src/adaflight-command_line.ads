@@ -5,8 +5,9 @@
 --  name; profile, rateprofile and battery_profile show or select a profile;
 --  dump and diff list a profile's or a rate profile's settings, and the whole
 --  configuration or its hardware part as commands, all of it or only what
---  differs from the defaults; version prints the firmware's version line and
---  mcu_id the MCU's unique id.
+--  differs from the defaults; version prints the firmware's version line,
+--  mcu_id the MCU's unique id, and board_name, manufacturer_id and signature
+--  show or set the board's information.
 --  The text goes out through Put into a sink.
 with Interfaces;
 with Adaflight.Config_Groups; use Adaflight.Config_Groups;
@@ -95,9 +96,7 @@ package Adaflight.Command_Line with SPARK_Mode is
 
    --  What the commands report from outside the configuration: the flight
    --  plan executor's state, the firmware's name, the target's name, the
-   --  version, the build's date, time and revision, the board's name and
-   --  manufacturer, the MCU's unique id, and the board's signature with
-   --  whether it is set.
+   --  version, the build's date, time and revision, and the MCU's unique id.
    type Environment is record
       Navigation      : Navigation_Status;
       Firmware        : Identity_Text;
@@ -106,12 +105,25 @@ package Adaflight.Command_Line with SPARK_Mode is
       Build_Date      : Identity_Text;
       Build_Time      : Identity_Text;
       Revision        : Identity_Text;
-      Board_Name      : Identity_Text;
-      Manufacturer_Id : Identity_Text;
       MCU_Id          : MCU_Words := (others => 0);
-      Signature       : Signature_Bytes := (others => 0);
-      Signature_Set   : Boolean := False;
    end record;
+
+   --  The board's information as the commands see it: its name and
+   --  manufacturer and whether the stored configuration set them, whether a
+   --  command changed them, and the same for its signature.
+   type Board_State is record
+      Name                : Identity_Text;
+      Manufacturer        : Identity_Text;
+      Information_Set     : Boolean := False;
+      Information_Updated : Boolean := False;
+      Signature           : Signature_Bytes := (others => 0);
+      Signature_Set       : Boolean := False;
+      Signature_Updated   : Boolean := False;
+   end record;
+
+   --  The stored board information taken in as the board starts: the name
+   --  and the manufacturer when they are set, the signature when it is set.
+   procedure Init_Board (Board : in out Board_State; C : Configuration);
 
    --  A typed line without its line end: printable characters past the
    --  leading spaces, up to 255 of them, a comment from the first number sign
@@ -119,7 +131,7 @@ package Adaflight.Command_Line with SPARK_Mode is
    --  line naming no command.
    procedure Process_Line
      (Into : in out Sink; C : in out Configuration; Line : String; Ports : Port_List; Env : Environment;
-      Known : out Boolean; Changes : out Effects)
+      Board : in out Board_State; Known : out Boolean; Changes : out Effects)
      with Pre => Valid (Current (C)) and then Ports'Length <= Serial_Feature_Map.Max_Ports;
 
 end Adaflight.Command_Line;

@@ -14104,12 +14104,9 @@ procedure Vector_Check is
       Build_Date      => CLI.To_Identity ("Jan 01 2026"),
       Build_Time      => CLI.To_Identity ("00:00:00"),
       Revision        => CLI.To_Identity ("0123abc"),
-      Board_Name      => <>,
-      Manufacturer_Id => <>,
-      MCU_Id          => (0, 1, 2),
-      Signature       => <>,
-      Signature_Set   => False);
+      MCU_Id          => (0, 1, 2));
    CLI_Env      : CLI.Environment := CLI_Identity;
+   CLI_Board    : CLI.Board_State;
    CLI_Reply    : CLI_Sink;
    CLI_Expected : Ada.Strings.Unbounded.Unbounded_String;
 
@@ -14118,9 +14115,11 @@ procedure Vector_Check is
    --  hash of the configuration after it. A line "!profiles p r b" selects the
    --  profiles, "!raw name profile index value" stores a value whatever its
    --  range, and "!nav active state index distance bearing eta reason" sets
-   --  the flight plan executor's report. The version line names the
-   --  recording's firmware, target, version, build date, build time and
-   --  revision, and the MCU's id is the recording's 0, 1 and 2.
+   --  the flight plan executor's report, and "!board name manufacturer
+   --  signature" stores the board's information, a minus for none, before
+   --  the board takes it in. The version line names the recording's firmware,
+   --  target, version, build date, build time and revision, and the MCU's id
+   --  is the recording's 0, 1 and 2.
    procedure Check_CLI_Line is
       use Ada.Strings.Unbounded;
       use type Interfaces.Unsigned_64;
@@ -14154,6 +14153,7 @@ procedure Vector_Check is
          if Int (2) = 0 then
             CLI_Config := Groups.Defaults;
             CLI_Env := CLI_Identity;
+            CLI_Board := (others => <>);
          end if;
          CLI_Reply.Text := Null_Unbounded_String;
          CLI_Expected := Null_Unbounded_String;
@@ -14173,6 +14173,36 @@ procedure Vector_Check is
                                  Natural'Value (Word (Command, 3)));
                   end if;
                end loop;
+            elsif Word (Command, 0) = "!board" then
+               declare
+                  B         : Adaflight.Config_Groups.Board_Config_Record renames CLI_Config.Board_Config;
+                  Name      : constant String := Word (Command, 1);
+                  Maker     : constant String := Word (Command, 2);
+                  Signature : constant String := Word (Command, 3);
+               begin
+                  B.Board_Name := (others => 0);
+                  B.Manufacturer_Id := (others => 0);
+                  if Name /= "-" then
+                     for K in 0 .. Integer'Min (Name'Length, 20) - 1 loop
+                        B.Board_Name (K) := Character'Pos (Name (Name'First + K));
+                     end loop;
+                  end if;
+                  if Maker /= "-" then
+                     for K in 0 .. Integer'Min (Maker'Length, 4) - 1 loop
+                        B.Manufacturer_Id (K) := Character'Pos (Maker (Maker'First + K));
+                     end loop;
+                  end if;
+                  B.Board_Information_Set := (if Name /= "-" or else Maker /= "-" then 1 else 0);
+                  B.Signature := (others => 0);
+                  B.Signature_Set := (if Signature /= "-" then 1 else 0);
+                  if Signature /= "-" then
+                     for K in B.Signature'Range loop
+                        B.Signature (K) := Interfaces.Unsigned_8'Value
+                          ("16#" & Signature (Signature'First + 2 * K .. Signature'First + 2 * K + 1) & "#");
+                     end loop;
+                  end if;
+                  CLI.Init_Board (CLI_Board, CLI_Config);
+               end;
             elsif Word (Command, 0) = "!nav" then
                CLI_Env.Navigation :=
                  (Active        => Word (Command, 1) /= "0",
@@ -14183,7 +14213,7 @@ procedure Vector_Check is
                   ETA_S         => Interfaces.Unsigned_16'Value (Word (Command, 6)),
                   Abort_Reason  => Interfaces.Unsigned_8'Value (Word (Command, 7)));
             else
-               CLI.Process_Line (CLI_Reply, CLI_Config, Command, Ports, CLI_Env, Known, Changes);
+               CLI.Process_Line (CLI_Reply, CLI_Config, Command, Ports, CLI_Env, CLI_Board, Known, Changes);
                Record_Int ("cli.known", 1, Boolean'Pos (Known or else Command (Command'First) = '#'));
             end if;
          end;

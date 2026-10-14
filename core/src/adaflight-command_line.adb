@@ -3584,11 +3584,12 @@ package body Adaflight.Command_Line with SPARK_Mode is
 
    type Command_Kind is
      (No_Command, Adjustment_Range_Command_Word, Aux_Command_Word, Battery_Profile_Command, Beacon_Command,
-      Beeper_Command_Word, Color_Command_Word, Diff_Command, Dump_Command, Feature_Command_Word, Get_Command,
-      Led_Command_Word, Map_Command_Word, Mode_Color_Command_Word,
-      Mixer_Command_Word, Motor_Mix_Command_Word, Profile_Command, Rate_Profile_Command, Rx_Failsafe_Command,
-      MCU_Id_Command_Word, Rx_Range_Command, Serial_Command_Word, Servo_Command_Word, Servo_Mix_Command_Word,
-      Set_Command, Version_Command_Word, Vtx_Command_Word, Vtx_Table_Command_Word, Waypoint_Command_Word);
+      Beeper_Command_Word, Board_Name_Command_Word, Manufacturer_Id_Command_Word, Signature_Command_Word,
+      Color_Command_Word, Diff_Command, Dump_Command, Feature_Command_Word, Get_Command, Led_Command_Word,
+      Map_Command_Word, Mode_Color_Command_Word, Mixer_Command_Word, Motor_Mix_Command_Word, Profile_Command,
+      Rate_Profile_Command, Rx_Failsafe_Command, MCU_Id_Command_Word, Rx_Range_Command, Serial_Command_Word,
+      Servo_Command_Word, Servo_Mix_Command_Word, Set_Command, Version_Command_Word, Vtx_Command_Word,
+      Vtx_Table_Command_Word, Waypoint_Command_Word);
    subtype Known_Command is Command_Kind range Adjustment_Range_Command_Word .. Waypoint_Command_Word;
 
    function Command_Word (K : Known_Command) return String is
@@ -3598,6 +3599,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when Battery_Profile_Command => "battery_profile",
          when Beacon_Command => "beacon",
          when Beeper_Command_Word => "beeper",
+         when Board_Name_Command_Word => "board_name",
+         when Manufacturer_Id_Command_Word => "manufacturer_id",
+         when Signature_Command_Word => "signature",
          when Diff_Command => "diff",
          when Dump_Command => "dump",
          when Feature_Command_Word => "feature",
@@ -3664,17 +3668,71 @@ package body Adaflight.Command_Line with SPARK_Mode is
 
    --  version: the version line with the configuration's board identifier,
    --  then the board's manufacturer and name when both are known.
-   procedure Version_Command (Into : in out Sink; C : Configuration; Env : Environment) is
+   procedure Version_Command (Into : in out Sink; C : Configuration; Env : Environment; Board : Board_State) is
    begin
       Put_Version (Into, Env, C.System_Config.Board_Identifier);
-      if Env.Manufacturer_Id.Length > 0 and then Env.Board_Name.Length > 0 then
+      if Board.Manufacturer.Length > 0 and then Board.Name.Length > 0 then
          Put (Into, "# board: manufacturer_id: ");
-         Put (Into, Text_Of (Env.Manufacturer_Id));
+         Put (Into, Text_Of (Board.Manufacturer));
          Put (Into, ", board_name: ");
-         Put (Into, Text_Of (Env.Board_Name));
+         Put (Into, Text_Of (Board.Name));
          Put (Into, CRLF);
       end if;
    end Version_Command;
+
+   Board_Name_Length   : constant := 20;
+   Manufacturer_Length : constant := 4;
+
+   procedure Init_Board (Board : in out Board_State; C : Configuration) is
+   begin
+      Board.Information_Set := C.Board_Config.Board_Information_Set /= 0;
+      if Board.Information_Set then
+         Board.Manufacturer :=
+           To_Identity (Stored_Text (C.Board_Config.Manufacturer_Id (0 .. Manufacturer_Length - 1)));
+         Board.Name := To_Identity (Stored_Text (C.Board_Config.Board_Name (0 .. Board_Name_Length - 1)));
+      end if;
+      Board.Signature_Set := C.Board_Config.Signature_Set /= 0;
+      if Board.Signature_Set then
+         for K in Board.Signature'Range loop
+            Board.Signature (K) := C.Board_Config.Signature (K);
+         end loop;
+      end if;
+   end Init_Board;
+
+   --  board_name and manufacturer_id: the value, after a new one up to its
+   --  length is taken while the stored information is not set or the value
+   --  is empty; a different value for a set one is the error.
+   procedure Board_Text_Command
+     (Into : in out Sink; Command : String; Label : String; Value : in out Identity_Text; Limit : Natural;
+      Information_Set : Boolean; Updated : in out Boolean; Arguments : String)
+     with Pre => Limit <= Identity_Max and then Arguments'Last < Positive'Last
+   is
+   begin
+      if Arguments'Length > 0 and then Value.Length /= 0 and then Information_Set
+        and then Arguments /= Text_Of (Value)
+      then
+         Put (Into, "###ERROR IN ");
+         Put (Into, Command);
+         Put (Into, ": ");
+         Put (Into, Label);
+         Put (Into, " CANNOT BE CHANGED. CURRENT VALUE: '");
+         Put (Into, Text_Of (Value));
+         Put (Into, "'###" & CRLF);
+         return;
+      end if;
+      if Arguments'Length > 0 and then (not Information_Set or else Value.Length = 0) then
+         Value :=
+           To_Identity (Arguments (Arguments'First .. Arguments'First + (Natural'Min (Arguments'Length, Limit) - 1)));
+         Updated := True;
+         Put (Into, CRLF & "# Set ");
+         Put (Into, Command);
+         Put (Into, "." & CRLF);
+      end if;
+      Put (Into, Command);
+      Put (Into, " ");
+      Put (Into, Text_Of (Value));
+      Put (Into, CRLF);
+   end Board_Text_Command;
 
    --  A mixer mode's name; none outside the names.
    procedure Put_Mixer_Name (Into : in out Sink; Mode : Unsigned_8) is
@@ -3761,18 +3819,109 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Put (Into, "mcu_id " & Hex_Text (Id (1), 8) & Hex_Text (Id (2), 8) & Hex_Text (Id (3), 8) & CRLF);
    end Put_MCU_Id;
 
-   --  The board's signature as 64 hexadecimal digits, or nothing when it is
-   --  not set.
-   procedure Put_Signature (Into : in out Sink; Env : Environment) is
+   --  A signature as 64 hexadecimal digits.
+   procedure Put_Signature_Digits (Into : in out Sink; Signature : Signature_Bytes) is
+   begin
+      for B of Signature loop
+         Put (Into, Hex_Text (Unsigned_32 (B), 2));
+      end loop;
+   end Put_Signature_Digits;
+
+   --  The board's signature line: its 64 hexadecimal digits when it is set
+   --  or a command changed it, nothing otherwise.
+   procedure Put_Signature (Into : in out Sink; Board : Board_State) is
    begin
       Put (Into, "signature ");
-      if Env.Signature_Set then
-         for B of Env.Signature loop
-            Put (Into, Hex_Text (Unsigned_32 (B), 2));
-         end loop;
+      if Board.Signature_Updated or else Board.Signature_Set then
+         Put_Signature_Digits (Into, Board.Signature);
       end if;
       Put (Into, CRLF);
    end Put_Signature;
+
+   --  Two characters read as the C library reads a hexadecimal number:
+   --  spaces, a sign, then digits. The value is taken modulo 256, negated
+   --  after a minus sign, and Stop is the position after the last digit, 3
+   --  for the whole text, or 1 when no digit follows the spaces and sign.
+   procedure Read_Hex_Pair (Pair : String; Value : out Unsigned_8; Stop : out Positive)
+     with Pre => Pair'First = 1 and then Pair'Last = 2, Post => Stop in 1 .. 3
+   is
+      P        : Positive := 1;
+      Negative : Boolean := False;
+      Start    : Positive;
+      Number   : Unsigned_8 := 0;
+   begin
+      for K in 1 .. 2 loop
+         exit when Pair (K) /= ' ';
+         P := K + 1;
+      end loop;
+      if P <= 2 and then Pair (P) in '+' | '-' then
+         Negative := Pair (P) = '-';
+         P := P + 1;
+      end if;
+      Start := P;
+      for K in Start .. 2 loop
+         pragma Loop_Invariant (P = K);
+         exit when Pair (K) not in '0' .. '9' | 'a' .. 'f' | 'A' .. 'F';
+         Number := Number * 16
+           + (case Pair (K) is
+                 when '0' .. '9' => Character'Pos (Pair (K)) - Character'Pos ('0'),
+                 when 'a' .. 'f' => Character'Pos (Pair (K)) - Character'Pos ('a') + 10,
+                 when others => Character'Pos (Pair (K)) - Character'Pos ('A') + 10);
+         P := K + 1;
+      end loop;
+      if P = Start then
+         Value := 0;
+         Stop := 1;
+      else
+         Value := (if Negative then -Number else Number);
+         Stop := P;
+      end if;
+   end Read_Hex_Pair;
+
+   --  signature: the board's signature, after a new one of 64 hexadecimal
+   --  digits is taken while no signature is stored; a different signature
+   --  for a stored one is the error.
+   procedure Signature_Command (Into : in out Sink; Board : in out Board_State; Arguments : String)
+     with Pre => Arguments'Last < Positive'Last
+   is
+      New_Signature : Signature_Bytes := (others => 0);
+   begin
+      if Arguments'Length > 0 then
+         if Arguments'Length /= 2 * Signature_Bytes'Length then
+            Put (Into, "###ERROR IN signature: INVALID LENGTH: " & Decimal (Integer_64 (Arguments'Length))
+                 & " (EXPECTED: 64)###" & CRLF);
+            return;
+         end if;
+         for I in New_Signature'Range loop
+            pragma Loop_Invariant (Arguments'Length = 2 * Signature_Bytes'Length);
+            declare
+               Pair  : constant String (1 .. 2) :=
+                 (Arguments (Arguments'First + 2 * I), Arguments (Arguments'First + 2 * I + 1));
+               Value : Unsigned_8;
+               Stop  : Positive;
+            begin
+               Read_Hex_Pair (Pair, Value, Stop);
+               if Stop /= 3 then
+                  Put (Into, "###ERROR IN signature: INVALID CHARACTER FOUND: " & Pair (Stop) & "###" & CRLF);
+                  return;
+               end if;
+               New_Signature (I) := Value;
+            end;
+         end loop;
+         if Board.Signature_Set and then New_Signature /= Board.Signature then
+            Put (Into, "###ERROR IN signature: SIGNATURE CANNOT BE CHANGED. CURRENT VALUE: '");
+            Put_Signature_Digits (Into, Board.Signature);
+            Put (Into, "'###" & CRLF);
+            return;
+         end if;
+         if not Board.Signature_Set then
+            Board.Signature := New_Signature;
+            Board.Signature_Updated := True;
+            Put_Hash_Line (Into, "Set signature.");
+         end if;
+      end if;
+      Put_Signature (Into, Board);
+   end Signature_Command;
 
    --  Every PID profile, the selected PID profile, every rate profile and
    --  every battery profile; unless bare, the selected profiles restored and
@@ -3816,8 +3965,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  every profile, for a diff after a reset to the defaults at the batch's
    --  start.
    procedure Dump_Master
-     (Into : in out Sink; C : Configuration; Env : Environment; Command : String; Mode : Dump_Mode; Bare : Boolean;
-      Hardware_Only : Boolean; Every_Profile : Boolean; Ports : Port_List)
+     (Into : in out Sink; C : Configuration; Env : Environment; Board : Board_State; Command : String;
+      Mode : Dump_Mode; Bare : Boolean; Hardware_Only : Boolean; Every_Profile : Boolean; Ports : Port_List)
      with Pre => Valid (Current (C)) and then Ports'Length <= Serial_Feature_Map.Max_Ports
    is
       Craft : constant String := Stored_Text (C.Pilot_Config.Craft_Name);
@@ -3833,19 +3982,19 @@ package body Adaflight.Command_Line with SPARK_Mode is
          end if;
       end if;
       Put (Into, CRLF);
-      if not Mode.Diff or else Env.Board_Name.Length > 0 then
+      if not Mode.Diff or else Board.Name.Length > 0 then
          Put (Into, "board_name ");
-         Put (Into, Text_Of (Env.Board_Name));
+         Put (Into, Text_Of (Board.Name));
          Put (Into, CRLF);
       end if;
-      if not Mode.Diff or else Env.Manufacturer_Id.Length > 0 then
+      if not Mode.Diff or else Board.Manufacturer.Length > 0 then
          Put (Into, "manufacturer_id ");
-         Put (Into, Text_Of (Env.Manufacturer_Id));
+         Put (Into, Text_Of (Board.Manufacturer));
          Put (Into, CRLF);
       end if;
       if Every_Profile and then not Bare then
          Put_MCU_Id (Into, Env.MCU_Id);
-         Put_Signature (Into, Env);
+         Put_Signature (Into, Board);
       end if;
       if not Hardware_Only and then Shows_Line (Mode, Craft'Length = 0) then
          Put (Into, CRLF & "# name: ");
@@ -3877,8 +4026,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  after the option defaults, and the last three without the command batch
    --  after the option bare.
    procedure Print_Config
-     (Into : in out Sink; C : Configuration; Env : Environment; Buffer : Line_Buffer; Arguments : Positive;
-      Command : String; Diff : Boolean; Ports : Port_List)
+     (Into : in out Sink; C : Configuration; Env : Environment; Board : Board_State; Buffer : Line_Buffer;
+      Arguments : Positive; Command : String; Diff : Boolean; Ports : Port_List)
      with Pre => Valid (Current (C)) and then Ports'Length <= Serial_Feature_Map.Max_Ports
    is
       Master_At     : constant Natural := Command_At (Buffer, Arguments, "master");
@@ -3903,7 +4052,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
             Natural (if Profile_At > 0 then C.System_Config.Pid_Profile_Index else C.System_Config.Active_Rate_Profile),
             Command, Mode, Ports);
       else
-         Dump_Master (Into, C, Env, Command, Mode, Bare, Hardware_At > 0, All_At > 0, Ports);
+         Dump_Master (Into, C, Env, Board, Command, Mode, Bare, Hardware_At > 0, All_At > 0, Ports);
       end if;
    end Print_Config;
 
@@ -3913,7 +4062,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
 
    procedure Process_Line
      (Into : in out Sink; C : in out Configuration; Line : String; Ports : Port_List; Env : Environment;
-      Known : out Boolean; Changes : out Effects)
+      Board : in out Board_State; Known : out Boolean; Changes : out Effects)
    is
       Buffer    : Line_Buffer := (others => ASCII.NUL);
       Length    : Natural := 0;
@@ -3965,16 +4114,29 @@ package body Adaflight.Command_Line with SPARK_Mode is
             Known := True;
             Beeper_Command
               (Into, "beacon", C.Beeper_Config.Dshot_Beacon_Off_Flags, Beacon_Allowed, Text_At (Buffer, Arguments));
+         when Board_Name_Command_Word =>
+            Known := True;
+            Board_Text_Command
+              (Into, "board_name", "BOARD_NAME", Board.Name, Board_Name_Length, Board.Information_Set,
+               Board.Information_Updated, Text_At (Buffer, Arguments));
+         when Manufacturer_Id_Command_Word =>
+            Known := True;
+            Board_Text_Command
+              (Into, "manufacturer_id", "MANUFACTURER_ID", Board.Manufacturer, Manufacturer_Length,
+               Board.Information_Set, Board.Information_Updated, Text_At (Buffer, Arguments));
+         when Signature_Command_Word =>
+            Known := True;
+            Signature_Command (Into, Board, Text_At (Buffer, Arguments));
          when Beeper_Command_Word =>
             Known := True;
             Beeper_Command
               (Into, "beeper", C.Beeper_Config.Beeper_Off_Flags, Beeper_Allowed, Text_At (Buffer, Arguments));
          when Diff_Command =>
             Known := True;
-            Print_Config (Into, C, Env, Buffer, Arguments, "diff", True, Ports);
+            Print_Config (Into, C, Env, Board, Buffer, Arguments, "diff", True, Ports);
          when Dump_Command =>
             Known := True;
-            Print_Config (Into, C, Env, Buffer, Arguments, "dump", False, Ports);
+            Print_Config (Into, C, Env, Board, Buffer, Arguments, "dump", False, Ports);
          when Feature_Command_Word =>
             Known := True;
             Feature_Command (Into, C, Text_At (Buffer, Arguments));
@@ -4028,7 +4190,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
             Set (Into, C, Text_At (Buffer, Arguments), Ports);
          when Version_Command_Word =>
             Known := True;
-            Version_Command (Into, C, Env);
+            Version_Command (Into, C, Env, Board);
          when Vtx_Command_Word =>
             Known := True;
             Vtx_Command
