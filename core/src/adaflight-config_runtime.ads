@@ -3,9 +3,13 @@
 --  foreign image, and each code to its names. The order rules the runtime
 --  predicates need come from the configuration fix.
 with Interfaces; use Interfaces;
+with Adaflight.Accelerometer;
 with Adaflight.Adjustments;
 with Adaflight.Arming;
+with Adaflight.Attitude;
 with Adaflight.Axes; use Adaflight.Axes;
+with Adaflight.Barometer;
+with Adaflight.Compass;
 with Adaflight.Config_Fix;
 with Adaflight.Config_Groups; use Adaflight.Config_Groups;
 with Adaflight.Dyn_Notch;
@@ -22,6 +26,7 @@ with Adaflight.RC_Command;
 with Adaflight.Receiver;
 with Adaflight.RPM_Filter;
 with Adaflight.Sensor_Alignment;
+with Adaflight.Vectors;
 
 package Adaflight.Config_Runtime with SPARK_Mode is
 
@@ -99,6 +104,28 @@ package Adaflight.Config_Runtime with SPARK_Mode is
      (M : Mixer_Config_Record; Motor : Motor_Config_Record; Flight_3D : Flight3_D_Config_Record;
       R : Rx_Config_Record; Rate : Control_Rate_Config_Record; P : Pid_Profile_Record;
       Custom : Motor_Mixer_Record_List_8; Features : Unsigned_32; O : Mixer_Init.Options) return Mixer.Config;
+
+   --  The accelerometer settings from the stored accelerometer, gyro device
+   --  and board alignment groups, with the hardware's sample rate and counts
+   --  per g; the alignment is the first gyro's, since the boards use one
+   --  chip for both.
+   function Accelerometer_Settings_Of
+     (A : Accelerometer_Config_Record; Device : Gyro_Device_Config_Record; Board : Board_Alignment_Record;
+      Sample_Rate_Hz : Accelerometer.Sample_Rate; One_G : Accelerometer.Counts_Per_G)
+      return Accelerometer.Settings;
+
+   --  The attitude settings from the stored IMU and throttle correction
+   --  groups.
+   function Attitude_Settings_Of (I : Imu_Config_Record; T : Throttle_Correction_Config_Record)
+      return Attitude.Settings;
+
+   --  The barometer settings from the stored barometer group; the virtual
+   --  device is hardware code 13.
+   function Barometer_Settings_Of (B : Barometer_Config_Record) return Barometer.Settings;
+
+   --  The compass settings from the stored compass and board alignment
+   --  groups.
+   function Compass_Settings_Of (C : Compass_Config_Record; Board : Board_Alignment_Record) return Compass.Settings;
 
 private
 
@@ -363,6 +390,53 @@ private
    function Adjustment_Settings_Of (R : Rx_Config_Record; Sys : System_Config_Record) return Adjustments.Settings is
      (Mid_RC                  => Held (Integer (R.Midrc), 1200, 1700),
       Rate_Profile_6_Position => Sys.Rate_Profile6_Pos_Switch /= 0);
+
+   function Standard_Alignment_Of (Code_Value : Unsigned_8) return Sensor_Alignment.Standard_Alignment is
+     (Sensor_Alignment.Standard_Alignment'Val
+        (Code (Code_Value, Sensor_Alignment.Standard_Alignment'Pos (Sensor_Alignment.Standard_Alignment'Last))));
+
+   function Custom_Angles_Of (Angles : Integer_16_List_3) return Sensor_Alignment.Alignment_Angles is
+     (Roll  => Sensor_Alignment.Decidegrees (Held (Integer (Angles (0)), -3600, 3600)),
+      Pitch => Sensor_Alignment.Decidegrees (Held (Integer (Angles (1)), -3600, 3600)),
+      Yaw   => Sensor_Alignment.Decidegrees (Held (Integer (Angles (2)), -3600, 3600)));
+
+   function Board_Angles_Of (Board : Board_Alignment_Record) return Sensor_Alignment.Board_Angles is
+     (Roll  => Held (Integer (Board.Roll_Degrees), -180, 360),
+      Pitch => Held (Integer (Board.Pitch_Degrees), -180, 360),
+      Yaw   => Held (Integer (Board.Yaw_Degrees), -180, 360));
+
+   function Accelerometer_Settings_Of
+     (A : Accelerometer_Config_Record; Device : Gyro_Device_Config_Record; Board : Board_Alignment_Record;
+      Sample_Rate_Hz : Accelerometer.Sample_Rate; One_G : Accelerometer.Counts_Per_G)
+      return Accelerometer.Settings is
+     (Sample_Rate_Hz => Sample_Rate_Hz,
+      Lowpass_Hz     => Held (Integer (A.Acc_Lpf_Hz), 0, Accelerometer.Cutoff'Last),
+      Alignment      => Standard_Alignment_Of (Device.Alignment),
+      Custom_Angles  => Custom_Angles_Of (Device.Custom_Alignment),
+      Board          => Board_Angles_Of (Board),
+      One_G          => One_G,
+      Roll_Trim      => A.Accelerometer_Trims (0),
+      Pitch_Trim     => A.Accelerometer_Trims (1));
+
+   function Attitude_Settings_Of (I : Imu_Config_Record; T : Throttle_Correction_Config_Record)
+      return Attitude.Settings is
+     (DCM_Kp                    => Held (Integer (I.Imu_Dcm_Kp), 0, 32_000),
+      DCM_Ki                    => Held (Integer (I.Imu_Dcm_Ki), 0, 32_000),
+      Small_Angle               => Held (Integer (I.Small_Angle), 0, 180),
+      Throttle_Correction_Angle => Held (Integer (T.Throttle_Correction_Angle), 1, 900),
+      Throttle_Correction_Value => Held (Integer (T.Throttle_Correction_Value), 0, 150),
+      Mag_Declination           => Held (Integer (I.Mag_Declination), -300, 300));
+
+   function Barometer_Settings_Of (B : Barometer_Config_Record) return Barometer.Settings is
+     (Temperature_Drift_Cm_Per_10C => Held (Integer (B.Baro_Temp_Drift_Cm_Per10_C), -500, 500),
+      Virtual_Device               => B.Baro_Hardware = 13);
+
+   function Compass_Settings_Of (C : Compass_Config_Record; Board : Board_Alignment_Record) return Compass.Settings is
+     (Alignment     => Standard_Alignment_Of (C.Mag_Alignment),
+      Custom_Angles => Custom_Angles_Of (C.Mag_Custom_Alignment),
+      Board         => Board_Angles_Of (Board),
+      Zero          => (Vectors.X => Integer (C.Mag_Zero (0)), Vectors.Y => Integer (C.Mag_Zero (1)),
+                        Vectors.Z => Integer (C.Mag_Zero (2))));
 
    function Gyro_Settings_Of
      (G : Gyro_Config_Record; N : Dyn_Notch_Config_Record; R : Rpm_Filter_Config_Record;
