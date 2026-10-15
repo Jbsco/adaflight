@@ -5105,10 +5105,9 @@ transmitter of a known type whose pit mode differs from the request's is asked f
 pit mode, and every accepted request marks the MSP transmitter ready. The reference makes its writes
 and the pit mode call before it checks the table counts (findings F197).
 
-`Adaflight.VTX_Table_Store` contains the stored table's clearing, as the reference's table
-commands clear a band, its channels, the power values and the power labels, and the running table
-taken from the stored one, as at boot. The command line keeps its own copies of the clearing for
-now; they move here when it next changes, so its proof is not run again for this.
+`Adaflight.VTX_Table_Store` contains the stored table's clearing, as the reference's table commands
+clear a band, its channels, the power values and the power labels, and the running table taken from
+the stored one, as at boot. The command line uses the same clearing.
 
 The command line oracle links the reference's transmitter interface and scripts a transmitter, its
 type and its pit mode with a directive that can also take the stored table in as the running one.

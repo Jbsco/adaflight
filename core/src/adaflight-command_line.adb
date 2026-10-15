@@ -12,6 +12,7 @@ with Adaflight.MSP_Common_Out;
 with Adaflight.Servo_Rules;
 with Adaflight.Settings_Table; use Adaflight.Settings_Table;
 with Adaflight.Simplified_Tuning.Stored;
+with Adaflight.VTX_Table_Store;
 
 package body Adaflight.Command_Line with SPARK_Mode is
 
@@ -2467,32 +2468,6 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end loop;
    end Store_Padded;
 
-   --  A band's channels from one on set to zero.
-   procedure Clear_Channels (T : in out Vtx_Table_Config_Record; Band : Natural; From : Natural)
-     with Pre => Band < Table_Bands
-   is
-   begin
-      for C in From .. Table_Channels - 1 loop
-         T.Frequency (Band) (C) := 0;
-      end loop;
-   end Clear_Channels;
-
-   --  A band cleared: its frequencies zero, every channel named by its
-   --  number, the band named BAND and its number, lettered by its number, and
-   --  custom.
-   procedure Clear_Band (T : in out Vtx_Table_Config_Record; Band : Natural)
-     with Pre => Band < Table_Bands
-   is
-   begin
-      Clear_Channels (T, Band, 0);
-      for C in 0 .. Table_Channels - 1 loop
-         T.Channel_Names (C) := (Unsigned_8 (Character'Pos ('1') + C), 0);
-      end loop;
-      Store_Padded (T.Band_Names (Band), "BAND" & Character'Val (Character'Pos ('1') + Band), Band_Name_Length);
-      T.Band_Letters (Band) := Unsigned_8 (Character'Pos ('1') + Band);
-      T.Is_Factory_Band (Band) := False;
-   end Clear_Band;
-
    --  A band's line: its number, name, letter, factory flag and the
    --  frequencies of a channel count.
    procedure Put_Band (Into : in out Output; T : Vtx_Table_Config_Record; Band : Natural; Channels : Unsigned_8)
@@ -2683,7 +2658,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
                Put_Error (Into, "vtxtable: BAND COUNT NOT BETWEEN 0 AND 8###" & CRLF);
             else
                for Band in Natural (Value) .. Natural'Min (Natural (T.Bands), Table_Bands) - 1 loop
-                  Clear_Band (T, Band);
+                  VTX_Table_Store.Clear_Band (T, Band);
                end loop;
                T.Bands := Unsigned_8 (Value);
             end if;
@@ -2696,7 +2671,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
             else
                if Unsigned_8 (Value) < T.Channels then
                   for Band in 0 .. Table_Bands - 1 loop
-                     Clear_Channels (T, Band, Natural (Value));
+                     VTX_Table_Store.Clear_Channels (T, Band, Natural (Value));
                   end loop;
                end if;
                T.Channels := Unsigned_8 (Value);
@@ -2708,12 +2683,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
                   Put_Error (Into, "vtxtable: POWER LEVEL COUNT NOT BETWEEN 0 AND 8###" & CRLF);
                else
                   if Unsigned_8 (Value) < T.Power_Levels then
-                     for L in Natural (Value) .. Table_Powers - 1 loop
-                        T.Power_Values (L) := 0;
-                     end loop;
-                     for L in Natural (Value) .. Table_Powers - 1 loop
-                        Store_Padded (T.Power_Labels (L), "LV" & Character'Val (Character'Pos ('0') + L), Label_Length);
-                     end loop;
+                     VTX_Table_Store.Clear_Power_Values (T, Natural (Value));
+                     VTX_Table_Store.Clear_Power_Labels (T, Natural (Value));
                   end if;
                   T.Power_Levels := Unsigned_8 (Value);
                end if;
