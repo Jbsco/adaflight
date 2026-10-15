@@ -131,6 +131,8 @@ The core contains:
 - command line batches: batch start and end with error flag, unknown line reply
 - command line tasks: task list with rates, execution times and loads, check functions and total
   load lines, peak time resets
+- command line save and exit: save with board persistence and batch refusal, exit, defaults with
+  save, requests to write, restart and leave
 - core loop cadence: PID loop sample counter, filter and controller readiness, yaw reset at low
   throttle while arming by stick
 - PID loop pass: unit order of task, with launch wing, runaway check, PID audio, servos and flight
@@ -181,7 +183,7 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 23578 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 23605 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
 - Recorded vectors replay bit for bit: 1753568 lines over 384 cases, every case exact except
   forty-five declared deviations in `DESIGN.md` D6.
