@@ -735,6 +735,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    procedure Put_Feature_Dump
      (Into : in out Sink; Mask : Unsigned_32; Default : Unsigned_32 := Defaults.Feature_Config.Enabled_Features;
       Mode : Dump_Mode := Listing; Heading : String := "")
+     with Global => null
    is
       Pending : Boolean := Heading'Length > 0;
    begin
@@ -880,6 +881,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    procedure Put_Beeper_Dump
      (Into : in out Sink; Command : String; Flags : Unsigned_32; Default : Unsigned_32; Allowed : Unsigned_32;
       Mode : Dump_Mode; Heading : String)
+     with Global => null
    is
       Pending : Boolean := Heading'Length > 0;
    begin
@@ -962,6 +964,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
      (Into : in out Sink; Conditions : Mode_Activation_Condition_Record_List_20;
       Default : Mode_Activation_Condition_Record_List_20 := Defaults.Mode_Activation_Conditions;
       Mode : Dump_Mode := Listing; Heading : String := "")
+     with Global => null
    is
       Pending : Boolean := Heading'Length > 0;
    begin
@@ -1090,6 +1093,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
      (Into : in out Sink; Ranges : Adjustment_Range_Record_List_30;
       Default : Adjustment_Range_Record_List_30 := Defaults.Adjustment_Ranges; Mode : Dump_Mode := Listing;
       Heading : String := "")
+     with Global => null
    is
       Pending : Boolean := Heading'Length > 0;
    begin
@@ -1495,6 +1499,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
      (Into : in out Sink; Mix : Motor_Mixer_Record_List_8;
       Default : Motor_Mixer_Record_List_8 := Defaults.Custom_Motor_Mixer; Mode : Dump_Mode := Listing;
       Heading : String := "")
+     with Global => null
    is
       Pending : Boolean := Heading'Length > 0;
    begin
@@ -1624,6 +1629,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
      (Into : in out Sink; Params : Servo_Param_Record_List_8;
       Default : Servo_Param_Record_List_8 := Defaults.Servo_Params; Mode : Dump_Mode := Listing;
       Heading : String := "")
+     with Global => null
    is
       Pending : Boolean := Heading'Length > 0;
    begin
@@ -1749,6 +1755,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
      (Into : in out Sink; Rules : Servo_Mixer_Record_List_16;
       Default : Servo_Mixer_Record_List_16 := Defaults.Custom_Servo_Mixers; Mode : Dump_Mode := Listing;
       Heading : String := "")
+     with Global => null
    is
       Pending : Boolean := Heading'Length > 0;
    begin
@@ -2005,6 +2012,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
      (Into : in out Sink; Configs : Unsigned_32_List_32;
       Default : Unsigned_32_List_32 := Defaults.Led_Strip_Status_Mode_Config.Led_Configs; Mode : Dump_Mode := Listing;
       Heading : String := "")
+     with Global => null
    is
       Pending : Boolean := Heading'Length > 0;
    begin
@@ -2085,6 +2093,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
      (Into : in out Sink; Colors : Hsv_Color_Record_List_16;
       Default : Hsv_Color_Record_List_16 := Defaults.Led_Strip_Status_Mode_Config.Colors; Mode : Dump_Mode := Listing;
       Heading : String := "")
+     with Global => null
    is
       Pending : Boolean := Heading'Length > 0;
    begin
@@ -2204,6 +2213,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
      (Into : in out Sink; L : Led_Strip_Status_Mode_Config_Record;
       Default : Led_Strip_Status_Mode_Config_Record := Defaults.Led_Strip_Status_Mode_Config;
       Mode : Dump_Mode := Listing; Heading : String := "")
+     with Global => null
    is
       Pending : Boolean := Heading'Length > 0;
    begin
@@ -2305,6 +2315,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Default : Vtx_Channel_Activation_Condition_Record_List_10 :=
         Defaults.Vtx_Config.Vtx_Channel_Activation_Conditions;
       Mode : Dump_Mode := Listing; Heading : String := "")
+     with Global => null
    is
       Pending : Boolean := Heading'Length > 0;
    begin
@@ -2542,6 +2553,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    procedure Put_Vtx_Table
      (Into : in out Sink; T : Vtx_Table_Config_Record; Default : Vtx_Table_Config_Record := Defaults.Vtx_Table_Config;
       Mode : Dump_Mode := Listing; Heading : String := "")
+     with Global => null
    is
       Pending : Boolean := Heading'Length > 0;
    begin
@@ -2921,6 +2933,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Default_Count : Unsigned_8 := Defaults.Flight_Plan_Config.Waypoint_Count;
       Default : Waypoint_List := Defaults.Flight_Plan_Config.Waypoints; Mode : Dump_Mode := Listing;
       Heading : String := "")
+     with Global => null
    is
       Last      : constant Natural := Natural'Min (Natural (Count), Max_Waypoints);
       All_Equal : Boolean := Count = Default_Count;
@@ -3305,7 +3318,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
 
    --  The map line from a cleared buffer, a changed map's default first for
    --  Show_Defaults.
-   procedure Put_Map (Into : in out Sink; Rcmap : Bytes_8; Default : Bytes_8; Mode : Dump_Mode; Heading : String) is
+   procedure Put_Map (Into : in out Sink; Rcmap : Bytes_8; Default : Bytes_8; Mode : Dump_Mode; Heading : String)
+     with Global => null
+   is
    begin
       if Heading'Length > 0 and then Shows_Line (Mode, Rcmap = Default) then
          Put_Hash_Line (Into, Heading);
@@ -3362,6 +3377,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
      (Into : in out Sink; Ranges : Rx_Channel_Range_Config_Record_List_4;
       Default : Rx_Channel_Range_Config_Record_List_4 := Defaults.Rx_Channel_Range_Configs;
       Mode : Dump_Mode := Listing; Heading : String := "")
+     with Global => null
    is
       Pending : Boolean := Heading'Length > 0;
    begin
@@ -3452,6 +3468,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
      (Into : in out Sink; Configs : Rx_Failsafe_Channel_Config_Record_List_18;
       Default : Rx_Failsafe_Channel_Config_Record_List_18 := Defaults.Rx_Failsafe_Channel_Configs;
       Mode : Dump_Mode := Listing; Heading : String := "")
+     with Global => null
    is
       Pending : Boolean := Heading'Length > 0;
    begin
@@ -3852,7 +3869,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  plan. The motor mix's and the servo rules' reset lines follow the
    --  default configuration's first motor and first rule, and without the
    --  servo rules' reset line the rules print their heading.
-   procedure Put_Sections (Into : in out Sink; C : Configuration; Mode : Dump_Mode) is
+   procedure Put_Sections (Into : in out Sink; C : Configuration; Mode : Dump_Mode)
+     with Global => null
+   is
       Mixer   : constant Unsigned_8 := C.Mixer_Config.Mixer_Mode;
       Default : constant Unsigned_8 := Defaults.Mixer_Config.Mixer_Mode;
       Pending : Boolean := True;
