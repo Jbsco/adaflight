@@ -4302,11 +4302,11 @@ package body Adaflight.Command_Line with SPARK_Mode is
                   Put (Into, Two_Digits (Scheduler.Task_Id'Pos (Id)) & " - ("
                        & CLI_Text.Right_Justified (Scheduler.Name (Id), 15) & ") ");
                   if Statistics then
-                     Put (Into, Field (Frequency, 6) & " " & Field (As_Signed (T.Max_Exec_Us), 7) & " "
-                          & Field (Integer_64 (T.Average_Exec_10th / 10), 7) & " " & Field (Max_Load / 10, 4) & "."
-                          & Decimal (Max_Load rem 10) & "% " & Field (Average_Load / 10, 4) & "."
-                          & Decimal (Average_Load rem 10) & "% " & Field (Integer_64 (T.Total_Exec_Us / 1000), 9)
-                          & CRLF);
+                     Put (Into, Field (Frequency, 6) & " " & Field (As_Signed (T.Max_Exec_Us), 7) & " ");
+                     Put (Into, Field (Integer_64 (T.Average_Exec_10th / 10), 7) & " ");
+                     Put (Into, Field (Max_Load / 10, 4) & "." & Decimal (Max_Load rem 10) & "% ");
+                     Put (Into, Field (Average_Load / 10, 4) & "." & Decimal (Average_Load rem 10) & "% ");
+                     Put (Into, Field (Integer_64 (T.Total_Exec_Us / 1000), 9) & CRLF);
                   else
                      Put (Into, Field (Frequency, 6) & CRLF);
                   end if;
@@ -4323,10 +4323,10 @@ package body Adaflight.Command_Line with SPARK_Mode is
             Total       : constant Integer_64 := Wrapped (Load_Sum);
          begin
             Into.Last_Check_Total_Us := Checks.Total_Exec_Us;
-            Put (Into, "Check Functions (RX, ...) " & Field (As_Signed (Checks.Max_Exec_Us), 11) & " "
-                 & Field (Integer_64 (Checks.Average_Exec_Us), 7) & " " & Field (Integer_64 (Load / 10), 12) & "."
-                 & Decimal (Integer_64 (Load mod 10)) & "% " & Field (Integer_64 (Checks.Total_Exec_Us / 1000), 9)
-                 & CRLF);
+            Put (Into, "Check Functions (RX, ...) " & Field (As_Signed (Checks.Max_Exec_Us), 11) & " ");
+            Put (Into, Field (Integer_64 (Checks.Average_Exec_Us), 7) & " " & Field (Integer_64 (Load / 10), 12) & ".");
+            Put (Into, Decimal (Integer_64 (Load mod 10)));
+            Put (Into, "% " & Field (Integer_64 (Checks.Total_Exec_Us / 1000), 9) & CRLF);
             Put (Into, "Total " & Field (Total / 10, 52) & "." & Decimal (Total rem 10) & "%" & CRLF);
             if Env.Debug_Mode = Scheduler_Determinism then
                Put (Into, "Scheduler start cycles " & Decimal (Integer_64 (Sched.Loop_Start_Cycles)) & " guard cycles "
