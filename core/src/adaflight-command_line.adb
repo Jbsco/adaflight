@@ -2,6 +2,7 @@ with Interfaces; use Interfaces;
 with Adaflight.Adjustments;
 with Adaflight.Config_Codec;
 with Adaflight.Config_Fix;
+with Adaflight.Config_Reset;
 with Adaflight.LED_Strip;
 with Adaflight.Maths;
 with Adaflight.Mixer_Init;
@@ -3676,20 +3677,12 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Arguments := 0;
    end Find_Command;
 
-   --  The simplified tuning of every PID profile with the gyro settings.
-   procedure Apply_Tuning (C : in out Configuration) is
-   begin
-      for I in C.Pid_Profiles'Range loop
-         Simplified_Tuning.Stored.Apply (C.Pid_Profiles (I), C.Gyro_Config);
-      end loop;
-   end Apply_Tuning;
-
    --  simplified_tuning: the simplified tuning of every PID profile with the
    --  gyro settings applied, or every slider turned off.
    procedure Simplified_Tuning_Command (Into : in out Output; C : in out Configuration; Arguments : String) is
    begin
       if CLI_Text.Same_Ignoring_Case (Arguments, "apply") then
-         Apply_Tuning (C);
+         Config_Reset.Apply_Tuning (C);
          Put (Into, "Applied simplified tuning." & CRLF);
       elsif CLI_Text.Same_Ignoring_Case (Arguments, "disable") then
          for I in C.Pid_Profiles'Range loop
@@ -3884,18 +3877,14 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end if;
       if Group = 0 then
          Put_Hash_Line (Into, "resetting to defaults");
-         C := Defaults;
-         Apply_Tuning (C);
-         Board_Info.Reset_Config (C, Board);
+         C := Config_Reset.Reset (Board);
       else
          Put (Into, CRLF & "# resetting group " & Decimal (Integer_64 (Group)) & " to defaults" & CRLF);
          declare
-            Reset : Configuration := Defaults;
+            Reset : constant Configuration := Config_Reset.Reset (Board);
             Kept  : Config_Codec.Data;
             Fresh : Config_Codec.Data;
          begin
-            Apply_Tuning (Reset);
-            Board_Info.Reset_Config (Reset, Board);
             Config_Codec.Encode (C, Kept);
             Config_Codec.Encode (Reset, Fresh);
             pragma Assert (Config_Codec.Groups_Within);
