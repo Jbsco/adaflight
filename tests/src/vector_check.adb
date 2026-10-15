@@ -129,6 +129,7 @@ with Adaflight.MSP_Hardware_In;
 with Adaflight.MSP_Battery_In;
 with Adaflight.MSP_Feature_In;
 with Adaflight.MSP_Blackbox_In;
+with Adaflight.MSP_Servo_In;
 with Adaflight.MSP_Receiver_Out;
 with Adaflight.MSP_Hardware_Out;
 with Adaflight.MSP_Peripheral_Out;
@@ -14561,6 +14562,7 @@ procedure Vector_Check is
    MSP_In_Result  : Adaflight.MSP_Tuning_In.Result := Adaflight.MSP_Tuning_In.Ack;
    MSP_In_Effects : Adaflight.MSP_Tuning_In.Effects;
    MSP_Rx_Effects : Adaflight.MSP_Receiver_In.Effects;
+   MSP_Servo_Effects : Adaflight.MSP_Servo_In.Effects;
    MSP_Gyro_Rate  : Adaflight.Config_Fix.Gyro_Rate := 0;
    MSP_Log        : Adaflight.Blackbox.Recorder;
    MSP_Loop_Time  : Adaflight.Blackbox.Loop_Time_Us := 125;
@@ -14719,10 +14721,22 @@ procedure Vector_Check is
                   end loop;
                   MSP_In_Effects := Adaflight.MSP_Tuning_In.No_Effects;
                   MSP_Rx_Effects := Adaflight.MSP_Receiver_In.No_Effects;
+                  MSP_Servo_Effects := Adaflight.MSP_Servo_In.No_Effects;
                   if Adaflight.MSP_Tuning_In.Handles (Cmd) then
                      Adaflight.MSP_Tuning_In.Process
                        (CLI_Config, Cmd, Request, MSP_Gyro_Rate, MSP_In_Result, MSP_In_Effects);
                      MSP_In_Ran := True;
+                  elsif Adaflight.MSP_Servo_In.Handles (Cmd) then
+                     declare
+                        use type Adaflight.MSP_Servo_In.Result;
+                        Servo_Result : Adaflight.MSP_Servo_In.Result;
+                     begin
+                        Adaflight.MSP_Servo_In.Process (CLI_Config, Cmd, Request, Servo_Result, MSP_Servo_Effects);
+                        MSP_In_Result :=
+                          (if Servo_Result = Adaflight.MSP_Servo_In.Ack then Adaflight.MSP_Tuning_In.Ack
+                           else Adaflight.MSP_Tuning_In.Error);
+                        MSP_In_Ran := True;
+                     end;
                   elsif Adaflight.MSP_Blackbox_In.Handles (Cmd) then
                      declare
                         use type Adaflight.MSP_Blackbox_In.Result;
@@ -14822,6 +14836,10 @@ procedure Vector_Check is
                            Boolean'Pos (MSP_Rx_Effects.Adjustments_Reset));
                Record_Int ("msp.reboot_required", (if In_Range and then Int (13) > 0 then 1 else 0),
                            Boolean'Pos (MSP_Rx_Effects.Reboot_Required));
+            end if;
+            if NF >= 14 then
+               Record_Int ("msp.servo_mixer_load", (if In_Range and then Int (14) > 0 then 1 else 0),
+                           Boolean'Pos (MSP_Servo_Effects.Mixer_Load));
             end if;
          end;
       elsif Str (1) = "clx" then
