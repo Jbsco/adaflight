@@ -135,6 +135,7 @@ with Adaflight.Mixer_Init;
 with Adaflight.Main_Loop;
 with Adaflight.Core_Loop;
 with Adaflight.PWM_Output;
+with Adaflight.Task_Functions;
 with Adaflight.Task_Init;
 with Adaflight.MSP_Out;
 with Adaflight.Four_Way;
@@ -17999,6 +18000,9 @@ procedure Vector_Check is
    TI_Count   : Natural := 0;
    TI_Tasks   : array (1 .. Adaflight.Scheduler.Task_Count) of Adaflight.Scheduler.Task_Id :=
      (others => Adaflight.Scheduler.System);
+   TI_Inputs  : Adaflight.Task_Init.Inputs;
+   TI_State   : Adaflight.Scheduler.State;
+   TI_Mag     : Boolean := False;
 
    procedure Check_Task_Init_Line is
       package TI renames Adaflight.Task_Init;
@@ -18056,14 +18060,168 @@ procedure Vector_Check is
             end case;
          end loop;
          return;
+      elsif Name = "tskfunc" then
+         declare
+            Settings   : constant SC.Settings := (Delay_Limit_Us => 1, Gyro_Period_Us => 100, others => <>);
+            Now_Us     : constant SC.Time_Us := 0;
+            Log        : String (1 .. 64) := (others => ' ');
+            Len        : Natural := 0;
+            Baro_Next  : constant SC.Time_Delta := SC.Time_Delta (Int (7));
+            Pitot_Next : constant SC.Time_Delta := SC.Time_Delta (Int (8));
+            Mag_Next   : constant SC.Time_Delta := SC.Time_Delta (Int (9));
+            procedure Note (C : Character) is
+            begin
+               if Len < Log'Last then
+                  Len := Len + 1;
+                  Log (Len) := C;
+               end if;
+            end Note;
+            procedure Note_X is
+            begin
+               Note ('X');
+            end Note_X;
+            procedure Note_MSP (Evaluate_Other_Data : Boolean) is
+            begin
+               if Evaluate_Other_Data then
+                  Note ('M');
+               else
+                  Note ('m');
+               end if;
+            end Note_MSP;
+            procedure Note_P is
+            begin
+               Note ('P');
+            end Note_P;
+            procedure Note_S (T : SC.Time_Us) is
+               pragma Unreferenced (T);
+            begin
+               Note ('S');
+            end Note_S;
+            procedure Note_A is
+            begin
+               Note ('A');
+            end Note_A;
+            procedure Note_C (T : SC.Time_Us) is
+               pragma Unreferenced (T);
+            begin
+               Note ('C');
+            end Note_C;
+            procedure Note_G is
+            begin
+               Note ('G');
+            end Note_G;
+            procedure Note_B (T : SC.Time_Us; Next : out SC.Time_Delta) is
+               pragma Unreferenced (T);
+            begin
+               Note ('B');
+               Next := Baro_Next;
+            end Note_B;
+            procedure Note_T (T : SC.Time_Us; Next : out SC.Time_Delta) is
+               pragma Unreferenced (T);
+            begin
+               Note ('T');
+               Next := Pitot_Next;
+            end Note_T;
+            procedure Note_H (T : SC.Time_Us; Next : out SC.Time_Delta) is
+               pragma Unreferenced (T);
+            begin
+               Note ('H');
+               Next := Mag_Next;
+            end Note_H;
+            procedure Note_O is
+            begin
+               Note ('O');
+            end Note_O;
+            procedure Note_F is
+            begin
+               Note ('F');
+            end Note_F;
+            procedure Note_Fp (T : SC.Time_Us; Cos_Tilt : Float) is
+               pragma Unreferenced (T, Cos_Tilt);
+            begin
+               Note ('f');
+            end Note_Fp;
+            procedure Note_L is
+            begin
+               Note ('L');
+            end Note_L;
+            procedure Note_Lp is
+            begin
+               Note ('l');
+            end Note_Lp;
+            procedure Note_E (T : SC.Time_Us) is
+               pragma Unreferenced (T);
+            begin
+               Note ('E');
+            end Note_E;
+            procedure Note_Y (T : SC.Time_Us) is
+               pragma Unreferenced (T);
+            begin
+               Note ('Y');
+            end Note_Y;
+            procedure Note_K (T : SC.Time_Us) is
+               pragma Unreferenced (T);
+            begin
+               Note ('K');
+            end Note_K;
+            package TF is new Adaflight.Task_Functions
+              (Flash_Erase => Note_X, MSP_Serial => Note_MSP, Battery_Presence => Note_P, Battery_States => Note_S,
+               Battery_Alarms => Note_A, Acc_Update => Note_C, GPS_Rescue_Update => Note_G, Baro_Update => Note_B,
+               Pitot_Update => Note_T, Compass_Update => Note_H, Position_Update => Note_O,
+               Rangefinder_Update => Note_F, Rangefinder_Process => Note_Fp, Optical_Flow_Update => Note_L,
+               Optical_Flow_Process => Note_Lp, Telemetry_Poll_Sensors => Note_E, Telemetry_Process => Note_Y,
+               Camera_Control_Process => Note_K);
+            I : constant TF.Inputs :=
+              (Armed                 => Int (4) /= 0,
+               CLI_Open              => Int (5) /= 0,
+               Feature_Telemetry     => TI_Inputs.Feature_Telemetry,
+               Baro_Detected         => TI_Inputs.Baro_Detected,
+               Mag_Detected          => TI_Mag,
+               Rangefinder_Detected  => TI_Inputs.Rangefinder_Detected,
+               Optical_Flow_Detected => TI_Inputs.Optical_Flow_Detected,
+               Pitot_Configured      => TI_Inputs.Pitot_Configured,
+               Rescue_Configured     => Int (6) /= 0,
+               Cos_Tilt              => 1.0);
+         begin
+            TF.Main;
+            TF.Serial (I);
+            TF.Battery_Alerts (I, Now_Us);
+            TF.Accelerometer (Now_Us);
+            TF.GPS_Rescue (I);
+            TI_State.Has_Current := True;
+            TI_State.Current := SC.Baro;
+            TF.Baro (TI_State, Settings, I, Now_Us);
+            if TI_Options.Pitot then
+               TI_State.Current := SC.Pitot;
+               TF.Pitot (TI_State, Settings, I, Now_Us);
+            end if;
+            TI_State.Current := SC.Compass;
+            TF.Compass (TI_State, Settings, I, Now_Us);
+            TF.Position;
+            TF.Rangefinder (I, Now_Us);
+            TF.Optical_Flow (I);
+            TF.Telemetry (I, Now_Us);
+            TF.Camera_Control (I, Now_Us);
+            Record_Int ("tskfunc.order", 1, Boolean'Pos (Str (10) = Log (1 .. Len)));
+            Record_Int ("tskfunc.baro_period", Int (11), Integer_64 (TI_State.Tasks (SC.Baro).Period));
+            if Int (12) >= 0 then
+               Record_Int ("tskfunc.pitot_period", Int (12), Integer_64 (TI_State.Tasks (SC.Pitot).Period));
+            end if;
+            Record_Int ("tskfunc.compass_period", Int (13), Integer_64 (TI_State.Tasks (SC.Compass).Period));
+            if NF /= 13 then
+               Put_Line ("tskfunc: consumed 13 of" & Integer'Image (NF) & " fields");
+               Failures := Failures + 1;
+            end if;
+         end;
+         return;
       elsif Name /= "tskstep" then
          Put_Line ("unknown task setup case " & Name);
          Failures := Failures + 1;
          return;
       end if;
       declare
-         I        : TI.Inputs;
-         S        : SC.State;
+         I        : TI.Inputs renames TI_Inputs;
+         S        : SC.State renames TI_State;
          Settings : constant SC.Settings := (Delay_Limit_Us => 1, Gyro_Period_Us => 100, others => <>);
          Regate   : Boolean;
          New_Mode : Boolean;
@@ -18107,6 +18265,7 @@ procedure Vector_Check is
          Regate := Flag;
          New_Mode := Flag;
          New_Mag := Flag;
+         TI_Mag := New_Mag;
          TI.Init (S, Settings, 0, TI_Options, I);
          if Regate then
             TI.Update_Mode_Gated_Enables (S, TI_Options, New_Mag, New_Mode);
