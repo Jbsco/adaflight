@@ -4318,6 +4318,12 @@ alignment groups.
 meter, virtual meter and ESC sensor groups and the current battery profile. `Beeper_Settings_Of`
 builds `Beeper.Settings` from the stored beeper group, each sound's flag from the bit below its code.
 
+`GPS_Link_Settings_Of` builds `GPS_Link.Settings` from the stored GPS and GPS rescue groups, with
+whether a serial port has the GPS function; the baud is the user's from the module's table, 230400
+for a rate the table lacks, and the custom NMEA commands are the stored text up to its first NUL.
+`GPS_Rescue_Settings_Of` builds `GPS_Rescue.Settings` from the stored GPS rescue, autopilot and GPS
+groups.
+
 The harness builds the four PID profiles and the four rate profiles of every fixed configuration in
 the configuration fix recordings, 16000 of each, and the gyro settings of each with a running gyro
 and motors, 3082, with the preconditions and the predicates checked at run time, and compares the
@@ -4344,9 +4350,10 @@ as in the reference's build with it.
 
 The harness builds the four PID profiles and the four rate profiles of every fixed configuration in
 the configuration fix recordings, 16000 of each, the arming, failsafe, receiver, adjustment, mixer,
-attitude, barometer, compass, battery and beeper settings and the mode conditions of each, 4000 of
-each, and the gyro, RC command and accelerometer settings of each with a running gyro and motors,
-3082, with the preconditions and the predicates checked at run time, and compares one field of each. The analog endpoints replay 235 recorded motor and 3D settings from
+attitude, barometer, compass, battery, beeper, GPS link and GPS rescue settings and the mode
+conditions of each, 4000 of each, and the gyro, RC command and accelerometer settings of each with a
+running gyro and motors, 3082, with the preconditions and the predicates checked at run time, and
+compares one field of each. The analog endpoints replay 235 recorded motor and 3D settings from
 the DShot oracle bit for bit, 70 of them with an inverted range (findings F181).
 
 ## D189. Command line batches (2026-10-14)

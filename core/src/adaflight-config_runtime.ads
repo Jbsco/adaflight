@@ -17,6 +17,8 @@ with Adaflight.Config_Groups; use Adaflight.Config_Groups;
 with Adaflight.Dyn_Notch;
 with Adaflight.Failsafe;
 with Adaflight.Float_Bits;
+with Adaflight.GPS_Link;
+with Adaflight.GPS_Rescue;
 with Adaflight.Gyro_Filters;
 with Adaflight.Mixer;
 with Adaflight.Mixer_Init;
@@ -28,6 +30,7 @@ with Adaflight.RC_Command;
 with Adaflight.Receiver;
 with Adaflight.RPM_Filter;
 with Adaflight.Sensor_Alignment;
+with Adaflight.UBX_Config;
 with Adaflight.Vectors;
 
 package Adaflight.Config_Runtime with SPARK_Mode is
@@ -140,6 +143,18 @@ package Adaflight.Config_Runtime with SPARK_Mode is
    --  The beeper settings from the stored beeper group; each sound's flag
    --  is the bit below its code.
    function Beeper_Settings_Of (B : Beeper_Config_Record) return Beeper.Settings;
+
+   --  The GPS link settings from the stored GPS and GPS rescue groups, with
+   --  whether a serial port has the GPS function. The baud is the user's
+   --  from the module's table, 230400 for a rate the table lacks; the
+   --  custom NMEA commands are the stored text up to its first NUL.
+   function GPS_Link_Settings_Of
+     (G : Gps_Config_Record; R : Gps_Rescue_Record; Port_Assigned : Boolean) return GPS_Link.Settings;
+
+   --  The GPS rescue settings from the stored GPS rescue, autopilot and GPS
+   --  groups.
+   function GPS_Rescue_Settings_Of
+     (R : Gps_Rescue_Record; A : Autopilot_Config_Record; G : Gps_Config_Record) return GPS_Rescue.Settings;
 
 private
 
@@ -493,6 +508,62 @@ private
      (Off_Flags        => Flags_Of (B.Beeper_Off_Flags),
       Beacon_Off_Flags => Flags_Of (B.Dshot_Beacon_Off_Flags),
       Beacon_Tone      => Held (Integer (B.Dshot_Beacon_Tone), 1, 5));
+
+   --  The module's baud table: the stored code names the rate, the first
+   --  entry stands for a code outside it.
+   function Baud_Of (Code_Value : Unsigned_8) return GPS_Link.Baud_Rate is
+     (case Code_Value is
+         when 1 => GPS_Link.B_9600,
+         when 2 => GPS_Link.B_19200,
+         when 3 => GPS_Link.B_38400,
+         when 4 => GPS_Link.B_57600,
+         when 5 => GPS_Link.B_115200,
+         when others => GPS_Link.B_230400);
+
+   function Command_Text_Of (B : Bytes_65) return GPS_Link.Command_Text;
+   function Command_Length_Of (B : Bytes_65) return GPS_Link.Command_Length;
+
+   function GPS_Link_Settings_Of
+     (G : Gps_Config_Record; R : Gps_Rescue_Record; Port_Assigned : Boolean) return GPS_Link.Settings is
+     (Source            => GPS_Link.Provider'Val (Code (G.Provider, GPS_Link.Provider'Pos (GPS_Link.Provider'Last))),
+      Port_Assigned     => Port_Assigned,
+      Baud              => Baud_Of (G.Gps_Baud),
+      Auto_Config       => G.Auto_Config /= 0,
+      Sbas              =>
+        UBX_Config.Sbas_Mode'Val (Code (G.Sbas_Mode, UBX_Config.Sbas_Mode'Pos (UBX_Config.Sbas_Mode'Last))),
+      Sbas_Integrity    => G.Sbas_Integrity,
+      Use_Galileo       => G.Gps_Ublox_Use_Galileo,
+      Acquire_Model     =>
+        UBX_Config.Dynamic_Model'Val
+          (Code (G.Gps_Ublox_Acquire_Model, UBX_Config.Dynamic_Model'Pos (UBX_Config.Dynamic_Model'Last))),
+      Flight_Model      =>
+        UBX_Config.Dynamic_Model'Val
+          (Code (G.Gps_Ublox_Flight_Model, UBX_Config.Dynamic_Model'Pos (UBX_Config.Dynamic_Model'Last))),
+      Update_Rate       => Unsigned_8 (Held (Integer (G.Gps_Update_Rate_Hz), 1, 20)),
+      UTC               =>
+        UBX_Config.UTC_Standard'Val
+          (Code (G.Gps_Ublox_Utc_Standard, UBX_Config.UTC_Standard'Pos (UBX_Config.UTC_Standard'Last))),
+      Enable_Assistance => G.Gps_Ublox_Enable_Ana,
+      Set_Home_Once     => G.Gps_Set_Home_Point_Once,
+      Use_3D_Speed      => G.Gps_Use_3d_Speed,
+      Commands          => Command_Text_Of (G.Nmea_Custom_Commands),
+      Commands_Length   => Command_Length_Of (G.Nmea_Custom_Commands),
+      Min_Sats          => Unsigned_8 (Held (Integer (R.Min_Sats), 5, 50)));
+
+   function GPS_Rescue_Settings_Of
+     (R : Gps_Rescue_Record; A : Autopilot_Config_Record; G : Gps_Config_Record) return GPS_Rescue.Settings is
+     (Min_Start_Distance_M => Held (Integer (R.Min_Start_Dist_M), 5, 30),
+      Mode                 => GPS_Rescue.Altitude_Mode'Val (Code (R.Altitude_Mode, 2)),
+      Initial_Climb_M      => Held (Integer (R.Initial_Climb_M), 0, 100),
+      Ascend_Rate          => Held (Integer (R.Ascend_Rate), 50, 2_500),
+      Return_Altitude_M    => Held (Integer (R.Return_Altitude_M), 5, 1_000),
+      Ground_Speed_Cms     => Held (Integer (R.Ground_Speed_Cm_S), 0, 3_000),
+      Descent_Distance_M   => Held (Integer (R.Descent_Distance_M), 5, 500),
+      Descend_Rate         => Held (Integer (R.Descend_Rate), 25, 500),
+      Sanity               => GPS_Rescue.Sanity_Checks'Val (Code (R.Sanity_Checks, 2)),
+      Min_Sats             => Held (Integer (R.Min_Sats), 5, 50),
+      Landing_Altitude_M   => Integer (A.Landing_Altitude_M),
+      Set_Home_Once        => G.Gps_Set_Home_Point_Once);
 
    function Gyro_Settings_Of
      (G : Gyro_Config_Record; N : Dyn_Notch_Config_Record; R : Rpm_Filter_Config_Record;
