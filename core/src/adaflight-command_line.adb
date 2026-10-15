@@ -1,6 +1,7 @@
 with Interfaces; use Interfaces;
 with Adaflight.Adjustments;
 with Adaflight.Config_Fix;
+with Adaflight.Mixer_Init;
 with Adaflight.Modes;
 with Adaflight.MSP_Box;
 with Adaflight.Settings_Table; use Adaflight.Settings_Table;
@@ -1195,6 +1196,193 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end;
    end Serial_Command;
 
+   function Mixer_Name (M : Mixer_Init.Mixer_Mode) return String is
+     (case M is
+         when Mixer_Init.Tri => "TRI",
+         when Mixer_Init.Quad_P => "QUADP",
+         when Mixer_Init.Quad_X => "QUADX",
+         when Mixer_Init.Bicopter => "BI",
+         when Mixer_Init.Gimbal => "GIMBAL",
+         when Mixer_Init.Y6 => "Y6",
+         when Mixer_Init.Hex6 => "HEX6",
+         when Mixer_Init.Flying_Wing => "FLYING_WING",
+         when Mixer_Init.Y4 => "Y4",
+         when Mixer_Init.Hex6X => "HEX6X",
+         when Mixer_Init.Octo_X8 => "OCTOX8",
+         when Mixer_Init.Octo_Flat_P => "OCTOFLATP",
+         when Mixer_Init.Octo_Flat_X => "OCTOFLATX",
+         when Mixer_Init.Airplane => "AIRPLANE",
+         when Mixer_Init.Heli_120_CCPM => "HELI_120_CCPM",
+         when Mixer_Init.Heli_90_Deg => "HELI_90_DEG",
+         when Mixer_Init.Vtail4 => "VTAIL4",
+         when Mixer_Init.Hex6H => "HEX6H",
+         when Mixer_Init.PPM_To_Servo => "PPM_TO_SERVO",
+         when Mixer_Init.Dualcopter => "DUALCOPTER",
+         when Mixer_Init.Singlecopter => "SINGLECOPTER",
+         when Mixer_Init.Atail4 => "ATAIL4",
+         when Mixer_Init.Custom => "CUSTOM",
+         when Mixer_Init.Custom_Airplane => "CUSTOMAIRPLANE",
+         when Mixer_Init.Custom_Tri => "CUSTOMTRI",
+         when Mixer_Init.Quad_X_1234 => "QUADX1234",
+         when Mixer_Init.Octo_X8P => "OCTOX8P")
+     with Post => Mixer_Name'Result'Length in 2 .. 14;
+
+   --  The first mode whose name a text starts, without regard to case.
+   procedure Find_Mixer (Text : String; Found : out Boolean; M : out Mixer_Init.Mixer_Mode) is
+   begin
+      for N in Mixer_Init.Mixer_Mode loop
+         if Starts (Text, Mixer_Name (N)) then
+            Found := True;
+            M := N;
+            return;
+         end if;
+      end loop;
+      Found := False;
+      M := Mixer_Init.Mixer_Mode'First;
+   end Find_Mixer;
+
+   --  mixer: the mixer mode's name, the list of names, or the first mode a
+   --  name starts set and its name. A mode outside the names prints no name.
+   procedure Mixer_Command (Into : in out Sink; Mode : in out Unsigned_8; Arguments : String) is
+      use Mixer_Init;
+      Found : Boolean;
+      M     : Mixer_Mode;
+   begin
+      if Arguments'Length > 0 then
+         if Starts (Arguments, "list") then
+            Put (Into, "Available:");
+            for N in Mixer_Mode loop
+               Put (Into, " ");
+               Put (Into, Mixer_Name (N));
+            end loop;
+            Put (Into, CRLF);
+            return;
+         end if;
+         Find_Mixer (Arguments, Found, M);
+         if not Found then
+            Put (Into, "###ERROR IN mixer: INVALID NAME: ");
+            Put (Into, Arguments);
+            Put (Into, "###" & CRLF);
+            return;
+         end if;
+         Mode := Mixer_Mode'Pos (M) + 1;
+      end if;
+      Put (Into, "Mixer: ");
+      if Mode in 1 .. Mixer_Mode'Pos (Mixer_Mode'Last) + 1 then
+         Put (Into, Mixer_Name (Mixer_Mode'Val (Mode - 1)));
+      end if;
+      Put (Into, CRLF);
+   end Mixer_Command;
+
+   --  The custom motor mix up to its first motor without throttle.
+   procedure Put_Motor_Mix (Into : in out Sink; Mix : Motor_Mixer_Record_List_8) is
+   begin
+      for I in Mix'Range loop
+         exit when Mix (I).Throttle = 0.0;
+         Put (Into, "mmix " & Decimal (Integer_64 (I)) & " ");
+         Put (Into, CLI_Text.Float_Text (Mix (I).Throttle));
+         Put (Into, " ");
+         Put (Into, CLI_Text.Float_Text (Mix (I).Roll));
+         Put (Into, " ");
+         Put (Into, CLI_Text.Float_Text (Mix (I).Pitch));
+         Put (Into, " ");
+         Put (Into, CLI_Text.Float_Text (Mix (I).Yaw));
+         Put (Into, CRLF);
+      end loop;
+   end Put_Motor_Mix;
+
+   --  mmix: the custom motor mix, every motor's throttle cleared, a mode's
+   --  table loaded by the first name the text starts, or one motor's
+   --  throttle, roll, pitch and yaw, each argument read as a float and kept
+   --  even when fewer than four are given.
+   procedure Motor_Mix_Command (Into : in out Sink; Mix : in out Motor_Mixer_Record_List_8; Arguments : String)
+     with Pre => Arguments'First >= 1 and then Arguments'Last < Positive'Last
+                 and then Arguments'First <= Arguments'Last + 1
+   is
+      Found : Boolean;
+      M     : Mixer_Init.Mixer_Mode;
+      P     : Natural;
+   begin
+      if Arguments'Length = 0 then
+         Put_Motor_Mix (Into, Mix);
+      elsif Arguments'Length >= 5
+        and then CLI_Text.Same_Ignoring_Case (Arguments (Arguments'First .. Arguments'First + 4), "reset")
+      then
+         for I in Mix'Range loop
+            Mix (I).Throttle := 0.0;
+         end loop;
+      elsif Arguments'Length >= 4
+        and then CLI_Text.Same_Ignoring_Case (Arguments (Arguments'First .. Arguments'First + 3), "load")
+      then
+         P := Next_Argument (Arguments, Arguments'First);
+         if P > 0 and then P <= Arguments'Last then
+            Find_Mixer (Arguments (P .. Arguments'Last), Found, M);
+            if not Found then
+               Put (Into, "###ERROR IN mmix: INVALID NAME: ");
+               Put (Into, Arguments);
+               Put (Into, "###" & CRLF);
+               return;
+            end if;
+            declare
+               O       : constant Mixer_Init.Options := (others => <>);
+               Scratch : Mixer_Init.Mix_Table := (others => <>);
+            begin
+               Mixer_Init.Load_Mix (O, M, Scratch);
+               for I in Mix'Range loop
+                  Mix (I).Throttle := 0.0;
+               end loop;
+               if Mixer_Init.Has_Table (O, M) then
+                  for I in 0 .. Mixer_Init.Motor_Count_Of (M) - 1 loop
+                     Mix (I) :=
+                       (Throttle => Scratch (I).Throttle, Roll => Scratch (I).Roll, Pitch => Scratch (I).Pitch,
+                        Yaw => Scratch (I).Yaw);
+                  end loop;
+               end if;
+            end;
+            Put (Into, "Loaded ");
+            Put (Into, Mixer_Name (M));
+            Put (Into, CRLF);
+            Put_Motor_Mix (Into, Mix);
+         end if;
+      else
+         declare
+            Index : constant Unsigned_32 := Unsigned_32'Mod (CLI_Text.To_Integer (Arguments));
+            Count : Natural := 0;
+         begin
+            if Index >= Unsigned_32 (Mix'Length) then
+               Put (Into, "###ERROR IN mmix: INDEX NOT BETWEEN 0 AND 7###" & CRLF);
+               return;
+            end if;
+            P := Arguments'First;
+            for Field in 1 .. 4 loop
+               pragma Loop_Invariant
+                 (Count < Field and then (P = 0 or else P in Arguments'First .. Arguments'Last + 1));
+               P := Next_Argument (Arguments, P);
+               if P > 0 then
+                  declare
+                     V : constant Float :=
+                       (if P <= Arguments'Last then CLI_Text.Parse_Float (Arguments (P .. Arguments'Last)) else 0.0);
+                     R : Motor_Mixer_Record renames Mix (Natural (Index));
+                  begin
+                     case Field is
+                        when 1 => R.Throttle := V;
+                        when 2 => R.Roll := V;
+                        when 3 => R.Pitch := V;
+                        when others => R.Yaw := V;
+                     end case;
+                  end;
+                  Count := Count + 1;
+               end if;
+            end loop;
+            if Count /= 4 then
+               Put (Into, "###ERROR IN mmix: INVALID ARGUMENT COUNT###" & CRLF);
+            else
+               Put_Motor_Mix (Into, Mix);
+            end if;
+         end;
+      end if;
+   end Motor_Mix_Command;
+
    Channel_Letters : constant String := "AERT12345678abcdefgh";
    Mappable        : constant := 8;
 
@@ -1435,8 +1623,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
    type Command_Kind is
      (No_Command, Adjustment_Range_Command_Word, Aux_Command_Word, Battery_Profile_Command, Beacon_Command,
       Beeper_Command_Word, Diff_Command, Dump_Command, Feature_Command_Word, Get_Command, Map_Command_Word,
-      Profile_Command, Rate_Profile_Command, Rx_Failsafe_Command, Rx_Range_Command, Serial_Command_Word,
-      Set_Command);
+      Mixer_Command_Word, Motor_Mix_Command_Word, Profile_Command, Rate_Profile_Command, Rx_Failsafe_Command,
+      Rx_Range_Command, Serial_Command_Word, Set_Command);
    subtype Known_Command is Command_Kind range Adjustment_Range_Command_Word .. Set_Command;
 
    function Command_Word (K : Known_Command) return String is
@@ -1451,6 +1639,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when Feature_Command_Word => "feature",
          when Get_Command => "get",
          when Map_Command_Word => "map",
+         when Mixer_Command_Word => "mixer",
+         when Motor_Mix_Command_Word => "mmix",
          when Profile_Command => "profile",
          when Rate_Profile_Command => "rateprofile",
          when Rx_Failsafe_Command => "rxfail",
@@ -1574,6 +1764,12 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when Map_Command_Word =>
             Known := True;
             Map_Command (Into, C, Text_At (Buffer, Arguments));
+         when Mixer_Command_Word =>
+            Known := True;
+            Mixer_Command (Into, C.Mixer_Config.Mixer_Mode, Text_At (Buffer, Arguments));
+         when Motor_Mix_Command_Word =>
+            Known := True;
+            Motor_Mix_Command (Into, C.Custom_Motor_Mixer, Text_At (Buffer, Arguments));
          when Profile_Command =>
             Known := True;
             Profile_Command (Into, C, PID, Text_At (Buffer, Arguments), Changes);

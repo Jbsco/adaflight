@@ -37,6 +37,19 @@ package Adaflight.CLI_Text with SPARK_Mode is
    function To_Integer (Text : String) return Integer_32
      with Pre => Text'First >= 1 and then Text'Last < Positive'Last and then Text'First <= Text'Last + 1;
 
+   --  A number as the reference's fast float reader takes it: spaces and
+   --  tabs, a sign, digits with an optional fraction, and an exponent held
+   --  at 308. A number past the float range reads as the largest float, and
+   --  zero with an exponent past the float range as zero.
+   function Parse_Float (Text : String) return Float
+     with Pre => Text'First >= 1 and then Text'Last < Positive'Last;
+
+   --  A float in the reference's text form: rounded half away from zero to
+   --  thousandths and held to the 32-bit range, then a space or a minus
+   --  sign, the whole part and three decimals.
+   function Float_Text (X : Float) return String
+     with Post => Float_Text'Result'Length in 6 .. 23;
+
    --  A number's decimal digits with its sign, without a leading space.
    function Decimal (V : Integer_64) return String
      with Post => Decimal'Result'Length in 1 .. 21;
