@@ -7,9 +7,15 @@
 --  with the screen cleared; the draw with its update hook and the way
 --  back it may ask for; and the exit by its kind, which asks the leave
 --  hooks, saves, releases the display, and for a reboot writes the notice
---  and stops the motors before the reset. The menus come in through the
---  hook set and loading procedures, the hooks and the target's actions as
---  procedures.
+--  and stops the motors before the reset; and the keys: the menu key moves
+--  the menu to the next display, escape ends an edit or takes the way
+--  back, the save key opens the save menu for the reboot state, up and
+--  down move the cursor over the rows and pages, and left and right edit
+--  the line under the cursor in its element's form, enter a submenu, call
+--  a function line or exit, each edit written to the target's value as
+--  the reference writes the line's variable. The menus come in through
+--  the hook set and loading procedures, the hooks, the value store, the
+--  lookup of a table's text and the target's actions as procedures.
 with Interfaces;
 with Adaflight.Menu;
 
@@ -19,6 +25,10 @@ generic
    with procedure On_Enter (Id : Adaflight.Menu.Menu_Id; Chain_Back : out Boolean);
    with procedure On_Leave (Id : Adaflight.Menu.Menu_Id; Self : Integer; Chain_Back : out Boolean);
    with procedure On_Display_Update (Id : Adaflight.Menu.Menu_Id; Selected : Natural; Chain_Back : out Boolean);
+   with procedure Line_Call (Id : Adaflight.Menu.Menu_Id; Line : Natural; Chain_Back : out Boolean);
+   with procedure Set_Value (Id : Adaflight.Menu.Menu_Id; Line : Natural; Value : Interfaces.Integer_32);
+   with function Lookup (Id : Adaflight.Menu.Menu_Id; Line : Natural; Index : Natural)
+     return Adaflight.Menu.Label_Text;
    with procedure Act (On : Adaflight.Menu.Display_Index; A : Adaflight.Menu.Action; Arg : Integer);
    with procedure Write
      (On : Adaflight.Menu.Display_Index; X : Adaflight.Menu.Column; Y : Adaflight.Menu.Column;
@@ -48,6 +58,22 @@ package Adaflight.Menu_Nav with SPARK_Mode is
    --  a save with a reboot, and the popup's save, save with a reboot and
    --  exit with a reboot.
    type Exit_Kind is (Plain, Save, Save_Reboot, Popup_Save, Popup_Save_Reboot, Popup_Exit_Reboot);
+
+   --  The keys in the reference's numbering, and what the keys need: the
+   --  start menu and background type the menu key's reopen takes, and the
+   --  save menus for either reboot state.
+   type Key_Code is (None, Up, Down, Left, Right, Esc, Menu_Key, Save_Menu);
+
+   type Key_Settings is record
+      Start            : Adaflight.Menu.Menu_Id := Adaflight.Menu.Main_Menu;
+      Background       : Natural := 0;
+      Save_Exit        : Adaflight.Menu.Menu_Id := Adaflight.Menu.Main_Menu;
+      Save_Exit_Reboot : Adaflight.Menu.Menu_Id := Adaflight.Menu.Main_Menu;
+   end record;
+
+   Button_Time  : constant := 250;
+   Button_Pause : constant := 500;
+   subtype Key_Delay is Natural range 0 .. 65_535;
 
    type Displays is array (Adaflight.Menu.Display_Index) of Adaflight.Menu.Display;
    subtype Display_Count is Natural range 0 .. Adaflight.Menu.Max_Displays;
@@ -123,18 +149,31 @@ package Adaflight.Menu_Nav with SPARK_Mode is
                   and then (if S.Has_Menu
                             then S.Table.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (S.Table))
                   and then (if S.Has_Menu and then Target /= S.Id then Page_Consistent (S)),
-          Post => Consistent (S);
+          Post => Consistent (S) and then S.In_Menu and then S.Has_Menu;
 
    procedure Back (S : in out State)
      with Pre  => S.In_Menu and then S.Has_Menu and then Consistent (S),
-          Post => Consistent (S);
+          Post => Consistent (S) and then S.In_Menu and then S.Has_Menu;
 
    procedure Select_Page (S : in out State; Number : Adaflight.Menu.Page_Request)
      with Pre  => S.In_Menu and then S.Has_Menu and then Consistent (S),
+          Post => Consistent (S) and then S.In_Menu and then S.Has_Menu;
+
+   --  The draw, which does nothing while the menu is closed.
+   procedure Draw (S : in out State; Sl : Adaflight.Menu.Slider_Settings; Now_Us, Now_Ms, Room : Unsigned_32)
+     with Pre  => Consistent (S),
           Post => Consistent (S);
 
-   procedure Draw (S : in out State; Sl : Adaflight.Menu.Slider_Settings; Now_Us, Now_Ms, Room : Unsigned_32)
-     with Pre  => S.In_Menu and then S.Has_Menu and then Consistent (S),
+   --  A key handled, with the delay in milliseconds before the next; a
+   --  key with the menu closed does nothing.
+   procedure Handle_Key
+     (S               : in out State;
+      Key             : Key_Code;
+      K               : Key_Settings;
+      Sl              : Adaflight.Menu.Slider_Settings;
+      Reboot_Required : Boolean;
+      Delay_Ms        : out Key_Delay)
+     with Pre  => Consistent (S),
           Post => Consistent (S);
 
    procedure Exit_Menu (S : in out State; Kind : Exit_Kind)

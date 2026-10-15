@@ -10,6 +10,9 @@ package Adaflight.Menu_Nav_Shape is new Adaflight.Menu_Nav
    On_Enter          => Adaflight.Counting_Steps.Step_Hook,
    On_Leave          => Adaflight.Counting_Steps.Step_Leave,
    On_Display_Update => Adaflight.Counting_Steps.Step_Update,
+   Line_Call         => Adaflight.Counting_Steps.Step_Update,
+   Set_Value         => Adaflight.Counting_Steps.Step_Set_Value,
+   Lookup            => Adaflight.Counting_Steps.Step_Lookup,
    Act               => Adaflight.Counting_Steps.Step_Act,
    Write             => Adaflight.Counting_Steps.Step_Write,
    Write_Char        => Adaflight.Counting_Steps.Step_Write_Char);

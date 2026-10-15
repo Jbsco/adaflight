@@ -50,16 +50,23 @@ package Adaflight.Menu with SPARK_Mode is
       Length : Text_Length := 0;
    end record;
 
-   --  A line: its text, its element and flags, whether it has data, and
-   --  the data behind it: the number of a numeric, boolean, visibility or
-   --  fixed-point line (the fixed-point one already multiplied), and the
-   --  text of a string, label or function call line or a lookup table's
-   --  text at the line's value.
+   --  A line: its text, its element and flags, whether it has data and a
+   --  function, and the data behind it: the number of a numeric, boolean,
+   --  visibility, lookup or fixed-point line (a fixed-point line's byte
+   --  with its multiplier apart, an exit line's kind, a submenu's target),
+   --  its range and step, and the text of a string, label or function call
+   --  line or a lookup table's text at the line's value. A number wider
+   --  than the signed word is held as the reference's integer conversion.
    type Line is record
       Text       : Label_Text;
       Flags      : Unsigned_16 := 0;
       Has_Data   : Boolean := False;
+      Has_Func   : Boolean := False;
       Value      : Integer_32 := 0;
+      Min        : Integer_32 := 0;
+      Max        : Integer_32 := 0;
+      Step       : Integer_32 := 0;
+      Multiplier : Natural range 0 .. 65_535 := 1;
       Value_Text : Label_Text;
    end record;
 
@@ -155,11 +162,11 @@ package Adaflight.Menu with SPARK_Mode is
    Max_Fixed : constant := 255 * 65_535;
    subtype Fixed_Value is Integer_32 range 0 .. Max_Fixed;
 
-   --  Every fixed-point line's value within the form's range, as the
-   --  product of a byte and a multiplier is.
+   --  Every fixed-point line's value a byte, so that its product with the
+   --  multiplier stays within the form's range.
    function Fixed_In_Range (M : Table) return Boolean is
      (for all I in 0 .. M.Count - 1 =>
-        (if Element_Of (M.Lines (I).Flags) = Fixed then M.Lines (I).Value in Fixed_Value));
+        (if Element_Of (M.Lines (I).Flags) = Fixed then M.Lines (I).Value in 0 .. 255));
 
    function Format_Fixed (Value : Fixed_Value) return Label_Text;
 
@@ -245,6 +252,6 @@ package Adaflight.Menu with SPARK_Mode is
    --  cleared, the motors stopped and shut down, a delay, and the reset.
    type Action is
      (Grab, Release, Clear, Layer_Select, Background, Redraw, Save_Config, Arming_Disabled, Stop_Motors,
-      Motor_Shutdown, Delay_Ms, System_Reset);
+      Motor_Shutdown, Delay_Ms, System_Reset, Set_Reboot_Required);
 
 end Adaflight.Menu;

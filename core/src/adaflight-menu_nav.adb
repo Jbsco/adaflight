@@ -185,16 +185,293 @@ package body Adaflight.Menu_Nav with SPARK_Mode is
    end Select_Page;
 
    procedure Draw (S : in out State; Sl : Adaflight.Menu.Slider_Settings; Now_Us, Now_Ms, Room : Unsigned_32) is
-      P              : constant Adaflight.Menu.Display_Index := S.Port;
       Back_Requested : Boolean;
    begin
-      Drawing.Draw
-        (P, S.Table, S.Id, S.Hooks.Update, S.Layout, S.Page, S.Draw, S.Ports (P), Sl, Now_Us, Now_Ms, Room,
-         Back_Requested);
+      if not S.In_Menu or else not S.Has_Menu then
+         return;
+      end if;
+      declare
+         P : constant Adaflight.Menu.Display_Index := S.Port;
+      begin
+         Drawing.Draw
+           (P, S.Table, S.Id, S.Hooks.Update, S.Layout, S.Page, S.Draw, S.Ports (P), Sl, Now_Us, Now_Ms, Room,
+            Back_Requested);
+      end;
       if Back_Requested then
          Back (S);
       end if;
    end Draw;
+
+   --  The line at an index of the current menu, the end marker past its
+   --  lines.
+   function Line_Of (S : State; Index : Natural) return Adaflight.Menu.Line is
+     (if Index < S.Table.Count then S.Table.Lines (Index)
+      else (Flags => Adaflight.Menu.Element'Pos (Adaflight.Menu.End_Marker), others => <>));
+
+   --  A number wrapped into a width, as the reference's assignments to the
+   --  narrower types do.
+   function Wrapped (X : Interfaces.Integer_64; Bits : Positive; Signed : Boolean) return Interfaces.Integer_32
+     with Pre  => Bits in 8 | 16 | 32,
+          Post => (if not Signed and then Bits = 8 then Wrapped'Result in 0 .. 255)
+                  and then (if not Signed and then Bits = 16 then Wrapped'Result in 0 .. 65_535)
+   is
+      use type Interfaces.Integer_64;
+      Modulus : constant Interfaces.Integer_64 := (if Bits = 8 then 256 elsif Bits = 16 then 65_536 else 4_294_967_296);
+      Half    : constant Interfaces.Integer_64 := Modulus / 2;
+      U       : constant Interfaces.Integer_64 := X mod Modulus;
+   begin
+      if Signed or else Bits = 32 then
+         return Interfaces.Integer_32 (if U >= Half then U - Modulus else U);
+      else
+         return Interfaces.Integer_32 (U);
+      end if;
+   end Wrapped;
+
+   --  The unsigned reading of a word held as the reference's integer.
+   function Unsigned_Word (X : Interfaces.Integer_32) return Interfaces.Unsigned_32 is
+     (Interfaces.Unsigned_32'Mod (X));
+
+   procedure Handle_Key
+     (S               : in out State;
+      Key             : Key_Code;
+      K               : Key_Settings;
+      Sl              : Adaflight.Menu.Slider_Settings;
+      Reboot_Required : Boolean;
+      Delay_Ms        : out Key_Delay)
+   is
+      use type Interfaces.Integer_32;
+      use type Interfaces.Integer_64;
+      use type Interfaces.Unsigned_8;
+      use type Interfaces.Unsigned_16;
+      use type Adaflight.Menu.Element;
+      Chain_Back : Boolean;
+      Ignore     : Boolean;
+
+      --  A value line's print mark, within the page's rows.
+      procedure Mark_Print (S : in out State) is
+      begin
+         if S.Draw.Cursor_Row <= Adaflight.Menu.Row'Last then
+            S.Page.Flags (S.Draw.Cursor_Row) := S.Page.Flags (S.Draw.Cursor_Row) or 16#20#;
+         end if;
+      end Mark_Print;
+
+      --  A number stepped up on the right key and down on any other, within
+      --  its range but wrapped in its width; a byte stays a byte.
+      procedure Step_Number (E : in out Adaflight.Menu.Line; Bits : Positive; Signed : Boolean)
+        with Pre  => Bits in 8 | 16 | 32,
+             Post => E.Flags = E.Flags'Old
+                     and then (if not Signed and then Bits = 8 then E.Value in 0 .. 255 or else E.Value = E.Value'Old)
+      is
+      begin
+         if Signed then
+            if Key = Right then
+               if E.Value < E.Max then
+                  E.Value := Wrapped (Interfaces.Integer_64 (E.Value) + Interfaces.Integer_64 (E.Step), Bits, True);
+               end if;
+            elsif E.Value > E.Min then
+               E.Value := Wrapped (Interfaces.Integer_64 (E.Value) - Interfaces.Integer_64 (E.Step), Bits, True);
+            end if;
+         else
+            if Key = Right then
+               if Unsigned_Word (E.Value) < Unsigned_Word (E.Max) then
+                  E.Value := Wrapped (Interfaces.Integer_64 (E.Value) + Interfaces.Integer_64 (E.Step), Bits, False);
+               end if;
+            elsif Unsigned_Word (E.Value) > Unsigned_Word (E.Min) then
+               E.Value := Wrapped (Interfaces.Integer_64 (E.Value) - Interfaces.Integer_64 (E.Step), Bits, False);
+            end if;
+         end if;
+      end Step_Number;
+   begin
+      Delay_Ms := Button_Time;
+      if not S.Has_Menu then
+         return;
+      end if;
+      if Key = Menu_Key then
+         Open (S, K.Start, K.Background);
+         Delay_Ms := Button_Pause;
+         return;
+      end if;
+      if Key = Esc then
+         if S.Draw.Element_Editing then
+            S.Draw.Element_Editing := False;
+         else
+            Back (S);
+         end if;
+         Delay_Ms := Button_Pause;
+         return;
+      end if;
+      if Key = Save_Menu and then not S.Save_Inhibited then
+         S.Draw.Element_Editing := False;
+         Change (S, (if Reboot_Required then K.Save_Exit_Reboot else K.Save_Exit));
+         Delay_Ms := Button_Pause;
+         return;
+      end if;
+      if Key = Down and then not S.Draw.Element_Editing then
+         if S.Draw.Cursor_Row < S.Page.Max_Row then
+            S.Draw.Cursor_Row := S.Draw.Cursor_Row + 1;
+         else
+            Page_Select (S, S.Page.Page + 1);
+            S.Draw.Cursor_Row := 0;
+         end if;
+      end if;
+      if Key = Up and then not S.Draw.Element_Editing then
+         declare
+            C : Integer range -1 .. Adaflight.Menu.Cursor'Last := S.Draw.Cursor_Row - 1;
+         begin
+            while C > 0 and then Adaflight.Menu.Skippable (Line_Of (S, S.Page.Top + C), Sl) loop
+               pragma Loop_Invariant (C in 1 .. Adaflight.Menu.Cursor'Last);
+               C := C - 1;
+            end loop;
+            if C = -1
+              or else Adaflight.Menu.Element_Of (Line_Of (S, S.Page.Top + C).Flags) = Adaflight.Menu.Label
+            then
+               Page_Select (S, S.Page.Page - 1);
+               C := S.Page.Max_Row;
+            end if;
+            S.Draw.Cursor_Row := C;
+         end;
+      end if;
+      pragma Assert_And_Cut (Consistent (S) and then S.In_Menu and then S.Has_Menu);
+      if (Key = Down or else Key = Up) and then not S.Draw.Element_Editing then
+         return;
+      end if;
+      declare
+         Index : constant Natural := S.Page.Top + S.Draw.Cursor_Row;
+      begin
+         if Index < S.Table.Count then
+            declare
+               Element  : constant Adaflight.Menu.Element := Adaflight.Menu.Element_Of (S.Table.Lines (Index).Flags);
+               Reboot   : constant Boolean := (S.Table.Lines (Index).Flags and Adaflight.Menu.Reboot_Required) /= 0;
+               Has_Data : constant Boolean := S.Table.Lines (Index).Has_Data;
+               Has_Func : constant Boolean := S.Table.Lines (Index).Has_Func;
+               Previous : constant Interfaces.Integer_32 := S.Table.Lines (Index).Value;
+            begin
+               case Element is
+                  when Adaflight.Menu.Submenu =>
+                     if Key = Right then
+                        if Previous in 0 .. Adaflight.Menu.Max_Menus - 1 then
+                           Change (S, Adaflight.Menu.Menu_Id (Previous));
+                        end if;
+                        Delay_Ms := Button_Pause;
+                     end if;
+                  when Adaflight.Menu.Funcall =>
+                     if Has_Func and then Key = Right then
+                        Line_Call (S.Id, Index, Chain_Back);
+                        if Chain_Back then
+                           Back (S);
+                        end if;
+                        if Reboot then
+                           Act (S.Port, Adaflight.Menu.Set_Reboot_Required, 0);
+                        end if;
+                        Delay_Ms := Button_Pause;
+                     end if;
+                  when Adaflight.Menu.OSD_Exit =>
+                     if Has_Func and then Key = Right then
+                        Exit_Menu (S, (if Previous in 0 .. 5 then Exit_Kind'Val (Previous) else Plain));
+                        Delay_Ms := Button_Pause;
+                     end if;
+                  when Adaflight.Menu.Back =>
+                     Back (S);
+                     Delay_Ms := Button_Pause;
+                     S.Draw.Element_Editing := False;
+                  when Adaflight.Menu.Bool =>
+                     if Has_Data then
+                        S.Table.Lines (Index).Value := (if Key = Right then 1 else 0);
+                        Mark_Print (S);
+                        Set_Value (S.Id, Index, S.Table.Lines (Index).Value);
+                        if Reboot and then S.Table.Lines (Index).Value /= Previous then
+                           Act (S.Port, Adaflight.Menu.Set_Reboot_Required, 0);
+                        end if;
+                        if Has_Func then
+                           Line_Call (S.Id, Index, Ignore);
+                        end if;
+                     end if;
+                  when Adaflight.Menu.Visible =>
+                     if Has_Data then
+                        declare
+                           Bits : Interfaces.Unsigned_16 := Interfaces.Unsigned_16 (Previous mod 65_536);
+                           Flag : constant Interfaces.Unsigned_16 :=
+                             Interfaces.Shift_Left (1, S.Draw.Profile_Cursor - 1 + Drawing.Profile_Bits_Position);
+                        begin
+                           if Key = Right and then not S.Draw.Element_Editing then
+                              S.Draw.Element_Editing := True;
+                              S.Draw.Profile_Cursor := 1;
+                           elsif S.Draw.Element_Editing then
+                              if Key = Right and then S.Draw.Profile_Cursor < Adaflight.Menu.Profile_Count then
+                                 S.Draw.Profile_Cursor := S.Draw.Profile_Cursor + 1;
+                              end if;
+                              if Key = Left and then S.Draw.Profile_Cursor > 1 then
+                                 S.Draw.Profile_Cursor := S.Draw.Profile_Cursor - 1;
+                              end if;
+                              if Key = Up then
+                                 Bits := Bits or Flag;
+                              end if;
+                              if Key = Down then
+                                 Bits := Bits and not Flag;
+                              end if;
+                           end if;
+                           S.Table.Lines (Index).Value := Interfaces.Integer_32 (Bits);
+                        end;
+                        Mark_Print (S);
+                        Set_Value (S.Id, Index, S.Table.Lines (Index).Value);
+                        if Reboot and then S.Table.Lines (Index).Value /= Previous then
+                           Act (S.Port, Adaflight.Menu.Set_Reboot_Required, 0);
+                        end if;
+                     end if;
+                  when Adaflight.Menu.UInt8 | Adaflight.Menu.Fixed | Adaflight.Menu.Int8 | Adaflight.Menu.UInt16
+                     | Adaflight.Menu.Int16 | Adaflight.Menu.UInt32 | Adaflight.Menu.Int32 =>
+                     if Has_Data then
+                        case Element is
+                           when Adaflight.Menu.UInt8 | Adaflight.Menu.Fixed =>
+                              Step_Number (S.Table.Lines (Index), 8, False);
+                           when Adaflight.Menu.Int8 =>
+                              Step_Number (S.Table.Lines (Index), 8, True);
+                           when Adaflight.Menu.UInt16 =>
+                              Step_Number (S.Table.Lines (Index), 16, False);
+                           when Adaflight.Menu.Int16 =>
+                              Step_Number (S.Table.Lines (Index), 16, True);
+                           when Adaflight.Menu.UInt32 =>
+                              Step_Number (S.Table.Lines (Index), 32, False);
+                           when others =>
+                              Step_Number (S.Table.Lines (Index), 32, True);
+                        end case;
+                        Mark_Print (S);
+                        Set_Value (S.Id, Index, S.Table.Lines (Index).Value);
+                        if Reboot and then S.Table.Lines (Index).Value /= Previous then
+                           Act (S.Port, Adaflight.Menu.Set_Reboot_Required, 0);
+                        end if;
+                        if Has_Func then
+                           Line_Call (S.Id, Index, Ignore);
+                        end if;
+                     end if;
+                  when Adaflight.Menu.Tab =>
+                     if Key = Right then
+                        if Previous < S.Table.Lines (Index).Max then
+                           S.Table.Lines (Index).Value := Previous + 1;
+                        end if;
+                     elsif Previous > 0 then
+                        S.Table.Lines (Index).Value := Previous - 1;
+                     end if;
+                     if S.Table.Lines (Index).Value in 0 .. 255 then
+                        S.Table.Lines (Index).Value_Text :=
+                          Lookup (S.Id, Index, Natural (S.Table.Lines (Index).Value));
+                     end if;
+                     Set_Value (S.Id, Index, S.Table.Lines (Index).Value);
+                     if Has_Func then
+                        Line_Call (S.Id, Index, Ignore);
+                     end if;
+                     Mark_Print (S);
+                     if Reboot and then S.Table.Lines (Index).Value /= Previous then
+                        Act (S.Port, Adaflight.Menu.Set_Reboot_Required, 0);
+                     end if;
+                  when Adaflight.Menu.Str | Adaflight.Menu.Label | Adaflight.Menu.End_Marker | Adaflight.Menu.Guard =>
+                     null;
+               end case;
+            end;
+         end if;
+         pragma Assert_And_Cut (Consistent (S));
+      end;
+   end Handle_Key;
 
    procedure Exit_Menu (S : in out State; Kind : Exit_Kind) is
       P           : constant Adaflight.Menu.Display_Index := S.Port;

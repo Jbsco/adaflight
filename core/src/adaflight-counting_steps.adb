@@ -76,6 +76,12 @@ package body Adaflight.Counting_Steps with SPARK_Mode is
       Chain_Back := Calls mod 2 = 0;
    end Step_Update;
 
+   procedure Step_Set_Value (Id : Menu.Menu_Id; Line : Natural; Value : Interfaces.Integer_32) is
+      pragma Unreferenced (Id, Line, Value);
+   begin
+      Calls := Counted (Calls);
+   end Step_Set_Value;
+
    procedure Step_Act (On : Menu.Display_Index; A : Menu.Action; Arg : Integer) is
       pragma Unreferenced (On, A, Arg);
    begin
