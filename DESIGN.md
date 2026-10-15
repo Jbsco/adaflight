@@ -4139,3 +4139,21 @@ The harness replays two sequences of 2350 command lines in all, recorded from th
 mode's rounds, each ended by a master or hardware diff, plain, bare or with defaults, or by a master
 or hardware dump with defaults or bare, 40 in all. With the earlier sequences, all 57570 replies
 match the reference's byte for byte, and so does the configuration's hash after every command.
+
+## D182. Command line dump of every profile (2026-10-14)
+
+`dump all` and `diff all` print the master dump or diff with every profile: after the master
+settings come each PID profile, the selected PID profile restored, each rate profile and each
+battery profile, then the selected rate and battery profiles restored and `save` without a line end
+in place of the batch's end. Unless bare, the MCU's unique id and the board's signature follow the
+board's lines, and a diff of every profile resets the configuration with `defaults nosave` after the
+batch's start. `bare` leaves out the batch, the restores, the save, the MCU id and the signature.
+The `mcu_id` command prints the MCU's id.
+
+`Environment` gains the MCU's unique id and the board's signature with whether it is set. An unset
+signature prints an empty `signature` line.
+
+The harness replays two sequences of 1022 command lines in all, recorded from the oracle with the
+MCU id 0, 1 and 2: the dump mode's rounds, each ended by a dump or diff of every profile, plain,
+bare or with defaults, or by `mcu_id`, 20 in all. With the earlier sequences, all 58592 replies
+match the reference's byte for byte, and so does the configuration's hash after every command.

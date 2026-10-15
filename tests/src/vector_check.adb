@@ -14105,7 +14105,10 @@ procedure Vector_Check is
       Build_Time      => CLI.To_Identity ("00:00:00"),
       Revision        => CLI.To_Identity ("0123abc"),
       Board_Name      => <>,
-      Manufacturer_Id => <>);
+      Manufacturer_Id => <>,
+      MCU_Id          => (0, 1, 2),
+      Signature       => <>,
+      Signature_Set   => False);
    CLI_Env      : CLI.Environment := CLI_Identity;
    CLI_Reply    : CLI_Sink;
    CLI_Expected : Ada.Strings.Unbounded.Unbounded_String;
@@ -14117,7 +14120,7 @@ procedure Vector_Check is
    --  range, and "!nav active state index distance bearing eta reason" sets
    --  the flight plan executor's report. The version line names the
    --  recording's firmware, target, version, build date, build time and
-   --  revision.
+   --  revision, and the MCU's id is the recording's 0, 1 and 2.
    procedure Check_CLI_Line is
       use Ada.Strings.Unbounded;
       use type Interfaces.Unsigned_64;
@@ -18378,6 +18381,7 @@ begin
    Run (Dir & "/cliwp.csv", "cliset");
    Run (Dir & "/clidump.csv", "cliset");
    Run (Dir & "/clidiff.csv", "cliset");
+   Run (Dir & "/cliall.csv", "cliset");
    if Settings_Seen /= Adaflight.Settings_Table.Setting'Pos (Adaflight.Settings_Table.Setting'Last) + 1 then
       Put_Line ("settings: the vectors hold" & Settings_Seen'Image & " settings");
       Failures := Failures + 1;

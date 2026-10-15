@@ -3587,8 +3587,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Beeper_Command_Word, Color_Command_Word, Diff_Command, Dump_Command, Feature_Command_Word, Get_Command,
       Led_Command_Word, Map_Command_Word, Mode_Color_Command_Word,
       Mixer_Command_Word, Motor_Mix_Command_Word, Profile_Command, Rate_Profile_Command, Rx_Failsafe_Command,
-      Rx_Range_Command, Serial_Command_Word, Servo_Command_Word, Servo_Mix_Command_Word, Set_Command,
-      Version_Command_Word, Vtx_Command_Word, Vtx_Table_Command_Word, Waypoint_Command_Word);
+      MCU_Id_Command_Word, Rx_Range_Command, Serial_Command_Word, Servo_Command_Word, Servo_Mix_Command_Word,
+      Set_Command, Version_Command_Word, Vtx_Command_Word, Vtx_Table_Command_Word, Waypoint_Command_Word);
    subtype Known_Command is Command_Kind range Adjustment_Range_Command_Word .. Waypoint_Command_Word;
 
    function Command_Word (K : Known_Command) return String is
@@ -3606,6 +3606,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when Led_Command_Word => "led",
          when Mode_Color_Command_Word => "mode_color",
          when Map_Command_Word => "map",
+         when MCU_Id_Command_Word => "mcu_id",
          when Mixer_Command_Word => "mixer",
          when Motor_Mix_Command_Word => "mmix",
          when Profile_Command => "profile",
@@ -3740,16 +3741,83 @@ package body Adaflight.Command_Line with SPARK_Mode is
          Heading => "waypoint");
    end Put_Sections;
 
+   Hex_Digits : constant String (1 .. 16) := "0123456789abcdef";
+
+   --  A number's low hexadecimal digits in lower case.
+   function Hex_Text (V : Unsigned_32; Width : Positive) return String
+     with Pre => Width <= 8, Post => Hex_Text'Result'Length = Width
+   is
+      Text : String (1 .. Width);
+   begin
+      for K in 1 .. Width loop
+         Text (K) := Hex_Digits (Natural (Shift_Right (V, 4 * (Width - K)) and 16#F#) + 1);
+      end loop;
+      return Text;
+   end Hex_Text;
+
+   --  The MCU's unique id as 24 hexadecimal digits.
+   procedure Put_MCU_Id (Into : in out Sink; Id : MCU_Words) is
+   begin
+      Put (Into, "mcu_id " & Hex_Text (Id (1), 8) & Hex_Text (Id (2), 8) & Hex_Text (Id (3), 8) & CRLF);
+   end Put_MCU_Id;
+
+   --  The board's signature as 64 hexadecimal digits, or nothing when it is
+   --  not set.
+   procedure Put_Signature (Into : in out Sink; Env : Environment) is
+   begin
+      Put (Into, "signature ");
+      if Env.Signature_Set then
+         for B of Env.Signature loop
+            Put (Into, Hex_Text (Unsigned_32 (B), 2));
+         end loop;
+      end if;
+      Put (Into, CRLF);
+   end Put_Signature;
+
+   --  Every PID profile, the selected PID profile, every rate profile and
+   --  every battery profile; unless bare, the selected profiles restored and
+   --  a save without its line end.
+   procedure Dump_Every_Profile
+     (Into : in out Sink; C : Configuration; Command : String; Mode : Dump_Mode; Bare : Boolean; Ports : Port_List)
+     with Pre => Ports'Length <= Serial_Feature_Map.Max_Ports
+   is
+   begin
+      for Index in 0 .. Pid_Profile_Record_List_4'Length - 1 loop
+         Dump_Profile (Into, C, PID, Index, Command, Mode, Ports);
+      end loop;
+      if not Bare then
+         Put_Hash_Line (Into, "restore original profile selection");
+         Put (Into, "profile " & Decimal (Integer_64 (C.System_Config.Pid_Profile_Index)) & CRLF);
+      end if;
+      for Index in 0 .. Control_Rate_Config_Record_List_4'Length - 1 loop
+         Dump_Profile (Into, C, Rate, Index, Command, Mode, Ports);
+      end loop;
+      for Index in 0 .. Battery_Profile_Record_List_3'Length - 1 loop
+         Dump_Profile (Into, C, Battery, Index, Command, Mode, Ports);
+      end loop;
+      if not Bare then
+         Put_Hash_Line (Into, "restore original rateprofile selection");
+         Put (Into, "rateprofile " & Decimal (Integer_64 (C.System_Config.Active_Rate_Profile)) & CRLF);
+         Put_Hash_Line (Into, "restore original battery_profile selection");
+         Put (Into, "battery_profile " & Decimal (Integer_64 (C.System_Config.Active_Battery_Profile)) & CRLF);
+         Put_Hash_Line (Into, "save configuration");
+         Put (Into, "save");
+      end if;
+   end Dump_Every_Profile;
+
    --  The master dump: the version line with the default board identifier,
    --  the command batch's start, the board's name and manufacturer, the craft
    --  name, the features, the sections from the mixer on, and the master
    --  settings, then the selected profiles and the batch's end. A bare dump
    --  leaves out the batch; a diff leaves out an empty board name,
    --  manufacturer and craft name. The hardware dump keeps the board's lines,
-   --  the features and the hardware settings.
+   --  the features and the hardware settings. The dump of every profile adds
+   --  the MCU's id and the board's signature unless bare, and ends with
+   --  every profile, for a diff after a reset to the defaults at the batch's
+   --  start.
    procedure Dump_Master
      (Into : in out Sink; C : Configuration; Env : Environment; Command : String; Mode : Dump_Mode; Bare : Boolean;
-      Hardware_Only : Boolean; Ports : Port_List)
+      Hardware_Only : Boolean; Every_Profile : Boolean; Ports : Port_List)
      with Pre => Valid (Current (C)) and then Ports'Length <= Serial_Feature_Map.Max_Ports
    is
       Craft : constant String := Stored_Text (C.Pilot_Config.Craft_Name);
@@ -3759,6 +3827,10 @@ package body Adaflight.Command_Line with SPARK_Mode is
       if not Bare then
          Put_Hash_Line (Into, "start the command batch");
          Put (Into, "batch start" & CRLF);
+         if Every_Profile and then Mode.Diff then
+            Put_Hash_Line (Into, "reset configuration to default settings");
+            Put (Into, "defaults nosave" & CRLF);
+         end if;
       end if;
       Put (Into, CRLF);
       if not Mode.Diff or else Env.Board_Name.Length > 0 then
@@ -3771,6 +3843,10 @@ package body Adaflight.Command_Line with SPARK_Mode is
          Put (Into, Text_Of (Env.Manufacturer_Id));
          Put (Into, CRLF);
       end if;
+      if Every_Profile and then not Bare then
+         Put_MCU_Id (Into, Env.MCU_Id);
+         Put_Signature (Into, Env);
+      end if;
       if not Hardware_Only and then Shows_Line (Mode, Craft'Length = 0) then
          Put (Into, CRLF & "# name: ");
          Put (Into, (if Craft'Length = 0 then "-" else Craft));
@@ -3782,23 +3858,27 @@ package body Adaflight.Command_Line with SPARK_Mode is
       else
          Put_Sections (Into, C, Mode);
          Dump_Values (Into, C, Master, Current (C), "master", Command, Mode, Ports);
-         Dump_Profile (Into, C, PID, Natural (C.System_Config.Pid_Profile_Index), Command, Mode, Ports);
-         Dump_Profile (Into, C, Rate, Natural (C.System_Config.Active_Rate_Profile), Command, Mode, Ports);
-         Dump_Profile (Into, C, Battery, Natural (C.System_Config.Active_Battery_Profile), Command, Mode, Ports);
+         if Every_Profile then
+            Dump_Every_Profile (Into, C, Command, Mode, Bare, Ports);
+         else
+            Dump_Profile (Into, C, PID, Natural (C.System_Config.Pid_Profile_Index), Command, Mode, Ports);
+            Dump_Profile (Into, C, Rate, Natural (C.System_Config.Active_Rate_Profile), Command, Mode, Ports);
+            Dump_Profile (Into, C, Battery, Natural (C.System_Config.Active_Battery_Profile), Command, Mode, Ports);
+         end if;
       end if;
-      if not Bare then
+      if not Bare and then not Every_Profile then
          Put_Hash_Line (Into, "end the command batch");
          Put (Into, "batch end" & CRLF);
       end if;
    end Dump_Master;
 
    --  dump or diff: a profile's or a rate profile's settings, or the master
-   --  or hardware dump, each with defaults after the option defaults and the
-   --  master and hardware dumps without the command batch after the option
-   --  bare; Known is false for the dump of every profile.
+   --  dump, the hardware dump or the dump of every profile, each with defaults
+   --  after the option defaults, and the last three without the command batch
+   --  after the option bare.
    procedure Print_Config
      (Into : in out Sink; C : Configuration; Env : Environment; Buffer : Line_Buffer; Arguments : Positive;
-      Command : String; Diff : Boolean; Ports : Port_List; Known : out Boolean)
+      Command : String; Diff : Boolean; Ports : Port_List)
      with Pre => Valid (Current (C)) and then Ports'Length <= Serial_Feature_Map.Max_Ports
    is
       Master_At     : constant Natural := Command_At (Buffer, Arguments, "master");
@@ -3817,16 +3897,13 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Bare          : constant Boolean := not Show_Defaults and then Command_At (Buffer, Options, "bare") > 0;
       Mode          : constant Dump_Mode := (Diff => Diff, Show_Defaults => Show_Defaults);
    begin
-      Known := False;
       if Profile_At > 0 or else Rates_At > 0 then
-         Known := True;
          Dump_Profile
            (Into, C, (if Profile_At > 0 then PID else Rate),
             Natural (if Profile_At > 0 then C.System_Config.Pid_Profile_Index else C.System_Config.Active_Rate_Profile),
             Command, Mode, Ports);
-      elsif All_At = 0 then
-         Known := True;
-         Dump_Master (Into, C, Env, Command, Mode, Bare, Hardware_At > 0, Ports);
+      else
+         Dump_Master (Into, C, Env, Command, Mode, Bare, Hardware_At > 0, All_At > 0, Ports);
       end if;
    end Print_Config;
 
@@ -3893,9 +3970,11 @@ package body Adaflight.Command_Line with SPARK_Mode is
             Beeper_Command
               (Into, "beeper", C.Beeper_Config.Beeper_Off_Flags, Beeper_Allowed, Text_At (Buffer, Arguments));
          when Diff_Command =>
-            Print_Config (Into, C, Env, Buffer, Arguments, "diff", True, Ports, Known);
+            Known := True;
+            Print_Config (Into, C, Env, Buffer, Arguments, "diff", True, Ports);
          when Dump_Command =>
-            Print_Config (Into, C, Env, Buffer, Arguments, "dump", False, Ports, Known);
+            Known := True;
+            Print_Config (Into, C, Env, Buffer, Arguments, "dump", False, Ports);
          when Feature_Command_Word =>
             Known := True;
             Feature_Command (Into, C, Text_At (Buffer, Arguments));
@@ -3914,6 +3993,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when Map_Command_Word =>
             Known := True;
             Map_Command (Into, C, Text_At (Buffer, Arguments));
+         when MCU_Id_Command_Word =>
+            Known := True;
+            Put_MCU_Id (Into, Env.MCU_Id);
          when Mixer_Command_Word =>
             Known := True;
             Mixer_Command (Into, C.Mixer_Config.Mixer_Mode, Text_At (Buffer, Arguments));
