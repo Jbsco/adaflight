@@ -4429,3 +4429,25 @@ starts and ends in any case and with trailing text, settings and commands with a
 between them, unknown lines, stored values past a setting's range and their gets, diffs and resets
 inside batches, and batch commands with bad options. With the earlier sequences, all 62611 replies
 match the reference's byte for byte, and so does the configuration's hash after every command.
+
+## D190. Core loop cadence and yaw reset (2026-10-14)
+
+`Adaflight.Core_Loop` holds the core loop's cadence: a counter of gyro samples that starts over at
+a multiple of the PID loop ratio and counts from one, with the gyro filtering ready when the count
+reaches the ratio and the controller ready halfway through it, the integer half, so a ratio of one
+runs both on every sample. The counter is a byte and wraps at 256 should the ratio shrink under it.
+`Resets_Yaw` is the stick rule before the RC command: the yaw command is reset while arming by stick
+with the throttle at or below the minimum check, both in normalized units, except on a tricopter
+whose servo moves when disarmed and on the fixed wings. The subtask sequence over the units, the RC
+command, the launch wing, the controller, the mixer with its servos and motors, and the flight log,
+is the target phase's main loop.
+
+`Arming.Try_Arm` keeps the gyro's first arming calibration latch: the calibration starts once, and
+the status check inside the arming attempt sees it running. A stick calibration earlier in the same
+pass is read from the step's state before the pass.
+
+The harness replays the cadence and the yaw rule on every step of the arming recordings, 15000
+steps of one to three samples each over loop ratios of one to eight, and compares the counter, both
+ready flags and the yaw reset with the reference's. The recordings hold the calibration state before
+each step's commands for the receiver pass and the state after them for the PID loop and the final
+status update, which a stick calibration in the same step as an arming attempt tells apart.
