@@ -129,6 +129,8 @@ The core contains:
 - command line simplified tuning: apply and disable over stored profiles and gyro settings
 - command line defaults: whole and single-group resets without save
 - command line batches: batch start and end with error flag, unknown line reply
+- command line tasks: task list with rates, execution times and loads, check functions and total
+  load lines, peak time resets
 - core loop cadence: PID loop sample counter, filter and controller readiness, yaw reset at low
   throttle while arming by stick
 - PID loop pass: unit order of task, with launch wing, runaway check, PID audio, servos and flight
@@ -179,10 +181,10 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 23449 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 23578 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
 - Recorded vectors replay bit for bit: 1753568 lines over 384 cases, every case exact except
-  forty-four declared deviations in `DESIGN.md` D6.
+  forty-five declared deviations in `DESIGN.md` D6.
 - No target builds yet. `ROADMAP.md` contains phases, parity inventory, and one question for after
   parity: whether a proved core leaves room on F4 boards for features Betaflight has to leave out
   there.
