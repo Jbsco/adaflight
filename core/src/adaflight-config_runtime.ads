@@ -7,11 +7,13 @@ with Adaflight.Axes; use Adaflight.Axes;
 with Adaflight.Config_Fix;
 with Adaflight.Config_Groups; use Adaflight.Config_Groups;
 with Adaflight.Dyn_Notch;
+with Adaflight.Failsafe;
 with Adaflight.Gyro_Filters;
 with Adaflight.Mixer;
 with Adaflight.PID_Config;
 with Adaflight.PID_Profile; use Adaflight.PID_Profile;
 with Adaflight.Rates;
+with Adaflight.Receiver;
 with Adaflight.RPM_Filter;
 with Adaflight.Sensor_Alignment;
 
@@ -23,6 +25,22 @@ package Adaflight.Config_Runtime with SPARK_Mode is
    --  The rate profile from a stored rate profile; the rates have no order
    --  rule, so nothing is asked of the fix.
    function Rate_Profile_Of (R : Control_Rate_Config_Record) return Rates.Profile;
+
+   --  The failsafe settings from the stored failsafe group and the
+   --  autopilot's loss policy.
+   function Failsafe_Settings_Of (F : Failsafe_Config_Record; A : Autopilot_Config_Record) return Failsafe.Settings;
+
+   --  The receiver settings from the stored receiver, channel range,
+   --  channel failsafe, 3D and failsafe groups, the features in use, which
+   --  name the source as the reference's receiver setup does, and the
+   --  channel count the protocol reports. An equal channel range is widened
+   --  by one step and a zero frame period reads as one (D6).
+   function Receiver_Settings_Of
+     (R : Rx_Config_Record; Ranges : Rx_Channel_Range_Config_Record_List_4;
+      Failsafes : Rx_Failsafe_Channel_Config_Record_List_18; Flight_3D : Flight3_D_Config_Record;
+      F : Failsafe_Config_Record; Features : Unsigned_32; Reported_Channels : Natural)
+      return Receiver.Settings
+     with Pre => Reported_Channels <= Receiver.Channel_Count;
 
    --  The gyro settings from the stored gyro, dynamic notch, RPM filter,
    --  gyro device, board alignment, motor and PID loop groups, with what the
@@ -180,6 +198,58 @@ private
       Throttle_Mid   => Held (Integer (R.Thr_Mid8), 0, 100),
       Throttle_Expo  => Held (Integer (R.Thr_Expo8), 0, 100),
       Throttle_Hover => Held (Integer (R.Thr_Hover8), 0, 100));
+
+   function Failsafe_Settings_Of (F : Failsafe_Config_Record; A : Autopilot_Config_Record) return Failsafe.Settings is
+     (Throttle_Low_Delay => Held (Integer (F.Failsafe_Throttle_Low_Delay), 0, 300),
+      Signal_Delay       => Held (Integer (F.Failsafe_Delay), 1, 200),
+      Landing_Time       => Held (Integer (F.Failsafe_Landing_Time), 0, 250),
+      Switch             => Failsafe.Switch_Mode'Val (Code (F.Failsafe_Switch_Mode, 2)),
+      Action             => Failsafe.Procedure_Kind'Val (Code (F.Failsafe_Procedure, 2)),
+      Recovery_Delay     => Held (Integer (F.Failsafe_Recovery_Delay), 1, 200),
+      Policy             => Failsafe.Loss_Policy'Val (Code (A.Rx_Loss_Policy, 2)));
+
+   --  The receiver source the features name, in the setup's order of
+   --  precedence; the UDP source needs a build the boards do not have.
+   function Source_Of (Features : Unsigned_32) return Receiver.Provider is
+     (if (Features and Config_Fix.Feature_RX_Parallel_PWM) /= 0 then Receiver.Parallel_PWM
+      elsif (Features and Config_Fix.Feature_RX_PPM) /= 0 then Receiver.PPM
+      elsif (Features and Config_Fix.Feature_RX_Serial) /= 0 then Receiver.Serial
+      elsif (Features and Config_Fix.Feature_RX_MSP) /= 0 then Receiver.MSP
+      elsif (Features and Config_Fix.Feature_RX_SPI) /= 0 then Receiver.SPI
+      else Receiver.None);
+
+   function Map_Of (Rcmap : Bytes_8) return Receiver.Channel_Map;
+   function Ranges_Of (Ranges : Rx_Channel_Range_Config_Record_List_4) return Receiver.Range_Configs;
+   function Failsafes_Of (Failsafes : Rx_Failsafe_Channel_Config_Record_List_18) return Receiver.Failsafe_Channels;
+   function Channels_Of (Mask : Unsigned_32) return Receiver.Channel_Set;
+
+   function Receiver_Settings_Of
+     (R : Rx_Config_Record; Ranges : Rx_Channel_Range_Config_Record_List_4;
+      Failsafes : Rx_Failsafe_Channel_Config_Record_List_18; Flight_3D : Flight3_D_Config_Record;
+      F : Failsafe_Config_Record; Features : Unsigned_32; Reported_Channels : Natural)
+      return Receiver.Settings is
+     (Source            => Source_Of (Features),
+      Reported_Channels => Reported_Channels,
+      Map               => Map_Of (R.Rcmap),
+      Ranges            => Ranges_Of (Ranges),
+      Failsafe          => Failsafes_Of (Failsafes),
+      Min_Usec          => Held (Integer (R.Rx_Min_Usec), Receiver.Pulse_Min, Receiver.Pulse_Max),
+      Max_Usec          => Held (Integer (R.Rx_Max_Usec), Receiver.Pulse_Min, Receiver.Pulse_Max),
+      Mid_RC            => Held (Integer (R.Midrc), 1200, 1700),
+      Max_Aux           =>
+        Held (Integer (R.Max_Aux_Channel), 0, Receiver.Channel_Count - Receiver.Flight_Channel_Count),
+      RSSI_ADC          => (Features and Config_Fix.Feature_RSSI_ADC) /= 0,
+      RSSI_Channel      => Held (Integer (R.Rssi_Channel), 0, Receiver.Channel_Count),
+      RSSI_Scale        => Held (Integer (R.Rssi_Scale), 1, 255),
+      RSSI_Offset       => Held (Integer (R.Rssi_Offset), -100, 100),
+      RSSI_Invert       => R.Rssi_Invert /= 0,
+      RSSI_Smoothing    => Integer (R.Rssi_Smoothing),
+      Frame_LPF_Period  => Held (Integer (R.Rssi_Src_Frame_Lpf_Period), 1, 255),
+      Feature_3D        => (Features and Config_Fix.Feature_3D) /= 0,
+      Switched_Mode_3D  => Flight_3D.Switched_Mode3d /= 0,
+      Failsafe_Throttle => Held (Integer (F.Failsafe_Throttle), Receiver.Pulse_Min, Receiver.Pulse_Max),
+      Override_Channels => Channels_Of (R.Msp_Override_Channels_Mask),
+      Override_Failsafe => R.Msp_Override_Failsafe /= 0);
 
    function Gyro_Settings_Of
      (G : Gyro_Config_Record; N : Dyn_Notch_Config_Record; R : Rpm_Filter_Config_Record;

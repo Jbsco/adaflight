@@ -250,6 +250,9 @@ ledger. The deviations so far:
   each code to its names (D187), where the reference computes with the stored value. A stored value
   leaves its setting's range only through a foreign image, and the recorded configurations keep
   every value within it.
+- The runtime receiver settings widen an equal channel range by one step and read a zero RSSI frame
+  period as one (D187), where the reference scales by a zero span and divides a filter gain by zero.
+  The recorded configurations keep their ranges apart and their periods above zero.
 
 ## D7. Contribution conventions (2026-10-08)
 
@@ -4260,6 +4263,14 @@ scale, the motors in use and whether the gyro protects against overflow.
 `Config_Fix.Fixed_Gyro_Filters` is the gyro filter checks' postcondition and the constructor's
 precondition in the same way.
 
+`Failsafe_Settings_Of` builds `Failsafe.Settings` from the stored failsafe group and the autopilot's
+loss policy. `Receiver_Settings_Of` builds `Receiver.Settings` from the stored receiver, channel
+range, channel failsafe, 3D and failsafe groups, the features in use, which name the source in the
+order the reference's receiver setup gives them, and the channel count the protocol reports. The
+receiver's failsafe throttle takes the full pulse range its setting has, where the port had held it
+to 1000 to 2000. An equal channel range is widened by one step, and a zero RSSI frame period reads
+as one (D6).
+
 The harness builds the four PID profiles and the four rate profiles of every fixed configuration in
 the configuration fix recordings, 16000 of each, and the gyro settings of each with a running gyro
 and motors, 3082, with the preconditions and the predicates checked at run time, and compares the
@@ -4284,8 +4295,7 @@ the rescue, when the mission ended or never engaged, and sounds the landing tone
 plain GPS rescue stage of a build without the flight plan is in the state machine but not entered,
 as in the reference's build with it.
 
-The failsafe's inputs gain the autopilot flight mode, whether the executor flies a plan, whether
-that plan ended, whether a rescue plan is possible and whether the sticks moved; its settings gain
-the autopilot's loss policy. The harness replays 30 regenerated sequences of 300 steps with the
-procedure drawn from all three, the policy from all three and the new inputs drawn each step: 42
-steps in the autopilot stage, every state field, flag, tone and staging request exact.
+The harness builds the four PID profiles and the four rate profiles of every fixed configuration in
+the configuration fix recordings, 16000 of each, the failsafe and receiver settings of each, 4000 of
+each, and the gyro settings of each with a running gyro and motors, 3082, with the preconditions and
+the predicates checked at run time, and compares one field of each.

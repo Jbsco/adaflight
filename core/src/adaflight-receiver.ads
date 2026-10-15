@@ -82,7 +82,7 @@ package Adaflight.Receiver with SPARK_Mode is
       Frame_LPF_Period  : Natural range 1 .. 255 := 30;
       Feature_3D        : Boolean := False;
       Switched_Mode_3D  : Boolean := False;
-      Failsafe_Throttle : Natural range 1000 .. 2000 := 1000;
+      Failsafe_Throttle : Pulse_Us := 1000;
       Override_Channels : Channel_Set := (others => False);
       Override_Failsafe : Boolean := False;
    end record;
