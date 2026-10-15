@@ -5227,3 +5227,29 @@ reaches the guard.
 The command line oracle records the time, the accuracies, the dilution and the course beside the
 solution. The harness replays two sequences of 600 requests, 925 sensor messages of every length
 around their 52 bytes and 275 raw GPS messages: every handed-on value matches the reference's.
+## D225. MT rangefinder and optical flow bridge (2026-10-15)
+
+`Adaflight.MT_Sensor` contains the bridge an MT device uses to send its distance and its flow over
+MSP, and `Adaflight.MSP_Runtime_In` gains the two messages, which hand on the distance in millimeters
+and the flow's quality and motion. Both read zero past a short request's end, where the reference
+reads past the payload (finding F200). The configured rangefinder hardware picks the device: MTF01,
+MTF02, MTF01P or MTF02P with its delay and range, none otherwise. A distance is new until a read
+takes it, which gives the distance in centimeters or out of range for a negative one, and no new
+data after. A flow message stamps its sample, and the interval since the last sample, valid within
+a second, turns the motion into rates and the quality into percent. The distance gives the range
+validity at 80 mm or more and no older than five of the device's delays, and an invalid range or a
+stale distance replaces the quality with its code. The distance's time starts at the no new data
+code (finding F202), and the 80 mm minimum is the one the reference also gives the device as
+centimeters (finding F203). The unit is SPARK for the interval's division and the bounds it hands
+on.
+
+A flow message before an MT device is detected changes nothing, where the reference reads the
+missing device's delay through a null pointer (finding F200). A read holds a distance at the
+rangefinder readings' bound of 40000 cm, and a flow sample holds its rates at the optical flow
+readings' bound of 1e6 rad/s. No recorded vector reaches these guards.
+
+The command line oracle compiles the reference driver in, scripts the detection and the rangefinder
+read with directives, and records the driver's state after each and after each message. The harness
+replays two sequences of 600 lines among clock steps, detections, reads and messages of every
+length: in 820 records every distance, read, time stamp, quality, rate and validity matches the
+reference's.

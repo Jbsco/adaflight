@@ -69,6 +69,14 @@ package body Adaflight.MSP_Runtime_In with SPARK_Mode is
             E.GPS := True;
          when Sensor_GPS_Command =>
             Set_Sensor_GPS (Request, E);
+         when MT_Range_Command =>
+            E.MT_Distance_Mm := S32 (Request, 1);
+            E.MT_Range := True;
+         when MT_Flow_Command =>
+            E.MT_Quality := Byte (U8 (Request, 0));
+            E.MT_Motion_X := S32 (Request, 1);
+            E.MT_Motion_Y := S32 (Request, 5);
+            E.MT_Flow := True;
          when Set_TX_Info_Command =>
             E.RSSI_Value := Byte (U8 (Request, 0));
             E.RSSI := True;

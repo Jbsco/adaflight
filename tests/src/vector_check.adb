@@ -138,6 +138,7 @@ with Adaflight.MSP_OSD_In;
 with Adaflight.MSP_Profile_In;
 with Adaflight.MSP_VTX_In;
 with Adaflight.MSP_Runtime_In;
+with Adaflight.MT_Sensor;
 with Adaflight.MSP_Board_In;
 with Adaflight.MSP_Motor_In;
 with Adaflight.MSP_Font_In;
@@ -14590,6 +14591,9 @@ procedure Vector_Check is
    MSP_VTX_Device  : Adaflight.MSP_VTX_In.Device;
    MSP_VTX_Running : Adaflight.VTX_Table.Table;
    MSP_Runtime_Effects : Adaflight.MSP_Runtime_In.Effects;
+   MT_State            : Adaflight.MT_Sensor.State;
+   MT_Read             : Adaflight.Rangefinder.Reading := 0;
+   MT_Reads            : Boolean := False;
    MSP_Board_Effects   : Adaflight.MSP_Board_In.Effects;
    MSP_Motor_Effects   : Adaflight.MSP_Motor_In.Effects;
    MSP_Motor_Kind      : Adaflight.MSP_Motor_In.Device_Kind := Adaflight.MSP_Motor_In.No_Device;
@@ -14666,6 +14670,9 @@ procedure Vector_Check is
             MSP_Three_D := False;
             MSP_OSD_Port := False;
             MSP_OSD_Port_Takes := False;
+            MT_State := (others => <>);
+            MT_Read := 0;
+            MT_Reads := False;
          end if;
          CLI_Reply.Target.Text := Null_Unbounded_String;
          CLI_Expected := Null_Unbounded_String;
@@ -14752,6 +14759,11 @@ procedure Vector_Check is
                MSP_Log.State := Adaflight.Blackbox.Log_State'Val (Natural'Value (Word (Command, 1)));
                MSP_Log.I_Interval := Interfaces.Integer_16'Value (Word (Command, 2));
                MSP_Loop_Time := Adaflight.Blackbox.Loop_Time_Us'Value (Word (Command, 3));
+            elsif Word (Command, 0) = "!mt" then
+               MT_State.Conf := Adaflight.MT_Sensor.Detect (Interfaces.Unsigned_8'Value (Word (Command, 1)));
+            elsif Word (Command, 0) = "!mtread" then
+               Adaflight.MT_Sensor.Range_Read (MT_State, MT_Read);
+               MT_Reads := True;
             elsif Word (Command, 0) = "!msc" then
                MSP_Board.MSC_Ready := Word (Command, 1) /= "0";
             elsif Word (Command, 0) = "!osdport" then
@@ -14850,6 +14862,15 @@ procedure Vector_Check is
                         Runtime_Result : Adaflight.MSP_Runtime_In.Result;
                      begin
                         Adaflight.MSP_Runtime_In.Process (Cmd, Request, Runtime_Result, MSP_Runtime_Effects);
+                        if MSP_Runtime_Effects.MT_Range then
+                           Adaflight.MT_Sensor.Range_Receive
+                             (MT_State, MSP_Runtime_Effects.MT_Distance_Mm, CLI_Env.Now_Us);
+                        end if;
+                        if MSP_Runtime_Effects.MT_Flow then
+                           Adaflight.MT_Sensor.Flow_Receive
+                             (MT_State, MSP_Runtime_Effects.MT_Quality, MSP_Runtime_Effects.MT_Motion_X,
+                              MSP_Runtime_Effects.MT_Motion_Y, CLI_Env.Now_Us);
+                        end if;
                         MSP_In_Result :=
                           (if Runtime_Result = Adaflight.MSP_Runtime_In.Ack then Adaflight.MSP_Tuning_In.Ack
                            else Adaflight.MSP_Tuning_In.Error);
@@ -15118,6 +15139,24 @@ procedure Vector_Check is
          for M in Adaflight.MSP_Motor_In.Motor_Values'Range loop
             Record_Result ("msp.motor_value", Unsigned_32'Value (Str (3 + M)), To_Bits (MSP_Motor_Effects.Values (M)));
          end loop;
+      elsif Str (1) = "clmt" then
+         Record_Int ("mt.present", Int (3), Boolean'Pos (MT_State.Conf.Present));
+         Record_Int ("mt.delay", Int (4), Integer_64 (MT_State.Conf.Delay_Ms));
+         Record_Int ("mt.max_range", Int (5), Integer_64 (MT_State.Conf.Max_Range_Cm));
+         Record_Int ("mt.reads", Int (6), Boolean'Pos (MT_Reads));
+         Record_Int ("mt.read", Int (7), Integer_64 (MT_Read));
+         Record_Int ("mt.range_new", Int (8), Boolean'Pos (MT_State.Range_New));
+         Record_Int ("mt.distance", Int (9), Integer_64 (MT_State.Distance_Mm));
+         Record_Int ("mt.range_time", Int (10), Integer_64 (MT_State.Range_Time_Us));
+         Record_Int ("mt.flow_time", Int (11), Integer_64 (MT_State.Flow.Time_Stamp_Us));
+         Record_Int ("mt.quality", Int (12), Integer_64 (MT_State.Flow.Quality));
+         Record_Result ("mt.flow_x", Unsigned_32'Value (Str (13)), To_Bits (MT_State.Flow.Flow_X));
+         Record_Result ("mt.flow_y", Unsigned_32'Value (Str (14)), To_Bits (MT_State.Flow.Flow_Y));
+         Record_Int ("mt.range_valid", Int (15), Boolean'Pos (MT_State.Range_Valid));
+         Record_Int ("mt.flow_valid", Int (16), Boolean'Pos (MT_State.Flow_Valid));
+         Record_Int ("mt.dt_valid", Int (17), Boolean'Pos (MT_State.Dt_Valid));
+         MT_Reads := False;
+         MT_Read := 0;
       elsif Str (1) = "clv" then
          declare
             E : Adaflight.MSP_Runtime_In.Effects renames MSP_Runtime_Effects;
