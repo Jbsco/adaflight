@@ -243,6 +243,9 @@ ledger. The deviations so far:
   reference writes past its text buffers from five digits and writes the flag's value before its
   frequency buffer (findings F167, F168), and a stored count past eight lists and clears eight. The
   recorded command lines give every count its number and keep values to four digits.
+- The simplified tuning of a stored PIDs mode past RPY covers every axis, where the reference's axis
+  loop runs to the mode's value and reads past its default gains (findings F177). The recorded
+  configurations keep the mode within its names.
 
 ## D7. Contribution conventions (2026-10-08)
 
@@ -4178,3 +4181,22 @@ The harness replays two sequences of 800 command lines in all, recorded from the
 length, malformed signature pairs, values for stored information, `version` lines and diffs. With
 the earlier sequences, all 59392 replies match the reference's byte for byte, and so does the
 configuration's hash after every command.
+
+## D184. Command line simplified tuning (2026-10-14)
+
+`Adaflight.Simplified_Tuning.Stored` applies the simplified tuning to a stored PID profile and the
+stored gyro settings, and the command line's `simplified_tuning` applies it to every PID profile
+with the gyro settings, or turns every slider off. Any other argument is the parse error. The stored
+version reads the sliders, the mode and the lowpass cutoffs from the configuration's fields with no
+runtime record between them, so a lowpass minimum above its maximum computes as stored.
+
+`Simplified_Tuning`'s private part contains the arithmetic both versions share: each axis's gains
+and D max through the sliders, and the scaled cutoffs. A slider factor reaches 2.55, so a stored
+byte past a slider's range computes as stored, and a stored PIDs mode past RPY covers every axis
+(D6).
+
+The harness replays two sequences of 1200 command lines in all, recorded from the oracle with the
+reference's simplified tuning linked: slider, mode and lowpass settings of every profile and of the
+gyro, profile selections, applies and disables, malformed arguments, and gets, profile dumps and
+diffs of the results. With the earlier sequences, all 60592 replies match the reference's byte for
+byte, and so does the configuration's hash after every command.

@@ -9,6 +9,7 @@ with Adaflight.MSP_Box;
 with Adaflight.MSP_Common_Out;
 with Adaflight.Servo_Rules;
 with Adaflight.Settings_Table; use Adaflight.Settings_Table;
+with Adaflight.Simplified_Tuning.Stored;
 
 package body Adaflight.Command_Line with SPARK_Mode is
 
@@ -3560,7 +3561,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  the one character after the word and any spaces; zero when the text
    --  there does not start with the word followed by a space or a terminator.
    function Command_At (Buffer : Line_Buffer; From : Positive; Word : String) return Natural
-     with Pre  => Word'Length in 1 .. 15,
+     with Pre  => Word'Length in 1 .. 20,
           Post => Command_At'Result <= Line_Size + 1
    is
       Next : Positive;
@@ -3588,8 +3589,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Color_Command_Word, Diff_Command, Dump_Command, Feature_Command_Word, Get_Command, Led_Command_Word,
       Map_Command_Word, Mode_Color_Command_Word, Mixer_Command_Word, Motor_Mix_Command_Word, Profile_Command,
       Rate_Profile_Command, Rx_Failsafe_Command, MCU_Id_Command_Word, Rx_Range_Command, Serial_Command_Word,
-      Servo_Command_Word, Servo_Mix_Command_Word, Set_Command, Version_Command_Word, Vtx_Command_Word,
-      Vtx_Table_Command_Word, Waypoint_Command_Word);
+      Servo_Command_Word, Servo_Mix_Command_Word, Set_Command, Simplified_Tuning_Command_Word, Version_Command_Word,
+      Vtx_Command_Word, Vtx_Table_Command_Word, Waypoint_Command_Word);
    subtype Known_Command is Command_Kind range Adjustment_Range_Command_Word .. Waypoint_Command_Word;
 
    function Command_Word (K : Known_Command) return String is
@@ -3621,11 +3622,12 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when Servo_Command_Word => "servo",
          when Servo_Mix_Command_Word => "smix",
          when Set_Command => "set",
+         when Simplified_Tuning_Command_Word => "simplified_tuning",
          when Version_Command_Word => "version",
          when Vtx_Command_Word => "vtx",
          when Vtx_Table_Command_Word => "vtxtable",
          when Waypoint_Command_Word => "waypoint")
-     with Post => Command_Word'Result'Length in 1 .. 15;
+     with Post => Command_Word'Result'Length in 1 .. 20;
 
    --  The line's command and the position of its arguments.
    procedure Find_Command (Buffer : Line_Buffer; Kind : out Command_Kind; Arguments : out Natural)
@@ -3642,6 +3644,25 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Kind := No_Command;
       Arguments := 0;
    end Find_Command;
+
+   --  simplified_tuning: the simplified tuning of every PID profile with the
+   --  gyro settings applied, or every slider turned off.
+   procedure Simplified_Tuning_Command (Into : in out Sink; C : in out Configuration; Arguments : String) is
+   begin
+      if CLI_Text.Same_Ignoring_Case (Arguments, "apply") then
+         for I in C.Pid_Profiles'Range loop
+            Simplified_Tuning.Stored.Apply (C.Pid_Profiles (I), C.Gyro_Config);
+         end loop;
+         Put (Into, "Applied simplified tuning." & CRLF);
+      elsif CLI_Text.Same_Ignoring_Case (Arguments, "disable") then
+         for I in C.Pid_Profiles'Range loop
+            Simplified_Tuning.Stored.Disable (C.Pid_Profiles (I), C.Gyro_Config);
+         end loop;
+         Put (Into, "Disabled simplified tuning." & CRLF);
+      else
+         Put (Into, "###ERROR IN simplified_tuning: PARSING FAILED###" & CRLF);
+      end if;
+   end Simplified_Tuning_Command;
 
    --  The version line: the firmware's name, the target's name, a board
    --  identifier, the version, the build's date, time and revision, and the
@@ -4188,6 +4209,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when Set_Command =>
             Known := True;
             Set (Into, C, Text_At (Buffer, Arguments), Ports);
+         when Simplified_Tuning_Command_Word =>
+            Known := True;
+            Simplified_Tuning_Command (Into, C, Text_At (Buffer, Arguments));
          when Version_Command_Word =>
             Known := True;
             Version_Command (Into, C, Env, Board);
