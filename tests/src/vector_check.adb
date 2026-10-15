@@ -137,6 +137,7 @@ with Adaflight.MSP_Control_In;
 with Adaflight.MSP_OSD_In;
 with Adaflight.MSP_Profile_In;
 with Adaflight.MSP_VTX_In;
+with Adaflight.MSP_Runtime_In;
 with Adaflight.VTX_Table_Store;
 with Adaflight.MSP_Receiver_Out;
 with Adaflight.MSP_Hardware_Out;
@@ -14585,6 +14586,7 @@ procedure Vector_Check is
    MSP_VTX_Effects : Adaflight.MSP_VTX_In.Effects;
    MSP_VTX_Device  : Adaflight.MSP_VTX_In.Device;
    MSP_VTX_Running : Adaflight.VTX_Table.Table;
+   MSP_Runtime_Effects : Adaflight.MSP_Runtime_In.Effects;
    MSP_Gyro_Rate  : Adaflight.Config_Fix.Gyro_Rate := 0;
    MSP_Log        : Adaflight.Blackbox.Recorder;
    MSP_Loop_Time  : Adaflight.Blackbox.Loop_Time_Us := 125;
@@ -14772,10 +14774,22 @@ procedure Vector_Check is
                   MSP_OSD_Effects := Adaflight.MSP_OSD_In.No_Effects;
                   MSP_Profile_Effects := Adaflight.MSP_Profile_In.No_Effects;
                   MSP_VTX_Effects := Adaflight.MSP_VTX_In.No_Effects;
+                  MSP_Runtime_Effects := Adaflight.MSP_Runtime_In.No_Effects;
                   if Adaflight.MSP_Tuning_In.Handles (Cmd) then
                      Adaflight.MSP_Tuning_In.Process
                        (CLI_Config, Cmd, Request, MSP_Gyro_Rate, MSP_In_Result, MSP_In_Effects);
                      MSP_In_Ran := True;
+                  elsif Adaflight.MSP_Runtime_In.Handles (Cmd) then
+                     declare
+                        use type Adaflight.MSP_Runtime_In.Result;
+                        Runtime_Result : Adaflight.MSP_Runtime_In.Result;
+                     begin
+                        Adaflight.MSP_Runtime_In.Process (Cmd, Request, Runtime_Result, MSP_Runtime_Effects);
+                        MSP_In_Result :=
+                          (if Runtime_Result = Adaflight.MSP_Runtime_In.Ack then Adaflight.MSP_Tuning_In.Ack
+                           else Adaflight.MSP_Tuning_In.Error);
+                        MSP_In_Ran := True;
+                     end;
                   elsif Adaflight.MSP_VTX_In.Handles (Cmd) then
                      declare
                         use type Adaflight.MSP_VTX_In.Result;
@@ -15004,6 +15018,27 @@ procedure Vector_Check is
                Record_Int ("msp.vtx_ready", (if In_Range and then Int (19) > 0 then 1 else 0),
                            Boolean'Pos (MSP_Peripheral_Effects.VTX_Ready));
             end if;
+         end;
+      elsif Str (1) = "clv" then
+         declare
+            E : Adaflight.MSP_Runtime_In.Effects renames MSP_Runtime_Effects;
+         begin
+            Record_Int ("msp.rc_frame", Boolean'Pos (Int (3) > 0), Boolean'Pos (E.RC_Frame));
+            Record_Int ("msp.rc_count", Int (4), Integer_64 (E.Count));
+            for Ch in Adaflight.MSP_Receiver.Channel loop
+               Record_Int ("msp.rc_channel", Int (5 + Ch), Integer_64 (E.Frame (Ch)));
+            end loop;
+            Record_Int ("msp.gps", Boolean'Pos (Int (23) > 0 and then Int (24) > 0), Boolean'Pos (E.GPS));
+            Record_Int ("msp.gps_fix", Int (25), Boolean'Pos (E.Solution.Fix));
+            Record_Int ("msp.gps_sats", Int (26), Integer_64 (E.Solution.Satellites));
+            Record_Int ("msp.gps_lat", Int (27), Integer_64 (E.Solution.Latitude));
+            Record_Int ("msp.gps_lon", Int (28), Integer_64 (E.Solution.Longitude));
+            Record_Int ("msp.gps_alt", Int (29), Integer_64 (E.Solution.Altitude_Cm));
+            Record_Int ("msp.gps_speed", Int (30), Integer_64 (E.Solution.Ground_Speed));
+            Record_Int ("msp.clock", Boolean'Pos (Int (31) > 0), Boolean'Pos (E.Clock));
+            Record_Int ("msp.clock_ms", Int (32), E.Clock_Ms);
+            Record_Int ("msp.rssi", Boolean'Pos (Int (33) > 0), Boolean'Pos (E.RSSI));
+            Record_Int ("msp.rssi_value", Int (34), Integer_64 (E.RSSI_Value));
          end;
       elsif Str (1) = "clc" then
          declare

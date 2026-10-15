@@ -5116,3 +5116,20 @@ The harness replays two sequences of 600 lines, 943 requests among transmitter s
 commands, listings and resets: 754 within their bounds, whose results, runtime work and
 configuration hashes all match the reference's, and 189 outside them, 22 of them table counts past
 eight, each an error that leaves the configuration unchanged.
+
+## D219. MSP runtime writes (2026-10-15)
+
+`Adaflight.MSP_Runtime_In` contains the MSP in messages that hand the board running values: the
+receiver's channels, a GPS solution, the transmitter's RSSI and the clock. None writes the
+configuration. The raw receiver message takes as many 16-bit channels as the request holds whole, up
+to eighteen, and is an error past them; `Effects` hands the frame on with zero for the channels it
+leaves out, for `MSP_Receiver.Frame_Receive`. The raw GPS message gives the fix, the satellites, the
+latitude and longitude as signed 32-bit values, the altitude in meters scaled to centimeters and
+the ground speed, as an MSP update. The transmitter information message gives the RSSI byte, and
+the clock message gives seconds as a signed 32-bit value and milliseconds, combined into
+milliseconds since the epoch.
+
+The command line oracle records the frame, the GPS solution with its fix and update flag, the clock
+and the RSSI the reference hands on, through stubs for the functions it did not link and wraps for
+the rest. The harness replays two sequences of 600 requests: every result and handed-on value
+matches the reference's, with 41 frames of more than eighteen channels rejected by both.
