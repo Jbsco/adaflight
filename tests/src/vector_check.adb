@@ -140,6 +140,7 @@ with Adaflight.MSP_VTX_In;
 with Adaflight.MSP_Runtime_In;
 with Adaflight.MSP_Board_In;
 with Adaflight.MSP_Motor_In;
+with Adaflight.MSP_Font_In;
 with Adaflight.VTX_Table_Store;
 with Adaflight.MSP_Receiver_Out;
 with Adaflight.MSP_Hardware_Out;
@@ -14594,6 +14595,9 @@ procedure Vector_Check is
    MSP_Motor_Kind      : Adaflight.MSP_Motor_In.Device_Kind := Adaflight.MSP_Motor_In.No_Device;
    MSP_Motors          : Adaflight.MSP_Motor_In.Motor_Count := 0;
    MSP_Three_D         : Boolean := False;
+   MSP_Font_Effects    : Adaflight.MSP_Font_In.Effects;
+   MSP_OSD_Port        : Boolean := False;
+   MSP_OSD_Port_Takes  : Boolean := False;
    MSP_Gyro_Rate  : Adaflight.Config_Fix.Gyro_Rate := 0;
    MSP_Log        : Adaflight.Blackbox.Recorder;
    MSP_Loop_Time  : Adaflight.Blackbox.Loop_Time_Us := 125;
@@ -14660,6 +14664,8 @@ procedure Vector_Check is
             MSP_Motor_Kind := Adaflight.MSP_Motor_In.No_Device;
             MSP_Motors := 0;
             MSP_Three_D := False;
+            MSP_OSD_Port := False;
+            MSP_OSD_Port_Takes := False;
          end if;
          CLI_Reply.Target.Text := Null_Unbounded_String;
          CLI_Expected := Null_Unbounded_String;
@@ -14746,6 +14752,9 @@ procedure Vector_Check is
                MSP_Log.State := Adaflight.Blackbox.Log_State'Val (Natural'Value (Word (Command, 1)));
                MSP_Log.I_Interval := Interfaces.Integer_16'Value (Word (Command, 2));
                MSP_Loop_Time := Adaflight.Blackbox.Loop_Time_Us'Value (Word (Command, 3));
+            elsif Word (Command, 0) = "!osdport" then
+               MSP_OSD_Port := Word (Command, 1) /= "0";
+               MSP_OSD_Port_Takes := Word (Command, 2) /= "0";
             elsif Word (Command, 0) = "!motordev" then
                MSP_Motor_Kind := Adaflight.MSP_Motor_In.Device_Kind'Val (Natural'Value (Word (Command, 1)));
                MSP_Motors := Adaflight.MSP_Motor_In.Motor_Count'Value (Word (Command, 2));
@@ -14791,10 +14800,23 @@ procedure Vector_Check is
                   MSP_Runtime_Effects := Adaflight.MSP_Runtime_In.No_Effects;
                   MSP_Board_Effects := Adaflight.MSP_Board_In.No_Effects;
                   MSP_Motor_Effects := Adaflight.MSP_Motor_In.No_Effects;
+                  MSP_Font_Effects := Adaflight.MSP_Font_In.No_Effects;
                   if Adaflight.MSP_Tuning_In.Handles (Cmd) then
                      Adaflight.MSP_Tuning_In.Process
                        (CLI_Config, Cmd, Request, MSP_Gyro_Rate, MSP_In_Result, MSP_In_Effects);
                      MSP_In_Ran := True;
+                  elsif Adaflight.MSP_Font_In.Handles (Cmd) then
+                     declare
+                        use type Adaflight.MSP_Font_In.Result;
+                        Font_Result : Adaflight.MSP_Font_In.Result;
+                     begin
+                        Adaflight.MSP_Font_In.Process (Request, MSP_OSD_Port, Font_Result, MSP_Font_Effects);
+                        MSP_In_Result :=
+                          (if Font_Result = Adaflight.MSP_Font_In.Ack and then MSP_OSD_Port_Takes
+                           then Adaflight.MSP_Tuning_In.Ack
+                           else Adaflight.MSP_Tuning_In.Error);
+                        MSP_In_Ran := True;
+                     end;
                   elsif Adaflight.MSP_Motor_In.Handles (Cmd) then
                      declare
                         use type Adaflight.MSP_Motor_In.Result;
@@ -15059,6 +15081,17 @@ procedure Vector_Check is
                Record_Int ("msp.vtx_ready", (if In_Range and then Int (19) > 0 then 1 else 0),
                            Boolean'Pos (MSP_Peripheral_Effects.VTX_Ready));
             end if;
+         end;
+      elsif Str (1) = "clf" then
+         declare
+            E : Adaflight.MSP_Font_In.Effects renames MSP_Font_Effects;
+         begin
+            Record_Int ("msp.font_write", Boolean'Pos (Int (3) > 0), Boolean'Pos (E.Write));
+            Record_Int ("msp.font_address", Int (4), Integer_64 (E.Address));
+            Record_Int ("msp.font_updated", Int (5), Boolean'Pos (E.Write and then MSP_OSD_Port_Takes));
+            for I in 0 .. E.Size - 1 loop
+               Record_Int ("msp.font_byte", Int (6 + I), Integer_64 (E.Data (I)));
+            end loop;
          end;
       elsif Str (1) = "clmo" then
          for M in Adaflight.MSP_Motor_In.Motor_Values'Range loop
