@@ -213,6 +213,9 @@ ledger. The deviations so far:
   mode letter for a stored mode past the three letters, where the reference prints its letter
   string's terminator or the bytes after it. The recorded command lines map only the eight
   mappable channels.
+- The command line's `adjrange` answers a negative range index with the index range error, where
+  the reference writes the range's fields before the start of the adjustment ranges (findings
+  F157). The recorded command lines keep their indexes at zero or above.
 
 ## D7. Contribution conventions (2026-10-08)
 
@@ -3884,3 +3887,23 @@ lengths, range resets, indexes and values in and out of range, every mode letter
 channels, values past 16 bits, and arguments that are not numbers. With the earlier sequences, all
 24586 replies match the reference's byte for byte, and so does the configuration's hash after
 every command.
+
+## D173. Command line adjustment ranges (2026-10-14)
+
+`Adaflight.Command_Line` gains the `adjrange` command. Without arguments it prints all 30
+adjustment ranges as adjrange lines: index, a 0 in place of the slot, aux channel, range ends as
+channel values, function, switch channel, center and scale. With an index it counts a slot argument
+of any value, then reads the range's aux channel, range ends, function and switch channel from the
+arguments that follow, each argument as `atoi` reads it and each valid one counted: an aux channel
+or switch channel below 14, a range end of any number held to 900 to 2100 microseconds, and a
+function below 34. Any other count than six clears the range and is the argument count error. Six
+valid arguments clear the center and scale and read them from the two optional arguments after,
+each taken modulo 65536. The reply is the range's adjrange line, and the runtime work it asks for
+is the adjustment ranges changed. An index past the 30 ranges, or below 0 (D6), is the index range
+error.
+
+The harness replays two sequences of 2000 adjrange command lines recorded from the oracle: lists,
+valid and invalid indexes, every count of arguments, channels, range ends and functions in and out
+of range, centers and scales past 16 bits, and arguments that are not numbers. With the earlier
+sequences, all 28586 replies match the reference's byte for byte, and so does the configuration's
+hash after every command.

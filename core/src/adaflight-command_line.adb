@@ -1,4 +1,5 @@
 with Interfaces; use Interfaces;
+with Adaflight.Adjustments;
 with Adaflight.Config_Fix;
 with Adaflight.Modes;
 with Adaflight.MSP_Box;
@@ -896,6 +897,112 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end;
    end Aux_Command;
 
+   --  adjrange: every adjustment range, or one range's aux channel, range ends,
+   --  function and switch channel from the arguments after a slot argument,
+   --  each valid one counted, then its optional center and scale. Any other
+   --  count than six clears the range. A negative index gets the index range
+   --  error.
+   procedure Adjustment_Range_Command
+     (Into : in out Sink; C : in out Configuration; Arguments : String; Changes : in out Effects)
+     with Pre => Arguments'First >= 1 and then Arguments'Last < Positive'Last
+                 and then Arguments'First <= Arguments'Last + 1
+   is
+      Range_Count    : constant := Adjustment_Range_Record_List_30'Length;
+      Function_Count : constant := Adjustments.Function_Kind'Pos (Adjustments.Function_Kind'Last) + 1;
+
+      procedure Put_Range (Index : Natural; A : Adjustment_Range_Record) is
+      begin
+         Put (Into, "adjrange " & Decimal (Integer_64 (Index)) & " 0 "
+              & Decimal (Integer_64 (A.Aux_Channel_Index)) & " "
+              & Decimal (900 + 25 * Integer_64 (A.Range_Value.Start_Step)) & " "
+              & Decimal (900 + 25 * Integer_64 (A.Range_Value.End_Step)) & " "
+              & Decimal (Integer_64 (A.Adjustment_Config)) & " " & Decimal (Integer_64 (A.Aux_Switch_Channel_Index))
+              & " " & Decimal (Integer_64 (A.Adjustment_Center)) & " " & Decimal (Integer_64 (A.Adjustment_Scale))
+              & CRLF);
+      end Put_Range;
+
+      Index : Integer_32;
+      Valid : Natural := 0;
+      P     : Natural;
+   begin
+      if Arguments'Length = 0 then
+         for I in 0 .. Range_Count - 1 loop
+            Put_Range (I, C.Adjustment_Ranges (I));
+         end loop;
+         return;
+      end if;
+      Index := CLI_Text.To_Integer (Arguments);
+      if Index not in 0 .. Range_Count - 1 then
+         Put (Into, "###ERROR IN adjrange: INDEX NOT BETWEEN 0 AND " & Decimal (Range_Count - 1) & "###" & CRLF);
+         return;
+      end if;
+      declare
+         Slot : constant Natural := Natural (Index);
+         A    : Adjustment_Range_Record renames C.Adjustment_Ranges (Slot);
+         V    : Integer_32;
+      begin
+         P := Next_Argument (Arguments, Arguments'First + 1);
+         if P > 0 then
+            Valid := Valid + 1;
+         end if;
+         P := Next_Argument (Arguments, P);
+         if P > 0 then
+            V := Argument (Arguments, P);
+            if V in 0 .. Modes.Aux_Channel_Count - 1 then
+               A.Aux_Channel_Index := Unsigned_8 (V);
+               Valid := Valid + 1;
+            end if;
+         end if;
+         for End_Index in 0 .. 1 loop
+            P := Next_Argument (Arguments, P);
+            if P > 0 then
+               V := Argument (Arguments, P);
+               V := (Integer_32'Max (900, Integer_32'Min (2100, V)) - 900) / 25;
+               if End_Index = 0 then
+                  A.Range_Value.Start_Step := Unsigned_8 (V);
+               else
+                  A.Range_Value.End_Step := Unsigned_8 (V);
+               end if;
+               Valid := Valid + 1;
+            end if;
+         end loop;
+         P := Next_Argument (Arguments, P);
+         if P > 0 then
+            V := Argument (Arguments, P);
+            if V in 0 .. Function_Count - 1 then
+               A.Adjustment_Config := Unsigned_8 (V);
+               Valid := Valid + 1;
+            end if;
+         end if;
+         P := Next_Argument (Arguments, P);
+         if P > 0 then
+            V := Argument (Arguments, P);
+            if V in 0 .. Modes.Aux_Channel_Count - 1 then
+               A.Aux_Switch_Channel_Index := Unsigned_8 (V);
+               Valid := Valid + 1;
+            end if;
+         end if;
+         if Valid /= 6 then
+            A := (Aux_Channel_Index => 0, Range_Value => (Start_Step => 0, End_Step => 0), Adjustment_Config => 0,
+                  Aux_Switch_Channel_Index => 0, Adjustment_Center => 0, Adjustment_Scale => 0);
+            Put (Into, "###ERROR IN adjrange: INVALID ARGUMENT COUNT###" & CRLF);
+            return;
+         end if;
+         A.Adjustment_Center := 0;
+         A.Adjustment_Scale := 0;
+         P := Next_Argument (Arguments, P);
+         if P > 0 then
+            A.Adjustment_Center := Unsigned_16'Mod (Argument (Arguments, P));
+         end if;
+         P := Next_Argument (Arguments, P);
+         if P > 0 then
+            A.Adjustment_Scale := Unsigned_16'Mod (Argument (Arguments, P));
+         end if;
+         Changes.Adjustments := True;
+         Put_Range (Slot, A);
+      end;
+   end Adjustment_Range_Command;
+
    Channel_Letters : constant String := "AERT12345678abcdefgh";
    Mappable        : constant := 8;
 
@@ -1134,13 +1241,14 @@ package body Adaflight.Command_Line with SPARK_Mode is
    end Command_At;
 
    type Command_Kind is
-     (No_Command, Aux_Command_Word, Battery_Profile_Command, Beacon_Command, Beeper_Command_Word, Diff_Command,
-      Dump_Command, Feature_Command_Word, Get_Command, Map_Command_Word, Profile_Command, Rate_Profile_Command,
-      Rx_Failsafe_Command, Rx_Range_Command, Set_Command);
-   subtype Known_Command is Command_Kind range Aux_Command_Word .. Set_Command;
+     (No_Command, Adjustment_Range_Command_Word, Aux_Command_Word, Battery_Profile_Command, Beacon_Command,
+      Beeper_Command_Word, Diff_Command, Dump_Command, Feature_Command_Word, Get_Command, Map_Command_Word,
+      Profile_Command, Rate_Profile_Command, Rx_Failsafe_Command, Rx_Range_Command, Set_Command);
+   subtype Known_Command is Command_Kind range Adjustment_Range_Command_Word .. Set_Command;
 
    function Command_Word (K : Known_Command) return String is
      (case K is
+         when Adjustment_Range_Command_Word => "adjrange",
          when Aux_Command_Word => "aux",
          when Battery_Profile_Command => "battery_profile",
          when Beacon_Command => "beacon",
@@ -1243,6 +1351,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
       case Kind is
          when No_Command =>
             null;
+         when Adjustment_Range_Command_Word =>
+            Known := True;
+            Adjustment_Range_Command (Into, C, Text_At (Buffer, Arguments), Changes);
          when Aux_Command_Word =>
             Known := True;
             Aux_Command (Into, C, Text_At (Buffer, Arguments), Changes);

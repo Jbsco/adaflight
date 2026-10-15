@@ -47,13 +47,14 @@ package Adaflight.Command_Line with SPARK_Mode is
 
    Line_Size : constant := 256;
 
-   --  The runtime work a command asks for: a profile selected, or the mode
-   --  conditions changed.
+   --  The runtime work a command asks for: a profile selected, the mode
+   --  conditions changed, or the adjustment ranges changed.
    type Effects is record
       PID_Profile     : Boolean := False;
       Rate_Profile    : Boolean := False;
       Battery_Profile : Boolean := False;
       Modes           : Boolean := False;
+      Adjustments     : Boolean := False;
    end record;
 
    --  A typed line without its line end: printable characters past the
