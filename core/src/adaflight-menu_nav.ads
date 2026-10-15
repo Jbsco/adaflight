@@ -13,7 +13,11 @@
 --  down move the cursor over the rows and pages, and left and right edit
 --  the line under the cursor in its element's form, enter a submenu, call
 --  a function line or exit, each edit written to the target's value as
---  the reference writes the line's variable. The menus come in through
+--  the reference writes the line's variable; and the update on every
+--  pass: the menu opened on the stick gesture while closed, and while
+--  open the sticks read as a key, handled when its delay has run out and
+--  repeated while held, then the draw, the display's heartbeat every half
+--  second, all within a drawing transaction. The menus come in through
 --  the hook set and loading procedures, the hooks, the value store, the
 --  lookup of a table's text and the target's actions as procedures.
 with Interfaces;
@@ -75,6 +79,31 @@ package Adaflight.Menu_Nav with SPARK_Mode is
    Button_Pause : constant := 500;
    subtype Key_Delay is Natural range 0 .. 65_535;
 
+   --  What the update reads on a pass: the sticks, the arming flag, the
+   --  paralyze and stick command disable modes, and a camera device menu
+   --  or a joystick in use, which hold the menu off.
+   type Stick_Inputs is record
+      Throttle                : Float := 1500.0;
+      Yaw                     : Float := 1500.0;
+      Pitch                   : Float := 1500.0;
+      Roll                    : Float := 1500.0;
+      Armed                   : Boolean := False;
+      Paralyzed               : Boolean := False;
+      Stick_Commands_Disabled : Boolean := False;
+      Device_In_Menu          : Boolean := False;
+      Joystick_Active         : Boolean := False;
+   end record;
+
+   Stick_High         : constant := 1750.0;
+   Stick_Low          : constant := 1250.0;
+   Hold_Repeat_Start  : constant := 20;
+   Repeat_Delay_Limit : constant := 50;
+   Repeat_Limit       : constant := 5;
+   Heartbeat_Ms       : constant := 500;
+   Reset_Drawing      : constant := 2;
+   subtype Repeat_Count is Positive range 1 .. Repeat_Limit;
+   subtype Delay_Ms_Left is Integer range -32_768 .. 32_767;
+
    type Displays is array (Adaflight.Menu.Display_Index) of Adaflight.Menu.Display;
    subtype Display_Count is Natural range 0 .. Adaflight.Menu.Max_Displays;
    subtype Display_Choice is Integer range -1 .. Adaflight.Menu.Max_Displays - 1;
@@ -100,6 +129,13 @@ package Adaflight.Menu_Nav with SPARK_Mode is
       Ports          : Displays;
       Port_Count     : Display_Count := 0;
       Port           : Display_Choice := -1;
+      Rc_Delay_Ms    : Delay_Ms_Left := Button_Time;
+      Last_Called_Ms : Unsigned_32 := 0;
+      Last_Beat_Ms   : Unsigned_32 := 0;
+      Hold_Count     : Interfaces.Integer_32 := 1;
+      Repeat         : Repeat_Count := 1;
+      Repeat_Base    : Interfaces.Integer_32 := 0;
+      Extern_Key     : Key_Code := None;
    end record;
 
    --  What holds between the operations: a current display among the
@@ -179,5 +215,22 @@ package Adaflight.Menu_Nav with SPARK_Mode is
    procedure Exit_Menu (S : in out State; Kind : Exit_Kind)
      with Pre  => S.In_Menu and then S.Has_Menu and then Consistent (S),
           Post => Consistent (S) and then not S.In_Menu and then not S.Has_Menu;
+
+   --  A key from outside the sticks, kept until the next pass reads it.
+   procedure Set_Extern_Key (S : in out State; Key : Key_Code);
+
+   --  One pass of the update at the pass's time in microseconds, with the
+   --  clock in milliseconds the pass ends on, and the display's room.
+   procedure Update
+     (S               : in out State;
+      K               : Key_Settings;
+      Sl              : Adaflight.Menu.Slider_Settings;
+      Sticks          : Stick_Inputs;
+      Reboot_Required : Boolean;
+      Now_Us          : Unsigned_32;
+      Millis          : Unsigned_32;
+      Room            : Unsigned_32)
+     with Pre  => Consistent (S),
+          Post => Consistent (S);
 
 end Adaflight.Menu_Nav;

@@ -249,9 +249,12 @@ package Adaflight.Menu with SPARK_Mode is
    --  beyond it: the display grabbed and released, its screen cleared with
    --  a wait, its foreground layer selected, its background type set, its
    --  redraw, the configuration saved, the arming disable flag set or
-   --  cleared, the motors stopped and shut down, a delay, and the reset.
+   --  cleared, the motors stopped and shut down, a delay, the reset, the
+   --  reboot flag set, the display's heartbeat, and a drawing transaction
+   --  begun with its options and committed.
    type Action is
      (Grab, Release, Clear, Layer_Select, Background, Redraw, Save_Config, Arming_Disabled, Stop_Motors,
-      Motor_Shutdown, Delay_Ms, System_Reset, Set_Reboot_Required);
+      Motor_Shutdown, Delay_Ms, System_Reset, Set_Reboot_Required, Heartbeat, Begin_Transaction,
+      Commit_Transaction);
 
 end Adaflight.Menu;

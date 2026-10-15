@@ -4,6 +4,7 @@ package body Adaflight.Menu_Nav with SPARK_Mode is
    use type Adaflight.Menu.Table;
    use type Adaflight.Menu.Page_State;
    use type Adaflight.Menu.Layout;
+   use type Interfaces.Integer_32;
 
    package Drawing is new Adaflight.Menu_Draw
      (Write => Write, Write_Char => Write_Char, Display_Update => On_Display_Update);
@@ -214,6 +215,8 @@ package body Adaflight.Menu_Nav with SPARK_Mode is
      with Pre  => Bits in 8 | 16 | 32,
           Post => (if not Signed and then Bits = 8 then Wrapped'Result in 0 .. 255)
                   and then (if not Signed and then Bits = 16 then Wrapped'Result in 0 .. 65_535)
+                  and then (if Signed and then Bits = 8 then Wrapped'Result in -128 .. 127)
+                  and then (if Signed and then Bits = 16 then Wrapped'Result in -32_768 .. 32_767)
    is
       use type Interfaces.Integer_64;
       Modulus : constant Interfaces.Integer_64 := (if Bits = 8 then 256 elsif Bits = 16 then 65_536 else 4_294_967_296);
@@ -239,7 +242,6 @@ package body Adaflight.Menu_Nav with SPARK_Mode is
       Reboot_Required : Boolean;
       Delay_Ms        : out Key_Delay)
    is
-      use type Interfaces.Integer_32;
       use type Interfaces.Integer_64;
       use type Interfaces.Unsigned_8;
       use type Interfaces.Unsigned_16;
@@ -508,5 +510,129 @@ package body Adaflight.Menu_Nav with SPARK_Mode is
       end if;
       Act (P, Adaflight.Menu.Arming_Disabled, 0);
    end Exit_Menu;
+
+   procedure Set_Extern_Key (S : in out State; Key : Key_Code) is
+   begin
+      if S.Extern_Key = None then
+         S.Extern_Key := Key;
+      end if;
+   end Set_Extern_Key;
+
+   --  The sticks read as a key, in the reference's order: the menu gesture
+   --  while disarmed, then pitch up or down, roll left or right, yaw left
+   --  for escape and right for the save menu.
+   function Stick_Key (Sticks : Stick_Inputs) return Key_Code is
+     (if Sticks.Throttle > Stick_Low and then Sticks.Throttle < Stick_High and then Sticks.Yaw < Stick_Low
+        and then Sticks.Pitch > Stick_High and then not Sticks.Armed
+      then Menu_Key
+      elsif Sticks.Pitch > Stick_High then Up
+      elsif Sticks.Pitch < Stick_Low then Down
+      elsif Sticks.Roll < Stick_Low then Left
+      elsif Sticks.Roll > Stick_High then Right
+      elsif Sticks.Yaw < Stick_Low then Esc
+      elsif Sticks.Yaw > Stick_High then Save_Menu
+      else None);
+
+   --  The keys of a pass: the external key, or the sticks' key once the
+   --  delay since the last key has run out, repeated while held, with the
+   --  delay shortened the longer left or right is held, and the repeats
+   --  grown once the delay is below the scheduling interval.
+   procedure Scan_Keys
+     (S               : in out State;
+      K               : Key_Settings;
+      Sl              : Adaflight.Menu.Slider_Settings;
+      Sticks          : Stick_Inputs;
+      Reboot_Required : Boolean;
+      Now_Ms          : Unsigned_32)
+     with Pre  => Consistent (S),
+          Post => Consistent (S)
+   is
+      use type Interfaces.Integer_64;
+      Key      : Key_Code;
+      Delay_Ms : Key_Delay := 0;
+   begin
+      if S.Extern_Key /= None then
+         Handle_Key (S, S.Extern_Key, K, Sl, Reboot_Required, Delay_Ms);
+         S.Rc_Delay_Ms := Integer (Wrapped (Interfaces.Integer_64 (Delay_Ms), 16, True));
+         S.Extern_Key := None;
+         return;
+      end if;
+      Key := Stick_Key (Sticks);
+      if Key = None then
+         S.Hold_Count := 1;
+         S.Repeat := 1;
+         S.Repeat_Base := 0;
+      else
+         S.Hold_Count := Wrapped (Interfaces.Integer_64 (S.Hold_Count) + 1, 32, True);
+      end if;
+      if S.Rc_Delay_Ms > 0 then
+         S.Rc_Delay_Ms :=
+           Integer
+             (Wrapped
+                (Interfaces.Integer_64 (S.Rc_Delay_Ms) - Interfaces.Integer_64 (Now_Ms - S.Last_Called_Ms), 16, True));
+      elsif Key /= None then
+         for I in 1 .. S.Repeat loop
+            pragma Loop_Invariant (Consistent (S));
+            Handle_Key (S, Key, K, Sl, Reboot_Required, Delay_Ms);
+         end loop;
+         S.Rc_Delay_Ms := Integer (Wrapped (Interfaces.Integer_64 (Delay_Ms), 16, True));
+         if (Key = Left or else Key = Right) and then S.Hold_Count > Hold_Repeat_Start then
+            S.Rc_Delay_Ms := S.Rc_Delay_Ms / Integer (S.Hold_Count - Hold_Repeat_Start);
+            if S.Rc_Delay_Ms <= Repeat_Delay_Limit then
+               if S.Repeat_Base = 0 then
+                  S.Repeat_Base := S.Hold_Count;
+               end if;
+               declare
+                  Grown : constant Interfaces.Integer_64 :=
+                    Interfaces.Integer_64 (S.Repeat)
+                    + (Interfaces.Integer_64 (S.Hold_Count) - Interfaces.Integer_64 (S.Repeat_Base)) / 5;
+               begin
+                  S.Repeat :=
+                    Repeat_Count (Interfaces.Integer_64'Max (1, Interfaces.Integer_64'Min (Repeat_Limit, Grown)));
+               end;
+            end if;
+         end if;
+      end if;
+   end Scan_Keys;
+
+   procedure Update
+     (S               : in out State;
+      K               : Key_Settings;
+      Sl              : Adaflight.Menu.Slider_Settings;
+      Sticks          : Stick_Inputs;
+      Reboot_Required : Boolean;
+      Now_Us          : Unsigned_32;
+      Millis          : Unsigned_32;
+      Room            : Unsigned_32)
+   is
+      Now_Ms : constant Unsigned_32 := Now_Us / 1000;
+   begin
+      if S.Port_Count = 0 then
+         return;
+      end if;
+      if Sticks.Paralyzed or else Sticks.Device_In_Menu or else Sticks.Joystick_Active then
+         return;
+      end if;
+      if not S.In_Menu then
+         if Sticks.Throttle > Stick_Low and then Sticks.Throttle < Stick_High and then Sticks.Yaw < Stick_Low
+           and then Sticks.Pitch > Stick_High and then not Sticks.Armed and then not Sticks.Stick_Commands_Disabled
+         then
+            Open (S, K.Start, K.Background);
+            S.Rc_Delay_Ms := Button_Pause;
+         end if;
+      else
+         Act (S.Port, Adaflight.Menu.Begin_Transaction, Reset_Drawing);
+         Scan_Keys (S, K, Sl, Sticks, Reboot_Required, Now_Ms);
+         Draw (S, Sl, Now_Us, Millis, Room);
+         if S.Port >= 0 then
+            if Now_Ms > S.Last_Beat_Ms + Heartbeat_Ms then
+               Act (S.Port, Adaflight.Menu.Heartbeat, 0);
+               S.Last_Beat_Ms := Now_Ms;
+            end if;
+            Act (S.Port, Adaflight.Menu.Commit_Transaction, 0);
+         end if;
+      end if;
+      S.Last_Called_Ms := Millis;
+   end Update;
 
 end Adaflight.Menu_Nav;
