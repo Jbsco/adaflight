@@ -50,6 +50,23 @@ package Adaflight.CLI_Text with SPARK_Mode is
    function Float_Text (X : Float) return String
      with Post => Float_Text'Result'Length in 6 .. 23;
 
+   --  A coordinate in degrees with up to seven decimals as ten-millionths of
+   --  a degree: an optional sign, digits, and an optional point with digits,
+   --  the decimals past seven ignored. OK is false for any other text and for
+   --  a value past the 32-bit range.
+   procedure Parse_Coordinate (Text : String; Value : out Integer_32; OK : out Boolean)
+     with Pre => Text'First >= 1 and then Text'Last < Positive'Last;
+
+   --  Ten-millionths of a degree as degrees with seven decimals.
+   function Coordinate_Text (Value : Integer_32) return String
+     with Post => Coordinate_Text'Result'First = 1 and then Coordinate_Text'Result'Length in 9 .. 12;
+
+   --  A whole text as a decimal number with an optional sign, held at a
+   --  million millions, and whether the text is one.
+   procedure Parse_Whole (Text : String; Value : out Integer_64; OK : out Boolean)
+     with Pre  => Text'First >= 1 and then Text'Last < Positive'Last,
+          Post => Value in -10 ** 12 .. 10 ** 12;
+
    --  A number's decimal digits with its sign, without a leading space.
    function Decimal (V : Integer_64) return String
      with Post => Decimal'Result'Length in 1 .. 21;

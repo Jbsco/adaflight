@@ -2,6 +2,7 @@ with Interfaces; use Interfaces;
 with Adaflight.Adjustments;
 with Adaflight.Config_Fix;
 with Adaflight.LED_Strip;
+with Adaflight.Maths;
 with Adaflight.Mixer_Init;
 with Adaflight.Modes;
 with Adaflight.MSP_Box;
@@ -2364,6 +2365,392 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end;
    end Vtx_Table_Command;
 
+   Max_Waypoints : constant := 30;
+
+   subtype Waypoint_List is Flight_Plan_Config_Record_Waypoints_Record_List_30;
+   subtype Waypoint is Flight_Plan_Config_Record_Waypoints_Record;
+
+   function Type_Name (T : Unsigned_8) return String is
+     (case T is
+         when 0 => "FLYOVER", when 1 => "FLYBY", when 2 => "HOLD", when 3 => "LAND", when 4 => "TAKEOFF",
+         when 5 => "ALT_CHANGE", when 6 => "DELAY", when 7 => "YAW_RATE", when others => "UNKNOWN")
+     with Post => Type_Name'Result'Length in 4 .. 10;
+
+   function Pattern_Name (P : Unsigned_8) return String is
+     (case P is
+         when 0 => "NONE", when 1 => "ORBIT", when 2 => "FIGURE8", when others => "UNKNOWN")
+     with Post => Pattern_Name'Result'Length in 4 .. 7;
+
+   function Yaw_Name (Y : Unsigned_8) return String is
+     (case Y is
+         when 0 => "DEFAULT", when 1 => "FACE_TARGET", when 2 => "FACE_NEXT", when 3 => "HOLD",
+         when others => "UNKNOWN")
+     with Post => Yaw_Name'Result'Length in 4 .. 11;
+
+   --  A length in centimeters as meters with two decimals.
+   procedure Put_Meters (Into : in out Sink; Length_Cm : Integer_64)
+     with Pre => Length_Cm in -2 ** 32 .. 2 ** 32
+   is
+      Magnitude  : constant Integer_64 := abs Length_Cm;
+      Hundredths : constant String (1 .. 2) :=
+        (Character'Val (Character'Pos ('0') + Natural (Magnitude mod 100 / 10)),
+         Character'Val (Character'Pos ('0') + Natural (Magnitude mod 10)));
+   begin
+      if Length_Cm < 0 then
+         Put (Into, "-");
+      end if;
+      Put (Into, Decimal (Magnitude / 100));
+      Put (Into, "." & Hundredths & "m");
+   end Put_Meters;
+
+   --  A distance in meters as whole centimeters, rounded as the target's C
+   --  library rounds and held at the 32-bit range.
+   function Centimeters (Meters : Float) return Integer_64
+     with Pre => Meters >= 0.0, Post => Centimeters'Result in 0 .. 2_147_483_647
+   is
+   begin
+      if Meters >= 1.0E9 then
+         return 2_147_483_647;
+      end if;
+      declare
+         P : constant Float := Meters * 100.0;
+      begin
+         if P >= 2_147_483_648.0 then
+            return 2_147_483_647;
+         elsif P > Float (Maths.Rounding_Bound) - 1.0 then
+            return Integer_64'Min (2_147_483_647, Integer_64 (P));
+         else
+            return Integer_64'Max (0, Integer_64 (Maths.Round_Half_Even (P)));
+         end if;
+      end;
+   end Centimeters;
+
+   --  The plan as a clear line and an insert line for each waypoint.
+   procedure Put_Waypoints (Into : in out Sink; Count : Unsigned_8; Points : Waypoint_List) is
+   begin
+      Put (Into, "waypoint clear" & CRLF);
+      for I in 0 .. Natural'Min (Natural (Count), Max_Waypoints) - 1 loop
+         pragma Loop_Invariant (I < Max_Waypoints);
+         declare
+            W : constant Waypoint := Points (I);
+         begin
+            Put (Into, "waypoint insert " & Decimal (Integer_64 (I)) & " " & CLI_Text.Coordinate_Text (W.Latitude) & " "
+                 & CLI_Text.Coordinate_Text (W.Longitude) & " " & Decimal (Integer_64 (W.Altitude)) & " "
+                 & Decimal (Integer_64 (W.Speed)) & " ");
+            Put (Into, Type_Name (W.Type_Value) & " " & Decimal (Integer_64 (W.Duration)) & " "
+                 & Pattern_Name (W.Pattern) & " " & Decimal (Integer_64 (W.Vert_Rate)) & " "
+                 & Yaw_Name (W.Yaw_Behaviour) & CRLF);
+         end;
+      end loop;
+   end Put_Waypoints;
+
+   --  waypoint: the plan, cleared, its status with the executor's, one
+   --  waypoint removed, or one inserted or updated from its index,
+   --  coordinates, altitude, speed, type, duration and pattern, with an
+   --  optional vertical rate and yaw behaviour. A stored count past the plan
+   --  is cleared first.
+   procedure Waypoint_Command
+     (Into : in out Sink; Plan : in out Flight_Plan_Config_Record; Navigation : Navigation_Status;
+      Arguments : String)
+     with Pre => Arguments'First >= 1 and then Arguments'Last < Positive'Last
+                 and then Arguments'First <= Arguments'Last + 1
+   is
+      Max_Args : constant := 11;
+      Firsts   : array (1 .. Max_Args) of Positive := (others => Arguments'First);
+      Lasts    : array (1 .. Max_Args) of Natural := (others => 0);
+      Count    : Natural := 0;
+      First    : Natural;
+      Last     : Natural;
+      From     : Positive := Arguments'First;
+
+      function Arg (K : Positive) return String is (Arguments (Firsts (K) .. Lasts (K)))
+        with Pre => K <= Count and then K <= Max_Args and then Firsts (K) in Arguments'Range
+                    and then Lasts (K) in Firsts (K) .. Arguments'Last;
+
+      function Is_Op (Name : String) return Boolean is
+        (Count >= 1 and then Firsts (1) in Arguments'Range and then Lasts (1) in Firsts (1) .. Arguments'Last
+         and then CLI_Text.Same_Ignoring_Case (Arguments (Firsts (1) .. Lasts (1)), Name));
+
+      procedure Error (Text : String) is
+      begin
+         Put (Into, "###ERROR IN waypoint: ");
+         Put (Into, Text);
+         Put (Into, "###" & CRLF);
+      end Error;
+   begin
+      if Plan.Waypoint_Count > Max_Waypoints then
+         Plan.Waypoint_Count := 0;
+         Error ("WAYPOINT COUNT CORRUPTED, CLEARED");
+      end if;
+      if Arguments'Length = 0 then
+         Put_Waypoints (Into, Plan.Waypoint_Count, Plan.Waypoints);
+         return;
+      end if;
+      loop
+         pragma Loop_Invariant
+           (Count <= Max_Args and then From in Arguments'First .. Arguments'Last + 1
+            and then (for all K in 1 .. Count =>
+                        Firsts (K) in Arguments'Range and then Lasts (K) in Firsts (K) .. Arguments'Last));
+         pragma Loop_Variant (Increases => From);
+         Next_Word (Arguments, From, First, Last);
+         exit when First = 0 or else Count = Max_Args;
+         Count := Count + 1;
+         Firsts (Count) := First;
+         Lasts (Count) := Last;
+         From := Last + 1;
+      end loop;
+      if First > 0 then
+         Error ("INVALID ARGUMENT COUNT");
+         return;
+      end if;
+      if Count = 0 then
+         return;
+      end if;
+      if Is_Op ("clear") then
+         if Count /= 1 then
+            Error ("INVALID ARGUMENT COUNT");
+            return;
+         end if;
+         Plan.Waypoint_Count := 0;
+         Put (Into, "Waypoints cleared" & CRLF);
+      elsif Is_Op ("list") then
+         if Count /= 1 then
+            Error ("INVALID ARGUMENT COUNT");
+            return;
+         end if;
+         Put_Waypoints (Into, Plan.Waypoint_Count, Plan.Waypoints);
+      elsif Is_Op ("status") then
+         if Count /= 1 then
+            Error ("INVALID ARGUMENT COUNT");
+            return;
+         end if;
+         Put (Into, "Waypoint count: " & Decimal (Integer_64 (Plan.Waypoint_Count)) & CRLF);
+         if Plan.Waypoint_Count > 0 then
+            Put (Into, ASCII.LF & "Configured waypoints:" & CRLF);
+            for I in 0 .. Natural (Plan.Waypoint_Count) - 1 loop
+               pragma Loop_Invariant (I < Max_Waypoints);
+               declare
+                  W : constant Waypoint := Plan.Waypoints (I);
+               begin
+                  Put (Into, "  [" & Decimal (Integer_64 (I)) & "] " & CLI_Text.Coordinate_Text (W.Latitude) & " "
+                       & CLI_Text.Coordinate_Text (W.Longitude) & " ");
+                  Put_Meters (Into, Integer_64 (W.Altitude));
+                  Put (Into, " " & Type_Name (W.Type_Value) & CRLF);
+               end;
+            end loop;
+         end if;
+         Put (Into, ASCII.LF & "Runtime status:" & CRLF);
+         if not Navigation.Active then
+            Put (Into, "  inactive" & CRLF);
+            return;
+         end if;
+         Put (Into, "  state: "
+              & (case Navigation.State is
+                    when 0 => "IDLE", when 1 => "TARGETING", when 2 => "HOLDING", when 3 => "COMPLETE",
+                    when 4 => "LANDING", when 5 => "ABORTED", when others => "UNKNOWN") & CRLF);
+         Put (Into, "  current waypoint: "
+              & Decimal (if Plan.Waypoint_Count = 0 then 0 else Integer_64 (Navigation.Current_Index + 1)) & "/"
+              & Decimal (Integer_64 (Plan.Waypoint_Count)) & CRLF);
+         if Navigation.Distance_M >= 0.0 then
+            Put (Into, "  distance: ");
+            Put_Meters (Into, Centimeters (Navigation.Distance_M));
+            Put (Into, "  bearing: " & Decimal (Integer_64 (Navigation.Bearing_Deci / 10)) & " deg  eta: "
+                 & Decimal (Integer_64 (Navigation.ETA_S)) & "s" & CRLF);
+         end if;
+         if Navigation.State = 5 then
+            Put (Into, "  abort reason: "
+                 & (case Navigation.Abort_Reason is
+                       when 0 => "NONE", when 1 => "GPS LOST", when 2 => "STALLED", when 3 => "FLYAWAY",
+                       when 4 => "HEADING", when 5 => "MAG FAULT", when others => "UNKNOWN") & CRLF);
+         end if;
+      elsif Is_Op ("remove") then
+         if Count /= 2 then
+            Error ("INVALID ARGUMENT COUNT");
+            return;
+         end if;
+         if Plan.Waypoint_Count = 0 then
+            Error ("NO WAYPOINTS TO REMOVE");
+            return;
+         end if;
+         declare
+            Index : Integer_64;
+            OK    : Boolean;
+         begin
+            CLI_Text.Parse_Whole (Arg (2), Index, OK);
+            if not OK then
+               Error ("INVALID INDEX");
+               return;
+            end if;
+            if Index < 0 or else Index >= Integer_64 (Plan.Waypoint_Count) then
+               Error ("index NOT BETWEEN 0 AND " & Decimal (Integer_64 (Plan.Waypoint_Count) - 1));
+               return;
+            end if;
+            for I in Natural (Index) .. Natural (Plan.Waypoint_Count) - 2 loop
+               Plan.Waypoints (I) := Plan.Waypoints (I + 1);
+            end loop;
+            Plan.Waypoint_Count := Plan.Waypoint_Count - 1;
+            Put (Into, "Waypoint " & Decimal (Index) & " removed, " & Decimal (Integer_64 (Plan.Waypoint_Count))
+                 & " waypoints remaining" & CRLF);
+         end;
+      elsif Is_Op ("insert") or else Is_Op ("update") then
+         declare
+            Insert    : constant Boolean := Is_Op ("insert");
+            Index     : Integer_64;
+            Latitude  : Integer_32;
+            Longitude : Integer_32;
+            Altitude  : Integer_64;
+            Speed     : Integer_64;
+            Duration  : Integer_64;
+            Rate      : Integer_64 := 0;
+            Kind      : Unsigned_8 := 0;
+            Pattern   : Unsigned_8 := 0;
+            Yaw       : Unsigned_8 := 0;
+            Found     : Boolean;
+            OK        : Boolean;
+         begin
+            if Count /= 9 and then Count /= 11 then
+               Error ("INVALID ARGUMENT COUNT");
+               return;
+            end if;
+            CLI_Text.Parse_Whole (Arg (2), Index, OK);
+            if not OK then
+               Error ("INVALID INDEX");
+               return;
+            end if;
+            if Insert then
+               if Index < 0 or else Index > Integer_64 (Plan.Waypoint_Count)
+                 or else Plan.Waypoint_Count >= Max_Waypoints
+               then
+                  if Plan.Waypoint_Count >= Max_Waypoints then
+                     Error ("WAYPOINT LIST FULL");
+                  else
+                     Error ("index NOT BETWEEN 0 AND " & Decimal (Integer_64 (Plan.Waypoint_Count)));
+                  end if;
+                  return;
+               end if;
+            else
+               if Plan.Waypoint_Count = 0 then
+                  Error ("NO WAYPOINTS TO UPDATE");
+                  return;
+               end if;
+               if Index < 0 or else Index >= Integer_64 (Plan.Waypoint_Count) then
+                  Error ("index NOT BETWEEN 0 AND " & Decimal (Integer_64 (Plan.Waypoint_Count) - 1));
+                  return;
+               end if;
+            end if;
+            CLI_Text.Parse_Coordinate (Arg (3), Latitude, OK);
+            if not OK then
+               Error ("INVALID LATITUDE FORMAT. USE: -90.0000000 to 90.0000000");
+               return;
+            end if;
+            CLI_Text.Parse_Coordinate (Arg (4), Longitude, OK);
+            if not OK then
+               Error ("INVALID LONGITUDE FORMAT. USE: -180.0000000 to 180.0000000");
+               return;
+            end if;
+            CLI_Text.Parse_Whole (Arg (5), Altitude, OK);
+            if not OK then
+               Error ("INVALID ALTITUDE");
+               return;
+            end if;
+            if Altitude not in Integer_64 (Integer_32'First) .. Integer_64 (Integer_32'Last) then
+               Error ("ALTITUDE OUT OF RANGE");
+               return;
+            end if;
+            CLI_Text.Parse_Whole (Arg (6), Speed, OK);
+            if not OK then
+               Error ("INVALID SPEED");
+               return;
+            end if;
+            CLI_Text.Parse_Whole (Arg (8), Duration, OK);
+            if not OK then
+               Error ("INVALID DURATION");
+               return;
+            end if;
+            if Speed not in 0 .. 65_535 then
+               Error ("speed NOT BETWEEN 0 AND 65535");
+               return;
+            end if;
+            if Duration not in 0 .. 65_535 then
+               Error ("duration NOT BETWEEN 0 AND 65535");
+               return;
+            end if;
+            Found := False;
+            for T in Unsigned_8 range 0 .. 7 loop
+               if CLI_Text.Same_Ignoring_Case (Arg (7), Type_Name (T)) then
+                  Kind := T;
+                  Found := True;
+                  exit;
+               end if;
+            end loop;
+            if not Found then
+               Error ("INVALID TYPE. USE: FLYOVER, FLYBY, HOLD, LAND, TAKEOFF, ALT_CHANGE, DELAY, YAW_RATE");
+               return;
+            end if;
+            Found := False;
+            for P in Unsigned_8 range 0 .. 2 loop
+               if CLI_Text.Same_Ignoring_Case (Arg (9), Pattern_Name (P)) then
+                  Pattern := P;
+                  Found := True;
+                  exit;
+               end if;
+            end loop;
+            if not Found then
+               Error ("INVALID PATTERN. USE: NONE, ORBIT, FIGURE8");
+               return;
+            end if;
+            if Count = 11 then
+               CLI_Text.Parse_Whole (Arg (10), Rate, OK);
+               if not OK then
+                  Error ("INVALID VERTICAL RATE");
+                  return;
+               end if;
+               if Rate not in 0 .. 65_535 then
+                  Error ("vertical rate NOT BETWEEN 0 AND 65535");
+                  return;
+               end if;
+               Found := False;
+               for Y in Unsigned_8 range 0 .. 3 loop
+                  if CLI_Text.Same_Ignoring_Case (Arg (11), Yaw_Name (Y)) then
+                     Yaw := Y;
+                     Found := True;
+                     exit;
+                  end if;
+               end loop;
+               if not Found then
+                  Error ("INVALID YAW BEHAVIOUR. USE: DEFAULT, FACE_TARGET, FACE_NEXT, HOLD");
+                  return;
+               end if;
+            end if;
+            if Latitude not in -900_000_000 .. 900_000_000 then
+               Error ("LATITUDE OUT OF RANGE. USE: -90.0 to 90.0");
+               return;
+            end if;
+            if Longitude not in -1_800_000_000 .. 1_800_000_000 then
+               Error ("LONGITUDE OUT OF RANGE. USE: -180.0 to 180.0");
+               return;
+            end if;
+            if Insert then
+               for I in reverse Natural (Index) + 1 .. Natural (Plan.Waypoint_Count) loop
+                  Plan.Waypoints (I) := Plan.Waypoints (I - 1);
+               end loop;
+               Plan.Waypoint_Count := Plan.Waypoint_Count + 1;
+            end if;
+            Plan.Waypoints (Natural (Index)) :=
+              (Latitude => Latitude, Longitude => Longitude, Altitude => Integer_32 (Altitude),
+               Speed => Unsigned_16 (Speed), Duration => Unsigned_16 (Duration), Vert_Rate => Unsigned_16 (Rate),
+               Type_Value => Kind, Pattern => Pattern, Yaw_Behaviour => Yaw);
+            Put (Into, "waypoint " & (if Insert then "insert" else "update") & " " & Decimal (Index) & " "
+                 & CLI_Text.Coordinate_Text (Latitude) & " " & CLI_Text.Coordinate_Text (Longitude) & " ");
+            Put_Meters (Into, Altitude);
+            Put (Into, " " & Decimal (Speed) & " " & Type_Name (Kind) & " " & Decimal (Duration) & " "
+                 & Pattern_Name (Pattern) & " " & Decimal (Rate) & " " & Yaw_Name (Yaw) & CRLF);
+         end;
+      else
+         Error ("INVALID OPERATION. USE: list, status, insert, update, remove, clear");
+      end if;
+   end Waypoint_Command;
+
    Channel_Letters : constant String := "AERT12345678abcdefgh";
    Mappable        : constant := 8;
 
@@ -2607,8 +2994,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Led_Command_Word, Map_Command_Word, Mode_Color_Command_Word,
       Mixer_Command_Word, Motor_Mix_Command_Word, Profile_Command, Rate_Profile_Command, Rx_Failsafe_Command,
       Rx_Range_Command, Serial_Command_Word, Servo_Command_Word, Servo_Mix_Command_Word, Set_Command,
-      Vtx_Command_Word, Vtx_Table_Command_Word);
-   subtype Known_Command is Command_Kind range Adjustment_Range_Command_Word .. Vtx_Table_Command_Word;
+      Vtx_Command_Word, Vtx_Table_Command_Word, Waypoint_Command_Word);
+   subtype Known_Command is Command_Kind range Adjustment_Range_Command_Word .. Waypoint_Command_Word;
 
    function Command_Word (K : Known_Command) return String is
      (case K is
@@ -2636,7 +3023,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when Servo_Mix_Command_Word => "smix",
          when Set_Command => "set",
          when Vtx_Command_Word => "vtx",
-         when Vtx_Table_Command_Word => "vtxtable")
+         when Vtx_Table_Command_Word => "vtxtable",
+         when Waypoint_Command_Word => "waypoint")
      with Post => Command_Word'Result'Length in 1 .. 15;
 
    --  The line's command and the position of its arguments.
@@ -2685,8 +3073,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
    ------------------
 
    procedure Process_Line
-     (Into : in out Sink; C : in out Configuration; Line : String; Ports : Port_List; Known : out Boolean;
-      Changes : out Effects)
+     (Into : in out Sink; C : in out Configuration; Line : String; Ports : Port_List; Navigation : Navigation_Status;
+      Known : out Boolean; Changes : out Effects)
    is
       Buffer    : Line_Buffer := (others => ASCII.NUL);
       Length    : Natural := 0;
@@ -2800,6 +3188,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when Vtx_Table_Command_Word =>
             Known := True;
             Vtx_Table_Command (Into, C.Vtx_Table_Config, Text_At (Buffer, Arguments));
+         when Waypoint_Command_Word =>
+            Known := True;
+            Waypoint_Command (Into, C.Flight_Plan_Config, Navigation, Text_At (Buffer, Arguments));
       end case;
    end Process_Line;
 

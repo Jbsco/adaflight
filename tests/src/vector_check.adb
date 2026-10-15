@@ -14096,14 +14096,16 @@ procedure Vector_Check is
    package CLI is new Adaflight.Command_Line (CLI_Sink, CLI_Put);
 
    CLI_Config   : Adaflight.Config_Groups.Configuration := Adaflight.Config_Groups.Defaults;
+   CLI_Nav      : CLI.Navigation_Status;
    CLI_Reply    : CLI_Sink;
    CLI_Expected : Ada.Strings.Unbounded.Unbounded_String;
 
    --  The reference's command line over a sequence of command lines from the
    --  reset configuration: each command, its reply in chunks, and an FNV-1a
    --  hash of the configuration after it. A line "!profiles p r b" selects the
-   --  profiles and "!raw name profile index value" stores a value whatever its
-   --  range.
+   --  profiles, "!raw name profile index value" stores a value whatever its
+   --  range, and "!nav active state index distance bearing eta reason" sets
+   --  the flight plan executor's report.
    procedure Check_CLI_Line is
       use Ada.Strings.Unbounded;
       use type Interfaces.Unsigned_64;
@@ -14136,6 +14138,7 @@ procedure Vector_Check is
       if Str (1) = "cli" then
          if Int (2) = 0 then
             CLI_Config := Groups.Defaults;
+            CLI_Nav := (others => <>);
          end if;
          CLI_Reply.Text := Null_Unbounded_String;
          CLI_Expected := Null_Unbounded_String;
@@ -14155,8 +14158,17 @@ procedure Vector_Check is
                                  Natural'Value (Word (Command, 3)));
                   end if;
                end loop;
+            elsif Word (Command, 0) = "!nav" then
+               CLI_Nav :=
+                 (Active        => Word (Command, 1) /= "0",
+                  State         => Interfaces.Unsigned_8'Value (Word (Command, 2)),
+                  Current_Index => Interfaces.Unsigned_8'Value (Word (Command, 3)),
+                  Distance_M    => Float'Value (Word (Command, 4)),
+                  Bearing_Deci  => Interfaces.Integer_32'Value (Word (Command, 5)),
+                  ETA_S         => Interfaces.Unsigned_16'Value (Word (Command, 6)),
+                  Abort_Reason  => Interfaces.Unsigned_8'Value (Word (Command, 7)));
             else
-               CLI.Process_Line (CLI_Reply, CLI_Config, Command, Ports, Known, Changes);
+               CLI.Process_Line (CLI_Reply, CLI_Config, Command, Ports, CLI_Nav, Known, Changes);
                Record_Int ("cli.known", 1, Boolean'Pos (Known or else Command (Command'First) = '#'));
             end if;
          end;
@@ -18351,6 +18363,7 @@ begin
    Run (Dir & "/clisrv.csv", "cliset");
    Run (Dir & "/cliled.csv", "cliset");
    Run (Dir & "/clivtx.csv", "cliset");
+   Run (Dir & "/cliwp.csv", "cliset");
    if Settings_Seen /= Adaflight.Settings_Table.Setting'Pos (Adaflight.Settings_Table.Setting'Last) + 1 then
       Put_Line ("settings: the vectors hold" & Settings_Seen'Image & " settings");
       Failures := Failures + 1;

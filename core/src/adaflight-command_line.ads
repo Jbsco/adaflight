@@ -5,6 +5,7 @@
 --  name; profile, rateprofile and battery_profile show or select a profile;
 --  dump and diff list a profile's or a rate profile's settings. The text goes
 --  out through Put into a sink.
+with Interfaces;
 with Adaflight.Config_Groups; use Adaflight.Config_Groups;
 with Adaflight.CLI_Text;
 with Adaflight.Serial_Feature_Map;
@@ -59,14 +60,28 @@ package Adaflight.Command_Line with SPARK_Mode is
       LEDs            : Boolean := False;
    end record;
 
+   --  The flight plan executor's state the waypoint status reports: whether
+   --  it runs, its state, its current waypoint, the distance to that
+   --  waypoint in meters, negative for none, the bearing in tenths of a
+   --  degree, the time to it in seconds and the reason it aborted.
+   type Navigation_Status is record
+      Active        : Boolean := False;
+      State         : Interfaces.Unsigned_8 := 0;
+      Current_Index : Interfaces.Unsigned_8 := 0;
+      Distance_M    : Float := -1.0;
+      Bearing_Deci  : Interfaces.Integer_32 := 0;
+      ETA_S         : Interfaces.Unsigned_16 := 0;
+      Abort_Reason  : Interfaces.Unsigned_8 := 0;
+   end record;
+
    --  A typed line without its line end: printable characters past the
    --  leading spaces, up to 255 of them, a comment from the first number sign
    --  and trailing spaces cut, then its command run. Known is false for a
    --  line naming no command, and for dump and diff of other sections than a
    --  profile's and a rate profile's.
    procedure Process_Line
-     (Into : in out Sink; C : in out Configuration; Line : String; Ports : Port_List; Known : out Boolean;
-      Changes : out Effects)
+     (Into : in out Sink; C : in out Configuration; Line : String; Ports : Port_List; Navigation : Navigation_Status;
+      Known : out Boolean; Changes : out Effects)
      with Pre => Valid (Current (C)) and then Ports'Length <= Serial_Feature_Map.Max_Ports;
 
 end Adaflight.Command_Line;
