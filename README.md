@@ -202,7 +202,8 @@ The core contains:
 - MSP profile writes: profile selection and copy
 - MSP VTX configuration write: band and channel or frequency, power, pit mode, table counts and
   clearing
-- MSP runtime writes: raw receiver channels, raw GPS solution, transmitter RSSI, clock
+- MSP runtime writes: raw receiver channels, raw GPS solution, GPS sensor solution, transmitter
+  RSSI, clock
 - MSP board writes: board information and signature set once, configuration reset with reply
 - MSP motor test: disarmed motor values converted for motor protocol
 - MSP OSD font character write: four request forms, character handed to OSD display port
@@ -213,7 +214,7 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 25169 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 25202 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
 - Recorded vectors replay bit for bit: 1753568 lines over 384 cases, every case exact except
   forty-six declared deviations in `DESIGN.md` D6.
