@@ -121,6 +121,15 @@ package body Adaflight.Config_Runtime with SPARK_Mode is
       return R;
    end Conditions_Of;
 
+   function Flags_Of (Mask : Unsigned_32) return Beeper.Mode_Flags is
+      F : Beeper.Mode_Flags;
+   begin
+      for S in Beeper.Sound loop
+         F (S) := (Mask and Shift_Left (1, Beeper.Mode'Pos (S) - 1)) /= 0;
+      end loop;
+      return F;
+   end Flags_Of;
+
    function Map_Of (Rcmap : Bytes_8) return Receiver.Channel_Map is
       M : Receiver.Channel_Map;
    begin
