@@ -4,6 +4,7 @@ with Adaflight.Config_Fix;
 with Adaflight.Mixer_Init;
 with Adaflight.Modes;
 with Adaflight.MSP_Box;
+with Adaflight.Servo_Rules;
 with Adaflight.Settings_Table; use Adaflight.Settings_Table;
 
 package body Adaflight.Command_Line with SPARK_Mode is
@@ -1383,6 +1384,306 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end if;
    end Motor_Mix_Command;
 
+   Input_Source_Count : constant := 14;
+
+   --  Each servo's line, then a reverse line for each input source it
+   --  reverses.
+   procedure Put_Servos (Into : in out Sink; Params : Servo_Param_Record_List_8) is
+   begin
+      for I in Params'Range loop
+         pragma Loop_Invariant (I in Params'Range);
+         Put (Into, "servo " & Decimal (Integer_64 (I)) & " " & Decimal (Integer_64 (Params (I).Min)) & " "
+              & Decimal (Integer_64 (Params (I).Max)) & " "
+              & Decimal (Integer_64 (Params (I).Middle)) & " "
+              & Decimal (Integer_64 (Params (I).Rate)) & " "
+              & Decimal (Integer_64 (Params (I).Forward_From_Channel)) & CRLF);
+      end loop;
+      for I in Params'Range loop
+         pragma Loop_Invariant (I in Params'Range);
+         for Input in 0 .. Input_Source_Count - 1 loop
+            pragma Loop_Invariant (Input in 0 .. Input_Source_Count - 1);
+            if (Params (I).Reversed_Sources and Shift_Left (1, Input)) /= 0 then
+               Put (Into, "smix reverse " & Decimal (Integer_64 (I)) & " " & Decimal (Integer_64 (Input)) & " r"
+                    & CRLF);
+            end if;
+         end loop;
+      end loop;
+   end Put_Servos;
+
+   --  servo: every servo's parameters, or one servo's minimum, maximum,
+   --  middle, rate and forwarded channel from six numbers, each wrapped to
+   --  16 bits; anything but numbers and spaces is the parse error.
+   procedure Servo_Command (Into : in out Sink; Params : in out Servo_Param_Record_List_8; Arguments : String)
+     with Pre => Arguments'First >= 1 and then Arguments'Last < Positive'Last
+                 and then Arguments'First <= Arguments'Last + 1
+   is
+      Values : array (0 .. 5) of Integer_16 := (others => 0);
+      Count  : Natural := 0;
+      P      : Positive := Arguments'First;
+   begin
+      if Arguments'Length = 0 then
+         Put_Servos (Into, Params);
+         return;
+      end if;
+      while P <= Arguments'Last loop
+         pragma Loop_Invariant (Count <= 6 and then P in Arguments'Range);
+         pragma Loop_Variant (Increases => P);
+         if Arguments (P) = '-' or else Arguments (P) in '0' .. '9' then
+            if Count >= 6 then
+               Put (Into, "###ERROR IN servo: INVALID ARGUMENT COUNT###" & CRLF);
+               return;
+            end if;
+            Values (Count) :=
+              Integer_16 ((Integer_64 (CLI_Text.To_Integer (Arguments (P .. Arguments'Last))) + 32_768) mod 65_536
+                          - 32_768);
+            Count := Count + 1;
+            loop
+               pragma Loop_Invariant (P in Arguments'Range and then P >= P'Loop_Entry);
+               pragma Loop_Variant (Increases => P);
+               exit when P = Arguments'Last or else Arguments (P + 1) not in '0' .. '9';
+               P := P + 1;
+            end loop;
+            exit when P = Arguments'Last;
+            P := P + 1;
+         elsif Arguments (P) = ' ' then
+            exit when P = Arguments'Last;
+            P := P + 1;
+         else
+            Put (Into, "###ERROR IN servo: PARSING FAILED###" & CRLF);
+            return;
+         end if;
+      end loop;
+      if Count /= 6 or else Values (0) not in 0 .. 7 then
+         Put (Into, "###ERROR IN servo: INVALID ARGUMENT COUNT###" & CRLF);
+         return;
+      end if;
+      if Values (1) not in 500 .. 2500 or else Values (2) not in 500 .. 2500 or else Values (3) < Values (1)
+        or else Values (3) > Values (2) or else Values (1) > Values (2) or else Values (4) not in -100 .. 100
+        or else Values (5) >= 18
+      then
+         Put (Into, "###ERROR IN servo: ARGUMENT OUT OF RANGE###" & CRLF);
+         return;
+      end if;
+      declare
+         Index : constant Natural := Natural (Values (0));
+         S     : Servo_Param_Record renames Params (Index);
+      begin
+         S.Min := Values (1);
+         S.Max := Values (2);
+         S.Middle := Values (3);
+         S.Rate := Integer_8 (Values (4));
+         S.Forward_From_Channel := Integer_8 ((Integer_32 (Values (5)) + 128) mod 256 - 128);
+         Put (Into, "servo " & Decimal (Integer_64 (Index)) & " " & Decimal (Integer_64 (S.Min)) & " "
+              & Decimal (Integer_64 (S.Max)) & " " & Decimal (Integer_64 (S.Middle)) & " "
+              & Decimal (Integer_64 (S.Rate)) & " " & Decimal (Integer_64 (S.Forward_From_Channel)) & CRLF);
+      end;
+   end Servo_Command;
+
+   --  The servo rules up to the first without a rate.
+   procedure Put_Servo_Rules (Into : in out Sink; Rules : Servo_Mixer_Record_List_16) is
+   begin
+      for I in Rules'Range loop
+         pragma Loop_Invariant (I in Rules'Range);
+         exit when Rules (I).Rate = 0;
+         declare
+            R : constant Servo_Mixer_Record := Rules (I);
+         begin
+            Put (Into, "smix " & Decimal (Integer_64 (I)) & " " & Decimal (Integer_64 (R.Target_Channel)) & " "
+                 & Decimal (Integer_64 (R.Input_Source)) & " " & Decimal (Integer_64 (R.Rate)) & " "
+                 & Decimal (Integer_64 (R.Speed)) & " " & Decimal (Integer_64 (R.Min)) & " "
+                 & Decimal (Integer_64 (R.Max)) & " " & Decimal (Integer_64 (R.Box)) & CRLF);
+         end;
+      end loop;
+   end Put_Servo_Rules;
+
+   --  Each servo's reversed input sources as a table.
+   procedure Put_Reversed (Into : in out Sink; Params : Servo_Param_Record_List_8) is
+   begin
+      Put (Into, "s");
+      for Input in 0 .. Input_Source_Count - 1 loop
+         pragma Loop_Invariant (Input in 0 .. Input_Source_Count - 1);
+         Put (Into, ASCII.HT & "i" & Decimal (Integer_64 (Input)));
+      end loop;
+      Put (Into, CRLF);
+      for I in Params'Range loop
+         pragma Loop_Invariant (I in Params'Range);
+         Put (Into, Decimal (Integer_64 (I)));
+         for Input in 0 .. Input_Source_Count - 1 loop
+            pragma Loop_Invariant (Input in 0 .. Input_Source_Count - 1);
+            Put (Into, ASCII.HT
+                 & (if (Params (I).Reversed_Sources and Shift_Left (1, Input)) /= 0 then 'r' else 'n')
+                 & "  ");
+         end loop;
+         Put (Into, CRLF);
+      end loop;
+   end Put_Reversed;
+
+   --  The text of the next word from a position, past the spaces before it:
+   --  its first and last positions, and zero for First where no word is left.
+   procedure Next_Word (Text : String; From : Positive; First : out Natural; Last : out Natural)
+     with Pre  => Text'First >= 1 and then Text'Last < Positive'Last and then From >= Text'First,
+          Post => (if First > 0 then First in Text'Range and then First >= From and then Last in First .. Text'Last)
+   is
+      P : Positive := From;
+   begin
+      First := 0;
+      Last := 0;
+      while P <= Text'Last and then Text (P) = ' ' loop
+         pragma Loop_Invariant (P in Text'Range and then P >= From);
+         pragma Loop_Variant (Increases => P);
+         P := P + 1;
+      end loop;
+      if P > Text'Last then
+         return;
+      end if;
+      First := P;
+      Last := P;
+      while Last < Text'Last and then Text (Last + 1) /= ' ' loop
+         pragma Loop_Invariant (Last in First .. Text'Last - 1);
+         pragma Loop_Variant (Increases => Last);
+         Last := Last + 1;
+      end loop;
+   end Next_Word;
+
+   --  smix: the servo rules, every rule and reversed source cleared, a
+   --  mode's rules loaded by the first name the text starts, the reversed
+   --  sources, one source of one servo reversed or not, or one rule's servo,
+   --  input, rate, speed, range and box from eight numbers.
+   procedure Servo_Mix_Command
+     (Into : in out Sink; Rules : in out Servo_Mixer_Record_List_16; Params : in out Servo_Param_Record_List_8;
+      Arguments : String)
+     with Pre => Arguments'First >= 1 and then Arguments'Last < Positive'Last
+                 and then Arguments'First <= Arguments'Last + 1
+   is
+      Found : Boolean;
+      M     : Mixer_Init.Mixer_Mode;
+      P     : Natural;
+   begin
+      if Arguments'Length = 0 then
+         Put_Servo_Rules (Into, Rules);
+      elsif Arguments'Length >= 5
+        and then CLI_Text.Same_Ignoring_Case (Arguments (Arguments'First .. Arguments'First + 4), "reset")
+      then
+         Rules :=
+           (others => (Target_Channel => 0, Input_Source => 0, Rate => 0, Speed => 0, Min => 0, Max => 0, Box => 0));
+         for I in Params'Range loop
+            Params (I).Reversed_Sources := 0;
+         end loop;
+      elsif Arguments'Length >= 4
+        and then CLI_Text.Same_Ignoring_Case (Arguments (Arguments'First .. Arguments'First + 3), "load")
+      then
+         P := Next_Argument (Arguments, Arguments'First);
+         if P > 0 and then P <= Arguments'Last then
+            Find_Mixer (Arguments (P .. Arguments'Last), Found, M);
+            if not Found then
+               Put (Into, "###ERROR IN smix: INVALID NAME: ");
+               Put (Into, Arguments);
+               Put (Into, "###" & CRLF);
+               return;
+            end if;
+            declare
+               Loaded : Servo_Rules.Rule_List;
+               Count  : Servo_Rules.Rule_Count;
+            begin
+               Servo_Rules.Mode_Rules ((others => <>), M, Loaded, Count);
+               for I in Rules'Range loop
+                  Rules (I).Target_Channel := 0;
+                  Rules (I).Input_Source := 0;
+                  Rules (I).Rate := 0;
+                  Rules (I).Box := 0;
+               end loop;
+               for I in 1 .. Count loop
+                  Rules (I - 1) :=
+                    (Target_Channel => Loaded (I).Target, Input_Source => Loaded (I).Input, Rate => Loaded (I).Rate,
+                     Speed => Loaded (I).Speed, Min => Loaded (I).Min, Max => Loaded (I).Max, Box => Loaded (I).Box);
+               end loop;
+            end;
+            Put (Into, "Loaded ");
+            Put (Into, Mixer_Name (M));
+            Put (Into, CRLF);
+            Put_Servo_Rules (Into, Rules);
+         end if;
+      elsif Arguments'Length >= 7
+        and then CLI_Text.Same_Ignoring_Case (Arguments (Arguments'First .. Arguments'First + 6), "reverse")
+      then
+         P := 0;
+         for K in Arguments'Range loop
+            if Arguments (K) = ' ' then
+               P := K;
+               exit;
+            end if;
+         end loop;
+         if P > 0 then
+            declare
+               Servo, Input : Integer_32 := 0;
+               First, Last  : Natural;
+               Unused_Last  : Natural;
+            begin
+               Next_Word (Arguments, P, First, Last);
+               if First > 0 then
+                  Servo := CLI_Text.To_Integer (Arguments (First .. Last));
+                  Next_Word (Arguments, Last + 1, First, Last);
+                  if First > 0 then
+                     Input := CLI_Text.To_Integer (Arguments (First .. Last));
+                     Next_Word (Arguments, Last + 1, First, Unused_Last);
+                  end if;
+               end if;
+               if First = 0 then
+                  Put (Into, "###ERROR IN smix: INVALID ARGUMENT COUNT###" & CRLF);
+                  return;
+               end if;
+               if Servo not in 0 .. 7 or else Input not in 0 .. Input_Source_Count - 1
+                 or else Arguments (First) not in 'r' | 'n'
+               then
+                  Put (Into, "###ERROR IN smix: servo NOT BETWEEN 0 AND 8###" & CRLF);
+                  return;
+               end if;
+               if Arguments (First) = 'r' then
+                  Params (Natural (Servo)).Reversed_Sources :=
+                    Params (Natural (Servo)).Reversed_Sources or Shift_Left (1, Natural (Input));
+               else
+                  Params (Natural (Servo)).Reversed_Sources :=
+                    Params (Natural (Servo)).Reversed_Sources and not Shift_Left (1, Natural (Input));
+               end if;
+            end;
+         end if;
+         Put_Reversed (Into, Params);
+      else
+         declare
+            Values      : array (0 .. 7) of Integer_32 := (others => 0);
+            Count       : Natural := 0;
+            First, Last : Natural;
+            From        : Positive := Arguments'First;
+         begin
+            loop
+               pragma Loop_Invariant (Count <= 8 and then From in Arguments'First .. Arguments'Last + 1);
+               pragma Loop_Variant (Increases => From);
+               Next_Word (Arguments, From, First, Last);
+               exit when First = 0 or else Count = 8;
+               Values (Count) := CLI_Text.To_Integer (Arguments (First .. Last));
+               Count := Count + 1;
+               From := Last + 1;
+            end loop;
+            if First > 0 or else Count /= 8 then
+               Put (Into, "###ERROR IN smix: INVALID ARGUMENT COUNT###" & CRLF);
+               return;
+            end if;
+            if Values (0) in 0 .. 15 and then Values (1) in 0 .. 7 and then Values (2) in 0 .. Input_Source_Count - 1
+              and then Values (3) in -100 .. 100 and then Values (4) in 0 .. 255 and then Values (5) in 0 .. 100
+              and then Values (6) in 0 .. 100 and then Values (5) < Values (6) and then Values (7) in 0 .. 3
+            then
+               Rules (Natural (Values (0))) :=
+                 (Target_Channel => Unsigned_8 (Values (1)), Input_Source => Unsigned_8 (Values (2)),
+                  Rate => Integer_8 (Values (3)), Speed => Unsigned_8 (Values (4)), Min => Integer_8 (Values (5)),
+                  Max => Integer_8 (Values (6)), Box => Unsigned_8 (Values (7)));
+               Put_Servo_Rules (Into, Rules);
+            else
+               Put (Into, "###ERROR IN smix: ARGUMENT OUT OF RANGE###" & CRLF);
+            end if;
+         end;
+      end if;
+   end Servo_Mix_Command;
+
    Channel_Letters : constant String := "AERT12345678abcdefgh";
    Mappable        : constant := 8;
 
@@ -1624,7 +1925,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
      (No_Command, Adjustment_Range_Command_Word, Aux_Command_Word, Battery_Profile_Command, Beacon_Command,
       Beeper_Command_Word, Diff_Command, Dump_Command, Feature_Command_Word, Get_Command, Map_Command_Word,
       Mixer_Command_Word, Motor_Mix_Command_Word, Profile_Command, Rate_Profile_Command, Rx_Failsafe_Command,
-      Rx_Range_Command, Serial_Command_Word, Set_Command);
+      Rx_Range_Command, Serial_Command_Word, Servo_Command_Word, Servo_Mix_Command_Word, Set_Command);
    subtype Known_Command is Command_Kind range Adjustment_Range_Command_Word .. Set_Command;
 
    function Command_Word (K : Known_Command) return String is
@@ -1646,6 +1947,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when Rx_Failsafe_Command => "rxfail",
          when Rx_Range_Command => "rxrange",
          when Serial_Command_Word => "serial",
+         when Servo_Command_Word => "servo",
+         when Servo_Mix_Command_Word => "smix",
          when Set_Command => "set")
      with Post => Command_Word'Result'Length in 1 .. 15;
 
@@ -1782,6 +2085,12 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when Rx_Range_Command =>
             Known := True;
             Range_Command (Into, C, Text_At (Buffer, Arguments));
+         when Servo_Command_Word =>
+            Known := True;
+            Servo_Command (Into, C.Servo_Params, Text_At (Buffer, Arguments));
+         when Servo_Mix_Command_Word =>
+            Known := True;
+            Servo_Mix_Command (Into, C.Custom_Servo_Mixers, C.Servo_Params, Text_At (Buffer, Arguments));
          when Serial_Command_Word =>
             Known := True;
             Serial_Command (Into, C, Text_At (Buffer, Arguments), Ports);

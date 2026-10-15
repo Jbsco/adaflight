@@ -227,6 +227,9 @@ ledger. The deviations so far:
   not-a-number, and `mmix` prints every value in full, where the reference writes values of 100000
   or more past its text buffers (findings F159, F160). The recorded command lines keep their values
   below 100000.
+- The command line's `smix load` of the last frame loads no servo rules, where the reference reads
+  the frame's rules from past the end of its rule table (findings F47). The recorded command lines
+  load the other frames.
 
 ## D7. Contribution conventions (2026-10-08)
 
@@ -3967,3 +3970,35 @@ table and unknown names, and motor lines with values in plain, fraction and expo
 values that round at the thousandths, and texts that are not numbers. With the earlier sequences,
 all 36586 replies match the reference's byte for byte, and so does the configuration's hash after
 every command.
+
+## D176. Command line servos (2026-10-14)
+
+`Adaflight.Command_Line` gains the `servo` and `smix` commands. `servo` alone prints every servo's
+minimum, maximum, middle, rate and forwarded channel, then a reverse line for each input source a
+servo reverses. With arguments it reads six numbers, each wrapped to 16 bits, from a line of numbers
+and spaces, where any other character is the parse error (findings F162). A count other than six or
+a servo index outside 0 to 7 is the argument count error, and a minimum or maximum outside 500 to
+2500, a middle outside them, a rate outside -100 to 100 or a forwarded channel of 18 or more is the
+range error. Otherwise the servo takes the values, the channel wrapped to 8 bits, and the reply is
+its line.
+
+`smix` alone prints the servo rules up to the first without a rate. `smix reset` clears every rule
+and every reversed source. `smix load` with a name or prefix clears each rule's servo, input, rate
+and box, loads the first matching mode's rules and prints them. `smix reverse` alone prints the
+reversed sources as a table, and with a servo, an input source and `r` or `n` reverses the source or
+not, then prints the table. Eight numbers set one rule: index, servo, input source, rate, speed,
+range and box, each within its limits.
+
+`Adaflight.Servo_Rules` contains the rules each mixer mode starts from, with the uncommon frames'
+rules only in builds with the uncommon mixers, and no rules for the last frame (D6).
+
+Both commands take only the servo parameters and the servo rules, and their listing loops have
+loop invariants, so the proof takes each loop one iteration at a time. Unrolled, the servo listing's
+8 by 14 loops held 20 gigabytes in one prover process, past a hosted runner's 16. With the
+invariants, the unit's largest prover process holds 1.3 gigabytes.
+
+The harness replays two sequences of 2000 command lines recorded from the oracle: servo lists and
+lines with values in and out of range, wrapped values, negative forwarded channels, short, long and
+malformed lines, rule lists, resets, loads of every frame but the last, reversed source tables and
+changes, and rule lines in and out of range. With the earlier sequences, all 40586 replies match the
+reference's byte for byte, and so does the configuration's hash after every command.
