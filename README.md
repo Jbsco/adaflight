@@ -129,6 +129,8 @@ The core contains:
 - command line simplified tuning: apply and disable over stored profiles and gyro settings
 - command line defaults: whole and single-group resets without save
 - command line batches: batch start and end with error flag, unknown line reply
+- core loop cadence: PID loop sample counter, filter and controller readiness, yaw reset at low
+  throttle while arming by stick
 - runtime records from stored configuration: PID profile, rate profile, gyro, arming, failsafe,
   receiver, RC command, adjustment, mixer, accelerometer, attitude, barometer, compass, battery,
   beeper, GPS link, GPS rescue, position, altitude, flight plan, blackbox, scheduler, LED strip,
@@ -161,7 +163,7 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 22996 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 23009 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
 - Recorded vectors replay bit for bit: 1753568 lines over 384 cases, every case exact except
   forty-two declared deviations in `DESIGN.md` D6.
