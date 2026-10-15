@@ -25,21 +25,26 @@ with Adaflight.Flight_Stats;
 with Adaflight.Float_Bits;
 with Adaflight.GPS_Lap_Timer;
 with Adaflight.GPS_Link;
+with Adaflight.Gimbal_Control;
 with Adaflight.GPS_Rescue;
 with Adaflight.LED_Strip;
 with Adaflight.Gyro_Filters;
 with Adaflight.Mixer;
 with Adaflight.Mixer_Init;
 with Adaflight.Modes;
+with Adaflight.Optical_Flow;
 with Adaflight.PID_Config;
 with Adaflight.PID_Profile; use Adaflight.PID_Profile;
+with Adaflight.Pitot;
 with Adaflight.Position_Control;
 with Adaflight.Position_Estimator;
 with Adaflight.Position_Hold;
+with Adaflight.Rangefinder;
 with Adaflight.Rates;
 with Adaflight.RC_Command;
 with Adaflight.Receiver;
 with Adaflight.RPM_Filter;
+with Adaflight.RTC;
 with Adaflight.Scheduler;
 with Adaflight.Sensor_Alignment;
 with Adaflight.UBX_Config;
@@ -220,6 +225,23 @@ package Adaflight.Config_Runtime with SPARK_Mode is
    --  the lap timer settings from the stored lap timer group.
    function Flight_Stats_Settings_Of (S : Stats_Config_Record) return Flight_Stats.Settings;
    function Lap_Timer_Settings_Of (G : Gps_Lap_Timer_Config_Record) return GPS_Lap_Timer.Settings;
+
+   --  The rangefinder settings from the stored position group, with the
+   --  cone the detected sensor reports; the optical flow settings from the
+   --  stored optical flow group; and the pitot settings from the stored
+   --  pitot group.
+   function Rangefinder_Settings_Of
+     (P : Position_Config_Record; Cone_Extended_Decidegrees : Rangefinder.Decidegrees) return Rangefinder.Settings;
+   function Optical_Flow_Settings_Of (O : Opticalflow_Config_Record) return Optical_Flow.Settings;
+   function Pitot_Settings_Of (P : Pitot_Config_Record) return Pitot.Settings;
+
+   --  The gimbal settings from the stored gimbal tracking and receiver
+   --  groups, with whether a serial port has the gimbal function.
+   function Gimbal_Settings_Of
+     (G : Gimbal_Track_Config_Record; R : Rx_Config_Record; Port_Configured : Boolean) return Gimbal_Control.Settings;
+
+   --  The clock settings from the stored time group.
+   function RTC_Settings_Of (T : Time_Config_Record) return RTC.Settings;
 
 private
 
@@ -788,6 +810,46 @@ private
       Gate_Lon           => G.Gate_Lon,
       Minimum_Lap_Time_S => G.Minimum_Lap_Time_Seconds,
       Gate_Tolerance_M   => G.Gate_Tolerance_M);
+
+   function Rangefinder_Settings_Of
+     (P : Position_Config_Record; Cone_Extended_Decidegrees : Rangefinder.Decidegrees) return Rangefinder.Settings is
+     (Max_Range_Cm              =>
+        Integer_16 (Held (Integer (P.Rangefinder_Max_Range_Cm), 0, Integer (Integer_16'Last))),
+      Cone_Extended_Decidegrees => Cone_Extended_Decidegrees);
+
+   function Optical_Flow_Settings_Of (O : Opticalflow_Config_Record) return Optical_Flow.Settings is
+     (Rotation_Degrees => O.Rotation, Flip_X => O.Flip_X /= 0);
+
+   function Pitot_Settings_Of (P : Pitot_Config_Record) return Pitot.Settings is
+     (Hardware => Pitot.Source'Val (Code (P.Pitot_Hardware, Pitot.Source'Pos (Pitot.Source'Last))));
+
+   function Gimbal_Gain (V : Integer_8) return Gimbal_Control.Gain is (Held (Integer (V), -100, 100));
+   function Gimbal_Limit (V : Integer_8) return Gimbal_Control.Limit is (Held (Integer (V), 0, 100));
+
+   function Gimbal_Settings_Of
+     (G : Gimbal_Track_Config_Record; R : Rx_Config_Record; Port_Configured : Boolean) return Gimbal_Control.Settings is
+     (Port_Configured        => Port_Configured,
+      Roll_RC_Gain           => Gimbal_Gain (G.Gimbal_Roll_Rc_Gain),
+      Pitch_RC_Throttle_Gain => Gimbal_Gain (G.Gimbal_Pitch_Rc_Thr_Gain),
+      Pitch_RC_Low_Gain      => Gimbal_Gain (G.Gimbal_Pitch_Rc_Low_Gain),
+      Pitch_RC_High_Gain     => Gimbal_Gain (G.Gimbal_Pitch_Rc_High_Gain),
+      Yaw_RC_Gain            => Gimbal_Gain (G.Gimbal_Yaw_Rc_Gain),
+      Roll_Gain              => Gimbal_Gain (G.Gimbal_Roll_Gain),
+      Roll_Offset            => Gimbal_Gain (G.Gimbal_Roll_Offset),
+      Roll_Limit             => Gimbal_Limit (G.Gimbal_Roll_Limit),
+      Pitch_Gain             => Gimbal_Gain (G.Gimbal_Pitch_Gain),
+      Pitch_Offset           => Gimbal_Gain (G.Gimbal_Pitch_Offset),
+      Pitch_Low_Limit        => Gimbal_Limit (G.Gimbal_Pitch_Low_Limit),
+      Pitch_High_Limit       => Gimbal_Limit (G.Gimbal_Pitch_High_Limit),
+      Yaw_Gain               => Gimbal_Gain (G.Gimbal_Yaw_Gain),
+      Yaw_Offset             => Gimbal_Gain (G.Gimbal_Yaw_Offset),
+      Yaw_Limit              => Gimbal_Limit (G.Gimbal_Yaw_Limit),
+      Stabilisation          => Held (Integer (G.Gimbal_Stabilisation), 0, 7),
+      Sensitivity            => Held (Integer (G.Gimbal_Sensitivity), -16, 15),
+      Mid_RC                 => Held (Integer (R.Midrc), 1200, 1700));
+
+   function RTC_Settings_Of (T : Time_Config_Record) return RTC.Settings is
+     (Zone => Integer_16 (Held (Integer (T.Tz_Offset_Minutes), -780, 780)));
 
    function Gyro_Settings_Of
      (G : Gyro_Config_Record; N : Dyn_Notch_Config_Record; R : Rpm_Filter_Config_Record;
