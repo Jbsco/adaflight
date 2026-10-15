@@ -275,7 +275,9 @@ ledger. The deviations so far:
   a print only within the page's rows (D196), where the reference reads whatever follows the table
   and writes its print mark past the runtime flags (F186). The recorded keys keep the cursor on the
   page, as the stick scanning keeps it in the reference.
-
+- The tasks command reads the clock once, as it starts, and remembers that reading for the next
+  command's check function load (D198), where the reference reads the clock again after its list;
+  the two readings differ by the command's own run time.
 
 ## D7. Contribution conventions (2026-10-08)
 
@@ -4628,3 +4630,41 @@ The harness replays forty update passes per menu tree after the exit, 72000 pass
 held or redrawn at random, the arming flag, modes, external keys, byte budgets, device types, editing
 states and clock readings drawn at random, and compares every display operation, hook call, context
 and page with the reference's.
+## D198. Command line tasks (2026-10-15)
+
+`tasks` prints the task list: for every queued task, its number in two digits, its name
+right-justified in fifteen columns, and its rate in hertz, the nearest integer to ten million over
+its average interval in tenths of a microsecond. With `task_statistics` on, each line adds the peak
+and average execution times in microseconds, the peak and average loads in tenths of a percent, and
+the total execution time in milliseconds; then come the check functions' line, with their peak and
+average times, their load over the time since the last `tasks` and their total, the total load
+line, and in the scheduler determinism debug mode the loop start and guard cycles. Each queued
+task's peak times reset after its line, the check functions' peak after theirs. The task
+information comes from `Adaflight.Scheduler.Info`, the reference's `getTaskInfo`: the moving sums
+over eight samples give the averages, and the load products wrap at 32 bits as the reference's
+unsigned arithmetic does. `Adaflight.Scheduler.Check_Functions` gives the check functions' summary
+and `Adaflight.Scheduler.Name` the task names; the system and main tasks share the name `SYSTEM`.
+
+`Process_Line` takes the scheduler's state, so the command reads it and resets it directly. The
+`Environment` gains the clock in microseconds and the running debug mode, and `Output` keeps what
+the reference keeps in function statics: the clock at the last `tasks` and the check functions'
+total at that time. The reference reads the clock twice, before the list and after it; the port's
+one reading stands for both (D6). Counts print as the C library prints a 32-bit pattern with `%d`:
+a peak time past 2^31 microseconds prints negative, and the total load, an `int` sum in the
+reference, wraps at 32 bits where the reference's addition overflows. The check functions' load is
+the reference's float quotient truncated and taken in its low 32 bits, which is what the
+reference's conversion of a negative or oversized value to `uint32_t` yields on its targets
+(findings F187).
+
+The reference prints three more columns, the late count, run count and required time, on the
+platforms that keep late task statistics, the STM32 F4 and F7 among them. The port's scheduler
+keeps no late task statistics yet (ROADMAP), so the port prints the reference's shorter form, the
+one its simulator build prints; the columns come with the scheduler's late statistics.
+
+The harness replays two sequences of 649 lines, recorded from the oracle with the reference's
+scheduler and task table linked in and the stack check, BST, DroneCAN and camera control tasks
+compiled, so its task ids match the port's table: task statistics stored in the reference's raw
+units, realistic or anywhere in the 32-bit range, tasks queued and dequeued, the clock moved
+forward, back and past half its range, check function statistics, debug modes and cycle counts,
+task statistics switched on and off, and `tasks` commands. All 692842 reply characters match the
+reference's, and so does the configuration's hash after every command.

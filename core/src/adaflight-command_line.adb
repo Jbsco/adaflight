@@ -3626,7 +3626,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Led_Command_Word, Map_Command_Word, Mode_Color_Command_Word, Mixer_Command_Word, Motor_Mix_Command_Word,
       Profile_Command, Rate_Profile_Command, Rx_Failsafe_Command, MCU_Id_Command_Word, Rx_Range_Command,
       Serial_Command_Word, Servo_Command_Word, Servo_Mix_Command_Word, Set_Command, Simplified_Tuning_Command_Word,
-      Version_Command_Word, Vtx_Command_Word, Vtx_Table_Command_Word, Waypoint_Command_Word);
+      Tasks_Command_Word, Version_Command_Word, Vtx_Command_Word, Vtx_Table_Command_Word, Waypoint_Command_Word);
    subtype Known_Command is Command_Kind range Adjustment_Range_Command_Word .. Waypoint_Command_Word;
 
    function Command_Word (K : Known_Command) return String is
@@ -3661,6 +3661,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when Servo_Mix_Command_Word => "smix",
          when Set_Command => "set",
          when Simplified_Tuning_Command_Word => "simplified_tuning",
+         when Tasks_Command_Word => "tasks",
          when Version_Command_Word => "version",
          when Vtx_Command_Word => "vtx",
          when Vtx_Table_Command_Word => "vtxtable",
@@ -4227,13 +4228,123 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end if;
    end Print_Config;
 
+   --  The scheduler determinism debug mode's number in the reference's table.
+   Scheduler_Determinism : constant := 67;
+
+   --  tasks: every queued task's number, name and rate, and with task
+   --  statistics its peak and average execution times, peak and average
+   --  loads and total time, then the check functions' line with their load
+   --  over the time since the last run, the total load, and in the scheduler
+   --  determinism debug mode the loop start and guard cycles. Each queued
+   --  task's peak times reset after its line, the check functions' after
+   --  theirs. Counts print as the C library's %d prints their 32-bit
+   --  pattern.
+   procedure Tasks_Command
+     (Into : in out Output; Sys : System_Config_Record; Env : Environment; Sched : in out Scheduler.State)
+     with Global => null
+   is
+      function As_Signed (U : Unsigned_32) return Integer_64 is
+        (if U >= 2 ** 31 then Integer_64 (U) - 2 ** 32 else Integer_64 (U))
+        with Post => As_Signed'Result in -2 ** 31 .. 2 ** 31 - 1;
+
+      function Wrapped (X : Integer_64) return Integer_64 is
+        ((X + 2 ** 31) mod 2 ** 32 - 2 ** 31)
+        with Pre  => X in -2 ** 40 .. 2 ** 40,
+             Post => Wrapped'Result in -2 ** 31 .. 2 ** 31 - 1;
+
+      --  A load in tenths of a percent as the reference's float arithmetic
+      --  and its conversion of the result to a count give it: the truncated
+      --  value's low 32 bits.
+      function Load_Tenths (Total_Since : Integer_64; Time_Since : Integer_64) return Unsigned_32
+        with Pre => Total_Since in -2 ** 31 .. 2 ** 31 - 1 and then Time_Since in -2 ** 31 .. 2 ** 31 - 1
+                    and then Time_Since /= 0
+      is
+         Ratio : constant Float := Float (Total_Since) * 1000.0 / Float (Time_Since);
+      begin
+         pragma Assert (abs Ratio <= 2.2e12);
+         return Unsigned_32 (Integer_64 (Float'Truncation (Ratio)) mod 2 ** 32);
+      end Load_Tenths;
+
+      function Two_Digits (N : Natural) return String is
+        (String'(Character'Val (Character'Pos ('0') + N / 10), Character'Val (Character'Pos ('0') + N mod 10)))
+        with Pre  => N < 100,
+             Post => Two_Digits'Result'First = 1 and then Two_Digits'Result'Length = 2;
+
+      function Field (V : Integer_64; Width : Natural) return String is
+        (CLI_Text.Right_Justified (Decimal (V), Width))
+        with Pre => Width <= 64;
+
+      Statistics : constant Boolean := Sys.Task_Statistics /= 0;
+      Time_Since : constant Integer_64 := As_Signed (Env.Now_Us - Into.Last_Tasks_Us);
+      Load_Sum   : Integer_64 := 0;
+   begin
+      if Statistics then
+         Put (Into, "Task list             rate/hz  max/us  avg/us maxload avgload  total/ms" & CRLF);
+      else
+         Put (Into, "Task list" & CRLF);
+      end if;
+      for Id in Scheduler.Task_Id loop
+         pragma Loop_Invariant (abs Load_Sum <= Integer_64 (Scheduler.Task_Id'Pos (Id)) * 2 ** 31);
+         declare
+            T : constant Scheduler.Task_Info := Scheduler.Info (Sched, Id);
+         begin
+            if T.Enabled then
+               declare
+                  Average_Load : constant Integer_64 := As_Signed (T.Average_Load_10th);
+                  Max_Load     : constant Integer_64 := As_Signed (T.Max_Load_10th);
+                  Frequency    : Integer_64 := 0;
+               begin
+                  if T.Average_Delta_10th /= 0 then
+                     pragma Assert (Float (T.Average_Delta_10th) >= 1.0);
+                     Frequency := Integer_64 (Maths.Round_Half_Even (1.0e7 / Float (T.Average_Delta_10th)));
+                  end if;
+                  Load_Sum := Load_Sum + Average_Load;
+                  Put (Into, Two_Digits (Scheduler.Task_Id'Pos (Id)) & " - ("
+                       & CLI_Text.Right_Justified (Scheduler.Name (Id), 15) & ") ");
+                  if Statistics then
+                     Put (Into, Field (Frequency, 6) & " " & Field (As_Signed (T.Max_Exec_Us), 7) & " "
+                          & Field (Integer_64 (T.Average_Exec_10th / 10), 7) & " " & Field (Max_Load / 10, 4) & "."
+                          & Decimal (Max_Load rem 10) & "% " & Field (Average_Load / 10, 4) & "."
+                          & Decimal (Average_Load rem 10) & "% " & Field (Integer_64 (T.Total_Exec_Us / 1000), 9)
+                          & CRLF);
+                  else
+                     Put (Into, Field (Frequency, 6) & CRLF);
+                  end if;
+               end;
+               Scheduler.Reset_Task_Max_Execution_Time (Sched, Id);
+            end if;
+         end;
+      end loop;
+      if Statistics then
+         declare
+            Checks      : constant Scheduler.Check_Info := Scheduler.Check_Functions (Sched);
+            Total_Since : constant Integer_64 := As_Signed (Checks.Total_Exec_Us - Into.Last_Check_Total_Us);
+            Load        : constant Unsigned_32 := (if Time_Since = 0 then 0 else Load_Tenths (Total_Since, Time_Since));
+            Total       : constant Integer_64 := Wrapped (Load_Sum);
+         begin
+            Into.Last_Check_Total_Us := Checks.Total_Exec_Us;
+            Put (Into, "Check Functions (RX, ...) " & Field (As_Signed (Checks.Max_Exec_Us), 11) & " "
+                 & Field (Integer_64 (Checks.Average_Exec_Us), 7) & " " & Field (Integer_64 (Load / 10), 12) & "."
+                 & Decimal (Integer_64 (Load mod 10)) & "% " & Field (Integer_64 (Checks.Total_Exec_Us / 1000), 9)
+                 & CRLF);
+            Put (Into, "Total " & Field (Total / 10, 52) & "." & Decimal (Total rem 10) & "%" & CRLF);
+            if Env.Debug_Mode = Scheduler_Determinism then
+               Put (Into, "Scheduler start cycles " & Decimal (Integer_64 (Sched.Loop_Start_Cycles)) & " guard cycles "
+                    & Decimal (Integer_64 (Sched.Guard_Cycles)) & CRLF);
+            end if;
+            Scheduler.Reset_Check_Max_Execution_Time (Sched);
+         end;
+      end if;
+      Into.Last_Tasks_Us := Env.Now_Us;
+   end Tasks_Command;
+
    ------------------
    -- Process_Line --
    ------------------
 
    procedure Process_Line
      (Into : in out Output; C : in out Configuration; Line : String; Ports : Port_List; Env : Environment;
-      Board : in out Board_State; Handled : out Boolean; Changes : out Effects)
+      Board : in out Board_State; Sched : in out Scheduler.State; Handled : out Boolean; Changes : out Effects)
    is
       Buffer    : Line_Buffer := (others => ASCII.NUL);
       Length    : Natural := 0;
@@ -4340,6 +4451,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
             Set (Into, C, Text_At (Buffer, Arguments), Ports);
          when Simplified_Tuning_Command_Word =>
             Simplified_Tuning_Command (Into, C, Text_At (Buffer, Arguments));
+         when Tasks_Command_Word =>
+            Tasks_Command (Into, C.System_Config, Env, Sched);
          when Version_Command_Word =>
             Version_Command (Into, C, Env, Board);
          when Vtx_Command_Word =>

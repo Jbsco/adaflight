@@ -8,13 +8,15 @@
 --  differs from the defaults; version prints the firmware's version line,
 --  mcu_id the MCU's unique id, and board_name, manufacturer_id and signature
 --  show or set the board's information; batch brackets a command batch and
---  reports an error printed inside it. A line naming no command gets the
---  ERR_CMD_NA reply.
+--  reports an error printed inside it; tasks lists every queued task's rate
+--  and, with task statistics on, its times and loads, and resets the peaks.
+--  A line naming no command gets the ERR_CMD_NA reply.
 --  The text goes out through Put into a sink, inside an Output that also
---  holds the batch's state.
+--  holds the batch's state and what the tasks command remembers.
 with Interfaces;
 with Adaflight.Config_Groups; use Adaflight.Config_Groups;
 with Adaflight.CLI_Text;
+with Adaflight.Scheduler;
 with Adaflight.Serial_Feature_Map;
 
 generic
@@ -42,11 +44,15 @@ package Adaflight.Command_Line with SPARK_Mode is
       Battery => Natural (C.System_Config.Active_Battery_Profile));
 
    --  Where the text goes, with the command batch's state: whether a batch
-   --  is open, and whether a command in it printed an error.
+   --  is open, and whether a command in it printed an error; and what the
+   --  tasks command remembers from its last run: the clock, and the check
+   --  functions' total execution time.
    type Output is limited record
-      Target       : Sink;
-      Batch_Active : Boolean := False;
-      Batch_Error  : Boolean := False;
+      Target              : Sink;
+      Batch_Active        : Boolean := False;
+      Batch_Error         : Boolean := False;
+      Last_Tasks_Us       : Interfaces.Unsigned_32 := 0;
+      Last_Check_Total_Us : Interfaces.Unsigned_32 := 0;
    end record;
 
    --  Every setting whose name contains the fragment without regard to case,
@@ -107,7 +113,8 @@ package Adaflight.Command_Line with SPARK_Mode is
 
    --  What the commands report from outside the configuration: the flight
    --  plan executor's state, the firmware's name, the target's name, the
-   --  version, the build's date, time and revision, and the MCU's unique id.
+   --  version, the build's date, time and revision, the MCU's unique id, the
+   --  clock in microseconds as the command runs, and the running debug mode.
    type Environment is record
       Navigation      : Navigation_Status;
       Firmware        : Identity_Text;
@@ -117,6 +124,8 @@ package Adaflight.Command_Line with SPARK_Mode is
       Build_Time      : Identity_Text;
       Revision        : Identity_Text;
       MCU_Id          : MCU_Words := (others => 0);
+      Now_Us          : Interfaces.Unsigned_32 := 0;
+      Debug_Mode      : Interfaces.Unsigned_8 := 0;
    end record;
 
    --  The board's information as the commands see it: its name and
@@ -139,11 +148,13 @@ package Adaflight.Command_Line with SPARK_Mode is
    --  A typed line without its line end: printable characters past the
    --  leading spaces, up to 255 of them, a comment from the first number sign
    --  and trailing spaces cut, then its command run, or the ERR_CMD_NA reply
-   --  for a line naming no command. Handled is false only for defaults
-   --  without nosave, whose save and restart wait for the save command.
+   --  for a line naming no command. Sched is the scheduler's state, which the
+   --  tasks command reads and whose peak times it resets. Handled is false
+   --  only for defaults without nosave, whose save and restart wait for the
+   --  save command.
    procedure Process_Line
      (Into : in out Output; C : in out Configuration; Line : String; Ports : Port_List; Env : Environment;
-      Board : in out Board_State; Handled : out Boolean; Changes : out Effects)
+      Board : in out Board_State; Sched : in out Scheduler.State; Handled : out Boolean; Changes : out Effects)
      with Pre => Valid (Current (C)) and then Ports'Length <= Serial_Feature_Map.Max_Ports;
 
 end Adaflight.Command_Line;

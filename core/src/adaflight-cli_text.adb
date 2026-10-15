@@ -431,6 +431,15 @@ package body Adaflight.CLI_Text with SPARK_Mode is
       return Buffer (First .. 21);
    end Decimal;
 
+   function Right_Justified (Text : String; Width : Natural) return String is
+      Copy : constant String (1 .. Text'Length) := Text;
+   begin
+      if Copy'Length >= Width then
+         return Copy;
+      end if;
+      return (1 .. Width - Copy'Length => ' ') & Copy;
+   end Right_Justified;
+
    --  A number below 100 in one or two digits.
    function Small_Decimal (N : Natural) return String is
      (if N < 10 then (1 => Character'Val (Character'Pos ('0') + N))

@@ -125,6 +125,88 @@ package body Adaflight.Scheduler with SPARK_Mode is
 
    function Enabled (S : State; Id : Task_Id) return Boolean is (Contains (S, Id));
 
+   ----------
+   -- Info --
+   ----------
+
+   function Info (S : State; Id : Task_Id) return Task_Info is
+      T             : Task_State renames S.Tasks (Id);
+      Average_Delta : constant Unsigned_32 := T.Moving_Sum_Delta / Moving_Sum_Count;
+   begin
+      return
+        (Enabled            => Contains (S, Id),
+         Period             => T.Period,
+         Priority           => Defaults (Id).Priority,
+         Latest_Delta_Us    => T.Latest_Delta_Us,
+         Max_Exec_Us        => T.Max_Exec_Us,
+         Total_Exec_Us      => T.Total_Exec_Us,
+         Average_Exec_10th  => T.Moving_Sum_Exec / Moving_Sum_Count,
+         Average_Delta_10th => Average_Delta,
+         Average_Load_10th  =>
+           (if T.Moving_Sum_Delta = 0 then 0 else T.Moving_Sum_States_Exec * 1000 / T.Moving_Sum_Delta),
+         Max_Load_10th      => (if Average_Delta = 0 then 0 else T.Max_States_Exec_Us * 10_000 / Average_Delta));
+   end Info;
+
+   ---------------------
+   -- Check_Functions --
+   ---------------------
+
+   function Check_Functions (S : State) return Check_Info is
+     (Max_Exec_Us      => S.Checks.Max_Exec_Us,
+      Total_Exec_Us    => S.Checks.Total_Exec_Us,
+      Average_Exec_Us  => S.Checks.Moving_Sum_Exec_Us / Moving_Sum_Count,
+      Average_Delta_Us => S.Checks.Moving_Sum_Delta_Us / Moving_Sum_Count);
+
+   ----------
+   -- Name --
+   ----------
+
+   function Name (Id : Task_Id) return String is
+     (case Id is
+         when System | Main => "SYSTEM",
+         when Gyro => "GYRO",
+         when Filter => "FILTER",
+         when PID => "PID",
+         when Accel => "ACC",
+         when Attitude => "ATTITUDE",
+         when Rx => "RX",
+         when Serial => "SERIAL",
+         when Dispatch => "DISPATCH",
+         when Battery_Voltage => "BATTERY_VOLTAGE",
+         when Battery_Current => "BATTERY_CURRENT",
+         when Battery_Alerts => "BATTERY_ALERTS",
+         when Beeper => "BEEPER",
+         when GPS => "GPS",
+         when GPS_Rescue => "GPS_RESCUE",
+         when Alt_Hold => "ALTHOLD",
+         when Pos_Hold => "POSHOLD",
+         when Mag_Hold => "MAGHOLD",
+         when Compass => "COMPASS",
+         when Baro => "BARO",
+         when Rangefinder => "RANGEFINDER",
+         when Optical_Flow => "OPTICALFLOW",
+         when Pitot => "PITOT",
+         when Position => "POSITION",
+         when Dashboard => "DASHBOARD",
+         when Telemetry => "TELEMETRY",
+         when LED_Strip => "LEDSTRIP",
+         when Transponder => "TRANSPONDER",
+         when Stack_Check => "STACKCHECK",
+         when OSD => "OSD",
+         when BST_Master => "BST_MASTER_PROCESS",
+         when ESC_Sensor => "ESC_SENSOR",
+         when CMS => "CMS",
+         when VTX_Control => "VTXCTRL",
+         when Camera_Control => "CAMCTRL",
+         when RC_Device => "RCDEVICE",
+         when ADC_Internal => "ADCINTERNAL",
+         when PINIO_Box => "PINIOBOX",
+         when Speed_Negotiation => "SPEED_NEGOT'N",
+         when RC_Stats => "RC_STATS",
+         when Gimbal => "GIMBAL",
+         when OSD_Custom_Text => "OSD_CTEXT",
+         when DroneCAN => "DRONECAN");
+
    ----------------
    -- Reschedule --
    ----------------
