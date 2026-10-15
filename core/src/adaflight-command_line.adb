@@ -4361,7 +4361,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
 
    --  tasks: every queued task's number, name and rate, and with task
    --  statistics its peak and average execution times, peak and average
-   --  loads and total time, then the check functions' line with their load
+   --  loads, total time, late and run counts and anticipated time, then the
+   --  check functions' line with their load
    --  over the time since the last run, the total load, and in the scheduler
    --  determinism debug mode the loop start and guard cycles. Each queued
    --  task's peak times reset after its line, the check functions' after
@@ -4407,7 +4408,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Load_Sum   : Integer_64 := 0;
    begin
       if Statistics then
-         Put (Into, "Task list             rate/hz  max/us  avg/us maxload avgload  total/ms" & CRLF);
+         Put (Into, "Task list             rate/hz  max/us  avg/us maxload avgload  total/ms   late    run reqd/us");
+         Put (Into, CRLF);
       else
          Put (Into, "Task list" & CRLF);
       end if;
@@ -4434,7 +4436,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
                      Put (Into, Field (Integer_64 (T.Average_Exec_10th / 10), 7) & " ");
                      Put (Into, Field (Max_Load / 10, 4) & "." & Decimal (Max_Load rem 10) & "% ");
                      Put (Into, Field (Average_Load / 10, 4) & "." & Decimal (Average_Load rem 10) & "% ");
-                     Put (Into, Field (Integer_64 (T.Total_Exec_Us / 1000), 9) & CRLF);
+                     Put (Into, Field (Integer_64 (T.Total_Exec_Us / 1000), 9) & " ");
+                     Put (Into, Field (As_Signed (T.Late_Count), 6) & " " & Field (As_Signed (T.Run_Count), 6) & " ");
+                     Put (Into, Field (As_Signed (T.Exec_Time_Us), 7) & CRLF);
                   else
                      Put (Into, Field (Frequency, 6) & CRLF);
                   end if;
