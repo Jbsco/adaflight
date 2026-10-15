@@ -3,9 +3,10 @@
 --  setting whose name contains a fragment, with its value, profile, range and
 --  default; set lists every setting, or reads a value for one setting by its
 --  name; profile, rateprofile and battery_profile show or select a profile;
---  dump and diff list a profile's or a rate profile's settings, and dump the
---  whole configuration as commands; version prints the firmware's version
---  line. The text goes out through Put into a sink.
+--  dump and diff list a profile's or a rate profile's settings, and the whole
+--  configuration or its hardware part as commands, all of it or only what
+--  differs from the defaults; version prints the firmware's version line.
+--  The text goes out through Put into a sink.
 with Interfaces;
 with Adaflight.Config_Groups; use Adaflight.Config_Groups;
 with Adaflight.CLI_Text;
@@ -107,9 +108,7 @@ package Adaflight.Command_Line with SPARK_Mode is
    --  A typed line without its line end: printable characters past the
    --  leading spaces, up to 255 of them, a comment from the first number sign
    --  and trailing spaces cut, then its command run. Known is false for a
-   --  line naming no command, for a dump with defaults, for a dump or diff of
-   --  the hardware section or of everything, and for a diff of the master
-   --  section.
+   --  line naming no command and for a dump or diff of every profile.
    procedure Process_Line
      (Into : in out Sink; C : in out Configuration; Line : String; Ports : Port_List; Env : Environment;
       Known : out Boolean; Changes : out Effects)

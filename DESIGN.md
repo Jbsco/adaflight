@@ -4115,3 +4115,27 @@ the earlier modes' commands, settings in and out of range, profile selections, s
 their ranges and craft names, each round ended by a master dump, plain, bare or with an ignored
 option, or by a version line, 40 in all. With the earlier sequences, all 55220 replies match the
 reference's byte for byte, and so does the configuration's hash after every command.
+
+## D181. Command line master diff (2026-10-14)
+
+`diff` alone, with `master`, or with options that name no section prints the master diff, and `dump`
+and `diff` take `hardware` and the options `defaults` and `bare` for the master and hardware
+sections. Each section printer takes the defaults, a dump mode and a heading that waits for the
+section's first printed line. A diff keeps only the lines off their defaults, and `defaults` prints
+each changed line's default first after a number sign. The board's name and manufacturer and the
+craft name print in a diff only when set. The hardware dump keeps the board's lines, the features
+and the hardware settings under the master heading. The listing commands use the same printers with
+no heading.
+
+A diff prints no `mmix reset` or `smix reset` line, since both follow the default configuration's
+first motor and first rule (findings F169), and its flight plan lines print with no heading of their
+own (F170). A changed beeper's default line, and some features' default lines, print before their
+headings (F171, F172). A channel failsafe default line takes the format of the channel's own mode
+(F173). A VTX band compares its name without regard to case, its letter and its frequencies, and the
+power values' and labels' default lines list all eight entries (F174). With the printers in the
+master dump, the unit's largest prover process holds 3.9 gigabytes, for `Dump_Master`.
+
+The harness replays two sequences of 2350 command lines in all, recorded from the oracle: the dump
+mode's rounds, each ended by a master or hardware diff, plain, bare or with defaults, or by a master
+or hardware dump with defaults or bare, 40 in all. With the earlier sequences, all 57570 replies
+match the reference's byte for byte, and so does the configuration's hash after every command.
