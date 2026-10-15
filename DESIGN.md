@@ -194,8 +194,9 @@ ledger. The deviations so far:
   message checks the whole request before it stores anything, so a short request, which the
   reference stores as zero filter cutoffs, is an error (findings F142). The checker expects the
   error and unchanged settings for the recorded requests outside the ranges.
-- MSP tuning, advanced, filter, advanced PID, receiver, hardware, battery and feature writes with a
-  field outside its setting's range are errors that write and change nothing (D203 to D208), where the
+- MSP tuning, advanced, filter, advanced PID, receiver, hardware, battery, feature and blackbox
+  writes with a field outside its setting's range are errors that write and change nothing (D203 to
+  D209), where the
   reference stores the field's bytes, or for a dynamic notch count, an RPM filter value, a
   feedforward averaging, a mode range's linked mode or battery cell voltages out of order rejects
   the request after writing its earlier fields (findings F189 to F191). A field no setting names takes the bounds of the command
@@ -4900,3 +4901,21 @@ The harness replays two sequences of 600 lines from the command line oracle, 109
 resets and listings: 957 within their ranges, whose results and configuration hashes all match the
 reference's, 70 short motor order requests that both reject, and 63 outside the ranges, each an
 error that leaves the configuration unchanged.
+
+## D209. MSP blackbox write (2026-10-15)
+
+`Adaflight.MSP_Blackbox_In` contains the MSP in message that writes the flight log's device, sample
+rate and fields left out, under the same whole-request check as D203. A log past its stopped state
+takes no change and the message succeeds, as in the reference. The sample rate comes from its own
+byte held at 1/16 when the bytes reach it, or else from the intra to delta frame ratio: given when
+two bytes remain after the legacy rate, or else from the legacy rate's numerator and denominator
+through `Blackbox.P_Denominator`, cut to 16 bits, and turned into a rate for the PID loop time by
+`Blackbox.Sample_Rate_For`. The fields left out arrive when four bytes remain and may hold only the
+bits the disable settings name. The message reads the recorder's state and intra frame interval
+and the loop time from its caller.
+
+The command line oracle copies the reference's blackbox object with the log state and the intra
+frame interval made global and sets them, with the loop time, from a directive. The harness replays
+two sequences of 700 lines, 1111 requests among log states, intervals, loop times and resets: 1020
+within their ranges, whose results and configuration hashes all match the reference's, and 91
+outside them, each an error that leaves the configuration unchanged.
