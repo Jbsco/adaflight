@@ -1,7 +1,8 @@
 --  The failsafe state machine: the receiver link state from the frame
---  events, the stages after a link loss or a failsafe switch, the landing
---  and drop procedures, the monitoring period before a recovery, and the
---  flags the arming logic and the flight modes read.
+--  events, the stages after a link loss or a failsafe switch, the landing,
+--  drop and GPS rescue procedures, the autopilot's own stage on a mission,
+--  the monitoring period before a recovery, and the flags the arming logic
+--  and the flight modes read.
 with Interfaces;
 
 package Adaflight.Failsafe with SPARK_Mode is
@@ -10,7 +11,10 @@ package Adaflight.Failsafe with SPARK_Mode is
    subtype Time_Ms is Unsigned_32;
 
    type Switch_Mode is (Stage_1, Kill, Stage_2);
-   type Procedure_Kind is (Auto_Landing, Drop);
+   type Procedure_Kind is (Auto_Landing, Drop, GPS_Rescue);
+   --  What the autopilot does on a link loss during a mission: nothing of
+   --  its own, the mission continued, or a landing.
+   type Loss_Policy is (Disable, Continue, Land);
 
    --  Delays in tenths of a second, the landing time in seconds.
    type Settings is record
@@ -20,9 +24,11 @@ package Adaflight.Failsafe with SPARK_Mode is
       Switch             : Switch_Mode := Stage_1;
       Action             : Procedure_Kind := Drop;
       Recovery_Delay     : Positive range 1 .. 200 := 5;
+      Policy             : Loss_Policy := Disable;
    end record;
 
-   type Phase is (Idle, Rx_Loss_Detected, Landing, Landed, Rx_Loss_Monitoring, Rx_Loss_Recovered);
+   type Phase is
+     (Idle, Rx_Loss_Detected, Landing, Landed, Rx_Loss_Monitoring, Rx_Loss_Recovered, GPS_Rescue, Autopilot);
    type Link is (Down, Up);
    type Beep is (Silence, Rx_Lost, Rx_Lost_Landing);
 
@@ -32,6 +38,14 @@ package Adaflight.Failsafe with SPARK_Mode is
       Throttle_Low        : Boolean := False;
       Configurator_Active : Boolean := False;
       Crash_Recovery      : Boolean := False;
+      --  The autopilot flight mode, whether the executor flies a plan,
+      --  whether that plan ended, whether a rescue plan can be staged now,
+      --  and whether the sticks moved past the failsafe's threshold.
+      Autopilot_Mode       : Boolean := False;
+      Nav_Active           : Boolean := False;
+      Nav_Ended            : Boolean := False;
+      Rescue_Plan_Possible : Boolean := False;
+      Sticks_Active        : Boolean := False;
    end record;
 
    subtype Event_Count is Natural range 0 .. 32_767;
@@ -54,6 +68,7 @@ package Adaflight.Failsafe with SPARK_Mode is
       Failsafe_Mode                   : Boolean := False;
       Arming_Disabled_Rx              : Boolean := False;
       Arming_Disabled                 : Boolean := False;
+      Autopilot_Engage_Deadline       : Time_Ms := 0;
    end record;
 
    procedure Init (S : out State; C : Settings);
@@ -74,15 +89,20 @@ package Adaflight.Failsafe with SPARK_Mode is
    procedure On_Rx_Resume (S : in out State; Now : Time_Ms);
 
    --  One pass of the state machine. Disarm is set when the landed stage asks
-   --  the arming logic to disarm; Beeper is the tone the pass selects.
+   --  the arming logic to disarm; Beeper is the tone the pass selects;
+   --  Stage_Rescue asks the caller to stage the executor's rescue plan as
+   --  the GPS rescue starts, which the autopilot stage then waits for within
+   --  its grace period.
    procedure Update (
-      S         : in out State;
-      C         : Settings;
-      Now       : Time_Ms;
-      In_Flight : Inputs;
-      Beeper    : out Beep;
-      Disarm    : out Boolean
-   ) with Post => (if not S'Old.Monitoring then S = S'Old and then Beeper = Silence and then not Disarm)
+      S            : in out State;
+      C            : Settings;
+      Now          : Time_Ms;
+      In_Flight    : Inputs;
+      Beeper       : out Beep;
+      Disarm       : out Boolean;
+      Stage_Rescue : out Boolean
+   ) with Post => (if not S'Old.Monitoring
+                   then S = S'Old and then Beeper = Silence and then not Disarm and then not Stage_Rescue)
                   and then S.Monitoring = S'Old.Monitoring;
 
 end Adaflight.Failsafe;

@@ -12,6 +12,12 @@ package body Adaflight.Failsafe with SPARK_Mode is
    function After (Now : Time_Ms; Deadline : Time_Ms) return Boolean is
      (Clock.Elapsed (Now, Deadline) > 0);
 
+   function Before (Now : Time_Ms; Deadline : Time_Ms) return Boolean is
+     (Clock.Elapsed (Now, Deadline) < 0);
+
+   --  The wait for the caller to engage a staged rescue plan.
+   Autopilot_Engage_Grace : constant Time_Ms := 1_000;
+
    function Longer_Than (Difference : Interfaces.Integer_32; Period : Time_Ms) return Boolean is
      (Interfaces.Integer_64 (Difference) > Interfaces.Integer_64 (Period));
 
@@ -123,12 +129,13 @@ package body Adaflight.Failsafe with SPARK_Mode is
    ------------
 
    procedure Update (
-      S         : in out State;
-      C         : Settings;
-      Now       : Time_Ms;
-      In_Flight : Inputs;
-      Beeper    : out Beep;
-      Disarm    : out Boolean
+      S            : in out State;
+      C            : Settings;
+      Now          : Time_Ms;
+      In_Flight    : Inputs;
+      Beeper       : out Beep;
+      Disarm       : out Boolean;
+      Stage_Rescue : out Boolean
    ) is
       Receiving : Boolean := Receiving_Rx_Data (S);
       Reprocess : Boolean;
@@ -140,9 +147,12 @@ package body Adaflight.Failsafe with SPARK_Mode is
          end if;
       end Count_Event;
 
-      procedure Start_Procedure is
+      --  The GPS rescue asks for the executor's rescue plan and waits in the
+      --  autopilot stage for its engagement; without a possible plan it
+      --  lands.
+      procedure Start_Procedure (Action : Procedure_Kind) is
       begin
-         case C.Action is
+         case Action is
             when Auto_Landing =>
                S.Failsafe_Mode := True;
                S.Current := Landing;
@@ -150,11 +160,24 @@ package body Adaflight.Failsafe with SPARK_Mode is
             when Drop =>
                S.Failsafe_Mode := True;
                S.Current := Landed;
+            when GPS_Rescue =>
+               S.Failsafe_Mode := True;
+               Stage_Rescue := True;
+               if In_Flight.Rescue_Plan_Possible then
+                  S.Current := Autopilot;
+                  S.Autopilot_Engage_Deadline := Now + Autopilot_Engage_Grace;
+               else
+                  S.Current := Landing;
+                  S.Landing_Should_Be_Finished_At := Now + Time_Ms (C.Landing_Time) * Millis_Per_Second;
+               end if;
          end case;
       end Start_Procedure;
+
+      Autopilot_Controls_Throttle : constant Boolean := In_Flight.Autopilot_Mode and then In_Flight.Nav_Active;
    begin
       Beeper := Silence;
       Disarm := False;
+      Stage_Rescue := False;
       if not S.Monitoring then
          return;
       end if;
@@ -183,7 +206,9 @@ package body Adaflight.Failsafe with SPARK_Mode is
                      S.Receiving_Rx_Data_Period_Preset := S.Rx_Data_Recovery_Period;
                      Reprocess := True;
                   elsif not Receiving then
-                     if After (Now, S.Throttle_Low_Period) then
+                     if After (Now, S.Throttle_Low_Period) and then not Autopilot_Controls_Throttle
+                       and then C.Action /= GPS_Rescue
+                     then
                         S.Active := True;
                         Count_Event;
                         S.Failsafe_Mode := True;
@@ -204,7 +229,17 @@ package body Adaflight.Failsafe with SPARK_Mode is
                else
                   S.Active := True;
                   Count_Event;
-                  Start_Procedure;
+                  if In_Flight.Autopilot_Mode and then In_Flight.Nav_Active and then not In_Flight.Nav_Ended
+                    and then C.Policy = Continue
+                  then
+                     S.Failsafe_Mode := True;
+                     S.Current := Autopilot;
+                     S.Autopilot_Engage_Deadline := Now;
+                  elsif In_Flight.Autopilot_Mode and then C.Policy = Land then
+                     Start_Procedure (Auto_Landing);
+                  else
+                     Start_Procedure (C.Action);
+                  end if;
                   S.Receiving_Rx_Data_Period_Preset := (if S.Switch_Was_On then 0 else S.Rx_Data_Recovery_Period);
                end if;
                Reprocess := True;
@@ -245,6 +280,37 @@ package body Adaflight.Failsafe with SPARK_Mode is
                S.Failsafe_Mode := False;
                S.Arming_Disabled := False;
                Reprocess := True;
+            when GPS_Rescue =>
+               if Receiving then
+                  if In_Flight.Sticks_Active or else S.Switch_Was_On then
+                     S.Current := Rx_Loss_Recovered;
+                     Reprocess := True;
+                  end if;
+               elsif In_Flight.Armed then
+                  Beeper := Rx_Lost_Landing;
+               else
+                  S.Current := Landed;
+                  Reprocess := True;
+               end if;
+            when Autopilot =>
+               if Receiving then
+                  if In_Flight.Sticks_Active or else S.Switch_Was_On then
+                     S.Current := Rx_Loss_Recovered;
+                     Reprocess := True;
+                  end if;
+               elsif not In_Flight.Armed then
+                  S.Current := Landed;
+                  Reprocess := True;
+               elsif not In_Flight.Autopilot_Mode and then not In_Flight.Nav_Ended
+                 and then Before (Now, S.Autopilot_Engage_Deadline)
+               then
+                  Beeper := Rx_Lost_Landing;
+               elsif not In_Flight.Autopilot_Mode or else In_Flight.Nav_Ended then
+                  Start_Procedure (if C.Action = GPS_Rescue then Auto_Landing else C.Action);
+                  Reprocess := True;
+               else
+                  Beeper := Rx_Lost_Landing;
+               end if;
          end case;
          exit when not Reprocess;
       end loop;
