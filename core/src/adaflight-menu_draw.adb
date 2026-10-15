@@ -12,12 +12,6 @@ package body Adaflight.Menu_Draw with SPARK_Mode is
    function Print_Value (Flags : Unsigned_8) return Boolean is ((Flags and Print_Value_Bit) /= 0);
    function Print_Label (Flags : Unsigned_8) return Boolean is ((Flags and Print_Label_Bit) /= 0);
 
-   procedure Clear_Screen (D : in out Display) is
-   begin
-      D.Cleared := True;
-      D.Cursor_Row := -1;
-   end Clear_Screen;
-
    function Cut (T : Label_Text; Length : Text_Length) return Label_Text is
       R : Label_Text := T;
    begin
@@ -56,7 +50,8 @@ package body Adaflight.Menu_Draw with SPARK_Mode is
 
    --  The display's write of a text: nothing for an empty one, else the
    --  text in the display's character set, with the bytes it takes.
-   procedure Display_Write (X, Y : Column; Text : Label_Text; Cost : out Unsigned_32) is
+   procedure Display_Write
+     (On : Adaflight.Menu.Display_Index; X, Y : Column; Text : Label_Text; Cost : out Unsigned_32) is
    begin
       if Text.Length = 0 then
          Cost := 0;
@@ -64,31 +59,37 @@ package body Adaflight.Menu_Draw with SPARK_Mode is
          declare
             T : constant Label_Text := Adaflight.Menu.Sanitized (Text);
          begin
-            Write (X, Y, Normal, T.Data (1 .. T.Length), Cost);
+            Write (On, X, Y, Normal, T.Data (1 .. T.Length), Cost);
          end;
       end if;
    end Display_Write;
 
    --  A value in its field, aligned to the right column.
    procedure Draw_Value
-     (L : Adaflight.Menu.Layout; Text : in out Label_Text; Y : Column; Size : Text_Length; Cost : out Unsigned_32) is
+     (On   : Adaflight.Menu.Display_Index;
+      L    : Adaflight.Menu.Layout;
+      Text : in out Label_Text;
+      Y    : Column;
+      Size : Text_Length;
+      Cost : out Unsigned_32) is
    begin
       Adaflight.Menu.Pad_Left (Text, Size);
-      Display_Write (Col (L.Right_Column - Size), Y, Text, Cost);
+      Display_Write (On, Col (L.Right_Column - Size), Y, Text, Cost);
    end Draw_Value;
 
    --  A line's value in its element's form. The option string of a submenu
    --  and the scrolling of a lookup table's text hang on flags the byte
    --  does not hold, so neither is drawn.
    procedure Draw_Entry
-     (L              : Adaflight.Menu.Layout;
+     (On             : Adaflight.Menu.Display_Index;
+      L              : Adaflight.Menu.Layout;
       E              : Adaflight.Menu.Line;
       Row_Y          : Column;
       Selected       : Boolean;
       Flags          : in out Unsigned_8;
-      Tk             : in out Ticker;
+      Tk             : in out Adaflight.Menu.Ticker;
       Editing        : Boolean;
-      Profile_Cursor : Profile_Number;
+      Profile_Cursor : Adaflight.Menu.Profile_Number;
       Now_Ms         : Unsigned_32;
       Cost           : out Unsigned_32)
      with Pre => (if Adaflight.Menu.Element_Of (E.Flags) = Adaflight.Menu.Fixed
@@ -103,7 +104,7 @@ package body Adaflight.Menu_Draw with SPARK_Mode is
          when Adaflight.Menu.Str =>
             if Print_Value (Flags) and then E.Has_Data then
                Buff := Cut (E.Value_Text, Draw_Buffer_Length);
-               Draw_Value (L, Buff, Y, Draw_Buffer_Length, Cost);
+               Draw_Value (On, L, Buff, Y, Draw_Buffer_Length, Cost);
                Flags := Flags and not Print_Value_Bit;
             end if;
          when Adaflight.Menu.Submenu | Adaflight.Menu.Funcall =>
@@ -116,14 +117,14 @@ package body Adaflight.Menu_Draw with SPARK_Mode is
                if L.Small_Screen then
                   Y := Col (Y - 1);
                end if;
-               Draw_Value (L, Buff, Y, Buff.Length, Cost);
+               Draw_Value (On, L, Buff, Y, Buff.Length, Cost);
                Flags := Flags and not Print_Value_Bit;
             end if;
          when Adaflight.Menu.Bool =>
             if Print_Value (Flags) and then E.Has_Data then
                Buff.Data (1 .. 3) := (if E.Value /= 0 then "YES" else "NO ");
                Buff.Length := 3;
-               Draw_Value (L, Buff, Y, 3, Cost);
+               Draw_Value (On, L, Buff, Y, 3, Cost);
                Flags := Flags and not Print_Value_Bit;
             end if;
          when Adaflight.Menu.Tab =>
@@ -135,7 +136,7 @@ package body Adaflight.Menu_Draw with SPARK_Mode is
                begin
                   Tk := (Loop_Counter => 0, State => 0);
                   Buff := Cut (E.Value_Text, Table_Value_Length);
-                  Draw_Value (L, Buff, Y, Available, Cost);
+                  Draw_Value (On, L, Buff, Y, Available, Cost);
                end;
                Flags := Flags and not Print_Value_Bit;
             end if;
@@ -145,33 +146,33 @@ package body Adaflight.Menu_Draw with SPARK_Mode is
                   Blink : constant Boolean := Now_Ms mod (2 * Cursor_Blink_Delay_Ms) < Cursor_Blink_Delay_Ms;
                   Bits  : constant Interfaces.Unsigned_16 := Interfaces.Unsigned_16 (E.Value mod 65_536);
                begin
-                  for X in 1 .. Profile_Count loop
+                  for X in 1 .. Adaflight.Menu.Profile_Count loop
                      Buff.Data (X) :=
                        (if Editing and then Blink and then Selected and then X = Profile_Cursor then ' '
                         elsif (Bits and Interfaces.Shift_Left (1, X - 1 + Profile_Bits_Position)) /= 0 then 'X'
                         else '-');
                   end loop;
                end;
-               Buff.Length := Profile_Count;
-               Draw_Value (L, Buff, Y, Profile_Count, Cost);
+               Buff.Length := Adaflight.Menu.Profile_Count;
+               Draw_Value (On, L, Buff, Y, Adaflight.Menu.Profile_Count, Cost);
                Flags := Flags and not Print_Value_Bit;
             end if;
          when Adaflight.Menu.UInt8 | Adaflight.Menu.Int8 | Adaflight.Menu.UInt16 | Adaflight.Menu.Int16
             | Adaflight.Menu.UInt32 | Adaflight.Menu.Int32 =>
             if Print_Value (Flags) and then E.Has_Data then
                Buff := Decimal (E.Value);
-               Draw_Value (L, Buff, Y, Number_Field_Length, Cost);
+               Draw_Value (On, L, Buff, Y, Number_Field_Length, Cost);
                Flags := Flags and not Print_Value_Bit;
             end if;
          when Adaflight.Menu.Fixed =>
             if Print_Value (Flags) and then E.Has_Data then
                Buff := Adaflight.Menu.Format_Fixed (E.Value);
-               Draw_Value (L, Buff, Y, Number_Field_Length, Cost);
+               Draw_Value (On, L, Buff, Y, Number_Field_Length, Cost);
                Flags := Flags and not Print_Value_Bit;
             end if;
          when Adaflight.Menu.Label =>
             if Print_Value (Flags) and then E.Has_Data then
-               Display_Write (Col (L.Left_Column + 1 + E.Text.Length), Y, E.Value_Text, Cost);
+               Display_Write (On, Col (L.Left_Column + 1 + E.Text.Length), Y, E.Value_Text, Cost);
                Flags := Flags and not Print_Value_Bit;
             end if;
          when Adaflight.Menu.OSD_Exit | Adaflight.Menu.End_Marker | Adaflight.Menu.Back | Adaflight.Menu.Guard =>
@@ -180,25 +181,30 @@ package body Adaflight.Menu_Draw with SPARK_Mode is
    end Draw_Entry;
 
    procedure Draw
-     (M      : Adaflight.Menu.Table;
-      L      : Adaflight.Menu.Layout;
-      P      : in out Adaflight.Menu.Page_State;
-      C      : in out Context;
-      D      : in out Display;
-      S      : Adaflight.Menu.Slider_Settings;
-      Now_Us : Unsigned_32;
-      Now_Ms : Unsigned_32;
-      Room   : Unsigned_32)
+     (On             : Adaflight.Menu.Display_Index;
+      M              : Adaflight.Menu.Table;
+      Id             : Adaflight.Menu.Menu_Id;
+      Has_Update     : Boolean;
+      L              : Adaflight.Menu.Layout;
+      P              : in out Adaflight.Menu.Page_State;
+      C              : in out Adaflight.Menu.Context;
+      D              : in out Adaflight.Menu.Display;
+      S              : Adaflight.Menu.Slider_Settings;
+      Now_Us         : Unsigned_32;
+      Now_Ms         : Unsigned_32;
+      Room           : Unsigned_32;
+      Back_Requested : out Boolean)
    is
       Was_Cleared    : constant Boolean := D.Cleared;
       Top            : constant Column := (if L.Small_Screen then 1 else (D.Rows - P.Max_Row) / 2);
       Count          : constant Adaflight.Menu.Page_Count := Adaflight.Menu.Pages (M, L);
       Editing        : constant Boolean := C.Element_Editing;
-      Profile_Cursor : constant Profile_Number := C.Profile_Cursor;
+      Profile_Cursor : constant Adaflight.Menu.Profile_Number := C.Profile_Cursor;
       Draw_Polled    : Boolean := False;
       Room_Left      : Unsigned_32 := Room;
       Cost           : Unsigned_32;
    begin
+      Back_Requested := False;
       D.Cleared := False;
       if Now_Us > C.Last_Polled_Us + Poll_Interval_Us then
          Draw_Polled := True;
@@ -221,7 +227,7 @@ package body Adaflight.Menu_Draw with SPARK_Mode is
       end loop;
       if D.Cursor_Row >= 0 and then C.Cursor_Row /= D.Cursor_Row then
          Display_Write
-           (L.Left_Column, Col (Top + D.Cursor_Row * L.Lines_Per_Item),
+           (On, L.Left_Column, Col (Top + D.Cursor_Row * L.Lines_Per_Item),
             (Data => (1 => ' ', others => ' '), Length => 1), Cost);
          Room_Left := Room_Left - Cost;
       end if;
@@ -230,13 +236,19 @@ package body Adaflight.Menu_Draw with SPARK_Mode is
       end if;
       if D.Cursor_Row /= C.Cursor_Row then
          Display_Write
-           (L.Left_Column, Col (Top + C.Cursor_Row * L.Lines_Per_Item),
+           (On, L.Left_Column, Col (Top + C.Cursor_Row * L.Lines_Per_Item),
             (Data => (1 => '>', others => ' '), Length => 1), Cost);
          Room_Left := Room_Left - Cost;
          D.Cursor_Row := C.Cursor_Row;
       end if;
       if Room_Left < Room_Floor then
          return;
+      end if;
+      if Has_Update then
+         Display_Update (Id, P.Top + C.Cursor_Row, Back_Requested);
+         if Back_Requested then
+            return;
+         end if;
       end if;
       for I in 0 .. P.Max_Row loop
          declare
@@ -245,7 +257,8 @@ package body Adaflight.Menu_Draw with SPARK_Mode is
          begin
             if Print_Label (P.Flags (I)) then
                Display_Write
-                 (Col (L.Left_Column + (if Adaflight.Menu.Element_Of (E.Flags) = Adaflight.Menu.Label then 0 else 1)),
+                 (On,
+                  Col (L.Left_Column + (if Adaflight.Menu.Element_Of (E.Flags) = Adaflight.Menu.Label then 0 else 1)),
                   Y, E.Text, Cost);
                Room_Left := Room_Left - Cost;
                P.Flags (I) := P.Flags (I) and not Print_Label_Bit;
@@ -254,11 +267,12 @@ package body Adaflight.Menu_Draw with SPARK_Mode is
                end if;
             end if;
             if Adaflight.Menu.Slider_Override (E.Flags, S) then
-               Write_Char (Col (L.Left_Column - 1), Y, Normal, 'S');
+               Write_Char (On, Col (L.Left_Column - 1), Y, Normal, 'S');
             end if;
             if Print_Value (P.Flags (I)) then
                Draw_Entry
-                 (L, E, Y, I = C.Cursor_Row, P.Flags (I), C.Table_Tickers (I), Editing, Profile_Cursor, Now_Ms, Cost);
+                 (On, L, E, Y, I = C.Cursor_Row, P.Flags (I), C.Table_Tickers (I), Editing, Profile_Cursor, Now_Ms,
+                  Cost);
                Room_Left := Room_Left - Cost;
                if Room_Left < Room_Floor then
                   return;
@@ -268,11 +282,11 @@ package body Adaflight.Menu_Draw with SPARK_Mode is
       end loop;
       if Was_Cleared and then L.Left_Column > 0 then
          if P.Page > 0 then
-            Write_Char (L.Left_Column - 1, Top, Normal, (if D.Supports_Symbols then Symbol_Arrow_Up else '^'));
+            Write_Char (On, L.Left_Column - 1, Top, Normal, (if D.Supports_Symbols then Symbol_Arrow_Up else '^'));
          end if;
          if P.Page < Count - 1 then
             Write_Char
-              (L.Left_Column - 1, Col (Top + P.Max_Row), Normal,
+              (On, L.Left_Column - 1, Col (Top + P.Max_Row), Normal,
                (if D.Supports_Symbols then Symbol_Arrow_Down else 'v'));
          end if;
       end if;

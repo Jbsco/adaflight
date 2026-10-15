@@ -5,8 +5,10 @@
 --  row and the lines' flags copied for the draw, the cursor's absolute
 --  row, the rows the cursor skips, and the value text helpers: a
 --  fixed-point value with its trailing zeros cut, a value aligned right
---  in its field, and the display's character set. The menus, their
---  lines' values and the display stay with the target.
+--  in its field, and the display's character set; and the types the draw
+--  and the navigation share: the displays the menu can run on, the menu
+--  numbers with their hooks, the draw's context and the target's actions.
+--  The menus, their lines' values and the displays stay with the target.
 with Interfaces;
 with Adaflight.PID_Profile;
 
@@ -16,6 +18,7 @@ package Adaflight.Menu with SPARK_Mode is
 
    subtype Unsigned_8 is Interfaces.Unsigned_8;
    subtype Unsigned_16 is Interfaces.Unsigned_16;
+   subtype Unsigned_32 is Interfaces.Unsigned_32;
    subtype Integer_32 is Interfaces.Integer_32;
 
    --  The element types in the reference's numbering; Guard is the debug
@@ -93,7 +96,11 @@ package Adaflight.Menu with SPARK_Mode is
       Max_Items      : Item_Count := 4;
    end record;
 
-   function Layout_Of (Columns : Screen_Columns; Rows : Screen_Rows; Full_Screen : Boolean) return Layout;
+   function Layout_Of (Columns : Screen_Columns; Rows : Screen_Rows; Full_Screen : Boolean) return Layout
+     with Post => Layout_Of'Result.Max_Items <= Rows
+       and then (if Full_Screen
+                 then Layout_Of'Result.Left_Column = 0 and then Layout_Of'Result.Right_Column = Columns
+                 else Layout_Of'Result.Right_Column <= Layout_Of'Result.Left_Column + 26);
 
    Max_Pages : constant := (Max_Lines - 1) / Item_Count'First + 1;
    subtype Page_Count is Positive range 1 .. Max_Pages;
@@ -118,9 +125,11 @@ package Adaflight.Menu with SPARK_Mode is
    --  The page by number, wrapped within the count; its last row from the
    --  lines left, the items on a page and the row limit; the flags of its
    --  lines copied.
-   procedure Select_Page (M : Table; L : Layout; Number : Integer; P : in out Page_State)
-     with Pre  => M.Count >= 1 and then Number in -1 .. Pages (M, L),
-          Post => P.Page < Pages (M, L) and then P.Top < M.Count;
+   subtype Page_Request is Integer range -1 .. 255;
+
+   procedure Select_Page (M : Table; L : Layout; Number : Page_Request; P : in out Page_State)
+     with Pre  => M.Count >= 1,
+          Post => P.Page < Pages (M, L) and then P.Top + P.Max_Row < M.Count and then P.Max_Row < L.Max_Items;
 
    function Cursor_Absolute (P : Page_State; L : Layout; Cursor : Row) return Natural is
      (Cursor + P.Page * L.Max_Items);
@@ -146,6 +155,12 @@ package Adaflight.Menu with SPARK_Mode is
    Max_Fixed : constant := 255 * 65_535;
    subtype Fixed_Value is Integer_32 range 0 .. Max_Fixed;
 
+   --  Every fixed-point line's value within the form's range, as the
+   --  product of a byte and a multiplier is.
+   function Fixed_In_Range (M : Table) return Boolean is
+     (for all I in 0 .. M.Count - 1 =>
+        (if Element_Of (M.Lines (I).Flags) = Fixed then M.Lines (I).Value in Fixed_Value));
+
    function Format_Fixed (Value : Fixed_Value) return Label_Text;
 
    --  A value cut to its field and aligned right in it.
@@ -156,5 +171,80 @@ package Adaflight.Menu with SPARK_Mode is
    --  outside the space to underscore range a space.
    function Sanitized (T : Label_Text) return Label_Text
      with Post => Sanitized'Result.Length = T.Length;
+
+   --  The displays the menu can run on, by registration order.
+   Max_Displays : constant := 4;
+   subtype Display_Index is Natural range 0 .. Max_Displays - 1;
+
+   --  A display's state the menu reads and writes: its size, whether its
+   --  screen was cleared since the last draw, the row its cursor was drawn
+   --  on (none after a clear), whether it draws the OSD symbols, and how
+   --  often it was grabbed.
+   type Display is record
+      Columns          : Screen_Columns := 30;
+      Rows             : Screen_Rows := 16;
+      Full_Screen      : Boolean := False;
+      Cleared          : Boolean := False;
+      Cursor_Row       : Integer range -1 .. 255 := -1;
+      Supports_Symbols : Boolean := False;
+      Grab_Count       : Integer := 0;
+   end record;
+
+   --  The screen cleared: the display forgets its cursor row.
+   procedure Clear_Screen (D : in out Display)
+     with Post => D.Cleared and then D.Cursor_Row = -1 and then Same_Size (D, D'Old);
+
+   --  A display's size and symbol support, which the menu never changes.
+   function Same_Size (A, B : Display) return Boolean is
+     (A.Columns = B.Columns and then A.Rows = B.Rows and then A.Full_Screen = B.Full_Screen
+      and then A.Supports_Symbols = B.Supports_Symbols);
+
+   --  The menus by number, the main menu first, and the hooks a menu has:
+   --  on entering it, on leaving it, and on each draw.
+   Max_Menus : constant := 64;
+   subtype Menu_Id is Natural range 0 .. Max_Menus - 1;
+   Main_Menu : constant Menu_Id := 0;
+
+   type Hook_Set is record
+      Enter  : Boolean := False;
+      Leave  : Boolean := False;
+      Update : Boolean := False;
+   end record;
+
+   --  The cursor's row in the page, which runs past the page's rows up to
+   --  the end marker when every row below it is skipped, and holds the
+   --  absolute row while the display changes.
+   subtype Cursor is Natural range 0 .. 255;
+
+   Profile_Count : constant := 3;
+   subtype Profile_Number is Positive range 1 .. Profile_Count;
+
+   --  A lookup table's ticker: its loop counter and the scroll position.
+   type Ticker is record
+      Loop_Counter : Unsigned_8 := 0;
+      State        : Unsigned_8 := 0;
+   end record;
+
+   type Tickers is array (Row) of Ticker;
+
+   --  The draw's context: the cursor row in the page, when the dynamic
+   --  values were last polled, the OSD element editing with its profile
+   --  cursor, and the lookup tables' tickers.
+   type Context is record
+      Cursor_Row      : Cursor := 0;
+      Last_Polled_Us  : Unsigned_32 := 0;
+      Element_Editing : Boolean := False;
+      Profile_Cursor  : Profile_Number := 1;
+      Table_Tickers   : Tickers := (others => (0, 0));
+   end record;
+
+   --  The target's actions the menu asks for, in the display layer and
+   --  beyond it: the display grabbed and released, its screen cleared with
+   --  a wait, its foreground layer selected, its background type set, its
+   --  redraw, the configuration saved, the arming disable flag set or
+   --  cleared, the motors stopped and shut down, a delay, and the reset.
+   type Action is
+     (Grab, Release, Clear, Layer_Select, Background, Redraw, Save_Config, Arming_Disabled, Stop_Motors,
+      Motor_Shutdown, Delay_Ms, System_Reset);
 
 end Adaflight.Menu;
