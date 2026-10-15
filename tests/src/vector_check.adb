@@ -12,7 +12,7 @@ with Adaflight.Axes;
 with Adaflight.Maths;
 with Adaflight.Filters;
 with Adaflight.Menu;
-with Adaflight.Menu_Draw;
+with Adaflight.Menu_Nav;
 with Adaflight.Rates;
 with Adaflight.PID_Profile;
 with Adaflight.Simplified_Tuning;
@@ -17998,25 +17998,37 @@ procedure Vector_Check is
       end if;
    end Check_Mixer_Init_Line;
 
-   MN_Table  : Adaflight.Menu.Table;
-   MN_Layout : Adaflight.Menu.Layout;
-   MN_Page   : Adaflight.Menu.Page_State;
-   MN_Slider : Adaflight.Menu.Slider_Settings;
-   MN_Seq    : Integer_64 := -1;
+   --  The menu set of a step: each menu's lines and hooks by number.
+   type Menu_Def is record
+      Table : Adaflight.Menu.Table;
+      Hooks : Adaflight.Menu.Hook_Set;
+   end record;
+   MN_Menus      : array (0 .. 5) of Menu_Def;
+   MN_Slider     : Adaflight.Menu.Slider_Settings;
+   MN_Seq        : Integer_64 := -1;
+   MN_Background : Natural := 0;
 
-   --  The display operations the draw records: the expected ones from the
-   --  line with the bytes each write takes, and the logged ones.
+   --  The display operations and hook calls: the expected ones from the
+   --  line, with the bytes each write takes and the hooks' answers, and
+   --  the logged ones.
    type Menu_Op is record
-      Kind       : Integer_64 := 0;
-      X, Y, Attr : Integer_64 := 0;
-      Text       : Adaflight.Menu.Label_Text;
-      Cost       : Interfaces.Unsigned_32 := 0;
+      Kind, Disp, X, Y, Attr : Integer_64 := 0;
+      Text                   : Adaflight.Menu.Label_Text;
+      Cost                   : Interfaces.Unsigned_32 := 0;
    end record;
    type Menu_Ops is array (1 .. 100) of Menu_Op;
-   MN_Expected : Menu_Ops;
-   MN_Logged   : Menu_Ops;
-   MN_N_Ops    : Natural := 0;
-   MN_N_Logged : Natural := 0;
+   type Menu_Hook is record
+      Kind, Menu, Arg, Back : Integer_64 := 0;
+   end record;
+   type Menu_Hooks is array (1 .. 32) of Menu_Hook;
+   MN_Expected    : Menu_Ops;
+   MN_Logged      : Menu_Ops;
+   MN_N_Ops       : Natural := 0;
+   MN_N_Logged    : Natural := 0;
+   MN_Exp_Hooks   : Menu_Hooks;
+   MN_Log_Hooks   : Menu_Hooks;
+   MN_N_Hooks     : Natural := 0;
+   MN_N_Log_Hooks : Natural := 0;
 
    function Menu_Text_Of (S : String) return Adaflight.Menu.Label_Text is
       T : Adaflight.Menu.Label_Text;
@@ -18026,27 +18038,70 @@ procedure Vector_Check is
       return T;
    end Menu_Text_Of;
 
-   procedure Menu_Log_Write
-     (X, Y : Adaflight.Menu.Column; Attr : Interfaces.Unsigned_8; Text : String; Cost : out Interfaces.Unsigned_32) is
+   procedure Menu_Log_Op (Kind, Disp, X, Y, Attr : Integer_64; Text : Adaflight.Menu.Label_Text) is
    begin
       if MN_N_Logged < MN_Logged'Last then
          MN_N_Logged := MN_N_Logged + 1;
-         MN_Logged (MN_N_Logged) := (1, Integer_64 (X), Integer_64 (Y), Integer_64 (Attr), Menu_Text_Of (Text), 0);
+         MN_Logged (MN_N_Logged) := (Kind, Disp, X, Y, Attr, Text, 0);
       end if;
+   end Menu_Log_Op;
+
+   procedure Menu_Log_Write
+     (On : Adaflight.Menu.Display_Index; X, Y : Adaflight.Menu.Column; Attr : Interfaces.Unsigned_8; Text : String;
+      Cost : out Interfaces.Unsigned_32) is
+   begin
+      Menu_Log_Op (1, Integer_64 (On), Integer_64 (X), Integer_64 (Y), Integer_64 (Attr), Menu_Text_Of (Text));
       Cost := (if MN_N_Logged <= MN_N_Ops then MN_Expected (MN_N_Logged).Cost else 0);
    end Menu_Log_Write;
 
-   procedure Menu_Log_Char (X, Y : Adaflight.Menu.Column; Attr : Interfaces.Unsigned_8; C : Character) is
+   procedure Menu_Log_Char
+     (On : Adaflight.Menu.Display_Index; X, Y : Adaflight.Menu.Column; Attr : Interfaces.Unsigned_8; C : Character) is
    begin
-      if MN_N_Logged < MN_Logged'Last then
-         MN_N_Logged := MN_N_Logged + 1;
-         MN_Logged (MN_N_Logged) := (2, Integer_64 (X), Integer_64 (Y), Integer_64 (Attr), Menu_Text_Of ((1 => C)), 0);
-      end if;
+      Menu_Log_Op (2, Integer_64 (On), Integer_64 (X), Integer_64 (Y), Integer_64 (Attr), Menu_Text_Of ((1 => C)));
    end Menu_Log_Char;
 
-   package MN_Draw is new Adaflight.Menu_Draw (Write => Menu_Log_Write, Write_Char => Menu_Log_Char);
-   MN_Context : MN_Draw.Context;
-   MN_Display : MN_Draw.Display;
+   procedure Menu_Act (On : Adaflight.Menu.Display_Index; A : Adaflight.Menu.Action; Arg : Integer) is
+   begin
+      Menu_Log_Op (Integer_64 (Adaflight.Menu.Action'Pos (A) + 3), Integer_64 (On), Integer_64 (Arg), 0, 0,
+                   Menu_Text_Of (""));
+   end Menu_Act;
+
+   function Menu_Hooks_Of (Id : Adaflight.Menu.Menu_Id) return Adaflight.Menu.Hook_Set is
+     (if Id in MN_Menus'Range then MN_Menus (Id).Hooks else (others => False));
+
+   procedure Menu_Load (Id : Adaflight.Menu.Menu_Id; M : out Adaflight.Menu.Table) is
+   begin
+      M := (if Id in MN_Menus'Range then MN_Menus (Id).Table else (Lines => (others => <>), Count => 1));
+   end Menu_Load;
+
+   procedure Menu_Hook_Call (Kind : Integer_64; Id : Adaflight.Menu.Menu_Id; Arg : Integer_64; Back : out Boolean) is
+   begin
+      if MN_N_Log_Hooks < MN_Log_Hooks'Last then
+         MN_N_Log_Hooks := MN_N_Log_Hooks + 1;
+         MN_Log_Hooks (MN_N_Log_Hooks) := (Kind, Integer_64 (Id), Arg, 0);
+      end if;
+      Back := MN_N_Log_Hooks <= MN_N_Hooks and then MN_Exp_Hooks (MN_N_Log_Hooks).Back /= 0;
+   end Menu_Hook_Call;
+
+   procedure Menu_On_Enter (Id : Adaflight.Menu.Menu_Id; Chain_Back : out Boolean) is
+   begin
+      Menu_Hook_Call (1, Id, -1, Chain_Back);
+   end Menu_On_Enter;
+
+   procedure Menu_On_Leave (Id : Adaflight.Menu.Menu_Id; Self : Integer; Chain_Back : out Boolean) is
+   begin
+      Menu_Hook_Call (2, Id, Integer_64 (Self), Chain_Back);
+   end Menu_On_Leave;
+
+   procedure Menu_On_Update (Id : Adaflight.Menu.Menu_Id; Selected : Natural; Chain_Back : out Boolean) is
+   begin
+      Menu_Hook_Call (3, Id, Integer_64 (Selected), Chain_Back);
+   end Menu_On_Update;
+
+   package MN_Nav is new Adaflight.Menu_Nav
+     (Hooks_Of => Menu_Hooks_Of, Load => Menu_Load, On_Enter => Menu_On_Enter, On_Leave => Menu_On_Leave,
+      On_Display_Update => Menu_On_Update, Act => Menu_Act, Write => Menu_Log_Write, Write_Char => Menu_Log_Char);
+   MN_State : MN_Nav.State;
 
    procedure Check_Menu_Line is
       use Adaflight.Menu;
@@ -18058,56 +18113,149 @@ procedure Vector_Check is
          return Int (K - 1);
       end Next;
       function Text_Of (S : String) return Label_Text renames Menu_Text_Of;
-      procedure Expect_Page is
+      procedure Read_Ops is
       begin
-         Record_Int (Name & ".page", Next, Integer_64 (MN_Page.Page));
-         Record_Int (Name & ".top", Next, Integer_64 (MN_Page.Top));
-         Record_Int (Name & ".max_row", Next, Integer_64 (MN_Page.Max_Row));
-         for I in 0 .. MN_Page.Max_Row loop
-            Record_Int (Name & ".flags", Int_Hex (K), Integer_64 (MN_Page.Flags (I)));
+         MN_N_Ops := Natural (Next);
+         for J in 1 .. MN_N_Ops loop
+            MN_Expected (J) :=
+              (Kind => Int (K), Disp => Int (K + 1), X => Int (K + 2), Y => Int (K + 3), Attr => Int (K + 4),
+               Text => Text_Of (Hex_String (K + 5)), Cost => Interfaces.Unsigned_32 (Int (K + 6)));
+            K := K + 7;
+         end loop;
+      end Read_Ops;
+      procedure Read_Hooks is
+      begin
+         MN_N_Hooks := Natural (Next);
+         for J in 1 .. MN_N_Hooks loop
+            MN_Exp_Hooks (J) := (Kind => Int (K), Menu => Int (K + 1), Arg => Int (K + 2), Back => Int (K + 3));
+            K := K + 4;
+         end loop;
+      end Read_Hooks;
+      procedure Begin_Record is
+      begin
+         MN_N_Logged := 0;
+         MN_N_Log_Hooks := 0;
+      end Begin_Record;
+      procedure Expect_Ops is
+      begin
+         Record_Int (Name & ".ops", Integer_64 (MN_N_Ops), Integer_64 (MN_N_Logged));
+         for J in 1 .. Natural'Min (MN_N_Ops, MN_N_Logged) loop
+            Record_Int (Name & ".op_kind", MN_Expected (J).Kind, MN_Logged (J).Kind);
+            Record_Int (Name & ".op_display", MN_Expected (J).Disp, MN_Logged (J).Disp);
+            Record_Int (Name & ".op_x", MN_Expected (J).X, MN_Logged (J).X);
+            Record_Int (Name & ".op_y", MN_Expected (J).Y, MN_Logged (J).Y);
+            Record_Int (Name & ".op_attr", MN_Expected (J).Attr, MN_Logged (J).Attr);
+            Record_Text (Name & ".op_text", MN_Expected (J).Text.Data (1 .. MN_Expected (J).Text.Length),
+                         MN_Logged (J).Text.Data (1 .. MN_Logged (J).Text.Length));
+         end loop;
+      end Expect_Ops;
+      procedure Expect_Hooks is
+      begin
+         Record_Int (Name & ".hooks", Integer_64 (MN_N_Hooks), Integer_64 (MN_N_Log_Hooks));
+         for J in 1 .. Natural'Min (MN_N_Hooks, MN_N_Log_Hooks) loop
+            Record_Int (Name & ".hook_kind", MN_Exp_Hooks (J).Kind, MN_Log_Hooks (J).Kind);
+            Record_Int (Name & ".hook_menu", MN_Exp_Hooks (J).Menu, MN_Log_Hooks (J).Menu);
+            Record_Int (Name & ".hook_arg", MN_Exp_Hooks (J).Arg, MN_Log_Hooks (J).Arg);
+         end loop;
+      end Expect_Hooks;
+      procedure Expect_Context is
+         Depth : Integer_64;
+      begin
+         Record_Int (Name & ".in_menu", Next, Boolean'Pos (MN_State.In_Menu));
+         Record_Int (Name & ".menu", Next, (if MN_State.Has_Menu then Integer_64 (MN_State.Id) else -1));
+         Record_Int (Name & ".page", Next, Integer_64 (MN_State.Page.Page));
+         Record_Int (Name & ".cursor", Next, Integer_64 (MN_State.Draw.Cursor_Row));
+         Depth := Next;
+         Record_Int (Name & ".depth", Depth, Integer_64 (MN_State.Depth));
+         Record_Int (Name & ".save_inhibited", Next, Boolean'Pos (MN_State.Save_Inhibited));
+         for I in 1 .. Natural (Depth) loop
+            if I <= MN_State.Depth then
+               Record_Int (Name & ".frame_menu", Int (K), Integer_64 (MN_State.Stack (I).Id));
+               Record_Int (Name & ".frame_page", Int (K + 1), Integer_64 (MN_State.Stack (I).Page));
+               Record_Int (Name & ".frame_cursor", Int (K + 2), Integer_64 (MN_State.Stack (I).Cursor));
+            end if;
+            K := K + 3;
+         end loop;
+      end Expect_Context;
+      procedure Expect_Display is
+         P : constant Integer := MN_State.Port;
+      begin
+         Record_Int (Name & ".display", Next, Integer_64 (P));
+         if P >= 0 then
+            Record_Int (Name & ".columns", Next, Integer_64 (MN_State.Ports (P).Columns));
+            Record_Int (Name & ".rows", Next, Integer_64 (MN_State.Ports (P).Rows));
+            Record_Int (Name & ".full_screen", Next, Boolean'Pos (MN_State.Ports (P).Full_Screen));
+            Record_Int (Name & ".display_cursor", Next, Integer_64 (MN_State.Ports (P).Cursor_Row));
+            Record_Int (Name & ".cleared", Next, Boolean'Pos (MN_State.Ports (P).Cleared));
+         else
+            K := K + 5;
+         end if;
+      end Expect_Display;
+      procedure Expect_Page is
+         Max_Row : Integer_64;
+      begin
+         Record_Int (Name & ".small", Next, Boolean'Pos (MN_State.Layout.Small_Screen));
+         Record_Int (Name & ".lines", Next, Integer_64 (MN_State.Layout.Lines_Per_Item));
+         Record_Int (Name & ".left", Next, Integer_64 (MN_State.Layout.Left_Column));
+         Record_Int (Name & ".right", Next, Integer_64 (MN_State.Layout.Right_Column));
+         Record_Int (Name & ".max_items", Next, Integer_64 (MN_State.Layout.Max_Items));
+         Record_Int (Name & ".pages", Next, Integer_64 (MN_State.Page_Count));
+         Record_Int (Name & ".top", Next, Integer_64 (MN_State.Page.Top));
+         Max_Row := Next;
+         Record_Int (Name & ".max_row", Max_Row, Integer_64 (MN_State.Page.Max_Row));
+         for I in 0 .. Natural (Max_Row) loop
+            if I <= MN_State.Page.Max_Row then
+               Record_Int (Name & ".flags", Int_Hex (K), Integer_64 (MN_State.Page.Flags (I)));
+            end if;
             K := K + 1;
          end loop;
       end Expect_Page;
    begin
-      if Name = "menuopen" then
+      if Name = "menudef" then
          declare
-            Columns : constant Screen_Columns := Screen_Columns (Next);
-            Rows    : constant Screen_Rows := Screen_Rows (Next);
-            Full    : constant Boolean := Next /= 0;
-            Count   : constant Line_Count := Line_Count (Next);
+            Id    : constant Natural := Natural (Next);
+            Enter : constant Boolean := Next /= 0;
+            Leave : constant Boolean := Next /= 0;
+            Upd   : constant Boolean := Next /= 0;
+            Count : constant Line_Count := Line_Count (Next);
          begin
             if Int (2) /= MN_Seq then
                MN_Seq := Int (2);
-               MN_Context := (others => <>);
-               MN_Display := (others => <>);
+               MN_State := (others => <>);
                MN_Slider := (others => <>);
+               MN_Nav.Register_Display (MN_State, (others => <>));
+               MN_Nav.Register_Display (MN_State, (others => <>));
             end if;
-            MN_Table := (Lines => (others => <>), Count => Count);
+            MN_Menus (Id).Hooks := (Enter => Enter, Leave => Leave, Update => Upd);
+            MN_Menus (Id).Table := (Lines => (others => <>), Count => Count);
             for I in 0 .. Count - 1 loop
-               MN_Table.Lines (I).Flags := Interfaces.Unsigned_16 (Int_Hex (K));
-               MN_Table.Lines (I).Text := Text_Of (Hex_String (K + 1));
-               MN_Table.Lines (I).Has_Data := Int (K + 2) /= 0;
-               MN_Table.Lines (I).Value := Interfaces.Integer_32 (Int (K + 3));
-               MN_Table.Lines (I).Value_Text := Text_Of (Hex_String (K + 4));
-               K := K + 5;
+               MN_Menus (Id).Table.Lines (I).Flags := Interfaces.Unsigned_16 (Int_Hex (K));
+               MN_Menus (Id).Table.Lines (I).Text := Text_Of (Hex_String (K + 1));
+               MN_Menus (Id).Table.Lines (I).Has_Data := Int (K + 2) /= 0;
+               MN_Menus (Id).Table.Lines (I).Value :=
+                 (if Element_Of (MN_Menus (Id).Table.Lines (I).Flags) = Submenu then Interfaces.Integer_32 (Int (K + 5))
+                  else Interfaces.Integer_32 (Int (K + 3)));
+               MN_Menus (Id).Table.Lines (I).Value_Text := Text_Of (Hex_String (K + 4));
+               K := K + 6;
             end loop;
-            MN_Display.Rows := Rows;
-            MN_Context.Cursor_Row := 0;
-            MN_Layout := Layout_Of (Columns, Rows, Full);
-            Record_Int ("menuopen.small", Next, Boolean'Pos (MN_Layout.Small_Screen));
-            Record_Int ("menuopen.lines", Next, Integer_64 (MN_Layout.Lines_Per_Item));
-            Record_Int ("menuopen.left", Next, Integer_64 (MN_Layout.Left_Column));
-            Record_Int ("menuopen.right", Next, Integer_64 (MN_Layout.Right_Column));
-            Record_Int ("menuopen.max_items", Next, Integer_64 (MN_Layout.Max_Items));
-            Record_Int ("menuopen.pages", Next, Integer_64 (Pages (MN_Table, MN_Layout)));
-            MN_Page := (others => <>);
-            Select_Page (MN_Table, MN_Layout, 0, MN_Page);
-            MN_Draw.Clear_Screen (MN_Display);
-            Expect_Page;
          end;
-      elsif Name = "menupage" then
-         Select_Page (MN_Table, MN_Layout, Integer (Next), MN_Page);
-         MN_Draw.Clear_Screen (MN_Display);
+      elsif Name = "menuopen" then
+         MN_Background := Natural (Next);
+         for P in 0 .. 1 loop
+            MN_State.Ports (P).Columns := Screen_Columns (Next);
+            MN_State.Ports (P).Rows := Screen_Rows (Next);
+            MN_State.Ports (P).Full_Screen := Next /= 0;
+            MN_State.Ports (P).Cleared := False;
+            MN_State.Ports (P).Cursor_Row := -1;
+         end loop;
+         Read_Ops;
+         Read_Hooks;
+         Begin_Record;
+         MN_Nav.Open (MN_State, Main_Menu, MN_Background);
+         Expect_Ops;
+         Expect_Hooks;
+         Expect_Context;
+         Expect_Display;
          Expect_Page;
       elsif Name = "menudraw" then
          declare
@@ -18119,43 +18267,63 @@ procedure Vector_Check is
             Now_Ms     : constant Interfaces.Unsigned_32 := Interfaces.Unsigned_32 (Next);
             Device     : constant Integer_64 := Next;
             Cleared    : constant Boolean := Next /= 0;
+            Max_Row    : Natural;
          begin
-            MN_N_Ops := Natural (Next);
-            for J in 1 .. MN_N_Ops loop
-               MN_Expected (J) :=
-                 (Kind => Int (K), X => Int (K + 1), Y => Int (K + 2), Attr => Int (K + 3),
-                  Text => Text_Of (Hex_String (K + 4)), Cost => Interfaces.Unsigned_32 (Int (K + 5)));
-               K := K + 6;
-            end loop;
+            Read_Ops;
+            Read_Hooks;
             if Set_Cursor >= 0 then
-               MN_Context.Cursor_Row := MN_Draw.Cursor (Set_Cursor);
+               MN_State.Draw.Cursor_Row := Cursor (Set_Cursor);
             end if;
-            MN_Context.Element_Editing := Editing;
-            MN_Context.Profile_Cursor := MN_Draw.Profile_Number (Profile);
-            MN_Display.Supports_Symbols := Device = 0 or else Device = 2 or else Device = 3 or else Device = 7;
-            MN_Display.Cleared := Cleared;
-            MN_N_Logged := 0;
-            MN_Draw.Draw (MN_Table, MN_Layout, MN_Page, MN_Context, MN_Display, MN_Slider, Now_Us, Now_Ms, Room);
-            Record_Int ("menudraw.ops", Integer_64 (MN_N_Ops), Integer_64 (MN_N_Logged));
-            for J in 1 .. Natural'Min (MN_N_Ops, MN_N_Logged) loop
-               Record_Int ("menudraw.op_kind", MN_Expected (J).Kind, MN_Logged (J).Kind);
-               Record_Int ("menudraw.op_x", MN_Expected (J).X, MN_Logged (J).X);
-               Record_Int ("menudraw.op_y", MN_Expected (J).Y, MN_Logged (J).Y);
-               Record_Int ("menudraw.op_attr", MN_Expected (J).Attr, MN_Logged (J).Attr);
-               Record_Text ("menudraw.op_text", MN_Expected (J).Text.Data (1 .. MN_Expected (J).Text.Length),
-                            MN_Logged (J).Text.Data (1 .. MN_Logged (J).Text.Length));
+            MN_State.Draw.Element_Editing := Editing;
+            MN_State.Draw.Profile_Cursor := Profile_Number (Profile);
+            MN_State.Ports (MN_State.Port).Supports_Symbols :=
+              Device = 0 or else Device = 2 or else Device = 3 or else Device = 7;
+            MN_State.Ports (MN_State.Port).Cleared := Cleared;
+            Begin_Record;
+            MN_Nav.Draw (MN_State, MN_Slider, Now_Us, Now_Ms, Room);
+            Expect_Ops;
+            Expect_Hooks;
+            Expect_Context;
+            Expect_Display;
+            Max_Row := MN_State.Page.Max_Row;
+            Expect_Page;
+            for I in 0 .. Max_Row loop
+               Record_Int (Name & ".ticker_loop", Next, Integer_64 (MN_State.Draw.Table_Tickers (I).Loop_Counter));
+               Record_Int (Name & ".ticker_state", Next, Integer_64 (MN_State.Draw.Table_Tickers (I).State));
             end loop;
-            Record_Int ("menudraw.cursor", Next, Integer_64 (MN_Context.Cursor_Row));
-            Record_Int ("menudraw.display_cursor", Next, Integer_64 (MN_Display.Cursor_Row));
-            Record_Int ("menudraw.cleared", Next, Boolean'Pos (MN_Display.Cleared));
-            for I in 0 .. MN_Page.Max_Row loop
-               Record_Int ("menudraw.flags", Int_Hex (K), Integer_64 (MN_Page.Flags (I)));
-               K := K + 1;
-            end loop;
-            for I in 0 .. MN_Page.Max_Row loop
-               Record_Int ("menudraw.ticker_loop", Next, Integer_64 (MN_Context.Table_Tickers (I).Loop_Counter));
-               Record_Int ("menudraw.ticker_state", Next, Integer_64 (MN_Context.Table_Tickers (I).State));
-            end loop;
+         end;
+      elsif Name = "menupage" then
+         declare
+            Number : constant Integer := Integer (Next);
+         begin
+            Read_Ops;
+            Begin_Record;
+            MN_Nav.Select_Page (MN_State, Number);
+            Expect_Ops;
+            Expect_Display;
+            Expect_Page;
+         end;
+      elsif Name = "menunav" then
+         declare
+            Op  : constant Integer_64 := Next;
+            Arg : constant Integer_64 := Next;
+         begin
+            Read_Ops;
+            Read_Hooks;
+            Begin_Record;
+            case Op is
+               when 1 =>
+                  MN_Nav.Change (MN_State, Menu_Id (Arg));
+               when 2 =>
+                  MN_Nav.Back (MN_State);
+               when others =>
+                  MN_Nav.Open (MN_State, Main_Menu, MN_Background);
+            end case;
+            Expect_Ops;
+            Expect_Hooks;
+            Expect_Context;
+            Expect_Display;
+            Expect_Page;
          end;
       elsif Name = "menuskip" then
          declare
@@ -18166,8 +18334,21 @@ procedure Vector_Check is
             MN_Slider.DTerm_Filter := Next /= 0;
             Count := Line_Count (Next);
             for I in 0 .. Count - 1 loop
-               Record_Int ("menuskip.skip", Next, Boolean'Pos (Skippable (MN_Table.Lines (I), MN_Slider)));
+               Record_Int ("menuskip.skip", Next, Boolean'Pos (Skippable (MN_State.Table.Lines (I), MN_Slider)));
             end loop;
+         end;
+      elsif Name = "menuexit" then
+         declare
+            Kind : constant Integer_64 := Next;
+         begin
+            Read_Ops;
+            Read_Hooks;
+            Begin_Record;
+            MN_Nav.Exit_Menu (MN_State, MN_Nav.Exit_Kind'Val (Kind));
+            Expect_Ops;
+            Expect_Hooks;
+            Expect_Context;
+            Expect_Display;
          end;
       elsif Name = "menufixed" then
          declare
