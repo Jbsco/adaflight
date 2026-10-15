@@ -133,6 +133,9 @@ The core contains:
   throttle while arming by stick
 - PID loop pass: unit order of task, with launch wing, runaway check, PID audio, servos and flight
   log conditions
+- task functions: main, serial, battery alerts, accelerometer, GPS rescue, barometer, pitot,
+  compass, position, rangefinder, optical flow, telemetry and camera control tasks over units,
+  sensor tasks rescheduled by updates
 - runtime records from stored configuration: PID profile, rate profile, gyro, arming, failsafe,
   receiver, RC command, adjustment, mixer, accelerometer, attitude, barometer, compass, battery,
   beeper, GPS link, GPS rescue, position, altitude, flight plan, blackbox, scheduler, LED strip,
@@ -165,7 +168,7 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 23014 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 23030 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
 - Recorded vectors replay bit for bit: 1753568 lines over 384 cases, every case exact except
   forty-two declared deviations in `DESIGN.md` D6.
