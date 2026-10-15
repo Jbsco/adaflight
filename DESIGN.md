@@ -271,6 +271,10 @@ ledger. The deviations so far:
   in the reference has both an enter and a leave hook that chain back, and the main menu has no
   enter hook, so the reference never reaches that page; the recorded menus answer the way back as
   the reference's menus do.
+- The menu's key handler reads a line past the end marker as the end marker and marks a value for
+  a print only within the page's rows (D196), where the reference reads whatever follows the table
+  and writes its print mark past the runtime flags (F186). The recorded keys keep the cursor on the
+  page, as the stick scanning keeps it in the reference.
 
 
 ## D7. Contribution conventions (2026-10-08)
@@ -4577,3 +4581,27 @@ menus on two displays of random size: each open, three draws, four page turns wi
 six navigation operations (a change to a submenu, the way back, or a reopen that switches the
 display) with a draw each, the skip rule and an exit of a random kind, comparing every display
 operation, hook call, context, stack frame, display state and page with the reference's.
+
+## D196. Menu keys (2026-10-14)
+
+`Adaflight.Menu_Nav` gains the key handler: the menu key moves the menu to the next display and the
+escape key ends an edit or takes the way back, each with the longer pause; the save key, unless the
+save menu is inhibited, ends an edit and changes to the save menu of the reboot state; down moves
+the cursor a row or to the next page's top; up moves it a row and over the rows the cursor skips,
+and from a label or the page's top to the previous page's last row; and left and right act on the
+line under the cursor in its element's form: a submenu entered on the right, a function line called
+on the right with the way back it may ask for and the reboot flag it may set, an exit line's exit
+by its kind, the way back from a back line, a boolean set on the right and cleared otherwise, the
+OSD profile marks edited with the profile cursor, a number stepped up on the right within its
+maximum and down otherwise within its minimum but wrapped in its width, and a lookup table's index
+stepped within its bounds with its text looked up again; every edit written to the target's value
+and marked for a print, the reboot flag set when a reboot line's value changed, and the line's hook
+called after. A line's range, step, multiplier and hook join the line record; a number wider than
+the signed word is held as the reference's integer conversion and compared unsigned. The target's
+value store and the lookup of a table's text come in as procedures, and the reboot flag's set as an
+action. The handler keeps two bounds the reference lacks (D6, F186). The proof covers the state's
+consistency through every key, the edits within the lines, the widths' wraps and the page requests.
+
+The harness replays twelve random keys per menu tree after the navigation operations, 21600 keys,
+with the line under the cursor compared after each, the edits written back to the recorded menus
+and the reboot flag followed from the actions.

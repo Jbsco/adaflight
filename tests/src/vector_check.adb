@@ -18003,7 +18003,9 @@ procedure Vector_Check is
       Table : Adaflight.Menu.Table;
       Hooks : Adaflight.Menu.Hook_Set;
    end record;
-   MN_Menus      : array (0 .. 5) of Menu_Def;
+   MN_Menus      : array (0 .. 7) of Menu_Def;
+   type Menu_Names is array (0 .. 7, 0 .. 59, 0 .. 3) of Adaflight.Menu.Label_Text;
+   MN_Names      : Menu_Names;
    MN_Slider     : Adaflight.Menu.Slider_Settings;
    MN_Seq        : Integer_64 := -1;
    MN_Background : Natural := 0;
@@ -18098,9 +18100,34 @@ procedure Vector_Check is
       Menu_Hook_Call (3, Id, Integer_64 (Selected), Chain_Back);
    end Menu_On_Update;
 
+   procedure Menu_Line_Call (Id : Adaflight.Menu.Menu_Id; Line : Natural; Chain_Back : out Boolean) is
+   begin
+      Menu_Hook_Call (4, Id, Integer_64 (Line), Chain_Back);
+   end Menu_Line_Call;
+
+   procedure Menu_Set_Value (Id : Adaflight.Menu.Menu_Id; Line : Natural; Value : Interfaces.Integer_32) is
+      use type Adaflight.Menu.Element;
+   begin
+      if Id in MN_Menus'Range and then Line < MN_Menus (Id).Table.Count then
+         MN_Menus (Id).Table.Lines (Line).Value := Value;
+         if Adaflight.Menu.Element_Of (MN_Menus (Id).Table.Lines (Line).Flags) = Adaflight.Menu.Tab
+           and then Line <= 59 and then Value in 0 .. 3
+         then
+            MN_Menus (Id).Table.Lines (Line).Value_Text := MN_Names (Id, Line, Natural (Value));
+         end if;
+      end if;
+   end Menu_Set_Value;
+
+   function Menu_Lookup (Id : Adaflight.Menu.Menu_Id; Line : Natural; Index : Natural)
+     return Adaflight.Menu.Label_Text is
+     (if Id in MN_Menus'Range and then Line <= 59 and then Index <= 3 then MN_Names (Id, Line, Index)
+      else Menu_Text_Of (""));
+
    package MN_Nav is new Adaflight.Menu_Nav
      (Hooks_Of => Menu_Hooks_Of, Load => Menu_Load, On_Enter => Menu_On_Enter, On_Leave => Menu_On_Leave,
-      On_Display_Update => Menu_On_Update, Act => Menu_Act, Write => Menu_Log_Write, Write_Char => Menu_Log_Char);
+      On_Display_Update => Menu_On_Update, Line_Call => Menu_Line_Call, Set_Value => Menu_Set_Value,
+      Lookup => Menu_Lookup, Act => Menu_Act, Write => Menu_Log_Write, Write_Char => Menu_Log_Char);
+   MN_Keys : MN_Nav.Key_Settings := (Start => 0, Background => 0, Save_Exit => 6, Save_Exit_Reboot => 7);
    MN_State : MN_Nav.State;
 
    procedure Check_Menu_Line is
@@ -18229,18 +18256,34 @@ procedure Vector_Check is
             MN_Menus (Id).Hooks := (Enter => Enter, Leave => Leave, Update => Upd);
             MN_Menus (Id).Table := (Lines => (others => <>), Count => Count);
             for I in 0 .. Count - 1 loop
-               MN_Menus (Id).Table.Lines (I).Flags := Interfaces.Unsigned_16 (Int_Hex (K));
-               MN_Menus (Id).Table.Lines (I).Text := Text_Of (Hex_String (K + 1));
-               MN_Menus (Id).Table.Lines (I).Has_Data := Int (K + 2) /= 0;
-               MN_Menus (Id).Table.Lines (I).Value :=
-                 (if Element_Of (MN_Menus (Id).Table.Lines (I).Flags) = Submenu then Interfaces.Integer_32 (Int (K + 5))
-                  else Interfaces.Integer_32 (Int (K + 3)));
-               MN_Menus (Id).Table.Lines (I).Value_Text := Text_Of (Hex_String (K + 4));
-               K := K + 6;
+               declare
+                  L : Adaflight.Menu.Line renames MN_Menus (Id).Table.Lines (I);
+                  function Word (V : Integer_64) return Interfaces.Integer_32 is
+                    (Interfaces.Integer_32 (if V > 2 ** 31 - 1 then V - 2 ** 32 else V));
+               begin
+                  L.Flags := Interfaces.Unsigned_16 (Int_Hex (K));
+                  L.Text := Text_Of (Hex_String (K + 1));
+                  L.Has_Data := Int (K + 2) /= 0;
+                  L.Value := (if Element_Of (L.Flags) = Submenu then Word (Int (K + 5)) else Word (Int (K + 3)));
+                  L.Value_Text := Text_Of (Hex_String (K + 4));
+                  L.Min := Word (Int (K + 6));
+                  L.Max := Word (Int (K + 7));
+                  L.Step := Word (Int (K + 8));
+                  L.Has_Func := Int (K + 9) /= 0;
+                  L.Multiplier := Natural (Int (K + 10));
+                  K := K + 11;
+                  if Element_Of (L.Flags) = Tab then
+                     for N in 0 .. 3 loop
+                        MN_Names (Id, I, N) := Text_Of (Hex_String (K + N));
+                     end loop;
+                     K := K + 4;
+                  end if;
+               end;
             end loop;
          end;
       elsif Name = "menuopen" then
          MN_Background := Natural (Next);
+         MN_Keys.Background := MN_Background;
          for P in 0 .. 1 loop
             MN_State.Ports (P).Columns := Screen_Columns (Next);
             MN_State.Ports (P).Rows := Screen_Rows (Next);
@@ -18325,6 +18368,51 @@ procedure Vector_Check is
             Expect_Display;
             Expect_Page;
          end;
+      elsif Name = "menukey" then
+         declare
+            Key           : constant Integer_64 := Next;
+            Placed        : constant Integer_64 := Next;
+            Reboot_Before : constant Boolean := Next /= 0;
+            Delay_E       : constant Integer_64 := Next;
+            Delay_Ms      : MN_Nav.Key_Delay;
+            Index_E       : Integer_64;
+            Index         : Natural;
+            Reboot_After  : Boolean := Reboot_Before;
+         begin
+            Read_Ops;
+            Read_Hooks;
+            if Placed >= 0 then
+               MN_State.Draw.Cursor_Row := Cursor (Placed);
+            end if;
+            Begin_Record;
+            MN_Nav.Handle_Key (MN_State, MN_Nav.Key_Code'Val (Key), MN_Keys, MN_Slider, Reboot_Before, Delay_Ms);
+            Record_Int (Name & ".delay", Delay_E, Integer_64 (Delay_Ms));
+            Expect_Ops;
+            Expect_Hooks;
+            Expect_Context;
+            Expect_Display;
+            Expect_Page;
+            Index_E := Next;
+            Index := MN_State.Page.Top + MN_State.Draw.Cursor_Row;
+            Record_Int (Name & ".line", Index_E, (if Index > MN_State.Table.Count then -1 else Integer_64 (Index)));
+            if Index_E >= 0 and then Index < MN_State.Table.Count then
+               Record_Int (Name & ".value", Next, Integer_64 (MN_State.Table.Lines (Index).Value));
+               Record_Text (Name & ".value_text", Hex_String (K),
+                            MN_State.Table.Lines (Index).Value_Text.Data
+                              (1 .. MN_State.Table.Lines (Index).Value_Text.Length));
+               K := K + 1;
+            else
+               K := K + 2;
+            end if;
+            Record_Int (Name & ".editing", Next, Boolean'Pos (MN_State.Draw.Element_Editing));
+            Record_Int (Name & ".profile_cursor", Next, Integer_64 (MN_State.Draw.Profile_Cursor));
+            for J in 1 .. MN_N_Logged loop
+               if MN_Logged (J).Kind = 15 then
+                  Reboot_After := True;
+               end if;
+            end loop;
+            Record_Int (Name & ".reboot", Next, Boolean'Pos (Reboot_After));
+         end;
       elsif Name = "menuskip" then
          declare
             Count : Line_Count;
@@ -18339,12 +18427,15 @@ procedure Vector_Check is
          end;
       elsif Name = "menuexit" then
          declare
-            Kind : constant Integer_64 := Next;
+            Kind     : constant Integer_64 := Next;
+            Was_Open : constant Boolean := Next /= 0;
          begin
             Read_Ops;
             Read_Hooks;
             Begin_Record;
-            MN_Nav.Exit_Menu (MN_State, MN_Nav.Exit_Kind'Val (Kind));
+            if Was_Open then
+               MN_Nav.Exit_Menu (MN_State, MN_Nav.Exit_Kind'Val (Kind));
+            end if;
             Expect_Ops;
             Expect_Hooks;
             Expect_Context;
