@@ -127,6 +127,7 @@ with Adaflight.MSP_Tuning_In;
 with Adaflight.MSP_Receiver_In;
 with Adaflight.MSP_Hardware_In;
 with Adaflight.MSP_Battery_In;
+with Adaflight.MSP_Feature_In;
 with Adaflight.MSP_Receiver_Out;
 with Adaflight.MSP_Hardware_Out;
 with Adaflight.MSP_Peripheral_Out;
@@ -14713,6 +14714,17 @@ procedure Vector_Check is
                      Adaflight.MSP_Tuning_In.Process
                        (CLI_Config, Cmd, Request, MSP_Gyro_Rate, MSP_In_Result, MSP_In_Effects);
                      MSP_In_Ran := True;
+                  elsif Adaflight.MSP_Feature_In.Handles (Cmd) then
+                     declare
+                        use type Adaflight.MSP_Feature_In.Result;
+                        Feature_Result : Adaflight.MSP_Feature_In.Result;
+                     begin
+                        Adaflight.MSP_Feature_In.Process (CLI_Config, Cmd, Request, Feature_Result);
+                        MSP_In_Result :=
+                          (if Feature_Result = Adaflight.MSP_Feature_In.Ack then Adaflight.MSP_Tuning_In.Ack
+                           else Adaflight.MSP_Tuning_In.Error);
+                        MSP_In_Ran := True;
+                     end;
                   elsif Adaflight.MSP_Battery_In.Handles (Cmd) then
                      declare
                         use type Adaflight.MSP_Battery_In.Result;
