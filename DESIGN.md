@@ -194,14 +194,16 @@ ledger. The deviations so far:
   message checks the whole request before it stores anything, so a short request, which the
   reference stores as zero filter cutoffs, is an error (findings F142). The checker expects the
   error and unchanged settings for the recorded requests outside the ranges.
-- MSP tuning, advanced, filter, advanced PID, receiver, hardware, battery, feature, blackbox, servo
-  and LED writes with a field outside its setting's range are errors that write and change nothing
-  (D203 to D211), where the
-  reference stores the field's bytes, or for a dynamic notch count, an RPM filter value, a
-  feedforward averaging, a mode range's linked mode or battery cell voltages out of order rejects
-  the request after writing its earlier fields (findings F189 to F191). A field no setting names takes the bounds of the command
-  line command that writes it. The checker expects the error and an unchanged configuration for the
-  recorded requests outside the ranges, and the reference's result and configuration for the rest.
+- MSP tuning, advanced, filter, advanced PID, receiver, hardware, battery, feature, blackbox, servo,
+  LED, LED strip value and battery profile writes with a field outside its setting's range are
+  errors that write and change nothing (D203 to D212), where the reference stores the field's
+  bytes, or for a dynamic notch count, an RPM filter value, a feedforward averaging, a mode range's
+  linked mode or battery cell voltages out of order rejects the request after writing its earlier
+  fields (findings F189 to F191). A stored LED strip brightness past 100 wraps in the reference's
+  LED driver, and a stored maximum cell voltage of zero reaches its cell count division (findings
+  F193, F194). A field no setting names takes the bounds of the command line command that writes
+  it. The checker expects the error and an unchanged configuration for the recorded requests
+  outside the ranges, and the reference's result and configuration for the rest.
 - The configuration storage image reads bytes past its region as erased and does not write an
   image longer than the region (D158), where the reference leaves both to the target and reads
   past a corrupted region's end. Its reported size is the image's length, 2 bytes less than the
@@ -4952,3 +4954,27 @@ The harness replays two sequences of 600 lines from the command line oracle, 109
 resets and listings: 907 within their bounds, whose results, runtime work and configuration hashes
 all match the reference's, 113 that both reject before writing, and 71 outside the bounds, each an
 error that leaves the configuration unchanged.
+
+## D212. MSP text writes (2026-10-15)
+
+`Adaflight.MSP_Text_In` contains the MSP in messages that write the craft name, a text by its type,
+the LED strip's brightness and rainbow, and a battery profile. The name message clears the craft
+name and takes up to 16 of the request's bytes. The text message takes a type, then a length byte
+cut at the text's room: 16 for the pilot name, the craft name and the four custom messages, 8 for
+the current PID, rate and battery profile names. It writes the text and a zero after it and leaves
+the bytes after that zero as they were, so the stored bytes match the reference's. A type outside
+those is an error. Texts take any bytes, since they have no range. `Effects` asks the runtime to
+analyze the OSD's active elements again after a craft or pilot name.
+
+The LED strip values and the battery profile take the whole-request check of D203. The battery
+profile message keeps the reference's own checks: at least thirteen bytes, a profile below 3, the
+minimum, warning, full and maximum cell voltages in that order, at most 24 cells and at most 100
+percent. Each voltage must then lie within 1.00 V to 5.00 V and the capacity within 20000 mAh, as
+their settings hold them. The reference stores a brightness past 100, which its LED driver wraps
+(findings F193), and a maximum cell voltage of zero, which its cell count detection divides by
+(findings F194).
+
+The harness replays two sequences of 600 lines from the command line oracle, 1045 requests among
+profile selections, resets, name sets and listings: 810 within their bounds, whose results, runtime
+work and configuration hashes all match the reference's, 163 that both reject before writing, and
+72 outside the bounds, each an error that leaves the configuration unchanged.
