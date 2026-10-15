@@ -133,6 +133,7 @@ with Adaflight.MSP_Servo_In;
 with Adaflight.MSP_LED_In;
 with Adaflight.MSP_Text_In;
 with Adaflight.MSP_Peripheral_In;
+with Adaflight.MSP_Control_In;
 with Adaflight.MSP_Receiver_Out;
 with Adaflight.MSP_Hardware_Out;
 with Adaflight.MSP_Peripheral_Out;
@@ -14569,6 +14570,11 @@ procedure Vector_Check is
    MSP_LED_Effects : Adaflight.MSP_LED_In.Effects;
    MSP_Text_Effects : Adaflight.MSP_Text_In.Effects;
    MSP_Peripheral_Effects : Adaflight.MSP_Peripheral_In.Effects;
+   MSP_Control_Effects : Adaflight.MSP_Control_In.Effects;
+   MSP_Links      : Adaflight.MSP_Control_In.Link_State;
+   MSP_Board      : Adaflight.MSP_Control_In.Board;
+   MSP_Telemetry  : Integer := -1;
+   MSP_Arming_Off : Boolean := False;
    MSP_Gyro_Rate  : Adaflight.Config_Fix.Gyro_Rate := 0;
    MSP_Log        : Adaflight.Blackbox.Recorder;
    MSP_Loop_Time  : Adaflight.Blackbox.Loop_Time_Us := 125;
@@ -14626,6 +14632,10 @@ procedure Vector_Check is
             MSP_Gyro_Rate := 0;
             MSP_Log.State := Adaflight.Blackbox.Disabled;
             MSP_Log.I_Interval := 0;
+            MSP_Links := (others => <>);
+            MSP_Board := (others => <>);
+            MSP_Telemetry := -1;
+            MSP_Arming_Off := False;
          end if;
          CLI_Reply.Target.Text := Null_Unbounded_String;
          CLI_Expected := Null_Unbounded_String;
@@ -14712,6 +14722,13 @@ procedure Vector_Check is
                MSP_Log.State := Adaflight.Blackbox.Log_State'Val (Natural'Value (Word (Command, 1)));
                MSP_Log.I_Interval := Interfaces.Integer_16'Value (Word (Command, 2));
                MSP_Loop_Time := Adaflight.Blackbox.Loop_Time_Us'Value (Word (Command, 3));
+            elsif Word (Command, 0) = "!mspctl" then
+               MSP_Board.Armed := Word (Command, 1) /= "0";
+               MSP_Board.Source := Adaflight.MSP_Control_In.Link'Value (Word (Command, 2));
+               MSP_Telemetry := Integer'Value (Word (Command, 3));
+               if Word (Command, 4) /= "0" then
+                  MSP_Board.RX_SPI_Active := (CLI_Config.Feature_Config.Enabled_Features and 2 ** 25) /= 0;
+               end if;
             elsif Word (Command, 0) = "!gyro" then
                MSP_Gyro_Rate := Adaflight.Config_Fix.Gyro_Rate'Value (Word (Command, 1));
             elsif Word (Command, 0) = "!msp" then
@@ -14731,10 +14748,35 @@ procedure Vector_Check is
                   MSP_LED_Effects := Adaflight.MSP_LED_In.No_Effects;
                   MSP_Text_Effects := Adaflight.MSP_Text_In.No_Effects;
                   MSP_Peripheral_Effects := Adaflight.MSP_Peripheral_In.No_Effects;
+                  MSP_Control_Effects := Adaflight.MSP_Control_In.No_Effects;
                   if Adaflight.MSP_Tuning_In.Handles (Cmd) then
                      Adaflight.MSP_Tuning_In.Process
                        (CLI_Config, Cmd, Request, MSP_Gyro_Rate, MSP_In_Result, MSP_In_Effects);
                      MSP_In_Ran := True;
+                  elsif Adaflight.MSP_Control_In.Handles (Cmd) then
+                     declare
+                        use type Adaflight.MSP_Control_In.Result;
+                        use all type Adaflight.MSP_Control_In.Arming_Change;
+                        Control_Result : Adaflight.MSP_Control_In.Result;
+                        B : Adaflight.MSP_Control_In.Board := MSP_Board;
+                     begin
+                        B.From_Telemetry := Integer (MSP_Board.Source) = MSP_Telemetry;
+                        Adaflight.MSP_Control_In.Process
+                          (CLI_Config, MSP_Links, Cmd, Request, B, Control_Result, MSP_Control_Effects);
+                        MSP_In_Result :=
+                          (if Control_Result = Adaflight.MSP_Control_In.Ack then Adaflight.MSP_Tuning_In.Ack
+                           else Adaflight.MSP_Tuning_In.Error);
+                        CLI_Changes.Save := MSP_Control_Effects.Save;
+                        case MSP_Control_Effects.MSP_Arming is
+                           when Disable =>
+                              MSP_Arming_Off := True;
+                           when Enable =>
+                              MSP_Arming_Off := False;
+                           when Unchanged =>
+                              null;
+                        end case;
+                        MSP_In_Ran := True;
+                     end;
                   elsif Adaflight.MSP_Peripheral_In.Handles (Cmd) then
                      declare
                         use type Adaflight.MSP_Peripheral_In.Result;
@@ -14903,6 +14945,21 @@ procedure Vector_Check is
                Record_Int ("msp.vtx_ready", (if In_Range and then Int (19) > 0 then 1 else 0),
                            Boolean'Pos (MSP_Peripheral_Effects.VTX_Ready));
             end if;
+         end;
+      elsif Str (1) = "clc" then
+         declare
+            E : Adaflight.MSP_Control_In.Effects renames MSP_Control_Effects;
+         begin
+            Record_Int ("msp.acc_calibration", Boolean'Pos (Int (3) > 0), Boolean'Pos (E.Acc_Calibration));
+            Record_Int ("msp.mag_calibration", Boolean'Pos (Int (4) > 0), Boolean'Pos (E.Mag_Calibration));
+            Record_Int ("msp.task_time_ignore", Boolean'Pos (Int (5) > 0), Boolean'Pos (E.Ignore_Task_Time));
+            Record_Int ("msp.config_read", Boolean'Pos (Int (6) > 0), Boolean'Pos (E.Save));
+            Record_Int ("msp.deferred_save", Boolean'Pos (Int (7) > 0), Boolean'Pos (E.Deferred_Save));
+            Record_Int ("msp.disarm", Boolean'Pos (Int (8) > 0), Boolean'Pos (E.Disarm));
+            Record_Int ("msp.runaway_set", Boolean'Pos (Int (9) > 0), Boolean'Pos (E.Runaway_Set));
+            Record_Int ("msp.runaway_value", Int (10), Integer_64 (E.Runaway_Value));
+            Record_Int ("msp.flash_erase", Boolean'Pos (Int (11) > 0), Boolean'Pos (E.Erase_Flash));
+            Record_Int ("msp.arming_off", Int (12), Boolean'Pos (MSP_Arming_Off));
          end;
       elsif Str (1) = "clx" then
          Record_Int ("cli.save", Int (3), Boolean'Pos (CLI_Changes.Save));
