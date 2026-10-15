@@ -240,6 +240,16 @@ package body Adaflight.Config_Runtime with SPARK_Mode is
       return C;
    end RC_Channels_Of;
 
+   --  The hub's sensors, each on when its bit in the disabled mask is clear.
+   function Hub_Sensors_Of (Disabled : Unsigned_32) return FrSky_Hub_Telemetry.Sensor_Set is
+      S : FrSky_Hub_Telemetry.Sensor_Set;
+   begin
+      for I in FrSky_Hub_Telemetry.Sensor loop
+         S (I) := Sensor_On (Disabled, FrSky_Hub_Telemetry.Sensor'Pos (I));
+      end loop;
+      return S;
+   end Hub_Sensors_Of;
+
    function Map_Of (Rcmap : Bytes_8) return Receiver.Channel_Map is
       M : Receiver.Channel_Map;
    begin
