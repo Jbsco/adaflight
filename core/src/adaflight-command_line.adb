@@ -18,16 +18,6 @@ package body Adaflight.Command_Line with SPARK_Mode is
 
    function Decimal (V : Integer_64) return String renames CLI_Text.Decimal;
 
-   function To_Identity (Text : String) return Identity_Text is
-      T : Identity_Text;
-   begin
-      for K in 1 .. Text'Length loop
-         T.Data (K) := Text (Text'First + (K - 1));
-      end loop;
-      T.Length := Text'Length;
-      return T;
-   end To_Identity;
-
    function Text_Of (T : Identity_Text) return String is (T.Data (1 .. T.Length));
 
    procedure Put (Into : in out Output; Text : String)
@@ -3777,25 +3767,6 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end if;
    end Version_Command;
 
-   Board_Name_Length   : constant := 20;
-   Manufacturer_Length : constant := 4;
-
-   procedure Init_Board (Board : in out Board_State; C : Configuration) is
-   begin
-      Board.Information_Set := C.Board_Config.Board_Information_Set /= 0;
-      if Board.Information_Set then
-         Board.Manufacturer :=
-           To_Identity (Stored_Text (C.Board_Config.Manufacturer_Id (0 .. Manufacturer_Length - 1)));
-         Board.Name := To_Identity (Stored_Text (C.Board_Config.Board_Name (0 .. Board_Name_Length - 1)));
-      end if;
-      Board.Signature_Set := C.Board_Config.Signature_Set /= 0;
-      if Board.Signature_Set then
-         for K in Board.Signature'Range loop
-            Board.Signature (K) := C.Board_Config.Signature (K);
-         end loop;
-      end if;
-   end Init_Board;
-
    --  The restart: the Rebooting line after an empty one, and the restart
    --  requested.
    procedure Reboot_Board (Into : in out Output; Changes : in out Effects) is
@@ -3804,58 +3775,6 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Put (Into, "Rebooting");
       Changes.Reboot := True;
    end Reboot_Board;
-
-   --  The board's name and manufacturer as the board holds them, stored up
-   --  to their lengths with the information marked set.
-   procedure Store_Board_Information (C : in out Configuration; Board : Board_State) is
-   begin
-      C.Board_Config.Manufacturer_Id := (others => 0);
-      for K in 0 .. Natural'Min (Board.Manufacturer.Length, Manufacturer_Length) - 1 loop
-         C.Board_Config.Manufacturer_Id (K) := Character'Pos (Board.Manufacturer.Data (K + 1));
-      end loop;
-      C.Board_Config.Board_Name := (others => 0);
-      for K in 0 .. Natural'Min (Board.Name.Length, Board_Name_Length) - 1 loop
-         C.Board_Config.Board_Name (K) := Character'Pos (Board.Name.Data (K + 1));
-      end loop;
-      C.Board_Config.Board_Information_Set := 1;
-   end Store_Board_Information;
-
-   --  The board's signature as the board holds it, stored and marked set.
-   procedure Store_Signature (C : in out Configuration; Board : Board_State) is
-   begin
-      for K in Board.Signature'Range loop
-         C.Board_Config.Signature (K) := Board.Signature (K);
-      end loop;
-      C.Board_Config.Signature_Set := 1;
-   end Store_Signature;
-
-   --  The board configuration's reset: a reset configuration keeps the
-   --  information and the signature the board has taken in, as the
-   --  reference's reset function for the group writes them back.
-   procedure Reset_Board_Config (C : in out Configuration; Board : Board_State) is
-   begin
-      if Board.Information_Set then
-         Store_Board_Information (C, Board);
-      end if;
-      if Board.Signature_Set then
-         Store_Signature (C, Board);
-      end if;
-   end Reset_Board_Config;
-
-   --  The board's information as a command set it, stored and taken in
-   --  again.
-   procedure Persist_Board (C : in out Configuration; Board : in out Board_State) is
-   begin
-      Store_Board_Information (C, Board);
-      Init_Board (Board, C);
-   end Persist_Board;
-
-   --  The board's signature as a command set it, stored and taken in again.
-   procedure Persist_Signature (C : in out Configuration; Board : in out Board_State) is
-   begin
-      Store_Signature (C, Board);
-      Init_Board (Board, C);
-   end Persist_Signature;
 
    --  The save's preparation: inside a batch that printed an error, the
    --  batch warning, the batch closed and no save; else the board's updated
@@ -3873,10 +3792,10 @@ package body Adaflight.Command_Line with SPARK_Mode is
          return;
       end if;
       if Board.Information_Updated then
-         Persist_Board (C, Board);
+         Board_Info.Persist_Information (C, Board);
       end if;
       if Board.Signature_Updated and then not Board.Signature_Set then
-         Persist_Signature (C, Board);
+         Board_Info.Persist_Signature (C, Board);
       end if;
       OK := True;
    end Prepare_Save;
@@ -3967,7 +3886,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          Put_Hash_Line (Into, "resetting to defaults");
          C := Defaults;
          Apply_Tuning (C);
-         Reset_Board_Config (C, Board);
+         Board_Info.Reset_Config (C, Board);
       else
          Put (Into, CRLF & "# resetting group " & Decimal (Integer_64 (Group)) & " to defaults" & CRLF);
          declare
@@ -3976,7 +3895,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
             Fresh : Config_Codec.Data;
          begin
             Apply_Tuning (Reset);
-            Reset_Board_Config (Reset, Board);
+            Board_Info.Reset_Config (Reset, Board);
             Config_Codec.Encode (C, Kept);
             Config_Codec.Encode (Reset, Fresh);
             pragma Assert (Config_Codec.Groups_Within);
@@ -4184,6 +4103,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
    procedure Signature_Command (Into : in out Output; Board : in out Board_State; Arguments : String)
      with Pre => Arguments'Last < Positive'Last
    is
+      use type Board_Info.Signature_Bytes;
       New_Signature : Signature_Bytes := (others => 0);
    begin
       if Arguments'Length > 0 then
@@ -4529,11 +4449,11 @@ package body Adaflight.Command_Line with SPARK_Mode is
               (Into, "beacon", C.Beeper_Config.Dshot_Beacon_Off_Flags, Beacon_Allowed, Text_At (Buffer, Arguments));
          when Board_Name_Command_Word =>
             Board_Text_Command
-              (Into, "board_name", "BOARD_NAME", Board.Name, Board_Name_Length, Board.Information_Set,
+              (Into, "board_name", "BOARD_NAME", Board.Name, Board_Info.Board_Name_Length, Board.Information_Set,
                Board.Information_Updated, Text_At (Buffer, Arguments));
          when Manufacturer_Id_Command_Word =>
             Board_Text_Command
-              (Into, "manufacturer_id", "MANUFACTURER_ID", Board.Manufacturer, Manufacturer_Length,
+              (Into, "manufacturer_id", "MANUFACTURER_ID", Board.Manufacturer, Board_Info.Manufacturer_Length,
                Board.Information_Set, Board.Information_Updated, Text_At (Buffer, Arguments));
          when Signature_Command_Word =>
             Signature_Command (Into, Board, Text_At (Buffer, Arguments));

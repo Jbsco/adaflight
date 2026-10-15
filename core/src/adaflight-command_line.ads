@@ -16,6 +16,7 @@
 --  The text goes out through Put into a sink, inside an Output that also
 --  holds the batch's state and what the tasks command remembers.
 with Interfaces;
+with Adaflight.Board_Info;
 with Adaflight.Config_Groups; use Adaflight.Config_Groups;
 with Adaflight.CLI_Text;
 with Adaflight.Scheduler;
@@ -103,19 +104,14 @@ package Adaflight.Command_Line with SPARK_Mode is
 
    --  A name the version line or the board's lines print: up to 32
    --  characters.
-   Identity_Max : constant := 32;
-   subtype Identity_Length is Natural range 0 .. Identity_Max;
-   type Identity_Text is record
-      Data   : String (1 .. Identity_Max) := (others => ' ');
-      Length : Identity_Length := 0;
-   end record;
+   Identity_Max : constant := Board_Info.Identity_Max;
+   subtype Identity_Length is Board_Info.Identity_Length;
+   subtype Identity_Text is Board_Info.Identity_Text;
 
-   function To_Identity (Text : String) return Identity_Text
-     with Pre  => Text'Length <= Identity_Max,
-          Post => To_Identity'Result.Length = Text'Length;
+   function To_Identity (Text : String) return Identity_Text renames Board_Info.To_Identity;
 
    type MCU_Words is array (1 .. 3) of Interfaces.Unsigned_32;
-   type Signature_Bytes is array (0 .. 31) of Interfaces.Unsigned_8;
+   subtype Signature_Bytes is Board_Info.Signature_Bytes;
 
    --  What the commands report from outside the configuration: the flight
    --  plan executor's state, the firmware's name, the target's name, the
@@ -137,19 +133,11 @@ package Adaflight.Command_Line with SPARK_Mode is
    --  The board's information as the commands see it: its name and
    --  manufacturer and whether the stored configuration set them, whether a
    --  command changed them, and the same for its signature.
-   type Board_State is record
-      Name                : Identity_Text;
-      Manufacturer        : Identity_Text;
-      Information_Set     : Boolean := False;
-      Information_Updated : Boolean := False;
-      Signature           : Signature_Bytes := (others => 0);
-      Signature_Set       : Boolean := False;
-      Signature_Updated   : Boolean := False;
-   end record;
+   subtype Board_State is Board_Info.State;
 
    --  The stored board information taken in as the board starts: the name
    --  and the manufacturer when they are set, the signature when it is set.
-   procedure Init_Board (Board : in out Board_State; C : Configuration);
+   procedure Init_Board (Board : in out Board_State; C : Configuration) renames Board_Info.Init;
 
    --  A typed line without its line end: printable characters past the
    --  leading spaces, up to 255 of them, a comment from the first number sign
