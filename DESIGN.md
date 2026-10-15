@@ -5131,3 +5131,30 @@ The command line oracle records the frame, the GPS solution with its fix and upd
 and the RSSI the reference hands on, through stubs for the functions it did not link and wraps for
 the rest. The harness replays two sequences of 600 requests: every result and handed-on value
 matches the reference's, with 41 frames of more than eighteen channels rejected by both.
+
+## D220. MSP board writes (2026-10-15)
+
+`Adaflight.MSP_Board_In` contains the MSP in messages that set the board's information and its
+signature and reset the configuration. Board information is a name and a manufacturer, each a length
+byte and that many bytes, kept to their first 20 and 4 bytes and to their first zero byte; a board
+that holds its information already, or a request shorter than its declared lengths, makes it an
+error. A signature is 32 bytes, zero past the request's end, and a board that holds one already
+makes it an error. Each is stored and taken in again through `Board_Info`. The reset, while
+disarmed, gives the reset configuration of `Config_Reset`, asks for the configuration's write and a
+restart after the reply, and answers 1; armed, it changes nothing and answers 0.
+
+`Adaflight.Board_Info` contains the board's information as the board holds it: the name and
+manufacturer, the signature, whether the stored configuration set each, and whether a command
+changed them, with how the board takes them in at start, stores and persists them, and writes them
+back into a reset configuration. `Adaflight.Config_Reset` contains the configuration reset: the
+defaults, the simplified tuning applied to every PID profile, and the board's information kept. The
+command line uses both, and the stored VTX table clearing of `Adaflight.VTX_Table_Store` (D218), in
+place of its own copies; its names for the moved types stay as subtypes and renamings. We moved them
+out of the generic command line, whose types exist once per instance, so these messages can share
+them.
+
+The command line oracle hands the reset to the reference's out command processor and records its
+reply byte and the restart it schedules. The harness replays two sequences of 600 lines, 829
+requests among board stores, armed and disarmed directives, board commands, saves and resets: every
+result, reply, runtime request and configuration hash matches the reference's, with 525 requests for
+information or a signature the board already holds, or shorter than declared, rejected by both.
