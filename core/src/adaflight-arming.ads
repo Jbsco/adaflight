@@ -178,6 +178,7 @@ package Adaflight.Arming with SPARK_Mode is
       Flight_Modes         : Mode_Set := (others => False);
       Sticks_Arm           : Boolean := True;
       Disarm_Requested     : Boolean := False;
+      First_Arm_Cal_Started : Boolean := False;
       Disarm_At            : Time_Us := 0;
       Last_Disabled_Reason : Reason_Index := 0;
       Last_Disarm_Us       : Time_Us := 0;

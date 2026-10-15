@@ -290,11 +290,19 @@ package body Adaflight.Arming with SPARK_Mode is
       Now_Us   : Time_Us;
       Out_Step : in out Outputs
    ) is
+      Seen : Inputs := Sensed;
    begin
+      --  The first arming calibration starts once; the status check sees it
+      --  running.
       if C.Gyro_Cal_On_First_Arm then
          Bump (Out_Step.First_Arm_Gyro_Cal);
+         if not S.First_Arm_Cal_Started then
+            S.First_Arm_Cal_Started := True;
+            Seen.Gyro_Calibrated := False;
+            Seen.First_Arm_Gyro_Cal_Running := True;
+         end if;
       end if;
-      Update_Status (S, C, M, Conds, Sensed, Channels, Now_Us);
+      Update_Status (S, C, M, Conds, Seen, Channels, Now_Us);
       if not Arming_Disabled (S) then
          if S.Armed then
             return;
@@ -313,7 +321,7 @@ package body Adaflight.Arming with SPARK_Mode is
          S.Disarm_At := Now_Us + Time_Us (C.Auto_Disarm_Delay) * 1_000_000;
          S.Last_Disabled_Reason := 0;
          Request (Out_Step.Beeper, Arm_Tone);
-      elsif not Sensed.First_Arm_Gyro_Cal_Running then
+      elsif not Seen.First_Arm_Gyro_Cal_Running then
          declare
             Reason : constant Reason_Index := First_Reason (S.Disabled);
          begin
