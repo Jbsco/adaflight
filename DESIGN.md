@@ -4964,17 +4964,16 @@ the LED strip's brightness and rainbow, and a battery profile. The name message 
 name and takes up to 16 of the request's bytes. The text message takes a type, then a length byte
 cut at the text's room: 16 for the pilot name, the craft name and the four custom messages, 8 for
 the current PID, rate and battery profile names. It writes the text and a zero after it and leaves
-the bytes after that zero as they were, so the stored bytes match the reference's. A type outside
-those is an error. Texts take any bytes, since they have no range. `Effects` asks the runtime to
-analyze the OSD's active elements again after a craft or pilot name.
+the bytes after that zero as they were. A type outside those is an error. Texts take any bytes,
+since they have no range. `Effects` asks the runtime to analyze the OSD's active elements again
+after a craft or pilot name.
 
 The LED strip values and the battery profile take the whole-request check of D203. The battery
-profile message keeps the reference's own checks: at least thirteen bytes, a profile below 3, the
-minimum, warning, full and maximum cell voltages in that order, at most 24 cells and at most 100
-percent. Each voltage must then lie within 1.00 V to 5.00 V and the capacity within 20000 mAh, as
-their settings hold them. The reference stores a brightness past 100, which its LED driver wraps
-(findings F193), and a maximum cell voltage of zero, which its cell count detection divides by
-(findings F194).
+profile message needs at least thirteen bytes, a profile below 3, the minimum, warning, full and
+maximum cell voltages in that order, at most 24 cells and at most 100 percent. Each voltage must
+then lie within 1.00 V to 5.00 V and the capacity within 20000 mAh, as their settings hold them. The
+reference stores a brightness past 100, which its LED driver wraps (findings F193), and a maximum
+cell voltage of zero, which its cell count detection divides by (findings F194).
 
 The harness replays two sequences of 600 lines from the command line oracle, 1045 requests among
 profile selections, resets, name sets and listings: 810 within their bounds, whose results, runtime
@@ -5105,9 +5104,9 @@ transmitter of a known type whose pit mode differs from the request's is asked f
 pit mode, and every accepted request marks the MSP transmitter ready. The reference makes its writes
 and the pit mode call before it checks the table counts (findings F197).
 
-`Adaflight.VTX_Table_Store` contains the stored table's clearing, as the reference's table commands
-clear a band, its channels, the power values and the power labels, and the running table taken from
-the stored one, as at boot. The command line uses the same clearing.
+`Adaflight.VTX_Table_Store` contains the clearing of the stored table's bands, channels, power
+values and power labels, and the running table taken from the stored one, as at boot. The command
+line uses the same clearing.
 
 The command line oracle links the reference's transmitter interface and scripts a transmitter, its
 type and its pit mode with a directive that can also take the stored table in as the running one.

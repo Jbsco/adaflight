@@ -1,7 +1,6 @@
---  The stored video transmitter table: a band, its channels, the power
---  values and the power labels cleared as the reference's table commands
---  clear them, and the running table taken from the stored one, as at
---  boot.
+--  The stored video transmitter table: its bands, channels, power values
+--  and power labels cleared, and the running table taken from the stored
+--  one, as at boot.
 with Adaflight.Config_Groups; use Adaflight.Config_Groups;
 with Adaflight.VTX_Table;
 
