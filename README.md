@@ -127,6 +127,7 @@ The core contains:
 - command line dump of every profile: profile restores and save, MCU id and signature lines
 - command line board information: board name, manufacturer and signature commands
 - command line simplified tuning: apply and disable over stored profiles and gyro settings
+- command line defaults: whole and single-group resets without save
 - MSP state replies: status, sensor readings, motors, RC channels, attitude, altitudes, battery,
   debug values, GPS, ESC and motor telemetry, pitot, transmitter information and clock
 - BLHeli 4-way interface for ESC configuration through flight controller
@@ -152,9 +153,9 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 22117 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 22152 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
-- Recorded vectors replay bit for bit: 1750611 lines over 383 cases, every case exact except
+- Recorded vectors replay bit for bit: 1753568 lines over 384 cases, every case exact except
   thirty-seven declared deviations in `DESIGN.md` D6.
 - No target builds yet. `ROADMAP.md` contains phases, parity inventory, and one question for after
   parity: whether a proved core leaves room on F4 boards for features Betaflight has to leave out

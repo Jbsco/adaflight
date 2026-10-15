@@ -1,5 +1,6 @@
 with Interfaces; use Interfaces;
 with Adaflight.Adjustments;
+with Adaflight.Config_Codec;
 with Adaflight.Config_Fix;
 with Adaflight.LED_Strip;
 with Adaflight.Maths;
@@ -3585,12 +3586,12 @@ package body Adaflight.Command_Line with SPARK_Mode is
 
    type Command_Kind is
      (No_Command, Adjustment_Range_Command_Word, Aux_Command_Word, Battery_Profile_Command, Beacon_Command,
-      Beeper_Command_Word, Board_Name_Command_Word, Manufacturer_Id_Command_Word, Signature_Command_Word,
-      Color_Command_Word, Diff_Command, Dump_Command, Feature_Command_Word, Get_Command, Led_Command_Word,
-      Map_Command_Word, Mode_Color_Command_Word, Mixer_Command_Word, Motor_Mix_Command_Word, Profile_Command,
-      Rate_Profile_Command, Rx_Failsafe_Command, MCU_Id_Command_Word, Rx_Range_Command, Serial_Command_Word,
-      Servo_Command_Word, Servo_Mix_Command_Word, Set_Command, Simplified_Tuning_Command_Word, Version_Command_Word,
-      Vtx_Command_Word, Vtx_Table_Command_Word, Waypoint_Command_Word);
+      Beeper_Command_Word, Board_Name_Command_Word, Defaults_Command_Word, Manufacturer_Id_Command_Word,
+      Signature_Command_Word, Color_Command_Word, Diff_Command, Dump_Command, Feature_Command_Word, Get_Command,
+      Led_Command_Word, Map_Command_Word, Mode_Color_Command_Word, Mixer_Command_Word, Motor_Mix_Command_Word,
+      Profile_Command, Rate_Profile_Command, Rx_Failsafe_Command, MCU_Id_Command_Word, Rx_Range_Command,
+      Serial_Command_Word, Servo_Command_Word, Servo_Mix_Command_Word, Set_Command, Simplified_Tuning_Command_Word,
+      Version_Command_Word, Vtx_Command_Word, Vtx_Table_Command_Word, Waypoint_Command_Word);
    subtype Known_Command is Command_Kind range Adjustment_Range_Command_Word .. Waypoint_Command_Word;
 
    function Command_Word (K : Known_Command) return String is
@@ -3603,6 +3604,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when Board_Name_Command_Word => "board_name",
          when Manufacturer_Id_Command_Word => "manufacturer_id",
          when Signature_Command_Word => "signature",
+         when Defaults_Command_Word => "defaults",
          when Diff_Command => "diff",
          when Dump_Command => "dump",
          when Feature_Command_Word => "feature",
@@ -3645,14 +3647,20 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Arguments := 0;
    end Find_Command;
 
+   --  The simplified tuning of every PID profile with the gyro settings.
+   procedure Apply_Tuning (C : in out Configuration) is
+   begin
+      for I in C.Pid_Profiles'Range loop
+         Simplified_Tuning.Stored.Apply (C.Pid_Profiles (I), C.Gyro_Config);
+      end loop;
+   end Apply_Tuning;
+
    --  simplified_tuning: the simplified tuning of every PID profile with the
    --  gyro settings applied, or every slider turned off.
    procedure Simplified_Tuning_Command (Into : in out Sink; C : in out Configuration; Arguments : String) is
    begin
       if CLI_Text.Same_Ignoring_Case (Arguments, "apply") then
-         for I in C.Pid_Profiles'Range loop
-            Simplified_Tuning.Stored.Apply (C.Pid_Profiles (I), C.Gyro_Config);
-         end loop;
+         Apply_Tuning (C);
          Put (Into, "Applied simplified tuning." & CRLF);
       elsif CLI_Text.Same_Ignoring_Case (Arguments, "disable") then
          for I in C.Pid_Profiles'Range loop
@@ -3663,6 +3671,79 @@ package body Adaflight.Command_Line with SPARK_Mode is
          Put (Into, "###ERROR IN simplified_tuning: PARSING FAILED###" & CRLF);
       end if;
    end Simplified_Tuning_Command;
+
+   --  defaults with nosave: the configuration reset to its defaults, or one
+   --  parameter group's after group_id and its number taken modulo 2 ** 16,
+   --  with the simplified tuning applied to every PID profile of the reset
+   --  configuration first. A word with neither group_id nor nosave, a zero
+   --  group or a missing one is the parse error. Known is false without
+   --  nosave, whose save and restart wait for the save command.
+   procedure Defaults_Command (Into : in out Sink; C : in out Configuration; Arguments : String; Known : out Boolean)
+     with Pre => Arguments'First >= 1 and then Arguments'Last < Positive'Last
+   is
+      Save   : Boolean := True;
+      Group  : Unsigned_16 := 0;
+      Expect : Boolean := False;
+      P      : Positive := Arguments'First;
+      First  : Natural;
+      Last   : Natural;
+   begin
+      Known := True;
+      loop
+         pragma Loop_Invariant (P >= Arguments'First);
+         pragma Loop_Variant (Increases => P);
+         Next_Word (Arguments, P, First, Last);
+         exit when First = 0;
+         if Expect then
+            Group := Unsigned_16'Mod (CLI_Text.To_Integer (Arguments (First .. Last)));
+            Expect := False;
+            if Group = 0 then
+               Put (Into, "###ERROR IN defaults: PARSING FAILED###" & CRLF);
+               return;
+            end if;
+         elsif CLI_Text.Contains_Ignoring_Case (Arguments (First .. Last), "group_id") then
+            Expect := True;
+         elsif CLI_Text.Contains_Ignoring_Case (Arguments (First .. Last), "nosave") then
+            Save := False;
+         else
+            Put (Into, "###ERROR IN defaults: PARSING FAILED###" & CRLF);
+            return;
+         end if;
+         exit when Last >= Arguments'Last;
+         P := Last + 1;
+      end loop;
+      if Expect then
+         Put (Into, "###ERROR IN defaults: PARSING FAILED###" & CRLF);
+         return;
+      end if;
+      if Save then
+         Known := False;
+         return;
+      end if;
+      if Group = 0 then
+         Put_Hash_Line (Into, "resetting to defaults");
+         C := Defaults;
+         Apply_Tuning (C);
+      else
+         Put (Into, CRLF & "# resetting group " & Decimal (Integer_64 (Group)) & " to defaults" & CRLF);
+         declare
+            Reset : Configuration := Defaults;
+            Kept  : Config_Codec.Data;
+            Fresh : Config_Codec.Data;
+         begin
+            Apply_Tuning (Reset);
+            Config_Codec.Encode (C, Kept);
+            Config_Codec.Encode (Reset, Fresh);
+            pragma Assert (Config_Codec.Groups_Within);
+            for G of Config_Codec.Registry loop
+               if G.Number = Group then
+                  Kept (G.Offset .. G.Offset + G.Size - 1) := Fresh (G.Offset .. G.Offset + G.Size - 1);
+               end if;
+            end loop;
+            Config_Codec.Decode (Kept, C);
+         end;
+      end if;
+   end Defaults_Command;
 
    --  The version line: the firmware's name, the target's name, a board
    --  identifier, the version, the build's date, time and revision, and the
@@ -4152,6 +4233,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
             Known := True;
             Beeper_Command
               (Into, "beeper", C.Beeper_Config.Beeper_Off_Flags, Beeper_Allowed, Text_At (Buffer, Arguments));
+         when Defaults_Command_Word =>
+            Defaults_Command (Into, C, Text_At (Buffer, Arguments), Known);
          when Diff_Command =>
             Known := True;
             Print_Config (Into, C, Env, Board, Buffer, Arguments, "diff", True, Ports);
