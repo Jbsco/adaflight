@@ -3620,7 +3620,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
 
    type Command_Kind is
      (No_Command, Adjustment_Range_Command_Word, Aux_Command_Word, Batch_Command_Word, Battery_Profile_Command,
-      Beacon_Command,
+      Beacon_Command, Exit_Command_Word, Save_Command_Word,
       Beeper_Command_Word, Board_Name_Command_Word, Defaults_Command_Word, Manufacturer_Id_Command_Word,
       Signature_Command_Word, Color_Command_Word, Diff_Command, Dump_Command, Feature_Command_Word, Get_Command,
       Led_Command_Word, Map_Command_Word, Mode_Color_Command_Word, Mixer_Command_Word, Motor_Mix_Command_Word,
@@ -3636,6 +3636,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when Batch_Command_Word => "batch",
          when Battery_Profile_Command => "battery_profile",
          when Beacon_Command => "beacon",
+         when Exit_Command_Word => "exit",
+         when Save_Command_Word => "save",
          when Beeper_Command_Word => "beeper",
          when Board_Name_Command_Word => "board_name",
          when Manufacturer_Id_Command_Word => "manufacturer_id",
@@ -3738,82 +3740,6 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end if;
    end Batch_Command;
 
-   --  defaults with nosave: the configuration reset to its defaults, or one
-   --  parameter group's after group_id and its number taken modulo 2 ** 16,
-   --  with the simplified tuning applied to every PID profile of the reset
-   --  configuration first. A word with neither group_id nor nosave, a zero
-   --  group or a missing one is the parse error. A reset clears an open
-   --  batch's error. Handled is false without nosave, whose save and restart
-   --  wait for the save command.
-   procedure Defaults_Command
-     (Into : in out Output; C : in out Configuration; Arguments : String; Handled : out Boolean)
-     with Pre => Arguments'First >= 1 and then Arguments'Last < Positive'Last
-   is
-      Save   : Boolean := True;
-      Group  : Unsigned_16 := 0;
-      Expect : Boolean := False;
-      P      : Positive := Arguments'First;
-      First  : Natural;
-      Last   : Natural;
-   begin
-      Handled := True;
-      loop
-         pragma Loop_Invariant (P >= Arguments'First);
-         pragma Loop_Variant (Increases => P);
-         Next_Word (Arguments, P, First, Last);
-         exit when First = 0;
-         if Expect then
-            Group := Unsigned_16'Mod (CLI_Text.To_Integer (Arguments (First .. Last)));
-            Expect := False;
-            if Group = 0 then
-               Put_Error (Into, "defaults: PARSING FAILED###" & CRLF);
-               return;
-            end if;
-         elsif CLI_Text.Contains_Ignoring_Case (Arguments (First .. Last), "group_id") then
-            Expect := True;
-         elsif CLI_Text.Contains_Ignoring_Case (Arguments (First .. Last), "nosave") then
-            Save := False;
-         else
-            Put_Error (Into, "defaults: PARSING FAILED###" & CRLF);
-            return;
-         end if;
-         exit when Last >= Arguments'Last;
-         P := Last + 1;
-      end loop;
-      if Expect then
-         Put_Error (Into, "defaults: PARSING FAILED###" & CRLF);
-         return;
-      end if;
-      if Save then
-         Handled := False;
-         return;
-      end if;
-      if Group = 0 then
-         Put_Hash_Line (Into, "resetting to defaults");
-         C := Defaults;
-         Apply_Tuning (C);
-      else
-         Put (Into, CRLF & "# resetting group " & Decimal (Integer_64 (Group)) & " to defaults" & CRLF);
-         declare
-            Reset : Configuration := Defaults;
-            Kept  : Config_Codec.Data;
-            Fresh : Config_Codec.Data;
-         begin
-            Apply_Tuning (Reset);
-            Config_Codec.Encode (C, Kept);
-            Config_Codec.Encode (Reset, Fresh);
-            pragma Assert (Config_Codec.Groups_Within);
-            for G of Config_Codec.Registry loop
-               if G.Number = Group then
-                  Kept (G.Offset .. G.Offset + G.Size - 1) := Fresh (G.Offset .. G.Offset + G.Size - 1);
-               end if;
-            end loop;
-            Config_Codec.Decode (Kept, C);
-         end;
-      end if;
-      Into.Batch_Error := False;
-   end Defaults_Command;
-
    --  The version line: the firmware's name, the target's name, a board
    --  identifier, the version, the build's date, time and revision, and the
    --  MSP API version.
@@ -3869,6 +3795,208 @@ package body Adaflight.Command_Line with SPARK_Mode is
          end loop;
       end if;
    end Init_Board;
+
+   --  The restart: the Rebooting line after an empty one, and the restart
+   --  requested.
+   procedure Reboot_Board (Into : in out Output; Changes : in out Effects) is
+   begin
+      Put (Into, CRLF);
+      Put (Into, "Rebooting");
+      Changes.Reboot := True;
+   end Reboot_Board;
+
+   --  The board's name and manufacturer as the board holds them, stored up
+   --  to their lengths with the information marked set.
+   procedure Store_Board_Information (C : in out Configuration; Board : Board_State) is
+   begin
+      C.Board_Config.Manufacturer_Id := (others => 0);
+      for K in 0 .. Natural'Min (Board.Manufacturer.Length, Manufacturer_Length) - 1 loop
+         C.Board_Config.Manufacturer_Id (K) := Character'Pos (Board.Manufacturer.Data (K + 1));
+      end loop;
+      C.Board_Config.Board_Name := (others => 0);
+      for K in 0 .. Natural'Min (Board.Name.Length, Board_Name_Length) - 1 loop
+         C.Board_Config.Board_Name (K) := Character'Pos (Board.Name.Data (K + 1));
+      end loop;
+      C.Board_Config.Board_Information_Set := 1;
+   end Store_Board_Information;
+
+   --  The board's signature as the board holds it, stored and marked set.
+   procedure Store_Signature (C : in out Configuration; Board : Board_State) is
+   begin
+      for K in Board.Signature'Range loop
+         C.Board_Config.Signature (K) := Board.Signature (K);
+      end loop;
+      C.Board_Config.Signature_Set := 1;
+   end Store_Signature;
+
+   --  The board configuration's reset: a reset configuration keeps the
+   --  information and the signature the board has taken in, as the
+   --  reference's reset function for the group writes them back.
+   procedure Reset_Board_Config (C : in out Configuration; Board : Board_State) is
+   begin
+      if Board.Information_Set then
+         Store_Board_Information (C, Board);
+      end if;
+      if Board.Signature_Set then
+         Store_Signature (C, Board);
+      end if;
+   end Reset_Board_Config;
+
+   --  The board's information as a command set it, stored and taken in
+   --  again.
+   procedure Persist_Board (C : in out Configuration; Board : in out Board_State) is
+   begin
+      Store_Board_Information (C, Board);
+      Init_Board (Board, C);
+   end Persist_Board;
+
+   --  The board's signature as a command set it, stored and taken in again.
+   procedure Persist_Signature (C : in out Configuration; Board : in out Board_State) is
+   begin
+      Store_Signature (C, Board);
+      Init_Board (Board, C);
+   end Persist_Signature;
+
+   --  The save's preparation: inside a batch that printed an error, the
+   --  batch warning, the batch closed and no save; else the board's updated
+   --  information stored, and its updated signature while none is stored.
+   procedure Prepare_Save
+     (Into : in out Output; C : in out Configuration; Board : in out Board_State; Command : String; OK : out Boolean)
+   is
+   begin
+      if Into.Batch_Active and then Into.Batch_Error then
+         Put_Error (Into, Command & ": ERRORS WERE DETECTED - PLEASE REVIEW BEFORE CONTINUING###" & CRLF);
+         Put_Error (Into, Command & ": PLEASE FIX ERRORS THEN 'SAVE'###" & CRLF);
+         Into.Batch_Active := False;
+         Into.Batch_Error := False;
+         OK := False;
+         return;
+      end if;
+      if Board.Information_Updated then
+         Persist_Board (C, Board);
+      end if;
+      if Board.Signature_Updated and then not Board.Signature_Set then
+         Persist_Signature (C, Board);
+      end if;
+      OK := True;
+   end Prepare_Save;
+
+   --  save: after the save's preparation, the configuration marked
+   --  configured and its write requested, the saving line, and the restart
+   --  unless noreboot follows.
+   procedure Save_Command
+     (Into : in out Output; C : in out Configuration; Board : in out Board_State; Arguments : String;
+      Changes : in out Effects)
+   is
+      OK : Boolean;
+   begin
+      Prepare_Save (Into, C, Board, "save", OK);
+      if not OK then
+         return;
+      end if;
+      C.System_Config.Configuration_State := 1;
+      Changes.Save := True;
+      Put_Hash_Line (Into, "saving");
+      if CLI_Text.Same_Ignoring_Case (Arguments, "noreboot") then
+         return;
+      end if;
+      Reboot_Board (Into, Changes);
+   end Save_Command;
+
+   --  exit: the leaving line, the command line left, and the restart unless
+   --  noreboot follows.
+   procedure Exit_Command (Into : in out Output; Arguments : String; Changes : in out Effects) is
+      Reboot : constant Boolean := not CLI_Text.Same_Ignoring_Case (Arguments, "noreboot");
+   begin
+      Put_Hash_Line
+        (Into, (if Reboot then "leaving CLI mode, unsaved changes lost" else "leaving CLI mode, no reboot"));
+      Changes.Leave := True;
+      if Reboot then
+         Reboot_Board (Into, Changes);
+      end if;
+   end Exit_Command;
+
+   --  defaults with nosave: the configuration reset to its defaults, or one
+   --  parameter group's after group_id and its number taken modulo 2 ** 16,
+   --  with the simplified tuning applied to every PID profile of the reset
+   --  configuration first and the board's information kept in it. A word with neither group_id nor nosave, a zero
+   --  group or a missing one is the parse error. A reset clears an open
+   --  batch's error. Without nosave, the save's preparation follows, then
+   --  the configuration's write and the board's restart.
+   procedure Defaults_Command
+     (Into : in out Output; C : in out Configuration; Board : in out Board_State; Arguments : String;
+      Changes : in out Effects)
+     with Pre => Arguments'First >= 1 and then Arguments'Last < Positive'Last
+   is
+      Save   : Boolean := True;
+      Group  : Unsigned_16 := 0;
+      Expect : Boolean := False;
+      P      : Positive := Arguments'First;
+      First  : Natural;
+      Last   : Natural;
+      OK     : Boolean;
+   begin
+      loop
+         pragma Loop_Invariant (P >= Arguments'First);
+         pragma Loop_Variant (Increases => P);
+         Next_Word (Arguments, P, First, Last);
+         exit when First = 0;
+         if Expect then
+            Group := Unsigned_16'Mod (CLI_Text.To_Integer (Arguments (First .. Last)));
+            Expect := False;
+            if Group = 0 then
+               Put_Error (Into, "defaults: PARSING FAILED###" & CRLF);
+               return;
+            end if;
+         elsif CLI_Text.Contains_Ignoring_Case (Arguments (First .. Last), "group_id") then
+            Expect := True;
+         elsif CLI_Text.Contains_Ignoring_Case (Arguments (First .. Last), "nosave") then
+            Save := False;
+         else
+            Put_Error (Into, "defaults: PARSING FAILED###" & CRLF);
+            return;
+         end if;
+         exit when Last >= Arguments'Last;
+         P := Last + 1;
+      end loop;
+      if Expect then
+         Put_Error (Into, "defaults: PARSING FAILED###" & CRLF);
+         return;
+      end if;
+      if Group = 0 then
+         Put_Hash_Line (Into, "resetting to defaults");
+         C := Defaults;
+         Apply_Tuning (C);
+         Reset_Board_Config (C, Board);
+      else
+         Put (Into, CRLF & "# resetting group " & Decimal (Integer_64 (Group)) & " to defaults" & CRLF);
+         declare
+            Reset : Configuration := Defaults;
+            Kept  : Config_Codec.Data;
+            Fresh : Config_Codec.Data;
+         begin
+            Apply_Tuning (Reset);
+            Reset_Board_Config (Reset, Board);
+            Config_Codec.Encode (C, Kept);
+            Config_Codec.Encode (Reset, Fresh);
+            pragma Assert (Config_Codec.Groups_Within);
+            for G of Config_Codec.Registry loop
+               if G.Number = Group then
+                  Kept (G.Offset .. G.Offset + G.Size - 1) := Fresh (G.Offset .. G.Offset + G.Size - 1);
+               end if;
+            end loop;
+            Config_Codec.Decode (Kept, C);
+         end;
+      end if;
+      Into.Batch_Error := False;
+      if Save then
+         Prepare_Save (Into, C, Board, "defaults", OK);
+         if OK then
+            Changes.Save := True;
+            Reboot_Board (Into, Changes);
+         end if;
+      end if;
+   end Defaults_Command;
 
    --  board_name and manufacturer_id: the value, after a new one up to its
    --  length is taken while the stored information is not set or the value
@@ -4344,14 +4472,13 @@ package body Adaflight.Command_Line with SPARK_Mode is
 
    procedure Process_Line
      (Into : in out Output; C : in out Configuration; Line : String; Ports : Port_List; Env : Environment;
-      Board : in out Board_State; Sched : in out Scheduler.State; Handled : out Boolean; Changes : out Effects)
+      Board : in out Board_State; Sched : in out Scheduler.State; Changes : out Effects)
    is
       Buffer    : Line_Buffer := (others => ASCII.NUL);
       Length    : Natural := 0;
       Kind      : Command_Kind;
       Arguments : Natural;
    begin
-      Handled := True;
       Changes := (others => False);
       for Ch of Line loop
          if Length < Line_Size - 1 and then Ch in ' ' .. '~' and then (Length > 0 or else Ch /= ' ') then
@@ -4410,9 +4537,11 @@ package body Adaflight.Command_Line with SPARK_Mode is
             Beeper_Command
               (Into, "beeper", C.Beeper_Config.Beeper_Off_Flags, Beeper_Allowed, Text_At (Buffer, Arguments));
          when Defaults_Command_Word =>
-            Defaults_Command (Into, C, Text_At (Buffer, Arguments), Handled);
+            Defaults_Command (Into, C, Board, Text_At (Buffer, Arguments), Changes);
          when Diff_Command =>
             Print_Config (Into, C, Env, Board, Buffer, Arguments, "diff", True, Ports);
+         when Exit_Command_Word =>
+            Exit_Command (Into, Text_At (Buffer, Arguments), Changes);
          when Dump_Command =>
             Print_Config (Into, C, Env, Board, Buffer, Arguments, "dump", False, Ports);
          when Feature_Command_Word =>
@@ -4445,6 +4574,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
             Servo_Command (Into, C.Servo_Params, Text_At (Buffer, Arguments));
          when Servo_Mix_Command_Word =>
             Servo_Mix_Command (Into, C.Custom_Servo_Mixers, C.Servo_Params, Text_At (Buffer, Arguments));
+         when Save_Command_Word =>
+            Save_Command (Into, C, Board, Text_At (Buffer, Arguments), Changes);
          when Serial_Command_Word =>
             Serial_Command (Into, C, Text_At (Buffer, Arguments), Ports);
          when Set_Command =>

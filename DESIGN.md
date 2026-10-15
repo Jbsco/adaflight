@@ -4668,3 +4668,35 @@ units, realistic or anywhere in the 32-bit range, tasks queued and dequeued, the
 forward, back and past half its range, check function statistics, debug modes and cycle counts,
 task statistics switched on and off, and `tasks` commands. All 692842 reply characters match the
 reference's, and so does the configuration's hash after every command.
+
+## D199. Command line save and exit (2026-10-15)
+
+`save` prepares the save. Inside a batch that printed an error, it prints the batch warning, the
+error lines `ERRORS WERE DETECTED - PLEASE REVIEW BEFORE CONTINUING` and `PLEASE FIX ERRORS THEN
+'SAVE'`, closes the batch and stops. Otherwise it stores the board's information in the
+configuration when a command updated it, and its signature when a command updated it and none is
+stored, and takes both in again; then it marks the configuration configured, asks for its write,
+prints `# saving` and asks for the restart, which `noreboot` withholds. `exit` prints `# leaving
+CLI mode, unsaved changes lost`, or `# leaving CLI mode, no reboot` after `noreboot`, asks for the
+command line's end and, without `noreboot`, for the restart. `defaults` without `nosave` resets as
+with it, prepares the save the same way, and asks for the write and the restart. The restart prints
+`Rebooting` after an empty line. The requests are the `Effects` fields `Save`, `Reboot` and
+`Leave`; `Process_Line` loses `Handled`, since every line is handled now.
+
+The reference's write runs its configuration fix before storing. In adaflight the fix belongs to
+the storage layer (D158, D167), which runs it on the `Save` request with the hardware facts the
+command line does not hold, so the command line's configuration keeps the unfixed values until the
+runtime answers the request. The oracle's write is a stub for the same reason, and the recorded
+hashes carry no fix.
+
+A reset keeps the board's information. The reference's reset function for the board group writes
+the information and the signature the board has taken in back into the reset group, so `defaults`
+after a save keeps them, and so does a reset of that group alone. `Reset_Board_Config` does the
+same in adaflight. The earlier `defaults` left them out, which the save vectors found: no earlier
+sequence had saved board information before a reset.
+
+The harness replays two sequences of 500 lines: saves and exits with and without `noreboot`, resets
+with and without `nosave` and by group, board names, manufacturers and signatures before saves,
+batches with and without errors before saves, settings and diffs. All 52799 reply characters match
+the reference's, and so do the configuration's hash after every command and the write, restart and
+leave requests of every line.

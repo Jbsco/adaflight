@@ -9,8 +9,10 @@
 --  mcu_id the MCU's unique id, and board_name, manufacturer_id and signature
 --  show or set the board's information; batch brackets a command batch and
 --  reports an error printed inside it; tasks lists every queued task's rate
---  and, with task statistics on, its times and loads, and resets the peaks.
---  A line naming no command gets the ERR_CMD_NA reply.
+--  and, with task statistics on, its times and loads, and resets the peaks;
+--  save, exit and defaults without nosave ask for the configuration's write,
+--  the board's restart or the command line's end. A line naming no command
+--  gets the ERR_CMD_NA reply.
 --  The text goes out through Put into a sink, inside an Output that also
 --  holds the batch's state and what the tasks command remembers.
 with Interfaces;
@@ -71,7 +73,8 @@ package Adaflight.Command_Line with SPARK_Mode is
 
    --  The runtime work a command asks for: a profile selected, the mode
    --  conditions changed, the adjustment ranges changed, or the LED strip's
-   --  layout changed.
+   --  layout changed; the configuration written to its storage, the board
+   --  restarted, or the command line left with the disarmed motors reset.
    type Effects is record
       PID_Profile     : Boolean := False;
       Rate_Profile    : Boolean := False;
@@ -79,6 +82,9 @@ package Adaflight.Command_Line with SPARK_Mode is
       Modes           : Boolean := False;
       Adjustments     : Boolean := False;
       LEDs            : Boolean := False;
+      Save            : Boolean := False;
+      Reboot          : Boolean := False;
+      Leave           : Boolean := False;
    end record;
 
    --  The flight plan executor's state the waypoint status reports: whether
@@ -149,12 +155,10 @@ package Adaflight.Command_Line with SPARK_Mode is
    --  leading spaces, up to 255 of them, a comment from the first number sign
    --  and trailing spaces cut, then its command run, or the ERR_CMD_NA reply
    --  for a line naming no command. Sched is the scheduler's state, which the
-   --  tasks command reads and whose peak times it resets. Handled is false
-   --  only for defaults without nosave, whose save and restart wait for the
-   --  save command.
+   --  tasks command reads and whose peak times it resets.
    procedure Process_Line
      (Into : in out Output; C : in out Configuration; Line : String; Ports : Port_List; Env : Environment;
-      Board : in out Board_State; Sched : in out Scheduler.State; Handled : out Boolean; Changes : out Effects)
+      Board : in out Board_State; Sched : in out Scheduler.State; Changes : out Effects)
      with Pre => Valid (Current (C)) and then Ports'Length <= Serial_Feature_Map.Max_Ports;
 
 end Adaflight.Command_Line;
