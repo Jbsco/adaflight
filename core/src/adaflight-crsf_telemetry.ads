@@ -8,6 +8,7 @@ with Interfaces;
 with Adaflight.Bytes; use Adaflight.Bytes;
 with Adaflight.Stream_Buffers; use Adaflight.Stream_Buffers;
 with Adaflight.Clock;
+with Adaflight.CRSF_Display_Port;
 
 package Adaflight.CRSF_Telemetry with SPARK_Mode is
    use type Interfaces.Unsigned_8;
@@ -47,6 +48,14 @@ package Adaflight.CRSF_Telemetry with SPARK_Mode is
    Type_Device_Info   : constant Byte := 16#29#;
    Type_Command       : constant Byte := 16#32#;
    Type_MSP_Response  : constant Byte := 16#7B#;
+   Type_Display_Port  : constant Byte := 16#7D#;
+
+   Display_Update      : constant Byte := 1;
+   Display_Clear       : constant Byte := 2;
+   Display_Chunk_Max   : constant := 50;
+   Display_Batch_Count : constant := 16#3F#;
+   Display_First_Chunk : constant Byte := 16#80#;
+   Display_Last_Chunk  : constant Byte := 16#40#;
 
    Command_General        : constant Byte := 16#0A#;
    Command_Speed_Proposal : constant Byte := 16#70#;
@@ -369,6 +378,12 @@ package Adaflight.CRSF_Telemetry with SPARK_Mode is
       Link                        : Link_Kind := Unknown;
       Last_Ping                   : Time_Us := 0;
       Chunk_Interval_Us           : Time_Us := 0;
+      Display_Batch_Id            : Byte := 0;
+      Display_Active              : Boolean := False;
+      Display_Position            : Natural range 0 .. CRSF_Display_Port.Buffer_Size := 0;
+      Display_End                 : Natural range 0 .. CRSF_Display_Port.Buffer_Size := 0;
+      Display_Index               : Byte := 0;
+      Display_Last_Time           : Time_Us := 0;
    end record;
 
    --  Builds the schedule from the configuration when the link is active;
@@ -415,10 +430,19 @@ package Adaflight.CRSF_Telemetry with SPARK_Mode is
 
    Update_Room : constant := 10 * Frame_Size_Max;
 
+   --  The display port's clear frame.
+   procedure Write_Display_Clear (B : in out Byte_Array; S : in out Stream)
+     with Pre  => Fits (S, B) and then Remaining (S) >= Frame_Size_Max,
+          Post => S.Last = S.Last'Old and then S.Next in S.Next'Old + 1 .. S.Next'Old + Frame_Size_Max;
+
    --  One telemetry pass: nothing during a negotiation, the device info reply
-   --  first, then with the event-driven gate open the timed frames or the
-   --  next slot, else an inertial frame when configured.
-   procedure Update (T : in out Telemetry; Now : Time_Us; Src : Sources; B : in out Byte_Array; S : in out Stream)
+   --  first, then with the event-driven gate open a cleared display's clear
+   --  frame, the next chunk of an updated display while the display is ready
+   --  and the chunk interval has passed, the timed frames or the next slot,
+   --  else an inertial frame when configured. A display update starts a new
+   --  batch over the screen's rows and columns.
+   procedure Update (T : in out Telemetry; Now : Time_Us; Src : Sources; Display : in out CRSF_Display_Port.Screen;
+                     Display_Ready : Boolean; B : in out Byte_Array; S : in out Stream)
      with Pre  => Fits (S, B) and then Remaining (S) >= Update_Room,
           Post => S.Last = S.Last'Old and then S.Next in S.Next'Old .. S.Next'Old + Update_Room;
 

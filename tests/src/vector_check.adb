@@ -89,6 +89,7 @@ with Adaflight.Blackbox_Encoding;
 with Adaflight.Text;
 with Adaflight.DShot;
 with Adaflight.CRSF_Telemetry;
+with Adaflight.CRSF_Display_Port;
 with Adaflight.ESC_Sensor;
 with Adaflight.SmartPort_Telemetry;
 with Adaflight.RunCam_Device;
@@ -5725,6 +5726,14 @@ procedure Vector_Check is
    CT_State : Adaflight.CRSF_Telemetry.Telemetry;
    CRSF_Out   : Byte_Array (0 .. 1023) := (others => 0);
 
+   --  The CRSF display port and the menu system's state the generator
+   --  scripts: whether a menu is open, whether it runs on this display, and
+   --  whether selecting this display succeeds.
+   CT_Screen    : Adaflight.CRSF_Display_Port.Screen;
+   CT_In_Menu   : Boolean := False;
+   CT_Current   : Boolean := False;
+   CT_Select_OK : Boolean := True;
+
    --  The sources start at field K in the order the generator prints them.
    function CRSF_Sources (K : Positive) return Adaflight.CRSF_Telemetry.Sources is
       use Adaflight.CRSF_Telemetry;
@@ -5803,6 +5812,10 @@ procedure Vector_Check is
       if Int (2) /= CRSF_Seq then
          CRSF_Seq := Int (2);
          CT_State := (others => <>);
+         CT_Screen := (others => <>);
+         CT_In_Menu := False;
+         CT_Current := False;
+         CT_Select_OK := True;
       end if;
       Adaflight.Stream_Buffers.Init (S, 0, 1024);
       if Name = "crsfinit" then
@@ -5817,6 +5830,7 @@ procedure Vector_Check is
             Count : constant Natural := Natural (Int (14));
          begin
             Init (CT_State, Cfg, True);
+            Adaflight.CRSF_Display_Port.Init (CT_Screen, Unsigned_32 (Int (16 + Count)));
             Record_Int (Name & ".count", Int (14), Integer_64 (CT_State.Count));
             for J in 0 .. Natural'Min (Count, CT_State.Count) - 1 loop
                Record_Int (Name & ".slot", Int_Hex (15 + J), Integer_64 (CT_State.Schedule (J)));
@@ -5829,6 +5843,7 @@ procedure Vector_Check is
             Src      : constant Sources := CRSF_Sources (11);
             K        : constant Positive := 73;
             Run      : Boolean;
+            Ready    : Boolean;
             New_Baud : Unsigned_32;
             Mid      : Natural;
             Count    : Natural;
@@ -5856,7 +5871,11 @@ procedure Vector_Check is
             Update_Check (CT_State, Now, Run);
             Negotiate (CT_State, Now, CRSF_Out, S, New_Baud);
             Mid := S.Next;
-            Update (CT_State, Now, Src, CRSF_Out, S);
+            Ready := Adaflight.CRSF_Display_Port.Ready (CT_Screen, Unsigned_32 (Int (K + 14)), CT_In_Menu, CT_Current);
+            Update (CT_State, Now, Src, CT_Screen, Ready, CRSF_Out, S);
+            Record_Int (Name & ".ready", Int (K + 15), Boolean'Pos (Ready));
+            Record_Int (Name & ".updated", Int (K + 16), Boolean'Pos (CT_Screen.Updated));
+            Record_Int (Name & ".reset", Int (K + 17), Boolean'Pos (CT_Screen.Reset));
             Record_Int (Name & ".check", Int (K), Boolean'Pos (Run));
             Record_Int (Name & ".negotiating", Int (K + 1), Boolean'Pos (Negotiation_In_Progress (CT_State)));
             Record_Int (Name & ".desired", Int (K + 2), Integer_64 (Desired_Speed (CT_State)));
@@ -5867,10 +5886,74 @@ procedure Vector_Check is
             Record_Int (Name & ".response", Int (K + 7), Boolean'Pos (CT_State.Response_Pending));
             Record_Int (Name & ".link", Int (K + 12), Integer_64 (Link_Kind'Pos (CT_State.Link)));
             Record_Int (Name & ".chunk_interval", Int (K + 13), Integer_64 (CT_State.Chunk_Interval_Us));
-            Count := CRSF_Frames (Name & ".frame", 0, S.Next, K + 14);
+            Count := CRSF_Frames (Name & ".frame", 0, S.Next, K + 18);
             Record_Int (Name & ".negotiation_frames", Int (K + 8),
-                        Integer_64 (CRSF_Frames (Name & ".nframe", 0, Mid, K + 14)));
+                        Integer_64 (CRSF_Frames (Name & ".nframe", 0, Mid, K + 18)));
             Record_Int (Name & ".frames", Int (K + 9), Integer_64 (Count));
+         end;
+      elsif Name = "crsfdp" then
+         declare
+            use Adaflight.CRSF_Display_Port;
+            Op      : constant Integer_64 := Int (4);
+            Now_Ms  : constant Unsigned_32 := Unsigned_32 (Int (5));
+            Armed   : constant Boolean := Int (6) /= 0;
+            A       : constant Byte := Byte (Int (7) mod 256);
+            B       : constant Byte := Byte (Int (8) mod 256);
+            C       : constant Byte := Byte (Int (9) mod 256);
+            Request : Menu_Request := None;
+            Opens, Exits : Integer_64 := 0;
+         begin
+            case Op is
+               when 0 .. 2 =>
+                  Command (CT_Screen, (A, B, C), Now_Ms, Armed, CT_In_Menu, CT_Select_OK, Request);
+               when 3 =>
+                  CT_In_Menu := A /= 0;
+                  CT_Current := B /= 0;
+                  CT_Select_OK := C /= 0;
+               when 5 .. 7 =>
+                  Write_String (CT_Screen, A, B, Hex_Chars (10));
+               when 8 =>
+                  Write_Char (CT_Screen, A, B, C);
+               when 9 =>
+                  Clear (CT_Screen, Now_Ms);
+               when 10 =>
+                  Grab (CT_Screen);
+               when 11 =>
+                  Release (CT_Screen, Now_Ms);
+               when others =>
+                  null;
+            end case;
+            case Request is
+               when Open =>
+                  CT_Current := True;
+                  CT_In_Menu := True;
+                  Opens := 1;
+                  Opened (CT_Screen, Now_Ms);
+               when Leave =>
+                  CT_In_Menu := False;
+                  Exits := 1;
+               when None =>
+                  null;
+            end case;
+            Record_Int (Name & ".rows", Int (11), Integer_64 (CT_Screen.Rows));
+            Record_Int (Name & ".cols", Int (12), Integer_64 (CT_Screen.Cols));
+            Record_Int (Name & ".updated", Int (13), Boolean'Pos (CT_Screen.Updated));
+            Record_Int (Name & ".reset", Int (14), Boolean'Pos (CT_Screen.Reset));
+            Record_Int (Name & ".delay", Int (15), Integer_64 (CT_Screen.Delay_Until_Ms));
+            Record_Int (Name & ".grabbed", Int (16), Boolean'Pos (CT_Screen.Grabbed));
+            Record_Int (Name & ".in_menu", Int (17), Boolean'Pos (CT_In_Menu));
+            Record_Int (Name & ".current", Int (18), Boolean'Pos (CT_Current));
+            Record_Int (Name & ".select_ok", Int (19), Boolean'Pos (CT_Select_OK));
+            Record_Int (Name & ".opens", Int (20), Opens);
+            Record_Int (Name & ".exits", Int (21), Exits);
+            declare
+               Expected : constant String := Hex_Chars (22);
+            begin
+               for J in Screen_Index loop
+                  Record_Int (Name & ".screen", Integer_64 (Character'Pos (Expected (Expected'First + J))),
+                              Integer_64 (CT_Screen.Buffer (J)));
+               end loop;
+            end;
          end;
       elsif Name = "crsfframe" then
          declare

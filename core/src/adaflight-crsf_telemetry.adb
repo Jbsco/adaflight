@@ -230,6 +230,92 @@ package body Adaflight.CRSF_Telemetry with SPARK_Mode is
       Close_Frame (B, S, Start);
    end Write_Ping;
 
+   -------------------------
+   -- Write_Display_Clear --
+   -------------------------
+
+   procedure Write_Display_Clear (B : in out Byte_Array; S : in out Stream) is
+      Start : Position;
+   begin
+      Open_Frame (B, S, 5, Type_Display_Port, Start);
+      Write_U8 (B, S, Address_Radio_Transmitter);
+      Write_U8 (B, S, Address_Flight_Controller);
+      Write_U8 (B, S, Display_Clear);
+      Close_Frame (B, S, Start);
+   end Write_Display_Clear;
+
+   -------------------------
+   -- Write_Display_Chunk --
+   -------------------------
+
+   --  One chunk of the screen from Next: the batch and the chunk's index
+   --  with the first and last chunk marked, then up to 50 bytes of the
+   --  screen with each run of a repeated character as the character with
+   --  its top bit set and the run's length, a full 256 as zero.
+   procedure Write_Display_Chunk
+     (B : in out Byte_Array; S : in out Stream; Screen : CRSF_Display_Port.Screen_Buffer;
+      Next : in out Natural; Last : Natural; Batch_Id, Index : Byte)
+     with Pre  => Fits (S, B) and then Remaining (S) >= Frame_Size_Max and then Last <= Screen'Last + 1
+                  and then Next <= Last,
+          Post => S.Last = S.Last'Old and then S.Next in S.Next'Old + 1 .. S.Next'Old + Frame_Size_Max
+                  and then Next in Next'Old .. Last
+   is
+      Start    : Position;
+      Meta     : Position;
+      Dest_End : Position;
+   begin
+      Open_Frame (B, S, 0, Type_Display_Port, Start);
+      Write_U8 (B, S, Address_Radio_Transmitter);
+      Write_U8 (B, S, Address_Flight_Controller);
+      Write_U8 (B, S, Display_Update);
+      Meta := S.Next;
+      Write_U8 (B, S, Batch_Id);
+      Write_U8 (B, S, Index);
+      Dest_End := S.Next + Display_Chunk_Max;
+      while Next < Last and then S.Next < Dest_End loop
+         pragma Loop_Invariant (S.Last = S.Last'Loop_Entry and then Fits (S, B));
+         pragma Loop_Invariant (S.Next in Meta + 2 .. Dest_End);
+         pragma Loop_Invariant (Next in Next'Loop_Entry .. Last);
+         declare
+            Room : constant Natural := Dest_End - S.Next;
+            C    : Byte := Screen (Next);
+            Run  : Natural := 1;
+         begin
+            while Next + Run < Last and then Screen (Next + Run) = C loop
+               pragma Loop_Invariant (Run >= 1 and then Next + Run < Last);
+               Run := Run + 1;
+            end loop;
+            if Run > 1 then
+               C := C or 16#80#;
+               declare
+                  Remainder : constant Natural := Run mod 256;
+                  Total     : constant Natural := Run / 256 + (if Remainder /= 0 then 1 else 0);
+               begin
+                  exit when Room < Total * 2;
+                  for I in 1 .. Total loop
+                     pragma Loop_Invariant (S.Last = S.Last'Loop_Entry and then Fits (S, B));
+                     pragma Loop_Invariant (S.Next = S.Next'Loop_Entry + 2 * (I - 1));
+                     Write_U8 (B, S, C);
+                     Write_U8 (B, S, (if I < Total then 0 else Byte (Remainder)));
+                  end loop;
+                  Next := Next + Run;
+               end;
+            elsif Room >= Run then
+               Write_U8 (B, S, C);
+               Next := Next + Run;
+            end if;
+         end;
+      end loop;
+      if Index = 0 then
+         B (Meta) := B (Meta) or Display_First_Chunk;
+      end if;
+      if Next >= Last then
+         B (Meta) := B (Meta) or Display_Last_Chunk;
+      end if;
+      B (Start + 1) := Byte (S.Next - (Start + 1));
+      Close_Frame (B, S, Start);
+   end Write_Display_Chunk;
+
    -------------------
    -- Radians_10000 --
    -------------------
@@ -675,7 +761,8 @@ package body Adaflight.CRSF_Telemetry with SPARK_Mode is
    -- Update --
    ------------
 
-   procedure Update (T : in out Telemetry; Now : Time_Us; Src : Sources; B : in out Byte_Array; S : in out Stream) is
+   procedure Update (T : in out Telemetry; Now : Time_Us; Src : Sources; Display : in out CRSF_Display_Port.Screen;
+                     Display_Ready : Boolean; B : in out Byte_Array; S : in out Stream) is
       Sent : Boolean;
    begin
       if not T.Enabled or else Negotiation_In_Progress (T) then
@@ -690,6 +777,35 @@ package body Adaflight.CRSF_Telemetry with SPARK_Mode is
       end if;
       if T.Event_Driven and then not T.Response_Pending then
          return;
+      end if;
+      if Display.Reset then
+         Display.Reset := False;
+         Write_Display_Clear (B, S);
+         T.Last_Cycle_Time := Now;
+         T.Response_Pending := False;
+         return;
+      end if;
+      if Display_Ready then
+         if Display.Updated then
+            Display.Updated := False;
+            T.Display_Active := True;
+            T.Display_Position := 0;
+            T.Display_End := Display.Rows * Display.Cols;
+            T.Display_Batch_Id := (T.Display_Batch_Id + 1) mod Display_Batch_Count;
+            T.Display_Index := 0;
+         end if;
+         if T.Display_Active and then T.Display_Position < T.Display_End
+           and then Interfaces.Integer_64 (Adaflight.Clock.Elapsed (Now, T.Display_Last_Time))
+                      > Interfaces.Integer_64 (T.Chunk_Interval_Us)
+         then
+            Write_Display_Chunk
+              (B, S, Display.Buffer, T.Display_Position, T.Display_End, T.Display_Batch_Id, T.Display_Index);
+            T.Display_Index := T.Display_Index + 1;
+            T.Display_Last_Time := Now;
+            T.Last_Cycle_Time := Now;
+            T.Response_Pending := False;
+            return;
+         end if;
       end if;
       Process (T, Now, Src, B, S, Sent);
       if Sent then
