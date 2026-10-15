@@ -198,8 +198,8 @@ ledger. The deviations so far:
   LED, LED strip value and battery profile writes with a field outside its setting's range are
   errors that write and change nothing (D203 to D212), where the reference stores the field's
   bytes, or for a dynamic notch count, an RPM filter value, a feedforward averaging, a mode range's
-  linked mode or battery cell voltages out of order rejects the request after writing its earlier
-  fields (findings F189 to F191). A stored LED strip brightness past 100 wraps in the reference's
+  linked mode, battery cell voltages out of order or a transponder's data length rejects the request
+  after writing its earlier fields (findings F189 to F191, F195, D213). A stored LED strip brightness past 100 wraps in the reference's
   LED driver, and a stored maximum cell voltage of zero reaches its cell count division (findings
   F193, F194). A field no setting names takes the bounds of the command line command that writes
   it. The checker expects the error and an unchanged configuration for the recorded requests
@@ -4978,3 +4978,26 @@ The harness replays two sequences of 600 lines from the command line oracle, 104
 profile selections, resets, name sets and listings: 810 within their bounds, whose results, runtime
 work and configuration hashes all match the reference's, 163 that both reject before writing, and
 72 outside the bounds, each an error that leaves the configuration unchanged.
+
+## D213. MSP peripheral writes (2026-10-15)
+
+`Adaflight.MSP_Peripheral_In` contains the MSP in messages that write the wing's tuning and the race
+transponder's configuration. The wing message needs 45 bytes and writes the current PID profile's S
+gains, setpoint attenuation centers, widths and modes, TPA curve and speed settings, yaw type and
+angle pitch offset. These fields have settings only in builds with the wing options, which this
+settings table leaves out, so any value goes to them (D203). `Effects` asks the runtime to take the
+PID settings in again after the wing's tuning.
+
+The transponder message takes a provider up to the three and, for one of them, exactly its data's
+length: 6 bytes for ILAP, 9 for ARCITIMER and 1 for ERLT. The stored data is cleared before the
+request's is written, and `Effects` asks the runtime to encode the transponder's data again. A
+request without a provider, a provider past the three or data of another length is an error that
+changes nothing (D6). The reference stores the provider before it checks the length, and its stop
+of the repeating transmission on a provider change never runs (findings F195). `Effects` has no
+stop request, so a provider change leaves the transmission repeating in adaflight as well.
+
+The harness replays two sequences of 600 lines from the command line oracle, 1053 requests among
+profile selections, resets, transponder sets and listings: 878 within their bounds, whose results,
+runtime work and configuration hashes all match the reference's, 117 that both reject before
+writing, and 58 transponder requests the reference rejects after storing the provider, each an
+error that leaves the configuration unchanged.

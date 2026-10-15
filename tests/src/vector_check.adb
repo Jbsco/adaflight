@@ -132,6 +132,7 @@ with Adaflight.MSP_Blackbox_In;
 with Adaflight.MSP_Servo_In;
 with Adaflight.MSP_LED_In;
 with Adaflight.MSP_Text_In;
+with Adaflight.MSP_Peripheral_In;
 with Adaflight.MSP_Receiver_Out;
 with Adaflight.MSP_Hardware_Out;
 with Adaflight.MSP_Peripheral_Out;
@@ -14567,6 +14568,7 @@ procedure Vector_Check is
    MSP_Servo_Effects : Adaflight.MSP_Servo_In.Effects;
    MSP_LED_Effects : Adaflight.MSP_LED_In.Effects;
    MSP_Text_Effects : Adaflight.MSP_Text_In.Effects;
+   MSP_Peripheral_Effects : Adaflight.MSP_Peripheral_In.Effects;
    MSP_Gyro_Rate  : Adaflight.Config_Fix.Gyro_Rate := 0;
    MSP_Log        : Adaflight.Blackbox.Recorder;
    MSP_Loop_Time  : Adaflight.Blackbox.Loop_Time_Us := 125;
@@ -14728,10 +14730,24 @@ procedure Vector_Check is
                   MSP_Servo_Effects := Adaflight.MSP_Servo_In.No_Effects;
                   MSP_LED_Effects := Adaflight.MSP_LED_In.No_Effects;
                   MSP_Text_Effects := Adaflight.MSP_Text_In.No_Effects;
+                  MSP_Peripheral_Effects := Adaflight.MSP_Peripheral_In.No_Effects;
                   if Adaflight.MSP_Tuning_In.Handles (Cmd) then
                      Adaflight.MSP_Tuning_In.Process
                        (CLI_Config, Cmd, Request, MSP_Gyro_Rate, MSP_In_Result, MSP_In_Effects);
                      MSP_In_Ran := True;
+                  elsif Adaflight.MSP_Peripheral_In.Handles (Cmd) then
+                     declare
+                        use type Adaflight.MSP_Peripheral_In.Result;
+                        Peripheral_Result : Adaflight.MSP_Peripheral_In.Result;
+                     begin
+                        Adaflight.MSP_Peripheral_In.Process
+                          (CLI_Config, Cmd, Request, Peripheral_Result, MSP_Peripheral_Effects);
+                        MSP_In_Result :=
+                          (if Peripheral_Result = Adaflight.MSP_Peripheral_In.Ack then Adaflight.MSP_Tuning_In.Ack
+                           else Adaflight.MSP_Tuning_In.Error);
+                        MSP_In_Effects.PID_Init := MSP_Peripheral_Effects.PID_Init;
+                        MSP_In_Ran := True;
+                     end;
                   elsif Adaflight.MSP_Text_In.Handles (Cmd) then
                      declare
                         use type Adaflight.MSP_Text_In.Result;
@@ -14876,6 +14892,10 @@ procedure Vector_Check is
             if NF >= 16 then
                Record_Int ("msp.osd_elements", (if In_Range and then Int (16) > 0 then 1 else 0),
                            Boolean'Pos (MSP_Text_Effects.OSD_Elements));
+            end if;
+            if NF >= 17 then
+               Record_Int ("msp.transponder_data", (if In_Range and then Int (17) > 0 then 1 else 0),
+                           Boolean'Pos (MSP_Peripheral_Effects.Transponder_Data));
             end if;
          end;
       elsif Str (1) = "clx" then
