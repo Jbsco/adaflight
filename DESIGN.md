@@ -194,6 +194,10 @@ ledger. The deviations so far:
   message checks the whole request before it stores anything, so a short request, which the
   reference stores as zero filter cutoffs, is an error (findings F142). The checker expects the
   error and unchanged settings for the recorded requests outside the ranges.
+- MSP tuning writes with a field outside its setting's range are errors that write and change
+  nothing (D203), where the reference stores the field's bytes. The checker expects the error and an
+  unchanged configuration for the recorded requests outside the ranges, and the reference's result
+  and configuration for the rest.
 - The configuration storage image reads bytes past its region as erased and does not write an
   image longer than the region (D158), where the reference leaves both to the target and reads
   past a corrupted region's end. Its reported size is the image's length, 2 bytes less than the
@@ -4749,3 +4753,32 @@ settings, which `Config_Runtime.Arming_Settings_Of` now reads from the scheduler
 The arming oracle compiles the reference's status update with the statistics, scripts the share per
 step with values below, at and above the limit and past the signed range, and scripts the limit at
 its default or anywhere in its range. All 30 sequences replay exactly.
+
+## D203. MSP tuning writes (2026-10-15)
+
+`Adaflight.MSP_Tuning_In` contains the MSP in messages that write the tuning to the stored
+configuration: the PID gains, the rate tuning, the arming configuration, the PID controller, the
+accelerometer trims, the 3D throttle, the deadbands, the reset of the current PID profile, and the
+sensor and board alignments. The gains and the PID reset act on the current PID profile and the
+rates on the current rate profile, as the configuration's system group selects them.
+
+Each message reads its fields in the reference's order into a list of setting writes, checks every
+write against its setting's range, and makes the writes only when all pass, so a request with one
+field outside its range is an error that changes nothing (D6). The range is the setting's bounds
+for a direct setting and a named value of its table for a lookup setting, from
+`Adaflight.Settings_Table`, and `Config_Groups.Set` makes each write as the command line does. The
+heading item's three gains and the gyros in use have no setting, so any byte goes to them. A
+request reads zero past its end and its remaining length stops at zero, as the reference's bounded
+stream reads give; the rate tuning with fewer than ten bytes is an error, and its optional fields
+follow from the remaining length. The pitch rate and expo take the roll's new value while they
+equal the roll's. The PID reset restores the profile's defaults. `Effects` asks the runtime to take
+the PID settings in again after the gains, and to set up the stick processing again after the rate
+tuning.
+
+The command line oracle hands the reference's MSP processor each request through a directive and
+puts the configuration back after a request outside the ranges, which the generator marks by
+decoding the request as the reference reads it. The harness replays two sequences of 600 lines,
+1036 requests among profile selections, stored roll and pitch values and resets: 882 within their
+ranges, whose results, runtime work and configuration hashes all match the reference's, 10 short
+rate tunings that both reject, and 144 outside the ranges, each an error that leaves the
+configuration unchanged.
