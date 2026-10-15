@@ -161,6 +161,8 @@ The core contains:
 - OSD page with arming and boot screens and cycle steps around them
 - OSD element set with alarms and renderers, warnings element, draw cycle, spec prearm screen and
   OSD task
+- menu system lines and page layout: element and flag encoding, screen geometry, page count and
+  selection, cursor row, skip rule, fixed-point text, field alignment and display character set
 - MAVLink telemetry streams with intervals and arming status text, and MAVLink commands with
   replies and requests
 - MAVLink mission protocol with uploads, downloads, fence store and current item reports
@@ -168,7 +170,7 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 23030 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 23081 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
 - Recorded vectors replay bit for bit: 1753568 lines over 384 cases, every case exact except
   forty-two declared deviations in `DESIGN.md` D6.
