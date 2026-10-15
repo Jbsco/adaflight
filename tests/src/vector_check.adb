@@ -14555,6 +14555,7 @@ procedure Vector_Check is
    MSP_In_Ran     : Boolean := False;
    MSP_In_Result  : Adaflight.MSP_Tuning_In.Result := Adaflight.MSP_Tuning_In.Ack;
    MSP_In_Effects : Adaflight.MSP_Tuning_In.Effects;
+   MSP_Gyro_Rate  : Adaflight.Config_Fix.Gyro_Rate := 0;
    CLI_Expected : Ada.Strings.Unbounded.Unbounded_String;
 
    --  The reference's command line over a sequence of command lines from the
@@ -14606,6 +14607,7 @@ procedure Vector_Check is
             CLI_Reply.Last_Tasks_Us := 0;
             CLI_Reply.Last_Check_Total_Us := 0;
             CLI_Sched := (others => <>);
+            MSP_Gyro_Rate := 0;
          end if;
          CLI_Reply.Target.Text := Null_Unbounded_String;
          CLI_Expected := Null_Unbounded_String;
@@ -14688,6 +14690,8 @@ procedure Vector_Check is
                   Total_Exec_Us       => Interfaces.Unsigned_32'Value (Word (Command, 2)),
                   Moving_Sum_Exec_Us  => Interfaces.Unsigned_32'Value (Word (Command, 3)),
                   Moving_Sum_Delta_Us => Interfaces.Unsigned_32'Value (Word (Command, 4)));
+            elsif Word (Command, 0) = "!gyro" then
+               MSP_Gyro_Rate := Adaflight.Config_Fix.Gyro_Rate'Value (Word (Command, 1));
             elsif Word (Command, 0) = "!msp" then
                declare
                   Hex     : constant String := Word (Command, 2);
@@ -14700,7 +14704,8 @@ procedure Vector_Check is
                        ("16#" & Hex (Hex'First + 2 * K .. Hex'First + 2 * K + 1) & "#");
                   end loop;
                   if Adaflight.MSP_Tuning_In.Handles (Cmd) then
-                     Adaflight.MSP_Tuning_In.Process (CLI_Config, Cmd, Request, MSP_In_Result, MSP_In_Effects);
+                     Adaflight.MSP_Tuning_In.Process
+                       (CLI_Config, Cmd, Request, MSP_Gyro_Rate, MSP_In_Result, MSP_In_Effects);
                      MSP_In_Ran := True;
                   end if;
                end;
@@ -14728,6 +14733,16 @@ procedure Vector_Check is
                         Boolean'Pos (MSP_In_Effects.PID_Init));
             Record_Int ("msp.rc_init", (if In_Range and then Int (6) > 0 then 1 else 0),
                         Boolean'Pos (MSP_In_Effects.RC_Init));
+            if NF >= 10 then
+               Record_Int ("msp.gyro_filters", (if In_Range and then Int (7) > 0 then 1 else 0),
+                           Boolean'Pos (MSP_In_Effects.Gyro_Filters));
+               Record_Int ("msp.pid_filters", (if In_Range and then Int (8) > 0 then 1 else 0),
+                           Boolean'Pos (MSP_In_Effects.PID_Filters));
+               Record_Int ("msp.esc_endpoints", (if In_Range and then Int (9) > 0 then 1 else 0),
+                           Boolean'Pos (MSP_In_Effects.ESC_Endpoints));
+               Record_Int ("msp.mixer_profile", (if In_Range and then Int (10) > 0 then 1 else 0),
+                           Boolean'Pos (MSP_In_Effects.Mixer_Profile));
+            end if;
          end;
       elsif Str (1) = "clx" then
          Record_Int ("cli.save", Int (3), Boolean'Pos (CLI_Changes.Save));
