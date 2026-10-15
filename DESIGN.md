@@ -5209,3 +5209,21 @@ the DShot command calls and the motor switching, and scripts the mass storage re
 directive. The harness replays two sequences of 600 lines, 907 requests among armed, link, feature,
 mass storage and motor scripts: every result, reply, restart, delay and DShot command matches the
 reference's, with 159 rejected by both.
+## D224. MSP GPS sensor (2026-10-15)
+
+`Adaflight.MSP_Runtime_In` gains the MSP GPS sensor message. It gives the time of week, the fix, the
+satellites, the horizontal, vertical and speed accuracies scaled from centimeters to millimeters,
+the dilution of precision, the position, the altitude in centimeters, the ground speed as the length
+of the north and east velocities, and the ground course within a turn in tenths of a degree, as an
+MSP update. The instance, the week, the down velocity, the yaw and the date and time are read and
+left. `Effects` says whether the sensor fields came, since the raw GPS message leaves the time, the
+accuracies, the dilution and the course as they were.
+
+One guard covers the reference's undefined behavior: the squares of the velocities are summed in 64
+bits and the speed saturates at 65535 cm/s, where the reference's 32-bit signed sum overflows past
+46340 cm/s and for a velocity read in part from a short request (finding F201). No recorded vector
+reaches the guard.
+
+The command line oracle records the time, the accuracies, the dilution and the course beside the
+solution. The harness replays two sequences of 600 requests, 925 sensor messages of every length
+around their 52 bytes and 275 raw GPS messages: every handed-on value matches the reference's.
