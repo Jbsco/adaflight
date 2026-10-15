@@ -4700,3 +4700,27 @@ with and without `nosave` and by group, board names, manufacturers and signature
 batches with and without errors before saves, settings and diffs. All 52799 reply characters match
 the reference's, and so do the configuration's hash after every command and the write, restart and
 leave requests of every line.
+
+## D200. Scheduler late task statistics (2026-10-15)
+
+The STM32 builds of the reference keep the late task statistics, which the simulator build the
+scheduler was first recorded from leaves out. Each task now counts its runs and its runs that ended
+past their anticipated end, and keeps the execution time anticipated for its latest selection. The
+scheduler counts, over a timing window of one second from the first realtime pass after the last
+window's end, the tasks run from the selection, the late ones among them, the serial task excepted
+as in the reference, and the cycles they ran late by; at the window's end it keeps their share in
+tenths of a percent, `CPU_Percentage_Late`, which the reference's arming check compares with
+`cpu_late_limit_permille` (the check comes with the arming port, ROADMAP). The reference measures
+the gyro cycle time's mean and deviation and the extremes of the gyro interrupt period in the same
+block, for its debug values alone; adaflight keeps no debug values, so these stay out, and so does
+the per-task debug output of the task the `scheduler_debug_task` setting names.
+
+The first window of a boot ends on the first realtime pass, before any task ran from the selection,
+so the reference divides the late count by zero there. Its Cortex-M targets run with the
+divide-by-zero trap off and take a zero quotient; adaflight gives zero for a window without a run,
+and the oracle, whose host traps the division, steps over it with a zero quotient the same way
+(findings F188).
+
+The oracle compiles the reference's scheduler with the statistics and records three more fields per
+task and five more per pass. All 8 sequences of 2500 passes replay exactly, the new fields with the
+old.

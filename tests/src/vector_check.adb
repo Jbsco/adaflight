@@ -2221,6 +2221,9 @@ procedure Vector_Check is
          Expect_Next ("exec_since_states", Integer_64 (R.Exec_Since_States));
          Expect_Next ("moving_states_exec", Integer_64 (R.Moving_Sum_States_Exec));
          Expect_Next ("max_states_exec", Integer_64 (R.Max_States_Exec_Us));
+         Expect_Next ("run_count", Integer_64 (R.Run_Count));
+         Expect_Next ("late_count", Integer_64 (R.Late_Count));
+         Expect_Next ("exec_time", Integer_64 (R.Exec_Time_Us));
       end Expect_Task;
 
       --  The events of one pass, read ahead so the pass can consume them in
@@ -2373,6 +2376,11 @@ procedure Vector_Check is
             Expect_Next ("check_moving_exec", Integer_64 (Sched_State.Checks.Moving_Sum_Exec_Us));
             Expect_Next ("check_moving_delta", Integer_64 (Sched_State.Checks.Moving_Sum_Delta_Us));
             Expect_Next ("total_exec", Integer_64 (Sched_State.Total_Exec_Us));
+            Expect_Next ("late_task_count", Integer_64 (Sched_State.Late_Task_Count));
+            Expect_Next ("late_task_total", Integer_64 (Sched_State.Late_Task_Total));
+            Expect_Next ("window_task_count", Integer_64 (Sched_State.Window_Task_Count));
+            Expect_Next ("late_task_percentage", Integer_64 (Sched_State.Late_Task_Percentage));
+            Expect_Next ("next_timing_cycles", Integer_64 (Sched_State.Next_Timing_Cycles));
             for R in 1 .. Run_Count loop
                Expect_Task (Run_Events (R));
             end loop;
