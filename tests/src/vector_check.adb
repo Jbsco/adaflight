@@ -19643,6 +19643,7 @@ begin
    Run (Dir & "/clidef.csv", "cliset");
    Run (Dir & "/clibatch.csv", "cliset");
    Run (Dir & "/clitask.csv", "cliset");
+   Run (Dir & "/mspintune.csv", "cliset");
    Run (Dir & "/clisave.csv", "cliset");
    if Settings_Seen /= Adaflight.Settings_Table.Setting'Pos (Adaflight.Settings_Table.Setting'Last) + 1 then
       Put_Line ("settings: the vectors hold" & Settings_Seen'Image & " settings");
