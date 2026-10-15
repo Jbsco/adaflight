@@ -1,3 +1,4 @@
+with Adaflight.Color;
 with Adaflight.DShot;
 with Adaflight.Maths;
 with Adaflight.PWM_Output;
@@ -154,6 +155,40 @@ package body Adaflight.Config_Runtime with SPARK_Mode is
       end loop;
       return GPS_Link.Max_Command;
    end Command_Length_Of;
+
+   --  The stored palette, each hue held to the circle.
+   function Palette_Of (Colors : Hsv_Color_Record_List_16) return LED_Strip.Palette is
+      P : LED_Strip.Palette;
+   begin
+      for I in P'Range loop
+         P (I) := (H => Held (Integer (Colors (I).H), 0, Color.Hue'Last), S => Colors (I).S, V => Colors (I).V);
+      end loop;
+      return P;
+   end Palette_Of;
+
+   --  The stored mode colors, each index held to the palette.
+   function Mode_Colors_Of (Modes : Mode_Color_Indexes_Record_List_6) return LED_Strip.Mode_Colors is
+      M : LED_Strip.Mode_Colors := (others => (others => 0));
+   begin
+      for I in LED_Strip.Mode_Id loop
+         for D in LED_Strip.Direction_Id loop
+            M (I) (D) :=
+              Held (Integer (Modes (LED_Strip.Mode_Id'Pos (I)).Color (LED_Strip.Direction_Id'Pos (D))), 0,
+                    LED_Strip.Color_Index'Last);
+         end loop;
+      end loop;
+      return M;
+   end Mode_Colors_Of;
+
+   --  The first eight stored special colors, each index held to the palette.
+   function Special_Colors_Of (Specials : Special_Color_Indexes_Record) return LED_Strip.Special_Colors is
+      S : LED_Strip.Special_Colors;
+   begin
+      for I in LED_Strip.Special_Id loop
+         S (I) := Held (Integer (Specials.Color (LED_Strip.Special_Id'Pos (I))), 0, LED_Strip.Color_Index'Last);
+      end loop;
+      return S;
+   end Special_Colors_Of;
 
    function Map_Of (Rcmap : Bytes_8) return Receiver.Channel_Map is
       M : Receiver.Channel_Map;
