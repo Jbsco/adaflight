@@ -191,6 +191,7 @@ package body Adaflight.Arming with SPARK_Mode is
       S.Disabled (Pos_Hold_Switch) := Modes.Is_Active (M, Modes.Pos_Hold);
       S.Disabled (Throttle) := Throttle_Status (C, Channels, Three_D_Switch) /= Throttle_Low;
       S.Disabled (Angle) := not Sensed.Upright and then not Modes.Is_Active (M, Modes.Crash_Flip);
+      S.Disabled (CPU_Load) := Sensed.Late_Permille > Interfaces.Unsigned_32 (C.CPU_Late_Limit);
       S.Disabled (Calibrating) := Is_Calibrating (C, Sensed);
       if Modes.Condition_Present (Conds, Modes.Prearm) then
          S.Disabled (No_Prearm) :=

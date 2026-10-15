@@ -3590,6 +3590,7 @@ procedure Vector_Check is
             Runaway_Prevention         => Int (149) /= 0,
             Runaway_Deactivate_Delay   => Integer (Int (150)),
             Runaway_Deactivate_Throttle => Integer (Int (151)),
+            CPU_Late_Limit             => Integer (Int (155)),
             Sensors                    =>
               (Gyro => Int (21) /= 0, Acc => Int (22) /= 0, Baro => Int (23) /= 0, Mag => Int (24) /= 0));
          for M in Adaflight.Modes.Condition_Index loop
@@ -3633,18 +3634,19 @@ procedure Vector_Check is
                First_Arm_Gyro_Cal_Running => Int (26) /= 0,
                Motor_Protocol_Enabled     => Int (27) /= 0,
                Headfree_Offset_Set        => Int (28) /= 0,
-               PID_Sums                   => (Adaflight.Axes.Roll => Flt (60), Adaflight.Axes.Pitch => Flt (61),
-                                              Adaflight.Axes.Yaw => Flt (62)),
-               Gyro_Abs_Dps               => (Adaflight.Axes.Roll  => Integer (Int (63)),
-                                              Adaflight.Axes.Pitch => Integer (Int (64)),
-                                              Adaflight.Axes.Yaw   => Integer (Int (65))),
-               Deflection_Abs             => (Adaflight.Axes.Roll => Flt (66), Adaflight.Axes.Pitch => Flt (67),
-                                              Adaflight.Axes.Yaw => Flt (68)));
+               Late_Permille              => Interfaces.Unsigned_32 (Int (29)),
+               PID_Sums                   => (Adaflight.Axes.Roll => Flt (61), Adaflight.Axes.Pitch => Flt (62),
+                                              Adaflight.Axes.Yaw => Flt (63)),
+               Gyro_Abs_Dps               => (Adaflight.Axes.Roll  => Integer (Int (64)),
+                                              Adaflight.Axes.Pitch => Integer (Int (65)),
+                                              Adaflight.Axes.Yaw   => Integer (Int (66))),
+               Deflection_Abs             => (Adaflight.Axes.Roll => Flt (67), Adaflight.Axes.Pitch => Flt (68),
+                                              Adaflight.Axes.Yaw => Flt (69)));
             --  The calibration state the receiver pass reads, recorded before
             --  the step's commands change it.
             Sensed_Before : Inputs := Sensed;
             Step     : Outputs;
-            K        : Positive := 29;
+            K        : Positive := 30;
             Yaw_Reset : Boolean := False;
             --  The PID loop's pass over logging units, one letter each.
             Pass_Log : String (1 .. 32) := (others => ' ');
@@ -14229,7 +14231,7 @@ procedure Vector_Check is
          AS : constant Adaflight.Arming.Settings :=
            Adaflight.Config_Runtime.Arming_Settings_Of
              (C.Arming_Config, C.System_Config, C.Rx_Config, C.Flight3_D_Config, C.Mixer_Config.Mixer_Mode,
-              C.Pid_Config, C.Pid_Profiles (Natural (C.System_Config.Pid_Profile_Index)), Runtime,
+              C.Pid_Config, C.Scheduler_Config, C.Pid_Profiles (Natural (C.System_Config.Pid_Profile_Index)), Runtime,
               (Gyro => True, Acc => True, Baro => False, Mag => False));
          MC : constant Adaflight.Modes.Conditions :=
            Adaflight.Config_Runtime.Conditions_Of (C.Mode_Activation_Conditions);

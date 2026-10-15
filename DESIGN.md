@@ -4736,3 +4736,16 @@ D198 was the simulator build's; the STM32 builds print this one.
 The harness replays the two sequences of D198 recorded again with the late statistics compiled
 into the oracle and three more raw fields per task line. All 985116 reply characters match the
 reference's, and so does the configuration's hash after every command.
+
+## D202. Arming load check (2026-10-15)
+
+With the scheduler's late task statistics, the arming status update sets the `LOAD` disable
+reason while the scheduler's late task share of its last timing window, in tenths of a percent, is
+above `cpu_late_limit_permille`, and clears it otherwise, between the angle and the calibration
+reasons as in the reference. The share reaches the arming logic as the input `Late_Permille`,
+which the runtime takes from `Scheduler.CPU_Percentage_Late`, and the limit through the arming
+settings, which `Config_Runtime.Arming_Settings_Of` now reads from the scheduler group.
+
+The arming oracle compiles the reference's status update with the statistics, scripts the share per
+step with values below, at and above the limit and past the signed range, and scripts the limit at
+its default or anywhere in its range. All 30 sequences replay exactly.
