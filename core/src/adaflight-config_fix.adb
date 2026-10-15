@@ -26,7 +26,6 @@ package body Adaflight.Config_Fix with SPARK_Mode is
    Protocol_DShot_600    : constant Unsigned_8 := 7;
    Protocol_ProShot_1000 : constant Unsigned_8 := 8;
 
-   LPF_Max_Hz            : constant Unsigned_16 := 1_000;
    Brushless_PWM_Rate    : constant := 480;
    Max_PID_Process_Denom : constant Unsigned_8 := 16;
 
@@ -325,10 +324,7 @@ package body Adaflight.Config_Fix with SPARK_Mode is
    --  output limit and the automatic cell count within range, D max at or
    --  above D, and no sag compensation without an ADC voltage meter.
    procedure Fix_PID_Profile (P : in out Pid_Profile_Record; Voltage_From_ADC : Boolean)
-     with Post => P.Dterm_Lpf1_Static_Hz <= LPF_Max_Hz and then P.Dterm_Lpf2_Static_Hz <= LPF_Max_Hz
-                  and then P.Dterm_Notch_Hz <= LPF_Max_Hz
-                  and then (P.Dterm_Notch_Hz = 0 or else P.Dterm_Notch_Cutoff < P.Dterm_Notch_Hz)
-                  and then P.Motor_Output_Limit in 1 .. 100 and then P.Auto_Profile_Cell_Count in -1 .. 8
+     with Post => Fixed_PID_Profile (P)
    is
    begin
       Limit_Filter (P.Dterm_Lpf1_Static_Hz, LPF_Max_Hz);
@@ -357,19 +353,19 @@ package body Adaflight.Config_Fix with SPARK_Mode is
       end if;
    end Fix_PID_Profile;
 
-   procedure Fix_PID_Profiles (Profiles : in out Pid_Profile_Record_List_4; Voltage_From_ADC : Boolean) is
+   procedure Fix_PID_Profiles (Profiles : in out Pid_Profile_Record_List_4; Voltage_From_ADC : Boolean)
+     with Post => (for all P of Profiles => Fixed_PID_Profile (P))
+   is
    begin
-      for P of Profiles loop
-         Fix_PID_Profile (P, Voltage_From_ADC);
+      for I in Profiles'Range loop
+         Fix_PID_Profile (Profiles (I), Voltage_From_ADC);
+         pragma Loop_Invariant (for all K in Profiles'First .. I => Fixed_PID_Profile (Profiles (K)));
       end loop;
    end Fix_PID_Profiles;
 
    --  The gyro filter cutoffs within their limit and in order.
    procedure Fix_Gyro_Filters (G : in out Gyro_Config_Record)
-     with Post => G.Gyro_Lpf1_Static_Hz <= LPF_Max_Hz and then G.Gyro_Lpf2_Static_Hz <= LPF_Max_Hz
-                  and then (G.Gyro_Soft_Notch_Hz_1 = 0 or else G.Gyro_Soft_Notch_Cutoff_1 < G.Gyro_Soft_Notch_Hz_1)
-                  and then (G.Gyro_Soft_Notch_Hz_2 = 0 or else G.Gyro_Soft_Notch_Cutoff_2 < G.Gyro_Soft_Notch_Hz_2)
-                  and then G.Gyro_Lpf1_Dyn_Min_Hz <= G.Gyro_Lpf1_Dyn_Max_Hz
+     with Post => Fixed_Gyro_Filters (G)
    is
    begin
       Limit_Filter (G.Gyro_Lpf1_Static_Hz, LPF_Max_Hz);

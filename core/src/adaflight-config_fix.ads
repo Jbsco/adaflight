@@ -69,6 +69,27 @@ package Adaflight.Config_Fix with SPARK_Mode is
    --  into the configuration.
    procedure Store_Serial_Assignments (C : in out Configuration; Before, After : Serial_Feature_Map.Assignments);
 
+   LPF_Max_Hz : constant := 1_000;
+
+   --  What the PID profile checks leave: the D term cutoffs within the
+   --  limit, the notch and the dynamic lowpass in order, and the motor
+   --  output limit and the automatic profile cell count within their ranges.
+   function Fixed_PID_Profile (P : Pid_Profile_Record) return Boolean is
+     (P.Dterm_Lpf1_Static_Hz <= LPF_Max_Hz and then P.Dterm_Lpf2_Static_Hz <= LPF_Max_Hz
+      and then P.Dterm_Notch_Hz <= LPF_Max_Hz
+      and then (P.Dterm_Notch_Hz = 0 or else P.Dterm_Notch_Cutoff < P.Dterm_Notch_Hz)
+      and then (P.Dterm_Lpf1_Dyn_Min_Hz = 0 or else P.Dterm_Lpf1_Dyn_Min_Hz <= P.Dterm_Lpf1_Dyn_Max_Hz)
+      and then P.Motor_Output_Limit in 1 .. 100 and then P.Auto_Profile_Cell_Count in -1 .. 8);
+
+   --  What the gyro filter checks leave: the lowpass and notch cutoffs within
+   --  the limit, the notches and the dynamic lowpass in order.
+   function Fixed_Gyro_Filters (G : Gyro_Config_Record) return Boolean is
+     (G.Gyro_Lpf1_Static_Hz <= LPF_Max_Hz and then G.Gyro_Lpf2_Static_Hz <= LPF_Max_Hz
+      and then G.Gyro_Soft_Notch_Hz_1 <= LPF_Max_Hz and then G.Gyro_Soft_Notch_Hz_2 <= LPF_Max_Hz
+      and then (G.Gyro_Soft_Notch_Hz_1 = 0 or else G.Gyro_Soft_Notch_Cutoff_1 < G.Gyro_Soft_Notch_Hz_1)
+      and then (G.Gyro_Soft_Notch_Hz_2 = 0 or else G.Gyro_Soft_Notch_Cutoff_2 < G.Gyro_Soft_Notch_Hz_2)
+      and then G.Gyro_Lpf1_Dyn_Min_Hz <= G.Gyro_Lpf1_Dyn_Max_Hz);
+
    --  The gyro's checks: filter cutoffs past their limits, the PID loop or
    --  the motor update rate held to what the motor protocol runs, and the
    --  profile selections and waypoint count past their counts.

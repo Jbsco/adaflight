@@ -149,6 +149,7 @@ with Adaflight.Settings_Table;
 with Adaflight.Config_Groups;
 with Adaflight.Config_Codec;
 with Adaflight.Config_Fix;
+with Adaflight.Config_Runtime;
 with Adaflight.Command_Line;
 with Ada.Strings.Unbounded;
 with Adaflight.Dispatch;
@@ -14066,6 +14067,30 @@ procedure Vector_Check is
       end loop;
       Runtime := C.Feature_Config.Enabled_Features;
       Fix.Fix (C, H, Ports, Runtime, R);
+      for I in C.Pid_Profiles'Range loop
+         declare
+            P : constant Adaflight.PID_Profile.Profile := Adaflight.Config_Runtime.PID_Profile_Of (C.Pid_Profiles (I));
+         begin
+            Record_Int ("conffix.profile_gain",
+                        Integer_64 (Interfaces.Unsigned_8'Min (250, C.Pid_Profiles (I).Pid (0).P)),
+                        Integer_64 (P.Gains (Adaflight.Axes.Roll).P));
+         end;
+      end loop;
+      if H.Gyro_Sample_Rate_Hz in 10 .. 10_000 and then H.Motors in 1 .. 8
+        and then Integer (1_000_000 / H.Gyro_Sample_Rate_Hz) * Integer (C.Pid_Config.Pid_Process_Denom)
+                 in 100 .. 100_000
+      then
+         declare
+            G : constant Adaflight.Gyro_Filters.Settings := Adaflight.Config_Runtime.Gyro_Settings_Of
+              (C.Gyro_Config, C.Dyn_Notch_Config, C.Rpm_Filter_Config, C.Gyro_Device_Config (0), C.Board_Alignment,
+               C.Motor_Config, C.Pid_Config, Integer (1_000_000 / H.Gyro_Sample_Rate_Hz), 1.0, Integer (H.Motors),
+               False);
+         begin
+            Record_Int ("conffix.gyro_lpf1",
+                        Integer_64 (Interfaces.Unsigned_16'Min (1000, C.Gyro_Config.Gyro_Lpf1_Static_Hz)),
+                        Integer_64 (G.LPF1_Static_Hz));
+         end;
+      end if;
       Codec.Encode (C, Output);
       Record_Text ("conffix.changes", Str (7), Diff_Text (Input, Output));
       declare
