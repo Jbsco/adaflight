@@ -1003,6 +1003,198 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end;
    end Adjustment_Range_Command;
 
+   Baud_Rates : constant array (Serial_Feature_Map.Baud_Index) of Unsigned_32 :=
+     (0, 9600, 19200, 38400, 57600, 115200, 230400, 250000, 400000, 460800, 500000, 921600, 1000000, 1500000,
+      2000000, 2470000);
+
+   --  The setting a name names, without regard to case.
+   procedure Find_Setting (Text : String; Found : out Boolean; S : out Setting) is
+   begin
+      for T in Setting loop
+         if CLI_Text.Same_Ignoring_Case (Name (T), Text) then
+            Found := True;
+            S := T;
+            return;
+         end if;
+      end loop;
+      Found := False;
+      S := Setting'First;
+   end Find_Setting;
+
+   --  serial: every claim on the board's ports as the settings that make it,
+   --  or a port, a function mask and the msp, gps, telemetry and blackbox
+   --  baud rates, each within its class's range, moved onto the feature
+   --  settings, then a deprecation line and the port's claims.
+   procedure Serial_Command (Into : in out Sink; C : in out Configuration; Arguments : String; Ports : Port_List)
+     with Pre => Arguments'First >= 1 and then Arguments'Last < Positive'Last
+                 and then Arguments'First <= Arguments'Last + 1
+                 and then Ports'Length <= Serial_Feature_Map.Max_Ports
+   is
+      package Map renames Serial_Feature_Map;
+
+      --  A setting's line where its value differs from its default.
+      procedure Put_If_Changed (Setting_Name : String)
+        with Pre => Ports'Length <= Serial_Feature_Map.Max_Ports
+      is
+         Found : Boolean;
+         S     : Setting;
+      begin
+         if Setting_Name'Length > 0 then
+            Find_Setting (Setting_Name, Found, S);
+            if Found and then not Equals_Default (C, S, 0) then
+               Put (Into, "set ");
+               Put (Into, Name (S));
+               Put (Into, " = ");
+               Put_Value (Into, C, S, 0, "serial", False, Ports);
+               Put (Into, CRLF);
+            end if;
+         end if;
+      end Put_If_Changed;
+
+      --  The port's claims, each as its port setting, then its selection and
+      --  its baud rate where they differ from their defaults.
+      procedure Put_Claims (Port : Map.Port_Id)
+        with Pre => Ports'Length <= Serial_Feature_Map.Max_Ports
+      is
+         Claims : Map.Claim_Array;
+         Count  : Map.Claim_Count;
+      begin
+         Map.Port_Claims
+           (Config_Fix.Serial_Options, Config_Fix.Serial_Assignments (C), Port, Map.Max_Claims, Claims, Count);
+         for K in 1 .. Count loop
+            Put (Into, "set ");
+            Put (Into, Map.Claim_Setting (Claims (K).Kind));
+            Put (Into, " = ");
+            Put (Into, CLI_Text.Port_Name (Integer_64 (Port), Ports));
+            Put (Into, CRLF);
+            Put_If_Changed (Map.Claim_Selector (Claims (K).Kind));
+            Put_If_Changed (Map.Claim_Baud_Setting (Claims (K).Kind));
+         end loop;
+      end Put_Claims;
+
+      --  The text up to the next space or the end, and the position after
+      --  that space, zero at the end.
+      procedure Next_Token (P : in out Natural; First : out Positive; Last : out Natural)
+        with Pre  => Arguments'First >= 1 and then Arguments'Last < Positive'Last
+                     and then P in Arguments'First .. Arguments'Last + 1,
+             Post => First = P'Old and then Last in First - 1 .. Arguments'Last
+                     and then (P = 0 or else P in Arguments'First .. Arguments'Last + 1)
+      is
+      begin
+         First := P;
+         Last := P - 1;
+         while Last < Arguments'Last and then Arguments (Last + 1) /= ' ' loop
+            pragma Loop_Invariant (Last in First - 1 .. Arguments'Last - 1);
+            pragma Loop_Variant (Increases => Last);
+            Last := Last + 1;
+         end loop;
+         P := (if Last < Arguments'Last then Last + 2 else 0);
+      end Next_Token;
+
+      Order : constant array (1 .. 4) of Map.Baud_Class :=
+        (Map.MSP_Baud, Map.GPS_Baud, Map.Telemetry_Baud, Map.Blackbox_Baud);
+      Bauds : array (Map.Baud_Class) of Map.Baud_Index :=
+        (Map.MSP_Baud       => Map.Default_Port_Baud (Map.MSP_Baud),
+         Map.GPS_Baud       => Map.Default_Port_Baud (Map.GPS_Baud),
+         Map.Telemetry_Baud => Map.Default_Port_Baud (Map.Telemetry_Baud),
+         Map.Blackbox_Baud  => Map.Default_Port_Baud (Map.Blackbox_Baud));
+      Valid : Natural;
+      Mask  : Unsigned_32 := 0;
+      P     : Natural := Arguments'First;
+      First : Positive;
+      Last  : Natural;
+      Found : Boolean;
+      Id    : Integer_64;
+   begin
+      if Arguments'Length = 0 then
+         for Port of Ports loop
+            Put_Claims (Port);
+         end loop;
+         return;
+      end if;
+      Next_Token (P, First, Last);
+      CLI_Text.Port_From_Name (Arguments (First .. Last), Ports, Found, Id);
+      if not Found then
+         declare
+            V    : Unsigned_32;
+            Next : Positive;
+         begin
+            CLI_Text.Parse_Unsigned (Arguments (First .. Last), V, Next);
+            if Next /= Last + 1 then
+               Id := -1;
+            else
+               Id := (if V > 2 ** 31 - 1 then Integer_64 (V) - 2 ** 32 else Integer_64 (V));
+               if Id in 0 .. 19 then
+                  Id := Id + 51;
+               end if;
+            end if;
+         end;
+      end if;
+      if Id = -1 or else not (for some Port of Ports => Integer_64 (Port) = Id) then
+         Put (Into, "###ERROR IN serial: PARSING FAILED###" & CRLF);
+         return;
+      end if;
+      Valid := 1;
+      if P > 0 then
+         Next_Token (P, First, Last);
+         declare
+            Next : Positive;
+         begin
+            CLI_Text.Parse_Unsigned (Arguments (First .. Last), Mask, Next);
+            pragma Unreferenced (Next);
+         end;
+         Valid := Valid + 1;
+      end if;
+      for I in Order'Range loop
+         exit when P = 0;
+         pragma Loop_Invariant (Valid <= I + 1 and then P in Arguments'First .. Arguments'Last + 1);
+         Next_Token (P, First, Last);
+         declare
+            Val   : constant Unsigned_32 := Unsigned_32'Mod (CLI_Text.To_Integer (Arguments (First .. Last)));
+            Index : Map.Baud_Index := Map.Baud_Auto;
+         begin
+            for K in Map.Baud_Index loop
+               if Baud_Rates (K) = Val then
+                  Index := K;
+                  exit;
+               end if;
+            end loop;
+            exit when Baud_Rates (Index) /= Val;
+            if (case Order (I) is
+                  when Map.MSP_Baud => Index in 1 .. 12,
+                  when Map.GPS_Baud => Index in 1 .. 6,
+                  when Map.Telemetry_Baud => Index <= 9,
+                  when Map.Blackbox_Baud => Index in 2 .. 15)
+            then
+               Bauds (Order (I)) := Index;
+               Valid := Valid + 1;
+            end if;
+         end;
+      end loop;
+      if Valid < 6 then
+         Put (Into, "###ERROR IN serial: INVALID ARGUMENT COUNT###" & CRLF);
+         return;
+      end if;
+      declare
+         Port    : constant Map.Port_Id := Map.Port_Id (Id);
+         Before  : constant Map.Assignments := Config_Fix.Serial_Assignments (C);
+         A       : Map.Assignments := Before;
+         Applied : Boolean;
+      begin
+         Map.Apply_Function_Mask (Config_Fix.Serial_Options, A, Port, Mask, Applied);
+         if not Applied then
+            Put (Into, "###ERROR IN serial: PARSING FAILED###" & CRLF);
+            return;
+         end if;
+         for K in Map.Baud_Class loop
+            Map.Apply_Port_Baud (Config_Fix.Serial_Options, A, Port, K, Bauds (K));
+         end loop;
+         Config_Fix.Store_Serial_Assignments (C, Before, A);
+         Put (Into, "# WARNING: 'serial' is deprecated, assign ports with the <feature>_uart settings" & CRLF);
+         Put_Claims (Port);
+      end;
+   end Serial_Command;
+
    Channel_Letters : constant String := "AERT12345678abcdefgh";
    Mappable        : constant := 8;
 
@@ -1243,7 +1435,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
    type Command_Kind is
      (No_Command, Adjustment_Range_Command_Word, Aux_Command_Word, Battery_Profile_Command, Beacon_Command,
       Beeper_Command_Word, Diff_Command, Dump_Command, Feature_Command_Word, Get_Command, Map_Command_Word,
-      Profile_Command, Rate_Profile_Command, Rx_Failsafe_Command, Rx_Range_Command, Set_Command);
+      Profile_Command, Rate_Profile_Command, Rx_Failsafe_Command, Rx_Range_Command, Serial_Command_Word,
+      Set_Command);
    subtype Known_Command is Command_Kind range Adjustment_Range_Command_Word .. Set_Command;
 
    function Command_Word (K : Known_Command) return String is
@@ -1262,6 +1455,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when Rate_Profile_Command => "rateprofile",
          when Rx_Failsafe_Command => "rxfail",
          when Rx_Range_Command => "rxrange",
+         when Serial_Command_Word => "serial",
          when Set_Command => "set")
      with Post => Command_Word'Result'Length in 1 .. 15;
 
@@ -1392,6 +1586,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when Rx_Range_Command =>
             Known := True;
             Range_Command (Into, C, Text_At (Buffer, Arguments));
+         when Serial_Command_Word =>
+            Known := True;
+            Serial_Command (Into, C, Text_At (Buffer, Arguments), Ports);
          when Set_Command =>
             Known := True;
             Set (Into, C, Text_At (Buffer, Arguments), Ports);

@@ -58,6 +58,17 @@ package Adaflight.Config_Fix with SPARK_Mode is
       Removed_GPS_Port : Integer_8 := -1;
    end record;
 
+   --  The serial options of the settings oracle's build.
+   Serial_Options : constant Serial_Feature_Map.Options := (others => <>);
+
+   --  The serial assignments the configuration's port settings make.
+   function Serial_Assignments (C : Configuration) return Serial_Feature_Map.Assignments;
+
+   --  The ports, baud rates, VTX device, display device and telemetry
+   --  providers that differ between two assignments, written from the second
+   --  into the configuration.
+   procedure Store_Serial_Assignments (C : in out Configuration; Before, After : Serial_Feature_Map.Assignments);
+
    --  The gyro's checks: filter cutoffs past their limits, the PID loop or
    --  the motor update rate held to what the motor protocol runs, and the
    --  profile selections and waypoint count past their counts.
