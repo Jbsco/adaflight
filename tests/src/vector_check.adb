@@ -14214,6 +14214,22 @@ procedure Vector_Check is
            Adaflight.Config_Runtime.MAVLink_Settings_Of (C.Telemetry_Config);
          SX : constant Adaflight.SRXL_Telemetry.Settings :=
            Adaflight.Config_Runtime.SRXL_Settings_Of (C.Telemetry_Config, Runtime);
+         EL : constant Adaflight.ExpressLRS_Receiver.Settings :=
+           Adaflight.Config_Runtime.ExpressLRS_Settings_Of (C.Rx_Express_Lrs_Spi_Config);
+         FX : constant Adaflight.FrSky_SPI.Settings :=
+           Adaflight.Config_Runtime.FrSky_SPI_Settings_Of (C.Rx_Spi_Config, C.Rx_Cc2500_Spi_Config, Runtime, FH);
+         RP : constant Adaflight.Redpine.Settings :=
+           Adaflight.Config_Runtime.Redpine_Settings_Of (C.Rx_Spi_Config, C.Rx_Cc2500_Spi_Config);
+         SF : constant Adaflight.SFHSS.Settings :=
+           Adaflight.Config_Runtime.SFHSS_Settings_Of (C.Rx_Spi_Config, C.Rx_Cc2500_Spi_Config);
+         FY : constant Adaflight.FlySky.Settings :=
+           Adaflight.Config_Runtime.FlySky_Settings_Of (C.Rx_Spi_Config, C.Rx_Cc2500_Spi_Config, C.Fly_Sky_Config);
+         SK : constant Adaflight.Spektrum.Settings :=
+           Adaflight.Config_Runtime.Spektrum_Settings_Of (C.Rx_Config, Runtime, True);
+         SS : constant Adaflight.Spektrum_SPI.Settings :=
+           Adaflight.Config_Runtime.Spektrum_SPI_Settings_Of
+             (C.Spektrum_Config, C.Rx_Spi_Config, C.Rx_Cc2500_Spi_Config, Runtime);
+         S2 : constant Adaflight.SRXL2.Settings := Adaflight.Config_Runtime.SRXL2_Settings_Of (C.Rx_Config);
       begin
          Record_Int ("conffix.arming_min_check",
                      Integer_64 (Interfaces.Unsigned_16'Max
@@ -14331,6 +14347,19 @@ procedure Vector_Check is
                      Integer_64 (MV.Rates (Adaflight.MAVLink_Telemetry.Extra1)));
          Record_Int ("conffix.srxl_cell", Boolean'Pos (C.Telemetry_Config.Report_Cell_Voltage /= 0),
                      Boolean'Pos (SX.Report_Cell_Voltage));
+         Record_Int ("conffix.elrs_domain",
+                     Integer_64 (Interfaces.Unsigned_8'Min (7, C.Rx_Express_Lrs_Spi_Config.Domain)),
+                     Integer_64 (Adaflight.ExpressLRS.Frequency_Domain'Pos (EL.Domain)));
+         Record_Int ("conffix.frsky_rx_num", Integer_64 (C.Rx_Cc2500_Spi_Config.Rx_Num), Integer_64 (FX.Rx_Num));
+         Record_Int ("conffix.redpine_offset", Integer_64 (C.Rx_Cc2500_Spi_Config.Bind_Offset),
+                     Integer_64 (RP.Bind_Offset));
+         Record_Int ("conffix.sfhss_tx", Integer_64 (C.Rx_Cc2500_Spi_Config.Bind_Tx_Id (1)),
+                     Integer_64 (SF.Bind_Tx_Id (1)));
+         Record_Int ("conffix.flysky_tx", Integer_64 (C.Fly_Sky_Config.Tx_Id), Integer_64 (FY.Tx_Id));
+         Record_Int ("conffix.spektrum_rssi", Integer_64 (C.Rx_Config.Rssi_Channel), Integer_64 (SK.RSSI_Channel));
+         Record_Int ("conffix.spektrum_channels", Integer_64 (C.Spektrum_Config.Num_Channels),
+                     Integer_64 (SS.Num_Channels));
+         Record_Int ("conffix.srxl2_unit", Integer_64 (C.Rx_Config.Srxl2_Unit_Id), Integer_64 (S2.Unit_Id));
       end;
       if H.Gyro_Sample_Rate_Hz in 10 .. 10_000 and then H.Motors in 1 .. 8
         and then Integer (1_000_000 / H.Gyro_Sample_Rate_Hz) * Integer (C.Pid_Config.Pid_Process_Denom)
