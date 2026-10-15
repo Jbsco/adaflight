@@ -5850,6 +5850,9 @@ procedure Vector_Check is
             if Int (7) = 1 then
                Schedule_Device_Info (CT_State);
             end if;
+            if Int (K + 10) = 1 then
+               Handle_Device_Info (CT_State, Hex_Bytes (K + 11));
+            end if;
             Update_Check (CT_State, Now, Run);
             Negotiate (CT_State, Now, CRSF_Out, S, New_Baud);
             Mid := S.Next;
@@ -5862,9 +5865,11 @@ procedure Vector_Check is
             Record_Int (Name & ".baud", Int (K + 5), Integer_64 (New_Baud));
             Record_Int (Name & ".devinfo", Int (K + 6), Boolean'Pos (CT_State.Device_Info_Pending));
             Record_Int (Name & ".response", Int (K + 7), Boolean'Pos (CT_State.Response_Pending));
-            Count := CRSF_Frames (Name & ".frame", 0, S.Next, K + 10);
+            Record_Int (Name & ".link", Int (K + 12), Integer_64 (Link_Kind'Pos (CT_State.Link)));
+            Record_Int (Name & ".chunk_interval", Int (K + 13), Integer_64 (CT_State.Chunk_Interval_Us));
+            Count := CRSF_Frames (Name & ".frame", 0, S.Next, K + 14);
             Record_Int (Name & ".negotiation_frames", Int (K + 8),
-                        Integer_64 (CRSF_Frames (Name & ".nframe", 0, Mid, K + 10)));
+                        Integer_64 (CRSF_Frames (Name & ".nframe", 0, Mid, K + 14)));
             Record_Int (Name & ".frames", Int (K + 9), Integer_64 (Count));
          end;
       elsif Name = "crsfframe" then

@@ -5253,3 +5253,24 @@ read with directives, and records the driver's state after each and after each m
 replays two sequences of 600 lines among clock steps, detections, reads and messages of every
 length: in 820 records every distance, read, time stamp, quality, rate and validity matches the
 reference's.
+## D226. CRSF device frames and link type (2026-10-15)
+
+`Adaflight.CRSF` hands on the frames the CRSF telemetry and the menu system take from the receiver:
+a ping asks for the device information reply, a device information frame goes to the telemetry
+from its payload, and a display port command and an MSP request or write go on from the byte after
+the destination and origin, the MSP frame when its length is four or more. `Adaflight.CRSF_Telemetry`
+gains the link type. While no device information reply has named the link, the negotiation pass
+pings the receiver at most every quarter second, after a pending speed reply, a speed change and a
+heartbeat. A reply whose serial number after the name is ELRS marks an ExpressLRS link and sets the
+display port's chunk interval to 75 ms, which a later reply naming another link keeps. A telemetry
+init leaves the link type, the ping time and the interval as they were. The full build compiles
+these in with the menu system over CRSF.
+
+One guard covers a reply without the name's end or four bytes after it: it marks a link other than
+ExpressLRS, where the reference reads on past the frame (finding F204). No recorded vector reaches
+the guard.
+
+The receiver oracle counts the new frames with the first byte each handler takes, and the
+telemetry oracle builds with the menu system's CRSF telemetry, an idle display port and a device
+information reply now and then. The harness replays 6000 receiver steps and 6576 telemetry passes
+with 93872 frames, 41 of them pings: every output, link type and interval matches the reference's.
