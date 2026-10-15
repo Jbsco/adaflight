@@ -14150,6 +14150,19 @@ procedure Vector_Check is
            Adaflight.Config_Runtime.GPS_Link_Settings_Of (C.Gps_Config, C.Gps_Rescue_Config, True);
          GR : constant Adaflight.GPS_Rescue.Settings :=
            Adaflight.Config_Runtime.GPS_Rescue_Settings_Of (C.Gps_Rescue_Config, C.Autopilot_Config, C.Gps_Config);
+         PC : constant Adaflight.Position_Control.Settings :=
+           Adaflight.Config_Runtime.Position_Control_Settings_Of (C.Autopilot_Config, C.Rc_Controls_Config, True);
+         PE : constant Adaflight.Position_Estimator.Settings :=
+           Adaflight.Config_Runtime.Position_Estimator_Settings_Of (C.Position_Config, C.Pos_Hold_Config);
+         PH : constant Adaflight.Position_Hold.Settings :=
+           Adaflight.Config_Runtime.Position_Hold_Settings_Of (C.Pos_Hold_Config);
+         AL : constant Adaflight.Altitude_Control.Settings :=
+           Adaflight.Config_Runtime.Altitude_Control_Settings_Of (C.Autopilot_Config, C.Rx_Config);
+         AH : constant Adaflight.Altitude_Hold.Settings :=
+           Adaflight.Config_Runtime.Altitude_Hold_Settings_Of (C.Autopilot_Config, C.Alt_Hold_Config, C.Rx_Config);
+         FP : constant Adaflight.Flight_Plan_Nav.Settings :=
+           Adaflight.Config_Runtime.Flight_Plan_Settings_Of
+             (C.Autopilot_Config, C.Gps_Rescue_Config, C.Alt_Hold_Config, False);
       begin
          Record_Int ("conffix.arming_min_check",
                      Integer_64 (Interfaces.Unsigned_16'Max
@@ -14194,6 +14207,23 @@ procedure Vector_Check is
                      Integer_64 (Interfaces.Unsigned_8'Max
                                    (5, Interfaces.Unsigned_8'Min (50, C.Gps_Rescue_Config.Min_Sats))),
                      Integer_64 (GR.Min_Sats));
+         Record_Int ("conffix.position_max_angle",
+                     Integer_64 (Interfaces.Unsigned_8'Max
+                                   (10, Interfaces.Unsigned_8'Min (70, C.Autopilot_Config.Max_Angle))),
+                     Integer_64 (PC.Max_Angle));
+         Record_Int ("conffix.estimator_prefer_baro",
+                     Integer_64 (Interfaces.Unsigned_8'Min (100, C.Position_Config.Altitude_Prefer_Baro)),
+                     Integer_64 (PE.Prefer_Baro));
+         Record_Int ("conffix.hold_deadband",
+                     Integer_64 (Interfaces.Unsigned_8'Min (50, C.Pos_Hold_Config.Deadband)), Integer_64 (PH.Deadband));
+         Record_Int ("conffix.altitude_hover",
+                     Integer_64 (Interfaces.Unsigned_16'Min (1700, C.Autopilot_Config.Hover_Throttle)),
+                     Integer_64 (AL.Hover_Throttle));
+         Record_Int ("conffix.alt_hold_climb",
+                     Integer_64 (Interfaces.Unsigned_8'Min (200, C.Alt_Hold_Config.Climb_Rate)),
+                     Integer_64 (AH.Climb_Rate));
+         Record_Int ("conffix.plan_climb_rate", Integer_64 (C.Alt_Hold_Config.Climb_Rate) * 10,
+                     Integer_64 (FP.Climb_Rate));
       end;
       if H.Gyro_Sample_Rate_Hz in 10 .. 10_000 and then H.Motors in 1 .. 8
         and then Integer (1_000_000 / H.Gyro_Sample_Rate_Hz) * Integer (C.Pid_Config.Pid_Process_Denom)
