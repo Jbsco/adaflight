@@ -12,6 +12,7 @@ with Interfaces;
 with Adaflight.Bytes; use Adaflight.Bytes;
 with Adaflight.Config_Groups; use Adaflight.Config_Groups;
 with Adaflight.Config_Fix;
+with Adaflight.MSP_Write_Plans;
 
 package Adaflight.MSP_Tuning_In with SPARK_Mode is
    use type Interfaces.Unsigned_16;
@@ -57,7 +58,7 @@ package Adaflight.MSP_Tuning_In with SPARK_Mode is
      (Natural (C.System_Config.Pid_Profile_Index) < C.Pid_Profiles'Length
       and then Natural (C.System_Config.Active_Rate_Profile) < C.Control_Rate_Profiles'Length);
 
-   Max_Request : constant := 255;
+   Max_Request : constant := MSP_Write_Plans.Max_Request;
 
    --  One in message on the configuration; the gyro's checks read the gyro's
    --  sample rate.
