@@ -139,6 +139,7 @@ with Adaflight.MSP_Profile_In;
 with Adaflight.MSP_VTX_In;
 with Adaflight.MSP_Runtime_In;
 with Adaflight.MSP_Board_In;
+with Adaflight.MSP_Motor_In;
 with Adaflight.VTX_Table_Store;
 with Adaflight.MSP_Receiver_Out;
 with Adaflight.MSP_Hardware_Out;
@@ -14589,6 +14590,10 @@ procedure Vector_Check is
    MSP_VTX_Running : Adaflight.VTX_Table.Table;
    MSP_Runtime_Effects : Adaflight.MSP_Runtime_In.Effects;
    MSP_Board_Effects   : Adaflight.MSP_Board_In.Effects;
+   MSP_Motor_Effects   : Adaflight.MSP_Motor_In.Effects;
+   MSP_Motor_Kind      : Adaflight.MSP_Motor_In.Device_Kind := Adaflight.MSP_Motor_In.No_Device;
+   MSP_Motors          : Adaflight.MSP_Motor_In.Motor_Count := 0;
+   MSP_Three_D         : Boolean := False;
    MSP_Gyro_Rate  : Adaflight.Config_Fix.Gyro_Rate := 0;
    MSP_Log        : Adaflight.Blackbox.Recorder;
    MSP_Loop_Time  : Adaflight.Blackbox.Loop_Time_Us := 125;
@@ -14652,6 +14657,9 @@ procedure Vector_Check is
             MSP_Arming_Off := False;
             MSP_VTX_Device := (others => <>);
             MSP_VTX_Running := (others => <>);
+            MSP_Motor_Kind := Adaflight.MSP_Motor_In.No_Device;
+            MSP_Motors := 0;
+            MSP_Three_D := False;
          end if;
          CLI_Reply.Target.Text := Null_Unbounded_String;
          CLI_Expected := Null_Unbounded_String;
@@ -14738,6 +14746,9 @@ procedure Vector_Check is
                MSP_Log.State := Adaflight.Blackbox.Log_State'Val (Natural'Value (Word (Command, 1)));
                MSP_Log.I_Interval := Interfaces.Integer_16'Value (Word (Command, 2));
                MSP_Loop_Time := Adaflight.Blackbox.Loop_Time_Us'Value (Word (Command, 3));
+            elsif Word (Command, 0) = "!motordev" then
+               MSP_Motor_Kind := Adaflight.MSP_Motor_In.Device_Kind'Val (Natural'Value (Word (Command, 1)));
+               MSP_Motors := Adaflight.MSP_Motor_In.Motor_Count'Value (Word (Command, 2));
             elsif Word (Command, 0) = "!vtxdev" then
                MSP_VTX_Device :=
                  (Present    => Word (Command, 1) /= "0",
@@ -14752,6 +14763,7 @@ procedure Vector_Check is
                MSP_Telemetry := Integer'Value (Word (Command, 3));
                if Word (Command, 4) /= "0" then
                   MSP_Board.RX_SPI_Active := (CLI_Config.Feature_Config.Enabled_Features and 2 ** 25) /= 0;
+                  MSP_Three_D := (CLI_Config.Feature_Config.Enabled_Features and 2 ** 12) /= 0;
                end if;
             elsif Word (Command, 0) = "!gyro" then
                MSP_Gyro_Rate := Adaflight.Config_Fix.Gyro_Rate'Value (Word (Command, 1));
@@ -14778,10 +14790,23 @@ procedure Vector_Check is
                   MSP_VTX_Effects := Adaflight.MSP_VTX_In.No_Effects;
                   MSP_Runtime_Effects := Adaflight.MSP_Runtime_In.No_Effects;
                   MSP_Board_Effects := Adaflight.MSP_Board_In.No_Effects;
+                  MSP_Motor_Effects := Adaflight.MSP_Motor_In.No_Effects;
                   if Adaflight.MSP_Tuning_In.Handles (Cmd) then
                      Adaflight.MSP_Tuning_In.Process
                        (CLI_Config, Cmd, Request, MSP_Gyro_Rate, MSP_In_Result, MSP_In_Effects);
                      MSP_In_Ran := True;
+                  elsif Adaflight.MSP_Motor_In.Handles (Cmd) then
+                     declare
+                        use type Adaflight.MSP_Motor_In.Result;
+                        Motor_Result : Adaflight.MSP_Motor_In.Result;
+                     begin
+                        Adaflight.MSP_Motor_In.Process
+                          (Request, MSP_Motors, MSP_Motor_Kind, MSP_Three_D, Motor_Result, MSP_Motor_Effects);
+                        MSP_In_Result :=
+                          (if Motor_Result = Adaflight.MSP_Motor_In.Ack then Adaflight.MSP_Tuning_In.Ack
+                           else Adaflight.MSP_Tuning_In.Error);
+                        MSP_In_Ran := True;
+                     end;
                   elsif Adaflight.MSP_Board_In.Handles (Cmd) then
                      declare
                         use type Adaflight.MSP_Board_In.Result;
@@ -15035,6 +15060,10 @@ procedure Vector_Check is
                            Boolean'Pos (MSP_Peripheral_Effects.VTX_Ready));
             end if;
          end;
+      elsif Str (1) = "clmo" then
+         for M in Adaflight.MSP_Motor_In.Motor_Values'Range loop
+            Record_Result ("msp.motor_value", Unsigned_32'Value (Str (3 + M)), To_Bits (MSP_Motor_Effects.Values (M)));
+         end loop;
       elsif Str (1) = "clv" then
          declare
             E : Adaflight.MSP_Runtime_In.Effects renames MSP_Runtime_Effects;
