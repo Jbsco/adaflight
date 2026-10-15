@@ -1,6 +1,7 @@
 with Interfaces; use Interfaces;
 with Adaflight.Adjustments;
 with Adaflight.Config_Fix;
+with Adaflight.LED_Strip;
 with Adaflight.Mixer_Init;
 with Adaflight.Modes;
 with Adaflight.MSP_Box;
@@ -1684,6 +1685,249 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end if;
    end Servo_Mix_Command;
 
+   --  A LED's configuration as text: position, direction letters, function
+   --  letter with overlay letters, and color. A function past the function
+   --  letters has no letter.
+   procedure Put_Led_Text (Into : in out Sink; Config : Unsigned_32) is
+      Direction_Codes : constant String := "NESWUD";
+      Function_Codes  : constant String := "CFALSGRPEU";
+      Overlay_Codes   : constant String := "TYOBVIW";
+      Directions      : constant Unsigned_32 := Shift_Right (Config, 26) and 16#3F#;
+      Fn              : constant Unsigned_32 := Shift_Right (Config, 8) and 16#F#;
+      Overlays        : constant Unsigned_32 := Shift_Right (Config, 12) and 16#FF#;
+      Dir_Text        : String (1 .. 6) := (others => ' ');
+      Dir_Last        : Natural := 0;
+      Fn_Text         : String (1 .. 8) := (others => ' ');
+      Fn_Last         : Natural := 0;
+   begin
+      for D in 0 .. 5 loop
+         pragma Loop_Invariant (Dir_Last <= D);
+         if (Directions and Shift_Left (1, D)) /= 0 then
+            Dir_Last := Dir_Last + 1;
+            Dir_Text (Dir_Last) := Direction_Codes (D + 1);
+         end if;
+      end loop;
+      if Fn <= 9 then
+         Fn_Last := 1;
+         Fn_Text (1) := Function_Codes (Natural (Fn) + 1);
+      end if;
+      for O in 0 .. 6 loop
+         pragma Loop_Invariant (Fn_Last <= O + 1);
+         if (Overlays and Shift_Left (1, O)) /= 0 then
+            Fn_Last := Fn_Last + 1;
+            Fn_Text (Fn_Last) := Overlay_Codes (O + 1);
+         end if;
+      end loop;
+      Put (Into, Decimal (Integer_64 (Shift_Right (Config, 4) and 16#F#)));
+      Put (Into, ",");
+      Put (Into, Decimal (Integer_64 (Config and 16#F#)));
+      Put (Into, ":" & Dir_Text (1 .. Dir_Last) & ":" & Fn_Text (1 .. Fn_Last) & ":");
+      Put (Into, Decimal (Integer_64 (Shift_Right (Config, 22) and 16#F#)));
+   end Put_Led_Text;
+
+   --  led: every LED's configuration, or one LED's configuration cleared and
+   --  then read from its text; a reading LED asks for the strip's layout.
+   procedure Led_Command
+     (Into : in out Sink; Configs : in out Unsigned_32_List_32; Arguments : String; Changes : in out Effects)
+     with Pre => Arguments'First >= 1 and then Arguments'Last < Positive'Last
+                 and then Arguments'First <= Arguments'Last + 1
+   is
+      Index : Integer_32;
+      P     : Natural;
+   begin
+      if Arguments'Length = 0 then
+         for I in Configs'Range loop
+            pragma Loop_Invariant (I in Configs'Range);
+            Put (Into, "led " & Decimal (Integer_64 (I)) & " ");
+            Put_Led_Text (Into, Configs (I));
+            Put (Into, CRLF);
+         end loop;
+         return;
+      end if;
+      Index := CLI_Text.To_Integer (Arguments);
+      if Index not in 0 .. 31 then
+         Put (Into, "###ERROR IN led: INDEX NOT BETWEEN 0 AND 31###" & CRLF);
+         return;
+      end if;
+      P := Next_Argument (Arguments, Arguments'First);
+      if P = 0 then
+         Put (Into, "###ERROR IN led: INVALID ARGUMENT COUNT###" & CRLF);
+         return;
+      end if;
+      Configs (Natural (Index)) := 0;
+      if Arguments'Last - P + 1 > LED_Strip.Max_Text then
+         Put (Into, "###ERROR IN led: PARSING FAILED###" & CRLF);
+         return;
+      end if;
+      declare
+         Start  : constant Positive := P;
+         Text   : constant String (1 .. Arguments'Last - Start + 1) := Arguments (Start .. Arguments'Last);
+         Config : Unsigned_32;
+         OK     : Boolean;
+      begin
+         LED_Strip.Parse_Led (Text, Config, OK);
+         if not OK then
+            Put (Into, "###ERROR IN led: PARSING FAILED###" & CRLF);
+            return;
+         end if;
+         Configs (Natural (Index)) := Config;
+         Changes.LEDs := True;
+         Put (Into, "led " & Decimal (Integer_64 (Index)) & " ");
+         Put_Led_Text (Into, Config);
+         Put (Into, CRLF);
+      end;
+   end Led_Command;
+
+   --  color: every color, or one color's hue, saturation and value read in
+   --  turn, each stored as it is read and the color cleared when one is past
+   --  its limit or a comma is missing.
+   procedure Color_Command (Into : in out Sink; Colors : in out Hsv_Color_Record_List_16; Arguments : String)
+     with Pre => Arguments'First >= 1 and then Arguments'Last < Positive'Last
+                 and then Arguments'First <= Arguments'Last + 1
+   is
+      Index : Integer_32;
+      P     : Natural;
+   begin
+      if Arguments'Length = 0 then
+         for I in Colors'Range loop
+            pragma Loop_Invariant (I in Colors'Range);
+            Put (Into, "color " & Decimal (Integer_64 (I)) & " "
+                 & Decimal (Integer_64 (Colors (I).H)) & ","
+                 & Decimal (Integer_64 (Colors (I).S)) & ","
+                 & Decimal (Integer_64 (Colors (I).V)) & CRLF);
+         end loop;
+         return;
+      end if;
+      Index := CLI_Text.To_Integer (Arguments);
+      if Index not in 0 .. 15 then
+         Put (Into, "###ERROR IN color: INDEX NOT BETWEEN 0 AND 15###" & CRLF);
+         return;
+      end if;
+      P := Next_Argument (Arguments, Arguments'First);
+      if P = 0 then
+         Put (Into, "###ERROR IN color: INVALID ARGUMENT COUNT###" & CRLF);
+         return;
+      end if;
+      declare
+         Slot   : constant Natural := Natural (Index);
+         Limits : constant array (0 .. 2) of Integer_32 := (359, 255, 255);
+         OK     : Boolean := True;
+         V      : Integer_32;
+      begin
+         for Component in 0 .. 2 loop
+            pragma Loop_Invariant (P in Arguments'First .. Arguments'Last + 1);
+            V := (if P <= Arguments'Last then CLI_Text.To_Integer (Arguments (P .. Arguments'Last)) else 0);
+            if V > Limits (Component) then
+               OK := False;
+               exit;
+            end if;
+            case Component is
+               when 0 =>
+                  Colors (Slot).H := Unsigned_16'Mod (V);
+               when 1 =>
+                  Colors (Slot).S := Unsigned_8'Mod (V);
+               when others =>
+                  Colors (Slot).V := Unsigned_8'Mod (V);
+            end case;
+            declare
+               Comma : Natural := 0;
+            begin
+               for K in P .. Arguments'Last loop
+                  if Arguments (K) = ',' then
+                     Comma := K;
+                     exit;
+                  end if;
+               end loop;
+               if Comma > 0 then
+                  P := Comma + 1;
+               else
+                  if Component < 2 then
+                     OK := False;
+                  end if;
+                  exit;
+               end if;
+            end;
+         end loop;
+         if not OK then
+            Colors (Slot) := (H => 0, S => 0, V => 0);
+            Put (Into, "###ERROR IN color: PARSING FAILED###" & CRLF);
+            return;
+         end if;
+         Put (Into, "color " & Decimal (Integer_64 (Slot)) & " "
+              & Decimal (Integer_64 (Colors (Slot).H)) & ","
+              & Decimal (Integer_64 (Colors (Slot).S)) & ","
+              & Decimal (Integer_64 (Colors (Slot).V)) & CRLF);
+      end;
+   end Color_Command;
+
+   --  mode_color: every mode's direction colors, the special colors and the
+   --  strip's aux channel, or one of them set from three numbers.
+   procedure Mode_Color_Command (Into : in out Sink; L : in out Led_Strip_Status_Mode_Config_Record; Arguments : String)
+     with Pre => Arguments'First >= 1 and then Arguments'Last < Positive'Last
+                 and then Arguments'First <= Arguments'Last + 1
+   is
+      Values      : array (0 .. 2) of Integer_32 := (others => 0);
+      Count       : Natural := 0;
+      First, Last : Natural;
+      From        : Positive := Arguments'First;
+      OK          : Boolean := False;
+   begin
+      if Arguments'Length = 0 then
+         for M in L.Mode_Colors'Range loop
+            pragma Loop_Invariant (M in L.Mode_Colors'Range);
+            for D in L.Mode_Colors (M).Color'Range loop
+               pragma Loop_Invariant (D in L.Mode_Colors (M).Color'Range);
+               Put (Into, "mode_color " & Decimal (Integer_64 (M)) & " " & Decimal (Integer_64 (D)) & " "
+                    & Decimal (Integer_64 (L.Mode_Colors (M).Color (D))) & CRLF);
+            end loop;
+         end loop;
+         for D in L.Special_Colors.Color'Range loop
+            pragma Loop_Invariant (D in L.Special_Colors.Color'Range);
+            Put (Into, "mode_color 6 " & Decimal (Integer_64 (D)) & " "
+                 & Decimal (Integer_64 (L.Special_Colors.Color (D))) & CRLF);
+         end loop;
+         Put (Into, "mode_color 7 0 " & Decimal (Integer_64 (L.Ledstrip_Aux_Channel)) & CRLF);
+         return;
+      end if;
+      loop
+         pragma Loop_Invariant (Count <= 3 and then From in Arguments'First .. Arguments'Last + 1);
+         pragma Loop_Variant (Increases => From);
+         Next_Word (Arguments, From, First, Last);
+         exit when First = 0 or else Count = 3;
+         Values (Count) := CLI_Text.To_Integer (Arguments (First .. Last));
+         Count := Count + 1;
+         From := Last + 1;
+      end loop;
+      if First > 0 or else Count /= 3 then
+         Put (Into, "###ERROR IN mode_color: INVALID ARGUMENT COUNT###" & CRLF);
+         return;
+      end if;
+      if Values (2) in 0 .. 15 then
+         if Values (0) in 0 .. 5 then
+            if Values (1) in 0 .. 5 then
+               L.Mode_Colors (Natural (Values (0))).Color (Natural (Values (1))) := Unsigned_8 (Values (2));
+               OK := True;
+            end if;
+         elsif Values (0) = 6 then
+            if Values (1) in 0 .. 10 then
+               L.Special_Colors.Color (Natural (Values (1))) := Unsigned_8 (Values (2));
+               OK := True;
+            end if;
+         elsif Values (0) = 7 then
+            if Values (1) = 0 then
+               L.Ledstrip_Aux_Channel := Unsigned_8 (Values (2));
+               OK := True;
+            end if;
+         end if;
+      end if;
+      if not OK then
+         Put (Into, "###ERROR IN mode_color: PARSING FAILED###" & CRLF);
+         return;
+      end if;
+      Put (Into, "mode_color " & Decimal (Integer_64 (Values (0))) & " " & Decimal (Integer_64 (Values (1))) & " "
+           & Decimal (Integer_64 (Values (2))) & CRLF);
+   end Mode_Color_Command;
+
    Channel_Letters : constant String := "AERT12345678abcdefgh";
    Mappable        : constant := 8;
 
@@ -1923,7 +2167,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
 
    type Command_Kind is
      (No_Command, Adjustment_Range_Command_Word, Aux_Command_Word, Battery_Profile_Command, Beacon_Command,
-      Beeper_Command_Word, Diff_Command, Dump_Command, Feature_Command_Word, Get_Command, Map_Command_Word,
+      Beeper_Command_Word, Color_Command_Word, Diff_Command, Dump_Command, Feature_Command_Word, Get_Command,
+      Led_Command_Word, Map_Command_Word, Mode_Color_Command_Word,
       Mixer_Command_Word, Motor_Mix_Command_Word, Profile_Command, Rate_Profile_Command, Rx_Failsafe_Command,
       Rx_Range_Command, Serial_Command_Word, Servo_Command_Word, Servo_Mix_Command_Word, Set_Command);
    subtype Known_Command is Command_Kind range Adjustment_Range_Command_Word .. Set_Command;
@@ -1939,6 +2184,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when Dump_Command => "dump",
          when Feature_Command_Word => "feature",
          when Get_Command => "get",
+         when Color_Command_Word => "color",
+         when Led_Command_Word => "led",
+         when Mode_Color_Command_Word => "mode_color",
          when Map_Command_Word => "map",
          when Mixer_Command_Word => "mixer",
          when Motor_Mix_Command_Word => "mmix",
@@ -2064,6 +2312,15 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when Get_Command =>
             Known := True;
             Get (Into, C, "get", Text_At (Buffer, Arguments), Ports);
+         when Color_Command_Word =>
+            Known := True;
+            Color_Command (Into, C.Led_Strip_Status_Mode_Config.Colors, Text_At (Buffer, Arguments));
+         when Led_Command_Word =>
+            Known := True;
+            Led_Command (Into, C.Led_Strip_Status_Mode_Config.Led_Configs, Text_At (Buffer, Arguments), Changes);
+         when Mode_Color_Command_Word =>
+            Known := True;
+            Mode_Color_Command (Into, C.Led_Strip_Status_Mode_Config, Text_At (Buffer, Arguments));
          when Map_Command_Word =>
             Known := True;
             Map_Command (Into, C, Text_At (Buffer, Arguments));
