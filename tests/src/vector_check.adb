@@ -14182,6 +14182,19 @@ procedure Vector_Check is
          GB : constant Adaflight.Gimbal_Control.Settings :=
            Adaflight.Config_Runtime.Gimbal_Settings_Of (C.Gimbal_Track_Config, C.Rx_Config, False);
          TZ : constant Adaflight.RTC.Settings := Adaflight.Config_Runtime.RTC_Settings_Of (C.Time_Config);
+         PG : constant Adaflight.OSD_Page.Settings :=
+           Adaflight.Config_Runtime.OSD_Page_Settings_Of (C.Osd_Config, C.Osd_Element_Config, True);
+         RN : constant Adaflight.OSD_Render.Settings :=
+           Adaflight.Config_Runtime.OSD_Render_Settings_Of (C.Osd_Config, C.Vtx_Settings_Config);
+         SP : constant Adaflight.OSD_Spec.Settings :=
+           Adaflight.Config_Runtime.OSD_Spec_Settings_Of
+             (C.Mixer_Config, C.Motor_Config, C.Control_Rate_Profiles (Natural (C.System_Config.Active_Rate_Profile)),
+              C.Pid_Profiles (Natural (C.System_Config.Pid_Profile_Index)),
+              C.Battery_Profiles (Natural (C.System_Config.Active_Battery_Profile)));
+         WN : constant Adaflight.OSD_Warnings.Settings :=
+           Adaflight.Config_Runtime.OSD_Warnings_Settings_Of (C.Osd_Config);
+         AM : constant Adaflight.OSD_Elements.Alarm_Settings :=
+           Adaflight.Config_Runtime.OSD_Alarm_Settings_Of (C.Osd_Config, C.Gps_Rescue_Config);
       begin
          Record_Int ("conffix.arming_min_check",
                      Integer_64 (Interfaces.Unsigned_16'Max
@@ -14274,6 +14287,14 @@ procedure Vector_Check is
                      Integer_64 (Interfaces.Integer_16'Max
                                    (-780, Interfaces.Integer_16'Min (780, C.Time_Config.Tz_Offset_Minutes))),
                      Integer_64 (TZ.Zone));
+         Record_Int ("conffix.osd_rows", Integer_64 (C.Osd_Config.Canvas_Rows), Integer_64 (PG.Rows));
+         Record_Int ("conffix.osd_units", Integer_64 (Interfaces.Unsigned_8'Min (2, C.Osd_Config.Units)),
+                     Integer_64 (Adaflight.OSD_Format.Unit_System'Pos (RN.Units)));
+         Record_Int ("conffix.osd_kv", Integer_64 (C.Motor_Config.Kv), Integer_64 (SP.KV));
+         Record_Int ("conffix.osd_warn_rssi", Integer_64 (Interfaces.Unsigned_8'Min (100, C.Osd_Config.Rssi_Alarm)),
+                     Integer_64 (WN.RSSI_Alarm));
+         Record_Int ("conffix.osd_alarm_sats", Integer_64 (C.Gps_Rescue_Config.Min_Sats),
+                     Integer_64 (AM.Rescue_Min_Sats));
       end;
       if H.Gyro_Sample_Rate_Hz in 10 .. 10_000 and then H.Motors in 1 .. 8
         and then Integer (1_000_000 / H.Gyro_Sample_Rate_Hz) * Integer (C.Pid_Config.Pid_Process_Denom)
