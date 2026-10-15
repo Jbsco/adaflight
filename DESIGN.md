@@ -4605,3 +4605,26 @@ consistency through every key, the edits within the lines, the widths' wraps and
 The harness replays twelve random keys per menu tree after the navigation operations, 21600 keys,
 with the line under the cursor compared after each, the edits written back to the recorded menus
 and the reboot flag followed from the actions.
+
+## D197. Menu update (2026-10-15)
+
+`Adaflight.Menu_Nav` gains the update, one pass of the menu task: nothing while a paralyze mode, a
+camera device menu or a joystick in use holds the menu off; with the menu closed, the menu opened on
+the stick gesture (throttle mid, yaw low, pitch high) while disarmed and stick commands allowed,
+with the longer key pause; with the menu open, a drawing transaction begun on the display, the keys
+scanned, the draw, the display's heartbeat every half second, and the transaction committed, each on
+the display current at that point, since the menu key moves the menu between them. The scan takes
+an external key first, kept since it was set until a pass reads it and not replaced while pending;
+else the sticks read as a key in the reference's order, the menu gesture while disarmed, then pitch
+up or down, roll left or right, yaw left for escape and right for the save menu; a key released
+resets the hold count and the repeats; a key held counts; the delay since the last key runs down by
+the pass interval, wrapped in the reference's sixteen bits; once run out, the key is handled as many
+times as the repeats say, and left or right held past twenty passes shortens the delay by the hold
+beyond that, and below the scheduling interval grows the repeats by a fifth of the hold since the
+repeats began, to five. The repeats are kept in one to five where the reference's hold count would
+wrap after years. The target's heartbeat and transactions join the actions.
+
+The harness replays forty update passes per menu tree after the exit, 72000 passes, with the sticks
+held or redrawn at random, the arming flag, modes, external keys, byte budgets, device types, editing
+states and clock readings drawn at random, and compares every display operation, hook call, context
+and page with the reference's.

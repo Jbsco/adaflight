@@ -18250,8 +18250,8 @@ procedure Vector_Check is
                MN_Seq := Int (2);
                MN_State := (others => <>);
                MN_Slider := (others => <>);
-               MN_Nav.Register_Display (MN_State, (others => <>));
-               MN_Nav.Register_Display (MN_State, (others => <>));
+               MN_Nav.Register_Display (MN_State, (Supports_Symbols => True, others => <>));
+               MN_Nav.Register_Display (MN_State, (Supports_Symbols => True, others => <>));
             end if;
             MN_Menus (Id).Hooks := (Enter => Enter, Leave => Leave, Update => Upd);
             MN_Menus (Id).Table := (Lines => (others => <>), Count => Count);
@@ -18387,6 +18387,81 @@ procedure Vector_Check is
             Begin_Record;
             MN_Nav.Handle_Key (MN_State, MN_Nav.Key_Code'Val (Key), MN_Keys, MN_Slider, Reboot_Before, Delay_Ms);
             Record_Int (Name & ".delay", Delay_E, Integer_64 (Delay_Ms));
+            Expect_Ops;
+            Expect_Hooks;
+            Expect_Context;
+            Expect_Display;
+            Expect_Page;
+            Index_E := Next;
+            Index := MN_State.Page.Top + MN_State.Draw.Cursor_Row;
+            Record_Int (Name & ".line", Index_E, (if Index > MN_State.Table.Count then -1 else Integer_64 (Index)));
+            if Index_E >= 0 and then Index < MN_State.Table.Count then
+               Record_Int (Name & ".value", Next, Integer_64 (MN_State.Table.Lines (Index).Value));
+               Record_Text (Name & ".value_text", Hex_String (K),
+                            MN_State.Table.Lines (Index).Value_Text.Data
+                              (1 .. MN_State.Table.Lines (Index).Value_Text.Length));
+               K := K + 1;
+            else
+               K := K + 2;
+            end if;
+            Record_Int (Name & ".editing", Next, Boolean'Pos (MN_State.Draw.Element_Editing));
+            Record_Int (Name & ".profile_cursor", Next, Integer_64 (MN_State.Draw.Profile_Cursor));
+            for J in 1 .. MN_N_Logged loop
+               if MN_Logged (J).Kind = 15 then
+                  Reboot_After := True;
+               end if;
+            end loop;
+            Record_Int (Name & ".reboot", Next, Boolean'Pos (Reboot_After));
+         end;
+      elsif Name = "menuupdate" then
+         declare
+            Now_Us        : constant Interfaces.Unsigned_32 := Interfaces.Unsigned_32 (Next);
+            Millis        : constant Interfaces.Unsigned_32 := Interfaces.Unsigned_32 (Next);
+            Levels        : constant array (0 .. 2) of Float := (1000.0, 1500.0, 2000.0);
+            Sticks        : MN_Nav.Stick_Inputs;
+            Extern        : Integer_64;
+            Room          : Interfaces.Unsigned_32;
+            Device        : Integer_64;
+            Editing       : Boolean;
+            Profile       : Integer_64;
+            Placed        : Integer_64;
+            Reboot_Before : Boolean;
+            Reboot_After  : Boolean;
+            Index_E       : Integer_64;
+            Index         : Natural;
+         begin
+            Sticks.Throttle := Levels (Natural (Next));
+            Sticks.Yaw := Levels (Natural (Next));
+            Sticks.Pitch := Levels (Natural (Next));
+            Sticks.Roll := Levels (Natural (Next));
+            Sticks.Armed := Next /= 0;
+            Sticks.Paralyzed := Next /= 0;
+            Sticks.Stick_Commands_Disabled := Next /= 0;
+            Extern := Next;
+            Record_Int (Name & ".pending", Next, Integer_64 (MN_Nav.Key_Code'Pos (MN_State.Extern_Key)));
+            Room := Interfaces.Unsigned_32 (Next);
+            Device := Next;
+            Editing := Next /= 0;
+            Profile := Next;
+            Placed := Next;
+            Reboot_Before := Next /= 0;
+            Reboot_After := Reboot_Before;
+            Read_Ops;
+            Read_Hooks;
+            if MN_State.Port >= 0 then
+               MN_State.Ports (MN_State.Port).Supports_Symbols :=
+                 Device = 0 or else Device = 2 or else Device = 3 or else Device = 7;
+            end if;
+            MN_State.Draw.Element_Editing := Editing;
+            MN_State.Draw.Profile_Cursor := Profile_Number (Profile);
+            if Placed >= 0 then
+               MN_State.Draw.Cursor_Row := Cursor (Placed);
+            end if;
+            if Extern /= 0 then
+               MN_Nav.Set_Extern_Key (MN_State, MN_Nav.Key_Code'Val (Extern));
+            end if;
+            Begin_Record;
+            MN_Nav.Update (MN_State, MN_Keys, MN_Slider, Sticks, Reboot_Before, Now_Us, Millis, Room);
             Expect_Ops;
             Expect_Hooks;
             Expect_Context;
