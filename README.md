@@ -189,6 +189,7 @@ The core contains:
 - MSP hardware writes: mixer, sensors, motors, GPS, compass declination, GPS rescue and gains
 - MSP battery writes: voltage and current meters, cell voltages, capacity and meter sources
 - MSP feature writes: features, beeper and beacon conditions, beacon tone, motor output order
+- MSP blackbox write: device, sample rate from rate or frame ratio, fields left out
 - MAVLink telemetry streams with intervals and arming status text, and MAVLink commands with
   replies and requests
 - MAVLink mission protocol with uploads, downloads, fence store and current item reports
@@ -196,7 +197,7 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 24518 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 24545 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
 - Recorded vectors replay bit for bit: 1753568 lines over 384 cases, every case exact except
   forty-six declared deviations in `DESIGN.md` D6.
