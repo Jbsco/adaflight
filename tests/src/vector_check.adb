@@ -14195,6 +14195,25 @@ procedure Vector_Check is
            Adaflight.Config_Runtime.OSD_Warnings_Settings_Of (C.Osd_Config);
          AM : constant Adaflight.OSD_Elements.Alarm_Settings :=
            Adaflight.Config_Runtime.OSD_Alarm_Settings_Of (C.Osd_Config, C.Gps_Rescue_Config);
+         Found : constant Adaflight.Arming.Sensor_Set := (Gyro => True, Acc => True, Baro => False, Mag => False);
+         FH : constant Adaflight.FrSky_Hub_Telemetry.Settings :=
+           Adaflight.Config_Runtime.FrSky_Hub_Settings_Of
+             (C.Telemetry_Config, C.Motor_Config, Found, False, False, 1.0 / 256.0);
+         GH : constant Adaflight.GHST_Telemetry.Settings :=
+           Adaflight.Config_Runtime.GHST_Settings_Of (C.Telemetry_Config, C.Battery_Config, Runtime, Found);
+         CR : constant Adaflight.CRSF_Telemetry.Config :=
+           Adaflight.Config_Runtime.CRSF_Config_Of
+             (C.Telemetry_Config, C.Rx_Config, C.Battery_Config, Runtime, Found, False);
+         HT : constant Adaflight.HoTT_Telemetry.Settings :=
+           Adaflight.Config_Runtime.HoTT_Settings_Of (C.Telemetry_Config, False);
+         IB : constant Adaflight.IBus_Telemetry.Settings :=
+           Adaflight.Config_Runtime.IBus_Settings_Of (C.Telemetry_Config, 1.0 / 256.0);
+         JT : constant Adaflight.Jeti_Telemetry.Settings :=
+           Adaflight.Config_Runtime.Jeti_Settings_Of (C.Battery_Config, C.System_Config, Runtime, Found);
+         MV : constant Adaflight.MAVLink_Telemetry.Settings :=
+           Adaflight.Config_Runtime.MAVLink_Settings_Of (C.Telemetry_Config);
+         SX : constant Adaflight.SRXL_Telemetry.Settings :=
+           Adaflight.Config_Runtime.SRXL_Settings_Of (C.Telemetry_Config, Runtime);
       begin
          Record_Int ("conffix.arming_min_check",
                      Integer_64 (Interfaces.Unsigned_16'Max
@@ -14295,6 +14314,23 @@ procedure Vector_Check is
                      Integer_64 (WN.RSSI_Alarm));
          Record_Int ("conffix.osd_alarm_sats", Integer_64 (C.Gps_Rescue_Config.Min_Sats),
                      Integer_64 (AM.Rescue_Min_Sats));
+         Record_Int ("conffix.frsky_format",
+                     Integer_64 (Interfaces.Unsigned_8'Min (1, C.Telemetry_Config.Frsky_Coordinate_Format)),
+                     Integer_64 (Adaflight.FrSky_Hub_Telemetry.Coordinate_Format'Pos (FH.Format)));
+         Record_Int ("conffix.ghst_voltage", Integer_64 (1 - C.Telemetry_Config.Disabled_Sensors mod 2),
+                     Boolean'Pos (GH.Voltage_Enabled));
+         Record_Int ("conffix.crsf_disabled", Integer_64 (C.Telemetry_Config.Disabled_Sensors),
+                     Integer_64 (CR.Disabled_Kinds));
+         Record_Int ("conffix.hott_interval", Integer_64 (C.Telemetry_Config.Hott_Alarm_Sound_Interval),
+                     Integer_64 (HT.Alarm_Interval_S));
+         Record_Int ("conffix.ibus_sensor", Integer_64 (C.Telemetry_Config.Flysky_Sensors (0)),
+                     Integer_64 (IB.Sensors (0)));
+         Record_Int ("conffix.jeti_debug", Boolean'Pos (C.System_Config.Debug_Mode /= 0),
+                     Boolean'Pos (JT.Debug_Mode));
+         Record_Int ("conffix.mavlink_extra1", Integer_64 (C.Telemetry_Config.Mavlink_Extra1_Rate),
+                     Integer_64 (MV.Rates (Adaflight.MAVLink_Telemetry.Extra1)));
+         Record_Int ("conffix.srxl_cell", Boolean'Pos (C.Telemetry_Config.Report_Cell_Voltage /= 0),
+                     Boolean'Pos (SX.Report_Cell_Voltage));
       end;
       if H.Gyro_Sample_Rate_Hz in 10 .. 10_000 and then H.Motors in 1 .. 8
         and then Integer (1_000_000 / H.Gyro_Sample_Rate_Hz) * Integer (C.Pid_Config.Pid_Process_Denom)
