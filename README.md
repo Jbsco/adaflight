@@ -65,7 +65,7 @@ The core contains:
 - RunCam device protocol with camera buttons and five key cable
 - FrSky hub telemetry stream
 - iBus telemetry sensors
-- HoTT telemetry link in binary mode
+- HoTT telemetry link in binary and text modes, text mode screen for menu system
 - Ghost telemetry frames
 - race transponder codings and repeat schedule
 - SRXL telemetry frames with text generator
@@ -218,7 +218,7 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 25334 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 25344 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
 - Recorded vectors replay bit for bit: 1753568 lines over 384 cases, every case exact except
   forty-six declared deviations in `DESIGN.md` D6.
