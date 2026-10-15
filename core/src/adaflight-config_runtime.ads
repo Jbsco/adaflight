@@ -11,6 +11,7 @@ with Adaflight.Gyro_Filters;
 with Adaflight.Mixer;
 with Adaflight.PID_Config;
 with Adaflight.PID_Profile; use Adaflight.PID_Profile;
+with Adaflight.Rates;
 with Adaflight.RPM_Filter;
 with Adaflight.Sensor_Alignment;
 
@@ -18,6 +19,10 @@ package Adaflight.Config_Runtime with SPARK_Mode is
 
    function PID_Profile_Of (P : Pid_Profile_Record) return PID_Profile.Profile
      with Pre => Config_Fix.Fixed_PID_Profile (P);
+
+   --  The rate profile from a stored rate profile; the rates have no order
+   --  rule, so nothing is asked of the fix.
+   function Rate_Profile_Of (R : Control_Rate_Config_Record) return Rates.Profile;
 
    --  The gyro settings from the stored gyro, dynamic notch, RPM filter,
    --  gyro device, board alignment, motor and PID loop groups, with what the
@@ -158,6 +163,23 @@ private
       Simplified_Pitch_PI_Gain => Held (Integer (P.Simplified_Pitch_Pi_Gain), 0, 200),
       Simplified_Dterm_Filter  => P.Simplified_Dterm_Filter /= 0,
       Simplified_Dterm_Filter_Multiplier => Held (Integer (P.Simplified_Dterm_Filter_Multiplier), 10, 200));
+
+   function Rate_Profile_Of (R : Control_Rate_Config_Record) return Rates.Profile is
+     (Kind           => Rates.Curve_Kind'Val (Code (R.Rates_Type, Rates.Curve_Kind'Pos (Rates.Curve_Kind'Last))),
+      RC_Rates       => (Roll  => Held (Integer (R.Rc_Rates (0)), 1, 255),
+                         Pitch => Held (Integer (R.Rc_Rates (1)), 1, 255),
+                         Yaw   => Held (Integer (R.Rc_Rates (2)), 1, 255)),
+      RC_Expo        => (Roll  => Held (Integer (R.Rc_Expo (0)), 0, 100),
+                         Pitch => Held (Integer (R.Rc_Expo (1)), 0, 100),
+                         Yaw   => Held (Integer (R.Rc_Expo (2)), 0, 100)),
+      Super_Rates    => (Roll => Integer (R.Rates (0)), Pitch => Integer (R.Rates (1)), Yaw => Integer (R.Rates (2))),
+      Limits         => (Roll  => Held (Integer (R.Rate_Limit (0)), 0, Rates.Max_Rate_Limit),
+                         Pitch => Held (Integer (R.Rate_Limit (1)), 0, Rates.Max_Rate_Limit),
+                         Yaw   => Held (Integer (R.Rate_Limit (2)), 0, Rates.Max_Rate_Limit)),
+      Quick_Expo     => R.Quick_Rates_Rc_Expo /= 0,
+      Throttle_Mid   => Held (Integer (R.Thr_Mid8), 0, 100),
+      Throttle_Expo  => Held (Integer (R.Thr_Expo8), 0, 100),
+      Throttle_Hover => Held (Integer (R.Thr_Hover8), 0, 100));
 
    function Gyro_Settings_Of
      (G : Gyro_Config_Record; N : Dyn_Notch_Config_Record; R : Rpm_Filter_Config_Record;

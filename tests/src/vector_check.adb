@@ -14076,6 +14076,16 @@ procedure Vector_Check is
                         Integer_64 (P.Gains (Adaflight.Axes.Roll).P));
          end;
       end loop;
+      for I in C.Control_Rate_Profiles'Range loop
+         declare
+            R : constant Adaflight.Rates.Profile :=
+              Adaflight.Config_Runtime.Rate_Profile_Of (C.Control_Rate_Profiles (I));
+         begin
+            Record_Int ("conffix.rate_profile",
+                        Integer_64 (Interfaces.Unsigned_8'Max (1, C.Control_Rate_Profiles (I).Rc_Rates (0))),
+                        Integer_64 (R.RC_Rates (Adaflight.Axes.Roll)));
+         end;
+      end loop;
       if H.Gyro_Sample_Rate_Hz in 10 .. 10_000 and then H.Motors in 1 .. 8
         and then Integer (1_000_000 / H.Gyro_Sample_Rate_Hz) * Integer (C.Pid_Config.Pid_Process_Denom)
                  in 100 .. 100_000
