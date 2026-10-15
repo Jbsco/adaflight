@@ -1,9 +1,11 @@
---  The HoTT telemetry link in its binary mode: the receiver asks with two
---  bytes on the single wire, a request id and a sensor address, and the
---  link answers with the electric air module or the GPS module message, a
---  byte per call with a delay between bytes and a checksum after the last.
---  The messages are prepared from the sensors five times a second, while
---  one may be on its way out.
+--  The HoTT telemetry link: the receiver asks with two bytes on the single
+--  wire, a request id and a sensor address, and the link answers with the
+--  electric air module or the GPS module message in the binary mode, or
+--  with the text mode's screen, a byte per call with a delay between bytes
+--  and a checksum after the last. The messages are prepared from the
+--  sensors five times a second, while one may be on its way out. The text
+--  mode runs the telemetry task faster and turns the transmitter's buttons
+--  into menu keys.
 with Interfaces;
 with Adaflight.Bytes; use Adaflight.Bytes;
 
@@ -29,6 +31,8 @@ package Adaflight.HoTT_Telemetry with SPARK_Mode is
 
    type Inputs is record
       Now_Us            : Unsigned_32 := 0;
+      Task_Period_Us    : Integer_32 := 0;
+      In_Menu           : Boolean := False;
       Now_Ms            : Unsigned_32 := 0;
       Voltage_Dv        : Unsigned_16 := 0;
       Voltage_State     : Battery_State := OK;
@@ -48,9 +52,22 @@ package Adaflight.HoTT_Telemetry with SPARK_Mode is
 
    Message_Length : constant := 44;
    subtype Message is Byte_Array (0 .. Message_Length - 1);
-   subtype Message_Position is Natural range 0 .. Message_Length;
 
-   type Message_Kind is (No_Message, EAM_Message, GPS_Message);
+   --  The text mode's screen: the start byte, the escape byte, the warning,
+   --  eight rows of 21 characters and the stop byte.
+   Text_Rows   : constant := 8;
+   Text_Cols   : constant := 21;
+   Text_Length : constant := 3 + Text_Rows * Text_Cols + 1;
+   subtype Text_Message is Byte_Array (0 .. Text_Length - 1);
+   subtype Message_Position is Natural range 0 .. Text_Length;
+
+   Text_Sensor_Id : constant Byte := 16#E0#;
+   Text_Escape    : constant Byte := 16#01#;
+
+   type Message_Kind is (No_Message, EAM_Message, GPS_Message, Text_Mode_Message);
+
+   --  The menu key a transmitter button gives.
+   type Menu_Key is (None, Up, Down, Left, Right);
 
    type Link is record
       EAM              : Message := (others => 0);
@@ -65,16 +82,43 @@ package Adaflight.HoTT_Telemetry with SPARK_Mode is
       Remaining        : Unsigned_8 := 0;
       Crc              : Unsigned_8 := 0;
       Looking          : Boolean := True;
+      Text             : Text_Message := (others => 0);
+      Text_Alive       : Boolean := False;
+      Saved_Period_Us  : Integer_32 := 0;
+      Request_Wait_Us  : Unsigned_32 := 4000;
+      Byte_Delay_Us    : Unsigned_32 := 3000;
+      Escape_Back      : Boolean := False;
    end record;
 
+   --  A byte sent and the bytes taken; the telemetry task's new period; and
+   --  for the menu system a text mode request's menu open on this display,
+   --  its exit with a save, its open again, and the external key.
    type Output is record
-      Sent     : Boolean := False;
-      B        : Byte := 0;
-      Consumed : Natural := 0;
+      Sent       : Boolean := False;
+      B          : Byte := 0;
+      Consumed   : Natural := 0;
+      Reschedule : Boolean := False;
+      Period_Us  : Integer_32 := 0;
+      Open_Menu  : Boolean := False;
+      Exit_Menu  : Boolean := False;
+      Reopen     : Boolean := False;
+      Key_Set    : Boolean := False;
+      Key        : Menu_Key := None;
    end record;
 
    --  The link with its messages' constant bytes.
    procedure Init (L : out Link);
+
+   --  The menu system's writes into the text mode's screen: a character
+   --  within the rows and columns, and the escape byte that marks the
+   --  screen as the menu's or asks the transmitter to leave it.
+   procedure Text_Write (L : in out Link; Col, Row : Byte; C : Byte);
+
+   procedure Text_Grab (L : in out Link)
+     with Post => L.Text (1) = Text_Sensor_Id;
+
+   procedure Text_Exit (L : in out Link)
+     with Post => L.Text (1) = Text_Escape;
 
    --  One task call with the bytes waiting on the port; the bytes not
    --  taken wait for the next call.

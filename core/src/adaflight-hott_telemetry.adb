@@ -8,10 +8,22 @@ package body Adaflight.HoTT_Telemetry with SPARK_Mode is
    GPS_Text_Id       : constant Byte := 16#A0#;
    No_Sensor_Id      : constant Byte := 16#80#;
    Binary_Request_Id : constant Byte := 16#80#;
+   Text_Request_Id   : constant Byte := 16#7F#;
+   Text_Start        : constant Byte := 16#7B#;
+   Text_Stop         : constant Byte := 16#7D#;
 
-   Preparation_Us  : constant := 200_000;
-   Request_Wait_Us : constant := 4000;
-   Byte_Delay_Us   : constant := 3000;
+   Button_Dec  : constant := 16#B#;
+   Button_Inc  : constant := 16#D#;
+   Button_Set  : constant := 16#9#;
+   Button_Next : constant := 16#E#;
+   Button_Prev : constant := 16#7#;
+
+   Preparation_Us        : constant := 200_000;
+   Binary_Request_Wait   : constant := 4000;
+   Binary_Byte_Delay     : constant := 3000;
+   Text_Task_Period_Us   : constant := 1000;
+   Text_Request_Wait     : constant := 5000;
+   Text_Byte_Delay       : constant := 1000;
    Height_Offset   : constant := 500;
    Climb_Offset    : constant := 30000;
    Climb_3s_Offset : constant := 120;
@@ -110,7 +122,56 @@ package body Adaflight.HoTT_Telemetry with SPARK_Mode is
    --  A request: two bytes waiting, seen twice at least four milliseconds
    --  apart, their count read as a byte (finding F81); more than two bytes
    --  are flushed.
-   procedure Check_Request (L : in out Link; C : Settings; Inp : Inputs; Rx : Byte_Array; Consumed : out Natural)
+   --  A text mode request: the first one starts the text mode, a request
+   --  for the text sensor opens the menu unless the transmitter left it,
+   --  takes the button as a menu key and answers with the screen.
+   procedure Text_Request (L : in out Link; Inp : Inputs; Address : Byte; O : in out Output) is
+      Button : constant Byte := Address and 16#0F#;
+   begin
+      if not L.Text_Alive then
+         L.Saved_Period_Us := Inp.Task_Period_Us;
+         O.Reschedule := True;
+         O.Period_Us := Text_Task_Period_Us;
+         L.Request_Wait_Us := Text_Request_Wait;
+         L.Byte_Delay_Us := Text_Byte_Delay;
+         L.Text_Alive := True;
+      end if;
+      if (Address and 16#F0#) /= Text_Sensor_Id then
+         return;
+      end if;
+      if L.Escape_Back then
+         L.Text (1) := Text_Sensor_Id;
+         L.Escape_Back := False;
+      end if;
+      if L.Text (1) /= Text_Escape then
+         O.Open_Menu := not Inp.In_Menu;
+      else
+         L.Escape_Back := True;
+      end if;
+      O.Key_Set := True;
+      case Button is
+         when Button_Dec =>
+            O.Key := Up;
+         when Button_Inc =>
+            O.Key := Down;
+         when Button_Set =>
+            O.Exit_Menu := Inp.In_Menu or else O.Open_Menu;
+            O.Key := None;
+         when Button_Next =>
+            O.Key := Right;
+         when Button_Prev =>
+            O.Key := Left;
+            O.Reopen := L.Text (1) = Text_Escape;
+         when others =>
+            O.Key := None;
+      end case;
+      L.Pending := Text_Mode_Message;
+      L.Position := 0;
+      L.Remaining := Text_Length + 1;
+   end Text_Request;
+
+   procedure Check_Request
+     (L : in out Link; C : Settings; Inp : Inputs; Rx : Byte_Array; Consumed : out Natural; O : in out Output)
      with Post => Consumed <= Rx'Length
    is
       Waiting : constant Natural := Rx'Length mod 256;
@@ -129,7 +190,7 @@ package body Adaflight.HoTT_Telemetry with SPARK_Mode is
          L.Looking := False;
          return;
       end if;
-      if Inp.Now_Us - L.Last_Request_Us < Request_Wait_Us then
+      if Inp.Now_Us - L.Last_Request_Us < L.Request_Wait_Us then
          return;
       end if;
       L.Looking := True;
@@ -139,6 +200,16 @@ package body Adaflight.HoTT_Telemetry with SPARK_Mode is
          Address    : constant Byte := Rx (Rx'First + 1);
       begin
          if Request_Id = 0 or else Request_Id = Binary_Request_Id or else Address = No_Sensor_Id then
+            if L.Text_Alive then
+               if L.Saved_Period_Us > 0 then
+                  O.Reschedule := True;
+                  O.Period_Us := L.Saved_Period_Us;
+                  L.Saved_Period_Us := 0;
+               end if;
+               L.Request_Wait_Us := Binary_Request_Wait;
+               L.Byte_Delay_Us := Binary_Byte_Delay;
+               L.Text_Alive := False;
+            end if;
             if Address = GPS_Sensor_Id then
                if C.GPS_Present then
                   L.Pending := GPS_Message;
@@ -150,6 +221,8 @@ package body Adaflight.HoTT_Telemetry with SPARK_Mode is
                L.Position := 0;
                L.Remaining := Message_Length + 1;
             end if;
+         elsif Request_Id = Text_Request_Id then
+            Text_Request (L, Inp, Address, O);
          end if;
       end;
    end Check_Request;
@@ -179,7 +252,10 @@ package body Adaflight.HoTT_Telemetry with SPARK_Mode is
          L.Crc := L.Crc + 1;
          return;
       end if;
-      if L.Position < Message_Length then
+      if L.Pending = Text_Mode_Message and then L.Position < Text_Length then
+         B := L.Text (L.Position);
+         L.Position := L.Position + 1;
+      elsif L.Pending /= Text_Mode_Message and then L.Position < Message_Length then
          B := (if L.Pending = GPS_Message then L.GPS (L.Position) else L.EAM (L.Position));
          L.Position := L.Position + 1;
       else
@@ -205,7 +281,27 @@ package body Adaflight.HoTT_Telemetry with SPARK_Mode is
       L.GPS (1) := GPS_Sensor_Id;
       L.GPS (3) := GPS_Text_Id;
       L.GPS (Message_Length - 1) := Stop_Byte;
+      L.Text (0) := Text_Start;
+      L.Text (1) := Text_Sensor_Id;
+      L.Text (Text_Length - 1) := Text_Stop;
    end Init;
+
+   procedure Text_Write (L : in out Link; Col, Row : Byte; C : Byte) is
+   begin
+      if Natural (Col) < Text_Cols and then Natural (Row) < Text_Rows then
+         L.Text (3 + Natural (Row) * Text_Cols + Natural (Col)) := C;
+      end if;
+   end Text_Write;
+
+   procedure Text_Grab (L : in out Link) is
+   begin
+      L.Text (1) := Text_Sensor_Id;
+   end Text_Grab;
+
+   procedure Text_Exit (L : in out Link) is
+   begin
+      L.Text (1) := Text_Escape;
+   end Text_Exit;
 
    ------------
    -- Update --
@@ -221,13 +317,13 @@ package body Adaflight.HoTT_Telemetry with SPARK_Mode is
          L.Last_Prepared_Us := Inp.Now_Us;
       end if;
       if not L.Sending then
-         Check_Request (L, C, Inp, Rx, Consumed);
+         Check_Request (L, C, Inp, Rx, Consumed, O);
          O.Consumed := Consumed;
       end if;
       if L.Pending = No_Message then
          return;
       end if;
-      if L.Sending and then Inp.Now_Us - L.Serial_Timer_Us < Byte_Delay_Us then
+      if L.Sending and then Inp.Now_Us - L.Serial_Timer_Us < L.Byte_Delay_Us then
          return;
       end if;
       Send_Step (L, Rx, O);

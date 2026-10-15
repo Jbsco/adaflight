@@ -5304,3 +5304,27 @@ selection and its open and leave calls scripted. The harness replays 2123 displa
 the 288 bytes of the screen after each, and 4451 telemetry passes with 116 chunks, eight of them
 with a full 256-character run, and 479 clear frames: every screen, delay, request and frame matches
 the reference's.
+## D228. HoTT text mode (2026-10-15)
+
+`Adaflight.HoTT_Telemetry` gains the text mode, which the full build compiles in with the menu
+system. A request with the text mode id starts it: the telemetry task runs at 1 kHz with its period
+kept for the return, a request is taken after 5 ms instead of 4 ms, and the bytes go out 1 ms apart
+instead of 3 ms. A request for the text sensor answers with the screen, 172 bytes with the start,
+escape and stop bytes, and turns the transmitter's button into a menu key: decrease up, increase
+down, next right, previous left, and set leaves an open menu with a save. While the screen's escape
+byte is clear the request opens the menu on this display when none is open. A request with the
+escape byte set leaves the menu as it is, except that the previous button opens it, and the next
+request clears the byte first. A binary request stops the text mode and restores the period and the
+timings.
+
+`Adaflight.HoTT_Display_Port` contains the menu system's side: characters within eight rows of 21,
+strings a character at a time with the column stepping as a byte, a clear in spaces, the grab that
+marks the screen as the menu's, the release that clears it and sets the escape byte, and a heartbeat
+that leaves the menu with a save once the text mode has stopped. Its first registration clears a
+display of no rows or columns, so the screen holds zeros until the menu's first clear. The units are
+SPARK for the screen's indexes and the send position.
+
+The HoTT oracle compiles the reference text mode and display port in, with the menu system and the
+scheduler as counting stubs, and draws, clears, grabs, releases, heartbeats and changes their state
+between task calls. The harness replays 15000 task calls: every byte sent, timing, period, menu
+call, key and screen byte matches the reference's.
