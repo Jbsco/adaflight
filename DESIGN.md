@@ -194,8 +194,8 @@ ledger. The deviations so far:
   message checks the whole request before it stores anything, so a short request, which the
   reference stores as zero filter cutoffs, is an error (findings F142). The checker expects the
   error and unchanged settings for the recorded requests outside the ranges.
-- MSP tuning, advanced, filter, advanced PID and receiver writes with a field outside its
-  setting's range are errors that write and change nothing (D203 to D205), where the reference
+- MSP tuning, advanced, filter, advanced PID, receiver and hardware writes with a field outside
+  its setting's range are errors that write and change nothing (D203 to D206), where the reference
   stores the field's bytes, or for a dynamic notch count, an RPM filter value, a feedforward
   averaging or a mode range's linked mode outside its limit rejects the request after writing its
   earlier fields (findings F189, F190). A field no setting names takes the bounds of the command
@@ -4845,3 +4845,20 @@ The harness replays two sequences of 700 lines from the command line oracle, 126
 resets and listings: 983 within their ranges, whose results, runtime work and configuration hashes
 all match the reference's, 39 that both reject before writing, and 243 outside the ranges, each an
 error that leaves the configuration unchanged, 4 of them ones the reference rejects after writing.
+
+## D206. MSP hardware writes (2026-10-15)
+
+`Adaflight.MSP_Hardware_In` contains the MSP in messages that write the mixer type with the yaw
+motor reversal, the sensor hardware selections, the motor limits, pole count, bidirectional DShot
+and motor KV, the GPS link, the compass declination, and the GPS rescue with its autopilot limits
+and controller gains, under the same whole-request range check as D203. Each optional group is
+read whole when the bytes remaining at its position cover it and skipped otherwise, so a later
+group can follow a skipped one at the same position, as the reference reads them. The mixer type
+has no setting and takes the command line mixer's bounds, one of the 27 named mixers. Gains and
+angles that the reference reads as 16-bit values into 8-bit fields are checked as they arrive. None
+of these messages asks the runtime for work; the mixer and the sensors take a new value at the next
+start.
+
+The harness replays two sequences of 600 lines from the command line oracle, 1108 requests among
+resets and listings: 895 within their ranges, whose results and configuration hashes all match the
+reference's, and 213 outside them, each an error that leaves the configuration unchanged.
