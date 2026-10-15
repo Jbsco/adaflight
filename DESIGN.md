@@ -234,6 +234,15 @@ ledger. The deviations so far:
   more past its 20-byte buffer, and with no function letter for a stored function past the ten
   letters, where the reference reads past its letter table (findings F163). The recorded LED texts
   have 19 characters or fewer.
+- The command line's `vtx` answers a negative condition index with the index range error, where the
+  reference writes the condition before the start of the conditions (findings F165). The recorded
+  command lines keep their indexes at zero or above.
+- The command line's `vtxtable bands` and `vtxtable channels` without a number are the argument
+  count error, where the reference reads a null pointer (findings F166). Band lines and table lists
+  print every frequency and power value in full and read a factory flag without a store, where the
+  reference writes past its text buffers from five digits and writes the flag's value before its
+  frequency buffer (findings F167, F168), and a stored count past eight lists and clears eight. The
+  recorded command lines give every count its number and keep values to four digits.
 
 ## D7. Contribution conventions (2026-10-08)
 
@@ -4029,3 +4038,30 @@ separators and long chunks, color lists and values in and out of range with miss
 components, and mode color lists and writes in and out of range. With the earlier sequences, all
 44586 replies match the reference's byte for byte, and so does the configuration's hash after every
 command.
+
+## D178. Command line VTX settings (2026-10-14)
+
+`Adaflight.Command_Line` gains the `vtx` and `vtxtable` commands. `vtx` alone prints the ten VTX
+channel conditions. With an index it reads the condition's aux channel, band, channel, power and
+range ends from its arguments, each valid one counted: an aux channel below 14, a band, channel and
+power level up to the VTX table's counts, and a range end of any number held to 900 to 2100
+microseconds. Any other count than six clears the condition and is the argument count error.
+
+`vtxtable` alone prints the table: the band and channel counts, a line for each band with its name,
+letter, factory flag and frequencies, and the power level count with the power values and labels.
+Its subcommands set the band count, clearing the bands it drops, the channel count, clearing the
+channels it drops in every band, and the power level count, clearing the values and labels it drops.
+`powervalues` and `powerlabels` take exactly as many words as power levels. `band` takes a band
+number up to the band count, a name of up to 8 characters and a letter, both in upper case, a
+factory or custom flag before the first frequency, and exactly as many frequencies as channels. An
+error leaves the table as it was.
+
+Both commands take only the VTX conditions and the VTX table, and their listing loops have loop
+invariants (D176).
+
+The harness replays two sequences of 2000 command lines recorded from the oracle: condition lists
+and writes in and out of the table's counts, table lists, counts in and out of range with the parts
+they clear, power values and labels of every count, band lines with names, letters, flags and
+frequencies in and out of range, missing parts, and unknown subcommands. With the earlier sequences,
+all 48586 replies match the reference's byte for byte, and so does the configuration's hash after
+every command.
