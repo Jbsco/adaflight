@@ -135,6 +135,7 @@ The core contains:
   save, requests to write, restart and leave
 - scheduler late task statistics: run and late counts per task, anticipated times, late share per
   timing window
+- command line tasks late columns: late and run counts and anticipated time per task
 - core loop cadence: PID loop sample counter, filter and controller readiness, yaw reset at low
   throttle while arming by stick
 - PID loop pass: unit order of task, with launch wing, runaway check, PID audio, servos and flight
@@ -185,7 +186,7 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 23607 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 23613 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
 - Recorded vectors replay bit for bit: 1753568 lines over 384 cases, every case exact except
   forty-five declared deviations in `DESIGN.md` D6.
