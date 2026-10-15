@@ -3,8 +3,9 @@
 --  setting whose name contains a fragment, with its value, profile, range and
 --  default; set lists every setting, or reads a value for one setting by its
 --  name; profile, rateprofile and battery_profile show or select a profile;
---  dump and diff list a profile's or a rate profile's settings. The text goes
---  out through Put into a sink.
+--  dump and diff list a profile's or a rate profile's settings, and dump the
+--  whole configuration as commands; version prints the firmware's version
+--  line. The text goes out through Put into a sink.
 with Interfaces;
 with Adaflight.Config_Groups; use Adaflight.Config_Groups;
 with Adaflight.CLI_Text;
@@ -74,13 +75,43 @@ package Adaflight.Command_Line with SPARK_Mode is
       Abort_Reason  : Interfaces.Unsigned_8 := 0;
    end record;
 
+   --  A name the version line or the board's lines print: up to 32
+   --  characters.
+   Identity_Max : constant := 32;
+   subtype Identity_Length is Natural range 0 .. Identity_Max;
+   type Identity_Text is record
+      Data   : String (1 .. Identity_Max) := (others => ' ');
+      Length : Identity_Length := 0;
+   end record;
+
+   function To_Identity (Text : String) return Identity_Text
+     with Pre  => Text'Length <= Identity_Max,
+          Post => To_Identity'Result.Length = Text'Length;
+
+   --  What the commands report from outside the configuration: the flight
+   --  plan executor's state, the firmware's name, the target's name, the
+   --  version, the build's date, time and revision, and the board's name and
+   --  manufacturer.
+   type Environment is record
+      Navigation      : Navigation_Status;
+      Firmware        : Identity_Text;
+      Target          : Identity_Text;
+      Version         : Identity_Text;
+      Build_Date      : Identity_Text;
+      Build_Time      : Identity_Text;
+      Revision        : Identity_Text;
+      Board_Name      : Identity_Text;
+      Manufacturer_Id : Identity_Text;
+   end record;
+
    --  A typed line without its line end: printable characters past the
    --  leading spaces, up to 255 of them, a comment from the first number sign
    --  and trailing spaces cut, then its command run. Known is false for a
-   --  line naming no command, and for dump and diff of other sections than a
-   --  profile's and a rate profile's.
+   --  line naming no command, for a dump with defaults, for a dump or diff of
+   --  the hardware section or of everything, and for a diff of the master
+   --  section.
    procedure Process_Line
-     (Into : in out Sink; C : in out Configuration; Line : String; Ports : Port_List; Navigation : Navigation_Status;
+     (Into : in out Sink; C : in out Configuration; Line : String; Ports : Port_List; Env : Environment;
       Known : out Boolean; Changes : out Effects)
      with Pre => Valid (Current (C)) and then Ports'Length <= Serial_Feature_Map.Max_Ports;
 
