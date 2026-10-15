@@ -180,6 +180,8 @@ The core contains:
 - menu update: open gesture, sticks read as keys with delay and repeat, external keys, draw,
   heartbeat and drawing transactions per pass
 - arming load check: scheduler's late task share against configured limit as disable reason
+- MSP tuning writes: PID gains, rate tuning, arming, trims, 3D throttle, deadbands, alignments and
+  PID reset, whole-request range check
 - MAVLink telemetry streams with intervals and arming status text, and MAVLink commands with
   replies and requests
 - MAVLink mission protocol with uploads, downloads, fence store and current item reports
@@ -187,10 +189,10 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 23613 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 23820 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
 - Recorded vectors replay bit for bit: 1753568 lines over 384 cases, every case exact except
-  forty-five declared deviations in `DESIGN.md` D6.
+  forty-six declared deviations in `DESIGN.md` D6.
 - No target builds yet. `ROADMAP.md` contains phases, parity inventory, and one question for after
   parity: whether a proved core leaves room on F4 boards for features Betaflight has to leave out
   there.
