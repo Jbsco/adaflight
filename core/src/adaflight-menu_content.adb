@@ -2,6 +2,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
    use type Interfaces.Unsigned_16;
    use type Interfaces.Unsigned_32;
    use type Interfaces.Integer_32;
+   use type Interfaces.Integer_64;
    use type Adaflight.Menu.Element;
 
    subtype Line is Adaflight.Menu.Line;
@@ -103,12 +104,28 @@ package body Adaflight.Menu_Content with SPARK_Mode is
    function Procedure_Name (Index : Natural) return Adaflight.Menu.Label_Text is
      (if Index <= 2 then Procedure_Names (Index) else Label (""));
 
+   --  A thirty-two bit count as a line holds it: the reference's integer
+   --  conversion.
+   function Signed_Word (V : Interfaces.Unsigned_32) return Interfaces.Integer_32 is
+     (if V < 2 ** 31 then Interfaces.Integer_32 (V)
+      else Interfaces.Integer_32 (Interfaces.Integer_64 (V) - 2 ** 32));
+
+   RC_Names : constant array (0 .. 7) of String (1 .. 5) :=
+     ("ROLL ", "PITCH", "THR  ", "YAW  ", "AUX1 ", "AUX2 ", "AUX3 ", "AUX4 ");
+   RC_Name_Lengths : constant array (0 .. 7) of Positive := (4, 5, 3, 3, 4, 4, 4, 4);
+
+   --  The channel each preview line shows: the menu lists the throttle
+   --  before the yaw, the channels come yaw first.
+   RC_Line_Channels : constant array (0 .. 7) of Natural range 0 .. 7 := (0, 1, 3, 2, 4, 5, 6, 7);
+
    function Hooks_Of (Id : Menu_Id) return Adaflight.Menu.Hook_Set is
      (case Id is
          when Quick_Menu  => (Enter => True, Leave => True, Update => False),
          when Main_Menu   => (Enter => True, Leave => False, Update => False),
          when Setup_Popup => (Enter => False, Leave => False, Update => True),
-         when Power_Menu | Failsafe_Menu | RPM_Limit_Menu => (Enter => True, Leave => True, Update => False),
+         when Power_Menu | Failsafe_Menu | RPM_Limit_Menu | Misc_Menu | Persistent_Stats_Menu =>
+            (Enter => True, Leave => True, Update => False),
+         when RC_Preview_Menu => (Enter => True, Leave => True, Update => True),
          when others      => (others => False));
 
    procedure Load (T : Target; Id : Menu_Id; M : out Table) is
@@ -230,6 +247,34 @@ package body Adaflight.Menu_Content with SPARK_Mode is
             Add (Number ("KV", Interfaces.Integer_32 (T.RPM_Limit.KV), 0, 65_535, UInt16));
             Add (Make ("SAVE&REBOOT", OSD_Exit, Has_Func => True, Has_Data => True, Value => 4));
             Add (Make ("BACK", Back));
+         when Misc_Menu =>
+            Add (Make ("-- MISC --", Label));
+            Add (Number ("IDLE OFFSET", Interfaces.Integer_32 (T.Misc.Idle_Offset), 0, 200, Flags => Reboot));
+            Add (Number ("FPV CAM ANGLE", Interfaces.Integer_32 (T.Misc.FPV_Cam_Angle), 0, 90));
+            Add (Number ("CRASHFLIP RATE", Interfaces.Integer_32 (T.Misc.Crashflip_Rate), 0, 100, Flags => Reboot));
+            Add (Sub ("RC PREV", RC_Preview_Menu));
+            Add (Sub ("GPS LAP TIMER", GPS_Lap_Timer_Menu));
+            Add (Make ("BACK", Back));
+         when RC_Preview_Menu =>
+            Add (Make ("-- RC PREV --", Label));
+            for C in RC_Values'Range loop
+               pragma Loop_Invariant
+                 (N = C + 1
+                  and then (for all I in 0 .. N - 1 =>
+                              (if Element_Of (M.Lines (I).Flags) = Fixed then M.Lines (I).Value in 0 .. 255)));
+               Add (Number (RC_Names (C) (1 .. RC_Name_Lengths (C)),
+                            Interfaces.Integer_32 (T.Preview (RC_Line_Channels (C))), 1, 2500, Int16, 0, Dynamic));
+            end loop;
+            Add (Make ("BACK", Back));
+         when Persistent_Stats_Menu =>
+            Add (Make ("-- PERSISTENT STATS --", Label));
+            Add (Number ("FLIGHTS", Signed_Word (T.Stats.Total_Flights), 0, -1, UInt32));
+            Add (Number ("TIME(sec)", Signed_Word (T.Stats.Total_Time_S), 0, -1, UInt32));
+            Add (Number ("DIST(m)", Signed_Word (T.Stats.Total_Dist_M), 0, -1, UInt32));
+            Add (Make ("RESET STATS", Funcall, Has_Func => True));
+            Add (Make ("--- SETTINGS ---", Label));
+            Add (Number ("MIN ARMED TIME(sec)", Interfaces.Integer_32 (T.Stats.Min_Armed_Time), -1, 127, Int8));
+            Add (Make ("BACK", Back));
          when others =>
             Add (Make ("", Label));
       end case;
@@ -294,13 +339,23 @@ package body Adaflight.Menu_Content with SPARK_Mode is
             T.RPM_Limit.Limit := T.Config.Mixer_Config.Rpm_Limit_Value;
             T.RPM_Limit.KV := T.Config.Motor_Config.Kv;
             T.RPM_Limit.Active := T.Config.Mixer_Config.Rpm_Limit;
+         when Misc_Menu =>
+            T.Misc.Idle_Offset := Interfaces.Unsigned_8 ((T.Config.Motor_Config.Motor_Idle / 10) mod 256);
+            T.Misc.FPV_Cam_Angle := T.Config.Rx_Config.Fpv_Cam_Angle_Degrees;
+            T.Misc.Crashflip_Rate := T.Config.Mixer_Config.Crashflip_Rate;
+         when RC_Preview_Menu =>
+            Reply.Inhibit_Save := True;
+         when Persistent_Stats_Menu =>
+            T.Stats.Total_Flights := T.Config.Stats_Config.Stats_Total_Flights;
+            T.Stats.Total_Time_S := T.Config.Stats_Config.Stats_Total_Time_S;
+            T.Stats.Total_Dist_M := T.Config.Stats_Config.Stats_Total_Dist_M;
+            T.Stats.Min_Armed_Time := T.Config.Stats_Config.Stats_Min_Armed_Time_S;
          when others =>
             null;
       end case;
    end On_Enter;
 
    procedure On_Leave (T : in out Target; Id : Menu_Id; Self : Integer; Chain_Back : out Boolean) is
-      pragma Unreferenced (Self);
    begin
       Chain_Back := False;
       if Id = Quick_Menu then
@@ -330,13 +385,23 @@ package body Adaflight.Menu_Content with SPARK_Mode is
          T.Config.Mixer_Config.Rpm_Limit_Value := T.RPM_Limit.Limit;
          T.Config.Motor_Config.Kv := T.RPM_Limit.KV;
          T.Config.Mixer_Config.Rpm_Limit := T.RPM_Limit.Active;
+      elsif Id = Misc_Menu then
+         T.Config.Motor_Config.Motor_Idle := 10 * Interfaces.Unsigned_16 (T.Misc.Idle_Offset);
+         T.Config.Rx_Config.Fpv_Cam_Angle_Degrees := T.Misc.FPV_Cam_Angle;
+         T.Config.Mixer_Config.Crashflip_Rate := T.Misc.Crashflip_Rate;
+      elsif Id = RC_Preview_Menu then
+         Chain_Back := Self /= 9;
+      elsif Id = Persistent_Stats_Menu then
+         T.Config.Stats_Config.Stats_Total_Flights := T.Stats.Total_Flights;
+         T.Config.Stats_Config.Stats_Total_Time_S := T.Stats.Total_Time_S;
+         T.Config.Stats_Config.Stats_Total_Dist_M := T.Stats.Total_Dist_M;
+         T.Config.Stats_Config.Stats_Min_Armed_Time_S := T.Stats.Min_Armed_Time;
       end if;
    end On_Leave;
 
    --  The battery restore line's text: the stored charge in five places,
    --  cut to the reference's eighteen byte buffer.
    function Restore_Text (MAh : Interfaces.Unsigned_32) return Adaflight.Menu.Label_Text is
-      use type Interfaces.Integer_64;
       Signed : constant Interfaces.Integer_64 :=
         (if MAh < 2 ** 31 then Interfaces.Integer_64 (MAh) else Interfaces.Integer_64 (MAh) - 2 ** 32);
       Image  : constant String := Interfaces.Integer_64'Image (Signed);
@@ -349,8 +414,24 @@ package body Adaflight.Menu_Content with SPARK_Mode is
 
    procedure On_Display_Update (T : in out Target; Id : Menu_Id; Selected : Natural; Chain_Back : out Boolean) is
       pragma Unreferenced (Selected);
+
+      --  A channel reading rounded to a whole number with ties to even, as
+      --  the C library rounds.
+      function Whole_Channel (X : RC_Reading) return Interfaces.Integer_16 is
+         R : constant Integer := Integer (X);
+      begin
+         if abs (Float (R) - X) = 0.5 and then R mod 2 /= 0 then
+            return Interfaces.Integer_16 (if X > 0.0 then R - 1 else R + 1);
+         end if;
+         return Interfaces.Integer_16 (R);
+      end Whole_Channel;
    begin
       Chain_Back := False;
+      if Id = RC_Preview_Menu then
+         for C in RC_Values'Range loop
+            T.Preview (C) := Whole_Channel (T.Live.RC_Data (C));
+         end loop;
+      end if;
       if Id = Setup_Popup then
          T.Popup.Acc_Status :=
            Label (if not T.Live.Acc_Calibration_Complete then "  ACTIVE"
@@ -383,6 +464,13 @@ package body Adaflight.Menu_Content with SPARK_Mode is
                   Reply.Done := Adaflight.Menu.Changed;
                   Reply.Target := Calibrate_Acc_Menu;
                end if;
+            elsif Id = Persistent_Stats_Menu then
+               T.Stats.Total_Flights := 0;
+               T.Stats.Total_Time_S := 0;
+               T.Stats.Total_Dist_M := 0;
+               Reply.Screens := 2;
+               Reply.Screen (1).Kind := Adaflight.Menu.Clear_Wait;
+               Reply.Screen (2).Kind := Adaflight.Menu.Redraw;
             elsif Id = Setup_Popup then
                if T.Asked.MAh_Restores < Natural'Last then
                   T.Asked.MAh_Restores := T.Asked.MAh_Restores + 1;
@@ -398,7 +486,6 @@ package body Adaflight.Menu_Content with SPARK_Mode is
    end Line_Call;
 
    procedure Set_Value (T : in out Target; Id : Menu_Id; Line : Natural; Value : Interfaces.Integer_32) is
-      use type Interfaces.Integer_64;
       Byte  : constant Interfaces.Unsigned_8 := Interfaces.Unsigned_8 (Value mod 256);
       Word  : constant Interfaces.Unsigned_16 := Interfaces.Unsigned_16 (Value mod 65_536);
       Short : constant Interfaces.Integer_16 :=
@@ -424,6 +511,22 @@ package body Adaflight.Menu_Content with SPARK_Mode is
             when 2 => T.Failsafe.Guard_Time := Byte;
             when 3 => T.Failsafe.Landing_Time := Byte;
             when 4 => T.Failsafe.Throttle := Word;
+            when others => null;
+         end case;
+      elsif Id = Misc_Menu then
+         case Line is
+            when 1 => T.Misc.Idle_Offset := Byte;
+            when 2 => T.Misc.FPV_Cam_Angle := Byte;
+            when 3 => T.Misc.Crashflip_Rate := Byte;
+            when others => null;
+         end case;
+      elsif Id = Persistent_Stats_Menu then
+         case Line is
+            when 1 => T.Stats.Total_Flights := Interfaces.Unsigned_32'Mod (Value);
+            when 2 => T.Stats.Total_Time_S := Interfaces.Unsigned_32'Mod (Value);
+            when 3 => T.Stats.Total_Dist_M := Interfaces.Unsigned_32'Mod (Value);
+            when 6 => T.Stats.Min_Armed_Time :=
+                 Interfaces.Integer_8 ((Interfaces.Integer_64 (Value) + 128) mod 256 - 128);
             when others => null;
          end case;
       elsif Id = RPM_Limit_Menu then

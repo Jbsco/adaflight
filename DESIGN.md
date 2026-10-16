@@ -5584,3 +5584,24 @@ walks deeper with fewer escape and save keys. The harness replays 240 sessions w
 19513 draws, 962 of their states in the power menu, 320 in the failsafe menu and 3772 in the RPM limit
 menu: every display operation, menu context, page, request and configuration hash matches the
 reference's.
+
+## D239. Misc, RC preview and persistent statistics menus (2026-10-15)
+
+A hook's answer in `Adaflight.Menu` gains the display operations the hook made, up to six clears that
+wait, texts and redraws, and the save menu's inhibition. The navigation carries them out after the
+hook returns and before the menu change or exit the hook made, in the order the reference's hooks
+make them inside the call. The proof shape's hooks answer with operations of every kind.
+
+`Adaflight.Menu_Content` gains the misc menu, which copies the motor idle offset in tens, cut to a
+byte as the reference's copy is, the camera angle and the crash flip rate, with lines into the RC
+preview and into the GPS lap timer of a later slice. The RC preview inhibits the save menu on entry,
+rounds the eight channels to whole numbers with ties to even at each display update, shows them as
+values the keys leave alone, and lets the way back through only from its back line. Its lines list
+the throttle before the yaw, while the channels come yaw first. The persistent statistics menu
+copies the flight, time and distance totals and the minimum armed time, and its reset line zeroes
+the totals and clears and redraws the display.
+
+The menu contents oracle draws the new settings, and eight channel readings with quarter fractions
+at every draw. The harness replays 240 sessions with 19788 keys and 19788 draws, 1722 of their states
+in the misc menu, 1076 in the RC preview and 274 in the persistent statistics menu: every display
+operation, menu context, page, request and configuration hash matches the reference's.

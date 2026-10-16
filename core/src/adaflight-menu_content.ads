@@ -1,6 +1,7 @@
 --  The menu system's menus: their numbers, and the lines and hooks of the
 --  quick menu, the main menu with its features menu and setup popup, the
---  save menus, and the power, failsafe and RPM limit menus, over the
+--  save menus, the power, failsafe and RPM limit menus, and the misc menu
+--  with its RC preview and the persistent statistics menu, over the
 --  target's state: the configuration, the readings the setup popup shows,
 --  the menus' copies of the settings they edit, the setup popup's lines,
 --  and the requests to the runtime. The menus of later slices have their
@@ -31,6 +32,13 @@ package Adaflight.Menu_Content with SPARK_Mode is
    Calibrate_Acc_Menu    : constant Menu_Id := 14;
    Quick_Menu            : constant Menu_Id := 15;
    RPM_Limit_Menu        : constant Menu_Id := 16;
+   RC_Preview_Menu       : constant Menu_Id := 17;
+   GPS_Lap_Timer_Menu    : constant Menu_Id := 18;
+
+   --  The RC channels the preview shows: roll, pitch, throttle, yaw and the
+   --  first four auxiliary channels.
+   subtype RC_Reading is Float range -30_000.0 .. 30_000.0;
+   type RC_Channels is array (0 .. 7) of RC_Reading;
 
    PID_Profile_Count     : constant := 4;
    Rate_Profile_Count    : constant := 4;
@@ -46,6 +54,7 @@ package Adaflight.Menu_Content with SPARK_Mode is
       Acc_Calibrated           : Boolean := False;
       Used_MAh                 : Boolean := False;
       Reboot_Required          : Boolean := False;
+      RC_Data                  : RC_Channels := (others => 0.0);
    end record;
 
    --  The quick menu's copies of the rate and battery profiles and of the
@@ -92,6 +101,26 @@ package Adaflight.Menu_Content with SPARK_Mode is
       KV     : Interfaces.Unsigned_16 := 0;
    end record;
 
+   --  The misc menu's copies of the idle offset in tens, the camera angle
+   --  and the crash flip rate.
+   type Misc_Copies is record
+      Idle_Offset    : Interfaces.Unsigned_8 := 0;
+      FPV_Cam_Angle  : Interfaces.Unsigned_8 := 0;
+      Crashflip_Rate : Interfaces.Unsigned_8 := 0;
+   end record;
+
+   --  The RC preview's channels, rounded at its last update.
+   type RC_Values is array (0 .. 7) of Interfaces.Integer_16;
+
+   --  The persistent statistics menu's copies of the totals and the
+   --  minimum armed time.
+   type Stats_Copies is record
+      Total_Flights  : Interfaces.Unsigned_32 := 0;
+      Total_Time_S   : Interfaces.Unsigned_32 := 0;
+      Total_Dist_M   : Interfaces.Unsigned_32 := 0;
+      Min_Armed_Time : Interfaces.Integer_8 := 0;
+   end record;
+
    --  The setup popup's lines from its last build, with the calibration
    --  status and the battery restore text from its last update.
    type Popup_Lines is record
@@ -117,6 +146,9 @@ package Adaflight.Menu_Content with SPARK_Mode is
       Power     : Power_Copies;
       Failsafe  : Failsafe_Copies;
       RPM_Limit : RPM_Limit_Copies;
+      Misc      : Misc_Copies;
+      Preview   : RC_Values := (others => 0);
+      Stats     : Stats_Copies;
       Popup     : Popup_Lines;
       Asked     : Requests;
    end record;
