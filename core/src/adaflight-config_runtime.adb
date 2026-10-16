@@ -190,6 +190,56 @@ package body Adaflight.Config_Runtime with SPARK_Mode is
       return S;
    end Special_Colors_Of;
 
+   --  The stored statistics flags, each statistic's bit.
+   function Stat_Set_Of (Mask : Unsigned_32) return OSD_Stats.Stat_Set is
+      S : OSD_Stats.Stat_Set;
+   begin
+      for I in OSD_Stats.Stat loop
+         S (I) := (Mask and Shift_Left (1, OSD_Stats.Stat'Pos (I))) /= 0;
+      end loop;
+      return S;
+   end Stat_Set_Of;
+
+   --  The stored warning flags, each warning's bit.
+   function Warning_Set_Of (Mask : Unsigned_32) return OSD_Warnings.Warning_Set is
+      W : OSD_Warnings.Warning_Set;
+   begin
+      for I in OSD_Warnings.Warning_Kind loop
+         W (I) := (Mask and Shift_Left (1, OSD_Warnings.Warning_Kind'Pos (I))) /= 0;
+      end loop;
+      return W;
+   end Warning_Set_Of;
+
+   --  A stored name: its bytes as characters up to the first NUL.
+   function Name_Of (B : Bytes_17) return OSD_Render.Name is
+      N : OSD_Render.Name;
+   begin
+      for I in 1 .. OSD_Render.Max_Name loop
+         exit when B (I - 1) = 0;
+         N.Data (I) := Character'Val (B (I - 1));
+         N.Length := I;
+      end loop;
+      return N;
+   end Name_Of;
+
+   function Names_Of (P : Bytes_17_List_3) return OSD_Render.Profile_Names is
+      Names : OSD_Render.Profile_Names;
+   begin
+      for I in Names'Range loop
+         Names (I) := Name_Of (P (I - 1));
+      end loop;
+      return Names;
+   end Names_Of;
+
+   function RC_Channels_Of (R : Integer_8_List_4) return OSD_Render.RC_Channel_Settings is
+      C : OSD_Render.RC_Channel_Settings;
+   begin
+      for I in C'Range loop
+         C (I) := Integer_8 (Held (Integer (R (I)), -1, 17));
+      end loop;
+      return C;
+   end RC_Channels_Of;
+
    function Map_Of (Rcmap : Bytes_8) return Receiver.Channel_Map is
       M : Receiver.Channel_Map;
    begin

@@ -33,6 +33,13 @@ with Adaflight.Mixer;
 with Adaflight.Mixer_Init;
 with Adaflight.Modes;
 with Adaflight.Optical_Flow;
+with Adaflight.OSD_Elements;
+with Adaflight.OSD_Format;
+with Adaflight.OSD_Page;
+with Adaflight.OSD_Render;
+with Adaflight.OSD_Spec;
+with Adaflight.OSD_Stats;
+with Adaflight.OSD_Warnings;
 with Adaflight.PID_Config;
 with Adaflight.PID_Profile; use Adaflight.PID_Profile;
 with Adaflight.Pitot;
@@ -242,6 +249,30 @@ package Adaflight.Config_Runtime with SPARK_Mode is
 
    --  The clock settings from the stored time group.
    function RTC_Settings_Of (T : Time_Config_Record) return RTC.Settings;
+
+   --  The OSD page settings from the stored OSD and OSD element groups,
+   --  with whether the display supports a logo; an element is visible when
+   --  its position shows it in the stored profile.
+   function OSD_Page_Settings_Of
+     (O : Osd_Config_Record; E : Osd_Element_Config_Record; Logo_Supported : Boolean) return OSD_Page.Settings;
+
+   --  The OSD render settings from the stored OSD and VTX settings groups;
+   --  a profile name is the stored text up to its first NUL.
+   function OSD_Render_Settings_Of (O : Osd_Config_Record; V : Vtx_Settings_Config_Record) return OSD_Render.Settings;
+
+   --  The OSD specification settings from the stored mixer and motor
+   --  groups, the current rate, PID and battery profiles.
+   function OSD_Spec_Settings_Of
+     (M : Mixer_Config_Record; Motor : Motor_Config_Record; Rate : Control_Rate_Config_Record;
+      P : Pid_Profile_Record; B : Battery_Profile_Record) return OSD_Spec.Settings;
+
+   --  The OSD warning settings from the stored OSD group; each warning's
+   --  flag is its bit.
+   function OSD_Warnings_Settings_Of (O : Osd_Config_Record) return OSD_Warnings.Settings;
+
+   --  The OSD element alarm settings from the stored OSD and GPS rescue
+   --  groups.
+   function OSD_Alarm_Settings_Of (O : Osd_Config_Record; R : Gps_Rescue_Record) return OSD_Elements.Alarm_Settings;
 
 private
 
@@ -850,6 +881,101 @@ private
 
    function RTC_Settings_Of (T : Time_Config_Record) return RTC.Settings is
      (Zone => Integer_16 (Held (Integer (T.Tz_Offset_Minutes), -780, 780)));
+
+   function Stat_Set_Of (Mask : Unsigned_32) return OSD_Stats.Stat_Set;
+   function Warning_Set_Of (Mask : Unsigned_32) return OSD_Warnings.Warning_Set;
+   function Names_Of (P : Bytes_17_List_3) return OSD_Render.Profile_Names;
+   function RC_Channels_Of (R : Integer_8_List_4) return OSD_Render.RC_Channel_Settings;
+
+   function Unit_System_Of (Code_Value : Unsigned_8) return OSD_Format.Unit_System is
+     (OSD_Format.Unit_System'Val (Code (Code_Value, OSD_Format.Unit_System'Pos (OSD_Format.Unit_System'Last))));
+
+   function Timers_Of (T : Unsigned_16_List_2) return OSD_Elements.Timer_Settings is (0 => T (0), 1 => T (1));
+
+   function Item_Visible (E : Osd_Element_Config_Record; I : OSD_Elements.Item; Profile_Code : Unsigned_8)
+     return Boolean is
+     (OSD_Elements.Visible_In_Profile (E.Item_Pos (OSD_Elements.Item'Pos (I)), Held (Integer (Profile_Code), 1, 3)));
+
+   function OSD_Page_Settings_Of
+     (O : Osd_Config_Record; E : Osd_Element_Config_Record; Logo_Supported : Boolean) return OSD_Page.Settings is
+     (Rows                 => O.Canvas_Rows,
+      Cols                 => O.Canvas_Cols,
+      Enabled              => Stat_Set_Of (O.Enabled_Stats),
+      Logo_On_Arming       => Held (Integer (O.Logo_On_Arming), 0, 2),
+      Logo_Duration_Tenths => O.Logo_On_Arming_Duration,
+      Arming_Logo          => Held (Integer (O.Arming_Logo), 0, OSD_Page.Font'Last),
+      Logo_Supported       => Logo_Supported,
+      Aux_Scale            => O.Aux_Scale,
+      Aux_Visible          => Item_Visible (E, OSD_Elements.Aux_Value, O.Osd_Profile_Index),
+      G_Force_Visible      => Item_Visible (E, OSD_Elements.G_Force, O.Osd_Profile_Index),
+      Warnings_Visible     => Item_Visible (E, OSD_Elements.Warnings, O.Osd_Profile_Index));
+
+   function OSD_Render_Settings_Of (O : Osd_Config_Record; V : Vtx_Settings_Config_Record) return OSD_Render.Settings is
+     (Units                => Unit_System_Of (O.Units),
+      Alt_Alarm            => O.Alt_Alarm,
+      Cap_Alarm            => O.Cap_Alarm,
+      RSSI_Alarm           => O.Rssi_Alarm,
+      RSSI_Dbm_Alarm       => O.Rssi_Dbm_Alarm,
+      Timers               => Timers_Of (O.Timers),
+      Aux_Symbol           => O.Aux_Symbol,
+      Link_Quality_Alarm   => O.Link_Quality_Alarm,
+      Show_PDOP            => O.Gps_Sats_Show_Pdop /= 0,
+      OSD_Profile_Index    => Held (Integer (O.Osd_Profile_Index), 1, 3),
+      OSD_Profile_Names    => Names_Of (O.Profile),
+      Framerate_Hz         => Unsigned_16 (Held (Integer (O.Framerate_Hz), 1, 60)),
+      AH_Max_Pitch         => O.Ah_Max_Pitch,
+      AH_Max_Roll          => O.Ah_Max_Roll,
+      AH_Invert            => O.Ah_Invert /= 0,
+      Overlay_Radio_Mode   => Held (Integer (O.Overlay_Radio_Mode), 1, 4),
+      RC_Channels          => RC_Channels_Of (O.Rc_Channels),
+      Camera_Frame_Width   => O.Camera_Frame_Width,
+      Camera_Frame_Height  => O.Camera_Frame_Height,
+      VTX_Band             => V.Band,
+      VTX_Channel          => V.Channel,
+      VTX_Frequency        => V.Freq,
+      VTX_Power            => V.Power,
+      VTX_Low_Power_Disarm => V.Low_Power_Disarm);
+
+   function OSD_Spec_Settings_Of
+     (M : Mixer_Config_Record; Motor : Motor_Config_Record; Rate : Control_Rate_Config_Record;
+      P : Pid_Profile_Record; B : Battery_Profile_Record) return OSD_Spec.Settings is
+     (RPM_Limit              => M.Rpm_Limit,
+      RPM_Limit_Value        => M.Rpm_Limit_Value,
+      RPM_Limit_P            => M.Rpm_Limit_P,
+      RPM_Limit_I            => M.Rpm_Limit_I,
+      RPM_Limit_D            => M.Rpm_Limit_D,
+      KV                     => Motor.Kv,
+      Pole_Count             => Motor.Motor_Pole_Count,
+      Throttle_Limit         => Code (Rate.Throttle_Limit_Type, OSD_Spec.Throttle_Limit_Kind'Last),
+      Throttle_Limit_Percent => Rate.Throttle_Limit_Percent,
+      Motor_Output_Limit     => P.Motor_Output_Limit,
+      Min_Cell               => B.Vbatmincellvoltage,
+      Max_Cell               => B.Vbatmaxcellvoltage);
+
+   function OSD_Warnings_Settings_Of (O : Osd_Config_Record) return OSD_Warnings.Settings is
+     (Enabled            => Warning_Set_Of (O.Enabled_Warnings),
+      Units              => Unit_System_Of (O.Units),
+      RSSI_Alarm         => Held (Integer (O.Rssi_Alarm), 0, 100),
+      RSSI_Dbm_Alarm     => Held (Integer (O.Rssi_Dbm_Alarm), -130, 0),
+      RSNR_Alarm         => Held (Integer (O.Rsnr_Alarm), -30, 20),
+      Link_Quality_Alarm => Held (Integer (O.Link_Quality_Alarm), 0, 100),
+      Core_Temp_Alarm    => Integer (O.Core_Temp_Alarm),
+      Cap_Alarm          => Held (Integer (O.Cap_Alarm), 0, 20_000),
+      ESC_RPM_Alarm      => Held (Integer (O.Esc_Rpm_Alarm), OSD_Warnings.Alarm_Off, 32_767),
+      ESC_Current_Alarm  => Held (Integer (O.Esc_Current_Alarm), OSD_Warnings.Alarm_Off, 32_767),
+      ESC_Temp_Alarm     => Integer (O.Esc_Temp_Alarm));
+
+   function OSD_Alarm_Settings_Of (O : Osd_Config_Record; R : Gps_Rescue_Record) return OSD_Elements.Alarm_Settings is
+     (Units              => Unit_System_Of (O.Units),
+      RSSI_Alarm         => O.Rssi_Alarm,
+      RSSI_Dbm_Alarm     => O.Rssi_Dbm_Alarm,
+      Link_Quality_Alarm => O.Link_Quality_Alarm,
+      Timers             => Timers_Of (O.Timers),
+      Cap_Alarm          => O.Cap_Alarm,
+      Alt_Alarm          => O.Alt_Alarm,
+      Distance_Alarm     => O.Distance_Alarm,
+      ESC_Temp_Alarm     => O.Esc_Temp_Alarm,
+      Rescue_Min_Sats    => R.Min_Sats);
 
    function Gyro_Settings_Of
      (G : Gyro_Config_Record; N : Dyn_Notch_Config_Record; R : Rpm_Filter_Config_Record;

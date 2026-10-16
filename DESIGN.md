@@ -4347,6 +4347,15 @@ settings from the stored optical flow and pitot groups; `Gimbal_Settings_Of` bui
 `Gimbal_Control.Settings` from the stored gimbal tracking and receiver groups, with whether a serial
 port has the gimbal function; and `RTC_Settings_Of` builds `RTC.Settings` from the stored time group.
 
+`OSD_Page_Settings_Of` builds `OSD_Page.Settings` from the stored OSD and OSD element groups, with
+whether the display supports a logo; an element is visible when its stored position shows it in the
+stored profile. `OSD_Render_Settings_Of` builds `OSD_Render.Settings` from the stored OSD and VTX
+settings groups, a profile name being the stored text up to its first NUL. `OSD_Spec_Settings_Of`
+builds `OSD_Spec.Settings` from the stored mixer and motor groups and the current rate, PID and
+battery profiles. `OSD_Warnings_Settings_Of` builds `OSD_Warnings.Settings` from the stored OSD
+group, each warning's flag from its bit, and `OSD_Alarm_Settings_Of` builds the elements' alarm
+settings from the stored OSD and GPS rescue groups.
+
 The harness builds the four PID profiles and the four rate profiles of every fixed configuration in
 the configuration fix recordings, 16000 of each, and the gyro settings of each with a running gyro
 and motors, 3082, with the preconditions and the predicates checked at run time, and compares the
@@ -4375,10 +4384,11 @@ The harness builds the four PID profiles and the four rate profiles of every fix
 the configuration fix recordings, 16000 of each, the arming, failsafe, receiver, adjustment, mixer,
 attitude, barometer, compass, battery, beeper, GPS link, GPS rescue, position control, position
 estimator, position hold, altitude control, altitude hold, flight plan, blackbox, scheduler, LED
-strip, VTX, statistics, lap timer, rangefinder, optical flow, pitot, gimbal and clock settings and
-the mode conditions of each, 4000 of each, and the gyro, RC command and accelerometer settings of
-each with a running gyro and motors, 3082, with the preconditions and the predicates checked at run
-time, and compares one field of each. The analog endpoints replay 235 recorded motor and 3D settings from
+strip, VTX, statistics, lap timer, rangefinder, optical flow, pitot, gimbal, clock, OSD page, OSD
+render, OSD specification, OSD warning and OSD alarm settings and the mode conditions of each, 4000
+of each, and the gyro, RC command and accelerometer settings of each with a running gyro and motors,
+3082, with the preconditions and the predicates checked at run time, and compares one field of
+each. The analog endpoints replay 235 recorded motor and 3D settings from
 the DShot oracle bit for bit, 70 of them with an inverted range (findings F181).
 
 ## D189. Command line batches (2026-10-14)

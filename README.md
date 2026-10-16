@@ -132,8 +132,8 @@ The core contains:
 - runtime records from stored configuration: PID profile, rate profile, gyro, arming, failsafe,
   receiver, RC command, adjustment, mixer, accelerometer, attitude, barometer, compass, battery,
   beeper, GPS link, GPS rescue, position, altitude, flight plan, blackbox, scheduler, LED strip,
-  VTX, statistics, lap timer, rangefinder, optical flow, pitot, gimbal and clock settings and mode
-  conditions with range holds, fix's postcondition as precondition
+  VTX, statistics, lap timer, rangefinder, optical flow, pitot, gimbal, clock and OSD settings and
+  mode conditions with range holds, fix's postcondition as precondition
 - analog motor endpoints: output range and disarm output of PWM, OneShot, MultiShot and brushed
   protocols, with 3D limits and deadband
 - MSP state replies: status, sensor readings, motors, RC channels, attitude, altitudes, battery,
@@ -161,7 +161,7 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 22903 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 22954 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
 - Recorded vectors replay bit for bit: 1753568 lines over 384 cases, every case exact except
   forty-two declared deviations in `DESIGN.md` D6.
