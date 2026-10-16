@@ -4306,6 +4306,14 @@ protocol's range is zero to one. The motors in use and their mix come from
 `Mixer_Init.Configure_Output`, over a mode outside the table read as quad X and weights that are not
 numbers read as zero; a custom mix without motors reads as one motor with a zero mix (D6).
 
+`Accelerometer_Settings_Of` builds `Accelerometer.Settings` from the stored accelerometer, gyro
+device and board alignment groups, with the hardware's sample rate and counts per g; the alignment
+is the first gyro's, since the boards use one chip for both. `Attitude_Settings_Of` builds
+`Attitude.Settings` from the stored IMU and throttle correction groups, `Barometer_Settings_Of`
+builds `Barometer.Settings` from the stored barometer group, with the virtual device from the
+hardware code, and `Compass_Settings_Of` builds `Compass.Settings` from the stored compass and board
+alignment groups.
+
 The harness builds the four PID profiles and the four rate profiles of every fixed configuration in
 the configuration fix recordings, 16000 of each, and the gyro settings of each with a running gyro
 and motors, 3082, with the preconditions and the predicates checked at run time, and compares the
@@ -4331,10 +4339,10 @@ plain GPS rescue stage of a build without the flight plan is in the state machin
 as in the reference's build with it.
 
 The harness builds the four PID profiles and the four rate profiles of every fixed configuration in
-the configuration fix recordings, 16000 of each, the arming, failsafe, receiver, adjustment and mixer
-settings and the mode conditions of each, 4000 of each, and the gyro and RC command settings of each
-with a running gyro and motors, 3082, with the preconditions and the predicates checked at run time,
-and compares one field of each. The analog endpoints replay 235 recorded motor and 3D settings from
+the configuration fix recordings, 16000 of each, the arming, failsafe, receiver, adjustment, mixer,
+attitude, barometer and compass settings and the mode conditions of each, 4000 of each, and the gyro,
+RC command and accelerometer settings of each with a running gyro and motors, 3082, with the
+preconditions and the predicates checked at run time, and compares one field of each. The analog endpoints replay 235 recorded motor and 3D settings from
 the DShot oracle bit for bit, 70 of them with an inverted range (findings F181).
 
 ## D189. Command line batches (2026-10-14)

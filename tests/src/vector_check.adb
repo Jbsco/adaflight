@@ -14134,6 +14134,12 @@ procedure Vector_Check is
               C.Control_Rate_Profiles (Natural (C.System_Config.Active_Rate_Profile)),
               C.Pid_Profiles (Natural (C.System_Config.Pid_Profile_Index)), C.Custom_Motor_Mixer, Runtime,
               (others => <>));
+         IM : constant Adaflight.Attitude.Settings :=
+           Adaflight.Config_Runtime.Attitude_Settings_Of (C.Imu_Config, C.Throttle_Correction_Config);
+         BS : constant Adaflight.Barometer.Settings :=
+           Adaflight.Config_Runtime.Barometer_Settings_Of (C.Barometer_Config);
+         CS : constant Adaflight.Compass.Settings :=
+           Adaflight.Config_Runtime.Compass_Settings_Of (C.Compass_Config, C.Board_Alignment);
       begin
          Record_Int ("conffix.arming_min_check",
                      Integer_64 (Interfaces.Unsigned_16'Max
@@ -14158,6 +14164,12 @@ procedure Vector_Check is
                                       (Natural (C.System_Config.Active_Rate_Profile)).Throttle_Limit_Percent))),
                      Integer_64 (MX.Throttle_Limit_Percent));
          Record_Int ("conffix.mixer_range", 1, Boolean'Pos (MX.Output_Low < MX.Output_High));
+         Record_Int ("conffix.attitude_kp", Integer_64 (Interfaces.Unsigned_16'Min (32_000, C.Imu_Config.Imu_Dcm_Kp)),
+                     Integer_64 (IM.DCM_Kp));
+         Record_Int ("conffix.baro_virtual", Boolean'Pos (C.Barometer_Config.Baro_Hardware = 13),
+                     Boolean'Pos (BS.Virtual_Device));
+         Record_Int ("conffix.compass_zero", Integer_64 (C.Compass_Config.Mag_Zero (0)),
+                     Integer_64 (CS.Zero (Adaflight.Vectors.X)));
       end;
       if H.Gyro_Sample_Rate_Hz in 10 .. 10_000 and then H.Motors in 1 .. 8
         and then Integer (1_000_000 / H.Gyro_Sample_Rate_Hz) * Integer (C.Pid_Config.Pid_Process_Denom)
@@ -14172,6 +14184,9 @@ procedure Vector_Check is
               (C.Rx_Config, C.Rc_Controls_Config,
                C.Control_Rate_Profiles (Natural (C.System_Config.Active_Rate_Profile)), C.Pid_Config,
                Integer (1_000_000 / H.Gyro_Sample_Rate_Hz));
+            AC : constant Adaflight.Accelerometer.Settings := Adaflight.Config_Runtime.Accelerometer_Settings_Of
+              (C.Accelerometer_Config, C.Gyro_Device_Config (0), C.Board_Alignment, Integer (H.Gyro_Sample_Rate_Hz),
+               256);
          begin
             Record_Int ("conffix.gyro_lpf1",
                         Integer_64 (Interfaces.Unsigned_16'Min (1000, C.Gyro_Config.Gyro_Lpf1_Static_Hz)),
@@ -14180,6 +14195,9 @@ procedure Vector_Check is
                         Integer_64 (Interfaces.Unsigned_8'Min (32, C.Rc_Controls_Config.Deadband)),
                         Integer_64 (RC.Controls.Deadband));
             Record_Int ("conffix.rc_loop_time", Integer_64 (G.Loop_Time_Us), Integer_64 (RC.Loop_Time));
+            Record_Int ("conffix.acc_lpf",
+                        Integer_64 (Interfaces.Unsigned_16'Min (1000, C.Accelerometer_Config.Acc_Lpf_Hz)),
+                        Integer_64 (AC.Lowpass_Hz));
          end;
       end if;
       Codec.Encode (C, Output);
