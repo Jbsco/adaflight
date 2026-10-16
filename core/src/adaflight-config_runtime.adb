@@ -1,5 +1,28 @@
 package body Adaflight.Config_Runtime with SPARK_Mode is
 
+   Last_Box : constant Natural := Modes.Box'Pos (Modes.Box'Last);
+
+   --  A stored condition: its range held to the steps, its aux channel to
+   --  the channels, its logic to the two, its link to a box or none.
+   function Condition_Of (M : Mode_Activation_Condition_Record) return Modes.Condition is
+     (if Natural (M.Mode_Id) > Last_Box then Modes.Empty
+      else
+        (Mode      => Modes.Box'Val (M.Mode_Id),
+         Aux       => Held (Integer (M.Aux_Channel_Index), 0, Modes.Aux_Channel_Count - 1),
+         Span      => (Start_Step => Held (Integer (M.Range_Value.Start_Step), 0, Modes.Max_Range_Step),
+                       End_Step   => Held (Integer (M.Range_Value.End_Step), 0, Modes.Max_Range_Step)),
+         Combine   => Modes.Logic'Val (Code (M.Mode_Logic, 1)),
+         Linked_To => (if Natural (M.Linked_To) > Last_Box then Modes.Arm else Modes.Box'Val (M.Linked_To))));
+
+   function Conditions_Of (C : Mode_Activation_Condition_Record_List_20) return Modes.Conditions is
+      R : Modes.Conditions;
+   begin
+      for I in R'Range loop
+         R (I) := Condition_Of (C (I));
+      end loop;
+      return R;
+   end Conditions_Of;
+
    function Map_Of (Rcmap : Bytes_8) return Receiver.Channel_Map is
       M : Receiver.Channel_Map;
    begin

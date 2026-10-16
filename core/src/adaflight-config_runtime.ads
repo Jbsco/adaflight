@@ -3,6 +3,7 @@
 --  foreign image, and each code to its names. The order rules the runtime
 --  predicates need come from the configuration fix.
 with Interfaces; use Interfaces;
+with Adaflight.Arming;
 with Adaflight.Axes; use Adaflight.Axes;
 with Adaflight.Config_Fix;
 with Adaflight.Config_Groups; use Adaflight.Config_Groups;
@@ -10,6 +11,8 @@ with Adaflight.Dyn_Notch;
 with Adaflight.Failsafe;
 with Adaflight.Gyro_Filters;
 with Adaflight.Mixer;
+with Adaflight.Mixer_Init;
+with Adaflight.Modes;
 with Adaflight.PID_Config;
 with Adaflight.PID_Profile; use Adaflight.PID_Profile;
 with Adaflight.Rates;
@@ -25,6 +28,19 @@ package Adaflight.Config_Runtime with SPARK_Mode is
    --  The rate profile from a stored rate profile; the rates have no order
    --  rule, so nothing is asked of the fix.
    function Rate_Profile_Of (R : Control_Rate_Config_Record) return Rates.Profile;
+
+   --  The arming settings from the stored arming, system, receiver, 3D,
+   --  mixer and PID loop groups, the current PID profile, the features in
+   --  use and the sensors found at boot.
+   function Arming_Settings_Of
+     (A : Arming_Config_Record; Sys : System_Config_Record; R : Rx_Config_Record;
+      Flight_3D : Flight3_D_Config_Record; Mixer_Mode : Unsigned_8; Loop_Rate : Pid_Config_Record;
+      P : Pid_Profile_Record; Features : Unsigned_32; Sensors : Arming.Sensor_Set) return Arming.Settings;
+
+   --  The mode conditions from the stored ones. A mode outside the box
+   --  table makes a condition that is never active, and a link outside it
+   --  no link (D6).
+   function Conditions_Of (C : Mode_Activation_Condition_Record_List_20) return Modes.Conditions;
 
    --  The failsafe settings from the stored failsafe group and the
    --  autopilot's loss policy.
@@ -198,6 +214,37 @@ private
       Throttle_Mid   => Held (Integer (R.Thr_Mid8), 0, 100),
       Throttle_Expo  => Held (Integer (R.Thr_Expo8), 0, 100),
       Throttle_Hover => Held (Integer (R.Thr_Hover8), 0, 100));
+
+   function Arming_Settings_Of
+     (A : Arming_Config_Record; Sys : System_Config_Record; R : Rx_Config_Record;
+      Flight_3D : Flight3_D_Config_Record; Mixer_Mode : Unsigned_8; Loop_Rate : Pid_Config_Record;
+      P : Pid_Profile_Record; Features : Unsigned_32; Sensors : Arming.Sensor_Set) return Arming.Settings is
+     (Gyro_Cal_On_First_Arm      => A.Gyro_Cal_On_First_Arm /= 0,
+      Auto_Disarm_Delay          => Integer (A.Auto_Disarm_Delay),
+      Prearm_Allow_Rearm         => A.Prearm_Allow_Rearm /= 0,
+      Boot_Grace_Time            => Integer (Sys.Power_On_Arming_Grace_Time),
+      Stick_Arming               => Sys.Enable_Stick_Arming /= 0,
+      Mid_RC                     => Held (Integer (R.Midrc), 1_200, 1_700),
+      Min_Check                  => Held (Integer (R.Mincheck), 750, 2_250),
+      Max_Check                  => Held (Integer (R.Maxcheck), 750, 2_250),
+      Airmode_Threshold          => Held (Integer (R.Air_Mode_Activate_Threshold), 0, 100),
+      Three_D                    => (Features and Config_Fix.Feature_3D) /= 0,
+      Switched_Mode_3D           => Flight_3D.Switched_Mode3d /= 0,
+      Deadband_3D_Throttle       => Held (Integer (Flight_3D.Deadband3d_Throttle), 0, 1_000),
+      Motor_Stop                 => (Features and Config_Fix.Feature_Motor_Stop) /= 0,
+      Airmode_Feature            => (Features and Config_Fix.Feature_Airmode) /= 0,
+      Anti_Gravity_Feature       => (Features and Config_Fix.Feature_Anti_Gravity) /= 0,
+      Fixed_Wing                 =>
+        Mixer_Mode in 1 .. Mixer_Init.Mixer_Mode'Pos (Mixer_Init.Mixer_Mode'Last) + 1
+        and then Mixer_Init.Is_Fixed_Wing (Mixer_Init.Mixer_Mode'Val (Mixer_Mode - 1)),
+      PID_At_Min_Throttle        => P.Pid_At_Min_Throttle /= 0,
+      Launch_Control_Angle_Limit => Held (Integer (P.Launch_Control_Angle_Limit), 0, 90),
+      Launch_Trigger_Throttle    => Held (Integer (P.Launch_Control_Throttle_Percent), 0, 100),
+      Launch_Trigger_Reset       => P.Launch_Control_Allow_Trigger_Reset /= 0,
+      Runaway_Prevention         => Loop_Rate.Runaway_Takeoff_Prevention /= 0,
+      Runaway_Deactivate_Delay   => Held (Integer (Loop_Rate.Runaway_Takeoff_Deactivate_Delay), 100, 1_000),
+      Runaway_Deactivate_Throttle => Held (Integer (Loop_Rate.Runaway_Takeoff_Deactivate_Throttle), 0, 100),
+      Sensors                    => Sensors);
 
    function Failsafe_Settings_Of (F : Failsafe_Config_Record; A : Autopilot_Config_Record) return Failsafe.Settings is
      (Throttle_Low_Delay => Held (Integer (F.Failsafe_Throttle_Low_Delay), 0, 300),

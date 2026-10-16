@@ -17,6 +17,7 @@ package Adaflight.Config_Fix with SPARK_Mode is
    Feature_RX_PPM          : constant Unsigned_32 := 16#0000_0001#;
    Feature_RX_UDP          : constant Unsigned_32 := 16#0000_0002#;
    Feature_RX_Serial       : constant Unsigned_32 := 16#0000_0008#;
+   Feature_Motor_Stop      : constant Unsigned_32 := 16#0000_0010#;
    Feature_Soft_Serial     : constant Unsigned_32 := 16#0000_0040#;
    Feature_GPS             : constant Unsigned_32 := 16#0000_0080#;
    Feature_Telemetry       : constant Unsigned_32 := 16#0000_0400#;
@@ -25,9 +26,11 @@ package Adaflight.Config_Fix with SPARK_Mode is
    Feature_RX_MSP          : constant Unsigned_32 := 16#0000_4000#;
    Feature_RSSI_ADC        : constant Unsigned_32 := 16#0000_8000#;
    Feature_LED_Strip       : constant Unsigned_32 := 16#0001_0000#;
+   Feature_Airmode         : constant Unsigned_32 := 16#0040_0000#;
    Feature_OSD             : constant Unsigned_32 := 16#0004_0000#;
    Feature_RX_SPI          : constant Unsigned_32 := 16#0200_0000#;
    Feature_ESC_Sensor      : constant Unsigned_32 := 16#0800_0000#;
+   Feature_Anti_Gravity    : constant Unsigned_32 := 16#1000_0000#;
 
    --  The features of the settings oracle's build.
    Supported_Features : constant Unsigned_32 := 16#1A77_D7FD#;
