@@ -69,6 +69,10 @@ package Adaflight.SmartAudio with SPARK_Mode is
       Will_Boot_Into_Pit_Mode : Boolean := False;
    end record;
 
+   --  The report the first response is compared with.
+   No_Report : constant Report := (Version_Seen => Unknown, Channel => 0, Power => 0, Mode => 0, Freq => 0,
+                                   Pit_Freq => 0, Will_Boot_Into_Pit_Mode => False);
+
    type Stats is record
       Sent, Received, Bad_Preamble, Bad_Length, Crc_Errors, Out_Of_Order, Bad_Code : Unsigned_16 := 0;
    end record;
@@ -137,6 +141,7 @@ package Adaflight.SmartAudio with SPARK_Mode is
       Init_State       : Init_Phase := Start;
       Last_Command_Ms  : Unsigned_32 := 0;
       Port_Open        : Boolean := False;
+      Prev_Device      : Report := No_Report;
    end record;
 
    --  The bytes a call sends, a zero ahead of them when the line needs
@@ -155,6 +160,16 @@ package Adaflight.SmartAudio with SPARK_Mode is
    --  The start, with the port open or not; every power level is one
    --  until the device reports.
    procedure Init (D : out Driver; Port_Opened : Boolean);
+
+   --  One byte of the line received. Processed reports a response taken in,
+   --  and Changed that it changed the device's report.
+   procedure Receive_Byte (D : in out Driver; T : VTX_Table.Table; C : Byte; Control_Disabled : Boolean;
+                           Processed, Changed : out Boolean);
+
+   --  A task call after its bytes are received: the line rate, the start-up
+   --  queries, and the resend or the next frame.
+   procedure Process_Line (D : in out Driver; Now_Ms : Unsigned_32; Control_Disabled, Prepend_Zero : Boolean;
+                           E : out Events);
 
    --  One task call at the millisecond clock with the bytes received since
    --  the last one; a disabled control drops the frames instead of sending
