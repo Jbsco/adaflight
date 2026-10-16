@@ -14110,6 +14110,8 @@ procedure Vector_Check is
            Adaflight.Config_Runtime.Receiver_Settings_Of
              (C.Rx_Config, C.Rx_Channel_Range_Configs, C.Rx_Failsafe_Channel_Configs, C.Flight3_D_Config,
               C.Failsafe_Config, Runtime, 18);
+         AJ : constant Adaflight.Adjustments.Settings :=
+           Adaflight.Config_Runtime.Adjustment_Settings_Of (C.Rx_Config, C.System_Config);
       begin
          Record_Int ("conffix.arming_min_check",
                      Integer_64 (Interfaces.Unsigned_16'Max
@@ -14126,6 +14128,8 @@ procedure Vector_Check is
                      Integer_64 (Interfaces.Unsigned_16'Max
                                    (1200, Interfaces.Unsigned_16'Min (1700, C.Rx_Config.Midrc))),
                      Integer_64 (RX.Mid_RC));
+         Record_Int ("conffix.adjustment_six_position", Integer_64 (C.System_Config.Rate_Profile6_Pos_Switch),
+                     Boolean'Pos (AJ.Rate_Profile_6_Position));
       end;
       if H.Gyro_Sample_Rate_Hz in 10 .. 10_000 and then H.Motors in 1 .. 8
         and then Integer (1_000_000 / H.Gyro_Sample_Rate_Hz) * Integer (C.Pid_Config.Pid_Process_Denom)
@@ -14136,10 +14140,18 @@ procedure Vector_Check is
               (C.Gyro_Config, C.Dyn_Notch_Config, C.Rpm_Filter_Config, C.Gyro_Device_Config (0), C.Board_Alignment,
                C.Motor_Config, C.Pid_Config, Integer (1_000_000 / H.Gyro_Sample_Rate_Hz), 1.0, Integer (H.Motors),
                False);
+            RC : constant Adaflight.RC_Command.Config := Adaflight.Config_Runtime.RC_Config_Of
+              (C.Rx_Config, C.Rc_Controls_Config,
+               C.Control_Rate_Profiles (Natural (C.System_Config.Active_Rate_Profile)), C.Pid_Config,
+               Integer (1_000_000 / H.Gyro_Sample_Rate_Hz));
          begin
             Record_Int ("conffix.gyro_lpf1",
                         Integer_64 (Interfaces.Unsigned_16'Min (1000, C.Gyro_Config.Gyro_Lpf1_Static_Hz)),
                         Integer_64 (G.LPF1_Static_Hz));
+            Record_Int ("conffix.rc_deadband",
+                        Integer_64 (Interfaces.Unsigned_8'Min (32, C.Rc_Controls_Config.Deadband)),
+                        Integer_64 (RC.Controls.Deadband));
+            Record_Int ("conffix.rc_loop_time", Integer_64 (G.Loop_Time_Us), Integer_64 (RC.Loop_Time));
          end;
       end if;
       Codec.Encode (C, Output);

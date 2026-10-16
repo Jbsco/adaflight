@@ -3,6 +3,7 @@
 --  foreign image, and each code to its names. The order rules the runtime
 --  predicates need come from the configuration fix.
 with Interfaces; use Interfaces;
+with Adaflight.Adjustments;
 with Adaflight.Arming;
 with Adaflight.Axes; use Adaflight.Axes;
 with Adaflight.Config_Fix;
@@ -16,6 +17,7 @@ with Adaflight.Modes;
 with Adaflight.PID_Config;
 with Adaflight.PID_Profile; use Adaflight.PID_Profile;
 with Adaflight.Rates;
+with Adaflight.RC_Command;
 with Adaflight.Receiver;
 with Adaflight.RPM_Filter;
 with Adaflight.Sensor_Alignment;
@@ -71,6 +73,18 @@ package Adaflight.Config_Runtime with SPARK_Mode is
      with Pre => Config_Fix.Fixed_Gyro_Filters (G) and then Loop_Rate.Pid_Process_Denom >= 1
                  and then Sample_Time_Us * Integer (Loop_Rate.Pid_Process_Denom) <= PID_Config.Loop_Time_Us'Last
                  and then Scale in 2.0 ** (-10) .. 1.0;
+
+   --  The RC command settings from the stored receiver, RC controls and
+   --  PID loop groups and the current rate profile, with the sample time
+   --  whose product with the loop ratio is the loop time.
+   function RC_Config_Of
+     (R : Rx_Config_Record; Controls : Rc_Controls_Config_Record; Rate : Control_Rate_Config_Record;
+      Loop_Rate : Pid_Config_Record; Sample_Time_Us : PID_Config.Loop_Time_Us) return RC_Command.Config
+     with Pre => Loop_Rate.Pid_Process_Denom >= 1
+                 and then Sample_Time_Us * Integer (Loop_Rate.Pid_Process_Denom) <= PID_Config.Loop_Time_Us'Last;
+
+   --  The adjustment settings from the stored receiver and system groups.
+   function Adjustment_Settings_Of (R : Rx_Config_Record; Sys : System_Config_Record) return Adjustments.Settings;
 
 private
 
@@ -297,6 +311,26 @@ private
       Failsafe_Throttle => Held (Integer (F.Failsafe_Throttle), Receiver.Pulse_Min, Receiver.Pulse_Max),
       Override_Channels => Channels_Of (R.Msp_Override_Channels_Mask),
       Override_Failsafe => R.Msp_Override_Failsafe /= 0);
+
+   function RC_Config_Of
+     (R : Rx_Config_Record; Controls : Rc_Controls_Config_Record; Rate : Control_Rate_Config_Record;
+      Loop_Rate : Pid_Config_Record; Sample_Time_Us : PID_Config.Loop_Time_Us) return RC_Command.Config is
+     (Rates     => Rate_Profile_Of (Rate),
+      Receiver  => (Mid_RC               => Held (Integer (R.Midrc), 1200, 1700),
+                    Min_Check            => Held (Integer (R.Mincheck), 750, 1999),
+                    Smoothing            => R.Rc_Smoothing /= 0,
+                    Auto_Factor_Setpoint => Held (Integer (R.Rc_Smoothing_Auto_Factor_Rpy), 0, 250),
+                    Auto_Factor_Throttle => Held (Integer (R.Rc_Smoothing_Auto_Factor_Throttle), 0, 250),
+                    Setpoint_Cutoff      => Integer (R.Rc_Smoothing_Setpoint_Cutoff),
+                    Throttle_Cutoff      => Integer (R.Rc_Smoothing_Throttle_Cutoff)),
+      Controls  => (Deadband     => Held (Integer (Controls.Deadband), 0, 32),
+                    Yaw_Deadband => Held (Integer (Controls.Yaw_Deadband), 0, 100),
+                    Yaw_Reversed => Controls.Yaw_Control_Reversed),
+      Loop_Time => Sample_Time_Us * Integer (Loop_Rate.Pid_Process_Denom));
+
+   function Adjustment_Settings_Of (R : Rx_Config_Record; Sys : System_Config_Record) return Adjustments.Settings is
+     (Mid_RC                  => Held (Integer (R.Midrc), 1200, 1700),
+      Rate_Profile_6_Position => Sys.Rate_Profile6_Pos_Switch /= 0);
 
    function Gyro_Settings_Of
      (G : Gyro_Config_Record; N : Dyn_Notch_Config_Record; R : Rpm_Filter_Config_Record;

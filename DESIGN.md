@@ -4280,6 +4280,12 @@ fixed wing flag comes from the mixer mode through `Mixer_Init.Is_Fixed_Wing`. `C
 the mode conditions, a condition whose mode is outside the box table never active and a link outside
 it no link (D6).
 
+`RC_Config_Of` builds `RC_Command.Config` from the stored receiver, RC controls and PID loop groups
+and the current rate profile, through `Rate_Profile_Of`, with the sample time whose product with the
+loop ratio is the loop time. The command path's minimum check is held to 1999, below its setting's
+2250 (D6). `Adjustment_Settings_Of` builds `Adjustments.Settings` from the stored receiver and system
+groups.
+
 The harness builds the four PID profiles and the four rate profiles of every fixed configuration in
 the configuration fix recordings, 16000 of each, and the gyro settings of each with a running gyro
 and motors, 3082, with the preconditions and the predicates checked at run time, and compares the
@@ -4305,9 +4311,10 @@ plain GPS rescue stage of a build without the flight plan is in the state machin
 as in the reference's build with it.
 
 The harness builds the four PID profiles and the four rate profiles of every fixed configuration in
-the configuration fix recordings, 16000 of each, the arming, failsafe and receiver settings and the
-mode conditions of each, 4000 of each, and the gyro settings of each with a running gyro and motors,
-3082, with the preconditions and the predicates checked at run time, and compares one field of each.
+the configuration fix recordings, 16000 of each, the arming, failsafe, receiver and adjustment
+settings and the mode conditions of each, 4000 of each, and the gyro and RC command settings of each
+with a running gyro and motors, 3082, with the preconditions and the predicates checked at run time,
+and compares one field of each.
 
 ## D189. Command line batches (2026-10-14)
 
