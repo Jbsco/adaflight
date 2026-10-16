@@ -1469,226 +1469,369 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       end case;
    end On_Enter;
 
+   procedure Leave_Quick_Menu (T : in out Target)
+     with Global => null
+   is
+   begin
+      T.Config.Control_Rate_Profiles (T.Quick.Rate_Profile) := T.Quick.Rate;
+      T.Config.Battery_Profiles (T.Quick.Battery_Profile) := T.Quick.Battery;
+      T.Config.Pid_Profiles (T.Quick.PID_Profile).Motor_Output_Limit := T.Quick.Motor_Output_Limit;
+      if T.Asked.PID_Config_Inits < Natural'Last then
+         T.Asked.PID_Config_Inits := T.Asked.PID_Config_Inits + 1;
+      end if;
+   end Leave_Quick_Menu;
+
+   procedure Leave_Profile_Menu (T : in out Target)
+     with Global => null
+   is
+   begin
+      Change_PID_Profile (T, T.Profile.PID_Index);
+      Change_Rate_Profile (T, T.Profile.Rate_Index);
+   end Leave_Profile_Menu;
+
+   procedure Leave_PID_Menu (T : in out Target)
+     with Global => null
+   is
+   begin
+      declare
+         Current : constant Natural :=
+           Natural (Interfaces.Unsigned_8'Min (T.Config.System_Config.Pid_Profile_Index, PID_Profile_Count - 1));
+      begin
+         for A in Feedforward_Table'Range loop
+            T.Config.Pid_Profiles (Current).Pid (A).P := T.PID.Gains (A, 0);
+            T.Config.Pid_Profiles (Current).Pid (A).I := T.PID.Gains (A, 1);
+            T.Config.Pid_Profiles (Current).Pid (A).D := T.PID.Gains (A, 2);
+            T.Config.Pid_Profiles (Current).Pid (A).F := T.PID.Feedforward (A);
+         end loop;
+      end;
+      if T.Asked.PID_Config_Inits < Natural'Last then
+         T.Asked.PID_Config_Inits := T.Asked.PID_Config_Inits + 1;
+      end if;
+   end Leave_PID_Menu;
+
+   procedure Leave_Rate_Menu (T : in out Target)
+     with Global => null
+   is
+   begin
+      T.Config.Control_Rate_Profiles
+        (Natural (Interfaces.Unsigned_8'Min (T.Profile.Rate_Index, Rate_Profile_Count - 1))) := T.Rate.Profile;
+   end Leave_Rate_Menu;
+
+   procedure Leave_Simplified_Menu (T : in out Target)
+     with Global => null
+   is
+   begin
+      declare
+         C       : constant Natural := Current_PID (T);
+         S       : constant Simplified_Copies := T.Simplified;
+         P       : constant Adaflight.Config_Groups.Pid_Profile_Record := T.Config.Pid_Profiles (C);
+         Changed : constant Boolean :=
+           P.Simplified_Pids_Mode /= S.Mode or else P.Simplified_Master_Multiplier /= S.Master
+           or else P.Simplified_Roll_Pitch_Ratio /= S.Roll_Pitch_Ratio or else P.Simplified_I_Gain /= S.I_Gain
+           or else P.Simplified_D_Gain /= S.D_Gain or else P.Simplified_Pi_Gain /= S.PI_Gain
+           or else P.Simplified_D_Max_Gain /= S.D_Max_Gain or else P.Simplified_Feedforward_Gain /= S.FF_Gain
+           or else P.Simplified_Pitch_Pi_Gain /= S.Pitch_PI_Gain or else P.Simplified_Dterm_Filter /= S.DTerm_Filter
+           or else P.Simplified_Dterm_Filter_Multiplier /= S.DTerm_Multiplier
+           or else T.Config.Gyro_Config.Simplified_Gyro_Filter /= S.Gyro_Filter
+           or else T.Config.Gyro_Config.Simplified_Gyro_Filter_Multiplier /= S.Gyro_Multiplier;
+      begin
+         if Changed then
+            T.Config.Pid_Profiles (C).Simplified_Pids_Mode := S.Mode;
+            T.Config.Pid_Profiles (C).Simplified_Master_Multiplier := S.Master;
+            T.Config.Pid_Profiles (C).Simplified_Roll_Pitch_Ratio := S.Roll_Pitch_Ratio;
+            T.Config.Pid_Profiles (C).Simplified_I_Gain := S.I_Gain;
+            T.Config.Pid_Profiles (C).Simplified_D_Gain := S.D_Gain;
+            T.Config.Pid_Profiles (C).Simplified_Pi_Gain := S.PI_Gain;
+            T.Config.Pid_Profiles (C).Simplified_D_Max_Gain := S.D_Max_Gain;
+            T.Config.Pid_Profiles (C).Simplified_Feedforward_Gain := S.FF_Gain;
+            T.Config.Pid_Profiles (C).Simplified_Pitch_Pi_Gain := S.Pitch_PI_Gain;
+            T.Config.Pid_Profiles (C).Simplified_Dterm_Filter := S.DTerm_Filter;
+            T.Config.Pid_Profiles (C).Simplified_Dterm_Filter_Multiplier := S.DTerm_Multiplier;
+            T.Config.Gyro_Config.Simplified_Gyro_Filter := S.Gyro_Filter;
+            T.Config.Gyro_Config.Simplified_Gyro_Filter_Multiplier := S.Gyro_Multiplier;
+            Adaflight.Simplified_Tuning.Stored.Apply (T.Config.Pid_Profiles (C), T.Config.Gyro_Config);
+         end if;
+      end;
+   end Leave_Simplified_Menu;
+
+   procedure Leave_Profile_Other_Menu (T : in out Target)
+     with Global => null
+   is
+   begin
+      if T.Asked.PID_Config_Inits < Natural'Last then
+         T.Asked.PID_Config_Inits := T.Asked.PID_Config_Inits + 1;
+      end if;
+      declare
+         I : constant Natural := Shown_PID (T);
+         O : constant Other_Copies := T.Other;
+      begin
+         T.Config.Pid_Profiles (I).Pid (3).P := O.Angle_P;
+         T.Config.Pid_Profiles (I).Pid (3).F := Interfaces.Unsigned_16 (O.Angle_FF);
+         T.Config.Pid_Profiles (I).Angle_Limit := O.Angle_Limit;
+         T.Config.Pid_Profiles (I).Angle_Earth_Ref := O.Angle_Earth_Ref;
+         T.Config.Pid_Profiles (I).Pid (3).I := O.Horizon_Strength;
+         T.Config.Pid_Profiles (I).Pid (3).D := O.Horizon_Sticks;
+         T.Config.Pid_Profiles (I).Horizon_Limit_Degrees := O.Horizon_Degrees;
+         T.Config.Pid_Profiles (I).Anti_Gravity_Gain := O.Anti_Gravity_Gain;
+         T.Config.Pid_Profiles (I).Throttle_Boost := O.Throttle_Boost;
+         T.Config.Pid_Profiles (I).Thrust_Linearization := O.Thrust_Linearization;
+         T.Config.Pid_Profiles (I).Motor_Output_Limit := O.Motor_Output_Limit;
+         T.Config.Pid_Profiles (I).Auto_Profile_Cell_Count := O.Auto_Cell_Count;
+         for A in D_Max_Table'Range loop
+            T.Config.Pid_Profiles (I).D_Max (A) := O.D_Max (A);
+         end loop;
+         T.Config.Pid_Profiles (I).D_Max_Gain := O.D_Max_Gain;
+         T.Config.Pid_Profiles (I).D_Max_Advance := O.D_Max_Advance;
+         T.Config.Pid_Profiles (I).Iterm_Relax := O.Iterm_Relax;
+         T.Config.Pid_Profiles (I).Iterm_Relax_Type := O.Iterm_Relax_Type;
+         T.Config.Pid_Profiles (I).Iterm_Relax_Cutoff := O.Iterm_Relax_Cutoff;
+         T.Config.Pid_Profiles (I).Feedforward_Transition := O.FF_Transition;
+         T.Config.Pid_Profiles (I).Feedforward_Averaging := O.FF_Averaging;
+         T.Config.Pid_Profiles (I).Feedforward_Boost := O.FF_Boost;
+         T.Config.Pid_Profiles (I).Feedforward_Smooth_Factor := O.FF_Smooth;
+         T.Config.Pid_Profiles (I).Feedforward_Jitter_Factor := O.FF_Jitter;
+         T.Config.Pid_Profiles (I).Vbat_Sag_Compensation := O.Vbat_Sag;
+         T.Config.Pid_Profiles (I).Tpa_Rate := O.TPA_Rate;
+         T.Config.Pid_Profiles (I).Tpa_Breakpoint := O.TPA_Breakpoint;
+         T.Config.Pid_Profiles (I).Tpa_Low_Rate := O.TPA_Low_Rate;
+         T.Config.Pid_Profiles (I).Tpa_Low_Breakpoint := O.TPA_Low_Breakpoint;
+         T.Config.Pid_Profiles (I).Tpa_Low_Always := O.TPA_Low_Always;
+         T.Config.Pid_Profiles (I).Landing_Disarm_Threshold := O.Landing_Disarm;
+      end;
+      if T.Asked.Endpoint_Inits < Natural'Last then
+         T.Asked.Endpoint_Inits := T.Asked.Endpoint_Inits + 1;
+      end if;
+   end Leave_Profile_Other_Menu;
+
+   procedure Leave_Launch_Control_Menu (T : in out Target)
+     with Global => null
+   is
+   begin
+      declare
+         I : constant Natural := Shown_PID (T);
+      begin
+         T.Config.Pid_Profiles (I).Launch_Control_Mode := T.Launch.Mode;
+         T.Config.Pid_Profiles (I).Launch_Control_Allow_Trigger_Reset := T.Launch.Allow_Reset;
+         T.Config.Pid_Profiles (I).Launch_Control_Throttle_Percent := T.Launch.Throttle_Percent;
+         T.Config.Pid_Profiles (I).Launch_Control_Angle_Limit := T.Launch.Angle_Limit;
+         T.Config.Pid_Profiles (I).Launch_Control_Gain := T.Launch.Gain;
+      end;
+   end Leave_Launch_Control_Menu;
+
+   procedure Leave_OSD_Menu (T : in out Target)
+     with Global => null
+   is
+   begin
+      if T.Asked.Profile_Changes < Natural'Last then
+         T.Asked.Profile_Changes := T.Asked.Profile_Changes + 1;
+      end if;
+      T.Asked.Profile_Asked := T.OSD.Profile;
+      if T.OSD.Profile <= 3 then
+         T.Config.Osd_Config.Osd_Profile_Index := T.OSD.Profile;
+      end if;
+   end Leave_OSD_Menu;
+
+   procedure Leave_Active_Elements_Menu (T : in out Target)
+     with Global => null
+   is
+   begin
+      T.Config.Osd_Element_Config.Item_Pos := T.Elements;
+      if T.Asked.Element_Analyses < Natural'Last then
+         T.Asked.Element_Analyses := T.Asked.Element_Analyses + 1;
+      end if;
+   end Leave_Active_Elements_Menu;
+
+   procedure Leave_Timers_Menu (T : in out Target)
+     with Global => null
+   is
+   begin
+      for I in Timer_Fields'Range loop
+         T.Config.Osd_Config.Timers (I) :=
+           (Interfaces.Unsigned_16 (T.Timers.Source (I)) and 16#0F#)
+           or (Interfaces.Unsigned_16 (T.Timers.Precision (I)) and 16#0F#) * 16
+           or Interfaces.Unsigned_16 (T.Timers.Alarm (I)) * 256;
+      end loop;
+   end Leave_Timers_Menu;
+
+   procedure Leave_Alarms_Menu (T : in out Target)
+     with Global => null
+   is
+   begin
+      T.Config.Osd_Config.Rssi_Alarm := T.Alarms.RSSI;
+      T.Config.Osd_Config.Link_Quality_Alarm := T.Alarms.Link_Quality;
+      T.Config.Osd_Config.Rssi_Dbm_Alarm := T.Alarms.RSSI_Dbm;
+      T.Config.Osd_Config.Rsnr_Alarm := T.Alarms.RSNR;
+      T.Config.Osd_Config.Cap_Alarm := T.Alarms.Capacity;
+      T.Config.Osd_Config.Alt_Alarm := T.Alarms.Altitude;
+      T.Config.Osd_Config.Distance_Alarm := T.Alarms.Distance;
+      T.Config.Battery_Config.Vbat_Duration_For_Warning := T.Alarms.Warning_Duration;
+      T.Config.Battery_Config.Vbat_Duration_For_Critical := T.Alarms.Critical_Duration;
+   end Leave_Alarms_Menu;
+
+   procedure Leave_Blackbox_Menu (T : in out Target)
+     with Global => null
+   is
+   begin
+      if T.Live.Blackbox_May_Edit then
+         T.Config.Blackbox_Config.Device := (if T.Blackbox.Device in 1 .. 3 then T.Blackbox.Device else 0);
+      end if;
+      T.Config.Blackbox_Config.Sample_Rate := T.Blackbox.Rate;
+      T.Config.System_Config.Debug_Mode := T.Blackbox.Debug_Mode;
+   end Leave_Blackbox_Menu;
+
+   procedure Leave_LED_Strip_Menu (T : in out Target)
+     with Global => null
+   is
+   begin
+      declare
+         Feature : constant Interfaces.Unsigned_32 := Adaflight.Config_Fix.Feature_LED_Strip;
+      begin
+         if T.LED.Enabled /= 0 then
+            T.Config.Feature_Config.Enabled_Features := T.Config.Feature_Config.Enabled_Features or Feature;
+            T.Live.Runtime_Features := T.Live.Runtime_Features or Feature;
+            if T.Asked.LED_Strip_Enables < Natural'Last then
+               T.Asked.LED_Strip_Enables := T.Asked.LED_Strip_Enables + 1;
+            end if;
+         else
+            if T.Asked.LED_Strip_Disables < Natural'Last then
+               T.Asked.LED_Strip_Disables := T.Asked.LED_Strip_Disables + 1;
+            end if;
+            T.Config.Feature_Config.Enabled_Features := T.Config.Feature_Config.Enabled_Features and not Feature;
+            T.Live.Runtime_Features := T.Live.Runtime_Features and not Feature;
+         end if;
+      end;
+      if T.LED.Profile < LED_Profile_Count then
+         T.Config.Led_Strip_Config.Ledstrip_Profile := T.LED.Profile;
+      end if;
+      T.Config.Led_Strip_Config.Ledstrip_Race_Color := T.LED.Race_Color;
+      T.Config.Led_Strip_Config.Ledstrip_Beacon_Color := T.LED.Beacon_Color;
+      T.Config.Led_Strip_Config.Ledstrip_Beacon_Period_Ms := T.LED.Beacon_Period;
+      T.Config.Led_Strip_Config.Ledstrip_Beacon_Percent := T.LED.Beacon_On_Percent;
+      T.Config.Led_Strip_Config.Ledstrip_Beacon_Armed_Only := T.LED.Beacon_Armed_Only;
+      T.Config.Led_Strip_Config.Ledstrip_Visual_Beeper := T.LED.Visual_Beeper;
+      T.Config.Led_Strip_Config.Ledstrip_Visual_Beeper_Color := T.LED.Visual_Beeper_Color;
+   end Leave_LED_Strip_Menu;
+
+   procedure Leave_Power_Menu (T : in out Target)
+     with Global => null
+   is
+   begin
+      T.Config.Battery_Config.Voltage_Meter_Source := T.Power.Voltage_Meter_Source;
+      T.Config.Battery_Config.Current_Meter_Source := T.Power.Current_Meter_Source;
+      T.Config.Battery_Profiles (T.Power.Battery_Profile).Vbatmincellvoltage := T.Power.Min_Cell_Voltage;
+      T.Config.Battery_Profiles (T.Power.Battery_Profile).Vbatmaxcellvoltage := T.Power.Max_Cell_Voltage;
+      T.Config.Battery_Profiles (T.Power.Battery_Profile).Vbatwarningcellvoltage := T.Power.Warning_Cell_Voltage;
+      T.Config.Voltage_Sensor_Adc_Config (0).Vbatscale := T.Power.Voltage_Scale;
+      T.Config.Current_Sensor_Adc_Config.Scale := T.Power.Current_Scale;
+      T.Config.Current_Sensor_Adc_Config.Offset := T.Power.Current_Offset;
+      T.Config.Current_Sensor_Virtual_Config.Scale := T.Power.Virtual_Scale;
+      T.Config.Current_Sensor_Virtual_Config.Offset := T.Power.Virtual_Offset;
+   end Leave_Power_Menu;
+
+   procedure Leave_Failsafe_Menu (T : in out Target)
+     with Global => null
+   is
+   begin
+      T.Config.Failsafe_Config.Failsafe_Procedure := T.Failsafe.Procedure_Kind;
+      T.Config.Failsafe_Config.Failsafe_Delay := T.Failsafe.Guard_Time;
+      T.Config.Failsafe_Config.Failsafe_Landing_Time := T.Failsafe.Landing_Time;
+      T.Config.Failsafe_Config.Failsafe_Throttle := T.Failsafe.Throttle;
+   end Leave_Failsafe_Menu;
+
+   procedure Leave_RPM_Limit_Menu (T : in out Target)
+     with Global => null
+   is
+   begin
+      T.Config.Mixer_Config.Rpm_Limit_Value := T.RPM_Limit.Limit;
+      T.Config.Motor_Config.Kv := T.RPM_Limit.KV;
+      T.Config.Mixer_Config.Rpm_Limit := T.RPM_Limit.Active;
+   end Leave_RPM_Limit_Menu;
+
+   procedure Leave_Misc_Menu (T : in out Target)
+     with Global => null
+   is
+   begin
+      T.Config.Motor_Config.Motor_Idle := 10 * Interfaces.Unsigned_16 (T.Misc.Idle_Offset);
+      T.Config.Rx_Config.Fpv_Cam_Angle_Degrees := T.Misc.FPV_Cam_Angle;
+      T.Config.Mixer_Config.Crashflip_Rate := T.Misc.Crashflip_Rate;
+   end Leave_Misc_Menu;
+
+   procedure Leave_GPS_Lap_Timer_Menu (T : in out Target)
+     with Global => null
+   is
+   begin
+      T.Config.Gps_Lap_Timer_Config.Minimum_Lap_Time_Seconds := T.Lap.Minimum_Lap_Time;
+      T.Config.Gps_Lap_Timer_Config.Gate_Tolerance_M := T.Lap.Gate_Tolerance;
+   end Leave_GPS_Lap_Timer_Menu;
+
+   procedure Leave_Set_Gate_Menu (T : in out Target)
+     with Global => null
+   is
+   begin
+      if T.Asked.Gate_Ends < Natural'Last then
+         T.Asked.Gate_Ends := T.Asked.Gate_Ends + 1;
+      end if;
+   end Leave_Set_Gate_Menu;
+
+   procedure Leave_Persistent_Stats_Menu (T : in out Target)
+     with Global => null
+   is
+   begin
+      T.Config.Stats_Config.Stats_Total_Flights := T.Stats.Total_Flights;
+      T.Config.Stats_Config.Stats_Total_Time_S := T.Stats.Total_Time_S;
+      T.Config.Stats_Config.Stats_Total_Dist_M := T.Stats.Total_Dist_M;
+      T.Config.Stats_Config.Stats_Min_Armed_Time_S := T.Stats.Min_Armed_Time;
+   end Leave_Persistent_Stats_Menu;
+
    procedure On_Leave (T : in out Target; Id : Menu_Id; Self : Integer; Chain_Back : out Boolean) is
    begin
       Chain_Back := False;
-      if Id = Quick_Menu then
-         T.Config.Control_Rate_Profiles (T.Quick.Rate_Profile) := T.Quick.Rate;
-         T.Config.Battery_Profiles (T.Quick.Battery_Profile) := T.Quick.Battery;
-         T.Config.Pid_Profiles (T.Quick.PID_Profile).Motor_Output_Limit := T.Quick.Motor_Output_Limit;
-         if T.Asked.PID_Config_Inits < Natural'Last then
-            T.Asked.PID_Config_Inits := T.Asked.PID_Config_Inits + 1;
-         end if;
-      elsif Id = Profile_Menu then
-         Change_PID_Profile (T, T.Profile.PID_Index);
-         Change_Rate_Profile (T, T.Profile.Rate_Index);
-      elsif Id = PID_Menu then
-         declare
-            Current : constant Natural :=
-              Natural (Interfaces.Unsigned_8'Min (T.Config.System_Config.Pid_Profile_Index, PID_Profile_Count - 1));
-         begin
-            for A in Feedforward_Table'Range loop
-               T.Config.Pid_Profiles (Current).Pid (A).P := T.PID.Gains (A, 0);
-               T.Config.Pid_Profiles (Current).Pid (A).I := T.PID.Gains (A, 1);
-               T.Config.Pid_Profiles (Current).Pid (A).D := T.PID.Gains (A, 2);
-               T.Config.Pid_Profiles (Current).Pid (A).F := T.PID.Feedforward (A);
-            end loop;
-         end;
-         if T.Asked.PID_Config_Inits < Natural'Last then
-            T.Asked.PID_Config_Inits := T.Asked.PID_Config_Inits + 1;
-         end if;
-      elsif Id = Rate_Menu then
-         T.Config.Control_Rate_Profiles
-           (Natural (Interfaces.Unsigned_8'Min (T.Profile.Rate_Index, Rate_Profile_Count - 1))) := T.Rate.Profile;
-      elsif Id = Simplified_Menu then
-         declare
-            C       : constant Natural := Current_PID (T);
-            S       : constant Simplified_Copies := T.Simplified;
-            P       : constant Adaflight.Config_Groups.Pid_Profile_Record := T.Config.Pid_Profiles (C);
-            Changed : constant Boolean :=
-              P.Simplified_Pids_Mode /= S.Mode or else P.Simplified_Master_Multiplier /= S.Master
-              or else P.Simplified_Roll_Pitch_Ratio /= S.Roll_Pitch_Ratio or else P.Simplified_I_Gain /= S.I_Gain
-              or else P.Simplified_D_Gain /= S.D_Gain or else P.Simplified_Pi_Gain /= S.PI_Gain
-              or else P.Simplified_D_Max_Gain /= S.D_Max_Gain or else P.Simplified_Feedforward_Gain /= S.FF_Gain
-              or else P.Simplified_Pitch_Pi_Gain /= S.Pitch_PI_Gain or else P.Simplified_Dterm_Filter /= S.DTerm_Filter
-              or else P.Simplified_Dterm_Filter_Multiplier /= S.DTerm_Multiplier
-              or else T.Config.Gyro_Config.Simplified_Gyro_Filter /= S.Gyro_Filter
-              or else T.Config.Gyro_Config.Simplified_Gyro_Filter_Multiplier /= S.Gyro_Multiplier;
-         begin
-            if Changed then
-               T.Config.Pid_Profiles (C).Simplified_Pids_Mode := S.Mode;
-               T.Config.Pid_Profiles (C).Simplified_Master_Multiplier := S.Master;
-               T.Config.Pid_Profiles (C).Simplified_Roll_Pitch_Ratio := S.Roll_Pitch_Ratio;
-               T.Config.Pid_Profiles (C).Simplified_I_Gain := S.I_Gain;
-               T.Config.Pid_Profiles (C).Simplified_D_Gain := S.D_Gain;
-               T.Config.Pid_Profiles (C).Simplified_Pi_Gain := S.PI_Gain;
-               T.Config.Pid_Profiles (C).Simplified_D_Max_Gain := S.D_Max_Gain;
-               T.Config.Pid_Profiles (C).Simplified_Feedforward_Gain := S.FF_Gain;
-               T.Config.Pid_Profiles (C).Simplified_Pitch_Pi_Gain := S.Pitch_PI_Gain;
-               T.Config.Pid_Profiles (C).Simplified_Dterm_Filter := S.DTerm_Filter;
-               T.Config.Pid_Profiles (C).Simplified_Dterm_Filter_Multiplier := S.DTerm_Multiplier;
-               T.Config.Gyro_Config.Simplified_Gyro_Filter := S.Gyro_Filter;
-               T.Config.Gyro_Config.Simplified_Gyro_Filter_Multiplier := S.Gyro_Multiplier;
-               Adaflight.Simplified_Tuning.Stored.Apply (T.Config.Pid_Profiles (C), T.Config.Gyro_Config);
-            end if;
-         end;
-      elsif Id = Profile_Other_Menu then
-         if T.Asked.PID_Config_Inits < Natural'Last then
-            T.Asked.PID_Config_Inits := T.Asked.PID_Config_Inits + 1;
-         end if;
-         declare
-            I : constant Natural := Shown_PID (T);
-            O : constant Other_Copies := T.Other;
-         begin
-            T.Config.Pid_Profiles (I).Pid (3).P := O.Angle_P;
-            T.Config.Pid_Profiles (I).Pid (3).F := Interfaces.Unsigned_16 (O.Angle_FF);
-            T.Config.Pid_Profiles (I).Angle_Limit := O.Angle_Limit;
-            T.Config.Pid_Profiles (I).Angle_Earth_Ref := O.Angle_Earth_Ref;
-            T.Config.Pid_Profiles (I).Pid (3).I := O.Horizon_Strength;
-            T.Config.Pid_Profiles (I).Pid (3).D := O.Horizon_Sticks;
-            T.Config.Pid_Profiles (I).Horizon_Limit_Degrees := O.Horizon_Degrees;
-            T.Config.Pid_Profiles (I).Anti_Gravity_Gain := O.Anti_Gravity_Gain;
-            T.Config.Pid_Profiles (I).Throttle_Boost := O.Throttle_Boost;
-            T.Config.Pid_Profiles (I).Thrust_Linearization := O.Thrust_Linearization;
-            T.Config.Pid_Profiles (I).Motor_Output_Limit := O.Motor_Output_Limit;
-            T.Config.Pid_Profiles (I).Auto_Profile_Cell_Count := O.Auto_Cell_Count;
-            for A in D_Max_Table'Range loop
-               T.Config.Pid_Profiles (I).D_Max (A) := O.D_Max (A);
-            end loop;
-            T.Config.Pid_Profiles (I).D_Max_Gain := O.D_Max_Gain;
-            T.Config.Pid_Profiles (I).D_Max_Advance := O.D_Max_Advance;
-            T.Config.Pid_Profiles (I).Iterm_Relax := O.Iterm_Relax;
-            T.Config.Pid_Profiles (I).Iterm_Relax_Type := O.Iterm_Relax_Type;
-            T.Config.Pid_Profiles (I).Iterm_Relax_Cutoff := O.Iterm_Relax_Cutoff;
-            T.Config.Pid_Profiles (I).Feedforward_Transition := O.FF_Transition;
-            T.Config.Pid_Profiles (I).Feedforward_Averaging := O.FF_Averaging;
-            T.Config.Pid_Profiles (I).Feedforward_Boost := O.FF_Boost;
-            T.Config.Pid_Profiles (I).Feedforward_Smooth_Factor := O.FF_Smooth;
-            T.Config.Pid_Profiles (I).Feedforward_Jitter_Factor := O.FF_Jitter;
-            T.Config.Pid_Profiles (I).Vbat_Sag_Compensation := O.Vbat_Sag;
-            T.Config.Pid_Profiles (I).Tpa_Rate := O.TPA_Rate;
-            T.Config.Pid_Profiles (I).Tpa_Breakpoint := O.TPA_Breakpoint;
-            T.Config.Pid_Profiles (I).Tpa_Low_Rate := O.TPA_Low_Rate;
-            T.Config.Pid_Profiles (I).Tpa_Low_Breakpoint := O.TPA_Low_Breakpoint;
-            T.Config.Pid_Profiles (I).Tpa_Low_Always := O.TPA_Low_Always;
-            T.Config.Pid_Profiles (I).Landing_Disarm_Threshold := O.Landing_Disarm;
-         end;
-         if T.Asked.Endpoint_Inits < Natural'Last then
-            T.Asked.Endpoint_Inits := T.Asked.Endpoint_Inits + 1;
-         end if;
-      elsif Id = Launch_Control_Menu then
-         declare
-            I : constant Natural := Shown_PID (T);
-         begin
-            T.Config.Pid_Profiles (I).Launch_Control_Mode := T.Launch.Mode;
-            T.Config.Pid_Profiles (I).Launch_Control_Allow_Trigger_Reset := T.Launch.Allow_Reset;
-            T.Config.Pid_Profiles (I).Launch_Control_Throttle_Percent := T.Launch.Throttle_Percent;
-            T.Config.Pid_Profiles (I).Launch_Control_Angle_Limit := T.Launch.Angle_Limit;
-            T.Config.Pid_Profiles (I).Launch_Control_Gain := T.Launch.Gain;
-         end;
-      elsif Id = OSD_Menu then
-         if T.Asked.Profile_Changes < Natural'Last then
-            T.Asked.Profile_Changes := T.Asked.Profile_Changes + 1;
-         end if;
-         T.Asked.Profile_Asked := T.OSD.Profile;
-         if T.OSD.Profile <= 3 then
-            T.Config.Osd_Config.Osd_Profile_Index := T.OSD.Profile;
-         end if;
-      elsif Id = Active_Elements_Menu then
-         T.Config.Osd_Element_Config.Item_Pos := T.Elements;
-         if T.Asked.Element_Analyses < Natural'Last then
-            T.Asked.Element_Analyses := T.Asked.Element_Analyses + 1;
-         end if;
-      elsif Id = Timers_Menu then
-         for I in Timer_Fields'Range loop
-            T.Config.Osd_Config.Timers (I) :=
-              (Interfaces.Unsigned_16 (T.Timers.Source (I)) and 16#0F#)
-              or (Interfaces.Unsigned_16 (T.Timers.Precision (I)) and 16#0F#) * 16
-              or Interfaces.Unsigned_16 (T.Timers.Alarm (I)) * 256;
-         end loop;
-      elsif Id = Alarms_Menu then
-         T.Config.Osd_Config.Rssi_Alarm := T.Alarms.RSSI;
-         T.Config.Osd_Config.Link_Quality_Alarm := T.Alarms.Link_Quality;
-         T.Config.Osd_Config.Rssi_Dbm_Alarm := T.Alarms.RSSI_Dbm;
-         T.Config.Osd_Config.Rsnr_Alarm := T.Alarms.RSNR;
-         T.Config.Osd_Config.Cap_Alarm := T.Alarms.Capacity;
-         T.Config.Osd_Config.Alt_Alarm := T.Alarms.Altitude;
-         T.Config.Osd_Config.Distance_Alarm := T.Alarms.Distance;
-         T.Config.Battery_Config.Vbat_Duration_For_Warning := T.Alarms.Warning_Duration;
-         T.Config.Battery_Config.Vbat_Duration_For_Critical := T.Alarms.Critical_Duration;
-      elsif Id = Blackbox_Menu then
-         if T.Live.Blackbox_May_Edit then
-            T.Config.Blackbox_Config.Device := (if T.Blackbox.Device in 1 .. 3 then T.Blackbox.Device else 0);
-         end if;
-         T.Config.Blackbox_Config.Sample_Rate := T.Blackbox.Rate;
-         T.Config.System_Config.Debug_Mode := T.Blackbox.Debug_Mode;
-      elsif Id = LED_Strip_Menu then
-         declare
-            Feature : constant Interfaces.Unsigned_32 := Adaflight.Config_Fix.Feature_LED_Strip;
-         begin
-            if T.LED.Enabled /= 0 then
-               T.Config.Feature_Config.Enabled_Features := T.Config.Feature_Config.Enabled_Features or Feature;
-               T.Live.Runtime_Features := T.Live.Runtime_Features or Feature;
-               if T.Asked.LED_Strip_Enables < Natural'Last then
-                  T.Asked.LED_Strip_Enables := T.Asked.LED_Strip_Enables + 1;
-               end if;
-            else
-               if T.Asked.LED_Strip_Disables < Natural'Last then
-                  T.Asked.LED_Strip_Disables := T.Asked.LED_Strip_Disables + 1;
-               end if;
-               T.Config.Feature_Config.Enabled_Features := T.Config.Feature_Config.Enabled_Features and not Feature;
-               T.Live.Runtime_Features := T.Live.Runtime_Features and not Feature;
-            end if;
-         end;
-         if T.LED.Profile < LED_Profile_Count then
-            T.Config.Led_Strip_Config.Ledstrip_Profile := T.LED.Profile;
-         end if;
-         T.Config.Led_Strip_Config.Ledstrip_Race_Color := T.LED.Race_Color;
-         T.Config.Led_Strip_Config.Ledstrip_Beacon_Color := T.LED.Beacon_Color;
-         T.Config.Led_Strip_Config.Ledstrip_Beacon_Period_Ms := T.LED.Beacon_Period;
-         T.Config.Led_Strip_Config.Ledstrip_Beacon_Percent := T.LED.Beacon_On_Percent;
-         T.Config.Led_Strip_Config.Ledstrip_Beacon_Armed_Only := T.LED.Beacon_Armed_Only;
-         T.Config.Led_Strip_Config.Ledstrip_Visual_Beeper := T.LED.Visual_Beeper;
-         T.Config.Led_Strip_Config.Ledstrip_Visual_Beeper_Color := T.LED.Visual_Beeper_Color;
-      elsif Id = Power_Menu then
-         T.Config.Battery_Config.Voltage_Meter_Source := T.Power.Voltage_Meter_Source;
-         T.Config.Battery_Config.Current_Meter_Source := T.Power.Current_Meter_Source;
-         T.Config.Battery_Profiles (T.Power.Battery_Profile).Vbatmincellvoltage := T.Power.Min_Cell_Voltage;
-         T.Config.Battery_Profiles (T.Power.Battery_Profile).Vbatmaxcellvoltage := T.Power.Max_Cell_Voltage;
-         T.Config.Battery_Profiles (T.Power.Battery_Profile).Vbatwarningcellvoltage := T.Power.Warning_Cell_Voltage;
-         T.Config.Voltage_Sensor_Adc_Config (0).Vbatscale := T.Power.Voltage_Scale;
-         T.Config.Current_Sensor_Adc_Config.Scale := T.Power.Current_Scale;
-         T.Config.Current_Sensor_Adc_Config.Offset := T.Power.Current_Offset;
-         T.Config.Current_Sensor_Virtual_Config.Scale := T.Power.Virtual_Scale;
-         T.Config.Current_Sensor_Virtual_Config.Offset := T.Power.Virtual_Offset;
-      elsif Id = Failsafe_Menu then
-         T.Config.Failsafe_Config.Failsafe_Procedure := T.Failsafe.Procedure_Kind;
-         T.Config.Failsafe_Config.Failsafe_Delay := T.Failsafe.Guard_Time;
-         T.Config.Failsafe_Config.Failsafe_Landing_Time := T.Failsafe.Landing_Time;
-         T.Config.Failsafe_Config.Failsafe_Throttle := T.Failsafe.Throttle;
-      elsif Id = RPM_Limit_Menu then
-         T.Config.Mixer_Config.Rpm_Limit_Value := T.RPM_Limit.Limit;
-         T.Config.Motor_Config.Kv := T.RPM_Limit.KV;
-         T.Config.Mixer_Config.Rpm_Limit := T.RPM_Limit.Active;
-      elsif Id = Misc_Menu then
-         T.Config.Motor_Config.Motor_Idle := 10 * Interfaces.Unsigned_16 (T.Misc.Idle_Offset);
-         T.Config.Rx_Config.Fpv_Cam_Angle_Degrees := T.Misc.FPV_Cam_Angle;
-         T.Config.Mixer_Config.Crashflip_Rate := T.Misc.Crashflip_Rate;
-      elsif Id = RC_Preview_Menu then
-         Chain_Back := Self /= 9;
-      elsif Id = GPS_Lap_Timer_Menu then
-         T.Config.Gps_Lap_Timer_Config.Minimum_Lap_Time_Seconds := T.Lap.Minimum_Lap_Time;
-         T.Config.Gps_Lap_Timer_Config.Gate_Tolerance_M := T.Lap.Gate_Tolerance;
-      elsif Id = Set_Gate_Menu then
-         if T.Asked.Gate_Ends < Natural'Last then
-            T.Asked.Gate_Ends := T.Asked.Gate_Ends + 1;
-         end if;
-      elsif Id = Persistent_Stats_Menu then
-         T.Config.Stats_Config.Stats_Total_Flights := T.Stats.Total_Flights;
-         T.Config.Stats_Config.Stats_Total_Time_S := T.Stats.Total_Time_S;
-         T.Config.Stats_Config.Stats_Total_Dist_M := T.Stats.Total_Dist_M;
-         T.Config.Stats_Config.Stats_Min_Armed_Time_S := T.Stats.Min_Armed_Time;
-      end if;
+      case Id is
+         when Quick_Menu =>
+            Leave_Quick_Menu (T);
+         when Profile_Menu =>
+            Leave_Profile_Menu (T);
+         when PID_Menu =>
+            Leave_PID_Menu (T);
+         when Rate_Menu =>
+            Leave_Rate_Menu (T);
+         when Simplified_Menu =>
+            Leave_Simplified_Menu (T);
+         when Profile_Other_Menu =>
+            Leave_Profile_Other_Menu (T);
+         when Launch_Control_Menu =>
+            Leave_Launch_Control_Menu (T);
+         when OSD_Menu =>
+            Leave_OSD_Menu (T);
+         when Active_Elements_Menu =>
+            Leave_Active_Elements_Menu (T);
+         when Timers_Menu =>
+            Leave_Timers_Menu (T);
+         when Alarms_Menu =>
+            Leave_Alarms_Menu (T);
+         when Blackbox_Menu =>
+            Leave_Blackbox_Menu (T);
+         when LED_Strip_Menu =>
+            Leave_LED_Strip_Menu (T);
+         when Power_Menu =>
+            Leave_Power_Menu (T);
+         when Failsafe_Menu =>
+            Leave_Failsafe_Menu (T);
+         when RPM_Limit_Menu =>
+            Leave_RPM_Limit_Menu (T);
+         when Misc_Menu =>
+            Leave_Misc_Menu (T);
+         when RC_Preview_Menu =>
+            Chain_Back := Self /= 9;
+         when GPS_Lap_Timer_Menu =>
+            Leave_GPS_Lap_Timer_Menu (T);
+         when Set_Gate_Menu =>
+            Leave_Set_Gate_Menu (T);
+         when Persistent_Stats_Menu =>
+            Leave_Persistent_Stats_Menu (T);
+         when others =>
+            null;
+      end case;
    end On_Leave;
 
    --  The battery restore line's text: the stored charge in five places,
