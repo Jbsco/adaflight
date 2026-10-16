@@ -59,7 +59,7 @@ package Adaflight.Counting_Steps with SPARK_Mode, Initializes => Calls is
    --  The display operations a counted hook makes: of a kind, at a place
    --  and of a length by the count.
    function Step_Screen (T : Menu_Target) return Menu.Screen_Ops is
-     (others => (Kind   => Menu.Screen_Kind'Val (T mod 3),
+     (others => (Kind   => Menu.Screen_Kind'Val (T mod 4),
                  X      => T mod 32,
                  Y      => T mod 16,
                  Attr   => 0,
