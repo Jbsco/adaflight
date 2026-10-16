@@ -5842,3 +5842,26 @@ The control oracle adds four sequences over an MSP device: tables of four and fi
 a zero and a repeated value, a table without power levels that never comes ready, and a device without
 a port. At random the transmitter answers on its own link or on another. Every recorded vector replays
 exactly, 3600 of the 12600 steps over the MSP device.
+
+## D250. MSP VTX menu (2026-10-16)
+
+`Adaflight.Menu_Content` gains the MSP VTX menu with its confirmation. The target now contains the VTX
+layer's state with the MSP driver, the running VTX table and the menu's status line, which the target
+updates through `Update_MSP_Status` when the VTX layer's events ask: a request to set the table up while
+it has no bands or no power levels, else the band's letter and the channel's name or U F, the frequency
+in four places and the power, each as dashes while the device does not know it.
+
+On entry the menu reads the band and channel, the pit mode and the power index from the device through
+the common layer, which `Adaflight.VTX` now exports, and without a device it goes back. The pit mode line
+sets the device's pit mode, the band, channel and power lines step from none to the first, and the
+confirmation sends the band, channel and power to the device, stores them with the frequency of the band
+and channel, and saves the configuration, a new hook operation, before going back. The MSP driver reads
+its frequency back from the table (F218), and saving in user frequency mode stores band, channel and
+frequency zero (F219); adaflight keeps both.
+
+The menu contents oracle wraps the reference's VTX common layer, MSP driver and MSP VTX menu. Per session
+it scripts a VTX table and the driver's state and registers the MSP driver for the MSP type or a stand-in
+that answers nothing for any other type, and it updates the status line at the start and at each change
+of the readings. The harness replays 240 sessions with 19636 keys, 792 menu changes and 20428 draws, 708
+of their states in the MSP VTX menu and 114 in its confirmation: every display operation, menu context,
+page, request, driver state, menu copy and configuration hash matches the reference's.
