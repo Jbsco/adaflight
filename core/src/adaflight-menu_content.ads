@@ -356,9 +356,10 @@ package Adaflight.Menu_Content with SPARK_Mode is
       Line_2 : Adaflight.Menu.Label_Text;
    end record;
 
-   --  The MSP VTX menu's copies of the pit mode, none, off or on, the band,
-   --  channel and power index, and the frequency of the band and channel.
-   type MSP_VTX_Copies is record
+   --  The VTX device menus' copies of the pit mode, none, off or on, the
+   --  band, channel and power index, and the frequency of the band and
+   --  channel.
+   type VTX_Copies is record
       Pit_Mode : Interfaces.Unsigned_8 := 0;
       Band     : Interfaces.Unsigned_8 := 1;
       Channel  : Interfaces.Unsigned_8 := 1;
@@ -366,8 +367,8 @@ package Adaflight.Menu_Content with SPARK_Mode is
       Power    : Interfaces.Unsigned_8 := 1;
    end record;
 
-   --  The MSP VTX menu's status line before the MSP driver first sets it.
-   Initial_MSP_Status : constant Adaflight.Menu.Label_Text :=
+   --  The VTX device menus' status line before the driver first sets it.
+   Initial_VTX_Status : constant Adaflight.Menu.Label_Text :=
      (Data => "- -- ---- ----" & (1 .. 17 => ' '), Length => 14);
 
    --  The OSD menu's copies of the OSD profile, the MAX7456 display's
@@ -522,8 +523,8 @@ package Adaflight.Menu_Content with SPARK_Mode is
       Copy        : Copy_Targets;
       VTX_Status  : VTX_Status_Lines;
       VTX         : Adaflight.VTX.State;
-      MSP_Status  : Adaflight.Menu.Label_Text := Initial_MSP_Status;
-      MSP         : MSP_VTX_Copies;
+      MSP_Status  : Adaflight.Menu.Label_Text := Initial_VTX_Status;
+      MSP         : VTX_Copies;
       VTX_Table   : Adaflight.VTX_Table.Table;
       LED         : LED_Copies;
       Lap         : Lap_Copies;

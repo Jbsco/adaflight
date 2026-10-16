@@ -152,19 +152,19 @@ package body Adaflight.Menu_Content with SPARK_Mode is
    function Pit_Mode_Name (Index : Natural) return Adaflight.Menu.Label_Text is
      (if Index <= 2 then Pit_Mode_Names (Index) else Label (""));
 
-   --  The MSP VTX menu's names of the running table's bands, channels and
+   --  The VTX device menus' names of the running table's bands, channels and
    --  power levels by index, the first for none.
-   function Band_Name (T : Target; Index : Natural) return Adaflight.Menu.Label_Text is
+   function Band_Name (Run : Adaflight.VTX_Table.Table; Index : Natural) return Adaflight.Menu.Label_Text is
      (if Index = 0 then Label ("--------")
-      elsif Index <= Adaflight.VTX_Table.Max_Bands then C_Text (T.VTX_Table.Names (Index))
+      elsif Index <= Adaflight.VTX_Table.Max_Bands then C_Text (Run.Names (Index))
       else Label (""));
-   function Channel_Name (T : Target; Index : Natural) return Adaflight.Menu.Label_Text is
+   function Channel_Name (Run : Adaflight.VTX_Table.Table; Index : Natural) return Adaflight.Menu.Label_Text is
      (if Index = 0 then Label ("-")
-      elsif Index <= Adaflight.VTX_Table.Max_Channels then C_Text ((1 => T.VTX_Table.Channel_Name (Index)))
+      elsif Index <= Adaflight.VTX_Table.Max_Channels then C_Text ((1 => Run.Channel_Name (Index)))
       else Label (""));
-   function Power_Name (T : Target; Index : Natural) return Adaflight.Menu.Label_Text is
+   function Power_Name (Run : Adaflight.VTX_Table.Table; Index : Natural) return Adaflight.Menu.Label_Text is
      (if Index = 0 then Label ("---")
-      elsif Index <= Adaflight.VTX_Table.Max_Power_Levels then C_Text (T.VTX_Table.Label (Index))
+      elsif Index <= Adaflight.VTX_Table.Max_Power_Levels then C_Text (Run.Label (Index))
       else Label (""));
 
    Throttle_Limit_Names : constant array (0 .. 2) of Adaflight.Menu.Label_Text :=
@@ -600,6 +600,37 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       M.Count := N;
    end Load_VTX_Error_Menu;
 
+   --  The VTX device menus' first lines: the title, the status line, and
+   --  the pit mode, band, channel, frequency and power lines over the copies
+   --  and the running table.
+   procedure Add_VTX_Lines
+     (M      : in out Table;
+      N      : in out Adaflight.Menu.Line_Count;
+      Title  : String;
+      Status : Adaflight.Menu.Label_Text;
+      C      : VTX_Copies;
+      Run    : Adaflight.VTX_Table.Table)
+     with Global => null,
+          Pre    => Title'Length <= Adaflight.Menu.Max_Text and then N <= Adaflight.Menu.Max_Lines - 7
+                    and then Fixed_Below (M, N),
+          Post   => N = N'Old + 7 and then Fixed_Below (M, N)
+   is
+      use Adaflight.Menu;
+   begin
+      Add (M, N, Make (Title, Label));
+      Add (M, N, Text_Line ("", Label, Status, Flags => Dynamic));
+      Add (M, N, Choice ("PIT", Interfaces.Integer_32 (C.Pit_Mode), 2, Pit_Mode_Name (Natural (C.Pit_Mode)),
+                         Has_Func => True));
+      Add (M, N, Choice ("BAND", Interfaces.Integer_32 (C.Band), Interfaces.Integer_32 (Run.Bands),
+                         Band_Name (Run, Natural (C.Band)), Has_Func => True));
+      Add (M, N, Choice ("CHAN", Interfaces.Integer_32 (C.Channel), Interfaces.Integer_32 (Run.Channels),
+                         Channel_Name (Run, Natural (C.Channel)), Has_Func => True));
+      Add (M, N, Number ("(FREQ)", Interfaces.Integer_32 (C.Freq_Ref), 5600, 5900, UInt16, Step => 0,
+                         Flags => Dynamic));
+      Add (M, N, Choice ("POWER", Interfaces.Integer_32 (C.Power), Interfaces.Integer_32 (Run.Power_Levels),
+                         Power_Name (Run, Natural (C.Power)), Has_Func => True));
+   end Add_VTX_Lines;
+
    procedure Load_VTX_MSP_Menu (T : Target; M : out Table)
      with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
    is
@@ -607,18 +638,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       N : Line_Count := 0;
    begin
       M := Empty_Table;
-      Add (M, N, Make ("- MSP -", Label));
-      Add (M, N, Text_Line ("", Label, T.MSP_Status, Flags => Dynamic));
-      Add (M, N, Choice ("PIT", Interfaces.Integer_32 (T.MSP.Pit_Mode), 2, Pit_Mode_Name (Natural (T.MSP.Pit_Mode)),
-                         Has_Func => True));
-      Add (M, N, Choice ("BAND", Interfaces.Integer_32 (T.MSP.Band), Interfaces.Integer_32 (T.VTX_Table.Bands),
-                         Band_Name (T, Natural (T.MSP.Band)), Has_Func => True));
-      Add (M, N, Choice ("CHAN", Interfaces.Integer_32 (T.MSP.Channel), Interfaces.Integer_32 (T.VTX_Table.Channels),
-                         Channel_Name (T, Natural (T.MSP.Channel)), Has_Func => True));
-      Add (M, N, Number ("(FREQ)", Interfaces.Integer_32 (T.MSP.Freq_Ref), 5600, 5900, UInt16, Step => 0,
-                         Flags => Dynamic));
-      Add (M, N, Choice ("POWER", Interfaces.Integer_32 (T.MSP.Power), Interfaces.Integer_32 (T.VTX_Table.Power_Levels),
-                         Power_Name (T, Natural (T.MSP.Power)), Has_Func => True));
+      Add_VTX_Lines (M, N, "- MSP -", T.MSP_Status, T.MSP, T.VTX_Table);
       Add (M, N, Sub ("SAVE", VTX_MSP_Confirm));
       Add (M, N, Make ("BACK", Back));
       M.Count := N;
@@ -1389,90 +1409,140 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       end case;
    end Load;
 
-   --  The MSP VTX menu's frequency of its band and channel, kept while
+   --  The VTX device menus' frequency of their band and channel, kept while
    --  either is none.
-   procedure Update_Freq_Ref (T : in out Target)
+   procedure Update_Freq_Ref (C : in out VTX_Copies; Run : Adaflight.VTX_Table.Table; Present : Boolean)
      with Global => null
    is
    begin
-      if T.MSP.Band > 0 and then T.MSP.Channel > 0 then
-         T.MSP.Freq_Ref :=
-           (if T.Live.VTX_Present
-            then Adaflight.VTX_Table.Frequency_Of (T.VTX_Table, Natural (T.MSP.Band), Natural (T.MSP.Channel))
-            else 0);
+      if C.Band > 0 and then C.Channel > 0 then
+         C.Freq_Ref :=
+           (if Present then Adaflight.VTX_Table.Frequency_Of (Run, Natural (C.Band), Natural (C.Channel)) else 0);
       end if;
    end Update_Freq_Ref;
 
-   --  The MSP VTX menu's copies from the device: the band and channel, the
-   --  pit mode, none while unknown, and the power index, the first while
+   --  The VTX device menus' copies from the device: the band and channel,
+   --  the pit mode, none while unknown, and the power index, the first while
    --  unknown.
-   procedure Enter_VTX_MSP_Menu (T : in out Target)
+   procedure Read_VTX_Copies
+     (V       : Adaflight.VTX.State;
+      Run     : Adaflight.VTX_Table.Table;
+      Present : Boolean;
+      C       : in out VTX_Copies)
      with Global => null
    is
       Ignore_Known : Boolean;
       Known        : Boolean;
       Pit          : Boolean;
    begin
-      Adaflight.VTX.Common_Get_Band_Channel (T.VTX, T.VTX_Table, T.MSP.Band, T.MSP.Channel, Ignore_Known);
-      Update_Freq_Ref (T);
-      Adaflight.VTX.Common_Get_Status (T.VTX, Pit, Known);
-      T.MSP.Pit_Mode := (if not Known then 0 elsif Pit then 2 else 1);
-      Adaflight.VTX.Common_Get_Power_Index (T.VTX, T.VTX_Table, T.MSP.Power, Known);
+      Adaflight.VTX.Common_Get_Band_Channel (V, Run, C.Band, C.Channel, Ignore_Known);
+      Update_Freq_Ref (C, Run, Present);
+      Adaflight.VTX.Common_Get_Status (V, Pit, Known);
+      C.Pit_Mode := (if not Known then 0 elsif Pit then 2 else 1);
+      Adaflight.VTX.Common_Get_Power_Index (V, Run, C.Power, Known);
       if not Known then
-         T.MSP.Power := 1;
+         C.Power := 1;
       end if;
-   end Enter_VTX_MSP_Menu;
+   end Read_VTX_Copies;
 
-   --  The MSP VTX menu's band, channel and power sent to the device and
+   --  The VTX device menus' band, channel and power sent to the device and
    --  stored with the band and channel's frequency.
-   procedure Commence_VTX_MSP (T : in out Target)
+   procedure Commence_VTX
+     (V       : in out Adaflight.VTX.State;
+      Run     : Adaflight.VTX_Table.Table;
+      Present : Boolean;
+      C       : VTX_Copies;
+      S       : in out Adaflight.Config_Groups.Vtx_Settings_Config_Record)
      with Global => null
    is
-      S : Adaflight.Config_Groups.Vtx_Settings_Config_Record := T.Config.Vtx_Settings_Config;
    begin
-      Adaflight.VTX.Common_Set_Band_Channel (T.VTX, T.VTX_Table, T.MSP.Band, T.MSP.Channel);
-      Adaflight.VTX.Common_Set_Power_Index (T.VTX, T.VTX_Table, T.MSP.Power);
-      S.Band := T.MSP.Band;
-      S.Channel := T.MSP.Channel;
-      S.Power := T.MSP.Power;
-      S.Freq :=
-        (if T.Live.VTX_Present
-         then Adaflight.VTX_Table.Frequency_Of (T.VTX_Table, Natural (T.MSP.Band), Natural (T.MSP.Channel))
-         else 0);
-      T.Config.Vtx_Settings_Config := S;
-   end Commence_VTX_MSP;
+      Adaflight.VTX.Common_Set_Band_Channel (V, Run, C.Band, C.Channel);
+      Adaflight.VTX.Common_Set_Power_Index (V, Run, C.Power);
+      S.Band := C.Band;
+      S.Channel := C.Channel;
+      S.Power := C.Power;
+      S.Freq := (if Present then Adaflight.VTX_Table.Frequency_Of (Run, Natural (C.Band), Natural (C.Channel)) else 0);
+   end Commence_VTX;
 
-   procedure Update_MSP_Status (T : in out Target) is
+   --  A VTX device menu's line after its value changed: the pit mode set on
+   --  the device, from none to off, and the band, channel and power from
+   --  none to the first, the band and channel's frequency taken again.
+   procedure VTX_Line_Changed
+     (V       : in out Adaflight.VTX.State;
+      Run     : Adaflight.VTX_Table.Table;
+      Present : Boolean;
+      C       : in out VTX_Copies;
+      Line    : Natural)
+     with Global => null
+   is
+   begin
+      case Line is
+         when 2 =>
+            if C.Pit_Mode = 0 then
+               C.Pit_Mode := 1;
+            else
+               Adaflight.VTX.Common_Set_Pit_Mode (V, C.Pit_Mode /= 1);
+            end if;
+         when 3 =>
+            if C.Band = 0 then
+               C.Band := 1;
+            else
+               Update_Freq_Ref (C, Run, Present);
+            end if;
+         when 4 =>
+            if C.Channel = 0 then
+               C.Channel := 1;
+            else
+               Update_Freq_Ref (C, Run, Present);
+            end if;
+         when 6 =>
+            if C.Power = 0 then
+               C.Power := 1;
+            end if;
+         when others =>
+            null;
+      end case;
+   end VTX_Line_Changed;
+
+   --  The VTX device menus' status line as far as the power: the band's
+   --  letter and the channel's name, or U F without them, and the frequency
+   --  in four places, or dashes while the device does not know it.
+   function Status_Head (V : Adaflight.VTX.State; Run : Adaflight.VTX_Table.Table) return String
+     with Global => null,
+          Post   => Status_Head'Result'First = 1 and then Status_Head'Result'Length = 9
+   is
       Band, Channel : Interfaces.Unsigned_8 := 0;
-      Index         : Interfaces.Unsigned_8 := 0;
       Freq          : Interfaces.Unsigned_16 := 0;
       Known         : Boolean;
       Pair          : String (1 .. 2) := "UF";
+   begin
+      Adaflight.VTX.Common_Get_Band_Channel (V, Run, Band, Channel, Known);
+      if Known and then (Band /= 0 or else Channel /= 0) then
+         Pair := (Adaflight.VTX_Table.Band_Letter_Of (Run, Natural (Band)),
+                  Adaflight.VTX_Table.Channel_Name_Of (Run, Natural (Channel)));
+      end if;
+      Adaflight.VTX.Common_Get_Frequency (V, Run, Freq, Known);
+      declare
+         Freq_Text : constant String := (if Known and then Freq /= 0 then Decimal (Freq, 4) else "----");
+      begin
+         return "* " & Pair & " " & Freq_Text (Freq_Text'First .. Freq_Text'First + 3);
+      end;
+   end Status_Head;
+
+   procedure Update_MSP_Status (T : in out Target) is
+      Index : Interfaces.Unsigned_8 := 0;
+      Known : Boolean;
    begin
       if T.VTX_Table.Bands = 0 or else T.VTX_Table.Power_Levels = 0 then
          T.MSP_Status := Label ("PLEASE CONFIGURE VTXTABLE");
          return;
       end if;
-      Adaflight.VTX.Common_Get_Band_Channel (T.VTX, T.VTX_Table, Band, Channel, Known);
-      if Known and then (Band /= 0 or else Channel /= 0) then
-         Pair := (Adaflight.VTX_Table.Band_Letter_Of (T.VTX_Table, Natural (Band)),
-                  Adaflight.VTX_Table.Channel_Name_Of (T.VTX_Table, Natural (Channel)));
-      end if;
-      Adaflight.VTX.Common_Get_Frequency (T.VTX, T.VTX_Table, Freq, Known);
-      declare
-         Freq_Text : constant String := (if Known and then Freq /= 0 then Decimal (Freq, 4) else "----");
-      begin
-         Adaflight.VTX.Common_Get_Power_Index (T.VTX, T.VTX_Table, Index, Known);
-         declare
-            Power_Text : constant String :=
-              (if Known and then Adaflight.VTX_Table.Has_Power_Value (T.VTX_Table, Natural (Index))
-               then " *" & Decimal (Adaflight.VTX_Table.Power_Value_Of (T.VTX_Table, Natural (Index)), 3)
-               else " ----");
-         begin
-            T.MSP_Status :=
-              C_Text ("* " & Pair & " " & Freq_Text (Freq_Text'First .. Freq_Text'First + 3) & Power_Text);
-         end;
-      end;
+      Adaflight.VTX.Common_Get_Power_Index (T.VTX, T.VTX_Table, Index, Known);
+      T.MSP_Status :=
+        C_Text (Status_Head (T.VTX, T.VTX_Table)
+                & (if Known and then Adaflight.VTX_Table.Has_Power_Value (T.VTX_Table, Natural (Index))
+                   then " *" & Decimal (Adaflight.VTX_Table.Power_Value_Of (T.VTX_Table, Natural (Index)), 3)
+                   else " ----"));
    end Update_MSP_Status;
 
    --  The setup popup's build: a line for the accelerometer calibration
@@ -1683,7 +1753,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
             T.Copy := (PID_Target => 0, Rate_Target => 0);
          when VTX_MSP_Menu =>
             if T.Live.VTX_Present then
-               Enter_VTX_MSP_Menu (T);
+               Read_VTX_Copies (T.VTX, T.VTX_Table, T.Live.VTX_Present, T.MSP);
             else
                Reply.Chain_Back := True;
             end if;
@@ -2332,7 +2402,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
                   end;
                end if;
             elsif Id = VTX_MSP_Confirm and then Line = 1 then
-               Commence_VTX_MSP (T);
+               Commence_VTX (T.VTX, T.VTX_Table, T.Live.VTX_Present, T.MSP, T.Config.Vtx_Settings_Config);
                Reply.Screens := 1;
                Reply.Screen (1).Kind := Adaflight.Menu.Save_Config;
                Reply.Chain_Back := True;
@@ -2399,28 +2469,8 @@ package body Adaflight.Menu_Content with SPARK_Mode is
                T.Config.Display_Port_Profile_Max7456.White_Brightness := T.OSD.White_Brightness;
                Reply.Screens := 1;
                Reply.Screen (1).Kind := Adaflight.Menu.Clear_Wait;
-            elsif Id = VTX_MSP_Menu and then Line = 2 then
-               if T.MSP.Pit_Mode = 0 then
-                  T.MSP.Pit_Mode := 1;
-               else
-                  Adaflight.VTX.Common_Set_Pit_Mode (T.VTX, T.MSP.Pit_Mode /= 1);
-               end if;
-            elsif Id = VTX_MSP_Menu and then Line = 3 then
-               if T.MSP.Band = 0 then
-                  T.MSP.Band := 1;
-               else
-                  Update_Freq_Ref (T);
-               end if;
-            elsif Id = VTX_MSP_Menu and then Line = 4 then
-               if T.MSP.Channel = 0 then
-                  T.MSP.Channel := 1;
-               else
-                  Update_Freq_Ref (T);
-               end if;
-            elsif Id = VTX_MSP_Menu and then Line = 6 then
-               if T.MSP.Power = 0 then
-                  T.MSP.Power := 1;
-               end if;
+            elsif Id = VTX_MSP_Menu then
+               VTX_Line_Changed (T.VTX, T.VTX_Table, T.Live.VTX_Present, T.MSP, Line);
             elsif Id = OSD_Menu and then Line = 8 then
                T.Config.Osd_Config.Cms_Background_Type := T.OSD.Background;
                Reply.Screens := 1;
@@ -2730,9 +2780,9 @@ package body Adaflight.Menu_Content with SPARK_Mode is
               elsif Id = LED_Strip_Menu and then Line = 2 then LED_Profile_Name (Index)
               elsif Id = LED_Strip_Menu and then Line in 3 | 4 | 9 then LED_Color_Name (Index)
               elsif Id = VTX_MSP_Menu and then Line = 2 then Pit_Mode_Name (Index)
-              elsif Id = VTX_MSP_Menu and then Line = 3 then Band_Name (T, Index)
-              elsif Id = VTX_MSP_Menu and then Line = 4 then Channel_Name (T, Index)
-              elsif Id = VTX_MSP_Menu and then Line = 6 then Power_Name (T, Index)
+              elsif Id = VTX_MSP_Menu and then Line = 3 then Band_Name (T.VTX_Table, Index)
+              elsif Id = VTX_MSP_Menu and then Line = 4 then Channel_Name (T.VTX_Table, Index)
+              elsif Id = VTX_MSP_Menu and then Line = 6 then Power_Name (T.VTX_Table, Index)
               else Label (""));
    end Lookup;
 
