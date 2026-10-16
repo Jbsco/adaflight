@@ -101,6 +101,7 @@ with Adaflight.GHST_Telemetry;
 with Adaflight.Transponder;
 with Adaflight.SRXL_Telemetry;
 with Adaflight.SRXL_Display_Port;
+with Adaflight.OSD_Nav_Map;
 with Adaflight.FrSky_OSD;
 with Adaflight.LED_Strip;
 with Adaflight.Color;
@@ -6820,6 +6821,78 @@ procedure Vector_Check is
          Failures := Failures + 1;
       end if;
    end Check_SRXL_Telemetry_Line;
+
+   NM_State    : Adaflight.OSD_Nav_Map.State;
+   NM_Settings : Adaflight.OSD_Nav_Map.Settings;
+   NM_Inputs   : Adaflight.OSD_Nav_Map.Inputs;
+   NM_Rows     : Byte := 0;
+   NM_Cols     : Byte := 0;
+   NM_Pos_X    : Byte := 0;
+   NM_Pos_Y    : Byte := 0;
+
+   procedure Check_Nav_Map_Line is
+      use Adaflight.OSD_Nav_Map;
+      Name : constant String := Str (1);
+   begin
+      if Name = "navinit" then
+         NM_State := (others => <>);
+         NM_Settings :=
+           (Heading_Up  => Int (3) = 1, Centre_Craft => Int (4) = 1, Min_Scale_M => Interfaces.Unsigned_16 (Int (5)),
+            Units       => Adaflight.OSD_Format.Unit_System'Val (Int (6)));
+         NM_Rows := Byte (Int (7));
+         NM_Cols := Byte (Int (8));
+         NM_Inputs := (others => <>);
+         NM_Inputs.Home := (Latitude => I32 (9), Longitude => I32 (10));
+         NM_Inputs.Cos_Lat := Flt (11);
+         NM_Inputs.Waypoint_Count := Byte (Int (12));
+         for W in Waypoint_Index loop
+            NM_Inputs.Waypoints (W) :=
+              (Kind => Byte (Int (13 + 3 * W)), Latitude => I32 (14 + 3 * W), Longitude => I32 (15 + 3 * W));
+         end loop;
+      elsif Name = "navframe" then
+         NM_Inputs.Fix_Home := Int (4) mod 2 = 1;
+         NM_Inputs.Fix := (Int (4) / 2) mod 2 = 1;
+         NM_Inputs.Craft := (Latitude => I32 (5), Longitude => I32 (6));
+         NM_Inputs.Yaw_Deci := Interfaces.Integer_16 (Int (7));
+         NM_Inputs.Nav_Active := Int (8) = 1;
+         NM_Inputs.Nav_Index := Byte (Int (9));
+         NM_Pos_X := Byte (Int (10));
+         NM_Pos_Y := Byte (Int (11));
+         NM_Inputs.Trail_Count := Natural (Int (12));
+         for T in 0 .. NM_Inputs.Trail_Count - 1 loop
+            NM_Inputs.Trail (T) :=
+              (East_M => Interfaces.Integer_16 (Int (13 + 2 * T)), North_M => Interfaces.Integer_16 (Int (14 + 2 * T)));
+         end loop;
+      elsif Name = "navrow" then
+         declare
+            O : Output;
+         begin
+            Render (NM_State, NM_Settings, NM_Inputs, NM_Pos_X, NM_Pos_Y, NM_Rows, NM_Cols, O);
+            declare
+               Line : Byte_Array (0 .. O.Length - 1);
+            begin
+               for I in Line'Range loop
+                  Line (I) := O.Line (I);
+               end loop;
+               Record_Bytes (Name & ".line", Hex_Bytes (9), Line);
+            end;
+            Record_Int (Name & ".draw", Int (5), Boolean'Pos (O.Draw));
+            Record_Int (Name & ".rendered", Int (6), Boolean'Pos (O.Rendered));
+            Record_Int (Name & ".offset_y", Int (7), Integer_64 (O.Offset_Y));
+            Record_Int (Name & ".attr", Int (8), 0);
+            Record_Int (Name & ".scale", Int (10), Integer_64 (NM_State.Auto_Scale_M));
+            Record_Int (Name & ".phase", Int (11), Integer_64 (NM_State.Anim_Phase));
+            Record_Int (Name & ".last_scale", Int (12), Integer_64 (NM_State.Last_Scale_M));
+            Record_Int (Name & ".flash", Int (13), Integer_64 (NM_State.Flash_Frames));
+            Record_Int (Name & ".zoomed_out", Int (14), Boolean'Pos (NM_State.Zoomed_Out));
+            Record_Int (Name & ".prepared", Int (15), Boolean'Pos (NM_State.Prepared));
+            Record_Int (Name & ".render_row", Int (16), Integer_64 (NM_State.Render_Row));
+         end;
+      else
+         Put_Line ("unknown nav map case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Nav_Map_Line;
 
    OS_Seq  : Integer_64 := -1;
    OS_Link : Adaflight.FrSky_OSD.Link;
@@ -20020,6 +20093,8 @@ procedure Vector_Check is
                   Check_Transponder_Line;
                elsif Kind = "srxltlm" then
                   Check_SRXL_Telemetry_Line;
+               elsif Kind = "navmap" then
+                  Check_Nav_Map_Line;
                elsif Kind = "frskyosd" then
                   Check_FrSky_OSD_Line;
                elsif Kind = "ledstrip" then
