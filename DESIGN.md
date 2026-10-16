@@ -5820,3 +5820,25 @@ harness replays 240 sessions with 19378 keys, 789 menu changes and 20167 draws, 
 the profile filter menu, 266 in the global filter menu, 204 in the dynamic filter menu and 302 in the
 profile copy menu: every display operation, menu context, page, request and configuration hash
 matches the reference's.
+
+## D249. MSP device in the VTX control layer (2026-10-16)
+
+`Adaflight.VTX_Settings` contains the transmitter settings that `Adaflight.VTX` and `Adaflight.VTX_MSP`
+both read. They moved out of `Adaflight.VTX`, which keeps them as subtypes, so the control layer can
+hold the MSP driver without a circular dependency.
+
+`Adaflight.VTX` now drives an MSP device too. The control layer passes the band and channel it sets
+to the device, to a SmartAudio device only for a factory band, and a band not from the factory also as
+its frequency. The MSP driver takes the power index, pit mode and frequency, its getters answer the
+control layer's queries, and the Spektrum power steps give it no index. A task call that runs the
+device runs the driver's cycle, and the events return the configuration frame to push with a flag for
+the MSP menu's status line, set at every cycle while the transmitter is offline and after each frame
+sent.
+
+The driver converts each power level to milliwatts as a 16-bit integer, which C leaves undefined from
+level 49 (F217). adaflight saturates at 65535, as in D93 and D103.
+
+The control oracle adds four sequences over an MSP device: tables of four and five power levels with
+a zero and a repeated value, a table without power levels that never comes ready, and a device without
+a port. At random the transmitter answers on its own link or on another. Every recorded vector replays
+exactly, 3600 of the 12600 steps over the MSP device.
