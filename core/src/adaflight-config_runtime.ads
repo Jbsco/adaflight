@@ -20,13 +20,17 @@ with Adaflight.Config_Fix;
 with Adaflight.Config_Groups; use Adaflight.Config_Groups;
 with Adaflight.CRSF_Telemetry;
 with Adaflight.Dyn_Notch;
+with Adaflight.ExpressLRS;
+with Adaflight.ExpressLRS_Receiver;
 with Adaflight.Failsafe;
 with Adaflight.Flight_Plan_Nav;
 with Adaflight.Flight_Stats;
 with Adaflight.Float_Bits;
+with Adaflight.FlySky;
 with Adaflight.GPS_Lap_Timer;
 with Adaflight.GPS_Link;
 with Adaflight.FrSky_Hub_Telemetry;
+with Adaflight.FrSky_SPI;
 with Adaflight.GHST_Telemetry;
 with Adaflight.Gimbal_Control;
 with Adaflight.GPS_Rescue;
@@ -57,10 +61,16 @@ with Adaflight.Rangefinder;
 with Adaflight.Rates;
 with Adaflight.RC_Command;
 with Adaflight.Receiver;
+with Adaflight.Redpine;
 with Adaflight.RPM_Filter;
 with Adaflight.RTC;
 with Adaflight.Scheduler;
 with Adaflight.Sensor_Alignment;
+with Adaflight.SFHSS;
+with Adaflight.Spektrum;
+with Adaflight.Spektrum_SPI;
+with Adaflight.SPI_Radio;
+with Adaflight.SRXL2;
 with Adaflight.SRXL_Telemetry;
 with Adaflight.UBX_Config;
 with Adaflight.Vectors;
@@ -307,6 +317,29 @@ package Adaflight.Config_Runtime with SPARK_Mode is
       return Jeti_Telemetry.Settings;
    function MAVLink_Settings_Of (T : Telemetry_Config_Record) return MAVLink_Telemetry.Settings;
    function SRXL_Settings_Of (T : Telemetry_Config_Record; Features : Unsigned_32) return SRXL_Telemetry.Settings;
+
+   --  The receiver link settings from the stored SPI receiver, CC2500,
+   --  ExpressLRS, FlySky, Spektrum and receiver groups and the features in
+   --  use. A radio's pins come from the stored pin tags; the FrSky SPI
+   --  protocol comes from the SPI protocol code, FrSky D for a code outside
+   --  the family, and the FlySky variant is AFHDS 2A for its code and AFHDS
+   --  otherwise; the Spektrum kind comes from the serial provider,
+   --  Spektrum 2048 for a code outside the three.
+   function Radio_Pins_Of (S : Rx_Spi_Config_Record; C : Rx_Cc2500_Spi_Config_Record) return SPI_Radio.Pins;
+   function ExpressLRS_Settings_Of (E : Rx_Express_Lrs_Spi_Config_Record) return ExpressLRS_Receiver.Settings;
+   function FrSky_SPI_Settings_Of
+     (S : Rx_Spi_Config_Record; C : Rx_Cc2500_Spi_Config_Record; Features : Unsigned_32;
+      Hub : FrSky_Hub_Telemetry.Settings) return FrSky_SPI.Settings;
+   function Redpine_Settings_Of (S : Rx_Spi_Config_Record; C : Rx_Cc2500_Spi_Config_Record) return Redpine.Settings;
+   function SFHSS_Settings_Of (S : Rx_Spi_Config_Record; C : Rx_Cc2500_Spi_Config_Record) return SFHSS.Settings;
+   function FlySky_Settings_Of
+     (S : Rx_Spi_Config_Record; C : Rx_Cc2500_Spi_Config_Record; F : Fly_Sky_Config_Record) return FlySky.Settings;
+   function Spektrum_Settings_Of
+     (R : Rx_Config_Record; Features : Unsigned_32; Telemetry_Port : Boolean) return Spektrum.Settings;
+   function Spektrum_SPI_Settings_Of
+     (K : Spektrum_Config_Record; S : Rx_Spi_Config_Record; C : Rx_Cc2500_Spi_Config_Record; Features : Unsigned_32)
+      return Spektrum_SPI.Settings;
+   function SRXL2_Settings_Of (R : Rx_Config_Record) return SRXL2.Settings;
 
 private
 
@@ -1111,6 +1144,89 @@ private
 
    function SRXL_Settings_Of (T : Telemetry_Config_Record; Features : Unsigned_32) return SRXL_Telemetry.Settings is
      (Report_Cell_Voltage => T.Report_Cell_Voltage /= 0, GPS_Feature => (Features and Config_Fix.Feature_GPS) /= 0);
+
+   function Radio_Pins_Of (S : Rx_Spi_Config_Record; C : Rx_Cc2500_Spi_Config_Record) return SPI_Radio.Pins is
+     (Chip_Detect   => C.Chip_Detect_Enabled /= 0,
+      Tx_Enable     => C.Tx_En_Io_Tag /= 0,
+      LNA           => C.Lna_En_Io_Tag /= 0,
+      Antenna       => C.Ant_Sel_Io_Tag /= 0,
+      LED           => S.Led_Io_Tag /= 0,
+      LED_Inversion => S.Led_Inversion /= 0,
+      Bind          => S.Bind_Io_Tag /= 0);
+
+   function ExpressLRS_Settings_Of (E : Rx_Express_Lrs_Spi_Config_Record) return ExpressLRS_Receiver.Settings is
+     (Domain   =>
+        ExpressLRS.Frequency_Domain'Val
+          (Code (E.Domain, ExpressLRS.Frequency_Domain'Pos (ExpressLRS.Frequency_Domain'Last))),
+      Rate     => Held (Integer (E.Rate_Index), 0, ExpressLRS.Rate_Index'Last),
+      UID      => ExpressLRS_Receiver.UID_Bytes (E.Uid),
+      Model_Id => E.Model_Id);
+
+   --  The FrSky SPI protocols by their SPI protocol codes.
+   function FrSky_Protocol_Of (Code_Value : Unsigned_8) return FrSky_SPI.SPI_Protocol is
+     (case Code_Value is
+         when 9 => FrSky_SPI.FrSky_X,
+         when 15 => FrSky_SPI.FrSky_X_LBT,
+         when 17 => FrSky_SPI.FrSky_X_V2,
+         when 18 => FrSky_SPI.FrSky_X_LBT_V2,
+         when others => FrSky_SPI.FrSky_D);
+
+   function FrSky_SPI_Settings_Of
+     (S : Rx_Spi_Config_Record; C : Rx_Cc2500_Spi_Config_Record; Features : Unsigned_32;
+      Hub : FrSky_Hub_Telemetry.Settings) return FrSky_SPI.Settings is
+     (Protocol      => FrSky_Protocol_Of (S.Rx_Spi_Protocol),
+      Auto_Bind     => C.Auto_Bind /= 0,
+      Bind_Tx_Id    => (0 => C.Bind_Tx_Id (0), 1 => C.Bind_Tx_Id (1), 2 => C.Bind_Tx_Id (2)),
+      Bind_Offset   => C.Bind_Offset,
+      Bind_Hop_Data => FrSky_SPI.Hop_Table (C.Bind_Hop_Data),
+      Rx_Num        => C.Rx_Num,
+      A1            =>
+        FrSky_SPI.A1_Source'Val (Code (C.A1_Source, FrSky_SPI.A1_Source'Pos (FrSky_SPI.A1_Source'Last))),
+      Pins          => Radio_Pins_Of (S, C),
+      Telemetry     => (Features and Config_Fix.Feature_Telemetry) /= 0,
+      Hub           => Hub);
+
+   function Redpine_Settings_Of (S : Rx_Spi_Config_Record; C : Rx_Cc2500_Spi_Config_Record) return Redpine.Settings is
+     (Auto_Bind     => C.Auto_Bind /= 0,
+      Bind_Tx_Id    => (0 => C.Bind_Tx_Id (0), 1 => C.Bind_Tx_Id (1)),
+      Bind_Offset   => C.Bind_Offset,
+      Bind_Hop_Data => Redpine.Hop_Table (C.Bind_Hop_Data),
+      Pins          => Radio_Pins_Of (S, C));
+
+   function SFHSS_Settings_Of (S : Rx_Spi_Config_Record; C : Rx_Cc2500_Spi_Config_Record) return SFHSS.Settings is
+     (Bind_Tx_Id  => (0 => C.Bind_Tx_Id (0), 1 => C.Bind_Tx_Id (1)),
+      Bind_Offset => C.Bind_Offset,
+      Pins        => Radio_Pins_Of (S, C));
+
+   function FlySky_Settings_Of
+     (S : Rx_Spi_Config_Record; C : Rx_Cc2500_Spi_Config_Record; F : Fly_Sky_Config_Record) return FlySky.Settings is
+     (Protocol    => (if S.Rx_Spi_Protocol = 11 then FlySky.AFHDS_2A else FlySky.AFHDS),
+      Tx_Id       => F.Tx_Id,
+      Rf_Map      => FlySky.Channel_Map (F.Rf_Channel_Map),
+      Receiver_Id => S.Rx_Spi_Id,
+      Pins        => Radio_Pins_Of (S, C));
+
+   function Spektrum_Settings_Of
+     (R : Rx_Config_Record; Features : Unsigned_32; Telemetry_Port : Boolean) return Spektrum.Settings is
+     (Kind         =>
+        (case R.Serialrx_Provider is
+            when 15 => Spektrum.Spektrum_1024,
+            when 10 => Spektrum.SRXL,
+            when others => Spektrum.Spektrum_2048),
+      Telemetry    => (Features and Config_Fix.Feature_Telemetry) /= 0 and then Telemetry_Port,
+      RSSI_Channel => Spektrum.Byte (R.Rssi_Channel));
+
+   function Spektrum_SPI_Settings_Of
+     (K : Spektrum_Config_Record; S : Rx_Spi_Config_Record; C : Rx_Cc2500_Spi_Config_Record; Features : Unsigned_32)
+      return Spektrum_SPI.Settings is
+     (Protocol     => K.Protocol,
+      Mfg_Id       => Spektrum_SPI.Manufacturer_Id (K.Mfg_Id),
+      Num_Channels => K.Num_Channels,
+      Telemetry    => (Features and Config_Fix.Feature_Telemetry) /= 0,
+      Pins         => Radio_Pins_Of (S, C));
+
+   function SRXL2_Settings_Of (R : Rx_Config_Record) return SRXL2.Settings is
+     (Unit_Id => Natural (R.Srxl2_Unit_Id), Baud_Fast => Natural (R.Srxl2_Baud_Fast));
 
    function Gyro_Settings_Of
      (G : Gyro_Config_Record; N : Dyn_Notch_Config_Record; R : Rpm_Filter_Config_Record;
