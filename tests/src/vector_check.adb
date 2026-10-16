@@ -8797,7 +8797,7 @@ procedure Vector_Check is
             if TM_Driver.Port_Open then
                case Op is
                   when 2 => Set_Power_Index (TM_Driver, TM_Table, Interfaces.Unsigned_8 (A1));
-                  when 3 => Set_Pit_Mode (TM_Driver, A1 = 1);
+                  when 3 => Set_Pit_Mode (TM_Driver, Interfaces.Unsigned_8 (A1));
                   when 4 => Set_Frequency (TM_Driver, Interfaces.Unsigned_16 (A1));
                   when others => null;
                end case;
@@ -10417,7 +10417,7 @@ procedure Vector_Check is
                Set_Power_Index (VM_Driver, VM_Table, Interfaces.Unsigned_8 (Int (4)));
                VM_Record_State (Name);
             when 3 =>
-               Set_Pit_Mode (VM_Driver, Int (4) = 1);
+               Set_Pit_Mode (VM_Driver, Interfaces.Unsigned_8 (Int (4)));
                VM_Record_State (Name);
             when 4 =>
                Set_Frequency (VM_Driver, Interfaces.Unsigned_16 (Int (4)));

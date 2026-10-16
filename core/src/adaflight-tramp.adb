@@ -258,9 +258,9 @@ package body Adaflight.Tramp with SPARK_Mode is
    -- Set_Pit_Mode --
    ------------------
 
-   procedure Set_Pit_Mode (D : in out Driver; On : Boolean) is
+   procedure Set_Pit_Mode (D : in out Driver; Value : Unsigned_8) is
    begin
-      D.Conf_Pit_Mode := (if On then 1 else 0);
+      D.Conf_Pit_Mode := Value;
       if D.Conf_Pit_Mode /= D.Last_Conf_Pit_Mode then
          D.Retry_Count := Max_Retries;
          D.Last_Conf_Pit_Mode := D.Conf_Pit_Mode;

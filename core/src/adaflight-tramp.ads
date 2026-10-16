@@ -77,7 +77,7 @@ package Adaflight.Tramp with SPARK_Mode is
    --  The configured power from the table value of the index.
    procedure Set_Power_Index (D : in out Driver; T : VTX_Table.Table; Index : Unsigned_8);
 
-   procedure Set_Pit_Mode (D : in out Driver; On : Boolean);
+   procedure Set_Pit_Mode (D : in out Driver; Value : Unsigned_8);
 
    --  A frequency within the device's limits, or the user range while the
    --  limits are unknown.

@@ -121,8 +121,7 @@ package body Adaflight.VTX_MSP with SPARK_Mode is
       end if;
    end Set_Power_Index;
 
-   procedure Set_Pit_Mode (D : in out Driver; On : Boolean) is
-      Value : constant Unsigned_8 := (if On then 1 else 0);
+   procedure Set_Pit_Mode (D : in out Driver; Value : Unsigned_8) is
    begin
       if Value /= D.Conf_Pit_Mode then
          D.Config_Changed := True;
