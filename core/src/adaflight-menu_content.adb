@@ -230,6 +230,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
    --  parentheses when it has one.
    function Profile_Text (Index : Interfaces.Unsigned_8; Name : Adaflight.Config_Groups.Bytes_9)
      return Adaflight.Menu.Label_Text
+     with Global => null
    is
       Len  : Natural range 0 .. 9 := 0;
       Text : Adaflight.Menu.Label_Text;
@@ -285,7 +286,9 @@ package body Adaflight.Menu_Content with SPARK_Mode is
    --  The PID loop's frequency cut to a whole number, in kilohertz with two
    --  decimals above a thousand hertz and else in hertz in three places, cut
    --  to the reference's eight-byte buffer.
-   function PID_Frequency_Text (F : PID_Hertz) return Adaflight.Menu.Label_Text is
+   function PID_Frequency_Text (F : PID_Hertz) return Adaflight.Menu.Label_Text
+     with Global => null
+   is
       Hz     : constant Natural := Natural (Float'Truncation (F));
       Tenths : constant Natural := Hz / 10;
       Whole  : constant String := Natural'Image (Tenths / 100);
@@ -320,7 +323,9 @@ package body Adaflight.Menu_Content with SPARK_Mode is
    --  The storage device's status and its used and free space, from the
    --  configured device and the device's readings with the flash's write
    --  offset given.
-   procedure Device_Status (T : in out Target; Flash_Offset : Interfaces.Unsigned_32) is
+   procedure Device_Status (T : in out Target; Flash_Offset : Interfaces.Unsigned_32)
+     with Global => null
+   is
       Used, Free : Interfaces.Unsigned_32 := 0;
       Working    : Boolean := False;
    begin
@@ -927,7 +932,9 @@ package body Adaflight.Menu_Content with SPARK_Mode is
    --  The setup popup's build: a line for the accelerometer calibration
    --  when arming waits for it, one for the battery restore when charge
    --  was drawn, and the exit; true when a line came in besides the exit.
-   procedure Build_Popup (T : in out Target; Added : out Boolean) is
+   procedure Build_Popup (T : in out Target; Added : out Boolean)
+     with Global => null
+   is
    begin
       T.Popup.Acc_Line := T.Live.Acc_Present and then T.Live.Acc_Calibration_Needed;
       T.Popup.Battery_Line := T.Live.Used_MAh;
@@ -935,7 +942,9 @@ package body Adaflight.Menu_Content with SPARK_Mode is
    end Build_Popup;
 
    --  The PID profile changed to an index, stored when the profile exists.
-   procedure Change_PID_Profile (T : in out Target; Index : Interfaces.Unsigned_8) is
+   procedure Change_PID_Profile (T : in out Target; Index : Interfaces.Unsigned_8)
+     with Global => null
+   is
    begin
       if T.Asked.PID_Changes < Natural'Last then
          T.Asked.PID_Changes := T.Asked.PID_Changes + 1;
@@ -947,7 +956,9 @@ package body Adaflight.Menu_Content with SPARK_Mode is
    end Change_PID_Profile;
 
    --  The rate profile changed to an index, stored when the profile exists.
-   procedure Change_Rate_Profile (T : in out Target; Index : Interfaces.Unsigned_8) is
+   procedure Change_Rate_Profile (T : in out Target; Index : Interfaces.Unsigned_8)
+     with Global => null
+   is
    begin
       if T.Asked.Rate_Changes < Natural'Last then
          T.Asked.Rate_Changes := T.Asked.Rate_Changes + 1;
@@ -1416,7 +1427,9 @@ package body Adaflight.Menu_Content with SPARK_Mode is
 
    --  The battery restore line's text: the stored charge in five places,
    --  cut to the reference's eighteen byte buffer.
-   function Restore_Text (MAh : Interfaces.Unsigned_32) return Adaflight.Menu.Label_Text is
+   function Restore_Text (MAh : Interfaces.Unsigned_32) return Adaflight.Menu.Label_Text
+     with Global => null
+   is
       Signed : constant Interfaces.Integer_64 :=
         (if MAh < 2 ** 31 then Interfaces.Integer_64 (MAh) else Interfaces.Integer_64 (MAh) - 2 ** 32);
       Image  : constant String := Interfaces.Integer_64'Image (Signed);
@@ -1432,7 +1445,9 @@ package body Adaflight.Menu_Content with SPARK_Mode is
 
       --  A channel reading rounded to a whole number with ties to even, as
       --  the C library rounds.
-      function Whole_Channel (X : RC_Reading) return Interfaces.Integer_16 is
+      function Whole_Channel (X : RC_Reading) return Interfaces.Integer_16
+        with Global => null
+      is
          R : constant Integer := Integer (X);
       begin
          if abs (Float (R) - X) = 0.5 and then R mod 2 /= 0 then
