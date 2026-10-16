@@ -19651,6 +19651,16 @@ procedure Vector_Check is
          K := K + 1;
          return Int (K - 1);
       end Next;
+      function Sliders return Slider_Settings is
+         use type Interfaces.Unsigned_8;
+         Current : constant Natural :=
+           Natural (Interfaces.Unsigned_8'Min (MCT_T.Config.System_Config.Pid_Profile_Index, 3));
+      begin
+         return (Mode         => Adaflight.PID_Profile.Simplified_Mode'Val
+                                   (MCT_T.Config.Pid_Profiles (Current).Simplified_Pids_Mode),
+                 Gyro_Filter  => MCT_T.Config.Gyro_Config.Simplified_Gyro_Filter /= 0,
+                 DTerm_Filter => MCT_T.Config.Pid_Profiles (Current).Simplified_Dterm_Filter /= 0);
+      end Sliders;
       function Keys return MCT_Nav.Key_Settings is
         ((Start            => Adaflight.Menu_Content.Start_Menu (MCT_T),
           Background       => Natural (MCT_T.Config.Osd_Config.Cms_Background_Type),
@@ -19745,6 +19755,10 @@ procedure Vector_Check is
          Record_Int (Name & ".element_analyses", Next, Integer_64 (MCT_T.Asked.Element_Analyses));
          Record_Int (Name & ".profile_changes", Next, Integer_64 (MCT_T.Asked.Profile_Changes));
          Record_Int (Name & ".profile_asked", Next, Integer_64 (MCT_T.Asked.Profile_Asked));
+         Record_Int (Name & ".pid_changes", Next, Integer_64 (MCT_T.Asked.PID_Changes));
+         Record_Int (Name & ".pid_asked", Next, Integer_64 (MCT_T.Asked.PID_Asked));
+         Record_Int (Name & ".rate_changes", Next, Integer_64 (MCT_T.Asked.Rate_Changes));
+         Record_Int (Name & ".rate_asked", Next, Integer_64 (MCT_T.Asked.Rate_Asked));
          Adaflight.Config_Codec.Encode (MCT_T.Config, D);
          for B of D loop
             Hash := (Hash xor Interfaces.Unsigned_64 (B)) * 16#100_0000_01B3#;
@@ -19898,6 +19912,45 @@ procedure Vector_Check is
          MCT_T.Config.Display_Port_Profile_Max7456.Invert := Int (113) = 1;
          MCT_T.Config.Display_Port_Profile_Max7456.Black_Brightness := Interfaces.Unsigned_8 (Int (114));
          MCT_T.Config.Display_Port_Profile_Max7456.White_Brightness := Interfaces.Unsigned_8 (Int (115));
+         for P in 0 .. 3 loop
+            declare
+               Base : constant Positive := 116 + 15 * P;
+               Name : constant String := Hex_String (Base);
+            begin
+               MCT_T.Config.Pid_Profiles (P).Profile_Name := (others => 0);
+               for C in Name'Range loop
+                  MCT_T.Config.Pid_Profiles (P).Profile_Name (C - Name'First) := Character'Pos (Name (C));
+               end loop;
+               for A in 0 .. 2 loop
+                  MCT_T.Config.Pid_Profiles (P).Pid (A).P := Interfaces.Unsigned_8 (Int (Base + 1 + 4 * A));
+                  MCT_T.Config.Pid_Profiles (P).Pid (A).I := Interfaces.Unsigned_8 (Int (Base + 2 + 4 * A));
+                  MCT_T.Config.Pid_Profiles (P).Pid (A).D := Interfaces.Unsigned_8 (Int (Base + 3 + 4 * A));
+                  MCT_T.Config.Pid_Profiles (P).Pid (A).F := Interfaces.Unsigned_16 (Int (Base + 4 + 4 * A));
+               end loop;
+               MCT_T.Config.Pid_Profiles (P).Simplified_Pids_Mode := Interfaces.Unsigned_8 (Int (Base + 13));
+               MCT_T.Config.Pid_Profiles (P).Simplified_Dterm_Filter := Interfaces.Unsigned_8 (Int (Base + 14));
+            end;
+         end loop;
+         MCT_T.Config.Gyro_Config.Simplified_Gyro_Filter := Interfaces.Unsigned_8 (Int (176));
+         for P in 0 .. 3 loop
+            declare
+               Base : constant Positive := 177 + 13 * P;
+               Name : constant String := Hex_String (Base);
+            begin
+               MCT_T.Config.Control_Rate_Profiles (P).Profile_Name := (others => 0);
+               for C in Name'Range loop
+                  MCT_T.Config.Control_Rate_Profiles (P).Profile_Name (C - Name'First) := Character'Pos (Name (C));
+               end loop;
+               for A in 0 .. 2 loop
+                  MCT_T.Config.Control_Rate_Profiles (P).Rc_Rates (A) := Interfaces.Unsigned_8 (Int (Base + 1 + 3 * A));
+                  MCT_T.Config.Control_Rate_Profiles (P).Rates (A) := Interfaces.Unsigned_8 (Int (Base + 2 + 3 * A));
+                  MCT_T.Config.Control_Rate_Profiles (P).Rc_Expo (A) := Interfaces.Unsigned_8 (Int (Base + 3 + 3 * A));
+               end loop;
+               MCT_T.Config.Control_Rate_Profiles (P).Thr_Mid8 := Interfaces.Unsigned_8 (Int (Base + 10));
+               MCT_T.Config.Control_Rate_Profiles (P).Thr_Expo8 := Interfaces.Unsigned_8 (Int (Base + 11));
+               MCT_T.Config.Control_Rate_Profiles (P).Thr_Hover8 := Interfaces.Unsigned_8 (Int (Base + 12));
+            end;
+         end loop;
          MCT_T.Identity :=
            (Identifier => Menu_Text_Of ("ADFL"), Version => Menu_Text_Of ("0.1.0"),
             Revision => Menu_Text_Of ("norevision"), Target_Name => Menu_Text_Of ("STM32F405"));
@@ -19911,7 +19964,7 @@ procedure Vector_Check is
          declare
             D        : Adaflight.Config_Codec.Data;
             Hash     : Interfaces.Unsigned_64 := 16#CBF2_9CE4_8422_2325#;
-            Expected : constant Interfaces.Unsigned_64 := Interfaces.Unsigned_64'Value (Str (116));
+            Expected : constant Interfaces.Unsigned_64 := Interfaces.Unsigned_64'Value (Str (229));
          begin
             Adaflight.Config_Codec.Encode (MCT_T.Config, D);
             for B of D loop
@@ -19943,7 +19996,7 @@ procedure Vector_Check is
          begin
             Begin_Step;
             Read_Ops;
-            MCT_Nav.Handle_Key (MCT_State, MCT_T, MCT_Nav.Key_Code'Val (Key), Keys, (others => <>),
+            MCT_Nav.Handle_Key (MCT_State, MCT_T, MCT_Nav.Key_Code'Val (Key), Keys, Sliders,
                                MCT_T.Live.Reboot_Required, Delay_Ms);
             Record_Int (Name & ".delay", Delay_E, Integer_64 (Delay_Ms));
             Expect_Ops;
@@ -19972,7 +20025,7 @@ procedure Vector_Check is
             MCT_T.Live.Gate_Distance_Cm := Interfaces.Unsigned_32 (Next);
             Begin_Step;
             Read_Ops;
-            MCT_Nav.Draw (MCT_State, MCT_T, (others => <>), Now_Ms * 1000, Now_Ms, Room);
+            MCT_Nav.Draw (MCT_State, MCT_T, Sliders, Now_Ms * 1000, Now_Ms, Room);
             Expect_Ops;
             Expect_State;
          end;

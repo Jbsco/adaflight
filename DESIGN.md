@@ -5746,3 +5746,26 @@ has a menu adaflight does not have yet. The harness replays 240 sessions with 19
 changes and 20125 draws, 340 of their states in the error menu, entered 20 times from the quick menu
 and 41 times from the features menu: every display operation, menu context, page, request and
 configuration hash matches the reference's.
+
+## D246. Profile, PID and rate menus (2026-10-16)
+
+`Adaflight.Menu_Content` gains the profile menu with its PID and rate menus; the profile menu's other
+submenus have their numbers and wait for later slices. On entry the profile menu names every PID and
+rate profile by its number from one and its name in upper case in parentheses, and copies the current
+PID and rate profiles. Its two profile lines change the profile at once on each step, and its way out
+changes both again: a change counts as a request to the runtime, stored when the profile exists.
+
+The PID menu copies each axis's P, I and D gains and feedforward from the profile the profile menu
+last selected, names the current profile in its title, and on the way out stores the copies into the
+current profile and asks for the PID controller's setup from it, as the reference reads one and writes
+the other. Its lines carry the roll and pitch and the yaw slider flags. The rate menu copies the whole
+rate profile, shows its rates, super rates and expos as tenths, its throttle middle, expo and hover
+and its throttle limit, and stores the whole copy back on the way out.
+
+The harness now hands the navigation the slider settings of the current profile and the gyro's filter
+slider, which skip the overridden rows and mark them. The menu contents oracle scripts the profiles'
+names, gains, rates and slider settings and counts the profile changes. The harness replays 240
+sessions with 19458 keys, 773 menu changes and 20231 draws, 2768 of their states in the profile menu,
+910 in the PID menu and 280 in the rate menu, with 435 PID and 214 rate profile changes and 1396
+slider marks drawn: every display operation, menu context, page, request and configuration hash
+matches the reference's.

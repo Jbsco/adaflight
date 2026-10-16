@@ -1,6 +1,7 @@
 --  The menu system's menus: their numbers, and the lines and hooks of the
 --  quick menu, the main menu with its features menu and setup popup, the
---  VTX selection with its error menu, the save menus, the OSD menu with
+--  profile menu with its PID and rate menus, the VTX selection with its
+--  error menu, the save menus, the OSD menu with
 --  its active elements, timers and alarms
 --  menus, the blackbox menu with its erase and mass storage
 --  confirmations, the LED strip, power, failsafe and RPM limit menus, the
@@ -51,6 +52,14 @@ package Adaflight.Menu_Content with SPARK_Mode is
    VTX_SmartAudio_Menu   : constant Menu_Id := 28;
    VTX_Tramp_Menu        : constant Menu_Id := 29;
    VTX_MSP_Menu          : constant Menu_Id := 30;
+   PID_Menu              : constant Menu_Id := 31;
+   Rate_Menu             : constant Menu_Id := 32;
+   Simplified_Menu       : constant Menu_Id := 33;
+   Profile_Other_Menu    : constant Menu_Id := 34;
+   Filter_Profile_Menu   : constant Menu_Id := 35;
+   Filter_Global_Menu    : constant Menu_Id := 36;
+   Dynamic_Filter_Menu   : constant Menu_Id := 37;
+   Copy_Profile_Menu     : constant Menu_Id := 38;
 
    --  The RC channels the preview shows: roll, pitch, throttle, yaw and the
    --  first four auxiliary channels.
@@ -191,6 +200,37 @@ package Adaflight.Menu_Content with SPARK_Mode is
       Crashflip_Rate : Interfaces.Unsigned_8 := 0;
    end record;
 
+   --  The profile menu's copies: the PID and rate profiles it selected, the
+   --  profiles its lines show, and every profile's number and name as the
+   --  lines name them.
+   type Profile_Texts is array (0 .. 3) of Adaflight.Menu.Label_Text;
+   type Profile_Copies is record
+      PID_Index  : Interfaces.Unsigned_8 := 0;
+      PID_Line   : Interfaces.Unsigned_8 := 0;
+      Rate_Index : Interfaces.Unsigned_8 := 0;
+      Rate_Line  : Interfaces.Unsigned_8 := 0;
+      PID_Names  : Profile_Texts;
+      Rate_Names : Profile_Texts;
+   end record;
+
+   --  The PID menu's copies of each axis's P, I and D gains and
+   --  feedforward, with the profile's text from its last entry.
+   type Gain_Table is array (0 .. 2, 0 .. 2) of Interfaces.Unsigned_8;
+   type Feedforward_Table is array (0 .. 2) of Interfaces.Unsigned_16;
+   type PID_Copies is record
+      Gains        : Gain_Table := (others => (others => 0));
+      Feedforward  : Feedforward_Table := (others => 0);
+      Profile_Text : Adaflight.Menu.Label_Text;
+   end record;
+
+   --  The rate menu's copy of the rate profile, with the profile's text
+   --  from its last entry.
+   type Rate_Copies is record
+      Profile      : Adaflight.Config_Groups.Control_Rate_Config_Record :=
+        Adaflight.Config_Groups.Defaults.Control_Rate_Profiles (0);
+      Profile_Text : Adaflight.Menu.Label_Text;
+   end record;
+
    --  The VTX error menu's two status lines from its last entry.
    type VTX_Status_Lines is record
       Line_1 : Adaflight.Menu.Label_Text;
@@ -295,7 +335,8 @@ package Adaflight.Menu_Content with SPARK_Mode is
    --  gate setting started and ended, the LED strip turned on and off, the
    --  flash erased with its beep, and the reset to mass storage with the time
    --  zone offset it takes, the OSD's active elements analyzed again, and
-   --  the OSD profile changed with the profile asked for.
+   --  the OSD profile changed with the profile asked for, and the PID and
+   --  rate profiles changed with the profiles asked for.
    type Requests is record
       MAh_Restores       : Natural := 0;
       MAh_Restored       : Interfaces.Unsigned_32 := 0;
@@ -314,6 +355,10 @@ package Adaflight.Menu_Content with SPARK_Mode is
       Element_Analyses   : Natural := 0;
       Profile_Changes    : Natural := 0;
       Profile_Asked      : Interfaces.Unsigned_8 := 0;
+      PID_Changes        : Natural := 0;
+      PID_Asked          : Interfaces.Unsigned_8 := 0;
+      Rate_Changes       : Natural := 0;
+      Rate_Asked         : Interfaces.Unsigned_8 := 0;
    end record;
 
    type Target is record
@@ -330,6 +375,9 @@ package Adaflight.Menu_Content with SPARK_Mode is
       Timers      : Timer_Copies;
       Alarms      : Alarm_Copies;
       Blackbox    : Blackbox_Copies;
+      Profile     : Profile_Copies;
+      PID         : PID_Copies;
+      Rate        : Rate_Copies;
       VTX_Status  : VTX_Status_Lines;
       LED         : LED_Copies;
       Lap         : Lap_Copies;
