@@ -11,16 +11,20 @@
 --  reports an error printed inside it; tasks lists every queued task's rate
 --  and, with task statistics on, its times and loads, and resets the peaks;
 --  vtx_info lists the video transmitter's power levels and rc_smoothing_info
---  the receiver's frame rate and the running RC smoothing cutoffs;
+--  the receiver's frame rate and the running RC smoothing cutoffs; motor sets
+--  a motor's or every motor's disarmed value, and play_sound plays a beeper
+--  sound;
 --  save, exit and defaults without nosave ask for the configuration's write,
 --  the board's restart or the command line's end. A line naming no command
 --  gets the ERR_CMD_NA reply.
 --  The text goes out through Put into a sink, inside an Output that also
 --  holds the batch's state and what the tasks command remembers.
 with Interfaces;
+with Adaflight.Beeper;
 with Adaflight.Board_Info;
 with Adaflight.Config_Groups; use Adaflight.Config_Groups;
 with Adaflight.CLI_Text;
+with Adaflight.MSP_Motor_In;
 with Adaflight.Scheduler;
 with Adaflight.Serial_Feature_Map;
 
@@ -51,13 +55,15 @@ package Adaflight.Command_Line with SPARK_Mode is
    --  Where the text goes, with the command batch's state: whether a batch
    --  is open, and whether a command in it printed an error; and what the
    --  tasks command remembers from its last run: the clock, and the check
-   --  functions' total execution time.
+   --  functions' total execution time; and the beeper table entry play_sound
+   --  played last, -1 before the first.
    type Output is limited record
       Target              : Sink;
       Batch_Active        : Boolean := False;
       Batch_Error         : Boolean := False;
       Last_Tasks_Us       : Interfaces.Unsigned_32 := 0;
       Last_Check_Total_Us : Interfaces.Unsigned_32 := 0;
+      Last_Sound          : Integer range -1 .. 23 := -1;
    end record;
 
    --  Every setting whose name contains the fragment without regard to case,
@@ -77,7 +83,9 @@ package Adaflight.Command_Line with SPARK_Mode is
    --  The runtime work a command asks for: a profile selected, the mode
    --  conditions changed, the adjustment ranges changed, or the LED strip's
    --  layout changed; the configuration written to its storage, the board
-   --  restarted, or the command line left with the disarmed motors reset.
+   --  restarted, or the command line left with the disarmed motors reset; a
+   --  motor's disarmed value, or every motor's, set to a value; the beeper
+   --  silenced and a sound requested.
    type Effects is record
       PID_Profile     : Boolean := False;
       Rate_Profile    : Boolean := False;
@@ -88,6 +96,12 @@ package Adaflight.Command_Line with SPARK_Mode is
       Save            : Boolean := False;
       Reboot          : Boolean := False;
       Leave           : Boolean := False;
+      Motor           : Boolean := False;
+      Every_Motor     : Boolean := False;
+      Motor_Index     : Natural range 0 .. MSP_Motor_In.Max_Motors - 1 := 0;
+      Motor_Value     : Float := 0.0;
+      Sound           : Boolean := False;
+      Sound_Mode      : Beeper.Sound := Beeper.Gyro_Calibrated;
    end record;
 
    --  The flight plan executor's state the waypoint status reports: whether
@@ -144,7 +158,8 @@ package Adaflight.Command_Line with SPARK_Mode is
    --  version, the build's date, time and revision, the MCU's unique id, the
    --  clock in microseconds as the command runs, the running debug mode,
    --  whether a video transmitter is present with the power levels it
-   --  reports, and the running RC smoothing.
+   --  reports, the running RC smoothing, and the mixer's motors with their
+   --  output and whether the 3D feature runs.
    type Environment is record
       Navigation      : Navigation_Status;
       Firmware        : Identity_Text;
@@ -159,6 +174,9 @@ package Adaflight.Command_Line with SPARK_Mode is
       VTX_Present     : Boolean := False;
       VTX_Power       : Power_Levels;
       Smoothing       : Smoothing_Status;
+      Motors          : MSP_Motor_In.Motor_Count := 0;
+      Motor_Device    : MSP_Motor_In.Device_Kind := MSP_Motor_In.No_Device;
+      Three_D         : Boolean := False;
    end record;
 
    --  The board's information as the commands see it: its name and

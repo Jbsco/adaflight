@@ -823,6 +823,14 @@ package body Adaflight.Command_Line with SPARK_Mode is
                          when 23 => 23,
                          when 0 .. 5 => I)));
 
+   --  The beeper mode of a beeper table entry.
+   function Beeper_Mode (I : Beeper_Index) return Beeper.Sound is
+     (case I is
+         when 0 .. 5 => Beeper.Mode'Val (I + 1),
+         when 6 => Beeper.Arming_GPS_No_Fix,
+         when 7 .. 22 => Beeper.Mode'Val (I),
+         when 23 => Beeper.All_Sounds);
+
    --  beeper and beacon: the disabled conditions, the available ones, or a
    --  condition, the first allowed one whose name the text starts, enabled
    --  or, after a minus, disabled; ALL sets every allowed one.
@@ -3587,9 +3595,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Signature_Command_Word, Color_Command_Word, Diff_Command, Dump_Command, Feature_Command_Word, Get_Command,
       Led_Command_Word, Map_Command_Word, Mode_Color_Command_Word, Mixer_Command_Word, Motor_Mix_Command_Word,
       Profile_Command, Rate_Profile_Command, Rc_Smoothing_Info_Command_Word, Rx_Failsafe_Command, MCU_Id_Command_Word,
-      Rx_Range_Command, Serial_Command_Word, Servo_Command_Word, Servo_Mix_Command_Word, Set_Command,
-      Simplified_Tuning_Command_Word, Tasks_Command_Word, Version_Command_Word, Vtx_Command_Word, Vtx_Info_Command_Word,
-      Vtx_Table_Command_Word, Waypoint_Command_Word);
+      Motor_Command_Word, Play_Sound_Command_Word, Rx_Range_Command, Serial_Command_Word, Servo_Command_Word,
+      Servo_Mix_Command_Word, Set_Command, Simplified_Tuning_Command_Word, Tasks_Command_Word, Version_Command_Word,
+      Vtx_Command_Word, Vtx_Info_Command_Word, Vtx_Table_Command_Word, Waypoint_Command_Word);
    subtype Known_Command is Command_Kind range Adjustment_Range_Command_Word .. Waypoint_Command_Word;
 
    function Command_Word (K : Known_Command) return String is
@@ -3615,6 +3623,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when Mode_Color_Command_Word => "mode_color",
          when Map_Command_Word => "map",
          when MCU_Id_Command_Word => "mcu_id",
+         when Motor_Command_Word => "motor",
+         when Play_Sound_Command_Word => "play_sound",
          when Mixer_Command_Word => "mixer",
          when Motor_Mix_Command_Word => "mmix",
          when Profile_Command => "profile",
@@ -4042,6 +4052,109 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end if;
    end Rc_Smoothing_Info_Command;
 
+   --  motor: after the output in use, a motor's or, at output 255, every
+   --  motor's disarmed value from the 1000 to 2000 range, converted for the
+   --  motor protocol and truncated to a whole number; or the error for an
+   --  output past the motors, a value out of range or other than two
+   --  arguments. Arguments are the words between spaces, each read as the C
+   --  library's atoi reads it.
+   procedure Motor_Command (Into : in out Output; Env : Environment; Arguments : String; Changes : in out Effects)
+     with Pre => Arguments'First >= 1 and then Arguments'Last < Positive'Last
+                 and then Arguments'First <= Arguments'Last + 1
+   is
+      All_Motors : constant := 255;
+      Index      : Integer_32 := 0;
+      Value      : Integer_32 := 0;
+      Words      : Natural range 0 .. 3 := 0;
+      P          : Positive := Arguments'First;
+      Last       : Natural;
+   begin
+      if Arguments'Length = 0 then
+         Put_Error (Into, "motor: INVALID ARGUMENT COUNT###" & CRLF);
+         return;
+      end if;
+      loop
+         pragma Loop_Invariant (P in Arguments'Range);
+         pragma Loop_Invariant
+           (if Words >= 1 then Index in 0 .. Integer_32 (Env.Motors) - 1 or else Index = All_Motors);
+         pragma Loop_Variant (Increases => P);
+         if Arguments (P) /= ' ' then
+            Last := P;
+            while Last < Arguments'Last and then Arguments (Last + 1) /= ' ' loop
+               pragma Loop_Invariant (Last in P .. Arguments'Last - 1);
+               pragma Loop_Variant (Increases => Last);
+               Last := Last + 1;
+            end loop;
+            if Words = 0 then
+               Index := CLI_Text.To_Integer (Arguments (P .. Last));
+               if Index >= 0 and then Index < Integer_32 (Env.Motors) then
+                  Put (Into, "Using output " & Decimal (Integer_64 (Index)) & "." & CRLF);
+               elsif Index = All_Motors then
+                  Put (Into, "Using all outputs." & CRLF);
+               else
+                  Put_Error
+                    (Into, "motor: INVALID OUTPUT NUMBER. RANGE: 0 - " & Decimal (Integer_64 (Env.Motors) - 1) & ".###"
+                           & CRLF);
+                  return;
+               end if;
+            elsif Words = 1 then
+               Value := CLI_Text.To_Integer (Arguments (P .. Last));
+            end if;
+            Words := Natural'Min (Words + 1, 3);
+            P := Last;
+         end if;
+         exit when P = Arguments'Last;
+         P := P + 1;
+      end loop;
+      if Words /= 2 then
+         Put_Error (Into, "motor: INVALID ARGUMENT COUNT###" & CRLF);
+      elsif Value < 1_000 or else Value > 2_000 then
+         Put_Error (Into, "motor: VALUE NOT BETWEEN 1000 AND 2000###" & CRLF);
+      else
+         declare
+            Converted : constant Float :=
+              MSP_Motor_In.From_External (Unsigned_16 (Value), Env.Motor_Device, Env.Three_D);
+            Output_Value : constant Unsigned_32 := Unsigned_32 (Float'Truncation (Converted));
+         begin
+            Changes.Motor := True;
+            Changes.Every_Motor := Index = All_Motors;
+            Changes.Motor_Value := Float (Output_Value);
+            if Index /= All_Motors then
+               Changes.Motor_Index := Natural (Index);
+               Put (Into, "motor " & Decimal (Integer_64 (Index)) & ": " & Decimal (Integer_64 (Output_Value)) & CRLF);
+            else
+               Put (Into, "all motors: " & Decimal (Integer_64 (Output_Value)) & CRLF);
+            end if;
+         end;
+      end if;
+   end Motor_Command;
+
+   --  play_sound: the beeper table's entry at the given index, or without
+   --  one the entry after the one played last, the first after the last
+   --  entry, with the beeper silenced before its sound; or the line for an
+   --  index without an entry. Every entry has a name, so the search for a
+   --  named entry stops at the first it tries.
+   procedure Play_Sound_Command (Into : in out Output; Arguments : String; Changes : in out Effects)
+     with Pre => Arguments'First >= 1 and then Arguments'Last < Positive'Last
+                 and then Arguments'First <= Arguments'Last + 1
+   is
+      I : Integer_32;
+   begin
+      if Arguments'Length = 0 then
+         I := (if Into.Last_Sound < Beeper_Index'Last then Integer_32 (Into.Last_Sound) + 1 else 0);
+      else
+         I := CLI_Text.To_Integer (Arguments);
+         if I not in 0 .. Integer_32 (Beeper_Index'Last) then
+            Put (Into, "No sound for index " & Decimal (Integer_64 (I)) & CRLF);
+            return;
+         end if;
+      end if;
+      Into.Last_Sound := Integer (I);
+      Changes.Sound := True;
+      Changes.Sound_Mode := Beeper_Mode (Beeper_Index (I));
+      Put (Into, "Playing sound " & Decimal (Integer_64 (I)) & ": " & Beeper_Name (Beeper_Index (I)) & CRLF);
+   end Play_Sound_Command;
+
    --  A signature as 64 hexadecimal digits.
    procedure Put_Signature_Digits (Into : in out Output; Signature : Signature_Bytes) is
    begin
@@ -4407,7 +4520,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Kind      : Command_Kind;
       Arguments : Natural;
    begin
-      Changes := (others => False);
+      Changes := (others => <>);
       for Ch of Line loop
          if Length < Line_Size - 1 and then Ch in ' ' .. '~' and then (Length > 0 or else Ch /= ' ') then
             Length := Length + 1;
@@ -4486,6 +4599,10 @@ package body Adaflight.Command_Line with SPARK_Mode is
             Map_Command (Into, C, Text_At (Buffer, Arguments));
          when MCU_Id_Command_Word =>
             Put_MCU_Id (Into, Env.MCU_Id);
+         when Motor_Command_Word =>
+            Motor_Command (Into, Env, Text_At (Buffer, Arguments), Changes);
+         when Play_Sound_Command_Word =>
+            Play_Sound_Command (Into, Text_At (Buffer, Arguments), Changes);
          when Mixer_Command_Word =>
             Mixer_Command (Into, C.Mixer_Config.Mixer_Mode, Text_At (Buffer, Arguments));
          when Motor_Mix_Command_Word =>
