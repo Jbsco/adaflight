@@ -1,12 +1,12 @@
 --  The menu system's menus: their numbers, and the lines and hooks of the
 --  quick menu, the main menu with its features menu and setup popup, the
---  save menus, the power, failsafe and RPM limit menus, the misc menu with
---  its RC preview and GPS lap timer menu, the persistent statistics menu,
---  and the firmware menu with its calibration menus, over the target's
---  state: the configuration, the firmware's identity, the readings the
---  menus show, the menus' copies of the settings they edit, the setup
---  popup's lines, the calibration statuses, and the requests to the
---  runtime. The menus of later slices have their numbers and one empty
+--  save menus, the LED strip, power, failsafe and RPM limit menus, the misc
+--  menu with its RC preview and GPS lap timer menu, the persistent
+--  statistics menu, and the firmware menu with its calibration menus, over
+--  the target's state: the configuration, the firmware's identity, the
+--  readings the menus show, the menus' copies of the settings they edit,
+--  the setup popup's lines, the calibration statuses, and the requests to
+--  the runtime. The menus of later slices have their numbers and one empty
 --  line.
 with Interfaces;
 with Adaflight.Config_Groups;
@@ -52,8 +52,9 @@ package Adaflight.Menu_Content with SPARK_Mode is
    --  calibration, the calibration's progress, whether the battery has
    --  charge drawn to restore, the reboot flag the save menus go by, the RC
    --  channels, the gyro and the barometer with their calibrations, the
-   --  board's manufacturer and name from the board information, and the lap
-   --  timer's gate readings and distance to the gate.
+   --  board's manufacturer and name from the board information, the lap
+   --  timer's gate readings and distance to the gate, and the features
+   --  active at run time.
    type Readings is record
       Acc_Present               : Boolean := False;
       Acc_Calibration_Needed    : Boolean := False;
@@ -70,6 +71,7 @@ package Adaflight.Menu_Content with SPARK_Mode is
       Board_Name                : Adaflight.Menu.Label_Text;
       Gate_Set_Readings         : Interfaces.Unsigned_16 := 0;
       Gate_Distance_Cm          : Interfaces.Unsigned_32 := 0;
+      Runtime_Features          : Interfaces.Unsigned_32 := 0;
    end record;
 
    --  The firmware's identity the firmware menu shows, which the build
@@ -151,6 +153,24 @@ package Adaflight.Menu_Content with SPARK_Mode is
       Crashflip_Rate : Interfaces.Unsigned_8 := 0;
    end record;
 
+   --  The LED strip menu's copies of the strip's feature, the profile, the
+   --  race and beacon colors, the beacon's period, on share and armed-only
+   --  switch, and the visual beeper with its color.
+   LED_Profile_Count : constant := 3;
+   LED_Color_Count   : constant := 14;
+
+   type LED_Copies is record
+      Enabled             : Interfaces.Unsigned_8 := 0;
+      Profile             : Interfaces.Unsigned_8 := 0;
+      Race_Color          : Interfaces.Unsigned_8 := 0;
+      Beacon_Color        : Interfaces.Unsigned_8 := 0;
+      Beacon_Period       : Interfaces.Unsigned_16 := 0;
+      Beacon_On_Percent   : Interfaces.Unsigned_8 := 0;
+      Beacon_Armed_Only   : Interfaces.Unsigned_8 := 0;
+      Visual_Beeper       : Interfaces.Unsigned_8 := 0;
+      Visual_Beeper_Color : Interfaces.Unsigned_8 := 0;
+   end record;
+
    --  The GPS lap timer menu's copies of the minimum lap time and the gate
    --  radius.
    type Lap_Copies is record
@@ -181,17 +201,19 @@ package Adaflight.Menu_Content with SPARK_Mode is
 
    --  What the menus ask of the runtime: the charge drawn set back to the
    --  stored value, the PID controller's setup from the current profile,
-   --  the gyro, accelerometer and barometer calibrations, and the lap
-   --  timer's gate setting started and ended.
+   --  the gyro, accelerometer and barometer calibrations, the lap timer's
+   --  gate setting started and ended, and the LED strip turned on and off.
    type Requests is record
-      MAh_Restores      : Natural := 0;
-      MAh_Restored      : Interfaces.Unsigned_32 := 0;
-      PID_Config_Inits  : Natural := 0;
-      Gyro_Calibrations : Natural := 0;
-      Acc_Calibrations  : Natural := 0;
-      Baro_Calibrations : Natural := 0;
-      Gate_Starts       : Natural := 0;
-      Gate_Ends         : Natural := 0;
+      MAh_Restores       : Natural := 0;
+      MAh_Restored       : Interfaces.Unsigned_32 := 0;
+      PID_Config_Inits   : Natural := 0;
+      Gyro_Calibrations  : Natural := 0;
+      Acc_Calibrations   : Natural := 0;
+      Baro_Calibrations  : Natural := 0;
+      Gate_Starts        : Natural := 0;
+      Gate_Ends          : Natural := 0;
+      LED_Strip_Enables  : Natural := 0;
+      LED_Strip_Disables : Natural := 0;
    end record;
 
    type Target is record
@@ -203,6 +225,7 @@ package Adaflight.Menu_Content with SPARK_Mode is
       Failsafe    : Failsafe_Copies;
       RPM_Limit   : RPM_Limit_Copies;
       Misc        : Misc_Copies;
+      LED         : LED_Copies;
       Lap         : Lap_Copies;
       Preview     : RC_Values := (others => 0);
       Stats       : Stats_Copies;

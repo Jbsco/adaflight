@@ -5649,3 +5649,21 @@ harness repeats through `Change`. The harness replays 240 sessions with 19491 ke
 and 20264 draws, 386 of their states in the lap timer menu and 522 in the set gate menu, with 69 gate
 setting starts and 44 ends: every display operation, menu context, page, request and configuration
 hash matches the reference's.
+
+## D242. LED strip menu (2026-10-15)
+
+`Adaflight.Menu_Content` gains the LED strip menu. The target gains the features active at run time.
+On entry the menu copies whether the strip's feature is active, the profile, the race and beacon colors,
+the beacon's period, on share and armed-only switch, and the visual beeper with its color. On the way
+out an enabled strip sets the feature in both the configured and the active features and asks the
+runtime to turn the strip on. A disabled strip asks the runtime to turn it off, then clears the
+feature in both. The profile is stored only when it is one of the three, and the other copies are
+stored as they are.
+
+The menu contents oracle scripts the strip's feature, configured and active apart now and then, and
+the strip's settings, and counts the strip's enables and disables. The harness now starts each
+sequence's first session from a fresh target, as the oracle runs each sequence in a new process whose
+menu copies start at zero. It replays 240 sessions with 18990 keys, 797 menu changes and 19787
+draws, 1002 of their states in the LED strip menu, with 48 enables and 25 disables: every display
+operation, menu context, page, request, active feature set and configuration hash matches the
+reference's.

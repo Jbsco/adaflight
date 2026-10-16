@@ -1,3 +1,5 @@
+with Adaflight.Config_Fix;
+
 package body Adaflight.Menu_Content with SPARK_Mode is
    use type Interfaces.Unsigned_16;
    use type Interfaces.Unsigned_32;
@@ -122,6 +124,18 @@ package body Adaflight.Menu_Content with SPARK_Mode is
    function Procedure_Name (Index : Natural) return Adaflight.Menu.Label_Text is
      (if Index <= 2 then Procedure_Names (Index) else Label (""));
 
+   LED_Profile_Names : constant array (0 .. LED_Profile_Count - 1) of Adaflight.Menu.Label_Text :=
+     (Label ("RACE"), Label ("BEACON"), Label ("STATUS"));
+   LED_Color_Names   : constant array (0 .. LED_Color_Count - 1) of Adaflight.Menu.Label_Text :=
+     (Label ("BLACK"), Label ("WHITE"), Label ("RED"), Label ("ORANGE"), Label ("YELLOW"), Label ("LIME_GREEN"),
+      Label ("GREEN"), Label ("MINT_GREEN"), Label ("CYAN"), Label ("LIGHT_BLUE"), Label ("BLUE"),
+      Label ("DARK_VIOLET"), Label ("MAGENTA"), Label ("DEEP_PINK"));
+
+   function LED_Profile_Name (Index : Natural) return Adaflight.Menu.Label_Text is
+     (if Index < LED_Profile_Count then LED_Profile_Names (Index) else Label (""));
+   function LED_Color_Name (Index : Natural) return Adaflight.Menu.Label_Text is
+     (if Index < LED_Color_Count then LED_Color_Names (Index) else Label (""));
+
    --  A thirty-two bit count as a line holds it: the reference's integer
    --  conversion.
    function Signed_Word (V : Interfaces.Unsigned_32) return Interfaces.Integer_32 is
@@ -141,7 +155,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
          when Quick_Menu  => (Enter => True, Leave => True, Update => False),
          when Main_Menu   => (Enter => True, Leave => False, Update => False),
          when Setup_Popup => (Enter => False, Leave => False, Update => True),
-         when Power_Menu | Failsafe_Menu | RPM_Limit_Menu | Misc_Menu | Persistent_Stats_Menu =>
+         when LED_Strip_Menu | Power_Menu | Failsafe_Menu | RPM_Limit_Menu | Misc_Menu | Persistent_Stats_Menu =>
             (Enter => True, Leave => True, Update => False),
          when RC_Preview_Menu => (Enter => True, Leave => True, Update => True),
          when Firmware_Menu => (Enter => True, Leave => False, Update => False),
@@ -228,6 +242,27 @@ package body Adaflight.Menu_Content with SPARK_Mode is
             Add (Make ("EXIT&REBOOT", OSD_Exit, Has_Func => True, Has_Data => True, Value => 5));
             Add (Make ("SAVE&REBOOT", OSD_Exit, Has_Func => True, Has_Data => True, Value => 4));
             Add (Make ("BACK", Back));
+         when LED_Strip_Menu =>
+            declare
+               L : LED_Copies renames T.LED;
+            begin
+               Add (Make ("-- LED STRIP --", Label));
+               Add (Make ("ENABLED", Bool, Has_Data => True, Value => Interfaces.Integer_32 (L.Enabled)));
+               Add (Choice ("PROFILE", Interfaces.Integer_32 (L.Profile), LED_Profile_Count - 1,
+                            LED_Profile_Name (Natural (L.Profile))));
+               Add (Choice ("RACE COLOR", Interfaces.Integer_32 (L.Race_Color), LED_Color_Count - 1,
+                            LED_Color_Name (Natural (L.Race_Color))));
+               Add (Choice ("BEACON COLOR", Interfaces.Integer_32 (L.Beacon_Color), LED_Color_Count - 1,
+                            LED_Color_Name (Natural (L.Beacon_Color))));
+               Add (Number ("BEACON PERIOD", Interfaces.Integer_32 (L.Beacon_Period), 50, 10_000, UInt16, 10));
+               Add (Number ("BEACON ON %", Interfaces.Integer_32 (L.Beacon_On_Percent), 0, 100));
+               Add (Make ("BEACON ARMED ONLY", Bool, Has_Data => True,
+                          Value => Interfaces.Integer_32 (L.Beacon_Armed_Only)));
+               Add (Make ("VISUAL BEEPER", Bool, Has_Data => True, Value => Interfaces.Integer_32 (L.Visual_Beeper)));
+               Add (Choice ("VISUAL COLOR", Interfaces.Integer_32 (L.Visual_Beeper_Color), LED_Color_Count - 1,
+                            LED_Color_Name (Natural (L.Visual_Beeper_Color))));
+               Add (Make ("BACK", Back));
+            end;
          when Power_Menu =>
             declare
                P : Power_Copies renames T.Power;
@@ -367,6 +402,17 @@ package body Adaflight.Menu_Content with SPARK_Mode is
                   Reply.Target := Setup_Popup;
                end if;
             end;
+         when LED_Strip_Menu =>
+            T.LED.Enabled :=
+              (if (T.Live.Runtime_Features and Adaflight.Config_Fix.Feature_LED_Strip) /= 0 then 1 else 0);
+            T.LED.Profile := T.Config.Led_Strip_Config.Ledstrip_Profile;
+            T.LED.Race_Color := T.Config.Led_Strip_Config.Ledstrip_Race_Color;
+            T.LED.Beacon_Color := T.Config.Led_Strip_Config.Ledstrip_Beacon_Color;
+            T.LED.Beacon_Period := T.Config.Led_Strip_Config.Ledstrip_Beacon_Period_Ms;
+            T.LED.Beacon_On_Percent := T.Config.Led_Strip_Config.Ledstrip_Beacon_Percent;
+            T.LED.Beacon_Armed_Only := T.Config.Led_Strip_Config.Ledstrip_Beacon_Armed_Only;
+            T.LED.Visual_Beeper := T.Config.Led_Strip_Config.Ledstrip_Visual_Beeper;
+            T.LED.Visual_Beeper_Color := T.Config.Led_Strip_Config.Ledstrip_Visual_Beeper_Color;
          when Power_Menu =>
             T.Power.Voltage_Meter_Source := T.Config.Battery_Config.Voltage_Meter_Source;
             T.Power.Current_Meter_Source := T.Config.Battery_Config.Current_Meter_Source;
@@ -426,6 +472,34 @@ package body Adaflight.Menu_Content with SPARK_Mode is
          if T.Asked.PID_Config_Inits < Natural'Last then
             T.Asked.PID_Config_Inits := T.Asked.PID_Config_Inits + 1;
          end if;
+      elsif Id = LED_Strip_Menu then
+         declare
+            Feature : constant Interfaces.Unsigned_32 := Adaflight.Config_Fix.Feature_LED_Strip;
+         begin
+            if T.LED.Enabled /= 0 then
+               T.Config.Feature_Config.Enabled_Features := T.Config.Feature_Config.Enabled_Features or Feature;
+               T.Live.Runtime_Features := T.Live.Runtime_Features or Feature;
+               if T.Asked.LED_Strip_Enables < Natural'Last then
+                  T.Asked.LED_Strip_Enables := T.Asked.LED_Strip_Enables + 1;
+               end if;
+            else
+               if T.Asked.LED_Strip_Disables < Natural'Last then
+                  T.Asked.LED_Strip_Disables := T.Asked.LED_Strip_Disables + 1;
+               end if;
+               T.Config.Feature_Config.Enabled_Features := T.Config.Feature_Config.Enabled_Features and not Feature;
+               T.Live.Runtime_Features := T.Live.Runtime_Features and not Feature;
+            end if;
+         end;
+         if T.LED.Profile < LED_Profile_Count then
+            T.Config.Led_Strip_Config.Ledstrip_Profile := T.LED.Profile;
+         end if;
+         T.Config.Led_Strip_Config.Ledstrip_Race_Color := T.LED.Race_Color;
+         T.Config.Led_Strip_Config.Ledstrip_Beacon_Color := T.LED.Beacon_Color;
+         T.Config.Led_Strip_Config.Ledstrip_Beacon_Period_Ms := T.LED.Beacon_Period;
+         T.Config.Led_Strip_Config.Ledstrip_Beacon_Percent := T.LED.Beacon_On_Percent;
+         T.Config.Led_Strip_Config.Ledstrip_Beacon_Armed_Only := T.LED.Beacon_Armed_Only;
+         T.Config.Led_Strip_Config.Ledstrip_Visual_Beeper := T.LED.Visual_Beeper;
+         T.Config.Led_Strip_Config.Ledstrip_Visual_Beeper_Color := T.LED.Visual_Beeper_Color;
       elsif Id = Power_Menu then
          T.Config.Battery_Config.Voltage_Meter_Source := T.Power.Voltage_Meter_Source;
          T.Config.Battery_Config.Current_Meter_Source := T.Power.Current_Meter_Source;
@@ -587,7 +661,20 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       Short : constant Interfaces.Integer_16 :=
         Interfaces.Integer_16 ((Interfaces.Integer_64 (Value) + 32_768) mod 65_536 - 32_768);
    begin
-      if Id = Power_Menu then
+      if Id = LED_Strip_Menu then
+         case Line is
+            when 1 => T.LED.Enabled := Byte;
+            when 2 => T.LED.Profile := Byte;
+            when 3 => T.LED.Race_Color := Byte;
+            when 4 => T.LED.Beacon_Color := Byte;
+            when 5 => T.LED.Beacon_Period := Word;
+            when 6 => T.LED.Beacon_On_Percent := Byte;
+            when 7 => T.LED.Beacon_Armed_Only := Byte;
+            when 8 => T.LED.Visual_Beeper := Byte;
+            when 9 => T.LED.Visual_Beeper_Color := Byte;
+            when others => null;
+         end case;
+      elsif Id = Power_Menu then
          case Line is
             when 1 => T.Power.Voltage_Meter_Source := Byte;
             when 2 => T.Power.Current_Meter_Source := Byte;
@@ -665,6 +752,8 @@ package body Adaflight.Menu_Content with SPARK_Mode is
               elsif Id = Power_Menu and then Line = 1 then Voltage_Meter_Name (Index)
               elsif Id = Power_Menu and then Line = 2 then Current_Meter_Name (Index)
               elsif Id = Failsafe_Menu and then Line = 1 then Procedure_Name (Index)
+              elsif Id = LED_Strip_Menu and then Line = 2 then LED_Profile_Name (Index)
+              elsif Id = LED_Strip_Menu and then Line in 3 | 4 | 9 then LED_Color_Name (Index)
               else Label (""));
    end Lookup;
 
