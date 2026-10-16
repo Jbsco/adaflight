@@ -59,8 +59,10 @@ package body Adaflight.OSD_Format with SPARK_Mode is
       Fractional_Part : Natural;
    begin
       T := (others => <>);
-      if Round then
+      if Round and then abs Scaled <= Float (Adaflight.Maths.Rounding_Bound) - 1.0 then
          Scaled_Abs := abs Adaflight.Maths.Round_Half_Even (Scaled);
+      elsif Round then
+         Scaled_Abs := abs Integer (Scaled);
       else
          Scaled_Abs := abs Integer (Float'Truncation (Scaled));
       end if;

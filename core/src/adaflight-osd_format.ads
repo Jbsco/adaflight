@@ -85,7 +85,7 @@ package Adaflight.OSD_Format with SPARK_Mode is
    subtype Decimals is Natural range 0 .. 3;
    function Multiplier (D : Decimals) return Float is
      (case D is when 0 => 1.0, when 1 => 10.0, when 2 => 100.0, when 3 => 1_000.0);
-   Value_Bound : constant := 16_000_000.0;
+   Value_Bound : constant := 2_000_000_000.0;
 
    --  A value with its symbols and decimals, rounded half to even or cut at
    --  the last decimal, the integer part in the format, a minus sign when
@@ -100,8 +100,7 @@ package Adaflight.OSD_Format with SPARK_Mode is
    --  above the launch point or above sea level by the variant.
    procedure Altitude_String (T : out Text; Altitude_Cm : Integer_32; Variant : Element_Type; Altitude_Asl_Cm : Float;
                               Units : Unit_System)
-     with Pre => Altitude_Cm in -Altitude_Bound .. Altitude_Bound
-                 and then Altitude_Asl_Cm in -Float (Altitude_Bound) .. Float (Altitude_Bound);
+     with Pre => Altitude_Asl_Cm in -Float (Altitude_Bound) .. Float (Altitude_Bound);
 
    --  A coordinate in ten-millionths of a degree: seven or four decimals,
    --  degrees, minutes and seconds, or the plus code, zero until the first
