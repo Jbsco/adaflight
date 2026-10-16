@@ -6152,3 +6152,14 @@ The PID oracle's new mixer runs script launch control, the three modes, the auto
 stop feature and a minimum check for each run, which the oracle's zero-filled receiver group otherwise
 leaves at 0, so that motor stop occurs. They replay exactly, and the existing mixer vectors stay byte for
 byte.
+
+## D267. Yaw spin recovery (2026-10-16)
+
+`Adaflight.PID_Controller` and `Adaflight.Mixer` take the gyro's yaw spin detection. The controller drops
+the yaw setpoint to zero before the error rate, clears every I term, and holds the roll and pitch P, D and F
+terms at zero after the F term. The mixer lifts the yaw sum limit to 1000 and, without airmode or launch
+control, sets the throttle to half ahead of the launch control and autopilot throttles.
+
+The PID oracle builds with the F405 build's yaw spin recovery, and the existing vectors stay byte for byte.
+New mixer runs switch the detection every eight loops, with launch control in one window in four. They
+replay exactly.

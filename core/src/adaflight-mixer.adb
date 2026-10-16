@@ -206,7 +206,8 @@ package body Adaflight.Mixer with SPARK_Mode is
       Output_Range : constant Float := Range_Max - Range_Min;
       Scaled_Roll : constant Scaled_Sum := Scale_Sum (Ctl.Data (Roll).Sum, Float (P.PID_Sum_Limit));
       Scaled_Pitch : constant Scaled_Sum := Scale_Sum (Ctl.Data (Pitch).Sum, Float (P.PID_Sum_Limit));
-      Scaled_Yaw : Scaled_Sum := Scale_Sum (Ctl.Data (Yaw).Sum, Float (P.PID_Sum_Limit_Yaw));
+      Scaled_Yaw : Scaled_Sum :=
+        Scale_Sum (Ctl.Data (Yaw).Sum, (if Inp.Yaw_Spin_Detected then 1000.0 else Float (P.PID_Sum_Limit_Yaw)));
       Mix : Mix_Values := (others => 0.0);
       Mix_Min : Mix_Value := 0.0;
       Mix_Max : Mix_Value := 0.0;
@@ -258,6 +259,9 @@ package body Adaflight.Mixer with SPARK_Mode is
             Mix (M) := Value;
          end;
       end loop;
+      if Inp.Yaw_Spin_Detected and then not Airmode then
+         Throttle := 0.5;
+      end if;
       if Inp.Launch_Control_Active then
          Throttle := 0.0;
       end if;

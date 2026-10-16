@@ -81,6 +81,9 @@ package Adaflight.Mixer with SPARK_Mode, Pure is
       Pos_Hold_Mode             : Boolean := False;
       Autopilot_Throttle_Valid  : Boolean := False;
       Autopilot_Throttle        : Unit_Interval := 0.0;
+      --  The gyro's yaw spin detection lifts the yaw sum limit to its
+      --  largest and, without airmode, sets half throttle.
+      Yaw_Spin_Detected         : Boolean := False;
    end record;
 
    type State is record
