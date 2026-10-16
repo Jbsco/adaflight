@@ -5421,3 +5421,33 @@ The oracle compiles the reference element in with the reference OSD helpers and 
 the trail, the flight plan, the executor's waypoint and the craft per frame. The harness replays
 1200 frames in 8183 rows: every row's text, offset, flags, width and frame state matches the
 reference's.
+
+## D231. OSD flight plan items (2026-10-15)
+
+The OSD units first followed a build without flight plan, navigation map and pitot, with 89 items
+(D102). The full build has 99, and the stored configuration, the settings and the MSP OSD writes
+already contain their positions. `Adaflight.OSD_Elements` gains the eight waypoint items and the map
+before position hold ready, and the airspeed after it, in the reference's order, which moves position
+hold ready from 88 to 97. While a GPS is present the active list adds the waypoint items and the map
+after the efficiency item, and it adds the airspeed last. With every item visible the adds reach 101
+against the reference's array of 99 (finding F106), and the list is sized to 101. The MSP OSD
+replies send the 99 positions.
+
+`Adaflight.OSD_Render` renders the new items. Without a stored plan the waypoint number, next number,
+coordinates and altitude show a hyphen, and an executor's waypoint past the plan's end is held to the
+last. The number shows as WP with the waypoint's number and the plan's count, and the next number as
+NEXT with the following waypoint's number, or a hyphen at the last. Coordinates print in degrees with
+seven decimals. The altitude goes through the altitude formatter, whose sea-level variants show the
+craft's altitude above sea level instead of the waypoint's (finding F206). A stored waypoint altitude
+can take any 32-bit value, so the float printer now takes values to 2e9 after scaling: past 2 ** 24
+the scaled value is whole and is taken without rounding. The executor's distance, bearing and time to
+the waypoint show a hyphen when the executor gives none. The distance rounds to whole metres with ties
+to even, the bearing less the heading gives the direction arrow, and the time prints as minutes and
+seconds. The airspeed shows the pitot's speed in the selected unit, or a hyphen without the sensor.
+The map draws through `Adaflight.OSD_Nav_Map` (D230) with its settings from the stored configuration.
+
+The OSD oracles now compile the reference with flight plan, map and pitot. The element, render, draw,
+task and MSP OSD recordings change with the item list and are recorded again, and the other OSD
+recordings do not change. A new waypoint oracle renders the nine items with random plans, executor
+values, units, headings and airspeeds. The harness replays 3000 renders: every text byte and draw
+flag matches the reference's, with 14 waypoint altitudes past 400 km.

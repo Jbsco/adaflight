@@ -15,6 +15,7 @@ with Adaflight.RTC;
 with Adaflight.OSD_Format;
 with Adaflight.OSD_Elements;
 with Adaflight.OSD_Warnings;
+with Adaflight.OSD_Nav_Map;
 
 package Adaflight.OSD_Render with SPARK_Mode is
    use type Interfaces.Unsigned_8;
@@ -139,6 +140,7 @@ package Adaflight.OSD_Render with SPARK_Mode is
       VTX_Frequency        : Unsigned_16 := 0;
       VTX_Power            : Unsigned_8 := 0;
       VTX_Low_Power_Disarm : Unsigned_8 := 0;
+      Nav_Map              : Adaflight.OSD_Nav_Map.Settings;
    end record;
 
    subtype Axis_Index is Natural range 0 .. 2;
@@ -288,6 +290,14 @@ package Adaflight.OSD_Render with SPARK_Mode is
       VTX_Power_Index         : Unsigned_8 := 0;
       VTX_Control_Disable_Box : Boolean := False;
       Item_Blinks             : Boolean := False;
+      Screen_Rows             : Unsigned_8 := 0;
+      Screen_Cols             : Unsigned_8 := 0;
+      Nav                     : Adaflight.OSD_Nav_Map.Inputs;
+      WP_Distance_M           : Float range -1.0e9 .. 1.0e9 := -1.0;
+      WP_Bearing_Deci         : Integer_32 range -1 .. 3599 := -1;
+      WP_ETA_S                : Unsigned_16 := 0;
+      Pitot_Present           : Boolean := False;
+      Airspeed_Cm_S           : Float range -200_000.0 .. 200_000.0 := 0.0;
    end record;
 
    --  What persists between renders: the diversity latch of the RSSI dBm
@@ -305,6 +315,7 @@ package Adaflight.OSD_Render with SPARK_Mode is
       Overlay_Vertical : Boolean := True;
       Overlay_Y        : Unsigned_8 := 0;
       RC_Channel       : Natural range 0 .. 3 := 0;
+      Nav_Map          : Adaflight.OSD_Nav_Map.State;
    end record;
 
    --  The state at the OSD's start: the efficiency filter at half a hertz
@@ -325,7 +336,8 @@ package Adaflight.OSD_Render with SPARK_Mode is
          | ESC_RPM | ESC_RPM_Frequency | Motor_Diagnostics | Rate_Profile_Name | PID_Profile_Name | Profile_Name
          | Battery_Profile_Name | Custom_Message_0 | Custom_Message_1 | Custom_Message_2 | Custom_Message_3
          | Custom_Serial_Text | Adjustment_Range | Lidar_Distance | Artificial_Horizon | Up_Down_Reference
-         | Stick_Overlay_Left | Stick_Overlay_Right | RC_Channels | VTX_Channel);
+         | Stick_Overlay_Left | Stick_Overlay_Right | RC_Channels | VTX_Channel | WP_Number | WP_Current_Lat
+         | WP_Current_Lon | WP_Current_Alt | WP_Distance | WP_Direction | WP_Next_Number | WP_ETA | Airspeed);
 
    --  The items whose background this unit renders.
    function Background_Supported (I : Item) return Boolean is
@@ -341,6 +353,9 @@ package Adaflight.OSD_Render with SPARK_Mode is
    procedure Render_Background (I : Item; S : in out State; C : Settings; Inp : Inputs; Pos_X, Pos_Y : Unsigned_8;
                                 O : out Output)
      with Pre => Background_Supported (I);
+
+   --  The navigation map's row at the element's position.
+   procedure Render_Nav_Map (S : in out State; C : Settings; Inp : Inputs; Pos_X, Pos_Y : Unsigned_8; O : out Output);
 
    --  The craft name as the configuration stores it: sixteen characters and
    --  the terminator.

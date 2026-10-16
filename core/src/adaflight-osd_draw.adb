@@ -118,6 +118,8 @@ package body Adaflight.OSD_Draw with SPARK_Mode is
          Adaflight.OSD_Render.Render_Warnings
            (WS, X.Warn_Settings, X.Warn_Inputs, X.Craft_Name_Messages, B.State, Inp, Craft, R, Beeper);
          pragma Unreferenced (Beeper);
+      elsif I = Nav_Map then
+         Adaflight.OSD_Render.Render_Nav_Map (S, X.Settings, Inp, Cy.Pos_X, Cy.Pos_Y, R);
       else
          Inp.Item_Blinks := B.Bits (I);
          Adaflight.OSD_Render.Render (I, Variant (Pos (I)), S, X.Settings, Inp, R);

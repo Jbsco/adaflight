@@ -37,9 +37,10 @@ package Adaflight.OSD_Elements with SPARK_Mode is
       Sys_VTX_Voltage, Sys_Bitrate, Sys_Delay, Sys_Distance, Sys_Link_Quality, Sys_Goggle_DVR, Sys_VTX_DVR,
       Sys_Warnings, Sys_VTX_Temperature, Sys_Fan_Speed, GPS_Lap_Time_Current, GPS_Lap_Time_Previous,
       GPS_Lap_Time_Best3, Debug2, Custom_Message_0, Custom_Message_1, Custom_Message_2, Custom_Message_3,
-      Lidar_Distance, Custom_Serial_Text, Battery_Profile_Name, Position_Hold_Ready);
+      Lidar_Distance, Custom_Serial_Text, Battery_Profile_Name, WP_Number, WP_Current_Lat, WP_Current_Lon,
+      WP_Current_Alt, WP_Distance, WP_Direction, WP_Next_Number, WP_ETA, Nav_Map, Position_Hold_Ready, Airspeed);
 
-   Item_Count : constant := 89;
+   Item_Count : constant := 99;
 
    type Positions is array (Item) of Unsigned_16;
    type Item_Set is array (Item) of Boolean;
@@ -156,7 +157,7 @@ package Adaflight.OSD_Elements with SPARK_Mode is
      with Post => B.State = B.State'Old;
 
    --  The adds of a list with every item visible; two items are added twice.
-   Max_Active : constant := 91;
+   Max_Active : constant := 101;
    subtype Active_Count is Natural range 0 .. Max_Active;
    type Item_List is array (1 .. Max_Active) of Item;
 

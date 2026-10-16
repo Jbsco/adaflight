@@ -1136,11 +1136,123 @@ package body Adaflight.OSD_Render with SPARK_Mode is
       Adaflight.Filters.PT1_Init (S.Efficiency, Adaflight.Filters.PT1_Gain (0.5, 1.0 / Float (C.Framerate_Hz)));
    end Init;
 
+   --  The executor's waypoint within the stored plan.
+   function WP_Current (Inp : Inputs; Count : Positive) return Natural is
+     (if Natural (Inp.Nav.Nav_Index) < Count then Natural (Inp.Nav.Nav_Index) else Count - 1);
+
+   --  The flight plan's waypoint elements: the waypoint's number of the
+   --  plan's count and the next one's number, its latitude, longitude and
+   --  altitude, and the executor's distance, bearing and time to it; a
+   --  hyphen without a plan or without the executor's value.
+   procedure Waypoint_Element (I : Item; Variant : Adaflight.OSD_Format.Element_Type; C : Settings; Inp : Inputs;
+                               O : in out Output)
+     with Global => null,
+          Pre    => I in WP_Number .. WP_ETA
+   is
+      Count : constant Natural := Natural (Inp.Nav.Waypoint_Count);
+
+      --  The distance in whole metres with ties to even.
+      function Whole_Metres (M : Float) return Integer_32
+        with Pre  => M in 0.0 .. 1.0e9,
+             Post => Whole_Metres'Result in 0 .. 1_000_000_000
+      is
+         R : constant Integer_32 := Integer_32 (M);
+      begin
+         if Float (R) - M = 0.5 and then R mod 2 = 1 then
+            return R - 1;
+         end if;
+         return R;
+      end Whole_Metres;
+   begin
+      case I is
+         when WP_Number | WP_Next_Number | WP_Current_Lat | WP_Current_Lon | WP_Current_Alt =>
+            if Count = 0 then
+               Append (O.Line, Symbol_Hyphen);
+               return;
+            end if;
+            declare
+               Current : constant Natural := WP_Current (Inp, Count);
+               WP      : constant Adaflight.OSD_Nav_Map.Waypoint :=
+                 Inp.Nav.Waypoints (Natural'Min (Current, Adaflight.OSD_Nav_Map.Max_Waypoints - 1));
+            begin
+               case I is
+                  when WP_Number =>
+                     Append_String (O.Line, "WP");
+                     Append_Natural (O.Line, Current + 1, 0, False);
+                     Append (O.Line, '/');
+                     Append_Natural (O.Line, Count, 0, False);
+                  when WP_Next_Number =>
+                     if Current + 1 >= Count then
+                        Append (O.Line, Symbol_Hyphen);
+                     else
+                        Append_String (O.Line, "NEXT");
+                        Append_Natural (O.Line, Current + 2, 0, False);
+                     end if;
+                  when WP_Current_Lat | WP_Current_Lon =>
+                     declare
+                        Value : constant Integer_32 := (if I = WP_Current_Lon then WP.Longitude else WP.Latitude);
+                        Mag   : constant Interfaces.Integer_64 := abs Interfaces.Integer_64 (Value);
+                     begin
+                        Append (O.Line, (if I = WP_Current_Lon then Symbol_Longitude else Symbol_Latitude));
+                        if Value < 0 then
+                           Append (O.Line, Symbol_Hyphen);
+                        end if;
+                        Append_Natural (O.Line, Natural (Mag / 10_000_000), 0, False);
+                        Append (O.Line, '.');
+                        Append_Natural (O.Line, Natural (Mag mod 10_000_000), 7, True);
+                     end;
+                  when others =>
+                     Altitude_String (O.Line, WP.Altitude, Variant, Inp.Altitude_Asl_Cm, C.Units);
+               end case;
+            end;
+         when WP_Distance =>
+            if Inp.WP_Distance_M < 0.0 then
+               Append (O.Line, Symbol_Hyphen);
+            else
+               Distance_String (O.Line, Whole_Metres (Inp.WP_Distance_M), Symbol_None, C.Units);
+            end if;
+         when WP_Direction =>
+            if Inp.WP_Bearing_Deci < 0 then
+               Append (O.Line, Symbol_Hyphen);
+            else
+               Append (O.Line, Direction_Symbol ((Integer (Inp.WP_Bearing_Deci) - Integer (Inp.Yaw)) / 10));
+            end if;
+         when others =>
+            if Inp.WP_ETA_S = 0 then
+               Append (O.Line, Symbol_Hyphen);
+            else
+               Append_Natural (O.Line, Natural (Inp.WP_ETA_S / 60), 2, True);
+               Append (O.Line, ':');
+               Append_Natural (O.Line, Natural (Inp.WP_ETA_S mod 60), 2, True);
+            end if;
+      end case;
+   end Waypoint_Element;
+
+   --  The pitot's airspeed in the speed unit, or a hyphen without the
+   --  sensor.
+   procedure Airspeed_Element (C : Settings; Inp : Inputs; O : in out Output)
+     with Global => null
+   is
+   begin
+      Append (O.Line, Symbol_Speed);
+      Append (O.Line, 'a');
+      if Inp.Pitot_Present then
+         Append_Integer (O.Line, Speed_To_Unit (Integer_32 (Float'Truncation (Inp.Airspeed_Cm_S)), C.Units), 3, False);
+      else
+         Append (O.Line, Symbol_Hyphen);
+      end if;
+      Append (O.Line, Speed_Symbol (C.Units));
+   end Airspeed_Element;
+
    procedure Render (I : Item; Variant : Adaflight.OSD_Format.Element_Type; S : in out State; C : Settings;
                      Inp : Inputs; O : out Output) is
    begin
       O := (others => <>);
       case I is
+         when WP_Number .. WP_ETA =>
+            Waypoint_Element (I, Variant, C, Inp, O);
+         when Airspeed =>
+            Airspeed_Element (C, Inp, O);
          when Altitude =>
             Altitude_Element (Variant, C, Inp, O);
          when Pitch_Angle | Roll_Angle =>
@@ -1300,6 +1412,23 @@ package body Adaflight.OSD_Render with SPARK_Mode is
             O.Draw := False;
       end case;
    end Render;
+
+   procedure Render_Nav_Map (S : in out State; C : Settings; Inp : Inputs; Pos_X, Pos_Y : Unsigned_8; O : out Output)
+   is
+      Map_Settings : Adaflight.OSD_Nav_Map.Settings := C.Nav_Map;
+      Row          : Adaflight.OSD_Nav_Map.Output;
+   begin
+      O := (others => <>);
+      Map_Settings.Units := C.Units;
+      Adaflight.OSD_Nav_Map.Render
+        (S.Nav_Map, Map_Settings, Inp.Nav, Pos_X, Pos_Y, Inp.Screen_Rows, Inp.Screen_Cols, Row);
+      for K in 0 .. Row.Length - 1 loop
+         Append (O.Line, Character'Val (Row.Line (K)));
+      end loop;
+      O.Offset_Y := Row.Offset_Y;
+      O.Draw := Row.Draw;
+      O.Rendered := Row.Rendered;
+   end Render_Nav_Map;
 
    procedure Render_Background (I : Item; S : in out State; C : Settings; Inp : Inputs; Pos_X, Pos_Y : Unsigned_8;
                                 O : out Output) is
