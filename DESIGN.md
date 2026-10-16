@@ -4509,3 +4509,28 @@ columns and eight to forty rows, full screen displays among them) through the la
 count, the first page and four page turns, asks every line whether the cursor skips it under random
 slider settings, and checks 1800 fixed-point values, right alignments and character set passes
 each against the reference's text.
+
+## D194. Menu draw (2026-10-14)
+
+`Adaflight.Menu_Draw` is the menu's draw, a generic whose procedures are the display's writes of a
+text and of a character, the text write naming the bytes it takes: a page's labels, values and
+cursor written within the bytes the display has room for, every row after the screen was cleared
+and else the values marked for a print, the dynamic ones every tenth of a second; the cursor moved
+past the rows it skips and erased from its old row; each value in its element's form in a field
+aligned to the right column (a string in twelve characters, a function call's text with its arrow,
+a boolean as YES or NO, a lookup table's text in the space its label leaves, the visibility marks
+of the three OSD profiles with the editing cursor's blink, a number or a fixed-point value in five
+characters); the slider mark beside an overridden value; and the page arrows after a clear. The
+byte of runtime flags leaves a submenu's option string and the scrolling of a lookup table's text
+unreachable (F183), so neither is drawn and the ticker only resets. The byte budget wraps below
+zero as the reference's does. The menu's display update hook stays with the target until the menu
+stack lands. The proof covers the row and column arithmetic within the page and the display, and
+the value fields within the text bound, which every display's layout keeps and the draw requires
+(a full screen display wider than 32 columns would overrun the reference's table value buffer,
+F184). `Adaflight.Menu_Draw_Shape` instantiates the draw over counting writes for the proof.
+
+The harness instantiates the draw over logging writes that take the bytes the reference's display
+reported, and replays 12600 draws over the 1800 random menus, three after each open and one after
+each page turn, with random byte budgets, cursor placements, clock readings, editing states and
+device types, comparing every display operation with the reference's and the cursor, flags and
+tickers after the draw.

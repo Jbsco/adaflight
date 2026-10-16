@@ -30,4 +30,19 @@ package body Adaflight.Counting_Steps with SPARK_Mode is
       Calls := Counted (Calls);
    end Step_Tilt;
 
+   procedure Step_Write
+     (X : Menu.Column; Y : Menu.Column; Attr : Interfaces.Unsigned_8; Text : String; Cost : out Interfaces.Unsigned_32)
+   is
+      pragma Unreferenced (X, Y, Attr, Text);
+   begin
+      Calls := Counted (Calls);
+      Cost := Interfaces.Unsigned_32 (Calls);
+   end Step_Write;
+
+   procedure Step_Write_Char (X : Menu.Column; Y : Menu.Column; Attr : Interfaces.Unsigned_8; C : Character) is
+      pragma Unreferenced (X, Y, Attr, C);
+   begin
+      Calls := Counted (Calls);
+   end Step_Write_Char;
+
 end Adaflight.Counting_Steps;

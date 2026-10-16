@@ -47,11 +47,17 @@ package Adaflight.Menu with SPARK_Mode is
       Length : Text_Length := 0;
    end record;
 
-   --  A line: its text, its element and flags, and whether it has data.
+   --  A line: its text, its element and flags, whether it has data, and
+   --  the data behind it: the number of a numeric, boolean, visibility or
+   --  fixed-point line (the fixed-point one already multiplied), and the
+   --  text of a string, label or function call line or a lookup table's
+   --  text at the line's value.
    type Line is record
-      Text     : Label_Text;
-      Flags    : Unsigned_16 := 0;
-      Has_Data : Boolean := False;
+      Text       : Label_Text;
+      Flags      : Unsigned_16 := 0;
+      Has_Data   : Boolean := False;
+      Value      : Integer_32 := 0;
+      Value_Text : Label_Text;
    end record;
 
    Max_Lines : constant := 192;
