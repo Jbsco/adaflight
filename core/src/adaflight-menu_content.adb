@@ -2,6 +2,7 @@ with Adaflight.Config_Fix;
 with Adaflight.OSD_Elements;
 with Adaflight.Settings_Table;
 with Adaflight.Simplified_Tuning.Stored;
+with Adaflight.Tramp;
 
 package body Adaflight.Menu_Content with SPARK_Mode is
    use type Interfaces.Unsigned_16;
@@ -447,7 +448,8 @@ package body Adaflight.Menu_Content with SPARK_Mode is
             (Enter => True, Leave => True, Update => False),
          when RC_Preview_Menu => (Enter => True, Leave => True, Update => True),
          when Copy_Profile_Menu => (Enter => True, Leave => False, Update => False),
-         when Firmware_Menu | VTX_Error_Menu | VTX_MSP_Menu => (Enter => True, Leave => False, Update => False),
+         when Firmware_Menu | VTX_Error_Menu | VTX_MSP_Menu | VTX_Tramp_Menu =>
+            (Enter => True, Leave => False, Update => False),
          when Calibration_Menu => (Enter => False, Leave => False, Update => True),
          when GPS_Lap_Timer_Menu | Set_Gate_Menu => (Enter => True, Leave => True, Update => False),
          when others      => (others => False));
@@ -643,6 +645,33 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       Add (M, N, Make ("BACK", Back));
       M.Count := N;
    end Load_VTX_MSP_Menu;
+
+   procedure Load_VTX_Tramp_Menu (T : Target; M : out Table)
+     with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
+   is
+      use Adaflight.Menu;
+      N : Line_Count := 0;
+   begin
+      M := Empty_Table;
+      Add_VTX_Lines (M, N, "- TRAMP -", T.Tramp_Status, T.Tramp, T.VTX_Table);
+      Add (M, N, Number ("T(C)", Interfaces.Integer_32 (T.Tramp_Temp), -100, 300, Int16, Step => 0, Flags => Dynamic));
+      Add (M, N, Sub ("SAVE&EXIT", VTX_Tramp_Confirm));
+      Add (M, N, Make ("BACK", Back));
+      M.Count := N;
+   end Load_VTX_Tramp_Menu;
+
+   procedure Load_VTX_Tramp_Confirm (M : out Table)
+     with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
+   is
+      use Adaflight.Menu;
+      N : Line_Count := 0;
+   begin
+      M := Empty_Table;
+      Add (M, N, Make ("CONFIRM", Label));
+      Add (M, N, Make ("YES", OSD_Exit, Has_Func => True, Has_Data => True, Value => 0));
+      Add (M, N, Make ("NO", Back));
+      M.Count := N;
+   end Load_VTX_Tramp_Confirm;
 
    procedure Load_VTX_MSP_Confirm (M : out Table)
      with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
@@ -1404,6 +1433,10 @@ package body Adaflight.Menu_Content with SPARK_Mode is
             Load_VTX_MSP_Menu (T, M);
          when VTX_MSP_Confirm =>
             Load_VTX_MSP_Confirm (M);
+         when VTX_Tramp_Menu =>
+            Load_VTX_Tramp_Menu (T, M);
+         when VTX_Tramp_Confirm =>
+            Load_VTX_Tramp_Confirm (M);
          when others =>
             M := Empty_Table;
       end case;
@@ -1544,6 +1577,27 @@ package body Adaflight.Menu_Content with SPARK_Mode is
                    then " *" & Decimal (Adaflight.VTX_Table.Power_Value_Of (T.VTX_Table, Natural (Index)), 3)
                    else " ----"));
    end Update_MSP_Status;
+
+   procedure Update_Tramp_Status (T : in out Target) is
+      Actual : constant Interfaces.Unsigned_16 := Adaflight.Tramp.Actual_Power (T.VTX.TR);
+      Index  : Interfaces.Unsigned_8 := 0;
+      Known  : Boolean;
+   begin
+      if T.VTX_Table.Bands = 0 or else T.VTX_Table.Power_Levels = 0 then
+         T.Tramp_Status := Label ("PLEASE CONFIGURE VTXTABLE");
+         return;
+      end if;
+      Adaflight.VTX.Common_Get_Power_Index (T.VTX, T.VTX_Table, Index, Known);
+      if Actual > 0 and then Known and then Adaflight.VTX_Table.Has_Power_Value (T.VTX_Table, Natural (Index)) then
+         T.Tramp_Status :=
+           C_Text (Status_Head (T.VTX, T.VTX_Table) & " "
+                   & (if Actual = Adaflight.VTX_Table.Power_Value_Of (T.VTX_Table, Natural (Index)) then ' ' else '*')
+                   & Decimal (Actual, 3));
+      else
+         T.Tramp_Status := C_Text (Status_Head (T.VTX, T.VTX_Table) & " ----");
+      end if;
+      T.Tramp_Temp := Adaflight.Tramp.Temperature (T.VTX.TR);
+   end Update_Tramp_Status;
 
    --  The setup popup's build: a line for the accelerometer calibration
    --  when arming waits for it, one for the battery restore when charge
@@ -1754,6 +1808,12 @@ package body Adaflight.Menu_Content with SPARK_Mode is
          when VTX_MSP_Menu =>
             if T.Live.VTX_Present then
                Read_VTX_Copies (T.VTX, T.VTX_Table, T.Live.VTX_Present, T.MSP);
+            else
+               Reply.Chain_Back := True;
+            end if;
+         when VTX_Tramp_Menu =>
+            if T.Live.VTX_Present then
+               Read_VTX_Copies (T.VTX, T.VTX_Table, T.Live.VTX_Present, T.Tramp);
             else
                Reply.Chain_Back := True;
             end if;
@@ -2338,6 +2398,11 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       end if;
       case Adaflight.Menu.Element_Of (M.Lines (Line).Flags) is
          when Adaflight.Menu.OSD_Exit =>
+            if Id = VTX_Tramp_Confirm and then Line = 1 then
+               Commence_VTX (T.VTX, T.VTX_Table, T.Live.VTX_Present, T.Tramp, T.Config.Vtx_Settings_Config);
+               Reply.Screens := 1;
+               Reply.Screen (1).Kind := Adaflight.Menu.Save_Config;
+            end if;
             Reply.Done := Adaflight.Menu.Exited;
             Reply.Kind := (if M.Lines (Line).Value in 0 .. 5 then Adaflight.Menu.Exit_Kind'Val (M.Lines (Line).Value)
                            else Adaflight.Menu.Plain);
@@ -2471,6 +2536,8 @@ package body Adaflight.Menu_Content with SPARK_Mode is
                Reply.Screen (1).Kind := Adaflight.Menu.Clear_Wait;
             elsif Id = VTX_MSP_Menu then
                VTX_Line_Changed (T.VTX, T.VTX_Table, T.Live.VTX_Present, T.MSP, Line);
+            elsif Id = VTX_Tramp_Menu then
+               VTX_Line_Changed (T.VTX, T.VTX_Table, T.Live.VTX_Present, T.Tramp, Line);
             elsif Id = OSD_Menu and then Line = 8 then
                T.Config.Osd_Config.Cms_Background_Type := T.OSD.Background;
                Reply.Screens := 1;
@@ -2666,6 +2733,16 @@ package body Adaflight.Menu_Content with SPARK_Mode is
             when 6 => T.MSP.Power := Byte;
             when others => null;
          end case;
+      elsif Id = VTX_Tramp_Menu then
+         case Line is
+            when 2 => T.Tramp.Pit_Mode := Byte;
+            when 3 => T.Tramp.Band := Byte;
+            when 4 => T.Tramp.Channel := Byte;
+            when 5 => T.Tramp.Freq_Ref := Word;
+            when 6 => T.Tramp.Power := Byte;
+            when 7 => T.Tramp_Temp := Short;
+            when others => null;
+         end case;
       elsif Id = LED_Strip_Menu then
          case Line is
             when 1 => T.LED.Enabled := Byte;
@@ -2783,6 +2860,10 @@ package body Adaflight.Menu_Content with SPARK_Mode is
               elsif Id = VTX_MSP_Menu and then Line = 3 then Band_Name (T.VTX_Table, Index)
               elsif Id = VTX_MSP_Menu and then Line = 4 then Channel_Name (T.VTX_Table, Index)
               elsif Id = VTX_MSP_Menu and then Line = 6 then Power_Name (T.VTX_Table, Index)
+              elsif Id = VTX_Tramp_Menu and then Line = 2 then Pit_Mode_Name (Index)
+              elsif Id = VTX_Tramp_Menu and then Line = 3 then Band_Name (T.VTX_Table, Index)
+              elsif Id = VTX_Tramp_Menu and then Line = 4 then Channel_Name (T.VTX_Table, Index)
+              elsif Id = VTX_Tramp_Menu and then Line = 6 then Power_Name (T.VTX_Table, Index)
               else Label (""));
    end Lookup;
 

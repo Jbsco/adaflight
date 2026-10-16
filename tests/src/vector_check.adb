@@ -19762,9 +19762,11 @@ procedure Vector_Check is
          end if;
       end Expect_Ops;
       --  The MSP driver's state, the common layer's selection and the MSP VTX
-      --  menu's copies.
-      procedure Expect_MSP is
+      --  menu's copies, then the Tramp driver's configuration with the Tramp
+      --  VTX menu's copies and temperature.
+      procedure Expect_VTX is
          MD : Adaflight.VTX_MSP.Driver renames MCT_T.VTX.MD;
+         TR : Adaflight.Tramp.Driver renames MCT_T.VTX.TR;
       begin
          Record_Int (Name & ".msp_status", Next, Integer_64 (Adaflight.VTX_MSP.Status'Pos (MD.Current)));
          Record_Int (Name & ".msp_freq", Next, Integer_64 (MD.Conf_Freq));
@@ -19780,14 +19782,30 @@ procedure Vector_Check is
          Record_Int (Name & ".copy_channel", Next, Integer_64 (MCT_T.MSP.Channel));
          Record_Int (Name & ".copy_freq", Next, Integer_64 (MCT_T.MSP.Freq_Ref));
          Record_Int (Name & ".copy_power", Next, Integer_64 (MCT_T.MSP.Power));
-      end Expect_MSP;
-      --  The MSP VTX menu's status line, which the MSP driver's cycle updates.
-      procedure Update_MSP_Status is
+         Record_Int (Name & ".tramp_freq", Next, Integer_64 (TR.Conf_Freq));
+         Record_Int (Name & ".tramp_power", Next, Integer_64 (TR.Conf_Power));
+         Record_Int (Name & ".tramp_pit", Next, Integer_64 (TR.Conf_Pit_Mode));
+         Record_Int (Name & ".tramp_last_freq", Next, Integer_64 (TR.Last_Conf_Freq));
+         Record_Int (Name & ".tramp_last_power", Next, Integer_64 (TR.Last_Conf_Power));
+         Record_Int (Name & ".tramp_last_pit", Next, Integer_64 (TR.Last_Conf_Pit_Mode));
+         Record_Int (Name & ".tramp_retries", Next, Integer_64 (TR.Retry_Count));
+         Record_Int (Name & ".tramp_copy_pit", Next, Integer_64 (MCT_T.Tramp.Pit_Mode));
+         Record_Int (Name & ".tramp_copy_band", Next, Integer_64 (MCT_T.Tramp.Band));
+         Record_Int (Name & ".tramp_copy_channel", Next, Integer_64 (MCT_T.Tramp.Channel));
+         Record_Int (Name & ".tramp_copy_freq", Next, Integer_64 (MCT_T.Tramp.Freq_Ref));
+         Record_Int (Name & ".tramp_copy_power", Next, Integer_64 (MCT_T.Tramp.Power));
+         Record_Int (Name & ".tramp_temp", Next, Integer_64 (MCT_T.Tramp_Temp));
+      end Expect_VTX;
+      --  The VTX device menu's status line, which the device's driver cycle
+      --  updates.
+      procedure Update_Device_Status is
       begin
          if MCT_T.Live.VTX_Present and then MCT_T.Live.VTX_Type = 5 then
             Adaflight.Menu_Content.Update_MSP_Status (MCT_T);
+         elsif MCT_T.Live.VTX_Present and then MCT_T.Live.VTX_Type = 4 then
+            Adaflight.Menu_Content.Update_Tramp_Status (MCT_T);
          end if;
-      end Update_MSP_Status;
+      end Update_Device_Status;
       procedure Expect_State is
          Depth, Max_Row : Integer_64;
          D              : Adaflight.Config_Codec.Data;
@@ -19858,7 +19876,7 @@ procedure Vector_Check is
             Record_Int (Name & ".hash_high", Integer_64 (Expected / 2 ** 32), Integer_64 (Hash / 2 ** 32));
          end;
          K := K + 1;
-         Expect_MSP;
+         Expect_VTX;
       end Expect_State;
       procedure Read_Live (F : Positive) is
       begin
@@ -20164,7 +20182,9 @@ procedure Vector_Check is
          MCT_T.VTX := (others => <>);
          MCT_T.VTX.Device_Present := MCT_T.Live.VTX_Present;
          MCT_T.VTX.Kind :=
-           (if MCT_T.Live.VTX_Present and then MCT_T.Live.VTX_Type = 5 then Adaflight.VTX.MSP_Device
+           (if not MCT_T.Live.VTX_Present then Adaflight.VTX.No_Device
+            elsif MCT_T.Live.VTX_Type = 5 then Adaflight.VTX.MSP_Device
+            elsif MCT_T.Live.VTX_Type = 4 then Adaflight.VTX.Tramp_Device
             else Adaflight.VTX.No_Device);
          MCT_T.VTX.MD :=
            (Current        => Adaflight.VTX_MSP.Status'Val (Int (571)),
@@ -20177,9 +20197,29 @@ procedure Vector_Check is
             others         => <>);
          MCT_T.VTX.Selected_Band := Interfaces.Unsigned_8 (Int (578));
          MCT_T.VTX.Selected_Channel := Interfaces.Unsigned_8 (Int (579));
-         Update_MSP_Status;
+         MCT_T.VTX.TR :=
+           (Port_Open          => True,
+            Current            => Adaflight.Tramp.Status'Val (Int (598)),
+            Freq_Min           => Interfaces.Unsigned_32 (Int (599)),
+            Freq_Max           => Interfaces.Unsigned_32 (Int (600)),
+            Power_Max          => Interfaces.Unsigned_32 (Int (601)),
+            Cur_Freq           => Interfaces.Unsigned_32 (Int (602)),
+            Cur_Conf_Power     => Interfaces.Unsigned_16 (Int (603)),
+            Cur_Act_Power      => Interfaces.Unsigned_16 (Int (604)),
+            Cur_Pit_Mode       => Interfaces.Unsigned_8 (Int (605)),
+            Cur_Temp           => Interfaces.Integer_16 (Int (606)),
+            Cur_Control_Mode   => Interfaces.Unsigned_8 (Int (607)),
+            Conf_Freq          => Interfaces.Unsigned_32 (Int (585)),
+            Conf_Power         => Interfaces.Unsigned_16 (Int (586)),
+            Conf_Pit_Mode      => Interfaces.Unsigned_8 (Int (587)),
+            Last_Conf_Freq     => Interfaces.Unsigned_32 (Int (588)),
+            Last_Conf_Power    => Interfaces.Unsigned_16 (Int (589)),
+            Last_Conf_Pit_Mode => Interfaces.Unsigned_8 (Int (590)),
+            Retry_Count        => Interfaces.Unsigned_8 (Int (591)),
+            others             => <>);
+         Update_Device_Status;
          K := 571;
-         Expect_MSP;
+         Expect_VTX;
          declare
             D        : Adaflight.Config_Codec.Data;
             Hash     : Interfaces.Unsigned_64 := 16#CBF2_9CE4_8422_2325#;
@@ -20201,7 +20241,7 @@ procedure Vector_Check is
          Read_Sensors (10);
          Read_Storage (14);
          Read_VTX (26);
-         Update_MSP_Status;
+         Update_Device_Status;
       elsif Name = "cmopen" then
          Begin_Step;
          Read_Ops;

@@ -5865,3 +5865,20 @@ that answers nothing for any other type, and it updates the status line at the s
 of the readings. The harness replays 240 sessions with 19636 keys, 792 menu changes and 20428 draws, 708
 of their states in the MSP VTX menu and 114 in its confirmation: every display operation, menu context,
 page, request, driver state, menu copy and configuration hash matches the reference's.
+
+## D251. Tramp VTX menu (2026-10-16)
+
+`Adaflight.Menu_Content` gains the Tramp VTX menu with its confirmation, over helpers the MSP VTX menu
+now shares: the first seven lines, the copies read from the device on entry, the steps of the pit mode,
+band, channel and power lines, and the save. The Tramp menu adds the transmitter's temperature, and its
+confirmation sends and stores the settings, saves, and leaves the menu system. Its status line shows the
+actual power, marked when it differs from the configured level's value, and the target updates it with
+`Update_Tramp_Status` after every Tramp cycle, which the VTX layer's events now flag as they flag the MSP
+driver's. The Tramp driver reports no band or channel, so the menu reads them only through the common
+layer's selection, and a save in user frequency mode stores zeros here too (F219).
+
+The menu contents oracle wraps the reference's Tramp driver and menu beside the MSP ones and scripts the
+Tramp driver's state per session. The harness replays 240 sessions with 19368 keys, 803 menu changes and
+20171 draws, 648 of their states in the Tramp VTX menu and 96 in its confirmation: every display
+operation, menu context, page, request, driver state, menu copy and configuration hash matches the
+reference's. The VTX control vectors replay exactly with the status flag over both devices.

@@ -2,16 +2,17 @@
 --  quick menu, the main menu with its features menu and setup popup, the
 --  profile menu with its PID, rate, simplified tuning, misc, launch
 --  control, filter and profile copy menus, the VTX selection with its
---  error menu, the MSP VTX menu with its confirmation, the save menus, the
---  OSD menu with
+--  error menu, the MSP and Tramp VTX menus with their confirmations, the
+--  save menus, the OSD menu with
 --  its active elements, timers and alarms
 --  menus, the blackbox menu with its erase and mass storage
 --  confirmations, the LED strip, power, failsafe and RPM limit menus, the
 --  misc menu with its RC preview and GPS lap timer menu, the persistent
 --  statistics menu, and the firmware menu with its calibration menus, over
 --  the target's state: the configuration, the firmware's identity, the
---  readings the menus show, the VTX layer with its running table and the
---  MSP VTX menu's status line, the menus' copies of the settings they edit,
+--  readings the menus show, the VTX layer with its running table, the VTX
+--  device menus' status lines and the Tramp temperature, the menus' copies
+--  of the settings they edit,
 --  the setup popup's lines, the calibration statuses, and the requests to
 --  the runtime. The menus of later slices have their numbers and one empty
 --  line.
@@ -67,6 +68,7 @@ package Adaflight.Menu_Content with SPARK_Mode is
    Copy_Profile_Menu     : constant Menu_Id := 38;
    Launch_Control_Menu   : constant Menu_Id := 39;
    VTX_MSP_Confirm       : constant Menu_Id := 40;
+   VTX_Tramp_Confirm     : constant Menu_Id := 41;
 
    --  The RC channels the preview shows: roll, pitch, throttle, yaw and the
    --  first four auxiliary channels.
@@ -498,42 +500,45 @@ package Adaflight.Menu_Content with SPARK_Mode is
    end record;
 
    type Target is record
-      Config      : Adaflight.Config_Groups.Configuration;
-      Identity    : Firmware_Identity;
-      Live        : Readings;
-      Quick       : Quick_Copies;
-      Power       : Power_Copies;
-      Failsafe    : Failsafe_Copies;
-      RPM_Limit   : RPM_Limit_Copies;
-      Misc        : Misc_Copies;
-      OSD         : OSD_Copies;
-      Elements    : Adaflight.Config_Groups.Unsigned_16_List_99 := (others => 0);
-      Timers      : Timer_Copies;
-      Alarms      : Alarm_Copies;
-      Blackbox    : Blackbox_Copies;
-      Profile     : Profile_Copies;
-      PID         : PID_Copies;
-      Rate        : Rate_Copies;
-      Simplified  : Simplified_Copies;
-      Other       : Other_Copies;
-      Launch      : Launch_Copies;
-      Global_Filt : Filter_Global_Copies;
-      Dynamic     : Dynamic_Filter_Copies;
-      Profile_Flt : Filter_Profile_Copies;
-      Copy        : Copy_Targets;
-      VTX_Status  : VTX_Status_Lines;
-      VTX         : Adaflight.VTX.State;
-      MSP_Status  : Adaflight.Menu.Label_Text := Initial_VTX_Status;
-      MSP         : VTX_Copies;
-      VTX_Table   : Adaflight.VTX_Table.Table;
-      LED         : LED_Copies;
-      Lap         : Lap_Copies;
-      Preview     : RC_Values := (others => 0);
-      Stats       : Stats_Copies;
-      Board       : Board_Copies;
-      Popup       : Popup_Lines;
-      Calibration : Calibration_Statuses;
-      Asked       : Requests;
+      Config       : Adaflight.Config_Groups.Configuration;
+      Identity     : Firmware_Identity;
+      Live         : Readings;
+      Quick        : Quick_Copies;
+      Power        : Power_Copies;
+      Failsafe     : Failsafe_Copies;
+      RPM_Limit    : RPM_Limit_Copies;
+      Misc         : Misc_Copies;
+      OSD          : OSD_Copies;
+      Elements     : Adaflight.Config_Groups.Unsigned_16_List_99 := (others => 0);
+      Timers       : Timer_Copies;
+      Alarms       : Alarm_Copies;
+      Blackbox     : Blackbox_Copies;
+      Profile      : Profile_Copies;
+      PID          : PID_Copies;
+      Rate         : Rate_Copies;
+      Simplified   : Simplified_Copies;
+      Other        : Other_Copies;
+      Launch       : Launch_Copies;
+      Global_Filt  : Filter_Global_Copies;
+      Dynamic      : Dynamic_Filter_Copies;
+      Profile_Flt  : Filter_Profile_Copies;
+      Copy         : Copy_Targets;
+      VTX_Status   : VTX_Status_Lines;
+      VTX          : Adaflight.VTX.State;
+      MSP_Status   : Adaflight.Menu.Label_Text := Initial_VTX_Status;
+      MSP          : VTX_Copies;
+      Tramp_Status : Adaflight.Menu.Label_Text := Initial_VTX_Status;
+      Tramp        : VTX_Copies;
+      Tramp_Temp   : Interfaces.Integer_16 := 0;
+      VTX_Table    : Adaflight.VTX_Table.Table;
+      LED          : LED_Copies;
+      Lap          : Lap_Copies;
+      Preview      : RC_Values := (others => 0);
+      Stats        : Stats_Copies;
+      Board        : Board_Copies;
+      Popup        : Popup_Lines;
+      Calibration  : Calibration_Statuses;
+      Asked        : Requests;
    end record;
 
    --  The menu the menu system opens with: the quick menu when the OSD's
@@ -546,6 +551,10 @@ package Adaflight.Menu_Content with SPARK_Mode is
    --  The MSP VTX menu's status line from the VTX device, which the target
    --  updates when the VTX layer's events ask for it.
    procedure Update_MSP_Status (T : in out Target);
+
+   --  The Tramp VTX menu's status line and temperature from the VTX device,
+   --  which the target updates when the VTX layer's events ask for them.
+   procedure Update_Tramp_Status (T : in out Target);
 
    procedure Load (T : Target; Id : Menu_Id; M : out Adaflight.Menu.Table)
      with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M);
