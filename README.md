@@ -173,6 +173,8 @@ The core contains:
   waypoint, arrival time and airspeed
 - OSD flight plan warnings: waypoint aborts, capture messages, landing and plan complete cues,
   rescue descent failure
+- OSD warnings reports: visual beeper and capture message reads passed to target through draw
+  cycle and OSD task
 - menu system lines and page layout: element and flag encoding, screen geometry, page count and
   selection, cursor row, skip rule, fixed-point text, field alignment and display character set
 - menu draw: page labels, values and cursor within display's byte budget, element value forms,
@@ -223,7 +225,7 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 25699 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 25700 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
 - Recorded vectors replay bit for bit: 1753568 lines over 384 cases, every case exact except
   forty-six declared deviations in `DESIGN.md` D6.
