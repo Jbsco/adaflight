@@ -1,6 +1,7 @@
 with Adaflight.Config_Fix;
 with Adaflight.OSD_Elements;
 with Adaflight.Settings_Table;
+with Adaflight.Simplified_Tuning.Stored;
 
 package body Adaflight.Menu_Content with SPARK_Mode is
    use type Interfaces.Unsigned_16;
@@ -63,10 +64,11 @@ package body Adaflight.Menu_Content with SPARK_Mode is
      (Text            : String;
       Value, Min, Max : Interfaces.Integer_32;
       Multiplier      : Natural;
-      Flags           : Interfaces.Unsigned_16 := 0) return Line
+      Flags           : Interfaces.Unsigned_16 := 0;
+      Step            : Interfaces.Integer_32 := 1) return Line
    is
      ((Text => Label (Text), Flags => Code (Adaflight.Menu.Fixed) or Flags, Has_Data => True, Value => Value,
-       Min => Min, Max => Max, Step => 1, Multiplier => Multiplier, others => <>))
+       Min => Min, Max => Max, Step => Step, Multiplier => Multiplier, others => <>))
      with Pre => Text'Length <= Adaflight.Menu.Max_Text and then Value in 0 .. 255 and then Multiplier <= 65_535
                  and then (Flags and Adaflight.Menu.Element_Mask) = 0;
 
@@ -202,19 +204,24 @@ package body Adaflight.Menu_Content with SPARK_Mode is
    function Timer_Precision_Name (Index : Natural) return Adaflight.Menu.Label_Text is
      (if Index <= 1 then Timer_Precision_Names (Index) else Label (""));
 
-   --  A menu background's name from the command line's table.
-   function Background_Name (Index : Natural) return Adaflight.Menu.Label_Text is
+   --  A value's name from one of the command line's tables, empty past the
+   --  table.
+   function Setting_Name (Table : Adaflight.Settings_Table.Lookup_Table; Index : Natural)
+     return Adaflight.Menu.Label_Text
+   is
    begin
-      if Index >= Adaflight.Settings_Table.Value_Count (Adaflight.Settings_Table.Table_Cms_Background) then
+      if Index >= Adaflight.Settings_Table.Value_Count (Table) then
          return Label ("");
       end if;
       declare
-         Name : constant String :=
-           Adaflight.Settings_Table.Value_Name (Adaflight.Settings_Table.Table_Cms_Background, Index);
+         Name : constant String := Adaflight.Settings_Table.Value_Name (Table, Index);
       begin
          return Label (Name (Name'First .. Name'First - 1 + Natural'Min (Name'Length, Adaflight.Menu.Max_Text)));
       end;
-   end Background_Name;
+   end Setting_Name;
+
+   function Background_Name (Index : Natural) return Adaflight.Menu.Label_Text is
+     (Setting_Name (Adaflight.Settings_Table.Table_Cms_Background, Index));
 
    function Upper (C : Character) return Character is
      (if C in 'a' .. 'z' then Character'Val (Character'Pos (C) - 32) else C);
@@ -254,16 +261,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
    --  A debug mode's name from the command line's table, which holds the
    --  reference's debug mode names.
    function Debug_Name (Index : Natural) return Adaflight.Menu.Label_Text is
-   begin
-      if Index >= Adaflight.Settings_Table.Value_Count (Adaflight.Settings_Table.Table_Debug) then
-         return Label ("");
-      end if;
-      declare
-         Name : constant String := Adaflight.Settings_Table.Value_Name (Adaflight.Settings_Table.Table_Debug, Index);
-      begin
-         return Label (Name (Name'First .. Name'First - 1 + Natural'Min (Name'Length, Adaflight.Menu.Max_Text)));
-      end;
-   end Debug_Name;
+     (Setting_Name (Adaflight.Settings_Table.Table_Debug, Index));
 
    --  A thirty-two bit count as a line holds it: the reference's integer
    --  conversion.
@@ -379,7 +377,8 @@ package body Adaflight.Menu_Content with SPARK_Mode is
          when Quick_Menu  => (Enter => True, Leave => True, Update => False),
          when Main_Menu   => (Enter => True, Leave => False, Update => False),
          when Setup_Popup => (Enter => False, Leave => False, Update => True),
-         when Profile_Menu | PID_Menu | Rate_Menu | OSD_Menu | Active_Elements_Menu | Timers_Menu | Alarms_Menu
+         when Profile_Menu | PID_Menu | Rate_Menu | Simplified_Menu | Profile_Other_Menu | Launch_Control_Menu
+            | OSD_Menu | Active_Elements_Menu | Timers_Menu | Alarms_Menu
             | Blackbox_Menu | LED_Strip_Menu | Power_Menu | Failsafe_Menu | RPM_Limit_Menu | Misc_Menu
             | Persistent_Stats_Menu =>
             (Enter => True, Leave => True, Update => False),
@@ -810,6 +809,97 @@ package body Adaflight.Menu_Content with SPARK_Mode is
                Add (M, N, Number ("THR LIM %", Interfaces.Integer_32 (R.Throttle_Limit_Percent), 25, 100));
                Add (M, N, Make ("BACK", Back));
             end;
+         when Simplified_Menu =>
+            declare
+               S : Simplified_Copies renames T.Simplified;
+            begin
+               Add (M, N, Make ("-- SIMPLIFIED PID --", Label));
+               Add (M, N, Choice ("PID TUNING", Interfaces.Integer_32 (S.Mode), 2,
+                                  Setting_Name (Adaflight.Settings_Table.Table_Simplified_Tuning_Pids_Mode,
+                                                Natural (S.Mode))));
+               Add (M, N, Make ("-- BASIC --", Label));
+               Add (M, N, Fixed_Number ("D GAINS", Interfaces.Integer_32 (S.D_Gain), 0, 200, 10, Step => 5));
+               Add (M, N, Fixed_Number ("P&I GAINS", Interfaces.Integer_32 (S.PI_Gain), 0, 200, 10, Step => 5));
+               Add (M, N, Fixed_Number ("FF GAINS", Interfaces.Integer_32 (S.FF_Gain), 0, 200, 10, Step => 5));
+               Add (M, N, Make ("-- EXPERT --", Label));
+               Add (M, N, Fixed_Number ("D MAX", Interfaces.Integer_32 (S.D_Max_Gain), 0, 200, 10, Step => 5));
+               Add (M, N, Fixed_Number ("I GAINS", Interfaces.Integer_32 (S.I_Gain), 0, 200, 10, Step => 5));
+               Add (M, N, Fixed_Number ("PITCH:ROLL D", Interfaces.Integer_32 (S.Roll_Pitch_Ratio), 0, 200, 10,
+                                        Step => 5));
+               Add (M, N, Fixed_Number ("PITCH:ROLL P,I&FF", Interfaces.Integer_32 (S.Pitch_PI_Gain), 0, 200, 10,
+                                        Step => 5));
+               Add (M, N, Fixed_Number ("MASTER MULT", Interfaces.Integer_32 (S.Master), 0, 200, 10, Step => 5));
+               Add (M, N, Make ("-- SIMPLIFIED FILTER --", Label));
+               Add (M, N, Choice ("GYRO TUNING", Interfaces.Integer_32 (S.Gyro_Filter), 1,
+                                  Setting_Name (Adaflight.Settings_Table.Table_Off_On, Natural (S.Gyro_Filter))));
+               Add (M, N, Fixed_Number ("GYRO MULT", Interfaces.Integer_32 (S.Gyro_Multiplier), 10, 200, 10,
+                                        Step => 5));
+               Add (M, N, Choice ("DTERM TUNING", Interfaces.Integer_32 (S.DTerm_Filter), 1,
+                                  Setting_Name (Adaflight.Settings_Table.Table_Off_On, Natural (S.DTerm_Filter))));
+               Add (M, N, Fixed_Number ("DTERM MULT", Interfaces.Integer_32 (S.DTerm_Multiplier), 10, 200, 10,
+                                        Step => 5));
+               Add (M, N, Make ("BACK", Back));
+            end;
+         when Profile_Other_Menu =>
+            declare
+               O : Other_Copies renames T.Other;
+            begin
+               Add (M, N, Text_Line ("-- OTHER PP --", Label, T.PID.Profile_Text));
+               Add (M, N, Fixed_Number ("FF TRANSITION", Interfaces.Integer_32 (O.FF_Transition), 0, 100, 10));
+               Add (M, N, Choice ("FF AVERAGING", Interfaces.Integer_32 (O.FF_Averaging), 4,
+                                  Setting_Name (Adaflight.Settings_Table.Table_Feedforward_Averaging,
+                                                Natural (O.FF_Averaging))));
+               Add (M, N, Number ("FF SMOOTHNESS", Interfaces.Integer_32 (O.FF_Smooth), 0, 95));
+               Add (M, N, Number ("FF JITTER", Interfaces.Integer_32 (O.FF_Jitter), 0, 20));
+               Add (M, N, Number ("FF BOOST", Interfaces.Integer_32 (O.FF_Boost), 0, 50));
+               Add (M, N, Number ("ANGLE P", Interfaces.Integer_32 (O.Angle_P), 0, 200));
+               Add (M, N, Number ("ANGLE FF", Interfaces.Integer_32 (O.Angle_FF), 0, 200));
+               Add (M, N, Number ("ANGLE LIMIT", Interfaces.Integer_32 (O.Angle_Limit), 10, 90));
+               Add (M, N, Number ("ANGLE E_REF", Interfaces.Integer_32 (O.Angle_Earth_Ref), 0, 100));
+               Add (M, N, Number ("HORZN STR", Interfaces.Integer_32 (O.Horizon_Strength), 0, 100));
+               Add (M, N, Number ("HORZN LIM_STK", Interfaces.Integer_32 (O.Horizon_Sticks), 10, 200));
+               Add (M, N, Number ("HORZN LIM_DEG", Interfaces.Integer_32 (O.Horizon_Degrees), 10, 250));
+               Add (M, N, Fixed_Number ("AG GAIN", Interfaces.Integer_32 (O.Anti_Gravity_Gain), 0, 250, 100));
+               Add (M, N, Number ("THR BOOST", Interfaces.Integer_32 (O.Throttle_Boost), 0, 100));
+               Add (M, N, Number ("THR LINEAR", Interfaces.Integer_32 (O.Thrust_Linearization), 0, 150));
+               Add (M, N, Choice ("I_RELAX", Interfaces.Integer_32 (O.Iterm_Relax), 4,
+                                  Setting_Name (Adaflight.Settings_Table.Table_Iterm_Relax, Natural (O.Iterm_Relax))));
+               Add (M, N, Choice ("I_RELAX TYPE", Interfaces.Integer_32 (O.Iterm_Relax_Type), 1,
+                                  Setting_Name (Adaflight.Settings_Table.Table_Iterm_Relax_Type,
+                                                Natural (O.Iterm_Relax_Type))));
+               Add (M, N, Number ("I_RELAX CUTOFF", Interfaces.Integer_32 (O.Iterm_Relax_Cutoff), 1, 50));
+               Add (M, N, Sub ("LAUNCH CONTROL", Launch_Control_Menu));
+               Add (M, N, Number ("MTR OUT LIM %", Interfaces.Integer_32 (O.Motor_Output_Limit), 1, 100));
+               Add (M, N, Number ("AUTO CELL CNT", Interfaces.Integer_32 (O.Auto_Cell_Count), -1, 8, Int8));
+               Add (M, N, Number ("D_MAX ROLL", Interfaces.Integer_32 (O.D_Max (0)), 0, 100, Flags => Slider_RP));
+               Add (M, N, Number ("D_MAX PITCH", Interfaces.Integer_32 (O.D_Max (1)), 0, 100, Flags => Slider_RP));
+               Add (M, N, Number ("D_MAX YAW", Interfaces.Integer_32 (O.D_Max (2)), 0, 100, Flags => Slider_RPY));
+               Add (M, N, Number ("D_MAX GAIN", Interfaces.Integer_32 (O.D_Max_Gain), 0, 100));
+               Add (M, N, Number ("D_MAX ADV", Interfaces.Integer_32 (O.D_Max_Advance), 0, 200));
+               Add (M, N, Number ("VBAT_SAG_COMP", Interfaces.Integer_32 (O.Vbat_Sag), 0, 150));
+               Add (M, N, Fixed_Number ("TPA RATE", Interfaces.Integer_32 (O.TPA_Rate), 0, 100, 10));
+               Add (M, N, Number ("TPA BRKPT", Interfaces.Integer_32 (O.TPA_Breakpoint), 1000, 2000, UInt16, 10));
+               Add (M, N, Number ("TPA LOW RATE", Interfaces.Integer_32 (O.TPA_Low_Rate), 0, 100, Int8));
+               Add (M, N, Number ("TPA LOW BRKPT", Interfaces.Integer_32 (O.TPA_Low_Breakpoint), 1000, 2000, UInt16,
+                                  10));
+               Add (M, N, Make ("TPA LOW ALWYS", Bool, Has_Data => True,
+                                Value => Interfaces.Integer_32 (O.TPA_Low_Always)));
+               Add (M, N, Number ("EZDISARM THR", Interfaces.Integer_32 (O.Landing_Disarm), 0, 150));
+               Add (M, N, Make ("BACK", Back));
+            end;
+         when Launch_Control_Menu =>
+            declare
+               L : Launch_Copies renames T.Launch;
+            begin
+               Add (M, N, Text_Line ("-- LAUNCH CONTROL --", Label, T.PID.Profile_Text));
+               Add (M, N, Choice ("MODE", Interfaces.Integer_32 (L.Mode), 2,
+                                  Setting_Name (Adaflight.Settings_Table.Table_Launch_Control_Mode, Natural (L.Mode))));
+               Add (M, N, Make ("ALLOW RESET", Bool, Has_Data => True, Value => Interfaces.Integer_32 (L.Allow_Reset)));
+               Add (M, N, Number ("TRIGGER THROTTLE", Interfaces.Integer_32 (L.Throttle_Percent), 0, 90));
+               Add (M, N, Number ("ANGLE LIMIT", Interfaces.Integer_32 (L.Angle_Limit), 0, 80));
+               Add (M, N, Number ("ITERM GAIN", Interfaces.Integer_32 (L.Gain), 0, 200));
+               Add (M, N, Make ("BACK", Back));
+            end;
          when others =>
             Add (M, N, Make ("", Label));
       end case;
@@ -819,7 +909,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
    procedure Load (T : Target; Id : Menu_Id; M : out Table) is
    begin
       case Id is
-         when Profile_Menu | PID_Menu | Rate_Menu =>
+         when Profile_Menu | PID_Menu | Rate_Menu | Simplified_Menu | Profile_Other_Menu | Launch_Control_Menu =>
             Load_Profile (T, Id, M);
          when OSD_Menu | Active_Elements_Menu | Timers_Menu | Alarms_Menu =>
             Load_OSD (T, Id, M);
@@ -867,6 +957,13 @@ package body Adaflight.Menu_Content with SPARK_Mode is
          T.Config.System_Config.Active_Rate_Profile := Index;
       end if;
    end Change_Rate_Profile;
+
+   --  The PID profile the profile menu last selected and the current one,
+   --  each within the profiles.
+   function Shown_PID (T : Target) return Natural is
+     (Natural (Interfaces.Unsigned_8'Min (T.Profile.PID_Index, PID_Profile_Count - 1)));
+   function Current_PID (T : Target) return Natural is
+     (Natural (Interfaces.Unsigned_8'Min (T.Config.System_Config.Pid_Profile_Index, PID_Profile_Count - 1)));
 
    procedure On_Enter (T : in out Target; Id : Menu_Id; Reply : out Adaflight.Menu.Answer) is
    begin
@@ -929,6 +1026,73 @@ package body Adaflight.Menu_Content with SPARK_Mode is
                T.Rate.Profile_Text :=
                  Profile_Text (T.Profile.Rate_Index, T.Config.Control_Rate_Profiles (Shown).Profile_Name);
                T.Rate.Profile := T.Config.Control_Rate_Profiles (Shown);
+            end;
+         when Simplified_Menu =>
+            declare
+               P : constant Adaflight.Config_Groups.Pid_Profile_Record := T.Config.Pid_Profiles (Shown_PID (T));
+            begin
+               T.Simplified.Mode := P.Simplified_Pids_Mode;
+               T.Simplified.Master := P.Simplified_Master_Multiplier;
+               T.Simplified.Roll_Pitch_Ratio := P.Simplified_Roll_Pitch_Ratio;
+               T.Simplified.I_Gain := P.Simplified_I_Gain;
+               T.Simplified.D_Gain := P.Simplified_D_Gain;
+               T.Simplified.PI_Gain := P.Simplified_Pi_Gain;
+               T.Simplified.D_Max_Gain := P.Simplified_D_Max_Gain;
+               T.Simplified.FF_Gain := P.Simplified_Feedforward_Gain;
+               T.Simplified.Pitch_PI_Gain := P.Simplified_Pitch_Pi_Gain;
+               T.Simplified.DTerm_Filter := P.Simplified_Dterm_Filter;
+               T.Simplified.DTerm_Multiplier := P.Simplified_Dterm_Filter_Multiplier;
+               T.Simplified.Gyro_Filter := T.Config.Gyro_Config.Simplified_Gyro_Filter;
+               T.Simplified.Gyro_Multiplier := T.Config.Gyro_Config.Simplified_Gyro_Filter_Multiplier;
+            end;
+         when Profile_Other_Menu =>
+            T.PID.Profile_Text :=
+              Profile_Text (T.Profile.PID_Index, T.Config.Pid_Profiles (Current_PID (T)).Profile_Name);
+            declare
+               P : constant Adaflight.Config_Groups.Pid_Profile_Record := T.Config.Pid_Profiles (Shown_PID (T));
+            begin
+               T.Other.Angle_P := P.Pid (3).P;
+               T.Other.Angle_FF := Interfaces.Unsigned_8 (P.Pid (3).F mod 256);
+               T.Other.Angle_Limit := P.Angle_Limit;
+               T.Other.Angle_Earth_Ref := P.Angle_Earth_Ref;
+               T.Other.Horizon_Strength := P.Pid (3).I;
+               T.Other.Horizon_Sticks := P.Pid (3).D;
+               T.Other.Horizon_Degrees := P.Horizon_Limit_Degrees;
+               T.Other.Anti_Gravity_Gain := P.Anti_Gravity_Gain;
+               T.Other.Throttle_Boost := P.Throttle_Boost;
+               T.Other.Thrust_Linearization := P.Thrust_Linearization;
+               T.Other.Motor_Output_Limit := P.Motor_Output_Limit;
+               T.Other.Auto_Cell_Count := P.Auto_Profile_Cell_Count;
+               for A in D_Max_Table'Range loop
+                  T.Other.D_Max (A) := P.D_Max (A);
+               end loop;
+               T.Other.D_Max_Gain := P.D_Max_Gain;
+               T.Other.D_Max_Advance := P.D_Max_Advance;
+               T.Other.Iterm_Relax := P.Iterm_Relax;
+               T.Other.Iterm_Relax_Type := P.Iterm_Relax_Type;
+               T.Other.Iterm_Relax_Cutoff := P.Iterm_Relax_Cutoff;
+               T.Other.FF_Transition := P.Feedforward_Transition;
+               T.Other.FF_Averaging := P.Feedforward_Averaging;
+               T.Other.FF_Boost := P.Feedforward_Boost;
+               T.Other.FF_Smooth := P.Feedforward_Smooth_Factor;
+               T.Other.FF_Jitter := P.Feedforward_Jitter_Factor;
+               T.Other.Vbat_Sag := P.Vbat_Sag_Compensation;
+               T.Other.TPA_Rate := P.Tpa_Rate;
+               T.Other.TPA_Breakpoint := P.Tpa_Breakpoint;
+               T.Other.TPA_Low_Rate := P.Tpa_Low_Rate;
+               T.Other.TPA_Low_Breakpoint := P.Tpa_Low_Breakpoint;
+               T.Other.TPA_Low_Always := P.Tpa_Low_Always;
+               T.Other.Landing_Disarm := P.Landing_Disarm_Threshold;
+            end;
+         when Launch_Control_Menu =>
+            declare
+               P : constant Adaflight.Config_Groups.Pid_Profile_Record := T.Config.Pid_Profiles (Shown_PID (T));
+            begin
+               T.Launch.Mode := P.Launch_Control_Mode;
+               T.Launch.Allow_Reset := P.Launch_Control_Allow_Trigger_Reset;
+               T.Launch.Throttle_Percent := P.Launch_Control_Throttle_Percent;
+               T.Launch.Angle_Limit := P.Launch_Control_Angle_Limit;
+               T.Launch.Gain := P.Launch_Control_Gain;
             end;
          when VTX_Error_Menu =>
             if not T.Live.VTX_Present then
@@ -1059,6 +1223,92 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       elsif Id = Rate_Menu then
          T.Config.Control_Rate_Profiles
            (Natural (Interfaces.Unsigned_8'Min (T.Profile.Rate_Index, Rate_Profile_Count - 1))) := T.Rate.Profile;
+      elsif Id = Simplified_Menu then
+         declare
+            C       : constant Natural := Current_PID (T);
+            S       : constant Simplified_Copies := T.Simplified;
+            P       : constant Adaflight.Config_Groups.Pid_Profile_Record := T.Config.Pid_Profiles (C);
+            Changed : constant Boolean :=
+              P.Simplified_Pids_Mode /= S.Mode or else P.Simplified_Master_Multiplier /= S.Master
+              or else P.Simplified_Roll_Pitch_Ratio /= S.Roll_Pitch_Ratio or else P.Simplified_I_Gain /= S.I_Gain
+              or else P.Simplified_D_Gain /= S.D_Gain or else P.Simplified_Pi_Gain /= S.PI_Gain
+              or else P.Simplified_D_Max_Gain /= S.D_Max_Gain or else P.Simplified_Feedforward_Gain /= S.FF_Gain
+              or else P.Simplified_Pitch_Pi_Gain /= S.Pitch_PI_Gain or else P.Simplified_Dterm_Filter /= S.DTerm_Filter
+              or else P.Simplified_Dterm_Filter_Multiplier /= S.DTerm_Multiplier
+              or else T.Config.Gyro_Config.Simplified_Gyro_Filter /= S.Gyro_Filter
+              or else T.Config.Gyro_Config.Simplified_Gyro_Filter_Multiplier /= S.Gyro_Multiplier;
+         begin
+            if Changed then
+               T.Config.Pid_Profiles (C).Simplified_Pids_Mode := S.Mode;
+               T.Config.Pid_Profiles (C).Simplified_Master_Multiplier := S.Master;
+               T.Config.Pid_Profiles (C).Simplified_Roll_Pitch_Ratio := S.Roll_Pitch_Ratio;
+               T.Config.Pid_Profiles (C).Simplified_I_Gain := S.I_Gain;
+               T.Config.Pid_Profiles (C).Simplified_D_Gain := S.D_Gain;
+               T.Config.Pid_Profiles (C).Simplified_Pi_Gain := S.PI_Gain;
+               T.Config.Pid_Profiles (C).Simplified_D_Max_Gain := S.D_Max_Gain;
+               T.Config.Pid_Profiles (C).Simplified_Feedforward_Gain := S.FF_Gain;
+               T.Config.Pid_Profiles (C).Simplified_Pitch_Pi_Gain := S.Pitch_PI_Gain;
+               T.Config.Pid_Profiles (C).Simplified_Dterm_Filter := S.DTerm_Filter;
+               T.Config.Pid_Profiles (C).Simplified_Dterm_Filter_Multiplier := S.DTerm_Multiplier;
+               T.Config.Gyro_Config.Simplified_Gyro_Filter := S.Gyro_Filter;
+               T.Config.Gyro_Config.Simplified_Gyro_Filter_Multiplier := S.Gyro_Multiplier;
+               Adaflight.Simplified_Tuning.Stored.Apply (T.Config.Pid_Profiles (C), T.Config.Gyro_Config);
+            end if;
+         end;
+      elsif Id = Profile_Other_Menu then
+         if T.Asked.PID_Config_Inits < Natural'Last then
+            T.Asked.PID_Config_Inits := T.Asked.PID_Config_Inits + 1;
+         end if;
+         declare
+            I : constant Natural := Shown_PID (T);
+            O : constant Other_Copies := T.Other;
+         begin
+            T.Config.Pid_Profiles (I).Pid (3).P := O.Angle_P;
+            T.Config.Pid_Profiles (I).Pid (3).F := Interfaces.Unsigned_16 (O.Angle_FF);
+            T.Config.Pid_Profiles (I).Angle_Limit := O.Angle_Limit;
+            T.Config.Pid_Profiles (I).Angle_Earth_Ref := O.Angle_Earth_Ref;
+            T.Config.Pid_Profiles (I).Pid (3).I := O.Horizon_Strength;
+            T.Config.Pid_Profiles (I).Pid (3).D := O.Horizon_Sticks;
+            T.Config.Pid_Profiles (I).Horizon_Limit_Degrees := O.Horizon_Degrees;
+            T.Config.Pid_Profiles (I).Anti_Gravity_Gain := O.Anti_Gravity_Gain;
+            T.Config.Pid_Profiles (I).Throttle_Boost := O.Throttle_Boost;
+            T.Config.Pid_Profiles (I).Thrust_Linearization := O.Thrust_Linearization;
+            T.Config.Pid_Profiles (I).Motor_Output_Limit := O.Motor_Output_Limit;
+            T.Config.Pid_Profiles (I).Auto_Profile_Cell_Count := O.Auto_Cell_Count;
+            for A in D_Max_Table'Range loop
+               T.Config.Pid_Profiles (I).D_Max (A) := O.D_Max (A);
+            end loop;
+            T.Config.Pid_Profiles (I).D_Max_Gain := O.D_Max_Gain;
+            T.Config.Pid_Profiles (I).D_Max_Advance := O.D_Max_Advance;
+            T.Config.Pid_Profiles (I).Iterm_Relax := O.Iterm_Relax;
+            T.Config.Pid_Profiles (I).Iterm_Relax_Type := O.Iterm_Relax_Type;
+            T.Config.Pid_Profiles (I).Iterm_Relax_Cutoff := O.Iterm_Relax_Cutoff;
+            T.Config.Pid_Profiles (I).Feedforward_Transition := O.FF_Transition;
+            T.Config.Pid_Profiles (I).Feedforward_Averaging := O.FF_Averaging;
+            T.Config.Pid_Profiles (I).Feedforward_Boost := O.FF_Boost;
+            T.Config.Pid_Profiles (I).Feedforward_Smooth_Factor := O.FF_Smooth;
+            T.Config.Pid_Profiles (I).Feedforward_Jitter_Factor := O.FF_Jitter;
+            T.Config.Pid_Profiles (I).Vbat_Sag_Compensation := O.Vbat_Sag;
+            T.Config.Pid_Profiles (I).Tpa_Rate := O.TPA_Rate;
+            T.Config.Pid_Profiles (I).Tpa_Breakpoint := O.TPA_Breakpoint;
+            T.Config.Pid_Profiles (I).Tpa_Low_Rate := O.TPA_Low_Rate;
+            T.Config.Pid_Profiles (I).Tpa_Low_Breakpoint := O.TPA_Low_Breakpoint;
+            T.Config.Pid_Profiles (I).Tpa_Low_Always := O.TPA_Low_Always;
+            T.Config.Pid_Profiles (I).Landing_Disarm_Threshold := O.Landing_Disarm;
+         end;
+         if T.Asked.Endpoint_Inits < Natural'Last then
+            T.Asked.Endpoint_Inits := T.Asked.Endpoint_Inits + 1;
+         end if;
+      elsif Id = Launch_Control_Menu then
+         declare
+            I : constant Natural := Shown_PID (T);
+         begin
+            T.Config.Pid_Profiles (I).Launch_Control_Mode := T.Launch.Mode;
+            T.Config.Pid_Profiles (I).Launch_Control_Allow_Trigger_Reset := T.Launch.Allow_Reset;
+            T.Config.Pid_Profiles (I).Launch_Control_Throttle_Percent := T.Launch.Throttle_Percent;
+            T.Config.Pid_Profiles (I).Launch_Control_Angle_Limit := T.Launch.Angle_Limit;
+            T.Config.Pid_Profiles (I).Launch_Control_Gain := T.Launch.Gain;
+         end;
       elsif Id = OSD_Menu then
          if T.Asked.Profile_Changes < Natural'Last then
             T.Asked.Profile_Changes := T.Asked.Profile_Changes + 1;
@@ -1341,6 +1591,8 @@ package body Adaflight.Menu_Content with SPARK_Mode is
    end Line_Call;
 
    procedure Set_Value (T : in out Target; Id : Menu_Id; Line : Natural; Value : Interfaces.Integer_32) is
+      function Signed_Byte (V : Interfaces.Integer_32) return Interfaces.Integer_8 is
+        (Interfaces.Integer_8 ((Interfaces.Integer_64 (V) + 128) mod 256 - 128));
       Byte  : constant Interfaces.Unsigned_8 := Interfaces.Unsigned_8 (Value mod 256);
       Word  : constant Interfaces.Unsigned_16 := Interfaces.Unsigned_16 (Value mod 65_536);
       Short : constant Interfaces.Integer_16 :=
@@ -1360,6 +1612,66 @@ package body Adaflight.Menu_Content with SPARK_Mode is
                T.PID.Gains ((Line - 1) / 4, (Line - 1) mod 4) := Byte;
             end if;
          end if;
+      elsif Id = Simplified_Menu then
+         case Line is
+            when 1 => T.Simplified.Mode := Byte;
+            when 3 => T.Simplified.D_Gain := Byte;
+            when 4 => T.Simplified.PI_Gain := Byte;
+            when 5 => T.Simplified.FF_Gain := Byte;
+            when 7 => T.Simplified.D_Max_Gain := Byte;
+            when 8 => T.Simplified.I_Gain := Byte;
+            when 9 => T.Simplified.Roll_Pitch_Ratio := Byte;
+            when 10 => T.Simplified.Pitch_PI_Gain := Byte;
+            when 11 => T.Simplified.Master := Byte;
+            when 13 => T.Simplified.Gyro_Filter := Byte;
+            when 14 => T.Simplified.Gyro_Multiplier := Byte;
+            when 15 => T.Simplified.DTerm_Filter := Byte;
+            when 16 => T.Simplified.DTerm_Multiplier := Byte;
+            when others => null;
+         end case;
+      elsif Id = Profile_Other_Menu then
+         case Line is
+            when 1 => T.Other.FF_Transition := Byte;
+            when 2 => T.Other.FF_Averaging := Byte;
+            when 3 => T.Other.FF_Smooth := Byte;
+            when 4 => T.Other.FF_Jitter := Byte;
+            when 5 => T.Other.FF_Boost := Byte;
+            when 6 => T.Other.Angle_P := Byte;
+            when 7 => T.Other.Angle_FF := Byte;
+            when 8 => T.Other.Angle_Limit := Byte;
+            when 9 => T.Other.Angle_Earth_Ref := Byte;
+            when 10 => T.Other.Horizon_Strength := Byte;
+            when 11 => T.Other.Horizon_Sticks := Byte;
+            when 12 => T.Other.Horizon_Degrees := Byte;
+            when 13 => T.Other.Anti_Gravity_Gain := Byte;
+            when 14 => T.Other.Throttle_Boost := Byte;
+            when 15 => T.Other.Thrust_Linearization := Byte;
+            when 16 => T.Other.Iterm_Relax := Byte;
+            when 17 => T.Other.Iterm_Relax_Type := Byte;
+            when 18 => T.Other.Iterm_Relax_Cutoff := Byte;
+            when 20 => T.Other.Motor_Output_Limit := Byte;
+            when 21 => T.Other.Auto_Cell_Count := Signed_Byte (Value);
+            when 22 .. 24 => T.Other.D_Max (Line - 22) := Byte;
+            when 25 => T.Other.D_Max_Gain := Byte;
+            when 26 => T.Other.D_Max_Advance := Byte;
+            when 27 => T.Other.Vbat_Sag := Byte;
+            when 28 => T.Other.TPA_Rate := Byte;
+            when 29 => T.Other.TPA_Breakpoint := Word;
+            when 30 => T.Other.TPA_Low_Rate := Signed_Byte (Value);
+            when 31 => T.Other.TPA_Low_Breakpoint := Word;
+            when 32 => T.Other.TPA_Low_Always := Byte;
+            when 33 => T.Other.Landing_Disarm := Byte;
+            when others => null;
+         end case;
+      elsif Id = Launch_Control_Menu then
+         case Line is
+            when 1 => T.Launch.Mode := Byte;
+            when 2 => T.Launch.Allow_Reset := Byte;
+            when 3 => T.Launch.Throttle_Percent := Byte;
+            when 4 => T.Launch.Angle_Limit := Byte;
+            when 5 => T.Launch.Gain := Byte;
+            when others => null;
+         end case;
       elsif Id = Rate_Menu then
          case Line is
             when 1 .. 3 => T.Rate.Profile.Rc_Rates (Line - 1) := Byte;
@@ -1462,8 +1774,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
             when 1 => T.Stats.Total_Flights := Interfaces.Unsigned_32'Mod (Value);
             when 2 => T.Stats.Total_Time_S := Interfaces.Unsigned_32'Mod (Value);
             when 3 => T.Stats.Total_Dist_M := Interfaces.Unsigned_32'Mod (Value);
-            when 6 => T.Stats.Min_Armed_Time :=
-                 Interfaces.Integer_8 ((Interfaces.Integer_64 (Value) + 128) mod 256 - 128);
+            when 6 => T.Stats.Min_Armed_Time := Signed_Byte (Value);
             when others => null;
          end case;
       elsif Id = GPS_Lap_Timer_Menu then
@@ -1508,6 +1819,18 @@ package body Adaflight.Menu_Content with SPARK_Mode is
               elsif Id = Profile_Menu and then Line = 1 then Profile_Name (T.Profile.PID_Names, Index)
               elsif Id = Profile_Menu and then Line = 6 then Profile_Name (T.Profile.Rate_Names, Index)
               elsif Id = Rate_Menu and then Line = 13 then Throttle_Limit_Name (Index)
+              elsif Id = Simplified_Menu and then Line = 1
+              then Setting_Name (Adaflight.Settings_Table.Table_Simplified_Tuning_Pids_Mode, Index)
+              elsif Id = Simplified_Menu and then Line in 13 | 15
+              then Setting_Name (Adaflight.Settings_Table.Table_Off_On, Index)
+              elsif Id = Profile_Other_Menu and then Line = 2
+              then Setting_Name (Adaflight.Settings_Table.Table_Feedforward_Averaging, Index)
+              elsif Id = Profile_Other_Menu and then Line = 16
+              then Setting_Name (Adaflight.Settings_Table.Table_Iterm_Relax, Index)
+              elsif Id = Profile_Other_Menu and then Line = 17
+              then Setting_Name (Adaflight.Settings_Table.Table_Iterm_Relax_Type, Index)
+              elsif Id = Launch_Control_Menu and then Line = 1
+              then Setting_Name (Adaflight.Settings_Table.Table_Launch_Control_Mode, Index)
               elsif Id = OSD_Menu and then Line = 8 then Background_Name (Index)
               elsif Id = Timers_Menu and then Line in 1 | 4 then Timer_Source_Name (Index)
               elsif Id = Timers_Menu and then Line in 2 | 5 then Timer_Precision_Name (Index)

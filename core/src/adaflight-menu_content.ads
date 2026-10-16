@@ -1,6 +1,7 @@
 --  The menu system's menus: their numbers, and the lines and hooks of the
 --  quick menu, the main menu with its features menu and setup popup, the
---  profile menu with its PID and rate menus, the VTX selection with its
+--  profile menu with its PID, rate, simplified tuning, misc and launch
+--  control menus, the VTX selection with its
 --  error menu, the save menus, the OSD menu with
 --  its active elements, timers and alarms
 --  menus, the blackbox menu with its erase and mass storage
@@ -60,6 +61,7 @@ package Adaflight.Menu_Content with SPARK_Mode is
    Filter_Global_Menu    : constant Menu_Id := 36;
    Dynamic_Filter_Menu   : constant Menu_Id := 37;
    Copy_Profile_Menu     : constant Menu_Id := 38;
+   Launch_Control_Menu   : constant Menu_Id := 39;
 
    --  The RC channels the preview shows: roll, pitch, throttle, yaw and the
    --  first four auxiliary channels.
@@ -231,6 +233,76 @@ package Adaflight.Menu_Content with SPARK_Mode is
       Profile_Text : Adaflight.Menu.Label_Text;
    end record;
 
+   --  The simplified tuning menu's copies of the PID tuning mode, the master
+   --  multiplier, the pitch to roll ratios, the I, D, P and I, D max and
+   --  feedforward gains, and the D term and gyro filter switches with their
+   --  multipliers.
+   type Simplified_Copies is record
+      Mode             : Interfaces.Unsigned_8 := 0;
+      Master           : Interfaces.Unsigned_8 := 0;
+      Roll_Pitch_Ratio : Interfaces.Unsigned_8 := 0;
+      I_Gain           : Interfaces.Unsigned_8 := 0;
+      D_Gain           : Interfaces.Unsigned_8 := 0;
+      PI_Gain          : Interfaces.Unsigned_8 := 0;
+      D_Max_Gain       : Interfaces.Unsigned_8 := 0;
+      FF_Gain          : Interfaces.Unsigned_8 := 0;
+      Pitch_PI_Gain    : Interfaces.Unsigned_8 := 0;
+      DTerm_Filter     : Interfaces.Unsigned_8 := 0;
+      DTerm_Multiplier : Interfaces.Unsigned_8 := 0;
+      Gyro_Filter      : Interfaces.Unsigned_8 := 0;
+      Gyro_Multiplier  : Interfaces.Unsigned_8 := 0;
+   end record;
+
+   --  The misc profile menu's copies of the feedforward settings, the angle
+   --  and horizon gains and limits, the anti gravity gain, the throttle
+   --  boost and linearization, the I term relax, the motor output limit, the
+   --  cell count the profile takes, the D max gains, the battery sag
+   --  compensation, the throttle PID attenuation and the landing disarm
+   --  threshold.
+   type D_Max_Table is array (0 .. 2) of Interfaces.Unsigned_8;
+   type Other_Copies is record
+      FF_Transition        : Interfaces.Unsigned_8 := 0;
+      FF_Averaging         : Interfaces.Unsigned_8 := 0;
+      FF_Smooth            : Interfaces.Unsigned_8 := 0;
+      FF_Jitter            : Interfaces.Unsigned_8 := 0;
+      FF_Boost             : Interfaces.Unsigned_8 := 0;
+      Angle_P              : Interfaces.Unsigned_8 := 0;
+      Angle_FF             : Interfaces.Unsigned_8 := 0;
+      Angle_Limit          : Interfaces.Unsigned_8 := 0;
+      Angle_Earth_Ref      : Interfaces.Unsigned_8 := 0;
+      Horizon_Strength     : Interfaces.Unsigned_8 := 0;
+      Horizon_Sticks       : Interfaces.Unsigned_8 := 0;
+      Horizon_Degrees      : Interfaces.Unsigned_8 := 0;
+      Anti_Gravity_Gain    : Interfaces.Unsigned_8 := 0;
+      Throttle_Boost       : Interfaces.Unsigned_8 := 0;
+      Thrust_Linearization : Interfaces.Unsigned_8 := 0;
+      Iterm_Relax          : Interfaces.Unsigned_8 := 0;
+      Iterm_Relax_Type     : Interfaces.Unsigned_8 := 0;
+      Iterm_Relax_Cutoff   : Interfaces.Unsigned_8 := 0;
+      Motor_Output_Limit   : Interfaces.Unsigned_8 := 0;
+      Auto_Cell_Count      : Interfaces.Integer_8 := 0;
+      D_Max                : D_Max_Table := (others => 0);
+      D_Max_Gain           : Interfaces.Unsigned_8 := 0;
+      D_Max_Advance        : Interfaces.Unsigned_8 := 0;
+      Vbat_Sag             : Interfaces.Unsigned_8 := 0;
+      TPA_Rate             : Interfaces.Unsigned_8 := 0;
+      TPA_Breakpoint       : Interfaces.Unsigned_16 := 0;
+      TPA_Low_Rate         : Interfaces.Integer_8 := 0;
+      TPA_Low_Breakpoint   : Interfaces.Unsigned_16 := 0;
+      TPA_Low_Always       : Interfaces.Unsigned_8 := 0;
+      Landing_Disarm       : Interfaces.Unsigned_8 := 0;
+   end record;
+
+   --  The launch control menu's copies of the mode, the trigger reset
+   --  switch, the trigger throttle, the angle limit and the I term gain.
+   type Launch_Copies is record
+      Mode             : Interfaces.Unsigned_8 := 0;
+      Allow_Reset      : Interfaces.Unsigned_8 := 0;
+      Throttle_Percent : Interfaces.Unsigned_8 := 0;
+      Angle_Limit      : Interfaces.Unsigned_8 := 0;
+      Gain             : Interfaces.Unsigned_8 := 0;
+   end record;
+
    --  The VTX error menu's two status lines from its last entry.
    type VTX_Status_Lines is record
       Line_1 : Adaflight.Menu.Label_Text;
@@ -336,7 +408,8 @@ package Adaflight.Menu_Content with SPARK_Mode is
    --  flash erased with its beep, and the reset to mass storage with the time
    --  zone offset it takes, the OSD's active elements analyzed again, and
    --  the OSD profile changed with the profile asked for, and the PID and
-   --  rate profiles changed with the profiles asked for.
+   --  rate profiles changed with the profiles asked for, and the motors'
+   --  output range set again.
    type Requests is record
       MAh_Restores       : Natural := 0;
       MAh_Restored       : Interfaces.Unsigned_32 := 0;
@@ -359,6 +432,7 @@ package Adaflight.Menu_Content with SPARK_Mode is
       PID_Asked          : Interfaces.Unsigned_8 := 0;
       Rate_Changes       : Natural := 0;
       Rate_Asked         : Interfaces.Unsigned_8 := 0;
+      Endpoint_Inits     : Natural := 0;
    end record;
 
    type Target is record
@@ -378,6 +452,9 @@ package Adaflight.Menu_Content with SPARK_Mode is
       Profile     : Profile_Copies;
       PID         : PID_Copies;
       Rate        : Rate_Copies;
+      Simplified  : Simplified_Copies;
+      Other       : Other_Copies;
+      Launch      : Launch_Copies;
       VTX_Status  : VTX_Status_Lines;
       LED         : LED_Copies;
       Lap         : Lap_Copies;
