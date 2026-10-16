@@ -443,7 +443,8 @@ package body Adaflight.Menu_Content with SPARK_Mode is
          when Profile_Menu | PID_Menu | Rate_Menu | Simplified_Menu | Profile_Other_Menu | Launch_Control_Menu
             | Filter_Profile_Menu | Filter_Global_Menu | Dynamic_Filter_Menu | OSD_Menu | Active_Elements_Menu
             | Timers_Menu | Alarms_Menu
-            | Blackbox_Menu | LED_Strip_Menu | Power_Menu | Failsafe_Menu | RPM_Limit_Menu | Misc_Menu
+            | Blackbox_Menu | LED_Strip_Menu | Power_Menu | Failsafe_Menu | GPS_Rescue_Menu | GPS_Rescue_PID_Menu
+            | RPM_Limit_Menu | Misc_Menu
             | Persistent_Stats_Menu =>
             (Enter => True, Leave => True, Update => False),
          when RC_Preview_Menu => (Enter => True, Leave => True, Update => True),
@@ -730,9 +731,68 @@ package body Adaflight.Menu_Content with SPARK_Mode is
            Number ("LANDING_TIME", Interfaces.Integer_32 (T.Failsafe.Landing_Time), 0, 250, Flags => Reboot));
       Add (M, N, Number ("STAGE 2 THROTTLE", Interfaces.Integer_32 (T.Failsafe.Throttle), 750, 2250, UInt16,
                    Flags => Reboot));
+      Add (M, N, Sub ("GPS RESCUE", GPS_Rescue_Menu));
       Add (M, N, Make ("BACK", Back));
       M.Count := N;
    end Load_Failsafe_Menu;
+
+   procedure Load_GPS_Rescue_Menu (T : Target; M : out Table)
+     with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
+   is
+      use Adaflight.Menu;
+      N : Line_Count := 0;
+      R : Rescue_Copies renames T.Rescue;
+      function U16 (V : Interfaces.Unsigned_16) return Interfaces.Integer_32 is (Interfaces.Integer_32 (V));
+      function U8 (V : Interfaces.Unsigned_8) return Interfaces.Integer_32 is (Interfaces.Integer_32 (V));
+   begin
+      M := Empty_Table;
+      Add (M, N, Make ("--- GPS RESCUE ---", Label));
+      Add (M, N, Number ("MIN START DIST  M", U16 (R.Min_Start_Dist_M), 5, 30, UInt16, Flags => Reboot));
+      Add (M, N, Choice ("ALTITUDE MODE", U8 (R.Altitude_Mode), 2,
+                         Setting_Name (Adaflight.Settings_Table.Table_Gps_Rescue_Alt_Mode, Natural (R.Altitude_Mode)),
+                         Reboot));
+      Add (M, N, Number ("INITAL CLIMB    M", U16 (R.Initial_Climb_M), 0, 100, UInt16, Flags => Reboot));
+      Add (M, N, Number ("ASCEND RATE  CM/S", U16 (R.Ascend_Rate), 50, 2500, UInt16, Flags => Reboot));
+      Add (M, N, Number ("RETURN ALT      M", U16 (R.Return_Altitude_M), 5, 1000, UInt16, Flags => Reboot));
+      Add (M, N, Number ("RETURN SPEED CM/S", U16 (R.Ground_Speed_Cm_S), 0, 3000, UInt16, Flags => Reboot));
+      Add (M, N, Number ("PITCH ANGLE MAX", U8 (R.Max_Angle), 0, 60, Flags => Reboot));
+      Add (M, N, Number ("DESCENT DIST    M", U16 (R.Descent_Distance_M), 5, 500, UInt16, Flags => Reboot));
+      Add (M, N, Number ("DESCENT RATE CM/S", U16 (R.Descend_Rate), 25, 500, UInt16, Flags => Reboot));
+      Add (M, N, Number ("LANDING ALT     M", U8 (R.Landing_Altitude_M), 1, 15, Flags => Reboot));
+      Add (M, N, Number ("THROTTLE MIN", U16 (R.Throttle_Min), 1050, 1400, UInt16, Flags => Reboot));
+      Add (M, N, Number ("THROTTLE MAX", U16 (R.Throttle_Max), 1400, 2000, UInt16, Flags => Reboot));
+      Add (M, N, Number ("THROTTLE HOV", U16 (R.Hover_Throttle), 1100, 1700, UInt16, Flags => Reboot));
+      Add (M, N, Number ("SATS REQUIRED", U8 (R.Min_Sats), 5, 50, Flags => Reboot));
+      Add (M, N, Make ("ARM WITHOUT FIX", Bool, Has_Data => True, Value => U8 (R.Allow_Arming_Without_Fix),
+                       Flags => Reboot));
+      Add (M, N, Sub ("GPS RESCUE PID", GPS_Rescue_PID_Menu));
+      Add (M, N, Make ("BACK", Back));
+      M.Count := N;
+   end Load_GPS_Rescue_Menu;
+
+   procedure Load_GPS_Rescue_PID_Menu (T : Target; M : out Table)
+     with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
+   is
+      use Adaflight.Menu;
+      N : Line_Count := 0;
+      P : Rescue_PID_Copies renames T.Rescue_PID;
+      function U8 (V : Interfaces.Unsigned_8) return Interfaces.Integer_32 is (Interfaces.Integer_32 (V));
+   begin
+      M := Empty_Table;
+      Add (M, N, Make ("--- GPS RESCUE PID---", Label));
+      Add (M, N, Number ("ALTITUDE P", U8 (P.Altitude_P), 0, 200, Flags => Reboot));
+      Add (M, N, Number ("ALTITUDE I", U8 (P.Altitude_I), 0, 200, Flags => Reboot));
+      Add (M, N, Number ("ALTITUDE D", U8 (P.Altitude_D), 0, 200, Flags => Reboot));
+      Add (M, N, Number ("ALTITUDE A", U8 (P.Altitude_A), 0, 200, Flags => Reboot));
+      Add (M, N, Number ("ALTITUDE F", U8 (P.Altitude_F), 0, 200, Flags => Reboot));
+      Add (M, N, Number ("YAW P", U8 (P.Yaw_P), 0, 200, Flags => Reboot));
+      Add (M, N, Number ("POSITION P", U8 (P.Position_P), 0, 200, Flags => Reboot));
+      Add (M, N, Number ("POSITION I", U8 (P.Position_I), 0, 200, Flags => Reboot));
+      Add (M, N, Number ("POSITION D", U8 (P.Position_D), 0, 200, Flags => Reboot));
+      Add (M, N, Number ("SMOOTHING", U8 (P.Position_Cutoff), 10, 255, Flags => Reboot));
+      Add (M, N, Make ("BACK", Back));
+      M.Count := N;
+   end Load_GPS_Rescue_PID_Menu;
 
    procedure Load_RPM_Limit_Menu (T : Target; M : out Table)
      with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
@@ -1383,6 +1443,10 @@ package body Adaflight.Menu_Content with SPARK_Mode is
             Load_Power_Menu (T, M);
          when Failsafe_Menu =>
             Load_Failsafe_Menu (T, M);
+         when GPS_Rescue_Menu =>
+            Load_GPS_Rescue_Menu (T, M);
+         when GPS_Rescue_PID_Menu =>
+            Load_GPS_Rescue_PID_Menu (T, M);
          when RPM_Limit_Menu =>
             Load_RPM_Limit_Menu (T, M);
          when Misc_Menu =>
@@ -1646,6 +1710,48 @@ package body Adaflight.Menu_Content with SPARK_Mode is
    function Current_PID (T : Target) return Natural is
      (Natural (Interfaces.Unsigned_8'Min (T.Config.System_Config.Pid_Profile_Index, PID_Profile_Count - 1)));
 
+   procedure Enter_GPS_Rescue_Menu (T : in out Target)
+     with Global => null
+   is
+      GR : Adaflight.Config_Groups.Gps_Rescue_Record renames T.Config.Gps_Rescue_Config;
+      AP : Adaflight.Config_Groups.Autopilot_Config_Record renames T.Config.Autopilot_Config;
+   begin
+      T.Rescue :=
+        (Min_Start_Dist_M         => GR.Min_Start_Dist_M,
+         Altitude_Mode            => GR.Altitude_Mode,
+         Initial_Climb_M          => GR.Initial_Climb_M,
+         Ascend_Rate              => GR.Ascend_Rate,
+         Return_Altitude_M        => GR.Return_Altitude_M,
+         Ground_Speed_Cm_S        => GR.Ground_Speed_Cm_S,
+         Max_Angle                => AP.Max_Angle,
+         Descent_Distance_M       => GR.Descent_Distance_M,
+         Descend_Rate             => GR.Descend_Rate,
+         Landing_Altitude_M       => AP.Landing_Altitude_M,
+         Throttle_Min             => AP.Throttle_Min,
+         Throttle_Max             => AP.Throttle_Max,
+         Hover_Throttle           => AP.Hover_Throttle,
+         Min_Sats                 => GR.Min_Sats,
+         Allow_Arming_Without_Fix => GR.Allow_Arming_Without_Fix);
+   end Enter_GPS_Rescue_Menu;
+
+   procedure Enter_GPS_Rescue_PID_Menu (T : in out Target)
+     with Global => null
+   is
+      AP : Adaflight.Config_Groups.Autopilot_Config_Record renames T.Config.Autopilot_Config;
+   begin
+      T.Rescue_PID :=
+        (Altitude_P      => AP.Altitude_P,
+         Altitude_I      => AP.Altitude_I,
+         Altitude_D      => AP.Altitude_D,
+         Altitude_A      => AP.Altitude_A,
+         Altitude_F      => AP.Altitude_F,
+         Yaw_P           => T.Config.Gps_Rescue_Config.Yaw_P,
+         Position_P      => AP.Position_P,
+         Position_I      => AP.Position_I,
+         Position_D      => AP.Position_D,
+         Position_Cutoff => AP.Position_Cutoff);
+   end Enter_GPS_Rescue_PID_Menu;
+
    procedure On_Enter (T : in out Target; Id : Menu_Id; Reply : out Adaflight.Menu.Answer) is
    begin
       Reply := (others => <>);
@@ -1880,6 +1986,10 @@ package body Adaflight.Menu_Content with SPARK_Mode is
             T.Power.Current_Offset := T.Config.Current_Sensor_Adc_Config.Offset;
             T.Power.Virtual_Scale := T.Config.Current_Sensor_Virtual_Config.Scale;
             T.Power.Virtual_Offset := T.Config.Current_Sensor_Virtual_Config.Offset;
+         when GPS_Rescue_Menu =>
+            Enter_GPS_Rescue_Menu (T);
+         when GPS_Rescue_PID_Menu =>
+            Enter_GPS_Rescue_PID_Menu (T);
          when Failsafe_Menu =>
             T.Failsafe.Procedure_Kind := T.Config.Failsafe_Config.Failsafe_Procedure;
             T.Failsafe.Guard_Time := T.Config.Failsafe_Config.Failsafe_Delay;
@@ -2170,6 +2280,51 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       T.Config.Current_Sensor_Virtual_Config.Offset := T.Power.Virtual_Offset;
    end Leave_Power_Menu;
 
+   procedure Leave_GPS_Rescue_Menu (T : in out Target)
+     with Global => null
+   is
+      R  : Rescue_Copies renames T.Rescue;
+      GR : Adaflight.Config_Groups.Gps_Rescue_Record := T.Config.Gps_Rescue_Config;
+      AP : Adaflight.Config_Groups.Autopilot_Config_Record := T.Config.Autopilot_Config;
+   begin
+      GR.Min_Start_Dist_M := R.Min_Start_Dist_M;
+      GR.Altitude_Mode := R.Altitude_Mode;
+      GR.Initial_Climb_M := R.Initial_Climb_M;
+      GR.Ascend_Rate := R.Ascend_Rate;
+      GR.Return_Altitude_M := R.Return_Altitude_M;
+      GR.Ground_Speed_Cm_S := R.Ground_Speed_Cm_S;
+      AP.Max_Angle := R.Max_Angle;
+      GR.Descent_Distance_M := R.Descent_Distance_M;
+      GR.Descend_Rate := R.Descend_Rate;
+      AP.Landing_Altitude_M := R.Landing_Altitude_M;
+      AP.Throttle_Min := R.Throttle_Min;
+      AP.Throttle_Max := R.Throttle_Max;
+      AP.Hover_Throttle := R.Hover_Throttle;
+      GR.Min_Sats := R.Min_Sats;
+      GR.Allow_Arming_Without_Fix := R.Allow_Arming_Without_Fix;
+      T.Config.Gps_Rescue_Config := GR;
+      T.Config.Autopilot_Config := AP;
+   end Leave_GPS_Rescue_Menu;
+
+   procedure Leave_GPS_Rescue_PID_Menu (T : in out Target)
+     with Global => null
+   is
+      P  : Rescue_PID_Copies renames T.Rescue_PID;
+      AP : Adaflight.Config_Groups.Autopilot_Config_Record := T.Config.Autopilot_Config;
+   begin
+      AP.Altitude_P := P.Altitude_P;
+      AP.Altitude_I := P.Altitude_I;
+      AP.Altitude_D := P.Altitude_D;
+      AP.Altitude_A := P.Altitude_A;
+      AP.Altitude_F := P.Altitude_F;
+      T.Config.Gps_Rescue_Config.Yaw_P := P.Yaw_P;
+      AP.Position_P := P.Position_P;
+      AP.Position_I := P.Position_I;
+      AP.Position_D := P.Position_D;
+      AP.Position_Cutoff := P.Position_Cutoff;
+      T.Config.Autopilot_Config := AP;
+   end Leave_GPS_Rescue_PID_Menu;
+
    procedure Leave_Failsafe_Menu (T : in out Target)
      with Global => null
    is
@@ -2314,6 +2469,10 @@ package body Adaflight.Menu_Content with SPARK_Mode is
             Leave_Power_Menu (T);
          when Failsafe_Menu =>
             Leave_Failsafe_Menu (T);
+         when GPS_Rescue_Menu =>
+            Leave_GPS_Rescue_Menu (T);
+         when GPS_Rescue_PID_Menu =>
+            Leave_GPS_Rescue_PID_Menu (T);
          when RPM_Limit_Menu =>
             Leave_RPM_Limit_Menu (T);
          when Misc_Menu =>
@@ -2724,6 +2883,39 @@ package body Adaflight.Menu_Content with SPARK_Mode is
             when 7 => T.Blackbox.Debug_Mode := Byte;
             when others => null;
          end case;
+      elsif Id = GPS_Rescue_Menu then
+         case Line is
+            when 1 => T.Rescue.Min_Start_Dist_M := Word;
+            when 2 => T.Rescue.Altitude_Mode := Byte;
+            when 3 => T.Rescue.Initial_Climb_M := Word;
+            when 4 => T.Rescue.Ascend_Rate := Word;
+            when 5 => T.Rescue.Return_Altitude_M := Word;
+            when 6 => T.Rescue.Ground_Speed_Cm_S := Word;
+            when 7 => T.Rescue.Max_Angle := Byte;
+            when 8 => T.Rescue.Descent_Distance_M := Word;
+            when 9 => T.Rescue.Descend_Rate := Word;
+            when 10 => T.Rescue.Landing_Altitude_M := Byte;
+            when 11 => T.Rescue.Throttle_Min := Word;
+            when 12 => T.Rescue.Throttle_Max := Word;
+            when 13 => T.Rescue.Hover_Throttle := Word;
+            when 14 => T.Rescue.Min_Sats := Byte;
+            when 15 => T.Rescue.Allow_Arming_Without_Fix := Byte;
+            when others => null;
+         end case;
+      elsif Id = GPS_Rescue_PID_Menu then
+         case Line is
+            when 1 => T.Rescue_PID.Altitude_P := Byte;
+            when 2 => T.Rescue_PID.Altitude_I := Byte;
+            when 3 => T.Rescue_PID.Altitude_D := Byte;
+            when 4 => T.Rescue_PID.Altitude_A := Byte;
+            when 5 => T.Rescue_PID.Altitude_F := Byte;
+            when 6 => T.Rescue_PID.Yaw_P := Byte;
+            when 7 => T.Rescue_PID.Position_P := Byte;
+            when 8 => T.Rescue_PID.Position_I := Byte;
+            when 9 => T.Rescue_PID.Position_D := Byte;
+            when 10 => T.Rescue_PID.Position_Cutoff := Byte;
+            when others => null;
+         end case;
       elsif Id = VTX_MSP_Menu then
          case Line is
             when 2 => T.MSP.Pit_Mode := Byte;
@@ -2832,6 +3024,8 @@ package body Adaflight.Menu_Content with SPARK_Mode is
               elsif Id = Power_Menu and then Line = 1 then Voltage_Meter_Name (Index)
               elsif Id = Power_Menu and then Line = 2 then Current_Meter_Name (Index)
               elsif Id = Failsafe_Menu and then Line = 1 then Procedure_Name (Index)
+              elsif Id = GPS_Rescue_Menu and then Line = 2
+              then Setting_Name (Adaflight.Settings_Table.Table_Gps_Rescue_Alt_Mode, Index)
               elsif Id = Profile_Menu and then Line = 1 then Profile_Name (T.Profile.PID_Names, Index)
               elsif Id = Profile_Menu and then Line = 6 then Profile_Name (T.Profile.Rate_Names, Index)
               elsif Id = Rate_Menu and then Line = 13 then Throttle_Limit_Name (Index)

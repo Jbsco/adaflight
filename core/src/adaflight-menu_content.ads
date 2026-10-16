@@ -6,7 +6,8 @@
 --  save menus, the OSD menu with
 --  its active elements, timers and alarms
 --  menus, the blackbox menu with its erase and mass storage
---  confirmations, the LED strip, power, failsafe and RPM limit menus, the
+--  confirmations, the LED strip and power menus, the failsafe menu with
+--  its GPS rescue and rescue PID menus, the RPM limit menu, the
 --  misc menu with its RC preview and GPS lap timer menu, the persistent
 --  statistics menu, and the firmware menu with its calibration menus, over
 --  the target's state: the configuration, the firmware's identity, the
@@ -69,6 +70,8 @@ package Adaflight.Menu_Content with SPARK_Mode is
    Launch_Control_Menu   : constant Menu_Id := 39;
    VTX_MSP_Confirm       : constant Menu_Id := 40;
    VTX_Tramp_Confirm     : constant Menu_Id := 41;
+   GPS_Rescue_Menu       : constant Menu_Id := 42;
+   GPS_Rescue_PID_Menu   : constant Menu_Id := 43;
 
    --  The RC channels the preview shows: roll, pitch, throttle, yaw and the
    --  first four auxiliary channels.
@@ -191,6 +194,44 @@ package Adaflight.Menu_Content with SPARK_Mode is
       Guard_Time     : Interfaces.Unsigned_8 := 0;
       Landing_Time   : Interfaces.Unsigned_8 := 0;
       Throttle       : Interfaces.Unsigned_16 := 0;
+   end record;
+
+   --  The GPS rescue menu's copies of the minimum start distance, the
+   --  altitude mode, the initial climb and the ascend rate, the return
+   --  altitude and speed, the pitch angle limit, the descent distance and
+   --  rate, the landing altitude, the throttle limits and hover throttle, the
+   --  satellites required and the arming without a fix.
+   type Rescue_Copies is record
+      Min_Start_Dist_M         : Interfaces.Unsigned_16 := 0;
+      Altitude_Mode            : Interfaces.Unsigned_8 := 0;
+      Initial_Climb_M          : Interfaces.Unsigned_16 := 0;
+      Ascend_Rate              : Interfaces.Unsigned_16 := 0;
+      Return_Altitude_M        : Interfaces.Unsigned_16 := 0;
+      Ground_Speed_Cm_S        : Interfaces.Unsigned_16 := 0;
+      Max_Angle                : Interfaces.Unsigned_8 := 0;
+      Descent_Distance_M       : Interfaces.Unsigned_16 := 0;
+      Descend_Rate             : Interfaces.Unsigned_16 := 0;
+      Landing_Altitude_M       : Interfaces.Unsigned_8 := 0;
+      Throttle_Min             : Interfaces.Unsigned_16 := 0;
+      Throttle_Max             : Interfaces.Unsigned_16 := 0;
+      Hover_Throttle           : Interfaces.Unsigned_16 := 0;
+      Min_Sats                 : Interfaces.Unsigned_8 := 0;
+      Allow_Arming_Without_Fix : Interfaces.Unsigned_8 := 0;
+   end record;
+
+   --  The GPS rescue PID menu's copies of the altitude gains, the yaw gain,
+   --  the position gains and the position smoothing.
+   type Rescue_PID_Copies is record
+      Altitude_P      : Interfaces.Unsigned_8 := 0;
+      Altitude_I      : Interfaces.Unsigned_8 := 0;
+      Altitude_D      : Interfaces.Unsigned_8 := 0;
+      Altitude_A      : Interfaces.Unsigned_8 := 0;
+      Altitude_F      : Interfaces.Unsigned_8 := 0;
+      Yaw_P           : Interfaces.Unsigned_8 := 0;
+      Position_P      : Interfaces.Unsigned_8 := 0;
+      Position_I      : Interfaces.Unsigned_8 := 0;
+      Position_D      : Interfaces.Unsigned_8 := 0;
+      Position_Cutoff : Interfaces.Unsigned_8 := 0;
    end record;
 
    --  The RPM limit menu's copies of the limit's switch and value and the
@@ -506,6 +547,8 @@ package Adaflight.Menu_Content with SPARK_Mode is
       Quick        : Quick_Copies;
       Power        : Power_Copies;
       Failsafe     : Failsafe_Copies;
+      Rescue       : Rescue_Copies;
+      Rescue_PID   : Rescue_PID_Copies;
       RPM_Limit    : RPM_Limit_Copies;
       Misc         : Misc_Copies;
       OSD          : OSD_Copies;

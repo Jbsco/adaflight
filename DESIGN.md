@@ -5882,3 +5882,19 @@ Tramp driver's state per session. The harness replays 240 sessions with 19368 ke
 20171 draws, 648 of their states in the Tramp VTX menu and 96 in its confirmation: every display
 operation, menu context, page, request, driver state, menu copy and configuration hash matches the
 reference's. The VTX control vectors replay exactly with the status flag over both devices.
+
+## D252. GPS rescue menus (2026-10-16)
+
+`Adaflight.Menu_Content` gains the GPS rescue menu and its PID menu, reached from a GPS RESCUE line of
+the failsafe menu. The rescue menu copies the start distance, the altitude mode, the climb, the return
+and descent settings, the throttle limits, the satellites required and the arming without a fix from
+the GPS rescue and autopilot groups on entry, and stores them on leaving. The PID menu does the same
+for the altitude, yaw and position gains and the position smoothing. Every value line asks for a
+reboot.
+
+The reference's build headers leave both menus out of a target that derives the rescue from GPS
+(F220), the menu oracle's own build included. The oracle now builds the menus as a build that defines
+the rescue in its options does, so the failsafe menu's vectors gain the GPS RESCUE line. The wing
+variant waits for a wing build of the oracle. The harness replays 240 sessions with 19399 keys, 842
+menu changes and 20241 draws, 274 of their states in the rescue menu and 204 in its PID menu: every
+display operation, menu context, page, request and configuration hash matches the reference's.
