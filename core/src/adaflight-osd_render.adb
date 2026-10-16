@@ -1482,14 +1482,14 @@ package body Adaflight.OSD_Render with SPARK_Mode is
    procedure Render_Warnings
      (WS : in out Adaflight.OSD_Warnings.State; WC : Adaflight.OSD_Warnings.Settings;
       WI : Adaflight.OSD_Warnings.Inputs; Craft_Name_Messages, Blink_State : Boolean; Inp : Inputs;
-      Craft : in out Craft_Name_Buffer; O : out Output; Beeper_Shown : out Boolean)
+      Craft : in out Craft_Name_Buffer; O : out Output; Reported : out Adaflight.OSD_Warnings.Reports)
    is
       Line     : Adaflight.OSD_Warnings.Text;
       Blinking : Boolean;
       Attr     : Severity;
    begin
       O := (others => <>);
-      Adaflight.OSD_Warnings.Render (WS, WC, WI, Line, Blinking, Attr, Beeper_Shown);
+      Adaflight.OSD_Warnings.Render (WS, WC, WI, Line, Blinking, Attr, Reported);
       O.Attr := Attr;
       O.Blink := (if Blinking then Set else Clear);
       Append_String (O.Line, Line.Data (1 .. Line.Length));

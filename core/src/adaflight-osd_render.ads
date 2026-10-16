@@ -364,10 +364,11 @@ package Adaflight.OSD_Render with SPARK_Mode is
    --  The warnings element: the warnings line with its blink and severity.
    --  With the craft name messages on, the link quality replaces the line
    --  while the blink hides it or the line is empty, and the first fifteen
-   --  characters go to the craft name, zero filled after a shorter text.
+   --  characters go to the craft name, zero filled after a shorter text;
+   --  the line's reports go to the caller.
    procedure Render_Warnings
      (WS : in out Adaflight.OSD_Warnings.State; WC : Adaflight.OSD_Warnings.Settings;
       WI : Adaflight.OSD_Warnings.Inputs; Craft_Name_Messages, Blink_State : Boolean; Inp : Inputs;
-      Craft : in out Craft_Name_Buffer; O : out Output; Beeper_Shown : out Boolean);
+      Craft : in out Craft_Name_Buffer; O : out Output; Reported : out Adaflight.OSD_Warnings.Reports);
 
 end Adaflight.OSD_Render;

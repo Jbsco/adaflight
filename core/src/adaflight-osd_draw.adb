@@ -100,9 +100,9 @@ package body Adaflight.OSD_Draw with SPARK_Mode is
           Pre    => Context_Valid (X) and then S.ESC_Motor < Unsigned_8 (X.Inputs.Motors),
           Post   => Cy.Active_Number = Cy.Active_Number'Old
    is
-      Inp    : Adaflight.OSD_Render.Inputs := X.Inputs;
-      R      : Adaflight.OSD_Render.Output;
-      Beeper : Boolean;
+      Inp      : Adaflight.OSD_Render.Inputs := X.Inputs;
+      R        : Adaflight.OSD_Render.Output;
+      Reported : Adaflight.OSD_Warnings.Reports;
    begin
       Rendered := True;
       if not Has_Foreground (I) or else (not Device_Blink and then Is_Blink (B, I)) then
@@ -116,8 +116,8 @@ package body Adaflight.OSD_Draw with SPARK_Mode is
       end if;
       if I = Warnings then
          Adaflight.OSD_Render.Render_Warnings
-           (WS, X.Warn_Settings, X.Warn_Inputs, X.Craft_Name_Messages, B.State, Inp, Craft, R, Beeper);
-         pragma Unreferenced (Beeper);
+           (WS, X.Warn_Settings, X.Warn_Inputs, X.Craft_Name_Messages, B.State, Inp, Craft, R, Reported);
+         pragma Unreferenced (Reported);
       elsif I = Nav_Map then
          Adaflight.OSD_Render.Render_Nav_Map (S, X.Settings, Inp, Cy.Pos_X, Cy.Pos_Y, R);
       else

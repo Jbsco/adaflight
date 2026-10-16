@@ -9990,7 +9990,33 @@ procedure Vector_Check is
       I.Chirp_Finished := Int (B + 24) = 1;
       I.Chirp_Series_Finished := Int (B + 25) = 1;
       I.Chirp_Axis := Integer (Int (B + 26));
+      I.Rescue_Descent_Active := Int (B + 27) = 1;
+      I.Autopilot_Mode := Int (B + 28) = 1;
+      I.Abort_Reason := Adaflight.Flight_Plan_Nav.Abort_Reason'Val (Int (B + 29));
+      I.Nav_State := Adaflight.Flight_Plan_Nav.Nav_State'Val (Int (B + 30));
+      I.Capture.Message_Valid := Int (B + 31) = 1;
+      I.Capture.Message_Expire_Us := Interfaces.Unsigned_32 (Int (B + 32));
+      declare
+         Message : constant Byte_Array := Hex_Bytes (B + 33);
+      begin
+         I.Capture.Message_Length := Message'Length;
+         for K in 1 .. Message'Length loop
+            I.Capture.Message (K) := Character'Val (Message (Message'First + K - 1));
+         end loop;
+      end;
    end OW_Read_Step;
+
+   --  The capture message's validity once the target has read it after a
+   --  line that reports the read.
+   function OW_Valid_After (I : Adaflight.OSD_Warnings.Inputs; R : Adaflight.OSD_Warnings.Reports) return Boolean is
+      Capture : Adaflight.Flight_Plan_Capture.Capture := I.Capture;
+      Valid   : Boolean;
+   begin
+      if R.Capture_Read then
+         Adaflight.Flight_Plan_Capture.Read_Message (Capture, I.Now_Us, Valid);
+      end if;
+      return Capture.Message_Valid;
+   end OW_Valid_After;
 
    procedure Check_OSD_Warnings_Line is
       use Adaflight.OSD_Warnings;
@@ -10012,21 +10038,23 @@ procedure Vector_Check is
             Line     : Text;
             Blinking : Boolean;
             Attr     : Severity;
-            Beeper   : Boolean;
+            Reported : Reports;
          begin
             OW_Read_Step (OW_Const, I, B);
-            Render (OW_State, OW_Config, I, Line, Blinking, Attr, Beeper);
+            Render (OW_State, OW_Config, I, Line, Blinking, Attr, Reported);
             declare
                Actual : Byte_Array (0 .. Line.Length - 1);
             begin
                for K in Actual'Range loop
                   Actual (K) := Byte (Character'Pos (Line.Data (K + 1)));
                end loop;
-               Record_Bytes (Name & ".text", Hex_Bytes (B + 27), Actual);
+               Record_Bytes (Name & ".text", Hex_Bytes (B + 34), Actual);
             end;
-            Record_Int (Name & ".blink", Int (B + 28), Boolean'Pos (Blinking));
-            Record_Int (Name & ".attr", Int (B + 29), Severity'Pos (Attr));
-            Record_Int (Name & ".beeper", Int (B + 30), Boolean'Pos (Beeper));
+            Record_Int (Name & ".blink", Int (B + 35), Boolean'Pos (Blinking));
+            Record_Int (Name & ".attr", Int (B + 36), Severity'Pos (Attr));
+            Record_Int (Name & ".beeper", Int (B + 37), Boolean'Pos (Reported.Beeper_Shown));
+            Record_Int (Name & ".capread", Int (B + 38), Boolean'Pos (Reported.Capture_Read));
+            Record_Int (Name & ".capvalid", Int (B + 39), Boolean'Pos (OW_Valid_After (I, Reported)));
          end;
       end if;
    end Check_OSD_Warnings_Line;
@@ -11552,24 +11580,24 @@ procedure Vector_Check is
          declare
             WI     : Adaflight.OSD_Warnings.Inputs;
             B      : Positive;
-            Inp    : Inputs;
-            O      : Output;
-            Beeper : Boolean;
-            Craft  : Craft_Name_Buffer;
+            Inp      : Inputs;
+            O        : Output;
+            Reported : Adaflight.OSD_Warnings.Reports;
+            Craft    : Craft_Name_Buffer;
          begin
             OW_Read_Step (WE_Const, WI, B);
-            Inp.Link_Source := Link_Quality_Source'Val (Int (B + 28));
-            Inp.Link_Quality := Interfaces.Unsigned_16 (Int (B + 29));
-            Inp.RF_Mode := Interfaces.Unsigned_8 (Int (B + 30));
+            Inp.Link_Source := Link_Quality_Source'Val (Int (B + 35));
+            Inp.Link_Quality := Interfaces.Unsigned_16 (Int (B + 36));
+            Inp.RF_Mode := Interfaces.Unsigned_8 (Int (B + 37));
             Inp.RSSI_Dbm := WI.RSSI_Dbm;
             declare
-               Before : constant Byte_Array := Hex_Bytes (B + 32);
+               Before : constant Byte_Array := Hex_Bytes (B + 39);
             begin
                for K in Craft'Range loop
                   Craft (K) := Character'Val (Before (Before'First + K - 1));
                end loop;
             end;
-            Render_Warnings (WE_State, WE_Config, WI, Int (B + 27) = 1, Int (B + 31) = 1, Inp, Craft, O, Beeper);
+            Render_Warnings (WE_State, WE_Config, WI, Int (B + 34) = 1, Int (B + 38) = 1, Inp, Craft, O, Reported);
             declare
                Actual : Byte_Array (0 .. O.Line.Length - 1);
                After  : Byte_Array (0 .. Craft'Length - 1);
@@ -11580,12 +11608,14 @@ procedure Vector_Check is
                for K in After'Range loop
                   After (K) := Byte (Character'Pos (Craft (Craft'First + K)));
                end loop;
-               Record_Bytes (Name & ".text", Hex_Bytes (B + 33), Actual);
-               Record_Bytes (Name & ".craft", Hex_Bytes (B + 37), After);
+               Record_Bytes (Name & ".text", Hex_Bytes (B + 40), Actual);
+               Record_Bytes (Name & ".craft", Hex_Bytes (B + 44), After);
             end;
-            Record_Int (Name & ".blink", Int (B + 34), Boolean'Pos (O.Blink = Set));
-            Record_Int (Name & ".attr", Int (B + 35), Severity'Pos (O.Attr));
-            Record_Int (Name & ".beeper", Int (B + 36), Boolean'Pos (Beeper));
+            Record_Int (Name & ".blink", Int (B + 41), Boolean'Pos (O.Blink = Set));
+            Record_Int (Name & ".attr", Int (B + 42), Severity'Pos (O.Attr));
+            Record_Int (Name & ".beeper", Int (B + 43), Boolean'Pos (Reported.Beeper_Shown));
+            Record_Int (Name & ".capread", Int (B + 45), Boolean'Pos (Reported.Capture_Read));
+            Record_Int (Name & ".capvalid", Int (B + 46), Boolean'Pos (OW_Valid_After (WI, Reported)));
          end;
       end if;
    end Check_OSD_Warnings_Element_Line;
