@@ -4486,3 +4486,26 @@ the task setup recordings, with the running task set before each sensor task, an
 letters with the order the reference's functions called their units in and the barometer, pitot
 and compass periods after them, over 4800 steps with the arming flag, command line, rescue
 configuration and sensor deadlines drawn at random.
+
+## D193. Menu lines and page layout (2026-10-14)
+
+`Adaflight.Menu` is the menu system's lines and page layout: a line's element and flags in the
+reference's encoding, with the element in the low five bits and the guard type standing for every
+code above the table's; a menu as a bounded table of up to 192 lines with its count before the end
+marker; the screen geometry from the display's size, with the smallest display at eight rows so a
+page holds at least four items; the page count; the page selected by number, wrapped within the
+count, with its top line, its last row from the lines left, the items on a page and the row limit,
+and the lines' flags copied for the draw into the byte the reference keeps them in, which drops
+the flags above the dynamic one (F183); the cursor's absolute row; the rows the cursor skips,
+which are labels, strings and the narrow numbers a slider overrides, with the reference's dynamic
+test kept as written (F182); and the value text helpers: a value in thousandths with its trailing
+zeros cut down to the first decimal and a leading zero blanked, a value cut to its field and
+aligned right in it, and the display's character set. The proof covers the page arithmetic: the
+selected page's top line stays within the table and the flags copy within the page's rows. The
+menus, their lines' values, the display and the draw stay with the target or later slices.
+
+The harness replays 1800 menus drawn at random (one to sixty lines, displays of eight to eighty
+columns and eight to forty rows, full screen displays among them) through the layout, the page
+count, the first page and four page turns, asks every line whether the cursor skips it under random
+slider settings, and checks 1800 fixed-point values, right alignments and character set passes
+each against the reference's text.

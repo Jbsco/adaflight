@@ -11,6 +11,7 @@ with Interfaces;
 with Adaflight.Axes;
 with Adaflight.Maths;
 with Adaflight.Filters;
+with Adaflight.Menu;
 with Adaflight.Rates;
 with Adaflight.PID_Profile;
 with Adaflight.Simplified_Tuning;
@@ -17996,6 +17997,112 @@ procedure Vector_Check is
       end if;
    end Check_Mixer_Init_Line;
 
+   MN_Table  : Adaflight.Menu.Table;
+   MN_Layout : Adaflight.Menu.Layout;
+   MN_Page   : Adaflight.Menu.Page_State;
+
+   procedure Check_Menu_Line is
+      use Adaflight.Menu;
+      Name : constant String := Str (1);
+      K    : Positive := 4;
+      function Next return Integer_64 is
+      begin
+         K := K + 1;
+         return Int (K - 1);
+      end Next;
+      function Text_Of (S : String) return Label_Text is
+         T : Label_Text;
+      begin
+         T.Length := Natural'Min (S'Length, Max_Text);
+         T.Data (1 .. T.Length) := S (S'First .. S'First + T.Length - 1);
+         return T;
+      end Text_Of;
+      procedure Expect_Page is
+      begin
+         Record_Int (Name & ".page", Next, Integer_64 (MN_Page.Page));
+         Record_Int (Name & ".top", Next, Integer_64 (MN_Page.Top));
+         Record_Int (Name & ".max_row", Next, Integer_64 (MN_Page.Max_Row));
+         for I in 0 .. MN_Page.Max_Row loop
+            Record_Int (Name & ".flags", Int_Hex (K), Integer_64 (MN_Page.Flags (I)));
+            K := K + 1;
+         end loop;
+      end Expect_Page;
+   begin
+      if Name = "menuopen" then
+         declare
+            Columns : constant Screen_Columns := Screen_Columns (Next);
+            Rows    : constant Screen_Rows := Screen_Rows (Next);
+            Full    : constant Boolean := Next /= 0;
+            Count   : constant Line_Count := Line_Count (Next);
+         begin
+            MN_Table := (Lines => (others => <>), Count => Count);
+            for I in 0 .. Count - 1 loop
+               MN_Table.Lines (I).Flags := Interfaces.Unsigned_16 (Int_Hex (K));
+               MN_Table.Lines (I).Text := Text_Of (Hex_String (K + 1));
+               MN_Table.Lines (I).Has_Data := Int (K + 2) /= 0;
+               K := K + 3;
+            end loop;
+            MN_Layout := Layout_Of (Columns, Rows, Full);
+            Record_Int ("menuopen.small", Next, Boolean'Pos (MN_Layout.Small_Screen));
+            Record_Int ("menuopen.lines", Next, Integer_64 (MN_Layout.Lines_Per_Item));
+            Record_Int ("menuopen.left", Next, Integer_64 (MN_Layout.Left_Column));
+            Record_Int ("menuopen.right", Next, Integer_64 (MN_Layout.Right_Column));
+            Record_Int ("menuopen.max_items", Next, Integer_64 (MN_Layout.Max_Items));
+            Record_Int ("menuopen.pages", Next, Integer_64 (Pages (MN_Table, MN_Layout)));
+            MN_Page := (others => <>);
+            Select_Page (MN_Table, MN_Layout, 0, MN_Page);
+            Expect_Page;
+         end;
+      elsif Name = "menupage" then
+         Select_Page (MN_Table, MN_Layout, Integer (Next), MN_Page);
+         Expect_Page;
+      elsif Name = "menuskip" then
+         declare
+            S     : Slider_Settings;
+            Count : Line_Count;
+         begin
+            S.Mode := Adaflight.PID_Profile.Simplified_Mode'Val (Next);
+            S.Gyro_Filter := Next /= 0;
+            S.DTerm_Filter := Next /= 0;
+            Count := Line_Count (Next);
+            for I in 0 .. Count - 1 loop
+               Record_Int ("menuskip.skip", Next, Boolean'Pos (Skippable (MN_Table.Lines (I), S)));
+            end loop;
+         end;
+      elsif Name = "menufixed" then
+         declare
+            T : constant Label_Text := Format_Fixed (Fixed_Value (Next));
+         begin
+            Record_Text ("menufixed.text", Hex_String (K), T.Data (1 .. T.Length));
+            K := K + 1;
+         end;
+      elsif Name = "menupad" then
+         declare
+            Size : constant Text_Length := Text_Length (Next);
+            T    : Label_Text := Text_Of (Hex_String (K));
+         begin
+            Pad_Left (T, Size);
+            Record_Text ("menupad.text", Hex_String (K + 1), T.Data (1 .. T.Length));
+            K := K + 2;
+         end;
+      elsif Name = "menuwrite" then
+         declare
+            T : constant Label_Text := Sanitized (Text_Of (Hex_String (K)));
+         begin
+            Record_Text ("menuwrite.text", Hex_String (K + 1), T.Data (1 .. T.Length));
+            K := K + 2;
+         end;
+      else
+         Put_Line ("unknown menu case " & Name);
+         Failures := Failures + 1;
+         return;
+      end if;
+      if K - 1 /= NF then
+         Put_Line (Name & ": consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
+         Failures := Failures + 1;
+      end if;
+   end Check_Menu_Line;
+
    TI_Options : Adaflight.Task_Init.Options;
    TI_Count   : Natural := 0;
    TI_Tasks   : array (1 .. Adaflight.Scheduler.Task_Count) of Adaflight.Scheduler.Task_Id :=
@@ -18843,6 +18950,8 @@ procedure Vector_Check is
                   Check_Mixer_Init_Line;
                elsif Kind = "taskinit" then
                   Check_Task_Init_Line;
+               elsif Kind = "menu" then
+                  Check_Menu_Line;
                else
                   Check_PID_Line;
                end if;
@@ -19032,6 +19141,7 @@ begin
    Run (Dir & "/cfgstore.csv", "cfgstore");
    Run (Dir & "/mixinit.csv", "mixinit");
    Run (Dir & "/taskinit.csv", "taskinit");
+   Run (Dir & "/menu.csv", "menu");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
