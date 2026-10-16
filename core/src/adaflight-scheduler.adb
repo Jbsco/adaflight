@@ -95,6 +95,8 @@ package body Adaflight.Scheduler with SPARK_Mode is
       S.Guard_Up := One_Us / Guard_Up;
       S.Desired_Period_Cycles := Gyro_Period_Cycles (S, C);
       S.Last_Target_Cycles := Now_Cycles;
+      S.Next_Timing_Cycles := Now_Cycles;
+      S.Window_Cycles := Micros_To_Cycles (C, 1_000_000);
    end Init;
 
    -----------------
@@ -144,7 +146,10 @@ package body Adaflight.Scheduler with SPARK_Mode is
          Average_Delta_10th => Average_Delta,
          Average_Load_10th  =>
            (if T.Moving_Sum_Delta = 0 then 0 else T.Moving_Sum_States_Exec * 1000 / T.Moving_Sum_Delta),
-         Max_Load_10th      => (if Average_Delta = 0 then 0 else T.Max_States_Exec_Us * 10_000 / Average_Delta));
+         Max_Load_10th      => (if Average_Delta = 0 then 0 else T.Max_States_Exec_Us * 10_000 / Average_Delta),
+         Run_Count          => T.Run_Count,
+         Late_Count         => T.Late_Count,
+         Exec_Time_Us       => T.Exec_Time_Us);
    end Info;
 
    ---------------------
@@ -262,6 +267,8 @@ package body Adaflight.Scheduler with SPARK_Mode is
    begin
       S.Tasks (Id).Max_Exec_Us := 0;
       S.Tasks (Id).Max_States_Exec_Us := 0;
+      S.Tasks (Id).Late_Count := 0;
+      S.Tasks (Id).Run_Count := 0;
    end Reset_Task_Max_Execution_Time;
 
    procedure Reset_Check_Max_Execution_Time (S : in out State) is
@@ -409,6 +416,7 @@ package body Adaflight.Scheduler with SPARK_Mode is
          S.Tasks (Id).Max_Exec_Us := Unsigned_32'Max (S.Tasks (Id).Max_Exec_Us, Duration);
       end if;
       S.Tasks (Id).Total_Exec_Us := S.Tasks (Id).Total_Exec_Us + Duration;
+      S.Tasks (Id).Run_Count := S.Tasks (Id).Run_Count + 1;
    end Execute_End;
 
    ------------------
@@ -430,6 +438,14 @@ package body Adaflight.Scheduler with SPARK_Mode is
    procedure End_Realtime (S : in out State; Now_Cycles : Cycles; G : Gyro_Status) is
    begin
       S.Pass.First_Opportunity := True;
+      if Clock.Elapsed (S.Next_Timing_Cycles, Now_Cycles) < 0 then
+         S.Next_Timing_Cycles := S.Next_Timing_Cycles + S.Window_Cycles;
+         S.Late_Task_Percentage :=
+           (if S.Window_Task_Count = 0 then 0 else 1000 * S.Late_Task_Count / S.Window_Task_Count);
+         S.Late_Task_Count := 0;
+         S.Late_Task_Total := 0;
+         S.Window_Task_Count := 0;
+      end if;
       S.Pass.Now_Cycles := Now_Cycles;
       S.Last_Target_Cycles := S.Pass.Next_Target;
       if G.Interrupts then
@@ -583,6 +599,7 @@ package body Adaflight.Scheduler with SPARK_Mode is
       Required_Us : constant Unsigned_32 := Interfaces.Shift_Right (S.Tasks (Id).Anticipated, Exec_Time_Shift);
       Required    : Integer_32 := To_Signed (Micros_To_Cycles (C, Required_Us));
    begin
+      S.Tasks (Id).Exec_Time_Us := Required_Us;
       S.Pass.Now_Cycles := Now_Cycles;
       S.Pass.Remaining := Clock.Elapsed (S.Pass.Next_Target, Now_Cycles);
       Required := To_Signed (To_Unsigned (Required) + To_Unsigned (S.Guard_Cycles));
@@ -629,6 +646,11 @@ package body Adaflight.Scheduler with SPARK_Mode is
    procedure After_Run (S : in out State; Now_Cycles : Cycles) is
       Overdue : constant Integer_32 := Clock.Elapsed (Now_Cycles, S.Pass.Anticipated_End);
    begin
+      if Overdue > 0 and then S.Current /= Serial then
+         S.Tasks (S.Current).Late_Count := S.Tasks (S.Current).Late_Count + 1;
+         S.Late_Task_Count := S.Late_Task_Count + 1;
+         S.Late_Task_Total := S.Late_Task_Total + To_Unsigned (Overdue);
+      end if;
       if S.Current = Rx then
          S.Skipped_Rx := 0;
       elsif S.Current = OSD then
@@ -641,6 +663,7 @@ package body Adaflight.Scheduler with SPARK_Mode is
       elsif S.Guard_Cycles > S.Guard_Min then
          S.Guard_Cycles := To_Signed (To_Unsigned (S.Guard_Cycles) - S.Guard_Down);
       end if;
+      S.Window_Task_Count := S.Window_Task_Count + 1;
    end After_Run;
 
    --------------

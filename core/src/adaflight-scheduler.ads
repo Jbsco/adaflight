@@ -113,7 +113,9 @@ package Adaflight.Scheduler with SPARK_Mode is
 
    --  One task's scheduling state and statistics, in the reference's units:
    --  times in microseconds, moving sums in tenths over eight samples, the
-   --  anticipated execution time in 128ths of a microsecond.
+   --  anticipated execution time in 128ths of a microsecond; and the late
+   --  task statistics: its runs, its runs past their anticipated end, and
+   --  the time anticipated for its latest selection in microseconds.
    type Task_State is record
       Period                : Period_Us := 1;
       Dynamic               : Dynamic_Priority := 0;
@@ -131,6 +133,9 @@ package Adaflight.Scheduler with SPARK_Mode is
       Exec_Since_States     : Unsigned_32 := 0;
       Moving_Sum_States_Exec : Unsigned_32 := 0;
       Max_States_Exec_Us    : Unsigned_32 := 0;
+      Run_Count             : Unsigned_32 := 0;
+      Late_Count            : Unsigned_32 := 0;
+      Exec_Time_Us          : Unsigned_32 := 0;
    end record;
 
    type Task_States is array (Task_Id) of Task_State;
@@ -195,6 +200,12 @@ package Adaflight.Scheduler with SPARK_Mode is
       Skew_Sum              : Integer_32 := 0;
       Check_Cycles          : Unsigned_32 := 0;
       Schedule_Count        : Unsigned_32 := 0;
+      Late_Task_Count       : Unsigned_32 := 0;
+      Late_Task_Total       : Unsigned_32 := 0;
+      Window_Task_Count     : Unsigned_32 := 0;
+      Late_Task_Percentage  : Unsigned_32 := 0;
+      Next_Timing_Cycles    : Cycles := 0;
+      Window_Cycles         : Unsigned_32 := 0;
       Pass                  : Pass_State;
    end record;
 
@@ -242,9 +253,9 @@ package Adaflight.Scheduler with SPARK_Mode is
    --  One task's statistics as the reference reports them: whether it is
    --  queued, its period and static priority, its latest interval, its peak
    --  and total execution times in microseconds, its average execution time
-   --  and interval in tenths of a microsecond over the eight samples, and its
+   --  and interval in tenths of a microsecond over the eight samples, its
    --  average and peak loads in tenths of a percent, the products wrapping at
-   --  32 bits.
+   --  32 bits, and its late statistics.
    type Task_Info is record
       Enabled            : Boolean;
       Period             : Period_Us;
@@ -256,6 +267,9 @@ package Adaflight.Scheduler with SPARK_Mode is
       Average_Delta_10th : Unsigned_32;
       Average_Load_10th  : Unsigned_32;
       Max_Load_10th      : Unsigned_32;
+      Run_Count          : Unsigned_32;
+      Late_Count         : Unsigned_32;
+      Exec_Time_Us       : Unsigned_32;
    end record;
 
    function Info (S : State; Id : Task_Id) return Task_Info;
@@ -285,6 +299,12 @@ package Adaflight.Scheduler with SPARK_Mode is
 
    --  The system task's load measurement over the time since its last run.
    procedure System_Load (S : in out State; Now_Us : Time_Us);
+
+   --  The share of the tasks that ran past their anticipated end in the last
+   --  timing window of a second, in tenths of a percent: the late tasks over
+   --  the tasks run, zero for a window without a run, as the reference's
+   --  division by zero gives on its targets.
+   function CPU_Percentage_Late (S : State) return Unsigned_32 is (S.Late_Task_Percentage);
 
    function Cycle_Time_Multiplier (S : State; C : Settings) return Float
      with Pre => S.Desired_Period_Cycles > 0;
