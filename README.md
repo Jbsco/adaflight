@@ -141,6 +141,8 @@ The core contains:
   and invalid share, decoder edge times
 - scheduler late task statistics: run and late counts per task, anticipated times, late share per
   timing window
+- scheduler debug values: pass overhead, gyro cycle determinism, timing accuracy and debug task
+  values
 - command line tasks late columns: late and run counts and anticipated time per task
 - core loop cadence: PID loop sample counter, filter and controller readiness, yaw reset at low
   throttle while arming by stick
@@ -251,7 +253,7 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 28017 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 28077 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
 - Recorded vectors replay bit for bit: 1753568 lines over 384 cases, every case exact except
   forty-seven declared deviations in `DESIGN.md` D6.
