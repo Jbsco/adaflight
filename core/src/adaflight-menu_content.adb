@@ -413,519 +413,785 @@ package body Adaflight.Menu_Content with SPARK_Mode is
    Empty_Table : constant Table :=
      (Lines => (others => (Flags => Code (Adaflight.Menu.Label), others => <>)), Count => 1);
 
-   --  The quick, main and features menus, the setup popup, the save menus and
-   --  the VTX error menu.
-   procedure Load_Main (T : Target; Id : Menu_Id; M : out Table)
+   procedure Load_Quick_Menu (T : Target; M : out Table)
      with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
    is
       use Adaflight.Menu;
       N : Line_Count := 0;
    begin
       M := Empty_Table;
-      case Id is
-         when Quick_Menu =>
-            Add (M, N, Make ("-- QUICK --", Label));
-            Add (M, N, Sub ("RPM LIM", RPM_Limit_Menu));
-            declare
-               L : Line := Make ("THR LIM TYPE", Tab, Has_Data => True,
-                                 Value => Interfaces.Integer_32 (T.Quick.Rate.Throttle_Limit_Type));
-            begin
-               L.Max := 2;
-               L.Value_Text := Throttle_Limit_Name (Natural (T.Quick.Rate.Throttle_Limit_Type));
-               Add (M, N, L);
-            end;
-            Add (M, N, Number ("THR LIM %", Interfaces.Integer_32 (T.Quick.Rate.Throttle_Limit_Percent), 25, 100));
-            Add (M, N, Number ("MTR OUT LIM %", Interfaces.Integer_32 (T.Quick.Motor_Output_Limit), 1, 100));
-            Add (M, N, Number ("FORCE CELLS", Interfaces.Integer_32 (T.Quick.Battery.Force_Battery_Cell_Count), 0, 24));
-            Add (M, N, Make ("VTX", Funcall, Has_Func => True));
-            Add (M, N, Sub ("MAIN", Main_Menu, Has_Func => False));
-            Add (M, N, Make ("EXIT", OSD_Exit, Has_Func => True, Value => 0));
-            Add (M, N, Make ("SAVE&REBOOT", OSD_Exit, Has_Func => True, Has_Data => True, Value => 4));
-         when Main_Menu =>
-            Add (M, N, Make ("-- MAIN --", Label));
-            Add (M, N, Sub ("PROFILE", Profile_Menu));
-            Add (M, N, Sub ("FEATURES", Features));
-            Add (M, N, Sub ("OSD", OSD_Menu));
-            Add (M, N, Sub ("FC&FIRMWARE", Firmware_Menu));
-            Add (M, N, Sub ("MISC", Misc_Menu));
-            Add (M, N, Make ("SAVE/EXIT", Funcall, Has_Func => True));
-         when Features =>
-            Add (M, N, Make ("--- FEATURES ---", Label));
-            Add (M, N, Sub ("BLACKBOX", Blackbox_Menu));
-            Add (M, N, Make ("VTX", Funcall, Has_Func => True));
-            Add (M, N, Sub ("LED STRIP", LED_Strip_Menu));
-            Add (M, N, Sub ("POWER", Power_Menu));
-            Add (M, N, Sub ("FAILSAFE", Failsafe_Menu));
-            Add (M, N, Sub ("PERSISTENT STATS", Persistent_Stats_Menu));
-            Add (M, N, Make ("BACK", Back));
-         when Setup_Popup =>
-            Add (M, N, Make ("-- SETUP MENU --", Label));
-            if T.Popup.Acc_Line then
-               Add (M, N, Text_Line ("CALIBRATE ACC", Funcall, T.Popup.Acc_Status, Has_Func => True, Flags => Dynamic));
-            end if;
-            if T.Popup.Battery_Line then
-               declare
-                  L : Line := Make ("", Funcall, Has_Func => True, Flags => Dynamic);
-               begin
-                  L.Text := T.Popup.Battery_Text;
-                  Add (M, N, L);
-               end;
-            end if;
-            Add (M, N, Make ("EXIT", Back, Flags => Dynamic));
-         when Save_Exit =>
-            Add (M, N, Make ("-- SAVE/EXIT --", Label));
-            Add (M, N, Make ("EXIT", OSD_Exit, Has_Func => True, Value => 0));
-            Add (M, N, Make ("SAVE&EXIT", OSD_Exit, Has_Func => True, Has_Data => True, Value => 3));
-            Add (M, N, Make ("SAVE&REBOOT", OSD_Exit, Has_Func => True, Has_Data => True, Value => 4));
-            Add (M, N, Make ("BACK", Back));
-         when Save_Exit_Reboot =>
-            Add (M, N, Make ("-- SAVE/EXIT (REBOOT REQD)", Label));
-            Add (M, N, Make ("EXIT&REBOOT", OSD_Exit, Has_Func => True, Has_Data => True, Value => 5));
-            Add (M, N, Make ("SAVE&REBOOT", OSD_Exit, Has_Func => True, Has_Data => True, Value => 4));
-            Add (M, N, Make ("BACK", Back));
-         when VTX_Error_Menu =>
-            Add (M, N, Text_Line ("", Label, T.VTX_Status.Line_1, Flags => Dynamic));
-            Add (M, N, Text_Line ("", Label, T.VTX_Status.Line_2, Flags => Dynamic));
-            Add (M, N, Make ("", Label));
-            Add (M, N, Make ("BACK", Back));
-         when others =>
-            Add (M, N, Make ("", Label));
-      end case;
+      Add (M, N, Make ("-- QUICK --", Label));
+      Add (M, N, Sub ("RPM LIM", RPM_Limit_Menu));
+      declare
+         L : Line := Make ("THR LIM TYPE", Tab, Has_Data => True,
+                           Value => Interfaces.Integer_32 (T.Quick.Rate.Throttle_Limit_Type));
+      begin
+         L.Max := 2;
+         L.Value_Text := Throttle_Limit_Name (Natural (T.Quick.Rate.Throttle_Limit_Type));
+         Add (M, N, L);
+      end;
+      Add (M, N, Number ("THR LIM %", Interfaces.Integer_32 (T.Quick.Rate.Throttle_Limit_Percent), 25, 100));
+      Add (M, N, Number ("MTR OUT LIM %", Interfaces.Integer_32 (T.Quick.Motor_Output_Limit), 1, 100));
+      Add (M, N, Number ("FORCE CELLS", Interfaces.Integer_32 (T.Quick.Battery.Force_Battery_Cell_Count), 0, 24));
+      Add (M, N, Make ("VTX", Funcall, Has_Func => True));
+      Add (M, N, Sub ("MAIN", Main_Menu, Has_Func => False));
+      Add (M, N, Make ("EXIT", OSD_Exit, Has_Func => True, Value => 0));
+      Add (M, N, Make ("SAVE&REBOOT", OSD_Exit, Has_Func => True, Has_Data => True, Value => 4));
       M.Count := N;
-   end Load_Main;
+   end Load_Quick_Menu;
 
-   --  The power, failsafe, RPM limit, misc, RC preview, persistent statistics and GPS lap timer menus.
-   procedure Load_Settings (T : Target; Id : Menu_Id; M : out Table)
+   procedure Load_Main_Menu (M : out Table)
      with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
    is
       use Adaflight.Menu;
       N : Line_Count := 0;
    begin
       M := Empty_Table;
-      case Id is
-         when Power_Menu =>
-            declare
-               P : Power_Copies renames T.Power;
-            begin
-               Add (M, N, Make ("-- POWER --", Label));
-               Add (M, N, Choice ("V METER", Interfaces.Integer_32 (P.Voltage_Meter_Source), 2,
-                            Voltage_Meter_Name (Natural (P.Voltage_Meter_Source)), Reboot));
-               Add (M, N, Choice ("I METER", Interfaces.Integer_32 (P.Current_Meter_Source), 4,
-                            Current_Meter_Name (Natural (P.Current_Meter_Source)), Reboot));
-               Add (M, N, Number ("VBAT CLMIN", Interfaces.Integer_32 (P.Min_Cell_Voltage), 100, 500, UInt16));
-               Add (M, N, Number ("VBAT CLMAX", Interfaces.Integer_32 (P.Max_Cell_Voltage), 100, 500, UInt16));
-               Add (M, N, Number ("VBAT CLWARN", Interfaces.Integer_32 (P.Warning_Cell_Voltage), 100, 500, UInt16));
-               Add (M, N, Number ("VBAT SCALE", Interfaces.Integer_32 (P.Voltage_Scale), 0, 255));
-               Add (M, N, Number ("IBAT SCALE", Interfaces.Integer_32 (P.Current_Scale), -16_000, 16_000, Int16, 5));
-               Add (M, N, Number ("IBAT OFFSET", Interfaces.Integer_32 (P.Current_Offset), -32_000, 32_000, Int16, 5));
-               Add (M, N,
-                    Number ("IBAT VIRT SCALE", Interfaces.Integer_32 (P.Virtual_Scale), -16_000, 16_000, Int16, 5));
-               Add (M, N, Number ("IBAT VIRT OFFSET", Interfaces.Integer_32 (P.Virtual_Offset), 0, 16_000, UInt16, 5));
-               Add (M, N, Make ("BACK", Back));
-            end;
-         when Failsafe_Menu =>
-            Add (M, N, Make ("-- FAILSAFE --", Label));
-            Add (M, N, Choice ("PROCEDURE", Interfaces.Integer_32 (T.Failsafe.Procedure_Kind), 2,
-                         Procedure_Name (Natural (T.Failsafe.Procedure_Kind)), Reboot));
-            Add (M, N, Fixed_Number ("GUARD TIME", Interfaces.Integer_32 (T.Failsafe.Guard_Time), 1, 200, 100, Reboot));
-            Add (M, N,
-                 Number ("LANDING_TIME", Interfaces.Integer_32 (T.Failsafe.Landing_Time), 0, 250, Flags => Reboot));
-            Add (M, N, Number ("STAGE 2 THROTTLE", Interfaces.Integer_32 (T.Failsafe.Throttle), 750, 2250, UInt16,
-                         Flags => Reboot));
-            Add (M, N, Make ("BACK", Back));
-         when RPM_Limit_Menu =>
-            Add (M, N, Make ("-- RPM LIMIT --", Label));
-            Add (M, N,
-                 Make ("ACTIVE", Bool, Has_Data => True, Value => Boolean'Pos (T.RPM_Limit.Active), Flags => Reboot));
-            Add (M, N, Number ("MAX RPM", Interfaces.Integer_32 (T.RPM_Limit.Limit), 0, 65_535, UInt16, 100));
-            Add (M, N, Number ("KV", Interfaces.Integer_32 (T.RPM_Limit.KV), 0, 65_535, UInt16));
-            Add (M, N, Make ("SAVE&REBOOT", OSD_Exit, Has_Func => True, Has_Data => True, Value => 4));
-            Add (M, N, Make ("BACK", Back));
-         when Misc_Menu =>
-            Add (M, N, Make ("-- MISC --", Label));
-            Add (M, N, Number ("IDLE OFFSET", Interfaces.Integer_32 (T.Misc.Idle_Offset), 0, 200, Flags => Reboot));
-            Add (M, N, Number ("FPV CAM ANGLE", Interfaces.Integer_32 (T.Misc.FPV_Cam_Angle), 0, 90));
-            Add (M, N,
-                 Number ("CRASHFLIP RATE", Interfaces.Integer_32 (T.Misc.Crashflip_Rate), 0, 100, Flags => Reboot));
-            Add (M, N, Sub ("RC PREV", RC_Preview_Menu));
-            Add (M, N, Sub ("GPS LAP TIMER", GPS_Lap_Timer_Menu));
-            Add (M, N, Make ("BACK", Back));
-         when RC_Preview_Menu =>
-            Add (M, N, Make ("-- RC PREV --", Label));
-            for C in RC_Values'Range loop
-               pragma Loop_Invariant
-                 (N = C + 1
-                  and then (for all I in 0 .. N - 1 =>
-                              (if Element_Of (M.Lines (I).Flags) = Fixed then M.Lines (I).Value in 0 .. 255)));
-               Add (M, N, Number (RC_Names (C) (1 .. RC_Name_Lengths (C)),
-                            Interfaces.Integer_32 (T.Preview (RC_Line_Channels (C))), 1, 2500, Int16, 0, Dynamic));
-            end loop;
-            Add (M, N, Make ("BACK", Back));
-         when Persistent_Stats_Menu =>
-            Add (M, N, Make ("-- PERSISTENT STATS --", Label));
-            Add (M, N, Number ("FLIGHTS", Signed_Word (T.Stats.Total_Flights), 0, -1, UInt32));
-            Add (M, N, Number ("TIME(sec)", Signed_Word (T.Stats.Total_Time_S), 0, -1, UInt32));
-            Add (M, N, Number ("DIST(m)", Signed_Word (T.Stats.Total_Dist_M), 0, -1, UInt32));
-            Add (M, N, Make ("RESET STATS", Funcall, Has_Func => True));
-            Add (M, N, Make ("--- SETTINGS ---", Label));
-            Add (M, N, Number ("MIN ARMED TIME(sec)", Interfaces.Integer_32 (T.Stats.Min_Armed_Time), -1, 127, Int8));
-            Add (M, N, Make ("BACK", Back));
-         when GPS_Lap_Timer_Menu =>
-            Add (M, N, Make ("--- GPS LAP TIMER ---", Label));
-            Add (M, N, Sub ("SET POSITION", Set_Gate_Menu));
-            Add (M, N, Number ("GATE RADIUS(M)", Interfaces.Integer_32 (T.Lap.Gate_Tolerance), 1, 100));
-            Add (M, N, Number ("MIN LAP SECONDS", Interfaces.Integer_32 (T.Lap.Minimum_Lap_Time), 0, 3000, UInt16));
-            Add (M, N, Make ("BACK", Back));
-         when Set_Gate_Menu =>
-            Add (M, N, Make ("SETTING POSITION", Label));
-            Add (M, N,
-                 Number ("READINGS", Interfaces.Integer_32 (T.Live.Gate_Set_Readings), 0, 2000, UInt16, 0, Dynamic));
-            Add (M, N, Number ("DISTANCE(CM)", Signed_Word (T.Live.Gate_Distance_Cm), 0, 200, UInt32, 0, Dynamic));
-            Add (M, N, Make ("BACK", Back));
-         when others =>
-            Add (M, N, Make ("", Label));
-      end case;
+      Add (M, N, Make ("-- MAIN --", Label));
+      Add (M, N, Sub ("PROFILE", Profile_Menu));
+      Add (M, N, Sub ("FEATURES", Features));
+      Add (M, N, Sub ("OSD", OSD_Menu));
+      Add (M, N, Sub ("FC&FIRMWARE", Firmware_Menu));
+      Add (M, N, Sub ("MISC", Misc_Menu));
+      Add (M, N, Make ("SAVE/EXIT", Funcall, Has_Func => True));
       M.Count := N;
-   end Load_Settings;
+   end Load_Main_Menu;
 
-   --  The blackbox, LED strip, firmware and calibration menus.
-   procedure Load_System (T : Target; Id : Menu_Id; M : out Table)
+   procedure Load_Features (M : out Table)
      with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
    is
       use Adaflight.Menu;
       N : Line_Count := 0;
    begin
       M := Empty_Table;
-      case Id is
-         when Blackbox_Menu =>
-            declare
-               B : Blackbox_Copies renames T.Blackbox;
-            begin
-               Add (M, N, Make ("-- BLACKBOX --", Label));
-               Add (M, N, Text_Line ("(PID FREQ)", Str, B.PID_Frequency));
-               Add (M, N,
-                    Choice ("SAMPLERATE", Interfaces.Integer_32 (B.Rate), 4, Blackbox_Rate_Name (Natural (B.Rate)),
-                            Reboot));
-               Add (M, N,
-                    Choice ("DEVICE", Interfaces.Integer_32 (B.Device), 3, Blackbox_Device_Name (Natural (B.Device)),
-                            Reboot));
-               Add (M, N, Text_Line ("(STATUS)", Str, B.Status));
-               Add (M, N, Text_Line ("(USED)", Str, B.Used));
-               Add (M, N, Text_Line ("(FREE)", Str, B.Free));
-               Add (M, N,
-                    Choice ("DEBUG MODE", Interfaces.Integer_32 (B.Debug_Mode), Interfaces.Integer_32 (Debug_Count) - 1,
-                            Debug_Name (Natural (B.Debug_Mode)), Reboot));
-               Add (M, N, Sub ("USB MASS STORAGE", Storage_Device_Menu));
-               Add (M, N, Sub ("ERASE FLASH", Erase_Flash_Menu));
-               Add (M, N, Make ("BACK", Back));
-            end;
-         when Erase_Flash_Menu =>
-            Add (M, N, Make ("CONFIRM ERASE", Label));
-            Add (M, N, Make ("NO", Back));
-            Add (M, N, Make ("YES", Funcall, Has_Func => True));
-         when Storage_Device_Menu =>
-            Add (M, N, Make ("CONFIRM USB MASS STORAGE", Label));
-            Add (M, N, Make ("NO", Back));
-            Add (M, N, Make ("YES", Funcall, Has_Func => True));
-         when LED_Strip_Menu =>
-            declare
-               L : LED_Copies renames T.LED;
-            begin
-               Add (M, N, Make ("-- LED STRIP --", Label));
-               Add (M, N, Make ("ENABLED", Bool, Has_Data => True, Value => Interfaces.Integer_32 (L.Enabled)));
-               Add (M, N, Choice ("PROFILE", Interfaces.Integer_32 (L.Profile), LED_Profile_Count - 1,
-                            LED_Profile_Name (Natural (L.Profile))));
-               Add (M, N, Choice ("RACE COLOR", Interfaces.Integer_32 (L.Race_Color), LED_Color_Count - 1,
-                            LED_Color_Name (Natural (L.Race_Color))));
-               Add (M, N, Choice ("BEACON COLOR", Interfaces.Integer_32 (L.Beacon_Color), LED_Color_Count - 1,
-                            LED_Color_Name (Natural (L.Beacon_Color))));
-               Add (M, N, Number ("BEACON PERIOD", Interfaces.Integer_32 (L.Beacon_Period), 50, 10_000, UInt16, 10));
-               Add (M, N, Number ("BEACON ON %", Interfaces.Integer_32 (L.Beacon_On_Percent), 0, 100));
-               Add (M, N, Make ("BEACON ARMED ONLY", Bool, Has_Data => True,
-                          Value => Interfaces.Integer_32 (L.Beacon_Armed_Only)));
-               Add (M, N,
-                    Make ("VISUAL BEEPER", Bool, Has_Data => True, Value => Interfaces.Integer_32 (L.Visual_Beeper)));
-               Add (M, N, Choice ("VISUAL COLOR", Interfaces.Integer_32 (L.Visual_Beeper_Color), LED_Color_Count - 1,
-                            LED_Color_Name (Natural (L.Visual_Beeper_Color))));
-               Add (M, N, Make ("BACK", Back));
-            end;
-         when Firmware_Menu =>
-            Add (M, N, Make ("--- INFO ---", Label));
-            Add (M, N, Text_Line ("FWID", Str, T.Identity.Identifier));
-            Add (M, N, Text_Line ("FWVER", Str, T.Identity.Version));
-            Add (M, N, Text_Line ("GITREV", Str, T.Identity.Revision));
-            Add (M, N, Text_Line ("TARGET", Str, T.Identity.Target_Name));
-            Add (M, N, Text_Line ("MFR", Str, T.Board.Manufacturer_Id));
-            Add (M, N, Text_Line ("BOARD", Str, T.Board.Board_Name));
-            Add (M, N, Make ("--- SETUP ---", Label));
-            Add (M, N, Sub ("CALIBRATE", Calibration_Menu));
-            Add (M, N, Make ("BACK", Back));
-         when Calibration_Menu =>
-            Add (M, N, Make ("--- CALIBRATE ---", Label));
-            Add (M, N, Text_Line ("GYRO", Funcall, T.Calibration.Gyro, Has_Func => True, Flags => Dynamic));
-            Add (M, N, Text_Line ("ACC", Funcall, T.Calibration.Acc, Has_Func => True, Flags => Dynamic));
-            Add (M, N, Text_Line ("BARO", Funcall, T.Calibration.Baro, Has_Func => True, Flags => Dynamic));
-            Add (M, N, Make ("BACK", Back));
-         when Calibrate_Acc_Menu =>
-            Add (M, N, Make ("--- CALIBRATE ACC ---", Label));
-            Add (M, N, Make ("PLACE ON A LEVEL SURFACE", Label));
-            Add (M, N, Make ("MAKE SURE CRAFT IS STILL", Label));
-            Add (M, N, Make (" ", Label));
-            Add (M, N, Make ("START CALIBRATION", Funcall, Has_Func => True));
-            Add (M, N, Make ("BACK", Back));
-         when others =>
-            Add (M, N, Make ("", Label));
-      end case;
+      Add (M, N, Make ("--- FEATURES ---", Label));
+      Add (M, N, Sub ("BLACKBOX", Blackbox_Menu));
+      Add (M, N, Make ("VTX", Funcall, Has_Func => True));
+      Add (M, N, Sub ("LED STRIP", LED_Strip_Menu));
+      Add (M, N, Sub ("POWER", Power_Menu));
+      Add (M, N, Sub ("FAILSAFE", Failsafe_Menu));
+      Add (M, N, Sub ("PERSISTENT STATS", Persistent_Stats_Menu));
+      Add (M, N, Make ("BACK", Back));
       M.Count := N;
-   end Load_System;
+   end Load_Features;
 
-   --  The OSD menu with its active elements, timers and alarms menus.
-   procedure Load_OSD (T : Target; Id : Menu_Id; M : out Table)
+   procedure Load_Setup_Popup (T : Target; M : out Table)
      with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
    is
       use Adaflight.Menu;
       N : Line_Count := 0;
    begin
       M := Empty_Table;
-      case Id is
-         when OSD_Menu =>
-            Add (M, N, Make ("---OSD---", Label));
-            Add (M, N, Number ("OSD PROFILE", Interfaces.Integer_32 (T.OSD.Profile), 1, 3));
-            Add (M, N, Sub ("ACTIVE ELEM", Active_Elements_Menu));
-            Add (M, N, Sub ("TIMERS", Timers_Menu));
-            Add (M, N, Sub ("ALARMS", Alarms_Menu));
-            Add (M, N, Make ("INVERT", Bool, Has_Func => True, Has_Data => True, Value => Boolean'Pos (T.OSD.Invert)));
-            Add (M, N, Number ("BRT BLACK", Interfaces.Integer_32 (T.OSD.Black_Brightness), 0, 3, Has_Func => True));
-            Add (M, N, Number ("BRT WHITE", Interfaces.Integer_32 (T.OSD.White_Brightness), 0, 3, Has_Func => True));
-            Add (M, N, Choice ("BACKGROUND", Interfaces.Integer_32 (T.OSD.Background), 3,
-                               Background_Name (Natural (T.OSD.Background)), Has_Func => True));
-            Add (M, N, Make ("BACK", Back));
-         when Active_Elements_Menu =>
-            Add (M, N, Make ("--- ACTIV ELEM ---", Label));
-            for K in Active_Lines'Range loop
-               pragma Loop_Invariant (N = K and then Fixed_Below (M, N));
-               Add (M, N,
-                    (Text     => Active_Lines (K).Name,
-                     Flags    => Code (Visible) or Dynamic,
-                     Has_Data => True,
-                     Value    =>
-                       Interfaces.Integer_32 (T.Elements (Adaflight.OSD_Elements.Item'Pos (Active_Lines (K).Item))),
-                     others   => <>));
-            end loop;
-            Add (M, N, Make ("BACK", Back));
-         when Timers_Menu =>
-            Add (M, N, Make ("--- TIMERS ---", Label));
-            for I in Timer_Fields'Range loop
-               pragma Loop_Invariant (N = 1 + 3 * I and then Fixed_Below (M, N));
-               Add (M, N, Choice ((if I = 0 then "1 SRC" else "2 SRC"), Interfaces.Integer_32 (T.Timers.Source (I)), 4,
-                                  Timer_Source_Name (Natural (T.Timers.Source (I)))));
-               Add (M, N, Choice ((if I = 0 then "1 PREC" else "2 PREC"),
-                                  Interfaces.Integer_32 (T.Timers.Precision (I)), 2,
-                                  Timer_Precision_Name (Natural (T.Timers.Precision (I)))));
-               Add (M, N, Number ((if I = 0 then "1 ALARM" else "2 ALARM"), Interfaces.Integer_32 (T.Timers.Alarm (I)),
-                                  0, 255));
-            end loop;
-            Add (M, N, Make ("BACK", Back));
-         when Alarms_Menu =>
-            declare
-               A : Alarm_Copies renames T.Alarms;
-            begin
-               Add (M, N, Make ("--- ALARMS ---", Label));
-               Add (M, N, Number ("RSSI", Interfaces.Integer_32 (A.RSSI), 5, 90, Step => 5));
-               Add (M, N, Number ("LINK QUALITY", Interfaces.Integer_32 (A.Link_Quality), 5, 300, UInt16, 5));
-               Add (M, N, Number ("RSSI DBM", Interfaces.Integer_32 (A.RSSI_Dbm), -130, 20, Int16, 5));
-               Add (M, N, Number ("RSNR", Interfaces.Integer_32 (A.RSNR), -30, 20, Int16, 5));
-               Add (M, N, Number ("MAIN BAT", Interfaces.Integer_32 (A.Capacity), 50, 30_000, UInt16, 50));
-               Add (M, N, Number ("MAX ALT", Interfaces.Integer_32 (A.Altitude), 1, 200, UInt16));
-               Add (M, N, Number ("MAX DISTANCE", Interfaces.Integer_32 (A.Distance), 0, 65_535, UInt16, 10));
-               Add (M, N, Number ("VBAT WARN DUR", Interfaces.Integer_32 (A.Warning_Duration), 0, 200));
-               Add (M, N, Number ("VBAT CRIT DUR", Interfaces.Integer_32 (A.Critical_Duration), 0, 200));
-               Add (M, N, Make ("BACK", Back));
-            end;
-         when others =>
-            Add (M, N, Make ("", Label));
-      end case;
+      Add (M, N, Make ("-- SETUP MENU --", Label));
+      if T.Popup.Acc_Line then
+         Add (M, N, Text_Line ("CALIBRATE ACC", Funcall, T.Popup.Acc_Status, Has_Func => True, Flags => Dynamic));
+      end if;
+      if T.Popup.Battery_Line then
+         declare
+            L : Line := Make ("", Funcall, Has_Func => True, Flags => Dynamic);
+         begin
+            L.Text := T.Popup.Battery_Text;
+            Add (M, N, L);
+         end;
+      end if;
+      Add (M, N, Make ("EXIT", Back, Flags => Dynamic));
       M.Count := N;
-   end Load_OSD;
+   end Load_Setup_Popup;
 
-   --  The profile menu with its PID and rate menus.
-   procedure Load_Profile (T : Target; Id : Menu_Id; M : out Table)
+   procedure Load_Save_Exit (M : out Table)
      with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
    is
       use Adaflight.Menu;
       N : Line_Count := 0;
    begin
       M := Empty_Table;
-      case Id is
-         when Profile_Menu =>
-            Add (M, N, Make ("-- PROFILE --", Label));
-            Add (M, N, Choice ("PID PROF", Interfaces.Integer_32 (T.Profile.PID_Line), PID_Profile_Count - 1,
-                               Profile_Name (T.Profile.PID_Names, Natural (T.Profile.PID_Line)), Has_Func => True));
-            Add (M, N, Sub ("PID", PID_Menu));
-            Add (M, N, Sub ("SIMPLIFIED TUNING", Simplified_Menu));
-            Add (M, N, Sub ("MISC PP", Profile_Other_Menu));
-            Add (M, N, Sub ("FILT PP", Filter_Profile_Menu));
-            Add (M, N, Choice ("RATE PROF", Interfaces.Integer_32 (T.Profile.Rate_Line), Rate_Profile_Count - 1,
-                               Profile_Name (T.Profile.Rate_Names, Natural (T.Profile.Rate_Line)), Has_Func => True));
-            Add (M, N, Sub ("RATE", Rate_Menu));
-            Add (M, N, Sub ("FILT GLB", Filter_Global_Menu));
-            Add (M, N, Sub ("DYN FILT", Dynamic_Filter_Menu));
-            Add (M, N, Sub ("COPY PROF", Copy_Profile_Menu));
-            Add (M, N, Make ("BACK", Back));
-         when PID_Menu =>
-            declare
-               G : Gain_Table renames T.PID.Gains;
-               F : Feedforward_Table renames T.PID.Feedforward;
-            begin
-               Add (M, N, Text_Line ("-- PID --", Label, T.PID.Profile_Text));
-               Add (M, N, Number ("ROLL  P", Interfaces.Integer_32 (G (0, 0)), 0, 200, Flags => Slider_RP));
-               Add (M, N, Number ("ROLL  I", Interfaces.Integer_32 (G (0, 1)), 0, 200, Flags => Slider_RP));
-               Add (M, N, Number ("ROLL  D", Interfaces.Integer_32 (G (0, 2)), 0, 200, Flags => Slider_RP));
-               Add (M, N, Number ("ROLL  F", Interfaces.Integer_32 (F (0)), 0, 2000, UInt16, Flags => Slider_RP));
-               Add (M, N, Number ("PITCH P", Interfaces.Integer_32 (G (1, 0)), 0, 200, Flags => Slider_RP));
-               Add (M, N, Number ("PITCH I", Interfaces.Integer_32 (G (1, 1)), 0, 200, Flags => Slider_RP));
-               Add (M, N, Number ("PITCH D", Interfaces.Integer_32 (G (1, 2)), 0, 200, Flags => Slider_RP));
-               Add (M, N, Number ("PITCH F", Interfaces.Integer_32 (F (1)), 0, 2000, UInt16, Flags => Slider_RP));
-               Add (M, N, Number ("YAW   P", Interfaces.Integer_32 (G (2, 0)), 0, 200, Flags => Slider_RPY));
-               Add (M, N, Number ("YAW   I", Interfaces.Integer_32 (G (2, 1)), 0, 200, Flags => Slider_RPY));
-               Add (M, N, Number ("YAW   D", Interfaces.Integer_32 (G (2, 2)), 0, 200, Flags => Slider_RPY));
-               Add (M, N, Number ("YAW   F", Interfaces.Integer_32 (F (2)), 0, 2000, UInt16, Flags => Slider_RPY));
-               Add (M, N, Make ("BACK", Back));
-            end;
-         when Rate_Menu =>
-            declare
-               R : Adaflight.Config_Groups.Control_Rate_Config_Record renames T.Rate.Profile;
-            begin
-               Add (M, N, Text_Line ("-- RATE --", Label, T.Rate.Profile_Text));
-               Add (M, N, Fixed_Number ("RC R RATE", Interfaces.Integer_32 (R.Rc_Rates (0)), 1, 255, 10));
-               Add (M, N, Fixed_Number ("RC P RATE", Interfaces.Integer_32 (R.Rc_Rates (1)), 1, 255, 10));
-               Add (M, N, Fixed_Number ("RC Y RATE", Interfaces.Integer_32 (R.Rc_Rates (2)), 1, 255, 10));
-               Add (M, N, Fixed_Number ("ROLL SUPER", Interfaces.Integer_32 (R.Rates (0)), 0, 255, 10));
-               Add (M, N, Fixed_Number ("PITCH SUPER", Interfaces.Integer_32 (R.Rates (1)), 0, 255, 10));
-               Add (M, N, Fixed_Number ("YAW SUPER", Interfaces.Integer_32 (R.Rates (2)), 0, 255, 10));
-               Add (M, N, Fixed_Number ("RC R EXPO", Interfaces.Integer_32 (R.Rc_Expo (0)), 0, 100, 10));
-               Add (M, N, Fixed_Number ("RC P EXPO", Interfaces.Integer_32 (R.Rc_Expo (1)), 0, 100, 10));
-               Add (M, N, Fixed_Number ("RC Y EXPO", Interfaces.Integer_32 (R.Rc_Expo (2)), 0, 100, 10));
-               Add (M, N, Number ("THR MID", Interfaces.Integer_32 (R.Thr_Mid8), 0, 100));
-               Add (M, N, Number ("THR EXPO", Interfaces.Integer_32 (R.Thr_Expo8), 0, 100));
-               Add (M, N, Number ("THR HOVER", Interfaces.Integer_32 (R.Thr_Hover8), 0, 100));
-               Add (M, N, Choice ("THR LIM TYPE", Interfaces.Integer_32 (R.Throttle_Limit_Type), 2,
-                                  Throttle_Limit_Name (Natural (R.Throttle_Limit_Type))));
-               Add (M, N, Number ("THR LIM %", Interfaces.Integer_32 (R.Throttle_Limit_Percent), 25, 100));
-               Add (M, N, Make ("BACK", Back));
-            end;
-         when Simplified_Menu =>
-            declare
-               S : Simplified_Copies renames T.Simplified;
-            begin
-               Add (M, N, Make ("-- SIMPLIFIED PID --", Label));
-               Add (M, N, Choice ("PID TUNING", Interfaces.Integer_32 (S.Mode), 2,
-                                  Setting_Name (Adaflight.Settings_Table.Table_Simplified_Tuning_Pids_Mode,
-                                                Natural (S.Mode))));
-               Add (M, N, Make ("-- BASIC --", Label));
-               Add (M, N, Fixed_Number ("D GAINS", Interfaces.Integer_32 (S.D_Gain), 0, 200, 10, Step => 5));
-               Add (M, N, Fixed_Number ("P&I GAINS", Interfaces.Integer_32 (S.PI_Gain), 0, 200, 10, Step => 5));
-               Add (M, N, Fixed_Number ("FF GAINS", Interfaces.Integer_32 (S.FF_Gain), 0, 200, 10, Step => 5));
-               Add (M, N, Make ("-- EXPERT --", Label));
-               Add (M, N, Fixed_Number ("D MAX", Interfaces.Integer_32 (S.D_Max_Gain), 0, 200, 10, Step => 5));
-               Add (M, N, Fixed_Number ("I GAINS", Interfaces.Integer_32 (S.I_Gain), 0, 200, 10, Step => 5));
-               Add (M, N, Fixed_Number ("PITCH:ROLL D", Interfaces.Integer_32 (S.Roll_Pitch_Ratio), 0, 200, 10,
-                                        Step => 5));
-               Add (M, N, Fixed_Number ("PITCH:ROLL P,I&FF", Interfaces.Integer_32 (S.Pitch_PI_Gain), 0, 200, 10,
-                                        Step => 5));
-               Add (M, N, Fixed_Number ("MASTER MULT", Interfaces.Integer_32 (S.Master), 0, 200, 10, Step => 5));
-               Add (M, N, Make ("-- SIMPLIFIED FILTER --", Label));
-               Add (M, N, Choice ("GYRO TUNING", Interfaces.Integer_32 (S.Gyro_Filter), 1,
-                                  Setting_Name (Adaflight.Settings_Table.Table_Off_On, Natural (S.Gyro_Filter))));
-               Add (M, N, Fixed_Number ("GYRO MULT", Interfaces.Integer_32 (S.Gyro_Multiplier), 10, 200, 10,
-                                        Step => 5));
-               Add (M, N, Choice ("DTERM TUNING", Interfaces.Integer_32 (S.DTerm_Filter), 1,
-                                  Setting_Name (Adaflight.Settings_Table.Table_Off_On, Natural (S.DTerm_Filter))));
-               Add (M, N, Fixed_Number ("DTERM MULT", Interfaces.Integer_32 (S.DTerm_Multiplier), 10, 200, 10,
-                                        Step => 5));
-               Add (M, N, Make ("BACK", Back));
-            end;
-         when Profile_Other_Menu =>
-            declare
-               O : Other_Copies renames T.Other;
-            begin
-               Add (M, N, Text_Line ("-- OTHER PP --", Label, T.PID.Profile_Text));
-               Add (M, N, Fixed_Number ("FF TRANSITION", Interfaces.Integer_32 (O.FF_Transition), 0, 100, 10));
-               Add (M, N, Choice ("FF AVERAGING", Interfaces.Integer_32 (O.FF_Averaging), 4,
-                                  Setting_Name (Adaflight.Settings_Table.Table_Feedforward_Averaging,
-                                                Natural (O.FF_Averaging))));
-               Add (M, N, Number ("FF SMOOTHNESS", Interfaces.Integer_32 (O.FF_Smooth), 0, 95));
-               Add (M, N, Number ("FF JITTER", Interfaces.Integer_32 (O.FF_Jitter), 0, 20));
-               Add (M, N, Number ("FF BOOST", Interfaces.Integer_32 (O.FF_Boost), 0, 50));
-               Add (M, N, Number ("ANGLE P", Interfaces.Integer_32 (O.Angle_P), 0, 200));
-               Add (M, N, Number ("ANGLE FF", Interfaces.Integer_32 (O.Angle_FF), 0, 200));
-               Add (M, N, Number ("ANGLE LIMIT", Interfaces.Integer_32 (O.Angle_Limit), 10, 90));
-               Add (M, N, Number ("ANGLE E_REF", Interfaces.Integer_32 (O.Angle_Earth_Ref), 0, 100));
-               Add (M, N, Number ("HORZN STR", Interfaces.Integer_32 (O.Horizon_Strength), 0, 100));
-               Add (M, N, Number ("HORZN LIM_STK", Interfaces.Integer_32 (O.Horizon_Sticks), 10, 200));
-               Add (M, N, Number ("HORZN LIM_DEG", Interfaces.Integer_32 (O.Horizon_Degrees), 10, 250));
-               Add (M, N, Fixed_Number ("AG GAIN", Interfaces.Integer_32 (O.Anti_Gravity_Gain), 0, 250, 100));
-               Add (M, N, Number ("THR BOOST", Interfaces.Integer_32 (O.Throttle_Boost), 0, 100));
-               Add (M, N, Number ("THR LINEAR", Interfaces.Integer_32 (O.Thrust_Linearization), 0, 150));
-               Add (M, N, Choice ("I_RELAX", Interfaces.Integer_32 (O.Iterm_Relax), 4,
-                                  Setting_Name (Adaflight.Settings_Table.Table_Iterm_Relax, Natural (O.Iterm_Relax))));
-               Add (M, N, Choice ("I_RELAX TYPE", Interfaces.Integer_32 (O.Iterm_Relax_Type), 1,
-                                  Setting_Name (Adaflight.Settings_Table.Table_Iterm_Relax_Type,
-                                                Natural (O.Iterm_Relax_Type))));
-               Add (M, N, Number ("I_RELAX CUTOFF", Interfaces.Integer_32 (O.Iterm_Relax_Cutoff), 1, 50));
-               Add (M, N, Sub ("LAUNCH CONTROL", Launch_Control_Menu));
-               Add (M, N, Number ("MTR OUT LIM %", Interfaces.Integer_32 (O.Motor_Output_Limit), 1, 100));
-               Add (M, N, Number ("AUTO CELL CNT", Interfaces.Integer_32 (O.Auto_Cell_Count), -1, 8, Int8));
-               Add (M, N, Number ("D_MAX ROLL", Interfaces.Integer_32 (O.D_Max (0)), 0, 100, Flags => Slider_RP));
-               Add (M, N, Number ("D_MAX PITCH", Interfaces.Integer_32 (O.D_Max (1)), 0, 100, Flags => Slider_RP));
-               Add (M, N, Number ("D_MAX YAW", Interfaces.Integer_32 (O.D_Max (2)), 0, 100, Flags => Slider_RPY));
-               Add (M, N, Number ("D_MAX GAIN", Interfaces.Integer_32 (O.D_Max_Gain), 0, 100));
-               Add (M, N, Number ("D_MAX ADV", Interfaces.Integer_32 (O.D_Max_Advance), 0, 200));
-               Add (M, N, Number ("VBAT_SAG_COMP", Interfaces.Integer_32 (O.Vbat_Sag), 0, 150));
-               Add (M, N, Fixed_Number ("TPA RATE", Interfaces.Integer_32 (O.TPA_Rate), 0, 100, 10));
-               Add (M, N, Number ("TPA BRKPT", Interfaces.Integer_32 (O.TPA_Breakpoint), 1000, 2000, UInt16, 10));
-               Add (M, N, Number ("TPA LOW RATE", Interfaces.Integer_32 (O.TPA_Low_Rate), 0, 100, Int8));
-               Add (M, N, Number ("TPA LOW BRKPT", Interfaces.Integer_32 (O.TPA_Low_Breakpoint), 1000, 2000, UInt16,
-                                  10));
-               Add (M, N, Make ("TPA LOW ALWYS", Bool, Has_Data => True,
-                                Value => Interfaces.Integer_32 (O.TPA_Low_Always)));
-               Add (M, N, Number ("EZDISARM THR", Interfaces.Integer_32 (O.Landing_Disarm), 0, 150));
-               Add (M, N, Make ("BACK", Back));
-            end;
-         when Launch_Control_Menu =>
-            declare
-               L : Launch_Copies renames T.Launch;
-            begin
-               Add (M, N, Text_Line ("-- LAUNCH CONTROL --", Label, T.PID.Profile_Text));
-               Add (M, N, Choice ("MODE", Interfaces.Integer_32 (L.Mode), 2,
-                                  Setting_Name (Adaflight.Settings_Table.Table_Launch_Control_Mode, Natural (L.Mode))));
-               Add (M, N, Make ("ALLOW RESET", Bool, Has_Data => True, Value => Interfaces.Integer_32 (L.Allow_Reset)));
-               Add (M, N, Number ("TRIGGER THROTTLE", Interfaces.Integer_32 (L.Throttle_Percent), 0, 90));
-               Add (M, N, Number ("ANGLE LIMIT", Interfaces.Integer_32 (L.Angle_Limit), 0, 80));
-               Add (M, N, Number ("ITERM GAIN", Interfaces.Integer_32 (L.Gain), 0, 200));
-               Add (M, N, Make ("BACK", Back));
-            end;
-         when others =>
-            Add (M, N, Make ("", Label));
-      end case;
+      Add (M, N, Make ("-- SAVE/EXIT --", Label));
+      Add (M, N, Make ("EXIT", OSD_Exit, Has_Func => True, Value => 0));
+      Add (M, N, Make ("SAVE&EXIT", OSD_Exit, Has_Func => True, Has_Data => True, Value => 3));
+      Add (M, N, Make ("SAVE&REBOOT", OSD_Exit, Has_Func => True, Has_Data => True, Value => 4));
+      Add (M, N, Make ("BACK", Back));
       M.Count := N;
-   end Load_Profile;
+   end Load_Save_Exit;
+
+   procedure Load_Save_Exit_Reboot (M : out Table)
+     with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
+   is
+      use Adaflight.Menu;
+      N : Line_Count := 0;
+   begin
+      M := Empty_Table;
+      Add (M, N, Make ("-- SAVE/EXIT (REBOOT REQD)", Label));
+      Add (M, N, Make ("EXIT&REBOOT", OSD_Exit, Has_Func => True, Has_Data => True, Value => 5));
+      Add (M, N, Make ("SAVE&REBOOT", OSD_Exit, Has_Func => True, Has_Data => True, Value => 4));
+      Add (M, N, Make ("BACK", Back));
+      M.Count := N;
+   end Load_Save_Exit_Reboot;
+
+   procedure Load_VTX_Error_Menu (T : Target; M : out Table)
+     with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
+   is
+      use Adaflight.Menu;
+      N : Line_Count := 0;
+   begin
+      M := Empty_Table;
+      Add (M, N, Text_Line ("", Label, T.VTX_Status.Line_1, Flags => Dynamic));
+      Add (M, N, Text_Line ("", Label, T.VTX_Status.Line_2, Flags => Dynamic));
+      Add (M, N, Make ("", Label));
+      Add (M, N, Make ("BACK", Back));
+      M.Count := N;
+   end Load_VTX_Error_Menu;
+
+   procedure Load_Power_Menu (T : Target; M : out Table)
+     with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
+   is
+      use Adaflight.Menu;
+      N : Line_Count := 0;
+   begin
+      M := Empty_Table;
+      declare
+         P : Power_Copies renames T.Power;
+      begin
+         Add (M, N, Make ("-- POWER --", Label));
+         Add (M, N, Choice ("V METER", Interfaces.Integer_32 (P.Voltage_Meter_Source), 2,
+                      Voltage_Meter_Name (Natural (P.Voltage_Meter_Source)), Reboot));
+         Add (M, N, Choice ("I METER", Interfaces.Integer_32 (P.Current_Meter_Source), 4,
+                      Current_Meter_Name (Natural (P.Current_Meter_Source)), Reboot));
+         Add (M, N, Number ("VBAT CLMIN", Interfaces.Integer_32 (P.Min_Cell_Voltage), 100, 500, UInt16));
+         Add (M, N, Number ("VBAT CLMAX", Interfaces.Integer_32 (P.Max_Cell_Voltage), 100, 500, UInt16));
+         Add (M, N, Number ("VBAT CLWARN", Interfaces.Integer_32 (P.Warning_Cell_Voltage), 100, 500, UInt16));
+         Add (M, N, Number ("VBAT SCALE", Interfaces.Integer_32 (P.Voltage_Scale), 0, 255));
+         Add (M, N, Number ("IBAT SCALE", Interfaces.Integer_32 (P.Current_Scale), -16_000, 16_000, Int16, 5));
+         Add (M, N, Number ("IBAT OFFSET", Interfaces.Integer_32 (P.Current_Offset), -32_000, 32_000, Int16, 5));
+         Add (M, N,
+              Number ("IBAT VIRT SCALE", Interfaces.Integer_32 (P.Virtual_Scale), -16_000, 16_000, Int16, 5));
+         Add (M, N, Number ("IBAT VIRT OFFSET", Interfaces.Integer_32 (P.Virtual_Offset), 0, 16_000, UInt16, 5));
+         Add (M, N, Make ("BACK", Back));
+      end;
+      M.Count := N;
+   end Load_Power_Menu;
+
+   procedure Load_Failsafe_Menu (T : Target; M : out Table)
+     with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
+   is
+      use Adaflight.Menu;
+      N : Line_Count := 0;
+   begin
+      M := Empty_Table;
+      Add (M, N, Make ("-- FAILSAFE --", Label));
+      Add (M, N, Choice ("PROCEDURE", Interfaces.Integer_32 (T.Failsafe.Procedure_Kind), 2,
+                   Procedure_Name (Natural (T.Failsafe.Procedure_Kind)), Reboot));
+      Add (M, N, Fixed_Number ("GUARD TIME", Interfaces.Integer_32 (T.Failsafe.Guard_Time), 1, 200, 100, Reboot));
+      Add (M, N,
+           Number ("LANDING_TIME", Interfaces.Integer_32 (T.Failsafe.Landing_Time), 0, 250, Flags => Reboot));
+      Add (M, N, Number ("STAGE 2 THROTTLE", Interfaces.Integer_32 (T.Failsafe.Throttle), 750, 2250, UInt16,
+                   Flags => Reboot));
+      Add (M, N, Make ("BACK", Back));
+      M.Count := N;
+   end Load_Failsafe_Menu;
+
+   procedure Load_RPM_Limit_Menu (T : Target; M : out Table)
+     with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
+   is
+      use Adaflight.Menu;
+      N : Line_Count := 0;
+   begin
+      M := Empty_Table;
+      Add (M, N, Make ("-- RPM LIMIT --", Label));
+      Add (M, N,
+           Make ("ACTIVE", Bool, Has_Data => True, Value => Boolean'Pos (T.RPM_Limit.Active), Flags => Reboot));
+      Add (M, N, Number ("MAX RPM", Interfaces.Integer_32 (T.RPM_Limit.Limit), 0, 65_535, UInt16, 100));
+      Add (M, N, Number ("KV", Interfaces.Integer_32 (T.RPM_Limit.KV), 0, 65_535, UInt16));
+      Add (M, N, Make ("SAVE&REBOOT", OSD_Exit, Has_Func => True, Has_Data => True, Value => 4));
+      Add (M, N, Make ("BACK", Back));
+      M.Count := N;
+   end Load_RPM_Limit_Menu;
+
+   procedure Load_Misc_Menu (T : Target; M : out Table)
+     with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
+   is
+      use Adaflight.Menu;
+      N : Line_Count := 0;
+   begin
+      M := Empty_Table;
+      Add (M, N, Make ("-- MISC --", Label));
+      Add (M, N, Number ("IDLE OFFSET", Interfaces.Integer_32 (T.Misc.Idle_Offset), 0, 200, Flags => Reboot));
+      Add (M, N, Number ("FPV CAM ANGLE", Interfaces.Integer_32 (T.Misc.FPV_Cam_Angle), 0, 90));
+      Add (M, N,
+           Number ("CRASHFLIP RATE", Interfaces.Integer_32 (T.Misc.Crashflip_Rate), 0, 100, Flags => Reboot));
+      Add (M, N, Sub ("RC PREV", RC_Preview_Menu));
+      Add (M, N, Sub ("GPS LAP TIMER", GPS_Lap_Timer_Menu));
+      Add (M, N, Make ("BACK", Back));
+      M.Count := N;
+   end Load_Misc_Menu;
+
+   procedure Load_RC_Preview_Menu (T : Target; M : out Table)
+     with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
+   is
+      use Adaflight.Menu;
+      N : Line_Count := 0;
+   begin
+      M := Empty_Table;
+      Add (M, N, Make ("-- RC PREV --", Label));
+      for C in RC_Values'Range loop
+         pragma Loop_Invariant
+           (N = C + 1
+            and then (for all I in 0 .. N - 1 =>
+                        (if Element_Of (M.Lines (I).Flags) = Fixed then M.Lines (I).Value in 0 .. 255)));
+         Add (M, N, Number (RC_Names (C) (1 .. RC_Name_Lengths (C)),
+                      Interfaces.Integer_32 (T.Preview (RC_Line_Channels (C))), 1, 2500, Int16, 0, Dynamic));
+      end loop;
+      Add (M, N, Make ("BACK", Back));
+      M.Count := N;
+   end Load_RC_Preview_Menu;
+
+   procedure Load_Persistent_Stats_Menu (T : Target; M : out Table)
+     with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
+   is
+      use Adaflight.Menu;
+      N : Line_Count := 0;
+   begin
+      M := Empty_Table;
+      Add (M, N, Make ("-- PERSISTENT STATS --", Label));
+      Add (M, N, Number ("FLIGHTS", Signed_Word (T.Stats.Total_Flights), 0, -1, UInt32));
+      Add (M, N, Number ("TIME(sec)", Signed_Word (T.Stats.Total_Time_S), 0, -1, UInt32));
+      Add (M, N, Number ("DIST(m)", Signed_Word (T.Stats.Total_Dist_M), 0, -1, UInt32));
+      Add (M, N, Make ("RESET STATS", Funcall, Has_Func => True));
+      Add (M, N, Make ("--- SETTINGS ---", Label));
+      Add (M, N, Number ("MIN ARMED TIME(sec)", Interfaces.Integer_32 (T.Stats.Min_Armed_Time), -1, 127, Int8));
+      Add (M, N, Make ("BACK", Back));
+      M.Count := N;
+   end Load_Persistent_Stats_Menu;
+
+   procedure Load_GPS_Lap_Timer_Menu (T : Target; M : out Table)
+     with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
+   is
+      use Adaflight.Menu;
+      N : Line_Count := 0;
+   begin
+      M := Empty_Table;
+      Add (M, N, Make ("--- GPS LAP TIMER ---", Label));
+      Add (M, N, Sub ("SET POSITION", Set_Gate_Menu));
+      Add (M, N, Number ("GATE RADIUS(M)", Interfaces.Integer_32 (T.Lap.Gate_Tolerance), 1, 100));
+      Add (M, N, Number ("MIN LAP SECONDS", Interfaces.Integer_32 (T.Lap.Minimum_Lap_Time), 0, 3000, UInt16));
+      Add (M, N, Make ("BACK", Back));
+      M.Count := N;
+   end Load_GPS_Lap_Timer_Menu;
+
+   procedure Load_Set_Gate_Menu (T : Target; M : out Table)
+     with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
+   is
+      use Adaflight.Menu;
+      N : Line_Count := 0;
+   begin
+      M := Empty_Table;
+      Add (M, N, Make ("SETTING POSITION", Label));
+      Add (M, N,
+           Number ("READINGS", Interfaces.Integer_32 (T.Live.Gate_Set_Readings), 0, 2000, UInt16, 0, Dynamic));
+      Add (M, N, Number ("DISTANCE(CM)", Signed_Word (T.Live.Gate_Distance_Cm), 0, 200, UInt32, 0, Dynamic));
+      Add (M, N, Make ("BACK", Back));
+      M.Count := N;
+   end Load_Set_Gate_Menu;
+
+   procedure Load_Blackbox_Menu (T : Target; M : out Table)
+     with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
+   is
+      use Adaflight.Menu;
+      N : Line_Count := 0;
+   begin
+      M := Empty_Table;
+      declare
+         B : Blackbox_Copies renames T.Blackbox;
+      begin
+         Add (M, N, Make ("-- BLACKBOX --", Label));
+         Add (M, N, Text_Line ("(PID FREQ)", Str, B.PID_Frequency));
+         Add (M, N,
+              Choice ("SAMPLERATE", Interfaces.Integer_32 (B.Rate), 4, Blackbox_Rate_Name (Natural (B.Rate)),
+                      Reboot));
+         Add (M, N,
+              Choice ("DEVICE", Interfaces.Integer_32 (B.Device), 3, Blackbox_Device_Name (Natural (B.Device)),
+                      Reboot));
+         Add (M, N, Text_Line ("(STATUS)", Str, B.Status));
+         Add (M, N, Text_Line ("(USED)", Str, B.Used));
+         Add (M, N, Text_Line ("(FREE)", Str, B.Free));
+         Add (M, N,
+              Choice ("DEBUG MODE", Interfaces.Integer_32 (B.Debug_Mode), Interfaces.Integer_32 (Debug_Count) - 1,
+                      Debug_Name (Natural (B.Debug_Mode)), Reboot));
+         Add (M, N, Sub ("USB MASS STORAGE", Storage_Device_Menu));
+         Add (M, N, Sub ("ERASE FLASH", Erase_Flash_Menu));
+         Add (M, N, Make ("BACK", Back));
+      end;
+      M.Count := N;
+   end Load_Blackbox_Menu;
+
+   procedure Load_Erase_Flash_Menu (M : out Table)
+     with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
+   is
+      use Adaflight.Menu;
+      N : Line_Count := 0;
+   begin
+      M := Empty_Table;
+      Add (M, N, Make ("CONFIRM ERASE", Label));
+      Add (M, N, Make ("NO", Back));
+      Add (M, N, Make ("YES", Funcall, Has_Func => True));
+      M.Count := N;
+   end Load_Erase_Flash_Menu;
+
+   procedure Load_Storage_Device_Menu (M : out Table)
+     with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
+   is
+      use Adaflight.Menu;
+      N : Line_Count := 0;
+   begin
+      M := Empty_Table;
+      Add (M, N, Make ("CONFIRM USB MASS STORAGE", Label));
+      Add (M, N, Make ("NO", Back));
+      Add (M, N, Make ("YES", Funcall, Has_Func => True));
+      M.Count := N;
+   end Load_Storage_Device_Menu;
+
+   procedure Load_LED_Strip_Menu (T : Target; M : out Table)
+     with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
+   is
+      use Adaflight.Menu;
+      N : Line_Count := 0;
+   begin
+      M := Empty_Table;
+      declare
+         L : LED_Copies renames T.LED;
+      begin
+         Add (M, N, Make ("-- LED STRIP --", Label));
+         Add (M, N, Make ("ENABLED", Bool, Has_Data => True, Value => Interfaces.Integer_32 (L.Enabled)));
+         Add (M, N, Choice ("PROFILE", Interfaces.Integer_32 (L.Profile), LED_Profile_Count - 1,
+                      LED_Profile_Name (Natural (L.Profile))));
+         Add (M, N, Choice ("RACE COLOR", Interfaces.Integer_32 (L.Race_Color), LED_Color_Count - 1,
+                      LED_Color_Name (Natural (L.Race_Color))));
+         Add (M, N, Choice ("BEACON COLOR", Interfaces.Integer_32 (L.Beacon_Color), LED_Color_Count - 1,
+                      LED_Color_Name (Natural (L.Beacon_Color))));
+         Add (M, N, Number ("BEACON PERIOD", Interfaces.Integer_32 (L.Beacon_Period), 50, 10_000, UInt16, 10));
+         Add (M, N, Number ("BEACON ON %", Interfaces.Integer_32 (L.Beacon_On_Percent), 0, 100));
+         Add (M, N, Make ("BEACON ARMED ONLY", Bool, Has_Data => True,
+                    Value => Interfaces.Integer_32 (L.Beacon_Armed_Only)));
+         Add (M, N,
+              Make ("VISUAL BEEPER", Bool, Has_Data => True, Value => Interfaces.Integer_32 (L.Visual_Beeper)));
+         Add (M, N, Choice ("VISUAL COLOR", Interfaces.Integer_32 (L.Visual_Beeper_Color), LED_Color_Count - 1,
+                      LED_Color_Name (Natural (L.Visual_Beeper_Color))));
+         Add (M, N, Make ("BACK", Back));
+      end;
+      M.Count := N;
+   end Load_LED_Strip_Menu;
+
+   procedure Load_Firmware_Menu (T : Target; M : out Table)
+     with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
+   is
+      use Adaflight.Menu;
+      N : Line_Count := 0;
+   begin
+      M := Empty_Table;
+      Add (M, N, Make ("--- INFO ---", Label));
+      Add (M, N, Text_Line ("FWID", Str, T.Identity.Identifier));
+      Add (M, N, Text_Line ("FWVER", Str, T.Identity.Version));
+      Add (M, N, Text_Line ("GITREV", Str, T.Identity.Revision));
+      Add (M, N, Text_Line ("TARGET", Str, T.Identity.Target_Name));
+      Add (M, N, Text_Line ("MFR", Str, T.Board.Manufacturer_Id));
+      Add (M, N, Text_Line ("BOARD", Str, T.Board.Board_Name));
+      Add (M, N, Make ("--- SETUP ---", Label));
+      Add (M, N, Sub ("CALIBRATE", Calibration_Menu));
+      Add (M, N, Make ("BACK", Back));
+      M.Count := N;
+   end Load_Firmware_Menu;
+
+   procedure Load_Calibration_Menu (T : Target; M : out Table)
+     with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
+   is
+      use Adaflight.Menu;
+      N : Line_Count := 0;
+   begin
+      M := Empty_Table;
+      Add (M, N, Make ("--- CALIBRATE ---", Label));
+      Add (M, N, Text_Line ("GYRO", Funcall, T.Calibration.Gyro, Has_Func => True, Flags => Dynamic));
+      Add (M, N, Text_Line ("ACC", Funcall, T.Calibration.Acc, Has_Func => True, Flags => Dynamic));
+      Add (M, N, Text_Line ("BARO", Funcall, T.Calibration.Baro, Has_Func => True, Flags => Dynamic));
+      Add (M, N, Make ("BACK", Back));
+      M.Count := N;
+   end Load_Calibration_Menu;
+
+   procedure Load_Calibrate_Acc_Menu (M : out Table)
+     with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
+   is
+      use Adaflight.Menu;
+      N : Line_Count := 0;
+   begin
+      M := Empty_Table;
+      Add (M, N, Make ("--- CALIBRATE ACC ---", Label));
+      Add (M, N, Make ("PLACE ON A LEVEL SURFACE", Label));
+      Add (M, N, Make ("MAKE SURE CRAFT IS STILL", Label));
+      Add (M, N, Make (" ", Label));
+      Add (M, N, Make ("START CALIBRATION", Funcall, Has_Func => True));
+      Add (M, N, Make ("BACK", Back));
+      M.Count := N;
+   end Load_Calibrate_Acc_Menu;
+
+   procedure Load_OSD_Menu (T : Target; M : out Table)
+     with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
+   is
+      use Adaflight.Menu;
+      N : Line_Count := 0;
+   begin
+      M := Empty_Table;
+      Add (M, N, Make ("---OSD---", Label));
+      Add (M, N, Number ("OSD PROFILE", Interfaces.Integer_32 (T.OSD.Profile), 1, 3));
+      Add (M, N, Sub ("ACTIVE ELEM", Active_Elements_Menu));
+      Add (M, N, Sub ("TIMERS", Timers_Menu));
+      Add (M, N, Sub ("ALARMS", Alarms_Menu));
+      Add (M, N, Make ("INVERT", Bool, Has_Func => True, Has_Data => True, Value => Boolean'Pos (T.OSD.Invert)));
+      Add (M, N, Number ("BRT BLACK", Interfaces.Integer_32 (T.OSD.Black_Brightness), 0, 3, Has_Func => True));
+      Add (M, N, Number ("BRT WHITE", Interfaces.Integer_32 (T.OSD.White_Brightness), 0, 3, Has_Func => True));
+      Add (M, N, Choice ("BACKGROUND", Interfaces.Integer_32 (T.OSD.Background), 3,
+                         Background_Name (Natural (T.OSD.Background)), Has_Func => True));
+      Add (M, N, Make ("BACK", Back));
+      M.Count := N;
+   end Load_OSD_Menu;
+
+   procedure Load_Active_Elements_Menu (T : Target; M : out Table)
+     with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
+   is
+      use Adaflight.Menu;
+      N : Line_Count := 0;
+   begin
+      M := Empty_Table;
+      Add (M, N, Make ("--- ACTIV ELEM ---", Label));
+      for K in Active_Lines'Range loop
+         pragma Loop_Invariant (N = K and then Fixed_Below (M, N));
+         Add (M, N,
+              (Text     => Active_Lines (K).Name,
+               Flags    => Code (Visible) or Dynamic,
+               Has_Data => True,
+               Value    =>
+                 Interfaces.Integer_32 (T.Elements (Adaflight.OSD_Elements.Item'Pos (Active_Lines (K).Item))),
+               others   => <>));
+      end loop;
+      Add (M, N, Make ("BACK", Back));
+      M.Count := N;
+   end Load_Active_Elements_Menu;
+
+   procedure Load_Timers_Menu (T : Target; M : out Table)
+     with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
+   is
+      use Adaflight.Menu;
+      N : Line_Count := 0;
+   begin
+      M := Empty_Table;
+      Add (M, N, Make ("--- TIMERS ---", Label));
+      for I in Timer_Fields'Range loop
+         pragma Loop_Invariant (N = 1 + 3 * I and then Fixed_Below (M, N));
+         Add (M, N, Choice ((if I = 0 then "1 SRC" else "2 SRC"), Interfaces.Integer_32 (T.Timers.Source (I)), 4,
+                            Timer_Source_Name (Natural (T.Timers.Source (I)))));
+         Add (M, N, Choice ((if I = 0 then "1 PREC" else "2 PREC"),
+                            Interfaces.Integer_32 (T.Timers.Precision (I)), 2,
+                            Timer_Precision_Name (Natural (T.Timers.Precision (I)))));
+         Add (M, N, Number ((if I = 0 then "1 ALARM" else "2 ALARM"), Interfaces.Integer_32 (T.Timers.Alarm (I)),
+                            0, 255));
+      end loop;
+      Add (M, N, Make ("BACK", Back));
+      M.Count := N;
+   end Load_Timers_Menu;
+
+   procedure Load_Alarms_Menu (T : Target; M : out Table)
+     with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
+   is
+      use Adaflight.Menu;
+      N : Line_Count := 0;
+   begin
+      M := Empty_Table;
+      declare
+         A : Alarm_Copies renames T.Alarms;
+      begin
+         Add (M, N, Make ("--- ALARMS ---", Label));
+         Add (M, N, Number ("RSSI", Interfaces.Integer_32 (A.RSSI), 5, 90, Step => 5));
+         Add (M, N, Number ("LINK QUALITY", Interfaces.Integer_32 (A.Link_Quality), 5, 300, UInt16, 5));
+         Add (M, N, Number ("RSSI DBM", Interfaces.Integer_32 (A.RSSI_Dbm), -130, 20, Int16, 5));
+         Add (M, N, Number ("RSNR", Interfaces.Integer_32 (A.RSNR), -30, 20, Int16, 5));
+         Add (M, N, Number ("MAIN BAT", Interfaces.Integer_32 (A.Capacity), 50, 30_000, UInt16, 50));
+         Add (M, N, Number ("MAX ALT", Interfaces.Integer_32 (A.Altitude), 1, 200, UInt16));
+         Add (M, N, Number ("MAX DISTANCE", Interfaces.Integer_32 (A.Distance), 0, 65_535, UInt16, 10));
+         Add (M, N, Number ("VBAT WARN DUR", Interfaces.Integer_32 (A.Warning_Duration), 0, 200));
+         Add (M, N, Number ("VBAT CRIT DUR", Interfaces.Integer_32 (A.Critical_Duration), 0, 200));
+         Add (M, N, Make ("BACK", Back));
+      end;
+      M.Count := N;
+   end Load_Alarms_Menu;
+
+   procedure Load_Profile_Menu (T : Target; M : out Table)
+     with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
+   is
+      use Adaflight.Menu;
+      N : Line_Count := 0;
+   begin
+      M := Empty_Table;
+      Add (M, N, Make ("-- PROFILE --", Label));
+      Add (M, N, Choice ("PID PROF", Interfaces.Integer_32 (T.Profile.PID_Line), PID_Profile_Count - 1,
+                         Profile_Name (T.Profile.PID_Names, Natural (T.Profile.PID_Line)), Has_Func => True));
+      Add (M, N, Sub ("PID", PID_Menu));
+      Add (M, N, Sub ("SIMPLIFIED TUNING", Simplified_Menu));
+      Add (M, N, Sub ("MISC PP", Profile_Other_Menu));
+      Add (M, N, Sub ("FILT PP", Filter_Profile_Menu));
+      Add (M, N, Choice ("RATE PROF", Interfaces.Integer_32 (T.Profile.Rate_Line), Rate_Profile_Count - 1,
+                         Profile_Name (T.Profile.Rate_Names, Natural (T.Profile.Rate_Line)), Has_Func => True));
+      Add (M, N, Sub ("RATE", Rate_Menu));
+      Add (M, N, Sub ("FILT GLB", Filter_Global_Menu));
+      Add (M, N, Sub ("DYN FILT", Dynamic_Filter_Menu));
+      Add (M, N, Sub ("COPY PROF", Copy_Profile_Menu));
+      Add (M, N, Make ("BACK", Back));
+      M.Count := N;
+   end Load_Profile_Menu;
+
+   procedure Load_PID_Menu (T : Target; M : out Table)
+     with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
+   is
+      use Adaflight.Menu;
+      N : Line_Count := 0;
+   begin
+      M := Empty_Table;
+      declare
+         G : Gain_Table renames T.PID.Gains;
+         F : Feedforward_Table renames T.PID.Feedforward;
+      begin
+         Add (M, N, Text_Line ("-- PID --", Label, T.PID.Profile_Text));
+         Add (M, N, Number ("ROLL  P", Interfaces.Integer_32 (G (0, 0)), 0, 200, Flags => Slider_RP));
+         Add (M, N, Number ("ROLL  I", Interfaces.Integer_32 (G (0, 1)), 0, 200, Flags => Slider_RP));
+         Add (M, N, Number ("ROLL  D", Interfaces.Integer_32 (G (0, 2)), 0, 200, Flags => Slider_RP));
+         Add (M, N, Number ("ROLL  F", Interfaces.Integer_32 (F (0)), 0, 2000, UInt16, Flags => Slider_RP));
+         Add (M, N, Number ("PITCH P", Interfaces.Integer_32 (G (1, 0)), 0, 200, Flags => Slider_RP));
+         Add (M, N, Number ("PITCH I", Interfaces.Integer_32 (G (1, 1)), 0, 200, Flags => Slider_RP));
+         Add (M, N, Number ("PITCH D", Interfaces.Integer_32 (G (1, 2)), 0, 200, Flags => Slider_RP));
+         Add (M, N, Number ("PITCH F", Interfaces.Integer_32 (F (1)), 0, 2000, UInt16, Flags => Slider_RP));
+         Add (M, N, Number ("YAW   P", Interfaces.Integer_32 (G (2, 0)), 0, 200, Flags => Slider_RPY));
+         Add (M, N, Number ("YAW   I", Interfaces.Integer_32 (G (2, 1)), 0, 200, Flags => Slider_RPY));
+         Add (M, N, Number ("YAW   D", Interfaces.Integer_32 (G (2, 2)), 0, 200, Flags => Slider_RPY));
+         Add (M, N, Number ("YAW   F", Interfaces.Integer_32 (F (2)), 0, 2000, UInt16, Flags => Slider_RPY));
+         Add (M, N, Make ("BACK", Back));
+      end;
+      M.Count := N;
+   end Load_PID_Menu;
+
+   procedure Load_Rate_Menu (T : Target; M : out Table)
+     with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
+   is
+      use Adaflight.Menu;
+      N : Line_Count := 0;
+   begin
+      M := Empty_Table;
+      declare
+         R : Adaflight.Config_Groups.Control_Rate_Config_Record renames T.Rate.Profile;
+      begin
+         Add (M, N, Text_Line ("-- RATE --", Label, T.Rate.Profile_Text));
+         Add (M, N, Fixed_Number ("RC R RATE", Interfaces.Integer_32 (R.Rc_Rates (0)), 1, 255, 10));
+         Add (M, N, Fixed_Number ("RC P RATE", Interfaces.Integer_32 (R.Rc_Rates (1)), 1, 255, 10));
+         Add (M, N, Fixed_Number ("RC Y RATE", Interfaces.Integer_32 (R.Rc_Rates (2)), 1, 255, 10));
+         Add (M, N, Fixed_Number ("ROLL SUPER", Interfaces.Integer_32 (R.Rates (0)), 0, 255, 10));
+         Add (M, N, Fixed_Number ("PITCH SUPER", Interfaces.Integer_32 (R.Rates (1)), 0, 255, 10));
+         Add (M, N, Fixed_Number ("YAW SUPER", Interfaces.Integer_32 (R.Rates (2)), 0, 255, 10));
+         Add (M, N, Fixed_Number ("RC R EXPO", Interfaces.Integer_32 (R.Rc_Expo (0)), 0, 100, 10));
+         Add (M, N, Fixed_Number ("RC P EXPO", Interfaces.Integer_32 (R.Rc_Expo (1)), 0, 100, 10));
+         Add (M, N, Fixed_Number ("RC Y EXPO", Interfaces.Integer_32 (R.Rc_Expo (2)), 0, 100, 10));
+         Add (M, N, Number ("THR MID", Interfaces.Integer_32 (R.Thr_Mid8), 0, 100));
+         Add (M, N, Number ("THR EXPO", Interfaces.Integer_32 (R.Thr_Expo8), 0, 100));
+         Add (M, N, Number ("THR HOVER", Interfaces.Integer_32 (R.Thr_Hover8), 0, 100));
+         Add (M, N, Choice ("THR LIM TYPE", Interfaces.Integer_32 (R.Throttle_Limit_Type), 2,
+                            Throttle_Limit_Name (Natural (R.Throttle_Limit_Type))));
+         Add (M, N, Number ("THR LIM %", Interfaces.Integer_32 (R.Throttle_Limit_Percent), 25, 100));
+         Add (M, N, Make ("BACK", Back));
+      end;
+      M.Count := N;
+   end Load_Rate_Menu;
+
+   procedure Load_Simplified_Menu (T : Target; M : out Table)
+     with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
+   is
+      use Adaflight.Menu;
+      N : Line_Count := 0;
+   begin
+      M := Empty_Table;
+      declare
+         S : Simplified_Copies renames T.Simplified;
+      begin
+         Add (M, N, Make ("-- SIMPLIFIED PID --", Label));
+         Add (M, N, Choice ("PID TUNING", Interfaces.Integer_32 (S.Mode), 2,
+                            Setting_Name (Adaflight.Settings_Table.Table_Simplified_Tuning_Pids_Mode,
+                                          Natural (S.Mode))));
+         Add (M, N, Make ("-- BASIC --", Label));
+         Add (M, N, Fixed_Number ("D GAINS", Interfaces.Integer_32 (S.D_Gain), 0, 200, 10, Step => 5));
+         Add (M, N, Fixed_Number ("P&I GAINS", Interfaces.Integer_32 (S.PI_Gain), 0, 200, 10, Step => 5));
+         Add (M, N, Fixed_Number ("FF GAINS", Interfaces.Integer_32 (S.FF_Gain), 0, 200, 10, Step => 5));
+         Add (M, N, Make ("-- EXPERT --", Label));
+         Add (M, N, Fixed_Number ("D MAX", Interfaces.Integer_32 (S.D_Max_Gain), 0, 200, 10, Step => 5));
+         Add (M, N, Fixed_Number ("I GAINS", Interfaces.Integer_32 (S.I_Gain), 0, 200, 10, Step => 5));
+         Add (M, N, Fixed_Number ("PITCH:ROLL D", Interfaces.Integer_32 (S.Roll_Pitch_Ratio), 0, 200, 10,
+                                  Step => 5));
+         Add (M, N, Fixed_Number ("PITCH:ROLL P,I&FF", Interfaces.Integer_32 (S.Pitch_PI_Gain), 0, 200, 10,
+                                  Step => 5));
+         Add (M, N, Fixed_Number ("MASTER MULT", Interfaces.Integer_32 (S.Master), 0, 200, 10, Step => 5));
+         Add (M, N, Make ("-- SIMPLIFIED FILTER --", Label));
+         Add (M, N, Choice ("GYRO TUNING", Interfaces.Integer_32 (S.Gyro_Filter), 1,
+                            Setting_Name (Adaflight.Settings_Table.Table_Off_On, Natural (S.Gyro_Filter))));
+         Add (M, N, Fixed_Number ("GYRO MULT", Interfaces.Integer_32 (S.Gyro_Multiplier), 10, 200, 10,
+                                  Step => 5));
+         Add (M, N, Choice ("DTERM TUNING", Interfaces.Integer_32 (S.DTerm_Filter), 1,
+                            Setting_Name (Adaflight.Settings_Table.Table_Off_On, Natural (S.DTerm_Filter))));
+         Add (M, N, Fixed_Number ("DTERM MULT", Interfaces.Integer_32 (S.DTerm_Multiplier), 10, 200, 10,
+                                  Step => 5));
+         Add (M, N, Make ("BACK", Back));
+      end;
+      M.Count := N;
+   end Load_Simplified_Menu;
+
+   procedure Load_Profile_Other_Menu (T : Target; M : out Table)
+     with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
+   is
+      use Adaflight.Menu;
+      N : Line_Count := 0;
+   begin
+      M := Empty_Table;
+      declare
+         O : Other_Copies renames T.Other;
+      begin
+         Add (M, N, Text_Line ("-- OTHER PP --", Label, T.PID.Profile_Text));
+         Add (M, N, Fixed_Number ("FF TRANSITION", Interfaces.Integer_32 (O.FF_Transition), 0, 100, 10));
+         Add (M, N, Choice ("FF AVERAGING", Interfaces.Integer_32 (O.FF_Averaging), 4,
+                            Setting_Name (Adaflight.Settings_Table.Table_Feedforward_Averaging,
+                                          Natural (O.FF_Averaging))));
+         Add (M, N, Number ("FF SMOOTHNESS", Interfaces.Integer_32 (O.FF_Smooth), 0, 95));
+         Add (M, N, Number ("FF JITTER", Interfaces.Integer_32 (O.FF_Jitter), 0, 20));
+         Add (M, N, Number ("FF BOOST", Interfaces.Integer_32 (O.FF_Boost), 0, 50));
+         Add (M, N, Number ("ANGLE P", Interfaces.Integer_32 (O.Angle_P), 0, 200));
+         Add (M, N, Number ("ANGLE FF", Interfaces.Integer_32 (O.Angle_FF), 0, 200));
+         Add (M, N, Number ("ANGLE LIMIT", Interfaces.Integer_32 (O.Angle_Limit), 10, 90));
+         Add (M, N, Number ("ANGLE E_REF", Interfaces.Integer_32 (O.Angle_Earth_Ref), 0, 100));
+         Add (M, N, Number ("HORZN STR", Interfaces.Integer_32 (O.Horizon_Strength), 0, 100));
+         Add (M, N, Number ("HORZN LIM_STK", Interfaces.Integer_32 (O.Horizon_Sticks), 10, 200));
+         Add (M, N, Number ("HORZN LIM_DEG", Interfaces.Integer_32 (O.Horizon_Degrees), 10, 250));
+         Add (M, N, Fixed_Number ("AG GAIN", Interfaces.Integer_32 (O.Anti_Gravity_Gain), 0, 250, 100));
+         Add (M, N, Number ("THR BOOST", Interfaces.Integer_32 (O.Throttle_Boost), 0, 100));
+         Add (M, N, Number ("THR LINEAR", Interfaces.Integer_32 (O.Thrust_Linearization), 0, 150));
+         Add (M, N, Choice ("I_RELAX", Interfaces.Integer_32 (O.Iterm_Relax), 4,
+                            Setting_Name (Adaflight.Settings_Table.Table_Iterm_Relax, Natural (O.Iterm_Relax))));
+         Add (M, N, Choice ("I_RELAX TYPE", Interfaces.Integer_32 (O.Iterm_Relax_Type), 1,
+                            Setting_Name (Adaflight.Settings_Table.Table_Iterm_Relax_Type,
+                                          Natural (O.Iterm_Relax_Type))));
+         Add (M, N, Number ("I_RELAX CUTOFF", Interfaces.Integer_32 (O.Iterm_Relax_Cutoff), 1, 50));
+         Add (M, N, Sub ("LAUNCH CONTROL", Launch_Control_Menu));
+         Add (M, N, Number ("MTR OUT LIM %", Interfaces.Integer_32 (O.Motor_Output_Limit), 1, 100));
+         Add (M, N, Number ("AUTO CELL CNT", Interfaces.Integer_32 (O.Auto_Cell_Count), -1, 8, Int8));
+         Add (M, N, Number ("D_MAX ROLL", Interfaces.Integer_32 (O.D_Max (0)), 0, 100, Flags => Slider_RP));
+         Add (M, N, Number ("D_MAX PITCH", Interfaces.Integer_32 (O.D_Max (1)), 0, 100, Flags => Slider_RP));
+         Add (M, N, Number ("D_MAX YAW", Interfaces.Integer_32 (O.D_Max (2)), 0, 100, Flags => Slider_RPY));
+         Add (M, N, Number ("D_MAX GAIN", Interfaces.Integer_32 (O.D_Max_Gain), 0, 100));
+         Add (M, N, Number ("D_MAX ADV", Interfaces.Integer_32 (O.D_Max_Advance), 0, 200));
+         Add (M, N, Number ("VBAT_SAG_COMP", Interfaces.Integer_32 (O.Vbat_Sag), 0, 150));
+         Add (M, N, Fixed_Number ("TPA RATE", Interfaces.Integer_32 (O.TPA_Rate), 0, 100, 10));
+         Add (M, N, Number ("TPA BRKPT", Interfaces.Integer_32 (O.TPA_Breakpoint), 1000, 2000, UInt16, 10));
+         Add (M, N, Number ("TPA LOW RATE", Interfaces.Integer_32 (O.TPA_Low_Rate), 0, 100, Int8));
+         Add (M, N, Number ("TPA LOW BRKPT", Interfaces.Integer_32 (O.TPA_Low_Breakpoint), 1000, 2000, UInt16,
+                            10));
+         Add (M, N, Make ("TPA LOW ALWYS", Bool, Has_Data => True,
+                          Value => Interfaces.Integer_32 (O.TPA_Low_Always)));
+         Add (M, N, Number ("EZDISARM THR", Interfaces.Integer_32 (O.Landing_Disarm), 0, 150));
+         Add (M, N, Make ("BACK", Back));
+      end;
+      M.Count := N;
+   end Load_Profile_Other_Menu;
+
+   procedure Load_Launch_Control_Menu (T : Target; M : out Table)
+     with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
+   is
+      use Adaflight.Menu;
+      N : Line_Count := 0;
+   begin
+      M := Empty_Table;
+      declare
+         L : Launch_Copies renames T.Launch;
+      begin
+         Add (M, N, Text_Line ("-- LAUNCH CONTROL --", Label, T.PID.Profile_Text));
+         Add (M, N, Choice ("MODE", Interfaces.Integer_32 (L.Mode), 2,
+                            Setting_Name (Adaflight.Settings_Table.Table_Launch_Control_Mode, Natural (L.Mode))));
+         Add (M, N, Make ("ALLOW RESET", Bool, Has_Data => True, Value => Interfaces.Integer_32 (L.Allow_Reset)));
+         Add (M, N, Number ("TRIGGER THROTTLE", Interfaces.Integer_32 (L.Throttle_Percent), 0, 90));
+         Add (M, N, Number ("ANGLE LIMIT", Interfaces.Integer_32 (L.Angle_Limit), 0, 80));
+         Add (M, N, Number ("ITERM GAIN", Interfaces.Integer_32 (L.Gain), 0, 200));
+         Add (M, N, Make ("BACK", Back));
+      end;
+      M.Count := N;
+   end Load_Launch_Control_Menu;
 
    procedure Load (T : Target; Id : Menu_Id; M : out Table) is
    begin
       case Id is
-         when Profile_Menu | PID_Menu | Rate_Menu | Simplified_Menu | Profile_Other_Menu | Launch_Control_Menu =>
-            Load_Profile (T, Id, M);
-         when OSD_Menu | Active_Elements_Menu | Timers_Menu | Alarms_Menu =>
-            Load_OSD (T, Id, M);
-         when Power_Menu | Failsafe_Menu | RPM_Limit_Menu | Misc_Menu | RC_Preview_Menu | Persistent_Stats_Menu
-            | GPS_Lap_Timer_Menu | Set_Gate_Menu =>
-            Load_Settings (T, Id, M);
-         when Blackbox_Menu | Erase_Flash_Menu | Storage_Device_Menu | LED_Strip_Menu | Firmware_Menu | Calibration_Menu
-            | Calibrate_Acc_Menu =>
-            Load_System (T, Id, M);
+         when Quick_Menu =>
+            Load_Quick_Menu (T, M);
+         when Main_Menu =>
+            Load_Main_Menu (M);
+         when Features =>
+            Load_Features (M);
+         when Setup_Popup =>
+            Load_Setup_Popup (T, M);
+         when Save_Exit =>
+            Load_Save_Exit (M);
+         when Save_Exit_Reboot =>
+            Load_Save_Exit_Reboot (M);
+         when VTX_Error_Menu =>
+            Load_VTX_Error_Menu (T, M);
+         when Power_Menu =>
+            Load_Power_Menu (T, M);
+         when Failsafe_Menu =>
+            Load_Failsafe_Menu (T, M);
+         when RPM_Limit_Menu =>
+            Load_RPM_Limit_Menu (T, M);
+         when Misc_Menu =>
+            Load_Misc_Menu (T, M);
+         when RC_Preview_Menu =>
+            Load_RC_Preview_Menu (T, M);
+         when Persistent_Stats_Menu =>
+            Load_Persistent_Stats_Menu (T, M);
+         when GPS_Lap_Timer_Menu =>
+            Load_GPS_Lap_Timer_Menu (T, M);
+         when Set_Gate_Menu =>
+            Load_Set_Gate_Menu (T, M);
+         when Blackbox_Menu =>
+            Load_Blackbox_Menu (T, M);
+         when Erase_Flash_Menu =>
+            Load_Erase_Flash_Menu (M);
+         when Storage_Device_Menu =>
+            Load_Storage_Device_Menu (M);
+         when LED_Strip_Menu =>
+            Load_LED_Strip_Menu (T, M);
+         when Firmware_Menu =>
+            Load_Firmware_Menu (T, M);
+         when Calibration_Menu =>
+            Load_Calibration_Menu (T, M);
+         when Calibrate_Acc_Menu =>
+            Load_Calibrate_Acc_Menu (M);
+         when OSD_Menu =>
+            Load_OSD_Menu (T, M);
+         when Active_Elements_Menu =>
+            Load_Active_Elements_Menu (T, M);
+         when Timers_Menu =>
+            Load_Timers_Menu (T, M);
+         when Alarms_Menu =>
+            Load_Alarms_Menu (T, M);
+         when Profile_Menu =>
+            Load_Profile_Menu (T, M);
+         when PID_Menu =>
+            Load_PID_Menu (T, M);
+         when Rate_Menu =>
+            Load_Rate_Menu (T, M);
+         when Simplified_Menu =>
+            Load_Simplified_Menu (T, M);
+         when Profile_Other_Menu =>
+            Load_Profile_Other_Menu (T, M);
+         when Launch_Control_Menu =>
+            Load_Launch_Control_Menu (T, M);
          when others =>
-            Load_Main (T, Id, M);
+            M := Empty_Table;
       end case;
    end Load;
 
