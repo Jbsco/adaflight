@@ -1,4 +1,3 @@
-with Adaflight.DShot;
 with Adaflight.MSP_Write_Plans; use Adaflight.MSP_Write_Plans;
 
 package body Adaflight.MSP_Motor_In with SPARK_Mode is
@@ -17,11 +16,7 @@ package body Adaflight.MSP_Motor_In with SPARK_Mode is
          declare
             Value : constant Interfaces.Unsigned_16 := Interfaces.Unsigned_16 (U16 (Request, 2 * I));
          begin
-            E.Values (I) :=
-              (case Device is
-                  when No_Device => 0.0,
-                  when PWM       => Float (Value),
-                  when DShot     => Float (Adaflight.DShot.From_External (Value, Three_D)));
+            E.Values (I) := From_External (Value, Device, Three_D);
          end;
       end loop;
       E.Set := True;

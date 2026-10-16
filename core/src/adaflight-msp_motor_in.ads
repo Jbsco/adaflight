@@ -4,6 +4,7 @@
 --  than the motor count's values is an error that sets nothing.
 with Interfaces;
 with Adaflight.Bytes; use Adaflight.Bytes;
+with Adaflight.DShot;
 with Adaflight.MSP_Write_Plans;
 
 package Adaflight.MSP_Motor_In with SPARK_Mode is
@@ -21,6 +22,15 @@ package Adaflight.MSP_Motor_In with SPARK_Mode is
    Max_Motors : constant := 8;
    subtype Motor_Count is Natural range 0 .. Max_Motors;
    type Motor_Values is array (0 .. Max_Motors - 1) of Float;
+
+   --  A value of the 1000 to 2000 range as the motor protocol takes it:
+   --  zero without a device, the value for analog pulses, the DShot value
+   --  otherwise. Three_D says the 3D feature runs.
+   function From_External (Value : Interfaces.Unsigned_16; Device : Device_Kind; Three_D : Boolean) return Float is
+     (case Device is
+         when No_Device => 0.0,
+         when PWM       => Float (Value),
+         when DShot     => Float (Adaflight.DShot.From_External (Value, Three_D)));
 
    --  The disarmed motor values a request sets, zero for the motors past the
    --  count.
