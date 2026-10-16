@@ -4451,3 +4451,17 @@ steps of one to three samples each over loop ratios of one to eight, and compare
 ready flags and the yaw reset with the reference's. The recordings hold the calibration state before
 each step's commands for the receiver pass and the state after them for the PID loop and the final
 status update, which a stick calibration in the same step as an arming attempt tells apart.
+
+## D191. PID loop pass (2026-10-14)
+
+`Adaflight.Main_Loop` is the PID loop's pass over the units in the task's order, a generic whose
+procedures are the units: the yaw reset before the RC command, the launch wing in a wing build, the
+controller with the runaway check and the PID audio after it, the mix, the servos when the mixer
+drives them, the motors, and the flight log outside the command line when a log device is set. The
+pass reads those conditions as inputs. `Adaflight.Main_Loop_Shape` instantiates it over counting
+units for the proof; the target phase instantiates it over the units' updates with their states.
+
+The harness instantiates the pass over logging units, one letter each, on every step of the arming
+recordings, with the runaway check over the arming state, and compares the letters with the order
+the reference's loop called its units in, over 15000 steps with the servo, flight log and command
+line conditions drawn at random. The recordings hold no PID audio condition.

@@ -132,6 +132,7 @@ with Adaflight.MSP_Serial_Out;
 with Adaflight.MSP_VTX_Status_Out;
 with Adaflight.Config_Store;
 with Adaflight.Mixer_Init;
+with Adaflight.Main_Loop;
 with Adaflight.Core_Loop;
 with Adaflight.PWM_Output;
 with Adaflight.Task_Init;
@@ -3633,6 +3634,61 @@ procedure Vector_Check is
             Sensed_Before : Inputs := Sensed;
             Step     : Outputs;
             K        : Positive := 29;
+            Yaw_Reset : Boolean := False;
+            --  The PID loop's pass over logging units, one letter each.
+            Pass_Log : String (1 .. 32) := (others => ' ');
+            Pass_Len : Natural := 0;
+            procedure Note (C : Character) is
+            begin
+               if Pass_Len < Pass_Log'Last then
+                  Pass_Len := Pass_Len + 1;
+                  Pass_Log (Pass_Len) := C;
+               end if;
+            end Note;
+            procedure Note_Y is
+            begin
+               Note ('Y');
+            end Note_Y;
+            procedure Note_R is
+            begin
+               Note ('R');
+            end Note_R;
+            procedure Note_L is
+            begin
+               Note ('L');
+            end Note_L;
+            procedure Note_P is
+            begin
+               Note ('P');
+            end Note_P;
+            procedure Note_A is
+            begin
+               Note ('A');
+            end Note_A;
+            procedure Note_M is
+            begin
+               Note ('M');
+            end Note_M;
+            procedure Note_S is
+            begin
+               Note ('S');
+            end Note_S;
+            procedure Note_W is
+            begin
+               Note ('W');
+            end Note_W;
+            procedure Note_B is
+            begin
+               Note ('B');
+            end Note_B;
+            procedure Runaway is
+            begin
+               Process_PID_Loop (Arming_State, Arming_Settings, Arming_Modes, Sensed, Channels, Now_Us, Step);
+            end Runaway;
+            package Pass is new Adaflight.Main_Loop
+              (Reset_Yaw => Note_Y, RC_Command => Note_R, Launch_Wing => Note_L, PID_Controller => Note_P,
+               Runaway_Check => Runaway, PID_Audio => Note_A, Mix_Table => Note_M, Write_Servos => Note_S,
+               Write_Motors => Note_W, Blackbox_Update => Note_B);
             procedure Expect_Int (N : String; Actual : Integer_64) is
             begin
                Record_Int ("armstep." & N, Int (K), Actual);
@@ -3651,29 +3707,39 @@ procedure Vector_Check is
             for Ch in 0 .. 5 loop
                Aux (Ch) := Flt (10 + Ch);
             end loop;
-            case Int (NF - 14) is
+            case Int (NF - 18) is
                when 1 =>
                   Clear_Mode_Overrides (Arming_State);
                when 2 =>
                   Clear_Mode_Overrides (Arming_State);
-                  Set_Mode_Override (Arming_State, Adaflight.Modes.Box'Val (Int (NF - 13)), True);
+                  Set_Mode_Override (Arming_State, Adaflight.Modes.Box'Val (Int (NF - 17)), True);
                when 3 =>
-                  Set_Mode_Override (Arming_State, Adaflight.Modes.Box'Val (Int (NF - 13)), True);
+                  Set_Mode_Override (Arming_State, Adaflight.Modes.Box'Val (Int (NF - 17)), True);
                when 4 =>
-                  Set_Mode_Override (Arming_State, Adaflight.Modes.Box'Val (Int (NF - 13)), False);
+                  Set_Mode_Override (Arming_State, Adaflight.Modes.Box'Val (Int (NF - 17)), False);
                when others =>
                   null;
             end case;
-            Sensed_Before.Gyro_Calibrated := Int (NF - 5) /= 0;
-            Sensed_Before.Acc_Calibrated := Int (NF - 4) /= 0;
-            Sensed_Before.Baro_Calibrated := Int (NF - 3) /= 0;
-            Sensed_Before.Mag_Calibrated := Int (NF - 2) /= 0;
-            Sensed_Before.Acc_Has_Calibration := Int (NF - 1) /= 0;
-            Sensed_Before.First_Arm_Gyro_Cal_Running := Int (NF) /= 0;
+            Sensed_Before.Gyro_Calibrated := Int (NF - 9) /= 0;
+            Sensed_Before.Acc_Calibrated := Int (NF - 8) /= 0;
+            Sensed_Before.Baro_Calibrated := Int (NF - 7) /= 0;
+            Sensed_Before.Mag_Calibrated := Int (NF - 6) /= 0;
+            Sensed_Before.Acc_Has_Calibration := Int (NF - 5) /= 0;
+            Sensed_Before.First_Arm_Gyro_Cal_Running := Int (NF - 4) /= 0;
             Process_Rx (Arming_State, Arming_Settings, Arming_Modes, Sensed_Before, Channels, Now_Us, Step);
             Process_Rx_Modes (Arming_State, Arming_Settings, Arming_Modes, Arming_Conditions, Aux, Sensed_Before,
                               Channels, Now_Us, Natural (Int (5)), Step);
-            Process_PID_Loop (Arming_State, Arming_Settings, Arming_Modes, Sensed, Channels, Now_Us, Step);
+            Yaw_Reset :=
+              Adaflight.Core_Loop.Resets_Yaw
+                (Arming_State.Sticks_Arm, Channels (Adaflight.RC_Command.Throttle_Channel), Arming_Settings.Min_Check,
+                 Arm_Mixer_Mode, Arm_Tri_Servo);
+            Pass.PID_Loop
+              ((Wing_Launch => False),
+               (Resets_Yaw  => Yaw_Reset,
+                Uses_Servos => Int (NF - 1) /= 0,
+                Log_Device  => Int (NF - 2) /= 0,
+                CLI_Open    => Int (NF - 3) /= 0,
+                PID_Audio   => Adaflight.Modes.Condition_Present (Arming_Conditions, Adaflight.Modes.PID_Audio)));
             Update_Status (Arming_State, Arming_Settings, Arming_Modes, Arming_Conditions, Sensed, Channels, Now_Us);
             Flags := Boolean'Pos (Arming_State.Armed) + 2 * Boolean'Pos (Arming_State.Was_Ever_Armed)
                      + 4 * Boolean'Pos (Arming_State.Armed_With_Prearm);
@@ -3734,11 +3800,10 @@ procedure Vector_Check is
                Expect_Int ("filter_ready",
                            Boolean'Pos (Adaflight.Core_Loop.Filter_Ready (Arm_Cadence, Loop_Ratio_Set)));
                Expect_Int ("pid_ready", Boolean'Pos (Adaflight.Core_Loop.PID_Ready (Arm_Cadence, Loop_Ratio_Set)));
-               Expect_Int ("yaw_reset",
-                           Boolean'Pos (Adaflight.Core_Loop.Resets_Yaw
-                                          (Arming_State.Sticks_Arm, Channels (Adaflight.RC_Command.Throttle_Channel),
-                                           Arming_Settings.Min_Check, Arm_Mixer_Mode, Arm_Tri_Servo)));
-               K := K + 6;
+               Expect_Int ("yaw_reset", Boolean'Pos (Yaw_Reset));
+               K := K + 9;
+               Record_Int ("armstep.pass", 1, Boolean'Pos (Str (K) = Pass_Log (1 .. Pass_Len)));
+               K := K + 1;
             end;
             if K /= NF + 1 then
                Put_Line ("armstep: consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
