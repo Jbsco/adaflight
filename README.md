@@ -39,7 +39,8 @@ The core contains:
 - in-flight adjustments and simplified tuning of PID gains and filters
 - PID profile with runtime configuration, filter initialization, rate loop, throttle-side
   features, crash recovery, and launch control
-- motor mixer with mixer setup: frame tables, custom mixes, launch control mix
+- motor mixer with mixer setup: frame tables, custom mixes, launch control mix, and launch
+  control, altitude hold and GPS rescue throttles
 - gyro calibration, filtering chain, dynamic notch, RPM filter, and full-scale detections
 - attitude estimator with compass heading, and angle and horizon level modes with GPS rescue,
   altitude hold and position hold
