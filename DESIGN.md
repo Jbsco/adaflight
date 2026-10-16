@@ -4324,6 +4324,15 @@ for a rate the table lacks, and the custom NMEA commands are the stored text up 
 `GPS_Rescue_Settings_Of` builds `GPS_Rescue.Settings` from the stored GPS rescue, autopilot and GPS
 groups.
 
+`Position_Control_Settings_Of` builds `Position_Control.Settings` from the stored autopilot and RC
+controls groups, with whether the build flies a rescue as a flight plan.
+`Position_Estimator_Settings_Of` and `Position_Hold_Settings_Of` build their settings from the
+stored position and position hold groups, `Altitude_Control_Settings_Of` and
+`Altitude_Hold_Settings_Of` from the stored autopilot, altitude hold and receiver groups, and
+`Flight_Plan_Settings_Of` builds `Flight_Plan_Nav.Settings` from the stored autopilot, GPS rescue
+and altitude hold groups, with the climb rate the altitude hold flies at, ten times its setting, and
+none for a wing.
+
 The harness builds the four PID profiles and the four rate profiles of every fixed configuration in
 the configuration fix recordings, 16000 of each, and the gyro settings of each with a running gyro
 and motors, 3082, with the preconditions and the predicates checked at run time, and compares the
@@ -4350,7 +4359,8 @@ as in the reference's build with it.
 
 The harness builds the four PID profiles and the four rate profiles of every fixed configuration in
 the configuration fix recordings, 16000 of each, the arming, failsafe, receiver, adjustment, mixer,
-attitude, barometer, compass, battery, beeper, GPS link and GPS rescue settings and the mode
+attitude, barometer, compass, battery, beeper, GPS link, GPS rescue, position control, position
+estimator, position hold, altitude control, altitude hold and flight plan settings and the mode
 conditions of each, 4000 of each, and the gyro, RC command and accelerometer settings of each with a
 running gyro and motors, 3082, with the preconditions and the predicates checked at run time, and
 compares one field of each. The analog endpoints replay 235 recorded motor and 3D settings from

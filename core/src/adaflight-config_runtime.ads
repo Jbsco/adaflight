@@ -5,6 +5,8 @@
 with Interfaces; use Interfaces;
 with Adaflight.Accelerometer;
 with Adaflight.Adjustments;
+with Adaflight.Altitude_Control;
+with Adaflight.Altitude_Hold;
 with Adaflight.Arming;
 with Adaflight.Attitude;
 with Adaflight.Axes; use Adaflight.Axes;
@@ -16,6 +18,7 @@ with Adaflight.Config_Fix;
 with Adaflight.Config_Groups; use Adaflight.Config_Groups;
 with Adaflight.Dyn_Notch;
 with Adaflight.Failsafe;
+with Adaflight.Flight_Plan_Nav;
 with Adaflight.Float_Bits;
 with Adaflight.GPS_Link;
 with Adaflight.GPS_Rescue;
@@ -25,6 +28,9 @@ with Adaflight.Mixer_Init;
 with Adaflight.Modes;
 with Adaflight.PID_Config;
 with Adaflight.PID_Profile; use Adaflight.PID_Profile;
+with Adaflight.Position_Control;
+with Adaflight.Position_Estimator;
+with Adaflight.Position_Hold;
 with Adaflight.Rates;
 with Adaflight.RC_Command;
 with Adaflight.Receiver;
@@ -155,6 +161,33 @@ package Adaflight.Config_Runtime with SPARK_Mode is
    --  groups.
    function GPS_Rescue_Settings_Of
      (R : Gps_Rescue_Record; A : Autopilot_Config_Record; G : Gps_Config_Record) return GPS_Rescue.Settings;
+
+   --  The autopilot's position control settings from the stored autopilot
+   --  and RC controls groups, with whether the build flies a rescue as a
+   --  flight plan.
+   function Position_Control_Settings_Of
+     (A : Autopilot_Config_Record; Controls : Rc_Controls_Config_Record; Rescue_Plan : Boolean)
+      return Position_Control.Settings;
+
+   --  The position estimator settings from the stored position and
+   --  position hold groups, and the position hold settings from the latter.
+   function Position_Estimator_Settings_Of
+     (P : Position_Config_Record; H : Pos_Hold_Config_Record) return Position_Estimator.Settings;
+   function Position_Hold_Settings_Of (H : Pos_Hold_Config_Record) return Position_Hold.Settings;
+
+   --  The altitude control settings from the stored autopilot and receiver
+   --  groups, and the altitude hold settings with the stored altitude hold
+   --  group.
+   function Altitude_Control_Settings_Of
+     (A : Autopilot_Config_Record; R : Rx_Config_Record) return Altitude_Control.Settings;
+   function Altitude_Hold_Settings_Of
+     (A : Autopilot_Config_Record; H : Alt_Hold_Config_Record; R : Rx_Config_Record) return Altitude_Hold.Settings;
+
+   --  The flight plan executor's settings from the stored autopilot, GPS
+   --  rescue and altitude hold groups; a wing flies without a climb rate.
+   function Flight_Plan_Settings_Of
+     (A : Autopilot_Config_Record; Rescue : Gps_Rescue_Record; H : Alt_Hold_Config_Record; Wing : Boolean)
+      return Flight_Plan_Nav.Settings;
 
 private
 
@@ -564,6 +597,103 @@ private
       Min_Sats             => Held (Integer (R.Min_Sats), 5, 50),
       Landing_Altitude_M   => Integer (A.Landing_Altitude_M),
       Set_Home_Once        => G.Gps_Set_Home_Point_Once);
+
+   function Position_Control_Settings_Of
+     (A : Autopilot_Config_Record; Controls : Rc_Controls_Config_Record; Rescue_Plan : Boolean)
+      return Position_Control.Settings is
+     (Position_P           => Held (Integer (A.Position_P), 0, 200),
+      Position_I           => Held (Integer (A.Position_I), 0, 200),
+      Position_D           => Held (Integer (A.Position_D), 0, 200),
+      Position_A           => Held (Integer (A.Position_A), 0, 200),
+      Position_F           => Held (Integer (A.Position_F), 0, 200),
+      Position_Cutoff      => Held (Integer (A.Position_Cutoff), 10, 50),
+      Stop_Threshold       => Held (Integer (A.Stop_Threshold), 5, 50),
+      Max_Angle            => Held (Integer (A.Max_Angle), 10, 70),
+      Drag_Coefficient     => Held (Integer (A.Velocity_Drag_Coeff), 0, 100),
+      Max_Velocity         => Held (Integer (A.Max_Velocity), 100, 5_000),
+      Stick_Deadband       => Held (Integer (A.Stick_Deadband), 0, 500),
+      Yaw_P                => Held (Integer (A.Yaw_P), 0, 200),
+      Max_Yaw_Rate         => Held (Integer (A.Max_Yaw_Rate), 10, 250),
+      Yaw_Reversed         => Controls.Yaw_Control_Reversed,
+      Nav_Yaw_Mode         =>
+        Position_Control.Yaw_Mode'Val
+          (Code (A.Yaw_Mode, Position_Control.Yaw_Mode'Pos (Position_Control.Yaw_Mode'Last))),
+      Min_Forward_Velocity => Held (Integer (A.Min_Forward_Velocity), 10, 500),
+      Buildup_Max_Pitch    => Held (Integer (A.Velocity_Buildup_Max_Pitch), 0, 20),
+      Rescue_Plan          => Rescue_Plan);
+
+   function Position_Estimator_Settings_Of
+     (P : Position_Config_Record; H : Pos_Hold_Config_Record) return Position_Estimator.Settings is
+     (Source         =>
+        Position_Estimator.Altitude_Source'Val
+          (Code (P.Altitude_Source,
+                 Position_Estimator.Altitude_Source'Pos (Position_Estimator.Altitude_Source'Last))),
+      Prefer_Baro    => Held (Integer (P.Altitude_Prefer_Baro), 0, 100),
+      Altitude_LPF   => Held (Integer (P.Altitude_Lpf), 10, 5_000),
+      Derivative_LPF => Held (Integer (P.Altitude_D_Lpf), 10, 5_000),
+      Horizontal     =>
+        Position_Estimator.Horizontal_Source'Val
+          (Code (H.Position_Source,
+                 Position_Estimator.Horizontal_Source'Pos (Position_Estimator.Horizontal_Source'Last))));
+
+   function Position_Hold_Settings_Of (H : Pos_Hold_Config_Record) return Position_Hold.Settings is
+     (Deadband => Held (Integer (H.Deadband), 0, 50));
+
+   function Altitude_Control_Settings_Of
+     (A : Autopilot_Config_Record; R : Rx_Config_Record) return Altitude_Control.Settings is
+     (Hover_Throttle => Held (Integer (A.Hover_Throttle), 0, 1_700),
+      Throttle_Min   => Held (Integer (A.Throttle_Min), 1_050, 1_400),
+      Throttle_Max   => Held (Integer (A.Throttle_Max), 1_400, 2_000),
+      Altitude_P     => Held (Integer (A.Altitude_P), 0, 200),
+      Altitude_I     => Held (Integer (A.Altitude_I), 0, 200),
+      Altitude_D     => Held (Integer (A.Altitude_D), 0, 200),
+      Altitude_A     => Held (Integer (A.Altitude_A), 0, 200),
+      Altitude_F     => Held (Integer (A.Altitude_F), 0, 200),
+      Min_Check      => Held (Integer (R.Mincheck), 750, 1_999));
+
+   function Altitude_Hold_Settings_Of
+     (A : Autopilot_Config_Record; H : Alt_Hold_Config_Record; R : Rx_Config_Record) return Altitude_Hold.Settings is
+     (Hover_Throttle => Held (Integer (A.Hover_Throttle), 0, 1_700),
+      Throttle_Min   => Held (Integer (A.Throttle_Min), 1_050, 1_400),
+      Throttle_Max   => Held (Integer (A.Throttle_Max), 1_400, 2_000),
+      Altitude_P     => Held (Integer (A.Altitude_P), 0, 200),
+      Altitude_I     => Held (Integer (A.Altitude_I), 0, 200),
+      Altitude_D     => Held (Integer (A.Altitude_D), 0, 200),
+      Altitude_A     => Held (Integer (A.Altitude_A), 0, 200),
+      Altitude_F     => Held (Integer (A.Altitude_F), 0, 200),
+      Climb_Rate     => Held (Integer (H.Climb_Rate), 0, 200),
+      Deadband       => Held (Integer (H.Deadband), 0, 70),
+      Min_Check      => Held (Integer (R.Mincheck), 750, 1_999));
+
+   function Flight_Plan_Settings_Of
+     (A : Autopilot_Config_Record; Rescue : Gps_Rescue_Record; H : Alt_Hold_Config_Record; Wing : Boolean)
+      return Flight_Plan_Nav.Settings is
+     (Max_Angle       => Unsigned_8 (Held (Integer (A.Max_Angle), 10, 70)),
+      Arrival_Radius  => Unsigned_16 (Held (Integer (A.Waypoint_Arrival_Radius), 100, 5_000)),
+      Radius          => Unsigned_16 (Held (Integer (A.Waypoint_Hold_Radius), 50, 1_000)),
+      Max_Speed       => Unsigned_16 (Held (Integer (A.Max_Velocity), 100, 5_000)),
+      Nav_Accel       => Unsigned_16 (Held (Integer (A.Nav_Accel), 20, 1_000)),
+      Landing_Rate    => Unsigned_8 (Held (Integer (A.Landing_Descent_Rate), 10, 200)),
+      Climb_Rate      => (if Wing then 0.0 else Float (H.Climb_Rate) * 10.0),
+      Corner_Speed    => Unsigned_16 (Held (Integer (A.Nav_Corner_Speed), 50, 2_000)),
+      Corner_Delta_V  => Unsigned_16 (Held (Integer (A.Nav_Corner_Delta_V), 100, 4_000)),
+      Nav_Decel       => Unsigned_16 (Held (Integer (A.Nav_Decel), 20, 1_000)),
+      Lead_Time       => Unsigned_8 (Held (Integer (A.Nav_Carrot_Lead_Time), 2, 40)),
+      Lead_Max        => Unsigned_16 (Held (Integer (A.Nav_Carrot_Lead_Max), 600, 6_000)),
+      Preturn_Dist    => Unsigned_16 (Held (Integer (A.Nav_Preturn_Dist), 500, 5_000)),
+      Yaw_Mode        => Unsigned_8 (Code (A.Yaw_Mode, 4)),
+      Touchdown_Cms   => Unsigned_8 (Held (Integer (A.Landing_Velocity_Threshold), 10, 200)),
+      Touchdown_Ds    => Unsigned_8 (Held (Integer (A.Landing_Detection_Time), 5, 50)),
+      Descent_Dist_M  => Unsigned_16 (Held (Integer (Rescue.Descent_Distance_M), 5, 500)),
+      Fence_M         => Unsigned_16 (Held (Integer (A.Max_Distance_From_Home_M), 0, 10_000)),
+      Fence_Return    => A.Geofence_Action /= 0,
+      Return_Alt_M    => Unsigned_16 (Held (Integer (Rescue.Return_Altitude_M), 5, 1_000)),
+      Return_Cms      => Unsigned_16 (Held (Integer (Rescue.Ground_Speed_Cm_S), 0, 3_000)),
+      Min_Start_M     => Unsigned_16 (Held (Integer (Rescue.Min_Start_Dist_M), 5, 30)),
+      Initial_Climb_M => Unsigned_16 (Held (Integer (Rescue.Initial_Climb_M), 0, 100)),
+      Ascend_Cms      => Unsigned_16 (Held (Integer (Rescue.Ascend_Rate), 50, 2_500)),
+      Descend_Cms     => Unsigned_16 (Held (Integer (Rescue.Descend_Rate), 25, 500)),
+      Rescue_Alt_Mode => Unsigned_8 (Code (Rescue.Altitude_Mode, 2)));
 
    function Gyro_Settings_Of
      (G : Gyro_Config_Record; N : Dyn_Notch_Config_Record; R : Rpm_Filter_Config_Record;
