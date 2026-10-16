@@ -8960,7 +8960,7 @@ procedure Vector_Check is
                         (if E.Device.Baud_Changed then Integer_64 (Adaflight.SmartAudio.Rate_Of (E.Device.New_Baud))
                          else 0));
             Record_Int (Name & ".consumed", Int (100), Integer_64 (E.Consumed));
-            Record_Int (Name & ".mspstatus", Int (101), Boolean'Pos (E.MSP_Status_Due));
+            Record_Int (Name & ".status_due", Int (101), Boolean'Pos (E.Status_Due));
             VC_Count := Rx'Length - E.Consumed;
             VC_Pending (0 .. VC_Count - 1) := Rx (Rx'First + E.Consumed .. Rx'Last);
          end;

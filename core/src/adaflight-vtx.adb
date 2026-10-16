@@ -479,6 +479,7 @@ package body Adaflight.VTX with SPARK_Mode is
                E.Consumed := Rx'Length;
             when Tramp_Device =>
                Tramp.Process (V.TR, Inp.Now_Us, Rx, Inp.Control_Disabled, E.Tramp_Tx, E.Consumed);
+               E.Status_Due := True;
             when MSP_Device =>
                VTX_MSP.Process (V.MD, S, T,
                                 (Now_Us         => Inp.Now_Us,
@@ -486,7 +487,7 @@ package body Adaflight.VTX with SPARK_Mode is
                                  Was_Ever_Armed => Inp.Was_Ever_Armed,
                                  Failsafe       => Inp.Failsafe),
                                 E.MSP_Frame, E.MSP_Send);
-               E.MSP_Status_Due := E.MSP_Send or else not VTX_MSP.Is_Ready (V.MD);
+               E.Status_Due := E.MSP_Send or else not VTX_MSP.Is_Ready (V.MD);
             when No_Device =>
                null;
          end case;
