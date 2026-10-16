@@ -5628,3 +5628,24 @@ counts calibration requests. The harness replays 240 sessions with 19889 keys an
 their states in the firmware menu, 744 in the calibration menu and 500 in the accelerometer
 calibration menu, with 42 gyro, 59 accelerometer and 3 barometer calibration requests: every display
 operation, menu context, page, request and configuration hash matches the reference's.
+
+## D241. GPS lap timer menus (2026-10-15)
+
+`Adaflight.Menu_Content` gains the GPS lap timer menu, which the misc menu leads to, and its set gate
+menu. The lap timer menu copies the gate radius and the minimum lap time on entry and stores them on
+the way out. Entering the set gate menu asks the runtime to start setting the gate, and leaving it asks
+the runtime to end, for `Adaflight.GPS_Lap_Timer.Start_Set_Gate` and `End_Set_Gate`. The set gate menu
+shows the readings taken and the distance to the gate as dynamic values with a zero step, which the
+keys leave unchanged.
+
+The reference's SET POSITION line is a function call line that changes to the set gate menu and draws
+the menu structure's first bytes, its hook addresses, as the line's value (F209). adaflight's line is a
+submenu line to the same menu, with `>` alone as its value: a deviation from the reference.
+
+The menu contents oracle builds the reference's lap timer menu with that line typed as a submenu line,
+scripts gate readings and distances at every draw, and counts the gate setting requests. It now also
+changes now and then to a random menu other than the setup popup, as a submenu line would, which the
+harness repeats through `Change`. The harness replays 240 sessions with 19491 keys, 773 menu changes
+and 20264 draws, 386 of their states in the lap timer menu and 522 in the set gate menu, with 69 gate
+setting starts and 44 ends: every display operation, menu context, page, request and configuration
+hash matches the reference's.

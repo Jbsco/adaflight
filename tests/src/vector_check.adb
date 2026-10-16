@@ -19730,6 +19730,8 @@ procedure Vector_Check is
          Record_Int (Name & ".gyro_calibrations", Next, Integer_64 (MCT_T.Asked.Gyro_Calibrations));
          Record_Int (Name & ".acc_calibrations", Next, Integer_64 (MCT_T.Asked.Acc_Calibrations));
          Record_Int (Name & ".baro_calibrations", Next, Integer_64 (MCT_T.Asked.Baro_Calibrations));
+         Record_Int (Name & ".gate_starts", Next, Integer_64 (MCT_T.Asked.Gate_Starts));
+         Record_Int (Name & ".gate_ends", Next, Integer_64 (MCT_T.Asked.Gate_Ends));
          Adaflight.Config_Codec.Encode (MCT_T.Config, D);
          for B of D loop
             Hash := (Hash xor Interfaces.Unsigned_64 (B)) * 16#100_0000_01B3#;
@@ -19810,6 +19812,8 @@ procedure Vector_Check is
          Read_Sensors (63);
          MCT_T.Live.Manufacturer_Id := Menu_Text_Of (Hex_String (67));
          MCT_T.Live.Board_Name := Menu_Text_Of (Hex_String (68));
+         MCT_T.Config.Gps_Lap_Timer_Config.Minimum_Lap_Time_Seconds := Interfaces.Unsigned_16 (Int (69));
+         MCT_T.Config.Gps_Lap_Timer_Config.Gate_Tolerance_M := Interfaces.Unsigned_8 (Int (70));
          MCT_T.Identity :=
            (Identifier => Menu_Text_Of ("ADFL"), Version => Menu_Text_Of ("0.1.0"),
             Revision => Menu_Text_Of ("norevision"), Target_Name => Menu_Text_Of ("STM32F405"));
@@ -19823,7 +19827,7 @@ procedure Vector_Check is
          declare
             D        : Adaflight.Config_Codec.Data;
             Hash     : Interfaces.Unsigned_64 := 16#CBF2_9CE4_8422_2325#;
-            Expected : constant Interfaces.Unsigned_64 := Interfaces.Unsigned_64'Value (Str (69));
+            Expected : constant Interfaces.Unsigned_64 := Interfaces.Unsigned_64'Value (Str (71));
          begin
             Adaflight.Config_Codec.Encode (MCT_T.Config, D);
             for B of D loop
@@ -19859,6 +19863,16 @@ procedure Vector_Check is
             Expect_Ops;
             Expect_State;
          end;
+      elsif Name = "cmjump" then
+         declare
+            Id : constant Menu_Id := Menu_Id (Next);
+         begin
+            Begin_Step;
+            Read_Ops;
+            MCT_Nav.Change (MCT_State, MCT_T, Id);
+            Expect_Ops;
+            Expect_State;
+         end;
       elsif Name = "cmdraw" then
          declare
             Now_Ms : constant Interfaces.Unsigned_32 := Interfaces.Unsigned_32 (Next);
@@ -19868,6 +19882,8 @@ procedure Vector_Check is
                MCT_T.Live.RC_Data (C) := Flt (K);
                K := K + 1;
             end loop;
+            MCT_T.Live.Gate_Set_Readings := Interfaces.Unsigned_16 (Next);
+            MCT_T.Live.Gate_Distance_Cm := Interfaces.Unsigned_32 (Next);
             Begin_Step;
             Read_Ops;
             MCT_Nav.Draw (MCT_State, MCT_T, (others => <>), Now_Ms * 1000, Now_Ms, Room);

@@ -146,6 +146,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
          when RC_Preview_Menu => (Enter => True, Leave => True, Update => True),
          when Firmware_Menu => (Enter => True, Leave => False, Update => False),
          when Calibration_Menu => (Enter => False, Leave => False, Update => True),
+         when GPS_Lap_Timer_Menu | Set_Gate_Menu => (Enter => True, Leave => True, Update => False),
          when others      => (others => False));
 
    procedure Load (T : Target; Id : Menu_Id; M : out Table) is
@@ -307,6 +308,17 @@ package body Adaflight.Menu_Content with SPARK_Mode is
             Add (Text_Line ("ACC", Funcall, T.Calibration.Acc, Has_Func => True, Flags => Dynamic));
             Add (Text_Line ("BARO", Funcall, T.Calibration.Baro, Has_Func => True, Flags => Dynamic));
             Add (Make ("BACK", Back));
+         when GPS_Lap_Timer_Menu =>
+            Add (Make ("--- GPS LAP TIMER ---", Label));
+            Add (Sub ("SET POSITION", Set_Gate_Menu));
+            Add (Number ("GATE RADIUS(M)", Interfaces.Integer_32 (T.Lap.Gate_Tolerance), 1, 100));
+            Add (Number ("MIN LAP SECONDS", Interfaces.Integer_32 (T.Lap.Minimum_Lap_Time), 0, 3000, UInt16));
+            Add (Make ("BACK", Back));
+         when Set_Gate_Menu =>
+            Add (Make ("SETTING POSITION", Label));
+            Add (Number ("READINGS", Interfaces.Integer_32 (T.Live.Gate_Set_Readings), 0, 2000, UInt16, 0, Dynamic));
+            Add (Number ("DISTANCE(CM)", Signed_Word (T.Live.Gate_Distance_Cm), 0, 200, UInt32, 0, Dynamic));
+            Add (Make ("BACK", Back));
          when Calibrate_Acc_Menu =>
             Add (Make ("--- CALIBRATE ACC ---", Label));
             Add (Make ("PLACE ON A LEVEL SURFACE", Label));
@@ -389,6 +401,13 @@ package body Adaflight.Menu_Content with SPARK_Mode is
             T.Stats.Total_Time_S := T.Config.Stats_Config.Stats_Total_Time_S;
             T.Stats.Total_Dist_M := T.Config.Stats_Config.Stats_Total_Dist_M;
             T.Stats.Min_Armed_Time := T.Config.Stats_Config.Stats_Min_Armed_Time_S;
+         when GPS_Lap_Timer_Menu =>
+            T.Lap.Minimum_Lap_Time := T.Config.Gps_Lap_Timer_Config.Minimum_Lap_Time_Seconds;
+            T.Lap.Gate_Tolerance := T.Config.Gps_Lap_Timer_Config.Gate_Tolerance_M;
+         when Set_Gate_Menu =>
+            if T.Asked.Gate_Starts < Natural'Last then
+               T.Asked.Gate_Starts := T.Asked.Gate_Starts + 1;
+            end if;
          when Firmware_Menu =>
             T.Board.Manufacturer_Id := Cut (T.Live.Manufacturer_Id, Manufacturer_Id_Length);
             T.Board.Board_Name := Cut (T.Live.Board_Name, Board_Name_Length);
@@ -433,6 +452,13 @@ package body Adaflight.Menu_Content with SPARK_Mode is
          T.Config.Mixer_Config.Crashflip_Rate := T.Misc.Crashflip_Rate;
       elsif Id = RC_Preview_Menu then
          Chain_Back := Self /= 9;
+      elsif Id = GPS_Lap_Timer_Menu then
+         T.Config.Gps_Lap_Timer_Config.Minimum_Lap_Time_Seconds := T.Lap.Minimum_Lap_Time;
+         T.Config.Gps_Lap_Timer_Config.Gate_Tolerance_M := T.Lap.Gate_Tolerance;
+      elsif Id = Set_Gate_Menu then
+         if T.Asked.Gate_Ends < Natural'Last then
+            T.Asked.Gate_Ends := T.Asked.Gate_Ends + 1;
+         end if;
       elsif Id = Persistent_Stats_Menu then
          T.Config.Stats_Config.Stats_Total_Flights := T.Stats.Total_Flights;
          T.Config.Stats_Config.Stats_Total_Time_S := T.Stats.Total_Time_S;
@@ -597,6 +623,12 @@ package body Adaflight.Menu_Content with SPARK_Mode is
             when 3 => T.Stats.Total_Dist_M := Interfaces.Unsigned_32'Mod (Value);
             when 6 => T.Stats.Min_Armed_Time :=
                  Interfaces.Integer_8 ((Interfaces.Integer_64 (Value) + 128) mod 256 - 128);
+            when others => null;
+         end case;
+      elsif Id = GPS_Lap_Timer_Menu then
+         case Line is
+            when 2 => T.Lap.Gate_Tolerance := Byte;
+            when 3 => T.Lap.Minimum_Lap_Time := Word;
             when others => null;
          end case;
       elsif Id = RPM_Limit_Menu then
