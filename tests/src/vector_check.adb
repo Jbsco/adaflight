@@ -14174,6 +14174,14 @@ procedure Vector_Check is
            Adaflight.Config_Runtime.Flight_Stats_Settings_Of (C.Stats_Config);
          LT : constant Adaflight.GPS_Lap_Timer.Settings :=
            Adaflight.Config_Runtime.Lap_Timer_Settings_Of (C.Gps_Lap_Timer_Config);
+         RF : constant Adaflight.Rangefinder.Settings :=
+           Adaflight.Config_Runtime.Rangefinder_Settings_Of (C.Position_Config, 300);
+         FL : constant Adaflight.Optical_Flow.Settings :=
+           Adaflight.Config_Runtime.Optical_Flow_Settings_Of (C.Opticalflow_Config);
+         PT : constant Adaflight.Pitot.Settings := Adaflight.Config_Runtime.Pitot_Settings_Of (C.Pitot_Config);
+         GB : constant Adaflight.Gimbal_Control.Settings :=
+           Adaflight.Config_Runtime.Gimbal_Settings_Of (C.Gimbal_Track_Config, C.Rx_Config, False);
+         TZ : constant Adaflight.RTC.Settings := Adaflight.Config_Runtime.RTC_Settings_Of (C.Time_Config);
       begin
          Record_Int ("conffix.arming_min_check",
                      Integer_64 (Interfaces.Unsigned_16'Max
@@ -14250,6 +14258,22 @@ procedure Vector_Check is
                      Integer_64 (ST.Save_Move_Limit));
          Record_Int ("conffix.lap_tolerance", Integer_64 (C.Gps_Lap_Timer_Config.Gate_Tolerance_M),
                      Integer_64 (LT.Gate_Tolerance_M));
+         Record_Int ("conffix.rangefinder_max",
+                     Integer_64 (Interfaces.Unsigned_16'Min (32_767, C.Position_Config.Rangefinder_Max_Range_Cm)),
+                     Integer_64 (RF.Max_Range_Cm));
+         Record_Int ("conffix.flow_rotation", Integer_64 (C.Opticalflow_Config.Rotation),
+                     Integer_64 (FL.Rotation_Degrees));
+         Record_Int ("conffix.pitot_hardware",
+                     Integer_64 (Interfaces.Unsigned_8'Min (3, C.Pitot_Config.Pitot_Hardware)),
+                     Integer_64 (Adaflight.Pitot.Source'Pos (PT.Hardware)));
+         Record_Int ("conffix.gimbal_roll_limit",
+                     Integer_64 (Interfaces.Integer_8'Max
+                                   (0, Interfaces.Integer_8'Min (100, C.Gimbal_Track_Config.Gimbal_Roll_Limit))),
+                     Integer_64 (GB.Roll_Limit));
+         Record_Int ("conffix.time_zone",
+                     Integer_64 (Interfaces.Integer_16'Max
+                                   (-780, Interfaces.Integer_16'Min (780, C.Time_Config.Tz_Offset_Minutes))),
+                     Integer_64 (TZ.Zone));
       end;
       if H.Gyro_Sample_Rate_Hz in 10 .. 10_000 and then H.Motors in 1 .. 8
         and then Integer (1_000_000 / H.Gyro_Sample_Rate_Hz) * Integer (C.Pid_Config.Pid_Process_Denom)
