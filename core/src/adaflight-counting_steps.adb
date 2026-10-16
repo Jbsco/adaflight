@@ -31,18 +31,55 @@ package body Adaflight.Counting_Steps with SPARK_Mode is
    end Step_Tilt;
 
    procedure Step_Write
-     (X : Menu.Column; Y : Menu.Column; Attr : Interfaces.Unsigned_8; Text : String; Cost : out Interfaces.Unsigned_32)
+     (On : Menu.Display_Index; X : Menu.Column; Y : Menu.Column; Attr : Interfaces.Unsigned_8; Text : String;
+      Cost : out Interfaces.Unsigned_32)
    is
-      pragma Unreferenced (X, Y, Attr, Text);
+      pragma Unreferenced (On, X, Y, Attr, Text);
    begin
       Calls := Counted (Calls);
       Cost := Interfaces.Unsigned_32 (Calls);
    end Step_Write;
 
-   procedure Step_Write_Char (X : Menu.Column; Y : Menu.Column; Attr : Interfaces.Unsigned_8; C : Character) is
-      pragma Unreferenced (X, Y, Attr, C);
+   procedure Step_Write_Char
+     (On : Menu.Display_Index; X : Menu.Column; Y : Menu.Column; Attr : Interfaces.Unsigned_8; C : Character)
+   is
+      pragma Unreferenced (On, X, Y, Attr, C);
    begin
       Calls := Counted (Calls);
    end Step_Write_Char;
+
+   procedure Step_Load (Id : Menu.Menu_Id; M : out Menu.Table) is
+      pragma Unreferenced (Id);
+   begin
+      Calls := Counted (Calls);
+      M := (Lines => (others => <>), Count => 1);
+   end Step_Load;
+
+   procedure Step_Hook (Id : Menu.Menu_Id; Chain_Back : out Boolean) is
+      pragma Unreferenced (Id);
+   begin
+      Calls := Counted (Calls);
+      Chain_Back := Calls mod 2 = 0;
+   end Step_Hook;
+
+   procedure Step_Leave (Id : Menu.Menu_Id; Self : Integer; Chain_Back : out Boolean) is
+      pragma Unreferenced (Id, Self);
+   begin
+      Calls := Counted (Calls);
+      Chain_Back := Calls mod 2 = 0;
+   end Step_Leave;
+
+   procedure Step_Update (Id : Menu.Menu_Id; Selected : Natural; Chain_Back : out Boolean) is
+      pragma Unreferenced (Id, Selected);
+   begin
+      Calls := Counted (Calls);
+      Chain_Back := Calls mod 2 = 0;
+   end Step_Update;
+
+   procedure Step_Act (On : Menu.Display_Index; A : Menu.Action; Arg : Integer) is
+      pragma Unreferenced (On, A, Arg);
+   begin
+      Calls := Counted (Calls);
+   end Step_Act;
 
 end Adaflight.Counting_Steps;

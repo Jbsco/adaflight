@@ -265,6 +265,13 @@ ledger. The deviations so far:
   the reference indexes past its mixer table, computes with the weight, and drives no motor. The
   recorded configurations keep their modes within the table, their weights numbers and their custom
   mixes with motors.
+- The menu's way back after an enter hook's chain back that restores no menu, at the stack's bottom
+  or refused by the entered menu's leave hook, selects the entered menu's first page (D195), where
+  the reference keeps the page of the menu left over the lines of the menu entered (F185). No menu
+  in the reference has both an enter and a leave hook that chain back, and the main menu has no
+  enter hook, so the reference never reaches that page; the recorded menus answer the way back as
+  the reference's menus do.
+
 
 ## D7. Contribution conventions (2026-10-08)
 
@@ -4534,3 +4541,39 @@ reported, and replays 12600 draws over the 1800 random menus, three after each o
 each page turn, with random byte budgets, cursor placements, clock readings, editing states and
 device types, comparing every display operation with the reference's and the cursor, flags and
 tickers after the draw.
+
+## D195. Menu navigation (2026-10-14)
+
+`Adaflight.Menu_Nav` is the menu's navigation, a generic over the menus' hook sets and lines, the
+hooks and the target's actions: the menu opened from its start menu on the current display, or
+moved to the next registered display while open with the cursor carried as an absolute row and the
+display's background type set; a change to a menu, which stacks the menu left except on the way to
+the main menu, loads the new menu's lines, asks its enter hook and selects its first page, or
+restores the page and cursor from the absolute row when the menu stays; the way back, which asks
+the leave hook, which may refuse it, and restores the stacked menu; a page selected with the screen
+cleared; the draw with its update hook and the way back it may ask for; and the exit by its kind,
+which asks the current menu's leave hook and, for a popup, the stacked menus' hooks, saves, releases
+the display, and for a reboot writes the notice, redraws, stops and shuts down the motors, waits and
+resets. The display layer's grab, release, clear, layer selection, background type and redraw, the
+save, the arming disable flag, the motor stops, the delay and the reset go to the target as actions
+on a display, in the reference's order. The lines are loaded before the enter hook, as the
+reference's current menu changes before it, and a chain back that restores no menu selects the
+entered menu's first page (D6, F185). The state holds the current menu with its hooks, the context
+stack of up to ten menus, the current menu's lines, the layout and selected page, the draw's
+context, the save inhibition and the registered displays with the current one. The proof covers the
+state's consistency between operations: every full screen display within the text bound (F184), an
+open menu on a registered display whose layout keeps a value's space and fits its rows, and a
+current menu with at least one line, its fixed-point values in range, and its selected page within
+its lines and the layout's items. `Adaflight.Menu_Draw` gains the display index on its writes and
+the update hook with the way back it asks for; `Adaflight.Menu` holds the displays, the menu
+numbers with their hook sets, the draw's context and the actions, which the draw and the navigation
+share. `Adaflight.Menu_Nav_Shape` instantiates the navigation over counting menus, hooks, actions
+and writes for the proof. The resume of the OSD's refresh at the open and the stick scanning stay
+with the target or later slices.
+
+The harness instantiates the navigation over the recorded menu sets, hooks that answer as the
+reference's did, and logging actions and writes, and replays 1800 random menu trees of up to six
+menus on two displays of random size: each open, three draws, four page turns with a draw each,
+six navigation operations (a change to a submenu, the way back, or a reopen that switches the
+display) with a draw each, the skip rule and an exit of a random kind, comparing every display
+operation, hook call, context, stack frame, display state and page with the reference's.

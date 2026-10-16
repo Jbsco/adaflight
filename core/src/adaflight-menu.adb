@@ -21,7 +21,7 @@ package body Adaflight.Menu with SPARK_Mode is
       return L;
    end Layout_Of;
 
-   procedure Select_Page (M : Table; L : Layout; Number : Integer; P : in out Page_State) is
+   procedure Select_Page (M : Table; L : Layout; Number : Page_Request; P : in out Page_State) is
       Count : constant Page_Count := Pages (M, L);
       Page  : constant Page_Number := (Number + Count) mod Count;
       Top   : constant Natural := Page * L.Max_Items;
@@ -99,6 +99,12 @@ package body Adaflight.Menu with SPARK_Mode is
       end loop;
       T.Length := Size;
    end Pad_Left;
+
+   procedure Clear_Screen (D : in out Display) is
+   begin
+      D.Cleared := True;
+      D.Cursor_Row := -1;
+   end Clear_Screen;
 
    function Sanitized (T : Label_Text) return Label_Text is
       R : Label_Text := T;
