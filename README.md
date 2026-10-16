@@ -135,6 +135,7 @@ The core contains:
 - command line save and exit: save with board persistence and batch refusal, exit, defaults with
   save, requests to write, restart and leave
 - command line information: VTX power levels, receiver frame rate and RC smoothing cutoffs
+- command line motors and sounds: disarmed values for one or every motor, beeper table sounds
 - scheduler late task statistics: run and late counts per task, anticipated times, late share per
   timing window
 - command line tasks late columns: late and run counts and anticipated time per task
@@ -243,7 +244,7 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 27551 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 27614 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
 - Recorded vectors replay bit for bit: 1753568 lines over 384 cases, every case exact except
   forty-six declared deviations in `DESIGN.md` D6.
