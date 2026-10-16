@@ -14146,6 +14146,10 @@ procedure Vector_Check is
               C.Voltage_Sensor_Adc_Config (0), C.Current_Sensor_Adc_Config, C.Current_Sensor_Virtual_Config,
               C.Esc_Sensor_Config);
          BP : constant Adaflight.Beeper.Settings := Adaflight.Config_Runtime.Beeper_Settings_Of (C.Beeper_Config);
+         GL : constant Adaflight.GPS_Link.Settings :=
+           Adaflight.Config_Runtime.GPS_Link_Settings_Of (C.Gps_Config, C.Gps_Rescue_Config, True);
+         GR : constant Adaflight.GPS_Rescue.Settings :=
+           Adaflight.Config_Runtime.GPS_Rescue_Settings_Of (C.Gps_Rescue_Config, C.Autopilot_Config, C.Gps_Config);
       begin
          Record_Int ("conffix.arming_min_check",
                      Integer_64 (Interfaces.Unsigned_16'Max
@@ -14182,6 +14186,14 @@ procedure Vector_Check is
                      Integer_64 (BT.Capacity_mAh));
          Record_Int ("conffix.beeper_usb_off", Integer_64 ((C.Beeper_Config.Beeper_Off_Flags / 2 ** 17) mod 2),
                      Boolean'Pos (BP.Off_Flags (Adaflight.Beeper.USB)));
+         Record_Int ("conffix.gps_rate",
+                     Integer_64 (Interfaces.Unsigned_8'Max
+                                   (1, Interfaces.Unsigned_8'Min (20, C.Gps_Config.Gps_Update_Rate_Hz))),
+                     Integer_64 (GL.Update_Rate));
+         Record_Int ("conffix.rescue_min_sats",
+                     Integer_64 (Interfaces.Unsigned_8'Max
+                                   (5, Interfaces.Unsigned_8'Min (50, C.Gps_Rescue_Config.Min_Sats))),
+                     Integer_64 (GR.Min_Sats));
       end;
       if H.Gyro_Sample_Rate_Hz in 10 .. 10_000 and then H.Motors in 1 .. 8
         and then Integer (1_000_000 / H.Gyro_Sample_Rate_Hz) * Integer (C.Pid_Config.Pid_Process_Denom)

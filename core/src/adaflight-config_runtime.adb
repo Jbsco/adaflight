@@ -130,6 +130,31 @@ package body Adaflight.Config_Runtime with SPARK_Mode is
       return F;
    end Flags_Of;
 
+   --  The stored command text: its bytes as characters, a NUL and what
+   --  follows it as spaces.
+   function Command_Text_Of (B : Bytes_65) return GPS_Link.Command_Text is
+      T     : GPS_Link.Command_Text := (others => ' ');
+      Ended : Boolean := False;
+   begin
+      for I in T'Range loop
+         Ended := Ended or else B (I - 1) = 0;
+         if not Ended then
+            T (I) := Character'Val (B (I - 1));
+         end if;
+      end loop;
+      return T;
+   end Command_Text_Of;
+
+   function Command_Length_Of (B : Bytes_65) return GPS_Link.Command_Length is
+   begin
+      for I in 0 .. GPS_Link.Max_Command - 1 loop
+         if B (I) = 0 then
+            return I;
+         end if;
+      end loop;
+      return GPS_Link.Max_Command;
+   end Command_Length_Of;
+
    function Map_Of (Rcmap : Bytes_8) return Receiver.Channel_Map is
       M : Receiver.Channel_Map;
    begin
