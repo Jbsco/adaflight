@@ -10,6 +10,7 @@
 with Interfaces;
 with Adaflight.Bytes; use Adaflight.Bytes;
 with Adaflight.Modes;
+with Adaflight.VTX_Settings;
 with Adaflight.VTX_Table;
 with Adaflight.SmartAudio;
 with Adaflight.Tramp;
@@ -23,21 +24,8 @@ package Adaflight.VTX with SPARK_Mode is
    subtype Unsigned_16 is Interfaces.Unsigned_16;
    subtype Unsigned_32 is Interfaces.Unsigned_32;
 
-   type Low_Power_Disarm is (Off, Always, Until_First_Arm);
-
-   Default_Power : constant Unsigned_8 := 1;
-
-   --  The configured transmitter settings, changed at run time by the
-   --  sticks, the switches and the receiver, so held by the caller.
-   type Settings is record
-      Band           : Unsigned_8 := 0;
-      Channel        : Unsigned_8 := 0;
-      Power          : Unsigned_8 := 0;
-      Freq           : Unsigned_16 := 0;
-      Pit_Mode_Freq  : Unsigned_16 := 0;
-      Low_Power      : Low_Power_Disarm := Off;
-      Softserial_Alt : Boolean := False;
-   end record;
+   subtype Low_Power_Disarm is VTX_Settings.Low_Power_Disarm;
+   subtype Settings is VTX_Settings.Settings;
 
    --  A switch condition: within the range of the aux channel, a band, a
    --  channel and a power above zero are applied.

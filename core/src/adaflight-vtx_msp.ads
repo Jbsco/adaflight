@@ -7,19 +7,20 @@
 --  the command processor stay with the target.
 with Interfaces;
 with Adaflight.Bytes;
-with Adaflight.VTX;
+with Adaflight.VTX_Settings;
 with Adaflight.VTX_Table;
 
 package Adaflight.VTX_MSP with SPARK_Mode is
    use type Interfaces.Unsigned_8;
    use type Interfaces.Unsigned_16;
    use type Interfaces.Unsigned_32;
-   use type Adaflight.VTX.Low_Power_Disarm;
+   use type Adaflight.VTX_Settings.Low_Power_Disarm;
    use Adaflight.Bytes;
 
    subtype Unsigned_8 is Interfaces.Unsigned_8;
    subtype Unsigned_16 is Interfaces.Unsigned_16;
    subtype Unsigned_32 is Interfaces.Unsigned_32;
+   subtype Settings is Adaflight.VTX_Settings.Settings;
 
    Request_Period_Us : constant := 200_000;
    Config_Command    : constant := 88;
@@ -59,10 +60,10 @@ package Adaflight.VTX_MSP with SPARK_Mode is
 
    --  The lowest power while disarmed and not in failsafe, always or until
    --  the first arming, by the setting.
-   function Low_Power_Disarmed (S : Adaflight.VTX.Settings; Armed, Was_Ever_Armed, Failsafe : Boolean) return Boolean is
+   function Low_Power_Disarmed (S : Settings; Armed, Was_Ever_Armed, Failsafe : Boolean) return Boolean is
      (not Armed and then not Failsafe
-      and then (S.Low_Power = Adaflight.VTX.Always
-                or else (S.Low_Power = Adaflight.VTX.Until_First_Arm and then not Was_Ever_Armed)));
+      and then (S.Low_Power = Adaflight.VTX_Settings.Always
+                or else (S.Low_Power = Adaflight.VTX_Settings.Until_First_Arm and then not Was_Ever_Armed)));
 
    function Is_Ready (D : Driver) return Boolean is (D.Current = Ready);
 
@@ -74,13 +75,13 @@ package Adaflight.VTX_MSP with SPARK_Mode is
    --  of the settings with the lowest power while low power disarmed, the
    --  pit mode, the frequency, the readiness, the low power setting, the pit
    --  mode frequency, and the table's counts behind a table flag.
-   procedure Prepare_Frame (D : Driver; S : Adaflight.VTX.Settings; T : Adaflight.VTX_Table.Table; Low_Power : Boolean;
+   procedure Prepare_Frame (D : Driver; S : Settings; T : Adaflight.VTX_Table.Table; Low_Power : Boolean;
                             Frame : out Config_Frame);
 
    --  One cycle: a low power change marks the configuration changed, and a
    --  changed configuration goes out once the period has passed; Send
    --  reports the frame to push as an MSP reply.
-   procedure Process (D : in out Driver; S : Adaflight.VTX.Settings; T : Adaflight.VTX_Table.Table; Inp : Inputs;
+   procedure Process (D : in out Driver; S : Settings; T : Adaflight.VTX_Table.Table; Inp : Inputs;
                       Frame : out Config_Frame; Send : out Boolean);
 
    --  The MSP reply wrapped for the CRSF telemetry buffer: the sync byte,

@@ -1,4 +1,5 @@
 package body Adaflight.VTX with SPARK_Mode is
+   use type VTX_Settings.Low_Power_Disarm;
 
    Spektrum_Band_Mask     : constant Unsigned_32 := 16#00E0_0000#;
    Spektrum_Channel_Mask  : constant Unsigned_32 := 16#000F_0000#;
@@ -223,12 +224,13 @@ package body Adaflight.VTX with SPARK_Mode is
       if Inp.Pit_Switch and then S.Pit_Mode_Freq /= 0 then
          R.Band := 0;
          R.Freq := S.Pit_Mode_Freq;
-         R.Power := Default_Power;
+         R.Power := VTX_Settings.Default_Power;
       end if;
       if not Inp.Armed and then not Inp.Failsafe
-        and then (S.Low_Power = Always or else (S.Low_Power = Until_First_Arm and then not Inp.Was_Ever_Armed))
+        and then (S.Low_Power = VTX_Settings.Always
+                  or else (S.Low_Power = VTX_Settings.Until_First_Arm and then not Inp.Was_Ever_Armed))
       then
-         R.Power := Default_Power;
+         R.Power := VTX_Settings.Default_Power;
       end if;
       return R;
    end Effective;
