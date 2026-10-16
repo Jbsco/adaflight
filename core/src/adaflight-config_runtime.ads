@@ -18,6 +18,7 @@ with Adaflight.Blackbox_Header;
 with Adaflight.Compass;
 with Adaflight.Config_Fix;
 with Adaflight.Config_Groups; use Adaflight.Config_Groups;
+with Adaflight.CRSF_Telemetry;
 with Adaflight.Dyn_Notch;
 with Adaflight.Failsafe;
 with Adaflight.Flight_Plan_Nav;
@@ -25,9 +26,15 @@ with Adaflight.Flight_Stats;
 with Adaflight.Float_Bits;
 with Adaflight.GPS_Lap_Timer;
 with Adaflight.GPS_Link;
+with Adaflight.FrSky_Hub_Telemetry;
+with Adaflight.GHST_Telemetry;
 with Adaflight.Gimbal_Control;
 with Adaflight.GPS_Rescue;
+with Adaflight.HoTT_Telemetry;
+with Adaflight.IBus_Telemetry;
+with Adaflight.Jeti_Telemetry;
 with Adaflight.LED_Strip;
+with Adaflight.MAVLink_Telemetry;
 with Adaflight.Gyro_Filters;
 with Adaflight.Mixer;
 with Adaflight.Mixer_Init;
@@ -54,6 +61,7 @@ with Adaflight.RPM_Filter;
 with Adaflight.RTC;
 with Adaflight.Scheduler;
 with Adaflight.Sensor_Alignment;
+with Adaflight.SRXL_Telemetry;
 with Adaflight.UBX_Config;
 with Adaflight.Vectors;
 with Adaflight.VTX;
@@ -273,6 +281,32 @@ package Adaflight.Config_Runtime with SPARK_Mode is
    --  The OSD element alarm settings from the stored OSD and GPS rescue
    --  groups.
    function OSD_Alarm_Settings_Of (O : Osd_Config_Record; R : Gps_Rescue_Record) return OSD_Elements.Alarm_Settings;
+
+   --  The telemetry settings from the stored telemetry group, with what the
+   --  protocols read from outside it: the sensors found at boot, the
+   --  features in use, the battery meters configured, and the
+   --  accelerometer's scale. The FrSky hub takes the motor group's pole
+   --  count and the altitude's presence; the CRSF configuration takes the
+   --  receiver group's negotiated baud and whether the build sends event
+   --  driven frames; Jeti takes the system group's debug mode.
+   function FrSky_Hub_Settings_Of
+     (T : Telemetry_Config_Record; Motor : Motor_Config_Record; Sensors : Arming.Sensor_Set;
+      Altitude_Present : Boolean; GPS_Present : Boolean; Acc_1G_Rec : FrSky_Hub_Telemetry.Gravity_Scale)
+      return FrSky_Hub_Telemetry.Settings;
+   function GHST_Settings_Of
+     (T : Telemetry_Config_Record; B : Battery_Config_Record; Features : Unsigned_32; Sensors : Arming.Sensor_Set)
+      return GHST_Telemetry.Settings;
+   function CRSF_Config_Of
+     (T : Telemetry_Config_Record; R : Rx_Config_Record; B : Battery_Config_Record; Features : Unsigned_32;
+      Sensors : Arming.Sensor_Set; Event_Driven : Boolean) return CRSF_Telemetry.Config;
+   function HoTT_Settings_Of (T : Telemetry_Config_Record; GPS_Present : Boolean) return HoTT_Telemetry.Settings;
+   function IBus_Settings_Of
+     (T : Telemetry_Config_Record; Acc_1G_Rec : IBus_Telemetry.Gravity_Scale) return IBus_Telemetry.Settings;
+   function Jeti_Settings_Of
+     (B : Battery_Config_Record; Sys : System_Config_Record; Features : Unsigned_32; Sensors : Arming.Sensor_Set)
+      return Jeti_Telemetry.Settings;
+   function MAVLink_Settings_Of (T : Telemetry_Config_Record) return MAVLink_Telemetry.Settings;
+   function SRXL_Settings_Of (T : Telemetry_Config_Record; Features : Unsigned_32) return SRXL_Telemetry.Settings;
 
 private
 
@@ -976,6 +1010,107 @@ private
       Distance_Alarm     => O.Distance_Alarm,
       ESC_Temp_Alarm     => O.Esc_Temp_Alarm,
       Rescue_Min_Sats    => R.Min_Sats);
+
+   function Hub_Sensors_Of (Disabled : Unsigned_32) return FrSky_Hub_Telemetry.Sensor_Set;
+
+   --  Whether a sensor's telemetry is on: its bit in the disabled mask is
+   --  clear.
+   function Sensor_On (Disabled : Unsigned_32; Bit : Natural) return Boolean is
+     ((Disabled and Shift_Left (1, Bit)) = 0)
+     with Pre => Bit < 32;
+
+   function FrSky_Hub_Settings_Of
+     (T : Telemetry_Config_Record; Motor : Motor_Config_Record; Sensors : Arming.Sensor_Set;
+      Altitude_Present : Boolean; GPS_Present : Boolean; Acc_1G_Rec : FrSky_Hub_Telemetry.Gravity_Scale)
+      return FrSky_Hub_Telemetry.Settings is
+     (Enabled             => Hub_Sensors_Of (T.Disabled_Sensors),
+      Format              =>
+        FrSky_Hub_Telemetry.Coordinate_Format'Val
+          (Code (T.Frsky_Coordinate_Format,
+                 FrSky_Hub_Telemetry.Coordinate_Format'Pos (FrSky_Hub_Telemetry.Coordinate_Format'Last))),
+      Unit                =>
+        FrSky_Hub_Telemetry.Units'Val
+          (Code (T.Frsky_Unit, FrSky_Hub_Telemetry.Units'Pos (FrSky_Hub_Telemetry.Units'Last))),
+      Precision           =>
+        FrSky_Hub_Telemetry.VFAS_Precision'Val
+          (Code (T.Frsky_Vfas_Precision,
+                 FrSky_Hub_Telemetry.VFAS_Precision'Pos (FrSky_Hub_Telemetry.VFAS_Precision'Last))),
+      Report_Cell_Voltage => T.Report_Cell_Voltage /= 0,
+      No_Fix_Latitude     => Integer_16 (Held (Integer (T.Gps_No_Fix_Latitude), -18_000, 18_000)),
+      No_Fix_Longitude    => Integer_16 (Held (Integer (T.Gps_No_Fix_Longitude), -18_000, 18_000)),
+      Acc_Present         => Sensors.Acc,
+      Altitude_Present    => Altitude_Present,
+      GPS_Present         => GPS_Present,
+      Mag_Present         => Sensors.Mag,
+      Pole_Count          => Motor.Motor_Pole_Count,
+      Acc_1G_Rec          => Acc_1G_Rec);
+
+   function GHST_Settings_Of
+     (T : Telemetry_Config_Record; B : Battery_Config_Record; Features : Unsigned_32; Sensors : Arming.Sensor_Set)
+      return GHST_Telemetry.Settings is
+     (Voltage_Enabled      => Sensor_On (T.Disabled_Sensors, 0),
+      Current_Enabled      => Sensor_On (T.Disabled_Sensors, 1),
+      Fuel_Enabled         => Sensor_On (T.Disabled_Sensors, 2),
+      Altitude_Enabled     => Sensor_On (T.Disabled_Sensors, 10),
+      Lat_Long_Enabled     => Sensor_On (T.Disabled_Sensors, 12),
+      Ground_Speed_Enabled => Sensor_On (T.Disabled_Sensors, 13),
+      Heading_Enabled      => Sensor_On (T.Disabled_Sensors, 9),
+      Report_Cell_Voltage  => T.Report_Cell_Voltage /= 0,
+      Voltage_Configured   => B.Voltage_Meter_Source /= 0,
+      Amperage_Configured  => B.Current_Meter_Source /= 0,
+      GPS_Feature          => (Features and Config_Fix.Feature_GPS) /= 0,
+      Baro_Present         => Sensors.Baro,
+      Mag_Present          => Sensors.Mag);
+
+   function CRSF_Config_Of
+     (T : Telemetry_Config_Record; R : Rx_Config_Record; B : Battery_Config_Record; Features : Unsigned_32;
+      Sensors : Arming.Sensor_Set; Event_Driven : Boolean) return CRSF_Telemetry.Config is
+     (Acc_Present         => Sensors.Acc,
+      Baro_Present        => Sensors.Baro,
+      Mag_Present         => Sensors.Mag,
+      Gyro_Present        => Sensors.Gyro,
+      Disabled_Kinds      => T.Disabled_Sensors,
+      Voltage_Configured  => B.Voltage_Meter_Source /= 0,
+      Amperage_Configured => B.Current_Meter_Source /= 0,
+      GPS_Feature         => (Features and Config_Fix.Feature_GPS) /= 0,
+      Telemetry_Feature   => (Features and Config_Fix.Feature_Telemetry) /= 0,
+      Inertial_Frames     => T.Crsf_Tlm_Accgyro /= 0,
+      Event_Driven        => Event_Driven,
+      Use_Negotiated_Baud => R.Crsf_Use_Negotiated_Baud /= 0);
+
+   function HoTT_Settings_Of (T : Telemetry_Config_Record; GPS_Present : Boolean) return HoTT_Telemetry.Settings is
+     (Alarm_Interval_S => T.Hott_Alarm_Sound_Interval, GPS_Present => GPS_Present);
+
+   function IBus_Settings_Of
+     (T : Telemetry_Config_Record; Acc_1G_Rec : IBus_Telemetry.Gravity_Scale) return IBus_Telemetry.Settings is
+     (Sensors             => IBus_Telemetry.Sensor_Table (T.Flysky_Sensors),
+      Report_Cell_Voltage => T.Report_Cell_Voltage /= 0,
+      Acc_1G_Rec          => Acc_1G_Rec);
+
+   function Jeti_Settings_Of
+     (B : Battery_Config_Record; Sys : System_Config_Record; Features : Unsigned_32; Sensors : Arming.Sensor_Set)
+      return Jeti_Telemetry.Settings is
+     (Voltage_Meter => B.Voltage_Meter_Source /= 0,
+      Current_Meter => B.Current_Meter_Source /= 0,
+      Baro          => Sensors.Baro,
+      Acc           => Sensors.Acc,
+      Mag           => Sensors.Mag,
+      GPS_Feature   => (Features and Config_Fix.Feature_GPS) /= 0,
+      ESC_Feature   => (Features and Config_Fix.Feature_ESC_Sensor) /= 0,
+      Debug_Mode    => Sys.Debug_Mode /= 0);
+
+   function MAVLink_Settings_Of (T : Telemetry_Config_Record) return MAVLink_Telemetry.Settings is
+     (Rates               => (MAVLink_Telemetry.Extended_Status => T.Mavlink_Extended_Status_Rate,
+                              MAVLink_Telemetry.RC_Channels     => T.Mavlink_Rc_Channels_Rate,
+                              MAVLink_Telemetry.Position        => T.Mavlink_Position_Rate,
+                              MAVLink_Telemetry.Extra1          => T.Mavlink_Extra1_Rate,
+                              MAVLink_Telemetry.Extra2          => T.Mavlink_Extra2_Rate,
+                              MAVLink_Telemetry.Extra3          => T.Mavlink_Extra3_Rate),
+      MAh_Heading_Divisor => T.Mavlink_Mah_As_Heading_Divisor,
+      Report_Cell_Voltage => T.Report_Cell_Voltage /= 0);
+
+   function SRXL_Settings_Of (T : Telemetry_Config_Record; Features : Unsigned_32) return SRXL_Telemetry.Settings is
+     (Report_Cell_Voltage => T.Report_Cell_Voltage /= 0, GPS_Feature => (Features and Config_Fix.Feature_GPS) /= 0);
 
    function Gyro_Settings_Of
      (G : Gyro_Config_Record; N : Dyn_Notch_Config_Record; R : Rpm_Filter_Config_Record;

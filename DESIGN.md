@@ -4356,6 +4356,13 @@ battery profiles. `OSD_Warnings_Settings_Of` builds `OSD_Warnings.Settings` from
 group, each warning's flag from its bit, and `OSD_Alarm_Settings_Of` builds the elements' alarm
 settings from the stored OSD and GPS rescue groups.
 
+The telemetry constructors build the FrSky hub, GHST, CRSF, HoTT, iBus, Jeti, MAVLink and SRXL
+settings from the stored telemetry group, with what the protocols read from outside it: the sensors
+found at boot, the features in use, the battery meters configured and the accelerometer's scale. A
+sensor's telemetry is on when its bit in the stored disabled mask is clear. The FrSky hub takes the
+motor group's pole count, the CRSF configuration the receiver group's negotiated baud and whether
+the build sends event driven frames, and Jeti the system group's debug mode.
+
 The harness builds the four PID profiles and the four rate profiles of every fixed configuration in
 the configuration fix recordings, 16000 of each, and the gyro settings of each with a running gyro
 and motors, 3082, with the preconditions and the predicates checked at run time, and compares the
@@ -4385,10 +4392,10 @@ the configuration fix recordings, 16000 of each, the arming, failsafe, receiver,
 attitude, barometer, compass, battery, beeper, GPS link, GPS rescue, position control, position
 estimator, position hold, altitude control, altitude hold, flight plan, blackbox, scheduler, LED
 strip, VTX, statistics, lap timer, rangefinder, optical flow, pitot, gimbal, clock, OSD page, OSD
-render, OSD specification, OSD warning and OSD alarm settings and the mode conditions of each, 4000
-of each, and the gyro, RC command and accelerometer settings of each with a running gyro and motors,
-3082, with the preconditions and the predicates checked at run time, and compares one field of
-each. The analog endpoints replay 235 recorded motor and 3D settings from
+render, OSD specification, OSD warning, OSD alarm and the eight telemetry settings and the mode
+conditions of each, 4000 of each, and the gyro, RC command and accelerometer settings of each with a
+running gyro and motors, 3082, with the preconditions and the predicates checked at run time, and
+compares one field of each. The analog endpoints replay 235 recorded motor and 3D settings from
 the DShot oracle bit for bit, 70 of them with an inverted range (findings F181).
 
 ## D189. Command line batches (2026-10-14)
