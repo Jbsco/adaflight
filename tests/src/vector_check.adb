@@ -18973,9 +18973,11 @@ procedure Vector_Check is
    end Check_Mixer_Init_Line;
 
    --  The menu set of a step: each menu's lines and hooks by number.
+   type Menu_Line_Flags is array (Adaflight.Menu.Line_Index) of Boolean;
    type Menu_Def is record
-      Table : Adaflight.Menu.Table;
-      Hooks : Adaflight.Menu.Hook_Set;
+      Table       : Adaflight.Menu.Table;
+      Hooks       : Adaflight.Menu.Hook_Set;
+      Custom_Exit : Menu_Line_Flags := (others => False);
    end record;
    MN_Menus      : array (0 .. 7) of Menu_Def;
    type Menu_Names is array (0 .. 7, 0 .. 59, 0 .. 3) of Adaflight.Menu.Label_Text;
@@ -18994,7 +18996,7 @@ procedure Vector_Check is
    end record;
    type Menu_Ops is array (1 .. 100) of Menu_Op;
    type Menu_Hook is record
-      Kind, Menu, Arg, Back : Integer_64 := 0;
+      Kind, Menu, Arg, Back, Effect, Effect_Arg : Integer_64 := 0;
    end record;
    type Menu_Hooks is array (1 .. 32) of Menu_Hook;
    MN_Expected    : Menu_Ops;
@@ -19054,14 +19056,36 @@ procedure Vector_Check is
    begin
       if MN_N_Log_Hooks < MN_Log_Hooks'Last then
          MN_N_Log_Hooks := MN_N_Log_Hooks + 1;
-         MN_Log_Hooks (MN_N_Log_Hooks) := (Kind, Integer_64 (Id), Arg, 0);
+         MN_Log_Hooks (MN_N_Log_Hooks) := (Kind, Integer_64 (Id), Arg, 0, 0, 0);
       end if;
       Back := MN_N_Log_Hooks <= MN_N_Hooks and then MN_Exp_Hooks (MN_N_Log_Hooks).Back /= 0;
    end Menu_Hook_Call;
 
-   procedure Menu_On_Enter (Id : Adaflight.Menu.Menu_Id; Chain_Back : out Boolean) is
+   --  A hook's answer with the change or exit the reference's hook made.
+   procedure Menu_Hook_Answer
+     (Kind : Integer_64; Id : Adaflight.Menu.Menu_Id; Arg : Integer_64; Reply : out Adaflight.Menu.Answer) is
+      Back : Boolean;
    begin
-      Menu_Hook_Call (1, Id, -1, Chain_Back);
+      Menu_Hook_Call (Kind, Id, Arg, Back);
+      Reply := (Chain_Back => Back, others => <>);
+      if MN_N_Log_Hooks <= MN_N_Hooks then
+         declare
+            H : constant Menu_Hook := MN_Exp_Hooks (MN_N_Log_Hooks);
+         begin
+            if H.Effect = 1 and then H.Effect_Arg in 0 .. Integer_64 (Adaflight.Menu.Menu_Id'Last) then
+               Reply.Done := Adaflight.Menu.Changed;
+               Reply.Target := Adaflight.Menu.Menu_Id (H.Effect_Arg);
+            elsif H.Effect = 2 and then H.Effect_Arg in 0 .. 5 then
+               Reply.Done := Adaflight.Menu.Exited;
+               Reply.Kind := Adaflight.Menu.Exit_Kind'Val (H.Effect_Arg);
+            end if;
+         end;
+      end if;
+   end Menu_Hook_Answer;
+
+   procedure Menu_On_Enter (Id : Adaflight.Menu.Menu_Id; Reply : out Adaflight.Menu.Answer) is
+   begin
+      Menu_Hook_Answer (1, Id, -1, Reply);
    end Menu_On_Enter;
 
    procedure Menu_On_Leave (Id : Adaflight.Menu.Menu_Id; Self : Integer; Chain_Back : out Boolean) is
@@ -19074,9 +19098,26 @@ procedure Vector_Check is
       Menu_Hook_Call (3, Id, Integer_64 (Selected), Chain_Back);
    end Menu_On_Update;
 
-   procedure Menu_Line_Call (Id : Adaflight.Menu.Menu_Id; Line : Natural; Chain_Back : out Boolean) is
+   --  A line's function: an exit line's exit by the line's kind, as the
+   --  reference's exit function takes it (a kind outside the six exits
+   --  plainly), else the menu's function hook.
+   procedure Menu_Line_Call (Id : Adaflight.Menu.Menu_Id; Line : Natural; Reply : out Adaflight.Menu.Answer) is
+      use type Adaflight.Menu.Element;
    begin
-      Menu_Hook_Call (4, Id, Integer_64 (Line), Chain_Back);
+      if Id in MN_Menus'Range and then Line < MN_Menus (Id).Table.Count
+        and then Adaflight.Menu.Element_Of (MN_Menus (Id).Table.Lines (Line).Flags) = Adaflight.Menu.OSD_Exit
+        and then not MN_Menus (Id).Custom_Exit (Line)
+      then
+         declare
+            V : constant Interfaces.Integer_32 := MN_Menus (Id).Table.Lines (Line).Value;
+         begin
+            Reply := (Done => Adaflight.Menu.Exited,
+                      Kind => (if V in 0 .. 5 then Adaflight.Menu.Exit_Kind'Val (V) else Adaflight.Menu.Plain),
+                      others => <>);
+         end;
+      else
+         Menu_Hook_Answer (4, Id, Integer_64 (Line), Reply);
+      end if;
    end Menu_Line_Call;
 
    procedure Menu_Set_Value (Id : Adaflight.Menu.Menu_Id; Line : Natural; Value : Interfaces.Integer_32) is
@@ -19128,8 +19169,9 @@ procedure Vector_Check is
       begin
          MN_N_Hooks := Natural (Next);
          for J in 1 .. MN_N_Hooks loop
-            MN_Exp_Hooks (J) := (Kind => Int (K), Menu => Int (K + 1), Arg => Int (K + 2), Back => Int (K + 3));
-            K := K + 4;
+            MN_Exp_Hooks (J) := (Kind => Int (K), Menu => Int (K + 1), Arg => Int (K + 2), Back => Int (K + 3),
+                                 Effect => Int (K + 4), Effect_Arg => Int (K + 5));
+            K := K + 6;
          end loop;
       end Read_Hooks;
       procedure Begin_Record is
@@ -19229,6 +19271,7 @@ procedure Vector_Check is
             end if;
             MN_Menus (Id).Hooks := (Enter => Enter, Leave => Leave, Update => Upd);
             MN_Menus (Id).Table := (Lines => (others => <>), Count => Count);
+            MN_Menus (Id).Custom_Exit := (others => False);
             for I in 0 .. Count - 1 loop
                declare
                   L : Adaflight.Menu.Line renames MN_Menus (Id).Table.Lines (I);
@@ -19244,6 +19287,7 @@ procedure Vector_Check is
                   L.Max := Word (Int (K + 7));
                   L.Step := Word (Int (K + 8));
                   L.Has_Func := Int (K + 9) /= 0;
+                  MN_Menus (Id).Custom_Exit (I) := Int (K + 9) = 2;
                   L.Multiplier := Natural (Int (K + 10));
                   K := K + 11;
                   if Element_Of (L.Flags) = Tab then

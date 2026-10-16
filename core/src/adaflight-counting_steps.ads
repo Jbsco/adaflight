@@ -10,6 +10,7 @@ with Adaflight.Scheduler;
 package Adaflight.Counting_Steps with SPARK_Mode, Initializes => Calls is
    use type Interfaces.Unsigned_32;
    use type Scheduler.Time_Delta;
+   use type Menu.Answer;
 
    Calls : Natural := 0;
 
@@ -55,9 +56,21 @@ package Adaflight.Counting_Steps with SPARK_Mode, Initializes => Calls is
      with Global => (In_Out => Calls),
           Post   => Calls = Counted (Calls'Old) and then M.Count = 1 and then Menu.Fixed_In_Range (M);
 
-   procedure Step_Hook (Id : Menu.Menu_Id; Chain_Back : out Boolean)
+   procedure Step_Enter (Id : Menu.Menu_Id; Reply : out Menu.Answer)
      with Global => (In_Out => Calls),
-          Post   => Calls = Counted (Calls'Old) and then Chain_Back = (Calls mod 2 = 0);
+          Post   => Calls = Counted (Calls'Old)
+                    and then Reply = (Done       => (if Calls mod 3 = 0 then Menu.Changed else Menu.Nothing),
+                                      Target     => Calls mod Menu.Max_Menus,
+                                      Kind       => Menu.Plain,
+                                      Chain_Back => Calls mod 2 = 0);
+
+   procedure Step_Call (Id : Menu.Menu_Id; Line : Natural; Reply : out Menu.Answer)
+     with Global => (In_Out => Calls),
+          Post   => Calls = Counted (Calls'Old)
+                    and then Reply = (Done       => Menu.Effect'Val (Calls mod 3),
+                                      Target     => Calls mod Menu.Max_Menus,
+                                      Kind       => Menu.Exit_Kind'Val (Calls mod 6),
+                                      Chain_Back => Calls mod 2 = 0);
 
    procedure Step_Leave (Id : Menu.Menu_Id; Self : Integer; Chain_Back : out Boolean)
      with Global => (In_Out => Calls),

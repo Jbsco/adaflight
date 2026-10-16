@@ -218,6 +218,20 @@ package Adaflight.Menu with SPARK_Mode is
       Update : Boolean := False;
    end record;
 
+   --  The exits by kind, in the reference's numbering.
+   type Exit_Kind is (Plain, Save, Save_Reboot, Popup_Save, Popup_Save_Reboot, Popup_Exit_Reboot);
+
+   --  A hook's answer: a menu change or an exit the hook made before it
+   --  returned, as the reference's hooks call them themselves, and whether
+   --  it asks for the way back.
+   type Effect is (Nothing, Changed, Exited);
+   type Answer is record
+      Done       : Effect := Nothing;
+      Target     : Menu_Id := Main_Menu;
+      Kind       : Exit_Kind := Plain;
+      Chain_Back : Boolean := False;
+   end record;
+
    --  The cursor's row in the page, which runs past the page's rows up to
    --  the end marker when every row below it is skipped, and holds the
    --  absolute row while the display changes.

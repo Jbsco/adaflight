@@ -5487,3 +5487,28 @@ replays the 3612 calls of the six sequences: every return, flag, blink bit, craf
 and display operation matches the reference's, with 25 draws that render the warnings line, 19 of
 them clearing the beeper. The task oracle does not draw the warnings element, so the task's merge
 rests on the draw vectors' reports and its proof.
+
+## D234. Menu hook effects (2026-10-15)
+
+`Adaflight.Menu_Nav`'s enter hooks and line functions answer with what they did inside the call: a
+change to a menu, or for a function an exit by a kind, as the reference's content menus call the
+change and the exit themselves before they return. The main menu's enter hook opens the setup
+popup, function lines open the save menu, the VTX device's menu and the accelerometer calibration
+menu, and the battery restore exits. The navigation runs a change made in an enter hook inside the
+change that asked the hook, then the rest of that change on the current menu, in the reference's
+order. It runs a function's change or exit after the call, then the way back when the function asks
+for it and the menu is still open. A function that exits and asks for the way back would make the
+reference read the closed menu, and no reference function does, so the port leaves that way back
+out. No recorded vector reaches the guard.
+
+An exit line now calls its function too. The target answers the exit by the line's kind, as the
+reference's exit function takes it, or with the change or exit its own function made, as the
+SmartAudio and Tramp commit lines do. A change nested in enter hooks past 21 levels is left out,
+since the menu stack's limit ends the reference's nesting before that. After a lookup table line's
+function changed the menu, the reboot check compares the edited value, as the reference reads the
+line's variable, not the new menu's line. `Adaflight.Menu` holds the exit kinds and the answer.
+
+The menu oracle's hooks now change the menu and exit at random inside themselves, and some exit
+lines get a function of the menu's own. The harness replays the six sequences' 179171 lines, with
+408 changes in enter hooks and 154 changes and 114 exits in functions: every display operation,
+hook call, context, stack frame, display state and page matches the reference's.

@@ -1,7 +1,8 @@
 --  The menu's navigation: the menu opened on the current display, or
 --  moved to the next display while open, with the geometry from the
---  display; a change to a menu, which stacks the menu left, asks the new
---  menu's enter hook, loads its lines and selects its first page, or
+--  display; a change to a menu, which stacks the menu left, loads its
+--  lines, asks the new menu's enter hook with the change it makes, and
+--  selects its first page, or
 --  restores the page and cursor when the menu stays; the way back, which
 --  asks the leave hook and restores the stacked menu; a page selected
 --  with the screen cleared; the draw with its update hook and the way
@@ -12,7 +13,8 @@
 --  back, the save key opens the save menu for the reboot state, up and
 --  down move the cursor over the rows and pages, and left and right edit
 --  the line under the cursor in its element's form, enter a submenu, call
---  a function line or exit, each edit written to the target's value as
+--  a function line or an exit line's function with the change or exit it
+--  makes, each edit written to the target's value as
 --  the reference writes the line's variable; and the update on every
 --  pass: the menu opened on the stick gesture while closed, and while
 --  open the sticks read as a key, handled when its delay has run out and
@@ -26,10 +28,10 @@ with Adaflight.Menu;
 generic
    with function Hooks_Of (Id : Adaflight.Menu.Menu_Id) return Adaflight.Menu.Hook_Set;
    with procedure Load (Id : Adaflight.Menu.Menu_Id; M : out Adaflight.Menu.Table);
-   with procedure On_Enter (Id : Adaflight.Menu.Menu_Id; Chain_Back : out Boolean);
+   with procedure On_Enter (Id : Adaflight.Menu.Menu_Id; Reply : out Adaflight.Menu.Answer);
    with procedure On_Leave (Id : Adaflight.Menu.Menu_Id; Self : Integer; Chain_Back : out Boolean);
    with procedure On_Display_Update (Id : Adaflight.Menu.Menu_Id; Selected : Natural; Chain_Back : out Boolean);
-   with procedure Line_Call (Id : Adaflight.Menu.Menu_Id; Line : Natural; Chain_Back : out Boolean);
+   with procedure Line_Call (Id : Adaflight.Menu.Menu_Id; Line : Natural; Reply : out Adaflight.Menu.Answer);
    with procedure Set_Value (Id : Adaflight.Menu.Menu_Id; Line : Natural; Value : Interfaces.Integer_32);
    with function Lookup (Id : Adaflight.Menu.Menu_Id; Line : Natural; Index : Natural)
      return Adaflight.Menu.Label_Text;
@@ -61,7 +63,7 @@ package Adaflight.Menu_Nav with SPARK_Mode is
    --  The exit kinds in the reference's numbering: a plain exit, a save,
    --  a save with a reboot, and the popup's save, save with a reboot and
    --  exit with a reboot.
-   type Exit_Kind is (Plain, Save, Save_Reboot, Popup_Save, Popup_Save_Reboot, Popup_Exit_Reboot);
+   subtype Exit_Kind is Adaflight.Menu.Exit_Kind;
 
    --  The keys in the reference's numbering, and what the keys need: the
    --  start menu and background type the menu key's reopen takes, and the
@@ -214,7 +216,7 @@ package Adaflight.Menu_Nav with SPARK_Mode is
 
    procedure Exit_Menu (S : in out State; Kind : Exit_Kind)
      with Pre  => S.In_Menu and then S.Has_Menu and then Consistent (S),
-          Post => Consistent (S) and then not S.In_Menu and then not S.Has_Menu;
+          Post => Consistent (S) and then not S.In_Menu and then not S.Has_Menu and then S.Port = S.Port'Old;
 
    --  A key from outside the sticks, kept until the next pass reads it.
    procedure Set_Extern_Key (S : in out State; Key : Key_Code);
