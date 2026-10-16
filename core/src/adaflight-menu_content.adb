@@ -453,6 +453,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
             (Enter => True, Leave => True, Update => False),
          when RC_Preview_Menu => (Enter => True, Leave => True, Update => True),
          when Copy_Profile_Menu => (Enter => True, Leave => False, Update => False),
+         when VTX_RTC6705_Menu => (Enter => True, Leave => True, Update => False),
          when Firmware_Menu | VTX_Error_Menu | VTX_MSP_Menu | VTX_Tramp_Menu | VTX_SmartAudio_Menu | SA_POR_Freq_Menu
             | SA_User_Freq_Menu =>
             (Enter => True, Leave => False, Update => False),
@@ -651,6 +652,28 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       Add (M, N, Make ("BACK", Back));
       M.Count := N;
    end Load_VTX_MSP_Menu;
+
+   --  The RTC6705 menu: the title, then the band, channel, power and pit
+   --  mode lines over its copies and the running table.
+   procedure Load_VTX_RTC6705_Menu (T : Target; M : out Table)
+     with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
+   is
+      use Adaflight.Menu;
+      N : Line_Count := 0;
+   begin
+      M := Empty_Table;
+      Add (M, N, Make ("--- VTX ---", Label));
+      Add (M, N, Choice ("BAND", Interfaces.Integer_32 (T.RTC.Band), Interfaces.Integer_32 (T.VTX_Table.Bands),
+                         Band_Name (T.VTX_Table, Natural (T.RTC.Band)), Has_Func => True));
+      Add (M, N, Choice ("CHANNEL", Interfaces.Integer_32 (T.RTC.Channel), Interfaces.Integer_32 (T.VTX_Table.Channels),
+                         Channel_Name (T.VTX_Table, Natural (T.RTC.Channel)), Has_Func => True));
+      Add (M, N, Choice ("POWER", Interfaces.Integer_32 (T.RTC.Power), Interfaces.Integer_32 (T.VTX_Table.Power_Levels),
+                         Power_Name (T.VTX_Table, Natural (T.RTC.Power)), Has_Func => True));
+      Add (M, N, Choice ("PIT", Interfaces.Integer_32 (T.RTC.Pit_Mode), 2, Pit_Mode_Name (Natural (T.RTC.Pit_Mode)),
+                         Has_Func => True));
+      Add (M, N, Make ("BACK", Back));
+      M.Count := N;
+   end Load_VTX_RTC6705_Menu;
 
    procedure Load_VTX_Tramp_Menu (T : Target; M : out Table)
      with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
@@ -1638,6 +1661,8 @@ package body Adaflight.Menu_Content with SPARK_Mode is
             Load_SA_Freq_Menu ("- USER FREQ -", T.VTX.SA_Menu.User_Freq, T.VTX.SA_Menu.User_Freq_New, M);
          when SA_Confirm_Menu =>
             Load_SA_Confirm_Menu (M);
+         when VTX_RTC6705_Menu =>
+            Load_VTX_RTC6705_Menu (T, M);
          when others =>
             M := Empty_Table;
       end case;
@@ -1678,6 +1703,49 @@ package body Adaflight.Menu_Content with SPARK_Mode is
          C.Power := 1;
       end if;
    end Read_VTX_Copies;
+
+   --  The RTC6705 menu's copies from the device: the band and channel, the
+   --  power index, and the pit mode, none while unknown.
+   procedure Read_RTC_Copies (V : Adaflight.VTX.State; Run : Adaflight.VTX_Table.Table; C : in out VTX_Copies)
+     with Global => null
+   is
+      Ignore_Known : Boolean;
+      Known        : Boolean;
+      Pit          : Boolean;
+   begin
+      Adaflight.VTX.Common_Get_Band_Channel (V, Run, C.Band, C.Channel, Ignore_Known);
+      Adaflight.VTX.Common_Get_Power_Index (V, Run, C.Power, Ignore_Known);
+      Adaflight.VTX.Common_Get_Status (V, Pit, Known);
+      C.Pit_Mode := (if not Known then 0 elsif Pit then 2 else 1);
+   end Read_RTC_Copies;
+
+   --  The RTC6705 menu's lines after their values changed: the band,
+   --  channel, power and pit mode stepped from none to the first.
+   procedure RTC_Line_Changed (C : in out VTX_Copies; Line : Natural)
+     with Global => null
+   is
+   begin
+      case Line is
+         when 1 =>
+            if C.Band = 0 then
+               C.Band := 1;
+            end if;
+         when 2 =>
+            if C.Channel = 0 then
+               C.Channel := 1;
+            end if;
+         when 3 =>
+            if C.Power = 0 then
+               C.Power := 1;
+            end if;
+         when 4 =>
+            if C.Pit_Mode = 0 then
+               C.Pit_Mode := 1;
+            end if;
+         when others =>
+            null;
+      end case;
+   end RTC_Line_Changed;
 
    --  The VTX device menus' band, channel and power sent to the device and
    --  stored with the band and channel's frequency.
@@ -2227,6 +2295,8 @@ package body Adaflight.Menu_Content with SPARK_Mode is
             else
                Reply.Chain_Back := True;
             end if;
+         when VTX_RTC6705_Menu =>
+            Read_RTC_Copies (T.VTX, T.VTX_Table, T.RTC);
          when VTX_Tramp_Menu =>
             if T.Live.VTX_Present then
                Read_VTX_Copies (T.VTX, T.VTX_Table, T.Live.VTX_Present, T.Tramp);
@@ -2749,9 +2819,29 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       T.Config.Pid_Profiles (I) := P;
    end Leave_Dynamic_Filter_Menu;
 
-   procedure On_Leave (T : in out Target; Id : Menu_Id; Self : Integer; Chain_Back : out Boolean) is
+   --  The RTC6705 menu's exit: the device's pit mode set from the pit line,
+   --  on for any shown value, then the band, channel and power stored with
+   --  the band and channel's frequency.
+   procedure Leave_VTX_RTC6705_Menu (T : in out Target)
+     with Global => null
+   is
+      S : Adaflight.Config_Groups.Vtx_Settings_Config_Record := T.Config.Vtx_Settings_Config;
+   begin
+      Adaflight.VTX.Common_Set_Pit_Mode (T.VTX, T.VTX_Table, T.RTC.Pit_Mode);
+      S.Band := T.RTC.Band;
+      S.Channel := T.RTC.Channel;
+      S.Power := T.RTC.Power;
+      S.Freq :=
+        (if T.Live.VTX_Present
+         then Adaflight.VTX_Table.Frequency_Of (T.VTX_Table, Natural (T.RTC.Band), Natural (T.RTC.Channel)) else 0);
+      T.Config.Vtx_Settings_Config := S;
+   end Leave_VTX_RTC6705_Menu;
+
+   procedure On_Leave (T : in out Target; Id : Menu_Id; Self : Integer; Chain_Back : out Boolean; Save : out Boolean)
+   is
    begin
       Chain_Back := False;
+      Save := False;
       case Id is
          when Filter_Profile_Menu =>
             Leave_Filter_Profile_Menu (T);
@@ -2805,6 +2895,9 @@ package body Adaflight.Menu_Content with SPARK_Mode is
             Leave_Set_Gate_Menu (T);
          when Persistent_Stats_Menu =>
             Leave_Persistent_Stats_Menu (T);
+         when VTX_RTC6705_Menu =>
+            Leave_VTX_RTC6705_Menu (T);
+            Save := True;
          when others =>
             null;
       end case;
@@ -3030,6 +3123,8 @@ package body Adaflight.Menu_Content with SPARK_Mode is
                Reply.Screen (1).Kind := Adaflight.Menu.Clear_Wait;
             elsif Id = VTX_MSP_Menu then
                VTX_Line_Changed (T.VTX, T.VTX_Table, T.Live.VTX_Present, T.MSP, Line);
+            elsif Id = VTX_RTC6705_Menu then
+               RTC_Line_Changed (T.RTC, Line);
             elsif Id = VTX_Tramp_Menu then
                VTX_Line_Changed (T.VTX, T.VTX_Table, T.Live.VTX_Present, T.Tramp, Line);
             elsif Id = VTX_SmartAudio_Menu then
@@ -3260,6 +3355,14 @@ package body Adaflight.Menu_Content with SPARK_Mode is
             when 10 => T.Rescue_PID.Position_Cutoff := Byte;
             when others => null;
          end case;
+      elsif Id = VTX_RTC6705_Menu then
+         case Line is
+            when 1 => T.RTC.Band := Byte;
+            when 2 => T.RTC.Channel := Byte;
+            when 3 => T.RTC.Power := Byte;
+            when 4 => T.RTC.Pit_Mode := Byte;
+            when others => null;
+         end case;
       elsif Id = VTX_MSP_Menu then
          case Line is
             when 2 => T.MSP.Pit_Mode := Byte;
@@ -3454,6 +3557,10 @@ package body Adaflight.Menu_Content with SPARK_Mode is
               elsif Id = Blackbox_Menu and then Line = 7 then Debug_Name (Index)
               elsif Id = LED_Strip_Menu and then Line = 2 then LED_Profile_Name (Index)
               elsif Id = LED_Strip_Menu and then Line in 3 | 4 | 9 then LED_Color_Name (Index)
+              elsif Id = VTX_RTC6705_Menu and then Line = 1 then Band_Name (T.VTX_Table, Index)
+              elsif Id = VTX_RTC6705_Menu and then Line = 2 then Channel_Name (T.VTX_Table, Index)
+              elsif Id = VTX_RTC6705_Menu and then Line = 3 then Power_Name (T.VTX_Table, Index)
+              elsif Id = VTX_RTC6705_Menu and then Line = 4 then Pit_Mode_Name (Index)
               elsif Id = VTX_MSP_Menu and then Line = 2 then Pit_Mode_Name (Index)
               elsif Id = VTX_MSP_Menu and then Line = 3 then Band_Name (T.VTX_Table, Index)
               elsif Id = VTX_MSP_Menu and then Line = 4 then Channel_Name (T.VTX_Table, Index)

@@ -19402,10 +19402,12 @@ procedure Vector_Check is
       Menu_Hook_Answer (1, Id, -1, Reply);
    end Menu_On_Enter;
 
-   procedure Menu_On_Leave (T : in out MN_Target; Id : Adaflight.Menu.Menu_Id; Self : Integer; Chain_Back : out Boolean)
+   procedure Menu_On_Leave
+     (T : in out MN_Target; Id : Adaflight.Menu.Menu_Id; Self : Integer; Chain_Back : out Boolean; Save : out Boolean)
    is
       pragma Unreferenced (T);
    begin
+      Save := False;
       Menu_Hook_Call (2, Id, Integer_64 (Self), Chain_Back);
    end Menu_On_Leave;
 
@@ -20558,6 +20560,7 @@ procedure Vector_Check is
             elsif MCT_T.Live.VTX_Type = 5 then Adaflight.VTX.MSP_Device
             elsif MCT_T.Live.VTX_Type = 4 then Adaflight.VTX.Tramp_Device
             elsif MCT_T.Live.VTX_Type = 3 then Adaflight.VTX.SmartAudio_Device
+            elsif MCT_T.Live.VTX_Type = 1 then Adaflight.VTX.RTC6705_Device
             else Adaflight.VTX.No_Device);
          MCT_T.VTX.MD :=
            (Current        => Adaflight.VTX_MSP.Status'Val (Int (571)),
@@ -20611,6 +20614,36 @@ procedure Vector_Check is
       elsif Int (2) /= MCT_Seq then
          Put_Line ("menu contents line without its start");
          Failures := Failures + 1;
+      elsif Name = "cmrtcinit" then
+         declare
+            Freq  : constant Integer_64 := Next;
+            Index : constant Integer_64 := Next;
+            Pit   : constant Integer_64 := Next;
+         begin
+            MCT_T.VTX.RT :=
+              (Frequency   => Interfaces.Unsigned_16 (Freq),
+               Power_Index => Interfaces.Unsigned_8 (Index),
+               Pit_Active  => Pit = 1,
+               Pending     => Adaflight.VTX_RTC6705.No_Operations);
+         end;
+      elsif Name = "cmrtc" then
+         declare
+            Ops : Adaflight.VTX_RTC6705.Operations;
+            Count : Integer_64;
+         begin
+            Adaflight.VTX.Take_RTC_Operations (MCT_T.VTX, Ops);
+            Record_Int ("cmrtc.freq", Next, Integer_64 (MCT_T.VTX.RT.Frequency));
+            Record_Int ("cmrtc.power_index", Next, Integer_64 (MCT_T.VTX.RT.Power_Index));
+            Record_Int ("cmrtc.pit", Next, Boolean'Pos (MCT_T.VTX.RT.Pit_Active));
+            Count := Next;
+            Record_Int ("cmrtc.ops", Count, Integer_64 (Ops.Count));
+            for I in 1 .. Natural'Min (Natural (Count), Ops.Count) loop
+               Record_Int ("cmrtc.op_kind", Next,
+                           Integer_64 (Adaflight.VTX_RTC6705.Operation_Kind'Pos (Ops.List (I).Kind) + 1));
+               Record_Int ("cmrtc.op_address", Next, Integer_64 (Ops.List (I).Address));
+               Record_Int ("cmrtc.op_value", Next, Integer_64 (Ops.List (I).Value));
+            end loop;
+         end;
       elsif Name = "cmread" then
          Read_Live (4);
          MCT_T.Live.Reboot_Required := Int (9) = 1;

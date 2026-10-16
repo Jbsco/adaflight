@@ -6065,3 +6065,22 @@ The VTX control oracle adds two RTC6705 sequences: the reference's soft SPI driv
 source over stand-in pins, with the register writes decoded from the chip select, clock and data edges and
 the power pin and the waits outside a write recorded. Every step's frequency, power index, pit mode and
 operations replay exactly, and the fourteen earlier sequences stay byte for byte.
+
+## D262. RTC6705 VTX menu (2026-10-16)
+
+The RTC6705 menu has a label line, band, channel, power and pit mode lines over the VTX table, and a back
+line. Entering it reads the device's band and channel, power index and status into the menu's copies, which
+start at zero and keep their values between visits, as the reference's statics do. A line that shows
+none steps to the first when changed. The exit sets the device's pit mode from the pit line, stores the
+band, channel and power with the band and channel's frequency, and saves. The menu's leave hook gains a
+save output for this, and the navigation saves after the hook returns.
+
+The common pit mode setter now takes the reference's byte. The MSP and Tramp devices store it as given,
+and the SmartAudio and RTC6705 devices test it for zero. The other callers pass 0 or 1. The menu passes
+the pit line's value, so its exit turns pit mode on whatever the line shows (F225), and the exit can store
+band 0, channel 0 and frequency 0 (F226). Adaflight keeps both.
+
+The menu oracle adds the RTC6705 from the D261 source over stand-in pins. It opens the menu in RTC6705
+sessions and, through direct jumps, with the other devices, and records the RTC6705's frequency, power
+index, pit mode and operations after every step. Six runs with 240 sessions in all replay exactly, with 37
+jumps to the menu and 12 RTC6705 sessions.

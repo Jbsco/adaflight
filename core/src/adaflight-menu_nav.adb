@@ -88,11 +88,18 @@ package body Adaflight.Menu_Nav with SPARK_Mode is
       Clear (S, S.Port);
    end Page_Select;
 
-   --  A leave hook asked with its answer unread, as the exit asks them.
-   procedure Ask_Leave (T : in out Target_State; Id : Adaflight.Menu.Menu_Id; Self : Integer) is
+   --  A leave hook asked with its answer unread, as the exit asks them, and
+   --  the configuration saved when the hook saves it.
+   procedure Ask_Leave
+     (T : in out Target_State; Id : Adaflight.Menu.Menu_Id; Self : Integer; P : Adaflight.Menu.Display_Index)
+   is
       Ignore : Boolean;
+      Save   : Boolean;
    begin
-      On_Leave (T, Id, Self, Ignore);
+      On_Leave (T, Id, Self, Ignore, Save);
+      if Save then
+         Act (P, Adaflight.Menu.Save_Config, 0);
+      end if;
    end Ask_Leave;
 
    --  The way back: the leave hook may refuse it; else the stacked menu,
@@ -108,10 +115,14 @@ package body Adaflight.Menu_Nav with SPARK_Mode is
                               and then S.Page = S.Page'Old and then S.Page_Count = S.Page_Count'Old)
    is
       Chain_Back : Boolean;
+      Save       : Boolean;
    begin
       Restored := False;
       if S.Hooks.Leave then
-         On_Leave (T, S.Id, S.Page.Top + S.Draw.Cursor_Row, Chain_Back);
+         On_Leave (T, S.Id, S.Page.Top + S.Draw.Cursor_Row, Chain_Back, Save);
+         if Save then
+            Act (S.Port, Adaflight.Menu.Save_Config, 0);
+         end if;
          if Chain_Back then
             return;
          end if;
@@ -599,12 +610,12 @@ package body Adaflight.Menu_Nav with SPARK_Mode is
       case Kind is
          when Save | Save_Reboot | Popup_Save | Popup_Save_Reboot =>
             if S.Hooks.Leave then
-               Ask_Leave (T, S.Id, -1);
+               Ask_Leave (T, S.Id, -1, P);
             end if;
             if Kind in Popup_Save | Popup_Save_Reboot then
                for I in reverse 1 .. S.Depth loop
                   if S.Stack (I).Hooks.Leave then
-                     Ask_Leave (T, S.Stack (I).Id, -1);
+                     Ask_Leave (T, S.Stack (I).Id, -1, P);
                   end if;
                end loop;
             end if;
