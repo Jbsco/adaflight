@@ -50,7 +50,9 @@ package body Adaflight.GPS_Lap_Timer with SPARK_Mode is
 
    --  The bearing from the first position to the second, clockwise from
    --  north in hundredths of a degree.
-   function Bearing_To (From, To : Location; Cos_Lat : Cosine) return Bearing is
+   function Bearing_To (From, To : Location; Cos_Lat : Cosine) return Bearing
+     with Global => null
+   is
       Angle : constant Adaflight.Maths.Half_Turn :=
         Adaflight.Maths.Atan2_Approx (North_Cm (From, To), East_Cm (From, To, Cos_Lat));
       Deg   : constant Degrees_100 := 9_000.0 - (Angle / Rad) * 100.0;

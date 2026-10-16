@@ -172,7 +172,7 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 23150 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 23151 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
 - Recorded vectors replay bit for bit: 1753568 lines over 384 cases, every case exact except
   forty-two declared deviations in `DESIGN.md` D6.
@@ -210,7 +210,8 @@ A change is finished when `verify.do` is green.
   counts such bodies on every run.
 - No `pragma Assume` and no justified suppression. `prove.do` prints both counts.
 - A pull request proves the units whose sources it changed (`tools/changed-units.py`).
-  A nightly run proves the whole core.
+  A nightly run proves every core unit in four parallel groups, generic units through their
+  instantiations.
 - A ported function keeps the operation order of its Betaflight original, so the host
   build reproduces its results bit for bit. The vector checker reports the distance in
   representable values for every case.
