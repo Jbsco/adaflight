@@ -1,4 +1,5 @@
 with Adaflight.Config_Fix;
+with Adaflight.OSD_Elements;
 with Adaflight.Settings_Table;
 
 package body Adaflight.Menu_Content with SPARK_Mode is
@@ -49,10 +50,11 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       Value, Min, Max : Interfaces.Integer_32;
       E               : Adaflight.Menu.Element := Adaflight.Menu.UInt8;
       Step            : Interfaces.Integer_32 := 1;
-      Flags           : Interfaces.Unsigned_16 := 0) return Line
+      Flags           : Interfaces.Unsigned_16 := 0;
+      Has_Func        : Boolean := False) return Line
    is
-     ((Text => Label (Text), Flags => Code (E) or Flags, Has_Data => True, Value => Value, Min => Min, Max => Max,
-       Step => Step, others => <>))
+     ((Text => Label (Text), Flags => Code (E) or Flags, Has_Data => True, Has_Func => Has_Func, Value => Value,
+       Min => Min, Max => Max, Step => Step, others => <>))
      with Pre => Text'Length <= Adaflight.Menu.Max_Text and then E /= Adaflight.Menu.Fixed
                  and then (Flags and Adaflight.Menu.Element_Mask) = 0;
 
@@ -71,14 +73,15 @@ package body Adaflight.Menu_Content with SPARK_Mode is
    --  A lookup table line with its value, the last index and the value's
    --  text.
    function Choice
-     (Text  : String;
-      Value : Interfaces.Integer_32;
-      Max   : Interfaces.Integer_32;
-      Name  : Adaflight.Menu.Label_Text;
-      Flags : Interfaces.Unsigned_16 := 0) return Line
+     (Text     : String;
+      Value    : Interfaces.Integer_32;
+      Max      : Interfaces.Integer_32;
+      Name     : Adaflight.Menu.Label_Text;
+      Flags    : Interfaces.Unsigned_16 := 0;
+      Has_Func : Boolean := False) return Line
    is
-     ((Text => Label (Text), Flags => Code (Adaflight.Menu.Tab) or Flags, Has_Data => True, Value => Value, Max => Max,
-       Value_Text => Name, others => <>))
+     ((Text => Label (Text), Flags => Code (Adaflight.Menu.Tab) or Flags, Has_Data => True, Has_Func => Has_Func,
+       Value => Value, Max => Max, Value_Text => Name, others => <>))
      with Pre => Text'Length <= Adaflight.Menu.Max_Text and then (Flags and Adaflight.Menu.Element_Mask) = 0;
 
    --  A submenu line to a menu, with the change function or none.
@@ -146,6 +149,72 @@ package body Adaflight.Menu_Content with SPARK_Mode is
      (if Index <= 3 then Blackbox_Device_Names (Index) else Label (""));
    function Blackbox_Rate_Name (Index : Natural) return Adaflight.Menu.Label_Text is
      (if Index <= 4 then Blackbox_Rate_Names (Index) else Label (""));
+
+   use all type Adaflight.OSD_Elements.Item;
+
+   --  The active elements menu's lines: an element's name and the element.
+   type Element_Line is record
+      Name : Adaflight.Menu.Label_Text;
+      Item : Adaflight.OSD_Elements.Item;
+   end record;
+
+   function E (Name : String; Item : Adaflight.OSD_Elements.Item) return Element_Line is ((Label (Name), Item))
+     with Pre => Name'Length <= Adaflight.Menu.Max_Text;
+
+   Active_Count : constant := 77;
+
+   Active_Lines : constant array (1 .. Active_Count) of Element_Line :=
+     (E ("RSSI", RSSI_Value), E ("RSSI DBM", RSSI_Dbm_Value), E ("RSNR", RSNR_Value),
+      E ("BATTERY VOLTAGE", Main_Battery_Voltage), E ("BATTERY USAGE", Main_Battery_Usage),
+      E ("AVG CELL VOLTAGE", Average_Cell_Voltage), E ("BATTERY EFFICIENCY", Efficiency),
+      E ("CROSSHAIRS", Crosshairs), E ("HORIZON", Artificial_Horizon), E ("HORIZON SIDEBARS", Horizon_Sidebars),
+      E ("UP/DOWN REFERENCE", Up_Down_Reference), E ("TIMER 1", Timer_1), E ("TIMER 2", Timer_2),
+      E ("REMAINING TIME ESTIMATE", Remaining_Time_Estimate), E ("RTC DATETIME", RTC_Date_Time),
+      E ("ADJUSTMENT RANGE", Adjustment_Range), E ("CORE TEMPERATURE", Core_Temperature),
+      E ("ANTI GRAVITY", Anti_Gravity), E ("FLY MODE", Fly_Mode), E ("CRAFT NAME", Craft_Name),
+      E ("THROTTLE", Throttle_Position), E ("VTX CHAN", VTX_Channel), E ("CURRENT (A)", Current_Draw),
+      E ("USED MAH", MAh_Drawn), E ("GPS SPEED", GPS_Speed), E ("GPS SATS", GPS_Sats), E ("GPS LAT", GPS_Latitude),
+      E ("GPS LON", GPS_Longitude), E ("HOME DIR", Home_Direction), E ("HOME DIST", Home_Distance),
+      E ("FLIGHT DIST", Flight_Distance), E ("WP NUMBER", WP_Number), E ("WP LAT", WP_Current_Lat),
+      E ("WP LON", WP_Current_Lon), E ("WP ALT", WP_Current_Alt), E ("WP DIST", WP_Distance),
+      E ("WP DIR", WP_Direction), E ("WP NEXT", WP_Next_Number), E ("WP ETA", WP_ETA), E ("COMPASS BAR", Compass_Bar),
+      E ("ESC TEMPERATURE", ESC_Temperature), E ("ESC RPM", ESC_RPM), E ("ALTITUDE", Altitude), E ("POWER", Power),
+      E ("ROLL PID", Roll_PIDs), E ("PITCH PID", Pitch_PIDs), E ("YAW PID", Yaw_PIDs),
+      E ("PROFILES", PID_Rate_Profile), E ("PID PROFILE NAME", PID_Profile_Name),
+      E ("RATE PROFILE NAME", Rate_Profile_Name), E ("OSD PROFILE NAME", Profile_Name), E ("DEBUG", Debug),
+      E ("DEBUG2", Debug2), E ("WARNINGS", Warnings), E ("DISARMED", Disarmed), E ("PIT ANG", Pitch_Angle),
+      E ("ROL ANG", Roll_Angle), E ("HEADING", Numerical_Heading), E ("POS HOLD READY", Position_Hold_Ready),
+      E ("VARIO", Numerical_Vario), E ("G-FORCE", G_Force), E ("MOTOR DIAGNOSTIC", Motor_Diagnostics),
+      E ("LOG STATUS", Log_Status), E ("FLIP ARROW", Flip_Arrow), E ("LINK QUALITY", Link_Quality),
+      E ("STICK OVERLAY LEFT", Stick_Overlay_Left), E ("STICK OVERLAY RIGHT", Stick_Overlay_Right),
+      E ("LAP TIME CURRENT", GPS_Lap_Time_Current), E ("LAP TIME PREVIOUS", GPS_Lap_Time_Previous),
+      E ("LAP TIME BEST 3", GPS_Lap_Time_Best3), E ("PILOT NAME", Pilot_Name),
+      E ("RC CHANNELS", Adaflight.OSD_Elements.RC_Channels),
+      E ("CAMERA FRAME", Camera_Frame), E ("TOTAL FLIGHTS", Total_Flights), E ("AUX VALUE", Aux_Value),
+      E ("LIDAR DIST", Lidar_Distance), E ("SERIAL TEXT", Custom_Serial_Text));
+
+   Timer_Source_Names    : constant array (0 .. 4) of Adaflight.Menu.Label_Text :=
+     (Label ("ON TIME  "), Label ("TOTAL ARM"), Label ("LAST ARM "), Label ("ON/ARM   "), Label ("LAUNCH TIME"));
+   Timer_Precision_Names : constant array (0 .. 1) of Adaflight.Menu.Label_Text := (Label ("SCND"), Label ("HDTH"));
+
+   function Timer_Source_Name (Index : Natural) return Adaflight.Menu.Label_Text is
+     (if Index <= 4 then Timer_Source_Names (Index) else Label (""));
+   function Timer_Precision_Name (Index : Natural) return Adaflight.Menu.Label_Text is
+     (if Index <= 1 then Timer_Precision_Names (Index) else Label (""));
+
+   --  A menu background's name from the command line's table.
+   function Background_Name (Index : Natural) return Adaflight.Menu.Label_Text is
+   begin
+      if Index >= Adaflight.Settings_Table.Value_Count (Adaflight.Settings_Table.Table_Cms_Background) then
+         return Label ("");
+      end if;
+      declare
+         Name : constant String :=
+           Adaflight.Settings_Table.Value_Name (Adaflight.Settings_Table.Table_Cms_Background, Index);
+      begin
+         return Label (Name (Name'First .. Name'First - 1 + Natural'Min (Name'Length, Adaflight.Menu.Max_Text)));
+      end;
+   end Background_Name;
 
    Debug_Count : constant Natural := Adaflight.Settings_Table.Value_Count (Adaflight.Settings_Table.Table_Debug);
 
@@ -277,8 +346,8 @@ package body Adaflight.Menu_Content with SPARK_Mode is
          when Quick_Menu  => (Enter => True, Leave => True, Update => False),
          when Main_Menu   => (Enter => True, Leave => False, Update => False),
          when Setup_Popup => (Enter => False, Leave => False, Update => True),
-         when Blackbox_Menu | LED_Strip_Menu | Power_Menu | Failsafe_Menu | RPM_Limit_Menu | Misc_Menu
-            | Persistent_Stats_Menu =>
+         when OSD_Menu | Active_Elements_Menu | Timers_Menu | Alarms_Menu | Blackbox_Menu | LED_Strip_Menu
+            | Power_Menu | Failsafe_Menu | RPM_Limit_Menu | Misc_Menu | Persistent_Stats_Menu =>
             (Enter => True, Leave => True, Update => False),
          when RC_Preview_Menu => (Enter => True, Leave => True, Update => True),
          when Firmware_Menu => (Enter => True, Leave => False, Update => False),
@@ -566,9 +635,80 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       M.Count := N;
    end Load_System;
 
+   --  The OSD menu with its active elements, timers and alarms menus.
+   procedure Load_OSD (T : Target; Id : Menu_Id; M : out Table)
+     with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
+   is
+      use Adaflight.Menu;
+      N : Line_Count := 0;
+   begin
+      M := Empty_Table;
+      case Id is
+         when OSD_Menu =>
+            Add (M, N, Make ("---OSD---", Label));
+            Add (M, N, Number ("OSD PROFILE", Interfaces.Integer_32 (T.OSD.Profile), 1, 3));
+            Add (M, N, Sub ("ACTIVE ELEM", Active_Elements_Menu));
+            Add (M, N, Sub ("TIMERS", Timers_Menu));
+            Add (M, N, Sub ("ALARMS", Alarms_Menu));
+            Add (M, N, Make ("INVERT", Bool, Has_Func => True, Has_Data => True, Value => Boolean'Pos (T.OSD.Invert)));
+            Add (M, N, Number ("BRT BLACK", Interfaces.Integer_32 (T.OSD.Black_Brightness), 0, 3, Has_Func => True));
+            Add (M, N, Number ("BRT WHITE", Interfaces.Integer_32 (T.OSD.White_Brightness), 0, 3, Has_Func => True));
+            Add (M, N, Choice ("BACKGROUND", Interfaces.Integer_32 (T.OSD.Background), 3,
+                               Background_Name (Natural (T.OSD.Background)), Has_Func => True));
+            Add (M, N, Make ("BACK", Back));
+         when Active_Elements_Menu =>
+            Add (M, N, Make ("--- ACTIV ELEM ---", Label));
+            for K in Active_Lines'Range loop
+               pragma Loop_Invariant (N = K and then Fixed_Below (M, N));
+               Add (M, N,
+                    (Text     => Active_Lines (K).Name,
+                     Flags    => Code (Visible) or Dynamic,
+                     Has_Data => True,
+                     Value    =>
+                       Interfaces.Integer_32 (T.Elements (Adaflight.OSD_Elements.Item'Pos (Active_Lines (K).Item))),
+                     others   => <>));
+            end loop;
+            Add (M, N, Make ("BACK", Back));
+         when Timers_Menu =>
+            Add (M, N, Make ("--- TIMERS ---", Label));
+            for I in Timer_Fields'Range loop
+               pragma Loop_Invariant (N = 1 + 3 * I and then Fixed_Below (M, N));
+               Add (M, N, Choice ((if I = 0 then "1 SRC" else "2 SRC"), Interfaces.Integer_32 (T.Timers.Source (I)), 4,
+                                  Timer_Source_Name (Natural (T.Timers.Source (I)))));
+               Add (M, N, Choice ((if I = 0 then "1 PREC" else "2 PREC"),
+                                  Interfaces.Integer_32 (T.Timers.Precision (I)), 2,
+                                  Timer_Precision_Name (Natural (T.Timers.Precision (I)))));
+               Add (M, N, Number ((if I = 0 then "1 ALARM" else "2 ALARM"), Interfaces.Integer_32 (T.Timers.Alarm (I)),
+                                  0, 255));
+            end loop;
+            Add (M, N, Make ("BACK", Back));
+         when Alarms_Menu =>
+            declare
+               A : Alarm_Copies renames T.Alarms;
+            begin
+               Add (M, N, Make ("--- ALARMS ---", Label));
+               Add (M, N, Number ("RSSI", Interfaces.Integer_32 (A.RSSI), 5, 90, Step => 5));
+               Add (M, N, Number ("LINK QUALITY", Interfaces.Integer_32 (A.Link_Quality), 5, 300, UInt16, 5));
+               Add (M, N, Number ("RSSI DBM", Interfaces.Integer_32 (A.RSSI_Dbm), -130, 20, Int16, 5));
+               Add (M, N, Number ("RSNR", Interfaces.Integer_32 (A.RSNR), -30, 20, Int16, 5));
+               Add (M, N, Number ("MAIN BAT", Interfaces.Integer_32 (A.Capacity), 50, 30_000, UInt16, 50));
+               Add (M, N, Number ("MAX ALT", Interfaces.Integer_32 (A.Altitude), 1, 200, UInt16));
+               Add (M, N, Number ("MAX DISTANCE", Interfaces.Integer_32 (A.Distance), 0, 65_535, UInt16, 10));
+               Add (M, N, Number ("VBAT WARN DUR", Interfaces.Integer_32 (A.Warning_Duration), 0, 200));
+               Add (M, N, Number ("VBAT CRIT DUR", Interfaces.Integer_32 (A.Critical_Duration), 0, 200));
+               Add (M, N, Make ("BACK", Back));
+            end;
+         when others =>
+            Add (M, N, Make ("", Label));
+      end case;
+      M.Count := N;
+   end Load_OSD;
+
    procedure Load (T : Target; Id : Menu_Id; M : out Table) is
    begin
       case Id is
+         when OSD_Menu | Active_Elements_Menu | Timers_Menu | Alarms_Menu =>
+            Load_OSD (T, Id, M);
          when Power_Menu | Failsafe_Menu | RPM_Limit_Menu | Misc_Menu | RC_Preview_Menu | Persistent_Stats_Menu
             | GPS_Lap_Timer_Menu | Set_Gate_Menu =>
             Load_Settings (T, Id, M);
@@ -615,6 +755,30 @@ package body Adaflight.Menu_Content with SPARK_Mode is
                   Reply.Target := Setup_Popup;
                end if;
             end;
+         when OSD_Menu =>
+            T.OSD.Profile := T.Config.Osd_Config.Osd_Profile_Index;
+            T.OSD.Invert := T.Config.Display_Port_Profile_Max7456.Invert;
+            T.OSD.Black_Brightness := T.Config.Display_Port_Profile_Max7456.Black_Brightness;
+            T.OSD.White_Brightness := T.Config.Display_Port_Profile_Max7456.White_Brightness;
+            T.OSD.Background := T.Config.Osd_Config.Cms_Background_Type;
+         when Active_Elements_Menu =>
+            T.Elements := T.Config.Osd_Element_Config.Item_Pos;
+         when Timers_Menu =>
+            for I in Timer_Fields'Range loop
+               T.Timers.Source (I) := Interfaces.Unsigned_8 (T.Config.Osd_Config.Timers (I) and 16#0F#);
+               T.Timers.Precision (I) := Interfaces.Unsigned_8 (T.Config.Osd_Config.Timers (I) / 16 and 16#0F#);
+               T.Timers.Alarm (I) := Interfaces.Unsigned_8 (T.Config.Osd_Config.Timers (I) / 256);
+            end loop;
+         when Alarms_Menu =>
+            T.Alarms.RSSI := T.Config.Osd_Config.Rssi_Alarm;
+            T.Alarms.Link_Quality := T.Config.Osd_Config.Link_Quality_Alarm;
+            T.Alarms.RSSI_Dbm := T.Config.Osd_Config.Rssi_Dbm_Alarm;
+            T.Alarms.RSNR := T.Config.Osd_Config.Rsnr_Alarm;
+            T.Alarms.Capacity := T.Config.Osd_Config.Cap_Alarm;
+            T.Alarms.Altitude := T.Config.Osd_Config.Alt_Alarm;
+            T.Alarms.Distance := T.Config.Osd_Config.Distance_Alarm;
+            T.Alarms.Warning_Duration := T.Config.Battery_Config.Vbat_Duration_For_Warning;
+            T.Alarms.Critical_Duration := T.Config.Battery_Config.Vbat_Duration_For_Critical;
          when Blackbox_Menu =>
             Device_Status (T, T.Live.Flash_Offset);
             T.Blackbox.Device := T.Config.Blackbox_Config.Device;
@@ -691,6 +855,36 @@ package body Adaflight.Menu_Content with SPARK_Mode is
          if T.Asked.PID_Config_Inits < Natural'Last then
             T.Asked.PID_Config_Inits := T.Asked.PID_Config_Inits + 1;
          end if;
+      elsif Id = OSD_Menu then
+         if T.Asked.Profile_Changes < Natural'Last then
+            T.Asked.Profile_Changes := T.Asked.Profile_Changes + 1;
+         end if;
+         T.Asked.Profile_Asked := T.OSD.Profile;
+         if T.OSD.Profile <= 3 then
+            T.Config.Osd_Config.Osd_Profile_Index := T.OSD.Profile;
+         end if;
+      elsif Id = Active_Elements_Menu then
+         T.Config.Osd_Element_Config.Item_Pos := T.Elements;
+         if T.Asked.Element_Analyses < Natural'Last then
+            T.Asked.Element_Analyses := T.Asked.Element_Analyses + 1;
+         end if;
+      elsif Id = Timers_Menu then
+         for I in Timer_Fields'Range loop
+            T.Config.Osd_Config.Timers (I) :=
+              (Interfaces.Unsigned_16 (T.Timers.Source (I)) and 16#0F#)
+              or (Interfaces.Unsigned_16 (T.Timers.Precision (I)) and 16#0F#) * 16
+              or Interfaces.Unsigned_16 (T.Timers.Alarm (I)) * 256;
+         end loop;
+      elsif Id = Alarms_Menu then
+         T.Config.Osd_Config.Rssi_Alarm := T.Alarms.RSSI;
+         T.Config.Osd_Config.Link_Quality_Alarm := T.Alarms.Link_Quality;
+         T.Config.Osd_Config.Rssi_Dbm_Alarm := T.Alarms.RSSI_Dbm;
+         T.Config.Osd_Config.Rsnr_Alarm := T.Alarms.RSNR;
+         T.Config.Osd_Config.Cap_Alarm := T.Alarms.Capacity;
+         T.Config.Osd_Config.Alt_Alarm := T.Alarms.Altitude;
+         T.Config.Osd_Config.Distance_Alarm := T.Alarms.Distance;
+         T.Config.Battery_Config.Vbat_Duration_For_Warning := T.Alarms.Warning_Duration;
+         T.Config.Battery_Config.Vbat_Duration_For_Critical := T.Alarms.Critical_Duration;
       elsif Id = Blackbox_Menu then
          if T.Live.Blackbox_May_Edit then
             T.Config.Blackbox_Config.Device := (if T.Blackbox.Device in 1 .. 3 then T.Blackbox.Device else 0);
@@ -909,6 +1103,18 @@ package body Adaflight.Menu_Content with SPARK_Mode is
                Reply.Done := Adaflight.Menu.Exited;
                Reply.Kind := Adaflight.Menu.Plain;
             end if;
+         when Adaflight.Menu.Bool | Adaflight.Menu.UInt8 | Adaflight.Menu.Tab =>
+            if Id = OSD_Menu and then Line in 5 .. 7 then
+               T.Config.Display_Port_Profile_Max7456.Invert := T.OSD.Invert;
+               T.Config.Display_Port_Profile_Max7456.Black_Brightness := T.OSD.Black_Brightness;
+               T.Config.Display_Port_Profile_Max7456.White_Brightness := T.OSD.White_Brightness;
+               Reply.Screens := 1;
+               Reply.Screen (1).Kind := Adaflight.Menu.Clear_Wait;
+            elsif Id = OSD_Menu and then Line = 8 then
+               T.Config.Osd_Config.Cms_Background_Type := T.OSD.Background;
+               Reply.Screens := 1;
+               Reply.Screen (1) := (Kind => Adaflight.Menu.Set_Background, Attr => T.OSD.Background, others => <>);
+            end if;
          when others =>
             null;
       end case;
@@ -920,7 +1126,43 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       Short : constant Interfaces.Integer_16 :=
         Interfaces.Integer_16 ((Interfaces.Integer_64 (Value) + 32_768) mod 65_536 - 32_768);
    begin
-      if Id = Blackbox_Menu then
+      if Id = OSD_Menu then
+         case Line is
+            when 1 => T.OSD.Profile := Byte;
+            when 5 => T.OSD.Invert := Value /= 0;
+            when 6 => T.OSD.Black_Brightness := Byte;
+            when 7 => T.OSD.White_Brightness := Byte;
+            when 8 => T.OSD.Background := Byte;
+            when others => null;
+         end case;
+      elsif Id = Active_Elements_Menu then
+         if Line in Active_Lines'Range then
+            T.Elements (Adaflight.OSD_Elements.Item'Pos (Active_Lines (Line).Item)) := Word;
+         end if;
+      elsif Id = Timers_Menu then
+         case Line is
+            when 1 => T.Timers.Source (0) := Byte;
+            when 2 => T.Timers.Precision (0) := Byte;
+            when 3 => T.Timers.Alarm (0) := Byte;
+            when 4 => T.Timers.Source (1) := Byte;
+            when 5 => T.Timers.Precision (1) := Byte;
+            when 6 => T.Timers.Alarm (1) := Byte;
+            when others => null;
+         end case;
+      elsif Id = Alarms_Menu then
+         case Line is
+            when 1 => T.Alarms.RSSI := Byte;
+            when 2 => T.Alarms.Link_Quality := Word;
+            when 3 => T.Alarms.RSSI_Dbm := Short;
+            when 4 => T.Alarms.RSNR := Short;
+            when 5 => T.Alarms.Capacity := Word;
+            when 6 => T.Alarms.Altitude := Word;
+            when 7 => T.Alarms.Distance := Word;
+            when 8 => T.Alarms.Warning_Duration := Byte;
+            when 9 => T.Alarms.Critical_Duration := Byte;
+            when others => null;
+         end case;
+      elsif Id = Blackbox_Menu then
          case Line is
             when 2 => T.Blackbox.Rate := Byte;
             when 3 => T.Blackbox.Device := Byte;
@@ -1018,6 +1260,9 @@ package body Adaflight.Menu_Content with SPARK_Mode is
               elsif Id = Power_Menu and then Line = 1 then Voltage_Meter_Name (Index)
               elsif Id = Power_Menu and then Line = 2 then Current_Meter_Name (Index)
               elsif Id = Failsafe_Menu and then Line = 1 then Procedure_Name (Index)
+              elsif Id = OSD_Menu and then Line = 8 then Background_Name (Index)
+              elsif Id = Timers_Menu and then Line in 1 | 4 then Timer_Source_Name (Index)
+              elsif Id = Timers_Menu and then Line in 2 | 5 then Timer_Precision_Name (Index)
               elsif Id = Blackbox_Menu and then Line = 2 then Blackbox_Rate_Name (Index)
               elsif Id = Blackbox_Menu and then Line = 3 then Blackbox_Device_Name (Index)
               elsif Id = Blackbox_Menu and then Line = 7 then Debug_Name (Index)

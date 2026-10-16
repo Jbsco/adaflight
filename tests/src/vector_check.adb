@@ -19742,6 +19742,9 @@ procedure Vector_Check is
          Record_Int (Name & ".erase_beeps", Next, Integer_64 (MCT_T.Asked.Erase_Beeps));
          Record_Int (Name & ".msc_resets", Next, Integer_64 (MCT_T.Asked.MSC_Resets));
          Record_Int (Name & ".msc_offset", Next, Integer_64 (MCT_T.Asked.MSC_Reset_Offset));
+         Record_Int (Name & ".element_analyses", Next, Integer_64 (MCT_T.Asked.Element_Analyses));
+         Record_Int (Name & ".profile_changes", Next, Integer_64 (MCT_T.Asked.Profile_Changes));
+         Record_Int (Name & ".profile_asked", Next, Integer_64 (MCT_T.Asked.Profile_Asked));
          Adaflight.Config_Codec.Encode (MCT_T.Config, D);
          for B of D loop
             Hash := (Hash xor Interfaces.Unsigned_64 (B)) * 16#100_0000_01B3#;
@@ -19861,6 +19864,34 @@ procedure Vector_Check is
          MCT_T.Config.System_Config.Debug_Mode := Interfaces.Unsigned_8 (Int (83));
          MCT_T.Config.Time_Config.Tz_Offset_Minutes := Interfaces.Integer_16 (Int (84));
          Read_Storage (85);
+         declare
+            Positions : constant String := Str (97);
+         begin
+            for P in MCT_T.Config.Osd_Element_Config.Item_Pos'Range loop
+               declare
+                  At_P : constant Positive := Positions'First + 4 * P;
+               begin
+                  MCT_T.Config.Osd_Element_Config.Item_Pos (P) :=
+                    Interfaces.Unsigned_16'Value ("16#" & Positions (At_P .. At_P + 3) & "#");
+               end;
+            end loop;
+         end;
+         MCT_T.Config.Osd_Config.Osd_Profile_Index := Interfaces.Unsigned_8 (Int (98));
+         MCT_T.Config.Osd_Config.Rssi_Alarm := Interfaces.Unsigned_8 (Int (99));
+         MCT_T.Config.Osd_Config.Link_Quality_Alarm := Interfaces.Unsigned_16 (Int (100));
+         MCT_T.Config.Osd_Config.Rssi_Dbm_Alarm := Interfaces.Integer_16 (Int (101));
+         MCT_T.Config.Osd_Config.Rsnr_Alarm := Interfaces.Integer_16 (Int (102));
+         MCT_T.Config.Osd_Config.Cap_Alarm := Interfaces.Unsigned_16 (Int (103));
+         MCT_T.Config.Osd_Config.Alt_Alarm := Interfaces.Unsigned_16 (Int (104));
+         MCT_T.Config.Osd_Config.Distance_Alarm := Interfaces.Unsigned_16 (Int (105));
+         MCT_T.Config.Osd_Config.Timers (0) := Interfaces.Unsigned_16 (Int (106));
+         MCT_T.Config.Osd_Config.Timers (1) := Interfaces.Unsigned_16 (Int (107));
+         MCT_T.Config.Osd_Config.Cms_Background_Type := Interfaces.Unsigned_8 (Int (108));
+         MCT_T.Config.Battery_Config.Vbat_Duration_For_Warning := Interfaces.Unsigned_8 (Int (109));
+         MCT_T.Config.Battery_Config.Vbat_Duration_For_Critical := Interfaces.Unsigned_8 (Int (110));
+         MCT_T.Config.Display_Port_Profile_Max7456.Invert := Int (111) = 1;
+         MCT_T.Config.Display_Port_Profile_Max7456.Black_Brightness := Interfaces.Unsigned_8 (Int (112));
+         MCT_T.Config.Display_Port_Profile_Max7456.White_Brightness := Interfaces.Unsigned_8 (Int (113));
          MCT_T.Identity :=
            (Identifier => Menu_Text_Of ("ADFL"), Version => Menu_Text_Of ("0.1.0"),
             Revision => Menu_Text_Of ("norevision"), Target_Name => Menu_Text_Of ("STM32F405"));
@@ -19874,7 +19905,7 @@ procedure Vector_Check is
          declare
             D        : Adaflight.Config_Codec.Data;
             Hash     : Interfaces.Unsigned_64 := 16#CBF2_9CE4_8422_2325#;
-            Expected : constant Interfaces.Unsigned_64 := Interfaces.Unsigned_64'Value (Str (97));
+            Expected : constant Interfaces.Unsigned_64 := Interfaces.Unsigned_64'Value (Str (114));
          begin
             Adaflight.Config_Codec.Encode (MCT_T.Config, D);
             for B of D loop

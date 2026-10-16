@@ -1,6 +1,7 @@
 --  The menu system's menus: their numbers, and the lines and hooks of the
 --  quick menu, the main menu with its features menu and setup popup, the
---  save menus, the blackbox menu with its erase and mass storage
+--  save menus, the OSD menu with its active elements, timers and alarms
+--  menus, the blackbox menu with its erase and mass storage
 --  confirmations, the LED strip, power, failsafe and RPM limit menus, the
 --  misc menu with its RC preview and GPS lap timer menu, the persistent
 --  statistics menu, and the firmware menu with its calibration menus, over
@@ -41,6 +42,9 @@ package Adaflight.Menu_Content with SPARK_Mode is
    Set_Gate_Menu         : constant Menu_Id := 20;
    Erase_Flash_Menu      : constant Menu_Id := 21;
    Storage_Device_Menu   : constant Menu_Id := 22;
+   Active_Elements_Menu  : constant Menu_Id := 23;
+   Timers_Menu           : constant Menu_Id := 24;
+   Alarms_Menu           : constant Menu_Id := 25;
 
    --  The RC channels the preview shows: roll, pitch, throttle, yaw and the
    --  first four auxiliary channels.
@@ -177,6 +181,39 @@ package Adaflight.Menu_Content with SPARK_Mode is
       Crashflip_Rate : Interfaces.Unsigned_8 := 0;
    end record;
 
+   --  The OSD menu's copies of the OSD profile, the MAX7456 display's
+   --  inversion and black and white brightness, and the menu background.
+   type OSD_Copies is record
+      Profile          : Interfaces.Unsigned_8 := 0;
+      Invert           : Boolean := False;
+      Black_Brightness : Interfaces.Unsigned_8 := 0;
+      White_Brightness : Interfaces.Unsigned_8 := 0;
+      Background       : Interfaces.Unsigned_8 := 0;
+   end record;
+
+   --  The timers menu's copies of each timer's source, precision and alarm.
+   type Timer_Fields is array (0 .. 1) of Interfaces.Unsigned_8;
+   type Timer_Copies is record
+      Source    : Timer_Fields := (others => 0);
+      Precision : Timer_Fields := (others => 0);
+      Alarm     : Timer_Fields := (others => 0);
+   end record;
+
+   --  The alarms menu's copies of the RSSI, link quality, RSSI in dBm,
+   --  signal to noise, capacity, altitude and distance alarms, and the
+   --  battery voltage's warning and critical durations.
+   type Alarm_Copies is record
+      RSSI              : Interfaces.Unsigned_8 := 0;
+      Link_Quality      : Interfaces.Unsigned_16 := 0;
+      RSSI_Dbm          : Interfaces.Integer_16 := 0;
+      RSNR              : Interfaces.Integer_16 := 0;
+      Capacity          : Interfaces.Unsigned_16 := 0;
+      Altitude          : Interfaces.Unsigned_16 := 0;
+      Distance          : Interfaces.Unsigned_16 := 0;
+      Warning_Duration  : Interfaces.Unsigned_8 := 0;
+      Critical_Duration : Interfaces.Unsigned_8 := 0;
+   end record;
+
    --  The blackbox menu's copies of the device, the sample rate and the
    --  debug mode, with its texts from its last entry or erase: the PID
    --  loop's frequency, the device's status, and the used and free space.
@@ -241,7 +278,8 @@ package Adaflight.Menu_Content with SPARK_Mode is
    --  the gyro, accelerometer and barometer calibrations, the lap timer's
    --  gate setting started and ended, the LED strip turned on and off, the
    --  flash erased with its beep, and the reset to mass storage with the time
-   --  zone offset it takes.
+   --  zone offset it takes, the OSD's active elements analyzed again, and
+   --  the OSD profile changed with the profile asked for.
    type Requests is record
       MAh_Restores       : Natural := 0;
       MAh_Restored       : Interfaces.Unsigned_32 := 0;
@@ -257,6 +295,9 @@ package Adaflight.Menu_Content with SPARK_Mode is
       Erase_Beeps        : Natural := 0;
       MSC_Resets         : Natural := 0;
       MSC_Reset_Offset   : Interfaces.Integer_16 := 0;
+      Element_Analyses   : Natural := 0;
+      Profile_Changes    : Natural := 0;
+      Profile_Asked      : Interfaces.Unsigned_8 := 0;
    end record;
 
    type Target is record
@@ -268,6 +309,10 @@ package Adaflight.Menu_Content with SPARK_Mode is
       Failsafe    : Failsafe_Copies;
       RPM_Limit   : RPM_Limit_Copies;
       Misc        : Misc_Copies;
+      OSD         : OSD_Copies;
+      Elements    : Adaflight.Config_Groups.Unsigned_16_List_99 := (others => 0);
+      Timers      : Timer_Copies;
+      Alarms      : Alarm_Copies;
       Blackbox    : Blackbox_Copies;
       LED         : LED_Copies;
       Lap         : Lap_Copies;
