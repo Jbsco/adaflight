@@ -383,11 +383,13 @@ package body Adaflight.Menu_Content with SPARK_Mode is
          when Main_Menu   => (Enter => True, Leave => False, Update => False),
          when Setup_Popup => (Enter => False, Leave => False, Update => True),
          when Profile_Menu | PID_Menu | Rate_Menu | Simplified_Menu | Profile_Other_Menu | Launch_Control_Menu
-            | OSD_Menu | Active_Elements_Menu | Timers_Menu | Alarms_Menu
+            | Filter_Profile_Menu | Filter_Global_Menu | Dynamic_Filter_Menu | OSD_Menu | Active_Elements_Menu
+            | Timers_Menu | Alarms_Menu
             | Blackbox_Menu | LED_Strip_Menu | Power_Menu | Failsafe_Menu | RPM_Limit_Menu | Misc_Menu
             | Persistent_Stats_Menu =>
             (Enter => True, Leave => True, Update => False),
          when RC_Preview_Menu => (Enter => True, Leave => True, Update => True),
+         when Copy_Profile_Menu => (Enter => True, Leave => False, Update => False),
          when Firmware_Menu | VTX_Error_Menu => (Enter => True, Leave => False, Update => False),
          when Calibration_Menu => (Enter => False, Leave => False, Update => True),
          when GPS_Lap_Timer_Menu | Set_Gate_Menu => (Enter => True, Leave => True, Update => False),
@@ -1123,9 +1125,103 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       M.Count := N;
    end Load_Launch_Control_Menu;
 
+   Profile_Target_Names : constant array (0 .. 3) of Adaflight.Menu.Label_Text :=
+     (Label ("-"), Label ("1"), Label ("2"), Label ("3"));
+
+   function Profile_Target_Name (Index : Natural) return Adaflight.Menu.Label_Text is
+     (if Index <= 3 then Profile_Target_Names (Index) else Label (""));
+
+   procedure Load_Filter_Profile_Menu (T : Target; M : out Table)
+     with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
+   is
+      use Adaflight.Menu;
+      N : Line_Count := 0;
+      F : Filter_Profile_Copies renames T.Profile_Flt;
+   begin
+      M := Empty_Table;
+      Add (M, N, Make ("-- FILTER PP  --", Label));
+      Add (M, N, Number ("DTERM LPF1", Interfaces.Integer_32 (F.DTerm_LPF1), 0, 1000, UInt16, Flags => Slider_DTerm));
+      Add (M, N, Number ("DTERM LPF2", Interfaces.Integer_32 (F.DTerm_LPF2), 0, 1000, UInt16, Flags => Slider_DTerm));
+      Add (M, N, Number ("DTERM NF", Interfaces.Integer_32 (F.DTerm_Notch_Hz), 0, 1000, UInt16));
+      Add (M, N, Number ("DTERM NFCO", Interfaces.Integer_32 (F.DTerm_Notch_Cutoff), 0, 1000, UInt16));
+      Add (M, N, Number ("YAW LPF", Interfaces.Integer_32 (F.Yaw_Lowpass), 0, 500, UInt16));
+      Add (M, N, Make ("BACK", Back));
+      M.Count := N;
+   end Load_Filter_Profile_Menu;
+
+   procedure Load_Filter_Global_Menu (T : Target; M : out Table)
+     with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
+   is
+      use Adaflight.Menu;
+      N : Line_Count := 0;
+      G : Filter_Global_Copies renames T.Global_Filt;
+   begin
+      M := Empty_Table;
+      Add (M, N, Make ("-- FILTER GLB  --", Label));
+      Add (M, N, Number ("GYRO LPF1", Interfaces.Integer_32 (G.Gyro_LPF1), 0, 1000, UInt16, Flags => Slider_Gyro));
+      Add (M, N, Number ("GYRO LPF2", Interfaces.Integer_32 (G.Gyro_LPF2), 0, 1000, UInt16, Flags => Slider_Gyro));
+      Add (M, N, Number ("GYRO NF1", Interfaces.Integer_32 (G.Notch1_Hz), 0, 500, UInt16));
+      Add (M, N, Number ("GYRO NF1C", Interfaces.Integer_32 (G.Notch1_Cutoff), 0, 500, UInt16));
+      Add (M, N, Number ("GYRO NF2", Interfaces.Integer_32 (G.Notch2_Hz), 0, 500, UInt16));
+      Add (M, N, Number ("GYRO NF2C", Interfaces.Integer_32 (G.Notch2_Cutoff), 0, 500, UInt16));
+      Add (M, N, Make ("BACK", Back));
+      M.Count := N;
+   end Load_Filter_Global_Menu;
+
+   procedure Load_Dynamic_Filter_Menu (T : Target; M : out Table)
+     with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
+   is
+      use Adaflight.Menu;
+      N : Line_Count := 0;
+      D : Dynamic_Filter_Copies renames T.Dynamic;
+   begin
+      M := Empty_Table;
+      Add (M, N, Make ("-- DYN FILT --", Label));
+      Add (M, N, Number ("NOTCH COUNT", Interfaces.Integer_32 (D.Notch_Count), 0, 7));
+      Add (M, N, Number ("NOTCH Q", Interfaces.Integer_32 (D.Notch_Q), 1, 1000, UInt16));
+      Add (M, N, Number ("NOTCH MIN HZ", Interfaces.Integer_32 (D.Notch_Min_Hz), 20, 250, UInt16));
+      Add (M, N, Number ("NOTCH MAX HZ", Interfaces.Integer_32 (D.Notch_Max_Hz), 200, 1000, UInt16));
+      Add (M, N, Number ("GYRO DLPF MIN", Interfaces.Integer_32 (D.Gyro_Min), 0, 1000, UInt16, Flags => Slider_Gyro));
+      Add (M, N, Number ("GYRO DLPF MAX", Interfaces.Integer_32 (D.Gyro_Max), 0, 1000, UInt16, Flags => Slider_Gyro));
+      Add (M, N, Number ("GYRO DLPF EXPO", Interfaces.Integer_32 (D.Gyro_Expo), 0, 10));
+      Add (M, N, Number ("DTERM DLPF MIN", Interfaces.Integer_32 (D.DTerm_Min), 0, 1000, UInt16,
+                         Flags => Slider_DTerm));
+      Add (M, N, Number ("DTERM DLPF MAX", Interfaces.Integer_32 (D.DTerm_Max), 0, 1000, UInt16,
+                         Flags => Slider_DTerm));
+      Add (M, N, Number ("DTERM DLPF EXPO", Interfaces.Integer_32 (D.DTerm_Expo), 0, 10));
+      Add (M, N, Make ("BACK", Back));
+      M.Count := N;
+   end Load_Dynamic_Filter_Menu;
+
+   procedure Load_Copy_Profile_Menu (T : Target; M : out Table)
+     with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
+   is
+      use Adaflight.Menu;
+      N : Line_Count := 0;
+   begin
+      M := Empty_Table;
+      Add (M, N, Make ("-- COPY PROFILE --", Label));
+      Add (M, N, Choice ("CPY PID PROF TO", Interfaces.Integer_32 (T.Copy.PID_Target), 3,
+                         Profile_Target_Name (Natural (T.Copy.PID_Target))));
+      Add (M, N, Make ("COPY PP", Funcall, Has_Func => True));
+      Add (M, N, Choice ("CPY RATE PROF TO", Interfaces.Integer_32 (T.Copy.Rate_Target), 3,
+                         Profile_Target_Name (Natural (T.Copy.Rate_Target))));
+      Add (M, N, Make ("COPY RP", Funcall, Has_Func => True));
+      Add (M, N, Make ("BACK", Back));
+      M.Count := N;
+   end Load_Copy_Profile_Menu;
+
    procedure Load (T : Target; Id : Menu_Id; M : out Table) is
    begin
       case Id is
+         when Filter_Profile_Menu =>
+            Load_Filter_Profile_Menu (T, M);
+         when Filter_Global_Menu =>
+            Load_Filter_Global_Menu (T, M);
+         when Dynamic_Filter_Menu =>
+            Load_Dynamic_Filter_Menu (T, M);
+         when Copy_Profile_Menu =>
+            Load_Copy_Profile_Menu (T, M);
          when Quick_Menu =>
             Load_Quick_Menu (T, M);
          when Main_Menu =>
@@ -1371,6 +1467,36 @@ package body Adaflight.Menu_Content with SPARK_Mode is
                T.Launch.Angle_Limit := P.Launch_Control_Angle_Limit;
                T.Launch.Gain := P.Launch_Control_Gain;
             end;
+         when Filter_Profile_Menu =>
+            declare
+               P : constant Adaflight.Config_Groups.Pid_Profile_Record := T.Config.Pid_Profiles (Shown_PID (T));
+            begin
+               T.Profile_Flt.DTerm_LPF1 := P.Dterm_Lpf1_Static_Hz;
+               T.Profile_Flt.DTerm_LPF2 := P.Dterm_Lpf2_Static_Hz;
+               T.Profile_Flt.DTerm_Notch_Hz := P.Dterm_Notch_Hz;
+               T.Profile_Flt.DTerm_Notch_Cutoff := P.Dterm_Notch_Cutoff;
+               T.Profile_Flt.Yaw_Lowpass := P.Yaw_Lowpass_Hz;
+            end;
+         when Filter_Global_Menu =>
+            T.Global_Filt.Gyro_LPF1 := T.Config.Gyro_Config.Gyro_Lpf1_Static_Hz;
+            T.Global_Filt.Gyro_LPF2 := T.Config.Gyro_Config.Gyro_Lpf2_Static_Hz;
+            T.Global_Filt.Notch1_Hz := T.Config.Gyro_Config.Gyro_Soft_Notch_Hz_1;
+            T.Global_Filt.Notch1_Cutoff := T.Config.Gyro_Config.Gyro_Soft_Notch_Cutoff_1;
+            T.Global_Filt.Notch2_Hz := T.Config.Gyro_Config.Gyro_Soft_Notch_Hz_2;
+            T.Global_Filt.Notch2_Cutoff := T.Config.Gyro_Config.Gyro_Soft_Notch_Cutoff_2;
+         when Dynamic_Filter_Menu =>
+            T.Dynamic.Notch_Max_Hz := T.Config.Dyn_Notch_Config.Dyn_Notch_Max_Hz;
+            T.Dynamic.Notch_Count := T.Config.Dyn_Notch_Config.Dyn_Notch_Count;
+            T.Dynamic.Notch_Q := T.Config.Dyn_Notch_Config.Dyn_Notch_Q;
+            T.Dynamic.Notch_Min_Hz := T.Config.Dyn_Notch_Config.Dyn_Notch_Min_Hz;
+            T.Dynamic.Gyro_Min := T.Config.Gyro_Config.Gyro_Lpf1_Dyn_Min_Hz;
+            T.Dynamic.Gyro_Max := T.Config.Gyro_Config.Gyro_Lpf1_Dyn_Max_Hz;
+            T.Dynamic.Gyro_Expo := T.Config.Gyro_Config.Gyro_Lpf1_Dyn_Expo;
+            T.Dynamic.DTerm_Min := T.Config.Pid_Profiles (Shown_PID (T)).Dterm_Lpf1_Dyn_Min_Hz;
+            T.Dynamic.DTerm_Max := T.Config.Pid_Profiles (Shown_PID (T)).Dterm_Lpf1_Dyn_Max_Hz;
+            T.Dynamic.DTerm_Expo := T.Config.Pid_Profiles (Shown_PID (T)).Dterm_Lpf1_Dyn_Expo;
+         when Copy_Profile_Menu =>
+            T.Copy := (PID_Target => 0, Rate_Target => 0);
          when VTX_Error_Menu =>
             if not T.Live.VTX_Present then
                T.VTX_Status := (Label ("VTX NOT RESPONDING"), Label ("OR NOT CONFIGURED"));
@@ -1779,10 +1905,65 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       T.Config.Stats_Config.Stats_Min_Armed_Time_S := T.Stats.Min_Armed_Time;
    end Leave_Persistent_Stats_Menu;
 
+   procedure Leave_Filter_Profile_Menu (T : in out Target)
+     with Global => null
+   is
+      I : constant Natural := Current_PID (T);
+      P : Adaflight.Config_Groups.Pid_Profile_Record := T.Config.Pid_Profiles (I);
+   begin
+      P.Dterm_Lpf1_Static_Hz := T.Profile_Flt.DTerm_LPF1;
+      P.Dterm_Lpf2_Static_Hz := T.Profile_Flt.DTerm_LPF2;
+      P.Dterm_Notch_Hz := T.Profile_Flt.DTerm_Notch_Hz;
+      P.Dterm_Notch_Cutoff := T.Profile_Flt.DTerm_Notch_Cutoff;
+      P.Yaw_Lowpass_Hz := T.Profile_Flt.Yaw_Lowpass;
+      T.Config.Pid_Profiles (I) := P;
+   end Leave_Filter_Profile_Menu;
+
+   procedure Leave_Filter_Global_Menu (T : in out Target)
+     with Global => null
+   is
+      G : Adaflight.Config_Groups.Gyro_Config_Record := T.Config.Gyro_Config;
+   begin
+      G.Gyro_Lpf1_Static_Hz := T.Global_Filt.Gyro_LPF1;
+      G.Gyro_Lpf2_Static_Hz := T.Global_Filt.Gyro_LPF2;
+      G.Gyro_Soft_Notch_Hz_1 := T.Global_Filt.Notch1_Hz;
+      G.Gyro_Soft_Notch_Cutoff_1 := T.Global_Filt.Notch1_Cutoff;
+      G.Gyro_Soft_Notch_Hz_2 := T.Global_Filt.Notch2_Hz;
+      G.Gyro_Soft_Notch_Cutoff_2 := T.Global_Filt.Notch2_Cutoff;
+      T.Config.Gyro_Config := G;
+   end Leave_Filter_Global_Menu;
+
+   procedure Leave_Dynamic_Filter_Menu (T : in out Target)
+     with Global => null
+   is
+      I : constant Natural := Current_PID (T);
+      G : Adaflight.Config_Groups.Gyro_Config_Record := T.Config.Gyro_Config;
+      P : Adaflight.Config_Groups.Pid_Profile_Record := T.Config.Pid_Profiles (I);
+   begin
+      T.Config.Dyn_Notch_Config.Dyn_Notch_Max_Hz := T.Dynamic.Notch_Max_Hz;
+      T.Config.Dyn_Notch_Config.Dyn_Notch_Count := T.Dynamic.Notch_Count;
+      T.Config.Dyn_Notch_Config.Dyn_Notch_Q := T.Dynamic.Notch_Q;
+      T.Config.Dyn_Notch_Config.Dyn_Notch_Min_Hz := T.Dynamic.Notch_Min_Hz;
+      G.Gyro_Lpf1_Dyn_Min_Hz := T.Dynamic.Gyro_Min;
+      G.Gyro_Lpf1_Dyn_Max_Hz := T.Dynamic.Gyro_Max;
+      G.Gyro_Lpf1_Dyn_Expo := T.Dynamic.Gyro_Expo;
+      T.Config.Gyro_Config := G;
+      P.Dterm_Lpf1_Dyn_Min_Hz := T.Dynamic.DTerm_Min;
+      P.Dterm_Lpf1_Dyn_Max_Hz := T.Dynamic.DTerm_Max;
+      P.Dterm_Lpf1_Dyn_Expo := T.Dynamic.DTerm_Expo;
+      T.Config.Pid_Profiles (I) := P;
+   end Leave_Dynamic_Filter_Menu;
+
    procedure On_Leave (T : in out Target; Id : Menu_Id; Self : Integer; Chain_Back : out Boolean) is
    begin
       Chain_Back := False;
       case Id is
+         when Filter_Profile_Menu =>
+            Leave_Filter_Profile_Menu (T);
+         when Filter_Global_Menu =>
+            Leave_Filter_Global_Menu (T);
+         when Dynamic_Filter_Menu =>
+            Leave_Dynamic_Filter_Menu (T);
          when Quick_Menu =>
             Leave_Quick_Menu (T);
          when Profile_Menu =>
@@ -1937,6 +2118,29 @@ package body Adaflight.Menu_Content with SPARK_Mode is
                            when 4 => VTX_Tramp_Menu,
                            when 5 => VTX_MSP_Menu,
                            when others => VTX_Error_Menu));
+            elsif Id = Copy_Profile_Menu and then Line = 2 then
+               if T.Copy.PID_Target > 0 then
+                  declare
+                     Dst : constant Interfaces.Unsigned_8 := T.Copy.PID_Target - 1;
+                     Src : constant Interfaces.Unsigned_8 := T.Config.System_Config.Pid_Profile_Index;
+                  begin
+                     if Dst < PID_Profile_Count and then Src < PID_Profile_Count and then Dst /= Src then
+                        T.Config.Pid_Profiles (Natural (Dst)) := T.Config.Pid_Profiles (Natural (Src));
+                     end if;
+                  end;
+               end if;
+            elsif Id = Copy_Profile_Menu and then Line = 4 then
+               if T.Copy.Rate_Target > 0 then
+                  declare
+                     Dst : constant Interfaces.Unsigned_8 := T.Copy.Rate_Target - 1;
+                     Src : constant Interfaces.Unsigned_8 := T.Config.System_Config.Active_Rate_Profile;
+                  begin
+                     if Dst < Rate_Profile_Count and then Src < Rate_Profile_Count and then Dst /= Src then
+                        T.Config.Control_Rate_Profiles (Natural (Dst)) :=
+                          T.Config.Control_Rate_Profiles (Natural (Src));
+                     end if;
+                  end;
+               end if;
             elsif Id = Erase_Flash_Menu then
                if T.Live.Flash_Supported then
                   Reply.Screens := 5;
@@ -2032,6 +2236,45 @@ package body Adaflight.Menu_Content with SPARK_Mode is
                T.PID.Gains ((Line - 1) / 4, (Line - 1) mod 4) := Byte;
             end if;
          end if;
+      elsif Id = Filter_Profile_Menu then
+         case Line is
+            when 1 => T.Profile_Flt.DTerm_LPF1 := Word;
+            when 2 => T.Profile_Flt.DTerm_LPF2 := Word;
+            when 3 => T.Profile_Flt.DTerm_Notch_Hz := Word;
+            when 4 => T.Profile_Flt.DTerm_Notch_Cutoff := Word;
+            when 5 => T.Profile_Flt.Yaw_Lowpass := Word;
+            when others => null;
+         end case;
+      elsif Id = Filter_Global_Menu then
+         case Line is
+            when 1 => T.Global_Filt.Gyro_LPF1 := Word;
+            when 2 => T.Global_Filt.Gyro_LPF2 := Word;
+            when 3 => T.Global_Filt.Notch1_Hz := Word;
+            when 4 => T.Global_Filt.Notch1_Cutoff := Word;
+            when 5 => T.Global_Filt.Notch2_Hz := Word;
+            when 6 => T.Global_Filt.Notch2_Cutoff := Word;
+            when others => null;
+         end case;
+      elsif Id = Dynamic_Filter_Menu then
+         case Line is
+            when 1 => T.Dynamic.Notch_Count := Byte;
+            when 2 => T.Dynamic.Notch_Q := Word;
+            when 3 => T.Dynamic.Notch_Min_Hz := Word;
+            when 4 => T.Dynamic.Notch_Max_Hz := Word;
+            when 5 => T.Dynamic.Gyro_Min := Word;
+            when 6 => T.Dynamic.Gyro_Max := Word;
+            when 7 => T.Dynamic.Gyro_Expo := Byte;
+            when 8 => T.Dynamic.DTerm_Min := Word;
+            when 9 => T.Dynamic.DTerm_Max := Word;
+            when 10 => T.Dynamic.DTerm_Expo := Byte;
+            when others => null;
+         end case;
+      elsif Id = Copy_Profile_Menu then
+         case Line is
+            when 1 => T.Copy.PID_Target := Byte;
+            when 3 => T.Copy.Rate_Target := Byte;
+            when others => null;
+         end case;
       elsif Id = Simplified_Menu then
          case Line is
             when 1 => T.Simplified.Mode := Byte;
@@ -2239,6 +2482,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
               elsif Id = Profile_Menu and then Line = 1 then Profile_Name (T.Profile.PID_Names, Index)
               elsif Id = Profile_Menu and then Line = 6 then Profile_Name (T.Profile.Rate_Names, Index)
               elsif Id = Rate_Menu and then Line = 13 then Throttle_Limit_Name (Index)
+              elsif Id = Copy_Profile_Menu and then Line in 1 | 3 then Profile_Target_Name (Index)
               elsif Id = Simplified_Menu and then Line = 1
               then Setting_Name (Adaflight.Settings_Table.Table_Simplified_Tuning_Pids_Mode, Index)
               elsif Id = Simplified_Menu and then Line in 13 | 15
