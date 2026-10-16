@@ -5605,3 +5605,26 @@ The menu contents oracle draws the new settings, and eight channel readings with
 at every draw. The harness replays 240 sessions with 19788 keys and 19788 draws, 1722 of their states
 in the misc menu, 1076 in the RC preview and 274 in the persistent statistics menu: every display
 operation, menu context, page, request and configuration hash matches the reference's.
+
+## D240. Firmware and calibration menus (2026-10-15)
+
+`Adaflight.Menu_Content` gains the firmware menu, the calibration menu and the accelerometer
+calibration menu. The target gains the firmware's identity, which the build sets, and the readings
+these menus show: gyro and barometer presence with their calibrations, and the board's manufacturer
+and name from the board information. The firmware menu shows the identifier, version, source
+revision and target, copies the manufacturer cut to four characters and the board name cut to twenty
+on entry, and leads into the calibration menu.
+
+At each display update the calibration menu sets a status per sensor: dashes for a missing sensor,
+WAIT while its calibration runs, OK once done, and NOK for an accelerometer without a stored
+calibration. Its gyro and barometer lines request a calibration when the sensor is present. Its
+accelerometer line, like the setup popup's, opens the accelerometer calibration menu when an
+accelerometer is present. That menu's start line requests the calibration when the accelerometer is
+present and goes back in every case.
+
+The menu contents oracle builds the reference's firmware menu with a neutral identifier and version,
+scripts gyro and barometer readings, gives manufacturer and board names longer than their copies, and
+counts calibration requests. The harness replays 240 sessions with 19889 keys and 19889 draws, 702 of
+their states in the firmware menu, 744 in the calibration menu and 500 in the accelerometer
+calibration menu, with 42 gyro, 59 accelerometer and 3 barometer calibration requests: every display
+operation, menu context, page, request and configuration hash matches the reference's.

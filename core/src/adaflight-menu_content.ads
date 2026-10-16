@@ -1,11 +1,12 @@
 --  The menu system's menus: their numbers, and the lines and hooks of the
 --  quick menu, the main menu with its features menu and setup popup, the
---  save menus, the power, failsafe and RPM limit menus, and the misc menu
---  with its RC preview and the persistent statistics menu, over the
---  target's state: the configuration, the readings the setup popup shows,
---  the menus' copies of the settings they edit, the setup popup's lines,
---  and the requests to the runtime. The menus of later slices have their
---  numbers and one empty line.
+--  save menus, the power, failsafe and RPM limit menus, the misc menu with
+--  its RC preview, the persistent statistics menu, and the firmware menu
+--  with its calibration menus, over the target's state: the configuration,
+--  the firmware's identity, the readings the menus show, the menus' copies
+--  of the settings they edit, the setup popup's lines, the calibration
+--  statuses, and the requests to the runtime. The menus of later slices
+--  have their numbers and one empty line.
 with Interfaces;
 with Adaflight.Config_Groups;
 with Adaflight.Menu;
@@ -34,6 +35,7 @@ package Adaflight.Menu_Content with SPARK_Mode is
    RPM_Limit_Menu        : constant Menu_Id := 16;
    RC_Preview_Menu       : constant Menu_Id := 17;
    GPS_Lap_Timer_Menu    : constant Menu_Id := 18;
+   Calibration_Menu      : constant Menu_Id := 19;
 
    --  The RC channels the preview shows: roll, pitch, throttle, yaw and the
    --  first four auxiliary channels.
@@ -44,17 +46,52 @@ package Adaflight.Menu_Content with SPARK_Mode is
    Rate_Profile_Count    : constant := 4;
    Battery_Profile_Count : constant := 3;
 
-   --  What the setup popup reads: the accelerometer, whether arming waits
-   --  for its calibration, the calibration's progress, whether the battery
-   --  has charge drawn to restore, and the reboot flag the save menus go by.
+   --  What the menus read: the accelerometer, whether arming waits for its
+   --  calibration, the calibration's progress, whether the battery has
+   --  charge drawn to restore, the reboot flag the save menus go by, the RC
+   --  channels, the gyro and the barometer with their calibrations, and the
+   --  board's manufacturer and name from the board information.
    type Readings is record
-      Acc_Present              : Boolean := False;
-      Acc_Calibration_Needed   : Boolean := False;
-      Acc_Calibration_Complete : Boolean := True;
-      Acc_Calibrated           : Boolean := False;
-      Used_MAh                 : Boolean := False;
-      Reboot_Required          : Boolean := False;
-      RC_Data                  : RC_Channels := (others => 0.0);
+      Acc_Present               : Boolean := False;
+      Acc_Calibration_Needed    : Boolean := False;
+      Acc_Calibration_Complete  : Boolean := True;
+      Acc_Calibrated            : Boolean := False;
+      Used_MAh                  : Boolean := False;
+      Reboot_Required           : Boolean := False;
+      RC_Data                   : RC_Channels := (others => 0.0);
+      Gyro_Present              : Boolean := False;
+      Gyro_Calibration_Complete : Boolean := False;
+      Baro_Present              : Boolean := False;
+      Baro_Calibrated           : Boolean := False;
+      Manufacturer_Id           : Adaflight.Menu.Label_Text;
+      Board_Name                : Adaflight.Menu.Label_Text;
+   end record;
+
+   --  The firmware's identity the firmware menu shows, which the build
+   --  sets: its identifier, version, source revision and target.
+   type Firmware_Identity is record
+      Identifier  : Adaflight.Menu.Label_Text;
+      Version     : Adaflight.Menu.Label_Text;
+      Revision    : Adaflight.Menu.Label_Text;
+      Target_Name : Adaflight.Menu.Label_Text;
+   end record;
+
+   --  The firmware menu's copies of the board's manufacturer and name, cut
+   --  to the board information's lengths.
+   Manufacturer_Id_Length : constant := 4;
+   Board_Name_Length      : constant := 20;
+
+   type Board_Copies is record
+      Manufacturer_Id : Adaflight.Menu.Label_Text;
+      Board_Name      : Adaflight.Menu.Label_Text;
+   end record;
+
+   --  The calibration menu's statuses of the gyro, the accelerometer and
+   --  the barometer from its last update.
+   type Calibration_Statuses is record
+      Gyro : Adaflight.Menu.Label_Text;
+      Acc  : Adaflight.Menu.Label_Text;
+      Baro : Adaflight.Menu.Label_Text;
    end record;
 
    --  The quick menu's copies of the rate and battery profiles and of the
@@ -131,26 +168,32 @@ package Adaflight.Menu_Content with SPARK_Mode is
    end record;
 
    --  What the menus ask of the runtime: the charge drawn set back to the
-   --  stored value, and the PID controller's setup from the current
-   --  profile.
+   --  stored value, the PID controller's setup from the current profile,
+   --  and the gyro, accelerometer and barometer calibrations.
    type Requests is record
-      MAh_Restores     : Natural := 0;
-      MAh_Restored     : Interfaces.Unsigned_32 := 0;
-      PID_Config_Inits : Natural := 0;
+      MAh_Restores      : Natural := 0;
+      MAh_Restored      : Interfaces.Unsigned_32 := 0;
+      PID_Config_Inits  : Natural := 0;
+      Gyro_Calibrations : Natural := 0;
+      Acc_Calibrations  : Natural := 0;
+      Baro_Calibrations : Natural := 0;
    end record;
 
    type Target is record
-      Config    : Adaflight.Config_Groups.Configuration;
-      Live      : Readings;
-      Quick     : Quick_Copies;
-      Power     : Power_Copies;
-      Failsafe  : Failsafe_Copies;
-      RPM_Limit : RPM_Limit_Copies;
-      Misc      : Misc_Copies;
-      Preview   : RC_Values := (others => 0);
-      Stats     : Stats_Copies;
-      Popup     : Popup_Lines;
-      Asked     : Requests;
+      Config      : Adaflight.Config_Groups.Configuration;
+      Identity    : Firmware_Identity;
+      Live        : Readings;
+      Quick       : Quick_Copies;
+      Power       : Power_Copies;
+      Failsafe    : Failsafe_Copies;
+      RPM_Limit   : RPM_Limit_Copies;
+      Misc        : Misc_Copies;
+      Preview     : RC_Values := (others => 0);
+      Stats       : Stats_Copies;
+      Board       : Board_Copies;
+      Popup       : Popup_Lines;
+      Calibration : Calibration_Statuses;
+      Asked       : Requests;
    end record;
 
    --  The menu the menu system opens with: the quick menu when the OSD's
