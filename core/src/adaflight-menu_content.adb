@@ -350,7 +350,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
             | Power_Menu | Failsafe_Menu | RPM_Limit_Menu | Misc_Menu | Persistent_Stats_Menu =>
             (Enter => True, Leave => True, Update => False),
          when RC_Preview_Menu => (Enter => True, Leave => True, Update => True),
-         when Firmware_Menu => (Enter => True, Leave => False, Update => False),
+         when Firmware_Menu | VTX_Error_Menu => (Enter => True, Leave => False, Update => False),
          when Calibration_Menu => (Enter => False, Leave => False, Update => True),
          when GPS_Lap_Timer_Menu | Set_Gate_Menu => (Enter => True, Leave => True, Update => False),
          when others      => (others => False));
@@ -375,7 +375,8 @@ package body Adaflight.Menu_Content with SPARK_Mode is
    Empty_Table : constant Table :=
      (Lines => (others => (Flags => Code (Adaflight.Menu.Label), others => <>)), Count => 1);
 
-   --  The quick, main and features menus, the setup popup and the save menus.
+   --  The quick, main and features menus, the setup popup, the save menus and
+   --  the VTX error menu.
    procedure Load_Main (T : Target; Id : Menu_Id; M : out Table)
      with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
    is
@@ -443,6 +444,11 @@ package body Adaflight.Menu_Content with SPARK_Mode is
             Add (M, N, Make ("-- SAVE/EXIT (REBOOT REQD)", Label));
             Add (M, N, Make ("EXIT&REBOOT", OSD_Exit, Has_Func => True, Has_Data => True, Value => 5));
             Add (M, N, Make ("SAVE&REBOOT", OSD_Exit, Has_Func => True, Has_Data => True, Value => 4));
+            Add (M, N, Make ("BACK", Back));
+         when VTX_Error_Menu =>
+            Add (M, N, Text_Line ("", Label, T.VTX_Status.Line_1, Flags => Dynamic));
+            Add (M, N, Text_Line ("", Label, T.VTX_Status.Line_2, Flags => Dynamic));
+            Add (M, N, Make ("", Label));
             Add (M, N, Make ("BACK", Back));
          when others =>
             Add (M, N, Make ("", Label));
@@ -755,6 +761,14 @@ package body Adaflight.Menu_Content with SPARK_Mode is
                   Reply.Target := Setup_Popup;
                end if;
             end;
+         when VTX_Error_Menu =>
+            if not T.Live.VTX_Present then
+               T.VTX_Status := (Label ("VTX NOT RESPONDING"), Label ("OR NOT CONFIGURED"));
+            elsif T.Live.VTX_Type = 0 then
+               T.VTX_Status := (Label ("UNSUPPORTED VTX TYPE"), Label (""));
+            else
+               T.VTX_Status := (Label ("UNKNOWN VTX TYPE"), Label (""));
+            end if;
          when OSD_Menu =>
             T.OSD.Profile := T.Config.Osd_Config.Osd_Profile_Index;
             T.OSD.Invert := T.Config.Display_Port_Profile_Max7456.Invert;
@@ -1053,6 +1067,16 @@ package body Adaflight.Menu_Content with SPARK_Mode is
                   T.Asked.Acc_Calibrations := T.Asked.Acc_Calibrations + 1;
                end if;
                Reply.Chain_Back := True;
+            elsif (Id = Quick_Menu and then Line = 6) or else (Id = Features and then Line = 2) then
+               Reply.Done := Adaflight.Menu.Changed;
+               Reply.Target :=
+                 (if not T.Live.VTX_Present then VTX_Error_Menu
+                  else (case T.Live.VTX_Type is
+                           when 1 => VTX_RTC6705_Menu,
+                           when 3 => VTX_SmartAudio_Menu,
+                           when 4 => VTX_Tramp_Menu,
+                           when 5 => VTX_MSP_Menu,
+                           when others => VTX_Error_Menu));
             elsif Id = Erase_Flash_Menu then
                if T.Live.Flash_Supported then
                   Reply.Screens := 5;

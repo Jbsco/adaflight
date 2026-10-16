@@ -19779,6 +19779,11 @@ procedure Vector_Check is
          MCT_T.Live.Flash_Offset := Interfaces.Unsigned_32 (Int (F + 10));
          MCT_T.Live.Storage_Ready := Int (F + 11) = 1;
       end Read_Storage;
+      procedure Read_VTX (F : Positive) is
+      begin
+         MCT_T.Live.VTX_Present := Int (F) = 1;
+         MCT_T.Live.VTX_Type := Interfaces.Unsigned_8 (Int (F + 1));
+      end Read_VTX;
       procedure Read_Sensors (F : Positive) is
       begin
          MCT_T.Live.Gyro_Present := Int (F) = 1;
@@ -19864,8 +19869,9 @@ procedure Vector_Check is
          MCT_T.Config.System_Config.Debug_Mode := Interfaces.Unsigned_8 (Int (83));
          MCT_T.Config.Time_Config.Tz_Offset_Minutes := Interfaces.Integer_16 (Int (84));
          Read_Storage (85);
+         Read_VTX (97);
          declare
-            Positions : constant String := Str (97);
+            Positions : constant String := Str (99);
          begin
             for P in MCT_T.Config.Osd_Element_Config.Item_Pos'Range loop
                declare
@@ -19876,22 +19882,22 @@ procedure Vector_Check is
                end;
             end loop;
          end;
-         MCT_T.Config.Osd_Config.Osd_Profile_Index := Interfaces.Unsigned_8 (Int (98));
-         MCT_T.Config.Osd_Config.Rssi_Alarm := Interfaces.Unsigned_8 (Int (99));
-         MCT_T.Config.Osd_Config.Link_Quality_Alarm := Interfaces.Unsigned_16 (Int (100));
-         MCT_T.Config.Osd_Config.Rssi_Dbm_Alarm := Interfaces.Integer_16 (Int (101));
-         MCT_T.Config.Osd_Config.Rsnr_Alarm := Interfaces.Integer_16 (Int (102));
-         MCT_T.Config.Osd_Config.Cap_Alarm := Interfaces.Unsigned_16 (Int (103));
-         MCT_T.Config.Osd_Config.Alt_Alarm := Interfaces.Unsigned_16 (Int (104));
-         MCT_T.Config.Osd_Config.Distance_Alarm := Interfaces.Unsigned_16 (Int (105));
-         MCT_T.Config.Osd_Config.Timers (0) := Interfaces.Unsigned_16 (Int (106));
-         MCT_T.Config.Osd_Config.Timers (1) := Interfaces.Unsigned_16 (Int (107));
-         MCT_T.Config.Osd_Config.Cms_Background_Type := Interfaces.Unsigned_8 (Int (108));
-         MCT_T.Config.Battery_Config.Vbat_Duration_For_Warning := Interfaces.Unsigned_8 (Int (109));
-         MCT_T.Config.Battery_Config.Vbat_Duration_For_Critical := Interfaces.Unsigned_8 (Int (110));
-         MCT_T.Config.Display_Port_Profile_Max7456.Invert := Int (111) = 1;
-         MCT_T.Config.Display_Port_Profile_Max7456.Black_Brightness := Interfaces.Unsigned_8 (Int (112));
-         MCT_T.Config.Display_Port_Profile_Max7456.White_Brightness := Interfaces.Unsigned_8 (Int (113));
+         MCT_T.Config.Osd_Config.Osd_Profile_Index := Interfaces.Unsigned_8 (Int (100));
+         MCT_T.Config.Osd_Config.Rssi_Alarm := Interfaces.Unsigned_8 (Int (101));
+         MCT_T.Config.Osd_Config.Link_Quality_Alarm := Interfaces.Unsigned_16 (Int (102));
+         MCT_T.Config.Osd_Config.Rssi_Dbm_Alarm := Interfaces.Integer_16 (Int (103));
+         MCT_T.Config.Osd_Config.Rsnr_Alarm := Interfaces.Integer_16 (Int (104));
+         MCT_T.Config.Osd_Config.Cap_Alarm := Interfaces.Unsigned_16 (Int (105));
+         MCT_T.Config.Osd_Config.Alt_Alarm := Interfaces.Unsigned_16 (Int (106));
+         MCT_T.Config.Osd_Config.Distance_Alarm := Interfaces.Unsigned_16 (Int (107));
+         MCT_T.Config.Osd_Config.Timers (0) := Interfaces.Unsigned_16 (Int (108));
+         MCT_T.Config.Osd_Config.Timers (1) := Interfaces.Unsigned_16 (Int (109));
+         MCT_T.Config.Osd_Config.Cms_Background_Type := Interfaces.Unsigned_8 (Int (110));
+         MCT_T.Config.Battery_Config.Vbat_Duration_For_Warning := Interfaces.Unsigned_8 (Int (111));
+         MCT_T.Config.Battery_Config.Vbat_Duration_For_Critical := Interfaces.Unsigned_8 (Int (112));
+         MCT_T.Config.Display_Port_Profile_Max7456.Invert := Int (113) = 1;
+         MCT_T.Config.Display_Port_Profile_Max7456.Black_Brightness := Interfaces.Unsigned_8 (Int (114));
+         MCT_T.Config.Display_Port_Profile_Max7456.White_Brightness := Interfaces.Unsigned_8 (Int (115));
          MCT_T.Identity :=
            (Identifier => Menu_Text_Of ("ADFL"), Version => Menu_Text_Of ("0.1.0"),
             Revision => Menu_Text_Of ("norevision"), Target_Name => Menu_Text_Of ("STM32F405"));
@@ -19905,7 +19911,7 @@ procedure Vector_Check is
          declare
             D        : Adaflight.Config_Codec.Data;
             Hash     : Interfaces.Unsigned_64 := 16#CBF2_9CE4_8422_2325#;
-            Expected : constant Interfaces.Unsigned_64 := Interfaces.Unsigned_64'Value (Str (114));
+            Expected : constant Interfaces.Unsigned_64 := Interfaces.Unsigned_64'Value (Str (116));
          begin
             Adaflight.Config_Codec.Encode (MCT_T.Config, D);
             for B of D loop
@@ -19922,6 +19928,7 @@ procedure Vector_Check is
          MCT_T.Live.Reboot_Required := Int (9) = 1;
          Read_Sensors (10);
          Read_Storage (14);
+         Read_VTX (26);
       elsif Name = "cmopen" then
          Begin_Step;
          Read_Ops;
