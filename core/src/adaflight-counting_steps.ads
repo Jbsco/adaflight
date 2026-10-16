@@ -71,4 +71,13 @@ package Adaflight.Counting_Steps with SPARK_Mode, Initializes => Calls is
      with Global => (In_Out => Calls),
           Post   => Calls = Counted (Calls'Old);
 
+   procedure Step_Set_Value (Id : Menu.Menu_Id; Line : Natural; Value : Interfaces.Integer_32)
+     with Global => (In_Out => Calls),
+          Post   => Calls = Counted (Calls'Old);
+
+   --  A lookup table's text by line and index: blank, as long as its
+   --  arguments' sum within the bound.
+   function Step_Lookup (Id : Menu.Menu_Id; Line : Natural; Index : Natural) return Menu.Label_Text is
+     (Data => (others => ' '), Length => (Id + Line mod 64 + Index mod 64) mod (Menu.Max_Text + 1));
+
 end Adaflight.Counting_Steps;

@@ -92,8 +92,7 @@ package body Adaflight.Menu_Draw with SPARK_Mode is
       Profile_Cursor : Adaflight.Menu.Profile_Number;
       Now_Ms         : Unsigned_32;
       Cost           : out Unsigned_32)
-     with Pre => (if Adaflight.Menu.Element_Of (E.Flags) = Adaflight.Menu.Fixed
-                  then E.Value in Adaflight.Menu.Fixed_Value)
+     with Pre => (if Adaflight.Menu.Element_Of (E.Flags) = Adaflight.Menu.Fixed then E.Value in 0 .. 255)
        and then L.Right_Column <= L.Left_Column + Adaflight.Menu.Max_Text + 2
    is
       Y    : Column := (if L.Small_Screen then Col (Row_Y + 1) else Row_Y);
@@ -166,7 +165,7 @@ package body Adaflight.Menu_Draw with SPARK_Mode is
             end if;
          when Adaflight.Menu.Fixed =>
             if Print_Value (Flags) and then E.Has_Data then
-               Buff := Adaflight.Menu.Format_Fixed (E.Value);
+               Buff := Adaflight.Menu.Format_Fixed (E.Value * Interfaces.Integer_32 (E.Multiplier));
                Draw_Value (On, L, Buff, Y, Number_Field_Length, Cost);
                Flags := Flags and not Print_Value_Bit;
             end if;
