@@ -5979,3 +5979,29 @@ names are their hardware settings' values.
 
 The command line oracle runs the command with every type in several cases and with other arguments. Two
 runs of 200 lines replay exactly.
+
+## D258. MSP command line setting message (2026-10-16)
+
+`Adaflight.MSP_CLI_Setting` answers the MSP2 command line setting message. A request is text up to its
+first zero byte. Without an equals sign it names a setting, without regard to case, and the reply is the
+setting's name, " = " and its value as the command line prints it; no such setting, or a lookup or port
+value without a name, is an error. With an equals sign the request writes the value through the
+reference's setting writer, which is stricter than the set command: a number is whole with nothing after
+it, read as the C library's strto functions read it with white space and a sign before it, and an
+unsigned one must not start with a minus; lookup and bit values match a name without regard to case; an
+array takes exactly its elements between commas, each within its element type; a write-once text takes
+only its stored value. A value that does not parse is an error that writes nothing. One that parses is
+written and echoed as a read is, and a write whose echo has no text still acknowledges. The echo reads
+the profiles the configuration selects after the write, and adaflight skips it should a write leave them
+outside the profiles, which no setting does.
+
+The value text repeats the command line's rather than sharing it, since the command line prints through
+its generic output; both replay against the reference. The reply is bounded at 256 characters, past the
+longest setting's 225. An unsigned array element read after white space and a minus is rejected as the
+64-bit host's strtoul rejects it; no setting has an array of 32-bit unsigned elements, the one type where
+a 32-bit target would differ.
+
+The settings oracle routes the message through the reference's MSP handler with its reply buffer of 4112
+bytes and prints the whole reply. Two runs of 600 requests, with names in several cases and with stray
+characters, values of every mode, white space around the value and zero bytes inside the text, replay
+exactly, with the configuration hash after each.
