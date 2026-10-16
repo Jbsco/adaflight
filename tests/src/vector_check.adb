@@ -14163,6 +14163,17 @@ procedure Vector_Check is
          FP : constant Adaflight.Flight_Plan_Nav.Settings :=
            Adaflight.Config_Runtime.Flight_Plan_Settings_Of
              (C.Autopilot_Config, C.Gps_Rescue_Config, C.Alt_Hold_Config, False);
+         BB : constant Adaflight.Blackbox.Settings :=
+           Adaflight.Config_Runtime.Blackbox_Settings_Of (C.Blackbox_Config, False);
+         SC : constant Adaflight.Scheduler.Settings :=
+           Adaflight.Config_Runtime.Scheduler_Settings_Of (C.Scheduler_Config, 168, 10, 125);
+         LS : constant Adaflight.LED_Strip.Settings :=
+           Adaflight.Config_Runtime.LED_Strip_Settings_Of (C.Led_Strip_Config, C.Led_Strip_Status_Mode_Config);
+         VX : constant Adaflight.VTX.Settings := Adaflight.Config_Runtime.VTX_Settings_Of (C.Vtx_Settings_Config);
+         ST : constant Adaflight.Flight_Stats.Settings :=
+           Adaflight.Config_Runtime.Flight_Stats_Settings_Of (C.Stats_Config);
+         LT : constant Adaflight.GPS_Lap_Timer.Settings :=
+           Adaflight.Config_Runtime.Lap_Timer_Settings_Of (C.Gps_Lap_Timer_Config);
       begin
          Record_Int ("conffix.arming_min_check",
                      Integer_64 (Interfaces.Unsigned_16'Max
@@ -14224,6 +14235,21 @@ procedure Vector_Check is
                      Integer_64 (AH.Climb_Rate));
          Record_Int ("conffix.plan_climb_rate", Integer_64 (C.Alt_Hold_Config.Climb_Rate) * 10,
                      Integer_64 (FP.Climb_Rate));
+         Record_Int ("conffix.blackbox_device", Integer_64 (Interfaces.Unsigned_8'Min (3, C.Blackbox_Config.Device)),
+                     Integer_64 (Adaflight.Blackbox_Header.Device_Kind'Pos (BB.Device)));
+         Record_Int ("conffix.scheduler_rx_relax", Integer_64 (C.Scheduler_Config.Rx_Relax_Determinism),
+                     Integer_64 (SC.Rx_Relax));
+         Record_Int ("conffix.led_brightness",
+                     Integer_64 (Interfaces.Unsigned_8'Min (100, C.Led_Strip_Config.Ledstrip_Brightness)),
+                     Integer_64 (LS.Brightness));
+         Record_Int ("conffix.led_aux",
+                     Integer_64 (Interfaces.Unsigned_8'Min (17, C.Led_Strip_Status_Mode_Config.Ledstrip_Aux_Channel)),
+                     Integer_64 (LS.Aux_Channel));
+         Record_Int ("conffix.vtx_band", Integer_64 (C.Vtx_Settings_Config.Band), Integer_64 (VX.Band));
+         Record_Int ("conffix.stats_move_limit", Integer_64 (C.Stats_Config.Stats_Save_Move_Limit),
+                     Integer_64 (ST.Save_Move_Limit));
+         Record_Int ("conffix.lap_tolerance", Integer_64 (C.Gps_Lap_Timer_Config.Gate_Tolerance_M),
+                     Integer_64 (LT.Gate_Tolerance_M));
       end;
       if H.Gyro_Sample_Rate_Hz in 10 .. 10_000 and then H.Motors in 1 .. 8
         and then Integer (1_000_000 / H.Gyro_Sample_Rate_Hz) * Integer (C.Pid_Config.Pid_Process_Denom)

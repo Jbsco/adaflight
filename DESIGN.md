@@ -4333,6 +4333,14 @@ stored position and position hold groups, `Altitude_Control_Settings_Of` and
 and altitude hold groups, with the climb rate the altitude hold flies at, ten times its setting, and
 none for a wing.
 
+`Blackbox_Settings_Of` builds `Blackbox.Settings` from the stored blackbox group, with whether the
+build is a wing; a serial device runs fast from a megabaud up. `Scheduler_Settings_Of` builds
+`Scheduler.Settings` from the stored scheduler group, with the platform's clock, its floor on a
+rescheduled period and the gyro's period. `LED_Strip_Settings_Of` builds `LED_Strip.Settings` from
+the stored LED strip and status mode groups, the first eight stored special colors being the
+strip's. `VTX_Settings_Of`, `Flight_Stats_Settings_Of` and `Lap_Timer_Settings_Of` build their
+settings from the stored VTX settings, statistics and lap timer groups.
+
 The harness builds the four PID profiles and the four rate profiles of every fixed configuration in
 the configuration fix recordings, 16000 of each, and the gyro settings of each with a running gyro
 and motors, 3082, with the preconditions and the predicates checked at run time, and compares the
@@ -4360,10 +4368,10 @@ as in the reference's build with it.
 The harness builds the four PID profiles and the four rate profiles of every fixed configuration in
 the configuration fix recordings, 16000 of each, the arming, failsafe, receiver, adjustment, mixer,
 attitude, barometer, compass, battery, beeper, GPS link, GPS rescue, position control, position
-estimator, position hold, altitude control, altitude hold and flight plan settings and the mode
-conditions of each, 4000 of each, and the gyro, RC command and accelerometer settings of each with a
-running gyro and motors, 3082, with the preconditions and the predicates checked at run time, and
-compares one field of each. The analog endpoints replay 235 recorded motor and 3D settings from
+estimator, position hold, altitude control, altitude hold, flight plan, blackbox, scheduler, LED
+strip, VTX, statistics and lap timer settings and the mode conditions of each, 4000 of each, and the
+gyro, RC command and accelerometer settings of each with a running gyro and motors, 3082, with the
+preconditions and the predicates checked at run time, and compares one field of each. The analog endpoints replay 235 recorded motor and 3D settings from
 the DShot oracle bit for bit, 70 of them with an inverted range (findings F181).
 
 ## D189. Command line batches (2026-10-14)

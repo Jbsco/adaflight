@@ -13,15 +13,20 @@ with Adaflight.Axes; use Adaflight.Axes;
 with Adaflight.Barometer;
 with Adaflight.Battery;
 with Adaflight.Beeper;
+with Adaflight.Blackbox;
+with Adaflight.Blackbox_Header;
 with Adaflight.Compass;
 with Adaflight.Config_Fix;
 with Adaflight.Config_Groups; use Adaflight.Config_Groups;
 with Adaflight.Dyn_Notch;
 with Adaflight.Failsafe;
 with Adaflight.Flight_Plan_Nav;
+with Adaflight.Flight_Stats;
 with Adaflight.Float_Bits;
+with Adaflight.GPS_Lap_Timer;
 with Adaflight.GPS_Link;
 with Adaflight.GPS_Rescue;
+with Adaflight.LED_Strip;
 with Adaflight.Gyro_Filters;
 with Adaflight.Mixer;
 with Adaflight.Mixer_Init;
@@ -35,9 +40,11 @@ with Adaflight.Rates;
 with Adaflight.RC_Command;
 with Adaflight.Receiver;
 with Adaflight.RPM_Filter;
+with Adaflight.Scheduler;
 with Adaflight.Sensor_Alignment;
 with Adaflight.UBX_Config;
 with Adaflight.Vectors;
+with Adaflight.VTX;
 
 package Adaflight.Config_Runtime with SPARK_Mode is
 
@@ -188,6 +195,31 @@ package Adaflight.Config_Runtime with SPARK_Mode is
    function Flight_Plan_Settings_Of
      (A : Autopilot_Config_Record; Rescue : Gps_Rescue_Record; H : Alt_Hold_Config_Record; Wing : Boolean)
       return Flight_Plan_Nav.Settings;
+
+   --  The flight log settings from the stored blackbox group, with whether
+   --  the build is a wing; a serial device runs fast from a megabaud up.
+   function Blackbox_Settings_Of (B : Blackbox_Config_Record; Wing : Boolean) return Blackbox.Settings;
+
+   --  The scheduler settings from the stored scheduler group, with the
+   --  platform's clock in cycles per microsecond, its floor on a
+   --  rescheduled period and the gyro's period.
+   function Scheduler_Settings_Of
+     (S : Scheduler_Config_Record; Cycles_Per_Us : Positive; Delay_Limit_Us : Scheduler.Delay_Limit;
+      Gyro_Period_Us : Scheduler.Period_Us) return Scheduler.Settings
+     with Pre => Cycles_Per_Us <= 1_000;
+
+   --  The LED strip settings from the stored LED strip and status mode
+   --  groups; the first eight special colors are the strip's.
+   function LED_Strip_Settings_Of
+     (L : Led_Strip_Config_Record; M : Led_Strip_Status_Mode_Config_Record) return LED_Strip.Settings;
+
+   --  The video transmitter settings from the stored VTX settings group.
+   function VTX_Settings_Of (V : Vtx_Settings_Config_Record) return VTX.Settings;
+
+   --  The flight statistics settings from the stored statistics group, and
+   --  the lap timer settings from the stored lap timer group.
+   function Flight_Stats_Settings_Of (S : Stats_Config_Record) return Flight_Stats.Settings;
+   function Lap_Timer_Settings_Of (G : Gps_Lap_Timer_Config_Record) return GPS_Lap_Timer.Settings;
 
 private
 
@@ -694,6 +726,68 @@ private
       Ascend_Cms      => Unsigned_16 (Held (Integer (Rescue.Ascend_Rate), 50, 2_500)),
       Descend_Cms     => Unsigned_16 (Held (Integer (Rescue.Descend_Rate), 25, 500)),
       Rescue_Alt_Mode => Unsigned_8 (Code (Rescue.Altitude_Mode, 2)));
+
+   function Blackbox_Settings_Of (B : Blackbox_Config_Record; Wing : Boolean) return Blackbox.Settings is
+     (Fields_Disabled_Mask => B.Fields_Disabled_Mask,
+      Sample_Rate          => Integer (B.Sample_Rate),
+      Device               =>
+        Blackbox_Header.Device_Kind'Val
+          (Code (B.Device, Blackbox_Header.Device_Kind'Pos (Blackbox_Header.Device_Kind'Last))),
+      Mode                 => Blackbox.Log_Mode'Val (Code (B.Mode, Blackbox.Log_Mode'Pos (Blackbox.Log_Mode'Last))),
+      High_Resolution      => B.High_Resolution /= 0,
+      Serial_Fast_Baud     => B.Blackbox_Baud in 12 .. 15,
+      Wing                 => Wing);
+
+   function Scheduler_Settings_Of
+     (S : Scheduler_Config_Record; Cycles_Per_Us : Positive; Delay_Limit_Us : Scheduler.Delay_Limit;
+      Gyro_Period_Us : Scheduler.Period_Us) return Scheduler.Settings is
+     (Cycles_Per_Us  => Cycles_Per_Us,
+      Rx_Relax       => Integer (S.Rx_Relax_Determinism),
+      OSD_Relax      => Integer (S.Osd_Relax_Determinism),
+      Delay_Limit_Us => Delay_Limit_Us,
+      Gyro_Period_Us => Gyro_Period_Us);
+
+   function Palette_Of (Colors : Hsv_Color_Record_List_16) return LED_Strip.Palette;
+   function Mode_Colors_Of (Modes : Mode_Color_Indexes_Record_List_6) return LED_Strip.Mode_Colors;
+   function Special_Colors_Of (Specials : Special_Color_Indexes_Record) return LED_Strip.Special_Colors;
+
+   function LED_Strip_Settings_Of
+     (L : Led_Strip_Config_Record; M : Led_Strip_Status_Mode_Config_Record) return LED_Strip.Settings is
+     (Visual_Beeper       => L.Ledstrip_Visual_Beeper /= 0,
+      Prof                =>
+        LED_Strip.Profile'Val (Code (L.Ledstrip_Profile, LED_Strip.Profile'Pos (LED_Strip.Profile'Last))),
+      Race_Color          => Held (Integer (L.Ledstrip_Race_Color), 0, LED_Strip.Named_Color'Last),
+      Beacon_Color        => Held (Integer (L.Ledstrip_Beacon_Color), 0, LED_Strip.Named_Color'Last),
+      Beacon_Period       => Unsigned_16 (Held (Integer (L.Ledstrip_Beacon_Period_Ms), 1, 65_535)),
+      Beacon_Percent      => L.Ledstrip_Beacon_Percent,
+      Visual_Beeper_Color => Held (Integer (L.Ledstrip_Visual_Beeper_Color), 0, LED_Strip.Named_Color'Last),
+      Brightness          => Unsigned_8 (Held (Integer (L.Ledstrip_Brightness), 0, 100)),
+      Rainbow_Delta       => L.Ledstrip_Rainbow_Delta,
+      Rainbow_Freq        => L.Ledstrip_Rainbow_Freq,
+      Leds                => LED_Strip.Led_Configs (M.Led_Configs),
+      Colors              => Palette_Of (M.Colors),
+      Modes               => Mode_Colors_Of (M.Mode_Colors),
+      Specials            => Special_Colors_Of (M.Special_Colors),
+      Aux_Channel         => Held (Integer (M.Ledstrip_Aux_Channel), 0, LED_Strip.Channel_Index'Last));
+
+   function VTX_Settings_Of (V : Vtx_Settings_Config_Record) return VTX.Settings is
+     (Band           => V.Band,
+      Channel        => V.Channel,
+      Power          => V.Power,
+      Freq           => V.Freq,
+      Pit_Mode_Freq  => V.Pit_Mode_Freq,
+      Low_Power      =>
+        VTX.Low_Power_Disarm'Val (Code (V.Low_Power_Disarm, VTX.Low_Power_Disarm'Pos (VTX.Low_Power_Disarm'Last))),
+      Softserial_Alt => V.Softserial_Alt /= 0);
+
+   function Flight_Stats_Settings_Of (S : Stats_Config_Record) return Flight_Stats.Settings is
+     (Min_Armed_Time_S => S.Stats_Min_Armed_Time_S, Save_Move_Limit => S.Stats_Save_Move_Limit);
+
+   function Lap_Timer_Settings_Of (G : Gps_Lap_Timer_Config_Record) return GPS_Lap_Timer.Settings is
+     (Gate_Lat           => G.Gate_Lat,
+      Gate_Lon           => G.Gate_Lon,
+      Minimum_Lap_Time_S => G.Minimum_Lap_Time_Seconds,
+      Gate_Tolerance_M   => G.Gate_Tolerance_M);
 
    function Gyro_Settings_Of
      (G : Gyro_Config_Record; N : Dyn_Notch_Config_Record; R : Rpm_Filter_Config_Record;
