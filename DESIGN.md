@@ -6100,3 +6100,23 @@ The command line oracle defines what the reference's driver and system code leav
 telemetry flag, the cycle counter readings, the STM32 conversion and each motor's RPM, and scripts them with
 the driver's counts, the motors' replies and reply counts, and the edge times. Two runs of 600 lines replay
 exactly.
+
+## D264. Scheduler debug values (2026-10-16)
+
+`Adaflight.Scheduler` gains the eight debug values of its four debug modes, kept in its state and set only
+in the running mode, which the settings name with the debug task. The scheduler mode reports the pass's time
+less its tasks' run times. The determinism mode reports the gyro cycle time, the latest late task with its
+lateness, the gyro skew and the range of gyro periods over each lock, and the gyro cycle deviation over each
+timing window. The timing accuracy mode reports the load, and over each window the late tasks, their
+lateness, the tasks run, the late share and the cycle deviation. The task mode reports the debug task's
+number, rate, peak, average, anticipated and latest run times, the anticipated less the latest, and its late
+runs. Each value keeps its low 16 bits. The cycle conversions wrap their products at 32 bits and truncate
+their signed quotients, and the deviation squares wrap at 32 bits (F227). Task numbers count adaflight's
+full task table, as the tasks command does. The gyro status gains whether its driver syncs to a short
+period, and the settings bridge takes the debug task from the stored scheduler group and the running debug
+mode from its caller.
+
+The scheduler oracle runs each of its eight sequences in the four modes, with a debug task among the core
+tasks, a short gyro period on odd sequences, 1250 passes and an idle gap of up to 40M cycles before one pass
+in fifty so that timing windows close. Every pass's values replay exactly. The harness compares the task
+numbers through the oracle build's task list, which leaves out some of the full table.

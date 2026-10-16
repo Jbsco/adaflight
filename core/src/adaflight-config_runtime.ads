@@ -233,10 +233,10 @@ package Adaflight.Config_Runtime with SPARK_Mode is
 
    --  The scheduler settings from the stored scheduler group, with the
    --  platform's clock in cycles per microsecond, its floor on a
-   --  rescheduled period and the gyro's period.
+   --  rescheduled period, the gyro's period and the running debug mode.
    function Scheduler_Settings_Of
      (S : Scheduler_Config_Record; Cycles_Per_Us : Positive; Delay_Limit_Us : Scheduler.Delay_Limit;
-      Gyro_Period_Us : Scheduler.Period_Us) return Scheduler.Settings
+      Gyro_Period_Us : Scheduler.Period_Us; Debug_Mode : Interfaces.Unsigned_8) return Scheduler.Settings
      with Pre => Cycles_Per_Us <= 1_000;
 
    --  The LED strip settings from the stored LED strip and status mode
@@ -864,12 +864,14 @@ private
 
    function Scheduler_Settings_Of
      (S : Scheduler_Config_Record; Cycles_Per_Us : Positive; Delay_Limit_Us : Scheduler.Delay_Limit;
-      Gyro_Period_Us : Scheduler.Period_Us) return Scheduler.Settings is
+      Gyro_Period_Us : Scheduler.Period_Us; Debug_Mode : Interfaces.Unsigned_8) return Scheduler.Settings is
      (Cycles_Per_Us  => Cycles_Per_Us,
       Rx_Relax       => Integer (S.Rx_Relax_Determinism),
       OSD_Relax      => Integer (S.Osd_Relax_Determinism),
       Delay_Limit_Us => Delay_Limit_Us,
-      Gyro_Period_Us => Gyro_Period_Us);
+      Gyro_Period_Us => Gyro_Period_Us,
+      Debug_Mode     => Debug_Mode,
+      Debug_Task     => S.Debug_Task);
 
    function Palette_Of (Colors : Hsv_Color_Record_List_16) return LED_Strip.Palette;
    function Mode_Colors_Of (Modes : Mode_Color_Indexes_Record_List_6) return LED_Strip.Mode_Colors;
