@@ -68,6 +68,8 @@ package body Adaflight.Menu_Nav with SPARK_Mode is
                Act (S.Port, Adaflight.Menu.Redraw, 0);
             when Adaflight.Menu.Set_Background =>
                Act (S.Port, Adaflight.Menu.Background, Integer (A.Screen (K).Attr));
+            when Adaflight.Menu.Save_Config =>
+               Act (S.Port, Adaflight.Menu.Save_Config, 0);
          end case;
       end loop;
       if A.Inhibit_Save then
