@@ -5937,3 +5937,17 @@ sessions with 19174 keys, 834 menu changes and 20008 draws, 336 of their states 
 182 in its configuration, 432 in its statistics, 180 and 220 in the pit and user frequency menus and 58
 in the confirmation: every display operation, menu context, page, request, driver state, queued frame,
 menu state and configuration hash matches the reference's.
+
+## D255. Command line information commands (2026-10-16)
+
+`Adaflight.Command_Line` gains vtx_info and rc_smoothing_info. vtx_info lists each power level the video
+transmitter reports, in dBm with its power in mW, or prints the error for no transmitter or no levels.
+rc_smoothing_info prints the receiver's frame rate rounded to the nearest whole Hz with ties to even, or no
+signal, then whether RC smoothing is on in the configuration, and when it is, the setpoint and throttle
+cutoffs with whether a setting fixed each. Both report from outside the configuration, so the environment
+gains the transmitter's presence and power levels and the running smoothing's rate and cutoffs. The cutoffs
+come from the running smoothing, not from settings a set command changed since its start.
+
+The command line oracle scripts the transmitter's power levels and the receiver's rate and running cutoffs,
+and switches RC smoothing between the commands. Two runs of 600 lines, rates from 15 to 1250 Hz with halves,
+replay exactly.
