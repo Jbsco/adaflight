@@ -130,8 +130,10 @@ The core contains:
 - command line defaults: whole and single-group resets without save
 - command line batches: batch start and end with error flag, unknown line reply
 - runtime records from stored configuration: PID profile, rate profile, gyro, arming, failsafe,
-  receiver, RC command and adjustment settings and mode conditions with range holds, fix's
+  receiver, RC command, adjustment and mixer settings and mode conditions with range holds, fix's
   postcondition as precondition
+- analog motor endpoints: output range and disarm output of PWM, OneShot, MultiShot and brushed
+  protocols, with 3D limits and deadband
 - MSP state replies: status, sensor readings, motors, RC channels, attitude, altitudes, battery,
   debug values, GPS, ESC and motor telemetry, pitot, transmitter information and clock
 - BLHeli 4-way interface for ESC configuration through flight controller
@@ -157,10 +159,10 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 22493 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 22585 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
-- Recorded vectors replay bit for bit: 1753568 lines over 384 cases, every case exact except forty
-  declared deviations in `DESIGN.md` D6.
+- Recorded vectors replay bit for bit: 1753568 lines over 384 cases, every case exact except
+  forty-two declared deviations in `DESIGN.md` D6.
 - No target builds yet. `ROADMAP.md` contains phases, parity inventory, and one question for after
   parity: whether a proved core leaves room on F4 boards for features Betaflight has to leave out
   there.

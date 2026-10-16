@@ -256,6 +256,15 @@ ledger. The deviations so far:
 - The runtime mode conditions make a condition whose stored mode is outside the box table never
   active, and a link outside it no link (D187), where the reference dereferences an empty box lookup
   (findings F155). The recorded configurations keep their modes within the table.
+- The runtime mixer configuration holds the motor output range to the motor values and at least one
+  step wide, with the disarm output below its top, and reads a disabled protocol's range as zero to
+  one (D187), where the reference computes with an inverted or empty range (findings F181). The
+  recorded configurations keep their ranges within the motor values and in order.
+- The runtime mixer configuration reads a mixer mode outside the table as quad X, a mix weight that
+  is not a number as zero, and a custom mix without motors as one motor with a zero mix (D187), where
+  the reference indexes past its mixer table, computes with the weight, and drives no motor. The
+  recorded configurations keep their modes within the table, their weights numbers and their custom
+  mixes with motors.
 
 ## D7. Contribution conventions (2026-10-08)
 
@@ -4286,6 +4295,17 @@ loop ratio is the loop time. The command path's minimum check is held to 1999, b
 2250 (D6). `Adjustment_Settings_Of` builds `Adjustments.Settings` from the stored receiver and system
 groups.
 
+`Mixer_Config_Of` builds `Mixer.Config` from the stored mixer, motor, 3D and receiver groups, the
+current rate and PID profiles, the custom motor mix, the features in use and the build's mixers. The
+output range comes from the protocol family: `DShot.Endpoints` for the DShot family, and
+`PWM_Output.Endpoints` for the analog family, which raises the minimum command by a tenth of the idle
+setting and brings the maximum throttle down by what the output limit leaves of the span, or in the
+two direction mode brings the 3D limits in by half the limited span. The range is then held to the
+motor values and at least one step wide, with the disarm output held below its top; a disabled
+protocol's range is zero to one. The motors in use and their mix come from
+`Mixer_Init.Configure_Output`, over a mode outside the table read as quad X and weights that are not
+numbers read as zero; a custom mix without motors reads as one motor with a zero mix (D6).
+
 The harness builds the four PID profiles and the four rate profiles of every fixed configuration in
 the configuration fix recordings, 16000 of each, and the gyro settings of each with a running gyro
 and motors, 3082, with the preconditions and the predicates checked at run time, and compares the
@@ -4311,10 +4331,11 @@ plain GPS rescue stage of a build without the flight plan is in the state machin
 as in the reference's build with it.
 
 The harness builds the four PID profiles and the four rate profiles of every fixed configuration in
-the configuration fix recordings, 16000 of each, the arming, failsafe, receiver and adjustment
+the configuration fix recordings, 16000 of each, the arming, failsafe, receiver, adjustment and mixer
 settings and the mode conditions of each, 4000 of each, and the gyro and RC command settings of each
 with a running gyro and motors, 3082, with the preconditions and the predicates checked at run time,
-and compares one field of each.
+and compares one field of each. The analog endpoints replay 235 recorded motor and 3D settings from
+the DShot oracle bit for bit, 70 of them with an inverted range (findings F181).
 
 ## D189. Command line batches (2026-10-14)
 

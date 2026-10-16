@@ -1,4 +1,102 @@
+with Adaflight.DShot;
+with Adaflight.Maths;
+with Adaflight.PWM_Output;
+
 package body Adaflight.Config_Runtime with SPARK_Mode is
+
+   type Output_Range is record
+      Low           : Float := 0.0;
+      High          : Float := 0.0;
+      Disarm        : Float := 0.0;
+      Deadband_High : Float := 0.0;
+      Deadband_Low  : Float := 0.0;
+   end record;
+
+   --  The output range of the motor protocol's family; nothing for a
+   --  disabled protocol.
+   function Range_Of
+     (Motor : Motor_Config_Record; Flight_3D : Flight3_D_Config_Record; Limit : Maths.Unit_Interval;
+      Three_D : Boolean) return Output_Range
+     with Global => null
+   is
+      E : Output_Range;
+   begin
+      if Is_DShot (Motor.Dev.Motor_Protocol) then
+         DShot.Endpoints
+           (Held (Integer (Motor.Motor_Idle), 0, DShot.Idle_Setting'Last), Limit, Three_D, E.Low, E.High, E.Disarm,
+            E.Deadband_High, E.Deadband_Low);
+      elsif Is_Analog (Motor.Dev.Motor_Protocol) then
+         PWM_Output.Endpoints
+           (Natural (Motor.Mincommand), Natural (Motor.Maxthrottle), Natural (Motor.Motor_Idle),
+            Natural (Flight_3D.Limit3d_Low), Natural (Flight_3D.Limit3d_High), Natural (Flight_3D.Neutral3d),
+            Natural (Flight_3D.Deadband3d_Low), Natural (Flight_3D.Deadband3d_High), Limit, Three_D, E.Low, E.High,
+            E.Disarm, E.Deadband_High, E.Deadband_Low);
+      end if;
+      return E;
+   end Range_Of;
+
+   --  What the mixer setup gives: the mix and its motor count, which the
+   --  configuration takes, the launch mix and the disarmed outputs.
+   type Mixer_Setup is record
+      Current  : Mixer.Mix_Table := (others => <>);
+      Count    : Natural := 0;
+      Launch   : Mixer.Mix_Table := (others => <>);
+      Disarmed : Mixer.Motor_Outputs := (others => 0.0);
+   end record;
+
+   function Setup_Of
+     (O : Mixer_Init.Options; Mode : Mixer_Init.Mixer_Mode; Custom_Mix : Mixer.Mix_Table;
+      Disarm : Mixer.Motor_Value) return Mixer_Setup
+     with Global => null, Post => Setup_Of'Result.Count <= O.Max_Motors
+   is
+      S : Mixer_Setup;
+   begin
+      Mixer_Init.Configure_Output (O, Mode, Custom_Mix, Disarm, S.Current, S.Count, S.Launch, S.Disarmed);
+      return S;
+   end Setup_Of;
+
+   function Mixer_Config_Of
+     (M : Mixer_Config_Record; Motor : Motor_Config_Record; Flight_3D : Flight3_D_Config_Record;
+      R : Rx_Config_Record; Rate : Control_Rate_Config_Record; P : Pid_Profile_Record;
+      Custom : Motor_Mixer_Record_List_8; Features : Unsigned_32; O : Mixer_Init.Options) return Mixer.Config
+   is
+      Mode       : constant Mixer_Init.Mixer_Mode :=
+        (if M.Mixer_Mode in 1 .. Mixer_Init.Mixer_Mode'Pos (Mixer_Init.Mixer_Mode'Last) + 1
+         then Mixer_Init.Mixer_Mode'Val (M.Mixer_Mode - 1) else Mixer_Init.Quad_X);
+      Limit      : constant Maths.Unit_Interval :=
+        (if P.Motor_Output_Limit < 100 then Float (P.Motor_Output_Limit) / 100.0 else 1.0);
+      E          : constant Output_Range :=
+        Range_Of (Motor, Flight_3D, Limit, (Features and Config_Fix.Feature_3D) /= 0);
+      High       : constant Mixer.Motor_Value := Held_F (E.High, 1.0, Mixer.Motor_Value'Last);
+      Low        : constant Mixer.Motor_Value := Held_F (E.Low, 0.0, High - 1.0);
+      Disarm     : constant Mixer.Motor_Value := Held_F (E.Disarm, 0.0, High);
+      Custom_Mix : Mixer.Mix_Table;
+   begin
+      for I in Custom_Mix'Range loop
+         Custom_Mix (I) :=
+           (Throttle => Weight_Of (Custom (I).Throttle), Roll => Weight_Of (Custom (I).Roll),
+            Pitch => Weight_Of (Custom (I).Pitch), Yaw => Weight_Of (Custom (I).Yaw));
+      end loop;
+      declare
+         S : constant Mixer_Setup := Setup_Of (O, Mode, Custom_Mix, Disarm);
+      begin
+         return
+           (Count                  => Natural'Max (1, S.Count),
+            Table                  => S.Current,
+            Kind                   =>
+              Mixer.Mixer_Kind'Val (Code (M.Mixer_Type, Mixer.Mixer_Kind'Pos (Mixer.Mixer_Kind'Last))),
+            Yaw_Reversed           => M.Yaw_Motors_Reversed,
+            Throttle_Limit         =>
+              Mixer.Throttle_Limit_Kind'Val
+                (Code (Rate.Throttle_Limit_Type, Mixer.Throttle_Limit_Kind'Pos (Mixer.Throttle_Limit_Kind'Last))),
+            Throttle_Limit_Percent => Held (Integer (Rate.Throttle_Limit_Percent), 25, 100),
+            Output_Low             => Low,
+            Output_High            => High,
+            Disarm_Output          => Disarm,
+            Motor_Stop             => (Features and Config_Fix.Feature_Motor_Stop) /= 0,
+            Min_Check              => Held (Integer (R.Mincheck), 1000, 2000));
+      end;
+   end Mixer_Config_Of;
 
    Last_Box : constant Natural := Modes.Box'Pos (Modes.Box'Last);
 
