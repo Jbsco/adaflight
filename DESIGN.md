@@ -4465,3 +4465,24 @@ The harness instantiates the pass over logging units, one letter each, on every 
 recordings, with the runaway check over the arming state, and compares the letters with the order
 the reference's loop called its units in, over 15000 steps with the servo, flight log and command
 line conditions drawn at random. The recordings hold no PID audio condition.
+
+## D192. Task functions (2026-10-14)
+
+`Adaflight.Task_Functions` is the task functions with a unit or two behind them, a generic whose
+procedures are the units: the main task's flash erase, the serial task's MSP pass that evaluates
+other data only while disarmed, the battery alerts with the presence check while disarmed, the
+accelerometer, the GPS rescue when configured, the barometer, pitot and compass whose updates name
+the next period, the position estimator, the rangefinder and optical flow when detected, telemetry
+outside the command line with the feature, and the camera control while disarmed. The functions
+read those conditions as inputs. A sensor task runs as the scheduler's current task and reschedules
+it through `Adaflight.Scheduler.Reschedule` when its update names a period other than zero; the
+reschedule's gyro branch stays out of reach, since no realtime task reschedules itself.
+`Adaflight.Task_Functions_Shape` instantiates the functions over counting units in the shapes the
+units take, for the proof, which covers that a sensor task reschedules only a running task; the
+target phase instantiates them over the units' updates with their states.
+
+The harness instantiates the functions over logging units, one letter each, after every step of
+the task setup recordings, with the running task set before each sensor task, and compares the
+letters with the order the reference's functions called their units in and the barometer, pitot
+and compass periods after them, over 4800 steps with the arming flag, command line, rescue
+configuration and sensor deadlines drawn at random.
