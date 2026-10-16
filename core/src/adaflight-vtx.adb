@@ -60,7 +60,7 @@ package body Adaflight.VTX with SPARK_Mode is
       end case;
    end Device_Set_Power_Index;
 
-   procedure Device_Set_Pit_Mode (V : in out State; On : Boolean) is
+   procedure Common_Set_Pit_Mode (V : in out State; On : Boolean) is
    begin
       case V.Kind is
          when SmartAudio_Device => SmartAudio.Set_Pit_Mode (V.SA, On);
@@ -68,7 +68,7 @@ package body Adaflight.VTX with SPARK_Mode is
          when MSP_Device        => VTX_MSP.Set_Pit_Mode (V.MD, On);
          when No_Device         => null;
       end case;
-   end Device_Set_Pit_Mode;
+   end Common_Set_Pit_Mode;
 
    procedure Device_Set_Band_Channel (V : in out State; T : VTX_Table.Table; Band, Channel : Unsigned_8) is
    begin
@@ -148,7 +148,7 @@ package body Adaflight.VTX with SPARK_Mode is
       end case;
    end Device_Get_Frequency;
 
-   procedure Device_Get_Status (V : State; Pit : out Boolean; Known : out Boolean) is
+   procedure Common_Get_Status (V : State; Pit : out Boolean; Known : out Boolean) is
    begin
       Pit := False;
       Known := False;
@@ -158,7 +158,7 @@ package body Adaflight.VTX with SPARK_Mode is
          when MSP_Device        => VTX_MSP.Get_Status (V.MD, Pit, Known);
          when No_Device         => null;
       end case;
-   end Device_Get_Status;
+   end Common_Get_Status;
 
    --  The common layer: the band and channel go to the device, to a
    --  SmartAudio device only for a factory band, and a band not from the
@@ -321,7 +321,7 @@ package body Adaflight.VTX with SPARK_Mode is
       if Inp.Armed then
          return;
       end if;
-      Device_Get_Status (V, Pit, Known);
+      Common_Get_Status (V, Pit, Known);
       if not Known then
          return;
       end if;
@@ -332,11 +332,11 @@ package body Adaflight.VTX with SPARK_Mode is
                return;
             end if;
             if not Pit then
-               Device_Set_Pit_Mode (V, True);
+               Common_Set_Pit_Mode (V, True);
                Pending := True;
             end if;
          elsif Pit then
-            Device_Set_Pit_Mode (V, False);
+            Common_Set_Pit_Mode (V, False);
             Pending := True;
          end if;
       end if;
@@ -346,13 +346,13 @@ package body Adaflight.VTX with SPARK_Mode is
    --  configured band, else the frequency, and the power.
    function Process_State_Update (V : State; S : Settings; T : VTX_Table.Table; Inp : Inputs) return Boolean is
       Wanted : constant Settings := Effective (S, Inp);
-      Seen   : Settings := Wanted;
-      Known  : Boolean;
+      Seen         : Settings := Wanted;
+      Ignore_Known : Boolean;
    begin
       if Wanted.Band /= 0 then
-         Common_Get_Band_Channel (V, T, Seen.Band, Seen.Channel, Known);
+         Common_Get_Band_Channel (V, T, Seen.Band, Seen.Channel, Ignore_Known);
       else
-         Common_Get_Frequency (V, T, Seen.Freq, Known);
+         Common_Get_Frequency (V, T, Seen.Freq, Ignore_Known);
       end if;
       Device_Read_Power_Index (V, T, Seen.Power);
       return Seen.Band /= Wanted.Band or else Seen.Channel /= Wanted.Channel or else Seen.Power /= Wanted.Power
@@ -394,9 +394,9 @@ package body Adaflight.VTX with SPARK_Mode is
          if S.Power /= Power then
             New_S.Power := Power;
          end if;
-         Device_Get_Status (V, Pit, Known);
+         Common_Get_Status (V, Pit, Known);
          if Known and then Pit /= Pit_Wanted then
-            Device_Set_Pit_Mode (V, Pit_Wanted);
+            Common_Set_Pit_Mode (V, Pit_Wanted);
          end if;
       end if;
       if New_S.Band /= S.Band or else New_S.Channel /= S.Channel or else New_S.Power /= S.Power
