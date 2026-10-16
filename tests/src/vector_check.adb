@@ -20360,6 +20360,7 @@ begin
    Run (Dir & "/ghsttlm.csv", "ghsttlm");
    Run (Dir & "/transponder.csv", "transponder");
    Run (Dir & "/srxltlm.csv", "srxltlm");
+   Run (Dir & "/navmap.csv", "navmap");
    Run (Dir & "/frskyosd.csv", "frskyosd");
    Run (Dir & "/ledstrip.csv", "ledstrip");
    Run (Dir & "/rangefinder.csv", "rangefinder");
