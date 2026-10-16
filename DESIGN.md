@@ -6120,3 +6120,21 @@ The scheduler oracle runs each of its eight sequences in the four modes, with a 
 tasks, a short gyro period on odd sequences, 1250 passes and an idle gap of up to 40M cycles before one pass
 in fifty so that timing windows close. Every pass's values replay exactly. The harness compares the task
 numbers through the oracle build's task list, which leaves out some of the full table.
+
+## D265. Autopilot modes in the rate loop (2026-10-16)
+
+`Adaflight.PID_Controller` takes the GPS rescue, altitude hold and position hold modes with the autopilot's
+roll and pitch angles, its largest angle, and whether it holds the position itself. GPS rescue levels the
+craft as angle mode does. The three modes are requests from outside the sticks: level race mode then levels
+both axes, and the start of a request restarts the second of level mode before crash detection. In GPS
+rescue the angle target is the autopilot's, held to its largest angle, without the angle feedforward. In
+position hold the feedforward drops, the target is the autopilot's while it holds the position, held to 85
+degrees, and the limit never passes its largest angle. GPS rescue and altitude hold take the full earth
+reference on roll and pitch, GPS rescue also on yaw, and GPS rescue runs the crash detection whatever the
+crash recovery setting.
+
+The PID oracle now builds with the F405 build's GPS rescue, altitude hold and position hold, and the
+existing PID vectors stay byte for byte. New runs switch the three modes over acro, angle and horizon every
+sixty loops, with the autopilot's angles, largest angle and position control scripted, the craft armed
+through the crash phases, and the clock stepping 10 ms a loop so that the second of level mode can pass.
+They replay exactly.
