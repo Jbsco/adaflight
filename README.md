@@ -241,6 +241,7 @@ The core contains:
 - MSP command line setting message: settings read by name, strict writes by name with new value in
   reply
 - MSP command line setting information message: parameter group, type, range or values, default
+- receiver bind: CRSF, SRXL2 and SPI receivers from bind_rx command and MSP bind message
 - MAVLink telemetry streams with intervals and arming status text, and MAVLink commands with
   replies and requests
 - MAVLink mission protocol with uploads, downloads, fence store and current item reports
@@ -248,7 +249,7 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 27878 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 27883 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
 - Recorded vectors replay bit for bit: 1753568 lines over 384 cases, every case exact except
   forty-seven declared deviations in `DESIGN.md` D6.
