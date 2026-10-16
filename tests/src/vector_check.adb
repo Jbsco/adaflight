@@ -14540,6 +14540,7 @@ procedure Vector_Check is
    CLI_Board    : CLI.Board_State;
    CLI_Reply    : CLI.Output;
    CLI_Sched    : Adaflight.Scheduler.State;
+   CLI_Changes  : CLI.Effects;
    CLI_Expected : Ada.Strings.Unbounded.Unbounded_String;
 
    --  The reference's command line over a sequence of command lines from the
@@ -14594,10 +14595,9 @@ procedure Vector_Check is
          end if;
          CLI_Reply.Target.Text := Null_Unbounded_String;
          CLI_Expected := Null_Unbounded_String;
+         CLI_Changes := (others => False);
          declare
             Command : constant String := Hex_String (3);
-            Handled : Boolean;
-            Changes : CLI.Effects;
          begin
             if Word (Command, 0) = "!profiles" then
                CLI_Config.System_Config.Pid_Profile_Index := Interfaces.Unsigned_8'Value (Word (Command, 1));
@@ -14677,13 +14677,15 @@ procedure Vector_Check is
                CLI_Sched.Loop_Start_Cycles := Interfaces.Integer_32'Value (Word (Command, 2));
                CLI_Sched.Guard_Cycles := Interfaces.Integer_32'Value (Word (Command, 3));
             else
-               CLI.Process_Line
-                 (CLI_Reply, CLI_Config, Command, Ports, CLI_Env, CLI_Board, CLI_Sched, Handled, Changes);
-               Record_Int ("cli.handled", 1, Boolean'Pos (Handled));
+               CLI.Process_Line (CLI_Reply, CLI_Config, Command, Ports, CLI_Env, CLI_Board, CLI_Sched, CLI_Changes);
             end if;
          end;
       elsif Str (1) = "clo" then
          Append (CLI_Expected, Hex_String (3));
+      elsif Str (1) = "clx" then
+         Record_Int ("cli.save", Int (3), Boolean'Pos (CLI_Changes.Save));
+         Record_Int ("cli.reboot", Int (4), Boolean'Pos (CLI_Changes.Reboot));
+         Record_Int ("cli.leave", Int (5), Boolean'Pos (CLI_Changes.Leave));
       else
          Record_Text ("cli.reply", To_String (CLI_Expected), To_String (CLI_Reply.Target.Text));
          declare
@@ -19594,6 +19596,7 @@ begin
    Run (Dir & "/clidef.csv", "cliset");
    Run (Dir & "/clibatch.csv", "cliset");
    Run (Dir & "/clitask.csv", "cliset");
+   Run (Dir & "/clisave.csv", "cliset");
    if Settings_Seen /= Adaflight.Settings_Table.Setting'Pos (Adaflight.Settings_Table.Setting'Last) + 1 then
       Put_Line ("settings: the vectors hold" & Settings_Seen'Image & " settings");
       Failures := Failures + 1;
