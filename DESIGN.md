@@ -5566,3 +5566,21 @@ quick menu's profiles, and presses random keys with a draw after each, replacing
 would enter a menu of a later slice with a down key. The harness replays 240 sessions with 11960 keys
 and 11960 draws: every display operation, menu context, page, request and configuration hash matches
 the reference's, over 51 battery restores and 739 quick menu write backs.
+
+## D238. Power, failsafe and RPM limit menus (2026-10-15)
+
+`Adaflight.Menu_Content` gains three menus that copy their settings on entry and write them back on
+the way back or a save. The power menu edits the voltage and current meter sources, which ask for a
+reboot when changed, the active battery profile's minimum, maximum and warning cell voltages, the
+voltage meter's scale, and the current meter's and the virtual current meter's scales and offsets.
+The failsafe menu edits the procedure, the guard time as tenths of a second, the landing time and
+the stage 2 throttle, each asking for a reboot when changed; this build has no GPS rescue line in it.
+The RPM limit menu, reached from the quick menu, switches the limit, edits its value in steps of 100
+and the motors' KV, and has its own save and reboot line. The menus' copies, like the reference's
+file statics, stay in the target's state between openings.
+
+The menu contents oracle now draws these menus' settings at random, within and past their ranges, and
+walks deeper with fewer escape and save keys. The harness replays 240 sessions with 19513 keys and
+19513 draws, 962 of their states in the power menu, 320 in the failsafe menu and 3772 in the RPM limit
+menu: every display operation, menu context, page, request and configuration hash matches the
+reference's.
