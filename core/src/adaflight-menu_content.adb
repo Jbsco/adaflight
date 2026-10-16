@@ -3,6 +3,7 @@ with Adaflight.Number_Text;
 with Adaflight.OSD_Elements;
 with Adaflight.Settings_Table;
 with Adaflight.Simplified_Tuning.Stored;
+with Adaflight.SmartAudio;
 with Adaflight.Tramp;
 
 package body Adaflight.Menu_Content with SPARK_Mode is
@@ -11,6 +12,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
    use type Interfaces.Integer_32;
    use type Interfaces.Integer_64;
    use type Adaflight.Menu.Element;
+   use type Adaflight.SmartAudio.Version;
 
    subtype Line is Adaflight.Menu.Line;
    subtype Table is Adaflight.Menu.Table;
@@ -152,6 +154,23 @@ package body Adaflight.Menu_Content with SPARK_Mode is
      (if Index = 0 then Label ("---")
       elsif Index <= Adaflight.VTX_Table.Max_Power_Levels then C_Text (Run.Label (Index))
       else Label (""));
+
+   SA_Opmodel_Names    : constant array (0 .. 2) of Adaflight.Menu.Label_Text :=
+     (Label ("----"), Label ("FREE"), Label ("RACE"));
+   SA_Fsel_Names       : constant array (0 .. 1) of Adaflight.Menu.Label_Text := (Label ("CHAN"), Label ("USER"));
+   SA_Pit_F_Mode_Names : constant array (0 .. 2) of Adaflight.Menu.Label_Text :=
+     (Label ("---"), Label ("PIR"), Label ("POR"));
+   SA_Status_Names     : constant array (0 .. 3) of Adaflight.Menu.Label_Text :=
+     (Label ("OFFL"), Label ("ONL V1"), Label ("ONL V2"), Label ("ONLV21"));
+
+   function SA_Opmodel_Name (Index : Natural) return Adaflight.Menu.Label_Text is
+     (if Index <= 2 then SA_Opmodel_Names (Index) else Label (""));
+   function SA_Fsel_Name (Index : Natural) return Adaflight.Menu.Label_Text is
+     (if Index <= 1 then SA_Fsel_Names (Index) else Label (""));
+   function SA_Pit_F_Mode_Name (Index : Natural) return Adaflight.Menu.Label_Text is
+     (if Index <= 2 then SA_Pit_F_Mode_Names (Index) else Label (""));
+   function SA_Status_Name (Index : Natural) return Adaflight.Menu.Label_Text is
+     (if Index <= 3 then SA_Status_Names (Index) else Label (""));
 
    Throttle_Limit_Names : constant array (0 .. 2) of Adaflight.Menu.Label_Text :=
      (Label ("OFF"), Label ("SCALE"), Label ("CLIP"));
@@ -434,7 +453,8 @@ package body Adaflight.Menu_Content with SPARK_Mode is
             (Enter => True, Leave => True, Update => False),
          when RC_Preview_Menu => (Enter => True, Leave => True, Update => True),
          when Copy_Profile_Menu => (Enter => True, Leave => False, Update => False),
-         when Firmware_Menu | VTX_Error_Menu | VTX_MSP_Menu | VTX_Tramp_Menu =>
+         when Firmware_Menu | VTX_Error_Menu | VTX_MSP_Menu | VTX_Tramp_Menu | VTX_SmartAudio_Menu | SA_POR_Freq_Menu
+            | SA_User_Freq_Menu =>
             (Enter => True, Leave => False, Update => False),
          when Calibration_Menu => (Enter => False, Leave => False, Update => True),
          when GPS_Lap_Timer_Menu | Set_Gate_Menu => (Enter => True, Leave => True, Update => False),
@@ -645,6 +665,126 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       Add (M, N, Make ("BACK", Back));
       M.Count := N;
    end Load_VTX_Tramp_Menu;
+
+   --  The SmartAudio menu's lines: the title, the status line, and offline
+   --  the statistics, else the band, channel and band and channel's
+   --  frequency or the user frequency, the power and pit mode, the save and
+   --  the configuration.
+   procedure Load_SA_Menu (T : Target; M : out Table)
+     with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
+   is
+      use Adaflight.Menu;
+      N : Line_Count := 0;
+      V : Adaflight.SmartAudio.Menu_View renames T.VTX.SA_Menu;
+      function U8 (X : Interfaces.Unsigned_8) return Interfaces.Integer_32 is (Interfaces.Integer_32 (X));
+   begin
+      M := Empty_Table;
+      Add (M, N, Make ((if T.SA_Top = Offline_Lines then "- VTX SMARTAUDIO -" else "- SMARTAUDIO -"), Label));
+      Add (M, N, Text_Line ("", Label, C_Text (V.Status), Flags => Dynamic));
+      case T.SA_Top is
+         when Offline_Lines =>
+            Add (M, N, Sub ("STATX", SA_Stats_Menu));
+         when Channel_Lines | Frequency_Lines =>
+            if T.SA_Top = Channel_Lines then
+               Add (M, N, Choice ("BAND", U8 (V.Band), Interfaces.Integer_32 (T.VTX_Table.Bands),
+                                  Band_Name (T.VTX_Table, Natural (V.Band)), Has_Func => True));
+               Add (M, N, Choice ("CHAN", U8 (V.Channel), Interfaces.Integer_32 (T.VTX_Table.Channels),
+                                  Channel_Name (T.VTX_Table, Natural (V.Channel)), Has_Func => True));
+               Add (M, N, Number ("(FREQ)", Interfaces.Integer_32 (V.Freq_Ref), 5600, 5900, UInt16, Step => 0,
+                                  Flags => Dynamic));
+            else
+               Add (M, N, Make ("FREQ", Submenu, Has_Func => True, Has_Data => True,
+                                Value => Interfaces.Integer_32 (SA_User_Freq_Menu), Flags => Opt_String));
+            end if;
+            Add (M, N, Choice ("POWER", U8 (V.Power), Interfaces.Integer_32 (T.VTX_Table.Power_Levels),
+                               Power_Name (T.VTX_Table, Natural (V.Power)), Flags => Dynamic, Has_Func => True));
+            Add (M, N, Choice ("PIT", U8 (V.Pit), 2, Pit_Mode_Name (Natural (V.Pit)), Flags => Dynamic,
+                               Has_Func => True));
+            Add (M, N, Sub ("SAVE&EXIT", SA_Confirm_Menu));
+            Add (M, N, Sub ("CONFIG", SA_Config_Menu));
+      end case;
+      Add (M, N, Make ("BACK", Back));
+      M.Count := N;
+   end Load_SA_Menu;
+
+   procedure Load_SA_Config_Menu (T : Target; M : out Table)
+     with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
+   is
+      use Adaflight.Menu;
+      N : Line_Count := 0;
+      V : Adaflight.SmartAudio.Menu_View renames T.VTX.SA_Menu;
+      function U8 (X : Interfaces.Unsigned_8) return Interfaces.Integer_32 is (Interfaces.Integer_32 (X));
+   begin
+      M := Empty_Table;
+      Add (M, N, Make ("- SA CONFIG -", Label));
+      Add (M, N, Choice ("OP MODEL", U8 (V.Opmodel), 2, SA_Opmodel_Name (Natural (V.Opmodel)), Flags => Dynamic,
+                         Has_Func => True));
+      Add (M, N, Choice ("FSEL MODE", U8 (V.Fsel_Mode_New), 1, SA_Fsel_Name (Natural (V.Fsel_Mode_New)),
+                         Flags => Dynamic, Has_Func => True));
+      Add (M, N, Choice ("PIT FMODE", U8 (V.Pit_F_Mode), 1, SA_Pit_F_Mode_Name (Natural (V.Pit_F_Mode)),
+                         Has_Func => True));
+      Add (M, N, Make ("POR FREQ", Submenu, Has_Func => True, Has_Data => True,
+                       Value => Interfaces.Integer_32 (SA_POR_Freq_Menu), Flags => Opt_String));
+      Add (M, N, Sub ("STATX", SA_Stats_Menu));
+      Add (M, N, Make ("BACK", Back));
+      M.Count := N;
+   end Load_SA_Config_Menu;
+
+   procedure Load_SA_Stats_Menu (T : Target; M : out Table)
+     with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
+   is
+      use Adaflight.Menu;
+      N : Line_Count := 0;
+      S : Adaflight.SmartAudio.Stats renames T.VTX.SA.Stat;
+      function Count (Text : String; X : Interfaces.Unsigned_16) return Line is
+        (Number (Text, Interfaces.Integer_32 (X), 0, 0, UInt16, Step => 0, Flags => Dynamic))
+        with Pre => Text'Length <= Adaflight.Menu.Max_Text;
+   begin
+      M := Empty_Table;
+      Add (M, N, Make ("- SA STATS -", Label));
+      Add (M, N, Choice ("STATUS", Interfaces.Integer_32 (T.VTX.SA_Menu.Device_Status), 3,
+                         SA_Status_Name (Natural (T.VTX.SA_Menu.Device_Status)), Flags => Dynamic));
+      Add (M, N, Count ("BAUDRATE", Adaflight.SmartAudio.Rate_Of (T.VTX.SA.Smart_Baud)));
+      Add (M, N, Count ("SENT", S.Sent));
+      Add (M, N, Count ("RCVD", S.Received));
+      Add (M, N, Count ("BADPRE", S.Bad_Preamble));
+      Add (M, N, Count ("BADLEN", S.Bad_Length));
+      Add (M, N, Count ("CRCERR", S.Crc_Errors));
+      Add (M, N, Count ("OOOERR", S.Out_Of_Order));
+      Add (M, N, Make ("BACK", Back));
+      M.Count := N;
+   end Load_SA_Stats_Menu;
+
+   --  The SmartAudio pit or user frequency menu: the frequency, its new
+   --  value and the save.
+   procedure Load_SA_Freq_Menu (Title : String; Current, New_Value : Interfaces.Unsigned_16; M : out Table)
+     with Pre  => Title'Length <= Adaflight.Menu.Max_Text,
+          Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
+   is
+      use Adaflight.Menu;
+      N : Line_Count := 0;
+   begin
+      M := Empty_Table;
+      Add (M, N, Make (Title, Label));
+      Add (M, N, Number ("CUR FREQ", Interfaces.Integer_32 (Current), 5000, 5999, UInt16, Step => 0, Flags => Dynamic));
+      Add (M, N, Number ("NEW FREQ", Interfaces.Integer_32 (New_Value), 5000, 5999, UInt16));
+      Add (M, N, Make ("SAVE", Funcall, Has_Func => True));
+      Add (M, N, Make ("BACK", Back));
+      M.Count := N;
+   end Load_SA_Freq_Menu;
+
+   procedure Load_SA_Confirm_Menu (M : out Table)
+     with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
+   is
+      use Adaflight.Menu;
+      N : Line_Count := 0;
+   begin
+      M := Empty_Table;
+      Add (M, N, Make ("CONFIRM", Label));
+      Add (M, N, Make ("YES", OSD_Exit, Has_Func => True, Has_Data => True, Value => 0));
+      Add (M, N, Make ("NO", Back));
+      M.Count := N;
+   end Load_SA_Confirm_Menu;
 
    procedure Load_VTX_Tramp_Confirm (M : out Table)
      with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
@@ -1486,6 +1626,18 @@ package body Adaflight.Menu_Content with SPARK_Mode is
             Load_VTX_Tramp_Menu (T, M);
          when VTX_Tramp_Confirm =>
             Load_VTX_Tramp_Confirm (M);
+         when VTX_SmartAudio_Menu =>
+            Load_SA_Menu (T, M);
+         when SA_Config_Menu =>
+            Load_SA_Config_Menu (T, M);
+         when SA_Stats_Menu =>
+            Load_SA_Stats_Menu (T, M);
+         when SA_POR_Freq_Menu =>
+            Load_SA_Freq_Menu ("- POR FREQ -", T.VTX.SA_Menu.OR_Freq, T.VTX.SA_Menu.OR_Freq_New, M);
+         when SA_User_Freq_Menu =>
+            Load_SA_Freq_Menu ("- USER FREQ -", T.VTX.SA_Menu.User_Freq, T.VTX.SA_Menu.User_Freq_New, M);
+         when SA_Confirm_Menu =>
+            Load_SA_Confirm_Menu (M);
          when others =>
             M := Empty_Table;
       end case;
@@ -1694,6 +1846,179 @@ package body Adaflight.Menu_Content with SPARK_Mode is
      (Natural (Interfaces.Unsigned_8'Min (T.Profile.PID_Index, PID_Profile_Count - 1)));
    function Current_PID (T : Target) return Natural is
      (Natural (Interfaces.Unsigned_8'Min (T.Config.System_Config.Pid_Profile_Index, PID_Profile_Count - 1)));
+
+   --  The SmartAudio menu's lines from the device's state: offline while
+   --  the device's version is unknown, else by band and channel or by
+   --  frequency.
+   procedure Setup_SA_Top (T : in out Target)
+     with Global => null
+   is
+   begin
+      T.SA_Top :=
+        (if T.VTX.SA_Menu.Device_Status = 0 then Offline_Lines
+         elsif T.VTX.SA_Menu.Fsel_Mode_New = 0 then Channel_Lines
+         else Frequency_Lines);
+   end Setup_SA_Top;
+
+   --  The SmartAudio menu's frequency of its band and channel.
+   function SA_Freq_Ref (T : Target) return Interfaces.Unsigned_16 is
+     (if T.Live.VTX_Present
+      then Adaflight.VTX_Table.Frequency_Of (T.VTX_Table, Natural (T.VTX.SA_Menu.Band), Natural (T.VTX.SA_Menu.Channel))
+      else 0);
+
+   --  The SmartAudio menu's lines after their values changed: the band and
+   --  channel none while the device is unknown, stepped from none to the
+   --  first, else their frequency taken; the power none while the device is
+   --  unknown, stepped from none to the first, else the pit mode off; the pit
+   --  mode none while the device is unknown, stepped from none to off, else
+   --  the power the device's.
+   procedure SA_Top_Line_Changed (T : in out Target; Line : Natural)
+     with Global => null
+   is
+      Known : constant Boolean := T.VTX.SA.Device.Version_Seen /= Adaflight.SmartAudio.Unknown;
+      Item  : constant Natural :=
+        (case T.SA_Top is
+            when Channel_Lines   => (case Line is when 2 => 1, when 3 => 2, when 5 => 3, when 6 => 4, when others => 0),
+            when Frequency_Lines => (case Line is when 3 => 3, when 4 => 4, when others => 0),
+            when Offline_Lines   => 0);
+   begin
+      case Item is
+         when 1 =>
+            if not Known then
+               T.VTX.SA_Menu.Band := 0;
+            elsif T.VTX.SA_Menu.Band = 0 then
+               T.VTX.SA_Menu.Band := 1;
+            else
+               T.VTX.SA_Menu.Freq_Ref := SA_Freq_Ref (T);
+            end if;
+         when 2 =>
+            if not Known then
+               T.VTX.SA_Menu.Channel := 0;
+            elsif T.VTX.SA_Menu.Channel = 0 then
+               T.VTX.SA_Menu.Channel := 1;
+            else
+               T.VTX.SA_Menu.Freq_Ref := SA_Freq_Ref (T);
+            end if;
+         when 3 =>
+            if not Known then
+               T.VTX.SA_Menu.Power := 0;
+            elsif T.VTX.SA_Menu.Power = 0 then
+               T.VTX.SA_Menu.Power := 1;
+            elsif T.VTX.SA_Menu.Pit > 0 and then T.VTX.SA_Menu.Pit /= 1 then
+               T.VTX.SA_Menu.Pit := 1;
+            end if;
+         when 4 =>
+            if not Known then
+               T.VTX.SA_Menu.Pit := 0;
+            elsif T.VTX.SA_Menu.Pit = 0 then
+               T.VTX.SA_Menu.Pit := 1;
+            elsif Integer (T.VTX.SA.Device.Power) /= Integer (T.VTX.SA_Menu.Power) then
+               T.VTX.SA_Menu.Power := Interfaces.Unsigned_8'Mod (Integer (T.VTX.SA.Device.Power));
+            end if;
+         when others =>
+            null;
+      end case;
+   end SA_Top_Line_Changed;
+
+   --  The SmartAudio pit mode kind after its value changed: none for a
+   --  first version device, in range for a 2.1 device, stepped from none to
+   --  in range, else sent to the device as in or out of range.
+   procedure SA_Pit_F_Mode_Changed (T : in out Target)
+     with Global => null
+   is
+      Version : constant Adaflight.SmartAudio.Version := T.VTX.SA.Device.Version_Seen;
+   begin
+      if Version = Adaflight.SmartAudio.V1 then
+         T.VTX.SA_Menu.Pit_F_Mode := 0;
+      elsif Version >= Adaflight.SmartAudio.V21 then
+         T.VTX.SA_Menu.Pit_F_Mode := 1;
+      elsif T.VTX.SA_Menu.Pit_F_Mode = 0 then
+         T.VTX.SA_Menu.Pit_F_Mode := 1;
+      elsif T.VTX.SA_Menu.Pit_F_Mode = 1 then
+         Adaflight.SmartAudio.Set_Mode (T.VTX.SA, Adaflight.SmartAudio.Set_In_Range_Pit);
+      else
+         Adaflight.SmartAudio.Set_Mode (T.VTX.SA, Adaflight.SmartAudio.Set_Out_Range_Pit);
+      end if;
+   end SA_Pit_F_Mode_Changed;
+
+   --  The SmartAudio frequency selection after its value changed: by
+   --  frequency only in the free model, and the menu's lines taken again.
+   procedure SA_Freq_Mode_Changed (T : in out Target)
+     with Global => null
+   is
+   begin
+      if T.VTX.SA_Menu.Fsel_Mode_New /= 0 and then T.VTX.SA_Menu.Opmodel /= 1 then
+         T.VTX.SA_Menu.Fsel_Mode_New := 0;
+      end if;
+      Setup_SA_Top (T);
+   end SA_Freq_Mode_Changed;
+
+   --  The SmartAudio operating model after its value changed: free for a
+   --  first version device; the free model clears the pit mode ranges, the
+   --  race model sets the pit mode kind to in range, keeps a 2.1 device in
+   --  pit mode and selects by band and channel; none steps to free.
+   procedure SA_Opmodel_Changed (T : in out Target)
+     with Global => null
+   is
+      Version : constant Adaflight.SmartAudio.Version := T.VTX.SA.Device.Version_Seen;
+   begin
+      if Version = Adaflight.SmartAudio.V1 then
+         if T.VTX.SA_Menu.Opmodel /= 1 then
+            T.VTX.SA_Menu.Opmodel := 1;
+         end if;
+         return;
+      end if;
+      case T.VTX.SA_Menu.Opmodel is
+         when 1 =>
+            Adaflight.SmartAudio.Set_Mode (T.VTX.SA, 0);
+         when 2 =>
+            T.VTX.SA_Menu.Pit_F_Mode := 0;
+            SA_Pit_F_Mode_Changed (T);
+            if Version >= Adaflight.SmartAudio.V21 then
+               Adaflight.SmartAudio.Set_Mode
+                 (T.VTX.SA,
+                  Adaflight.SmartAudio.Set_In_Range_Pit
+                  or (if (T.VTX.SA.Device.Mode and Adaflight.SmartAudio.Mode_Pit) /= 0 then 0
+                      else Adaflight.SmartAudio.Set_Clear_Pit));
+            end if;
+            T.VTX.SA_Menu.Fsel_Mode_New := 0;
+            SA_Freq_Mode_Changed (T);
+         when others =>
+            T.VTX.SA_Menu.Opmodel := 1;
+      end case;
+   end SA_Opmodel_Changed;
+
+   --  The SmartAudio menu's settings stored: the race model and a selection
+   --  by band and channel store the band, channel and their frequency, a
+   --  selection by frequency clears the pit mode ranges and stores no band
+   --  with the user frequency; the pit mode goes to the device when the
+   --  power stays; the power is stored, and Saved reports a change.
+   procedure SA_Commence (T : in out Target; Saved : out Boolean)
+     with Global => null
+   is
+      Prev    : constant Adaflight.Config_Groups.Vtx_Settings_Config_Record := T.Config.Vtx_Settings_Config;
+      Changed : Adaflight.Config_Groups.Vtx_Settings_Config_Record := Prev;
+      Pit     : constant Interfaces.Unsigned_8 := T.VTX.SA_Menu.Pit;
+   begin
+      if T.VTX.SA_Menu.Opmodel = 2 or else T.VTX.SA_Menu.Fsel_Mode_New = 0 then
+         Changed.Band := T.VTX.SA_Menu.Band;
+         Changed.Channel := T.VTX.SA_Menu.Channel;
+         Changed.Freq := SA_Freq_Ref (T);
+      else
+         Adaflight.SmartAudio.Set_Mode (T.VTX.SA, 0);
+         Changed.Band := 0;
+         Changed.Freq := T.VTX.SA_Menu.User_Freq;
+      end if;
+      if Changed.Power = T.VTX.SA_Menu.Power and then Pit > 0 then
+         Adaflight.VTX.Common_Set_Pit_Mode (T.VTX, Pit = 2);
+      end if;
+      Changed.Power := T.VTX.SA_Menu.Power;
+      Saved := Changed.Band /= Prev.Band or else Changed.Channel /= Prev.Channel or else Changed.Power /= Prev.Power
+        or else Changed.Freq /= Prev.Freq;
+      if Saved then
+         T.Config.Vtx_Settings_Config := Changed;
+      end if;
+   end SA_Commence;
 
    procedure Enter_GPS_Rescue_Menu (T : in out Target)
      with Global => null
@@ -1971,6 +2296,16 @@ package body Adaflight.Menu_Content with SPARK_Mode is
             T.Power.Current_Offset := T.Config.Current_Sensor_Adc_Config.Offset;
             T.Power.Virtual_Scale := T.Config.Current_Sensor_Virtual_Config.Scale;
             T.Power.Virtual_Offset := T.Config.Current_Sensor_Virtual_Config.Offset;
+         when VTX_SmartAudio_Menu =>
+            Setup_SA_Top (T);
+         when SA_POR_Freq_Menu =>
+            if T.VTX.SA.Device.Version_Seen = Adaflight.SmartAudio.V1 then
+               Reply.Chain_Back := True;
+            else
+               T.VTX.SA_Menu.OR_Freq_New := T.VTX.SA_Menu.OR_Freq;
+            end if;
+         when SA_User_Freq_Menu =>
+            T.VTX.SA_Menu.User_Freq_New := T.VTX.SA_Menu.User_Freq;
          when GPS_Rescue_Menu =>
             Enter_GPS_Rescue_Menu (T);
          when GPS_Rescue_PID_Menu =>
@@ -2546,6 +2881,16 @@ package body Adaflight.Menu_Content with SPARK_Mode is
                Commence_VTX (T.VTX, T.VTX_Table, T.Live.VTX_Present, T.Tramp, T.Config.Vtx_Settings_Config);
                Reply.Screens := 1;
                Reply.Screen (1).Kind := Adaflight.Menu.Save_Config;
+            elsif Id = SA_Confirm_Menu and then Line = 1 then
+               declare
+                  Saved : Boolean;
+               begin
+                  SA_Commence (T, Saved);
+                  if Saved then
+                     Reply.Screens := 1;
+                     Reply.Screen (1).Kind := Adaflight.Menu.Save_Config;
+                  end if;
+               end;
             end if;
             Reply.Done := Adaflight.Menu.Exited;
             Reply.Kind := (if M.Lines (Line).Value in 0 .. 5 then Adaflight.Menu.Exit_Kind'Val (M.Lines (Line).Value)
@@ -2615,6 +2960,11 @@ package body Adaflight.Menu_Content with SPARK_Mode is
                Reply.Screens := 1;
                Reply.Screen (1).Kind := Adaflight.Menu.Save_Config;
                Reply.Chain_Back := True;
+            elsif Id = SA_POR_Freq_Menu and then Line = 3 then
+               Adaflight.SmartAudio.Set_Pit_Frequency (T.VTX.SA, T.VTX.SA_Menu.OR_Freq_New);
+            elsif Id = SA_User_Freq_Menu and then Line = 3 then
+               T.VTX.SA_Menu.User_Freq := T.VTX.SA_Menu.User_Freq_New;
+               Reply.Chain_Back := True;
             elsif Id = Erase_Flash_Menu then
                if T.Live.Flash_Supported then
                   Reply.Screens := 5;
@@ -2682,6 +3032,15 @@ package body Adaflight.Menu_Content with SPARK_Mode is
                VTX_Line_Changed (T.VTX, T.VTX_Table, T.Live.VTX_Present, T.MSP, Line);
             elsif Id = VTX_Tramp_Menu then
                VTX_Line_Changed (T.VTX, T.VTX_Table, T.Live.VTX_Present, T.Tramp, Line);
+            elsif Id = VTX_SmartAudio_Menu then
+               SA_Top_Line_Changed (T, Line);
+            elsif Id = SA_Config_Menu then
+               case Line is
+                  when 1 => SA_Opmodel_Changed (T);
+                  when 2 => SA_Freq_Mode_Changed (T);
+                  when 3 => SA_Pit_F_Mode_Changed (T);
+                  when others => null;
+               end case;
             elsif Id = OSD_Menu and then Line = 8 then
                T.Config.Osd_Config.Cms_Background_Type := T.OSD.Background;
                Reply.Screens := 1;
@@ -2910,6 +3269,49 @@ package body Adaflight.Menu_Content with SPARK_Mode is
             when 6 => T.MSP.Power := Byte;
             when others => null;
          end case;
+      elsif Id = VTX_SmartAudio_Menu then
+         case T.SA_Top is
+            when Channel_Lines =>
+               case Line is
+                  when 2 => T.VTX.SA_Menu.Band := Byte;
+                  when 3 => T.VTX.SA_Menu.Channel := Byte;
+                  when 4 => T.VTX.SA_Menu.Freq_Ref := Word;
+                  when 5 => T.VTX.SA_Menu.Power := Byte;
+                  when 6 => T.VTX.SA_Menu.Pit := Byte;
+                  when others => null;
+               end case;
+            when Frequency_Lines =>
+               case Line is
+                  when 3 => T.VTX.SA_Menu.Power := Byte;
+                  when 4 => T.VTX.SA_Menu.Pit := Byte;
+                  when others => null;
+               end case;
+            when Offline_Lines =>
+               null;
+         end case;
+      elsif Id = SA_Config_Menu then
+         case Line is
+            when 1 => T.VTX.SA_Menu.Opmodel := Byte;
+            when 2 => T.VTX.SA_Menu.Fsel_Mode_New := Byte;
+            when 3 => T.VTX.SA_Menu.Pit_F_Mode := Byte;
+            when others => null;
+         end case;
+      elsif Id = SA_Stats_Menu then
+         if Line = 1 then
+            T.VTX.SA_Menu.Device_Status := Byte;
+         end if;
+      elsif Id = SA_POR_Freq_Menu then
+         case Line is
+            when 1 => T.VTX.SA_Menu.OR_Freq := Word;
+            when 2 => T.VTX.SA_Menu.OR_Freq_New := Word;
+            when others => null;
+         end case;
+      elsif Id = SA_User_Freq_Menu then
+         case Line is
+            when 1 => T.VTX.SA_Menu.User_Freq := Word;
+            when 2 => T.VTX.SA_Menu.User_Freq_New := Word;
+            when others => null;
+         end case;
       elsif Id = VTX_Tramp_Menu then
          case Line is
             when 2 => T.Tramp.Pit_Mode := Byte;
@@ -3003,6 +3405,23 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       end if;
    end Refresh;
 
+   --  The SmartAudio menu's names by line: band, channel, power and pit mode.
+   function SA_Top_Name (T : Target; Line : Natural; Index : Natural) return Adaflight.Menu.Label_Text is
+     (case T.SA_Top is
+         when Channel_Lines =>
+           (case Line is
+               when 2 => Band_Name (T.VTX_Table, Index),
+               when 3 => Channel_Name (T.VTX_Table, Index),
+               when 5 => Power_Name (T.VTX_Table, Index),
+               when 6 => Pit_Mode_Name (Index),
+               when others => Label ("")),
+         when Frequency_Lines =>
+           (case Line is
+               when 3 => Power_Name (T.VTX_Table, Index),
+               when 4 => Pit_Mode_Name (Index),
+               when others => Label ("")),
+         when Offline_Lines => Label (""));
+
    function Lookup (T : Target; Id : Menu_Id; Line : Natural; Index : Natural) return Adaflight.Menu.Label_Text is
    begin
       return (if Id = Quick_Menu and then Line = 2 then Throttle_Limit_Name (Index)
@@ -3039,6 +3458,11 @@ package body Adaflight.Menu_Content with SPARK_Mode is
               elsif Id = VTX_MSP_Menu and then Line = 3 then Band_Name (T.VTX_Table, Index)
               elsif Id = VTX_MSP_Menu and then Line = 4 then Channel_Name (T.VTX_Table, Index)
               elsif Id = VTX_MSP_Menu and then Line = 6 then Power_Name (T.VTX_Table, Index)
+              elsif Id = VTX_SmartAudio_Menu then SA_Top_Name (T, Line, Index)
+              elsif Id = SA_Config_Menu and then Line = 1 then SA_Opmodel_Name (Index)
+              elsif Id = SA_Config_Menu and then Line = 2 then SA_Fsel_Name (Index)
+              elsif Id = SA_Config_Menu and then Line = 3 then SA_Pit_F_Mode_Name (Index)
+              elsif Id = SA_Stats_Menu and then Line = 1 then SA_Status_Name (Index)
               elsif Id = VTX_Tramp_Menu and then Line = 2 then Pit_Mode_Name (Index)
               elsif Id = VTX_Tramp_Menu and then Line = 3 then Band_Name (T.VTX_Table, Index)
               elsif Id = VTX_Tramp_Menu and then Line = 4 then Channel_Name (T.VTX_Table, Index)

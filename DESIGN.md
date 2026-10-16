@@ -5916,3 +5916,24 @@ the status line print.
 The VTX control oracle links the reference's SmartAudio menu code in place of its stubs and records
 the menu's state at every step: every recorded vector replays exactly, the SmartAudio vectors
 unchanged.
+
+## D254. SmartAudio VTX menus (2026-10-16)
+
+`Adaflight.Menu_Content` gains the SmartAudio VTX menu with its configuration, statistics, pit and user
+frequency and confirmation menus, over the SmartAudio menu state the VTX layer keeps (D253). On entry
+the menu chooses its lines from that state: offline lines while the device's version is unknown, else
+lines by band and channel or by frequency. The configuration menu's frequency selection chooses them
+again. The menu navigation now loads a menu's lines after its entry hook, since this entry hook decides
+which lines the menu has. The band, channel, power and pit mode lines step from none and keep their
+values until the save, the configuration lines send the pit mode ranges to the device, the pit and user
+frequency menus copy and store their frequencies, and the confirmation stores the settings, saving the
+configuration only when they changed, and leaves the menu system. The pit mode kind line cannot reach
+out-of-range pit mode (F221), and option strings stay undrawn (F183); adaflight keeps both.
+
+The menu contents oracle wraps the reference's SmartAudio driver and menu beside the other VTX devices,
+scripts the device's report, statistics and line rate and the VTX settings per session, and hands the
+menu a response of the device at the start and at changes of the readings. The harness replays 240
+sessions with 19174 keys, 834 menu changes and 20008 draws, 336 of their states in the SmartAudio menu,
+182 in its configuration, 432 in its statistics, 180 and 220 in the pit and user frequency menus and 58
+in the confirmation: every display operation, menu context, page, request, driver state, queued frame,
+menu state and configuration hash matches the reference's.
