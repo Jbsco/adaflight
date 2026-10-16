@@ -25,6 +25,7 @@ with Adaflight.Beeper;
 with Adaflight.Board_Info;
 with Adaflight.Config_Groups; use Adaflight.Config_Groups;
 with Adaflight.CLI_Text;
+with Adaflight.DShot;
 with Adaflight.MSP_Motor_In;
 with Adaflight.Receiver;
 with Adaflight.RX_Bind;
@@ -157,14 +158,36 @@ package Adaflight.Command_Line with SPARK_Mode is
       Throttle_Manual    : Boolean := False;
    end record;
 
+   --  The DShot telemetry as dshot_telemetry_info reports it: whether the
+   --  motors run it, the driver's read and invalid reply counts, the cycle
+   --  counter at the driver's last interrupt and at its completed direction
+   --  change with the clock's cycles per microsecond, each motor's replies
+   --  and RPM, each motor's reply counts over the last second, and the times
+   --  of the decoder's last edges.
+   Max_GCR_Edges : constant := 22;
+   type Edge_Times is array (1 .. Max_GCR_Edges) of Interfaces.Unsigned_32;
+   type Motor_Qualities is array (DShot.Motor_Index) of DShot.Quality;
+   subtype Cycles_Per_Us is Interfaces.Unsigned_32 range 1 .. Interfaces.Unsigned_32'Last;
+   type DShot_Status is record
+      Enabled         : Boolean := False;
+      Reads           : Interfaces.Unsigned_32 := 0;
+      Invalid_Replies : Interfaces.Unsigned_32 := 0;
+      Interrupt_Cycle : Interfaces.Unsigned_32 := 0;
+      Direction_Cycle : Interfaces.Unsigned_32 := 0;
+      Clock_Rate      : Cycles_Per_Us := 168;
+      Telemetry       : DShot.Telemetry;
+      Quality         : Motor_Qualities;
+      Edges           : Edge_Times := (others => 0);
+   end record;
+
    --  What the commands report from outside the configuration: the flight
    --  plan executor's state, the firmware's name, the target's name, the
    --  version, the build's date, time and revision, the MCU's unique id, the
    --  clock in microseconds as the command runs, the running debug mode,
    --  whether a video transmitter is present with the power levels it
    --  reports, the running RC smoothing, the mixer's motors with their output
-   --  and whether the 3D feature runs, and the receiver and serial protocol
-   --  the board took at its start.
+   --  and whether the 3D feature runs, the receiver and serial protocol the
+   --  board took at its start, and the motors' DShot telemetry.
    type Environment is record
       Navigation      : Navigation_Status;
       Firmware        : Identity_Text;
@@ -184,6 +207,7 @@ package Adaflight.Command_Line with SPARK_Mode is
       Three_D         : Boolean := False;
       Receiver_Source : Receiver.Provider := Receiver.None;
       Serial_Protocol : Natural := 0;
+      DShot_Telemetry : DShot_Status;
    end record;
 
    --  The board's information as the commands see it: its name and

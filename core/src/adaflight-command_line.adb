@@ -3592,7 +3592,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
      (No_Command, Adjustment_Range_Command_Word, Aux_Command_Word, Batch_Command_Word, Battery_Profile_Command,
       Beacon_Command, Exit_Command_Word, Save_Command_Word,
       Beeper_Command_Word, Bind_Rx_Command_Word, Board_Name_Command_Word, Defaults_Command_Word,
-      Manufacturer_Id_Command_Word, Signature_Command_Word, Color_Command_Word, Diff_Command, Dump_Command,
+      Manufacturer_Id_Command_Word, Signature_Command_Word, Color_Command_Word, Diff_Command,
+      Dshot_Telemetry_Info_Command_Word, Dump_Command,
       Feature_Command_Word, Get_Command, Led_Command_Word, Map_Command_Word, Mode_Color_Command_Word,
       Mixer_Command_Word, Motor_Mix_Command_Word, Profile_Command, Rate_Profile_Command,
       Rc_Smoothing_Info_Command_Word, Rx_Failsafe_Command, MCU_Id_Command_Word, Motor_Command_Word,
@@ -3617,6 +3618,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when Signature_Command_Word => "signature",
          when Defaults_Command_Word => "defaults",
          when Diff_Command => "diff",
+         when Dshot_Telemetry_Info_Command_Word => "dshot_telemetry_info",
          when Dump_Command => "dump",
          when Feature_Command_Word => "feature",
          when Get_Command => "get",
@@ -4054,6 +4056,82 @@ package body Adaflight.Command_Line with SPARK_Mode is
                     & Origin (Status.Throttle_Manual) & CRLF);
       end if;
    end Rc_Smoothing_Info_Command;
+
+   --  dshot_telemetry_info: the driver's read and invalid reply counts and
+   --  the cycles and microseconds of its direction change, a line per motor
+   --  with its reply kinds, eRPM, RPM and Hz, invalid share, temperature,
+   --  voltage, current, state events and debug values, then the decoder's
+   --  edge times and the steps between them; or that the motors do not run
+   --  DShot telemetry.
+   procedure Dshot_Telemetry_Info_Command (Into : in out Output; Count : MSP_Motor_In.Motor_Count; S : DShot_Status)
+     with Global => null
+   is
+      function Field (V : Integer_64; Width : Natural) return String is
+        (CLI_Text.Right_Justified (Decimal (V), Width))
+        with Pre => Width <= 64;
+
+      function Two_Digits (N : Integer_64) return String is
+        (String'(Character'Val (Character'Pos ('0') + Natural (N / 10)),
+                 Character'Val (Character'Pos ('0') + Natural (N mod 10))))
+        with Pre => N in 0 .. 99;
+
+      function Kind (Received : Unsigned_8; Bit : Natural; Letter : Character) return Character is
+        (if (Shift_Right (Received, Bit) and 1) /= 0 then Letter else '-');
+
+      --  An RPM rounded as lrintf rounds it: ties to even below 2 ** 23,
+      --  where every float above is whole.
+      function Whole (X : DShot.Rpm_Value) return Integer_64 is
+        (if X < 2.0 ** 23 then Integer_64 (Maths.Round_Half_Even (X)) else Integer_64 (X));
+
+      Cycles : constant Unsigned_32 := S.Direction_Cycle - S.Interrupt_Cycle;
+   begin
+      if not S.Enabled then
+         Put (Into, "Dshot telemetry not enabled" & CRLF);
+         return;
+      end if;
+      Put (Into, "Dshot reads: " & Decimal (Integer_64 (S.Reads)) & CRLF);
+      Put (Into, "Dshot invalid pkts: " & Decimal (Integer_64 (S.Invalid_Replies)) & CRLF);
+      Put (Into, "Dshot directionChange cycles: " & Decimal (Integer_64 (Cycles)) & ", micros: "
+                 & Decimal (Integer_64 (Cycles / S.Clock_Rate)) & CRLF & CRLF);
+      Put (Into, "Motor    Type   eRPM    RPM     Hz Invalid   TEMP    VCC   CURR  ST/EV   DBG1   DBG2   DBG3" & CRLF);
+      Put (Into, "=====  ====== ====== ====== ====== ======= ====== ====== ====== ====== ====== ====== ======" & CRLF);
+      for M in 0 .. Count - 1 loop
+         declare
+            T     : constant DShot.Motor_Telemetry := S.Telemetry.Motors (M);
+            Rpm   : constant Integer_64 := Whole (S.Telemetry.Rpm (M)) mod 2 ** 16;
+            Volts : constant Integer_64 := Integer_64 (T.Values (DShot.Voltage));
+         begin
+            Put (Into, Field (Integer_64 (M) + 1, 5) & "   " & Kind (T.Received, 0, 'R') & Kind (T.Received, 1, 'T')
+                       & Kind (T.Received, 2, 'V') & Kind (T.Received, 3, 'C') & Kind (T.Received, 7, 'S') & " "
+                       & Field (Integer_64 (T.Values (DShot.Erpm)) * 100, 6) & " " & Field (Rpm, 6) & " "
+                       & Field (Rpm / 60, 6));
+            if (T.Received and 1) /= 0 then
+               declare
+                  Share : constant Integer_64 := Integer_64 (DShot.Invalid_Percent (S.Quality (M), True));
+               begin
+                  Put (Into, " " & Field (Share / 100, 3) & "." & Two_Digits (Share mod 100) & "%");
+               end;
+            else
+               Put (Into, " NO DATA");
+            end if;
+            Put (Into, " " & Field (Integer_64 (T.Values (DShot.Temperature)), 6) & " " & Field (Volts / 4, 3) & "."
+                       & Two_Digits (25 * (Volts mod 4)) & " " & Field (Integer_64 (T.Values (DShot.Current)), 6)
+                       & " " & Field (Integer_64 (T.Values (DShot.State_Events)), 6) & " "
+                       & Field (Integer_64 (T.Values (DShot.Debug_1)), 6) & " "
+                       & Field (Integer_64 (T.Values (DShot.Debug_2)), 6) & " "
+                       & Field (Integer_64 (T.Values (DShot.Debug_3)), 6) & CRLF);
+         end;
+      end loop;
+      Put (Into, CRLF);
+      for E of S.Edges loop
+         Put (Into, Field (Integer_64 (E), 0) & " ");
+      end loop;
+      Put (Into, CRLF);
+      for K in 2 .. Max_GCR_Edges loop
+         Put (Into, Field (Integer_64 (S.Edges (K) - S.Edges (K - 1)), 0) & " ");
+      end loop;
+      Put (Into, CRLF);
+   end Dshot_Telemetry_Info_Command;
 
    --  motor: after the output in use, a motor's or, at output 255, every
    --  motor's disarmed value from the 1000 to 2000 range, converted for the
@@ -4738,6 +4816,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
             Profile_Command (Into, C, Rate, Text_At (Buffer, Arguments), Changes);
          when Rc_Smoothing_Info_Command_Word =>
             Rc_Smoothing_Info_Command (Into, C.Rx_Config.Rc_Smoothing /= 0, Env.Smoothing);
+         when Dshot_Telemetry_Info_Command_Word =>
+            Dshot_Telemetry_Info_Command (Into, Env.Motors, Env.DShot_Telemetry);
          when Rx_Failsafe_Command =>
             Failsafe_Command (Into, C, Text_At (Buffer, Arguments));
          when Rx_Range_Command =>

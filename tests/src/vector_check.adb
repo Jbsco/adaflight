@@ -15069,7 +15069,8 @@ procedure Vector_Check is
       Motor_Device    => Adaflight.MSP_Motor_In.No_Device,
       Three_D         => False,
       Receiver_Source => Adaflight.Receiver.None,
-      Serial_Protocol => 0);
+      Serial_Protocol => 0,
+      DShot_Telemetry => <>);
    CLI_Env      : CLI.Environment := CLI_Identity;
    CLI_Board    : CLI.Board_State;
    CLI_Reply    : CLI.Output;
@@ -15642,6 +15643,32 @@ procedure Vector_Check is
             elsif Word (Command, 0) = "!rxprov" then
                CLI_Env.Receiver_Source := Adaflight.Receiver.Provider'Val (Natural'Value (Word (Command, 1)));
                CLI_Env.Serial_Protocol := Natural'Value (Word (Command, 2));
+            elsif Word (Command, 0) = "!dshottlm" then
+               CLI_Env.DShot_Telemetry.Enabled := Word (Command, 1) /= "0";
+               CLI_Env.DShot_Telemetry.Reads := Unsigned_32'Value (Word (Command, 2));
+               CLI_Env.DShot_Telemetry.Invalid_Replies := Unsigned_32'Value (Word (Command, 3));
+               CLI_Env.DShot_Telemetry.Interrupt_Cycle := Unsigned_32'Value (Word (Command, 4));
+               CLI_Env.DShot_Telemetry.Direction_Cycle := Unsigned_32'Value (Word (Command, 5));
+               CLI_Env.DShot_Telemetry.Clock_Rate := Unsigned_32'Value (Word (Command, 6));
+            elsif Word (Command, 0) = "!dshotmotor" then
+               declare
+                  M : constant Adaflight.DShot.Motor_Index := Adaflight.DShot.Motor_Index'Value (Word (Command, 1));
+                  D : Adaflight.DShot.Motor_Telemetry renames CLI_Env.DShot_Telemetry.Telemetry.Motors (M);
+               begin
+                  D.Received := Interfaces.Unsigned_8'Value (Word (Command, 2));
+                  for K in Adaflight.DShot.Telemetry_Kind loop
+                     D.Values (K) :=
+                       Interfaces.Unsigned_16'Value (Word (Command, 3 + Adaflight.DShot.Telemetry_Kind'Pos (K)));
+                  end loop;
+                  CLI_Env.DShot_Telemetry.Telemetry.Rpm (M) := To_Float (Unsigned_32'Value ("16#" & Word (Command, 11)
+                                                                                           & "#"));
+                  CLI_Env.DShot_Telemetry.Quality (M).Packet_Sum := Unsigned_32'Value (Word (Command, 12));
+                  CLI_Env.DShot_Telemetry.Quality (M).Invalid_Sum := Unsigned_32'Value (Word (Command, 13));
+               end;
+            elsif Word (Command, 0) = "!dshotedges" then
+               for K in 1 .. CLI.Max_GCR_Edges loop
+                  CLI_Env.DShot_Telemetry.Edges (K) := Unsigned_32'Value (Word (Command, K));
+               end loop;
             else
                CLI_Env.Motors := MSP_Motors;
                CLI_Env.Motor_Device := MSP_Motor_Kind;
@@ -21752,6 +21779,7 @@ begin
    Run (Dir & "/mspclisettinginfo.csv", "cliset");
    Run (Dir & "/clibind.csv", "cliset");
    Run (Dir & "/clisave.csv", "cliset");
+   Run (Dir & "/clidshot.csv", "cliset");
    if Settings_Seen /= Adaflight.Settings_Table.Setting'Pos (Adaflight.Settings_Table.Setting'Last) + 1 then
       Put_Line ("settings: the vectors hold" & Settings_Seen'Image & " settings");
       Failures := Failures + 1;

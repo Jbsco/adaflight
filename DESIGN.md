@@ -6084,3 +6084,19 @@ The menu oracle adds the RTC6705 from the D261 source over stand-in pins. It ope
 sessions and, through direct jumps, with the other devices, and records the RTC6705's frequency, power
 index, pit mode and operations after every step. Six runs with 240 sessions in all replay exactly, with 37
 jumps to the menu and 12 RTC6705 sessions.
+
+## D263. DShot telemetry information command (2026-10-16)
+
+`Adaflight.Command_Line` gains dshot_telemetry_info. It prints the driver's read and invalid reply counts and
+its direction change time in cycles and microseconds, then a line per motor of the mixer, then the decoder's
+last 22 edge times and the steps between them. A motor's line has its reply kinds, eRPM, RPM and Hz, the
+invalid share over the last second or NO DATA without an eRPM reply, and its temperature, voltage, current,
+state events and debug values. The RPM is rounded with ties to even and cut to its low 16 bits. The cycles
+are the 32-bit difference of two cycle counter readings, and the microseconds their unsigned quotient by the
+clock's cycles per microsecond, the STM32 conversion. The environment gains the motors' DShot telemetry with
+their reply quality, the driver's counts, the cycle counter readings, the clock rate and the edge times.
+
+The command line oracle defines what the reference's driver and system code leave out of the build: the
+telemetry flag, the cycle counter readings, the STM32 conversion and each motor's RPM, and scripts them with
+the driver's counts, the motors' replies and reply counts, and the edge times. Two runs of 600 lines replay
+exactly.
