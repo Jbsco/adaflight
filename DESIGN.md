@@ -5898,3 +5898,21 @@ the rescue in its options does, so the failsafe menu's vectors gain the GPS RESC
 variant waits for a wing build of the oracle. The harness replays 240 sessions with 19399 keys, 842
 menu changes and 20241 draws, 274 of their states in the rescue menu and 204 in its PID menu: every
 display operation, menu context, page, request and configuration hash matches the reference's.
+
+## D253. SmartAudio menu state in the VTX layer (2026-10-16)
+
+`Adaflight.SmartAudio` now receives the line one byte at a time through `Receive_Byte`, which reports
+each response it takes in and whether the response changed the device's report against the report
+before it, and sends through `Process_Line`; `Process` runs both as before. `Adaflight.VTX` keeps the
+SmartAudio menu's state and updates it after each response: a changed report starts the menu's
+operating model over, a menu without a model takes it from the device's boot pit mode, with the
+frequency selection, band, channel, frequency and power from the device and the settings, and once
+the device's version is known the menu takes the version, the first pit and user frequencies, the pit
+mode's kind and the status line. Two responses in one task call update the menu twice, each after its
+own response. The status line contains all 31 bytes with their nulls, since its updates write some
+places and leave others. `Adaflight.Number_Text` now contains the decimal text that both the menus and
+the status line print.
+
+The VTX control oracle links the reference's SmartAudio menu code in place of its stubs and records
+the menu's state at every step: every recorded vector replays exactly, the SmartAudio vectors
+unchanged.

@@ -144,6 +144,36 @@ package Adaflight.SmartAudio with SPARK_Mode is
       Prev_Device      : Report := No_Report;
    end record;
 
+   --  The SmartAudio menu's status line, nulls included.
+   subtype Status_Text is String (1 .. 31);
+   Initial_Status : constant Status_Text := "- -- ---- ---" & (1 .. 18 => ASCII.NUL);
+
+   --  The SmartAudio menu's state that the device's responses update: the
+   --  operating model, the radio state, the band, channel and power it
+   --  shows, the band and channel's frequency, the device's frequency, the
+   --  device's version, the pit mode and its kind, the frequency selection
+   --  before and after the menu, the pit and user frequencies with their new
+   --  values, and the status line.
+   type Menu_View is record
+      Opmodel       : Unsigned_8 := 0;
+      RF_State      : Unsigned_8 := 0;
+      Band          : Unsigned_8 := 0;
+      Channel       : Unsigned_8 := 0;
+      Power         : Unsigned_8 := 0;
+      Freq_Ref      : Unsigned_16 := 0;
+      Device_Freq   : Unsigned_16 := 0;
+      Device_Status : Unsigned_8 := 0;
+      Pit           : Unsigned_8 := 0;
+      Pit_F_Mode    : Unsigned_8 := 0;
+      Fsel_Mode     : Unsigned_8 := 0;
+      Fsel_Mode_New : Unsigned_8 := 0;
+      OR_Freq       : Unsigned_16 := 0;
+      OR_Freq_New   : Unsigned_16 := 0;
+      User_Freq     : Unsigned_16 := 0;
+      User_Freq_New : Unsigned_16 := 0;
+      Status        : Status_Text := Initial_Status;
+   end record;
+
    --  The bytes a call sends, a zero ahead of them when the line needs
    --  one, and the line rate to set.
    Max_Tx : constant := Max_Frame + 1;

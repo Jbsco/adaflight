@@ -6,7 +6,8 @@
 --  commands and the switch conditions until the first arm, the power
 --  follows the switch conditions always, and a Spektrum control word from
 --  the receiver sets band, channel, power and pit mode. The SmartAudio,
---  Tramp and MSP devices are driven, each through its own driver.
+--  Tramp and MSP devices are driven, each through its own driver, and the
+--  SmartAudio menu's state follows each response of the device.
 with Interfaces;
 with Adaflight.Bytes; use Adaflight.Bytes;
 with Adaflight.Modes;
@@ -53,6 +54,7 @@ package Adaflight.VTX with SPARK_Mode is
    type State is record
       Kind             : Device_Kind := No_Device;
       SA               : SmartAudio.Driver;
+      SA_Menu          : SmartAudio.Menu_View;
       TR               : Tramp.Driver;
       MD               : VTX_MSP.Driver;
       Device_Present   : Boolean := False;
