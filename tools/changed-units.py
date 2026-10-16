@@ -18,8 +18,10 @@ def code(path):
 
 
 def is_generic(name):
+    """Whether a unit is a generic unit, not one declaring a generic inside it."""
     spec = src / (name + ".ads")
-    return spec.exists() and re.search(r"\bgeneric\b", code(spec)) is not None
+    context = r"\s*(((private|limited)\s+)*with\s[^;]*;|use\s[^;]*;|pragma\s[^;]*;)"
+    return spec.exists() and re.match(r"(" + context + r")*\s*generic\b", code(spec), re.IGNORECASE) is not None
 
 
 def instantiations(name):
