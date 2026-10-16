@@ -94,6 +94,15 @@ package Adaflight.PID_Controller with SPARK_Mode, Pure is
       --  The gyro's yaw spin detection: the yaw setpoint drops to zero, the
       --  I terms clear, and roll and pitch keep no terms.
       Yaw_Spin_Detected         : Boolean := False;
+      --  The landing disarm reads whether the throttle has risen since
+      --  arming, whether the craft is below the autopilot's landing
+      --  altitude, the largest stick deflection, the RC throttle, and the
+      --  accelerometer's jerk magnitude.
+      Throttle_Raised           : Boolean := False;
+      Below_Landing_Altitude    : Boolean := False;
+      Max_Deflection            : Float range 0.0 .. 1.0 := 0.0;
+      RC_Throttle               : Float range 0.0 .. 1.0 := 0.0;
+      Jerk_Magnitude            : Float range 0.0 .. 1.0E30 := 0.0;
    end record;
 
    type State is record
@@ -117,6 +126,7 @@ package Adaflight.PID_Controller with SPARK_Mode, Pure is
       Crash_Detected_Us       : Interfaces.Unsigned_32 := 0;
       Crash_Beep              : Boolean := False;
       Crash_Disarm_Requested  : Boolean := False;
+      Landing_Disarm_Requested : Boolean := False;
    end record;
 
    --  Prepares the controller from a profile and its runtime constants.
