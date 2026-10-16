@@ -836,6 +836,7 @@ count plus 880. Every channel starts at the count that reads as the configured c
 serial port and the telemetry sharing stay with the port layer. The reference's packed bit
 fields are unpacked by position, so the decoded channels agree bit for bit. No guard was
 needed.
+
 ## D42. The CRSF protocol (2026-10-10)
 
 The CRSF unit carries the reference's CRSF receiver. Each serial byte arrives with its time into
@@ -861,6 +862,7 @@ guards cover values the reference's conversions leave undefined: a scaled RSSI b
 held at zero, and a frame whose declared length escaped the check is held to the frame size. The
 receiver takes the protocol's claims of the RSSI and the link quality at its own init. No
 recorded vector reaches a guard.
+
 ## D43. The SUMD and SUMH protocols (2026-10-10)
 
 The SUMD unit carries the reference's SUMD receiver. Each byte arrives with its time, and a gap
@@ -879,6 +881,7 @@ and four tenths less 375, and is held at zero where the reference's conversion o
 value is undefined. The raw value reads zero past the eighth channel. The recorded vectors keep
 the channel words where that conversion is defined. The serial ports stay with the port layer.
 No recorded vector reaches a guard.
+
 ## D44. The IBUS protocol (2026-10-10)
 
 The IBUS unit carries the reference's IBUS receiver for its two receiver families. Each byte
@@ -900,6 +903,7 @@ predicate. A byte is kept only while the frame has room. The reference writes pa
 when a zero byte before any sync is known is followed by more than thirty-one bytes without a
 gap (finding F33). The telemetry reply itself is Phase 6, and the serial port stays with the
 port layer. No recorded vector reaches the guard.
+
 ## D45. The Spektrum protocols (2026-10-10)
 
 The Spektrum unit carries the reference's DSM receiver for its two resolutions and the SRXL
@@ -925,6 +929,7 @@ mapping's wrap is the reference's own. The VTX control handling, the telemetry c
 bind pulses, and the serial port stay with their layers. The reference assembles the VTX
 control word with a shift that overflows a signed integer on every control frame (finding
 F34). The unit shifts the unsigned word. No guard was needed.
+
 ## D46. The XBUS protocol (2026-10-10)
 
 The XBUS unit carries the reference's XBUS receiver for the Mode B and RJ01 providers. Each
@@ -943,6 +948,7 @@ position below the frame length while a frame comes in and at zero otherwise, an
 length to the provider. The frame writes and the unpackers' reads are therefore proved within
 the buffer without clamps. The completion check moves ahead of the position increment to keep
 the predicate. The serial port stays with the port layer. No guard was needed.
+
 ## D47. The Jeti EX Bus protocol (2026-10-10)
 
 The Jeti EX Bus unit carries the reference's EX Bus receiver. Each byte arrives with its time,
@@ -964,6 +970,7 @@ the reference's nibble-wise form does. The decode trusts the header's data lengt
 message length as the reference does (finding F36). The request frame, its state and time, the
 transmit permission, and the serial port stay with the telemetry and port layers. No guard was
 needed.
+
 ## D48. The Ghost protocol (2026-10-10)
 
 The GHST unit carries the reference's Ghost receiver. Each byte arrives with its time, and a
@@ -988,6 +995,7 @@ buffer as the reference's. The RSSI scaling and the legacy rescaling keep the re
 sixteen-bit wraps of their negative results (findings F37, F38), so the recorded vectors match.
 The telemetry content, the MSP handling, the idle callback's source, and the serial port stay
 with their layers. No guard was needed.
+
 ## D49. The MSP receiver (2026-10-10)
 
 The MSP receiver unit carries the reference's receiver fed over MSP. A frame from the command
@@ -998,6 +1006,7 @@ arrived within the last 300 milliseconds. The status poll reports complete once 
 stamps the frame at the poll. The override poll reports complete once per frame. The raw value
 is the channel value itself. The command handler bounds the count at eighteen, so the count is
 a subtype. The millisecond difference is the reference's unsigned one. No guard was needed.
+
 ## D50. The SRXL2 protocol (2026-10-10)
 
 The SRXL2 unit carries the reference's SRXL2 receiver. Each byte arrives with its time and goes
@@ -1052,6 +1061,7 @@ the MSP handling, and the serial port stay with their layers. A reply the teleme
 writes drops the frame in progress through Begin_Reply. The raw value is the SBUS fit of the
 channel count. The ring indices, the frame position, and the escape and request flags keep
 the state the recorded vectors see. No guard was needed.
+
 ## D52. The MAVLink receiver (2026-10-10)
 
 The MAVLink unit carries the MAVLink receiver with the library's frame parser, and the
@@ -1082,6 +1092,7 @@ size and the signature count above zero by guards the recorded vectors never rea
 signature bytes, the parse error count, and the parser's status copy are not kept, since
 nothing reads them. The
 serial port and the telemetry task stay with their layers.
+
 ## D53. The MSP serial port with its frame decoder and reply encoder (2026-10-11)
 
 `Adaflight.MSP_Port` is the serial port of the configurator protocol. The decoder takes one byte
@@ -1105,6 +1116,7 @@ checks, so no byte can land past the buffer. The encoder's frame buffer is sized
 header, the largest reply, and both checksums. The reference writes the jumbo size of a
 combined-framing reply after the version 2 header instead of after the version 1 header, and the
 encoder keeps that order so the recorded vectors match (finding F43).
+
 ## D54. The ExpressLRS hopping tables and link counters (2026-10-11)
 
 `Adaflight.ExpressLRS` holds the common part of the ExpressLRS link ahead of its receiver: the
@@ -1127,6 +1139,7 @@ the count changes. The telemetry ratio value is a byte, so the standard marker r
 the disarmed marker one, as the sync packet carries them. The CRC table entry is computed per
 byte instead of held in a table of 256 words, the same function of the byte. The receiver's
 packet handling, the connection states, and the telemetry link follow in their own units.
+
 ## D55. The ExpressLRS telemetry link (2026-10-11)
 
 `Adaflight.ExpressLRS_Telemetry` carries a telemetry frame to the transmitter and assembles the
@@ -1150,6 +1163,7 @@ at the length, which a frame replaced between the chunk and its confirm could pa
 never does, since the transmitter flips its bit only for a chunk it received. The CRSF frames
 the sender carries, the device info reply, and the MSP frame handling behind the receiver come
 with the CRSF telemetry port.
+
 ## D56. The flight log field encodings (2026-10-11)
 
 `Adaflight.Blackbox_Encoding` writes the field encodings of the flight log into a stream over a
@@ -1169,6 +1183,7 @@ for a group of three, ten for the group of four, one plus five per field for the
 and proof covers every write through the stream's contract, so no encoder can run past the
 array. The header lines in text and the frame logic that chooses the encodings come with the log
 itself.
+
 ## D57. The text conversions (2026-10-11)
 
 `Adaflight.Text` holds the conversions the command line, the display, and the log headers need:
@@ -1195,6 +1210,7 @@ or A after a width digit as a digit of ten, the comparison of the reference kept
 match (finding F44). The search returns no match for an empty text, where the reference reads
 past it (finding F46). Proof covers every buffer index and the float bounds of the reader. No
 recorded vector reaches the saturation or the empty-text guard.
+
 ## D58. The DShot protocol (2026-10-11)
 
 `Adaflight.DShot` holds the protocol pieces that need no output hardware. The frame puts
@@ -1243,6 +1259,7 @@ that is not a permutation of its indices to the identity, and the postcondition 
 every entry by the length. Proof covers the sample indices against the count, the shifts,
 the margin narrowing to a byte, the bounded period, the rate bounds, and the order bounds.
 Every recorded vector replays exactly.
+
 ## D59. The CRSF telemetry frames (2026-10-11)
 
 `Adaflight.CRSF_Telemetry` writes every telemetry frame of the link from readings the caller
@@ -1271,6 +1288,7 @@ receiver buffer before every pass, so its check before the schedule is always tr
 port has no such gate. The MSP buffer and the display port chunks stay with their units.
 Proof covers every frame against the room of the longest, the sixteen bit conversions, the
 angle reduction, and the slot and baud table indices. Every recorded vector replays exactly.
+
 ## D60. The ESC telemetry over the serial line (2026-10-11)
 
 `Adaflight.ESC_Sensor` polls each motor in turn for the ten byte telemetry frame: a boot
@@ -1288,6 +1306,7 @@ motor's reading or age it. Current and consumption from such a source are bounde
 predicate so the sums over every motor fit, which the serial frames' sixteen bit values
 always do. The frame fill never passes the frame size by the same predicate. Every recorded
 vector replays exactly.
+
 ## D61. The SmartPort telemetry stream (2026-10-11)
 
 `Adaflight.SmartPort_Telemetry` answers the receiver's polls on the half-duplex line. The value
@@ -1309,6 +1328,7 @@ each byte escaped when it is one of the two reserved bytes. The table positions 
 as the reference does, and a read past the table gives no value (finding F75); the table holds
 all twenty-one ids a configuration can enable (finding F76). The MSP tunnel over the stream waits
 for the MSP serial port. Every recorded vector replays exactly.
+
 ## D62. RunCam device protocol (2026-10-11)
 
 The RunCam device unit carries the reference's device protocol and camera control: the packet of
@@ -1333,6 +1353,7 @@ reply failing its checksum leaves the request waiting with its count full, where
 storing at the buffer's end and the reference writes past it (finding F79). With the port closed
 a call does nothing, as the task never runs then. The unit is SPARK for the reply and request
 buffers, whose indexes the reference does not bound.
+
 ## D63. FrSky hub telemetry (2026-10-11)
 
 The FrSky hub unit carries the reference's hub encoder: every 125 ms by the signed difference of
@@ -1354,6 +1375,7 @@ The sensors present and the configuration are settings of the stream; the cell v
 counter and the fix memory are its state. The ESC branches of the temperature and the rate are
 the ones the default build compiles. The unit is SPARK for the output buffer and the narrowing
 arithmetic.
+
 ## D64. iBus telemetry sensors (2026-10-11)
 
 The iBus telemetry unit carries the reference's sensor protocol and its port handler: the
@@ -1375,6 +1397,7 @@ to four and the checksum over that many bytes less two matches its last two byte
 reference sums past the window for other length bytes (finding F80), so those never match here.
 Every byte offered is taken, and an answer that would not fit the output is dropped, which no
 recorded vector reaches. The unit is SPARK for the window, the frame and the output indexes.
+
 ## D65. HoTT telemetry link (2026-10-11)
 
 The HoTT unit carries the reference's binary mode: the receiver asks on the single wire with two
@@ -1396,6 +1419,7 @@ second, the speed in kilometres per hour, the home distance, the altitude bounde
 and the home direction in two-degree steps. Each field narrows as the reference's byte stores do.
 The text mode waits for the menu system. The unit is SPARK for the message indexes and the send
 position.
+
 ## D66. Ghost telemetry frames (2026-10-11)
 
 The Ghost telemetry unit carries the reference's frame scheduler and encoders: a schedule of up to
@@ -1413,6 +1437,7 @@ as the reference's writers do. The climb rate of the last frame stays zero and i
 as the reference tests a sensor bit no sensor sets (finding F82), and an empty schedule sends
 nothing, where the reference divides by its length (finding F83). The unit is SPARK for the frame
 and schedule indexes.
+
 ## D67. Race transponder codings (2026-10-11)
 
 The transponder unit carries the reference's three infrared codings and its repeat schedule. Each
@@ -1428,6 +1453,7 @@ signed difference to the next time is not negative, and sets the next time from 
 and a tenth of its jitter times the next step of a fixed table of fifteen; no coding means no
 transmission. The timer period and the hardware are the target's. The unit is SPARK for the toggle
 buffer indexes, which the reference drives through a static offset.
+
 ## D68. SRXL telemetry frames (2026-10-11)
 
 The SRXL telemetry unit carries the reference's frame schedule and encoders for the Spektrum
@@ -1446,6 +1472,7 @@ the next line not yet sent, or the next in turn when all were, and the menu syst
 mark their line through `Put_Char`. The video transmitter frame follows the VTX control branch,
 where the schedule grows by one user frame. The unit is SPARK for the frame and text indexes and
 the narrowing arithmetic.
+
 ## D69. FrSky OSD device link (2026-10-11)
 
 The FrSky OSD unit carries the reference's device link: the drawing, transform, context, grid and
@@ -1465,6 +1492,7 @@ was queued, then the bytes arriving during the wait are all taken, the first com
 deciding the outcome, and the caller carries the time the wait took. The strings are bounded to
 the payload the reference writes them into, which a longer string would overrun (finding F87). The
 unit is SPARK for the queue, frame and payload indexes.
+
 ## D70. LED strip (2026-10-11)
 
 The LED strip unit carries the reference's strip: the layout derived once from the configuration
@@ -1488,6 +1516,7 @@ where the reference divides by it and the unit adds nothing (finding F89). The v
 layer and the race color that follows the transmitter frequency wait for the VTX branches, the
 layer leaving its timer alone. The unit is SPARK for the LED, palette and timer indexes and the
 hue arithmetic.
+
 ## D71. Rangefinder readings (2026-10-11)
 
 The rangefinder unit carries the reference's processing of the distance a driver reports: the
@@ -1501,6 +1530,7 @@ once the ceiling froze, a reading under it; the sensor is healthy within half a 
 reading. The detection, the drivers and the legacy bounds the altitude estimator reads come with
 the target, the bounds computed here from the range and the tilt limit. The unit is SPARK for the
 sample windows and the integer bounds.
+
 ## D72. Optical flow readings (2026-10-11)
 
 The optical flow unit carries the reference's sensor processing without its drivers: each read
@@ -1518,6 +1548,7 @@ reference computes them once with the C library and the unit keeps no transcende
 guard covers the reference's undefined behavior: the age error of a slot is computed in 64
 bits where the reference subtracts the delay from a 32-bit age that can be near its minimum
 after a long silence (finding F90). No recorded vector reaches the guard.
+
 ## D73. Pitot airspeed (2026-10-11)
 
 The pitot unit carries the reference's airspeed task without its drivers: the platform reads
@@ -1535,6 +1566,7 @@ accumulation of the calibration is held within twenty signal bounds, the most tw
 can sum to, and the root of the pressure is capped at one million before the multiplication to
 centimetres, a bound no pressure within the signal bound reaches. The time comparisons use the
 wrapping difference. No recorded vector reaches a guard.
+
 ## D74. Real-time clock calendar (2026-10-11)
 
 The clock unit carries the reference's calendar without its time source: the platform supplies the
@@ -1555,6 +1587,7 @@ month that indexes the day table, the default date showing otherwise (F92), and 
 outside the settable span of two to the sixty-second milliseconds is rejected on read. The
 five-digit year the text can carry fits the 30-character result (F94). No recorded vector reaches
 a guard.
+
 ## D75. Internal ADC channels (2026-10-11)
 
 The internal ADC unit carries the reference's averaging and compensation without the conversions:
@@ -1570,6 +1603,7 @@ the values the chips carry, so the products stay in 32 bits where the reference 
 (finding F96). One guard covers the reference's division: an averaged reference reading of zero
 gives a supply of zero, the quotient the target's core produces (F97). No recorded vector reaches
 the guard.
+
 ## D76. Flight statistics (2026-10-11)
 
 The flight statistics unit carries the reference's counters without the configuration store, the
@@ -1583,6 +1617,7 @@ asks for another pass otherwise, and in either case clears the owed save; a conf
 waiting for its own save leaves the statistics to it. The seconds and the metres wrap as the
 reference's unsigned arithmetic, and a negative battery draw lands in the unsigned total as the
 reference stores it. No guard was needed.
+
 ## D77. Wing launch (2026-10-12)
 
 The wing launch unit carries the reference's launch state machine without its sensors, receiver
@@ -1608,6 +1643,7 @@ aircraft straight back with a handover of one. While the launch owns the aircraf
 the angle targets the level controller reads, zero roll and the climb angle as a nose-down pitch;
 the targets live with the caller and keep their values otherwise, as the reference's globals do.
 The times compare through the wrapping difference. No guard was needed.
+
 ## D78. Navigation trail (2026-10-12)
 
 The navigation trail unit carries the reference's breadcrumb recorder for the OSD map without
@@ -1622,6 +1658,7 @@ stored, a later one when its distance from the last reaches the spacing, compare
 kilometres, before the point goes in. The stored points live in the record and the harness
 checks their count, the spacing, the last point and a hash over every point. No guard was
 needed.
+
 ## D79. The GPS frame decoders (2026-10-11)
 
 `Adaflight.GPS_Frames` decodes the two serial protocols of a GPS module into one solution
@@ -1692,6 +1729,7 @@ distance over the local flat earth and the bearing use the maths approximations 
 wrapped coordinate difference (finding F58); the ENU distance vector stays with the position
 estimate. The task time budget that stops the byte loop belongs to the caller, which decides
 how many bytes a call takes. Every recorded vector replays exactly.
+
 ## D81. The horizontal position estimate from the GPS (2026-10-11)
 
 `Adaflight.Position_Estimator` takes over the altitude estimator of D33 and adds the east
@@ -1719,6 +1757,7 @@ while the GPS is the horizontal source. The altitude hold now takes its centimet
 the position filter. Distances and altitudes beyond the filter's state bound of 167 km are
 held at it; the oracle keeps the fixes within range and short of the antimeridian. Every
 recorded vector replays exactly, the earlier altitude vectors unchanged.
+
 ## D82. Position hold with the autopilot's horizontal control (2026-10-11)
 
 `Adaflight.Position_Control` is the autopilot's horizontal controller and
@@ -1788,6 +1827,7 @@ their own targets; the caller owns the controller state and the horizontal contr
 as the autopilot shares them, and passes both in. A target altitude change below a
 sixteen-millionth of a centimetre counts as none for the progress ratio, which the reference
 divides by. Every recorded vector replays exactly, the earlier altitude hold vectors unchanged.
+
 ## D84. The video transmitter table and the SmartAudio driver (2026-10-11)
 
 `Adaflight.VTX_Table` holds up to eight bands of eight channels with their frequencies, names
@@ -1873,6 +1913,7 @@ frequency, the power, the pit mode and the queries, a factory band goes to a Sma
 as band and channel and to a Tramp device not at all, and the Spektrum power steps map to each
 device's indices. The protocol library beside the Tramp driver is not ported (finding F72).
 Every recorded vector replays exactly, the control vectors now over both devices.
+
 ## D87. The LTM telemetry stream (2026-10-11)
 
 `Adaflight.LTM_Telemetry` writes the light telemetry stream: every 100 ms while enabled, an
@@ -4645,6 +4686,7 @@ The harness replays forty update passes per menu tree after the exit, 72000 pass
 held or redrawn at random, the arming flag, modes, external keys, byte budgets, device types, editing
 states and clock readings drawn at random, and compares every display operation, hook call, context
 and page with the reference's.
+
 ## D198. Command line tasks (2026-10-15)
 
 `tasks` prints the task list: for every queued task, its number in two digits, its name
@@ -5212,6 +5254,7 @@ the DShot command calls and the motor switching, and scripts the mass storage re
 directive. The harness replays two sequences of 600 lines, 907 requests among armed, link, feature,
 mass storage and motor scripts: every result, reply, restart, delay and DShot command matches the
 reference's, with 159 rejected by both.
+
 ## D224. MSP GPS sensor (2026-10-15)
 
 `Adaflight.MSP_Runtime_In` gains the MSP GPS sensor message. It gives the time of week, the fix, the
@@ -5230,6 +5273,7 @@ reaches the guard.
 The command line oracle records the time, the accuracies, the dilution and the course beside the
 solution. The harness replays two sequences of 600 requests, 925 sensor messages of every length
 around their 52 bytes and 275 raw GPS messages: every handed-on value matches the reference's.
+
 ## D225. MT rangefinder and optical flow bridge (2026-10-15)
 
 `Adaflight.MT_Sensor` contains the bridge an MT device uses to send its distance and its flow over
@@ -5256,6 +5300,7 @@ read with directives, and records the driver's state after each and after each m
 replays two sequences of 600 lines among clock steps, detections, reads and messages of every
 length: in 820 records every distance, read, time stamp, quality, rate and validity matches the
 reference's.
+
 ## D226. CRSF device frames and link type (2026-10-15)
 
 `Adaflight.CRSF` hands on the frames the CRSF telemetry and the menu system take from the receiver:
@@ -5277,6 +5322,7 @@ The receiver oracle counts the new frames with the first byte each handler takes
 telemetry oracle builds with the menu system's CRSF telemetry, an idle display port and a device
 information reply now and then. The harness replays 6000 receiver steps and 6576 telemetry passes
 with 93872 frames, 41 of them pings: every output, link type and interval matches the reference's.
+
 ## D227. CRSF display port (2026-10-15)
 
 `Adaflight.CRSF_Display_Port` contains the screen the menu system draws for the transmitter over
@@ -5304,6 +5350,7 @@ selection and its open and leave calls scripted. The harness replays 2123 displa
 the 288 bytes of the screen after each, and 4451 telemetry passes with 116 chunks, eight of them
 with a full 256-character run, and 479 clear frames: every screen, delay, request and frame matches
 the reference's.
+
 ## D228. HoTT text mode (2026-10-15)
 
 `Adaflight.HoTT_Telemetry` gains the text mode, which the full build compiles in with the menu
@@ -5328,6 +5375,7 @@ The HoTT oracle compiles the reference text mode and display port in, with the m
 scheduler as counting stubs, and draws, clears, grabs, releases, heartbeats and changes their state
 between task calls. The harness replays 15000 task calls: every byte sent, timing, period, menu
 call, key and screen byte matches the reference's.
+
 ## D229. SRXL display port (2026-10-15)
 
 `Adaflight.SRXL_Display_Port` contains the menu system's side of the Spektrum text generator: a
@@ -5341,6 +5389,7 @@ caller gives the name, which keeps it out of the code. The unit is SPARK for the
 The SRXL telemetry oracle compiles the reference display port in and draws, clears, grabs and
 releases between task calls. The harness replays 12000 task calls: every text byte, line flag and
 frame byte matches the reference's.
+
 ## D230. OSD navigation map (2026-10-15)
 
 `Adaflight.OSD_Nav_Map` contains the map element of the full build's flight plan OSD: fourteen by
