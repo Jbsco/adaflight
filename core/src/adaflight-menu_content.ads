@@ -1,7 +1,8 @@
 --  The menu system's menus: their numbers, and the lines and hooks of the
 --  quick menu, the main menu with its features menu and setup popup, the
---  save menus, the LED strip, power, failsafe and RPM limit menus, the misc
---  menu with its RC preview and GPS lap timer menu, the persistent
+--  save menus, the blackbox menu with its erase and mass storage
+--  confirmations, the LED strip, power, failsafe and RPM limit menus, the
+--  misc menu with its RC preview and GPS lap timer menu, the persistent
 --  statistics menu, and the firmware menu with its calibration menus, over
 --  the target's state: the configuration, the firmware's identity, the
 --  readings the menus show, the menus' copies of the settings they edit,
@@ -38,11 +39,19 @@ package Adaflight.Menu_Content with SPARK_Mode is
    GPS_Lap_Timer_Menu    : constant Menu_Id := 18;
    Calibration_Menu      : constant Menu_Id := 19;
    Set_Gate_Menu         : constant Menu_Id := 20;
+   Erase_Flash_Menu      : constant Menu_Id := 21;
+   Storage_Device_Menu   : constant Menu_Id := 22;
 
    --  The RC channels the preview shows: roll, pitch, throttle, yaw and the
    --  first four auxiliary channels.
    subtype RC_Reading is Float range -30_000.0 .. 30_000.0;
    type RC_Channels is array (0 .. 7) of RC_Reading;
+
+   --  The PID loop's frequency in hertz, which the blackbox menu shows cut
+   --  to a whole sixteen-bit number, and the SD card's file system state in
+   --  the reference's numbering.
+   subtype PID_Hertz is Float range 0.0 .. 65_535.0;
+   type File_System_State is (Unknown, Fatal, Initialization, Ready);
 
    PID_Profile_Count     : constant := 4;
    Rate_Profile_Count    : constant := 4;
@@ -53,8 +62,11 @@ package Adaflight.Menu_Content with SPARK_Mode is
    --  charge drawn to restore, the reboot flag the save menus go by, the RC
    --  channels, the gyro and the barometer with their calibrations, the
    --  board's manufacturer and name from the board information, the lap
-   --  timer's gate readings and distance to the gate, and the features
-   --  active at run time.
+   --  timer's gate readings and distance to the gate, the features active at
+   --  run time, whether the flight recorder lets its configuration change,
+   --  the PID loop's frequency, the SD card with its file system, contiguous
+   --  free bytes and size in blocks, the flash with its partition's sectors,
+   --  sector size and write offset, and whether mass storage is ready.
    type Readings is record
       Acc_Present               : Boolean := False;
       Acc_Calibration_Needed    : Boolean := False;
@@ -72,6 +84,18 @@ package Adaflight.Menu_Content with SPARK_Mode is
       Gate_Set_Readings         : Interfaces.Unsigned_16 := 0;
       Gate_Distance_Cm          : Interfaces.Unsigned_32 := 0;
       Runtime_Features          : Interfaces.Unsigned_32 := 0;
+      Blackbox_May_Edit         : Boolean := True;
+      PID_Frequency             : PID_Hertz := 0.0;
+      Card_Inserted             : Boolean := False;
+      Card_Functional           : Boolean := False;
+      Card_File_System          : File_System_State := Unknown;
+      Card_Free_Bytes           : Interfaces.Unsigned_32 := 0;
+      Card_Blocks               : Interfaces.Unsigned_32 := 0;
+      Flash_Supported           : Boolean := False;
+      Flash_Sectors             : Natural range 0 .. 65_536 := 0;
+      Flash_Sector_Size         : Interfaces.Unsigned_32 := 0;
+      Flash_Offset              : Interfaces.Unsigned_32 := 0;
+      Storage_Ready             : Boolean := False;
    end record;
 
    --  The firmware's identity the firmware menu shows, which the build
@@ -153,6 +177,19 @@ package Adaflight.Menu_Content with SPARK_Mode is
       Crashflip_Rate : Interfaces.Unsigned_8 := 0;
    end record;
 
+   --  The blackbox menu's copies of the device, the sample rate and the
+   --  debug mode, with its texts from its last entry or erase: the PID
+   --  loop's frequency, the device's status, and the used and free space.
+   type Blackbox_Copies is record
+      Device        : Interfaces.Unsigned_8 := 0;
+      Rate          : Interfaces.Unsigned_8 := 0;
+      Debug_Mode    : Interfaces.Unsigned_8 := 0;
+      PID_Frequency : Adaflight.Menu.Label_Text;
+      Status        : Adaflight.Menu.Label_Text;
+      Used          : Adaflight.Menu.Label_Text;
+      Free          : Adaflight.Menu.Label_Text;
+   end record;
+
    --  The LED strip menu's copies of the strip's feature, the profile, the
    --  race and beacon colors, the beacon's period, on share and armed-only
    --  switch, and the visual beeper with its color.
@@ -202,7 +239,9 @@ package Adaflight.Menu_Content with SPARK_Mode is
    --  What the menus ask of the runtime: the charge drawn set back to the
    --  stored value, the PID controller's setup from the current profile,
    --  the gyro, accelerometer and barometer calibrations, the lap timer's
-   --  gate setting started and ended, and the LED strip turned on and off.
+   --  gate setting started and ended, the LED strip turned on and off, the
+   --  flash erased with its beep, and the reset to mass storage with the time
+   --  zone offset it takes.
    type Requests is record
       MAh_Restores       : Natural := 0;
       MAh_Restored       : Interfaces.Unsigned_32 := 0;
@@ -214,6 +253,10 @@ package Adaflight.Menu_Content with SPARK_Mode is
       Gate_Ends          : Natural := 0;
       LED_Strip_Enables  : Natural := 0;
       LED_Strip_Disables : Natural := 0;
+      Flash_Erases       : Natural := 0;
+      Erase_Beeps        : Natural := 0;
+      MSC_Resets         : Natural := 0;
+      MSC_Reset_Offset   : Interfaces.Integer_16 := 0;
    end record;
 
    type Target is record
@@ -225,6 +268,7 @@ package Adaflight.Menu_Content with SPARK_Mode is
       Failsafe    : Failsafe_Copies;
       RPM_Limit   : RPM_Limit_Copies;
       Misc        : Misc_Copies;
+      Blackbox    : Blackbox_Copies;
       LED         : LED_Copies;
       Lap         : Lap_Copies;
       Preview     : RC_Values := (others => 0);
