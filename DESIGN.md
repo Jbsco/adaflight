@@ -4724,3 +4724,15 @@ and the oracle, whose host traps the division, steps over it with a zero quotien
 The oracle compiles the reference's scheduler with the statistics and records three more fields per
 task and five more per pass. All 8 sequences of 2500 passes replay exactly, the new fields with the
 old.
+
+## D201. Tasks command late columns (2026-10-15)
+
+With the scheduler's late task statistics (D200), `tasks` prints the reference's full form: after
+the total time, each queued task's late run count, its run count and the execution time anticipated
+for its latest selection, under the header's `late`, `run` and `reqd/us`. The resets after each
+line clear the two counts with the peak times, as the reference's reset does. The shorter form of
+D198 was the simulator build's; the STM32 builds print this one.
+
+The harness replays the two sequences of D198 recorded again with the late statistics compiled
+into the oracle and three more raw fields per task line. All 985116 reply characters match the
+reference's, and so does the configuration's hash after every command.

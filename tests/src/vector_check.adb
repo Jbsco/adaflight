@@ -14670,6 +14670,9 @@ procedure Vector_Check is
                   T.Moving_Sum_States_Exec := Interfaces.Unsigned_32'Value (Word (Command, 7));
                   T.Max_States_Exec_Us := Interfaces.Unsigned_32'Value (Word (Command, 8));
                   T.Latest_Delta_Us := Interfaces.Integer_32'Value (Word (Command, 9));
+                  T.Run_Count := Interfaces.Unsigned_32'Value (Word (Command, 10));
+                  T.Late_Count := Interfaces.Unsigned_32'Value (Word (Command, 11));
+                  T.Exec_Time_Us := Interfaces.Unsigned_32'Value (Word (Command, 12));
                   Adaflight.Scheduler.Set_Task_Enabled (CLI_Sched, Id, Word (Command, 2) /= "0");
                end;
             elsif Word (Command, 0) = "!check" then
