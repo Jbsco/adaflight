@@ -14140,6 +14140,12 @@ procedure Vector_Check is
            Adaflight.Config_Runtime.Barometer_Settings_Of (C.Barometer_Config);
          CS : constant Adaflight.Compass.Settings :=
            Adaflight.Config_Runtime.Compass_Settings_Of (C.Compass_Config, C.Board_Alignment);
+         BT : constant Adaflight.Battery.Settings :=
+           Adaflight.Config_Runtime.Battery_Settings_Of
+             (C.Battery_Config, C.Battery_Profiles (Natural (C.System_Config.Active_Battery_Profile)),
+              C.Voltage_Sensor_Adc_Config (0), C.Current_Sensor_Adc_Config, C.Current_Sensor_Virtual_Config,
+              C.Esc_Sensor_Config);
+         BP : constant Adaflight.Beeper.Settings := Adaflight.Config_Runtime.Beeper_Settings_Of (C.Beeper_Config);
       begin
          Record_Int ("conffix.arming_min_check",
                      Integer_64 (Interfaces.Unsigned_16'Max
@@ -14170,6 +14176,12 @@ procedure Vector_Check is
                      Boolean'Pos (BS.Virtual_Device));
          Record_Int ("conffix.compass_zero", Integer_64 (C.Compass_Config.Mag_Zero (0)),
                      Integer_64 (CS.Zero (Adaflight.Vectors.X)));
+         Record_Int ("conffix.battery_capacity",
+                     Integer_64 (C.Battery_Profiles
+                                   (Natural (C.System_Config.Active_Battery_Profile)).Battery_Capacity),
+                     Integer_64 (BT.Capacity_mAh));
+         Record_Int ("conffix.beeper_usb_off", Integer_64 ((C.Beeper_Config.Beeper_Off_Flags / 2 ** 17) mod 2),
+                     Boolean'Pos (BP.Off_Flags (Adaflight.Beeper.USB)));
       end;
       if H.Gyro_Sample_Rate_Hz in 10 .. 10_000 and then H.Motors in 1 .. 8
         and then Integer (1_000_000 / H.Gyro_Sample_Rate_Hz) * Integer (C.Pid_Config.Pid_Process_Denom)

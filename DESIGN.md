@@ -4314,6 +4314,10 @@ builds `Barometer.Settings` from the stored barometer group, with the virtual de
 hardware code, and `Compass_Settings_Of` builds `Compass.Settings` from the stored compass and board
 alignment groups.
 
+`Battery_Settings_Of` builds `Battery.Settings` from the stored battery, voltage meter, current
+meter, virtual meter and ESC sensor groups and the current battery profile. `Beeper_Settings_Of`
+builds `Beeper.Settings` from the stored beeper group, each sound's flag from the bit below its code.
+
 The harness builds the four PID profiles and the four rate profiles of every fixed configuration in
 the configuration fix recordings, 16000 of each, and the gyro settings of each with a running gyro
 and motors, 3082, with the preconditions and the predicates checked at run time, and compares the
@@ -4340,9 +4344,9 @@ as in the reference's build with it.
 
 The harness builds the four PID profiles and the four rate profiles of every fixed configuration in
 the configuration fix recordings, 16000 of each, the arming, failsafe, receiver, adjustment, mixer,
-attitude, barometer and compass settings and the mode conditions of each, 4000 of each, and the gyro,
-RC command and accelerometer settings of each with a running gyro and motors, 3082, with the
-preconditions and the predicates checked at run time, and compares one field of each. The analog endpoints replay 235 recorded motor and 3D settings from
+attitude, barometer, compass, battery and beeper settings and the mode conditions of each, 4000 of
+each, and the gyro, RC command and accelerometer settings of each with a running gyro and motors,
+3082, with the preconditions and the predicates checked at run time, and compares one field of each. The analog endpoints replay 235 recorded motor and 3D settings from
 the DShot oracle bit for bit, 70 of them with an inverted range (findings F181).
 
 ## D189. Command line batches (2026-10-14)

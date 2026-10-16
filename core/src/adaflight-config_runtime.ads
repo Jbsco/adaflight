@@ -9,6 +9,8 @@ with Adaflight.Arming;
 with Adaflight.Attitude;
 with Adaflight.Axes; use Adaflight.Axes;
 with Adaflight.Barometer;
+with Adaflight.Battery;
+with Adaflight.Beeper;
 with Adaflight.Compass;
 with Adaflight.Config_Fix;
 with Adaflight.Config_Groups; use Adaflight.Config_Groups;
@@ -126,6 +128,18 @@ package Adaflight.Config_Runtime with SPARK_Mode is
    --  The compass settings from the stored compass and board alignment
    --  groups.
    function Compass_Settings_Of (C : Compass_Config_Record; Board : Board_Alignment_Record) return Compass.Settings;
+
+   --  The battery settings from the stored battery, voltage meter, current
+   --  meter, virtual meter and ESC sensor groups and the current battery
+   --  profile.
+   function Battery_Settings_Of
+     (B : Battery_Config_Record; P : Battery_Profile_Record; V : Voltage_Sensor_Adc_Config_Record;
+      I : Current_Sensor_Adc_Config_Record; Virtual : Current_Sensor_Virtual_Config_Record;
+      ESC : Esc_Sensor_Config_Record) return Battery.Settings;
+
+   --  The beeper settings from the stored beeper group; each sound's flag
+   --  is the bit below its code.
+   function Beeper_Settings_Of (B : Beeper_Config_Record) return Beeper.Settings;
 
 private
 
@@ -437,6 +451,48 @@ private
       Board         => Board_Angles_Of (Board),
       Zero          => (Vectors.X => Integer (C.Mag_Zero (0)), Vectors.Y => Integer (C.Mag_Zero (1)),
                         Vectors.Z => Integer (C.Mag_Zero (2))));
+
+   function Battery_Settings_Of
+     (B : Battery_Config_Record; P : Battery_Profile_Record; V : Voltage_Sensor_Adc_Config_Record;
+      I : Current_Sensor_Adc_Config_Record; Virtual : Current_Sensor_Virtual_Config_Record;
+      ESC : Esc_Sensor_Config_Record) return Battery.Settings is
+     (Voltage_Meter                  =>
+        Battery.Voltage_Source'Val
+          (Code (B.Voltage_Meter_Source, Battery.Voltage_Source'Pos (Battery.Voltage_Source'Last))),
+      Current_Meter                  =>
+        Battery.Current_Source'Val
+          (Code (B.Current_Meter_Source, Battery.Current_Source'Pos (Battery.Current_Source'Last))),
+      Not_Present_Cell_Voltage       => Integer (B.Vbatnotpresentcellvoltage),
+      LVC_Percentage                 => Held (Integer (B.Lvc_Percentage), 0, 100),
+      Voltage_Alerts                 => B.Use_V_Bat_Alerts,
+      Consumption_Alerts             => B.Use_Consumption_Alerts,
+      Hysteresis                     => Integer (B.Vbathysteresis),
+      Display_Filter_Period          => Held (Integer (B.Vbat_Display_Lpf_Period), 1, 255),
+      Current_Filter_Period          => Held (Integer (B.Ibat_Lpf_Period), 1, 255),
+      Duration_For_Warning           => Integer (B.Vbat_Duration_For_Warning),
+      Duration_For_Critical          => Integer (B.Vbat_Duration_For_Critical),
+      Max_Cell_Voltage               => Held (Integer (P.Vbatmaxcellvoltage), 1, 65_535),
+      Min_Cell_Voltage               => Integer (P.Vbatmincellvoltage),
+      Warning_Cell_Voltage           => Integer (P.Vbatwarningcellvoltage),
+      Full_Cell_Voltage              => Integer (P.Vbatfullcellvoltage),
+      Capacity_mAh                   => Integer (P.Battery_Capacity),
+      Force_Cell_Count               => Integer (P.Force_Battery_Cell_Count),
+      Consumption_Warning_Percentage => Held (Integer (P.Consumption_Warning_Percentage), 0, 100),
+      Voltage_Scale                  => Integer (V.Vbatscale),
+      Voltage_Divider                => Held (Integer (V.Vbatresdivval), 1, 255),
+      Voltage_Multiplier             => Held (Integer (V.Vbatresdivmultiplier), 1, 255),
+      Current_Scale                  => Integer (I.Scale),
+      Current_Offset                 => Integer (I.Offset),
+      Virtual_Scale                  => Held (Integer (Virtual.Scale), -16_000, 16_000),
+      Virtual_Offset                 => Held (Integer (Virtual.Offset), 0, 16_000),
+      ESC_Current_Offset             => Held (Integer (ESC.Offset), 0, 16_000));
+
+   function Flags_Of (Mask : Unsigned_32) return Beeper.Mode_Flags;
+
+   function Beeper_Settings_Of (B : Beeper_Config_Record) return Beeper.Settings is
+     (Off_Flags        => Flags_Of (B.Beeper_Off_Flags),
+      Beacon_Off_Flags => Flags_Of (B.Dshot_Beacon_Off_Flags),
+      Beacon_Tone      => Held (Integer (B.Dshot_Beacon_Tone), 1, 5));
 
    function Gyro_Settings_Of
      (G : Gyro_Config_Record; N : Dyn_Notch_Config_Record; R : Rpm_Filter_Config_Record;
