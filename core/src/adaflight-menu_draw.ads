@@ -7,8 +7,10 @@
 --  to the right column, a lookup table's text in the space its label
 --  leaves, the visibility marks of the OSD profiles with the editing
 --  cursor's blink; the slider mark beside an overridden value; and the
---  page arrows after a clear. The display's writes and the hook come in
---  as the instantiation's procedures, with the bytes a string write takes.
+--  page arrows after a clear. The display's writes, the hook and the
+--  refresh of the lines from the target's variables after the hook come
+--  in as the instantiation's procedures, with the bytes a string write
+--  takes.
 with Interfaces;
 with Adaflight.Menu;
 
@@ -20,6 +22,7 @@ generic
      (On : Adaflight.Menu.Display_Index; X : Adaflight.Menu.Column; Y : Adaflight.Menu.Column;
       Attr : Interfaces.Unsigned_8; C : Character);
    with procedure Display_Update (Id : Adaflight.Menu.Menu_Id; Selected : Natural; Chain_Back : out Boolean);
+   with procedure Refresh (Id : Adaflight.Menu.Menu_Id; M : in out Adaflight.Menu.Table);
 package Adaflight.Menu_Draw with SPARK_Mode is
    use type Interfaces.Unsigned_8;
    use type Interfaces.Unsigned_16;
@@ -47,7 +50,7 @@ package Adaflight.Menu_Draw with SPARK_Mode is
    --  display's do. Back_Requested says the hook asked for the way back.
    procedure Draw
      (On             : Adaflight.Menu.Display_Index;
-      M              : Adaflight.Menu.Table;
+      M              : in out Adaflight.Menu.Table;
       Id             : Adaflight.Menu.Menu_Id;
       Has_Update     : Boolean;
       L              : Adaflight.Menu.Layout;
@@ -65,6 +68,7 @@ package Adaflight.Menu_Draw with SPARK_Mode is
        and then L.Right_Column <= L.Left_Column + Adaflight.Menu.Max_Text + 2
        and then Adaflight.Menu.Fixed_In_Range (M),
           Post => P.Page = P.Page'Old and then P.Top = P.Top'Old and then P.Max_Row = P.Max_Row'Old
-       and then Adaflight.Menu.Same_Size (D, D'Old);
+       and then Adaflight.Menu.Same_Size (D, D'Old)
+       and then M.Count = M.Count'Old and then Adaflight.Menu.Fixed_In_Range (M);
 
 end Adaflight.Menu_Draw;

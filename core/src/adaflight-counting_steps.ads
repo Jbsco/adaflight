@@ -11,6 +11,7 @@ package Adaflight.Counting_Steps with SPARK_Mode, Initializes => Calls is
    use type Interfaces.Unsigned_32;
    use type Scheduler.Time_Delta;
    use type Menu.Answer;
+   use type Menu.Table;
 
    Calls : Natural := 0;
 
@@ -83,6 +84,10 @@ package Adaflight.Counting_Steps with SPARK_Mode, Initializes => Calls is
    procedure Step_Act (On : Menu.Display_Index; A : Menu.Action; Arg : Integer)
      with Global => (In_Out => Calls),
           Post   => Calls = Counted (Calls'Old);
+
+   procedure Step_Refresh (Id : Menu.Menu_Id; M : in out Menu.Table)
+     with Global => (In_Out => Calls),
+          Post   => Calls = Counted (Calls'Old) and then M = M'Old;
 
    procedure Step_Set_Value (Id : Menu.Menu_Id; Line : Natural; Value : Interfaces.Integer_32)
      with Global => (In_Out => Calls),

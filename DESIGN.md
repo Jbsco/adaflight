@@ -5512,3 +5512,18 @@ The menu oracle's hooks now change the menu and exit at random inside themselves
 lines get a function of the menu's own. The harness replays the six sequences' 179171 lines, with
 408 changes in enter hooks and 154 changes and 114 exits in functions: every display operation,
 hook call, context, stack frame, display state and page matches the reference's.
+
+## D235. Menu line refresh (2026-10-15)
+
+The reference reads a line's variable each time it draws the line's value or handles a key on it,
+so a value a hook or a function changed shows at the next draw. `Adaflight.Menu_Draw` and
+`Adaflight.Menu_Nav` gain the target's refresh of the current menu's lines: the draw refreshes them
+after the display update hook and before it writes the lines, and the key handler before it reads the
+line under the cursor. A refresh updates the lines' texts, values and value texts, and the proof
+carries the line count and the fixed-point values' range through it. Lines loaded before an enter
+hook show the values the hook set from the next draw on, as the reference's do.
+
+The menu oracle's enter and display update hooks now give a random line's variable a new value
+within its type, and the harness's value store takes it from the hook log. The harness replays the
+six sequences' 179025 lines with 2900 such changes: every display operation, hook call, line value
+and page matches the reference's. Without the refresh, drawn values and edits differ.

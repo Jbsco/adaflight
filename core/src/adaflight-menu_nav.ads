@@ -21,7 +21,9 @@
 --  repeated while held, then the draw, the display's heartbeat every half
 --  second, all within a drawing transaction. The menus come in through
 --  the hook set and loading procedures, the hooks, the value store, the
---  lookup of a table's text and the target's actions as procedures.
+--  refresh of the current menu's lines from the target's variables where
+--  the reference reads them, the lookup of a table's text and the
+--  target's actions as procedures.
 with Interfaces;
 with Adaflight.Menu;
 
@@ -33,6 +35,7 @@ generic
    with procedure On_Display_Update (Id : Adaflight.Menu.Menu_Id; Selected : Natural; Chain_Back : out Boolean);
    with procedure Line_Call (Id : Adaflight.Menu.Menu_Id; Line : Natural; Reply : out Adaflight.Menu.Answer);
    with procedure Set_Value (Id : Adaflight.Menu.Menu_Id; Line : Natural; Value : Interfaces.Integer_32);
+   with procedure Refresh (Id : Adaflight.Menu.Menu_Id; M : in out Adaflight.Menu.Table);
    with function Lookup (Id : Adaflight.Menu.Menu_Id; Line : Natural; Index : Natural)
      return Adaflight.Menu.Label_Text;
    with procedure Act (On : Adaflight.Menu.Display_Index; A : Adaflight.Menu.Action; Arg : Integer);

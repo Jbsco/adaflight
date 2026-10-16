@@ -7,7 +7,7 @@ package body Adaflight.Menu_Nav with SPARK_Mode is
    use type Interfaces.Integer_32;
 
    package Drawing is new Adaflight.Menu_Draw
-     (Write => Write, Write_Char => Write_Char, Display_Update => On_Display_Update);
+     (Write => Write, Write_Char => Write_Char, Display_Update => On_Display_Update, Refresh => Refresh);
 
    procedure Register_Display (S : in out State; D : Adaflight.Menu.Display) is
    begin
@@ -385,6 +385,7 @@ package body Adaflight.Menu_Nav with SPARK_Mode is
       if (Key = Down or else Key = Up) and then not S.Draw.Element_Editing then
          return;
       end if;
+      Refresh (S.Id, S.Table);
       declare
          Index : constant Natural := S.Page.Top + S.Draw.Cursor_Row;
       begin
