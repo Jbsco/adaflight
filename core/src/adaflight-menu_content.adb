@@ -1,4 +1,5 @@
 with Adaflight.Config_Fix;
+with Adaflight.Number_Text;
 with Adaflight.OSD_Elements;
 with Adaflight.Settings_Table;
 with Adaflight.Simplified_Tuning.Stored;
@@ -128,24 +129,8 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       return Label (S (S'First .. Last));
    end C_Text;
 
-   --  A number in decimal, in as many places as it takes and at least the
-   --  width, padded with spaces on the left.
    function Decimal (V : Interfaces.Unsigned_16; Width : Positive) return String
-     with Pre  => Width <= 5,
-          Post => Decimal'Result'Length in Width .. 5
-   is
-      R     : String (1 .. 5) := (others => ' ');
-      N     : Natural := Natural (V);
-      First : Positive range 1 .. 5;
-   begin
-      for K in reverse 1 .. 5 loop
-         R (K) := Character'Val (Character'Pos ('0') + N mod 10);
-         N := N / 10;
-         First := K;
-         exit when N = 0;
-      end loop;
-      return R (Positive'Min (First, 6 - Width) .. 5);
-   end Decimal;
+     renames Adaflight.Number_Text.Decimal;
 
    Pit_Mode_Names : constant array (0 .. 2) of Adaflight.Menu.Label_Text :=
      (Label ("---"), Label ("OFF"), Label ("ON "));
