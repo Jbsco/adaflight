@@ -71,6 +71,14 @@ package Adaflight.CLI_Text with SPARK_Mode is
    function Decimal (V : Integer_64) return String
      with Post => Decimal'Result'Length in 1 .. 21;
 
+   --  A text right-justified in a field, as the C library's %Nd and %Ns
+   --  print it: spaces before it up to the width, or the text alone when it
+   --  is longer.
+   function Right_Justified (Text : String; Width : Natural) return String
+     with Pre  => Text'Length <= 64 and then Width <= 64,
+          Post => Right_Justified'Result'First = 1
+                  and then Right_Justified'Result'Length = Natural'Max (Text'Length, Width);
+
    subtype Port_List is Serial_Feature_Map.Port_List;
 
    --  A serial port's name among the board's ports: NONE for no port, empty

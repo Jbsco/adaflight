@@ -14533,10 +14533,13 @@ procedure Vector_Check is
       Build_Date      => CLI.To_Identity ("Jan 01 2026"),
       Build_Time      => CLI.To_Identity ("00:00:00"),
       Revision        => CLI.To_Identity ("0123abc"),
-      MCU_Id          => (0, 1, 2));
+      MCU_Id          => (0, 1, 2),
+      Now_Us          => 0,
+      Debug_Mode      => 0);
    CLI_Env      : CLI.Environment := CLI_Identity;
    CLI_Board    : CLI.Board_State;
    CLI_Reply    : CLI.Output;
+   CLI_Sched    : Adaflight.Scheduler.State;
    CLI_Expected : Ada.Strings.Unbounded.Unbounded_String;
 
    --  The reference's command line over a sequence of command lines from the
@@ -14585,6 +14588,9 @@ procedure Vector_Check is
             CLI_Board := (others => <>);
             CLI_Reply.Batch_Active := False;
             CLI_Reply.Batch_Error := False;
+            CLI_Reply.Last_Tasks_Us := 0;
+            CLI_Reply.Last_Check_Total_Us := 0;
+            CLI_Sched := (others => <>);
          end if;
          CLI_Reply.Target.Text := Null_Unbounded_String;
          CLI_Expected := Null_Unbounded_String;
@@ -14643,8 +14649,36 @@ procedure Vector_Check is
                   Bearing_Deci  => Interfaces.Integer_32'Value (Word (Command, 5)),
                   ETA_S         => Interfaces.Unsigned_16'Value (Word (Command, 6)),
                   Abort_Reason  => Interfaces.Unsigned_8'Value (Word (Command, 7)));
+            elsif Word (Command, 0) = "!task" then
+               declare
+                  Id : constant Adaflight.Scheduler.Task_Id :=
+                    Adaflight.Scheduler.Task_Id'Val (Natural'Value (Word (Command, 1)));
+                  T  : Adaflight.Scheduler.Task_State renames CLI_Sched.Tasks (Id);
+               begin
+                  T.Max_Exec_Us := Interfaces.Unsigned_32'Value (Word (Command, 3));
+                  T.Total_Exec_Us := Interfaces.Unsigned_32'Value (Word (Command, 4));
+                  T.Moving_Sum_Exec := Interfaces.Unsigned_32'Value (Word (Command, 5));
+                  T.Moving_Sum_Delta := Interfaces.Unsigned_32'Value (Word (Command, 6));
+                  T.Moving_Sum_States_Exec := Interfaces.Unsigned_32'Value (Word (Command, 7));
+                  T.Max_States_Exec_Us := Interfaces.Unsigned_32'Value (Word (Command, 8));
+                  T.Latest_Delta_Us := Interfaces.Integer_32'Value (Word (Command, 9));
+                  Adaflight.Scheduler.Set_Task_Enabled (CLI_Sched, Id, Word (Command, 2) /= "0");
+               end;
+            elsif Word (Command, 0) = "!check" then
+               CLI_Sched.Checks :=
+                 (Max_Exec_Us         => Interfaces.Unsigned_32'Value (Word (Command, 1)),
+                  Total_Exec_Us       => Interfaces.Unsigned_32'Value (Word (Command, 2)),
+                  Moving_Sum_Exec_Us  => Interfaces.Unsigned_32'Value (Word (Command, 3)),
+                  Moving_Sum_Delta_Us => Interfaces.Unsigned_32'Value (Word (Command, 4)));
+            elsif Word (Command, 0) = "!clock" then
+               CLI_Env.Now_Us := Interfaces.Unsigned_32'Value (Word (Command, 1));
+            elsif Word (Command, 0) = "!debug" then
+               CLI_Env.Debug_Mode := Interfaces.Unsigned_8'Value (Word (Command, 1));
+               CLI_Sched.Loop_Start_Cycles := Interfaces.Integer_32'Value (Word (Command, 2));
+               CLI_Sched.Guard_Cycles := Interfaces.Integer_32'Value (Word (Command, 3));
             else
-               CLI.Process_Line (CLI_Reply, CLI_Config, Command, Ports, CLI_Env, CLI_Board, Handled, Changes);
+               CLI.Process_Line
+                 (CLI_Reply, CLI_Config, Command, Ports, CLI_Env, CLI_Board, CLI_Sched, Handled, Changes);
                Record_Int ("cli.handled", 1, Boolean'Pos (Handled));
             end if;
          end;
@@ -19559,6 +19593,7 @@ begin
    Run (Dir & "/clitune.csv", "cliset");
    Run (Dir & "/clidef.csv", "cliset");
    Run (Dir & "/clibatch.csv", "cliset");
+   Run (Dir & "/clitask.csv", "cliset");
    if Settings_Seen /= Adaflight.Settings_Table.Setting'Pos (Adaflight.Settings_Table.Setting'Last) + 1 then
       Put_Line ("settings: the vectors hold" & Settings_Seen'Image & " settings");
       Failures := Failures + 1;

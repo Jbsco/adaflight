@@ -239,6 +239,44 @@ package Adaflight.Scheduler with SPARK_Mode is
    procedure Reset_Task_Max_Execution_Time (S : in out State; Id : Task_Id);
    procedure Reset_Check_Max_Execution_Time (S : in out State);
 
+   --  One task's statistics as the reference reports them: whether it is
+   --  queued, its period and static priority, its latest interval, its peak
+   --  and total execution times in microseconds, its average execution time
+   --  and interval in tenths of a microsecond over the eight samples, and its
+   --  average and peak loads in tenths of a percent, the products wrapping at
+   --  32 bits.
+   type Task_Info is record
+      Enabled            : Boolean;
+      Period             : Period_Us;
+      Priority           : Static_Priority;
+      Latest_Delta_Us    : Time_Delta;
+      Max_Exec_Us        : Unsigned_32;
+      Total_Exec_Us      : Unsigned_32;
+      Average_Exec_10th  : Unsigned_32;
+      Average_Delta_10th : Unsigned_32;
+      Average_Load_10th  : Unsigned_32;
+      Max_Load_10th      : Unsigned_32;
+   end record;
+
+   function Info (S : State; Id : Task_Id) return Task_Info;
+
+   --  The check functions' statistics as the reference reports them: their
+   --  peak and total execution times, and their average execution time and
+   --  interval over the eight samples, in microseconds.
+   type Check_Info is record
+      Max_Exec_Us      : Unsigned_32;
+      Total_Exec_Us    : Unsigned_32;
+      Average_Exec_Us  : Unsigned_32;
+      Average_Delta_Us : Unsigned_32;
+   end record;
+
+   function Check_Functions (S : State) return Check_Info;
+
+   --  The task's name in the reference's table; the system and main tasks
+   --  share one.
+   function Name (Id : Task_Id) return String
+     with Post => Name'Result'Length in 2 .. 18;
+
    --  A task with a state machine names the time its next state will take.
    procedure Set_Next_State_Time (S : in out State; Next_Us : Time_Delta);
 
