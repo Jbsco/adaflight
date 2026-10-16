@@ -12,6 +12,7 @@ with Adaflight.Axes;
 with Adaflight.Maths;
 with Adaflight.Filters;
 with Adaflight.Menu;
+with Adaflight.Menu_Content;
 with Adaflight.Menu_Nav;
 with Adaflight.Rates;
 with Adaflight.PID_Profile;
@@ -19625,6 +19626,209 @@ procedure Vector_Check is
       end if;
    end Check_Menu_Line;
 
+   --  The menu contents: the reference's menus over the configuration on one
+   --  display, with the readings the setup popup takes, the keys pressed and
+   --  the draws after them, the requests to the runtime and the
+   --  configuration's hash after each step.
+   package MCT_Nav is new Adaflight.Menu_Nav
+     (Target_State => Adaflight.Menu_Content.Target, Hooks_Of => Adaflight.Menu_Content.Hooks_Of,
+      Load => Adaflight.Menu_Content.Load, On_Enter => Adaflight.Menu_Content.On_Enter,
+      On_Leave => Adaflight.Menu_Content.On_Leave, On_Display_Update => Adaflight.Menu_Content.On_Display_Update,
+      Line_Call => Adaflight.Menu_Content.Line_Call, Set_Value => Adaflight.Menu_Content.Set_Value,
+      Refresh => Adaflight.Menu_Content.Refresh, Lookup => Adaflight.Menu_Content.Lookup, Act => Menu_Act,
+      Write => Menu_Log_Write, Write_Char => Menu_Log_Char);
+   MCT_Seq   : Integer_64 := -1;
+   MCT_State : MCT_Nav.State;
+   MCT_T     : Adaflight.Menu_Content.Target;
+
+   procedure Check_Menu_Content_Line is
+      use Adaflight.Menu;
+      use type Interfaces.Unsigned_64;
+      Name : constant String := Str (1);
+      K    : Positive := 4;
+      function Next return Integer_64 is
+      begin
+         K := K + 1;
+         return Int (K - 1);
+      end Next;
+      function Keys return MCT_Nav.Key_Settings is
+        ((Start            => Adaflight.Menu_Content.Start_Menu (MCT_T),
+          Background       => Natural (MCT_T.Config.Osd_Config.Cms_Background_Type),
+          Save_Exit        => Adaflight.Menu_Content.Save_Exit,
+          Save_Exit_Reboot => Adaflight.Menu_Content.Save_Exit_Reboot));
+      procedure Begin_Step is
+      begin
+         MN_N_Logged := 0;
+         MCT_T.Asked := (others => <>);
+      end Begin_Step;
+      procedure Read_Ops is
+      begin
+         MN_N_Ops := Natural (Next);
+         for J in 1 .. MN_N_Ops loop
+            MN_Expected (J) :=
+              (Kind => Int (K), Disp => 0, X => Int (K + 1), Y => Int (K + 2), Attr => Int (K + 3),
+               Text => Menu_Text_Of (Hex_String (K + 4)), Cost => Interfaces.Unsigned_32 (Int (K + 5)));
+            K := K + 6;
+         end loop;
+      end Read_Ops;
+      procedure Expect_Ops is
+      begin
+         Record_Int (Name & ".ops", Integer_64 (MN_N_Ops), Integer_64 (MN_N_Logged));
+         for J in 1 .. Natural'Min (MN_N_Ops, MN_N_Logged) loop
+            Record_Int (Name & ".op_kind", MN_Expected (J).Kind, MN_Logged (J).Kind);
+            Record_Int (Name & ".op_x", MN_Expected (J).X, MN_Logged (J).X);
+            Record_Int (Name & ".op_y", MN_Expected (J).Y, MN_Logged (J).Y);
+            Record_Int (Name & ".op_attr", MN_Expected (J).Attr, MN_Logged (J).Attr);
+            Record_Text (Name & ".op_text", MN_Expected (J).Text.Data (1 .. MN_Expected (J).Text.Length),
+                         MN_Logged (J).Text.Data (1 .. MN_Logged (J).Text.Length));
+         end loop;
+         for J in 1 .. MN_N_Logged loop
+            if MN_Logged (J).Kind = 15 then
+               MCT_T.Live.Reboot_Required := True;
+            end if;
+         end loop;
+      end Expect_Ops;
+      procedure Expect_State is
+         Depth, Max_Row : Integer_64;
+         D              : Adaflight.Config_Codec.Data;
+         Hash           : Interfaces.Unsigned_64 := 16#CBF2_9CE4_8422_2325#;
+      begin
+         Record_Int (Name & ".in_menu", Next, Boolean'Pos (MCT_State.In_Menu));
+         Record_Int (Name & ".menu", Next, (if MCT_State.Has_Menu then Integer_64 (MCT_State.Id) else -1));
+         Record_Int (Name & ".page", Next, Integer_64 (MCT_State.Page.Page));
+         Record_Int (Name & ".cursor", Next, Integer_64 (MCT_State.Draw.Cursor_Row));
+         Depth := Next;
+         Record_Int (Name & ".depth", Depth, Integer_64 (MCT_State.Depth));
+         Record_Int (Name & ".save_inhibited", Next, Boolean'Pos (MCT_State.Save_Inhibited));
+         for I in 1 .. Natural (Depth) loop
+            if I <= MCT_State.Depth then
+               Record_Int (Name & ".frame_menu", Int (K), Integer_64 (MCT_State.Stack (I).Id));
+               Record_Int (Name & ".frame_page", Int (K + 1), Integer_64 (MCT_State.Stack (I).Page));
+               Record_Int (Name & ".frame_cursor", Int (K + 2), Integer_64 (MCT_State.Stack (I).Cursor));
+            end if;
+            K := K + 3;
+         end loop;
+         Record_Int (Name & ".display_cursor", Next, Integer_64 (MCT_State.Ports (0).Cursor_Row));
+         Record_Int (Name & ".cleared", Next, Boolean'Pos (MCT_State.Ports (0).Cleared));
+         Record_Int (Name & ".small", Next, Boolean'Pos (MCT_State.Layout.Small_Screen));
+         Record_Int (Name & ".lines", Next, Integer_64 (MCT_State.Layout.Lines_Per_Item));
+         Record_Int (Name & ".left", Next, Integer_64 (MCT_State.Layout.Left_Column));
+         Record_Int (Name & ".right", Next, Integer_64 (MCT_State.Layout.Right_Column));
+         Record_Int (Name & ".max_items", Next, Integer_64 (MCT_State.Layout.Max_Items));
+         Record_Int (Name & ".pages", Next, Integer_64 (MCT_State.Page_Count));
+         Max_Row := Next;
+         Record_Int (Name & ".max_row", Max_Row, Integer_64 (MCT_State.Page.Max_Row));
+         for I in 0 .. Natural (Max_Row) loop
+            if I <= MCT_State.Page.Max_Row then
+               Record_Int (Name & ".flags", Int_Hex (K), Integer_64 (MCT_State.Page.Flags (I)));
+            end if;
+            K := K + 1;
+         end loop;
+         Record_Int (Name & ".mah_restores", Next, Integer_64 (MCT_T.Asked.MAh_Restores));
+         Record_Int (Name & ".mah_restored", Next, Integer_64 (MCT_T.Asked.MAh_Restored));
+         Record_Int (Name & ".pid_inits", Next, Integer_64 (MCT_T.Asked.PID_Config_Inits));
+         Adaflight.Config_Codec.Encode (MCT_T.Config, D);
+         for B of D loop
+            Hash := (Hash xor Interfaces.Unsigned_64 (B)) * 16#100_0000_01B3#;
+         end loop;
+         declare
+            Expected : constant Interfaces.Unsigned_64 := Interfaces.Unsigned_64'Value (Str (K));
+         begin
+            Record_Int (Name & ".hash_low", Integer_64 (Expected mod 2 ** 32), Integer_64 (Hash mod 2 ** 32));
+            Record_Int (Name & ".hash_high", Integer_64 (Expected / 2 ** 32), Integer_64 (Hash / 2 ** 32));
+         end;
+      end Expect_State;
+      procedure Read_Live (F : Positive) is
+      begin
+         MCT_T.Live.Acc_Present := Int (F) = 1;
+         MCT_T.Live.Acc_Calibration_Needed := Int (F + 1) = 1;
+         MCT_T.Live.Acc_Calibration_Complete := Int (F + 2) = 1;
+         MCT_T.Live.Acc_Calibrated := Int (F + 3) = 1;
+         MCT_T.Live.Used_MAh := Int (F + 4) = 1;
+      end Read_Live;
+   begin
+      if Name = "cminit" then
+         if MCT_State.In_Menu and then MCT_State.Has_Menu then
+            MCT_Nav.Exit_Menu (MCT_State, MCT_T, Plain);
+         end if;
+         MCT_Seq := Int (2);
+         MCT_T := (Config => Adaflight.Config_Groups.Defaults, others => <>);
+         Read_Live (7);
+         MCT_T.Config.Stats_Config.Stats_Mah_Used := Interfaces.Unsigned_32 (Int (12));
+         MCT_T.Live.Reboot_Required := Int (13) = 1;
+         MCT_T.Config.Osd_Config.Osd_Use_Quick_Menu := Interfaces.Unsigned_8 (Int (14));
+         MCT_T.Config.System_Config.Pid_Profile_Index := Interfaces.Unsigned_8 (Int (15));
+         MCT_T.Config.System_Config.Active_Rate_Profile := Interfaces.Unsigned_8 (Int (16));
+         MCT_T.Config.System_Config.Active_Battery_Profile := Interfaces.Unsigned_8 (Int (17));
+         for R in 0 .. 3 loop
+            MCT_T.Config.Control_Rate_Profiles (R).Throttle_Limit_Type := Interfaces.Unsigned_8 (Int (18 + 2 * R));
+            MCT_T.Config.Control_Rate_Profiles (R).Throttle_Limit_Percent := Interfaces.Unsigned_8 (Int (19 + 2 * R));
+         end loop;
+         for P in 0 .. 3 loop
+            MCT_T.Config.Pid_Profiles (P).Motor_Output_Limit := Interfaces.Unsigned_8 (Int (26 + P));
+         end loop;
+         for B in 0 .. 2 loop
+            MCT_T.Config.Battery_Profiles (B).Force_Battery_Cell_Count := Interfaces.Unsigned_8 (Int (30 + B));
+         end loop;
+         if Int (3) = 0 then
+            MCT_State := (others => <>);
+            MCT_Nav.Register_Display (MCT_State, (Supports_Symbols => True, others => <>));
+         end if;
+         MCT_State.Ports (0) :=
+           (Columns => Screen_Columns (Int (4)), Rows => Screen_Rows (Int (5)), Full_Screen => Int (6) = 1,
+            Cleared => False, Cursor_Row => -1, Supports_Symbols => True, Grab_Count => 0);
+         declare
+            D        : Adaflight.Config_Codec.Data;
+            Hash     : Interfaces.Unsigned_64 := 16#CBF2_9CE4_8422_2325#;
+            Expected : constant Interfaces.Unsigned_64 := Interfaces.Unsigned_64'Value (Str (33));
+         begin
+            Adaflight.Config_Codec.Encode (MCT_T.Config, D);
+            for B of D loop
+               Hash := (Hash xor Interfaces.Unsigned_64 (B)) * 16#100_0000_01B3#;
+            end loop;
+            Record_Int (Name & ".hash_low", Integer_64 (Expected mod 2 ** 32), Integer_64 (Hash mod 2 ** 32));
+            Record_Int (Name & ".hash_high", Integer_64 (Expected / 2 ** 32), Integer_64 (Hash / 2 ** 32));
+         end;
+      elsif Int (2) /= MCT_Seq then
+         Put_Line ("menu contents line without its start");
+         Failures := Failures + 1;
+      elsif Name = "cmread" then
+         Read_Live (4);
+         MCT_T.Live.Reboot_Required := Int (9) = 1;
+      elsif Name = "cmopen" then
+         Begin_Step;
+         Read_Ops;
+         MCT_Nav.Open (MCT_State, MCT_T, Adaflight.Menu_Content.Start_Menu (MCT_T), Keys.Background);
+         Expect_Ops;
+         Expect_State;
+      elsif Name = "cmkey" then
+         declare
+            Key      : constant Integer_64 := Next;
+            Delay_E  : constant Integer_64 := Next;
+            Delay_Ms : MCT_Nav.Key_Delay;
+         begin
+            Begin_Step;
+            Read_Ops;
+            MCT_Nav.Handle_Key (MCT_State, MCT_T, MCT_Nav.Key_Code'Val (Key), Keys, (others => <>),
+                               MCT_T.Live.Reboot_Required, Delay_Ms);
+            Record_Int (Name & ".delay", Delay_E, Integer_64 (Delay_Ms));
+            Expect_Ops;
+            Expect_State;
+         end;
+      elsif Name = "cmdraw" then
+         declare
+            Now_Ms : constant Interfaces.Unsigned_32 := Interfaces.Unsigned_32 (Next);
+            Room   : constant Interfaces.Unsigned_32 := Interfaces.Unsigned_32 (Next);
+         begin
+            Begin_Step;
+            Read_Ops;
+            MCT_Nav.Draw (MCT_State, MCT_T, (others => <>), Now_Ms * 1000, Now_Ms, Room);
+            Expect_Ops;
+            Expect_State;
+         end;
+      end if;
+   end Check_Menu_Content_Line;
+
    TI_Options : Adaflight.Task_Init.Options;
    TI_Count   : Natural := 0;
    TI_Tasks   : array (1 .. Adaflight.Scheduler.Task_Count) of Adaflight.Scheduler.Task_Id :=
@@ -20358,6 +20562,8 @@ procedure Vector_Check is
                   Check_OSD_Render_3_Line;
                elsif Kind = "osdwp" then
                   Check_OSD_WP_Line;
+               elsif Kind = "menucontent" then
+                  Check_Menu_Content_Line;
                elsif Kind = "osdwarnel" then
                   Check_OSD_Warnings_Element_Line;
                elsif Kind = "osddraw" then
