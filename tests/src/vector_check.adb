@@ -20901,6 +20901,7 @@ begin
    Run (Dir & "/mixinit.csv", "mixinit");
    Run (Dir & "/taskinit.csv", "taskinit");
    Run (Dir & "/menu.csv", "menu");
+   Run (Dir & "/menucontent.csv", "menucontent");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
