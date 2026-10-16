@@ -10,19 +10,22 @@
 --  page arrows after a clear. The display's writes, the hook and the
 --  refresh of the lines from the target's variables after the hook come
 --  in as the instantiation's procedures, with the bytes a string write
---  takes.
+--  takes; the hook and the refresh work on the target's state, which the
+--  draw passes on.
 with Interfaces;
 with Adaflight.Menu;
 
 generic
+   type Target_State is private;
    with procedure Write
      (On : Adaflight.Menu.Display_Index; X : Adaflight.Menu.Column; Y : Adaflight.Menu.Column;
       Attr : Interfaces.Unsigned_8; Text : String; Cost : out Interfaces.Unsigned_32);
    with procedure Write_Char
      (On : Adaflight.Menu.Display_Index; X : Adaflight.Menu.Column; Y : Adaflight.Menu.Column;
       Attr : Interfaces.Unsigned_8; C : Character);
-   with procedure Display_Update (Id : Adaflight.Menu.Menu_Id; Selected : Natural; Chain_Back : out Boolean);
-   with procedure Refresh (Id : Adaflight.Menu.Menu_Id; M : in out Adaflight.Menu.Table);
+   with procedure Display_Update
+     (T : in out Target_State; Id : Adaflight.Menu.Menu_Id; Selected : Natural; Chain_Back : out Boolean);
+   with procedure Refresh (T : Target_State; Id : Adaflight.Menu.Menu_Id; M : in out Adaflight.Menu.Table);
 package Adaflight.Menu_Draw with SPARK_Mode is
    use type Interfaces.Unsigned_8;
    use type Interfaces.Unsigned_16;
@@ -49,7 +52,8 @@ package Adaflight.Menu_Draw with SPARK_Mode is
    --  layout's columns must leave a value's space within a text, as every
    --  display's do. Back_Requested says the hook asked for the way back.
    procedure Draw
-     (On             : Adaflight.Menu.Display_Index;
+     (T              : in out Target_State;
+      On             : Adaflight.Menu.Display_Index;
       M              : in out Adaflight.Menu.Table;
       Id             : Adaflight.Menu.Menu_Id;
       Has_Update     : Boolean;

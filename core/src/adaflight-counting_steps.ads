@@ -49,53 +49,56 @@ package Adaflight.Counting_Steps with SPARK_Mode, Initializes => Calls is
      with Global => (In_Out => Calls),
           Post   => Calls = Counted (Calls'Old);
 
-   --  A menu's hooks by its number, and its lines: one label line.
+   --  A menu's hooks by its number, and its lines: one label line. The
+   --  menus' target state counts the hooks that work on it.
    function Step_Hooks (Id : Menu.Menu_Id) return Menu.Hook_Set is
      (Enter => Id mod 2 = 0, Leave => Id mod 3 = 0, Update => Id mod 5 = 0);
 
-   procedure Step_Load (Id : Menu.Menu_Id; M : out Menu.Table)
+   subtype Menu_Target is Natural;
+
+   procedure Step_Load (T : Menu_Target; Id : Menu.Menu_Id; M : out Menu.Table)
      with Global => (In_Out => Calls),
           Post   => Calls = Counted (Calls'Old) and then M.Count = 1 and then Menu.Fixed_In_Range (M);
 
-   procedure Step_Enter (Id : Menu.Menu_Id; Reply : out Menu.Answer)
-     with Global => (In_Out => Calls),
-          Post   => Calls = Counted (Calls'Old)
-                    and then Reply = (Done       => (if Calls mod 3 = 0 then Menu.Changed else Menu.Nothing),
-                                      Target     => Calls mod Menu.Max_Menus,
+   procedure Step_Enter (T : in out Menu_Target; Id : Menu.Menu_Id; Reply : out Menu.Answer)
+     with Global => null,
+          Post   => T = Counted (T'Old)
+                    and then Reply = (Done       => (if T mod 3 = 0 then Menu.Changed else Menu.Nothing),
+                                      Target     => T mod Menu.Max_Menus,
                                       Kind       => Menu.Plain,
-                                      Chain_Back => Calls mod 2 = 0);
+                                      Chain_Back => T mod 2 = 0);
 
-   procedure Step_Call (Id : Menu.Menu_Id; Line : Natural; Reply : out Menu.Answer)
-     with Global => (In_Out => Calls),
-          Post   => Calls = Counted (Calls'Old)
-                    and then Reply = (Done       => Menu.Effect'Val (Calls mod 3),
-                                      Target     => Calls mod Menu.Max_Menus,
-                                      Kind       => Menu.Exit_Kind'Val (Calls mod 6),
-                                      Chain_Back => Calls mod 2 = 0);
+   procedure Step_Call (T : in out Menu_Target; Id : Menu.Menu_Id; Line : Natural; Reply : out Menu.Answer)
+     with Global => null,
+          Post   => T = Counted (T'Old)
+                    and then Reply = (Done       => Menu.Effect'Val (T mod 3),
+                                      Target     => T mod Menu.Max_Menus,
+                                      Kind       => Menu.Exit_Kind'Val (T mod 6),
+                                      Chain_Back => T mod 2 = 0);
 
-   procedure Step_Leave (Id : Menu.Menu_Id; Self : Integer; Chain_Back : out Boolean)
-     with Global => (In_Out => Calls),
-          Post   => Calls = Counted (Calls'Old) and then Chain_Back = (Calls mod 2 = 0);
+   procedure Step_Leave (T : in out Menu_Target; Id : Menu.Menu_Id; Self : Integer; Chain_Back : out Boolean)
+     with Global => null,
+          Post   => T = Counted (T'Old) and then Chain_Back = (T mod 2 = 0);
 
-   procedure Step_Update (Id : Menu.Menu_Id; Selected : Natural; Chain_Back : out Boolean)
-     with Global => (In_Out => Calls),
-          Post   => Calls = Counted (Calls'Old) and then Chain_Back = (Calls mod 2 = 0);
+   procedure Step_Update (T : in out Menu_Target; Id : Menu.Menu_Id; Selected : Natural; Chain_Back : out Boolean)
+     with Global => null,
+          Post   => T = Counted (T'Old) and then Chain_Back = (T mod 2 = 0);
 
    procedure Step_Act (On : Menu.Display_Index; A : Menu.Action; Arg : Integer)
      with Global => (In_Out => Calls),
           Post   => Calls = Counted (Calls'Old);
 
-   procedure Step_Refresh (Id : Menu.Menu_Id; M : in out Menu.Table)
+   procedure Step_Refresh (T : Menu_Target; Id : Menu.Menu_Id; M : in out Menu.Table)
      with Global => (In_Out => Calls),
           Post   => Calls = Counted (Calls'Old) and then M = M'Old;
 
-   procedure Step_Set_Value (Id : Menu.Menu_Id; Line : Natural; Value : Interfaces.Integer_32)
-     with Global => (In_Out => Calls),
-          Post   => Calls = Counted (Calls'Old);
+   procedure Step_Set_Value (T : in out Menu_Target; Id : Menu.Menu_Id; Line : Natural; Value : Interfaces.Integer_32)
+     with Global => null,
+          Post   => T = Counted (T'Old);
 
    --  A lookup table's text by line and index: blank, as long as its
    --  arguments' sum within the bound.
-   function Step_Lookup (Id : Menu.Menu_Id; Line : Natural; Index : Natural) return Menu.Label_Text is
-     (Data => (others => ' '), Length => (Id + Line mod 64 + Index mod 64) mod (Menu.Max_Text + 1));
+   function Step_Lookup (T : Menu_Target; Id : Menu.Menu_Id; Line : Natural; Index : Natural) return Menu.Label_Text is
+     (Data => (others => ' '), Length => (Id + Line mod 64 + Index mod 64 + T mod 64) mod (Menu.Max_Text + 1));
 
 end Adaflight.Counting_Steps;

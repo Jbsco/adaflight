@@ -7,7 +7,8 @@ package body Adaflight.Menu_Nav with SPARK_Mode is
    use type Interfaces.Integer_32;
 
    package Drawing is new Adaflight.Menu_Draw
-     (Write => Write, Write_Char => Write_Char, Display_Update => On_Display_Update, Refresh => Refresh);
+     (Target_State => Target_State, Write => Write, Write_Char => Write_Char, Display_Update => On_Display_Update,
+      Refresh => Refresh);
 
    procedure Register_Display (S : in out State; D : Adaflight.Menu.Display) is
    begin
@@ -42,16 +43,16 @@ package body Adaflight.Menu_Nav with SPARK_Mode is
    end Page_Select;
 
    --  A leave hook asked with its answer unread, as the exit asks them.
-   procedure Ask_Leave (Id : Adaflight.Menu.Menu_Id; Self : Integer) is
+   procedure Ask_Leave (T : in out Target_State; Id : Adaflight.Menu.Menu_Id; Self : Integer) is
       Ignore : Boolean;
    begin
-      On_Leave (Id, Self, Ignore);
+      On_Leave (T, Id, Self, Ignore);
    end Ask_Leave;
 
    --  The way back: the leave hook may refuse it; else the stacked menu,
    --  if any, is restored, and otherwise the menu, its lines and its page
    --  stay as they were.
-   procedure Way_Back (S : in out State; Restored : out Boolean)
+   procedure Way_Back (S : in out State; T : in out Target_State; Restored : out Boolean)
      with Pre  => S.In_Menu and then Layout_Consistent (S) and then S.Table.Count >= 1
                   and then Adaflight.Menu.Fixed_In_Range (S.Table),
           Post => S.In_Menu and then Layout_Consistent (S) and then S.Layout = S.Layout'Old
@@ -64,7 +65,7 @@ package body Adaflight.Menu_Nav with SPARK_Mode is
    begin
       Restored := False;
       if S.Hooks.Leave then
-         On_Leave (S.Id, S.Page.Top + S.Draw.Cursor_Row, Chain_Back);
+         On_Leave (T, S.Id, S.Page.Top + S.Draw.Cursor_Row, Chain_Back);
          if Chain_Back then
             return;
          end if;
@@ -81,17 +82,17 @@ package body Adaflight.Menu_Nav with SPARK_Mode is
          S.Hooks := F.Hooks;
          S.Has_Menu := True;
          S.Draw.Cursor_Row := F.Cursor;
-         Load (F.Id, S.Table);
+         Load (T, F.Id, S.Table);
          Count_Pages (S);
          Page_Select (S, F.Page);
          Restored := True;
       end;
    end Way_Back;
 
-   procedure Back (S : in out State) is
+   procedure Back (S : in out State; T : in out Target_State) is
       Ignore_Restored : Boolean;
    begin
-      Way_Back (S, Ignore_Restored);
+      Way_Back (S, T, Ignore_Restored);
    end Back;
 
    --  The changes an enter hook can nest, more than the menu stack's limit
@@ -103,7 +104,7 @@ package body Adaflight.Menu_Nav with SPARK_Mode is
    --  A change at a nesting level: an enter hook's change runs inside the
    --  change that asked the hook, as the reference's hook calls it there.
    --  A change that returns at the full stack leaves the page as it was.
-   procedure Change_At (S : in out State; Target : Adaflight.Menu.Menu_Id; Level : Nesting)
+   procedure Change_At (S : in out State; T : in out Target_State; Target : Adaflight.Menu.Menu_Id; Level : Nesting)
      with Pre                => S.In_Menu and then Layout_Consistent (S)
                                and then (if S.Has_Menu
                                          then S.Table.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (S.Table)),
@@ -132,15 +133,15 @@ package body Adaflight.Menu_Nav with SPARK_Mode is
          S.Id := Target;
          S.Hooks := Hooks_Of (Target);
          S.Draw.Cursor_Row := 0;
-         Load (Target, S.Table);
+         Load (T, Target, S.Table);
          S.Has_Menu := True;
          if S.Hooks.Enter then
-            On_Enter (Target, Reply);
+            On_Enter (T, Target, Reply);
             if Reply.Done = Adaflight.Menu.Changed and then Level < Max_Nesting then
-               Change_At (S, Reply.Target, Level + 1);
+               Change_At (S, T, Reply.Target, Level + 1);
             end if;
             if Reply.Chain_Back then
-               Way_Back (S, Restored);
+               Way_Back (S, T, Restored);
                if not Restored then
                   Count_Pages (S);
                   Page_Select (S, 0);
@@ -161,12 +162,12 @@ package body Adaflight.Menu_Nav with SPARK_Mode is
       end if;
    end Change_At;
 
-   procedure Change (S : in out State; Target : Adaflight.Menu.Menu_Id) is
+   procedure Change (S : in out State; T : in out Target_State; Target : Adaflight.Menu.Menu_Id) is
    begin
-      Change_At (S, Target, 0);
+      Change_At (S, T, Target, 0);
    end Change;
 
-   procedure Open (S : in out State; Start : Adaflight.Menu.Menu_Id; Background : Natural) is
+   procedure Open (S : in out State; T : in out Target_State; Start : Adaflight.Menu.Menu_Id; Background : Natural) is
       Start_Menu : Adaflight.Menu.Menu_Id;
    begin
       if not S.In_Menu then
@@ -207,7 +208,7 @@ package body Adaflight.Menu_Nav with SPARK_Mode is
       Grab (S, S.Port);
       S.Layout :=
         Adaflight.Menu.Layout_Of (S.Ports (S.Port).Columns, S.Ports (S.Port).Rows, S.Ports (S.Port).Full_Screen);
-      Change (S, Start_Menu);
+      Change (S, T, Start_Menu);
    end Open;
 
    procedure Select_Page (S : in out State; Number : Adaflight.Menu.Page_Request) is
@@ -215,7 +216,14 @@ package body Adaflight.Menu_Nav with SPARK_Mode is
       Page_Select (S, Number);
    end Select_Page;
 
-   procedure Draw (S : in out State; Sl : Adaflight.Menu.Slider_Settings; Now_Us, Now_Ms, Room : Unsigned_32) is
+   procedure Draw
+     (S      : in out State;
+      T      : in out Target_State;
+      Sl     : Adaflight.Menu.Slider_Settings;
+      Now_Us : Unsigned_32;
+      Now_Ms : Unsigned_32;
+      Room   : Unsigned_32)
+   is
       Back_Requested : Boolean;
    begin
       if not S.In_Menu or else not S.Has_Menu then
@@ -225,11 +233,11 @@ package body Adaflight.Menu_Nav with SPARK_Mode is
          P : constant Adaflight.Menu.Display_Index := S.Port;
       begin
          Drawing.Draw
-           (P, S.Table, S.Id, S.Hooks.Update, S.Layout, S.Page, S.Draw, S.Ports (P), Sl, Now_Us, Now_Ms, Room,
+           (T, P, S.Table, S.Id, S.Hooks.Update, S.Layout, S.Page, S.Draw, S.Ports (P), Sl, Now_Us, Now_Ms, Room,
             Back_Requested);
       end;
       if Back_Requested then
-         Back (S);
+         Back (S, T);
       end if;
    end Draw;
 
@@ -266,6 +274,7 @@ package body Adaflight.Menu_Nav with SPARK_Mode is
 
    procedure Handle_Key
      (S               : in out State;
+      T               : in out Target_State;
       Key             : Key_Code;
       K               : Key_Settings;
       Sl              : Adaflight.Menu.Slider_Settings;
@@ -279,7 +288,7 @@ package body Adaflight.Menu_Nav with SPARK_Mode is
       Reply : Adaflight.Menu.Answer;
 
       --  The menu change or exit a line's function made inside its call.
-      procedure Perform (S : in out State; A : Adaflight.Menu.Answer)
+      procedure Perform (S : in out State; T : in out Target_State; A : Adaflight.Menu.Answer)
         with Pre  => Consistent (S) and then S.Port >= 0,
              Post => Consistent (S) and then S.Port >= 0
       is
@@ -291,9 +300,9 @@ package body Adaflight.Menu_Nav with SPARK_Mode is
             when Adaflight.Menu.Nothing =>
                null;
             when Adaflight.Menu.Changed =>
-               Change (S, A.Target);
+               Change (S, T, A.Target);
             when Adaflight.Menu.Exited =>
-               Exit_Menu (S, A.Kind);
+               Exit_Menu (S, T, A.Kind);
          end case;
       end Perform;
 
@@ -337,7 +346,7 @@ package body Adaflight.Menu_Nav with SPARK_Mode is
          return;
       end if;
       if Key = Menu_Key then
-         Open (S, K.Start, K.Background);
+         Open (S, T, K.Start, K.Background);
          Delay_Ms := Button_Pause;
          return;
       end if;
@@ -345,14 +354,14 @@ package body Adaflight.Menu_Nav with SPARK_Mode is
          if S.Draw.Element_Editing then
             S.Draw.Element_Editing := False;
          else
-            Back (S);
+            Back (S, T);
          end if;
          Delay_Ms := Button_Pause;
          return;
       end if;
       if Key = Save_Menu and then not S.Save_Inhibited then
          S.Draw.Element_Editing := False;
-         Change (S, (if Reboot_Required then K.Save_Exit_Reboot else K.Save_Exit));
+         Change (S, T, (if Reboot_Required then K.Save_Exit_Reboot else K.Save_Exit));
          Delay_Ms := Button_Pause;
          return;
       end if;
@@ -385,7 +394,7 @@ package body Adaflight.Menu_Nav with SPARK_Mode is
       if (Key = Down or else Key = Up) and then not S.Draw.Element_Editing then
          return;
       end if;
-      Refresh (S.Id, S.Table);
+      Refresh (T, S.Id, S.Table);
       declare
          Index : constant Natural := S.Page.Top + S.Draw.Cursor_Row;
       begin
@@ -401,16 +410,16 @@ package body Adaflight.Menu_Nav with SPARK_Mode is
                   when Adaflight.Menu.Submenu =>
                      if Key = Right then
                         if Previous in 0 .. Adaflight.Menu.Max_Menus - 1 then
-                           Change (S, Adaflight.Menu.Menu_Id (Previous));
+                           Change (S, T, Adaflight.Menu.Menu_Id (Previous));
                         end if;
                         Delay_Ms := Button_Pause;
                      end if;
                   when Adaflight.Menu.Funcall =>
                      if Has_Func and then Key = Right then
-                        Line_Call (S.Id, Index, Reply);
-                        Perform (S, Reply);
+                        Line_Call (T, S.Id, Index, Reply);
+                        Perform (S, T, Reply);
                         if Reply.Chain_Back and then S.In_Menu and then S.Has_Menu then
-                           Back (S);
+                           Back (S, T);
                         end if;
                         if Reboot then
                            Act (S.Port, Adaflight.Menu.Set_Reboot_Required, 0);
@@ -419,25 +428,25 @@ package body Adaflight.Menu_Nav with SPARK_Mode is
                      end if;
                   when Adaflight.Menu.OSD_Exit =>
                      if Has_Func and then Key = Right then
-                        Line_Call (S.Id, Index, Reply);
-                        Perform (S, Reply);
+                        Line_Call (T, S.Id, Index, Reply);
+                        Perform (S, T, Reply);
                         Delay_Ms := Button_Pause;
                      end if;
                   when Adaflight.Menu.Back =>
-                     Back (S);
+                     Back (S, T);
                      Delay_Ms := Button_Pause;
                      S.Draw.Element_Editing := False;
                   when Adaflight.Menu.Bool =>
                      if Has_Data then
                         S.Table.Lines (Index).Value := (if Key = Right then 1 else 0);
                         Mark_Print (S);
-                        Set_Value (S.Id, Index, S.Table.Lines (Index).Value);
+                        Set_Value (T, S.Id, Index, S.Table.Lines (Index).Value);
                         if Reboot and then S.Table.Lines (Index).Value /= Previous then
                            Act (S.Port, Adaflight.Menu.Set_Reboot_Required, 0);
                         end if;
                         if Has_Func then
-                           Line_Call (S.Id, Index, Reply);
-                           Perform (S, Reply);
+                           Line_Call (T, S.Id, Index, Reply);
+                           Perform (S, T, Reply);
                         end if;
                      end if;
                   when Adaflight.Menu.Visible =>
@@ -467,7 +476,7 @@ package body Adaflight.Menu_Nav with SPARK_Mode is
                            S.Table.Lines (Index).Value := Interfaces.Integer_32 (Bits);
                         end;
                         Mark_Print (S);
-                        Set_Value (S.Id, Index, S.Table.Lines (Index).Value);
+                        Set_Value (T, S.Id, Index, S.Table.Lines (Index).Value);
                         if Reboot and then S.Table.Lines (Index).Value /= Previous then
                            Act (S.Port, Adaflight.Menu.Set_Reboot_Required, 0);
                         end if;
@@ -490,13 +499,13 @@ package body Adaflight.Menu_Nav with SPARK_Mode is
                               Step_Number (S.Table.Lines (Index), 32, True);
                         end case;
                         Mark_Print (S);
-                        Set_Value (S.Id, Index, S.Table.Lines (Index).Value);
+                        Set_Value (T, S.Id, Index, S.Table.Lines (Index).Value);
                         if Reboot and then S.Table.Lines (Index).Value /= Previous then
                            Act (S.Port, Adaflight.Menu.Set_Reboot_Required, 0);
                         end if;
                         if Has_Func then
-                           Line_Call (S.Id, Index, Reply);
-                           Perform (S, Reply);
+                           Line_Call (T, S.Id, Index, Reply);
+                           Perform (S, T, Reply);
                         end if;
                      end if;
                   when Adaflight.Menu.Tab =>
@@ -509,15 +518,15 @@ package body Adaflight.Menu_Nav with SPARK_Mode is
                      end if;
                      if S.Table.Lines (Index).Value in 0 .. 255 then
                         S.Table.Lines (Index).Value_Text :=
-                          Lookup (S.Id, Index, Natural (S.Table.Lines (Index).Value));
+                          Lookup (T, S.Id, Index, Natural (S.Table.Lines (Index).Value));
                      end if;
-                     Set_Value (S.Id, Index, S.Table.Lines (Index).Value);
+                     Set_Value (T, S.Id, Index, S.Table.Lines (Index).Value);
                      declare
                         Edited : constant Interfaces.Integer_32 := S.Table.Lines (Index).Value;
                      begin
                         if Has_Func then
-                           Line_Call (S.Id, Index, Reply);
-                           Perform (S, Reply);
+                           Line_Call (T, S.Id, Index, Reply);
+                           Perform (S, T, Reply);
                         end if;
                         Mark_Print (S);
                         if Reboot and then Edited /= Previous then
@@ -533,7 +542,7 @@ package body Adaflight.Menu_Nav with SPARK_Mode is
       end;
    end Handle_Key;
 
-   procedure Exit_Menu (S : in out State; Kind : Exit_Kind) is
+   procedure Exit_Menu (S : in out State; T : in out Target_State; Kind : Exit_Kind) is
       use all type Adaflight.Menu.Exit_Kind;
       P           : constant Adaflight.Menu.Display_Index := S.Port;
       Ignore_Cost : Unsigned_32;
@@ -541,12 +550,12 @@ package body Adaflight.Menu_Nav with SPARK_Mode is
       case Kind is
          when Save | Save_Reboot | Popup_Save | Popup_Save_Reboot =>
             if S.Hooks.Leave then
-               Ask_Leave (S.Id, -1);
+               Ask_Leave (T, S.Id, -1);
             end if;
             if Kind in Popup_Save | Popup_Save_Reboot then
                for I in reverse 1 .. S.Depth loop
                   if S.Stack (I).Hooks.Leave then
-                     Ask_Leave (S.Stack (I).Id, -1);
+                     Ask_Leave (T, S.Stack (I).Id, -1);
                   end if;
                end loop;
             end if;
@@ -598,6 +607,7 @@ package body Adaflight.Menu_Nav with SPARK_Mode is
    --  grown once the delay is below the scheduling interval.
    procedure Scan_Keys
      (S               : in out State;
+      T               : in out Target_State;
       K               : Key_Settings;
       Sl              : Adaflight.Menu.Slider_Settings;
       Sticks          : Stick_Inputs;
@@ -611,7 +621,7 @@ package body Adaflight.Menu_Nav with SPARK_Mode is
       Delay_Ms : Key_Delay := 0;
    begin
       if S.Extern_Key /= None then
-         Handle_Key (S, S.Extern_Key, K, Sl, Reboot_Required, Delay_Ms);
+         Handle_Key (S, T, S.Extern_Key, K, Sl, Reboot_Required, Delay_Ms);
          S.Rc_Delay_Ms := Integer (Wrapped (Interfaces.Integer_64 (Delay_Ms), 16, True));
          S.Extern_Key := None;
          return;
@@ -632,7 +642,7 @@ package body Adaflight.Menu_Nav with SPARK_Mode is
       elsif Key /= None then
          for I in 1 .. S.Repeat loop
             pragma Loop_Invariant (Consistent (S));
-            Handle_Key (S, Key, K, Sl, Reboot_Required, Delay_Ms);
+            Handle_Key (S, T, Key, K, Sl, Reboot_Required, Delay_Ms);
          end loop;
          S.Rc_Delay_Ms := Integer (Wrapped (Interfaces.Integer_64 (Delay_Ms), 16, True));
          if (Key = Left or else Key = Right) and then S.Hold_Count > Hold_Repeat_Start then
@@ -656,6 +666,7 @@ package body Adaflight.Menu_Nav with SPARK_Mode is
 
    procedure Update
      (S               : in out State;
+      T               : in out Target_State;
       K               : Key_Settings;
       Sl              : Adaflight.Menu.Slider_Settings;
       Sticks          : Stick_Inputs;
@@ -676,13 +687,13 @@ package body Adaflight.Menu_Nav with SPARK_Mode is
          if Sticks.Throttle > Stick_Low and then Sticks.Throttle < Stick_High and then Sticks.Yaw < Stick_Low
            and then Sticks.Pitch > Stick_High and then not Sticks.Armed and then not Sticks.Stick_Commands_Disabled
          then
-            Open (S, K.Start, K.Background);
+            Open (S, T, K.Start, K.Background);
             S.Rc_Delay_Ms := Button_Pause;
          end if;
       else
          Act (S.Port, Adaflight.Menu.Begin_Transaction, Reset_Drawing);
-         Scan_Keys (S, K, Sl, Sticks, Reboot_Required, Now_Ms);
-         Draw (S, Sl, Now_Us, Millis, Room);
+         Scan_Keys (S, T, K, Sl, Sticks, Reboot_Required, Now_Ms);
+         Draw (S, T, Sl, Now_Us, Millis, Room);
          if S.Port >= 0 then
             if Now_Ms > S.Last_Beat_Ms + Heartbeat_Ms then
                Act (S.Port, Adaflight.Menu.Heartbeat, 0);
