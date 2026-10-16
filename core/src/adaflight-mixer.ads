@@ -55,6 +55,7 @@ package Adaflight.Mixer with SPARK_Mode, Pure is
       Disarm_Output          : Motor_Value := 1000.0;
       Motor_Stop             : Boolean := False;
       Min_Check              : Natural range 1000 .. 2000 := 1050;
+      Launch_Table           : Mix_Table := Quad_X;
    end record
      with Dynamic_Predicate =>
        Config.Output_Low < Config.Output_High and then Config.Disarm_Output <= Config.Output_High;
@@ -70,6 +71,16 @@ package Adaflight.Mixer with SPARK_Mode, Pure is
       Failsafe                  : Boolean := False;
       Max_Deflection            : Unit_Interval := 0.0;
       Speed                     : Float range 0.0 .. 1000.0 := 0.0;
+      --  Launch control mixes pitch-only launches through the launch table,
+      --  holds the throttle at zero and counts as airmode; altitude hold and
+      --  GPS rescue take the autopilot's throttle when it has one; these
+      --  and position hold keep the motors from stopping.
+      Launch_Control_Active     : Boolean := False;
+      GPS_Rescue_Mode           : Boolean := False;
+      Alt_Hold_Mode             : Boolean := False;
+      Pos_Hold_Mode             : Boolean := False;
+      Autopilot_Throttle_Valid  : Boolean := False;
+      Autopilot_Throttle        : Unit_Interval := 0.0;
    end record;
 
    type State is record

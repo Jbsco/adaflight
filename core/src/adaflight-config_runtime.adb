@@ -95,7 +95,8 @@ package body Adaflight.Config_Runtime with SPARK_Mode is
             Output_High            => High,
             Disarm_Output          => Disarm,
             Motor_Stop             => (Features and Config_Fix.Feature_Motor_Stop) /= 0,
-            Min_Check              => Held (Integer (R.Mincheck), 1000, 2000));
+            Min_Check              => Held (Integer (R.Mincheck), 1000, 2000),
+            Launch_Table           => S.Launch);
       end;
    end Mixer_Config_Of;
 
