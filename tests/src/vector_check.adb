@@ -11814,6 +11814,7 @@ procedure Vector_Check is
             Craft : Adaflight.OSD_Render.Craft_Name_Buffer := OD_Craft (51 + OE_Words);
          begin
             OD_Read_Readings (OD_Context);
+            OD_Context.Warn_Inputs.Visual_Beeper := Int (52 + OE_Words) = 1;
             OD_Read_Blink (46, B);
             B.State := Int (46 + OE_Words) = 1;
             if Name = "oddraw" then
@@ -11822,13 +11823,13 @@ procedure Vector_Check is
             else
                Display_Active (OD_Cycle, OD_Active, B, More, O);
             end if;
-            Record_Int (Name & ".ret", Int (52 + OE_Words), Boolean'Pos (More));
-            Record_Int (Name & ".pendingbg", Int (53 + OE_Words), Boolean'Pos (OD_Cycle.Pending_Background));
-            Record_Int (Name & ".pendingfg", Int (54 + OE_Words), Boolean'Pos (OD_Cycle.Pending_Foreground));
-            Record_Int (Name & ".number", Int (55 + OE_Words), Integer_64 (OD_Cycle.Active_Number));
-            OD_Record_Blink (Name, 56 + OE_Words, B);
+            Record_Int (Name & ".ret", Int (53 + OE_Words), Boolean'Pos (More));
+            Record_Int (Name & ".pendingbg", Int (54 + OE_Words), Boolean'Pos (OD_Cycle.Pending_Background));
+            Record_Int (Name & ".pendingfg", Int (55 + OE_Words), Boolean'Pos (OD_Cycle.Pending_Foreground));
+            Record_Int (Name & ".number", Int (56 + OE_Words), Integer_64 (OD_Cycle.Active_Number));
+            OD_Record_Blink (Name, 57 + OE_Words, B);
             declare
-               Expected : constant Adaflight.OSD_Render.Craft_Name_Buffer := OD_Craft (56 + 2 * OE_Words);
+               Expected : constant Adaflight.OSD_Render.Craft_Name_Buffer := OD_Craft (57 + 2 * OE_Words);
                E, A     : Byte_Array (0 .. Craft'Length - 1);
             begin
                for K in E'Range loop
@@ -11837,7 +11838,9 @@ procedure Vector_Check is
                end loop;
                Record_Bytes (Name & ".craft", E, A);
             end;
-            OD_Record_Ops (Name, 57 + 2 * OE_Words, O);
+            Record_Int (Name & ".capread", Int (58 + 2 * OE_Words), Boolean'Pos (O.Reported.Capture_Read));
+            Record_Int (Name & ".beeper", Int (59 + 2 * OE_Words), Boolean'Pos (O.Reported.Beeper_Shown));
+            OD_Record_Ops (Name, 60 + 2 * OE_Words, O);
          end;
       end if;
    end Check_OSD_Draw_Line;

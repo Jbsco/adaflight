@@ -117,7 +117,7 @@ package body Adaflight.OSD_Draw with SPARK_Mode is
       if I = Warnings then
          Adaflight.OSD_Render.Render_Warnings
            (WS, X.Warn_Settings, X.Warn_Inputs, X.Craft_Name_Messages, B.State, Inp, Craft, R, Reported);
-         pragma Unreferenced (Reported);
+         O.Reported := Reported;
       elsif I = Nav_Map then
          Adaflight.OSD_Render.Render_Nav_Map (S, X.Settings, Inp, Cy.Pos_X, Cy.Pos_Y, R);
       else

@@ -56,11 +56,14 @@ package Adaflight.OSD_Task with SPARK_Mode is
       Line : Adaflight.OSD_Format.Text;
    end record;
 
+   --  A call's display operations in order, and the warnings line's
+   --  reports from its draws.
    Max_Ops : constant := 128;
    type Op_Array is array (1 .. Max_Ops) of Op;
    type Ops is record
-      List  : Op_Array;
-      Count : Natural range 0 .. Max_Ops := 0;
+      List     : Op_Array;
+      Count    : Natural range 0 .. Max_Ops := 0;
+      Reported : Adaflight.OSD_Warnings.Reports;
    end record;
 
    subtype Frame_Rate is Unsigned_16 range 1 .. 60;

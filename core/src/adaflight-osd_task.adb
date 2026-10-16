@@ -70,6 +70,9 @@ package body Adaflight.OSD_Task with SPARK_Mode is
             end case;
          end;
       end loop;
+      O.Reported :=
+        (Beeper_Shown => O.Reported.Beeper_Shown or else D.Reported.Beeper_Shown,
+         Capture_Read => O.Reported.Capture_Read or else D.Reported.Capture_Read);
    end Add_Draw_Ops;
 
    function Clocks (O : OSD; C : Context; Clock_Us : Unsigned_32) return Adaflight.OSD_Format.Timer_Clocks is

@@ -5472,3 +5472,18 @@ capture module as source, and script the executor's abort reason and state, the 
 the capture message per step, with three precedence levels for the new cues. The harness replays
 12000 line renders and 3000 element renders: every text byte, blink, severity and report matches the
 reference's, and so does the capture message's validity after the target's read.
+
+## D233. OSD warnings reports through the draw cycle (2026-10-15)
+
+`Adaflight.OSD_Draw` passes the warnings line's reports on with the call's display operations, and
+`Adaflight.OSD_Task` merges them into its call's operations. The target then clears the visual
+beeper the line showed and reads the waypoint capture message when the line read it (D232). Before
+this change the draw cycle dropped the reports, which left the target no signal to clear the visual
+beeper.
+
+The draw oracle now enables the visual beeper warning, turns the beeper on at random before a draw,
+and records per call the capture message reads and whether the line cleared the beeper. The harness
+replays the 3612 calls of the six sequences: every return, flag, blink bit, craft name byte, report
+and display operation matches the reference's, with 25 draws that render the warnings line, 19 of
+them clearing the beeper. The task oracle does not draw the warnings element, so the task's merge
+rests on the draw vectors' reports and its proof.
