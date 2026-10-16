@@ -4,6 +4,8 @@ package body Adaflight.Menu_Nav with SPARK_Mode is
    use type Adaflight.Menu.Table;
    use type Adaflight.Menu.Page_State;
    use type Adaflight.Menu.Layout;
+   use type Adaflight.Menu.Hook_Set;
+   use type Adaflight.Menu.Context;
    use type Interfaces.Integer_32;
 
    package Drawing is new Adaflight.Menu_Draw
@@ -30,6 +32,46 @@ package body Adaflight.Menu_Nav with SPARK_Mode is
       Act (On, Adaflight.Menu.Grab, 0);
       Clear (S, On);
    end Grab;
+
+   --  The display operations a hook made, in order, then its save menu
+   --  inhibition.
+   procedure Show (S : in out State; A : Adaflight.Menu.Answer)
+     with Pre  => S.Port >= 0 and then S.Port < S.Port_Count,
+          Post => S.In_Menu = S.In_Menu'Old and then S.Has_Menu = S.Has_Menu'Old and then S.Port = S.Port'Old
+                  and then S.Port_Count = S.Port_Count'Old and then S.Table = S.Table'Old
+                  and then S.Layout = S.Layout'Old and then S.Page = S.Page'Old
+                  and then S.Page_Count = S.Page_Count'Old and then S.Id = S.Id'Old and then S.Hooks = S.Hooks'Old
+                  and then S.Depth = S.Depth'Old and then S.Stack = S.Stack'Old and then S.Draw = S.Draw'Old
+                  and then (for all I in Adaflight.Menu.Display_Index =>
+                              Adaflight.Menu.Same_Size (S.Ports (I), S.Ports'Old (I)))
+   is
+      Ignore_Cost : Unsigned_32;
+   begin
+      for K in 1 .. A.Screens loop
+         pragma Loop_Invariant
+           (S.In_Menu = S.In_Menu'Loop_Entry and then S.Has_Menu = S.Has_Menu'Loop_Entry
+            and then S.Port = S.Port'Loop_Entry and then S.Port_Count = S.Port_Count'Loop_Entry
+            and then S.Table = S.Table'Loop_Entry and then S.Layout = S.Layout'Loop_Entry
+            and then S.Page = S.Page'Loop_Entry and then S.Page_Count = S.Page_Count'Loop_Entry
+            and then S.Id = S.Id'Loop_Entry and then S.Hooks = S.Hooks'Loop_Entry
+            and then S.Depth = S.Depth'Loop_Entry and then S.Stack = S.Stack'Loop_Entry
+            and then S.Draw = S.Draw'Loop_Entry
+            and then (for all I in Adaflight.Menu.Display_Index =>
+                        Adaflight.Menu.Same_Size (S.Ports (I), S.Ports'Loop_Entry (I))));
+         case A.Screen (K).Kind is
+            when Adaflight.Menu.Clear_Wait =>
+               Clear (S, S.Port);
+            when Adaflight.Menu.Write_Text =>
+               Write (S.Port, A.Screen (K).X, A.Screen (K).Y, A.Screen (K).Attr,
+                      A.Screen (K).Text (1 .. A.Screen (K).Length), Ignore_Cost);
+            when Adaflight.Menu.Redraw =>
+               Act (S.Port, Adaflight.Menu.Redraw, 0);
+         end case;
+      end loop;
+      if A.Inhibit_Save then
+         S.Save_Inhibited := True;
+      end if;
+   end Show;
 
    procedure Count_Pages (S : in out State) is
    begin
@@ -137,6 +179,7 @@ package body Adaflight.Menu_Nav with SPARK_Mode is
          S.Has_Menu := True;
          if S.Hooks.Enter then
             On_Enter (T, Target, Reply);
+            Show (S, Reply);
             if Reply.Done = Adaflight.Menu.Changed and then Level < Max_Nesting then
                Change_At (S, T, Reply.Target, Level + 1);
             end if;
@@ -296,6 +339,7 @@ package body Adaflight.Menu_Nav with SPARK_Mode is
          if not S.In_Menu or else not S.Has_Menu then
             return;
          end if;
+         Show (S, A);
          case A.Done is
             when Adaflight.Menu.Nothing =>
                null;
