@@ -8,7 +8,11 @@
 --  one of the setting's names, an array with exactly its elements, each
 --  within its type. A value that does not parse is an error that writes
 --  nothing. One that does is written, and the reply is the setting's text,
---  empty where the new value has none.
+--  empty where the new value has none. The setting information message
+--  names a setting up to a zero byte, with a 16-bit offset after it, and the
+--  reply is the length of the setting's description, then the description
+--  from the offset: its parameter group, its type with its range, values or
+--  lengths, and its default.
 with Interfaces;
 with Adaflight.Bytes; use Adaflight.Bytes;
 with Adaflight.CLI_Text;
@@ -20,8 +24,11 @@ package Adaflight.MSP_CLI_Setting with SPARK_Mode is
    use type Interfaces.Unsigned_16;
 
    Setting_Command : constant := 16#3010#;
+   Info_Command    : constant := 16#3011#;
 
    function Handles (Command : Interfaces.Unsigned_16) return Boolean is (Command = Setting_Command);
+
+   function Handles_Info (Command : Interfaces.Unsigned_16) return Boolean is (Command = Info_Command);
 
    type Result is (Ack, Error);
 
@@ -49,5 +56,23 @@ package Adaflight.MSP_CLI_Setting with SPARK_Mode is
      with Pre  => Request'Length <= Max_Request and then Ports'Length <= Serial_Feature_Map.Max_Ports
                   and then Valid_Profiles (C),
           Post => (if R = Error then Reply.Length = 0);
+
+   --  The information reply: the description's length, then its bytes from
+   --  the offset; the longest description, the debug mode's, fits.
+   Max_Info : constant := 2048;
+   subtype Info_Length is Natural range 0 .. Max_Info;
+
+   type Info_Reply is record
+      Length : Info_Length := 0;
+      Data   : Byte_Array (0 .. Max_Info - 1) := (others => 0);
+   end record;
+
+   --  An empty request or one of more than 128 bytes is an error without a
+   --  reply, and one naming no setting an error whose reply is a zero length.
+   procedure Setting_Info
+     (C : Configuration; Request : Byte_Array; Ports : Port_List; R : out Result; Reply : out Info_Reply)
+     with Pre  => Request'Length <= Max_Request and then Ports'Length <= Serial_Feature_Map.Max_Ports
+                  and then Valid_Profiles (C),
+          Post => (if R = Error then Reply.Length <= 2);
 
 end Adaflight.MSP_CLI_Setting;

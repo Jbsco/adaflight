@@ -2,6 +2,7 @@
 --  result bit for bit. Each CSV line names a case and gives its inputs and
 --  the expected outputs; floats are binary32 bit patterns in hex.
 
+with Ada.Characters.Handling;
 with Ada.Command_Line;
 with Ada.Containers.Indefinite_Ordered_Maps;
 with Ada.Strings.Fixed;
@@ -15080,6 +15081,9 @@ procedure Vector_Check is
    MSP_Board_Effects   : Adaflight.MSP_Board_In.Effects;
    MSP_Motor_Effects   : Adaflight.MSP_Motor_In.Effects;
    MSP_Setting_Reply   : Adaflight.MSP_CLI_Setting.Reply_Text;
+   MSP_Info_Reply      : Adaflight.MSP_CLI_Setting.Info_Reply;
+   MSP_Info_Ran        : Boolean := False;
+   MSP_Info_Stats      : Boolean := False;
    MSP_Motor_Kind      : Adaflight.MSP_Motor_In.Device_Kind := Adaflight.MSP_Motor_In.No_Device;
    MSP_Motors          : Adaflight.MSP_Motor_In.Motor_Count := 0;
    MSP_Three_D         : Boolean := False;
@@ -15319,6 +15323,8 @@ procedure Vector_Check is
                   MSP_Board_Effects := Adaflight.MSP_Board_In.No_Effects;
                   MSP_Motor_Effects := Adaflight.MSP_Motor_In.No_Effects;
                   MSP_Setting_Reply := (Length => 0, Text => (others => ' '));
+                  MSP_Info_Reply := (Length => 0, Data => (others => 0));
+                  MSP_Info_Ran := False;
                   MSP_Font_Effects := Adaflight.MSP_Font_In.No_Effects;
                   if Adaflight.MSP_Tuning_In.Handles (Cmd) then
                      Adaflight.MSP_Tuning_In.Process
@@ -15358,6 +15364,28 @@ procedure Vector_Check is
                         MSP_In_Result :=
                           (if Setting_Result = Adaflight.MSP_CLI_Setting.Ack then Adaflight.MSP_Tuning_In.Ack
                            else Adaflight.MSP_Tuning_In.Error);
+                        MSP_In_Ran := True;
+                     end;
+                  elsif Adaflight.MSP_CLI_Setting.Handles_Info (Cmd) then
+                     declare
+                        use type Adaflight.MSP_CLI_Setting.Result;
+                        Info_Result : Adaflight.MSP_CLI_Setting.Result;
+                     begin
+                        Adaflight.MSP_CLI_Setting.Setting_Info
+                          (CLI_Config, Request, Ports, Info_Result, MSP_Info_Reply);
+                        declare
+                           Name : Unbounded_String;
+                        begin
+                           for B of Request loop
+                              exit when Integer (B) = 0;
+                              Append (Name, Character'Val (B));
+                           end loop;
+                           MSP_Info_Stats := Ada.Characters.Handling.To_Lower (To_String (Name)) = "osd_stat_bitmask";
+                        end;
+                        MSP_In_Result :=
+                          (if Info_Result = Adaflight.MSP_CLI_Setting.Ack then Adaflight.MSP_Tuning_In.Ack
+                           else Adaflight.MSP_Tuning_In.Error);
+                        MSP_Info_Ran := True;
                         MSP_In_Ran := True;
                      end;
                   elsif Adaflight.MSP_Board_In.Handles (Cmd) then
@@ -15674,13 +15702,46 @@ procedure Vector_Check is
          declare
             Hex      : constant String := Str (3);
             Expected : constant Natural := (if Hex = "-" then 0 else Hex'Length / 2);
+            function Byte_At (K : Positive) return Integer_64 is
+              (Integer_64'Value ("16#" & Hex (Hex'First + 2 * (K - 1) .. Hex'First + 2 * K - 1) & "#"));
          begin
-            Record_Int ("msp.setting_length", Integer_64 (Expected), Integer_64 (MSP_Setting_Reply.Length));
-            for K in 1 .. Natural'Min (Expected, MSP_Setting_Reply.Length) loop
-               Record_Int ("msp.setting_text",
-                           Integer_64'Value ("16#" & Hex (Hex'First + 2 * (K - 1) .. Hex'First + 2 * K - 1) & "#"),
-                           Integer_64 (Character'Pos (MSP_Setting_Reply.Text (K))));
-            end loop;
+            if MSP_Info_Ran and then MSP_Info_Stats then
+               --  Declared deviation (DESIGN.md D6): the reference reads the stats
+               --  bitmask's default as zero, its reset setting the stats on the live
+               --  configuration (F223); adaflight replies the stored default.
+               declare
+                  LF        : constant Character := ASCII.LF;
+                  Head      : constant String := "pgn=501" & LF & "type=uint32" & LF & "min=0" & LF & "max=4294967295"
+                                                 & LF & "default=";
+                  Reference : constant String := Head & "0";
+                  Own       : constant String := Head & "1879062316";
+                  Matches   : Boolean := MSP_Info_Reply.Length = Own'Length + 2
+                                         and then Integer (MSP_Info_Reply.Data (0)) = Own'Length
+                                         and then Integer (MSP_Info_Reply.Data (1)) = 0;
+                  Recorded  : Boolean := Expected = Reference'Length + 2 and then Byte_At (1) = Reference'Length
+                                         and then Byte_At (2) = 0;
+               begin
+                  for K in Own'Range loop
+                     exit when not Matches;
+                     Matches := Character'Val (MSP_Info_Reply.Data (K - Own'First + 2)) = Own (K);
+                  end loop;
+                  for K in Reference'Range loop
+                     exit when not Recorded;
+                     Recorded := Byte_At (K - Reference'First + 3) = Character'Pos (Reference (K));
+                  end loop;
+                  Record_Int ("msp.setting_info.stats_default", Boolean'Pos (Recorded), Boolean'Pos (Matches));
+               end;
+            elsif MSP_Info_Ran then
+               Record_Int ("msp.setting_info_length", Integer_64 (Expected), Integer_64 (MSP_Info_Reply.Length));
+               for K in 1 .. Natural'Min (Expected, MSP_Info_Reply.Length) loop
+                  Record_Int ("msp.setting_info_byte", Byte_At (K), Integer_64 (MSP_Info_Reply.Data (K - 1)));
+               end loop;
+            else
+               Record_Int ("msp.setting_length", Integer_64 (Expected), Integer_64 (MSP_Setting_Reply.Length));
+               for K in 1 .. Natural'Min (Expected, MSP_Setting_Reply.Length) loop
+                  Record_Int ("msp.setting_text", Byte_At (K), Integer_64 (Character'Pos (MSP_Setting_Reply.Text (K))));
+               end loop;
+            end if;
          end;
       elsif Str (1) = "clmd" then
          for M in Adaflight.MSP_Motor_In.Motor_Values'Range loop
@@ -21600,6 +21661,7 @@ begin
    Run (Dir & "/climotor.csv", "cliset");
    Run (Dir & "/clisensor.csv", "cliset");
    Run (Dir & "/mspclisetting.csv", "cliset");
+   Run (Dir & "/mspclisettinginfo.csv", "cliset");
    Run (Dir & "/clisave.csv", "cliset");
    if Settings_Seen /= Adaflight.Settings_Table.Setting'Pos (Adaflight.Settings_Table.Setting'Last) + 1 then
       Put_Line ("settings: the vectors hold" & Settings_Seen'Image & " settings");

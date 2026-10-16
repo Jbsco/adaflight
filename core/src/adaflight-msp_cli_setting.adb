@@ -443,4 +443,160 @@ package body Adaflight.MSP_CLI_Setting with SPARK_Mode is
       R := Ack;
    end Process;
 
+   --  A setting's description, as much of it as fits.
+   type Description is record
+      Length : Info_Length := 0;
+      Text   : String (1 .. Max_Info) := (others => ' ');
+   end record;
+
+   procedure Add (D : in out Description; Text : String)
+     with Global => null
+   is
+   begin
+      for Ch of Text loop
+         exit when D.Length = Max_Info;
+         D.Length := D.Length + 1;
+         D.Text (D.Length) := Ch;
+      end loop;
+   end Add;
+
+   --  The description: the parameter group, the type with its range, its
+   --  values or its lengths, each on a line, then the default without a line
+   --  end, at most 255 characters of it.
+   procedure Describe_Setting (C : Configuration; S : Setting; Ports : Port_List; D : out Description)
+     with Global => null,
+          Pre    => Ports'Length <= Serial_Feature_Map.Max_Ports and then Valid_Profiles (C)
+   is
+      I            : constant Info := Describe (S);
+      LF           : constant String := (1 => ASCII.LF);
+      Default      : Reply_Text := No_Reply;
+      Ignore_Named : Boolean;
+
+      procedure Add_Range (Type_Name : String; Min, Max : Integer_64)
+        with Global => (In_Out => D)
+      is
+      begin
+         Add (D, "type=");
+         Add (D, Type_Name);
+         Add (D, LF & "min=");
+         Add (D, CLI_Text.Decimal (Min));
+         Add (D, LF & "max=");
+         Add (D, CLI_Text.Decimal (Max));
+         Add (D, LF);
+      end Add_Range;
+   begin
+      D := (Length => 0, Text => (others => ' '));
+      Add (D, "pgn=");
+      Add (D, CLI_Text.Decimal (Integer_64 (I.Group)));
+      Add (D, LF);
+      case I.How is
+         when Direct =>
+            case I.Kind is
+               when U32 =>
+                  Add_Range ("uint32", 0, I.Max);
+               when I32 =>
+                  Add_Range ("int32", -I.Max, I.Max);
+               when U8 =>
+                  Add_Range ("uint8", I.Min, I.Max);
+               when I8 =>
+                  Add_Range ("int8", I.Min, I.Max);
+               when U16 =>
+                  Add_Range ("uint16", I.Min, I.Max);
+               when I16 =>
+                  Add_Range ("int16", I.Min, I.Max);
+            end case;
+         when Lookup =>
+            Add (D, "type=lookup" & LF & "values=");
+            declare
+               First : Boolean := True;
+            begin
+               for K in 0 .. Value_Count (I.Table) - 1 loop
+                  pragma Loop_Invariant (K in 0 .. Value_Count (I.Table) - 1);
+                  if Value_Name (I.Table, K)'Length > 0 then
+                     if not First then
+                        Add (D, ",");
+                     end if;
+                     Add (D, Value_Name (I.Table, K));
+                     First := False;
+                  end if;
+               end loop;
+            end;
+            Add (D, LF);
+         when Identifier =>
+            Add (D, "type=lookup" & LF & "values=NONE");
+            for K in Ports'Range loop
+               Add (D, ",");
+               Add (D, CLI_Text.Port_Name (Integer_64 (Ports (K)), Ports));
+            end loop;
+            Add (D, LF);
+         when Bitset =>
+            Add (D, "type=bitset" & LF & "values=OFF,ON" & LF);
+         when List =>
+            Add (D, "type=");
+            Add (D, (case I.Kind is
+                        when U8 => "uint8[]", when I8 => "int8[]", when U16 => "uint16[]", when I16 => "int16[]",
+                        when U32 => "uint32[]", when I32 => "int32[]"));
+            Add (D, LF & "length=");
+            Add (D, CLI_Text.Decimal (Integer_64 (Element_Count (S))));
+            Add (D, LF);
+         when Text =>
+            Add (D, "type=string" & LF & "minlength=");
+            Add (D, CLI_Text.Decimal (Integer_64 (I.Min_Length)));
+            Add (D, LF & "maxlength=");
+            Add (D, CLI_Text.Decimal (Integer_64 (I.Count)));
+            Add (D, LF);
+      end case;
+      Add (D, "default=");
+      Append_Value (Default, Config_Groups.Defaults, S, Profile_Of (C, S), Ports, Ignore_Named);
+      Add (D, Default.Text (1 .. Natural'Min (Default.Length, 255)));
+   end Describe_Setting;
+
+   ------------------
+   -- Setting_Info --
+   ------------------
+
+   procedure Setting_Info
+     (C : Configuration; Request : Byte_Array; Ports : Port_List; R : out Result; Reply : out Info_Reply)
+   is
+      Max_Info_Request : constant := 128;
+      Name             : String (1 .. Max_Info_Request) := (others => ' ');
+      Length           : Natural := 0;
+      Offset           : Natural := 0;
+      Found            : Boolean;
+      S                : Setting;
+      D                : Description;
+   begin
+      Reply := (Length => 0, Data => (others => 0));
+      R := Error;
+      if Request'Length = 0 or else Request'Length > Max_Info_Request then
+         return;
+      end if;
+      for K in Request'Range loop
+         exit when Request (K) = 0;
+         pragma Loop_Invariant (Length = K - Request'First);
+         Length := Length + 1;
+         Name (Length) := Character'Val (Request (K));
+      end loop;
+      if Request'Length - Length - 1 >= 2 then
+         Offset :=
+           Natural (Request (Request'First + Length + 1)) + 256 * Natural (Request (Request'First + Length + 2));
+      end if;
+      Reply.Length := 2;
+      Find (Name (1 .. Length), Found, S);
+      if not Found then
+         return;
+      end if;
+      Describe_Setting (C, S, Ports, D);
+      Reply.Data (0) := Byte (D.Length mod 256);
+      Reply.Data (1) := Byte (D.Length / 256);
+      for K in 1 .. D.Length loop
+         pragma Loop_Invariant (Reply.Length in 2 .. Max_Info);
+         if K > Offset and then Reply.Length < Max_Info then
+            Reply.Data (Reply.Length) := Byte (Character'Pos (D.Text (K)));
+            Reply.Length := Reply.Length + 1;
+         end if;
+      end loop;
+      R := Ack;
+   end Setting_Info;
+
 end Adaflight.MSP_CLI_Setting;
