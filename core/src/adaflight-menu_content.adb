@@ -1492,18 +1492,16 @@ package body Adaflight.Menu_Content with SPARK_Mode is
    procedure Leave_PID_Menu (T : in out Target)
      with Global => null
    is
+      Current : constant Natural := Current_PID (T);
+      P       : Adaflight.Config_Groups.Pid_Profile_Record := T.Config.Pid_Profiles (Current);
    begin
-      declare
-         Current : constant Natural :=
-           Natural (Interfaces.Unsigned_8'Min (T.Config.System_Config.Pid_Profile_Index, PID_Profile_Count - 1));
-      begin
-         for A in Feedforward_Table'Range loop
-            T.Config.Pid_Profiles (Current).Pid (A).P := T.PID.Gains (A, 0);
-            T.Config.Pid_Profiles (Current).Pid (A).I := T.PID.Gains (A, 1);
-            T.Config.Pid_Profiles (Current).Pid (A).D := T.PID.Gains (A, 2);
-            T.Config.Pid_Profiles (Current).Pid (A).F := T.PID.Feedforward (A);
-         end loop;
-      end;
+      for A in Feedforward_Table'Range loop
+         P.Pid (A).P := T.PID.Gains (A, 0);
+         P.Pid (A).I := T.PID.Gains (A, 1);
+         P.Pid (A).D := T.PID.Gains (A, 2);
+         P.Pid (A).F := T.PID.Feedforward (A);
+      end loop;
+      T.Config.Pid_Profiles (Current) := P;
       if T.Asked.PID_Config_Inits < Natural'Last then
          T.Asked.PID_Config_Inits := T.Asked.PID_Config_Inits + 1;
       end if;
@@ -1520,84 +1518,83 @@ package body Adaflight.Menu_Content with SPARK_Mode is
    procedure Leave_Simplified_Menu (T : in out Target)
      with Global => null
    is
+      C       : constant Natural := Current_PID (T);
+      S       : constant Simplified_Copies := T.Simplified;
+      P       : Adaflight.Config_Groups.Pid_Profile_Record := T.Config.Pid_Profiles (C);
+      G       : Adaflight.Config_Groups.Gyro_Config_Record := T.Config.Gyro_Config;
+      Changed : constant Boolean :=
+        P.Simplified_Pids_Mode /= S.Mode or else P.Simplified_Master_Multiplier /= S.Master
+        or else P.Simplified_Roll_Pitch_Ratio /= S.Roll_Pitch_Ratio or else P.Simplified_I_Gain /= S.I_Gain
+        or else P.Simplified_D_Gain /= S.D_Gain or else P.Simplified_Pi_Gain /= S.PI_Gain
+        or else P.Simplified_D_Max_Gain /= S.D_Max_Gain or else P.Simplified_Feedforward_Gain /= S.FF_Gain
+        or else P.Simplified_Pitch_Pi_Gain /= S.Pitch_PI_Gain or else P.Simplified_Dterm_Filter /= S.DTerm_Filter
+        or else P.Simplified_Dterm_Filter_Multiplier /= S.DTerm_Multiplier
+        or else G.Simplified_Gyro_Filter /= S.Gyro_Filter
+        or else G.Simplified_Gyro_Filter_Multiplier /= S.Gyro_Multiplier;
    begin
-      declare
-         C       : constant Natural := Current_PID (T);
-         S       : constant Simplified_Copies := T.Simplified;
-         P       : constant Adaflight.Config_Groups.Pid_Profile_Record := T.Config.Pid_Profiles (C);
-         Changed : constant Boolean :=
-           P.Simplified_Pids_Mode /= S.Mode or else P.Simplified_Master_Multiplier /= S.Master
-           or else P.Simplified_Roll_Pitch_Ratio /= S.Roll_Pitch_Ratio or else P.Simplified_I_Gain /= S.I_Gain
-           or else P.Simplified_D_Gain /= S.D_Gain or else P.Simplified_Pi_Gain /= S.PI_Gain
-           or else P.Simplified_D_Max_Gain /= S.D_Max_Gain or else P.Simplified_Feedforward_Gain /= S.FF_Gain
-           or else P.Simplified_Pitch_Pi_Gain /= S.Pitch_PI_Gain or else P.Simplified_Dterm_Filter /= S.DTerm_Filter
-           or else P.Simplified_Dterm_Filter_Multiplier /= S.DTerm_Multiplier
-           or else T.Config.Gyro_Config.Simplified_Gyro_Filter /= S.Gyro_Filter
-           or else T.Config.Gyro_Config.Simplified_Gyro_Filter_Multiplier /= S.Gyro_Multiplier;
-      begin
-         if Changed then
-            T.Config.Pid_Profiles (C).Simplified_Pids_Mode := S.Mode;
-            T.Config.Pid_Profiles (C).Simplified_Master_Multiplier := S.Master;
-            T.Config.Pid_Profiles (C).Simplified_Roll_Pitch_Ratio := S.Roll_Pitch_Ratio;
-            T.Config.Pid_Profiles (C).Simplified_I_Gain := S.I_Gain;
-            T.Config.Pid_Profiles (C).Simplified_D_Gain := S.D_Gain;
-            T.Config.Pid_Profiles (C).Simplified_Pi_Gain := S.PI_Gain;
-            T.Config.Pid_Profiles (C).Simplified_D_Max_Gain := S.D_Max_Gain;
-            T.Config.Pid_Profiles (C).Simplified_Feedforward_Gain := S.FF_Gain;
-            T.Config.Pid_Profiles (C).Simplified_Pitch_Pi_Gain := S.Pitch_PI_Gain;
-            T.Config.Pid_Profiles (C).Simplified_Dterm_Filter := S.DTerm_Filter;
-            T.Config.Pid_Profiles (C).Simplified_Dterm_Filter_Multiplier := S.DTerm_Multiplier;
-            T.Config.Gyro_Config.Simplified_Gyro_Filter := S.Gyro_Filter;
-            T.Config.Gyro_Config.Simplified_Gyro_Filter_Multiplier := S.Gyro_Multiplier;
-            Adaflight.Simplified_Tuning.Stored.Apply (T.Config.Pid_Profiles (C), T.Config.Gyro_Config);
-         end if;
-      end;
+      if Changed then
+         P.Simplified_Pids_Mode := S.Mode;
+         P.Simplified_Master_Multiplier := S.Master;
+         P.Simplified_Roll_Pitch_Ratio := S.Roll_Pitch_Ratio;
+         P.Simplified_I_Gain := S.I_Gain;
+         P.Simplified_D_Gain := S.D_Gain;
+         P.Simplified_Pi_Gain := S.PI_Gain;
+         P.Simplified_D_Max_Gain := S.D_Max_Gain;
+         P.Simplified_Feedforward_Gain := S.FF_Gain;
+         P.Simplified_Pitch_Pi_Gain := S.Pitch_PI_Gain;
+         P.Simplified_Dterm_Filter := S.DTerm_Filter;
+         P.Simplified_Dterm_Filter_Multiplier := S.DTerm_Multiplier;
+         G.Simplified_Gyro_Filter := S.Gyro_Filter;
+         G.Simplified_Gyro_Filter_Multiplier := S.Gyro_Multiplier;
+         Adaflight.Simplified_Tuning.Stored.Apply (P, G);
+         T.Config.Pid_Profiles (C) := P;
+         T.Config.Gyro_Config := G;
+      end if;
    end Leave_Simplified_Menu;
 
    procedure Leave_Profile_Other_Menu (T : in out Target)
      with Global => null
    is
+      I : constant Natural := Shown_PID (T);
+      O : constant Other_Copies := T.Other;
+      P : Adaflight.Config_Groups.Pid_Profile_Record := T.Config.Pid_Profiles (I);
    begin
       if T.Asked.PID_Config_Inits < Natural'Last then
          T.Asked.PID_Config_Inits := T.Asked.PID_Config_Inits + 1;
       end if;
-      declare
-         I : constant Natural := Shown_PID (T);
-         O : constant Other_Copies := T.Other;
-      begin
-         T.Config.Pid_Profiles (I).Pid (3).P := O.Angle_P;
-         T.Config.Pid_Profiles (I).Pid (3).F := Interfaces.Unsigned_16 (O.Angle_FF);
-         T.Config.Pid_Profiles (I).Angle_Limit := O.Angle_Limit;
-         T.Config.Pid_Profiles (I).Angle_Earth_Ref := O.Angle_Earth_Ref;
-         T.Config.Pid_Profiles (I).Pid (3).I := O.Horizon_Strength;
-         T.Config.Pid_Profiles (I).Pid (3).D := O.Horizon_Sticks;
-         T.Config.Pid_Profiles (I).Horizon_Limit_Degrees := O.Horizon_Degrees;
-         T.Config.Pid_Profiles (I).Anti_Gravity_Gain := O.Anti_Gravity_Gain;
-         T.Config.Pid_Profiles (I).Throttle_Boost := O.Throttle_Boost;
-         T.Config.Pid_Profiles (I).Thrust_Linearization := O.Thrust_Linearization;
-         T.Config.Pid_Profiles (I).Motor_Output_Limit := O.Motor_Output_Limit;
-         T.Config.Pid_Profiles (I).Auto_Profile_Cell_Count := O.Auto_Cell_Count;
-         for A in D_Max_Table'Range loop
-            T.Config.Pid_Profiles (I).D_Max (A) := O.D_Max (A);
-         end loop;
-         T.Config.Pid_Profiles (I).D_Max_Gain := O.D_Max_Gain;
-         T.Config.Pid_Profiles (I).D_Max_Advance := O.D_Max_Advance;
-         T.Config.Pid_Profiles (I).Iterm_Relax := O.Iterm_Relax;
-         T.Config.Pid_Profiles (I).Iterm_Relax_Type := O.Iterm_Relax_Type;
-         T.Config.Pid_Profiles (I).Iterm_Relax_Cutoff := O.Iterm_Relax_Cutoff;
-         T.Config.Pid_Profiles (I).Feedforward_Transition := O.FF_Transition;
-         T.Config.Pid_Profiles (I).Feedforward_Averaging := O.FF_Averaging;
-         T.Config.Pid_Profiles (I).Feedforward_Boost := O.FF_Boost;
-         T.Config.Pid_Profiles (I).Feedforward_Smooth_Factor := O.FF_Smooth;
-         T.Config.Pid_Profiles (I).Feedforward_Jitter_Factor := O.FF_Jitter;
-         T.Config.Pid_Profiles (I).Vbat_Sag_Compensation := O.Vbat_Sag;
-         T.Config.Pid_Profiles (I).Tpa_Rate := O.TPA_Rate;
-         T.Config.Pid_Profiles (I).Tpa_Breakpoint := O.TPA_Breakpoint;
-         T.Config.Pid_Profiles (I).Tpa_Low_Rate := O.TPA_Low_Rate;
-         T.Config.Pid_Profiles (I).Tpa_Low_Breakpoint := O.TPA_Low_Breakpoint;
-         T.Config.Pid_Profiles (I).Tpa_Low_Always := O.TPA_Low_Always;
-         T.Config.Pid_Profiles (I).Landing_Disarm_Threshold := O.Landing_Disarm;
-      end;
+      P.Pid (3).P := O.Angle_P;
+      P.Pid (3).F := Interfaces.Unsigned_16 (O.Angle_FF);
+      P.Angle_Limit := O.Angle_Limit;
+      P.Angle_Earth_Ref := O.Angle_Earth_Ref;
+      P.Pid (3).I := O.Horizon_Strength;
+      P.Pid (3).D := O.Horizon_Sticks;
+      P.Horizon_Limit_Degrees := O.Horizon_Degrees;
+      P.Anti_Gravity_Gain := O.Anti_Gravity_Gain;
+      P.Throttle_Boost := O.Throttle_Boost;
+      P.Thrust_Linearization := O.Thrust_Linearization;
+      P.Motor_Output_Limit := O.Motor_Output_Limit;
+      P.Auto_Profile_Cell_Count := O.Auto_Cell_Count;
+      for A in D_Max_Table'Range loop
+         P.D_Max (A) := O.D_Max (A);
+      end loop;
+      P.D_Max_Gain := O.D_Max_Gain;
+      P.D_Max_Advance := O.D_Max_Advance;
+      P.Iterm_Relax := O.Iterm_Relax;
+      P.Iterm_Relax_Type := O.Iterm_Relax_Type;
+      P.Iterm_Relax_Cutoff := O.Iterm_Relax_Cutoff;
+      P.Feedforward_Transition := O.FF_Transition;
+      P.Feedforward_Averaging := O.FF_Averaging;
+      P.Feedforward_Boost := O.FF_Boost;
+      P.Feedforward_Smooth_Factor := O.FF_Smooth;
+      P.Feedforward_Jitter_Factor := O.FF_Jitter;
+      P.Vbat_Sag_Compensation := O.Vbat_Sag;
+      P.Tpa_Rate := O.TPA_Rate;
+      P.Tpa_Breakpoint := O.TPA_Breakpoint;
+      P.Tpa_Low_Rate := O.TPA_Low_Rate;
+      P.Tpa_Low_Breakpoint := O.TPA_Low_Breakpoint;
+      P.Tpa_Low_Always := O.TPA_Low_Always;
+      P.Landing_Disarm_Threshold := O.Landing_Disarm;
+      T.Config.Pid_Profiles (I) := P;
       if T.Asked.Endpoint_Inits < Natural'Last then
          T.Asked.Endpoint_Inits := T.Asked.Endpoint_Inits + 1;
       end if;
@@ -1606,16 +1603,15 @@ package body Adaflight.Menu_Content with SPARK_Mode is
    procedure Leave_Launch_Control_Menu (T : in out Target)
      with Global => null
    is
+      I : constant Natural := Shown_PID (T);
+      P : Adaflight.Config_Groups.Pid_Profile_Record := T.Config.Pid_Profiles (I);
    begin
-      declare
-         I : constant Natural := Shown_PID (T);
-      begin
-         T.Config.Pid_Profiles (I).Launch_Control_Mode := T.Launch.Mode;
-         T.Config.Pid_Profiles (I).Launch_Control_Allow_Trigger_Reset := T.Launch.Allow_Reset;
-         T.Config.Pid_Profiles (I).Launch_Control_Throttle_Percent := T.Launch.Throttle_Percent;
-         T.Config.Pid_Profiles (I).Launch_Control_Angle_Limit := T.Launch.Angle_Limit;
-         T.Config.Pid_Profiles (I).Launch_Control_Gain := T.Launch.Gain;
-      end;
+      P.Launch_Control_Mode := T.Launch.Mode;
+      P.Launch_Control_Allow_Trigger_Reset := T.Launch.Allow_Reset;
+      P.Launch_Control_Throttle_Percent := T.Launch.Throttle_Percent;
+      P.Launch_Control_Angle_Limit := T.Launch.Angle_Limit;
+      P.Launch_Control_Gain := T.Launch.Gain;
+      T.Config.Pid_Profiles (I) := P;
    end Leave_Launch_Control_Menu;
 
    procedure Leave_OSD_Menu (T : in out Target)
