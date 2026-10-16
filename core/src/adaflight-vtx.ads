@@ -12,6 +12,7 @@ with Interfaces;
 with Adaflight.Bytes; use Adaflight.Bytes;
 with Adaflight.Modes;
 with Adaflight.VTX_MSP;
+with Adaflight.VTX_RTC6705;
 with Adaflight.VTX_Settings;
 with Adaflight.VTX_Table;
 with Adaflight.SmartAudio;
@@ -49,7 +50,7 @@ package Adaflight.VTX with SPARK_Mode is
    Spektrum_Frame_Mask : constant Unsigned_32 := 16#F000_F000#;
    Spektrum_Frame      : constant Unsigned_32 := 16#E000_E000#;
 
-   type Device_Kind is (No_Device, SmartAudio_Device, Tramp_Device, MSP_Device);
+   type Device_Kind is (No_Device, SmartAudio_Device, Tramp_Device, MSP_Device, RTC6705_Device);
 
    type State is record
       Kind             : Device_Kind := No_Device;
@@ -57,6 +58,7 @@ package Adaflight.VTX with SPARK_Mode is
       SA_Menu          : SmartAudio.Menu_View;
       TR               : Tramp.Driver;
       MD               : VTX_MSP.Driver;
+      RT               : VTX_RTC6705.Driver;
       Device_Present   : Boolean := False;
       Prepend_Zero     : Boolean := False;
       Schedule         : Parameter := Power_Param;
@@ -81,8 +83,8 @@ package Adaflight.VTX with SPARK_Mode is
 
    --  The device events of the kind in use; Consumed counts the received
    --  bytes taken, the rest to be offered again. MSP_Send reports the MSP
-   --  driver's configuration frame to push, and Status_Due the device
-   --  menu's status line due an update.
+   --  driver's configuration frame to push, Status_Due the device menu's
+   --  status line due an update, and RTC_Ops the RTC6705's operations.
    type Events is record
       Device     : SmartAudio.Events;
       Tramp_Tx   : Tramp.Events;
@@ -91,6 +93,7 @@ package Adaflight.VTX with SPARK_Mode is
       Status_Due : Boolean := False;
       Consumed   : Natural := 0;
       Save       : Boolean := False;
+      RTC_Ops    : VTX_RTC6705.Operations := VTX_RTC6705.No_Operations;
    end record;
 
    --  The driver starts with the port, and the settings are made whole: the
@@ -104,6 +107,11 @@ package Adaflight.VTX with SPARK_Mode is
    procedure Update (V : in out State; S : in out Settings; T : VTX_Table.Table; Inp : Inputs; Rx : Byte_Array;
                      E : out Events)
      with Post => E.Consumed <= Rx'Length;
+
+   --  The RTC6705's operations since they were last taken; a task call takes
+   --  them for its events, and a caller setting the device outside one takes
+   --  them after.
+   procedure Take_RTC_Operations (V : in out State; Ops : out VTX_RTC6705.Operations);
 
    --  A control word from the Spektrum receiver, taken at the next call.
    procedure Offer_Spektrum_Control (V : in out State; Word : Unsigned_32);
@@ -132,7 +140,7 @@ package Adaflight.VTX with SPARK_Mode is
    --  know them.
    procedure Common_Set_Band_Channel (V : in out State; T : VTX_Table.Table; Band, Channel : Unsigned_8);
    procedure Common_Set_Power_Index (V : in out State; T : VTX_Table.Table; Index : Unsigned_8);
-   procedure Common_Set_Pit_Mode (V : in out State; On : Boolean);
+   procedure Common_Set_Pit_Mode (V : in out State; T : VTX_Table.Table; On : Boolean);
    procedure Common_Get_Band_Channel (V : State; T : VTX_Table.Table; Band, Channel : in out Unsigned_8;
                                       Known : out Boolean);
    procedure Common_Get_Power_Index (V : State; T : VTX_Table.Table; Index : in out Unsigned_8; Known : out Boolean);

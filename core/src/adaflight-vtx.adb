@@ -38,6 +38,10 @@ package body Adaflight.VTX with SPARK_Mode is
                when 5             => 3,
                when 6             => 4,
                when others        => 2),
+         when RTC6705_Device =>
+           (case P is
+               when 0 .. 3 => 1,
+               when others => 2),
          when MSP_Device | No_Device => 0);
 
    --  The device of the kind in use.
@@ -48,6 +52,7 @@ package body Adaflight.VTX with SPARK_Mode is
          when SmartAudio_Device => SmartAudio.Set_Frequency (V.SA, Freq);
          when Tramp_Device      => Tramp.Set_Frequency (V.TR, Freq);
          when MSP_Device        => VTX_MSP.Set_Frequency (V.MD, Freq);
+         when RTC6705_Device    => VTX_RTC6705.Set_Frequency (V.RT, Freq);
          when No_Device         => null;
       end case;
    end Device_Set_Frequency;
@@ -58,16 +63,18 @@ package body Adaflight.VTX with SPARK_Mode is
          when SmartAudio_Device => SmartAudio.Set_Power_Index (V.SA, T, Index);
          when Tramp_Device      => Tramp.Set_Power_Index (V.TR, T, Index);
          when MSP_Device        => VTX_MSP.Set_Power_Index (V.MD, T, Index);
+         when RTC6705_Device    => VTX_RTC6705.Set_Power_Index (V.RT, T, Index);
          when No_Device         => null;
       end case;
    end Device_Set_Power_Index;
 
-   procedure Common_Set_Pit_Mode (V : in out State; On : Boolean) is
+   procedure Common_Set_Pit_Mode (V : in out State; T : VTX_Table.Table; On : Boolean) is
    begin
       case V.Kind is
          when SmartAudio_Device => SmartAudio.Set_Pit_Mode (V.SA, On);
          when Tramp_Device      => Tramp.Set_Pit_Mode (V.TR, On);
          when MSP_Device        => VTX_MSP.Set_Pit_Mode (V.MD, On);
+         when RTC6705_Device    => VTX_RTC6705.Set_Pit_Mode (V.RT, T, On);
          when No_Device         => null;
       end case;
    end Common_Set_Pit_Mode;
@@ -77,7 +84,7 @@ package body Adaflight.VTX with SPARK_Mode is
       case V.Kind is
          when SmartAudio_Device        => SmartAudio.Set_Band_Channel (V.SA, T, Band, Channel);
          when MSP_Device               => VTX_MSP.Set_Band_Channel (V.MD, Band, Channel);
-         when Tramp_Device | No_Device => null;
+         when Tramp_Device | RTC6705_Device | No_Device => null;
       end case;
    end Device_Set_Band_Channel;
 
@@ -91,6 +98,7 @@ package body Adaflight.VTX with SPARK_Mode is
          when SmartAudio_Device => SmartAudio.Get_Band_Channel (V.SA, T, Band, Channel, Known);
          when Tramp_Device      => Tramp.Get_Band_Channel (V.TR, Band, Channel, Known);
          when MSP_Device        => VTX_MSP.Get_Band_Channel (V.MD, Band, Channel, Known);
+         when RTC6705_Device    => Known := True;
          when No_Device         => null;
       end case;
    end Device_Get_Band_Channel;
@@ -109,6 +117,9 @@ package body Adaflight.VTX with SPARK_Mode is
             Tramp.Get_Power_Index (V.TR, T, Index, Known);
          when MSP_Device =>
             VTX_MSP.Get_Power_Index (V.MD, T, Index, Known);
+         when RTC6705_Device =>
+            Index := V.RT.Power_Index;
+            Known := True;
          when No_Device =>
             null;
       end case;
@@ -133,6 +144,8 @@ package body Adaflight.VTX with SPARK_Mode is
             if Known then
                Index := I;
             end if;
+         when RTC6705_Device =>
+            Index := V.RT.Power_Index;
          when No_Device =>
             null;
       end case;
@@ -146,6 +159,9 @@ package body Adaflight.VTX with SPARK_Mode is
          when SmartAudio_Device => SmartAudio.Get_Frequency (V.SA, T, Freq, Known);
          when Tramp_Device      => Tramp.Get_Frequency (V.TR, Freq, Known);
          when MSP_Device        => VTX_MSP.Get_Frequency (V.MD, T, Freq, Known);
+         when RTC6705_Device    =>
+            Freq := V.RT.Frequency;
+            Known := True;
          when No_Device         => null;
       end case;
    end Device_Get_Frequency;
@@ -158,6 +174,9 @@ package body Adaflight.VTX with SPARK_Mode is
          when SmartAudio_Device => SmartAudio.Get_Status (V.SA, Pit, Known);
          when Tramp_Device      => Tramp.Get_Pit_Mode (V.TR, Pit, Known);
          when MSP_Device        => VTX_MSP.Get_Status (V.MD, Pit, Known);
+         when RTC6705_Device    =>
+            Pit := V.RT.Pit_Active;
+            Known := True;
          when No_Device         => null;
       end case;
    end Common_Get_Status;
@@ -315,7 +334,8 @@ package body Adaflight.VTX with SPARK_Mode is
       end if;
    end Process_Power;
 
-   procedure Process_Pit_Mode (V : in out State; S : Settings; Inp : Inputs; Pending : out Boolean) is
+   procedure Process_Pit_Mode (V : in out State; S : Settings; T : VTX_Table.Table; Inp : Inputs; Pending : out Boolean)
+   is
       Pit   : Boolean;
       Known : Boolean;
    begin
@@ -334,11 +354,11 @@ package body Adaflight.VTX with SPARK_Mode is
                return;
             end if;
             if not Pit then
-               Common_Set_Pit_Mode (V, True);
+               Common_Set_Pit_Mode (V, T, True);
                Pending := True;
             end if;
          elsif Pit then
-            Common_Set_Pit_Mode (V, False);
+            Common_Set_Pit_Mode (V, T, False);
             Pending := True;
          end if;
       end if;
@@ -398,7 +418,7 @@ package body Adaflight.VTX with SPARK_Mode is
          end if;
          Common_Get_Status (V, Pit, Known);
          if Known and then Pit /= Pit_Wanted then
-            Common_Set_Pit_Mode (V, Pit_Wanted);
+            Common_Set_Pit_Mode (V, T, Pit_Wanted);
          end if;
       end if;
       if New_S.Band /= S.Band or else New_S.Channel /= S.Channel or else New_S.Power /= S.Power
@@ -585,7 +605,7 @@ package body Adaflight.VTX with SPARK_Mode is
                   Process_Frequency (V, S, T, Inp, Pending);
                end if;
             when Pit_Mode_Param =>
-               Process_Pit_Mode (V, S, Inp, Pending);
+               Process_Pit_Mode (V, S, T, Inp, Pending);
             when Confirm_Param =>
                Pending := Process_State_Update (V, S, T, Inp);
          end case;
@@ -616,11 +636,18 @@ package body Adaflight.VTX with SPARK_Mode is
                                  Failsafe       => Inp.Failsafe),
                                 E.MSP_Frame, E.MSP_Send);
                E.Status_Due := E.MSP_Send or else not VTX_MSP.Is_Ready (V.MD);
-            when No_Device =>
+            when RTC6705_Device | No_Device =>
                null;
          end case;
       end if;
+      Take_RTC_Operations (V, E.RTC_Ops);
    end Update;
+
+   procedure Take_RTC_Operations (V : in out State; Ops : out VTX_RTC6705.Operations) is
+   begin
+      Ops := V.RT.Pending;
+      V.RT.Pending := VTX_RTC6705.No_Operations;
+   end Take_RTC_Operations;
 
    ----------------------------
    -- Offer_Spektrum_Control --

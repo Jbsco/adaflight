@@ -195,6 +195,7 @@ with Adaflight.OSD_Warnings;
 with Adaflight.MSP_Telemetry;
 with Adaflight.OSD_Format;
 with Adaflight.VTX_MSP;
+with Adaflight.VTX_RTC6705;
 with Adaflight.Display_Port_MSP;
 with Adaflight.OSD_Stats;
 with Adaflight.OSD_Page;
@@ -8822,6 +8823,7 @@ procedure Vector_Check is
    VC_Pending    : Pending_Bytes := (others => 0);
    VC_Count      : Pending_Count := 0;
    VC_Kind       : Adaflight.VTX.Device_Kind := Adaflight.VTX.SmartAudio_Device;
+   VC_RTC_Ops    : Adaflight.VTX_RTC6705.Operations := Adaflight.VTX_RTC6705.No_Operations;
 
    procedure Check_VTX_Control_Line is
       use Adaflight.VTX;
@@ -8894,7 +8896,11 @@ procedure Vector_Check is
             VC_Kind := (case Int (219) is
                            when 1 => Tramp_Device,
                            when 2 => MSP_Device,
+                           when 3 => RTC6705_Device,
                            when others => SmartAudio_Device);
+            if VC_Kind = RTC6705_Device then
+               Adaflight.VTX_RTC6705.Start (VC_RTC_Ops);
+            end if;
             Init (VC_State, VC_Settings, VC_Table, VC_Kind, Int (5) = 1, Int (6) = 1, Save);
             Record_Int (Name & ".save", Int (157), Boolean'Pos (Save));
             Record_Settings (158);
@@ -8903,7 +8909,7 @@ procedure Vector_Check is
                   Record_Tramp_State (Name, 164, VC_State.TR, VC_Table);
                when MSP_Device =>
                   Record_MSP_State (Name, 164, VC_State.MD, VC_Table);
-               when SmartAudio_Device | No_Device =>
+               when SmartAudio_Device | RTC6705_Device | No_Device =>
                   Record_SA_State (Name, 164, VC_State.SA, VC_Table);
             end case;
             Record_SA_Menu (220);
@@ -8968,6 +8974,7 @@ procedure Vector_Check is
                Update_Activated_Channel (VC_State, VC_Settings, VC_Conditions, Aux, Inp.Armed);
             end if;
             Update (VC_State, VC_Settings, VC_Table, Inp, Rx, E);
+            VC_RTC_Ops := E.RTC_Ops;
             Record_Int (Name & ".save", Int (31), Boolean'Pos (E.Save));
             Record_Settings (32);
             Record_Int (Name & ".locked", Int (38), Boolean'Pos (VC_State.Locked));
@@ -8982,7 +8989,7 @@ procedure Vector_Check is
                   Record_MSP_State (Name, 42, VC_State.MD, VC_Table);
                   Record_Bytes (Name & ".tx", Hex_Bytes (98),
                                 (if E.MSP_Send then E.MSP_Frame else E.MSP_Frame (1 .. 0)));
-               when SmartAudio_Device | No_Device =>
+               when SmartAudio_Device | RTC6705_Device | No_Device =>
                   Record_SA_State (Name, 42, VC_State.SA, VC_Table);
                   Record_Bytes (Name & ".tx", Hex_Bytes (98), E.Device.Tx (0 .. E.Device.Tx_Count - 1));
             end case;
@@ -8995,6 +9002,22 @@ procedure Vector_Check is
             VC_Count := Rx'Length - E.Consumed;
             VC_Pending (0 .. VC_Count - 1) := Rx (Rx'First + E.Consumed .. Rx'Last);
          end;
+      elsif Name = "vtxcrtc" then
+         Record_Int (Name & ".freq", Int (4), Integer_64 (VC_State.RT.Frequency));
+         Record_Int (Name & ".power_index", Int (5), Integer_64 (VC_State.RT.Power_Index));
+         Record_Int (Name & ".pit", Int (6), Boolean'Pos (VC_State.RT.Pit_Active));
+         Record_Int (Name & ".ops", Int (7), Integer_64 (VC_RTC_Ops.Count));
+         for I in 1 .. Natural'Min (Natural (Int (7)), VC_RTC_Ops.Count) loop
+            declare
+               Op : constant Adaflight.VTX_RTC6705.Operation := VC_RTC_Ops.List (I);
+               F  : constant Positive := 8 + 3 * (I - 1);
+            begin
+               Record_Int
+                 (Name & ".op_kind", Int (F), Integer_64 (Adaflight.VTX_RTC6705.Operation_Kind'Pos (Op.Kind) + 1));
+               Record_Int (Name & ".op_address", Int (F + 1), Integer_64 (Op.Address));
+               Record_Int (Name & ".op_value", Int (F + 2), Integer_64 (Op.Value));
+            end;
+         end loop;
       else
          Put_Line ("unknown vtx control case " & Name);
          Failures := Failures + 1;

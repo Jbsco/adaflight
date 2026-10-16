@@ -1715,7 +1715,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
             if C.Pit_Mode = 0 then
                C.Pit_Mode := 1;
             else
-               Adaflight.VTX.Common_Set_Pit_Mode (V, C.Pit_Mode /= 1);
+               Adaflight.VTX.Common_Set_Pit_Mode (V, Run, C.Pit_Mode /= 1);
             end if;
          when 3 =>
             if C.Band = 0 then
@@ -2010,7 +2010,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
          Changed.Freq := T.VTX.SA_Menu.User_Freq;
       end if;
       if Changed.Power = T.VTX.SA_Menu.Power and then Pit > 0 then
-         Adaflight.VTX.Common_Set_Pit_Mode (T.VTX, Pit = 2);
+         Adaflight.VTX.Common_Set_Pit_Mode (T.VTX, T.VTX_Table, Pit = 2);
       end if;
       Changed.Power := T.VTX.SA_Menu.Power;
       Saved := Changed.Band /= Prev.Band or else Changed.Channel /= Prev.Channel or else Changed.Power /= Prev.Power
