@@ -20452,6 +20452,7 @@ begin
    Run (Dir & "/osdrender.csv", "osdrender");
    Run (Dir & "/osdrender2.csv", "osdrender2");
    Run (Dir & "/osdrender3.csv", "osdrender3");
+   Run (Dir & "/osdwp.csv", "osdwp");
    Run (Dir & "/osdwarnel.csv", "osdwarnel");
    Run (Dir & "/osddraw.csv", "osddraw");
    Run (Dir & "/osdspec.csv", "osdspec");
