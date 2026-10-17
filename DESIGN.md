@@ -6677,3 +6677,42 @@ disabled mask.
 
 The serial map oracle gains a sharing run in both of its builds that queries every port, function, protocol,
 mode and sensor over drawn assignments. Every query replays exactly. Six tampered paths each fail the vectors.
+
+## D297. SD card file system: sector cache, volume and FAT entries (2026-10-17)
+
+`Adaflight.FAT` contains the on-disk side of the FAT file system the flight log writes to on an SD card, and its
+sector cache. The partition table gives the first partition of a FAT16 or FAT32 type, or their LBA types, with
+a start sector above zero, when the sector ends in the boot signature. The volume ID sector must have 512-byte
+sectors, two FATs, the boot signature and a cluster of 1 to 128 sectors that is a power of two. The clusters
+after the reserved area, the two FATs and the FAT16 root directory make the volume FAT12, which is refused,
+FAT16 up to 65524 clusters, or FAT32. A refused sector keeps the fields set before the check that refused it,
+and the sizes wrap in 32 bits on a damaged sector. The 8.3 names take eight characters of the base name and
+three of the extension in upper case, and a base name longer than eight runs on into the extension.
+
+The cache contains eleven 512-byte sectors. Each entry keeps its sector number, its state (empty, in sync,
+reading, writing, dirty), access and write timestamps from one counter, a lock, a 6-bit retain count that
+wraps, a discard hint and the run of sectors the card may erase ahead of a multi-block write, set from four
+up. A sector takes its own entry, else an empty one, a synced discardable one or the synced one used longest
+ago, never a locked or retained one. A sector past the volume, or a write to the partition table, marks the
+file system fatal. The flush writes the unlocked dirty sector that turned dirty first. FAT entries are read
+from either FAT and written to the first, 16 bits on FAT16 and the whole word on FAT32, where a read keeps
+the low 28 bits.
+
+`Adaflight.FAT_FS` is generic over the card, in the pattern of the menu units: a read the card accepts or
+refuses, a write with the card's answer (in progress, busy, done, failed), and the start of a multi-block
+write. The card reports a completion through `Read_Complete` or `Write_Complete` with the buffer the
+operation used. The reference hands the card the cache buffer's memory and the card fills or sends it in the
+background. The port copies a sector to the card at the write call and into the buffer at a read's
+completion, so a sector changed while its write is in flight goes out as it stood at the call. The count of
+dirty entries stops at the ends of a 32-bit integer, where the reference's count is undefined. The units are
+SPARK for the cache indices, the entry offsets within a FAT sector and the sector field reads.
+
+The FAT oracle includes the reference's file system source over a stub card. The card keeps written sectors
+in a table, makes up the rest from the sector number, accepts or refuses each operation from a scripted draw,
+and completes accepted ones at later steps, now and then into another buffer. The harness replays 3664 helper
+records (chain markers, powers of two, rounding, 8.3 names, entry markers, FAT positions for every volume
+type), 1500 partition table and volume ID parses with mutated fields and the cluster counts at the FAT12,
+FAT16 and FAT32 boundaries, and 28 sequences of 700 cache and FAT entry calls. Half of the sequences stay
+inside the volume, and four retain two sectors past the 6-bit count. Every call, card operation, result,
+cache entry and the hash of the cache memory replays exactly. Twenty-six tampered paths each fail the
+vectors. Two timestamp comparisons cannot tie, since every timestamp comes from one counter.
