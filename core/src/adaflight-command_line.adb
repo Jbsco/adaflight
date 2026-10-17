@@ -3593,7 +3593,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Beacon_Command, Bootloader_Command_Word, Exit_Command_Word, Save_Command_Word,
       Beeper_Command_Word, Bind_Rx_Command_Word, Board_Name_Command_Word, Defaults_Command_Word,
       Manufacturer_Id_Command_Word, Signature_Command_Word, Color_Command_Word, Diff_Command,
-      Dshot_Telemetry_Info_Command_Word, Dshotprog_Command_Word, Dump_Command,
+      Dshot_Telemetry_Info_Command_Word, Dshotprog_Command_Word, Dump_Command, Env_Command_Word,
       Feature_Command_Word, Flash_Info_Command_Word, Get_Command, Help_Command_Word, Led_Command_Word,
       Map_Command_Word,
       Mode_Color_Command_Word,
@@ -3628,6 +3628,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when Dshot_Telemetry_Info_Command_Word => "dshot_telemetry_info",
          when Dshotprog_Command_Word => "dshotprog",
          when Dump_Command => "dump",
+         when Env_Command_Word => "env",
          when Feature_Command_Word => "feature",
          when Flash_Info_Command_Word => "flash_info",
          when Get_Command => "get",
@@ -5371,6 +5372,240 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Put_Status_Run (Into, C, Env, Sched);
    end Status_Command;
 
+   --  Whether a name starts with the filter, as strncmp over the filter's
+   --  length compares them; an empty filter matches every name.
+   function Name_Matches (Name : String; Filter : String) return Boolean is
+     (Filter'Length = 0
+      or else (Filter'Length <= Name'Length
+               and then Name (Name'First .. Name'First + (Filter'Length - 1)) = Filter))
+     with Global => null;
+
+   --  A NAME=value line, the value in two parts, when the name matches the
+   --  filter.
+   procedure Put_Name_Value (Into : in out Output; Filter : String; Name : String; Value : String; Tail : String := "")
+     with Global => null
+   is
+   begin
+      if Name_Matches (Name, Filter) then
+         Put (Into, Name);
+         Put (Into, "=");
+         Put (Into, Value);
+         Put (Into, Tail);
+         Put (Into, CRLF);
+      end if;
+   end Put_Name_Value;
+
+   --  The board identifier's characters up to its first zero byte.
+   function Identifier_Text (B : Config_Groups.Bytes_6) return String
+     with Global => null,
+          Post   => Identifier_Text'Result'Length <= 6
+   is
+      Text   : String (1 .. 6) := (others => ' ');
+      Length : Natural := 0;
+   begin
+      for I in B'Range loop
+         pragma Loop_Invariant (Length = I - B'First);
+         exit when B (I) = 0;
+         Length := Length + 1;
+         Text (Length) := Character'Val (B (I));
+      end loop;
+      return Text (1 .. Length);
+   end Identifier_Text;
+
+   --  The env lines of the firmware, the build, the board's information,
+   --  the build key and the release name.
+   procedure Put_Env_Version
+     (Into : in out Output; C : Configuration; Board : Board_State; Env : Environment; Filter : String)
+     with Global => null
+   is
+   begin
+      Put_Name_Value (Into, Filter, "FIRMWARE_NAME", Text_Of (Env.Firmware));
+      Put_Name_Value (Into, Filter, "FIRMWARE_VERSION", Text_Of (Env.Version));
+      Put_Name_Value (Into, Filter, "TARGET", Text_Of (Env.Target));
+      Put_Name_Value (Into, Filter, "BOARD_IDENTIFIER", Identifier_Text (C.System_Config.Board_Identifier));
+      Put_Name_Value (Into, Filter, "BUILD_DATE", Text_Of (Env.Build_Date));
+      Put_Name_Value (Into, Filter, "BUILD_TIME", Text_Of (Env.Build_Time));
+      Put_Name_Value (Into, Filter, "GIT_REVISION", Text_Of (Env.Revision));
+      Put_Name_Value (Into, Filter, "MSP_API_VERSION", Decimal (MSP_Common_Out.API_Version_Major),
+                      "." & Decimal (MSP_Common_Out.API_Version_Minor));
+      if Board.Manufacturer.Length > 0 then
+         Put_Name_Value (Into, Filter, "MANUFACTURER_ID", Text_Of (Board.Manufacturer));
+      end if;
+      if Board.Name.Length > 0 then
+         Put_Name_Value (Into, Filter, "BOARD_NAME", Text_Of (Board.Name));
+      end if;
+      if Env.Status.Has_Build_Key then
+         Put_Name_Value (Into, Filter, "BUILD_KEY", Text_Of (Env.Status.Build_Key));
+      end if;
+      if Env.Status.Has_Release_Name then
+         Put_Name_Value (Into, Filter, "RELEASE_NAME", Text_Of (Env.Status.Release_Name));
+      end if;
+   end Put_Env_Version;
+
+   --  The env lines of the MCU with its clock, the internal ADC's readings,
+   --  the stack, the stored configuration and the bus devices.
+   procedure Put_Env_Board (Into : in out Output; C : Configuration; S : System_Status; Filter : String)
+     with Global => null
+   is
+   begin
+      Put_Name_Value (Into, Filter, "MCU", Text_Of (S.MCU_Name));
+      Put_Name_Value (Into, Filter, "CLK_MHZ", Decimal (Integer_64 (S.Core_Clock_Hz / 1_000_000)));
+      if S.Clock_Sources then
+         Put_Name_Value (Into, Filter, "SYSCLK_SOURCE", Clock_Source_Name (S.System_Source),
+                         (if S.System_Source < 2 then "" elsif S.PLL_Source = 0 then "-HSI" else "-HSE"));
+      end if;
+      if S.Internal_ADC then
+         Put_Name_Value (Into, Filter, "VREF_MV", Decimal (Integer_64 (S.Vref_Mv)));
+         Put_Name_Value (Into, Filter, "CORE_TEMP_C", Decimal (Integer_64 (S.Core_Temp_C)));
+      end if;
+      Put_Name_Value (Into, Filter, "STACK_SIZE", Signed_Text (S.Stack_Total));
+      Put_Name_Value (Into, Filter, "STACK_HIGH", "0x" & Hex_Minimal (S.Stack_High));
+      if S.Stack_Check then
+         Put_Name_Value (Into, Filter, "STACK_USED", Signed_Text (S.Stack_Used));
+      end if;
+      Put_Name_Value (Into, Filter, "CONFIG_STATE",
+                      (if C.System_Config.Configuration_State = 0 then "UNCONFIGURED" else "CONFIGURED"));
+      Put_Name_Value (Into, Filter, "CONFIG_SIZE", Decimal (Integer_64 (S.Config_Size)));
+      Put_Name_Value (Into, Filter, "CONFIG_MAX_SIZE", Signed_Text (S.Storage_Size));
+      Put_Name_Value (Into, Filter, "SPI_COUNT", Decimal (Integer_64 (S.SPI_Devices)));
+      Put_Name_Value (Into, Filter, "I2C_COUNT", Decimal (Integer_64 (S.I2C_Devices)));
+      Put_Name_Value (Into, Filter, "I2C_ERRORS", Decimal (Integer_64 (S.I2C_Errors)));
+   end Put_Env_Board;
+
+   function Env_Sensor_Name (S : Detected_Sensor) return String is
+     (case S is
+         when Acc_Sensor => "ACC_HW", when Baro_Sensor => "BARO_HW", when Mag_Sensor => "MAG_HW",
+         when Rangefinder_Sensor => "RANGEFINDER_HW", when Opticalflow_Sensor => "OPTICAL_FLOW_HW",
+         when Pitot_Sensor => "PITOT_HW");
+
+   --  The env lines of the gyros the configuration lists as detected, their
+   --  count, the detected sensors and the GPS receiver.
+   procedure Put_Env_Sensors (Into : in out Output; C : Configuration; Env : Environment; Filter : String)
+     with Global => null
+   is
+      use type GPS_Link.Link_State;
+      Count : Natural := 0;
+   begin
+      for Position in 0 .. Env.Gyro_Positions - 1 loop
+         pragma Loop_Invariant (Position in 0 .. Max_Gyro_Positions - 1 and then Count <= Position);
+         if (C.Gyro_Config.Gyros_Detected and 2 ** Position) /= 0 then
+            Count := Count + 1;
+            Put_Name_Value (Into, Filter, "GYRO_" & Decimal (Integer_64 (Position + 1)) & "_HW",
+                            Gyro_Hardware_Name (Env.Gyros (Position).Hardware));
+         end if;
+      end loop;
+      Put_Name_Value (Into, Filter, "GYRO_COUNT", Decimal (Integer_64 (Count)));
+      for S in Detected_Sensor loop
+         pragma Loop_Invariant (S in Acc_Sensor .. Pitot_Sensor);
+         declare
+            D : constant Sensor_Device := Device_Of (Env, S);
+         begin
+            if D.Detected and then Natural (D.Hardware) < Hardware_Count (S) then
+               Put_Name_Value (Into, Filter, Env_Sensor_Name (S), Hardware_Name (S, Natural (D.Hardware)));
+            end if;
+         end;
+      end loop;
+      Put_Name_Value (Into, Filter, "GPS_ENABLED", (if Env.GPS_Enabled then "ON" else "OFF"));
+      if Env.GPS_Enabled then
+         Put_Name_Value (Into, Filter, "GPS_CONNECTED", (if Env.GPS.State >= GPS_Link.Configure then "ON" else "OFF"));
+         Put_Name_Value (Into, Filter, "GPS_CONFIGURED", (if Env.GPS.State > GPS_Link.Configure then "ON" else "OFF"));
+         Put_Name_Value (Into, Filter, "GPS_VERSION", GPS_Platform_Name (Env.GPS.Platform));
+      end if;
+   end Put_Env_Sensors;
+
+   --  The env lines of the OSD, the flash chip, the uptime with the local
+   --  time, the load with the gyro, receiver and system rates, the battery
+   --  and the reasons arming is disabled.
+   procedure Put_Env_Run
+     (Into : in out Output; C : Configuration; Env : Environment; Sched : Scheduler.State; Filter : String)
+     with Global => null
+   is
+      S      : constant System_Status := Env.Status;
+      Gyro   : constant Scheduler.Task_Info := Scheduler.Info (Sched, Scheduler.Gyro);
+      System : constant Scheduler.Task_Info := Scheduler.Info (Sched, Scheduler.System);
+      First  : Boolean := True;
+   begin
+      Put_Name_Value (Into, Filter, "OSD_DEVICE",
+                      (if S.OSD_Device < Value_Count (Table_Osd_Displayport_Device)
+                       then Value_Name (Table_Osd_Displayport_Device, S.OSD_Device) else ""));
+      if S.OSD_Port then
+         Put_Name_Value (Into, Filter, "OSD_COLS", Decimal (Integer_64 (S.OSD_Columns)));
+         Put_Name_Value (Into, Filter, "OSD_ROWS", Decimal (Integer_64 (S.OSD_Rows)));
+      end if;
+      if Env.Flash.JEDEC_Id /= 0 then
+         Put_Name_Value (Into, Filter, "FLASH_JEDEC_ID", "0x" & Hex_Text (Env.Flash.JEDEC_Id, 8));
+         Put_Name_Value (Into, Filter, "FLASH_SIZE_MB", Decimal (Integer_64 (Shift_Right (Env.Flash.Total_Size, 20))));
+      end if;
+      Put_Name_Value (Into, Filter, "UPTIME_S", Decimal (Integer_64 (S.Uptime_Ms / 1000)));
+      if RTC.Has_Time (S.Clock) then
+         declare
+            Zone   : constant Integer_16 := C.Time_Config.Tz_Offset_Minutes;
+            Text   : RTC.Formatted;
+            Length : Natural;
+            Valid  : Boolean;
+         begin
+            RTC.Format_Local
+              (RTC.Time_To_Date (RTC.Get (S.Clock, S.Uptime_Ms)), (Zone => (if Zone in RTC.Zone_Minutes then Zone
+                                                                              else 0)),
+               Text, Length, Valid);
+            pragma Unreferenced (Valid);
+            Put_Name_Value (Into, Filter, "CURRENT_TIME", Text (1 .. Length));
+         end;
+      end if;
+      Put_Name_Value
+        (Into, Filter, "CPU_LOAD_PCT", Decimal (Integer_64'Min (Integer_64 (Sched.Average_Load_Percent), 100)));
+      Put_Name_Value (Into, Filter, "CYCLE_TIME_US", Signed_Text ((Gyro.Average_Delta_10th + 5) / 10));
+      Put_Name_Value (Into, Filter, "GYRO_RATE_HZ", Decimal (Task_Rate (Gyro)));
+      Put_Name_Value (Into, Filter, "RX_RATE_HZ",
+                      Decimal (if Env.Smoothing.Rate_Valid
+                               then Integer_64 (Maths.Round_Half_Even (Env.Smoothing.Rate_Hz)) else 0));
+      Put_Name_Value (Into, Filter, "SYSTEM_RATE_HZ", Decimal (Task_Rate (System)));
+      Put_Name_Value (Into, Filter, "VOLTAGE_V", Decimal (Integer_64 (S.Battery_Voltage / 100)),
+                      "." & Zero_Padded (Natural (S.Battery_Voltage mod 100), 2));
+      Put_Name_Value (Into, Filter, "BATTERY_CELLS", Decimal (Integer_64 (S.Battery_Cells)));
+      Put_Name_Value (Into, Filter, "BATTERY_STATE", Battery_State_Name (S.Battery_State));
+      if Name_Matches ("ARMING_DISABLE_FLAGS", Filter) then
+         Put (Into, "ARMING_DISABLE_FLAGS=");
+         for R in Arming.Disable_Reason loop
+            pragma Loop_Invariant (R in Arming.No_Gyro .. Arming.Arm_Switch);
+            if S.Arming_Disabled (R) then
+               if not First then
+                  Put (Into, " ");
+               end if;
+               Put (Into, Arming.Disable_Name (R));
+               First := False;
+            end if;
+         end loop;
+         Put (Into, CRLF);
+      end if;
+   end Put_Env_Run;
+
+   --  env: the build, the board, its sensors and how it runs, one NAME=value
+   --  line each, only the names that start with the text after the command
+   --  when there is one.
+   procedure Env_Command
+     (Into  : in out Output;
+      C     : Configuration;
+      Board : Board_State;
+      Env   : Environment;
+      Sched : Scheduler.State;
+      Text  : String)
+     with Global => null,
+          Pre    => Text'First >= 1 and then Text'Last < Positive'Last
+   is
+      First : Positive := Text'First;
+   begin
+      while First <= Text'Last and then Text (First) = ' ' loop
+         pragma Loop_Invariant (First in Text'Range);
+         pragma Loop_Variant (Increases => First);
+         First := First + 1;
+      end loop;
+      Put_Env_Version (Into, C, Board, Env, Text (First .. Text'Last));
+      Put_Env_Board (Into, C, Env.Status, Text (First .. Text'Last));
+      Put_Env_Sensors (Into, C, Env, Text (First .. Text'Last));
+      Put_Env_Run (Into, C, Env, Sched, Text (First .. Text'Last));
+   end Env_Command;
+
    --  A signature as 64 hexadecimal digits.
    procedure Put_Signature_Digits (Into : in out Output; Signature : Signature_Bytes) is
    begin
@@ -5845,6 +6080,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
             Peripherals_Command (Into, C, Ports, Env);
          when Status_Command_Word =>
             Status_Command (Into, C, Ports, Env, Sched);
+         when Env_Command_Word =>
+            Env_Command (Into, C, Board, Env, Sched, Text_At (Buffer, Arguments));
          when Sd_Info_Command_Word =>
             SD_Info_Command (Into, C.Sdcard_Config.Mode, Env.SD_Card);
          when Bootloader_Command_Word =>

@@ -7030,3 +7030,18 @@ disable names, and writes the battery state in place, so scripted lines set what
 drives each of them, GPS feature switches latched as at boot, and GPS and time zone settings. Every reply of
 the 600 lines replays exactly. Twenty-eight tampered paths each fail the vectors. The twenty-ninth changes the
 separator between gyro entries. The oracle's build has a single gyro position, so the separator never prints.
+
+## D310. Env command (2026-10-17)
+
+`Adaflight.Command_Line` gains env, which prints status's readings as NAME=value lines: the firmware's name and
+version, the target, the board identifier, the build's date, time and revision, the MSP API version, the
+board's name and manufacturer when they are set, the build key and release name each where the build has it,
+the MCU with its clock, the internal ADC's readings, the stack, the stored configuration, the bus devices, each
+detected gyro with the gyro count, each detected sensor, the GPS receiver, the OSD, the flash chip, the uptime
+with the local time, the load with the rates, the battery and the arming disable reasons one space apart. A text
+after the command keeps the names that start with it, compared with case.
+
+The command line oracle's env mode drives the status mode's lines, board information lines, and env with
+prefixes of every name, other texts and none. Every reply of the 600 lines replays exactly. Seventeen tampered
+paths each fail the vectors. One is equivalent. The arguments start past the spaces after the command's name, so
+env's own skip of leading spaces never finds one.
