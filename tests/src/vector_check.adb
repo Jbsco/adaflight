@@ -123,6 +123,7 @@ with Adaflight.GPS_Lap_Timer;
 with Adaflight.MSP_Box;
 with Adaflight.MSP_Common_Out;
 with Adaflight.MSP_Tuning_Out;
+with Adaflight.MSP_Tuning_In;
 with Adaflight.MSP_Receiver_Out;
 with Adaflight.MSP_Hardware_Out;
 with Adaflight.MSP_Peripheral_Out;
@@ -14551,6 +14552,9 @@ procedure Vector_Check is
    CLI_Reply    : CLI.Output;
    CLI_Sched    : Adaflight.Scheduler.State;
    CLI_Changes  : CLI.Effects;
+   MSP_In_Ran     : Boolean := False;
+   MSP_In_Result  : Adaflight.MSP_Tuning_In.Result := Adaflight.MSP_Tuning_In.Ack;
+   MSP_In_Effects : Adaflight.MSP_Tuning_In.Effects;
    CLI_Expected : Ada.Strings.Unbounded.Unbounded_String;
 
    --  The reference's command line over a sequence of command lines from the
@@ -14606,6 +14610,7 @@ procedure Vector_Check is
          CLI_Reply.Target.Text := Null_Unbounded_String;
          CLI_Expected := Null_Unbounded_String;
          CLI_Changes := (others => False);
+         MSP_In_Ran := False;
          declare
             Command : constant String := Hex_String (3);
          begin
@@ -14683,6 +14688,22 @@ procedure Vector_Check is
                   Total_Exec_Us       => Interfaces.Unsigned_32'Value (Word (Command, 2)),
                   Moving_Sum_Exec_Us  => Interfaces.Unsigned_32'Value (Word (Command, 3)),
                   Moving_Sum_Delta_Us => Interfaces.Unsigned_32'Value (Word (Command, 4)));
+            elsif Word (Command, 0) = "!msp" then
+               declare
+                  Hex     : constant String := Word (Command, 2);
+                  Count   : constant Natural := (if Hex = "-" then 0 else Hex'Length / 2);
+                  Request : Adaflight.Bytes.Byte_Array (0 .. Count - 1);
+                  Cmd     : constant Interfaces.Unsigned_16 := Interfaces.Unsigned_16'Value (Word (Command, 1));
+               begin
+                  for K in Request'Range loop
+                     Request (K) := Interfaces.Unsigned_8'Value
+                       ("16#" & Hex (Hex'First + 2 * K .. Hex'First + 2 * K + 1) & "#");
+                  end loop;
+                  if Adaflight.MSP_Tuning_In.Handles (Cmd) then
+                     Adaflight.MSP_Tuning_In.Process (CLI_Config, Cmd, Request, MSP_In_Result, MSP_In_Effects);
+                     MSP_In_Ran := True;
+                  end if;
+               end;
             elsif Word (Command, 0) = "!clock" then
                CLI_Env.Now_Us := Interfaces.Unsigned_32'Value (Word (Command, 1));
             elsif Word (Command, 0) = "!debug" then
@@ -14695,6 +14716,19 @@ procedure Vector_Check is
          end;
       elsif Str (1) = "clo" then
          Append (CLI_Expected, Hex_String (3));
+      elsif Str (1) = "clm" then
+         declare
+            use type Adaflight.MSP_Tuning_In.Result;
+            In_Range : constant Boolean := Int (4) /= 0;
+            Expected : constant Integer_64 := (if In_Range then Int (3) else -1);
+         begin
+            Record_Int ("msp.handled", 1, Boolean'Pos (MSP_In_Ran));
+            Record_Int ("msp.result", Expected, (if MSP_In_Result = Adaflight.MSP_Tuning_In.Ack then 1 else -1));
+            Record_Int ("msp.pid_init", (if In_Range and then Int (5) > 0 then 1 else 0),
+                        Boolean'Pos (MSP_In_Effects.PID_Init));
+            Record_Int ("msp.rc_init", (if In_Range and then Int (6) > 0 then 1 else 0),
+                        Boolean'Pos (MSP_In_Effects.RC_Init));
+         end;
       elsif Str (1) = "clx" then
          Record_Int ("cli.save", Int (3), Boolean'Pos (CLI_Changes.Save));
          Record_Int ("cli.reboot", Int (4), Boolean'Pos (CLI_Changes.Reboot));
@@ -19609,6 +19643,7 @@ begin
    Run (Dir & "/clidef.csv", "cliset");
    Run (Dir & "/clibatch.csv", "cliset");
    Run (Dir & "/clitask.csv", "cliset");
+   Run (Dir & "/mspintune.csv", "cliset");
    Run (Dir & "/clisave.csv", "cliset");
    if Settings_Seen /= Adaflight.Settings_Table.Setting'Pos (Adaflight.Settings_Table.Setting'Last) + 1 then
       Put_Line ("settings: the vectors hold" & Settings_Seen'Image & " settings");
