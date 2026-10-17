@@ -14752,6 +14752,8 @@ procedure Vector_Check is
                MSP_Log.State := Adaflight.Blackbox.Log_State'Val (Natural'Value (Word (Command, 1)));
                MSP_Log.I_Interval := Interfaces.Integer_16'Value (Word (Command, 2));
                MSP_Loop_Time := Adaflight.Blackbox.Loop_Time_Us'Value (Word (Command, 3));
+            elsif Word (Command, 0) = "!msc" then
+               MSP_Board.MSC_Ready := Word (Command, 1) /= "0";
             elsif Word (Command, 0) = "!osdport" then
                MSP_OSD_Port := Word (Command, 1) /= "0";
                MSP_OSD_Port_Takes := Word (Command, 2) /= "0";
@@ -15082,6 +15084,25 @@ procedure Vector_Check is
                            Boolean'Pos (MSP_Peripheral_Effects.VTX_Ready));
             end if;
          end;
+      elsif Str (1) = "cld" then
+         declare
+            E : Adaflight.MSP_Control_In.Effects renames MSP_Control_Effects;
+         begin
+            Record_Int ("msp.dshot_calls", Int (3), Integer_64 (E.DShot_Commands));
+            if Int (3) > 0 then
+               Record_Int ("msp.dshot_motor", Int (4), Integer_64 (E.DShot_Motor));
+               Record_Int ("msp.dshot_motor_count", Int (5), Integer_64 (MSP_Motors));
+               Record_Int ("msp.dshot_type", Int (6), Integer_64 (E.DShot_Type));
+            end if;
+            Record_Int ("msp.motors_off", Int (7), Boolean'Pos (E.Motors_Off));
+            Record_Int ("msp.motors_on", Int (8), Boolean'Pos (E.Motors_Off));
+            Record_Int ("msp.reboot_mode", Int (9), (if E.Reboot then Integer_64 (E.Reboot_Mode) else 0));
+            Record_Int ("msp.reply_second", Int (10), (if E.Reply_Length > 1 then Integer_64 (E.Reply (1)) else 0));
+            for I in 0 .. Natural (Int (3)) - 1 loop
+               Record_Int ("msp.dshot_command", Int (11 + I),
+                           (if I < E.DShot_Commands then Integer_64 (E.DShot_Values (I)) else -1));
+            end loop;
+         end;
       elsif Str (1) = "clf" then
          declare
             E : Adaflight.MSP_Font_In.Effects renames MSP_Font_Effects;
@@ -15118,9 +15139,16 @@ procedure Vector_Check is
             Record_Int ("msp.rssi", Boolean'Pos (Int (33) > 0), Boolean'Pos (E.RSSI));
             Record_Int ("msp.rssi_value", Int (34), Integer_64 (E.RSSI_Value));
             if NF >= 37 then
-               Record_Int ("msp.reply", Int (35), Boolean'Pos (MSP_Board_Effects.Reply));
-               Record_Int ("msp.reply_value", Int (36), Integer_64 (MSP_Board_Effects.Reply_Value));
-               Record_Int ("msp.restart", Int (37), Boolean'Pos (MSP_Board_Effects.Reboot));
+               declare
+                  C : Adaflight.MSP_Control_In.Effects renames MSP_Control_Effects;
+               begin
+                  Record_Int ("msp.reply", Int (35),
+                              (if MSP_Board_Effects.Reply then 1 else Integer_64 (C.Reply_Length)));
+                  Record_Int ("msp.reply_value", Int (36),
+                              (if MSP_Board_Effects.Reply then Integer_64 (MSP_Board_Effects.Reply_Value)
+                               elsif C.Reply_Length > 0 then Integer_64 (C.Reply (0)) else 0));
+                  Record_Int ("msp.restart", Int (37), Boolean'Pos (MSP_Board_Effects.Reboot or else C.Reboot));
+               end;
             end if;
          end;
       elsif Str (1) = "clc" then
@@ -15131,7 +15159,8 @@ procedure Vector_Check is
             Record_Int ("msp.mag_calibration", Boolean'Pos (Int (4) > 0), Boolean'Pos (E.Mag_Calibration));
             Record_Int ("msp.task_time_ignore", Boolean'Pos (Int (5) > 0), Boolean'Pos (E.Ignore_Task_Time));
             Record_Int ("msp.config_read", Boolean'Pos (Int (6) > 0), Boolean'Pos (E.Save));
-            Record_Int ("msp.deferred_save", Boolean'Pos (Int (7) > 0), Boolean'Pos (E.Deferred_Save));
+            Record_Int ("msp.deferred_save", Boolean'Pos (Int (7) > 0),
+                        Boolean'Pos (E.Deferred_Save or else E.Deferred_Reboot));
             Record_Int ("msp.disarm", Boolean'Pos (Int (8) > 0), Boolean'Pos (E.Disarm));
             Record_Int ("msp.runaway_set", Boolean'Pos (Int (9) > 0), Boolean'Pos (E.Runaway_Set));
             Record_Int ("msp.runaway_value", Int (10), Integer_64 (E.Runaway_Value));
@@ -20097,6 +20126,7 @@ begin
    Run (Dir & "/mspinboard.csv", "cliset");
    Run (Dir & "/mspinmotor.csv", "cliset");
    Run (Dir & "/mspinfont.csv", "cliset");
+   Run (Dir & "/mspindev.csv", "cliset");
    Run (Dir & "/clisave.csv", "cliset");
    if Settings_Seen /= Adaflight.Settings_Table.Setting'Pos (Adaflight.Settings_Table.Setting'Last) + 1 then
       Put_Line ("settings: the vectors hold" & Settings_Seen'Image & " settings");

@@ -195,7 +195,8 @@ The core contains:
 - MSP text writes: craft name, texts by type, LED strip values and battery profiles
 - MSP peripheral writes: wing tuning, transponder provider and data, VTX table bands and power
   levels
-- MSP control writes: flash erase, arming switch per link, calibrations, configuration write
+- MSP control writes: flash erase, arming switch per link, calibrations, configuration write,
+  restart into a mode, DShot commands
 - MSP OSD writes: general settings with video system switch, timers, element positions,
   statistics, canvas
 - MSP profile writes: profile selection and copy
@@ -212,7 +213,7 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 25148 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 25169 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
 - Recorded vectors replay bit for bit: 1753568 lines over 384 cases, every case exact except
   forty-six declared deviations in `DESIGN.md` D6.

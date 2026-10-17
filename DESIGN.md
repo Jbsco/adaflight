@@ -5190,3 +5190,22 @@ whether it is present and whether it takes a character, with a directive. The ha
 sequences of 600 lines, 1079 requests among port scripts: every result, address, font update flag
 and all 51884 character bytes the requests give match the reference's, with 337 requests rejected
 by both, for a missing port or one that refuses the character.
+
+## D223. MSP restart and DShot commands (2026-10-15)
+
+`Adaflight.MSP_Control_In` gains the MSP messages that restart the board into a mode and send DShot
+commands to the motors. The restart, an error while armed, takes a mode below five, the firmware
+when the request leaves it out, and answers it back. For mass storage the file system's readiness
+follows in the reply, and only a ready one restarts; the restart waits out a delay over the
+telemetry link with the SPI receiver running, as the configuration write does. The mass storage
+mode with UTC time restarts without the check (findings F199). The DShot command message, while
+disarmed, takes a command type, a motor, a count and that many commands, and is an error when the
+request holds fewer; armed, it does nothing. `Effects` carries the restart with its mode, the reply,
+and the commands for the motor command queue, with the motors switched off around blocking ones;
+`Board` gains the mass storage readiness.
+
+The command line oracle routes the restart through the reference's out command processor, records
+the DShot command calls and the motor switching, and scripts the mass storage readiness with a
+directive. The harness replays two sequences of 600 lines, 907 requests among armed, link, feature,
+mass storage and motor scripts: every result, reply, restart, delay and DShot command matches the
+reference's, with 159 rejected by both.
