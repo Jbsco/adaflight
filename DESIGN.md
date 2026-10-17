@@ -6483,3 +6483,19 @@ increment.
 The arming oracle gains in-flight calibration sequences with the feature, a calibration switch and the stick
 command held more often, and scripts the accelerometer's end of a measurement and its save. Every step
 replays exactly, the earlier arming vectors stay byte for byte, and six tampered paths each fail the vectors.
+
+## D286. In-flight accelerometer calibration measurement (2026-10-16)
+
+With the in-flight calibration feature, `Accelerometer.Update` runs the calibration the arming logic starts
+(D285), after the power-on calibration and before the offsets apply. As a measurement starts it keeps the
+zero offsets and the angle trims. For 50 samples it adds each aligned sample to a whole-number total, as the
+reference's integer total takes a float sum truncated, and holds the output and the offsets at zero. At the
+end it restores the kept values, sets the measurement done and the update's end flag, which sounds the
+calibration tone. When the arming logic asks for the save, the offsets take the totals' averages, the
+vertical one less a g, the angle trims clear, and the update's save flag asks the target to save the
+configuration as calibrated. The settings take the feature from the stored features.
+
+The accelerometer oracle gains in-flight sequences that start measurements, turn the calibration switch on,
+ask for saves and set angle trims, and every step replays exactly. A tone check that took the done flag's
+rise failed five steps, where a measurement ends while the previous one is still done, so the update reports
+the end itself. Six tampered paths each fail the vectors.

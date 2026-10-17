@@ -1,11 +1,13 @@
 --  The accelerometer path: raw device counts aligned to the body frame, the
 --  zero offsets from the power-on calibration, the attitude lowpass, the
---  jerk, and the magnitudes in units of gravity that the attitude estimator
---  and the crash detection read.
+--  jerk, the magnitudes in units of gravity that the attitude estimator and
+--  the crash detection read, and the in-flight calibration's measurement and
+--  save.
 with Interfaces;
 with Adaflight.Vectors;
 with Adaflight.Filters;
 with Adaflight.Sensor_Alignment;
+with Adaflight.Acc_Inflight;
 
 package Adaflight.Accelerometer with SPARK_Mode is
    use type Interfaces.Integer_64;
@@ -27,6 +29,8 @@ package Adaflight.Accelerometer with SPARK_Mode is
       One_G          : Counts_Per_G := 256;
       Roll_Trim      : Integer_16 := 0;
       Pitch_Trim     : Integer_16 := 0;
+      --  The in-flight calibration feature.
+      Inflight_Calibration : Boolean := False;
    end record;
 
    Calibration_Cycles : constant := 400;
@@ -75,6 +79,17 @@ package Adaflight.Accelerometer with SPARK_Mode is
       Calibrating      : Cycle_Count := 0;
       Totals           : Sums := (others => 0);
       Updated_Once     : Boolean := False;
+      --  The in-flight calibration's totals, and the offsets and angle trims
+      --  kept while it measures.
+      Inflight_Totals  : Sums := (others => 0);
+      Saved_Zero       : Zero_Offsets := (others => 0);
+      Saved_Roll_Trim  : Integer_16 := 0;
+      Saved_Pitch_Trim : Integer_16 := 0;
+      --  Whether the last update ended a measurement, which sounds the
+      --  calibration tone, and whether it saved the offsets, which saves the
+      --  configuration.
+      Inflight_Ended   : Boolean := False;
+      Inflight_Saved   : Boolean := False;
    end record;
 
    procedure Init (S : out State; C : Settings);
@@ -84,7 +99,8 @@ package Adaflight.Accelerometer with SPARK_Mode is
 
    function Calibration_Complete (S : State) return Boolean is (S.Calibrating = 0);
 
-   procedure Update (S : in out State; C : Settings; Sample : Raw_Vector)
+   --  One sample, with the in-flight calibration the arming logic shares.
+   procedure Update (S : in out State; C : Settings; Sample : Raw_Vector; Cal : in out Acc_Inflight.State)
      with Post => S.Updated_Once;
 
 end Adaflight.Accelerometer;

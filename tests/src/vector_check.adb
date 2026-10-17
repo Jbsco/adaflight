@@ -114,6 +114,7 @@ with Adaflight.RTC;
 with Adaflight.Internal_ADC;
 with Adaflight.Flight_Stats;
 with Adaflight.Wing_Launch;
+with Adaflight.Acc_Inflight;
 with Adaflight.Nav_Trail;
 with Adaflight.GPS_Frames;
 with Adaflight.GPS_Link;
@@ -3648,6 +3649,9 @@ procedure Vector_Check is
 
    Acc_State    : Adaflight.Accelerometer.State;
    Acc_Settings : Adaflight.Accelerometer.Settings;
+   Acc_Cal      : Adaflight.Acc_Inflight.State;
+   Acc_Done_Tones : Natural := 0;
+   Acc_Saves    : Natural := 0;
 
    procedure Check_Acc_Line is
       use Adaflight.Accelerometer;
@@ -3664,8 +3668,10 @@ procedure Vector_Check is
             Board          => (Roll => Integer (Int (9)), Pitch => Integer (Int (10)), Yaw => Integer (Int (11))),
             One_G          => Integer (Int (12)),
             Roll_Trim      => Interfaces.Integer_16 (Int (15)),
-            Pitch_Trim     => Interfaces.Integer_16 (Int (16)));
+            Pitch_Trim     => Interfaces.Integer_16 (Int (16)),
+            Inflight_Calibration => False);
          Init (Acc_State, Acc_Settings);
+         Acc_Cal := (others => <>);
          Record_Result ("accinit.one_g_rec", Bits (13), To_Bits (Acc_State.One_G_Reciprocal));
          if Acc_Settings.Lowpass_Hz /= 0 then
             Record_Result ("accinit.k", Bits (14), To_Bits (Acc_State.Filter (Adaflight.Vectors.X).K));
@@ -3689,7 +3695,13 @@ procedure Vector_Check is
                K := K + 1;
             end Expect_Int;
          begin
-            Update (Acc_State, Acc_Settings, Sample);
+            Update (Acc_State, Acc_Settings, Sample, Acc_Cal);
+            if Acc_State.Inflight_Ended then
+               Acc_Done_Tones := Acc_Done_Tones + 1;
+            end if;
+            if Acc_State.Inflight_Saved then
+               Acc_Saves := Acc_Saves + 1;
+            end if;
             Expect_Float ("acc", Acc_State.Acc.X);
             Expect_Float ("acc", Acc_State.Acc.Y);
             Expect_Float ("acc", Acc_State.Acc.Z);
@@ -3709,6 +3721,31 @@ procedure Vector_Check is
                Failures := Failures + 1;
             end if;
          end;
+      elsif Name = "accinflinit" then
+         Acc_Settings.Inflight_Calibration := True;
+      elsif Name = "accinfltrim" then
+         Acc_State.Roll_Trim := Interfaces.Integer_16 (Int (3));
+         Acc_State.Pitch_Trim := Interfaces.Integer_16 (Int (4));
+      elsif Name = "accinflin" then
+         if Int (4) /= 0 then
+            Acc_Cal.Remaining := Adaflight.Acc_Inflight.Measurement_Samples;
+         end if;
+         if Int (5) /= 0 then
+            Acc_Cal.Active := True;
+         end if;
+         if Int (6) /= 0 then
+            Acc_Cal.Measurement_Done := False;
+            Acc_Cal.Save_Pending := True;
+         end if;
+         Acc_Done_Tones := 0;
+         Acc_Saves := 0;
+      elsif Name = "accinfl" then
+         Record_Int ("accinfl.done", Int (4), Boolean'Pos (Acc_Cal.Measurement_Done));
+         Record_Int ("accinfl.save", Int (5), Boolean'Pos (Acc_Cal.Save_Pending));
+         Record_Int ("accinfl.active", Int (6), Boolean'Pos (Acc_Cal.Active));
+         Record_Int ("accinfl.remaining", Int (7), Integer_64 (Acc_Cal.Remaining));
+         Record_Int ("accinfl.tones", Int (8), Integer_64 (Acc_Done_Tones));
+         Record_Int ("accinfl.saves", Int (9), Integer_64 (Acc_Saves));
       else
          Put_Line ("unknown acc case " & Name);
          Failures := Failures + 1;
@@ -15600,7 +15637,7 @@ procedure Vector_Check is
                Integer (1_000_000 / H.Gyro_Sample_Rate_Hz));
             AC : constant Adaflight.Accelerometer.Settings := Adaflight.Config_Runtime.Accelerometer_Settings_Of
               (C.Accelerometer_Config, C.Gyro_Device_Config (0), C.Board_Alignment, Integer (H.Gyro_Sample_Rate_Hz),
-               256);
+               256, C.Feature_Config.Enabled_Features);
          begin
             Record_Int ("conffix.gyro_lpf1",
                         Integer_64 (Interfaces.Unsigned_16'Min (1000, C.Gyro_Config.Gyro_Lpf1_Static_Hz)),
@@ -22223,6 +22260,7 @@ begin
    Run (Dir & "/failsafe.csv", "failsafe");
    Run (Dir & "/modes.csv", "modes");
    Run (Dir & "/acc.csv", "acc");
+   Run (Dir & "/accinfl.csv", "acc");
    Run (Dir & "/baro.csv", "baro");
    Run (Dir & "/battery.csv", "battery");
    Run (Dir & "/batsag.csv", "battery");
