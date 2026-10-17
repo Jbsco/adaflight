@@ -5023,3 +5023,28 @@ sequences of 600 lines, 993 requests among table counts, VTX band and channel se
 797 within their bounds, whose results, runtime work and configuration hashes all match the
 reference's, 181 that both reject before writing, and 15 band writes whose VTX frequency is outside
 its range, each an error that leaves the configuration unchanged.
+
+## D215. MSP control writes (2026-10-15)
+
+`Adaflight.MSP_Control_In` contains the MSP in messages that act on the board: the flash erase, the
+arming switch of the MSP links, the accelerometer and compass calibrations, and the configuration
+write. They read the board through `Board`: armed, the SPI receiver running, and the request's link
+with whether it is the telemetry link. The arming switch keeps a bit per link in `Link_State`. A
+nonzero command byte sets the request's link's bit and the MSP arming reason, disarms an armed
+board, and turns the runaway takeoff prevention's temporary disable off. A zero byte clears the
+link's bit; once no link holds arming off, it clears the reason and sets the temporary disable to
+the request's second byte. A calibration starts only while disarmed. The configuration write is an
+error while armed. Otherwise it has the scheduler ignore the current task's state time, and either
+marks the configuration configured and asks for it to be written and read back, or, for a request
+over the telemetry link with the SPI receiver running, asks for the same after a delay. `Effects`
+carries each request to the runtime; no field has a setting to check.
+
+The command line oracle defines the arming flags, the arming reason setters, the telemetry link's
+descriptor, the delayed dispatch and the flash erase, which the reference's MSP code calls and the
+oracle did not link, and counts the calibrations, the scheduler call, the configuration read, the
+disarm and the runaway takeoff call. A directive sets the armed flag and the request's and the
+telemetry link's descriptors, and takes the configured features in as the running ones, as at boot,
+since the delayed write reads the running SPI receiver feature. The harness replays two sequences of
+600 lines, 919 requests among those directives, SPI receiver feature commands and resets: every
+result, runtime request, MSP arming reason and configuration hash matches the reference's, with 69
+configuration writes while armed rejected by both.
