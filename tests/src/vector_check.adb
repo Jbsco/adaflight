@@ -128,6 +128,7 @@ with Adaflight.MSP_Receiver_In;
 with Adaflight.MSP_Hardware_In;
 with Adaflight.MSP_Battery_In;
 with Adaflight.MSP_Feature_In;
+with Adaflight.MSP_Blackbox_In;
 with Adaflight.MSP_Receiver_Out;
 with Adaflight.MSP_Hardware_Out;
 with Adaflight.MSP_Peripheral_Out;
@@ -14561,6 +14562,8 @@ procedure Vector_Check is
    MSP_In_Effects : Adaflight.MSP_Tuning_In.Effects;
    MSP_Rx_Effects : Adaflight.MSP_Receiver_In.Effects;
    MSP_Gyro_Rate  : Adaflight.Config_Fix.Gyro_Rate := 0;
+   MSP_Log        : Adaflight.Blackbox.Recorder;
+   MSP_Loop_Time  : Adaflight.Blackbox.Loop_Time_Us := 125;
    CLI_Expected : Ada.Strings.Unbounded.Unbounded_String;
 
    --  The reference's command line over a sequence of command lines from the
@@ -14613,6 +14616,8 @@ procedure Vector_Check is
             CLI_Reply.Last_Check_Total_Us := 0;
             CLI_Sched := (others => <>);
             MSP_Gyro_Rate := 0;
+            MSP_Log.State := Adaflight.Blackbox.Disabled;
+            MSP_Log.I_Interval := 0;
          end if;
          CLI_Reply.Target.Text := Null_Unbounded_String;
          CLI_Expected := Null_Unbounded_String;
@@ -14695,6 +14700,10 @@ procedure Vector_Check is
                   Total_Exec_Us       => Interfaces.Unsigned_32'Value (Word (Command, 2)),
                   Moving_Sum_Exec_Us  => Interfaces.Unsigned_32'Value (Word (Command, 3)),
                   Moving_Sum_Delta_Us => Interfaces.Unsigned_32'Value (Word (Command, 4)));
+            elsif Word (Command, 0) = "!blackbox" then
+               MSP_Log.State := Adaflight.Blackbox.Log_State'Val (Natural'Value (Word (Command, 1)));
+               MSP_Log.I_Interval := Interfaces.Integer_16'Value (Word (Command, 2));
+               MSP_Loop_Time := Adaflight.Blackbox.Loop_Time_Us'Value (Word (Command, 3));
             elsif Word (Command, 0) = "!gyro" then
                MSP_Gyro_Rate := Adaflight.Config_Fix.Gyro_Rate'Value (Word (Command, 1));
             elsif Word (Command, 0) = "!msp" then
@@ -14714,6 +14723,18 @@ procedure Vector_Check is
                      Adaflight.MSP_Tuning_In.Process
                        (CLI_Config, Cmd, Request, MSP_Gyro_Rate, MSP_In_Result, MSP_In_Effects);
                      MSP_In_Ran := True;
+                  elsif Adaflight.MSP_Blackbox_In.Handles (Cmd) then
+                     declare
+                        use type Adaflight.MSP_Blackbox_In.Result;
+                        Log_Result : Adaflight.MSP_Blackbox_In.Result;
+                     begin
+                        Adaflight.MSP_Blackbox_In.Process
+                          (CLI_Config, Cmd, Request, MSP_Log, MSP_Loop_Time, Log_Result);
+                        MSP_In_Result :=
+                          (if Log_Result = Adaflight.MSP_Blackbox_In.Ack then Adaflight.MSP_Tuning_In.Ack
+                           else Adaflight.MSP_Tuning_In.Error);
+                        MSP_In_Ran := True;
+                     end;
                   elsif Adaflight.MSP_Feature_In.Handles (Cmd) then
                      declare
                         use type Adaflight.MSP_Feature_In.Result;
@@ -19723,6 +19744,7 @@ begin
    Run (Dir & "/mspinhw.csv", "cliset");
    Run (Dir & "/mspinbat.csv", "cliset");
    Run (Dir & "/mspinfeat.csv", "cliset");
+   Run (Dir & "/mspinbb.csv", "cliset");
    Run (Dir & "/clisave.csv", "cliset");
    if Settings_Seen /= Adaflight.Settings_Table.Setting'Pos (Adaflight.Settings_Table.Setting'Last) + 1 then
       Put_Line ("settings: the vectors hold" & Settings_Seen'Image & " settings");
