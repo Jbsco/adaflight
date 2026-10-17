@@ -194,10 +194,12 @@ ledger. The deviations so far:
   message checks the whole request before it stores anything, so a short request, which the
   reference stores as zero filter cutoffs, is an error (findings F142). The checker expects the
   error and unchanged settings for the recorded requests outside the ranges.
-- MSP tuning writes with a field outside its setting's range are errors that write and change
-  nothing (D203), where the reference stores the field's bytes. The checker expects the error and an
-  unchanged configuration for the recorded requests outside the ranges, and the reference's result
-  and configuration for the rest.
+- MSP tuning, advanced, filter and advanced PID writes with a field outside its setting's range
+  are errors that write and change nothing (D203, D204), where the reference stores the field's
+  bytes, or for a dynamic notch count, an RPM filter value or a feedforward averaging outside its
+  limit rejects the request after writing its earlier fields (findings F189). The checker expects
+  the error and an unchanged configuration for the recorded requests outside the ranges, and the
+  reference's result and configuration for the rest.
 - The configuration storage image reads bytes past its region as erased and does not write an
   image longer than the region (D158), where the reference leaves both to the target and reads
   past a corrupted region's end. Its reported size is the image's length, 2 bytes less than the
@@ -4782,3 +4784,34 @@ decoding the request as the reference reads it. The harness replays two sequence
 ranges, whose results, runtime work and configuration hashes all match the reference's, 10 short
 rate tunings that both reject, and 144 outside the ranges, each an error that leaves the
 configuration unchanged.
+
+## D204. MSP filter and advanced writes (2026-10-15)
+
+`Adaflight.MSP_Tuning_In` gains the advanced configuration, filter configuration and advanced PID
+in messages, under the same whole-request range check as D203. The advanced configuration writes
+the PID loop's divider, the motor update mode, protocol, rate, idle value and inversion, the
+gyro's range, calibration and overflow settings, and the debug mode. The filter configuration
+writes the gyro's and the D term's lowpasses and notches, the dynamic lowpasses, the dynamic
+notch, and the RPM filter with its fade range, Q and harmonic weights. The advanced PID message
+writes the feedforward, acceleration limit, angle limit, anti gravity, I term relax, throttle
+boost, acro trainer, D max, motor output limit, profile cell count, dynamic idle, feedforward
+smoothing, sag compensation, thrust linearization and TPA settings. Each reads its optional
+groups as the remaining length reaches them, and the filter message's first gyro lowpass arrives
+in one byte before its later 16-bit value.
+
+The reference's own limits count as ranges: an RPM filter weight above 100 is outside its range,
+though the weights' setting has none, and a dynamic notch count above seven, an RPM filter Q or
+fade range outside its limits or a feedforward averaging above three already are outside their
+settings' ranges. The TPA rate is held at 100, as the reference holds it, so it never makes a
+request an error. The advanced configuration and the filter configuration end with the gyro's
+checks of the configuration fix (D167), which read the gyro's sample rate that the caller passes
+in. `Effects` asks the runtime to set up the gyro's and the PID controller's filters again after
+the filters, and to take the PID settings in again with the motor output endpoints and the
+mixer's profile after the advanced PID message.
+
+The command line oracle links the reference's motor source for the protocol check of the fix and
+gains a directive that sets the gyro's sample rate. The harness replays two sequences of 700
+lines, 1210 requests among sample rates, stored motor protocols, bidirectional DShot, profile
+selections and resets: 944 within their ranges, whose results, runtime work and configuration
+hashes all match the reference's, and 266 outside them, each an error that leaves the
+configuration unchanged, 11 of them ones the reference also rejects after its partial writes.
