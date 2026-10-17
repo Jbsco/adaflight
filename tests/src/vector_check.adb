@@ -16131,8 +16131,22 @@ procedure Vector_Check is
       Gyros           => <>,
       Acc             => <>,
       Baro            => <>,
-      Mag             => <>);
+      Mag             => <>,
+      Rangefinder     => <>,
+      Optical_Flow    => <>,
+      Pitot           => <>,
+      Acc_Revision    => 0,
+      GPS_Enabled     => False,
+      GPS             => <>,
+      Status          => (MCU_Name     => CLI.To_Identity ("STM32F405"), Core_Clock_Hz => 168_000_000,
+                          Clock_Sources => True, System_Source => 2, PLL_Source => 1, Internal_ADC => True,
+                          Vref_Mv      => 3300, Core_Temp_C => 40, Stack_Total => 2048, Stack_High => 16#2002_0000#,
+                          others       => <>));
    CLI_Env      : CLI.Environment := CLI_Identity;
+   --  The gyro's bus as the oracle keeps it: the bus kind of the last
+   --  "!gyrodev" line, none for zero, and the device count of its bus.
+   CLI_Gyro_Bus_Kind    : Natural := 0;
+   CLI_Gyro_Bus_Devices : Interfaces.Unsigned_8 := 0;
    CLI_Board    : CLI.Board_State;
    CLI_Reply    : CLI.Output;
    CLI_Sched    : Adaflight.Scheduler.State;
@@ -16237,6 +16251,8 @@ procedure Vector_Check is
          if Int (2) = 0 then
             CLI_Config := Groups.Defaults;
             CLI_Env := CLI_Identity;
+            CLI_Gyro_Bus_Kind := 0;
+            CLI_Gyro_Bus_Devices := 0;
             CLI_Board := (others => <>);
             CLI_Reply.Batch_Active := False;
             CLI_Reply.Batch_Error := False;
@@ -16372,6 +16388,7 @@ procedure Vector_Check is
                CLI_Env.MSC_Ready := Word (Command, 1) /= "0";
             elsif Word (Command, 0) = "!osdport" then
                MSP_OSD_Port := Word (Command, 1) /= "0";
+               CLI_Env.Status.OSD_Port := Word (Command, 1) /= "0";
                MSP_OSD_Port_Takes := Word (Command, 2) /= "0";
             elsif Word (Command, 0) = "!motordev" then
                MSP_Motor_Kind := Adaflight.MSP_Motor_In.Device_Kind'Val (Natural'Value (Word (Command, 1)));
@@ -16408,6 +16425,7 @@ procedure Vector_Check is
                   MSP_Three_D := (CLI_Config.Feature_Config.Enabled_Features and 2 ** 12) /= 0;
                   CLI_Env.ESC_Sensor := (CLI_Config.Feature_Config.Enabled_Features and 2 ** 27) /= 0;
                   CLI_Env.Soft_Serial := (CLI_Config.Feature_Config.Enabled_Features and 2 ** 6) /= 0;
+                  CLI_Env.GPS_Enabled := (CLI_Config.Feature_Config.Enabled_Features and 2 ** 7) /= 0;
                end if;
             elsif Word (Command, 0) = "!gyro" then
                MSP_Gyro_Rate := Adaflight.Config_Fix.Gyro_Rate'Value (Word (Command, 1));
@@ -16756,6 +16774,88 @@ procedure Vector_Check is
                null;
             elsif Word (Command, 0) = "!dshotproto" then
                CLI_Env.DShot_Protocol := Word (Command, 1) /= "0";
+            elsif Word (Command, 0) = "!mcu" then
+               CLI_Env.Status.MCU_Name := CLI.To_Identity (Word (Command, 1));
+               CLI_Env.Status.Core_Clock_Hz := Interfaces.Unsigned_32'Value (Word (Command, 2));
+               CLI_Env.Status.System_Source := Natural'Value (Word (Command, 3));
+               CLI_Env.Status.PLL_Source := Natural'Value (Word (Command, 4));
+               CLI_Env.Status.Vref_Mv := Interfaces.Unsigned_16'Value (Word (Command, 5));
+               CLI_Env.Status.Core_Temp_C := Interfaces.Integer_16'Value (Word (Command, 6));
+            elsif Word (Command, 0) = "!stack" then
+               CLI_Env.Status.Stack_Total := Interfaces.Unsigned_32'Value (Word (Command, 1));
+               CLI_Env.Status.Stack_High := Interfaces.Unsigned_32'Value (Word (Command, 2));
+               CLI_Env.Status.Stack_Used := Interfaces.Unsigned_32'Value (Word (Command, 3));
+            elsif Word (Command, 0) = "!eeprom" then
+               CLI_Env.Status.Config_Size := Interfaces.Unsigned_16'Value (Word (Command, 1));
+               CLI_Env.Status.Storage_Size := Interfaces.Unsigned_32'Value (Word (Command, 2));
+               CLI_Config.System_Config.Configuration_State := Interfaces.Unsigned_8'Value (Word (Command, 3));
+            elsif Word (Command, 0) = "!buses" then
+               CLI_Env.Status.SPI_Devices := Interfaces.Unsigned_8'Value (Word (Command, 1));
+               CLI_Env.Status.I2C_Devices := Interfaces.Unsigned_8'Value (Word (Command, 2));
+               CLI_Env.Status.I2C_Errors := Interfaces.Unsigned_16'Value (Word (Command, 3));
+            elsif Word (Command, 0) = "!gyromode" then
+               CLI_Env.Gyros (0).Mode := CLI.Gyro_Mode'Val (Natural'Value (Word (Command, 1)));
+               CLI_Gyro_Bus_Devices := Interfaces.Unsigned_8'Value (Word (Command, 2));
+               CLI_Env.Gyros (0).Bus_Devices := (if CLI_Gyro_Bus_Kind /= 0 then CLI_Gyro_Bus_Devices else 0);
+            elsif Word (Command, 0) = "!accrev" then
+               CLI_Env.Acc_Revision := Interfaces.Unsigned_8'Value (Word (Command, 1));
+            elsif Word (Command, 0) = "!gpsstate" then
+               CLI_Env.GPS.State :=
+                 (if Word (Command, 1) = "7" then Adaflight.GPS_Link.Lost_Communication
+                  else Adaflight.GPS_Link.Link_State'Val (Natural'Value (Word (Command, 1))));
+               CLI_Env.GPS.Platform := Adaflight.GPS_Frames.Platform'Val (Natural'Value (Word (Command, 2)));
+               CLI_Env.GPS.Port_Baud := Natural'Value (Word (Command, 3));
+            elsif Word (Command, 0) = "!gpssol" then
+               CLI_Env.GPS.Satellites := Interfaces.Unsigned_8'Value (Word (Command, 1));
+               CLI_Env.GPS.HDOP := Interfaces.Unsigned_16'Value (Word (Command, 2));
+               CLI_Env.GPS.VDOP := Interfaces.Unsigned_16'Value (Word (Command, 3));
+               CLI_Env.GPS.Fix := Word (Command, 4) /= "0";
+               CLI_Env.GPS.Latitude := Interfaces.Integer_32'Value (Word (Command, 5));
+               CLI_Env.GPS.Longitude := Interfaces.Integer_32'Value (Word (Command, 6));
+               CLI_Env.GPS.Altitude_Cm := Interfaces.Integer_32'Value (Word (Command, 7));
+            elsif Word (Command, 0) = "!gpstime" then
+               CLI_Env.GPS.Time_Valid := Word (Command, 1) /= "0";
+               CLI_Env.GPS.Year := Interfaces.Unsigned_16'Value (Word (Command, 2));
+               CLI_Env.GPS.Month := Interfaces.Unsigned_8'Value (Word (Command, 3));
+               CLI_Env.GPS.Day := Interfaces.Unsigned_8'Value (Word (Command, 4));
+               CLI_Env.GPS.Hour := Interfaces.Unsigned_8'Value (Word (Command, 5));
+               CLI_Env.GPS.Minute := Interfaces.Unsigned_8'Value (Word (Command, 6));
+               CLI_Env.GPS.Second := Interfaces.Unsigned_8'Value (Word (Command, 7));
+            elsif Word (Command, 0) = "!gpssv" then
+               CLI_Env.GPS.Channels := Natural'Value (Word (Command, 1));
+               for I in 1 .. CLI_Env.GPS.Channels loop
+                  CLI_Env.GPS.Signals (I) := Interfaces.Unsigned_8'Value (Word (Command, 1 + I));
+               end loop;
+            elsif Word (Command, 0) = "!osddev" then
+               CLI_Env.Status.OSD_Device := Natural'Value (Word (Command, 1));
+               CLI_Env.Status.OSD_Columns := Interfaces.Unsigned_8'Value (Word (Command, 2));
+               CLI_Env.Status.OSD_Rows := Interfaces.Unsigned_8'Value (Word (Command, 3));
+            elsif Word (Command, 0) = "!buildkey" then
+               CLI_Env.Status.Has_Build_Key := Word (Command, 1) /= "-";
+               CLI_Env.Status.Build_Key := CLI.To_Identity (Word (Command, 1));
+               CLI_Env.Status.Has_Release_Name := Word (Command, 2) /= "-";
+               CLI_Env.Status.Release_Name := CLI.To_Identity (Word (Command, 2));
+            elsif Word (Command, 0) = "!millis" then
+               CLI_Env.Status.Uptime_Ms := Interfaces.Unsigned_32'Value (Word (Command, 1));
+            elsif Word (Command, 0) = "!rtc" then
+               Adaflight.RTC.Set
+                 (CLI_Env.Status.Clock, Interfaces.Integer_64'Value (Word (Command, 1)), CLI_Env.Status.Uptime_Ms);
+            elsif Word (Command, 0) = "!load" then
+               CLI_Sched.Average_Load_Percent := Natural'Value (Word (Command, 1));
+            elsif Word (Command, 0) = "!battery" then
+               CLI_Env.Status.Battery_Voltage := Interfaces.Unsigned_16'Value (Word (Command, 1));
+               CLI_Env.Status.Battery_Cells := Interfaces.Unsigned_8'Value (Word (Command, 2));
+               CLI_Env.Status.Battery_State :=
+                 Adaflight.Battery.Battery_State'Val (Natural'Value (Word (Command, 3)));
+            elsif Word (Command, 0) = "!armdis" then
+               declare
+                  Flags : constant Interfaces.Unsigned_32 := Interfaces.Unsigned_32'Value (Word (Command, 1));
+               begin
+                  for R in Adaflight.Arming.Disable_Reason loop
+                     CLI_Env.Status.Arming_Disabled (R) :=
+                       (Flags and 2 ** Adaflight.Arming.Disable_Reason'Pos (R)) /= 0;
+                  end loop;
+               end;
             elsif Word (Command, 0) = "!serialport" then
                CLI_Env.Serial_Ports (Natural'Value (Word (Command, 1)) + 1) :=
                  (Available     => Word (Command, 2) /= "0",
@@ -16772,7 +16872,11 @@ procedure Vector_Check is
                   if Word (Command, 0) = "!gyrodev" then
                      CLI_Config.Gyro_Config.Gyros_Detected := Interfaces.Unsigned_8'Value (Word (Command, 1));
                      CLI_Env.Gyros_Enabled := Interfaces.Unsigned_8'Value (Word (Command, 2));
-                     CLI_Env.Gyros (0) := (Hardware => Natural'Value (Word (Command, 3)), Bus => Bus);
+                     CLI_Env.Gyros (0).Hardware := Natural'Value (Word (Command, 3));
+                     CLI_Env.Gyros (0).Bus := Bus;
+                     CLI_Gyro_Bus_Kind := Natural'Value (Word (Command, 4));
+                     CLI_Gyro_Bus_Devices := 0;
+                     CLI_Env.Gyros (0).Bus_Devices := 0;
                   else
                      declare
                         Device : constant CLI.Sensor_Device :=
@@ -16782,7 +16886,10 @@ procedure Vector_Check is
                         case Natural'Value (Word (Command, 1)) is
                            when 1 => CLI_Env.Acc := Device;
                            when 2 => CLI_Env.Baro := Device;
-                           when others => CLI_Env.Mag := Device;
+                           when 3 => CLI_Env.Mag := Device;
+                           when 4 => CLI_Env.Rangefinder := Device;
+                           when 5 => CLI_Env.Optical_Flow := Device;
+                           when others => CLI_Env.Pitot := Device;
                         end case;
                      end;
                   end if;
@@ -24919,6 +25026,7 @@ begin
    Run (Dir & "/clidshotprog.csv", "cliset");
    Run (Dir & "/clioptions.csv", "cliset");
    Run (Dir & "/cliperipherals.csv", "cliset");
+   Run (Dir & "/clistatus.csv", "cliset");
    if Settings_Seen /= Adaflight.Settings_Table.Setting'Pos (Adaflight.Settings_Table.Setting'Last) + 1 then
       Put_Line ("settings: the vectors hold" & Settings_Seen'Image & " settings");
       Failures := Failures + 1;
