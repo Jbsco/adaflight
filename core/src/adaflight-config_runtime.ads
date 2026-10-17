@@ -142,8 +142,8 @@ package Adaflight.Config_Runtime with SPARK_Mode is
    function Adjustment_Settings_Of (R : Rx_Config_Record; Sys : System_Config_Record) return Adjustments.Settings;
 
    --  The mixer configuration from the stored mixer, motor, 3D and receiver
-   --  groups, the current rate and PID profiles, the custom motor mix, the
-   --  features in use and the build's mixers. The output range comes from
+   --  groups, the current rate, PID and battery profiles, the custom motor
+   --  mix, the features in use and the build's mixers. The output range comes from
    --  the protocol family's endpoints, with a range the motor values do not
    --  hold, or an inverted one, held to a range at least one step wide; a
    --  disabled protocol's range is zero to one. A mode outside the table
@@ -152,7 +152,8 @@ package Adaflight.Config_Runtime with SPARK_Mode is
    function Mixer_Config_Of
      (M : Mixer_Config_Record; Motor : Motor_Config_Record; Flight_3D : Flight3_D_Config_Record;
       R : Rx_Config_Record; Rate : Control_Rate_Config_Record; P : Pid_Profile_Record;
-      Custom : Motor_Mixer_Record_List_8; Features : Unsigned_32; O : Mixer_Init.Options) return Mixer.Config;
+      Battery : Battery_Profile_Record; Custom : Motor_Mixer_Record_List_8; Features : Unsigned_32;
+      O : Mixer_Init.Options) return Mixer.Config;
 
    --  The accelerometer settings from the stored accelerometer, gyro device
    --  and board alignment groups, with the hardware's sample rate and counts

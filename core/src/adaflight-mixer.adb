@@ -8,7 +8,8 @@ package body Adaflight.Mixer with SPARK_Mode is
    --  The clamp as the reference writes it, which also admits a lower bound
    --  above the upper one after rounding.
    function Clamp (Value : Float; Low : Float; High : Float) return Float
-     with Post => Clamp'Result = Low or else Clamp'Result = High or else Clamp'Result = Value
+     with Post =>
+       (if Value < Low then Clamp'Result = Low elsif Value > High then Clamp'Result = High else Clamp'Result = Value)
    is
    begin
       if Value < Low then
@@ -394,6 +395,32 @@ package body Adaflight.Mixer with SPARK_Mode is
       end loop;
    end Apply_Crash_Flip;
 
+   --  The top of the motor range: the high end, lowered by the sag
+   --  compensation the fuller the battery is, except in the crash flip. A
+   --  lowering past the low end holds at the low end (D6).
+   function Top_Of_Range (C : Config; Inp : Inputs) return Motor_Value
+     with Global => null,
+          Post   =>
+            Top_Of_Range'Result in C.Output_Low .. C.Output_High
+            and then (if Inp.Crash_Flip_Active then Top_Of_Range'Result = C.Output_High)
+   is
+      Attenuation : Float range 0.0 .. 1.2 := 0.0;
+   begin
+      if Sag_Factor (C) > 0.0 then
+         declare
+            Goodness : constant Unit_Interval :=
+              1.0 - Constrain_F ((Float (Sag_Full_Cell_Voltage) - Float (Inp.Sag_Cell_Voltage)) / Sag_Range (C),
+                                 0.0, 1.0);
+         begin
+            Attenuation := Sag_Range (C) / Float (Sag_Full_Cell_Voltage) * Goodness * Sag_Factor (C);
+         end;
+      end if;
+      if Inp.Crash_Flip_Active then
+         return C.Output_High;
+      end if;
+      return Float'Max (C.Output_Low, C.Output_High - Attenuation * (C.Output_High - C.Output_Low));
+   end Top_Of_Range;
+
    procedure Update
      (S   : in out State; C : Config; Ctl : in out PID_Controller.State;
       R   : Runtime; P : Profile; Inp : Inputs)
@@ -403,7 +430,7 @@ package body Adaflight.Mixer with SPARK_Mode is
         (if Inp.Launch_Control_Active and then R.Launch_Control = Pitch_Only then C.Launch_Table else C.Table);
       Throttle : Float := (Inp.RC_Throttle - 1000.0) + Float (Inp.Throttle_Angle_Correction);
       Range_Min : constant Motor_Value := C.Output_Low;
-      Range_Max : constant Motor_Value := C.Output_High;
+      Range_Max : constant Motor_Value := Top_Of_Range (C, Inp);
       Output_Min : constant Motor_Value := Range_Min;
       Output_Range : constant Float := Range_Max - Range_Min;
       Scaled_Roll : constant Scaled_Sum := Scale_Sum (Ctl.Data (Roll).Sum, Float (P.PID_Sum_Limit));
@@ -515,9 +542,8 @@ package body Adaflight.Mixer with SPARK_Mode is
             begin
                if Inp.Failsafe then
                   S.Motors (M) :=
-                    Constrain_F
-                      ((if C.DShot and then Output < Range_Min then C.Disarm_Output else Output),
-                       C.Disarm_Output, Range_Max);
+                    Clamp ((if C.DShot and then Output < Range_Min then C.Disarm_Output else Output),
+                           C.Disarm_Output, Range_Max);
                else
                   S.Motors (M) := Constrain_F (Output, Range_Min, Range_Max);
                end if;

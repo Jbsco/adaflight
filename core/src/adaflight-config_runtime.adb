@@ -59,7 +59,8 @@ package body Adaflight.Config_Runtime with SPARK_Mode is
    function Mixer_Config_Of
      (M : Mixer_Config_Record; Motor : Motor_Config_Record; Flight_3D : Flight3_D_Config_Record;
       R : Rx_Config_Record; Rate : Control_Rate_Config_Record; P : Pid_Profile_Record;
-      Custom : Motor_Mixer_Record_List_8; Features : Unsigned_32; O : Mixer_Init.Options) return Mixer.Config
+      Battery : Battery_Profile_Record; Custom : Motor_Mixer_Record_List_8; Features : Unsigned_32;
+      O : Mixer_Init.Options) return Mixer.Config
    is
       Mode       : constant Mixer_Init.Mixer_Mode :=
         (if M.Mixer_Mode in 1 .. Mixer_Init.Mixer_Mode'Pos (Mixer_Init.Mixer_Mode'Last) + 1
@@ -107,7 +108,9 @@ package body Adaflight.Config_Runtime with SPARK_Mode is
             Max_Check              => Held (Integer (R.Maxcheck), 750, 2_250),
             Crashflip_Motor_Percent => Held (Integer (M.Crashflip_Motor_Percent), 0, 100),
             Crashflip_Rate         => Held (Integer (M.Crashflip_Rate), 0, 250),
-            DShot                  => Is_DShot (Motor.Dev.Motor_Protocol));
+            DShot                  => Is_DShot (Motor.Dev.Motor_Protocol),
+            Sag_Compensation       => Held (Integer (P.Vbat_Sag_Compensation), 0, 150),
+            Warning_Cell_Voltage   => Held (Integer (Battery.Vbatwarningcellvoltage), 100, 500));
       end;
    end Mixer_Config_Of;
 
