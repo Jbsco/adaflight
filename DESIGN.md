@@ -6224,3 +6224,16 @@ it.
 The PID oracle's mixer runs script the flip in twenty-loop blocks, the crash flip rate and motor
 percentage, the accelerometer flag around the mixer, the tilt, and the raw and smoothed deflections, with
 anti-gravity off (D6). The existing vectors stay byte for byte, and the new runs replay exactly.
+
+## D271. DShot failsafe floor (2026-10-16)
+
+`Adaflight.Mixer` gains the DShot floor of the failsafe mixing. With a DShot protocol, a motor output below
+the low end of the range during failsafe is the disarm output, before the clamp to the disarm output and
+the high end, so that no value reaches the protocol's command range. The low end with DShot is the idle, so
+an output between the command range and the idle stops the motor as well. The mixer configuration takes
+the protocol from the stored motor configuration.
+
+The PID oracle now builds with DShot, as the F405 build does, and the existing vectors stay byte for byte.
+New mixer runs script the failsafe in ten-loop blocks and the protocol, each protocol with DShot and PWM
+endpoints, and the DShot low end at an idle of 3 to 10 percent. They are the first runs to check the
+failsafe mixing, and they replay exactly.

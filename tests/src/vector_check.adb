@@ -1511,6 +1511,7 @@ procedure Vector_Check is
    Mix_Tilt     : Float := 1.0;
    Mix_Defl     : Adaflight.Mixer.Axis_Deflections := (others => 0.0);
    Mix_Defl_Abs : Adaflight.Mixer.Axis_Magnitudes := (others => 0.0);
+   Mix_Failsafe : Boolean := False;
 
    procedure Check_Mix_Line is
       use Adaflight.PID_Profile;
@@ -1562,6 +1563,7 @@ procedure Vector_Check is
          Mix_Tilt := 1.0;
          Mix_Defl := (others => 0.0);
          Mix_Defl_Abs := (others => 0.0);
+         Mix_Failsafe := False;
          Mix_Airmode := Str (13) = "1";
          Mix_AG := Str (14) = "1";
          Configure (Mix_Runtime, Mix_Profile, Integer'Value (Str (3)), Has_Acc => False,
@@ -1604,6 +1606,7 @@ procedure Vector_Check is
             MInp.Gyro := Inp.Gyro;
             MInp.Acc_Present := Mix_Flip_Acc;
             MInp.Cos_Tilt := Mix_Tilt;
+            MInp.Failsafe := Mix_Failsafe;
             MInp.Alt_Hold_Mode := Inp.Alt_Hold_Mode;
             MInp.Pos_Hold_Mode := Inp.Pos_Hold_Mode;
             MInp.GPS_Rescue_Mode := Inp.GPS_Rescue_Mode;
@@ -1649,6 +1652,10 @@ procedure Vector_Check is
       elsif Name = "mixrpm" then
          Mix_RPM := Flt (4);
          Mix_Vbat := Interfaces.Unsigned_16 (Int (5));
+      elsif Name = "mixfsinit" then
+         Mix_Config.DShot := Str (3) = "1";
+      elsif Name = "mixfs" then
+         Mix_Failsafe := Str (4) = "1";
       elsif Name = "mixflipinit" then
          Mix_Config.Crashflip_Rate := Integer (Int (3));
          Mix_Config.Crashflip_Motor_Percent := Integer (Int (4));
@@ -21792,6 +21799,7 @@ begin
    Run (Dir & "/mixspin.csv", "mix");
    Run (Dir & "/mixrpm.csv", "mix");
    Run (Dir & "/mixflip.csv", "mix");
+   Run (Dir & "/mixfs.csv", "mix");
    Run (Dir & "/rc.csv", "rc");
    Run (Dir & "/gyro.csv", "gyro");
    Run (Dir & "/imu.csv", "imu");

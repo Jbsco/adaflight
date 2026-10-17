@@ -73,6 +73,9 @@ package Adaflight.Mixer with SPARK_Mode, Pure is
       --  second, at which the drive reaches zero.
       Crashflip_Motor_Percent : Natural range 0 .. 100 := 0;
       Crashflip_Rate         : Natural range 0 .. 250 := 0;
+      --  A DShot protocol, whose values below the low end are commands, so
+      --  that the failsafe sends the disarm output for any output below it.
+      DShot                  : Boolean := False;
    end record
      with Dynamic_Predicate =>
        Config.Output_Low < Config.Output_High and then Config.Disarm_Output <= Config.Output_High;

@@ -514,7 +514,10 @@ package body Adaflight.Mixer with SPARK_Mode is
                Output  : constant Float := Output_Min + Output_Range * Shaped;
             begin
                if Inp.Failsafe then
-                  S.Motors (M) := Constrain_F (Output, C.Disarm_Output, Range_Max);
+                  S.Motors (M) :=
+                    Constrain_F
+                      ((if C.DShot and then Output < Range_Min then C.Disarm_Output else Output),
+                       C.Disarm_Output, Range_Max);
                else
                   S.Motors (M) := Constrain_F (Output, Range_Min, Range_Max);
                end if;
