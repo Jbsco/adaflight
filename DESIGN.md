@@ -6290,3 +6290,17 @@ New DShot sequences run the same scenarios with the protocol in seven of eight, 
 stream's start, recent beacons, and the telemetry and bitbang states scripted, and the blockers outside the
 DShot side clear. The crash flip box gives way to the failsafe box, since the crash flip's arming state is
 not yet in. The sequences replay exactly.
+
+## D275. Crash flip arming (2026-10-16)
+
+`Adaflight.Arming` gains the crash flip's arming state. Arming with a DShot protocol starts the crash flip
+when its switch is on, which sets the motors' spin direction reversed and keeps launch control off. While it
+runs, the runaway takeoff check stays off and every modes pass asks for the crash flip tone. Turning the
+switch off while armed returns to normal flight with the spin direction normal when the auto rearm setting is
+on. Otherwise it disarms with the crash flip reason and blocks arming until the pilot disarms. A disarm ends
+the crash flip, and a disarm during it leaves the was-ever-armed flag as it was. The settings bridge takes
+the auto rearm setting from the stored mixer group.
+
+The arming oracle's crash flip sequences run the DShot scenarios with the protocol on, the crash flip box
+left in place, a crash flip switch of its own flipped now and then, and the auto rearm setting drawn per
+sequence. They replay exactly, and the earlier arming vectors stay byte for byte.

@@ -90,7 +90,7 @@ package Adaflight.Config_Runtime with SPARK_Mode is
    --  the features in use and the sensors found at boot.
    function Arming_Settings_Of
      (A : Arming_Config_Record; Sys : System_Config_Record; R : Rx_Config_Record;
-      Flight_3D : Flight3_D_Config_Record; Mixer_Mode : Unsigned_8; Loop_Rate : Pid_Config_Record;
+      Flight_3D : Flight3_D_Config_Record; Mixer : Mixer_Config_Record; Loop_Rate : Pid_Config_Record;
       Sch : Scheduler_Config_Record; Motor : Motor_Config_Record; P : Pid_Profile_Record; Features : Unsigned_32;
       Sensors : Arming.Sensor_Set) return Arming.Settings;
 
@@ -512,7 +512,7 @@ private
 
    function Arming_Settings_Of
      (A : Arming_Config_Record; Sys : System_Config_Record; R : Rx_Config_Record;
-      Flight_3D : Flight3_D_Config_Record; Mixer_Mode : Unsigned_8; Loop_Rate : Pid_Config_Record;
+      Flight_3D : Flight3_D_Config_Record; Mixer : Mixer_Config_Record; Loop_Rate : Pid_Config_Record;
       Sch : Scheduler_Config_Record; Motor : Motor_Config_Record; P : Pid_Profile_Record; Features : Unsigned_32;
       Sensors : Arming.Sensor_Set) return Arming.Settings is
      (Gyro_Cal_On_First_Arm      => A.Gyro_Cal_On_First_Arm /= 0,
@@ -531,8 +531,8 @@ private
       Airmode_Feature            => (Features and Config_Fix.Feature_Airmode) /= 0,
       Anti_Gravity_Feature       => (Features and Config_Fix.Feature_Anti_Gravity) /= 0,
       Fixed_Wing                 =>
-        Mixer_Mode in 1 .. Mixer_Init.Mixer_Mode'Pos (Mixer_Init.Mixer_Mode'Last) + 1
-        and then Mixer_Init.Is_Fixed_Wing (Mixer_Init.Mixer_Mode'Val (Mixer_Mode - 1)),
+        Mixer.Mixer_Mode in 1 .. Mixer_Init.Mixer_Mode'Pos (Mixer_Init.Mixer_Mode'Last) + 1
+        and then Mixer_Init.Is_Fixed_Wing (Mixer_Init.Mixer_Mode'Val (Mixer.Mixer_Mode - 1)),
       PID_At_Min_Throttle        => P.Pid_At_Min_Throttle /= 0,
       Launch_Control_Angle_Limit => Held (Integer (P.Launch_Control_Angle_Limit), 0, 90),
       Launch_Trigger_Throttle    => Held (Integer (P.Launch_Control_Throttle_Percent), 0, 100),
@@ -544,7 +544,8 @@ private
       Sensors                    => Sensors,
       DShot                      => Is_DShot (Motor.Dev.Motor_Protocol),
       DShot_EDT                  => Motor.Dev.Use_Dshot_Edt /= 0,
-      ESC_Sensor                 => (Features and Config_Fix.Feature_ESC_Sensor) /= 0);
+      ESC_Sensor                 => (Features and Config_Fix.Feature_ESC_Sensor) /= 0,
+      Crashflip_Auto_Rearm       => Mixer.Crashflip_Auto_Rearm);
 
    function Failsafe_Settings_Of (F : Failsafe_Config_Record; A : Autopilot_Config_Record) return Failsafe.Settings is
      (Throttle_Low_Delay => Held (Integer (F.Failsafe_Throttle_Low_Delay), 0, 300),
