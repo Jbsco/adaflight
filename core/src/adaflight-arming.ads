@@ -98,6 +98,10 @@ package Adaflight.Arming with SPARK_Mode is
       Items : Command_List := (others => Spin_Direction_Normal);
    end record;
 
+   --  The OSD statistics screen after a disarm: left as it was, shown, or
+   --  suppressed.
+   type Stats_Display is (Unchanged, Allow_Stats, Suppress_Stats);
+
    --  What one pass asks of the other units.
    type Outputs is record
       Beeper                    : Beeps;
@@ -122,6 +126,11 @@ package Adaflight.Arming with SPARK_Mode is
       --  course over ground for the heading.
       GPS_Home_Resets           : Small_Count := 0;
       GPS_Heading_Blocked       : Boolean := False;
+      --  The persistent statistics' arm and disarm calls, and the OSD
+      --  statistics screen.
+      Stats_Arms                : Small_Count := 0;
+      Stats_Disarms             : Small_Count := 0;
+      OSD_Stats                 : Stats_Display := Unchanged;
    end record;
 
    type Sensor_Set is record
@@ -314,7 +323,12 @@ package Adaflight.Arming with SPARK_Mode is
      with Post => S.Armed = S.Armed'Old;
 
    procedure Disarm
-     (S : in out State; C : Settings; Reason : Disarm_Reason; Now_Us : Time_Us; Out_Step : in out Outputs)
+     (S        : in out State;
+      C        : Settings;
+      M        : Modes.State;
+      Reason   : Disarm_Reason;
+      Now_Us   : Time_Us;
+      Out_Step : in out Outputs)
      with Post => not S.Armed;
 
    procedure Try_Arm (

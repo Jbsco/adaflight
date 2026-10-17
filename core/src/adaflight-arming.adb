@@ -198,7 +198,7 @@ package body Adaflight.Arming with SPARK_Mode is
             if not C.Crashflip_Auto_Rearm then
                S.Disabled (Crash_Flip_Block) := True;
                S.Disarm_Requested := False;
-               Disarm (S, C, Crash_Flip, Now_Us, Out_Step);
+               Disarm (S, C, M, Crash_Flip, Now_Us, Out_Step);
             else
                Set_Spin_Direction (C, Spin_Direction_Normal, Out_Step);
                S.Crash_Flip_Active := False;
@@ -294,7 +294,12 @@ package body Adaflight.Arming with SPARK_Mode is
    end Clear_Mode_Overrides;
 
    procedure Disarm
-     (S : in out State; C : Settings; Reason : Disarm_Reason; Now_Us : Time_Us; Out_Step : in out Outputs)
+     (S        : in out State;
+      C        : Settings;
+      M        : Modes.State;
+      Reason   : Disarm_Reason;
+      Now_Us   : Time_Us;
+      Out_Step : in out Outputs)
    is
    begin
       Clear_Mode_Overrides (S);
@@ -306,6 +311,12 @@ package body Adaflight.Arming with SPARK_Mode is
          end if;
          S.Armed := False;
          S.Last_Disarm_Us := Now_Us;
+         if Modes.Is_Active (M, Modes.Crash_Flip) or else Launch_Control_Active (S) then
+            Out_Step.OSD_Stats := Suppress_Stats;
+         end if;
+         if not S.Crash_Flip_Active then
+            Bump (Out_Step.Stats_Disarms);
+         end if;
          S.Crash_Flip_Active := False;
          Set_Spin_Direction (C, Spin_Direction_Normal, Out_Step);
          if not (S.Disabled (Runaway_Disarm) or else S.Disabled (Crash_Disarm)) then
@@ -389,6 +400,7 @@ package body Adaflight.Arming with SPARK_Mode is
          then
             S.Launch := Launch_Active;
          end if;
+         Out_Step.OSD_Stats := Allow_Stats;
          Bump (Out_Step.RPM_Limiter_Resets);
          S.Armed := True;
          S.Trying := Not_Trying;
@@ -411,6 +423,7 @@ package body Adaflight.Arming with SPARK_Mode is
          else
             Request (Out_Step.Beeper, Arm_Tone);
          end if;
+         Bump (Out_Step.Stats_Arms);
       else
          S.Trying := Not_Trying;
          if not Seen.First_Arm_Gyro_Cal_Running then
@@ -497,7 +510,7 @@ package body Adaflight.Arming with SPARK_Mode is
       In_Launch       : constant Boolean := S.Launch = Launch_Active;
    begin
       if C.Three_D and then not Modes.Is_Active (M, Modes.Arm) then
-         Disarm (S, C, Switch, Now_Us, Out_Step);
+         Disarm (S, C, M, Switch, Now_Us, Out_Step);
       end if;
       if Now_Us > Failsafe_Power_On_Delay_Us and then not Sensed.Failsafe_Monitoring then
          Out_Step.Start_Failsafe_Monitoring := True;
@@ -570,7 +583,7 @@ package body Adaflight.Arming with SPARK_Mode is
                S.Runaway_Trigger_Us := Now_Us + Runaway_Activate_Delay_Us;
             elsif Clock.Elapsed (Now_Us, S.Runaway_Trigger_Us) > 0 then
                S.Disabled (Runaway_Disarm) := True;
-               Disarm (S, C, Runaway_Takeoff, Now_Us, Out_Step);
+               Disarm (S, C, M, Runaway_Takeoff, Now_Us, Out_Step);
             end if;
          else
             S.Runaway_Trigger_Us := 0;
@@ -635,7 +648,7 @@ package body Adaflight.Arming with SPARK_Mode is
             if S.Armed and then (Sensed.Failsafe_Receiving or else Modes.Is_Active (M, Modes.Failsafe)) then
                S.Disarm_Ticks := (S.Disarm_Ticks + 1) mod 256;
                if S.Disarm_Ticks > 3 then
-                  Disarm (S, C, Switch, Now_Us, Out_Step);
+                  Disarm (S, C, M, Switch, Now_Us, Out_Step);
                end if;
             end if;
          end if;
@@ -645,7 +658,7 @@ package body Adaflight.Arming with SPARK_Mode is
             S.Disarm_Requested := True;
             S.Trying := Not_Trying;
             if S.Armed then
-               Disarm (S, C, Sticks, Now_Us, Out_Step);
+               Disarm (S, C, M, Sticks, Now_Us, Out_Step);
             else
                Request (Out_Step.Beeper, Disarm_Repeat_Tone);
                S.Hold_Ms := S.Hold_Ms - Stick_Autorepeat_Ms;
@@ -874,7 +887,7 @@ package body Adaflight.Arming with SPARK_Mode is
          if S.Sticks_Arm then
             if Status = Throttle_Low then
                if Auto_Delay_Us > 0 and then Clock.Elapsed (Now_Us, S.Disarm_At) > 0 then
-                  Disarm (S, C, Throttle_Timeout, Now_Us, Out_Step);
+                  Disarm (S, C, M, Throttle_Timeout, Now_Us, Out_Step);
                   S.Armed_Beeper_On := False;
                else
                   Request (Out_Step.Beeper, Armed_Tone);
