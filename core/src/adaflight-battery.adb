@@ -6,6 +6,7 @@ package body Adaflight.Battery with SPARK_Mode is
    Reference_Millivolts     : constant := 3_300;
    Full_Scale               : constant := 4_095;
    Voltage_Task_Hz          : constant Float := 50.0;
+   Fast_Voltage_Task_Hz     : constant Float := 200.0;
    Current_Task_Hz          : constant Float := 50.0;
    Stable_Tick_Ms           : constant := 100;
    Stable_Max_Delta         : constant := 10;
@@ -93,8 +94,15 @@ package body Adaflight.Battery with SPARK_Mode is
    begin
       S := (others => <>);
       if C.Voltage_Meter in Analog | ESC then
-         Filters.PT1_Init (S.Display_Filter,
-                           Filters.PT1_Gain (Period_Cutoff (C.Display_Filter_Period), 1.0 / Voltage_Task_Hz));
+         Filters.PT1_Init
+           (S.Display_Filter,
+            Filters.PT1_Gain
+              (Period_Cutoff (C.Display_Filter_Period),
+               1.0 / (if C.Sag_Compensation then Fast_Voltage_Task_Hz else Voltage_Task_Hz)));
+      end if;
+      if C.Voltage_Meter = Analog and then C.Sag_Compensation then
+         Filters.PT1_Init
+           (S.Sag_Filter, Filters.PT1_Gain (Period_Cutoff (C.Sag_Filter_Period), 1.0 / Fast_Voltage_Task_Hz));
       end if;
       if C.Current_Meter = Analog then
          Filters.PT1_Init (S.Current_Filter,
@@ -114,10 +122,15 @@ package body Adaflight.Battery with SPARK_Mode is
          when Analog =>
             declare
                Filtered : Signal;
+               Sag      : Signal;
             begin
                Filters.PT1_Apply (S.Display_Filter, Float (Raw), Filtered);
                S.Voltage.Display_Filtered := Count_To_Centivolts (To_Count (Filtered), C);
                S.Voltage.Unfiltered := Count_To_Centivolts (Raw, C);
+               if C.Sag_Compensation then
+                  Filters.PT1_Apply (S.Sag_Filter, Float (Raw), Sag);
+                  S.Voltage.Sag_Filtered := Count_To_Centivolts (To_Count (Sag), C);
+               end if;
             end;
          when ESC =>
             if Meters.ESC_Sensor then

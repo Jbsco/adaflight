@@ -176,13 +176,18 @@ package Adaflight.Config_Runtime with SPARK_Mode is
    --  groups.
    function Compass_Settings_Of (C : Compass_Config_Record; Board : Board_Alignment_Record) return Compass.Settings;
 
+   --  Whether a stored PID profile asks for the battery sag compensation with
+   --  the RPM limit off.
+   function Sag_Compensation_Of (Profiles : Pid_Profile_Record_List_4; M : Mixer_Config_Record) return Boolean is
+     ((for some Profile of Profiles => Profile.Vbat_Sag_Compensation > 0) and then not M.Rpm_Limit);
+
    --  The battery settings from the stored battery, voltage meter, current
-   --  meter, virtual meter and ESC sensor groups and the current battery
-   --  profile.
+   --  meter, virtual meter and ESC sensor groups, the current battery
+   --  profile, and whether the sag compensation is on.
    function Battery_Settings_Of
      (B : Battery_Config_Record; P : Battery_Profile_Record; V : Voltage_Sensor_Adc_Config_Record;
       I : Current_Sensor_Adc_Config_Record; Virtual : Current_Sensor_Virtual_Config_Record;
-      ESC : Esc_Sensor_Config_Record) return Battery.Settings;
+      ESC : Esc_Sensor_Config_Record; Sag_Compensation : Boolean) return Battery.Settings;
 
    --  The beeper settings from the stored beeper group; each sound's flag
    --  is the bit below its code.
@@ -659,7 +664,7 @@ private
    function Battery_Settings_Of
      (B : Battery_Config_Record; P : Battery_Profile_Record; V : Voltage_Sensor_Adc_Config_Record;
       I : Current_Sensor_Adc_Config_Record; Virtual : Current_Sensor_Virtual_Config_Record;
-      ESC : Esc_Sensor_Config_Record) return Battery.Settings is
+      ESC : Esc_Sensor_Config_Record; Sag_Compensation : Boolean) return Battery.Settings is
      (Voltage_Meter                  =>
         Battery.Voltage_Source'Val
           (Code (B.Voltage_Meter_Source, Battery.Voltage_Source'Pos (Battery.Voltage_Source'Last))),
@@ -689,7 +694,9 @@ private
       Current_Offset                 => Integer (I.Offset),
       Virtual_Scale                  => Held (Integer (Virtual.Scale), -16_000, 16_000),
       Virtual_Offset                 => Held (Integer (Virtual.Offset), 0, 16_000),
-      ESC_Current_Offset             => Held (Integer (ESC.Offset), 0, 16_000));
+      ESC_Current_Offset             => Held (Integer (ESC.Offset), 0, 16_000),
+      Sag_Compensation               => Sag_Compensation,
+      Sag_Filter_Period              => Held (Integer (B.Vbat_Sag_Lpf_Period), 1, 255));
 
    function Flags_Of (Mask : Unsigned_32) return Beeper.Mode_Flags;
 
