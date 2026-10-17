@@ -3744,6 +3744,9 @@ procedure Vector_Check is
    Arm_DShot_Mode    : Boolean := False;
    Arm_DShot_In      : Adaflight.Arming.Inputs;
    Arm_Last_Step     : Adaflight.Arming.Outputs;
+   --  The GPS sequences' inputs before each step.
+   Arm_GPS_Mode      : Boolean := False;
+   Arm_GPS_In        : Adaflight.Arming.Inputs;
 
    procedure Check_Arming_Line is
       use Adaflight.Arming;
@@ -3787,7 +3790,8 @@ procedure Vector_Check is
         (case B is
             when Silence => 100, when Arm_Tone => 5, when Disarm_Tone => 4, when Armed_Tone => 16,
             when Disarm_Repeat_Tone => 15, when Rx_Set_Tone => 10, when Warning_Tones => 101,
-            when Confirmation_Tones => 102, when Crash_Flip_Tone => 20);
+            when Confirmation_Tones => 102, when Crash_Flip_Tone => 20, when GPS_Fix_Arm_Tone => 6,
+            when GPS_No_Fix_Arm_Tone => 23);
       function Selected (Cmds : Command_Set; First, Last : Stick_Command) return Integer_64 is
       begin
          for Cmd in First .. Last loop
@@ -3829,8 +3833,18 @@ procedure Vector_Check is
             DShot                      => False,
             DShot_EDT                  => False,
             ESC_Sensor                 => False,
-            Crashflip_Auto_Rearm       => False);
+            Crashflip_Auto_Rearm       => False,
+            GPS_Feature                => False,
+            GPS_Rescue_Built           => False,
+            OSD_Feature                => False,
+            Failsafe_GPS_Rescue        => False,
+            Rescue_Arming_Without_Fix  => False,
+            Rescue_Min_Sats            => 0,
+            Altitude_Control           => False,
+            Position_Control           => False,
+            Plane_Mixer                => Int (153) = 8 or else Int (153) = 14);
          Arm_DShot_Mode := False;
+         Arm_GPS_Mode := False;
          for M in Adaflight.Modes.Condition_Index loop
             declare
                F : constant Positive := 25 + 6 * M;
@@ -3885,7 +3899,11 @@ procedure Vector_Check is
                DShot_Telemetry            => Arm_DShot_Mode and then Arm_DShot_In.DShot_Telemetry,
                DShot_Telemetry_Active     => not Arm_DShot_Mode or else Arm_DShot_In.DShot_Telemetry_Active,
                Bitbang_Active             => Arm_DShot_Mode and then Arm_DShot_In.Bitbang_Active,
-               Bitbang_OK                 => not Arm_DShot_Mode or else Arm_DShot_In.Bitbang_OK);
+               Bitbang_OK                 => not Arm_DShot_Mode or else Arm_DShot_In.Bitbang_OK,
+               GPS_Fix                    => Arm_GPS_Mode and then Arm_GPS_In.GPS_Fix,
+               GPS_Sats                   => (if Arm_GPS_Mode then Arm_GPS_In.GPS_Sats else 0),
+               Altitude_Available         => Arm_GPS_Mode and then Arm_GPS_In.Altitude_Available,
+               OSD_Needs_Acc              => Arm_GPS_Mode and then Arm_GPS_In.OSD_Needs_Acc);
             --  The calibration state the receiver pass reads, recorded before
             --  the step's commands change it.
             Sensed_Before : Inputs := Sensed;
@@ -4081,6 +4099,25 @@ procedure Vector_Check is
          Arm_DShot_In.DShot_Telemetry_Active := Int (7) /= 0;
          Arm_DShot_In.Bitbang_Active := Int (8) /= 0;
          Arm_DShot_In.Bitbang_OK := Int (9) /= 0;
+      elsif Name = "armgpsinit" then
+         Arming_Settings.GPS_Feature := Int (3) /= 0;
+         Arming_Settings.GPS_Rescue_Built := True;
+         Arming_Settings.OSD_Feature := Int (4) /= 0;
+         Arm_GPS_In.OSD_Needs_Acc := Int (5) /= 0;
+         Arming_Settings.Failsafe_GPS_Rescue := Int (6) /= 0;
+         Arming_Settings.Rescue_Arming_Without_Fix := Int (7) /= 0;
+         Arming_Settings.Rescue_Min_Sats := Integer (Int (8));
+         Arming_Settings.Altitude_Control := True;
+         Arming_Settings.Position_Control := True;
+         Arming_Settings.Plane_Mixer := Int (9) /= 0;
+         Arm_GPS_Mode := True;
+      elsif Name = "armgpsin" then
+         Arm_GPS_In.GPS_Fix := Int (4) /= 0;
+         Arm_GPS_In.GPS_Sats := Integer (Int (5));
+         Arm_GPS_In.Altitude_Available := Int (6) /= 0;
+      elsif Name = "armgps" then
+         Record_Int ("armgps.home_resets", Int (4), Integer_64 (Arm_Last_Step.GPS_Home_Resets));
+         Record_Int ("armgps.heading_usable", Int (5), Boolean'Pos (not Arm_Last_Step.GPS_Heading_Blocked));
       elsif Name = "armflipinit" then
          Arming_Settings.Crashflip_Auto_Rearm := Int (3) /= 0;
       elsif Name = "armflip" then
@@ -15000,7 +15037,7 @@ procedure Vector_Check is
          AS : constant Adaflight.Arming.Settings :=
            Adaflight.Config_Runtime.Arming_Settings_Of
              (C.Arming_Config, C.System_Config, C.Rx_Config, C.Flight3_D_Config, C.Mixer_Config,
-              C.Pid_Config, C.Scheduler_Config, C.Motor_Config,
+              C.Pid_Config, C.Scheduler_Config, C.Motor_Config, C.Failsafe_Config, C.Gps_Rescue_Config,
               C.Pid_Profiles (Natural (C.System_Config.Pid_Profile_Index)), Runtime,
               (Gyro => True, Acc => True, Baro => False, Mag => False));
          MC : constant Adaflight.Modes.Conditions :=
@@ -21890,6 +21927,7 @@ begin
    Run (Dir & "/arming.csv", "arming");
    Run (Dir & "/armdshot.csv", "arming");
    Run (Dir & "/armflip.csv", "arming");
+   Run (Dir & "/armgps.csv", "arming");
    Run (Dir & "/compass.csv", "compass");
    Run (Dir & "/position.csv", "position");
    Run (Dir & "/altitude.csv", "altitude");

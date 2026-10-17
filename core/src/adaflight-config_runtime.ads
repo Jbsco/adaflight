@@ -86,12 +86,14 @@ package Adaflight.Config_Runtime with SPARK_Mode is
    function Rate_Profile_Of (R : Control_Rate_Config_Record) return Rates.Profile;
 
    --  The arming settings from the stored arming, system, receiver, 3D,
-   --  mixer, PID loop, scheduler and motor groups, the current PID profile,
-   --  the features in use and the sensors found at boot.
+   --  mixer, PID loop, scheduler, motor, failsafe and GPS rescue groups, the
+   --  current PID profile, the features in use and the sensors found at boot.
+   --  The altitude and position control laws are the multirotor's.
    function Arming_Settings_Of
      (A : Arming_Config_Record; Sys : System_Config_Record; R : Rx_Config_Record;
       Flight_3D : Flight3_D_Config_Record; Mixer : Mixer_Config_Record; Loop_Rate : Pid_Config_Record;
-      Sch : Scheduler_Config_Record; Motor : Motor_Config_Record; P : Pid_Profile_Record; Features : Unsigned_32;
+      Sch : Scheduler_Config_Record; Motor : Motor_Config_Record; F : Failsafe_Config_Record;
+      Rescue : Gps_Rescue_Record; P : Pid_Profile_Record; Features : Unsigned_32;
       Sensors : Arming.Sensor_Set) return Arming.Settings;
 
    --  The mode conditions from the stored ones. A mode outside the box
@@ -513,7 +515,8 @@ private
    function Arming_Settings_Of
      (A : Arming_Config_Record; Sys : System_Config_Record; R : Rx_Config_Record;
       Flight_3D : Flight3_D_Config_Record; Mixer : Mixer_Config_Record; Loop_Rate : Pid_Config_Record;
-      Sch : Scheduler_Config_Record; Motor : Motor_Config_Record; P : Pid_Profile_Record; Features : Unsigned_32;
+      Sch : Scheduler_Config_Record; Motor : Motor_Config_Record; F : Failsafe_Config_Record;
+      Rescue : Gps_Rescue_Record; P : Pid_Profile_Record; Features : Unsigned_32;
       Sensors : Arming.Sensor_Set) return Arming.Settings is
      (Gyro_Cal_On_First_Arm      => A.Gyro_Cal_On_First_Arm /= 0,
       Auto_Disarm_Delay          => Integer (A.Auto_Disarm_Delay),
@@ -545,7 +548,16 @@ private
       DShot                      => Is_DShot (Motor.Dev.Motor_Protocol),
       DShot_EDT                  => Motor.Dev.Use_Dshot_Edt /= 0,
       ESC_Sensor                 => (Features and Config_Fix.Feature_ESC_Sensor) /= 0,
-      Crashflip_Auto_Rearm       => Mixer.Crashflip_Auto_Rearm);
+      Crashflip_Auto_Rearm       => Mixer.Crashflip_Auto_Rearm,
+      GPS_Feature                => (Features and Config_Fix.Feature_GPS) /= 0,
+      GPS_Rescue_Built           => True,
+      OSD_Feature                => (Features and Config_Fix.Feature_OSD) /= 0,
+      Failsafe_GPS_Rescue        => F.Failsafe_Procedure = 2,
+      Rescue_Arming_Without_Fix  => Rescue.Allow_Arming_Without_Fix /= 0,
+      Rescue_Min_Sats            => Natural (Rescue.Min_Sats),
+      Altitude_Control           => True,
+      Position_Control           => True,
+      Plane_Mixer                => Mixer.Mixer_Mode in 8 | 14);
 
    function Failsafe_Settings_Of (F : Failsafe_Config_Record; A : Autopilot_Config_Record) return Failsafe.Settings is
      (Throttle_Low_Delay => Held (Integer (F.Failsafe_Throttle_Low_Delay), 0, 300),

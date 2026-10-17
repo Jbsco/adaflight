@@ -60,7 +60,14 @@ package body Adaflight.Arming with SPARK_Mode is
                 or else Modes.Condition_Present (Conds, Modes.Calib)
                 or else Modes.Condition_Present (Conds, Modes.Acro_Trainer)
                 or else (Modes.Condition_Present (Conds, Modes.Launch_Control)
-                         and then C.Launch_Control_Angle_Limit /= 0)));
+                         and then C.Launch_Control_Angle_Limit /= 0)
+                or else (C.OSD_Feature and then Sensed.OSD_Needs_Acc)
+                or else (C.GPS_Rescue_Built and then C.Failsafe_GPS_Rescue)));
+
+   --  GPS rescue is configured as the failsafe procedure or by its box.
+   function Rescue_Configured (C : Settings; Conds : Modes.Conditions) return Boolean is
+     (C.GPS_Rescue_Built
+      and then (C.Failsafe_GPS_Rescue or else Modes.Condition_Present (Conds, Modes.GPS_Rescue)));
 
    ----------
    -- Init --
@@ -228,6 +235,15 @@ package body Adaflight.Arming with SPARK_Mode is
          S.Disabled (No_Prearm) :=
            not (Modes.Is_Active (M, Modes.Prearm) and then (not S.Armed_With_Prearm or else C.Prearm_Allow_Rearm));
       end if;
+      --  With GPS rescue configured, arming waits for a fix with enough
+      --  satellites, unless allowed without one, armed before, or crash
+      --  flipping, and is disabled while the rescue switch is on.
+      if Rescue_Configured (C, Conds) then
+         S.Disabled (No_GPS_Fix) :=
+           not (C.Rescue_Arming_Without_Fix or else (Sensed.GPS_Fix and then Sensed.GPS_Sats >= C.Rescue_Min_Sats)
+                or else S.Was_Ever_Armed or else Modes.Is_Active (M, Modes.Crash_Flip));
+         S.Disabled (Rescue_Switch) := Modes.Is_Active (M, Modes.GPS_Rescue);
+      end if;
       S.Disabled (DShot_Telemetry) := Sensed.DShot_Telemetry and then not Sensed.DShot_Telemetry_Active;
       S.Disabled (DShot_Bitbang) := Sensed.Bitbang_Active and then not Sensed.Bitbang_OK;
       if Modes.Is_Active (M, Modes.Paralyze) then
@@ -385,7 +401,16 @@ package body Adaflight.Arming with SPARK_Mode is
          Bump (Out_Step.Headfree_Offsets);
          S.Disarm_At := Now_Us + Time_Us (C.Auto_Disarm_Delay) * 1_000_000;
          S.Last_Disabled_Reason := 0;
-         Request (Out_Step.Beeper, Arm_Tone);
+         if C.GPS_Feature then
+            Bump (Out_Step.GPS_Home_Resets);
+            Out_Step.GPS_Heading_Blocked := True;
+            Request
+              (Out_Step.Beeper,
+               (if Seen.GPS_Fix and then Seen.GPS_Sats >= C.Rescue_Min_Sats then GPS_Fix_Arm_Tone
+                else GPS_No_Fix_Arm_Tone));
+         else
+            Request (Out_Step.Beeper, Arm_Tone);
+         end if;
       else
          S.Trying := Not_Trying;
          if not Seen.First_Arm_Gyro_Cal_Running then
@@ -657,6 +682,9 @@ package body Adaflight.Arming with SPARK_Mode is
       S.Do_Not_Repeat := True;
       if Current = Combo (Center, Low, Low, Low) then
          Out_Step.Commands (Gyro_Calibration) := True;
+         if C.GPS_Feature then
+            Bump (Out_Step.GPS_Home_Resets);
+         end if;
          if C.Sensors.Baro then
             Out_Step.Commands (Baro_Ground_Level) := True;
          end if;
@@ -758,17 +786,42 @@ package body Adaflight.Arming with SPARK_Mode is
       S        : in out State;
       C        : Settings;
       M        : Modes.State;
+      Conds    : Modes.Conditions;
       Sensed   : Inputs;
       Out_Step : in out Outputs
    ) is
       Horizon_Allowed : Boolean := True;
    begin
-      if (Modes.Is_Active (M, Modes.Angle) or else Sensed.Failsafe_Active) and then C.Sensors.Acc then
+      if (Modes.Is_Active (M, Modes.Angle) or else Sensed.Failsafe_Active or else S.Flight_Modes (Alt_Hold_Mode)
+          or else S.Flight_Modes (Pos_Hold_Mode))
+        and then C.Sensors.Acc
+      then
          Horizon_Allowed := False;
          Set_Mode (S, Angle_Mode, True, Out_Step);
       else
          Set_Mode (S, Angle_Mode, False, Out_Step);
       end if;
+      Set_Mode
+        (S, GPS_Rescue_Mode,
+         S.Armed and then Rescue_Configured (C, Conds)
+         and then (Modes.Is_Active (M, Modes.GPS_Rescue)
+                   or else (Sensed.Failsafe_Active and then C.Failsafe_GPS_Rescue)),
+         Out_Step);
+      Set_Mode
+        (S, Alt_Hold_Mode,
+         S.Armed and then not S.Flight_Modes (GPS_Rescue_Mode) and then not S.Flight_Modes (Launch_Mode)
+         and then (Modes.Is_Active (M, Modes.Alt_Hold) or else Sensed.Failsafe_Active
+                   or else S.Flight_Modes (Autopilot_Mode))
+         and then C.Sensors.Acc and then C.Altitude_Control and then Sensed.Altitude_Available
+         and then S.Throttle_Raised,
+         Out_Step);
+      Set_Mode
+        (S, Pos_Hold_Mode,
+         S.Armed and then not S.Flight_Modes (GPS_Rescue_Mode) and then not S.Flight_Modes (Launch_Mode)
+         and then (Modes.Is_Active (M, Modes.Pos_Hold) or else Sensed.Failsafe_Active
+                   or else S.Flight_Modes (Autopilot_Mode))
+         and then C.Sensors.Acc and then C.Position_Control and then S.Throttle_Raised,
+         Out_Step);
       if Modes.Is_Active (M, Modes.Horizon) and then Horizon_Allowed and then C.Sensors.Acc then
          Set_Mode (S, Angle_Mode, False, Out_Step);
          Set_Mode (S, Horizon_Mode, True, Out_Step);
@@ -789,7 +842,7 @@ package body Adaflight.Arming with SPARK_Mode is
          end if;
       end if;
       Set_Mode (S, Passthru_Mode, Modes.Is_Active (M, Modes.Passthru), Out_Step);
-      if C.Fixed_Wing then
+      if C.Plane_Mixer then
          Set_Mode (S, Headfree_Mode, False, Out_Step);
       end if;
       Out_Step.Anti_Gravity := Modes.Is_Active (M, Modes.Anti_Gravity) or else C.Anti_Gravity_Feature;
@@ -854,7 +907,7 @@ package body Adaflight.Arming with SPARK_Mode is
          Request (Out_Step.Beeper, Crash_Flip_Tone);
       end if;
 
-      Select_Flight_Modes (S, C, M, Sensed, Out_Step);
+      Select_Flight_Modes (S, C, M, Conds, Sensed, Out_Step);
    end Process_Rx_Modes;
 
 end Adaflight.Arming;
