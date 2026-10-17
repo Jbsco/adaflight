@@ -1328,13 +1328,18 @@ private
       Sample_Time_Us     => Sample_Time_Us,
       Loop_Time_Us       => Sample_Time_Us * Integer (Loop_Rate.Pid_Process_Denom),
       Scale              => Scale,
-      Alignment          =>
-        Sensor_Alignment.Standard_Alignment'Val
-          (Code (Device.Alignment, Sensor_Alignment.Standard_Alignment'Pos (Sensor_Alignment.Standard_Alignment'Last))),
-      Custom_Angles      =>
-        (Roll  => Sensor_Alignment.Decidegrees (Held (Integer (Device.Custom_Alignment (0)), -3600, 3600)),
-         Pitch => Sensor_Alignment.Decidegrees (Held (Integer (Device.Custom_Alignment (1)), -3600, 3600)),
-         Yaw   => Sensor_Alignment.Decidegrees (Held (Integer (Device.Custom_Alignment (2)), -3600, 3600))),
+      Enabled            => (0 => True, others => False),
+      Sensors            =>
+        (0      =>
+           (Alignment     =>
+              Sensor_Alignment.Standard_Alignment'Val
+                (Code (Device.Alignment,
+                       Sensor_Alignment.Standard_Alignment'Pos (Sensor_Alignment.Standard_Alignment'Last))),
+            Custom_Angles =>
+              (Roll  => Sensor_Alignment.Decidegrees (Held (Integer (Device.Custom_Alignment (0)), -3600, 3600)),
+               Pitch => Sensor_Alignment.Decidegrees (Held (Integer (Device.Custom_Alignment (1)), -3600, 3600)),
+               Yaw   => Sensor_Alignment.Decidegrees (Held (Integer (Device.Custom_Alignment (2)), -3600, 3600)))),
+         others => (Alignment => Sensor_Alignment.CW0, Custom_Angles => (Roll => 0, Pitch => 0, Yaw => 0))),
       Board              =>
         (Roll  => Held (Integer (Board.Roll_Degrees), -180, 360),
          Pitch => Held (Integer (Board.Pitch_Degrees), -180, 360),

@@ -64,7 +64,10 @@ package body Adaflight.Gyro_Filters with SPARK_Mode is
         (if C.LPF1_Dyn_Min_Hz > 0 then C.LPF1_Dyn_Min_Hz else C.LPF1_Static_Hz);
    begin
       S := (others => <>);
-      S.Sensor_Rotation := Sensor_Alignment.Rotation_Matrix (C.Custom_Angles);
+      S.Enabled := C.Enabled;
+      for I in Gyro_Index loop
+         S.Sensors (I).Rotation := Sensor_Alignment.Rotation_Matrix (C.Sensors (I).Custom_Angles);
+      end loop;
       Dyn_Notch.Init (S.Dyn, C.Dynamic_Notch, C.Loop_Time_Us);
       RPM_Filter.Init (S.RPM, C.RPM, C.Loop_Time_Us, C.Motors, C.Motor_Telemetry);
       S.Board_Rotation := Sensor_Alignment.Board_Rotation (C.Board);
@@ -105,83 +108,115 @@ package body Adaflight.Gyro_Filters with SPARK_Mode is
    --  One calibration cycle: the counts join the sums and the deviation
    --  statistics, and the final cycle turns them into the zero offsets unless
    --  the deviation shows the craft moved, which restarts the calibration.
-   procedure Calibration_Cycle (S : in out State; C : Settings; Sample : Raw_Vector; Finished : out Boolean)
-     with Pre => S.Cycles_Remaining > 0
+   procedure Calibration_Cycle (G : in out Sensor_State; C : Settings; Sample : Raw_Vector; Finished : out Boolean)
+     with Pre => G.Cycles_Remaining > 0
    is
       Cycles : constant Cycle_Count := Calibration_Cycles (C);
       Failed : Boolean := False;
    begin
       Finished := False;
       for A in Axis loop
-         if S.Cycles_Remaining = Cycles then
-            S.Cal_Sum (A) := 0.0;
-            Stats_Clear (S.Cal_Stats (A));
-            S.Zero (A) := 0.0;
+         if G.Cycles_Remaining = Cycles then
+            G.Cal_Sum (A) := 0.0;
+            Stats_Clear (G.Cal_Stats (A));
+            G.Zero (A) := 0.0;
          end if;
          --  The sum of a still craft's counts stays far inside the bound; the
          --  statistics count stays below its cap for any configured duration.
-         S.Cal_Sum (A) := Constrain_F (S.Cal_Sum (A) + Float (Sample (A)), Cal_Total'First, Cal_Total'Last);
-         if S.Cal_Stats (A).Count < Max_Samples then
-            Stats_Push (S.Cal_Stats (A), Float (Sample (A)));
+         G.Cal_Sum (A) := Constrain_F (G.Cal_Sum (A) + Float (Sample (A)), Cal_Total'First, Cal_Total'Last);
+         if G.Cal_Stats (A).Count < Max_Samples then
+            Stats_Push (G.Cal_Stats (A), Float (Sample (A)));
          end if;
-         if S.Cycles_Remaining = 1 then
+         if G.Cycles_Remaining = 1 then
             declare
-               Deviation : constant Float := Stats_Standard_Deviation (S.Cal_Stats (A));
+               Deviation : constant Float := Stats_Standard_Deviation (G.Cal_Stats (A));
             begin
                if C.Movement_Threshold /= 0 and then Deviation > Float (C.Movement_Threshold) then
                   Failed := True;
                else
                   --  A duration shortened below one cycle while calibrating would
                   --  divide by zero in the reference; the divisor stays at one.
-                  S.Zero (A) :=
-                    Constrain_F (S.Cal_Sum (A) / Float (Integer'Max (1, Cycles)), Offset'First, Offset'Last);
+                  G.Zero (A) :=
+                    Constrain_F (G.Cal_Sum (A) / Float (Integer'Max (1, Cycles)), Offset'First, Offset'Last);
                   if A = Yaw then
-                     S.Zero (A) := Constrain_F (S.Zero (A) - Float (C.Offset_Yaw) / 100.0, Offset'First, Offset'Last);
+                     G.Zero (A) := Constrain_F (G.Zero (A) - Float (C.Offset_Yaw) / 100.0, Offset'First, Offset'Last);
                   end if;
                end if;
             end;
          end if;
       end loop;
       if Failed then
-         S.Cycles_Remaining := Cycles;
+         G.Cycles_Remaining := Cycles;
          return;
       end if;
-      Finished := S.Cycles_Remaining = 1;
-      S.Cycles_Remaining := S.Cycles_Remaining - 1;
+      Finished := G.Cycles_Remaining = 1;
+      G.Cycles_Remaining := G.Cycles_Remaining - 1;
    end Calibration_Cycle;
 
-   procedure Accumulate (S : in out State; C : Settings; Sample : Raw_Vector; Finished : out Boolean) is
+   --  A sensor's sample zeroed and aligned to the body frame before the
+   --  scale, as the reference orders them.
+   procedure Align
+     (G : in out Sensor_State; C : Settings; Placement : Sensor_Placement; Board_Rotation : Vectors.Matrix33;
+      Sample : Raw_Vector)
+     with Global => null,
+          Pre    => Vectors.Bounded (Board_Rotation, 2.0)
+   is
       use type Sensor_Alignment.Standard_Alignment;
+      Centered : Vectors.Vector3 :=
+        (X => Float (Sample (Roll)) - G.Zero (Roll),
+         Y => Float (Sample (Pitch)) - G.Zero (Pitch),
+         Z => Float (Sample (Yaw)) - G.Zero (Yaw));
+   begin
+      if Placement.Alignment = Sensor_Alignment.Custom then
+         Centered := Vectors.Apply_Rotation (Centered, G.Rotation);
+      else
+         Centered := Sensor_Alignment.Align (Centered, Placement.Alignment);
+      end if;
+      if not Sensor_Alignment.Standard_Board (C.Board) then
+         --  A sensor-aligned count is within 2 ** 19; the bound is stated for
+         --  the board rotation's precondition.
+         Centered := (X => Constrain_F (Centered.X, -2.0 ** 19, 2.0 ** 19),
+                      Y => Constrain_F (Centered.Y, -2.0 ** 19, 2.0 ** 19),
+                      Z => Constrain_F (Centered.Z, -2.0 ** 19, 2.0 ** 19));
+         Centered := Vectors.Apply_Rotation (Centered, Board_Rotation);
+      end if;
+      G.Aligned := (Roll  => Constrain_F (Centered.X, Aligned_Count'First, Aligned_Count'Last),
+                    Pitch => Constrain_F (Centered.Y, Aligned_Count'First, Aligned_Count'Last),
+                    Yaw   => Constrain_F (Centered.Z, Aligned_Count'First, Aligned_Count'Last));
+   end Align;
+
+   procedure Accumulate
+     (S : in out State; C : Settings; Samples : Raw_Samples; Ready : Gyro_Flags; Finished : out Boolean)
+   is
+      Sum    : Axis_Signals := (others => 0.0);
+      Active : Natural range 0 .. Max_Gyros := 0;
+      Done   : Boolean;
    begin
       Finished := False;
-      if Calibration_Complete (S) then
-         declare
-            --  The zeroed counts aligned to the body frame before the scale, as
-            --  the reference orders them.
-            Centered : Vectors.Vector3 :=
-              (X => Float (Sample (Roll)) - S.Zero (Roll),
-               Y => Float (Sample (Pitch)) - S.Zero (Pitch),
-               Z => Float (Sample (Yaw)) - S.Zero (Yaw));
-         begin
-            if C.Alignment = Sensor_Alignment.Custom then
-               Centered := Vectors.Apply_Rotation (Centered, S.Sensor_Rotation);
-            else
-               Centered := Sensor_Alignment.Align (Centered, C.Alignment);
+      for I in Gyro_Index loop
+         pragma Loop_Invariant (Active <= I);
+         pragma Loop_Invariant (for all A in Axis => abs Sum (A) <= Float (I) * 2.0 ** 22);
+         if S.Enabled (I) then
+            if Ready (I) then
+               if Sensor_Calibrated (S, I) then
+                  Align (S.Sensors (I), C, C.Sensors (I), S.Board_Rotation, Samples (I));
+               else
+                  Calibration_Cycle (S.Sensors (I), C, Samples (I), Done);
+                  Finished := Finished or else Done;
+               end if;
             end if;
-            if not Sensor_Alignment.Standard_Board (C.Board) then
-               --  A sensor-aligned count is within 2 ** 19; the bound is stated
-               --  for the board rotation's precondition.
-               Centered := (X => Constrain_F (Centered.X, -2.0 ** 19, 2.0 ** 19),
-                            Y => Constrain_F (Centered.Y, -2.0 ** 19, 2.0 ** 19),
-                            Z => Constrain_F (Centered.Z, -2.0 ** 19, 2.0 ** 19));
-               Centered := Vectors.Apply_Rotation (Centered, S.Board_Rotation);
+            if Sensor_Calibrated (S, I) then
+               Sum := (Roll  => Sum (Roll) + S.Sensors (I).Aligned (Roll) * C.Scale,
+                       Pitch => Sum (Pitch) + S.Sensors (I).Aligned (Pitch) * C.Scale,
+                       Yaw   => Sum (Yaw) + S.Sensors (I).Aligned (Yaw) * C.Scale);
+               Active := Active + 1;
             end if;
-            S.Rate (Roll) := Constrain_F (Centered.X * C.Scale, -Signal_Bound, Signal_Bound);
-            S.Rate (Pitch) := Constrain_F (Centered.Y * C.Scale, -Signal_Bound, Signal_Bound);
-            S.Rate (Yaw) := Constrain_F (Centered.Z * C.Scale, -Signal_Bound, Signal_Bound);
-         end;
-      else
-         Calibration_Cycle (S, C, Sample, Finished);
+         end if;
+      end loop;
+      if Active /= 0 then
+         for A in Axis loop
+            S.Rate (A) := Constrain_F (Sum (A) / Float (Active), -Signal_Bound, Signal_Bound);
+         end loop;
       end if;
       if S.Downsample_Filter then
          for A in Axis loop
@@ -334,7 +369,11 @@ package body Adaflight.Gyro_Filters with SPARK_Mode is
       if First_Arm and then S.First_Arm_Started then
          return;
       end if;
-      S.Cycles_Remaining := Calibration_Cycles (C);
+      for I in Gyro_Index loop
+         if S.Enabled (I) then
+            S.Sensors (I).Cycles_Remaining := Calibration_Cycles (C);
+         end if;
+      end loop;
       if First_Arm then
          S.First_Arm_Started := True;
       end if;
