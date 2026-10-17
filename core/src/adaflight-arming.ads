@@ -78,7 +78,7 @@ package Adaflight.Arming with SPARK_Mode is
    type Stick_Command is
      (Gyro_Calibration, Baro_Ground_Level, PID_Profile_1, PID_Profile_2, PID_Profile_3, Acc_Calibration,
       Mag_Calibration, Rate_Profile_1, Rate_Profile_2, Rate_Profile_3, Rate_Profile_4,
-      Dashboard_Cycling_Off, Dashboard_Cycling_On);
+      Dashboard_Cycling_Off, Dashboard_Cycling_On, VTX_Band_Up, VTX_Band_Down, VTX_Channel_Up, VTX_Channel_Down);
    type Command_Set is array (Stick_Command) of Boolean;
 
    subtype Trim_Delta is Integer range -1 .. 1;
@@ -101,6 +101,10 @@ package Adaflight.Arming with SPARK_Mode is
    --  The OSD statistics screen after a disarm: left as it was, shown, or
    --  suppressed.
    type Stats_Display is (Unchanged, Allow_Stats, Suppress_Stats);
+
+   --  The telemetry's shared serial ports: left as they are, released to
+   --  telemetry, or given back to MSP.
+   type Port_Change is (No_Port_Change, Release_Shared_Ports, Allocate_Ports);
 
    --  What one pass asks of the other units.
    type Outputs is record
@@ -131,6 +135,14 @@ package Adaflight.Arming with SPARK_Mode is
       Stats_Arms                : Small_Count := 0;
       Stats_Disarms             : Small_Count := 0;
       OSD_Stats                 : Stats_Display := Unchanged;
+      --  The modes pass's calls: the in-flight adjustments, the telemetry's
+      --  shared ports, the VTX's activated channel and control button, and the
+      --  attitude task's fast rate for the level modes.
+      Run_Adjustments           : Boolean := False;
+      Telemetry_Ports           : Port_Change := No_Port_Change;
+      VTX_Channel_Updates       : Small_Count := 0;
+      VTX_Button_Checks         : Small_Count := 0;
+      Attitude_Fast             : Boolean := False;
    end record;
 
    type Sensor_Set is record
@@ -192,6 +204,7 @@ package Adaflight.Arming with SPARK_Mode is
       Altitude_Control           : Boolean := True;
       Position_Control           : Boolean := True;
       Plane_Mixer                : Boolean := False;
+      Telemetry_Feature          : Boolean := False;
    end record;
 
    --  The controller's sums, the gyro's absolute rates to the whole degree
@@ -237,6 +250,11 @@ package Adaflight.Arming with SPARK_Mode is
       GPS_Sats                   : Natural range 0 .. 255 := 0;
       Altitude_Available         : Boolean := False;
       OSD_Needs_Acc              : Boolean := False;
+      --  The OSD menu open, the command line open, and the VTX ready for an
+      --  update.
+      CMS_In_Menu                : Boolean := False;
+      CLI_Mode                   : Boolean := False;
+      VTX_Can_Update             : Boolean := True;
    end record;
 
    type Launch_State is (Launch_Disabled, Launch_Active, Launch_Triggered);
@@ -278,6 +296,7 @@ package Adaflight.Arming with SPARK_Mode is
       Mode_Overrides         : Modes.Mask := (others => False);
       Trying                 : Arm_Delay := Not_Trying;
       Crash_Flip_Active      : Boolean := False;
+      Shared_Port_Telemetry  : Boolean := False;
    end record;
 
    function Launch_Control_Active (S : State) return Boolean is (S.Launch = Launch_Active);

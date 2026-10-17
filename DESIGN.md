@@ -6353,3 +6353,17 @@ screen while the crash flip switch is on or launch control is active.
 The arming oracle builds with the persistent statistics, and the existing vectors stay byte for byte. New stats
 sequences run the crash flip scenario on fresh draws with launch control switched in every sequence, and record
 the statistics and OSD calls. They replay exactly.
+
+## D279. Modes pass hooks (2026-10-16)
+
+`Adaflight.Arming` gains the rest of the default build's modes pass. Stick commands are left out while the
+OSD menu is open. The pass reports whether the in-flight adjustments run, which they do outside the command
+line unless the board is paralyzed while disarmed, and whether the attitude task runs fast for a level mode.
+With the telemetry feature it releases the shared serial ports to telemetry while armed, or while the
+telemetry switch is on where one is configured, and gives them back to MSP when that ends. It asks the VTX to
+update its activated channel every pass and to check its control button when the VTX is ready for an update.
+The VTX band and channel stick commands join the stick commands while disarmed.
+
+The arming oracle builds with the default build's VTX control, and the existing vectors stay byte for byte.
+New hooks sequences script the telemetry feature and switch, the OSD menu, the VTX's readiness and held VTX
+stick commands, and record the pass's calls. They replay exactly.

@@ -3763,6 +3763,11 @@ procedure Vector_Check is
    --  The GPS sequences' inputs before each step.
    Arm_GPS_Mode      : Boolean := False;
    Arm_GPS_In        : Adaflight.Arming.Inputs;
+   --  The hooks sequences' inputs before each step, and the command line
+   --  flag the previous step left for this step's modes pass.
+   Arm_Hooks_Mode    : Boolean := False;
+   Arm_Hooks_In      : Adaflight.Arming.Inputs;
+   Arm_Prev_CLI      : Boolean := False;
 
    procedure Check_Arming_Line is
       use Adaflight.Arming;
@@ -3858,8 +3863,11 @@ procedure Vector_Check is
             Rescue_Min_Sats            => 0,
             Altitude_Control           => False,
             Position_Control           => False,
-            Plane_Mixer                => Int (153) = 8 or else Int (153) = 14);
+            Plane_Mixer                => Int (153) = 8 or else Int (153) = 14,
+            Telemetry_Feature          => False);
          Arm_DShot_Mode := False;
+         Arm_Hooks_Mode := False;
+         Arm_Prev_CLI := False;
          Arm_GPS_Mode := False;
          for M in Adaflight.Modes.Condition_Index loop
             declare
@@ -3919,7 +3927,10 @@ procedure Vector_Check is
                GPS_Fix                    => Arm_GPS_Mode and then Arm_GPS_In.GPS_Fix,
                GPS_Sats                   => (if Arm_GPS_Mode then Arm_GPS_In.GPS_Sats else 0),
                Altitude_Available         => Arm_GPS_Mode and then Arm_GPS_In.Altitude_Available,
-               OSD_Needs_Acc              => Arm_GPS_Mode and then Arm_GPS_In.OSD_Needs_Acc);
+               OSD_Needs_Acc              => Arm_GPS_Mode and then Arm_GPS_In.OSD_Needs_Acc,
+               CMS_In_Menu                => Arm_Hooks_Mode and then Arm_Hooks_In.CMS_In_Menu,
+               CLI_Mode                   => Arm_Prev_CLI,
+               VTX_Can_Update             => not Arm_Hooks_Mode or else Arm_Hooks_In.VTX_Can_Update);
             --  The calibration state the receiver pass reads, recorded before
             --  the step's commands change it.
             Sensed_Before : Inputs := Sensed;
@@ -4102,6 +4113,7 @@ procedure Vector_Check is
                Failures := Failures + 1;
             end if;
             Arm_Last_Step := Step;
+            Arm_Prev_CLI := Int (NF - 3) /= 0;
          end;
       elsif Name = "armdshotinit" then
          Arming_Settings.DShot := Int (3) /= 0;
@@ -4134,6 +4146,25 @@ procedure Vector_Check is
       elsif Name = "armgps" then
          Record_Int ("armgps.home_resets", Int (4), Integer_64 (Arm_Last_Step.GPS_Home_Resets));
          Record_Int ("armgps.heading_usable", Int (5), Boolean'Pos (not Arm_Last_Step.GPS_Heading_Blocked));
+      elsif Name = "armhooksinit" then
+         Arming_Settings.Telemetry_Feature := Int (3) /= 0;
+         Arm_Hooks_Mode := True;
+      elsif Name = "armhooksin" then
+         Arm_Hooks_In.CMS_In_Menu := Int (4) /= 0;
+         Arm_Hooks_In.VTX_Can_Update := Int (5) /= 0;
+      elsif Name = "armhooks" then
+         Record_Int ("armhooks.adjustments", Int (4), Boolean'Pos (Arm_Last_Step.Run_Adjustments));
+         Record_Int ("armhooks.ports", Int (5),
+                     (case Arm_Last_Step.Telemetry_Ports is
+                         when No_Port_Change => -1, when Release_Shared_Ports => 1, when Allocate_Ports => 2));
+         Record_Int ("armhooks.vtx_updates", Int (6), Integer_64 (Arm_Last_Step.VTX_Channel_Updates));
+         Record_Int ("armhooks.vtx_buttons", Int (7), Integer_64 (Arm_Last_Step.VTX_Button_Checks));
+         Record_Int ("armhooks.attitude_fast", Int (8), Boolean'Pos (Arm_Last_Step.Attitude_Fast));
+         Record_Int ("armhooks.vtx_stick", Int (9),
+                     (if Arm_Last_Step.Commands (VTX_Band_Up) then 1
+                      elsif Arm_Last_Step.Commands (VTX_Band_Down) then 2
+                      elsif Arm_Last_Step.Commands (VTX_Channel_Up) then 3
+                      elsif Arm_Last_Step.Commands (VTX_Channel_Down) then 4 else 0));
       elsif Name = "armstats" then
          Record_Int ("armstats.arms", Int (4), Integer_64 (Arm_Last_Step.Stats_Arms));
          Record_Int ("armstats.disarms", Int (5), Integer_64 (Arm_Last_Step.Stats_Disarms));
@@ -21955,6 +21986,7 @@ begin
    Run (Dir & "/armflip.csv", "arming");
    Run (Dir & "/armgps.csv", "arming");
    Run (Dir & "/armstats.csv", "arming");
+   Run (Dir & "/armhooks.csv", "arming");
    Run (Dir & "/compass.csv", "compass");
    Run (Dir & "/position.csv", "position");
    Run (Dir & "/altitude.csv", "altitude");
