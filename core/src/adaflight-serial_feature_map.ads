@@ -225,4 +225,37 @@ package Adaflight.Serial_Feature_Map with SPARK_Mode is
    procedure Fix (O : Options; A : in out Assignments; Ports : Port_List)
      with Pre => Ports'Length in 1 .. Max_Ports;
 
+   --  Whether a port has a function, alone or with others.
+   type Port_Use is (Unused, Not_Shared, Shared);
+   function Port_Sharing (O : Options; A : Assignments; Port : Port_Id; Func : Unsigned_32) return Port_Use;
+
+   --  Whether a port has the shared function and one of a mask's
+   --  functions, the mask taken to 16 bits.
+   function Port_Shared_With
+     (O : Options; A : Assignments; Port : Port_Id; Mask : Unsigned_32; Shared_With : Unsigned_32) return Boolean;
+
+   --  Whether the serial receiver on a port leaves room for telemetry on it.
+   function Telemetry_Shares_RX_Port (O : Options; A : Assignments; Port : Port_Id) return Boolean;
+
+   --  The port of the first telemetry slot with the protocol and a port, or
+   --  none.
+   function Provider_Port (O : Options; A : Assignments; Protocol : Telemetry_Protocol) return Port_Id;
+
+   --  The baud rate of the first slot with the protocol on the port, or
+   --  automatic.
+   function Provider_Baud (O : Options; A : Assignments; Protocol : Telemetry_Protocol; Port : Port_Id)
+     return Baud_Index;
+
+   --  Telemetry runs on a port of its own, and on a shared one while the
+   --  telemetry mode is on, or while armed where no telemetry mode is set up.
+   function Telemetry_Enabled (Use_Of_Port : Port_Use; Mode_Present, Mode_Active, Armed : Boolean) return Boolean is
+     (case Use_Of_Port is
+         when Unused     => False,
+         when Not_Shared => True,
+         when Shared     => (if Mode_Present then Mode_Active else Armed));
+
+   --  Whether telemetry reports a sensor the disabled mask leaves on.
+   function Sensor_Enabled (Disabled : Unsigned_32; Sensor : Unsigned_32) return Boolean is
+     (((not Disabled) and Sensor) /= 0);
+
 end Adaflight.Serial_Feature_Map;

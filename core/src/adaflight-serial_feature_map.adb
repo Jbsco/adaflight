@@ -643,4 +643,74 @@ package body Adaflight.Serial_Feature_Map with SPARK_Mode is
       end if;
    end Fix;
 
+   ------------------
+   -- Port_Sharing --
+   ------------------
+
+   function Port_Sharing (O : Options; A : Assignments; Port : Port_Id; Func : Unsigned_32) return Port_Use is
+      Mask : constant Unsigned_32 := Function_Mask (O, A, Port);
+   begin
+      if Port = No_Port or else (Mask and Func) = 0 then
+         return Unused;
+      elsif Mask = Func then
+         return Not_Shared;
+      else
+         return Shared;
+      end if;
+   end Port_Sharing;
+
+   ----------------------
+   -- Port_Shared_With --
+   ----------------------
+
+   function Port_Shared_With
+     (O : Options; A : Assignments; Port : Port_Id; Mask : Unsigned_32; Shared_With : Unsigned_32) return Boolean
+   is
+      Functions : constant Unsigned_32 := Function_Mask (O, A, Port);
+   begin
+      return Port /= No_Port and then (Functions and Shared_With) /= 0
+        and then (Functions and (Mask and 16#FFFF#)) /= 0;
+   end Port_Shared_With;
+
+   ------------------------------
+   -- Telemetry_Shares_RX_Port --
+   ------------------------------
+
+   function Telemetry_Shares_RX_Port (O : Options; A : Assignments; Port : Port_Id) return Boolean is
+     (RX_Port_Shared (O, A, Function_Mask (O, A, Port)));
+
+   -------------------
+   -- Provider_Port --
+   -------------------
+
+   function Provider_Port (O : Options; A : Assignments; Protocol : Telemetry_Protocol) return Port_Id is
+   begin
+      for I in Telemetry_Slot loop
+         exit when Natural (I) > Telemetry_Slots (O);
+         if A.Telemetry (I).Protocol = Protocol and then A.Telemetry (I).Port /= No_Port then
+            return A.Telemetry (I).Port;
+         end if;
+      end loop;
+      return No_Port;
+   end Provider_Port;
+
+   -------------------
+   -- Provider_Baud --
+   -------------------
+
+   function Provider_Baud (O : Options; A : Assignments; Protocol : Telemetry_Protocol; Port : Port_Id)
+     return Baud_Index is
+   begin
+      if Port = No_Port then
+         return Baud_Auto;
+      end if;
+      for I in Telemetry_Slot loop
+         exit when Natural (I) > Telemetry_Slots (O);
+         if A.Telemetry (I).Protocol = Protocol and then A.Telemetry (I).Port = Port then
+            return A.Telemetry (I).Baud;
+         end if;
+      end loop;
+      return Baud_Auto;
+   end Provider_Baud;
+
 end Adaflight.Serial_Feature_Map;

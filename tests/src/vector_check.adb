@@ -19841,6 +19841,58 @@ procedure Vector_Check is
          K := 4;
          Read_Serial_Options (Name, K, SM_Options, SM_Ports, SM_Port_Count);
          return;
+      elsif Name = "smaptel" then
+         Read_Serial_Assignments (K, A);
+         declare
+            type Function_List is array (1 .. 10) of SFM.Unsigned_32;
+            Funcs     : constant Function_List :=
+              (SFM.Function_MSP, SFM.Function_GPS, SFM.Function_FrSky_Hub, SFM.Function_HoTT, SFM.Function_LTM,
+               SFM.Function_SmartPort, SFM.Function_RX_Serial, SFM.Function_MAVLink, SFM.Function_IBus,
+               SFM.Function_VTX_MSP);
+            Shareable : constant SFM.Unsigned_32 := SFM.Function_FrSky_Hub or SFM.Function_LTM or SFM.Function_MAVLink;
+            function Port_At (I : Integer) return SFM.Port_Id is
+              (if I < 0 then SFM.No_Port else SM_Ports (SM_Ports'First + I));
+            Disabled  : SFM.Unsigned_32;
+         begin
+            for PI in -1 .. SM_Port_Count - 1 loop
+               for F of Funcs loop
+                  Expect ("sharing", SFM.Port_Use'Pos (SFM.Port_Sharing (SM_Options, A, Port_At (PI), F)));
+               end loop;
+               Expect ("shared_telemetry",
+                       Boolean'Pos (SFM.Port_Shared_With
+                         (SM_Options, A, Port_At (PI), Shareable, SFM.Function_RX_Serial)));
+               Expect ("shared_vtx",
+                       Boolean'Pos (SFM.Port_Shared_With
+                         (SM_Options, A, Port_At (PI), SFM.Function_VTX_MSP or SFM.Function_MSP,
+                          SFM.Function_RX_Serial)));
+               Expect ("shared_vtx_only",
+                       Boolean'Pos (SFM.Port_Shared_With
+                         (SM_Options, A, Port_At (PI), SFM.Function_VTX_MSP, SFM.Function_RX_Serial)));
+               Expect ("rx_shared", Boolean'Pos (SFM.Telemetry_Shares_RX_Port (SM_Options, A, Port_At (PI))));
+            end loop;
+            for P in 1 .. 6 loop
+               Expect ("provider_port", Integer_64 (SFM.Provider_Port (SM_Options, A, SFM.Telemetry_Protocol'Val (P))));
+               for PI in -1 .. SM_Port_Count - 1 loop
+                  Expect ("provider_baud",
+                          Integer_64 (SFM.Provider_Baud (SM_Options, A, SFM.Telemetry_Protocol'Val (P), Port_At (PI))));
+               end loop;
+            end loop;
+            for Sh in SFM.Port_Use loop
+               for Present in Boolean loop
+                  for Active in Boolean loop
+                     for Armed in Boolean loop
+                        Expect ("enabled", Boolean'Pos (SFM.Telemetry_Enabled (Sh, Present, Active, Armed)));
+                     end loop;
+                  end loop;
+               end loop;
+            end loop;
+            Disabled := SFM.Unsigned_32 (Next);
+            for B in 0 .. 31 loop
+               Expect ("sensor",
+                       Boolean'Pos (SFM.Sensor_Enabled (Disabled, Interfaces.Shift_Left (SFM.Unsigned_32'(1), B))));
+            end loop;
+         end;
+         return;
       elsif Name /= "smapstep" then
          Put_Line ("unknown serial map case " & Name);
          Failures := Failures + 1;
@@ -22818,6 +22870,7 @@ begin
    Run (Dir & "/mspsimp.csv", "mspsimp");
    Run (Dir & "/msposd.csv", "msposd");
    Run (Dir & "/serialmap.csv", "serialmap");
+   Run (Dir & "/telshare.csv", "serialmap");
    Run (Dir & "/mspsercfg.csv", "mspsercfg");
    Run (Dir & "/vtxstatus.csv", "vtxstatus");
    Run (Dir & "/cfgstore.csv", "cfgstore");
