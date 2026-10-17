@@ -5072,3 +5072,21 @@ profile changes with their value. The harness replays two sequences of 600 lines
 among video system sets, resets and listings: 776 within their bounds, whose results, runtime work
 and configuration hashes all match the reference's, 66 that both reject before writing, and 212
 outside the bounds, each an error that leaves the configuration unchanged.
+
+## D217. MSP profile writes (2026-10-15)
+
+`Adaflight.MSP_Profile_In` contains the MSP in messages that select a profile and copy one profile
+over another. The selection byte names a battery profile when its battery bit is set, else a PID
+profile when its rate bit is clear, else a rate profile; an index past its list selects the first.
+A PID profile is selected only while the board is disarmed. `Effects` asks the runtime to take the
+selected profile up: for a PID profile the PID settings, motor output endpoints, mixer profile and
+a confirmation beep per profile number, for a rate profile the stick processing, and for a battery
+profile its thresholds. The copy message copies a whole PID profile for kind 0 or rate profile for
+kind 1, name included, from a source onto a different destination, both within their list, and
+asks the runtime for nothing. Every request succeeds.
+
+The command line oracle links the reference's PID profile copy, which it had not linked, with the
+PID initializations the oracle stubs left weak in that object, and counts the profile changes
+through wraps that call the reference's functions. The harness replays two sequences of 600 lines,
+770 requests among armed and disarmed directives, profile selections, PID and rate settings and
+names, and resets: every result, runtime request and configuration hash matches the reference's.

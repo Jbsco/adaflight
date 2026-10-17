@@ -135,6 +135,7 @@ with Adaflight.MSP_Text_In;
 with Adaflight.MSP_Peripheral_In;
 with Adaflight.MSP_Control_In;
 with Adaflight.MSP_OSD_In;
+with Adaflight.MSP_Profile_In;
 with Adaflight.MSP_Receiver_Out;
 with Adaflight.MSP_Hardware_Out;
 with Adaflight.MSP_Peripheral_Out;
@@ -14578,6 +14579,7 @@ procedure Vector_Check is
    MSP_Arming_Off : Boolean := False;
    MSP_OSD_Effects : Adaflight.MSP_OSD_In.Effects;
    MSP_In_Range    : Boolean := True;
+   MSP_Profile_Effects : Adaflight.MSP_Profile_In.Effects;
    MSP_Gyro_Rate  : Adaflight.Config_Fix.Gyro_Rate := 0;
    MSP_Log        : Adaflight.Blackbox.Recorder;
    MSP_Loop_Time  : Adaflight.Blackbox.Loop_Time_Us := 125;
@@ -14753,9 +14755,18 @@ procedure Vector_Check is
                   MSP_Peripheral_Effects := Adaflight.MSP_Peripheral_In.No_Effects;
                   MSP_Control_Effects := Adaflight.MSP_Control_In.No_Effects;
                   MSP_OSD_Effects := Adaflight.MSP_OSD_In.No_Effects;
+                  MSP_Profile_Effects := Adaflight.MSP_Profile_In.No_Effects;
                   if Adaflight.MSP_Tuning_In.Handles (Cmd) then
                      Adaflight.MSP_Tuning_In.Process
                        (CLI_Config, Cmd, Request, MSP_Gyro_Rate, MSP_In_Result, MSP_In_Effects);
+                     MSP_In_Ran := True;
+                  elsif Adaflight.MSP_Profile_In.Handles (Cmd) then
+                     Adaflight.MSP_Profile_In.Process
+                       (CLI_Config, Cmd, Request, MSP_Board.Armed, MSP_Profile_Effects);
+                     MSP_In_Result := Adaflight.MSP_Tuning_In.Ack;
+                     MSP_In_Effects.ESC_Endpoints := MSP_Profile_Effects.PID_Profile;
+                     MSP_In_Effects.Mixer_Profile := MSP_Profile_Effects.PID_Profile;
+                     MSP_In_Effects.RC_Init := MSP_Profile_Effects.Rate_Profile;
                      MSP_In_Ran := True;
                   elsif Adaflight.MSP_OSD_In.Handles (Cmd) then
                      declare
@@ -14989,6 +15000,14 @@ procedure Vector_Check is
                   Record_Int ("msp.osd_profile", (if Changed then Int (14) else 0),
                               Integer_64 (MSP_OSD_Effects.Profile));
                end;
+            end if;
+            if NF >= 17 then
+               Record_Int ("msp.pid_profile", Boolean'Pos (Int (15) > 0),
+                           Boolean'Pos (MSP_Profile_Effects.PID_Profile));
+               Record_Int ("msp.rate_profile", Boolean'Pos (Int (16) > 0),
+                           Boolean'Pos (MSP_Profile_Effects.Rate_Profile));
+               Record_Int ("msp.battery_profile", Boolean'Pos (Int (17) > 0),
+                           Boolean'Pos (MSP_Profile_Effects.Battery_Profile));
             end if;
          end;
       elsif Str (1) = "clx" then
@@ -19919,6 +19938,7 @@ begin
    Run (Dir & "/mspinvtx.csv", "cliset");
    Run (Dir & "/mspinctl.csv", "cliset");
    Run (Dir & "/mspinosd.csv", "cliset");
+   Run (Dir & "/mspinprof.csv", "cliset");
    Run (Dir & "/clisave.csv", "cliset");
    if Settings_Seen /= Adaflight.Settings_Table.Setting'Pos (Adaflight.Settings_Table.Setting'Last) + 1 then
       Put_Line ("settings: the vectors hold" & Settings_Seen'Image & " settings");
