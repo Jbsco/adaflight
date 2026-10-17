@@ -6644,3 +6644,21 @@ The gyro selection oracle builds the reference's initialization for four sensors
 so the oracle answers per sensor with a hardware type, the detection result that sets the sample rate, and a
 scale, and runs three boots per sequence that carry the stored settings over. Every boot replays exactly.
 Seven tampered paths each fail the vectors.
+
+## D295. PPM and PWM receiver inputs (2026-10-17)
+
+`Adaflight.RX_PWM` decodes the pulse receivers' timer captures. The PPM decoder rebuilds each edge's time from
+the 16-bit capture, the overflows counted since the start and a wrap since the last edge, divides it by the
+count divisor that a shared motor timer sets, and takes the time since the previous edge in 32-bit arithmetic
+that wraps as the reference's does. A gap longer than 2.7 ms ends a frame. After 25 frames with the same pulse
+count, from 4 to 12, that count becomes the frame size. Each frame with that many pulses while tracking hands
+its pulses over as the channels, times out the rest and counts the frame. A pulse outside 0.75 to 2.25 ms stops
+the tracking until the next sync and clears the pulses. The parallel PWM decoder times each of eight channels
+from its rising to its falling edge in 16-bit arithmetic, tells the caller which edge to look for next, and
+times a channel out after ten overflows without an edge. The receiving checks are whether a PPM frame arrived
+since the last check and whether any channel holds a pulse.
+
+The pulse oracle includes the reference's decoder source with the timer and pin drivers stubbed and calls its
+handlers directly: PPM signals with changing channel counts, stray pulses and count divisors over a 16-bit
+timer whose overflow comes before the edge at the wrap, and PWM edges and overflows on random channels. Every
+event replays exactly. Nine tampered paths each fail the vectors.

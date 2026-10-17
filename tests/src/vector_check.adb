@@ -25,6 +25,7 @@ with Adaflight.Mixer;
 with Adaflight.RC_Command;
 with Adaflight.Gyro_Filters;
 with Adaflight.Gyro_Selection;
+with Adaflight.RX_PWM;
 with Adaflight.Dyn_Notch;
 with Adaflight.RPM_Filter;
 with Adaflight.Attitude;
@@ -2047,6 +2048,83 @@ procedure Vector_Check is
          Failures := Failures + 1;
       end if;
    end Check_RC_Line;
+
+   PPM_Dec      : Adaflight.RX_PWM.PPM_State;
+   PWM_Dec      : Adaflight.RX_PWM.PWM_State;
+   Pulse_Recv   : Boolean := False;
+   Pulse_Pol    : Integer := -1;
+   Pulse_Port   : Adaflight.RX_PWM.Port_Index := 0;
+
+   procedure Check_Pulse_Line is
+      use Adaflight.RX_PWM;
+      Name : constant String := Str (1);
+      procedure Expect_Captures (First : Positive; Captures : Capture_Values) is
+      begin
+         for C in Capture_Index loop
+            Record_Int (Name & ".capture", Int (First + C), Integer_64 (Captures (C)));
+         end loop;
+      end Expect_Captures;
+   begin
+      if Name = "ppminit" then
+         PPM_Init (PPM_Dec, Count_Divisor (Int (3)));
+      elsif Name = "ppmev" then
+         if Int (4) = 0 then
+            PPM_Overflow (PPM_Dec, Interfaces.Unsigned_16 (Int (5)));
+         else
+            PPM_Edge (PPM_Dec, Interfaces.Unsigned_16 (Int (5)));
+         end if;
+         Pulse_Recv := PPM_Receiving (PPM_Dec);
+         if Int (3) mod 8 = 7 then
+            PPM_Reset_Received (PPM_Dec);
+         end if;
+      elsif Name = "ppmst" then
+         Record_Int ("ppmst.time", Int (4), Integer_64 (PPM_Dec.Current_Time));
+         Record_Int ("ppmst.delta", Int (5), Integer_64 (PPM_Dec.Delta_Time));
+         Record_Int ("ppmst.counter", Int (6), Integer_64 (PPM_Dec.Large_Counter));
+         Record_Int ("ppmst.pulse_index", Int (7), Integer_64 (PPM_Dec.Pulse_Index));
+         Record_Int ("ppmst.channels", Int (8), Integer_64 (PPM_Dec.Channels));
+         Record_Int ("ppmst.previous", Int (9), Integer_64 (PPM_Dec.Previous_Channels));
+         Record_Int ("ppmst.stable", Int (10), Integer_64 (PPM_Dec.Stable_Frames));
+         Record_Int ("ppmst.tracking", Int (11), Boolean'Pos (PPM_Dec.Tracking));
+         Record_Int ("ppmst.overflowed", Int (12), Boolean'Pos (PPM_Dec.Overflowed));
+         Record_Int ("ppmst.frames", Int (13), Integer_64 (PPM_Dec.Frame_Count));
+         Record_Int ("ppmst.received", Int (14), Boolean'Pos (Pulse_Recv));
+         Expect_Captures (15, PPM_Dec.Captures);
+      elsif Name = "pwminit" then
+         PWM_Init (PWM_Dec);
+      elsif Name = "pwmev" then
+         declare
+            Port : constant Port_Index := Port_Index (Int (4));
+            Next : Polarity;
+         begin
+            Pulse_Port := Port;
+            Pulse_Pol := -1;
+            if Int (5) = 0 then
+               PWM_Overflow (PWM_Dec, Port);
+            else
+               PWM_Edge (PWM_Dec, Port, Interfaces.Unsigned_16 (Int (6)), Next);
+               Pulse_Pol := Polarity'Pos (Next);
+            end if;
+            Pulse_Recv := PWM_Receiving (PWM_Dec);
+         end;
+      elsif Name = "pwmst" then
+         declare
+            P : Port_State renames PWM_Dec.Ports (Pulse_Port);
+         begin
+            Record_Int ("pwmst.state", Int (4), Boolean'Pos (P.Waiting_Fall));
+            Record_Int ("pwmst.missed", Int (5), Integer_64 (P.Missed));
+            Record_Int ("pwmst.rise", Int (6), Integer_64 (P.Rise));
+            Record_Int ("pwmst.fall", Int (7), Integer_64 (P.Fall));
+            Record_Int ("pwmst.capture", Int (8), Integer_64 (P.Capture));
+            Record_Int ("pwmst.polarity", Int (9), Integer_64 (Pulse_Pol));
+            Record_Int ("pwmst.received", Int (10), Boolean'Pos (Pulse_Recv));
+            Expect_Captures (11, PWM_Dec.Captures);
+         end;
+      else
+         Put_Line ("unknown pulse case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Pulse_Line;
 
    Gyro_State    : Adaflight.Gyro_Filters.State;
    Gyro_Settings : Adaflight.Gyro_Filters.Settings;
@@ -22199,6 +22277,8 @@ procedure Vector_Check is
                   Check_RC_Line;
                elsif Kind = "gyro" then
                   Check_Gyro_Line;
+               elsif Kind = "pulse" then
+                  Check_Pulse_Line;
                elsif Kind = "imu" then
                   Check_IMU_Line;
                elsif Kind = "failsafe" then
@@ -22531,6 +22611,7 @@ begin
    Run (Dir & "/gyro.csv", "gyro");
    Run (Dir & "/gyromulti.csv", "gyro");
    Run (Dir & "/gyrosel.csv", "gyro");
+   Run (Dir & "/rxpwm.csv", "pulse");
    Run (Dir & "/imu.csv", "imu");
    Run (Dir & "/imuhf.csv", "imu");
    Run (Dir & "/failsafe.csv", "failsafe");
