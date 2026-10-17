@@ -35,7 +35,7 @@ The core contains:
 <details>
 <summary><b>Flight control</b> (7)</summary>
 
-- rate curves and RC command path with smoothing and feedforward
+- rate curves and RC command path with smoothing, feedforward, low voltage cutoff and 3D throttle
 - in-flight adjustments and simplified tuning of PID gains and filters
 - PID profile with runtime configuration, filter initialization, rate loop, throttle-side
   features, crash recovery, launch control, yaw spin recovery, landing disarm, and wing airspeed
@@ -310,7 +310,7 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 28676 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 28699 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
 - Recorded vectors replay bit for bit: 1753568 lines over 384 cases, every case exact except
   forty-nine declared deviations in `DESIGN.md` D6.
