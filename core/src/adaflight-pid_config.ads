@@ -21,6 +21,8 @@ package Adaflight.PID_Config with SPARK_Mode, Pure is
    D_Max_Gain_Factor  : constant Float := 0.00008;
    Feedforward_Rx_Dt  : constant Float := 1.0 / 250.0;
    TPA_Curve_Points   : constant := 17;
+   S_Term_Scale       : constant Float := 0.01;
+   G_Acceleration     : constant Float := 9.806_65;
 
    subtype Loop_Time_Us is Natural range 100 .. 100_000;
    subtype Seconds is Float range 1.0e-4 .. 0.1;
@@ -40,6 +42,33 @@ package Adaflight.PID_Config with SPARK_Mode, Pure is
    type Axis_Ratios is array (Axis) of D_Max_Ratio;
 
    type Dyn_Lowpass is (None, PT1, SVF, PT2, PT3);
+
+   --  The battery's full voltage in volts, zero when unset.
+   subtype Full_Voltage is Float range 0.0 .. 656.0
+     with Dynamic_Predicate => Full_Voltage = 0.0 or else Full_Voltage >= 0.0099;
+
+   --  A wing's airspeed model for the TPA: the thrust to weight ratio, the
+   --  drag over the mass, the inverse of the propeller's pitch speed, the
+   --  battery's full voltage, the pitch offset in radians, and the top
+   --  speed that scales the airspeed into the TPA argument.
+   type TPA_Speed_Model is record
+      Thrust_Weight      : Float range 0.0 .. 1.0e5 := 0.0;
+      Drag_Mass          : Float range 0.0 .. 1.0e11 := 0.0;
+      Inverse_Prop_Speed : Float range 0.0 .. 1.0e8 := 0.0;
+      Max_Voltage        : Full_Voltage := 0.0;
+      Pitch_Offset       : Float range -58.0 .. 58.0 := 0.0;
+      Max_Speed          : Float range 0.01 .. 1.0e20 := 1.0;
+   end record;
+
+   --  A wing build's airframe: whether the mixer flies a fixed wing, and
+   --  the motor KV the advanced airspeed model reads.
+   type Wing_Setup is record
+      Build      : Boolean := False;
+      Fixed_Wing : Boolean := False;
+      Motor_KV   : Natural range 0 .. 65_535 := 1_960;
+   end record;
+
+   No_Wing : constant Wing_Setup := (others => <>);
 
    type Runtime is record
       Dt                         : Seconds := 1.0e-3;
@@ -102,19 +131,23 @@ package Adaflight.PID_Config with SPARK_Mode, Pure is
       TPA_Breakpoint             : Float range 0.0 .. 0.99 := 0.35;
       TPA_Multiplier             : Float range 0.0 .. 101.0 := 0.0;
       TPA_Low_Breakpoint         : Float range 0.0 .. 1.0 := 0.05;
-      TPA_Low_Multiplier         : Float range -1001.0 .. 1001.0 := 0.0;
+      TPA_Low_Multiplier         : Float range -1281.0 .. 1281.0 := 0.0;
       TPA_Low_Always             : Boolean := False;
       TPA_Curve_Type             : TPA_Curve_Kind := Classic;
       TPA_Curve                  : PWL.Table;
       Use_Ez_Disarm              : Boolean := False;
       Landing_Disarm_Threshold   : Float range 0.0 .. 2500.0 := 0.0;
       Throttle_Boost             : Float range 0.0 .. 10.0 := 0.5;
+      Wing_Build                 : Boolean := False;
+      Fixed_Wing                 : Boolean := False;
+      TPA_Speed                  : TPA_Speed_Model;
    end record;
 
    --  Derives the runtime constants. Has_Acc enables the launch control
-   --  angle limit; Serial_Rx_Is_CRSF selects feedforward interpolation.
+   --  angle limit; Serial_Rx_Is_CRSF selects feedforward interpolation; a
+   --  wing build adds the airspeed model.
    procedure Configure
      (R : out Runtime; P : Profile; Loop_Time : Loop_Time_Us;
-      Has_Acc : Boolean; Serial_Rx_Is_CRSF : Boolean);
+      Has_Acc : Boolean; Serial_Rx_Is_CRSF : Boolean; Wing : Wing_Setup := No_Wing);
 
 end Adaflight.PID_Config;

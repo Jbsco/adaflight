@@ -114,9 +114,9 @@ package body Adaflight.PID_Config with SPARK_Mode is
    end TPA_Multiplier_Of;
 
    function TPA_Low_Multiplier_Of (Rate : Integer; Breakpoint : Float) return Float
-     with Pre  => Rate in -100 .. 100
+     with Pre  => Rate in -128 .. 100
             and then (Breakpoint = 0.0 or else Breakpoint in 0.001 .. 1.0),
-          Post => TPA_Low_Multiplier_Of'Result in -1001.0 .. 1001.0
+          Post => TPA_Low_Multiplier_Of'Result in -1281.0 .. 1281.0
    is
    begin
       --  A zero breakpoint has no finite multiplier in the reference and the
@@ -181,13 +181,76 @@ package body Adaflight.PID_Config with SPARK_Mode is
       end loop;
    end Fill_TPA_Curve;
 
+   Ln_3              : constant Float := 1.098_612_288_668_109_69;
+   Two_Over_Ln_3     : constant Float := 2.0 / Ln_3;
+   Inch_Centimetres  : constant Float := 2.54;
+   Inch_Metres       : constant Float := Inch_Centimetres / 100.0;
+   Prop_Speed_Factor : constant Float := Inch_Metres / 60.0;
+
+   --  The square root held within the airspeed model's range; the hold is
+   --  inert, as the model's speeds lie far inside it.
+   function Speed_Root (X : Float) return Float is (Float'Min (1.0e15, Sqrt_Non_Negative (X)))
+     with Pre => X >= 0.0, Post => Speed_Root'Result in 0.0 .. 1.0e15;
+
+   --  The basic model takes the propeller's pitch speed as unlimited, the
+   --  thrust to weight ratio from the gravity share, and the drag from the
+   --  delay to reach speed.
+   procedure Basic_TPA_Speed (M : in out TPA_Speed_Model; P : Profile) is
+      Gravity_Factor : constant Float range 0.0099 .. 656.0 := Float (P.TPA_Speed_Basic_Gravity) / 100.0;
+      Delay_Sec      : constant Float range 0.00099 .. 66.0 := Float (P.TPA_Speed_Basic_Delay) / 1000.0;
+      Square         : constant Float := Gravity_Factor * Gravity_Factor;
+      Mass_Drag      : Float;
+   begin
+      pragma Assert (Square in 9.0e-5 .. 4.4e5);
+      M.Thrust_Weight := 1.0 / Square;
+      pragma Assert (M.Thrust_Weight >= 2.0e-6);
+      Mass_Drag := Two_Over_Ln_3 * Two_Over_Ln_3 * M.Thrust_Weight * G_Acceleration * Delay_Sec * Delay_Sec;
+      pragma Assert (Mass_Drag in 6.0e-11 .. 2.0e9);
+      M.Drag_Mass := 1.0 / Mass_Drag;
+      M.Max_Speed := Float'Max (0.01, Speed_Root (Mass_Drag * M.Thrust_Weight * G_Acceleration + G_Acceleration));
+      M.Inverse_Prop_Speed := 0.0;
+   end Basic_TPA_Speed;
+
+   --  The advanced model limits the thrust by the propeller's pitch speed:
+   --  the top speed is the larger of the speed in a fall and in a powered
+   --  dive.
+   procedure Advanced_TPA_Speed (M : in out TPA_Speed_Model; P : Profile; Motor_KV : Natural)
+     with Pre => M.Max_Voltage = Float (P.TPA_Speed_Max_Voltage) / 100.0
+   is
+      Mass       : constant Float range 0.00099 .. 66.0 := Float (P.TPA_Speed_Adv_Mass) / 1000.0;
+      Drag_K     : constant Float range 0.000099 .. 6.6 := Float (P.TPA_Speed_Adv_Drag_K) / 10000.0;
+      Prop_Pitch : constant Float range 0.0 .. 656.0 := Float (P.TPA_Speed_Adv_Prop_Pitch) / 100.0;
+      Prop_Speed : Float;
+      Fall       : Float;
+      B          : Float;
+      C          : Float;
+      Dive       : Float;
+   begin
+      M.Thrust_Weight := Float (P.TPA_Speed_Adv_Thrust) / Float (P.TPA_Speed_Adv_Mass);
+      M.Drag_Mass := Drag_K / Mass;
+      Prop_Speed := Prop_Speed_Factor * Prop_Pitch * Float (Motor_KV) * M.Max_Voltage;
+      if P.TPA_Speed_Adv_Prop_Pitch = 0 or else Motor_KV = 0 or else P.TPA_Speed_Max_Voltage = 0 then
+         M.Inverse_Prop_Speed := 0.0;
+      else
+         pragma Assert (Prop_Pitch >= 0.0099 and then M.Max_Voltage >= 0.0099);
+         pragma Assert (Prop_Speed >= 4.0e-8);
+         M.Inverse_Prop_Speed := 1.0 / Prop_Speed;
+      end if;
+      Fall := Float'Max (0.01, Speed_Root (Mass * G_Acceleration / Drag_K));
+      B := Mass * M.Thrust_Weight * G_Acceleration * M.Inverse_Prop_Speed;
+      C := -Mass * (M.Thrust_Weight + 1.0) * G_Acceleration;
+      pragma Assert (B in 0.0 .. 1.0e16 and then C in -1.0e8 .. 0.0);
+      Dive := (-B + Speed_Root (B * B - 4.0 * Drag_K * C)) / (2.0 * Drag_K);
+      M.Max_Speed := (if Fall > Dive then Fall else Dive);
+   end Advanced_TPA_Speed;
+
    ---------------
    -- Configure --
    ---------------
 
    procedure Configure
      (R : out Runtime; P : Profile; Loop_Time : Loop_Time_Us;
-      Has_Acc : Boolean; Serial_Rx_Is_CRSF : Boolean)
+      Has_Acc : Boolean; Serial_Rx_Is_CRSF : Boolean; Wing : Wing_Setup := No_Wing)
    is
       Dt : constant Loop_Dt := Float (Loop_Time) * 1.0e-6;
    begin
@@ -281,6 +344,16 @@ package body Adaflight.PID_Config with SPARK_Mode is
       R.Use_Ez_Disarm := P.Landing_Disarm_Threshold > 0;
       R.Landing_Disarm_Threshold := Float (P.Landing_Disarm_Threshold) * 10.0;
       R.Throttle_Boost := Float (P.Throttle_Boost) * 0.1;
+      R.Wing_Build := Wing.Build;
+      R.Fixed_Wing := Wing.Fixed_Wing;
+      if Wing.Build then
+         R.TPA_Speed.Max_Voltage := Float (P.TPA_Speed_Max_Voltage) / 100.0;
+         R.TPA_Speed.Pitch_Offset := Float (P.TPA_Speed_Pitch_Offset) * Pi / 10.0 / 180.0;
+         case P.TPA_Speed_Type is
+            when Basic => Basic_TPA_Speed (R.TPA_Speed, P);
+            when Advanced => Advanced_TPA_Speed (R.TPA_Speed, P, Wing.Motor_KV);
+         end case;
+      end if;
    end Configure;
 
 end Adaflight.PID_Config;

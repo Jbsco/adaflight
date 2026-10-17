@@ -2,7 +2,8 @@
 --  and the setpoint, with the acceleration limit, the angle and horizon
 --  level modes that turn the setpoint into an angle error rate, iterm relax,
 --  iterm rotation, the D-term filter chain and D-max, the throttle-side TPA
---  factor and anti-gravity terms, in the operation order of the reference.
+--  factor and anti-gravity terms, and a wing build's airspeed TPA, S term
+--  and setpoint scaling, in the operation order of the reference.
 
 with Interfaces;
 with Adaflight.Axes; use Adaflight.Axes;
@@ -38,6 +39,7 @@ package Adaflight.PID_Controller with SPARK_Mode, Pure is
       I   : Iterm := 0.0;
       D   : Signal := 0.0;
       F   : Signal := 0.0;
+      S   : Signal := 0.0;
       Sum : Signal := 0.0;
    end record;
 
@@ -54,7 +56,7 @@ package Adaflight.PID_Controller with SPARK_Mode, Pure is
    type Level_Angles is array (Level_Axis) of Decidegrees;
    type Level_Trims is array (Level_Axis) of Trim;
    type Level_Deflections is array (Level_Axis) of Deflection;
-   type Level_Rates is array (Level_Axis) of Max_Rate;
+   type Axis_Max_Rates is array (Axis) of Max_Rate;
    type Level_Targets is array (Level_Axis) of Angle_Degrees;
    type Axis_Flags is array (Axis) of Boolean;
 
@@ -69,7 +71,7 @@ package Adaflight.PID_Controller with SPARK_Mode, Pure is
       Attitude                  : Level_Angles := (others => 0);
       Trims                     : Level_Trims := (others => 0);
       Deflection                : Level_Deflections := (others => 0.0);
-      Max_RC_Rate               : Level_Rates := (others => 670.0);
+      Max_RC_Rate               : Axis_Max_Rates := (others => 670.0);
       Now_Us                    : Interfaces.Unsigned_32 := 0;
       --  The crash recovery reads the arming state, the accelerometer's
       --  presence, the gyro overflow, and the mixer's motor range.
@@ -105,6 +107,19 @@ package Adaflight.PID_Controller with SPARK_Mode, Pure is
       Jerk_Magnitude            : Float range 0.0 .. 1.0E30 := 0.0;
    end record;
 
+   --  A wing's airspeed model reads the motors' RMS output over their range,
+   --  the battery's latest voltage in hundredths of a volt, and the attitude.
+   subtype Motor_RMS is Float range 0.0 .. 2.0;
+   type Wing_Inputs is record
+      Motor_Output_RMS : Motor_RMS := 0.0;
+      Battery_Latest   : Natural range 0 .. 65_535 := 0;
+      Roll             : Decidegrees := 0;
+      Pitch            : Decidegrees := 0;
+   end record;
+
+   --  The airspeed holds within this bound, far above any flight.
+   Wing_Speed_Bound : constant := 1.0e10;
+
    type State is record
       Data                    : Axis_Terms;
       Filters                 : PID_Filters.State;
@@ -116,6 +131,9 @@ package Adaflight.PID_Controller with SPARK_Mode, Pure is
       Previous_Throttle       : Unit_Interval := 0.0;
       TPA_Factor              : Signal := 0.0;
       TPA_Low_Faded           : Boolean := False;
+      TPA_Factor_Yaw          : Signal := 0.0;
+      TPA_Factor_S            : Axis_Signals := (others => 0.0);
+      Wing_Speed              : Float range 0.0 .. Wing_Speed_Bound := 0.0;
       Stabilisation_Enabled   : Boolean := False;
       Angle_Target            : Level_Targets := (others => 0.0);
       Angle_Yaw_Setpoint      : Rate := 0.0;
@@ -133,8 +151,14 @@ package Adaflight.PID_Controller with SPARK_Mode, Pure is
    procedure Init (S : out State; P : Profile; R : Runtime);
 
    --  The throttle-side terms the mixer refreshes every loop: the
-   --  anti-gravity throttle derivative and the TPA factor.
-   procedure Update_Throttle_Terms (S : in out State; R : Runtime; Throttle : Unit_Interval);
+   --  anti-gravity throttle derivative and the TPA factor, from the throttle
+   --  or, for a fixed wing in a wing build, from the airspeed; a wing build
+   --  adds the yaw and S term factors.
+   procedure Update_Throttle_Terms
+     (S : in out State; R : Runtime; P : Profile; Throttle : Unit_Interval; Wing : Wing_Inputs);
+
+   --  The airspeed back to rest, as the wing launch arms.
+   procedure Reset_TPA_Speed (S : in out State);
 
    procedure Set_Stabilisation (S : in out State; Enabled : Boolean);
 

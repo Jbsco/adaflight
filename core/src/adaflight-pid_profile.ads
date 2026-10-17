@@ -34,15 +34,19 @@ package Adaflight.PID_Profile with SPARK_Mode, Pure is
    type Launch_Control_Mode is (Normal, Pitch_Only, Full);
    type Feedforward_Averaging is (Off, Two_Point, Three_Point, Four_Point);
    type Crash_Recovery_Mode is (Off, On, Beep, Disarm);
-   type TPA_Mode is (PD, D);
+   type TPA_Mode is (PD, D, PDS);
    type TPA_Curve_Kind is (Classic, Hyperbolic);
    type Simplified_Mode is (Off, RP, RPY);
+   type TPA_Speed_Kind is (Basic, Advanced);
+   type Yaw_Kind is (Rudder, Diff_Thrust);
 
    subtype Percent is Natural range 0 .. 100;
    subtype Milliseconds is Natural range 0 .. 65535;
    subtype Hertz is Natural range 0 .. 1000;
    subtype PWM_Value is Natural range 1000 .. 2000;
    subtype Tuning_Factor is Natural range 0 .. 200;
+   subtype Setting_16 is Natural range 0 .. 65_535;
+   subtype Positive_Setting_16 is Positive range 1 .. 65_535;
 
    type Profile is record
       Gains                    : Axis_Gain_Set;
@@ -106,7 +110,7 @@ package Adaflight.PID_Profile with SPARK_Mode, Pure is
       Level_Race_Mode          : Boolean := False;
       TPA_Rate                 : Percent := 65;
       TPA_Breakpoint           : PWM_Value := 1350;
-      TPA_Low_Rate             : Integer range -100 .. 100 := 20;
+      TPA_Low_Rate             : Integer range -128 .. 100 := 20;
       TPA_Low_Breakpoint       : PWM_Value := 1050;
       TPA_Low_Always           : Boolean := False;
       TPA_Terms                : TPA_Mode := D;
@@ -115,6 +119,21 @@ package Adaflight.PID_Profile with SPARK_Mode, Pure is
       TPA_Curve_PID_Thr0       : Natural range 1 .. 1000 := 200;
       TPA_Curve_PID_Thr100     : Natural range 1 .. 1000 := 70;
       TPA_Curve_Expo           : Integer range -100 .. 100 := 20;
+      --  A wing's airspeed model for the TPA: the basic model's delay in
+      --  milliseconds and gravity in percent, the advanced model's prop
+      --  pitch in hundredths of an inch, mass and thrust in grams and drag
+      --  in ten-thousandths, the battery's full voltage in hundredths of a
+      --  volt, the pitch offset in tenths of a degree, and the yaw control.
+      TPA_Speed_Type           : TPA_Speed_Kind := Basic;
+      TPA_Speed_Basic_Delay    : Positive_Setting_16 := 1000;
+      TPA_Speed_Basic_Gravity  : Positive_Setting_16 := 50;
+      TPA_Speed_Adv_Prop_Pitch : Setting_16 := 370;
+      TPA_Speed_Adv_Mass       : Positive_Setting_16 := 1000;
+      TPA_Speed_Adv_Drag_K     : Positive_Setting_16 := 1000;
+      TPA_Speed_Adv_Thrust     : Setting_16 := 2000;
+      TPA_Speed_Max_Voltage    : Setting_16 := 2520;
+      TPA_Speed_Pitch_Offset   : Integer range -32_768 .. 32_767 := 0;
+      Yaw_Type                 : Yaw_Kind := Rudder;
       Throttle_Boost           : Percent := 5;
       Ez_Landing_Threshold     : Natural range 0 .. 200 := 25;
       Ez_Landing_Limit         : Natural range 0 .. 75 := 15;

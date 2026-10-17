@@ -10,13 +10,16 @@ package body Adaflight.PID_Controller with SPARK_Mode is
 
    type Term_Kind is (Term_P, Term_D);
 
-   function TPA_Factor_Of (S : State; Mode : TPA_Mode; Term : Term_Kind) return Float
+   --  A wing build takes the yaw axis's factor from the yaw factor and also
+   --  scales P with the S term's mode.
+   function TPA_Factor_Of (S : State; R : Runtime; Mode : TPA_Mode; A : Axis; Term : Term_Kind) return Float
      with Post => TPA_Factor_Of'Result in Signal
    is
+      Factor : constant Signal := (if R.Wing_Build and then A = Yaw then S.TPA_Factor_Yaw else S.TPA_Factor);
    begin
       case Term is
-         when Term_P => return (if Mode = PD then S.TPA_Factor else 1.0);
-         when Term_D => return S.TPA_Factor;
+         when Term_P => return (if Mode = PD or else (R.Wing_Build and then Mode = PDS) then Factor else 1.0);
+         when Term_D => return Factor;
       end case;
    end TPA_Factor_Of;
 
@@ -59,11 +62,90 @@ package body Adaflight.PID_Controller with SPARK_Mode is
    -- Update_Throttle_Terms --
    ---------------------------
 
-   procedure Update_Throttle_Terms (S : in out State; R : Runtime; Throttle : Unit_Interval) is
+   --  The classic TPA factor: past the low breakpoint, or once the low
+   --  range has faded, the rate above the breakpoint; below it, the low rate.
+   procedure Classic_TPA (R : Runtime; Argument : Unit_Interval; Faded : in out Boolean; Factor : out Signal) is
+      TPA_Rate : Float;
+   begin
+      if Argument >= R.TPA_Low_Breakpoint or else R.TPA_Low_Breakpoint <= 0.01 or else Faded then
+         TPA_Rate := R.TPA_Multiplier * Float'Max (Argument - R.TPA_Breakpoint, 0.0);
+         if not R.TPA_Low_Always and then not Faded then
+            Faded := True;
+         end if;
+      else
+         TPA_Rate := R.TPA_Low_Multiplier * (R.TPA_Low_Breakpoint - Argument);
+      end if;
+      pragma Assert (TPA_Rate in -1281.0 .. 1281.0);
+      Factor := 1.0 - TPA_Rate;
+   end Classic_TPA;
+
+   Wing_Radians_Per_Degree : constant Float := 0.017_453_292_5;
+
+   --  The wing's TPA argument, its airspeed over the top speed: the speed
+   --  grows with the thrust of the motors' output, scaled by the battery's
+   --  share of its full voltage and limited by the propeller's pitch speed,
+   --  and with gravity along the pitch the offset corrects, and drops with
+   --  the drag.
+   procedure Wing_TPA_Argument (S : in out State; R : Runtime; Wing : Wing_Inputs; Argument : out Unit_Interval) is
+      M              : TPA_Speed_Model renames R.TPA_Speed;
+      Battery_Factor : Unit_Interval := 1.0;
+      Pitch_Radians  : constant Float range -3.2 .. 3.2 := Float (Wing.Pitch) / 10.0 * Wing_Radians_Per_Degree;
+      Roll_Radians   : constant Float range -3.2 .. 3.2 := Float (Wing.Roll) / 10.0 * Wing_Radians_Per_Degree;
+      Corrected      : Float range -62.0 .. 62.0;
+      Throttle       : Float range 0.0 .. 2.0;
+      Thrust         : Float;
+      Drag           : Float;
+      Acceleration   : Float;
+      Speed          : Float;
+   begin
+      if M.Max_Voltage > 0.0 then
+         Battery_Factor := Constrain_F (Float (Wing.Battery_Latest) / 100.0 / M.Max_Voltage, 0.0, 1.0);
+      end if;
+      Throttle := Wing.Motor_Output_RMS * Battery_Factor;
+      Corrected := Pitch_Radians + Cos_Approx (Pitch_Radians) * Cos_Approx (Roll_Radians) * M.Pitch_Offset;
+      Thrust := (Throttle * Throttle - Throttle * S.Wing_Speed * M.Inverse_Prop_Speed) * M.Thrust_Weight
+        * G_Acceleration;
+      Drag := S.Wing_Speed * S.Wing_Speed * M.Drag_Mass;
+      Acceleration := Thrust - Drag + G_Acceleration * Sin_Approx (Corrected);
+      Speed := S.Wing_Speed + Acceleration * R.Dt;
+      if 0.0 > Speed then
+         Speed := 0.0;
+      end if;
+      S.Wing_Speed := (if Speed > Wing_Speed_Bound then Wing_Speed_Bound else Speed);
+      Argument := Constrain_F (S.Wing_Speed / M.Max_Speed, 0.0, 1.0);
+   end Wing_TPA_Argument;
+
+   --  The S term's factor per axis: the TPA factor, the yaw factor for the
+   --  yaw axis with differential thrust, and on the hyperbolic curve scaled
+   --  down so that it times the S gain stays within one.
+   procedure Update_S_Factors (S : in out State; R : Runtime; P : Profile) is
+   begin
+      for A in Axis loop
+         declare
+            Factor : Signal :=
+              (if A = Yaw and then P.Yaw_Type = Diff_Thrust then S.TPA_Factor_Yaw else S.TPA_Factor);
+         begin
+            if R.TPA_Curve_Type = Hyperbolic then
+               declare
+                  Max_S_Term : constant Float := Factor * Float (P.Gains (A).S) * S_Term_Scale;
+               begin
+                  if Max_S_Term > 1.0 then
+                     Factor := Saturate (Factor * (1.0 / Max_S_Term));
+                  end if;
+               end;
+            end if;
+            S.TPA_Factor_S (A) := Factor;
+         end;
+      end loop;
+   end Update_S_Factors;
+
+   procedure Update_Throttle_Terms
+     (S : in out State; R : Runtime; P : Profile; Throttle : Unit_Interval; Wing : Wing_Inputs)
+   is
       Throttle_Inv : constant Unit_Interval := 1.0 - Throttle;
       Derivative   : Float := abs (Throttle - S.Previous_Throttle) * R.PID_Frequency;
       Filtered     : Signal;
-      TPA_Rate     : Float;
+      Argument     : Unit_Interval := Throttle;
    begin
       pragma Assert (Derivative in 0.0 .. 1.0e6);
       Derivative := Derivative * (Throttle_Inv * Throttle_Inv);
@@ -73,23 +155,46 @@ package body Adaflight.PID_Controller with SPARK_Mode is
       S.Previous_Throttle := Throttle;
       PT2_Apply (S.Filters.Anti_Gravity, Derivative, Filtered);
       S.Anti_Gravity_Throttle_D := Constrain_F (Filtered, 0.0, Throttle_D_Bound);
-      if R.TPA_Curve_Type = Hyperbolic then
-         S.TPA_Factor := Saturate (PWL.Interpolate (R.TPA_Curve, Throttle));
-         return;
+      if R.Wing_Build and then R.Fixed_Wing then
+         Wing_TPA_Argument (S, R, Wing, Argument);
       end if;
-      if Throttle >= R.TPA_Low_Breakpoint or else R.TPA_Low_Breakpoint <= 0.01
-        or else S.TPA_Low_Faded
-      then
-         TPA_Rate := R.TPA_Multiplier * Float'Max (Throttle - R.TPA_Breakpoint, 0.0);
-         if not R.TPA_Low_Always and then not S.TPA_Low_Faded then
-            S.TPA_Low_Faded := True;
-         end if;
-      else
-         TPA_Rate := R.TPA_Low_Multiplier * (R.TPA_Low_Breakpoint - Throttle);
+      case R.TPA_Curve_Type is
+         when Hyperbolic =>
+            S.TPA_Factor := Saturate (PWL.Interpolate (R.TPA_Curve, Argument));
+         when Classic =>
+            Classic_TPA (R, Argument, S.TPA_Low_Faded, S.TPA_Factor);
+      end case;
+      if R.Wing_Build then
+         case P.Yaw_Type is
+            when Diff_Thrust =>
+               Classic_TPA (R, Argument, S.TPA_Low_Faded, S.TPA_Factor_Yaw);
+            when Rudder =>
+               S.TPA_Factor_Yaw := S.TPA_Factor;
+         end case;
+         Update_S_Factors (S, R, P);
       end if;
-      pragma Assert (TPA_Rate in -1001.0 .. 1001.0);
-      S.TPA_Factor := 1.0 - TPA_Rate;
    end Update_Throttle_Terms;
+
+   procedure Reset_TPA_Speed (S : in out State) is
+   begin
+      S.Wing_Speed := 0.0;
+   end Reset_TPA_Speed;
+
+   --  A wing's setpoint outside the level modes, scaled by the S term's
+   --  factor over the TPA factor. The S factor never exceeds the TPA
+   --  factor, so the quotient stays within the setpoint and the holds are
+   --  inert.
+   function Wing_Setpoint (Setpoint : Rate; S_Factor : Signal; TPA_Factor : Signal) return Rate
+     with Pre => S_Factor > 0.0 and then TPA_Factor > 0.0
+   is
+      Product : constant Float := Setpoint * S_Factor;
+   begin
+      if abs Product <= TPA_Factor * 2.0 ** 64 then
+         return Constrain_F (Product / TPA_Factor, -Rate_Bound, Rate_Bound);
+      else
+         return (if Product > 0.0 then Rate_Bound else -Rate_Bound);
+      end if;
+   end Wing_Setpoint;
 
    --  Limits the setpoint change per loop to the configured velocity.
    procedure Acceleration_Limit (S : in out State; A : Axis; R : Runtime; Setpoint : in out Rate)
@@ -544,6 +649,7 @@ package body Adaflight.PID_Controller with SPARK_Mode is
             Iterm_Change   : Float;
             Setpoint_Delta : Rate := Inp.Feedforward (A);
             Term           : Float;
+            Unscaled_Setpoint : Rate;
          begin
             if R.Max_Velocity (A) /= 0.0 then
                Acceleration_Limit (S, A, R, Setpoint);
@@ -556,6 +662,13 @@ package body Adaflight.PID_Controller with SPARK_Mode is
                end if;
             elsif Level = Level_Roll_Pitch then
                Attenuate_Yaw (S, R, Inp, H, Setpoint);
+            end if;
+            Unscaled_Setpoint := Setpoint;
+            if R.Wing_Build and then not S.Axis_In_Angle_Mode (A)
+              and then S.TPA_Factor_S (A) > 0.0 and then S.TPA_Factor > 0.0
+              and then not (A = Yaw and then P.Yaw_Type = Diff_Thrust)
+            then
+               Setpoint := Wing_Setpoint (Setpoint, S.TPA_Factor_S (A), S.TPA_Factor);
             end if;
             if Inp.Angle_Mode and then S.Axis_In_Angle_Mode (A) then
                Setpoint_Delta := 0.0;
@@ -575,7 +688,7 @@ package body Adaflight.PID_Controller with SPARK_Mode is
                Error_Rate := Setpoint - Gyro_Rate;
             end if;
             Term := R.Coefficient (A).Kp * Error_Rate;
-            S.Data (A).P := Saturate (Term * TPA_Factor_Of (S, P.TPA_Terms, Term_P));
+            S.Data (A).P := Saturate (Term * TPA_Factor_Of (S, R, P.TPA_Terms, A, Term_P));
             if A = Yaw then
                declare
                   Filtered : Signal;
@@ -621,7 +734,7 @@ package body Adaflight.PID_Controller with SPARK_Mode is
                      end;
                   end if;
                   Pre_TPA_D := Pre_TPA_D * Multiplier;
-                  S.Data (A).D := Saturate (Pre_TPA_D * TPA_Factor_Of (S, P.TPA_Terms, Term_D));
+                  S.Data (A).D := Saturate (Pre_TPA_D * TPA_Factor_Of (S, R, P.TPA_Terms, A, Term_D));
                end;
             else
                S.Data (A).D := 0.0;
@@ -648,8 +761,15 @@ package body Adaflight.PID_Controller with SPARK_Mode is
                   S.Data (A).P := Saturate (S.Data (A).P * Boost);
                end;
             end if;
+            if R.Wing_Build then
+               S.Data (A).S := Saturate
+                 (Unscaled_Setpoint / Inp.Max_RC_Rate (A) * 1000.0 * Float (P.Gains (A).S) * S_Term_Scale
+                  * (if P.TPA_Terms = PDS then S.TPA_Factor_S (A) else 1.0));
+            else
+               S.Data (A).S := 0.0;
+            end if;
             S.Data (A).Sum :=
-              Saturate (S.Data (A).P + S.Data (A).I + S.Data (A).D + S.Data (A).F);
+              Saturate (S.Data (A).P + S.Data (A).I + S.Data (A).D + S.Data (A).F + S.Data (A).S);
          end;
       end loop;
       if not S.Stabilisation_Enabled or else Inp.Gyro_Overflow then

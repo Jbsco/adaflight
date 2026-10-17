@@ -456,7 +456,10 @@ package body Adaflight.Mixer with SPARK_Mode is
       if C.Throttle_Limit /= Off then
          Throttle := Throttle_Limited (Throttle, C);
       end if;
-      PID_Controller.Update_Throttle_Terms (Ctl, R, Throttle);
+      PID_Controller.Update_Throttle_Terms
+        (Ctl, R, P, Throttle,
+         (Motor_Output_RMS => S.Motor_Output_RMS, Battery_Latest => Inp.Battery_Voltage_Latest,
+          Roll => Inp.Attitude (Roll), Pitch => Inp.Attitude (Pitch)));
       if Inp.Time_Us - S.Dyn_LPF_Last_Update_Us >= Dyn_LPF_Update_Delay_Us then
          declare
             Quantized : constant Throttle_Step :=
