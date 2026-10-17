@@ -15150,6 +15150,14 @@ procedure Vector_Check is
                   Record_Int ("msp.restart", Int (37), Boolean'Pos (MSP_Board_Effects.Reboot or else C.Reboot));
                end;
             end if;
+            if NF >= 43 then
+               Record_Int ("msp.gps_time", Int (38), Integer_64 (E.Solution.Time_Ms));
+               Record_Int ("msp.gps_h_accuracy", Int (39), Integer_64 (E.Solution.H_Accuracy));
+               Record_Int ("msp.gps_v_accuracy", Int (40), Integer_64 (E.Solution.V_Accuracy));
+               Record_Int ("msp.gps_s_accuracy", Int (41), Integer_64 (E.Solution.S_Accuracy));
+               Record_Int ("msp.gps_pdop", Int (42), Integer_64 (E.Solution.PDOP));
+               Record_Int ("msp.gps_course", Int (43), Integer_64 (E.Solution.Ground_Course));
+            end if;
          end;
       elsif Str (1) = "clc" then
          declare
@@ -20127,6 +20135,7 @@ begin
    Run (Dir & "/mspinmotor.csv", "cliset");
    Run (Dir & "/mspinfont.csv", "cliset");
    Run (Dir & "/mspindev.csv", "cliset");
+   Run (Dir & "/mspingps.csv", "cliset");
    Run (Dir & "/clisave.csv", "cliset");
    if Settings_Seen /= Adaflight.Settings_Table.Setting'Pos (Adaflight.Settings_Table.Setting'Last) + 1 then
       Put_Line ("settings: the vectors hold" & Settings_Seen'Image & " settings");
