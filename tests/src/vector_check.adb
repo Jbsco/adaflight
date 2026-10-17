@@ -125,6 +125,7 @@ with Adaflight.MSP_Common_Out;
 with Adaflight.MSP_Tuning_Out;
 with Adaflight.MSP_Tuning_In;
 with Adaflight.MSP_Receiver_In;
+with Adaflight.MSP_Hardware_In;
 with Adaflight.MSP_Receiver_Out;
 with Adaflight.MSP_Hardware_Out;
 with Adaflight.MSP_Peripheral_Out;
@@ -14711,6 +14712,17 @@ procedure Vector_Check is
                      Adaflight.MSP_Tuning_In.Process
                        (CLI_Config, Cmd, Request, MSP_Gyro_Rate, MSP_In_Result, MSP_In_Effects);
                      MSP_In_Ran := True;
+                  elsif Adaflight.MSP_Hardware_In.Handles (Cmd) then
+                     declare
+                        use type Adaflight.MSP_Hardware_In.Result;
+                        Hw_Result : Adaflight.MSP_Hardware_In.Result;
+                     begin
+                        Adaflight.MSP_Hardware_In.Process (CLI_Config, Cmd, Request, Hw_Result);
+                        MSP_In_Result :=
+                          (if Hw_Result = Adaflight.MSP_Hardware_In.Ack then Adaflight.MSP_Tuning_In.Ack
+                           else Adaflight.MSP_Tuning_In.Error);
+                        MSP_In_Ran := True;
+                     end;
                   elsif Adaflight.MSP_Receiver_In.Handles (Cmd) then
                      declare
                         use type Adaflight.MSP_Receiver_In.Result;
@@ -19684,6 +19696,7 @@ begin
    Run (Dir & "/mspintune.csv", "cliset");
    Run (Dir & "/mspinfilt.csv", "cliset");
    Run (Dir & "/mspinrx.csv", "cliset");
+   Run (Dir & "/mspinhw.csv", "cliset");
    Run (Dir & "/clisave.csv", "cliset");
    if Settings_Seen /= Adaflight.Settings_Table.Setting'Pos (Adaflight.Settings_Table.Setting'Last) + 1 then
       Put_Line ("settings: the vectors hold" & Settings_Seen'Image & " settings");
