@@ -5158,3 +5158,18 @@ reply byte and the restart it schedules. The harness replays two sequences of 60
 requests among board stores, armed and disarmed directives, board commands, saves and resets: every
 result, reply, runtime request and configuration hash matches the reference's, with 525 requests for
 information or a signature the board already holds, or shorter than declared, rejected by both.
+
+## D221. MSP motor test (2026-10-15)
+
+`Adaflight.MSP_Motor_In` contains the MSP in message that sets the motors' values while disarmed,
+which a configurator's motor test sends. It takes a 16-bit value per motor of the mixer and is an
+error when the request holds fewer; bytes past them are ignored. Each value converts for the motor
+protocol: unchanged for analog pulses, through `DShot.From_External` with the running 3D feature for
+DShot, and zero without a motor device. `Effects` carries the values for the mixer's disarmed
+outputs.
+
+The command line oracle links the reference's DShot source with its unit-test definitions, scripts
+the motor device's kind and the mixer's motor count with a directive, and reads the disarmed motor
+values after each request. The harness replays two sequences of 600 lines, 1049 requests among
+device scripts and 3D feature changes: every result and all 8392 disarmed values match the
+reference's bit for bit, with 105 requests short of the motor count rejected by both.
