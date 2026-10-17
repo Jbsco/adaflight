@@ -41,8 +41,8 @@ The core contains:
   features, crash recovery, launch control, yaw spin recovery, landing disarm, and wing airspeed
   TPA with S term, setpoint attenuation, pitch offset and passthrough
 - motor mixer with mixer setup: frame tables, custom mixes, launch control mix, launch control,
-  altitude hold and GPS rescue throttles, RPM limiter, crash flip mixing, DShot failsafe floor and
-  battery sag compensation
+  altitude hold and GPS rescue throttles, RPM limiter, crash flip mixing, DShot failsafe floor,
+  battery sag compensation, wing RMS output and launch throttle
 - gyro calibration, filtering chain, dynamic notch, RPM filter, and full-scale detections
 - attitude estimator with compass heading, and angle and horizon level modes with GPS rescue,
   altitude hold and position hold
@@ -310,7 +310,7 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 28556 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 28580 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
 - Recorded vectors replay bit for bit: 1753568 lines over 384 cases, every case exact except
   forty-nine declared deviations in `DESIGN.md` D6.
