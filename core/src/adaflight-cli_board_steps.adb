@@ -33,4 +33,15 @@ package body Adaflight.CLI_Board_Steps with SPARK_Mode is
       null;
    end Delay_Ms;
 
+   procedure ESC_Passthrough (Index : Natural; Protocol : Interfaces.Unsigned_8; Started : out Boolean) is
+      pragma Unreferenced (Index, Protocol);
+   begin
+      Started := False;
+   end ESC_Passthrough;
+
+   procedure GPS_Passthrough (Started : out Boolean) is
+   begin
+      Started := False;
+   end GPS_Passthrough;
+
 end Adaflight.CLI_Board_Steps;

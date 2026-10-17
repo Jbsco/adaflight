@@ -3593,8 +3593,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Beacon_Command, Bootloader_Command_Word, Exit_Command_Word, Save_Command_Word,
       Beeper_Command_Word, Bind_Rx_Command_Word, Board_Name_Command_Word, Defaults_Command_Word,
       Manufacturer_Id_Command_Word, Signature_Command_Word, Color_Command_Word, Diff_Command,
-      Dshot_Telemetry_Info_Command_Word, Dshotprog_Command_Word, Dump_Command, Env_Command_Word,
-      Feature_Command_Word, Flash_Info_Command_Word, Get_Command, Help_Command_Word, Led_Command_Word,
+      Dshot_Telemetry_Info_Command_Word, Dshotprog_Command_Word, Dump_Command, Env_Command_Word, Escprog_Command_Word,
+      Feature_Command_Word, Flash_Info_Command_Word, Get_Command, Gpspassthrough_Command_Word, Help_Command_Word,
+      Led_Command_Word,
       Map_Command_Word,
       Mode_Color_Command_Word,
       Mixer_Command_Word, Motor_Mix_Command_Word, Options_Command_Word, Peripherals_Command_Word,
@@ -3629,9 +3630,11 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when Dshotprog_Command_Word => "dshotprog",
          when Dump_Command => "dump",
          when Env_Command_Word => "env",
+         when Escprog_Command_Word => "escprog",
          when Feature_Command_Word => "feature",
          when Flash_Info_Command_Word => "flash_info",
          when Get_Command => "get",
+         when Gpspassthrough_Command_Word => "gpspassthrough",
          when Help_Command_Word => "help",
          when Color_Command_Word => "color",
          when Led_Command_Word => "led",
@@ -4336,6 +4339,106 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end loop;
       Motors_Enable;
    end Dshotprog_Command;
+
+   --  escprog: the board's ESC passthrough of a protocol, chosen by a word
+   --  that starts sk, bl, ki or cc without regard to case, to an output, or
+   --  to all outputs for KISS. Another protocol is the parse error, another
+   --  output the output error, a third word or no words the argument count
+   --  error, each ending the command; a start that fails is the start error.
+   procedure Escprog_Command (Into : in out Output; Env : Environment; Arguments : String)
+     with Pre => Arguments'First >= 1 and then Arguments'Last < Positive'Last
+   is
+      SimonK     : constant := 0;
+      BLHeli     : constant := 1;
+      KISS       : constant := 2;
+      Castle     : constant := 4;
+      All_Motors : constant := 255;
+      Motors     : constant Natural := Natural (Env.Motors);
+      Protocol   : Interfaces.Unsigned_8 := SimonK;
+      Index      : Natural := 0;
+      Position   : Natural := 0;
+      K          : Positive := Arguments'First;
+      Started    : Boolean;
+
+      --  Whether a word is the start of a protocol's two letters, as
+      --  strncasecmp over the word's length compares them.
+      function Starts (Word : String; Name : String) return Boolean is
+        (Word'Length in 1 .. Name'Length
+         and then CLI_Text.Same_Ignoring_Case (Word, Name (Name'First .. Name'First + Word'Length - 1)))
+        with Pre => Name'Length = 2 and then Name'First = 1;
+   begin
+      if Arguments'Length = 0 then
+         Put_Error (Into, "escprog: INVALID ARGUMENT COUNT###" & CRLF);
+         return;
+      end if;
+      loop
+         pragma Loop_Invariant (K in Arguments'First .. Arguments'Last + 1);
+         while K <= Arguments'Last and then Arguments (K) = ' ' loop
+            pragma Loop_Invariant (K in Arguments'Range);
+            pragma Loop_Variant (Increases => K);
+            K := K + 1;
+         end loop;
+         exit when K > Arguments'Last;
+         declare
+            Start : constant Positive := K;
+         begin
+            while K <= Arguments'Last and then Arguments (K) /= ' ' loop
+               pragma Loop_Invariant (K in Start .. Arguments'Last);
+               pragma Loop_Variant (Increases => K);
+               K := K + 1;
+            end loop;
+            if Position = 0 then
+               if Starts (Arguments (Start .. K - 1), "sk") then
+                  Protocol := SimonK;
+               elsif Starts (Arguments (Start .. K - 1), "bl") then
+                  Protocol := BLHeli;
+               elsif Starts (Arguments (Start .. K - 1), "ki") then
+                  Protocol := KISS;
+               elsif Starts (Arguments (Start .. K - 1), "cc") then
+                  Protocol := Castle;
+               else
+                  Put_Error (Into, "escprog: PARSING FAILED###" & CRLF);
+                  return;
+               end if;
+            elsif Position = 1 then
+               declare
+                  Value : constant Integer_64 := Leading_Whole (Arguments (Start .. K - 1));
+               begin
+                  if Value in 0 .. Integer_64 (Motors) - 1 then
+                     Index := Natural (Value);
+                     Put (Into, "Using output " & Decimal (Value) & "." & CRLF);
+                  elsif Protocol = KISS and then Value = All_Motors then
+                     Index := All_Motors;
+                     Put (Into, "Using all outputs." & CRLF);
+                  else
+                     Put_Error (Into, "escprog: INVALID OUTPUT NUMBER. RANGE: 0 - "
+                                      & Decimal (Integer_64 (Motors) - 1) & ".###" & CRLF);
+                     return;
+                  end if;
+               end;
+            else
+               Put_Error (Into, "escprog: INVALID ARGUMENT COUNT###" & CRLF);
+               return;
+            end if;
+         end;
+         Position := Position + 1;
+      end loop;
+      ESC_Passthrough (Index, Protocol, Started);
+      if not Started then
+         Put_Error (Into, "escprog: Error starting ESC connection###" & CRLF);
+      end if;
+   end Escprog_Command;
+
+   --  gpspassthrough: the board's GPS passthrough, with an error when it
+   --  does not start.
+   procedure Gpspassthrough_Command (Into : in out Output) is
+      Started : Boolean;
+   begin
+      GPS_Passthrough (Started);
+      if not Started then
+         Put_Error (Into, "gpspassthrough: GPS forwarding failed###" & CRLF);
+      end if;
+   end Gpspassthrough_Command;
 
    --  options: each of the build's option numbers on its own line.
    procedure Options_Command (Into : in out Output; Env : Environment)
@@ -6074,6 +6177,10 @@ package body Adaflight.Command_Line with SPARK_Mode is
             Dshot_Telemetry_Info_Command (Into, Env.Motors, Env.DShot_Telemetry);
          when Dshotprog_Command_Word =>
             Dshotprog_Command (Into, Env, Text_At (Buffer, Arguments));
+         when Escprog_Command_Word =>
+            Escprog_Command (Into, Env, Text_At (Buffer, Arguments));
+         when Gpspassthrough_Command_Word =>
+            Gpspassthrough_Command (Into);
          when Options_Command_Word =>
             Options_Command (Into, Env);
          when Peripherals_Command_Word =>

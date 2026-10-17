@@ -1,5 +1,5 @@
---  The board's DShot programming as units that do nothing, the shapes the
---  command line's proof takes.
+--  The board's DShot programming and passthrough starts as units that do
+--  nothing, the shapes the command line's proof takes.
 with Interfaces;
 with Adaflight.ESC_Info;
 
@@ -21,6 +21,12 @@ package Adaflight.CLI_Board_Steps with SPARK_Mode is
      with Global => null;
 
    procedure Delay_Ms (Ms : Natural)
+     with Global => null;
+
+   procedure ESC_Passthrough (Index : Natural; Protocol : Interfaces.Unsigned_8; Started : out Boolean)
+     with Global => null;
+
+   procedure GPS_Passthrough (Started : out Boolean)
      with Global => null;
 
 end Adaflight.CLI_Board_Steps;

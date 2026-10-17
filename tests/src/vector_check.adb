@@ -16092,9 +16092,34 @@ procedure Vector_Check is
       null;
    end CLI_Delay_Ms;
 
+   --  The board's passthrough starts as the command line oracle records
+   --  them: the ESC starts with the last output and protocol, the GPS
+   --  starts, and the results the "!passthrough" lines script.
+   CLI_ESC_Pass_Calls  : Natural := 0;
+   CLI_ESC_Pass_Index  : Integer := -1;
+   CLI_ESC_Pass_Mode   : Integer := -1;
+   CLI_GPS_Pass_Calls  : Natural := 0;
+   CLI_ESC_Pass_Result : Boolean := False;
+   CLI_GPS_Pass_Result : Boolean := False;
+   CLI_Pass_Seen       : Boolean := False;
+
+   procedure CLI_ESC_Passthrough (Index : Natural; Protocol : Interfaces.Unsigned_8; Started : out Boolean) is
+   begin
+      CLI_ESC_Pass_Calls := CLI_ESC_Pass_Calls + 1;
+      CLI_ESC_Pass_Index := Index;
+      CLI_ESC_Pass_Mode := Integer (Protocol);
+      Started := CLI_ESC_Pass_Result;
+   end CLI_ESC_Passthrough;
+
+   procedure CLI_GPS_Passthrough (Started : out Boolean) is
+   begin
+      CLI_GPS_Pass_Calls := CLI_GPS_Pass_Calls + 1;
+      Started := CLI_GPS_Pass_Result;
+   end CLI_GPS_Passthrough;
+
    package CLI is new Adaflight.Command_Line
      (CLI_Sink, CLI_Put, CLI_DShot_Write, CLI_Motors_Disable, CLI_Motors_Enable, CLI_ESC_Read_Start,
-      CLI_ESC_Read_Bytes, CLI_Delay_Ms);
+      CLI_ESC_Read_Bytes, CLI_Delay_Ms, CLI_ESC_Passthrough, CLI_GPS_Passthrough);
 
    CLI_Config   : Adaflight.Config_Groups.Configuration := Adaflight.Config_Groups.Defaults;
    CLI_Identity : constant CLI.Environment :=
@@ -16286,6 +16311,8 @@ procedure Vector_Check is
             CLI_ESC_Tail := 0;
             CLI_ESC_Frame := (others => 0);
             CLI_ESC_Read := 0;
+            CLI_ESC_Pass_Result := False;
+            CLI_GPS_Pass_Result := False;
          end if;
          CLI_Reply.Target.Text := Null_Unbounded_String;
          CLI_Expected := Null_Unbounded_String;
@@ -16296,6 +16323,11 @@ procedure Vector_Check is
          CLI_Enables := 0;
          CLI_DShot_Log := Null_Unbounded_String;
          CLI_DShot_Seen := False;
+         CLI_ESC_Pass_Calls := 0;
+         CLI_ESC_Pass_Index := -1;
+         CLI_ESC_Pass_Mode := -1;
+         CLI_GPS_Pass_Calls := 0;
+         CLI_Pass_Seen := False;
          MSP_In_Ran := False;
          declare
             Command : constant String := Hex_String (3);
@@ -16772,6 +16804,9 @@ procedure Vector_Check is
             elsif Word (Command, 0) = "!buildopts" then
                --  The oracle prints the build's option numbers after this line.
                null;
+            elsif Word (Command, 0) = "!passthrough" then
+               CLI_ESC_Pass_Result := Word (Command, 1) /= "0";
+               CLI_GPS_Pass_Result := Word (Command, 2) /= "0";
             elsif Word (Command, 0) = "!dshotproto" then
                CLI_Env.DShot_Protocol := Word (Command, 1) /= "0";
             elsif Word (Command, 0) = "!mcu" then
@@ -17247,6 +17282,12 @@ procedure Vector_Check is
             Record_Text ("cli.dshot_log", To_String (Expected), To_String (CLI_DShot_Log));
          end;
          CLI_DShot_Seen := True;
+      elsif Str (1) = "clpt" then
+         Record_Int ("cli.esc_pass", Int (3), Integer_64 (CLI_ESC_Pass_Calls));
+         Record_Int ("cli.esc_pass_index", Int (4), Integer_64 (CLI_ESC_Pass_Index));
+         Record_Int ("cli.esc_pass_mode", Int (5), Integer_64 (CLI_ESC_Pass_Mode));
+         Record_Int ("cli.gps_pass", Int (6), Integer_64 (CLI_GPS_Pass_Calls));
+         CLI_Pass_Seen := True;
       elsif Str (1) = "clrt" then
          Record_Int ("cli.restart", Int (3), CLI_Restart_Code);
          Record_Int ("cli.timezone", Int (4), Integer_64 (CLI_Changes.Timezone_Offset));
@@ -17258,6 +17299,9 @@ procedure Vector_Check is
          if not CLI_DShot_Seen then
             Record_Int ("cli.dshot_calls", 0, Integer_64 (Ada.Strings.Unbounded.Length (CLI_DShot_Log) + CLI_Disables
                                                           + CLI_Enables));
+         end if;
+         if not CLI_Pass_Seen then
+            Record_Int ("cli.esc_pass", 0, Integer_64 (CLI_ESC_Pass_Calls + CLI_GPS_Pass_Calls));
          end if;
          Record_Text ("cli.reply", To_String (CLI_Expected), To_String (CLI_Reply.Target.Text));
          declare
@@ -25028,6 +25072,7 @@ begin
    Run (Dir & "/cliperipherals.csv", "cliset");
    Run (Dir & "/clistatus.csv", "cliset");
    Run (Dir & "/clienv.csv", "cliset");
+   Run (Dir & "/clipassthrough.csv", "cliset");
    if Settings_Seen /= Adaflight.Settings_Table.Setting'Pos (Adaflight.Settings_Table.Setting'Last) + 1 then
       Put_Line ("settings: the vectors hold" & Settings_Seen'Image & " settings");
       Failures := Failures + 1;

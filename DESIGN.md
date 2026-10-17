@@ -7045,3 +7045,20 @@ The command line oracle's env mode drives the status mode's lines, board informa
 prefixes of every name, other texts and none. Every reply of the 600 lines replays exactly. Seventeen tampered
 paths each fail the vectors. One is equivalent. The arguments start past the spaces after the command's name, so
 env's own skip of leading spaces never finds one.
+
+## D311. Passthrough commands (2026-10-17)
+
+`Adaflight.Command_Line` gains escprog and gpspassthrough, and its generic gains the board's passthrough starts as
+procedures: an ESC's serial link by output and protocol number, and the GPS receiver's, each telling whether it
+started. `Adaflight.Reply_Command_Line` takes starts that fail from `Adaflight.CLI_Board_Steps` for the proof.
+escprog takes a protocol, chosen by a word that starts sk, bl, ki or cc without regard to case, then an output
+read as C's atoi reads it: an output below the motor count, or 255 for all of them with KISS. Another protocol
+is the parse error, another output the output error, and a third word or no words the argument count error, each
+ending the command. A start that fails prints the start error, and gpspassthrough prints its error the same way.
+The serialpassthrough command is left for the target phase, since it opens and configures the board's serial
+ports itself.
+
+The command line oracle replaces the reference's passthrough starts with ones that record each call and return a
+scripted result, and prints each command line's starts with their output and protocol. Its passthrough mode
+drives escprog with protocols and outputs of every kind and gpspassthrough, with starts that succeed and fail.
+Every reply and start of the 400 lines replays exactly. Fifteen tampered paths each fail the vectors.
