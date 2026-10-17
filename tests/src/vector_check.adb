@@ -134,6 +134,7 @@ with Adaflight.MSP_LED_In;
 with Adaflight.MSP_Text_In;
 with Adaflight.MSP_Peripheral_In;
 with Adaflight.MSP_Control_In;
+with Adaflight.MSP_OSD_In;
 with Adaflight.MSP_Receiver_Out;
 with Adaflight.MSP_Hardware_Out;
 with Adaflight.MSP_Peripheral_Out;
@@ -14575,6 +14576,8 @@ procedure Vector_Check is
    MSP_Board      : Adaflight.MSP_Control_In.Board;
    MSP_Telemetry  : Integer := -1;
    MSP_Arming_Off : Boolean := False;
+   MSP_OSD_Effects : Adaflight.MSP_OSD_In.Effects;
+   MSP_In_Range    : Boolean := True;
    MSP_Gyro_Rate  : Adaflight.Config_Fix.Gyro_Rate := 0;
    MSP_Log        : Adaflight.Blackbox.Recorder;
    MSP_Loop_Time  : Adaflight.Blackbox.Loop_Time_Us := 125;
@@ -14749,10 +14752,25 @@ procedure Vector_Check is
                   MSP_Text_Effects := Adaflight.MSP_Text_In.No_Effects;
                   MSP_Peripheral_Effects := Adaflight.MSP_Peripheral_In.No_Effects;
                   MSP_Control_Effects := Adaflight.MSP_Control_In.No_Effects;
+                  MSP_OSD_Effects := Adaflight.MSP_OSD_In.No_Effects;
                   if Adaflight.MSP_Tuning_In.Handles (Cmd) then
                      Adaflight.MSP_Tuning_In.Process
                        (CLI_Config, Cmd, Request, MSP_Gyro_Rate, MSP_In_Result, MSP_In_Effects);
                      MSP_In_Ran := True;
+                  elsif Adaflight.MSP_OSD_In.Handles (Cmd) then
+                     declare
+                        use type Adaflight.MSP_OSD_In.Result;
+                        OSD_Result : Adaflight.MSP_OSD_In.Result;
+                     begin
+                        Adaflight.MSP_OSD_In.Process (CLI_Config, Cmd, Request, OSD_Result, MSP_OSD_Effects);
+                        MSP_In_Result :=
+                          (if OSD_Result = Adaflight.MSP_OSD_In.Ack then Adaflight.MSP_Tuning_In.Ack
+                           else Adaflight.MSP_Tuning_In.Error);
+                        MSP_Text_Effects.OSD_Elements := MSP_OSD_Effects.OSD_Elements;
+                        CLI_Changes.Save := MSP_OSD_Effects.Save;
+                        CLI_Changes.Reboot := MSP_OSD_Effects.Reboot;
+                        MSP_In_Ran := True;
+                     end;
                   elsif Adaflight.MSP_Control_In.Handles (Cmd) then
                      declare
                         use type Adaflight.MSP_Control_In.Result;
@@ -14899,6 +14917,7 @@ procedure Vector_Check is
             In_Range : constant Boolean := Int (4) /= 0;
             Expected : constant Integer_64 := (if In_Range then Int (3) else -1);
          begin
+            MSP_In_Range := In_Range;
             Record_Int ("msp.handled", 1, Boolean'Pos (MSP_In_Ran));
             Record_Int ("msp.result", Expected, (if MSP_In_Result = Adaflight.MSP_Tuning_In.Ack then 1 else -1));
             Record_Int ("msp.pid_init", (if In_Range and then Int (5) > 0 then 1 else 0),
@@ -14960,6 +14979,17 @@ procedure Vector_Check is
             Record_Int ("msp.runaway_value", Int (10), Integer_64 (E.Runaway_Value));
             Record_Int ("msp.flash_erase", Boolean'Pos (Int (11) > 0), Boolean'Pos (E.Erase_Flash));
             Record_Int ("msp.arming_off", Int (12), Boolean'Pos (MSP_Arming_Off));
+            if NF >= 14 then
+               --  The reference's profile change acts on a profile up to the three.
+               declare
+                  Changed : constant Boolean := MSP_In_Range and then Int (13) > 0 and then Int (14) <= 3;
+               begin
+                  Record_Int ("msp.osd_profile_change", Boolean'Pos (Changed),
+                              Boolean'Pos (MSP_OSD_Effects.Profile_Change));
+                  Record_Int ("msp.osd_profile", (if Changed then Int (14) else 0),
+                              Integer_64 (MSP_OSD_Effects.Profile));
+               end;
+            end if;
          end;
       elsif Str (1) = "clx" then
          Record_Int ("cli.save", Int (3), Boolean'Pos (CLI_Changes.Save));
@@ -19888,6 +19918,7 @@ begin
    Run (Dir & "/mspinperi.csv", "cliset");
    Run (Dir & "/mspinvtx.csv", "cliset");
    Run (Dir & "/mspinctl.csv", "cliset");
+   Run (Dir & "/mspinosd.csv", "cliset");
    Run (Dir & "/clisave.csv", "cliset");
    if Settings_Seen /= Adaflight.Settings_Table.Setting'Pos (Adaflight.Settings_Table.Setting'Last) + 1 then
       Put_Line ("settings: the vectors hold" & Settings_Seen'Image & " settings");

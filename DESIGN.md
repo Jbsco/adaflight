@@ -195,15 +195,16 @@ ledger. The deviations so far:
   reference stores as zero filter cutoffs, is an error (findings F142). The checker expects the
   error and unchanged settings for the recorded requests outside the ranges.
 - MSP tuning, advanced, filter, advanced PID, receiver, hardware, battery, feature, blackbox, servo,
-  LED, LED strip value, battery profile and VTX table band writes with a field outside its setting's
-  range are errors that write and change nothing (D203 to D214), where the reference stores the field's
-  bytes, or for a dynamic notch count, an RPM filter value, a feedforward averaging, a mode range's
-  linked mode, battery cell voltages out of order or a transponder's data length rejects the request
-  after writing its earlier fields (findings F189 to F191, F195, D213). A stored LED strip brightness past 100 wraps in the reference's
-  LED driver, and a stored maximum cell voltage of zero reaches its cell count division (findings
-  F193, F194). A field no setting names takes the bounds of the command line command that writes
-  it. The checker expects the error and an unchanged configuration for the recorded requests
-  outside the ranges, and the reference's result and configuration for the rest.
+  LED, LED strip value, battery profile, VTX table band and OSD writes with a field outside its
+  setting's range are errors that write and change nothing (D203 to D216), where the reference
+  stores the field's bytes, or for a dynamic notch count, an RPM filter value, a feedforward
+  averaging, a mode range's linked mode, battery cell voltages out of order or a transponder's data
+  length rejects the request after writing its earlier fields (findings F189 to F191, F195, D213). A
+  stored LED strip brightness past 100 wraps in the reference's LED driver, a stored maximum cell
+  voltage of zero reaches its cell count division, and an OSD timer index of two writes past its
+  timers (findings F193, F194, F196). A field no setting names takes the bounds of the command line
+  command that writes it. The checker expects the error and an unchanged configuration for the
+  recorded requests outside the ranges, and the reference's result and configuration for the rest.
 - The configuration storage image reads bytes past its region as erased and does not write an
   image longer than the region (D158), where the reference leaves both to the target and reads
   past a corrupted region's end. Its reported size is the image's length, 2 bytes less than the
@@ -5048,3 +5049,26 @@ since the delayed write reads the running SPI receiver feature. The harness repl
 600 lines, 919 requests among those directives, SPI receiver feature commands and resets: every
 result, runtime request, MSP arming reason and configuration hash matches the reference's, with 69
 configuration writes while armed rejected by both.
+
+## D216. MSP OSD writes (2026-10-15)
+
+`Adaflight.MSP_OSD_In` contains the MSP in messages that write the OSD's configuration and its
+canvas, under the whole-request check of D203. The configuration message's first byte picks its
+part. Byte 255 writes the general settings: the video system, the units and the RSSI, capacity and
+altitude alarms, then while bytes remain the warnings in 16 and then 32 bits, a profile, the stick
+overlay, the camera frame and the link quality and RSSI dBm alarms. A video system that switches to
+HD takes the HD canvas and the MSP display port, and one that leaves HD takes the SD canvas for its
+system and the automatic display port. A profile up to the three is taken up, with the OSD's
+elements analyzed again; a profile byte past three changes nothing, and profile 0 lies outside its
+setting's range. Byte 254 writes a timer, within the two; the reference also accepts index 2 and
+writes past its timers (findings F196). Any other byte is an element: a statistic's switch on the
+post flight screen 0, or an element's position on a flight screen, with its elements analyzed
+again. The canvas message writes the canvas size and, for a board not yet in HD with the MSP display
+port, switches to both, marks the configuration configured, and asks for a write and a restart.
+
+The command line oracle now counts the OSD element analyses through a weakened copy of the
+reference's OSD object, since the profile change calls the analysis from inside it, and counts the
+profile changes with their value. The harness replays two sequences of 600 lines, 1054 requests
+among video system sets, resets and listings: 776 within their bounds, whose results, runtime work
+and configuration hashes all match the reference's, 66 that both reject before writing, and 212
+outside the bounds, each an error that leaves the configuration unchanged.
