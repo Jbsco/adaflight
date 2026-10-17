@@ -117,7 +117,10 @@ ledger. The deviations so far:
   signal bound here. The motor outputs do not depend on it.
 - The averaged feedforward goes through the moving average above, so it carries that
   deviation. The checker holds it within 512 representable values or a hundredth of a
-  degree per second, since the reference's running sum leaves a residue near zero.
+  degree per second, since the reference's running sum leaves a residue near zero. The RC
+  throttle vectors keep the averaging off. In one of their sequences the reference's running
+  sum kept a residue from samples above a million, which offset the average by 0.03 degrees
+  per second (F233).
 - Two settings keep a narrower domain than the configuration interface admits: the
   hyperbolic TPA curve's two PID percentages exclude zero, where the reference's table is
   infinite or undefined, and the throttle minimum check stays below 2000, where the
@@ -6522,3 +6525,19 @@ slower than 20 Hz, where the reference's delayed frequency diverges, and the PID
 The PID oracle builds with dynamic idle, and every earlier PID and mixer vector stays byte for byte. New
 mixer runs script DShot telemetry, the settings, the motor idle, the slowest motor's frequency and the
 throttle's rise, and every step replays exactly. Six tampered paths each fail the vectors.
+
+## D288. Low voltage cutoff and 3D throttle (2026-10-17)
+
+`RC_Command.Update_Commands` takes the battery's low voltage cutoff and the 3D throttle. With the 3D feature
+the throttle takes the whole stick from 1000 to 2000 and leaves out the minimum check. With the cutoff on,
+the stick's share scales by the cutoff's percentage in whole numbers before the throttle curve. With the 3D
+feature and no failsafe, the 3D switch maps the curve's output from the middle stick up to the top. In the
+switched 3D mode the switch reverses the motors and maps the output from the middle down to the bottom, and
+with the switch off the output maps from the middle up to the top. The mapping takes the output above 1000
+as a twelve-bit share of 1000, times the span, rounded down as the reference's shift rounds. The settings
+take the 3D feature from the stored features and the switched mode from the 3D settings. The mixer does not
+read the reversal yet.
+
+The RC oracle gains throttle sequences that script the 3D feature, its switched mode, the middle stick, the
+3D switch, the cutoff with its percentage and failsafe, with the feedforward averaging off (D6). Every step
+replays exactly, and the earlier RC vectors stay byte for byte. Seven tampered paths each fail the vectors.

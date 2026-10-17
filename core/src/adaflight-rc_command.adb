@@ -157,7 +157,18 @@ package body Adaflight.RC_Command with SPARK_Mode is
    -- Update_Commands --
    ---------------------
 
-   procedure Update_Commands (S : in out State; C : Config; Data : Channel_Values) is
+   --  A span times a stick share in twelve-bit fixed point, rounded down as
+   --  the reference's arithmetic shift rounds.
+   function Scaled_Span (Share : Natural; Span : Integer) return Integer
+     with Pre  => Share <= 4096 and then Span in -1000 .. 1000,
+          Post => (if Span >= 0 then Scaled_Span'Result in 0 .. Span else Scaled_Span'Result in Span .. 0)
+   is
+      Product : constant Integer := Span * Share;
+   begin
+      return (Product - Product mod 4096) / 4096;
+   end Scaled_Span;
+
+   procedure Update_Commands (S : in out State; C : Config; Data : Channel_Values; Inp : Command_Inputs) is
    begin
       S.Data_New := True;
       for A in Axis loop
@@ -173,13 +184,39 @@ package body Adaflight.RC_Command with SPARK_Mode is
          end;
       end loop;
       declare
-         Raw : constant Integer := Integer (Float'Truncation (Data (Throttle_Channel)));
-         Tmp : Integer := Integer'Max (C.Receiver.Min_Check, Integer'Min (2000, Raw));
+         Raw    : constant Integer := Integer (Float'Truncation (Data (Throttle_Channel)));
+         Tmp    : Integer;
+         Looked : Pulse;
       begin
-         pragma Assert (Tmp in C.Receiver.Min_Check .. 2000);
-         Tmp := (Tmp - C.Receiver.Min_Check) * 1000 / (2000 - C.Receiver.Min_Check);
+         if C.Feature_3D then
+            Tmp := Integer'Max (1000, Integer'Min (2000, Raw)) - 1000;
+         else
+            Tmp := Integer'Max (C.Receiver.Min_Check, Integer'Min (2000, Raw));
+            pragma Assert (Tmp in C.Receiver.Min_Check .. 2000);
+            Tmp := (Tmp - C.Receiver.Min_Check) * 1000 / (2000 - C.Receiver.Min_Check);
+         end if;
          pragma Assert (Tmp in 0 .. 1000);
-         S.Command (Throttle_Channel) := Float (Lookup_Throttle (S, Tmp));
+         if Inp.LVC_Enabled then
+            Tmp := Tmp * Inp.LVC_Percentage / 100;
+         end if;
+         Looked := Lookup_Throttle (S, Tmp);
+         S.Command (Throttle_Channel) := Float (Looked);
+         if C.Feature_3D and then not Inp.Failsafe_Active then
+            declare
+               Mid    : constant Integer := C.Receiver.Mid_RC;
+               --  The stick's share above its bottom in twelve-bit fixed point.
+               Scaler : constant Natural range 0 .. 4096 := (Looked - 1000) * 4096 / 1000;
+            begin
+               if C.Switched_Mode_3D then
+                  S.Motors_Reversed := Inp.Box_3D;
+               end if;
+               if C.Switched_Mode_3D and then Inp.Box_3D then
+                  S.Command (Throttle_Channel) := Float (Mid + Scaled_Span (Scaler, 1000 - Mid));
+               elsif Inp.Box_3D or else C.Switched_Mode_3D then
+                  S.Command (Throttle_Channel) := Float (Mid + Scaled_Span (Scaler, 2000 - Mid));
+               end if;
+            end;
+         end if;
       end;
    end Update_Commands;
 

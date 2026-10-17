@@ -136,7 +136,8 @@ package Adaflight.Config_Runtime with SPARK_Mode is
    --  whose product with the loop ratio is the loop time.
    function RC_Config_Of
      (R : Rx_Config_Record; Controls : Rc_Controls_Config_Record; Rate : Control_Rate_Config_Record;
-      Loop_Rate : Pid_Config_Record; Sample_Time_Us : PID_Config.Loop_Time_Us) return RC_Command.Config
+      Loop_Rate : Pid_Config_Record; Sample_Time_Us : PID_Config.Loop_Time_Us;
+      Flight_3D : Flight3_D_Config_Record; Features : Unsigned_32) return RC_Command.Config
      with Pre => Loop_Rate.Pid_Process_Denom >= 1
                  and then Sample_Time_Us * Integer (Loop_Rate.Pid_Process_Denom) <= PID_Config.Loop_Time_Us'Last;
 
@@ -649,7 +650,8 @@ private
 
    function RC_Config_Of
      (R : Rx_Config_Record; Controls : Rc_Controls_Config_Record; Rate : Control_Rate_Config_Record;
-      Loop_Rate : Pid_Config_Record; Sample_Time_Us : PID_Config.Loop_Time_Us) return RC_Command.Config is
+      Loop_Rate : Pid_Config_Record; Sample_Time_Us : PID_Config.Loop_Time_Us;
+      Flight_3D : Flight3_D_Config_Record; Features : Unsigned_32) return RC_Command.Config is
      (Rates     => Rate_Profile_Of (Rate),
       Receiver  => (Mid_RC               => Held (Integer (R.Midrc), 1200, 1700),
                     Min_Check            => Held (Integer (R.Mincheck), 750, 1999),
@@ -661,7 +663,9 @@ private
       Controls  => (Deadband     => Held (Integer (Controls.Deadband), 0, 32),
                     Yaw_Deadband => Held (Integer (Controls.Yaw_Deadband), 0, 100),
                     Yaw_Reversed => Controls.Yaw_Control_Reversed),
-      Loop_Time => Sample_Time_Us * Integer (Loop_Rate.Pid_Process_Denom));
+      Loop_Time => Sample_Time_Us * Integer (Loop_Rate.Pid_Process_Denom),
+      Feature_3D       => (Features and Config_Fix.Feature_3D) /= 0,
+      Switched_Mode_3D => Flight_3D.Switched_Mode3d /= 0);
 
    function Adjustment_Settings_Of (R : Rx_Config_Record; Sys : System_Config_Record) return Adjustments.Settings is
      (Mid_RC                  => Held (Integer (R.Midrc), 1200, 1700),
