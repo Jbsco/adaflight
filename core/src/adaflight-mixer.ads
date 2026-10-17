@@ -94,6 +94,9 @@ package Adaflight.Mixer with SPARK_Mode, Pure is
 
    type Inputs is record
       RC_Throttle               : RC_Throttle_Value := 1000.0;
+      --  The receiver's throttle channel, which the motor stop compares with
+      --  the minimum check.
+      RC_Data_Throttle          : Float range 750.0 .. 2250.0 := 1000.0;
       Throttle_Angle_Correction : Integer range -1000 .. 1000 := 0;
       Time_Us                   : Unsigned_32 := 0;
       Armed                     : Boolean := False;

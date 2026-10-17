@@ -627,7 +627,7 @@ package body Adaflight.Mixer with SPARK_Mode is
          if C.Motor_Stop and then Inp.Armed and then not Airmode
            and then not (Inp.GPS_Rescue_Mode or else Inp.Alt_Hold_Mode or else Inp.Pos_Hold_Mode
                          or else Inp.Launch_Mode)
-           and then Inp.RC_Throttle < Float (C.Min_Check)
+           and then Inp.RC_Data_Throttle < Float (C.Min_Check)
          then
             for M in 0 .. C.Count - 1 loop
                pragma Loop_Invariant
