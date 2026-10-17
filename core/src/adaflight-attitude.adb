@@ -168,7 +168,10 @@ package body Adaflight.Attitude with SPARK_Mode is
             Phase_Timeout       => 0,
             Euler               => (Roll => 0, Pitch => 0, Yaw => 0),
             Established         => False,
-            Throttle_Correction => 0);
+            Throttle_Correction => 0,
+            Headfree_Offset     => Identity,
+            Headfree            => Identity,
+            Reported            => Identity);
       Compute_Rotation (S);
    end Init;
 
@@ -345,20 +348,37 @@ package body Adaflight.Attitude with SPARK_Mode is
    -- Update_Euler --
    ------------------
 
-   procedure Update_Euler (S : in out State)
+   procedure Update_Euler (S : in out State; Headfree_Mode : Boolean)
      with Post => S.Q = S.Q'Old and then S.Rotation = S.Rotation'Old and then S.Integral = S.Integral'Old
                   and then S.Previous_Time = S.Previous_Time'Old and then S.Reset_Phase = S.Reset_Phase'Old
                   and then S.Phase_Timeout = S.Phase_Timeout'Old and then S.Established = S.Established'Old
                   and then S.Throttle_Correction = S.Throttle_Correction'Old
    is
       R : Matrix33 renames S.Rotation;
-      Roll  : constant Half_Turn := Atan2_Approx (R (Z, Y), R (Z, Z));
-      Pitch : constant Quarter_Turn := Pi / 2.0 - Acos_Approx (Cosine_Of (-R (Z, X)));
-      Yaw   : constant Half_Turn := -Atan2_Approx (R (Y, X), R (X, X));
+      H : Quaternion renames S.Headfree;
+      subtype Product is Float range -4.0 .. 4.0;
+      WX : constant Product := H.W * H.X;
+      WY : constant Product := H.W * H.Y;
+      WZ : constant Product := H.W * H.Z;
+      XX : constant Product := H.X * H.X;
+      XY : constant Product := H.X * H.Y;
+      XZ : constant Product := H.X * H.Z;
+      YY : constant Product := H.Y * H.Y;
+      YZ : constant Product := H.Y * H.Z;
+      ZZ : constant Product := H.Z * H.Z;
+      Roll  : constant Half_Turn :=
+        (if Headfree_Mode then Atan2_Approx (2.0 * (WX + YZ), 1.0 - 2.0 * (XX + YY))
+         else Atan2_Approx (R (Z, Y), R (Z, Z)));
+      Pitch : constant Quarter_Turn :=
+        Pi / 2.0 - Acos_Approx (Cosine_Of (if Headfree_Mode then 2.0 * (WY - XZ) else -R (Z, X)));
+      Yaw   : constant Half_Turn :=
+        (if Headfree_Mode then -Atan2_Approx (2.0 * (WZ + XY), 1.0 - 2.0 * (YY + ZZ))
+         else -Atan2_Approx (R (Y, X), R (X, X)));
       Yaw_Raw : constant Decidegrees := Clamp (Round_Half_Even (Yaw * Decidegrees_Per_Radian), -1_800, 1_800);
    begin
       S.Euler.Roll := Clamp (Round_Half_Even (Roll * Decidegrees_Per_Radian), -1_800, 1_800);
       S.Euler.Pitch := Clamp (Round_Half_Even (Pitch * Decidegrees_Per_Radian), -900, 900);
+      S.Reported := (if Headfree_Mode then S.Headfree else S.Q);
       if Yaw_Raw < 0 then
          S.Euler.Yaw := Yaw_Raw + 3_600;
       else
@@ -406,7 +426,8 @@ package body Adaflight.Attitude with SPARK_Mode is
       Mag           : Vectors.Vector3;
       Use_Mag       : Boolean;
       Armed         : Boolean;
-      Angle_Mode    : Boolean
+      Angle_Mode    : Boolean;
+      Headfree_Mode : Boolean
    ) is
       Dt      : constant Delta_Seconds := Float (Clock.Elapsed (Now, S.Previous_Time)) * 1.0e-6;
       Use_Acc : constant Boolean := 0.9 < Acc_Magnitude and then Acc_Magnitude < 1.1;
@@ -416,12 +437,79 @@ package body Adaflight.Attitude with SPARK_Mode is
       S.Previous_Time := Now;
       Schedule_Gain (S, C, Now, Use_Acc, Gyro, Armed, Kp_Gain);
       Mahony_Update (S, C, Dt, Gyro, Use_Acc, Acc, Heading, Kp_Gain);
-      Update_Euler (S);
+      Update_Euler (S, Headfree_Mode);
       if C.Throttle_Angle_Value /= 0 and then Angle_Mode and then Armed then
          S.Throttle_Correction := Throttle_Correction_Of (S, C);
       else
          S.Throttle_Correction := 0;
       end if;
    end Update;
+
+   -------------------------
+   -- Set_Headfree_Offset --
+   -------------------------
+
+   procedure Set_Headfree_Offset (S : in out State; Set : out Boolean) is
+      subtype Product is Float range -4.0 .. 4.0;
+      WZ : constant Product := S.Q.W * S.Q.Z;
+      XY : constant Product := S.Q.X * S.Q.Y;
+      YY : constant Product := S.Q.Y * S.Q.Y;
+      ZZ : constant Product := S.Q.Z * S.Q.Z;
+   begin
+      Set := abs S.Euler.Roll < 450 and then abs S.Euler.Pitch < 450;
+      if Set then
+         declare
+            Yaw : constant Half_Turn := -Atan2_Approx (2.0 * (WZ + XY), 1.0 - 2.0 * (YY + ZZ));
+            Sin : Cosine;
+            Cos : Cosine;
+         begin
+            Sin_Cos_Approx (Yaw / 2.0, Sin, Cos);
+            S.Headfree_Offset := (W => Cos, X => 0.0, Y => 0.0, Z => Sin);
+         end;
+      end if;
+   end Set_Headfree_Offset;
+
+   ----------------------
+   -- Headfree_To_Body --
+   ----------------------
+
+   procedure Headfree_To_Body (S : in out State; V : in out Vectors.Vector3) is
+      O : constant Quaternion := S.Headfree_Offset;
+      Q : constant Quaternion := S.Q;
+      subtype Sum is Float range -4.0 .. 4.0;
+      subtype Term is Float range -16.0 .. 16.0;
+      A : constant Term := Sum'(O.W + O.X) * Sum'(Q.W + Q.X);
+      B : constant Term := Sum'(O.Z - O.Y) * Sum'(Q.Y - Q.Z);
+      C : constant Term := Sum'(O.W - O.X) * Sum'(Q.Y + Q.Z);
+      D : constant Term := Sum'(O.Y + O.Z) * Sum'(Q.W - Q.X);
+      E : constant Term := Sum'(O.X + O.Z) * Sum'(Q.X + Q.Y);
+      F : constant Term := Sum'(O.X - O.Z) * Sum'(Q.X - Q.Y);
+      G : constant Term := Sum'(O.W + O.Y) * Sum'(Q.W - Q.Z);
+      H : constant Term := Sum'(O.W - O.Y) * Sum'(Q.W + Q.Z);
+   begin
+      S.Headfree := (W => Saturate_Component (B + (-E - F + G + H) / 2.0),
+                     X => Saturate_Component (A - (+E + F + G + H) / 2.0),
+                     Y => Saturate_Component (C + (+E - F + G - H) / 2.0),
+                     Z => Saturate_Component (D + (+E - F - G + H) / 2.0));
+      declare
+         P  : Quaternion renames S.Headfree;
+         subtype Product is Float range -4.0 .. 4.0;
+         WW : constant Product := P.W * P.W;
+         WX : constant Product := P.W * P.X;
+         WY : constant Product := P.W * P.Y;
+         WZ : constant Product := P.W * P.Z;
+         XX : constant Product := P.X * P.X;
+         XY : constant Product := P.X * P.Y;
+         XZ : constant Product := P.X * P.Z;
+         YY : constant Product := P.Y * P.Y;
+         YZ : constant Product := P.Y * P.Z;
+         ZZ : constant Product := P.Z * P.Z;
+         New_X : constant Float := (WW + XX - YY - ZZ) * V.X + 2.0 * (XY + WZ) * V.Y + 2.0 * (XZ - WY) * V.Z;
+         New_Y : constant Float := 2.0 * (XY - WZ) * V.X + (WW - XX + YY - ZZ) * V.Y + 2.0 * (YZ + WX) * V.Z;
+         New_Z : constant Float := 2.0 * (XZ + WY) * V.X + 2.0 * (YZ - WX) * V.Y + (WW - XX - YY + ZZ) * V.Z;
+      begin
+         V := (X => New_X, Y => New_Y, Z => New_Z);
+      end;
+   end Headfree_To_Body;
 
 end Adaflight.Attitude;

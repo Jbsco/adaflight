@@ -6541,3 +6541,18 @@ read the reversal yet.
 The RC oracle gains throttle sequences that script the 3D feature, its switched mode, the middle stick, the
 3D switch, the cutoff with its percentage and failsafe, with the feedforward averaging off (D6). Every step
 replays exactly, and the earlier RC vectors stay byte for byte. Seven tampered paths each fail the vectors.
+
+## D289. Headfree attitude (2026-10-17)
+
+`Adaflight.Attitude` gains the headfree frame. `Set_Headfree_Offset` keeps the current heading as a turn
+about the vertical when roll and pitch are both within 45 degrees, and reports whether it did.
+`Headfree_To_Body` turns an earth frame vector into the headfree frame: it multiplies the offset by the
+estimate, keeps the product as the headfree attitude, and rotates the vector by it. In headfree mode the
+Euler angles come from the headfree attitude kept by the last turn rather than from the rotation matrix
+(F234), and the reported quaternion that MSP and the flight log read is the headfree one.
+The headfree attitude's components are held to the estimator's bound of two (D17), which a product of two
+unit quaternions does not reach.
+
+The attitude oracle gains headfree sequences that toggle headfree mode, ask for the offset and turn random
+vectors before the updates. Every offset, turn, angle and reported quaternion replays exactly, and the
+earlier attitude vectors stay byte for byte. Seven tampered paths each fail the vectors.
