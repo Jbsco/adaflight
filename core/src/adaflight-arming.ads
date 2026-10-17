@@ -8,6 +8,7 @@ with Adaflight.Clock;
 with Adaflight.Axes;
 with Adaflight.Modes;
 with Adaflight.RC_Command;
+with Adaflight.Wing_Launch;
 
 package Adaflight.Arming with SPARK_Mode is
    use type Interfaces.Unsigned_32;
@@ -134,6 +135,8 @@ package Adaflight.Arming with SPARK_Mode is
       --  statistics screen.
       Stats_Arms                : Small_Count := 0;
       Stats_Disarms             : Small_Count := 0;
+      --  The wing launch's arming resets the controller's airspeed.
+      TPA_Speed_Resets          : Small_Count := 0;
       OSD_Stats                 : Stats_Display := Unchanged;
       --  The modes pass's calls: the in-flight adjustments, the telemetry's
       --  shared ports, the VTX's activated channel and control button, and the
@@ -205,6 +208,8 @@ package Adaflight.Arming with SPARK_Mode is
       Position_Control           : Boolean := True;
       Plane_Mixer                : Boolean := False;
       Telemetry_Feature          : Boolean := False;
+      --  A wing build with the launch assist.
+      Launch_Wing                : Boolean := False;
    end record;
 
    --  The controller's sums, the gyro's absolute rates to the whole degree
@@ -255,6 +260,9 @@ package Adaflight.Arming with SPARK_Mode is
       CMS_In_Menu                : Boolean := False;
       CLI_Mode                   : Boolean := False;
       VTX_Can_Update             : Boolean := True;
+      --  The sensors the wing launch reads to tell whether the airframe is at
+      --  rest as it arms.
+      Launch_Sensed              : Wing_Launch.Inputs;
    end record;
 
    type Launch_State is (Launch_Disabled, Launch_Active, Launch_Triggered);
@@ -297,6 +305,9 @@ package Adaflight.Arming with SPARK_Mode is
       Trying                 : Arm_Delay := Not_Trying;
       Crash_Flip_Active      : Boolean := False;
       Shared_Port_Telemetry  : Boolean := False;
+      --  The wing launch, latched as it arms and reset as it disarms; its
+      --  flight runs in the PID loop's pass.
+      Wing                   : Wing_Launch.Launch;
    end record;
 
    function Launch_Control_Active (S : State) return Boolean is (S.Launch = Launch_Active);

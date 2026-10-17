@@ -6450,3 +6450,20 @@ and the controller's loop proves within its time.
 
 The PID oracle's wing build runs 37 level mode sequences with launch blocks, climb angles and scripted
 handovers among the other modes, and every step replays exactly. Seven tampered paths each fail the vectors.
+
+## D284. Wing launch arming (2026-10-16)
+
+A wing build with the launch assist runs the launch's lifecycle through `Adaflight.Arming`, whose state
+contains the launch. Arming latches it, with the launch switch on, a fixed wing, an accelerometer and the
+airframe at rest, and asks the controller to reset its airspeed. Disarming resets it. The modes pass turns
+the launch mode on while armed with the launch latched, its switch on, an accelerometer, no failsafe and the
+launch not over. Leaving it switches the launch off, and leaving it with the switch before the throw disarms
+for the launch abort and, without stick arming, blocks arming until the switch cycles. The launch mode
+levels the craft from the next pass, and the hold modes stay off while it lasts. The I term stays reset until
+the launch spins up, and with a fixed wing the launch switch makes an uncalibrated accelerometer block
+arming. The launch's flight runs in the PID loop's pass on the state arming contains.
+
+The arming oracle gains a wing build with the reference's launch source, without launch control or runaway
+takeoff prevention, as a wing build compiles them out. Its sequences script a launch switch, whether the
+airframe is at rest and, now and then, the launch state the pass sets, and the earlier arming vectors stay
+byte for byte. Every step replays exactly, and eight tampered paths each fail the vectors.
