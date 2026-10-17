@@ -2,6 +2,7 @@ package body Adaflight.Task_Functions with SPARK_Mode is
 
    procedure Main is
    begin
+      SD_Card_Poll;
       Flash_Erase;
    end Main;
 

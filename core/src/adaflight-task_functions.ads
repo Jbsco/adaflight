@@ -1,15 +1,16 @@
---  The task functions with a unit or two behind them: the main task's
---  flash erase, the serial task's MSP pass that evaluates other data only
---  while disarmed, the battery alerts with the presence check while
---  disarmed, the accelerometer, the GPS rescue when configured, the
---  barometer, pitot and compass whose updates name the next period, the
---  position estimator, the rangefinder and optical flow when detected,
---  telemetry outside the command line with the feature, and the camera
---  control while disarmed. The units come in as the instantiation's
---  procedures.
+--  The task functions with a unit or two behind them: the main task's SD
+--  card poll and flash erase, the serial task's MSP pass that evaluates
+--  other data only while disarmed, the battery alerts with the presence
+--  check while disarmed, the accelerometer, the GPS rescue when
+--  configured, the barometer, pitot and compass whose updates name the
+--  next period, the position estimator, the rangefinder and optical flow
+--  when detected, telemetry outside the command line with the feature,
+--  and the camera control while disarmed. The units come in as the
+--  instantiation's procedures.
 with Adaflight.Scheduler;
 
 generic
+   with procedure SD_Card_Poll;
    with procedure Flash_Erase;
    with procedure MSP_Serial (Evaluate_Other_Data : Boolean);
    with procedure Battery_Presence;

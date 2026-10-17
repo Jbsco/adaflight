@@ -37,6 +37,7 @@ with Adaflight.Barometer_Task;
 with Adaflight.Battery;
 with Adaflight.FAT;
 with Adaflight.FAT_FS;
+with Adaflight.Blackbox_SD;
 with Adaflight.Flash_FS;
 with Adaflight.Flight_Plan;
 with Adaflight.Flight_Plan_Capture;
@@ -17482,6 +17483,10 @@ procedure Vector_Check is
       Begin_Write_Blocks => FAT_Begin_Write_Blocks,
       Read_Clock         => FAT_Read_Clock);
 
+   package FAT_Log is new Adaflight.Blackbox_SD (FAT_Ops);
+   FAT_Log_State : FAT_Log.SD_Log;
+   SD_Writer     : Adaflight.Blackbox_Header.Writer;
+
    procedure Check_FAT_Line is
       use Adaflight.FAT;
       Name : constant String := Str (1);
@@ -18630,6 +18635,192 @@ procedure Vector_Check is
                Expect_Text ("notices", Str (42), (if Last = 0 then "-" else Image (1 .. Last)));
             end;
             Record_Int ("initstep.ops", 1, (if not Card.Failed and then Card.Next > Card.Length then 1 else 0));
+            if (Card.Failed or else Card.Next <= Card.Length) and then Failures <= 20 then
+               Put_Line ("  step " & Str (3) & " card operations " & Ops);
+            end if;
+         end;
+      elsif Name = "bbsdinit" then
+         declare
+            Count    : Natural;
+            V        : Number_List;
+            Prepared : constant Natural := Natural (Int (18));
+         begin
+            FAT_State := (others => <>);
+            FAT_Log_State := (others => <>);
+            SD_Writer := (Kind => Adaflight.Blackbox_Header.SD_Card, others => <>);
+            FAT_Disk_Count := 0;
+            FAT_Disk_Seed := Unsigned_32 (Int (3));
+            FAT_Scramble := Unsigned_32 (Int (4));
+            FAT_Card_State.Pending := 0;
+            FAT_Disk_FAT_Start := Unsigned_32 (Int (12));
+            FAT_Disk_FAT_Sectors := Unsigned_32 (Int (13));
+            FAT_Disk_FAT32 := Int (14) /= 0;
+            Each_Entry (Str (16), Count, V, 1);
+            FAT_Run_Count := Count;
+            for K in 1 .. Count loop
+               Each_Entry (Str (16), Count, V, K);
+               FAT_Run_Start (K) := Unsigned_32 (V (1));
+               FAT_Run_Length (K) := Unsigned_32 (V (2));
+               FAT_Run_Kind (K) := Natural (V (3));
+               FAT_Run_Link (K) := Unsigned_32 (V (4));
+            end loop;
+            FAT_Runs_Active := True;
+            Each_Entry (Str (17), Count, V, 1);
+            FAT_Zero_Count := Count;
+            for K in 1 .. Count loop
+               Each_Entry (Str (17), Count, V, K);
+               FAT_Zero_From (K) := Unsigned_32 (V (1));
+               FAT_Zero_To (K) := Unsigned_32 (V (2));
+            end loop;
+            for K in 1 .. Prepared loop
+               declare
+                  Field : constant String := Str (18 + K);
+                  Colon : constant Natural := Ada.Strings.Fixed.Index (Field, ":");
+                  Data  : Sector_Bytes;
+               begin
+                  for B in Data'Range loop
+                     Data (B) := Interfaces.Unsigned_8'Value
+                       ("16#" & Field (Colon + 1 + 2 * B .. Colon + 2 + 2 * B) & "#");
+                  end loop;
+                  FAT_Disk_Write (Unsigned_32'Value (Field (Field'First .. Colon - 1)), Data);
+               end;
+            end loop;
+            FAT_Disk_Write (0, Compact_Sector (10));
+            FAT_Disk_Write (Unsigned_32 (Int (15)), Compact_Sector (11));
+            Init (FAT_State);
+            FAT_State.Notice_Count := 0;
+         end;
+      elsif Name = "bbsdstep" then
+         declare
+            FS     : Adaflight.FAT.File_System renames FAT_State;
+            Card   : FAT_Card renames FAT_Card_State;
+            L      : FAT_Log.SD_Log renames FAT_Log_State;
+            Call   : constant Integer_64 := Int (4);
+            A1     : constant Integer_64 := Int (5);
+            H      : constant Integer_64 := Int (6);
+            Result : Integer_64 := 0;
+            Ops    : constant String := Str (41);
+            Done   : Boolean;
+         begin
+            Card.Ops (1 .. Ops'Length) := Ops;
+            Card.Length := Ops'Length;
+            Card.Next := 1;
+            Card.Failed := False;
+            case Call is
+               when 0 =>
+                  Card.Pending := 0;
+                  Read_Complete (FS, Cache_Index (H), Unsigned_32 (Int (7)), FAT_Disk_Read (Unsigned_32 (Int (7))),
+                                 A1 /= 0);
+               when 1 =>
+                  if A1 /= 0 then
+                     FAT_Disk_Write (Card.Pending_Sector, Card.Pending_Data);
+                  end if;
+                  Card.Pending := 0;
+                  Write_Complete (FS, Cache_Index (H), Unsigned_32 (Int (7)), A1 /= 0);
+               when 8 =>
+                  FAT_Log.Poll (L, FS, Card, A1 /= 0);
+               when 40 =>
+                  Result := Boolean'Pos (FAT_Log.Device_Open (FS));
+                  if Result = 1 then
+                     SD_Writer.Max_Per_Iteration := Adaflight.Blackbox_Header.Target_Budget_Per_Iteration;
+                  end if;
+               when 41 =>
+                  FAT_Log.Begin_Log (L, FS, Card, Done);
+                  Result := Boolean'Pos (Done);
+               when 42 =>
+                  for I in 0 .. A1 - 1 loop
+                     FAT_Log.Write_Byte
+                       (L, FS, Card, Interfaces.Unsigned_8 ((Int (3) * 31 + I * 7) mod 256));
+                  end loop;
+               when 43 =>
+                  declare
+                     Text   : constant String := Str (9);
+                     Data   : Adaflight.FAT.Data_Bytes (0 .. Text'Length - 1);
+                     Length : Natural;
+                  begin
+                     for K in Data'Range loop
+                        Data (K) := Character'Pos (Text (Text'First + K));
+                     end loop;
+                     FAT_Log.Write_Text (L, FS, Card, Data, Length);
+                     Result := Integer_64 (Length);
+                  end;
+               when 44 =>
+                  FAT_Log.Flush_Force (FS, Card, Done);
+                  Result := Boolean'Pos (Done);
+               when 45 =>
+                  FAT_Log.Flush_Force_Complete (FS, Card, Done);
+                  Result := Boolean'Pos (Done);
+               when 46 =>
+                  FAT_Log.End_Log (L, FS, Card, A1 /= 0, Done);
+                  Result := Boolean'Pos (Done);
+               when 47 =>
+                  Result := Boolean'Pos (FAT_Log.Device_Working (FS, A1 mod 2 = 1, (A1 / 2) mod 2 = 1))
+                    + 2 * Boolean'Pos (FAT_Log.Device_Full (FS));
+               when 48 =>
+                  Result := Integer_64 (FAT_Log.Log_Number (L)) * 1000 + Integer_64 (FAT_Log.Log_File_Number (L));
+               when 49 =>
+                  declare
+                     Status : Adaflight.Blackbox_Header.Reserve_Status;
+                  begin
+                     SD_Writer.Free := Adaflight.Blackbox_Header.Device_Space
+                       (Unsigned_32'Min (Free_Buffer_Space (FS), 2 ** 24));
+                     Adaflight.Blackbox_Header.Replenish (SD_Writer);
+                     Adaflight.Blackbox_Header.Reserve (SD_Writer, Natural (A1), Status);
+                     Result := Adaflight.Blackbox_Header.Reserve_Status'Pos (Status);
+                  end;
+               when 51 =>
+                  FAT_Ops.Destroy (FS, Card, Dirty => True, Card_Ready => True, Done => Done);
+                  Result := Boolean'Pos (Done);
+               when 52 =>
+                  Adaflight.FAT.Init (FS);
+               when others =>
+                  null;
+            end case;
+            Record_Int ("bbsdstep.result", Int (8), Result);
+            Expect_Text ("log", Str (10),
+                         Signed (L.Log_File) & ":" & Signed (L.Log_Directory) & ":" & Num (L.Finder.Sector) & ":"
+                         & Signed (L.Finder.Index) & ":" & Signed (Integer (L.Largest)) & ":"
+                         & Num (FAT_Log.Log_State'Pos (L.State)));
+            Record_Int ("bbsdstep.budget", Int (11), Integer_64 (SD_Writer.Budget));
+            Record_Int ("bbsdstep.max_bytes", Int (12), Integer_64 (SD_Writer.Max_Per_Iteration));
+            for I in Cache_Index loop
+               declare
+                  D     : Descriptor renames FS.Descriptors (I);
+                  Image : constant String :=
+                    Num (D.Sector_Index) & ":" & Num (D.Write_Timestamp) & ":" & Num (D.Access_Timestamp) & ":"
+                    & Num (Unsigned_32 (D.Erase_Count)) & ":" & Num (Cache_State'Pos (D.State)) & ":"
+                    & Num (Boolean'Pos (D.Locked)) & ":" & Num (Unsigned_32 (D.Retained)) & ":"
+                    & Num (Boolean'Pos (D.Discardable));
+               begin
+                  Expect_Text ("descriptor", Str (13 + I), Image);
+               end;
+            end loop;
+            Record_Int ("bbsdstep.timer", Int (24), Integer_64 (FS.Cache_Timer));
+            Record_Int ("bbsdstep.dirty", Int (25), Integer_64 (FS.Dirty_Entries));
+            Record_Int ("bbsdstep.flushing", Int (26), Boolean'Pos (FS.Flush_In_Progress));
+            Record_Int ("bbsdstep.error", Int (27), Error_Kind'Pos (FS.Last_Error));
+            Record_Int ("bbsdstep.state", Int (28), Filesystem_State'Pos (FS.State));
+            Record_Int ("bbsdstep.full", Int (29), Boolean'Pos (FS.Full));
+            declare
+               H32 : Unsigned_32 := 2_166_136_261;
+            begin
+               for Sector of FS.Cache loop
+                  H32 := FAT_Hash (Sector, H32);
+               end loop;
+               Record_Int ("bbsdstep.cache", Int_Hex (30), Integer_64 (H32));
+            end;
+            Record_Int ("bbsdstep.last_allocated", Int (31), Integer_64 (FS.Last_Cluster_Allocated));
+            Record_Int ("bbsdstep.phase", Int (32), Init_Phase'Pos (FS.Phase));
+            Expect_Text ("search", Str (33),
+                         Num (FS.Search.Candidate_Start) & ":" & Num (FS.Search.Candidate_End) & ":"
+                         & Num (FS.Search.Best_Gap_Start) & ":" & Num (FS.Search.Best_Gap_Length) & ":"
+                         & Num (Search_Phase'Pos (FS.Search.Phase)));
+            for F in File_Id loop
+               Expect_Text ("file", Str (34 + Integer (F)), File_Image (FS.Files (F)));
+            end loop;
+            Record_Int ("bbsdstep.pending", Int (39), Integer_64 (Card.Pending));
+            Expect_Text ("notices", Str (40), (if FS.Notice_Count = 0 then "-" else "left"));
+            Record_Int ("bbsdstep.ops", 1, (if not Card.Failed and then Card.Next > Card.Length then 1 else 0));
             if (Card.Failed or else Card.Next <= Card.Length) and then Failures <= 20 then
                Put_Line ("  step " & Str (3) & " card operations " & Ops);
             end if;
@@ -23333,9 +23524,14 @@ procedure Vector_Check is
             begin
                Note ('K');
             end Note_K;
+            procedure Note_D is
+            begin
+               Note ('D');
+            end Note_D;
             package TF is new Adaflight.Task_Functions
-              (Flash_Erase => Note_X, MSP_Serial => Note_MSP, Battery_Presence => Note_P, Battery_States => Note_S,
-               Battery_Alarms => Note_A, Acc_Update => Note_C, GPS_Rescue_Update => Note_G, Baro_Update => Note_B,
+              (SD_Card_Poll => Note_D, Flash_Erase => Note_X, MSP_Serial => Note_MSP, Battery_Presence => Note_P,
+               Battery_States => Note_S, Battery_Alarms => Note_A, Acc_Update => Note_C, GPS_Rescue_Update => Note_G,
+               Baro_Update => Note_B,
                Pitot_Update => Note_T, Compass_Update => Note_H, Position_Update => Note_O,
                Rangefinder_Update => Note_F, Rangefinder_Process => Note_Fp, Optical_Flow_Update => Note_L,
                Optical_Flow_Process => Note_Lp, Telemetry_Poll_Sensors => Note_E, Telemetry_Process => Note_Y,
@@ -23980,7 +24176,7 @@ procedure Vector_Check is
                   Check_FAT_Line;
                elsif Kind = "fatfile" then
                   Check_FAT_File_Line;
-               elsif Kind = "fatdir" or else Kind = "fatinit" then
+               elsif Kind = "fatdir" or else Kind = "fatinit" or else Kind = "bbsd" then
                   Check_FAT_Dir_Line;
                elsif Kind = "fpcapture" then
                   Check_Flight_Plan_Capture_Line;
@@ -24267,6 +24463,7 @@ begin
    Run (Dir & "/fatfile.csv", "fatfile");
    Run (Dir & "/fatdir.csv", "fatdir");
    Run (Dir & "/fatinit.csv", "fatinit");
+   Run (Dir & "/bbsd.csv", "bbsd");
    Run (Dir & "/fpcapture.csv", "fpcapture");
    Run (Dir & "/mavmission.csv", "mavmission");
    Run (Dir & "/fpnhelpers.csv", "fpnhelpers");

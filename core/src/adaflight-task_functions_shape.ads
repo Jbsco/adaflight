@@ -4,7 +4,8 @@ with Adaflight.Counting_Steps;
 with Adaflight.Task_Functions;
 
 package Adaflight.Task_Functions_Shape is new Adaflight.Task_Functions
-  (Flash_Erase            => Adaflight.Counting_Steps.Step,
+  (SD_Card_Poll           => Adaflight.Counting_Steps.Step,
+   Flash_Erase            => Adaflight.Counting_Steps.Step,
    MSP_Serial             => Adaflight.Counting_Steps.Step_Flag,
    Battery_Presence       => Adaflight.Counting_Steps.Step,
    Battery_States         => Adaflight.Counting_Steps.Step_At,
