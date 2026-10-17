@@ -195,8 +195,8 @@ ledger. The deviations so far:
   reference stores as zero filter cutoffs, is an error (findings F142). The checker expects the
   error and unchanged settings for the recorded requests outside the ranges.
 - MSP tuning, advanced, filter, advanced PID, receiver, hardware, battery, feature, blackbox, servo,
-  LED, LED strip value and battery profile writes with a field outside its setting's range are
-  errors that write and change nothing (D203 to D212), where the reference stores the field's
+  LED, LED strip value, battery profile and VTX table band writes with a field outside its setting's
+  range are errors that write and change nothing (D203 to D214), where the reference stores the field's
   bytes, or for a dynamic notch count, an RPM filter value, a feedforward averaging, a mode range's
   linked mode, battery cell voltages out of order or a transponder's data length rejects the request
   after writing its earlier fields (findings F189 to F191, F195, D213). A stored LED strip brightness past 100 wraps in the reference's
@@ -5001,3 +5001,25 @@ profile selections, resets, transponder sets and listings: 878 within their boun
 runtime work and configuration hashes all match the reference's, 117 that both reject before
 writing, and 58 transponder requests the reference rejects after storing the provider, each an
 error that leaves the configuration unchanged.
+
+## D214. MSP VTX table writes (2026-10-15)
+
+`Adaflight.MSP_Peripheral_In` gains the MSP in messages that write a VTX table band and a VTX table
+power level. A band write takes a band, a name whose first eight bytes are kept in upper case, a
+letter in upper case, a factory flag, and a count with that many 16-bit frequencies. A request
+shorter than its name, its three fixed bytes or its frequencies is an error, and so is a band past
+the table's band count. The band's frequencies up to the table's channels come from the request,
+zero past those it gives, and its name is kept to its first zero byte and padded with spaces to
+eight. When the band is the VTX's, the VTX frequency follows the VTX channel; that write takes the
+whole-request check of D203, so a frequency past the setting's 5999 MHz is an error. A power level
+write takes a level within the table's count, a value, and a label kept to three bytes in upper
+case. Names, letters, factory flags and table frequencies take any byte or value, as texts do in
+D212. `Effects` asks the runtime to set the VTX table up again at the next configuration write and
+to mark the MSP transmitter ready for the requesting link.
+
+The command line oracle defines the reference's MSP transmitter ready call, which its build makes
+but did not link, and reads the table's pending setup from the MSP source. The harness replays two
+sequences of 600 lines, 993 requests among table counts, VTX band and channel sets and listings:
+797 within their bounds, whose results, runtime work and configuration hashes all match the
+reference's, 181 that both reject before writing, and 15 band writes whose VTX frequency is outside
+its range, each an error that leaves the configuration unchanged.

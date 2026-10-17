@@ -14897,6 +14897,12 @@ procedure Vector_Check is
                Record_Int ("msp.transponder_data", (if In_Range and then Int (17) > 0 then 1 else 0),
                            Boolean'Pos (MSP_Peripheral_Effects.Transponder_Data));
             end if;
+            if NF >= 19 then
+               Record_Int ("msp.vtx_table_init", (if In_Range and then Int (18) > 0 then 1 else 0),
+                           Boolean'Pos (MSP_Peripheral_Effects.Table_Init));
+               Record_Int ("msp.vtx_ready", (if In_Range and then Int (19) > 0 then 1 else 0),
+                           Boolean'Pos (MSP_Peripheral_Effects.VTX_Ready));
+            end if;
          end;
       elsif Str (1) = "clx" then
          Record_Int ("cli.save", Int (3), Boolean'Pos (CLI_Changes.Save));
@@ -19823,6 +19829,7 @@ begin
    Run (Dir & "/mspinled.csv", "cliset");
    Run (Dir & "/mspintext.csv", "cliset");
    Run (Dir & "/mspinperi.csv", "cliset");
+   Run (Dir & "/mspinvtx.csv", "cliset");
    Run (Dir & "/clisave.csv", "cliset");
    if Settings_Seen /= Adaflight.Settings_Table.Setting'Pos (Adaflight.Settings_Table.Setting'Last) + 1 then
       Put_Line ("settings: the vectors hold" & Settings_Seen'Image & " settings");
