@@ -1533,6 +1533,13 @@ procedure Vector_Check is
    Mix_Max_Rate : Adaflight.PID_Controller.Axis_Max_Rates := (others => 670.0);
    Mix_Attitude : Adaflight.PID_Controller.Level_Angles := (others => 0);
    Mix_Vbat_Latest : Natural := 0;
+   Mix_Armed : Boolean := True;
+   type Launch_Inputs is record
+      Valid    : Boolean := False;
+      Throttle : Float := 0.0;
+      Handover : Float := 0.0;
+   end record;
+   Mix_Launch : Launch_Inputs;
 
    procedure Check_Mix_Line is
       use Adaflight.PID_Profile;
@@ -1590,6 +1597,8 @@ procedure Vector_Check is
          Mix_Max_Rate := (others => 670.0);
          Mix_Attitude := (others => 0);
          Mix_Vbat_Latest := 0;
+         Mix_Armed := True;
+         Mix_Launch := (others => <>);
          Mix_Airmode := Str (13) = "1";
          Mix_AG := Str (14) = "1";
          Configure (Mix_Runtime, Mix_Profile, Integer'Value (Str (3)), Has_Acc => False,
@@ -1621,7 +1630,7 @@ procedure Vector_Check is
             Update (Mix_Ctl, Mix_Runtime, Mix_Profile, Inp);
             MInp.RC_Throttle := Flt (14);
             MInp.Time_Us := Interfaces.Unsigned_32 ((Step + 1) * Loop_Time);
-            MInp.Armed := True;
+            MInp.Armed := Mix_Armed;
             MInp.Airmode := Mix_Airmode;
             MInp.Launch_Control_Active := Mix_AP.Launch;
             MInp.Yaw_Spin_Detected := Mix_Spin;
@@ -1638,6 +1647,10 @@ procedure Vector_Check is
             MInp.Sag_Cell_Voltage := Mix_Sag_Cell;
             MInp.Battery_Voltage_Latest := Mix_Vbat_Latest;
             MInp.Attitude := Mix_Attitude;
+            MInp.Launch_Mode := (Mix_AP.Flags / 2 ** 13) mod 2 = 1;
+            MInp.Launch_Throttle_Valid := Mix_Launch.Valid;
+            MInp.Launch_Throttle := Mix_Launch.Throttle;
+            MInp.Launch_Handover := Mix_Launch.Handover;
             MInp.Alt_Hold_Mode := Inp.Alt_Hold_Mode;
             MInp.Pos_Hold_Mode := Inp.Pos_Hold_Mode;
             MInp.GPS_Rescue_Mode := Inp.GPS_Rescue_Mode;
@@ -1754,6 +1767,51 @@ procedure Vector_Check is
             Mix_Config.Count := Count;
             Mix_Config.Launch_Table := Launch;
          end;
+      elsif Name = "wingmixinit" then
+         declare
+            Mode     : constant Adaflight.Mixer_Init.Mixer_Mode :=
+              Adaflight.Mixer_Init.Mixer_Mode'Val (Integer (Int (3)) - 1);
+            Count    : Natural;
+            Current  : Adaflight.Mixer.Mix_Table := Mix_Config.Table;
+            Launch   : Adaflight.Mixer.Mix_Table := Mix_Config.Table;
+            Disarmed : Adaflight.Mixer.Motor_Outputs := (others => 0.0);
+         begin
+            Mix_Config.DShot := Str (4) = "1";
+            Mix_Profile.Yaw_Type := Yaw_Kind'Val (Int (5));
+            Mix_Profile.TPA_Speed_Type := TPA_Speed_Kind'Val (Int (6));
+            Mix_Profile.TPA_Speed_Basic_Delay := Integer (Int (7));
+            Mix_Profile.TPA_Speed_Basic_Gravity := Integer (Int (8));
+            Mix_Profile.TPA_Speed_Adv_Prop_Pitch := Integer (Int (9));
+            Mix_Profile.TPA_Speed_Adv_Mass := Integer (Int (10));
+            Mix_Profile.TPA_Speed_Adv_Drag_K := Integer (Int (11));
+            Mix_Profile.TPA_Speed_Adv_Thrust := Integer (Int (12));
+            Mix_Profile.TPA_Speed_Max_Voltage := Integer (Int (13));
+            Mix_Profile.TPA_Speed_Pitch_Offset := Integer (Int (14));
+            for A in Adaflight.Axes.Axis loop
+               Mix_Profile.Gains (A).S := Integer (Int (15 + Adaflight.Axes.Axis'Pos (A)));
+               Mix_Max_Rate (A) := Flt (20 + Adaflight.Axes.Axis'Pos (A));
+            end loop;
+            Mix_Profile.TPA_Low_Rate := Integer (Int (19));
+            Configure (Mix_Runtime, Mix_Profile, Mix_Loop_Time, Has_Acc => False,
+                       Serial_Rx_Is_CRSF => Profile_CRSF (Index),
+                       Wing => (Build => True, Fixed_Wing => Adaflight.Mixer_Init.Is_Fixed_Wing (Mode),
+                                Motor_KV => Integer (Int (18))));
+            Init (Mix_Ctl, Mix_Profile, Mix_Runtime);
+            Set_Stabilisation (Mix_Ctl, True);
+            Adaflight.Mixer_Init.Configure_Output
+              ((others => <>), Mode, (others => <>), Mix_Config.Disarm_Output, Current, Count, Launch, Disarmed);
+            Mix_Config.Table := Current;
+            Mix_Config.Count := Count;
+            Mix_Config.Launch_Table := Launch;
+         end;
+      elsif Name = "wingmix" then
+         Mix_Launch := (Valid => Str (4) = "1", Throttle => Flt (5), Handover => Flt (6));
+         Mix_Armed := Str (7) = "1";
+         Mix_Vbat_Latest := Natural (Int (8));
+         Mix_Attitude := (Adaflight.Axes.Roll => Integer (Int (9)), Adaflight.Axes.Pitch => Integer (Int (10)));
+      elsif Name = "wingmixstate" then
+         Record_Result ("wingmixstate.rms", Bits (4), To_Bits (Mix_State.Motor_Output_RMS));
+         Record_Result ("wingmixstate.speed", Bits (5), To_Bits (Mix_Ctl.Wing_Speed));
       elsif Name = "wingtpa" then
          Mix_State.Motor_Output_RMS := Flt (4);
          Mix_Vbat_Latest := Natural (Int (5));
@@ -22112,6 +22170,7 @@ begin
    Run (Dir & "/mixfs.csv", "mix");
    Run (Dir & "/mixsag.csv", "mix");
    Run (Dir & "/wingtpa.csv", "mix");
+   Run (Dir & "/wingmix.csv", "mix");
    Run (Dir & "/rc.csv", "rc");
    Run (Dir & "/gyro.csv", "gyro");
    Run (Dir & "/imu.csv", "imu");

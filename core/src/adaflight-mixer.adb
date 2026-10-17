@@ -1,4 +1,5 @@
 with Adaflight.PID_Filters;
+with Adaflight.DShot;
 
 package body Adaflight.Mixer with SPARK_Mode is
    use Adaflight.Filters;
@@ -421,6 +422,31 @@ package body Adaflight.Mixer with SPARK_Mode is
       return Float'Max (C.Output_Low, C.Output_High - Attenuation * (C.Output_High - C.Output_Low));
    end Top_Of_Range;
 
+   --  The motors' RMS output over the 1000 to 2000 range, from the protocol's
+   --  external values of the enabled motors, over every motor.
+   function Output_RMS (Motors : Motor_Outputs; C : Config; Inp : Inputs) return PID_Controller.Motor_RMS
+     with Global => null
+   is
+      Sum : Float range 0.0 .. 2.0 * Float (Max_Motors) := 0.0;
+   begin
+      if Inp.Motors_Enabled then
+         for M in 0 .. C.Count - 1 loop
+            pragma Loop_Invariant (Sum in 0.0 .. 2.0 * Float (M));
+            if Inp.Motor_Enabled (M) then
+               declare
+                  External : constant Natural range 0 .. 2048 :=
+                    (if C.DShot then DShot.To_External (Motors (M), Two_Direction => False)
+                     else Natural (Float'Truncation (Motors (M))));
+                  Scaled   : constant Float range -1.0 .. 1.05 := (Float (External) - 1000.0) / 1000.0;
+               begin
+                  Sum := Sum + Scaled * Scaled;
+               end;
+            end if;
+         end loop;
+      end if;
+      return Float'Min (2.0, Sqrt_Non_Negative (Sum / Float (C.Count)));
+   end Output_RMS;
+
    procedure Update
      (S   : in out State; C : Config; Ctl : in out PID_Controller.State;
       R   : Runtime; P : Profile; Inp : Inputs)
@@ -511,6 +537,10 @@ package body Adaflight.Mixer with SPARK_Mode is
       if Inp.GPS_Rescue_Mode and then Inp.Autopilot_Throttle_Valid then
          Throttle := Inp.Autopilot_Throttle;
       end if;
+      if R.Wing_Build and then Inp.Launch_Mode and then Inp.Launch_Throttle_Valid then
+         Throttle := Constrain_F
+           (Inp.Launch_Throttle * (1.0 - Inp.Launch_Handover) + Throttle * Inp.Launch_Handover, -1.0, 1.0);
+      end if;
       Mix_Range := Mix_Max - Mix_Min;
       Range_Out := Mix_Range;
       case C.Kind is
@@ -524,7 +554,8 @@ package body Adaflight.Mixer with SPARK_Mode is
       end case;
       S.Mix_Range := Range_Out;
       if C.Motor_Stop and then Inp.Armed and then not Airmode
-        and then not (Inp.GPS_Rescue_Mode or else Inp.Alt_Hold_Mode or else Inp.Pos_Hold_Mode)
+        and then not (Inp.GPS_Rescue_Mode or else Inp.Alt_Hold_Mode or else Inp.Pos_Hold_Mode
+                      or else Inp.Launch_Mode)
         and then Inp.RC_Throttle < Float (C.Min_Check)
       then
          for M in 0 .. C.Count - 1 loop
@@ -533,6 +564,9 @@ package body Adaflight.Mixer with SPARK_Mode is
                  S.Motors (J) in Float'Min (C.Disarm_Output, C.Output_Low) .. C.Output_High);
             S.Motors (M) := C.Disarm_Output;
          end loop;
+         if R.Wing_Build then
+            S.Motor_Output_RMS := 0.0;
+         end if;
       else
          for M in 0 .. C.Count - 1 loop
             pragma Loop_Invariant
@@ -559,6 +593,9 @@ package body Adaflight.Mixer with SPARK_Mode is
                     S.Motors (J) in Float'Min (C.Disarm_Output, C.Output_Low) .. C.Output_High);
                S.Motors (M) := C.Disarm_Output;
             end loop;
+         end if;
+         if R.Wing_Build then
+            S.Motor_Output_RMS := Output_RMS (S.Motors, C, Inp);
          end if;
       end if;
    end Update;
