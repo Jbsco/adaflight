@@ -5173,3 +5173,20 @@ the motor device's kind and the mixer's motor count with a directive, and reads 
 values after each request. The harness replays two sequences of 600 lines, 1049 requests among
 device scripts and 3D feature changes: every result and all 8392 disarmed values match the
 reference's bit for bit, with 105 requests short of the motor count rejected by both.
+
+## D222. MSP OSD font character write (2026-10-15)
+
+`Adaflight.MSP_Font_In` contains the MSP in message that writes an OSD font character, which a
+configurator's font manager sends. The request's length picks the form: from 66 bytes a 16-bit
+address and the full 64-byte character, at 65 an 8-bit address and the full character, from 56 a
+16-bit address and the 54 visible bytes, and below that an 8-bit address and the visible bytes, read
+as zero past the request's end. Without an OSD display port the message is an error. `Effects` hands
+the character to the display port, whose answer decides the message's result, and a character the
+port takes marks the font updated for the next restart. The bytes a visible-only character leaves
+out are zero, where the reference sends whatever its stack holds (findings F198).
+
+The command line oracle links the reference's display driver and scripts the OSD display port,
+whether it is present and whether it takes a character, with a directive. The harness replays two
+sequences of 600 lines, 1079 requests among port scripts: every result, address, font update flag
+and all 51884 character bytes the requests give match the reference's, with 337 requests rejected
+by both, for a missing port or one that refuses the character.
