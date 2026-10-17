@@ -18,6 +18,8 @@ generic
       Data   : Sector_Bytes;
       Status : out Card_Status);
    with procedure Begin_Write_Blocks (Card : in out Card_State; Sector : Unsigned_32; Count : Unsigned_16);
+   --  The local time when the clock is set, read as a new entry is made.
+   with procedure Read_Clock (Card : in out Card_State; Valid : out Boolean; Local : out Clock_Reading);
 package Adaflight.FAT_FS with SPARK_Mode is
 
    --  A write of a dirty sector to the card, after the start of a run of
@@ -182,13 +184,15 @@ package Adaflight.FAT_FS with SPARK_Mode is
      with Global => null,
           Post   => FS.Vol = FS.Vol'Old;
 
-   --  The cursor moved forward by Offset, or the move queued on the file.
+   --  The cursor moved forward by Offset, or the move queued on the file,
+   --  with the callback when it ends.
    procedure Seek_Forward
-     (FS     : in out File_System;
-      Card   : in out Card_State;
-      Id     : File_Id;
-      Offset : Unsigned_32;
-      Status : out Operation_Status)
+     (FS       : in out File_System;
+      Card     : in out Card_State;
+      Id       : File_Id;
+      Offset   : Unsigned_32;
+      Status   : out Operation_Status;
+      Callback : Callback_Tag := No_Callback)
      with Global => null,
           Post   => FS.Vol = FS.Vol'Old;
 
@@ -239,6 +243,143 @@ package Adaflight.FAT_FS with SPARK_Mode is
    --  reached, failed on a fatal read.
    procedure Free_Space_Search_Continue
      (FS : in out File_System; Card : in out Card_State; Status : out Operation_Status)
+     with Global => null,
+          Post   => FS.Vol = FS.Vol'Old;
+
+   -----------------
+   -- Directories --
+   -----------------
+
+   --  A walk over a directory's entries from its start.
+   procedure Find_First
+     (FS : in out File_System; Card : in out Card_State; Dir : File_Id; Finder : in out Entry_Position)
+     with Global => null,
+          Post   => FS.Vol = FS.Vol'Old;
+
+   --  The next entry of the walk, in the cache sector Slot at the finder's
+   --  index, or no slot at the end of the directory's clusters.
+   procedure Find_Next
+     (FS     : in out File_System;
+      Card   : in out Card_State;
+      Dir    : File_Id;
+      Finder : in out Entry_Position;
+      Status : out Operation_Status;
+      Slot   : out Cache_Slot)
+     with Global => null,
+          Post   => FS.Vol = FS.Vol'Old and then (if Slot /= No_Slot then Status = Success and then Finder.Index >= 0);
+
+   --  The end of a walk: the directory's held sector let go.
+   procedure Find_Last (FS : in out File_System; Dir : File_Id)
+     with Global => null,
+          Post   => FS.Vol = FS.Vol'Old;
+
+   --  A cluster added to a directory and zeroed, with the "." and ".."
+   --  entries when it is a subdirectory's first.
+   procedure Extend_Subdirectory_Continue
+     (FS : in out File_System; Card : in out Card_State; Dir : File_Id; Status : out Operation_Status)
+     with Global => null,
+          Post   => FS.Vol = FS.Vol'Old;
+
+   procedure Extend_Subdirectory
+     (FS             : in out File_System;
+      Card           : in out Card_State;
+      Dir            : File_Id;
+      Parent_Cluster : Unsigned_32;
+      Callback       : Callback_Tag;
+      Status         : out Operation_Status)
+     with Global => null,
+          Post   => FS.Vol = FS.Vol'Old;
+
+   --  The next free or deleted entry of a directory, marked dirty, the
+   --  directory extended when its clusters are full.
+   procedure Allocate_Directory_Entry
+     (FS     : in out File_System;
+      Card   : in out Card_State;
+      Dir    : File_Id;
+      Finder : in out Entry_Position;
+      Status : out Operation_Status;
+      Slot   : out Cache_Slot)
+     with Global => null,
+          Post   => FS.Vol = FS.Vol'Old and then (if Slot /= No_Slot then Finder.Index >= 0);
+
+   -----------
+   -- Files --
+   -----------
+
+   --  A file's clusters freed: its entry first, then the chain, or for a
+   --  contiguous file the chain given back to the start of the free-space
+   --  file.
+   procedure Truncate_Continue
+     (FS : in out File_System; Card : in out Card_State; Id : File_Id; Mark_Deleted : Boolean;
+      Status : out Operation_Status)
+     with Global => null,
+          Post   => FS.Vol = FS.Vol'Old;
+
+   procedure Truncate
+     (FS : in out File_System; Card : in out Card_State; Id : File_Id; Callback : Callback_Tag; Queued : out Boolean)
+     with Global => null,
+          Post   => FS.Vol = FS.Vol'Old;
+
+   --  A file found by name in the working directory, or its entry made when
+   --  the mode creates, then the cursor set: at the end in append mode, the
+   --  file truncated in write-only mode, the free-space file locked for a new
+   --  contiguous file.
+   procedure Create_File_Continue (FS : in out File_System; Card : in out Card_State; Id : File_Id)
+     with Global => null,
+          Post   => FS.Vol = FS.Vol'Old;
+
+   procedure Create_File
+     (FS       : in out File_System;
+      Card     : in out Card_State;
+      Id       : File_Id;
+      Name     : String;
+      Attrib   : Unsigned_8;
+      Mode     : Unsigned_8;
+      Callback : Callback_Tag)
+     with Global => null,
+          Post   => FS.Vol = FS.Vol'Old;
+
+   --  A file's entry saved with its size, its held sectors and the
+   --  free-space file let go, the handle freed.
+   procedure Close_Continue (FS : in out File_System; Card : in out Card_State; Id : File_Id)
+     with Global => null,
+          Post   => FS.Vol = FS.Vol'Old;
+
+   procedure Close
+     (FS : in out File_System; Card : in out Card_State; Ref : File_Ref; Callback : Callback_Tag; Queued : out Boolean)
+     with Global => null,
+          Post   => FS.Vol = FS.Vol'Old;
+
+   --  A file truncated with its entry marked deleted, then closed.
+   procedure Unlink_Continue (FS : in out File_System; Card : in out Card_State; Id : File_Id)
+     with Global => null,
+          Post   => FS.Vol = FS.Vol'Old;
+
+   procedure Unlink
+     (FS : in out File_System; Card : in out Card_State; Ref : File_Ref; Callback : Callback_Tag; Queued : out Boolean)
+     with Global => null,
+          Post   => FS.Vol = FS.Vol'Old;
+
+   --  A directory made, or opened when it exists, in a free handle.
+   procedure Make_Directory
+     (FS : in out File_System; Card : in out Card_State; Name : String; Callback : Callback_Tag; Started : out Boolean)
+     with Global => null,
+          Post   => FS.Vol = FS.Vol'Old;
+
+   --  The working directory set to an open directory, or to the root.
+   procedure Change_Directory (FS : in out File_System; Card : in out Card_State; Ref : File_Ref; Done : out Boolean)
+     with Global => null,
+          Post   => FS.Vol = FS.Vol'Old;
+
+   --  A file opened in a free handle by a C mode string: r, w and a, with +
+   --  for reading as well, or s for a contiguous file.
+   procedure Open
+     (FS       : in out File_System;
+      Card     : in out Card_State;
+      Name     : String;
+      Mode     : String;
+      Callback : Callback_Tag;
+      Started  : out Boolean)
      with Global => null,
           Post   => FS.Vol = FS.Vol'Old;
 

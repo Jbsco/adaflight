@@ -6754,3 +6754,40 @@ exactly. Twenty tampered paths each fail the vectors, among them the two correct
 are equivalent: a contiguous file never seeks past the free-space file's start, the single-byte write takes
 the same locked sector either way, and a contiguous file's cursor stays below the free-space file. The
 working directory's step in the poll waits for the directory operations.
+
+## D299. SD card file system: files and directories (2026-10-17)
+
+`Adaflight.FAT_FS` gains the file and directory operations. A directory walk reads a directory entry by
+entry and moves to the next sector after sixteen entries, until the end of the directory's clusters. A file
+opens by name in the working directory: the search skips volume labels and refuses a file opened as a
+directory or the other way round. When the mode creates, the new entry takes the first free or deleted
+entry, and a full subdirectory first grows by a zeroed cluster, with the "." and ".." entries in a new
+subdirectory's first sector. The FAT16 root directory cannot grow. A new entry takes the name, the
+attributes and the local date and time when the clock is set, else 2015-12-01 at midnight. An opened file
+then seeks to its start. A new contiguous file locks the free-space file once nothing else holds it, an
+existing file in append mode seeks to its end, and an existing file opened only to write is truncated. "."
+opens the working directory again.
+
+A truncation saves the entry first, then frees the chain from the first cluster to its end mark (F239), or
+gives a contiguous file's clusters back to the start of the free-space file. A delete is a truncation that
+marks the entry deleted, then a close. A close saves the entry with the size written, except for
+directories and files opened only to read, lets go of the retained entry sector, the held cursor sectors and
+the free-space file's lock, and frees the handle. The working directory is a copy of an open directory's
+handle, or the root.
+
+The reference calls the caller's callbacks inside the operations, with the file or none. The port records
+each as a notice, the caller's number and the handle, in a list of sixteen that the caller takes after each
+call. The clock comes in through the instantiation and is read when a new entry takes its date and time. A
+handle never set up holds cache index 0, as a zeroed one does, so a misuse of such a handle behaves the
+same. The units are SPARK for the entry offsets within a directory sector and the handle references.
+
+The FAT oracle gains a directory run: cards whose root directory contains a label, a long-name piece, the
+free-space file, a deleted entry, log files, a LOGS subdirectory with its own entries and a text file, in a
+drawn order and now and then with leftovers after the end mark, FAT16 roots of 16, 32 and 512 entries, and
+26 sequences of opens in every mode, directory makes and changes, closes, deletes, truncations, walks,
+writes, reads and seeks, with the clock never set, set, or set now and then. In two sequences the label has
+the name of a directory the sequences make. Each step runs first in a child process, and a step that would
+not return ends its sequence (F239). Every card operation, clock read, result, entry read, file handle,
+finder, notice, cache entry and the hash of the cache memory of the 18200 steps replays exactly.
+Thirty-one tampered paths each fail the vectors. In twelve of them the port does not return from a step the
+reference returns from.

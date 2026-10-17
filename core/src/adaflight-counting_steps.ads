@@ -144,4 +144,8 @@ package Adaflight.Counting_Steps with SPARK_Mode, Initializes => Calls is
      with Global => null,
           Post   => Card = Counted (Card'Old);
 
+   procedure Step_Read_Clock (Card : in out Card_Target; Valid : out Boolean; Local : out FAT.Clock_Reading)
+     with Global => null,
+          Post   => Card = Counted (Card'Old) and then Valid = (Card mod 2 = 0);
+
 end Adaflight.Counting_Steps;

@@ -416,4 +416,34 @@ package body Adaflight.FAT with SPARK_Mode is
                     Phase           => Find_Hole);
    end Begin_Free_Space_Search;
 
+   ------------
+   -- Notify --
+   ------------
+
+   procedure Notify (FS : in out File_System; Tag : Callback_Tag; File : File_Ref) is
+   begin
+      if Tag /= No_Callback and then FS.Notice_Count < Max_Notices then
+         FS.Notice_Count := FS.Notice_Count + 1;
+         FS.Notices (FS.Notice_Count) := (Tag => Tag, File => File);
+      end if;
+   end Notify;
+
+   --------------------------
+   -- Load_Directory_Entry --
+   --------------------------
+
+   procedure Load_Directory_Entry (FS : in out File_System; Id : File_Id; Slot : Cache_Index; Index : Entry_Slot) is
+      Base : constant Sector_Offset := Natural (Index) * Directory_Entry_Size;
+      Size : constant Unsigned_32 := Read_U32 (FS.Cache (Slot), Base + 28);
+   begin
+      FS.Files (Id).First_Cluster :=
+        Interfaces.Shift_Left (Unsigned_32 (Read_U16 (FS.Cache (Slot), Base + 20)), 16)
+        or Unsigned_32 (Read_U16 (FS.Cache (Slot), Base + 26));
+      FS.Files (Id).Logical_Size := Size;
+      --  A zero cluster size rounds to zero, as the Cortex-M divide makes it.
+      FS.Files (Id).Physical_Size :=
+        (if Cluster_Size (FS.Vol) = 0 then 0 else Round_Up_To (Size, Cluster_Size (FS.Vol)));
+      FS.Files (Id).Attrib := FS.Cache (Slot) (Base + 11);
+   end Load_Directory_Entry;
+
 end Adaflight.FAT;
