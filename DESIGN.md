@@ -195,16 +195,17 @@ ledger. The deviations so far:
   reference stores as zero filter cutoffs, is an error (findings F142). The checker expects the
   error and unchanged settings for the recorded requests outside the ranges.
 - MSP tuning, advanced, filter, advanced PID, receiver, hardware, battery, feature, blackbox, servo,
-  LED, LED strip value, battery profile, VTX table band and OSD writes with a field outside its
-  setting's range are errors that write and change nothing (D203 to D216), where the reference
-  stores the field's bytes, or for a dynamic notch count, an RPM filter value, a feedforward
-  averaging, a mode range's linked mode, battery cell voltages out of order or a transponder's data
-  length rejects the request after writing its earlier fields (findings F189 to F191, F195, D213). A
-  stored LED strip brightness past 100 wraps in the reference's LED driver, a stored maximum cell
-  voltage of zero reaches its cell count division, and an OSD timer index of two writes past its
-  timers (findings F193, F194, F196). A field no setting names takes the bounds of the command line
-  command that writes it. The checker expects the error and an unchanged configuration for the
-  recorded requests outside the ranges, and the reference's result and configuration for the rest.
+  LED, LED strip value, battery profile, VTX table band, OSD and VTX configuration writes with a
+  field outside its setting's range are errors that write and change nothing (D203 to D218), where
+  the reference stores the field's bytes, or for a dynamic notch count, an RPM filter value, a
+  feedforward averaging, a mode range's linked mode, battery cell voltages out of order, a
+  transponder's data length or a VTX table count rejects the request after writing its earlier
+  fields (findings F189 to F191, F195, F197, D213). A stored LED strip brightness past 100 wraps in
+  the reference's LED driver, a stored maximum cell voltage of zero reaches its cell count division,
+  and an OSD timer index of two writes past its timers (findings F193, F194, F196). A field no
+  setting names takes the bounds of the command line command that writes it. The checker expects the
+  error and an unchanged configuration for the recorded requests outside the ranges, and the
+  reference's result and configuration for the rest.
 - The configuration storage image reads bytes past its region as erased and does not write an
   image longer than the region (D158), where the reference leaves both to the target and reads
   past a corrupted region's end. Its reported size is the image's length, 2 bytes less than the
@@ -5090,3 +5091,28 @@ PID initializations the oracle stubs left weak in that object, and counts the pr
 through wraps that call the reference's functions. The harness replays two sequences of 600 lines,
 770 requests among armed and disarmed directives, profile selections, PID and rate settings and
 names, and resets: every result, runtime request and configuration hash matches the reference's.
+
+## D218. MSP VTX configuration write (2026-10-15)
+
+`Adaflight.MSP_VTX_In` contains the MSP in message that writes the video transmitter's settings,
+under the whole-request check of D203. Its first 16-bit field up to 63 encodes a band and channel,
+whose frequency comes from the running table when a transmitter is present; up to 5999 it is a
+frequency with no band; past that it writes nothing. While bytes remain the message then takes the
+power with a pit mode, the low power while disarmed, the pit mode frequency, the band, channel and
+frequency again, the frequency again from the running table for a nonzero band, and the table's
+band, channel and power level counts, up to eight each, with a byte that clears the table. A
+transmitter of a known type whose pit mode differs from the request's is asked for the request's
+pit mode, and every accepted request marks the MSP transmitter ready. The reference makes its writes
+and the pit mode call before it checks the table counts (findings F197).
+
+`Adaflight.VTX_Table_Store` contains the stored table's clearing, as the reference's table
+commands clear a band, its channels, the power values and the power labels, and the running table
+taken from the stored one, as at boot. The command line keeps its own copies of the clearing for
+now; they move here when it next changes, so its proof is not run again for this.
+
+The command line oracle links the reference's transmitter interface and scripts a transmitter, its
+type and its pit mode with a directive that can also take the stored table in as the running one.
+The harness replays two sequences of 600 lines, 943 requests among transmitter scripts, table
+commands, listings and resets: 754 within their bounds, whose results, runtime work and
+configuration hashes all match the reference's, and 189 outside them, 22 of them table counts past
+eight, each an error that leaves the configuration unchanged.

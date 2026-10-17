@@ -136,6 +136,8 @@ with Adaflight.MSP_Peripheral_In;
 with Adaflight.MSP_Control_In;
 with Adaflight.MSP_OSD_In;
 with Adaflight.MSP_Profile_In;
+with Adaflight.MSP_VTX_In;
+with Adaflight.VTX_Table_Store;
 with Adaflight.MSP_Receiver_Out;
 with Adaflight.MSP_Hardware_Out;
 with Adaflight.MSP_Peripheral_Out;
@@ -14580,6 +14582,9 @@ procedure Vector_Check is
    MSP_OSD_Effects : Adaflight.MSP_OSD_In.Effects;
    MSP_In_Range    : Boolean := True;
    MSP_Profile_Effects : Adaflight.MSP_Profile_In.Effects;
+   MSP_VTX_Effects : Adaflight.MSP_VTX_In.Effects;
+   MSP_VTX_Device  : Adaflight.MSP_VTX_In.Device;
+   MSP_VTX_Running : Adaflight.VTX_Table.Table;
    MSP_Gyro_Rate  : Adaflight.Config_Fix.Gyro_Rate := 0;
    MSP_Log        : Adaflight.Blackbox.Recorder;
    MSP_Loop_Time  : Adaflight.Blackbox.Loop_Time_Us := 125;
@@ -14641,6 +14646,8 @@ procedure Vector_Check is
             MSP_Board := (others => <>);
             MSP_Telemetry := -1;
             MSP_Arming_Off := False;
+            MSP_VTX_Device := (others => <>);
+            MSP_VTX_Running := (others => <>);
          end if;
          CLI_Reply.Target.Text := Null_Unbounded_String;
          CLI_Expected := Null_Unbounded_String;
@@ -14727,6 +14734,14 @@ procedure Vector_Check is
                MSP_Log.State := Adaflight.Blackbox.Log_State'Val (Natural'Value (Word (Command, 1)));
                MSP_Log.I_Interval := Interfaces.Integer_16'Value (Word (Command, 2));
                MSP_Loop_Time := Adaflight.Blackbox.Loop_Time_Us'Value (Word (Command, 3));
+            elsif Word (Command, 0) = "!vtxdev" then
+               MSP_VTX_Device :=
+                 (Present    => Word (Command, 1) /= "0",
+                  Known_Type => Word (Command, 1) /= "0" and then Word (Command, 2) /= "255",
+                  Pit_Mode   => Word (Command, 3) /= "0");
+               if Word (Command, 4) /= "0" then
+                  MSP_VTX_Running := Adaflight.VTX_Table_Store.Running (CLI_Config.Vtx_Table_Config);
+               end if;
             elsif Word (Command, 0) = "!mspctl" then
                MSP_Board.Armed := Word (Command, 1) /= "0";
                MSP_Board.Source := Adaflight.MSP_Control_In.Link'Value (Word (Command, 2));
@@ -14756,10 +14771,24 @@ procedure Vector_Check is
                   MSP_Control_Effects := Adaflight.MSP_Control_In.No_Effects;
                   MSP_OSD_Effects := Adaflight.MSP_OSD_In.No_Effects;
                   MSP_Profile_Effects := Adaflight.MSP_Profile_In.No_Effects;
+                  MSP_VTX_Effects := Adaflight.MSP_VTX_In.No_Effects;
                   if Adaflight.MSP_Tuning_In.Handles (Cmd) then
                      Adaflight.MSP_Tuning_In.Process
                        (CLI_Config, Cmd, Request, MSP_Gyro_Rate, MSP_In_Result, MSP_In_Effects);
                      MSP_In_Ran := True;
+                  elsif Adaflight.MSP_VTX_In.Handles (Cmd) then
+                     declare
+                        use type Adaflight.MSP_VTX_In.Result;
+                        VTX_Result : Adaflight.MSP_VTX_In.Result;
+                     begin
+                        Adaflight.MSP_VTX_In.Process
+                          (CLI_Config, Cmd, Request, MSP_VTX_Device, MSP_VTX_Running, VTX_Result, MSP_VTX_Effects);
+                        MSP_In_Result :=
+                          (if VTX_Result = Adaflight.MSP_VTX_In.Ack then Adaflight.MSP_Tuning_In.Ack
+                           else Adaflight.MSP_Tuning_In.Error);
+                        MSP_Peripheral_Effects.VTX_Ready := MSP_VTX_Effects.VTX_Ready;
+                        MSP_In_Ran := True;
+                     end;
                   elsif Adaflight.MSP_Profile_In.Handles (Cmd) then
                      Adaflight.MSP_Profile_In.Process
                        (CLI_Config, Cmd, Request, MSP_Board.Armed, MSP_Profile_Effects);
@@ -15000,6 +15029,12 @@ procedure Vector_Check is
                   Record_Int ("msp.osd_profile", (if Changed then Int (14) else 0),
                               Integer_64 (MSP_OSD_Effects.Profile));
                end;
+            end if;
+            if NF >= 19 then
+               Record_Int ("msp.pit_mode_set", (if MSP_In_Range and then Int (18) > 0 then 1 else 0),
+                           Boolean'Pos (MSP_VTX_Effects.Pit_Mode_Set));
+               Record_Int ("msp.pit_mode", (if MSP_In_Range then Int (19) else 0),
+                           Integer_64 (MSP_VTX_Effects.Pit_Mode_Value));
             end if;
             if NF >= 17 then
                Record_Int ("msp.pid_profile", Boolean'Pos (Int (15) > 0),
@@ -19939,6 +19974,7 @@ begin
    Run (Dir & "/mspinctl.csv", "cliset");
    Run (Dir & "/mspinosd.csv", "cliset");
    Run (Dir & "/mspinprof.csv", "cliset");
+   Run (Dir & "/mspinvtxc.csv", "cliset");
    Run (Dir & "/clisave.csv", "cliset");
    if Settings_Seen /= Adaflight.Settings_Table.Setting'Pos (Adaflight.Settings_Table.Setting'Last) + 1 then
       Put_Line ("settings: the vectors hold" & Settings_Seen'Image & " settings");
