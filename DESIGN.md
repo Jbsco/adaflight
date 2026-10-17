@@ -6973,3 +6973,27 @@ The command line oracle links the reference's build information unit, so its opt
 build it compiles. A "!buildopts" line prints them for the harness to take in. Its options mode runs options
 alone, with arguments, spaces and a comment, in other cases and misspelled. Every reply of the 60 lines
 replays exactly. Five tampered paths each fail the vectors.
+
+## D308. Peripherals command (2026-10-17)
+
+`Adaflight.Command_Line` gains peripherals. Its environment gains the serial ports in the order of the target's
+list, each with whether the board has it and the functions it opened with, whether the soft serial feature runs
+as latched at boot, the build's gyro positions with the enabled gyros and each gyro's hardware and bus, and the
+accelerometer, barometer and compass with their detection, hardware and bus. A bus is none, an SPI bus by
+number, or an I2C bus by number with the device's address.
+
+The command lists each port the board has, and each port it lacks that a feature claims or that is a soft
+serial port, with "feature SOFTSERIAL off" or "no pins" as the reason. The claims follow in the features'
+order, those whose functions the port opened with first and starred. Each gyro position the configuration lists
+as detected prints its hardware, starred when enabled, and its bus. The accelerometer, barometer and compass
+print the detected hardware with its bus, unless its code is AUTO or NONE or names no hardware of the build. A
+sensor not detected prints its configured hardware past AUTO and NONE, by code where the build has no name for
+it. The DroneCAN node lines are left out, since the oracle's build compiles them out.
+
+The command line oracle writes the reference's serial port usage list in place and defines the detected gyro
+and sensor tables, the sensor mask and the SPI device lookup, so scripted lines set the ports, the gyro and the
+sensors with their buses. Its peripherals mode drives ports there and missing with random functions, port
+settings, soft serial switches latched as at boot, and sensor hardware settings, some stored out of range.
+Every reply of the 300 lines replays exactly. Seventeen tampered paths each fail the vectors. One is equivalent.
+No target's port list holds the identifier just past its soft serial ports, so counting that identifier as a
+soft serial port changes nothing.

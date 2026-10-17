@@ -3597,7 +3597,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Feature_Command_Word, Flash_Info_Command_Word, Get_Command, Help_Command_Word, Led_Command_Word,
       Map_Command_Word,
       Mode_Color_Command_Word,
-      Mixer_Command_Word, Motor_Mix_Command_Word, Options_Command_Word, Profile_Command, Rate_Profile_Command,
+      Mixer_Command_Word, Motor_Mix_Command_Word, Options_Command_Word, Peripherals_Command_Word,
+      Profile_Command, Rate_Profile_Command,
       Rc_Smoothing_Info_Command_Word, Rx_Failsafe_Command, MCU_Id_Command_Word, Motor_Command_Word,
       MSC_Command_Word,
       Play_Sound_Command_Word, Rx_Range_Command, Sd_Info_Command_Word, Sensor_Hardware_Command_Word,
@@ -3643,6 +3644,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when Mixer_Command_Word => "mixer",
          when Motor_Mix_Command_Word => "mmix",
          when Options_Command_Word => "options",
+         when Peripherals_Command_Word => "peripherals",
          when Profile_Command => "profile",
          when Rate_Profile_Command => "rateprofile",
          when Rc_Smoothing_Info_Command_Word => "rc_smoothing_info",
@@ -4790,7 +4792,6 @@ package body Adaflight.Command_Line with SPARK_Mode is
    end Bind_Rx_Command;
 
    --  The hardware a gyro can be, in the order of the gyro hardware codes.
-   Gyro_Hardware_Count : constant := 30;
    subtype Gyro_Hardware_Index is Natural range 0 .. Gyro_Hardware_Count - 1;
 
    function Gyro_Hardware_Name (I : Gyro_Hardware_Index) return String is
@@ -4889,6 +4890,129 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end loop;
       Put_Error (Into, "sensor_hardware: INVALID SENSOR TYPE: " & Arguments & "###" & CRLF);
    end Sensor_Hardware_Command;
+
+   Upper_Hex_Digits : constant String (1 .. 16) := "0123456789ABCDEF";
+
+   --  A device's bus: the SPI bus by number, or the I2C bus by number with
+   --  the device's address in two upper case hexadecimal digits.
+   procedure Put_Device_Bus (Into : in out Output; Bus : Device_Bus)
+     with Global => null
+   is
+   begin
+      case Bus.Kind is
+         when No_Bus =>
+            null;
+         when SPI_Bus =>
+            Put (Into, " on SPI" & Decimal (Integer_64 (Bus.Number)));
+         when I2C_Bus =>
+            Put (Into, " on I2C" & Decimal (Integer_64 (Bus.Number)) & " @0x"
+                       & Upper_Hex_Digits (Natural (Bus.Address / 16) + 1)
+                       & Upper_Hex_Digits (Natural (Bus.Address mod 16) + 1));
+      end case;
+   end Put_Device_Bus;
+
+   --  A sensor's line: the detected hardware with its bus, unless the code
+   --  is the automatic or the none choice or names no hardware of the
+   --  build; or, for a sensor not detected, the configured hardware past
+   --  those two choices, by name or, without one, by code.
+   procedure Put_Sensor_Peripheral
+     (Into : in out Output; Stem : String; S : Sensor_Type; Configured : Unsigned_8; Device : Sensor_Device)
+     with Global => null
+   is
+      Count : constant Natural := Hardware_Count (S);
+   begin
+      if Device.Detected then
+         if Natural (Device.Hardware) in 2 .. Count - 1
+           and then Hardware_Name (S, Natural (Device.Hardware))'Length > 0
+         then
+            Put (Into, Stem);
+            Put (Into, ": ");
+            Put (Into, Hardware_Name (S, Natural (Device.Hardware)));
+            Put_Device_Bus (Into, Device.Bus);
+            Put (Into, CRLF);
+         end if;
+      elsif Natural (Configured) in 2 .. Count - 1 then
+         Put (Into, Stem);
+         Put (Into, ": ");
+         if Hardware_Name (S, Natural (Configured))'Length > 0 then
+            Put (Into, Hardware_Name (S, Natural (Configured)));
+         else
+            Put (Into, Decimal (Integer_64 (Configured)));
+         end if;
+         Put (Into, " configured, not detected" & CRLF);
+      end if;
+   end Put_Sensor_Peripheral;
+
+   --  peripherals: each of the target's serial ports the board has, or one
+   --  it lacks that a feature claims or that is a soft serial port, with
+   --  why it lacks it, then the claims on it, those of the functions it
+   --  opened with first and starred; each gyro of the build's positions
+   --  that the configuration lists as detected, with its hardware, starred
+   --  when enabled, and its bus; then the accelerometer, the barometer and
+   --  the compass.
+   procedure Peripherals_Command (Into : in out Output; C : Configuration; Ports : Port_List; Env : Environment)
+     with Global => null,
+          Pre    => Ports'Length <= Serial_Feature_Map.Max_Ports
+   is
+      package Map renames Serial_Feature_Map;
+      Soft_Count : constant Natural := Config_Fix.Serial_Options.Soft_Serial_Ports;
+   begin
+      for I in Ports'Range loop
+         declare
+            Port   : constant Map.Port_Id := Ports (I);
+            Status : constant Serial_Port_Status := Env.Serial_Ports (I - Ports'First + 1);
+            Soft   : constant Boolean := Port >= Map.Soft_Serial_1 and then Port < Map.Soft_Serial_1 + Soft_Count;
+            Claims : Map.Claim_Array;
+            Count  : Map.Claim_Count;
+            Open   : Unsigned_32 := 0;
+            First  : Boolean := True;
+         begin
+            Map.Port_Claims
+              (Config_Fix.Serial_Options, Config_Fix.Serial_Assignments (C), Port, Map.Max_Claims, Claims, Count);
+            if Status.Available or else Count > 0 or else Soft then
+               Put (Into, "serial ");
+               Put (Into, CLI_Text.Port_Name (Integer_64 (Port), Ports));
+               if Status.Available then
+                  Open := Status.Open_Function;
+                  Put (Into, ":");
+               elsif Soft and then not Env.Soft_Serial then
+                  Put (Into, " (feature SOFTSERIAL off):");
+               else
+                  Put (Into, " (no pins):");
+               end if;
+               for Active in reverse Boolean loop
+                  for K in 1 .. Count loop
+                     pragma Loop_Invariant (K in 1 .. Count);
+                     if ((Claims (K).Mask and Open) /= 0) = Active then
+                        Put (Into, (if First then " " else ", "));
+                        Put (Into, Map.Claim_Name (Claims (K).Kind));
+                        if Active then
+                           Put (Into, "*");
+                        end if;
+                        First := False;
+                     end if;
+                  end loop;
+               end loop;
+               Put (Into, CRLF);
+            end if;
+         end;
+      end loop;
+      for Position in 0 .. Env.Gyro_Positions - 1 loop
+         pragma Loop_Invariant (Position in 0 .. Max_Gyro_Positions - 1);
+         if (C.Gyro_Config.Gyros_Detected and 2 ** Position) /= 0 then
+            Put (Into, "gyro " & Decimal (Integer_64 (Position + 1)) & ": ");
+            Put (Into, Gyro_Hardware_Name (Env.Gyros (Position).Hardware));
+            if (Env.Gyros_Enabled and 2 ** Position) /= 0 then
+               Put (Into, "*");
+            end if;
+            Put_Device_Bus (Into, Env.Gyros (Position).Bus);
+            Put (Into, CRLF);
+         end if;
+      end loop;
+      Put_Sensor_Peripheral (Into, "acc", Acc_Sensor, C.Accelerometer_Config.Acc_Hardware, Env.Acc);
+      Put_Sensor_Peripheral (Into, "baro", Baro_Sensor, C.Barometer_Config.Baro_Hardware, Env.Baro);
+      Put_Sensor_Peripheral (Into, "mag", Mag_Sensor, C.Compass_Config.Mag_Hardware, Env.Mag);
+   end Peripherals_Command;
 
    --  A signature as 64 hexadecimal digits.
    procedure Put_Signature_Digits (Into : in out Output; Signature : Signature_Bytes) is
@@ -5360,6 +5484,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
             Dshotprog_Command (Into, Env, Text_At (Buffer, Arguments));
          when Options_Command_Word =>
             Options_Command (Into, Env);
+         when Peripherals_Command_Word =>
+            Peripherals_Command (Into, C, Ports, Env);
          when Sd_Info_Command_Word =>
             SD_Info_Command (Into, C.Sdcard_Config.Mode, Env.SD_Card);
          when Bootloader_Command_Word =>
