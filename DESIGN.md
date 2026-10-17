@@ -7098,3 +7098,35 @@ records each call. Its flash mode drives the four commands with erases of up to 
 addresses and lengths of every kind, and volumes that are missing or end early. Every reply, beeper request and
 call of the 400 lines replays exactly. Fourteen tampered paths each fail the vectors, one by stopping the harness,
 since an erase on a board without a file system never ends.
+
+## D314. OLED dashboard (2026-10-17)
+
+`Adaflight.Dashboard` draws the board's state on a 21 by 8 character OLED display. An update reads a record of
+readings and writes display operations that the board performs: a start that tells whether the display answers,
+a quick clear, a position, a line, a character and a text of up to 40 characters, at most 256 of them per update.
+Every 200 milliseconds while the menu system leaves the display alone, the update draws the armed page once on
+arming, and while disarmed it draws the current page and a corner with the failsafe phase, the receiver's state
+and a ticker. A disarm, a fixed page or a start forces a page change. With cycling on, the pages change every five
+seconds in the order welcome, armed, profile, rate profile, GPS, receiver, battery, sensors, tasks, flight log and
+debug, skipping welcome and armed, and the GPS page asks for a change when the GPS feature is off. A page change
+starts the display again, so a display connected late can answer, then clears it and prints the page's title when
+the display answered.
+
+The welcome page prints the firmware's name, version and revision with the target's name. The other pages print
+the PID profile's gains, the rate profile's rates, the GPS solution with its counters, packet log and a bar per
+satellite signal, the channels as percentage bars two to a row, the battery's voltage, cells, current and drawn
+capacity with their bars, the sensors' readings and the attitude, each enabled task but the serial task with its
+times and loads, the flight log's file number, and four debug values. In SPARK the proof shows that every line
+and every operation list stays within its bounds for any reading. The reference overruns its line buffer with
+wide task and battery values (F247), where adaflight's 40-character text holds those lines whole. Adaflight
+draws the reference's satellite graph at column 250 (F244), the extra channel after an odd channel count (F245),
+the null ticker character (F246) and the minus sign on a negative current's decimal digit (F248).
+
+The dashboard oracle builds the reference's dashboard with a display driver that records each operation, and
+scripts the readings: arming, receiver signal, GPS solutions and satellite signals, battery readings with
+negative currents, task statistics, flight log devices and file numbers, debug values, a display that does not
+answer, clock steps across the 32-bit wrap, and cycling, fixed pages and cycle resets. Every operation of 30
+random runs and four runs that hold the flight log page replays exactly. Of 30 tampered paths, 28 fail the
+vectors. Two are equivalent: the next page time that Init sets, which the forced first page change replaces
+before any update reads it, and the index a cycle reset sets, from which the last page and the first page both
+step past the two skipped pages to the profile page.
