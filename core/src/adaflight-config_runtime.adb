@@ -56,6 +56,32 @@ package body Adaflight.Config_Runtime with SPARK_Mode is
       return S;
    end Setup_Of;
 
+   function Profile_For_Cells
+     (Profiles : Pid_Profile_Record_List_4; Current : Profile_Index; Cells : Battery.Cell_Count) return Profile_Index
+   is
+      Stay  : constant := 0;
+      Match : Integer range -1 .. Profile_Index'Last := -1;
+   begin
+      if Integer (Profiles (Current).Auto_Profile_Cell_Count) = Cells
+        or else Profiles (Current).Auto_Profile_Cell_Count = Stay
+      then
+         return Current;
+      end if;
+      for Offset in 1 .. Profile_Index'Last loop
+         declare
+            Index : constant Profile_Index := (Current + Offset) mod (Profile_Index'Last + 1);
+         begin
+            if Integer (Profiles (Index).Auto_Profile_Cell_Count) = Cells then
+               Match := Index;
+               exit;
+            elsif Match < 0 and then Profiles (Index).Auto_Profile_Cell_Count = Stay then
+               Match := Index;
+            end if;
+         end;
+      end loop;
+      return (if Match >= 0 then Match else Current);
+   end Profile_For_Cells;
+
    function Mixer_Config_Of
      (M : Mixer_Config_Record; Motor : Motor_Config_Record; Flight_3D : Flight3_D_Config_Record;
       R : Rx_Config_Record; Rate : Control_Rate_Config_Record; P : Pid_Profile_Record;

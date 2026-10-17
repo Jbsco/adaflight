@@ -268,9 +268,10 @@ package body Adaflight.Battery with SPARK_Mode is
    -- Update_Presence --
    ---------------------
 
-   procedure Update_Presence (S : in out State; C : Settings) is
+   procedure Update_Presence (S : in out State; C : Settings; Events : out Presence_Events) is
       Stable : constant Boolean := Voltage_Is_Stable (S);
    begin
+      Events := (others => <>);
       if (S.Voltage_State = Not_Present or else S.Voltage_State = Init)
         and then Voltage_From_Battery (S, C) and then Stable
       then
@@ -280,7 +281,9 @@ package body Adaflight.Battery with SPARK_Mode is
             S.Cells := C.Force_Cell_Count;
          else
             S.Cells := Natural'Min (S.Voltage.Display_Filtered / C.Max_Cell_Voltage + 1, Max_Auto_Detect_Cells);
+            Events.Detected_Cells := S.Cells;
          end if;
+         Events.Connected := True;
          declare
             Warning_V  : constant Unsigned_16 := Unsigned_16 (S.Cells) * Unsigned_16 (C.Warning_Cell_Voltage);
             Critical_V : constant Unsigned_16 := Unsigned_16 (S.Cells) * Unsigned_16 (C.Min_Cell_Voltage);

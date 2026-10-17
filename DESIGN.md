@@ -6329,3 +6329,16 @@ the existing vectors stay byte for byte: their runs model a build without GPS re
 New GPS sequences script the features, the failsafe procedure, the rescue's arming settings, a hold and a
 rescue switch, airplanes with a headfree switch, and the GPS fix, satellites and altitude estimate. They
 replay exactly.
+
+## D277. Battery presence hooks (2026-10-16)
+
+`Adaflight.Battery` reports what a pack's connection asks of the other units. The presence check returns the
+connection, which resets the RPM limiter, and the detected cell count where the count is detected rather
+than forced, which chooses a PID profile first. `Adaflight.Config_Runtime.Profile_For_Cells` makes the
+choice. The current profile stays where it names the count or stays with any count. Otherwise the next
+profile after it that names the count wins, else the first after it that stays, else the current one.
+
+The battery oracle adds sequences that plug and pull a pack of a fresh cell count every two seconds, with
+short display filters, and record the connection's calls. A new oracle includes the reference's
+configuration source and runs its profile choice on 2000 random profile sets with the profile change's other
+calls stubbed. Both replay exactly, and the earlier battery vectors stay byte for byte.
