@@ -3593,7 +3593,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Beacon_Command, Bootloader_Command_Word, Exit_Command_Word, Save_Command_Word,
       Beeper_Command_Word, Bind_Rx_Command_Word, Board_Name_Command_Word, Defaults_Command_Word,
       Manufacturer_Id_Command_Word, Signature_Command_Word, Color_Command_Word, Diff_Command,
-      Dshot_Telemetry_Info_Command_Word, Dump_Command,
+      Dshot_Telemetry_Info_Command_Word, Dshotprog_Command_Word, Dump_Command,
       Feature_Command_Word, Flash_Info_Command_Word, Get_Command, Help_Command_Word, Led_Command_Word,
       Map_Command_Word,
       Mode_Color_Command_Word,
@@ -3624,6 +3624,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when Defaults_Command_Word => "defaults",
          when Diff_Command => "diff",
          when Dshot_Telemetry_Info_Command_Word => "dshot_telemetry_info",
+         when Dshotprog_Command_Word => "dshotprog",
          when Dump_Command => "dump",
          when Feature_Command_Word => "feature",
          when Flash_Info_Command_Word => "flash_info",
@@ -4133,6 +4134,202 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end loop;
       return (if Negative then -Value else Value);
    end Leading_Whole;
+
+   --  A number from 0 to 255 with a zero before it up to two digits, as %02d
+   --  prints it.
+   function Byte_Two_Digits (V : Interfaces.Unsigned_8) return String is
+     (if V < 10 then "0" & Decimal (Integer_64 (V)) else Decimal (Integer_64 (V)))
+     with Global => null;
+
+   --  The details of an ESC information frame of a kind whose checksum holds:
+   --  the ESC type, the MCU serial number, the firmware version, and for the
+   --  later kinds the rotation direction and 3D, with the voltage and current
+   --  limits and the LEDs of BLHeli_32.
+   procedure Put_ESC_Details (Into : in out Output; F : ESC_Info.Frame; K : ESC_Info.Kind)
+     with Global => null
+   is
+      use type ESC_Info.Kind;
+      Version : constant ESC_Info.Byte := ESC_Info.Firmware (F, K);
+      Sub     : constant ESC_Info.Byte := ESC_Info.Subversion (F, K);
+      Number  : constant ESC_Info.Byte := ESC_Info.ESC_Type (F, K);
+   begin
+      Put (Into, "ESC Type: ");
+      if K = ESC_Info.BLHeli_32 then
+         declare
+            Length : constant Natural := ESC_Info.Type_Text_Length (F);
+            Text   : String (1 .. Length);
+         begin
+            for I in Text'Range loop
+               Text (I) := Character'Val (F (30 + I));
+            end loop;
+            Put (Into, Text & CRLF);
+         end;
+      else
+         Put (Into, (case Number is
+                        when 1      => "KISS8A",
+                        when 2      => "KISS16A",
+                        when 3      => "KISS24A",
+                        when 5      => "KISS Ultralite",
+                        when others => "unknown") & CRLF);
+      end if;
+      Put (Into, "MCU Serial No: 0x");
+      for I in 0 .. 11 loop
+         pragma Loop_Invariant (I in 0 .. 11);
+         if I > 0 and then I mod 3 = 0 then
+            Put (Into, "-");
+         end if;
+         Put (Into, Hex_Text (Unsigned_32 (F (I)), 2));
+      end loop;
+      Put (Into, CRLF);
+      if K = ESC_Info.BLHeli_32 then
+         Put (Into, "Firmware Version: " & Decimal (Integer_64 (Version)) & "." & Byte_Two_Digits (Sub) & CRLF);
+      else
+         Put (Into, "Firmware Version: " & Decimal (Integer_64 (Version / 100)) & "."
+                    & Byte_Two_Digits (Version mod 100) & Character'Val (Sub) & CRLF);
+      end if;
+      if K = ESC_Info.KISS_V1 then
+         return;
+      end if;
+      Put (Into, "Rotation Direction: " & (if F (16) /= 0 then "reversed" else "normal") & CRLF);
+      Put (Into, "3D: " & (if F (17) /= 0 then "on" else "off") & CRLF);
+      if K /= ESC_Info.BLHeli_32 then
+         return;
+      end if;
+      Put (Into, "Low voltage Limit: ");
+      case F (18) is
+         when 0 =>
+            Put (Into, "off" & CRLF);
+         when 255 =>
+            Put (Into, "unsupported" & CRLF);
+         when others =>
+            Put (Into, Decimal (Integer_64 (F (18) / 10)));
+            Put (Into, "." & Decimal (Integer_64 (F (18) mod 10)) & CRLF);
+      end case;
+      Put (Into, "Current Limit: ");
+      case F (19) is
+         when 0 =>
+            Put (Into, "off" & CRLF);
+         when 255 =>
+            Put (Into, "unsupported" & CRLF);
+         when others =>
+            Put (Into, Decimal (Integer_64 (F (19))));
+            Put (Into, CRLF);
+      end case;
+      for I in 0 .. 3 loop
+         pragma Loop_Invariant (I in 0 .. 3);
+         Put (Into, "LED " & Decimal (Integer_64 (I)) & ": "
+                    & (if F (20 + I) = 0 then "off" elsif F (20 + I) = 255 then "unsupported" else "on") & CRLF);
+      end loop;
+   end Put_ESC_Details;
+
+   --  An ESC's information: its heading, the read started, the information
+   --  command written, a wait of 10 ms, and the frame that came back, or that
+   --  none did.
+   procedure ESC_Info_Command (Into : in out Output; Index : Natural; Motors : Natural)
+     with Global => null
+   is
+      F     : ESC_Info.Frame;
+      Count : Natural;
+   begin
+      Put (Into, "Info for ESC " & Decimal (Integer_64 (Index)) & ":" & CRLF);
+      ESC_Read_Start;
+      DShot_Write (Index, Motors, 6);
+      Delay_Ms (10);
+      ESC_Read_Bytes (F, Count);
+      if Count > ESC_Info.Version_Position and then Count = ESC_Info.Length_Of (ESC_Info.Kind_Of (F)) then
+         if ESC_Info.Checksum_Holds (F, ESC_Info.Kind_Of (F)) then
+            Put_ESC_Details (Into, F, ESC_Info.Kind_Of (F));
+         else
+            Put_Error (Into, "dshotprog: CHECKSUM ERROR.###" & CRLF);
+         end if;
+      else
+         Put (Into, "No Info." & CRLF);
+      end if;
+   end ESC_Info_Command;
+
+   --  dshotprog: the output's line, then for each command up to 47 the motors
+   --  switched off before the first one, the command written, or with the ESC
+   --  sensor the information of the ESC or of each one for the information
+   --  command, and the sent line; any other command is an error. The motors
+   --  switch back on at the end unless the output was wrong.
+   procedure Dshotprog_Command (Into : in out Output; Env : Environment; Arguments : String)
+     with Global => null,
+          Pre    => Arguments'First >= 1 and then Arguments'Last < Positive'Last
+   is
+      All_Motors : constant := 255;
+      Motors     : constant Natural := Natural (Env.Motors);
+      Index      : Integer_64 := 0;
+      Position   : Natural := 0;
+      First      : Boolean := True;
+      K          : Positive := Arguments'First;
+   begin
+      if Arguments'Length = 0 or else not Env.DShot_Protocol then
+         Put_Error (Into, "dshotprog: PARSING FAILED###" & CRLF);
+         return;
+      end if;
+      loop
+         pragma Loop_Invariant (K in Arguments'First .. Arguments'Last + 1);
+         pragma Loop_Invariant
+           (Position = 0 or else Index in 0 .. Integer_64 (Motors) - 1 or else Index = All_Motors);
+         while K <= Arguments'Last and then Arguments (K) = ' ' loop
+            pragma Loop_Invariant (K in Arguments'Range);
+            pragma Loop_Variant (Increases => K);
+            K := K + 1;
+         end loop;
+         exit when K > Arguments'Last;
+         declare
+            Start : constant Positive := K;
+         begin
+            while K <= Arguments'Last and then Arguments (K) /= ' ' loop
+               pragma Loop_Invariant (K in Start .. Arguments'Last);
+               pragma Loop_Variant (Increases => K);
+               K := K + 1;
+            end loop;
+            declare
+               Value : constant Integer_64 := Leading_Whole (Arguments (Start .. K - 1));
+            begin
+               if Position = 0 then
+                  Index := Value;
+                  if Index in 0 .. Integer_64 (Motors) - 1 then
+                     Put (Into, "Using output " & Decimal (Index) & "." & CRLF);
+                  elsif Index = All_Motors then
+                     Put (Into, "Using all outputs." & CRLF);
+                  else
+                     Put_Error (Into, "dshotprog: INVALID OUTPUT NUMBER. RANGE: 0 - "
+                                      & Decimal (Integer_64 (Motors) - 1) & ".###" & CRLF);
+                     return;
+                  end if;
+               elsif Value in 0 .. 47 then
+                  if First then
+                     Motors_Disable;
+                     First := False;
+                  end if;
+                  if Value /= 6 then
+                     DShot_Write (Natural (Index), Motors, Interfaces.Unsigned_8 (Value));
+                  elsif Env.ESC_Sensor then
+                     if Index /= All_Motors then
+                        ESC_Info_Command (Into, Natural (Index), Motors);
+                     else
+                        for M in 0 .. Motors - 1 loop
+                           pragma Loop_Invariant (M in 0 .. Motors - 1);
+                           ESC_Info_Command (Into, M, Motors);
+                        end loop;
+                     end if;
+                  else
+                     Put (Into, "Not supported." & CRLF);
+                  end if;
+                  Put (Into, "Command Sent: " & Decimal (Value) & CRLF);
+               else
+                  Put_Error (Into, "dshotprog: INVALID COMMAND. RANGE: 1 - 47.###" & CRLF);
+               end if;
+            end;
+         end;
+         if Position < Natural'Last then
+            Position := Position + 1;
+         end if;
+      end loop;
+      Motors_Enable;
+   end Dshotprog_Command;
 
    --  bl: a restart into the ROM bootloader without an option or with one
    --  that starts with rom in any case, else the option's error.
@@ -5146,6 +5343,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
             Rc_Smoothing_Info_Command (Into, C.Rx_Config.Rc_Smoothing /= 0, Env.Smoothing);
          when Dshot_Telemetry_Info_Command_Word =>
             Dshot_Telemetry_Info_Command (Into, Env.Motors, Env.DShot_Telemetry);
+         when Dshotprog_Command_Word =>
+            Dshotprog_Command (Into, Env, Text_At (Buffer, Arguments));
          when Sd_Info_Command_Word =>
             SD_Info_Command (Into, C.Sdcard_Config.Mode, Env.SD_Card);
          when Bootloader_Command_Word =>

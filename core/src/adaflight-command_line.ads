@@ -18,6 +18,8 @@
 --  system, and flash_info the flash chip with its partitions; bl restarts
 --  the board into its ROM bootloader and msc into mass storage; help lists
 --  the commands of the build with their descriptions and arguments;
+--  dshotprog writes DShot commands to the ESCs and prints the information
+--  they send back;
 --  save, exit and defaults without nosave ask for the configuration's write,
 --  the board's restart or the command line's end. A line naming no command
 --  gets the ERR_CMD_NA reply.
@@ -29,6 +31,7 @@ with Adaflight.Board_Info;
 with Adaflight.Config_Groups; use Adaflight.Config_Groups;
 with Adaflight.CLI_Text;
 with Adaflight.DShot;
+with Adaflight.ESC_Info;
 with Adaflight.MSP_Motor_In;
 with Adaflight.Receiver;
 with Adaflight.RX_Bind;
@@ -38,6 +41,15 @@ with Adaflight.Serial_Feature_Map;
 generic
    type Sink is limited private;
    with procedure Put (Into : in out Sink; Text : String);
+   --  The board's DShot programming: a command written to one ESC or to all,
+   --  the motors switched off and back on around commands, an ESC information
+   --  read started and its bytes taken with their count, and a wait.
+   with procedure DShot_Write (Index : Natural; Motors : Natural; Command : Interfaces.Unsigned_8);
+   with procedure Motors_Disable;
+   with procedure Motors_Enable;
+   with procedure ESC_Read_Start;
+   with procedure ESC_Read_Bytes (F : out ESC_Info.Frame; Count : out Natural);
+   with procedure Delay_Ms (Ms : Natural);
 package Adaflight.Command_Line with SPARK_Mode is
 
    subtype Port_List is CLI_Text.Port_List;
@@ -241,7 +253,8 @@ package Adaflight.Command_Line with SPARK_Mode is
    --  reports, the running RC smoothing, the mixer's motors with their output
    --  and whether the 3D feature runs, the receiver and serial protocol the
    --  board took at its start, the motors' DShot telemetry, the SD card,
-   --  the flash chip, and whether the mass storage is ready.
+   --  the flash chip, whether the mass storage is ready, whether the motors
+   --  run DShot, and whether the ESC sensor feature runs.
    type Environment is record
       Navigation      : Navigation_Status;
       Firmware        : Identity_Text;
@@ -265,6 +278,8 @@ package Adaflight.Command_Line with SPARK_Mode is
       SD_Card         : SD_Card_Status;
       Flash           : Flash_Status;
       MSC_Ready       : Boolean := False;
+      DShot_Protocol  : Boolean := False;
+      ESC_Sensor      : Boolean := False;
    end record;
 
    --  The board's information as the commands see it: its name and
