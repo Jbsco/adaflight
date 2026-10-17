@@ -1,7 +1,7 @@
-with Adaflight.Filters; use Adaflight.Filters;
 with Adaflight.PID_Filters;
 
 package body Adaflight.Mixer with SPARK_Mode is
+   use Adaflight.Filters;
 
    use type Interfaces.Unsigned_32;
 
@@ -68,7 +68,7 @@ package body Adaflight.Mixer with SPARK_Mode is
    function Throttle_Limited (Throttle : Unit_Interval; C : Config) return Unit_Interval is
       Factor : constant Unit_Interval := Float (C.Throttle_Limit_Percent) / 100.0;
    begin
-      if C.Throttle_Limit_Percent < 100 then
+      if C.Throttle_Limit_Percent < 100 and then not C.RPM_Limit then
          case C.Throttle_Limit is
             when Scale => return Throttle * Factor;
             when Clip  => return Float'Min (Throttle, Factor);
@@ -192,6 +192,103 @@ package body Adaflight.Mixer with SPARK_Mode is
    -- Update --
    ------------
 
+   --  The motors' top RPM from the KV and the battery voltage, derated for
+   --  the load of the propellers.
+   function Estimated_Max_RPM (C : Config; Battery_Voltage : Interfaces.Unsigned_16) return Float is
+     ((0.01 * Float (Battery_Voltage) * Float (C.Motor_KV))
+      * (-5.44E-6 * (0.01 * Float (Battery_Voltage) * Float (C.Motor_KV)) + 0.944))
+     with Global => null;
+
+   --  The limit over the estimated top RPM within zero and one; an estimate
+   --  under a thousandth, where the quotient passes one, gives one.
+   function Limit_Scale (C : Config; Battery_Voltage : Interfaces.Unsigned_16) return Unit_Interval
+     with Global => null
+   is
+      Estimate : constant Float := Estimated_Max_RPM (C, Battery_Voltage);
+   begin
+      if Estimate >= 1.0E-3 then
+         return Constrain_F (Float (C.RPM_Limit_Value) / Estimate, 0.0, 1.0);
+      elsif Estimate >= 0.0 then
+         return 1.0;
+      else
+         return 0.0;
+      end if;
+   end Limit_Scale;
+
+   ------------------------
+   -- Reset_RPM_Limiter --
+   ------------------------
+
+   procedure Reset_RPM_Limiter (S : in out State; C : Config; Battery_Voltage : Interfaces.Unsigned_16) is
+   begin
+      S.Limiter_I := 0.0;
+      S.Limiter_Scale := Limit_Scale (C, Battery_Voltage);
+      S.Limiter_Initial_Scale := S.Limiter_Scale;
+   end Reset_RPM_Limiter;
+
+   ----------------------
+   -- Init_RPM_Limiter --
+   ----------------------
+
+   procedure Init_RPM_Limiter
+     (S : in out State; C : Config; R : Runtime; Battery_Voltage : Interfaces.Unsigned_16)
+   is
+   begin
+      S.Limiter_P_Gain := Float (C.RPM_Limit_P) * 15.0E-6;
+      S.Limiter_I_Gain := Float (C.RPM_Limit_I) * 1.0E-3 * R.Dt;
+      S.Limiter_D_Gain := Float (C.RPM_Limit_D) * 3.0E-7 * R.PID_Frequency;
+      S.Limiter_I := 0.0;
+      PT1_Init (S.Limiter_Average, PT1_Gain (6.0, R.Dt));
+      PT1_Init (S.Limiter_Offset, PT1_Gain (2.0, R.Dt));
+      Reset_RPM_Limiter (S, C, Battery_Voltage);
+   end Init_RPM_Limiter;
+
+   --  The RPM limiter: a PID on the averaged RPM over the limit, whose
+   --  output comes off the throttle, and a throttle scale that falls while
+   --  the RPM is over the limit below the maximum check and rises while the
+   --  output is negative at the maximum check with no motor saturated.
+   procedure Apply_RPM_Limiter
+     (S : in out State; C : Config; R : Runtime; Inp : Inputs; Throttle : in out Float)
+     with Global => null,
+          Pre    => Throttle in -1.0 .. 1.0,
+          Post   => Throttle in 0.0 .. 1.0
+   is
+      subtype Error_Value is Float range -2.0 ** 33 .. 2.0 ** 33;
+      Average   : Signal;
+      Error     : Error_Value;
+      P_Term    : Float range -2.0 ** 24 .. 2.0 ** 24;
+      D_Term    : Float range -2.0 ** 40 .. 2.0 ** 40;
+      Output    : Float;
+      Offset    : Signal;
+      Saturated : Boolean := False;
+   begin
+      PT1_Apply (S.Limiter_Average, Inp.RPM_Average, Average);
+      Error := Average - Float (C.RPM_Limit_Value);
+      P_Term := Error * S.Limiter_P_Gain;
+      D_Term := (Error - S.Limiter_Previous_Error) * S.Limiter_D_Gain;
+      S.Limiter_I := Float'Min (1.0E30, Float'Max (0.0, S.Limiter_I + Error * S.Limiter_I_Gain));
+      Output := P_Term + S.Limiter_I + D_Term;
+      for M in 0 .. C.Count - 1 loop
+         if S.Motors (M) >= Float (C.Max_Throttle) then
+            Saturated := True;
+         end if;
+      end loop;
+      if Error > 0.0 and then Inp.RC_Throttle < Float (C.Max_Check) then
+         S.Limiter_Scale := Constrain_F (S.Limiter_Scale * (1.0 - 4.8 * R.Dt), 0.01, 1.0);
+      elsif Output < -400.0 * R.Dt
+        and then Adaflight.Maths.Round_Half_Even (Inp.RC_Throttle) >= C.Max_Check - 5
+        and then not Saturated
+      then
+         S.Limiter_Scale := Constrain_F (S.Limiter_Scale * (1.0 + 3.2 * R.Dt), 0.01, 1.0);
+      else
+         S.Limiter_Scale := Constrain_F (S.Limiter_Scale, 0.01, 1.0);
+      end if;
+      PT1_Apply (S.Limiter_Offset, Limit_Scale (C, Inp.Battery_Voltage) - S.Limiter_Initial_Scale, Offset);
+      Throttle := Throttle * Constrain_F (S.Limiter_Scale + Offset, 0.0, 1.0);
+      Throttle := Constrain_F (Throttle - Float'Max (0.0, Output), 0.0, 1.0);
+      S.Limiter_Previous_Error := Error;
+   end Apply_RPM_Limiter;
+
    procedure Update
      (S   : in out State; C : Config; Ctl : in out PID_Controller.State;
       R   : Runtime; P : Profile; Inp : Inputs)
@@ -246,6 +343,9 @@ package body Adaflight.Mixer with SPARK_Mode is
       end if;
       S.Throttle := Throttle;
       Throttle := PID_Controller.Compensate_Thrust_Linearization (R, Throttle);
+      if C.RPM_Limit and then Inp.DShot_Telemetry and then Inp.Armed then
+         Apply_RPM_Limiter (S, C, R, Inp, Throttle);
+      end if;
       for M in 0 .. C.Count - 1 loop
          pragma Loop_Invariant (Mix_Max in 0.0 .. 64.0 and then Mix_Min in -64.0 .. 0.0);
          declare
