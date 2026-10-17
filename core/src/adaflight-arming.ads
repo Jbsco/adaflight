@@ -82,6 +82,21 @@ package Adaflight.Arming with SPARK_Mode is
 
    subtype Trim_Delta is Integer range -1 .. 1;
 
+   --  The DShot commands arming and disarming send to every motor, and the
+   --  log of a pass's commands in order, up to four.
+   type DShot_Command is (Extended_Telemetry_Enable, Spin_Direction_Normal, Spin_Direction_Reversed);
+
+   function Command_Code (C : DShot_Command) return Natural is
+     (case C is
+        when Extended_Telemetry_Enable => 13, when Spin_Direction_Normal => 20, when Spin_Direction_Reversed => 21);
+
+   subtype Command_Slot is Positive range 1 .. 4;
+   type Command_List is array (Command_Slot) of DShot_Command;
+   type Command_Log is record
+      Count : Small_Count := 0;
+      Items : Command_List := (others => Spin_Direction_Normal);
+   end record;
+
    --  What one pass asks of the other units.
    type Outputs is record
       Beeper                    : Beeps;
@@ -97,6 +112,11 @@ package Adaflight.Arming with SPARK_Mode is
       Iterm_Reset               : Boolean := True;
       Anti_Gravity              : Boolean := False;
       Iterm_Resets              : Small_Count := 0;
+      --  The DShot commands of the pass, the clears of the DShot telemetry
+      --  data, and the RPM limiter resets at arming.
+      DShot_Commands            : Command_Log;
+      Telemetry_Cleans          : Small_Count := 0;
+      RPM_Limiter_Resets        : Small_Count := 0;
    end record;
 
    type Sensor_Set is record
@@ -137,6 +157,11 @@ package Adaflight.Arming with SPARK_Mode is
       Runaway_Deactivate_Throttle : Natural range 0 .. 100 := 20;
       CPU_Late_Limit             : Natural range 0 .. 65_535 := 10;
       Sensors                    : Sensor_Set;
+      --  The DShot protocol, its extended telemetry setting, and the ESC
+      --  sensor feature.
+      DShot                      : Boolean := False;
+      DShot_EDT                  : Boolean := False;
+      ESC_Sensor                 : Boolean := False;
    end record;
 
    --  The controller's sums, the gyro's absolute rates to the whole degree
@@ -167,9 +192,22 @@ package Adaflight.Arming with SPARK_Mode is
       PID_Sums                   : Axis_Sums := (others => 0.0);
       Gyro_Abs_Dps               : Axis_Rates_Dps := (others => 0);
       Deflection_Abs             : Axis_Deflections := (others => 0.0);
+      --  The DShot command stream's readiness, the time of the last beacon
+      --  command, the DShot telemetry setting with every motor reporting, and
+      --  the bitbang driver with its status.
+      DShot_Streaming            : Boolean := True;
+      Last_Beacon_Us             : Time_Us := 0;
+      DShot_Telemetry            : Boolean := False;
+      DShot_Telemetry_Active     : Boolean := True;
+      Bitbang_Active             : Boolean := False;
+      Bitbang_OK                 : Boolean := True;
    end record;
 
    type Launch_State is (Launch_Disabled, Launch_Active, Launch_Triggered);
+
+   --  An arming the DShot beacon's guard delays, kept until it arms or the
+   --  pilot lets go: a normal one, a crash flip, or one into launch control.
+   type Arm_Delay is (Not_Trying, Trying_Normal, Trying_Crash_Flip, Trying_Launch_Control);
 
    subtype Reason_Index is Natural range 0 .. 30;
    subtype Hold_Time is Integer range -32_768 .. 32_767;
@@ -202,9 +240,12 @@ package Adaflight.Arming with SPARK_Mode is
       Runaway_Accumulated_Us : Time_Us := 0;
       Runaway_Trigger_Us     : Time_Us := 0;
       Mode_Overrides         : Modes.Mask := (others => False);
+      Trying                 : Arm_Delay := Not_Trying;
    end record;
 
    function Launch_Control_Active (S : State) return Boolean is (S.Launch = Launch_Active);
+
+   function Trying_To_Arm (S : State) return Boolean is (S.Trying /= Not_Trying);
 
    function Arming_Disabled (S : State) return Boolean is
      (for some R in Disable_Reason => S.Disabled (R));
@@ -242,7 +283,8 @@ package Adaflight.Arming with SPARK_Mode is
    procedure Clear_Mode_Overrides (S : in out State)
      with Post => S.Armed = S.Armed'Old;
 
-   procedure Disarm (S : in out State; Reason : Disarm_Reason; Now_Us : Time_Us; Out_Step : in out Outputs)
+   procedure Disarm
+     (S : in out State; C : Settings; Reason : Disarm_Reason; Now_Us : Time_Us; Out_Step : in out Outputs)
      with Post => not S.Armed;
 
    procedure Try_Arm (

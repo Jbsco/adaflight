@@ -170,7 +170,9 @@ package body Adaflight.Arming with SPARK_Mode is
       if S.Armed then
          return;
       end if;
-      if S.Disabled (Boot_Grace) and then Now_Us / 1_000 >= Time_Us (C.Boot_Grace_Time) * 1_000 then
+      if S.Disabled (Boot_Grace) and then Now_Us / 1_000 >= Time_Us (C.Boot_Grace_Time) * 1_000
+        and then (not C.DShot or else Sensed.DShot_Streaming)
+      then
          S.Disabled (Boot_Grace) := False;
       end if;
       --  An arm switch left on while the link was down must not arm when
@@ -197,6 +199,8 @@ package body Adaflight.Arming with SPARK_Mode is
          S.Disabled (No_Prearm) :=
            not (Modes.Is_Active (M, Modes.Prearm) and then (not S.Armed_With_Prearm or else C.Prearm_Allow_Rearm));
       end if;
+      S.Disabled (DShot_Telemetry) := Sensed.DShot_Telemetry and then not Sensed.DShot_Telemetry_Active;
+      S.Disabled (DShot_Bitbang) := Sensed.Bitbang_Active and then not Sensed.Bitbang_OK;
       if Modes.Is_Active (M, Modes.Paralyze) then
          S.Disabled (Paralyzed) := True;
       end if;
@@ -244,7 +248,25 @@ package body Adaflight.Arming with SPARK_Mode is
       S.Mode_Overrides := (others => False);
    end Clear_Mode_Overrides;
 
-   procedure Disarm (S : in out State; Reason : Disarm_Reason; Now_Us : Time_Us; Out_Step : in out Outputs) is
+   procedure Log (L : in out Command_Log; Command : DShot_Command) is
+   begin
+      if L.Count < Command_Slot'Last then
+         L.Items (L.Count + 1) := Command;
+      end if;
+      Bump (L.Count);
+   end Log;
+
+   --  The motors' spin direction, sent with a DShot protocol outside 3D.
+   procedure Set_Spin_Direction (C : Settings; Direction : DShot_Command; Out_Step : in out Outputs) is
+   begin
+      if C.DShot and then not C.Three_D then
+         Log (Out_Step.DShot_Commands, Direction);
+      end if;
+   end Set_Spin_Direction;
+
+   procedure Disarm
+     (S : in out State; C : Settings; Reason : Disarm_Reason; Now_Us : Time_Us; Out_Step : in out Outputs)
+   is
    begin
       Clear_Mode_Overrides (S);
       Bump (Out_Step.Disarm_Calls);
@@ -253,6 +275,7 @@ package body Adaflight.Arming with SPARK_Mode is
          S.Was_Ever_Armed := True;
          S.Armed := False;
          S.Last_Disarm_Us := Now_Us;
+         Set_Spin_Direction (C, Spin_Direction_Normal, Out_Step);
          if not (S.Disabled (Runaway_Disarm) or else S.Disabled (Crash_Disarm)) then
             Request (Out_Step.Beeper, Disarm_Tone);
          end if;
@@ -270,6 +293,7 @@ package body Adaflight.Arming with SPARK_Mode is
       and then (not C.Motor_Stop or else M.Airmode_Enabled) and then not C.Three_D
       and then (for all F in Flight_Mode => not S.Flight_Modes (F)));
 
+   Beacon_Guard_Delay_Us      : constant := 1_200_000;
    Runaway_Sum_Threshold      : constant Float := 600.0;
    Runaway_Activate_Delay_Us  : constant := 75_000;
    Runaway_Stick_Percent      : constant Float := 15.0;
@@ -308,10 +332,31 @@ package body Adaflight.Arming with SPARK_Mode is
          if S.Armed then
             return;
          end if;
-         if Can_Use_Launch_Control (S, C, M) and then S.Launch = Launch_Disabled then
+         --  A DShot beacon command in the last 1.2 s holds the arming back,
+         --  and the attempt is kept for the next pass.
+         if Now_Us - Seen.Last_Beacon_Us < Beacon_Guard_Delay_Us then
+            if S.Trying = Not_Trying then
+               S.Trying := (if Can_Use_Launch_Control (S, C, M) then Trying_Launch_Control else Trying_Normal);
+            end if;
+            return;
+         end if;
+         if C.DShot then
+            if not C.ESC_Sensor and then Seen.DShot_Telemetry then
+               Bump (Out_Step.Telemetry_Cleans);
+               if C.DShot_EDT then
+                  Log (Out_Step.DShot_Commands, Extended_Telemetry_Enable);
+               end if;
+            end if;
+            Set_Spin_Direction (C, Spin_Direction_Normal, Out_Step);
+         end if;
+         if (Can_Use_Launch_Control (S, C, M) or else S.Trying = Trying_Launch_Control)
+           and then S.Launch = Launch_Disabled
+         then
             S.Launch := Launch_Active;
          end if;
+         Bump (Out_Step.RPM_Limiter_Resets);
          S.Armed := True;
+         S.Trying := Not_Trying;
          S.Runaway_Deactivate_Us := 0;
          S.Runaway_Accumulated_Us := 0;
          S.Runaway_Trigger_Us := 0;
@@ -322,15 +367,18 @@ package body Adaflight.Arming with SPARK_Mode is
          S.Disarm_At := Now_Us + Time_Us (C.Auto_Disarm_Delay) * 1_000_000;
          S.Last_Disabled_Reason := 0;
          Request (Out_Step.Beeper, Arm_Tone);
-      elsif not Seen.First_Arm_Gyro_Cal_Running then
-         declare
-            Reason : constant Reason_Index := First_Reason (S.Disabled);
-         begin
-            if S.Last_Disabled_Reason /= Reason then
-               S.Last_Disabled_Reason := Reason;
-               Request (Out_Step.Beeper, Warning_Tones, Reason);
-            end if;
-         end;
+      else
+         S.Trying := Not_Trying;
+         if not Seen.First_Arm_Gyro_Cal_Running then
+            declare
+               Reason : constant Reason_Index := First_Reason (S.Disabled);
+            begin
+               if S.Last_Disabled_Reason /= Reason then
+                  S.Last_Disabled_Reason := Reason;
+                  Request (Out_Step.Beeper, Warning_Tones, Reason);
+               end if;
+            end;
+         end if;
       end if;
    end Try_Arm;
 
@@ -405,7 +453,7 @@ package body Adaflight.Arming with SPARK_Mode is
       In_Launch       : constant Boolean := S.Launch = Launch_Active;
    begin
       if C.Three_D and then not Modes.Is_Active (M, Modes.Arm) then
-         Disarm (S, Switch, Now_Us, Out_Step);
+         Disarm (S, C, Switch, Now_Us, Out_Step);
       end if;
       if Now_Us > Failsafe_Power_On_Delay_Us and then not Sensed.Failsafe_Monitoring then
          Out_Step.Start_Failsafe_Monitoring := True;
@@ -476,7 +524,7 @@ package body Adaflight.Arming with SPARK_Mode is
                S.Runaway_Trigger_Us := Now_Us + Runaway_Activate_Delay_Us;
             elsif Clock.Elapsed (Now_Us, S.Runaway_Trigger_Us) > 0 then
                S.Disabled (Runaway_Disarm) := True;
-               Disarm (S, Runaway_Takeoff, Now_Us, Out_Step);
+               Disarm (S, C, Runaway_Takeoff, Now_Us, Out_Step);
             end if;
          else
             S.Runaway_Trigger_Us := 0;
@@ -533,6 +581,7 @@ package body Adaflight.Arming with SPARK_Mode is
             S.Disarm_Ticks := 0;
             Try_Arm (S, C, M, Conds, Sensed, Channels, Now_Us, Out_Step);
          else
+            S.Trying := Not_Trying;
             S.Disarm_Requested := True;
             S.Last_Disabled_Reason := 0;
             --  After a link loss the switch disarms only on validated frames,
@@ -540,7 +589,7 @@ package body Adaflight.Arming with SPARK_Mode is
             if S.Armed and then (Sensed.Failsafe_Receiving or else Modes.Is_Active (M, Modes.Failsafe)) then
                S.Disarm_Ticks := (S.Disarm_Ticks + 1) mod 256;
                if S.Disarm_Ticks > 3 then
-                  Disarm (S, Switch, Now_Us, Out_Step);
+                  Disarm (S, C, Switch, Now_Us, Out_Step);
                end if;
             end if;
          end if;
@@ -548,8 +597,9 @@ package body Adaflight.Arming with SPARK_Mode is
          if S.Hold_Ms >= Arm_Delay_Ms and then not S.Do_Not_Repeat then
             S.Do_Not_Repeat := True;
             S.Disarm_Requested := True;
+            S.Trying := Not_Trying;
             if S.Armed then
-               Disarm (S, Sticks, Now_Us, Out_Step);
+               Disarm (S, C, Sticks, Now_Us, Out_Step);
             else
                Request (Out_Step.Beeper, Disarm_Repeat_Tone);
                S.Hold_Ms := S.Hold_Ms - Stick_Autorepeat_Ms;
@@ -566,7 +616,7 @@ package body Adaflight.Arming with SPARK_Mode is
             S.Do_Not_Repeat := True;
             if not S.Armed then
                Try_Arm (S, C, M, Conds, Sensed, Channels, Now_Us, Out_Step);
-               if S.Disabled = Only_Calibrating and then C.Gyro_Cal_On_First_Arm then
+               if Trying_To_Arm (S) or else (S.Disabled = Only_Calibrating and then C.Gyro_Cal_On_First_Arm) then
                   S.Do_Not_Repeat := False;
                end if;
             else
@@ -574,6 +624,8 @@ package body Adaflight.Arming with SPARK_Mode is
             end if;
          end if;
          return;
+      else
+         S.Trying := Not_Trying;
       end if;
 
       if S.Armed or else S.Do_Not_Repeat or else S.Hold_Ms <= Stick_Delay_Ms
@@ -748,7 +800,7 @@ package body Adaflight.Arming with SPARK_Mode is
          if S.Sticks_Arm then
             if Status = Throttle_Low then
                if Auto_Delay_Us > 0 and then Clock.Elapsed (Now_Us, S.Disarm_At) > 0 then
-                  Disarm (S, Throttle_Timeout, Now_Us, Out_Step);
+                  Disarm (S, C, Throttle_Timeout, Now_Us, Out_Step);
                   S.Armed_Beeper_On := False;
                else
                   Request (Out_Step.Beeper, Armed_Tone);

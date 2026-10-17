@@ -3740,6 +3740,10 @@ procedure Vector_Check is
    Arm_Tri_Servo     : Boolean := False;
    Arming_Modes      : Adaflight.Modes.State;
    Arming_Conditions : Adaflight.Modes.Conditions;
+   --  The DShot sequences' inputs before each step and the step's outputs.
+   Arm_DShot_Mode    : Boolean := False;
+   Arm_DShot_In      : Adaflight.Arming.Inputs;
+   Arm_Last_Step     : Adaflight.Arming.Outputs;
 
    procedure Check_Arming_Line is
       use Adaflight.Arming;
@@ -3821,7 +3825,11 @@ procedure Vector_Check is
             Runaway_Deactivate_Throttle => Integer (Int (151)),
             CPU_Late_Limit             => Integer (Int (155)),
             Sensors                    =>
-              (Gyro => Int (21) /= 0, Acc => Int (22) /= 0, Baro => Int (23) /= 0, Mag => Int (24) /= 0));
+              (Gyro => Int (21) /= 0, Acc => Int (22) /= 0, Baro => Int (23) /= 0, Mag => Int (24) /= 0),
+            DShot                      => False,
+            DShot_EDT                  => False,
+            ESC_Sensor                 => False);
+         Arm_DShot_Mode := False;
          for M in Adaflight.Modes.Condition_Index loop
             declare
                F : constant Positive := 25 + 6 * M;
@@ -3870,7 +3878,13 @@ procedure Vector_Check is
                                               Adaflight.Axes.Pitch => Integer (Int (65)),
                                               Adaflight.Axes.Yaw   => Integer (Int (66))),
                Deflection_Abs             => (Adaflight.Axes.Roll => Flt (67), Adaflight.Axes.Pitch => Flt (68),
-                                              Adaflight.Axes.Yaw => Flt (69)));
+                                              Adaflight.Axes.Yaw => Flt (69)),
+               DShot_Streaming            => not Arm_DShot_Mode or else Arm_DShot_In.DShot_Streaming,
+               Last_Beacon_Us             => (if Arm_DShot_Mode then Arm_DShot_In.Last_Beacon_Us else Now_Us + 1),
+               DShot_Telemetry            => Arm_DShot_Mode and then Arm_DShot_In.DShot_Telemetry,
+               DShot_Telemetry_Active     => not Arm_DShot_Mode or else Arm_DShot_In.DShot_Telemetry_Active,
+               Bitbang_Active             => Arm_DShot_Mode and then Arm_DShot_In.Bitbang_Active,
+               Bitbang_OK                 => not Arm_DShot_Mode or else Arm_DShot_In.Bitbang_OK);
             --  The calibration state the receiver pass reads, recorded before
             --  the step's commands change it.
             Sensed_Before : Inputs := Sensed;
@@ -4051,7 +4065,30 @@ procedure Vector_Check is
                Put_Line ("armstep: consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
                Failures := Failures + 1;
             end if;
+            Arm_Last_Step := Step;
          end;
+      elsif Name = "armdshotinit" then
+         Arming_Settings.DShot := Int (3) /= 0;
+         Arming_Settings.DShot_EDT := Int (4) /= 0;
+         Arming_Settings.ESC_Sensor := Int (5) /= 0;
+         Arm_DShot_Mode := True;
+      elsif Name = "armdshotin" then
+         Arm_DShot_In.DShot_Streaming := Int (4) /= 0;
+         Arm_DShot_In.Last_Beacon_Us := Interfaces.Unsigned_32 (Int (5));
+         Arm_DShot_In.DShot_Telemetry := Int (6) /= 0;
+         Arm_DShot_In.DShot_Telemetry_Active := Int (7) /= 0;
+         Arm_DShot_In.Bitbang_Active := Int (8) /= 0;
+         Arm_DShot_In.Bitbang_OK := Int (9) /= 0;
+      elsif Name = "armdshot" then
+         Record_Int ("armdshot.trying", Int (4), Integer_64 (Arm_Delay'Pos (Arming_State.Trying)));
+         Record_Int ("armdshot.commands", Int (5), Integer_64 (Arm_Last_Step.DShot_Commands.Count));
+         for J in Command_Slot loop
+            Record_Int ("armdshot.command", Int (5 + J),
+                        (if J <= Arm_Last_Step.DShot_Commands.Count
+                         then Integer_64 (Command_Code (Arm_Last_Step.DShot_Commands.Items (J))) else -1));
+         end loop;
+         Record_Int ("armdshot.cleans", Int (10), Integer_64 (Arm_Last_Step.Telemetry_Cleans));
+         Record_Int ("armdshot.rpm_resets", Int (11), Integer_64 (Arm_Last_Step.RPM_Limiter_Resets));
       else
          Put_Line ("unknown arming case " & Name);
          Failures := Failures + 1;
@@ -14957,7 +14994,8 @@ procedure Vector_Check is
          AS : constant Adaflight.Arming.Settings :=
            Adaflight.Config_Runtime.Arming_Settings_Of
              (C.Arming_Config, C.System_Config, C.Rx_Config, C.Flight3_D_Config, C.Mixer_Config.Mixer_Mode,
-              C.Pid_Config, C.Scheduler_Config, C.Pid_Profiles (Natural (C.System_Config.Pid_Profile_Index)), Runtime,
+              C.Pid_Config, C.Scheduler_Config, C.Motor_Config,
+              C.Pid_Profiles (Natural (C.System_Config.Pid_Profile_Index)), Runtime,
               (Gyro => True, Acc => True, Baro => False, Mag => False));
          MC : constant Adaflight.Modes.Conditions :=
            Adaflight.Config_Runtime.Conditions_Of (C.Mode_Activation_Conditions);
@@ -21844,6 +21882,7 @@ begin
    Run (Dir & "/battery.csv", "battery");
    Run (Dir & "/batsag.csv", "battery");
    Run (Dir & "/arming.csv", "arming");
+   Run (Dir & "/armdshot.csv", "arming");
    Run (Dir & "/compass.csv", "compass");
    Run (Dir & "/position.csv", "position");
    Run (Dir & "/altitude.csv", "altitude");
