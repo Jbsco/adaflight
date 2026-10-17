@@ -16,7 +16,8 @@
 --  and sensor_hardware lists the hardware each sensor type can be; bind_rx
 --  starts the receiver's bind; sd_info reports the SD card and its file
 --  system, and flash_info the flash chip with its partitions; bl restarts
---  the board into its ROM bootloader and msc into mass storage;
+--  the board into its ROM bootloader and msc into mass storage; help lists
+--  the commands of the build with their descriptions and arguments;
 --  save, exit and defaults without nosave ask for the configuration's write,
 --  the board's restart or the command line's end. A line naming no command
 --  gets the ERR_CMD_NA reply.
