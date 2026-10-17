@@ -40,7 +40,7 @@ The core contains:
 - PID profile with runtime configuration, filter initialization, rate loop, throttle-side
   features, crash recovery, launch control, yaw spin recovery, and landing disarm
 - motor mixer with mixer setup: frame tables, custom mixes, launch control mix, launch control,
-  altitude hold and GPS rescue throttles, RPM limiter and crash flip mixing
+  altitude hold and GPS rescue throttles, RPM limiter, crash flip mixing and DShot failsafe floor
 - gyro calibration, filtering chain, dynamic notch, RPM filter, and full-scale detections
 - attitude estimator with compass heading, and angle and horizon level modes with GPS rescue,
   altitude hold and position hold
