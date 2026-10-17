@@ -2,8 +2,9 @@
 --  and the setpoint, with the acceleration limit, the angle and horizon
 --  level modes that turn the setpoint into an angle error rate, iterm relax,
 --  iterm rotation, the D-term filter chain and D-max, the throttle-side TPA
---  factor and anti-gravity terms, and a wing build's airspeed TPA, S term
---  and setpoint scaling, in the operation order of the reference.
+--  factor and anti-gravity terms, and a wing build's airspeed TPA, S term,
+--  setpoint scaling, setpoint attenuation, pitch offset and passthrough, in
+--  the operation order of the reference.
 
 with Interfaces;
 with Adaflight.Axes; use Adaflight.Axes;
@@ -105,6 +106,8 @@ package Adaflight.PID_Controller with SPARK_Mode, Pure is
       Max_Deflection            : Float range 0.0 .. 1.0 := 0.0;
       RC_Throttle               : Float range 0.0 .. 1.0 := 0.0;
       Jerk_Magnitude            : Float range 0.0 .. 1.0E30 := 0.0;
+      --  A fixed wing in a wing build drops every term in passthrough.
+      Passthru_Mode             : Boolean := False;
    end record;
 
    --  A wing's airspeed model reads the motors' RMS output over their range,
@@ -120,6 +123,8 @@ package Adaflight.PID_Controller with SPARK_Mode, Pure is
    --  The airspeed holds within this bound, far above any flight.
    Wing_Speed_Bound : constant := 1.0e10;
 
+   type Axis_Attenuations is array (Axis) of Unit_Interval;
+
    type State is record
       Data                    : Axis_Terms;
       Filters                 : PID_Filters.State;
@@ -134,6 +139,7 @@ package Adaflight.PID_Controller with SPARK_Mode, Pure is
       TPA_Factor_Yaw          : Signal := 0.0;
       TPA_Factor_S            : Axis_Signals := (others => 0.0);
       Wing_Speed              : Float range 0.0 .. Wing_Speed_Bound := 0.0;
+      SPA                     : Axis_Attenuations := (others => 1.0);
       Stabilisation_Enabled   : Boolean := False;
       Angle_Target            : Level_Targets := (others => 0.0);
       Angle_Yaw_Setpoint      : Rate := 0.0;

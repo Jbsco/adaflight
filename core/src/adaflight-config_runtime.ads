@@ -402,6 +402,11 @@ private
       D => Held (Integer (G.D), 10, 200),
       F => Held (Integer (G.F and 16#FF#), 0, 200));
 
+   --  A setpoint attenuation code past the last mode attenuates the I term's
+   --  change and scales no term, as the I freeze mode does.
+   function SPA_Mode_Of (Code : Unsigned_8) return SPA_Kind is
+     (if Code <= SPA_Kind'Pos (SPA_Kind'Last) then SPA_Kind'Val (Code) else I_Freeze);
+
    function PID_Profile_Of (P : Pid_Profile_Record) return PID_Profile.Profile is
      (Gains                    => (Roll => Axis_Gains_Of (P.Pid (0)), Pitch => Axis_Gains_Of (P.Pid (1)),
                                    Yaw => Axis_Gains_Of (P.Pid (2))),
@@ -494,6 +499,11 @@ private
       TPA_Speed_Max_Voltage    => Integer (P.Tpa_Speed_Max_Voltage),
       TPA_Speed_Pitch_Offset   => Integer (P.Tpa_Speed_Pitch_Offset),
       Yaw_Type                 => (if P.Yaw_Type = 1 then Diff_Thrust else Rudder),
+      SPA_Center               => (Integer (P.Spa_Center (0)), Integer (P.Spa_Center (1)), Integer (P.Spa_Center (2))),
+      SPA_Width                => (Integer (P.Spa_Width (0)), Integer (P.Spa_Width (1)), Integer (P.Spa_Width (2))),
+      SPA_Mode                 =>
+        (SPA_Mode_Of (P.Spa_Mode (0)), SPA_Mode_Of (P.Spa_Mode (1)), SPA_Mode_Of (P.Spa_Mode (2))),
+      Angle_Pitch_Offset       => Integer (P.Angle_Pitch_Offset),
       Throttle_Boost           => Held (Integer (P.Throttle_Boost), 0, 100),
       Ez_Landing_Threshold     => Held (Integer (P.Ez_Landing_Threshold), 0, 200),
       Ez_Landing_Limit         => Held (Integer (P.Ez_Landing_Limit), 0, 75),

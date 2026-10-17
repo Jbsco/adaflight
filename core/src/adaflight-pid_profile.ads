@@ -39,6 +39,7 @@ package Adaflight.PID_Profile with SPARK_Mode, Pure is
    type Simplified_Mode is (Off, RP, RPY);
    type TPA_Speed_Kind is (Basic, Advanced);
    type Yaw_Kind is (Rudder, Diff_Thrust);
+   type SPA_Kind is (Off, I_Freeze, I_Term, PID_Terms, PD_I_Freeze);
 
    subtype Percent is Natural range 0 .. 100;
    subtype Milliseconds is Natural range 0 .. 65535;
@@ -47,6 +48,8 @@ package Adaflight.PID_Profile with SPARK_Mode, Pure is
    subtype Tuning_Factor is Natural range 0 .. 200;
    subtype Setting_16 is Natural range 0 .. 65_535;
    subtype Positive_Setting_16 is Positive range 1 .. 65_535;
+   type Axis_Settings_16 is array (Axis) of Setting_16;
+   type Axis_SPA_Modes is array (Axis) of SPA_Kind;
 
    type Profile is record
       Gains                    : Axis_Gain_Set;
@@ -134,6 +137,14 @@ package Adaflight.PID_Profile with SPARK_Mode, Pure is
       TPA_Speed_Max_Voltage    : Setting_16 := 2520;
       TPA_Speed_Pitch_Offset   : Integer range -32_768 .. 32_767 := 0;
       Yaw_Type                 : Yaw_Kind := Rudder;
+      --  A wing's setpoint PID attenuation per axis: the setpoint in degrees
+      --  per second at the middle of the attenuation, the width over which it
+      --  rises, and the terms it attenuates; and the level modes' pitch offset
+      --  in tenths of a degree.
+      SPA_Center               : Axis_Settings_16 := (others => 0);
+      SPA_Width                : Axis_Settings_16 := (others => 0);
+      SPA_Mode                 : Axis_SPA_Modes := (others => Off);
+      Angle_Pitch_Offset       : Integer range -32_768 .. 32_767 := 0;
       Throttle_Boost           : Percent := 5;
       Ez_Landing_Threshold     : Natural range 0 .. 200 := 25;
       Ez_Landing_Limit         : Natural range 0 .. 75 := 15;

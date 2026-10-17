@@ -312,6 +312,9 @@ ledger. The deviations so far:
   an undefined airspeed and TPA from the first loop (F231). A speed type past the advanced model runs the
   advanced model, where the reference leaves the model unset. The recorded vectors keep the settings in
   the command line's ranges.
+- A wing's setpoint attenuation is one at the center of a zero-width window (D281). The reference divides
+  zero by zero there, and its I term turns undefined (F232). The recorded vectors keep every width above
+  zero.
 
 ## D7. Contribution conventions (2026-10-08)
 
@@ -6400,3 +6403,19 @@ bound, and both holds are inert. The TPA low rate reaches -128, as a wing build'
 oracle's wing build runs 37 sequences over a quad, a flying wing and an airplane with both yaw controls,
 both models, the three TPA modes and both curves, and every step replays exactly. Nine tampered paths each
 fail the vectors.
+
+## D281. Wing setpoint attenuation (2026-10-16)
+
+A wing build's controller attenuates its terms by the setpoint, the setpoint PID attenuation (SPA). Each
+loop it takes each axis's attenuation as one minus the smooth step of the setpoint's magnitude over the
+profile's window, from its center and width. Outside the off mode the I term's change takes the attenuation.
+After the S term the PID mode scales P, D and I, the I mode scales the I term, and the PD mode with the I
+frozen scales P and D. An axis in a level mode skips that scaling and keeps the I change's attenuation.
+Stored mode codes past the last act as the I freeze mode.
+
+A wing build adds the profile's pitch offset to the pitch angle target in the level modes and leaves out
+position hold's autopilot angle. A fixed wing in passthrough drops every term, as with the controller off.
+
+The PID oracle's wing build runs 37 level mode sequences of 240 loops over a quad, a flying wing and an
+airplane with the five attenuation modes, pitch offsets, passthrough and the hold modes, and every step
+replays exactly. Six tampered paths each fail the vectors.
