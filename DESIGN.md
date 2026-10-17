@@ -194,8 +194,8 @@ ledger. The deviations so far:
   message checks the whole request before it stores anything, so a short request, which the
   reference stores as zero filter cutoffs, is an error (findings F142). The checker expects the
   error and unchanged settings for the recorded requests outside the ranges.
-- MSP tuning, advanced, filter, advanced PID, receiver, hardware and battery writes with a field
-  outside its setting's range are errors that write and change nothing (D203 to D207), where the
+- MSP tuning, advanced, filter, advanced PID, receiver, hardware, battery and feature writes with a
+  field outside its setting's range are errors that write and change nothing (D203 to D208), where the
   reference stores the field's bytes, or for a dynamic notch count, an RPM filter value, a
   feedforward averaging, a mode range's linked mode or battery cell voltages out of order rejects
   the request after writing its earlier fields (findings F189 to F191). A field no setting names takes the bounds of the command
@@ -4882,3 +4882,21 @@ battery profile selections, resets and listings: 812 within their ranges, whose 
 configuration hashes all match the reference's, 38 short battery requests that both reject, and 233
 outside the ranges, each an error that leaves the configuration unchanged, 24 of them ones the
 reference rejects after writing the meter sources.
+
+## D208. MSP feature writes (2026-10-15)
+
+`Adaflight.MSP_Feature_In` contains the MSP in messages that replace the features in use, write
+the beeper conditions with the DShot beacon's tone and conditions, and write the motor output order,
+under the same whole-request check as D203. The feature mask may hold only the features the command
+line's feature command names, and the beeper and beacon masks only the conditions its beeper and
+beacon commands switch; the beacon's tone takes its setting's range and arrives when a byte remains,
+the beacon conditions when four more remain. The motor order message names a count and that many
+positions up to eight, and the motors past the count keep their own place; a request without the
+count or with fewer positions than it names is an error, in the reference as well. The order's
+setting has no range, so any position goes in, and the storage layer's fix checks it at the save
+(D199).
+
+The harness replays two sequences of 600 lines from the command line oracle, 1090 requests among
+resets and listings: 957 within their ranges, whose results and configuration hashes all match the
+reference's, 70 short motor order requests that both reject, and 63 outside the ranges, each an
+error that leaves the configuration unchanged.
