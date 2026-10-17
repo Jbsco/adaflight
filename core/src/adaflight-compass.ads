@@ -1,8 +1,8 @@
 --  The compass: the raw field aligned to the body frame through the
 --  sensor's alignment and the board rotation, the calibration that waits
 --  for the craft to move and then fits the hard-iron bias with a recursive
---  least squares estimator on the field's sphere, and the zero offsets
---  subtracted from every read.
+--  least squares estimator on the field's sphere, the zero offsets
+--  subtracted from every read, and the task's read cycle.
 with Adaflight.Clock;
 with Adaflight.Vectors;
 with Adaflight.Sensor_Alignment;
@@ -16,11 +16,17 @@ package Adaflight.Compass with SPARK_Mode is
    subtype Zero_Count is Integer range -32_768 .. 32_767;
    type Zero_Offsets is array (Coordinate) of Zero_Count;
 
+   --  A device's output data rate in hertz, none at zero; the drivers' rates
+   --  lie within this range.
+   subtype Output_Rate is Natural range 0 .. 400
+     with Static_Predicate => Output_Rate in 0 | 16 .. 400;
+
    type Settings is record
       Alignment     : Sensor_Alignment.Standard_Alignment := Sensor_Alignment.Default;
       Custom_Angles : Sensor_Alignment.Alignment_Angles;
       Board         : Sensor_Alignment.Board_Angles;
       Zero          : Zero_Offsets := (others => 0);
+      Odr_Hz        : Output_Rate := 0;
    end record;
 
    --  An aligned count: a standard alignment permutes the raw counts, and
@@ -78,6 +84,8 @@ package Adaflight.Compass with SPARK_Mode is
       Estimator          : Bias_Estimator;
       Beeper             : Beep := Silence;
       Save_Requested     : Boolean := False;
+      --  The wait after a read before the next, in microseconds.
+      Read_Interval_Us   : Natural range 0 .. 65_535 := 25_000;
    end record;
 
    --  The squared gyro norm, in radians per second squared, that starts the
@@ -85,8 +93,10 @@ package Adaflight.Compass with SPARK_Mode is
    function Movement_Threshold return Float;
 
    --  The alignment, the rotation from the negated custom angles, the board
-   --  rotation, the estimator at its initial covariance, and the stored
-   --  zero, which counts as a calibration when any offset is nonzero.
+   --  rotation, the estimator at its initial covariance, the stored zero,
+   --  which counts as a calibration when any offset is nonzero, and the read
+   --  interval: the output data period less two rechecks and a twentieth of
+   --  itself, or the task period of 40 Hz for a device without a rate.
    procedure Init (S : out State; C : Settings);
 
    --  Starts the wait for movement and resets the estimator's covariance.
@@ -105,6 +115,21 @@ package Adaflight.Compass with SPARK_Mode is
    --  zero subtracted. The beeper request and the save request are set for
    --  this read only. The gyro rates are in degrees per second.
    procedure Update (S : in out State; C : Settings; Sample : Raw_Vector; Gyro : Vectors.Vector3; Now_Us : Time_Us)
+     with Pre => Vectors.Bounded (Gyro, 2.0 ** 32);
+
+   --  One call of the compass task: with the bus busy it comes back in 500 us
+   --  and without new data in 1 ms, making no read; with new data it reads
+   --  the sample and comes back after the read interval. Every call ignores
+   --  the task's execution rate.
+   procedure Read_Cycle
+     (S              : in out State;
+      C              : Settings;
+      Bus_Busy       : Boolean;
+      Data_Ready     : Boolean;
+      Sample         : Raw_Vector;
+      Gyro           : Vectors.Vector3;
+      Now_Us         : Time_Us;
+      Next_Period_Us : out Natural)
      with Pre => Vectors.Bounded (Gyro, 2.0 ** 32);
 
 end Adaflight.Compass;

@@ -3424,6 +3424,11 @@ procedure Vector_Check is
    Comp_State    : Adaflight.Compass.State;
    Comp_Settings : Adaflight.Compass.Settings;
    Comp_Saves    : Integer_64 := 0;
+   Comp_Odr      : Adaflight.Compass.Output_Rate := 0;
+   Comp_Busy     : Boolean := False;
+   Comp_Ready    : Boolean := True;
+   Comp_Period   : Integer_64 := 0;
+   Comp_Read_Set : Boolean := False;
 
    procedure Check_Compass_Line is
       use Adaflight.Compass;
@@ -3442,15 +3447,25 @@ procedure Vector_Check is
             Board         => (Roll => Integer (Int (7)), Pitch => Integer (Int (8)), Yaw => Integer (Int (9))),
             Zero          => (Adaflight.Vectors.X => Integer (Int (10)),
                               Adaflight.Vectors.Y => Integer (Int (11)),
-                              Adaflight.Vectors.Z => Integer (Int (12))));
+                              Adaflight.Vectors.Z => Integer (Int (12))),
+            Odr_Hz        => Comp_Odr);
          Init (Comp_State, Comp_Settings);
          Comp_Saves := 0;
+         Comp_Odr := 0;
+         Record_Int ("compinit.read_interval", Int (18), Integer_64 (Comp_State.Read_Interval_Us));
          Record_Int ("compinit.alignment", Int (13),
                      Adaflight.Sensor_Alignment.Standard_Alignment'Pos (Comp_State.Alignment));
          Record_Int ("compinit.calibrated", Int (14), Boolean'Pos (Comp_State.Calibrated));
          Record_Result ("compinit.lambda", Bits (15), To_Bits (Comp_State.Estimator.Lambda));
          Record_Result ("compinit.d0", Bits (16), To_Bits (Comp_State.Estimator.D (0)));
          Record_Result ("compinit.threshold", Bits (17), To_Bits (Movement_Threshold));
+      elsif Name = "compreadinit" then
+         Comp_Odr := Natural (Int (3));
+      elsif Name = "compread" then
+         Comp_Busy := Str (4) = "1";
+         Comp_Ready := Str (5) = "1";
+         Comp_Period := Int (6);
+         Comp_Read_Set := True;
       elsif Name = "compstep" then
          declare
             Sample : constant Raw_Vector :=
@@ -3475,7 +3490,17 @@ procedure Vector_Check is
                Start_Calibration (Comp_State, Now);
                Record_Int ("compstep.beep_start", Int (22), Beep_Code (Comp_State.Beeper));
             end if;
-            Update (Comp_State, Comp_Settings, Sample, Gyro, Now);
+            declare
+               Next_Period : Natural;
+            begin
+               Read_Cycle (Comp_State, Comp_Settings, Comp_Busy, Comp_Ready, Sample, Gyro, Now, Next_Period);
+               if Comp_Read_Set then
+                  Record_Int ("compread.period", Comp_Period, Integer_64 (Next_Period));
+               end if;
+            end;
+            Comp_Busy := False;
+            Comp_Ready := True;
+            Comp_Read_Set := False;
             if Comp_State.Save_Requested then
                Comp_Saves := Comp_Saves + 1;
             end if;
@@ -22388,6 +22413,7 @@ begin
    Run (Dir & "/armwing.csv", "arming");
    Run (Dir & "/arminfl.csv", "arming");
    Run (Dir & "/compass.csv", "compass");
+   Run (Dir & "/compread.csv", "compass");
    Run (Dir & "/position.csv", "position");
    Run (Dir & "/altitude.csv", "altitude");
    Run (Dir & "/althold.csv", "althold");
