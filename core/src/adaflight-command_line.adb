@@ -3590,7 +3590,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
 
    type Command_Kind is
      (No_Command, Adjustment_Range_Command_Word, Aux_Command_Word, Batch_Command_Word, Battery_Profile_Command,
-      Beacon_Command, Exit_Command_Word, Save_Command_Word,
+      Beacon_Command, Bootloader_Command_Word, Exit_Command_Word, Save_Command_Word,
       Beeper_Command_Word, Bind_Rx_Command_Word, Board_Name_Command_Word, Defaults_Command_Word,
       Manufacturer_Id_Command_Word, Signature_Command_Word, Color_Command_Word, Diff_Command,
       Dshot_Telemetry_Info_Command_Word, Dump_Command,
@@ -3598,6 +3598,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Mode_Color_Command_Word,
       Mixer_Command_Word, Motor_Mix_Command_Word, Profile_Command, Rate_Profile_Command,
       Rc_Smoothing_Info_Command_Word, Rx_Failsafe_Command, MCU_Id_Command_Word, Motor_Command_Word,
+      MSC_Command_Word,
       Play_Sound_Command_Word, Rx_Range_Command, Sd_Info_Command_Word, Sensor_Hardware_Command_Word,
       Serial_Command_Word,
       Servo_Command_Word, Servo_Mix_Command_Word, Set_Command, Simplified_Tuning_Command_Word, Tasks_Command_Word,
@@ -3611,6 +3612,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when Batch_Command_Word => "batch",
          when Battery_Profile_Command => "battery_profile",
          when Beacon_Command => "beacon",
+         when Bootloader_Command_Word => "bl",
          when Exit_Command_Word => "exit",
          when Save_Command_Word => "save",
          when Beeper_Command_Word => "beeper",
@@ -3631,6 +3633,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when Map_Command_Word => "map",
          when MCU_Id_Command_Word => "mcu_id",
          when Motor_Command_Word => "motor",
+         when MSC_Command_Word => "msc",
          when Play_Sound_Command_Word => "play_sound",
          when Sd_Info_Command_Word => "sd_info",
          when Sensor_Hardware_Command_Word => "sensor_hardware",
@@ -4098,6 +4101,85 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end loop;
       Put (Into, "FlashFS size=" & Decimal (Integer_64 (Size)) & ", usedSize=" & Decimal (Integer_64 (F.Used)) & CRLF);
    end Flash_Info_Command;
+
+   --  The number at a text's start as C's atoi reads it: blanks, a sign and
+   --  the digits up to the first other character, held at a million
+   --  millions.
+   function Leading_Whole (Text : String) return Integer_64
+     with Global => null,
+          Pre    => Text'First >= 1 and then Text'Last < Positive'Last,
+          Post   => Leading_Whole'Result in -10 ** 12 .. 10 ** 12
+   is
+      K        : Positive := Text'First;
+      Negative : Boolean := False;
+      Value    : Integer_64 := 0;
+   begin
+      while K <= Text'Last and then Text (K) in ' ' | ASCII.HT .. ASCII.CR loop
+         pragma Loop_Invariant (K in Text'Range);
+         pragma Loop_Variant (Increases => K);
+         K := K + 1;
+      end loop;
+      if K <= Text'Last and then Text (K) in '+' | '-' then
+         Negative := Text (K) = '-';
+         K := K + 1;
+      end if;
+      while K <= Text'Last and then Text (K) in '0' .. '9' loop
+         pragma Loop_Invariant (K in Text'Range and then Value in 0 .. 10 ** 12);
+         pragma Loop_Variant (Increases => K);
+         Value := Integer_64'Min (Value * 10 + Character'Pos (Text (K)) - Character'Pos ('0'), 10 ** 12);
+         K := K + 1;
+      end loop;
+      return (if Negative then -Value else Value);
+   end Leading_Whole;
+
+   --  bl: a restart into the ROM bootloader without an option or with one
+   --  that starts with rom in any case, else the option's error.
+   procedure Bootloader_Command (Into : in out Output; Arguments : String; Changes : in out Effects)
+     with Global => null
+   is
+   begin
+      if Arguments'Length = 0
+        or else (Arguments'Length >= 3
+                 and then CLI_Text.Same_Ignoring_Case (Arguments (Arguments'First .. Arguments'First + 2), "rom"))
+      then
+         Put_Hash_Line (Into, "restarting in ROM bootloader mode");
+         Put (Into, CRLF & "Rebooting");
+         Changes.Restart := ROM_Bootloader;
+      else
+         Put_Error (Into, "bl: Invalid option###" & CRLF);
+      end if;
+   end Bootloader_Command;
+
+   --  msc: with the mass storage ready, a restart into it with the stored
+   --  timezone offset, or with one read from the arguments as C's atoi reads
+   --  it, which must lie within 13 hours; else that the storage is missing.
+   procedure MSC_Command
+     (Into          : in out Output;
+      Ready         : Boolean;
+      Stored_Offset : Interfaces.Integer_16;
+      Arguments     : String;
+      Changes       : in out Effects)
+     with Global => null,
+          Pre    => Arguments'First >= 1 and then Arguments'Last < Positive'Last
+   is
+      Offset : Integer_64 := Integer_64 (Stored_Offset);
+   begin
+      if not Ready then
+         Put_Hash_Line (Into, "Storage not present or failed to initialize!");
+         return;
+      end if;
+      if Arguments'Length > 0 then
+         Offset := Leading_Whole (Arguments);
+         if Offset not in -780 .. 780 then
+            Put_Error (Into, "msc: INVALID TIMEZONE OFFSET###" & CRLF);
+            return;
+         end if;
+      end if;
+      Put_Hash_Line (Into, "Restarting in mass storage mode");
+      Put (Into, CRLF & "Rebooting");
+      Changes.Restart := Mass_Storage;
+      Changes.Timezone_Offset := Interfaces.Integer_16 (Offset);
+   end MSC_Command;
 
    --  The MCU's unique id as 24 hexadecimal digits.
    procedure Put_MCU_Id (Into : in out Output; Id : MCU_Words) is
@@ -4909,6 +4991,10 @@ package body Adaflight.Command_Line with SPARK_Mode is
             Dshot_Telemetry_Info_Command (Into, Env.Motors, Env.DShot_Telemetry);
          when Sd_Info_Command_Word =>
             SD_Info_Command (Into, C.Sdcard_Config.Mode, Env.SD_Card);
+         when Bootloader_Command_Word =>
+            Bootloader_Command (Into, Text_At (Buffer, Arguments), Changes);
+         when MSC_Command_Word =>
+            MSC_Command (Into, Env.MSC_Ready, C.Time_Config.Tz_Offset_Minutes, Text_At (Buffer, Arguments), Changes);
          when Flash_Info_Command_Word =>
             Flash_Info_Command (Into, Env.Flash);
          when Rx_Failsafe_Command =>
