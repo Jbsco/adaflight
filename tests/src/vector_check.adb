@@ -1540,6 +1540,8 @@ procedure Vector_Check is
    Mix_Armed : Boolean := True;
    Mix_Raw     : Float := 1000.0;
    Mix_Raw_Set : Boolean := False;
+   Mix_Box_3D  : Boolean := False;
+   Mix_Reversed : Boolean := False;
    type Launch_Inputs is record
       Valid    : Boolean := False;
       Throttle : Float := 0.0;
@@ -1608,6 +1610,8 @@ procedure Vector_Check is
          Mix_Attitude := (others => 0);
          Mix_Vbat_Latest := 0;
          Mix_Armed := True;
+         Mix_Box_3D := False;
+         Mix_Reversed := False;
          Mix_Launch := (others => <>);
          Mix_Pre_Low := Flt (8);
          Mix_Post_Low := Flt (16);
@@ -1644,6 +1648,8 @@ procedure Vector_Check is
             Update (Mix_Ctl, Mix_Runtime, Mix_Profile, Inp);
             MInp.RC_Throttle := Flt (14);
             MInp.RC_Data_Throttle := (if Mix_Raw_Set then Mix_Raw else Flt (14));
+            MInp.Box_3D := Mix_Box_3D;
+            MInp.Motors_Reversed := Mix_Reversed;
             Mix_Raw_Set := False;
             MInp.Time_Us := Interfaces.Unsigned_32 ((Step + 1) * Loop_Time);
             MInp.Armed := Mix_Armed;
@@ -1870,6 +1876,23 @@ procedure Vector_Check is
                            To_Bits (Mix_Ctl.TPA_Factor_S (A)));
             Record_Result ("wingtpastate.s", Bits (11 + Adaflight.Axes.Axis'Pos (A)), To_Bits (Mix_Ctl.Data (A).S));
          end loop;
+      elsif Name = "mix3dinit" then
+         Mix_Config.Feature_3D := True;
+         Mix_Config.Switched_Mode_3D := Str (3) = "1";
+         Mix_Config.Mid_RC := Natural (Int (4));
+         Mix_AP.Min_Check := Natural (Int (5));
+         Mix_Config.Deadband_3D_Throttle := Natural (Int (6));
+         Mix_Config.DShot := Str (7) = "1";
+         Mix_Config.Deadband_Motor_3D_High := Flt (8);
+         Mix_Config.Deadband_Motor_3D_Low := Flt (9);
+         Mix_AP.Motor_Stop := Str (10) = "1";
+      elsif Name = "mix3d" then
+         Mix_Box_3D := Str (4) = "1";
+         Mix_Reversed := Str (5) = "1";
+         Mix_Armed := Str (6) = "1";
+         Mix_Failsafe := Str (7) = "1";
+      elsif Name = "mix3dstate" then
+         Record_Int ("mix3dstate.sign", Int (4), Integer_64 (Mix_State.Mix_Sign));
       elsif Name = "mixraw" then
          Mix_Raw := Flt (4);
          Mix_Raw_Set := True;
@@ -22333,6 +22356,7 @@ begin
    Run (Dir & "/mix.csv", "mix");
    Run (Dir & "/mixmodes.csv", "mix");
    Run (Dir & "/mixraw.csv", "mix");
+   Run (Dir & "/mix3d.csv", "mix");
    Run (Dir & "/mixspin.csv", "mix");
    Run (Dir & "/mixrpm.csv", "mix");
    Run (Dir & "/mixflip.csv", "mix");
