@@ -83,7 +83,7 @@ The core contains:
 </details>
 
 <details>
-<summary><b>Receivers</b> (9)</summary>
+<summary><b>Receivers</b> (10)</summary>
 
 - SBUS, CRSF, SUMD, SUMH, IBUS, Spektrum, XBUS, Jeti EX Bus, Ghost, SRXL2 and FPORT protocols, PPM
   and parallel PWM inputs, and MSP and MAVLink receivers
@@ -94,6 +94,8 @@ The core contains:
 - Spektrum DSM2 and DSMX SPI receiver with binding, hopping and telemetry
 - NRF24L01 driver, XN297 payloads, and V202, SYMA, H8_3D, CX10 and acknowledgment payload
   receivers
+- SPI receiver layer: receiver family per protocol, frame checks and processing, channel reads and
+  stop
 - RC statistics for full throttle time and count and average throttle
 - receiver task's state machine with step time estimates
 
@@ -121,8 +123,10 @@ The core contains:
 </details>
 
 <details>
-<summary><b>MSP</b> (41)</summary>
+<summary><b>MSP</b> (42)</summary>
 
+- MSP serial port, ExpressLRS hopping tables, telemetry link and receiver, flight log field
+  encodings, header and recorder, text conversions, and DShot protocol
 - MSP serial port, ExpressLRS hopping tables, telemetry link and receiver, flight log field
   encodings, header and recorder, text conversions, and DShot protocol
 - MSP serial port, ExpressLRS hopping tables, telemetry link and receiver, flight log field
@@ -192,8 +196,10 @@ The core contains:
 </details>
 
 <details>
-<summary><b>Configuration and command line</b> (70)</summary>
+<summary><b>Configuration and command line</b> (71)</summary>
 
+- serial feature map: port function bits and baud rates from feature settings, claims, mask and
+  baud writes, conflict rule, configuration fix, port sharing and telemetry provider ports
 - serial feature map: port function bits and baud rates from feature settings, claims, mask and
   baud writes, conflict rule, configuration fix, port sharing and telemetry provider ports
 - configuration storage image: structure and version checks, record lookup, load and save
@@ -298,8 +304,10 @@ The core contains:
 </details>
 
 <details>
-<summary><b>Scheduler and tasks</b> (30)</summary>
+<summary><b>Scheduler and tasks</b> (32)</summary>
 
+- cooperative scheduler, beeper, and receiver's channel processing with MSP override
+- task setup: tasks enabled at boot and periods from build, features, sensors and settings
 - cooperative scheduler, beeper, and receiver's channel processing with MSP override
 - task setup: tasks enabled at boot and periods from build, features, sensors and settings
 - scheduler late task statistics: run and late counts per task, anticipated times, late share per
@@ -438,8 +446,15 @@ The core contains:
 </details>
 
 <details>
-<summary><b>Peripherals and storage</b> (23)</summary>
+<summary><b>Peripherals and storage</b> (26)</summary>
 
+- flash filesystem for flight log, with ring buffer, erases and free space search
+- SD card file system: sector cache, partition table and volume ID, FAT entries, 8.3 names,
+  cluster search and appends, file cursor with seeks, reads and writes, free-space search, file
+  opens, closes, deletes and truncations, directory walks, makes and changes, start with
+  free-space file, poll and shutdown
+- flight log on SD card: log directory, log numbers from names in it, a new file per log, log ends
+  that close or delete, flushes and device state
 - flash filesystem for flight log, with ring buffer, erases and free space search
 - SD card file system: sector cache, partition table and volume ID, FAT entries, 8.3 names,
   cluster search and appends, file cursor with seeks, reads and writes, free-space search, file
@@ -480,7 +495,7 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 29679 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 29721 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
 - Recorded vectors replay bit for bit: 1753568 lines over 384 cases, every case exact except
   fifty-four declared deviations in `DESIGN.md` D6.
