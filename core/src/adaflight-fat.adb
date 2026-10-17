@@ -362,4 +362,58 @@ package body Adaflight.FAT with SPARK_Mode is
       end if;
    end Release_Sector;
 
+   ----------------------
+   -- Update_File_Size --
+   ----------------------
+
+   procedure Update_File_Size (F : in out File_Handle) is
+   begin
+      if F.Cursor_Offset > F.Logical_Size then
+         F.Logical_Size := F.Cursor_Offset;
+      end if;
+   end Update_File_Size;
+
+   ------------------------
+   -- Unlock_File_Sector --
+   ------------------------
+
+   procedure Unlock_File_Sector (FS : in out File_System; Id : File_Id) is
+   begin
+      if FS.Files (Id).Write_Locked /= No_Slot then
+         Unlock_Sector (FS, FS.Files (Id).Write_Locked);
+         FS.Files (Id).Write_Locked := No_Slot;
+      end if;
+      if FS.Files (Id).Read_Retained /= No_Slot then
+         Release_Sector (FS, FS.Files (Id).Read_Retained);
+         FS.Files (Id).Read_Retained := No_Slot;
+      end if;
+   end Unlock_File_Sector;
+
+   ----------
+   -- Tell --
+   ----------
+
+   procedure Tell (F : File_Handle; Position : in out Unsigned_32; Done : out Boolean) is
+   begin
+      Done := not Is_Busy (F);
+      if Done then
+         Position := F.Cursor_Offset;
+      end if;
+   end Tell;
+
+   -----------------------------
+   -- Begin_Free_Space_Search --
+   -----------------------------
+
+   procedure Begin_Free_Space_Search (FS : in out File_System) is
+   begin
+      --  The first FAT sector holds the two reserved entries, so the search
+      --  starts at the second.
+      FS.Search := (Candidate_Start => FAT_Entries_Per_Sector (FS.Vol),
+                    Candidate_End   => FAT_Entries_Per_Sector (FS.Vol),
+                    Best_Gap_Start  => 0,
+                    Best_Gap_Length => 0,
+                    Phase           => Find_Hole);
+   end Begin_Free_Space_Search;
+
 end Adaflight.FAT;
