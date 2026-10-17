@@ -4964,17 +4964,16 @@ the LED strip's brightness and rainbow, and a battery profile. The name message 
 name and takes up to 16 of the request's bytes. The text message takes a type, then a length byte
 cut at the text's room: 16 for the pilot name, the craft name and the four custom messages, 8 for
 the current PID, rate and battery profile names. It writes the text and a zero after it and leaves
-the bytes after that zero as they were, so the stored bytes match the reference's. A type outside
-those is an error. Texts take any bytes, since they have no range. `Effects` asks the runtime to
-analyze the OSD's active elements again after a craft or pilot name.
+the bytes after that zero as they were. A type outside those is an error. Texts take any bytes,
+since they have no range. `Effects` asks the runtime to analyze the OSD's active elements again
+after a craft or pilot name.
 
 The LED strip values and the battery profile take the whole-request check of D203. The battery
-profile message keeps the reference's own checks: at least thirteen bytes, a profile below 3, the
-minimum, warning, full and maximum cell voltages in that order, at most 24 cells and at most 100
-percent. Each voltage must then lie within 1.00 V to 5.00 V and the capacity within 20000 mAh, as
-their settings hold them. The reference stores a brightness past 100, which its LED driver wraps
-(findings F193), and a maximum cell voltage of zero, which its cell count detection divides by
-(findings F194).
+profile message needs at least thirteen bytes, a profile below 3, the minimum, warning, full and
+maximum cell voltages in that order, at most 24 cells and at most 100 percent. Each voltage must
+then lie within 1.00 V to 5.00 V and the capacity within 20000 mAh, as their settings hold them. The
+reference stores a brightness past 100, which its LED driver wraps (findings F193), and a maximum
+cell voltage of zero, which its cell count detection divides by (findings F194).
 
 The harness replays two sequences of 600 lines from the command line oracle, 1045 requests among
 profile selections, resets, name sets and listings: 810 within their bounds, whose results, runtime
@@ -5105,10 +5104,9 @@ transmitter of a known type whose pit mode differs from the request's is asked f
 pit mode, and every accepted request marks the MSP transmitter ready. The reference makes its writes
 and the pit mode call before it checks the table counts (findings F197).
 
-`Adaflight.VTX_Table_Store` contains the stored table's clearing, as the reference's table
-commands clear a band, its channels, the power values and the power labels, and the running table
-taken from the stored one, as at boot. The command line keeps its own copies of the clearing for
-now; they move here when it next changes, so its proof is not run again for this.
+`Adaflight.VTX_Table_Store` contains the clearing of the stored table's bands, channels, power
+values and power labels, and the running table taken from the stored one, as at boot. The command
+line uses the same clearing.
 
 The command line oracle links the reference's transmitter interface and scripts a transmitter, its
 type and its pit mode with a directive that can also take the stored table in as the running one.
@@ -5133,3 +5131,30 @@ The command line oracle records the frame, the GPS solution with its fix and upd
 and the RSSI the reference hands on, through stubs for the functions it did not link and wraps for
 the rest. The harness replays two sequences of 600 requests: every result and handed-on value
 matches the reference's, with 41 frames of more than eighteen channels rejected by both.
+
+## D220. MSP board writes (2026-10-15)
+
+`Adaflight.MSP_Board_In` contains the MSP in messages that set the board's information and its
+signature and reset the configuration. Board information is a name and a manufacturer, each a length
+byte and that many bytes, kept to their first 20 and 4 bytes and to their first zero byte; a board
+that holds its information already, or a request shorter than its declared lengths, makes it an
+error. A signature is 32 bytes, zero past the request's end, and a board that holds one already
+makes it an error. Each is stored and taken in again through `Board_Info`. The reset, while
+disarmed, gives the reset configuration of `Config_Reset`, asks for the configuration's write and a
+restart after the reply, and answers 1; armed, it changes nothing and answers 0.
+
+`Adaflight.Board_Info` contains the board's information as the board holds it: the name and
+manufacturer, the signature, whether the stored configuration set each, and whether a command
+changed them, with how the board takes them in at start, stores and persists them, and writes them
+back into a reset configuration. `Adaflight.Config_Reset` contains the configuration reset: the
+defaults, the simplified tuning applied to every PID profile, and the board's information kept. The
+command line uses both, and the stored VTX table clearing of `Adaflight.VTX_Table_Store` (D218), in
+place of its own copies; its names for the moved types stay as subtypes and renamings. We moved them
+out of the generic command line, whose types exist once per instance, so these messages can share
+them.
+
+The command line oracle hands the reset to the reference's out command processor and records its
+reply byte and the restart it schedules. The harness replays two sequences of 600 lines, 829
+requests among board stores, armed and disarmed directives, board commands, saves and resets: every
+result, reply, runtime request and configuration hash matches the reference's, with 525 requests for
+information or a signature the board already holds, or shorter than declared, rejected by both.

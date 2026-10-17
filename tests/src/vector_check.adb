@@ -138,6 +138,7 @@ with Adaflight.MSP_OSD_In;
 with Adaflight.MSP_Profile_In;
 with Adaflight.MSP_VTX_In;
 with Adaflight.MSP_Runtime_In;
+with Adaflight.MSP_Board_In;
 with Adaflight.VTX_Table_Store;
 with Adaflight.MSP_Receiver_Out;
 with Adaflight.MSP_Hardware_Out;
@@ -14587,6 +14588,7 @@ procedure Vector_Check is
    MSP_VTX_Device  : Adaflight.MSP_VTX_In.Device;
    MSP_VTX_Running : Adaflight.VTX_Table.Table;
    MSP_Runtime_Effects : Adaflight.MSP_Runtime_In.Effects;
+   MSP_Board_Effects   : Adaflight.MSP_Board_In.Effects;
    MSP_Gyro_Rate  : Adaflight.Config_Fix.Gyro_Rate := 0;
    MSP_Log        : Adaflight.Blackbox.Recorder;
    MSP_Loop_Time  : Adaflight.Blackbox.Loop_Time_Us := 125;
@@ -14775,10 +14777,24 @@ procedure Vector_Check is
                   MSP_Profile_Effects := Adaflight.MSP_Profile_In.No_Effects;
                   MSP_VTX_Effects := Adaflight.MSP_VTX_In.No_Effects;
                   MSP_Runtime_Effects := Adaflight.MSP_Runtime_In.No_Effects;
+                  MSP_Board_Effects := Adaflight.MSP_Board_In.No_Effects;
                   if Adaflight.MSP_Tuning_In.Handles (Cmd) then
                      Adaflight.MSP_Tuning_In.Process
                        (CLI_Config, Cmd, Request, MSP_Gyro_Rate, MSP_In_Result, MSP_In_Effects);
                      MSP_In_Ran := True;
+                  elsif Adaflight.MSP_Board_In.Handles (Cmd) then
+                     declare
+                        use type Adaflight.MSP_Board_In.Result;
+                        Board_Result : Adaflight.MSP_Board_In.Result;
+                     begin
+                        Adaflight.MSP_Board_In.Process
+                          (CLI_Config, CLI_Board, Cmd, Request, MSP_Board.Armed, Board_Result, MSP_Board_Effects);
+                        MSP_In_Result :=
+                          (if Board_Result = Adaflight.MSP_Board_In.Ack then Adaflight.MSP_Tuning_In.Ack
+                           else Adaflight.MSP_Tuning_In.Error);
+                        CLI_Changes.Save := MSP_Board_Effects.Save;
+                        MSP_In_Ran := True;
+                     end;
                   elsif Adaflight.MSP_Runtime_In.Handles (Cmd) then
                      declare
                         use type Adaflight.MSP_Runtime_In.Result;
@@ -15039,6 +15055,11 @@ procedure Vector_Check is
             Record_Int ("msp.clock_ms", Int (32), E.Clock_Ms);
             Record_Int ("msp.rssi", Boolean'Pos (Int (33) > 0), Boolean'Pos (E.RSSI));
             Record_Int ("msp.rssi_value", Int (34), Integer_64 (E.RSSI_Value));
+            if NF >= 37 then
+               Record_Int ("msp.reply", Int (35), Boolean'Pos (MSP_Board_Effects.Reply));
+               Record_Int ("msp.reply_value", Int (36), Integer_64 (MSP_Board_Effects.Reply_Value));
+               Record_Int ("msp.restart", Int (37), Boolean'Pos (MSP_Board_Effects.Reboot));
+            end if;
          end;
       elsif Str (1) = "clc" then
          declare
@@ -20011,6 +20032,7 @@ begin
    Run (Dir & "/mspinprof.csv", "cliset");
    Run (Dir & "/mspinvtxc.csv", "cliset");
    Run (Dir & "/mspinrt.csv", "cliset");
+   Run (Dir & "/mspinboard.csv", "cliset");
    Run (Dir & "/clisave.csv", "cliset");
    if Settings_Seen /= Adaflight.Settings_Table.Setting'Pos (Adaflight.Settings_Table.Setting'Last) + 1 then
       Put_Line ("settings: the vectors hold" & Settings_Seen'Image & " settings");

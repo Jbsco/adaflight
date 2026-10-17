@@ -202,6 +202,7 @@ The core contains:
 - MSP VTX configuration write: band and channel or frequency, power, pit mode, table counts and
   clearing
 - MSP runtime writes: raw receiver channels, raw GPS solution, transmitter RSSI, clock
+- MSP board writes: board information and signature set once, configuration reset with reply
 - MAVLink telemetry streams with intervals and arming status text, and MAVLink commands with
   replies and requests
 - MAVLink mission protocol with uploads, downloads, fence store and current item reports
@@ -209,7 +210,7 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 25091 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 25117 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
 - Recorded vectors replay bit for bit: 1753568 lines over 384 cases, every case exact except
   forty-six declared deviations in `DESIGN.md` D6.
