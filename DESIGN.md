@@ -194,9 +194,9 @@ ledger. The deviations so far:
   message checks the whole request before it stores anything, so a short request, which the
   reference stores as zero filter cutoffs, is an error (findings F142). The checker expects the
   error and unchanged settings for the recorded requests outside the ranges.
-- MSP tuning, advanced, filter, advanced PID, receiver, hardware, battery, feature and blackbox
-  writes with a field outside its setting's range are errors that write and change nothing (D203 to
-  D209), where the
+- MSP tuning, advanced, filter, advanced PID, receiver, hardware, battery, feature, blackbox and
+  servo writes with a field outside its setting's range are errors that write and change nothing
+  (D203 to D210), where the
   reference stores the field's bytes, or for a dynamic notch count, an RPM filter value, a
   feedforward averaging, a mode range's linked mode or battery cell voltages out of order rejects
   the request after writing its earlier fields (findings F189 to F191). A field no setting names takes the bounds of the command
@@ -4919,3 +4919,19 @@ frame interval made global and sets them, with the loop time, from a directive. 
 two sequences of 700 lines, 1111 requests among log states, intervals, loop times and resets: 1020
 within their ranges, whose results and configuration hashes all match the reference's, and 91
 outside them, each an error that leaves the configuration unchanged.
+
+## D210. MSP servo writes (2026-10-15)
+
+`Adaflight.MSP_Servo_In` contains the MSP in messages that write a servo's parameters and a servo
+mix rule. Neither has settings, so their fields take the bounds of the command line's servo and
+smix commands (D6, D203): pulses from 500 to 2500 with the middle between the minimum and the
+maximum, a rate within 100 either way, a forwarded channel below 18, where a negative one turns
+forwarding off, reversed sources among the 14 inputs, and for a rule a range within 0 to 100 with
+its minimum below its maximum and a box up to 3. A servo parameter request of other than thirteen
+bytes, a servo or rule past its count, and a target or input past its count are errors in the
+reference as well. `Effects` asks the runtime to load the servo mixer's rules again after a rule.
+
+The harness replays two sequences of 600 lines from the command line oracle, 1082 requests among
+resets and listings: 767 within their bounds, whose results, runtime work and configuration hashes
+all match the reference's, 149 that both reject before writing, and 166 outside the bounds, each an
+error that leaves the configuration unchanged.
