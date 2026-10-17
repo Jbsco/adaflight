@@ -3594,10 +3594,12 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Beeper_Command_Word, Bind_Rx_Command_Word, Board_Name_Command_Word, Defaults_Command_Word,
       Manufacturer_Id_Command_Word, Signature_Command_Word, Color_Command_Word, Diff_Command,
       Dshot_Telemetry_Info_Command_Word, Dump_Command,
-      Feature_Command_Word, Get_Command, Led_Command_Word, Map_Command_Word, Mode_Color_Command_Word,
+      Feature_Command_Word, Flash_Info_Command_Word, Get_Command, Led_Command_Word, Map_Command_Word,
+      Mode_Color_Command_Word,
       Mixer_Command_Word, Motor_Mix_Command_Word, Profile_Command, Rate_Profile_Command,
       Rc_Smoothing_Info_Command_Word, Rx_Failsafe_Command, MCU_Id_Command_Word, Motor_Command_Word,
-      Play_Sound_Command_Word, Rx_Range_Command, Sensor_Hardware_Command_Word, Serial_Command_Word,
+      Play_Sound_Command_Word, Rx_Range_Command, Sd_Info_Command_Word, Sensor_Hardware_Command_Word,
+      Serial_Command_Word,
       Servo_Command_Word, Servo_Mix_Command_Word, Set_Command, Simplified_Tuning_Command_Word, Tasks_Command_Word,
       Version_Command_Word, Vtx_Command_Word, Vtx_Info_Command_Word, Vtx_Table_Command_Word, Waypoint_Command_Word);
    subtype Known_Command is Command_Kind range Adjustment_Range_Command_Word .. Waypoint_Command_Word;
@@ -3621,6 +3623,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when Dshot_Telemetry_Info_Command_Word => "dshot_telemetry_info",
          when Dump_Command => "dump",
          when Feature_Command_Word => "feature",
+         when Flash_Info_Command_Word => "flash_info",
          when Get_Command => "get",
          when Color_Command_Word => "color",
          when Led_Command_Word => "led",
@@ -3629,6 +3632,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when MCU_Id_Command_Word => "mcu_id",
          when Motor_Command_Word => "motor",
          when Play_Sound_Command_Word => "play_sound",
+         when Sd_Info_Command_Word => "sd_info",
          when Sensor_Hardware_Command_Word => "sensor_hardware",
          when Mixer_Command_Word => "mixer",
          when Motor_Mix_Command_Word => "mmix",
@@ -4009,6 +4013,91 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end loop;
       return Text;
    end Hex_Text;
+
+   --  sd_info: why the SD card cannot report, or its identity with its
+   --  name's five bytes after an opening quote, then the file system's state.
+   procedure SD_Info_Command (Into : in out Output; Mode : Unsigned_8; S : SD_Card_Status)
+     with Global => null
+   is
+      --  A number with zeros before it up to the width, as %0Nd prints it.
+      function Zero_Padded (V : Integer_64; Width : Natural) return String is
+        (if Decimal (V)'Length >= Width then Decimal (V)
+         else String'(1 .. Width - Decimal (V)'Length => '0') & Decimal (V))
+        with Pre => V >= 0 and then Width <= 8;
+
+      Maker : constant Unsigned_32 := Unsigned_32 (S.Manufacturer);
+   begin
+      Put (Into, "SD-CARD: ");
+      if Mode = 0 then
+         Put (Into, "Not configured" & CRLF);
+         return;
+      end if;
+      if not S.Inserted then
+         Put (Into, "None inserted" & CRLF);
+         return;
+      end if;
+      if not S.Functional or else not S.Initialized then
+         Put (Into, "Startup failed" & CRLF);
+         return;
+      end if;
+      Put (Into, "Manufacturer 0x" & Hex_Text (Maker, (if Maker < 16 then 1 else 2)) & ", "
+                 & Decimal (Integer_64 (S.Blocks / 2)) & "kB, " & Zero_Padded (Integer_64 (S.Month), 2) & "/"
+                 & Zero_Padded (Integer_64 (S.Year), 4) & ", v" & Decimal (Integer_64 (S.Major)) & "."
+                 & Decimal (Integer_64 (S.Minor)) & ", '");
+      Put (Into, S.Name);
+      Put (Into, " FS: ");
+      case S.State is
+         when Ready =>
+            Put (Into, "Ready");
+         when Initializing =>
+            Put (Into, "Initializing");
+         when Unknown | Fatal =>
+            Put (Into, "Fatal");
+            case S.Last_Error is
+               when Bad_MBR =>
+                  Put (Into, " - no FAT MBR partitions");
+               when Bad_Header =>
+                  Put (Into, " - bad FAT header");
+               when No_Error | Generic_Error =>
+                  null;
+            end case;
+      end case;
+      Put (Into, CRLF);
+   end SD_Info_Command;
+
+   --  flash_info: the flash chip's geometry, its partitions, and the size of
+   --  the first flash file system partition in the whole table with the
+   --  file system's use; without such a partition the size reads 0 (F241).
+   procedure Flash_Info_Command (Into : in out Output; F : Flash_Status)
+     with Global => null
+   is
+      type Kind_Names is array (0 .. 5) of String (1 .. 9);
+      Names : constant Kind_Names := ("UNKNOWN  ", "PARTITION", "FLASHFS  ", "BBMGMT   ", "FIRMWARE ", "CONFIG   ");
+      Size  : Unsigned_32 := 0;
+   begin
+      Put (Into, "Flash sectors=" & Decimal (Integer_64 (F.Sectors)) & ", sectorSize="
+                 & Decimal (Integer_64 (F.Sector_Size)) & ", pagesPerSector="
+                 & Decimal (Integer_64 (F.Pages_Per_Sector)) & ", pageSize=" & Decimal (Integer_64 (F.Page_Size))
+                 & ", totalSize=" & Decimal (Integer_64 (F.Total_Size)) & " JEDEC ID=0x" & Hex_Text (F.JEDEC_Id, 8)
+                 & CRLF);
+      for Index in 0 .. Max_Flash_Partitions - 1 loop
+         pragma Loop_Invariant (Index in 0 .. Max_Flash_Partitions - 1);
+         if Index = 0 then
+            Put (Into, "Partitions:" & CRLF);
+         end if;
+         exit when Index >= F.Count;
+         Put (Into, "  " & Decimal (Integer_64 (Index)) & ": " & Names (F.Partitions (Index).Kind) & " "
+                    & Decimal (Integer_64 (F.Partitions (Index).First_Sector)) & " "
+                    & Decimal (Integer_64 (F.Partitions (Index).Last_Sector)) & CRLF);
+      end loop;
+      for P of F.Partitions loop
+         if P.Kind = Flash_File_System then
+            Size := Unsigned_32'Mod (Integer_64 (P.Last_Sector) + 1 - Integer_64 (P.First_Sector)) * F.Sector_Size;
+            exit;
+         end if;
+      end loop;
+      Put (Into, "FlashFS size=" & Decimal (Integer_64 (Size)) & ", usedSize=" & Decimal (Integer_64 (F.Used)) & CRLF);
+   end Flash_Info_Command;
 
    --  The MCU's unique id as 24 hexadecimal digits.
    procedure Put_MCU_Id (Into : in out Output; Id : MCU_Words) is
@@ -4818,6 +4907,10 @@ package body Adaflight.Command_Line with SPARK_Mode is
             Rc_Smoothing_Info_Command (Into, C.Rx_Config.Rc_Smoothing /= 0, Env.Smoothing);
          when Dshot_Telemetry_Info_Command_Word =>
             Dshot_Telemetry_Info_Command (Into, Env.Motors, Env.DShot_Telemetry);
+         when Sd_Info_Command_Word =>
+            SD_Info_Command (Into, C.Sdcard_Config.Mode, Env.SD_Card);
+         when Flash_Info_Command_Word =>
+            Flash_Info_Command (Into, Env.Flash);
          when Rx_Failsafe_Command =>
             Failsafe_Command (Into, C, Text_At (Buffer, Arguments));
          when Rx_Range_Command =>

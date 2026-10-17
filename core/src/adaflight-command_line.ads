@@ -14,7 +14,8 @@
 --  the receiver's frame rate and the running RC smoothing cutoffs; motor sets
 --  a motor's or every motor's disarmed value, play_sound plays a beeper sound,
 --  and sensor_hardware lists the hardware each sensor type can be; bind_rx
---  starts the receiver's bind;
+--  starts the receiver's bind; sd_info reports the SD card and its file
+--  system, and flash_info the flash chip with its partitions;
 --  save, exit and defaults without nosave ask for the configuration's write,
 --  the board's restart or the command line's end. A line naming no command
 --  gets the ERR_CMD_NA reply.
@@ -180,6 +181,51 @@ package Adaflight.Command_Line with SPARK_Mode is
       Edges           : Edge_Times := (others => 0);
    end record;
 
+   --  The SD card as sd_info reports it: whether the card is inserted, works
+   --  and finished its start, its manufacturer, size in blocks, production
+   --  month and year, revision and the five bytes of its name, and the file
+   --  system's state with its last error.
+   type SD_State is (Unknown, Fatal, Initializing, Ready);
+   type SD_Error is (No_Error, Generic_Error, Bad_MBR, Bad_Header);
+   type SD_Card_Status is record
+      Inserted     : Boolean := False;
+      Functional   : Boolean := False;
+      Initialized  : Boolean := False;
+      Manufacturer : Interfaces.Unsigned_8 := 0;
+      Blocks       : Interfaces.Unsigned_32 := 0;
+      Month        : Interfaces.Unsigned_8 := 0;
+      Year         : Interfaces.Unsigned_16 := 0;
+      Major        : Interfaces.Unsigned_8 := 0;
+      Minor        : Interfaces.Unsigned_8 := 0;
+      Name         : String (1 .. 5) := (others => ASCII.NUL);
+      State        : SD_State := Unknown;
+      Last_Error   : SD_Error := No_Error;
+   end record;
+
+   --  The flash chip as flash_info reports it: its geometry, its partition
+   --  table with the count of partitions set, and the flash file system's
+   --  offset. A partition's kind numbers the unknown, partition table, flash
+   --  file system, bad block, firmware and configuration kinds.
+   Max_Flash_Partitions : constant := 6;
+   Flash_File_System    : constant := 2;
+   type Flash_Partition is record
+      Kind         : Natural range 0 .. 5 := 0;
+      First_Sector : Interfaces.Unsigned_16 := 0;
+      Last_Sector  : Interfaces.Unsigned_16 := 0;
+   end record;
+   type Flash_Partitions is array (0 .. Max_Flash_Partitions - 1) of Flash_Partition;
+   type Flash_Status is record
+      Sectors          : Interfaces.Unsigned_16 := 0;
+      Sector_Size      : Interfaces.Unsigned_32 := 0;
+      Pages_Per_Sector : Interfaces.Unsigned_16 := 0;
+      Page_Size        : Interfaces.Unsigned_16 := 0;
+      Total_Size       : Interfaces.Unsigned_32 := 0;
+      JEDEC_Id         : Interfaces.Unsigned_32 := 0;
+      Count            : Natural range 0 .. Max_Flash_Partitions := 0;
+      Partitions       : Flash_Partitions;
+      Used             : Interfaces.Unsigned_32 := 0;
+   end record;
+
    --  What the commands report from outside the configuration: the flight
    --  plan executor's state, the firmware's name, the target's name, the
    --  version, the build's date, time and revision, the MCU's unique id, the
@@ -187,7 +233,8 @@ package Adaflight.Command_Line with SPARK_Mode is
    --  whether a video transmitter is present with the power levels it
    --  reports, the running RC smoothing, the mixer's motors with their output
    --  and whether the 3D feature runs, the receiver and serial protocol the
-   --  board took at its start, and the motors' DShot telemetry.
+   --  board took at its start, the motors' DShot telemetry, the SD card and
+   --  the flash chip.
    type Environment is record
       Navigation      : Navigation_Status;
       Firmware        : Identity_Text;
@@ -208,6 +255,8 @@ package Adaflight.Command_Line with SPARK_Mode is
       Receiver_Source : Receiver.Provider := Receiver.None;
       Serial_Protocol : Natural := 0;
       DShot_Telemetry : DShot_Status;
+      SD_Card         : SD_Card_Status;
+      Flash           : Flash_Status;
    end record;
 
    --  The board's information as the commands see it: its name and

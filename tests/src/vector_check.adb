@@ -16052,7 +16052,9 @@ procedure Vector_Check is
       Three_D         => False,
       Receiver_Source => Adaflight.Receiver.None,
       Serial_Protocol => 0,
-      DShot_Telemetry => <>);
+      DShot_Telemetry => <>,
+      SD_Card         => <>,
+      Flash           => <>);
    CLI_Env      : CLI.Environment := CLI_Identity;
    CLI_Board    : CLI.Board_State;
    CLI_Reply    : CLI.Output;
@@ -16651,6 +16653,48 @@ procedure Vector_Check is
                for K in 1 .. CLI.Max_GCR_Edges loop
                   CLI_Env.DShot_Telemetry.Edges (K) := Unsigned_32'Value (Word (Command, K));
                end loop;
+            elsif Word (Command, 0) = "!sdcard" then
+               declare
+                  SD  : CLI.SD_Card_Status renames CLI_Env.SD_Card;
+                  Hex : constant String := Word (Command, 12);
+               begin
+                  SD.Inserted := Word (Command, 1) /= "0";
+                  SD.Functional := Word (Command, 2) /= "0";
+                  SD.Initialized := Word (Command, 3) /= "0";
+                  SD.State := CLI.SD_State'Val (Natural'Value (Word (Command, 4)));
+                  SD.Last_Error := CLI.SD_Error'Val (Natural'Value (Word (Command, 5)));
+                  SD.Manufacturer := Interfaces.Unsigned_8'Value ("16#" & Word (Command, 6) & "#");
+                  SD.Blocks := Unsigned_32'Value (Word (Command, 7));
+                  SD.Month := Interfaces.Unsigned_8'Value (Word (Command, 8));
+                  SD.Year := Interfaces.Unsigned_16'Value (Word (Command, 9));
+                  SD.Major := Interfaces.Unsigned_8'Value (Word (Command, 10));
+                  SD.Minor := Interfaces.Unsigned_8'Value (Word (Command, 11));
+                  for K in 1 .. 5 loop
+                     SD.Name (K) := Character'Val
+                       (Natural'Value ("16#" & Hex (Hex'First + 2 * K - 2 .. Hex'First + 2 * K - 1) & "#"));
+                  end loop;
+               end;
+            elsif Word (Command, 0) = "!flash" then
+               declare
+                  F     : CLI.Flash_Status renames CLI_Env.Flash;
+                  Count : constant Natural := Natural'Value (Word (Command, 8));
+               begin
+                  F.Sectors := Interfaces.Unsigned_16'Value (Word (Command, 1));
+                  F.Sector_Size := Unsigned_32'Value (Word (Command, 2));
+                  F.Pages_Per_Sector := Interfaces.Unsigned_16'Value (Word (Command, 3));
+                  F.Page_Size := Interfaces.Unsigned_16'Value (Word (Command, 4));
+                  F.Total_Size := Unsigned_32'Value (Word (Command, 5));
+                  F.JEDEC_Id := Unsigned_32'Value (Word (Command, 6));
+                  F.Used := Unsigned_32'Value (Word (Command, 7));
+                  F.Count := Count;
+                  F.Partitions := (others => <>);
+                  for I in 0 .. Count - 1 loop
+                     F.Partitions (I) :=
+                       (Kind         => Natural'Value (Word (Command, 9 + 3 * I)),
+                        First_Sector => Interfaces.Unsigned_16'Value (Word (Command, 10 + 3 * I)),
+                        Last_Sector  => Interfaces.Unsigned_16'Value (Word (Command, 11 + 3 * I)));
+                  end loop;
+               end;
             else
                CLI_Env.Motors := MSP_Motors;
                CLI_Env.Motor_Device := MSP_Motor_Kind;
@@ -24688,6 +24732,7 @@ begin
    Run (Dir & "/clibind.csv", "cliset");
    Run (Dir & "/clisave.csv", "cliset");
    Run (Dir & "/clidshot.csv", "cliset");
+   Run (Dir & "/clistorage.csv", "cliset");
    if Settings_Seen /= Adaflight.Settings_Table.Setting'Pos (Adaflight.Settings_Table.Setting'Last) + 1 then
       Put_Line ("settings: the vectors hold" & Settings_Seen'Image & " settings");
       Failures := Failures + 1;

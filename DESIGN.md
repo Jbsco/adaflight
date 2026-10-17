@@ -6877,3 +6877,26 @@ channel reads inside and outside the count, stops and interrupt enables. Every s
 report, frame time, packet flag and channel replays exactly over the 18000 steps. Twenty-three tampered
 paths each fail the vectors. One is equivalent: the start clears a packet flag that a start, run once on a
 new state, always finds clear.
+
+## D303. Storage information commands (2026-10-17)
+
+`Adaflight.Command_Line` gains sd_info and flash_info over the SD card's and the flash chip's states in its
+environment. sd_info reports an SD card mode of none as not configured, a missing card as none inserted, and
+a card that does not work or did not finish its start as a failed start. Otherwise it prints the card's
+manufacturer in hex, its size in kB as half its block count, its production month and year with zeros to two
+and four digits, its revision, an opening quote and the five bytes of the card's name as they are, null
+bytes included, and the file system's state: ready, initializing, or fatal with the reason for a partition
+table without a FAT partition or a bad volume ID. The quote stays open (F242). flash_info prints the chip's
+geometry with its JEDEC id in eight hex digits, the partition table's entries with their kind names, and the
+flash file system's size and use. The size comes from the first flash file system partition in the whole
+table: its last sector plus one less its first, times the sector size in unsigned 32-bit arithmetic, so a
+partition whose first sector lies past its last gives a wrapped size. Without such a partition the size
+reads 0 (F241). The partition listing loop has a loop invariant, like every listing loop in the command
+line, so the proof does not unroll it.
+
+The command line oracle gains a storage mode: sd_info and flash_info between SD card mode settings,
+"!sdcard" lines with cards inserted or not, working or not, every file system state and error, and names
+with null and high bytes, and "!flash" lines with chips of several geometries, a missing chip, and partition
+tables of one to five entries of every kind, some with a first sector past the last. The flash chip answers
+through the reference's flash driver, so the partition lookups and kind names are its own. Every reply to
+the 1502 lines replays exactly. Seventeen tampered paths each fail the vectors.
