@@ -713,6 +713,16 @@ package body Adaflight.Arming with SPARK_Mode is
          end if;
          return;
       end if;
+      if C.Inflight_Acc_Cal and then Current = Combo (High, High, Low, Low) then
+         if S.Inflight.Measurement_Done then
+            S.Inflight.Measurement_Done := False;
+            S.Inflight.Save_Pending := True;
+         else
+            S.Inflight.Armed := not S.Inflight.Armed;
+            Request (Out_Step.Beeper, (if S.Inflight.Armed then Acc_Calibration_Tone else Acc_Calibration_Fail_Tone));
+         end if;
+         return;
+      end if;
       if Current = Combo (Low, Center, Low, Low) then
          Out_Step.Commands (PID_Profile_1) := True;
          return;
@@ -949,6 +959,32 @@ package body Adaflight.Arming with SPARK_Mode is
    -- Process_Rx_Modes --
    ----------------------
 
+   --  The in-flight accelerometer calibration's progress: armed for it and
+   --  flying with the throttle above the minimum check and the arm switch off,
+   --  the measurement starts; the calibration switch starts it once and keeps
+   --  it active; disarmed after a measurement, it is saved.
+   procedure Update_Inflight_Calibration
+     (S : in out State; C : Settings; M : Modes.State; Channels : RC_Command.Channel_Values)
+   is
+   begin
+      if S.Inflight.Armed and then S.Armed
+        and then Normalized (Channels (RC_Command.Throttle_Channel)) > Normalized (Float (C.Min_Check))
+        and then not Modes.Is_Active (M, Modes.Arm)
+      then
+         S.Inflight.Remaining := Acc_Inflight.Measurement_Samples;
+         S.Inflight.Armed := False;
+      end if;
+      if Modes.Is_Active (M, Modes.Calib) then
+         if not S.Inflight.Active and then not S.Inflight.Measurement_Done then
+            S.Inflight.Remaining := Acc_Inflight.Measurement_Samples;
+         end if;
+         S.Inflight.Active := True;
+      elsif S.Inflight.Measurement_Done and then not S.Armed then
+         S.Inflight.Measurement_Done := False;
+         S.Inflight.Save_Pending := True;
+      end if;
+   end Update_Inflight_Calibration;
+
    procedure Process_Rx_Modes (
       S        : in out State;
       C        : Settings;
@@ -997,6 +1033,10 @@ package body Adaflight.Arming with SPARK_Mode is
 
       if not (Modes.Is_Active (M, Modes.Paralyze) and then not S.Armed) and then not Sensed.CMS_In_Menu then
          Process_Sticks (S, C, M, Conds, Sensed, Channels, Now_Us, Delta_Us, Out_Step);
+      end if;
+
+      if C.Inflight_Acc_Cal then
+         Update_Inflight_Calibration (S, C, M, Channels);
       end if;
 
       Modes.Update (M, Conds, Aux, Now_Us, C.Airmode_Feature, S.Mode_Overrides);

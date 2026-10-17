@@ -9,6 +9,7 @@ with Adaflight.Axes;
 with Adaflight.Modes;
 with Adaflight.RC_Command;
 with Adaflight.Wing_Launch;
+with Adaflight.Acc_Inflight;
 
 package Adaflight.Arming with SPARK_Mode is
    use type Interfaces.Unsigned_32;
@@ -64,7 +65,7 @@ package Adaflight.Arming with SPARK_Mode is
 
    type Beep is
      (Silence, Arm_Tone, Disarm_Tone, Armed_Tone, Disarm_Repeat_Tone, Rx_Set_Tone, Warning_Tones, Confirmation_Tones,
-      Crash_Flip_Tone, GPS_Fix_Arm_Tone, GPS_No_Fix_Arm_Tone);
+      Crash_Flip_Tone, GPS_Fix_Arm_Tone, GPS_No_Fix_Arm_Tone, Acc_Calibration_Tone, Acc_Calibration_Fail_Tone);
 
    subtype Small_Count is Natural range 0 .. 255;
 
@@ -210,6 +211,8 @@ package Adaflight.Arming with SPARK_Mode is
       Telemetry_Feature          : Boolean := False;
       --  A wing build with the launch assist.
       Launch_Wing                : Boolean := False;
+      --  The in-flight accelerometer calibration feature.
+      Inflight_Acc_Cal           : Boolean := False;
    end record;
 
    --  The controller's sums, the gyro's absolute rates to the whole degree
@@ -308,6 +311,9 @@ package Adaflight.Arming with SPARK_Mode is
       --  The wing launch, latched as it arms and reset as it disarms; its
       --  flight runs in the PID loop's pass.
       Wing                   : Wing_Launch.Launch;
+      --  The in-flight accelerometer calibration, shared with the
+      --  accelerometer.
+      Inflight               : Acc_Inflight.State;
    end record;
 
    function Launch_Control_Active (S : State) return Boolean is (S.Launch = Launch_Active);

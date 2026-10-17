@@ -16,6 +16,7 @@ package Adaflight.Config_Fix with SPARK_Mode is
 
    Feature_RX_PPM          : constant Unsigned_32 := 16#0000_0001#;
    Feature_RX_UDP          : constant Unsigned_32 := 16#0000_0002#;
+   Feature_Inflight_Acc_Cal : constant Unsigned_32 := 16#0000_0004#;
    Feature_RX_Serial       : constant Unsigned_32 := 16#0000_0008#;
    Feature_Motor_Stop      : constant Unsigned_32 := 16#0000_0010#;
    Feature_Soft_Serial     : constant Unsigned_32 := 16#0000_0040#;
