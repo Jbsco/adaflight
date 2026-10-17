@@ -16117,9 +16117,19 @@ procedure Vector_Check is
       Started := CLI_GPS_Pass_Result;
    end CLI_GPS_Passthrough;
 
+   --  The gyros' registers as the "!gyroreg" lines write them.
+   type CLI_Register_File is array (0 .. 3, 0 .. 255) of Interfaces.Unsigned_8;
+   CLI_Gyro_Registers : CLI_Register_File := (others => (others => 0));
+
+   procedure CLI_Gyro_Read_Register
+     (Gyro : Natural; Register : Interfaces.Unsigned_8; Value : out Interfaces.Unsigned_8) is
+   begin
+      Value := (if Gyro <= 3 then CLI_Gyro_Registers (Gyro, Natural (Register)) else 0);
+   end CLI_Gyro_Read_Register;
+
    package CLI is new Adaflight.Command_Line
      (CLI_Sink, CLI_Put, CLI_DShot_Write, CLI_Motors_Disable, CLI_Motors_Enable, CLI_ESC_Read_Start,
-      CLI_ESC_Read_Bytes, CLI_Delay_Ms, CLI_ESC_Passthrough, CLI_GPS_Passthrough);
+      CLI_ESC_Read_Bytes, CLI_Delay_Ms, CLI_ESC_Passthrough, CLI_GPS_Passthrough, CLI_Gyro_Read_Register);
 
    CLI_Config   : Adaflight.Config_Groups.Configuration := Adaflight.Config_Groups.Defaults;
    CLI_Identity : constant CLI.Environment :=
@@ -16157,6 +16167,7 @@ procedure Vector_Check is
       Acc             => <>,
       Baro            => <>,
       Mag             => <>,
+      Raw_Gyro_ICM456 => False,
       Rangefinder     => <>,
       Optical_Flow    => <>,
       Pitot           => <>,
@@ -16313,6 +16324,7 @@ procedure Vector_Check is
             CLI_ESC_Read := 0;
             CLI_ESC_Pass_Result := False;
             CLI_GPS_Pass_Result := False;
+            CLI_Gyro_Registers := (others => (others => 0));
          end if;
          CLI_Reply.Target.Text := Null_Unbounded_String;
          CLI_Expected := Null_Unbounded_String;
@@ -16804,6 +16816,13 @@ procedure Vector_Check is
             elsif Word (Command, 0) = "!buildopts" then
                --  The oracle prints the build's option numbers after this line.
                null;
+            elsif Word (Command, 0) = "!gyroreg" then
+               CLI_Gyro_Registers (Natural'Value (Word (Command, 1)), Natural'Value (Word (Command, 2))) :=
+                 Interfaces.Unsigned_8'Value (Word (Command, 3));
+            elsif Word (Command, 0) = "!gyroenable" then
+               CLI_Config.Gyro_Config.Gyro_Enabled_Bitmask := Interfaces.Unsigned_8'Value (Word (Command, 1));
+            elsif Word (Command, 0) = "!gyrodetect" then
+               CLI_Env.Raw_Gyro_ICM456 := Word (Command, 1) = "25" or else Word (Command, 1) = "26";
             elsif Word (Command, 0) = "!passthrough" then
                CLI_ESC_Pass_Result := Word (Command, 1) /= "0";
                CLI_GPS_Pass_Result := Word (Command, 2) /= "0";
@@ -25073,6 +25092,7 @@ begin
    Run (Dir & "/clistatus.csv", "cliset");
    Run (Dir & "/clienv.csv", "cliset");
    Run (Dir & "/clipassthrough.csv", "cliset");
+   Run (Dir & "/cligyroregs.csv", "cliset");
    if Settings_Seen /= Adaflight.Settings_Table.Setting'Pos (Adaflight.Settings_Table.Setting'Last) + 1 then
       Put_Line ("settings: the vectors hold" & Settings_Seen'Image & " settings");
       Failures := Failures + 1;

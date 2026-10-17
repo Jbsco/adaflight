@@ -7062,3 +7062,17 @@ The command line oracle replaces the reference's passthrough starts with ones th
 scripted result, and prints each command line's starts with their output and protocol. Its passthrough mode
 drives escprog with protocols and outputs of every kind and gpspassthrough, with starts that succeed and fail.
 Every reply and start of the 400 lines replays exactly. Fifteen tampered paths each fail the vectors.
+
+## D312. Gyro register dump command (2026-10-17)
+
+`Adaflight.Command_Line` gains gyroregisters, and its generic gains the board's read of a gyro's register by gyro
+position. Its environment gains whether the raw gyro's detected sensor is an ICM-45605 or an ICM-45686. For each
+gyro position the configuration's enabled mask names, the command prints an empty line and the gyro's heading,
+then the WHO_AM_I, CONFIG and GYRO_CONFIG registers in upper case hexadecimal without leading zeros. When the raw
+gyro is an ICM-456xx part it prints that part's five registers with their addresses instead, for every gyro
+position, since the part comes from the raw gyro's detection.
+
+The command line oracle defines the register read over register files that scripted lines write, and scripted
+lines set the raw gyro's detection and the enabled mask, which is no setting. Its gyroregs mode drives registers
+with every value, detections of both register sets and enabled masks. Every reply of the 400 lines replays
+exactly. Ten tampered paths each fail the vectors.
