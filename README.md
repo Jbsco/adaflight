@@ -44,8 +44,8 @@ The core contains:
   altitude hold and GPS rescue throttles, RPM limiter, crash flip mixing, DShot failsafe floor,
   battery sag compensation, dynamic idle, wing RMS output and launch throttle
 - gyro calibration, filtering chain, dynamic notch, RPM filter, and full-scale detections
-- attitude estimator with compass heading, and angle and horizon level modes with GPS rescue,
-  altitude hold and position hold
+- attitude estimator with compass heading and headfree frame, and angle and horizon level modes
+  with GPS rescue, altitude hold and position hold
 - failsafe state machine with rescue and autopilot stages, runtime modes with ground station
   overrides, and arming logic with launch control, runaway takeoff prevention, DShot checks, crash
   flip arming, GPS checks, hold mode selection, statistics events, OSD menu gate, telemetry port
@@ -310,7 +310,7 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 28699 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 28882 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
 - Recorded vectors replay bit for bit: 1753568 lines over 384 cases, every case exact except
   forty-nine declared deviations in `DESIGN.md` D6.
