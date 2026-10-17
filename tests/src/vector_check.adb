@@ -131,6 +131,7 @@ with Adaflight.MSP_Feature_In;
 with Adaflight.MSP_Blackbox_In;
 with Adaflight.MSP_Servo_In;
 with Adaflight.MSP_LED_In;
+with Adaflight.MSP_Text_In;
 with Adaflight.MSP_Receiver_Out;
 with Adaflight.MSP_Hardware_Out;
 with Adaflight.MSP_Peripheral_Out;
@@ -14565,6 +14566,7 @@ procedure Vector_Check is
    MSP_Rx_Effects : Adaflight.MSP_Receiver_In.Effects;
    MSP_Servo_Effects : Adaflight.MSP_Servo_In.Effects;
    MSP_LED_Effects : Adaflight.MSP_LED_In.Effects;
+   MSP_Text_Effects : Adaflight.MSP_Text_In.Effects;
    MSP_Gyro_Rate  : Adaflight.Config_Fix.Gyro_Rate := 0;
    MSP_Log        : Adaflight.Blackbox.Recorder;
    MSP_Loop_Time  : Adaflight.Blackbox.Loop_Time_Us := 125;
@@ -14725,10 +14727,22 @@ procedure Vector_Check is
                   MSP_Rx_Effects := Adaflight.MSP_Receiver_In.No_Effects;
                   MSP_Servo_Effects := Adaflight.MSP_Servo_In.No_Effects;
                   MSP_LED_Effects := Adaflight.MSP_LED_In.No_Effects;
+                  MSP_Text_Effects := Adaflight.MSP_Text_In.No_Effects;
                   if Adaflight.MSP_Tuning_In.Handles (Cmd) then
                      Adaflight.MSP_Tuning_In.Process
                        (CLI_Config, Cmd, Request, MSP_Gyro_Rate, MSP_In_Result, MSP_In_Effects);
                      MSP_In_Ran := True;
+                  elsif Adaflight.MSP_Text_In.Handles (Cmd) then
+                     declare
+                        use type Adaflight.MSP_Text_In.Result;
+                        Text_Result : Adaflight.MSP_Text_In.Result;
+                     begin
+                        Adaflight.MSP_Text_In.Process (CLI_Config, Cmd, Request, Text_Result, MSP_Text_Effects);
+                        MSP_In_Result :=
+                          (if Text_Result = Adaflight.MSP_Text_In.Ack then Adaflight.MSP_Tuning_In.Ack
+                           else Adaflight.MSP_Tuning_In.Error);
+                        MSP_In_Ran := True;
+                     end;
                   elsif Adaflight.MSP_LED_In.Handles (Cmd) then
                      declare
                         use type Adaflight.MSP_LED_In.Result;
@@ -14858,6 +14872,10 @@ procedure Vector_Check is
             if NF >= 15 then
                Record_Int ("msp.led_layout", (if In_Range and then Int (15) > 0 then 1 else 0),
                            Boolean'Pos (MSP_LED_Effects.Layout));
+            end if;
+            if NF >= 16 then
+               Record_Int ("msp.osd_elements", (if In_Range and then Int (16) > 0 then 1 else 0),
+                           Boolean'Pos (MSP_Text_Effects.OSD_Elements));
             end if;
          end;
       elsif Str (1) = "clx" then
@@ -19783,6 +19801,7 @@ begin
    Run (Dir & "/mspinbb.csv", "cliset");
    Run (Dir & "/mspinservo.csv", "cliset");
    Run (Dir & "/mspinled.csv", "cliset");
+   Run (Dir & "/mspintext.csv", "cliset");
    Run (Dir & "/clisave.csv", "cliset");
    if Settings_Seen /= Adaflight.Settings_Table.Setting'Pos (Adaflight.Settings_Table.Setting'Last) + 1 then
       Put_Line ("settings: the vectors hold" & Settings_Seen'Image & " settings");
