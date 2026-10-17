@@ -6434,3 +6434,19 @@ The PID oracle's wing build runs 37 mixer sequences over a quad, a flying wing a
 PWM motors, launch throttles and handovers, motor stop and disarmed blocks, and every step replays exactly.
 The controller runs with the launch mode off there, as its launch handling is the next increment. Four
 tampered paths each fail the vectors.
+
+## D283. Wing launch level mode (2026-10-16)
+
+A wing build's controller flies the wing launch through the level modes. The launch mode turns levelling on
+and counts as an autopilot's request, so race mode leaves its pitch levelled and the crash detection's guard
+time restarts. Each level axis's target blends from the launch's angle, with the pitch offset on pitch, to the
+pilot's by the handover, the angle limit widens to the launch's angle, and the angle feedforward scales by the
+handover. The setpoint takes the levelled rate, as in angle mode.
+
+A launch's climb angle with the pitch offset reaches past ninety degrees, so the angle targets widen to 3600
+degrees and the autopilot's angles take their own type within the launch's 255. The launch's target and blend
+are small functions with contracts, and the level setpoint has a data contract, so each is proved on its own
+and the controller's loop proves within its time.
+
+The PID oracle's wing build runs 37 level mode sequences with launch blocks, climb angles and scripted
+handovers among the other modes, and every step replays exactly. Seven tampered paths each fail the vectors.

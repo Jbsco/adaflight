@@ -330,6 +330,27 @@ package body Adaflight.PID_Controller with SPARK_Mode is
       return Target + Float (Offset) / 10.0;
    end Offset_Pitch;
 
+   --  A wing launch's angle target: the autopilot's, with the pitch offset on
+   --  the pitch axis.
+   function Launch_Target_Of (Autopilot : Autopilot_Degrees; Offset : Integer; Pitch_Axis : Boolean) return Float
+     with Global => null,
+          Pre  => Offset in -32_768 .. 32_767,
+          Post => Launch_Target_Of'Result in -3_532.0 .. 3_532.0
+   is
+   begin
+      return (if Pitch_Axis then Autopilot + Float (Offset) / 10.0 else Autopilot);
+   end Launch_Target_Of;
+
+   --  The pilot's angle target handed over from the launch's by the handover.
+   function Blend_Target (Launch : Float; Target : Float; Handover : Unit_Interval) return Float
+     with Global => null,
+          Pre  => Launch in -3_532.0 .. 3_532.0 and then Target in -1.61e6 .. 1.61e6,
+          Post => Blend_Target'Result in -1.62e6 .. 1.62e6
+   is
+   begin
+      return Launch + (Target - Launch) * Handover;
+   end Blend_Target;
+
    --  The angle error rate of a level axis from the stick's angle target,
    --  with a wing build's pitch offset, or the autopilot's in GPS rescue and,
    --  outside a wing build, in position hold while it holds,
@@ -344,13 +365,13 @@ package body Adaflight.PID_Controller with SPARK_Mode is
       A        : Level_Axis;
       H        : Strength;
       Setpoint : in out Rate
-   ) is
+   ) with Global => null is
       Angle_Limit : constant Float range 10.0 .. 90.0 := Float (P.Angle_Limit);
       Inv         : constant Float range 0.0004 .. 2.1 := 1.0 / Inp.Max_RC_Rate (A);
       Raw_FF      : constant Float range -4.0e6 .. 4.0e6 :=
         Angle_Limit * Inp.Feedforward (A) * R.Angle_Feedforward_Gain * Inv;
       Feedforward : Signal;
-      Limit       : Float range 0.0 .. 90.0 := Angle_Limit;
+      Limit       : Float range 0.0 .. 3_600.0 := Angle_Limit;
       Wanted      : Float range -2.0e6 .. 2.0e6 := Angle_Limit * Setpoint * Inv;
       Target      : Angle_Degrees;
       Current     : constant Float range -211.0 .. 211.0 := Float (Inp.Attitude (A) - Inp.Trims (A)) / 10.0;
@@ -378,9 +399,19 @@ package body Adaflight.PID_Controller with SPARK_Mode is
          end if;
          Limit := Float'Min (Float (Inp.Autopilot_Max_Angle), Limit);
       end if;
+      if R.Wing_Build and then Inp.Launch_Mode then
+         declare
+            Launch_Target : constant Float range -3_532.0 .. 3_532.0 :=
+              Launch_Target_Of (Inp.Autopilot_Angle (A), P.Angle_Pitch_Offset, A = Pitch);
+         begin
+            Wanted := Blend_Target (Launch_Target, Wanted, Inp.Launch_Handover);
+            Limit := Float'Max (Limit, abs Launch_Target);
+            Feedforward := Feedforward * Inp.Launch_Handover;
+         end;
+      end if;
       Target := Constrain_F (Wanted, -Limit, Limit);
       declare
-         Error : constant Float range -302.0 .. 302.0 := Target - Current;
+         Error : constant Float range -4_000.0 .. 4_000.0 := Target - Current;
       begin
          Angle_Rate := Saturate (Error * R.Angle_Gain + Feedforward);
       end;
@@ -390,7 +421,7 @@ package body Adaflight.PID_Controller with SPARK_Mode is
       Angle_Rate := Saturate (Angle_Rate + S.Angle_Yaw_Setpoint * Sin_Angle * Earth_Gain);
       S.Angle_Target (A) := Target;
       PT3_Apply (S.Filters.Attitude (A), Angle_Rate, Filtered);
-      if Inp.Angle_Mode or else Inp.GPS_Rescue_Mode or else Inp.Pos_Hold_Mode then
+      if Inp.Angle_Mode or else Inp.GPS_Rescue_Mode or else Inp.Pos_Hold_Mode or else Inp.Launch_Mode then
          Setpoint := Constrain_F (Filtered, -Rate_Bound, Rate_Bound);
       else
          Setpoint := Constrain_F (Setpoint * (1.0 - H) + Filtered * H, -Rate_Bound, Rate_Bound);
@@ -420,7 +451,7 @@ package body Adaflight.PID_Controller with SPARK_Mode is
       if Gain /= 0.0 then
          S.Angle_Yaw_Setpoint := Setpoint;
          declare
-            Largest : Float range 0.0 .. 54_001.0 :=
+            Largest : Float range 0.0 .. 2.2e6 :=
               Gain * Float'Max (abs S.Angle_Target (Roll), abs S.Angle_Target (Pitch));
          begin
             if Inp.Horizon_Mode then
@@ -652,7 +683,8 @@ package body Adaflight.PID_Controller with SPARK_Mode is
    end Apply_SPA;
 
    procedure Update (S : in out State; R : Runtime; P : Profile; Inp : Inputs) is
-      External   : constant Boolean := Inp.GPS_Rescue_Mode or else Inp.Alt_Hold_Mode or else Inp.Pos_Hold_Mode;
+      External   : constant Boolean := Inp.GPS_Rescue_Mode or else Inp.Alt_Hold_Mode or else Inp.Pos_Hold_Mode
+        or else (R.Wing_Build and then Inp.Launch_Mode);
       Gyro_Dterm : Axis_Signals;
       Level      : Level_Kind := Level_Off;
       H          : Strength := 0.0;
@@ -664,7 +696,7 @@ package body Adaflight.PID_Controller with SPARK_Mode is
       end if;
       S.Crash_Disarm_Requested := False;
       S.Landing_Disarm_Requested := False;
-      if Inp.Angle_Mode or else Inp.Horizon_Mode or else Inp.GPS_Rescue_Mode then
+      if Inp.Angle_Mode or else Inp.Horizon_Mode or else Inp.GPS_Rescue_Mode or else Inp.Launch_Mode then
          Level := (if R.Level_Race_Mode and then not External then Level_Roll else Level_Roll_Pitch);
          if S.Level_Mode_Start_Us = 0 or else (External and then not S.Previous_External) then
             S.Level_Mode_Start_Us := Inp.Now_Us;

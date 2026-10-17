@@ -1274,7 +1274,8 @@ procedure Vector_Check is
    Step_State   : Adaflight.PID_Controller.State;
    Step_Runtime : Adaflight.PID_Config.Runtime;
    Step_Profile : Adaflight.PID_Profile.Profile;
-   Step_AP_Angle   : Adaflight.PID_Controller.Level_Targets := (others => 0.0);
+   Step_AP_Angle   : Adaflight.PID_Controller.Autopilot_Angles := (others => 0.0);
+   Step_Launch_Handover : Float := 0.0;
    Step_AP_Max     : Natural range 0 .. 90 := 50;
    Step_AP_Control : Boolean := False;
    type Landing_Inputs is record
@@ -1346,6 +1347,8 @@ procedure Vector_Check is
          Inp.Pos_Hold_Mode := (Int (36) / 2 ** 5) mod 2 = 1;
          Inp.GPS_Rescue_Mode := (Int (36) / 2 ** 11) mod 2 = 1;
          Inp.Passthru_Mode := (Int (36) / 2 ** 8) mod 2 = 1;
+         Inp.Launch_Mode := (Int (36) / 2 ** 13) mod 2 = 1;
+         Inp.Launch_Handover := Step_Launch_Handover;
          Inp.Max_RC_Rate (Yaw) := Step_Yaw_Max_Rate;
          Inp.Autopilot_Angle := Step_AP_Angle;
          Inp.Autopilot_Max_Angle := Step_AP_Max;
@@ -4391,6 +4394,8 @@ procedure Vector_Check is
             Record_Result ("wingmodesinit.drag_mass", Bits (38), To_Bits (R.TPA_Speed.Drag_Mass));
             Record_Result ("wingmodesinit.inverse_prop_speed", Bits (39), To_Bits (R.TPA_Speed.Inverse_Prop_Speed));
          end;
+      elsif Str (1) = "winglaunch" then
+         Step_Launch_Handover := Flt (4);
       elsif Str (1) = "wingmodes" then
          Step_Wing_RMS := Flt (4);
          Step_Wing_Vbat := Natural (Int (5));
@@ -22161,6 +22166,7 @@ begin
    Run (Dir & "/pidmodes.csv", "pid");
    Run (Dir & "/pidland.csv", "pid");
    Run (Dir & "/wingmodes.csv", "pid");
+   Run (Dir & "/winglaunch.csv", "pid");
    Run (Dir & "/pidthr.csv", "pidthr");
    Run (Dir & "/mix.csv", "mix");
    Run (Dir & "/mixmodes.csv", "mix");

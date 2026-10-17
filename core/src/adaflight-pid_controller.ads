@@ -53,12 +53,17 @@ package Adaflight.PID_Controller with SPARK_Mode, Pure is
    subtype Trim is Integer range -300 .. 300;
    subtype Deflection is Float range -1.0 .. 1.0;
    subtype Max_Rate is Float range 0.5 .. 2_000.0;
-   subtype Angle_Degrees is Float range -90.0 .. 90.0;
+   --  The level angle targets reach past ninety degrees in a wing launch,
+   --  whose climb angle takes the pitch offset; the autopilot's angles stay
+   --  within the launch's range.
+   subtype Angle_Degrees is Float range -3_600.0 .. 3_600.0;
+   subtype Autopilot_Degrees is Float range -255.0 .. 255.0;
    type Level_Angles is array (Level_Axis) of Decidegrees;
    type Level_Trims is array (Level_Axis) of Trim;
    type Level_Deflections is array (Level_Axis) of Deflection;
    type Axis_Max_Rates is array (Axis) of Max_Rate;
    type Level_Targets is array (Level_Axis) of Angle_Degrees;
+   type Autopilot_Angles is array (Level_Axis) of Autopilot_Degrees;
    type Axis_Flags is array (Axis) of Boolean;
 
    type Inputs is record
@@ -91,7 +96,7 @@ package Adaflight.PID_Controller with SPARK_Mode, Pure is
       GPS_Rescue_Mode           : Boolean := False;
       Alt_Hold_Mode             : Boolean := False;
       Pos_Hold_Mode             : Boolean := False;
-      Autopilot_Angle           : Level_Targets := (others => 0.0);
+      Autopilot_Angle           : Autopilot_Angles := (others => 0.0);
       Autopilot_Max_Angle       : Natural range 0 .. 90 := 50;
       Autopilot_In_Control      : Boolean := False;
       --  The gyro's yaw spin detection: the yaw setpoint drops to zero, the
@@ -108,6 +113,10 @@ package Adaflight.PID_Controller with SPARK_Mode, Pure is
       Jerk_Magnitude            : Float range 0.0 .. 1.0E30 := 0.0;
       --  A fixed wing in a wing build drops every term in passthrough.
       Passthru_Mode             : Boolean := False;
+      --  A wing launch levels the craft to the autopilot's angles, handing
+      --  the targets back to the pilot as the handover rises to one.
+      Launch_Mode               : Boolean := False;
+      Launch_Handover           : Unit_Interval := 0.0;
    end record;
 
    --  A wing's airspeed model reads the motors' RMS output over their range,
