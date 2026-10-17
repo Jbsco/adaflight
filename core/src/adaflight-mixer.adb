@@ -289,6 +289,111 @@ package body Adaflight.Mixer with SPARK_Mode is
       S.Limiter_Previous_Error := Error;
    end Apply_RPM_Limiter;
 
+   Flip_Stick_Deadband : constant := 0.15;
+   Flip_Motor_Deadband : constant := 0.02;
+   Flip_Half_Complete  : constant := 0.5;
+   Sqrt_Two            : constant Float := 1.414_213_562_373_095;
+   Cos_Thirty_Degrees  : constant Float := 0.866_025_403_784_438_6;
+
+   --  The motor output at a crash flip drive: the low end plus the drive's
+   --  share of the output range.
+   function Flip_Output (Low : Motor_Value; High : Motor_Value; Drive : Float) return Motor_Value
+     with Global => null,
+          Pre    => Low < High and then Drive in 0.0 .. 1.0,
+          Post   => Flip_Output'Result >= Low
+   is
+      Span : constant Float := High - Low;
+   begin
+      pragma Assert (Drive * Span <= Span);
+      pragma Assert (Low + Drive * Span <= Low + Span);
+      pragma Assert (Low + Span <= Motor_Value'Last);
+      return Low + Drive * Span;
+   end Flip_Output;
+
+   --  The crash flip: the motors drive the craft over in the direction of
+   --  the roll or pitch stick, of the diagonal between them, or of the yaw
+   --  stick when it leads, with less drive as the craft turns.
+   procedure Apply_Crash_Flip
+     (S : in out State; C : Config; Inp : Inputs; Output_Min : Motor_Value; Range_Max : Motor_Value)
+     with Global => null,
+          Pre    => C.Output_Low <= Output_Min and then Output_Min < Range_Max,
+          Post   =>
+            (for all M in 0 .. C.Count - 1 => S.Motors (M) >= Float'Min (C.Disarm_Output, C.Output_Low))
+   is
+      Pitch_Abs  : constant Unit_Interval := Inp.Deflection_Abs (Pitch);
+      Roll_Abs   : constant Unit_Interval := Inp.Deflection_Abs (Roll);
+      Yaw_Abs    : constant Unit_Interval := Inp.Deflection_Abs (Yaw);
+      Sign_Pitch : Float range -1.0 .. 1.0 := (if Inp.Deflection (Pitch) < 0.0 then 1.0 else -1.0);
+      Sign_Roll  : Float range -1.0 .. 1.0 := (if Inp.Deflection (Roll) < 0.0 then 1.0 else -1.0);
+      Sign_Yaw   : Float range -1.0 .. 1.0 :=
+        (if Inp.Deflection (Yaw) < 0.0 then 1.0 else -1.0) * (if C.Yaw_Reversed then 1.0 else -1.0);
+      Length     : Root_Signal := Sqrt_Bounded (Pitch_Abs * Pitch_Abs + Roll_Abs * Roll_Abs);
+      Cos_Phi    : Float;
+      Power      : Root_Signal;
+      Rate_Limit : constant Float := Float (C.Crashflip_Rate) * 10.0;
+   begin
+      if Yaw_Abs > Float'Max (Pitch_Abs, Roll_Abs) then
+         Length := Yaw_Abs;
+         Sign_Roll := 0.0;
+         Sign_Pitch := 0.0;
+      else
+         Sign_Yaw := 0.0;
+      end if;
+      Cos_Phi := (if Length > 1.0E-30 then (Pitch_Abs + Roll_Abs) / (Sqrt_Two * Length) else 0.0);
+      if Cos_Phi < Cos_Thirty_Degrees then
+         if Roll_Abs > Pitch_Abs then
+            Sign_Pitch := 0.0;
+         else
+            Sign_Roll := 0.0;
+         end if;
+      end if;
+      Power := (if Length > Flip_Stick_Deadband then Length else 0.0);
+      if Rate_Limit > 0.0 then
+         declare
+            Attitude_Attenuator : Unit_Interval := 1.0;
+            Rate_Change         : Unit_Interval;
+            Rate_Attenuator     : Unit_Interval;
+         begin
+            if Inp.Acc_Present then
+               if not S.Flip_Tilt_Set then
+                  S.Flip_Tilt_Start := Inp.Cos_Tilt;
+                  S.Flip_Tilt_Set := True;
+               end if;
+               declare
+                  Change_Needed : constant Unit_Interval :=
+                    Float'Max (1.0 - abs (Inp.Cos_Tilt - S.Flip_Tilt_Start), 0.0);
+               begin
+                  Attitude_Attenuator :=
+                    (if Change_Needed > Flip_Half_Complete then 1.0 else Change_Needed / Flip_Half_Complete);
+               end;
+            end if;
+            Rate_Change := Float'Min (Float'Max (abs Inp.Gyro (Roll), abs Inp.Gyro (Pitch)) / Rate_Limit, 1.0);
+            Rate_Attenuator :=
+              (if Rate_Change < Flip_Half_Complete then 1.0 else (1.0 - Rate_Change) / Flip_Half_Complete);
+            Power := Power * (Attitude_Attenuator * Rate_Attenuator);
+         end;
+      end if;
+      for M in 0 .. C.Count - 1 loop
+         pragma Loop_Invariant
+           (for all J in 0 .. M - 1 => S.Motors (J) >= Float'Min (C.Disarm_Output, C.Output_Low));
+         declare
+            Drive : Float :=
+              Sign_Pitch * C.Table (M).Pitch + Sign_Roll * C.Table (M).Roll + Sign_Yaw * C.Table (M).Yaw;
+         begin
+            if Drive < 0.0 then
+               if C.Crashflip_Motor_Percent > 0 then
+                  Drive := (-Drive) * Float (C.Crashflip_Motor_Percent) / 100.0;
+               else
+                  Drive := 0.0;
+               end if;
+            end if;
+            Drive := Float'Min (1.0, Power * Drive);
+            S.Motors (M) :=
+              (if Drive < Flip_Motor_Deadband then C.Disarm_Output else Flip_Output (Output_Min, Range_Max, Drive));
+         end;
+      end loop;
+   end Apply_Crash_Flip;
+
    procedure Update
      (S   : in out State; C : Config; Ctl : in out PID_Controller.State;
       R   : Runtime; P : Profile; Inp : Inputs)
@@ -313,6 +418,11 @@ package body Adaflight.Mixer with SPARK_Mode is
    begin
       Throttle := Constrain_F (Throttle / 1000.0, 0.0, 1.0);
       S.RC_Throttle := Throttle;
+      if Inp.Crash_Flip_Active then
+         Apply_Crash_Flip (S, C, Inp, Output_Min, Range_Max);
+         return;
+      end if;
+      S.Flip_Tilt_Set := False;
       if not C.Yaw_Reversed then
          Scaled_Yaw := -Scaled_Yaw;
       end if;

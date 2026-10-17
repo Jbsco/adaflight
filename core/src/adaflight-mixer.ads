@@ -68,11 +68,20 @@ package Adaflight.Mixer with SPARK_Mode, Pure is
       Motor_KV               : Positive range 1 .. 40_000 := 1_960;
       Max_Throttle           : Natural range 750 .. 2_250 := 2_000;
       Max_Check              : Natural range 750 .. 2_250 := 1_900;
+      --  The crash flip: the percentage of their mix the motors not used for
+      --  the flip take, and the roll or pitch rate, in tens of degrees per
+      --  second, at which the drive reaches zero.
+      Crashflip_Motor_Percent : Natural range 0 .. 100 := 0;
+      Crashflip_Rate         : Natural range 0 .. 250 := 0;
    end record
      with Dynamic_Predicate =>
        Config.Output_Low < Config.Output_High and then Config.Disarm_Output <= Config.Output_High;
 
    subtype RC_Throttle_Value is Float range 1000.0 .. 2000.0;
+
+   subtype Deflection_Value is Float range -1.0 .. 1.0;
+   type Axis_Deflections is array (Axis) of Deflection_Value;
+   type Axis_Magnitudes is array (Axis) of Unit_Interval;
 
    type Inputs is record
       RC_Throttle               : RC_Throttle_Value := 1000.0;
@@ -101,6 +110,17 @@ package Adaflight.Mixer with SPARK_Mode, Pure is
       DShot_Telemetry           : Boolean := False;
       RPM_Average               : Float range 0.0 .. 2.0E9 := 0.0;
       Battery_Voltage           : Interfaces.Unsigned_16 := 0;
+      --  The crash flip takes the stick's direction from the deflections the
+      --  controller reads, smoothed with RC smoothing on, and its strength
+      --  from the magnitudes of the raw deflections. The roll and pitch
+      --  rates, and with the accelerometer the cosine of the tilt, take the
+      --  drive off as the craft turns over.
+      Crash_Flip_Active         : Boolean := False;
+      Deflection                : Axis_Deflections := (others => 0.0);
+      Deflection_Abs            : Axis_Magnitudes := (others => 0.0);
+      Gyro                      : PID_Controller.Axis_Rates := (others => 0.0);
+      Acc_Present               : Boolean := False;
+      Cos_Tilt                  : Cosine := 1.0;
    end record;
 
    type State is record
@@ -119,6 +139,8 @@ package Adaflight.Mixer with SPARK_Mode, Pure is
       Limiter_Previous_Error  : Float range -2.0 ** 33 .. 2.0 ** 33 := 0.0;
       Limiter_Average         : Filters.PT1;
       Limiter_Offset          : Filters.PT1;
+      Flip_Tilt_Set           : Boolean := False;
+      Flip_Tilt_Start         : Cosine := 1.0;
    end record;
 
    --  The RPM limiter as the mixer's profile sets it up: its gains from the
@@ -131,12 +153,14 @@ package Adaflight.Mixer with SPARK_Mode, Pure is
    procedure Reset_RPM_Limiter (S : in out State; C : Config; Battery_Voltage : Interfaces.Unsigned_16);
 
    --  One loop of the mixer after the controller, with the throttle-side
-   --  updates the controller and filters take from the mixer.
+   --  updates the controller and filters take from the mixer. The crash flip
+   --  drives the motors by itself and leaves the throttle-side updates out.
    procedure Update
      (S   : in out State; C : Config; Ctl : in out PID_Controller.State;
       R   : Runtime; P : Profile; Inp : Inputs)
      with Post =>
        (for all M in 0 .. C.Count - 1 =>
-          S.Motors (M) in Float'Min (C.Disarm_Output, C.Output_Low) .. C.Output_High);
+          S.Motors (M) >= Float'Min (C.Disarm_Output, C.Output_Low)
+          and then (Inp.Crash_Flip_Active or else S.Motors (M) <= C.Output_High));
 
 end Adaflight.Mixer;

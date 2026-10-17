@@ -104,7 +104,9 @@ package body Adaflight.Config_Runtime with SPARK_Mode is
             RPM_Limit_D            => Held (Integer (M.Rpm_Limit_D), 0, 100),
             Motor_KV               => Held (Integer (Motor.Kv), 1, 40_000),
             Max_Throttle           => Held (Integer (Motor.Maxthrottle), 750, 2_250),
-            Max_Check              => Held (Integer (R.Maxcheck), 750, 2_250));
+            Max_Check              => Held (Integer (R.Maxcheck), 750, 2_250),
+            Crashflip_Motor_Percent => Held (Integer (M.Crashflip_Motor_Percent), 0, 100),
+            Crashflip_Rate         => Held (Integer (M.Crashflip_Rate), 0, 250));
       end;
    end Mixer_Config_Of;
 
