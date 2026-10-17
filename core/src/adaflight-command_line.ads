@@ -63,6 +63,20 @@ generic
    --  The board's read of a gyro's register by gyro position.
    with procedure Gyro_Read_Register
      (Gyro : Natural; Register : Interfaces.Unsigned_8; Value : out Interfaces.Unsigned_8);
+   --  The board's flash file system tools: whether a file system is there,
+   --  the whole erase started, whether the flash is ready, a step of the
+   --  erase, the verify of the whole flash, a seek, a write, a flush, and a
+   --  read of up to a length of bytes at an address with the count read.
+   with function Flash_Supported return Boolean;
+   with procedure Flash_Erase_Completely;
+   with procedure Flash_Ready (Ready : out Boolean);
+   with procedure Flash_Erase_Async;
+   with procedure Flash_Verify (OK : out Boolean);
+   with procedure Flash_Seek (Address : Interfaces.Unsigned_32);
+   with procedure Flash_Write (Data : String);
+   with procedure Flash_Flush;
+   with procedure Flash_Read
+     (Address : Interfaces.Unsigned_32; Length : Natural; Data : out String; Count : out Natural);
 package Adaflight.Command_Line with SPARK_Mode is
 
    subtype Port_List is CLI_Text.Port_List;
@@ -117,9 +131,9 @@ package Adaflight.Command_Line with SPARK_Mode is
    --  layout changed; the configuration written to its storage, the board
    --  restarted, or the command line left with the disarmed motors reset; a
    --  motor's disarmed value, or every motor's, set to a value; the beeper
-   --  silenced and a sound requested; a receiver bind started; a restart
-   --  into the ROM bootloader, or into mass storage with its timezone offset
-   --  in minutes.
+   --  silenced and a sound requested; the flash erase's sound; a receiver
+   --  bind started; a restart into the ROM bootloader, or into mass storage
+   --  with its timezone offset in minutes.
    type Restart_Mode is (No_Restart, ROM_Bootloader, Mass_Storage);
    type Effects is record
       PID_Profile     : Boolean := False;
@@ -137,6 +151,7 @@ package Adaflight.Command_Line with SPARK_Mode is
       Motor_Value     : Float := 0.0;
       Sound           : Boolean := False;
       Sound_Mode      : Beeper.Sound := Beeper.Gyro_Calibrated;
+      Erase_Sound     : Boolean := False;
       Bind            : RX_Bind.Bind := RX_Bind.No_Bind;
       Restart         : Restart_Mode := No_Restart;
       Timezone_Offset : Interfaces.Integer_16 := 0;
