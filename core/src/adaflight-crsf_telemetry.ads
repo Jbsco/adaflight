@@ -321,6 +321,8 @@ package Adaflight.CRSF_Telemetry with SPARK_Mode is
    Baro_Interval_Us      : constant := 100_000;
    GPS_Time_Interval_Us  : constant := 30_000_000;
    Speed_Confirm_Us      : constant := 4_000;
+   Link_Check_Us         : constant := 250_000;
+   ELRS_Chunk_Us         : constant := 75_000;
 
    Baud_Count   : constant := 16;
    Default_Baud : constant := 420_000;
@@ -337,6 +339,9 @@ package Adaflight.CRSF_Telemetry with SPARK_Mode is
       Confirmation_Time : Time_Us := 0;
    end record
      with Dynamic_Predicate => Speed_Control.Port_Id <= 7;
+
+   --  The link a device information reply names.
+   type Link_Kind is (Unknown, ELRS, Not_ELRS);
 
    --  The slots keep stale entries past the count, and the slot index is not
    --  reset by a new schedule, so a shorter schedule reads them until the
@@ -361,6 +366,9 @@ package Adaflight.CRSF_Telemetry with SPARK_Mode is
       Last_Check_Time             : Time_Us := 0;
       V3_Running                  : Boolean := False;
       Speed                       : Speed_Control;
+      Link                        : Link_Kind := Unknown;
+      Last_Ping                   : Time_Us := 0;
+      Chunk_Interval_Us           : Time_Us := 0;
    end record;
 
    --  Builds the schedule from the configuration when the link is active;
@@ -389,12 +397,21 @@ package Adaflight.CRSF_Telemetry with SPARK_Mode is
      with Pre => Payload'Length >= 7;
 
    --  Answers a pending proposal, applies an accepted rate after the confirm
-   --  delay (New_Baud non-zero), or sends a heartbeat while telemetry is off
-   --  and the negotiated rate is in use.
+   --  delay (New_Baud non-zero), sends a heartbeat while telemetry is off
+   --  and the negotiated rate is in use, or pings an unknown link at most
+   --  every quarter second so its device information names it.
    procedure Negotiate (T : in out Telemetry; Now : Time_Us; B : in out Byte_Array; S : in out Stream;
                         New_Baud : out Unsigned_32)
      with Pre  => Fits (S, B) and then Remaining (S) >= Frame_Size_Max,
           Post => S.Last = S.Last'Old and then S.Next in S.Next'Old .. S.Next'Old + Frame_Size_Max;
+
+   --  A device information reply: past the destination and origin, the
+   --  name up to its end, then a serial number of ELRS marks an ExpressLRS
+   --  link and sets the display port's chunk interval. Any other serial
+   --  number, or a reply without the name's end and four bytes after it,
+   --  marks another link.
+   procedure Handle_Device_Info (T : in out Telemetry; Payload : Byte_Array)
+     with Post => T.Link /= Unknown;
 
    Update_Room : constant := 10 * Frame_Size_Max;
 

@@ -37,7 +37,12 @@ package Adaflight.CRSF with SPARK_Mode is
    Type_RC_Channels_Packed   : constant := 16#16#;
    Type_Subset_RC_Channels   : constant := 16#17#;
    Type_Link_Statistics_Tx   : constant := 16#1D#;
+   Type_Device_Ping          : constant := 16#28#;
+   Type_Device_Info          : constant := 16#29#;
    Type_Command              : constant := 16#32#;
+   Type_MSP_Request          : constant := 16#7A#;
+   Type_MSP_Write            : constant := 16#7C#;
+   Type_Display_Port         : constant := 16#7D#;
 
    Baudrate              : constant := 420_000;
    Time_Per_Frame_Us     : constant := 1_748;
@@ -63,11 +68,19 @@ package Adaflight.CRSF with SPARK_Mode is
 
    --  What a received byte asked of the other units: a command frame for
    --  the flight controller to process from the frame's payload, the default
-   --  speed after repeated errors, and a telemetry response to schedule.
+   --  speed after repeated errors, and a telemetry response to schedule; a
+   --  device information reply to schedule for a ping, a device information
+   --  frame for the telemetry from the frame's payload, and a display port
+   --  command or an MSP frame of the frame's length less four from the byte
+   --  after the destination and origin.
    type Byte_Outputs is record
       Command            : Boolean := False;
       Default_Speed      : Boolean := False;
       Telemetry_Response : Boolean := False;
+      Device_Ping        : Boolean := False;
+      Device_Info        : Boolean := False;
+      Display_Port       : Boolean := False;
+      MSP_Frame          : Boolean := False;
    end record;
 
    --  Every channel starts at the count that reads as the configured

@@ -164,6 +164,14 @@ package body Adaflight.CRSF with SPARK_Mode is
                      then
                         Handle_Statistics_Tx (S, Rx, Now_Us);
                      end if;
+                  when Type_MSP_Request | Type_MSP_Write =>
+                     Result.MSP_Frame := S.Frame (1) >= 4;
+                  when Type_Device_Ping =>
+                     Result.Device_Ping := True;
+                  when Type_Device_Info =>
+                     Result.Device_Info := True;
+                  when Type_Display_Port =>
+                     Result.Display_Port := True;
                   when Type_Command =>
                      if Full_Length >= 5 and then S.Frame (1) >= Length_Type_CRC + 1
                        and then S.Frame (Full_Length - 2) = Frame_CRC (S.Frame, S.Frame (1), Poly_Command, 1)

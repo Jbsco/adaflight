@@ -60,7 +60,7 @@ The core contains:
 - flash filesystem for flight log, with ring buffer, erases and free space search
 - serial feature map: port function bits and baud rates from feature settings, claims, mask and
   baud writes, conflict rule and configuration fix
-- CRSF telemetry frames and ESC sensor telemetry
+- CRSF telemetry frames with link type check, ESC sensor telemetry
 - SmartPort telemetry stream
 - RunCam device protocol with camera buttons and five key cable
 - FrSky hub telemetry stream
@@ -216,7 +216,7 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 25229 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 25243 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
 - Recorded vectors replay bit for bit: 1753568 lines over 384 cases, every case exact except
   forty-six declared deviations in `DESIGN.md` D6.

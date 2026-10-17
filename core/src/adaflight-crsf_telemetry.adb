@@ -557,8 +557,39 @@ package body Adaflight.CRSF_Telemetry with SPARK_Mode is
          end if;
       elsif not T.Telemetry_Feature and then T.Use_Negotiated_Baud then
          Write_Heartbeat (B, S);
+      elsif T.Link = Unknown then
+         if Adaflight.Clock.Elapsed (Now, T.Last_Ping) > Link_Check_Us then
+            Write_Ping (B, S);
+            T.Last_Ping := Now;
+         end if;
       end if;
    end Negotiate;
+
+   ------------------------
+   -- Handle_Device_Info --
+   ------------------------
+
+   procedure Handle_Device_Info (T : in out Telemetry; Payload : Byte_Array) is
+      Serial : Natural := 0;
+   begin
+      if Payload'Length > 2 then
+         for I in Payload'First + 2 .. Payload'Last loop
+            if Payload (I) = 0 then
+               Serial := I + 1;
+               exit;
+            end if;
+         end loop;
+      end if;
+      if Serial /= 0 and then Serial + 3 <= Payload'Last
+        and then Payload (Serial) = Character'Pos ('E') and then Payload (Serial + 1) = Character'Pos ('L')
+        and then Payload (Serial + 2) = Character'Pos ('R') and then Payload (Serial + 3) = Character'Pos ('S')
+      then
+         T.Link := ELRS;
+         T.Chunk_Interval_Us := ELRS_Chunk_Us;
+      else
+         T.Link := Not_ELRS;
+      end if;
+   end Handle_Device_Info;
 
    -------------
    -- Process --

@@ -3928,6 +3928,8 @@ procedure Vector_Check is
             Count       : constant Natural := Integer (Int (6));
             Result      : Byte_Outputs;
             Defaults, Commands, Responses : Natural := 0;
+            Pings, Infos, Display_Ports, MSPs : Natural := 0;
+            Info_First, Display_First, MSP_Length, MSP_First : Integer_64 := 0;
             Status      : Adaflight.Receiver.Frame_Report;
             Polled      : Boolean;
          begin
@@ -3935,6 +3937,22 @@ procedure Vector_Check is
             for B in 1 .. Count loop
                CRSF_Clock := CRSF_Clock + Unsigned_32 (Int (K));
                Receive_Byte (CRSF_State, CRSF_Rx, Integer (Int (K + 1)), CRSF_Clock, Negotiating, Eeprom, Result);
+               if Result.Device_Ping then
+                  Pings := Pings + 1;
+               end if;
+               if Result.Device_Info then
+                  Infos := Infos + 1;
+                  Info_First := Integer_64 (CRSF_State.Frame (3));
+               end if;
+               if Result.Display_Port then
+                  Display_Ports := Display_Ports + 1;
+                  Display_First := Integer_64 (CRSF_State.Frame (5));
+               end if;
+               if Result.MSP_Frame then
+                  MSPs := MSPs + 1;
+                  MSP_Length := Integer_64 (CRSF_State.Frame (1)) - 4;
+                  MSP_First := Integer_64 (CRSF_State.Frame (5));
+               end if;
                if Result.Default_Speed then
                   Defaults := Defaults + 1;
                end if;
@@ -3980,6 +3998,14 @@ procedure Vector_Check is
                Record_Result (Name & ".raw", Bits (K), To_Bits (Read_Raw (CRSF_State, Ch)));
                K := K + 1;
             end loop;
+            Expect_Next ("pings", Integer_64 (Pings));
+            Expect_Next ("device_infos", Integer_64 (Infos));
+            Expect_Next ("device_info_first", Info_First);
+            Expect_Next ("display_ports", Integer_64 (Display_Ports));
+            Expect_Next ("display_port_first", Display_First);
+            Expect_Next ("msp_frames", Integer_64 (MSPs));
+            Expect_Next ("msp_length", MSP_Length);
+            Expect_Next ("msp_first", MSP_First);
             Check_Fields;
          end;
       else
@@ -5824,6 +5850,9 @@ procedure Vector_Check is
             if Int (7) = 1 then
                Schedule_Device_Info (CT_State);
             end if;
+            if Int (K + 10) = 1 then
+               Handle_Device_Info (CT_State, Hex_Bytes (K + 11));
+            end if;
             Update_Check (CT_State, Now, Run);
             Negotiate (CT_State, Now, CRSF_Out, S, New_Baud);
             Mid := S.Next;
@@ -5836,9 +5865,11 @@ procedure Vector_Check is
             Record_Int (Name & ".baud", Int (K + 5), Integer_64 (New_Baud));
             Record_Int (Name & ".devinfo", Int (K + 6), Boolean'Pos (CT_State.Device_Info_Pending));
             Record_Int (Name & ".response", Int (K + 7), Boolean'Pos (CT_State.Response_Pending));
-            Count := CRSF_Frames (Name & ".frame", 0, S.Next, K + 10);
+            Record_Int (Name & ".link", Int (K + 12), Integer_64 (Link_Kind'Pos (CT_State.Link)));
+            Record_Int (Name & ".chunk_interval", Int (K + 13), Integer_64 (CT_State.Chunk_Interval_Us));
+            Count := CRSF_Frames (Name & ".frame", 0, S.Next, K + 14);
             Record_Int (Name & ".negotiation_frames", Int (K + 8),
-                        Integer_64 (CRSF_Frames (Name & ".nframe", 0, Mid, K + 10)));
+                        Integer_64 (CRSF_Frames (Name & ".nframe", 0, Mid, K + 14)));
             Record_Int (Name & ".frames", Int (K + 9), Integer_64 (Count));
          end;
       elsif Name = "crsfframe" then
