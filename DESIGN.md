@@ -6791,3 +6791,31 @@ not return ends its sequence (F239). Every card operation, clock read, result, e
 finder, notice, cache entry and the hash of the cache memory of the 18200 steps replays exactly.
 Thirty-one tampered paths each fail the vectors. In twelve of them the port does not return from a step the
 reference returns from.
+
+## D300. SD card file system: initialization and shutdown (2026-10-17)
+
+`Adaflight.FAT_FS` gains the initialization, the poll and the shutdown. The initialization reads the
+partition table and the volume ID, sets the root as the working directory, and opens the free-space file,
+"FREESPAC.E", making it when it does not exist. A free-space file of any size ends the initialization. An
+empty one takes the longest free run that starts a FAT sector, less 100 clusters, cut to one more than whole
+superclusters, when more than a supercluster is left. Its chain is written, then its entry. A broken
+partition table, volume ID or free-space file leaves the file system fatal with the error. The free-space
+file's callback runs inside the operation, as the file system's own notice number 15. The poll runs when the
+card's own poll found it ready: it flushes the dirty sector written first, then continues the initialization
+or the files' operations. The shutdown closes every file and flushes the cache, or skips both when dirty,
+then zeroes the file system and keeps its pending notices. A start sets only the state, the step and the
+allocation start, so a start after a shutdown begins from a zeroed file system.
+
+The FAT oracle gains an initialization run on thirteen kinds of card: FAT16 and FAT32 cards without a
+free-space file, one with a free-space file that has clusters, one whose free-space file is empty, one whose
+free-space file has one byte, a partition table without its signature, one without a FAT partition, a volume
+ID with one FAT, a full FAT16 card, a FAT16 root directory with no room, a FAT32 root directory that grows
+by a cluster, and FAT16 and FAT32 cards whose one free run starts a FAT sector and is 100 clusters longer
+than whole superclusters. Each sequence polls to the end of the initialization, then opens, writes and
+closes log files, makes and enters a directory, shuts the file system down, dirty or not, and starts it
+again. Every card operation, result, step, search state, file handle, notice, cache entry and the hash of
+the cache memory of the 40200 steps replays exactly. Fourteen tampered paths each fail the vectors, and
+three are equivalent. The cut leaves one more than whole superclusters, so the length left never equals a
+supercluster. Every failure of the cache passes through its assertion, which has already made the file
+system fatal with the generic error. A shutdown that zeroes the file system has no file open, so its poll
+raises no notice to keep.

@@ -1771,4 +1771,161 @@ package body Adaflight.FAT_FS with SPARK_Mode is
       end loop;
    end Free_Space_Search_Continue;
 
+   -------------------
+   -- Init_Continue --
+   -------------------
+
+   procedure Init_Continue (FS : in out File_System; Card : in out Card_State) is
+      Status         : Operation_Status;
+      Slot           : Cache_Slot;
+      Found          : Boolean;
+      Unused_Changed : Boolean;
+   begin
+      loop
+         case FS.Phase is
+            when Read_MBR =>
+               Cache_Sector (FS, Card, 0, (Read => True, Discardable => True, others => False), 0, Status, Slot);
+               exit when Status /= Success;
+               Parse_MBR (FS.Cache (Slot), FS.Vol, Found);
+               if not Found then
+                  FS.Last_Error := Bad_MBR;
+                  FS.State := Fatal;
+                  exit;
+               end if;
+               FS.Phase := Read_Volume_ID;
+            when Read_Volume_ID =>
+               Cache_Sector (FS, Card, FS.Vol.Partition_Start_Sector,
+                             (Read => True, Discardable => True, others => False), 0, Status, Slot);
+               if Status = Success then
+                  Parse_Volume_ID (FS.Cache (Slot), FS.Vol, Found);
+                  if Found then
+                     Change_Directory (FS, Card, No_File, Unused_Changed);
+                     FS.Phase := Free_File_Create;
+                  else
+                     FS.Last_Error := Bad_Filesystem_Header;
+                     FS.State := Fatal;
+                  end if;
+               end if;
+               exit;
+            when Free_File_Create =>
+               FS.Phase := Free_File_Creating;
+               Create_File (FS, Card, Free_File, "FREESPAC.E", Attribute_System or Attribute_Read_Only,
+                            Mode_Create or Mode_Retain_Directory, Free_File_Created);
+               exit;
+            when Free_File_Creating =>
+               Operation_Continue (FS, Card, Free_File);
+               exit;
+            when Free_File_FAT_Search =>
+               Free_Space_Search_Continue (FS, Card, Status);
+               exit when Status /= Success;
+               --  An empty free-space file only needs its entry saved.
+               FS.Phase := Free_File_Save_Entry;
+               if FS.Search.Best_Gap_Length > Free_File_Leave_Clusters + 1 then
+                  FS.Search.Best_Gap_Length := FS.Search.Best_Gap_Length - Free_File_Leave_Clusters;
+                  --  A size of one more than whole superclusters, so the file
+                  --  never empties.
+                  FS.Search.Best_Gap_Length :=
+                    ((FS.Search.Best_Gap_Length - 1) and not (FAT_Entries_Per_Sector (FS.Vol) - 1)) + 1;
+                  if FS.Search.Best_Gap_Length > FAT_Entries_Per_Sector (FS.Vol) then
+                     declare
+                        Start  : constant Unsigned_32 := FS.Search.Best_Gap_Start;
+                        Finish : constant Unsigned_32 := FS.Search.Best_Gap_Start + FS.Search.Best_Gap_Length;
+                     begin
+                        Check (FS, Finish < FS.Vol.Num_Clusters + Smallest_Cluster);
+                        --  The fill's range takes the place of the candidate.
+                        FS.Search.Candidate_Start := Start;
+                        FS.Search.Candidate_End := Finish;
+                        FS.Files (Free_File).First_Cluster := Start;
+                        FS.Files (Free_File).Logical_Size := FS.Search.Best_Gap_Length * Cluster_Size (FS.Vol);
+                        FS.Files (Free_File).Physical_Size := FS.Files (Free_File).Logical_Size;
+                        FS.Phase := Free_File_Update_FAT;
+                     end;
+                  end if;
+               end if;
+            when Free_File_Update_FAT =>
+               declare
+                  Start : Unsigned_32 := FS.Search.Candidate_Start;
+               begin
+                  FAT_Fill (FS, Card, Closed_Chain, Start, FS.Search.Candidate_End, Status);
+                  FS.Search.Candidate_Start := Start;
+               end;
+               if Status = Failure then
+                  FS.Last_Error := Generic_Error;
+                  FS.State := Fatal;
+               end if;
+               exit when Status /= Success;
+               FS.Phase := Free_File_Save_Entry;
+            when Free_File_Save_Entry =>
+               Save_Directory_Entry (FS, Card, Free_File, Save_Normal, Status);
+               if Status = Failure then
+                  FS.Last_Error := Generic_Error;
+                  FS.State := Fatal;
+               end if;
+               exit when Status /= Success;
+               FS.Phase := Init_Done;
+            when Init_Done =>
+               FS.State := Ready;
+               exit;
+         end case;
+      end loop;
+   end Init_Continue;
+
+   ----------
+   -- Poll --
+   ----------
+
+   procedure Poll (FS : in out File_System; Card : in out Card_State; Card_Ready : Boolean) is
+      Unused_Done : Boolean;
+   begin
+      if Card_Ready then
+         Flush (FS, Card, Unused_Done);
+         case FS.State is
+            when Initialization =>
+               Init_Continue (FS, Card);
+            when Ready =>
+               Operations_Poll (FS, Card);
+            when Unknown | Fatal =>
+               null;
+         end case;
+      end if;
+   end Poll;
+
+   -------------
+   -- Destroy --
+   -------------
+
+   procedure Destroy
+     (FS : in out File_System; Card : in out Card_State; Dirty : Boolean; Card_Ready : Boolean; Done : out Boolean)
+   is
+      Open          : Natural := 0;
+      Flushed       : Boolean;
+      Unused_Queued : Boolean;
+   begin
+      if not Dirty and then FS.State = Ready then
+         --  Each close may not end at once, so each open file counts.
+         for Id in File_Id loop
+            if FS.Files (Id).Kind /= Unused then
+               Close (FS, Card, File_Ref (Id), No_Callback, Unused_Queued);
+               Open := Open + 1;
+            end if;
+            pragma Loop_Invariant (Open <= Natural (Id) + 1);
+         end loop;
+         Poll (FS, Card, Card_Ready);
+         Flush (FS, Card, Flushed);
+         if not Flushed or else FS.Flush_In_Progress or else Open > 0 then
+            Done := False;
+            return;
+         end if;
+      end if;
+      declare
+         Notices : constant Notice_List := FS.Notices;
+         Count   : constant Natural := FS.Notice_Count;
+      begin
+         FS := (others => <>);
+         FS.Notices := Notices;
+         FS.Notice_Count := Count;
+      end;
+      Done := True;
+   end Destroy;
+
 end Adaflight.FAT_FS;

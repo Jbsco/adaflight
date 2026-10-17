@@ -141,9 +141,11 @@ package body Adaflight.FAT with SPARK_Mode is
    -- Init --
    ----------
 
-   procedure Init (FS : out File_System) is
+   procedure Init (FS : in out File_System) is
    begin
-      FS := (State => Initialization, Last_Cluster_Allocated => Smallest_Cluster, others => <>);
+      FS.State := Initialization;
+      FS.Phase := Read_MBR;
+      FS.Last_Cluster_Allocated := Smallest_Cluster;
    end Init;
 
    -----------
@@ -422,7 +424,19 @@ package body Adaflight.FAT with SPARK_Mode is
 
    procedure Notify (FS : in out File_System; Tag : Callback_Tag; File : File_Ref) is
    begin
-      if Tag /= No_Callback and then FS.Notice_Count < Max_Notices then
+      if Tag = Free_File_Created then
+         --  The free-space file opened: with clusters it is ready, empty it
+         --  takes the longest free run; not opened, the volume is unusable.
+         if File = No_File then
+            FS.Last_Error := Generic_Error;
+            FS.State := Fatal;
+         elsif FS.Files (File_Id (File)).Logical_Size > 0 then
+            FS.Phase := Init_Done;
+         else
+            Begin_Free_Space_Search (FS);
+            FS.Phase := Free_File_FAT_Search;
+         end if;
+      elsif Tag /= No_Callback and then FS.Notice_Count < Max_Notices then
          FS.Notice_Count := FS.Notice_Count + 1;
          FS.Notices (FS.Notice_Count) := (Tag => Tag, File => File);
       end if;
