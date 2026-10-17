@@ -3597,7 +3597,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Feature_Command_Word, Flash_Info_Command_Word, Get_Command, Help_Command_Word, Led_Command_Word,
       Map_Command_Word,
       Mode_Color_Command_Word,
-      Mixer_Command_Word, Motor_Mix_Command_Word, Profile_Command, Rate_Profile_Command,
+      Mixer_Command_Word, Motor_Mix_Command_Word, Options_Command_Word, Profile_Command, Rate_Profile_Command,
       Rc_Smoothing_Info_Command_Word, Rx_Failsafe_Command, MCU_Id_Command_Word, Motor_Command_Word,
       MSC_Command_Word,
       Play_Sound_Command_Word, Rx_Range_Command, Sd_Info_Command_Word, Sensor_Hardware_Command_Word,
@@ -3642,6 +3642,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when Sensor_Hardware_Command_Word => "sensor_hardware",
          when Mixer_Command_Word => "mixer",
          when Motor_Mix_Command_Word => "mmix",
+         when Options_Command_Word => "options",
          when Profile_Command => "profile",
          when Rate_Profile_Command => "rateprofile",
          when Rc_Smoothing_Info_Command_Word => "rc_smoothing_info",
@@ -4330,6 +4331,18 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end loop;
       Motors_Enable;
    end Dshotprog_Command;
+
+   --  options: each of the build's option numbers on its own line.
+   procedure Options_Command (Into : in out Output; Env : Environment)
+     with Global => null
+   is
+   begin
+      for I in 1 .. Env.Option_Count loop
+         pragma Loop_Invariant (I in 1 .. Env.Option_Count);
+         Put (Into, Decimal (Integer_64 (Env.Build_Options (I))));
+         Put (Into, CRLF);
+      end loop;
+   end Options_Command;
 
    --  bl: a restart into the ROM bootloader without an option or with one
    --  that starts with rom in any case, else the option's error.
@@ -5345,6 +5358,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
             Dshot_Telemetry_Info_Command (Into, Env.Motors, Env.DShot_Telemetry);
          when Dshotprog_Command_Word =>
             Dshotprog_Command (Into, Env, Text_At (Buffer, Arguments));
+         when Options_Command_Word =>
+            Options_Command (Into, Env);
          when Sd_Info_Command_Word =>
             SD_Info_Command (Into, C.Sdcard_Config.Mode, Env.SD_Card);
          when Bootloader_Command_Word =>

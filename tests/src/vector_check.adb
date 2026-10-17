@@ -16121,7 +16121,9 @@ procedure Vector_Check is
       Flash           => <>,
       MSC_Ready       => False,
       DShot_Protocol  => False,
-      ESC_Sensor      => False);
+      ESC_Sensor      => False,
+      Build_Options   => <>,
+      Option_Count    => 0);
    CLI_Env      : CLI.Environment := CLI_Identity;
    CLI_Board    : CLI.Board_State;
    CLI_Reply    : CLI.Output;
@@ -16740,6 +16742,9 @@ procedure Vector_Check is
                for K in 1 .. CLI.Max_GCR_Edges loop
                   CLI_Env.DShot_Telemetry.Edges (K) := Unsigned_32'Value (Word (Command, K));
                end loop;
+            elsif Word (Command, 0) = "!buildopts" then
+               --  The oracle prints the build's option numbers after this line.
+               null;
             elsif Word (Command, 0) = "!dshotproto" then
                CLI_Env.DShot_Protocol := Word (Command, 1) /= "0";
             elsif Word (Command, 0) = "!escinfo" then
@@ -17075,6 +17080,12 @@ procedure Vector_Check is
          Record_Int ("cli.reboot", Int (4), Boolean'Pos (CLI_Changes.Reboot));
          Record_Int ("cli.leave", Int (5), Boolean'Pos (CLI_Changes.Leave));
          CLI_Restart_Seen := False;
+      elsif Str (1) = "clbo" then
+         CLI_Env.Option_Count := Natural (Int (3));
+         CLI_Env.Build_Options := (others => 0);
+         for I in 1 .. CLI_Env.Option_Count loop
+            CLI_Env.Build_Options (I) := Interfaces.Unsigned_16 (Int (3 + I));
+         end loop;
       elsif Str (1) = "cldp" then
          Record_Int ("cli.dshot_calls", Int (3), Integer_64 (CLI_DShot_Calls));
          Record_Int ("cli.dshot_motors", Int (4), Integer_64 (CLI_DShot_Count));
@@ -24866,6 +24877,7 @@ begin
    Run (Dir & "/clirestart.csv", "cliset");
    Run (Dir & "/clihelp.csv", "cliset");
    Run (Dir & "/clidshotprog.csv", "cliset");
+   Run (Dir & "/clioptions.csv", "cliset");
    if Settings_Seen /= Adaflight.Settings_Table.Setting'Pos (Adaflight.Settings_Table.Setting'Last) + 1 then
       Put_Line ("settings: the vectors hold" & Settings_Seen'Image & " settings");
       Failures := Failures + 1;

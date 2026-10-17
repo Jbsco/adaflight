@@ -19,7 +19,7 @@
 --  the board into its ROM bootloader and msc into mass storage; help lists
 --  the commands of the build with their descriptions and arguments;
 --  dshotprog writes DShot commands to the ESCs and prints the information
---  they send back;
+--  they send back; options lists the build's option numbers;
 --  save, exit and defaults without nosave ask for the configuration's write,
 --  the board's restart or the command line's end. A line naming no command
 --  gets the ERR_CMD_NA reply.
@@ -245,6 +245,11 @@ package Adaflight.Command_Line with SPARK_Mode is
       Used             : Interfaces.Unsigned_32 := 0;
    end record;
 
+   --  The build's option numbers, as the build information message sends
+   --  them, up to 64.
+   Max_Build_Options : constant := 64;
+   type Build_Option_List is array (1 .. Max_Build_Options) of Interfaces.Unsigned_16;
+
    --  What the commands report from outside the configuration: the flight
    --  plan executor's state, the firmware's name, the target's name, the
    --  version, the build's date, time and revision, the MCU's unique id, the
@@ -254,7 +259,8 @@ package Adaflight.Command_Line with SPARK_Mode is
    --  and whether the 3D feature runs, the receiver and serial protocol the
    --  board took at its start, the motors' DShot telemetry, the SD card,
    --  the flash chip, whether the mass storage is ready, whether the motors
-   --  run DShot, and whether the ESC sensor feature runs.
+   --  run DShot, whether the ESC sensor feature runs, and the build's option
+   --  numbers.
    type Environment is record
       Navigation      : Navigation_Status;
       Firmware        : Identity_Text;
@@ -280,6 +286,8 @@ package Adaflight.Command_Line with SPARK_Mode is
       MSC_Ready       : Boolean := False;
       DShot_Protocol  : Boolean := False;
       ESC_Sensor      : Boolean := False;
+      Build_Options   : Build_Option_List := (others => 0);
+      Option_Count    : Natural range 0 .. Max_Build_Options := 0;
    end record;
 
    --  The board's information as the commands see it: its name and
