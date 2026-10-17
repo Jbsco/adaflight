@@ -1544,6 +1544,10 @@ procedure Vector_Check is
       Handover : Float := 0.0;
    end record;
    Mix_Launch : Launch_Inputs;
+   Mix_Pre_Low  : Float := 1000.0;
+   Mix_Post_Low : Float := 1000.0;
+   Mix_Min_Hz   : Float := 0.0;
+   Mix_Raised   : Boolean := False;
 
    procedure Check_Mix_Line is
       use Adaflight.PID_Profile;
@@ -1603,6 +1607,10 @@ procedure Vector_Check is
          Mix_Vbat_Latest := 0;
          Mix_Armed := True;
          Mix_Launch := (others => <>);
+         Mix_Pre_Low := Flt (8);
+         Mix_Post_Low := Flt (16);
+         Mix_Min_Hz := 0.0;
+         Mix_Raised := False;
          Mix_Airmode := Str (13) = "1";
          Mix_AG := Str (14) = "1";
          Configure (Mix_Runtime, Mix_Profile, Integer'Value (Str (3)), Has_Acc => False,
@@ -1655,6 +1663,8 @@ procedure Vector_Check is
             MInp.Launch_Throttle_Valid := Mix_Launch.Valid;
             MInp.Launch_Throttle := Mix_Launch.Throttle;
             MInp.Launch_Handover := Mix_Launch.Handover;
+            MInp.Min_Motor_Frequency := Mix_Min_Hz;
+            MInp.Throttle_Raised := Mix_Raised;
             MInp.Alt_Hold_Mode := Inp.Alt_Hold_Mode;
             MInp.Pos_Hold_Mode := Inp.Pos_Hold_Mode;
             MInp.GPS_Rescue_Mode := Inp.GPS_Rescue_Mode;
@@ -1771,6 +1781,33 @@ procedure Vector_Check is
             Mix_Config.Count := Count;
             Mix_Config.Launch_Table := Launch;
          end;
+      elsif Name = "mixdyninit" then
+         Mix_Profile.Dyn_Idle_Min_RPM := Integer (Int (4));
+         Mix_Profile.Dyn_Idle_P_Gain := Integer (Int (5));
+         Mix_Profile.Dyn_Idle_I_Gain := Integer (Int (6));
+         Mix_Profile.Dyn_Idle_D_Gain := Integer (Int (7));
+         Mix_Profile.Dyn_Idle_Max_Increase := Integer (Int (8));
+         Mix_Config.Output_Low := Mix_Pre_Low;
+         Mix_Config.DShot := True;
+         Init_Dyn_Idle (Mix_State, Mix_Config, Mix_Runtime, Mix_Profile, DShot_Telemetry => Str (3) = "1",
+                        Motor_Idle => Integer (Int (9)));
+         Record_Result ("mixdyninit.min_rps", Bits (10), To_Bits (Mix_State.Dyn_Idle_Min_Rps));
+         Record_Result ("mixdyninit.p_gain", Bits (11), To_Bits (Mix_State.Dyn_Idle_P_Gain));
+         Record_Result ("mixdyninit.i_gain", Bits (12), To_Bits (Mix_State.Dyn_Idle_I_Gain));
+         Record_Result ("mixdyninit.d_gain", Bits (13), To_Bits (Mix_State.Dyn_Idle_D_Gain));
+         Record_Result ("mixdyninit.max_increase", Bits (14), To_Bits (Mix_State.Dyn_Idle_Max_Increase));
+         Record_Result ("mixdyninit.start_increase", Bits (15), To_Bits (Mix_State.Dyn_Idle_Start_Increase));
+         Record_Result ("mixdyninit.delay_k", Bits (16), To_Bits (Mix_State.Dyn_Idle_Delay_K));
+         Record_Result ("mixdyninit.output_low", To_Bits (Mix_Post_Low), To_Bits (Mix_Config.Output_Low));
+      elsif Name = "mixdyn" then
+         Mix_Min_Hz := Flt (4);
+         Mix_Raised := Str (5) = "1";
+      elsif Name = "mixdynstate" then
+         Record_Result ("mixdynstate.i", Bits (4), To_Bits (Mix_State.Dyn_Idle_I));
+         Record_Result ("mixdynstate.delayed", Bits (5), To_Bits (Mix_State.Dyn_Idle_Prev_Min_Rps));
+         Record_Result ("mixdynstate.range_low", Bits (6),
+                        To_Bits (Mix_Config.Output_Low
+                                 + Mix_State.Range_Min_Increase * (Mix_Config.Output_High - Mix_Config.Output_Low)));
       elsif Name = "wingmixinit" then
          declare
             Mode     : constant Adaflight.Mixer_Init.Mixer_Mode :=
@@ -22252,6 +22289,7 @@ begin
    Run (Dir & "/mixflip.csv", "mix");
    Run (Dir & "/mixfs.csv", "mix");
    Run (Dir & "/mixsag.csv", "mix");
+   Run (Dir & "/mixdyn.csv", "mix");
    Run (Dir & "/wingtpa.csv", "mix");
    Run (Dir & "/wingmix.csv", "mix");
    Run (Dir & "/rc.csv", "rc");

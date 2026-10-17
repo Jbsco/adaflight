@@ -312,6 +312,9 @@ ledger. The deviations so far:
   an undefined airspeed and TPA from the first loop (F231). A speed type past the advanced model runs the
   advanced model, where the reference leaves the model unset. The recorded vectors keep the settings in
   the command line's ranges.
+- With dynamic idle the top of the motor range also holds at the raised low end (D287), where the
+  reference's sag compensation can lower the top below it. The dynamic idle vectors keep the sag
+  compensation off.
 - A wing's setpoint attenuation is one at the center of a zero-width window (D281). The reference divides
   zero by zero there, and its I term turns undefined (F232). The recorded vectors keep every width above
   zero.
@@ -6499,3 +6502,23 @@ The accelerometer oracle gains in-flight sequences that start measurements, turn
 ask for saves and set angle trims, and every step replays exactly. A tone check that took the done flag's
 rise failed five steps, where a measurement ends while the previous one is still done, so the update reports
 the end itself. Six tampered paths each fail the vectors.
+
+## D287. Dynamic idle (2026-10-17)
+
+`Adaflight.Mixer` gains the dynamic idle, which raises the low end of the motor range to keep the slowest
+motor above a target frequency. `Init_Dyn_Idle` sets it up as the mixer's profile does: off without DShot
+telemetry, the target in revolutions per second from the setting in hundreds of RPM, the P, I and D gains
+from the settings and the loop time, the largest increase, the motor idle as the limit before takeoff, a
+delay on the motor frequency of about 20 ms, and the motor range's low end at the DShot minimum while it
+runs. Each mixer pass, before the motor range, a PID on the slowest motor's frequency below its target sets
+the increase: the P term on the error, the I term on the error held above -0.1 and kept between zero and
+the limit, the D term on the delayed frequency, and their sum held to the same limit. The limit is the
+largest increase once the throttle has risen since arming and the motor idle before. The low end of the
+range rises by the increase times the range, and the throttle stays at or above 1 percent while it runs.
+The raised end would fall back to the low end if it reached the top, and a share of at most 0.26 keeps it
+far below. The delayed frequency is held to the signal bound. Its delay factor passes two only for a loop
+slower than 20 Hz, where the reference's delayed frequency diverges, and the PID loop runs far faster.
+
+The PID oracle builds with dynamic idle, and every earlier PID and mixer vector stays byte for byte. New
+mixer runs script DShot telemetry, the settings, the motor idle, the slowest motor's frequency and the
+throttle's rise, and every step replays exactly. Six tampered paths each fail the vectors.
