@@ -86,12 +86,13 @@ package Adaflight.Config_Runtime with SPARK_Mode is
    function Rate_Profile_Of (R : Control_Rate_Config_Record) return Rates.Profile;
 
    --  The arming settings from the stored arming, system, receiver, 3D,
-   --  mixer and PID loop groups, the current PID profile, the features in
-   --  use and the sensors found at boot.
+   --  mixer, PID loop and scheduler groups, the current PID profile, the
+   --  features in use and the sensors found at boot.
    function Arming_Settings_Of
      (A : Arming_Config_Record; Sys : System_Config_Record; R : Rx_Config_Record;
       Flight_3D : Flight3_D_Config_Record; Mixer_Mode : Unsigned_8; Loop_Rate : Pid_Config_Record;
-      P : Pid_Profile_Record; Features : Unsigned_32; Sensors : Arming.Sensor_Set) return Arming.Settings;
+      Sch : Scheduler_Config_Record; P : Pid_Profile_Record; Features : Unsigned_32; Sensors : Arming.Sensor_Set)
+      return Arming.Settings;
 
    --  The mode conditions from the stored ones. A mode outside the box
    --  table makes a condition that is never active, and a link outside it
@@ -505,7 +506,8 @@ private
    function Arming_Settings_Of
      (A : Arming_Config_Record; Sys : System_Config_Record; R : Rx_Config_Record;
       Flight_3D : Flight3_D_Config_Record; Mixer_Mode : Unsigned_8; Loop_Rate : Pid_Config_Record;
-      P : Pid_Profile_Record; Features : Unsigned_32; Sensors : Arming.Sensor_Set) return Arming.Settings is
+      Sch : Scheduler_Config_Record; P : Pid_Profile_Record; Features : Unsigned_32; Sensors : Arming.Sensor_Set)
+      return Arming.Settings is
      (Gyro_Cal_On_First_Arm      => A.Gyro_Cal_On_First_Arm /= 0,
       Auto_Disarm_Delay          => Integer (A.Auto_Disarm_Delay),
       Prearm_Allow_Rearm         => A.Prearm_Allow_Rearm /= 0,
@@ -531,6 +533,7 @@ private
       Runaway_Prevention         => Loop_Rate.Runaway_Takeoff_Prevention /= 0,
       Runaway_Deactivate_Delay   => Held (Integer (Loop_Rate.Runaway_Takeoff_Deactivate_Delay), 100, 1_000),
       Runaway_Deactivate_Throttle => Held (Integer (Loop_Rate.Runaway_Takeoff_Deactivate_Throttle), 0, 100),
+      CPU_Late_Limit             => Natural (Sch.Cpu_Late_Percentage_Limit),
       Sensors                    => Sensors);
 
    function Failsafe_Settings_Of (F : Failsafe_Config_Record; A : Autopilot_Config_Record) return Failsafe.Settings is

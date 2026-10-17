@@ -106,8 +106,8 @@ package Adaflight.Arming with SPARK_Mode is
       Mag  : Boolean := False;
    end record;
 
-   --  The arming, system, receiver, and 3D configuration the arming logic
-   --  reads, the features, and the sensors detected at boot.
+   --  The arming, system, receiver, 3D and scheduler configuration the
+   --  arming logic reads, the features, and the sensors detected at boot.
    type Settings is record
       Gyro_Cal_On_First_Arm      : Boolean := False;
       Auto_Disarm_Delay          : Natural range 0 .. 255 := 5;
@@ -135,6 +135,7 @@ package Adaflight.Arming with SPARK_Mode is
       Runaway_Prevention         : Boolean := True;
       Runaway_Deactivate_Delay   : Natural range 100 .. 1_000 := 500;
       Runaway_Deactivate_Throttle : Natural range 0 .. 100 := 20;
+      CPU_Late_Limit             : Natural range 0 .. 65_535 := 10;
       Sensors                    : Sensor_Set;
    end record;
 
@@ -145,7 +146,9 @@ package Adaflight.Arming with SPARK_Mode is
    type Axis_Rates_Dps is array (Axes.Axis) of Natural range 0 .. 65_535;
    type Axis_Deflections is array (Axes.Axis) of Float range 0.0 .. 1.0;
 
-   --  What the other units report at each pass.
+   --  What the other units report at each pass; Late_Permille is the
+   --  scheduler's share of tasks run late in its last timing window, in
+   --  tenths of a percent.
    type Inputs is record
       Rx_Signal                  : Boolean := False;
       Failsafe_Receiving         : Boolean := True;
@@ -160,6 +163,7 @@ package Adaflight.Arming with SPARK_Mode is
       First_Arm_Gyro_Cal_Running : Boolean := False;
       Motor_Protocol_Enabled     : Boolean := True;
       Headfree_Offset_Set        : Boolean := True;
+      Late_Permille              : Interfaces.Unsigned_32 := 0;
       PID_Sums                   : Axis_Sums := (others => 0.0);
       Gyro_Abs_Dps               : Axis_Rates_Dps := (others => 0);
       Deflection_Abs             : Axis_Deflections := (others => 0.0);

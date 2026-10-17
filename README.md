@@ -179,6 +179,7 @@ The core contains:
   function, exit and back lines, save menu by reboot state, edits delivered to target
 - menu update: open gesture, sticks read as keys with delay and repeat, external keys, draw,
   heartbeat and drawing transactions per pass
+- arming load check: scheduler's late task share against configured limit as disable reason
 - MAVLink telemetry streams with intervals and arming status text, and MAVLink commands with
   replies and requests
 - MAVLink mission protocol with uploads, downloads, fence store and current item reports
