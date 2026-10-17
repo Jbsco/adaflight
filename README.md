@@ -65,25 +65,21 @@ The core contains:
 </details>
 
 <details>
-<summary><b>Navigation</b> (5)</summary>
+<summary><b>Navigation</b> (2)</summary>
 
 - position Kalman filter, position estimator from barometer, accelerometer and GPS, altitude hold,
   position hold with autopilot's navigation modes, GPS rescue, and position navigation target
 - flight plan storage with waypoint capture gesture, and executor's plan queries, leg geometry,
   carrot legs, dispatch, landing, update cycle, engagement, plan injection, geofence return,
   rescue plan and descent, and waypoint distance, bearing and time
-- navigation trail with distance gate and decimation
-- GPS frame decoders for NMEA sentences and UBX messages, UBX configuration messages, and GPS link
-  with rate detection, autoconfiguration and home distances
-- GPS lap timer with averaged gate and best three laps
 
 </details>
 
 <details>
-<summary><b>Receivers</b> (10)</summary>
+<summary><b>Receivers</b> (9)</summary>
 
-- SBUS, CRSF, SUMD, SUMH, IBUS, Spektrum, XBUS, Jeti EX Bus, Ghost, SRXL2 and FPORT protocols, and
-  MSP and MAVLink receivers
+- SBUS, CRSF, SUMD, SUMH, IBUS, Spektrum, XBUS, Jeti EX Bus, Ghost, SRXL2 and FPORT protocols, PPM
+  and parallel PWM inputs, and MSP and MAVLink receivers
 - FrSky SPI D8 and X receivers with binding, hopping, hub data and telemetry transport
 - S-FHSS receiver with offset tuning, hunt and hop code
 - Redpine receiver with fast and slow modes, bind tuning and hop table
@@ -93,7 +89,6 @@ The core contains:
   receivers
 - RC statistics for full throttle time and count and average throttle
 - receiver task's state machine with step time estimates
-- receiver bind: CRSF, SRXL2 and SPI receivers from bind_rx command and MSP bind message
 
 </details>
 
@@ -118,8 +113,10 @@ The core contains:
 </details>
 
 <details>
-<summary><b>MSP</b> (34)</summary>
+<summary><b>MSP</b> (35)</summary>
 
+- MSP serial port, ExpressLRS hopping tables, telemetry link and receiver, flight log field
+  encodings, header and recorder, text conversions, and DShot protocol
 - MSP serial port, ExpressLRS hopping tables, telemetry link and receiver, flight log field
   encodings, header and recorder, text conversions, and DShot protocol
 - MSP box table with paged replies and status bits
@@ -175,8 +172,10 @@ The core contains:
 </details>
 
 <details>
-<summary><b>Configuration and command line</b> (32)</summary>
+<summary><b>Configuration and command line</b> (33)</summary>
 
+- serial feature map: port function bits and baud rates from feature settings, claims, mask and
+  baud writes, conflict rule and configuration fix
 - serial feature map: port function bits and baud rates from feature settings, claims, mask and
   baud writes, conflict rule and configuration fix
 - configuration storage image: structure and version checks, record lookup, load and save
@@ -225,8 +224,10 @@ The core contains:
 </details>
 
 <details>
-<summary><b>Scheduler and tasks</b> (9)</summary>
+<summary><b>Scheduler and tasks</b> (11)</summary>
 
+- cooperative scheduler, beeper, and receiver's channel processing with MSP override
+- task setup: tasks enabled at boot and periods from build, features, sensors and settings
 - cooperative scheduler, beeper, and receiver's channel processing with MSP override
 - task setup: tasks enabled at boot and periods from build, features, sensors and settings
 - scheduler late task statistics: run and late counts per task, anticipated times, late share per
@@ -295,8 +296,9 @@ The core contains:
 </details>
 
 <details>
-<summary><b>Peripherals and storage</b> (8)</summary>
+<summary><b>Peripherals and storage</b> (9)</summary>
 
+- flash filesystem for flight log, with ring buffer, erases and free space search
 - flash filesystem for flight log, with ring buffer, erases and free space search
 - RunCam device protocol with camera buttons and five key cable
 - FrSky OSD device link
@@ -312,7 +314,7 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 28956 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 28969 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
 - Recorded vectors replay bit for bit: 1753568 lines over 384 cases, every case exact except
   fifty-four declared deviations in `DESIGN.md` D6.
