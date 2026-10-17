@@ -194,11 +194,11 @@ ledger. The deviations so far:
   message checks the whole request before it stores anything, so a short request, which the
   reference stores as zero filter cutoffs, is an error (findings F142). The checker expects the
   error and unchanged settings for the recorded requests outside the ranges.
-- MSP tuning, advanced, filter, advanced PID, receiver and hardware writes with a field outside
-  its setting's range are errors that write and change nothing (D203 to D206), where the reference
-  stores the field's bytes, or for a dynamic notch count, an RPM filter value, a feedforward
-  averaging or a mode range's linked mode outside its limit rejects the request after writing its
-  earlier fields (findings F189, F190). A field no setting names takes the bounds of the command
+- MSP tuning, advanced, filter, advanced PID, receiver, hardware and battery writes with a field
+  outside its setting's range are errors that write and change nothing (D203 to D207), where the
+  reference stores the field's bytes, or for a dynamic notch count, an RPM filter value, a
+  feedforward averaging, a mode range's linked mode or battery cell voltages out of order rejects
+  the request after writing its earlier fields (findings F189 to F191). A field no setting names takes the bounds of the command
   line command that writes it. The checker expects the error and an unchanged configuration for the
   recorded requests outside the ranges, and the reference's result and configuration for the rest.
 - The configuration storage image reads bytes past its region as erased and does not write an
@@ -4862,3 +4862,23 @@ start.
 The harness replays two sequences of 600 lines from the command line oracle, 1108 requests among
 resets and listings: 895 within their ranges, whose results and configuration hashes all match the
 reference's, and 213 outside them, each an error that leaves the configuration unchanged.
+
+## D207. MSP battery writes (2026-10-15)
+
+`Adaflight.MSP_Battery_In` contains the MSP in messages that write the battery meter's scale,
+divider and multiplier, the battery and virtual current meters' scale and offset, and the
+battery's cell voltages, capacity and meter sources, under the same whole-request range check as
+D203. The meter messages name their meter by id, battery 10 or virtual 80; another id writes
+nothing and is not an error, as in the reference, since this build has no other ADC meters. The
+battery message needs seven bytes, takes the cell voltages in tenths of a volt or, when six more
+bytes follow, in hundredths, and puts them and the capacity into the current battery profile. Cell
+voltages out of order, a minimum above the warning or a warning above the maximum, are an error,
+checked with the ranges before any write.
+
+The command line oracle now enters the reference's MSP processor through its common in-command
+handler, which holds these messages and hands the rest to the flight controller's; the earlier MSP
+recordings replay unchanged. The harness replays two sequences of 600 lines, 1083 requests among
+battery profile selections, resets and listings: 812 within their ranges, whose results and
+configuration hashes all match the reference's, 38 short battery requests that both reject, and 233
+outside the ranges, each an error that leaves the configuration unchanged, 24 of them ones the
+reference rejects after writing the meter sources.
