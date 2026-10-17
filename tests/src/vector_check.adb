@@ -124,6 +124,7 @@ with Adaflight.MSP_Box;
 with Adaflight.MSP_Common_Out;
 with Adaflight.MSP_Tuning_Out;
 with Adaflight.MSP_Tuning_In;
+with Adaflight.MSP_Receiver_In;
 with Adaflight.MSP_Receiver_Out;
 with Adaflight.MSP_Hardware_Out;
 with Adaflight.MSP_Peripheral_Out;
@@ -14555,6 +14556,7 @@ procedure Vector_Check is
    MSP_In_Ran     : Boolean := False;
    MSP_In_Result  : Adaflight.MSP_Tuning_In.Result := Adaflight.MSP_Tuning_In.Ack;
    MSP_In_Effects : Adaflight.MSP_Tuning_In.Effects;
+   MSP_Rx_Effects : Adaflight.MSP_Receiver_In.Effects;
    MSP_Gyro_Rate  : Adaflight.Config_Fix.Gyro_Rate := 0;
    CLI_Expected : Ada.Strings.Unbounded.Unbounded_String;
 
@@ -14703,10 +14705,23 @@ procedure Vector_Check is
                      Request (K) := Interfaces.Unsigned_8'Value
                        ("16#" & Hex (Hex'First + 2 * K .. Hex'First + 2 * K + 1) & "#");
                   end loop;
+                  MSP_In_Effects := Adaflight.MSP_Tuning_In.No_Effects;
+                  MSP_Rx_Effects := Adaflight.MSP_Receiver_In.No_Effects;
                   if Adaflight.MSP_Tuning_In.Handles (Cmd) then
                      Adaflight.MSP_Tuning_In.Process
                        (CLI_Config, Cmd, Request, MSP_Gyro_Rate, MSP_In_Result, MSP_In_Effects);
                      MSP_In_Ran := True;
+                  elsif Adaflight.MSP_Receiver_In.Handles (Cmd) then
+                     declare
+                        use type Adaflight.MSP_Receiver_In.Result;
+                        Rx_Result : Adaflight.MSP_Receiver_In.Result;
+                     begin
+                        Adaflight.MSP_Receiver_In.Process (CLI_Config, Cmd, Request, Rx_Result, MSP_Rx_Effects);
+                        MSP_In_Result :=
+                          (if Rx_Result = Adaflight.MSP_Receiver_In.Ack then Adaflight.MSP_Tuning_In.Ack
+                           else Adaflight.MSP_Tuning_In.Error);
+                        MSP_In_Ran := True;
+                     end;
                   end if;
                end;
             elsif Word (Command, 0) = "!clock" then
@@ -14742,6 +14757,14 @@ procedure Vector_Check is
                            Boolean'Pos (MSP_In_Effects.ESC_Endpoints));
                Record_Int ("msp.mixer_profile", (if In_Range and then Int (10) > 0 then 1 else 0),
                            Boolean'Pos (MSP_In_Effects.Mixer_Profile));
+            end if;
+            if NF >= 13 then
+               Record_Int ("msp.modes_init", (if In_Range and then Int (11) > 0 then 1 else 0),
+                           Boolean'Pos (MSP_Rx_Effects.Modes_Init));
+               Record_Int ("msp.adjustments_reset", (if In_Range and then Int (12) > 0 then 1 else 0),
+                           Boolean'Pos (MSP_Rx_Effects.Adjustments_Reset));
+               Record_Int ("msp.reboot_required", (if In_Range and then Int (13) > 0 then 1 else 0),
+                           Boolean'Pos (MSP_Rx_Effects.Reboot_Required));
             end if;
          end;
       elsif Str (1) = "clx" then
@@ -19660,6 +19683,7 @@ begin
    Run (Dir & "/clitask.csv", "cliset");
    Run (Dir & "/mspintune.csv", "cliset");
    Run (Dir & "/mspinfilt.csv", "cliset");
+   Run (Dir & "/mspinrx.csv", "cliset");
    Run (Dir & "/clisave.csv", "cliset");
    if Settings_Seen /= Adaflight.Settings_Table.Setting'Pos (Adaflight.Settings_Table.Setting'Last) + 1 then
       Put_Line ("settings: the vectors hold" & Settings_Seen'Image & " settings");

@@ -194,12 +194,13 @@ ledger. The deviations so far:
   message checks the whole request before it stores anything, so a short request, which the
   reference stores as zero filter cutoffs, is an error (findings F142). The checker expects the
   error and unchanged settings for the recorded requests outside the ranges.
-- MSP tuning, advanced, filter and advanced PID writes with a field outside its setting's range
-  are errors that write and change nothing (D203, D204), where the reference stores the field's
-  bytes, or for a dynamic notch count, an RPM filter value or a feedforward averaging outside its
-  limit rejects the request after writing its earlier fields (findings F189). The checker expects
-  the error and an unchanged configuration for the recorded requests outside the ranges, and the
-  reference's result and configuration for the rest.
+- MSP tuning, advanced, filter, advanced PID and receiver writes with a field outside its
+  setting's range are errors that write and change nothing (D203 to D205), where the reference
+  stores the field's bytes, or for a dynamic notch count, an RPM filter value, a feedforward
+  averaging or a mode range's linked mode outside its limit rejects the request after writing its
+  earlier fields (findings F189, F190). A field no setting names takes the bounds of the command
+  line command that writes it. The checker expects the error and an unchanged configuration for the
+  recorded requests outside the ranges, and the reference's result and configuration for the rest.
 - The configuration storage image reads bytes past its region as erased and does not write an
   image longer than the region (D158), where the reference leaves both to the target and reads
   past a corrupted region's end. Its reported size is the image's length, 2 bytes less than the
@@ -4815,3 +4816,32 @@ lines, 1210 requests among sample rates, stored motor protocols, bidirectional D
 selections and resets: 944 within their ranges, whose results, runtime work and configuration
 hashes all match the reference's, and 266 outside them, each an error that leaves the
 configuration unchanged, 11 of them ones the reference also rejects after its partial writes.
+
+## D205. MSP receiver writes (2026-10-15)
+
+`Adaflight.MSP_Receiver_In` contains the MSP in messages that write the receiver's configuration:
+a mode range, the receiver settings, the RSSI channel, an adjustment range, the channel map, the
+failsafe settings and a channel's failsafe value. `Adaflight.MSP_Write_Plans` now holds the request
+readers, the write plans and the range check that the tuning writes and these share.
+
+The receiver and failsafe settings, the RSSI channel and the ExpressLRS id and model go through
+setting writes checked as a whole (D6). The air mode threshold arrives as a pulse and is stored as
+the reference converts it, a tenth of the pulse past 1000 in integer division; the stick smoothing
+factor is held to its bounds, as the reference holds it; the SPI receiver's id and channel count
+have no setting, so any value goes to them. A change to a stick smoothing cutoff, factor or switch
+asks for a restart in `Effects`, as the reference's update check does.
+
+Mode ranges, adjustment ranges, channel failsafe values and the channel map have no settings, so
+their fields take the bounds of the command line commands that write them: an aux channel below
+14, steps up to 48, mode logic OR or AND, an adjustment function below 34, a failsafe mode of
+automatic or hold for a stick and hold or set for an aux channel, and a channel map that is a
+permutation of the eight channels. A slot or channel past its count and an unknown mode are errors
+in the reference as well. The mode and the linked mode come by permanent id from the box table
+(D89). A channel's failsafe value is stored as a step from its pulse held to the pulse limits.
+`Effects` asks the runtime to take the mode conditions in again after a mode range and to clear
+the active adjustment ranges after an adjustment range.
+
+The harness replays two sequences of 700 lines from the command line oracle, 1265 requests among
+resets and listings: 983 within their ranges, whose results, runtime work and configuration hashes
+all match the reference's, 39 that both reject before writing, and 243 outside the ranges, each an
+error that leaves the configuration unchanged, 4 of them ones the reference rejects after writing.
