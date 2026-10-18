@@ -200,6 +200,7 @@ with Adaflight.Gyro_Start;
 with Adaflight.Gyro_Detect;
 with Adaflight.Acc_Detect;
 with Adaflight.Baro_Detect.Scan;
+with Adaflight.Compass_Detect.Scan;
 with Adaflight.QMC5883;
 with Adaflight.Gimbal_Control;
 with Adaflight.OSD_Custom_Text;
@@ -19084,6 +19085,154 @@ procedure Vector_Check is
       end if;
    end Check_Baro_Detect_Line;
 
+   --  The compass detection oracle's bus: its type and address, the interrupt
+   --  pin, the instance answers, each driver's detection answer, the address
+   --  each failing driver leaves behind and the DroneCAN stack's state.
+   type CD_Bus is record
+      Bus            : Byte := 0;
+      Address        : Byte := 0;
+      Interrupt      : Byte := 0;
+      I2C_OK         : Boolean := True;
+      SPI_OK         : Boolean := True;
+      Answers        : Integer_64 := 0;
+      Leaves         : Byte_Array (0 .. 12) := (others => 0);
+      DroneCAN_Ready : Boolean := False;
+   end record;
+
+   CD_Device    : CD_Bus;
+   CD_Build     : Adaflight.Compass_Detect.Build;
+   CD_Config    : Adaflight.Compass_Detect.Config;
+   CD_Detected  : Byte := 0;
+   CD_Alignment : Byte := 0;
+   CD_Found     : Boolean := False;
+
+   function CD_Bus_Type (D : CD_Bus) return Byte is (D.Bus);
+
+   procedure CD_Set_Interrupt_Pin (D : in out CD_Bus; Tag : Byte) is
+   begin
+      D.Interrupt := Tag;
+   end CD_Set_Interrupt_Pin;
+
+   procedure CD_Set_I2C_Instance (D : in out CD_Bus; Device : Byte; OK : out Boolean) is
+   begin
+      OK := D.I2C_OK;
+      MX_Op ("i2c," & BMP_Num (Integer_64 (Device)) & "," & BMP_Num (Boolean'Pos (OK)));
+      if OK then
+         D.Bus := 1;
+      end if;
+   end CD_Set_I2C_Instance;
+
+   procedure CD_Set_I2C_Address (D : in out CD_Bus; Address : Byte) is
+   begin
+      D.Address := Address;
+   end CD_Set_I2C_Address;
+
+   procedure CD_Set_SPI_Instance (D : in out CD_Bus; Device : Byte; OK : out Boolean) is
+   begin
+      OK := D.SPI_OK;
+      MX_Op ("spi," & BMP_Num (Integer_64 (Device)) & "," & BMP_Num (Boolean'Pos (OK)));
+      if OK then
+         D.Bus := 2;
+      end if;
+   end CD_Set_SPI_Instance;
+
+   procedure CD_Set_CS_Pin (D : in out CD_Bus; Tag : Byte) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("cs," & BMP_Num (Integer_64 (Tag)));
+   end CD_Set_CS_Pin;
+
+   procedure CD_Set_MPU_Slave (D : in out CD_Bus; Address : Byte) is
+   begin
+      D.Bus := 4;
+      D.Address := Address;
+   end CD_Set_MPU_Slave;
+
+   procedure CD_Detect_DroneCAN (D : in out CD_Bus; Found : out Boolean) is
+   begin
+      Found := D.DroneCAN_Ready;
+      MX_Op ("dronecan," & BMP_Num (Boolean'Pos (Found)));
+   end CD_Detect_DroneCAN;
+
+   procedure CD_Detect_Chip (D : in out CD_Bus; Chip : Adaflight.Compass_Detect.Driver; Found : out Boolean) is
+      use type Adaflight.Compass_Detect.Driver;
+      use type Interfaces.Unsigned_8;
+      Index : constant Natural := Adaflight.Compass_Detect.Driver'Pos (Chip);
+   begin
+      MX_Op ("detect," & BMP_Num (Integer_64 (Index)) & "," & BMP_Num (Integer_64 (D.Bus)) & ","
+             & BMP_Num (Integer_64 (D.Address)));
+      Found := D.Answers / 2 ** Index mod 2 = 1;
+      if not Found and then Chip /= Adaflight.Compass_Detect.Virtual and then D.Leaves (Index) /= 0 then
+         D.Address := D.Leaves (Index);
+      end if;
+   end CD_Detect_Chip;
+
+   package CD_Scan is new Adaflight.Compass_Detect.Scan
+     (Bus_Device        => CD_Bus,
+      Bus_Type          => CD_Bus_Type,
+      Set_Interrupt_Pin => CD_Set_Interrupt_Pin,
+      Set_I2C_Instance  => CD_Set_I2C_Instance,
+      Set_I2C_Address   => CD_Set_I2C_Address,
+      Set_SPI_Instance  => CD_Set_SPI_Instance,
+      Set_CS_Pin        => CD_Set_CS_Pin,
+      Set_MPU_Slave     => CD_Set_MPU_Slave,
+      Detect_DroneCAN   => CD_Detect_DroneCAN,
+      Detect_Chip       => CD_Detect_Chip);
+
+   procedure Check_Compass_Detect_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "cdinit" then
+         MX_Op_Head := 1;
+         MX_Op_Count := 0;
+         CD_Device := (others => <>);
+         CD_Build :=
+           (Simulator => Int (3) /= 0,
+            I2C       => Int (4) /= 0,
+            SPI       => Int (5) /= 0,
+            MPU_Slave => Int (6) /= 0,
+            DroneCAN  => Int (7) /= 0,
+            Mag_Align => Byte (Int (8)));
+         CD_Config :=
+           (Hardware      => Byte (Int (9)),
+            Bus_Type      => Byte (Int (10)),
+            I2C_Device    => Byte (Int (11)),
+            I2C_Address   => Byte (Int (12)),
+            SPI_Device    => Byte (Int (13)),
+            SPI_CS        => Byte (Int (14)),
+            Interrupt_Tag => Byte (Int (15)));
+         CD_Device.Answers := Int (17);
+         CD_Device.I2C_OK := Int (18) /= 0;
+         CD_Device.SPI_OK := Int (19) /= 0;
+         CD_Device.DroneCAN_Ready := Int (20) /= 0;
+         CD_Detected := Byte (Int (21));
+         CD_Device.Leaves := Hex_Bytes (22);
+         CD_Scan.Detect (CD_Device, CD_Build, CD_Config, Int (16) = 6, CD_Detected, CD_Alignment, CD_Found);
+      elsif Name = "cdop" then
+         declare
+            Expected : Ada.Strings.Unbounded.Unbounded_String := Ada.Strings.Unbounded.To_Unbounded_String (Str (3));
+         begin
+            for I in 4 .. NF loop
+               Ada.Strings.Unbounded.Append (Expected, "," & Str (I));
+            end loop;
+            if MX_Op_Head <= MX_Op_Count then
+               Record_Text ("compassdetect.op", Ada.Strings.Unbounded.To_String (Expected),
+                            Ada.Strings.Unbounded.To_String (MX_Ops (MX_Op_Head)));
+               MX_Op_Head := MX_Op_Head + 1;
+            else
+               Record_Text ("compassdetect.op", Ada.Strings.Unbounded.To_String (Expected), "none");
+            end if;
+         end;
+      elsif Name = "cdres" then
+         MX_Expect_No_Ops ("compass detection");
+         Record_Int ("compassdetect.found", Int (3), Boolean'Pos (CD_Found));
+         Record_Int ("compassdetect.detected", Int (4), Integer_64 (CD_Detected));
+         Record_Int ("compassdetect.present", Int (5), Boolean'Pos (CD_Found));
+         Record_Int ("compassdetect.alignment", Int (6), Integer_64 (CD_Alignment));
+         Record_Int ("compassdetect.interrupt", Int (7), Integer_64 (CD_Device.Interrupt));
+      end if;
+   end Check_Compass_Detect_Line;
+
    GB_Seq      : Integer_64 := -1;
    GB_State    : Adaflight.Gimbal_Control.State;
    GB_Settings : Adaflight.Gimbal_Control.Settings;
@@ -29238,6 +29387,8 @@ procedure Vector_Check is
                   Check_Acc_Detect_Line;
                elsif Kind = "barodetect" then
                   Check_Baro_Detect_Line;
+               elsif Kind = "compassdetect" then
+                  Check_Compass_Detect_Line;
                elsif Kind = "gimbal" then
                   Check_Gimbal_Line;
                elsif Kind = "osdtext" then
@@ -29515,6 +29666,7 @@ begin
    Run (Dir & "/gyrodetect.csv", "gyrodetect");
    Run (Dir & "/accdetect.csv", "accdetect");
    Run (Dir & "/barodetect.csv", "barodetect");
+   Run (Dir & "/compassdetect.csv", "compassdetect");
    Run (Dir & "/gimbal.csv", "gimbal");
    Run (Dir & "/osdtext.csv", "osdtext");
    Run (Dir & "/pidaudio.csv", "pidaudio");

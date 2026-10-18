@@ -7734,3 +7734,29 @@ address of the 600 cases replays exactly. In them 219 barometers are found, ever
 and 26 scans stop at an unknown BMP5xx in a build with the virtual barometer. All 31 tampered paths fail the vectors. On
 the first pass the one that lets the scan go on past an unknown BMP5xx passed, since no case reached one in a build with
 the virtual barometer, and led to those cases.
+
+## D337. Compass detection (2026-10-18)
+
+`Adaflight.Compass_Detect` lists the compass drivers in the detection's order HMC5883, LIS2MDL, LIS3MDL, AK9916, AK8975,
+AK8963, QMC5883L, QMC5883P, IST8310, MMC560X and BMM350, then the MPU925x passthrough and the simulator's virtual
+compass. Every build with a compass has every driver, so the build names only its bus support, the MPU slave bus that a
+SPI MPU6500 or MPU9250 gyro driver brings, DroneCAN, the simulator and the board's compass alignment. The generic child
+`Adaflight.Compass_Detect.Scan` detects over the bus. A configured DroneCAN compass is found only through the DroneCAN
+stack. Otherwise the interrupt pin comes first, then the configured bus, which is the I2C instance and address, the SPI
+instance and select pin, or the MPU slave bus behind an MPU9250 gyro. A bus type the build lacks, an instance that
+refuses, or an MPU slave bus without an MPU9250 ends the detection. The scan starts at the configured hardware's driver,
+or at the first for the default, and sets the configured address again before each driver while the bus is I2C. Behind
+an MPU9250 gyro the AK8963 case moves the bus onto the MPU slave bus before its probe, and the drivers after it keep
+that bus and the address the last failing driver left. The MPU925x passthrough is tried only when configured, and its
+failure ends the detection. The simulator's virtual compass is found unless the configuration is none, and it reports
+the default hardware. A failed detection keeps the compass the device had. The unit is SPARK for the result and the kept
+value over every build and configuration.
+
+The compass detection oracle includes the reference compass with every driver's detection stubbed, built for both buses
+with and without the MPU slave bus, for SPI only, for I2C only, with DroneCAN and a board alignment, and twice for the
+simulator, once with a board alignment. Each case draws the configured hardware and bus, the bus instance answers, the
+gyro's detected sensor, each driver's answer and the address a failing driver leaves behind. Every bus and driver call
+with the bus type and address each driver sees, result, detected compass, alignment and interrupt pin of the 660 cases
+replays exactly. In them 287 compasses are found, every hardware value among them. All 33 tampered paths fail the
+vectors. On the first pass the one that gives the simulator the board's alignment passed, since the simulator build had
+none, and led to a simulator build with one.
