@@ -7370,3 +7370,28 @@ after each call replay exactly in the 301 cases, 229 of them past detection. Of 
 vectors. The one that doubles the video debounce is equivalent (F258): the driver stamps the first sighting of a new
 standard at a signal check and sees it again only at the next check, more than a second later, when any debounce
 under a second has passed.
+
+## D323. MAX7456 display port (2026-10-18)
+
+`Adaflight.MAX7456.Display_Port` is the display layer over the MAX7456 driver (D322), a generic child that shares
+the driver's instance. Initialization runs the driver's. Without a select pin, a bus or a free pin there is no port.
+A port whose chip did not answer is set up and cleared but keeps 0 rows and 0 columns. A chip that answered gives
+the rows of NTSC, of PAL for PAL, HD and any other system, or the driver's rows for an automatic one, and 30
+columns, each with the profile's adjustment in a byte. A clear sets the profile's inversion and brightness, clears
+the foreground layer, marks the port cleared and moves the cursor row to -1. A grab clears the chip without marking
+the port and counts, a release counts down and a full release resets the count. Drawing, the screen size, writes,
+the transfer and sync flags, layers and the background go to the driver, an empty text writes nothing, and the free
+transmit space is 65535. The heartbeat runs the driver's stall and signal checks without forcing, and a redraw
+refreshes the whole screen while disarmed. A font character takes the first 54 of its 64 bytes at the low byte of
+its address. A readiness check of a chip that did not answer fails without rescan. With rescan it initializes the
+chip and redraws, keeping the rows and columns at 0 (F259). The unit is SPARK for the port's counts and dimensions.
+
+The MAX7456 display port oracle includes the reference display port, the MAX7456 driver and the display layer over
+the simulated chip of the MAX7456 oracle, one case per process. It draws the chip, the bus, the MAX7456 settings,
+the video profile, the display port profile and the debug mode, then runs 50 of the display layer's calls in a
+random order with scripted video sense, stalls, busy answers, DMA completions, clocks, arming and a chip that may
+power up after initialization. Every SPI, pin, LED and delay call, every answer, the port's dimensions, grab count,
+cleared flag and cursor row and the driver's state after each call replay exactly in the 300 cases, 258 of them with
+a port, 41 with a chip found by a later rescan. All 21 tampered paths fail the vectors, two of them by stopping the
+check: a port reported for a chip without a select pin leaves the check without the state to compare, and a redraw
+while armed instead of disarmed runs into the endless refresh of F255.

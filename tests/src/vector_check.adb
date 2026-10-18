@@ -187,6 +187,7 @@ with Adaflight.DPS310;
 with Adaflight.MS5611;
 with Adaflight.BMP388;
 with Adaflight.MAX7456;
+with Adaflight.MAX7456.Display_Port;
 with Adaflight.Gimbal_Control;
 with Adaflight.OSD_Custom_Text;
 with Adaflight.PID_Audio;
@@ -16859,6 +16860,167 @@ procedure Vector_Check is
       end if;
    end Check_MAX7456_Line;
 
+   --  The MAX7456 display port over the MAX7456 oracle's chip and bus.
+   package MD_Port is new MX_Driver.Display_Port;
+
+   MD_P         : MD_Port.Port;
+   MD_Config    : MX_Driver.Config;
+   MD_Video     : MX_Driver.Video_Profile;
+   MD_Display   : MD_Port.Display_Profile;
+   MD_Overclock : Boolean := False;
+   MD_Available : Boolean := False;
+   MD_Ready     : Boolean := False;
+   MD_Result    : Integer_64 := 0;
+
+   procedure MD_Record_State (First : Positive) is
+   begin
+      Record_Int ("max7456dp.rows", Int (First), Integer_64 (MD_P.Rows));
+      Record_Int ("max7456dp.cols", Int (First + 1), Integer_64 (MD_P.Cols));
+      Record_Int ("max7456dp.grab", Int (First + 2), Integer_64 (MD_P.Grab_Count));
+      Record_Int ("max7456dp.cleared", Int (First + 3), Boolean'Pos (MD_P.Cleared));
+      Record_Int ("max7456dp.cursor", Int (First + 4), Integer_64 (MD_P.Cursor_Row));
+      Record_Int ("max7456dp.dma", Int (First + 5), Boolean'Pos (MX_Driver.DMA_In_Progress (MX_Device)));
+      Record_Int ("max7456dp.detected", Int (First + 6), Boolean'Pos (MX_State.Detected));
+      Record_Int ("max7456dp.size", Int (First + 7), Integer_64 (MX_State.Screen_Size));
+      Record_Int ("max7456dp.layer", Int (First + 8), MX_FNV (MX_State.Layers (0)));
+      Record_Int ("max7456dp.shadow", Int (First + 9), MX_FNV (MX_State.Shadow));
+      for K in 0 .. 3 loop
+         Record_Int ("max7456dp.debug", Int (First + 10 + K), Integer_64 (MX_State.Debug (K)));
+      end loop;
+   end MD_Record_State;
+
+   procedure Check_MAX7456_Display_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "mdinit" then
+         MX_Op_Head := 1;
+         MX_Op_Count := 0;
+         MX_Device := (others => <>);
+         MX_Device.Present := Int (3) /= 0;
+         MX_Device.AT_Variant := Int (4) /= 0;
+         MX_Device.OSDM_Absent := Byte (Int (5));
+         MX_Device.Reset_Reads := Natural (Int (6));
+         MX_Device.NVR_Reads := Natural (Int (7));
+         MX_Device.Bus_OK := Int (8) /= 0;
+         MX_Device.CS_Free := Int (9) /= 0;
+         MX_Device.Bus_Clock := Interfaces.Unsigned_32 (Int (10));
+         MX_Device.Use_DMA := Int (11) /= 0;
+         MX_Device.DMA_Polls := Natural (Int (12));
+         MX_Device.Sense := Byte (Int (22));
+         MX_Device.Now_Ms := Interfaces.Unsigned_32 (Int (23));
+         MX_Device.Now_Us := Interfaces.Unsigned_32 (Int (24));
+         MX_State := (others => <>);
+         MX_State.Debug_Mode := Byte (Int (21));
+         MD_Config :=
+           (Clock_Config => Byte (Int (14)), CS_Tag => Byte (Int (13)), SPI_Instance => Byte (Int (15)),
+            Pre_Init_OPU => Int (16) /= 0);
+         MD_Video :=
+           (Video_System => Byte (Int (18)), H_Offset => Interfaces.Integer_8 (Int (19)),
+            V_Offset => Interfaces.Integer_8 (Int (20)));
+         MD_Overclock := Int (17) /= 0;
+         MD_Display :=
+           (Col_Adjust => Interfaces.Integer_8 (Int (25)), Row_Adjust => Interfaces.Integer_8 (Int (26)),
+            Invert => Int (27) /= 0, Black_Brightness => Byte (Int (28)), White_Brightness => Byte (Int (29)));
+         MX_Op ("start");
+         MD_Port.Init (MX_Device, MX_State, MD_P, MD_Config, MD_Video, MD_Display, MD_Overclock, MD_Available,
+                       MD_Ready);
+      elsif Name = "mdop" then
+         declare
+            Expected : Ada.Strings.Unbounded.Unbounded_String := Ada.Strings.Unbounded.To_Unbounded_String (Str (3));
+         begin
+            for I in 4 .. NF loop
+               Ada.Strings.Unbounded.Append (Expected, "," & Str (I));
+            end loop;
+            if MX_Op_Head <= MX_Op_Count then
+               Record_Text ("max7456dp.op", Ada.Strings.Unbounded.To_String (Expected),
+                            Ada.Strings.Unbounded.To_String (MX_Ops (MX_Op_Head)));
+               MX_Op_Head := MX_Op_Head + 1;
+            else
+               Record_Text ("max7456dp.op", Ada.Strings.Unbounded.To_String (Expected), "none");
+            end if;
+         end;
+      elsif Name = "mddet" then
+         MX_Expect_No_Ops ("detection");
+         Record_Int ("max7456dp.ready", Int (3), Boolean'Pos (MD_Ready));
+         Record_Int ("max7456dp.available", Int (4), Boolean'Pos (MD_Available));
+         if MD_Available then
+            MD_Record_State (5);
+         end if;
+      elsif Name = "mdstep" then
+         declare
+            Which : constant Integer_64 := Int (4);
+            A     : constant Integer_64 := Int (5);
+            B     : constant Integer_64 := Int (6);
+            D     : constant Integer_64 := Int (8);
+            Armed : constant Boolean := Int (15) /= 0;
+            Data  : constant Byte_Array := Hex_Bytes (16);
+            Flag  : Boolean;
+         begin
+            MX_Device.Sense := Byte (Int (9));
+            if Int (10) /= 0 then
+               MX_Device.Registers (0) := 0;
+            end if;
+            if Int (11) /= 0 then
+               MX_Device.Present := True;
+            end if;
+            MX_Device.Extra_Busy := Natural (Int (12));
+            MX_Device.Us_Step := Interfaces.Unsigned_32 (Int (13));
+            MX_Device.Now_Ms := Interfaces.Unsigned_32 (Int (14));
+            MD_Result := 0;
+            case Which is
+               when 0 =>
+                  MD_Port.Grab (MX_Device, MX_State, MD_P, MD_Display);
+               when 1 =>
+                  MD_Port.Release (MD_P);
+               when 2 =>
+                  MD_Port.Release_All (MD_P);
+               when 3 =>
+                  MD_Port.Clear_Screen (MX_Device, MX_State, MD_P, MD_Display);
+               when 4 =>
+                  MX_Driver.Draw_Screen (MX_Device, MX_State, Flag);
+                  MD_Result := Boolean'Pos (Flag);
+               when 5 =>
+                  MD_Result := Integer_64 (MX_State.Screen_Size);
+               when 6 =>
+                  MD_Port.Write_String (MX_State, Byte (A), Byte (B), Data);
+               when 7 =>
+                  MX_Driver.Write_Char (MX_State, Byte (A), Byte (B), Byte (D));
+               when 8 =>
+                  MD_Result := Boolean'Pos (MX_Driver.DMA_In_Progress (MX_Device));
+               when 9 =>
+                  MD_Result := Boolean'Pos (MX_Driver.Buffers_Synced (MX_State));
+               when 10 =>
+                  MD_Port.Heartbeat (MX_Device, MX_State, Flag);
+                  MD_Result := Boolean'Pos (Flag);
+               when 11 =>
+                  MD_Port.Redraw (MX_Device, MX_State, Armed);
+               when 12 =>
+                  MD_Result := Integer_64 (MD_Port.Tx_Bytes_Free);
+               when 13 =>
+                  MD_Result := Boolean'Pos (MD_Port.Port_Layer_Supported (Natural (A)));
+               when 14 =>
+                  MX_Driver.Layer_Select (MX_State, Natural (A), Flag);
+                  MD_Result := Boolean'Pos (Flag);
+               when 15 =>
+                  MD_Port.Port_Layer_Copy (MX_State, Natural (A), Natural (B), Flag);
+                  MD_Result := Boolean'Pos (Flag);
+               when 16 =>
+                  MD_Port.Write_Font_Character (MX_Device, MX_State, Interfaces.Unsigned_16 (A), Data, Flag);
+                  MD_Result := Boolean'Pos (Flag);
+               when 17 =>
+                  MX_Driver.Set_Background (MX_Device, MX_State, Natural (A));
+               when others =>
+                  MD_Port.Check_Ready (MX_Device, MX_State, MD_Config, MD_Video, MD_Overclock, Armed, A /= 0, Flag);
+                  MD_Result := Boolean'Pos (Flag);
+            end case;
+         end;
+      elsif Name = "mdres" then
+         MX_Expect_No_Ops ("a result");
+         Record_Int ("max7456dp.result", Int (4), MD_Result);
+         MD_Record_State (5);
+      end if;
+   end Check_MAX7456_Display_Line;
+
    GB_Seq      : Integer_64 := -1;
    GB_State    : Adaflight.Gimbal_Control.State;
    GB_Settings : Adaflight.Gimbal_Control.Settings;
@@ -26987,6 +27149,8 @@ procedure Vector_Check is
                   Check_BMP388_Line;
                elsif Kind = "max7456" then
                   Check_MAX7456_Line;
+               elsif Kind = "max7456dp" then
+                  Check_MAX7456_Display_Line;
                elsif Kind = "gimbal" then
                   Check_Gimbal_Line;
                elsif Kind = "osdtext" then
@@ -27251,6 +27415,7 @@ begin
    Run (Dir & "/ms5611.csv", "ms5611");
    Run (Dir & "/bmp388.csv", "bmp388");
    Run (Dir & "/max7456.csv", "max7456");
+   Run (Dir & "/max7456dp.csv", "max7456dp");
    Run (Dir & "/gimbal.csv", "gimbal");
    Run (Dir & "/osdtext.csv", "osdtext");
    Run (Dir & "/pidaudio.csv", "pidaudio");
