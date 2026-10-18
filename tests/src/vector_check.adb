@@ -179,6 +179,7 @@ with Adaflight.Task_Functions;
 with Adaflight.Task_Init;
 with Adaflight.MSP_Out;
 with Adaflight.Four_Way;
+with Adaflight.BLHeli_Bootloader;
 with Adaflight.Gimbal_Control;
 with Adaflight.OSD_Custom_Text;
 with Adaflight.PID_Audio;
@@ -14950,6 +14951,252 @@ procedure Vector_Check is
       end if;
    end Check_Four_Way_Line;
 
+   --  The ESC line the bootloader oracle simulates: a 64-bit microsecond
+   --  clock that every clock read, pin read and pin write advances by one,
+   --  the replies the ESC starts as the pin turns to an input, and the
+   --  record of the writes: an FNV-1a hash of each with its time, their
+   --  count and the bytes they sent.
+   type BL_Reply is record
+      Gap      : Interfaces.Unsigned_64 := 0;
+      Bit      : Interfaces.Unsigned_64 := 52;
+      Count    : Natural := 0;
+      Bad_Stop : Integer := -1;
+      Bytes    : Byte_Array (0 .. 299) := (others => 0);
+   end record;
+   type BL_Reply_List is array (0 .. 5) of BL_Reply;
+
+   type BL_Line is record
+      Clock        : Interfaces.Unsigned_64 := 0;
+      Replies      : BL_Reply_List;
+      Reply_Count  : Natural := 0;
+      Reply_Next   : Natural := 0;
+      Active       : Integer := -1;
+      Active_Start : Interfaces.Unsigned_64 := 0;
+      Hash         : Unsigned_32 := FNV_Offset_Basis;
+      Writes       : Natural := 0;
+      Sent         : Byte_Array (0 .. 1199) := (others => 0);
+      Sent_Count   : Natural := 0;
+      Bits         : Unsigned_16 := 0;
+      Bit_Count    : Natural := 0;
+   end record;
+
+   function BL_Level (L : BL_Line; T : Interfaces.Unsigned_64) return Boolean is
+      use type Interfaces.Unsigned_8;
+      use type Interfaces.Unsigned_64;
+   begin
+      if L.Active < 0 or else T < L.Active_Start then
+         return True;
+      end if;
+      declare
+         R      : BL_Reply renames L.Replies (L.Active);
+         Offset : constant Interfaces.Unsigned_64 := T - L.Active_Start;
+         Frame  : constant Interfaces.Unsigned_64 := 10 * R.Bit;
+         Index  : constant Interfaces.Unsigned_64 := Offset / Frame;
+         Bit    : Interfaces.Unsigned_64;
+      begin
+         if Index >= Interfaces.Unsigned_64 (R.Count) then
+            return True;
+         end if;
+         Bit := (Offset mod Frame) / R.Bit;
+         if Bit = 0 then
+            return False;
+         elsif Bit = 9 then
+            return Integer (Index) /= R.Bad_Stop;
+         end if;
+         return (Interfaces.Shift_Right (R.Bytes (Natural (Index)), Natural (Bit) - 1) and 1) = 1;
+      end;
+   end BL_Level;
+
+   procedure BL_Micros (L : in out BL_Line; Now : out Unsigned_32) is
+      use type Interfaces.Unsigned_64;
+   begin
+      L.Clock := L.Clock + 1;
+      Now := Unsigned_32 (L.Clock mod 2 ** 32);
+   end BL_Micros;
+
+   procedure BL_Millis (L : in out BL_Line; Now : out Unsigned_32) is
+      use type Interfaces.Unsigned_64;
+   begin
+      L.Clock := L.Clock + 1;
+      Now := Unsigned_32 ((L.Clock / 1000) mod 2 ** 32);
+   end BL_Millis;
+
+   procedure BL_Read_Pin (L : in out BL_Line; ESC : Byte; High : out Boolean) is
+      pragma Unreferenced (ESC);
+      use type Interfaces.Unsigned_64;
+   begin
+      L.Clock := L.Clock + 1;
+      High := BL_Level (L, L.Clock);
+   end BL_Read_Pin;
+
+   procedure BL_Write (L : in out BL_Line; Kind : Byte; ESC : Byte) is
+      use type Interfaces.Unsigned_8;
+      use type Interfaces.Unsigned_16;
+      use type Interfaces.Unsigned_64;
+      T : Unsigned_32;
+   begin
+      L.Clock := L.Clock + 1;
+      T := Unsigned_32 (L.Clock mod 2 ** 32);
+      for B of Byte_Array'(Kind, ESC, Byte (T and 16#FF#), Byte (Interfaces.Shift_Right (T, 8) and 16#FF#),
+                          Byte (Interfaces.Shift_Right (T, 16) and 16#FF#), Byte (Interfaces.Shift_Right (T, 24)))
+      loop
+         L.Hash := (L.Hash xor Unsigned_32 (B)) * FNV_Prime;
+      end loop;
+      L.Writes := L.Writes + 1;
+      if Kind <= 1 then
+         L.Bits := L.Bits or Interfaces.Shift_Left (Unsigned_16 (Kind), L.Bit_Count);
+         L.Bit_Count := L.Bit_Count + 1;
+         if L.Bit_Count = 11 then
+            L.Sent (L.Sent_Count) := Byte (Interfaces.Shift_Right (L.Bits, 2) and 16#FF#);
+            L.Sent_Count := L.Sent_Count + 1;
+            L.Bits := 0;
+            L.Bit_Count := 0;
+         end if;
+      else
+         L.Bits := 0;
+         L.Bit_Count := 0;
+      end if;
+      if Kind = 2 then
+         if L.Reply_Next < L.Reply_Count then
+            L.Active := L.Reply_Next;
+            L.Reply_Next := L.Reply_Next + 1;
+            L.Active_Start := L.Clock + L.Replies (L.Active).Gap;
+         else
+            L.Active := -1;
+         end if;
+      elsif Kind = 3 then
+         L.Active := -1;
+      end if;
+   end BL_Write;
+
+   procedure BL_Pin_Low (L : in out BL_Line; ESC : Byte) is
+   begin
+      BL_Write (L, 0, ESC);
+   end BL_Pin_Low;
+
+   procedure BL_Pin_High (L : in out BL_Line; ESC : Byte) is
+   begin
+      BL_Write (L, 1, ESC);
+   end BL_Pin_High;
+
+   procedure BL_Pin_Input (L : in out BL_Line; ESC : Byte) is
+   begin
+      BL_Write (L, 2, ESC);
+   end BL_Pin_Input;
+
+   procedure BL_Pin_Output (L : in out BL_Line; ESC : Byte) is
+   begin
+      BL_Write (L, 3, ESC);
+   end BL_Pin_Output;
+
+   package BL_Boot is new Adaflight.BLHeli_Bootloader
+     (Line        => BL_Line,
+      Read_Micros => BL_Micros,
+      Read_Millis => BL_Millis,
+      Read_Pin    => BL_Read_Pin,
+      Pin_Low     => BL_Pin_Low,
+      Pin_High    => BL_Pin_High,
+      Pin_Input   => BL_Pin_Input,
+      Pin_Output  => BL_Pin_Output);
+
+   BL_Sim    : BL_Line;
+   BL_Req    : FW.Request;
+   BL_Info   : FW.Device_Info := (others => 0);
+   BL_Params : FW.Param_Buffer := (others => 0);
+
+   function BL_Request_Of (Name : String) return FW.Request_Kind is
+     (if Name = "connect" then FW.BL_Connect
+      elsif Name = "keepalive" then FW.BL_Keep_Alive
+      elsif Name = "restart" then FW.BL_Restart
+      elsif Name = "erase" then FW.BL_Page_Erase
+      elsif Name = "readflash" then FW.BL_Read_Flash
+      elsif Name = "readeeprom" then FW.BL_Read_EEPROM
+      elsif Name = "writeflash" then FW.BL_Write_Flash
+      elsif Name = "writeeeprom" then FW.BL_Write_EEPROM
+      else FW.BL_Verify_Flash);
+
+   function BL_Hex (B : Byte_Array) return String is
+      use type Interfaces.Unsigned_8;
+      Hex : constant String := "0123456789abcdef";
+      R   : String (1 .. 2 * B'Length);
+   begin
+      if B'Length = 0 then
+         return "-";
+      end if;
+      for K in 0 .. B'Length - 1 loop
+         R (2 * K + 1) := Hex (Natural (B (B'First + K) / 16) + 1);
+         R (2 * K + 2) := Hex (Natural (B (B'First + K) mod 16) + 1);
+      end loop;
+      return R;
+   end BL_Hex;
+
+   procedure Check_BL_Boot_Line is
+      use type FW.Request_Kind;
+      Name : constant String := Str (1);
+   begin
+      if Name = "blop" then
+         BL_Req :=
+           (Kind         => BL_Request_Of (Str (3)),
+            ESC          => Byte (Int (4)),
+            Mode         => Byte (Int (5)),
+            Address_High => Byte (Int (6)),
+            Address_Low  => Byte (Int (7)),
+            Count        => Byte (Int (8)));
+         declare
+            Info   : constant Byte_Array := Hex_Bytes (9);
+            Params : constant Byte_Array := Hex_Bytes (10);
+         begin
+            for K in FW.Info_Index loop
+               BL_Info (K) := Info (K);
+            end loop;
+            BL_Params := (others => 0);
+            for K in Params'Range loop
+               BL_Params (K) := Params (K);
+            end loop;
+         end;
+         BL_Sim.Clock := Interfaces.Unsigned_64'Value (Str (11));
+         BL_Sim.Reply_Count := 0;
+      elsif Name = "blrx" then
+         declare
+            Index : constant Natural := Natural (Int (3));
+            B     : constant Byte_Array := Hex_Bytes (7);
+         begin
+            BL_Sim.Replies (Index).Gap := Interfaces.Unsigned_64'Value (Str (4));
+            BL_Sim.Replies (Index).Bit := Interfaces.Unsigned_64'Value (Str (5));
+            BL_Sim.Replies (Index).Bad_Stop := Integer (Int (6));
+            BL_Sim.Replies (Index).Count := B'Length;
+            BL_Sim.Replies (Index).Bytes (0 .. B'Length - 1) := B;
+            BL_Sim.Reply_Count := Index + 1;
+         end;
+      elsif Name = "blres" then
+         BL_Sim.Hash := FNV_Offset_Basis;
+         BL_Sim.Writes := 0;
+         BL_Sim.Sent_Count := 0;
+         BL_Sim.Bits := 0;
+         BL_Sim.Bit_Count := 0;
+         BL_Sim.Active := -1;
+         BL_Sim.Reply_Next := 0;
+         declare
+            Result : FW.Result;
+            Info   : Byte_Array (0 .. 3);
+         begin
+            BL_Boot.Perform (BL_Sim, BL_Req, BL_Info, BL_Params, Result);
+            for K in FW.Info_Index loop
+               Info (K) := Result.Info (K);
+            end loop;
+            Record_Int ("blboot.code", Int (3), Integer_64 (Result.Code));
+            Record_Text ("blboot.info", Str (4), BL_Hex (Info));
+            if BL_Req.Kind in FW.BL_Read_Flash | FW.BL_Read_EEPROM then
+               Record_Text ("blboot.data", Str (5), BL_Hex (Result.Data (0 .. FW.Span (BL_Req.Count) - 1)));
+            end if;
+            Record_Text ("blboot.sent", Str (6), BL_Hex (BL_Sim.Sent (0 .. BL_Sim.Sent_Count - 1)));
+            Record_Int ("blboot.writes", Int (7), Integer_64 (BL_Sim.Writes));
+            Record_Int ("blboot.hash", Int (8), Integer_64 (BL_Sim.Hash));
+            Record_Int ("blboot.clock", Int (9), Integer_64 (BL_Sim.Clock));
+         end;
+      end if;
+   end Check_BL_Boot_Line;
+
    GB_Seq      : Integer_64 := -1;
    GB_State    : Adaflight.Gimbal_Control.State;
    GB_Settings : Adaflight.Gimbal_Control.Settings;
@@ -25062,6 +25309,8 @@ procedure Vector_Check is
                   Check_MSP_GPS_ESC_Line;
                elsif Kind = "fourway" then
                   Check_Four_Way_Line;
+               elsif Kind = "blboot" then
+                  Check_BL_Boot_Line;
                elsif Kind = "gimbal" then
                   Check_Gimbal_Line;
                elsif Kind = "osdtext" then
@@ -25317,6 +25566,7 @@ begin
    Run (Dir & "/mspout.csv", "mspout");
    Run (Dir & "/mspout2.csv", "mspout2");
    Run (Dir & "/fourway.csv", "fourway");
+   Run (Dir & "/blboot.csv", "blboot");
    Run (Dir & "/gimbal.csv", "gimbal");
    Run (Dir & "/osdtext.csv", "osdtext");
    Run (Dir & "/pidaudio.csv", "pidaudio");

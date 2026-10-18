@@ -7130,3 +7130,33 @@ random runs and four runs that hold the flight log page replays exactly. Of 30 t
 vectors. Two are equivalent: the next page time that Init sets, which the forced first page change replaces
 before any update reads it, and the index a cycle reset sets, from which the last page and the first page both
 step past the two skipped pages to the profile page.
+
+## D315. BLHeli bootloader protocol (2026-10-17)
+
+`Adaflight.BLHeli_Bootloader` performs the 4-way interface's BLHeli bootloader operations on an ESC's signal
+pin. It is generic over the board's microsecond and millisecond clocks, a read of the pin, and the pin driven low
+or high or set as an input or an output, each taking the line's state. A byte goes out as eleven pin writes 52
+microseconds apart: a high bit, a low start bit, the eight data bits from the lowest and a high stop bit, with no
+wait after the stop bit. A byte comes in once the pin goes low within 2 ms. The pin is sampled 39 microseconds
+after the edge and then every 52, and a high start bit or a low stop bit fails the byte. A buffer goes out with
+the pin as an output, followed by a CRC-16 of polynomial 16#A001#, low byte first, while the device information's
+first byte is not zero, and the pin returns to an input. A buffer comes back with the same check and an
+acknowledgement, or the acknowledgement alone. A failed byte ends the read with the bytes so far in place.
+
+A connect sends the 21-byte boot init, reads eight bytes of boot information and keeps the signature when they
+start with 471. A keep-alive succeeds on the command error reply. A restart marks the device connected and sends
+the run command. An erase, read, write or verify first sets the address unless it is 16#FFFF#. A write or verify
+then sets the buffer, which must draw no reply, sends the data and waits for its acknowledgement. Erases and
+EEPROM writes wait up to 1500 tries of 2 ms, flash writes 250, and a verify returns the bootloader's reply byte
+for the interface to judge. Every wait compares the clock with an absolute deadline, so a byte across the 32-bit
+wrap of the microsecond clock loses its timing (F249). The unit is SPARK for the 256-byte buffers, the bit
+counts and the CRC.
+
+The bootloader oracle includes the reference protocol with the pins and clocks over a simulated 64-bit
+microsecond clock that every clock read, pin read and pin write advances by one. A scripted ESC answers each turn
+of the pin to an input with framed bytes after a gap, at bit times from 44 to 60 microseconds, with low stop
+bits, missing and short replies, bad checks and wrong acknowledgements. The harness runs the port over the same
+simulation. The code, device information, read buffer, sent bytes, write count, hash of every write with its time
+and end clock of all 540 operations replay exactly, among them 60 keep-alive exchanges stepped across the clock
+wrap. Of 30 tampered paths, 29 fail the vectors and one stops the harness: a wait for the clock to pass its
+deadline never ends when the deadline is the clock's last value.
