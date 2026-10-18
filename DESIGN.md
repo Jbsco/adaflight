@@ -7480,3 +7480,27 @@ rate divider, the gyro rate and the bank registers the driver reads, runs the de
 detection and initialization, then 30 interrupts, bursts, DMA completions, reads and new samples. Every bus, pin,
 clock and delay call, result, setting and reading of the 300 cases replays exactly, 239 of them past detection over
 all six chips. All 39 tampered paths fail the vectors.
+
+## D327. MPU6500 gyro driver (2026-10-18)
+
+`Adaflight.MPU_Gyro.MPU6500` drives the MPU6500, MPU9250, MPU9255, ICM-20601, ICM-20602 and ICM-20608-G over the SPI
+gyro layer (D324), a generic child that adds register writes and reads, the bus register write and a microsecond
+delay. Its detection is the layer's chip probe. It reads the identity once and also names the ICM-42605, ICM-42686-P
+and ICM-42688-P, so on a build that probes it first those chips skip the ICM426xx detection (D326) and go straight
+to that driver's initialization (F260). A gyro of the family gets the 2000 degrees per second scale, or 4000 for an
+ICM-20601 under the high range option. Initialization runs the layer's, then resets the chip, its signal paths and
+the power management, selects the clock and sets the gyro and accelerometer ranges, the layer's filter setting, the
+sample rate divider, any-read interrupt clear and the data ready interrupt, 15 to 100 ms apart, with the MPU6000's
+temperature scale of 1/340 and zero of 36.53 (F261). The ranges are 2000 degrees per second and 16 g. The ICM-20601
+takes its own range codes, with 4000 degrees per second under the high range option. It then disables the I2C
+interface, waits 100 ms, sets a 20 MHz clock and waits a microsecond. The accelerometer's one g is 2048. The bypass
+bit for an MPU9250 magnetometer is left out, since no board configuration enables that magnetometer. The unit is
+SPARK for the sequence and the range selection.
+
+The MPU6500 oracle includes the reference driver and the gyro layer over a simulated chip, one case per process. It
+draws the identity from the nine the driver names or any byte, the high range option, the bus, the startup clock,
+DMA, the interrupt pin, the sample rate divider and the filter settings, then runs the detection, the gyro and
+accelerometer detection and initialization. Every bus, pin, register and delay call, detection result, scale and
+setting of the 300 cases replays exactly, 170 of them initialized over all five sensor kinds and 15 of those with
+the high range scale. Of 43 tampered paths, 42 fail the vectors. The one that writes 0 for the filter setting
+passes, since the layer gives 0 for every filter setting it knows.

@@ -138,4 +138,10 @@ package body Adaflight.Gyro_Bus_Steps with SPARK_Mode is
       Started := True;
    end Step_Start_Clock_In;
 
+   procedure Step_Bus_Write_Register (D : in out Gyro_Line; Register : Byte; Value : Byte) is
+      pragma Unreferenced (D, Register, Value);
+   begin
+      null;
+   end Step_Bus_Write_Register;
+
 end Adaflight.Gyro_Bus_Steps;
