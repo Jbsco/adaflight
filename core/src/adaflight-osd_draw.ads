@@ -5,7 +5,8 @@
 --  blink is in its hidden half is skipped unless the display blinks it
 --  itself; and the background pass fills a background layer when the
 --  elements are analyzed. The display operations go back to the target in
---  order; settings, sensors and readings stay with the target.
+--  order with the warnings line's reports; settings, sensors and readings
+--  stay with the target.
 with Interfaces;
 with Adaflight.OSD_Elements;
 with Adaflight.OSD_Format;
@@ -37,11 +38,14 @@ package Adaflight.OSD_Draw with SPARK_Mode is
       Target : Layer := Foreground;
    end record;
 
+   --  A call's display operations in order, and the warnings line's
+   --  reports when the call rendered it.
    Max_Ops : constant := 64;
    type Op_Array is array (1 .. Max_Ops) of Op;
    type Ops is record
-      List  : Op_Array;
-      Count : Natural range 0 .. Max_Ops := 0;
+      List     : Op_Array;
+      Count    : Natural range 0 .. Max_Ops := 0;
+      Reported : Adaflight.OSD_Warnings.Reports;
    end record;
 
    Blink_Attribute : constant Unsigned_8 := 16#80#;
