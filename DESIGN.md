@@ -8011,3 +8011,28 @@ them 282 chips are identified and 260 configured, 60 of 401 wait operations time
 18 of them resetting the chip after an ECC result, and 122 end at a timeout. Of 67 tampered paths, 66 fail the vectors,
 one of them by flooding the checker's output. The one that narrows the ECC mask to its high bit passes and is
 equivalent, since only that bit separates the uncorrectable results that reset the chip.
+
+## D349. W25M flash driver (2026-10-18)
+
+`Adaflight.Flash_Device.W25M` drives the W25M stacked-die flash chips behind one select pin, the W25M512 with two
+W25Q256 NOR dies and the W25M02G with two W25N01GV NAND dies. Identification selects each die and identifies it with the
+NOR or the NAND driver, whatever that answers, and gives the chip the first die's geometry with twice its blocks and
+twice its size. A die is selected with the die select command 0xC2 and the die's number between bus waits, only when
+another die was selected last. Configuration, waits and full erases go to each die in turn. A readiness check asks only
+the dies that could be busy, and the check and a wait stop at the first die that is not ready. An erase or a read goes
+to the address's die at the address within it, and a read that spans both dies reads from each in turn and gives up when
+a die read brings no bytes. Otherwise the read counts all the bytes asked for, also when a NAND die stopped at its page
+end (finding F268). A program's begin selects the address's die and hands it the whole address, and the continuation and
+finish go to the die of the last begin. The reference keeps the dies, the die size, the last selected die and the
+program's die in static variables. This unit keeps them in a record the caller passes, and the flash layer does not try
+this driver yet (finding F269 concerns that step). The unit is SPARK for the die selection and the address split, with a
+precondition that keeps an operation's address within the two dies.
+
+The W25M oracle includes the reference driver with the die drivers stubbed. A die identification gives the die the
+geometry its driver would, the W25N one with its bad block partition request, and each die operation logs its die and
+arguments and answers from the step's drawn answers, which give ready or not, a wait that ends ready or times out, a
+read of all, half or none of its bytes, and a program that takes its bytes or none. Each case draws the JEDEC ID and the
+configuration flags, then 6 to 20 operations, half of them within 600 bytes of the die boundary. Every die select, die
+call and state after each operation of the 300 cases replays exactly. In them 145 W25M512 and 124 W25M02G chips are
+identified, and of 410 reads 54 span both dies, 47 die reads bring half their bytes and 50 bring none. All 34 tampered
+paths fail the vectors, the two that change a stacked chip's JEDEC ID by stopping the checker after its mismatches.

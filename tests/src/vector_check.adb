@@ -196,6 +196,7 @@ with Adaflight.MPU_Gyro.ICM20689;
 with Adaflight.Flash_Device;
 with Adaflight.Flash_Device.M25P16;
 with Adaflight.Flash_Device.W25N;
+with Adaflight.Flash_Device.W25M;
 with Adaflight.Flash_Device.Layer;
 with Adaflight.Gyro_Start;
 with Adaflight.Gyro_Detect;
@@ -18953,6 +18954,304 @@ procedure Vector_Check is
       end if;
    end Check_W25N_Line;
 
+   --  The W25M oracle's dies: each die operation logs its die and arguments
+   --  and answers from the step's drawn answers, and each die identification
+   --  gives the die the geometry its driver would.
+   type W5_Bus is record
+      Answers : String (1 .. 8) := (others => '1');
+      Next    : Positive := 1;
+   end record;
+
+   W5_Device : W5_Bus;
+
+   function W5_Hex32 (V : Interfaces.Unsigned_32) return String is
+     (MX_Hex (Byte_Array'(Byte (V / 2 ** 24), Byte (V / 2 ** 16 mod 256), Byte (V / 2 ** 8 mod 256),
+                          Byte (V mod 256))));
+
+   procedure W5_Answer (D : in out W5_Bus; A : out Character) is
+   begin
+      A := (if D.Next <= 8 then D.Answers (D.Next) else '1');
+      D.Next := D.Next + 1;
+   end W5_Answer;
+
+   procedure W5_Send (D : in out W5_Bus; Tx : Byte_Array) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("seq,1," & MX_Hex (Tx));
+   end W5_Send;
+
+   procedure W5_Wait (D : in out W5_Bus) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("wait");
+   end W5_Wait;
+
+   procedure W5_Identify_NOR
+     (Die : Natural; F : in out Adaflight.Flash_Device.Device; JEDEC : Interfaces.Unsigned_32; OK : out Boolean)
+   is
+   begin
+      MX_Op ("die," & BMP_Num (Integer_64 (Die)) & ",identify,0," & BMP_Num (Integer_64 (JEDEC)));
+      F.Map.Sectors := 512;
+      F.Map.Pages_Per_Sector := 256;
+      F.Map.Page_Size := 256;
+      F.Map.Sector_Size := 65_536;
+      F.Map.Total_Size := 33_554_432;
+      F.Map.Kind := Adaflight.Flash_Device.NOR;
+      F.Could_Be_Busy := True;
+      OK := True;
+   end W5_Identify_NOR;
+
+   procedure W5_Identify_NAND
+     (Die : Natural; F : in out Adaflight.Flash_Device.Device; JEDEC : Interfaces.Unsigned_32; OK : out Boolean)
+   is
+   begin
+      MX_Op ("die," & BMP_Num (Integer_64 (Die)) & ",identify,1," & BMP_Num (Integer_64 (JEDEC)));
+      F.Map.Sectors := 1024;
+      F.Map.Pages_Per_Sector := 64;
+      F.Map.Page_Size := 2048;
+      F.Map.Sector_Size := 131_072;
+      F.Map.Total_Size := 134_217_728;
+      F.Map.Kind := Adaflight.Flash_Device.NAND;
+      MX_Op ("partition,3,1003,1023");
+      F.Could_Be_Busy := True;
+      OK := True;
+   end W5_Identify_NAND;
+
+   procedure W5_Configure
+     (D : in out W5_Bus; Die : Natural; F : in out Adaflight.Flash_Device.Device; Flags : Interfaces.Unsigned_32)
+   is
+      pragma Unreferenced (D, F);
+   begin
+      MX_Op ("die," & BMP_Num (Integer_64 (Die)) & ",configure," & BMP_Num (Integer_64 (Flags)));
+   end W5_Configure;
+
+   procedure W5_Is_Ready
+     (D : in out W5_Bus; Die : Natural; F : in out Adaflight.Flash_Device.Device; Ready : out Boolean)
+   is
+      A : Character;
+   begin
+      W5_Answer (D, A);
+      Ready := A /= '0';
+      F.Could_Be_Busy := not Ready;
+      MX_Op ("die," & BMP_Num (Integer_64 (Die)) & ",ready," & BMP_Num (Boolean'Pos (Ready)));
+   end W5_Is_Ready;
+
+   procedure W5_Wait_For_Ready
+     (D : in out W5_Bus; Die : Natural; F : in out Adaflight.Flash_Device.Device; Ready : out Boolean)
+   is
+      A : Character;
+   begin
+      W5_Answer (D, A);
+      Ready := A /= '0';
+      F.Could_Be_Busy := not Ready;
+      MX_Op ("die," & BMP_Num (Integer_64 (Die)) & ",wait," & BMP_Num (Boolean'Pos (Ready)));
+   end W5_Wait_For_Ready;
+
+   procedure W5_Erase_Sector
+     (D : in out W5_Bus; Die : Natural; F : in out Adaflight.Flash_Device.Device; Address : Interfaces.Unsigned_32)
+   is
+      pragma Unreferenced (D);
+   begin
+      F.Could_Be_Busy := True;
+      MX_Op ("die," & BMP_Num (Integer_64 (Die)) & ",erase," & BMP_Num (Integer_64 (Address)));
+   end W5_Erase_Sector;
+
+   procedure W5_Erase_Completely (D : in out W5_Bus; Die : Natural; F : in out Adaflight.Flash_Device.Device) is
+      pragma Unreferenced (D);
+   begin
+      F.Could_Be_Busy := True;
+      MX_Op ("die," & BMP_Num (Integer_64 (Die)) & ",eraseall");
+   end W5_Erase_Completely;
+
+   procedure W5_Program_Begin
+     (Die : Natural; F : in out Adaflight.Flash_Device.Device; Address : Interfaces.Unsigned_32;
+      Has_Callback : Boolean)
+   is
+      pragma Unreferenced (F);
+   begin
+      MX_Op ("die," & BMP_Num (Integer_64 (Die)) & ",begin," & BMP_Num (Integer_64 (Address)) & ","
+             & BMP_Num (Boolean'Pos (Has_Callback)));
+   end W5_Program_Begin;
+
+   procedure W5_Program_Continue
+     (D : in out W5_Bus; Die : Natural; F : in out Adaflight.Flash_Device.Device; Data_1 : Byte_Array;
+      Data_2 : Byte_Array; Count : Natural; Written : out Interfaces.Unsigned_32)
+   is
+      pragma Unreferenced (Data_2);
+      A : Character;
+   begin
+      W5_Answer (D, A);
+      Written := (if A = '0' then 0 else Interfaces.Unsigned_32 (Data_1'Length));
+      F.Could_Be_Busy := True;
+      MX_Op ("die," & BMP_Num (Integer_64 (Die)) & ",continue," & BMP_Num (Integer_64 (Count)) & ","
+             & BMP_Num (Integer_64 (Data_1'Length)) & "," & W5_Hex32 (M2_Hash (Data_1)) & ","
+             & BMP_Num (Integer_64 (Written)));
+   end W5_Program_Continue;
+
+   procedure W5_Program_Finish (Die : Natural; F : in out Adaflight.Flash_Device.Device) is
+      pragma Unreferenced (F);
+   begin
+      MX_Op ("die," & BMP_Num (Integer_64 (Die)) & ",finish");
+   end W5_Program_Finish;
+
+   procedure W5_Read
+     (D : in out W5_Bus; Die : Natural; F : in out Adaflight.Flash_Device.Device; Address : Interfaces.Unsigned_32;
+      Buffer : in out Byte_Array; Count : out Natural)
+   is
+      pragma Unreferenced (F);
+      A : Character;
+   begin
+      W5_Answer (D, A);
+      Count := (if A = '0' then 0 elsif A = '2' then (Buffer'Length + 1) / 2 else Buffer'Length);
+      for K in 0 .. Count - 1 loop
+         Buffer (Buffer'First + K) :=
+           Byte ((Interfaces.Unsigned_32 (Die) * 97 + Address + Interfaces.Unsigned_32 (K)) * 2_654_435_761 / 2 ** 24);
+      end loop;
+      MX_Op ("die," & BMP_Num (Integer_64 (Die)) & ",read," & BMP_Num (Integer_64 (Address)) & ","
+             & BMP_Num (Integer_64 (Buffer'Length)) & "," & BMP_Num (Integer_64 (Count)));
+   end W5_Read;
+
+   package W5_Chip is new Adaflight.Flash_Device.W25M
+     (SPI_Device           => W5_Bus,
+      Send                 => W5_Send,
+      Wait                 => W5_Wait,
+      Die_Identify_NOR     => W5_Identify_NOR,
+      Die_Identify_NAND    => W5_Identify_NAND,
+      Die_Configure        => W5_Configure,
+      Die_Is_Ready         => W5_Is_Ready,
+      Die_Wait_For_Ready   => W5_Wait_For_Ready,
+      Die_Erase_Sector     => W5_Erase_Sector,
+      Die_Erase_Completely => W5_Erase_Completely,
+      Die_Program_Begin    => W5_Program_Begin,
+      Die_Program_Continue => W5_Program_Continue,
+      Die_Program_Finish   => W5_Program_Finish,
+      Die_Read             => W5_Read);
+
+   W5_Flash      : Adaflight.Flash_Device.Device;
+   W5_Stack      : W5_Chip.Stack;
+   W5_Identified : Boolean := False;
+   W5_Flags      : Interfaces.Unsigned_32 := 0;
+   W5_Result     : Integer_64 := 0;
+   W5_Extra      : Integer_64 := 0;
+
+   procedure Check_W25M_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "w5init" then
+         MX_Op_Head := 1;
+         MX_Op_Count := 0;
+         W5_Device := (others => <>);
+         W5_Flash := (others => <>);
+         W5_Stack := (others => <>);
+         W5_Flags := Interfaces.Unsigned_32 (Int (4));
+         W5_Chip.Identify (W5_Device, W5_Flash, W5_Stack, Interfaces.Unsigned_32 (Int (3)), W5_Identified);
+      elsif Name = "w5id" then
+         MX_Expect_No_Ops ("identification");
+         Record_Int ("w25m.identified", Int (3), Boolean'Pos (W5_Identified));
+         Record_Int ("w25m.sectors", Int (4), Integer_64 (W5_Flash.Map.Sectors));
+         Record_Int ("w25m.pages_per_sector", Int (5), Integer_64 (W5_Flash.Map.Pages_Per_Sector));
+         Record_Int ("w25m.page_size", Int (6), Integer_64 (W5_Flash.Map.Page_Size));
+         Record_Int ("w25m.sector_size", Int (7), Integer_64 (W5_Flash.Map.Sector_Size));
+         Record_Int ("w25m.total_size", Int (8), Integer_64 (W5_Flash.Map.Total_Size));
+         Record_Int ("w25m.kind", Int (9), Adaflight.Flash_Device.Flash_Type'Pos (W5_Flash.Map.Kind));
+         Record_Int ("w25m.die_size", Int (10), Integer_64 (W5_Stack.Die_Size));
+         Record_Int ("w25m.die_count", Int (11), Integer_64 (W5_Stack.Die_Count));
+      elsif Name = "w5cfgstep" then
+         MX_Op_Head := 1;
+         MX_Op_Count := 0;
+         W5_Device.Answers := Str (3);
+         W5_Device.Next := 1;
+         W5_Result := 0;
+         W5_Extra := 0;
+         W5_Chip.Configure (W5_Device, W5_Stack, W5_Flags);
+      elsif Name = "w5step" then
+         MX_Op_Head := 1;
+         MX_Op_Count := 0;
+         W5_Device.Answers := Str (4);
+         W5_Device.Next := 1;
+         W5_Result := 0;
+         W5_Extra := 0;
+         declare
+            Address : constant Interfaces.Unsigned_32 := (if NF >= 6 then Interfaces.Unsigned_32 (Int (6)) else 0);
+         begin
+            case Int (5) is
+               when 0 =>
+                  declare
+                     Ready : Boolean;
+                  begin
+                     W5_Chip.Is_Ready (W5_Device, W5_Stack, Ready);
+                     W5_Result := Boolean'Pos (Ready);
+                  end;
+               when 1 =>
+                  declare
+                     Ready : Boolean;
+                  begin
+                     W5_Chip.Wait_For_Ready (W5_Device, W5_Stack, Ready);
+                     W5_Result := Boolean'Pos (Ready);
+                  end;
+               when 2 =>
+                  W5_Chip.Erase_Sector (W5_Device, W5_Stack, Address);
+               when 3 =>
+                  W5_Chip.Erase_Completely (W5_Device, W5_Stack);
+               when 4 =>
+                  W5_Chip.Page_Program
+                    (W5_Device, W5_Stack, Address, M2_Fill (Natural (Int (7)), Interfaces.Unsigned_32 (Int (8))),
+                     Int (9) /= 0);
+               when 5 =>
+                  declare
+                     Written : Interfaces.Unsigned_32;
+                  begin
+                     W5_Chip.Page_Program_Begin (W5_Device, W5_Stack, Address, Int (12) /= 0);
+                     W5_Chip.Page_Program_Continue
+                       (W5_Device, W5_Stack, M2_Fill (Natural (Int (8)), Interfaces.Unsigned_32 (Int (9))),
+                        M2_Fill (Natural (Int (10)), Interfaces.Unsigned_32 (Int (11))), Natural (Int (7)), Written);
+                     W5_Chip.Page_Program_Finish (W5_Stack);
+                     W5_Result := Integer_64 (Written);
+                  end;
+               when 6 =>
+                  declare
+                     Buffer : Byte_Array (0 .. Natural (Int (7)) - 1) := (others => 0);
+                     Count  : Natural;
+                  begin
+                     W5_Chip.Read_Bytes (W5_Device, W5_Stack, Address, Buffer, Count);
+                     W5_Result := Integer_64 (Count);
+                     W5_Extra := Integer_64 (M2_Hash (Buffer));
+                  end;
+               when others =>
+                  declare
+                     G : constant Adaflight.Flash_Device.Geometry := W5_Chip.Get_Geometry (W5_Flash);
+                  begin
+                     W5_Result := Integer_64 (G.Total_Size);
+                     W5_Extra := Integer_64 (G.Sectors);
+                  end;
+            end case;
+         end;
+      elsif Name = "w5op" then
+         declare
+            Expected : Ada.Strings.Unbounded.Unbounded_String := Ada.Strings.Unbounded.To_Unbounded_String (Str (3));
+         begin
+            for I in 4 .. NF loop
+               Ada.Strings.Unbounded.Append (Expected, "," & Str (I));
+            end loop;
+            if MX_Op_Head <= MX_Op_Count then
+               Record_Text ("w25m.op", Ada.Strings.Unbounded.To_String (Expected),
+                            Ada.Strings.Unbounded.To_String (MX_Ops (MX_Op_Head)));
+               MX_Op_Head := MX_Op_Head + 1;
+            else
+               Record_Text ("w25m.op", Ada.Strings.Unbounded.To_String (Expected), "none");
+            end if;
+         end;
+      elsif Name = "w5res" then
+         MX_Expect_No_Ops ("a result");
+         Record_Int ("w25m.result", Int (4), W5_Result);
+         Record_Int ("w25m.extra", Int (5), W5_Extra);
+         Record_Int ("w25m.busy_0", Int (6), Boolean'Pos (W5_Stack.Dies (0).Could_Be_Busy));
+         Record_Int ("w25m.busy_1", Int (7), Boolean'Pos (W5_Stack.Dies (1).Could_Be_Busy));
+         Record_Int ("w25m.write_die", Int (8), Integer_64 (W5_Stack.Write_Die));
+         Record_Int ("w25m.write_address", Int (9), Integer_64 (W5_Stack.Write_Address));
+      end if;
+   end Check_W25M_Line;
+
    --  The flash layer oracle's select pin and bus over the M25P16 oracle's
    --  chip, with the chip's identification bytes.
    procedure FL_Preinit_CS (D : in out M2_Bus; Tag : Byte) is
@@ -31359,6 +31658,8 @@ procedure Vector_Check is
                   Check_M25P16_Line;
                elsif Kind = "w25n" then
                   Check_W25N_Line;
+               elsif Kind = "w25m" then
+                  Check_W25M_Line;
                elsif Kind = "flash" then
                   Check_Flash_Line;
                elsif Kind = "gyrostart" then
@@ -31665,6 +31966,7 @@ begin
    Run (Dir & "/icm20689.csv", "icm20689");
    Run (Dir & "/m25p16.csv", "m25p16");
    Run (Dir & "/w25n.csv", "w25n");
+   Run (Dir & "/w25m.csv", "w25m");
    Run (Dir & "/flash.csv", "flash");
    Run (Dir & "/gyrostart.csv", "gyrostart");
    Run (Dir & "/qmc5883.csv", "qmc5883");

@@ -72,4 +72,38 @@ package Adaflight.Flash_Bus_Steps with SPARK_Mode is
    procedure Step_Read_Id (D : in out Flash_Line; Response : out Byte_Array)
      with Global => null;
 
+   procedure Step_Die_Identify (Die : Natural; F : in out Device; JEDEC : Interfaces.Unsigned_32; OK : out Boolean)
+     with Global => null;
+
+   procedure Step_Die_Configure
+     (D : in out Flash_Line; Die : Natural; F : in out Device; Flags : Interfaces.Unsigned_32)
+     with Global => null;
+
+   procedure Step_Die_Ready (D : in out Flash_Line; Die : Natural; F : in out Device; Ready : out Boolean)
+     with Global => null;
+
+   procedure Step_Die_Erase_Sector
+     (D : in out Flash_Line; Die : Natural; F : in out Device; Address : Interfaces.Unsigned_32)
+     with Global => null;
+
+   procedure Step_Die_Erase_Completely (D : in out Flash_Line; Die : Natural; F : in out Device)
+     with Global => null;
+
+   procedure Step_Die_Program_Begin
+     (Die : Natural; F : in out Device; Address : Interfaces.Unsigned_32; Has_Callback : Boolean)
+     with Global => null;
+
+   procedure Step_Die_Program_Continue
+     (D : in out Flash_Line; Die : Natural; F : in out Device; Data_1 : Byte_Array; Data_2 : Byte_Array;
+      Count : Natural; Written : out Interfaces.Unsigned_32)
+     with Global => null;
+
+   procedure Step_Die_Program_Finish (Die : Natural; F : in out Device)
+     with Global => null;
+
+   procedure Step_Die_Read
+     (D : in out Flash_Line; Die : Natural; F : in out Device; Address : Interfaces.Unsigned_32;
+      Buffer : in out Byte_Array; Count : out Natural)
+     with Global => null;
+
 end Adaflight.Flash_Bus_Steps;
