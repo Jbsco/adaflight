@@ -55,12 +55,25 @@ package body Adaflight.Counting_Steps with SPARK_Mode is
       M := (Lines => (others => <>), Count => 1);
    end Step_Load;
 
-   procedure Step_Hook (Id : Menu.Menu_Id; Chain_Back : out Boolean) is
+   procedure Step_Enter (Id : Menu.Menu_Id; Reply : out Menu.Answer) is
       pragma Unreferenced (Id);
    begin
       Calls := Counted (Calls);
-      Chain_Back := Calls mod 2 = 0;
-   end Step_Hook;
+      Reply := (Done       => (if Calls mod 3 = 0 then Menu.Changed else Menu.Nothing),
+                Target     => Calls mod Menu.Max_Menus,
+                Kind       => Menu.Plain,
+                Chain_Back => Calls mod 2 = 0);
+   end Step_Enter;
+
+   procedure Step_Call (Id : Menu.Menu_Id; Line : Natural; Reply : out Menu.Answer) is
+      pragma Unreferenced (Id, Line);
+   begin
+      Calls := Counted (Calls);
+      Reply := (Done       => Menu.Effect'Val (Calls mod 3),
+                Target     => Calls mod Menu.Max_Menus,
+                Kind       => Menu.Exit_Kind'Val (Calls mod 6),
+                Chain_Back => Calls mod 2 = 0);
+   end Step_Call;
 
    procedure Step_Leave (Id : Menu.Menu_Id; Self : Integer; Chain_Back : out Boolean) is
       pragma Unreferenced (Id, Self);
