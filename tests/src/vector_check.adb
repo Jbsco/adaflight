@@ -204,6 +204,7 @@ with Adaflight.Compass_Detect.Scan;
 with Adaflight.Rangefinder_Detect.Probe;
 with Adaflight.Optical_Flow_Detect.Probe;
 with Adaflight.HMC5883;
+with Adaflight.IST8310;
 with Adaflight.QMC5883;
 with Adaflight.Gimbal_Control;
 with Adaflight.OSD_Custom_Text;
@@ -19551,6 +19552,168 @@ procedure Vector_Check is
       end if;
    end Check_HMC5883_Line;
 
+   --  The IST8310 oracle's chip: the bus type and address, the write
+   --  acknowledgements, the identity read's answer, the next read's start,
+   --  trigger, status and data answers, and the bytes a started read brought.
+   type IS_Bus is record
+      I2C             : Boolean := True;
+      Address         : Byte := 0;
+      Write_Acks      : String (1 .. 3) := (others => '1');
+      Write_Next      : Natural := 1;
+      Id_Ack          : Boolean := True;
+      Id_Value        : Byte := 0;
+      Start_Ack       : Boolean := True;
+      Write_Start_Ack : Boolean := True;
+      Status          : Byte := 0;
+      Data            : Byte_Array (0 .. 5) := (others => 0);
+      Fetched         : Byte_Array (0 .. 5) := (others => 0);
+   end record;
+
+   IS_Device : IS_Bus;
+
+   function IS_Is_I2C (D : IS_Bus) return Boolean is (D.I2C);
+
+   function IS_Address (D : IS_Bus) return Byte is (D.Address);
+
+   procedure IS_Set_Address (D : in out IS_Bus; Address : Byte) is
+   begin
+      D.Address := Address;
+   end IS_Set_Address;
+
+   procedure IS_Register (D : in out IS_Bus) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("register");
+   end IS_Register;
+
+   procedure IS_Read (D : in out IS_Bus; Register : Byte; Data : in out Byte_Array; OK : out Boolean) is
+   begin
+      OK := D.Id_Ack;
+      if OK then
+         Data := (others => D.Id_Value);
+      end if;
+      MX_Op ("read," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Data'Length)) & ","
+             & BMP_Num (Boolean'Pos (OK)) & "," & BMP_Num (Integer_64 (D.Id_Value)));
+   end IS_Read;
+
+   procedure IS_Write (D : in out IS_Bus; Register : Byte; Value : Byte; OK : out Boolean) is
+   begin
+      OK := (if D.Write_Next <= 3 then D.Write_Acks (D.Write_Next) = '1' else True);
+      D.Write_Next := D.Write_Next + 1;
+      MX_Op ("write," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Value)) & ","
+             & BMP_Num (Boolean'Pos (OK)));
+   end IS_Write;
+
+   procedure IS_Start_Read (D : in out IS_Bus; Register : Byte; Length : Positive; Started : out Boolean) is
+      use type Interfaces.Unsigned_8;
+   begin
+      MX_Op ("start," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Length)) & ","
+             & BMP_Num (Boolean'Pos (D.Start_Ack)));
+      Started := D.Start_Ack;
+      if Started then
+         if Register = 16#03# and then Length = 6 then
+            D.Fetched := D.Data;
+         else
+            D.Fetched (0) := D.Status;
+         end if;
+      end if;
+   end IS_Start_Read;
+
+   procedure IS_Start_Write (D : in out IS_Bus; Register : Byte; Value : Byte; Started : out Boolean) is
+   begin
+      MX_Op ("wstart," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Value)) & ","
+             & BMP_Num (Boolean'Pos (D.Write_Start_Ack)));
+      Started := D.Write_Start_Ack;
+   end IS_Start_Write;
+
+   procedure IS_Fetch (D : in out IS_Bus; Data : out Byte_Array) is
+   begin
+      Data := D.Fetched (0 .. Data'Length - 1);
+   end IS_Fetch;
+
+   procedure IS_Delay (D : in out IS_Bus; Ms : Natural) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("delay," & BMP_Num (Integer_64 (Ms)));
+   end IS_Delay;
+
+   package IS_Chip is new Adaflight.IST8310
+     (Bus_Device      => IS_Bus,
+      Is_I2C          => IS_Is_I2C,
+      I2C_Address     => IS_Address,
+      Set_I2C_Address => IS_Set_Address,
+      Register_Device => IS_Register,
+      Read_Registers  => IS_Read,
+      Write_Register  => IS_Write,
+      Start_Read      => IS_Start_Read,
+      Start_Write     => IS_Start_Write,
+      Fetch           => IS_Fetch,
+      Delay_Ms        => IS_Delay);
+
+   IS_State : IS_Chip.State;
+   IS_Data  : IS_Chip.Axes := (others => 0);
+   IS_Found : Boolean := False;
+   IS_OK    : Boolean := False;
+   IS_Got   : Boolean := False;
+
+   procedure Check_IST8310_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "isinit" then
+         MX_Op_Head := 1;
+         MX_Op_Count := 0;
+         IS_Device := (others => <>);
+         IS_State := (others => <>);
+         IS_Data := (others => 0);
+         IS_Device.I2C := Int (3) /= 0;
+         IS_Device.Address := Byte (Int (4));
+         IS_Device.Write_Acks := Str (5);
+         IS_Device.Id_Ack := Int (6) /= 0;
+         IS_Device.Id_Value := Byte (Int (7));
+         IS_Chip.Detect (IS_Device, IS_Found);
+      elsif Name = "isdet" then
+         MX_Expect_No_Ops ("detection");
+         Record_Int ("ist8310.found", Int (3), Boolean'Pos (IS_Found));
+         Record_Int ("ist8310.address", Int (4), Integer_64 (IS_Device.Address));
+         if IS_Found then
+            IS_Chip.Init (IS_Device, IS_State, IS_OK);
+         end if;
+      elsif Name = "isready" then
+         MX_Expect_No_Ops ("initialization");
+         Record_Int ("ist8310.init", Int (3), Boolean'Pos (IS_OK));
+         Record_Int ("ist8310.odr", Int (4), Integer_64 (IS_State.ODR_Hz));
+      elsif Name = "isstep" then
+         MX_Op_Head := 1;
+         MX_Op_Count := 0;
+         IS_Device.Start_Ack := Int (4) /= 0;
+         IS_Device.Write_Start_Ack := Int (5) /= 0;
+         IS_Device.Status := Byte (Int (6));
+         IS_Device.Data := Hex_Bytes (7);
+         IS_Chip.Read (IS_Device, IS_State, IS_Data, IS_Got);
+      elsif Name = "isop" then
+         declare
+            Expected : Ada.Strings.Unbounded.Unbounded_String := Ada.Strings.Unbounded.To_Unbounded_String (Str (3));
+         begin
+            for I in 4 .. NF loop
+               Ada.Strings.Unbounded.Append (Expected, "," & Str (I));
+            end loop;
+            if MX_Op_Head <= MX_Op_Count then
+               Record_Text ("ist8310.op", Ada.Strings.Unbounded.To_String (Expected),
+                            Ada.Strings.Unbounded.To_String (MX_Ops (MX_Op_Head)));
+               MX_Op_Head := MX_Op_Head + 1;
+            else
+               Record_Text ("ist8310.op", Ada.Strings.Unbounded.To_String (Expected), "none");
+            end if;
+         end;
+      elsif Name = "isres" then
+         MX_Expect_No_Ops ("a read");
+         Record_Int ("ist8310.got", Int (4), Boolean'Pos (IS_Got));
+         for K in 0 .. 2 loop
+            Record_Int ("ist8310.axis", Int (5 + K), Integer_64 (IS_Data (K)));
+         end loop;
+      end if;
+   end Check_IST8310_Line;
+
    GB_Seq      : Integer_64 := -1;
    GB_State    : Adaflight.Gimbal_Control.State;
    GB_Settings : Adaflight.Gimbal_Control.Settings;
@@ -29713,6 +29876,8 @@ procedure Vector_Check is
                   Check_Flow_Detect_Line;
                elsif Kind = "hmc5883" then
                   Check_HMC5883_Line;
+               elsif Kind = "ist8310" then
+                  Check_IST8310_Line;
                elsif Kind = "gimbal" then
                   Check_Gimbal_Line;
                elsif Kind = "osdtext" then
@@ -29994,6 +30159,7 @@ begin
    Run (Dir & "/rangedetect.csv", "rangedetect");
    Run (Dir & "/flowdetect.csv", "flowdetect");
    Run (Dir & "/hmc5883.csv", "hmc5883");
+   Run (Dir & "/ist8310.csv", "ist8310");
    Run (Dir & "/gimbal.csv", "gimbal");
    Run (Dir & "/osdtext.csv", "osdtext");
    Run (Dir & "/pidaudio.csv", "pidaudio");
