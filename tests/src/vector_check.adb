@@ -198,6 +198,7 @@ with Adaflight.Flash_Device.M25P16;
 with Adaflight.Flash_Device.Layer;
 with Adaflight.Gyro_Start;
 with Adaflight.Gyro_Detect;
+with Adaflight.Acc_Detect;
 with Adaflight.QMC5883;
 with Adaflight.Gimbal_Control;
 with Adaflight.OSD_Custom_Text;
@@ -18926,6 +18927,30 @@ procedure Vector_Check is
       end if;
    end Check_Gyro_Detect_Line;
 
+   --  The accelerometer detection oracle's build: the drivers its mask names.
+   AD_Build : Adaflight.Acc_Detect.Driver_Set := (others => False);
+
+   procedure Check_Acc_Detect_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "adbuild" then
+         for D in Adaflight.Acc_Detect.Driver loop
+            AD_Build (D) := Int (3) / 2 ** Adaflight.Acc_Detect.Driver'Pos (D) mod 2 = 1;
+         end loop;
+      elsif Name = "adres" then
+         declare
+            Detected : Interfaces.Unsigned_8 := Interfaces.Unsigned_8 (Int (5));
+            Found    : Boolean;
+         begin
+            Adaflight.Acc_Detect.Detect
+              (AD_Build, Interfaces.Unsigned_8 (Int (4)), Interfaces.Unsigned_8 (Int (3)), Detected, Found);
+            Record_Int ("accdetect.found", Int (6), Boolean'Pos (Found));
+            Record_Int ("accdetect.detected", Int (7), Integer_64 (Detected));
+            Record_Int ("accdetect.present", Int (8), Boolean'Pos (Found));
+         end;
+      end if;
+   end Check_Acc_Detect_Line;
+
    GB_Seq      : Integer_64 := -1;
    GB_State    : Adaflight.Gimbal_Control.State;
    GB_Settings : Adaflight.Gimbal_Control.Settings;
@@ -29076,6 +29101,8 @@ procedure Vector_Check is
                   Check_QMC5883_Line;
                elsif Kind = "gyrodetect" then
                   Check_Gyro_Detect_Line;
+               elsif Kind = "accdetect" then
+                  Check_Acc_Detect_Line;
                elsif Kind = "gimbal" then
                   Check_Gimbal_Line;
                elsif Kind = "osdtext" then
@@ -29351,6 +29378,7 @@ begin
    Run (Dir & "/gyrostart.csv", "gyrostart");
    Run (Dir & "/qmc5883.csv", "qmc5883");
    Run (Dir & "/gyrodetect.csv", "gyrodetect");
+   Run (Dir & "/accdetect.csv", "accdetect");
    Run (Dir & "/gimbal.csv", "gimbal");
    Run (Dir & "/osdtext.csv", "osdtext");
    Run (Dir & "/pidaudio.csv", "pidaudio");
