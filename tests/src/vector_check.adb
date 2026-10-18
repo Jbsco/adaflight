@@ -188,6 +188,7 @@ with Adaflight.MS5611;
 with Adaflight.BMP388;
 with Adaflight.MAX7456;
 with Adaflight.MAX7456.Display_Port;
+with Adaflight.MPU_Gyro;
 with Adaflight.Gimbal_Control;
 with Adaflight.OSD_Custom_Text;
 with Adaflight.PID_Audio;
@@ -17021,6 +17022,307 @@ procedure Vector_Check is
       end if;
    end Check_MAX7456_Display_Line;
 
+   --  The MPU gyro oracle's device: the bus answer, the chip probe answers,
+   --  the millisecond clock and its step, the cycle counter, DMA, the read
+   --  acknowledgement, the simulated registers, the receive buffer the
+   --  transfers fill and a pending DMA completion. Its calls go to the MAX7456
+   --  queue.
+   type MG_Bus is record
+      Bus_OK   : Boolean := True;
+      Probes   : Byte_Array (1 .. 3) := (others => 0);
+      Now_Ms   : Interfaces.Unsigned_32 := 0;
+      Ms_Step  : Interfaces.Unsigned_32 := 1;
+      Cycles   : Interfaces.Unsigned_32 := 0;
+      Use_DMA  : Boolean := False;
+      Read_Ack : Boolean := True;
+      Regs     : Byte_Array (0 .. 127) := (others => 0);
+      Rx       : Byte_Array (0 .. 15) := (others => 0);
+      Pending  : Boolean := False;
+   end record;
+
+   procedure MG_Preinit_CS (D : in out MG_Bus; Tag : Byte) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("preinit," & BMP_Num (Integer_64 (Tag)) & ",1,1");
+   end MG_Preinit_CS;
+
+   procedure MG_Attach_Bus (D : in out MG_Bus; Instance : Byte; OK : out Boolean) is
+   begin
+      OK := D.Bus_OK;
+      MX_Op ("bus," & BMP_Num (Integer_64 (Instance)) & "," & BMP_Num (Boolean'Pos (OK)));
+   end MG_Attach_Bus;
+
+   procedure MG_Prepare_CS (D : in out MG_Bus; Index : Byte) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("ioinit,cs," & BMP_Num (Integer_64 (Index)));
+      MX_Op ("csconfig,cs");
+      MX_Op ("cshigh");
+   end MG_Prepare_CS;
+
+   procedure MG_Release_CS (D : in out MG_Bus) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("preinitio,1,1");
+   end MG_Release_CS;
+
+   procedure MG_Divider (D : in out MG_Bus; Hz : Interfaces.Unsigned_32; Divisor : out Interfaces.Unsigned_16) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("divider," & BMP_Num (Integer_64 (Hz)));
+      Divisor := Interfaces.Unsigned_16 ((84_000_000 / Hz) mod 2 ** 16);
+   end MG_Divider;
+
+   procedure MG_Set_Divisor (D : in out MG_Bus; Divisor : Interfaces.Unsigned_16) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("clock," & BMP_Num (Integer_64 (Divisor)));
+   end MG_Set_Divisor;
+
+   procedure MG_Probe_Chip (D : in out MG_Bus; Index : Positive; Sensor : out Byte) is
+   begin
+      Sensor := D.Probes (Index);
+      MX_Op ("probe," & BMP_Num (Integer_64 (Index - 1)) & "," & BMP_Num (Integer_64 (Sensor)));
+   end MG_Probe_Chip;
+
+   procedure MG_Register (D : in out MG_Bus) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("register");
+   end MG_Register;
+
+   procedure MG_Millis (D : in out MG_Bus; Now : out Interfaces.Unsigned_32) is
+   begin
+      Now := D.Now_Ms;
+      D.Now_Ms := D.Now_Ms + D.Ms_Step;
+   end MG_Millis;
+
+   procedure MG_Delay (D : in out MG_Bus; Ms : Natural) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("delay," & BMP_Num (Integer_64 (Ms)));
+   end MG_Delay;
+
+   procedure MG_Enable_Interrupt (D : in out MG_Bus) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("ioinit,exti,0");
+      MX_Op ("extihandler");
+      MX_Op ("exticonfig,1");
+      MX_Op ("extienable");
+   end MG_Enable_Interrupt;
+
+   procedure MG_Cycle_Count (D : in out MG_Bus; Now : out Interfaces.Unsigned_32) is
+   begin
+      Now := D.Cycles;
+   end MG_Cycle_Count;
+
+   procedure MG_Start_Sequence (D : in out MG_Bus; Data : Byte_Array; Completion : Boolean) is
+      use type Interfaces.Unsigned_8;
+      Start : constant Natural := Natural (Data (Data'First) and 16#7F#);
+   begin
+      MX_Op ("seq," & BMP_Num (Integer_64 (Data'Length)) & "," & BMP_Num (Boolean'Pos (Completion)) & ","
+             & MX_Hex (Data));
+      D.Rx (1) := 16#EE#;
+      for I in 1 .. Data'Length - 1 loop
+         D.Rx (1 + I) := D.Regs ((Start + I - 1) mod 128);
+      end loop;
+      if Completion then
+         D.Pending := True;
+      end if;
+   end MG_Start_Sequence;
+
+   procedure MG_Wait (D : in out MG_Bus) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("wait");
+   end MG_Wait;
+
+   procedure MG_Fetch (D : in out MG_Bus; Data : out Byte_Array) is
+   begin
+      for I in Data'Range loop
+         Data (I) := D.Rx (I - Data'First);
+      end loop;
+   end MG_Fetch;
+
+   function MG_Uses_DMA (D : MG_Bus) return Boolean is (D.Use_DMA);
+
+   procedure MG_Read (D : in out MG_Bus; Register : Byte; Data : in out Byte_Array; OK : out Boolean) is
+   begin
+      OK := D.Read_Ack;
+      MX_Op ("read," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Data'Length)) & ","
+             & BMP_Num (Boolean'Pos (OK)));
+      if OK then
+         for I in Data'Range loop
+            Data (I) := D.Regs ((Natural (Register) + I - Data'First) mod 128);
+         end loop;
+      end if;
+   end MG_Read;
+
+   package MG_Driver is new Adaflight.MPU_Gyro
+     (SPI_Device       => MG_Bus,
+      Chip_Count       => 3,
+      Preinit_CS       => MG_Preinit_CS,
+      Attach_Bus       => MG_Attach_Bus,
+      Prepare_CS       => MG_Prepare_CS,
+      Release_CS       => MG_Release_CS,
+      Divider          => MG_Divider,
+      Set_Divisor      => MG_Set_Divisor,
+      Probe_Chip       => MG_Probe_Chip,
+      Register_Device  => MG_Register,
+      Millis           => MG_Millis,
+      Delay_Ms         => MG_Delay,
+      Enable_Interrupt => MG_Enable_Interrupt,
+      Cycle_Count      => MG_Cycle_Count,
+      Start_Sequence   => MG_Start_Sequence,
+      Wait             => MG_Wait,
+      Fetch            => MG_Fetch,
+      Uses_DMA         => MG_Uses_DMA,
+      Read_Registers   => MG_Read);
+
+   MG_Device : MG_Bus;
+   MG_State  : MG_Driver.State;
+   MG_Found  : Boolean := False;
+   MG_Result : Integer_64 := 0;
+
+   procedure MG_Set_Registers (Field : Positive) is
+      Data : constant Byte_Array := Hex_Bytes (Field);
+   begin
+      for I in Data'Range loop
+         MG_Device.Regs (16#3B# + I) := Data (I);
+      end loop;
+   end MG_Set_Registers;
+
+   procedure MG_Record_State (First : Positive) is
+   begin
+      Record_Int ("mpugyro.mode", Int (First), Integer_64 (MG_Driver.Read_Mode'Pos (MG_State.Mode)));
+      Record_Int ("mpugyro.exti_count", Int (First + 1), Integer_64 (MG_State.Detected_EXTI));
+      Record_Int ("mpugyro.last_exti", Int (First + 2), Integer_64 (MG_State.Last_EXTI));
+      Record_Int ("mpugyro.sync_exti", Int (First + 3), Integer_64 (MG_State.Sync_EXTI));
+      Record_Int ("mpugyro.dma_max", Int (First + 4), Integer_64 (MG_State.DMA_Max_Duration));
+      Record_Int ("mpugyro.ready", Int (First + 5), Boolean'Pos (MG_State.Data_Ready));
+      for K in 0 .. 2 loop
+         Record_Int ("mpugyro.gyro", Int (First + 6 + K), Integer_64 (MG_State.Raw (K)));
+      end loop;
+      Record_Int ("mpugyro.temperature", Int (First + 9), Integer_64 (MG_State.Temperature));
+      for K in 0 .. 2 loop
+         Record_Int ("mpugyro.acc", Int (First + 10 + K), Integer_64 (MG_State.Acc_Raw (K)));
+      end loop;
+   end MG_Record_State;
+
+   procedure Check_MPU_Gyro_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "mginit" then
+         MX_Op_Head := 1;
+         MX_Op_Count := 0;
+         MG_Device := (others => <>);
+         MG_Device.Bus_OK := Int (7) /= 0;
+         MG_Device.Probes := (Byte (Int (8)), Byte (Int (9)), Byte (Int (10)));
+         MG_Device.Now_Ms := Interfaces.Unsigned_32 (Int (11));
+         MG_Device.Ms_Step := Interfaces.Unsigned_32 (Int (12));
+         MG_Device.Use_DMA := Int (13) /= 0;
+         MG_Device.Cycles := Interfaces.Unsigned_32 (Int (21));
+         MG_Set_Registers (22);
+         MG_State := (others => <>);
+         MG_State.Interrupt_Pin := Int (14) /= 0;
+         MG_State.Short_Period := Interfaces.Integer_32 (Int (15));
+         MG_State.Hardware_LPF := Byte (Int (16));
+         MG_State.Rate_KHz := Byte (Int (17));
+         MG_State.Temp_Scale := Flt (19);
+         MG_State.Temp_Zero := Flt (20);
+         declare
+            C : constant MG_Driver.Device_Config :=
+              (Index => Interfaces.Integer_8 (Int (3)), Bus_Type => Byte (Int (4)), SPI_Bus => Byte (Int (5)),
+               CS_Tag => Byte (Int (6)));
+         begin
+            MG_Driver.Preinit (MG_Device, C);
+            MG_Driver.Detect (MG_Device, MG_State, C, MG_Found);
+         end;
+      elsif Name = "mgop" then
+         declare
+            Expected : Ada.Strings.Unbounded.Unbounded_String := Ada.Strings.Unbounded.To_Unbounded_String (Str (3));
+         begin
+            for I in 4 .. NF loop
+               Ada.Strings.Unbounded.Append (Expected, "," & Str (I));
+            end loop;
+            if MX_Op_Head <= MX_Op_Count then
+               Record_Text ("mpugyro.op", Ada.Strings.Unbounded.To_String (Expected),
+                            Ada.Strings.Unbounded.To_String (MX_Ops (MX_Op_Head)));
+               MX_Op_Head := MX_Op_Head + 1;
+            else
+               Record_Text ("mpugyro.op", Ada.Strings.Unbounded.To_String (Expected), "none");
+            end if;
+         end;
+      elsif Name = "mgdet" then
+         MX_Expect_No_Ops ("detection");
+         Record_Int ("mpugyro.found", Int (3), Boolean'Pos (MG_Found));
+         Record_Int ("mpugyro.sensor", Int (4), Integer_64 (MG_State.Sensor));
+         Record_Int ("mpugyro.clock", Int (5), Integer_64 (MG_Device.Now_Ms));
+         if MG_Found then
+            MG_Driver.Init (MG_Device, MG_State);
+         end if;
+      elsif Name = "mginit2" then
+         MX_Expect_No_Ops ("initialization");
+         MG_Record_State (3);
+      elsif Name = "mgstep" then
+         declare
+            Which : constant Integer_64 := Int (4);
+            A     : constant Interfaces.Unsigned_32 := Interfaces.Unsigned_32 (Int (5));
+            Flag  : Boolean;
+            Other : Boolean;
+         begin
+            MG_Device.Read_Ack := Int (6) /= 0;
+            MG_Set_Registers (7);
+            MG_Result := 0;
+            case Which is
+               when 0 =>
+                  MG_Device.Cycles := MG_Device.Cycles + A;
+                  if MG_State.Interrupt_Pin then
+                     MG_Driver.Interrupt (MG_Device, MG_State);
+                  end if;
+               when 1 =>
+                  for I in 1 .. A loop
+                     MG_Device.Cycles := MG_Device.Cycles + 79 * 168;
+                     if MG_State.Interrupt_Pin then
+                        MG_Driver.Interrupt (MG_Device, MG_State);
+                     end if;
+                  end loop;
+               when 2 =>
+                  MG_Device.Cycles := MG_Device.Cycles + A;
+                  if MG_Device.Pending then
+                     MG_Device.Pending := False;
+                     MG_Driver.Transfer_Complete (MG_Device, MG_State);
+                  end if;
+               when 3 =>
+                  MG_Driver.Read_Gyro_SPI (MG_Device, MG_State, Flag);
+                  MG_Result := Boolean'Pos (Flag);
+               when 4 =>
+                  MG_Driver.Read_Acc_SPI (MG_Device, MG_State, Flag);
+                  MG_Result := Boolean'Pos (Flag);
+               when 5 =>
+                  MG_Driver.Read_Gyro (MG_Device, MG_State, Flag);
+                  MG_Driver.Read_Acc (MG_Device, MG_State, Other);
+                  MG_Result := Boolean'Pos (Flag) + 2 * Boolean'Pos (Other);
+               when 6 =>
+                  MG_Result := Integer_64 (MG_Driver.Gyro_DLPF (MG_State));
+               when 7 =>
+                  MG_State.Hardware_LPF := Byte (A mod 16);
+                  MG_State.Rate_KHz := Byte (A / 16);
+                  MG_Result := Integer_64 (MG_Driver.Gyro_DLPF (MG_State));
+               when 8 =>
+                  null;
+               when others =>
+                  MG_State.Data_Ready := False;
+            end case;
+         end;
+      elsif Name = "mgres" then
+         MX_Expect_No_Ops ("a result");
+         Record_Int ("mpugyro.result", Int (4), MG_Result);
+         MG_Record_State (5);
+      end if;
+   end Check_MPU_Gyro_Line;
+
    GB_Seq      : Integer_64 := -1;
    GB_State    : Adaflight.Gimbal_Control.State;
    GB_Settings : Adaflight.Gimbal_Control.Settings;
@@ -27151,6 +27453,8 @@ procedure Vector_Check is
                   Check_MAX7456_Line;
                elsif Kind = "max7456dp" then
                   Check_MAX7456_Display_Line;
+               elsif Kind = "mpugyro" then
+                  Check_MPU_Gyro_Line;
                elsif Kind = "gimbal" then
                   Check_Gimbal_Line;
                elsif Kind = "osdtext" then
@@ -27416,6 +27720,7 @@ begin
    Run (Dir & "/bmp388.csv", "bmp388");
    Run (Dir & "/max7456.csv", "max7456");
    Run (Dir & "/max7456dp.csv", "max7456dp");
+   Run (Dir & "/mpugyro.csv", "mpugyro");
    Run (Dir & "/gimbal.csv", "gimbal");
    Run (Dir & "/osdtext.csv", "osdtext");
    Run (Dir & "/pidaudio.csv", "pidaudio");
