@@ -703,6 +703,9 @@ package body Adaflight.Arming with SPARK_Mode is
          return;
       end if;
       S.Do_Not_Repeat := True;
+      if Sensed.Joystick_Active or else Modes.Is_Active (M, Modes.Stick_Command_Disable) then
+         return;
+      end if;
       if Current = Combo (Center, Low, Low, Low) then
          Out_Step.Commands (Gyro_Calibration) := True;
          if C.GPS_Feature then

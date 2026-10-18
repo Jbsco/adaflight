@@ -1,11 +1,11 @@
 --  The receiver task's state machine: one call checks the receiver, the
 --  next updates the modes when the check found data, and the next updates
---  the RC commands and the arming status. Every step but the last tells the
---  scheduler to ignore the task's rate. The task keeps an estimate of each
---  step's time, which follows the scheduler's anticipated time when that
---  changed, rises to a longer execution and otherwise decays by a 64th of a
---  microsecond a call, and it names the next step's estimate to the
---  scheduler.
+--  the RC commands and the arming status and, while disarmed, sends the USB
+--  joystick report. Every step but the last tells the scheduler to ignore
+--  the task's rate. The task keeps an estimate of each step's time, which
+--  follows the scheduler's anticipated time when that changed, rises to a
+--  longer execution and otherwise decays by a 64th of a microsecond a call,
+--  and it names the next step's estimate to the scheduler.
 with Interfaces;
 
 package Adaflight.RX_Task with SPARK_Mode is
@@ -36,6 +36,11 @@ package Adaflight.RX_Task with SPARK_Mode is
 
    --  Whether the scheduler ignores the task's rate for this call.
    function Ignore_Rate (T : State) return Boolean is (T.Current /= Update);
+
+   --  Whether a call of the step sends the USB joystick report, which the
+   --  update step does while disarmed after the arming status.
+   function Sends_Joystick_Report (Current : Step; Armed : Boolean) return Boolean is
+     (Current = Update and then not Armed);
 
    --  After the step: the check moves on only when the receiver found data.
    --  Unless the scheduler ignores this call's time, the step's estimate

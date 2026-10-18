@@ -7196,3 +7196,24 @@ read 250 to 255 bytes, time zero pulses at the threshold itself, and use address
 device information, read buffer with the byte after it, sent bytes, write count, hash of every write with its time,
 sequence number and end clock of all 550 operations replay exactly. Thirty-two tampered paths each fail the
 vectors.
+
+## D317. USB joystick (2026-10-17)
+
+`Adaflight.USB_Joystick` builds the report the board sends as a USB joystick and tells whether the board may be in
+use as one. The report has eight axes from the roll, pitch, third auxiliary, yaw, first auxiliary, throttle,
+fourth and second auxiliary channels, each cut to whole microseconds, held to 1000 to 2000 and scaled to -127 to
+127 with integer division, with the pitch inverted, then a byte of eight buttons from the fifth to twelfth
+auxiliary channels, each on from 1504 microseconds. The board may be in use as a joystick when its USB device is
+the composite one and connected and either no battery is present or no voltage meter is set. The reference builds
+both on every STM32 target.
+
+`Adaflight.Arming` gains the stick command gate of those builds. Once a held stick combination is taken while
+disarmed, the stick commands stop when the board may be a joystick or the stick commands disable mode is on.
+`Adaflight.RX_Task` names the update step's joystick report, which goes out while disarmed after the arming status.
+
+The joystick oracle includes the reference report and test over channels at the range limits, near the button
+threshold and outside the range with fractions. The arming oracle now builds with the joystick, which changes 4 to
+13 sequences in each existing arming vector file, each from a step where the gate blocks a stick command, and a
+joystick sequence set scripts the test. The receiver task oracle records the reports each step sends, with the
+armed flag from a second generator so its existing records stay as they were. Of 16 tampered paths, 15 fail the
+vectors and one, a scale factor of 255, raises an axis past 127, which the harness rejects as a range error.
