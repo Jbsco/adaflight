@@ -65,7 +65,7 @@ The core contains:
 </details>
 
 <details>
-<summary><b>Sensor drivers and detection</b> (6)</summary>
+<summary><b>Sensor drivers and detection</b> (7)</summary>
 
 - gyro detection: hardware of detected sensor from build's drivers in fixed order, no chip
   detection with virtual gyro
@@ -77,6 +77,8 @@ The core contains:
   DroneCAN, MPU925x
 - rangefinder detection: configured hardware's driver alone, task period by driver, presence
   cleared on failure
+- optical flow detection: configured hardware's driver alone with rangefinder drivers, task period
+  from driver
 - gyro start: sample rates and rate code by detected sensor, overflow protection by gyro hardware,
   data ready check
 
@@ -4088,7 +4090,7 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 32053 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 32060 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
 - Recorded vectors replay bit for bit: 1753568 lines over 384 cases, every case exact except
   fifty-four declared deviations in `DESIGN.md` D6.
