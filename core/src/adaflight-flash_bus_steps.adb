@@ -59,4 +59,40 @@ package body Adaflight.Flash_Bus_Steps with SPARK_Mode is
       null;
    end Step_Set_Divisor;
 
+   procedure Step_Preinit_CS (D : in out Flash_Line; Tag : Byte) is
+      pragma Unreferenced (D, Tag);
+   begin
+      null;
+   end Step_Preinit_CS;
+
+   procedure Step_CS_Free (D : in out Flash_Line; Free : out Boolean) is
+      pragma Unreferenced (D);
+   begin
+      Free := True;
+   end Step_CS_Free;
+
+   procedure Step_Attach_Bus (D : in out Flash_Line; Instance : Byte; OK : out Boolean) is
+      pragma Unreferenced (D, Instance);
+   begin
+      OK := True;
+   end Step_Attach_Bus;
+
+   procedure Step_Prepare_CS (D : in out Flash_Line) is
+      pragma Unreferenced (D);
+   begin
+      null;
+   end Step_Prepare_CS;
+
+   procedure Step_Delay_Ms (D : in out Flash_Line; Ms : Natural) is
+      pragma Unreferenced (D, Ms);
+   begin
+      null;
+   end Step_Delay_Ms;
+
+   procedure Step_Read_Id (D : in out Flash_Line; Response : out Byte_Array) is
+      pragma Unreferenced (D);
+   begin
+      Response := (others => 0);
+   end Step_Read_Id;
+
 end Adaflight.Flash_Bus_Steps;

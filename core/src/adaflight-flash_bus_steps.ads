@@ -38,4 +38,22 @@ package Adaflight.Flash_Bus_Steps with SPARK_Mode is
    procedure Step_Set_Divisor (D : in out Flash_Line; Divisor : Interfaces.Unsigned_16)
      with Global => null;
 
+   procedure Step_Preinit_CS (D : in out Flash_Line; Tag : Byte)
+     with Global => null;
+
+   procedure Step_CS_Free (D : in out Flash_Line; Free : out Boolean)
+     with Global => null;
+
+   procedure Step_Attach_Bus (D : in out Flash_Line; Instance : Byte; OK : out Boolean)
+     with Global => null;
+
+   procedure Step_Prepare_CS (D : in out Flash_Line)
+     with Global => null;
+
+   procedure Step_Delay_Ms (D : in out Flash_Line; Ms : Natural)
+     with Global => null;
+
+   procedure Step_Read_Id (D : in out Flash_Line; Response : out Byte_Array)
+     with Global => null;
+
 end Adaflight.Flash_Bus_Steps;

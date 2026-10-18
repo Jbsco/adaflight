@@ -195,6 +195,7 @@ with Adaflight.MPU_Gyro.MPU6500;
 with Adaflight.MPU_Gyro.ICM20689;
 with Adaflight.Flash_Device;
 with Adaflight.Flash_Device.M25P16;
+with Adaflight.Flash_Device.Layer;
 with Adaflight.Gimbal_Control;
 with Adaflight.OSD_Custom_Text;
 with Adaflight.PID_Audio;
@@ -18003,6 +18004,9 @@ procedure Vector_Check is
       Txn          : Byte_Array (0 .. 299) := (others => 0);
       Txn_Len      : Natural := 0;
       Read_Addr    : Interfaces.Unsigned_32 := 0;
+      IO_Free      : Boolean := True;
+      Bus_OK       : Boolean := True;
+      Chip_Id      : Byte_Array (0 .. 3) := (others => 0);
    end record;
 
    M2_Device : M2_Bus;
@@ -18054,6 +18058,8 @@ procedure Vector_Check is
    begin
       if D.Txn_Len > 0 and then D.Txn (0) = 16#05# then
          Output := (if D.Busy > 0 then 16#01# else 0) or (if D.WEL then 16#02# else 0);
+      elsif D.Txn_Len > 0 and then D.Txn (0) = 16#9F# then
+         Output := (if D.Txn_Len <= 4 then D.Chip_Id (D.Txn_Len - 1) else 0);
       elsif D.Txn_Len > M2_Address_Bytes (D) and then D.Txn (0) = 16#03# and then D.Busy = 0 then
          if D.Txn_Len = M2_Address_Bytes (D) + 1 then
             D.Read_Addr := M2_Txn_Address (D, D.Txn_Len);
@@ -18428,6 +18434,255 @@ procedure Vector_Check is
          Record_Int ("m25p16.large", Int (9), Boolean'Pos (M2_Flash.Large));
       end if;
    end Check_M25P16_Line;
+
+   --  The flash layer oracle's select pin and bus over the M25P16 oracle's
+   --  chip, with the chip's identification bytes.
+   procedure FL_Preinit_CS (D : in out M2_Bus; Tag : Byte) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("preinit," & BMP_Num (Integer_64 (Tag)) & ",1,1");
+   end FL_Preinit_CS;
+
+   procedure FL_CS_Free (D : in out M2_Bus; Free : out Boolean) is
+   begin
+      Free := D.IO_Free;
+      MX_Op ("iofree," & BMP_Num (Boolean'Pos (Free)));
+   end FL_CS_Free;
+
+   procedure FL_Attach_Bus (D : in out M2_Bus; Instance : Byte; OK : out Boolean) is
+   begin
+      OK := D.Bus_OK;
+      MX_Op ("bus," & BMP_Num (Integer_64 (Instance)) & "," & BMP_Num (Boolean'Pos (OK)));
+   end FL_Attach_Bus;
+
+   procedure FL_Prepare_CS (D : in out M2_Bus) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("ioinit,1,0");
+      MX_Op ("csconfig,1");
+      MX_Op ("cshigh");
+   end FL_Prepare_CS;
+
+   procedure FL_Delay (D : in out M2_Bus; Ms : Natural) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("delay," & BMP_Num (Integer_64 (Ms)));
+   end FL_Delay;
+
+   procedure FL_Read_Id (D : in out M2_Bus; Response : out Byte_Array) is
+      Ignored : Byte;
+   begin
+      Ignored := M2_Clock (D, 16#9F#);
+      for K in Response'Range loop
+         Response (K) := M2_Clock (D, 16#FF#);
+      end loop;
+      M2_Deselect (D);
+      MX_Op ("rreg,159," & BMP_Num (Integer_64 (Response'Length)) & "," & M2_Show (Response, True));
+   end FL_Read_Id;
+
+   package FL_Layer is new Adaflight.Flash_Device.Layer
+     (SPI_Device            => M2_Bus,
+      Preinit_CS            => FL_Preinit_CS,
+      CS_Free               => FL_CS_Free,
+      Attach_Bus            => FL_Attach_Bus,
+      Prepare_CS            => FL_Prepare_CS,
+      Divider               => M2_Divider,
+      Set_Divisor           => M2_Set_Divisor,
+      Delay_Ms              => FL_Delay,
+      Read_Id               => FL_Read_Id,
+      Chip_Identify         => M2_Chip.Identify,
+      Chip_Configure        => M2_Chip.Configure,
+      Chip_Is_Ready         => M2_Chip.Is_Ready,
+      Chip_Wait_For_Ready   => M2_Chip.Wait_For_Ready,
+      Chip_Erase_Sector     => M2_Chip.Erase_Sector,
+      Chip_Erase_Completely => M2_Chip.Erase_Completely,
+      Chip_Program_Begin    => M2_Chip.Page_Program_Begin,
+      Chip_Program_Continue => M2_Chip.Page_Program_Continue,
+      Chip_Program          => M2_Chip.Page_Program,
+      Chip_Read             => M2_Chip.Read_Bytes);
+
+   FL_Flash       : FL_Layer.Flash;
+   FL_Query_Kind  : Natural := 0;
+   FL_Query_Index : Natural := 0;
+
+   procedure Check_Flash_Line is
+      use type Interfaces.Unsigned_64;
+      Name : constant String := Str (1);
+   begin
+      if Name = "flinit" then
+         MX_Op_Head := 1;
+         MX_Op_Count := 0;
+         M2_Device := (others => <>);
+         FL_Flash := (others => <>);
+         M2_Device.IO_Free := Int (5) /= 0;
+         M2_Device.Bus_OK := Int (6) /= 0;
+         M2_Device.Chip_Id := Hex_Bytes (7);
+         M2_Device.Use_DMA := Int (8) /= 0;
+         declare
+            Bits : constant String := Str (9);
+         begin
+            M2_Device.Busy_Bits :=
+              Interfaces.Shift_Left
+                (Interfaces.Unsigned_64 (Integer_64'Value ("16#" & Bits (Bits'First .. Bits'First + 7) & "#")), 32)
+              or Interfaces.Unsigned_64 (Integer_64'Value ("16#" & Bits (Bits'First + 8 .. Bits'Last) & "#"));
+         end;
+         M2_Device.Busy_Program := Natural (Int (10));
+         M2_Device.Busy_Erase := Natural (Int (11));
+         declare
+            C : constant FL_Layer.Flash_Config := (CS_Tag => Byte (Int (3)), SPI_Bus => Byte (Int (4)));
+         begin
+            FL_Layer.Preinit (M2_Device, C);
+            FL_Layer.Init (M2_Device, FL_Flash, C);
+         end;
+      elsif Name = "flready" then
+         MX_Expect_No_Ops ("initialization");
+         declare
+            G : constant Adaflight.Flash_Device.Geometry := FL_Layer.Get_Geometry (FL_Flash);
+         begin
+            Record_Int ("flash.have", Int (3), Boolean'Pos (FL_Flash.Have));
+            Record_Int ("flash.sectors", Int (4), Integer_64 (G.Sectors));
+            Record_Int ("flash.pages_per_sector", Int (5), Integer_64 (G.Pages_Per_Sector));
+            Record_Int ("flash.page_size", Int (6), Integer_64 (G.Page_Size));
+            Record_Int ("flash.sector_size", Int (7), Integer_64 (G.Sector_Size));
+            Record_Int ("flash.total_size", Int (8), Integer_64 (G.Total_Size));
+            Record_Int ("flash.kind", Int (9), Adaflight.Flash_Device.Flash_Type'Pos (G.Kind));
+            Record_Int ("flash.jedec", Int (10), Integer_64 (G.JEDEC_Id));
+         end;
+         Record_Int ("flash.partitions", Int (11), Integer_64 (FL_Layer.Partition_Count (FL_Flash)));
+         Record_Int ("flash.large", Int (12), Boolean'Pos (FL_Flash.Chip.Large));
+         if Int (3) /= 0 then
+            M2_Device.Size := Interfaces.Unsigned_32 (Int (8));
+            M2_Device.Sector := Interfaces.Unsigned_32 (Int (7));
+         end if;
+      elsif Name = "flpart" then
+         declare
+            Found : Boolean;
+            P     : FL_Layer.Partition;
+         begin
+            FL_Layer.Find_By_Index (FL_Flash, Natural (Int (3)), Found, P);
+            Record_Int ("flash.part_index", 1, Boolean'Pos (Found));
+            Record_Int ("flash.part_type", Int (4), Integer_64 (P.Kind));
+            Record_Int ("flash.part_start", Int (5), Integer_64 (P.Start_Sector));
+            Record_Int ("flash.part_end", Int (6), Integer_64 (P.End_Sector));
+         end;
+      elsif Name = "fltable" then
+         declare
+            I : constant Natural := Natural (Int (4));
+         begin
+            Record_Int ("flash.table_type", Int (5), Integer_64 (FL_Flash.Partitions (I).Kind));
+            Record_Int ("flash.table_start", Int (6), Integer_64 (FL_Flash.Partitions (I).Start_Sector));
+            Record_Int ("flash.table_end", Int (7), Integer_64 (FL_Flash.Partitions (I).End_Sector));
+         end;
+      elsif Name = "flset" then
+         FL_Layer.Partition_Set
+           (FL_Flash, Byte (Int (4)), Interfaces.Unsigned_32 (Int (5)), Interfaces.Unsigned_32 (Int (6)));
+         M2_Result := Integer_64 (FL_Layer.Partition_Count (FL_Flash));
+      elsif Name = "flstep" then
+         MX_Op_Head := 1;
+         MX_Op_Count := 0;
+         M2_Result := 0;
+         M2_Extra := 0;
+         declare
+            Address : constant Interfaces.Unsigned_32 :=
+              (if NF >= 5 and then Int (4) not in 9 then Interfaces.Unsigned_32 (Int (5)) else 0);
+         begin
+            case Int (4) is
+               when 0 | 10 =>
+                  declare
+                     Ready : Boolean;
+                  begin
+                     FL_Layer.Is_Ready (M2_Device, FL_Flash, Ready);
+                     M2_Result := Boolean'Pos (Ready);
+                  end;
+               when 1 =>
+                  FL_Layer.Wait_For_Ready (M2_Device, FL_Flash);
+                  M2_Result := 1;
+               when 2 =>
+                  FL_Layer.Erase_Sector (M2_Device, FL_Flash, Address);
+               when 3 =>
+                  FL_Layer.Erase_Completely (M2_Device, FL_Flash);
+               when 4 =>
+                  FL_Layer.Page_Program
+                    (M2_Device, FL_Flash, Address, M2_Fill (Natural (Int (6)), Interfaces.Unsigned_32 (Int (7))),
+                     Int (8) /= 0);
+               when 5 =>
+                  declare
+                     Written : Interfaces.Unsigned_32;
+                     Size_1  : Natural;
+                     Size_2  : Natural;
+                  begin
+                     FL_Layer.Page_Program_Begin (FL_Flash, Address, Int (11) /= 0);
+                     FL_Layer.Page_Program_Continue
+                       (M2_Device, FL_Flash, M2_Fill (Natural (Int (7)), Interfaces.Unsigned_32 (Int (8))),
+                        M2_Fill (Natural (Int (9)), Interfaces.Unsigned_32 (Int (10))), Natural (Int (6)), Written,
+                        Size_1, Size_2);
+                     M2_Result := Integer_64 (Written);
+                     M2_Extra := Integer_64 (Size_1) * 65_536 + Integer_64 (Size_2);
+                  end;
+               when 6 =>
+                  declare
+                     Buffer : Byte_Array (0 .. Natural (Int (6)) - 1);
+                  begin
+                     FL_Layer.Read_Bytes (M2_Device, FL_Flash, Address, Buffer);
+                     M2_Result := Integer_64 (Buffer'Length);
+                     M2_Extra := Integer_64 (M2_Hash (Buffer));
+                  end;
+               when 7 =>
+                  null;
+               when 8 =>
+                  declare
+                     G : constant Adaflight.Flash_Device.Geometry := FL_Layer.Get_Geometry (FL_Flash);
+                  begin
+                     M2_Result := Integer_64 (G.Total_Size);
+                     M2_Extra := Integer_64 (G.Sectors);
+                  end;
+               when 9 =>
+                  FL_Query_Kind := Natural (Int (5));
+                  FL_Query_Index := Natural (Int (6));
+                  M2_Result := Integer_64 (FL_Layer.Partition_Count (FL_Flash));
+               when others =>
+                  M2_Result := Integer_64 (FL_Layer.Partition_Count (FL_Flash));
+            end case;
+         end;
+      elsif Name = "flpartq" then
+         declare
+            Has  : Boolean;
+            P    : FL_Layer.Partition;
+            Text : constant String := FL_Layer.Type_Name (FL_Query_Kind);
+         begin
+            FL_Layer.Find_By_Index (FL_Flash, FL_Query_Index, Has, P);
+            Record_Int ("flash.find_type", Int (4), Integer_64 (FL_Layer.Find_By_Type (FL_Flash, FL_Query_Kind)));
+            Record_Int ("flash.find_index_type", Int (5), (if Has then Integer_64 (P.Kind) else -1));
+            Record_Int ("flash.find_index_start", Int (6), (if Has then Integer_64 (P.Start_Sector) else -1));
+            Record_Int ("flash.find_index_end", Int (7), (if Has then Integer_64 (P.End_Sector) else 0));
+            Record_Int ("flash.name_length", Int (8), Integer_64 (Text'Length));
+            Record_Text ("flash.name", Str (9), (if Text'Length = 0 then "-" else Text));
+         end;
+      elsif Name = "flop" then
+         declare
+            Expected : Ada.Strings.Unbounded.Unbounded_String := Ada.Strings.Unbounded.To_Unbounded_String (Str (3));
+         begin
+            for I in 4 .. NF loop
+               Ada.Strings.Unbounded.Append (Expected, "," & Str (I));
+            end loop;
+            if MX_Op_Head <= MX_Op_Count then
+               Record_Text ("flash.op", Ada.Strings.Unbounded.To_String (Expected),
+                            Ada.Strings.Unbounded.To_String (MX_Ops (MX_Op_Head)));
+               MX_Op_Head := MX_Op_Head + 1;
+            else
+               Record_Text ("flash.op", Ada.Strings.Unbounded.To_String (Expected), "none");
+            end if;
+         end;
+      elsif Name = "flres" then
+         MX_Expect_No_Ops ("a result");
+         Record_Int ("flash.result", Int (4), M2_Result);
+         Record_Int ("flash.extra", Int (5), M2_Extra);
+         Record_Int ("flash.busy", Int (6), Boolean'Pos (FL_Flash.Chip.Could_Be_Busy));
+         Record_Int ("flash.address", Int (7), Integer_64 (FL_Flash.Chip.Current_Write_Address));
+         Record_Int ("flash.written", Int (8), Integer_64 (FL_Flash.Chip.Bytes_Written));
+         Record_Int ("flash.large", Int (9), Boolean'Pos (FL_Flash.Chip.Large));
+      end if;
+   end Check_Flash_Line;
 
    GB_Seq      : Integer_64 := -1;
    GB_State    : Adaflight.Gimbal_Control.State;
@@ -28571,6 +28826,8 @@ procedure Vector_Check is
                   Check_ICM20689_Line;
                elsif Kind = "m25p16" then
                   Check_M25P16_Line;
+               elsif Kind = "flash" then
+                  Check_Flash_Line;
                elsif Kind = "gimbal" then
                   Check_Gimbal_Line;
                elsif Kind = "osdtext" then
@@ -28842,6 +29099,7 @@ begin
    Run (Dir & "/mpu6500.csv", "mpu6500");
    Run (Dir & "/icm20689.csv", "icm20689");
    Run (Dir & "/m25p16.csv", "m25p16");
+   Run (Dir & "/flash.csv", "flash");
    Run (Dir & "/gimbal.csv", "gimbal");
    Run (Dir & "/osdtext.csv", "osdtext");
    Run (Dir & "/pidaudio.csv", "pidaudio");
