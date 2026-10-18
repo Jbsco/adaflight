@@ -7661,3 +7661,24 @@ the L clears 530 overruns. Of 39 tampered paths, 38 fail the vectors, one by sto
 the store of the unlock byte passes and is equivalent, since the next data read overwrites that byte before any use. On
 the first pass the one that keeps the repeat count across a changed reading passed, since the cases with changing
 readings repeated too few times to reach the limit, and led to the cases with a new reading every 12 to 25 reads.
+
+## D334. Gyro detection (2026-10-18)
+
+`Adaflight.Gyro_Detect` names the gyro hardware of the sensor the chip detection found. The build's drivers try the
+sensor in the order MPU6050, L3GD20, MPU6000, MPU6500, MPU9250, ICM20649, ICM20689, ICM426xx, ICM456xx, ICM56686,
+BMI160, BMI270, BMI423, LSM6DSO, LSM6DSV, LSM6DSK320X and ICM40609D, then the virtual gyro. The first driver that
+accepts the sensor names the hardware. The MPU6500 driver built for SPI accepts the MPU6500, MPU9250, ICM-20601,
+ICM-20602 and ICM-20608-G and names each of them. Built only for I2C it accepts only the MPU6500 on I2C, so a build with
+both MPU6500 drivers names no MPU6500 hardware for that chip. The ICM20689 driver accepts the ICM-20601, ICM-20602,
+ICM-20608-G and ICM-20689 and names all four ICM20689. The first three reach it only in builds without the MPU6500
+driver for SPI. The LSM6DSV driver accepts each of its two variants only when the build names it. The L3GD20 driver and
+the virtual gyro accept any sensor. A build with the virtual gyro skips the chip detection, and a failed chip detection
+keeps the hardware the device had. The unit is SPARK for the result over every build, where the vectors cover 39. The
+result is a hardware value other than the default, and a build with the L3GD20 or the virtual gyro always finds one.
+
+The gyro detection oracle compiles the reference's gyro sensor detection with the drivers' own detect functions once per
+driver set. Its 39 sets are each driver alone, no driver, the pairs whose drivers accept the same sensors, every driver
+with and without the L3GD20, two sets with the virtual gyro, and five mixed sets, four of them as board configurations
+build them. Each set runs every sensor value from 0 to 31 with a chip found and not found, from a starting hardware
+value. Every result, hardware, presence flag and chip detection call of the 2496 detections replays exactly. All 35
+tampered paths fail the vectors, three by stopping the checker on a postcondition.
