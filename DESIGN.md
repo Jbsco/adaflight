@@ -7331,3 +7331,42 @@ call, answer, pressure and temperature of the 300 cases replays exactly, 159 of 
 paths, 36 fail the vectors. The one that rounds the signed quotients of the pressure terms down instead of toward
 zero moves their final sum by less than 2^27, and the reported pressure is 25 times that sum over 2^48, so it
 changes a sample with a chance near one in a hundred thousand.
+
+## D322. MAX7456 OSD chip driver (2026-10-17)
+
+`Adaflight.MAX7456` drives the MAX7456 and AT7456E character OSD chips. It is generic over the chip's SPI device:
+the select pin before and during detection, the bus instance, the clock divisor for a frequency, register writes and
+reads, a byte or a buffer written alone, a transfer started for the bus to finish, whether the bus is busy, uses DMA
+or still has the driver's transfer pending, a wait for the bus, the two clocks, delays and the status LED.
+Initialization clears both layers, waits 50 ms, and needs a select pin, a bus instance and a free pin. At 5 MHz it
+ends any running command with 0xFF and reads the OSD insertion register, whose default 0x1B shows the chip is there.
+Writing the ninth character address bit and reading it back tells the AT7456E. The clock setting picks 5, 10 or 20
+MHz, and the chip gets a soft reset that the driver polls to its end. The offsets become 32 and 16 minus the
+configured ones.
+
+The video system follows the configuration or, when automatic, the chip's video sense, with PAL when there is no
+signal. A stall check once a second, or when forced, reads back the video mode register and sets the registers again
+when the chip lost them. Once a second in automatic mode the driver compares the sensed standard with the one it
+set, and after a 100 ms debounce sets the registers again for the new one. Characters go to the foreground layer. A
+draw compares the layer with a shadow of the chip's display memory, half the screen per call, and sends each changed
+character with its address, in auto-increment runs where the next one also changed, within 250 bytes over DMA or 12
+polled and an encoding time of 20 or 10 µs. A full refresh draws until the screen is done. A font character write
+stops all further drawing (F255). Brightness, inversion and the background gray level are written when they change,
+and the debug values of the signal and clock debug modes are kept.
+
+The draw's transfer buffer holds 256 bytes, the length the reference's encoding can reach past its 250-byte buffer
+(F257). At the last character of a PAL screen the reference compares bytes past both buffers to choose a run (F256).
+The driver counts that character as changed, which gives the oracle build's transfers. The unit is SPARK for the
+encoder's buffer and screen indices and the time and debug arithmetic, which the proof shows free of overflow and
+out-of-range access.
+
+The MAX7456 oracle includes the reference driver with the SPI, pin, clock, LED and delay calls stubbed over a
+simulated chip, one case per process. It draws the chip (present or not, its variant, the reads its reset and its
+character memory write take), the bus (configured or not, the pin free or not, the kernel clock, DMA or polled), the
+clock setting, the video system, the offsets and the debug mode. A chip that is found then runs 50 calls in a random
+order with scripted video sense, stalls, busy answers, DMA completions and clocks. A scripted case draws the
+256-byte transfer. Every SPI, pin, LED and delay call, every answer, and the hashes of the layer and the shadow
+after each call replay exactly in the 301 cases, 229 of them past detection. Of 53 tampered paths, 52 fail the
+vectors. The one that doubles the video debounce is equivalent (F258): the driver stamps the first sighting of a new
+standard at a signal check and sees it again only at the next check, more than a second later, when any debounce
+under a second has passed.

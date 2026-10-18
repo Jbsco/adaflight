@@ -186,6 +186,7 @@ with Adaflight.BMP280;
 with Adaflight.DPS310;
 with Adaflight.MS5611;
 with Adaflight.BMP388;
+with Adaflight.MAX7456;
 with Adaflight.Gimbal_Control;
 with Adaflight.OSD_Custom_Text;
 with Adaflight.PID_Audio;
@@ -16435,6 +16436,429 @@ procedure Vector_Check is
       end if;
    end Check_BMP388_Line;
 
+   --  The MAX7456 oracle's chip and bus: the chip's registers, whether it
+   --  answers and which variant it is, the reads its reset and its NVM write
+   --  take, the scripted video sense, the bus and select pin answers, the
+   --  kernel clock, DMA, the busy polls a DMA transfer takes, the extra busy
+   --  answers, the pending transfer and the two clocks. Its calls go to their
+   --  own queue, as a full refresh logs hundreds.
+   type MX_Bus is record
+      Present        : Boolean := False;
+      AT_Variant     : Boolean := False;
+      OSDM_Absent    : Byte := 0;
+      Registers      : Byte_Array (0 .. 255) := (others => 0);
+      Reset_Reads    : Natural := 0;
+      Reset_Pending  : Natural := 0;
+      NVR_Reads      : Natural := 0;
+      NVR_Pending    : Natural := 0;
+      Sense          : Byte := 0;
+      Bus_OK         : Boolean := True;
+      CS_Free        : Boolean := True;
+      Bus_Clock      : Interfaces.Unsigned_32 := 0;
+      Use_DMA        : Boolean := False;
+      DMA_Polls      : Natural := 0;
+      DMA_Polls_Left : Natural := 0;
+      Extra_Busy     : Natural := 0;
+      Pending        : Boolean := False;
+      Now_Us         : Interfaces.Unsigned_32 := 0;
+      Now_Ms         : Interfaces.Unsigned_32 := 0;
+      Us_Step        : Interfaces.Unsigned_32 := 0;
+   end record;
+
+   MX_Max_Ops : constant := 2048;
+   type MX_Op_Queue is array (1 .. MX_Max_Ops) of Ada.Strings.Unbounded.Unbounded_String;
+   MX_Ops      : MX_Op_Queue;
+   MX_Op_Head  : Positive := 1;
+   MX_Op_Count : Natural := 0;
+
+   procedure MX_Op (Image : String) is
+   begin
+      if MX_Op_Count < MX_Max_Ops then
+         MX_Op_Count := MX_Op_Count + 1;
+         MX_Ops (MX_Op_Count) := Ada.Strings.Unbounded.To_Unbounded_String (Image);
+      else
+         Put_Line ("MAX7456 operation queue full");
+         Failures := Failures + 1;
+      end if;
+   end MX_Op;
+
+   procedure MX_Expect_No_Ops (Where : String) is
+   begin
+      if MX_Op_Head <= MX_Op_Count then
+         Put_Line ("MAX7456 operations left before " & Where & ": "
+                   & Ada.Strings.Unbounded.To_String (MX_Ops (MX_Op_Head)));
+         Failures := Failures + 1;
+      end if;
+      MX_Op_Head := 1;
+      MX_Op_Count := 0;
+   end MX_Expect_No_Ops;
+
+   function MX_Hex (Data : Byte_Array) return String is
+      use type Interfaces.Unsigned_8;
+      Digits_Of : constant String := "0123456789abcdef";
+      R         : String (1 .. 2 * Data'Length);
+   begin
+      if Data'Length = 0 then
+         return "-";
+      end if;
+      for I in Data'Range loop
+         R (2 * (I - Data'First) + 1) := Digits_Of (Natural (Data (I) / 16) + 1);
+         R (2 * (I - Data'First) + 2) := Digits_Of (Natural (Data (I) mod 16) + 1);
+      end loop;
+      return R;
+   end MX_Hex;
+
+   procedure MX_Chip_Write (D : in out MX_Bus; Register : Byte; Value : Byte) is
+      use type Interfaces.Unsigned_8;
+      V : Byte := Value;
+   begin
+      if Register = 16#0A# and then not D.AT_Variant then
+         V := V and not 16#40#;
+      end if;
+      D.Registers (Natural (Register)) := V;
+      if Register = 16#00# and then (V and 16#02#) /= 0 then
+         D.Reset_Pending := D.Reset_Reads;
+      end if;
+      if Register = 16#08# and then V = 16#A0# then
+         D.NVR_Pending := D.NVR_Reads;
+      end if;
+   end MX_Chip_Write;
+
+   procedure MX_Preinit_CS (D : in out MX_Bus; Tag : Byte; Push_Pull : Boolean) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("preinit," & BMP_Num (Integer_64 (Tag)) & "," & (if Push_Pull then "pp" else "ipu") & ",1");
+   end MX_Preinit_CS;
+
+   procedure MX_Attach_Bus (D : in out MX_Bus; Instance : Byte; OK : out Boolean) is
+   begin
+      OK := D.Bus_OK;
+      MX_Op ("bus," & BMP_Num (Integer_64 (Instance)) & "," & BMP_Num (Boolean'Pos (OK)));
+   end MX_Attach_Bus;
+
+   procedure MX_Check_CS_Free (D : in out MX_Bus; Free : out Boolean) is
+   begin
+      Free := D.CS_Free;
+      MX_Op ("csfree," & BMP_Num (Boolean'Pos (Free)));
+   end MX_Check_CS_Free;
+
+   procedure MX_Prepare_CS (D : in out MX_Bus) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("csinit,1,0");
+      MX_Op ("csconfig,cs");
+      MX_Op ("cshigh");
+   end MX_Prepare_CS;
+
+   procedure MX_Release_CS (D : in out MX_Bus) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("csconfig,ipu");
+   end MX_Release_CS;
+
+   procedure MX_Claim_CS (D : in out MX_Bus) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("csinit,1,0");
+   end MX_Claim_CS;
+
+   procedure MX_Divider (D : in out MX_Bus; Hz : Interfaces.Unsigned_32; Divisor : out Interfaces.Unsigned_16) is
+      Div : constant Interfaces.Unsigned_32 := D.Bus_Clock / Hz;
+   begin
+      MX_Op ("divider," & BMP_Num (Integer_64 (Hz)));
+      Divisor := (if Div = 0 then 1 else Interfaces.Unsigned_16 (Div mod 2 ** 16));
+   end MX_Divider;
+
+   function MX_Clock_Of (D : MX_Bus; Divisor : Interfaces.Unsigned_16) return Interfaces.Unsigned_32 is
+     (D.Bus_Clock / Interfaces.Unsigned_32 (Divisor));
+
+   procedure MX_Set_Divisor (D : in out MX_Bus; Divisor : Interfaces.Unsigned_16) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("clock," & BMP_Num (Integer_64 (Divisor)));
+   end MX_Set_Divisor;
+
+   procedure MX_Write_Byte (D : in out MX_Bus; Value : Byte) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("write," & BMP_Num (Integer_64 (Value)));
+   end MX_Write_Byte;
+
+   procedure MX_Write_Register (D : in out MX_Bus; Register : Byte; Value : Byte) is
+   begin
+      MX_Op ("reg," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Value)));
+      MX_Chip_Write (D, Register, Value);
+   end MX_Write_Register;
+
+   procedure MX_Read_Register (D : in out MX_Bus; Register : Byte; Value : out Byte) is
+      use type Interfaces.Unsigned_8;
+      Address : constant Byte := Register or 16#80#;
+   begin
+      if Address = 16#8C# then
+         Value := (if D.Present then 16#1B# else D.OSDM_Absent);
+      elsif Address = 16#A0# then
+         Value := D.Sense or (if D.NVR_Pending > 0 then 16#20# else 0);
+         if D.NVR_Pending > 0 then
+            D.NVR_Pending := D.NVR_Pending - 1;
+         end if;
+      elsif Address = 16#80# then
+         if D.Reset_Pending > 0 then
+            D.Reset_Pending := D.Reset_Pending - 1;
+            Value := D.Registers (0) or 16#02#;
+         else
+            if (D.Registers (0) and 16#02#) /= 0 then
+               D.Registers (0) := 0;
+            end if;
+            Value := D.Registers (0);
+         end if;
+      else
+         Value := D.Registers (Natural (Address and 16#7F#));
+      end if;
+      MX_Op ("read," & BMP_Num (Integer_64 (Address)) & "," & BMP_Num (Integer_64 (Value)));
+   end MX_Read_Register;
+
+   procedure MX_Write_Buffer (D : in out MX_Bus; Data : Byte_Array) is
+      I : Natural := Data'First;
+   begin
+      MX_Op ("buf," & MX_Hex (Data));
+      while I + 1 <= Data'Last loop
+         MX_Chip_Write (D, Data (I), Data (I + 1));
+         I := I + 2;
+      end loop;
+   end MX_Write_Buffer;
+
+   procedure MX_Start_Transfer (D : in out MX_Bus; Data : Byte_Array) is
+   begin
+      MX_Op ("seq," & MX_Hex (Data));
+      if D.Use_DMA then
+         D.Pending := True;
+         D.DMA_Polls_Left := D.DMA_Polls;
+      end if;
+   end MX_Start_Transfer;
+
+   procedure MX_Check_Busy (D : in out MX_Bus; Busy : out Boolean) is
+   begin
+      if D.Pending and then D.DMA_Polls_Left > 0 then
+         D.DMA_Polls_Left := D.DMA_Polls_Left - 1;
+         Busy := True;
+      else
+         D.Pending := False;
+         Busy := D.Extra_Busy > 0;
+         if Busy then
+            D.Extra_Busy := D.Extra_Busy - 1;
+         end if;
+      end if;
+      MX_Op ("busy," & BMP_Num (Boolean'Pos (Busy)));
+   end MX_Check_Busy;
+
+   function MX_Uses_DMA (D : MX_Bus) return Boolean is (D.Use_DMA);
+   function MX_Transfer_Pending (D : MX_Bus) return Boolean is (D.Pending);
+
+   procedure MX_Wait (D : in out MX_Bus) is
+   begin
+      MX_Op ("wait");
+      D.Pending := False;
+   end MX_Wait;
+
+   procedure MX_Millis (D : in out MX_Bus; Now : out Interfaces.Unsigned_32) is
+   begin
+      Now := D.Now_Ms;
+   end MX_Millis;
+
+   procedure MX_Micros (D : in out MX_Bus; Now : out Interfaces.Unsigned_32) is
+   begin
+      Now := D.Now_Us;
+      D.Now_Us := D.Now_Us + D.Us_Step;
+   end MX_Micros;
+
+   procedure MX_Delay_Ms (D : in out MX_Bus; Ms : Natural) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("delay," & BMP_Num (Integer_64 (Ms)));
+   end MX_Delay_Ms;
+
+   procedure MX_Delay_Us (D : in out MX_Bus; Us : Natural) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("delayus," & BMP_Num (Integer_64 (Us)));
+   end MX_Delay_Us;
+
+   procedure MX_Toggle_LED (D : in out MX_Bus) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("led,0");
+   end MX_Toggle_LED;
+
+   package MX_Driver is new Adaflight.MAX7456
+     (SPI_Device       => MX_Bus,
+      Preinit_CS       => MX_Preinit_CS,
+      Attach_Bus       => MX_Attach_Bus,
+      Check_CS_Free    => MX_Check_CS_Free,
+      Prepare_CS       => MX_Prepare_CS,
+      Release_CS       => MX_Release_CS,
+      Claim_CS         => MX_Claim_CS,
+      Divider          => MX_Divider,
+      Clock_Of         => MX_Clock_Of,
+      Set_Divisor      => MX_Set_Divisor,
+      Write_Byte       => MX_Write_Byte,
+      Write_Register   => MX_Write_Register,
+      Read_Register    => MX_Read_Register,
+      Write_Buffer     => MX_Write_Buffer,
+      Start_Transfer   => MX_Start_Transfer,
+      Check_Busy       => MX_Check_Busy,
+      Uses_DMA         => MX_Uses_DMA,
+      Transfer_Pending => MX_Transfer_Pending,
+      Wait             => MX_Wait,
+      Millis           => MX_Millis,
+      Micros           => MX_Micros,
+      Delay_Ms         => MX_Delay_Ms,
+      Delay_Us         => MX_Delay_Us,
+      Toggle_LED       => MX_Toggle_LED);
+
+   MX_Device : MX_Bus;
+   MX_State  : MX_Driver.State;
+   MX_Result : Integer_64 := 0;
+
+   function MX_FNV (Data : MX_Driver.Screen) return Integer_64 is
+      H : Interfaces.Unsigned_32 := 2_166_136_261;
+   begin
+      for B of Data loop
+         H := (H xor Interfaces.Unsigned_32 (B)) * 16_777_619;
+      end loop;
+      return Integer_64 (H);
+   end MX_FNV;
+
+   procedure Check_MAX7456_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "mxinit" then
+         MX_Op_Head := 1;
+         MX_Op_Count := 0;
+         MX_Device := (others => <>);
+         MX_Device.Present := Int (3) /= 0;
+         MX_Device.AT_Variant := Int (4) /= 0;
+         MX_Device.OSDM_Absent := Byte (Int (5));
+         MX_Device.Reset_Reads := Natural (Int (6));
+         MX_Device.NVR_Reads := Natural (Int (7));
+         MX_Device.Bus_OK := Int (8) /= 0;
+         MX_Device.CS_Free := Int (9) /= 0;
+         MX_Device.Bus_Clock := Interfaces.Unsigned_32 (Int (10));
+         MX_Device.Use_DMA := Int (11) /= 0;
+         MX_Device.DMA_Polls := Natural (Int (12));
+         MX_Device.Sense := Byte (Int (22));
+         MX_Device.Now_Ms := Interfaces.Unsigned_32 (Int (23));
+         MX_Device.Now_Us := Interfaces.Unsigned_32 (Int (24));
+         MX_State := (others => <>);
+         MX_State.Debug_Mode := Byte (Int (21));
+         MX_Op ("start");
+         declare
+            C : constant MX_Driver.Config :=
+              (Clock_Config => Byte (Int (14)), CS_Tag => Byte (Int (13)), SPI_Instance => Byte (Int (15)),
+               Pre_Init_OPU => Int (16) /= 0);
+            P : constant MX_Driver.Video_Profile :=
+              (Video_System => Byte (Int (18)), H_Offset => Interfaces.Integer_8 (Int (19)),
+               V_Offset => Interfaces.Integer_8 (Int (20)));
+            Status : MX_Driver.Init_Status;
+         begin
+            MX_Driver.Preinit (MX_Device, C);
+            MX_Driver.Init (MX_Device, MX_State, C, P, Int (17) /= 0, Status);
+            MX_Result :=
+              (case Status is
+                  when MX_Driver.Init_OK => 0,
+                  when MX_Driver.Init_Not_Found => -1,
+                  when MX_Driver.Init_Not_Configured => -2);
+         end;
+      elsif Name = "mxop" then
+         declare
+            Expected : Ada.Strings.Unbounded.Unbounded_String := Ada.Strings.Unbounded.To_Unbounded_String (Str (3));
+         begin
+            for I in 4 .. NF loop
+               Ada.Strings.Unbounded.Append (Expected, "," & Str (I));
+            end loop;
+            if MX_Op_Head <= MX_Op_Count then
+               Record_Text ("max7456.op", Ada.Strings.Unbounded.To_String (Expected),
+                            Ada.Strings.Unbounded.To_String (MX_Ops (MX_Op_Head)));
+               MX_Op_Head := MX_Op_Head + 1;
+            else
+               Record_Text ("max7456.op", Ada.Strings.Unbounded.To_String (Expected), "none");
+            end if;
+         end;
+      elsif Name = "mxdet" then
+         MX_Expect_No_Ops ("detection");
+         Record_Int ("max7456.status", Int (3), MX_Result);
+         Record_Int ("max7456.detected", Int (4), Boolean'Pos (MX_State.Detected));
+         for K in 0 .. 3 loop
+            Record_Int ("max7456.debug", Int (5 + K), Integer_64 (MX_State.Debug (K)));
+         end loop;
+         Record_Int ("max7456.size", Int (9), Integer_64 (MX_State.Screen_Size));
+      elsif Name = "mxstep" then
+         declare
+            Which : constant Integer_64 := Int (4);
+            A     : constant Integer_64 := Int (5);
+            B     : constant Integer_64 := Int (6);
+            C     : constant Integer_64 := Int (7);
+            Data  : constant Byte_Array := Hex_Bytes (13);
+            Flag  : Boolean;
+         begin
+            MX_Device.Sense := Byte (Int (8));
+            if Int (9) /= 0 then
+               MX_Device.Registers (0) := 0;
+            end if;
+            MX_Device.Extra_Busy := Natural (Int (10));
+            MX_Device.Us_Step := Interfaces.Unsigned_32 (Int (11));
+            MX_Device.Now_Ms := Interfaces.Unsigned_32 (Int (12));
+            MX_Result := 0;
+            case Which is
+               when 0 =>
+                  MX_Driver.Write_Char (MX_State, Byte (A), Byte (B), Byte (C));
+               when 1 =>
+                  MX_Driver.Write (MX_State, Byte (A), Byte (B), Data);
+               when 2 =>
+                  MX_Driver.Clear_Screen (MX_State);
+               when 3 =>
+                  MX_Driver.Invert (MX_Device, MX_State, A /= 0);
+               when 4 =>
+                  MX_Driver.Brightness (MX_Device, MX_State, Byte (A), Byte (B));
+               when 5 =>
+                  MX_Driver.Layer_Select (MX_State, Natural (A), Flag);
+                  MX_Result := Boolean'Pos (Flag);
+               when 6 =>
+                  MX_Driver.Layer_Copy (MX_State, Natural (A), Natural (B), Flag);
+                  MX_Result := Boolean'Pos (Flag);
+               when 7 =>
+                  MX_Driver.Set_Background (MX_Device, MX_State, Natural (A));
+               when 8 =>
+                  MX_Driver.Re_Init_If_Required (MX_Device, MX_State, A /= 0, Flag);
+                  MX_Result := Boolean'Pos (Flag);
+               when 9 =>
+                  MX_Driver.Draw_Screen (MX_Device, MX_State, Flag);
+                  MX_Result := Boolean'Pos (Flag);
+               when 10 =>
+                  MX_Driver.Write_NVM (MX_Device, MX_State, Byte (A), Data, Flag);
+                  MX_Result := Boolean'Pos (Flag);
+               when 11 =>
+                  MX_Driver.Refresh_All (MX_Device, MX_State);
+               when 12 =>
+                  MX_Device.Pending := False;
+               when others =>
+                  MX_Result := Boolean'Pos (MX_Driver.Buffers_Synced (MX_State));
+            end case;
+         end;
+      elsif Name = "mxres" then
+         MX_Expect_No_Ops ("a result");
+         Record_Int ("max7456.result", Int (4), MX_Result);
+         Record_Int ("max7456.rows", Int (5), Integer_64 (MX_Driver.Rows_Count (MX_State)));
+         Record_Int ("max7456.size", Int (6), Integer_64 (MX_State.Screen_Size));
+         Record_Int ("max7456.dma", Int (7), Boolean'Pos (MX_Driver.DMA_In_Progress (MX_Device)));
+         Record_Int ("max7456.detected", Int (8), Boolean'Pos (MX_State.Detected));
+         Record_Int ("max7456.layer", Int (9), MX_FNV (MX_State.Layers (0)));
+         Record_Int ("max7456.shadow", Int (10), MX_FNV (MX_State.Shadow));
+         for K in 0 .. 3 loop
+            Record_Int ("max7456.debug", Int (11 + K), Integer_64 (MX_State.Debug (K)));
+         end loop;
+      end if;
+   end Check_MAX7456_Line;
+
    GB_Seq      : Integer_64 := -1;
    GB_State    : Adaflight.Gimbal_Control.State;
    GB_Settings : Adaflight.Gimbal_Control.Settings;
@@ -26561,6 +26985,8 @@ procedure Vector_Check is
                   Check_MS5611_Line;
                elsif Kind = "bmp388" then
                   Check_BMP388_Line;
+               elsif Kind = "max7456" then
+                  Check_MAX7456_Line;
                elsif Kind = "gimbal" then
                   Check_Gimbal_Line;
                elsif Kind = "osdtext" then
@@ -26824,6 +27250,7 @@ begin
    Run (Dir & "/dps310.csv", "dps310");
    Run (Dir & "/ms5611.csv", "ms5611");
    Run (Dir & "/bmp388.csv", "bmp388");
+   Run (Dir & "/max7456.csv", "max7456");
    Run (Dir & "/gimbal.csv", "gimbal");
    Run (Dir & "/osdtext.csv", "osdtext");
    Run (Dir & "/pidaudio.csv", "pidaudio");
