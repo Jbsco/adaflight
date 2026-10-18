@@ -7543,3 +7543,39 @@ bus, the startup clock, DMA, the interrupt pin, the sample rate divider and the 
 detection, the gyro and accelerometer detection and initialization. Every bus, pin, register and delay call,
 detection result, scale and setting of the 300 cases replays exactly, 241 of them initialized over all four chips
 and 44 of those with the experimental filter's 7. All 31 tampered paths fail the vectors.
+
+## D330. M25P16 flash driver (2026-10-18)
+
+`Adaflight.Flash_Device` is the SPI flash device the chip drivers share: the chip's geometry, the address the next
+program writes, whether the chip takes 4-byte addresses, whether a write could have left it busy, whether a program
+reports its end, the bytes of the last program and the chip's clocks for writes and reads. A driver hands the bus a
+list of up to six segments. Each sends command bytes, a caller's buffer or nothing for a read, receives or not,
+releases the chip select or not, and names the callback the bus runs after it. A segment of length 0 ends the list.
+The callbacks belong to the unit. A status read answers busy while a write is in progress, which has the bus repeat
+it, and otherwise clears the busy flag. A write enable sets the flag. The end of a program moves the write address
+past its bytes and asks for their report when the program has one.
+
+`Adaflight.Flash_Device.M25P16` drives the 40 SPI NOR chips of the M25P16 family table, 2 to 64 MB parts with
+256-byte pages, a generic child over the bus's transfers, segment lists sent or read, wait, DMA flag and busy query
+and clock divisor. Identification looks the JEDEC ID up for the clocks, the sectors and the pages per sector and
+marks the chip as possibly busy. An unknown ID clears the geometry. Configuration does nothing on a memory-mapped
+system and otherwise sets the read clock and, past 16 MB, the 4-byte addresses. The ready check answers not ready
+while a DMA transfer runs, ready when no write could have left the chip busy, and otherwise reads the status. Sector
+and chip erases start with the status read, then the write enable and the erase, and wait for the bus. The sector
+erase also waits before it starts. A program waits for the bus, then sends the status read only when the chip could
+be busy, the write enable, the program command and one or two buffers, the last of which releases the select and
+ends the program. Any other buffer count sends nothing and returns 0, after the written bytes take the first
+buffer's length. A program without a report waits for the bus. A read sets the read clock, reads with the status
+read only when the chip could be busy, waits and restores the write clock. The program's finish step does nothing
+and is left out. The unit is SPARK for the command bytes, the table and the segment lists.
+
+The M25P16 oracle includes the reference driver over a simulated chip, one case per process. Its bus runs segment
+lists the way the reference's SPI interrupt handler does. The chip keeps a write enable latch, stays busy for a
+drawn number of status reads after a program or erase, ignores commands while busy, wraps a program within its page
+and takes 4-byte addresses after its command. It draws the JEDEC ID, from the table in 85 percent of cases, the
+memory-mapped flag, DMA with the bus's busy answers, and 4 to 14 operations, half of them near the last write. Every
+transfer, segment, callback, result and device field of the 300 cases replays exactly. Of them 254 identify a chip,
+35 of them past 16 MB, 1461 status reads repeat on a busy chip, 280 programs report their end, and 123 of 250 reads
+return erased or programmed bytes. Of 42 tampered paths, 41 fail the vectors, one by stopping the checker and one by
+a status read that never answers. The one that also reads the write enable bit as busy passes and is equivalent:
+every write enable is followed by its write in the same list, which clears the latch, so no status read sees it set.

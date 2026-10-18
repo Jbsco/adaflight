@@ -193,6 +193,8 @@ with Adaflight.MPU_Gyro.MPU6000;
 with Adaflight.MPU_Gyro.ICM426xx;
 with Adaflight.MPU_Gyro.MPU6500;
 with Adaflight.MPU_Gyro.ICM20689;
+with Adaflight.Flash_Device;
+with Adaflight.Flash_Device.M25P16;
 with Adaflight.Gimbal_Control;
 with Adaflight.OSD_Custom_Text;
 with Adaflight.PID_Audio;
@@ -17972,6 +17974,461 @@ procedure Vector_Check is
       end if;
    end Check_ICM20689_Line;
 
+   --  The M25P16 oracle's chip: the write enable latch, the status reads it
+   --  stays busy for, 4-byte addresses, and the erases and programs in order
+   --  over a fixed initial pattern, with the bus that runs segment lists and
+   --  the bus busy answers drawn up front.
+   type M2_Chip_Write is record
+      Kind : Natural range 0 .. 2 := 0;
+      Addr : Interfaces.Unsigned_32 := 0;
+      Len  : Interfaces.Unsigned_32 := 0;
+      Data : Byte_Array (0 .. 255) := (others => 0);
+   end record;
+
+   type M2_Write_List is array (1 .. 64) of M2_Chip_Write;
+
+   type M2_Bus is record
+      Use_DMA      : Boolean := False;
+      Busy_Bits    : Interfaces.Unsigned_64 := 0;
+      Busy_Calls   : Natural := 0;
+      Busy_Program : Natural := 0;
+      Busy_Erase   : Natural := 0;
+      Busy         : Natural := 0;
+      WEL          : Boolean := False;
+      Four_Byte    : Boolean := False;
+      Size         : Interfaces.Unsigned_32 := 1;
+      Sector       : Interfaces.Unsigned_32 := 1;
+      Writes       : M2_Write_List;
+      Count        : Natural := 0;
+      Txn          : Byte_Array (0 .. 299) := (others => 0);
+      Txn_Len      : Natural := 0;
+      Read_Addr    : Interfaces.Unsigned_32 := 0;
+   end record;
+
+   M2_Device : M2_Bus;
+
+   function M2_Initial (A : Interfaces.Unsigned_32) return Byte is (Byte (A * 2_654_435_761 / 2 ** 24));
+
+   function M2_Byte (D : M2_Bus; A : Interfaces.Unsigned_32) return Byte is
+      use type Interfaces.Unsigned_8;
+      V : Byte := M2_Initial (A);
+   begin
+      for I in 1 .. D.Count loop
+         case D.Writes (I).Kind is
+            when 1 =>
+               V := 16#FF#;
+            when 0 =>
+               if A >= D.Writes (I).Addr and then A < D.Writes (I).Addr + D.Writes (I).Len then
+                  V := 16#FF#;
+               end if;
+            when others =>
+               declare
+                  Base : constant Interfaces.Unsigned_32 := D.Writes (I).Addr and not 16#FF#;
+               begin
+                  for K in 0 .. D.Writes (I).Len - 1 loop
+                     if Base + ((D.Writes (I).Addr + K) and 16#FF#) = A then
+                        V := V and D.Writes (I).Data (Natural (K));
+                     end if;
+                  end loop;
+               end;
+         end case;
+      end loop;
+      return V;
+   end M2_Byte;
+
+   function M2_Address_Bytes (D : M2_Bus) return Natural is (if D.Four_Byte then 4 else 3);
+
+   function M2_Txn_Address (D : M2_Bus; Length : Natural) return Interfaces.Unsigned_32 is
+      A : Interfaces.Unsigned_32 := 0;
+   begin
+      for I in 1 .. M2_Address_Bytes (D) loop
+         exit when I >= Length;
+         A := A * 256 + Interfaces.Unsigned_32 (D.Txn (I));
+      end loop;
+      return A;
+   end M2_Txn_Address;
+
+   function M2_Clock (D : in out M2_Bus; Input : Byte) return Byte is
+      use type Interfaces.Unsigned_8;
+      Output : Byte := 16#FF#;
+   begin
+      if D.Txn_Len > 0 and then D.Txn (0) = 16#05# then
+         Output := (if D.Busy > 0 then 16#01# else 0) or (if D.WEL then 16#02# else 0);
+      elsif D.Txn_Len > M2_Address_Bytes (D) and then D.Txn (0) = 16#03# and then D.Busy = 0 then
+         if D.Txn_Len = M2_Address_Bytes (D) + 1 then
+            D.Read_Addr := M2_Txn_Address (D, D.Txn_Len);
+         end if;
+         Output := M2_Byte (D, D.Read_Addr mod D.Size);
+         D.Read_Addr := D.Read_Addr + 1;
+      end if;
+      if D.Txn_Len < 300 then
+         D.Txn (D.Txn_Len) := Input;
+      end if;
+      D.Txn_Len := D.Txn_Len + 1;
+      return Output;
+   end M2_Clock;
+
+   procedure M2_Deselect (D : in out M2_Bus) is
+      use type Interfaces.Unsigned_8;
+      N  : constant Natural := D.Txn_Len;
+      AB : constant Natural := M2_Address_Bytes (D);
+      Op : Byte;
+   begin
+      D.Txn_Len := 0;
+      if N = 0 then
+         return;
+      end if;
+      Op := D.Txn (0);
+      if Op = 16#05# then
+         if D.Busy > 0 then
+            D.Busy := D.Busy - 1;
+         end if;
+         return;
+      end if;
+      if D.Busy > 0 then
+         return;
+      end if;
+      if Op = 16#06# then
+         D.WEL := True;
+      elsif Op = 16#04# then
+         D.WEL := False;
+      elsif Op = 16#B7# then
+         D.Four_Byte := True;
+      elsif (Op = 16#D8# or else Op = 16#C7# or else Op = 16#02#) and then D.WEL and then D.Count < 64 then
+         if Op = 16#D8# and then N >= 1 + AB then
+            D.Count := D.Count + 1;
+            D.Writes (D.Count).Kind := 0;
+            D.Writes (D.Count).Addr := M2_Txn_Address (D, N) mod D.Size / D.Sector * D.Sector;
+            D.Writes (D.Count).Len := D.Sector;
+            D.Busy := D.Busy_Erase;
+         elsif Op = 16#C7# then
+            D.Count := D.Count + 1;
+            D.Writes (D.Count).Kind := 1;
+            D.Busy := D.Busy_Erase;
+         elsif Op = 16#02# and then N > 1 + AB then
+            declare
+               Data : constant Natural := N - 1 - AB;
+            begin
+               D.Count := D.Count + 1;
+               D.Writes (D.Count).Kind := 2;
+               D.Writes (D.Count).Addr := M2_Txn_Address (D, N) mod D.Size;
+               D.Writes (D.Count).Len := Interfaces.Unsigned_32 (Natural'Min (Data, 256));
+               for K in 0 .. Natural'Min (Data, 256) - 1 loop
+                  D.Writes (D.Count).Data (K) := D.Txn (1 + AB + K);
+               end loop;
+               D.Busy := D.Busy_Program;
+            end;
+         end if;
+         D.WEL := False;
+      end if;
+   end M2_Deselect;
+
+   function M2_Hash (Data : Byte_Array) return Interfaces.Unsigned_32 is
+      H : Interfaces.Unsigned_32 := 2_166_136_261;
+   begin
+      for B of Data loop
+         H := (H xor Interfaces.Unsigned_32 (B)) * 16_777_619;
+      end loop;
+      return H;
+   end M2_Hash;
+
+   function M2_Show (Data : Byte_Array; Present : Boolean) return String is
+      H : constant Interfaces.Unsigned_32 := M2_Hash (Data);
+   begin
+      if not Present then
+         return "-";
+      elsif Data'Length <= 8 then
+         return MX_Hex (Data);
+      else
+         return "h" & MX_Hex (Byte_Array'(Byte (H / 2 ** 24), Byte (H / 2 ** 16 mod 256), Byte (H / 2 ** 8 mod 256),
+                                          Byte (H mod 256)));
+      end if;
+   end M2_Show;
+
+   procedure M2_Read_Write (D : in out M2_Bus; Tx : Byte_Array; Rx : out Byte_Array) is
+   begin
+      for K in Tx'Range loop
+         Rx (Rx'First + (K - Tx'First)) := M2_Clock (D, Tx (K));
+      end loop;
+      M2_Deselect (D);
+      MX_Op ("rw," & BMP_Num (Integer_64 (Tx'Length)) & "," & M2_Show (Tx, True) & "," & M2_Show (Rx, True));
+   end M2_Read_Write;
+
+   procedure M2_Write (D : in out M2_Bus; Tx : Byte_Array) is
+      Ignored : Byte;
+   begin
+      for K in Tx'Range loop
+         Ignored := M2_Clock (D, Tx (K));
+      end loop;
+      M2_Deselect (D);
+      MX_Op ("rw," & BMP_Num (Integer_64 (Tx'Length)) & "," & M2_Show (Tx, True) & ",-");
+   end M2_Write;
+
+   procedure M2_Bus_Run
+     (D : in out M2_Bus; F : in out Adaflight.Flash_Device.Device; Q : Adaflight.Flash_Device.Sequence;
+      First : Adaflight.Flash_Device.Segment_Index; Data_1 : Byte_Array; Data_2 : Byte_Array;
+      Received : in out Byte_Array)
+   is
+      use Adaflight.Flash_Device;
+      I     : Segment_Index := First;
+      Guard : Natural := 0;
+   begin
+      MX_Op ("seq");
+      while Q (I).Length /= 0 and then Guard < 1000 loop
+         Guard := Guard + 1;
+         declare
+            S      : constant Segment := Q (I);
+            Tx     : Byte_Array (0 .. S.Length - 1);
+            Rx     : Byte_Array (0 .. S.Length - 1);
+            R      : Bus_Result := Ready;
+            Notify : Boolean;
+         begin
+            case S.Source is
+               when Command =>
+                  Tx := S.Bytes (0 .. S.Length - 1);
+               when Buffer_1 =>
+                  Tx := Data_1 (Data_1'First .. Data_1'First + S.Length - 1);
+               when Buffer_2 =>
+                  Tx := Data_2 (Data_2'First .. Data_2'First + S.Length - 1);
+               when Read_Data =>
+                  Tx := (others => 16#FF#);
+            end case;
+            for K in Tx'Range loop
+               Rx (K) := M2_Clock (D, Tx (K));
+            end loop;
+            if S.Source = Read_Data then
+               Received (Received'First .. Received'First + S.Length - 1) := Rx;
+            end if;
+            MX_Op ("seg," & BMP_Num (Integer_64 (S.Length)) & "," & BMP_Num (Boolean'Pos (S.Negate_CS)) & ","
+                   & (case S.After is when None => "none", when Ready_Poll => "ready", when Write_Enabled => "wren",
+                         when Write_Done => "done")
+                   & "," & M2_Show (Tx, S.Source /= Read_Data) & "," & M2_Show (Rx, S.Receive));
+            if S.Negate_CS then
+               M2_Deselect (D);
+            end if;
+            case S.After is
+               when None =>
+                  null;
+               when Ready_Poll =>
+                  Ready_Poll_Done (F, Rx (1), R);
+                  MX_Op ("cb," & (case R is when Ready => "0", when Busy => "1", when Skip_Rest => "2"));
+               when Write_Enabled =>
+                  Write_Enable_Done (F);
+                  MX_Op ("cb,0");
+               when Write_Done =>
+                  Adaflight.Flash_Device.Write_Done (F, Notify);
+                  if Notify then
+                     MX_Op ("written," & BMP_Num (Integer_64 (F.Bytes_Written)));
+                  end if;
+                  MX_Op ("cb,0");
+            end case;
+            if R /= Busy then
+               if R = Skip_Rest then
+                  while I < Segment_Index'Last and then Q (I + 1).Length /= 0 loop
+                     I := I + 1;
+                  end loop;
+               end if;
+               exit when I = Segment_Index'Last;
+               I := I + 1;
+            end if;
+         end;
+      end loop;
+   end M2_Bus_Run;
+
+   procedure M2_Run
+     (D : in out M2_Bus; F : in out Adaflight.Flash_Device.Device; Q : Adaflight.Flash_Device.Sequence;
+      First : Adaflight.Flash_Device.Segment_Index; Data_1 : Byte_Array; Data_2 : Byte_Array)
+   is
+      None : Byte_Array (1 .. 0);
+   begin
+      M2_Bus_Run (D, F, Q, First, Data_1, Data_2, None);
+   end M2_Run;
+
+   procedure M2_Run_Read
+     (D : in out M2_Bus; F : in out Adaflight.Flash_Device.Device; Q : Adaflight.Flash_Device.Sequence;
+      First : Adaflight.Flash_Device.Segment_Index; Received : out Byte_Array)
+   is
+      None : Byte_Array (1 .. 0);
+   begin
+      Received := (others => 0);
+      M2_Bus_Run (D, F, Q, First, None, None, Received);
+   end M2_Run_Read;
+
+   procedure M2_Wait (D : in out M2_Bus) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("wait");
+   end M2_Wait;
+
+   function M2_Uses_DMA (D : M2_Bus) return Boolean is (D.Use_DMA);
+
+   procedure M2_Bus_Busy (D : in out M2_Bus; Busy : out Boolean) is
+      use type Interfaces.Unsigned_64;
+   begin
+      Busy := D.Busy_Calls < 64 and then (Interfaces.Shift_Right (D.Busy_Bits, D.Busy_Calls) and 1) /= 0;
+      D.Busy_Calls := D.Busy_Calls + 1;
+      MX_Op ("isbusy," & BMP_Num (Boolean'Pos (Busy)));
+   end M2_Bus_Busy;
+
+   procedure M2_Divider (D : in out M2_Bus; Hz : Interfaces.Unsigned_32; Divisor : out Interfaces.Unsigned_16) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("divider," & BMP_Num (Integer_64 (Hz)));
+      Divisor := Interfaces.Unsigned_16 (84_000_000 / Hz);
+   end M2_Divider;
+
+   procedure M2_Set_Divisor (D : in out M2_Bus; Divisor : Interfaces.Unsigned_16) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("clock," & BMP_Num (Integer_64 (Divisor)));
+   end M2_Set_Divisor;
+
+   package M2_Chip is new Adaflight.Flash_Device.M25P16
+     (SPI_Device  => M2_Bus,
+      Read_Write  => M2_Read_Write,
+      Write       => M2_Write,
+      Run         => M2_Run,
+      Run_Read    => M2_Run_Read,
+      Wait        => M2_Wait,
+      Uses_DMA    => M2_Uses_DMA,
+      Bus_Busy    => M2_Bus_Busy,
+      Divider     => M2_Divider,
+      Set_Divisor => M2_Set_Divisor);
+
+   M2_Flash      : Adaflight.Flash_Device.Device;
+   M2_Identified : Boolean := False;
+   M2_Flags      : Interfaces.Unsigned_32 := 0;
+   M2_Result     : Integer_64 := 0;
+   M2_Extra      : Integer_64 := 0;
+
+   function M2_Fill (Length : Natural; Seed : Interfaces.Unsigned_32) return Byte_Array is
+      R : Byte_Array (0 .. Length - 1);
+   begin
+      for K in R'Range loop
+         R (K) := Byte ((Seed * 131 + Interfaces.Unsigned_32 (K) * 29 + Interfaces.Unsigned_32 (K / 8)) mod 256);
+      end loop;
+      return R;
+   end M2_Fill;
+
+   procedure Check_M25P16_Line is
+      use type Interfaces.Unsigned_64;
+      Name : constant String := Str (1);
+   begin
+      if Name = "m2init" then
+         MX_Op_Head := 1;
+         MX_Op_Count := 0;
+         M2_Device := (others => <>);
+         M2_Flash := (others => <>);
+         M2_Device.Use_DMA := Int (4) /= 0;
+         M2_Flags := Interfaces.Unsigned_32 (Int (5));
+         declare
+            Bits : constant String := Str (6);
+         begin
+            M2_Device.Busy_Bits :=
+              Interfaces.Shift_Left
+                (Interfaces.Unsigned_64 (Integer_64'Value ("16#" & Bits (Bits'First .. Bits'First + 7) & "#")), 32)
+              or Interfaces.Unsigned_64 (Integer_64'Value ("16#" & Bits (Bits'First + 8 .. Bits'Last) & "#"));
+         end;
+         M2_Device.Busy_Program := Natural (Int (7));
+         M2_Device.Busy_Erase := Natural (Int (8));
+         M2_Chip.Identify (M2_Flash, Interfaces.Unsigned_32 (Int (3)), M2_Identified);
+      elsif Name = "m2id" then
+         Record_Int ("m25p16.identified", Int (3), Boolean'Pos (M2_Identified));
+         Record_Int ("m25p16.sectors", Int (4), Integer_64 (M2_Flash.Map.Sectors));
+         Record_Int ("m25p16.pages_per_sector", Int (5), Integer_64 (M2_Flash.Map.Pages_Per_Sector));
+         Record_Int ("m25p16.page_size", Int (6), Integer_64 (M2_Flash.Map.Page_Size));
+         Record_Int ("m25p16.sector_size", Int (7), Integer_64 (M2_Flash.Map.Sector_Size));
+         Record_Int ("m25p16.total_size", Int (8), Integer_64 (M2_Flash.Map.Total_Size));
+         Record_Int ("m25p16.kind", Int (9), Adaflight.Flash_Device.Flash_Type'Pos (M2_Flash.Map.Kind));
+         Record_Int ("m25p16.busy", Int (10), Boolean'Pos (M2_Flash.Could_Be_Busy));
+         if Int (3) /= 0 then
+            M2_Device.Size := Interfaces.Unsigned_32 (Int (8));
+            M2_Device.Sector := Interfaces.Unsigned_32 (Int (7));
+            M2_Chip.Configure (M2_Device, M2_Flash, M2_Flags);
+         end if;
+      elsif Name = "m2cfg" then
+         MX_Expect_No_Ops ("configuration");
+         Record_Int ("m25p16.large", Int (3), Boolean'Pos (M2_Flash.Large));
+      elsif Name = "m2step" then
+         MX_Op_Head := 1;
+         MX_Op_Count := 0;
+         M2_Result := 0;
+         M2_Extra := 0;
+         declare
+            Address : constant Interfaces.Unsigned_32 := (if NF >= 5 then Interfaces.Unsigned_32 (Int (5)) else 0);
+         begin
+            case Int (4) is
+               when 0 =>
+                  declare
+                     Ready : Boolean;
+                  begin
+                     M2_Chip.Is_Ready (M2_Device, M2_Flash, Ready);
+                     M2_Result := Boolean'Pos (Ready);
+                  end;
+               when 1 =>
+                  M2_Chip.Wait_For_Ready (M2_Device, M2_Flash);
+                  M2_Result := 1;
+               when 2 =>
+                  M2_Chip.Erase_Sector (M2_Device, M2_Flash, Address);
+               when 3 =>
+                  M2_Chip.Erase_Completely (M2_Device, M2_Flash);
+               when 4 =>
+                  M2_Chip.Page_Program
+                    (M2_Device, M2_Flash, Address, M2_Fill (Natural (Int (6)), Interfaces.Unsigned_32 (Int (7))),
+                     Int (8) /= 0);
+               when 5 =>
+                  declare
+                     Written : Interfaces.Unsigned_32;
+                  begin
+                     M2_Chip.Page_Program_Begin (M2_Flash, Address, Int (11) /= 0);
+                     M2_Chip.Page_Program_Continue
+                       (M2_Device, M2_Flash, M2_Fill (Natural (Int (7)), Interfaces.Unsigned_32 (Int (8))),
+                        M2_Fill (Natural (Int (9)), Interfaces.Unsigned_32 (Int (10))), Natural (Int (6)), Written);
+                     M2_Result := Integer_64 (Written);
+                  end;
+               when 6 =>
+                  declare
+                     Buffer : Byte_Array (0 .. Natural (Int (6)) - 1) := (others => 0);
+                  begin
+                     M2_Chip.Read_Bytes (M2_Device, M2_Flash, Address, Buffer);
+                     M2_Result := Integer_64 (Buffer'Length);
+                     M2_Extra := Integer_64 (M2_Hash (Buffer));
+                  end;
+               when others =>
+                  declare
+                     G : constant Adaflight.Flash_Device.Geometry := M2_Chip.Get_Geometry (M2_Flash);
+                  begin
+                     M2_Result := Integer_64 (G.Total_Size);
+                     M2_Extra := Integer_64 (G.Sectors);
+                  end;
+            end case;
+         end;
+      elsif Name = "m2op" then
+         declare
+            Expected : Ada.Strings.Unbounded.Unbounded_String := Ada.Strings.Unbounded.To_Unbounded_String (Str (3));
+         begin
+            for I in 4 .. NF loop
+               Ada.Strings.Unbounded.Append (Expected, "," & Str (I));
+            end loop;
+            if MX_Op_Head <= MX_Op_Count then
+               Record_Text ("m25p16.op", Ada.Strings.Unbounded.To_String (Expected),
+                            Ada.Strings.Unbounded.To_String (MX_Ops (MX_Op_Head)));
+               MX_Op_Head := MX_Op_Head + 1;
+            else
+               Record_Text ("m25p16.op", Ada.Strings.Unbounded.To_String (Expected), "none");
+            end if;
+         end;
+      elsif Name = "m2res" then
+         MX_Expect_No_Ops ("a result");
+         Record_Int ("m25p16.result", Int (4), M2_Result);
+         Record_Int ("m25p16.extra", Int (5), M2_Extra);
+         Record_Int ("m25p16.busy", Int (6), Boolean'Pos (M2_Flash.Could_Be_Busy));
+         Record_Int ("m25p16.address", Int (7), Integer_64 (M2_Flash.Current_Write_Address));
+         Record_Int ("m25p16.written", Int (8), Integer_64 (M2_Flash.Bytes_Written));
+         Record_Int ("m25p16.large", Int (9), Boolean'Pos (M2_Flash.Large));
+      end if;
+   end Check_M25P16_Line;
+
    GB_Seq      : Integer_64 := -1;
    GB_State    : Adaflight.Gimbal_Control.State;
    GB_Settings : Adaflight.Gimbal_Control.Settings;
@@ -28112,6 +28569,8 @@ procedure Vector_Check is
                   Check_MPU6500_Line;
                elsif Kind = "icm20689" then
                   Check_ICM20689_Line;
+               elsif Kind = "m25p16" then
+                  Check_M25P16_Line;
                elsif Kind = "gimbal" then
                   Check_Gimbal_Line;
                elsif Kind = "osdtext" then
@@ -28382,6 +28841,7 @@ begin
    Run (Dir & "/icm426xx.csv", "icm426xx");
    Run (Dir & "/mpu6500.csv", "mpu6500");
    Run (Dir & "/icm20689.csv", "icm20689");
+   Run (Dir & "/m25p16.csv", "m25p16");
    Run (Dir & "/gimbal.csv", "gimbal");
    Run (Dir & "/osdtext.csv", "osdtext");
    Run (Dir & "/pidaudio.csv", "pidaudio");
