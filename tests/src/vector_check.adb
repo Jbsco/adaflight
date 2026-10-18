@@ -189,6 +189,7 @@ with Adaflight.BMP388;
 with Adaflight.MAX7456;
 with Adaflight.MAX7456.Display_Port;
 with Adaflight.MPU_Gyro;
+with Adaflight.MPU_Gyro.MPU6000;
 with Adaflight.Gimbal_Control;
 with Adaflight.OSD_Custom_Text;
 with Adaflight.PID_Audio;
@@ -17323,6 +17324,158 @@ procedure Vector_Check is
       end if;
    end Check_MPU_Gyro_Line;
 
+   --  The MPU6000 oracle's chip over the MPU gyro oracle's device, with its
+   --  register writes and reads, microsecond delays and the failure call.
+   M6_Failed : Boolean := False;
+
+   procedure MG_Write_Register (D : in out MG_Bus; Register : Byte; Value : Byte) is
+      use type Interfaces.Unsigned_8;
+      Address : constant Natural := Natural (Register and 16#7F#);
+   begin
+      MX_Op ("wreg," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Value)));
+      if Address not in 16#3B# .. 16#48# then
+         D.Regs (Address) := Value;
+      end if;
+   end MG_Write_Register;
+
+   procedure MG_Read_Register (D : in out MG_Bus; Register : Byte; Value : out Byte) is
+      use type Interfaces.Unsigned_8;
+   begin
+      Value := D.Regs (Natural (Register and 16#7F#));
+      MX_Op ("rreg," & BMP_Num (Integer_64 (Register or 16#80#)) & "," & BMP_Num (Integer_64 (Value)));
+   end MG_Read_Register;
+
+   procedure MG_Delay_Us (D : in out MG_Bus; Us : Natural) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("delayus," & BMP_Num (Integer_64 (Us)));
+   end MG_Delay_Us;
+
+   function MG_Micros_To_Cycles (Micros : Interfaces.Unsigned_32) return Interfaces.Unsigned_32 is (Micros * 168);
+
+   procedure MG_Failure (D : in out MG_Bus) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("failure,1");
+      M6_Failed := True;
+   end MG_Failure;
+
+   procedure M6_Probe (D : in out MG_Bus; Index : Positive; Sensor : out Byte);
+
+   package M6_Layer is new Adaflight.MPU_Gyro
+     (SPI_Device       => MG_Bus,
+      Chip_Count       => 1,
+      Preinit_CS       => MG_Preinit_CS,
+      Attach_Bus       => MG_Attach_Bus,
+      Prepare_CS       => MG_Prepare_CS,
+      Release_CS       => MG_Release_CS,
+      Divider          => MG_Divider,
+      Set_Divisor      => MG_Set_Divisor,
+      Probe_Chip       => M6_Probe,
+      Register_Device  => MG_Register,
+      Millis           => MG_Millis,
+      Delay_Ms         => MG_Delay,
+      Enable_Interrupt => MG_Enable_Interrupt,
+      Cycle_Count      => MG_Cycle_Count,
+      Start_Sequence   => MG_Start_Sequence,
+      Wait             => MG_Wait,
+      Fetch            => MG_Fetch,
+      Uses_DMA         => MG_Uses_DMA,
+      Read_Registers   => MG_Read);
+
+   package M6_Chip is new M6_Layer.MPU6000
+     (Write_Register   => MG_Write_Register,
+      Read_Register    => MG_Read_Register,
+      Delay_Us         => MG_Delay_Us,
+      Micros_To_Cycles => MG_Micros_To_Cycles,
+      Failure          => MG_Failure);
+
+   procedure M6_Probe (D : in out MG_Bus; Index : Positive; Sensor : out Byte) is
+      pragma Unreferenced (Index);
+   begin
+      M6_Chip.Detect (D, Sensor);
+   end M6_Probe;
+
+   M6_State : M6_Layer.State;
+   M6_Found : Boolean := False;
+   M6_Drops : Byte := 0;
+
+   procedure Check_MPU6000_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "m6init" then
+         MX_Op_Head := 1;
+         MX_Op_Count := 0;
+         MG_Device := (others => <>);
+         MG_Device.Bus_OK := Int (6) /= 0;
+         MG_Device.Regs (16#75#) := Byte (Int (7));
+         MG_Device.Regs (16#0C#) := Byte (Int (8));
+         MG_Device.Now_Ms := Interfaces.Unsigned_32 (Int (9));
+         MG_Device.Ms_Step := Interfaces.Unsigned_32 (Int (10));
+         MG_Device.Use_DMA := Int (11) /= 0;
+         MG_Device.Read_Ack := Int (16) /= 0;
+         MG_Device.Cycles := Interfaces.Unsigned_32 (Int (17));
+         MG_Set_Registers (18);
+         M6_State := (others => <>);
+         M6_State.Interrupt_Pin := Int (12) /= 0;
+         M6_Drops := Byte (Int (13));
+         M6_State.Hardware_LPF := Byte (Int (14));
+         M6_State.Rate_KHz := Byte (Int (15));
+         M6_Failed := False;
+         declare
+            C : constant M6_Layer.Device_Config :=
+              (Index => Interfaces.Integer_8 (Int (3)), Bus_Type => 2, SPI_Bus => Byte (Int (4)),
+               CS_Tag => Byte (Int (5)));
+         begin
+            M6_Layer.Preinit (MG_Device, C);
+            M6_Layer.Detect (MG_Device, M6_State, C, M6_Found);
+         end;
+      elsif Name = "m6op" then
+         declare
+            Expected : Ada.Strings.Unbounded.Unbounded_String := Ada.Strings.Unbounded.To_Unbounded_String (Str (3));
+         begin
+            for I in 4 .. NF loop
+               Ada.Strings.Unbounded.Append (Expected, "," & Str (I));
+            end loop;
+            if MX_Op_Head <= MX_Op_Count then
+               Record_Text ("mpu6000.op", Ada.Strings.Unbounded.To_String (Expected),
+                            Ada.Strings.Unbounded.To_String (MX_Ops (MX_Op_Head)));
+               MX_Op_Head := MX_Op_Head + 1;
+            else
+               Record_Text ("mpu6000.op", Ada.Strings.Unbounded.To_String (Expected), "none");
+            end if;
+         end;
+      elsif Name = "m6det" then
+         MX_Expect_No_Ops ("detection");
+         Record_Int ("mpu6000.found", Int (3), Boolean'Pos (M6_Found));
+         Record_Int ("mpu6000.sensor", Int (4), Integer_64 (M6_State.Sensor));
+         Record_Int ("mpu6000.clock", Int (5), Integer_64 (MG_Device.Now_Ms));
+      elsif Name = "m6chip" then
+         declare
+            Gyro_Found : Boolean;
+            Scale      : Float;
+         begin
+            M6_Chip.Gyro_Detect (M6_State, Gyro_Found, Scale);
+            Record_Int ("mpu6000.gyro_found", Int (3), Boolean'Pos (Gyro_Found));
+            Record_Int ("mpu6000.acc_found", Int (4), Boolean'Pos (M6_Chip.Acc_Detect (M6_State)));
+            Record_Int ("mpu6000.scale", Int_Hex (5), Integer_64 (To_Bits (Scale)));
+            Record_Int ("mpu6000.short_period", Int (6), Integer_64 (M6_State.Short_Period));
+            if Gyro_Found then
+               M6_Chip.Gyro_Init (MG_Device, M6_State, M6_Drops);
+            end if;
+         end;
+      elsif Name = "m6ready" then
+         MX_Expect_No_Ops ("initialization");
+         for K in 0 .. 2 loop
+            Record_Int ("mpu6000.gyro", Int (3 + K), Integer_64 (M6_State.Raw (K)));
+         end loop;
+         Record_Int ("mpu6000.temp_scale", Int_Hex (6), Integer_64 (To_Bits (M6_State.Temp_Scale)));
+         Record_Int ("mpu6000.temp_zero", Int_Hex (7), Integer_64 (To_Bits (M6_State.Temp_Zero)));
+         Record_Int ("mpu6000.acc_one_g", Int (8), M6_Chip.Acc_One_G);
+         Record_Int ("mpu6000.failed", 0, Boolean'Pos (M6_Failed));
+      end if;
+   end Check_MPU6000_Line;
+
    GB_Seq      : Integer_64 := -1;
    GB_State    : Adaflight.Gimbal_Control.State;
    GB_Settings : Adaflight.Gimbal_Control.Settings;
@@ -27455,6 +27608,8 @@ procedure Vector_Check is
                   Check_MAX7456_Display_Line;
                elsif Kind = "mpugyro" then
                   Check_MPU_Gyro_Line;
+               elsif Kind = "mpu6000" then
+                  Check_MPU6000_Line;
                elsif Kind = "gimbal" then
                   Check_Gimbal_Line;
                elsif Kind = "osdtext" then
@@ -27721,6 +27876,7 @@ begin
    Run (Dir & "/max7456.csv", "max7456");
    Run (Dir & "/max7456dp.csv", "max7456dp");
    Run (Dir & "/mpugyro.csv", "mpugyro");
+   Run (Dir & "/mpu6000.csv", "mpu6000");
    Run (Dir & "/gimbal.csv", "gimbal");
    Run (Dir & "/osdtext.csv", "osdtext");
    Run (Dir & "/pidaudio.csv", "pidaudio");

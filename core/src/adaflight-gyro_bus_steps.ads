@@ -58,4 +58,19 @@ package Adaflight.Gyro_Bus_Steps with SPARK_Mode is
    procedure Step_Read_Registers (D : in out Gyro_Line; Register : Byte; Data : in out Byte_Array; OK : out Boolean)
      with Global => null;
 
+   procedure Step_Write_Register (D : in out Gyro_Line; Register : Byte; Value : Byte)
+     with Global => null;
+
+   procedure Step_Read_Register (D : in out Gyro_Line; Register : Byte; Value : out Byte)
+     with Global => null;
+
+   procedure Step_Delay_Us (D : in out Gyro_Line; Us : Natural)
+     with Global => null;
+
+   function Step_Micros_To_Cycles (Micros : Interfaces.Unsigned_32) return Interfaces.Unsigned_32
+     with Global => null;
+
+   procedure Step_Failure (D : in out Gyro_Line)
+     with Global => null;
+
 end Adaflight.Gyro_Bus_Steps;
