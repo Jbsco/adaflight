@@ -7217,3 +7217,28 @@ threshold and outside the range with fractions. The arming oracle now builds wit
 joystick sequence set scripts the test. The receiver task oracle records the reports each step sends, with the
 armed flag from a second generator so its existing records stay as they were. Of 16 tampered paths, 15 fail the
 vectors and one, a scale factor of 255, raises an axis past 127, which the harness rejects as a range error.
+
+## D318. BMP280 barometer driver (2026-10-17)
+
+`Adaflight.BMP280` drives the BMP280 and BME280 barometers for the barometer read cycle (D124). It is generic over
+the chip's bus: register reads and writes within a call, reads and writes started for the bus to finish while the
+driver polls it, the bytes a finished read brought, the I2C address, the SPI select pin, the device's registration
+and a delay. Detection waits 20 ms, prepares the select pin of an SPI chip for 10 MHz, sets the I2C address to 0x76
+when none was given, and reads the chip identity, again at 0x77 when the default found none. A BMP280 (0x58) or
+BME280 (0x60) is registered, its 24 calibration bytes are read, and a forced measurement starts at eight times
+pressure and once temperature oversampling. Any other identity releases the select pin and clears a default
+address. The chip reads both values at once in 23 ms, so only the pressure calls do work. A start writes the
+measurement control, a read starts the six data bytes while the bus is free and marks the sample stale, and a
+sample takes them once the bus is done, unless the bus reported an error.
+
+The calculation follows the datasheet's integer compensation. Its 32-bit temperature terms and 64-bit pressure
+terms run in modular arithmetic, so a calibration that overflows them wraps as two's complement arithmetic does,
+and the one overflowing 64-bit division wraps as the hardware's does. Without a sample the pressure is 0 and the
+temperature is left. The unit is SPARK for that arithmetic, which the proof shows free of overflow for any
+calibration and reading.
+
+The barometer oracle includes the reference driver with the bus, pin and delay calls stubbed over a simulated
+chip, one case per process since the driver keeps its state in statics. It draws the bus, the addresses, the chip
+identity and a calibration around the datasheet's example or anywhere in range, then runs the driver's calls in a
+random order with scripted busy, error and start answers. Every bus, pin and delay call, answer, pressure and
+temperature of the 300 cases replays exactly. Thirty tampered paths each fail the vectors.
