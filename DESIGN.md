@@ -7242,3 +7242,29 @@ chip, one case per process since the driver keeps its state in statics. It draws
 identity and a calibration around the datasheet's example or anywhere in range, then runs the driver's calls in a
 random order with scripted busy, error and start answers. Every bus, pin and delay call, answer, pressure and
 temperature of the 300 cases replays exactly. Thirty tampered paths each fail the vectors.
+
+## D319. DPS310 barometer driver (2026-10-17)
+
+`Adaflight.DPS310` drives the DPS310 and SPL07-003 barometers for the barometer read cycle over the bus formals of
+the BMP280 driver (D318), without the started write. Detection prepares the select pin of an SPI chip for 10 MHz,
+sets the I2C address to 0x76 when none was given, and reads the chip identity up to five times, 100 ms apart,
+until a read is acknowledged with 0x10 or 0x11. A failed read leaves the identity read before it. A soft reset, a
+40 ms wait and the coefficient and sensor ready bits follow, then the coefficients in chunks of nine registers, 18
+for the DPS310 and 22 for the SPL07-003, any failed chunk ending the detection. The pressure, temperature, shift
+and continuous measurement settings are set with a read and, where a bit is missing, a write, the DPS310's
+temperature setting taking the coefficients' sensor bit. A failed detection releases the select pin and, when the
+identity was not found, clears a default address.
+
+The chip measures continuously, with a 45 ms pressure delay and no combined read. A pressure read starts the six
+data bytes while the bus is free. A sample takes the bytes the last read brought without asking the bus and
+compensates them in single precision, in the reference's order of operations, with the SPL07-003's two extra
+terms. The calculation cuts the pressure in pascal and the temperature in hundredths of a degree toward zero. Past
+the 32-bit range, where the reference's conversion is undefined, the port holds them at the range's ends. The
+vectors stay inside it. The unit is SPARK for the coefficient fields and the compensation's bounds.
+
+The DPS310 oracle includes the reference driver with the bus, pin and delay calls stubbed over a simulated DPS310
+or SPL07-003 whose registers the writes change, with failing reads, status bits, the coefficient source bit and
+coefficients around a typical set or anywhere in their widths, one case per process. Every bus, pin and delay
+call, answer, pressure and temperature of the 300 cases replays exactly. Of 32 tampered paths, 31 fail the vectors.
+The one that drops the acknowledgement from the identity check is equivalent: a failed read keeps the identity
+read before it, and a matching identity ends the detection at once, so a failed read never sees a matching one.
