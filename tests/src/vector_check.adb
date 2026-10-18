@@ -210,6 +210,7 @@ with Adaflight.LIS2MDL;
 with Adaflight.AK8975;
 with Adaflight.AK9916;
 with Adaflight.MMC560X;
+with Adaflight.AK8963;
 with Adaflight.QMC5883;
 with Adaflight.Gimbal_Control;
 with Adaflight.OSD_Custom_Text;
@@ -20480,6 +20481,238 @@ procedure Vector_Check is
       end if;
    end Check_MMC560X_Line;
 
+   --  The AK8963 oracle's chip: the bus type and address, the registers, the
+   --  next reads' and writes' acknowledgements, the register the gyro's slave
+   --  reads start at and the microsecond clock. A refused direct read still
+   --  brings the chip's bytes; a refused read through the gyro brings none.
+   type K3_Bus is record
+      Kind       : Natural := 0;
+      Address    : Byte := 0;
+      Regs       : Byte_Array (0 .. 31) := (others => 0);
+      Read_Acks  : String (1 .. 8) := (others => '1');
+      Read_Next  : Natural := 1;
+      Write_Acks : String (1 .. 8) := (others => '1');
+      Write_Next : Natural := 1;
+      Slave_Reg  : Byte := 0;
+      Clock      : Interfaces.Unsigned_32 := 0;
+   end record;
+
+   K3_Device : K3_Bus;
+
+   function K3_Is_I2C (D : K3_Bus) return Boolean is (D.Kind = 0);
+
+   function K3_Is_SPI (D : K3_Bus) return Boolean is (D.Kind = 1);
+
+   function K3_Is_Slave (D : K3_Bus) return Boolean is (D.Kind = 2);
+
+   function K3_Address (D : K3_Bus) return Byte is (D.Address);
+
+   procedure K3_Set_Address (D : in out K3_Bus; Address : Byte) is
+   begin
+      D.Address := Address;
+   end K3_Set_Address;
+
+   procedure K3_Prepare_SPI (D : in out K3_Bus; Max_Clock_Hz : Interfaces.Unsigned_32) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("cshigh");
+      MX_Op ("csinit,1,0");
+      MX_Op ("csconfig");
+      MX_Op ("spidivider," & BMP_Num (Integer_64 (Max_Clock_Hz)));
+      MX_Op ("spiclock," & BMP_Num (Integer_64 (Max_Clock_Hz / 1_000_000)));
+   end K3_Prepare_SPI;
+
+   procedure K3_Release_SPI (D : in out K3_Bus) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("cspreinit,1");
+   end K3_Release_SPI;
+
+   procedure K3_Register (D : in out K3_Bus) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("register");
+   end K3_Register;
+
+   procedure K3_Answer (D : in out K3_Bus; Register : Byte; Ack : out Boolean; Value : out Byte_Array) is
+      use type Interfaces.Unsigned_8;
+   begin
+      if Register = 16#10# then
+         Ack := True;
+      else
+         Ack := (if D.Read_Next <= 8 then D.Read_Acks (D.Read_Next) = '1' else True);
+         D.Read_Next := D.Read_Next + 1;
+      end if;
+      for I in Value'Range loop
+         Value (I) := D.Regs ((Natural (Register) + I - Value'First) mod 32);
+      end loop;
+   end K3_Answer;
+
+   procedure K3_Read (D : in out K3_Bus; Register : Byte; Data : in out Byte_Array; OK : out Boolean) is
+      Value : Byte_Array (0 .. Data'Length - 1);
+   begin
+      K3_Answer (D, Register, OK, Value);
+      Data := Value;
+      MX_Op ("read," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Data'Length)) & ","
+             & BMP_Num (Boolean'Pos (OK)) & "," & MX_Hex (Value));
+   end K3_Read;
+
+   procedure K3_Write (D : in out K3_Bus; Register : Byte; Value : Byte; OK : out Boolean) is
+   begin
+      OK := (if D.Write_Next <= 8 then D.Write_Acks (D.Write_Next) = '1' else True);
+      D.Write_Next := D.Write_Next + 1;
+      MX_Op ("write," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Value)) & ","
+             & BMP_Num (Boolean'Pos (OK)));
+   end K3_Write;
+
+   procedure K3_DMA_Off (D : in out K3_Bus) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("dma,0");
+   end K3_DMA_Off;
+
+   procedure K3_Master_Write (D : in out K3_Bus; Register : Byte; Value : Byte) is
+      use type Interfaces.Unsigned_8;
+   begin
+      if Register = 16#26# then
+         D.Slave_Reg := Value;
+      end if;
+      MX_Op ("mwrite," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Value)));
+   end K3_Master_Write;
+
+   procedure K3_Master_Read (D : in out K3_Bus; Register : Byte; Data : in out Byte_Array; OK : out Boolean) is
+      Value : Byte_Array (0 .. Data'Length - 1);
+   begin
+      K3_Answer (D, D.Slave_Reg, OK, Value);
+      if OK then
+         Data := Value;
+      end if;
+      MX_Op ("mread," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Data'Length)) & ","
+             & BMP_Num (Boolean'Pos (OK)) & "," & MX_Hex (Value));
+   end K3_Master_Read;
+
+   procedure K3_Mask (D : in out K3_Bus) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("irq,0");
+   end K3_Mask;
+
+   procedure K3_Unmask (D : in out K3_Bus) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("irq,1");
+   end K3_Unmask;
+
+   procedure K3_Micros (D : in out K3_Bus; Now : out Interfaces.Unsigned_32) is
+   begin
+      Now := D.Clock;
+      D.Clock := D.Clock + 3;
+      MX_Op ("micros," & BMP_Num (Integer_64 (Now)));
+   end K3_Micros;
+
+   procedure K3_Delay (D : in out K3_Bus; Ms : Natural) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("delay," & BMP_Num (Integer_64 (Ms)));
+   end K3_Delay;
+
+   procedure K3_Delay_Us (D : in out K3_Bus; Us : Interfaces.Unsigned_32) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("udelay," & BMP_Num (Integer_64 (Us)));
+   end K3_Delay_Us;
+
+   package K3_Chip is new Adaflight.AK8963
+     (Bus_Device        => K3_Bus,
+      Is_I2C            => K3_Is_I2C,
+      Is_SPI            => K3_Is_SPI,
+      Is_MPU_Slave      => K3_Is_Slave,
+      I2C_Address       => K3_Address,
+      Set_I2C_Address   => K3_Set_Address,
+      Prepare_SPI       => K3_Prepare_SPI,
+      Release_SPI       => K3_Release_SPI,
+      Register_Device   => K3_Register,
+      Read_Registers    => K3_Read,
+      Write_Register    => K3_Write,
+      Master_DMA_Off    => K3_DMA_Off,
+      Master_Write      => K3_Master_Write,
+      Master_Read       => K3_Master_Read,
+      Mask_Interrupts   => K3_Mask,
+      Unmask_Interrupts => K3_Unmask,
+      Micros            => K3_Micros,
+      Delay_Ms          => K3_Delay,
+      Delay_Us          => K3_Delay_Us);
+
+   K3_State : K3_Chip.State;
+   K3_Data  : K3_Chip.Axes := (others => 0);
+   K3_Found : Boolean := False;
+   K3_OK    : Boolean := False;
+   K3_Got   : Boolean := False;
+
+   procedure Check_AK8963_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "k3init" then
+         MX_Op_Head := 1;
+         MX_Op_Count := 0;
+         K3_Device := (others => <>);
+         K3_State := (others => <>);
+         K3_Data := (others => 0);
+         K3_Device.Kind := Natural (Int (3));
+         K3_Device.Address := Byte (Int (4));
+         K3_Device.Read_Acks := Str (5);
+         K3_Device.Write_Acks := Str (6);
+         K3_Device.Clock := Interfaces.Unsigned_32 (Int (7));
+         K3_Device.Regs := Hex_Bytes (8);
+         K3_Chip.Detect (K3_Device, K3_Found);
+      elsif Name = "k3det" then
+         MX_Expect_No_Ops ("detection");
+         Record_Int ("ak8963.found", Int (3), Boolean'Pos (K3_Found));
+         Record_Int ("ak8963.address", Int (4), Integer_64 (K3_Device.Address));
+         if K3_Found then
+            K3_Chip.Init (K3_Device, K3_State, K3_OK);
+         end if;
+      elsif Name = "k3ready" then
+         MX_Expect_No_Ops ("initialization");
+         Record_Int ("ak8963.init", Int (3), Boolean'Pos (K3_OK));
+         Record_Int ("ak8963.odr", Int (4), Integer_64 (K3_State.ODR_Hz));
+         for K in 0 .. 2 loop
+            Record_Int ("ak8963.gain", Int (5 + K), Integer_64 (K3_State.Sensitivity (K)));
+         end loop;
+      elsif Name = "k3step" then
+         MX_Op_Head := 1;
+         MX_Op_Count := 0;
+         K3_Device.Read_Acks := Str (4);
+         K3_Device.Read_Next := 1;
+         K3_Device.Write_Acks := Str (5);
+         K3_Device.Write_Next := 1;
+         K3_Device.Clock := K3_Device.Clock + Interfaces.Unsigned_32 (Int (6));
+         K3_Device.Regs (2 .. 9) := Hex_Bytes (7);
+         K3_Chip.Read (K3_Device, K3_State, K3_Data, K3_Got);
+      elsif Name = "k3op" then
+         declare
+            Expected : Ada.Strings.Unbounded.Unbounded_String := Ada.Strings.Unbounded.To_Unbounded_String (Str (3));
+         begin
+            for I in 4 .. NF loop
+               Ada.Strings.Unbounded.Append (Expected, "," & Str (I));
+            end loop;
+            if MX_Op_Head <= MX_Op_Count then
+               Record_Text ("ak8963.op", Ada.Strings.Unbounded.To_String (Expected),
+                            Ada.Strings.Unbounded.To_String (MX_Ops (MX_Op_Head)));
+               MX_Op_Head := MX_Op_Head + 1;
+            else
+               Record_Text ("ak8963.op", Ada.Strings.Unbounded.To_String (Expected), "none");
+            end if;
+         end;
+      elsif Name = "k3res" then
+         MX_Expect_No_Ops ("a read");
+         Record_Int ("ak8963.got", Int (4), Boolean'Pos (K3_Got));
+         for K in 0 .. 2 loop
+            Record_Int ("ak8963.axis", Int (5 + K), Integer_64 (K3_Data (K)));
+         end loop;
+      end if;
+   end Check_AK8963_Line;
+
    GB_Seq      : Integer_64 := -1;
    GB_State    : Adaflight.Gimbal_Control.State;
    GB_Settings : Adaflight.Gimbal_Control.Settings;
@@ -30654,6 +30887,8 @@ procedure Vector_Check is
                   Check_AK9916_Line;
                elsif Kind = "mmc560x" then
                   Check_MMC560X_Line;
+               elsif Kind = "ak8963" then
+                  Check_AK8963_Line;
                elsif Kind = "gimbal" then
                   Check_Gimbal_Line;
                elsif Kind = "osdtext" then
@@ -30941,6 +31176,7 @@ begin
    Run (Dir & "/ak8975.csv", "ak8975");
    Run (Dir & "/ak9916.csv", "ak9916");
    Run (Dir & "/mmc560x.csv", "mmc560x");
+   Run (Dir & "/ak8963.csv", "ak8963");
    Run (Dir & "/gimbal.csv", "gimbal");
    Run (Dir & "/osdtext.csv", "osdtext");
    Run (Dir & "/pidaudio.csv", "pidaudio");

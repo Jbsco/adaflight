@@ -7934,3 +7934,42 @@ acknowledgement and the six write acknowledgements, then 20 to 60 reads with rea
 detection, initialization and reading of the 300 cases replays exactly. In them 230 compasses are found, 139
 initialize, and 8397 readings arrive. Of 28 tampered paths, 27 fail the vectors. The one that takes another axis's low
 byte passes and is equivalent, since the low byte gives the count's two lowest bits, which the shift drops.
+
+## D347. AK8963 compass driver (2026-10-18)
+
+`Adaflight.AK8963` drives the AK8963 compass on I2C, on SPI, or on the MPU slave bus behind an MPU9250 gyro, whose I2C
+master reaches the chip. Detection gives an unset I2C or slave address the chip's 0x0C and prepares the bus. SPI gets
+its select pin and a 10 MHz clock. The MPU slave bus turns the gyro's DMA off and sets the gyro's interrupt pin
+configuration to bypass, its I2C master to 400 kHz and its user control to master mode, each write followed by a 10 µs
+wait. Detection then resets the chip, waits 4 ms and reads the identity 0x48, and a chip that does not answer gets its
+bus released. Initialization registers the device, powers down, enters fuse ROM access, reads the three sensitivity
+values, powers down again, reads both status registers and starts a 16-bit single measurement, whatever the writes and
+reads answer, with no waits between them. Each axis gain is its sensitivity value plus 128, and the output data rate is
+50 Hz. A refused fuse ROM read leaves the buffer's values, uninitialized stack memory in the reference and zeros in this
+unit.
+
+On the MPU slave bus a chip write sets the gyro's slave 0 address, register, data and a one-byte transfer, and reports
+success. A chip read sets the address with the read bit, the register and the length, waits 4 ms and reads the gyro's
+external sensor data with interrupts masked. A read on I2C or SPI reads the first status and, with data ready, the six
+data bytes and the second status. A read on the MPU slave bus queues the status read through the gyro and returns
+without data. A later read completes it once 8 ms have passed, and with data ready queues the data read, which a later
+read completes the same way. A status read that fails or finds no data queues the next status read at once. A read that
+brings data starts the next single measurement, drops the data on a sensor overflow, and otherwise gives each axis as
+its signed word times its gain divided by 256, clamped to 16 bits. The queued read's elapsed time is the signed 32-bit
+difference of the microsecond clock. After 35.8 minutes of waiting the reference's subtraction overflows, and this unit
+computes the remaining time without overflow. The reference keeps the queued read and the slave read phase in static
+variables shared by every AK8963 device. This unit keeps them per device, which behaves the same with one compass. The
+unit is SPARK for the slave read phase, the queued read timing and the axis conversion.
+
+The AK8963 oracle includes the reference driver built with the MPU slave bus, over a simulated chip whose registers and
+answers each case draws and prints before use, one case per process. A read returns the chip's registers from the one it
+names, or on the MPU slave bus from the one in the gyro's slave 0 register. The fuse ROM read always answers, a refused
+direct read still brings the chip's bytes, as an I2C read that ends in an error can, and a refused read through the busy
+gyro brings none. It draws the bus type, a preset address, the registers, the read and write acknowledgements and the
+microsecond clock, a fifth of the clocks within 200 ms of the 32-bit wrap. Then come 30 to 80 reads on I2C and SPI or 60
+to 200 on the MPU slave bus, each with registers, acknowledgements and the time since the read before, a fifth of those
+times within 10 µs of 8 ms. Every bus call, detection, initialization, gain and reading of the 300 cases replays
+exactly. In them 225 compasses are found and initialize, 93 on I2C, 42 on SPI and 90 on the MPU slave bus, and 6499
+readings arrive, 1963 of them through the gyro. All 61 tampered paths fail the vectors. On the first pass the one that
+ignores the first status read's answer passed, since a refused read brought no bytes, and led to the refused direct
+reads that bring the chip's bytes.
