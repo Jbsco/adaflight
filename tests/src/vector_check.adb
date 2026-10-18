@@ -209,6 +209,7 @@ with Adaflight.LIS3MDL;
 with Adaflight.LIS2MDL;
 with Adaflight.AK8975;
 with Adaflight.AK9916;
+with Adaflight.MMC560X;
 with Adaflight.QMC5883;
 with Adaflight.Gimbal_Control;
 with Adaflight.OSD_Custom_Text;
@@ -20342,6 +20343,143 @@ procedure Vector_Check is
       end if;
    end Check_AK9916_Line;
 
+   --  The MMC560X oracle's chip: the bus type and address, the write
+   --  acknowledgements, the identity read's answer, and the next output
+   --  read's answer and its nine bytes.
+   type MM_Bus is record
+      I2C        : Boolean := True;
+      Address    : Byte := 0;
+      Write_Acks : String (1 .. 6) := (others => '1');
+      Write_Next : Natural := 1;
+      Id_Ack     : Boolean := True;
+      Id_Value   : Byte := 0;
+      Read_Ack   : Boolean := True;
+      Sample     : Byte_Array (0 .. 8) := (others => 0);
+   end record;
+
+   MM_Device : MM_Bus;
+
+   function MM_Is_I2C (D : MM_Bus) return Boolean is (D.I2C);
+
+   function MM_Address (D : MM_Bus) return Byte is (D.Address);
+
+   procedure MM_Set_Address (D : in out MM_Bus; Address : Byte) is
+   begin
+      D.Address := Address;
+   end MM_Set_Address;
+
+   procedure MM_Register (D : in out MM_Bus) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("register");
+   end MM_Register;
+
+   procedure MM_Read (D : in out MM_Bus; Register : Byte; Data : in out Byte_Array; OK : out Boolean) is
+      use type Interfaces.Unsigned_8;
+      Value : Byte := 0;
+   begin
+      if Register = 16#39# then
+         OK := D.Id_Ack;
+         Value := D.Id_Value;
+         if OK then
+            Data := (others => D.Id_Value);
+         end if;
+      else
+         OK := D.Read_Ack;
+         if OK then
+            Data := D.Sample (0 .. Data'Length - 1);
+         end if;
+      end if;
+      MX_Op ("read," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Data'Length)) & ","
+             & BMP_Num (Boolean'Pos (OK)) & "," & BMP_Num (Integer_64 (Value)));
+   end MM_Read;
+
+   procedure MM_Write (D : in out MM_Bus; Register : Byte; Value : Byte; OK : out Boolean) is
+   begin
+      OK := (if D.Write_Next <= 6 then D.Write_Acks (D.Write_Next) = '1' else True);
+      D.Write_Next := D.Write_Next + 1;
+      MX_Op ("write," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Value)) & ","
+             & BMP_Num (Boolean'Pos (OK)));
+   end MM_Write;
+
+   procedure MM_Delay (D : in out MM_Bus; Ms : Natural) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("delay," & BMP_Num (Integer_64 (Ms)));
+   end MM_Delay;
+
+   package MM_Chip is new Adaflight.MMC560X
+     (Bus_Device      => MM_Bus,
+      Is_I2C          => MM_Is_I2C,
+      I2C_Address     => MM_Address,
+      Set_I2C_Address => MM_Set_Address,
+      Register_Device => MM_Register,
+      Read_Registers  => MM_Read,
+      Write_Register  => MM_Write,
+      Delay_Ms        => MM_Delay);
+
+   MM_State : MM_Chip.State;
+   MM_Data  : MM_Chip.Axes := (others => 0);
+   MM_Found : Boolean := False;
+   MM_OK    : Boolean := False;
+   MM_Got   : Boolean := False;
+
+   procedure Check_MMC560X_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "mminit" then
+         MX_Op_Head := 1;
+         MX_Op_Count := 0;
+         MM_Device := (others => <>);
+         MM_State := (others => <>);
+         MM_Data := (others => 0);
+         MM_Device.I2C := Int (3) /= 0;
+         MM_Device.Address := Byte (Int (4));
+         MM_Device.Write_Acks := Str (5);
+         MM_Device.Id_Ack := Int (6) /= 0;
+         MM_Device.Id_Value := Byte (Int (7));
+         MM_Chip.Detect (MM_Device, MM_Found);
+      elsif Name = "mmdet" then
+         MX_Expect_No_Ops ("detection");
+         Record_Int ("mmc560x.found", Int (3), Boolean'Pos (MM_Found));
+         Record_Int ("mmc560x.address", Int (4), Integer_64 (MM_Device.Address));
+         if MM_Found then
+            MM_Chip.Init (MM_Device, MM_State, MM_OK);
+         end if;
+      elsif Name = "mmready" then
+         MX_Expect_No_Ops ("initialization");
+         Record_Int ("mmc560x.init", Int (3), Boolean'Pos (MM_OK));
+         Record_Int ("mmc560x.odr", Int (4), Integer_64 (MM_State.ODR_Hz));
+      elsif Name = "mmstep" then
+         MX_Op_Head := 1;
+         MX_Op_Count := 0;
+         MM_Device.Read_Ack := Int (4) /= 0;
+         MM_Device.Sample := Hex_Bytes (5);
+         MM_Chip.Read (MM_Device, MM_Data, MM_Got);
+      elsif Name = "mmop" then
+         declare
+            Expected : Ada.Strings.Unbounded.Unbounded_String := Ada.Strings.Unbounded.To_Unbounded_String (Str (3));
+         begin
+            for I in 4 .. NF loop
+               Ada.Strings.Unbounded.Append (Expected, "," & Str (I));
+            end loop;
+            if MX_Op_Head <= MX_Op_Count then
+               Record_Text ("mmc560x.op", Ada.Strings.Unbounded.To_String (Expected),
+                            Ada.Strings.Unbounded.To_String (MX_Ops (MX_Op_Head)));
+               MX_Op_Head := MX_Op_Head + 1;
+            else
+               Record_Text ("mmc560x.op", Ada.Strings.Unbounded.To_String (Expected), "none");
+            end if;
+         end;
+      elsif Name = "mmres" then
+         MX_Expect_No_Ops ("a read");
+         Record_Int ("mmc560x.got", Int (4), Boolean'Pos (MM_Got));
+         for K in 0 .. 2 loop
+            Record_Int ("mmc560x.axis", Int (5 + K), Integer_64 (MM_Data (K)));
+         end loop;
+      end if;
+   end Check_MMC560X_Line;
+
    GB_Seq      : Integer_64 := -1;
    GB_State    : Adaflight.Gimbal_Control.State;
    GB_Settings : Adaflight.Gimbal_Control.Settings;
@@ -30514,6 +30652,8 @@ procedure Vector_Check is
                   Check_AK8975_Line;
                elsif Kind = "ak9916" then
                   Check_AK9916_Line;
+               elsif Kind = "mmc560x" then
+                  Check_MMC560X_Line;
                elsif Kind = "gimbal" then
                   Check_Gimbal_Line;
                elsif Kind = "osdtext" then
@@ -30800,6 +30940,7 @@ begin
    Run (Dir & "/lis2mdl.csv", "lis2mdl");
    Run (Dir & "/ak8975.csv", "ak8975");
    Run (Dir & "/ak9916.csv", "ak9916");
+   Run (Dir & "/mmc560x.csv", "mmc560x");
    Run (Dir & "/gimbal.csv", "gimbal");
    Run (Dir & "/osdtext.csv", "osdtext");
    Run (Dir & "/pidaudio.csv", "pidaudio");
