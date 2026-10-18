@@ -197,6 +197,7 @@ with Adaflight.Flash_Device;
 with Adaflight.Flash_Device.M25P16;
 with Adaflight.Flash_Device.Layer;
 with Adaflight.Gyro_Start;
+with Adaflight.QMC5883;
 with Adaflight.Gimbal_Control;
 with Adaflight.OSD_Custom_Text;
 with Adaflight.PID_Audio;
@@ -18728,6 +18729,177 @@ procedure Vector_Check is
       end if;
    end Check_Gyro_Start_Line;
 
+   --  The QMC5883 oracle's chip: the acknowledgements and register values
+   --  drawn up front, the bus type and address, the next read's answers,
+   --  and the bytes a started read brought.
+   type QM_Bus is record
+      I2C            : Boolean := True;
+      Address        : Byte := 0;
+      Write_Acks     : String (1 .. 8) := (others => '1');
+      Write_Next     : Natural := 1;
+      Read_Acks      : String (1 .. 4) := (others => '1');
+      Read_Values    : Byte_Array (0 .. 3) := (others => 0);
+      Read_Next      : Natural := 0;
+      Data_Register  : Byte := 0;
+      Status_Reg     : Byte := 6;
+      Start_Ack      : Boolean := True;
+      Status         : Byte := 0;
+      Data           : Byte_Array (0 .. 5) := (others => 0);
+      Unlock         : Byte := 0;
+      Fetched        : Byte_Array (0 .. 5) := (others => 0);
+   end record;
+
+   QM_Device : QM_Bus;
+
+   function QM_Is_I2C (D : QM_Bus) return Boolean is (D.I2C);
+
+   function QM_Address (D : QM_Bus) return Byte is (D.Address);
+
+   procedure QM_Set_Address (D : in out QM_Bus; Address : Byte) is
+   begin
+      D.Address := Address;
+   end QM_Set_Address;
+
+   procedure QM_Read (D : in out QM_Bus; Register : Byte; Data : in out Byte_Array; OK : out Boolean) is
+      Value : constant Byte := (if D.Read_Next <= 3 then D.Read_Values (D.Read_Next) else 0);
+   begin
+      OK := (if D.Read_Next <= 3 then D.Read_Acks (D.Read_Next + 1) = '1' else True);
+      D.Read_Next := D.Read_Next + 1;
+      if OK then
+         Data := (others => Value);
+      end if;
+      MX_Op ("read," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Data'Length)) & ","
+             & BMP_Num (Boolean'Pos (OK)) & "," & BMP_Num (Integer_64 (Value)));
+   end QM_Read;
+
+   procedure QM_Write (D : in out QM_Bus; Register : Byte; Value : Byte; OK : out Boolean) is
+   begin
+      OK := (if D.Write_Next <= 8 then D.Write_Acks (D.Write_Next) = '1' else True);
+      D.Write_Next := D.Write_Next + 1;
+      MX_Op ("write," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Value)) & ","
+             & BMP_Num (Boolean'Pos (OK)));
+   end QM_Write;
+
+   procedure QM_Start_Read (D : in out QM_Bus; Register : Byte; Length : Positive; Started : out Boolean) is
+      use type Interfaces.Unsigned_8;
+   begin
+      MX_Op ("start," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Length)) & ","
+             & BMP_Num (Boolean'Pos (D.Start_Ack)));
+      Started := D.Start_Ack;
+      if Started then
+         if Register = D.Data_Register and then Length = 6 then
+            D.Fetched := D.Data;
+         elsif Register = D.Status_Reg then
+            D.Fetched (0) := D.Status;
+         else
+            D.Fetched (0) := D.Unlock;
+         end if;
+      end if;
+   end QM_Start_Read;
+
+   procedure QM_Fetch (D : in out QM_Bus; Data : out Byte_Array) is
+   begin
+      for K in Data'Range loop
+         Data (K) := D.Fetched (K - Data'First);
+      end loop;
+   end QM_Fetch;
+
+   procedure QM_Register (D : in out QM_Bus) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("register");
+   end QM_Register;
+
+   procedure QM_Delay (D : in out QM_Bus; Ms : Natural) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("delay," & BMP_Num (Integer_64 (Ms)));
+   end QM_Delay;
+
+   package QM_Chip is new Adaflight.QMC5883
+     (Bus_Device      => QM_Bus,
+      Is_I2C          => QM_Is_I2C,
+      I2C_Address     => QM_Address,
+      Set_I2C_Address => QM_Set_Address,
+      Read_Registers  => QM_Read,
+      Write_Register  => QM_Write,
+      Start_Read      => QM_Start_Read,
+      Fetch           => QM_Fetch,
+      Register_Device => QM_Register,
+      Delay_Ms        => QM_Delay);
+
+   QM_State : QM_Chip.State;
+   QM_Found : Boolean := False;
+   QM_OK    : Boolean := False;
+   QM_Got   : Boolean := False;
+   QM_Data  : QM_Chip.Axes := (others => 0);
+
+   procedure Check_QMC5883_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "qminit" then
+         MX_Op_Head := 1;
+         MX_Op_Count := 0;
+         QM_Device := (others => <>);
+         QM_State := (others => <>);
+         QM_Data := (others => 0);
+         QM_Device.I2C := Int (4) /= 0;
+         QM_Device.Address := Byte (Int (5));
+         QM_Device.Write_Acks := Str (6);
+         QM_Device.Read_Acks := Str (7);
+         QM_Device.Read_Values := Hex_Bytes (8);
+         if Int (3) /= 0 then
+            QM_Device.Data_Register := 16#01#;
+            QM_Device.Status_Reg := 16#09#;
+            QM_Chip.Detect_P (QM_Device, QM_State, QM_Found);
+         else
+            QM_Device.Data_Register := 16#00#;
+            QM_Device.Status_Reg := 16#06#;
+            QM_Chip.Detect_L (QM_Device, QM_State, QM_Found);
+         end if;
+      elsif Name = "qmdet" then
+         MX_Expect_No_Ops ("detection");
+         Record_Int ("qmc5883.found", Int (3), Boolean'Pos (QM_Found));
+         Record_Int ("qmc5883.address", Int (4), Integer_64 (QM_Device.Address));
+         if QM_Found then
+            QM_Chip.Init (QM_Device, QM_State, QM_OK);
+         end if;
+      elsif Name = "qmready" then
+         MX_Expect_No_Ops ("initialization");
+         Record_Int ("qmc5883.init", Int (3), Boolean'Pos (QM_OK));
+         Record_Int ("qmc5883.odr", Int (4), Integer_64 (QM_State.ODR_Hz));
+      elsif Name = "qmstep" then
+         MX_Op_Head := 1;
+         MX_Op_Count := 0;
+         QM_Device.Start_Ack := Int (4) /= 0;
+         QM_Device.Status := Byte (Int (5));
+         QM_Device.Data := Hex_Bytes (6);
+         QM_Device.Unlock := Byte (Int (7));
+         QM_Chip.Read (QM_Device, QM_State, QM_Data, QM_Got);
+      elsif Name = "qmop" then
+         declare
+            Expected : Ada.Strings.Unbounded.Unbounded_String := Ada.Strings.Unbounded.To_Unbounded_String (Str (3));
+         begin
+            for I in 4 .. NF loop
+               Ada.Strings.Unbounded.Append (Expected, "," & Str (I));
+            end loop;
+            if MX_Op_Head <= MX_Op_Count then
+               Record_Text ("qmc5883.op", Ada.Strings.Unbounded.To_String (Expected),
+                            Ada.Strings.Unbounded.To_String (MX_Ops (MX_Op_Head)));
+               MX_Op_Head := MX_Op_Head + 1;
+            else
+               Record_Text ("qmc5883.op", Ada.Strings.Unbounded.To_String (Expected), "none");
+            end if;
+         end;
+      elsif Name = "qmres" then
+         MX_Expect_No_Ops ("a read");
+         Record_Int ("qmc5883.got", Int (4), Boolean'Pos (QM_Got));
+         for K in 0 .. 2 loop
+            Record_Int ("qmc5883.axis", Int (5 + K), Integer_64 (QM_Data (K)));
+         end loop;
+      end if;
+   end Check_QMC5883_Line;
+
    GB_Seq      : Integer_64 := -1;
    GB_State    : Adaflight.Gimbal_Control.State;
    GB_Settings : Adaflight.Gimbal_Control.Settings;
@@ -28874,6 +29046,8 @@ procedure Vector_Check is
                   Check_Flash_Line;
                elsif Kind = "gyrostart" then
                   Check_Gyro_Start_Line;
+               elsif Kind = "qmc5883" then
+                  Check_QMC5883_Line;
                elsif Kind = "gimbal" then
                   Check_Gimbal_Line;
                elsif Kind = "osdtext" then
@@ -29147,6 +29321,7 @@ begin
    Run (Dir & "/m25p16.csv", "m25p16");
    Run (Dir & "/flash.csv", "flash");
    Run (Dir & "/gyrostart.csv", "gyrostart");
+   Run (Dir & "/qmc5883.csv", "qmc5883");
    Run (Dir & "/gimbal.csv", "gimbal");
    Run (Dir & "/osdtext.csv", "osdtext");
    Run (Dir & "/pidaudio.csv", "pidaudio");
