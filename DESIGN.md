@@ -7300,3 +7300,34 @@ them past detection. Of 31 tampered paths, 30 fail the vectors. The one that mov
 degrees passed and led to the threshold cases. On the final calculation, 16 of 17 tampers fail, three of them on the
 range check of a bounded stage. The one that adds 1 to the first second-order term moves the offset and the
 sensitivity by at most 1, which changes the pressure only where a sum crosses a rounding step.
+
+## D321. BMP388 barometer driver (2026-10-17)
+
+`Adaflight.BMP388` drives the BMP388 and BMP390 barometers for the barometer read cycle over the bus formals of the
+BMP280 driver (D318), with one more that enables the interrupt of an end of conversion pin. Detection waits 20 ms,
+enables that interrupt when the board has the pin, prepares the select pin of an SPI chip for 10 MHz, sets the I2C
+address to 0x76 when none was given, and reads the chip identity, 0x50 or 0x60. A chip on SPI sends a dummy byte
+before the registers of each read, which the driver reads and drops. A failed read leaves the identity read before
+it, and any other identity releases the select pin and clears a default address. A found chip is registered, gets
+the data ready interrupt when the pin exists, and has its 21 calibration bytes read. The driver then sets eight
+times pressure and once temperature oversampling, starts a forced measurement and waits until the bus is free.
+
+The chip measures both values together in 36.9 ms, so only the pressure calls do work. A start begins a forced
+measurement, a read starts the six data bytes, seven on SPI, once the bus is free, and a sample takes them once the
+bus is done. The interrupt reads the interrupt status and drops it.
+
+The calculation follows the datasheet's 64-bit integer compensation. Its terms run in modular arithmetic, so a
+calibration that overflows them wraps as two's complement arithmetic does, and its signed divisions truncate toward
+zero. The driver gives the temperature in hundredths of a degree and the compensated pressure, in hundredths of a
+pascal, divided by 256 (F253). The unit is SPARK for that arithmetic, which the proof shows free of overflow, with
+both results within 32 bits, for any calibration and reading.
+
+The BMP388 oracle includes the reference driver with the bus, pin, interrupt and delay calls stubbed over a
+simulated chip, one case per process. It draws the bus, the configured and the chip's addresses, the identity, the
+end of conversion pin, the SPI dummy byte, reads that fail, the busy answers of the detection's wait, and a
+calibration around the reference's sample or anywhere in range. A chip that is found then runs 50 of the driver's
+calls and interrupts in a random order with scripted busy and start answers and readings. Every bus, pin and delay
+call, answer, pressure and temperature of the 300 cases replays exactly, 159 of them past detection. Of 37 tampered
+paths, 36 fail the vectors. The one that rounds the signed quotients of the pressure terms down instead of toward
+zero moves their final sum by less than 2^27, and the reported pressure is 25 times that sum over 2^48, so it
+changes a sample with a chance near one in a hundred thousand.

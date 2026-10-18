@@ -185,6 +185,7 @@ with Adaflight.USB_Joystick;
 with Adaflight.BMP280;
 with Adaflight.DPS310;
 with Adaflight.MS5611;
+with Adaflight.BMP388;
 with Adaflight.Gimbal_Control;
 with Adaflight.OSD_Custom_Text;
 with Adaflight.PID_Audio;
@@ -16192,6 +16193,248 @@ procedure Vector_Check is
       end if;
    end Check_MS5611_Line;
 
+   --  The BMP388 oracle's bus: the simulated chip's registers, address and
+   --  SPI dummy byte, the reads scripted to fail, the busy answers left for
+   --  the detection's wait, the scripted busy and start answers, and the
+   --  bytes the last started read brought. Its calls share the BMP280 bus's
+   --  queue.
+   type B3_Bus is record
+      SPI            : Boolean := False;
+      Address        : Byte := 0;
+      Device_Address : Byte := 0;
+      Registers      : Byte_Array (0 .. 255) := (others => 0);
+      Dummy          : Byte := 0;
+      Fail_Mask      : Interfaces.Unsigned_32 := 0;
+      Reads_Done     : Natural := 0;
+      Detecting      : Boolean := False;
+      Detect_Busy    : Natural := 0;
+      Busy           : Boolean := False;
+      Started        : Boolean := False;
+      Last_Read      : Byte_Array (0 .. 6) := (others => 0);
+   end record;
+
+   function B3_Responds (D : B3_Bus) return Boolean is
+      use type Interfaces.Unsigned_8;
+   begin
+      return (if D.SPI then True else D.Device_Address /= 0 and then D.Address = D.Device_Address);
+   end B3_Responds;
+
+   --  The byte the chip sends at a position of a read: a dummy byte first on
+   --  SPI, then the registers from the one addressed.
+   function B3_Chip_Byte (D : B3_Bus; Register : Byte; K : Natural) return Byte is
+     (if D.SPI and then K = 0 then D.Dummy
+      else D.Registers ((Natural (Register) + K - (if D.SPI then 1 else 0)) mod 256));
+
+   function B3_Is_I2C (D : B3_Bus) return Boolean is (not D.SPI);
+   function B3_Is_SPI (D : B3_Bus) return Boolean is (D.SPI);
+   function B3_Address (D : B3_Bus) return Byte is (D.Address);
+
+   procedure B3_Set_Address (D : in out B3_Bus; Address : Byte) is
+   begin
+      D.Address := Address;
+   end B3_Set_Address;
+
+   procedure B3_Prepare_SPI (D : in out B3_Bus; Max_Clock_Hz : Interfaces.Unsigned_32) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("cshigh");
+      BMP_Op ("ioinit,cs,0");
+      BMP_Op ("csconfig");
+      BMP_Op ("spidivider," & BMP_Num (Integer_64 (Max_Clock_Hz)));
+      BMP_Op ("spiclock," & BMP_Num (Integer_64 (Max_Clock_Hz / 1_000_000)));
+   end B3_Prepare_SPI;
+
+   procedure B3_Release_SPI (D : in out B3_Bus) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("cspreinit,1");
+   end B3_Release_SPI;
+
+   procedure B3_Enable_EOC (D : in out B3_Bus) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("ioinit,eoc,0");
+      BMP_Op ("extihandler");
+      BMP_Op ("exticonfig,1");
+      BMP_Op ("extienable");
+   end B3_Enable_EOC;
+
+   procedure B3_Read (D : in out B3_Bus; Register : Byte; Data : in out Byte_Array; OK : out Boolean) is
+      Scripted_Fail : constant Boolean :=
+        D.Reads_Done < 32 and then (Interfaces.Shift_Right (D.Fail_Mask, D.Reads_Done) and 1) = 1;
+   begin
+      D.Reads_Done := D.Reads_Done + 1;
+      OK := B3_Responds (D) and then not Scripted_Fail;
+      BMP_Op ("read," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Data'Length)) & ","
+              & BMP_Num (Integer_64 (if D.SPI then 0 else D.Address)) & "," & BMP_Num (Boolean'Pos (OK)));
+      if OK then
+         for I in Data'Range loop
+            Data (I) := B3_Chip_Byte (D, Register, I - Data'First);
+         end loop;
+      end if;
+   end B3_Read;
+
+   procedure B3_Write (D : in out B3_Bus; Register : Byte; Value : Byte; OK : out Boolean) is
+   begin
+      BMP_Op ("write," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Value)));
+      OK := B3_Responds (D);
+   end B3_Write;
+
+   procedure B3_Start_Read (D : in out B3_Bus; Register : Byte; Length : Positive; Started : out Boolean) is
+   begin
+      BMP_Op ("readstart," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Length)) & ","
+              & BMP_Num (Boolean'Pos (D.Started)));
+      Started := D.Started;
+      if Started then
+         for K in 0 .. Natural'Min (Length, D.Last_Read'Length) - 1 loop
+            D.Last_Read (K) := B3_Chip_Byte (D, Register, K);
+         end loop;
+      end if;
+   end B3_Start_Read;
+
+   procedure B3_Start_Write (D : in out B3_Bus; Register : Byte; Value : Byte; Started : out Boolean) is
+   begin
+      BMP_Op ("writestart," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Value)) & ","
+              & BMP_Num (Boolean'Pos (D.Started)));
+      Started := D.Started;
+   end B3_Start_Write;
+
+   procedure B3_Check_Busy (D : in out B3_Bus; Busy : out Boolean; Error : out Boolean) is
+   begin
+      if D.Detecting then
+         Busy := D.Detect_Busy > 0;
+         if Busy then
+            D.Detect_Busy := D.Detect_Busy - 1;
+         end if;
+      else
+         Busy := D.Busy;
+      end if;
+      BMP_Op ("busy," & BMP_Num (Boolean'Pos (Busy)));
+      Error := False;
+   end B3_Check_Busy;
+
+   procedure B3_Fetch (D : in out B3_Bus; Data : out Byte_Array) is
+   begin
+      for I in Data'Range loop
+         Data (I) := D.Last_Read (I - Data'First);
+      end loop;
+   end B3_Fetch;
+
+   procedure B3_Register (D : in out B3_Bus) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("register");
+   end B3_Register;
+
+   procedure B3_Delay (D : in out B3_Bus; Ms : Natural) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("delay," & BMP_Num (Integer_64 (Ms)));
+   end B3_Delay;
+
+   package B3_Driver is new Adaflight.BMP388
+     (Bus_Device           => B3_Bus,
+      Is_I2C               => B3_Is_I2C,
+      Is_SPI               => B3_Is_SPI,
+      I2C_Address          => B3_Address,
+      Set_I2C_Address      => B3_Set_Address,
+      Prepare_SPI          => B3_Prepare_SPI,
+      Release_SPI          => B3_Release_SPI,
+      Enable_EOC_Interrupt => B3_Enable_EOC,
+      Read_Registers       => B3_Read,
+      Write_Register       => B3_Write,
+      Start_Read           => B3_Start_Read,
+      Start_Write          => B3_Start_Write,
+      Check_Busy           => B3_Check_Busy,
+      Fetch                => B3_Fetch,
+      Register_Device      => B3_Register,
+      Delay_Ms             => B3_Delay);
+
+   B3_Device      : B3_Bus;
+   B3_State       : B3_Driver.State;
+   B3_Found       : Boolean := False;
+   B3_Settings    : Adaflight.Barometer_Task.Device;
+   B3_Done        : Boolean := False;
+   B3_Pressure    : Interfaces.Integer_32 := -1;
+   B3_Temperature : Interfaces.Integer_32 := -1;
+
+   procedure Check_BMP388_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "b3init" then
+         BMP_Op_Head := 1;
+         BMP_Op_Count := 0;
+         B3_Device := (others => <>);
+         B3_Device.SPI := Int (3) /= 0;
+         B3_Device.Address := Byte (Int (4));
+         B3_Device.Device_Address := Byte (Int (5));
+         B3_Device.Registers (16#00#) := Byte (Int (6));
+         B3_Device.Detect_Busy := Natural (Int (8));
+         B3_Device.Dummy := Byte (Int (9));
+         B3_Device.Fail_Mask := Interfaces.Unsigned_32 (Int (10));
+         declare
+            Calibration : constant Byte_Array := Hex_Bytes (11);
+         begin
+            for I in Calibration'Range loop
+               B3_Device.Registers (16#31# + I) := Calibration (I);
+            end loop;
+         end;
+         B3_State := (others => <>);
+         B3_Pressure := -1;
+         B3_Temperature := -1;
+         B3_Device.Detecting := True;
+         B3_Driver.Detect (B3_Device, B3_State, Int (7) /= 0, B3_Found, B3_Settings);
+         B3_Device.Detecting := False;
+      elsif Name = "b3op" then
+         declare
+            Expected : Ada.Strings.Unbounded.Unbounded_String := Ada.Strings.Unbounded.To_Unbounded_String (Str (3));
+         begin
+            for I in 4 .. NF loop
+               Ada.Strings.Unbounded.Append (Expected, "," & Str (I));
+            end loop;
+            if BMP_Op_Head <= BMP_Op_Count then
+               Record_Text ("bmp388.op", Ada.Strings.Unbounded.To_String (Expected),
+                            Ada.Strings.Unbounded.To_String (BMP_Ops (BMP_Op_Head)));
+               BMP_Op_Head := BMP_Op_Head + 1;
+            else
+               Record_Text ("bmp388.op", Ada.Strings.Unbounded.To_String (Expected), "none");
+            end if;
+         end;
+      elsif Name = "b3det" then
+         BMP_Expect_No_Ops ("detection");
+         Record_Int ("bmp388.found", Int (3), Boolean'Pos (B3_Found));
+         Record_Int ("bmp388.address", Int (4), Integer_64 (if B3_Device.SPI then 0 else B3_Device.Address));
+         Record_Int ("bmp388.combined", Int (5), Boolean'Pos (B3_Settings.Combined_Read));
+         Record_Int ("bmp388.ut_delay", Int (6), Integer_64 (B3_Settings.Temperature_Delay_Us));
+         Record_Int ("bmp388.up_delay", Int (7), Integer_64 (B3_Settings.Pressure_Delay_Us));
+      elsif Name = "b3step" then
+         B3_Device.Busy := Int (5) /= 0;
+         B3_Device.Started := Int (6) /= 0;
+         declare
+            Data : constant Byte_Array := Hex_Bytes (7);
+         begin
+            for I in Data'Range loop
+               B3_Device.Registers (16#04# + I) := Data (I);
+            end loop;
+         end;
+         case Int (4) is
+            when 0 .. 5 =>
+               B3_Driver.Device_Call (B3_Device, B3_State, BMP_Calls (Integer (Int (4))), B3_Done);
+            when 6 =>
+               B3_Driver.Calculate (B3_State, B3_Pressure, B3_Temperature);
+               B3_Done := False;
+            when others =>
+               B3_Driver.Interrupt (B3_Device);
+               B3_Done := False;
+         end case;
+      elsif Name = "b3res" then
+         BMP_Expect_No_Ops ("a result");
+         Record_Int ("bmp388.done", Int (4), Boolean'Pos (B3_Done));
+         Record_Int ("bmp388.pressure", Int (5), Integer_64 (B3_Pressure));
+         Record_Int ("bmp388.temperature", Int (6), Integer_64 (B3_Temperature));
+      end if;
+   end Check_BMP388_Line;
+
    GB_Seq      : Integer_64 := -1;
    GB_State    : Adaflight.Gimbal_Control.State;
    GB_Settings : Adaflight.Gimbal_Control.Settings;
@@ -26316,6 +26559,8 @@ procedure Vector_Check is
                   Check_DPS310_Line;
                elsif Kind = "ms5611" then
                   Check_MS5611_Line;
+               elsif Kind = "bmp388" then
+                  Check_BMP388_Line;
                elsif Kind = "gimbal" then
                   Check_Gimbal_Line;
                elsif Kind = "osdtext" then
@@ -26578,6 +26823,7 @@ begin
    Run (Dir & "/bmp280.csv", "bmp280");
    Run (Dir & "/dps310.csv", "dps310");
    Run (Dir & "/ms5611.csv", "ms5611");
+   Run (Dir & "/bmp388.csv", "bmp388");
    Run (Dir & "/gimbal.csv", "gimbal");
    Run (Dir & "/osdtext.csv", "osdtext");
    Run (Dir & "/pidaudio.csv", "pidaudio");
