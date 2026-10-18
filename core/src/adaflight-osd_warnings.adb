@@ -3,6 +3,7 @@ with Adaflight.Text;
 package body Adaflight.OSD_Warnings with SPARK_Mode is
    use type Interfaces.Integer_64;
    use type Adaflight.Arming.Disable_Reason;
+   use type Adaflight.Flight_Plan_Nav.Abort_Reason;
 
    Half_Second_Us        : constant := 500_000;
    Beacon_Guard_Delay_Us : constant := 1_200_000;
@@ -179,12 +180,17 @@ package body Adaflight.OSD_Warnings with SPARK_Mode is
      (if In_Flight.Battery_Capacity > 0 then In_Flight.Battery_Capacity else C.Cap_Alarm);
 
    procedure Render (S : in out State; C : Settings; In_Flight : Inputs; Line : out Text; Blinking : out Boolean;
-                     Attr : out Severity; Beeper_Shown : out Boolean) is
-      Now : constant Unsigned_32 := In_Flight.Now_Us;
+                     Attr : out Severity; Reported : out Reports) is
+      Now           : constant Unsigned_32 := In_Flight.Now_Us;
+      Mission_Abort : constant Boolean :=
+        In_Flight.Autopilot_Mode and then In_Flight.Abort_Reason /= Adaflight.Flight_Plan_Nav.None;
    begin
       Line := (others => <>);
-      Beeper_Shown := False;
-      if C.Enabled (GPS_Rescue_Unavailable) and then In_Flight.GPS_Rescue_Mode and then not In_Flight.GPS_Rescue_OK then
+      Reported := (Beeper_Shown => False, Capture_Read => False);
+      if C.Enabled (GPS_Rescue_Unavailable)
+        and then ((In_Flight.GPS_Rescue_Mode and then not In_Flight.GPS_Rescue_OK)
+                  or else In_Flight.Rescue_Descent_Active)
+      then
          Set (Line, "RESCUE FAIL");
          Attr := Warning;
          Blinking := True;
@@ -348,11 +354,58 @@ package body Adaflight.OSD_Warnings with SPARK_Mode is
          Blinking := True;
          return;
       end if;
-      if C.Enabled (Pos_Hold_Failed) and then In_Flight.Pos_Hold_Failure then
+      if C.Enabled (Pos_Hold_Failed) and then In_Flight.Pos_Hold_Failure and then not Mission_Abort then
          Set (Line, "POSHOLD FAIL");
          Attr := Warning;
          Blinking := True;
          return;
+      end if;
+      if C.Enabled (Autopilot_Abort) and then Mission_Abort then
+         case In_Flight.Abort_Reason is
+            when Adaflight.Flight_Plan_Nav.Estimator =>
+               Set (Line, "WP GPS LOST");
+            when Adaflight.Flight_Plan_Nav.Stalled =>
+               Set (Line, "WP STALLED");
+            when Adaflight.Flight_Plan_Nav.Flyaway =>
+               Set (Line, "WP FLYAWAY");
+            when Adaflight.Flight_Plan_Nav.Heading =>
+               Set (Line, "WP HEADING");
+            when Adaflight.Flight_Plan_Nav.Mag_Fault =>
+               Set (Line, "WP MAG FAULT");
+            when Adaflight.Flight_Plan_Nav.None =>
+               Set (Line, "WP ABORT");
+         end case;
+         Attr := Critical;
+         Blinking := True;
+         return;
+      end if;
+      Reported.Capture_Read := True;
+      declare
+         Capture : Adaflight.Flight_Plan_Capture.Capture := In_Flight.Capture;
+         Valid   : Boolean;
+      begin
+         Adaflight.Flight_Plan_Capture.Read_Message (Capture, Now, Valid);
+         if Valid then
+            Set (Line, Adaflight.Flight_Plan_Capture.Message_Text (Capture));
+            Attr := Info;
+            return;
+         end if;
+      end;
+      if In_Flight.Autopilot_Mode then
+         case In_Flight.Nav_State is
+            when Adaflight.Flight_Plan_Nav.Landing =>
+               Set (Line, "WP LANDING");
+               Attr := Info;
+               return;
+            when Adaflight.Flight_Plan_Nav.Complete =>
+               Set (Line, "WP COMPLETE");
+               Attr := Info;
+               Blinking := True;
+               return;
+            when Adaflight.Flight_Plan_Nav.Idle | Adaflight.Flight_Plan_Nav.Targeting
+               | Adaflight.Flight_Plan_Nav.Holding | Adaflight.Flight_Plan_Nav.Aborted =>
+               null;
+         end case;
       end if;
       if In_Flight.Headfree_Mode then
          Set (Line, "HEADFREE");
@@ -402,7 +455,7 @@ package body Adaflight.OSD_Warnings with SPARK_Mode is
       if C.Enabled (Visual_Beeper) and then In_Flight.Visual_Beeper then
          Set (Line, "  * * * *");
          Attr := Info;
-         Beeper_Shown := True;
+         Reported.Beeper_Shown := True;
          return;
       end if;
       if In_Flight.Chirp_Repeat_Total <= 1 then

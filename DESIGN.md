@@ -5451,3 +5451,24 @@ task and MSP OSD recordings change with the item list and are recorded again, an
 recordings do not change. A new waypoint oracle renders the nine items with random plans, executor
 values, units, headings and airspeeds. The harness replays 3000 renders: every text byte and draw
 flag matches the reference's, with 14 waypoint altitudes past 400 km.
+
+## D232. OSD flight plan warnings (2026-10-15)
+
+`Adaflight.OSD_Warnings` gains the full build's flight plan cues in the reference's order. The rescue
+failure also shows while the flight plan's rescue descent is active. The position hold failure gives
+way to a mission abort, and below it the autopilot mode with an abort reason shows WP GPS LOST, WP
+STALLED, WP FLYAWAY, WP HEADING or WP MAG FAULT, critical and blinking. Next the line reads the
+waypoint capture message and shows it at the info level until it expires. In the autopilot mode the
+landing then shows WP LANDING, and the completed plan WP COMPLETE blinking, both at the info level.
+
+A read of the capture message clears an expired message, which changes the capture's state. The line
+reads a copy and reports the read, and the target then reads the message itself, as it clears the
+visual beeper the line reports shown. A message the line has not read for 2 ** 31 µs past its expiry
+counts as unexpired again (finding F207), and the port keeps that. The draw cycle does not yet pass
+the reports on.
+
+The warnings oracles now compile the reference with the flight plan and the rescue plan, include the
+capture module as source, and script the executor's abort reason and state, the rescue descent and
+the capture message per step, with three precedence levels for the new cues. The harness replays
+12000 line renders and 3000 element renders: every text byte, blink, severity and report matches the
+reference's, and so does the capture message's validity after the target's read.

@@ -3,13 +3,16 @@
 --  half second, the DShot beacon guard, the failsafe, the ESC alarms, the
 --  crash flip, the launch control, the signal alarms, the battery states,
 --  the load, the rescue availability, the position hold failure, the
---  headfree mode, the core temperature, the capacity, the visual beeper
---  and the chirp excitation, each with its severity and blink. The
---  settings, the sensors and the clock stay with the target, which brings
---  the values the line reads.
+--  flight plan's abort, capture message and progress, the headfree mode,
+--  the core temperature, the capacity, the visual beeper and the chirp
+--  excitation, each with its severity and blink. The settings, the sensors
+--  and the clock stay with the target, which brings the values the line
+--  reads.
 with Interfaces;
 with Adaflight.Arming;
 with Adaflight.Battery;
+with Adaflight.Flight_Plan_Capture;
+with Adaflight.Flight_Plan_Nav;
 with Adaflight.OSD_Format;
 
 package Adaflight.OSD_Warnings with SPARK_Mode is
@@ -73,7 +76,8 @@ package Adaflight.OSD_Warnings with SPARK_Mode is
 
    --  What the line reads: the clock, the arming and battery states, the
    --  rescue, the flags, the ESCs, the modes, the attitude and throttle,
-   --  the signal, the temperatures and charge, the beeper and the chirp.
+   --  the signal, the temperatures and charge, the beeper, the chirp, and
+   --  the flight plan executor with the waypoint capture.
    type Inputs is record
       Now_Us                  : Unsigned_32 := 0;
       Battery                 : Adaflight.Battery.Battery_State := Adaflight.Battery.OK;
@@ -123,6 +127,11 @@ package Adaflight.OSD_Warnings with SPARK_Mode is
       Chirp_Finished          : Boolean := False;
       Chirp_Series_Finished   : Boolean := False;
       Chirp_Axis              : Natural range 0 .. 2 := 0;
+      Rescue_Descent_Active   : Boolean := False;
+      Autopilot_Mode          : Boolean := False;
+      Abort_Reason            : Adaflight.Flight_Plan_Nav.Abort_Reason := Adaflight.Flight_Plan_Nav.None;
+      Nav_State               : Adaflight.Flight_Plan_Nav.Nav_State := Adaflight.Flight_Plan_Nav.Idle;
+      Capture                 : Adaflight.Flight_Plan_Capture.Capture;
    end record;
 
    --  The arming disable reason on display and when it was chosen; none
@@ -141,9 +150,16 @@ package Adaflight.OSD_Warnings with SPARK_Mode is
    --  The reference's name of a reason.
    function Reason_Name (R : Adaflight.Arming.Disable_Reason) return String is (Adaflight.Arming.Disable_Name (R));
 
-   --  The line for this frame, its blink and severity, and whether it showed
-   --  the visual beeper, which the target then clears.
+   --  What the line reports for the target to act on: the visual beeper
+   --  shown, which the target clears, and the capture message read, which
+   --  the target reads in turn so an expired message is cleared.
+   type Reports is record
+      Beeper_Shown : Boolean := False;
+      Capture_Read : Boolean := False;
+   end record;
+
+   --  The line for this frame, its blink and severity, and its reports.
    procedure Render (S : in out State; C : Settings; In_Flight : Inputs; Line : out Text; Blinking : out Boolean;
-                     Attr : out Severity; Beeper_Shown : out Boolean);
+                     Attr : out Severity; Reported : out Reports);
 
 end Adaflight.OSD_Warnings;
