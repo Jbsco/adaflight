@@ -7851,3 +7851,23 @@ use, one case per process. It draws the bus type and a preset address, the ident
 write acknowledgements, then 20 to 60 reads with start answers and data. Every bus call, detection, initialization and
 reading of the 300 cases replays exactly. In them 226 compasses initialize and 4177 readings arrive. All 25 tampered
 paths fail the vectors, among them the one that adds the auto-increment bit to the data register.
+
+## D343. LIS2MDL compass driver (2026-10-18)
+
+`Adaflight.LIS2MDL` drives the LIS2MDL compass over the same bus as the other compass drivers. Detection gives an unset
+I2C address the chip's 0x1E and reads the identity 0x40. Initialization registers the device and writes continuous 100
+Hz conversion with temperature compensation, offset cancellation and the block data update, each only after the one
+before went through. It gives the 100 Hz output data rate and succeeds only when all three went through, and a failed
+initialization leaves the rate at 0. A read alternates between starting the six data bytes and handing over the axes
+they brought, each low byte first, with X negated to the common sensor frame and kept to its low 16 bits like the
+reference's 16-bit store. The reference keeps the read state in static variables of its read function, shared by every
+LIS2MDL device. This unit keeps the state per device, which behaves the same with one compass. The unit is SPARK for the
+read state and the axis conversion.
+
+The LIS2MDL oracle includes the reference driver over a simulated chip whose answers each case draws and prints before
+use, one case per process. It draws the bus type and a preset address, the identity and its read acknowledgement and the
+write acknowledgements, then 20 to 60 reads with start answers and data, every tenth with the X axis at -32768, whose
+negation wraps back to -32768. Every bus call, detection, initialization and reading of the 300 cases replays exactly.
+In them 208 compasses are found, 123 initialize and 85 fail to, and 3909 readings arrive. All 23 tampered paths fail the
+vectors. On the first pass the one that saturates the negated X axis passed, since no reading had X at -32768, and led
+to the readings with that axis.
