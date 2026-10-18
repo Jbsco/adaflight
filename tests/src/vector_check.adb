@@ -96,6 +96,7 @@ with Adaflight.RunCam_Device;
 with Adaflight.FrSky_Hub_Telemetry;
 with Adaflight.IBus_Telemetry;
 with Adaflight.HoTT_Telemetry;
+with Adaflight.HoTT_Display_Port;
 with Adaflight.GHST_Telemetry;
 with Adaflight.Transponder;
 with Adaflight.SRXL_Telemetry;
@@ -6451,6 +6452,13 @@ procedure Vector_Check is
    HT_Pending : Byte_Array (0 .. 4095) := (others => 0);
    HT_Count   : Natural := 0;
 
+   --  The HoTT display port and the menu system's state the generator and
+   --  the text mode change: whether a menu is open and the telemetry task's
+   --  period.
+   HT_Display : Adaflight.HoTT_Display_Port.Display;
+   HT_In_Menu : Boolean := False;
+   HT_Period  : Interfaces.Integer_32 := 100_000;
+
    procedure Check_HoTT_Line is
       use Adaflight.HoTT_Telemetry;
       Name : constant String := Str (1);
@@ -6464,6 +6472,10 @@ procedure Vector_Check is
          HT_Count := 0;
          HT_Set := (Alarm_Interval_S => Interfaces.Unsigned_8 (Int (3)), GPS_Present => Int (4) = 1);
          Init (HT_Link);
+         HT_Display := (others => <>);
+         HT_In_Menu := False;
+         HT_Period := 100_000;
+         Adaflight.HoTT_Display_Port.Register (HT_Display, HT_Link);
          Record_Bytes (Name & ".eam", Hex_Bytes (5), HT_Link.EAM);
          Record_Bytes (Name & ".gps", Hex_Bytes (6), HT_Link.GPS);
       elsif Name = "hottstep" then
@@ -6476,7 +6488,39 @@ procedure Vector_Check is
             Inp : Inputs;
             Rx  : constant Byte_Array := HT_Pending (0 .. HT_Count - 1) & Hex_Bytes (21);
             O   : Output;
+            OA  : constant Byte := Byte (Int (36) mod 256);
+            OB  : constant Byte := Byte (Int (37) mod 256);
+            OC  : constant Byte := Byte (Int (38) mod 256);
+            Selects, Opens, Exits, Reschedules : Integer_64 := 0;
+            Exit_Ptr, Key : Integer_64 := -1;
+            New_Period : Integer_64 := 0;
          begin
+            case Int (35) is
+               when 0 =>
+                  Adaflight.HoTT_Display_Port.Write_String (HT_Link, OA, OB, Hex_Chars (39));
+               when 1 =>
+                  Adaflight.HoTT_Display_Port.Write_Char (HT_Link, OA, OB, OC);
+               when 2 =>
+                  Adaflight.HoTT_Display_Port.Clear (HT_Display, HT_Link);
+               when 3 =>
+                  Adaflight.HoTT_Display_Port.Grab (HT_Display, HT_Link);
+               when 4 =>
+                  Adaflight.HoTT_Display_Port.Release (HT_Display, HT_Link);
+               when 5 =>
+                  if Adaflight.HoTT_Display_Port.Heartbeat_Exit (HT_Link) then
+                     Exits := 1;
+                     Exit_Ptr := 1;
+                     HT_In_Menu := False;
+                  end if;
+               when 6 =>
+                  HT_In_Menu := Int (36) /= 0;
+               when 7 =>
+                  HT_Period := I32 (36);
+               when others =>
+                  null;
+            end case;
+            Inp.Task_Period_Us := HT_Period;
+            Inp.In_Menu := HT_In_Menu;
             Inp.Now_Us := Interfaces.Unsigned_32 (Int (4));
             Inp.Now_Ms := Interfaces.Unsigned_32 (Int (5));
             Inp.Voltage_Dv := Interfaces.Unsigned_16 (Int (6));
@@ -6494,6 +6538,45 @@ procedure Vector_Check is
             Inp.Distance_Home := Interfaces.Unsigned_16 (Int (18));
             Inp.Direction_Home := Interfaces.Integer_16 (Int (19));
             Update (HT_Link, HT_Set, Inp, Rx, O);
+            if O.Reschedule then
+               Reschedules := 1;
+               New_Period := Integer_64 (O.Period_Us);
+               HT_Period := O.Period_Us;
+            end if;
+            if O.Open_Menu then
+               Selects := 1;
+               Opens := 1;
+               HT_In_Menu := True;
+            end if;
+            if O.Exit_Menu then
+               Exits := Exits + 1;
+               Exit_Ptr := 1;
+               HT_In_Menu := False;
+            end if;
+            if O.Reopen then
+               Opens := Opens + 1;
+               HT_In_Menu := True;
+            end if;
+            if O.Key_Set then
+               Key := Integer_64 (Menu_Key'Pos (O.Key));
+            end if;
+            Record_Int (Name & ".text_alive", Int (40), Boolean'Pos (HT_Link.Text_Alive));
+            Record_Int (Name & ".request_wait", Int (41), Integer_64 (HT_Link.Request_Wait_Us));
+            Record_Int (Name & ".byte_delay", Int (42), Integer_64 (HT_Link.Byte_Delay_Us));
+            Record_Int (Name & ".saved_period", Int (43), Integer_64 (HT_Link.Saved_Period_Us));
+            Record_Int (Name & ".task_period", Int (44), Integer_64 (HT_Period));
+            Record_Int (Name & ".reschedules", Int (45), Reschedules);
+            Record_Int (Name & ".new_period", Int (46), New_Period);
+            Record_Int (Name & ".selects", Int (47), Selects);
+            Record_Int (Name & ".opens", Int (48), Opens);
+            Record_Int (Name & ".exits", Int (49), Exits);
+            Record_Int (Name & ".exit_ptr", Int (50), Exit_Ptr);
+            Record_Int (Name & ".key", Int (51), Key);
+            Record_Int (Name & ".in_menu", Int (52), Boolean'Pos (HT_In_Menu));
+            Record_Int (Name & ".grabbed", Int (53), Boolean'Pos (HT_Display.Grabbed));
+            Record_Int (Name & ".rows", Int (54), Integer_64 (HT_Display.Rows));
+            Record_Int (Name & ".cols", Int (55), Integer_64 (HT_Display.Cols));
+            Record_Bytes (Name & ".text", Hex_Bytes (56), HT_Link.Text);
             if O.Sent then
                Record_Bytes (Name & ".tx", Hex_Bytes (23), Byte_Array'(0 => O.B));
             else
