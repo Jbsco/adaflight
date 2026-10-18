@@ -7,4 +7,5 @@ with Adaflight.Menu_Draw;
 package Adaflight.Menu_Draw_Shape is new Adaflight.Menu_Draw
   (Write          => Adaflight.Counting_Steps.Step_Write,
    Write_Char     => Adaflight.Counting_Steps.Step_Write_Char,
-   Display_Update => Adaflight.Counting_Steps.Step_Update);
+   Display_Update => Adaflight.Counting_Steps.Step_Update,
+   Refresh        => Adaflight.Counting_Steps.Step_Refresh);

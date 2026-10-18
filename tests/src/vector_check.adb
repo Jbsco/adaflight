@@ -18996,7 +18996,7 @@ procedure Vector_Check is
    end record;
    type Menu_Ops is array (1 .. 100) of Menu_Op;
    type Menu_Hook is record
-      Kind, Menu, Arg, Back, Effect, Effect_Arg : Integer_64 := 0;
+      Kind, Menu, Arg, Back, Effect, Effect_Arg, Effect_Value : Integer_64 := 0;
    end record;
    type Menu_Hooks is array (1 .. 32) of Menu_Hook;
    MN_Expected    : Menu_Ops;
@@ -19056,14 +19056,16 @@ procedure Vector_Check is
    begin
       if MN_N_Log_Hooks < MN_Log_Hooks'Last then
          MN_N_Log_Hooks := MN_N_Log_Hooks + 1;
-         MN_Log_Hooks (MN_N_Log_Hooks) := (Kind, Integer_64 (Id), Arg, 0, 0, 0);
+         MN_Log_Hooks (MN_N_Log_Hooks) := (Kind, Integer_64 (Id), Arg, 0, 0, 0, 0);
       end if;
       Back := MN_N_Log_Hooks <= MN_N_Hooks and then MN_Exp_Hooks (MN_N_Log_Hooks).Back /= 0;
    end Menu_Hook_Call;
 
-   --  A hook's answer with the change or exit the reference's hook made.
+   --  A hook's answer with the change or exit the reference's hook made; a
+   --  new value the hook gave a line's variable goes to the value store.
    procedure Menu_Hook_Answer
      (Kind : Integer_64; Id : Adaflight.Menu.Menu_Id; Arg : Integer_64; Reply : out Adaflight.Menu.Answer) is
+      use type Adaflight.Menu.Element;
       Back : Boolean;
    begin
       Menu_Hook_Call (Kind, Id, Arg, Back);
@@ -19072,7 +19074,20 @@ procedure Vector_Check is
          declare
             H : constant Menu_Hook := MN_Exp_Hooks (MN_N_Log_Hooks);
          begin
-            if H.Effect = 1 and then H.Effect_Arg in 0 .. Integer_64 (Adaflight.Menu.Menu_Id'Last) then
+            if H.Effect = 3 and then Id in MN_Menus'Range and then H.Effect_Arg >= 0
+              and then H.Effect_Arg < Integer_64 (MN_Menus (Id).Table.Count)
+            then
+               declare
+                  L : Adaflight.Menu.Line renames MN_Menus (Id).Table.Lines (Natural (H.Effect_Arg));
+               begin
+                  L.Value := Interfaces.Integer_32 (H.Effect_Value);
+                  if Adaflight.Menu.Element_Of (L.Flags) = Adaflight.Menu.Tab and then H.Effect_Arg <= 59
+                    and then H.Effect_Value in 0 .. 3
+                  then
+                     L.Value_Text := MN_Names (Id, Natural (H.Effect_Arg), Natural (H.Effect_Value));
+                  end if;
+               end;
+            elsif H.Effect = 1 and then H.Effect_Arg in 0 .. Integer_64 (Adaflight.Menu.Menu_Id'Last) then
                Reply.Done := Adaflight.Menu.Changed;
                Reply.Target := Adaflight.Menu.Menu_Id (H.Effect_Arg);
             elsif H.Effect = 2 and then H.Effect_Arg in 0 .. 5 then
@@ -19094,8 +19109,10 @@ procedure Vector_Check is
    end Menu_On_Leave;
 
    procedure Menu_On_Update (Id : Adaflight.Menu.Menu_Id; Selected : Natural; Chain_Back : out Boolean) is
+      Reply : Adaflight.Menu.Answer;
    begin
-      Menu_Hook_Call (3, Id, Integer_64 (Selected), Chain_Back);
+      Menu_Hook_Answer (3, Id, Integer_64 (Selected), Reply);
+      Chain_Back := Reply.Chain_Back;
    end Menu_On_Update;
 
    --  A line's function: an exit line's exit by the line's kind, as the
@@ -19133,6 +19150,18 @@ procedure Vector_Check is
       end if;
    end Menu_Set_Value;
 
+   --  The current menu's lines as the value store holds their variables.
+   procedure Menu_Refresh (Id : Adaflight.Menu.Menu_Id; M : in out Adaflight.Menu.Table) is
+   begin
+      if Id in MN_Menus'Range and then M.Count = MN_Menus (Id).Table.Count then
+         for I in 0 .. M.Count - 1 loop
+            M.Lines (I).Text := MN_Menus (Id).Table.Lines (I).Text;
+            M.Lines (I).Value := MN_Menus (Id).Table.Lines (I).Value;
+            M.Lines (I).Value_Text := MN_Menus (Id).Table.Lines (I).Value_Text;
+         end loop;
+      end if;
+   end Menu_Refresh;
+
    function Menu_Lookup (Id : Adaflight.Menu.Menu_Id; Line : Natural; Index : Natural)
      return Adaflight.Menu.Label_Text is
      (if Id in MN_Menus'Range and then Line <= 59 and then Index <= 3 then MN_Names (Id, Line, Index)
@@ -19141,9 +19170,16 @@ procedure Vector_Check is
    package MN_Nav is new Adaflight.Menu_Nav
      (Hooks_Of => Menu_Hooks_Of, Load => Menu_Load, On_Enter => Menu_On_Enter, On_Leave => Menu_On_Leave,
       On_Display_Update => Menu_On_Update, Line_Call => Menu_Line_Call, Set_Value => Menu_Set_Value,
-      Lookup => Menu_Lookup, Act => Menu_Act, Write => Menu_Log_Write, Write_Char => Menu_Log_Char);
+      Refresh => Menu_Refresh, Lookup => Menu_Lookup, Act => Menu_Act, Write => Menu_Log_Write,
+      Write_Char => Menu_Log_Char);
    MN_Keys : MN_Nav.Key_Settings := (Start => 0, Background => 0, Save_Exit => 6, Save_Exit_Reboot => 7);
    MN_State : MN_Nav.State;
+
+   --  A line of the current menu as its variables hold it.
+   function MN_Read (Index : Natural) return Adaflight.Menu.Line is
+     (if MN_State.Id in MN_Menus'Range and then Index < MN_Menus (MN_State.Id).Table.Count
+      then MN_Menus (MN_State.Id).Table.Lines (Index)
+      else MN_State.Table.Lines (Index));
 
    procedure Check_Menu_Line is
       use Adaflight.Menu;
@@ -19170,8 +19206,8 @@ procedure Vector_Check is
          MN_N_Hooks := Natural (Next);
          for J in 1 .. MN_N_Hooks loop
             MN_Exp_Hooks (J) := (Kind => Int (K), Menu => Int (K + 1), Arg => Int (K + 2), Back => Int (K + 3),
-                                 Effect => Int (K + 4), Effect_Arg => Int (K + 5));
-            K := K + 6;
+                                 Effect => Int (K + 4), Effect_Arg => Int (K + 5), Effect_Value => Int (K + 6));
+            K := K + 7;
          end loop;
       end Read_Hooks;
       procedure Begin_Record is
@@ -19414,10 +19450,9 @@ procedure Vector_Check is
             Index := MN_State.Page.Top + MN_State.Draw.Cursor_Row;
             Record_Int (Name & ".line", Index_E, (if Index > MN_State.Table.Count then -1 else Integer_64 (Index)));
             if Index_E >= 0 and then Index < MN_State.Table.Count then
-               Record_Int (Name & ".value", Next, Integer_64 (MN_State.Table.Lines (Index).Value));
+               Record_Int (Name & ".value", Next, Integer_64 (MN_Read (Index).Value));
                Record_Text (Name & ".value_text", Hex_String (K),
-                            MN_State.Table.Lines (Index).Value_Text.Data
-                              (1 .. MN_State.Table.Lines (Index).Value_Text.Length));
+                            MN_Read (Index).Value_Text.Data (1 .. MN_Read (Index).Value_Text.Length));
                K := K + 1;
             else
                K := K + 2;
@@ -19489,10 +19524,9 @@ procedure Vector_Check is
             Index := MN_State.Page.Top + MN_State.Draw.Cursor_Row;
             Record_Int (Name & ".line", Index_E, (if Index > MN_State.Table.Count then -1 else Integer_64 (Index)));
             if Index_E >= 0 and then Index < MN_State.Table.Count then
-               Record_Int (Name & ".value", Next, Integer_64 (MN_State.Table.Lines (Index).Value));
+               Record_Int (Name & ".value", Next, Integer_64 (MN_Read (Index).Value));
                Record_Text (Name & ".value_text", Hex_String (K),
-                            MN_State.Table.Lines (Index).Value_Text.Data
-                              (1 .. MN_State.Table.Lines (Index).Value_Text.Length));
+                            MN_Read (Index).Value_Text.Data (1 .. MN_Read (Index).Value_Text.Length));
                K := K + 1;
             else
                K := K + 2;

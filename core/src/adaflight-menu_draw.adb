@@ -181,7 +181,7 @@ package body Adaflight.Menu_Draw with SPARK_Mode is
 
    procedure Draw
      (On             : Adaflight.Menu.Display_Index;
-      M              : Adaflight.Menu.Table;
+      M              : in out Adaflight.Menu.Table;
       Id             : Adaflight.Menu.Menu_Id;
       Has_Update     : Boolean;
       L              : Adaflight.Menu.Layout;
@@ -249,6 +249,7 @@ package body Adaflight.Menu_Draw with SPARK_Mode is
             return;
          end if;
       end if;
+      Refresh (Id, M);
       for I in 0 .. P.Max_Row loop
          declare
             E : constant Adaflight.Menu.Line := M.Lines (P.Top + I);
