@@ -5341,3 +5341,34 @@ caller gives the name, which keeps it out of the code. The unit is SPARK for the
 The SRXL telemetry oracle compiles the reference display port in and draws, clears, grabs and
 releases between task calls. The harness replays 12000 task calls: every text byte, line flag and
 frame byte matches the reference's.
+## D230. OSD navigation map (2026-10-15)
+
+`Adaflight.OSD_Nav_Map` contains the map element of the full build's flight plan OSD: fourteen by
+eight characters with home, the flight plan's waypoints and the flown trail, one row per call. A
+frame is prepared at its first row. The craft and the waypoints are placed east and north of home
+through the longitude difference folded across the antimeridian and the cosine of home's latitude.
+The view is centred on home or on the craft, and with a position and the heading-up setting it
+turns with the craft's heading through the approximate sine and cosine. The width comes from a
+table of steps from 20 m to 51.2 km and is at least the configured minimum. It grows at once to fit
+the craft and the first nine positional waypoints, and shrinks only once the required width is
+under eight tenths of the smaller step. The border carries the up mark and, for 24 frames after a
+change of width (18 for the first), the width in the selected unit, pulsing outward when the map
+zoomed out and inward when it zoomed in.
+
+Without home the map shows SET HOME or WAIT GPS. With home it draws, lowest first, a range ring of
+ticks at the largest round radius that fits; the trail as one bar glyph per column for a shallow
+segment and one vertical bar per row for a steep one, clipped to the view, skipping a column whose
+bar sits within a row of the one already there; the waypoint numbers with the executor's waypoint
+blinking; home as a flag, or as an arrow on the nearest edge pointing to it; and the craft as an
+arrow, or within a cell of home as the over-home ring, or NO GPS without a fix. A row past the
+screen's bottom or right edge ends the frame, and a row is cut at the right edge.
+
+The coordinate differences wrap in 32 bits, as the GPS link's do (finding F58). Rounding follows
+the C library's ties to even, exact past 2 ** 24. The unit is SPARK for the float bounds of the
+projection and the clipping, and the cell indexes. Its place in the OSD's item list comes with the
+flight plan items.
+
+The oracle compiles the reference element in with the reference OSD helpers and GPS module, and sets
+the trail, the flight plan, the executor's waypoint and the craft per frame. The harness replays
+1200 frames in 8183 rows: every row's text, offset, flags, width and frame state matches the
+reference's.
