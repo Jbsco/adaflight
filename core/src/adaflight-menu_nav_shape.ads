@@ -5,7 +5,8 @@ with Adaflight.Counting_Steps;
 with Adaflight.Menu_Nav;
 
 package Adaflight.Menu_Nav_Shape is new Adaflight.Menu_Nav
-  (Hooks_Of          => Adaflight.Counting_Steps.Step_Hooks,
+  (Target_State      => Adaflight.Counting_Steps.Menu_Target,
+   Hooks_Of          => Adaflight.Counting_Steps.Step_Hooks,
    Load              => Adaflight.Counting_Steps.Step_Load,
    On_Enter          => Adaflight.Counting_Steps.Step_Enter,
    On_Leave          => Adaflight.Counting_Steps.Step_Leave,

@@ -5527,3 +5527,14 @@ The menu oracle's enter and display update hooks now give a random line's variab
 within its type, and the harness's value store takes it from the hook log. The harness replays the
 six sequences' 179025 lines with 2900 such changes: every display operation, hook call, line value
 and page matches the reference's. Without the refresh, drawn values and edits differ.
+
+## D236. Menu target state (2026-10-15)
+
+`Adaflight.Menu_Nav` and `Adaflight.Menu_Draw` gain a formal type for the target's state, passed in
+out through every operation that reaches a hook: open, change, way back, draw, keys, exit and update.
+The loading, the hooks, the value store, the refresh and the lookup take it, so the menus can read
+and write the configuration, the readings and their own temporary values in the target's state, as
+the reference's menus use their files' statics and the parameter groups. The core keeps no package
+state, so the menus' state stays with the target. The hook sets and the target's actions take no
+state. The proof shapes count the hook calls in the state, and the harness passes an empty state
+over its value store. Every recorded menu line replays as before.

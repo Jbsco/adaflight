@@ -19047,7 +19047,12 @@ procedure Vector_Check is
    function Menu_Hooks_Of (Id : Adaflight.Menu.Menu_Id) return Adaflight.Menu.Hook_Set is
      (if Id in MN_Menus'Range then MN_Menus (Id).Hooks else (others => False));
 
-   procedure Menu_Load (Id : Adaflight.Menu.Menu_Id; M : out Adaflight.Menu.Table) is
+   --  The menus' target state: the harness keeps the menus' values in its
+   --  own store.
+   type MN_Target is null record;
+
+   procedure Menu_Load (T : MN_Target; Id : Adaflight.Menu.Menu_Id; M : out Adaflight.Menu.Table) is
+      pragma Unreferenced (T);
    begin
       M := (if Id in MN_Menus'Range then MN_Menus (Id).Table else (Lines => (others => <>), Count => 1));
    end Menu_Load;
@@ -19098,17 +19103,23 @@ procedure Vector_Check is
       end if;
    end Menu_Hook_Answer;
 
-   procedure Menu_On_Enter (Id : Adaflight.Menu.Menu_Id; Reply : out Adaflight.Menu.Answer) is
+   procedure Menu_On_Enter (T : in out MN_Target; Id : Adaflight.Menu.Menu_Id; Reply : out Adaflight.Menu.Answer) is
+      pragma Unreferenced (T);
    begin
       Menu_Hook_Answer (1, Id, -1, Reply);
    end Menu_On_Enter;
 
-   procedure Menu_On_Leave (Id : Adaflight.Menu.Menu_Id; Self : Integer; Chain_Back : out Boolean) is
+   procedure Menu_On_Leave (T : in out MN_Target; Id : Adaflight.Menu.Menu_Id; Self : Integer; Chain_Back : out Boolean)
+   is
+      pragma Unreferenced (T);
    begin
       Menu_Hook_Call (2, Id, Integer_64 (Self), Chain_Back);
    end Menu_On_Leave;
 
-   procedure Menu_On_Update (Id : Adaflight.Menu.Menu_Id; Selected : Natural; Chain_Back : out Boolean) is
+   procedure Menu_On_Update
+     (T : in out MN_Target; Id : Adaflight.Menu.Menu_Id; Selected : Natural; Chain_Back : out Boolean)
+   is
+      pragma Unreferenced (T);
       Reply : Adaflight.Menu.Answer;
    begin
       Menu_Hook_Answer (3, Id, Integer_64 (Selected), Reply);
@@ -19118,7 +19129,10 @@ procedure Vector_Check is
    --  A line's function: an exit line's exit by the line's kind, as the
    --  reference's exit function takes it (a kind outside the six exits
    --  plainly), else the menu's function hook.
-   procedure Menu_Line_Call (Id : Adaflight.Menu.Menu_Id; Line : Natural; Reply : out Adaflight.Menu.Answer) is
+   procedure Menu_Line_Call
+     (T : in out MN_Target; Id : Adaflight.Menu.Menu_Id; Line : Natural; Reply : out Adaflight.Menu.Answer)
+   is
+      pragma Unreferenced (T);
       use type Adaflight.Menu.Element;
    begin
       if Id in MN_Menus'Range and then Line < MN_Menus (Id).Table.Count
@@ -19137,7 +19151,10 @@ procedure Vector_Check is
       end if;
    end Menu_Line_Call;
 
-   procedure Menu_Set_Value (Id : Adaflight.Menu.Menu_Id; Line : Natural; Value : Interfaces.Integer_32) is
+   procedure Menu_Set_Value
+     (T : in out MN_Target; Id : Adaflight.Menu.Menu_Id; Line : Natural; Value : Interfaces.Integer_32)
+   is
+      pragma Unreferenced (T);
       use type Adaflight.Menu.Element;
    begin
       if Id in MN_Menus'Range and then Line < MN_Menus (Id).Table.Count then
@@ -19151,7 +19168,8 @@ procedure Vector_Check is
    end Menu_Set_Value;
 
    --  The current menu's lines as the value store holds their variables.
-   procedure Menu_Refresh (Id : Adaflight.Menu.Menu_Id; M : in out Adaflight.Menu.Table) is
+   procedure Menu_Refresh (T : MN_Target; Id : Adaflight.Menu.Menu_Id; M : in out Adaflight.Menu.Table) is
+      pragma Unreferenced (T);
    begin
       if Id in MN_Menus'Range and then M.Count = MN_Menus (Id).Table.Count then
          for I in 0 .. M.Count - 1 loop
@@ -19162,18 +19180,23 @@ procedure Vector_Check is
       end if;
    end Menu_Refresh;
 
-   function Menu_Lookup (Id : Adaflight.Menu.Menu_Id; Line : Natural; Index : Natural)
+   function Menu_Lookup (T : MN_Target; Id : Adaflight.Menu.Menu_Id; Line : Natural; Index : Natural)
      return Adaflight.Menu.Label_Text is
-     (if Id in MN_Menus'Range and then Line <= 59 and then Index <= 3 then MN_Names (Id, Line, Index)
-      else Menu_Text_Of (""));
+      pragma Unreferenced (T);
+   begin
+      return (if Id in MN_Menus'Range and then Line <= 59 and then Index <= 3 then MN_Names (Id, Line, Index)
+              else Menu_Text_Of (""));
+   end Menu_Lookup;
 
    package MN_Nav is new Adaflight.Menu_Nav
-     (Hooks_Of => Menu_Hooks_Of, Load => Menu_Load, On_Enter => Menu_On_Enter, On_Leave => Menu_On_Leave,
+     (Target_State => MN_Target, Hooks_Of => Menu_Hooks_Of, Load => Menu_Load, On_Enter => Menu_On_Enter,
+      On_Leave => Menu_On_Leave,
       On_Display_Update => Menu_On_Update, Line_Call => Menu_Line_Call, Set_Value => Menu_Set_Value,
       Refresh => Menu_Refresh, Lookup => Menu_Lookup, Act => Menu_Act, Write => Menu_Log_Write,
       Write_Char => Menu_Log_Char);
    MN_Keys : MN_Nav.Key_Settings := (Start => 0, Background => 0, Save_Exit => 6, Save_Exit_Reboot => 7);
    MN_State : MN_Nav.State;
+   MN_T     : MN_Target;
 
    --  A line of the current menu as its variables hold it.
    function MN_Read (Index : Natural) return Adaflight.Menu.Line is
@@ -19348,7 +19371,7 @@ procedure Vector_Check is
          Read_Ops;
          Read_Hooks;
          Begin_Record;
-         MN_Nav.Open (MN_State, Main_Menu, MN_Background);
+         MN_Nav.Open (MN_State, MN_T, Main_Menu, MN_Background);
          Expect_Ops;
          Expect_Hooks;
          Expect_Context;
@@ -19377,7 +19400,7 @@ procedure Vector_Check is
               Device = 0 or else Device = 2 or else Device = 3 or else Device = 7;
             MN_State.Ports (MN_State.Port).Cleared := Cleared;
             Begin_Record;
-            MN_Nav.Draw (MN_State, MN_Slider, Now_Us, Now_Ms, Room);
+            MN_Nav.Draw (MN_State, MN_T, MN_Slider, Now_Us, Now_Ms, Room);
             Expect_Ops;
             Expect_Hooks;
             Expect_Context;
@@ -19410,11 +19433,11 @@ procedure Vector_Check is
             Begin_Record;
             case Op is
                when 1 =>
-                  MN_Nav.Change (MN_State, Menu_Id (Arg));
+                  MN_Nav.Change (MN_State, MN_T, Menu_Id (Arg));
                when 2 =>
-                  MN_Nav.Back (MN_State);
+                  MN_Nav.Back (MN_State, MN_T);
                when others =>
-                  MN_Nav.Open (MN_State, Main_Menu, MN_Background);
+                  MN_Nav.Open (MN_State, MN_T, Main_Menu, MN_Background);
             end case;
             Expect_Ops;
             Expect_Hooks;
@@ -19439,7 +19462,7 @@ procedure Vector_Check is
                MN_State.Draw.Cursor_Row := Cursor (Placed);
             end if;
             Begin_Record;
-            MN_Nav.Handle_Key (MN_State, MN_Nav.Key_Code'Val (Key), MN_Keys, MN_Slider, Reboot_Before, Delay_Ms);
+            MN_Nav.Handle_Key (MN_State, MN_T, MN_Nav.Key_Code'Val (Key), MN_Keys, MN_Slider, Reboot_Before, Delay_Ms);
             Record_Int (Name & ".delay", Delay_E, Integer_64 (Delay_Ms));
             Expect_Ops;
             Expect_Hooks;
@@ -19514,7 +19537,7 @@ procedure Vector_Check is
                MN_Nav.Set_Extern_Key (MN_State, MN_Nav.Key_Code'Val (Extern));
             end if;
             Begin_Record;
-            MN_Nav.Update (MN_State, MN_Keys, MN_Slider, Sticks, Reboot_Before, Now_Us, Millis, Room);
+            MN_Nav.Update (MN_State, MN_T, MN_Keys, MN_Slider, Sticks, Reboot_Before, Now_Us, Millis, Room);
             Expect_Ops;
             Expect_Hooks;
             Expect_Context;
@@ -19561,7 +19584,7 @@ procedure Vector_Check is
             Read_Hooks;
             Begin_Record;
             if Was_Open then
-               MN_Nav.Exit_Menu (MN_State, MN_Nav.Exit_Kind'Val (Kind));
+               MN_Nav.Exit_Menu (MN_State, MN_T, MN_Nav.Exit_Kind'Val (Kind));
             end if;
             Expect_Ops;
             Expect_Hooks;

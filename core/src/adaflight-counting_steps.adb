@@ -48,57 +48,59 @@ package body Adaflight.Counting_Steps with SPARK_Mode is
       Calls := Counted (Calls);
    end Step_Write_Char;
 
-   procedure Step_Load (Id : Menu.Menu_Id; M : out Menu.Table) is
-      pragma Unreferenced (Id);
+   procedure Step_Load (T : Menu_Target; Id : Menu.Menu_Id; M : out Menu.Table) is
+      pragma Unreferenced (T, Id);
    begin
       Calls := Counted (Calls);
       M := (Lines => (others => <>), Count => 1);
    end Step_Load;
 
-   procedure Step_Enter (Id : Menu.Menu_Id; Reply : out Menu.Answer) is
+   procedure Step_Enter (T : in out Menu_Target; Id : Menu.Menu_Id; Reply : out Menu.Answer) is
       pragma Unreferenced (Id);
    begin
-      Calls := Counted (Calls);
-      Reply := (Done       => (if Calls mod 3 = 0 then Menu.Changed else Menu.Nothing),
-                Target     => Calls mod Menu.Max_Menus,
+      T := Counted (T);
+      Reply := (Done       => (if T mod 3 = 0 then Menu.Changed else Menu.Nothing),
+                Target     => T mod Menu.Max_Menus,
                 Kind       => Menu.Plain,
-                Chain_Back => Calls mod 2 = 0);
+                Chain_Back => T mod 2 = 0);
    end Step_Enter;
 
-   procedure Step_Call (Id : Menu.Menu_Id; Line : Natural; Reply : out Menu.Answer) is
+   procedure Step_Call (T : in out Menu_Target; Id : Menu.Menu_Id; Line : Natural; Reply : out Menu.Answer) is
       pragma Unreferenced (Id, Line);
    begin
-      Calls := Counted (Calls);
-      Reply := (Done       => Menu.Effect'Val (Calls mod 3),
-                Target     => Calls mod Menu.Max_Menus,
-                Kind       => Menu.Exit_Kind'Val (Calls mod 6),
-                Chain_Back => Calls mod 2 = 0);
+      T := Counted (T);
+      Reply := (Done       => Menu.Effect'Val (T mod 3),
+                Target     => T mod Menu.Max_Menus,
+                Kind       => Menu.Exit_Kind'Val (T mod 6),
+                Chain_Back => T mod 2 = 0);
    end Step_Call;
 
-   procedure Step_Leave (Id : Menu.Menu_Id; Self : Integer; Chain_Back : out Boolean) is
+   procedure Step_Leave (T : in out Menu_Target; Id : Menu.Menu_Id; Self : Integer; Chain_Back : out Boolean) is
       pragma Unreferenced (Id, Self);
    begin
-      Calls := Counted (Calls);
-      Chain_Back := Calls mod 2 = 0;
+      T := Counted (T);
+      Chain_Back := T mod 2 = 0;
    end Step_Leave;
 
-   procedure Step_Update (Id : Menu.Menu_Id; Selected : Natural; Chain_Back : out Boolean) is
+   procedure Step_Update (T : in out Menu_Target; Id : Menu.Menu_Id; Selected : Natural; Chain_Back : out Boolean) is
       pragma Unreferenced (Id, Selected);
    begin
-      Calls := Counted (Calls);
-      Chain_Back := Calls mod 2 = 0;
+      T := Counted (T);
+      Chain_Back := T mod 2 = 0;
    end Step_Update;
 
-   procedure Step_Refresh (Id : Menu.Menu_Id; M : in out Menu.Table) is
-      pragma Unreferenced (Id, M);
+   procedure Step_Refresh (T : Menu_Target; Id : Menu.Menu_Id; M : in out Menu.Table) is
+      pragma Unreferenced (T, Id, M);
    begin
       Calls := Counted (Calls);
    end Step_Refresh;
 
-   procedure Step_Set_Value (Id : Menu.Menu_Id; Line : Natural; Value : Interfaces.Integer_32) is
+   procedure Step_Set_Value
+     (T : in out Menu_Target; Id : Menu.Menu_Id; Line : Natural; Value : Interfaces.Integer_32)
+   is
       pragma Unreferenced (Id, Line, Value);
    begin
-      Calls := Counted (Calls);
+      T := Counted (T);
    end Step_Set_Value;
 
    procedure Step_Act (On : Menu.Display_Index; A : Menu.Action; Arg : Integer) is

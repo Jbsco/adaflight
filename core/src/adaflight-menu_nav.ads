@@ -23,20 +23,26 @@
 --  the hook set and loading procedures, the hooks, the value store, the
 --  refresh of the current menu's lines from the target's variables where
 --  the reference reads them, the lookup of a table's text and the
---  target's actions as procedures.
+--  target's actions as procedures; all but the hook sets and the actions
+--  work on the target's state, which every operation passes on.
 with Interfaces;
 with Adaflight.Menu;
 
 generic
+   type Target_State is private;
    with function Hooks_Of (Id : Adaflight.Menu.Menu_Id) return Adaflight.Menu.Hook_Set;
-   with procedure Load (Id : Adaflight.Menu.Menu_Id; M : out Adaflight.Menu.Table);
-   with procedure On_Enter (Id : Adaflight.Menu.Menu_Id; Reply : out Adaflight.Menu.Answer);
-   with procedure On_Leave (Id : Adaflight.Menu.Menu_Id; Self : Integer; Chain_Back : out Boolean);
-   with procedure On_Display_Update (Id : Adaflight.Menu.Menu_Id; Selected : Natural; Chain_Back : out Boolean);
-   with procedure Line_Call (Id : Adaflight.Menu.Menu_Id; Line : Natural; Reply : out Adaflight.Menu.Answer);
-   with procedure Set_Value (Id : Adaflight.Menu.Menu_Id; Line : Natural; Value : Interfaces.Integer_32);
-   with procedure Refresh (Id : Adaflight.Menu.Menu_Id; M : in out Adaflight.Menu.Table);
-   with function Lookup (Id : Adaflight.Menu.Menu_Id; Line : Natural; Index : Natural)
+   with procedure Load (T : Target_State; Id : Adaflight.Menu.Menu_Id; M : out Adaflight.Menu.Table);
+   with procedure On_Enter (T : in out Target_State; Id : Adaflight.Menu.Menu_Id; Reply : out Adaflight.Menu.Answer);
+   with procedure On_Leave
+     (T : in out Target_State; Id : Adaflight.Menu.Menu_Id; Self : Integer; Chain_Back : out Boolean);
+   with procedure On_Display_Update
+     (T : in out Target_State; Id : Adaflight.Menu.Menu_Id; Selected : Natural; Chain_Back : out Boolean);
+   with procedure Line_Call
+     (T : in out Target_State; Id : Adaflight.Menu.Menu_Id; Line : Natural; Reply : out Adaflight.Menu.Answer);
+   with procedure Set_Value
+     (T : in out Target_State; Id : Adaflight.Menu.Menu_Id; Line : Natural; Value : Interfaces.Integer_32);
+   with procedure Refresh (T : Target_State; Id : Adaflight.Menu.Menu_Id; M : in out Adaflight.Menu.Table);
+   with function Lookup (T : Target_State; Id : Adaflight.Menu.Menu_Id; Line : Natural; Index : Natural)
      return Adaflight.Menu.Label_Text;
    with procedure Act (On : Adaflight.Menu.Display_Index; A : Adaflight.Menu.Action; Arg : Integer);
    with procedure Write
@@ -178,21 +184,21 @@ package Adaflight.Menu_Nav with SPARK_Mode is
    --  The menu opened from the start menu on the current display, with the
    --  OSD's background type for the menu; while open, the next display
    --  takes the menu over with the cursor carried as an absolute row.
-   procedure Open (S : in out State; Start : Adaflight.Menu.Menu_Id; Background : Natural)
+   procedure Open (S : in out State; T : in out Target_State; Start : Adaflight.Menu.Menu_Id; Background : Natural)
      with Pre  => Consistent (S),
           Post => Consistent (S);
 
    --  A change to the menu held, which the reopen on another display
    --  makes, selects the page again, so the page need not fit the layout
    --  on the way in.
-   procedure Change (S : in out State; Target : Adaflight.Menu.Menu_Id)
+   procedure Change (S : in out State; T : in out Target_State; Target : Adaflight.Menu.Menu_Id)
      with Pre  => S.In_Menu and then Layout_Consistent (S)
                   and then (if S.Has_Menu
                             then S.Table.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (S.Table))
                   and then (if S.Has_Menu and then Target /= S.Id then Page_Consistent (S)),
           Post => Consistent (S) and then S.In_Menu and then S.Has_Menu;
 
-   procedure Back (S : in out State)
+   procedure Back (S : in out State; T : in out Target_State)
      with Pre  => S.In_Menu and then S.Has_Menu and then Consistent (S),
           Post => Consistent (S) and then S.In_Menu and then S.Has_Menu;
 
@@ -201,7 +207,13 @@ package Adaflight.Menu_Nav with SPARK_Mode is
           Post => Consistent (S) and then S.In_Menu and then S.Has_Menu;
 
    --  The draw, which does nothing while the menu is closed.
-   procedure Draw (S : in out State; Sl : Adaflight.Menu.Slider_Settings; Now_Us, Now_Ms, Room : Unsigned_32)
+   procedure Draw
+     (S      : in out State;
+      T      : in out Target_State;
+      Sl     : Adaflight.Menu.Slider_Settings;
+      Now_Us : Unsigned_32;
+      Now_Ms : Unsigned_32;
+      Room   : Unsigned_32)
      with Pre  => Consistent (S),
           Post => Consistent (S);
 
@@ -209,6 +221,7 @@ package Adaflight.Menu_Nav with SPARK_Mode is
    --  key with the menu closed does nothing.
    procedure Handle_Key
      (S               : in out State;
+      T               : in out Target_State;
       Key             : Key_Code;
       K               : Key_Settings;
       Sl              : Adaflight.Menu.Slider_Settings;
@@ -217,7 +230,7 @@ package Adaflight.Menu_Nav with SPARK_Mode is
      with Pre  => Consistent (S),
           Post => Consistent (S);
 
-   procedure Exit_Menu (S : in out State; Kind : Exit_Kind)
+   procedure Exit_Menu (S : in out State; T : in out Target_State; Kind : Exit_Kind)
      with Pre  => S.In_Menu and then S.Has_Menu and then Consistent (S),
           Post => Consistent (S) and then not S.In_Menu and then not S.Has_Menu and then S.Port = S.Port'Old;
 
@@ -228,6 +241,7 @@ package Adaflight.Menu_Nav with SPARK_Mode is
    --  clock in milliseconds the pass ends on, and the display's room.
    procedure Update
      (S               : in out State;
+      T               : in out Target_State;
       K               : Key_Settings;
       Sl              : Adaflight.Menu.Slider_Settings;
       Sticks          : Stick_Inputs;
