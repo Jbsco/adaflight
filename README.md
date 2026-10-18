@@ -169,6 +169,8 @@ The core contains:
 - OSD element set with alarms and renderers, warnings element, draw cycle, spec prearm screen and
   OSD task
 - OSD navigation map: home, flight plan waypoints and flown trail with automatic width
+- OSD flight plan items: waypoint number, coordinates, altitude, distance, direction, next
+  waypoint, arrival time and airspeed
 - menu system lines and page layout: element and flag encoding, screen geometry, page count and
   selection, cursor row, skip rule, fixed-point text, field alignment and display character set
 - menu draw: page labels, values and cursor within display's byte budget, element value forms,
@@ -219,7 +221,7 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 25635 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 25689 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
 - Recorded vectors replay bit for bit: 1753568 lines over 384 cases, every case exact except
   forty-six declared deviations in `DESIGN.md` D6.

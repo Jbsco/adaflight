@@ -31,11 +31,13 @@ package Adaflight.OSD_Nav_Map with SPARK_Mode is
    Max_Waypoints : constant := 30;
    subtype Waypoint_Index is Natural range 0 .. Max_Waypoints - 1;
 
-   --  A waypoint's type and position in degrees times ten million.
+   --  A waypoint's type, position in degrees times ten million and altitude
+   --  in centimetres.
    type Waypoint is record
       Kind      : Byte := 0;
       Latitude  : Integer_32 := 0;
       Longitude : Integer_32 := 0;
+      Altitude  : Integer_32 := 0;
    end record;
    type Waypoint_List is array (Waypoint_Index) of Waypoint;
 

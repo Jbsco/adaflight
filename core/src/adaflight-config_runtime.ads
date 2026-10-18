@@ -277,7 +277,8 @@ package Adaflight.Config_Runtime with SPARK_Mode is
 
    --  The OSD render settings from the stored OSD and VTX settings groups;
    --  a profile name is the stored text up to its first NUL.
-   function OSD_Render_Settings_Of (O : Osd_Config_Record; V : Vtx_Settings_Config_Record) return OSD_Render.Settings;
+   function OSD_Render_Settings_Of
+     (O : Osd_Config_Record; V : Vtx_Settings_Config_Record; N : Osd_Nav_Map_Config_Record) return OSD_Render.Settings;
 
    --  The OSD specification settings from the stored mixer and motor
    --  groups, the current rate, PID and battery profiles.
@@ -980,7 +981,9 @@ private
       G_Force_Visible      => Item_Visible (E, OSD_Elements.G_Force, O.Osd_Profile_Index),
       Warnings_Visible     => Item_Visible (E, OSD_Elements.Warnings, O.Osd_Profile_Index));
 
-   function OSD_Render_Settings_Of (O : Osd_Config_Record; V : Vtx_Settings_Config_Record) return OSD_Render.Settings is
+   function OSD_Render_Settings_Of
+     (O : Osd_Config_Record; V : Vtx_Settings_Config_Record; N : Osd_Nav_Map_Config_Record)
+      return OSD_Render.Settings is
      (Units                => Unit_System_Of (O.Units),
       Alt_Alarm            => O.Alt_Alarm,
       Cap_Alarm            => O.Cap_Alarm,
@@ -1004,7 +1007,10 @@ private
       VTX_Channel          => V.Channel,
       VTX_Frequency        => V.Freq,
       VTX_Power            => V.Power,
-      VTX_Low_Power_Disarm => V.Low_Power_Disarm);
+      VTX_Low_Power_Disarm => V.Low_Power_Disarm,
+      Nav_Map              =>
+        (Heading_Up => N.Mode = 1, Centre_Craft => N.Centre = 1, Min_Scale_M => N.Min_Scale_M,
+         Units      => Unit_System_Of (O.Units)));
 
    function OSD_Spec_Settings_Of
      (M : Mixer_Config_Record; Motor : Motor_Config_Record; Rate : Control_Rate_Config_Record;

@@ -83,7 +83,8 @@ package Adaflight.OSD_Draw with SPARK_Mode is
    --  The elements with a foreground: the rendered ones, the warnings and
    --  the system elements.
    function Has_Foreground (I : Item) return Boolean is
-     (Adaflight.OSD_Render.Supported (I) or else I = Warnings or else I in Sys_Goggle_Voltage .. Sys_Fan_Speed);
+     (Adaflight.OSD_Render.Supported (I) or else I = Warnings or else I = Nav_Map
+      or else I in Sys_Goggle_Voltage .. Sys_Fan_Speed);
 
    procedure Init (Cy : out Cycle; Background_Layer : Boolean)
      with Post => Cy.Background_Layer = Background_Layer and then Cy.Active_Number = 0;

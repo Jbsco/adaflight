@@ -93,21 +93,31 @@ package body Adaflight.OSD_Elements with SPARK_Mode is
          Add (A, Pos, Profile, Home_Direction);
          Add (A, Pos, Profile, Flight_Distance);
          Add (A, Pos, Profile, Efficiency);
+         Add (A, Pos, Profile, WP_Number);
+         Add (A, Pos, Profile, WP_Current_Lat);
+         Add (A, Pos, Profile, WP_Current_Lon);
+         Add (A, Pos, Profile, WP_Current_Alt);
+         Add (A, Pos, Profile, WP_Distance);
+         Add (A, Pos, Profile, WP_Direction);
+         Add (A, Pos, Profile, WP_Next_Number);
+         Add (A, Pos, Profile, WP_ETA);
+         Add (A, Pos, Profile, Nav_Map);
       end if;
-      pragma Assert (A.Count <= 84);
+      pragma Assert (A.Count <= 93);
       if Inp.ESC_Sensor_Feature or else Inp.DShot_Telemetry then
          Add (A, Pos, Profile, ESC_Temperature);
          Add (A, Pos, Profile, ESC_RPM);
          Add (A, Pos, Profile, ESC_RPM_Frequency);
       end if;
-      pragma Assert (A.Count <= 87);
+      pragma Assert (A.Count <= 96);
       if Inp.GPS_Present then
          Add (A, Pos, Profile, GPS_Lap_Time_Current);
          Add (A, Pos, Profile, GPS_Lap_Time_Previous);
          Add (A, Pos, Profile, GPS_Lap_Time_Best3);
       end if;
-      pragma Assert (A.Count <= 90);
+      pragma Assert (A.Count <= 99);
       Add (A, Pos, Profile, Total_Flights);
+      Add (A, Pos, Profile, Airspeed);
    end Add_Active_Elements;
 
 end Adaflight.OSD_Elements;
