@@ -5538,3 +5538,31 @@ the reference's menus use their files' statics and the parameter groups. The cor
 state, so the menus' state stays with the target. The hook sets and the target's actions take no
 state. The proof shapes count the hook calls in the state, and the harness passes an empty state
 over its value store. Every recorded menu line replays as before.
+
+## D237. Menu contents: quick, main, features, setup and save menus (2026-10-15)
+
+`Adaflight.Menu_Content` contains the reference's menus over the target's state of D236: the
+configuration, the readings the setup popup shows, the quick menu's copies of the profiles it edits,
+the setup popup's lines and the requests to the runtime. Every menu has a number, and the menus of
+later slices have one empty line until they come. The menu system opens on the quick menu when the
+OSD's setting asks for it, as by default, else on the main menu.
+
+The quick menu copies the current rate profile, the active battery profile and the current PID
+profile's motor output limit on entry, edits the throttle limit type and percentage, the motor
+output limit and the forced cell count, and writes them back on the way back or a save, with a
+request for the PID controller's setup. Its main menu line opens the main menu, which the reference
+does not stack. The main menu's entry builds the setup popup: a line for the accelerometer
+calibration when arming waits for it, one for the battery restore when charge was drawn, and the
+exit, and opens it when a line came in besides the exit. The popup's display update sets the
+calibration status and the restore text, and the restore asks the runtime to set the charge drawn
+back to the stored value, clears the stored value and exits. The main menu's save line opens the save
+menu by the reboot flag. The restore label is cut to the reference's 18-byte buffer, which a stored
+charge of 100000 mAh or more overruns there (finding F208). `Adaflight.Menu_Content_Shape`
+instantiates the navigation over the menus for the proof.
+
+The menu contents oracle (`settings/cms_oracle.c`) links the reference's menu system and all its
+menus over the settings oracle's configuration, scripts the popup's readings, the reboot flag and the
+quick menu's profiles, and presses random keys with a draw after each, replacing a right key that
+would enter a menu of a later slice with a down key. The harness replays 240 sessions with 11960 keys
+and 11960 draws: every display operation, menu context, page, request and configuration hash matches
+the reference's, over 51 battery restores and 739 quick menu write backs.
