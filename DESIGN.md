@@ -290,6 +290,9 @@ ledger. The deviations so far:
 - The tasks command reads the clock once, as it starts, and remembers that reading for the next
   command's check function load (D198), where the reference reads the clock again after its list;
   the two readings differ by the command's own run time.
+- The CRSF display port compares its transfer delay with the millisecond counter through the
+  wrapping difference (D227), where the reference compares the counter and the delay directly
+  (F205). The recorded vectors stay clear of the wrap and replay bit for bit.
 
 ## D7. Contribution conventions (2026-10-08)
 
@@ -5274,3 +5277,30 @@ The receiver oracle counts the new frames with the first byte each handler takes
 telemetry oracle builds with the menu system's CRSF telemetry, an idle display port and a device
 information reply now and then. The harness replays 6000 receiver steps and 6576 telemetry passes
 with 93872 frames, 41 of them pings: every output, link type and interval matches the reference's.
+## D227. CRSF display port (2026-10-15)
+
+`Adaflight.CRSF_Display_Port` contains the screen the menu system draws for the transmitter over
+CRSF: up to nine rows of 32 characters, a write past the rows or columns dropped and one past the
+last column cut, and the screen marked updated when a write changes it. A character write takes a
+zero as nothing. A clear blanks the screen, marks it for a clear frame and holds the transfer back
+45 ms. Registration takes the largest screen and clears it, at every CRSF telemetry init. The
+transmitter's display port commands set the rows and columns and open the menu, leave it, or poll
+it: a poll marks an open menu's screen for a clear frame and a full transfer, and opens the menu
+otherwise. The menu opens while disarmed when none is open and the menu system can select this
+display, and the caller sets the 400 ms delay after the menu's own clear.
+
+`Adaflight.CRSF_Telemetry` sends the screen. With the event-driven gate open, a cleared screen gets
+the clear frame. Once the delay has passed while the menu runs on this display, an updated screen
+starts a batch over its rows and columns with the next of 63 batch numbers, and each pass past the
+chunk interval sends a chunk: the batch, its index with the first and last chunk marked, and up to
+50 bytes of the screen with a run of a repeated character as the character with its top bit set
+and the run's length, 256 as zero. Each frame sent restarts the telemetry's cycle time. Readiness
+compares the millisecond clock with the delay through the wrapping difference, where the reference
+compares them directly (finding F205, D6). The units are SPARK for the screen's index bounds and
+the chunk's room in its frame.
+
+The CRSF telemetry oracle compiles the reference display port in, with the menu system's state, its
+selection and its open and leave calls scripted. The harness replays 2123 display operations with
+the 288 bytes of the screen after each, and 4451 telemetry passes with 116 chunks, eight of them
+with a full 256-character run, and 479 clear frames: every screen, delay, request and frame matches
+the reference's.
