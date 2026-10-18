@@ -7452,3 +7452,31 @@ detection result, scale, interval, reading and setting of the 300 cases replays 
 23 with a failure and 17 with one failure byte. All 28 tampered paths fail the vectors. On the first pass two
 passed, since the oracle set the failure bytes of both axes together and ran the gyro detection only on a found
 chip, and led to cases with one failure byte and to the detection of an undetected chip.
+
+## D326. ICM426xx gyro driver (2026-10-18)
+
+`Adaflight.MPU_Gyro.ICM426xx` drives the ICM-42605, ICM-42622-P, ICM-42686-P, ICM-42688-P, IIM-42652 and IIM-42653
+over the SPI gyro layer (D324), a generic child that adds register writes and reads, the start of the clock input
+and whether the build has one. Its detection is the layer's chip probe. It waits 1 ms, selects register bank 0,
+resets the chip, waits 1 ms, clears the power management and reads the identity up to 21 times, 1 ms apart, until
+one of the six answers. On a build with a clock input, a found ICM-42688-P starts the clock and, when it runs, sets
+pin 9 to the clock input in bank 1 and enables the external clock in bank 0. The IIM-42653 gets the 4000 degrees per
+second scale and a one g of 1024, the others 2000 degrees per second and 2048, all with the temperature scale of
+1/132.48 and zero of 25.
+
+Initialization sets a 24 MHz clock, runs the layer's and names the chip's data registers, the DMA read starting at
+the temperature. With the sensors off it writes the gyro anti-alias filter from the configuration's filter setting
+and the accelerometer's for 258 Hz, from the ICM-42605's table or the others', then the low latency interface
+filters, the pulsed push-pull data ready interrupt cleared on a status read, the interrupt pulse of 8 microseconds
+without deassert and the async reset bit cleared, and disables the AFSR. The sensors go back on in low noise mode,
+and the gyro and accelerometer configurations take the range selection, 1 for the ICM-42686-P, and the output data
+rate from the base 2 logarithm of the sample rate divider when the gyro rate is set and the logarithm is below 4, or
+1 kHz with the rate reset otherwise, 15 ms apart. The unit is SPARK for the tables and the register values.
+
+The ICM426xx oracle includes the reference driver and the gyro layer over a simulated chip with register banks, one
+case per process, built with the clock input. It draws the identity, the reads before the chip answers, the bus, the
+clock input pin and whether it starts, the startup clock, DMA, the interrupt pin, the filter setting, the sample
+rate divider, the gyro rate and the bank registers the driver reads, runs the detection, the gyro and accelerometer
+detection and initialization, then 30 interrupts, bursts, DMA completions, reads and new samples. Every bus, pin,
+clock and delay call, result, setting and reading of the 300 cases replays exactly, 239 of them past detection over
+all six chips. All 39 tampered paths fail the vectors.

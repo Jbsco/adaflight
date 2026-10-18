@@ -190,6 +190,7 @@ with Adaflight.MAX7456;
 with Adaflight.MAX7456.Display_Port;
 with Adaflight.MPU_Gyro;
 with Adaflight.MPU_Gyro.MPU6000;
+with Adaflight.MPU_Gyro.ICM426xx;
 with Adaflight.Gimbal_Control;
 with Adaflight.OSD_Custom_Text;
 with Adaflight.PID_Audio;
@@ -17476,6 +17477,255 @@ procedure Vector_Check is
       end if;
    end Check_MPU6000_Line;
 
+   --  The ICM426xx oracle's chip: register banks over the MPU gyro oracle's
+   --  device, the identity and the reads before it answers, the clock input
+   --  pin and its start.
+   type I4_Banks is array (0 .. 4) of Byte_Array (0 .. 127);
+
+   I4_Bank_Regs : I4_Banks := (others => (others => 0));
+   I4_Bank      : Natural := 0;
+   I4_Identity  : Byte := 0;
+   I4_Silent    : Natural := 0;
+   I4_Clock_Tag : Byte := 0;
+   I4_Clock_OK  : Boolean := False;
+
+   procedure I4_Write_Register (D : in out MG_Bus; Register : Byte; Value : Byte) is
+      use type Interfaces.Unsigned_8;
+      Address : constant Natural := Natural (Register and 16#7F#);
+   begin
+      MX_Op ("wreg," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Value)));
+      if Address = 16#76# then
+         I4_Bank := Natural (Value and 7);
+      elsif I4_Bank < 5 and then not (I4_Bank = 0 and then Address in 16#1D# .. 16#2A#) then
+         I4_Bank_Regs (I4_Bank) (Address) := Value;
+         if I4_Bank = 0 then
+            D.Regs (Address) := Value;
+         end if;
+      end if;
+   end I4_Write_Register;
+
+   procedure I4_Read_Register (D : in out MG_Bus; Register : Byte; Value : out Byte) is
+      pragma Unreferenced (D);
+      use type Interfaces.Unsigned_8;
+      Address : constant Natural := Natural (Register and 16#7F#);
+   begin
+      if Address = 16#75# and then I4_Bank = 0 then
+         Value := (if I4_Silent > 0 then 0 else I4_Identity);
+         if I4_Silent > 0 then
+            I4_Silent := I4_Silent - 1;
+         end if;
+      else
+         Value := (if I4_Bank < 5 then I4_Bank_Regs (I4_Bank) (Address) else 0);
+      end if;
+      MX_Op ("rreg," & BMP_Num (Integer_64 (Register or 16#80#)) & "," & BMP_Num (Integer_64 (Value)));
+   end I4_Read_Register;
+
+   procedure I4_Start_Clock_In (D : in out MG_Bus; Started : out Boolean) is
+      pragma Unreferenced (D);
+   begin
+      Started := I4_Clock_OK;
+      MX_Op ("clkin," & BMP_Num (Integer_64 (I4_Clock_Tag)) & ",32000,1," & BMP_Num (Boolean'Pos (Started)));
+   end I4_Start_Clock_In;
+
+   procedure I4_Probe (D : in out MG_Bus; Index : Positive; Sensor : out Byte);
+
+   package I4_Layer is new Adaflight.MPU_Gyro
+     (SPI_Device       => MG_Bus,
+      Chip_Count       => 1,
+      Preinit_CS       => MG_Preinit_CS,
+      Attach_Bus       => MG_Attach_Bus,
+      Prepare_CS       => MG_Prepare_CS,
+      Release_CS       => MG_Release_CS,
+      Divider          => MG_Divider,
+      Set_Divisor      => MG_Set_Divisor,
+      Probe_Chip       => I4_Probe,
+      Register_Device  => MG_Register,
+      Millis           => MG_Millis,
+      Delay_Ms         => MG_Delay,
+      Enable_Interrupt => MG_Enable_Interrupt,
+      Cycle_Count      => MG_Cycle_Count,
+      Start_Sequence   => MG_Start_Sequence,
+      Wait             => MG_Wait,
+      Fetch            => MG_Fetch,
+      Uses_DMA         => MG_Uses_DMA,
+      Read_Registers   => MG_Read);
+
+   package I4_Chip is new I4_Layer.ICM426xx
+     (External_Clock => True,
+      Write_Register => I4_Write_Register,
+      Read_Register  => I4_Read_Register,
+      Start_Clock_In => I4_Start_Clock_In);
+
+   procedure I4_Probe (D : in out MG_Bus; Index : Positive; Sensor : out Byte) is
+      pragma Unreferenced (Index);
+   begin
+      I4_Chip.Detect (D, Sensor);
+   end I4_Probe;
+
+   I4_State  : I4_Layer.State;
+   I4_Found  : Boolean := False;
+   I4_Drops  : Byte := 0;
+   I4_Filter : Byte := 0;
+   I4_Result : Integer_64 := 0;
+
+   procedure I4_Set_Data (Field : Positive) is
+      Data : constant Byte_Array := Hex_Bytes (Field);
+   begin
+      for I in Data'Range loop
+         I4_Bank_Regs (0) (16#1D# + I) := Data (I);
+         MG_Device.Regs (16#1D# + I) := Data (I);
+      end loop;
+   end I4_Set_Data;
+
+   procedure I4_Record_State (First : Positive) is
+   begin
+      Record_Int ("icm426xx.mode", Int (First), Integer_64 (I4_Layer.Read_Mode'Pos (I4_State.Mode)));
+      Record_Int ("icm426xx.exti_count", Int (First + 1), Integer_64 (I4_State.Detected_EXTI));
+      Record_Int ("icm426xx.last_exti", Int (First + 2), Integer_64 (I4_State.Last_EXTI));
+      Record_Int ("icm426xx.sync_exti", Int (First + 3), Integer_64 (I4_State.Sync_EXTI));
+      Record_Int ("icm426xx.dma_max", Int (First + 4), Integer_64 (I4_State.DMA_Max_Duration));
+      Record_Int ("icm426xx.ready", Int (First + 5), Boolean'Pos (I4_State.Data_Ready));
+      for K in 0 .. 2 loop
+         Record_Int ("icm426xx.gyro", Int (First + 6 + K), Integer_64 (I4_State.Raw (K)));
+      end loop;
+      Record_Int ("icm426xx.temperature", Int (First + 9), Integer_64 (I4_State.Temperature));
+      for K in 0 .. 2 loop
+         Record_Int ("icm426xx.acc", Int (First + 10 + K), Integer_64 (I4_State.Acc_Raw (K)));
+      end loop;
+   end I4_Record_State;
+
+   procedure Check_ICM426xx_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "i4init" then
+         MX_Op_Head := 1;
+         MX_Op_Count := 0;
+         MG_Device := (others => <>);
+         MG_Device.Bus_OK := Int (6) /= 0;
+         I4_Clock_Tag := Byte (Int (5));
+         I4_Clock_OK := Int (7) /= 0;
+         I4_Identity := Byte (Int (8));
+         I4_Silent := Natural (Int (9));
+         MG_Device.Now_Ms := Interfaces.Unsigned_32 (Int (10));
+         MG_Device.Ms_Step := Interfaces.Unsigned_32 (Int (11));
+         MG_Device.Use_DMA := Int (12) /= 0;
+         MG_Device.Read_Ack := Int (17) /= 0;
+         MG_Device.Cycles := Interfaces.Unsigned_32 (Int (18));
+         for B in 0 .. 2 loop
+            declare
+               Data : constant Byte_Array := Hex_Bytes (19 + B);
+            begin
+               I4_Bank_Regs (B) := Data;
+            end;
+         end loop;
+         I4_Bank_Regs (3) := (others => 0);
+         I4_Bank_Regs (4) := (others => 0);
+         I4_Bank := 0;
+         MG_Device.Regs := I4_Bank_Regs (0);
+         I4_State := (others => <>);
+         I4_State.Interrupt_Pin := Int (13) /= 0;
+         I4_Drops := Byte (Int (14));
+         I4_State.Rate_KHz := Byte (Int (15));
+         I4_Filter := Byte (Int (16));
+         declare
+            C : constant I4_Layer.Device_Config :=
+              (Index => 0, Bus_Type => 2, SPI_Bus => Byte (Int (3)), CS_Tag => Byte (Int (4)));
+         begin
+            I4_Layer.Preinit (MG_Device, C);
+            I4_Layer.Detect (MG_Device, I4_State, C, I4_Found);
+         end;
+      elsif Name = "i4op" then
+         declare
+            Expected : Ada.Strings.Unbounded.Unbounded_String := Ada.Strings.Unbounded.To_Unbounded_String (Str (3));
+         begin
+            for I in 4 .. NF loop
+               Ada.Strings.Unbounded.Append (Expected, "," & Str (I));
+            end loop;
+            if MX_Op_Head <= MX_Op_Count then
+               Record_Text ("icm426xx.op", Ada.Strings.Unbounded.To_String (Expected),
+                            Ada.Strings.Unbounded.To_String (MX_Ops (MX_Op_Head)));
+               MX_Op_Head := MX_Op_Head + 1;
+            else
+               Record_Text ("icm426xx.op", Ada.Strings.Unbounded.To_String (Expected), "none");
+            end if;
+         end;
+      elsif Name = "i4det" then
+         MX_Expect_No_Ops ("detection");
+         Record_Int ("icm426xx.found", Int (3), Boolean'Pos (I4_Found));
+         Record_Int ("icm426xx.sensor", Int (4), Integer_64 (I4_State.Sensor));
+         Record_Int ("icm426xx.clock", Int (5), Integer_64 (MG_Device.Now_Ms));
+         Record_Int ("icm426xx.bank", Int (6), Integer_64 (I4_Bank));
+      elsif Name = "i4chip" then
+         declare
+            Gyro_Found : Boolean;
+            Scale      : Float;
+         begin
+            I4_Chip.Gyro_Detect (I4_State, Gyro_Found, Scale);
+            Record_Int ("icm426xx.gyro_found", Int (3), Boolean'Pos (Gyro_Found));
+            Record_Int ("icm426xx.acc_found", Int (4), Boolean'Pos (I4_Chip.Acc_Detect (I4_State)));
+            Record_Int ("icm426xx.scale", Int_Hex (5), Integer_64 (To_Bits (Scale)));
+            Record_Int ("icm426xx.temp_scale", Int_Hex (6), Integer_64 (To_Bits (I4_State.Temp_Scale)));
+            Record_Int ("icm426xx.temp_zero", Int_Hex (7), Integer_64 (To_Bits (I4_State.Temp_Zero)));
+            if Gyro_Found then
+               I4_Chip.Gyro_Init (MG_Device, I4_State, I4_Filter, I4_Drops);
+            end if;
+         end;
+      elsif Name = "i4ready" then
+         MX_Expect_No_Ops ("initialization");
+         Record_Int ("icm426xx.rate", Int (3), Integer_64 (I4_State.Rate_KHz));
+         Record_Int ("icm426xx.acc_one_g", Int (4), Integer_64 (I4_Chip.Acc_One_G (I4_State)));
+         for K in 0 .. 2 loop
+            Record_Int ("icm426xx.init_gyro", Int (5 + K), Integer_64 (I4_State.Raw (K)));
+         end loop;
+         Record_Int ("icm426xx.acc_reg", Int (8), Integer_64 (I4_State.Acc_Data_Reg));
+         Record_Int ("icm426xx.gyro_reg", Int (9), Integer_64 (I4_State.Gyro_Data_Reg));
+         Record_Int ("icm426xx.temp_reg", Int (10), Integer_64 (I4_State.Temp_Data_Reg));
+         Record_Int ("icm426xx.dma_start", Int (11), Integer_64 (I4_State.DMA_Read_Start));
+      elsif Name = "i4step" then
+         declare
+            Which : constant Integer_64 := Int (4);
+            A     : constant Interfaces.Unsigned_32 := Interfaces.Unsigned_32 (Int (5));
+            Flag  : Boolean;
+         begin
+            MG_Device.Read_Ack := Int (6) /= 0;
+            I4_Set_Data (7);
+            I4_Result := 0;
+            case Which is
+               when 0 =>
+                  MG_Device.Cycles := MG_Device.Cycles + A;
+                  if I4_State.Interrupt_Pin then
+                     I4_Layer.Interrupt (MG_Device, I4_State);
+                  end if;
+               when 1 =>
+                  for I in 1 .. A loop
+                     MG_Device.Cycles := MG_Device.Cycles + 79 * 168;
+                     if I4_State.Interrupt_Pin then
+                        I4_Layer.Interrupt (MG_Device, I4_State);
+                     end if;
+                  end loop;
+               when 2 =>
+                  MG_Device.Cycles := MG_Device.Cycles + A;
+                  if MG_Device.Pending then
+                     MG_Device.Pending := False;
+                     I4_Layer.Transfer_Complete (MG_Device, I4_State);
+                  end if;
+               when 3 =>
+                  I4_Layer.Read_Gyro_SPI (MG_Device, I4_State, Flag);
+                  I4_Result := Boolean'Pos (Flag);
+               when 4 =>
+                  I4_Layer.Read_Acc_SPI (MG_Device, I4_State, Flag);
+                  I4_Result := Boolean'Pos (Flag);
+               when others =>
+                  null;
+            end case;
+         end;
+      elsif Name = "i4res" then
+         MX_Expect_No_Ops ("a result");
+         Record_Int ("icm426xx.result", Int (4), I4_Result);
+         I4_Record_State (5);
+      end if;
+   end Check_ICM426xx_Line;
+
    GB_Seq      : Integer_64 := -1;
    GB_State    : Adaflight.Gimbal_Control.State;
    GB_Settings : Adaflight.Gimbal_Control.Settings;
@@ -27610,6 +27860,8 @@ procedure Vector_Check is
                   Check_MPU_Gyro_Line;
                elsif Kind = "mpu6000" then
                   Check_MPU6000_Line;
+               elsif Kind = "icm426xx" then
+                  Check_ICM426xx_Line;
                elsif Kind = "gimbal" then
                   Check_Gimbal_Line;
                elsif Kind = "osdtext" then
@@ -27877,6 +28129,7 @@ begin
    Run (Dir & "/max7456dp.csv", "max7456dp");
    Run (Dir & "/mpugyro.csv", "mpugyro");
    Run (Dir & "/mpu6000.csv", "mpu6000");
+   Run (Dir & "/icm426xx.csv", "icm426xx");
    Run (Dir & "/gimbal.csv", "gimbal");
    Run (Dir & "/osdtext.csv", "osdtext");
    Run (Dir & "/pidaudio.csv", "pidaudio");

@@ -73,4 +73,7 @@ package Adaflight.Gyro_Bus_Steps with SPARK_Mode is
    procedure Step_Failure (D : in out Gyro_Line)
      with Global => null;
 
+   procedure Step_Start_Clock_In (D : in out Gyro_Line; Started : out Boolean)
+     with Global => null;
+
 end Adaflight.Gyro_Bus_Steps;

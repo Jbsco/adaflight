@@ -132,4 +132,10 @@ package body Adaflight.Gyro_Bus_Steps with SPARK_Mode is
       null;
    end Step_Failure;
 
+   procedure Step_Start_Clock_In (D : in out Gyro_Line; Started : out Boolean) is
+      pragma Unreferenced (D);
+   begin
+      Started := True;
+   end Step_Start_Clock_In;
+
 end Adaflight.Gyro_Bus_Steps;
