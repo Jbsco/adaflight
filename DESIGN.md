@@ -7776,3 +7776,18 @@ The rangefinder detection oracle includes the reference rangefinder with every d
 Each case draws the configured hardware, each driver's answer and the delay a found driver reports. Every driver call,
 task reschedule, result, detected rangefinder and presence flag of the 300 cases replays exactly, 158 of them found,
 every hardware value among them. All 14 tampered paths fail the vectors.
+
+## D339. Optical flow detection (2026-10-18)
+
+`Adaflight.Optical_Flow_Detect` lists the optical flow drivers, the MT and the UPT-1, which come with the rangefinder
+drivers of the same modules. The generic child `Adaflight.Optical_Flow_Detect.Probe` tries the configured hardware's
+driver alone, and a build without the rangefinder drivers finds no optical flow sensor. The MT driver takes the
+rangefinder's configured hardware, which names the module. A found sensor reschedules the optical flow task at the delay
+its driver reports and names the configured hardware. Hardware none and other values find nothing. A failure keeps the
+detected sensor and clears its presence flag, which the caller applies from the result. The unit is SPARK for the found
+hardware, which is always the configured one and needs the rangefinder drivers.
+
+The optical flow detection oracle includes the reference optical flow with both drivers' detection stubbed, built with
+and without the rangefinder drivers. Each case draws the configured optical flow and rangefinder hardware, each driver's
+answer and the delay a found driver reports. Every driver call, task reschedule, result, detected sensor and presence
+flag of the 300 cases replays exactly, 83 of them found. All 10 tampered paths fail the vectors.
