@@ -1,10 +1,10 @@
 --  The menu system's menus: their numbers, and the lines and hooks of the
---  quick menu, the main menu with its features menu and setup popup, and
---  the save menus, over the target's state: the configuration, the
---  readings the setup popup shows, the quick menu's copies of the
---  profiles it edits, the setup popup's lines, and the requests to the
---  runtime. The menus of later slices have their numbers and one empty
---  line.
+--  quick menu, the main menu with its features menu and setup popup, the
+--  save menus, and the power, failsafe and RPM limit menus, over the
+--  target's state: the configuration, the readings the setup popup shows,
+--  the menus' copies of the settings they edit, the setup popup's lines,
+--  and the requests to the runtime. The menus of later slices have their
+--  numbers and one empty line.
 with Interfaces;
 with Adaflight.Config_Groups;
 with Adaflight.Menu;
@@ -59,6 +59,39 @@ package Adaflight.Menu_Content with SPARK_Mode is
       Motor_Output_Limit : Interfaces.Unsigned_8 := 100;
    end record;
 
+   --  The power menu's copies of the meter sources, the active battery
+   --  profile's cell voltages and the meters' scales and offsets.
+   type Power_Copies is record
+      Voltage_Meter_Source  : Interfaces.Unsigned_8 := 0;
+      Current_Meter_Source  : Interfaces.Unsigned_8 := 0;
+      Battery_Profile       : Natural range 0 .. Battery_Profile_Count - 1 := 0;
+      Min_Cell_Voltage      : Interfaces.Unsigned_16 := 0;
+      Max_Cell_Voltage      : Interfaces.Unsigned_16 := 0;
+      Warning_Cell_Voltage  : Interfaces.Unsigned_16 := 0;
+      Voltage_Scale         : Interfaces.Unsigned_8 := 0;
+      Current_Scale         : Interfaces.Integer_16 := 0;
+      Current_Offset        : Interfaces.Integer_16 := 0;
+      Virtual_Scale         : Interfaces.Integer_16 := 0;
+      Virtual_Offset        : Interfaces.Unsigned_16 := 0;
+   end record;
+
+   --  The failsafe menu's copies of the procedure, the guard time, the
+   --  landing time and the stage 2 throttle.
+   type Failsafe_Copies is record
+      Procedure_Kind : Interfaces.Unsigned_8 := 0;
+      Guard_Time     : Interfaces.Unsigned_8 := 0;
+      Landing_Time   : Interfaces.Unsigned_8 := 0;
+      Throttle       : Interfaces.Unsigned_16 := 0;
+   end record;
+
+   --  The RPM limit menu's copies of the limit's switch and value and the
+   --  motors' KV.
+   type RPM_Limit_Copies is record
+      Active : Boolean := False;
+      Limit  : Interfaces.Unsigned_16 := 0;
+      KV     : Interfaces.Unsigned_16 := 0;
+   end record;
+
    --  The setup popup's lines from its last build, with the calibration
    --  status and the battery restore text from its last update.
    type Popup_Lines is record
@@ -78,11 +111,14 @@ package Adaflight.Menu_Content with SPARK_Mode is
    end record;
 
    type Target is record
-      Config : Adaflight.Config_Groups.Configuration;
-      Live   : Readings;
-      Quick  : Quick_Copies;
-      Popup  : Popup_Lines;
-      Asked  : Requests;
+      Config    : Adaflight.Config_Groups.Configuration;
+      Live      : Readings;
+      Quick     : Quick_Copies;
+      Power     : Power_Copies;
+      Failsafe  : Failsafe_Copies;
+      RPM_Limit : RPM_Limit_Copies;
+      Popup     : Popup_Lines;
+      Asked     : Requests;
    end record;
 
    --  The menu the menu system opens with: the quick menu when the OSD's

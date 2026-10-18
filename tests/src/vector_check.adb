@@ -19752,7 +19752,8 @@ procedure Vector_Check is
             MCT_Nav.Exit_Menu (MCT_State, MCT_T, Plain);
          end if;
          MCT_Seq := Int (2);
-         MCT_T := (Config => Adaflight.Config_Groups.Defaults, others => <>);
+         MCT_T.Config := Adaflight.Config_Groups.Defaults;
+         MCT_T.Asked := (others => <>);
          Read_Live (7);
          MCT_T.Config.Stats_Config.Stats_Mah_Used := Interfaces.Unsigned_32 (Int (12));
          MCT_T.Live.Reboot_Required := Int (13) = 1;
@@ -19770,6 +19771,25 @@ procedure Vector_Check is
          for B in 0 .. 2 loop
             MCT_T.Config.Battery_Profiles (B).Force_Battery_Cell_Count := Interfaces.Unsigned_8 (Int (30 + B));
          end loop;
+         MCT_T.Config.Battery_Config.Voltage_Meter_Source := Interfaces.Unsigned_8 (Int (33));
+         MCT_T.Config.Battery_Config.Current_Meter_Source := Interfaces.Unsigned_8 (Int (34));
+         for B in 0 .. 2 loop
+            MCT_T.Config.Battery_Profiles (B).Vbatmincellvoltage := Interfaces.Unsigned_16 (Int (35 + 3 * B));
+            MCT_T.Config.Battery_Profiles (B).Vbatmaxcellvoltage := Interfaces.Unsigned_16 (Int (36 + 3 * B));
+            MCT_T.Config.Battery_Profiles (B).Vbatwarningcellvoltage := Interfaces.Unsigned_16 (Int (37 + 3 * B));
+         end loop;
+         MCT_T.Config.Voltage_Sensor_Adc_Config (0).Vbatscale := Interfaces.Unsigned_8 (Int (44));
+         MCT_T.Config.Current_Sensor_Adc_Config.Scale := Interfaces.Integer_16 (Int (45));
+         MCT_T.Config.Current_Sensor_Adc_Config.Offset := Interfaces.Integer_16 (Int (46));
+         MCT_T.Config.Current_Sensor_Virtual_Config.Scale := Interfaces.Integer_16 (Int (47));
+         MCT_T.Config.Current_Sensor_Virtual_Config.Offset := Interfaces.Unsigned_16 (Int (48));
+         MCT_T.Config.Failsafe_Config.Failsafe_Procedure := Interfaces.Unsigned_8 (Int (49));
+         MCT_T.Config.Failsafe_Config.Failsafe_Delay := Interfaces.Unsigned_8 (Int (50));
+         MCT_T.Config.Failsafe_Config.Failsafe_Landing_Time := Interfaces.Unsigned_8 (Int (51));
+         MCT_T.Config.Failsafe_Config.Failsafe_Throttle := Interfaces.Unsigned_16 (Int (52));
+         MCT_T.Config.Mixer_Config.Rpm_Limit := Int (53) = 1;
+         MCT_T.Config.Mixer_Config.Rpm_Limit_Value := Interfaces.Unsigned_16 (Int (54));
+         MCT_T.Config.Motor_Config.Kv := Interfaces.Unsigned_16 (Int (55));
          if Int (3) = 0 then
             MCT_State := (others => <>);
             MCT_Nav.Register_Display (MCT_State, (Supports_Symbols => True, others => <>));
@@ -19780,7 +19800,7 @@ procedure Vector_Check is
          declare
             D        : Adaflight.Config_Codec.Data;
             Hash     : Interfaces.Unsigned_64 := 16#CBF2_9CE4_8422_2325#;
-            Expected : constant Interfaces.Unsigned_64 := Interfaces.Unsigned_64'Value (Str (33));
+            Expected : constant Interfaces.Unsigned_64 := Interfaces.Unsigned_64'Value (Str (56));
          begin
             Adaflight.Config_Codec.Encode (MCT_T.Config, D);
             for B of D loop
