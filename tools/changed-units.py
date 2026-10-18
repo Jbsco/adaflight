@@ -28,10 +28,17 @@ def is_generic(name):
 
 
 def instantiations(name):
-    """The units instantiating a generic unit, by its Ada name."""
-    unit = re.escape(name.replace("-", "."))
-    pattern = re.compile(r"\bis\s+new\s+" + unit + r"\b", re.IGNORECASE)
-    return {spec.stem for spec in src.glob("*.ads") if pattern.search(code(spec))}
+    """The units instantiating a generic unit, by its Ada name or, for a child of a generic
+    unit, by its name under each instance of the parent."""
+    names = [name.replace("-", ".")]
+    parent, _, child = name.rpartition("-")
+    if parent and is_generic(parent):
+        names += [instance.replace("-", ".") + "." + child for instance in instantiations(parent)]
+    found = set()
+    for ada in names:
+        pattern = re.compile(r"\bis\s+new\s+" + re.escape(ada) + r"\b", re.IGNORECASE)
+        found |= {spec.stem for spec in src.glob("*.ads") if pattern.search(code(spec))}
+    return found
 
 
 if base == "--all":
@@ -48,13 +55,25 @@ for name in list(selected):
 
 
 
+def generic_of(name):
+    """The generic unit an instance unit instantiates, through the parent's generic for a
+    child instantiated under an instance of its parent, or the unit itself."""
+    spec, body = src / (name + ".ads"), src / (name + ".adb")
+    if body.exists() or not spec.exists():
+        return name
+    generic = re.search(r"\bis\s+new\s+([\w.]+)", code(spec))
+    if not generic:
+        return name
+    target = generic.group(1).lower().replace(".", "-")
+    parent, _, child = target.rpartition("-")
+    if not (src / (target + ".ads")).exists() and parent and (src / (parent + ".ads")).exists():
+        target = generic_of(parent) + "-" + child
+    return target
+
+
 def weight(name):
     """The bytes of source a unit's proof covers: its own, or its generic's for an instantiation."""
-    spec, body = src / (name + ".ads"), src / (name + ".adb")
-    if not body.exists() and spec.exists():
-        generic = re.search(r"\bis\s+new\s+([\w.]+)", code(spec))
-        if generic:
-            name = generic.group(1).lower().replace(".", "-")
+    name = generic_of(name)
     return sum(f.stat().st_size for f in (src / (name + ".ads"), src / (name + ".adb")) if f.exists())
 
 
