@@ -7268,3 +7268,35 @@ coefficients around a typical set or anywhere in their widths, one case per proc
 call, answer, pressure and temperature of the 300 cases replays exactly. Of 32 tampered paths, 31 fail the vectors.
 The one that drops the acknowledgement from the identity check is equivalent: a failed read keeps the identity
 read before it, and a matching identity ends the detection at once, so a failed read never sees a matching one.
+
+## D320. MS5611 barometer driver (2026-10-17)
+
+`Adaflight.MS5611` drives the MS5611 barometer for the barometer read cycle. The chip takes commands, not register
+addresses, so the driver is generic over raw bus calls: command reads and writes within a call, command reads and
+writes started for the bus to finish, the bus's busy state, the bytes a finished read brought, the I2C address, the
+SPI select pin, the device's registration and the millisecond and microsecond delays. Detection waits 10 ms,
+prepares the select pin of an SPI chip for 10 MHz and sets the I2C address to 0x77 when none was given. It reads
+one byte at the first PROM address, and a failed read or 0xFF ends the detection. A reset, a 2.8 ms wait and the
+eight PROM words follow. The 4-bit CRC of the application note decides, and a PROM of zeros fails it. The check
+leaves the last word with its high byte and the four check bits. A failed detection releases the select pin and
+clears a default address.
+
+The chip converts temperature and pressure one at a time, each in 10 ms at 4096 times oversampling. A start sends
+the conversion command, a read starts the three ADC bytes once the bus is free, and a sample takes the bytes the
+read brought once the bus is done.
+
+The calculation follows the datasheet's compensation in 64-bit integers, with its second-order terms below 20 and
+below -15 degrees. A shift of a negative term rounds down. The unit is SPARK for that arithmetic. Each product and
+second-order step has a bounded subtype, and the proof shows the arithmetic free of overflow and the pressure in
+pascal and the temperature in hundredths of a degree within 32 bits for any PROM and reading.
+
+The MS5611 oracle includes the reference driver with the bus, pin and delay calls stubbed over a simulated chip, one
+case per process. It draws the bus, the configured and the chip's addresses, the first PROM byte, and PROM words
+around the datasheet's example or anywhere in range with a valid check, a broken check or all zeros. A chip that is
+found then runs 50 of the driver's calls in a random order with scripted busy and start answers and ADC readings.
+Another 60 cases always find the chip and aim most readings at first order temperatures beside the 20 and -15 degree
+thresholds. Every bus, pin and delay call, answer, pressure and temperature of the 360 cases replays exactly, 211 of
+them past detection. Of 31 tampered paths, 30 fail the vectors. The one that moved the -15 degree threshold to -14
+degrees passed and led to the threshold cases. On the final calculation, 16 of 17 tampers fail, three of them on the
+range check of a bounded stage. The one that adds 1 to the first second-order term moves the offset and the
+sensitivity by at most 1, which changes the pressure only where a sum crosses a rounding step.

@@ -85,4 +85,10 @@ package body Adaflight.Sensor_Bus_Steps with SPARK_Mode is
       null;
    end Step_Delay_Ms;
 
+   procedure Step_Delay_Us (D : in out Bus_Line; Us : Natural) is
+      pragma Unreferenced (D, Us);
+   begin
+      null;
+   end Step_Delay_Us;
+
 end Adaflight.Sensor_Bus_Steps;
