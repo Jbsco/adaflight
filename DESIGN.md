@@ -5328,3 +5328,16 @@ The HoTT oracle compiles the reference text mode and display port in, with the m
 scheduler as counting stubs, and draws, clears, grabs, releases, heartbeats and changes their state
 between task calls. The harness replays 15000 task calls: every byte sent, timing, period, menu
 call, key and screen byte matches the reference's.
+## D229. SRXL display port (2026-10-15)
+
+`Adaflight.SRXL_Display_Port` contains the menu system's side of the Spektrum text generator: a
+character goes to the text buffer through `Put_Char`, a string a character at a time with the
+column stepping as a byte, and a clear writes spaces over the nine rows of twelve characters, then
+the firmware's name at the top. While the menu does not hold the display, the clear adds the three
+lines that tell how to open it. The release clears, and the registration at every SRXL telemetry
+init releases and clears, so the generator shows the name and the three lines from the start. The
+caller gives the name, which keeps it out of the code. The unit is SPARK for the column stepping.
+
+The SRXL telemetry oracle compiles the reference display port in and draws, clears, grabs and
+releases between task calls. The harness replays 12000 task calls: every text byte, line flag and
+frame byte matches the reference's.

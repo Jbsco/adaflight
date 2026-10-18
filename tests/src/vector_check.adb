@@ -100,6 +100,7 @@ with Adaflight.HoTT_Display_Port;
 with Adaflight.GHST_Telemetry;
 with Adaflight.Transponder;
 with Adaflight.SRXL_Telemetry;
+with Adaflight.SRXL_Display_Port;
 with Adaflight.FrSky_OSD;
 with Adaflight.LED_Strip;
 with Adaflight.Color;
@@ -6728,9 +6729,11 @@ procedure Vector_Check is
       end if;
    end Check_Transponder_Line;
 
-   SX_Seq    : Integer_64 := -1;
-   SX_Stream : Adaflight.SRXL_Telemetry.Stream;
-   SX_Set    : Adaflight.SRXL_Telemetry.Settings;
+   SX_Seq     : Integer_64 := -1;
+   SX_Stream  : Adaflight.SRXL_Telemetry.Stream;
+   SX_Set     : Adaflight.SRXL_Telemetry.Settings;
+   SX_Display : Adaflight.SRXL_Display_Port.Display;
+   SX_Title   : Ada.Strings.Unbounded.Unbounded_String;
 
    procedure Check_SRXL_Telemetry_Line is
       use Adaflight.SRXL_Telemetry;
@@ -6740,6 +6743,9 @@ procedure Vector_Check is
          SX_Seq := Int (2);
          SX_Stream := (others => <>);
          SX_Set := (Report_Cell_Voltage => Int (3) = 1, GPS_Feature => Int (4) = 1);
+         SX_Display := (others => <>);
+         SX_Title := Ada.Strings.Unbounded.To_Unbounded_String (Hex_Chars (5));
+         Adaflight.SRXL_Display_Port.Register (SX_Display, SX_Stream, Ada.Strings.Unbounded.To_String (SX_Title));
       elsif Name = "srxlstep" then
          if Int (2) /= SX_Seq then
             Put_Line ("srxl telemetry step without its start");
@@ -6775,7 +6781,28 @@ procedure Vector_Check is
             if Int (24) = 1 then
                Put_Char (SX_Stream, Natural (Int (25)), Natural (Int (26)), Byte (Int (27)));
             end if;
+            declare
+               use Adaflight.SRXL_Display_Port;
+               OA : constant Byte := Byte (Int (33) mod 256);
+               OB : constant Byte := Byte (Int (34) mod 256);
+            begin
+               case Int (32) is
+                  when 0 =>
+                     Write_String (SX_Stream, OA, OB, Hex_Chars (36));
+                  when 1 =>
+                     Write_Char (SX_Stream, OA, OB, Byte (Int (35) mod 256));
+                  when 2 =>
+                     Clear (SX_Display, SX_Stream, Ada.Strings.Unbounded.To_String (SX_Title));
+                  when 3 =>
+                     Grab (SX_Display);
+                  when 4 =>
+                     Release (SX_Display, SX_Stream, Ada.Strings.Unbounded.To_String (SX_Title));
+                  when others =>
+                     null;
+               end case;
+            end;
             Update (SX_Stream, SX_Set, Inp, O);
+            Record_Int (Name & ".grabbed", Int (37), Boolean'Pos (SX_Display.Grabbed));
             Record_Bytes (Name & ".tx", Hex_Bytes (29), O.Tx (0 .. O.Count - 1));
             if Text'Length = Rows * Columns then
                for R in Row_Index loop
