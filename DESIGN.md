@@ -7791,3 +7791,21 @@ The optical flow detection oracle includes the reference optical flow with both 
 and without the rangefinder drivers. Each case draws the configured optical flow and rangefinder hardware, each driver's
 answer and the delay a found driver reports. Every driver call, task reschedule, result, detected sensor and presence
 flag of the 300 cases replays exactly, 83 of them found. All 10 tampered paths fail the vectors.
+
+## D340. HMC5883L compass driver (2026-10-18)
+
+`Adaflight.HMC5883` drives the HMC5883L compass, generic over the bus of the barometer and QMC5883 drivers. Detection on
+SPI registers the device and prepares its bus at no more than 10 MHz. On I2C an unset address takes the chip's 0x1E and
+a preset one stays. Detection then reads the identity register and needs 0x48. Initialization writes eight-sample
+averaging at 75 Hz in normal measurement, the 1.3 gauss gain and continuous conversion, whatever the writes answer,
+waits 100 ms, arms the data ready interrupt when the board has its pin, and gives the 75 Hz output data rate. A read
+alternates between starting the six data bytes and handing over the axes they brought, X, Z and Y, each high byte first.
+A start the bus refuses is tried again at the next read. The reference keeps the read state in static variables of its
+read function, shared by every HMC5883L device. This unit keeps the state per device, which behaves the same with one
+compass. The unit is SPARK for the read state and the axis conversions.
+
+The HMC5883L oracle includes the reference driver over a simulated chip whose answers each case draws and prints before
+use, one case per process. It draws the bus type and a preset address, the identity and its read acknowledgement, the
+write acknowledgements and the interrupt pin, then 20 to 60 reads with start answers and data. Every bus call,
+detection, initialization and reading of the 300 cases replays exactly. In them 219 compasses initialize and 4026
+readings arrive. All 22 tampered paths fail the vectors.
