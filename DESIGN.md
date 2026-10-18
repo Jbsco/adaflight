@@ -7893,3 +7893,26 @@ fuse ROM values, which the chip always answers, and the other write and status r
 reads with start, write, status and data answers. Every bus call, detection, initialization, gain and reading of the 300
 cases replays exactly. In them 239 compasses initialize and 2498 readings arrive, 344 axes at -32768 and 367 at -32767.
 All 28 tampered paths fail the vectors, one by stopping the checker.
+
+## D345. AK9916 compass driver (2026-10-18)
+
+`Adaflight.AK9916` drives the AK9916 compass, the magnetometer of an ICM-20948 that a GPS module's own controller may
+bridge to its I2C port. Detection needs an I2C bus, gives an unset address the chip's 0x0C and reads the device identity
+0x09 from the second identity register, since the first holds the company identity 0x48 that the AK8975 and AK8963
+drivers accept. Initialization registers the device, resets it, waits 1 ms and sets continuous 100 Hz measurement,
+checked by reading the mode back, and gives the 100 Hz output data rate. A read takes the first status, the six data
+bytes and the second status in one blocking read. Without data ready it counts, and the 25th such read sets the mode
+again with a read-back whose answer the reference discards. A sensor overflow drops the data. Otherwise each axis is 1.5
+times its signed word, low byte first, clamped to 16 bits. The reference keeps the count in a variable shared by every
+AK9916 device and resets it at initialization. This unit keeps the count per device, which behaves the same with one
+compass. The unit is SPARK for the count and the axis conversion.
+
+The AK9916 oracle includes the reference driver over a simulated chip whose answers each case draws and prints before
+use, one case per process. It draws the bus type and a preset address, the identity and its read acknowledgement, the
+reset write's answer, and the mode write and read-back answers, 15 percent of the read-backs with bit 4 set, then 40 to
+160 reads with read answers, status, data and mode read-back answers, a quarter of the cases never reporting data ready.
+Every bus call, detection, initialization and reading of the 300 cases replays exactly. In them 203 compasses are found,
+118 initialize, and 10208 readings arrive. All 29 tampered paths fail the vectors. On the first pass the one that
+narrows the mode mask passed, since no read-back had bit 4 set, and the one that reads the mode back after a refused
+mode write passed, since the reset and mode writes shared one answer. They led to the read-backs with bit 4 set and the
+separate answer for the reset write.
