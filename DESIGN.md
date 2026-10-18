@@ -7160,3 +7160,39 @@ simulation. The code, device information, read buffer, sent bytes, write count, 
 and end clock of all 540 operations replay exactly, among them 60 keep-alive exchanges stepped across the clock
 wrap. Of 30 tampered paths, 29 fail the vectors and one stops the harness: a wait for the clock to pass its
 deadline never ends when the deadline is the clock's last value.
+
+## D316. STK500v2 bootloader protocol (2026-10-17)
+
+`Adaflight.STK_Bootloader` performs the 4-way interface's STK500v2 operations on an ESC's signal pin, over the
+same board procedures as the BLHeli bootloader and a microsecond delay. A link record keeps the sequence number of
+the last message and the 16-byte buffer short replies land in, which the reference also keeps between operations.
+The line carries a pulse code. A one goes out as a high and a low of 64 microseconds, a zero as two highs and lows
+of 32, from the lowest bit. A message goes out with the pin as an output: the leader bytes FF FF 7F, the start
+byte 1B, the next sequence number, the body's length, the token 0E, the body and an XOR check of everything from
+the start byte, then a high of 32 microseconds before the pin returns to an input.
+
+A bit is timed from the call to the end of the next rising edge, against a deadline 250 microseconds on. A time at
+or below the threshold is a zero, whose second pulse gets 250 more. A reply waits for the leader's first bit for
+up to 0.5 ms after a sign-on, 5 s after an EEPROM write or a chip erase and 35 ms otherwise, skips ten bits,
+learns the threshold as three quarters of the last bit's time and reads on to a zero. It then checks the start
+byte, the sequence number, a length high byte of at most 1 and a low byte of at least 1, the token, the command
+and its status, reads the rest of the body into the buffer, where a failed byte leaves its bits so far, and checks
+the XOR. Bytes past the end of the buffer are read and checked but not kept. The reference writes them past its
+buffers, and every 256-byte read does so, since the reply has a status byte after the data (F250). A length whose
+low byte is 0 fails, so a 253-byte read, whose reply body is 256 bytes, always fails (F252). Every deadline is
+absolute, so a bit read whose deadline is the clock's last value waits for an edge without end (F251).
+
+A connect signs on and reads the two signature bytes with the SPI multi command, keeping each when the first three
+reply bytes are 0, the command or 0, and 0. It succeeds when all three replies arrive, kept or not. A read loads
+the address unless it is FFFF and reads the count of bytes, 0 for 256. A write loads the address and programs the
+bytes with a length 10 above the count. A chip erase sends the erase sequence for the atmega8. The unit is SPARK
+for the reply length, the buffer indexes and the bit counts.
+
+The STK500v2 oracle includes the reference protocol over the bootloader oracle's simulated clock, where a delay
+advances the clock by its length. A scripted ESC answers in the pulse code at its own pulse widths, fast, slow
+and near the learned threshold, with short leaders, broken start bytes, sequence numbers, lengths, tokens,
+commands, statuses and checks, long and cut replies, silence and long gaps. Three more runs over clean replies
+read 250 to 255 bytes, time zero pulses at the threshold itself, and use addresses with one byte at 0xFF. The code,
+device information, read buffer with the byte after it, sent bytes, write count, hash of every write with its time,
+sequence number and end clock of all 550 operations replay exactly. Thirty-two tampered paths each fail the
+vectors.

@@ -180,6 +180,7 @@ with Adaflight.Task_Init;
 with Adaflight.MSP_Out;
 with Adaflight.Four_Way;
 with Adaflight.BLHeli_Bootloader;
+with Adaflight.STK_Bootloader;
 with Adaflight.Gimbal_Control;
 with Adaflight.OSD_Custom_Text;
 with Adaflight.PID_Audio;
@@ -15197,6 +15198,303 @@ procedure Vector_Check is
       end if;
    end Check_BL_Boot_Line;
 
+   --  The ESC line the STK500v2 oracle simulates: the same clock, a delay
+   --  that advances it by its length, replies in the protocol's pulse code
+   --  as segments from their start, and the sent bytes decoded from the
+   --  pulse widths of the writes.
+   type STK_Reply is record
+      Gap       : Interfaces.Unsigned_64 := 0;
+      One_High  : Interfaces.Unsigned_64 := 64;
+      One_Low   : Interfaces.Unsigned_64 := 64;
+      Zero_High : Interfaces.Unsigned_64 := 32;
+      Zero_Low  : Interfaces.Unsigned_64 := 32;
+      Count     : Natural := 0;
+      Bytes     : Byte_Array (0 .. 599) := (others => 0);
+   end record;
+   type STK_Reply_List is array (0 .. 5) of STK_Reply;
+   STK_Max_Segments : constant := 12_000;
+   type STK_Segment_Ends is array (0 .. STK_Max_Segments - 1) of Interfaces.Unsigned_64;
+   type STK_Segment_Levels is array (0 .. STK_Max_Segments - 1) of Boolean;
+
+   type STK_Line is record
+      Clock         : Interfaces.Unsigned_64 := 0;
+      Replies       : STK_Reply_List;
+      Reply_Count   : Natural := 0;
+      Reply_Next    : Natural := 0;
+      Active        : Boolean := False;
+      Active_Start  : Interfaces.Unsigned_64 := 0;
+      Seg_End       : STK_Segment_Ends := (others => 0);
+      Seg_Level     : STK_Segment_Levels := (others => True);
+      Seg_Count     : Natural := 0;
+      Hash          : Unsigned_32 := FNV_Offset_Basis;
+      Writes        : Natural := 0;
+      Sent          : Byte_Array (0 .. 1199) := (others => 0);
+      Sent_Count    : Natural := 0;
+      Bit_Count     : Natural := 0;
+      Acc           : Byte := 0;
+      Short_Pending : Boolean := False;
+      High_At       : Interfaces.Unsigned_64 := 0;
+      High_Pending  : Boolean := False;
+   end record;
+
+   procedure STK_Start_Reply (L : in out STK_Line; Index : Natural) is
+      use type Interfaces.Unsigned_8;
+      use type Interfaces.Unsigned_64;
+      R : constant STK_Reply := L.Replies (Index);
+      T : Interfaces.Unsigned_64 := L.Active_Start;
+
+      procedure Segment (Level : Boolean; Width : Interfaces.Unsigned_64) is
+      begin
+         T := T + Width;
+         L.Seg_End (L.Seg_Count) := T;
+         L.Seg_Level (L.Seg_Count) := Level;
+         L.Seg_Count := L.Seg_Count + 1;
+      end Segment;
+   begin
+      L.Seg_Count := 0;
+      for I in 0 .. R.Count - 1 loop
+         for B in 0 .. 7 loop
+            if (Interfaces.Shift_Right (R.Bytes (I), B) and 1) /= 0 then
+               Segment (True, R.One_High);
+               Segment (False, R.One_Low);
+            else
+               Segment (True, R.Zero_High);
+               Segment (False, R.Zero_Low);
+               Segment (True, R.Zero_High);
+               Segment (False, R.Zero_Low);
+            end if;
+         end loop;
+      end loop;
+   end STK_Start_Reply;
+
+   function STK_Level (L : STK_Line; T : Interfaces.Unsigned_64) return Boolean is
+      use type Interfaces.Unsigned_64;
+      Low  : Natural := 0;
+      High : Natural := L.Seg_Count;
+      Mid  : Natural;
+   begin
+      if not L.Active or else T < L.Active_Start then
+         return True;
+      end if;
+      while Low < High loop
+         Mid := (Low + High) / 2;
+         if L.Seg_End (Mid) > T then
+            High := Mid;
+         else
+            Low := Mid + 1;
+         end if;
+      end loop;
+      return (if Low < L.Seg_Count then L.Seg_Level (Low) else True);
+   end STK_Level;
+
+   procedure STK_Micros (L : in out STK_Line; Now : out Unsigned_32) is
+      use type Interfaces.Unsigned_64;
+   begin
+      L.Clock := L.Clock + 1;
+      Now := Unsigned_32 (L.Clock mod 2 ** 32);
+   end STK_Micros;
+
+   procedure STK_Delay (L : in out STK_Line; Micros : Natural) is
+      use type Interfaces.Unsigned_64;
+   begin
+      L.Clock := L.Clock + Interfaces.Unsigned_64 (Micros);
+   end STK_Delay;
+
+   procedure STK_Read_Pin (L : in out STK_Line; ESC : Byte; High : out Boolean) is
+      pragma Unreferenced (ESC);
+      use type Interfaces.Unsigned_64;
+   begin
+      L.Clock := L.Clock + 1;
+      High := STK_Level (L, L.Clock);
+   end STK_Read_Pin;
+
+   procedure STK_Write (L : in out STK_Line; Kind : Byte; ESC : Byte) is
+      use type Interfaces.Unsigned_8;
+      use type Interfaces.Unsigned_64;
+      T : Unsigned_32;
+
+      procedure Decode_Bit (Bit : Byte) is
+      begin
+         L.Acc := L.Acc or Interfaces.Shift_Left (Bit, L.Bit_Count);
+         L.Bit_Count := L.Bit_Count + 1;
+         if L.Bit_Count = 8 then
+            L.Sent (L.Sent_Count) := L.Acc;
+            L.Sent_Count := L.Sent_Count + 1;
+            L.Bit_Count := 0;
+            L.Acc := 0;
+         end if;
+      end Decode_Bit;
+   begin
+      L.Clock := L.Clock + 1;
+      T := Unsigned_32 (L.Clock mod 2 ** 32);
+      for B of Byte_Array'(Kind, ESC, Byte (T and 16#FF#), Byte (Interfaces.Shift_Right (T, 8) and 16#FF#),
+                          Byte (Interfaces.Shift_Right (T, 16) and 16#FF#), Byte (Interfaces.Shift_Right (T, 24)))
+      loop
+         L.Hash := (L.Hash xor Unsigned_32 (B)) * FNV_Prime;
+      end loop;
+      L.Writes := L.Writes + 1;
+      if Kind = 1 then
+         L.High_At := L.Clock;
+         L.High_Pending := True;
+      elsif Kind = 0 then
+         if L.High_Pending then
+            if L.Clock - L.High_At > 48 then
+               L.Short_Pending := False;
+               Decode_Bit (1);
+            elsif L.Short_Pending then
+               L.Short_Pending := False;
+               Decode_Bit (0);
+            else
+               L.Short_Pending := True;
+            end if;
+         end if;
+         L.High_Pending := False;
+      else
+         L.Bit_Count := 0;
+         L.Acc := 0;
+         L.Short_Pending := False;
+         L.High_Pending := False;
+      end if;
+      if Kind = 2 then
+         if L.Reply_Next < L.Reply_Count then
+            L.Active := True;
+            L.Active_Start := L.Clock + L.Replies (L.Reply_Next).Gap;
+            STK_Start_Reply (L, L.Reply_Next);
+            L.Reply_Next := L.Reply_Next + 1;
+         else
+            L.Active := False;
+         end if;
+      elsif Kind = 3 then
+         L.Active := False;
+      end if;
+   end STK_Write;
+
+   procedure STK_Pin_Low (L : in out STK_Line; ESC : Byte) is
+   begin
+      STK_Write (L, 0, ESC);
+   end STK_Pin_Low;
+
+   procedure STK_Pin_High (L : in out STK_Line; ESC : Byte) is
+   begin
+      STK_Write (L, 1, ESC);
+   end STK_Pin_High;
+
+   procedure STK_Pin_Input (L : in out STK_Line; ESC : Byte) is
+   begin
+      STK_Write (L, 2, ESC);
+   end STK_Pin_Input;
+
+   procedure STK_Pin_Output (L : in out STK_Line; ESC : Byte) is
+   begin
+      STK_Write (L, 3, ESC);
+   end STK_Pin_Output;
+
+   package STK_Boot is new Adaflight.STK_Bootloader
+     (Line         => STK_Line,
+      Read_Micros  => STK_Micros,
+      Delay_Micros => STK_Delay,
+      Read_Pin     => STK_Read_Pin,
+      Pin_Low      => STK_Pin_Low,
+      Pin_High     => STK_Pin_High,
+      Pin_Input    => STK_Pin_Input,
+      Pin_Output   => STK_Pin_Output);
+
+   STK_Sim    : STK_Line;
+   STK_State  : STK_Boot.Link;
+   STK_Req    : FW.Request;
+   STK_Info   : FW.Device_Info := (others => 0);
+   STK_Params : FW.Param_Buffer := (others => 0);
+
+   function STK_Request_Of (Name : String) return FW.Request_Kind is
+     (if Name = "connect" then FW.STK_Connect
+      elsif Name = "signon" then FW.STK_Sign_On
+      elsif Name = "erase" then FW.STK_Chip_Erase
+      elsif Name = "readflash" then FW.STK_Read_Flash
+      elsif Name = "readeeprom" then FW.STK_Read_EEPROM
+      elsif Name = "writeflash" then FW.STK_Write_Flash
+      else FW.STK_Write_EEPROM);
+
+   procedure Check_STK_Boot_Line is
+      use type FW.Request_Kind;
+      Name : constant String := Str (1);
+   begin
+      if Name = "stkop" then
+         STK_Req :=
+           (Kind         => STK_Request_Of (Str (3)),
+            ESC          => Byte (Int (4)),
+            Mode         => FW.STK_Mode,
+            Address_High => Byte (Int (5)),
+            Address_Low  => Byte (Int (6)),
+            Count        => Byte (Int (7)));
+         declare
+            Info   : constant Byte_Array := Hex_Bytes (8);
+            Params : constant Byte_Array := Hex_Bytes (9);
+         begin
+            for K in FW.Info_Index loop
+               STK_Info (K) := Info (K);
+            end loop;
+            STK_Params := (others => 0);
+            for K in Params'Range loop
+               STK_Params (K) := Params (K);
+            end loop;
+         end;
+         if Int (2) = 0 then
+            STK_State := (others => <>);
+         end if;
+         STK_State.Sequence := Byte (Int (10));
+         STK_Sim.Clock := Interfaces.Unsigned_64'Value (Str (11));
+         STK_Sim.Reply_Count := 0;
+      elsif Name = "stkrx" then
+         declare
+            Index : constant Natural := Natural (Int (3));
+            B     : constant Byte_Array := Hex_Bytes (9);
+            R     : STK_Reply renames STK_Sim.Replies (Index);
+         begin
+            R.Gap := Interfaces.Unsigned_64'Value (Str (4));
+            R.One_High := Interfaces.Unsigned_64'Value (Str (5));
+            R.One_Low := Interfaces.Unsigned_64'Value (Str (6));
+            R.Zero_High := Interfaces.Unsigned_64'Value (Str (7));
+            R.Zero_Low := Interfaces.Unsigned_64'Value (Str (8));
+            R.Count := B'Length;
+            R.Bytes (0 .. B'Length - 1) := B;
+            STK_Sim.Reply_Count := Index + 1;
+         end;
+      elsif Name = "stkres" then
+         STK_Sim.Hash := FNV_Offset_Basis;
+         STK_Sim.Writes := 0;
+         STK_Sim.Sent_Count := 0;
+         STK_Sim.Bit_Count := 0;
+         STK_Sim.Acc := 0;
+         STK_Sim.Short_Pending := False;
+         STK_Sim.High_Pending := False;
+         STK_Sim.Active := False;
+         STK_Sim.Reply_Next := 0;
+         declare
+            Result : FW.Result;
+            Info   : Byte_Array (0 .. 3);
+            Span   : constant Positive := FW.Span (STK_Req.Count);
+         begin
+            STK_Boot.Perform (STK_Sim, STK_State, STK_Req, STK_Info, STK_Params, Result);
+            for K in FW.Info_Index loop
+               Info (K) := Result.Info (K);
+            end loop;
+            Record_Int ("stkboot.code", Int (3), Integer_64 (Result.Code));
+            Record_Text ("stkboot.info", Str (4), BL_Hex (Info));
+            if STK_Req.Kind in FW.STK_Read_Flash | FW.STK_Read_EEPROM then
+               Record_Text ("stkboot.data", Str (5), BL_Hex (Result.Data (0 .. Span - 1)));
+               if Span < 256 then
+                  Record_Text ("stkboot.after", Str (6), BL_Hex (Result.Data (Span .. Span)));
+               end if;
+            end if;
+            Record_Text ("stkboot.sent", Str (7), BL_Hex (STK_Sim.Sent (0 .. STK_Sim.Sent_Count - 1)));
+            Record_Int ("stkboot.writes", Int (8), Integer_64 (STK_Sim.Writes));
+            Record_Int ("stkboot.hash", Int (9), Integer_64 (STK_Sim.Hash));
+            Record_Int ("stkboot.sequence", Int (10), Integer_64 (STK_State.Sequence));
+            Record_Int ("stkboot.clock", Int (11), Integer_64 (STK_Sim.Clock));
+         end;
+      end if;
+   end Check_STK_Boot_Line;
+
    GB_Seq      : Integer_64 := -1;
    GB_State    : Adaflight.Gimbal_Control.State;
    GB_Settings : Adaflight.Gimbal_Control.Settings;
@@ -25311,6 +25609,8 @@ procedure Vector_Check is
                   Check_Four_Way_Line;
                elsif Kind = "blboot" then
                   Check_BL_Boot_Line;
+               elsif Kind = "stkboot" then
+                  Check_STK_Boot_Line;
                elsif Kind = "gimbal" then
                   Check_Gimbal_Line;
                elsif Kind = "osdtext" then
@@ -25567,6 +25867,7 @@ begin
    Run (Dir & "/mspout2.csv", "mspout2");
    Run (Dir & "/fourway.csv", "fourway");
    Run (Dir & "/blboot.csv", "blboot");
+   Run (Dir & "/stkboot.csv", "stkboot");
    Run (Dir & "/gimbal.csv", "gimbal");
    Run (Dir & "/osdtext.csv", "osdtext");
    Run (Dir & "/pidaudio.csv", "pidaudio");

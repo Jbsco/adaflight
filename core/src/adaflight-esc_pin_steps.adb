@@ -12,6 +12,12 @@ package body Adaflight.ESC_Pin_Steps with SPARK_Mode is
       Now := 0;
    end Step_Read_Millis;
 
+   procedure Step_Delay_Micros (L : in out Pin_Line; Micros : Natural) is
+      pragma Unreferenced (L, Micros);
+   begin
+      null;
+   end Step_Delay_Micros;
+
    procedure Step_Read_Pin (L : in out Pin_Line; ESC : Byte; High : out Boolean) is
       pragma Unreferenced (L, ESC);
    begin
