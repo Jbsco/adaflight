@@ -195,10 +195,10 @@ The core contains:
 - menus: quick menu with throttle and motor output limits and forced cells, main menu with
   features menu and setup popup for accelerometer calibration and battery restore, profile menu
   with PID, rate, simplified tuning, misc, launch control, filter and profile copy menus, VTX
-  selection with error menu, MSP VTX menu with confirmation, save and exit menus, OSD menu with
-  active elements, timers and alarms, blackbox menu with flash erase and mass storage, LED strip,
-  power, failsafe, RPM limit, misc, RC preview, GPS lap timer, persistent statistics, firmware and
-  calibration menus
+  selection with error menu, MSP and Tramp VTX menus with confirmations, save and exit menus, OSD
+  menu with active elements, timers and alarms, blackbox menu with flash erase and mass storage,
+  LED strip, power, failsafe, RPM limit, misc, RC preview, GPS lap timer, persistent statistics,
+  firmware and calibration menus
 - menu hook operations: clears, texts, redraws, background types and configuration saves, and save
   menu inhibition from hooks
 - menu over CRSF: display port screen with clears, delays and transmitter commands, run-length
@@ -240,7 +240,7 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 27243 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 27290 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
 - Recorded vectors replay bit for bit: 1753568 lines over 384 cases, every case exact except
   forty-six declared deviations in `DESIGN.md` D6.
