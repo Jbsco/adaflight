@@ -8836,3 +8836,23 @@ are found, 64 at a configured address and 180 by the scan, 219 initialize, 41 of
 18480 of 20004 reads bring axes. Of 128 tampered paths, 115 fail the vectors and 9 stop the checker at a subtype check.
 Four pass and are equivalent: the last digits of the three scale constants, which single precision does not hold; and
 the trim's clear before the memory read, which initialization runs once on a trim still at its defaults.
+
+## D374. CC2500 radio driver (2026-10-19)
+
+`Adaflight.CC2500` contains the CC2500 radio's register access behind the SPI radio unit's operations, a generic over
+the receiver's SPI helpers: a command byte with a value, a command with a burst, a single and a burst read, a lone byte,
+the DMA switch and a microsecond delay. A FIFO read takes its bytes with the FIFO address under the read burst flag; a
+FIFO write flushes the transmit FIFO, sends the bytes under the write burst flag and strobes the transmission. Burst
+reads and writes take the address as the caller formed it, a register read sets the single read flag, a strobe is one
+byte and a register write one command. The power level selects one of eight amplifier table bytes, levels past seven as
+the last, written to the table register. The reset switches DMA off, strobes the reset, waits 1 ms and reports whether
+the first frequency register reads its reset value 0xC4. The unit is SPARK and holds no state.
+
+The CC2500 oracle includes the reference helpers over stubs: the receiver's SPI helpers logging each call and answering
+reads from a hash of the command byte, the case's seed and the step's salt, the first frequency register answering its
+reset value in 70 percent of the steps, the DMA switch and the delay. Each process runs one case of 10 to 30 operations
+drawn evenly from FIFO reads and writes of 1 to 32 bytes, burst reads and writes of 1 to 8 bytes at drawn addresses,
+register reads with the first frequency register in 20 percent, strobes, register writes, power levels past seven in 20
+percent and resets. Every bus, DMA and delay call with its bytes and each operation's result of the 300 cases replay
+exactly: 5983 operations, 720 of them resets and 614 power levels, over 159133 logged calls. Of 36 tampered paths, every
+one fails the vectors.
