@@ -8153,3 +8153,36 @@ exactly, with the reading, the last frame's values and the error count. In them 
 frames fail their checksum, and the command goes 555 times. Of 45 tampered paths, 43 fail the vectors. Two pass and are
 equivalent: the phase reset of the initialization, which repeats the phase detection leaves, and the port guard of the
 update, which the device table reaches only after a detection.
+
+## D354. Nooploop rangefinder driver (2026-10-18)
+
+`Adaflight.Nooploop` drives the Nooploop TOFSense serial rangefinders, the F, FP, F2, F2P, F2PH and F2MINI, with ranges
+from 2 cm to 10, 17, 5, 17, 33 and 5 m. Detection takes one of the six models and needs a configured serial port, which
+it opens at 115200 baud, then gives the task a 10 ms period, the model's maximum range and a 90 degree cone.
+Initialization resets the frame state and the reading to no new data. An update reads the clock, notes the time of the
+first update, and reads every waiting byte through the frame state machine: the sync bytes 0x57 and 0x00, after which a
+second 0x57 keeps waiting for the 0x00, then 14 more bytes, the last the 8-bit sum of the 15 before it. A frame whose
+sum fits gives a reading: out of range for a negative 24-bit distance, one outside the model's range in millimeters or a
+status byte of 0xFF, and otherwise the distance in millimeters divided by 10. The reading is new and the frame's time
+noted. A frame whose sum does not fit changes nothing. After the bytes, when no frame came for more than 200 ms, or none
+ever came and the first update was more than 200 ms ago, an update more than 200 ms after the last failure report makes
+the reading a hardware failure, new when it was not one already, and notes the report. The reference takes a time of 0
+as none for all three times, so a frame, a first update or a report at the millisecond 0 does not count, and this unit
+does the same. A read gives no new data until a new reading, then the reading once. The reference keeps the port, the
+frame state, the reading and the times in static variables. This unit keeps them in its state, which behaves the same
+with one rangefinder. The unit is SPARK for the frame state machine and the reading, whose subtype the model ranges
+bound.
+
+The Nooploop oracle includes the reference driver over a stubbed serial port and clock, one case per process. It draws
+the model, another type in a seventh of the cases, whether a port is configured and opens, and the clock, 0 in 8 percent
+of the cases and within 2 s of the 32-bit wrap in 17 percent, then detects and runs 40 updates, each after a drawn clock
+advance, in a seventh of them to exactly 200 ms after the last good frame or, before any, after the first update, in an
+eighth of the cases with one to four silent updates first, over a drawn byte stream of up to three frames with distances
+in and out of range or negative, invalid status bytes, wrong sums in 15 percent of the frames, repeated and false sync
+bytes and frames split across updates, and reads the distance after each update, twice in 30 percent of them. Every port
+open and clock read, detection and reading of the 300 cases replays exactly. In them 224 rangefinders are found, 14 of
+them with the clock at 0, 7013 of 8960 updates bring bytes, and of 11572 reads 3734 give a distance, 2458 out of range,
+585 a hardware failure and 4795 no new data. Of 47 tampered paths, 43 fail the vectors. Four pass and are equivalent:
+the two resets of the initialization repeat the defaults of a state built once, and a read before the first frame gives
+no new data either way, the sign check of the distance rejects what the range check after it rejects as well, and the
+port guard of the update is reached only after a detection.

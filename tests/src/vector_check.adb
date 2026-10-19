@@ -188,6 +188,7 @@ with Adaflight.LPS22DF;
 with Adaflight.QMP6988;
 with Adaflight.BMP085;
 with Adaflight.Lidar_TF;
+with Adaflight.Nooploop;
 with Adaflight.MS5611;
 with Adaflight.BMP388;
 with Adaflight.MAX7456;
@@ -16850,6 +16851,85 @@ procedure Vector_Check is
       end if;
    end Check_Lidar_TF_Line;
 
+   --  The Nooploop oracle's port, the TF port's record and calls over its own
+   --  device.
+   package NP_Driver is new Adaflight.Nooploop
+     (Serial_Device => TF_Port,
+      Open_Port     => TF_Open,
+      Bytes_Waiting => TF_Waiting,
+      Read_Byte     => TF_Read_Byte,
+      Millis        => TF_Millis);
+
+   NP_Device : TF_Port;
+   NP_State  : NP_Driver.State;
+   NP_Found  : Boolean := False;
+   NP_Dev    : NP_Driver.Device;
+
+   procedure Check_Nooploop_Line is
+      Name     : constant String := Str (1);
+      Distance : NP_Driver.Reading;
+   begin
+      if Name = "npinit" then
+         BMP_Op_Head := 1;
+         BMP_Op_Count := 0;
+         NP_Device := (others => <>);
+         NP_State := (others => <>);
+         NP_Device.Opens := Int (5) /= 0;
+         NP_Device.Clock := Interfaces.Unsigned_32 (Int (6));
+         NP_Driver.Detect (NP_Device, NP_State, Byte (Int (3)), Interfaces.Integer_8 (Int (4)), NP_Found, NP_Dev);
+      elsif Name = "npop" then
+         declare
+            Expected : Ada.Strings.Unbounded.Unbounded_String := Ada.Strings.Unbounded.To_Unbounded_String (Str (3));
+         begin
+            for I in 4 .. NF loop
+               Ada.Strings.Unbounded.Append (Expected, "," & Str (I));
+            end loop;
+            if BMP_Op_Head <= BMP_Op_Count then
+               Record_Text ("nooploop.op", Ada.Strings.Unbounded.To_String (Expected),
+                            Ada.Strings.Unbounded.To_String (BMP_Ops (BMP_Op_Head)));
+               BMP_Op_Head := BMP_Op_Head + 1;
+            else
+               Record_Text ("nooploop.op", Ada.Strings.Unbounded.To_String (Expected), "none");
+            end if;
+         end;
+      elsif Name = "npdet" then
+         BMP_Expect_No_Ops ("detection");
+         Record_Int ("nooploop.found", Int (3), Boolean'Pos (NP_Found));
+         Record_Int ("nooploop.delay", Int (4), Integer_64 (NP_Dev.Delay_Ms));
+         Record_Int ("nooploop.max_range", Int (5), Integer_64 (NP_Dev.Max_Range_Cm));
+         Record_Int ("nooploop.cone", Int (6), Integer_64 (NP_Dev.Cone_Decidegrees));
+         Record_Int ("nooploop.cone_extended", Int (7), Integer_64 (NP_Dev.Cone_Extended_Decidegrees));
+         if NP_Found then
+            NP_Driver.Init (NP_State);
+         end if;
+      elsif Name = "npstep" then
+         BMP_Op_Head := 1;
+         BMP_Op_Count := 0;
+         NP_Device.Clock := Interfaces.Unsigned_32 (Int (4));
+         NP_Device.Pos := 0;
+         NP_Device.Last := 0;
+         if Str (5) /= "-" then
+            declare
+               Data : constant Byte_Array := Hex_Bytes (5);
+            begin
+               for I in Data'Range loop
+                  NP_Device.Stream (I) := Data (I);
+               end loop;
+               NP_Device.Last := Data'Length;
+            end;
+         end if;
+         NP_Driver.Update (NP_Device, NP_State);
+      elsif Name = "npres" then
+         BMP_Expect_No_Ops ("a result");
+         NP_Driver.Read (NP_State, Distance);
+         Record_Int ("nooploop.value", Int (4), Integer_64 (Distance));
+         if Int (5) /= -99 then
+            NP_Driver.Read (NP_State, Distance);
+            Record_Int ("nooploop.again", Int (5), Integer_64 (Distance));
+         end if;
+      end if;
+   end Check_Nooploop_Line;
+
    --  The MS5611 oracle's bus: the simulated chip's first PROM byte, PROM
    --  words and ADC bytes, its address, the scripted busy and start answers,
    --  and the bytes the last started read brought. Its calls share the
@@ -32483,6 +32563,8 @@ procedure Vector_Check is
                   Check_BMP085_Line;
                elsif Kind = "lidartf" then
                   Check_Lidar_TF_Line;
+               elsif Kind = "nooploop" then
+                  Check_Nooploop_Line;
                elsif Kind = "ms5611" then
                   Check_MS5611_Line;
                elsif Kind = "bmp388" then
@@ -32806,6 +32888,7 @@ begin
    Run (Dir & "/qmp6988.csv", "qmp6988");
    Run (Dir & "/bmp085.csv", "bmp085");
    Run (Dir & "/lidartf.csv", "lidartf");
+   Run (Dir & "/nooploop.csv", "nooploop");
    Run (Dir & "/ms5611.csv", "ms5611");
    Run (Dir & "/bmp388.csv", "bmp388");
    Run (Dir & "/max7456.csv", "max7456");
