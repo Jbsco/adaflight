@@ -194,8 +194,8 @@ The core contains:
   every hook
 - menus: quick menu with throttle and motor output limits and forced cells, main menu with
   features menu and setup popup for accelerometer calibration and battery restore, save and exit
-  menus, power, failsafe, RPM limit, misc, RC preview, persistent statistics, firmware and
-  calibration menus
+  menus, power, failsafe, RPM limit, misc, RC preview, GPS lap timer, persistent statistics,
+  firmware and calibration menus
 - menu hook display operations: clears, texts and redraws and save menu inhibition from hooks
 - menu over CRSF: display port screen with clears, delays and transmitter commands, run-length
   chunks and clear frames in CRSF telemetry
@@ -236,7 +236,7 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 26376 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 26396 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
 - Recorded vectors replay bit for bit: 1753568 lines over 384 cases, every case exact except
   forty-six declared deviations in `DESIGN.md` D6.
