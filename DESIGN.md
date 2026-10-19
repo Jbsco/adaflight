@@ -8551,3 +8551,58 @@ paths, 99 fail the vectors. Eight pass and are equivalent: the bits of the filte
 their values set, the keep mask bit cleared just before, the profile table corner at 1962 Hz and its last entry, which
 the fixed targets reach exactly and never pass, and the notch coefficient, 88.19 at the constant 1.5 kHz, which rounds
 and truncates alike.
+
+## D367. SD card SPI driver (2026-10-19)
+
+`Adaflight.SD_Card` drives an SD card over SPI, the layer under the FAT file system. Initialization takes the detect
+pin, the bus and the select pin, sets the 400 kHz clock, waits a second and clocks ten idle bytes before it starts the
+card: each poll advances the card from the reset command through the interface condition, which names the version, the
+initialization command repeated until it answers, the operating conditions for the capacity of a version 2 card, the
+card specific data for the block count, the identification for the metadata and the 512 byte block length of a standard
+capacity card, then sets the 25 MHz clock. A command waits for an idle byte, up to eight, sends its six bytes and waits
+for the answer, up to eight bytes; a data block waits for its token, up to eight bytes, and its two check bytes are
+discarded. A read sends the read command and the poll takes the block when its token comes, within 100 ms. A write sends
+the write command, the token and the block, the whole block with DMA or 256 bytes at a time, the poll finishes it with
+two check bytes and takes the card's answer, calls the completion, and waits for the card to leave busy within 250 ms; a
+run of writes sends its count and the multiple block command, and ends with the stop token when a write leaves the run
+or its count runs out. Each failure resets the card, up to eight in a row before it counts as absent, and an
+initialization past a second starts over. The reference keeps a pointer to the caller's block while a write is pending;
+here the driver keeps a copy, and a read's bytes arrive in that copy at the completion. A card whose mode is off takes
+no operation, where the reference calls through a null dispatch table (finding F277), and a reset command whose idle
+wait aborts answers 0, where the reference returns an uninitialized byte. The bit field reader stops at the end of the
+card specific data, where the reference reads one byte past it. The unit is SPARK, with the segment lengths and the bit
+fields bounded.
+
+The SD card oracle includes the reference driver, its dispatch and its bit field reader over a simulated card and the
+reference's segment semantics: chip select asserted at the first segment and after each negation, a callback answering
+busy repeating its segment, an abort skipping the rest. The card parses commands byte by byte, answers after a drawn
+number of idle bytes, past the driver's eight in 7 percent of the cases, sends its registers after a drawn wait, past
+eight in 20 percent, and its data blocks after another, past eight in 30 percent, takes written blocks, stays busy for a
+drawn number of bytes after each, past the driver's eight in 20 percent, and refuses one drawn command in 20 percent.
+Each process runs one case: it draws the card's version, 1 in 20 percent, its capacity, high in 70 percent of the
+version 2 cards, its registers, the initialization answers, the write answer, accepted in 90 percent, the configuration,
+with the mode off in 5 percent, the detect pin, present in 40 percent, the clock and its step, DMA and the bus's busy
+answers, initializes the driver and runs 40 drawn operations: polls, block reads with an error token in place of the
+start token in 10 percent of them, block writes with a malformed data response from a few percent of the cards, runs of
+writes continued at their next block in 55 percent of the steps inside a run, card removals and clock advances, only
+polls when the mode is off, with the card busy for up to 12 bytes after the application command in 30 percent of the
+cards, and each written block gets its own buffer, since the reference keeps the pointer. While a read waits for its
+data token or a write waits for the card, 35 percent of the steps advance the clock so that the next poll lands on the
+timeout boundary: at the limit, one past it, up to nine before it or up to 60 past it. Thirty more cases hold a present
+card whose data tokens come past the poll's eight idle bytes and which refuses no command, advance the clock in 60
+percent of the waiting steps, onto the limit itself in 60 percent of those, poll right after each advance in 85 percent,
+and while a run is open begin runs in place of reads, at the run's next block in 60 percent. Every bus, pin, clock and
+delay call, each segment with its bytes or their hash, the completions, the driver's state after each operation and the
+metadata of the 330 cases replay exactly. In them 151 cards reach the ready state, 343 blocks are stored, 517
+completions are called, 433 with a block, and the results cover every driver state but the identification wait, which
+ends within the poll that starts it, since the two registers share one delay. Of 111 tampered paths, 98 fail the vectors
+and 3 stop the checker at a subtype check. Ten pass and are equivalent: the reset command's no-reply exception, whose
+answer of zero after an aborted idle wait the reset state rejects as it rejects no reply; the detect inversion gated on
+the detect pin, which is read only behind that pin; the enable test on any nonzero mode, since the layer starts this
+driver for the SPI mode only; the SPI mode constant, which that test no longer compares; the failure count's clear at
+initialization, which the firmware calls once on a count of zero; the card-absent state the poll writes while disabled,
+which initialization wrote already; the capacity flag's clear for a version 1 card, clear already since a card keeps its
+version across the resets of a run; the send completion's comparison with the chunk count, which the poll reaches only
+after it sent the second chunk; the run begin's test of the first command's reply, since the second command answers only
+after the first succeeded; and the write's busy answer when a run's end stays in progress, which the stopping state
+answers with busy on the next pass.

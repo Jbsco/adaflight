@@ -208,6 +208,8 @@ with Adaflight.MPU_Gyro.BMI423;
 with Adaflight.MPU_Gyro.LSM6DSV16X;
 with Adaflight.MPU_Gyro.BMI160;
 with Adaflight.MPU_Gyro.ICM40609;
+with Adaflight.SD_Card;
+with Adaflight.SD_Card_Bus;
 with Adaflight.MPU_Gyro.MPU6500;
 with Adaflight.MPU_Gyro.ICM20689;
 with Adaflight.Flash_Device;
@@ -21408,6 +21410,592 @@ procedure Vector_Check is
       end if;
    end Check_ICM40609_Line;
 
+   --  The SD card oracle's card over an SPI bus: the command parser, the
+   --  answers after the drawn idle bytes, the data blocks after the drawn
+   --  wait, the written blocks and the busy bytes after them, the refused
+   --  command, the detect pin and the clock.
+   type SC_Bus is record
+      CS_Low  : Boolean := False;
+      Present : Boolean := True;
+   end record;
+
+   SC_Version     : Natural := 2;
+   SC_HC          : Boolean := False;
+   SC_NCR         : Natural := 0;
+   SC_NAC         : Natural := 0;
+   SC_Block_NAC   : Natural := 0;
+   SC_Init_Tries  : Natural := 0;
+   SC_Busy_Len    : Natural := 0;
+   SC_Error_Cmd   : Integer := -1;
+   SC_R1_Error    : Byte := 0;
+   SC_Data_Resp   : Byte := 16#E5#;
+   SC_Cmd55_Busy  : Natural := 0;
+   SC_Read_Error  : Byte := 0;
+   SC_CSD         : Byte_Array (0 .. 15) := (others => 0);
+   SC_CID         : Byte_Array (0 .. 15) := (others => 0);
+   SC_OCR         : Byte_Array (0 .. 3) := (others => 0);
+   SC_CRC         : Byte_Array (0 .. 1) := (others => 0);
+   SC_Detect      : Boolean := False;
+   SC_Initialized : Boolean := False;
+   SC_App_Cmd     : Boolean := False;
+   SC_Command     : Byte_Array (0 .. 5) := (others => 0);
+   SC_Cmd_Pos     : Natural := 0;
+   SC_Resp        : Byte_Array (0 .. 599) := (others => 0);
+   SC_Resp_Len    : Natural := 0;
+   SC_Resp_Pos    : Natural := 0;
+   SC_Receive     : Natural := 0;
+   SC_Receive_Pos : Integer := -1;
+   SC_Busy_Left   : Natural := 0;
+   SC_Pending     : Natural := 0;
+   SC_Write_Block : Interfaces.Unsigned_32 := 0;
+   SC_Now_Ms      : Interfaces.Unsigned_32 := 0;
+   SC_Ms_Step     : Interfaces.Unsigned_32 := 0;
+   SC_Busy_Bits   : Byte := 0;
+   SC_Busy_Calls  : Natural := 0;
+   SC_Use_DMA     : Boolean := False;
+   SC_Device      : SC_Bus;
+
+   function SC_Card_Byte (Index : Interfaces.Unsigned_32; K : Interfaces.Unsigned_32) return Byte is
+   begin
+      return Byte ((Index * 2_654_435_761 + K * 40_503 + K / 16) / 2 ** 24);
+   end SC_Card_Byte;
+
+   procedure SC_Respond (Data : Byte_Array) is
+   begin
+      for I in 1 .. SC_NCR loop
+         exit when SC_Resp_Len > SC_Resp'Last;
+         SC_Resp (SC_Resp_Len) := 16#FF#;
+         SC_Resp_Len := SC_Resp_Len + 1;
+      end loop;
+      for B of Data loop
+         exit when SC_Resp_Len > SC_Resp'Last;
+         SC_Resp (SC_Resp_Len) := B;
+         SC_Resp_Len := SC_Resp_Len + 1;
+      end loop;
+   end SC_Respond;
+
+   procedure SC_Respond_Block (R1 : Byte; Data : Byte_Array; Wait_Bytes : Natural; Token : Byte := 16#FE#) is
+      use type Interfaces.Unsigned_8;
+   begin
+      SC_Respond ((0 => R1));
+      for I in 1 .. Wait_Bytes loop
+         exit when SC_Resp_Len > SC_Resp'Last;
+         SC_Resp (SC_Resp_Len) := 16#FF#;
+         SC_Resp_Len := SC_Resp_Len + 1;
+      end loop;
+      if SC_Resp_Len <= SC_Resp'Last then
+         SC_Resp (SC_Resp_Len) := Token;
+         SC_Resp_Len := SC_Resp_Len + 1;
+      end if;
+      if Token /= 16#FE# then
+         return;
+      end if;
+      for B of Data loop
+         exit when SC_Resp_Len > SC_Resp'Last;
+         SC_Resp (SC_Resp_Len) := B;
+         SC_Resp_Len := SC_Resp_Len + 1;
+      end loop;
+      for B of SC_CRC loop
+         exit when SC_Resp_Len > SC_Resp'Last;
+         SC_Resp (SC_Resp_Len) := B;
+         SC_Resp_Len := SC_Resp_Len + 1;
+      end loop;
+   end SC_Respond_Block;
+
+   procedure SC_Process_Command is
+      use type Interfaces.Unsigned_8;
+      Code : constant Natural := Natural (SC_Command (0) and 16#3F#);
+      Arg  : constant Interfaces.Unsigned_32 :=
+        Interfaces.Unsigned_32 (SC_Command (1)) * 2 ** 24 + Interfaces.Unsigned_32 (SC_Command (2)) * 2 ** 16
+        + Interfaces.Unsigned_32 (SC_Command (3)) * 256 + Interfaces.Unsigned_32 (SC_Command (4));
+      Acmd : constant Boolean := SC_App_Cmd;
+      R1   : Byte := (if SC_Initialized then 0 else 16#01#);
+   begin
+      SC_App_Cmd := False;
+      if Code = SC_Error_Cmd and then not Acmd then
+         R1 := R1 or SC_R1_Error;
+         SC_Respond ((0 => R1));
+         return;
+      end if;
+      if Acmd and then Code = 41 then
+         if SC_Init_Tries > 0 then
+            SC_Init_Tries := SC_Init_Tries - 1;
+            R1 := 16#01#;
+         else
+            SC_Initialized := True;
+            R1 := 0;
+         end if;
+         SC_Respond ((0 => R1));
+         return;
+      end if;
+      if Acmd and then Code = 23 then
+         SC_Respond ((0 => R1));
+         return;
+      end if;
+      case Code is
+         when 0 =>
+            SC_Initialized := False;
+            SC_Respond ((0 => 16#01#));
+         when 8 =>
+            if SC_Version = 2 then
+               declare
+                  R7 : Byte_Array (0 .. 4) :=
+                    (R1, 0, 0, Byte ((Arg / 256) and 16#0F#), Byte (Arg mod 256));
+               begin
+                  if SC_Error_Cmd = 100 then
+                     R7 (4) := R7 (4) xor 16#01#;
+                  end if;
+                  SC_Respond (R7);
+               end;
+            else
+               SC_Respond ((0 => R1 or 16#04#));
+            end if;
+         when 55 =>
+            SC_App_Cmd := True;
+            SC_Respond ((0 => R1));
+            SC_Pending := SC_Cmd55_Busy;
+         when 58 =>
+            SC_Respond ((R1, SC_OCR (0), SC_OCR (1), SC_OCR (2), SC_OCR (3)));
+         when 9 =>
+            SC_Respond_Block (R1, SC_CSD, SC_NAC);
+         when 10 =>
+            SC_Respond_Block (R1, SC_CID, SC_NAC);
+         when 16 =>
+            SC_Respond ((0 => R1));
+         when 17 =>
+            declare
+               Index : constant Interfaces.Unsigned_32 := (if SC_HC then Arg else Arg / 512);
+               Data  : Byte_Array (0 .. 511);
+            begin
+               for K in Data'Range loop
+                  Data (K) := SC_Card_Byte (Index, Interfaces.Unsigned_32 (K));
+               end loop;
+               SC_Respond_Block (R1, Data, SC_Block_NAC, (if SC_Read_Error /= 0 then SC_Read_Error else 16#FE#));
+            end;
+         when 24 | 25 =>
+            SC_Respond ((0 => R1));
+            if R1 = 0 then
+               SC_Receive := (if Code = 24 then 1 else 2);
+               SC_Receive_Pos := -1;
+               SC_Write_Block := (if SC_HC then Arg else Arg / 512);
+            end if;
+         when others =>
+            SC_Respond ((0 => R1 or 16#04#));
+      end case;
+   end SC_Process_Command;
+
+   function SC_Card_Clock (D : in out SC_Bus; Input : Byte) return Byte is
+      use type Interfaces.Unsigned_8;
+      Output : Byte := 16#FF#;
+   begin
+      if not D.Present or else not D.CS_Low then
+         return 16#FF#;
+      end if;
+      if SC_Busy_Left > 0 then
+         SC_Busy_Left := SC_Busy_Left - 1;
+         return 0;
+      end if;
+      if SC_Resp_Pos < SC_Resp_Len then
+         Output := SC_Resp (SC_Resp_Pos);
+         SC_Resp_Pos := SC_Resp_Pos + 1;
+         if SC_Resp_Pos = SC_Resp_Len then
+            SC_Resp_Pos := 0;
+            SC_Resp_Len := 0;
+            SC_Busy_Left := SC_Pending;
+            SC_Pending := 0;
+         end if;
+         return Output;
+      end if;
+      if SC_Receive /= 0 then
+         if SC_Receive_Pos < 0 then
+            if Input = 16#FD# and then SC_Receive = 2 then
+               SC_Receive := 0;
+               SC_Busy_Left := SC_Busy_Len;
+            elsif Input = (if SC_Receive = 1 then 16#FE# else 16#FC#) then
+               SC_Receive_Pos := 0;
+            end if;
+         else
+            SC_Receive_Pos := SC_Receive_Pos + 1;
+            if SC_Receive_Pos = 512 + 2 then
+               MX_Op ("stored," & BMP_Num (Integer_64 (SC_Write_Block)));
+               SC_Write_Block := SC_Write_Block + 1;
+               SC_Resp (0) := SC_Data_Resp;
+               SC_Resp_Len := 1;
+               SC_Resp_Pos := 0;
+               SC_Pending := SC_Busy_Len;
+               SC_Receive_Pos := (if SC_Receive = 2 then -1 else 0);
+               if SC_Receive = 1 or else SC_Data_Resp /= 16#E5# then
+                  SC_Receive := 0;
+               end if;
+            end if;
+         end if;
+         return 16#FF#;
+      end if;
+      if SC_Cmd_Pos = 0 and then (Input and 16#C0#) = 16#40# then
+         SC_Command (0) := Input;
+         SC_Cmd_Pos := 1;
+      elsif SC_Cmd_Pos > 0 then
+         SC_Command (SC_Cmd_Pos) := Input;
+         SC_Cmd_Pos := SC_Cmd_Pos + 1;
+         if SC_Cmd_Pos = 6 then
+            SC_Cmd_Pos := 0;
+            SC_Process_Command;
+         end if;
+      end if;
+      return Output;
+   end SC_Card_Clock;
+
+   procedure SC_Card_Deselect (D : in out SC_Bus) is
+   begin
+      D.CS_Low := False;
+      SC_Cmd_Pos := 0;
+      SC_Resp_Len := 0;
+      SC_Resp_Pos := 0;
+   end SC_Card_Deselect;
+
+   function SC_Show (Data : Byte_Array; Present : Boolean) return String is
+      H : Interfaces.Unsigned_32 := 2_166_136_261;
+   begin
+      if not Present then
+         return "-";
+      elsif Data'Length <= 8 then
+         return MX_Hex (Data);
+      end if;
+      for B of Data loop
+         H := (H xor Interfaces.Unsigned_32 (B)) * 16_777_619;
+      end loop;
+      return "h" & MX_Hex (Byte_Array'(Byte (H / 2 ** 24), Byte (H / 2 ** 16 mod 256), Byte (H / 2 ** 8 mod 256),
+                                       Byte (H mod 256)));
+   end SC_Show;
+
+   procedure SC_Preinit_CS (D : in out SC_Bus; Tag : Byte) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("preinit," & BMP_Num (Integer_64 (Tag)) & ",1,1");
+   end SC_Preinit_CS;
+
+   procedure SC_Init_Detect_Pin (D : in out SC_Bus) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("ioinit,detect,0");
+      MX_Op ("ioconfig,pullup");
+   end SC_Init_Detect_Pin;
+
+   procedure SC_Read_Detect_Pin (D : in out SC_Bus; High : out Boolean) is
+      pragma Unreferenced (D);
+   begin
+      High := SC_Detect;
+      MX_Op ("ioread," & BMP_Num (Boolean'Pos (High)));
+   end SC_Read_Detect_Pin;
+
+   procedure SC_Attach_Bus (D : in out SC_Bus; Instance : Byte) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("bus," & BMP_Num (Integer_64 (Instance)));
+   end SC_Attach_Bus;
+
+   procedure SC_Prepare_CS (D : in out SC_Bus) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("ioinit,cs,0");
+      MX_Op ("ioconfig,high");
+   end SC_Prepare_CS;
+
+   procedure SC_Configure_CS (D : in out SC_Bus) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("ioconfig,cs");
+   end SC_Configure_CS;
+
+   procedure SC_CS_High (D : in out SC_Bus) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("cshigh");
+   end SC_CS_High;
+
+   procedure SC_Divider (D : in out SC_Bus; Hz : Interfaces.Unsigned_32; Divisor : out Interfaces.Unsigned_16) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("divider," & BMP_Num (Integer_64 (Hz)));
+      Divisor := Interfaces.Unsigned_16 ((84_000_000 / Hz) mod 2 ** 16);
+   end SC_Divider;
+
+   procedure SC_Set_Divisor (D : in out SC_Bus; Divisor : Interfaces.Unsigned_16) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("clock," & BMP_Num (Integer_64 (Divisor)));
+   end SC_Set_Divisor;
+
+   procedure SC_Delay_Ms (D : in out SC_Bus; Ms : Natural) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("delay," & BMP_Num (Integer_64 (Ms)));
+   end SC_Delay_Ms;
+
+   procedure SC_Delay_Us (D : in out SC_Bus; Us : Natural) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("udelay," & BMP_Num (Integer_64 (Us)));
+   end SC_Delay_Us;
+
+   procedure SC_Millis (D : in out SC_Bus; Now : out Interfaces.Unsigned_32) is
+      pragma Unreferenced (D);
+   begin
+      Now := SC_Now_Ms;
+      SC_Now_Ms := SC_Now_Ms + SC_Ms_Step;
+   end SC_Millis;
+
+   procedure SC_Start_Sequence (D : in out SC_Bus) is
+   begin
+      MX_Op ("seq");
+      D.CS_Low := True;
+   end SC_Start_Sequence;
+
+   procedure SC_Segment
+     (D       : in out SC_Bus;
+      Kind    : Adaflight.SD_Card_Bus.Segment_Kind;
+      Negate  : Boolean;
+      Length  : Positive;
+      Tx      : Byte_Array;
+      Rx      : in out Byte_Array;
+      Receive : Boolean)
+   is
+      use Adaflight.SD_Card_Bus;
+      Got : Byte_Array (0 .. Length - 1);
+      Sent : Byte_Array (0 .. Length - 1) := (others => 16#FF#);
+   begin
+      if Tx'Length > 0 then
+         Sent := Tx (Tx'First .. Tx'First + Length - 1);
+      end if;
+      for K in 0 .. Length - 1 loop
+         Got (K) := SC_Card_Clock (D, Sent (K));
+         if Receive then
+            Rx (Rx'First + K) := Got (K);
+         end if;
+      end loop;
+      MX_Op ("seg," & BMP_Num (Integer_64 (Length)) & "," & BMP_Num (Boolean'Pos (Negate)) & ","
+             & (case Kind is
+                   when Plain => "none",
+                   when Until_Idle => "idle",
+                   when Until_Not_Idle => "notidle",
+                   when Until_Data_Token => "datablock")
+             & "," & SC_Show (Sent, Tx'Length > 0) & "," & SC_Show (Got, Receive));
+      if Negate then
+         SC_Card_Deselect (D);
+      end if;
+   end SC_Segment;
+
+   procedure SC_Wait (D : in out SC_Bus) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("wait");
+   end SC_Wait;
+
+   procedure SC_Release (D : in out SC_Bus) is
+   begin
+      SC_Card_Deselect (D);
+      MX_Op ("release");
+   end SC_Release;
+
+   procedure SC_Bus_Busy (D : in out SC_Bus; Busy : out Boolean) is
+      pragma Unreferenced (D);
+      use type Interfaces.Unsigned_8;
+   begin
+      Busy := SC_Busy_Calls < 8 and then (SC_Busy_Bits / 2 ** SC_Busy_Calls) mod 2 = 1;
+      SC_Busy_Calls := SC_Busy_Calls + 1;
+      MX_Op ("isbusy," & BMP_Num (Boolean'Pos (Busy)));
+   end SC_Bus_Busy;
+
+   function SC_Uses_DMA (D : SC_Bus) return Boolean is
+      pragma Unreferenced (D);
+   begin
+      return SC_Use_DMA;
+   end SC_Uses_DMA;
+
+   procedure SC_Read_Write (D : in out SC_Bus; Tx : Byte_Array) is
+      Ignored : Byte;
+   begin
+      D.CS_Low := True;
+      for K in Tx'Range loop
+         Ignored := SC_Card_Clock (D, Tx (K));
+      end loop;
+      SC_Card_Deselect (D);
+      MX_Op ("rw," & BMP_Num (Integer_64 (Tx'Length)) & "," & SC_Show (Tx, True) & ",-");
+   end SC_Read_Write;
+
+   procedure SC_Complete
+     (D          : in out SC_Bus;
+      Write      : Boolean;
+      Index      : Interfaces.Unsigned_32;
+      Has_Buffer : Boolean;
+      Data       : Interfaces.Unsigned_32)
+   is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("done," & BMP_Num (Boolean'Pos (Write)) & "," & BMP_Num (Integer_64 (Index)) & ","
+             & BMP_Num (Boolean'Pos (Has_Buffer)) & "," & BMP_Num (Integer_64 (Data)));
+   end SC_Complete;
+
+   package SC_Card is new Adaflight.SD_Card
+     (SPI_Device      => SC_Bus,
+      Preinit_CS      => SC_Preinit_CS,
+      Init_Detect_Pin => SC_Init_Detect_Pin,
+      Read_Detect_Pin => SC_Read_Detect_Pin,
+      Attach_Bus      => SC_Attach_Bus,
+      Prepare_CS      => SC_Prepare_CS,
+      Configure_CS    => SC_Configure_CS,
+      CS_High         => SC_CS_High,
+      Divider         => SC_Divider,
+      Set_Divisor     => SC_Set_Divisor,
+      Delay_Ms        => SC_Delay_Ms,
+      Delay_Us        => SC_Delay_Us,
+      Millis          => SC_Millis,
+      Start_Sequence  => SC_Start_Sequence,
+      Segment         => SC_Segment,
+      Wait            => SC_Wait,
+      Release         => SC_Release,
+      Bus_Busy        => SC_Bus_Busy,
+      Uses_DMA        => SC_Uses_DMA,
+      Read_Write      => SC_Read_Write,
+      Complete        => SC_Complete);
+
+   SC_State  : SC_Card.Card;
+   SC_Config : SC_Card.Config;
+   SC_Result : Integer_64 := 0;
+
+   procedure Check_SD_Card_Line is
+      Name : constant String := Str (1);
+      use type Interfaces.Unsigned_8;
+   begin
+      if Name = "scinit" then
+         MX_Op_Head := 1;
+         MX_Op_Count := 0;
+         SC_Version := Natural (Int (3));
+         SC_HC := Int (4) /= 0;
+         SC_NCR := Natural (Int (5));
+         SC_NAC := Natural (Int (6));
+         SC_Block_NAC := Natural (Int (27));
+         SC_Cmd55_Busy := Natural (Int (28));
+         SC_Read_Error := 0;
+         SC_Init_Tries := Natural (Int (7));
+         SC_Busy_Len := Natural (Int (8));
+         SC_Data_Resp := Byte (Int (9));
+         SC_Error_Cmd := Integer (Int (10));
+         SC_R1_Error := Byte (Int (11));
+         SC_Device := (CS_Low => False, Present => Int (12) /= 0);
+         SC_Detect := Int (13) /= 0;
+         SC_Config :=
+           (Device => Byte (Int (14)), Detect_Tag => Byte (Int (15)), CS_Tag => Byte (Int (16)),
+            Detect_Inverted => Int (17) /= 0, Mode => Byte (Int (18)));
+         SC_Now_Ms := Interfaces.Unsigned_32 (Int (19));
+         SC_Ms_Step := Interfaces.Unsigned_32 (Int (20));
+         SC_Use_DMA := Int (21) /= 0;
+         SC_Busy_Bits := Byte (Int (22));
+         SC_CSD := Hex_Bytes (23);
+         SC_CID := Hex_Bytes (24);
+         SC_OCR := Hex_Bytes (25);
+         SC_CRC := Hex_Bytes (26);
+         SC_Initialized := False;
+         SC_App_Cmd := False;
+         SC_Cmd_Pos := 0;
+         SC_Resp_Len := 0;
+         SC_Resp_Pos := 0;
+         SC_Receive := 0;
+         SC_Receive_Pos := -1;
+         SC_Busy_Left := 0;
+         SC_Pending := 0;
+         SC_Write_Block := 0;
+         SC_Busy_Calls := 0;
+         SC_Result := 0;
+         SC_State := (others => <>);
+         SC_Card.Preinit (SC_Device, SC_Config);
+         SC_Card.Init (SC_Device, SC_State, SC_Config);
+      elsif Name = "scop" then
+         declare
+            Expected : Ada.Strings.Unbounded.Unbounded_String := Ada.Strings.Unbounded.To_Unbounded_String (Str (3));
+         begin
+            for I in 4 .. NF loop
+               Ada.Strings.Unbounded.Append (Expected, "," & Str (I));
+            end loop;
+            if MX_Op_Head <= MX_Op_Count then
+               Record_Text ("sdcard.op", Ada.Strings.Unbounded.To_String (Expected),
+                            Ada.Strings.Unbounded.To_String (MX_Ops (MX_Op_Head)));
+               MX_Op_Head := MX_Op_Head + 1;
+            else
+               Record_Text ("sdcard.op", Ada.Strings.Unbounded.To_String (Expected), "none");
+            end if;
+         end;
+      elsif Name = "scstep" then
+         declare
+            Which : constant Integer_64 := Int (4);
+            A     : constant Interfaces.Unsigned_32 := Interfaces.Unsigned_32 (Int (5));
+            B     : constant Interfaces.Unsigned_32 := Interfaces.Unsigned_32 (Int (6));
+            Step  : constant Interfaces.Unsigned_32 := Interfaces.Unsigned_32 (Int (3));
+            Flag  : Boolean;
+            Status : SC_Card.Operation_Status;
+            Data  : Adaflight.SD_Card_Bus.Block;
+         begin
+            SC_Result := 0;
+            case Which is
+               when 0 =>
+                  SC_Card.Poll (SC_Device, SC_State, Flag);
+                  SC_Result := Boolean'Pos (Flag);
+               when 1 =>
+                  SC_Read_Error := Byte (B);
+                  SC_Card.Read_Block (SC_Device, SC_State, A, True, Step, Flag);
+                  SC_Result := Boolean'Pos (Flag);
+               when 2 =>
+                  for K in Data'Range loop
+                     Data (K) :=
+                       Byte ((Step * 131 + Interfaces.Unsigned_32 (K) * 29 + Interfaces.Unsigned_32 (K) / 8) mod 256);
+                  end loop;
+                  SC_Card.Write_Block (SC_Device, SC_State, A, Data, True, Step, Status);
+                  SC_Result := SC_Card.Operation_Status'Pos (Status);
+               when 3 =>
+                  SC_Card.Begin_Write_Blocks (SC_Device, SC_State, A, B, Status);
+                  SC_Result := SC_Card.Operation_Status'Pos (Status);
+               when 4 =>
+                  if SC_Config.Detect_Tag /= 0 then
+                     SC_Detect := A /= 0;
+                  end if;
+               when others =>
+                  SC_Now_Ms := SC_Now_Ms + A;
+            end case;
+         end;
+      elsif Name = "scres" then
+         MX_Expect_No_Ops ("a result");
+         Record_Int ("sdcard.result", Int (4), SC_Result);
+         Record_Int ("sdcard.state", Int (5), Integer_64 (SC_Card.Card_State'Pos (SC_State.State)));
+         Record_Int ("sdcard.failures", Int (6), Integer_64 (SC_State.Failure_Count));
+         Record_Int ("sdcard.version", Int (7), Integer_64 (SC_State.Version));
+         Record_Int ("sdcard.high_capacity", Int (8), Boolean'Pos (SC_State.High_Capacity));
+         Record_Int ("sdcard.next_block", Int (9), Integer_64 (SC_State.Multi_Next));
+         Record_Int ("sdcard.remain", Int (10), Integer_64 (SC_State.Multi_Remain));
+         Record_Int ("sdcard.enabled", Int (11), Boolean'Pos (SC_State.Enabled));
+         Record_Int ("sdcard.clock", Int (12), Integer_64 (SC_Now_Ms));
+      elsif Name = "scmeta" then
+         declare
+            M : constant SC_Card.Metadata := SC_Card.Get_Metadata (SC_State);
+            Expected_Name : constant Byte_Array := Hex_Bytes (6);
+         begin
+            Record_Int ("sdcard.num_blocks", Int (3), Integer_64 (M.Num_Blocks));
+            Record_Int ("sdcard.oem", Int (4), Integer_64 (M.OEM_Id));
+            Record_Int ("sdcard.manufacturer", Int (5), Integer_64 (M.Manufacturer));
+            for K in 0 .. 4 loop
+               Record_Int ("sdcard.name", Integer_64 (Expected_Name (Expected_Name'First + K)),
+                           Integer_64 (M.Product_Name (K)));
+            end loop;
+            Record_Int ("sdcard.serial", Int (7), Integer_64 (M.Serial));
+            Record_Int ("sdcard.revision_major", Int (8), Integer_64 (M.Revision_Major));
+            Record_Int ("sdcard.revision_minor", Int (9), Integer_64 (M.Revision_Minor));
+            Record_Int ("sdcard.year", Int (10), Integer_64 (M.Production_Year));
+            Record_Int ("sdcard.month", Int (11), Integer_64 (M.Production_Month));
+            Record_Int ("sdcard.functional", Int (12), Boolean'Pos (SC_Card.Is_Functional (SC_State)));
+            Record_Int ("sdcard.initialized", Int (13), Boolean'Pos (SC_Card.Is_Initialized (SC_State)));
+         end;
+      end if;
+   end Check_SD_Card_Line;
+
    --  The MPU6500 oracle's chip over the MPU gyro oracle's device, with its
    --  bus register writes beside the plain register writes and reads.
    procedure MG_Bus_Write (D : in out MG_Bus; Register : Byte; Value : Byte) is
@@ -35340,6 +35928,8 @@ procedure Vector_Check is
                   Check_BMI160_Line;
                elsif Kind = "icm40609" then
                   Check_ICM40609_Line;
+               elsif Kind = "sdcard" then
+                  Check_SD_Card_Line;
                elsif Kind = "mpu6500" then
                   Check_MPU6500_Line;
                elsif Kind = "icm20689" then
@@ -35669,6 +36259,7 @@ begin
    Run (Dir & "/lsm6dsv16x.csv", "lsm6dsv16x");
    Run (Dir & "/bmi160.csv", "bmi160");
    Run (Dir & "/icm40609.csv", "icm40609");
+   Run (Dir & "/sdcard.csv", "sdcard");
    Run (Dir & "/mpu6500.csv", "mpu6500");
    Run (Dir & "/icm20689.csv", "icm20689");
    Run (Dir & "/m25p16.csv", "m25p16");
