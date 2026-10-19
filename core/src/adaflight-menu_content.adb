@@ -1,4 +1,5 @@
 with Adaflight.Config_Fix;
+with Adaflight.Settings_Table;
 
 package body Adaflight.Menu_Content with SPARK_Mode is
    use type Interfaces.Unsigned_16;
@@ -136,11 +137,132 @@ package body Adaflight.Menu_Content with SPARK_Mode is
    function LED_Color_Name (Index : Natural) return Adaflight.Menu.Label_Text is
      (if Index < LED_Color_Count then LED_Color_Names (Index) else Label (""));
 
+   Blackbox_Device_Names : constant array (0 .. 3) of Adaflight.Menu.Label_Text :=
+     (Label ("NONE"), Label ("FLASH"), Label ("SDCARD"), Label ("SERIAL"));
+   Blackbox_Rate_Names   : constant array (0 .. 4) of Adaflight.Menu.Label_Text :=
+     (Label ("1/1"), Label ("1/2"), Label ("1/4"), Label ("1/8"), Label ("1/16"));
+
+   function Blackbox_Device_Name (Index : Natural) return Adaflight.Menu.Label_Text is
+     (if Index <= 3 then Blackbox_Device_Names (Index) else Label (""));
+   function Blackbox_Rate_Name (Index : Natural) return Adaflight.Menu.Label_Text is
+     (if Index <= 4 then Blackbox_Rate_Names (Index) else Label (""));
+
+   Debug_Count : constant Natural := Adaflight.Settings_Table.Value_Count (Adaflight.Settings_Table.Table_Debug);
+
+   --  A debug mode's name from the command line's table, which holds the
+   --  reference's debug mode names.
+   function Debug_Name (Index : Natural) return Adaflight.Menu.Label_Text is
+   begin
+      if Index >= Adaflight.Settings_Table.Value_Count (Adaflight.Settings_Table.Table_Debug) then
+         return Label ("");
+      end if;
+      declare
+         Name : constant String := Adaflight.Settings_Table.Value_Name (Adaflight.Settings_Table.Table_Debug, Index);
+      begin
+         return Label (Name (Name'First .. Name'First - 1 + Natural'Min (Name'Length, Adaflight.Menu.Max_Text)));
+      end;
+   end Debug_Name;
+
    --  A thirty-two bit count as a line holds it: the reference's integer
    --  conversion.
    function Signed_Word (V : Interfaces.Unsigned_32) return Interfaces.Integer_32 is
      (if V < 2 ** 31 then Interfaces.Integer_32 (V)
       else Interfaces.Integer_32 (Interfaces.Integer_64 (V) - 2 ** 32));
+
+   --  A count as the reference prints it into an eight-byte buffer: as a
+   --  signed long on a 32-bit target, with its unit, cut to seven
+   --  characters.
+   function Count_Text (V : Interfaces.Unsigned_32; Unit : String) return Adaflight.Menu.Label_Text
+     with Pre => Unit'Length <= 2
+   is
+      Image  : constant String := Interfaces.Integer_32'Image (Signed_Word (V));
+      Number : constant String := (if Signed_Word (V) >= 0 then Image (Image'First + 1 .. Image'Last) else Image);
+      Full   : constant String := Number & Unit;
+   begin
+      return Label (Full (Full'First .. Full'First - 1 + Natural'Min (Full'Length, 7)));
+   end Count_Text;
+
+   --  The PID loop's frequency cut to a whole number, in kilohertz with two
+   --  decimals above a thousand hertz and else in hertz in three places, cut
+   --  to the reference's eight-byte buffer.
+   function PID_Frequency_Text (F : PID_Hertz) return Adaflight.Menu.Label_Text is
+      Hz     : constant Natural := Natural (Float'Truncation (F));
+      Tenths : constant Natural := Hz / 10;
+      Whole  : constant String := Natural'Image (Tenths / 100);
+      Part   : constant String := Natural'Image (Tenths mod 100);
+      Plain  : constant String := Natural'Image (Hz);
+      Full   : constant String :=
+        (if Hz > 1000
+         then Whole (Whole'First + 1 .. Whole'Last) & "." & (if Tenths mod 100 < 10 then "0" else "")
+              & Part (Part'First + 1 .. Part'Last) & "KHZ"
+         elsif Hz < 100 then (if Hz < 10 then "  " else " ") & Plain (Plain'First + 1 .. Plain'Last) & "HZ"
+         else Plain (Plain'First + 1 .. Plain'Last) & "HZ");
+   begin
+      return Label (Full (Full'First .. Full'First - 1 + Natural'Min (Full'Length, 7)));
+   end PID_Frequency_Text;
+
+   --  The display's information severity.
+   Info : constant Interfaces.Unsigned_8 := 1;
+
+   --  A text the hook writes on the display at a column and row.
+   function Screen_Text (X, Y : Natural; Text : String) return Adaflight.Menu.Screen_Op
+     with Pre => X <= 255 and then Y <= 255 and then Text'Length <= Adaflight.Menu.Max_Screen_Text
+   is
+      Op : Adaflight.Menu.Screen_Op := (Kind => Adaflight.Menu.Write_Text, X => X, Y => Y, Attr => Info, others => <>);
+   begin
+      Op.Length := Text'Length;
+      for K in 1 .. Text'Length loop
+         Op.Text (K) := Text (Text'First - 1 + K);
+      end loop;
+      return Op;
+   end Screen_Text;
+
+   --  The storage device's status and its used and free space, from the
+   --  configured device and the device's readings with the flash's write
+   --  offset given.
+   procedure Device_Status (T : in out Target; Flash_Offset : Interfaces.Unsigned_32) is
+      Used, Free : Interfaces.Unsigned_32 := 0;
+      Working    : Boolean := False;
+   begin
+      case T.Config.Blackbox_Config.Device is
+         when 2 =>
+            if not T.Live.Card_Inserted then
+               T.Blackbox.Status := Label ("NO CARD");
+            elsif not T.Live.Card_Functional then
+               T.Blackbox.Status := Label ("FAULT");
+            else
+               case T.Live.Card_File_System is
+                  when Ready =>
+                     T.Blackbox.Status := Label ("READY");
+                     Working := True;
+                  when Initialization =>
+                     T.Blackbox.Status := Label ("INIT");
+                  when Fatal | Unknown =>
+                     T.Blackbox.Status := Label ("FAULT");
+               end case;
+            end if;
+            if Working then
+               Free := T.Live.Card_Free_Bytes / 1_024_000;
+               Used := T.Live.Card_Blocks / 2000 - Free;
+            end if;
+            T.Blackbox.Used := Count_Text (Used, "MB");
+            T.Blackbox.Free := Count_Text (Free, "MB");
+         when 1 =>
+            if T.Live.Flash_Supported then
+               T.Blackbox.Status := Label ("READY");
+               Used := Flash_Offset / 1024;
+               Free := Interfaces.Unsigned_32 (T.Live.Flash_Sectors) * T.Live.Flash_Sector_Size / 1024 - Used;
+            else
+               T.Blackbox.Status := Label ("FAULT");
+            end if;
+            T.Blackbox.Used := Count_Text (Used, "KB");
+            T.Blackbox.Free := Count_Text (Free, "KB");
+         when others =>
+            T.Blackbox.Status := Label ("---");
+            T.Blackbox.Used := Count_Text (Used, "B");
+            T.Blackbox.Free := Count_Text (Free, "B");
+      end case;
+   end Device_Status;
 
    RC_Names : constant array (0 .. 7) of String (1 .. 5) :=
      ("ROLL ", "PITCH", "THR  ", "YAW  ", "AUX1 ", "AUX2 ", "AUX3 ", "AUX4 ");
@@ -155,7 +277,8 @@ package body Adaflight.Menu_Content with SPARK_Mode is
          when Quick_Menu  => (Enter => True, Leave => True, Update => False),
          when Main_Menu   => (Enter => True, Leave => False, Update => False),
          when Setup_Popup => (Enter => False, Leave => False, Update => True),
-         when LED_Strip_Menu | Power_Menu | Failsafe_Menu | RPM_Limit_Menu | Misc_Menu | Persistent_Stats_Menu =>
+         when Blackbox_Menu | LED_Strip_Menu | Power_Menu | Failsafe_Menu | RPM_Limit_Menu | Misc_Menu
+            | Persistent_Stats_Menu =>
             (Enter => True, Leave => True, Update => False),
          when RC_Preview_Menu => (Enter => True, Leave => True, Update => True),
          when Firmware_Menu => (Enter => True, Leave => False, Update => False),
@@ -242,6 +365,33 @@ package body Adaflight.Menu_Content with SPARK_Mode is
             Add (Make ("EXIT&REBOOT", OSD_Exit, Has_Func => True, Has_Data => True, Value => 5));
             Add (Make ("SAVE&REBOOT", OSD_Exit, Has_Func => True, Has_Data => True, Value => 4));
             Add (Make ("BACK", Back));
+         when Blackbox_Menu =>
+            declare
+               B : Blackbox_Copies renames T.Blackbox;
+            begin
+               Add (Make ("-- BLACKBOX --", Label));
+               Add (Text_Line ("(PID FREQ)", Str, B.PID_Frequency));
+               Add (Choice ("SAMPLERATE", Interfaces.Integer_32 (B.Rate), 4, Blackbox_Rate_Name (Natural (B.Rate)),
+                            Reboot));
+               Add (Choice ("DEVICE", Interfaces.Integer_32 (B.Device), 3, Blackbox_Device_Name (Natural (B.Device)),
+                            Reboot));
+               Add (Text_Line ("(STATUS)", Str, B.Status));
+               Add (Text_Line ("(USED)", Str, B.Used));
+               Add (Text_Line ("(FREE)", Str, B.Free));
+               Add (Choice ("DEBUG MODE", Interfaces.Integer_32 (B.Debug_Mode), Interfaces.Integer_32 (Debug_Count) - 1,
+                            Debug_Name (Natural (B.Debug_Mode)), Reboot));
+               Add (Sub ("USB MASS STORAGE", Storage_Device_Menu));
+               Add (Sub ("ERASE FLASH", Erase_Flash_Menu));
+               Add (Make ("BACK", Back));
+            end;
+         when Erase_Flash_Menu =>
+            Add (Make ("CONFIRM ERASE", Label));
+            Add (Make ("NO", Back));
+            Add (Make ("YES", Funcall, Has_Func => True));
+         when Storage_Device_Menu =>
+            Add (Make ("CONFIRM USB MASS STORAGE", Label));
+            Add (Make ("NO", Back));
+            Add (Make ("YES", Funcall, Has_Func => True));
          when LED_Strip_Menu =>
             declare
                L : LED_Copies renames T.LED;
@@ -402,6 +552,12 @@ package body Adaflight.Menu_Content with SPARK_Mode is
                   Reply.Target := Setup_Popup;
                end if;
             end;
+         when Blackbox_Menu =>
+            Device_Status (T, T.Live.Flash_Offset);
+            T.Blackbox.Device := T.Config.Blackbox_Config.Device;
+            T.Blackbox.Rate := T.Config.Blackbox_Config.Sample_Rate;
+            T.Blackbox.Debug_Mode := T.Config.System_Config.Debug_Mode;
+            T.Blackbox.PID_Frequency := PID_Frequency_Text (T.Live.PID_Frequency);
          when LED_Strip_Menu =>
             T.LED.Enabled :=
               (if (T.Live.Runtime_Features and Adaflight.Config_Fix.Feature_LED_Strip) /= 0 then 1 else 0);
@@ -472,6 +628,12 @@ package body Adaflight.Menu_Content with SPARK_Mode is
          if T.Asked.PID_Config_Inits < Natural'Last then
             T.Asked.PID_Config_Inits := T.Asked.PID_Config_Inits + 1;
          end if;
+      elsif Id = Blackbox_Menu then
+         if T.Live.Blackbox_May_Edit then
+            T.Config.Blackbox_Config.Device := (if T.Blackbox.Device in 1 .. 3 then T.Blackbox.Device else 0);
+         end if;
+         T.Config.Blackbox_Config.Sample_Rate := T.Blackbox.Rate;
+         T.Config.System_Config.Debug_Mode := T.Blackbox.Debug_Mode;
       elsif Id = LED_Strip_Menu then
          declare
             Feature : constant Interfaces.Unsigned_32 := Adaflight.Config_Fix.Feature_LED_Strip;
@@ -634,6 +796,40 @@ package body Adaflight.Menu_Content with SPARK_Mode is
                   T.Asked.Acc_Calibrations := T.Asked.Acc_Calibrations + 1;
                end if;
                Reply.Chain_Back := True;
+            elsif Id = Erase_Flash_Menu then
+               if T.Live.Flash_Supported then
+                  Reply.Screens := 5;
+                  Reply.Screen (1).Kind := Adaflight.Menu.Clear_Wait;
+                  Reply.Screen (2) := Screen_Text (5, 3, "ERASING FLASH...");
+                  Reply.Screen (3).Kind := Adaflight.Menu.Redraw;
+                  if T.Asked.Flash_Erases < Natural'Last then
+                     T.Asked.Flash_Erases := T.Asked.Flash_Erases + 1;
+                  end if;
+                  if T.Asked.Erase_Beeps < Natural'Last then
+                     T.Asked.Erase_Beeps := T.Asked.Erase_Beeps + 1;
+                  end if;
+                  Reply.Screen (4).Kind := Adaflight.Menu.Clear_Wait;
+                  Reply.Screen (5).Kind := Adaflight.Menu.Redraw;
+                  Device_Status (T, 0);
+                  Reply.Chain_Back := True;
+               end if;
+            elsif Id = Storage_Device_Menu then
+               if T.Live.Storage_Ready then
+                  Reply.Screens := 4;
+                  Reply.Screen (1).Kind := Adaflight.Menu.Clear_Wait;
+                  Reply.Screen (2) := Screen_Text (2, 4, "USB MASS STORAGE MODE IS ON");
+                  Reply.Screen (3) := Screen_Text (4, 5, "CONNECT YOUR GADGET");
+                  Reply.Screen (4).Kind := Adaflight.Menu.Redraw;
+                  if T.Asked.MSC_Resets < Natural'Last then
+                     T.Asked.MSC_Resets := T.Asked.MSC_Resets + 1;
+                  end if;
+                  T.Asked.MSC_Reset_Offset := T.Config.Time_Config.Tz_Offset_Minutes;
+               else
+                  Reply.Screens := 2;
+                  Reply.Screen (1) := Screen_Text (5, 3, "STORAGE NOT PRESENT OR FAILED TO INITIALIZE!");
+                  Reply.Screen (2).Kind := Adaflight.Menu.Redraw;
+                  Reply.Chain_Back := True;
+               end if;
             elsif Id = Persistent_Stats_Menu then
                T.Stats.Total_Flights := 0;
                T.Stats.Total_Time_S := 0;
@@ -661,7 +857,14 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       Short : constant Interfaces.Integer_16 :=
         Interfaces.Integer_16 ((Interfaces.Integer_64 (Value) + 32_768) mod 65_536 - 32_768);
    begin
-      if Id = LED_Strip_Menu then
+      if Id = Blackbox_Menu then
+         case Line is
+            when 2 => T.Blackbox.Rate := Byte;
+            when 3 => T.Blackbox.Device := Byte;
+            when 7 => T.Blackbox.Debug_Mode := Byte;
+            when others => null;
+         end case;
+      elsif Id = LED_Strip_Menu then
          case Line is
             when 1 => T.LED.Enabled := Byte;
             when 2 => T.LED.Profile := Byte;
@@ -752,6 +955,9 @@ package body Adaflight.Menu_Content with SPARK_Mode is
               elsif Id = Power_Menu and then Line = 1 then Voltage_Meter_Name (Index)
               elsif Id = Power_Menu and then Line = 2 then Current_Meter_Name (Index)
               elsif Id = Failsafe_Menu and then Line = 1 then Procedure_Name (Index)
+              elsif Id = Blackbox_Menu and then Line = 2 then Blackbox_Rate_Name (Index)
+              elsif Id = Blackbox_Menu and then Line = 3 then Blackbox_Device_Name (Index)
+              elsif Id = Blackbox_Menu and then Line = 7 then Debug_Name (Index)
               elsif Id = LED_Strip_Menu and then Line = 2 then LED_Profile_Name (Index)
               elsif Id = LED_Strip_Menu and then Line in 3 | 4 | 9 then LED_Color_Name (Index)
               else Label (""));

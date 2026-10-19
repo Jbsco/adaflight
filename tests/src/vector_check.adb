@@ -19687,6 +19687,9 @@ procedure Vector_Check is
                MCT_T.Live.Reboot_Required := True;
             end if;
          end loop;
+         if MCT_T.Asked.Flash_Erases > 0 then
+            MCT_T.Live.Flash_Offset := 0;
+         end if;
       end Expect_Ops;
       procedure Expect_State is
          Depth, Max_Row : Integer_64;
@@ -19735,6 +19738,10 @@ procedure Vector_Check is
          Record_Int (Name & ".runtime_features", Next, Integer_64 (MCT_T.Live.Runtime_Features));
          Record_Int (Name & ".led_enables", Next, Integer_64 (MCT_T.Asked.LED_Strip_Enables));
          Record_Int (Name & ".led_disables", Next, Integer_64 (MCT_T.Asked.LED_Strip_Disables));
+         Record_Int (Name & ".flash_erases", Next, Integer_64 (MCT_T.Asked.Flash_Erases));
+         Record_Int (Name & ".erase_beeps", Next, Integer_64 (MCT_T.Asked.Erase_Beeps));
+         Record_Int (Name & ".msc_resets", Next, Integer_64 (MCT_T.Asked.MSC_Resets));
+         Record_Int (Name & ".msc_offset", Next, Integer_64 (MCT_T.Asked.MSC_Reset_Offset));
          Adaflight.Config_Codec.Encode (MCT_T.Config, D);
          for B of D loop
             Hash := (Hash xor Interfaces.Unsigned_64 (B)) * 16#100_0000_01B3#;
@@ -19754,6 +19761,21 @@ procedure Vector_Check is
          MCT_T.Live.Acc_Calibrated := Int (F + 3) = 1;
          MCT_T.Live.Used_MAh := Int (F + 4) = 1;
       end Read_Live;
+      procedure Read_Storage (F : Positive) is
+      begin
+         MCT_T.Live.Blackbox_May_Edit := Int (F) = 1;
+         MCT_T.Live.PID_Frequency := Flt (F + 1);
+         MCT_T.Live.Card_Inserted := Int (F + 2) = 1;
+         MCT_T.Live.Card_Functional := Int (F + 3) = 1;
+         MCT_T.Live.Card_File_System := Adaflight.Menu_Content.File_System_State'Val (Int (F + 4));
+         MCT_T.Live.Card_Free_Bytes := Interfaces.Unsigned_32 (Int (F + 5));
+         MCT_T.Live.Card_Blocks := Interfaces.Unsigned_32 (Int (F + 6));
+         MCT_T.Live.Flash_Supported := Int (F + 7) = 1;
+         MCT_T.Live.Flash_Sectors := Natural (Int (F + 8));
+         MCT_T.Live.Flash_Sector_Size := Interfaces.Unsigned_32 (Int (F + 9));
+         MCT_T.Live.Flash_Offset := Interfaces.Unsigned_32 (Int (F + 10));
+         MCT_T.Live.Storage_Ready := Int (F + 11) = 1;
+      end Read_Storage;
       procedure Read_Sensors (F : Positive) is
       begin
          MCT_T.Live.Gyro_Present := Int (F) = 1;
@@ -19834,6 +19856,11 @@ procedure Vector_Check is
          MCT_T.Config.Led_Strip_Config.Ledstrip_Beacon_Armed_Only := Interfaces.Unsigned_8 (Int (78));
          MCT_T.Config.Led_Strip_Config.Ledstrip_Visual_Beeper := Interfaces.Unsigned_8 (Int (79));
          MCT_T.Config.Led_Strip_Config.Ledstrip_Visual_Beeper_Color := Interfaces.Unsigned_8 (Int (80));
+         MCT_T.Config.Blackbox_Config.Device := Interfaces.Unsigned_8 (Int (81));
+         MCT_T.Config.Blackbox_Config.Sample_Rate := Interfaces.Unsigned_8 (Int (82));
+         MCT_T.Config.System_Config.Debug_Mode := Interfaces.Unsigned_8 (Int (83));
+         MCT_T.Config.Time_Config.Tz_Offset_Minutes := Interfaces.Integer_16 (Int (84));
+         Read_Storage (85);
          MCT_T.Identity :=
            (Identifier => Menu_Text_Of ("ADFL"), Version => Menu_Text_Of ("0.1.0"),
             Revision => Menu_Text_Of ("norevision"), Target_Name => Menu_Text_Of ("STM32F405"));
@@ -19847,7 +19874,7 @@ procedure Vector_Check is
          declare
             D        : Adaflight.Config_Codec.Data;
             Hash     : Interfaces.Unsigned_64 := 16#CBF2_9CE4_8422_2325#;
-            Expected : constant Interfaces.Unsigned_64 := Interfaces.Unsigned_64'Value (Str (81));
+            Expected : constant Interfaces.Unsigned_64 := Interfaces.Unsigned_64'Value (Str (97));
          begin
             Adaflight.Config_Codec.Encode (MCT_T.Config, D);
             for B of D loop
@@ -19863,6 +19890,7 @@ procedure Vector_Check is
          Read_Live (4);
          MCT_T.Live.Reboot_Required := Int (9) = 1;
          Read_Sensors (10);
+         Read_Storage (14);
       elsif Name = "cmopen" then
          Begin_Step;
          Read_Ops;

@@ -5667,3 +5667,33 @@ menu copies start at zero. It replays 240 sessions with 18990 keys, 797 menu cha
 draws, 1002 of their states in the LED strip menu, with 48 enables and 25 disables: every display
 operation, menu context, page, request, active feature set and configuration hash matches the
 reference's.
+
+## D243. Blackbox menu (2026-10-15)
+
+`Adaflight.Menu_Content` gains the blackbox menu with its erase and mass storage confirmations, for
+a build with flash, SD card and mass storage support. The target gains the readings the menu shows:
+whether the flight recorder lets its configuration change, the PID loop's frequency as a float, the
+SD card's presence, function, file system state, contiguous free bytes and size in blocks, the
+flash's support, partition sectors, sector size and write offset, and whether mass storage is ready.
+
+On entry the menu sets the device's status and its used and free space from the configured device,
+copies the device, sample rate and debug mode, and sets the frequency's text, truncated to whole
+hertz as the reference casts it (F210). The counts print as a signed 32-bit number with their unit,
+and each text is cut to the reference's seven characters (F211). The debug mode names come from the
+command line's table, which holds the reference's names. On the way out the device is stored only
+while the recorder lets its configuration change, with a device other than flash, SD card or serial
+port stored as none; the sample rate and debug mode are stored as they are.
+
+The erase confirmation, with flash support, clears the display, writes `ERASING FLASH...`, redraws,
+asks the runtime to erase the flash and to beep when done, clears and redraws again, sets the status
+again with the flash's offset at zero, and goes back. The reference's erase blocks until the flash
+is ready, so its status shows the erased flash. The mass storage confirmation, when the file system
+is ready, clears the display, writes its two lines, redraws and asks the runtime to reset into mass
+storage with the time zone offset; otherwise it writes its failure line, redraws and goes back.
+
+The menu contents oracle scripts the readings, the configured device, sample rate, debug mode and
+time zone, completes an erase at once, and counts the erases, beeps and resets. The harness sets the
+flash's offset to zero after an erase, as the runtime does. It replays 240 sessions with 19366 keys,
+808 menu changes and 20174 draws, 1694 of their states in the blackbox menu, 214 in the erase
+confirmation and 288 in the mass storage confirmation, with 9 erases and 15 resets: every display
+operation, menu context, page, request and configuration hash matches the reference's.
