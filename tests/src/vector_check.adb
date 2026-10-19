@@ -216,6 +216,7 @@ with Adaflight.MPU_Gyro.MPU6500;
 with Adaflight.MPU_Gyro.ICM20689;
 with Adaflight.Flash_Device;
 with Adaflight.Flash_Device.M25P16;
+with Adaflight.Flash_Device.W25Q128FV;
 with Adaflight.Flash_Device.W25N;
 with Adaflight.Flash_Device.W25M;
 with Adaflight.Flash_Device.Layer;
@@ -23042,6 +23043,460 @@ procedure Vector_Check is
       end if;
    end Check_M25P16_Line;
 
+   --  The W25Q128FV oracle's chip and quad SPI bus: the chip keeps a write
+   --  enable latch and a volatile one, a quad enable bit with a stored copy
+   --  the reset restores, stays busy for a drawn number of status reads after
+   --  a program, an erase or a reset, and the clock advances every few calls.
+   type WQ_Bus is record
+      Busy_Program : Natural := 0;
+      Busy_Erase   : Natural := 0;
+      Busy_Reset   : Natural := 0;
+      Busy         : Natural := 0;
+      WEL          : Boolean := False;
+      VWEL         : Boolean := False;
+      QE           : Boolean := False;
+      QE_Stored    : Boolean := False;
+      Reset_Armed  : Boolean := False;
+      Read_Fails   : Boolean := False;
+      SR2_Other    : Byte := 0;
+      Size         : Interfaces.Unsigned_32 := 1;
+      Sector       : Interfaces.Unsigned_32 := 1;
+      Writes       : M2_Write_List;
+      Count        : Natural := 0;
+      Txn          : Byte_Array (0 .. 299) := (others => 0);
+      Txn_Len      : Natural := 0;
+      Read_Addr    : Interfaces.Unsigned_32 := 0;
+      Ms_Clock     : Interfaces.Unsigned_32 := 0;
+      Ms_Every     : Positive := 1;
+      Ms_Calls     : Natural := 0;
+   end record;
+
+   WQ_Device : WQ_Bus;
+
+   function WQ_Byte (D : WQ_Bus; A : Interfaces.Unsigned_32) return Byte is
+      use type Interfaces.Unsigned_8;
+      V : Byte := M2_Initial (A);
+   begin
+      for I in 1 .. D.Count loop
+         case D.Writes (I).Kind is
+            when 1 =>
+               V := 16#FF#;
+            when 0 =>
+               if A >= D.Writes (I).Addr and then A < D.Writes (I).Addr + D.Writes (I).Len then
+                  V := 16#FF#;
+               end if;
+            when others =>
+               declare
+                  Base : constant Interfaces.Unsigned_32 := D.Writes (I).Addr and not 16#FF#;
+               begin
+                  for K in 0 .. D.Writes (I).Len - 1 loop
+                     if Base + ((D.Writes (I).Addr + K) and 16#FF#) = A then
+                        V := V and D.Writes (I).Data (Natural (K));
+                     end if;
+                  end loop;
+               end;
+         end case;
+      end loop;
+      return V;
+   end WQ_Byte;
+
+   function WQ_Txn_Address (D : WQ_Bus) return Interfaces.Unsigned_32 is
+     (Interfaces.Shift_Left (Interfaces.Unsigned_32 (D.Txn (1)), 16)
+      or Interfaces.Shift_Left (Interfaces.Unsigned_32 (D.Txn (2)), 8) or Interfaces.Unsigned_32 (D.Txn (3)));
+
+   function WQ_Clock (D : in out WQ_Bus; Input : Byte) return Byte is
+      use type Interfaces.Unsigned_8;
+      Output : Byte := 16#FF#;
+   begin
+      if D.Txn_Len > 0 and then D.Txn (0) = 16#05# then
+         Output := (if D.Busy > 0 then 16#01# else 0) or (if D.WEL then 16#02# else 0);
+      elsif D.Txn_Len > 0 and then D.Txn (0) = 16#35# then
+         Output := D.SR2_Other or (if D.QE then 16#02# else 0);
+      elsif D.Txn_Len > 4 and then D.Txn (0) = 16#6B# and then D.Busy = 0 then
+         if D.Txn_Len = 5 then
+            D.Read_Addr := WQ_Txn_Address (D);
+         end if;
+         Output := WQ_Byte (D, D.Read_Addr mod D.Size);
+         D.Read_Addr := D.Read_Addr + 1;
+      end if;
+      if D.Txn_Len <= D.Txn'Last then
+         D.Txn (D.Txn_Len) := Input;
+      end if;
+      D.Txn_Len := D.Txn_Len + 1;
+      return Output;
+   end WQ_Clock;
+
+   procedure WQ_Deselect (D : in out WQ_Bus) is
+      use type Interfaces.Unsigned_8;
+      N  : constant Natural := D.Txn_Len;
+      Op : constant Byte := D.Txn (0);
+   begin
+      D.Txn_Len := 0;
+      if N = 0 then
+         return;
+      end if;
+      if Op = 16#05# then
+         if D.Busy > 0 then
+            D.Busy := D.Busy - 1;
+         end if;
+         return;
+      end if;
+      if Op = 16#35# or else Op = 16#9F# or else Op = 16#6B# or else D.Busy > 0 then
+         return;
+      end if;
+      if Op = 16#99# then
+         if D.Reset_Armed then
+            D.WEL := False;
+            D.VWEL := False;
+            D.QE := D.QE_Stored;
+            D.Busy := D.Busy_Reset;
+         end if;
+         D.Reset_Armed := False;
+         return;
+      end if;
+      D.Reset_Armed := Op = 16#66#;
+      if Op = 16#06# then
+         D.WEL := True;
+      elsif Op = 16#04# then
+         D.WEL := False;
+      elsif Op = 16#50# then
+         D.VWEL := True;
+      elsif Op = 16#31# and then N >= 2 and then (D.WEL or else D.VWEL) then
+         D.QE := (D.Txn (1) and 16#02#) /= 0;
+         if D.WEL then
+            D.QE_Stored := D.QE;
+         end if;
+         D.WEL := False;
+         D.VWEL := False;
+      elsif (Op = 16#D8# or else Op = 16#C7# or else Op = 16#32#) and then D.WEL and then D.Count < 64 then
+         if Op = 16#D8# and then N >= 4 then
+            D.Count := D.Count + 1;
+            D.Writes (D.Count) :=
+              (Kind => 0, Addr => (WQ_Txn_Address (D) mod D.Size) / D.Sector * D.Sector, Len => D.Sector,
+               Data => (others => 0));
+            D.Busy := D.Busy_Erase;
+         elsif Op = 16#C7# then
+            D.Count := D.Count + 1;
+            D.Writes (D.Count) := (Kind => 1, Addr => 0, Len => 0, Data => (others => 0));
+            D.Busy := D.Busy_Erase;
+         elsif Op = 16#32# and then N > 4 then
+            D.Count := D.Count + 1;
+            D.Writes (D.Count) :=
+              (Kind => 2, Addr => WQ_Txn_Address (D) mod D.Size,
+               Len => Interfaces.Unsigned_32 (Natural'Min (N - 4, 256)), Data => (others => 0));
+            for K in 0 .. Natural'Min (N - 4, 256) - 1 loop
+               D.Writes (D.Count).Data (K) := D.Txn (4 + K);
+            end loop;
+            D.Busy := D.Busy_Program;
+         end if;
+         D.WEL := False;
+      end if;
+   end WQ_Deselect;
+
+   procedure WQ_Clock_Address (D : in out WQ_Bus; Address : Interfaces.Unsigned_32) is
+      Unused : Byte;
+   begin
+      for I in reverse 0 .. 2 loop
+         Unused := WQ_Clock (D, Byte (Interfaces.Shift_Right (Address, 8 * I) and 16#FF#));
+      end loop;
+   end WQ_Clock_Address;
+
+   procedure WQ_Clock_Dummy (D : in out WQ_Bus; Cycles : Natural) is
+      Unused : Byte;
+   begin
+      for I in 1 .. Cycles / 8 loop
+         Unused := WQ_Clock (D, 16#FF#);
+      end loop;
+   end WQ_Clock_Dummy;
+
+   function WQ_Show (Data : Byte_Array) return String is
+     (if Data'Length = 0 then "-" else M2_Show (Data, True));
+
+   function WQ_Hex (B : Byte) return String is (MX_Hex (Byte_Array'(0 => B)));
+
+   procedure WQ_Transmit (D : in out WQ_Bus; Instruction : Byte; Data : Byte_Array) is
+      Unused : Byte;
+   begin
+      Unused := WQ_Clock (D, Instruction);
+      for B of Data loop
+         Unused := WQ_Clock (D, B);
+      end loop;
+      WQ_Deselect (D);
+      MX_Op ("tx1," & WQ_Hex (Instruction) & ",0," & BMP_Num (Integer_64 (Data'Length)) & "," & WQ_Show (Data));
+   end WQ_Transmit;
+
+   procedure WQ_Receive (D : in out WQ_Bus; Instruction : Byte; Data : out Byte_Array) is
+      Unused : Byte;
+   begin
+      Unused := WQ_Clock (D, Instruction);
+      for K in Data'Range loop
+         Data (K) := WQ_Clock (D, 16#FF#);
+      end loop;
+      WQ_Deselect (D);
+      MX_Op ("rx1," & WQ_Hex (Instruction) & ",0," & BMP_Num (Integer_64 (Data'Length)) & "," & WQ_Show (Data));
+   end WQ_Receive;
+
+   procedure WQ_Instruction_With_Address (D : in out WQ_Bus; Instruction : Byte; Address : Interfaces.Unsigned_32) is
+      Unused : Byte;
+   begin
+      Unused := WQ_Clock (D, Instruction);
+      WQ_Clock_Address (D, Address);
+      WQ_Deselect (D);
+      MX_Op ("ia1," & WQ_Hex (Instruction) & ",0," & BMP_Num (Integer_64 (Address)) & ",24");
+   end WQ_Instruction_With_Address;
+
+   procedure WQ_Receive_With_Address
+     (D           : in out WQ_Bus;
+      Instruction : Byte;
+      Dummy       : Natural;
+      Address     : Interfaces.Unsigned_32;
+      Data        : out Byte_Array;
+      OK          : out Boolean)
+   is
+      Unused : Byte;
+   begin
+      Unused := WQ_Clock (D, Instruction);
+      WQ_Clock_Address (D, Address);
+      WQ_Clock_Dummy (D, Dummy);
+      for K in Data'Range loop
+         Data (K) := WQ_Clock (D, 16#FF#);
+      end loop;
+      WQ_Deselect (D);
+      OK := not D.Read_Fails;
+      D.Read_Fails := False;
+      MX_Op ("rxa4," & WQ_Hex (Instruction) & "," & BMP_Num (Integer_64 (Dummy)) & "," & BMP_Num (Integer_64 (Address))
+             & ",24," & BMP_Num (Integer_64 (Data'Length)) & "," & WQ_Show (Data) & "," & BMP_Num (Boolean'Pos (OK)));
+   end WQ_Receive_With_Address;
+
+   procedure WQ_Run
+     (D : in out WQ_Bus; F : in out Adaflight.Flash_Device.Device; Q : Adaflight.Flash_Device.Sequence;
+      First : Adaflight.Flash_Device.Segment_Index; Data_1 : Byte_Array; Data_2 : Byte_Array)
+   is
+      use Adaflight.Flash_Device;
+      I     : Segment_Index := First;
+      Guard : Natural := 0;
+   begin
+      MX_Op ("seq");
+      while Q (I).Length /= 0 and then Guard < 1000 loop
+         Guard := Guard + 1;
+         declare
+            S      : constant Segment := Q (I);
+            Tx     : Byte_Array (0 .. S.Length - 1);
+            Rx     : Byte_Array (0 .. S.Length - 1);
+            R      : Bus_Result := Ready;
+            Notify : Boolean;
+            Width  : constant String := (if S.Source in Buffer_1 | Buffer_2 then "2" else "0");
+         begin
+            case S.Source is
+               when Command =>
+                  Tx := S.Bytes (0 .. S.Length - 1);
+               when Buffer_1 =>
+                  Tx := Data_1 (Data_1'First .. Data_1'First + S.Length - 1);
+               when Buffer_2 =>
+                  Tx := Data_2 (Data_2'First .. Data_2'First + S.Length - 1);
+               when Read_Data | Link =>
+                  Tx := (others => 16#FF#);
+            end case;
+            for K in Tx'Range loop
+               Rx (K) := WQ_Clock (D, Tx (K));
+            end loop;
+            MX_Op ("seg," & BMP_Num (Integer_64 (S.Length)) & "," & Width & "," & BMP_Num (Boolean'Pos (S.Negate_CS))
+                   & ","
+                   & (case S.After is when None => "none", when Ready_Poll => "ready", when Write_Enabled => "wren",
+                         when Write_Done => "done")
+                   & "," & M2_Show (Tx, S.Source /= Read_Data) & "," & M2_Show (Rx, S.Receive));
+            if S.Negate_CS then
+               WQ_Deselect (D);
+            end if;
+            case S.After is
+               when None =>
+                  null;
+               when Ready_Poll =>
+                  Ready_Poll_Done (F, Rx (1), R);
+                  MX_Op ("cb," & (case R is when Ready => "0", when Busy => "1", when Skip_Rest => "2"));
+               when Write_Enabled =>
+                  Write_Enable_Done (F);
+                  MX_Op ("cb,0");
+               when Write_Done =>
+                  Adaflight.Flash_Device.Write_Done (F, Notify);
+                  if Notify then
+                     MX_Op ("written," & BMP_Num (Integer_64 (F.Bytes_Written)));
+                  end if;
+                  MX_Op ("cb,0");
+            end case;
+            if R /= Busy then
+               if R = Skip_Rest then
+                  while I < Segment_Index'Last and then Q (I + 1).Length /= 0 loop
+                     I := I + 1;
+                  end loop;
+               end if;
+               exit when I = Segment_Index'Last;
+               I := I + 1;
+            end if;
+         end;
+      end loop;
+   end WQ_Run;
+
+   procedure WQ_Wait (D : in out WQ_Bus) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("wait");
+   end WQ_Wait;
+
+   procedure WQ_Millis (D : in out WQ_Bus; Now : out Interfaces.Unsigned_32) is
+   begin
+      Now := D.Ms_Clock;
+      D.Ms_Calls := D.Ms_Calls + 1;
+      if D.Ms_Calls mod D.Ms_Every = 0 then
+         D.Ms_Clock := D.Ms_Clock + 1;
+      end if;
+      MX_Op ("millis," & BMP_Num (Integer_64 (Now)));
+   end WQ_Millis;
+
+   procedure WQ_Report_Written (D : in out WQ_Bus; Bytes : Interfaces.Unsigned_32) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("written," & BMP_Num (Integer_64 (Bytes)));
+   end WQ_Report_Written;
+
+   package WQ_Chip is new Adaflight.Flash_Device.W25Q128FV
+     (Quad_Device              => WQ_Bus,
+      Transmit                 => WQ_Transmit,
+      Receive                  => WQ_Receive,
+      Instruction_With_Address => WQ_Instruction_With_Address,
+      Receive_With_Address     => WQ_Receive_With_Address,
+      Run                      => WQ_Run,
+      Wait                     => WQ_Wait,
+      Millis                   => WQ_Millis,
+      Report_Written           => WQ_Report_Written);
+
+   WQ_Flash      : Adaflight.Flash_Device.Device;
+   WQ_Identified : Boolean := False;
+   WQ_Flags      : Interfaces.Unsigned_32 := 0;
+   WQ_Result     : Integer_64 := 0;
+   WQ_Extra      : Integer_64 := 0;
+
+   procedure Check_W25Q128FV_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "wqinit" then
+         MX_Op_Head := 1;
+         MX_Op_Count := 0;
+         WQ_Device := (others => <>);
+         WQ_Flash := (others => <>);
+         WQ_Flags := Interfaces.Unsigned_32 (Int (4));
+         WQ_Device.Busy_Program := Natural (Int (5));
+         WQ_Device.Busy_Erase := Natural (Int (6));
+         WQ_Device.Busy_Reset := Natural (Int (7));
+         WQ_Device.QE := Int (8) /= 0;
+         WQ_Device.QE_Stored := WQ_Device.QE;
+         WQ_Device.SR2_Other := Byte (Int (9));
+         WQ_Device.Ms_Every := Positive (Int (11));
+         WQ_Device.Ms_Clock := Interfaces.Unsigned_32 (Int (12));
+         WQ_Chip.Identify (WQ_Flash, Interfaces.Unsigned_32 (Int (3)), WQ_Identified);
+      elsif Name = "wqid" then
+         Record_Int ("w25q128fv.identified", Int (3), Boolean'Pos (WQ_Identified));
+         Record_Int ("w25q128fv.sectors", Int (4), Integer_64 (WQ_Flash.Map.Sectors));
+         Record_Int ("w25q128fv.pages_per_sector", Int (5), Integer_64 (WQ_Flash.Map.Pages_Per_Sector));
+         Record_Int ("w25q128fv.page_size", Int (6), Integer_64 (WQ_Flash.Map.Page_Size));
+         Record_Int ("w25q128fv.sector_size", Int (7), Integer_64 (WQ_Flash.Map.Sector_Size));
+         Record_Int ("w25q128fv.total_size", Int (8), Integer_64 (WQ_Flash.Map.Total_Size));
+         Record_Int ("w25q128fv.kind", Int (9), Adaflight.Flash_Device.Flash_Type'Pos (WQ_Flash.Map.Kind));
+         if Int (3) /= 0 then
+            WQ_Device.Size := Interfaces.Unsigned_32 (Int (8));
+            WQ_Device.Sector := Interfaces.Unsigned_32 (Int (7));
+            WQ_Chip.Configure (WQ_Device, WQ_Flash, WQ_Flags);
+         end if;
+      elsif Name = "wqcfg" then
+         MX_Expect_No_Ops ("configuration");
+         Record_Int ("w25q128fv.busy", Int (3), Boolean'Pos (WQ_Flash.Could_Be_Busy));
+         Record_Int ("w25q128fv.timeout_at", Int (4), Integer_64 (WQ_Flash.Timeout_At));
+      elsif Name = "wqstep" then
+         MX_Op_Head := 1;
+         MX_Op_Count := 0;
+         WQ_Result := 0;
+         WQ_Extra := 0;
+         declare
+            Address : constant Interfaces.Unsigned_32 := (if NF >= 5 then Interfaces.Unsigned_32 (Int (5)) else 0);
+         begin
+            case Int (4) is
+               when 0 =>
+                  declare
+                     Ready : Boolean;
+                  begin
+                     WQ_Chip.Is_Ready (WQ_Device, Ready);
+                     WQ_Result := Boolean'Pos (Ready);
+                  end;
+               when 1 =>
+                  declare
+                     Ready : Boolean;
+                  begin
+                     WQ_Chip.Wait_For_Ready (WQ_Device, WQ_Flash, Ready);
+                     WQ_Result := Boolean'Pos (Ready);
+                  end;
+               when 2 =>
+                  WQ_Chip.Erase_Sector (WQ_Device, WQ_Flash, Address);
+               when 3 =>
+                  WQ_Chip.Erase_Completely (WQ_Device, WQ_Flash);
+               when 4 =>
+                  WQ_Chip.Page_Program
+                    (WQ_Device, WQ_Flash, Address, M2_Fill (Natural (Int (6)), Interfaces.Unsigned_32 (Int (7))),
+                     Int (8) /= 0);
+               when 5 =>
+                  declare
+                     Written : Interfaces.Unsigned_32;
+                  begin
+                     WQ_Chip.Page_Program_Begin (WQ_Flash, Address, Int (11) /= 0);
+                     WQ_Chip.Page_Program_Continue
+                       (WQ_Device, WQ_Flash, M2_Fill (Natural (Int (7)), Interfaces.Unsigned_32 (Int (8))),
+                        M2_Fill (Natural (Int (9)), Interfaces.Unsigned_32 (Int (10))), Natural (Int (6)), Written);
+                     WQ_Result := Integer_64 (Written);
+                  end;
+               when 6 =>
+                  declare
+                     Buffer : Byte_Array (0 .. Natural (Int (6)) - 1) := (others => 0);
+                     Count  : Natural;
+                  begin
+                     WQ_Device.Read_Fails := Int (7) /= 0;
+                     WQ_Chip.Read_Bytes (WQ_Device, WQ_Flash, Address, Buffer, Count);
+                     WQ_Result := Integer_64 (Count);
+                     WQ_Extra := Integer_64 (M2_Hash (Buffer));
+                  end;
+               when others =>
+                  declare
+                     G : constant Adaflight.Flash_Device.Geometry := WQ_Chip.Get_Geometry (WQ_Flash);
+                  begin
+                     WQ_Result := Integer_64 (G.Total_Size);
+                     WQ_Extra := Integer_64 (G.Sectors);
+                  end;
+            end case;
+         end;
+      elsif Name = "wqop" then
+         declare
+            Expected : Ada.Strings.Unbounded.Unbounded_String := Ada.Strings.Unbounded.To_Unbounded_String (Str (3));
+         begin
+            for I in 4 .. NF loop
+               Ada.Strings.Unbounded.Append (Expected, "," & Str (I));
+            end loop;
+            if MX_Op_Head <= MX_Op_Count then
+               Record_Text ("w25q128fv.op", Ada.Strings.Unbounded.To_String (Expected),
+                            Ada.Strings.Unbounded.To_String (MX_Ops (MX_Op_Head)));
+               MX_Op_Head := MX_Op_Head + 1;
+            else
+               Record_Text ("w25q128fv.op", Ada.Strings.Unbounded.To_String (Expected), "none");
+            end if;
+         end;
+      elsif Name = "wqres" then
+         MX_Expect_No_Ops ("a result");
+         Record_Int ("w25q128fv.result", Int (4), WQ_Result);
+         Record_Int ("w25q128fv.extra", Int (5), WQ_Extra);
+         Record_Int ("w25q128fv.busy", Int (6), Boolean'Pos (WQ_Flash.Could_Be_Busy));
+         Record_Int ("w25q128fv.address", Int (7), Integer_64 (WQ_Flash.Current_Write_Address));
+         Record_Int ("w25q128fv.written", Int (8), Integer_64 (WQ_Flash.Bytes_Written));
+         Record_Int ("w25q128fv.timeout_at", Int (9), Integer_64 (WQ_Flash.Timeout_At));
+      end if;
+   end Check_W25Q128FV_Line;
+
    --  The W25N oracle's chip: its page count, page address form and status
    --  register instructions, each block's last erase, the programs in order
    --  over a fixed initial pattern, the registers, data buffer and write
@@ -36283,6 +36738,8 @@ procedure Vector_Check is
                   Check_ICM20689_Line;
                elsif Kind = "m25p16" then
                   Check_M25P16_Line;
+               elsif Kind = "w25q128fv" then
+                  Check_W25Q128FV_Line;
                elsif Kind = "w25n" then
                   Check_W25N_Line;
                elsif Kind = "w25m" then
@@ -36611,6 +37068,7 @@ begin
    Run (Dir & "/mpu6500.csv", "mpu6500");
    Run (Dir & "/icm20689.csv", "icm20689");
    Run (Dir & "/m25p16.csv", "m25p16");
+   Run (Dir & "/w25q128fv.csv", "w25q128fv");
    Run (Dir & "/w25n.csv", "w25n");
    Run (Dir & "/w25m.csv", "w25m");
    Run (Dir & "/flash.csv", "flash");

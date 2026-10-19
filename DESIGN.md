@@ -8654,3 +8654,44 @@ fail the vectors. Eight pass and are equivalent: the refused initialization's co
 checks, which a controller that answers every initialization with its first result never reaches; the information copy
 of an unanswered call, which brings the same values; the status of an ended write run, which every caller compares with
 success only; and the failed read's completion with the operation's stored index and data, which equal the call's.
+
+## D369. W25Q128FV flash driver (2026-10-19)
+
+`Adaflight.Flash_Device.W25Q128FV` drives the nine NOR flash chips of the W25Q128FV family, 2 to 32 MB parts with
+256-byte pages and 64 KB sectors, over a quad SPI controller: a generic child of the flash device over the controller's
+one-line instructions with data, an answer or an address, its four-line read with an address and dummy cycles, segment
+lists with their buffers on four lines, the wait, the millisecond clock and the report of written bytes. Identification
+looks the JEDEC ID up for the sectors and sets the geometry; an unknown ID clears it. Configuration does nothing on a
+memory-mapped system and otherwise resets the chip: it waits for the chip, sends the reset pair, waits a millisecond and
+for the chip again, then reads the second status register and, when the quad enable bit is clear, reads it again and
+writes it back with the bit set after a volatile write enable. The ready check reads the first status register. A wait
+for the chip ends when the chip reads ready or the timeout the last operation set passes, and clears the timeout, so a
+wait that follows another with no operation between ends at the first busy answer. Erases wait for the chip, enable
+writes, send the block or chip erase and set the erase timeout. A program goes to the bus as a segment list: the status
+read repeated while the chip is busy, the write enable, the quad program command with its address and one or two buffers
+on four lines, the last of which releases the chip and ends the program, after which a program without a report waits
+for the bus; no buffer reports zero bytes to a program with a report, and any other count sends nothing and returns 0
+after the written bytes take the first buffer's length. A read waits for the chip, reads on four lines after eight dummy
+cycles, sets the read timeout and returns the length, or 0 when the chip stayed busy or the bus refused. The driver
+never sets a program timeout, which only the octo SPI path of the reference does; that path and the memory-mapped octo
+SPI operation stay out, since three SPRacing H7 boards reach them memory mapped and the other builds leave them behind
+an experimental define. The bus formal runs the segment list's callbacks, which the STM32 quad SPI controller code does
+not (finding F279). The unit is SPARK for the command bytes, the table and the segment lists.
+
+The W25Q128FV oracle includes the reference driver over a simulated chip, bus and clock, one case per process. The bus
+runs segment lists as the SPI handler does and clocks the one and four line transfers through the chip as bytes. The
+chip keeps a write enable latch and a volatile one, a quad enable bit with a stored copy the reset restores, stays busy
+for a drawn number of status reads after a program, an erase or a reset, ignores commands while busy and wraps a program
+within its page; the clock advances a millisecond every one to six calls and stays clear of the microsecond wrap, where
+the reference hangs (F279). It draws the JEDEC ID, from the table in 85 percent of cases, the memory-mapped flag in 10
+percent, the busy reads, past three in 30 percent of programs, the quad enable bit and the other bits of the second
+status register, reads the bus refuses in 15 percent of cases, and the clock, then runs 4 to 14 drawn operations, half
+of them near the last write: ready checks, waits, sector and chip erases, programs of one buffer or of none to three,
+reads of up to 64 bytes and geometry queries. Every bus and clock call, with the bytes of each transfer or their hash,
+and the device's state after each operation of the 300 cases replay exactly. In them 251 chips identify, 555 programs
+run through the bus, 206 reads start, 61 waits time out and 68 reads return nothing. Of 88 tampered paths, 82 fail the
+vectors and 3 stop the checker at a subtype check. Three pass and are equivalent: the deadline comparison at a
+difference of exactly 2 ** 31 ms, which a millisecond clock under 2 ** 23 never produces; the clear of the deadline
+after a timed wait, since a deadline of zero and a passed one both read as timed out under that clock; and the sector
+count a failed identification clears, which is zero already since the geometry starts empty and identification runs
+once.
