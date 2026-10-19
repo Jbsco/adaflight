@@ -184,6 +184,7 @@ with Adaflight.STK_Bootloader;
 with Adaflight.USB_Joystick;
 with Adaflight.BMP280;
 with Adaflight.DPS310;
+with Adaflight.LPS22DF;
 with Adaflight.MS5611;
 with Adaflight.BMP388;
 with Adaflight.MAX7456;
@@ -15581,7 +15582,7 @@ procedure Vector_Check is
       Last_Read      : Byte_Array (0 .. 5) := (others => 0);
    end record;
 
-   BMP_Max_Ops : constant := 64;
+   BMP_Max_Ops : constant := 256;
    type BMP_Op_Queue is array (1 .. BMP_Max_Ops) of Ada.Strings.Unbounded.Unbounded_String;
    BMP_Ops      : BMP_Op_Queue;
    BMP_Op_Head  : Positive := 1;
@@ -16010,6 +16011,229 @@ procedure Vector_Check is
          Record_Int ("dps310.temperature", Int (6), Integer_64 (DPS_Temperature));
       end if;
    end Check_DPS310_Line;
+
+   --  The LPS22DF oracle's bus: the simulated chip's registers, which writes
+   --  change, its address, the reads still to fail, the control register
+   --  reads still to show the software reset, the scripted busy and start
+   --  answers, the bytes the last started read brought, and the millisecond
+   --  clock. Its calls share the BMP280 bus's queue.
+   type LP_Bus is record
+      SPI            : Boolean := False;
+      Address        : Byte := 0;
+      Device_Address : Byte := 0;
+      Registers      : Byte_Array (0 .. 255) := (others => 0);
+      Failures_Left  : Natural := 0;
+      Reset_Left     : Natural := 0;
+      Busy           : Boolean := False;
+      Started        : Boolean := False;
+      Last_Read      : Byte_Array (0 .. 4) := (others => 0);
+      Clock          : Interfaces.Unsigned_32 := 0;
+      Every          : Positive := 1;
+      Calls          : Natural := 0;
+   end record;
+
+   function LP_Responds (D : LP_Bus) return Boolean is
+      use type Interfaces.Unsigned_8;
+   begin
+      return (if D.SPI then True else D.Device_Address /= 0 and then D.Address = D.Device_Address);
+   end LP_Responds;
+
+   function LP_Is_I2C (D : LP_Bus) return Boolean is (not D.SPI);
+   function LP_Is_SPI (D : LP_Bus) return Boolean is (D.SPI);
+   function LP_Address (D : LP_Bus) return Byte is (D.Address);
+
+   procedure LP_Set_Address (D : in out LP_Bus; Address : Byte) is
+   begin
+      D.Address := Address;
+   end LP_Set_Address;
+
+   procedure LP_Prepare_SPI (D : in out LP_Bus; Max_Clock_Hz : Interfaces.Unsigned_32) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("cshigh");
+      BMP_Op ("csinit,1,0");
+      BMP_Op ("csconfig");
+      BMP_Op ("spidivider," & BMP_Num (Integer_64 (Max_Clock_Hz)));
+      BMP_Op ("spiclock," & BMP_Num (Integer_64 (Max_Clock_Hz / 1_000_000)));
+   end LP_Prepare_SPI;
+
+   procedure LP_Release_SPI (D : in out LP_Bus) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("cspreinit,1");
+   end LP_Release_SPI;
+
+   procedure LP_Read (D : in out LP_Bus; Register : Byte; Data : in out Byte_Array; OK : out Boolean) is
+      use type Interfaces.Unsigned_8;
+   begin
+      OK := LP_Responds (D);
+      if OK and then D.Failures_Left > 0 then
+         D.Failures_Left := D.Failures_Left - 1;
+         OK := False;
+      end if;
+      BMP_Op ("read," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Data'Length)) & ","
+              & BMP_Num (Integer_64 (if D.SPI then 0 else D.Address)) & "," & BMP_Num (Boolean'Pos (OK)));
+      if OK then
+         for I in Data'Range loop
+            Data (I) := D.Registers (Natural ((Integer (Register) + I - Data'First) mod 256));
+         end loop;
+         if Register = 16#11# then
+            if D.Reset_Left > 0 then
+               D.Reset_Left := D.Reset_Left - 1;
+            else
+               D.Registers (16#11#) := D.Registers (16#11#) and not 16#04#;
+            end if;
+         end if;
+      end if;
+   end LP_Read;
+
+   procedure LP_Write (D : in out LP_Bus; Register : Byte; Value : Byte; OK : out Boolean) is
+   begin
+      BMP_Op ("write," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Value)));
+      OK := LP_Responds (D);
+      if OK then
+         D.Registers (Natural (Register)) := Value;
+      end if;
+   end LP_Write;
+
+   procedure LP_Start_Read (D : in out LP_Bus; Register : Byte; Length : Positive; Started : out Boolean) is
+   begin
+      BMP_Op ("readstart," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Length)) & ","
+              & BMP_Num (Boolean'Pos (D.Started)));
+      Started := D.Started;
+      if Started then
+         for I in 0 .. Natural'Min (Length, D.Last_Read'Length) - 1 loop
+            D.Last_Read (I) := D.Registers ((Natural (Register) + I) mod 256);
+         end loop;
+      end if;
+   end LP_Start_Read;
+
+   procedure LP_Check_Busy (D : in out LP_Bus; Busy : out Boolean; Error : out Boolean) is
+   begin
+      BMP_Op ("busy," & BMP_Num (Boolean'Pos (D.Busy)));
+      Busy := D.Busy;
+      Error := False;
+   end LP_Check_Busy;
+
+   procedure LP_Fetch (D : in out LP_Bus; Data : out Byte_Array) is
+   begin
+      for I in Data'Range loop
+         Data (I) := D.Last_Read (I - Data'First);
+      end loop;
+   end LP_Fetch;
+
+   procedure LP_Register (D : in out LP_Bus) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("register");
+   end LP_Register;
+
+   procedure LP_Delay (D : in out LP_Bus; Ms : Natural) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("delay," & BMP_Num (Integer_64 (Ms)));
+   end LP_Delay;
+
+   procedure LP_Millis (D : in out LP_Bus; Now : out Interfaces.Unsigned_32) is
+   begin
+      Now := D.Clock;
+      D.Calls := D.Calls + 1;
+      if D.Calls mod D.Every = 0 then
+         D.Clock := D.Clock + 1;
+      end if;
+      BMP_Op ("millis," & BMP_Num (Integer_64 (Now)));
+   end LP_Millis;
+
+   package LP_Driver is new Adaflight.LPS22DF
+     (Bus_Device      => LP_Bus,
+      Is_I2C          => LP_Is_I2C,
+      Is_SPI          => LP_Is_SPI,
+      I2C_Address     => LP_Address,
+      Set_I2C_Address => LP_Set_Address,
+      Prepare_SPI     => LP_Prepare_SPI,
+      Release_SPI     => LP_Release_SPI,
+      Read_Registers  => LP_Read,
+      Write_Register  => LP_Write,
+      Start_Read      => LP_Start_Read,
+      Check_Busy      => LP_Check_Busy,
+      Fetch           => LP_Fetch,
+      Register_Device => LP_Register,
+      Delay_Ms        => LP_Delay,
+      Millis          => LP_Millis);
+
+   LP_Device      : LP_Bus;
+   LP_State       : LP_Driver.State;
+   LP_Found       : Boolean := False;
+   LP_Settings    : Adaflight.Barometer_Task.Device;
+   LP_Done        : Boolean := False;
+   LP_Pressure    : Interfaces.Integer_32 := -1;
+   LP_Temperature : Interfaces.Integer_32 := -1;
+
+   procedure Check_LPS22DF_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "lpinit" then
+         BMP_Op_Head := 1;
+         BMP_Op_Count := 0;
+         LP_Device := (others => <>);
+         LP_Device.SPI := Int (3) /= 0;
+         LP_Device.Address := Byte (Int (4));
+         LP_Device.Device_Address := Byte (Int (5));
+         LP_Device.Failures_Left := Natural (Int (6));
+         LP_Device.Reset_Left := Natural (Int (7));
+         LP_Device.Every := Positive (Int (8));
+         LP_Device.Clock := Interfaces.Unsigned_32 (Int (9));
+         LP_Device.Registers (16#0F#) := Hex_Bytes (10) (0);
+         LP_State := (others => <>);
+         LP_Pressure := -1;
+         LP_Temperature := -1;
+         LP_Driver.Detect (LP_Device, LP_State, LP_Found, LP_Settings);
+      elsif Name = "lpop" then
+         declare
+            Expected : Ada.Strings.Unbounded.Unbounded_String := Ada.Strings.Unbounded.To_Unbounded_String (Str (3));
+         begin
+            for I in 4 .. NF loop
+               Ada.Strings.Unbounded.Append (Expected, "," & Str (I));
+            end loop;
+            if BMP_Op_Head <= BMP_Op_Count then
+               Record_Text ("lps22df.op", Ada.Strings.Unbounded.To_String (Expected),
+                            Ada.Strings.Unbounded.To_String (BMP_Ops (BMP_Op_Head)));
+               BMP_Op_Head := BMP_Op_Head + 1;
+            else
+               Record_Text ("lps22df.op", Ada.Strings.Unbounded.To_String (Expected), "none");
+            end if;
+         end;
+      elsif Name = "lpdet" then
+         BMP_Expect_No_Ops ("detection");
+         Record_Int ("lps22df.found", Int (3), Boolean'Pos (LP_Found));
+         Record_Int ("lps22df.address", Int (4), Integer_64 (if LP_Device.SPI then 0 else LP_Device.Address));
+         Record_Int ("lps22df.combined", Int (5), Boolean'Pos (LP_Settings.Combined_Read));
+         Record_Int ("lps22df.ut_delay", Int (6), Integer_64 (LP_Settings.Temperature_Delay_Us));
+         Record_Int ("lps22df.up_delay", Int (7), Integer_64 (LP_Settings.Pressure_Delay_Us));
+      elsif Name = "lpstep" then
+         LP_Device.Busy := Int (5) /= 0;
+         LP_Device.Started := Int (6) /= 0;
+         declare
+            Data : constant Byte_Array := Hex_Bytes (7);
+         begin
+            for I in Data'Range loop
+               LP_Device.Registers (16#28# + I) := Data (I);
+            end loop;
+         end;
+         case Int (4) is
+            when 0 .. 5 =>
+               LP_Driver.Device_Call (LP_Device, LP_State, BMP_Calls (Integer (Int (4))), LP_Done);
+            when others =>
+               LP_Driver.Calculate (LP_State, LP_Pressure, LP_Temperature);
+               LP_Done := False;
+         end case;
+      elsif Name = "lpres" then
+         BMP_Expect_No_Ops ("a result");
+         Record_Int ("lps22df.done", Int (4), Boolean'Pos (LP_Done));
+         Record_Int ("lps22df.pressure", Int (5), Integer_64 (LP_Pressure));
+         Record_Int ("lps22df.temperature", Int (6), Integer_64 (LP_Temperature));
+      end if;
+   end Check_LPS22DF_Line;
 
    --  The MS5611 oracle's bus: the simulated chip's first PROM byte, PROM
    --  words and ADC bytes, its address, the scripted busy and start answers,
@@ -31636,6 +31860,8 @@ procedure Vector_Check is
                   Check_BMP280_Line;
                elsif Kind = "dps310" then
                   Check_DPS310_Line;
+               elsif Kind = "lps22df" then
+                  Check_LPS22DF_Line;
                elsif Kind = "ms5611" then
                   Check_MS5611_Line;
                elsif Kind = "bmp388" then
@@ -31955,6 +32181,7 @@ begin
    Run (Dir & "/usbhid.csv", "usbhid");
    Run (Dir & "/bmp280.csv", "bmp280");
    Run (Dir & "/dps310.csv", "dps310");
+   Run (Dir & "/lps22df.csv", "lps22df");
    Run (Dir & "/ms5611.csv", "ms5611");
    Run (Dir & "/bmp388.csv", "bmp388");
    Run (Dir & "/max7456.csv", "max7456");
