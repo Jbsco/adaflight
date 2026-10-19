@@ -188,6 +188,7 @@ with Adaflight.LPS22DF;
 with Adaflight.QMP6988;
 with Adaflight.SMPB_02B;
 with Adaflight.LPS;
+with Adaflight.BMP5xx;
 with Adaflight.BMP085;
 with Adaflight.Lidar_TF;
 with Adaflight.Nooploop;
@@ -16869,6 +16870,202 @@ procedure Vector_Check is
       end if;
    end Check_LPS_Line;
 
+   --  The BMP5xx oracle's bus: the simulated chip's registers, its address,
+   --  the SPI dummy byte, the reads scripted to fail, and the busy answers
+   --  detection waits out. Its calls share the BMP280 bus's queue.
+   type B5_Bus is record
+      SPI            : Boolean := False;
+      Address        : Byte := 0;
+      Device_Address : Byte := 0;
+      Registers      : Byte_Array (0 .. 255) := (others => 0);
+      Dummy          : Byte := 0;
+      Fail_Mask      : Interfaces.Unsigned_32 := 0;
+      Reads_Done     : Natural := 0;
+      Detecting      : Boolean := False;
+      Detect_Busy    : Natural := 0;
+   end record;
+
+   function B5_Responds (D : B5_Bus) return Boolean is
+      use type Interfaces.Unsigned_8;
+   begin
+      return (if D.SPI then True else D.Device_Address /= 0 and then D.Address = D.Device_Address);
+   end B5_Responds;
+
+   function B5_Chip_Byte (D : B5_Bus; Register : Byte; K : Natural) return Byte is
+     (if D.SPI and then K = 0 then D.Dummy
+      else D.Registers ((Natural (Register) + K - (if D.SPI then 1 else 0)) mod 256));
+
+   function B5_Is_I2C (D : B5_Bus) return Boolean is (not D.SPI);
+   function B5_Is_SPI (D : B5_Bus) return Boolean is (D.SPI);
+   function B5_Address (D : B5_Bus) return Byte is (D.Address);
+
+   procedure B5_Set_Address (D : in out B5_Bus; Address : Byte) is
+   begin
+      D.Address := Address;
+   end B5_Set_Address;
+
+   procedure B5_Prepare_SPI (D : in out B5_Bus; Max_Clock_Hz : Interfaces.Unsigned_32) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("cshigh");
+      BMP_Op ("ioinit,cs,0");
+      BMP_Op ("csconfig");
+      BMP_Op ("spidivider," & BMP_Num (Integer_64 (Max_Clock_Hz)));
+      BMP_Op ("spiclock," & BMP_Num (Integer_64 (Max_Clock_Hz / 1_000_000)));
+   end B5_Prepare_SPI;
+
+   procedure B5_Release_SPI (D : in out B5_Bus) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("cspreinit,1");
+   end B5_Release_SPI;
+
+   procedure B5_Enable_EOC (D : in out B5_Bus) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("ioinit,eoc,0");
+      BMP_Op ("extihandler");
+      BMP_Op ("exticonfig,1");
+      BMP_Op ("extienable");
+   end B5_Enable_EOC;
+
+   procedure B5_Read (D : in out B5_Bus; Register : Byte; Data : in out Byte_Array; OK : out Boolean) is
+      Scripted_Fail : constant Boolean :=
+        D.Reads_Done < 32 and then (Interfaces.Shift_Right (D.Fail_Mask, D.Reads_Done) and 1) = 1;
+   begin
+      D.Reads_Done := D.Reads_Done + 1;
+      OK := B5_Responds (D) and then not Scripted_Fail;
+      BMP_Op ("read," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Data'Length)) & ","
+              & BMP_Num (Integer_64 (if D.SPI then 0 else D.Address)) & "," & BMP_Num (Boolean'Pos (OK)));
+      if OK then
+         for I in Data'Range loop
+            Data (I) := B5_Chip_Byte (D, Register, I - Data'First);
+         end loop;
+      end if;
+   end B5_Read;
+
+   procedure B5_Write (D : in out B5_Bus; Register : Byte; Value : Byte; OK : out Boolean) is
+   begin
+      BMP_Op ("write," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Value)));
+      OK := B5_Responds (D);
+   end B5_Write;
+
+   procedure B5_Check_Busy (D : in out B5_Bus; Busy : out Boolean; Error : out Boolean) is
+   begin
+      Busy := False;
+      if D.Detecting then
+         Busy := D.Detect_Busy > 0;
+         if Busy then
+            D.Detect_Busy := D.Detect_Busy - 1;
+         end if;
+      end if;
+      Error := False;
+      BMP_Op ("busy," & BMP_Num (Boolean'Pos (Busy)));
+   end B5_Check_Busy;
+
+   procedure B5_Register (D : in out B5_Bus) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("register");
+   end B5_Register;
+
+   procedure B5_Delay (D : in out B5_Bus; Ms : Natural) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("delay," & BMP_Num (Integer_64 (Ms)));
+   end B5_Delay;
+
+   package B5_Driver is new Adaflight.BMP5xx
+     (Bus_Device           => B5_Bus,
+      Is_I2C               => B5_Is_I2C,
+      Is_SPI               => B5_Is_SPI,
+      I2C_Address          => B5_Address,
+      Set_I2C_Address      => B5_Set_Address,
+      Prepare_SPI          => B5_Prepare_SPI,
+      Release_SPI          => B5_Release_SPI,
+      Enable_EOC_Interrupt => B5_Enable_EOC,
+      Read_Registers       => B5_Read,
+      Write_Register       => B5_Write,
+      Check_Busy           => B5_Check_Busy,
+      Register_Device      => B5_Register,
+      Delay_Ms             => B5_Delay);
+
+   B5_Device      : B5_Bus;
+   B5_State       : B5_Driver.State;
+   B5_Found       : Boolean := False;
+   B5_Settings    : Adaflight.Barometer_Task.Device;
+   B5_Done        : Boolean := False;
+   B5_Pressure    : Interfaces.Integer_32 := -1;
+   B5_Temperature : Interfaces.Integer_32 := -1;
+
+   procedure Check_BMP5xx_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "b5init" then
+         BMP_Op_Head := 1;
+         BMP_Op_Count := 0;
+         B5_Device := (others => <>);
+         B5_Device.SPI := Int (3) /= 0;
+         B5_Device.Address := Byte (Int (4));
+         B5_Device.Device_Address := Byte (Int (5));
+         B5_Device.Registers (16#01#) := Byte (Int (6));
+         B5_Device.Detect_Busy := Natural (Int (8));
+         B5_Device.Dummy := Byte (Int (9));
+         B5_Device.Fail_Mask := Interfaces.Unsigned_32 (Int (10));
+         B5_State := (others => <>);
+         B5_Pressure := -1;
+         B5_Temperature := -1;
+         B5_Device.Detecting := True;
+         B5_Driver.Detect (B5_Device, B5_State, Int (7) /= 0, B5_Found, B5_Settings);
+         B5_Device.Detecting := False;
+      elsif Name = "b5op" then
+         declare
+            Expected : Ada.Strings.Unbounded.Unbounded_String := Ada.Strings.Unbounded.To_Unbounded_String (Str (3));
+         begin
+            for I in 4 .. NF loop
+               Ada.Strings.Unbounded.Append (Expected, "," & Str (I));
+            end loop;
+            if BMP_Op_Head <= BMP_Op_Count then
+               Record_Text ("bmp5xx.op", Ada.Strings.Unbounded.To_String (Expected),
+                            Ada.Strings.Unbounded.To_String (BMP_Ops (BMP_Op_Head)));
+               BMP_Op_Head := BMP_Op_Head + 1;
+            else
+               Record_Text ("bmp5xx.op", Ada.Strings.Unbounded.To_String (Expected), "none");
+            end if;
+         end;
+      elsif Name = "b5det" then
+         BMP_Expect_No_Ops ("detection");
+         Record_Int ("bmp5xx.found", Int (3), Boolean'Pos (B5_Found));
+         Record_Int ("bmp5xx.address", Int (4), Integer_64 (if B5_Device.SPI then 0 else B5_Device.Address));
+         Record_Int ("bmp5xx.combined", Int (5), Boolean'Pos (B5_Settings.Combined_Read));
+         Record_Int ("bmp5xx.ut_delay", Int (6), Integer_64 (B5_Settings.Temperature_Delay_Us));
+         Record_Int ("bmp5xx.up_delay", Int (7), Integer_64 (B5_Settings.Pressure_Delay_Us));
+         Record_Int ("bmp5xx.chip", Int (8), Integer_64 (if B5_Found then B5_State.Chip_Id else 0));
+      elsif Name = "b5step" then
+         declare
+            Data : constant Byte_Array := Hex_Bytes (5);
+         begin
+            for I in Data'Range loop
+               B5_Device.Registers (16#1D# + I - Data'First) := Data (I);
+            end loop;
+         end;
+         case Int (4) is
+            when 0 .. 5 =>
+               B5_Driver.Device_Call (B5_Device, B5_State, BMP_Calls (Integer (Int (4))), B5_Done);
+            when others =>
+               B5_Driver.Calculate (B5_State, B5_Pressure, B5_Temperature);
+               B5_Done := False;
+         end case;
+      elsif Name = "b5res" then
+         BMP_Expect_No_Ops ("a result");
+         Record_Int ("bmp5xx.done", Int (4), Boolean'Pos (B5_Done));
+         Record_Int ("bmp5xx.pressure", Int (5), Integer_64 (B5_Pressure));
+         Record_Int ("bmp5xx.temperature", Int (6), Integer_64 (B5_Temperature));
+         Record_Int ("bmp5xx.up", Int (7), Integer_64 (B5_State.Raw_Pressure));
+         Record_Int ("bmp5xx.ut", Int (8), Integer_64 (B5_State.Raw_Temperature));
+      end if;
+   end Check_BMP5xx_Line;
+
    --  The BMP085 oracle's bus and pins: the simulated chip's registers, its
    --  address, the reads still to fail, the two levels the conversion-end pin
    --  shows, the scripted busy and start answers, and the bytes the last
@@ -33305,6 +33502,8 @@ procedure Vector_Check is
                   Check_SMPB_Line;
                elsif Kind = "lps" then
                   Check_LPS_Line;
+               elsif Kind = "bmp5xx" then
+                  Check_BMP5xx_Line;
                elsif Kind = "bmp085" then
                   Check_BMP085_Line;
                elsif Kind = "lidartf" then
@@ -33638,6 +33837,7 @@ begin
    Run (Dir & "/qmp6988.csv", "qmp6988");
    Run (Dir & "/2smpb.csv", "smpb");
    Run (Dir & "/lps.csv", "lps");
+   Run (Dir & "/bmp5xx.csv", "bmp5xx");
    Run (Dir & "/bmp085.csv", "bmp085");
    Run (Dir & "/lidartf.csv", "lidartf");
    Run (Dir & "/nooploop.csv", "nooploop");

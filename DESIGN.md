@@ -8316,3 +8316,30 @@ detects and makes 50 of the driver's calls, redrawing the sample in 60 percent o
 read, detection, call result, raw count and calculation of the 300 cases replays exactly. In them 212 chips answer a
 known identity, 44 fail a read back, 69 time out, 99 are found and 4950 calls run. Of 43 tampered paths, 42 fail the
 vectors and 1 stop the checker at a subtype check.
+
+## D359. BMP5xx barometer driver (2026-10-19)
+
+`Adaflight.BMP5xx` drives the Bosch BMP580 and BMP581 barometers on I2C or SPI. Detection waits 20 ms, sets up the data
+ready pin and its rising edge interrupt when one is configured, prepares the select pin and a 10 MHz clock of an SPI
+chip, sets the I2C address to 0x47 when none was given, and reads the chip identity, 0x50 or 0x51, trying 0x46 when the
+default address gave another. A chip that gives neither gets its select pin returned to the preinit state and the
+default address taken back. Otherwise detection registers the device, resets the chip and waits 5 ms, sets the pulsed,
+active high interrupt on data ready when the pin is configured, the compensation with the IIR output in the shadow
+registers, an IIR coefficient of 15 on both values, 128 pressure and 4 temperature oversamples and the normal mode at 50
+Hz, whatever the writes answer, gives the barometer task a combined read with a 15 ms pressure delay, and waits while
+the bus is busy. A chip on SPI sends a dummy byte before its registers, which the reads skip. The pressure read brings
+the six data bytes, kept on a failed read, and the pressure sample takes the temperature from the first three and the
+pressure from the last three; the other calls do nothing. The calculation gives the temperature as the signed 24-bit
+count times 100 over 65536, in hundredths of a degree, and the pressure as the count over 64, in pascal, both with the
+integer division. The reference keeps the raw counts and the data bytes in static variables; this unit keeps them per
+device, which behaves the same with one barometer. The unit is SPARK for the sample decoding and the calculation, whose
+24-bit subtype bounds the products.
+
+The BMP5xx oracle includes the reference driver over a simulated chip, one case per process. It draws the bus, SPI in 30
+percent of the cases, the configured and real addresses, the identity, 0x50 or 0x51 in 80 percent, whether a data ready
+pin is configured, how many busy answers detection waits out, the SPI dummy byte and which of the first 32 reads fail,
+in 15 percent of the cases, then detects and makes 50 of the driver's calls over drawn data bytes, typical, random,
+negative, at the sign bit, at 63 and 64 counts or at the ends, redrawn in 60 percent of the calls. Every pin and bus
+call, detection, call result, raw count and calculation of the 300 cases replays exactly. In them 175 chips are found,
+84 BMP580 and 91 BMP581, 132 cases configure the data ready pin, and 8750 calls run. Of 51 tampered paths, 50 fail the
+vectors. One passes and is equivalent: the select pin return in the address retry, which only an I2C chip reaches.
