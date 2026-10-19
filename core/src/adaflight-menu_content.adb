@@ -216,6 +216,39 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       end;
    end Background_Name;
 
+   function Upper (C : Character) return Character is
+     (if C in 'a' .. 'z' then Character'Val (Character'Pos (C) - 32) else C);
+
+   --  A profile's text: its number from one, then its name in upper case in
+   --  parentheses when it has one.
+   function Profile_Text (Index : Interfaces.Unsigned_8; Name : Adaflight.Config_Groups.Bytes_9)
+     return Adaflight.Menu.Label_Text
+   is
+      Len  : Natural range 0 .. 9 := 0;
+      Text : Adaflight.Menu.Label_Text;
+   begin
+      for K in 0 .. 8 loop
+         pragma Loop_Invariant (Len = K);
+         exit when Name (K) = 0;
+         Len := K + 1;
+      end loop;
+      Text.Data (1) := Character'Val ((Character'Pos ('1') + Natural (Index)) mod 256);
+      Text.Length := 1;
+      if Len > 0 then
+         Text.Data (2) := ' ';
+         Text.Data (3) := '(';
+         for K in 0 .. Len - 1 loop
+            Text.Data (4 + K) := Upper (Character'Val (Name (K)));
+         end loop;
+         Text.Data (4 + Len) := ')';
+         Text.Length := 4 + Len;
+      end if;
+      return Text;
+   end Profile_Text;
+
+   function Profile_Name (Names : Profile_Texts; Index : Natural) return Adaflight.Menu.Label_Text is
+     (if Index <= 3 then Names (Index) else Label (""));
+
    Debug_Count : constant Natural := Adaflight.Settings_Table.Value_Count (Adaflight.Settings_Table.Table_Debug);
 
    --  A debug mode's name from the command line's table, which holds the
@@ -346,8 +379,9 @@ package body Adaflight.Menu_Content with SPARK_Mode is
          when Quick_Menu  => (Enter => True, Leave => True, Update => False),
          when Main_Menu   => (Enter => True, Leave => False, Update => False),
          when Setup_Popup => (Enter => False, Leave => False, Update => True),
-         when OSD_Menu | Active_Elements_Menu | Timers_Menu | Alarms_Menu | Blackbox_Menu | LED_Strip_Menu
-            | Power_Menu | Failsafe_Menu | RPM_Limit_Menu | Misc_Menu | Persistent_Stats_Menu =>
+         when Profile_Menu | PID_Menu | Rate_Menu | OSD_Menu | Active_Elements_Menu | Timers_Menu | Alarms_Menu
+            | Blackbox_Menu | LED_Strip_Menu | Power_Menu | Failsafe_Menu | RPM_Limit_Menu | Misc_Menu
+            | Persistent_Stats_Menu =>
             (Enter => True, Leave => True, Update => False),
          when RC_Preview_Menu => (Enter => True, Leave => True, Update => True),
          when Firmware_Menu | VTX_Error_Menu => (Enter => True, Leave => False, Update => False),
@@ -710,9 +744,83 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       M.Count := N;
    end Load_OSD;
 
+   --  The profile menu with its PID and rate menus.
+   procedure Load_Profile (T : Target; Id : Menu_Id; M : out Table)
+     with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
+   is
+      use Adaflight.Menu;
+      N : Line_Count := 0;
+   begin
+      M := Empty_Table;
+      case Id is
+         when Profile_Menu =>
+            Add (M, N, Make ("-- PROFILE --", Label));
+            Add (M, N, Choice ("PID PROF", Interfaces.Integer_32 (T.Profile.PID_Line), PID_Profile_Count - 1,
+                               Profile_Name (T.Profile.PID_Names, Natural (T.Profile.PID_Line)), Has_Func => True));
+            Add (M, N, Sub ("PID", PID_Menu));
+            Add (M, N, Sub ("SIMPLIFIED TUNING", Simplified_Menu));
+            Add (M, N, Sub ("MISC PP", Profile_Other_Menu));
+            Add (M, N, Sub ("FILT PP", Filter_Profile_Menu));
+            Add (M, N, Choice ("RATE PROF", Interfaces.Integer_32 (T.Profile.Rate_Line), Rate_Profile_Count - 1,
+                               Profile_Name (T.Profile.Rate_Names, Natural (T.Profile.Rate_Line)), Has_Func => True));
+            Add (M, N, Sub ("RATE", Rate_Menu));
+            Add (M, N, Sub ("FILT GLB", Filter_Global_Menu));
+            Add (M, N, Sub ("DYN FILT", Dynamic_Filter_Menu));
+            Add (M, N, Sub ("COPY PROF", Copy_Profile_Menu));
+            Add (M, N, Make ("BACK", Back));
+         when PID_Menu =>
+            declare
+               G : Gain_Table renames T.PID.Gains;
+               F : Feedforward_Table renames T.PID.Feedforward;
+            begin
+               Add (M, N, Text_Line ("-- PID --", Label, T.PID.Profile_Text));
+               Add (M, N, Number ("ROLL  P", Interfaces.Integer_32 (G (0, 0)), 0, 200, Flags => Slider_RP));
+               Add (M, N, Number ("ROLL  I", Interfaces.Integer_32 (G (0, 1)), 0, 200, Flags => Slider_RP));
+               Add (M, N, Number ("ROLL  D", Interfaces.Integer_32 (G (0, 2)), 0, 200, Flags => Slider_RP));
+               Add (M, N, Number ("ROLL  F", Interfaces.Integer_32 (F (0)), 0, 2000, UInt16, Flags => Slider_RP));
+               Add (M, N, Number ("PITCH P", Interfaces.Integer_32 (G (1, 0)), 0, 200, Flags => Slider_RP));
+               Add (M, N, Number ("PITCH I", Interfaces.Integer_32 (G (1, 1)), 0, 200, Flags => Slider_RP));
+               Add (M, N, Number ("PITCH D", Interfaces.Integer_32 (G (1, 2)), 0, 200, Flags => Slider_RP));
+               Add (M, N, Number ("PITCH F", Interfaces.Integer_32 (F (1)), 0, 2000, UInt16, Flags => Slider_RP));
+               Add (M, N, Number ("YAW   P", Interfaces.Integer_32 (G (2, 0)), 0, 200, Flags => Slider_RPY));
+               Add (M, N, Number ("YAW   I", Interfaces.Integer_32 (G (2, 1)), 0, 200, Flags => Slider_RPY));
+               Add (M, N, Number ("YAW   D", Interfaces.Integer_32 (G (2, 2)), 0, 200, Flags => Slider_RPY));
+               Add (M, N, Number ("YAW   F", Interfaces.Integer_32 (F (2)), 0, 2000, UInt16, Flags => Slider_RPY));
+               Add (M, N, Make ("BACK", Back));
+            end;
+         when Rate_Menu =>
+            declare
+               R : Adaflight.Config_Groups.Control_Rate_Config_Record renames T.Rate.Profile;
+            begin
+               Add (M, N, Text_Line ("-- RATE --", Label, T.Rate.Profile_Text));
+               Add (M, N, Fixed_Number ("RC R RATE", Interfaces.Integer_32 (R.Rc_Rates (0)), 1, 255, 10));
+               Add (M, N, Fixed_Number ("RC P RATE", Interfaces.Integer_32 (R.Rc_Rates (1)), 1, 255, 10));
+               Add (M, N, Fixed_Number ("RC Y RATE", Interfaces.Integer_32 (R.Rc_Rates (2)), 1, 255, 10));
+               Add (M, N, Fixed_Number ("ROLL SUPER", Interfaces.Integer_32 (R.Rates (0)), 0, 255, 10));
+               Add (M, N, Fixed_Number ("PITCH SUPER", Interfaces.Integer_32 (R.Rates (1)), 0, 255, 10));
+               Add (M, N, Fixed_Number ("YAW SUPER", Interfaces.Integer_32 (R.Rates (2)), 0, 255, 10));
+               Add (M, N, Fixed_Number ("RC R EXPO", Interfaces.Integer_32 (R.Rc_Expo (0)), 0, 100, 10));
+               Add (M, N, Fixed_Number ("RC P EXPO", Interfaces.Integer_32 (R.Rc_Expo (1)), 0, 100, 10));
+               Add (M, N, Fixed_Number ("RC Y EXPO", Interfaces.Integer_32 (R.Rc_Expo (2)), 0, 100, 10));
+               Add (M, N, Number ("THR MID", Interfaces.Integer_32 (R.Thr_Mid8), 0, 100));
+               Add (M, N, Number ("THR EXPO", Interfaces.Integer_32 (R.Thr_Expo8), 0, 100));
+               Add (M, N, Number ("THR HOVER", Interfaces.Integer_32 (R.Thr_Hover8), 0, 100));
+               Add (M, N, Choice ("THR LIM TYPE", Interfaces.Integer_32 (R.Throttle_Limit_Type), 2,
+                                  Throttle_Limit_Name (Natural (R.Throttle_Limit_Type))));
+               Add (M, N, Number ("THR LIM %", Interfaces.Integer_32 (R.Throttle_Limit_Percent), 25, 100));
+               Add (M, N, Make ("BACK", Back));
+            end;
+         when others =>
+            Add (M, N, Make ("", Label));
+      end case;
+      M.Count := N;
+   end Load_Profile;
+
    procedure Load (T : Target; Id : Menu_Id; M : out Table) is
    begin
       case Id is
+         when Profile_Menu | PID_Menu | Rate_Menu =>
+            Load_Profile (T, Id, M);
          when OSD_Menu | Active_Elements_Menu | Timers_Menu | Alarms_Menu =>
             Load_OSD (T, Id, M);
          when Power_Menu | Failsafe_Menu | RPM_Limit_Menu | Misc_Menu | RC_Preview_Menu | Persistent_Stats_Menu
@@ -735,6 +843,30 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       T.Popup.Battery_Line := T.Live.Used_MAh;
       Added := T.Popup.Acc_Line or else T.Popup.Battery_Line;
    end Build_Popup;
+
+   --  The PID profile changed to an index, stored when the profile exists.
+   procedure Change_PID_Profile (T : in out Target; Index : Interfaces.Unsigned_8) is
+   begin
+      if T.Asked.PID_Changes < Natural'Last then
+         T.Asked.PID_Changes := T.Asked.PID_Changes + 1;
+      end if;
+      T.Asked.PID_Asked := Index;
+      if Index < PID_Profile_Count then
+         T.Config.System_Config.Pid_Profile_Index := Index;
+      end if;
+   end Change_PID_Profile;
+
+   --  The rate profile changed to an index, stored when the profile exists.
+   procedure Change_Rate_Profile (T : in out Target; Index : Interfaces.Unsigned_8) is
+   begin
+      if T.Asked.Rate_Changes < Natural'Last then
+         T.Asked.Rate_Changes := T.Asked.Rate_Changes + 1;
+      end if;
+      T.Asked.Rate_Asked := Index;
+      if Index < Rate_Profile_Count then
+         T.Config.System_Config.Active_Rate_Profile := Index;
+      end if;
+   end Change_Rate_Profile;
 
    procedure On_Enter (T : in out Target; Id : Menu_Id; Reply : out Adaflight.Menu.Answer) is
    begin
@@ -760,6 +892,43 @@ package body Adaflight.Menu_Content with SPARK_Mode is
                   Reply.Done := Adaflight.Menu.Changed;
                   Reply.Target := Setup_Popup;
                end if;
+            end;
+         when Profile_Menu =>
+            for I in Profile_Texts'Range loop
+               T.Profile.PID_Names (I) :=
+                 Profile_Text (Interfaces.Unsigned_8 (I), T.Config.Pid_Profiles (I).Profile_Name);
+            end loop;
+            T.Profile.PID_Index := T.Config.System_Config.Pid_Profile_Index;
+            T.Profile.PID_Line := T.Profile.PID_Index;
+            for I in Profile_Texts'Range loop
+               T.Profile.Rate_Names (I) :=
+                 Profile_Text (Interfaces.Unsigned_8 (I), T.Config.Control_Rate_Profiles (I).Profile_Name);
+            end loop;
+            T.Profile.Rate_Index := T.Config.System_Config.Active_Rate_Profile;
+            T.Profile.Rate_Line := T.Profile.Rate_Index;
+         when PID_Menu =>
+            declare
+               Current : constant Natural :=
+                 Natural (Interfaces.Unsigned_8'Min (T.Config.System_Config.Pid_Profile_Index, PID_Profile_Count - 1));
+               Shown   : constant Natural :=
+                 Natural (Interfaces.Unsigned_8'Min (T.Profile.PID_Index, PID_Profile_Count - 1));
+            begin
+               T.PID.Profile_Text := Profile_Text (T.Profile.PID_Index, T.Config.Pid_Profiles (Current).Profile_Name);
+               for A in Feedforward_Table'Range loop
+                  T.PID.Gains (A, 0) := T.Config.Pid_Profiles (Shown).Pid (A).P;
+                  T.PID.Gains (A, 1) := T.Config.Pid_Profiles (Shown).Pid (A).I;
+                  T.PID.Gains (A, 2) := T.Config.Pid_Profiles (Shown).Pid (A).D;
+                  T.PID.Feedforward (A) := T.Config.Pid_Profiles (Shown).Pid (A).F;
+               end loop;
+            end;
+         when Rate_Menu =>
+            declare
+               Shown : constant Natural :=
+                 Natural (Interfaces.Unsigned_8'Min (T.Profile.Rate_Index, Rate_Profile_Count - 1));
+            begin
+               T.Rate.Profile_Text :=
+                 Profile_Text (T.Profile.Rate_Index, T.Config.Control_Rate_Profiles (Shown).Profile_Name);
+               T.Rate.Profile := T.Config.Control_Rate_Profiles (Shown);
             end;
          when VTX_Error_Menu =>
             if not T.Live.VTX_Present then
@@ -869,6 +1038,27 @@ package body Adaflight.Menu_Content with SPARK_Mode is
          if T.Asked.PID_Config_Inits < Natural'Last then
             T.Asked.PID_Config_Inits := T.Asked.PID_Config_Inits + 1;
          end if;
+      elsif Id = Profile_Menu then
+         Change_PID_Profile (T, T.Profile.PID_Index);
+         Change_Rate_Profile (T, T.Profile.Rate_Index);
+      elsif Id = PID_Menu then
+         declare
+            Current : constant Natural :=
+              Natural (Interfaces.Unsigned_8'Min (T.Config.System_Config.Pid_Profile_Index, PID_Profile_Count - 1));
+         begin
+            for A in Feedforward_Table'Range loop
+               T.Config.Pid_Profiles (Current).Pid (A).P := T.PID.Gains (A, 0);
+               T.Config.Pid_Profiles (Current).Pid (A).I := T.PID.Gains (A, 1);
+               T.Config.Pid_Profiles (Current).Pid (A).D := T.PID.Gains (A, 2);
+               T.Config.Pid_Profiles (Current).Pid (A).F := T.PID.Feedforward (A);
+            end loop;
+         end;
+         if T.Asked.PID_Config_Inits < Natural'Last then
+            T.Asked.PID_Config_Inits := T.Asked.PID_Config_Inits + 1;
+         end if;
+      elsif Id = Rate_Menu then
+         T.Config.Control_Rate_Profiles
+           (Natural (Interfaces.Unsigned_8'Min (T.Profile.Rate_Index, Rate_Profile_Count - 1))) := T.Rate.Profile;
       elsif Id = OSD_Menu then
          if T.Asked.Profile_Changes < Natural'Last then
             T.Asked.Profile_Changes := T.Asked.Profile_Changes + 1;
@@ -1128,7 +1318,13 @@ package body Adaflight.Menu_Content with SPARK_Mode is
                Reply.Kind := Adaflight.Menu.Plain;
             end if;
          when Adaflight.Menu.Bool | Adaflight.Menu.UInt8 | Adaflight.Menu.Tab =>
-            if Id = OSD_Menu and then Line in 5 .. 7 then
+            if Id = Profile_Menu and then Line = 1 then
+               T.Profile.PID_Index := T.Profile.PID_Line;
+               Change_PID_Profile (T, T.Profile.PID_Index);
+            elsif Id = Profile_Menu and then Line = 6 then
+               T.Profile.Rate_Index := T.Profile.Rate_Line;
+               Change_Rate_Profile (T, T.Profile.Rate_Index);
+            elsif Id = OSD_Menu and then Line in 5 .. 7 then
                T.Config.Display_Port_Profile_Max7456.Invert := T.OSD.Invert;
                T.Config.Display_Port_Profile_Max7456.Black_Brightness := T.OSD.Black_Brightness;
                T.Config.Display_Port_Profile_Max7456.White_Brightness := T.OSD.White_Brightness;
@@ -1150,7 +1346,33 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       Short : constant Interfaces.Integer_16 :=
         Interfaces.Integer_16 ((Interfaces.Integer_64 (Value) + 32_768) mod 65_536 - 32_768);
    begin
-      if Id = OSD_Menu then
+      if Id = Profile_Menu then
+         case Line is
+            when 1 => T.Profile.PID_Line := Byte;
+            when 6 => T.Profile.Rate_Line := Byte;
+            when others => null;
+         end case;
+      elsif Id = PID_Menu then
+         if Line in 1 .. 12 then
+            if (Line - 1) mod 4 = 3 then
+               T.PID.Feedforward ((Line - 1) / 4) := Word;
+            else
+               T.PID.Gains ((Line - 1) / 4, (Line - 1) mod 4) := Byte;
+            end if;
+         end if;
+      elsif Id = Rate_Menu then
+         case Line is
+            when 1 .. 3 => T.Rate.Profile.Rc_Rates (Line - 1) := Byte;
+            when 4 .. 6 => T.Rate.Profile.Rates (Line - 4) := Byte;
+            when 7 .. 9 => T.Rate.Profile.Rc_Expo (Line - 7) := Byte;
+            when 10 => T.Rate.Profile.Thr_Mid8 := Byte;
+            when 11 => T.Rate.Profile.Thr_Expo8 := Byte;
+            when 12 => T.Rate.Profile.Thr_Hover8 := Byte;
+            when 13 => T.Rate.Profile.Throttle_Limit_Type := Byte;
+            when 14 => T.Rate.Profile.Throttle_Limit_Percent := Byte;
+            when others => null;
+         end case;
+      elsif Id = OSD_Menu then
          case Line is
             when 1 => T.OSD.Profile := Byte;
             when 5 => T.OSD.Invert := Value /= 0;
@@ -1278,12 +1500,14 @@ package body Adaflight.Menu_Content with SPARK_Mode is
    end Refresh;
 
    function Lookup (T : Target; Id : Menu_Id; Line : Natural; Index : Natural) return Adaflight.Menu.Label_Text is
-      pragma Unreferenced (T);
    begin
       return (if Id = Quick_Menu and then Line = 2 then Throttle_Limit_Name (Index)
               elsif Id = Power_Menu and then Line = 1 then Voltage_Meter_Name (Index)
               elsif Id = Power_Menu and then Line = 2 then Current_Meter_Name (Index)
               elsif Id = Failsafe_Menu and then Line = 1 then Procedure_Name (Index)
+              elsif Id = Profile_Menu and then Line = 1 then Profile_Name (T.Profile.PID_Names, Index)
+              elsif Id = Profile_Menu and then Line = 6 then Profile_Name (T.Profile.Rate_Names, Index)
+              elsif Id = Rate_Menu and then Line = 13 then Throttle_Limit_Name (Index)
               elsif Id = OSD_Menu and then Line = 8 then Background_Name (Index)
               elsif Id = Timers_Menu and then Line in 1 | 4 then Timer_Source_Name (Index)
               elsif Id = Timers_Menu and then Line in 2 | 5 then Timer_Precision_Name (Index)
