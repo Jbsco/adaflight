@@ -8522,3 +8522,32 @@ samples. Every bus, pin, clock and delay call, detection, setting and reading of
 219 chips are found, 23 fail the power status, 21 have an unknown filter setting, 175 raise a burst, and of 6570 steps
 1532 read the gyro, 1306 the accelerometer and 2107 raise interrupts. Of 71 tampered paths, 70 fail the vectors and 1
 stop the checker at a subtype check.
+
+## D366. ICM40609 gyro driver (2026-10-19)
+
+`Adaflight.MPU_Gyro.ICM40609` drives the ICM-40609-D gyro over the SPI gyro layer. Detection selects register bank 0,
+resets the chip, waits 1 ms and reads the identity, 0x3B. Initialization sets a 24 MHz clock, runs the layer's with the
+chip's data registers and the DMA read from the temperature, takes the temperature scale of 1/132.48 degree per count
+with its zero at 25 degrees, turns the sensors on in low noise mode with the RC oscillator and waits 200 us then 35 ms,
+selects big-endian data, sets the accelerometer to 16 g at 1 kHz and waits 10 ms, sets the temperature filter to 4 kHz,
+the third order user interface filters of both sensors and the second order decimator, the low latency filter
+bandwidths, the anti-alias filters of both sensors from the corner of the filter setting, 213, 488, 997 or 1962 Hz,
+through the 63 profiles of the chip, the notch at 1.5 kHz with its widest bandwidth and the coefficient of its cosine,
+rounded from eight times its distance from one, the first order high pass filter at its second bandwidth, each in its
+register bank with bank 0 selected after, the gyro to 2000 degrees per second at 8 kHz, waits 35 ms, and routes the
+pulsed, push-pull, active high data ready interrupt to the first pin, cleared on the status read, with the 8 us pulse
+and no deassertion. The reads are the layer's. The unit is SPARK, with the profile search bounded by the table.
+
+The ICM40609 oracle includes the reference driver and the common SPI gyro layer over a simulated chip with five register
+banks, one case per process. It draws the chip identity, 0x3B in 85 percent of the cases, the bus, the startup clock and
+its step, DMA, the interrupt pin, the sample rate divider, the filter setting, past the known ones in 8 percent, and the
+register values of the banks, lets the layer find another chip first in a twelfth of the cases, then runs the detection,
+the gyro and accelerometer detection and initialization, and 30 steps of interrupts, a burst of 990 to 1050 interrupts,
+exactly 1000 in a tenth of the cases, first or after some reads outside the DMA mode, DMA completions, gyro and
+accelerometer reads and new samples. Every bus, pin, clock and delay call, detection, setting and reading of the 300
+cases replays exactly, the notch coefficient from the cosine among them. In them 225 chips are found, 29 have an unknown
+filter setting, and of 6750 steps 1607 read the gyro, 1377 the accelerometer and 2127 raise interrupts. Of 107 tampered
+paths, 99 fail the vectors. Eight pass and are equivalent: the bits of the filter order, decimator and bank masks that
+their values set, the keep mask bit cleared just before, the profile table corner at 1962 Hz and its last entry, which
+the fixed targets reach exactly and never pass, and the notch coefficient, 88.19 at the constant 1.5 kHz, which rounds
+and truncates alike.
