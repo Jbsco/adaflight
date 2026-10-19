@@ -186,6 +186,7 @@ with Adaflight.BMP280;
 with Adaflight.DPS310;
 with Adaflight.LPS22DF;
 with Adaflight.QMP6988;
+with Adaflight.SMPB_02B;
 with Adaflight.BMP085;
 with Adaflight.Lidar_TF;
 with Adaflight.Nooploop;
@@ -16455,6 +16456,239 @@ procedure Vector_Check is
          Record_Int ("qmp6988.temperature", Int (6), Integer_64 (QP_Temperature));
       end if;
    end Check_QMP6988_Line;
+
+   --  The 2SMPB-02B oracle's bus: the simulated chip's registers, which
+   --  writes change, the identity each attempt answers, its address, whether
+   --  writes answer, the scripted busy and start answers, and the bytes the
+   --  last started read brought. Its calls share the BMP280 bus's queue.
+   type SB_Bus is record
+      SPI            : Boolean := False;
+      Address        : Byte := 0;
+      Device_Address : Byte := 0;
+      Registers      : Byte_Array (0 .. 255) := (others => 0);
+      Id_Answers     : Byte_Array (0 .. 4) := (others => 0);
+      Id_Attempt     : Natural := 0;
+      Writes_Answer  : Boolean := True;
+      Busy           : Boolean := False;
+      Started        : Boolean := False;
+      Last_Read      : Byte_Array (0 .. 5) := (others => 0);
+   end record;
+
+   function SB_Responds (D : SB_Bus) return Boolean is
+      use type Interfaces.Unsigned_8;
+   begin
+      return (if D.SPI then True else D.Device_Address /= 0 and then D.Address = D.Device_Address);
+   end SB_Responds;
+
+   function SB_Is_I2C (D : SB_Bus) return Boolean is (not D.SPI);
+   function SB_Is_SPI (D : SB_Bus) return Boolean is (D.SPI);
+   function SB_Address (D : SB_Bus) return Byte is (D.Address);
+   function SB_Addr_Num (D : SB_Bus) return String is (BMP_Num (Integer_64 (if D.SPI then 0 else D.Address)));
+
+   procedure SB_Set_Address (D : in out SB_Bus; Address : Byte) is
+   begin
+      D.Address := Address;
+   end SB_Set_Address;
+
+   procedure SB_Prepare_SPI (D : in out SB_Bus; Max_Clock_Hz : Interfaces.Unsigned_32) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("cshigh");
+      BMP_Op ("csinit,1,0");
+      BMP_Op ("csconfig,0");
+      BMP_Op ("spidivider," & BMP_Num (Integer_64 (Max_Clock_Hz)));
+      BMP_Op ("spiclock," & BMP_Num (Integer_64 (Max_Clock_Hz / 1_000_000)));
+   end SB_Prepare_SPI;
+
+   procedure SB_Preinit_CS (D : in out SB_Bus) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("preinit,1,1");
+   end SB_Preinit_CS;
+
+   procedure SB_Read_Byte (D : in out SB_Bus; Register : Byte; Value : out Byte) is
+      use type Interfaces.Unsigned_8;
+      OK : constant Boolean := SB_Responds (D);
+   begin
+      if Register = 16#D1# and then D.Id_Attempt < 5 then
+         Value := D.Id_Answers (D.Id_Attempt);
+         D.Id_Attempt := D.Id_Attempt + 1;
+      else
+         Value := D.Registers (Natural (Register));
+      end if;
+      BMP_Op ("readbyte," & BMP_Num (Integer_64 (Register)) & "," & SB_Addr_Num (D) & "," &
+              BMP_Num (Boolean'Pos (OK)) & "," & BMP_Num (Integer_64 (Value)));
+   end SB_Read_Byte;
+
+   procedure SB_Read (D : in out SB_Bus; Register : Byte; Data : in out Byte_Array; OK : out Boolean) is
+   begin
+      OK := SB_Responds (D);
+      BMP_Op ("read," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Data'Length)) & "," &
+              SB_Addr_Num (D) & "," & BMP_Num (Boolean'Pos (OK)));
+      for I in Data'Range loop
+         Data (I) := D.Registers ((Natural (Register) + I - Data'First) mod 256);
+      end loop;
+   end SB_Read;
+
+   procedure SB_Write (D : in out SB_Bus; Register : Byte; Value : Byte; OK : out Boolean) is
+   begin
+      OK := SB_Responds (D) and then D.Writes_Answer;
+      BMP_Op ("write," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Value)) & "," &
+              BMP_Num (Boolean'Pos (OK)));
+      if OK then
+         D.Registers (Natural (Register)) := Value;
+      end if;
+   end SB_Write;
+
+   procedure SB_Start_Read (D : in out SB_Bus; Register : Byte; Length : Positive; Started : out Boolean) is
+   begin
+      Started := D.Started;
+      BMP_Op ("readstart," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Length)) & "," &
+              BMP_Num (Boolean'Pos (Started)));
+      if Started then
+         for I in 0 .. Length - 1 loop
+            D.Last_Read (I) := D.Registers ((Natural (Register) + I) mod 256);
+         end loop;
+      end if;
+   end SB_Start_Read;
+
+   procedure SB_Check_Busy (D : in out SB_Bus; Busy : out Boolean; Error : out Boolean) is
+   begin
+      Busy := D.Busy;
+      Error := False;
+      BMP_Op ("busy," & BMP_Num (Boolean'Pos (Busy)));
+   end SB_Check_Busy;
+
+   procedure SB_Fetch (D : in out SB_Bus; Data : out Byte_Array) is
+   begin
+      for I in Data'Range loop
+         Data (I) := D.Last_Read (I - Data'First);
+      end loop;
+   end SB_Fetch;
+
+   procedure SB_Delay (D : in out SB_Bus; Ms : Natural) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("delay," & BMP_Num (Integer_64 (Ms)));
+   end SB_Delay;
+
+   package SB_Driver is new Adaflight.SMPB_02B
+     (Bus_Device      => SB_Bus,
+      Is_I2C          => SB_Is_I2C,
+      Is_SPI          => SB_Is_SPI,
+      I2C_Address     => SB_Address,
+      Set_I2C_Address => SB_Set_Address,
+      Prepare_SPI     => SB_Prepare_SPI,
+      Preinit_CS      => SB_Preinit_CS,
+      Read_Byte       => SB_Read_Byte,
+      Read_Registers  => SB_Read,
+      Write_Register  => SB_Write,
+      Start_Read      => SB_Start_Read,
+      Check_Busy      => SB_Check_Busy,
+      Fetch           => SB_Fetch,
+      Delay_Ms        => SB_Delay);
+
+   SB_Device      : SB_Bus;
+   SB_State       : SB_Driver.State;
+   SB_Found       : Boolean := False;
+   SB_Settings    : Adaflight.Barometer_Task.Device;
+   SB_Done        : Boolean := False;
+   SB_Pressure    : Interfaces.Integer_32 := -1;
+   SB_Temperature : Interfaces.Integer_32 := -1;
+
+   --  A single precision value of the reference as bits against the unit's
+   --  kind and, when finite, its value.
+   procedure SB_Check_Real (Name : String; Expected : Unsigned_32; R : SB_Driver.Real) is
+      use type SB_Driver.Value_Kind;
+      Exponent      : constant Unsigned_32 := Expected and 16#7F80_0000#;
+      Mantissa      : constant Unsigned_32 := Expected and 16#007F_FFFF#;
+      Expected_Kind : SB_Driver.Value_Kind := SB_Driver.Finite;
+   begin
+      if Exponent = 16#7F80_0000# then
+         Expected_Kind := (if Mantissa /= 0 then SB_Driver.Not_A_Number
+                           elsif (Expected and 16#8000_0000#) /= 0 then SB_Driver.Minus_Infinity
+                           else SB_Driver.Plus_Infinity);
+      end if;
+      Record_Int (Name & ".kind", SB_Driver.Value_Kind'Pos (Expected_Kind), SB_Driver.Value_Kind'Pos (R.Kind));
+      if Expected_Kind = SB_Driver.Finite then
+         Record_Result (Name, Expected, To_Bits (R.Value));
+      end if;
+   end SB_Check_Real;
+
+   procedure Check_SMPB_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "sbinit" then
+         BMP_Op_Head := 1;
+         BMP_Op_Count := 0;
+         SB_Device := (others => <>);
+         SB_Device.SPI := Int (3) /= 0;
+         SB_Device.Address := Byte (Int (4));
+         SB_Device.Device_Address := Byte (Int (5));
+         SB_Device.Writes_Answer := Int (6) /= 0;
+         declare
+            Ids : constant Byte_Array := Hex_Bytes (7);
+            Coe : constant Byte_Array := Hex_Bytes (8);
+         begin
+            for I in Ids'Range loop
+               SB_Device.Id_Answers (I - Ids'First) := Ids (I);
+            end loop;
+            for I in Coe'Range loop
+               SB_Device.Registers (16#A0# + I - Coe'First) := Coe (I);
+            end loop;
+         end;
+         SB_State := (others => <>);
+         SB_Pressure := -1;
+         SB_Temperature := -1;
+         SB_Driver.Detect (SB_Device, SB_State, SB_Found, SB_Settings);
+      elsif Name = "sbop" then
+         declare
+            Expected : Ada.Strings.Unbounded.Unbounded_String := Ada.Strings.Unbounded.To_Unbounded_String (Str (3));
+         begin
+            for I in 4 .. NF loop
+               Ada.Strings.Unbounded.Append (Expected, "," & Str (I));
+            end loop;
+            if BMP_Op_Head <= BMP_Op_Count then
+               Record_Text ("smpb.op", Ada.Strings.Unbounded.To_String (Expected),
+                            Ada.Strings.Unbounded.To_String (BMP_Ops (BMP_Op_Head)));
+               BMP_Op_Head := BMP_Op_Head + 1;
+            else
+               Record_Text ("smpb.op", Ada.Strings.Unbounded.To_String (Expected), "none");
+            end if;
+         end;
+      elsif Name = "sbdet" then
+         BMP_Expect_No_Ops ("detection");
+         Record_Int ("smpb.found", Int (3), Boolean'Pos (SB_Found));
+         Record_Int ("smpb.address", Int (4), Integer_64 (if SB_Device.SPI then 0 else SB_Device.Address));
+         Record_Int ("smpb.combined", Int (5), Boolean'Pos (SB_Settings.Combined_Read));
+         Record_Int ("smpb.ut_delay", Int (6), Integer_64 (SB_Settings.Temperature_Delay_Us));
+         Record_Int ("smpb.up_delay", Int (7), Integer_64 (SB_Settings.Pressure_Delay_Us));
+      elsif Name = "sbstep" then
+         SB_Device.Busy := Int (5) /= 0;
+         SB_Device.Started := Int (6) /= 0;
+         declare
+            Data : constant Byte_Array := Hex_Bytes (7);
+         begin
+            for I in Data'Range loop
+               SB_Device.Registers (16#F7# + I - Data'First) := Data (I);
+            end loop;
+         end;
+         case Int (4) is
+            when 0 .. 5 =>
+               SB_Driver.Device_Call (SB_Device, SB_State, BMP_Calls (Integer (Int (4))), SB_Done);
+            when others =>
+               SB_Driver.Calculate (SB_State, SB_Pressure, SB_Temperature);
+               SB_Done := False;
+         end case;
+      elsif Name = "sbres" then
+         BMP_Expect_No_Ops ("a result");
+         Record_Int ("smpb.done", Int (4), Boolean'Pos (SB_Done));
+         Record_Int ("smpb.pressure", Int (5), Integer_64 (SB_Pressure));
+         Record_Int ("smpb.temperature", Int (6), Integer_64 (SB_Temperature));
+         SB_Check_Real ("smpb.pressure_bits", Bits (7), SB_State.Pressure);
+         SB_Check_Real ("smpb.temperature_bits", Bits (8), SB_State.Temperature);
+      end if;
+   end Check_SMPB_Line;
 
    --  The BMP085 oracle's bus and pins: the simulated chip's registers, its
    --  address, the reads still to fail, the two levels the conversion-end pin
@@ -32888,6 +33122,8 @@ procedure Vector_Check is
                   Check_LPS22DF_Line;
                elsif Kind = "qmp6988" then
                   Check_QMP6988_Line;
+               elsif Kind = "smpb" then
+                  Check_SMPB_Line;
                elsif Kind = "bmp085" then
                   Check_BMP085_Line;
                elsif Kind = "lidartf" then
@@ -33219,6 +33455,7 @@ begin
    Run (Dir & "/dps310.csv", "dps310");
    Run (Dir & "/lps22df.csv", "lps22df");
    Run (Dir & "/qmp6988.csv", "qmp6988");
+   Run (Dir & "/2smpb.csv", "smpb");
    Run (Dir & "/bmp085.csv", "bmp085");
    Run (Dir & "/lidartf.csv", "lidartf");
    Run (Dir & "/nooploop.csv", "nooploop");

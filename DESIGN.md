@@ -8253,3 +8253,40 @@ the past. Every pin, interrupt, delay and clock call, detection and reading of t
 cases have an owned pin, 213 sensors are found, and of 8520 updates 1293 end with a distance, 75 of them at 4 m and 8
 negative, 555 out of range, 6583 in hardware failure and 81 without new data. Of 49 tampered paths, 47 fail the vectors
 and 2 stop the checker at the reading's subtype check.
+
+## D357. 2SMPB-02B barometer driver (2026-10-19)
+
+`Adaflight.SMPB_02B` drives the Omron 2SMPB-02B barometer on I2C or SPI. Detection prepares the select pin and a 10 MHz
+clock of an SPI chip, sets the I2C address to 0x70 when none was given, and reads the chip identity, 0x5C, up to five
+times 50 ms apart. A chip that never gives it gets its select pin returned to the preinit state and the default address
+taken back. Otherwise detection reads the nine coefficient registers into buffers that start at zeros, whatever the
+reads answer (finding F275), scales them in single precision, the pressure's linear one through an integer division
+(finding F274), writes the IIR filter of 8 samples, whatever the write answers, and gives the barometer task a 35 ms
+pressure delay, the temperature coming with the pressure. A pressure start sets the forced measurement with 4
+temperature and 32 pressure averages, a pressure read starts the six data bytes while the bus is free, a pressure sample
+takes the bytes the last read brought while the bus is free and compensates them, and the temperature calls do nothing.
+The compensation solves the datasheet's quadratics in single precision in the reference's order: the temperature as the
+negated linear coefficient less the root of the discriminant, over twice the quadratic coefficient, then over 256; the
+raw pressure as the root less its linear coefficient, over twice its quadratic coefficient; and the pressure as the raw
+pressure over the temperature polynomial. A negative discriminant gives the reference a NaN and a zero quadratic
+coefficient a NaN or an infinity, which the IEEE arithmetic carries into the results. This unit keeps a kind beside each
+value, finite, an infinity of either sign or not a number, and follows the same propagation, with the final quotient
+computed in double precision, which rounds to the same single, so that an overflow becomes a kind instead of a check.
+The calculation gives the pressure in pascal and the temperature in hundredths of a degree as the ARM processor converts
+a single to a signed 32-bit integer: toward zero, saturated past the range, and 0 for a NaN, a conversion the host
+leaves undefined. The reference keeps everything in static variables; this unit keeps them per device, which behaves the
+same with one barometer. The unit is SPARK for the scaling, the compensation and the conversions, with the coefficient
+subtypes bounding every term and the quadratic coefficients zero or at least one register count.
+
+The 2SMPB-02B oracle includes the reference driver over a simulated chip, one case per process. It draws the bus, SPI in
+30 percent of the cases, the configured and real addresses, the identity each of the five attempts answers, whether
+writes answer, and the 21 coefficient bytes, with the 24-bit offsets within 20 bits in 45 percent of the cases and a
+quadratic coefficient zero or within three counts of it in a fifth, then makes 50 of the driver's calls, each with drawn
+busy and start answers and data bytes near the midpoint, at it, random or at the ends. The driver's conversion of a NaN
+is undefined on the host, so the oracle converts the results as the ARM processor does. Every bus and pin call,
+detection, call result, pressure and temperature of the 300 cases replays exactly, the single precision values bit for
+bit where finite and by kind otherwise. In them 191 chips are found, 81 on SPI, 203 writes are refused, 1040 samples
+compensate and 1355 calculations run; 1042 of the 9550 call results show a NaN pressure and 147 a NaN temperature, and
+none an infinity. Of 53 tampered paths, 45 fail the vectors and 6 stop the checker at a subtype check. Two pass and are
+equivalent: a commuted sum in the temperature polynomial, which the addition keeps exact, and an assignment the started
+read overwrites.
