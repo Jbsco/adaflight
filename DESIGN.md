@@ -8222,3 +8222,34 @@ carry more than 16 whole frames. Of 54 tampered paths, 47 fail the vectors and t
 Five pass and are equivalent: the initial reading, which a read before the first frame never shows, the two error
 counts, which nothing reads, the flow frame count in the window test, which a positive integration sum implies, and the
 saturated invalid count, whose value no longer matters once the rates are zero.
+
+## D356. HC-SR04 rangefinder driver (2026-10-18)
+
+`Adaflight.HCSR04` drives the HC-SR04 ultrasonic rangefinder on a trigger pin and an echo pin, named by tag. Detection
+fails when either pin has an owner. Otherwise it sets the trigger pin up as an output driven low, waits 100 ms, sets
+the echo pin up as an input and, when the echo pin reads low, fires up to five 11 us trigger pulses, each followed by
+60 ms of polling the echo pin for a high level by the millisecond clock. A sensor that answers gets the echo pin's
+interrupt on both edges and gives the task a 100 ms period, a 4 m range, a 30 degree cone and a 45 degree extended
+cone; one that does not gets both pins released. The echo interrupt keeps the microsecond time of a rising edge and, at
+a falling edge later than it, the travel time as a signed 32-bit difference and the millisecond the echo ended, its
+microsecond time over 1000. An update that finds the echo ended after the last trigger and within 60 ms of it gives the
+distance as the travel time over 59, out of range past 4 m and negative for a travel time past 2^31 us; one that finds
+the echo more than 60 ms after the trigger, or before it by the 32-bit wrap, gives a hardware failure; one that finds
+it in the trigger's millisecond leaves the reading. An update more than 60 ms after the last trigger fires the next
+pulse. A read gives the reading once, then no new data. The echo's millisecond comes from the microsecond clock, which
+wraps after 71.6 min of uptime while the millisecond clock runs on, so every reading after that is a hardware failure
+(finding F273); this unit keeps that. The reference keeps its state in static variables; this unit keeps it per device,
+which behaves the same with one sensor. The unit is SPARK for the travel time conversion and the division.
+
+The HC-SR04 oracle includes the reference driver without its unit test guard, so its echo interrupt handler and trigger
+pulse are built, over stubbed pins, interrupt setup, delays and both clocks, one case per process since the driver keeps
+its state in statics. It draws the pin tags, which pin has an owner, whether the echo pin is low at first and at which
+poll it goes high, and the millisecond clock, which advances 7 ms at each read and starts near its wrap, below 100 s,
+anywhere in its 32 bits or between 36 and 71 min of uptime, then detects and, when the sensor answers, runs 40 updates,
+each after a drawn clock advance, in a fifth of them exactly 60 or 61 ms after the last trigger, with drawn echo edges
+fed to the handler at their microsecond times: pairs with travel times up to 30 ms, at the 4 m limit, zero, negative by
+a few ms or past 2^31 us, some ending in the clock's millisecond, and lone edges, a rise sometimes more than 2^31 us in
+the past. Every pin, interrupt, delay and clock call, detection and reading of the 300 cases replays exactly. In them 25
+cases have an owned pin, 213 sensors are found, and of 8520 updates 1293 end with a distance, 75 of them at 4 m and 8
+negative, 555 out of range, 6583 in hardware failure and 81 without new data. Of 49 tampered paths, 47 fail the vectors
+and 2 stop the checker at the reading's subtype check.
