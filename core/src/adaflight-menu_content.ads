@@ -2,20 +2,24 @@
 --  quick menu, the main menu with its features menu and setup popup, the
 --  profile menu with its PID, rate, simplified tuning, misc, launch
 --  control, filter and profile copy menus, the VTX selection with its
---  error menu, the save menus, the OSD menu with
+--  error menu, the MSP VTX menu with its confirmation, the save menus, the
+--  OSD menu with
 --  its active elements, timers and alarms
 --  menus, the blackbox menu with its erase and mass storage
 --  confirmations, the LED strip, power, failsafe and RPM limit menus, the
 --  misc menu with its RC preview and GPS lap timer menu, the persistent
 --  statistics menu, and the firmware menu with its calibration menus, over
 --  the target's state: the configuration, the firmware's identity, the
---  readings the menus show, the menus' copies of the settings they edit,
+--  readings the menus show, the VTX layer with its running table and the
+--  MSP VTX menu's status line, the menus' copies of the settings they edit,
 --  the setup popup's lines, the calibration statuses, and the requests to
 --  the runtime. The menus of later slices have their numbers and one empty
 --  line.
 with Interfaces;
 with Adaflight.Config_Groups;
 with Adaflight.Menu;
+with Adaflight.VTX;
+with Adaflight.VTX_Table;
 
 package Adaflight.Menu_Content with SPARK_Mode is
    use type Interfaces.Unsigned_8;
@@ -62,6 +66,7 @@ package Adaflight.Menu_Content with SPARK_Mode is
    Dynamic_Filter_Menu   : constant Menu_Id := 37;
    Copy_Profile_Menu     : constant Menu_Id := 38;
    Launch_Control_Menu   : constant Menu_Id := 39;
+   VTX_MSP_Confirm       : constant Menu_Id := 40;
 
    --  The RC channels the preview shows: roll, pitch, throttle, yaw and the
    --  first four auxiliary channels.
@@ -351,6 +356,20 @@ package Adaflight.Menu_Content with SPARK_Mode is
       Line_2 : Adaflight.Menu.Label_Text;
    end record;
 
+   --  The MSP VTX menu's copies of the pit mode, none, off or on, the band,
+   --  channel and power index, and the frequency of the band and channel.
+   type MSP_VTX_Copies is record
+      Pit_Mode : Interfaces.Unsigned_8 := 0;
+      Band     : Interfaces.Unsigned_8 := 1;
+      Channel  : Interfaces.Unsigned_8 := 1;
+      Freq_Ref : Interfaces.Unsigned_16 := 0;
+      Power    : Interfaces.Unsigned_8 := 1;
+   end record;
+
+   --  The MSP VTX menu's status line before the MSP driver first sets it.
+   Initial_MSP_Status : constant Adaflight.Menu.Label_Text :=
+     (Data => "- -- ---- ----" & (1 .. 17 => ' '), Length => 14);
+
    --  The OSD menu's copies of the OSD profile, the MAX7456 display's
    --  inversion and black and white brightness, and the menu background.
    type OSD_Copies is record
@@ -502,6 +521,10 @@ package Adaflight.Menu_Content with SPARK_Mode is
       Profile_Flt : Filter_Profile_Copies;
       Copy        : Copy_Targets;
       VTX_Status  : VTX_Status_Lines;
+      VTX         : Adaflight.VTX.State;
+      MSP_Status  : Adaflight.Menu.Label_Text := Initial_MSP_Status;
+      MSP         : MSP_VTX_Copies;
+      VTX_Table   : Adaflight.VTX_Table.Table;
       LED         : LED_Copies;
       Lap         : Lap_Copies;
       Preview     : RC_Values := (others => 0);
@@ -518,6 +541,10 @@ package Adaflight.Menu_Content with SPARK_Mode is
      (if T.Config.Osd_Config.Osd_Use_Quick_Menu /= 0 then Quick_Menu else Main_Menu);
 
    function Hooks_Of (Id : Menu_Id) return Adaflight.Menu.Hook_Set;
+
+   --  The MSP VTX menu's status line from the VTX device, which the target
+   --  updates when the VTX layer's events ask for it.
+   procedure Update_MSP_Status (T : in out Target);
 
    procedure Load (T : Target; Id : Menu_Id; M : out Adaflight.Menu.Table)
      with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M);

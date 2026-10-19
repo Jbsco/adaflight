@@ -221,10 +221,10 @@ package Adaflight.Menu with SPARK_Mode is
    --  The exits by kind, in the reference's numbering.
    type Exit_Kind is (Plain, Save, Save_Reboot, Popup_Save, Popup_Save_Reboot, Popup_Exit_Reboot);
 
-   --  A display operation a hook made: a clear that waits, a text written
-   --  at a position with its attribute, a redraw, or a background type set,
-   --  given in the attribute.
-   type Screen_Kind is (Clear_Wait, Write_Text, Redraw, Set_Background);
+   --  An operation a hook made: a clear that waits, a text written at a
+   --  position with its attribute, a redraw, a background type set, given
+   --  in the attribute, or the configuration saved.
+   type Screen_Kind is (Clear_Wait, Write_Text, Redraw, Set_Background, Save_Config);
    Max_Screen_Text : constant := 48;
    subtype Screen_Text_Length is Natural range 0 .. Max_Screen_Text;
    type Screen_Op is record

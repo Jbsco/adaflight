@@ -19703,6 +19703,7 @@ procedure Vector_Check is
 
    procedure Check_Menu_Content_Line is
       use Adaflight.Menu;
+      use type Interfaces.Unsigned_8;
       use type Interfaces.Unsigned_64;
       Name : constant String := Str (1);
       K    : Positive := 4;
@@ -19712,7 +19713,6 @@ procedure Vector_Check is
          return Int (K - 1);
       end Next;
       function Sliders return Slider_Settings is
-         use type Interfaces.Unsigned_8;
          Current : constant Natural :=
            Natural (Interfaces.Unsigned_8'Min (MCT_T.Config.System_Config.Pid_Profile_Index, 3));
       begin
@@ -19761,6 +19761,33 @@ procedure Vector_Check is
             MCT_T.Live.Flash_Offset := 0;
          end if;
       end Expect_Ops;
+      --  The MSP driver's state, the common layer's selection and the MSP VTX
+      --  menu's copies.
+      procedure Expect_MSP is
+         MD : Adaflight.VTX_MSP.Driver renames MCT_T.VTX.MD;
+      begin
+         Record_Int (Name & ".msp_status", Next, Integer_64 (Adaflight.VTX_MSP.Status'Pos (MD.Current)));
+         Record_Int (Name & ".msp_freq", Next, Integer_64 (MD.Conf_Freq));
+         Record_Int (Name & ".msp_band", Next, Integer_64 (MD.Conf_Band));
+         Record_Int (Name & ".msp_channel", Next, Integer_64 (MD.Conf_Channel));
+         Record_Int (Name & ".msp_power", Next, Integer_64 (MD.Conf_Power));
+         Record_Int (Name & ".msp_pit", Next, Integer_64 (MD.Conf_Pit_Mode));
+         Record_Int (Name & ".msp_changed", Next, Boolean'Pos (MD.Config_Changed));
+         Record_Int (Name & ".selected_band", Next, Integer_64 (MCT_T.VTX.Selected_Band));
+         Record_Int (Name & ".selected_channel", Next, Integer_64 (MCT_T.VTX.Selected_Channel));
+         Record_Int (Name & ".copy_pit", Next, Integer_64 (MCT_T.MSP.Pit_Mode));
+         Record_Int (Name & ".copy_band", Next, Integer_64 (MCT_T.MSP.Band));
+         Record_Int (Name & ".copy_channel", Next, Integer_64 (MCT_T.MSP.Channel));
+         Record_Int (Name & ".copy_freq", Next, Integer_64 (MCT_T.MSP.Freq_Ref));
+         Record_Int (Name & ".copy_power", Next, Integer_64 (MCT_T.MSP.Power));
+      end Expect_MSP;
+      --  The MSP VTX menu's status line, which the MSP driver's cycle updates.
+      procedure Update_MSP_Status is
+      begin
+         if MCT_T.Live.VTX_Present and then MCT_T.Live.VTX_Type = 5 then
+            Adaflight.Menu_Content.Update_MSP_Status (MCT_T);
+         end if;
+      end Update_MSP_Status;
       procedure Expect_State is
          Depth, Max_Row : Integer_64;
          D              : Adaflight.Config_Codec.Data;
@@ -19830,6 +19857,8 @@ procedure Vector_Check is
             Record_Int (Name & ".hash_low", Integer_64 (Expected mod 2 ** 32), Integer_64 (Hash mod 2 ** 32));
             Record_Int (Name & ".hash_high", Integer_64 (Expected / 2 ** 32), Integer_64 (Hash / 2 ** 32));
          end;
+         K := K + 1;
+         Expect_MSP;
       end Expect_State;
       procedure Read_Live (F : Positive) is
       begin
@@ -20098,6 +20127,60 @@ procedure Vector_Check is
            (Columns => Screen_Columns (Int (4)), Rows => Screen_Rows (Int (5)), Full_Screen => Int (6) = 1,
             Cleared => False, Cursor_Row => -1, Supports_Symbols => True, Grab_Count => 0);
          declare
+            C : Adaflight.Config_Groups.Vtx_Table_Config_Record renames MCT_T.Config.Vtx_Table_Config;
+         begin
+            C.Bands := Interfaces.Unsigned_8 (Int (456));
+            C.Channels := Interfaces.Unsigned_8 (Int (457));
+            for B in 0 .. 7 loop
+               for Ch in 0 .. 7 loop
+                  C.Frequency (B) (Ch) := Interfaces.Unsigned_16 (Int (458 + 8 * B + Ch));
+               end loop;
+               declare
+                  Band_Name : constant String := Hex_String (522 + B);
+               begin
+                  C.Band_Names (B) := (others => 0);
+                  for J in Band_Name'Range loop
+                     C.Band_Names (B) (J - Band_Name'First) := Character'Pos (Band_Name (J));
+                  end loop;
+               end;
+               C.Band_Letters (B) := Interfaces.Unsigned_8 (Int (530 + B));
+               C.Channel_Names (B) := (Interfaces.Unsigned_8 (Int (538 + B)), 0);
+               C.Is_Factory_Band (B) := Int (546 + B) = 1;
+            end loop;
+            C.Power_Levels := Interfaces.Unsigned_8 (Int (554));
+            for L in 0 .. 7 loop
+               C.Power_Values (L) := Interfaces.Unsigned_16 (Int (555 + L));
+               declare
+                  Power_Label : constant String := Hex_String (563 + L);
+               begin
+                  C.Power_Labels (L) := (others => 0);
+                  for J in Power_Label'Range loop
+                     C.Power_Labels (L) (J - Power_Label'First) := Character'Pos (Power_Label (J));
+                  end loop;
+               end;
+            end loop;
+            MCT_T.VTX_Table := Adaflight.VTX_Table_Store.Running (C);
+         end;
+         MCT_T.VTX := (others => <>);
+         MCT_T.VTX.Device_Present := MCT_T.Live.VTX_Present;
+         MCT_T.VTX.Kind :=
+           (if MCT_T.Live.VTX_Present and then MCT_T.Live.VTX_Type = 5 then Adaflight.VTX.MSP_Device
+            else Adaflight.VTX.No_Device);
+         MCT_T.VTX.MD :=
+           (Current        => Adaflight.VTX_MSP.Status'Val (Int (571)),
+            Conf_Freq      => Interfaces.Unsigned_16 (Int (572)),
+            Conf_Band      => Interfaces.Unsigned_8 (Int (573)),
+            Conf_Channel   => Interfaces.Unsigned_8 (Int (574)),
+            Conf_Power     => Interfaces.Unsigned_16 (Int (575)),
+            Conf_Pit_Mode  => Interfaces.Unsigned_8 (Int (576)),
+            Config_Changed => Int (577) = 1,
+            others         => <>);
+         MCT_T.VTX.Selected_Band := Interfaces.Unsigned_8 (Int (578));
+         MCT_T.VTX.Selected_Channel := Interfaces.Unsigned_8 (Int (579));
+         Update_MSP_Status;
+         K := 571;
+         Expect_MSP;
+         declare
             D        : Adaflight.Config_Codec.Data;
             Hash     : Interfaces.Unsigned_64 := 16#CBF2_9CE4_8422_2325#;
             Expected : constant Interfaces.Unsigned_64 := Interfaces.Unsigned_64'Value (Str (455));
@@ -20118,6 +20201,7 @@ procedure Vector_Check is
          Read_Sensors (10);
          Read_Storage (14);
          Read_VTX (26);
+         Update_MSP_Status;
       elsif Name = "cmopen" then
          Begin_Step;
          Read_Ops;
