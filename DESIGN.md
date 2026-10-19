@@ -5729,3 +5729,20 @@ named ones. The harness replays 240 sessions with 19242 keys, 813 menu changes a
 of their states in the OSD menu, 672 in the active elements menu, 446 in the timers menu and 284 in
 the alarms menu, with 68 profile changes and 32 analyses: every display operation, menu context,
 page, request and configuration hash matches the reference's.
+
+## D245. VTX selection (2026-10-16)
+
+`Adaflight.Menu_Content` gains the VTX selection behind the quick and features menus' VTX lines, and
+the VTX error menu. The target gains the VTX device's presence and its type in the reference's
+numbering. The selection changes to the device's menu for an RTC6705, SmartAudio, Tramp or MSP
+device, and to the error menu for no device or any other type. The device menus have their numbers
+and wait for later slices. On entry the error menu sets its two status lines: VTX NOT RESPONDING and
+OR NOT CONFIGURED without a device, UNSUPPORTED VTX TYPE for the unsupported type, and UNKNOWN VTX
+TYPE otherwise. Its lines show them after empty labels.
+
+The menu contents oracle scripts the device's presence and type, builds the reference's selection
+with its error menu reachable, and replaces a right key on a VTX line with a down key while the device
+has a menu adaflight does not have yet. The harness replays 240 sessions with 19324 keys, 801 menu
+changes and 20125 draws, 340 of their states in the error menu, entered 20 times from the quick menu
+and 41 times from the features menu: every display operation, menu context, page, request and
+configuration hash matches the reference's.

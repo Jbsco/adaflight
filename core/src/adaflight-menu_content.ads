@@ -1,6 +1,7 @@
 --  The menu system's menus: their numbers, and the lines and hooks of the
 --  quick menu, the main menu with its features menu and setup popup, the
---  save menus, the OSD menu with its active elements, timers and alarms
+--  VTX selection with its error menu, the save menus, the OSD menu with
+--  its active elements, timers and alarms
 --  menus, the blackbox menu with its erase and mass storage
 --  confirmations, the LED strip, power, failsafe and RPM limit menus, the
 --  misc menu with its RC preview and GPS lap timer menu, the persistent
@@ -45,6 +46,11 @@ package Adaflight.Menu_Content with SPARK_Mode is
    Active_Elements_Menu  : constant Menu_Id := 23;
    Timers_Menu           : constant Menu_Id := 24;
    Alarms_Menu           : constant Menu_Id := 25;
+   VTX_Error_Menu        : constant Menu_Id := 26;
+   VTX_RTC6705_Menu      : constant Menu_Id := 27;
+   VTX_SmartAudio_Menu   : constant Menu_Id := 28;
+   VTX_Tramp_Menu        : constant Menu_Id := 29;
+   VTX_MSP_Menu          : constant Menu_Id := 30;
 
    --  The RC channels the preview shows: roll, pitch, throttle, yaw and the
    --  first four auxiliary channels.
@@ -70,7 +76,9 @@ package Adaflight.Menu_Content with SPARK_Mode is
    --  run time, whether the flight recorder lets its configuration change,
    --  the PID loop's frequency, the SD card with its file system, contiguous
    --  free bytes and size in blocks, the flash with its partition's sectors,
-   --  sector size and write offset, and whether mass storage is ready.
+   --  sector size and write offset, whether mass storage is ready, and the
+   --  VTX device, present or not, with its type in the reference's
+   --  numbering.
    type Readings is record
       Acc_Present               : Boolean := False;
       Acc_Calibration_Needed    : Boolean := False;
@@ -100,6 +108,8 @@ package Adaflight.Menu_Content with SPARK_Mode is
       Flash_Sector_Size         : Interfaces.Unsigned_32 := 0;
       Flash_Offset              : Interfaces.Unsigned_32 := 0;
       Storage_Ready             : Boolean := False;
+      VTX_Present               : Boolean := False;
+      VTX_Type                  : Interfaces.Unsigned_8 := 0;
    end record;
 
    --  The firmware's identity the firmware menu shows, which the build
@@ -179,6 +189,12 @@ package Adaflight.Menu_Content with SPARK_Mode is
       Idle_Offset    : Interfaces.Unsigned_8 := 0;
       FPV_Cam_Angle  : Interfaces.Unsigned_8 := 0;
       Crashflip_Rate : Interfaces.Unsigned_8 := 0;
+   end record;
+
+   --  The VTX error menu's two status lines from its last entry.
+   type VTX_Status_Lines is record
+      Line_1 : Adaflight.Menu.Label_Text;
+      Line_2 : Adaflight.Menu.Label_Text;
    end record;
 
    --  The OSD menu's copies of the OSD profile, the MAX7456 display's
@@ -314,6 +330,7 @@ package Adaflight.Menu_Content with SPARK_Mode is
       Timers      : Timer_Copies;
       Alarms      : Alarm_Copies;
       Blackbox    : Blackbox_Copies;
+      VTX_Status  : VTX_Status_Lines;
       LED         : LED_Copies;
       Lap         : Lap_Copies;
       Preview     : RC_Values := (others => 0);
