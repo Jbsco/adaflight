@@ -8429,3 +8429,31 @@ first indirect access, 14 on every later one and 10 on the reset, 39 refuse the 
 filter setting, and of 6420 steps 1515 read the gyro, 1272 the accelerometer and 2060 raise interrupts. Of 75 tampered
 paths, 74 fail the vectors. One passes and is equivalent: the masking of a modification's value, since every value lies
 within its mask.
+
+## D363. BMI423 gyro driver (2026-10-19)
+
+`Adaflight.MPU_Gyro.BMI423` drives the BMI423 gyro over the SPI gyro layer. The chip starts in I2C mode: the select pin
+low for 1 ms then high for 2 ms and a discarded identity read select SPI. A register is 16 bits little-endian behind two
+dummy bytes. Detection selects SPI and reads the identity, 0xAB in the low byte. Initialization writes the soft reset
+and waits 2 ms, selects SPI again, selects the 16-bit samples, writes the filter configuration, second order filters on
+both sensors or the gyro's bypassed for the experimental setting, before each sensor's configuration, the accelerometer
+at 16 g and 800 Hz and the gyro at 2000 degrees per second and 6.4 kHz with the bandwidth of the filter setting, which
+waits 55 ms, then the push-pull active high interrupt pin in long pulse mode with the gyro data ready on it, the other
+writes 1 ms apart, enables the interrupt when the board has the pin, and sets a 10 MHz clock. The interrupt handler is
+the layer's, the chip's own with no short period. The first gyro read after 1000 interrupts takes the DMA mode when the
+bus has it, in which each interrupt starts the 15-byte read of both sensors and the reads decode the accelerometer at
+byte 3 and the gyro at byte 9; the other modes read a sensor's six little-endian bytes behind the address and the dummy
+bytes with a blocking transfer, a gyro read in the mode without interrupts repeats the first read once 1000 interrupts
+have come, and a read in the first mode fails. The scale of 2000 degrees per second over the 16-bit count is set at the
+gyro detection. The unit is SPARK, with the sample offsets bounded by the receive buffer.
+
+The BMI423 oracle includes the reference driver and the common SPI gyro layer over a simulated chip with 16-bit
+registers behind two dummy bytes, one case per process. It draws the bus, the chip identity, 0xAB in 85 percent of the
+cases, the dummy bytes, whether reads answer, refused in 5 percent, the startup clock and its step, DMA, the interrupt
+pin, the filter setting, past the known ones in 8 percent, and the register values, then runs the detection, the gyro
+and accelerometer detection and initialization, and 30 steps of interrupts, a burst of 990 to 1050 interrupts first or
+after some reads outside the DMA mode, DMA completions, gyro and accelerometer reads and new samples. Every bus, pin,
+clock and delay call, detection, setting and reading of the 300 cases replays exactly. In them 240 chips are found, 185
+cases have DMA, 66 the experimental filter and 26 an unknown one, 194 raise a burst, 33 of them at or below the 1000
+threshold, 21 repeat the first read from the mode without interrupts, and of 7200 steps 1813 read the gyro and 1381 the
+accelerometer. Of 75 tampered paths, 74 fail the vectors and 1 stop the checker at a subtype check.

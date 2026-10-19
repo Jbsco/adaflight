@@ -73,6 +73,9 @@ package Adaflight.Gyro_Bus_Steps with SPARK_Mode is
    procedure Step_Delay_Us (D : in out Gyro_Line; Us : Natural)
      with Global => null;
 
+   procedure Step_Set_CS (D : in out Gyro_Line; High : Boolean)
+     with Global => null;
+
    function Step_Micros_To_Cycles (Micros : Interfaces.Unsigned_32) return Interfaces.Unsigned_32
      with Global => null;
 

@@ -204,6 +204,7 @@ with Adaflight.MPU_Gyro.ICM426xx;
 with Adaflight.MPU_Gyro.ICM456xx;
 with Adaflight.MPU_Gyro.LSM6DSO;
 with Adaflight.MPU_Gyro.ICM56686;
+with Adaflight.MPU_Gyro.BMI423;
 with Adaflight.MPU_Gyro.MPU6500;
 with Adaflight.MPU_Gyro.ICM20689;
 with Adaflight.Flash_Device;
@@ -20454,6 +20455,250 @@ procedure Vector_Check is
       end if;
    end Check_ICM56686_Line;
 
+   --  The BMI423 oracle's chip over the MPU gyro oracle's device: its 16-bit
+   --  registers, sent little-endian behind two dummy bytes, and the dummy
+   --  bytes.
+   type B4_Registers is array (0 .. 127) of Interfaces.Unsigned_16;
+   B4_Regs    : B4_Registers := (others => 0);
+   B4_Dummies : Byte_Array (0 .. 1) := (others => 0);
+
+   --  A byte of the stream of consecutive registers from one.
+   function B4_Stream (Register : Natural; Index : Natural) return Byte is
+      use type Interfaces.Unsigned_16;
+      Value : constant Interfaces.Unsigned_16 := B4_Regs ((Register + Index / 2) mod 128);
+   begin
+      return (if Index mod 2 = 0 then Byte (Value mod 256) else Byte (Value / 256));
+   end B4_Stream;
+
+   procedure B4_Read_Masked (D : in out MG_Bus; Register : Byte; Data : in out Byte_Array; OK : out Boolean) is
+   begin
+      OK := D.Read_Ack;
+      MX_Op ("rbuf," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Data'Length)) & ","
+             & BMP_Num (Boolean'Pos (OK)));
+      if OK then
+         for I in 0 .. Data'Length - 1 loop
+            Data (Data'First + I) := (if I < 2 then B4_Dummies (I) else B4_Stream (Natural (Register), I - 2));
+         end loop;
+      end if;
+   end B4_Read_Masked;
+
+   procedure B4_Write_Buffer (D : in out MG_Bus; Register : Byte; Data : Byte_Array) is
+      pragma Unreferenced (D);
+      use type Interfaces.Unsigned_8;
+      use type Interfaces.Unsigned_16;
+      Address : constant Natural := Natural (Register and 16#7F#);
+   begin
+      MX_Op ("wbuf," & BMP_Num (Integer_64 (Register)) & "," & BL_Hex (Data));
+      if Data'Length = 2 and then Address not in 16#56# .. 16#5B# then
+         B4_Regs (Address) :=
+           Interfaces.Unsigned_16 (Data (Data'First)) + Interfaces.Unsigned_16 (Data (Data'First + 1)) * 256;
+      end if;
+   end B4_Write_Buffer;
+
+   procedure B4_Set_CS (D : in out MG_Bus; High : Boolean) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op (if High then "cshigh" else "cslow");
+   end B4_Set_CS;
+
+   procedure B4_Start_Sequence (D : in out MG_Bus; Data : Byte_Array; Completion : Boolean) is
+      use type Interfaces.Unsigned_8;
+      Start : constant Natural := Natural (Data (Data'First) and 16#7F#);
+   begin
+      MX_Op ("seq," & BMP_Num (Integer_64 (Data'Length)) & "," & BMP_Num (Boolean'Pos (Completion)) & ","
+             & MX_Hex (Data));
+      D.Rx (0) := 16#EE#;
+      for I in 1 .. Data'Length - 1 loop
+         D.Rx (I) := (if I < 3 then B4_Dummies (I - 1) else B4_Stream (Start, I - 3));
+      end loop;
+      if Completion then
+         D.Pending := True;
+      end if;
+   end B4_Start_Sequence;
+
+   procedure B4_Probe (D : in out MG_Bus; Index : Positive; Sensor : out Byte);
+
+   package B4_Layer is new Adaflight.MPU_Gyro
+     (SPI_Device       => MG_Bus,
+      Chip_Count       => 1,
+      Preinit_CS       => MG_Preinit_CS,
+      Attach_Bus       => MG_Attach_Bus,
+      Prepare_CS       => MG_Prepare_CS,
+      Release_CS       => MG_Release_CS,
+      Divider          => MG_Divider,
+      Set_Divisor      => MG_Set_Divisor,
+      Probe_Chip       => B4_Probe,
+      Register_Device  => MG_Register,
+      Millis           => MG_Millis,
+      Delay_Ms         => MG_Delay,
+      Enable_Interrupt => MG_Enable_Interrupt,
+      Cycle_Count      => MG_Cycle_Count,
+      Start_Sequence   => B4_Start_Sequence,
+      Wait             => MG_Wait,
+      Fetch            => MG_Fetch,
+      Uses_DMA         => MG_Uses_DMA,
+      Read_Registers   => MG_Read);
+
+   package B4_Chip is new B4_Layer.BMI423
+     (Read_Masked  => B4_Read_Masked,
+      Write_Buffer => B4_Write_Buffer,
+      Set_CS       => B4_Set_CS);
+
+   procedure B4_Probe (D : in out MG_Bus; Index : Positive; Sensor : out Byte) is
+      pragma Unreferenced (Index);
+   begin
+      B4_Chip.Detect (D, Sensor);
+   end B4_Probe;
+
+   B4_State  : B4_Layer.State;
+   B4_Found  : Boolean := False;
+   B4_Scale  : Float := 0.0;
+   B4_Result : Integer_64 := 0;
+
+   --  The 16-bit registers of a field of big-endian hex words from one.
+   procedure B4_Set_Registers (Field : Positive; First : Natural) is
+      use type Interfaces.Unsigned_16;
+      Words : constant Byte_Array := Hex_Bytes (Field);
+   begin
+      for K in 0 .. Words'Length / 2 - 1 loop
+         B4_Regs (First + K) :=
+           Interfaces.Unsigned_16 (Words (Words'First + 2 * K)) * 256
+           + Interfaces.Unsigned_16 (Words (Words'First + 2 * K + 1));
+      end loop;
+   end B4_Set_Registers;
+
+   procedure B4_Record_State (First : Positive) is
+   begin
+      Record_Int ("bmi423.mode", Int (First), Integer_64 (B4_Layer.Read_Mode'Pos (B4_State.Mode)));
+      Record_Int ("bmi423.exti_count", Int (First + 1), Integer_64 (B4_State.Detected_EXTI));
+      Record_Int ("bmi423.last_exti", Int (First + 2), Integer_64 (B4_State.Last_EXTI));
+      Record_Int ("bmi423.sync_exti", Int (First + 3), Integer_64 (B4_State.Sync_EXTI));
+      Record_Int ("bmi423.dma_max", Int (First + 4), Integer_64 (B4_State.DMA_Max_Duration));
+      Record_Int ("bmi423.ready", Int (First + 5), Boolean'Pos (B4_State.Data_Ready));
+      for K in 0 .. 2 loop
+         Record_Int ("bmi423.gyro", Int (First + 6 + K), Integer_64 (B4_State.Raw (K)));
+      end loop;
+      Record_Int ("bmi423.temperature", Int (First + 9), Integer_64 (B4_State.Temperature));
+      for K in 0 .. 2 loop
+         Record_Int ("bmi423.acc", Int (First + 10 + K), Integer_64 (B4_State.Acc_Raw (K)));
+      end loop;
+   end B4_Record_State;
+
+   procedure Check_BMI423_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "b4init" then
+         MX_Op_Head := 1;
+         MX_Op_Count := 0;
+         MG_Device := (others => <>);
+         MG_Device.Bus_OK := Int (5) /= 0;
+         MG_Device.Now_Ms := Interfaces.Unsigned_32 (Int (6));
+         MG_Device.Ms_Step := Interfaces.Unsigned_32 (Int (7));
+         MG_Device.Use_DMA := Int (8) /= 0;
+         MG_Device.Read_Ack := Int (13) /= 0;
+         MG_Device.Cycles := Interfaces.Unsigned_32 (Int (14));
+         declare
+            Dummies : constant Byte_Array := Hex_Bytes (15);
+         begin
+            B4_Dummies := (Dummies (Dummies'First), Dummies (Dummies'First + 1));
+         end;
+         B4_Set_Registers (16, 0);
+         B4_State := (others => <>);
+         B4_State.Interrupt_Pin := Int (9) /= 0;
+         B4_State.Rate_KHz := Byte (Int (11));
+         B4_State.Hardware_LPF := Byte (Int (12));
+         B4_Scale := 0.0;
+         declare
+            C : constant B4_Layer.Device_Config :=
+              (Index => 0, Bus_Type => 2, SPI_Bus => Byte (Int (3)), CS_Tag => Byte (Int (4)));
+         begin
+            B4_Layer.Preinit (MG_Device, C);
+            B4_Layer.Detect (MG_Device, B4_State, C, B4_Found);
+         end;
+      elsif Name = "b4op" then
+         declare
+            Expected : Ada.Strings.Unbounded.Unbounded_String := Ada.Strings.Unbounded.To_Unbounded_String (Str (3));
+         begin
+            for I in 4 .. NF loop
+               Ada.Strings.Unbounded.Append (Expected, "," & Str (I));
+            end loop;
+            if MX_Op_Head <= MX_Op_Count then
+               Record_Text ("bmi423.op", Ada.Strings.Unbounded.To_String (Expected),
+                            Ada.Strings.Unbounded.To_String (MX_Ops (MX_Op_Head)));
+               MX_Op_Head := MX_Op_Head + 1;
+            else
+               Record_Text ("bmi423.op", Ada.Strings.Unbounded.To_String (Expected), "none");
+            end if;
+         end;
+      elsif Name = "b4det" then
+         MX_Expect_No_Ops ("detection");
+         Record_Int ("bmi423.found", Int (3), Boolean'Pos (B4_Found));
+         Record_Int ("bmi423.sensor", Int (4), Integer_64 (B4_State.Sensor));
+         Record_Int ("bmi423.clock", Int (5), Integer_64 (MG_Device.Now_Ms));
+      elsif Name = "b4chip" then
+         declare
+            Gyro_Found : Boolean;
+         begin
+            B4_Chip.Gyro_Detect (B4_State, Gyro_Found, B4_Scale);
+            Record_Int ("bmi423.gyro_found", Int (3), Boolean'Pos (Gyro_Found));
+            Record_Int ("bmi423.acc_found", Int (4), Boolean'Pos (B4_Chip.Acc_Detect (B4_State)));
+            Record_Int ("bmi423.scale", Int_Hex (5), Integer_64 (To_Bits (B4_Scale)));
+            if Gyro_Found then
+               B4_Chip.Gyro_Init (MG_Device, B4_State);
+            end if;
+         end;
+      elsif Name = "b4ready" then
+         MX_Expect_No_Ops ("initialization");
+         Record_Int ("bmi423.rate", Int (3), Integer_64 (B4_State.Rate_KHz));
+         Record_Int ("bmi423.acc_one_g", Int (4), B4_Chip.Acc_One_G);
+         for K in 0 .. 2 loop
+            Record_Int ("bmi423.gyro", Int (5 + K), Integer_64 (B4_State.Raw (K)));
+         end loop;
+      elsif Name = "b4step" then
+         declare
+            Which : constant Integer_64 := Int (4);
+            A     : constant Interfaces.Unsigned_32 := Interfaces.Unsigned_32 (Int (5));
+            Flag  : Boolean;
+         begin
+            MG_Device.Read_Ack := Int (6) /= 0;
+            B4_Set_Registers (7, 16#56#);
+            B4_Result := 0;
+            case Which is
+               when 0 =>
+                  MG_Device.Cycles := MG_Device.Cycles + A;
+                  if B4_State.Interrupt_Pin then
+                     B4_Layer.Interrupt (MG_Device, B4_State);
+                  end if;
+               when 1 =>
+                  for I in 1 .. A loop
+                     MG_Device.Cycles := MG_Device.Cycles + 79 * 168;
+                     if B4_State.Interrupt_Pin then
+                        B4_Layer.Interrupt (MG_Device, B4_State);
+                     end if;
+                  end loop;
+               when 2 =>
+                  MG_Device.Cycles := MG_Device.Cycles + A;
+                  if MG_Device.Pending then
+                     MG_Device.Pending := False;
+                     B4_Layer.Transfer_Complete (MG_Device, B4_State);
+                  end if;
+               when 3 =>
+                  B4_Chip.Read_Gyro (MG_Device, B4_State, Flag);
+                  B4_Result := Boolean'Pos (Flag);
+               when 4 =>
+                  B4_Chip.Read_Acc (MG_Device, B4_State, Flag);
+                  B4_Result := Boolean'Pos (Flag);
+               when others =>
+                  null;
+            end case;
+         end;
+      elsif Name = "b4res" then
+         MX_Expect_No_Ops ("a result");
+         Record_Int ("bmi423.result", Int (4), B4_Result);
+         B4_Record_State (5);
+      end if;
+   end Check_BMI423_Line;
+
    --  The MPU6500 oracle's chip over the MPU gyro oracle's device, with its
    --  bus register writes beside the plain register writes and reads.
    procedure MG_Bus_Write (D : in out MG_Bus; Register : Byte; Value : Byte) is
@@ -34378,6 +34623,8 @@ procedure Vector_Check is
                   Check_LSM6DSO_Line;
                elsif Kind = "icm56686" then
                   Check_ICM56686_Line;
+               elsif Kind = "bmi423" then
+                  Check_BMI423_Line;
                elsif Kind = "mpu6500" then
                   Check_MPU6500_Line;
                elsif Kind = "icm20689" then
@@ -34703,6 +34950,7 @@ begin
    Run (Dir & "/icm456xx.csv", "icm456xx");
    Run (Dir & "/lsm6dso.csv", "lsm6dso");
    Run (Dir & "/icm56686.csv", "icm56686");
+   Run (Dir & "/bmi423.csv", "bmi423");
    Run (Dir & "/mpu6500.csv", "mpu6500");
    Run (Dir & "/icm20689.csv", "icm20689");
    Run (Dir & "/m25p16.csv", "m25p16");
