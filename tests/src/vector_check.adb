@@ -210,6 +210,8 @@ with Adaflight.MPU_Gyro.BMI160;
 with Adaflight.MPU_Gyro.ICM40609;
 with Adaflight.SD_Card;
 with Adaflight.SD_Card_Bus;
+with Adaflight.SD_Card_Types;
+with Adaflight.SD_Card_SDIO;
 with Adaflight.MPU_Gyro.MPU6500;
 with Adaflight.MPU_Gyro.ICM20689;
 with Adaflight.Flash_Device;
@@ -21860,7 +21862,7 @@ procedure Vector_Check is
       Complete        => SC_Complete);
 
    SC_State  : SC_Card.Card;
-   SC_Config : SC_Card.Config;
+   SC_Config : Adaflight.SD_Card_Types.Config;
    SC_Result : Integer_64 := 0;
 
    procedure Check_SD_Card_Line is
@@ -21932,7 +21934,7 @@ procedure Vector_Check is
             B     : constant Interfaces.Unsigned_32 := Interfaces.Unsigned_32 (Int (6));
             Step  : constant Interfaces.Unsigned_32 := Interfaces.Unsigned_32 (Int (3));
             Flag  : Boolean;
-            Status : SC_Card.Operation_Status;
+            Status : Adaflight.SD_Card_Types.Operation_Status;
             Data  : Adaflight.SD_Card_Bus.Block;
          begin
             SC_Result := 0;
@@ -21950,10 +21952,10 @@ procedure Vector_Check is
                        Byte ((Step * 131 + Interfaces.Unsigned_32 (K) * 29 + Interfaces.Unsigned_32 (K) / 8) mod 256);
                   end loop;
                   SC_Card.Write_Block (SC_Device, SC_State, A, Data, True, Step, Status);
-                  SC_Result := SC_Card.Operation_Status'Pos (Status);
+                  SC_Result := Adaflight.SD_Card_Types.Operation_Status'Pos (Status);
                when 3 =>
                   SC_Card.Begin_Write_Blocks (SC_Device, SC_State, A, B, Status);
-                  SC_Result := SC_Card.Operation_Status'Pos (Status);
+                  SC_Result := Adaflight.SD_Card_Types.Operation_Status'Pos (Status);
                when 4 =>
                   if SC_Config.Detect_Tag /= 0 then
                      SC_Detect := A /= 0;
@@ -21965,7 +21967,7 @@ procedure Vector_Check is
       elsif Name = "scres" then
          MX_Expect_No_Ops ("a result");
          Record_Int ("sdcard.result", Int (4), SC_Result);
-         Record_Int ("sdcard.state", Int (5), Integer_64 (SC_Card.Card_State'Pos (SC_State.State)));
+         Record_Int ("sdcard.state", Int (5), Integer_64 (Adaflight.SD_Card_Types.Card_State'Pos (SC_State.State)));
          Record_Int ("sdcard.failures", Int (6), Integer_64 (SC_State.Failure_Count));
          Record_Int ("sdcard.version", Int (7), Integer_64 (SC_State.Version));
          Record_Int ("sdcard.high_capacity", Int (8), Boolean'Pos (SC_State.High_Capacity));
@@ -21975,7 +21977,7 @@ procedure Vector_Check is
          Record_Int ("sdcard.clock", Int (12), Integer_64 (SC_Now_Ms));
       elsif Name = "scmeta" then
          declare
-            M : constant SC_Card.Metadata := SC_Card.Get_Metadata (SC_State);
+            M : constant Adaflight.SD_Card_Types.Metadata := SC_Card.Get_Metadata (SC_State);
             Expected_Name : constant Byte_Array := Hex_Bytes (6);
          begin
             Record_Int ("sdcard.num_blocks", Int (3), Integer_64 (M.Num_Blocks));
@@ -21995,6 +21997,349 @@ procedure Vector_Check is
          end;
       end if;
    end Check_SD_Card_Line;
+
+   --  The SDIO card oracle's controller: a drawn initialization answer, the
+   --  card's busy and the refused information calls as counters and call
+   --  masks, and block transfers pending for a drawn number of checks.
+   type SD_Link is null record;
+
+   SD_Init_OK, SD_Hardware_OK, SD_Use_Cache, SD_Detect : Boolean := False;
+   SD_Init_Called, SD_Write_Armed : Boolean := False;
+   SD_DMA_Id : Integer := 0;
+   SD_Ready_Delay, SD_Info_Fail, SD_Read_Busy, SD_Write_Busy, SD_Busy_Len : Natural := 0;
+   SD_Error_Op : Integer := -1;
+   SD_Busy_Left, SD_Read_Left, SD_Write_Left : Natural := 0;
+   SD_Info_Calls, SD_Op_Calls, SD_Ready_Calls : Natural := 0;
+   SD_Ready_Mask, SD_Info_Mask : Interfaces.Unsigned_32 := 0;
+   SD_Info : Adaflight.SD_Card_Types.Card_Information;
+   SD_Now_Ms, SD_Ms_Step : Interfaces.Unsigned_32 := 0;
+   SD_Device : SD_Link;
+
+   function SD_Flag (B : Boolean) return String is (BMP_Num (Boolean'Pos (B)));
+
+   function SD_Masked (Mask : Interfaces.Unsigned_32; Call : Natural) return Boolean is
+     (Call < 32 and then (Interfaces.Shift_Right (Mask, Call) and 1) = 1);
+
+   function SD_Hash (Data : Byte_Array) return String is
+      H : Interfaces.Unsigned_32 := 2_166_136_261;
+   begin
+      for B of Data loop
+         H := (H xor Interfaces.Unsigned_32 (B)) * 16_777_619;
+      end loop;
+      return MX_Hex (Byte_Array'(Byte (H / 2 ** 24), Byte (H / 2 ** 16 mod 256), Byte (H / 2 ** 8 mod 256),
+                                 Byte (H mod 256)));
+   end SD_Hash;
+
+   procedure SD_Init_Detect_Pin (D : in out SD_Link) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("ioinit,detect,0");
+      MX_Op ("ioconfig,pullup");
+   end SD_Init_Detect_Pin;
+
+   procedure SD_Read_Detect_Pin (D : in out SD_Link; High : out Boolean) is
+      pragma Unreferenced (D);
+   begin
+      High := SD_Detect;
+      MX_Op ("ioread," & SD_Flag (High));
+   end SD_Read_Detect_Pin;
+
+   procedure SD_Find_DMA (D : in out SD_Link; Identifier : out Natural) is
+      pragma Unreferenced (D);
+   begin
+      Identifier := Integer'Max (SD_DMA_Id, 0);
+      MX_Op ("dma," & BMP_Num (Integer_64 (Identifier)));
+   end SD_Find_DMA;
+
+   function SD_Cache_Writes (D : SD_Link) return Boolean is
+      pragma Unreferenced (D);
+   begin
+      return SD_Use_Cache;
+   end SD_Cache_Writes;
+
+   procedure SD_Init_Hardware (D : in out SD_Link; OK : out Boolean) is
+      pragma Unreferenced (D);
+   begin
+      OK := SD_Hardware_OK;
+      MX_Op ("hw," & SD_Flag (OK));
+   end SD_Init_Hardware;
+
+   procedure SD_Init_Card (D : in out SD_Link; OK : out Boolean) is
+      pragma Unreferenced (D);
+   begin
+      if not SD_Init_Called then
+         SD_Init_Called := True;
+         SD_Busy_Left := SD_Ready_Delay;
+      end if;
+      OK := SD_Init_OK;
+      MX_Op ("init," & SD_Flag (OK));
+   end SD_Init_Card;
+
+   procedure SD_Check_Ready (D : in out SD_Link; Ready : out Boolean) is
+      pragma Unreferenced (D);
+   begin
+      Ready := SD_Busy_Left = 0 and then not SD_Masked (SD_Ready_Mask, SD_Ready_Calls);
+      SD_Ready_Calls := SD_Ready_Calls + 1;
+      if SD_Busy_Left > 0 then
+         SD_Busy_Left := SD_Busy_Left - 1;
+      end if;
+      MX_Op ("ready," & SD_Flag (Ready));
+   end SD_Check_Ready;
+
+   procedure SD_Card_Info
+     (D : in out SD_Link; Info : out Adaflight.SD_Card_Types.Card_Information; OK : out Boolean)
+   is
+      pragma Unreferenced (D);
+   begin
+      OK := SD_Info_Calls >= SD_Info_Fail and then not SD_Masked (SD_Info_Mask, SD_Info_Calls);
+      SD_Info_Calls := SD_Info_Calls + 1;
+      Info := SD_Info;
+      MX_Op ("info," & SD_Flag (OK));
+   end SD_Card_Info;
+
+   procedure SD_Read_Pending (D : in out SD_Link; Pending : out Boolean) is
+      pragma Unreferenced (D);
+   begin
+      Pending := SD_Read_Left > 0;
+      if Pending then
+         SD_Read_Left := SD_Read_Left - 1;
+      end if;
+      MX_Op ("checkread," & SD_Flag (Pending));
+   end SD_Read_Pending;
+
+   procedure SD_Write_Pending (D : in out SD_Link; Pending : out Boolean) is
+      pragma Unreferenced (D);
+   begin
+      Pending := SD_Write_Left > 0;
+      if Pending then
+         SD_Write_Left := SD_Write_Left - 1;
+      elsif SD_Write_Armed then
+         SD_Write_Armed := False;
+         SD_Busy_Left := SD_Busy_Len;
+      end if;
+      MX_Op ("checkwrite," & SD_Flag (Pending));
+   end SD_Write_Pending;
+
+   procedure SD_Start_Read (D : in out SD_Link; Index : Interfaces.Unsigned_32; OK : out Boolean) is
+      pragma Unreferenced (D);
+   begin
+      OK := SD_Op_Calls /= SD_Error_Op;
+      SD_Op_Calls := SD_Op_Calls + 1;
+      MX_Op ("read," & BMP_Num (Integer_64 (Index)) & ",512,1," & SD_Flag (OK));
+      if OK then
+         SD_Read_Left := SD_Read_Busy;
+      end if;
+   end SD_Start_Read;
+
+   procedure SD_Fetch_Block
+     (D : in out SD_Link; Index : Interfaces.Unsigned_32; Data : out Adaflight.SD_Card_Bus.Block)
+   is
+      pragma Unreferenced (D);
+   begin
+      for K in Data'Range loop
+         Data (K) := SC_Card_Byte (Index, Interfaces.Unsigned_32 (K));
+      end loop;
+   end SD_Fetch_Block;
+
+   procedure SD_Start_Write (D : in out SD_Link; Index : Interfaces.Unsigned_32; Data : Byte_Array; OK : out Boolean) is
+      pragma Unreferenced (D);
+   begin
+      OK := SD_Op_Calls /= SD_Error_Op;
+      SD_Op_Calls := SD_Op_Calls + 1;
+      MX_Op ("write," & BMP_Num (Integer_64 (Index)) & ",512," & BMP_Num (Integer_64 (Data'Length / 512)) & "," &
+             SD_Hash (Data) & "," & SD_Flag (OK));
+      if OK then
+         SD_Write_Left := SD_Write_Busy;
+         SD_Write_Armed := True;
+      end if;
+   end SD_Start_Write;
+
+   procedure SD_Millis (D : in out SD_Link; Now : out Interfaces.Unsigned_32) is
+      pragma Unreferenced (D);
+   begin
+      Now := SD_Now_Ms;
+      SD_Now_Ms := SD_Now_Ms + SD_Ms_Step;
+   end SD_Millis;
+
+   procedure SD_Complete
+     (D             : in out SD_Link;
+      Write         : Boolean;
+      Index         : Interfaces.Unsigned_32;
+      Has_Buffer    : Boolean;
+      Callback_Data : Interfaces.Unsigned_32;
+      Data          : Adaflight.SD_Card_Bus.Block)
+   is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("done," & SD_Flag (Write) & "," & BMP_Num (Integer_64 (Index)) & "," & SD_Flag (Has_Buffer) & "," &
+             BMP_Num (Integer_64 (Callback_Data)) & "," &
+             (if Has_Buffer and then not Write then SD_Hash (Data) else "00000000"));
+   end SD_Complete;
+
+   package SD_Driver is new Adaflight.SD_Card_SDIO
+     (SDIO_Device     => SD_Link,
+      Init_Detect_Pin => SD_Init_Detect_Pin,
+      Read_Detect_Pin => SD_Read_Detect_Pin,
+      Find_DMA        => SD_Find_DMA,
+      Cache_Writes    => SD_Cache_Writes,
+      Init_Hardware   => SD_Init_Hardware,
+      Init_Card       => SD_Init_Card,
+      Check_Ready     => SD_Check_Ready,
+      Card_Info       => SD_Card_Info,
+      Read_Pending    => SD_Read_Pending,
+      Write_Pending   => SD_Write_Pending,
+      Start_Read      => SD_Start_Read,
+      Fetch_Block     => SD_Fetch_Block,
+      Start_Write     => SD_Start_Write,
+      Millis          => SD_Millis,
+      Complete        => SD_Complete);
+
+   SD_State  : SD_Driver.Card;
+   SD_Config : Adaflight.SD_Card_Types.Config;
+   SD_Result : Integer_64 := 0;
+
+   procedure Check_SDIO_Line is
+      Name : constant String := Str (1);
+      use type Interfaces.Unsigned_8;
+   begin
+      if Name = "sdinit" then
+         MX_Op_Head := 1;
+         MX_Op_Count := 0;
+         SD_Init_OK := Int (3) /= 0;
+         SD_Hardware_OK := Int (4) /= 0;
+         SD_DMA_Id := Integer (Int (5));
+         SD_Use_Cache := Int (6) /= 0;
+         SD_Ready_Delay := Natural (Int (7));
+         SD_Info_Fail := Natural (Int (8));
+         SD_Read_Busy := Natural (Int (9));
+         SD_Write_Busy := Natural (Int (10));
+         SD_Busy_Len := Natural (Int (11));
+         SD_Error_Op := Integer (Int (12));
+         SD_Info :=
+           (Kind => Byte (Int (13)), Capacity => Interfaces.Unsigned_64 (Int (14)), Manufacturer => Byte (Int (15)),
+            OEM_Id => Interfaces.Unsigned_16 (Int (16)), Name_Head => Interfaces.Unsigned_32 (Int (17)),
+            Name_Tail => Byte (Int (18)), Revision => Byte (Int (19)), Serial => Interfaces.Unsigned_32 (Int (20)),
+            Date => Interfaces.Unsigned_16 (Int (21)));
+         SD_Config :=
+           (Device => Byte (Int (22)), Detect_Tag => Byte (Int (23)), CS_Tag => 0, Detect_Inverted => Int (24) /= 0,
+            Mode => Byte (Int (25)));
+         SD_Detect := Int (26) /= 0;
+         SD_Now_Ms := Interfaces.Unsigned_32 (Int (27));
+         SD_Ms_Step := Interfaces.Unsigned_32 (Int (28));
+         SD_Ready_Mask := Interfaces.Unsigned_32 (Int (29));
+         SD_Info_Mask := Interfaces.Unsigned_32 (Int (30));
+         SD_Init_Called := False;
+         SD_Write_Armed := False;
+         SD_Busy_Left := 0;
+         SD_Read_Left := 0;
+         SD_Write_Left := 0;
+         SD_Info_Calls := 0;
+         SD_Op_Calls := 0;
+         SD_Ready_Calls := 0;
+         SD_Result := 0;
+         SD_State := (others => <>);
+         SD_Driver.Init (SD_Device, SD_State, SD_Config);
+      elsif Name = "sdop" then
+         declare
+            Expected : Ada.Strings.Unbounded.Unbounded_String := Ada.Strings.Unbounded.To_Unbounded_String (Str (3));
+         begin
+            for I in 4 .. NF loop
+               Ada.Strings.Unbounded.Append (Expected, "," & Str (I));
+            end loop;
+            if MX_Op_Head <= MX_Op_Count then
+               Record_Text ("sdio.op", Ada.Strings.Unbounded.To_String (Expected),
+                            Ada.Strings.Unbounded.To_String (MX_Ops (MX_Op_Head)));
+               MX_Op_Head := MX_Op_Head + 1;
+            else
+               Record_Text ("sdio.op", Ada.Strings.Unbounded.To_String (Expected), "none");
+            end if;
+         end;
+      elsif Name = "sdstep" then
+         declare
+            Which : constant Integer_64 := Int (4);
+            A     : constant Interfaces.Unsigned_32 := Interfaces.Unsigned_32 (Int (5));
+            B     : constant Interfaces.Unsigned_32 := Interfaces.Unsigned_32 (Int (6));
+            Step  : constant Interfaces.Unsigned_32 := Interfaces.Unsigned_32 (Int (3));
+            Flag  : Boolean;
+            Status : Adaflight.SD_Card_Types.Operation_Status;
+            Data  : Adaflight.SD_Card_Bus.Block;
+         begin
+            SD_Result := 0;
+            case Which is
+               when 0 =>
+                  SD_Driver.Poll (SD_Device, SD_State, Flag);
+                  SD_Result := Boolean'Pos (Flag);
+               when 1 =>
+                  SD_Driver.Read_Block (SD_Device, SD_State, A, True, Step, Flag);
+                  SD_Result := Boolean'Pos (Flag);
+               when 2 =>
+                  for K in Data'Range loop
+                     Data (K) :=
+                       Byte ((Step * 131 + Interfaces.Unsigned_32 (K) * 29 + Interfaces.Unsigned_32 (K) / 8) mod 256);
+                  end loop;
+                  SD_Driver.Write_Block (SD_Device, SD_State, A, Data, True, Step, Status);
+                  SD_Result := Adaflight.SD_Card_Types.Operation_Status'Pos (Status);
+               when 3 =>
+                  SD_Driver.Begin_Write_Blocks (SD_Device, SD_State, A, B, Status);
+                  SD_Result := Adaflight.SD_Card_Types.Operation_Status'Pos (Status);
+               when 4 =>
+                  if SD_Config.Detect_Tag /= 0 then
+                     SD_Detect := A /= 0;
+                  end if;
+               when 6 =>
+                  for I in 1 .. Natural (A) loop
+                     declare
+                        Seed : constant Interfaces.Unsigned_32 := Step * 100 + Interfaces.Unsigned_32 (I - 1);
+                     begin
+                        for K in Data'Range loop
+                           Data (K) :=
+                             Byte ((Seed * 131 + Interfaces.Unsigned_32 (K) * 29 + Interfaces.Unsigned_32 (K) / 8)
+                                   mod 256);
+                        end loop;
+                        SD_Driver.Write_Block (SD_Device, SD_State, SD_State.Multi_Next, Data, True, Step, Status);
+                        SD_Result := Adaflight.SD_Card_Types.Operation_Status'Pos (Status);
+                     end;
+                  end loop;
+               when others =>
+                  SD_Now_Ms := SD_Now_Ms + A;
+            end case;
+         end;
+      elsif Name = "sdres" then
+         MX_Expect_No_Ops ("a result");
+         Record_Int ("sdio.result", Int (4), SD_Result);
+         Record_Int ("sdio.state", Int (5), Integer_64 (Adaflight.SD_Card_Types.Card_State'Pos (SD_State.State)));
+         Record_Int ("sdio.failures", Int (6), Integer_64 (SD_State.Failure_Count));
+         Record_Int ("sdio.version", Int (7), Integer_64 (SD_State.Version));
+         Record_Int ("sdio.high_capacity", Int (8), Boolean'Pos (SD_State.High_Capacity));
+         Record_Int ("sdio.next_block", Int (9), Integer_64 (SD_State.Multi_Next));
+         Record_Int ("sdio.remain", Int (10), Integer_64 (SD_State.Multi_Remain));
+         Record_Int ("sdio.enabled", Int (11), Boolean'Pos (SD_State.Enabled));
+         Record_Int ("sdio.clock", Int (12), Integer_64 (SD_Now_Ms));
+         Record_Int ("sdio.cached", Int (13), Integer_64 (SD_State.Cached));
+         Record_Int ("sdio.functional", Int (14), Boolean'Pos (SD_Driver.Is_Functional (SD_State)));
+         Record_Int ("sdio.initialized", Int (15), Boolean'Pos (SD_Driver.Is_Initialized (SD_State)));
+      elsif Name = "sdmeta" then
+         declare
+            M : constant Adaflight.SD_Card_Types.Metadata := SD_Driver.Get_Metadata (SD_State);
+            Expected_Name : constant Byte_Array := Hex_Bytes (6);
+         begin
+            Record_Int ("sdio.num_blocks", Int (3), Integer_64 (M.Num_Blocks));
+            Record_Int ("sdio.oem", Int (4), Integer_64 (M.OEM_Id));
+            Record_Int ("sdio.manufacturer", Int (5), Integer_64 (M.Manufacturer));
+            for K in 0 .. 4 loop
+               Record_Int ("sdio.name", Integer_64 (Expected_Name (Expected_Name'First + K)),
+                           Integer_64 (M.Product_Name (K)));
+            end loop;
+            Record_Int ("sdio.serial", Int (7), Integer_64 (M.Serial));
+            Record_Int ("sdio.revision_major", Int (8), Integer_64 (M.Revision_Major));
+            Record_Int ("sdio.revision_minor", Int (9), Integer_64 (M.Revision_Minor));
+            Record_Int ("sdio.year", Int (10), Integer_64 (M.Production_Year));
+            Record_Int ("sdio.month", Int (11), Integer_64 (M.Production_Month));
+            Record_Int ("sdio.functional", Int (12), Boolean'Pos (SD_Driver.Is_Functional (SD_State)));
+            Record_Int ("sdio.initialized", Int (13), Boolean'Pos (SD_Driver.Is_Initialized (SD_State)));
+         end;
+      end if;
+   end Check_SDIO_Line;
 
    --  The MPU6500 oracle's chip over the MPU gyro oracle's device, with its
    --  bus register writes beside the plain register writes and reads.
@@ -35930,6 +36275,8 @@ procedure Vector_Check is
                   Check_ICM40609_Line;
                elsif Kind = "sdcard" then
                   Check_SD_Card_Line;
+               elsif Kind = "sdio" then
+                  Check_SDIO_Line;
                elsif Kind = "mpu6500" then
                   Check_MPU6500_Line;
                elsif Kind = "icm20689" then
@@ -36260,6 +36607,7 @@ begin
    Run (Dir & "/bmi160.csv", "bmi160");
    Run (Dir & "/icm40609.csv", "icm40609");
    Run (Dir & "/sdcard.csv", "sdcard");
+   Run (Dir & "/sdio.csv", "sdio");
    Run (Dir & "/mpu6500.csv", "mpu6500");
    Run (Dir & "/icm20689.csv", "icm20689");
    Run (Dir & "/m25p16.csv", "m25p16");
