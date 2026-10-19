@@ -19732,6 +19732,9 @@ procedure Vector_Check is
          Record_Int (Name & ".baro_calibrations", Next, Integer_64 (MCT_T.Asked.Baro_Calibrations));
          Record_Int (Name & ".gate_starts", Next, Integer_64 (MCT_T.Asked.Gate_Starts));
          Record_Int (Name & ".gate_ends", Next, Integer_64 (MCT_T.Asked.Gate_Ends));
+         Record_Int (Name & ".runtime_features", Next, Integer_64 (MCT_T.Live.Runtime_Features));
+         Record_Int (Name & ".led_enables", Next, Integer_64 (MCT_T.Asked.LED_Strip_Enables));
+         Record_Int (Name & ".led_disables", Next, Integer_64 (MCT_T.Asked.LED_Strip_Disables));
          Adaflight.Config_Codec.Encode (MCT_T.Config, D);
          for B of D loop
             Hash := (Hash xor Interfaces.Unsigned_64 (B)) * 16#100_0000_01B3#;
@@ -19762,6 +19765,13 @@ procedure Vector_Check is
       if Name = "cminit" then
          if MCT_State.In_Menu and then MCT_State.Has_Menu then
             MCT_Nav.Exit_Menu (MCT_State, MCT_T, Plain);
+         end if;
+         if Int (3) = 0 then
+            MCT_T :=
+              (Config => Adaflight.Config_Groups.Defaults,
+               Quick  => (Rate    => Adaflight.Config_Groups.Defaults.Control_Rate_Profiles (0),
+                          Battery => Adaflight.Config_Groups.Defaults.Battery_Profiles (0), others => <>),
+               others => <>);
          end if;
          MCT_Seq := Int (2);
          MCT_T.Config := Adaflight.Config_Groups.Defaults;
@@ -19814,6 +19824,16 @@ procedure Vector_Check is
          MCT_T.Live.Board_Name := Menu_Text_Of (Hex_String (68));
          MCT_T.Config.Gps_Lap_Timer_Config.Minimum_Lap_Time_Seconds := Interfaces.Unsigned_16 (Int (69));
          MCT_T.Config.Gps_Lap_Timer_Config.Gate_Tolerance_M := Interfaces.Unsigned_8 (Int (70));
+         MCT_T.Config.Feature_Config.Enabled_Features := Interfaces.Unsigned_32 (Int (71));
+         MCT_T.Live.Runtime_Features := Interfaces.Unsigned_32 (Int (72));
+         MCT_T.Config.Led_Strip_Config.Ledstrip_Profile := Interfaces.Unsigned_8 (Int (73));
+         MCT_T.Config.Led_Strip_Config.Ledstrip_Race_Color := Interfaces.Unsigned_8 (Int (74));
+         MCT_T.Config.Led_Strip_Config.Ledstrip_Beacon_Color := Interfaces.Unsigned_8 (Int (75));
+         MCT_T.Config.Led_Strip_Config.Ledstrip_Beacon_Period_Ms := Interfaces.Unsigned_16 (Int (76));
+         MCT_T.Config.Led_Strip_Config.Ledstrip_Beacon_Percent := Interfaces.Unsigned_8 (Int (77));
+         MCT_T.Config.Led_Strip_Config.Ledstrip_Beacon_Armed_Only := Interfaces.Unsigned_8 (Int (78));
+         MCT_T.Config.Led_Strip_Config.Ledstrip_Visual_Beeper := Interfaces.Unsigned_8 (Int (79));
+         MCT_T.Config.Led_Strip_Config.Ledstrip_Visual_Beeper_Color := Interfaces.Unsigned_8 (Int (80));
          MCT_T.Identity :=
            (Identifier => Menu_Text_Of ("ADFL"), Version => Menu_Text_Of ("0.1.0"),
             Revision => Menu_Text_Of ("norevision"), Target_Name => Menu_Text_Of ("STM32F405"));
@@ -19827,7 +19847,7 @@ procedure Vector_Check is
          declare
             D        : Adaflight.Config_Codec.Data;
             Hash     : Interfaces.Unsigned_64 := 16#CBF2_9CE4_8422_2325#;
-            Expected : constant Interfaces.Unsigned_64 := Interfaces.Unsigned_64'Value (Str (71));
+            Expected : constant Interfaces.Unsigned_64 := Interfaces.Unsigned_64'Value (Str (81));
          begin
             Adaflight.Config_Codec.Encode (MCT_T.Config, D);
             for B of D loop
