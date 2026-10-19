@@ -5697,3 +5697,35 @@ flash's offset to zero after an erase, as the runtime does. It replays 240 sessi
 808 menu changes and 20174 draws, 1694 of their states in the blackbox menu, 214 in the erase
 confirmation and 288 in the mass storage confirmation, with 9 erases and 15 resets: every display
 operation, menu context, page, request and configuration hash matches the reference's.
+
+## D244. OSD menus (2026-10-16)
+
+A hook's answer in `Adaflight.Menu` gains a fourth display operation, a background type set, with the
+type in the operation's attribute; the navigation hands it to the display as the background action.
+
+The content's loading splits into one loader per menu group, main, settings, system and OSD, each
+with the fixed-point bound as its postcondition; a single loader over every menu took the provers past
+their time and memory limits on that bound.
+
+`Adaflight.Menu_Content` gains the OSD menu with its active elements, timers and alarms menus, for a
+build with OSD profiles, the extended menus and the MAX7456 display. The OSD menu copies the OSD
+profile, the display's inversion and black and white brightness, and the menu background on entry
+(F214). Its inversion and brightness lines store all three copies and clear the display after each
+change; its background line stores the background and sets the display's background type. On the
+way out it asks the runtime to change the OSD profile to its copy, which it stores when the copy is
+at most three.
+
+The active elements menu copies every element's position and profile flags, shows 77 elements as
+visibility lines in the reference's order, and on the way out stores the copies and asks the runtime
+to analyze the active elements again. The timers menu splits each timer into source, precision and
+alarm and joins them again on the way out; tenths, the third precision, show an empty name where the
+reference reads past its two names (F212). The alarms menu copies the RSSI, link quality, RSSI dBm,
+signal to noise, capacity, altitude and distance alarms and the battery voltage durations, with the
+reference's ranges (F213).
+
+The menu contents oracle scripts the element positions, the alarms, the timers, the background and
+the display settings, counts the analyses and profile changes, and keeps timer precisions to the two
+named ones. The harness replays 240 sessions with 19242 keys, 813 menu changes and 20055 draws, 692
+of their states in the OSD menu, 672 in the active elements menu, 446 in the timers menu and 284 in
+the alarms menu, with 68 profile changes and 32 analyses: every display operation, menu context,
+page, request and configuration hash matches the reference's.

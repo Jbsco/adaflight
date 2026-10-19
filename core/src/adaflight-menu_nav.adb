@@ -66,6 +66,8 @@ package body Adaflight.Menu_Nav with SPARK_Mode is
                       A.Screen (K).Text (1 .. A.Screen (K).Length), Ignore_Cost);
             when Adaflight.Menu.Redraw =>
                Act (S.Port, Adaflight.Menu.Redraw, 0);
+            when Adaflight.Menu.Set_Background =>
+               Act (S.Port, Adaflight.Menu.Background, Integer (A.Screen (K).Attr));
          end case;
       end loop;
       if A.Inhibit_Save then
