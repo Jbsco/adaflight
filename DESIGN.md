@@ -8091,3 +8091,35 @@ calculations run, 6 of them keeping both values on a zero result. Of 49 tampered
 stops the checker at a coefficient's subtype check. Four pass and are equivalent at the integer result: three reorder
 single precision products or sums, whose rounding the pascal and 1/256 degree results hide, and one divides the
 compensated temperature by 256 before the cut, which gives the same whole number.
+
+## D352. BMP085 barometer driver (2026-10-18)
+
+`Adaflight.BMP085` drives the BMP085 barometer on I2C with its clear and conversion-end pins, which the configuration
+names by tag, 0 for none. Detection sets the clear pin up as an output driven high, sets the conversion-end pin up with
+a rising-edge interrupt, waits 20 ms, gives an unset I2C address the chip's 0x77, and reads the identity 0x55. A chip
+that does not answer, or answers another identity, gets its conversion-end pin and interrupt released when it has one,
+its clear pin driven low and the default address taken back. Otherwise detection registers the device, reads the version
+byte and the 22 calibration bytes, whatever they answer and into a buffer that starts at zeros (finding F272), gives the
+barometer task a 6 ms temperature delay and a 27 ms pressure delay, and tests the conversion-end pin, which counts as
+connected when it reads low and then high 12 ms after a temperature start. A second detection answers found at once. A
+temperature or pressure start clears the conversion flag and starts the control write, the interrupt sets the flag, a
+read starts the two or three data bytes while the bus is free and, with the pin connected, the flag set, and a sample
+takes the bytes the last read brought while the bus is free, the pressure as 19 bits of the three bytes. The calculation
+compensates with the datasheet's integer arithmetic in 32 bits that wrap, as the processor computes them, with
+arithmetic right shifts, and gives a division by zero, which the reference never checks and the ARM processor answers
+with zero, that zero. It gives the temperature in hundredths of a degree and the pressure in pascal, and keeps the fine
+temperature for the next calculation. The reference keeps everything in static variables shared by every BMP085 device.
+This unit keeps them per device, which behaves the same with one barometer. The unit is SPARK for the wrapping
+arithmetic, the shifts and the divisions.
+
+The BMP085 oracle includes the reference driver, built with wrapping signed arithmetic as the ARM processor computes,
+over a simulated chip, one case per process. It draws the clear and conversion-end pin tags, the bus and the addresses,
+the identity, whether the first read fails, the two levels the conversion-end pin shows during detection, and the 22
+calibration bytes, near the datasheet's example or random, then makes 50 of the driver's calls, each after a drawn
+interrupt or none, with scripted busy and start answers and raw readings. A division by zero would end the case; none of
+the 300 cases reaches one. Every bus, pin, interrupt and delay call, detection and calculation of the 300 cases replays
+exactly, with the fine temperature and the raw readings. In them 155 chips are found, 91 with a clear pin, 91 with a
+conversion-end pin, 49 of those connected, and 26 on SPI, 2280 interrupts fire, 1694 samples are taken and 1085
+calculations run. Of 63 tampered paths, 60 fail the vectors and two stop the checker at a subtype check. One passes and
+is equivalent: the rounding term of the B3 step adds 2 before a shift by 2 to a value the fixed oversampling of 3 makes
+a multiple of 8, so the shift drops it.
