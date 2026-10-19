@@ -56,6 +56,16 @@ package Adaflight.Counting_Steps with SPARK_Mode, Initializes => Calls is
 
    subtype Menu_Target is Natural;
 
+   --  The display operations a counted hook makes: of a kind, at a place
+   --  and of a length by the count.
+   function Step_Screen (T : Menu_Target) return Menu.Screen_Ops is
+     (others => (Kind   => Menu.Screen_Kind'Val (T mod 3),
+                 X      => T mod 32,
+                 Y      => T mod 16,
+                 Attr   => 0,
+                 Text   => (others => 'A'),
+                 Length => T mod (Menu.Max_Screen_Text + 1)));
+
    procedure Step_Load (T : Menu_Target; Id : Menu.Menu_Id; M : out Menu.Table)
      with Global => (In_Out => Calls),
           Post   => Calls = Counted (Calls'Old) and then M.Count = 1 and then Menu.Fixed_In_Range (M);
@@ -63,18 +73,24 @@ package Adaflight.Counting_Steps with SPARK_Mode, Initializes => Calls is
    procedure Step_Enter (T : in out Menu_Target; Id : Menu.Menu_Id; Reply : out Menu.Answer)
      with Global => null,
           Post   => T = Counted (T'Old)
-                    and then Reply = (Done       => (if T mod 3 = 0 then Menu.Changed else Menu.Nothing),
-                                      Target     => T mod Menu.Max_Menus,
-                                      Kind       => Menu.Plain,
-                                      Chain_Back => T mod 2 = 0);
+                    and then Reply = (Done         => (if T mod 3 = 0 then Menu.Changed else Menu.Nothing),
+                                      Target       => T mod Menu.Max_Menus,
+                                      Kind         => Menu.Plain,
+                                      Chain_Back   => T mod 2 = 0,
+                                      Inhibit_Save => T mod 5 = 0,
+                                      Screens      => T mod 4,
+                                      Screen       => Step_Screen (T));
 
    procedure Step_Call (T : in out Menu_Target; Id : Menu.Menu_Id; Line : Natural; Reply : out Menu.Answer)
      with Global => null,
           Post   => T = Counted (T'Old)
-                    and then Reply = (Done       => Menu.Effect'Val (T mod 3),
-                                      Target     => T mod Menu.Max_Menus,
-                                      Kind       => Menu.Exit_Kind'Val (T mod 6),
-                                      Chain_Back => T mod 2 = 0);
+                    and then Reply = (Done         => Menu.Effect'Val (T mod 3),
+                                      Target       => T mod Menu.Max_Menus,
+                                      Kind         => Menu.Exit_Kind'Val (T mod 6),
+                                      Chain_Back   => T mod 2 = 0,
+                                      Inhibit_Save => T mod 5 = 0,
+                                      Screens      => T mod 4,
+                                      Screen       => Step_Screen (T));
 
    procedure Step_Leave (T : in out Menu_Target; Id : Menu.Menu_Id; Self : Integer; Chain_Back : out Boolean)
      with Global => null,

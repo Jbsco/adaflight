@@ -221,15 +221,35 @@ package Adaflight.Menu with SPARK_Mode is
    --  The exits by kind, in the reference's numbering.
    type Exit_Kind is (Plain, Save, Save_Reboot, Popup_Save, Popup_Save_Reboot, Popup_Exit_Reboot);
 
-   --  A hook's answer: a menu change or an exit the hook made before it
-   --  returned, as the reference's hooks call them themselves, and whether
-   --  it asks for the way back.
+   --  A display operation a hook made: a clear that waits, a text written
+   --  at a position with its attribute, or a redraw.
+   type Screen_Kind is (Clear_Wait, Write_Text, Redraw);
+   Max_Screen_Text : constant := 48;
+   subtype Screen_Text_Length is Natural range 0 .. Max_Screen_Text;
+   type Screen_Op is record
+      Kind   : Screen_Kind := Redraw;
+      X, Y   : Natural range 0 .. 255 := 0;
+      Attr   : Unsigned_8 := 0;
+      Text   : String (1 .. Max_Screen_Text) := (others => ' ');
+      Length : Screen_Text_Length := 0;
+   end record;
+   Max_Screen_Ops : constant := 6;
+   subtype Screen_Count is Natural range 0 .. Max_Screen_Ops;
+   type Screen_Ops is array (1 .. Max_Screen_Ops) of Screen_Op;
+
+   --  A hook's answer: the display operations, the save menu inhibition,
+   --  and a menu change or an exit the hook made before it returned, as
+   --  the reference's hooks call them themselves, and whether it asks for
+   --  the way back.
    type Effect is (Nothing, Changed, Exited);
    type Answer is record
-      Done       : Effect := Nothing;
-      Target     : Menu_Id := Main_Menu;
-      Kind       : Exit_Kind := Plain;
-      Chain_Back : Boolean := False;
+      Done         : Effect := Nothing;
+      Target       : Menu_Id := Main_Menu;
+      Kind         : Exit_Kind := Plain;
+      Chain_Back   : Boolean := False;
+      Inhibit_Save : Boolean := False;
+      Screens      : Screen_Count := 0;
+      Screen       : Screen_Ops;
    end record;
 
    --  The cursor's row in the page, which runs past the page's rows up to

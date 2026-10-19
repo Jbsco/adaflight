@@ -19790,6 +19790,13 @@ procedure Vector_Check is
          MCT_T.Config.Mixer_Config.Rpm_Limit := Int (53) = 1;
          MCT_T.Config.Mixer_Config.Rpm_Limit_Value := Interfaces.Unsigned_16 (Int (54));
          MCT_T.Config.Motor_Config.Kv := Interfaces.Unsigned_16 (Int (55));
+         MCT_T.Config.Motor_Config.Motor_Idle := Interfaces.Unsigned_16 (Int (56));
+         MCT_T.Config.Rx_Config.Fpv_Cam_Angle_Degrees := Interfaces.Unsigned_8 (Int (57));
+         MCT_T.Config.Mixer_Config.Crashflip_Rate := Interfaces.Unsigned_8 (Int (58));
+         MCT_T.Config.Stats_Config.Stats_Total_Flights := Interfaces.Unsigned_32 (Int (59));
+         MCT_T.Config.Stats_Config.Stats_Total_Time_S := Interfaces.Unsigned_32 (Int (60));
+         MCT_T.Config.Stats_Config.Stats_Total_Dist_M := Interfaces.Unsigned_32 (Int (61));
+         MCT_T.Config.Stats_Config.Stats_Min_Armed_Time_S := Interfaces.Integer_8 (Int (62));
          if Int (3) = 0 then
             MCT_State := (others => <>);
             MCT_Nav.Register_Display (MCT_State, (Supports_Symbols => True, others => <>));
@@ -19800,7 +19807,7 @@ procedure Vector_Check is
          declare
             D        : Adaflight.Config_Codec.Data;
             Hash     : Interfaces.Unsigned_64 := 16#CBF2_9CE4_8422_2325#;
-            Expected : constant Interfaces.Unsigned_64 := Interfaces.Unsigned_64'Value (Str (56));
+            Expected : constant Interfaces.Unsigned_64 := Interfaces.Unsigned_64'Value (Str (63));
          begin
             Adaflight.Config_Codec.Encode (MCT_T.Config, D);
             for B of D loop
@@ -19840,6 +19847,10 @@ procedure Vector_Check is
             Now_Ms : constant Interfaces.Unsigned_32 := Interfaces.Unsigned_32 (Next);
             Room   : constant Interfaces.Unsigned_32 := Interfaces.Unsigned_32 (Next);
          begin
+            for C in Adaflight.Menu_Content.RC_Channels'Range loop
+               MCT_T.Live.RC_Data (C) := Flt (K);
+               K := K + 1;
+            end loop;
             Begin_Step;
             Read_Ops;
             MCT_Nav.Draw (MCT_State, MCT_T, (others => <>), Now_Ms * 1000, Now_Ms, Room);
