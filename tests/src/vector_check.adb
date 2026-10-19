@@ -219,6 +219,7 @@ with Adaflight.Flash_Device.M25P16;
 with Adaflight.Flash_Device.W25Q128FV;
 with Adaflight.OLED_Display;
 with Adaflight.SX1280;
+with Adaflight.SX127x;
 with Adaflight.Flash_Device.W25N;
 with Adaflight.Flash_Device.W25M;
 with Adaflight.Flash_Device.Layer;
@@ -24072,6 +24073,303 @@ procedure Vector_Check is
       end if;
    end Check_SX1280_Line;
 
+   --  The SX127x oracle's chip: the register seed, the step's salt, the
+   --  version register's answer from a drawn read on, the receiver's
+   --  interrupt pin and the time of its last interrupt.
+   type S7_Link is record
+      Reg_Seed        : Interfaces.Unsigned_32 := 0;
+      Salt            : Interfaces.Unsigned_32 := 0;
+      Found_At        : Natural := 0;
+      Version_Reads   : Natural := 0;
+      Exti_Configured : Boolean := True;
+      Last_Exti       : Interfaces.Unsigned_32 := 0;
+   end record;
+
+   S7_Device : S7_Link;
+
+   function S7_Reg_Byte (D : S7_Link; Address : Byte) return Byte is
+     (Byte ((Interfaces.Unsigned_32 (Address) * 2_654_435_761 + D.Reg_Seed * 40_503 + D.Salt * 2_246_822_519)
+            / 2 ** 24));
+
+   procedure S7_Exti_Configured (D : in out S7_Link; Configured : out Boolean) is
+   begin
+      Configured := D.Exti_Configured;
+      MX_Op ("exticonfigured," & SX_Flag (Configured));
+   end S7_Exti_Configured;
+
+   procedure S7_Init_Reset_Pin (D : in out S7_Link) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("ioinit,reset");
+      MX_Op ("ioconfig,reset,outpp");
+   end S7_Init_Reset_Pin;
+
+   procedure S7_Reset_Low (D : in out S7_Link) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("iolo,reset");
+   end S7_Reset_Low;
+
+   procedure S7_Reset_Float (D : in out S7_Link) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("ioconfig,reset,floating");
+   end S7_Reset_Float;
+
+   procedure S7_Delay_Ms (D : in out S7_Link; Ms : Natural) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("delay," & BMP_Num (Integer_64 (Ms)));
+   end S7_Delay_Ms;
+
+   procedure S7_Reset_Exti (D : in out S7_Link) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("resetexti");
+   end S7_Reset_Exti;
+
+   procedure S7_Last_Exti_Time (D : in out S7_Link; Time : out Interfaces.Unsigned_32) is
+   begin
+      Time := D.Last_Exti;
+   end S7_Last_Exti_Time;
+
+   procedure S7_Bus_Write_Command (D : in out S7_Link; Command : Byte; Value : Byte) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("wreg," & MX_Hex (Byte_Array'(0 => Command)) & "," & MX_Hex (Byte_Array'(0 => Value)));
+   end S7_Bus_Write_Command;
+
+   procedure S7_Bus_Write_Command_Multi (D : in out S7_Link; Command : Byte; Data : Byte_Array) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("wmulti," & MX_Hex (Byte_Array'(0 => Command)) & "," & BMP_Num (Integer_64 (Data'Length)) & ","
+             & MX_Hex (Data));
+   end S7_Bus_Write_Command_Multi;
+
+   procedure S7_Bus_Read_Command (D : in out S7_Link; Command : Byte; Value : out Byte) is
+      use type Interfaces.Unsigned_8;
+      Address : constant Byte := Command and 16#7F#;
+   begin
+      Value := S7_Reg_Byte (D, Address);
+      if Address = 16#42# then
+         if D.Version_Reads >= D.Found_At then
+            Value := 16#12#;
+         end if;
+         D.Version_Reads := D.Version_Reads + 1;
+      end if;
+      MX_Op ("rreg," & MX_Hex (Byte_Array'(0 => Command)) & ",ff," & MX_Hex (Byte_Array'(0 => Value)));
+   end S7_Bus_Read_Command;
+
+   procedure S7_Bus_Read_Command_Multi (D : in out S7_Link; Command : Byte; Data : out Byte_Array) is
+      use type Interfaces.Unsigned_8;
+   begin
+      for I in Data'Range loop
+         Data (I) := S7_Reg_Byte (D, (Command and 16#7F#) + Byte (I - Data'First));
+      end loop;
+      MX_Op ("rmulti," & MX_Hex (Byte_Array'(0 => Command)) & ",ff," & BMP_Num (Integer_64 (Data'Length)) & ","
+             & MX_Hex (Data));
+   end S7_Bus_Read_Command_Multi;
+
+   package S7_Driver is new Adaflight.SX127x
+     (Radio_Device            => S7_Link,
+      Exti_Configured         => S7_Exti_Configured,
+      Init_Reset_Pin          => S7_Init_Reset_Pin,
+      Reset_Low               => S7_Reset_Low,
+      Reset_Float             => S7_Reset_Float,
+      Delay_Ms                => S7_Delay_Ms,
+      Reset_Exti              => S7_Reset_Exti,
+      Last_Exti_Time          => S7_Last_Exti_Time,
+      Bus_Write_Command       => S7_Bus_Write_Command,
+      Bus_Write_Command_Multi => S7_Bus_Write_Command_Multi,
+      Bus_Read_Command        => S7_Bus_Read_Command,
+      Bus_Read_Command_Multi  => S7_Bus_Read_Command_Multi);
+
+   S7_Has_Reset : Boolean := False;
+   S7_Offset    : S7_Driver.Correction := 0;
+   S7_Result    : Integer_64 := 0;
+   S7_Result_2  : Integer_64 := 0;
+
+   procedure Check_SX127x_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "s7init" then
+         MX_Op_Head := 1;
+         MX_Op_Count := 0;
+         S7_Device := (others => <>);
+         S7_Offset := 0;
+         S7_Device.Reg_Seed := Interfaces.Unsigned_32 (Int (3));
+         S7_Device.Exti_Configured := Int (4) /= 0;
+         S7_Has_Reset := Int (5) /= 0;
+      elsif Name = "s7step" then
+         MX_Op_Head := 1;
+         MX_Op_Count := 0;
+         S7_Result := 0;
+         S7_Result_2 := 0;
+         S7_Device.Salt := Interfaces.Unsigned_32 (Int (5));
+         case Int (4) is
+            when 0 =>
+               declare
+                  OK : Boolean;
+               begin
+                  S7_Device.Found_At := Natural (Int (6));
+                  S7_Device.Version_Reads := 0;
+                  S7_Driver.Init (S7_Device, S7_Has_Reset, OK);
+                  S7_Result := Boolean'Pos (OK);
+               end;
+            when 1 =>
+               S7_Driver.Config
+                 (S7_Device, Byte (Int (6)), Byte (Int (7)), Byte (Int (8)), Interfaces.Unsigned_32 (Int (9)),
+                  Byte (Int (10)), Int (11) /= 0);
+            when 2 =>
+               S7_Driver.Set_Mode (S7_Device, S7_Driver.Operating_Mode'Val (Int (6)));
+            when 3 =>
+               S7_Driver.Set_Frequency_Hz (S7_Device, Interfaces.Unsigned_32 (Int (6)));
+            when 4 =>
+               S7_Driver.Set_Frequency_Reg (S7_Device, Interfaces.Unsigned_32 (Int (6)));
+            when 5 =>
+               S7_Driver.Set_Output_Power (S7_Device, Byte (Int (6)));
+            when 6 =>
+               S7_Driver.Set_Preamble_Length (S7_Device, Byte (Int (6)));
+            when 7 =>
+               S7_Driver.Set_Spreading_Factor (S7_Device, Byte (Int (6)));
+            when 8 =>
+               S7_Driver.Set_Bandwidth_Coding_Rate
+                 (S7_Device, Byte (Int (6)), Byte (Int (7)), Byte (Int (8)), Int (9) /= 0, Int (10) /= 0);
+            when 9 =>
+               S7_Driver.Set_Sync_Word (S7_Device, Byte (Int (6)));
+            when 10 =>
+               S7_Driver.Transmit_Data (S7_Device, M2_Fill (Natural (Int (6)), Interfaces.Unsigned_32 (Int (7))));
+            when 11 =>
+               declare
+                  Data : Byte_Array (0 .. Natural (Int (6)) - 1) := (others => 0);
+               begin
+                  S7_Driver.Receive_Data (S7_Device, Data);
+                  S7_Result := Integer_64 (M2_Hash (Data));
+               end;
+            when 12 =>
+               S7_Driver.Start_Receiving (S7_Device);
+            when 13 =>
+               S7_Result := Integer_64 (S7_Driver.Current_Bandwidth (Byte (Int (6))));
+            when 14 =>
+               S7_Result := Integer_64 (S7_Driver.Bandwidth_Normalised_Shifted (Byte (Int (6))));
+            when 15 =>
+               S7_Driver.Set_PPM_Offset (S7_Device, S7_Driver.Correction (Int (6)), Interfaces.Unsigned_32 (Int (7)));
+            when 16 =>
+               declare
+                  Error : Interfaces.Integer_32;
+               begin
+                  S7_Driver.Get_Frequency_Error (S7_Device, Byte (Int (6)), Error);
+                  S7_Result := Integer_64 (Error);
+               end;
+            when 17 =>
+               S7_Offset := S7_Driver.Correction (Int (7));
+               S7_Driver.Adjust_Frequency (S7_Device, S7_Offset, Interfaces.Unsigned_32 (Int (6)));
+               S7_Result := Integer_64 (S7_Offset);
+            when 18 =>
+               declare
+                  RSSI : Interfaces.Integer_8;
+                  SNR  : Interfaces.Integer_8;
+               begin
+                  S7_Driver.Get_Last_Packet_Stats (S7_Device, RSSI, SNR);
+                  S7_Result :=
+                    Integer_64 (Interfaces.Unsigned_8'Mod (Integer (RSSI))) * 256
+                    + Integer_64 (Interfaces.Unsigned_8'Mod (Integer (SNR)));
+               end;
+            when 19 =>
+               declare
+                  Value : Byte;
+               begin
+                  S7_Driver.Unsigned_Last_Packet_RSSI (S7_Device, Value);
+                  S7_Result := Integer_64 (Value);
+               end;
+            when 20 | 21 =>
+               declare
+                  Value : Interfaces.Integer_8;
+               begin
+                  if Int (4) = 20 then
+                     S7_Driver.Current_RSSI (S7_Device, Value);
+                  else
+                     S7_Driver.Last_Packet_SNR_Raw (S7_Device, Value);
+                  end if;
+                  S7_Result := Integer_64 (Interfaces.Unsigned_8'Mod (Integer (Value)));
+               end;
+            when 22 | 24 | 26 | 27 | 29 =>
+               declare
+                  Value : Byte;
+               begin
+                  case Int (4) is
+                     when 22 =>
+                        S7_Driver.Get_Irq_Flags (S7_Device, Value);
+                     when 24 =>
+                        S7_Driver.Get_Irq_Reason (S7_Device, Value);
+                     when 26 =>
+                        S7_Driver.Get_Register_Value (S7_Device, Byte (Int (6)), Byte (Int (7)), Byte (Int (8)), Value);
+                     when 27 =>
+                        S7_Driver.Set_Register_Value
+                          (S7_Device, Byte (Int (6)), Byte (Int (7)), Byte (Int (8)), Byte (Int (9)), Value);
+                     when others =>
+                        S7_Driver.Read_Register (S7_Device, Byte (Int (6)), Value);
+                  end case;
+                  S7_Result := Integer_64 (Value);
+               end;
+            when 23 =>
+               S7_Driver.Clear_Irq_Flags (S7_Device);
+            when 25 =>
+               declare
+                  Timestamp : Interfaces.Unsigned_32 := Interfaces.Unsigned_32 (Int (7));
+                  Reason    : Byte;
+               begin
+                  S7_Device.Last_Exti := Interfaces.Unsigned_32 (Int (6));
+                  S7_Driver.ISR (S7_Device, Timestamp, Reason);
+                  S7_Result := Integer_64 (Reason);
+                  S7_Result_2 := Integer_64 (Timestamp);
+               end;
+            when 28 =>
+               S7_Driver.Write_Register (S7_Device, Byte (Int (6)), Byte (Int (7)));
+            when 30 =>
+               S7_Driver.Config_LoRa_Defaults (S7_Device, Int (6) /= 0);
+            when 31 =>
+               S7_Driver.Write_FIFO (S7_Device, M2_Fill (Natural (Int (6)), Interfaces.Unsigned_32 (Int (7))));
+            when 32 =>
+               declare
+                  Data : Byte_Array (0 .. Natural (Int (6)) - 1) := (others => 0);
+               begin
+                  S7_Driver.Read_FIFO (S7_Device, Data);
+                  S7_Result := Integer_64 (M2_Hash (Data));
+               end;
+            when 33 =>
+               S7_Driver.Write_Register_Burst
+                 (S7_Device, Byte (Int (6)), M2_Fill (Natural (Int (7)), Interfaces.Unsigned_32 (Int (8))));
+            when others =>
+               declare
+                  Data : Byte_Array (0 .. Natural (Int (7)) - 1) := (others => 0);
+               begin
+                  S7_Driver.Read_Register_Burst (S7_Device, Byte (Int (6)), Data);
+                  S7_Result := Integer_64 (M2_Hash (Data));
+               end;
+         end case;
+      elsif Name = "s7op" then
+         declare
+            Expected : Ada.Strings.Unbounded.Unbounded_String := Ada.Strings.Unbounded.To_Unbounded_String (Str (3));
+         begin
+            for I in 4 .. NF loop
+               Ada.Strings.Unbounded.Append (Expected, "," & Str (I));
+            end loop;
+            if MX_Op_Head <= MX_Op_Count then
+               Record_Text ("sx127x.op", Ada.Strings.Unbounded.To_String (Expected),
+                            Ada.Strings.Unbounded.To_String (MX_Ops (MX_Op_Head)));
+               MX_Op_Head := MX_Op_Head + 1;
+            else
+               Record_Text ("sx127x.op", Ada.Strings.Unbounded.To_String (Expected), "none");
+            end if;
+         end;
+      elsif Name = "s7res" then
+         MX_Expect_No_Ops ("a result");
+         Record_Int ("sx127x.result", Int (4), S7_Result);
+         Record_Int ("sx127x.result2", Int (5), S7_Result_2);
+      end if;
+   end Check_SX127x_Line;
+
    --  The W25N oracle's chip: its page count, page address form and status
    --  register instructions, each block's last erase, the programs in order
    --  over a fixed initial pattern, the registers, data buffer and write
@@ -37319,6 +37617,8 @@ procedure Vector_Check is
                   Check_OLED_Line;
                elsif Kind = "sx1280" then
                   Check_SX1280_Line;
+               elsif Kind = "sx127x" then
+                  Check_SX127x_Line;
                elsif Kind = "w25n" then
                   Check_W25N_Line;
                elsif Kind = "w25m" then
@@ -37650,6 +37950,7 @@ begin
    Run (Dir & "/w25q128fv.csv", "w25q128fv");
    Run (Dir & "/oled.csv", "oled");
    Run (Dir & "/sx1280.csv", "sx1280");
+   Run (Dir & "/sx127x.csv", "sx127x");
    Run (Dir & "/w25n.csv", "w25n");
    Run (Dir & "/w25m.csv", "w25m");
    Run (Dir & "/flash.csv", "flash");
