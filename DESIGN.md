@@ -8397,3 +8397,35 @@ answer the identity, 44 cases script read failures, the layer finds another chip
 and of 6270 steps 1479 read the gyro, 1239 the accelerometer and 2004 raise interrupts. Of 45 tampered paths, 43 fail
 the vectors. Two pass and are equivalent: the delay guard of a write, since every write waits, and the acknowledgement
 check of the identity read, since a refused read leaves the byte zero.
+
+## D362. ICM56686 gyro driver (2026-10-19)
+
+`Adaflight.MPU_Gyro.ICM56686` drives the ICM-56686 gyro over the SPI gyro layer. Detection resets the chip and polls the
+reset bit 10 us apart for up to 20 ms, wakes it and reads its identity up to 21 times, 1 ms apart. Initialization sets a
+24 MHz clock, runs the layer's, and through the indirect registers selects 16-bit little-endian data, turns on the
+gyro's sample rate converter and prefilter, sets its low pass filter from the filter setting, bypasses its notch, and
+turns on the accelerometer's converter and prefilter with its low pass filter at an eighth of its rate, whatever each
+access answers; it then sets the accelerometer to 16 g at 1600 Hz and the gyro to 2000 degrees per second at 6400 Hz and
+the pulsed, push-pull, active high interrupt, turns the sensors on in low noise mode and waits 35 ms, takes the
+temperature scale of 1/128 degree per count with its zero at 25 degrees and the short period of 156 us, names the data
+registers and enables the data ready interrupt. An indirect access writes the address, and the data for a write, then
+waits 4 us and polls the done bit 10 us apart for up to 5 ms; a read then takes the data and waits again; a modification
+reads first and writes the masked bits, or the masked value alone when the read fails; a write while armed fails. The
+reads take the six little-endian bytes of the gyro or the accelerometer with a blocking transfer; the first gyro read
+leaves the interrupt mode without DMA, which the reference never selects. The reference keeps the arming state in a
+global flag; this unit takes it as an argument of the initialization. The unit is SPARK, with the polls bounded by their
+timeouts.
+
+The ICM56686 oracle includes the reference driver and the common SPI gyro layer over a simulated chip with its indirect
+registers, one case per process. It draws the bus, the chip identity, 0x08 in 85 percent of the cases, and the reads
+before it answers, the polls the reset bit and each indirect access take to clear, the first access past the driver's 5
+ms timeout in 4 percent of the cases, every later access past it in 5 and the reset past its 20 ms timeout in 3, whether
+indirect writes take, refused in 12 percent, the arming state, armed in 5 percent, the startup clock and its step, the
+interrupt pin, the filter setting, past the known ones in 8 percent, and the register values, then runs the detection,
+the gyro and accelerometer detection and initialization, and 30 steps of interrupts, bursts, DMA completions, gyro and
+accelerometer reads and new samples. Every bus, pin, clock and delay call, detection, setting, reading and indirect
+register value of the 300 cases replays exactly. In them 214 chips are found, 12 cases are armed, 12 time out on the
+first indirect access, 14 on every later one and 10 on the reset, 39 refuse the indirect writes, 26 have an unknown
+filter setting, and of 6420 steps 1515 read the gyro, 1272 the accelerometer and 2060 raise interrupts. Of 75 tampered
+paths, 74 fail the vectors. One passes and is equivalent: the masking of a modification's value, since every value lies
+within its mask.
