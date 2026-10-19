@@ -189,6 +189,7 @@ with Adaflight.QMP6988;
 with Adaflight.BMP085;
 with Adaflight.Lidar_TF;
 with Adaflight.Nooploop;
+with Adaflight.UPT1;
 with Adaflight.MS5611;
 with Adaflight.BMP388;
 with Adaflight.MAX7456;
@@ -16930,6 +16931,135 @@ procedure Vector_Check is
       end if;
    end Check_Nooploop_Line;
 
+   --  The UP-T1 oracle's port, the TF port's record and calls with a
+   --  microsecond clock that advances 997 us at each read.
+   procedure UP_Micros (D : in out TF_Port; Now : out Interfaces.Unsigned_32) is
+   begin
+      Now := D.Clock;
+      D.Clock := D.Clock + 997;
+      BMP_Op ("micros," & BMP_Num (Integer_64 (Now)));
+   end UP_Micros;
+
+   package UP_Driver is new Adaflight.UPT1
+     (Serial_Device => TF_Port,
+      Open_Port     => TF_Open,
+      Bytes_Waiting => TF_Waiting,
+      Read_Byte     => TF_Read_Byte,
+      Write_Bytes   => TF_Write,
+      Micros        => UP_Micros);
+
+   UP_Device     : TF_Port;
+   UP_State      : UP_Driver.State;
+   UP_RF_Found   : Boolean := False;
+   UP_Flow_Found : Boolean := False;
+   UP_RF_Dev     : UP_Driver.Rangefinder_Device;
+   UP_Flow_Dev   : UP_Driver.Flow_Device;
+
+   procedure Check_UPT1_Line is
+      Name     : constant String := Str (1);
+      Distance : UP_Driver.Reading;
+   begin
+      if Name = "upinit" then
+         BMP_Op_Head := 1;
+         BMP_Op_Count := 0;
+         UP_Device := (others => <>);
+         UP_State := (others => <>);
+         UP_RF_Found := False;
+         UP_Flow_Found := False;
+         UP_RF_Dev := (others => <>);
+         UP_Flow_Dev := (others => <>);
+         UP_Device.Opens := Int (4) /= 0;
+         UP_Device.Clock := Interfaces.Unsigned_32 (Int (8));
+         declare
+            Port     : constant Interfaces.Integer_8 := Interfaces.Integer_8 (Int (3));
+            RF_First : constant Boolean := Int (5) /= 0;
+            Do_RF    : constant Boolean := Int (6) /= 0;
+            Do_Flow  : constant Boolean := Int (7) /= 0;
+         begin
+            for Pass in 0 .. 1 loop
+               if (Pass = 0) = RF_First then
+                  if Do_RF then
+                     UP_Driver.Detect_Rangefinder (UP_Device, UP_State, Port, UP_RF_Found, UP_RF_Dev);
+                  end if;
+               elsif Do_Flow then
+                  UP_Driver.Detect_Flow (UP_Device, UP_State, Port, UP_Flow_Found, UP_Flow_Dev);
+               end if;
+            end loop;
+         end;
+      elsif Name = "upop" then
+         declare
+            Expected : Ada.Strings.Unbounded.Unbounded_String := Ada.Strings.Unbounded.To_Unbounded_String (Str (3));
+         begin
+            for I in 4 .. NF loop
+               Ada.Strings.Unbounded.Append (Expected, "," & Str (I));
+            end loop;
+            if BMP_Op_Head <= BMP_Op_Count then
+               Record_Text ("upt1.op", Ada.Strings.Unbounded.To_String (Expected),
+                            Ada.Strings.Unbounded.To_String (BMP_Ops (BMP_Op_Head)));
+               BMP_Op_Head := BMP_Op_Head + 1;
+            else
+               Record_Text ("upt1.op", Ada.Strings.Unbounded.To_String (Expected), "none");
+            end if;
+         end;
+      elsif Name = "updet" then
+         BMP_Expect_No_Ops ("detection");
+         Record_Int ("upt1.rf_found", Int (3), Boolean'Pos (UP_RF_Found));
+         Record_Int ("upt1.delay", Int (4), Integer_64 (UP_RF_Dev.Delay_Ms));
+         Record_Int ("upt1.max_range", Int (5), Integer_64 (UP_RF_Dev.Max_Range_Cm));
+         Record_Int ("upt1.cone", Int (6), Integer_64 (UP_RF_Dev.Cone_Decidegrees));
+         Record_Int ("upt1.cone_extended", Int (7), Integer_64 (UP_RF_Dev.Cone_Extended_Decidegrees));
+         Record_Int ("upt1.flow_found", Int (8), Boolean'Pos (UP_Flow_Found));
+         Record_Int ("upt1.flow_delay", Int (9), Integer_64 (UP_Flow_Dev.Delay_Ms));
+         Record_Int ("upt1.min_range", Int (10), Integer_64 (UP_Flow_Dev.Min_Range_Cm));
+         Record_Int ("upt1.min_quality", Int (11), Integer_64 (UP_Flow_Dev.Min_Quality));
+         Record_Int ("upt1.gyro_delay", Int (12), Integer_64 (UP_Flow_Dev.Gyro_Delay_Us));
+         if UP_RF_Found then
+            UP_Driver.Init (UP_State);
+         end if;
+      elsif Name = "upstep" then
+         BMP_Op_Head := 1;
+         BMP_Op_Count := 0;
+         UP_Device.Pos := 0;
+         UP_Device.Last := 0;
+         if Str (4) /= "-" then
+            declare
+               Data : constant Byte_Array := Hex_Bytes (4);
+            begin
+               for I in Data'Range loop
+                  UP_Device.Stream (I) := Data (I);
+               end loop;
+               UP_Device.Last := Data'Length;
+            end;
+         end if;
+         UP_Driver.Update (UP_Device, UP_State);
+      elsif Name = "upres" then
+         BMP_Expect_No_Ops ("a result");
+         UP_Driver.Read (UP_State, Distance);
+         Record_Int ("upt1.value", Int (4), Integer_64 (Distance));
+         Record_Int ("upt1.d_distance", Int (5), TF_Int16 (UP_State.Debug.Distance_Mm));
+         Record_Int ("upt1.d_confidence", Int (6), Integer_64 (UP_State.Debug.Confidence));
+         Record_Int ("upt1.d_flow_x", Int (7), Integer_64 (UP_State.Debug.Flow_X));
+         Record_Int ("upt1.d_flow_y", Int (8), Integer_64 (UP_State.Debug.Flow_Y));
+         Record_Int ("upt1.d_valid", Int (9), Integer_64 (UP_State.Debug.Valid_Status));
+         Record_Int ("upt1.d_integration", Int (10), TF_Int16 (UP_State.Debug.Integration_Us));
+         Record_Int ("upt1.d_reported", Int (11), Integer_64 (UP_State.Debug.Reported));
+         Record_Int ("upt1.d_phase", Int (12), UP_Driver.Frame_Phase'Pos (UP_State.Debug.Phase_Seen));
+         if Str (13) /= "-" then
+            declare
+               F : constant UP_Driver.Flow_Data := UP_Driver.Flow (UP_State);
+            begin
+               Record_Int ("upt1.flow_time", Int (13), Integer_64 (F.Time_Stamp_Us));
+               Record_Int ("upt1.flow_quality", Int (14), Integer_64 (F.Quality));
+               Record_Result ("upt1.rate_x", Bits (15), To_Bits (F.Rate_X));
+               Record_Result ("upt1.rate_y", Bits (16), To_Bits (F.Rate_Y));
+               Record_Int ("upt1.range_valid", Int (17), Boolean'Pos (F.Range_Valid));
+               Record_Int ("upt1.flow_valid", Int (18), Boolean'Pos (F.Flow_Valid));
+               Record_Int ("upt1.dt_valid", Int (19), Boolean'Pos (F.Dt_Valid));
+            end;
+         end if;
+      end if;
+   end Check_UPT1_Line;
+
    --  The MS5611 oracle's bus: the simulated chip's first PROM byte, PROM
    --  words and ADC bytes, its address, the scripted busy and start answers,
    --  and the bytes the last started read brought. Its calls share the
@@ -32565,6 +32695,8 @@ procedure Vector_Check is
                   Check_Lidar_TF_Line;
                elsif Kind = "nooploop" then
                   Check_Nooploop_Line;
+               elsif Kind = "upt1" then
+                  Check_UPT1_Line;
                elsif Kind = "ms5611" then
                   Check_MS5611_Line;
                elsif Kind = "bmp388" then
@@ -32889,6 +33021,7 @@ begin
    Run (Dir & "/bmp085.csv", "bmp085");
    Run (Dir & "/lidartf.csv", "lidartf");
    Run (Dir & "/nooploop.csv", "nooploop");
+   Run (Dir & "/upt1.csv", "upt1");
    Run (Dir & "/ms5611.csv", "ms5611");
    Run (Dir & "/bmp388.csv", "bmp388");
    Run (Dir & "/max7456.csv", "max7456");
