@@ -48,6 +48,18 @@ package body Adaflight.Sensor_Bus_Steps with SPARK_Mode is
       Value := 0;
    end Step_Read_Byte;
 
+   procedure Step_Read_Buffer (D : in out Bus_Line; Command : Byte; Data : out Byte_Array) is
+      pragma Unreferenced (D, Command);
+   begin
+      Data := (others => 0);
+   end Step_Read_Buffer;
+
+   procedure Step_Write_Byte (D : in out Bus_Line; Register : Byte; Value : Byte) is
+      pragma Unreferenced (D, Register, Value);
+   begin
+      null;
+   end Step_Write_Byte;
+
    procedure Step_Read_Registers (D : in out Bus_Line; Register : Byte; Data : in out Byte_Array; OK : out Boolean) is
       pragma Unreferenced (D, Register, Data);
    begin
