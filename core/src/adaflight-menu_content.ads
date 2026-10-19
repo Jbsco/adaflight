@@ -1,7 +1,7 @@
 --  The menu system's menus: their numbers, and the lines and hooks of the
 --  quick menu, the main menu with its features menu and setup popup, the
---  profile menu with its PID, rate, simplified tuning, misc and launch
---  control menus, the VTX selection with its
+--  profile menu with its PID, rate, simplified tuning, misc, launch
+--  control, filter and profile copy menus, the VTX selection with its
 --  error menu, the save menus, the OSD menu with
 --  its active elements, timers and alarms
 --  menus, the blackbox menu with its erase and mass storage
@@ -303,6 +303,48 @@ package Adaflight.Menu_Content with SPARK_Mode is
       Gain             : Interfaces.Unsigned_8 := 0;
    end record;
 
+   --  The global filter menu's copies of the gyro lowpass and notch filters.
+   type Filter_Global_Copies is record
+      Gyro_LPF1     : Interfaces.Unsigned_16 := 0;
+      Gyro_LPF2     : Interfaces.Unsigned_16 := 0;
+      Notch1_Hz     : Interfaces.Unsigned_16 := 0;
+      Notch1_Cutoff : Interfaces.Unsigned_16 := 0;
+      Notch2_Hz     : Interfaces.Unsigned_16 := 0;
+      Notch2_Cutoff : Interfaces.Unsigned_16 := 0;
+   end record;
+
+   --  The dynamic filter menu's copies of the dynamic notch's count, Q and
+   --  range, and the gyro and D term dynamic lowpass ranges and expos.
+   type Dynamic_Filter_Copies is record
+      Notch_Count  : Interfaces.Unsigned_8 := 0;
+      Notch_Q      : Interfaces.Unsigned_16 := 0;
+      Notch_Min_Hz : Interfaces.Unsigned_16 := 0;
+      Notch_Max_Hz : Interfaces.Unsigned_16 := 0;
+      Gyro_Min     : Interfaces.Unsigned_16 := 0;
+      Gyro_Max     : Interfaces.Unsigned_16 := 0;
+      Gyro_Expo    : Interfaces.Unsigned_8 := 0;
+      DTerm_Min    : Interfaces.Unsigned_16 := 0;
+      DTerm_Max    : Interfaces.Unsigned_16 := 0;
+      DTerm_Expo   : Interfaces.Unsigned_8 := 0;
+   end record;
+
+   --  The profile filter menu's copies of the D term lowpass and notch
+   --  filters and the yaw lowpass.
+   type Filter_Profile_Copies is record
+      DTerm_LPF1         : Interfaces.Unsigned_16 := 0;
+      DTerm_LPF2         : Interfaces.Unsigned_16 := 0;
+      DTerm_Notch_Hz     : Interfaces.Unsigned_16 := 0;
+      DTerm_Notch_Cutoff : Interfaces.Unsigned_16 := 0;
+      Yaw_Lowpass        : Interfaces.Unsigned_16 := 0;
+   end record;
+
+   --  The profile copy menu's PID and rate profile destinations, from one,
+   --  zero for none.
+   type Copy_Targets is record
+      PID_Target  : Interfaces.Unsigned_8 := 0;
+      Rate_Target : Interfaces.Unsigned_8 := 0;
+   end record;
+
    --  The VTX error menu's two status lines from its last entry.
    type VTX_Status_Lines is record
       Line_1 : Adaflight.Menu.Label_Text;
@@ -455,6 +497,10 @@ package Adaflight.Menu_Content with SPARK_Mode is
       Simplified  : Simplified_Copies;
       Other       : Other_Copies;
       Launch      : Launch_Copies;
+      Global_Filt : Filter_Global_Copies;
+      Dynamic     : Dynamic_Filter_Copies;
+      Profile_Flt : Filter_Profile_Copies;
+      Copy        : Copy_Targets;
       VTX_Status  : VTX_Status_Lines;
       LED         : LED_Copies;
       Lap         : Lap_Copies;

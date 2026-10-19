@@ -5796,3 +5796,27 @@ sessions with 19477 keys, 792 menu changes and 20269 draws, 606 of their states 
 tuning menu, 454 in the misc menu and 294 in the launch control menu, with 23 tuning changes applied
 and 23 output range requests: every display operation, menu context, page, request and configuration
 hash matches the reference's.
+
+## D248. Filter and profile copy menus (2026-10-16)
+
+`Adaflight.Menu_Content` gains the profile menu's filter menus and its profile copy menu. The profile
+filter menu copies the D term lowpass and notch filters and the yaw lowpass from the profile the
+profile menu selected, and stores them into the current profile; the global filter menu copies and
+stores the gyro lowpass and notch filters. The dynamic filter menu copies the dynamic notch's count,
+Q and range, the gyro's dynamic lowpass range and expo, and the selected profile's D term dynamic
+lowpass, and stores the last into the current profile. The profile copy menu starts both destinations
+at none, and its copy lines copy the current PID or rate profile over the chosen one when it is
+another profile.
+
+The content's proof had grown to 57 minutes. gnatprove analyzes each subprogram separately and in
+parallel, but proves a helper without a contract inside every caller, so the helpers now carry a data
+contract and are proved once. The menus now load in one procedure each and store their copies in one
+procedure each, and the stores that change a PID profile or the gyro configuration change a local copy
+of the record and store it whole. With the filter menus, the content and its navigation instance prove
+in 22 minutes, of which about 9 are the analysis of the project before proof.
+
+The menu contents oracle scripts the filter settings and links the reference's profile copy. The
+harness replays 240 sessions with 19378 keys, 789 menu changes and 20167 draws, 306 of their states in
+the profile filter menu, 266 in the global filter menu, 204 in the dynamic filter menu and 302 in the
+profile copy menu: every display operation, menu context, page, request and configuration hash
+matches the reference's.

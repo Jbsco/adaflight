@@ -19915,7 +19915,7 @@ procedure Vector_Check is
          MCT_T.Config.Display_Port_Profile_Max7456.White_Brightness := Interfaces.Unsigned_8 (Int (115));
          for P in 0 .. 3 loop
             declare
-               Base : constant Positive := 116 + 60 * P;
+               Base : constant Positive := 116 + 68 * P;
                Name : constant String := Hex_String (Base);
             begin
                MCT_T.Config.Pid_Profiles (P).Profile_Name := (others => 0);
@@ -19982,14 +19982,35 @@ procedure Vector_Check is
                   Q.Simplified_Feedforward_Gain := B (57);
                   Q.Simplified_Pitch_Pi_Gain := B (58);
                   Q.Simplified_Dterm_Filter_Multiplier := B (59);
+                  Q.Dterm_Lpf1_Dyn_Min_Hz := W (60);
+                  Q.Dterm_Lpf1_Dyn_Max_Hz := W (61);
+                  Q.Dterm_Lpf1_Dyn_Expo := B (62);
+                  Q.Dterm_Lpf1_Static_Hz := W (63);
+                  Q.Dterm_Lpf2_Static_Hz := W (64);
+                  Q.Dterm_Notch_Hz := W (65);
+                  Q.Dterm_Notch_Cutoff := W (66);
+                  Q.Yaw_Lowpass_Hz := W (67);
                end;
             end;
          end loop;
-         MCT_T.Config.Gyro_Config.Simplified_Gyro_Filter := Interfaces.Unsigned_8 (Int (356));
-         MCT_T.Config.Gyro_Config.Simplified_Gyro_Filter_Multiplier := Interfaces.Unsigned_8 (Int (357));
+         MCT_T.Config.Gyro_Config.Simplified_Gyro_Filter := Interfaces.Unsigned_8 (Int (388));
+         MCT_T.Config.Gyro_Config.Simplified_Gyro_Filter_Multiplier := Interfaces.Unsigned_8 (Int (389));
+         MCT_T.Config.Gyro_Config.Gyro_Lpf1_Static_Hz := Interfaces.Unsigned_16 (Int (390));
+         MCT_T.Config.Gyro_Config.Gyro_Lpf2_Static_Hz := Interfaces.Unsigned_16 (Int (391));
+         MCT_T.Config.Gyro_Config.Gyro_Soft_Notch_Hz_1 := Interfaces.Unsigned_16 (Int (392));
+         MCT_T.Config.Gyro_Config.Gyro_Soft_Notch_Cutoff_1 := Interfaces.Unsigned_16 (Int (393));
+         MCT_T.Config.Gyro_Config.Gyro_Soft_Notch_Hz_2 := Interfaces.Unsigned_16 (Int (394));
+         MCT_T.Config.Gyro_Config.Gyro_Soft_Notch_Cutoff_2 := Interfaces.Unsigned_16 (Int (395));
+         MCT_T.Config.Gyro_Config.Gyro_Lpf1_Dyn_Min_Hz := Interfaces.Unsigned_16 (Int (396));
+         MCT_T.Config.Gyro_Config.Gyro_Lpf1_Dyn_Max_Hz := Interfaces.Unsigned_16 (Int (397));
+         MCT_T.Config.Gyro_Config.Gyro_Lpf1_Dyn_Expo := Interfaces.Unsigned_8 (Int (398));
+         MCT_T.Config.Dyn_Notch_Config.Dyn_Notch_Max_Hz := Interfaces.Unsigned_16 (Int (399));
+         MCT_T.Config.Dyn_Notch_Config.Dyn_Notch_Count := Interfaces.Unsigned_8 (Int (400));
+         MCT_T.Config.Dyn_Notch_Config.Dyn_Notch_Q := Interfaces.Unsigned_16 (Int (401));
+         MCT_T.Config.Dyn_Notch_Config.Dyn_Notch_Min_Hz := Interfaces.Unsigned_16 (Int (402));
          for P in 0 .. 3 loop
             declare
-               Base : constant Positive := 358 + 13 * P;
+               Base : constant Positive := 403 + 13 * P;
                Name : constant String := Hex_String (Base);
             begin
                MCT_T.Config.Control_Rate_Profiles (P).Profile_Name := (others => 0);
@@ -20019,7 +20040,7 @@ procedure Vector_Check is
          declare
             D        : Adaflight.Config_Codec.Data;
             Hash     : Interfaces.Unsigned_64 := 16#CBF2_9CE4_8422_2325#;
-            Expected : constant Interfaces.Unsigned_64 := Interfaces.Unsigned_64'Value (Str (410));
+            Expected : constant Interfaces.Unsigned_64 := Interfaces.Unsigned_64'Value (Str (455));
          begin
             Adaflight.Config_Codec.Encode (MCT_T.Config, D);
             for B of D loop
