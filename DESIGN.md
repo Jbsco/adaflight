@@ -8695,3 +8695,27 @@ difference of exactly 2 ** 31 ms, which a millisecond clock under 2 ** 23 never 
 after a timed wait, since a deadline of zero and a passed one both read as timed out under that clock; and the sector
 count a failed identification clears, which is zero already since the geometry starts empty and identification runs
 once.
+
+## D370. OLED display driver (2026-10-19)
+
+`Adaflight.OLED_Display` drives the UG-2864HSWEG01 display of the dashboard over I2C, 128 by 64 pixels drawn as 8 rows
+of 21 characters from a 5 by 7 font with a one-pixel gap, a generic over the link's write of a control byte and a value,
+which the display answers or not. A command goes behind the control byte 16#80#, a data byte behind 16#40#, and a
+command list stops at the first write the display does not answer. Initialization sends the display-off command, which
+has to be answered, then the 22 setup commands and a clear, and answers true after. A clear sends the normal display,
+display off and horizontal addressing commands, a quick clear, then the contrast 200 and display on; a quick clear
+resets the page, the start line and the column and writes 1024 zero bytes. A position sets the page from the row and the
+column address from six times the column, in its low and high halves. A character sends its five font columns and a gap
+byte, each combined with the format, normal or inverse, which the reference keeps as a global nothing writes. A
+character below the space or past the font's 135 glyphs sends the blank, where the reference reads past its table
+(finding F280). The unit is SPARK, with the font index bounded.
+
+The OLED oracle includes the reference driver over a stubbed I2C write that answers from a drawn pattern over the first
+64 writes of a case, with failures in 25 percent of the cases. Each process runs one case of 4 to 12 drawn operations:
+the initialization, in 70 percent of the cases first, clears, quick clears, positions and lines in the screen in 90
+percent and out to 255 otherwise, characters from the font's range and texts of up to 40 characters with bytes past 127
+in 15 percent. Every write with its control byte, value and answer, and the initialization's result of the 300 cases
+replay exactly: 401 initializations, 367 clears, 586 texts and 793 writes the display does not answer. Of 31 tampered
+paths, 28 fail the vectors and 1 stop the checker at a subtype check. Two pass and are equivalent: the initial result of
+a command list, which the first command's write overwrites; and the operator that applies the character format, a format
+the reference never changes from zero.
