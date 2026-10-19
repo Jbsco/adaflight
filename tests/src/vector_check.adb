@@ -19727,6 +19727,9 @@ procedure Vector_Check is
          Record_Int (Name & ".mah_restores", Next, Integer_64 (MCT_T.Asked.MAh_Restores));
          Record_Int (Name & ".mah_restored", Next, Integer_64 (MCT_T.Asked.MAh_Restored));
          Record_Int (Name & ".pid_inits", Next, Integer_64 (MCT_T.Asked.PID_Config_Inits));
+         Record_Int (Name & ".gyro_calibrations", Next, Integer_64 (MCT_T.Asked.Gyro_Calibrations));
+         Record_Int (Name & ".acc_calibrations", Next, Integer_64 (MCT_T.Asked.Acc_Calibrations));
+         Record_Int (Name & ".baro_calibrations", Next, Integer_64 (MCT_T.Asked.Baro_Calibrations));
          Adaflight.Config_Codec.Encode (MCT_T.Config, D);
          for B of D loop
             Hash := (Hash xor Interfaces.Unsigned_64 (B)) * 16#100_0000_01B3#;
@@ -19746,6 +19749,13 @@ procedure Vector_Check is
          MCT_T.Live.Acc_Calibrated := Int (F + 3) = 1;
          MCT_T.Live.Used_MAh := Int (F + 4) = 1;
       end Read_Live;
+      procedure Read_Sensors (F : Positive) is
+      begin
+         MCT_T.Live.Gyro_Present := Int (F) = 1;
+         MCT_T.Live.Gyro_Calibration_Complete := Int (F + 1) = 1;
+         MCT_T.Live.Baro_Present := Int (F + 2) = 1;
+         MCT_T.Live.Baro_Calibrated := Int (F + 3) = 1;
+      end Read_Sensors;
    begin
       if Name = "cminit" then
          if MCT_State.In_Menu and then MCT_State.Has_Menu then
@@ -19797,6 +19807,12 @@ procedure Vector_Check is
          MCT_T.Config.Stats_Config.Stats_Total_Time_S := Interfaces.Unsigned_32 (Int (60));
          MCT_T.Config.Stats_Config.Stats_Total_Dist_M := Interfaces.Unsigned_32 (Int (61));
          MCT_T.Config.Stats_Config.Stats_Min_Armed_Time_S := Interfaces.Integer_8 (Int (62));
+         Read_Sensors (63);
+         MCT_T.Live.Manufacturer_Id := Menu_Text_Of (Hex_String (67));
+         MCT_T.Live.Board_Name := Menu_Text_Of (Hex_String (68));
+         MCT_T.Identity :=
+           (Identifier => Menu_Text_Of ("ADFL"), Version => Menu_Text_Of ("0.1.0"),
+            Revision => Menu_Text_Of ("norevision"), Target_Name => Menu_Text_Of ("STM32F405"));
          if Int (3) = 0 then
             MCT_State := (others => <>);
             MCT_Nav.Register_Display (MCT_State, (Supports_Symbols => True, others => <>));
@@ -19807,7 +19823,7 @@ procedure Vector_Check is
          declare
             D        : Adaflight.Config_Codec.Data;
             Hash     : Interfaces.Unsigned_64 := 16#CBF2_9CE4_8422_2325#;
-            Expected : constant Interfaces.Unsigned_64 := Interfaces.Unsigned_64'Value (Str (63));
+            Expected : constant Interfaces.Unsigned_64 := Interfaces.Unsigned_64'Value (Str (69));
          begin
             Adaflight.Config_Codec.Encode (MCT_T.Config, D);
             for B of D loop
@@ -19822,6 +19838,7 @@ procedure Vector_Check is
       elsif Name = "cmread" then
          Read_Live (4);
          MCT_T.Live.Reboot_Required := Int (9) = 1;
+         Read_Sensors (10);
       elsif Name = "cmopen" then
          Begin_Step;
          Read_Ops;

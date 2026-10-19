@@ -84,6 +84,24 @@ package body Adaflight.Menu_Content with SPARK_Mode is
             Value => Interfaces.Integer_32 (Target)))
      with Pre => Text'Length <= Adaflight.Menu.Max_Text;
 
+   --  A line of an element with a text behind it: a string line's value
+   --  or a function call's status.
+   function Text_Line
+     (Text     : String;
+      E        : Adaflight.Menu.Element;
+      Value    : Adaflight.Menu.Label_Text;
+      Has_Func : Boolean := False;
+      Flags    : Interfaces.Unsigned_16 := 0) return Line
+   is
+     ((Text => Label (Text), Flags => Code (E) or Flags, Has_Data => True, Has_Func => Has_Func, Value_Text => Value,
+       others => <>))
+     with Pre => Text'Length <= Adaflight.Menu.Max_Text and then E /= Adaflight.Menu.Fixed
+                 and then (Flags and Adaflight.Menu.Element_Mask) = 0;
+
+   --  A text cut to a length.
+   function Cut (T : Adaflight.Menu.Label_Text; Length : Adaflight.Menu.Text_Length) return Adaflight.Menu.Label_Text is
+     (if T.Length <= Length then T else Label (T.Data (1 .. Length)));
+
    Throttle_Limit_Names : constant array (0 .. 2) of Adaflight.Menu.Label_Text :=
      (Label ("OFF"), Label ("SCALE"), Label ("CLIP"));
 
@@ -126,6 +144,8 @@ package body Adaflight.Menu_Content with SPARK_Mode is
          when Power_Menu | Failsafe_Menu | RPM_Limit_Menu | Misc_Menu | Persistent_Stats_Menu =>
             (Enter => True, Leave => True, Update => False),
          when RC_Preview_Menu => (Enter => True, Leave => True, Update => True),
+         when Firmware_Menu => (Enter => True, Leave => False, Update => False),
+         when Calibration_Menu => (Enter => False, Leave => False, Update => True),
          when others      => (others => False));
 
    procedure Load (T : Target; Id : Menu_Id; M : out Table) is
@@ -185,12 +205,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
          when Setup_Popup =>
             Add (Make ("-- SETUP MENU --", Label));
             if T.Popup.Acc_Line then
-               declare
-                  L : Line := Make ("CALIBRATE ACC", Funcall, Has_Func => True, Has_Data => True, Flags => Dynamic);
-               begin
-                  L.Value_Text := T.Popup.Acc_Status;
-                  Add (L);
-               end;
+               Add (Text_Line ("CALIBRATE ACC", Funcall, T.Popup.Acc_Status, Has_Func => True, Flags => Dynamic));
             end if;
             if T.Popup.Battery_Line then
                declare
@@ -275,6 +290,30 @@ package body Adaflight.Menu_Content with SPARK_Mode is
             Add (Make ("--- SETTINGS ---", Label));
             Add (Number ("MIN ARMED TIME(sec)", Interfaces.Integer_32 (T.Stats.Min_Armed_Time), -1, 127, Int8));
             Add (Make ("BACK", Back));
+         when Firmware_Menu =>
+            Add (Make ("--- INFO ---", Label));
+            Add (Text_Line ("FWID", Str, T.Identity.Identifier));
+            Add (Text_Line ("FWVER", Str, T.Identity.Version));
+            Add (Text_Line ("GITREV", Str, T.Identity.Revision));
+            Add (Text_Line ("TARGET", Str, T.Identity.Target_Name));
+            Add (Text_Line ("MFR", Str, T.Board.Manufacturer_Id));
+            Add (Text_Line ("BOARD", Str, T.Board.Board_Name));
+            Add (Make ("--- SETUP ---", Label));
+            Add (Sub ("CALIBRATE", Calibration_Menu));
+            Add (Make ("BACK", Back));
+         when Calibration_Menu =>
+            Add (Make ("--- CALIBRATE ---", Label));
+            Add (Text_Line ("GYRO", Funcall, T.Calibration.Gyro, Has_Func => True, Flags => Dynamic));
+            Add (Text_Line ("ACC", Funcall, T.Calibration.Acc, Has_Func => True, Flags => Dynamic));
+            Add (Text_Line ("BARO", Funcall, T.Calibration.Baro, Has_Func => True, Flags => Dynamic));
+            Add (Make ("BACK", Back));
+         when Calibrate_Acc_Menu =>
+            Add (Make ("--- CALIBRATE ACC ---", Label));
+            Add (Make ("PLACE ON A LEVEL SURFACE", Label));
+            Add (Make ("MAKE SURE CRAFT IS STILL", Label));
+            Add (Make (" ", Label));
+            Add (Make ("START CALIBRATION", Funcall, Has_Func => True));
+            Add (Make ("BACK", Back));
          when others =>
             Add (Make ("", Label));
       end case;
@@ -350,6 +389,9 @@ package body Adaflight.Menu_Content with SPARK_Mode is
             T.Stats.Total_Time_S := T.Config.Stats_Config.Stats_Total_Time_S;
             T.Stats.Total_Dist_M := T.Config.Stats_Config.Stats_Total_Dist_M;
             T.Stats.Min_Armed_Time := T.Config.Stats_Config.Stats_Min_Armed_Time_S;
+         when Firmware_Menu =>
+            T.Board.Manufacturer_Id := Cut (T.Live.Manufacturer_Id, Manufacturer_Id_Length);
+            T.Board.Board_Name := Cut (T.Live.Board_Name, Board_Name_Length);
          when others =>
             null;
       end case;
@@ -432,6 +474,16 @@ package body Adaflight.Menu_Content with SPARK_Mode is
             T.Preview (C) := Whole_Channel (T.Live.RC_Data (C));
          end loop;
       end if;
+      if Id = Calibration_Menu then
+         T.Calibration.Gyro :=
+           Label (if not T.Live.Gyro_Present then " --- " elsif T.Live.Gyro_Calibration_Complete then "  OK "
+                  else "WAIT ");
+         T.Calibration.Acc :=
+           Label (if not T.Live.Acc_Present then " --- " elsif not T.Live.Acc_Calibration_Complete then "WAIT "
+                  elsif T.Live.Acc_Calibrated then "  OK " else " NOK ");
+         T.Calibration.Baro :=
+           Label (if not T.Live.Baro_Present then " --- " elsif T.Live.Baro_Calibrated then "  OK " else "WAIT ");
+      end if;
       if Id = Setup_Popup then
          T.Popup.Acc_Status :=
            Label (if not T.Live.Acc_Calibration_Complete then "  ACTIVE"
@@ -464,6 +516,24 @@ package body Adaflight.Menu_Content with SPARK_Mode is
                   Reply.Done := Adaflight.Menu.Changed;
                   Reply.Target := Calibrate_Acc_Menu;
                end if;
+            elsif Id = Calibration_Menu and then Line = 1 then
+               if T.Live.Gyro_Present and then T.Asked.Gyro_Calibrations < Natural'Last then
+                  T.Asked.Gyro_Calibrations := T.Asked.Gyro_Calibrations + 1;
+               end if;
+            elsif Id = Calibration_Menu and then Line = 2 then
+               if T.Live.Acc_Present then
+                  Reply.Done := Adaflight.Menu.Changed;
+                  Reply.Target := Calibrate_Acc_Menu;
+               end if;
+            elsif Id = Calibration_Menu and then Line = 3 then
+               if T.Live.Baro_Present and then T.Asked.Baro_Calibrations < Natural'Last then
+                  T.Asked.Baro_Calibrations := T.Asked.Baro_Calibrations + 1;
+               end if;
+            elsif Id = Calibrate_Acc_Menu then
+               if T.Live.Acc_Present and then T.Asked.Acc_Calibrations < Natural'Last then
+                  T.Asked.Acc_Calibrations := T.Asked.Acc_Calibrations + 1;
+               end if;
+               Reply.Chain_Back := True;
             elsif Id = Persistent_Stats_Menu then
                T.Stats.Total_Flights := 0;
                T.Stats.Total_Time_S := 0;
