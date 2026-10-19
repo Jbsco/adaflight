@@ -19759,6 +19759,7 @@ procedure Vector_Check is
          Record_Int (Name & ".pid_asked", Next, Integer_64 (MCT_T.Asked.PID_Asked));
          Record_Int (Name & ".rate_changes", Next, Integer_64 (MCT_T.Asked.Rate_Changes));
          Record_Int (Name & ".rate_asked", Next, Integer_64 (MCT_T.Asked.Rate_Asked));
+         Record_Int (Name & ".endpoint_inits", Next, Integer_64 (MCT_T.Asked.Endpoint_Inits));
          Adaflight.Config_Codec.Encode (MCT_T.Config, D);
          for B of D loop
             Hash := (Hash xor Interfaces.Unsigned_64 (B)) * 16#100_0000_01B3#;
@@ -19914,7 +19915,7 @@ procedure Vector_Check is
          MCT_T.Config.Display_Port_Profile_Max7456.White_Brightness := Interfaces.Unsigned_8 (Int (115));
          for P in 0 .. 3 loop
             declare
-               Base : constant Positive := 116 + 15 * P;
+               Base : constant Positive := 116 + 60 * P;
                Name : constant String := Hex_String (Base);
             begin
                MCT_T.Config.Pid_Profiles (P).Profile_Name := (others => 0);
@@ -19929,12 +19930,66 @@ procedure Vector_Check is
                end loop;
                MCT_T.Config.Pid_Profiles (P).Simplified_Pids_Mode := Interfaces.Unsigned_8 (Int (Base + 13));
                MCT_T.Config.Pid_Profiles (P).Simplified_Dterm_Filter := Interfaces.Unsigned_8 (Int (Base + 14));
+               declare
+                  Q : Adaflight.Config_Groups.Pid_Profile_Record renames MCT_T.Config.Pid_Profiles (P);
+                  function B (Offset : Natural) return Interfaces.Unsigned_8 is
+                    (Interfaces.Unsigned_8 (Int (Base + Offset)));
+                  function W (Offset : Natural) return Interfaces.Unsigned_16 is
+                    (Interfaces.Unsigned_16 (Int (Base + Offset)));
+                  function S8 (Offset : Natural) return Interfaces.Integer_8 is
+                    (Interfaces.Integer_8 (Int (Base + Offset)));
+               begin
+                  Q.Launch_Control_Mode := B (15);
+                  Q.Launch_Control_Allow_Trigger_Reset := B (16);
+                  Q.Launch_Control_Throttle_Percent := B (17);
+                  Q.Launch_Control_Angle_Limit := B (18);
+                  Q.Launch_Control_Gain := B (19);
+                  Q.Pid (3).P := B (20);
+                  Q.Pid (3).I := B (21);
+                  Q.Pid (3).D := B (22);
+                  Q.Pid (3).F := W (23);
+                  Q.Angle_Limit := B (24);
+                  Q.Angle_Earth_Ref := B (25);
+                  Q.Horizon_Limit_Degrees := B (26);
+                  Q.Anti_Gravity_Gain := B (27);
+                  Q.Throttle_Boost := B (28);
+                  Q.Thrust_Linearization := B (29);
+                  Q.Auto_Profile_Cell_Count := S8 (30);
+                  Q.D_Max := (B (31), B (32), B (33));
+                  Q.D_Max_Gain := B (34);
+                  Q.D_Max_Advance := B (35);
+                  Q.Iterm_Relax := B (36);
+                  Q.Iterm_Relax_Type := B (37);
+                  Q.Iterm_Relax_Cutoff := B (38);
+                  Q.Feedforward_Transition := B (39);
+                  Q.Feedforward_Averaging := B (40);
+                  Q.Feedforward_Boost := B (41);
+                  Q.Feedforward_Smooth_Factor := B (42);
+                  Q.Feedforward_Jitter_Factor := B (43);
+                  Q.Vbat_Sag_Compensation := B (44);
+                  Q.Tpa_Rate := B (45);
+                  Q.Tpa_Breakpoint := W (46);
+                  Q.Tpa_Low_Rate := S8 (47);
+                  Q.Tpa_Low_Breakpoint := W (48);
+                  Q.Tpa_Low_Always := B (49);
+                  Q.Landing_Disarm_Threshold := B (50);
+                  Q.Simplified_Master_Multiplier := B (51);
+                  Q.Simplified_Roll_Pitch_Ratio := B (52);
+                  Q.Simplified_I_Gain := B (53);
+                  Q.Simplified_D_Gain := B (54);
+                  Q.Simplified_Pi_Gain := B (55);
+                  Q.Simplified_D_Max_Gain := B (56);
+                  Q.Simplified_Feedforward_Gain := B (57);
+                  Q.Simplified_Pitch_Pi_Gain := B (58);
+                  Q.Simplified_Dterm_Filter_Multiplier := B (59);
+               end;
             end;
          end loop;
-         MCT_T.Config.Gyro_Config.Simplified_Gyro_Filter := Interfaces.Unsigned_8 (Int (176));
+         MCT_T.Config.Gyro_Config.Simplified_Gyro_Filter := Interfaces.Unsigned_8 (Int (356));
+         MCT_T.Config.Gyro_Config.Simplified_Gyro_Filter_Multiplier := Interfaces.Unsigned_8 (Int (357));
          for P in 0 .. 3 loop
             declare
-               Base : constant Positive := 177 + 13 * P;
+               Base : constant Positive := 358 + 13 * P;
                Name : constant String := Hex_String (Base);
             begin
                MCT_T.Config.Control_Rate_Profiles (P).Profile_Name := (others => 0);
@@ -19964,7 +20019,7 @@ procedure Vector_Check is
          declare
             D        : Adaflight.Config_Codec.Data;
             Hash     : Interfaces.Unsigned_64 := 16#CBF2_9CE4_8422_2325#;
-            Expected : constant Interfaces.Unsigned_64 := Interfaces.Unsigned_64'Value (Str (229));
+            Expected : constant Interfaces.Unsigned_64 := Interfaces.Unsigned_64'Value (Str (410));
          begin
             Adaflight.Config_Codec.Encode (MCT_T.Config, D);
             for B of D loop

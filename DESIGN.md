@@ -5769,3 +5769,30 @@ sessions with 19458 keys, 773 menu changes and 20231 draws, 2768 of their states
 910 in the PID menu and 280 in the rate menu, with 435 PID and 214 rate profile changes and 1396
 slider marks drawn: every display operation, menu context, page, request and configuration hash
 matches the reference's.
+
+## D247. Simplified tuning, misc and launch control menus (2026-10-16)
+
+`Adaflight.Menu_Content` gains the profile menu's simplified tuning and misc menus and the misc menu's
+launch control menu. Their names for lookup values come from the command line's tables through one
+helper, which the debug mode and background names now share.
+
+The simplified tuning menu copies the PID tuning mode, the sliders and the filter switches with their
+multipliers from the profile the profile menu selected and from the gyro configuration. On the way out
+it compares the copies with the current profile and the gyro configuration, and when any differs it
+stores them and applies simplified tuning through `Adaflight.Simplified_Tuning.Stored.Apply`, which
+recomputes the gains and filters.
+
+The misc menu shows the profile's text, copies the feedforward, angle and horizon, anti gravity,
+throttle boost and linearization, I term relax, motor output limit, cell count, D max, battery sag and
+attenuation settings, and the landing disarm threshold. The angle feedforward copy is a byte, as in the
+reference. On the way out it asks for the PID controller's setup before storing the copies into the
+selected profile (F216), then asks for the motors' output range again. Its feedforward averaging line
+runs to index 4 past the table's four names, where adaflight shows an empty name (F215). The launch
+control menu copies and stores the selected profile's launch control settings.
+
+The menu contents oracle scripts the profiles' settings, links the reference's simplified tuning,
+counts the output range requests, and keeps the averaging to its named values. The harness replays 240
+sessions with 19477 keys, 792 menu changes and 20269 draws, 606 of their states in the simplified
+tuning menu, 454 in the misc menu and 294 in the launch control menu, with 23 tuning changes applied
+and 23 output range requests: every display operation, menu context, page, request and configuration
+hash matches the reference's.
