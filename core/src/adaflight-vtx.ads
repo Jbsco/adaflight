@@ -5,11 +5,13 @@
 --  or while a change is pending. The band and channel follow the stick
 --  commands and the switch conditions until the first arm, the power
 --  follows the switch conditions always, and a Spektrum control word from
---  the receiver sets band, channel, power and pit mode. The SmartAudio and
---  the Tramp devices are driven, each through its own driver.
+--  the receiver sets band, channel, power and pit mode. The SmartAudio,
+--  Tramp and MSP devices are driven, each through its own driver.
 with Interfaces;
 with Adaflight.Bytes; use Adaflight.Bytes;
 with Adaflight.Modes;
+with Adaflight.VTX_MSP;
+with Adaflight.VTX_Settings;
 with Adaflight.VTX_Table;
 with Adaflight.SmartAudio;
 with Adaflight.Tramp;
@@ -23,21 +25,8 @@ package Adaflight.VTX with SPARK_Mode is
    subtype Unsigned_16 is Interfaces.Unsigned_16;
    subtype Unsigned_32 is Interfaces.Unsigned_32;
 
-   type Low_Power_Disarm is (Off, Always, Until_First_Arm);
-
-   Default_Power : constant Unsigned_8 := 1;
-
-   --  The configured transmitter settings, changed at run time by the
-   --  sticks, the switches and the receiver, so held by the caller.
-   type Settings is record
-      Band           : Unsigned_8 := 0;
-      Channel        : Unsigned_8 := 0;
-      Power          : Unsigned_8 := 0;
-      Freq           : Unsigned_16 := 0;
-      Pit_Mode_Freq  : Unsigned_16 := 0;
-      Low_Power      : Low_Power_Disarm := Off;
-      Softserial_Alt : Boolean := False;
-   end record;
+   subtype Low_Power_Disarm is VTX_Settings.Low_Power_Disarm;
+   subtype Settings is VTX_Settings.Settings;
 
    --  A switch condition: within the range of the aux channel, a band, a
    --  channel and a power above zero are applied.
@@ -59,12 +48,13 @@ package Adaflight.VTX with SPARK_Mode is
    Spektrum_Frame_Mask : constant Unsigned_32 := 16#F000_F000#;
    Spektrum_Frame      : constant Unsigned_32 := 16#E000_E000#;
 
-   type Device_Kind is (No_Device, SmartAudio_Device, Tramp_Device);
+   type Device_Kind is (No_Device, SmartAudio_Device, Tramp_Device, MSP_Device);
 
    type State is record
       Kind             : Device_Kind := No_Device;
       SA               : SmartAudio.Driver;
       TR               : Tramp.Driver;
+      MD               : VTX_MSP.Driver;
       Device_Present   : Boolean := False;
       Prepend_Zero     : Boolean := False;
       Schedule         : Parameter := Power_Param;
@@ -88,12 +78,17 @@ package Adaflight.VTX with SPARK_Mode is
    end record;
 
    --  The device events of the kind in use; Consumed counts the received
-   --  bytes taken, the rest to be offered again.
+   --  bytes taken, the rest to be offered again. MSP_Send reports the MSP
+   --  driver's configuration frame to push, and MSP_Status_Due the MSP
+   --  menu's status line due an update.
    type Events is record
-      Device   : SmartAudio.Events;
-      Tramp_Tx : Tramp.Events;
-      Consumed : Natural := 0;
-      Save     : Boolean := False;
+      Device         : SmartAudio.Events;
+      Tramp_Tx       : Tramp.Events;
+      MSP_Frame      : VTX_MSP.Config_Frame := (others => 0);
+      MSP_Send       : Boolean := False;
+      MSP_Status_Due : Boolean := False;
+      Consumed       : Natural := 0;
+      Save           : Boolean := False;
    end record;
 
    --  The driver starts with the port, and the settings are made whole: the

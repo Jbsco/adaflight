@@ -27,7 +27,7 @@ package body Adaflight.VTX_MSP with SPARK_Mode is
       end if;
    end Set_Ready;
 
-   procedure Prepare_Frame (D : Driver; S : Adaflight.VTX.Settings; T : Adaflight.VTX_Table.Table; Low_Power : Boolean;
+   procedure Prepare_Frame (D : Driver; S : Settings; T : Adaflight.VTX_Table.Table; Low_Power : Boolean;
                             Frame : out Config_Frame) is
    begin
       Frame := (0  => Device_Type,
@@ -38,7 +38,7 @@ package body Adaflight.VTX_MSP with SPARK_Mode is
                 5  => Low (S.Freq),
                 6  => High (S.Freq),
                 7  => (if D.Current = Ready then 1 else 0),
-                8  => Byte (Adaflight.VTX.Low_Power_Disarm'Pos (S.Low_Power)),
+                8  => Byte (Adaflight.VTX_Settings.Low_Power_Disarm'Pos (S.Low_Power)),
                 9  => Low (S.Pit_Mode_Freq),
                 10 => High (S.Pit_Mode_Freq),
                 11 => 1,
@@ -47,7 +47,7 @@ package body Adaflight.VTX_MSP with SPARK_Mode is
                 14 => Byte (T.Power_Levels));
    end Prepare_Frame;
 
-   procedure Process (D : in out Driver; S : Adaflight.VTX.Settings; T : Adaflight.VTX_Table.Table; Inp : Inputs;
+   procedure Process (D : in out Driver; S : Settings; T : Adaflight.VTX_Table.Table; Inp : Inputs;
                       Frame : out Config_Frame; Send : out Boolean) is
       use type Interfaces.Integer_32;
       Low_Power : constant Boolean := Low_Power_Disarmed (S, Inp.Armed, Inp.Was_Ever_Armed, Inp.Failsafe);

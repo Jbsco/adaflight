@@ -8629,6 +8629,52 @@ procedure Vector_Check is
       Record_Int (Name & ".temp", Int (K + 31), Integer_64 (Interfaces.Unsigned_16'Mod (Temperature (D))));
    end Record_Tramp_State;
 
+   --  The MSP driver state and its getters from field K on.
+   procedure Record_MSP_State (Name : String; K : Positive; D : Adaflight.VTX_MSP.Driver;
+                               T : Adaflight.VTX_Table.Table) is
+      use Adaflight.VTX_MSP;
+      Band   : Interfaces.Unsigned_8;
+      Chan   : Interfaces.Unsigned_8;
+      Index  : Interfaces.Unsigned_8 := 0;
+      Freq   : Interfaces.Unsigned_16;
+      Known  : Boolean;
+      Pit    : Boolean;
+      Count  : Adaflight.VTX_Table.Power_Count;
+      Levels : Level_Values;
+      Powers : Level_Values;
+   begin
+      Record_Int (Name & ".conffreq", Int (K), Integer_64 (D.Conf_Freq));
+      Record_Int (Name & ".confband", Int (K + 1), Integer_64 (D.Conf_Band));
+      Record_Int (Name & ".confchan", Int (K + 2), Integer_64 (D.Conf_Channel));
+      Record_Int (Name & ".confpower", Int (K + 3), Integer_64 (D.Conf_Power));
+      Record_Int (Name & ".confpit", Int (K + 4), Integer_64 (D.Conf_Pit_Mode));
+      Record_Int (Name & ".changed", Int (K + 5), Boolean'Pos (D.Config_Changed));
+      Record_Int (Name & ".lasttime", Int (K + 6), Integer_64 (D.Last_Time_Us));
+      Record_Int (Name & ".prevlow", Int (K + 7), Boolean'Pos (D.Prev_Low_Power));
+      Record_Int (Name & ".status", Int (K + 8), Integer_64 (Status'Pos (D.Current)));
+      Record_Int (Name & ".packets", Int (K + 9), Integer_64 (D.Packets));
+      Record_Int (Name & ".ready", Int (K + 10), Boolean'Pos (Is_Ready (D)));
+      Get_Band_Channel (D, Band, Chan, Known);
+      Record_Int (Name & ".bc_known", Int (K + 11), Boolean'Pos (Known));
+      Record_Int (Name & ".band", Int (K + 12), Integer_64 (Band));
+      Record_Int (Name & ".chan", Int (K + 13), Integer_64 (Chan));
+      Get_Power_Index (D, T, Index, Known);
+      Record_Int (Name & ".pi_known", Int (K + 14), Boolean'Pos (Known));
+      Record_Int (Name & ".pindex", Int (K + 15), Integer_64 (Index));
+      Get_Frequency (D, T, Freq, Known);
+      Record_Int (Name & ".fr_known", Int (K + 16), Boolean'Pos (Known));
+      Record_Int (Name & ".frequency", Int (K + 17), Integer_64 (Freq));
+      Get_Status (D, Pit, Known);
+      Record_Int (Name & ".st_known", Int (K + 18), Boolean'Pos (Known));
+      Record_Int (Name & ".status_bits", Int (K + 19), Boolean'Pos (Pit));
+      Get_Power_Levels (D, T, Count, Levels, Powers);
+      Record_Int (Name & ".nl", Int (K + 20), Integer_64 (Count));
+      for I in Adaflight.VTX_Table.Power_Index loop
+         Record_Int (Name & ".levels", Int (K + 20 + I), Integer_64 (Levels (I)));
+         Record_Int (Name & ".powers", Int (K + 28 + I), Integer_64 (Powers (I)));
+      end loop;
+   end Record_MSP_State;
+
    --  The bytes a device case still holds for its driver, ahead of the
    --  next step's bytes.
    Max_Pending : constant := 8192;
@@ -8816,15 +8862,21 @@ procedure Vector_Check is
                end;
             end loop;
             VC_Count := 0;
-            VC_Kind := (if Int (219) = 1 then Tramp_Device else SmartAudio_Device);
+            VC_Kind := (case Int (219) is
+                           when 1 => Tramp_Device,
+                           when 2 => MSP_Device,
+                           when others => SmartAudio_Device);
             Init (VC_State, VC_Settings, VC_Table, VC_Kind, Int (5) = 1, Int (6) = 1, Save);
             Record_Int (Name & ".save", Int (157), Boolean'Pos (Save));
             Record_Settings (158);
-            if VC_Kind = Tramp_Device then
-               Record_Tramp_State (Name, 164, VC_State.TR, VC_Table);
-            else
-               Record_SA_State (Name, 164, VC_State.SA, VC_Table);
-            end if;
+            case VC_Kind is
+               when Tramp_Device =>
+                  Record_Tramp_State (Name, 164, VC_State.TR, VC_Table);
+               when MSP_Device =>
+                  Record_MSP_State (Name, 164, VC_State.MD, VC_Table);
+               when SmartAudio_Device | No_Device =>
+                  Record_SA_State (Name, 164, VC_State.SA, VC_Table);
+            end case;
          end;
       elsif Name = "vtxcstep" then
          if Int (2) /= VC_Seq then
@@ -8877,6 +8929,8 @@ procedure Vector_Check is
                   end case;
                when 8 =>
                   Offer_Spektrum_Control (VC_State, Unsigned_32 (A1));
+               when 9 =>
+                  Adaflight.VTX_MSP.Set_Ready (VC_State.MD, VC_Table, A1 = 1);
                when others =>
                   null;
             end case;
@@ -8890,17 +8944,23 @@ procedure Vector_Check is
             Record_Int (Name & ".selband", Int (39), Integer_64 (VC_State.Selected_Band));
             Record_Int (Name & ".selchan", Int (40), Integer_64 (VC_State.Selected_Channel));
             Record_Int (Name & ".spekword", Int (41), Integer_64 (VC_State.Spektrum_Word));
-            if VC_Kind = Tramp_Device then
-               Record_Tramp_State (Name, 42, VC_State.TR, VC_Table);
-               Record_Bytes (Name & ".tx", Hex_Bytes (98), E.Tramp_Tx.Tx (0 .. E.Tramp_Tx.Tx_Count - 1));
-            else
-               Record_SA_State (Name, 42, VC_State.SA, VC_Table);
-               Record_Bytes (Name & ".tx", Hex_Bytes (98), E.Device.Tx (0 .. E.Device.Tx_Count - 1));
-            end if;
+            case VC_Kind is
+               when Tramp_Device =>
+                  Record_Tramp_State (Name, 42, VC_State.TR, VC_Table);
+                  Record_Bytes (Name & ".tx", Hex_Bytes (98), E.Tramp_Tx.Tx (0 .. E.Tramp_Tx.Tx_Count - 1));
+               when MSP_Device =>
+                  Record_MSP_State (Name, 42, VC_State.MD, VC_Table);
+                  Record_Bytes (Name & ".tx", Hex_Bytes (98),
+                                (if E.MSP_Send then E.MSP_Frame else E.MSP_Frame (1 .. 0)));
+               when SmartAudio_Device | No_Device =>
+                  Record_SA_State (Name, 42, VC_State.SA, VC_Table);
+                  Record_Bytes (Name & ".tx", Hex_Bytes (98), E.Device.Tx (0 .. E.Device.Tx_Count - 1));
+            end case;
             Record_Int (Name & ".baudset", Int (99),
                         (if E.Device.Baud_Changed then Integer_64 (Adaflight.SmartAudio.Rate_Of (E.Device.New_Baud))
                          else 0));
             Record_Int (Name & ".consumed", Int (100), Integer_64 (E.Consumed));
+            Record_Int (Name & ".mspstatus", Int (101), Boolean'Pos (E.MSP_Status_Due));
             VC_Count := Rx'Length - E.Consumed;
             VC_Pending (0 .. VC_Count - 1) := Rx (Rx'First + E.Consumed .. Rx'Last);
          end;
