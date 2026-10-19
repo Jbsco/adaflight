@@ -201,6 +201,7 @@ with Adaflight.MAX7456.Display_Port;
 with Adaflight.MPU_Gyro;
 with Adaflight.MPU_Gyro.MPU6000;
 with Adaflight.MPU_Gyro.ICM426xx;
+with Adaflight.MPU_Gyro.ICM456xx;
 with Adaflight.MPU_Gyro.MPU6500;
 with Adaflight.MPU_Gyro.ICM20689;
 with Adaflight.Flash_Device;
@@ -19610,6 +19611,321 @@ procedure Vector_Check is
       end if;
    end Check_ICM426xx_Line;
 
+   --  The ICM456xx oracle's chip over the MPU gyro oracle's device: its
+   --  registers, the polls its reset bit and its indirect done bit stay
+   --  clear, the indirect register pointer and the five indirect registers
+   --  the driver touches, whether indirect writes take, the identity and the
+   --  reads before it answers, and the arming state.
+   I5_IREG_Addresses : constant array (0 .. 4) of Interfaces.Unsigned_16 :=
+     (16#A267#, 16#A4A6#, 16#A4AC#, 16#A57B#, 16#A583#);
+   I5_IREG            : Byte_Array (0 .. 4) := (others => 0);
+   I5_IREG_Addr       : Interfaces.Unsigned_16 := 0;
+   I5_IREG_Wait       : Natural := 0;
+   I5_IREG_Wait_First : Natural := 0;
+   I5_IREG_Pending    : Natural := 0;
+   I5_IREG_Accessed   : Boolean := False;
+   I5_Reset_Polls     : Natural := 0;
+   I5_Reset_Pending   : Natural := 0;
+   I5_Write_OK        : Boolean := True;
+   I5_Identity        : Byte := 0;
+   I5_Silent          : Natural := 0;
+   I5_Armed           : Boolean := False;
+   I5_Filter          : Byte := 0;
+
+   function I5_IREG_Index (Address : Interfaces.Unsigned_16) return Integer is
+      use type Interfaces.Unsigned_16;
+   begin
+      for K in I5_IREG_Addresses'Range loop
+         if I5_IREG_Addresses (K) = Address then
+            return K;
+         end if;
+      end loop;
+      return -1;
+   end I5_IREG_Index;
+
+   procedure I5_Write_Register (D : in out MG_Bus; Register : Byte; Value : Byte) is
+      use type Interfaces.Unsigned_8;
+      Address : constant Natural := Natural (Register and 16#7F#);
+   begin
+      MX_Op ("wreg," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Value)));
+      if Address = 16#7F# then
+         if (Value and 16#02#) /= 0 then
+            I5_Reset_Pending := I5_Reset_Polls;
+         end if;
+      else
+         D.Regs (Address) := Value;
+      end if;
+   end I5_Write_Register;
+
+   procedure I5_Read_Register (D : in out MG_Bus; Register : Byte; Value : out Byte) is
+      use type Interfaces.Unsigned_8;
+      Address : constant Natural := Natural (Register and 16#7F#);
+   begin
+      if Address = 16#7F# then
+         Value := (if I5_Reset_Pending > 0 then 16#02# else 0) or (if I5_IREG_Pending > 0 then 0 else 16#01#);
+         if I5_Reset_Pending > 0 then
+            I5_Reset_Pending := I5_Reset_Pending - 1;
+         end if;
+         if I5_IREG_Pending > 0 then
+            I5_IREG_Pending := I5_IREG_Pending - 1;
+         end if;
+      elsif Address = 16#72# then
+         Value := (if I5_Silent > 0 then 0 else I5_Identity);
+         if I5_Silent > 0 then
+            I5_Silent := I5_Silent - 1;
+         end if;
+      elsif Address = 16#7E# then
+         Value := (if I5_IREG_Index (I5_IREG_Addr) >= 0 then I5_IREG (I5_IREG_Index (I5_IREG_Addr)) else 0);
+      else
+         Value := D.Regs (Address);
+      end if;
+      MX_Op ("rreg," & BMP_Num (Integer_64 (Register or 16#80#)) & "," & BMP_Num (Integer_64 (Value)));
+   end I5_Read_Register;
+
+   procedure I5_Write_Buffer (D : in out MG_Bus; Register : Byte; Data : Byte_Array) is
+      pragma Unreferenced (D);
+      use type Interfaces.Unsigned_8;
+      use type Interfaces.Unsigned_16;
+   begin
+      MX_Op ("wbuf," & BMP_Num (Integer_64 (Register)) & "," & BL_Hex (Data));
+      if (Register and 16#7F#) = 16#7C# and then Data'Length >= 2 then
+         I5_IREG_Addr :=
+           Interfaces.Unsigned_16 (Data (Data'First)) * 256 + Interfaces.Unsigned_16 (Data (Data'First + 1));
+         if Data'Length >= 3 and then I5_Write_OK and then I5_IREG_Index (I5_IREG_Addr) >= 0 then
+            I5_IREG (I5_IREG_Index (I5_IREG_Addr)) := Data (Data'First + 2);
+         end if;
+         I5_IREG_Pending := (if I5_IREG_Accessed then I5_IREG_Wait else I5_IREG_Wait_First);
+         I5_IREG_Accessed := True;
+      end if;
+   end I5_Write_Buffer;
+
+   procedure I5_Read_Masked (D : in out MG_Bus; Register : Byte; Data : in out Byte_Array; OK : out Boolean) is
+   begin
+      OK := D.Read_Ack;
+      MX_Op ("rbuf," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Data'Length)) & "," &
+             BMP_Num (Boolean'Pos (OK)));
+      if OK then
+         for I in Data'Range loop
+            Data (I) := D.Regs ((Natural (Register) + I - Data'First) mod 128);
+         end loop;
+      end if;
+   end I5_Read_Masked;
+
+   procedure I5_Delay_Us (D : in out MG_Bus; Us : Natural) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("udelay," & BMP_Num (Integer_64 (Us)));
+   end I5_Delay_Us;
+
+   procedure I5_Probe (D : in out MG_Bus; Index : Positive; Sensor : out Byte);
+
+   package I5_Layer is new Adaflight.MPU_Gyro
+     (SPI_Device       => MG_Bus,
+      Chip_Count       => 1,
+      Preinit_CS       => MG_Preinit_CS,
+      Attach_Bus       => MG_Attach_Bus,
+      Prepare_CS       => MG_Prepare_CS,
+      Release_CS       => MG_Release_CS,
+      Divider          => MG_Divider,
+      Set_Divisor      => MG_Set_Divisor,
+      Probe_Chip       => I5_Probe,
+      Register_Device  => MG_Register,
+      Millis           => MG_Millis,
+      Delay_Ms         => MG_Delay,
+      Enable_Interrupt => MG_Enable_Interrupt,
+      Cycle_Count      => MG_Cycle_Count,
+      Start_Sequence   => MG_Start_Sequence,
+      Wait             => MG_Wait,
+      Fetch            => MG_Fetch,
+      Uses_DMA         => MG_Uses_DMA,
+      Read_Registers   => MG_Read);
+
+   package I5_Chip is new I5_Layer.ICM456xx
+     (Write_Register   => I5_Write_Register,
+      Read_Register    => I5_Read_Register,
+      Write_Buffer     => I5_Write_Buffer,
+      Read_Masked      => I5_Read_Masked,
+      Delay_Us         => I5_Delay_Us,
+      Micros_To_Cycles => MG_Micros_To_Cycles);
+
+   procedure I5_Probe (D : in out MG_Bus; Index : Positive; Sensor : out Byte) is
+      pragma Unreferenced (Index);
+   begin
+      I5_Chip.Detect (D, Sensor);
+   end I5_Probe;
+
+   I5_State  : I5_Layer.State;
+   I5_Found  : Boolean := False;
+   I5_Scale  : Float := 0.0;
+   I5_Result : Integer_64 := 0;
+
+   procedure I5_Set_Data (Field : Positive) is
+      Data : constant Byte_Array := Hex_Bytes (Field);
+   begin
+      for I in Data'Range loop
+         MG_Device.Regs (I - Data'First) := Data (I);
+      end loop;
+   end I5_Set_Data;
+
+   procedure I5_Record_IREG (Field : Positive) is
+      Expected : constant Byte_Array := Hex_Bytes (Field);
+   begin
+      for K in 0 .. 4 loop
+         Record_Int ("icm456xx.ireg", Integer_64 (Expected (Expected'First + K)), Integer_64 (I5_IREG (K)));
+      end loop;
+   end I5_Record_IREG;
+
+   procedure I5_Record_State (First : Positive) is
+   begin
+      Record_Int ("icm456xx.mode", Int (First), Integer_64 (I5_Layer.Read_Mode'Pos (I5_State.Mode)));
+      Record_Int ("icm456xx.exti_count", Int (First + 1), Integer_64 (I5_State.Detected_EXTI));
+      Record_Int ("icm456xx.last_exti", Int (First + 2), Integer_64 (I5_State.Last_EXTI));
+      Record_Int ("icm456xx.sync_exti", Int (First + 3), Integer_64 (I5_State.Sync_EXTI));
+      Record_Int ("icm456xx.dma_max", Int (First + 4), Integer_64 (I5_State.DMA_Max_Duration));
+      Record_Int ("icm456xx.ready", Int (First + 5), Boolean'Pos (I5_State.Data_Ready));
+      for K in 0 .. 2 loop
+         Record_Int ("icm456xx.gyro", Int (First + 6 + K), Integer_64 (I5_State.Raw (K)));
+      end loop;
+      Record_Int ("icm456xx.temperature", Int (First + 9), Integer_64 (I5_State.Temperature));
+      for K in 0 .. 2 loop
+         Record_Int ("icm456xx.acc", Int (First + 10 + K), Integer_64 (I5_State.Acc_Raw (K)));
+      end loop;
+   end I5_Record_State;
+
+   procedure Check_ICM456xx_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "i5init" then
+         MX_Op_Head := 1;
+         MX_Op_Count := 0;
+         MG_Device := (others => <>);
+         MG_Device.Bus_OK := Int (5) /= 0;
+         I5_Identity := Byte (Int (6));
+         I5_Silent := Natural (Int (7));
+         MG_Device.Now_Ms := Interfaces.Unsigned_32 (Int (8));
+         MG_Device.Ms_Step := Interfaces.Unsigned_32 (Int (9));
+         MG_Device.Use_DMA := Int (10) /= 0;
+         MG_Device.Read_Ack := Int (15) /= 0;
+         MG_Device.Cycles := Interfaces.Unsigned_32 (Int (16));
+         I5_Armed := Int (17) /= 0;
+         I5_IREG_Wait := Natural (Int (18));
+         I5_IREG_Wait_First := Natural (Int (19));
+         I5_Reset_Polls := Natural (Int (20));
+         I5_Write_OK := Int (21) /= 0;
+         MG_Device.Regs := Hex_Bytes (22);
+         declare
+            Values : constant Byte_Array := Hex_Bytes (23);
+         begin
+            for K in 0 .. 4 loop
+               I5_IREG (K) := Values (Values'First + K);
+            end loop;
+         end;
+         I5_IREG_Addr := 0;
+         I5_IREG_Pending := 0;
+         I5_IREG_Accessed := False;
+         I5_Reset_Pending := 0;
+         I5_State := (others => <>);
+         I5_State.Interrupt_Pin := Int (11) /= 0;
+         I5_State.Rate_KHz := Byte (Int (13));
+         I5_Filter := Byte (Int (14));
+         I5_Scale := 0.0;
+         declare
+            C : constant I5_Layer.Device_Config :=
+              (Index => 0, Bus_Type => 2, SPI_Bus => Byte (Int (3)), CS_Tag => Byte (Int (4)));
+         begin
+            I5_Layer.Preinit (MG_Device, C);
+            I5_Layer.Detect (MG_Device, I5_State, C, I5_Found);
+         end;
+      elsif Name = "i5op" then
+         declare
+            Expected : Ada.Strings.Unbounded.Unbounded_String := Ada.Strings.Unbounded.To_Unbounded_String (Str (3));
+         begin
+            for I in 4 .. NF loop
+               Ada.Strings.Unbounded.Append (Expected, "," & Str (I));
+            end loop;
+            if MX_Op_Head <= MX_Op_Count then
+               Record_Text ("icm456xx.op", Ada.Strings.Unbounded.To_String (Expected),
+                            Ada.Strings.Unbounded.To_String (MX_Ops (MX_Op_Head)));
+               MX_Op_Head := MX_Op_Head + 1;
+            else
+               Record_Text ("icm456xx.op", Ada.Strings.Unbounded.To_String (Expected), "none");
+            end if;
+         end;
+      elsif Name = "i5det" then
+         MX_Expect_No_Ops ("detection");
+         Record_Int ("icm456xx.found", Int (3), Boolean'Pos (I5_Found));
+         Record_Int ("icm456xx.sensor", Int (4), Integer_64 (I5_State.Sensor));
+         Record_Int ("icm456xx.clock", Int (5), Integer_64 (MG_Device.Now_Ms));
+      elsif Name = "i5chip" then
+         declare
+            Gyro_Found : Boolean;
+         begin
+            I5_Chip.Gyro_Detect (I5_State, Gyro_Found);
+            Record_Int ("icm456xx.gyro_found", Int (3), Boolean'Pos (Gyro_Found));
+            Record_Int ("icm456xx.acc_found", Int (4), Boolean'Pos (I5_Chip.Acc_Detect (I5_State)));
+            if Gyro_Found then
+               I5_Chip.Gyro_Init (MG_Device, I5_State, I5_Filter, I5_Armed, I5_Scale);
+               I5_Chip.Acc_Init (MG_Device, I5_State, I5_Armed);
+            end if;
+         end;
+      elsif Name = "i5ready" then
+         MX_Expect_No_Ops ("initialization");
+         Record_Int ("icm456xx.rate", Int (3), Integer_64 (I5_State.Rate_KHz));
+         Record_Int ("icm456xx.acc_one_g", Int (4), I5_Chip.Acc_One_G);
+         Record_Int ("icm456xx.acc_rate", Int (5), I5_Chip.Acc_Sample_Rate_Hz);
+         Record_Int ("icm456xx.scale", Int_Hex (6), Integer_64 (To_Bits (I5_Scale)));
+         Record_Int ("icm456xx.temp_scale", Int_Hex (7), Integer_64 (To_Bits (I5_State.Temp_Scale)));
+         Record_Int ("icm456xx.temp_zero", Int_Hex (8), Integer_64 (To_Bits (I5_State.Temp_Zero)));
+         Record_Int ("icm456xx.short_period", Int (9), Integer_64 (I5_State.Short_Period));
+         Record_Int ("icm456xx.acc_reg", Int (10), Integer_64 (I5_State.Acc_Data_Reg));
+         Record_Int ("icm456xx.gyro_reg", Int (11), Integer_64 (I5_State.Gyro_Data_Reg));
+         Record_Int ("icm456xx.dma_max", Int (12), Integer_64 (I5_State.DMA_Max_Duration));
+         I5_Record_IREG (13);
+      elsif Name = "i5step" then
+         declare
+            Which : constant Integer_64 := Int (4);
+            A     : constant Interfaces.Unsigned_32 := Interfaces.Unsigned_32 (Int (5));
+            Flag  : Boolean;
+         begin
+            MG_Device.Read_Ack := Int (6) /= 0;
+            I5_Set_Data (7);
+            I5_Result := 0;
+            case Which is
+               when 0 =>
+                  MG_Device.Cycles := MG_Device.Cycles + A;
+                  if I5_State.Interrupt_Pin then
+                     I5_Layer.Interrupt (MG_Device, I5_State);
+                  end if;
+               when 1 =>
+                  for I in 1 .. A loop
+                     MG_Device.Cycles := MG_Device.Cycles + 79 * 168;
+                     if I5_State.Interrupt_Pin then
+                        I5_Layer.Interrupt (MG_Device, I5_State);
+                     end if;
+                  end loop;
+               when 2 =>
+                  MG_Device.Cycles := MG_Device.Cycles + A;
+                  if MG_Device.Pending then
+                     MG_Device.Pending := False;
+                     I5_Layer.Transfer_Complete (MG_Device, I5_State);
+                  end if;
+               when 3 =>
+                  I5_Chip.Read_Gyro (MG_Device, I5_State, Flag);
+                  I5_Result := Boolean'Pos (Flag);
+               when 4 =>
+                  I5_Chip.Read_Acc (MG_Device, I5_State, Flag);
+                  I5_Result := Boolean'Pos (Flag);
+               when others =>
+                  null;
+            end case;
+         end;
+      elsif Name = "i5res" then
+         MX_Expect_No_Ops ("a result");
+         Record_Int ("icm456xx.result", Int (4), I5_Result);
+         I5_Record_State (5);
+      end if;
+   end Check_ICM456xx_Line;
+
    --  The MPU6500 oracle's chip over the MPU gyro oracle's device, with its
    --  bus register writes beside the plain register writes and reads.
    procedure MG_Bus_Write (D : in out MG_Bus; Register : Byte; Value : Byte) is
@@ -33528,6 +33844,8 @@ procedure Vector_Check is
                   Check_MPU6000_Line;
                elsif Kind = "icm426xx" then
                   Check_ICM426xx_Line;
+               elsif Kind = "icm456xx" then
+                  Check_ICM456xx_Line;
                elsif Kind = "mpu6500" then
                   Check_MPU6500_Line;
                elsif Kind = "icm20689" then
@@ -33850,6 +34168,7 @@ begin
    Run (Dir & "/mpugyro.csv", "mpugyro");
    Run (Dir & "/mpu6000.csv", "mpu6000");
    Run (Dir & "/icm426xx.csv", "icm426xx");
+   Run (Dir & "/icm456xx.csv", "icm456xx");
    Run (Dir & "/mpu6500.csv", "mpu6500");
    Run (Dir & "/icm20689.csv", "icm20689");
    Run (Dir & "/m25p16.csv", "m25p16");
