@@ -196,6 +196,9 @@ package body Adaflight.Mixer with SPARK_Mode is
      (S   : in out State; C : Config; Ctl : in out PID_Controller.State;
       R   : Runtime; P : Profile; Inp : Inputs)
    is
+      Airmode  : constant Boolean := Inp.Airmode or else Inp.Launch_Control_Active;
+      Active   : constant Mix_Table :=
+        (if Inp.Launch_Control_Active and then R.Launch_Control = Pitch_Only then C.Launch_Table else C.Table);
       Throttle : Float := (Inp.RC_Throttle - 1000.0) + Float (Inp.Throttle_Angle_Correction);
       Range_Min : constant Motor_Value := C.Output_Low;
       Range_Max : constant Motor_Value := C.Output_High;
@@ -245,7 +248,7 @@ package body Adaflight.Mixer with SPARK_Mode is
       for M in 0 .. C.Count - 1 loop
          pragma Loop_Invariant (Mix_Max in 0.0 .. 64.0 and then Mix_Min in -64.0 .. 0.0);
          declare
-            Value : constant Mix_Value := Mix_Of (C.Table (M), Scaled_Roll, Scaled_Pitch, Scaled_Yaw);
+            Value : constant Mix_Value := Mix_Of (Active (M), Scaled_Roll, Scaled_Pitch, Scaled_Yaw);
          begin
             if Value > Mix_Max then
                Mix_Max := Value;
@@ -255,19 +258,29 @@ package body Adaflight.Mixer with SPARK_Mode is
             Mix (M) := Value;
          end;
       end loop;
+      if Inp.Launch_Control_Active then
+         Throttle := 0.0;
+      end if;
+      if Inp.Alt_Hold_Mode and then Inp.Autopilot_Throttle_Valid then
+         Throttle := Inp.Autopilot_Throttle;
+      end if;
+      if Inp.GPS_Rescue_Mode and then Inp.Autopilot_Throttle_Valid then
+         Throttle := Inp.Autopilot_Throttle;
+      end if;
       Mix_Range := Mix_Max - Mix_Min;
       Range_Out := Mix_Range;
       case C.Kind is
          when Legacy =>
-            Adjust_Legacy (Mix, C, Mix_Min, Mix_Max, Mix_Range, Inp.Airmode, Throttle);
+            Adjust_Legacy (Mix, C, Mix_Min, Mix_Max, Mix_Range, Airmode, Throttle);
          when Linear | Dynamic =>
-            Adjust_Linear (Mix, C, Mix_Range, Inp.Airmode, Throttle);
+            Adjust_Linear (Mix, C, Mix_Range, Airmode, Throttle);
          when Ez_Landing =>
             Adjust_Ez_Landing
               (Mix, C, P, Mix_Min, Mix_Max, Mix_Range, Range_Out, Inp.Max_Deflection, Inp.Speed, Throttle);
       end case;
       S.Mix_Range := Range_Out;
-      if C.Motor_Stop and then Inp.Armed and then not Inp.Airmode
+      if C.Motor_Stop and then Inp.Armed and then not Airmode
+        and then not (Inp.GPS_Rescue_Mode or else Inp.Alt_Hold_Mode or else Inp.Pos_Hold_Mode)
         and then Inp.RC_Throttle < Float (C.Min_Check)
       then
          for M in 0 .. C.Count - 1 loop
@@ -282,7 +295,7 @@ package body Adaflight.Mixer with SPARK_Mode is
               (for all J in 0 .. M - 1 =>
                  S.Motors (J) in Float'Min (C.Disarm_Output, C.Output_Low) .. C.Output_High);
             declare
-               Command : constant PID_Controller.Motor_Command := Mix (M) + Throttle * C.Table (M).Throttle;
+               Command : constant PID_Controller.Motor_Command := Mix (M) + Throttle * Active (M).Throttle;
                Shaped  : constant Float := PID_Controller.Apply_Thrust_Linearization (R, Command);
                Output  : constant Float := Output_Min + Output_Range * Shaped;
             begin

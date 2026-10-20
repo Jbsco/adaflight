@@ -1472,6 +1472,15 @@ procedure Vector_Check is
    Mix_Profile  : Adaflight.PID_Profile.Profile;
    Mix_Airmode  : Boolean := False;
    Mix_AG       : Boolean := False;
+   type Mix_Modes is record
+      Launch     : Boolean := False;
+      Flags      : Integer_64 := 0;
+      Valid      : Boolean := False;
+      Throttle   : Float := 0.0;
+      Motor_Stop : Boolean := False;
+      Min_Check  : Natural range 1000 .. 2000 := 1050;
+   end record;
+   Mix_AP       : Mix_Modes;
 
    procedure Check_Mix_Line is
       use Adaflight.PID_Profile;
@@ -1502,6 +1511,18 @@ procedure Vector_Check is
                         Throttle_Limit_Percent => Integer'Value (Str (15)),
                         Output_Low => Flt (16), Output_High => Flt (17), Disarm_Output => Flt (18),
                         others => <>);
+         declare
+            Count    : Natural;
+            Current  : Adaflight.Mixer.Mix_Table := Mix_Config.Table;
+            Launch   : Adaflight.Mixer.Mix_Table := Mix_Config.Table;
+            Disarmed : Adaflight.Mixer.Motor_Outputs := (others => 0.0);
+         begin
+            Adaflight.Mixer_Init.Configure_Output
+              ((others => <>), Adaflight.Mixer_Init.Quad_X, (others => <>), Mix_Config.Disarm_Output, Current, Count,
+               Launch, Disarmed);
+            Mix_Config.Launch_Table := Launch;
+         end;
+         Mix_AP := (others => <>);
          Mix_Airmode := Str (13) = "1";
          Mix_AG := Str (14) = "1";
          Configure (Mix_Runtime, Mix_Profile, Integer'Value (Str (3)), Has_Acc => False,
@@ -1523,11 +1544,23 @@ procedure Vector_Check is
                Inp.Feedforward (A) := Flt (11 + Adaflight.Axes.Axis'Pos (A));
             end loop;
             Inp.Anti_Gravity_Enabled := Mix_AG;
+            Inp.Launch_Control_Active := Mix_AP.Launch;
+            Inp.Alt_Hold_Mode := (Mix_AP.Flags / 2 ** 3) mod 2 = 1;
+            Inp.Pos_Hold_Mode := (Mix_AP.Flags / 2 ** 5) mod 2 = 1;
+            Inp.GPS_Rescue_Mode := (Mix_AP.Flags / 2 ** 11) mod 2 = 1;
             Update (Mix_Ctl, Mix_Runtime, Mix_Profile, Inp);
             MInp.RC_Throttle := Flt (14);
             MInp.Time_Us := Interfaces.Unsigned_32 ((Step + 1) * Loop_Time);
             MInp.Armed := True;
             MInp.Airmode := Mix_Airmode;
+            MInp.Launch_Control_Active := Mix_AP.Launch;
+            MInp.Alt_Hold_Mode := Inp.Alt_Hold_Mode;
+            MInp.Pos_Hold_Mode := Inp.Pos_Hold_Mode;
+            MInp.GPS_Rescue_Mode := Inp.GPS_Rescue_Mode;
+            MInp.Autopilot_Throttle_Valid := Mix_AP.Valid;
+            MInp.Autopilot_Throttle := Mix_AP.Throttle;
+            Mix_Config.Motor_Stop := Mix_AP.Motor_Stop;
+            Mix_Config.Min_Check := Mix_AP.Min_Check;
             Adaflight.Mixer.Update (Mix_State, Mix_Config, Mix_Ctl, Mix_Runtime, Mix_Profile, MInp);
             for A in Adaflight.Axes.Axis loop
                Expect_Float ("p", Mix_Ctl.Data (A).P); Expect_Float ("i", Mix_Ctl.Data (A).I);
@@ -1550,6 +1583,13 @@ procedure Vector_Check is
                Failures := Failures + 1;
             end if;
          end;
+      elsif Name = "mixap" then
+         Mix_AP := (Launch     => Str (4) = "1",
+                    Flags      => Int (5),
+                    Valid      => Str (6) = "1",
+                    Throttle   => Flt (7),
+                    Motor_Stop => Str (8) = "1",
+                    Min_Check  => Natural (Int (9)));
       else
          Put_Line ("unknown mix case " & Name);
          Failures := Failures + 1;
@@ -21661,6 +21701,7 @@ begin
    Run (Dir & "/pidmodes.csv", "pid");
    Run (Dir & "/pidthr.csv", "pidthr");
    Run (Dir & "/mix.csv", "mix");
+   Run (Dir & "/mixmodes.csv", "mix");
    Run (Dir & "/rc.csv", "rc");
    Run (Dir & "/gyro.csv", "gyro");
    Run (Dir & "/imu.csv", "imu");

@@ -6138,3 +6138,17 @@ existing PID vectors stay byte for byte. New runs switch the three modes over ac
 sixty loops, with the autopilot's angles, largest angle and position control scripted, the craft armed
 through the crash phases, and the clock stepping 10 ms a loop so that the second of level mode can pass.
 They replay exactly.
+
+## D266. Mixer flight modes (2026-10-16)
+
+`Adaflight.Mixer` takes launch control, GPS rescue, altitude hold and position hold with the autopilot's
+throttle. Launch control counts as airmode, mixes through the launch table in pitch-only launches, and holds
+the throttle at zero. The configuration builds the launch table with every motor that pitches the nose up
+held at zero. Altitude hold and then GPS rescue replace the throttle with the autopilot's when it has one,
+after the throttle limit, the boost and the thrust compensation. GPS rescue, altitude hold and position hold
+keep motor stop off.
+
+The PID oracle's new mixer runs script launch control, the three modes, the autopilot's throttle, the motor
+stop feature and a minimum check for each run, which the oracle's zero-filled receiver group otherwise
+leaves at 0, so that motor stop occurs. They replay exactly, and the existing mixer vectors stay byte for
+byte.
