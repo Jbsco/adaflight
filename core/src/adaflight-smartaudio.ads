@@ -69,6 +69,10 @@ package Adaflight.SmartAudio with SPARK_Mode is
       Will_Boot_Into_Pit_Mode : Boolean := False;
    end record;
 
+   --  The report the first response is compared with.
+   No_Report : constant Report := (Version_Seen => Unknown, Channel => 0, Power => 0, Mode => 0, Freq => 0,
+                                   Pit_Freq => 0, Will_Boot_Into_Pit_Mode => False);
+
    type Stats is record
       Sent, Received, Bad_Preamble, Bad_Length, Crc_Errors, Out_Of_Order, Bad_Code : Unsigned_16 := 0;
    end record;
@@ -137,6 +141,37 @@ package Adaflight.SmartAudio with SPARK_Mode is
       Init_State       : Init_Phase := Start;
       Last_Command_Ms  : Unsigned_32 := 0;
       Port_Open        : Boolean := False;
+      Prev_Device      : Report := No_Report;
+   end record;
+
+   --  The SmartAudio menu's status line, nulls included.
+   subtype Status_Text is String (1 .. 31);
+   Initial_Status : constant Status_Text := "- -- ---- ---" & (1 .. 18 => ASCII.NUL);
+
+   --  The SmartAudio menu's state that the device's responses update: the
+   --  operating model, the radio state, the band, channel and power it
+   --  shows, the band and channel's frequency, the device's frequency, the
+   --  device's version, the pit mode and its kind, the frequency selection
+   --  before and after the menu, the pit and user frequencies with their new
+   --  values, and the status line.
+   type Menu_View is record
+      Opmodel       : Unsigned_8 := 0;
+      RF_State      : Unsigned_8 := 0;
+      Band          : Unsigned_8 := 0;
+      Channel       : Unsigned_8 := 0;
+      Power         : Unsigned_8 := 0;
+      Freq_Ref      : Unsigned_16 := 0;
+      Device_Freq   : Unsigned_16 := 0;
+      Device_Status : Unsigned_8 := 0;
+      Pit           : Unsigned_8 := 0;
+      Pit_F_Mode    : Unsigned_8 := 0;
+      Fsel_Mode     : Unsigned_8 := 0;
+      Fsel_Mode_New : Unsigned_8 := 0;
+      OR_Freq       : Unsigned_16 := 0;
+      OR_Freq_New   : Unsigned_16 := 0;
+      User_Freq     : Unsigned_16 := 0;
+      User_Freq_New : Unsigned_16 := 0;
+      Status        : Status_Text := Initial_Status;
    end record;
 
    --  The bytes a call sends, a zero ahead of them when the line needs
@@ -155,6 +190,16 @@ package Adaflight.SmartAudio with SPARK_Mode is
    --  The start, with the port open or not; every power level is one
    --  until the device reports.
    procedure Init (D : out Driver; Port_Opened : Boolean);
+
+   --  One byte of the line received. Processed reports a response taken in,
+   --  and Changed that it changed the device's report.
+   procedure Receive_Byte (D : in out Driver; T : VTX_Table.Table; C : Byte; Control_Disabled : Boolean;
+                           Processed, Changed : out Boolean);
+
+   --  A task call after its bytes are received: the line rate, the start-up
+   --  queries, and the resend or the next frame.
+   procedure Process_Line (D : in out Driver; Now_Ms : Unsigned_32; Control_Disabled, Prepend_Zero : Boolean;
+                           E : out Events);
 
    --  One task call at the millisecond clock with the bytes received since
    --  the last one; a disabled control drops the frames instead of sending

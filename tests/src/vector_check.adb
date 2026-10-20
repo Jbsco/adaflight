@@ -8833,6 +8833,32 @@ procedure Vector_Check is
          Record_Int (Name & ".pitfreq", Int (K + 4), Integer_64 (VC_Settings.Pit_Mode_Freq));
          Record_Int (Name & ".lowpower", Int (K + 5), Integer_64 (Low_Power_Disarm'Pos (VC_Settings.Low_Power)));
       end Record_Settings;
+
+      procedure Record_SA_Menu (K : Positive) is
+         M      : Adaflight.SmartAudio.Menu_View renames VC_State.SA_Menu;
+         Status : Byte_Array (0 .. M.Status'Length - 1);
+      begin
+         Record_Int (Name & ".sa_opmodel", Int (K), Integer_64 (M.Opmodel));
+         Record_Int (Name & ".sa_rfstate", Int (K + 1), Integer_64 (M.RF_State));
+         Record_Int (Name & ".sa_band", Int (K + 2), Integer_64 (M.Band));
+         Record_Int (Name & ".sa_channel", Int (K + 3), Integer_64 (M.Channel));
+         Record_Int (Name & ".sa_power", Int (K + 4), Integer_64 (M.Power));
+         Record_Int (Name & ".sa_freqref", Int (K + 5), Integer_64 (M.Freq_Ref));
+         Record_Int (Name & ".sa_devfreq", Int (K + 6), Integer_64 (M.Device_Freq));
+         Record_Int (Name & ".sa_devstatus", Int (K + 7), Integer_64 (M.Device_Status));
+         Record_Int (Name & ".sa_pit", Int (K + 8), Integer_64 (M.Pit));
+         Record_Int (Name & ".sa_pitfmode", Int (K + 9), Integer_64 (M.Pit_F_Mode));
+         Record_Int (Name & ".sa_fsel", Int (K + 10), Integer_64 (M.Fsel_Mode));
+         Record_Int (Name & ".sa_fselnew", Int (K + 11), Integer_64 (M.Fsel_Mode_New));
+         Record_Int (Name & ".sa_orfreq", Int (K + 12), Integer_64 (M.OR_Freq));
+         Record_Int (Name & ".sa_orfreqnew", Int (K + 13), Integer_64 (M.OR_Freq_New));
+         Record_Int (Name & ".sa_userfreq", Int (K + 14), Integer_64 (M.User_Freq));
+         Record_Int (Name & ".sa_userfreqnew", Int (K + 15), Integer_64 (M.User_Freq_New));
+         for J in Status'Range loop
+            Status (J) := Character'Pos (M.Status (M.Status'First + J));
+         end loop;
+         Record_Bytes (Name & ".sa_status", Hex_Bytes (K + 16), Status);
+      end Record_SA_Menu;
    begin
       if Name = "vtxcinit" then
          declare
@@ -8877,6 +8903,7 @@ procedure Vector_Check is
                when SmartAudio_Device | No_Device =>
                   Record_SA_State (Name, 164, VC_State.SA, VC_Table);
             end case;
+            Record_SA_Menu (220);
          end;
       elsif Name = "vtxcstep" then
          if Int (2) /= VC_Seq then
@@ -8961,6 +8988,7 @@ procedure Vector_Check is
                          else 0));
             Record_Int (Name & ".consumed", Int (100), Integer_64 (E.Consumed));
             Record_Int (Name & ".status_due", Int (101), Boolean'Pos (E.Status_Due));
+            Record_SA_Menu (102);
             VC_Count := Rx'Length - E.Consumed;
             VC_Pending (0 .. VC_Count - 1) := Rx (Rx'First + E.Consumed .. Rx'Last);
          end;

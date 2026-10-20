@@ -81,8 +81,9 @@ The core contains:
 - navigation trail with distance gate and decimation
 - GPS frame decoders for NMEA sentences and UBX messages, UBX configuration messages, and GPS link
   with rate detection, autoconfiguration and home distances
-- video transmitter table, SmartAudio, Tramp and MSP drivers, and transmitter settings update over
-  all three with stick, switch and Spektrum control
+- video transmitter table, SmartAudio, Tramp and MSP drivers, transmitter settings update over all
+  three with stick, switch and Spektrum control, and SmartAudio menu state from each device
+  response
 - LTM telemetry stream
 - GPS lap timer with averaged gate and best three laps
 - MSP box table with paged replies and status bits
@@ -240,7 +241,7 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 27363 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 27398 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
 - Recorded vectors replay bit for bit: 1753568 lines over 384 cases, every case exact except
   forty-six declared deviations in `DESIGN.md` D6.

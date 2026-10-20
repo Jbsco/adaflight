@@ -127,16 +127,19 @@ package body Adaflight.SmartAudio with SPARK_Mode is
 
    --  A response: the outstanding command is cleared by its code or by a
    --  settings code of a later version, then the response is read.
-   procedure Process_Response (D : in out Driver; T : VTX_Table.Table; Len : Natural; Control_Disabled : Boolean)
+   procedure Process_Response (D : in out Driver; T : VTX_Table.Table; Len : Natural; Control_Disabled : Boolean;
+                               Known : out Boolean)
      with Pre => Len in 2 .. Max_Receive
    is
       Code : constant Byte := D.Rx (0);
       Word : Unsigned_16;
    begin
+      Known := False;
       if Control_Disabled then
          D.Outstanding := Cmd_None;
          return;
       end if;
+      Known := True;
       if Code = D.Outstanding then
          D.Outstanding := Cmd_None;
       elsif (Code = Rsp_Settings_V2 or else Code = Rsp_Settings_V21) and then D.Outstanding = Cmd_Get_Settings then
@@ -161,14 +164,19 @@ package body Adaflight.SmartAudio with SPARK_Mode is
          end if;
       else
          D.Stat.Bad_Code := D.Stat.Bad_Code + 1;
+         Known := False;
       end if;
    end Process_Response;
 
    --  One byte of the line: the two preamble bytes, the code, the length,
    --  the payload and the checksum over the code, the length and the
    --  payload. A frame with an odd code is the echo of a command.
-   procedure Receive (D : in out Driver; T : VTX_Table.Table; C : Byte; Control_Disabled : Boolean) is
+   procedure Receive_Byte (D : in out Driver; T : VTX_Table.Table; C : Byte; Control_Disabled : Boolean;
+                           Processed, Changed : out Boolean) is
+      Known : Boolean;
    begin
+      Processed := False;
+      Changed := False;
       case D.Phase is
          when Wait_Preamble_1 =>
             if C = Preamble_1 then
@@ -207,14 +215,19 @@ package body Adaflight.SmartAudio with SPARK_Mode is
             end if;
          when Wait_Crc =>
             if CRC8_Update (0, D.Rx (0 .. 1 + D.Rx_Length), Polynomial) = C then
-               Process_Response (D, T, D.Rx_Length + 2, Control_Disabled);
+               Process_Response (D, T, D.Rx_Length + 2, Control_Disabled, Known);
+               if Known then
+                  Processed := True;
+                  Changed := D.Device /= D.Prev_Device;
+                  D.Prev_Device := D.Device;
+               end if;
                D.Stat.Received := D.Stat.Received + 1;
             elsif (D.Rx (0) and 1) = 0 then
                D.Stat.Crc_Errors := D.Stat.Crc_Errors + 1;
             end if;
             D.Phase := Wait_Preamble_1;
       end case;
-   end Receive;
+   end Receive_Byte;
 
    --  Fewer than seven answers in ten frames move the line rate one step
    --  between 4800 and 4950, turning at the ends.
@@ -257,16 +270,13 @@ package body Adaflight.SmartAudio with SPARK_Mode is
    -- Process --
    -------------
 
-   procedure Process (D : in out Driver; T : VTX_Table.Table; Now_Ms : Unsigned_32; Rx : Byte_Array;
-                      Control_Disabled, Prepend_Zero : Boolean; E : out Events) is
+   procedure Process_Line (D : in out Driver; Now_Ms : Unsigned_32; Control_Disabled, Prepend_Zero : Boolean;
+                           E : out Events) is
    begin
       E := (others => <>);
       if not D.Port_Open then
          return;
       end if;
-      for I in Rx'Range loop
-         Receive (D, T, Rx (I), Control_Disabled);
-      end loop;
       Autobaud (D, E);
       case D.Init_State is
          when Start =>
@@ -305,6 +315,23 @@ package body Adaflight.SmartAudio with SPARK_Mode is
          Queue_Get_Settings (D);
          Send_Queue (D, Now_Ms, Control_Disabled, Prepend_Zero, E);
       end if;
+   end Process_Line;
+
+   -------------
+   -- Process --
+   -------------
+
+   procedure Process (D : in out Driver; T : VTX_Table.Table; Now_Ms : Unsigned_32; Rx : Byte_Array;
+                      Control_Disabled, Prepend_Zero : Boolean; E : out Events) is
+      Ignore_Processed : Boolean;
+      Ignore_Changed   : Boolean;
+   begin
+      if D.Port_Open then
+         for I in Rx'Range loop
+            Receive_Byte (D, T, Rx (I), Control_Disabled, Ignore_Processed, Ignore_Changed);
+         end loop;
+      end if;
+      Process_Line (D, Now_Ms, Control_Disabled, Prepend_Zero, E);
    end Process;
 
    --------------

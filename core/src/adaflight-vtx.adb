@@ -1,3 +1,5 @@
+with Adaflight.Number_Text;
+
 package body Adaflight.VTX with SPARK_Mode is
    use type VTX_Settings.Low_Power_Disarm;
 
@@ -410,6 +412,122 @@ package body Adaflight.VTX with SPARK_Mode is
       end if;
    end Spektrum_Control;
 
+   --  The SmartAudio menu after a response of the device: a changed report
+   --  starts the menu's model over, and a menu without one takes the model,
+   --  the frequency selection, the band, channel, frequency and power from
+   --  the device and the settings. Once the device's version is known, the
+   --  menu takes the version and the first pit and user frequencies, the pit
+   --  mode's kind, and the status line: the model's letter, the band's letter
+   --  and the channel's name or U F, the pit or the device's frequency, and
+   --  the pit mode's range or the power level's name.
+   procedure SA_Menu_Response (V : in out State; S : Settings; T : VTX_Table.Table; Changed : Boolean)
+     with Global => null
+   is
+      use SmartAudio;
+      M       : Menu_View := V.SA_Menu;
+      Dev     : constant Report := V.SA.Device;
+      Band    : Unsigned_8 := 0;
+      Channel : Unsigned_8 := 0;
+      Freq    : Unsigned_16 := 0;
+      Index   : Unsigned_8 := 0;
+      Known   : Boolean;
+      Ignore  : Boolean;
+
+      --  A text written into the status line from a place on, ended by a
+      --  null.
+      procedure Put (Place : Positive; Text : String)
+        with Pre => Place in Status_Text'Range and then Text'Length < Status_Text'Last - Place + 1
+      is
+      begin
+         for K in 0 .. Text'Length - 1 loop
+            M.Status (Place + K) := Text (Text'First + K);
+         end loop;
+         M.Status (Place + Text'Length) := ASCII.NUL;
+      end Put;
+
+      --  A table string up to its first null.
+      function Until_Null (Text : String) return String
+        with Post => Until_Null'Result'Length <= Text'Length
+      is
+      begin
+         for K in Text'Range loop
+            if Text (K) = ASCII.NUL then
+               return Text (Text'First .. K - 1);
+            end if;
+         end loop;
+         return Text;
+      end Until_Null;
+   begin
+      if Changed then
+         M.Opmodel := 0;
+      end if;
+      if M.Opmodel = 0 then
+         M.Opmodel := (if Dev.Will_Boot_Into_Pit_Mode then 2 else 1);
+         M.Fsel_Mode := (if (Dev.Mode and Mode_Freq_By_Freq) /= 0 and then S.Band = 0 then 1 else 0);
+         M.Band := S.Band;
+         M.Channel := S.Channel;
+         M.Freq_Ref := S.Freq;
+         M.Device_Freq := M.Freq_Ref;
+         M.RF_State :=
+           (if (Dev.Mode and Mode_Pit) = 0 then 3 elsif (Dev.Mode and Mode_In_Range_Pit) /= 0 then 2 else 1);
+         M.Power := S.Power;
+         if M.Fsel_Mode /= 0 and then S.Freq /= 0 then
+            M.User_Freq := S.Freq;
+         end if;
+         M.Fsel_Mode_New := M.Fsel_Mode;
+      end if;
+      if Dev.Version_Seen /= Unknown then
+         if M.Device_Status = 0 then
+            M.Device_Status := Unsigned_8 (Version'Pos (Dev.Version_Seen));
+         end if;
+         if M.OR_Freq = 0 and then Dev.Pit_Freq /= 0 then
+            M.OR_Freq := Dev.Pit_Freq;
+         end if;
+         if M.User_Freq = 0 and then Dev.Freq /= 0 then
+            M.User_Freq := Dev.Freq;
+         end if;
+         if Dev.Version_Seen = V2 then
+            M.Pit_F_Mode := (if (Dev.Mode and Mode_Out_Range_Pit) /= 0 then 1 else 0);
+         elsif Dev.Version_Seen = V21 then
+            M.Pit_F_Mode := 1;
+         end if;
+         M.Status (1) := (case M.Opmodel is when 0 => '-', when 1 => 'F', when 2 => 'R', when others => ASCII.NUL);
+         if M.Fsel_Mode = 0 then
+            Common_Get_Band_Channel (V, T, Band, Channel, Ignore);
+            M.Status (3) := VTX_Table.Band_Letter_Of (T, Natural (Band));
+            M.Status (4) := VTX_Table.Channel_Name_Of (T, Natural (Channel));
+         else
+            M.Status (3) := 'U';
+            M.Status (4) := 'F';
+         end if;
+         if (Dev.Mode and Mode_Pit) /= 0 and then (Dev.Mode and Mode_Out_Range_Pit) /= 0 then
+            Put (6, Adaflight.Number_Text.Decimal (Dev.Pit_Freq, 4));
+         else
+            Common_Get_Frequency (V, T, Freq, Ignore);
+            Put (6, Adaflight.Number_Text.Decimal (Freq, 4));
+         end if;
+         M.Status (10) := ' ';
+         if (Dev.Mode and Mode_Pit) /= 0 then
+            M.Pit := 2;
+            Put (11, (if (Dev.Mode and Mode_Out_Range_Pit) /= 0 then "POR" else "PIR"));
+         else
+            M.Pit := 1;
+            Common_Get_Power_Index (V, T, Index, Known);
+            if not Known then
+               Put (11, "???");
+            elsif Natural (Index) in 1 .. T.Power_Levels then
+               Put (11, Until_Null (T.Label (Natural (Index))));
+            else
+               Put (11, "?");
+            end if;
+         end if;
+         if T.Bands = 0 or else T.Power_Levels = 0 then
+            M.Status := "PLEASE CONFIGURE VTXTABLE" & (1 .. 6 => ASCII.NUL);
+         end if;
+      end if;
+      V.SA_Menu := M;
+   end SA_Menu_Response;
+
    ----------
    -- Init --
    ----------
@@ -445,8 +563,10 @@ package body Adaflight.VTX with SPARK_Mode is
 
    procedure Update (V : in out State; S : in out Settings; T : VTX_Table.Table; Inp : Inputs; Rx : Byte_Array;
                      E : out Events) is
-      Start   : Parameter;
-      Pending : Boolean;
+      Start     : Parameter;
+      Pending   : Boolean;
+      Processed : Boolean;
+      Changed   : Boolean;
    begin
       E := (others => <>);
       if Inp.Cli_Mode or else not V.Device_Present then
@@ -475,7 +595,15 @@ package body Adaflight.VTX with SPARK_Mode is
       if not Inp.Armed or else Pending then
          case V.Kind is
             when SmartAudio_Device =>
-               SmartAudio.Process (V.SA, T, Inp.Now_Ms, Rx, Inp.Control_Disabled, V.Prepend_Zero, E.Device);
+               if V.SA.Port_Open then
+                  for I in Rx'Range loop
+                     SmartAudio.Receive_Byte (V.SA, T, Rx (I), Inp.Control_Disabled, Processed, Changed);
+                     if Processed then
+                        SA_Menu_Response (V, S, T, Changed);
+                     end if;
+                  end loop;
+               end if;
+               SmartAudio.Process_Line (V.SA, Inp.Now_Ms, Inp.Control_Disabled, V.Prepend_Zero, E.Device);
                E.Consumed := Rx'Length;
             when Tramp_Device =>
                Tramp.Process (V.TR, Inp.Now_Us, Rx, Inp.Control_Disabled, E.Tramp_Tx, E.Consumed);
