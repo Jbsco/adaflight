@@ -538,6 +538,9 @@ package body Adaflight.PID_Controller with SPARK_Mode is
             if Inp.Launch_Control_Active then
                Setpoint := Launch_Setpoint (R, Inp, A);
             end if;
+            if A = Yaw and then Inp.Yaw_Spin_Detected then
+               Setpoint := 0.0;
+            end if;
             Error_Rate := Setpoint - Gyro_Rate;
             Handle_Crash_Recovery (S, R, P.Crash_Recovery, Inp, A, Gyro_Rate, Setpoint, Error_Rate);
             Previous_Iterm := S.Data (A).I;
@@ -600,6 +603,14 @@ package body Adaflight.PID_Controller with SPARK_Mode is
             end if;
             S.Previous_Gyro_Dterm (A) := Gyro_Dterm (A);
             S.Data (A).F := (if Inp.Launch_Control_Active then 0.0 else R.Coefficient (A).Kf) * Setpoint_Delta;
+            if Inp.Yaw_Spin_Detected then
+               S.Data (A).I := 0.0;
+               if A /= Yaw then
+                  S.Data (A).P := 0.0;
+                  S.Data (A).D := 0.0;
+                  S.Data (A).F := 0.0;
+               end if;
+            end if;
             if Inp.Launch_Control_Active then
                Hold_Launch_Terms (S, R.Launch_Control);
             end if;

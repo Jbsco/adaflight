@@ -1481,6 +1481,7 @@ procedure Vector_Check is
       Min_Check  : Natural range 1000 .. 2000 := 1050;
    end record;
    Mix_AP       : Mix_Modes;
+   Mix_Spin     : Boolean := False;
 
    procedure Check_Mix_Line is
       use Adaflight.PID_Profile;
@@ -1523,6 +1524,7 @@ procedure Vector_Check is
             Mix_Config.Launch_Table := Launch;
          end;
          Mix_AP := (others => <>);
+         Mix_Spin := False;
          Mix_Airmode := Str (13) = "1";
          Mix_AG := Str (14) = "1";
          Configure (Mix_Runtime, Mix_Profile, Integer'Value (Str (3)), Has_Acc => False,
@@ -1545,6 +1547,7 @@ procedure Vector_Check is
             end loop;
             Inp.Anti_Gravity_Enabled := Mix_AG;
             Inp.Launch_Control_Active := Mix_AP.Launch;
+            Inp.Yaw_Spin_Detected := Mix_Spin;
             Inp.Alt_Hold_Mode := (Mix_AP.Flags / 2 ** 3) mod 2 = 1;
             Inp.Pos_Hold_Mode := (Mix_AP.Flags / 2 ** 5) mod 2 = 1;
             Inp.GPS_Rescue_Mode := (Mix_AP.Flags / 2 ** 11) mod 2 = 1;
@@ -1554,6 +1557,7 @@ procedure Vector_Check is
             MInp.Armed := True;
             MInp.Airmode := Mix_Airmode;
             MInp.Launch_Control_Active := Mix_AP.Launch;
+            MInp.Yaw_Spin_Detected := Mix_Spin;
             MInp.Alt_Hold_Mode := Inp.Alt_Hold_Mode;
             MInp.Pos_Hold_Mode := Inp.Pos_Hold_Mode;
             MInp.GPS_Rescue_Mode := Inp.GPS_Rescue_Mode;
@@ -1583,6 +1587,9 @@ procedure Vector_Check is
                Failures := Failures + 1;
             end if;
          end;
+      elsif Name = "mixspin" then
+         Mix_Spin := Str (4) = "1";
+         Mix_AP.Launch := Str (5) = "1";
       elsif Name = "mixap" then
          Mix_AP := (Launch     => Str (4) = "1",
                     Flags      => Int (5),
@@ -21702,6 +21709,7 @@ begin
    Run (Dir & "/pidthr.csv", "pidthr");
    Run (Dir & "/mix.csv", "mix");
    Run (Dir & "/mixmodes.csv", "mix");
+   Run (Dir & "/mixspin.csv", "mix");
    Run (Dir & "/rc.csv", "rc");
    Run (Dir & "/gyro.csv", "gyro");
    Run (Dir & "/imu.csv", "imu");

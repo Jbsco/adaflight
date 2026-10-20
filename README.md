@@ -33,12 +33,12 @@ The core contains:
 </details>
 
 <details>
-<summary><b>Flight control</b> (12)</summary>
+<summary><b>Flight control</b> (7)</summary>
 
 - rate curves and RC command path with smoothing and feedforward
 - in-flight adjustments and simplified tuning of PID gains and filters
 - PID profile with runtime configuration, filter initialization, rate loop, throttle-side
-  features, crash recovery, and launch control
+  features, crash recovery, launch control, and yaw spin recovery
 - motor mixer with mixer setup: frame tables, custom mixes, launch control mix, and launch
   control, altitude hold and GPS rescue throttles
 - gyro calibration, filtering chain, dynamic notch, RPM filter, and full-scale detections
@@ -46,29 +46,14 @@ The core contains:
   altitude hold and position hold
 - failsafe state machine with rescue and autopilot stages, runtime modes with ground station
   overrides, and arming logic with launch control and runaway takeoff prevention
-- wing launch with throw detection and handover
-- core loop cadence: PID loop sample counter, filter and controller readiness, yaw reset at low
-  throttle while arming by stick
-- PID loop pass: unit order of task, with launch wing, runaway check, PID audio, servos and flight
-  log conditions
-- analog motor endpoints: output range and disarm output of PWM, OneShot, MultiShot and brushed
-  protocols, with 3D limits and deadband
-- arming load check: scheduler's late task share against configured limit as disable reason
 
 </details>
 
 <details>
-<summary><b>Sensors and estimation</b> (7)</summary>
+<summary><b>Sensors and estimation</b> (1)</summary>
 
 - accelerometer path, barometer altitude and read cycle, compass with bias calibration, battery
   meters (analog, ESC sensor, virtual, MSP) and states, and sensor and board alignment
-- rangefinder readings with median, signal ratio and tilt correction
-- optical flow readings with rotation and gyro compensation
-- pitot airspeed with zeroing and source fallback
-- internal ADC channels with supply and core temperature compensation
-- flight statistics with save gate
-- MT rangefinder and optical flow bridge: device table, distance reads, flow samples with range
-  validity
 
 </details>
 

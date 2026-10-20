@@ -91,6 +91,9 @@ package Adaflight.PID_Controller with SPARK_Mode, Pure is
       Autopilot_Angle           : Level_Targets := (others => 0.0);
       Autopilot_Max_Angle       : Natural range 0 .. 90 := 50;
       Autopilot_In_Control      : Boolean := False;
+      --  The gyro's yaw spin detection: the yaw setpoint drops to zero, the
+      --  I terms clear, and roll and pitch keep no terms.
+      Yaw_Spin_Detected         : Boolean := False;
    end record;
 
    type State is record
