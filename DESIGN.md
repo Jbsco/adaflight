@@ -6043,3 +6043,25 @@ bind capability is the same decision.
 The command line oracle links the reference's bind module with its three bind calls counted, scripts the
 receiver the board took at its start and switches the SPI protocol between the requests. Two runs of 600
 lines replay exactly.
+
+## D261. RTC6705 video transmitter (2026-10-16)
+
+`Adaflight.VTX_RTC6705` drives the RTC6705 as the reference's soft SPI build does. A frequency from 5600
+to 5950 MHz writes 400 to the reference divider register, then the frequency's divider register: its
+steps of 40 kHz, the multiple of 64 shifted above the remainder. A power index with a table value writes
+the power amplifier register, cut to the value's low byte as the reference's 8-bit parameter cuts it, held
+from one to two, full power at two. Pit mode switches the power pin off. Leaving it switches the pin on,
+waits the 350 ms boot delay and writes the stored power and frequency. The writes, the pin and the waits
+leave as operations in their order for the board to carry out over its pins; the reference bit-bangs each
+write with a millisecond per clock edge, which the board's driver need not copy.
+
+`Adaflight.VTX` gains the RTC6705 as a device kind: bands and channels reach it only as frequencies, its
+readings are its own, and the Spektrum power steps map to its two levels. The pit mode setter takes the
+table, which the RTC6705 reads on leaving pit mode. A task call hands the operations out with its events,
+and a caller that sets the device outside one takes them after. The start leaves the transmitter
+unpowered until a pit mode cycle (F224); adaflight keeps that order.
+
+The VTX control oracle adds two RTC6705 sequences: the reference's soft SPI driver and device layer as
+source over stand-in pins, with the register writes decoded from the chip select, clock and data edges and
+the power pin and the waits outside a write recorded. Every step's frequency, power index, pit mode and
+operations replay exactly, and the fourteen earlier sequences stay byte for byte.
