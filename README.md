@@ -22,10 +22,19 @@ decoder can index outside its buffer, and every motor command is in range by typ
 
 The core contains:
 
+<details>
+<summary><b>Maths and encodings</b> (2)</summary>
+
 - bounded maths with fast exponential and logarithm, filter set, three-axis vectors and rotations,
   sliding DFT, piecewise-linear tables, integrity codes, encodings, bit arrays, stream buffers,
   and Huffman encoder
 - GPS coordinate conversion, sensor alignment, color conversion, and chirp generator
+
+</details>
+
+<details>
+<summary><b>Flight control</b> (12)</summary>
+
 - rate curves and RC command path with smoothing and feedforward
 - in-flight adjustments and simplified tuning of PID gains and filters
 - PID profile with runtime configuration, filter initialization, rate loop, throttle-side
@@ -36,15 +45,50 @@ The core contains:
   altitude hold and position hold
 - failsafe state machine with rescue and autopilot stages, runtime modes with ground station
   overrides, and arming logic with launch control and runaway takeoff prevention
+- wing launch with throw detection and handover
+- core loop cadence: PID loop sample counter, filter and controller readiness, yaw reset at low
+  throttle while arming by stick
+- PID loop pass: unit order of task, with launch wing, runaway check, PID audio, servos and flight
+  log conditions
+- analog motor endpoints: output range and disarm output of PWM, OneShot, MultiShot and brushed
+  protocols, with 3D limits and deadband
+- arming load check: scheduler's late task share against configured limit as disable reason
+
+</details>
+
+<details>
+<summary><b>Sensors and estimation</b> (7)</summary>
+
 - accelerometer path, barometer altitude and read cycle, compass with bias calibration, battery
   meters (analog, ESC sensor, virtual, MSP) and states, and sensor and board alignment
+- rangefinder readings with median, signal ratio and tilt correction
+- optical flow readings with rotation and gyro compensation
+- pitot airspeed with zeroing and source fallback
+- internal ADC channels with supply and core temperature compensation
+- flight statistics with save gate
+- MT rangefinder and optical flow bridge: device table, distance reads, flow samples with range
+  validity
+
+</details>
+
+<details>
+<summary><b>Navigation</b> (5)</summary>
+
 - position Kalman filter, position estimator from barometer, accelerometer and GPS, altitude hold,
   position hold with autopilot's navigation modes, GPS rescue, and position navigation target
 - flight plan storage with waypoint capture gesture, and executor's plan queries, leg geometry,
   carrot legs, dispatch, landing, update cycle, engagement, plan injection, geofence return,
   rescue plan and descent, and waypoint distance, bearing and time
-- cooperative scheduler, beeper, and receiver's channel processing with MSP override
-- task setup: tasks enabled at boot and periods from build, features, sensors and settings
+- navigation trail with distance gate and decimation
+- GPS frame decoders for NMEA sentences and UBX messages, UBX configuration messages, and GPS link
+  with rate detection, autoconfiguration and home distances
+- GPS lap timer with averaged gate and best three laps
+
+</details>
+
+<details>
+<summary><b>Receivers</b> (10)</summary>
+
 - SBUS, CRSF, SUMD, SUMH, IBUS, Spektrum, XBUS, Jeti EX Bus, Ghost, SRXL2 and FPORT protocols, and
   MSP and MAVLink receivers
 - FrSky SPI D8 and X receivers with binding, hopping, hub data and telemetry transport
@@ -56,37 +100,35 @@ The core contains:
   receivers
 - RC statistics for full throttle time and count and average throttle
 - receiver task's state machine with step time estimates
-- MSP serial port, ExpressLRS hopping tables, telemetry link and receiver, flight log field
-  encodings, header and recorder, text conversions, and DShot protocol
-- flash filesystem for flight log, with ring buffer, erases and free space search
-- serial feature map: port function bits and baud rates from feature settings, claims, mask and
-  baud writes, conflict rule and configuration fix
+- receiver bind: CRSF, SRXL2 and SPI receivers from bind_rx command and MSP bind message
+
+</details>
+
+<details>
+<summary><b>Telemetry</b> (13)</summary>
+
 - CRSF telemetry frames with link type check, ESC sensor telemetry
 - SmartPort telemetry stream
-- RunCam device protocol with camera buttons and five key cable
 - FrSky hub telemetry stream
 - iBus telemetry sensors
 - HoTT telemetry link in binary and text modes, text mode screen for menu system
 - Ghost telemetry frames
 - race transponder codings and repeat schedule
 - SRXL telemetry frames with text generator and display port for menu system
-- FrSky OSD device link
-- LED strip with status, race and beacon profiles
-- rangefinder readings with median, signal ratio and tilt correction
-- optical flow readings with rotation and gyro compensation
-- pitot airspeed with zeroing and source fallback
-- real-time clock calendar with zone offset and ISO 8601 text
-- internal ADC channels with supply and core temperature compensation
-- flight statistics with save gate
-- wing launch with throw detection and handover
-- navigation trail with distance gate and decimation
-- GPS frame decoders for NMEA sentences and UBX messages, UBX configuration messages, and GPS link
-  with rate detection, autoconfiguration and home distances
-- video transmitter table, SmartAudio, Tramp, MSP and RTC6705 drivers, transmitter settings update
-  over all four with stick, switch and Spektrum control, and SmartAudio menu state from each
-  device response
 - LTM telemetry stream
-- GPS lap timer with averaged gate and best three laps
+- MSP tunnel over telemetry with chunked requests and replies
+- MAVLink telemetry streams with intervals and arming status text, and MAVLink commands with
+  replies and requests
+- MAVLink mission protocol with uploads, downloads, fence store and current item reports
+- Jeti EX Bus telemetry with sensor descriptions and value messages
+
+</details>
+
+<details>
+<summary><b>MSP</b> (34)</summary>
+
+- MSP serial port, ExpressLRS hopping tables, telemetry link and receiver, flight log field
+  encodings, header and recorder, text conversions, and DShot protocol
 - MSP box table with paged replies and status bits
 - MSP common replies: versions, board and build information, unique id, feature and beeper
   configuration, meters and sensors, battery and transponder configuration, OSD canvas
@@ -104,6 +146,46 @@ The core contains:
 - MSP serial port replies: available ports with baud rates in legacy and common layouts
 - MSP transmitter device status: type, readiness, band and channel, power, frequency, status,
   power levels and device block
+- MSP state replies: status, sensor readings, motors, RC channels, attitude, altitudes, battery,
+  debug values, GPS, ESC and motor telemetry, pitot, transmitter information and clock
+- MSP tuning writes: PID gains, rate tuning, arming, trims, 3D throttle, deadbands, alignments and
+  PID reset, whole-request range check
+- MSP filter and advanced writes: advanced configuration, filters and advanced PID settings with
+  gyro checks of configuration fix
+- MSP receiver writes: mode and adjustment ranges, receiver and failsafe settings, channel
+  failsafe values, RSSI channel and channel map
+- MSP hardware writes: mixer, sensors, motors, GPS, compass declination, GPS rescue and gains
+- MSP battery writes: voltage and current meters, cell voltages, capacity and meter sources
+- MSP feature writes: features, beeper and beacon conditions, beacon tone, motor output order
+- MSP blackbox write: device, sample rate from rate or frame ratio, fields left out
+- MSP servo writes: servo parameters and servo mix rules with servo and smix command bounds
+- MSP LED writes: colors, LED configurations and mode colors with command line bounds
+- MSP text writes: craft name, texts by type, LED strip values and battery profiles
+- MSP peripheral writes: wing tuning, transponder provider and data, VTX table bands and power
+  levels
+- MSP control writes: flash erase, arming switch per link, calibrations, configuration write,
+  restart into a mode, DShot commands
+- MSP OSD writes: general settings with video system switch, timers, element positions,
+  statistics, canvas
+- MSP profile writes: profile selection and copy
+- MSP VTX configuration write: band and channel or frequency, power, pit mode, table counts and
+  clearing
+- MSP runtime writes: raw receiver channels, raw GPS solution, GPS sensor solution, transmitter
+  RSSI, clock, MT sensor readings
+- MSP board writes: board information and signature set once, configuration reset with reply
+- MSP motor test: disarmed motor values converted for motor protocol
+- MSP OSD font character write: four request forms, character handed to OSD display port
+- MSP command line setting message: settings read by name, strict writes by name with new value in
+  reply
+- MSP command line setting information message: parameter group, type, range or values, default
+
+</details>
+
+<details>
+<summary><b>Configuration and command line</b> (32)</summary>
+
+- serial feature map: port function bits and baud rates from feature settings, claims, mask and
+  baud writes, conflict rule and configuration fix
 - configuration storage image: structure and version checks, record lookup, load and save
 - settings table: names, types, scopes, ranges and lookup tables of command line's 789 settings
 - configuration groups: a record per parameter group with Betaflight's defaults, every setting's
@@ -140,36 +222,39 @@ The core contains:
 - command line sensor hardware: hardware names of every sensor type or of one
 - command line DShot telemetry: driver counts, direction change time, each motor's replies, RPM
   and invalid share, decoder edge times
-- scheduler late task statistics: run and late counts per task, anticipated times, late share per
-  timing window
-- scheduler debug values: pass overhead, gyro cycle determinism, timing accuracy and debug task
-  values
 - command line tasks late columns: late and run counts and anticipated time per task
-- core loop cadence: PID loop sample counter, filter and controller readiness, yaw reset at low
-  throttle while arming by stick
-- PID loop pass: unit order of task, with launch wing, runaway check, PID audio, servos and flight
-  log conditions
-- task functions: main, serial, battery alerts, accelerometer, GPS rescue, barometer, pitot,
-  compass, position, rangefinder, optical flow, telemetry and camera control tasks over units,
-  sensor tasks rescheduled by updates
 - runtime records from stored configuration: PID profile, rate profile, gyro, arming, failsafe,
   receiver, RC command, adjustment, mixer, accelerometer, attitude, barometer, compass, battery,
   beeper, GPS link, GPS rescue, position, altitude, flight plan, blackbox, scheduler, LED strip,
   VTX, statistics, lap timer, rangefinder, optical flow, pitot, gimbal, clock, OSD, telemetry and
   receiver link settings and mode conditions with range holds, fix's postcondition as precondition
-- analog motor endpoints: output range and disarm output of PWM, OneShot, MultiShot and brushed
-  protocols, with 3D limits and deadband
-- MSP state replies: status, sensor readings, motors, RC channels, attitude, altitudes, battery,
-  debug values, GPS, ESC and motor telemetry, pitot, transmitter information and clock
-- BLHeli 4-way interface for ESC configuration through flight controller
-- gimbal control from a head tracker and sticks
-- OSD custom text from a serial port
+
+</details>
+
+<details>
+<summary><b>Scheduler and tasks</b> (9)</summary>
+
+- cooperative scheduler, beeper, and receiver's channel processing with MSP override
+- task setup: tasks enabled at boot and periods from build, features, sensors and settings
+- scheduler late task statistics: run and late counts per task, anticipated times, late share per
+  timing window
+- scheduler debug values: pass overhead, gyro cycle determinism, timing accuracy and debug task
+  values
+- task functions: main, serial, battery alerts, accelerometer, GPS rescue, barometer, pitot,
+  compass, position, rangefinder, optical flow, telemetry and camera control tasks over units,
+  sensor tasks rescheduled by updates
 - PID audio tone
 - PINIO outputs switched by boxes
 - warning LED
 - dispatch queue of delayed calls
+
+</details>
+
+<details>
+<summary><b>OSD and menus</b> (22)</summary>
+
+- OSD custom text from a serial port
 - OSD warnings line with precedence, arming reason rotation and ESC alarms
-- MSP tunnel over telemetry with chunked requests and replies
 - OSD formatting of numbers, altitudes, distances, coordinates with plus codes, clock and timers,
   with battery and direction symbols
 - MSP display port with payloads, attribute byte and canvas size
@@ -213,44 +298,24 @@ The core contains:
   menu inhibition from hooks
 - menu over CRSF: display port screen with clears, delays and transmitter commands, run-length
   chunks and clear frames in CRSF telemetry
-- arming load check: scheduler's late task share against configured limit as disable reason
-- MSP tuning writes: PID gains, rate tuning, arming, trims, 3D throttle, deadbands, alignments and
-  PID reset, whole-request range check
-- MSP filter and advanced writes: advanced configuration, filters and advanced PID settings with
-  gyro checks of configuration fix
-- MSP receiver writes: mode and adjustment ranges, receiver and failsafe settings, channel
-  failsafe values, RSSI channel and channel map
-- MSP hardware writes: mixer, sensors, motors, GPS, compass declination, GPS rescue and gains
-- MSP battery writes: voltage and current meters, cell voltages, capacity and meter sources
-- MSP feature writes: features, beeper and beacon conditions, beacon tone, motor output order
-- MSP blackbox write: device, sample rate from rate or frame ratio, fields left out
-- MSP servo writes: servo parameters and servo mix rules with servo and smix command bounds
-- MSP LED writes: colors, LED configurations and mode colors with command line bounds
-- MSP text writes: craft name, texts by type, LED strip values and battery profiles
-- MSP peripheral writes: wing tuning, transponder provider and data, VTX table bands and power
-  levels
-- MSP control writes: flash erase, arming switch per link, calibrations, configuration write,
-  restart into a mode, DShot commands
-- MSP OSD writes: general settings with video system switch, timers, element positions,
-  statistics, canvas
-- MSP profile writes: profile selection and copy
-- MSP VTX configuration write: band and channel or frequency, power, pit mode, table counts and
-  clearing
-- MSP runtime writes: raw receiver channels, raw GPS solution, GPS sensor solution, transmitter
-  RSSI, clock, MT sensor readings
-- MT rangefinder and optical flow bridge: device table, distance reads, flow samples with range
-  validity
-- MSP board writes: board information and signature set once, configuration reset with reply
-- MSP motor test: disarmed motor values converted for motor protocol
-- MSP OSD font character write: four request forms, character handed to OSD display port
-- MSP command line setting message: settings read by name, strict writes by name with new value in
-  reply
-- MSP command line setting information message: parameter group, type, range or values, default
-- receiver bind: CRSF, SRXL2 and SPI receivers from bind_rx command and MSP bind message
-- MAVLink telemetry streams with intervals and arming status text, and MAVLink commands with
-  replies and requests
-- MAVLink mission protocol with uploads, downloads, fence store and current item reports
-- Jeti EX Bus telemetry with sensor descriptions and value messages
+
+</details>
+
+<details>
+<summary><b>Peripherals and storage</b> (8)</summary>
+
+- flash filesystem for flight log, with ring buffer, erases and free space search
+- RunCam device protocol with camera buttons and five key cable
+- FrSky OSD device link
+- LED strip with status, race and beacon profiles
+- real-time clock calendar with zone offset and ISO 8601 text
+- video transmitter table, SmartAudio, Tramp, MSP and RTC6705 drivers, transmitter settings update
+  over all four with stick, switch and Spektrum control, and SmartAudio menu state from each
+  device response
+- BLHeli 4-way interface for ESC configuration through flight controller
+- gimbal control from a head tracker and sticks
+
+</details>
 
 The state of `main`:
 
