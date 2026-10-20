@@ -100,12 +100,23 @@ package Adaflight.Scheduler with SPARK_Mode is
       OSD_Custom_Text   => (Hz_1 / 100, Low, False),
       DroneCAN          => (Hz_1 / 50, Low, False));
 
+   --  The debug modes whose values the scheduler sets, by their numbers in
+   --  the reference's list, and the eight debug values.
+   Scheduler_Debug       : constant := 9;
+   Determinism_Debug     : constant := 67;
+   Timing_Accuracy_Debug : constant := 68;
+   Task_Debug            : constant := 93;
+   subtype Debug_Index is Natural range 0 .. 7;
+   type Debug_Values is array (Debug_Index) of Interfaces.Integer_16;
+
    type Settings is record
       Cycles_Per_Us  : Positive range 1 .. 1_000 := 168;
       Rx_Relax       : Natural range 0 .. 65_535 := 25;
       OSD_Relax      : Natural range 0 .. 65_535 := 25;
       Delay_Limit_Us : Delay_Limit := 10;
       Gyro_Period_Us : Period_Us := 125;
+      Debug_Mode     : Interfaces.Unsigned_8 := 0;
+      Debug_Task     : Interfaces.Unsigned_8 := 0;
    end record;
 
    subtype Dynamic_Priority is Natural range 0 .. 65_535;
@@ -163,6 +174,7 @@ package Adaflight.Scheduler with SPARK_Mode is
       Selected_Task      : Task_Id := System;
       Selected_Dynamic   : Dynamic_Priority := 0;
       Anticipated_End    : Cycles := 0;
+      Task_Exec_Us       : Unsigned_32 := 0;
    end record;
 
    type State is record
@@ -206,15 +218,25 @@ package Adaflight.Scheduler with SPARK_Mode is
       Late_Task_Percentage  : Unsigned_32 := 0;
       Next_Timing_Cycles    : Cycles := 0;
       Window_Cycles         : Unsigned_32 := 0;
+      Gyro_Cycles_Mean      : Unsigned_32 := 0;
+      Gyro_Cycles_Count     : Unsigned_32 := 0;
+      Gyro_Cycles_Total     : Interfaces.Unsigned_64 := 0;
+      Deviation_Squared     : Float := 0.0;
+      Min_Gyro_Period       : Integer_32 := Integer_32'Last;
+      Max_Gyro_Period       : Integer_32 := Integer_32'First;
+      Last_Gyro_Sync        : Cycles := 0;
+      Debug                 : Debug_Values := (others => 0);
       Pass                  : Pass_State;
    end record;
 
    --  What the gyro driver reports: whether it interrupts, how many
-   --  interrupts it has seen, and the cycle count of the last one.
+   --  interrupts it has seen, the cycle count of the last one, and whether
+   --  it syncs to a short period, which the period range counts in eighths.
    type Gyro_Status is record
       Interrupts    : Boolean := False;
       Detected      : Unsigned_32 := 0;
       Sync_Cycles   : Cycles := 0;
+      Short_Period  : Boolean := False;
    end record;
 
    function Micros_To_Cycles (C : Settings; Us : Unsigned_32) return Cycles is
@@ -320,16 +342,17 @@ package Adaflight.Scheduler with SPARK_Mode is
    --  Before_Us and After_Us the clock around the task's own run.
    procedure Execute_Begin (S : in out State; Id : Task_Id; Now_Us : Time_Us)
      with Post => S.Has_Current and then S.Current = Id;
-   procedure Execute_End (S : in out State; Before_Us : Time_Us; After_Us : Time_Us)
+   procedure Execute_End (S : in out State; C : Settings; Before_Us : Time_Us; After_Us : Time_Us)
      with Pre => S.Has_Current;
 
    --  The failsafe check runs every ten milliseconds of the realtime block.
    function Failsafe_Due (S : State; Now_Ms : Time_Ms) return Boolean;
    procedure Failsafe_Checked (S : in out State; Now_Ms : Time_Ms);
 
-   --  After the realtime tasks: the target advances, and the scheduler locks
-   --  onto the gyro's measured rate and removes the skew to its interrupts.
-   procedure End_Realtime (S : in out State; Now_Cycles : Cycles; G : Gyro_Status);
+   --  After the realtime tasks: the gyro cycle statistics with the timing
+   --  window, the target advances, and the scheduler locks onto the gyro's
+   --  measured rate and removes the skew to its interrupts.
+   procedure End_Realtime (S : in out State; C : Settings; Now_Cycles : Cycles; G : Gyro_Status);
 
    --  The second cycle reading opens the selection when the time to the
    --  target leaves room for the checks, or always without the gyro.
@@ -381,8 +404,9 @@ package Adaflight.Scheduler with SPARK_Mode is
 
    --  The fifth cycle reading after the task: the overdue margin tunes the
    --  guard, and a run receiver or display task resets its skip count.
-   procedure After_Run (S : in out State; Now_Cycles : Cycles);
+   procedure After_Run (S : in out State; C : Settings; Now_Cycles : Cycles);
 
-   procedure End_Pass (S : in out State);
+   --  The pass's end, with the clock at its start and now.
+   procedure End_Pass (S : in out State; C : Settings; Start_Us : Time_Us; Now_Us : Time_Us);
 
 end Adaflight.Scheduler;

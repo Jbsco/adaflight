@@ -1,7 +1,9 @@
 with Adaflight.Clock;
+with Adaflight.Maths;
 
 package body Adaflight.Scheduler with SPARK_Mode is
    use type Interfaces.Integer_64;
+   subtype Integer_64 is Interfaces.Integer_64;
 
    Moving_Sum_Count    : constant := 8;
    Exec_Time_Shift     : constant := 7;
@@ -27,6 +29,37 @@ package body Adaflight.Scheduler with SPARK_Mode is
 
    function To_Unsigned (I : Integer_32) return Unsigned_32 is
      (if I < 0 then Unsigned_32 (Interfaces.Integer_64 (I) + 2 ** 32) else Unsigned_32 (I));
+
+   --  Cycles in tenths and hundredths of a microsecond: the product wraps at
+   --  32 bits and the signed quotient truncates.
+   function Tenths_Us (C : Settings; Count : Integer_32) return Integer_32 is
+     (To_Signed (To_Unsigned (Count) * 10) / Integer_32 (C.Cycles_Per_Us));
+
+   function Hundredths_Us (C : Settings; Count : Integer_32) return Integer_32 is
+     (To_Signed (To_Unsigned (Count) * 100) / Integer_32 (C.Cycles_Per_Us));
+
+   --  A wrapped square of a gyro cycle deviation as a float.
+   function Square_Of (Deviation : Unsigned_32) return Float
+     with Global => null,
+          Post   => Square_Of'Result in -2.2E9 .. 2.2E9
+   is
+      Product : constant Integer_32 := To_Signed (Deviation * Deviation);
+   begin
+      return Float'Max (-2.2E9, Float'Min (2.2E9, Float (Product)));
+   end Square_Of;
+
+   --  A debug value in its 16-bit slot when the debug mode is the one named.
+   procedure Set_Debug
+     (S : in out State; C : Settings; Mode : Interfaces.Unsigned_8; Index : Debug_Index; Value : Interfaces.Integer_64)
+     with Global => null,
+          Pre    => Value in -2 ** 40 .. 2 ** 40
+   is
+      use type Interfaces.Unsigned_8;
+   begin
+      if C.Debug_Mode = Mode then
+         S.Debug (Index) := Interfaces.Integer_16 ((Value + 2 ** 15) mod 2 ** 16 - 2 ** 15);
+      end if;
+   end Set_Debug;
 
    function Static (Id : Task_Id) return Static_Priority is (Defaults (Id).Priority);
 
@@ -375,12 +408,13 @@ package body Adaflight.Scheduler with SPARK_Mode is
    -- Execute_End --
    -----------------
 
-   procedure Execute_End (S : in out State; Before_Us : Time_Us; After_Us : Time_Us) is
+   procedure Execute_End (S : in out State; C : Settings; Before_Us : Time_Us; After_Us : Time_Us) is
       Id       : constant Task_Id := S.Current;
       Now      : constant Time_Us := S.Pass.Current_Time_Us;
       Duration : constant Unsigned_32 := After_Us - Before_Us;
    begin
       S.Total_Exec_Us := S.Total_Exec_Us + Duration;
+      S.Pass.Task_Exec_Us := S.Pass.Task_Exec_Us + Duration;
       if not S.Ignore_Exec_Time then
          S.Tasks (Id).Exec_Since_States := S.Tasks (Id).Exec_Since_States + Duration;
       end if;
@@ -417,6 +451,26 @@ package body Adaflight.Scheduler with SPARK_Mode is
       end if;
       S.Tasks (Id).Total_Exec_Us := S.Tasks (Id).Total_Exec_Us + Duration;
       S.Tasks (Id).Run_Count := S.Tasks (Id).Run_Count + 1;
+      if Task_Id'Pos (Id) = Natural (C.Debug_Task) then
+         declare
+            Average_Delta : constant Unsigned_32 := S.Tasks (Id).Moving_Sum_Delta / Moving_Sum_Count;
+            Estimated     : constant Unsigned_32 := S.Tasks (Id).Exec_Time_Us;
+            Frequency     : Interfaces.Integer_64 := 0;
+         begin
+            if Average_Delta /= 0 then
+               pragma Assert (Float (Average_Delta) >= 1.0);
+               Frequency := Interfaces.Integer_64 (Maths.Round_Half_Even (1.0E7 / Float (Average_Delta)));
+            end if;
+            Set_Debug (S, C, Task_Debug, 0, Interfaces.Integer_64 (C.Debug_Task));
+            Set_Debug (S, C, Task_Debug, 1, Frequency);
+            Set_Debug (S, C, Task_Debug, 2, Interfaces.Integer_64 (S.Tasks (Id).Max_Exec_Us));
+            Set_Debug (S, C, Task_Debug, 3, Integer_64 (S.Tasks (Id).Moving_Sum_Exec / Moving_Sum_Count / 10));
+            Set_Debug (S, C, Task_Debug, 4, Interfaces.Integer_64 (Estimated));
+            Set_Debug (S, C, Task_Debug, 5, Interfaces.Integer_64 (Duration));
+            Set_Debug (S, C, Task_Debug, 6, Interfaces.Integer_64 (Estimated - Duration));
+            Set_Debug (S, C, Task_Debug, 7, Interfaces.Integer_64 (S.Tasks (Id).Late_Count));
+         end;
+      end if;
    end Execute_End;
 
    ------------------
@@ -435,13 +489,44 @@ package body Adaflight.Scheduler with SPARK_Mode is
    -- End_Realtime --
    ------------------
 
-   procedure End_Realtime (S : in out State; Now_Cycles : Cycles; G : Gyro_Status) is
+   procedure End_Realtime (S : in out State; C : Settings; Now_Cycles : Cycles; G : Gyro_Status) is
+      use type Interfaces.Unsigned_64;
+      Gyro_Cycles : constant Integer_32 := Clock.Elapsed (Now_Cycles, S.Last_Target_Cycles);
+      Deviation   : constant Unsigned_32 := To_Unsigned (Gyro_Cycles) - S.Gyro_Cycles_Mean;
    begin
       S.Pass.First_Opportunity := True;
+      S.Gyro_Cycles_Total := S.Gyro_Cycles_Total + Interfaces.Unsigned_64'Mod (Gyro_Cycles);
+      S.Gyro_Cycles_Count := S.Gyro_Cycles_Count + 1;
+      Set_Debug (S, C, Determinism_Debug, 0, Interfaces.Integer_64 (Tenths_Us (C, Gyro_Cycles)));
+      if S.Deviation_Squared in -1.0E30 .. 1.0E30 then
+         S.Deviation_Squared := S.Deviation_Squared + Square_Of (Deviation);
+      end if;
+      Set_Debug (S, C, Timing_Accuracy_Debug, 0, Interfaces.Integer_64 (S.Average_Load_Percent));
       if Clock.Elapsed (S.Next_Timing_Cycles, Now_Cycles) < 0 then
          S.Next_Timing_Cycles := S.Next_Timing_Cycles + S.Window_Cycles;
+         Set_Debug (S, C, Timing_Accuracy_Debug, 1, Interfaces.Integer_64 (S.Late_Task_Count));
+         Set_Debug (S, C, Timing_Accuracy_Debug, 2, Integer_64 (Tenths_Us (C, To_Signed (S.Late_Task_Total))));
+         Set_Debug (S, C, Timing_Accuracy_Debug, 3, Interfaces.Integer_64 (S.Window_Task_Count));
          S.Late_Task_Percentage :=
            (if S.Window_Task_Count = 0 then 0 else 1000 * S.Late_Task_Count / S.Window_Task_Count);
+         Set_Debug (S, C, Timing_Accuracy_Debug, 4, Interfaces.Integer_64 (S.Late_Task_Percentage));
+         declare
+            Mean_Square : constant Float :=
+              (if S.Gyro_Cycles_Count = 0 then 0.0 else S.Deviation_Squared / Float (S.Gyro_Cycles_Count));
+            Root        : constant Float :=
+              (if Mean_Square > 0.0 then Float'Min (Maths.Sqrt_Non_Negative (Mean_Square), 2.0 ** 30) else 0.0);
+            Deviation_Us : constant Integer_32 := Hundredths_Us (C, Integer_32 (Float'Truncation (Root)));
+         begin
+            Set_Debug (S, C, Timing_Accuracy_Debug, 7, Interfaces.Integer_64 (Deviation_Us));
+            Set_Debug (S, C, Determinism_Debug, 7, Interfaces.Integer_64 (Deviation_Us));
+         end;
+         if S.Gyro_Cycles_Count /= 0 then
+            S.Gyro_Cycles_Mean :=
+              Unsigned_32 ((S.Gyro_Cycles_Total / Interfaces.Unsigned_64 (S.Gyro_Cycles_Count)) mod 2 ** 32);
+         end if;
+         S.Deviation_Squared := 0.0;
+         S.Gyro_Cycles_Total := 0;
+         S.Gyro_Cycles_Count := 0;
          S.Late_Task_Count := 0;
          S.Late_Task_Total := 0;
          S.Window_Task_Count := 0;
@@ -469,12 +554,41 @@ package body Adaflight.Scheduler with SPARK_Mode is
                S.Skew_Sum := To_Signed (To_Unsigned (S.Skew_Sum) + To_Unsigned (Skew));
             end;
          end if;
+         declare
+            Period : Integer_32 := Clock.Elapsed (G.Sync_Cycles, S.Last_Gyro_Sync);
+         begin
+            if Period /= 0 then
+               S.Last_Gyro_Sync := G.Sync_Cycles;
+               if G.Short_Period then
+                  Period := Period / 8;
+               end if;
+               if Period < S.Min_Gyro_Period then
+                  S.Min_Gyro_Period := Period;
+               end if;
+               if Period > S.Max_Gyro_Period
+                 and then Period < To_Signed (To_Unsigned (S.Min_Gyro_Period) + To_Unsigned (S.Min_Gyro_Period / 2))
+               then
+                  S.Max_Gyro_Period := Period;
+               end if;
+            end if;
+         end;
          if S.Lock_Count_End = 0 then
             S.Lock_Count_End := G.Detected + Gyro_Lock_Count;
          end if;
          if G.Detected >= S.Lock_Count_End then
             S.Lock_Count_End := S.Lock_Count_End + Gyro_Lock_Count;
             S.Last_Target_Cycles := S.Last_Target_Cycles - To_Unsigned (S.Skew_Sum / Gyro_Lock_Count);
+            Set_Debug (S, C, Determinism_Debug, 3, Interfaces.Integer_64 (Tenths_Us (C, S.Skew_Sum / Gyro_Lock_Count)));
+            Set_Debug (S, C, Determinism_Debug, 4, Interfaces.Integer_64 (Hundredths_Us (C, S.Min_Gyro_Period)));
+            Set_Debug (S, C, Determinism_Debug, 5, Interfaces.Integer_64 (Hundredths_Us (C, S.Max_Gyro_Period)));
+            declare
+               Spread : constant Integer_32 :=
+                 To_Signed (To_Unsigned (S.Max_Gyro_Period) - To_Unsigned (S.Min_Gyro_Period));
+            begin
+               Set_Debug (S, C, Determinism_Debug, 6, Integer_64 (Hundredths_Us (C, Spread)));
+            end;
+            S.Min_Gyro_Period := Integer_32'Last;
+            S.Max_Gyro_Period := Integer_32'First;
             S.Skew_Sum := 0;
          end if;
       end if;
@@ -643,10 +757,12 @@ package body Adaflight.Scheduler with SPARK_Mode is
    -- After_Run --
    ---------------
 
-   procedure After_Run (S : in out State; Now_Cycles : Cycles) is
+   procedure After_Run (S : in out State; C : Settings; Now_Cycles : Cycles) is
       Overdue : constant Integer_32 := Clock.Elapsed (Now_Cycles, S.Pass.Anticipated_End);
    begin
       if Overdue > 0 and then S.Current /= Serial then
+         Set_Debug (S, C, Determinism_Debug, 1, Interfaces.Integer_64 (Task_Id'Pos (S.Current)));
+         Set_Debug (S, C, Determinism_Debug, 2, Interfaces.Integer_64 (Tenths_Us (C, Overdue)));
          S.Tasks (S.Current).Late_Count := S.Tasks (S.Current).Late_Count + 1;
          S.Late_Task_Count := S.Late_Task_Count + 1;
          S.Late_Task_Total := S.Late_Task_Total + To_Unsigned (Overdue);
@@ -670,8 +786,9 @@ package body Adaflight.Scheduler with SPARK_Mode is
    -- End_Pass --
    --------------
 
-   procedure End_Pass (S : in out State) is
+   procedure End_Pass (S : in out State; C : Settings; Start_Us : Time_Us; Now_Us : Time_Us) is
    begin
+      Set_Debug (S, C, Scheduler_Debug, 2, Interfaces.Integer_64 (Now_Us - Start_Us - S.Pass.Task_Exec_Us));
       S.Schedule_Count := S.Schedule_Count + 1;
    end End_Pass;
 

@@ -2181,6 +2181,7 @@ procedure Vector_Check is
    --  durations while a task or a check runs.
    Sched_State    : Adaflight.Scheduler.State;
    Sched_Settings : Adaflight.Scheduler.Settings := (Delay_Limit_Us => 1, others => <>);
+   Sched_Short    : Boolean := False;
    Sched_Clock    : Unsigned_32 := 0;
    Sched_Tasks    : array (0 .. 63) of Adaflight.Scheduler.Task_Id := (others => Adaflight.Scheduler.System);
    Sched_Task_Count : Natural := 0;
@@ -2309,7 +2310,7 @@ procedure Vector_Check is
          if E.Next_State >= 0 then
             Set_Next_State_Time (Sched_State, Time_Delta (E.Next_State));
          end if;
-         Execute_End (Sched_State, Before, Micros);
+         Execute_End (Sched_State, Sched_Settings, Before, Micros);
       end Run_Body;
 
       procedure Run_Task (T : Task_Id; Now_Us : Unsigned_32) is
@@ -2327,9 +2328,12 @@ procedure Vector_Check is
          Now      : Unsigned_32;
          Filter_Ready, PID_Ready : Boolean;
          Failsafe_Checks : Natural := 0;
+         Start_Us : Unsigned_32;
       begin
          Sched_Clock := Unsigned_32 (Int (4));
-         G := (Interrupts => Int (5) /= 0, Detected => Unsigned_32 (Int (6)), Sync_Cycles => Unsigned_32 (Int (7)));
+         Start_Us := Micros;
+         G := (Interrupts => Int (5) /= 0, Detected => Unsigned_32 (Int (6)), Sync_Cycles => Unsigned_32 (Int (7)),
+               Short_Period => Sched_Short);
          Filter_Ready := Int (8) /= 0;
          PID_Ready := Int (9) /= 0;
          Now := (if Sched_State.Gyro_Enabled then Read_Cycles else 0);
@@ -2353,7 +2357,7 @@ procedure Vector_Check is
                Failsafe_Checks := 1;
                Failsafe_Checked (Sched_State, Millis);
             end if;
-            End_Realtime (Sched_State, Now, G);
+            End_Realtime (Sched_State, Sched_Settings, Now, G);
          end if;
          Now := Read_Cycles;
          Begin_Selection (Sched_State, Sched_Settings, Now, Micros, Proceed);
@@ -2376,11 +2380,11 @@ procedure Vector_Check is
                if Run_It then
                   Run_Selected_Begin (Sched_State);
                   Run_Body (Sched_State.Current);
-                  After_Run (Sched_State, Read_Cycles);
+                  After_Run (Sched_State, Sched_Settings, Read_Cycles);
                end if;
             end if;
          end if;
-         End_Pass (Sched_State);
+         End_Pass (Sched_State, Sched_Settings, Start_Us, Micros);
          if Event_Next <= Event_Count then
             Put_Line (Name & ": the reference recorded" & Integer'Image (Event_Count - Event_Next + 1)
                       & " more events than the scheduler asked for");
@@ -2418,6 +2422,9 @@ procedure Vector_Check is
    begin
       if Name = "schedinit" then
          K := 3;
+         Sched_Settings.Debug_Mode := 0;
+         Sched_Settings.Debug_Task := 0;
+         Sched_Short := False;
          Sched_Settings.Cycles_Per_Us := Integer (Next);
          Sched_Settings.Rx_Relax := Integer (Next);
          Sched_Settings.OSD_Relax := Integer (Next);
@@ -2474,6 +2481,31 @@ procedure Vector_Check is
          begin
             Reschedule (Sched_State, Sched_Settings, Id, Time_Delta (Next));
          end;
+         Check_Fields;
+      elsif Name = "scheddbginit" then
+         K := 3;
+         Sched_Settings.Debug_Mode := Interfaces.Unsigned_8 (Next);
+         Sched_Settings.Debug_Task := Interfaces.Unsigned_8 (Task_Id'Pos (Next_Task));
+         Sched_Short := Next /= 0;
+         Check_Fields;
+      elsif Name = "scheddbg" then
+         --  The task numbers count the reference build's tasks, which leaves
+         --  out some of the full table; they compare through its task list.
+         K := 4;
+         for D in Debug_Index loop
+            declare
+               use type Interfaces.Unsigned_8;
+               Expected  : constant Integer_64 := Next;
+               Numbering : constant Boolean :=
+                 (Sched_Settings.Debug_Mode = Determinism_Debug and then D = 1)
+                 or else (Sched_Settings.Debug_Mode = Task_Debug and then D = 0);
+            begin
+               Expect ("debug",
+                       (if Numbering and then Expected in 0 .. Integer_64 (Sched_Task_Count - 1)
+                        then Integer_64 (Task_Id'Pos (Sched_Tasks (Integer (Expected)))) else Expected),
+                       Integer_64 (Sched_State.Debug (D)));
+            end;
+         end loop;
          Check_Fields;
       elsif Name = "schedtasks" then
          K := 4;
@@ -14797,7 +14829,8 @@ procedure Vector_Check is
          BB : constant Adaflight.Blackbox.Settings :=
            Adaflight.Config_Runtime.Blackbox_Settings_Of (C.Blackbox_Config, False);
          SC : constant Adaflight.Scheduler.Settings :=
-           Adaflight.Config_Runtime.Scheduler_Settings_Of (C.Scheduler_Config, 168, 10, 125);
+           Adaflight.Config_Runtime.Scheduler_Settings_Of
+             (C.Scheduler_Config, 168, 10, 125, C.System_Config.Debug_Mode);
          LS : constant Adaflight.LED_Strip.Settings :=
            Adaflight.Config_Runtime.LED_Strip_Settings_Of (C.Led_Strip_Config, C.Led_Strip_Status_Mode_Config);
          VX : constant Adaflight.VTX.Settings := Adaflight.Config_Runtime.VTX_Settings_Of (C.Vtx_Settings_Config);
@@ -14926,6 +14959,10 @@ procedure Vector_Check is
                      Integer_64 (Adaflight.Blackbox_Header.Device_Kind'Pos (BB.Device)));
          Record_Int ("conffix.scheduler_rx_relax", Integer_64 (C.Scheduler_Config.Rx_Relax_Determinism),
                      Integer_64 (SC.Rx_Relax));
+         Record_Int ("conffix.scheduler_debug_task", Integer_64 (C.Scheduler_Config.Debug_Task),
+                     Integer_64 (SC.Debug_Task));
+         Record_Int ("conffix.scheduler_debug_mode", Integer_64 (C.System_Config.Debug_Mode),
+                     Integer_64 (SC.Debug_Mode));
          Record_Int ("conffix.led_brightness",
                      Integer_64 (Interfaces.Unsigned_8'Min (100, C.Led_Strip_Config.Ledstrip_Brightness)),
                      Integer_64 (LS.Brightness));
@@ -21625,6 +21662,7 @@ begin
    Run (Dir & "/althold.csv", "althold");
    Run (Dir & "/adjust.csv", "adjust");
    Run (Dir & "/sched.csv", "sched");
+   Run (Dir & "/scheddbg.csv", "sched");
    Run (Dir & "/beeper.csv", "beeper");
    Run (Dir & "/rx.csv", "rx");
    Run (Dir & "/sbus.csv", "sbus");
