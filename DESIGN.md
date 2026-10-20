@@ -6176,3 +6176,20 @@ The PID oracle's new runs script the throttle-raised flag, altitude hold or GPS 
 the stick deflection, the RC throttle and the jerk, with a threshold in seven sequences of eight, and read
 back the disarm and the arm switch disable after each step. They replay exactly. The oracle's disarm stub
 now counts landing disarms apart from crash disarms, and the earlier vectors stay byte for byte.
+
+## D269. RPM limiter (2026-10-16)
+
+`Adaflight.Mixer` gains the RPM limiter. With the limit on, DShot telemetry running and the craft armed, it
+runs after the thrust compensation: a PID on the averaged RPM over the limit, whose positive output comes off
+the throttle, and a throttle scale that falls while the RPM is over the limit below the maximum check, and
+rises while the output is below -400 times the loop period at the maximum check with no motor at the
+maximum throttle. A filtered offset follows the limit over the motors' estimated top RPM from the KV and the
+battery voltage. With the limit on, the throttle limit stays off. The mixer's profile sets the gains from
+the settings and the loop time, and arming resets the I term and the scale. The I term is held under 1e30,
+which no flight reaches, so that the prover can bound it.
+
+The PID oracle builds with the F405 build's RPM limiter, and the existing vectors stay byte for byte. New
+mixer runs switch the limit on in seven runs of eight and script its settings, the KV, the maximum throttle
+and the maximum check, which the oracle's zero-filled motor and receiver groups otherwise leave at 0; they
+reset the limiter as at arming and feed the averaged RPM and the battery voltage every loop. They replay
+exactly.

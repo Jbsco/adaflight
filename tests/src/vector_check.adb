@@ -1503,6 +1503,9 @@ procedure Vector_Check is
    end record;
    Mix_AP       : Mix_Modes;
    Mix_Spin     : Boolean := False;
+   Mix_DShot    : Boolean := False;
+   Mix_RPM      : Float := 0.0;
+   Mix_Vbat     : Interfaces.Unsigned_16 := 0;
 
    procedure Check_Mix_Line is
       use Adaflight.PID_Profile;
@@ -1546,6 +1549,9 @@ procedure Vector_Check is
          end;
          Mix_AP := (others => <>);
          Mix_Spin := False;
+         Mix_DShot := False;
+         Mix_RPM := 0.0;
+         Mix_Vbat := 0;
          Mix_Airmode := Str (13) = "1";
          Mix_AG := Str (14) = "1";
          Configure (Mix_Runtime, Mix_Profile, Integer'Value (Str (3)), Has_Acc => False,
@@ -1579,6 +1585,9 @@ procedure Vector_Check is
             MInp.Airmode := Mix_Airmode;
             MInp.Launch_Control_Active := Mix_AP.Launch;
             MInp.Yaw_Spin_Detected := Mix_Spin;
+            MInp.DShot_Telemetry := Mix_DShot;
+            MInp.RPM_Average := Mix_RPM;
+            MInp.Battery_Voltage := Mix_Vbat;
             MInp.Alt_Hold_Mode := Inp.Alt_Hold_Mode;
             MInp.Pos_Hold_Mode := Inp.Pos_Hold_Mode;
             MInp.GPS_Rescue_Mode := Inp.GPS_Rescue_Mode;
@@ -1608,6 +1617,22 @@ procedure Vector_Check is
                Failures := Failures + 1;
             end if;
          end;
+      elsif Name = "mixrpminit" then
+         Mix_Config.RPM_Limit := Str (3) = "1";
+         Mix_Config.RPM_Limit_Value := Integer (Int (4));
+         Mix_Config.RPM_Limit_P := Integer (Int (5));
+         Mix_Config.RPM_Limit_I := Integer (Int (6));
+         Mix_Config.RPM_Limit_D := Integer (Int (7));
+         Mix_DShot := Str (8) = "1";
+         Mix_Config.Motor_KV := Integer (Int (9));
+         Mix_Config.Max_Check := Integer (Int (10));
+         Mix_Vbat := Interfaces.Unsigned_16 (Int (11));
+         Mix_Config.Max_Throttle := Integer (Int (12));
+         Init_RPM_Limiter (Mix_State, Mix_Config, Mix_Runtime, Mix_Vbat);
+         Reset_RPM_Limiter (Mix_State, Mix_Config, Mix_Vbat);
+      elsif Name = "mixrpm" then
+         Mix_RPM := Flt (4);
+         Mix_Vbat := Interfaces.Unsigned_16 (Int (5));
       elsif Name = "mixspin" then
          Mix_Spin := Str (4) = "1";
          Mix_AP.Launch := Str (5) = "1";
@@ -21738,6 +21763,7 @@ begin
    Run (Dir & "/mix.csv", "mix");
    Run (Dir & "/mixmodes.csv", "mix");
    Run (Dir & "/mixspin.csv", "mix");
+   Run (Dir & "/mixrpm.csv", "mix");
    Run (Dir & "/rc.csv", "rc");
    Run (Dir & "/gyro.csv", "gyro");
    Run (Dir & "/imu.csv", "imu");

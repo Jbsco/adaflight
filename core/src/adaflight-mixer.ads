@@ -9,6 +9,7 @@ with Adaflight.Maths; use Adaflight.Maths;
 with Adaflight.PID_Profile; use Adaflight.PID_Profile;
 with Adaflight.PID_Config; use Adaflight.PID_Config;
 with Adaflight.PID_Controller;
+with Adaflight.Filters;
 
 package Adaflight.Mixer with SPARK_Mode, Pure is
 
@@ -56,6 +57,17 @@ package Adaflight.Mixer with SPARK_Mode, Pure is
       Motor_Stop             : Boolean := False;
       Min_Check              : Natural range 1000 .. 2000 := 1050;
       Launch_Table           : Mix_Table := Quad_X;
+      --  The RPM limiter: whether it runs, its limit in RPM, its P, I and D
+      --  settings, the motor KV, the motors' maximum output, and the stick's
+      --  maximum check.
+      RPM_Limit              : Boolean := False;
+      RPM_Limit_Value        : Positive range 1 .. 65_535 := 18_000;
+      RPM_Limit_P            : Natural range 0 .. 100 := 25;
+      RPM_Limit_I            : Natural range 0 .. 1_000 := 10;
+      RPM_Limit_D            : Natural range 0 .. 100 := 8;
+      Motor_KV               : Positive range 1 .. 40_000 := 1_960;
+      Max_Throttle           : Natural range 750 .. 2_250 := 2_000;
+      Max_Check              : Natural range 750 .. 2_250 := 1_900;
    end record
      with Dynamic_Predicate =>
        Config.Output_Low < Config.Output_High and then Config.Disarm_Output <= Config.Output_High;
@@ -84,6 +96,11 @@ package Adaflight.Mixer with SPARK_Mode, Pure is
       --  The gyro's yaw spin detection lifts the yaw sum limit to its
       --  largest and, without airmode, sets half throttle.
       Yaw_Spin_Detected         : Boolean := False;
+      --  The RPM limiter reads whether the motors report DShot telemetry,
+      --  their averaged RPM, and the battery voltage in centivolts.
+      DShot_Telemetry           : Boolean := False;
+      RPM_Average               : Float range 0.0 .. 2.0E9 := 0.0;
+      Battery_Voltage           : Interfaces.Unsigned_16 := 0;
    end record;
 
    type State is record
@@ -93,7 +110,25 @@ package Adaflight.Mixer with SPARK_Mode, Pure is
       Mix_Range               : Signal := 0.0;
       Dyn_LPF_Last_Update_Us  : Unsigned_32 := 0;
       Dyn_LPF_Previous_Step   : Integer range -1 .. Dyn_LPF_Throttle_Steps := -1;
+      Limiter_P_Gain          : Float range 0.0 .. 0.002 := 0.0;
+      Limiter_I_Gain          : Float range 0.0 .. 0.2 := 0.0;
+      Limiter_D_Gain          : Float range 0.0 .. 40.0 := 0.0;
+      Limiter_I               : Float range 0.0 .. 1.0E30 := 0.0;
+      Limiter_Scale           : Unit_Interval := 1.0;
+      Limiter_Initial_Scale   : Unit_Interval := 1.0;
+      Limiter_Previous_Error  : Float range -2.0 ** 33 .. 2.0 ** 33 := 0.0;
+      Limiter_Average         : Filters.PT1;
+      Limiter_Offset          : Filters.PT1;
    end record;
+
+   --  The RPM limiter as the mixer's profile sets it up: its gains from the
+   --  settings and the loop time, its filters, and the reset.
+   procedure Init_RPM_Limiter
+     (S : in out State; C : Config; R : Runtime; Battery_Voltage : Interfaces.Unsigned_16);
+
+   --  The limiter's reset at arming: no I term, and the throttle scale of
+   --  the limit over the motors' estimated top RPM.
+   procedure Reset_RPM_Limiter (S : in out State; C : Config; Battery_Voltage : Interfaces.Unsigned_16);
 
    --  One loop of the mixer after the controller, with the throttle-side
    --  updates the controller and filters take from the mixer.
