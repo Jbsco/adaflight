@@ -3586,9 +3586,10 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Beeper_Command_Word, Board_Name_Command_Word, Defaults_Command_Word, Manufacturer_Id_Command_Word,
       Signature_Command_Word, Color_Command_Word, Diff_Command, Dump_Command, Feature_Command_Word, Get_Command,
       Led_Command_Word, Map_Command_Word, Mode_Color_Command_Word, Mixer_Command_Word, Motor_Mix_Command_Word,
-      Profile_Command, Rate_Profile_Command, Rx_Failsafe_Command, MCU_Id_Command_Word, Rx_Range_Command,
-      Serial_Command_Word, Servo_Command_Word, Servo_Mix_Command_Word, Set_Command, Simplified_Tuning_Command_Word,
-      Tasks_Command_Word, Version_Command_Word, Vtx_Command_Word, Vtx_Table_Command_Word, Waypoint_Command_Word);
+      Profile_Command, Rate_Profile_Command, Rc_Smoothing_Info_Command_Word, Rx_Failsafe_Command, MCU_Id_Command_Word,
+      Rx_Range_Command, Serial_Command_Word, Servo_Command_Word, Servo_Mix_Command_Word, Set_Command,
+      Simplified_Tuning_Command_Word, Tasks_Command_Word, Version_Command_Word, Vtx_Command_Word, Vtx_Info_Command_Word,
+      Vtx_Table_Command_Word, Waypoint_Command_Word);
    subtype Known_Command is Command_Kind range Adjustment_Range_Command_Word .. Waypoint_Command_Word;
 
    function Command_Word (K : Known_Command) return String is
@@ -3618,6 +3619,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when Motor_Mix_Command_Word => "mmix",
          when Profile_Command => "profile",
          when Rate_Profile_Command => "rateprofile",
+         when Rc_Smoothing_Info_Command_Word => "rc_smoothing_info",
          when Rx_Failsafe_Command => "rxfail",
          when Rx_Range_Command => "rxrange",
          when Serial_Command_Word => "serial",
@@ -3628,6 +3630,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when Tasks_Command_Word => "tasks",
          when Version_Command_Word => "version",
          when Vtx_Command_Word => "vtx",
+         when Vtx_Info_Command_Word => "vtx_info",
          when Vtx_Table_Command_Word => "vtxtable",
          when Waypoint_Command_Word => "waypoint")
      with Post => Command_Word'Result'Length in 1 .. 20;
@@ -3997,6 +4000,47 @@ package body Adaflight.Command_Line with SPARK_Mode is
    begin
       Put (Into, "mcu_id " & Hex_Text (Id (1), 8) & Hex_Text (Id (2), 8) & Hex_Text (Id (3), 8) & CRLF);
    end Put_MCU_Id;
+
+   --  vtx_info: each power level the transmitter reports with its power, or
+   --  an error without a transmitter or without levels.
+   procedure Vtx_Info_Command (Into : in out Output; Present : Boolean; Report : Power_Levels)
+     with Global => null
+   is
+   begin
+      if not Present then
+         Put_Error (Into, "vtx_info: NO VTX###" & CRLF);
+      elsif Report.Count = 0 then
+         Put_Error (Into, "vtx_info: NO POWER VALUES DEFINED###" & CRLF);
+      else
+         for I in 1 .. Report.Count loop
+            Put (Into, "level " & Decimal (Integer_64 (Report.Levels (I))) & " dBm, power "
+                       & Decimal (Integer_64 (Report.Powers (I))) & " mW" & CRLF);
+         end loop;
+      end if;
+   end Vtx_Info_Command;
+
+   --  rc_smoothing_info: the receiver's frame rate rounded to the nearest
+   --  whole Hz, whether RC smoothing is on, and when it is, each running
+   --  cutoff with whether its setting fixed it.
+   procedure Rc_Smoothing_Info_Command (Into : in out Output; Smoothing_On : Boolean; Status : Smoothing_Status)
+     with Global => null
+   is
+      function Origin (Manual : Boolean) return String is (if Manual then "(manual)" else "(auto)");
+   begin
+      if Status.Rate_Valid then
+         Put (Into, "# Detected Rx frequency: " & Decimal (Integer_64 (Maths.Round_Half_Even (Status.Rate_Hz))) & "Hz"
+                    & CRLF);
+      else
+         Put (Into, "# Detected Rx frequency: NO SIGNAL" & CRLF);
+      end if;
+      Put (Into, "# RC Smoothing: " & (if Smoothing_On then "ON" else "OFF") & CRLF);
+      if Smoothing_On then
+         Put (Into, "# Active setpoint and FF cutoff: " & Decimal (Integer_64 (Status.Setpoint_Cutoff_Hz)) & "Hz "
+                    & Origin (Status.Setpoint_Manual) & CRLF);
+         Put (Into, "# Active throttle cutoff: " & Decimal (Integer_64 (Status.Throttle_Cutoff_Hz)) & "Hz "
+                    & Origin (Status.Throttle_Manual) & CRLF);
+      end if;
+   end Rc_Smoothing_Info_Command;
 
    --  A signature as 64 hexadecimal digits.
    procedure Put_Signature_Digits (Into : in out Output; Signature : Signature_Bytes) is
@@ -4450,6 +4494,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
             Profile_Command (Into, C, PID, Text_At (Buffer, Arguments), Changes);
          when Rate_Profile_Command =>
             Profile_Command (Into, C, Rate, Text_At (Buffer, Arguments), Changes);
+         when Rc_Smoothing_Info_Command_Word =>
+            Rc_Smoothing_Info_Command (Into, C.Rx_Config.Rc_Smoothing /= 0, Env.Smoothing);
          when Rx_Failsafe_Command =>
             Failsafe_Command (Into, C, Text_At (Buffer, Arguments));
          when Rx_Range_Command =>
@@ -4473,6 +4519,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when Vtx_Command_Word =>
             Vtx_Command
               (Into, C.Vtx_Config.Vtx_Channel_Activation_Conditions, C.Vtx_Table_Config, Text_At (Buffer, Arguments));
+         when Vtx_Info_Command_Word =>
+            Vtx_Info_Command (Into, Env.VTX_Present, Env.VTX_Power);
          when Vtx_Table_Command_Word =>
             Vtx_Table_Command (Into, C.Vtx_Table_Config, Text_At (Buffer, Arguments));
          when Waypoint_Command_Word =>

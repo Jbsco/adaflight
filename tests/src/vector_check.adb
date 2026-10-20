@@ -15035,7 +15035,10 @@ procedure Vector_Check is
       Revision        => CLI.To_Identity ("0123abc"),
       MCU_Id          => (0, 1, 2),
       Now_Us          => 0,
-      Debug_Mode      => 0);
+      Debug_Mode      => 0,
+      VTX_Present     => False,
+      VTX_Power       => <>,
+      Smoothing       => <>);
    CLI_Env      : CLI.Environment := CLI_Identity;
    CLI_Board    : CLI.Board_State;
    CLI_Reply    : CLI.Output;
@@ -15250,6 +15253,21 @@ procedure Vector_Check is
                if Word (Command, 4) /= "0" then
                   MSP_VTX_Running := Adaflight.VTX_Table_Store.Running (CLI_Config.Vtx_Table_Config);
                end if;
+               CLI_Env.VTX_Present := Word (Command, 1) /= "0";
+            elsif Word (Command, 0) = "!vtxlevels" then
+               CLI_Env.VTX_Power.Count := CLI.Power_Level_Count'Value (Word (Command, 1));
+               for I in 1 .. CLI_Env.VTX_Power.Count loop
+                  CLI_Env.VTX_Power.Levels (I) := Interfaces.Unsigned_16'Value (Word (Command, 2 * I));
+                  CLI_Env.VTX_Power.Powers (I) := Interfaces.Unsigned_16'Value (Word (Command, 2 * I + 1));
+               end loop;
+            elsif Word (Command, 0) = "!rcsmooth" then
+               CLI_Env.Smoothing :=
+                 (Rate_Valid         => Word (Command, 1) /= "0",
+                  Rate_Hz            => To_Float (Unsigned_32'Value ("16#" & Word (Command, 2) & "#")),
+                  Setpoint_Manual    => Word (Command, 3) /= "0",
+                  Setpoint_Cutoff_Hz => Interfaces.Unsigned_16'Value (Word (Command, 4)),
+                  Throttle_Manual    => Word (Command, 5) /= "0",
+                  Throttle_Cutoff_Hz => Interfaces.Unsigned_16'Value (Word (Command, 6)));
             elsif Word (Command, 0) = "!mspctl" then
                MSP_Board.Armed := Word (Command, 1) /= "0";
                MSP_Board.Source := Adaflight.MSP_Control_In.Link'Value (Word (Command, 2));
@@ -21508,6 +21526,7 @@ begin
    Run (Dir & "/mspindev.csv", "cliset");
    Run (Dir & "/mspingps.csv", "cliset");
    Run (Dir & "/mspinmt.csv", "cliset");
+   Run (Dir & "/cliinfo.csv", "cliset");
    Run (Dir & "/clisave.csv", "cliset");
    if Settings_Seen /= Adaflight.Settings_Table.Setting'Pos (Adaflight.Settings_Table.Setting'Last) + 1 then
       Put_Line ("settings: the vectors hold" & Settings_Seen'Image & " settings");

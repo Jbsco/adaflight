@@ -10,6 +10,8 @@
 --  show or set the board's information; batch brackets a command batch and
 --  reports an error printed inside it; tasks lists every queued task's rate
 --  and, with task statistics on, its times and loads, and resets the peaks;
+--  vtx_info lists the video transmitter's power levels and rc_smoothing_info
+--  the receiver's frame rate and the running RC smoothing cutoffs;
 --  save, exit and defaults without nosave ask for the configuration's write,
 --  the board's restart or the command line's end. A line naming no command
 --  gets the ERR_CMD_NA reply.
@@ -113,10 +115,36 @@ package Adaflight.Command_Line with SPARK_Mode is
    type MCU_Words is array (1 .. 3) of Interfaces.Unsigned_32;
    subtype Signature_Bytes is Board_Info.Signature_Bytes;
 
+   --  The power levels the video transmitter reports, up to eight, each a
+   --  level in dBm with its power in mW.
+   Max_Power_Levels : constant := 8;
+   subtype Power_Level_Count is Natural range 0 .. Max_Power_Levels;
+   type Power_Values is array (1 .. Max_Power_Levels) of Interfaces.Unsigned_16;
+   type Power_Levels is record
+      Count  : Power_Level_Count := 0;
+      Levels : Power_Values := (others => 0);
+      Powers : Power_Values := (others => 0);
+   end record;
+
+   --  The running RC smoothing as rc_smoothing_info reports it: whether the
+   --  receiver's frame rate is valid, the rate in Hz, and each cutoff in Hz
+   --  with whether its setting fixed it.
+   subtype Frame_Rate_Hz is Float range 15.0 .. 1250.0;
+   type Smoothing_Status is record
+      Rate_Valid         : Boolean := False;
+      Rate_Hz            : Frame_Rate_Hz := 1250.0;
+      Setpoint_Cutoff_Hz : Interfaces.Unsigned_16 := 0;
+      Setpoint_Manual    : Boolean := False;
+      Throttle_Cutoff_Hz : Interfaces.Unsigned_16 := 0;
+      Throttle_Manual    : Boolean := False;
+   end record;
+
    --  What the commands report from outside the configuration: the flight
    --  plan executor's state, the firmware's name, the target's name, the
    --  version, the build's date, time and revision, the MCU's unique id, the
-   --  clock in microseconds as the command runs, and the running debug mode.
+   --  clock in microseconds as the command runs, the running debug mode,
+   --  whether a video transmitter is present with the power levels it
+   --  reports, and the running RC smoothing.
    type Environment is record
       Navigation      : Navigation_Status;
       Firmware        : Identity_Text;
@@ -128,6 +156,9 @@ package Adaflight.Command_Line with SPARK_Mode is
       MCU_Id          : MCU_Words := (others => 0);
       Now_Us          : Interfaces.Unsigned_32 := 0;
       Debug_Mode      : Interfaces.Unsigned_8 := 0;
+      VTX_Present     : Boolean := False;
+      VTX_Power       : Power_Levels;
+      Smoothing       : Smoothing_Status;
    end record;
 
    --  The board's information as the commands see it: its name and
