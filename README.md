@@ -137,6 +137,8 @@ The core contains:
 - command line information: VTX power levels, receiver frame rate and RC smoothing cutoffs
 - command line motors and sounds: disarmed values for one or every motor, beeper table sounds
 - command line sensor hardware: hardware names of every sensor type or of one
+- command line DShot telemetry: driver counts, direction change time, each motor's replies, RPM
+  and invalid share, decoder edge times
 - scheduler late task statistics: run and late counts per task, anticipated times, late share per
   timing window
 - command line tasks late columns: late and run counts and anticipated time per task
@@ -249,7 +251,7 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 27935 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 28017 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
 - Recorded vectors replay bit for bit: 1753568 lines over 384 cases, every case exact except
   forty-seven declared deviations in `DESIGN.md` D6.
