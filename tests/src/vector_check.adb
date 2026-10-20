@@ -145,6 +145,7 @@ with Adaflight.MSP_VTX_In;
 with Adaflight.MSP_Runtime_In;
 with Adaflight.MT_Sensor;
 with Adaflight.MSP_Board_In;
+with Adaflight.MSP_CLI_Setting;
 with Adaflight.MSP_Motor_In;
 with Adaflight.MSP_Font_In;
 with Adaflight.VTX_Table_Store;
@@ -15078,6 +15079,7 @@ procedure Vector_Check is
    MT_Reads            : Boolean := False;
    MSP_Board_Effects   : Adaflight.MSP_Board_In.Effects;
    MSP_Motor_Effects   : Adaflight.MSP_Motor_In.Effects;
+   MSP_Setting_Reply   : Adaflight.MSP_CLI_Setting.Reply_Text;
    MSP_Motor_Kind      : Adaflight.MSP_Motor_In.Device_Kind := Adaflight.MSP_Motor_In.No_Device;
    MSP_Motors          : Adaflight.MSP_Motor_In.Motor_Count := 0;
    MSP_Three_D         : Boolean := False;
@@ -15316,6 +15318,7 @@ procedure Vector_Check is
                   MSP_Runtime_Effects := Adaflight.MSP_Runtime_In.No_Effects;
                   MSP_Board_Effects := Adaflight.MSP_Board_In.No_Effects;
                   MSP_Motor_Effects := Adaflight.MSP_Motor_In.No_Effects;
+                  MSP_Setting_Reply := (Length => 0, Text => (others => ' '));
                   MSP_Font_Effects := Adaflight.MSP_Font_In.No_Effects;
                   if Adaflight.MSP_Tuning_In.Handles (Cmd) then
                      Adaflight.MSP_Tuning_In.Process
@@ -15342,6 +15345,18 @@ procedure Vector_Check is
                           (Request, MSP_Motors, MSP_Motor_Kind, MSP_Three_D, Motor_Result, MSP_Motor_Effects);
                         MSP_In_Result :=
                           (if Motor_Result = Adaflight.MSP_Motor_In.Ack then Adaflight.MSP_Tuning_In.Ack
+                           else Adaflight.MSP_Tuning_In.Error);
+                        MSP_In_Ran := True;
+                     end;
+                  elsif Adaflight.MSP_CLI_Setting.Handles (Cmd) then
+                     declare
+                        use type Adaflight.MSP_CLI_Setting.Result;
+                        Setting_Result : Adaflight.MSP_CLI_Setting.Result;
+                     begin
+                        Adaflight.MSP_CLI_Setting.Process
+                          (CLI_Config, Request, Ports, Setting_Result, MSP_Setting_Reply);
+                        MSP_In_Result :=
+                          (if Setting_Result = Adaflight.MSP_CLI_Setting.Ack then Adaflight.MSP_Tuning_In.Ack
                            else Adaflight.MSP_Tuning_In.Error);
                         MSP_In_Ran := True;
                      end;
@@ -15653,6 +15668,18 @@ procedure Vector_Check is
             Record_Int ("msp.font_updated", Int (5), Boolean'Pos (E.Write and then MSP_OSD_Port_Takes));
             for I in 0 .. E.Size - 1 loop
                Record_Int ("msp.font_byte", Int (6 + I), Integer_64 (E.Data (I)));
+            end loop;
+         end;
+      elsif Str (1) = "clrb" then
+         declare
+            Hex      : constant String := Str (3);
+            Expected : constant Natural := (if Hex = "-" then 0 else Hex'Length / 2);
+         begin
+            Record_Int ("msp.setting_length", Integer_64 (Expected), Integer_64 (MSP_Setting_Reply.Length));
+            for K in 1 .. Natural'Min (Expected, MSP_Setting_Reply.Length) loop
+               Record_Int ("msp.setting_text",
+                           Integer_64'Value ("16#" & Hex (Hex'First + 2 * (K - 1) .. Hex'First + 2 * K - 1) & "#"),
+                           Integer_64 (Character'Pos (MSP_Setting_Reply.Text (K))));
             end loop;
          end;
       elsif Str (1) = "clmd" then
@@ -21572,6 +21599,7 @@ begin
    Run (Dir & "/cliinfo.csv", "cliset");
    Run (Dir & "/climotor.csv", "cliset");
    Run (Dir & "/clisensor.csv", "cliset");
+   Run (Dir & "/mspclisetting.csv", "cliset");
    Run (Dir & "/clisave.csv", "cliset");
    if Settings_Seen /= Adaflight.Settings_Table.Setting'Pos (Adaflight.Settings_Table.Setting'Last) + 1 then
       Put_Line ("settings: the vectors hold" & Settings_Seen'Image & " settings");
