@@ -1506,6 +1506,11 @@ procedure Vector_Check is
    Mix_DShot    : Boolean := False;
    Mix_RPM      : Float := 0.0;
    Mix_Vbat     : Interfaces.Unsigned_16 := 0;
+   Mix_Flip     : Boolean := False;
+   Mix_Flip_Acc : Boolean := False;
+   Mix_Tilt     : Float := 1.0;
+   Mix_Defl     : Adaflight.Mixer.Axis_Deflections := (others => 0.0);
+   Mix_Defl_Abs : Adaflight.Mixer.Axis_Magnitudes := (others => 0.0);
 
    procedure Check_Mix_Line is
       use Adaflight.PID_Profile;
@@ -1552,6 +1557,11 @@ procedure Vector_Check is
          Mix_DShot := False;
          Mix_RPM := 0.0;
          Mix_Vbat := 0;
+         Mix_Flip := False;
+         Mix_Flip_Acc := False;
+         Mix_Tilt := 1.0;
+         Mix_Defl := (others => 0.0);
+         Mix_Defl_Abs := (others => 0.0);
          Mix_Airmode := Str (13) = "1";
          Mix_AG := Str (14) = "1";
          Configure (Mix_Runtime, Mix_Profile, Integer'Value (Str (3)), Has_Acc => False,
@@ -1588,6 +1598,12 @@ procedure Vector_Check is
             MInp.DShot_Telemetry := Mix_DShot;
             MInp.RPM_Average := Mix_RPM;
             MInp.Battery_Voltage := Mix_Vbat;
+            MInp.Crash_Flip_Active := Mix_Flip;
+            MInp.Deflection := Mix_Defl;
+            MInp.Deflection_Abs := Mix_Defl_Abs;
+            MInp.Gyro := Inp.Gyro;
+            MInp.Acc_Present := Mix_Flip_Acc;
+            MInp.Cos_Tilt := Mix_Tilt;
             MInp.Alt_Hold_Mode := Inp.Alt_Hold_Mode;
             MInp.Pos_Hold_Mode := Inp.Pos_Hold_Mode;
             MInp.GPS_Rescue_Mode := Inp.GPS_Rescue_Mode;
@@ -1633,6 +1649,17 @@ procedure Vector_Check is
       elsif Name = "mixrpm" then
          Mix_RPM := Flt (4);
          Mix_Vbat := Interfaces.Unsigned_16 (Int (5));
+      elsif Name = "mixflipinit" then
+         Mix_Config.Crashflip_Rate := Integer (Int (3));
+         Mix_Config.Crashflip_Motor_Percent := Integer (Int (4));
+         Mix_Flip_Acc := Str (5) = "1";
+      elsif Name = "mixflip" then
+         Mix_Flip := Str (4) = "1";
+         Mix_Tilt := Flt (5);
+         for A in Adaflight.Axes.Axis loop
+            Mix_Defl_Abs (A) := abs Flt (6 + Adaflight.Axes.Axis'Pos (A));
+            Mix_Defl (A) := Flt (9 + Adaflight.Axes.Axis'Pos (A));
+         end loop;
       elsif Name = "mixspin" then
          Mix_Spin := Str (4) = "1";
          Mix_AP.Launch := Str (5) = "1";
@@ -21764,6 +21791,7 @@ begin
    Run (Dir & "/mixmodes.csv", "mix");
    Run (Dir & "/mixspin.csv", "mix");
    Run (Dir & "/mixrpm.csv", "mix");
+   Run (Dir & "/mixflip.csv", "mix");
    Run (Dir & "/rc.csv", "rc");
    Run (Dir & "/gyro.csv", "gyro");
    Run (Dir & "/imu.csv", "imu");

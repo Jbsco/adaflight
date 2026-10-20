@@ -297,6 +297,11 @@ ledger. The deviations so far:
   reference reads zero from a reset copy whose reset function sets the stats on the live
   configuration instead, and so turns them back on there (F223). The harness checks both replies for
   that setting.
+- During a crash flip the mixer leaves out its anti-gravity throttle update, and the controller
+  multiplies the last throttle derivative by the anti-gravity gain every loop (D270, F228). The
+  reference's value leaves the float range within 44 loops. Adaflight's saturates at 2^24 x 251, and
+  the P and I terms at their bounds. The crash flip vectors keep anti-gravity off, so the two agree on
+  every step.
 
 ## D7. Contribution conventions (2026-10-08)
 
@@ -6193,3 +6198,29 @@ mixer runs switch the limit on in seven runs of eight and script its settings, t
 and the maximum check, which the oracle's zero-filled motor and receiver groups otherwise leave at 0; they
 reset the limiter as at arming and feed the averaged RPM and the battery voltage every loop. They replay
 exactly.
+
+## D270. Crash flip mixing (2026-10-16)
+
+`Adaflight.Mixer` gains the crash flip. While the mode is on, the mixer takes the throttle as before,
+then drives the motors itself and leaves out the throttle-side updates and the mix. The direction comes
+from the stick deflections the controller reads, smoothed with RC smoothing on, and the strength from
+the magnitudes of the raw deflections. The yaw stick leads when its deflection exceeds both roll and
+pitch. Otherwise the roll and pitch vector leads, and more than 30 degrees off the diagonal it keeps
+only its larger axis. A strength at or below 0.15 gives no drive. With a crash flip rate set, the drive
+falls off past half the rate limit in roll or pitch rate and, with the accelerometer, as the cosine of
+the tilt moves more than 0.5 from its value where the flip started. Each motor takes its share from its
+mix weights, the motors on the far side at the set percentage of their reversed share, and a drive under
+2 percent gives the disarm output. The reference's flip success flag is written and read nowhere, and is
+not kept.
+
+The cosine of the stick's angle from the diagonal is taken above a length of 1e-30, where the reference
+takes it above zero, so that the prover can bound the quotient. A roll and pitch length is zero or above
+the root of the smallest float, about 3.7e-23, and a leading yaw stick has already cleared the signs this
+cosine can clear, so the two agree. The motor output is the low end plus the drive's share of the range
+without a clamp, as in the reference, which can land one rounding above the high end. The mixer's
+postcondition bounds the motors by the high end outside the flip and by the motor value range during
+it.
+
+The PID oracle's mixer runs script the flip in twenty-loop blocks, the crash flip rate and motor
+percentage, the accelerometer flag around the mixer, the tilt, and the raw and smoothed deflections, with
+anti-gravity off (D6). The existing vectors stay byte for byte, and the new runs replay exactly.
