@@ -302,6 +302,11 @@ ledger. The deviations so far:
   reference's value leaves the float range within 44 loops. Adaflight's saturates at 2^24 x 251, and
   the P and I terms at their bounds. The crash flip vectors keep anti-gravity off, so the two agree on
   every step.
+- The top of the motor range holds at its low end where the sag compensation would lower it past there
+  (D273, F229). With a full pack and a warning cell voltage under 4.20 V x (1 - 1 / factor), the
+  reference's top falls below the low end, and below zero near the DShot minimum, and its clamp sends
+  some motors to that top. The sag vectors keep the attenuation at or below one, so the two agree on
+  every step.
 
 ## D7. Contribution conventions (2026-10-08)
 
@@ -6249,4 +6254,19 @@ The ESC sensor's voltage leaves it as it was, and the meter without a source res
 The battery oracle builds with the F405 build's sag compensation and RPM limit, and the existing vectors
 stay byte for byte. New runs script every profile's sag compensation, the RPM limit and the sag filter's
 period. They check the flag, the sag-filtered voltage and its cell voltage at every step, and replay
+exactly.
+
+## D273. Mixer sag compensation (2026-10-16)
+
+`Adaflight.Mixer` gains the battery sag compensation. With the PID profile's compensation above zero, the
+RPM limit off and a warning cell voltage below 4.20 V, the top of the motor range comes down from the high
+end by an attenuation of the output range. The attenuation is the range from 4.20 V down to the warning
+voltage over 4.20 V, times how full the sag cell voltage puts the pack within that range, times the
+compensation. The crash flip keeps the high end. The failsafe clamp takes the reference's form, which
+admits a disarm output above the lowered top. The mixer configuration takes the compensation from the PID
+profile and the warning voltage from the battery profile.
+
+The PID oracle builds with the F405 build's sag compensation, and the existing vectors stay byte for byte.
+New mixer runs script the compensation, the RPM limit, the warning voltage and a falling sag cell voltage,
+with the crash flip in some blocks. They check the factor and the range against the reference's and replay
 exactly.

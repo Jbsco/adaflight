@@ -1512,6 +1512,7 @@ procedure Vector_Check is
    Mix_Defl     : Adaflight.Mixer.Axis_Deflections := (others => 0.0);
    Mix_Defl_Abs : Adaflight.Mixer.Axis_Magnitudes := (others => 0.0);
    Mix_Failsafe : Boolean := False;
+   Mix_Sag_Cell : Natural := 0;
 
    procedure Check_Mix_Line is
       use Adaflight.PID_Profile;
@@ -1564,6 +1565,7 @@ procedure Vector_Check is
          Mix_Defl := (others => 0.0);
          Mix_Defl_Abs := (others => 0.0);
          Mix_Failsafe := False;
+         Mix_Sag_Cell := 0;
          Mix_Airmode := Str (13) = "1";
          Mix_AG := Str (14) = "1";
          Configure (Mix_Runtime, Mix_Profile, Integer'Value (Str (3)), Has_Acc => False,
@@ -1607,6 +1609,7 @@ procedure Vector_Check is
             MInp.Acc_Present := Mix_Flip_Acc;
             MInp.Cos_Tilt := Mix_Tilt;
             MInp.Failsafe := Mix_Failsafe;
+            MInp.Sag_Cell_Voltage := Mix_Sag_Cell;
             MInp.Alt_Hold_Mode := Inp.Alt_Hold_Mode;
             MInp.Pos_Hold_Mode := Inp.Pos_Hold_Mode;
             MInp.GPS_Rescue_Mode := Inp.GPS_Rescue_Mode;
@@ -1652,6 +1655,17 @@ procedure Vector_Check is
       elsif Name = "mixrpm" then
          Mix_RPM := Flt (4);
          Mix_Vbat := Interfaces.Unsigned_16 (Int (5));
+      elsif Name = "mixsaginit" then
+         Mix_Config.Sag_Compensation := Integer (Int (3));
+         Mix_Config.Warning_Cell_Voltage := Integer (Int (4));
+         Mix_Config.RPM_Limit := Str (5) = "1";
+         Record_Result ("mixsaginit.factor", Bits (6), To_Bits (Sag_Factor (Mix_Config)));
+         if Sag_Factor (Mix_Config) > 0.0 then
+            Record_Result ("mixsaginit.full", Bits (7), To_Bits (Float (Sag_Full_Cell_Voltage)));
+            Record_Result ("mixsaginit.range", Bits (8), To_Bits (Sag_Range (Mix_Config)));
+         end if;
+      elsif Name = "mixsag" then
+         Mix_Sag_Cell := Natural (Int (4));
       elsif Name = "mixfsinit" then
          Mix_Config.DShot := Str (3) = "1";
       elsif Name = "mixfs" then
@@ -14959,7 +14973,8 @@ procedure Vector_Check is
            Adaflight.Config_Runtime.Mixer_Config_Of
              (C.Mixer_Config, C.Motor_Config, C.Flight3_D_Config, C.Rx_Config,
               C.Control_Rate_Profiles (Natural (C.System_Config.Active_Rate_Profile)),
-              C.Pid_Profiles (Natural (C.System_Config.Pid_Profile_Index)), C.Custom_Motor_Mixer, Runtime,
+              C.Pid_Profiles (Natural (C.System_Config.Pid_Profile_Index)),
+              C.Battery_Profiles (Natural (C.System_Config.Active_Battery_Profile)), C.Custom_Motor_Mixer, Runtime,
               (others => <>));
          IM : constant Adaflight.Attitude.Settings :=
            Adaflight.Config_Runtime.Attitude_Settings_Of (C.Imu_Config, C.Throttle_Correction_Config);
@@ -21818,6 +21833,7 @@ begin
    Run (Dir & "/mixrpm.csv", "mix");
    Run (Dir & "/mixflip.csv", "mix");
    Run (Dir & "/mixfs.csv", "mix");
+   Run (Dir & "/mixsag.csv", "mix");
    Run (Dir & "/rc.csv", "rc");
    Run (Dir & "/gyro.csv", "gyro");
    Run (Dir & "/imu.csv", "imu");

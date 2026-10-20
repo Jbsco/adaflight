@@ -76,6 +76,11 @@ package Adaflight.Mixer with SPARK_Mode, Pure is
       --  A DShot protocol, whose values below the low end are commands, so
       --  that the failsafe sends the disarm output for any output below it.
       DShot                  : Boolean := False;
+      --  The battery sag compensation: the PID profile's compensation in
+      --  percent and the battery profile's warning cell voltage in
+      --  hundredths of a volt.
+      Sag_Compensation       : Natural range 0 .. 150 := 0;
+      Warning_Cell_Voltage   : Natural range 100 .. 500 := 350;
    end record
      with Dynamic_Predicate =>
        Config.Output_Low < Config.Output_High and then Config.Disarm_Output <= Config.Output_High;
@@ -124,6 +129,8 @@ package Adaflight.Mixer with SPARK_Mode, Pure is
       Gyro                      : PID_Controller.Axis_Rates := (others => 0.0);
       Acc_Present               : Boolean := False;
       Cos_Tilt                  : Cosine := 1.0;
+      --  The battery's sag-filtered cell voltage in hundredths of a volt.
+      Sag_Cell_Voltage          : Natural range 0 .. 65_535 := 0;
    end record;
 
    type State is record
@@ -145,6 +152,18 @@ package Adaflight.Mixer with SPARK_Mode, Pure is
       Flip_Tilt_Set           : Boolean := False;
       Flip_Tilt_Start         : Cosine := 1.0;
    end record;
+
+   --  The sag compensation's full cell voltage in hundredths of a volt, its
+   --  range down to the warning cell voltage, and its factor, zero with the
+   --  RPM limit on or without a range.
+   Sag_Full_Cell_Voltage : constant := 420;
+
+   function Sag_Range (C : Config) return Float is
+     (Float (Sag_Full_Cell_Voltage) - Float (C.Warning_Cell_Voltage));
+
+   function Sag_Factor (C : Config) return Float is
+     (if C.Sag_Compensation > 0 and then not C.RPM_Limit and then C.Warning_Cell_Voltage < Sag_Full_Cell_Voltage
+      then Float (C.Sag_Compensation) / 100.0 else 0.0);
 
    --  The RPM limiter as the mixer's profile sets it up: its gains from the
    --  settings and the loop time, its filters, and the reset.
