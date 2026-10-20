@@ -5968,3 +5968,14 @@ motor values and the sound to its caller as effects, with the beeper silenced be
 The command line oracle prints the disarmed motor values and the beeper requests at read-out lines, and the
 harness keeps both from the effects. Two runs of 600 lines, with motor devices, motor counts and the 3D
 feature switched between them, replay exactly.
+
+## D257. sensor_hardware command (2026-10-16)
+
+`Adaflight.Command_Line` gains sensor_hardware. Without an argument it lists the seven sensor types, each
+with the hardware it can be, skipping hardware the build lacks. With a type's name, in any case, it lists
+that type's hardware and prints a lacking entry as an empty name between commas (F222). Any other argument
+prints the error. The gyro's names are a table of their own, since no setting takes them; the other types'
+names are their hardware settings' values.
+
+The command line oracle runs the command with every type in several cases and with other arguments. Two
+runs of 200 lines replay exactly.

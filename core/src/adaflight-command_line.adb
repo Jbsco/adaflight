@@ -3595,9 +3595,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Signature_Command_Word, Color_Command_Word, Diff_Command, Dump_Command, Feature_Command_Word, Get_Command,
       Led_Command_Word, Map_Command_Word, Mode_Color_Command_Word, Mixer_Command_Word, Motor_Mix_Command_Word,
       Profile_Command, Rate_Profile_Command, Rc_Smoothing_Info_Command_Word, Rx_Failsafe_Command, MCU_Id_Command_Word,
-      Motor_Command_Word, Play_Sound_Command_Word, Rx_Range_Command, Serial_Command_Word, Servo_Command_Word,
-      Servo_Mix_Command_Word, Set_Command, Simplified_Tuning_Command_Word, Tasks_Command_Word, Version_Command_Word,
-      Vtx_Command_Word, Vtx_Info_Command_Word, Vtx_Table_Command_Word, Waypoint_Command_Word);
+      Motor_Command_Word, Play_Sound_Command_Word, Rx_Range_Command, Sensor_Hardware_Command_Word, Serial_Command_Word,
+      Servo_Command_Word, Servo_Mix_Command_Word, Set_Command, Simplified_Tuning_Command_Word, Tasks_Command_Word,
+      Version_Command_Word, Vtx_Command_Word, Vtx_Info_Command_Word, Vtx_Table_Command_Word, Waypoint_Command_Word);
    subtype Known_Command is Command_Kind range Adjustment_Range_Command_Word .. Waypoint_Command_Word;
 
    function Command_Word (K : Known_Command) return String is
@@ -3625,6 +3625,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when MCU_Id_Command_Word => "mcu_id",
          when Motor_Command_Word => "motor",
          when Play_Sound_Command_Word => "play_sound",
+         when Sensor_Hardware_Command_Word => "sensor_hardware",
          when Mixer_Command_Word => "mixer",
          when Motor_Mix_Command_Word => "mmix",
          when Profile_Command => "profile",
@@ -4155,6 +4156,107 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Put (Into, "Playing sound " & Decimal (Integer_64 (I)) & ": " & Beeper_Name (Beeper_Index (I)) & CRLF);
    end Play_Sound_Command;
 
+   --  The hardware a gyro can be, in the order of the gyro hardware codes.
+   Gyro_Hardware_Count : constant := 30;
+   subtype Gyro_Hardware_Index is Natural range 0 .. Gyro_Hardware_Count - 1;
+
+   function Gyro_Hardware_Name (I : Gyro_Hardware_Index) return String is
+     (case I is
+         when 0 => "NONE", when 1 => "AUTO", when 2 => "MPU6050", when 3 => "L3GD20", when 4 => "MPU6000",
+         when 5 => "MPU6500", when 6 => "MPU9250", when 7 => "ICM20601", when 8 => "ICM20602", when 9 => "ICM20608G",
+         when 10 => "ICM20649", when 11 => "ICM20689", when 12 => "ICM42605", when 13 => "ICM42688P",
+         when 14 => "BMI160", when 15 => "BMI270", when 16 => "LSM6DSO", when 17 => "LSM6DSV16X",
+         when 18 => "IIM42653", when 19 => "ICM45605", when 20 => "ICM45686", when 21 => "ICM40609D",
+         when 22 => "IIM42652", when 23 => "LSM6DSK320X", when 24 => "ICM42622P", when 25 => "ICM42686P",
+         when 26 => "ICM56686", when 27 => "BMI423", when 28 => "VIRTUAL", when 29 => "LSM6DSV32X");
+
+   --  The sensor types sensor_hardware lists, with their names and the
+   --  hardware each knows: the gyro's from its own list, the others' from
+   --  their hardware settings' values, empty where the build has no such
+   --  hardware.
+   type Sensor_Type is
+     (Gyro_Sensor, Acc_Sensor, Baro_Sensor, Mag_Sensor, Rangefinder_Sensor, Opticalflow_Sensor, Pitot_Sensor);
+
+   function Sensor_Name (S : Sensor_Type) return String is
+     (case S is
+         when Gyro_Sensor => "gyro",
+         when Acc_Sensor => "acc",
+         when Baro_Sensor => "baro",
+         when Mag_Sensor => "mag",
+         when Rangefinder_Sensor => "rangefinder",
+         when Opticalflow_Sensor => "opticalflow",
+         when Pitot_Sensor => "pitot");
+
+   function Hardware_Count (S : Sensor_Type) return Natural is
+     (case S is
+         when Gyro_Sensor => Gyro_Hardware_Count,
+         when Acc_Sensor => Value_Count (Table_Acc_Hardware),
+         when Baro_Sensor => Value_Count (Table_Baro_Hardware),
+         when Mag_Sensor => Value_Count (Table_Mag_Hardware),
+         when Rangefinder_Sensor => Value_Count (Table_Rangefinder_Hardware),
+         when Opticalflow_Sensor => Value_Count (Table_Opticalflow_Hardware),
+         when Pitot_Sensor => Value_Count (Table_Pitot_Hardware));
+
+   function Hardware_Name (S : Sensor_Type; I : Natural) return String is
+     (case S is
+         when Gyro_Sensor => Gyro_Hardware_Name (I),
+         when Acc_Sensor => Value_Name (Table_Acc_Hardware, I),
+         when Baro_Sensor => Value_Name (Table_Baro_Hardware, I),
+         when Mag_Sensor => Value_Name (Table_Mag_Hardware, I),
+         when Rangefinder_Sensor => Value_Name (Table_Rangefinder_Hardware, I),
+         when Opticalflow_Sensor => Value_Name (Table_Opticalflow_Hardware, I),
+         when Pitot_Sensor => Value_Name (Table_Pitot_Hardware, I))
+     with Pre => I < Hardware_Count (S);
+
+   --  sensor_hardware: every sensor type with the hardware it knows, past
+   --  the hardware the build lacks; or one type's hardware, a lacking one as
+   --  an empty name between commas, for a type named without regard to case;
+   --  or the error for any other argument.
+   procedure Sensor_Hardware_Command (Into : in out Output; Arguments : String)
+     with Global => null,
+          Pre    => Arguments'First >= 1 and then Arguments'Last <= Line_Size
+   is
+   begin
+      if Arguments'Length = 0 then
+         for S in Sensor_Type loop
+            pragma Loop_Invariant (S in Gyro_Sensor .. Pitot_Sensor);
+            Put (Into, Sensor_Name (S));
+            Put (Into, ": ");
+            declare
+               First : Boolean := True;
+            begin
+               for J in 0 .. Hardware_Count (S) - 1 loop
+                  pragma Loop_Invariant (J in 0 .. Hardware_Count (S) - 1);
+                  if Hardware_Name (S, J)'Length > 0 then
+                     if not First then
+                        Put (Into, ",");
+                     end if;
+                     Put (Into, Hardware_Name (S, J));
+                     First := False;
+                  end if;
+               end loop;
+            end;
+            Put (Into, CRLF);
+         end loop;
+         return;
+      end if;
+      for S in Sensor_Type loop
+         pragma Loop_Invariant (S in Gyro_Sensor .. Pitot_Sensor);
+         if CLI_Text.Same_Ignoring_Case (Arguments, Sensor_Name (S)) then
+            for J in 0 .. Hardware_Count (S) - 1 loop
+               pragma Loop_Invariant (J in 0 .. Hardware_Count (S) - 1);
+               if J > 0 then
+                  Put (Into, ",");
+               end if;
+               Put (Into, Hardware_Name (S, J));
+            end loop;
+            Put (Into, CRLF);
+            return;
+         end if;
+      end loop;
+      Put_Error (Into, "sensor_hardware: INVALID SENSOR TYPE: " & Arguments & "###" & CRLF);
+   end Sensor_Hardware_Command;
+
    --  A signature as 64 hexadecimal digits.
    procedure Put_Signature_Digits (Into : in out Output; Signature : Signature_Bytes) is
    begin
@@ -4603,6 +4705,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
             Motor_Command (Into, Env, Text_At (Buffer, Arguments), Changes);
          when Play_Sound_Command_Word =>
             Play_Sound_Command (Into, Text_At (Buffer, Arguments), Changes);
+         when Sensor_Hardware_Command_Word =>
+            Sensor_Hardware_Command (Into, Text_At (Buffer, Arguments));
          when Mixer_Command_Word =>
             Mixer_Command (Into, C.Mixer_Config.Mixer_Mode, Text_At (Buffer, Arguments));
          when Motor_Mix_Command_Word =>

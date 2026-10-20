@@ -12,8 +12,8 @@
 --  and, with task statistics on, its times and loads, and resets the peaks;
 --  vtx_info lists the video transmitter's power levels and rc_smoothing_info
 --  the receiver's frame rate and the running RC smoothing cutoffs; motor sets
---  a motor's or every motor's disarmed value, and play_sound plays a beeper
---  sound;
+--  a motor's or every motor's disarmed value, play_sound plays a beeper sound,
+--  and sensor_hardware lists the hardware each sensor type can be;
 --  save, exit and defaults without nosave ask for the configuration's write,
 --  the board's restart or the command line's end. A line naming no command
 --  gets the ERR_CMD_NA reply.
