@@ -3591,11 +3591,12 @@ package body Adaflight.Command_Line with SPARK_Mode is
    type Command_Kind is
      (No_Command, Adjustment_Range_Command_Word, Aux_Command_Word, Batch_Command_Word, Battery_Profile_Command,
       Beacon_Command, Exit_Command_Word, Save_Command_Word,
-      Beeper_Command_Word, Board_Name_Command_Word, Defaults_Command_Word, Manufacturer_Id_Command_Word,
-      Signature_Command_Word, Color_Command_Word, Diff_Command, Dump_Command, Feature_Command_Word, Get_Command,
-      Led_Command_Word, Map_Command_Word, Mode_Color_Command_Word, Mixer_Command_Word, Motor_Mix_Command_Word,
-      Profile_Command, Rate_Profile_Command, Rc_Smoothing_Info_Command_Word, Rx_Failsafe_Command, MCU_Id_Command_Word,
-      Motor_Command_Word, Play_Sound_Command_Word, Rx_Range_Command, Sensor_Hardware_Command_Word, Serial_Command_Word,
+      Beeper_Command_Word, Bind_Rx_Command_Word, Board_Name_Command_Word, Defaults_Command_Word,
+      Manufacturer_Id_Command_Word, Signature_Command_Word, Color_Command_Word, Diff_Command, Dump_Command,
+      Feature_Command_Word, Get_Command, Led_Command_Word, Map_Command_Word, Mode_Color_Command_Word,
+      Mixer_Command_Word, Motor_Mix_Command_Word, Profile_Command, Rate_Profile_Command,
+      Rc_Smoothing_Info_Command_Word, Rx_Failsafe_Command, MCU_Id_Command_Word, Motor_Command_Word,
+      Play_Sound_Command_Word, Rx_Range_Command, Sensor_Hardware_Command_Word, Serial_Command_Word,
       Servo_Command_Word, Servo_Mix_Command_Word, Set_Command, Simplified_Tuning_Command_Word, Tasks_Command_Word,
       Version_Command_Word, Vtx_Command_Word, Vtx_Info_Command_Word, Vtx_Table_Command_Word, Waypoint_Command_Word);
    subtype Known_Command is Command_Kind range Adjustment_Range_Command_Word .. Waypoint_Command_Word;
@@ -3610,6 +3611,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when Exit_Command_Word => "exit",
          when Save_Command_Word => "save",
          when Beeper_Command_Word => "beeper",
+         when Bind_Rx_Command_Word => "bind_rx",
          when Board_Name_Command_Word => "board_name",
          when Manufacturer_Id_Command_Word => "manufacturer_id",
          when Signature_Command_Word => "signature",
@@ -4156,6 +4158,23 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Put (Into, "Playing sound " & Decimal (Integer_64 (I)) & ": " & Beeper_Name (Beeper_Index (I)) & CRLF);
    end Play_Sound_Command;
 
+   --  bind_rx: the receiver's bind started, or the error for a receiver
+   --  without one.
+   procedure Bind_Rx_Command (Into : in out Output; C : Configuration; Env : Environment; Changes : in out Effects)
+     with Global => null
+   is
+      use type RX_Bind.Bind;
+      B : constant RX_Bind.Bind :=
+        RX_Bind.Bind_For (Env.Receiver_Source, Env.Serial_Protocol, Natural (C.Rx_Spi_Config.Rx_Spi_Protocol));
+   begin
+      if B = RX_Bind.No_Bind then
+         Put_Error (Into, "bind_rx: Not supported.###" & CRLF);
+      else
+         Put (Into, "Binding..." & CRLF);
+         Changes.Bind := B;
+      end if;
+   end Bind_Rx_Command;
+
    --  The hardware a gyro can be, in the order of the gyro hardware codes.
    Gyro_Hardware_Count : constant := 30;
    subtype Gyro_Hardware_Index is Natural range 0 .. Gyro_Hardware_Count - 1;
@@ -4676,6 +4695,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
                Board.Information_Set, Board.Information_Updated, Text_At (Buffer, Arguments));
          when Signature_Command_Word =>
             Signature_Command (Into, Board, Text_At (Buffer, Arguments));
+         when Bind_Rx_Command_Word =>
+            Bind_Rx_Command (Into, C, Env, Changes);
          when Beeper_Command_Word =>
             Beeper_Command
               (Into, "beeper", C.Beeper_Config.Beeper_Off_Flags, Beeper_Allowed, Text_At (Buffer, Arguments));

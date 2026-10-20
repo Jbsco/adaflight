@@ -147,6 +147,7 @@ with Adaflight.MSP_Runtime_In;
 with Adaflight.MT_Sensor;
 with Adaflight.MSP_Board_In;
 with Adaflight.MSP_CLI_Setting;
+with Adaflight.RX_Bind;
 with Adaflight.MSP_Motor_In;
 with Adaflight.MSP_Font_In;
 with Adaflight.VTX_Table_Store;
@@ -15043,7 +15044,9 @@ procedure Vector_Check is
       Smoothing       => <>,
       Motors          => 0,
       Motor_Device    => Adaflight.MSP_Motor_In.No_Device,
-      Three_D         => False);
+      Three_D         => False,
+      Receiver_Source => Adaflight.Receiver.None,
+      Serial_Protocol => 0);
    CLI_Env      : CLI.Environment := CLI_Identity;
    CLI_Board    : CLI.Board_State;
    CLI_Reply    : CLI.Output;
@@ -15055,6 +15058,9 @@ procedure Vector_Check is
    CLI_Beep_Silences : Natural := 0;
    CLI_Beep_Calls    : Natural := 0;
    CLI_Beep_Mode     : Natural := 0;
+   --  The binds the bind command and the MSP bind message started since the
+   --  last read-out, by receiver kind.
+   CLI_Binds : array (Adaflight.RX_Bind.Bind) of Natural := (others => 0);
    MSP_In_Ran     : Boolean := False;
    MSP_In_Result  : Adaflight.MSP_Tuning_In.Result := Adaflight.MSP_Tuning_In.Ack;
    MSP_In_Effects : Adaflight.MSP_Tuning_In.Effects;
@@ -15148,6 +15154,7 @@ procedure Vector_Check is
             CLI_Beep_Silences := 0;
             CLI_Beep_Calls := 0;
             CLI_Beep_Mode := 0;
+            CLI_Binds := (others => 0);
             CLI_Sched := (others => <>);
             MSP_Gyro_Rate := 0;
             MSP_Log.State := Adaflight.Blackbox.Disabled;
@@ -15364,6 +15371,20 @@ procedure Vector_Check is
                         MSP_In_Result :=
                           (if Setting_Result = Adaflight.MSP_CLI_Setting.Ack then Adaflight.MSP_Tuning_In.Ack
                            else Adaflight.MSP_Tuning_In.Error);
+                        MSP_In_Ran := True;
+                     end;
+                  elsif Adaflight.RX_Bind.Handles (Cmd) then
+                     declare
+                        use type Adaflight.RX_Bind.Bind;
+                        B : constant Adaflight.RX_Bind.Bind :=
+                          Adaflight.RX_Bind.Bind_For
+                            (CLI_Env.Receiver_Source, CLI_Env.Serial_Protocol,
+                             Natural (CLI_Config.Rx_Spi_Config.Rx_Spi_Protocol));
+                     begin
+                        MSP_In_Result :=
+                          (if B = Adaflight.RX_Bind.No_Bind then Adaflight.MSP_Tuning_In.Error
+                           else Adaflight.MSP_Tuning_In.Ack);
+                        CLI_Binds (B) := CLI_Binds (B) + 1;
                         MSP_In_Ran := True;
                      end;
                   elsif Adaflight.MSP_CLI_Setting.Handles_Info (Cmd) then
@@ -15591,8 +15612,13 @@ procedure Vector_Check is
                CLI_Env.Debug_Mode := Interfaces.Unsigned_8'Value (Word (Command, 1));
                CLI_Sched.Loop_Start_Cycles := Interfaces.Integer_32'Value (Word (Command, 2));
                CLI_Sched.Guard_Cycles := Interfaces.Integer_32'Value (Word (Command, 3));
-            elsif Word (Command, 0) = "!motors" or else Word (Command, 0) = "!beeps" then
+            elsif Word (Command, 0) = "!motors" or else Word (Command, 0) = "!beeps"
+              or else Word (Command, 0) = "!binds"
+            then
                null;
+            elsif Word (Command, 0) = "!rxprov" then
+               CLI_Env.Receiver_Source := Adaflight.Receiver.Provider'Val (Natural'Value (Word (Command, 1)));
+               CLI_Env.Serial_Protocol := Natural'Value (Word (Command, 2));
             else
                CLI_Env.Motors := MSP_Motors;
                CLI_Env.Motor_Device := MSP_Motor_Kind;
@@ -15605,6 +15631,7 @@ procedure Vector_Check is
                elsif CLI_Changes.Motor then
                   CLI_Disarmed (CLI_Changes.Motor_Index) := CLI_Changes.Motor_Value;
                end if;
+               CLI_Binds (CLI_Changes.Bind) := CLI_Binds (CLI_Changes.Bind) + 1;
                if CLI_Changes.Sound then
                   CLI_Beep_Silences := CLI_Beep_Silences + 1;
                   CLI_Beep_Calls := CLI_Beep_Calls + 1;
@@ -15747,6 +15774,11 @@ procedure Vector_Check is
          for M in Adaflight.MSP_Motor_In.Motor_Values'Range loop
             Record_Result ("cli.motor_value", Unsigned_32'Value (Str (3 + M)), To_Bits (CLI_Disarmed (M)));
          end loop;
+      elsif Str (1) = "clbd" then
+         Record_Int ("cli.crsf_binds", Int (3), Integer_64 (CLI_Binds (Adaflight.RX_Bind.CRSF_Bind)));
+         Record_Int ("cli.srxl2_binds", Int (4), Integer_64 (CLI_Binds (Adaflight.RX_Bind.SRXL2_Bind)));
+         Record_Int ("cli.spi_binds", Int (5), Integer_64 (CLI_Binds (Adaflight.RX_Bind.SPI_Bind)));
+         CLI_Binds := (others => 0);
       elsif Str (1) = "clbp" then
          Record_Int ("cli.beeper_silences", Int (3), Integer_64 (CLI_Beep_Silences));
          Record_Int ("cli.beeper_requests", Int (4), Integer_64 (CLI_Beep_Calls));
@@ -21662,6 +21694,7 @@ begin
    Run (Dir & "/clisensor.csv", "cliset");
    Run (Dir & "/mspclisetting.csv", "cliset");
    Run (Dir & "/mspclisettinginfo.csv", "cliset");
+   Run (Dir & "/clibind.csv", "cliset");
    Run (Dir & "/clisave.csv", "cliset");
    if Settings_Seen /= Adaflight.Settings_Table.Setting'Pos (Adaflight.Settings_Table.Setting'Last) + 1 then
       Put_Line ("settings: the vectors hold" & Settings_Seen'Image & " settings");

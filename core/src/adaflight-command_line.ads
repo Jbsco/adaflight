@@ -13,7 +13,8 @@
 --  vtx_info lists the video transmitter's power levels and rc_smoothing_info
 --  the receiver's frame rate and the running RC smoothing cutoffs; motor sets
 --  a motor's or every motor's disarmed value, play_sound plays a beeper sound,
---  and sensor_hardware lists the hardware each sensor type can be;
+--  and sensor_hardware lists the hardware each sensor type can be; bind_rx
+--  starts the receiver's bind;
 --  save, exit and defaults without nosave ask for the configuration's write,
 --  the board's restart or the command line's end. A line naming no command
 --  gets the ERR_CMD_NA reply.
@@ -25,6 +26,8 @@ with Adaflight.Board_Info;
 with Adaflight.Config_Groups; use Adaflight.Config_Groups;
 with Adaflight.CLI_Text;
 with Adaflight.MSP_Motor_In;
+with Adaflight.Receiver;
+with Adaflight.RX_Bind;
 with Adaflight.Scheduler;
 with Adaflight.Serial_Feature_Map;
 
@@ -85,7 +88,7 @@ package Adaflight.Command_Line with SPARK_Mode is
    --  layout changed; the configuration written to its storage, the board
    --  restarted, or the command line left with the disarmed motors reset; a
    --  motor's disarmed value, or every motor's, set to a value; the beeper
-   --  silenced and a sound requested.
+   --  silenced and a sound requested; a receiver bind started.
    type Effects is record
       PID_Profile     : Boolean := False;
       Rate_Profile    : Boolean := False;
@@ -102,6 +105,7 @@ package Adaflight.Command_Line with SPARK_Mode is
       Motor_Value     : Float := 0.0;
       Sound           : Boolean := False;
       Sound_Mode      : Beeper.Sound := Beeper.Gyro_Calibrated;
+      Bind            : RX_Bind.Bind := RX_Bind.No_Bind;
    end record;
 
    --  The flight plan executor's state the waypoint status reports: whether
@@ -158,8 +162,9 @@ package Adaflight.Command_Line with SPARK_Mode is
    --  version, the build's date, time and revision, the MCU's unique id, the
    --  clock in microseconds as the command runs, the running debug mode,
    --  whether a video transmitter is present with the power levels it
-   --  reports, the running RC smoothing, and the mixer's motors with their
-   --  output and whether the 3D feature runs.
+   --  reports, the running RC smoothing, the mixer's motors with their output
+   --  and whether the 3D feature runs, and the receiver and serial protocol
+   --  the board took at its start.
    type Environment is record
       Navigation      : Navigation_Status;
       Firmware        : Identity_Text;
@@ -177,6 +182,8 @@ package Adaflight.Command_Line with SPARK_Mode is
       Motors          : MSP_Motor_In.Motor_Count := 0;
       Motor_Device    : MSP_Motor_In.Device_Kind := MSP_Motor_In.No_Device;
       Three_D         : Boolean := False;
+      Receiver_Source : Receiver.Provider := Receiver.None;
+      Serial_Protocol : Natural := 0;
    end record;
 
    --  The board's information as the commands see it: its name and

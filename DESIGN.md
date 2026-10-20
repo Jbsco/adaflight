@@ -6029,3 +6029,17 @@ The settings oracle routes the message through the reference's MSP handler. Two 
 names in several cases, offsets from zero past the end, short and long tails after the zero byte and names
 past 128 bytes, replay exactly but for the stats bitmask's default.
 
+
+## D260. Receiver bind (2026-10-16)
+
+`Adaflight.RX_Bind` decides the receiver bind. The CRSF and SRXL2 serial receivers take one, as do the SPI
+receivers of the FrSky D and X, Redpine, S-FHSS, FlySky, Spektrum and ExpressLRS protocols; no other
+receiver does. The receiver and its serial protocol are the board's from its start and the SPI protocol is
+the configuration's at the request, which is where the reference reads each. The command line's bind_rx
+starts the bind with "Binding..." or prints the error for a receiver without one, and the MSP bind message
+starts it or answers an error. Both hand the bind to their caller as an effect. The board information's
+bind capability is the same decision.
+
+The command line oracle links the reference's bind module with its three bind calls counted, scripts the
+receiver the board took at its start and switches the SPI protocol between the requests. Two runs of 600
+lines replay exactly.
