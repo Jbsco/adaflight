@@ -293,6 +293,10 @@ ledger. The deviations so far:
 - The CRSF display port compares its transfer delay with the millisecond counter through the
   wrapping difference (D227), where the reference compares the counter and the delay directly
   (F205). The recorded vectors stay clear of the wrap and replay bit for bit.
+- The setting information message replies the OSD stats bitmask's stored default (D259), where the
+  reference reads zero from a reset copy whose reset function sets the stats on the live
+  configuration instead, and so turns them back on there (F223). The harness checks both replies for
+  that setting.
 
 ## D7. Contribution conventions (2026-10-08)
 
@@ -6005,3 +6009,23 @@ The settings oracle routes the message through the reference's MSP handler with 
 bytes and prints the whole reply. Two runs of 600 requests, with names in several cases and with stray
 characters, values of every mode, white space around the value and zero bytes inside the text, replay
 exactly, with the configuration hash after each.
+
+## D259. MSP command line setting information message (2026-10-16)
+
+`Adaflight.MSP_CLI_Setting` gains the MSP2 setting information message. A request names a setting up to
+a zero byte, with a 16-bit offset in the two bytes after it when they are there. The reply is the length
+of the setting's description, then the description from the offset: the parameter group, the type with
+its range for a number, its names for a lookup or a port, its length for an array or its lengths for a
+text, each on a line, then the default without a line end, at most 255 characters of it. An empty request
+or one past 128 bytes is an error without a reply. A request naming no setting is an error whose reply is
+a zero length, as the reference writes the length before it looks the name up and its serial port sends
+the reply with an error too. The longest description, the debug mode's, is 1440 bytes, so the window is
+the description from the offset; the reply holds 2048 bytes.
+
+The default comes from the stored defaults at the profile the configuration selects. For the OSD stats
+bitmask the reference reads zero instead (F223), a declared deviation (D6).
+
+The settings oracle routes the message through the reference's MSP handler. Two runs of 600 requests, with
+names in several cases, offsets from zero past the end, short and long tails after the zero byte and names
+past 128 bytes, replay exactly but for the stats bitmask's default.
+
