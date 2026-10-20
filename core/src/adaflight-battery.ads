@@ -55,6 +55,11 @@ package Adaflight.Battery with SPARK_Mode is
       Virtual_Scale                  : Integer range -16_000 .. 16_000 := 0;
       Virtual_Offset                 : Natural range 0 .. 16_000 := 0;
       ESC_Current_Offset             : Natural range 0 .. 16_000 := 0;
+      --  The sag compensation, which a PID profile asks for with the RPM
+      --  limit off: the voltage task at 200 Hz, and the sag filter's period
+      --  in tenths of a second.
+      Sag_Compensation               : Boolean := False;
+      Sag_Filter_Period              : Positive range 1 .. 255 := 2;
    end record;
 
    --  In the order the overall state takes its maximum over.
@@ -67,6 +72,7 @@ package Adaflight.Battery with SPARK_Mode is
       Stable_Last_Update   : Time_Ms := 0;
       Stable_Bits          : Unsigned_16 := 0;
       Unfiltered           : Centivolts := 0;
+      Sag_Filtered         : Centivolts := 0;
    end record;
 
    subtype Centiamps is Integer_32 range -2 ** 24 .. 2 ** 24;
@@ -107,6 +113,7 @@ package Adaflight.Battery with SPARK_Mode is
    type State is record
       Voltage                : Voltage_Meter;
       Display_Filter         : Filters.PT1;
+      Sag_Filter             : Filters.PT1;
       Current                : Current_Meter;
       Current_Filter         : Filters.PT1;
       Cells                  : Cell_Count := 0;
@@ -133,8 +140,9 @@ package Adaflight.Battery with SPARK_Mode is
    procedure Init (S : out State; C : Settings);
 
    --  The voltage task: the analog sample through the display filter and the
-   --  divider, or the ESC sensor's voltage through the same filter while its
-   --  feature is on, and the stability record at the millisecond clock.
+   --  divider, and with the sag compensation through the sag filter, or the
+   --  ESC sensor's voltage through the display filter while its feature is
+   --  on, and the stability record at the millisecond clock.
    procedure Update_Voltage (S : in out State; C : Settings; Raw : ADC_Count; Now_Ms : Time_Ms;
                              Meters : Meter_Inputs := No_Meters);
 
@@ -162,5 +170,9 @@ package Adaflight.Battery with SPARK_Mode is
    function Percentage_Remaining (S : State; C : Settings) return Percent;
 
    function Voltage_Is_Stable (S : State) return Boolean;
+
+   --  The sag-filtered voltage per cell, or 0 before the cell count is known.
+   function Sag_Cell_Voltage (S : State) return Centivolts is
+     (if S.Cells > 0 then S.Voltage.Sag_Filtered / S.Cells else 0);
 
 end Adaflight.Battery;

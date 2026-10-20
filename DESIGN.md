@@ -6237,3 +6237,16 @@ The PID oracle now builds with DShot, as the F405 build does, and the existing v
 New mixer runs script the failsafe in ten-loop blocks and the protocol, each protocol with DShot and PWM
 endpoints, and the DShot low end at an idle of 3 to 10 percent. They are the first runs to check the
 failsafe mixing, and they replay exactly.
+
+## D272. Battery sag filter (2026-10-16)
+
+`Adaflight.Battery` gains the voltage meter's sag filter. The sag compensation is on when a stored PID
+profile asks for it with the RPM limit off. Then the voltage task runs at 200 Hz, the display filter takes
+that rate, and the analog sample also goes through a sag filter of its own period, by default 0.2 s, to a
+sag-filtered voltage. The sag cell voltage divides it by the cell count, or is 0 before the count is known.
+The ESC sensor's voltage leaves it as it was, and the meter without a source resets it to zero.
+
+The battery oracle builds with the F405 build's sag compensation and RPM limit, and the existing vectors
+stay byte for byte. New runs script every profile's sag compensation, the RPM limit and the sag filter's
+period. They check the flag, the sag-filtered voltage and its cell voltage at every step, and replay
+exactly.

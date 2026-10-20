@@ -3647,6 +3647,24 @@ procedure Vector_Check is
             Current_Offset                 => Integer (Int (25)),
             others                         => <>);
          Init (Battery_State_V, Battery_Settings);
+      elsif Name = "batsaginit" then
+         declare
+            Profiles : Adaflight.Config_Groups.Pid_Profile_Record_List_4 :=
+              Adaflight.Config_Groups.Defaults.Pid_Profiles;
+            Mixer    : Adaflight.Config_Groups.Mixer_Config_Record := Adaflight.Config_Groups.Defaults.Mixer_Config;
+         begin
+            for J in Profiles'Range loop
+               Profiles (J).Vbat_Sag_Compensation := Interfaces.Unsigned_8 (Int (6 + J));
+            end loop;
+            Mixer.Rpm_Limit := Int (5) /= 0;
+            Battery_Settings.Sag_Compensation := Adaflight.Config_Runtime.Sag_Compensation_Of (Profiles, Mixer);
+            Record_Int ("batsaginit.configured", Int (3), Boolean'Pos (Battery_Settings.Sag_Compensation));
+            Battery_Settings.Sag_Filter_Period := Integer (Int (4));
+            Init (Battery_State_V, Battery_Settings);
+         end;
+      elsif Name = "batsag" then
+         Record_Int ("batsag.filtered", Int (4), Integer_64 (Battery_State_V.Voltage.Sag_Filtered));
+         Record_Int ("batsag.cell", Int (5), Integer_64 (Sag_Cell_Voltage (Battery_State_V)));
       elsif Name = "batstep" then
          declare
             Now_Us : constant Interfaces.Unsigned_32 := Interfaces.Unsigned_32 (Int (4));
@@ -14953,7 +14971,7 @@ procedure Vector_Check is
            Adaflight.Config_Runtime.Battery_Settings_Of
              (C.Battery_Config, C.Battery_Profiles (Natural (C.System_Config.Active_Battery_Profile)),
               C.Voltage_Sensor_Adc_Config (0), C.Current_Sensor_Adc_Config, C.Current_Sensor_Virtual_Config,
-              C.Esc_Sensor_Config);
+              C.Esc_Sensor_Config, Adaflight.Config_Runtime.Sag_Compensation_Of (C.Pid_Profiles, C.Mixer_Config));
          BP : constant Adaflight.Beeper.Settings := Adaflight.Config_Runtime.Beeper_Settings_Of (C.Beeper_Config);
          GL : constant Adaflight.GPS_Link.Settings :=
            Adaflight.Config_Runtime.GPS_Link_Settings_Of (C.Gps_Config, C.Gps_Rescue_Config, True);
@@ -21808,6 +21826,7 @@ begin
    Run (Dir & "/acc.csv", "acc");
    Run (Dir & "/baro.csv", "baro");
    Run (Dir & "/battery.csv", "battery");
+   Run (Dir & "/batsag.csv", "battery");
    Run (Dir & "/arming.csv", "arming");
    Run (Dir & "/compass.csv", "compass");
    Run (Dir & "/position.csv", "position");
