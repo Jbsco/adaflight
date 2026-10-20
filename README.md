@@ -32,7 +32,8 @@ The core contains:
   features, crash recovery, and launch control
 - motor mixer with mixer setup: frame tables, custom mixes, launch control mix
 - gyro calibration, filtering chain, dynamic notch, RPM filter, and full-scale detections
-- attitude estimator with compass heading, and angle and horizon level modes
+- attitude estimator with compass heading, and angle and horizon level modes with GPS rescue,
+  altitude hold and position hold
 - failsafe state machine with rescue and autopilot stages, runtime modes with ground station
   overrides, and arming logic with launch control and runaway takeoff prevention
 - accelerometer path, barometer altitude and read cycle, compass with bias calibration, battery
@@ -253,7 +254,7 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 28077 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 28085 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
 - Recorded vectors replay bit for bit: 1753568 lines over 384 cases, every case exact except
   forty-seven declared deviations in `DESIGN.md` D6.

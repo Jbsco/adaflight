@@ -82,6 +82,15 @@ package Adaflight.PID_Controller with SPARK_Mode, Pure is
       --  level axes' for its full mode.
       Launch_Control_Active     : Boolean := False;
       Yaw_Deflection            : Float range -1.0 .. 1.0 := 0.0;
+      --  The modes an autopilot drives, with its roll and pitch angles in
+      --  degrees, its largest angle, and whether it holds the position
+      --  itself.
+      GPS_Rescue_Mode           : Boolean := False;
+      Alt_Hold_Mode             : Boolean := False;
+      Pos_Hold_Mode             : Boolean := False;
+      Autopilot_Angle           : Level_Targets := (others => 0.0);
+      Autopilot_Max_Angle       : Natural range 0 .. 90 := 50;
+      Autopilot_In_Control      : Boolean := False;
    end record;
 
    type State is record
@@ -100,6 +109,7 @@ package Adaflight.PID_Controller with SPARK_Mode, Pure is
       Angle_Yaw_Setpoint      : Rate := 0.0;
       Axis_In_Angle_Mode      : Axis_Flags := (others => False);
       Level_Mode_Start_Us     : Interfaces.Unsigned_32 := 0;
+      Previous_External       : Boolean := False;
       In_Crash_Recovery       : Boolean := False;
       Crash_Detected_Us       : Interfaces.Unsigned_32 := 0;
       Crash_Beep              : Boolean := False;

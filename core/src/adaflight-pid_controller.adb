@@ -216,9 +216,10 @@ package body Adaflight.PID_Controller with SPARK_Mode is
    end Horizon_Strength;
 
    --  The angle error rate of a level axis from the stick's angle target,
+   --  or the autopilot's in GPS rescue and in position hold while it holds,
    --  the attitude less the trim, the angle feedforward, and the yaw
    --  compensation while rolled or pitched, blended into the acro setpoint
-   --  by the horizon strength.
+   --  by the horizon strength outside the angle and autopilot modes.
    procedure Level_Setpoint (
       S        : in out State;
       R        : Runtime;
@@ -233,24 +234,44 @@ package body Adaflight.PID_Controller with SPARK_Mode is
       Raw_FF      : constant Float range -4.0e6 .. 4.0e6 :=
         Angle_Limit * Inp.Feedforward (A) * R.Angle_Feedforward_Gain * Inv;
       Feedforward : Signal;
-      Target      : constant Angle_Degrees :=
-        Constrain_F (Angle_Limit * Setpoint * Inv, -Angle_Limit, Angle_Limit);
+      Limit       : Float range 0.0 .. 90.0 := Angle_Limit;
+      Wanted      : Float range -2.0e6 .. 2.0e6 := Angle_Limit * Setpoint * Inv;
+      Target      : Angle_Degrees;
       Current     : constant Float range -211.0 .. 211.0 := Float (Inp.Attitude (A) - Inp.Trims (A)) / 10.0;
-      Error       : constant Float range -302.0 .. 302.0 := Target - Current;
       Other       : constant Level_Axis := (if A = Roll then Pitch else Roll);
       Sin_Angle   : Cosine := Sin_Approx (S.Angle_Target (Other) * Rad_Per_Degree);
+      Earth_Gain  : constant Float range 0.0 .. 1.0 :=
+        (if Inp.GPS_Rescue_Mode or else Inp.Alt_Hold_Mode then 1.0 else R.Angle_Earth_Ref);
       Angle_Rate  : Signal;
       Filtered    : Signal;
    begin
       PT3_Apply (S.Filters.Angle_Feedforward (A), Raw_FF, Feedforward);
-      Angle_Rate := Saturate (Error * R.Angle_Gain + Feedforward);
+      if Inp.GPS_Rescue_Mode then
+         Wanted := Inp.Autopilot_Angle (A);
+         Limit := Float (Inp.Autopilot_Max_Angle);
+         Feedforward := 0.0;
+      end if;
+      if Inp.Pos_Hold_Mode then
+         Feedforward := 0.0;
+         if Inp.Autopilot_In_Control then
+            Wanted := Inp.Autopilot_Angle (A);
+            Limit := 85.0;
+         end if;
+         Limit := Float'Min (Float (Inp.Autopilot_Max_Angle), Limit);
+      end if;
+      Target := Constrain_F (Wanted, -Limit, Limit);
+      declare
+         Error : constant Float range -302.0 .. 302.0 := Target - Current;
+      begin
+         Angle_Rate := Saturate (Error * R.Angle_Gain + Feedforward);
+      end;
       if A = Roll then
          Sin_Angle := -Sin_Angle;
       end if;
-      Angle_Rate := Saturate (Angle_Rate + S.Angle_Yaw_Setpoint * Sin_Angle * R.Angle_Earth_Ref);
+      Angle_Rate := Saturate (Angle_Rate + S.Angle_Yaw_Setpoint * Sin_Angle * Earth_Gain);
       S.Angle_Target (A) := Target;
       PT3_Apply (S.Filters.Attitude (A), Angle_Rate, Filtered);
-      if Inp.Angle_Mode then
+      if Inp.Angle_Mode or else Inp.GPS_Rescue_Mode or else Inp.Pos_Hold_Mode then
          Setpoint := Constrain_F (Filtered, -Rate_Bound, Rate_Bound);
       else
          Setpoint := Constrain_F (Setpoint * (1.0 - H) + Filtered * H, -Rate_Bound, Rate_Bound);
@@ -266,7 +287,8 @@ package body Adaflight.PID_Controller with SPARK_Mode is
       Inp      : Inputs;
       H        : Strength;
       Setpoint : in out Rate
-   ) with Post => (if R.Angle_Earth_Ref = 0.0 then Setpoint = Setpoint'Old and then S = S'Old);
+   ) with Post => (if not Inp.GPS_Rescue_Mode and then R.Angle_Earth_Ref = 0.0
+                   then Setpoint = Setpoint'Old and then S = S'Old);
    procedure Attenuate_Yaw (
       S        : in out State;
       R        : Runtime;
@@ -274,12 +296,13 @@ package body Adaflight.PID_Controller with SPARK_Mode is
       H        : Strength;
       Setpoint : in out Rate
    ) is
+      Gain : constant Float range 0.0 .. 1.0 := (if Inp.GPS_Rescue_Mode then 1.0 else R.Angle_Earth_Ref);
    begin
-      if R.Angle_Earth_Ref /= 0.0 then
+      if Gain /= 0.0 then
          S.Angle_Yaw_Setpoint := Setpoint;
          declare
             Largest : Float range 0.0 .. 54_001.0 :=
-              R.Angle_Earth_Ref * Float'Max (abs S.Angle_Target (Roll), abs S.Angle_Target (Pitch));
+              Gain * Float'Max (abs S.Angle_Target (Roll), abs S.Angle_Target (Pitch));
          begin
             if Inp.Horizon_Mode then
                Largest := Largest * H;
@@ -353,11 +376,11 @@ package body Adaflight.PID_Controller with SPARK_Mode is
    procedure Detect_Crash
      (S : in out State; R : Runtime; Mode : Crash_Recovery_Mode; Inp : Inputs; A : Axis;
       Delta_Rate : Signal; Error_Rate : Float)
-     with Post => (if not Inp.Armed and then Mode /= Off and then not Inp.Gyro_Overflow
+     with Post => (if not Inp.Armed and then (Mode /= Off or else Inp.GPS_Rescue_Mode) and then not Inp.Gyro_Overflow
                    then not S.In_Crash_Recovery)
    is
    begin
-      if Mode = Off or else Inp.Gyro_Overflow then
+      if (Mode = Off and then not Inp.GPS_Rescue_Mode) or else Inp.Gyro_Overflow then
          return;
       end if;
       if Inp.Armed then
@@ -452,14 +475,15 @@ package body Adaflight.PID_Controller with SPARK_Mode is
    end Hold_Launch_Terms;
 
    procedure Update (S : in out State; R : Runtime; P : Profile; Inp : Inputs) is
+      External   : constant Boolean := Inp.GPS_Rescue_Mode or else Inp.Alt_Hold_Mode or else Inp.Pos_Hold_Mode;
       Gyro_Dterm : Axis_Signals;
       Level      : Level_Kind := Level_Off;
       H          : Strength := 0.0;
    begin
       S.Crash_Disarm_Requested := False;
-      if Inp.Angle_Mode or else Inp.Horizon_Mode then
-         Level := (if R.Level_Race_Mode then Level_Roll else Level_Roll_Pitch);
-         if S.Level_Mode_Start_Us = 0 then
+      if Inp.Angle_Mode or else Inp.Horizon_Mode or else Inp.GPS_Rescue_Mode then
+         Level := (if R.Level_Race_Mode and then not External then Level_Roll else Level_Roll_Pitch);
+         if S.Level_Mode_Start_Us = 0 or else (External and then not S.Previous_External) then
             S.Level_Mode_Start_Us := Inp.Now_Us;
          end if;
          if Inp.Horizon_Mode then
@@ -468,6 +492,7 @@ package body Adaflight.PID_Controller with SPARK_Mode is
       else
          S.Level_Mode_Start_Us := 0;
       end if;
+      S.Previous_External := External;
       if Inp.Anti_Gravity_Enabled then
          S.Anti_Gravity_Throttle_D := Constrain_F
            (S.Anti_Gravity_Throttle_D * Float (R.Anti_Gravity_Gain), 0.0, Throttle_D_Bound * 251.0);

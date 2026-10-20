@@ -1274,6 +1274,9 @@ procedure Vector_Check is
    Step_State   : Adaflight.PID_Controller.State;
    Step_Runtime : Adaflight.PID_Config.Runtime;
    Step_Profile : Adaflight.PID_Profile.Profile;
+   Step_AP_Angle   : Adaflight.PID_Controller.Level_Targets := (others => 0.0);
+   Step_AP_Max     : Natural range 0 .. 90 := 50;
+   Step_AP_Control : Boolean := False;
 
    procedure Check_PID_Step_Line is
       use Adaflight.PID_Profile;
@@ -1316,6 +1319,12 @@ procedure Vector_Check is
       if NF >= 50 then
          Inp.Angle_Mode := Int (36) mod 2 = 1;
          Inp.Horizon_Mode := (Int (36) / 2) mod 2 = 1;
+         Inp.Alt_Hold_Mode := (Int (36) / 2 ** 3) mod 2 = 1;
+         Inp.Pos_Hold_Mode := (Int (36) / 2 ** 5) mod 2 = 1;
+         Inp.GPS_Rescue_Mode := (Int (36) / 2 ** 11) mod 2 = 1;
+         Inp.Autopilot_Angle := Step_AP_Angle;
+         Inp.Autopilot_Max_Angle := Step_AP_Max;
+         Inp.Autopilot_In_Control := Step_AP_Control;
          for A in Level_Axis loop
             Inp.Attitude (A) := Integer (Int (37 + Adaflight.Axes.Axis'Pos (A)));
             Inp.Trims (A) := Integer (Int (39 + Adaflight.Axes.Axis'Pos (A)));
@@ -3898,6 +3907,10 @@ procedure Vector_Check is
          Check_PID_Filters_Line;
       elsif Str (1) = "pidstep" then
          Check_PID_Step_Line;
+      elsif Str (1) = "pidap" then
+         Step_AP_Angle := (Adaflight.Axes.Roll => Flt (4), Adaflight.Axes.Pitch => Flt (5));
+         Step_AP_Max := Natural (Int (6));
+         Step_AP_Control := Int (7) /= 0;
       else
          Put_Line ("unknown pid case " & Str (1));
          Failures := Failures + 1;
@@ -21645,6 +21658,7 @@ begin
    Run (Dir & "/chirp.csv", "chirp");
    Run (Dir & "/rates.csv", "rates");
    Run (Dir & "/pid.csv", "pid");
+   Run (Dir & "/pidmodes.csv", "pid");
    Run (Dir & "/pidthr.csv", "pidthr");
    Run (Dir & "/mix.csv", "mix");
    Run (Dir & "/rc.csv", "rc");
