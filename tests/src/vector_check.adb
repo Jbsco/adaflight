@@ -15038,12 +15038,21 @@ procedure Vector_Check is
       Debug_Mode      => 0,
       VTX_Present     => False,
       VTX_Power       => <>,
-      Smoothing       => <>);
+      Smoothing       => <>,
+      Motors          => 0,
+      Motor_Device    => Adaflight.MSP_Motor_In.No_Device,
+      Three_D         => False);
    CLI_Env      : CLI.Environment := CLI_Identity;
    CLI_Board    : CLI.Board_State;
    CLI_Reply    : CLI.Output;
    CLI_Sched    : Adaflight.Scheduler.State;
    CLI_Changes  : CLI.Effects;
+   --  The disarmed motor values the motor command and the MSP motor test set,
+   --  and the beeper requests play_sound made since the last read-out.
+   CLI_Disarmed      : Adaflight.MSP_Motor_In.Motor_Values := (others => 0.0);
+   CLI_Beep_Silences : Natural := 0;
+   CLI_Beep_Calls    : Natural := 0;
+   CLI_Beep_Mode     : Natural := 0;
    MSP_In_Ran     : Boolean := False;
    MSP_In_Result  : Adaflight.MSP_Tuning_In.Result := Adaflight.MSP_Tuning_In.Ack;
    MSP_In_Effects : Adaflight.MSP_Tuning_In.Effects;
@@ -15128,6 +15137,11 @@ procedure Vector_Check is
             CLI_Reply.Batch_Error := False;
             CLI_Reply.Last_Tasks_Us := 0;
             CLI_Reply.Last_Check_Total_Us := 0;
+            CLI_Reply.Last_Sound := -1;
+            CLI_Disarmed := (others => 0.0);
+            CLI_Beep_Silences := 0;
+            CLI_Beep_Calls := 0;
+            CLI_Beep_Mode := 0;
             CLI_Sched := (others => <>);
             MSP_Gyro_Rate := 0;
             MSP_Log.State := Adaflight.Blackbox.Disabled;
@@ -15149,7 +15163,7 @@ procedure Vector_Check is
          end if;
          CLI_Reply.Target.Text := Null_Unbounded_String;
          CLI_Expected := Null_Unbounded_String;
-         CLI_Changes := (others => False);
+         CLI_Changes := (others => <>);
          MSP_In_Ran := False;
          declare
             Command : constant String := Hex_String (3);
@@ -15527,14 +15541,32 @@ procedure Vector_Check is
                      end;
                   end if;
                end;
+               CLI_Disarmed := MSP_Motor_Effects.Values;
             elsif Word (Command, 0) = "!clock" then
                CLI_Env.Now_Us := Interfaces.Unsigned_32'Value (Word (Command, 1));
             elsif Word (Command, 0) = "!debug" then
                CLI_Env.Debug_Mode := Interfaces.Unsigned_8'Value (Word (Command, 1));
                CLI_Sched.Loop_Start_Cycles := Interfaces.Integer_32'Value (Word (Command, 2));
                CLI_Sched.Guard_Cycles := Interfaces.Integer_32'Value (Word (Command, 3));
+            elsif Word (Command, 0) = "!motors" or else Word (Command, 0) = "!beeps" then
+               null;
             else
+               CLI_Env.Motors := MSP_Motors;
+               CLI_Env.Motor_Device := MSP_Motor_Kind;
+               CLI_Env.Three_D := MSP_Three_D;
                CLI.Process_Line (CLI_Reply, CLI_Config, Command, Ports, CLI_Env, CLI_Board, CLI_Sched, CLI_Changes);
+               if CLI_Changes.Motor and then CLI_Changes.Every_Motor then
+                  for M in 0 .. CLI_Env.Motors - 1 loop
+                     CLI_Disarmed (M) := CLI_Changes.Motor_Value;
+                  end loop;
+               elsif CLI_Changes.Motor then
+                  CLI_Disarmed (CLI_Changes.Motor_Index) := CLI_Changes.Motor_Value;
+               end if;
+               if CLI_Changes.Sound then
+                  CLI_Beep_Silences := CLI_Beep_Silences + 1;
+                  CLI_Beep_Calls := CLI_Beep_Calls + 1;
+                  CLI_Beep_Mode := Adaflight.Beeper.Mode'Pos (CLI_Changes.Sound_Mode);
+               end if;
             end if;
          end;
       elsif Str (1) = "clo" then
@@ -15623,6 +15655,17 @@ procedure Vector_Check is
                Record_Int ("msp.font_byte", Int (6 + I), Integer_64 (E.Data (I)));
             end loop;
          end;
+      elsif Str (1) = "clmd" then
+         for M in Adaflight.MSP_Motor_In.Motor_Values'Range loop
+            Record_Result ("cli.motor_value", Unsigned_32'Value (Str (3 + M)), To_Bits (CLI_Disarmed (M)));
+         end loop;
+      elsif Str (1) = "clbp" then
+         Record_Int ("cli.beeper_silences", Int (3), Integer_64 (CLI_Beep_Silences));
+         Record_Int ("cli.beeper_requests", Int (4), Integer_64 (CLI_Beep_Calls));
+         Record_Int ("cli.beeper_mode", Int (5), Integer_64 (CLI_Beep_Mode));
+         CLI_Beep_Silences := 0;
+         CLI_Beep_Calls := 0;
+         CLI_Beep_Mode := 0;
       elsif Str (1) = "clmo" then
          for M in Adaflight.MSP_Motor_In.Motor_Values'Range loop
             Record_Result ("msp.motor_value", Unsigned_32'Value (Str (3 + M)), To_Bits (MSP_Motor_Effects.Values (M)));
@@ -21527,6 +21570,7 @@ begin
    Run (Dir & "/mspingps.csv", "cliset");
    Run (Dir & "/mspinmt.csv", "cliset");
    Run (Dir & "/cliinfo.csv", "cliset");
+   Run (Dir & "/climotor.csv", "cliset");
    Run (Dir & "/clisave.csv", "cliset");
    if Settings_Seen /= Adaflight.Settings_Table.Setting'Pos (Adaflight.Settings_Table.Setting'Last) + 1 then
       Put_Line ("settings: the vectors hold" & Settings_Seen'Image & " settings");

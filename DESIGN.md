@@ -5951,3 +5951,20 @@ come from the running smoothing, not from settings a set command changed since i
 The command line oracle scripts the transmitter's power levels and the receiver's rate and running cutoffs,
 and switches RC smoothing between the commands. Two runs of 600 lines, rates from 15 to 1250 Hz with halves,
 replay exactly.
+
+## D256. Motor and play_sound commands (2026-10-16)
+
+`Adaflight.Command_Line` gains motor and play_sound. motor reads its words between spaces as the C
+library's atoi reads them. The first names the output and prints it, or every output at 255, or prints the
+error for an output past the motors. With exactly two words and a value from 1000 to 2000 it sets that
+motor's disarmed value, or every motor's, to the value converted for the motor protocol and truncated to a
+whole number, and prints it. The conversion is the MSP motor test's (D221), now in the spec of
+`Adaflight.MSP_Motor_In`. play_sound plays the beeper table's entry at the given index, or without one the
+entry after the one played last, the first after the last entry, and prints its name; an index without an
+entry prints that line. Every entry of the table has a name, so the search for a named entry stops at the
+first index it tries. The command line keeps the index played last in its output record and hands the
+motor values and the sound to its caller as effects, with the beeper silenced before the sound.
+
+The command line oracle prints the disarmed motor values and the beeper requests at read-out lines, and the
+harness keeps both from the effects. Two runs of 600 lines, with motor devices, motor counts and the 3D
+feature switched between them, replay exactly.
