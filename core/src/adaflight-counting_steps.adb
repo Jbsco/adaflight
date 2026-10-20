@@ -81,9 +81,12 @@ package body Adaflight.Counting_Steps with SPARK_Mode is
                 Screen       => Step_Screen (T));
    end Step_Call;
 
-   procedure Step_Leave (T : in out Menu_Target; Id : Menu.Menu_Id; Self : Integer; Chain_Back : out Boolean) is
+   procedure Step_Leave
+     (T : in out Menu_Target; Id : Menu.Menu_Id; Self : Integer; Chain_Back : out Boolean; Save : out Boolean)
+   is
       pragma Unreferenced (Id, Self);
    begin
+      Save := False;
       T := Counted (T);
       Chain_Back := T mod 2 = 0;
    end Step_Leave;

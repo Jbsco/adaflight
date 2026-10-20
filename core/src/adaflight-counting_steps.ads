@@ -92,9 +92,10 @@ package Adaflight.Counting_Steps with SPARK_Mode, Initializes => Calls is
                                       Screens      => T mod 4,
                                       Screen       => Step_Screen (T));
 
-   procedure Step_Leave (T : in out Menu_Target; Id : Menu.Menu_Id; Self : Integer; Chain_Back : out Boolean)
+   procedure Step_Leave
+     (T : in out Menu_Target; Id : Menu.Menu_Id; Self : Integer; Chain_Back : out Boolean; Save : out Boolean)
      with Global => null,
-          Post   => T = Counted (T'Old) and then Chain_Back = (T mod 2 = 0);
+          Post   => T = Counted (T'Old) and then Chain_Back = (T mod 2 = 0) and then not Save;
 
    procedure Step_Update (T : in out Menu_Target; Id : Menu.Menu_Id; Selected : Natural; Chain_Back : out Boolean)
      with Global => null,

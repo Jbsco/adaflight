@@ -34,7 +34,8 @@ generic
    with procedure Load (T : Target_State; Id : Adaflight.Menu.Menu_Id; M : out Adaflight.Menu.Table);
    with procedure On_Enter (T : in out Target_State; Id : Adaflight.Menu.Menu_Id; Reply : out Adaflight.Menu.Answer);
    with procedure On_Leave
-     (T : in out Target_State; Id : Adaflight.Menu.Menu_Id; Self : Integer; Chain_Back : out Boolean);
+     (T : in out Target_State; Id : Adaflight.Menu.Menu_Id; Self : Integer; Chain_Back : out Boolean;
+      Save : out Boolean);
    with procedure On_Display_Update
      (T : in out Target_State; Id : Adaflight.Menu.Menu_Id; Selected : Natural; Chain_Back : out Boolean);
    with procedure Line_Call

@@ -4,7 +4,8 @@
 --  control, filter and profile copy menus, the VTX selection with its
 --  error menu, the MSP and Tramp VTX menus with their confirmations, the
 --  SmartAudio VTX menu with its configuration, statistics, pit and user
---  frequency and confirmation menus, the save menus, the OSD menu with
+--  frequency and confirmation menus, the RTC6705 VTX menu, the save
+--  menus, the OSD menu with
 --  its active elements, timers and alarms
 --  menus, the blackbox menu with its erase and mass storage
 --  confirmations, the LED strip and power menus, the failsafe menu with
@@ -583,6 +584,7 @@ package Adaflight.Menu_Content with SPARK_Mode is
       Tramp_Status : Adaflight.Menu.Label_Text := Initial_VTX_Status;
       Tramp        : VTX_Copies;
       Tramp_Temp   : Interfaces.Integer_16 := 0;
+      RTC          : VTX_Copies := (Pit_Mode => 0, Band => 0, Channel => 0, Freq_Ref => 0, Power => 0);
       SA_Top       : SA_Top_Lines := Offline_Lines;
       VTX_Table    : Adaflight.VTX_Table.Table;
       LED          : LED_Copies;
@@ -615,7 +617,7 @@ package Adaflight.Menu_Content with SPARK_Mode is
 
    procedure On_Enter (T : in out Target; Id : Menu_Id; Reply : out Adaflight.Menu.Answer);
 
-   procedure On_Leave (T : in out Target; Id : Menu_Id; Self : Integer; Chain_Back : out Boolean);
+   procedure On_Leave (T : in out Target; Id : Menu_Id; Self : Integer; Chain_Back : out Boolean; Save : out Boolean);
 
    procedure On_Display_Update (T : in out Target; Id : Menu_Id; Selected : Natural; Chain_Back : out Boolean);
 

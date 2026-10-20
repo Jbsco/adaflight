@@ -140,7 +140,7 @@ package Adaflight.VTX with SPARK_Mode is
    --  know them.
    procedure Common_Set_Band_Channel (V : in out State; T : VTX_Table.Table; Band, Channel : Unsigned_8);
    procedure Common_Set_Power_Index (V : in out State; T : VTX_Table.Table; Index : Unsigned_8);
-   procedure Common_Set_Pit_Mode (V : in out State; T : VTX_Table.Table; On : Boolean);
+   procedure Common_Set_Pit_Mode (V : in out State; T : VTX_Table.Table; Value : Unsigned_8);
    procedure Common_Get_Band_Channel (V : State; T : VTX_Table.Table; Band, Channel : in out Unsigned_8;
                                       Known : out Boolean);
    procedure Common_Get_Power_Index (V : State; T : VTX_Table.Table; Index : in out Unsigned_8; Known : out Boolean);
