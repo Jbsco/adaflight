@@ -20145,6 +20145,36 @@ procedure Vector_Check is
            (Columns => Screen_Columns (Int (4)), Rows => Screen_Rows (Int (5)), Full_Screen => Int (6) = 1,
             Cleared => False, Cursor_Row => -1, Supports_Symbols => True, Grab_Count => 0);
          declare
+            GR : Adaflight.Config_Groups.Gps_Rescue_Record renames MCT_T.Config.Gps_Rescue_Config;
+            AP : Adaflight.Config_Groups.Autopilot_Config_Record renames MCT_T.Config.Autopilot_Config;
+         begin
+            GR.Min_Start_Dist_M := Interfaces.Unsigned_16 (Int (608));
+            GR.Altitude_Mode := Interfaces.Unsigned_8 (Int (609));
+            GR.Initial_Climb_M := Interfaces.Unsigned_16 (Int (610));
+            GR.Ascend_Rate := Interfaces.Unsigned_16 (Int (611));
+            GR.Return_Altitude_M := Interfaces.Unsigned_16 (Int (612));
+            GR.Ground_Speed_Cm_S := Interfaces.Unsigned_16 (Int (613));
+            AP.Max_Angle := Interfaces.Unsigned_8 (Int (614));
+            GR.Descent_Distance_M := Interfaces.Unsigned_16 (Int (615));
+            GR.Descend_Rate := Interfaces.Unsigned_16 (Int (616));
+            AP.Landing_Altitude_M := Interfaces.Unsigned_8 (Int (617));
+            AP.Throttle_Min := Interfaces.Unsigned_16 (Int (618));
+            AP.Throttle_Max := Interfaces.Unsigned_16 (Int (619));
+            AP.Hover_Throttle := Interfaces.Unsigned_16 (Int (620));
+            GR.Min_Sats := Interfaces.Unsigned_8 (Int (621));
+            GR.Allow_Arming_Without_Fix := Interfaces.Unsigned_8 (Int (622));
+            AP.Altitude_P := Interfaces.Unsigned_8 (Int (623));
+            AP.Altitude_I := Interfaces.Unsigned_8 (Int (624));
+            AP.Altitude_D := Interfaces.Unsigned_8 (Int (625));
+            AP.Altitude_A := Interfaces.Unsigned_8 (Int (626));
+            AP.Altitude_F := Interfaces.Unsigned_8 (Int (627));
+            GR.Yaw_P := Interfaces.Unsigned_8 (Int (628));
+            AP.Position_P := Interfaces.Unsigned_8 (Int (629));
+            AP.Position_I := Interfaces.Unsigned_8 (Int (630));
+            AP.Position_D := Interfaces.Unsigned_8 (Int (631));
+            AP.Position_Cutoff := Interfaces.Unsigned_8 (Int (632));
+         end;
+         declare
             C : Adaflight.Config_Groups.Vtx_Table_Config_Record renames MCT_T.Config.Vtx_Table_Config;
          begin
             C.Bands := Interfaces.Unsigned_8 (Int (456));
