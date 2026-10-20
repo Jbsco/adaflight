@@ -3,7 +3,8 @@
 --  profile menu with its PID, rate, simplified tuning, misc, launch
 --  control, filter and profile copy menus, the VTX selection with its
 --  error menu, the MSP and Tramp VTX menus with their confirmations, the
---  save menus, the OSD menu with
+--  SmartAudio VTX menu with its configuration, statistics, pit and user
+--  frequency and confirmation menus, the save menus, the OSD menu with
 --  its active elements, timers and alarms
 --  menus, the blackbox menu with its erase and mass storage
 --  confirmations, the LED strip and power menus, the failsafe menu with
@@ -72,6 +73,15 @@ package Adaflight.Menu_Content with SPARK_Mode is
    VTX_Tramp_Confirm     : constant Menu_Id := 41;
    GPS_Rescue_Menu       : constant Menu_Id := 42;
    GPS_Rescue_PID_Menu   : constant Menu_Id := 43;
+   SA_Config_Menu        : constant Menu_Id := 44;
+   SA_Stats_Menu         : constant Menu_Id := 45;
+   SA_POR_Freq_Menu      : constant Menu_Id := 46;
+   SA_User_Freq_Menu     : constant Menu_Id := 47;
+   SA_Confirm_Menu       : constant Menu_Id := 48;
+
+   --  The SmartAudio menu's lines: offline, by band and channel, or by
+   --  frequency.
+   type SA_Top_Lines is (Offline_Lines, Channel_Lines, Frequency_Lines);
 
    --  The RC channels the preview shows: roll, pitch, throttle, yaw and the
    --  first four auxiliary channels.
@@ -573,6 +583,7 @@ package Adaflight.Menu_Content with SPARK_Mode is
       Tramp_Status : Adaflight.Menu.Label_Text := Initial_VTX_Status;
       Tramp        : VTX_Copies;
       Tramp_Temp   : Interfaces.Integer_16 := 0;
+      SA_Top       : SA_Top_Lines := Offline_Lines;
       VTX_Table    : Adaflight.VTX_Table.Table;
       LED          : LED_Copies;
       Lap          : Lap_Copies;

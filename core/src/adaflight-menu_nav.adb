@@ -184,6 +184,7 @@ package body Adaflight.Menu_Nav with SPARK_Mode is
          if S.Hooks.Enter then
             On_Enter (T, Target, Reply);
             Show (S, Reply);
+            Load (T, Target, S.Table);
             if Reply.Done = Adaflight.Menu.Changed and then Level < Max_Nesting then
                Change_At (S, T, Reply.Target, Level + 1);
             end if;

@@ -19824,6 +19824,111 @@ procedure Vector_Check is
          Record_Int (Name & ".tramp_copy_power", Next, Integer_64 (MCT_T.Tramp.Power));
          Record_Int (Name & ".tramp_temp", Next, Integer_64 (MCT_T.Tramp_Temp));
       end Expect_VTX;
+      --  The SmartAudio driver's report, statistics and line rate and the
+      --  SmartAudio menu's state from field F on, as the oracle scripts them.
+      procedure Read_SA (F : Positive) is
+         D      : Adaflight.SmartAudio.Driver renames MCT_T.VTX.SA;
+         V      : Adaflight.SmartAudio.Menu_View renames MCT_T.VTX.SA_Menu;
+         Status : constant String := Hex_String (F + 30);
+         function U8 (I : Positive) return Interfaces.Unsigned_8 is (Interfaces.Unsigned_8 (Int (I)));
+         function U16 (I : Positive) return Interfaces.Unsigned_16 is (Interfaces.Unsigned_16 (Int (I)));
+      begin
+         D.Port_Open := True;
+         D.Device.Version_Seen := Adaflight.SmartAudio.Version'Val (Int (F));
+         D.Device.Channel := Interfaces.Integer_8 (Int (F + 1));
+         D.Device.Power := Interfaces.Integer_8 (Int (F + 2));
+         D.Device.Mode := U8 (F + 3);
+         D.Device.Freq := U16 (F + 4);
+         D.Device.Pit_Freq := U16 (F + 5);
+         D.Device.Will_Boot_Into_Pit_Mode := Int (F + 6) = 1;
+         D.Stat.Sent := U16 (F + 7);
+         D.Stat.Received := U16 (F + 8);
+         D.Stat.Bad_Preamble := U16 (F + 9);
+         D.Stat.Bad_Length := U16 (F + 10);
+         D.Stat.Crc_Errors := U16 (F + 11);
+         D.Stat.Out_Of_Order := U16 (F + 12);
+         D.Smart_Baud := Adaflight.SmartAudio.Baud'Val ((Int (F + 13) - 4800) / 50);
+         V.Opmodel := U8 (F + 14);
+         V.RF_State := U8 (F + 15);
+         V.Band := U8 (F + 16);
+         V.Channel := U8 (F + 17);
+         V.Power := U8 (F + 18);
+         V.Freq_Ref := U16 (F + 19);
+         V.Device_Freq := U16 (F + 20);
+         V.Device_Status := U8 (F + 21);
+         V.Pit := U8 (F + 22);
+         V.Pit_F_Mode := U8 (F + 23);
+         V.Fsel_Mode := U8 (F + 24);
+         V.Fsel_Mode_New := U8 (F + 25);
+         V.OR_Freq := U16 (F + 26);
+         V.OR_Freq_New := U16 (F + 27);
+         V.User_Freq := U16 (F + 28);
+         V.User_Freq_New := U16 (F + 29);
+         V.Status := Status (Status'First .. Status'First + 30);
+      end Read_SA;
+      --  The SmartAudio driver's queued frames: their count, then their bytes
+      --  in order.
+      procedure Expect_SA_Queue is
+         use Adaflight.SmartAudio;
+         D     : Driver renames MCT_T.VTX.SA;
+         Count : constant Natural := (D.Head + Queue_Size - D.Tail) mod Queue_Size;
+         Bytes : Byte_Array (0 .. Queue_Size * Max_Frame - 1) := (others => 0);
+         Last  : Natural := 0;
+      begin
+         Record_Int (Name & ".sa_queue", Next, Integer_64 (Count));
+         for I in 0 .. Count - 1 loop
+            declare
+               F : Frame renames D.Buffers (D.Pending ((D.Tail + I) mod Queue_Size));
+            begin
+               for J in 0 .. F.Length - 1 loop
+                  Bytes (Last) := F.Data (J);
+                  Last := Last + 1;
+               end loop;
+            end;
+         end loop;
+         Record_Bytes (Name & ".sa_queue_bytes", Hex_Bytes (K), Bytes (0 .. Last - 1));
+         K := K + 1;
+      end Expect_SA_Queue;
+      --  The SmartAudio driver's report, statistics and line rate, the
+      --  SmartAudio menu's state with its status line, and the queued frames.
+      procedure Expect_SA is
+         D : Adaflight.SmartAudio.Driver renames MCT_T.VTX.SA;
+         V : Adaflight.SmartAudio.Menu_View renames MCT_T.VTX.SA_Menu;
+      begin
+         Record_Int (Name & ".sa_version", Next, Integer_64 (Adaflight.SmartAudio.Version'Pos (D.Device.Version_Seen)));
+         Record_Int (Name & ".sa_channel", Next, Integer_64 (D.Device.Channel));
+         Record_Int (Name & ".sa_power", Next, Integer_64 (D.Device.Power));
+         Record_Int (Name & ".sa_mode", Next, Integer_64 (D.Device.Mode));
+         Record_Int (Name & ".sa_freq", Next, Integer_64 (D.Device.Freq));
+         Record_Int (Name & ".sa_orfreq", Next, Integer_64 (D.Device.Pit_Freq));
+         Record_Int (Name & ".sa_will_boot", Next, Boolean'Pos (D.Device.Will_Boot_Into_Pit_Mode));
+         Record_Int (Name & ".sa_sent", Next, Integer_64 (D.Stat.Sent));
+         Record_Int (Name & ".sa_received", Next, Integer_64 (D.Stat.Received));
+         Record_Int (Name & ".sa_bad_preamble", Next, Integer_64 (D.Stat.Bad_Preamble));
+         Record_Int (Name & ".sa_bad_length", Next, Integer_64 (D.Stat.Bad_Length));
+         Record_Int (Name & ".sa_crc", Next, Integer_64 (D.Stat.Crc_Errors));
+         Record_Int (Name & ".sa_out_of_order", Next, Integer_64 (D.Stat.Out_Of_Order));
+         Record_Int (Name & ".sa_baud", Next, Integer_64 (Adaflight.SmartAudio.Rate_Of (D.Smart_Baud)));
+         Record_Int (Name & ".sa_opmodel", Next, Integer_64 (V.Opmodel));
+         Record_Int (Name & ".sa_rf_state", Next, Integer_64 (V.RF_State));
+         Record_Int (Name & ".sa_band", Next, Integer_64 (V.Band));
+         Record_Int (Name & ".sa_channel_copy", Next, Integer_64 (V.Channel));
+         Record_Int (Name & ".sa_power_copy", Next, Integer_64 (V.Power));
+         Record_Int (Name & ".sa_freq_ref", Next, Integer_64 (V.Freq_Ref));
+         Record_Int (Name & ".sa_device_freq", Next, Integer_64 (V.Device_Freq));
+         Record_Int (Name & ".sa_device_status", Next, Integer_64 (V.Device_Status));
+         Record_Int (Name & ".sa_pit", Next, Integer_64 (V.Pit));
+         Record_Int (Name & ".sa_pit_f_mode", Next, Integer_64 (V.Pit_F_Mode));
+         Record_Int (Name & ".sa_fsel", Next, Integer_64 (V.Fsel_Mode));
+         Record_Int (Name & ".sa_fsel_new", Next, Integer_64 (V.Fsel_Mode_New));
+         Record_Int (Name & ".sa_or_freq", Next, Integer_64 (V.OR_Freq));
+         Record_Int (Name & ".sa_or_freq_new", Next, Integer_64 (V.OR_Freq_New));
+         Record_Int (Name & ".sa_user_freq", Next, Integer_64 (V.User_Freq));
+         Record_Int (Name & ".sa_user_freq_new", Next, Integer_64 (V.User_Freq_New));
+         Record_Text (Name & ".sa_status", Hex_String (K), V.Status);
+         K := K + 1;
+         Expect_SA_Queue;
+      end Expect_SA;
       --  The VTX device menu's status line, which the device's driver cycle
       --  updates.
       procedure Update_Device_Status is
@@ -19905,6 +20010,7 @@ procedure Vector_Check is
          end;
          K := K + 1;
          Expect_VTX;
+         Expect_SA;
       end Expect_State;
       procedure Read_Live (F : Positive) is
       begin
@@ -20202,6 +20308,10 @@ procedure Vector_Check is
             AP.Position_D := Interfaces.Unsigned_8 (Int (631));
             AP.Position_Cutoff := Interfaces.Unsigned_8 (Int (632));
          end;
+         MCT_T.Config.Vtx_Settings_Config.Band := Interfaces.Unsigned_8 (Int (666));
+         MCT_T.Config.Vtx_Settings_Config.Channel := Interfaces.Unsigned_8 (Int (667));
+         MCT_T.Config.Vtx_Settings_Config.Power := Interfaces.Unsigned_8 (Int (668));
+         MCT_T.Config.Vtx_Settings_Config.Freq := Interfaces.Unsigned_16 (Int (669));
          declare
             C : Adaflight.Config_Groups.Vtx_Table_Config_Record renames MCT_T.Config.Vtx_Table_Config;
          begin
@@ -20243,6 +20353,7 @@ procedure Vector_Check is
            (if not MCT_T.Live.VTX_Present then Adaflight.VTX.No_Device
             elsif MCT_T.Live.VTX_Type = 5 then Adaflight.VTX.MSP_Device
             elsif MCT_T.Live.VTX_Type = 4 then Adaflight.VTX.Tramp_Device
+            elsif MCT_T.Live.VTX_Type = 3 then Adaflight.VTX.SmartAudio_Device
             else Adaflight.VTX.No_Device);
          MCT_T.VTX.MD :=
            (Current        => Adaflight.VTX_MSP.Status'Val (Int (571)),
@@ -20276,8 +20387,11 @@ procedure Vector_Check is
             Retry_Count        => Interfaces.Unsigned_8 (Int (591)),
             others             => <>);
          Update_Device_Status;
+         Read_SA (633);
          K := 571;
          Expect_VTX;
+         K := 664;
+         Expect_SA_Queue;
          declare
             D        : Adaflight.Config_Codec.Data;
             Hash     : Interfaces.Unsigned_64 := 16#CBF2_9CE4_8422_2325#;
@@ -20300,6 +20414,9 @@ procedure Vector_Check is
          Read_Storage (14);
          Read_VTX (26);
          Update_Device_Status;
+         Read_SA (28);
+         K := 59;
+         Expect_SA_Queue;
       elsif Name = "cmopen" then
          Begin_Step;
          Read_Ops;
