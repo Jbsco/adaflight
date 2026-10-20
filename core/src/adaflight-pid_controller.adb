@@ -474,6 +474,27 @@ package body Adaflight.PID_Controller with SPARK_Mode is
       end if;
    end Hold_Launch_Terms;
 
+   --  The landing disarm: once the throttle has risen, with the sticks
+   --  centred and the RC throttle low, or below the landing altitude while
+   --  altitude hold or GPS rescue owns the throttle, a jerk past the
+   --  threshold requests the disarm, half again as sensitive below that
+   --  altitude under the autopilot.
+   procedure Disarm_On_Impact (S : in out State; R : Runtime; Inp : Inputs)
+     with Global => null
+   is
+      Autopilot   : constant Boolean := Inp.Alt_Hold_Mode or else Inp.GPS_Rescue_Mode;
+      Sensitivity : constant Float range 1.0 .. 1.5 :=
+        (if Autopilot and then Inp.Below_Landing_Altitude then 1.5 else 1.0);
+   begin
+      if Inp.Throttle_Raised
+        and then (if Autopilot then Inp.Below_Landing_Altitude
+                  else Inp.Max_Deflection < 0.05 and then Inp.RC_Throttle < 0.05)
+        and then Inp.Jerk_Magnitude * Sensitivity > R.Landing_Disarm_Threshold
+      then
+         S.Landing_Disarm_Requested := True;
+      end if;
+   end Disarm_On_Impact;
+
    procedure Update (S : in out State; R : Runtime; P : Profile; Inp : Inputs) is
       External   : constant Boolean := Inp.GPS_Rescue_Mode or else Inp.Alt_Hold_Mode or else Inp.Pos_Hold_Mode;
       Gyro_Dterm : Axis_Signals;
@@ -481,6 +502,7 @@ package body Adaflight.PID_Controller with SPARK_Mode is
       H          : Strength := 0.0;
    begin
       S.Crash_Disarm_Requested := False;
+      S.Landing_Disarm_Requested := False;
       if Inp.Angle_Mode or else Inp.Horizon_Mode or else Inp.GPS_Rescue_Mode then
          Level := (if R.Level_Race_Mode and then not External then Level_Roll else Level_Roll_Pitch);
          if S.Level_Mode_Start_Us = 0 or else (External and then not S.Previous_External) then
@@ -506,6 +528,9 @@ package body Adaflight.PID_Controller with SPARK_Mode is
       end loop;
       if R.Iterm_Rotation then
          Rotate_Iterm (S, R, Inp.Gyro);
+      end if;
+      if R.Landing_Disarm_Threshold > 0.0 then
+         Disarm_On_Impact (S, R, Inp);
       end if;
       for A in Axis loop
          declare

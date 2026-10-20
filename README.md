@@ -38,7 +38,7 @@ The core contains:
 - rate curves and RC command path with smoothing and feedforward
 - in-flight adjustments and simplified tuning of PID gains and filters
 - PID profile with runtime configuration, filter initialization, rate loop, throttle-side
-  features, crash recovery, launch control, and yaw spin recovery
+  features, crash recovery, launch control, yaw spin recovery, and landing disarm
 - motor mixer with mixer setup: frame tables, custom mixes, launch control mix, and launch
   control, altitude hold and GPS rescue throttles
 - gyro calibration, filtering chain, dynamic notch, RPM filter, and full-scale detections
@@ -305,7 +305,7 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 28085 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 28087 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
 - Recorded vectors replay bit for bit: 1753568 lines over 384 cases, every case exact except
   forty-seven declared deviations in `DESIGN.md` D6.

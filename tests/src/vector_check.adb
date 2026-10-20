@@ -1277,6 +1277,15 @@ procedure Vector_Check is
    Step_AP_Angle   : Adaflight.PID_Controller.Level_Targets := (others => 0.0);
    Step_AP_Max     : Natural range 0 .. 90 := 50;
    Step_AP_Control : Boolean := False;
+   type Landing_Inputs is record
+      Raised : Boolean := True;
+      Below  : Boolean := False;
+      Defl   : Float := 0.0;
+      RC_Thr : Float := 0.0;
+      Jerk   : Float := 0.0;
+      Threshold : Integer := -1;
+   end record;
+   Step_Land : Landing_Inputs;
 
    procedure Check_PID_Step_Line is
       use Adaflight.PID_Profile;
@@ -1304,6 +1313,9 @@ procedure Vector_Check is
             Step_Profile.Crash_Dterm_Threshold := Integer (Int (55));
             Step_Profile.Crash_Setpoint_Threshold := Integer (Int (56));
          end if;
+         if Step_Land.Threshold >= 0 then
+            Step_Profile.Landing_Disarm_Threshold := Step_Land.Threshold;
+         end if;
          Configure (Step_Runtime, Step_Profile, Loop_Time, Has_Acc => NF >= 68 and then Int (68) /= 0,
                     Serial_Rx_Is_CRSF => Profile_CRSF (Index));
          Init (Step_State, Step_Profile, Step_Runtime);
@@ -1325,6 +1337,15 @@ procedure Vector_Check is
          Inp.Autopilot_Angle := Step_AP_Angle;
          Inp.Autopilot_Max_Angle := Step_AP_Max;
          Inp.Autopilot_In_Control := Step_AP_Control;
+         Step_AP_Angle := (others => 0.0);
+         Step_AP_Max := 50;
+         Step_AP_Control := False;
+         Inp.Throttle_Raised := Step_Land.Raised;
+         Inp.Below_Landing_Altitude := Step_Land.Below;
+         Inp.Max_Deflection := Step_Land.Defl;
+         Inp.RC_Throttle := Step_Land.RC_Thr;
+         Inp.Jerk_Magnitude := Step_Land.Jerk;
+         Step_Land := (others => <>);
          for A in Level_Axis loop
             Inp.Attitude (A) := Integer (Int (37 + Adaflight.Axes.Axis'Pos (A)));
             Inp.Trims (A) := Integer (Int (39 + Adaflight.Axes.Axis'Pos (A)));
@@ -3954,6 +3975,12 @@ procedure Vector_Check is
          Check_PID_Filters_Line;
       elsif Str (1) = "pidstep" then
          Check_PID_Step_Line;
+      elsif Str (1) = "pidland" then
+         Step_Land := (Raised => Str (4) = "1", Below => Str (5) = "1", Defl => Flt (6), RC_Thr => Flt (7),
+                       Jerk => Flt (8), Threshold => Integer (Int (9)));
+      elsif Str (1) = "pidlandout" then
+         Record_Int ("pidland.disarm", Int (4), Boolean'Pos (Step_State.Landing_Disarm_Requested));
+         Record_Int ("pidland.arm_switch", Int (5), Boolean'Pos (Step_State.Landing_Disarm_Requested));
       elsif Str (1) = "pidap" then
          Step_AP_Angle := (Adaflight.Axes.Roll => Flt (4), Adaflight.Axes.Pitch => Flt (5));
          Step_AP_Max := Natural (Int (6));
@@ -21706,6 +21733,7 @@ begin
    Run (Dir & "/rates.csv", "rates");
    Run (Dir & "/pid.csv", "pid");
    Run (Dir & "/pidmodes.csv", "pid");
+   Run (Dir & "/pidland.csv", "pid");
    Run (Dir & "/pidthr.csv", "pidthr");
    Run (Dir & "/mix.csv", "mix");
    Run (Dir & "/mixmodes.csv", "mix");

@@ -6163,3 +6163,16 @@ control, sets the throttle to half ahead of the launch control and autopilot thr
 The PID oracle builds with the F405 build's yaw spin recovery, and the existing vectors stay byte for byte.
 New mixer runs switch the detection every eight loops, with launch control in one window in four. They
 replay exactly.
+
+## D268. Landing disarm (2026-10-16)
+
+`Adaflight.PID_Controller` requests the landing disarm when the landing threshold is set. Once the throttle
+has risen, with the sticks centred and the RC throttle under 5 percent, or below the landing altitude while
+altitude hold or GPS rescue owns the throttle, a jerk past ten times the threshold requests the disarm, and
+below that altitude under the autopilot the jerk counts half again. The caller carries out the request as
+the arm switch disable and the disarm with the landing reason. The check runs after the I term rotation.
+
+The PID oracle's new runs script the throttle-raised flag, altitude hold or GPS rescue, the landing altitude,
+the stick deflection, the RC throttle and the jerk, with a threshold in seven sequences of eight, and read
+back the disarm and the arm switch disable after each step. They replay exactly. The oracle's disarm stub
+now counts landing disarms apart from crash disarms, and the earlier vectors stay byte for byte.
