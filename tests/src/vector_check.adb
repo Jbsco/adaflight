@@ -1286,6 +1286,12 @@ procedure Vector_Check is
       Threshold : Integer := -1;
    end record;
    Step_Land : Landing_Inputs;
+   Step_Wing_Valid   : Boolean := False;
+   Step_Wing_Profile : Adaflight.PID_Profile.Profile;
+   Step_Wing_Setup   : Adaflight.PID_Config.Wing_Setup;
+   Step_Yaw_Max_Rate : Float := 670.0;
+   Step_Wing_RMS     : Float := 0.0;
+   Step_Wing_Vbat    : Natural := 0;
 
    procedure Check_PID_Step_Line is
       use Adaflight.PID_Profile;
@@ -1303,7 +1309,10 @@ procedure Vector_Check is
       end Expect_Float;
    begin
       if Step = 0 then
-         Step_Profile := Profiles (Index);
+         Step_Profile := (if Step_Wing_Valid then Step_Wing_Profile else Profiles (Index));
+         if not Step_Wing_Valid then
+            Step_Yaw_Max_Rate := 670.0;
+         end if;
          Step_Profile.TPA_Terms := TPA_Mode'Val (Integer'Value (Str (5)));
          if NF >= 65 then
             Step_Profile.Crash_Recovery := Crash_Recovery_Mode'Val (Int (51));
@@ -1317,7 +1326,9 @@ procedure Vector_Check is
             Step_Profile.Landing_Disarm_Threshold := Step_Land.Threshold;
          end if;
          Configure (Step_Runtime, Step_Profile, Loop_Time, Has_Acc => NF >= 68 and then Int (68) /= 0,
-                    Serial_Rx_Is_CRSF => Profile_CRSF (Index));
+                    Serial_Rx_Is_CRSF => Profile_CRSF (Index),
+                    Wing => (if Step_Wing_Valid then Step_Wing_Setup else No_Wing));
+         Step_Wing_Valid := False;
          Init (Step_State, Step_Profile, Step_Runtime);
          Set_Stabilisation (Step_State, True);
       end if;
@@ -1334,6 +1345,8 @@ procedure Vector_Check is
          Inp.Alt_Hold_Mode := (Int (36) / 2 ** 3) mod 2 = 1;
          Inp.Pos_Hold_Mode := (Int (36) / 2 ** 5) mod 2 = 1;
          Inp.GPS_Rescue_Mode := (Int (36) / 2 ** 11) mod 2 = 1;
+         Inp.Passthru_Mode := (Int (36) / 2 ** 8) mod 2 = 1;
+         Inp.Max_RC_Rate (Yaw) := Step_Yaw_Max_Rate;
          Inp.Autopilot_Angle := Step_AP_Angle;
          Inp.Autopilot_Max_Angle := Step_AP_Max;
          Inp.Autopilot_In_Control := Step_AP_Control;
@@ -1365,7 +1378,10 @@ procedure Vector_Check is
          Inp.Launch_Control_Active := Int (66) /= 0;
          Inp.Yaw_Deflection := Flt (67);
       end if;
-      Update_Throttle_Terms (Step_State, Step_Runtime, Step_Profile, Flt (17), (others => <>));
+      Update_Throttle_Terms
+        (Step_State, Step_Runtime, Step_Profile, Flt (17),
+         (Motor_Output_RMS => Step_Wing_RMS, Battery_Latest => Step_Wing_Vbat,
+          Roll => Inp.Attitude (Roll), Pitch => Inp.Attitude (Pitch)));
       Expect_Float ("tpa_factor", Step_State.TPA_Factor);
       Expect_Float ("anti_gravity_throttle_d", Step_State.Anti_Gravity_Throttle_D);
       Update (Step_State, Step_Runtime, Step_Profile, Inp);
@@ -4272,6 +4288,63 @@ procedure Vector_Check is
       elsif Str (1) = "pidlandout" then
          Record_Int ("pidland.disarm", Int (4), Boolean'Pos (Step_State.Landing_Disarm_Requested));
          Record_Int ("pidland.arm_switch", Int (5), Boolean'Pos (Step_State.Landing_Disarm_Requested));
+      elsif Str (1) = "wingmodesinit" then
+         declare
+            use Adaflight.PID_Profile;
+            use Adaflight.PID_Config;
+            Mode : constant Adaflight.Mixer_Init.Mixer_Mode :=
+              Adaflight.Mixer_Init.Mixer_Mode'Val (Integer (Int (3)) - 1);
+            P    : Profile := Profiles (Integer (Int (2)));
+            R    : Runtime;
+         begin
+            P.Yaw_Type := Yaw_Kind'Val (Int (4));
+            P.TPA_Speed_Type := TPA_Speed_Kind'Val (Int (5));
+            P.TPA_Speed_Basic_Delay := Integer (Int (6));
+            P.TPA_Speed_Basic_Gravity := Integer (Int (7));
+            P.TPA_Speed_Adv_Prop_Pitch := Integer (Int (8));
+            P.TPA_Speed_Adv_Mass := Integer (Int (9));
+            P.TPA_Speed_Adv_Drag_K := Integer (Int (10));
+            P.TPA_Speed_Adv_Thrust := Integer (Int (11));
+            P.TPA_Speed_Max_Voltage := Integer (Int (12));
+            P.TPA_Speed_Pitch_Offset := Integer (Int (13));
+            for A in Adaflight.Axes.Axis loop
+               P.Gains (A).S := Integer (Int (14 + Adaflight.Axes.Axis'Pos (A)));
+               P.SPA_Center (A) := Integer (Int (26 + Adaflight.Axes.Axis'Pos (A)));
+               P.SPA_Width (A) := Integer (Int (29 + Adaflight.Axes.Axis'Pos (A)));
+               P.SPA_Mode (A) := SPA_Kind'Val (Int (32 + Adaflight.Axes.Axis'Pos (A)));
+            end loop;
+            P.TPA_Terms := TPA_Mode'Val (Int (18));
+            P.TPA_Curve_Type := TPA_Curve_Kind'Val (Int (19));
+            P.TPA_Curve_Stall_Throttle := Integer (Int (20));
+            P.TPA_Curve_PID_Thr0 := Integer (Int (21));
+            P.TPA_Curve_PID_Thr100 := Integer (Int (22));
+            P.TPA_Curve_Expo := Integer (Int (23));
+            P.TPA_Low_Rate := Integer (Int (24));
+            P.Angle_Pitch_Offset := Integer (Int (35));
+            Step_Yaw_Max_Rate := Flt (25);
+            Step_Wing_Profile := P;
+            Step_Wing_Setup := (Build => True, Fixed_Wing => Adaflight.Mixer_Init.Is_Fixed_Wing (Mode),
+                                Motor_KV => Integer (Int (17)));
+            Step_Wing_Valid := True;
+            Configure (R, P, Profile_Loop_Times (Integer (Int (2))), Has_Acc => True,
+                       Serial_Rx_Is_CRSF => Profile_CRSF (Integer (Int (2))), Wing => Step_Wing_Setup);
+            Record_Result ("wingmodesinit.max_speed", Bits (36), To_Bits (R.TPA_Speed.Max_Speed));
+            Record_Result ("wingmodesinit.thrust_weight", Bits (37), To_Bits (R.TPA_Speed.Thrust_Weight));
+            Record_Result ("wingmodesinit.drag_mass", Bits (38), To_Bits (R.TPA_Speed.Drag_Mass));
+            Record_Result ("wingmodesinit.inverse_prop_speed", Bits (39), To_Bits (R.TPA_Speed.Inverse_Prop_Speed));
+         end;
+      elsif Str (1) = "wingmodes" then
+         Step_Wing_RMS := Flt (4);
+         Step_Wing_Vbat := Natural (Int (5));
+      elsif Str (1) = "wingmodesstate" then
+         for A in Adaflight.Axes.Axis loop
+            Record_Result ("wingmodesstate.spa", Bits (4 + Adaflight.Axes.Axis'Pos (A)), To_Bits (Step_State.SPA (A)));
+            Record_Result ("wingmodesstate.s", Bits (7 + Adaflight.Axes.Axis'Pos (A)), To_Bits (Step_State.Data (A).S));
+            Record_Result ("wingmodesstate.s_factor", Bits (11 + Adaflight.Axes.Axis'Pos (A)),
+                           To_Bits (Step_State.TPA_Factor_S (A)));
+         end loop;
+         Record_Result ("wingmodesstate.tpa_factor_yaw", Bits (10), To_Bits (Step_State.TPA_Factor_Yaw));
+         Record_Result ("wingmodesstate.speed", Bits (14), To_Bits (Step_State.Wing_Speed));
       elsif Str (1) = "pidap" then
          Step_AP_Angle := (Adaflight.Axes.Roll => Flt (4), Adaflight.Axes.Pitch => Flt (5));
          Step_AP_Max := Natural (Int (6));
@@ -22029,6 +22102,7 @@ begin
    Run (Dir & "/pid.csv", "pid");
    Run (Dir & "/pidmodes.csv", "pid");
    Run (Dir & "/pidland.csv", "pid");
+   Run (Dir & "/wingmodes.csv", "pid");
    Run (Dir & "/pidthr.csv", "pidthr");
    Run (Dir & "/mix.csv", "mix");
    Run (Dir & "/mixmodes.csv", "mix");

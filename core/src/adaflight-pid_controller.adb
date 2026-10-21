@@ -320,8 +320,19 @@ package body Adaflight.PID_Controller with SPARK_Mode is
       H := (if Level < Smoothed then Level elsif Smoothed > 0.0 then Smoothed else 0.0);
    end Horizon_Strength;
 
+   --  The pitch angle target with a wing's offset in tenths of a degree.
+   function Offset_Pitch (Target : Float; Offset : Integer) return Float
+     with Global => null,
+          Pre  => Target in -1.6e6 .. 1.6e6 and then Offset in -32_768 .. 32_767,
+          Post => Offset_Pitch'Result in -1.61e6 .. 1.61e6
+   is
+   begin
+      return Target + Float (Offset) / 10.0;
+   end Offset_Pitch;
+
    --  The angle error rate of a level axis from the stick's angle target,
-   --  or the autopilot's in GPS rescue and in position hold while it holds,
+   --  with a wing build's pitch offset, or the autopilot's in GPS rescue and,
+   --  outside a wing build, in position hold while it holds,
    --  the attitude less the trim, the angle feedforward, and the yaw
    --  compensation while rolled or pitched, blended into the acro setpoint
    --  by the horizon strength outside the angle and autopilot modes.
@@ -351,12 +362,15 @@ package body Adaflight.PID_Controller with SPARK_Mode is
       Filtered    : Signal;
    begin
       PT3_Apply (S.Filters.Angle_Feedforward (A), Raw_FF, Feedforward);
+      if R.Wing_Build and then A = Pitch then
+         Wanted := Offset_Pitch (Wanted, P.Angle_Pitch_Offset);
+      end if;
       if Inp.GPS_Rescue_Mode then
          Wanted := Inp.Autopilot_Angle (A);
          Limit := Float (Inp.Autopilot_Max_Angle);
          Feedforward := 0.0;
       end if;
-      if Inp.Pos_Hold_Mode then
+      if Inp.Pos_Hold_Mode and then not R.Wing_Build then
          Feedforward := 0.0;
          if Inp.Autopilot_In_Control then
             Wanted := Inp.Autopilot_Angle (A);
@@ -600,12 +614,54 @@ package body Adaflight.PID_Controller with SPARK_Mode is
       end if;
    end Disarm_On_Impact;
 
+   --  The S term: the unscaled setpoint over the axis's largest rate times
+   --  the S gain, times its factor.
+   function S_Term_Of (Setpoint : Rate; Max_RC_Rate : Max_Rate; S_Gain : Gain; Factor : Signal) return Signal
+     with Global => null
+   is
+      Base : constant Float := Setpoint / Max_RC_Rate * 1000.0 * Float (S_Gain) * S_Term_Scale;
+   begin
+      pragma Assert (Base in -4.2e7 .. 4.2e7);
+      return Saturate (Base * Factor);
+   end S_Term_Of;
+
+   --  A wing's setpoint attenuation: one below the axis's window, falling
+   --  smoothly to zero above it. A zero-width window steps at its center and
+   --  gives one there.
+   function SPA_Of (Setpoint : Rate; Center : Setting_16; Width : Setting_16) return Unit_Interval is
+     (1.0 - (if Width = 0 then (if abs Setpoint > Float (Center) then 1.0 else 0.0)
+             else Smooth_Step_Up_Transition (abs Setpoint, Float (Center), Float (Width))));
+
+   --  The terms the setpoint attenuation scales in its mode, none in a level
+   --  mode.
+   procedure Apply_SPA (T : in out Terms; Mode : SPA_Kind; SPA : Unit_Interval) is
+   begin
+      case Mode is
+         when PID_Terms =>
+            T.P := T.P * SPA;
+            T.D := T.D * SPA;
+            T.I := T.I * SPA;
+         when I_Term =>
+            T.I := T.I * SPA;
+         when PD_I_Freeze =>
+            T.P := T.P * SPA;
+            T.D := T.D * SPA;
+         when I_Freeze | Off =>
+            null;
+      end case;
+   end Apply_SPA;
+
    procedure Update (S : in out State; R : Runtime; P : Profile; Inp : Inputs) is
       External   : constant Boolean := Inp.GPS_Rescue_Mode or else Inp.Alt_Hold_Mode or else Inp.Pos_Hold_Mode;
       Gyro_Dterm : Axis_Signals;
       Level      : Level_Kind := Level_Off;
       H          : Strength := 0.0;
    begin
+      if R.Wing_Build then
+         for A in Axis loop
+            S.SPA (A) := SPA_Of (Inp.Setpoint (A), P.SPA_Center (A), P.SPA_Width (A));
+         end loop;
+      end if;
       S.Crash_Disarm_Requested := False;
       S.Landing_Disarm_Requested := False;
       if Inp.Angle_Mode or else Inp.Horizon_Mode or else Inp.GPS_Rescue_Mode then
@@ -707,6 +763,9 @@ package body Adaflight.PID_Controller with SPARK_Mode is
             end if;
             Iterm_Change := (Ki + S.Iterm_Accelerator) * R.Dt;
             Iterm_Change := Iterm_Change * Iterm_Error;
+            if R.Wing_Build and then P.SPA_Mode (A) /= Off then
+               Iterm_Change := Iterm_Change * S.SPA (A);
+            end if;
             S.Data (A).I := Constrain_F (Previous_Iterm + Iterm_Change, -Iterm_Limit, Iterm_Limit);
             S.Previous_PID_Setpoint (A) := Setpoint;
             if R.Coefficient (A).Kd > 0.0 and then not Inp.Launch_Control_Active then
@@ -762,9 +821,10 @@ package body Adaflight.PID_Controller with SPARK_Mode is
                end;
             end if;
             if R.Wing_Build then
-               S.Data (A).S := Saturate
-                 (Unscaled_Setpoint / Inp.Max_RC_Rate (A) * 1000.0 * Float (P.Gains (A).S) * S_Term_Scale
-                  * (if P.TPA_Terms = PDS then S.TPA_Factor_S (A) else 1.0));
+               S.Data (A).S := S_Term_Of
+                 (Unscaled_Setpoint, Inp.Max_RC_Rate (A), P.Gains (A).S,
+                  (if P.TPA_Terms = PDS then S.TPA_Factor_S (A) else 1.0));
+               Apply_SPA (S.Data (A), (if S.Axis_In_Angle_Mode (A) then Off else P.SPA_Mode (A)), S.SPA (A));
             else
                S.Data (A).S := 0.0;
             end if;
@@ -772,7 +832,9 @@ package body Adaflight.PID_Controller with SPARK_Mode is
               Saturate (S.Data (A).P + S.Data (A).I + S.Data (A).D + S.Data (A).F + S.Data (A).S);
          end;
       end loop;
-      if not S.Stabilisation_Enabled or else Inp.Gyro_Overflow then
+      if not S.Stabilisation_Enabled or else Inp.Gyro_Overflow
+        or else (R.Wing_Build and then R.Fixed_Wing and then Inp.Passthru_Mode)
+      then
          for A in Axis loop
             S.Data (A) := (others => 0.0);
          end loop;
