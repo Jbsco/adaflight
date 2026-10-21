@@ -150,6 +150,14 @@ package Adaflight.PID_Profile with SPARK_Mode, Pure is
       Ez_Landing_Limit         : Natural range 0 .. 75 := 15;
       Ez_Landing_Speed         : Natural range 0 .. 250 := 50;
       Landing_Disarm_Threshold : Natural range 0 .. 250 := 0;
+      --  The dynamic idle: the slowest motor's target in hundreds of RPM, zero
+      --  when off, its P, I and D gains, and its largest increase of the motor
+      --  range's low end in tenths of a percent.
+      Dyn_Idle_Min_RPM         : Natural range 0 .. 200 := 0;
+      Dyn_Idle_P_Gain          : Natural range 1 .. 250 := 50;
+      Dyn_Idle_I_Gain          : Natural range 1 .. 250 := 50;
+      Dyn_Idle_D_Gain          : Natural range 0 .. 250 := 50;
+      Dyn_Idle_Max_Increase    : Natural range 10 .. 255 := 150;
       Angle_Limit              : Natural range 10 .. 90 := 60;
       Simplified_PIDs_Mode     : Simplified_Mode := RPY;
       Simplified_Master_Multiplier : Tuning_Factor := 100;

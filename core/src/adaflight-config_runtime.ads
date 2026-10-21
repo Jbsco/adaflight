@@ -509,6 +509,11 @@ private
       Ez_Landing_Limit         => Held (Integer (P.Ez_Landing_Limit), 0, 75),
       Ez_Landing_Speed         => Held (Integer (P.Ez_Landing_Speed), 0, 250),
       Landing_Disarm_Threshold => Held (Integer (P.Landing_Disarm_Threshold), 0, 250),
+      Dyn_Idle_Min_RPM         => Held (Integer (P.Dyn_Idle_Min_Rpm), 0, 200),
+      Dyn_Idle_P_Gain          => Held (Integer (P.Dyn_Idle_P_Gain), 1, 250),
+      Dyn_Idle_I_Gain          => Held (Integer (P.Dyn_Idle_I_Gain), 1, 250),
+      Dyn_Idle_D_Gain          => Held (Integer (P.Dyn_Idle_D_Gain), 0, 250),
+      Dyn_Idle_Max_Increase    => Held (Integer (P.Dyn_Idle_Max_Increase), 10, 255),
       Angle_Limit              => Held (Integer (P.Angle_Limit), 10, 90),
       Simplified_PIDs_Mode     =>
         Simplified_Mode'Val (Code (P.Simplified_Pids_Mode, Simplified_Mode'Pos (Simplified_Mode'Last))),

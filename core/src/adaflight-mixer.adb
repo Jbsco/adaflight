@@ -447,157 +447,229 @@ package body Adaflight.Mixer with SPARK_Mode is
       return Float'Min (2.0, Sqrt_Non_Negative (Sum / Float (C.Count)));
    end Output_RMS;
 
+   procedure Init_Dyn_Idle
+     (S : in out State; C : in out Config; R : Runtime; P : Profile; DShot_Telemetry : Boolean;
+      Motor_Idle : Natural)
+   is
+   begin
+      S.Dyn_Idle_Min_Rps := (if DShot_Telemetry then Float (P.Dyn_Idle_Min_RPM) * 100.0 / 60.0 else 0.0);
+      S.Dyn_Idle_P_Gain := Float (P.Dyn_Idle_P_Gain) * 0.000_15;
+      S.Dyn_Idle_I_Gain := Float (P.Dyn_Idle_I_Gain) * 0.01 * R.Dt;
+      S.Dyn_Idle_D_Gain := Float (P.Dyn_Idle_D_Gain) * 0.000_000_3 * R.PID_Frequency;
+      S.Dyn_Idle_Max_Increase := Float (P.Dyn_Idle_Max_Increase) * 0.001;
+      S.Dyn_Idle_Start_Increase := Float (Motor_Idle) * 0.000_1;
+      S.Dyn_Idle_Delay_K := 800.0 * R.Dt / 20.0;
+      if S.Dyn_Idle_Min_Rps /= 0.0 and then C.Output_High > DShot_Min_Throttle then
+         C.Output_Low := DShot_Min_Throttle;
+      end if;
+   end Init_Dyn_Idle;
+
+   --  The dynamic idle's increase of the motor range's low end: a PID on the
+   --  slowest motor's frequency below its target, the D term on the delayed
+   --  frequency, the I term and the sum held between zero and the largest
+   --  increase, which before takeoff is the motor idle.
+   procedure Update_Dyn_Idle (S : in out State; Inp : Inputs)
+     with Global => null
+   is
+      Max_Increase : constant Float range 0.0 .. 0.26 :=
+        (if Inp.Throttle_Raised then S.Dyn_Idle_Max_Increase else S.Dyn_Idle_Start_Increase);
+      Error        : Float range -1.0e6 .. 334.0 := S.Dyn_Idle_Min_Rps - Inp.Min_Motor_Frequency;
+      Delayed      : constant Signal :=
+        Constrain_F (S.Dyn_Idle_Prev_Min_Rps + S.Dyn_Idle_Delay_K * (Inp.Min_Motor_Frequency - S.Dyn_Idle_Prev_Min_Rps),
+                     -Signal_Bound, Signal_Bound);
+      D_Term       : constant Float := (S.Dyn_Idle_Prev_Min_Rps - Delayed) * S.Dyn_Idle_D_Gain;
+      P_Term       : Float;
+   begin
+      S.Dyn_Idle_Prev_Min_Rps := Delayed;
+      P_Term := Error * S.Dyn_Idle_P_Gain;
+      if -0.1 > Error then
+         Error := -0.1;
+      end if;
+      S.Dyn_Idle_I := Constrain_F (S.Dyn_Idle_I + Error * S.Dyn_Idle_I_Gain, 0.0, Max_Increase);
+      S.Range_Min_Increase := Constrain_F (P_Term + S.Dyn_Idle_I + D_Term, 0.0, Max_Increase);
+   end Update_Dyn_Idle;
+
+   --  The low end of the motor range raised by the dynamic idle's share of the
+   --  range. A share of at most 0.26 leaves the raised end far below the top,
+   --  so the fallback to the low end never runs.
+   function Raised_Low (C : Config; Increase : Float) return Motor_Value
+     with Global => null,
+          Pre    => Increase in 0.0 .. 0.26,
+          Post   => Raised_Low'Result >= C.Output_Low and then Raised_Low'Result < C.Output_High
+   is
+      Span   : constant Float range 0.0 .. 2048.0 := C.Output_High - C.Output_Low;
+      Rise   : constant Float range 0.0 .. 2048.0 := Increase * Span;
+      Raised : constant Float := C.Output_Low + Rise;
+   begin
+      if Raised < C.Output_High then
+         return Raised;
+      else
+         return C.Output_Low;
+      end if;
+   end Raised_Low;
+
    procedure Update
      (S   : in out State; C : Config; Ctl : in out PID_Controller.State;
       R   : Runtime; P : Profile; Inp : Inputs)
    is
-      Airmode  : constant Boolean := Inp.Airmode or else Inp.Launch_Control_Active;
-      Active   : constant Mix_Table :=
-        (if Inp.Launch_Control_Active and then R.Launch_Control = Pitch_Only then C.Launch_Table else C.Table);
-      Throttle : Float := (Inp.RC_Throttle - 1000.0) + Float (Inp.Throttle_Angle_Correction);
-      Range_Min : constant Motor_Value := C.Output_Low;
-      Range_Max : constant Motor_Value := Top_Of_Range (C, Inp);
-      Output_Min : constant Motor_Value := Range_Min;
-      Output_Range : constant Float := Range_Max - Range_Min;
-      Scaled_Roll : constant Scaled_Sum := Scale_Sum (Ctl.Data (Roll).Sum, Float (P.PID_Sum_Limit));
-      Scaled_Pitch : constant Scaled_Sum := Scale_Sum (Ctl.Data (Pitch).Sum, Float (P.PID_Sum_Limit));
-      Scaled_Yaw : Scaled_Sum :=
-        Scale_Sum (Ctl.Data (Yaw).Sum, (if Inp.Yaw_Spin_Detected then 1000.0 else Float (P.PID_Sum_Limit_Yaw)));
-      Mix : Mix_Values := (others => 0.0);
-      Mix_Min : Mix_Value := 0.0;
-      Mix_Max : Mix_Value := 0.0;
-      Mix_Range : Mix_Span;
-      Range_Out : Signal;
    begin
-      Throttle := Constrain_F (Throttle / 1000.0, 0.0, 1.0);
-      S.RC_Throttle := Throttle;
-      if Inp.Crash_Flip_Active then
-         Apply_Crash_Flip (S, C, Inp, Output_Min, Range_Max);
-         return;
-      end if;
-      S.Flip_Tilt_Set := False;
-      if not C.Yaw_Reversed then
-         Scaled_Yaw := -Scaled_Yaw;
-      end if;
-      if C.Throttle_Limit /= Off then
-         Throttle := Throttle_Limited (Throttle, C);
-      end if;
-      PID_Controller.Update_Throttle_Terms
-        (Ctl, R, P, Throttle,
-         (Motor_Output_RMS => S.Motor_Output_RMS, Battery_Latest => Inp.Battery_Voltage_Latest,
-          Roll => Inp.Attitude (Roll), Pitch => Inp.Attitude (Pitch)));
-      if Inp.Time_Us - S.Dyn_LPF_Last_Update_Us >= Dyn_LPF_Update_Delay_Us then
-         declare
-            Quantized : constant Throttle_Step :=
-              Round_Half_Even (Throttle * Float (Dyn_LPF_Throttle_Steps));
-         begin
-            if Quantized /= S.Dyn_LPF_Previous_Step then
-               PID_Filters.Update_Dynamic_Lowpass
-                 (Ctl.Filters, R, Float (Quantized) / Float (Dyn_LPF_Throttle_Steps));
-               S.Dyn_LPF_Previous_Step := Quantized;
-               S.Dyn_LPF_Last_Update_Us := Inp.Time_Us;
-            end if;
-         end;
-      end if;
-      if R.Throttle_Boost > 0.0 then
-         declare
-            Lowpassed : Signal;
-         begin
-            PT1_Apply (Ctl.Filters.Throttle_Boost, Throttle, Lowpassed);
-            Throttle := Constrain_F (Throttle + R.Throttle_Boost * (Throttle - Lowpassed), 0.0, 1.0);
-         end;
-      end if;
-      S.Throttle := Throttle;
-      Throttle := PID_Controller.Compensate_Thrust_Linearization (R, Throttle);
-      if C.RPM_Limit and then Inp.DShot_Telemetry and then Inp.Armed then
-         Apply_RPM_Limiter (S, C, R, Inp, Throttle);
-      end if;
-      for M in 0 .. C.Count - 1 loop
-         pragma Loop_Invariant (Mix_Max in 0.0 .. 64.0 and then Mix_Min in -64.0 .. 0.0);
-         declare
-            Value : constant Mix_Value := Mix_Of (Active (M), Scaled_Roll, Scaled_Pitch, Scaled_Yaw);
-         begin
-            if Value > Mix_Max then
-               Mix_Max := Value;
-            elsif Value < Mix_Min then
-               Mix_Min := Value;
-            end if;
-            Mix (M) := Value;
-         end;
-      end loop;
-      if Inp.Yaw_Spin_Detected and then not Airmode then
-         Throttle := 0.5;
-      end if;
-      if Inp.Launch_Control_Active then
-         Throttle := 0.0;
-      end if;
-      if Inp.Alt_Hold_Mode and then Inp.Autopilot_Throttle_Valid then
-         Throttle := Inp.Autopilot_Throttle;
-      end if;
-      if Inp.GPS_Rescue_Mode and then Inp.Autopilot_Throttle_Valid then
-         Throttle := Inp.Autopilot_Throttle;
-      end if;
-      if R.Wing_Build and then Inp.Launch_Mode and then Inp.Launch_Throttle_Valid then
-         Throttle := Constrain_F
-           (Inp.Launch_Throttle * (1.0 - Inp.Launch_Handover) + Throttle * Inp.Launch_Handover, -1.0, 1.0);
-      end if;
-      Mix_Range := Mix_Max - Mix_Min;
-      Range_Out := Mix_Range;
-      case C.Kind is
-         when Legacy =>
-            Adjust_Legacy (Mix, C, Mix_Min, Mix_Max, Mix_Range, Airmode, Throttle);
-         when Linear | Dynamic =>
-            Adjust_Linear (Mix, C, Mix_Range, Airmode, Throttle);
-         when Ez_Landing =>
-            Adjust_Ez_Landing
-              (Mix, C, P, Mix_Min, Mix_Max, Mix_Range, Range_Out, Inp.Max_Deflection, Inp.Speed, Throttle);
-      end case;
-      S.Mix_Range := Range_Out;
-      if C.Motor_Stop and then Inp.Armed and then not Airmode
-        and then not (Inp.GPS_Rescue_Mode or else Inp.Alt_Hold_Mode or else Inp.Pos_Hold_Mode
-                      or else Inp.Launch_Mode)
-        and then Inp.RC_Throttle < Float (C.Min_Check)
-      then
-         for M in 0 .. C.Count - 1 loop
-            pragma Loop_Invariant
-              (for all J in 0 .. M - 1 =>
-                 S.Motors (J) in Float'Min (C.Disarm_Output, C.Output_Low) .. C.Output_High);
-            S.Motors (M) := C.Disarm_Output;
-         end loop;
-         if R.Wing_Build then
-            S.Motor_Output_RMS := 0.0;
-         end if;
+      if S.Dyn_Idle_Min_Rps > 0.0 then
+         Update_Dyn_Idle (S, Inp);
       else
-         for M in 0 .. C.Count - 1 loop
-            pragma Loop_Invariant
-              (for all J in 0 .. M - 1 =>
-                 S.Motors (J) in Float'Min (C.Disarm_Output, C.Output_Low) .. C.Output_High);
+         S.Range_Min_Increase := 0.0;
+      end if;
+      declare
+         Airmode  : constant Boolean := Inp.Airmode or else Inp.Launch_Control_Active;
+         Active   : constant Mix_Table :=
+           (if Inp.Launch_Control_Active and then R.Launch_Control = Pitch_Only then C.Launch_Table else C.Table);
+         Throttle : Float := (Inp.RC_Throttle - 1000.0) + Float (Inp.Throttle_Angle_Correction);
+         Range_Min : constant Motor_Value := Raised_Low (C, S.Range_Min_Increase);
+         Range_Max : constant Motor_Value := Float'Max (Range_Min, Top_Of_Range (C, Inp));
+         Output_Min : constant Motor_Value := Range_Min;
+         Output_Range : constant Float := Range_Max - Range_Min;
+         Scaled_Roll : constant Scaled_Sum := Scale_Sum (Ctl.Data (Roll).Sum, Float (P.PID_Sum_Limit));
+         Scaled_Pitch : constant Scaled_Sum := Scale_Sum (Ctl.Data (Pitch).Sum, Float (P.PID_Sum_Limit));
+         Scaled_Yaw : Scaled_Sum :=
+           Scale_Sum (Ctl.Data (Yaw).Sum, (if Inp.Yaw_Spin_Detected then 1000.0 else Float (P.PID_Sum_Limit_Yaw)));
+         Mix : Mix_Values := (others => 0.0);
+         Mix_Min : Mix_Value := 0.0;
+         Mix_Max : Mix_Value := 0.0;
+         Mix_Range : Mix_Span;
+         Range_Out : Signal;
+      begin
+         Throttle := Constrain_F (Throttle / 1000.0, 0.0, 1.0);
+         S.RC_Throttle := Throttle;
+         if Inp.Crash_Flip_Active then
+            Apply_Crash_Flip (S, C, Inp, Output_Min, Range_Max);
+            return;
+         end if;
+         S.Flip_Tilt_Set := False;
+         if not C.Yaw_Reversed then
+            Scaled_Yaw := -Scaled_Yaw;
+         end if;
+         if C.Throttle_Limit /= Off then
+            Throttle := Throttle_Limited (Throttle, C);
+         end if;
+         PID_Controller.Update_Throttle_Terms
+           (Ctl, R, P, Throttle,
+            (Motor_Output_RMS => S.Motor_Output_RMS, Battery_Latest => Inp.Battery_Voltage_Latest,
+             Roll => Inp.Attitude (Roll), Pitch => Inp.Attitude (Pitch)));
+         if Inp.Time_Us - S.Dyn_LPF_Last_Update_Us >= Dyn_LPF_Update_Delay_Us then
             declare
-               Command : constant PID_Controller.Motor_Command := Mix (M) + Throttle * Active (M).Throttle;
-               Shaped  : constant Float := PID_Controller.Apply_Thrust_Linearization (R, Command);
-               Output  : constant Float := Output_Min + Output_Range * Shaped;
+               Quantized : constant Throttle_Step :=
+                 Round_Half_Even (Throttle * Float (Dyn_LPF_Throttle_Steps));
             begin
-               if Inp.Failsafe then
-                  S.Motors (M) :=
-                    Clamp ((if C.DShot and then Output < Range_Min then C.Disarm_Output else Output),
-                           C.Disarm_Output, Range_Max);
-               else
-                  S.Motors (M) := Constrain_F (Output, Range_Min, Range_Max);
+               if Quantized /= S.Dyn_LPF_Previous_Step then
+                  PID_Filters.Update_Dynamic_Lowpass
+                    (Ctl.Filters, R, Float (Quantized) / Float (Dyn_LPF_Throttle_Steps));
+                  S.Dyn_LPF_Previous_Step := Quantized;
+                  S.Dyn_LPF_Last_Update_Us := Inp.Time_Us;
                end if;
             end;
+         end if;
+         if R.Throttle_Boost > 0.0 then
+            declare
+               Lowpassed : Signal;
+            begin
+               PT1_Apply (Ctl.Filters.Throttle_Boost, Throttle, Lowpassed);
+               Throttle := Constrain_F (Throttle + R.Throttle_Boost * (Throttle - Lowpassed), 0.0, 1.0);
+            end;
+         end if;
+         S.Throttle := Throttle;
+         if S.Dyn_Idle_Min_Rps > 0.0 then
+            Throttle := Float'Max (Throttle, 0.01);
+         end if;
+         Throttle := PID_Controller.Compensate_Thrust_Linearization (R, Throttle);
+         if C.RPM_Limit and then Inp.DShot_Telemetry and then Inp.Armed then
+            Apply_RPM_Limiter (S, C, R, Inp, Throttle);
+         end if;
+         for M in 0 .. C.Count - 1 loop
+            pragma Loop_Invariant (Mix_Max in 0.0 .. 64.0 and then Mix_Min in -64.0 .. 0.0);
+            declare
+               Value : constant Mix_Value := Mix_Of (Active (M), Scaled_Roll, Scaled_Pitch, Scaled_Yaw);
+            begin
+               if Value > Mix_Max then
+                  Mix_Max := Value;
+               elsif Value < Mix_Min then
+                  Mix_Min := Value;
+               end if;
+               Mix (M) := Value;
+            end;
          end loop;
-         if not Inp.Armed then
+         if Inp.Yaw_Spin_Detected and then not Airmode then
+            Throttle := 0.5;
+         end if;
+         if Inp.Launch_Control_Active then
+            Throttle := 0.0;
+         end if;
+         if Inp.Alt_Hold_Mode and then Inp.Autopilot_Throttle_Valid then
+            Throttle := Inp.Autopilot_Throttle;
+         end if;
+         if Inp.GPS_Rescue_Mode and then Inp.Autopilot_Throttle_Valid then
+            Throttle := Inp.Autopilot_Throttle;
+         end if;
+         if R.Wing_Build and then Inp.Launch_Mode and then Inp.Launch_Throttle_Valid then
+            Throttle := Constrain_F
+              (Inp.Launch_Throttle * (1.0 - Inp.Launch_Handover) + Throttle * Inp.Launch_Handover, -1.0, 1.0);
+         end if;
+         Mix_Range := Mix_Max - Mix_Min;
+         Range_Out := Mix_Range;
+         case C.Kind is
+            when Legacy =>
+               Adjust_Legacy (Mix, C, Mix_Min, Mix_Max, Mix_Range, Airmode, Throttle);
+            when Linear | Dynamic =>
+               Adjust_Linear (Mix, C, Mix_Range, Airmode, Throttle);
+            when Ez_Landing =>
+               Adjust_Ez_Landing
+                 (Mix, C, P, Mix_Min, Mix_Max, Mix_Range, Range_Out, Inp.Max_Deflection, Inp.Speed, Throttle);
+         end case;
+         S.Mix_Range := Range_Out;
+         if C.Motor_Stop and then Inp.Armed and then not Airmode
+           and then not (Inp.GPS_Rescue_Mode or else Inp.Alt_Hold_Mode or else Inp.Pos_Hold_Mode
+                         or else Inp.Launch_Mode)
+           and then Inp.RC_Throttle < Float (C.Min_Check)
+         then
             for M in 0 .. C.Count - 1 loop
                pragma Loop_Invariant
                  (for all J in 0 .. M - 1 =>
                     S.Motors (J) in Float'Min (C.Disarm_Output, C.Output_Low) .. C.Output_High);
                S.Motors (M) := C.Disarm_Output;
             end loop;
+            if R.Wing_Build then
+               S.Motor_Output_RMS := 0.0;
+            end if;
+         else
+            for M in 0 .. C.Count - 1 loop
+               pragma Loop_Invariant
+                 (for all J in 0 .. M - 1 =>
+                    S.Motors (J) in Float'Min (C.Disarm_Output, C.Output_Low) .. C.Output_High);
+               declare
+                  Command : constant PID_Controller.Motor_Command := Mix (M) + Throttle * Active (M).Throttle;
+                  Shaped  : constant Float := PID_Controller.Apply_Thrust_Linearization (R, Command);
+                  Output  : constant Float := Output_Min + Output_Range * Shaped;
+               begin
+                  if Inp.Failsafe then
+                     S.Motors (M) :=
+                       Clamp ((if C.DShot and then Output < Range_Min then C.Disarm_Output else Output),
+                              C.Disarm_Output, Range_Max);
+                  else
+                     S.Motors (M) := Constrain_F (Output, Range_Min, Range_Max);
+                  end if;
+               end;
+            end loop;
+            if not Inp.Armed then
+               for M in 0 .. C.Count - 1 loop
+                  pragma Loop_Invariant
+                    (for all J in 0 .. M - 1 =>
+                       S.Motors (J) in Float'Min (C.Disarm_Output, C.Output_Low) .. C.Output_High);
+                  S.Motors (M) := C.Disarm_Output;
+               end loop;
+            end if;
+            if R.Wing_Build then
+               S.Motor_Output_RMS := Output_RMS (S.Motors, C, Inp);
+            end if;
          end if;
-         if R.Wing_Build then
-            S.Motor_Output_RMS := Output_RMS (S.Motors, C, Inp);
-         end if;
-      end if;
+      end;
    end Update;
 
 end Adaflight.Mixer;

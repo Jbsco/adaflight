@@ -144,6 +144,10 @@ package Adaflight.Mixer with SPARK_Mode, Pure is
       Launch_Throttle_Valid     : Boolean := False;
       Launch_Throttle           : Unit_Interval := 0.0;
       Launch_Handover           : Unit_Interval := 0.0;
+      --  The dynamic idle reads the slowest motor's frequency in hertz and
+      --  whether the throttle has risen since arming.
+      Min_Motor_Frequency       : Float range 0.0 .. 1.0e6 := 0.0;
+      Throttle_Raised           : Boolean := False;
       Motors_Enabled            : Boolean := True;
       Motor_Enabled             : Motor_Flags := (others => True);
    end record;
@@ -169,6 +173,20 @@ package Adaflight.Mixer with SPARK_Mode, Pure is
       --  The motors' RMS output over their range, which a wing's airspeed
       --  TPA reads.
       Motor_Output_RMS        : PID_Controller.Motor_RMS := 0.0;
+      --  The dynamic idle: the slowest motor's target frequency, zero when
+      --  off, the gains, the largest increase in flight and before takeoff,
+      --  the delay on the motor frequency, the I term, the delayed frequency,
+      --  and the increase of the motor range's low end.
+      Dyn_Idle_Min_Rps        : Float range 0.0 .. 334.0 := 0.0;
+      Dyn_Idle_P_Gain         : Float range 0.0 .. 0.04 := 0.0;
+      Dyn_Idle_I_Gain         : Float range 0.0 .. 0.26 := 0.0;
+      Dyn_Idle_D_Gain         : Float range 0.0 .. 0.76 := 0.0;
+      Dyn_Idle_Max_Increase   : Float range 0.0 .. 0.26 := 0.0;
+      Dyn_Idle_Start_Increase : Float range 0.0 .. 0.21 := 0.0;
+      Dyn_Idle_Delay_K        : Float range 0.0 .. 4.1 := 0.0;
+      Dyn_Idle_I              : Float range 0.0 .. 0.26 := 0.0;
+      Dyn_Idle_Prev_Min_Rps   : Signal := 0.0;
+      Range_Min_Increase      : Float range 0.0 .. 0.26 := 0.0;
    end record;
 
    --  The sag compensation's full cell voltage in hundredths of a volt, its
@@ -191,6 +209,16 @@ package Adaflight.Mixer with SPARK_Mode, Pure is
    --  The limiter's reset at arming: no I term, and the throttle scale of
    --  the limit over the motors' estimated top RPM.
    procedure Reset_RPM_Limiter (S : in out State; C : Config; Battery_Voltage : Interfaces.Unsigned_16);
+
+   --  The dynamic idle as the mixer's profile sets it up: off without DShot
+   --  telemetry, its gains from the settings and the loop time, the motor
+   --  idle as its limit before takeoff, and the motor range's low end at the
+   --  DShot minimum while it runs.
+   DShot_Min_Throttle : constant := 48.0;
+   procedure Init_Dyn_Idle
+     (S : in out State; C : in out Config; R : Runtime; P : Profile; DShot_Telemetry : Boolean;
+      Motor_Idle : Natural)
+     with Pre => Motor_Idle <= 2_000;
 
    --  One loop of the mixer after the controller, with the throttle-side
    --  updates the controller and filters take from the mixer. The crash flip
