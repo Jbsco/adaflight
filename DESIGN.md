@@ -6626,3 +6626,21 @@ The gyro oracle gains a four-sensor build that reads each sensor through the ora
 random enabled sets including all four and none, which enables the first, per-sensor alignments, missing data
 in one sample of ten, and a movement burst on one sensor during calibration. Every step replays exactly, and
 the earlier gyro vectors stay byte for byte. Seven tampered paths each fail the vectors.
+
+## D294. Gyro selection at startup (2026-10-17)
+
+`Adaflight.Gyro_Selection.Choose` picks the gyro sensors at startup. It scans the stored detected flags, or
+every sensor when they are zero, together with the enabled setting and every sensor with a configured bus,
+and the detected sensors are the scanned ones that answer. Without one it stores nothing and reports a scale
+of one and a 1 kHz sample rate. Otherwise the stored flags become the detected ones with a configuration
+write whenever the scanned set differs from them, which a configured sensor that never answers keeps true at
+every boot (F236). The enabled sensors are the detected ones in the enabled setting, or the lowest detected
+one, and only the lowest enabled one when the enabled sensors disagree on sample rate or scale. The enabled
+setting takes the result with a write when it changes. The overflow protection holds only when every enabled
+sensor has it, and the scale and sample rate are the first enabled sensor's. The caller hands the enabled
+sensors and the scale to the gyro unit (D293).
+
+The gyro selection oracle builds the reference's initialization for four sensors with its detection weakened,
+so the oracle answers per sensor with a hardware type, the detection result that sets the sample rate, and a
+scale, and runs three boots per sequence that carry the stored settings over. Every boot replays exactly.
+Seven tampered paths each fail the vectors.

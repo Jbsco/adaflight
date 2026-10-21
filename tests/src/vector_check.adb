@@ -24,6 +24,7 @@ with Adaflight.PID_Controller;
 with Adaflight.Mixer;
 with Adaflight.RC_Command;
 with Adaflight.Gyro_Filters;
+with Adaflight.Gyro_Selection;
 with Adaflight.Dyn_Notch;
 with Adaflight.RPM_Filter;
 with Adaflight.Attitude;
@@ -2051,6 +2052,7 @@ procedure Vector_Check is
    Gyro_Settings : Adaflight.Gyro_Filters.Settings;
    Gyro_Denom    : Integer := 1;
    Gyro_Cal_Samples : Natural := 0;
+   Gyro_Sel           : Adaflight.Gyro_Selection.Inputs;
    Gyro_Multi_Set     : Boolean := False;
    Gyro_Multi_Enabled : Adaflight.Gyro_Filters.Gyro_Flags := (others => False);
    Gyro_Multi_Sensors : Adaflight.Gyro_Filters.Sensor_Placements;
@@ -2189,6 +2191,37 @@ procedure Vector_Check is
             end if;
             Start_Calibration (Gyro_State, Gyro_Settings, False);
             Gyro_Cal_Samples := 0;
+         end;
+      elsif Name = "gyrosel" then
+         Gyro_Sel := (Count           => 4,
+                      Stored_Detected => Interfaces.Unsigned_8 (Int (4)),
+                      Enabled_Setting => Interfaces.Unsigned_8 (Int (5)),
+                      others          => <>);
+         for G in Adaflight.Gyro_Selection.Gyro_Index loop
+            Gyro_Sel.Configured (G) := Int (6) / 2 ** G mod 2 = 1;
+            Gyro_Sel.Present (G) := Int (7) / 2 ** G mod 2 = 1;
+            Gyro_Sel.Reports (G).Scale := Flt (10 + 3 * G);
+         end loop;
+      elsif Name = "gyroselsensors" then
+         for G in Adaflight.Gyro_Selection.Gyro_Index loop
+            Gyro_Sel.Reports (G).Sample_Rate_Hz := Natural (Int (4 + 2 * G));
+            Gyro_Sel.Reports (G).Overflow_Protected := Int (5 + 2 * G) /= 0;
+         end loop;
+      elsif Name = "gyroselout" then
+         declare
+            R : Adaflight.Gyro_Selection.Result;
+         begin
+            Adaflight.Gyro_Selection.Choose (Gyro_Sel, R);
+            Record_Int ("gyroselout.found", Int (4), Boolean'Pos (R.Found));
+            Record_Int ("gyroselout.detected", Int (5), Integer_64 (R.Detected));
+            Record_Int ("gyroselout.enabled", Int (6), Integer_64 (R.Enabled));
+            Record_Int ("gyroselout.stored", Int (7), Integer_64 (R.Stored_Detected));
+            Record_Int ("gyroselout.setting", Int (8), Integer_64 (R.Enabled_Setting));
+            Record_Int ("gyroselout.write", Boolean'Pos (Int (9) > 0), Boolean'Pos (R.Write));
+            Record_Int ("gyroselout.first", Int (10), Integer_64 (R.First));
+            Record_Int ("gyroselout.overflow", Int (11), Boolean'Pos (R.Overflow_Protected));
+            Record_Result ("gyroselout.scale", Bits (12), To_Bits (R.Scale));
+            Record_Int ("gyroselout.rate", Int (13), Integer_64 (R.Sample_Rate_Hz));
          end;
       elsif Name = "gyromultiinit" then
          for G in Adaflight.Gyro_Filters.Gyro_Index loop
@@ -22497,6 +22530,7 @@ begin
    Run (Dir & "/rcthr.csv", "rc");
    Run (Dir & "/gyro.csv", "gyro");
    Run (Dir & "/gyromulti.csv", "gyro");
+   Run (Dir & "/gyrosel.csv", "gyro");
    Run (Dir & "/imu.csv", "imu");
    Run (Dir & "/imuhf.csv", "imu");
    Run (Dir & "/failsafe.csv", "failsafe");
