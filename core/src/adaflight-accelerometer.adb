@@ -69,7 +69,13 @@ package body Adaflight.Accelerometer with SPARK_Mode is
             Pitch_Trim       => C.Pitch_Trim,
             Calibrating      => 0,
             Totals           => (others => 0),
-            Updated_Once     => False);
+            Updated_Once     => False,
+            Inflight_Totals  => (others => 0),
+            Saved_Zero       => (others => 0),
+            Saved_Roll_Trim  => 0,
+            Saved_Pitch_Trim => 0,
+            Inflight_Ended   => False,
+            Inflight_Saved   => False);
       if S.Lowpass_Hz /= 0 then
          declare
             K : constant Unit_Interval :=
@@ -96,7 +102,52 @@ package body Adaflight.Accelerometer with SPARK_Mode is
    -- Update --
    ------------
 
-   procedure Update (S : in out State; C : Settings; Sample : Raw_Vector) is
+   --  The in-flight calibration: the offsets and angle trims kept as it starts,
+   --  the aligned samples summed with the output and the offsets held at zero,
+   --  the kept values restored at its end, and on the save the averages as
+   --  the offsets, with the angle trims cleared.
+   procedure Calibrate_In_Flight
+     (S : in out State; C : Settings; Cal : in out Acc_Inflight.State; V : in out Aligned_Vector)
+     with Global => null
+   is
+      Samples : constant := Acc_Inflight.Measurement_Samples;
+   begin
+      if Cal.Remaining = Samples then
+         S.Saved_Zero := S.Zero;
+         S.Saved_Roll_Trim := S.Roll_Trim;
+         S.Saved_Pitch_Trim := S.Pitch_Trim;
+      end if;
+      if Cal.Remaining > 0 then
+         for A in Coordinate loop
+            if Cal.Remaining = Samples then
+               S.Inflight_Totals (A) := 0;
+            end if;
+            S.Inflight_Totals (A) := Accumulate (S.Inflight_Totals (A), V (A));
+            V (A) := 0.0;
+            S.Zero (A) := 0;
+         end loop;
+         if Cal.Remaining = 1 then
+            Cal.Active := False;
+            Cal.Measurement_Done := True;
+            S.Inflight_Ended := True;
+            S.Zero := S.Saved_Zero;
+            S.Roll_Trim := S.Saved_Roll_Trim;
+            S.Pitch_Trim := S.Saved_Pitch_Trim;
+         end if;
+         Cal.Remaining := Cal.Remaining - 1;
+      end if;
+      if Cal.Save_Pending then
+         Cal.Save_Pending := False;
+         S.Inflight_Saved := True;
+         S.Zero (X) := Offset (S.Inflight_Totals (X) / Samples);
+         S.Zero (Y) := Offset (S.Inflight_Totals (Y) / Samples);
+         S.Zero (Z) := Offset (S.Inflight_Totals (Z) / Samples - Interfaces.Integer_64 (C.One_G));
+         S.Roll_Trim := 0;
+         S.Pitch_Trim := 0;
+      end if;
+   end Calibrate_In_Flight;
+
+   procedure Update (S : in out State; C : Settings; Sample : Raw_Vector; Cal : in out Acc_Inflight.State) is
       V : Aligned_Vector;
 
       --  One axis after the calibration and the zero offset: the lowpass,
@@ -141,6 +192,11 @@ package body Adaflight.Accelerometer with SPARK_Mode is
             S.Pitch_Trim := 0;
          end if;
          S.Calibrating := S.Calibrating - 1;
+      end if;
+      S.Inflight_Ended := False;
+      S.Inflight_Saved := False;
+      if C.Inflight_Calibration then
+         Calibrate_In_Flight (S, C, Cal, V);
       end if;
       declare
          Use_Filter : constant Boolean := S.Lowpass_Hz /= 0;

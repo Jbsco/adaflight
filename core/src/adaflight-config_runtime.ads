@@ -158,12 +158,12 @@ package Adaflight.Config_Runtime with SPARK_Mode is
       O : Mixer_Init.Options) return Mixer.Config;
 
    --  The accelerometer settings from the stored accelerometer, gyro device
-   --  and board alignment groups, with the hardware's sample rate and counts
-   --  per g; the alignment is the first gyro's, since the boards use one
-   --  chip for both.
+   --  and board alignment groups and the features, with the hardware's sample
+   --  rate and counts per g; the alignment is the first gyro's, since the
+   --  boards use one chip for both.
    function Accelerometer_Settings_Of
      (A : Accelerometer_Config_Record; Device : Gyro_Device_Config_Record; Board : Board_Alignment_Record;
-      Sample_Rate_Hz : Accelerometer.Sample_Rate; One_G : Accelerometer.Counts_Per_G)
+      Sample_Rate_Hz : Accelerometer.Sample_Rate; One_G : Accelerometer.Counts_Per_G; Features : Unsigned_32)
       return Accelerometer.Settings;
 
    --  The attitude settings from the stored IMU and throttle correction
@@ -678,7 +678,7 @@ private
 
    function Accelerometer_Settings_Of
      (A : Accelerometer_Config_Record; Device : Gyro_Device_Config_Record; Board : Board_Alignment_Record;
-      Sample_Rate_Hz : Accelerometer.Sample_Rate; One_G : Accelerometer.Counts_Per_G)
+      Sample_Rate_Hz : Accelerometer.Sample_Rate; One_G : Accelerometer.Counts_Per_G; Features : Unsigned_32)
       return Accelerometer.Settings is
      (Sample_Rate_Hz => Sample_Rate_Hz,
       Lowpass_Hz     => Held (Integer (A.Acc_Lpf_Hz), 0, Accelerometer.Cutoff'Last),
@@ -687,7 +687,8 @@ private
       Board          => Board_Angles_Of (Board),
       One_G          => One_G,
       Roll_Trim      => A.Accelerometer_Trims (0),
-      Pitch_Trim     => A.Accelerometer_Trims (1));
+      Pitch_Trim     => A.Accelerometer_Trims (1),
+      Inflight_Calibration => (Features and Config_Fix.Feature_Inflight_Acc_Cal) /= 0);
 
    function Attitude_Settings_Of (I : Imu_Config_Record; T : Throttle_Correction_Config_Record)
       return Attitude.Settings is
