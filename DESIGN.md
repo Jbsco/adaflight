@@ -6270,3 +6270,23 @@ The PID oracle builds with the F405 build's sag compensation, and the existing v
 New mixer runs script the compensation, the RPM limit, the warning voltage and a falling sag cell voltage,
 with the crash flip in some blocks. They check the factor and the range against the reference's and replay
 exactly.
+
+## D274. DShot arming checks (2026-10-16)
+
+`Adaflight.Arming` gains the DShot side of arming. With a DShot protocol the boot grace time holds until the
+DShot command stream runs. Arming is disabled while the DShot telemetry setting is on and a motor does not
+report, and while the bitbang driver runs without its status OK. An arming within 1.2 s of a DShot beacon
+command waits, and the attempt stays pending, as a normal arming or one into launch control, until it arms,
+the pilot lets go of the switch or the sticks, or a disabled arming clears it. A pending launch control
+arming arms into launch control, and a pending stick arming repeats. At arming with DShot, the DShot
+telemetry data clears and the extended telemetry turns on where the telemetry setting is on without the ESC
+sensor feature, and the motors' spin direction is set to normal, as at every disarm. Arming resets the RPM
+limiter. The settings bridge takes the protocol and the extended telemetry setting from the stored motor
+group and the ESC sensor from the features.
+
+The arming oracle builds with the F405 build's DShot, DShot telemetry, bitbang, ESC sensor and RPM limit, and
+the existing vectors stay byte for byte: their runs keep the protocol off and no beacon in the guard time.
+New DShot sequences run the same scenarios with the protocol in seven of eight, the settings, the command
+stream's start, recent beacons, and the telemetry and bitbang states scripted, and the blockers outside the
+DShot side clear. The crash flip box gives way to the failsafe box, since the crash flip's arming state is
+not yet in. The sequences replay exactly.
