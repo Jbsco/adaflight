@@ -113,8 +113,10 @@ The core contains:
 </details>
 
 <details>
-<summary><b>MSP</b> (35)</summary>
+<summary><b>MSP</b> (36)</summary>
 
+- MSP serial port, ExpressLRS hopping tables, telemetry link and receiver, flight log field
+  encodings, header and recorder, text conversions, and DShot protocol
 - MSP serial port, ExpressLRS hopping tables, telemetry link and receiver, flight log field
   encodings, header and recorder, text conversions, and DShot protocol
 - MSP serial port, ExpressLRS hopping tables, telemetry link and receiver, flight log field
@@ -172,8 +174,10 @@ The core contains:
 </details>
 
 <details>
-<summary><b>Configuration and command line</b> (33)</summary>
+<summary><b>Configuration and command line</b> (34)</summary>
 
+- serial feature map: port function bits and baud rates from feature settings, claims, mask and
+  baud writes, conflict rule, configuration fix, port sharing and telemetry provider ports
 - serial feature map: port function bits and baud rates from feature settings, claims, mask and
   baud writes, conflict rule and configuration fix
 - serial feature map: port function bits and baud rates from feature settings, claims, mask and
@@ -224,8 +228,10 @@ The core contains:
 </details>
 
 <details>
-<summary><b>Scheduler and tasks</b> (11)</summary>
+<summary><b>Scheduler and tasks</b> (13)</summary>
 
+- cooperative scheduler, beeper, and receiver's channel processing with MSP override
+- task setup: tasks enabled at boot and periods from build, features, sensors and settings
 - cooperative scheduler, beeper, and receiver's channel processing with MSP override
 - task setup: tasks enabled at boot and periods from build, features, sensors and settings
 - cooperative scheduler, beeper, and receiver's channel processing with MSP override
@@ -296,8 +302,9 @@ The core contains:
 </details>
 
 <details>
-<summary><b>Peripherals and storage</b> (9)</summary>
+<summary><b>Peripherals and storage</b> (10)</summary>
 
+- flash filesystem for flight log, with ring buffer, erases and free space search
 - flash filesystem for flight log, with ring buffer, erases and free space search
 - flash filesystem for flight log, with ring buffer, erases and free space search
 - RunCam device protocol with camera buttons and five key cable
@@ -314,7 +321,7 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 28969 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 28976 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
 - Recorded vectors replay bit for bit: 1753568 lines over 384 cases, every case exact except
   fifty-four declared deviations in `DESIGN.md` D6.

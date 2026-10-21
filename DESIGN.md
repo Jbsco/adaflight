@@ -6662,3 +6662,18 @@ The pulse oracle includes the reference's decoder source with the timer and pin 
 handlers directly: PPM signals with changing channel counts, stray pulses and count divisors over a 16-bit
 timer whose overflow comes before the edge at the wrap, and PWM edges and overflows on random channels. Every
 event replays exactly. Nine tampered paths each fail the vectors.
+
+## D296. Telemetry port sharing (2026-10-17)
+
+`Adaflight.Serial_Feature_Map` gains the port queries the receivers and telemetry protocols ask. `Port_Sharing`
+says from the port's function bits whether a port has a function, and whether alone or with others.
+`Port_Shared_With` says whether a port has the shared function and one of a mask's functions, with the mask
+taken to 16 bits, the width of the reference's parameter. Every caller there passes functions below bit 16.
+`Telemetry_Shares_RX_Port` exposes the receiver sharing check the configuration check already used.
+`Provider_Port` and `Provider_Baud` find a telemetry protocol's port and baud rate in the build's telemetry
+slots. `Telemetry_Enabled` runs telemetry on a port of its own, and on a shared port while the telemetry mode is
+on, or while armed where no telemetry mode is set up. `Sensor_Enabled` checks a sensor bit against the
+disabled mask.
+
+The serial map oracle gains a sharing run in both of its builds that queries every port, function, protocol,
+mode and sensor over drawn assignments. Every query replays exactly. Six tampered paths each fail the vectors.
