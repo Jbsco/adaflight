@@ -321,6 +321,10 @@ ledger. The deviations so far:
 - A wing's setpoint attenuation is one at the center of a zero-width window (D281). The reference divides
   zero by zero there, and its I term turns undefined (F232). The recorded vectors keep every width above
   zero.
+- With the 3D switch or in switched 3D mode, a minimum check that puts a 3D deadband edge on 1000 or 2000
+  leaves zero stick range on that side, and the mixer's throttle holds at zero there (D291). The reference
+  divides zero by zero, and its throttle turns undefined (F235). The recorded vectors keep the minimum check
+  off those values.
 
 ## D7. Contribution conventions (2026-10-08)
 
@@ -6568,3 +6572,24 @@ throttle, one step in ten exactly at the minimum check and a minimum check of 10
 mixer failed 64 cases of these runs before the change, and every step replays exactly after it. The earlier
 mixer vectors stay byte for byte. Comparing the command throttle again, or comparing at or below the minimum
 check, fails the vectors.
+
+## D291. Mixer 3D (2026-10-17)
+
+With the 3D feature, `Adaflight.Mixer.Update` takes the 3D throttle and motor range in place of the dynamic
+idle, the sag compensation and the throttle angle correction. A throttle deadband sits around the middle
+stick, the 3D throttle setting wide on each side, or half the minimum check's distance above 1000 with the
+3D switch on or in switched mode. Past the deadband the throttle is its distance from the edge over the stick
+range on that side. Above it the motors run from the high edge of their own 3D deadband to the high end.
+Below it they run between the low end and the deadband's low edge with the mix's sign negative, from the
+deadband edge down with an analog protocol. Inside the deadband the throttle is zero on the side the stick
+last left from, on the reversed side while the RC command reverses the motors, and on the upper side after a
+disarm. A change of side starts a 250 ms window that holds the I terms at zero, and the crash flip runs on the
+reversed side. The motor stop is off with 3D, the dynamic idle no longer lowers the motor range's low end,
+and the wing RMS output reads the motors as 3D values. The settings take the 3D feature, its switched mode,
+the middle stick, the 3D throttle deadband and the protocol's 3D deadband edges from the stored
+configuration.
+
+The PID oracle gains 3D runs over DShot and analog endpoints with the switch, the reversal, disarms, failsafe
+and the crash flip, and one run in five takes a minimum check from 1600 to 2000. Every step replays exactly,
+and the earlier PID and mixer vectors stay byte for byte. The runs do not cover a wing build. Nine
+tampered paths each fail the vectors.

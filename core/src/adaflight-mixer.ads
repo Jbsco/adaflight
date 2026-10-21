@@ -81,6 +81,15 @@ package Adaflight.Mixer with SPARK_Mode, Pure is
       --  hundredths of a volt.
       Sag_Compensation       : Natural range 0 .. 150 := 0;
       Warning_Cell_Voltage   : Natural range 100 .. 500 := 350;
+      --  The 3D feature with its switched mode, the middle stick, the 3D
+      --  throttle deadband around it, and the motor values at the edges of
+      --  the motors' 3D deadband.
+      Feature_3D             : Boolean := False;
+      Switched_Mode_3D       : Boolean := False;
+      Mid_RC                 : Natural range 1200 .. 1700 := 1500;
+      Deadband_3D_Throttle   : Natural range 0 .. 1000 := 50;
+      Deadband_Motor_3D_High : Motor_Value := 0.0;
+      Deadband_Motor_3D_Low  : Motor_Value := 0.0;
    end record
      with Dynamic_Predicate =>
        Config.Output_Low < Config.Output_High and then Config.Disarm_Output <= Config.Output_High;
@@ -97,6 +106,9 @@ package Adaflight.Mixer with SPARK_Mode, Pure is
       --  The receiver's throttle channel, which the motor stop compares with
       --  the minimum check.
       RC_Data_Throttle          : Float range 750.0 .. 2250.0 := 1000.0;
+      --  The 3D switch and the RC command's motor reversal.
+      Box_3D                    : Boolean := False;
+      Motors_Reversed           : Boolean := False;
       Throttle_Angle_Correction : Integer range -1000 .. 1000 := 0;
       Time_Us                   : Unsigned_32 := 0;
       Armed                     : Boolean := False;
@@ -190,6 +202,12 @@ package Adaflight.Mixer with SPARK_Mode, Pure is
       Dyn_Idle_I              : Float range 0.0 .. 0.26 := 0.0;
       Dyn_Idle_Prev_Min_Rps   : Signal := 0.0;
       Range_Min_Increase      : Float range 0.0 .. 0.26 := 0.0;
+      --  The 3D throttle's last side, the time the motors last changed
+      --  direction, and the mix's sign, negative while the motors run
+      --  reversed.
+      RC_Throttle_Previous    : Natural range 0 .. 65_535 := 0;
+      Reversal_Time_Us        : Unsigned_32 := 0;
+      Mix_Sign                : Integer range -1 .. 1 := 0;
    end record;
 
    --  The sag compensation's full cell voltage in hundredths of a volt, its
@@ -230,8 +248,9 @@ package Adaflight.Mixer with SPARK_Mode, Pure is
      (S   : in out State; C : Config; Ctl : in out PID_Controller.State;
       R   : Runtime; P : Profile; Inp : Inputs)
      with Post =>
-       (for all M in 0 .. C.Count - 1 =>
-          S.Motors (M) >= Float'Min (C.Disarm_Output, C.Output_Low)
-          and then (Inp.Crash_Flip_Active or else S.Motors (M) <= C.Output_High));
+       (if not C.Feature_3D then
+          (for all M in 0 .. C.Count - 1 =>
+             S.Motors (M) >= Float'Min (C.Disarm_Output, C.Output_Low)
+             and then (Inp.Crash_Flip_Active or else S.Motors (M) <= C.Output_High)));
 
 end Adaflight.Mixer;

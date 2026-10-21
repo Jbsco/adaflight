@@ -1,5 +1,6 @@
 with Adaflight.PID_Filters;
 with Adaflight.DShot;
+with Adaflight.Clock;
 
 package body Adaflight.Mixer with SPARK_Mode is
    use Adaflight.Filters;
@@ -297,30 +298,37 @@ package body Adaflight.Mixer with SPARK_Mode is
    Sqrt_Two            : constant Float := 1.414_213_562_373_095;
    Cos_Thirty_Degrees  : constant Float := 0.866_025_403_784_438_6;
 
-   --  The motor output at a crash flip drive: the low end plus the drive's
-   --  share of the output range.
-   function Flip_Output (Low : Motor_Value; High : Motor_Value; Drive : Float) return Motor_Value
+   --  The motor output at a crash flip drive: the output's first end plus
+   --  the drive's share of the output range, which runs to the far end.
+   function Flip_Output (Near : Motor_Value; Far : Motor_Value; Drive : Float) return Motor_Value
      with Global => null,
-          Pre    => Low < High and then Drive in 0.0 .. 1.0,
-          Post   => Flip_Output'Result >= Low
+          Pre    => Drive in 0.0 .. 1.0,
+          Post   => (if Near <= Far then Flip_Output'Result >= Near)
    is
-      Span : constant Float := High - Low;
+      Span : constant Float range -2048.0 .. 2048.0 := Far - Near;
    begin
-      pragma Assert (Drive * Span <= Span);
-      pragma Assert (Low + Drive * Span <= Low + Span);
-      pragma Assert (Low + Span <= Motor_Value'Last);
-      return Low + Drive * Span;
+      if Span >= 0.0 then
+         pragma Assert (Drive * Span <= Span);
+         pragma Assert (Near + Drive * Span <= Near + Span);
+         pragma Assert (Near + Span <= Motor_Value'Last);
+      else
+         pragma Assert (Drive * Span >= Span);
+         pragma Assert (Near + Drive * Span >= Near + Span);
+         pragma Assert (Near + Span >= 0.0);
+      end if;
+      return Near + Drive * Span;
    end Flip_Output;
 
    --  The crash flip: the motors drive the craft over in the direction of
    --  the roll or pitch stick, of the diagonal between them, or of the yaw
    --  stick when it leads, with less drive as the craft turns.
    procedure Apply_Crash_Flip
-     (S : in out State; C : Config; Inp : Inputs; Output_Min : Motor_Value; Range_Max : Motor_Value)
+     (S : in out State; C : Config; Inp : Inputs; Output_Min : Motor_Value; Output_Far : Motor_Value)
      with Global => null,
-          Pre    => C.Output_Low <= Output_Min and then Output_Min < Range_Max,
+          Pre    => (if not C.Feature_3D then C.Output_Low <= Output_Min and then Output_Min < Output_Far),
           Post   =>
-            (for all M in 0 .. C.Count - 1 => S.Motors (M) >= Float'Min (C.Disarm_Output, C.Output_Low))
+            (if not C.Feature_3D then
+               (for all M in 0 .. C.Count - 1 => S.Motors (M) >= Float'Min (C.Disarm_Output, C.Output_Low)))
    is
       Pitch_Abs  : constant Unit_Interval := Inp.Deflection_Abs (Pitch);
       Roll_Abs   : constant Unit_Interval := Inp.Deflection_Abs (Roll);
@@ -377,7 +385,8 @@ package body Adaflight.Mixer with SPARK_Mode is
       end if;
       for M in 0 .. C.Count - 1 loop
          pragma Loop_Invariant
-           (for all J in 0 .. M - 1 => S.Motors (J) >= Float'Min (C.Disarm_Output, C.Output_Low));
+           (if not C.Feature_3D
+            then (for all J in 0 .. M - 1 => S.Motors (J) >= Float'Min (C.Disarm_Output, C.Output_Low)));
          declare
             Drive : Float :=
               Sign_Pitch * C.Table (M).Pitch + Sign_Roll * C.Table (M).Roll + Sign_Yaw * C.Table (M).Yaw;
@@ -391,7 +400,7 @@ package body Adaflight.Mixer with SPARK_Mode is
             end if;
             Drive := Float'Min (1.0, Power * Drive);
             S.Motors (M) :=
-              (if Drive < Flip_Motor_Deadband then C.Disarm_Output else Flip_Output (Output_Min, Range_Max, Drive));
+              (if Drive < Flip_Motor_Deadband then C.Disarm_Output else Flip_Output (Output_Min, Output_Far, Drive));
          end;
       end loop;
    end Apply_Crash_Flip;
@@ -435,7 +444,7 @@ package body Adaflight.Mixer with SPARK_Mode is
             if Inp.Motor_Enabled (M) then
                declare
                   External : constant Natural range 0 .. 2048 :=
-                    (if C.DShot then DShot.To_External (Motors (M), Two_Direction => False)
+                    (if C.DShot then DShot.To_External (Motors (M), Two_Direction => C.Feature_3D)
                      else Natural (Float'Truncation (Motors (M))));
                   Scaled   : constant Float range -1.0 .. 1.05 := (Float (External) - 1000.0) / 1000.0;
                begin
@@ -459,7 +468,7 @@ package body Adaflight.Mixer with SPARK_Mode is
       S.Dyn_Idle_Max_Increase := Float (P.Dyn_Idle_Max_Increase) * 0.001;
       S.Dyn_Idle_Start_Increase := Float (Motor_Idle) * 0.000_1;
       S.Dyn_Idle_Delay_K := 800.0 * R.Dt / 20.0;
-      if S.Dyn_Idle_Min_Rps /= 0.0 and then C.Output_High > DShot_Min_Throttle then
+      if not C.Feature_3D and then S.Dyn_Idle_Min_Rps /= 0.0 and then C.Output_High > DShot_Min_Throttle then
          C.Output_Low := DShot_Min_Throttle;
       end if;
    end Init_Dyn_Idle;
@@ -508,25 +517,113 @@ package body Adaflight.Mixer with SPARK_Mode is
       end if;
    end Raised_Low;
 
+   --  The 3D throttle and motor range. Past the 3D deadband on either side
+   --  the throttle is its distance from the deadband's edge and the motors
+   --  take the range on that side of their own 3D deadband, reversed below
+   --  it; inside the deadband the throttle is zero on the side it last left
+   --  from, or on the reversed side while the RC command reverses the
+   --  motors. The I terms stay at zero within 250 ms of a change of side.
+   procedure Endpoints_3D
+     (S           : in out State; C : Config; Ctl : in out PID_Controller.State; Inp : Inputs;
+      Range_Min   : out Motor_Value; Range_Max : out Motor_Value;
+      Output_Min  : out Motor_Value; Output_Far : out Motor_Value;
+      Throttle_In : out Float; Input_Range : out Integer)
+     with Global => null,
+          Post   => Throttle_In in -2000.0 .. 2000.0 and then Input_Range in -1000 .. 1000
+   is
+      Offset     : constant Natural range 0 .. 1000 :=
+        (if Inp.Box_3D or else C.Switched_Mode_3D then (C.Min_Check - 1000) / 2 else C.Deadband_3D_Throttle);
+      Low        : constant Integer range 200 .. 1700 := C.Mid_RC - Offset;
+      High       : constant Integer range 1200 .. 2700 := C.Mid_RC + Offset;
+      Sign       : Integer range -1 .. 1;
+      use type Interfaces.Integer_32;
+   begin
+      if not Inp.Armed then
+         S.RC_Throttle_Previous := C.Mid_RC;
+      end if;
+      if Inp.RC_Throttle <= Float (Low) or else Inp.Crash_Flip_Active then
+         Sign := -1;
+         S.RC_Throttle_Previous := Natural (Float'Truncation (Inp.RC_Throttle));
+         Throttle_In := Float (Low) - Inp.RC_Throttle;
+         Input_Range := Low - 1000;
+      elsif Inp.RC_Throttle >= Float (High) then
+         Sign := 1;
+         S.RC_Throttle_Previous := Natural (Float'Truncation (Inp.RC_Throttle));
+         Throttle_In := Inp.RC_Throttle - Float (High);
+         Input_Range := 2000 - High;
+      elsif (S.RC_Throttle_Previous <= Low and then not C.Switched_Mode_3D) or else Inp.Motors_Reversed then
+         Sign := -1;
+         Throttle_In := 0.0;
+         Input_Range := Low - 1000;
+      else
+         Sign := 1;
+         Throttle_In := 0.0;
+         Input_Range := 2000 - High;
+      end if;
+      if Sign < 0 then
+         Range_Min := C.Output_Low;
+         Range_Max := C.Deadband_Motor_3D_Low;
+         if C.DShot then
+            Output_Min := C.Output_Low;
+            Output_Far := C.Deadband_Motor_3D_Low;
+         else
+            Output_Min := C.Deadband_Motor_3D_Low;
+            Output_Far := C.Output_Low;
+         end if;
+      else
+         Range_Min := C.Deadband_Motor_3D_High;
+         Range_Max := C.Output_High;
+         Output_Min := C.Deadband_Motor_3D_High;
+         Output_Far := C.Output_High;
+      end if;
+      if S.Mix_Sign /= Sign then
+         S.Reversal_Time_Us := Inp.Time_Us;
+      end if;
+      S.Mix_Sign := Sign;
+      if Clock.Elapsed (Inp.Time_Us, S.Reversal_Time_Us) < 250_000 then
+         for A in Axis loop
+            Ctl.Data (A).I := 0.0;
+         end loop;
+      end if;
+   end Endpoints_3D;
+
    procedure Update
      (S   : in out State; C : Config; Ctl : in out PID_Controller.State;
       R   : Runtime; P : Profile; Inp : Inputs)
    is
+      Range_Min   : Motor_Value;
+      Range_Max   : Motor_Value;
+      Output_Min  : Motor_Value;
+      Output_Far  : Motor_Value;
+      Throttle_In : Float range -2000.0 .. 2000.0;
+      Input_Range : Integer range -1000 .. 1000;
    begin
-      if S.Dyn_Idle_Min_Rps > 0.0 then
-         Update_Dyn_Idle (S, Inp);
+      if C.Feature_3D then
+         Endpoints_3D (S, C, Ctl, Inp, Range_Min, Range_Max, Output_Min, Output_Far, Throttle_In, Input_Range);
       else
-         S.Range_Min_Increase := 0.0;
+         if S.Dyn_Idle_Min_Rps > 0.0 then
+            Update_Dyn_Idle (S, Inp);
+         else
+            S.Range_Min_Increase := 0.0;
+         end if;
+         Range_Min := Raised_Low (C, S.Range_Min_Increase);
+         Range_Max := Float'Max (Range_Min, Top_Of_Range (C, Inp));
+         Output_Min := Range_Min;
+         Output_Far := Range_Max;
+         S.Mix_Sign := 1;
+         Throttle_In := (Inp.RC_Throttle - 1000.0) + Float (Inp.Throttle_Angle_Correction);
+         Input_Range := 1000;
       end if;
+      pragma Assert
+        (if not C.Feature_3D
+         then Range_Min >= C.Output_Low and then Range_Min < C.Output_High and then Range_Max >= Range_Min
+              and then Range_Max <= C.Output_High and then Output_Min = Range_Min and then Output_Far = Range_Max);
       declare
          Airmode  : constant Boolean := Inp.Airmode or else Inp.Launch_Control_Active;
          Active   : constant Mix_Table :=
            (if Inp.Launch_Control_Active and then R.Launch_Control = Pitch_Only then C.Launch_Table else C.Table);
-         Throttle : Float := (Inp.RC_Throttle - 1000.0) + Float (Inp.Throttle_Angle_Correction);
-         Range_Min : constant Motor_Value := Raised_Low (C, S.Range_Min_Increase);
-         Range_Max : constant Motor_Value := Float'Max (Range_Min, Top_Of_Range (C, Inp));
-         Output_Min : constant Motor_Value := Range_Min;
-         Output_Range : constant Float := Range_Max - Range_Min;
+         Throttle : Float := Throttle_In;
+         Output_Range : constant Float := Output_Far - Output_Min;
          Scaled_Roll : constant Scaled_Sum := Scale_Sum (Ctl.Data (Roll).Sum, Float (P.PID_Sum_Limit));
          Scaled_Pitch : constant Scaled_Sum := Scale_Sum (Ctl.Data (Pitch).Sum, Float (P.PID_Sum_Limit));
          Scaled_Yaw : Scaled_Sum :=
@@ -537,10 +634,10 @@ package body Adaflight.Mixer with SPARK_Mode is
          Mix_Range : Mix_Span;
          Range_Out : Signal;
       begin
-         Throttle := Constrain_F (Throttle / 1000.0, 0.0, 1.0);
+         Throttle := (if Input_Range = 0 then 0.0 else Constrain_F (Throttle / Float (Input_Range), 0.0, 1.0));
          S.RC_Throttle := Throttle;
          if Inp.Crash_Flip_Active then
-            Apply_Crash_Flip (S, C, Inp, Output_Min, Range_Max);
+            Apply_Crash_Flip (S, C, Inp, Output_Min, Output_Far);
             return;
          end if;
          S.Flip_Tilt_Set := False;
@@ -624,7 +721,7 @@ package body Adaflight.Mixer with SPARK_Mode is
                  (Mix, C, P, Mix_Min, Mix_Max, Mix_Range, Range_Out, Inp.Max_Deflection, Inp.Speed, Throttle);
          end case;
          S.Mix_Range := Range_Out;
-         if C.Motor_Stop and then Inp.Armed and then not Airmode
+         if C.Motor_Stop and then Inp.Armed and then not C.Feature_3D and then not Airmode
            and then not (Inp.GPS_Rescue_Mode or else Inp.Alt_Hold_Mode or else Inp.Pos_Hold_Mode
                          or else Inp.Launch_Mode)
            and then Inp.RC_Data_Throttle < Float (C.Min_Check)
@@ -632,7 +729,8 @@ package body Adaflight.Mixer with SPARK_Mode is
             for M in 0 .. C.Count - 1 loop
                pragma Loop_Invariant
                  (for all J in 0 .. M - 1 =>
-                    S.Motors (J) in Float'Min (C.Disarm_Output, C.Output_Low) .. C.Output_High);
+                    (if not C.Feature_3D
+                     then S.Motors (J) in Float'Min (C.Disarm_Output, C.Output_Low) .. C.Output_High));
                S.Motors (M) := C.Disarm_Output;
             end loop;
             if R.Wing_Build then
@@ -642,9 +740,11 @@ package body Adaflight.Mixer with SPARK_Mode is
             for M in 0 .. C.Count - 1 loop
                pragma Loop_Invariant
                  (for all J in 0 .. M - 1 =>
-                    S.Motors (J) in Float'Min (C.Disarm_Output, C.Output_Low) .. C.Output_High);
+                    (if not C.Feature_3D
+                     then S.Motors (J) in Float'Min (C.Disarm_Output, C.Output_Low) .. C.Output_High));
                declare
-                  Command : constant PID_Controller.Motor_Command := Mix (M) + Throttle * Active (M).Throttle;
+                  Command : constant PID_Controller.Motor_Command :=
+                    Float (S.Mix_Sign) * Mix (M) + Throttle * Active (M).Throttle;
                   Shaped  : constant Float := PID_Controller.Apply_Thrust_Linearization (R, Command);
                   Output  : constant Float := Output_Min + Output_Range * Shaped;
                begin
@@ -653,7 +753,7 @@ package body Adaflight.Mixer with SPARK_Mode is
                        Clamp ((if C.DShot and then Output < Range_Min then C.Disarm_Output else Output),
                               C.Disarm_Output, Range_Max);
                   else
-                     S.Motors (M) := Constrain_F (Output, Range_Min, Range_Max);
+                     S.Motors (M) := Clamp (Output, Range_Min, Range_Max);
                   end if;
                end;
             end loop;
@@ -661,7 +761,8 @@ package body Adaflight.Mixer with SPARK_Mode is
                for M in 0 .. C.Count - 1 loop
                   pragma Loop_Invariant
                     (for all J in 0 .. M - 1 =>
-                       S.Motors (J) in Float'Min (C.Disarm_Output, C.Output_Low) .. C.Output_High);
+                       (if not C.Feature_3D
+                        then S.Motors (J) in Float'Min (C.Disarm_Output, C.Output_Low) .. C.Output_High));
                   S.Motors (M) := C.Disarm_Output;
                end loop;
             end if;
