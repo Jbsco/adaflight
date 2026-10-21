@@ -58,8 +58,8 @@ The core contains:
 <summary><b>Sensors and estimation</b> (1)</summary>
 
 - accelerometer path with in-flight calibration, barometer altitude and read cycle, compass with
-  bias calibration, battery meters (analog with sag filter, ESC sensor, virtual, MSP), states and
-  pack connection, and sensor and board alignment
+  bias calibration and read cycle, battery meters (analog with sag filter, ESC sensor, virtual,
+  MSP), states and pack connection, and sensor and board alignment
 
 </details>
 
@@ -311,7 +311,7 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 28929 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 28935 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
 - Recorded vectors replay bit for bit: 1753568 lines over 384 cases, every case exact except
   fifty-four declared deviations in `DESIGN.md` D6.

@@ -8,6 +8,10 @@ package body Adaflight.Compass with SPARK_Mode is
    use type Interfaces.Integer_16;
    use type Sensor_Alignment.Standard_Alignment;
 
+   Bus_Busy_Interval_Us : constant := 500;
+   Recheck_Interval_Us  : constant := 1_000;
+   Task_Rate_Hz         : constant := 40;
+
    Calibration_Wait_Us : constant := 15_000_000;
    Calibration_Time_Us : constant := 30_000_000;
    Movement_Rate_Dps   : constant Float := 350.0;
@@ -63,6 +67,15 @@ package body Adaflight.Compass with SPARK_Mode is
       S.Board_Rotation := Sensor_Alignment.Board_Rotation (C.Board);
       S.Zero := C.Zero;
       S.Calibrated := Has_Calibration (C.Zero);
+      if C.Odr_Hz /= 0 then
+         declare
+            Odr_Interval : constant Natural range 0 .. 62_500 := 1_000_000 / C.Odr_Hz;
+         begin
+            S.Read_Interval_Us := Odr_Interval - 2 * Recheck_Interval_Us - Odr_Interval / 20;
+         end;
+      else
+         S.Read_Interval_Us := 1_000_000 / Task_Rate_Hz;
+      end if;
    end Init;
 
    -----------------------
@@ -261,5 +274,34 @@ package body Adaflight.Compass with SPARK_Mode is
          S.Field (A) := V (A) - Float (S.Zero (A));
       end loop;
    end Update;
+
+   ----------------
+   -- Read_Cycle --
+   ----------------
+
+   procedure Read_Cycle
+     (S              : in out State;
+      C              : Settings;
+      Bus_Busy       : Boolean;
+      Data_Ready     : Boolean;
+      Sample         : Raw_Vector;
+      Gyro           : Vectors.Vector3;
+      Now_Us         : Time_Us;
+      Next_Period_Us : out Natural)
+   is
+   begin
+      if Bus_Busy then
+         S.Beeper := Silence;
+         S.Save_Requested := False;
+         Next_Period_Us := Bus_Busy_Interval_Us;
+      elsif not Data_Ready then
+         S.Beeper := Silence;
+         S.Save_Requested := False;
+         Next_Period_Us := Recheck_Interval_Us;
+      else
+         Update (S, C, Sample, Gyro, Now_Us);
+         Next_Period_Us := S.Read_Interval_Us;
+      end if;
+   end Read_Cycle;
 
 end Adaflight.Compass;

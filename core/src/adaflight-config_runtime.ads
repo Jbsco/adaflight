@@ -177,8 +177,10 @@ package Adaflight.Config_Runtime with SPARK_Mode is
    function Barometer_Settings_Of (B : Barometer_Config_Record) return Barometer.Settings;
 
    --  The compass settings from the stored compass and board alignment
-   --  groups.
-   function Compass_Settings_Of (C : Compass_Config_Record; Board : Board_Alignment_Record) return Compass.Settings;
+   --  groups, with the detected device's output data rate.
+   function Compass_Settings_Of
+     (C : Compass_Config_Record; Board : Board_Alignment_Record; Odr_Hz : Compass.Output_Rate := 0)
+      return Compass.Settings;
 
    --  The PID profile a detected cell count selects: the current one where it
    --  names the count or stays with any count, else the next after it that
@@ -712,12 +714,15 @@ private
      (Temperature_Drift_Cm_Per_10C => Held (Integer (B.Baro_Temp_Drift_Cm_Per10_C), -500, 500),
       Virtual_Device               => B.Baro_Hardware = 13);
 
-   function Compass_Settings_Of (C : Compass_Config_Record; Board : Board_Alignment_Record) return Compass.Settings is
+   function Compass_Settings_Of
+     (C : Compass_Config_Record; Board : Board_Alignment_Record; Odr_Hz : Compass.Output_Rate := 0)
+      return Compass.Settings is
      (Alignment     => Standard_Alignment_Of (C.Mag_Alignment),
       Custom_Angles => Custom_Angles_Of (C.Mag_Custom_Alignment),
       Board         => Board_Angles_Of (Board),
       Zero          => (Vectors.X => Integer (C.Mag_Zero (0)), Vectors.Y => Integer (C.Mag_Zero (1)),
-                        Vectors.Z => Integer (C.Mag_Zero (2))));
+                        Vectors.Z => Integer (C.Mag_Zero (2))),
+      Odr_Hz        => Odr_Hz);
 
    function Battery_Settings_Of
      (B : Battery_Config_Record; P : Battery_Profile_Record; V : Voltage_Sensor_Adc_Config_Record;

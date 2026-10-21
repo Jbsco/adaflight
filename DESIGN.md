@@ -6593,3 +6593,18 @@ The PID oracle gains 3D runs over DShot and analog endpoints with the switch, th
 and the crash flip, and one run in five takes a minimum check from 1600 to 2000. Every step replays exactly,
 and the earlier PID and mixer vectors stay byte for byte. The runs do not cover a wing build. Nine
 tampered paths each fail the vectors.
+
+## D292. Compass read cycle (2026-10-17)
+
+`Compass.Read_Cycle` is one call of the compass task. With the bus busy it makes no read and comes back in
+500 us, and without new data from the device it comes back in 1 ms. With new data it reads the sample through
+`Update` and comes back after the read interval. Init sets the read interval from the device's output data
+rate: the period less two 1 ms rechecks and a twentieth of the period, or the 40 Hz task period for a device
+without a rate. The rate's subtype holds the drivers' rates, from 16 Hz, where the reference's 16-bit period
+still fits, to 400 Hz, where the interval stays positive. A call without a read clears the beep and save
+requests. Every call ignores the task's execution rate, which the caller applies to the scheduler. The
+settings take the rate from the detected device.
+
+The compass oracle gains read cycle runs over the drivers' rates and no rate, with a busy bus in one call in
+six and no new data in one in four. Every period, read interval and step replays exactly, and the earlier
+compass vectors stay byte for byte. Six tampered paths each fail the vectors.
