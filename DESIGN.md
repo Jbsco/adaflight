@@ -6556,3 +6556,15 @@ unit quaternions does not reach.
 The attitude oracle gains headfree sequences that toggle headfree mode, ask for the offset and turn random
 vectors before the updates. Every offset, turn, angle and reported quaternion replays exactly, and the
 earlier attitude vectors stay byte for byte. Seven tampered paths each fail the vectors.
+
+## D290. Motor stop on the receiver's throttle (2026-10-17)
+
+`Mixer.Inputs` gains the receiver's throttle channel, and the motor stop compares it with the minimum check
+where the mixer compared the command throttle. The two differ near the minimum check. Just above it the
+throttle curve's output can still sit below it, so the mixer stopped the motors where the reference mixes
+them. With a minimum check of 1000, a receiver throttle below 1000 stops the motors while the command
+throttle does not. The mixer oracle gains runs where the receiver's throttle moves apart from the command
+throttle, one step in ten exactly at the minimum check and a minimum check of 1000 in one run in four. The
+mixer failed 64 cases of these runs before the change, and every step replays exactly after it. The earlier
+mixer vectors stay byte for byte. Comparing the command throttle again, or comparing at or below the minimum
+check, fails the vectors.

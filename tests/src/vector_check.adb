@@ -1538,6 +1538,8 @@ procedure Vector_Check is
    Mix_Attitude : Adaflight.PID_Controller.Level_Angles := (others => 0);
    Mix_Vbat_Latest : Natural := 0;
    Mix_Armed : Boolean := True;
+   Mix_Raw     : Float := 1000.0;
+   Mix_Raw_Set : Boolean := False;
    type Launch_Inputs is record
       Valid    : Boolean := False;
       Throttle : Float := 0.0;
@@ -1641,6 +1643,8 @@ procedure Vector_Check is
             Inp.Attitude := Mix_Attitude;
             Update (Mix_Ctl, Mix_Runtime, Mix_Profile, Inp);
             MInp.RC_Throttle := Flt (14);
+            MInp.RC_Data_Throttle := (if Mix_Raw_Set then Mix_Raw else Flt (14));
+            Mix_Raw_Set := False;
             MInp.Time_Us := Interfaces.Unsigned_32 ((Step + 1) * Loop_Time);
             MInp.Armed := Mix_Armed;
             MInp.Airmode := Mix_Airmode;
@@ -1866,6 +1870,9 @@ procedure Vector_Check is
                            To_Bits (Mix_Ctl.TPA_Factor_S (A)));
             Record_Result ("wingtpastate.s", Bits (11 + Adaflight.Axes.Axis'Pos (A)), To_Bits (Mix_Ctl.Data (A).S));
          end loop;
+      elsif Name = "mixraw" then
+         Mix_Raw := Flt (4);
+         Mix_Raw_Set := True;
       elsif Name = "mixap" then
          Mix_AP := (Launch     => Str (4) = "1",
                     Flags      => Int (5),
@@ -22325,6 +22332,7 @@ begin
    Run (Dir & "/pidthr.csv", "pidthr");
    Run (Dir & "/mix.csv", "mix");
    Run (Dir & "/mixmodes.csv", "mix");
+   Run (Dir & "/mixraw.csv", "mix");
    Run (Dir & "/mixspin.csv", "mix");
    Run (Dir & "/mixrpm.csv", "mix");
    Run (Dir & "/mixflip.csv", "mix");
