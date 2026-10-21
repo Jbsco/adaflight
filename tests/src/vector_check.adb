@@ -17262,6 +17262,9 @@ procedure Vector_Check is
    --  In the file sequences the card's FAT region follows a run list: a run
    --  chains its clusters and ends, links on to another run, or holds made-up
    --  values; the rest is free.
+   FAT_Disk_FAT_Start   : Unsigned_32 := 0;
+   FAT_Disk_FAT_Sectors : Unsigned_32 := 0;
+   FAT_Disk_FAT32       : Boolean := False;
    FAT_Zero_Count  : Natural := 0;
    FAT_Zero_From   : array (1 .. 8) of Unsigned_32 := (others => 0);
    FAT_Zero_To     : array (1 .. 8) of Unsigned_32 := (others => 0);
@@ -17274,8 +17277,7 @@ procedure Vector_Check is
    FAT_Scramble    : Unsigned_32 := 0;
 
    function FAT_Value (C : Unsigned_32) return Unsigned_32 is
-      use type Adaflight.FAT.Filesystem_Type;
-      Wide : constant Boolean := FAT_State.Vol.FS_Type = Adaflight.FAT.FAT32;
+      Wide : constant Boolean := FAT_Disk_FAT32;
    begin
       if C = 0 then
          return (if Wide then 16#0FFF_FFF8# else 16#FFF8#);
@@ -17325,13 +17327,12 @@ procedure Vector_Check is
             return (others => 0);
          end if;
       end loop;
-      if FAT_Runs_Active and then Sector >= FAT_State.Vol.FAT_Start_Sector
-        and then Sector - FAT_State.Vol.FAT_Start_Sector < 2 * FAT_State.Vol.FAT_Sectors
+      if FAT_Runs_Active and then Sector >= FAT_Disk_FAT_Start
+        and then Sector - FAT_Disk_FAT_Start < 2 * FAT_Disk_FAT_Sectors
       then
          declare
-            FAT_Sector : constant Unsigned_32 :=
-              (Sector - FAT_State.Vol.FAT_Start_Sector) mod FAT_State.Vol.FAT_Sectors;
-            Per        : constant Unsigned_32 := Adaflight.FAT.FAT_Entries_Per_Sector (FAT_State.Vol);
+            FAT_Sector : constant Unsigned_32 := (Sector - FAT_Disk_FAT_Start) mod FAT_Disk_FAT_Sectors;
+            Per        : constant Unsigned_32 := (if FAT_Disk_FAT32 then 128 else 256);
          begin
             for I in 0 .. Per - 1 loop
                if Per = 256 then
@@ -17629,6 +17630,7 @@ procedure Vector_Check is
             Probe : Volume;
             Found : Boolean;
          begin
+            FAT_State := (others => <>);
             Init (FAT_State);
             FAT_Disk_Count := 0;
             FAT_Disk_Seed := Unsigned_32 (Int (3));
@@ -17880,6 +17882,7 @@ procedure Vector_Check is
             Runs  : constant String := Str (21);
             From  : Positive := Runs'First;
          begin
+            FAT_State := (others => <>);
             Init (FAT_State);
             FAT_Disk_Count := 0;
             FAT_Disk_Seed := Unsigned_32 (Int (3));
@@ -17888,6 +17891,9 @@ procedure Vector_Check is
             FAT_Zero_Count := 0;
             Parse_MBR (Compact_Sector (9), FAT_State.Vol, Found);
             Parse_Volume_ID (Compact_Sector (10), FAT_State.Vol, Found);
+            FAT_Disk_FAT_Start := FAT_State.Vol.FAT_Start_Sector;
+            FAT_Disk_FAT_Sectors := FAT_State.Vol.FAT_Sectors;
+            FAT_Disk_FAT32 := FAT_State.Vol.FS_Type = FAT32;
             Record_Int ("flinit.volume", 1, Boolean'Pos (Found));
             FAT_Disk_Write (0, Compact_Sector (9));
             FAT_Disk_Write (FAT_State.Vol.Partition_Start_Sector, Compact_Sector (10));
@@ -18210,6 +18216,7 @@ procedure Vector_Check is
             V        : Number_List;
             Prepared : constant Natural := Natural (Int (25));
          begin
+            FAT_State := (others => <>);
             Init (FAT_State);
             FAT_Disk_Count := 0;
             FAT_Disk_Seed := Unsigned_32 (Int (3));
@@ -18217,6 +18224,9 @@ procedure Vector_Check is
             FAT_Card_State.Pending := 0;
             Parse_MBR (Compact_Sector (10), FAT_State.Vol, Found);
             Parse_Volume_ID (Compact_Sector (11), FAT_State.Vol, Found);
+            FAT_Disk_FAT_Start := FAT_State.Vol.FAT_Start_Sector;
+            FAT_Disk_FAT_Sectors := FAT_State.Vol.FAT_Sectors;
+            FAT_Disk_FAT32 := FAT_State.Vol.FS_Type = FAT32;
             Record_Int ("dirinit.volume", 1, Boolean'Pos (Found));
             FAT_Disk_Write (0, Compact_Sector (10));
             FAT_Disk_Write (FAT_State.Vol.Partition_Start_Sector, Compact_Sector (11));
@@ -18447,6 +18457,179 @@ procedure Vector_Check is
                Expect_Text ("notices", Str (40), (if Last = 0 then "-" else Image (1 .. Last)));
             end;
             Record_Int ("dirstep.ops", 1, (if not Card.Failed and then Card.Next > Card.Length then 1 else 0));
+            if (Card.Failed or else Card.Next <= Card.Length) and then Failures <= 20 then
+               Put_Line ("  step " & Str (3) & " card operations " & Ops);
+            end if;
+         end;
+      elsif Name = "initinit" then
+         declare
+            Count    : Natural;
+            V        : Number_List;
+            Prepared : constant Natural := Natural (Int (19));
+         begin
+            FAT_State := (others => <>);
+            FAT_Disk_Count := 0;
+            FAT_Disk_Seed := Unsigned_32 (Int (3));
+            FAT_Scramble := Unsigned_32 (Int (4));
+            FAT_Card_State.Pending := 0;
+            FAT_Disk_FAT_Start := Unsigned_32 (Int (13));
+            FAT_Disk_FAT_Sectors := Unsigned_32 (Int (14));
+            FAT_Disk_FAT32 := Int (15) /= 0;
+            Each_Entry (Str (17), Count, V, 1);
+            FAT_Run_Count := Count;
+            for K in 1 .. Count loop
+               Each_Entry (Str (17), Count, V, K);
+               FAT_Run_Start (K) := Unsigned_32 (V (1));
+               FAT_Run_Length (K) := Unsigned_32 (V (2));
+               FAT_Run_Kind (K) := Natural (V (3));
+               FAT_Run_Link (K) := Unsigned_32 (V (4));
+            end loop;
+            FAT_Runs_Active := True;
+            Each_Entry (Str (18), Count, V, 1);
+            FAT_Zero_Count := Count;
+            for K in 1 .. Count loop
+               Each_Entry (Str (18), Count, V, K);
+               FAT_Zero_From (K) := Unsigned_32 (V (1));
+               FAT_Zero_To (K) := Unsigned_32 (V (2));
+            end loop;
+            for K in 1 .. Prepared loop
+               declare
+                  Field : constant String := Str (19 + K);
+                  Colon : constant Natural := Ada.Strings.Fixed.Index (Field, ":");
+                  Data  : Sector_Bytes;
+               begin
+                  for B in Data'Range loop
+                     Data (B) := Interfaces.Unsigned_8'Value
+                       ("16#" & Field (Colon + 1 + 2 * B .. Colon + 2 + 2 * B) & "#");
+                  end loop;
+                  FAT_Disk_Write (Unsigned_32'Value (Field (Field'First .. Colon - 1)), Data);
+               end;
+            end loop;
+            FAT_Disk_Write (0, Compact_Sector (11));
+            FAT_Disk_Write (Unsigned_32 (Int (16)), Compact_Sector (12));
+            Init (FAT_State);
+            FAT_State.Notice_Count := 0;
+         end;
+      elsif Name = "initstep" then
+         declare
+            FS     : Adaflight.FAT.File_System renames FAT_State;
+            Card   : FAT_Card renames FAT_Card_State;
+            Call   : constant Integer_64 := Int (4);
+            H      : constant Integer_64 := Int (5);
+            T      : constant Callback_Tag := Callback_Tag (Int (6));
+            A1     : constant Integer_64 := Int (9);
+            A2     : constant Integer_64 := Int (10);
+            Ready  : constant Boolean := Int (11) /= 0;
+            Result : Integer_64 := 0;
+            Ops    : constant String := Str (43);
+            Done   : Boolean;
+         begin
+            Card.Ops (1 .. Ops'Length) := Ops;
+            Card.Length := Ops'Length;
+            Card.Next := 1;
+            Card.Failed := False;
+            FS.Notice_Count := 0;
+            case Call is
+               when 0 =>
+                  Card.Pending := 0;
+                  Read_Complete (FS, Cache_Index (H), Unsigned_32 (A2), FAT_Disk_Read (Unsigned_32 (A2)), A1 /= 0);
+               when 1 =>
+                  if A1 /= 0 then
+                     FAT_Disk_Write (Card.Pending_Sector, Card.Pending_Data);
+                  end if;
+                  Card.Pending := 0;
+                  Write_Complete (FS, Cache_Index (H), Unsigned_32 (A2), A1 /= 0);
+               when 8 =>
+                  FAT_Ops.Poll (FS, Card, Ready);
+               when 30 =>
+                  FAT_Ops.Destroy (FS, Card, A1 /= 0, Ready, Done);
+                  Result := Boolean'Pos (Done);
+               when 31 =>
+                  Init (FS);
+               when 20 =>
+                  FAT_Ops.Open (FS, Card, Str (7), Str (8), T, Done);
+                  Result := Boolean'Pos (Done);
+               when 21 =>
+                  FAT_Ops.Make_Directory (FS, Card, Str (7), T, Done);
+                  Result := Boolean'Pos (Done);
+               when 22 =>
+                  FAT_Ops.Change_Directory (FS, Card, File_Ref (H), Done);
+                  Result := Boolean'Pos (Done);
+               when 23 =>
+                  FAT_Ops.Close (FS, Card, File_Ref (H), T, Done);
+                  Result := Boolean'Pos (Done);
+               when 2 =>
+                  declare
+                     Data    : Adaflight.FAT.Data_Bytes (0 .. Natural (A1) - 1);
+                     X       : Unsigned_32 := Unsigned_32 (A2) or 1;
+                     Written : Natural;
+                  begin
+                     for B of Data loop
+                        X := X xor Interfaces.Shift_Left (X, 13);
+                        X := X xor Interfaces.Shift_Right (X, 17);
+                        X := X xor Interfaces.Shift_Left (X, 5);
+                        B := Interfaces.Unsigned_8 (X and 16#FF#);
+                     end loop;
+                     FAT_Ops.Write (FS, Card, File_Id (H), Data, Written);
+                     Result := Integer_64 (Written);
+                  end;
+               when others =>
+                  FAT_Ops.Flush (FS, Card, Done);
+                  Result := Boolean'Pos (Done);
+            end case;
+            Record_Int ("initstep.result", Int (12), Result);
+            for I in Cache_Index loop
+               declare
+                  D     : Descriptor renames FS.Descriptors (I);
+                  Image : constant String :=
+                    Num (D.Sector_Index) & ":" & Num (D.Write_Timestamp) & ":" & Num (D.Access_Timestamp) & ":"
+                    & Num (Unsigned_32 (D.Erase_Count)) & ":" & Num (Cache_State'Pos (D.State)) & ":"
+                    & Num (Boolean'Pos (D.Locked)) & ":" & Num (Unsigned_32 (D.Retained)) & ":"
+                    & Num (Boolean'Pos (D.Discardable));
+               begin
+                  Expect_Text ("descriptor", Str (15 + I), Image);
+               end;
+            end loop;
+            Record_Int ("initstep.timer", Int (26), Integer_64 (FS.Cache_Timer));
+            Record_Int ("initstep.dirty", Int (27), Integer_64 (FS.Dirty_Entries));
+            Record_Int ("initstep.flushing", Int (28), Boolean'Pos (FS.Flush_In_Progress));
+            Record_Int ("initstep.error", Int (29), Error_Kind'Pos (FS.Last_Error));
+            Record_Int ("initstep.state", Int (30), Filesystem_State'Pos (FS.State));
+            Record_Int ("initstep.full", Int (31), Boolean'Pos (FS.Full));
+            declare
+               H32 : Unsigned_32 := 2_166_136_261;
+            begin
+               for Sector of FS.Cache loop
+                  H32 := FAT_Hash (Sector, H32);
+               end loop;
+               Record_Int ("initstep.cache", Int_Hex (32), Integer_64 (H32));
+            end;
+            Record_Int ("initstep.last_allocated", Int (33), Integer_64 (FS.Last_Cluster_Allocated));
+            Record_Int ("initstep.phase", Int (34), Init_Phase'Pos (FS.Phase));
+            Expect_Text ("search", Str (35),
+                         Num (FS.Search.Candidate_Start) & ":" & Num (FS.Search.Candidate_End) & ":"
+                         & Num (FS.Search.Best_Gap_Start) & ":" & Num (FS.Search.Best_Gap_Length) & ":"
+                         & Num (Search_Phase'Pos (FS.Search.Phase)));
+            for F in File_Id loop
+               Expect_Text ("file", Str (36 + Integer (F)), File_Image (FS.Files (F)));
+            end loop;
+            Record_Int ("initstep.pending", Int (41), Integer_64 (Card.Pending));
+            declare
+               Image : String (1 .. 400);
+               Last  : Natural := 0;
+            begin
+               for K in 1 .. FS.Notice_Count loop
+                  declare
+                     Part : constant String :=
+                       (if K > 1 then ";" else "") & Tag (FS.Notices (K).Tag) & ":" & Signed (FS.Notices (K).File);
+                  begin
+                     Image (Last + 1 .. Last + Part'Length) := Part;
+                     Last := Last + Part'Length;
+                  end;
+               end loop;
+               Expect_Text ("notices", Str (42), (if Last = 0 then "-" else Image (1 .. Last)));
+            end;
+            Record_Int ("initstep.ops", 1, (if not Card.Failed and then Card.Next > Card.Length then 1 else 0));
             if (Card.Failed or else Card.Next <= Card.Length) and then Failures <= 20 then
                Put_Line ("  step " & Str (3) & " card operations " & Ops);
             end if;
@@ -23797,7 +23980,7 @@ procedure Vector_Check is
                   Check_FAT_Line;
                elsif Kind = "fatfile" then
                   Check_FAT_File_Line;
-               elsif Kind = "fatdir" then
+               elsif Kind = "fatdir" or else Kind = "fatinit" then
                   Check_FAT_Dir_Line;
                elsif Kind = "fpcapture" then
                   Check_Flight_Plan_Capture_Line;
@@ -24083,6 +24266,7 @@ begin
    Run (Dir & "/fatcache.csv", "fatcache");
    Run (Dir & "/fatfile.csv", "fatfile");
    Run (Dir & "/fatdir.csv", "fatdir");
+   Run (Dir & "/fatinit.csv", "fatinit");
    Run (Dir & "/fpcapture.csv", "fpcapture");
    Run (Dir & "/mavmission.csv", "mavmission");
    Run (Dir & "/fpnhelpers.csv", "fpnhelpers");

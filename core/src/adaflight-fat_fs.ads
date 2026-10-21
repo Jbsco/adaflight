@@ -383,4 +383,27 @@ package Adaflight.FAT_FS with SPARK_Mode is
      with Global => null,
           Post   => FS.Vol = FS.Vol'Old;
 
+   --------------------
+   -- Initialization --
+   --------------------
+
+   --  The next steps of the initialization: the partition table, the volume
+   --  ID with the root as the working directory, then the free-space file,
+   --  found or made from the longest free run less the clusters it leaves.
+   procedure Init_Continue (FS : in out File_System; Card : in out Card_State)
+     with Global => null;
+
+   --  The file system's turn, when the card's own poll found it ready: the
+   --  flush of a dirty sector, then the initialization or the files'
+   --  operations.
+   procedure Poll (FS : in out File_System; Card : in out Card_State; Card_Ready : Boolean)
+     with Global => null;
+
+   --  The file system shut down: the files closed and the cache flushed, or
+   --  at once when dirty, then every field zero. The callbacks taken during
+   --  the shutdown stay for the caller.
+   procedure Destroy
+     (FS : in out File_System; Card : in out Card_State; Dirty : Boolean; Card_Ready : Boolean; Done : out Boolean)
+     with Global => null;
+
 end Adaflight.FAT_FS;

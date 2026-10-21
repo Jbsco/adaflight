@@ -114,9 +114,19 @@ package Adaflight.FAT with SPARK_Mode is
      (Update_Directory, Erase_Chain, Erase_Contiguous_Chain, Prepend_To_Free_File, Truncate_Success);
    type Extend_Phase is (Add_Free_Cluster, Write_Sectors, Extend_Success, Extend_Failure);
 
-   --  The caller's callbacks, by a number the caller picks; 0 is none.
+   --  The caller's callbacks, by a number the caller picks; 0 is none, and
+   --  15 is the file system's own for the free-space file.
    type Callback_Tag is range 0 .. 15;
-   No_Callback : constant Callback_Tag := 0;
+   No_Callback       : constant Callback_Tag := 0;
+   Free_File_Created : constant Callback_Tag := 15;
+
+   --  The steps from the partition table to a file system ready for files.
+   type Init_Phase is
+     (Read_MBR, Read_Volume_ID, Free_File_Create, Free_File_Creating, Free_File_FAT_Search, Free_File_Update_FAT,
+      Free_File_Save_Entry, Init_Done);
+
+   --  The free-space file leaves this many free clusters to other files.
+   Free_File_Leave_Clusters : constant := 100;
    type Free_Cluster_Phase is (Find_Free_Space, Update_FAT_1, Update_FAT_2, Update_File_Entry, Complete, Failed);
    type Supercluster_Phase is (Take_Supercluster, Update_Free_File_Entry, Update_Supercluster_FAT, Save_File_Entry);
    subtype Entry_Slot is Integer range -1 .. Entries_Per_Sector - 1;
@@ -239,6 +249,7 @@ package Adaflight.FAT with SPARK_Mode is
    type File_System is record
       Vol                    : Volume;
       State                  : Filesystem_State := Unknown;
+      Phase                  : Init_Phase := Read_MBR;
       Last_Error             : Error_Kind := None;
       Full                   : Boolean := False;
       Last_Cluster_Allocated : Unsigned_32 := 0;
@@ -362,9 +373,11 @@ package Adaflight.FAT with SPARK_Mode is
    -- Sector cache --
    ------------------
 
-   --  A file system that has yet to read its card.
-   procedure Init (FS : out File_System)
-     with Global => null;
+   --  A file system set to read its card, from the partition table on. The
+   --  other fields stay as they are: zero at start, or after a shutdown.
+   procedure Init (FS : in out File_System)
+     with Global => null,
+          Post   => FS.Vol = FS.Vol'Old;
 
    --  A failed check marks the file system fatal, with a generic error
    --  unless one is already set.
