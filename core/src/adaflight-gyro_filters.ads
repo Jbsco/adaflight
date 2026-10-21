@@ -30,6 +30,18 @@ package Adaflight.Gyro_Filters with SPARK_Mode, Pure is
    subtype Offset is Float range -32_768.0 .. 32_767.0;
    type Offsets is array (Axis) of Offset;
 
+   --  The gyro sensors a board can carry, which of them run, one sample from
+   --  each, and each sensor's alignment to the board.
+   Max_Gyros : constant := 4;
+   subtype Gyro_Index is Natural range 0 .. Max_Gyros - 1;
+   type Gyro_Flags is array (Gyro_Index) of Boolean;
+   type Raw_Samples is array (Gyro_Index) of Raw_Vector;
+   type Sensor_Placement is record
+      Alignment     : Sensor_Alignment.Standard_Alignment := Sensor_Alignment.CW0;
+      Custom_Angles : Sensor_Alignment.Alignment_Angles;
+   end record;
+   type Sensor_Placements is array (Gyro_Index) of Sensor_Placement;
+
    type Overflow_Check is (No_Check, Yaw_Axis, All_Axes);
    type Spin_Recovery is (Off, On, Auto);
    subtype Spin_Threshold is Integer range 500 .. 1_950;
@@ -49,8 +61,9 @@ package Adaflight.Gyro_Filters with SPARK_Mode, Pure is
       Sample_Time_Us   : PID_Config.Loop_Time_Us := 125;
       Loop_Time_Us     : PID_Config.Loop_Time_Us := 125;
       Scale            : Float range 2.0 ** (-10) .. 1.0 := 1.0;
-      Alignment        : Sensor_Alignment.Standard_Alignment := Sensor_Alignment.CW0;
-      Custom_Angles    : Sensor_Alignment.Alignment_Angles;
+      --  The enabled sensors, which share the scale and the sample time.
+      Enabled          : Gyro_Flags := (0 => True, others => False);
+      Sensors          : Sensor_Placements;
       Board            : Sensor_Alignment.Board_Angles;
       --  The calibration in hundredths of a second, its movement limit as a
       --  deviation in counts, and the yaw offset in hundredths of a count.
@@ -90,6 +103,24 @@ package Adaflight.Gyro_Filters with SPARK_Mode, Pure is
    subtype Cycle_Count is Natural range 0 .. Max_Calibration_Cycles;
    subtype Time_Us is Clock.Time_Us;
 
+   --  Per sensor: the custom alignment's rotation, the zero offset, the
+   --  calibration's totals and statistics with its remaining cycles, and the
+   --  last zeroed and aligned counts, which the board rotation keeps within
+   --  three times 2 ** 20.
+   subtype Rotation_Matrix is Vectors.Matrix33
+     with Dynamic_Predicate => Vectors.Bounded (Rotation_Matrix, 2.0);
+   subtype Aligned_Count is Float range -2.0 ** 22 .. 2.0 ** 22;
+   type Aligned_Counts is array (Axis) of Aligned_Count;
+   type Sensor_State is record
+      Rotation         : Rotation_Matrix := Vectors.Identity;
+      Zero             : Offsets := (others => 0.0);
+      Cal_Sum          : Cal_Totals := (others => 0.0);
+      Cal_Stats        : Axis_Stats;
+      Cycles_Remaining : Cycle_Count := 0;
+      Aligned          : Aligned_Counts := (others => 0.0);
+   end record;
+   type Sensor_States is array (Gyro_Index) of Sensor_State;
+
    type State is record
       Lowpass1          : Axis_Stage;
       Lowpass2          : Axis_Stage;
@@ -108,12 +139,9 @@ package Adaflight.Gyro_Filters with SPARK_Mode, Pure is
       Downsampled       : Axis_Signals := (others => 0.0);
       Sample_Sum        : Axis_Signals := (others => 0.0);
       Samples           : Sample_Count := 0;
-      Sensor_Rotation   : Vectors.Matrix33 := Vectors.Identity;
       Board_Rotation    : Vectors.Matrix33 := Vectors.Identity;
-      Zero              : Offsets := (others => 0.0);
-      Cal_Sum           : Cal_Totals := (others => 0.0);
-      Cal_Stats         : Axis_Stats;
-      Cycles_Remaining  : Cycle_Count := 0;
+      Enabled           : Gyro_Flags := (0 => True, others => False);
+      Sensors           : Sensor_States;
       First_Arm_Started : Boolean := False;
       Overflow_Detected : Boolean := False;
       Overflow_Time_Us  : Time_Us := 0;
@@ -124,8 +152,7 @@ package Adaflight.Gyro_Filters with SPARK_Mode, Pure is
       Dyn               : Dyn_Notch.State;
       RPM               : RPM_Filter.State;
    end record
-     with Dynamic_Predicate =>
-       Vectors.Bounded (State.Sensor_Rotation, 2.0) and then Vectors.Bounded (State.Board_Rotation, 2.0);
+     with Dynamic_Predicate => Vectors.Bounded (State.Board_Rotation, 2.0);
 
    procedure Init (S : out State; C : Settings);
 
@@ -137,20 +164,29 @@ package Adaflight.Gyro_Filters with SPARK_Mode, Pure is
    function Calibration_Cycles (C : Settings) return Cycle_Count is
      (C.Calibration_Duration * 10_000 / C.Sample_Time_Us);
 
-   --  Starts a calibration; the first arming calibration starts once.
+   --  Starts a calibration of every enabled sensor; the first arming
+   --  calibration starts once.
    procedure Start_Calibration (S : in out State; C : Settings; First_Arm : Boolean);
 
-   function Calibration_Complete (S : State) return Boolean is (S.Cycles_Remaining = 0);
+   function Sensor_Calibrated (S : State; I : Gyro_Index) return Boolean is
+     (S.Sensors (I).Cycles_Remaining = 0);
+
+   function Calibration_Complete (S : State) return Boolean is
+     (for all I in Gyro_Index => not S.Enabled (I) or else Sensor_Calibrated (S, I));
 
    function First_Arm_Calibration_Running (S : State) return Boolean is
      (S.First_Arm_Started and then not Calibration_Complete (S));
 
-   --  One sensor sample: a calibration cycle while one runs, else the zero
-   --  offset, alignment, and scale; then the downsampling accumulation of the
-   --  rate, which a calibration leaves stale as the reference does. Finished
-   --  is set on the final cycle of a calibration that passed its movement
-   --  check, when the reference sounds its tone.
-   procedure Accumulate (S : in out State; C : Settings; Sample : Raw_Vector; Finished : out Boolean);
+   --  One sample from each sensor. Each enabled sensor with new data runs a
+   --  calibration cycle while its calibration runs, else takes its zeroed
+   --  and aligned counts; a sensor without new data keeps its last counts.
+   --  The rate is then the average of the scaled counts of the enabled
+   --  sensors that finished calibrating, and keeps its last value while none
+   --  has, followed by the downsampling accumulation of the rate. Finished
+   --  is set when a sensor's calibration ends with its movement check
+   --  passed, when the reference sounds its tone.
+   procedure Accumulate
+     (S : in out State; C : Settings; Samples : Raw_Samples; Ready : Gyro_Flags; Finished : out Boolean);
 
    --  One loop: the downsampled rates through the RPM notches at the motors'
    --  frequencies, then each through the static notches, the lowpass, and

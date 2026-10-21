@@ -6608,3 +6608,21 @@ settings take the rate from the detected device.
 The compass oracle gains read cycle runs over the drivers' rates and no rate, with a busy bus in one call in
 six and no new data in one in four. Every period, read interval and step replays exactly, and the earlier
 compass vectors stay byte for byte. Six tampered paths each fail the vectors.
+
+## D293. Multiple gyros (2026-10-17)
+
+`Adaflight.Gyro_Filters` takes up to four sensors. Each sensor keeps its own alignment, zero offset,
+calibration with its remaining cycles, and last zeroed and aligned counts. `Accumulate` takes one sample and a
+data-ready flag from each sensor. An enabled sensor with new data runs a calibration cycle while its
+calibration runs, else takes its new counts, and a sensor without new data keeps its last counts. The rate is
+the average of the scaled counts over the enabled sensors that finished calibrating, summed in sensor order
+from zero, and keeps its last value while none has. A sensor whose calibration ends on a sample joins that
+sample's average with the counts it held before the calibration. A calibration starts on every enabled sensor
+and completes when all have. The sensors share the scale and the sample time, since the reference enables
+only sensors that agree on both. The settings take the first sensor's alignment from the stored configuration
+and enable it alone, until the sensor selection at startup is ported.
+
+The gyro oracle gains a four-sensor build that reads each sensor through the oracle's own read function, with
+random enabled sets including all four and none, which enables the first, per-sensor alignments, missing data
+in one sample of ten, and a movement burst on one sensor during calibration. Every step replays exactly, and
+the earlier gyro vectors stay byte for byte. Seven tampered paths each fail the vectors.

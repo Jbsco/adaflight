@@ -2051,6 +2051,9 @@ procedure Vector_Check is
    Gyro_Settings : Adaflight.Gyro_Filters.Settings;
    Gyro_Denom    : Integer := 1;
    Gyro_Cal_Samples : Natural := 0;
+   Gyro_Multi_Set     : Boolean := False;
+   Gyro_Multi_Enabled : Adaflight.Gyro_Filters.Gyro_Flags := (others => False);
+   Gyro_Multi_Sensors : Adaflight.Gyro_Filters.Sensor_Placements;
    Gyro_Now_Us      : Interfaces.Unsigned_32 := 0;
    Gyro_Motor_Hz    : Adaflight.RPM_Filter.Motor_Frequencies := (others => 0.0);
    Gyro_Dt_Scale    : Adaflight.RPM_Filter.Cycle_Multiplier := 1.0;
@@ -2093,10 +2096,17 @@ procedure Vector_Check is
             C.Sample_Time_Us := Integer'Value (Str (4));
             Gyro_Denom := Integer'Value (Str (5));
             C.Scale := Flt (6);
-            C.Alignment := Adaflight.Sensor_Alignment.Standard_Alignment'Val (Int (7));
-            C.Custom_Angles := (Roll  => Adaflight.Sensor_Alignment.Decidegrees (Int (8)),
-                                Pitch => Adaflight.Sensor_Alignment.Decidegrees (Int (9)),
-                                Yaw   => Adaflight.Sensor_Alignment.Decidegrees (Int (10)));
+            C.Sensors (0) := (Alignment     => Adaflight.Sensor_Alignment.Standard_Alignment'Val (Int (7)),
+                              Custom_Angles => (Roll  => Adaflight.Sensor_Alignment.Decidegrees (Int (8)),
+                                                Pitch => Adaflight.Sensor_Alignment.Decidegrees (Int (9)),
+                                                Yaw   => Adaflight.Sensor_Alignment.Decidegrees (Int (10))));
+            if Gyro_Multi_Set then
+               C.Enabled := Gyro_Multi_Enabled;
+               for G in 1 .. Adaflight.Gyro_Filters.Gyro_Index'Last loop
+                  C.Sensors (G) := Gyro_Multi_Sensors (G);
+               end loop;
+               Gyro_Multi_Set := False;
+            end if;
             C.Board := (Roll => Integer (Int (11)), Pitch => Integer (Int (12)), Yaw => Integer (Int (13)));
             C.LPF1_Type := Adaflight.PID_Profile.Lowpass_Kind'Val (Integer'Value (Str (14)));
             C.LPF1_Static_Hz := Integer'Value (Str (15));
@@ -2180,6 +2190,94 @@ procedure Vector_Check is
             Start_Calibration (Gyro_State, Gyro_Settings, False);
             Gyro_Cal_Samples := 0;
          end;
+      elsif Name = "gyromultiinit" then
+         for G in Adaflight.Gyro_Filters.Gyro_Index loop
+            Gyro_Multi_Enabled (G) := Int (4) / 2 ** G mod 2 = 1;
+            Gyro_Multi_Sensors (G) :=
+              (Alignment     => Adaflight.Sensor_Alignment.Standard_Alignment'Val (Int (5 + 4 * G)),
+               Custom_Angles => (Roll  => Adaflight.Sensor_Alignment.Decidegrees (Int (6 + 4 * G)),
+                                 Pitch => Adaflight.Sensor_Alignment.Decidegrees (Int (7 + 4 * G)),
+                                 Yaw   => Adaflight.Sensor_Alignment.Decidegrees (Int (8 + 4 * G))));
+         end loop;
+         Gyro_Multi_Set := True;
+         Gyro_Motor_Hz := (others => 0.0);
+         Gyro_Dt_Scale := 1.0;
+      elsif Name = "gyromcal" or else Name = "gyromstep" then
+         --  One sample from each sensor per group of four fields: the ready
+         --  flag and the three counts.
+         declare
+            Step     : constant Boolean := Name = "gyromstep";
+            K        : Positive := (if Step then 5 else 4);
+            Finished : Boolean;
+            Samples  : Adaflight.Gyro_Filters.Raw_Samples;
+            Ready    : Adaflight.Gyro_Filters.Gyro_Flags;
+            procedure Expect_Float (N : String; Actual : Float) is
+            begin
+               Record_Result ("gyromstep." & N, Bits (K), To_Bits (Actual));
+               K := K + 1;
+            end Expect_Float;
+         begin
+            if Step and then Int (4) /= 0 then
+               Start_Calibration (Gyro_State, Gyro_Settings, False);
+            end if;
+            for S in 1 .. (if Step then Gyro_Denom else 1) loop
+               for G in Adaflight.Gyro_Filters.Gyro_Index loop
+                  Ready (G) := Int (K) /= 0;
+                  Samples (G) := (Roll => Integer (Int (K + 1)), Pitch => Integer (Int (K + 2)),
+                                  Yaw => Integer (Int (K + 3)));
+                  K := K + 4;
+               end loop;
+               Accumulate (Gyro_State, Gyro_Settings, Samples, Ready, Finished);
+               if not Step then
+                  Gyro_Cal_Samples := Gyro_Cal_Samples + 1;
+                  if Gyro_Cal_Samples mod Gyro_Denom = 0 then
+                     Filter (Gyro_State, Gyro_Settings,
+                             Interfaces.Unsigned_32 (Gyro_Cal_Samples * Gyro_Settings.Sample_Time_Us), 0,
+                             Gyro_Motor_Hz, Gyro_Dt_Scale);
+                  end if;
+               end if;
+            end loop;
+            if Step then
+               Gyro_Now_Us := Gyro_Now_Us + Interfaces.Unsigned_32 (Gyro_Settings.Loop_Time_Us);
+               Filter (Gyro_State, Gyro_Settings, Gyro_Now_Us, 0, Gyro_Motor_Hz, Gyro_Dt_Scale);
+               for A in Adaflight.Axes.Axis loop
+                  Expect_Float ("rate", Gyro_State.Rate (A));
+               end loop;
+               for A in Adaflight.Axes.Axis loop
+                  Expect_Float ("filtered", Gyro_State.Filtered (A));
+               end loop;
+               for A in Adaflight.Axes.Axis loop
+                  Expect_Float ("imu", Gyro_State.Downsampled (A));
+               end loop;
+               for G in Adaflight.Gyro_Filters.Gyro_Index loop
+                  for A in Adaflight.Axes.Axis loop
+                     Expect_Float ("zero", Gyro_State.Sensors (G).Zero (A));
+                  end loop;
+                  Record_Int ("gyromstep.cycles", Int (K), Integer_64 (Gyro_State.Sensors (G).Cycles_Remaining));
+                  K := K + 1;
+               end loop;
+               Record_Int ("gyromstep.overflow", Int (K), Boolean'Pos (Gyro_State.Overflow_Detected));
+               Record_Int ("gyromstep.yaw_spin", Int (K + 1), Boolean'Pos (Gyro_State.Yaw_Spin_Detected));
+               Record_Int ("gyromstep.now", Int (K + 2), Integer_64 (Gyro_Now_Us));
+            end if;
+         end;
+      elsif Name = "gyromcaldone" then
+         Filter (Gyro_State, Gyro_Settings,
+                 Interfaces.Unsigned_32 (Gyro_Cal_Samples * Gyro_Settings.Sample_Time_Us), 0,
+                 Gyro_Motor_Hz, Gyro_Dt_Scale);
+         Record_Int ("gyromcaldone.samples", Int (3), Integer_64 (Gyro_Cal_Samples));
+         for G in Adaflight.Gyro_Filters.Gyro_Index loop
+            for A in Adaflight.Axes.Axis loop
+               Record_Result ("gyromcaldone.zero", Bits (4 + 4 * G + Adaflight.Axes.Axis'Pos (A)),
+                              To_Bits (Gyro_State.Sensors (G).Zero (A)));
+            end loop;
+            Record_Int ("gyromcaldone.cycles", Int (7 + 4 * G), Integer_64 (Gyro_State.Sensors (G).Cycles_Remaining));
+         end loop;
+         for A in Adaflight.Axes.Axis loop
+            Record_Result ("gyromcaldone.imu", Bits (20 + Adaflight.Axes.Axis'Pos (A)),
+                           To_Bits (Gyro_State.Downsampled (A)));
+         end loop;
+         Gyro_Now_Us := Interfaces.Unsigned_32 (Gyro_Cal_Samples * Gyro_Settings.Sample_Time_Us);
       elsif Name = "gyrocal" then
          --  A block of calibration samples at the sensor rate, with the loop
          --  running between them as on the craft.
@@ -2189,8 +2287,10 @@ procedure Vector_Check is
          begin
             while K + 2 <= NF loop
                Accumulate (Gyro_State, Gyro_Settings,
-                           (Roll => Integer (Int (K)), Pitch => Integer (Int (K + 1)), Yaw => Integer (Int (K + 2))),
-                           Finished);
+                           (0      => (Roll  => Integer (Int (K)), Pitch => Integer (Int (K + 1)),
+                                       Yaw   => Integer (Int (K + 2))),
+                            others => (others => 0)),
+                           (others => True), Finished);
                Gyro_Cal_Samples := Gyro_Cal_Samples + 1;
                if Gyro_Cal_Samples mod Gyro_Denom = 0 then
                   Filter (Gyro_State, Gyro_Settings,
@@ -2206,9 +2306,10 @@ procedure Vector_Check is
                  Gyro_Motor_Hz, Gyro_Dt_Scale);
          Record_Int ("gyrocaldone.samples", Int (3), Integer_64 (Gyro_Cal_Samples));
          for A in Adaflight.Axes.Axis loop
-            Record_Result ("gyrocaldone.zero", Bits (4 + Adaflight.Axes.Axis'Pos (A)), To_Bits (Gyro_State.Zero (A)));
+            Record_Result ("gyrocaldone.zero", Bits (4 + Adaflight.Axes.Axis'Pos (A)),
+                           To_Bits (Gyro_State.Sensors (0).Zero (A)));
          end loop;
-         Record_Int ("gyrocaldone.cycles", Int (7), Integer_64 (Gyro_State.Cycles_Remaining));
+         Record_Int ("gyrocaldone.cycles", Int (7), Integer_64 (Gyro_State.Sensors (0).Cycles_Remaining));
          for A in Adaflight.Axes.Axis loop
             Record_Result ("gyrocaldone.imu", Bits (8 + Adaflight.Axes.Axis'Pos (A)),
                            To_Bits (Gyro_State.Downsampled (A)));
@@ -2237,8 +2338,10 @@ procedure Vector_Check is
             end if;
             for S in 1 .. Gyro_Denom loop
                Accumulate (Gyro_State, Gyro_Settings,
-                           (Roll => Integer (Int (K)), Pitch => Integer (Int (K + 1)), Yaw => Integer (Int (K + 2))),
-                           Finished);
+                           (0      => (Roll  => Integer (Int (K)), Pitch => Integer (Int (K + 1)),
+                                       Yaw   => Integer (Int (K + 2))),
+                            others => (others => 0)),
+                           (others => True), Finished);
                K := K + 3;
             end loop;
             Gyro_Now_Us := Gyro_Now_Us + Interfaces.Unsigned_32 (Gyro_Settings.Loop_Time_Us);
@@ -2253,9 +2356,9 @@ procedure Vector_Check is
                Expect_Float ("imu", Gyro_State.Downsampled (A));
             end loop;
             for A in Adaflight.Axes.Axis loop
-               Expect_Float ("zero", Gyro_State.Zero (A));
+               Expect_Float ("zero", Gyro_State.Sensors (0).Zero (A));
             end loop;
-            Record_Int ("gyrostep.cycles", Int (K), Integer_64 (Gyro_State.Cycles_Remaining));
+            Record_Int ("gyrostep.cycles", Int (K), Integer_64 (Gyro_State.Sensors (0).Cycles_Remaining));
             Record_Int ("gyrostep.overflow", Int (K + 1), Boolean'Pos (Gyro_State.Overflow_Detected));
             Record_Int ("gyrostep.yaw_spin", Int (K + 2), Boolean'Pos (Gyro_State.Yaw_Spin_Detected));
             Record_Int ("gyrostep.now", Int (K + 3), Integer_64 (Gyro_Now_Us));
@@ -22393,6 +22496,7 @@ begin
    Run (Dir & "/rc.csv", "rc");
    Run (Dir & "/rcthr.csv", "rc");
    Run (Dir & "/gyro.csv", "gyro");
+   Run (Dir & "/gyromulti.csv", "gyro");
    Run (Dir & "/imu.csv", "imu");
    Run (Dir & "/imuhf.csv", "imu");
    Run (Dir & "/failsafe.csv", "failsafe");
