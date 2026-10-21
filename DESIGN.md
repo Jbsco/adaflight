@@ -6467,3 +6467,19 @@ The arming oracle gains a wing build with the reference's launch source, without
 takeoff prevention, as a wing build compiles them out. Its sequences script a launch switch, whether the
 airframe is at rest and, now and then, the launch state the pass sets, and the earlier arming vectors stay
 byte for byte. Every step replays exactly, and eight tampered paths each fail the vectors.
+
+## D285. In-flight accelerometer calibration arming (2026-10-16)
+
+`Adaflight.Acc_Inflight` contains the in-flight accelerometer calibration's state, which the arming logic and
+the accelerometer share: armed, measurement done, save pending, active, and the samples left. With the
+in-flight calibration feature, the disarmed stick command with the throttle and yaw low and the pitch and
+roll high saves a finished measurement, or else toggles the calibration's arming with its tone or its
+failure tone. Each modes pass checks the calibration between the stick commands and the mode update. Armed
+for it, flying with the throttle above the minimum check and the arm switch off, the 50-sample measurement
+starts. The calibration switch starts it once and keeps it active. Disarmed after a measurement, the save is
+set. The arming state contains the calibration, and the accelerometer's measurement and save are the next
+increment.
+
+The arming oracle gains in-flight calibration sequences with the feature, a calibration switch and the stick
+command held more often, and scripts the accelerometer's end of a measurement and its save. Every step
+replays exactly, the earlier arming vectors stay byte for byte, and six tampered paths each fail the vectors.

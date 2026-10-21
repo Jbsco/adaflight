@@ -3960,7 +3960,7 @@ procedure Vector_Check is
             when Silence => 100, when Arm_Tone => 5, when Disarm_Tone => 4, when Armed_Tone => 16,
             when Disarm_Repeat_Tone => 15, when Rx_Set_Tone => 10, when Warning_Tones => 101,
             when Confirmation_Tones => 102, when Crash_Flip_Tone => 20, when GPS_Fix_Arm_Tone => 6,
-            when GPS_No_Fix_Arm_Tone => 23);
+            when GPS_No_Fix_Arm_Tone => 23, when Acc_Calibration_Tone => 11, when Acc_Calibration_Fail_Tone => 12);
       function Selected (Cmds : Command_Set; First, Last : Stick_Command) return Integer_64 is
       begin
          for Cmd in First .. Last loop
@@ -4013,7 +4013,8 @@ procedure Vector_Check is
             Position_Control           => False,
             Plane_Mixer                => Int (153) = 8 or else Int (153) = 14,
             Telemetry_Feature          => False,
-            Launch_Wing                => False);
+            Launch_Wing                => False,
+            Inflight_Acc_Cal           => False);
          Arm_DShot_Mode := False;
          Arm_Wing_Mode := False;
          Arm_Hooks_Mode := False;
@@ -4320,6 +4321,23 @@ procedure Vector_Check is
                       elsif Arm_Last_Step.Commands (VTX_Band_Down) then 2
                       elsif Arm_Last_Step.Commands (VTX_Channel_Up) then 3
                       elsif Arm_Last_Step.Commands (VTX_Channel_Down) then 4 else 0));
+      elsif Name = "arminflinit" then
+         Arming_Settings.Inflight_Acc_Cal := True;
+      elsif Name = "arminflin" then
+         if Int (4) /= 0 then
+            Arming_State.Inflight.Remaining := 0;
+            Arming_State.Inflight.Active := False;
+            Arming_State.Inflight.Measurement_Done := True;
+         end if;
+         if Int (5) /= 0 then
+            Arming_State.Inflight.Save_Pending := False;
+         end if;
+      elsif Name = "arminfl" then
+         Record_Int ("arminfl.armed", Int (4), Boolean'Pos (Arming_State.Inflight.Armed));
+         Record_Int ("arminfl.done", Int (5), Boolean'Pos (Arming_State.Inflight.Measurement_Done));
+         Record_Int ("arminfl.save", Int (6), Boolean'Pos (Arming_State.Inflight.Save_Pending));
+         Record_Int ("arminfl.active", Int (7), Boolean'Pos (Arming_State.Inflight.Active));
+         Record_Int ("arminfl.remaining", Int (8), Integer_64 (Arming_State.Inflight.Remaining));
       elsif Name = "armwinginit" then
          Arming_Settings.Launch_Wing := True;
          Arm_Wing_Mode := True;
@@ -22217,6 +22235,7 @@ begin
    Run (Dir & "/armstats.csv", "arming");
    Run (Dir & "/armhooks.csv", "arming");
    Run (Dir & "/armwing.csv", "arming");
+   Run (Dir & "/arminfl.csv", "arming");
    Run (Dir & "/compass.csv", "compass");
    Run (Dir & "/position.csv", "position");
    Run (Dir & "/altitude.csv", "altitude");
