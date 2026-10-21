@@ -179,6 +179,13 @@ package Adaflight.Config_Runtime with SPARK_Mode is
    --  groups.
    function Compass_Settings_Of (C : Compass_Config_Record; Board : Board_Alignment_Record) return Compass.Settings;
 
+   --  The PID profile a detected cell count selects: the current one where it
+   --  names the count or stays with any count, else the next after it that
+   --  names the count, else the first after it that stays.
+   subtype Profile_Index is Natural range 0 .. 3;
+   function Profile_For_Cells
+     (Profiles : Pid_Profile_Record_List_4; Current : Profile_Index; Cells : Battery.Cell_Count) return Profile_Index;
+
    --  Whether a stored PID profile asks for the battery sag compensation with
    --  the RPM limit off.
    function Sag_Compensation_Of (Profiles : Pid_Profile_Record_List_4; M : Mixer_Config_Record) return Boolean is

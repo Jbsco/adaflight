@@ -3629,6 +3629,7 @@ procedure Vector_Check is
 
    Battery_State_V  : Adaflight.Battery.State;
    Battery_Settings : Adaflight.Battery.Settings;
+   Battery_Events   : Adaflight.Battery.Presence_Events;
 
    procedure Check_Battery_Line is
       use Adaflight.Battery;
@@ -3676,6 +3677,10 @@ procedure Vector_Check is
             Battery_Settings.Sag_Filter_Period := Integer (Int (4));
             Init (Battery_State_V, Battery_Settings);
          end;
+      elsif Name = "batevent" then
+         Record_Int ("batevent.rpm_resets", Int (4), Boolean'Pos (Battery_Events.Connected));
+         Record_Int ("batevent.profile_changes", Int (5), Boolean'Pos (Battery_Events.Detected_Cells > 0));
+         Record_Int ("batevent.cells", Int (6), Integer_64 (Battery_Events.Detected_Cells));
       elsif Name = "batsag" then
          Record_Int ("batsag.filtered", Int (4), Integer_64 (Battery_State_V.Voltage.Sag_Filtered));
          Record_Int ("batsag.cell", Int (5), Integer_64 (Sag_Cell_Voltage (Battery_State_V)));
@@ -3695,7 +3700,7 @@ procedure Vector_Check is
             Update_Current (Battery_State_V, Battery_Settings, Integer (Int (6)), Now_Us);
             if Int (8) /= 0 then
                if Int (9) /= 0 then
-                  Update_Presence (Battery_State_V, Battery_Settings);
+                  Update_Presence (Battery_State_V, Battery_Settings, Battery_Events);
                end if;
                Update_States (Battery_State_V, Battery_Settings, Now_Us, Now_Ms);
                A := Alarm (Battery_State_V, Battery_Settings);
@@ -3731,6 +3736,17 @@ procedure Vector_Check is
          Failures := Failures + 1;
       end if;
    end Check_Battery_Line;
+
+   procedure Check_Cell_Profile_Line is
+      Profiles : Adaflight.Config_Groups.Pid_Profile_Record_List_4 := Adaflight.Config_Groups.Defaults.Pid_Profiles;
+   begin
+      for J in Profiles'Range loop
+         Profiles (J).Auto_Profile_Cell_Count := Interfaces.Integer_8 (Int (5 + J));
+      end loop;
+      Record_Int ("cellprof.selected", Int (9),
+                  Integer_64 (Adaflight.Config_Runtime.Profile_For_Cells
+                                (Profiles, Integer (Int (3)), Integer (Int (4)))));
+   end Check_Cell_Profile_Line;
 
    Arming_State      : Adaflight.Arming.State;
    Arming_Settings   : Adaflight.Arming.Settings;
@@ -21589,6 +21605,8 @@ procedure Vector_Check is
                   Check_Rates_Line;
                elsif Kind = "pidthr" then
                   Check_PID_Thr_Line;
+               elsif Kind = "cellprof" then
+                  Check_Cell_Profile_Line;
                elsif Kind = "mix" then
                   Check_Mix_Line;
                elsif Kind = "rc" then
@@ -21924,6 +21942,8 @@ begin
    Run (Dir & "/baro.csv", "baro");
    Run (Dir & "/battery.csv", "battery");
    Run (Dir & "/batsag.csv", "battery");
+   Run (Dir & "/batevent.csv", "battery");
+   Run (Dir & "/cellprof.csv", "cellprof");
    Run (Dir & "/arming.csv", "arming");
    Run (Dir & "/armdshot.csv", "arming");
    Run (Dir & "/armflip.csv", "arming");

@@ -158,8 +158,16 @@ package Adaflight.Battery with SPARK_Mode is
    --  MSP meter.
    procedure Set_MSP_Current (S : in out State; Amperage : Unsigned_16; mAh : Unsigned_16);
 
+   --  What a pack's connection asks of the other units: with the cell count
+   --  detected rather than forced, the choice of a PID profile for that count,
+   --  and then the RPM limiter's reset.
+   type Presence_Events is record
+      Connected      : Boolean := False;
+      Detected_Cells : Cell_Count := 0;
+   end record;
+
    --  Presence and cell count from a stable voltage, while disarmed.
-   procedure Update_Presence (S : in out State; C : Settings);
+   procedure Update_Presence (S : in out State; C : Settings; Events : out Presence_Events);
 
    --  The voltage, consumption, and overall states, the cutoff ramp, and
    --  the energy drawn.
