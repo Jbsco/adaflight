@@ -6304,3 +6304,28 @@ the auto rearm setting from the stored mixer group.
 The arming oracle's crash flip sequences run the DShot scenarios with the protocol on, the crash flip box
 left in place, a crash flip switch of its own flipped now and then, and the auto rearm setting drawn per
 sequence. They replay exactly, and the earlier arming vectors stay byte for byte.
+
+## D276. Flight modes and GPS arming checks (2026-10-16)
+
+`Adaflight.Arming` gains the flight modes the default build selects in the modes pass besides angle and
+horizon, and the GPS side of arming. Angle mode also follows altitude and position hold. Armed, GPS rescue
+mode follows its switch, or failsafe with the GPS rescue procedure, when the procedure or the box configures
+GPS rescue. Altitude hold follows its switch, failsafe or the autopilot mode, armed outside GPS rescue and the
+launch mode, with the accelerometer, the platform's altitude control law, a valid altitude estimate and the
+throttle raised. Position hold follows the same with its switch and the position control law, without the
+altitude estimate.
+
+With GPS rescue configured, arming is disabled without a fix and enough satellites, unless allowed without a
+fix, armed before, or with the crash flip switch on, and while the rescue switch is on. Arming with the GPS
+feature resets the GPS home, stops the use of the GPS course for the heading, and sounds the GPS fix or no-fix
+arming tone, and the gyro calibration stick command resets the home as well. An OSD element that needs the
+accelerometer and the GPS rescue failsafe procedure count among the uses of an uncalibrated accelerometer.
+Headfree mode turns off for the flying wing and airplane mixers only. It turned off for the custom airplane
+too before. The settings bridge takes the GPS rescue, failsafe and feature settings from the stored
+configuration, with the multirotor's control laws.
+
+The arming oracle builds with the default build's GPS, GPS rescue, altitude and position hold, and OSD, and
+the existing vectors stay byte for byte: their runs model a build without GPS rescue and the control laws.
+New GPS sequences script the features, the failsafe procedure, the rescue's arming settings, a hold and a
+rescue switch, airplanes with a headfree switch, and the GPS fix, satellites and altitude estimate. They
+replay exactly.

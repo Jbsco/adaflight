@@ -63,7 +63,7 @@ package Adaflight.Arming with SPARK_Mode is
 
    type Beep is
      (Silence, Arm_Tone, Disarm_Tone, Armed_Tone, Disarm_Repeat_Tone, Rx_Set_Tone, Warning_Tones, Confirmation_Tones,
-      Crash_Flip_Tone);
+      Crash_Flip_Tone, GPS_Fix_Arm_Tone, GPS_No_Fix_Arm_Tone);
 
    subtype Small_Count is Natural range 0 .. 255;
 
@@ -118,6 +118,10 @@ package Adaflight.Arming with SPARK_Mode is
       DShot_Commands            : Command_Log;
       Telemetry_Cleans          : Small_Count := 0;
       RPM_Limiter_Resets        : Small_Count := 0;
+      --  The GPS home resets, and whether arming stopped the use of the GPS
+      --  course over ground for the heading.
+      GPS_Home_Resets           : Small_Count := 0;
+      GPS_Heading_Blocked       : Boolean := False;
    end record;
 
    type Sensor_Set is record
@@ -166,6 +170,19 @@ package Adaflight.Arming with SPARK_Mode is
       --  Whether turning the crash flip switch off while armed returns to
       --  normal flight, where it otherwise disarms until the pilot disarms.
       Crashflip_Auto_Rearm       : Boolean := False;
+      --  The GPS and OSD features, whether the build has GPS rescue, the GPS
+      --  rescue failsafe procedure, the rescue's arming without a fix and its
+      --  least satellites, the platform's altitude and position control
+      --  laws, and a flying wing or airplane mixer.
+      GPS_Feature                : Boolean := False;
+      GPS_Rescue_Built           : Boolean := True;
+      OSD_Feature                : Boolean := False;
+      Failsafe_GPS_Rescue        : Boolean := False;
+      Rescue_Arming_Without_Fix  : Boolean := False;
+      Rescue_Min_Sats            : Natural range 0 .. 255 := 8;
+      Altitude_Control           : Boolean := True;
+      Position_Control           : Boolean := True;
+      Plane_Mixer                : Boolean := False;
    end record;
 
    --  The controller's sums, the gyro's absolute rates to the whole degree
@@ -205,6 +222,12 @@ package Adaflight.Arming with SPARK_Mode is
       DShot_Telemetry_Active     : Boolean := True;
       Bitbang_Active             : Boolean := False;
       Bitbang_OK                 : Boolean := True;
+      --  The GPS fix and satellites, the altitude estimate's validity, and
+      --  whether an OSD element needs the accelerometer.
+      GPS_Fix                    : Boolean := False;
+      GPS_Sats                   : Natural range 0 .. 255 := 0;
+      Altitude_Available         : Boolean := False;
+      OSD_Needs_Acc              : Boolean := False;
    end record;
 
    type Launch_State is (Launch_Disabled, Launch_Active, Launch_Triggered);
