@@ -307,6 +307,11 @@ ledger. The deviations so far:
   reference's top falls below the low end, and below zero near the DShot minimum, and its clamp sends
   some motors to that top. The sag vectors keep the attenuation at or below one, so the two agree on
   every step.
+- A wing build's airspeed model holds its delay, gravity, mass and drag settings at one or more, as the
+  command line does (D280). The reference's MSP wing tuning write stores zero, and its model then gives
+  an undefined airspeed and TPA from the first loop (F231). A speed type past the advanced model runs the
+  advanced model, where the reference leaves the model unset. The recorded vectors keep the settings in
+  the command line's ranges.
 
 ## D7. Contribution conventions (2026-10-08)
 
@@ -6367,3 +6372,31 @@ The VTX band and channel stick commands join the stick commands while disarmed.
 The arming oracle builds with the default build's VTX control, and the existing vectors stay byte for byte.
 New hooks sequences script the telemetry feature and switch, the OSD menu, the VTX's readiness and held VTX
 stick commands, and record the pass's calls. They replay exactly.
+
+## D280. Wing TPA (2026-10-16)
+
+A wing build's PID controller takes its TPA argument from an airspeed model when the mixer flies a fixed
+wing. `PID_Config.Configure` takes the build and airframe as a `Wing_Setup` and derives the model from the
+profile. The basic model takes the thrust to weight ratio from the gravity share and the drag from the
+delay. The advanced model takes both from the mass, drag and thrust, limits the thrust by the propeller's
+pitch speed from the prop pitch, the motor KV and the battery's full voltage, and takes the top speed from
+a fall and a powered dive. Each loop the mixer's throttle-side update integrates the airspeed from the
+motors' RMS output times the battery's share of its full voltage, less the drag, plus gravity along the
+pitch the offset corrects. The TPA argument is the airspeed over the top speed. A multirotor in a wing
+build keeps the throttle. `Reset_TPA_Speed` returns the airspeed to rest as the wing launch arms.
+
+A wing build also keeps a yaw TPA factor for the yaw axis's P and D terms: the classic curve's factor with
+differential thrust, the TPA factor with a rudder. P takes the TPA in the PDS mode too, and stored codes
+past PDS act as D. The S term's factor per axis follows the TPA factor and, on the hyperbolic curve, is
+scaled so that it times the S gain stays within one. Outside the level modes each setpoint is scaled by the
+S factor over the TPA factor, except yaw with differential thrust. The S term is the unscaled setpoint over
+the axis's largest rate times the S gain, times its factor in the PDS mode. The sum takes it, as zero
+outside a wing build. The reference's wing builds leave out yaw spin recovery, launch control and runaway
+takeoff prevention, so a wing target keeps those inputs off (F230).
+
+The mixer's state contains the motors' RMS output, which the next wing increment computes after the
+motors. The vectors script it. The airspeed holds below 10^10 m/s and the scaled setpoint within the rate
+bound, and both holds are inert. The TPA low rate reaches -128, as a wing build's settings allow. The PID
+oracle's wing build runs 37 sequences over a quad, a flying wing and an airplane with both yaw controls,
+both models, the three TPA modes and both curves, and every step replays exactly. Nine tampered paths each
+fail the vectors.

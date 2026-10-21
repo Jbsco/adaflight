@@ -131,6 +131,10 @@ package Adaflight.Mixer with SPARK_Mode, Pure is
       Cos_Tilt                  : Cosine := 1.0;
       --  The battery's sag-filtered cell voltage in hundredths of a volt.
       Sag_Cell_Voltage          : Natural range 0 .. 65_535 := 0;
+      --  A wing's airspeed TPA reads the battery's latest voltage in
+      --  hundredths of a volt and the roll and pitch in decidegrees.
+      Battery_Voltage_Latest    : Natural range 0 .. 65_535 := 0;
+      Attitude                  : PID_Controller.Level_Angles := (others => 0);
    end record;
 
    type State is record
@@ -151,6 +155,9 @@ package Adaflight.Mixer with SPARK_Mode, Pure is
       Limiter_Offset          : Filters.PT1;
       Flip_Tilt_Set           : Boolean := False;
       Flip_Tilt_Start         : Cosine := 1.0;
+      --  The motors' RMS output over their range, which a wing's airspeed
+      --  TPA reads.
+      Motor_Output_RMS        : PID_Controller.Motor_RMS := 0.0;
    end record;
 
    --  The sag compensation's full cell voltage in hundredths of a volt, its
