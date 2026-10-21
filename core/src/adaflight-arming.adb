@@ -155,6 +155,22 @@ package body Adaflight.Arming with SPARK_Mode is
    -- Update_Status --
    -------------------
 
+   procedure Log (L : in out Command_Log; Command : DShot_Command) is
+   begin
+      if L.Count < Command_Slot'Last then
+         L.Items (L.Count + 1) := Command;
+      end if;
+      Bump (L.Count);
+   end Log;
+
+   --  The motors' spin direction, sent with a DShot protocol outside 3D.
+   procedure Set_Spin_Direction (C : Settings; Direction : DShot_Command; Out_Step : in out Outputs) is
+   begin
+      if C.DShot and then not C.Three_D then
+         Log (Out_Step.DShot_Commands, Direction);
+      end if;
+   end Set_Spin_Direction;
+
    procedure Update_Status (
       S        : in out State;
       C        : Settings;
@@ -162,12 +178,25 @@ package body Adaflight.Arming with SPARK_Mode is
       Conds    : Modes.Conditions;
       Sensed   : Inputs;
       Channels : RC_Command.Channel_Values;
-      Now_Us   : Time_Us
+      Now_Us   : Time_Us;
+      Out_Step : in out Outputs
    ) is
       Three_D_Switch : constant Boolean := Modes.Is_Active (M, Modes.Three_D);
       Arm_Switch_On  : constant Boolean := Modes.Is_Active (M, Modes.Arm);
    begin
       if S.Armed then
+         --  The crash flip switch off while armed returns to normal flight,
+         --  or disarms and holds arming off until the pilot disarms.
+         if S.Crash_Flip_Active and then not Modes.Is_Active (M, Modes.Crash_Flip) then
+            if not C.Crashflip_Auto_Rearm then
+               S.Disabled (Crash_Flip_Block) := True;
+               S.Disarm_Requested := False;
+               Disarm (S, C, Crash_Flip, Now_Us, Out_Step);
+            else
+               Set_Spin_Direction (C, Spin_Direction_Normal, Out_Step);
+               S.Crash_Flip_Active := False;
+            end if;
+         end if;
          return;
       end if;
       if S.Disabled (Boot_Grace) and then Now_Us / 1_000 >= Time_Us (C.Boot_Grace_Time) * 1_000
@@ -248,22 +277,6 @@ package body Adaflight.Arming with SPARK_Mode is
       S.Mode_Overrides := (others => False);
    end Clear_Mode_Overrides;
 
-   procedure Log (L : in out Command_Log; Command : DShot_Command) is
-   begin
-      if L.Count < Command_Slot'Last then
-         L.Items (L.Count + 1) := Command;
-      end if;
-      Bump (L.Count);
-   end Log;
-
-   --  The motors' spin direction, sent with a DShot protocol outside 3D.
-   procedure Set_Spin_Direction (C : Settings; Direction : DShot_Command; Out_Step : in out Outputs) is
-   begin
-      if C.DShot and then not C.Three_D then
-         Log (Out_Step.DShot_Commands, Direction);
-      end if;
-   end Set_Spin_Direction;
-
    procedure Disarm
      (S : in out State; C : Settings; Reason : Disarm_Reason; Now_Us : Time_Us; Out_Step : in out Outputs)
    is
@@ -272,9 +285,12 @@ package body Adaflight.Arming with SPARK_Mode is
       Bump (Out_Step.Disarm_Calls);
       S.Last_Disarm_Reason := Reason;
       if S.Armed then
-         S.Was_Ever_Armed := True;
+         if not S.Crash_Flip_Active then
+            S.Was_Ever_Armed := True;
+         end if;
          S.Armed := False;
          S.Last_Disarm_Us := Now_Us;
+         S.Crash_Flip_Active := False;
          Set_Spin_Direction (C, Spin_Direction_Normal, Out_Step);
          if not (S.Disabled (Runaway_Disarm) or else S.Disabled (Crash_Disarm)) then
             Request (Out_Step.Beeper, Disarm_Tone);
@@ -327,7 +343,7 @@ package body Adaflight.Arming with SPARK_Mode is
             Seen.First_Arm_Gyro_Cal_Running := True;
          end if;
       end if;
-      Update_Status (S, C, M, Conds, Seen, Channels, Now_Us);
+      Update_Status (S, C, M, Conds, Seen, Channels, Now_Us, Out_Step);
       if not Arming_Disabled (S) then
          if S.Armed then
             return;
@@ -347,9 +363,12 @@ package body Adaflight.Arming with SPARK_Mode is
                   Log (Out_Step.DShot_Commands, Extended_Telemetry_Enable);
                end if;
             end if;
-            Set_Spin_Direction (C, Spin_Direction_Normal, Out_Step);
+            S.Crash_Flip_Active := Modes.Is_Active (M, Modes.Crash_Flip);
+            Set_Spin_Direction
+              (C, (if S.Crash_Flip_Active then Spin_Direction_Reversed else Spin_Direction_Normal), Out_Step);
          end if;
-         if (Can_Use_Launch_Control (S, C, M) or else S.Trying = Trying_Launch_Control)
+         if not S.Crash_Flip_Active
+           and then (Can_Use_Launch_Control (S, C, M) or else S.Trying = Trying_Launch_Control)
            and then S.Launch = Launch_Disabled
          then
             S.Launch := Launch_Active;
@@ -476,7 +495,9 @@ package body Adaflight.Arming with SPARK_Mode is
          Out_Step.Iterm_Reset := True;
          Out_Step.Stabilisation_On := C.PID_At_Min_Throttle;
       end if;
-      if S.Armed and then C.Runaway_Prevention and then not S.Runaway_Check_Disabled and then not C.Fixed_Wing then
+      if S.Armed and then C.Runaway_Prevention and then not S.Runaway_Check_Disabled
+        and then not S.Crash_Flip_Active and then not C.Fixed_Wing
+      then
          Deactivate_Runaway_Check (S, C, M, Sensed, Percent, Throttle_Active, Now_Us);
       end if;
       if S.Armed then
@@ -510,7 +531,7 @@ package body Adaflight.Arming with SPARK_Mode is
       Throttle_Active : constant Boolean := Throttle_Status (C, Channels, Three_D_Switch) /= Throttle_Low;
    begin
       if S.Armed and then not C.Fixed_Wing and then C.Runaway_Prevention and then not S.Runaway_Check_Disabled
-        and then not S.Flight_Modes (GPS_Rescue_Mode)
+        and then not S.Crash_Flip_Active and then not S.Flight_Modes (GPS_Rescue_Mode)
         and then (not C.Motor_Stop or else M.Airmode_Enabled or else Throttle_Active)
       then
          if (abs Sensed.PID_Sums (Axes.Pitch) >= Runaway_Sum_Threshold
@@ -829,6 +850,9 @@ package body Adaflight.Arming with SPARK_Mode is
       end if;
 
       Modes.Update (M, Conds, Aux, Now_Us, C.Airmode_Feature, S.Mode_Overrides);
+      if S.Crash_Flip_Active then
+         Request (Out_Step.Beeper, Crash_Flip_Tone);
+      end if;
 
       Select_Flight_Modes (S, C, M, Sensed, Out_Step);
    end Process_Rx_Modes;

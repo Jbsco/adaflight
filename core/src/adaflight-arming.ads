@@ -62,7 +62,8 @@ package Adaflight.Arming with SPARK_Mode is
    type Stick_Positions is array (RC_Command.Channel) of Stick_Position;
 
    type Beep is
-     (Silence, Arm_Tone, Disarm_Tone, Armed_Tone, Disarm_Repeat_Tone, Rx_Set_Tone, Warning_Tones, Confirmation_Tones);
+     (Silence, Arm_Tone, Disarm_Tone, Armed_Tone, Disarm_Repeat_Tone, Rx_Set_Tone, Warning_Tones, Confirmation_Tones,
+      Crash_Flip_Tone);
 
    subtype Small_Count is Natural range 0 .. 255;
 
@@ -162,6 +163,9 @@ package Adaflight.Arming with SPARK_Mode is
       DShot                      : Boolean := False;
       DShot_EDT                  : Boolean := False;
       ESC_Sensor                 : Boolean := False;
+      --  Whether turning the crash flip switch off while armed returns to
+      --  normal flight, where it otherwise disarms until the pilot disarms.
+      Crashflip_Auto_Rearm       : Boolean := False;
    end record;
 
    --  The controller's sums, the gyro's absolute rates to the whole degree
@@ -241,6 +245,7 @@ package Adaflight.Arming with SPARK_Mode is
       Runaway_Trigger_Us     : Time_Us := 0;
       Mode_Overrides         : Modes.Mask := (others => False);
       Trying                 : Arm_Delay := Not_Trying;
+      Crash_Flip_Active      : Boolean := False;
    end record;
 
    function Launch_Control_Active (S : State) return Boolean is (S.Launch = Launch_Active);
@@ -264,7 +269,8 @@ package Adaflight.Arming with SPARK_Mode is
                               return Integer
      with Post => Throttle_Percent'Result in -100 .. 100;
 
-   --  The arming disabled reasons while disarmed; nothing while armed.
+   --  The arming disabled reasons while disarmed, and while armed the release of
+   --  the crash flip switch.
    procedure Update_Status (
       S        : in out State;
       C        : Settings;
@@ -272,7 +278,8 @@ package Adaflight.Arming with SPARK_Mode is
       Conds    : Modes.Conditions;
       Sensed   : Inputs;
       Channels : RC_Command.Channel_Values;
-      Now_Us   : Time_Us
+      Now_Us   : Time_Us;
+      Out_Step : in out Outputs
    );
 
    --  A box a ground station forces on over the switches, or releases; every

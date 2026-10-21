@@ -3787,7 +3787,7 @@ procedure Vector_Check is
         (case B is
             when Silence => 100, when Arm_Tone => 5, when Disarm_Tone => 4, when Armed_Tone => 16,
             when Disarm_Repeat_Tone => 15, when Rx_Set_Tone => 10, when Warning_Tones => 101,
-            when Confirmation_Tones => 102);
+            when Confirmation_Tones => 102, when Crash_Flip_Tone => 20);
       function Selected (Cmds : Command_Set; First, Last : Stick_Command) return Integer_64 is
       begin
          for Cmd in First .. Last loop
@@ -3828,7 +3828,8 @@ procedure Vector_Check is
               (Gyro => Int (21) /= 0, Acc => Int (22) /= 0, Baro => Int (23) /= 0, Mag => Int (24) /= 0),
             DShot                      => False,
             DShot_EDT                  => False,
-            ESC_Sensor                 => False);
+            ESC_Sensor                 => False,
+            Crashflip_Auto_Rearm       => False);
          Arm_DShot_Mode := False;
          for M in Adaflight.Modes.Condition_Index loop
             declare
@@ -3996,7 +3997,8 @@ procedure Vector_Check is
                 Log_Device  => Int (NF - 2) /= 0,
                 CLI_Open    => Int (NF - 3) /= 0,
                 PID_Audio   => Adaflight.Modes.Condition_Present (Arming_Conditions, Adaflight.Modes.PID_Audio)));
-            Update_Status (Arming_State, Arming_Settings, Arming_Modes, Arming_Conditions, Sensed, Channels, Now_Us);
+            Update_Status
+              (Arming_State, Arming_Settings, Arming_Modes, Arming_Conditions, Sensed, Channels, Now_Us, Step);
             Flags := Boolean'Pos (Arming_State.Armed) + 2 * Boolean'Pos (Arming_State.Was_Ever_Armed)
                      + 4 * Boolean'Pos (Arming_State.Armed_With_Prearm);
             Expect_Int ("flags", Flags);
@@ -4079,6 +4081,10 @@ procedure Vector_Check is
          Arm_DShot_In.DShot_Telemetry_Active := Int (7) /= 0;
          Arm_DShot_In.Bitbang_Active := Int (8) /= 0;
          Arm_DShot_In.Bitbang_OK := Int (9) /= 0;
+      elsif Name = "armflipinit" then
+         Arming_Settings.Crashflip_Auto_Rearm := Int (3) /= 0;
+      elsif Name = "armflip" then
+         Record_Int ("armflip.active", Int (4), Boolean'Pos (Arming_State.Crash_Flip_Active));
       elsif Name = "armdshot" then
          Record_Int ("armdshot.trying", Int (4), Integer_64 (Arm_Delay'Pos (Arming_State.Trying)));
          Record_Int ("armdshot.commands", Int (5), Integer_64 (Arm_Last_Step.DShot_Commands.Count));
@@ -14993,7 +14999,7 @@ procedure Vector_Check is
       declare
          AS : constant Adaflight.Arming.Settings :=
            Adaflight.Config_Runtime.Arming_Settings_Of
-             (C.Arming_Config, C.System_Config, C.Rx_Config, C.Flight3_D_Config, C.Mixer_Config.Mixer_Mode,
+             (C.Arming_Config, C.System_Config, C.Rx_Config, C.Flight3_D_Config, C.Mixer_Config,
               C.Pid_Config, C.Scheduler_Config, C.Motor_Config,
               C.Pid_Profiles (Natural (C.System_Config.Pid_Profile_Index)), Runtime,
               (Gyro => True, Acc => True, Baro => False, Mag => False));
@@ -21883,6 +21889,7 @@ begin
    Run (Dir & "/batsag.csv", "battery");
    Run (Dir & "/arming.csv", "arming");
    Run (Dir & "/armdshot.csv", "arming");
+   Run (Dir & "/armflip.csv", "arming");
    Run (Dir & "/compass.csv", "compass");
    Run (Dir & "/position.csv", "position");
    Run (Dir & "/altitude.csv", "altitude");

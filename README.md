@@ -46,7 +46,8 @@ The core contains:
 - attitude estimator with compass heading, and angle and horizon level modes with GPS rescue,
   altitude hold and position hold
 - failsafe state machine with rescue and autopilot stages, runtime modes with ground station
-  overrides, and arming logic with launch control, runaway takeoff prevention and DShot checks
+  overrides, and arming logic with launch control, runaway takeoff prevention, DShot checks and
+  crash flip arming
 
 </details>
 
@@ -307,7 +308,7 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 28305 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 28308 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
 - Recorded vectors replay bit for bit: 1753568 lines over 384 cases, every case exact except
   forty-nine declared deviations in `DESIGN.md` D6.
