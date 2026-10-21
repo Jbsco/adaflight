@@ -2,8 +2,10 @@
 --  an effect the proof sees, in the shapes the passes' units take: bare,
 --  with a flag, with a time, with a time and a period named back, with
 --  a time and a tilt, the display writes of a text and of a character,
---  the menu hooks and the menu loading, and the target's actions.
+--  the menu hooks and the menu loading, the target's actions, and the
+--  operations of an SD card.
 with Interfaces;
+with Adaflight.FAT;
 with Adaflight.Menu;
 with Adaflight.Scheduler;
 
@@ -12,6 +14,7 @@ package Adaflight.Counting_Steps with SPARK_Mode, Initializes => Calls is
    use type Scheduler.Time_Delta;
    use type Menu.Answer;
    use type Menu.Table;
+   use type FAT.Card_Status;
 
    Calls : Natural := 0;
 
@@ -117,5 +120,28 @@ package Adaflight.Counting_Steps with SPARK_Mode, Initializes => Calls is
    --  arguments' sum within the bound.
    function Step_Lookup (T : Menu_Target; Id : Menu.Menu_Id; Line : Natural; Index : Natural) return Menu.Label_Text is
      (Data => (others => ' '), Length => (Id + Line mod 64 + Index mod 64 + T mod 64) mod (Menu.Max_Text + 1));
+
+   --  A card that counts its operations in its state: it accepts every
+   --  other read and answers a write by the count.
+   subtype Card_Target is Natural;
+
+   procedure Step_Read_Block
+     (Card : in out Card_Target; Sector : Interfaces.Unsigned_32; Buffer : FAT.Cache_Index; Accepted : out Boolean)
+     with Global => null,
+          Post   => Card = Counted (Card'Old) and then Accepted = (Card mod 2 = 0);
+
+   procedure Step_Write_Block
+     (Card   : in out Card_Target;
+      Sector : Interfaces.Unsigned_32;
+      Buffer : FAT.Cache_Index;
+      Data   : FAT.Sector_Bytes;
+      Status : out FAT.Card_Status)
+     with Global => null,
+          Post   => Card = Counted (Card'Old) and then Status = FAT.Card_Status'Val (Card mod 4);
+
+   procedure Step_Begin_Write_Blocks
+     (Card : in out Card_Target; Sector : Interfaces.Unsigned_32; Count : Interfaces.Unsigned_16)
+     with Global => null,
+          Post   => Card = Counted (Card'Old);
 
 end Adaflight.Counting_Steps;

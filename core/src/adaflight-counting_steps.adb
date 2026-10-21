@@ -118,4 +118,46 @@ package body Adaflight.Counting_Steps with SPARK_Mode is
       Calls := Counted (Calls);
    end Step_Act;
 
+   ---------------------
+   -- Step_Read_Block --
+   ---------------------
+
+   procedure Step_Read_Block
+     (Card : in out Card_Target; Sector : Interfaces.Unsigned_32; Buffer : FAT.Cache_Index; Accepted : out Boolean)
+   is
+      pragma Unreferenced (Sector, Buffer);
+   begin
+      Card := Counted (Card);
+      Accepted := Card mod 2 = 0;
+   end Step_Read_Block;
+
+   ----------------------
+   -- Step_Write_Block --
+   ----------------------
+
+   procedure Step_Write_Block
+     (Card   : in out Card_Target;
+      Sector : Interfaces.Unsigned_32;
+      Buffer : FAT.Cache_Index;
+      Data   : FAT.Sector_Bytes;
+      Status : out FAT.Card_Status)
+   is
+      pragma Unreferenced (Sector, Buffer, Data);
+   begin
+      Card := Counted (Card);
+      Status := FAT.Card_Status'Val (Card mod 4);
+   end Step_Write_Block;
+
+   -----------------------------
+   -- Step_Begin_Write_Blocks --
+   -----------------------------
+
+   procedure Step_Begin_Write_Blocks
+     (Card : in out Card_Target; Sector : Interfaces.Unsigned_32; Count : Interfaces.Unsigned_16)
+   is
+      pragma Unreferenced (Sector, Count);
+   begin
+      Card := Counted (Card);
+   end Step_Begin_Write_Blocks;
+
 end Adaflight.Counting_Steps;
