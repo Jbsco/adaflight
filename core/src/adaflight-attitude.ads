@@ -2,8 +2,8 @@
 --  earth frame, driven by the gyro rates and corrected toward the
 --  accelerometer's gravity direction with proportional and integral
 --  feedback, the rotation matrix and Euler angles derived from it, the gain
---  schedule that reconverges after a disarm, and the throttle correction for
---  the tilt angle.
+--  schedule that reconverges after a disarm, the throttle correction for the
+--  tilt angle, and the headfree frame turned from the heading at its offset.
 with Interfaces;
 with Adaflight.Maths; use Adaflight.Maths;
 with Adaflight.Vectors;
@@ -84,6 +84,12 @@ package Adaflight.Attitude with SPARK_Mode is
       Euler               : Angles;
       Established         : Boolean := False;
       Throttle_Correction : Correction := 0;
+      --  The heading at the last headfree offset as a turn about the vertical,
+      --  the headfree attitude from the last turn into the headfree frame, and
+      --  the quaternion the attitude reports, the headfree one in headfree mode.
+      Headfree_Offset     : Quaternion := Identity;
+      Headfree            : Quaternion := Identity;
+      Reported            : Quaternion := Identity;
    end record
      with Dynamic_Predicate =>
        Vectors.Bounded (State.Rotation, Matrix_Bound)
@@ -107,11 +113,23 @@ package Adaflight.Attitude with SPARK_Mode is
       Mag           : Vectors.Vector3;
       Use_Mag       : Boolean;
       Armed         : Boolean;
-      Angle_Mode    : Boolean
+      Angle_Mode    : Boolean;
+      Headfree_Mode : Boolean
    ) with Pre => Vectors.Bounded (Gyro, Rate_Bound)
                  and then Vectors.Bounded (Acc, Acc_Bound)
                  and then Acc_Magnitude in 0.0 .. 1.0e3
                  and then Vectors.Bounded (Mag, Mag_Bound);
+
+   --  Sets the headfree offset to the current heading when roll and pitch are
+   --  both within 45 degrees.
+   procedure Set_Headfree_Offset (S : in out State; Set : out Boolean);
+
+   --  Turns an earth frame vector into the headfree frame, the attitude turned
+   --  back by the heading at the offset.
+   Headfree_Bound : constant := 2.0 ** 10;
+   procedure Headfree_To_Body (S : in out State; V : in out Vectors.Vector3)
+     with Pre  => Vectors.Bounded (V, Headfree_Bound),
+          Post => Vectors.Bounded (V, 48.0 * Headfree_Bound);
 
    function Cos_Tilt (S : State) return Float is
      (S.Rotation (Vectors.Z, Vectors.Z));

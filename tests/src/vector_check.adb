@@ -3520,7 +3520,8 @@ procedure Vector_Check is
                     Mag           => Mag,
                     Use_Mag       => Int (17) /= 0,
                     Armed         => Int (5) /= 0,
-                    Angle_Mode    => Int (6) /= 0);
+                    Angle_Mode    => Int (6) mod 4 /= 0,
+                    Headfree_Mode => Int (6) / 64 mod 2 = 1);
             Expect_Int ("roll", Integer_64 (IMU_State.Euler.Roll));
             Expect_Int ("pitch", Integer_64 (IMU_State.Euler.Pitch));
             Expect_Int ("yaw", Integer_64 (IMU_State.Euler.Yaw));
@@ -3540,6 +3541,35 @@ procedure Vector_Check is
                Failures := Failures + 1;
             end if;
          end;
+      elsif Name = "imuhf" then
+         declare
+            Set : Boolean := False;
+            V   : Adaflight.Vectors.Vector3 := (X => Flt (7), Y => Flt (8), Z => Flt (9));
+         begin
+            if Int (4) /= 0 then
+               Set_Headfree_Offset (IMU_State, Set);
+            end if;
+            Record_Int ("imuhf.set", Int (5), Boolean'Pos (Set));
+            if Int (6) /= 0 then
+               Headfree_To_Body (IMU_State, V);
+            end if;
+            Record_Result ("imuhf.vector", Bits (10), To_Bits (V.X));
+            Record_Result ("imuhf.vector", Bits (11), To_Bits (V.Y));
+            Record_Result ("imuhf.vector", Bits (12), To_Bits (V.Z));
+            Record_Result ("imuhf.offset", Bits (13), To_Bits (IMU_State.Headfree_Offset.W));
+            Record_Result ("imuhf.offset", Bits (14), To_Bits (IMU_State.Headfree_Offset.X));
+            Record_Result ("imuhf.offset", Bits (15), To_Bits (IMU_State.Headfree_Offset.Y));
+            Record_Result ("imuhf.offset", Bits (16), To_Bits (IMU_State.Headfree_Offset.Z));
+            Record_Result ("imuhf.headfree", Bits (17), To_Bits (IMU_State.Headfree.W));
+            Record_Result ("imuhf.headfree", Bits (18), To_Bits (IMU_State.Headfree.X));
+            Record_Result ("imuhf.headfree", Bits (19), To_Bits (IMU_State.Headfree.Y));
+            Record_Result ("imuhf.headfree", Bits (20), To_Bits (IMU_State.Headfree.Z));
+         end;
+      elsif Name = "imurep" then
+         Record_Result ("imurep.quaternion", Bits (4), To_Bits (IMU_State.Reported.W));
+         Record_Result ("imurep.quaternion", Bits (5), To_Bits (IMU_State.Reported.X));
+         Record_Result ("imurep.quaternion", Bits (6), To_Bits (IMU_State.Reported.Y));
+         Record_Result ("imurep.quaternion", Bits (7), To_Bits (IMU_State.Reported.Z));
       else
          Put_Line ("unknown imu case " & Name);
          Failures := Failures + 1;
@@ -22307,6 +22337,7 @@ begin
    Run (Dir & "/rcthr.csv", "rc");
    Run (Dir & "/gyro.csv", "gyro");
    Run (Dir & "/imu.csv", "imu");
+   Run (Dir & "/imuhf.csv", "imu");
    Run (Dir & "/failsafe.csv", "failsafe");
    Run (Dir & "/modes.csv", "modes");
    Run (Dir & "/acc.csv", "acc");
