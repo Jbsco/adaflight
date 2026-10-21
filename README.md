@@ -113,8 +113,10 @@ The core contains:
 </details>
 
 <details>
-<summary><b>MSP</b> (38)</summary>
+<summary><b>MSP</b> (39)</summary>
 
+- MSP serial port, ExpressLRS hopping tables, telemetry link and receiver, flight log field
+  encodings, header and recorder, text conversions, and DShot protocol
 - MSP serial port, ExpressLRS hopping tables, telemetry link and receiver, flight log field
   encodings, header and recorder, text conversions, and DShot protocol
 - MSP serial port, ExpressLRS hopping tables, telemetry link and receiver, flight log field
@@ -178,8 +180,10 @@ The core contains:
 </details>
 
 <details>
-<summary><b>Configuration and command line</b> (36)</summary>
+<summary><b>Configuration and command line</b> (37)</summary>
 
+- serial feature map: port function bits and baud rates from feature settings, claims, mask and
+  baud writes, conflict rule, configuration fix, port sharing and telemetry provider ports
 - serial feature map: port function bits and baud rates from feature settings, claims, mask and
   baud writes, conflict rule, configuration fix, port sharing and telemetry provider ports
 - serial feature map: port function bits and baud rates from feature settings, claims, mask and
@@ -236,8 +240,10 @@ The core contains:
 </details>
 
 <details>
-<summary><b>Scheduler and tasks</b> (17)</summary>
+<summary><b>Scheduler and tasks</b> (19)</summary>
 
+- cooperative scheduler, beeper, and receiver's channel processing with MSP override
+- task setup: tasks enabled at boot and periods from build, features, sensors and settings
 - cooperative scheduler, beeper, and receiver's channel processing with MSP override
 - task setup: tasks enabled at boot and periods from build, features, sensors and settings
 - cooperative scheduler, beeper, and receiver's channel processing with MSP override
@@ -314,8 +320,12 @@ The core contains:
 </details>
 
 <details>
-<summary><b>Peripherals and storage</b> (14)</summary>
+<summary><b>Peripherals and storage</b> (16)</summary>
 
+- flash filesystem for flight log, with ring buffer, erases and free space search
+- SD card file system: sector cache, partition table and volume ID, FAT entries, 8.3 names,
+  cluster search and appends, file cursor with seeks, reads and writes, free-space search, file
+  opens, closes, deletes and truncations, directory walks, makes and changes
 - flash filesystem for flight log, with ring buffer, erases and free space search
 - SD card file system: sector cache, partition table and volume ID, FAT entries, 8.3 names,
   cluster search and appends, file cursor with seeks, reads and writes, free-space search
@@ -338,7 +348,7 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 29411 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 29587 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
 - Recorded vectors replay bit for bit: 1753568 lines over 384 cases, every case exact except
   fifty-four declared deviations in `DESIGN.md` D6.

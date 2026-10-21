@@ -787,6 +787,7 @@ package body Adaflight.FAT_FS with SPARK_Mode is
       end if;
       Update_File_Size (FS.Files (Id));
       FS.Files (Id).Operation.Kind := Idle;
+      Notify (FS, FS.Files (Id).Operation.Callback, File_Ref (Id));
       Done := True;
    end Seek_Continue;
 
@@ -795,21 +796,24 @@ package body Adaflight.FAT_FS with SPARK_Mode is
    ------------------
 
    procedure Seek_Forward
-     (FS     : in out File_System;
-      Card   : in out Card_State;
-      Id     : File_Id;
-      Offset : Unsigned_32;
-      Status : out Operation_Status)
+     (FS       : in out File_System;
+      Card     : in out Card_State;
+      Id       : File_Id;
+      Offset   : Unsigned_32;
+      Status   : out Operation_Status;
+      Callback : Callback_Tag := No_Callback)
    is
       Done : Boolean;
    begin
       Seek_Atomic (FS, Card, Id, To_I32 (Offset), Done);
       if Done then
+         Notify (FS, Callback, File_Ref (Id));
          Status := Success;
       elsif Is_Busy (FS.Files (Id)) then
          Status := Failure;
       else
          FS.Files (Id).Operation.Kind := Seek;
+         FS.Files (Id).Operation.Callback := Callback;
          FS.Files (Id).Operation.Seek_Offset := Offset;
          Status := In_Progress;
       end if;
@@ -949,6 +953,710 @@ package body Adaflight.FAT_FS with SPARK_Mode is
       end loop;
    end Read;
 
+   ----------------
+   -- Find_First --
+   ----------------
+
+   procedure Find_First
+     (FS : in out File_System; Card : in out Card_State; Dir : File_Id; Finder : in out Entry_Position)
+   is
+      Unused_Status : Operation_Status;
+   begin
+      Seek (FS, Card, Dir, 0, From_Start, Unused_Status);
+      Finder.Index := -1;
+   end Find_First;
+
+   ---------------
+   -- Find_Next --
+   ---------------
+
+   procedure Find_Next
+     (FS     : in out File_System;
+      Card   : in out Card_State;
+      Dir    : File_Id;
+      Finder : in out Entry_Position;
+      Status : out Operation_Status;
+      Slot   : out Cache_Slot)
+   is
+      Done : Boolean;
+   begin
+      Slot := No_Slot;
+      if Finder.Index = Entries_Per_Sector - 1 then
+         Seek_Atomic (FS, Card, Dir, Sector_Size, Done);
+         if not Done then
+            Status := In_Progress;
+            return;
+         end if;
+         Finder.Index := -1;
+      end if;
+      Retain_Cursor_Sector (FS, Card, Dir, Slot);
+      if Slot /= No_Slot then
+         Finder.Index := Finder.Index + 1;
+         Finder.Sector := Cursor_Sector (FS, Dir);
+         Status := Success;
+      elsif End_Of_Allocation (FS, Dir) then
+         Status := Success;
+      else
+         Status := In_Progress;
+      end if;
+   end Find_Next;
+
+   ---------------
+   -- Find_Last --
+   ---------------
+
+   procedure Find_Last (FS : in out File_System; Dir : File_Id) is
+   begin
+      Unlock_File_Sector (FS, Dir);
+   end Find_Last;
+
+   ----------------------------------
+   -- Extend_Subdirectory_Continue --
+   ----------------------------------
+
+   procedure Extend_Subdirectory_Continue
+     (FS : in out File_System; Card : in out Card_State; Dir : File_Id; Status : out Operation_Status)
+   is
+      Result : Operation_Status;
+      Done   : Boolean;
+   begin
+      loop
+         pragma Loop_Invariant (FS.Vol = FS.Vol'Loop_Entry);
+         case FS.Files (Dir).Operation.Extension.Phase is
+            when Add_Free_Cluster =>
+               Append_Free_Cluster_Continue (FS, Card, Dir, Result);
+               case Result is
+                  when Success =>
+                     FS.Files (Dir).Operation.Extension.Phase := Write_Sectors;
+                  when Failure =>
+                     FS.Files (Dir).Operation.Extension.Phase := Extend_Failure;
+                  when In_Progress =>
+                     Status := In_Progress;
+                     return;
+               end case;
+            when Write_Sectors =>
+               declare
+                  In_Cluster : Unsigned_16 :=
+                    Unsigned_16 ((if FS.Files (Dir).Kind = FAT16_Root then FS.Files (Dir).Cursor_Offset / Sector_Size
+                                  else Sector_Index_In_Cluster (FS.Vol, FS.Files (Dir).Cursor_Offset)) and 16#FFFF#);
+                  Physical   : Unsigned_32 := Cursor_Sector (FS, Dir);
+                  Buffer     : Cache_Slot;
+               begin
+                  loop
+                     pragma Loop_Invariant (FS.Vol = FS.Vol'Loop_Entry);
+                     Cache_Sector (FS, Card, Physical, (Write => True, others => False), 0, Result, Buffer);
+                     if Result /= Success then
+                        Status := Result;
+                        return;
+                     end if;
+                     FS.Cache (Buffer) := (others => 0);
+                     --  A subdirectory's first sector starts with its "." and
+                     --  ".." entries.
+                     if FS.Files (Dir).Entry_At.Sector /= 0 and then FS.Files (Dir).Cursor_Offset = 0 then
+                        for K in 0 .. Filename_Length - 1 loop
+                           FS.Cache (Buffer) (K) := Character'Pos (' ');
+                           FS.Cache (Buffer) (Directory_Entry_Size + K) := Character'Pos (' ');
+                        end loop;
+                        FS.Cache (Buffer) (0) := Character'Pos ('.');
+                        Write_U16 (FS.Cache (Buffer), 20,
+                                   Unsigned_16 (Interfaces.Shift_Right (FS.Files (Dir).First_Cluster, 16)));
+                        Write_U16 (FS.Cache (Buffer), 26, Unsigned_16 (FS.Files (Dir).First_Cluster and 16#FFFF#));
+                        FS.Cache (Buffer) (11) := Attribute_Directory;
+                        FS.Cache (Buffer) (Directory_Entry_Size) := Character'Pos ('.');
+                        FS.Cache (Buffer) (Directory_Entry_Size + 1) := Character'Pos ('.');
+                        Write_U16 (FS.Cache (Buffer), Directory_Entry_Size + 20,
+                                   Unsigned_16 (Interfaces.Shift_Right
+                                                  (FS.Files (Dir).Operation.Extension.Parent_Cluster, 16)));
+                        Write_U16 (FS.Cache (Buffer), Directory_Entry_Size + 26,
+                                   Unsigned_16 (FS.Files (Dir).Operation.Extension.Parent_Cluster and 16#FFFF#));
+                        FS.Cache (Buffer) (Directory_Entry_Size + 11) := Attribute_Directory;
+                     end if;
+                     exit when Unsigned_32 (In_Cluster) >= FS.Vol.Sectors_Per_Cluster - 1;
+                     Seek_Atomic (FS, Card, Dir, Sector_Size, Done);
+                     Check (FS, Done);
+                     In_Cluster := In_Cluster + 1;
+                     Physical := Physical + 1;
+                  end loop;
+               end;
+               --  Back to the start of the cluster.
+               Seek_Atomic (FS, Card, Dir, To_I32 (0 - Sector_Size * (FS.Vol.Sectors_Per_Cluster - 1)), Done);
+               Check (FS, Done);
+               FS.Files (Dir).Operation.Extension.Phase := Extend_Success;
+            when Extend_Success =>
+               FS.Files (Dir).Operation.Kind := Idle;
+               Notify (FS, FS.Files (Dir).Operation.Callback, File_Ref (Dir));
+               Status := Success;
+               return;
+            when Extend_Failure =>
+               FS.Files (Dir).Operation.Kind := Idle;
+               Notify (FS, FS.Files (Dir).Operation.Callback, No_File);
+               Status := Failure;
+               return;
+         end case;
+      end loop;
+   end Extend_Subdirectory_Continue;
+
+   -------------------------
+   -- Extend_Subdirectory --
+   -------------------------
+
+   procedure Extend_Subdirectory
+     (FS             : in out File_System;
+      Card           : in out Card_State;
+      Dir            : File_Id;
+      Parent_Cluster : Unsigned_32;
+      Callback       : Callback_Tag;
+      Status         : out Operation_Status)
+   is
+   begin
+      --  The FAT16 root directory cannot grow.
+      if FS.Files (Dir).Kind = FAT16_Root or else Is_Busy (FS.Files (Dir)) then
+         Status := Failure;
+         return;
+      end if;
+      FS.Files (Dir).Operation.Kind := Extend_Subdirectory;
+      FS.Files (Dir).Operation.Extension := (Phase => Add_Free_Cluster, Parent_Cluster => Parent_Cluster);
+      FS.Files (Dir).Operation.Callback := Callback;
+      FS.Files (Dir).Operation.Free_Append := (Previous => FS.Files (Dir).Cursor_Previous_Cluster,
+                                               Search   => FS.Last_Cluster_Allocated,
+                                               Phase    => Find_Free_Space);
+      Extend_Subdirectory_Continue (FS, Card, Dir, Status);
+   end Extend_Subdirectory;
+
+   ------------------------------
+   -- Allocate_Directory_Entry --
+   ------------------------------
+
+   procedure Allocate_Directory_Entry
+     (FS     : in out File_System;
+      Card   : in out Card_State;
+      Dir    : File_Id;
+      Finder : in out Entry_Position;
+      Status : out Operation_Status;
+      Slot   : out Cache_Slot)
+   is
+   begin
+      Slot := No_Slot;
+      if Is_Busy (FS.Files (Dir)) then
+         Status := In_Progress;
+         return;
+      end if;
+      loop
+         pragma Loop_Invariant (FS.Vol = FS.Vol'Loop_Entry and then Slot = No_Slot);
+         Find_Next (FS, Card, Dir, Finder, Status, Slot);
+         exit when Status /= Success;
+         if Slot /= No_Slot then
+            declare
+               First : constant Unsigned_8 := FS.Cache (Slot) (Natural (Finder.Index) * Directory_Entry_Size);
+            begin
+               if Is_Entry_Empty (First) or else Is_Entry_Terminator (First) then
+                  Mark_Dirty (FS, Slot);
+                  Find_Last (FS, Dir);
+                  Status := Success;
+                  return;
+               end if;
+            end;
+            Slot := No_Slot;
+         else
+            --  The directory's clusters are full: one more, then the search
+            --  goes on in it.
+            Extend_Subdirectory (FS, Card, Dir, 0, No_Callback, Status);
+            exit when Status /= Success;
+         end if;
+      end loop;
+      Slot := No_Slot;
+   end Allocate_Directory_Entry;
+
+   -----------------------
+   -- Truncate_Continue --
+   -----------------------
+
+   procedure Truncate_Continue
+     (FS : in out File_System; Card : in out Card_State; Id : File_Id; Mark_Deleted : Boolean;
+      Status : out Operation_Status)
+   is
+      Next      : Unsigned_32;
+      Old_Start : Unsigned_32;
+      Grow      : Unsigned_32;
+      Position  : Unsigned_32;
+   begin
+      loop
+         pragma Loop_Invariant (FS.Vol = FS.Vol'Loop_Entry);
+         case FS.Files (Id).Operation.Truncation.Phase is
+            when Update_Directory =>
+               Save_Directory_Entry (FS, Card, Id, (if Mark_Deleted then Save_Deleted else Save_Normal), Status);
+               exit when Status /= Success;
+               FS.Files (Id).Operation.Truncation.Phase :=
+                 (if FS.Files (Id).Operation.Truncation.End_Cluster /= 0 then Erase_Contiguous_Chain else Erase_Chain);
+            when Erase_Contiguous_Chain =>
+               --  The clusters go back on the front of the free-space file.
+               Position := FS.Files (Id).Operation.Truncation.Current_Cluster;
+               FAT_Fill (FS, Card, Open_Chain, Position, FS.Files (Id).Operation.Truncation.End_Cluster, Status);
+               FS.Files (Id).Operation.Truncation.Current_Cluster := Position;
+               exit when Status /= Success;
+               FS.Files (Id).Operation.Truncation.Phase := Prepend_To_Free_File;
+            when Prepend_To_Free_File =>
+               Old_Start := FS.Files (Free_File).First_Cluster;
+               FS.Files (Free_File).First_Cluster := FS.Files (Id).Operation.Truncation.Start_Cluster;
+               Grow := (Old_Start - FS.Files (Id).Operation.Truncation.Start_Cluster) * Cluster_Size (FS.Vol);
+               FS.Files (Free_File).Logical_Size := FS.Files (Free_File).Logical_Size + Grow;
+               FS.Files (Free_File).Physical_Size := FS.Files (Free_File).Physical_Size + Grow;
+               Save_Directory_Entry (FS, Card, Free_File, Save_Normal, Status);
+               exit when Status /= Success;
+               FS.Files (Id).Operation.Truncation.Phase := Truncate_Success;
+            when Erase_Chain =>
+               while not FAT_End_Of_Chain (FS.Vol, FS.Files (Id).Operation.Truncation.Current_Cluster) loop
+                  pragma Loop_Invariant (FS.Vol = FS.Vol'Loop_Entry);
+                  Next := 0;
+                  FAT_Get_Next_Cluster (FS, Card, 0, FS.Files (Id).Operation.Truncation.Current_Cluster, Status, Next);
+                  if Status /= Success then
+                     return;
+                  end if;
+                  FAT_Set_Next_Cluster (FS, Card, FS.Files (Id).Operation.Truncation.Current_Cluster, 0, Status);
+                  if Status /= Success then
+                     return;
+                  end if;
+                  FS.Files (Id).Operation.Truncation.Current_Cluster := Next;
+                  --  Searches for a free cluster start no later than this one.
+                  FS.Last_Cluster_Allocated := Unsigned_32'Min (FS.Last_Cluster_Allocated, Next - 1);
+               end loop;
+               FS.Files (Id).Operation.Truncation.Phase := Truncate_Success;
+            when Truncate_Success =>
+               if FS.Files (Id).Operation.Kind = Truncate then
+                  FS.Files (Id).Operation.Kind := Idle;
+               end if;
+               Notify (FS, FS.Files (Id).Operation.Callback, File_Ref (Id));
+               Status := Success;
+               return;
+         end case;
+      end loop;
+      if Status = Failure and then FS.Files (Id).Operation.Kind = Truncate then
+         FS.Files (Id).Operation.Kind := Idle;
+      end if;
+   end Truncate_Continue;
+
+   --------------
+   -- Truncate --
+   --------------
+
+   procedure Truncate
+     (FS : in out File_System; Card : in out Card_State; Id : File_Id; Callback : Callback_Tag; Queued : out Boolean)
+   is
+      Unused_Status : Operation_Status;
+   begin
+      if Is_Busy (FS.Files (Id)) then
+         Queued := False;
+         return;
+      end if;
+      FS.Files (Id).Operation.Kind := Truncate;
+      FS.Files (Id).Operation.Callback := Callback;
+      FS.Files (Id).Operation.Truncation :=
+        (Start_Cluster   => FS.Files (Id).First_Cluster,
+         Current_Cluster => FS.Files (Id).First_Cluster,
+         --  A contiguous file ends where the free-space file starts.
+         End_Cluster     => (if (FS.Files (Id).Mode and Mode_Contiguous) /= 0 then FS.Files (Free_File).First_Cluster
+                             else 0),
+         Phase           => Update_Directory);
+      --  The directory entry drops the chain at once.
+      FS.Files (Id).First_Cluster := 0;
+      FS.Files (Id).Logical_Size := 0;
+      FS.Files (Id).Physical_Size := 0;
+      Seek (FS, Card, Id, 0, From_Start, Unused_Status);
+      Queued := True;
+   end Truncate;
+
+   --------------------------
+   -- Create_File_Continue --
+   --------------------------
+
+   procedure Create_File_Continue (FS : in out File_System; Card : in out Card_State; Id : File_Id) is
+      Finder        : Entry_Position;
+      Status        : Operation_Status;
+      Slot          : Cache_Slot;
+      Unused_Slot   : Cache_Slot;
+      Unused_Status : Operation_Status;
+      Unused_Queued : Boolean;
+   begin
+      loop
+         pragma Loop_Invariant (FS.Vol = FS.Vol'Loop_Entry);
+         case FS.Files (Id).Operation.Create.Phase is
+            when Create_Start =>
+               Finder := FS.Files (Id).Entry_At;
+               Find_First (FS, Card, Current_Directory, Finder);
+               FS.Files (Id).Entry_At := Finder;
+               FS.Files (Id).Operation.Create.Phase := Find_File;
+            when Find_File =>
+               loop
+                  pragma Loop_Invariant (FS.Vol = FS.Vol'Loop_Entry);
+                  Finder := FS.Files (Id).Entry_At;
+                  Find_Next (FS, Card, Current_Directory, Finder, Status, Slot);
+                  FS.Files (Id).Entry_At := Finder;
+                  case Status is
+                     when Success =>
+                        if Slot = No_Slot
+                          or else Is_Entry_Terminator (FS.Cache (Slot) (Natural (Finder.Index) * Directory_Entry_Size))
+                        then
+                           --  The end of the directory: a new entry when the
+                           --  mode creates.
+                           Find_Last (FS, Current_Directory);
+                           if (FS.Files (Id).Mode and Mode_Create) /= 0 then
+                              Finder := FS.Files (Id).Entry_At;
+                              Find_First (FS, Card, Current_Directory, Finder);
+                              FS.Files (Id).Entry_At := Finder;
+                              FS.Files (Id).Operation.Create.Phase := Create_New_File;
+                           else
+                              FS.Files (Id).Operation.Create.Phase := Create_Failure;
+                           end if;
+                           exit;
+                        end if;
+                        declare
+                           Base : constant Sector_Offset := Natural (Finder.Index) * Directory_Entry_Size;
+                           Same : Boolean := True;
+                        begin
+                           if (FS.Cache (Slot) (Base + 11) and Attribute_Volume_ID) = 0 then
+                              for K in 0 .. Filename_Length - 1 loop
+                                 Same := Same
+                                   and then FS.Cache (Slot) (Base + K) = FS.Files (Id).Operation.Create.Name (K);
+                              end loop;
+                              if Same then
+                                 --  A file is not opened as a directory, nor the
+                                 --  other way round.
+                                 if ((FS.Cache (Slot) (Base + 11) xor FS.Files (Id).Attrib)
+                                     and Attribute_Directory) /= 0
+                                 then
+                                    Find_Last (FS, Current_Directory);
+                                    FS.Files (Id).Operation.Create.Phase := Create_Failure;
+                                    exit;
+                                 end if;
+                                 Load_Directory_Entry (FS, Id, Slot, Finder.Index);
+                                 Find_Last (FS, Current_Directory);
+                                 FS.Files (Id).Operation.Create.Phase := Create_Success;
+                                 exit;
+                              end if;
+                           end if;
+                        end;
+                     when Failure =>
+                        Find_Last (FS, Current_Directory);
+                        FS.Files (Id).Operation.Create.Phase := Create_Failure;
+                        exit;
+                     when In_Progress =>
+                        return;
+                  end case;
+               end loop;
+            when Create_New_File =>
+               Finder := FS.Files (Id).Entry_At;
+               Allocate_Directory_Entry (FS, Card, Current_Directory, Finder, Status, Slot);
+               FS.Files (Id).Entry_At := Finder;
+               case Status is
+                  when Success =>
+                     if Slot /= No_Slot then
+                        declare
+                           Base  : constant Sector_Offset := Natural (Finder.Index) * Directory_Entry_Size;
+                           Valid : Boolean;
+                           Local : Clock_Reading;
+                           Date  : Unsigned_16;
+                           Time  : Unsigned_16;
+                        begin
+                           for K in 0 .. Directory_Entry_Size - 1 loop
+                              FS.Cache (Slot) (Base + K) := 0;
+                           end loop;
+                           for K in 0 .. Filename_Length - 1 loop
+                              FS.Cache (Slot) (Base + K) := FS.Files (Id).Operation.Create.Name (K);
+                           end loop;
+                           FS.Cache (Slot) (Base + 11) := FS.Files (Id).Attrib;
+                           Read_Clock (Card, Valid, Local);
+                           Date := (if Valid then FAT_Date (Local) else Default_Date);
+                           Time := (if Valid then FAT_Time (Local) else Default_Time);
+                           Write_U16 (FS.Cache (Slot), Base + 16, Date);
+                           Write_U16 (FS.Cache (Slot), Base + 14, Time);
+                           Write_U16 (FS.Cache (Slot), Base + 24, Date);
+                           Write_U16 (FS.Cache (Slot), Base + 22, Time);
+                        end;
+                     end if;
+                     FS.Files (Id).Operation.Create.Phase := Create_Success;
+                  when Failure =>
+                     FS.Files (Id).Operation.Create.Phase := Create_Failure;
+                  when In_Progress =>
+                     return;
+               end case;
+            when Create_Success =>
+               --  This kind of file keeps its entry's sector in the cache.
+               if (FS.Files (Id).Mode and Mode_Retain_Directory) /= 0 then
+                  Cache_Sector (FS, Card, FS.Files (Id).Entry_At.Sector,
+                                (Read => True, Retain => True, others => False), 0, Status, Unused_Slot);
+                  if Status /= Success then
+                     return;
+                  end if;
+               end if;
+               Seek (FS, Card, Id, 0, From_Start, Unused_Status);
+               if FS.Files (Id).Cursor_Cluster = 0 then
+                  --  A new contiguous file takes the free-space file for
+                  --  itself, once nothing else holds it.
+                  if (FS.Files (Id).Mode and Mode_Contiguous) /= 0 then
+                     if Is_Busy (FS.Files (Free_File)) then
+                        return;
+                     end if;
+                     FS.Files (Free_File).Operation.Kind := Locked;
+                  end if;
+               else
+                  --  An existing file's clusters need not be contiguous.
+                  FS.Files (Id).Mode := FS.Files (Id).Mode and not Mode_Contiguous;
+                  if (FS.Files (Id).Mode and Mode_Append) /= 0 then
+                     FS.Files (Id).Operation.Kind := Idle;
+                     Seek_Forward (FS, Card, Id, FS.Files (Id).Logical_Size, Unused_Status,
+                                   FS.Files (Id).Operation.Callback);
+                     return;
+                  end if;
+                  if FS.Files (Id).Mode = (Mode_Create or Mode_Write) then
+                     FS.Files (Id).Operation.Kind := Idle;
+                     Truncate (FS, Card, Id, FS.Files (Id).Operation.Callback, Unused_Queued);
+                     return;
+                  end if;
+               end if;
+               FS.Files (Id).Operation.Kind := Idle;
+               Notify (FS, FS.Files (Id).Operation.Callback, File_Ref (Id));
+               return;
+            when Create_Failure =>
+               FS.Files (Id).Kind := Unused;
+               Notify (FS, FS.Files (Id).Operation.Callback, No_File);
+               return;
+         end case;
+      end loop;
+   end Create_File_Continue;
+
+   -----------------
+   -- Create_File --
+   -----------------
+
+   procedure Create_File
+     (FS       : in out File_System;
+      Card     : in out Card_State;
+      Id       : File_Id;
+      Name     : String;
+      Attrib   : Unsigned_8;
+      Mode     : Unsigned_8;
+      Callback : Callback_Tag)
+   is
+   begin
+      FS.Files (Id) := Fresh_Handle;
+      FS.Files (Id).Operation.Kind := Create_File;
+      FS.Files (Id).Mode := Mode;
+      if Name = "." then
+         --  The working directory opened again: its entry is known.
+         FS.Files (Id).First_Cluster := FS.Files (Current_Directory).First_Cluster;
+         FS.Files (Id).Physical_Size := FS.Files (Current_Directory).Physical_Size;
+         FS.Files (Id).Logical_Size := FS.Files (Current_Directory).Logical_Size;
+         FS.Files (Id).Attrib := FS.Files (Current_Directory).Attrib;
+         FS.Files (Id).Kind := FS.Files (Current_Directory).Kind;
+      else
+         FS.Files (Id).Operation.Create.Name := To_FAT_Name (Name);
+         FS.Files (Id).Attrib := Attrib;
+         FS.Files (Id).Kind := (if (Attrib and Attribute_Directory) /= 0 then Directory else Normal);
+      end if;
+      FS.Files (Id).Operation.Callback := Callback;
+      FS.Files (Id).Operation.Create.Phase := (if Name = "." then Create_Success else Create_Start);
+      Create_File_Continue (FS, Card, Id);
+   end Create_File;
+
+   --------------------
+   -- Close_Continue --
+   --------------------
+
+   procedure Close_Continue (FS : in out File_System; Card : in out Card_State; Id : File_Id) is
+      Status : Operation_Status;
+      Slot   : Cache_Slot;
+   begin
+      --  Directories and files opened only for reading keep their entries.
+      if FS.Files (Id).Kind not in Directory | FAT16_Root
+        and then (FS.Files (Id).Mode and (Mode_Append or Mode_Write)) /= 0
+      then
+         Save_Directory_Entry (FS, Card, Id, Save_For_Close, Status);
+         if Status /= Success then
+            return;
+         end if;
+      end if;
+      if (FS.Files (Id).Mode and Mode_Retain_Directory) /= 0 then
+         Slot := Find_Cache_Sector (FS, FS.Files (Id).Entry_At.Sector);
+         if Slot /= No_Slot then
+            Release_Sector (FS, Slot);
+         end if;
+      end if;
+      Unlock_File_Sector (FS, Id);
+      if (FS.Files (Id).Mode and Mode_Contiguous) /= 0 then
+         Check (FS, FS.Files (Free_File).Operation.Kind = Locked);
+         FS.Files (Free_File).Operation.Kind := Idle;
+      end if;
+      FS.Files (Id).Kind := Unused;
+      FS.Files (Id).Operation.Kind := Idle;
+      Notify (FS, FS.Files (Id).Operation.Close_Callback, No_File);
+   end Close_Continue;
+
+   -----------
+   -- Close --
+   -----------
+
+   procedure Close
+     (FS : in out File_System; Card : in out Card_State; Ref : File_Ref; Callback : Callback_Tag; Queued : out Boolean)
+   is
+   begin
+      if Ref = No_File then
+         Queued := True;
+         return;
+      end if;
+      declare
+         Id : constant File_Id := File_Id (Ref);
+      begin
+         if FS.Files (Id).Kind = Unused then
+            Queued := True;
+         elsif Is_Busy (FS.Files (Id)) then
+            Queued := False;
+         else
+            Update_File_Size (FS.Files (Id));
+            FS.Files (Id).Operation.Kind := Close;
+            FS.Files (Id).Operation.Close_Callback := Callback;
+            Close_Continue (FS, Card, Id);
+            Queued := True;
+         end if;
+      end;
+   end Close;
+
+   ---------------------
+   -- Unlink_Continue --
+   ---------------------
+
+   procedure Unlink_Continue (FS : in out File_System; Card : in out Card_State; Id : File_Id) is
+      Status        : Operation_Status;
+      Unused_Queued : Boolean;
+   begin
+      Truncate_Continue (FS, Card, Id, True, Status);
+      if Status = Success then
+         FS.Files (Id).Operation.Kind := Idle;
+         Close (FS, Card, File_Ref (Id), FS.Files (Id).Operation.Unlink_Callback, Unused_Queued);
+      end if;
+   end Unlink_Continue;
+
+   ------------
+   -- Unlink --
+   ------------
+
+   procedure Unlink
+     (FS : in out File_System; Card : in out Card_State; Ref : File_Ref; Callback : Callback_Tag; Queued : out Boolean)
+   is
+   begin
+      if Ref = No_File then
+         Queued := True;
+         return;
+      end if;
+      declare
+         Id : constant File_Id := File_Id (Ref);
+      begin
+         if FS.Files (Id).Kind = Unused then
+            Queued := True;
+            return;
+         end if;
+         --  A delete is a truncation with the entry marked, then a close.
+         Truncate (FS, Card, Id, No_Callback, Queued);
+         if Queued then
+            FS.Files (Id).Operation.Unlink_Callback := Callback;
+            FS.Files (Id).Operation.Kind := Unlink;
+         end if;
+      end;
+   end Unlink;
+
+   --------------------
+   -- Make_Directory --
+   --------------------
+
+   procedure Make_Directory
+     (FS : in out File_System; Card : in out Card_State; Name : String; Callback : Callback_Tag; Started : out Boolean)
+   is
+      Ref : constant File_Ref := Free_Handle (FS);
+   begin
+      if Ref /= No_File then
+         Create_File (FS, Card, File_Id (Ref), Name, Attribute_Directory, Mode_Create or Mode_Read or Mode_Write,
+                      Callback);
+      else
+         Notify (FS, Callback, No_File);
+      end if;
+      Started := Ref /= No_File;
+   end Make_Directory;
+
+   ----------------------
+   -- Change_Directory --
+   ----------------------
+
+   procedure Change_Directory (FS : in out File_System; Card : in out Card_State; Ref : File_Ref; Done : out Boolean) is
+      Unused_Status : Operation_Status;
+   begin
+      if Is_Busy (FS.Files (Current_Directory)) then
+         Done := False;
+      elsif Ref /= No_File then
+         if Is_Busy (FS.Files (File_Id (Ref))) then
+            Done := False;
+         else
+            FS.Files (Current_Directory) := FS.Files (File_Id (Ref));
+            Done := True;
+         end if;
+      else
+         --  The root directory, which has no entry of its own.
+         FS.Files (Current_Directory) := Fresh_Handle;
+         FS.Files (Current_Directory).Mode := Mode_Read or Mode_Write;
+         FS.Files (Current_Directory).Kind := (if FS.Vol.FS_Type = FAT16 then FAT16_Root else Directory);
+         FS.Files (Current_Directory).First_Cluster := FS.Vol.Root_Directory_Cluster;
+         FS.Files (Current_Directory).Attrib := Attribute_Directory;
+         FS.Files (Current_Directory).Entry_At.Sector := 0;
+         Seek (FS, Card, Current_Directory, 0, From_Start, Unused_Status);
+         Done := True;
+      end if;
+   end Change_Directory;
+
+   ----------
+   -- Open --
+   ----------
+
+   procedure Open
+     (FS       : in out File_System;
+      Card     : in out Card_State;
+      Name     : String;
+      Mode     : String;
+      Callback : Callback_Tag;
+      Started  : out Boolean)
+   is
+      First  : constant Character := (if Mode'Length >= 1 then Mode (Mode'First) else ASCII.NUL);
+      Second : constant Character := (if Mode'Length >= 2 then Mode (Mode'First + 1) else ASCII.NUL);
+      Bits   : Unsigned_8 := 0;
+      Ref    : File_Ref;
+   begin
+      case First is
+         when 'r' =>
+            Bits := Mode_Read;
+         when 'w' =>
+            Bits := Mode_Write or Mode_Create;
+         when 'a' =>
+            Bits := Mode_Append or Mode_Create;
+         when others =>
+            null;
+      end case;
+      case Second is
+         when '+' =>
+            Bits := Bits or Mode_Read;
+            if Bits = Mode_Read then
+               Bits := Bits or Mode_Write;
+            end if;
+         when 's' =>
+            Bits := Bits or Mode_Contiguous or Mode_Retain_Directory;
+         when others =>
+            null;
+      end case;
+      Ref := Free_Handle (FS);
+      if Ref /= No_File then
+         Create_File (FS, Card, File_Id (Ref), Name, Attribute_Archive, Bits, Callback);
+      else
+         Notify (FS, Callback, No_File);
+      end if;
+      Started := Ref /= No_File;
+   end Open;
+
    ------------------------
    -- Operation_Continue --
    ------------------------
@@ -961,12 +1669,22 @@ package body Adaflight.FAT_FS with SPARK_Mode is
          return;
       end if;
       case FS.Files (Id).Operation.Kind is
+         when Create_File =>
+            Create_File_Continue (FS, Card, Id);
          when Seek =>
             Seek_Continue (FS, Card, Id, Unused_Done);
+         when Close =>
+            Close_Continue (FS, Card, Id);
+         when Unlink =>
+            Unlink_Continue (FS, Card, Id);
+         when Truncate =>
+            Truncate_Continue (FS, Card, Id, False, Unused_Status);
          when Append_Supercluster =>
             Append_Supercluster_Continue (FS, Card, Id, Unused_Status);
          when Append_Free_Cluster =>
             Append_Free_Cluster_Continue (FS, Card, Id, Unused_Status);
+         when Extend_Subdirectory =>
+            Extend_Subdirectory_Continue (FS, Card, Id, Unused_Status);
          when Locked | Idle =>
             null;
       end case;

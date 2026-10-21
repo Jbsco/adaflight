@@ -160,4 +160,15 @@ package body Adaflight.Counting_Steps with SPARK_Mode is
       Card := Counted (Card);
    end Step_Begin_Write_Blocks;
 
+   ---------------------
+   -- Step_Read_Clock --
+   ---------------------
+
+   procedure Step_Read_Clock (Card : in out Card_Target; Valid : out Boolean; Local : out FAT.Clock_Reading) is
+   begin
+      Card := Counted (Card);
+      Valid := Card mod 2 = 0;
+      Local := (Year => 2026, Month => 10, Day => 17, Hours => 12, Minutes => 0, Seconds => 0);
+   end Step_Read_Clock;
+
 end Adaflight.Counting_Steps;

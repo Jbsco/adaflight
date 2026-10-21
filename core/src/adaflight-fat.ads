@@ -106,7 +106,17 @@ package Adaflight.FAT with SPARK_Mode is
    end record;
 
    type File_Kind is (Unused, Normal, FAT16_Root, Directory);
-   type File_Operation is (Idle, Seek, Append_Supercluster, Locked, Append_Free_Cluster);
+   type File_Operation is
+     (Idle, Create_File, Seek, Close, Truncate, Unlink, Append_Supercluster, Locked, Append_Free_Cluster,
+      Extend_Subdirectory);
+   type Create_Phase is (Create_Start, Find_File, Create_New_File, Create_Success, Create_Failure);
+   type Truncate_Phase is
+     (Update_Directory, Erase_Chain, Erase_Contiguous_Chain, Prepend_To_Free_File, Truncate_Success);
+   type Extend_Phase is (Add_Free_Cluster, Write_Sectors, Extend_Success, Extend_Failure);
+
+   --  The caller's callbacks, by a number the caller picks; 0 is none.
+   type Callback_Tag is range 0 .. 15;
+   No_Callback : constant Callback_Tag := 0;
    type Free_Cluster_Phase is (Find_Free_Space, Update_FAT_1, Update_FAT_2, Update_File_Entry, Complete, Failed);
    type Supercluster_Phase is (Take_Supercluster, Update_Free_File_Entry, Update_Supercluster_FAT, Save_File_Entry);
    subtype Entry_Slot is Integer range -1 .. Entries_Per_Sector - 1;
@@ -130,12 +140,37 @@ package Adaflight.FAT with SPARK_Mode is
       Phase         : Supercluster_Phase := Take_Supercluster;
    end record;
 
-   --  The operation a file has queued, with the state of each kind.
+   type File_Creation is record
+      Phase : Create_Phase := Create_Start;
+      Name  : FAT_Name := (others => 0);
+   end record;
+
+   type File_Truncation is record
+      Start_Cluster   : Unsigned_32 := 0;
+      Current_Cluster : Unsigned_32 := 0;
+      End_Cluster     : Unsigned_32 := 0;
+      Phase           : Truncate_Phase := Update_Directory;
+   end record;
+
+   type Directory_Extension is record
+      Phase          : Extend_Phase := Add_Free_Cluster;
+      Parent_Cluster : Unsigned_32 := 0;
+   end record;
+
+   --  The operation a file has queued, with the state of each kind: the
+   --  callback a creation, seek, truncation or extension ends with, and the
+   --  ones a close and a delete end with.
    type Operation_State is record
-      Kind         : File_Operation := Idle;
-      Seek_Offset  : Unsigned_32 := 0;
-      Free_Append  : Free_Cluster_Append;
-      Super_Append : Supercluster_Append;
+      Kind            : File_Operation := Idle;
+      Callback        : Callback_Tag := No_Callback;
+      Close_Callback  : Callback_Tag := No_Callback;
+      Unlink_Callback : Callback_Tag := No_Callback;
+      Create          : File_Creation;
+      Seek_Offset     : Unsigned_32 := 0;
+      Free_Append     : Free_Cluster_Append;
+      Super_Append    : Supercluster_Append;
+      Truncation      : File_Truncation;
+      Extension       : Directory_Extension;
    end record;
 
    --  An open file: the cursor's offset, cluster and the cluster before it,
@@ -150,12 +185,16 @@ package Adaflight.FAT with SPARK_Mode is
       Cursor_Previous_Cluster : Unsigned_32 := 0;
       Mode                    : Unsigned_8 := 0;
       Attrib                  : Unsigned_8 := 0;
-      Write_Locked            : Cache_Slot := No_Slot;
-      Read_Retained           : Cache_Slot := No_Slot;
+      Write_Locked            : Cache_Slot := 0;
+      Read_Retained           : Cache_Slot := 0;
       Entry_At                : Entry_Position;
       First_Cluster           : Unsigned_32 := 0;
       Operation               : Operation_State;
    end record;
+
+   --  A handle set up for a new file. A handle never set up holds cache
+   --  index 0, as a zeroed one does.
+   Fresh_Handle : constant File_Handle := (Write_Locked => No_Slot, Read_Retained => No_Slot, others => <>);
 
    --  The open files, then the free-space file, then the working directory.
    type File_Id is range 0 .. Max_Open_Files + 1;
@@ -163,6 +202,28 @@ package Adaflight.FAT with SPARK_Mode is
    Free_File         : constant File_Id := Max_Open_Files;
    Current_Directory : constant File_Id := Max_Open_Files + 1;
    type File_Array is array (File_Id) of File_Handle;
+
+   --  A handle or none, as the callbacks name it.
+   subtype File_Ref is Integer range -1 .. Integer (Current_Directory);
+   No_File : constant File_Ref := -1;
+
+   --  A callback the caller takes after the call: its number and its file.
+   type Notice is record
+      Tag  : Callback_Tag := No_Callback;
+      File : File_Ref := No_File;
+   end record;
+   Max_Notices : constant := 16;
+   type Notice_List is array (1 .. Max_Notices) of Notice;
+
+   --  The local time a new file's entry takes when the clock is set.
+   type Clock_Reading is record
+      Year    : Unsigned_16 := 0;
+      Month   : Unsigned_8 := 0;
+      Day     : Unsigned_8 := 0;
+      Hours   : Unsigned_8 := 0;
+      Minutes : Unsigned_8 := 0;
+      Seconds : Unsigned_8 := 0;
+   end record;
 
    --  The search for the longest run of free clusters that starts a FAT
    --  sector, for the free-space file.
@@ -188,6 +249,8 @@ package Adaflight.FAT with SPARK_Mode is
       Flush_In_Progress      : Boolean := False;
       Files                  : File_Array;
       Search                 : Free_Space_Search;
+      Notices                : Notice_List;
+      Notice_Count           : Natural range 0 .. Max_Notices := 0;
    end record;
 
    ---------------------
@@ -406,6 +469,49 @@ package Adaflight.FAT with SPARK_Mode is
 
    procedure Begin_Free_Space_Search (FS : in out File_System)
      with Global => null,
+          Post   => FS.Vol = FS.Vol'Old;
+
+   ----------------------------
+   -- Directories and notices --
+   ----------------------------
+
+   Attribute_Read_Only : constant Unsigned_8 := 16#01#;
+   Attribute_System    : constant Unsigned_8 := 16#04#;
+   Attribute_Volume_ID : constant Unsigned_8 := 16#08#;
+   Attribute_Directory : constant Unsigned_8 := 16#10#;
+   Attribute_Archive   : constant Unsigned_8 := 16#20#;
+
+   --  The date and time a new entry takes without the clock: 2015-12-01 at
+   --  midnight.
+   Default_Date : constant Unsigned_16 := 1 + 12 * 2 ** 5 + (2015 - 1980) * 2 ** 9;
+   Default_Time : constant Unsigned_16 := 0;
+
+   --  The FAT date and time of a clock reading, bit fields as C packs them.
+   function FAT_Date (C : Clock_Reading) return Unsigned_16 is
+     (Unsigned_16 ((Unsigned_32 (C.Day) or Interfaces.Shift_Left (Unsigned_32 (C.Month), 5)
+                    or Interfaces.Shift_Left (To_U32 (Integer_32 (C.Year) - 1980), 9)) and 16#FFFF#));
+
+   function FAT_Time (C : Clock_Reading) return Unsigned_16 is
+     (Unsigned_16 ((Unsigned_32 (C.Seconds / 2) or Interfaces.Shift_Left (Unsigned_32 (C.Minutes), 5)
+                    or Interfaces.Shift_Left (Unsigned_32 (C.Hours), 11)) and 16#FFFF#));
+
+   --  A callback for the caller to take: dropped when the list is full or
+   --  the callback is none.
+   procedure Notify (FS : in out File_System; Tag : Callback_Tag; File : File_Ref)
+     with Global => null,
+          Post   => FS.Vol = FS.Vol'Old;
+
+   --  The first open file not in use, or none.
+   function Free_Handle (FS : File_System) return File_Ref is
+     (if FS.Files (0).Kind = Unused then 0
+      elsif FS.Files (1).Kind = Unused then 1
+      elsif FS.Files (2).Kind = Unused then 2
+      else No_File);
+
+   --  A file's first cluster, sizes and attributes from a directory entry.
+   procedure Load_Directory_Entry (FS : in out File_System; Id : File_Id; Slot : Cache_Index; Index : Entry_Slot)
+     with Global => null,
+          Pre    => Index >= 0,
           Post   => FS.Vol = FS.Vol'Old;
 
 end Adaflight.FAT;
