@@ -781,6 +781,18 @@ package body Adaflight.Arming with SPARK_Mode is
       if Current = Combo (High, High, Center, Low) then
          Out_Step.Commands (Dashboard_Cycling_On) := True;
       end if;
+      if Current = Combo (High, Center, Low, High) then
+         Out_Step.Commands (VTX_Band_Up) := True;
+      end if;
+      if Current = Combo (Low, Center, Low, High) then
+         Out_Step.Commands (VTX_Band_Down) := True;
+      end if;
+      if Current = Combo (High, Center, High, High) then
+         Out_Step.Commands (VTX_Channel_Up) := True;
+      end if;
+      if Current = Combo (Low, Center, High, High) then
+         Out_Step.Commands (VTX_Channel_Down) := True;
+      end if;
    end Process_Sticks;
 
    -------------------------
@@ -841,6 +853,9 @@ package body Adaflight.Arming with SPARK_Mode is
       else
          Set_Mode (S, Horizon_Mode, False, Out_Step);
       end if;
+      Out_Step.Attitude_Fast :=
+        S.Flight_Modes (Angle_Mode) or else S.Flight_Modes (Alt_Hold_Mode) or else S.Flight_Modes (Pos_Hold_Mode)
+        or else S.Flight_Modes (Horizon_Mode);
       if not Modes.Is_Active (M, Modes.Prearm) and then S.Armed_With_Prearm then
          S.Armed_With_Prearm := False;
       end if;
@@ -857,6 +872,27 @@ package body Adaflight.Arming with SPARK_Mode is
       Set_Mode (S, Passthru_Mode, Modes.Is_Active (M, Modes.Passthru), Out_Step);
       if C.Plane_Mixer then
          Set_Mode (S, Headfree_Mode, False, Out_Step);
+      end if;
+      --  Telemetry shares its serial ports armed, or with its switch where the
+      --  switch is configured.
+      if C.Telemetry_Feature then
+         declare
+            Switched : constant Boolean := Modes.Condition_Present (Conds, Modes.Telemetry);
+            Enable   : constant Boolean :=
+              (not Switched and then S.Armed) or else (Switched and then Modes.Is_Active (M, Modes.Telemetry));
+         begin
+            if Enable and then not S.Shared_Port_Telemetry then
+               Out_Step.Telemetry_Ports := Release_Shared_Ports;
+               S.Shared_Port_Telemetry := True;
+            elsif not Enable and then S.Shared_Port_Telemetry then
+               Out_Step.Telemetry_Ports := Allocate_Ports;
+               S.Shared_Port_Telemetry := False;
+            end if;
+         end;
+      end if;
+      Bump (Out_Step.VTX_Channel_Updates);
+      if Sensed.VTX_Can_Update then
+         Bump (Out_Step.VTX_Button_Checks);
       end if;
       Out_Step.Anti_Gravity := Modes.Is_Active (M, Modes.Anti_Gravity) or else C.Anti_Gravity_Feature;
    end Select_Flight_Modes;
@@ -911,7 +947,7 @@ package body Adaflight.Arming with SPARK_Mode is
          S.Disarm_At := Now_Us + Auto_Delay_Us;
       end if;
 
-      if not (Modes.Is_Active (M, Modes.Paralyze) and then not S.Armed) then
+      if not (Modes.Is_Active (M, Modes.Paralyze) and then not S.Armed) and then not Sensed.CMS_In_Menu then
          Process_Sticks (S, C, M, Conds, Sensed, Channels, Now_Us, Delta_Us, Out_Step);
       end if;
 
@@ -919,6 +955,8 @@ package body Adaflight.Arming with SPARK_Mode is
       if S.Crash_Flip_Active then
          Request (Out_Step.Beeper, Crash_Flip_Tone);
       end if;
+      Out_Step.Run_Adjustments :=
+        not Sensed.CLI_Mode and then not (Modes.Is_Active (M, Modes.Paralyze) and then not S.Armed);
 
       Select_Flight_Modes (S, C, M, Conds, Sensed, Out_Step);
    end Process_Rx_Modes;
