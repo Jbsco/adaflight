@@ -6819,3 +6819,36 @@ three are equivalent. The cut leaves one more than whole superclusters, so the l
 supercluster. Every failure of the cache passes through its assertion, which has already made the file
 system fatal with the generic error. A shutdown that zeroes the file system has no file open, so its poll
 raises no notice to keep.
+
+## D301. Flight log on SD card (2026-10-17)
+
+`Adaflight.Blackbox_SD` contains the flight log's SD card device over `Adaflight.FAT_FS`. A log start makes
+or opens the "logs" directory, reads every name in it, and keeps the largest number of the names that start
+with "LOG" and end in "BFL". The number is the five characters between, read as C reads an integer: leading
+blanks, a sign, then digits. The start then enters the directory, closes the directory's handle, and opens
+the next number's file, "LOG", five digits and ".BFL", to append to a contiguous file. A failed directory
+open starts over, and a failed file open tries the same name again. The number grows when the file opens,
+and a sixth digit drops off the name (F240). A log end closes the file, or deletes it when the log is not
+kept, and is done once the close or delete is queued. Bytes and texts go to the open file, and a text counts
+its whole length whatever the file takes. The flush starts the write of the oldest dirty sector that is not
+locked, and is done when there is none. The forced flush is done once no sector is being written and no
+unlocked sector is dirty, and starts a flush otherwise. The device opens while the file system is neither
+fatal nor unknown and not full, and works while the card is inserted and functional and the file system is
+ready. The log file number is the largest number cut to 8 bits while a log is open, else -1.
+
+The file system reports the two opens as notices. The unit takes them after each call it makes and after the
+main task's poll, which `Adaflight.Task_Functions` now runs before the flash erase. The unit is SPARK for
+the log state, the bounds of the name number and the handles it passes on.
+
+The flight log oracle runs the reference's flight log device layer and file system on the FAT oracle's stub
+card: 22 sequences on FAT16 and FAT32 cards, most with a LOGS directory of drawn log names, and six built
+for one path each: a log named with a sign, a tab before a number, a file named LOGS that makes the
+directory fail, a next number that wraps to a directory named LOG00000.BFL, names that put a larger number
+after the largest log and larger ones in names that are not logs, and a file system shut down dirty and
+started again while the device is queried. Each sequence runs device opens and queries, log starts and ends,
+bytes, texts, flushes, the header budget and the main task's poll between them. Every card operation,
+result, log state, file handle, notice, cache entry and the hash of the cache memory of the 42800 steps
+replays exactly. Thirty-two tampered paths each fail the vectors. One is equivalent: the end of the name
+walk lets go of the directory's held sector, which the directory's close later in the same call lets go of
+anyway. The task function oracle now builds with the SD card, and its 4800 main task runs poll the file
+system before the flash erase.
