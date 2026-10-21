@@ -6419,3 +6419,18 @@ position hold's autopilot angle. A fixed wing in passthrough drops every term, a
 The PID oracle's wing build runs 37 level mode sequences of 240 loops over a quad, a flying wing and an
 airplane with the five attenuation modes, pitch offsets, passthrough and the hold modes, and every step
 replays exactly. Six tampered paths each fail the vectors.
+
+## D282. Wing mixer outputs (2026-10-16)
+
+A wing build's mixer computes the motors' RMS output, which the airspeed TPA reads in the next loop (D280).
+After it writes the motors, it takes each enabled motor's external value, the DShot conversion or the PWM
+value truncated, scales it from the 1000 to 2000 range onto zero to one, and takes the root of the mean square
+over every motor. The 3D feature is not ported, so the DShot conversion takes its one-direction range. A
+motor stop sets the RMS output to zero, and the crash flip leaves it as it was. In the launch mode a valid
+launch throttle blends into the throttle by the handover, and the motors do not stop. The blend is held
+within plus and minus one, which it never leaves.
+
+The PID oracle's wing build runs 37 mixer sequences over a quad, a flying wing and an airplane with DShot and
+PWM motors, launch throttles and handovers, motor stop and disarmed blocks, and every step replays exactly.
+The controller runs with the launch mode off there, as its launch handling is the next increment. Four
+tampered paths each fail the vectors.

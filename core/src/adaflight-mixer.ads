@@ -90,6 +90,7 @@ package Adaflight.Mixer with SPARK_Mode, Pure is
    subtype Deflection_Value is Float range -1.0 .. 1.0;
    type Axis_Deflections is array (Axis) of Deflection_Value;
    type Axis_Magnitudes is array (Axis) of Unit_Interval;
+   type Motor_Flags is array (Motor_Index) of Boolean;
 
    type Inputs is record
       RC_Throttle               : RC_Throttle_Value := 1000.0;
@@ -135,6 +136,16 @@ package Adaflight.Mixer with SPARK_Mode, Pure is
       --  hundredths of a volt and the roll and pitch in decidegrees.
       Battery_Voltage_Latest    : Natural range 0 .. 65_535 := 0;
       Attitude                  : PID_Controller.Level_Angles := (others => 0);
+      --  A wing launch's throttle, while valid, blends into the throttle by
+      --  the handover in the launch mode, which also keeps the motors from
+      --  stopping. The RMS output counts the enabled motors of an enabled
+      --  motor device.
+      Launch_Mode               : Boolean := False;
+      Launch_Throttle_Valid     : Boolean := False;
+      Launch_Throttle           : Unit_Interval := 0.0;
+      Launch_Handover           : Unit_Interval := 0.0;
+      Motors_Enabled            : Boolean := True;
+      Motor_Enabled             : Motor_Flags := (others => True);
    end record;
 
    type State is record
