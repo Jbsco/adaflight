@@ -56,6 +56,7 @@ package body Adaflight.Arming with SPARK_Mode is
                 or else Modes.Condition_Present (Conds, Modes.Alt_Hold)
                 or else Modes.Condition_Present (Conds, Modes.Pos_Hold)
                 or else Modes.Condition_Present (Conds, Modes.GPS_Rescue)
+                or else (C.Launch_Wing and then C.Fixed_Wing and then Modes.Condition_Present (Conds, Modes.Launch))
                 or else Modes.Condition_Present (Conds, Modes.Cam_Stab)
                 or else Modes.Condition_Present (Conds, Modes.Calib)
                 or else Modes.Condition_Present (Conds, Modes.Acro_Trainer)
@@ -311,6 +312,9 @@ package body Adaflight.Arming with SPARK_Mode is
          end if;
          S.Armed := False;
          S.Last_Disarm_Us := Now_Us;
+         if C.Launch_Wing then
+            Wing_Launch.Init (S.Wing);
+         end if;
          if Modes.Is_Active (M, Modes.Crash_Flip) or else Launch_Control_Active (S) then
             Out_Step.OSD_Stats := Suppress_Stats;
          end if;
@@ -402,6 +406,12 @@ package body Adaflight.Arming with SPARK_Mode is
          end if;
          Out_Step.OSD_Stats := Allow_Stats;
          Bump (Out_Step.RPM_Limiter_Resets);
+         if C.Launch_Wing then
+            Wing_Launch.Arm
+              (S.Wing, Switch_On => Modes.Is_Active (M, Modes.Launch), Fixed_Wing => C.Fixed_Wing,
+               Acc_Present => C.Sensors.Acc, Inp => Sensed.Launch_Sensed);
+            Bump (Out_Step.TPA_Speed_Resets);
+         end if;
          S.Armed := True;
          S.Trying := Not_Trying;
          S.Runaway_Deactivate_Us := 0;
@@ -527,7 +537,7 @@ package body Adaflight.Arming with SPARK_Mode is
          S.Airmode_Active := False;
       end if;
       if S.Armed and then (S.Airmode_Active or else Throttle_Active or else In_Launch or else C.Fixed_Wing) then
-         Out_Step.Iterm_Reset := False;
+         Out_Step.Iterm_Reset := C.Launch_Wing and then Wing_Launch.Holds_Iterm (S.Wing);
          Out_Step.Stabilisation_On := True;
       else
          Out_Step.Iterm_Reset := True;
@@ -807,18 +817,53 @@ package body Adaflight.Arming with SPARK_Mode is
       end if;
    end Set_Mode;
 
+   --  The launch mode while armed with the launch latched, its switch on, an
+   --  accelerometer, no failsafe and the launch not over; leaving it switches
+   --  the launch off, and leaving it with the switch before the throw disarms
+   --  and, without stick arming, blocks arming until the switch cycles.
+   procedure Select_Launch_Mode (
+      S        : in out State;
+      C        : Settings;
+      M        : Modes.State;
+      Sensed   : Inputs;
+      Now_Us   : Time_Us;
+      Out_Step : in out Outputs
+   ) is
+      Switch_On : constant Boolean := Modes.Is_Active (M, Modes.Launch);
+   begin
+      if S.Armed and then S.Wing.Latched and then Switch_On and then C.Sensors.Acc
+        and then not Sensed.Failsafe_Active and then not Wing_Launch.Is_Terminal (S.Wing)
+      then
+         Set_Mode (S, Launch_Mode, True, Out_Step);
+      elsif S.Flight_Modes (Launch_Mode) then
+         declare
+            Cancelled : constant Boolean := not Switch_On and then Wing_Launch.Is_Pre_Launch (S.Wing) and then S.Armed;
+         begin
+            Set_Mode (S, Launch_Mode, False, Out_Step);
+            Wing_Launch.Switch_Off (S.Wing);
+            if Cancelled then
+               if not S.Sticks_Arm then
+                  S.Disabled (Arm_Switch) := True;
+               end if;
+               Disarm (S, C, M, Launch_Abort, Now_Us, Out_Step);
+            end if;
+         end;
+      end if;
+   end Select_Launch_Mode;
+
    procedure Select_Flight_Modes (
       S        : in out State;
       C        : Settings;
       M        : Modes.State;
       Conds    : Modes.Conditions;
       Sensed   : Inputs;
+      Now_Us   : Time_Us;
       Out_Step : in out Outputs
    ) is
       Horizon_Allowed : Boolean := True;
    begin
       if (Modes.Is_Active (M, Modes.Angle) or else Sensed.Failsafe_Active or else S.Flight_Modes (Alt_Hold_Mode)
-          or else S.Flight_Modes (Pos_Hold_Mode))
+          or else S.Flight_Modes (Pos_Hold_Mode) or else (C.Launch_Wing and then S.Flight_Modes (Launch_Mode)))
         and then C.Sensors.Acc
       then
          Horizon_Allowed := False;
@@ -832,6 +877,9 @@ package body Adaflight.Arming with SPARK_Mode is
          and then (Modes.Is_Active (M, Modes.GPS_Rescue)
                    or else (Sensed.Failsafe_Active and then C.Failsafe_GPS_Rescue)),
          Out_Step);
+      if C.Launch_Wing then
+         Select_Launch_Mode (S, C, M, Sensed, Now_Us, Out_Step);
+      end if;
       Set_Mode
         (S, Alt_Hold_Mode,
          S.Armed and then not S.Flight_Modes (GPS_Rescue_Mode) and then not S.Flight_Modes (Launch_Mode)
@@ -958,7 +1006,7 @@ package body Adaflight.Arming with SPARK_Mode is
       Out_Step.Run_Adjustments :=
         not Sensed.CLI_Mode and then not (Modes.Is_Active (M, Modes.Paralyze) and then not S.Armed);
 
-      Select_Flight_Modes (S, C, M, Conds, Sensed, Out_Step);
+      Select_Flight_Modes (S, C, M, Conds, Sensed, Now_Us, Out_Step);
    end Process_Rx_Modes;
 
 end Adaflight.Arming;

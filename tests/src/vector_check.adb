@@ -3912,6 +3912,10 @@ procedure Vector_Check is
    Arm_Hooks_Mode    : Boolean := False;
    Arm_Hooks_In      : Adaflight.Arming.Inputs;
    Arm_Prev_CLI      : Boolean := False;
+   --  The wing sequences' scripted rest and launch state before each step.
+   Arm_Wing_Mode     : Boolean := False;
+   Arm_Wing_At_Rest  : Boolean := True;
+   Arm_Wing_State    : Integer := -1;
 
    procedure Check_Arming_Line is
       use Adaflight.Arming;
@@ -4008,8 +4012,10 @@ procedure Vector_Check is
             Altitude_Control           => False,
             Position_Control           => False,
             Plane_Mixer                => Int (153) = 8 or else Int (153) = 14,
-            Telemetry_Feature          => False);
+            Telemetry_Feature          => False,
+            Launch_Wing                => False);
          Arm_DShot_Mode := False;
+         Arm_Wing_Mode := False;
          Arm_Hooks_Mode := False;
          Arm_Prev_CLI := False;
          Arm_GPS_Mode := False;
@@ -4074,7 +4080,9 @@ procedure Vector_Check is
                OSD_Needs_Acc              => Arm_GPS_Mode and then Arm_GPS_In.OSD_Needs_Acc,
                CMS_In_Menu                => Arm_Hooks_Mode and then Arm_Hooks_In.CMS_In_Menu,
                CLI_Mode                   => Arm_Prev_CLI,
-               VTX_Can_Update             => not Arm_Hooks_Mode or else Arm_Hooks_In.VTX_Can_Update);
+               VTX_Can_Update             => not Arm_Hooks_Mode or else Arm_Hooks_In.VTX_Can_Update,
+               Launch_Sensed              =>
+                 (Acc_Magnitude => (if Arm_Wing_Mode and then not Arm_Wing_At_Rest then 1.4 else 1.0), others => <>));
             --  The calibration state the receiver pass reads, recorded before
             --  the step's commands change it.
             Sensed_Before : Inputs := Sensed;
@@ -4102,6 +4110,9 @@ procedure Vector_Check is
             procedure Note_L is
             begin
                Note ('L');
+               if Arm_Wing_Mode and then Arm_Wing_State >= 0 then
+                  Arming_State.Wing.Current := Adaflight.Wing_Launch.State'Val (Arm_Wing_State);
+               end if;
             end Note_L;
             procedure Note_P is
             begin
@@ -4180,7 +4191,7 @@ procedure Vector_Check is
                 (Arming_State.Sticks_Arm, Channels (Adaflight.RC_Command.Throttle_Channel), Arming_Settings.Min_Check,
                  Arm_Mixer_Mode, Arm_Tri_Servo);
             Pass.PID_Loop
-              ((Wing_Launch => False),
+              ((Wing_Launch => Arming_Settings.Launch_Wing),
                (Resets_Yaw  => Yaw_Reset,
                 Uses_Servos => Int (NF - 1) /= 0,
                 Log_Device  => Int (NF - 2) /= 0,
@@ -4309,6 +4320,17 @@ procedure Vector_Check is
                       elsif Arm_Last_Step.Commands (VTX_Band_Down) then 2
                       elsif Arm_Last_Step.Commands (VTX_Channel_Up) then 3
                       elsif Arm_Last_Step.Commands (VTX_Channel_Down) then 4 else 0));
+      elsif Name = "armwinginit" then
+         Arming_Settings.Launch_Wing := True;
+         Arm_Wing_Mode := True;
+      elsif Name = "armwingin" then
+         Arm_Wing_At_Rest := Int (4) /= 0;
+         Arm_Wing_State := Integer (Int (5));
+      elsif Name = "armwing" then
+         Record_Int ("armwing.latched", Int (4), Boolean'Pos (Arming_State.Wing.Latched));
+         Record_Int ("armwing.state", Int (5),
+                     Integer_64 (Adaflight.Wing_Launch.State'Pos (Arming_State.Wing.Current)));
+         Record_Int ("armwing.tpa_resets", Int (6), Integer_64 (Arm_Last_Step.TPA_Speed_Resets));
       elsif Name = "armstats" then
          Record_Int ("armstats.arms", Int (4), Integer_64 (Arm_Last_Step.Stats_Arms));
          Record_Int ("armstats.disarms", Int (5), Integer_64 (Arm_Last_Step.Stats_Disarms));
@@ -22194,6 +22216,7 @@ begin
    Run (Dir & "/armgps.csv", "arming");
    Run (Dir & "/armstats.csv", "arming");
    Run (Dir & "/armhooks.csv", "arming");
+   Run (Dir & "/armwing.csv", "arming");
    Run (Dir & "/compass.csv", "compass");
    Run (Dir & "/position.csv", "position");
    Run (Dir & "/altitude.csv", "altitude");
