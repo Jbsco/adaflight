@@ -1,7 +1,8 @@
---  The stick command path: deadbands and the throttle curve from the receiver
---  channels, the deflections and rates into raw setpoints, feedforward from the
---  setpoint motion, and the smoothing filters whose cutoffs follow the
---  receiver frame rate, in the operation order of the reference.
+--  The stick command path: deadbands, the throttle curve with the low voltage
+--  cutoff and the 3D throttle from the receiver channels, the deflections and
+--  rates into raw setpoints, feedforward from the setpoint motion, and the
+--  smoothing filters whose cutoffs follow the receiver frame rate, in the
+--  operation order of the reference.
 
 with Interfaces;
 with Adaflight.Axes; use Adaflight.Axes;
@@ -46,6 +47,19 @@ package Adaflight.RC_Command with SPARK_Mode, Pure is
       Receiver     : Receiver_Settings;
       Controls     : Control_Settings;
       Loop_Time    : PID_Config.Loop_Time_Us := 125;
+      --  The 3D feature, and its switched mode, where the 3D switch reverses
+      --  the motors instead of mapping the stick around the middle.
+      Feature_3D       : Boolean := False;
+      Switched_Mode_3D : Boolean := False;
+   end record;
+
+   --  What the throttle reads from the other units: the 3D switch, failsafe,
+   --  and the battery's low voltage cutoff with its throttle percentage.
+   type Command_Inputs is record
+      Box_3D          : Boolean := False;
+      Failsafe_Active : Boolean := False;
+      LVC_Enabled     : Boolean := False;
+      LVC_Percentage  : Natural range 0 .. 100 := 100;
    end record;
 
    subtype Divider is Float range 400.0 .. 500.0;
@@ -111,6 +125,8 @@ package Adaflight.RC_Command with SPARK_Mode, Pure is
       Valid_Count           : Natural range 0 .. 3 := 0;
       Outlier_Count         : Natural range 0 .. 3 := 0;
       Prev_Outlier_Negative : Boolean := False;
+      --  The switched 3D mode's motor reversal.
+      Motors_Reversed       : Boolean := False;
    end record;
 
    --  Prepares the throttle table, the dividers, the rate maxima, and the
@@ -122,7 +138,7 @@ package Adaflight.RC_Command with SPARK_Mode, Pure is
      (S : in out State; Time_Us : Unsigned_32; Receiving : Boolean; Frame_Time_Us : Unsigned_32);
 
    --  Commands from the channels: deadbands on the sticks, the curve on the throttle.
-   procedure Update_Commands (S : in out State; C : Config; Data : Channel_Values);
+   procedure Update_Commands (S : in out State; C : Config; Data : Channel_Values; Inp : Command_Inputs);
 
    --  Deflections, raw setpoints, feedforward, and the smoothing filters; runs
    --  every loop and does the receiver-side work when the data is new.

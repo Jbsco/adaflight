@@ -1881,6 +1881,7 @@ procedure Vector_Check is
 
    RC_State   : Adaflight.RC_Command.State;
    RC_Config  : Adaflight.RC_Command.Config;
+   RC_Inputs  : Adaflight.RC_Command.Command_Inputs;
    RC_Runtime : Adaflight.PID_Config.Runtime;
    RC_Time    : Interfaces.Unsigned_32 := 0;
 
@@ -1942,6 +1943,7 @@ procedure Vector_Check is
               Adaflight.PID_Profile.Feedforward_Averaging'Val (Integer'Value (Str (40)));
             RC_Config := C;
             RC_Runtime := R;
+            RC_Inputs := (others => <>);
             RC_Time := 0;
             Init (RC_State, RC_Config, RC_Runtime);
             for I in Table_Index loop
@@ -1954,6 +1956,15 @@ procedure Vector_Check is
             Record_Result ("rcinit.divider", Bits (56), To_Bits (RC_State.Command_Divider));
             Record_Result ("rcinit.yaw_divider", Bits (57), To_Bits (RC_State.Yaw_Divider));
          end;
+      elsif Name = "rcthrinit" then
+         RC_Config.Feature_3D := Str (3) = "1";
+         RC_Config.Switched_Mode_3D := Str (4) = "1";
+         RC_Config.Receiver.Mid_RC := Integer (Int (5));
+      elsif Name = "rcthrin" then
+         RC_Inputs := (Box_3D => Str (4) = "1", LVC_Enabled => Str (5) = "1", LVC_Percentage => Integer (Int (6)),
+                       Failsafe_Active => Str (7) = "1");
+      elsif Name = "rcthr" then
+         Record_Int ("rcthr.reversed", Int (4), Boolean'Pos (RC_State.Motors_Reversed));
       elsif Name = "rcstep" then
          declare
             Interval : constant Integer := Integer'Value (Str (4));
@@ -1966,7 +1977,7 @@ procedure Vector_Check is
             for Ch in Channel loop
                Data (Ch) := Flt (6 + Ch);
             end loop;
-            Update_Commands (RC_State, RC_Config, Data);
+            Update_Commands (RC_State, RC_Config, Data, RC_Inputs);
             Process (RC_State, RC_Config, RC_Runtime);
             for J in 2 .. Loops loop
                Process (RC_State, RC_Config, RC_Runtime);
@@ -15671,7 +15682,7 @@ procedure Vector_Check is
             RC : constant Adaflight.RC_Command.Config := Adaflight.Config_Runtime.RC_Config_Of
               (C.Rx_Config, C.Rc_Controls_Config,
                C.Control_Rate_Profiles (Natural (C.System_Config.Active_Rate_Profile)), C.Pid_Config,
-               Integer (1_000_000 / H.Gyro_Sample_Rate_Hz));
+               Integer (1_000_000 / H.Gyro_Sample_Rate_Hz), C.Flight3_D_Config, C.Feature_Config.Enabled_Features);
             AC : constant Adaflight.Accelerometer.Settings := Adaflight.Config_Runtime.Accelerometer_Settings_Of
               (C.Accelerometer_Config, C.Gyro_Device_Config (0), C.Board_Alignment, Integer (H.Gyro_Sample_Rate_Hz),
                256, C.Feature_Config.Enabled_Features);
@@ -22293,6 +22304,7 @@ begin
    Run (Dir & "/wingtpa.csv", "mix");
    Run (Dir & "/wingmix.csv", "mix");
    Run (Dir & "/rc.csv", "rc");
+   Run (Dir & "/rcthr.csv", "rc");
    Run (Dir & "/gyro.csv", "gyro");
    Run (Dir & "/imu.csv", "imu");
    Run (Dir & "/failsafe.csv", "failsafe");
