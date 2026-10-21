@@ -6852,3 +6852,28 @@ replays exactly. Thirty-two tampered paths each fail the vectors. One is equival
 walk lets go of the directory's held sector, which the directory's close later in the same call lets go of
 anyway. The task function oracle now builds with the SD card, and its 4800 main task runs poll the file
 system before the flash erase.
+
+## D302. SPI receiver selection (2026-10-17)
+
+`Adaflight.RX_SPI` maps the setting's SPI protocol numbers to the receiver families: V202 at both rates,
+SYMA X and X5C, CX10 and CX10A, H8_3D, the acknowledgment payload protocol, the five FrSky protocols, FlySky
+and FlySky 2A, SFHSS, Spektrum DSM, Redpine and ExpressLRS. No build compiles the KN receiver, so its
+number, like any number past the last, has no family. `Adaflight.RX_SPI_Provider` is the SPI receiver layer
+that the receiver core takes as its provider, a generic whose procedures are the SPI device, the interrupt,
+the dispatcher and the families' start, packet check, frame processing, channel setting and stop. The start
+fails without the device or a family. Otherwise it starts the family, then the interrupt when one is
+configured, clears the packet flag, hands the receiver core the layer's functions, enables the dispatcher,
+and answers with the family's start. A frame check asks the family for a packet. A packet with data marks a
+new packet and takes the interrupt's time as the frame time, and the family's processing request passes
+through. Only FrSky processes frames, and only ExpressLRS stops. A channel read outside the receiver's
+channel count reads 0 and leaves a new packet waiting. Otherwise the first read after a new packet takes the
+family's channels. The unit is SPARK for the channel index and the family each step calls.
+
+The SPI receiver oracle runs the reference's SPI receiver layer with every protocol a build compiles, and
+with the device, the interrupt, the dispatcher and each family's procedures answering by a draw and
+recording their calls: 60 sequences, one start for each protocol number, a second with failing devices and
+starts, and a third with a device that never starts, then 300 steps each of frame checks, frame processing,
+channel reads inside and outside the count, stops and interrupt enables. Every start answer, call, frame
+report, frame time, packet flag and channel replays exactly over the 18000 steps. Twenty-three tampered
+paths each fail the vectors. One is equivalent: the start clears a packet flag that a start, run once on a
+new state, always finds clear.

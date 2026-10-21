@@ -26,6 +26,8 @@ with Adaflight.RC_Command;
 with Adaflight.Gyro_Filters;
 with Adaflight.Gyro_Selection;
 with Adaflight.RX_PWM;
+with Adaflight.RX_SPI;
+with Adaflight.RX_SPI_Provider;
 with Adaflight.Dyn_Notch;
 with Adaflight.RPM_Filter;
 with Adaflight.Attitude;
@@ -17487,6 +17489,237 @@ procedure Vector_Check is
    FAT_Log_State : FAT_Log.SD_Log;
    SD_Writer     : Adaflight.Blackbox_Header.Writer;
 
+   --  The SPI receiver layer over a model of its device, interrupt and
+   --  receiver families: each step's answers come from the vectors, and each
+   --  call is noted in the reference's notation for the comparison.
+   RXS_Device_Ok    : Boolean := False;
+   RXS_Family_Ok    : Boolean := False;
+   RXS_Exti_On      : Boolean := False;
+   RXS_Init_Count   : Natural := 0;
+   RXS_Init_IO      : Integer_64 := 0;
+   RXS_Init_Trigger : Integer_64 := 0;
+   RXS_Channels     : Natural := 0;
+   RXS_IO           : Integer_64 := 0;
+   RXS_Trigger      : Integer_64 := 0;
+   RXS_Answer       : Adaflight.RX_SPI.Received;
+   RXS_Exti_Time    : Unsigned_32 := 0;
+   RXS_Written      : Boolean := False;
+   type RXS_Bytes is array (0 .. 34) of Interfaces.Unsigned_8;
+   RXS_Payload      : RXS_Bytes := (others => 0);
+   RXS_Step_Bytes   : RXS_Bytes := (others => 0);
+   RXS_Log          : String (1 .. 512);
+   RXS_Log_Length   : Natural := 0;
+
+   procedure RXS_Note (Text : String) is
+   begin
+      if RXS_Log_Length > 0 then
+         RXS_Log_Length := RXS_Log_Length + 1;
+         RXS_Log (RXS_Log_Length) := ';';
+      end if;
+      RXS_Log (RXS_Log_Length + 1 .. RXS_Log_Length + Text'Length) := Text;
+      RXS_Log_Length := RXS_Log_Length + Text'Length;
+   end RXS_Note;
+
+   function RXS_Image (V : Integer_64) return String is
+      Img : constant String := Integer_64'Image (V);
+   begin
+      return (if V < 0 then Img else Img (Img'First + 1 .. Img'Last));
+   end RXS_Image;
+
+   function RXS_Family (F : Adaflight.RX_SPI.Family) return String is
+     (RXS_Image (Integer_64 (Adaflight.RX_SPI.Family'Pos (F))));
+
+   procedure RXS_Device_Init (Ok : out Boolean) is
+   begin
+      RXS_Note ("D");
+      Ok := RXS_Device_Ok;
+   end RXS_Device_Init;
+
+   procedure RXS_Family_Init (F : Adaflight.RX_SPI.Family; Ok : out Boolean) is
+   begin
+      RXS_Note ("I" & RXS_Family (F));
+      RXS_Channels := RXS_Init_Count;
+      RXS_IO := RXS_Init_IO;
+      RXS_Trigger := RXS_Init_Trigger;
+      Ok := RXS_Family_Ok;
+   end RXS_Family_Init;
+
+   function RXS_Exti_Configured return Boolean is
+   begin
+      RXS_Note ("C");
+      return RXS_Exti_On;
+   end RXS_Exti_Configured;
+
+   procedure RXS_Exti_Init is
+   begin
+      RXS_Note ("X" & RXS_Image (RXS_IO) & ":" & RXS_Image (RXS_Trigger));
+   end RXS_Exti_Init;
+
+   procedure RXS_Dispatch_Enable is
+   begin
+      RXS_Note ("E");
+   end RXS_Dispatch_Enable;
+
+   procedure RXS_Take_Payload is
+   begin
+      if RXS_Written then
+         RXS_Payload := RXS_Step_Bytes;
+      end if;
+   end RXS_Take_Payload;
+
+   procedure RXS_Data_Received (F : Adaflight.RX_SPI.Family; R : out Adaflight.RX_SPI.Received) is
+   begin
+      RXS_Note ("R" & RXS_Family (F));
+      RXS_Take_Payload;
+      R := RXS_Answer;
+   end RXS_Data_Received;
+
+   procedure RXS_Process_Frame (F : Adaflight.RX_SPI.Family; R : out Adaflight.RX_SPI.Received) is
+   begin
+      RXS_Note ("P" & RXS_Family (F));
+      RXS_Take_Payload;
+      R := RXS_Answer;
+   end RXS_Process_Frame;
+
+   --  The oracle's families take a channel count from the first byte, then
+   --  each channel from the next bytes and the family's number.
+   procedure RXS_Set_Channels (F : Adaflight.RX_SPI.Family; Data : in out Adaflight.RX_SPI.Channel_Data) is
+      Count : constant Natural := Natural (RXS_Payload (0)) mod (Adaflight.Receiver.Channel_Count + 1);
+   begin
+      RXS_Note ("S" & RXS_Family (F));
+      for I in 0 .. Count - 1 loop
+         Data (I) := Interfaces.Unsigned_16 (Natural (RXS_Payload (I + 1)) * 8 + Adaflight.RX_SPI.Family'Pos (F));
+      end loop;
+   end RXS_Set_Channels;
+
+   procedure RXS_Family_Stop (F : Adaflight.RX_SPI.Family) is
+   begin
+      RXS_Note ("T" & RXS_Family (F));
+   end RXS_Family_Stop;
+
+   function RXS_Last_Exti_Time return Adaflight.Receiver.Time_Us is
+   begin
+      RXS_Note ("L");
+      return RXS_Exti_Time;
+   end RXS_Last_Exti_Time;
+
+   package RXS_Ops is new Adaflight.RX_SPI_Provider
+     (Device_Init          => RXS_Device_Init,
+      Family_Init          => RXS_Family_Init,
+      Exti_Configured      => RXS_Exti_Configured,
+      Exti_Init            => RXS_Exti_Init,
+      Dispatch_Enable      => RXS_Dispatch_Enable,
+      Family_Data_Received => RXS_Data_Received,
+      Family_Process_Frame => RXS_Process_Frame,
+      Family_Set_Channels  => RXS_Set_Channels,
+      Family_Stop          => RXS_Family_Stop,
+      Last_Exti_Time       => RXS_Last_Exti_Time);
+
+   RXS_State      : Adaflight.RX_SPI.State;
+   RXS_Last_Frame : Adaflight.Receiver.Time_Us := 0;
+
+   procedure Check_RX_SPI_Line is
+      Name : constant String := Str (1);
+
+      procedure Expect_Text (Field : String; Expected : String; Actual : String) is
+      begin
+         Record_Int (Name & "." & Field, 1, (if Expected = Actual then 1 else 0));
+         if Expected /= Actual and then Failures <= 20 then
+            Put_Line ("  " & Str (2) & " " & Str (3) & " " & Field & " expected " & Expected & " got " & Actual);
+         end if;
+      end Expect_Text;
+
+      function Channels_Image return String is
+         R : Ada.Strings.Unbounded.Unbounded_String;
+      begin
+         for I in Adaflight.RX_SPI.Channel_Data'Range loop
+            if I > 0 then
+               Ada.Strings.Unbounded.Append (R, ":");
+            end if;
+            Ada.Strings.Unbounded.Append (R, RXS_Image (Integer_64 (RXS_State.Data (I))));
+         end loop;
+         return Ada.Strings.Unbounded.To_String (R);
+      end Channels_Image;
+
+      procedure Check_State (First : Positive) is
+      begin
+         Record_Int (Name & ".new_packet", Int (First), Boolean'Pos (RXS_State.New_Packet));
+         Record_Int (Name & ".frame_time", Int (First + 1), Integer_64 (RXS_Last_Frame));
+         Expect_Text ("channels", Str (First + 2), Channels_Image);
+      end Check_State;
+
+      function Calls return String is (if RXS_Log_Length = 0 then "-" else RXS_Log (1 .. RXS_Log_Length));
+   begin
+      RXS_Log_Length := 0;
+      if Name = "rxspiinit" then
+         declare
+            Ok, Providing : Boolean;
+         begin
+            RXS_State := (others => <>);
+            RXS_Last_Frame := 0;
+            RXS_Device_Ok := Int (4) = 1;
+            RXS_Family_Ok := Int (5) = 1;
+            RXS_Exti_On := Int (6) = 1;
+            RXS_Init_Count := Natural (Int (7));
+            RXS_Init_IO := Int (8);
+            RXS_Init_Trigger := Int (9);
+            RXS_Channels := 0;
+            RXS_IO := 0;
+            RXS_Trigger := 0;
+            RXS_Payload := (others => 0);
+            RXS_Ops.Init (RXS_State, Interfaces.Unsigned_8 (Int (3)), Ok, Providing);
+            Record_Int ("rxspiinit.ok", Int (10), Boolean'Pos (Ok));
+            Record_Int ("rxspiinit.providing", Int (11), Boolean'Pos (Providing));
+            Expect_Text ("calls", Str (12), Calls);
+            Check_State (13);
+         end;
+      elsif Name = "rxspistep" then
+         declare
+            Answer : constant Integer_64 := Int (6);
+            Hex    : constant String := Str (10);
+            Result : Integer_64 := 0;
+         begin
+            RXS_Answer := (Bind                => Answer mod 2 = 1,
+                           Data                => (Answer / 2) mod 2 = 1,
+                           Processing_Required => (Answer / 4) mod 2 = 1);
+            RXS_Exti_Time := Unsigned_32 (Int (7));
+            RXS_Written := Hex /= "-";
+            if RXS_Written then
+               for K in RXS_Bytes'Range loop
+                  RXS_Step_Bytes (K) :=
+                    Interfaces.Unsigned_8'Value ("16#" & Hex (Hex'First + 2 * K .. Hex'First + 2 * K + 1) & "#");
+               end loop;
+            end if;
+            case Int (4) is
+               when 0 =>
+                  declare
+                     Report : Adaflight.Receiver.Frame_Report;
+                  begin
+                     RXS_Ops.Frame_Status (RXS_State, Report, RXS_Last_Frame);
+                     Result := Boolean'Pos (Report.Complete) + 4 * Boolean'Pos (Report.Processing_Required);
+                  end;
+               when 1 =>
+                  RXS_Ops.Process_Frame (RXS_State);
+                  Result := 1;
+               when 2 =>
+                  declare
+                     Value : Float;
+                  begin
+                     RXS_Ops.Read_Raw (RXS_State, RXS_Channels, Natural (Int (5)), Value);
+                     Result := Integer_64 (Value);
+                  end;
+               when 3 =>
+                  RXS_Ops.Stop (RXS_State);
+               when others =>
+                  RXS_Ops.Enable_Exti;
+            end case;
+            Record_Int ("rxspistep.result", Int (8), Result);
+            Expect_Text ("calls", Str (9), Calls);
+            Check_State (11);
+         end;
+      end if;
+   end Check_RX_SPI_Line;
+
    procedure Check_FAT_Line is
       use Adaflight.FAT;
       Name : constant String := Str (1);
@@ -24178,6 +24411,8 @@ procedure Vector_Check is
                   Check_FAT_File_Line;
                elsif Kind = "fatdir" or else Kind = "fatinit" or else Kind = "bbsd" then
                   Check_FAT_Dir_Line;
+               elsif Kind = "rxspi" then
+                  Check_RX_SPI_Line;
                elsif Kind = "fpcapture" then
                   Check_Flight_Plan_Capture_Line;
                elsif Kind = "mavmission" then
@@ -24464,6 +24699,7 @@ begin
    Run (Dir & "/fatdir.csv", "fatdir");
    Run (Dir & "/fatinit.csv", "fatinit");
    Run (Dir & "/bbsd.csv", "bbsd");
+   Run (Dir & "/rxspi.csv", "rxspi");
    Run (Dir & "/fpcapture.csv", "fpcapture");
    Run (Dir & "/mavmission.csv", "mavmission");
    Run (Dir & "/fpnhelpers.csv", "fpnhelpers");
