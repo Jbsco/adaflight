@@ -4134,6 +4134,12 @@ procedure Vector_Check is
       elsif Name = "armgps" then
          Record_Int ("armgps.home_resets", Int (4), Integer_64 (Arm_Last_Step.GPS_Home_Resets));
          Record_Int ("armgps.heading_usable", Int (5), Boolean'Pos (not Arm_Last_Step.GPS_Heading_Blocked));
+      elsif Name = "armstats" then
+         Record_Int ("armstats.arms", Int (4), Integer_64 (Arm_Last_Step.Stats_Arms));
+         Record_Int ("armstats.disarms", Int (5), Integer_64 (Arm_Last_Step.Stats_Disarms));
+         Record_Int ("armstats.osd", Int (6),
+                     (case Arm_Last_Step.OSD_Stats is
+                         when Unchanged => -1, when Allow_Stats => 0, when Suppress_Stats => 1));
       elsif Name = "armflipinit" then
          Arming_Settings.Crashflip_Auto_Rearm := Int (3) /= 0;
       elsif Name = "armflip" then
@@ -21948,6 +21954,7 @@ begin
    Run (Dir & "/armdshot.csv", "arming");
    Run (Dir & "/armflip.csv", "arming");
    Run (Dir & "/armgps.csv", "arming");
+   Run (Dir & "/armstats.csv", "arming");
    Run (Dir & "/compass.csv", "compass");
    Run (Dir & "/position.csv", "position");
    Run (Dir & "/altitude.csv", "altitude");

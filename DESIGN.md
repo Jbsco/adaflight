@@ -6342,3 +6342,14 @@ The battery oracle adds sequences that plug and pull a pack of a fresh cell coun
 short display filters, and record the connection's calls. A new oracle includes the reference's
 configuration source and runs its profile choice on 2000 random profile sets with the profile change's other
 calls stubbed. Both replay exactly, and the earlier battery vectors stay byte for byte.
+
+## D278. Arming statistics events (2026-10-16)
+
+`Adaflight.Arming` reports the statistics calls of arming and disarming. Every arming asks the persistent
+statistics to start a flight and the OSD to show its statistics screen at the next disarm. A disarm asks the
+persistent statistics to end the flight unless the crash flip was running, and suppresses the OSD statistics
+screen while the crash flip switch is on or launch control is active.
+
+The arming oracle builds with the persistent statistics, and the existing vectors stay byte for byte. New stats
+sequences run the crash flip scenario on fresh draws with launch control switched in every sequence, and record
+the statistics and OSD calls. They replay exactly.
