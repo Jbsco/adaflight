@@ -11,6 +11,7 @@ package Adaflight.FAT with SPARK_Mode is
    use type Interfaces.Unsigned_16;
    use type Interfaces.Unsigned_32;
    use type Interfaces.Integer_32;
+   use type Interfaces.Integer_64;
    subtype Unsigned_8 is Interfaces.Unsigned_8;
    subtype Unsigned_16 is Interfaces.Unsigned_16;
    subtype Unsigned_32 is Interfaces.Unsigned_32;
@@ -28,8 +29,23 @@ package Adaflight.FAT with SPARK_Mode is
    Deleted_File_Marker      : constant := 16#E5#;
    FAT16_Entries_Per_Sector : constant := Sector_Size / 2;
    FAT32_Entries_Per_Sector : constant := Sector_Size / 4;
+   Entries_Per_Sector       : constant := Sector_Size / Directory_Entry_Size;
+   Max_Open_Files           : constant := 3;
+   Maximum_File_Size        : constant := 16#FFFF_FFFF#;
+
+   --  The ways a file is open, as bits.
+   Mode_Read             : constant Unsigned_8 := 1;
+   Mode_Write            : constant Unsigned_8 := 2;
+   Mode_Append           : constant Unsigned_8 := 4;
+   Mode_Contiguous       : constant Unsigned_8 := 8;
+   Mode_Create           : constant Unsigned_8 := 16;
+   Mode_Retain_Directory : constant Unsigned_8 := 32;
 
    subtype Sector_Offset is Natural range 0 .. Sector_Size - 1;
+
+   --  The largest write or read in one call.
+   Max_Transfer : constant := 2 ** 16;
+   type Data_Bytes is array (Natural range <>) of Unsigned_8;
    type Sector_Bytes is array (Sector_Offset) of Unsigned_8;
    subtype Cache_Index is Natural range 0 .. Cache_Sectors - 1;
    subtype Cache_Slot is Integer range -1 .. Cache_Sectors - 1;
@@ -45,6 +61,11 @@ package Adaflight.FAT with SPARK_Mode is
    type Card_Status is (In_Progress, Busy, Success, Failure);
    type Cache_State is (Empty, In_Sync, Reading, Writing, Dirty);
    type Retain_Count is mod 2 ** 6;
+   type Find_Status is (Find_In_Progress, Found, Find_Fatal, Not_Found);
+   type Search_Condition is (Free_At_Sector_Start, Free_Cluster, Taken_Cluster);
+   type FAT_Pattern is (Open_Chain, Closed_Chain, Free_Clusters);
+   type Save_Mode is (Save_Normal, Save_For_Close, Save_Deleted);
+   type Seek_Origin is (From_Start, From_Current, From_End);
 
    --  What a sector is cached for: read from the card, written, locked
    --  against flushes and discards, discarded before other synced sectors,
@@ -84,6 +105,76 @@ package Adaflight.FAT with SPARK_Mode is
       Root_Directory_Sectors : Unsigned_32 := 0;
    end record;
 
+   type File_Kind is (Unused, Normal, FAT16_Root, Directory);
+   type File_Operation is (Idle, Seek, Append_Supercluster, Locked, Append_Free_Cluster);
+   type Free_Cluster_Phase is (Find_Free_Space, Update_FAT_1, Update_FAT_2, Update_File_Entry, Complete, Failed);
+   type Supercluster_Phase is (Take_Supercluster, Update_Free_File_Entry, Update_Supercluster_FAT, Save_File_Entry);
+   subtype Entry_Slot is Integer range -1 .. Entries_Per_Sector - 1;
+
+   --  A directory entry's place: its sector and its index there.
+   type Entry_Position is record
+      Sector : Unsigned_32 := 0;
+      Index  : Entry_Slot := 0;
+   end record;
+
+   type Free_Cluster_Append is record
+      Previous : Unsigned_32 := 0;
+      Search   : Unsigned_32 := 0;
+      Phase    : Free_Cluster_Phase := Find_Free_Space;
+   end record;
+
+   type Supercluster_Append is record
+      Previous      : Unsigned_32 := 0;
+      Rewrite_Start : Unsigned_32 := 0;
+      Rewrite_End   : Unsigned_32 := 0;
+      Phase         : Supercluster_Phase := Take_Supercluster;
+   end record;
+
+   --  The operation a file has queued, with the state of each kind.
+   type Operation_State is record
+      Kind         : File_Operation := Idle;
+      Seek_Offset  : Unsigned_32 := 0;
+      Free_Append  : Free_Cluster_Append;
+      Super_Append : Supercluster_Append;
+   end record;
+
+   --  An open file: the cursor's offset, cluster and the cluster before it,
+   --  the size written and the size of its clusters, its mode bits, the
+   --  cache sectors it holds at the cursor, and its directory entry.
+   type File_Handle is record
+      Kind                    : File_Kind := Unused;
+      Cursor_Offset           : Unsigned_32 := 0;
+      Logical_Size            : Unsigned_32 := 0;
+      Physical_Size           : Unsigned_32 := 0;
+      Cursor_Cluster          : Unsigned_32 := 0;
+      Cursor_Previous_Cluster : Unsigned_32 := 0;
+      Mode                    : Unsigned_8 := 0;
+      Attrib                  : Unsigned_8 := 0;
+      Write_Locked            : Cache_Slot := No_Slot;
+      Read_Retained           : Cache_Slot := No_Slot;
+      Entry_At                : Entry_Position;
+      First_Cluster           : Unsigned_32 := 0;
+      Operation               : Operation_State;
+   end record;
+
+   --  The open files, then the free-space file, then the working directory.
+   type File_Id is range 0 .. Max_Open_Files + 1;
+   subtype Open_File is File_Id range 0 .. Max_Open_Files - 1;
+   Free_File         : constant File_Id := Max_Open_Files;
+   Current_Directory : constant File_Id := Max_Open_Files + 1;
+   type File_Array is array (File_Id) of File_Handle;
+
+   --  The search for the longest run of free clusters that starts a FAT
+   --  sector, for the free-space file.
+   type Search_Phase is (Find_Hole, Grow_Hole);
+   type Free_Space_Search is record
+      Candidate_Start : Unsigned_32 := 0;
+      Candidate_End   : Unsigned_32 := 0;
+      Best_Gap_Start  : Unsigned_32 := 0;
+      Best_Gap_Length : Unsigned_32 := 0;
+      Phase           : Search_Phase := Find_Hole;
+   end record;
+
    type File_System is record
       Vol                    : Volume;
       State                  : Filesystem_State := Unknown;
@@ -95,6 +186,8 @@ package Adaflight.FAT with SPARK_Mode is
       Cache_Timer            : Unsigned_32 := 0;
       Dirty_Entries          : Integer_32 := 0;
       Flush_In_Progress      : Boolean := False;
+      Files                  : File_Array;
+      Search                 : Free_Space_Search;
    end record;
 
    ---------------------
@@ -135,6 +228,17 @@ package Adaflight.FAT with SPARK_Mode is
    procedure Write_U32 (S : in out Sector_Bytes; At_Byte : Sector_Offset; Value : Unsigned_32)
      with Global => null,
           Pre    => At_Byte <= Sector_Size - 4;
+
+   --  32-bit values as C converts them between signed and unsigned.
+   function To_U32 (X : Integer_32) return Unsigned_32 is
+     (if X >= 0 then Unsigned_32 (X) else Unsigned_32 (Interfaces.Integer_64 (X) + 2 ** 32));
+
+   function To_I32 (X : Unsigned_32) return Integer_32 is
+     (if X <= 16#7FFF_FFFF# then Integer_32 (X) else Integer_32 (Interfaces.Integer_64 (X) - 2 ** 32));
+
+   --  A division that gives zero for a zero divisor, as the Cortex-M
+   --  divide does.
+   function Divide (A : Unsigned_32; B : Unsigned_32) return Unsigned_32 is (if B = 0 then 0 else A / B);
 
    function Round_Up_To (Value : Unsigned_32; Rounding : Unsigned_32) return Unsigned_32 is
      (if Value mod Rounding > 0 then Value + (Rounding - Value mod Rounding) else Value)
@@ -259,6 +363,48 @@ package Adaflight.FAT with SPARK_Mode is
           Post   => FS.Vol = FS.Vol'Old;
 
    procedure Release_Sector (FS : in out File_System; Index : Cache_Index)
+     with Global => null,
+          Post   => FS.Vol = FS.Vol'Old;
+
+   -----------
+   -- Files --
+   -----------
+
+   function Is_Busy (F : File_Handle) return Boolean is (F.Operation.Kind /= Idle);
+
+   --  The logical size brought up to the cursor.
+   procedure Update_File_Size (F : in out File_Handle)
+     with Global => null;
+
+   --  The cache sectors a file holds at its cursor, let go.
+   procedure Unlock_File_Sector (FS : in out File_System; Id : File_Id)
+     with Global => null,
+          Post   => FS.Vol = FS.Vol'Old;
+
+   function Supercluster_Size (V : Volume) return Unsigned_32 is (FAT_Entries_Per_Sector (V) * Cluster_Size (V));
+
+   --  The sector under a file's cursor: the FAT16 root directory sits after
+   --  the FATs, a file in its cluster.
+   function Cursor_Sector (FS : File_System; Id : File_Id) return Unsigned_32 is
+     (if FS.Files (Id).Kind = FAT16_Root
+      then FS.Vol.FAT_Start_Sector + FAT_Count * FS.Vol.FAT_Sectors + FS.Files (Id).Cursor_Offset / Sector_Size
+      else File_Cluster_To_Physical
+             (FS.Vol, FS.Files (Id).Cursor_Cluster, Sector_Index_In_Cluster (FS.Vol, FS.Files (Id).Cursor_Offset)));
+
+   --  Whether a file's cursor lies past its last cluster.
+   function End_Of_Allocation (FS : File_System; Id : File_Id) return Boolean is
+     (if FS.Files (Id).Kind = FAT16_Root then FS.Files (Id).Cursor_Offset >= Sector_Size * FS.Vol.Root_Directory_Sectors
+      else FS.Files (Id).Cursor_Cluster = 0 or else FAT_End_Of_Chain (FS.Vol, FS.Files (Id).Cursor_Cluster));
+
+   function At_End_Of_File (F : File_Handle) return Boolean is (F.Cursor_Offset >= F.Logical_Size);
+
+   --  A file's cursor offset, when no operation is queued on the file.
+   procedure Tell (F : File_Handle; Position : in out Unsigned_32; Done : out Boolean)
+     with Global => null;
+
+   function Contiguous_Free_Space (FS : File_System) return Unsigned_32 is (FS.Files (Free_File).Logical_Size);
+
+   procedure Begin_Free_Space_Search (FS : in out File_System)
      with Global => null,
           Post   => FS.Vol = FS.Vol'Old;
 

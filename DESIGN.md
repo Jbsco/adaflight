@@ -6716,3 +6716,41 @@ FAT16 and FAT32 boundaries, and 28 sequences of 700 cache and FAT entry calls. H
 inside the volume, and four retain two sectors past the 6-bit count. Every call, card operation, result,
 cache entry and the hash of the cache memory replays exactly. Twenty-six tampered paths each fail the
 vectors. Two timestamp comparisons cannot tie, since every timestamp comes from one counter.
+
+## D298. SD card file system: clusters and the file cursor (2026-10-17)
+
+`Adaflight.FAT` gains the file handles: three open files, the free-space file and the working directory. Each
+handle keeps its cursor's offset, cluster and previous cluster, the size written and the size of its
+clusters, its mode bits, the cache sectors it holds at the cursor, its directory entry's place, and the
+operation queued on it (a seek, a free cluster or supercluster append, or the lock a contiguous file puts on
+the free-space file). `Adaflight.FAT_FS` gains the operations on them. The cluster search finds a free
+cluster, a free cluster at the start of a FAT sector, or a taken one, and skips the free-space file without
+moving its FAT sector (F237). A FAT fill chains, chains and ends, or frees a run of entries, and reads a
+sector first only where the fill leaves part of it. A directory entry takes the size of the file's clusters
+while the file is open and the size written on a close or a delete, with the deleted mark, and a directory's
+entry keeps no size.
+
+A regular file appends the next free cluster from the last one allocated, ends it in the FAT, links it
+after the file's last cluster and saves the entry. A contiguous file takes the free-space file's first
+supercluster: the free-space file's entry first, then the FAT, then the file's entry, and the volume is full
+once the free-space file is shorter than a supercluster. The cursor sector is retained for a read and locked
+for a write, read first when the write leaves part of it, and for a contiguous file that appends, with the
+rest of the supercluster to erase ahead. A seek that waits for at most one FAT read completes at once, and a
+longer one queues on the file. A seek from the current position forward moves by the target position
+(F238). Writes and reads go sector by sector until the cache or the card makes one wait. The free-space
+search looks for the longest run of free clusters that starts a FAT sector, each run capped at the largest
+file size. A cluster size of zero, which a parsed volume cannot have, divides to zero as the Cortex-M divide
+does, and a fill on a volume neither FAT16 nor FAT32 writes nothing where the reference writes past the
+sector. The units are SPARK for the copies' offsets within a sector and the entry offsets.
+
+The FAT oracle gains a file run: a FAT region that follows a run list of chains, a fragmented chain, made-up
+values and a free-space file aligned to a FAT sector, three open files of the flight log's kinds, and 32
+sequences of writes, bytes, reads, seeks from each origin, tells, polls, flushes, cluster searches from the
+free-space file's start and the last allocation, entry saves, FAT fills, the free-space search and operation
+steps. Some sequences start with a one-cluster free-space file and fill the volume, some run the search to
+its end, and two large cards with 64 KB clusters cap a free run at 65535 clusters. Every card operation,
+result, byte read, file handle, cache entry and the hash of the cache memory of the 23000 steps replays
+exactly. Twenty tampered paths each fail the vectors, among them the two corrections of F237 and F238. Three
+are equivalent: a contiguous file never seeks past the free-space file's start, the single-byte write takes
+the same locked sector either way, and a contiguous file's cursor stays below the free-space file. The
+working directory's step in the poll waits for the directory operations.
