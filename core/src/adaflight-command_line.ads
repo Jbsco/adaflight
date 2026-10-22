@@ -250,6 +250,41 @@ package Adaflight.Command_Line with SPARK_Mode is
    Max_Build_Options : constant := 64;
    type Build_Option_List is array (1 .. Max_Build_Options) of Interfaces.Unsigned_16;
 
+   --  A device's bus as the peripherals command names it: none, an SPI bus
+   --  by number, or an I2C bus by number with the device's address.
+   type Bus_Kind is (No_Bus, SPI_Bus, I2C_Bus);
+   type Device_Bus is record
+      Kind    : Bus_Kind := No_Bus;
+      Number  : Natural range 0 .. 15 := 0;
+      Address : Interfaces.Unsigned_8 := 0;
+   end record;
+
+   --  A serial port of the target's list: whether the board has it, and the
+   --  functions it opened with, none when it did not open.
+   type Serial_Port_Status is record
+      Available     : Boolean := False;
+      Open_Function : Interfaces.Unsigned_32 := 0;
+   end record;
+   type Serial_Port_Statuses is array (1 .. Serial_Feature_Map.Max_Ports) of Serial_Port_Status;
+
+   --  A detected gyro by position: its hardware by gyro hardware code, and
+   --  its bus.
+   Max_Gyro_Positions  : constant := 4;
+   Gyro_Hardware_Count : constant := 30;
+   type Gyro_Device is record
+      Hardware : Natural range 0 .. Gyro_Hardware_Count - 1 := 0;
+      Bus      : Device_Bus;
+   end record;
+   type Gyro_Devices is array (0 .. Max_Gyro_Positions - 1) of Gyro_Device;
+
+   --  A sensor's detection, the hardware detected by the code of its
+   --  hardware setting, and its bus.
+   type Sensor_Device is record
+      Detected : Boolean := False;
+      Hardware : Interfaces.Unsigned_8 := 0;
+      Bus      : Device_Bus;
+   end record;
+
    --  What the commands report from outside the configuration: the flight
    --  plan executor's state, the firmware's name, the target's name, the
    --  version, the build's date, time and revision, the MCU's unique id, the
@@ -259,8 +294,11 @@ package Adaflight.Command_Line with SPARK_Mode is
    --  and whether the 3D feature runs, the receiver and serial protocol the
    --  board took at its start, the motors' DShot telemetry, the SD card,
    --  the flash chip, whether the mass storage is ready, whether the motors
-   --  run DShot, whether the ESC sensor feature runs, and the build's option
-   --  numbers.
+   --  run DShot, whether the ESC sensor feature runs, the build's option
+   --  numbers, whether the soft serial feature runs, the serial ports in the
+   --  order of the target's list, the build's gyro positions with the gyros
+   --  enabled and the hardware and bus of each, and the accelerometer, the
+   --  barometer and the compass as the board detected them.
    type Environment is record
       Navigation      : Navigation_Status;
       Firmware        : Identity_Text;
@@ -288,6 +326,14 @@ package Adaflight.Command_Line with SPARK_Mode is
       ESC_Sensor      : Boolean := False;
       Build_Options   : Build_Option_List := (others => 0);
       Option_Count    : Natural range 0 .. Max_Build_Options := 0;
+      Soft_Serial     : Boolean := False;
+      Serial_Ports    : Serial_Port_Statuses;
+      Gyro_Positions  : Positive range 1 .. Max_Gyro_Positions := 1;
+      Gyros_Enabled   : Interfaces.Unsigned_8 := 0;
+      Gyros           : Gyro_Devices;
+      Acc             : Sensor_Device;
+      Baro            : Sensor_Device;
+      Mag             : Sensor_Device;
    end record;
 
    --  The board's information as the commands see it: its name and

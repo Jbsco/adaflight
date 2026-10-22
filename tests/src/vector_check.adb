@@ -16123,7 +16123,15 @@ procedure Vector_Check is
       DShot_Protocol  => False,
       ESC_Sensor      => False,
       Build_Options   => <>,
-      Option_Count    => 0);
+      Option_Count    => 0,
+      Soft_Serial     => False,
+      Serial_Ports    => <>,
+      Gyro_Positions  => 1,
+      Gyros_Enabled   => 0,
+      Gyros           => <>,
+      Acc             => <>,
+      Baro            => <>,
+      Mag             => <>);
    CLI_Env      : CLI.Environment := CLI_Identity;
    CLI_Board    : CLI.Board_State;
    CLI_Reply    : CLI.Output;
@@ -16399,6 +16407,7 @@ procedure Vector_Check is
                   MSP_Board.RX_SPI_Active := (CLI_Config.Feature_Config.Enabled_Features and 2 ** 25) /= 0;
                   MSP_Three_D := (CLI_Config.Feature_Config.Enabled_Features and 2 ** 12) /= 0;
                   CLI_Env.ESC_Sensor := (CLI_Config.Feature_Config.Enabled_Features and 2 ** 27) /= 0;
+                  CLI_Env.Soft_Serial := (CLI_Config.Feature_Config.Enabled_Features and 2 ** 6) /= 0;
                end if;
             elsif Word (Command, 0) = "!gyro" then
                MSP_Gyro_Rate := Adaflight.Config_Fix.Gyro_Rate'Value (Word (Command, 1));
@@ -16747,6 +16756,37 @@ procedure Vector_Check is
                null;
             elsif Word (Command, 0) = "!dshotproto" then
                CLI_Env.DShot_Protocol := Word (Command, 1) /= "0";
+            elsif Word (Command, 0) = "!serialport" then
+               CLI_Env.Serial_Ports (Natural'Value (Word (Command, 1)) + 1) :=
+                 (Available     => Word (Command, 2) /= "0",
+                  Open_Function => Interfaces.Unsigned_32'Value (Word (Command, 3)));
+            elsif Word (Command, 0) = "!gyrodev" or else Word (Command, 0) = "!sensor" then
+               declare
+                  Bus : constant CLI.Device_Bus :=
+                    (case Natural'Value (Word (Command, 4)) is
+                        when 1 => (Kind => CLI.SPI_Bus, Number => Natural'Value (Word (Command, 5)), Address => 0),
+                        when 2 => (Kind    => CLI.I2C_Bus, Number => Natural'Value (Word (Command, 5)),
+                                   Address => Interfaces.Unsigned_8'Value (Word (Command, 6))),
+                        when others => (Kind => CLI.No_Bus, Number => 0, Address => 0));
+               begin
+                  if Word (Command, 0) = "!gyrodev" then
+                     CLI_Config.Gyro_Config.Gyros_Detected := Interfaces.Unsigned_8'Value (Word (Command, 1));
+                     CLI_Env.Gyros_Enabled := Interfaces.Unsigned_8'Value (Word (Command, 2));
+                     CLI_Env.Gyros (0) := (Hardware => Natural'Value (Word (Command, 3)), Bus => Bus);
+                  else
+                     declare
+                        Device : constant CLI.Sensor_Device :=
+                          (Detected => Word (Command, 2) /= "0",
+                           Hardware => Interfaces.Unsigned_8'Value (Word (Command, 3)), Bus => Bus);
+                     begin
+                        case Natural'Value (Word (Command, 1)) is
+                           when 1 => CLI_Env.Acc := Device;
+                           when 2 => CLI_Env.Baro := Device;
+                           when others => CLI_Env.Mag := Device;
+                        end case;
+                     end;
+                  end if;
+               end;
             elsif Word (Command, 0) = "!escinfo" then
                declare
                   Hex : constant String := Word (Command, 2);
@@ -24878,6 +24918,7 @@ begin
    Run (Dir & "/clihelp.csv", "cliset");
    Run (Dir & "/clidshotprog.csv", "cliset");
    Run (Dir & "/clioptions.csv", "cliset");
+   Run (Dir & "/cliperipherals.csv", "cliset");
    if Settings_Seen /= Adaflight.Settings_Table.Setting'Pos (Adaflight.Settings_Table.Setting'Last) + 1 then
       Put_Line ("settings: the vectors hold" & Settings_Seen'Image & " settings");
       Failures := Failures + 1;
