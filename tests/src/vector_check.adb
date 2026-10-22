@@ -40,6 +40,7 @@ with Adaflight.Battery;
 with Adaflight.FAT;
 with Adaflight.FAT_FS;
 with Adaflight.Blackbox_SD;
+with Adaflight.Dashboard;
 with Adaflight.Flash_FS;
 with Adaflight.Flight_Plan;
 with Adaflight.Flight_Plan_Capture;
@@ -17559,6 +17560,183 @@ procedure Vector_Check is
 
    Flash_State : Adaflight.Flash_FS.File_System;
 
+   --  The dashboard's state, readings and display operations as the
+   --  oracle's run sets them.
+   Dash_State    : Adaflight.Dashboard.State;
+   Dash_Readings : Adaflight.Dashboard.Readings;
+   Dash_Out      : Adaflight.Dashboard.Output;
+
+   procedure Check_Dashboard_Line is
+      use Adaflight.Dashboard;
+      Name : constant String := Str (1);
+      Hex  : constant String := "0123456789abcdef";
+
+      function Ident (Text : String) return Adaflight.Dashboard.Identity is
+         Result : Adaflight.Dashboard.Identity;
+      begin
+         Result.Data (1 .. Text'Length) := Text;
+         Result.Length := Text'Length;
+         return Result;
+      end Ident;
+
+      function Num (V : Natural) return String is
+         Img : constant String := Natural'Image (V);
+      begin
+         return Img (Img'First + 1 .. Img'Last);
+      end Num;
+
+      function Hex2 (C : Character) return String is
+        (Hex (Character'Pos (C) / 16 + 1) & Hex (Character'Pos (C) mod 16 + 1));
+
+      --  The operations in the oracle's notation, each after a comma.
+      function Image (O : Output) return String is
+         Result : Ada.Strings.Unbounded.Unbounded_String;
+      begin
+         for K in 1 .. O.Count loop
+            declare
+               P : Operation renames O.Operations (K);
+            begin
+               case P.Kind is
+                  when Start =>
+                     Ada.Strings.Unbounded.Append (Result, ",i");
+                  when Clear =>
+                     Ada.Strings.Unbounded.Append (Result, ",q");
+                  when Position =>
+                     Ada.Strings.Unbounded.Append
+                       (Result, ",x" & Num (Natural (P.Column)) & "." & Num (Natural (P.Row)));
+                  when Line =>
+                     Ada.Strings.Unbounded.Append (Result, ",l" & Num (Natural (P.Row)));
+                  when Char =>
+                     Ada.Strings.Unbounded.Append (Result, ",c" & Hex2 (P.Glyph));
+                  when Text =>
+                     Ada.Strings.Unbounded.Append (Result, ",s");
+                     for J in 1 .. P.Length loop
+                        Ada.Strings.Unbounded.Append (Result, Hex2 (P.Data (J)));
+                     end loop;
+               end case;
+            end;
+         end loop;
+         return Ada.Strings.Unbounded.To_String (Result);
+      end Image;
+
+      function U32 (I : Positive) return Interfaces.Unsigned_32 is (Interfaces.Unsigned_32'Value (Str (I)));
+      R : Readings renames Dash_Readings;
+   begin
+      if Name = "dflag" then
+         if Int (2) = 0 then
+            Dash_State := (others => <>);
+            Dash_Readings := (others => <>);
+            Dash_Readings.Firmware := Ident ("Adaflight");
+            Dash_Readings.Version := Ident ("0.1.0");
+            Dash_Readings.Revision := Ident ("0123abc");
+            Dash_Readings.Target := Ident ("TESTF405");
+         end if;
+         R.Armed := Int (3) /= 0;
+         R.Grabbed := Int (4) /= 0;
+         R.Present := Int (5) /= 0;
+         R.Phase := Adaflight.Failsafe.Phase'Val (Int (6));
+         R.Rx_Signal := Int (7) /= 0;
+         R.Rx_Valid := Int (8) /= 0;
+         R.GPS_Enabled := (U32 (9) and 2 ** 7) /= 0;
+         R.Gyro_On := (U32 (10) and 1) /= 0;
+         R.Acc_On := (U32 (10) and 2) /= 0;
+         R.Mag_On := (U32 (10) and 8) /= 0;
+      elsif Name = "drc" then
+         R.Channel_Count := Natural (Int (3));
+         for I in 0 .. Max_Channels - 1 loop
+            R.Channels (I) := To_Float (Bits (4 + I));
+         end loop;
+      elsif Name = "dpid" then
+         R.PID_Index := Interfaces.Unsigned_8 (Int (3));
+         for Axis in 0 .. 2 loop
+            R.P_Gains (Axis) := Interfaces.Unsigned_8 (Int (4 + 3 * Axis));
+            R.I_Gains (Axis) := Interfaces.Unsigned_8 (Int (5 + 3 * Axis));
+            R.D_Gains (Axis) := Interfaces.Unsigned_8 (Int (6 + 3 * Axis));
+         end loop;
+      elsif Name = "drate" then
+         R.Rate_Index := Interfaces.Unsigned_8 (Int (3));
+         for Axis in 0 .. 2 loop
+            R.RC_Rates (Axis) := Interfaces.Unsigned_8 (Int (4 + Axis));
+            R.Super_Rates (Axis) := Interfaces.Unsigned_8 (Int (7 + Axis));
+            R.Expos (Axis) := Interfaces.Unsigned_8 (Int (10 + Axis));
+         end loop;
+      elsif Name = "dgps" then
+         R.Satellites := Interfaces.Unsigned_8 (Int (3));
+         R.Fix := Int (4) /= 0;
+         R.Latitude := Interfaces.Integer_32 (Int (5));
+         R.Longitude := Interfaces.Integer_32 (Int (6));
+         R.Ground_Speed := Interfaces.Unsigned_16 (Int (7));
+         R.Ground_Course := Interfaces.Unsigned_16 (Int (8));
+         R.Packets := U32 (9);
+         R.Sat_Info_Count := U32 (10);
+         R.Errors := U32 (11);
+         R.Timeouts := U32 (12);
+         R.Nav_Interval_Ms := U32 (13);
+         declare
+            Log_Hex : constant String := Str (14);
+         begin
+            for I in 1 .. Log_Length loop
+               R.Log (I) := Character'Val
+                 (Natural'Value ("16#" & Log_Hex (Log_Hex'First + 2 * (I - 1) .. Log_Hex'First + 2 * I - 1) & "#"));
+            end loop;
+         end;
+         for I in 0 .. Satellite_Slots - 1 loop
+            R.Signals (I) := Interfaces.Unsigned_8 (Int (15 + I));
+         end loop;
+      elsif Name = "dbat" then
+         R.Voltage_Meter := Int (3) /= 0;
+         R.Current_Meter := Int (4) /= 0;
+         R.Voltage := Interfaces.Unsigned_16 (Int (5));
+         R.Cells := Interfaces.Unsigned_8 (Int (6));
+         R.Percentage := Interfaces.Unsigned_8 (Int (7));
+         R.Amperage := Interfaces.Integer_32 (Int (8));
+         R.MAh_Drawn := Interfaces.Integer_32 (Int (9));
+      elsif Name = "dsens" then
+         for I in 0 .. 2 loop
+            R.Acc (I) := To_Float (Bits (3 + I));
+            R.Gyro (I) := To_Float (Bits (6 + I));
+            R.Mag (I) := To_Float (Bits (9 + I));
+         end loop;
+         R.Roll := Interfaces.Integer_16 (Int (12));
+         R.Pitch := Interfaces.Integer_16 (Int (13));
+         R.Yaw := Interfaces.Integer_16 (Int (14));
+      elsif Name = "dtask" then
+         R.Tasks (Adaflight.Scheduler.Task_Id'Val (Int (3))) :=
+           (Enabled => Int (4) /= 0, Max_Exec_Us => U32 (5), Average_Exec_10th => U32 (6),
+            Max_Load_10th => U32 (7), Average_Load_10th => U32 (8));
+      elsif Name = "dbb" then
+         R.Blackbox_Working := Int (3) /= 0;
+         R.Blackbox_Device := Interfaces.Unsigned_8 (Int (4));
+         R.Log_File := Interfaces.Integer_8 (Int (5));
+      elsif Name = "ddbg" then
+         for I in 0 .. 3 loop
+            R.Debug_Values_In (I) := Interfaces.Integer_16 (Int (3 + I));
+         end loop;
+      elsif Name = "dev" then
+         case Int (3) is
+            when 1 => Enable_Cycling (Dash_State);
+            when 2 => Disable_Cycling (Dash_State);
+            when 3 => Reset_Cycling (Dash_State);
+            when others => Show_Fixed_Page (Dash_State, Page_Id'Val (Int (4)));
+         end case;
+      elsif Name = "dinit" then
+         Init (Dash_State, U32 (3), R, Dash_Out);
+      elsif Name = "dupd" then
+         Dash_Out.Count := 0;
+         Update (Dash_State, U32 (3), R, Dash_Out);
+      elsif Name = "dops" then
+         declare
+            Expected : Ada.Strings.Unbounded.Unbounded_String;
+            Actual   : constant String := Image (Dash_Out);
+         begin
+            for I in 3 .. NF loop
+               Ada.Strings.Unbounded.Append (Expected, "," & Str (I));
+            end loop;
+            Record_Text ("dashboard.ops", Ada.Strings.Unbounded.To_String (Expected), Actual);
+         end;
+      end if;
+   end Check_Dashboard_Line;
+
    procedure Check_Flash_FS_Line is
       use Adaflight.Flash_FS;
       Name : constant String := Str (1);
@@ -24920,6 +25098,8 @@ procedure Vector_Check is
                   Check_Battery_Meter_Line;
                elsif Kind = "flashfs" then
                   Check_Flash_FS_Line;
+               elsif Kind = "dashboard" then
+                  Check_Dashboard_Line;
                elsif Kind = "fatcache" then
                   Check_FAT_Line;
                elsif Kind = "fatfile" then
@@ -25225,6 +25405,7 @@ begin
    Run (Dir & "/fatdir.csv", "fatdir");
    Run (Dir & "/fatinit.csv", "fatinit");
    Run (Dir & "/bbsd.csv", "bbsd");
+   Run (Dir & "/dashboard.csv", "dashboard");
    Run (Dir & "/rxspi.csv", "rxspi");
    Run (Dir & "/fpcapture.csv", "fpcapture");
    Run (Dir & "/mavmission.csv", "mavmission");

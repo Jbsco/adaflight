@@ -33,7 +33,7 @@ The core contains:
 </details>
 
 <details>
-<summary><b>Flight control</b> (55)</summary>
+<summary><b>Flight control</b> (59)</summary>
 
 - rate curves and RC command path with smoothing, feedforward, low voltage cutoff and 3D throttle
 - in-flight adjustments and simplified tuning of PID gains and filters
@@ -52,6 +52,13 @@ The core contains:
   overrides, and arming logic with launch control, runaway takeoff prevention, DShot checks, crash
   flip arming, GPS checks, hold mode selection, statistics events, OSD menu gate, telemetry port
   sharing, VTX control, wing launch mode and in-flight accelerometer calibration
+- core loop cadence: PID loop sample counter, filter and controller readiness, yaw reset at low
+  throttle while arming by stick
+- PID loop pass: unit order of task, with launch wing, runaway check, PID audio, servos and flight
+  log conditions
+- analog motor endpoints: output range and disarm output of PWM, OneShot, MultiShot and brushed
+  protocols, with 3D limits and deadband
+- arming load check: scheduler's late task share against configured limit as disable reason
 - core loop cadence: PID loop sample counter, filter and controller readiness, yaw reset at low
   throttle while arming by stick
 - PID loop pass: unit order of task, with launch wing, runaway check, PID audio, servos and flight
@@ -179,7 +186,7 @@ The core contains:
 </details>
 
 <details>
-<summary><b>Telemetry</b> (25)</summary>
+<summary><b>Telemetry</b> (26)</summary>
 
 - CRSF telemetry frames with link type check, ESC sensor telemetry
 - SmartPort telemetry stream
@@ -195,6 +202,7 @@ The core contains:
   replies and requests
 - MAVLink mission protocol with uploads, downloads, fence store and current item reports
 - Jeti EX Bus telemetry with sensor descriptions and value messages
+- MSP tunnel over telemetry with chunked requests and replies
 - MSP tunnel over telemetry with chunked requests and replies
 - MSP tunnel over telemetry with chunked requests and replies
 - MSP tunnel over telemetry with chunked requests and replies
@@ -284,8 +292,65 @@ The core contains:
 </details>
 
 <details>
-<summary><b>Configuration and command line</b> (478)</summary>
+<summary><b>Configuration and command line</b> (520)</summary>
 
+- configuration storage image: structure and version checks, record lookup, load and save
+- settings table: names, types, scopes, ranges and lookup tables of command line's 789 settings
+- configuration groups: a record per parameter group with Betaflight's defaults, every setting's
+  value and write, and groups' bytes for storage image
+- configuration fix: checks of every load and save over mixer mode, telemetry slots, serial ports,
+  filter cutoffs, receiver features, mode links, DShot settings, PID loop rate, profile
+  selections, rates and battery voltages
+- command line get and set: line handling, setting values, ranges and defaults, value parsing and
+  error lines
+- command line profiles, dump and diff: profile selection, profile and rate sections with defaults
+- command line features and beepers: feature, beeper and beacon lists and switches
+- command line mode conditions: aux lists and writes
+- command line receiver channels: channel map, stick ranges and failsafe values
+- command line adjustment ranges: adjrange lists and writes
+- command line serial ports: claim lists and legacy port lines
+- command line mixer and motor mix: mixer names, custom motor mixes, float reading and text
+- command line servos: servo parameters, servo rules with loads and reversed sources
+- command line LEDs: LED configurations, colors and mode colors
+- command line VTX settings: VTX channel conditions and VTX table
+- command line flight plan: waypoint lists, edits and status with executor's report
+- command line master dump: section commands, master settings and selected profiles, version line
+- command line master diff: changed lines with defaults, hardware section
+- command line dump of every profile: profile restores and save, MCU id and signature lines
+- command line board information: board name, manufacturer and signature commands
+- command line simplified tuning: apply and disable over stored profiles and gyro settings
+- command line defaults: whole and single-group resets without save
+- command line batches: batch start and end with error flag, unknown line reply
+- command line tasks: task list with rates, execution times and loads, check functions and total
+  load lines, peak time resets
+- command line save and exit: save with board persistence and batch refusal, exit, defaults with
+  save, requests to write, restart and leave
+- command line information: VTX power levels, receiver frame rate and RC smoothing cutoffs
+- command line motors and sounds: disarmed values for one or every motor, beeper table sounds
+- command line sensor hardware: hardware names of every sensor type or of one
+- command line DShot telemetry: driver counts, direction change time, each motor's replies, RPM
+  and invalid share, decoder edge times
+- command line storage information: SD card state, identity and file system, flash chip geometry,
+  partitions and file system use
+- command line restarts: ROM bootloader, and mass storage with timezone offset
+- command line help: command list with descriptions and arguments, search by name or description
+- command line DShot programming: commands to one ESC or all, ESC information of KISS v1, KISS v2
+  and BLHeli_32 ESCs
+- command line build options: option numbers of build, one per line
+- command line peripherals: serial ports with claims, detected gyros and sensors with buses
+- command line status: MCU, clock, stack, configuration, bus devices, gyros, sensors, GPS
+  receiver, OSD, storage, uptime, load, battery, arming disable reasons
+- command line environment: status readings and build identity as name and value lines with a name
+  filter
+- command line passthrough starts: ESC serial links by protocol and output, GPS receiver
+- command line gyro registers: identity and configuration registers of each enabled gyro
+- command line flash tools: whole erase, verify, writes and reads at an address
+- command line tasks late columns: late and run counts and anticipated time per task
+- runtime records from stored configuration: PID profile, rate profile, gyro, arming, failsafe,
+  receiver, RC command, adjustment, mixer, accelerometer, attitude, barometer, compass, battery,
+  beeper, GPS link, GPS rescue, position, altitude, flight plan, blackbox, scheduler, LED strip,
+  VTX, statistics, lap timer, rangefinder, optical flow, pitot, gimbal, clock, OSD, telemetry and
+  receiver link settings and mode conditions with range holds, fix's postcondition as precondition
 - configuration storage image: structure and version checks, record lookup, load and save
 - settings table: names, types, scopes, ranges and lookup tables of command line's 789 settings
 - configuration groups: a record per parameter group with Betaflight's defaults, every setting's
@@ -948,8 +1013,19 @@ The core contains:
 </details>
 
 <details>
-<summary><b>Scheduler and tasks</b> (109)</summary>
+<summary><b>Scheduler and tasks</b> (116)</summary>
 
+- scheduler late task statistics: run and late counts per task, anticipated times, late share per
+  timing window
+- scheduler debug values: pass overhead, gyro cycle determinism, timing accuracy and debug task
+  values
+- task functions: main with SD card poll, serial, battery alerts, accelerometer, GPS rescue,
+  barometer, pitot, compass, position, rangefinder, optical flow, telemetry and camera control
+  tasks over units, sensor tasks rescheduled by updates
+- PID audio tone
+- PINIO outputs switched by boxes
+- warning LED
+- dispatch queue of delayed calls
 - scheduler late task statistics: run and late counts per task, anticipated times, late share per
   timing window
 - scheduler debug values: pass overhead, gyro cycle determinism, timing accuracy and debug task
@@ -1115,8 +1191,54 @@ The core contains:
 </details>
 
 <details>
-<summary><b>OSD and menus</b> (286)</summary>
+<summary><b>OSD and menus</b> (309)</summary>
 
+- OLED dashboard: pages of board state with cycling, armed page, failsafe and receiver corner
+- OSD custom text from a serial port
+- OSD warnings line with precedence, arming reason rotation and ESC alarms
+- OSD formatting of numbers, altitudes, distances, coordinates with plus codes, clock and timers,
+  with battery and direction symbols
+- MSP display port with payloads, attribute byte and canvas size
+- OSD statistics with extremes and page texts
+- OSD page with arming and boot screens and cycle steps around them
+- OSD element set with alarms and renderers, warnings element, draw cycle, spec prearm screen and
+  OSD task
+- OSD navigation map: home, flight plan waypoints and flown trail with automatic width
+- OSD flight plan items: waypoint number, coordinates, altitude, distance, direction, next
+  waypoint, arrival time and airspeed
+- OSD flight plan warnings: waypoint aborts, capture messages, landing and plan complete cues,
+  rescue descent failure
+- OSD warnings reports: visual beeper and capture message reads passed to target through draw
+  cycle and OSD task
+- menu system lines and page layout: element and flag encoding, screen geometry, page count and
+  selection, cursor row, skip rule, fixed-point text, field alignment and display character set
+- menu draw: page labels, values and cursor within display's byte budget, element value forms,
+  slider marks and page arrows
+- menu navigation: open on current display or next one, menu changes over context stack with enter
+  and leave hooks, page selection, draw with update hook, exits of every kind with target's
+  actions in order
+- menu keys: cursor moves over rows and pages, value edits at widths and ranges, submenu,
+  function, exit and back lines, save menu by reboot state, edits delivered to target
+- menu update: open gesture, sticks read as keys with delay and repeat, external keys, draw,
+  heartbeat and drawing transactions per pass
+- menu hook effects: menu changes and exits made inside enter hooks and line functions, exit lines
+  calling own functions
+- menu line refresh: current menu's lines refreshed from target's variables before draw and key
+  edits
+- menu target state: configuration, readings and menu values kept in target's state, passed to
+  every hook
+- menus: quick menu with throttle and motor output limits and forced cells, main menu with
+  features menu and setup popup for accelerometer calibration and battery restore, profile menu
+  with PID, rate, simplified tuning, misc, launch control, filter and profile copy menus, VTX
+  selection with error menu, MSP, Tramp and SmartAudio VTX menus with confirmations, RTC6705 VTX
+  menu, SmartAudio configuration, statistics and frequency menus, save and exit menus, OSD menu
+  with active elements, timers and alarms, blackbox menu with flash erase and mass storage, LED
+  strip, power, failsafe with GPS rescue and rescue PID, RPM limit, misc, RC preview, GPS lap
+  timer, persistent statistics, firmware and calibration menus
+- menu hook operations: clears, texts, redraws, background types and configuration saves, and save
+  menu inhibition from hooks
+- menu over CRSF: display port screen with clears, delays and transmitter commands, run-length
+  chunks and clear frames in CRSF telemetry
 - OSD custom text from a serial port
 - OSD warnings line with precedence, arming reason rotation and ESC alarms
 - OSD formatting of numbers, altitudes, distances, coordinates with plus codes, clock and timers,
@@ -1706,8 +1828,10 @@ The core contains:
 </details>
 
 <details>
-<summary><b>Peripherals and storage</b> (48)</summary>
+<summary><b>Peripherals and storage</b> (50)</summary>
 
+- BLHeli 4-way interface for ESC configuration through flight controller
+- gimbal control from a head tracker and sticks
 - BLHeli 4-way interface for ESC configuration through flight controller
 - gimbal control from a head tracker and sticks
 - BLHeli 4-way interface for ESC configuration through flight controller
@@ -1777,7 +1901,7 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 30527 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 30733 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
 - Recorded vectors replay bit for bit: 1753568 lines over 384 cases, every case exact except
   fifty-four declared deviations in `DESIGN.md` D6.
