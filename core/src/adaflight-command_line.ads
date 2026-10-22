@@ -55,6 +55,11 @@ generic
    with procedure ESC_Read_Start;
    with procedure ESC_Read_Bytes (F : out ESC_Info.Frame; Count : out Natural);
    with procedure Delay_Ms (Ms : Natural);
+   --  The board's passthrough starts: an ESC's serial link by output and
+   --  protocol number, and the GPS receiver's, each telling whether it
+   --  started.
+   with procedure ESC_Passthrough (Index : Natural; Protocol : Interfaces.Unsigned_8; Started : out Boolean);
+   with procedure GPS_Passthrough (Started : out Boolean);
 package Adaflight.Command_Line with SPARK_Mode is
 
    subtype Port_List is CLI_Text.Port_List;
