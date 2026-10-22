@@ -3594,7 +3594,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Beeper_Command_Word, Bind_Rx_Command_Word, Board_Name_Command_Word, Defaults_Command_Word,
       Manufacturer_Id_Command_Word, Signature_Command_Word, Color_Command_Word, Diff_Command,
       Dshot_Telemetry_Info_Command_Word, Dshotprog_Command_Word, Dump_Command, Env_Command_Word, Escprog_Command_Word,
-      Feature_Command_Word, Flash_Info_Command_Word, Get_Command, Gpspassthrough_Command_Word,
+      Feature_Command_Word, Flash_Erase_Command_Word, Flash_Info_Command_Word, Flash_Read_Command_Word,
+      Flash_Scan_Command_Word, Flash_Write_Command_Word, Get_Command, Gpspassthrough_Command_Word,
       Gyroregisters_Command_Word, Help_Command_Word, Led_Command_Word,
       Map_Command_Word,
       Mode_Color_Command_Word,
@@ -3632,7 +3633,11 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when Env_Command_Word => "env",
          when Escprog_Command_Word => "escprog",
          when Feature_Command_Word => "feature",
+         when Flash_Erase_Command_Word => "flash_erase",
          when Flash_Info_Command_Word => "flash_info",
+         when Flash_Read_Command_Word => "flash_read",
+         when Flash_Scan_Command_Word => "flash_scan",
+         when Flash_Write_Command_Word => "flash_write",
          when Get_Command => "get",
          when Gpspassthrough_Command_Word => "gpspassthrough",
          when Gyroregisters_Command_Word => "gyroregisters",
@@ -5121,6 +5126,124 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Put_Sensor_Peripheral (Into, "mag", Mag_Sensor, C.Compass_Config.Mag_Hardware, Env.Mag);
    end Peripherals_Command;
 
+   --  flash_erase: when the board has a flash file system, the whole erase,
+   --  a dot for each poll before the flash is ready with a line end after
+   --  every 122 dots, then the erase sound and the done line.
+   procedure Flash_Erase_Command (Into : in out Output; Changes : in out Effects) is
+      Ready : Boolean;
+      Dots  : Natural := 0;
+   begin
+      if not Flash_Supported then
+         return;
+      end if;
+      Put (Into, "Erasing, please wait ... " & CRLF);
+      Flash_Erase_Completely;
+      loop
+         pragma Loop_Invariant (Dots <= 121);
+         Flash_Ready (Ready);
+         exit when Ready;
+         Flash_Erase_Async;
+         Put (Into, ".");
+         if Dots > 120 then
+            Dots := 0;
+            Put (Into, CRLF);
+         else
+            Dots := Dots + 1;
+         end if;
+         Delay_Ms (100);
+      end loop;
+      Changes.Erase_Sound := True;
+      Put (Into, CRLF);
+      Put (Into, "Done." & CRLF);
+   end Flash_Erase_Command;
+
+   --  flash_scan: the board's verify of the whole flash, success or the
+   --  failure error.
+   procedure Flash_Scan_Command (Into : in out Output) is
+      OK : Boolean;
+   begin
+      Put (Into, "Verifying" & CRLF);
+      Flash_Verify (OK);
+      if OK then
+         Put (Into, "Success" & CRLF);
+      else
+         Put_Error (Into, "flash_scan: Failed###" & CRLF);
+      end if;
+   end Flash_Scan_Command;
+
+   --  The position of the first space in a text, zero without one.
+   function First_Space (Text : String) return Natural
+     with Global => null,
+          Post   => First_Space'Result = 0 or else First_Space'Result in Text'Range
+   is
+   begin
+      for K in Text'Range loop
+         if Text (K) = ' ' then
+            return K;
+         end if;
+      end loop;
+      return 0;
+   end First_Space;
+
+   --  flash_write: the text after the address and its spaces written at the
+   --  address read as C's atoi reads it, or the argument count error without
+   --  a space.
+   procedure Flash_Write_Command (Into : in out Output; Arguments : String)
+     with Pre => Arguments'First >= 1 and then Arguments'Last < Positive'Last
+   is
+      Address : constant Unsigned_32 := Unsigned_32 (Leading_Whole (Arguments) mod 2 ** 32);
+      Space   : constant Natural := First_Space (Arguments);
+      First   : Positive;
+   begin
+      if Space = 0 then
+         Put_Error (Into, "flash_write: INVALID ARGUMENT COUNT###" & CRLF);
+         return;
+      end if;
+      First := Space + 1;
+      while First <= Arguments'Last and then Arguments (First) = ' ' loop
+         pragma Loop_Invariant (First in Arguments'Range);
+         pragma Loop_Variant (Increases => First);
+         First := First + 1;
+      end loop;
+      Flash_Seek (Address);
+      Flash_Write (Arguments (First .. Arguments'Last));
+      Flash_Flush;
+      Put (Into, "Wrote " & Decimal (Integer_64 (Arguments'Last - First + 1)) & " bytes at "
+                 & Decimal (Integer_64 (Address)) & "." & CRLF);
+   end Flash_Write_Command;
+
+   --  flash_read: the given count of bytes from the address, each number read
+   --  as C's atoi reads it, in reads of up to 32 bytes until the count is
+   --  done or a read takes none, or the argument count error without a
+   --  space.
+   procedure Flash_Read_Command (Into : in out Output; Arguments : String)
+     with Pre => Arguments'First >= 1 and then Arguments'Last < Positive'Last
+   is
+      Address : Unsigned_32 := Unsigned_32 (Leading_Whole (Arguments) mod 2 ** 32);
+      Space   : constant Natural := First_Space (Arguments);
+      Length  : Unsigned_32;
+      Data    : String (1 .. 32);
+      Count   : Natural;
+   begin
+      if Space = 0 then
+         Put_Error (Into, "flash_read: INVALID ARGUMENT COUNT###" & CRLF);
+         return;
+      end if;
+      Length := Unsigned_32 (Leading_Whole (Arguments (Space .. Arguments'Last)) mod 2 ** 32);
+      Put (Into, "Reading " & Decimal (Integer_64 (Length)) & " bytes at " & Decimal (Integer_64 (Address)) & ":"
+                 & CRLF);
+      while Length > 0 loop
+         pragma Loop_Invariant (Length > 0);
+         Flash_Read (Address, Natural (Unsigned_32'Min (Length, 32)), Data, Count);
+         Count := Natural'Min (Count, Natural (Unsigned_32'Min (Length, 32)));
+         Put (Into, Data (1 .. Count));
+         Length := Length - Unsigned_32 (Count);
+         Address := Address + Unsigned_32 (Count);
+         exit when Count = 0;
+      end loop;
+      Put (Into, CRLF);
+   end Flash_Read_Command;
+
    --  gyroregisters: for each gyro position the configuration enables, an
    --  empty line and the gyro's heading, then its identity and configuration
    --  registers in upper case hexadecimal, the ICM-456xx registers with their
@@ -6239,6 +6362,14 @@ package body Adaflight.Command_Line with SPARK_Mode is
             MSC_Command (Into, Env.MSC_Ready, C.Time_Config.Tz_Offset_Minutes, Text_At (Buffer, Arguments), Changes);
          when Flash_Info_Command_Word =>
             Flash_Info_Command (Into, Env.Flash);
+         when Flash_Erase_Command_Word =>
+            Flash_Erase_Command (Into, Changes);
+         when Flash_Scan_Command_Word =>
+            Flash_Scan_Command (Into);
+         when Flash_Write_Command_Word =>
+            Flash_Write_Command (Into, Text_At (Buffer, Arguments));
+         when Flash_Read_Command_Word =>
+            Flash_Read_Command (Into, Text_At (Buffer, Arguments));
          when Rx_Failsafe_Command =>
             Failsafe_Command (Into, C, Text_At (Buffer, Arguments));
          when Rx_Range_Command =>

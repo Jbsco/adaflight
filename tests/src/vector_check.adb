@@ -16127,9 +16127,98 @@ procedure Vector_Check is
       Value := (if Gyro <= 3 then CLI_Gyro_Registers (Gyro, Natural (Register)) else 0);
    end CLI_Gyro_Read_Register;
 
+   --  The flash file system as the command line oracle scripts it: whether
+   --  it is there, the polls before an erase ends, the verify verdict, the
+   --  volume's size and fill, and the calls as their events.
+   CLI_Flash_Supported   : Boolean := True;
+   CLI_Flash_Ready_After : Natural := 0;
+   CLI_Flash_Polls       : Natural := 0;
+   CLI_Flash_Verify_OK   : Boolean := True;
+   CLI_Flash_Size        : Interfaces.Unsigned_32 := 4096;
+   CLI_Flash_Fill        : Interfaces.Unsigned_32 := 0;
+   CLI_Flash_Log         : Ada.Strings.Unbounded.Unbounded_String;
+   CLI_Flash_Seen        : Boolean := False;
+
+   function CLI_Image (V : Interfaces.Unsigned_32) return String is
+     (Ada.Strings.Fixed.Trim (Interfaces.Unsigned_32'Image (V), Ada.Strings.Left));
+
+   function CLI_Flash_Supported_Now return Boolean is (CLI_Flash_Supported);
+
+   --  A word in lower case hexadecimal digits without leading zeros.
+   function CLI_Hex (V : Interfaces.Unsigned_32) return String is
+      Hex_Digits : constant String := "0123456789abcdef";
+   begin
+      if V < 16 then
+         return (1 => Hex_Digits (Natural (V) + 1));
+      end if;
+      return CLI_Hex (V / 16) & Hex_Digits (Natural (V mod 16) + 1);
+   end CLI_Hex;
+
+   procedure CLI_Flash_Erase_Completely is
+   begin
+      CLI_Flash_Polls := 0;
+      Ada.Strings.Unbounded.Append (CLI_Flash_Log, ",E");
+   end CLI_Flash_Erase_Completely;
+
+   procedure CLI_Flash_Ready (Ready : out Boolean) is
+   begin
+      Ready := CLI_Flash_Supported and then CLI_Flash_Polls >= CLI_Flash_Ready_After;
+      CLI_Flash_Polls := CLI_Flash_Polls + 1;
+   end CLI_Flash_Ready;
+
+   procedure CLI_Flash_Erase_Async is
+   begin
+      Ada.Strings.Unbounded.Append (CLI_Flash_Log, ",a");
+   end CLI_Flash_Erase_Async;
+
+   procedure CLI_Flash_Verify (OK : out Boolean) is
+   begin
+      Ada.Strings.Unbounded.Append (CLI_Flash_Log, ",v");
+      OK := CLI_Flash_Verify_OK;
+   end CLI_Flash_Verify;
+
+   procedure CLI_Flash_Seek (Address : Interfaces.Unsigned_32) is
+   begin
+      Ada.Strings.Unbounded.Append (CLI_Flash_Log, ",s:" & CLI_Image (Address));
+   end CLI_Flash_Seek;
+
+   procedure CLI_Flash_Write (Data : String) is
+      Hash : Interfaces.Unsigned_32 := 2166136261;
+   begin
+      for C of Data loop
+         Hash := (Hash xor Character'Pos (C)) * 16777619;
+      end loop;
+      Ada.Strings.Unbounded.Append
+        (CLI_Flash_Log, ",w:" & CLI_Image (Interfaces.Unsigned_32 (Data'Length)) & ":"
+                        & CLI_Hex (Hash));
+   end CLI_Flash_Write;
+
+   procedure CLI_Flash_Flush is
+   begin
+      Ada.Strings.Unbounded.Append (CLI_Flash_Log, ",f");
+   end CLI_Flash_Flush;
+
+   procedure CLI_Flash_Read
+     (Address : Interfaces.Unsigned_32; Length : Natural; Data : out String; Count : out Natural)
+   is
+   begin
+      Data := (others => ' ');
+      Count := (if Address < CLI_Flash_Size
+                then Natural (Interfaces.Unsigned_32'Min (Interfaces.Unsigned_32 (Length), CLI_Flash_Size - Address))
+                else 0);
+      for I in 0 .. Count - 1 loop
+         Data (Data'First + I) := Character'Val ((Address + Interfaces.Unsigned_32 (I) + CLI_Flash_Fill) mod 256);
+      end loop;
+      Ada.Strings.Unbounded.Append
+        (CLI_Flash_Log, ",r:" & CLI_Image (Address) & ":" & CLI_Image (Interfaces.Unsigned_32 (Length)) & ":"
+                        & CLI_Image (Interfaces.Unsigned_32 (Count)));
+   end CLI_Flash_Read;
+
    package CLI is new Adaflight.Command_Line
      (CLI_Sink, CLI_Put, CLI_DShot_Write, CLI_Motors_Disable, CLI_Motors_Enable, CLI_ESC_Read_Start,
-      CLI_ESC_Read_Bytes, CLI_Delay_Ms, CLI_ESC_Passthrough, CLI_GPS_Passthrough, CLI_Gyro_Read_Register);
+      CLI_ESC_Read_Bytes, CLI_Delay_Ms, CLI_ESC_Passthrough, CLI_GPS_Passthrough, CLI_Gyro_Read_Register,
+      CLI_Flash_Supported_Now, CLI_Flash_Erase_Completely, CLI_Flash_Ready, CLI_Flash_Erase_Async, CLI_Flash_Verify,
+      CLI_Flash_Seek, CLI_Flash_Write, CLI_Flash_Flush, CLI_Flash_Read);
 
    CLI_Config   : Adaflight.Config_Groups.Configuration := Adaflight.Config_Groups.Defaults;
    CLI_Identity : constant CLI.Environment :=
@@ -16325,6 +16414,12 @@ procedure Vector_Check is
             CLI_ESC_Pass_Result := False;
             CLI_GPS_Pass_Result := False;
             CLI_Gyro_Registers := (others => (others => 0));
+            CLI_Flash_Supported := True;
+            CLI_Flash_Ready_After := 0;
+            CLI_Flash_Polls := 0;
+            CLI_Flash_Verify_OK := True;
+            CLI_Flash_Size := 4096;
+            CLI_Flash_Fill := 0;
          end if;
          CLI_Reply.Target.Text := Null_Unbounded_String;
          CLI_Expected := Null_Unbounded_String;
@@ -16335,6 +16430,8 @@ procedure Vector_Check is
          CLI_Enables := 0;
          CLI_DShot_Log := Null_Unbounded_String;
          CLI_DShot_Seen := False;
+         CLI_Flash_Log := Null_Unbounded_String;
+         CLI_Flash_Seen := False;
          CLI_ESC_Pass_Calls := 0;
          CLI_ESC_Pass_Index := -1;
          CLI_ESC_Pass_Mode := -1;
@@ -16816,6 +16913,12 @@ procedure Vector_Check is
             elsif Word (Command, 0) = "!buildopts" then
                --  The oracle prints the build's option numbers after this line.
                null;
+            elsif Word (Command, 0) = "!flashfs" then
+               CLI_Flash_Supported := Word (Command, 1) /= "0";
+               CLI_Flash_Ready_After := Natural'Value (Word (Command, 2));
+               CLI_Flash_Verify_OK := Word (Command, 3) /= "0";
+               CLI_Flash_Size := Interfaces.Unsigned_32'Value (Word (Command, 4));
+               CLI_Flash_Fill := Interfaces.Unsigned_32'Value (Word (Command, 5));
             elsif Word (Command, 0) = "!gyroreg" then
                CLI_Gyro_Registers (Natural'Value (Word (Command, 1)), Natural'Value (Word (Command, 2))) :=
                  Interfaces.Unsigned_8'Value (Word (Command, 3));
@@ -17022,6 +17125,10 @@ procedure Vector_Check is
                   CLI_Beep_Silences := CLI_Beep_Silences + 1;
                   CLI_Beep_Calls := CLI_Beep_Calls + 1;
                   CLI_Beep_Mode := Adaflight.Beeper.Mode'Pos (CLI_Changes.Sound_Mode);
+               end if;
+               if CLI_Changes.Erase_Sound then
+                  CLI_Beep_Calls := CLI_Beep_Calls + 1;
+                  CLI_Beep_Mode := Adaflight.Beeper.Mode'Pos (Adaflight.Beeper.Blackbox_Erase);
                end if;
             end if;
          end;
@@ -17301,6 +17408,16 @@ procedure Vector_Check is
             Record_Text ("cli.dshot_log", To_String (Expected), To_String (CLI_DShot_Log));
          end;
          CLI_DShot_Seen := True;
+      elsif Str (1) = "clft" then
+         declare
+            Expected : Ada.Strings.Unbounded.Unbounded_String;
+         begin
+            for I in 3 .. NF loop
+               Ada.Strings.Unbounded.Append (Expected, "," & Str (I));
+            end loop;
+            Record_Text ("cli.flash_log", To_String (Expected), To_String (CLI_Flash_Log));
+         end;
+         CLI_Flash_Seen := True;
       elsif Str (1) = "clpt" then
          Record_Int ("cli.esc_pass", Int (3), Integer_64 (CLI_ESC_Pass_Calls));
          Record_Int ("cli.esc_pass_index", Int (4), Integer_64 (CLI_ESC_Pass_Index));
@@ -17321,6 +17438,9 @@ procedure Vector_Check is
          end if;
          if not CLI_Pass_Seen then
             Record_Int ("cli.esc_pass", 0, Integer_64 (CLI_ESC_Pass_Calls + CLI_GPS_Pass_Calls));
+         end if;
+         if not CLI_Flash_Seen then
+            Record_Int ("cli.flash_log", 0, Integer_64 (Ada.Strings.Unbounded.Length (CLI_Flash_Log)));
          end if;
          Record_Text ("cli.reply", To_String (CLI_Expected), To_String (CLI_Reply.Target.Text));
          declare
@@ -25093,6 +25213,7 @@ begin
    Run (Dir & "/clienv.csv", "cliset");
    Run (Dir & "/clipassthrough.csv", "cliset");
    Run (Dir & "/cligyroregs.csv", "cliset");
+   Run (Dir & "/cliflash.csv", "cliset");
    if Settings_Seen /= Adaflight.Settings_Table.Setting'Pos (Adaflight.Settings_Table.Setting'Last) + 1 then
       Put_Line ("settings: the vectors hold" & Settings_Seen'Image & " settings");
       Failures := Failures + 1;

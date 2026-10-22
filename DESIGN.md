@@ -7076,3 +7076,25 @@ The command line oracle defines the register read over register files that scrip
 lines set the raw gyro's detection and the enabled mask, which is no setting. Its gyroregs mode drives registers
 with every value, detections of both register sets and enabled masks. Every reply of the 400 lines replays
 exactly. Ten tampered paths each fail the vectors.
+
+## D313. Flash tool commands (2026-10-17)
+
+`Adaflight.Command_Line` gains flash_erase, flash_scan, flash_write and flash_read, and its generic gains the
+board's flash file system tools: whether a file system is there, the whole erase started, whether the flash is
+ready, a step of the erase, the verify of the whole flash, a seek, a write, a flush, and a read of up to a length
+of bytes at an address with the count read. `Adaflight.Reply_Command_Line` takes tools that do nothing from
+`Adaflight.CLI_Board_Steps` for the proof, and the command line's effects gain the erase's beeper sound.
+
+flash_erase does nothing without a file system. It starts the whole erase and polls the flash, taking an erase
+step and printing a dot for each poll before the flash is ready, with a line end after every 122 dots, then asks
+for the erase sound and prints the done line. flash_scan prints the board's verify verdict. flash_write writes
+the text after the address and its spaces at the address, read as C's atoi reads it, and flash_read prints a
+count of bytes from an address in reads of up to 32 bytes, stopping at a read that takes none. Both print the
+argument count error without a space. The verify of the whole flash, a test pattern written over the volume and
+read back, stays with the board.
+
+The command line oracle replaces the reference's flash file system calls with ones over a scripted volume and
+records each call. Its flash mode drives the four commands with erases of up to 300 polls, verify verdicts,
+addresses and lengths of every kind, and volumes that are missing or end early. Every reply, beeper request and
+call of the 400 lines replays exactly. Fourteen tampered paths each fail the vectors, one by stopping the harness,
+since an erase on a board without a file system never ends.

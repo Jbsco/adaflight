@@ -51,4 +51,48 @@ package body Adaflight.CLI_Board_Steps with SPARK_Mode is
       Value := 0;
    end Gyro_Read_Register;
 
+   procedure Flash_Erase_Completely is
+   begin
+      null;
+   end Flash_Erase_Completely;
+
+   procedure Flash_Ready (Ready : out Boolean) is
+   begin
+      Ready := True;
+   end Flash_Ready;
+
+   procedure Flash_Erase_Async is
+   begin
+      null;
+   end Flash_Erase_Async;
+
+   procedure Flash_Verify (OK : out Boolean) is
+   begin
+      OK := False;
+   end Flash_Verify;
+
+   procedure Flash_Seek (Address : Interfaces.Unsigned_32) is
+      pragma Unreferenced (Address);
+   begin
+      null;
+   end Flash_Seek;
+
+   procedure Flash_Write (Data : String) is
+      pragma Unreferenced (Data);
+   begin
+      null;
+   end Flash_Write;
+
+   procedure Flash_Flush is
+   begin
+      null;
+   end Flash_Flush;
+
+   procedure Flash_Read (Address : Interfaces.Unsigned_32; Length : Natural; Data : out String; Count : out Natural) is
+      pragma Unreferenced (Address, Length);
+   begin
+      Data := (others => ' ');
+      Count := 0;
+   end Flash_Read;
+
 end Adaflight.CLI_Board_Steps;
