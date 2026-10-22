@@ -6931,3 +6931,34 @@ line, and the arguments of vtxtable end with their own line end, so an empty lin
 The command line oracle gains a help mode: help alone and with searches that match names, descriptions,
 parts of words in any case, several commands or none. Every reply of the 400 lines replays exactly. Thirteen
 tampered paths each fail the vectors.
+
+## D306. DShot programming command (2026-10-17)
+
+`Adaflight.Command_Line` gains dshotprog, and its generic gains the board's DShot programming as procedures:
+a command written to one ESC or to all, the motors switched off and on, an ESC information read started and
+its bytes taken, and a wait. `Adaflight.Reply_Command_Line` takes them from `Adaflight.CLI_Board_Steps`,
+which does nothing, for the proof. Without the DShot protocol or arguments the command is the parse error.
+Its first word names the output, read as C's atoi reads it: an output below the motor count, or 255 for all
+of them, else the output error, after which nothing more happens. Each later word up to 47 switches the
+motors off before the first such command, writes the command, and prints that it was sent. The ESC
+information command instead reads the information of the output's ESC, or of every ESC in turn, when the ESC
+sensor feature runs, and prints that it is not supported otherwise. A word past 47 is the command error. The
+motors switch back on at the end.
+
+An ESC information read prints its heading, starts the read, writes the information command, waits 10 ms and
+takes the bytes. `Adaflight.ESC_Info` reads the frame. The byte at 12 gives BLHeli_32 for 254, KISS v2 for
+255 and KISS v1 otherwise, with frames of 64, 21 and 15 bytes. A read of the kind's length with the KISS
+checksum in its last byte prints the ESC type, the MCU serial number, the firmware version and, for the
+later kinds, the rotation direction and 3D, with the voltage and current limits and the four LEDs of
+BLHeli_32. A bad checksum is the checksum error, and any other length prints that no information came. The
+BLHeli_32 type is the text from byte 31, up to 32 characters ended at a zero byte. The reference writes that
+zero over the checksum byte, after the check. Its BLHeli_32 version format ends in a lone percent sign,
+which its printf drops.
+
+The command line oracle gains lines that set the DShot protocol and queue ESC information replies, and
+records each line's DShot commands with their motors, the ESC information read starts in their order, and
+the motor switches. Its dshotprog mode drives outputs and commands of every kind with the ESC sensor on and
+off, and KISS v1, KISS v2 and BLHeli_32 frames with good and bad checksums and reads of other lengths. Every
+reply, command and switch of the 1575 lines replays exactly. Twenty-nine tampered paths each fail the
+vectors, one by stopping the harness with a range error. One is equivalent: no frame is 12 bytes long, so
+reading the version byte from a read of 12 bytes as well changes nothing.

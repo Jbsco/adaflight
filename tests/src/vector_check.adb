@@ -99,6 +99,7 @@ with Adaflight.Text;
 with Adaflight.DShot;
 with Adaflight.CRSF_Telemetry;
 with Adaflight.CRSF_Display_Port;
+with Adaflight.ESC_Info;
 with Adaflight.ESC_Sensor;
 with Adaflight.SmartPort_Telemetry;
 with Adaflight.RunCam_Device;
@@ -16030,7 +16031,70 @@ procedure Vector_Check is
       Ada.Strings.Unbounded.Append (Into.Text, Text);
    end CLI_Put;
 
-   package CLI is new Adaflight.Command_Line (CLI_Sink, CLI_Put);
+   --  The board's DShot programming as the command line oracle records it:
+   --  the commands written with their motors, the motor count of the last
+   --  one, the motor switches, and the ESC information replies the
+   --  "!escinfo" lines queue, each read taking the next.
+   CLI_DShot_Calls  : Natural := 0;
+   CLI_DShot_Count  : Natural := 0;
+   CLI_Disables     : Natural := 0;
+   CLI_Enables      : Natural := 0;
+   CLI_DShot_Log    : Ada.Strings.Unbounded.Unbounded_String;
+   CLI_DShot_Seen   : Boolean := False;
+   type CLI_ESC_Frames is array (0 .. 31) of Adaflight.ESC_Info.Frame;
+   type CLI_ESC_Counts is array (0 .. 31) of Natural;
+   CLI_ESC_Queue    : CLI_ESC_Frames := (others => (others => 0));
+   CLI_ESC_Lengths  : CLI_ESC_Counts := (others => 0);
+   CLI_ESC_Head     : Natural := 0;
+   CLI_ESC_Tail     : Natural := 0;
+   CLI_ESC_Frame    : Adaflight.ESC_Info.Frame := (others => 0);
+   CLI_ESC_Read     : Natural := 0;
+
+   procedure CLI_DShot_Write (Index : Natural; Motors : Natural; Command : Interfaces.Unsigned_8) is
+   begin
+      CLI_DShot_Calls := CLI_DShot_Calls + 1;
+      CLI_DShot_Count := Motors;
+      Ada.Strings.Unbounded.Append
+        (CLI_DShot_Log, "," & Ada.Strings.Fixed.Trim (Natural'Image (Index), Ada.Strings.Left) & ":"
+                        & Ada.Strings.Fixed.Trim (Interfaces.Unsigned_8'Image (Command), Ada.Strings.Left));
+   end CLI_DShot_Write;
+
+   procedure CLI_Motors_Disable is
+   begin
+      CLI_Disables := CLI_Disables + 1;
+   end CLI_Motors_Disable;
+
+   procedure CLI_Motors_Enable is
+   begin
+      CLI_Enables := CLI_Enables + 1;
+   end CLI_Motors_Enable;
+
+   procedure CLI_ESC_Read_Start is
+   begin
+      Ada.Strings.Unbounded.Append (CLI_DShot_Log, ",r");
+      CLI_ESC_Read := 0;
+      if CLI_ESC_Head /= CLI_ESC_Tail then
+         CLI_ESC_Frame := CLI_ESC_Queue (CLI_ESC_Head mod 32);
+         CLI_ESC_Read := CLI_ESC_Lengths (CLI_ESC_Head mod 32);
+         CLI_ESC_Head := CLI_ESC_Head + 1;
+      end if;
+   end CLI_ESC_Read_Start;
+
+   procedure CLI_ESC_Read_Bytes (F : out Adaflight.ESC_Info.Frame; Count : out Natural) is
+   begin
+      F := CLI_ESC_Frame;
+      Count := CLI_ESC_Read;
+   end CLI_ESC_Read_Bytes;
+
+   procedure CLI_Delay_Ms (Ms : Natural) is
+      pragma Unreferenced (Ms);
+   begin
+      null;
+   end CLI_Delay_Ms;
+
+   package CLI is new Adaflight.Command_Line
+     (CLI_Sink, CLI_Put, CLI_DShot_Write, CLI_Motors_Disable, CLI_Motors_Enable, CLI_ESC_Read_Start,
+      CLI_ESC_Read_Bytes, CLI_Delay_Ms);
 
    CLI_Config   : Adaflight.Config_Groups.Configuration := Adaflight.Config_Groups.Defaults;
    CLI_Identity : constant CLI.Environment :=
@@ -16055,7 +16119,9 @@ procedure Vector_Check is
       DShot_Telemetry => <>,
       SD_Card         => <>,
       Flash           => <>,
-      MSC_Ready       => False);
+      MSC_Ready       => False,
+      DShot_Protocol  => False,
+      ESC_Sensor      => False);
    CLI_Env      : CLI.Environment := CLI_Identity;
    CLI_Board    : CLI.Board_State;
    CLI_Reply    : CLI.Output;
@@ -16190,10 +16256,20 @@ procedure Vector_Check is
             MT_State := (others => <>);
             MT_Read := 0;
             MT_Reads := False;
+            CLI_ESC_Head := 0;
+            CLI_ESC_Tail := 0;
+            CLI_ESC_Frame := (others => 0);
+            CLI_ESC_Read := 0;
          end if;
          CLI_Reply.Target.Text := Null_Unbounded_String;
          CLI_Expected := Null_Unbounded_String;
          CLI_Changes := (others => <>);
+         CLI_DShot_Calls := 0;
+         CLI_DShot_Count := 0;
+         CLI_Disables := 0;
+         CLI_Enables := 0;
+         CLI_DShot_Log := Null_Unbounded_String;
+         CLI_DShot_Seen := False;
          MSP_In_Ran := False;
          declare
             Command : constant String := Hex_String (3);
@@ -16320,6 +16396,7 @@ procedure Vector_Check is
                if Word (Command, 4) /= "0" then
                   MSP_Board.RX_SPI_Active := (CLI_Config.Feature_Config.Enabled_Features and 2 ** 25) /= 0;
                   MSP_Three_D := (CLI_Config.Feature_Config.Enabled_Features and 2 ** 12) /= 0;
+                  CLI_Env.ESC_Sensor := (CLI_Config.Feature_Config.Enabled_Features and 2 ** 27) /= 0;
                end if;
             elsif Word (Command, 0) = "!gyro" then
                MSP_Gyro_Rate := Adaflight.Config_Fix.Gyro_Rate'Value (Word (Command, 1));
@@ -16663,6 +16740,23 @@ procedure Vector_Check is
                for K in 1 .. CLI.Max_GCR_Edges loop
                   CLI_Env.DShot_Telemetry.Edges (K) := Unsigned_32'Value (Word (Command, K));
                end loop;
+            elsif Word (Command, 0) = "!dshotproto" then
+               CLI_Env.DShot_Protocol := Word (Command, 1) /= "0";
+            elsif Word (Command, 0) = "!escinfo" then
+               declare
+                  Hex : constant String := Word (Command, 2);
+                  Q   : constant Natural := CLI_ESC_Tail mod 32;
+               begin
+                  if CLI_ESC_Tail - CLI_ESC_Head < 32 then
+                     CLI_ESC_Queue (Q) := (others => 0);
+                     for I in 0 .. Natural'Min (Hex'Length / 2, 64) - 1 loop
+                        CLI_ESC_Queue (Q) (I) := Interfaces.Unsigned_8'Value
+                          ("16#" & Hex (Hex'First + 2 * I .. Hex'First + 2 * I + 1) & "#");
+                     end loop;
+                     CLI_ESC_Lengths (Q) := Natural'Value (Word (Command, 1));
+                     CLI_ESC_Tail := CLI_ESC_Tail + 1;
+                  end if;
+               end;
             elsif Word (Command, 0) = "!sdcard" then
                declare
                   SD  : CLI.SD_Card_Status renames CLI_Env.SD_Card;
@@ -16981,6 +17075,20 @@ procedure Vector_Check is
          Record_Int ("cli.reboot", Int (4), Boolean'Pos (CLI_Changes.Reboot));
          Record_Int ("cli.leave", Int (5), Boolean'Pos (CLI_Changes.Leave));
          CLI_Restart_Seen := False;
+      elsif Str (1) = "cldp" then
+         Record_Int ("cli.dshot_calls", Int (3), Integer_64 (CLI_DShot_Calls));
+         Record_Int ("cli.dshot_motors", Int (4), Integer_64 (CLI_DShot_Count));
+         Record_Int ("cli.motor_disables", Int (5), Integer_64 (CLI_Disables));
+         Record_Int ("cli.motor_enables", Int (6), Integer_64 (CLI_Enables));
+         declare
+            Expected : Ada.Strings.Unbounded.Unbounded_String;
+         begin
+            for I in 7 .. NF loop
+               Ada.Strings.Unbounded.Append (Expected, "," & Str (I));
+            end loop;
+            Record_Text ("cli.dshot_log", To_String (Expected), To_String (CLI_DShot_Log));
+         end;
+         CLI_DShot_Seen := True;
       elsif Str (1) = "clrt" then
          Record_Int ("cli.restart", Int (3), CLI_Restart_Code);
          Record_Int ("cli.timezone", Int (4), Integer_64 (CLI_Changes.Timezone_Offset));
@@ -16988,6 +17096,10 @@ procedure Vector_Check is
       else
          if not CLI_Restart_Seen then
             Record_Int ("cli.restart", 0, CLI_Restart_Code);
+         end if;
+         if not CLI_DShot_Seen then
+            Record_Int ("cli.dshot_calls", 0, Integer_64 (Ada.Strings.Unbounded.Length (CLI_DShot_Log) + CLI_Disables
+                                                          + CLI_Enables));
          end if;
          Record_Text ("cli.reply", To_String (CLI_Expected), To_String (CLI_Reply.Target.Text));
          declare
@@ -24753,6 +24865,7 @@ begin
    Run (Dir & "/clistorage.csv", "cliset");
    Run (Dir & "/clirestart.csv", "cliset");
    Run (Dir & "/clihelp.csv", "cliset");
+   Run (Dir & "/clidshotprog.csv", "cliset");
    if Settings_Seen /= Adaflight.Settings_Table.Setting'Pos (Adaflight.Settings_Table.Setting'Last) + 1 then
       Put_Line ("settings: the vectors hold" & Settings_Seen'Image & " settings");
       Failures := Failures + 1;
