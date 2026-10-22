@@ -3594,7 +3594,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Beeper_Command_Word, Bind_Rx_Command_Word, Board_Name_Command_Word, Defaults_Command_Word,
       Manufacturer_Id_Command_Word, Signature_Command_Word, Color_Command_Word, Diff_Command,
       Dshot_Telemetry_Info_Command_Word, Dump_Command,
-      Feature_Command_Word, Flash_Info_Command_Word, Get_Command, Led_Command_Word, Map_Command_Word,
+      Feature_Command_Word, Flash_Info_Command_Word, Get_Command, Help_Command_Word, Led_Command_Word,
+      Map_Command_Word,
       Mode_Color_Command_Word,
       Mixer_Command_Word, Motor_Mix_Command_Word, Profile_Command, Rate_Profile_Command,
       Rc_Smoothing_Info_Command_Word, Rx_Failsafe_Command, MCU_Id_Command_Word, Motor_Command_Word,
@@ -3627,6 +3628,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when Feature_Command_Word => "feature",
          when Flash_Info_Command_Word => "flash_info",
          when Get_Command => "get",
+         when Help_Command_Word => "help",
          when Color_Command_Word => "color",
          when Led_Command_Word => "led",
          when Mode_Color_Command_Word => "mode_color",
@@ -4180,6 +4182,159 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Changes.Restart := Mass_Storage;
       Changes.Timezone_Offset := Interfaces.Integer_16 (Offset);
    end MSC_Command;
+
+   --  Whether a text holds a pattern without regard to case.
+   function Contains_Ignoring_Case (Text : String; Pattern : String) return Boolean
+     with Global => null,
+          Pre    => Pattern'Length >= 1 and then Text'Last < Positive'Last
+   is
+   begin
+      if Pattern'Length > Text'Length then
+         return False;
+      end if;
+      for Start in Text'First .. Text'Last - Pattern'Length + 1 loop
+         if CLI_Text.Same_Ignoring_Case (Text (Start .. Start + Pattern'Length - 1), Pattern) then
+            return True;
+         end if;
+      end loop;
+      return False;
+   end Contains_Ignoring_Case;
+
+   --  A help entry when the search is empty or found in its name or in its
+   --  description without regard to case: the name, the description after
+   --  a dash, and the arguments on the next line after a tab.
+   procedure Help_Entry
+     (Into        : in out Output;
+      Search      : String;
+      Name        : String;
+      Description : String;
+      Arguments   : String;
+      Any         : in out Boolean)
+     with Global => null,
+          Pre    => Search'Last < Positive'Last and then Name'Last < Positive'Last
+                    and then Description'Last < Positive'Last and then Description'Length <= 128
+                    and then Arguments'Length <= 512
+   is
+   begin
+      if Search'Length = 0 or else Contains_Ignoring_Case (Name, Search)
+        or else Contains_Ignoring_Case (Description, Search)
+      then
+         Any := True;
+         Put (Into, Name);
+         if Description'Length > 0 then
+            Put (Into, " - " & Description);
+         end if;
+         if Arguments'Length > 0 then
+            Put (Into, CRLF & ASCII.HT & Arguments);
+         end if;
+         Put (Into, CRLF);
+      end if;
+   end Help_Entry;
+
+   --  help: the entry of every command the build has, or of those whose
+   --  name or description holds the search, else the no-match error.
+   procedure Help_Command (Into : in out Output; Search : String)
+     with Global => null,
+          Pre    => Search'First >= 1 and then Search'Last <= Line_Size
+   is
+      Any : Boolean := False;
+   begin
+      Help_Entry
+        (Into, Search, "adjrange", "configure adjustment ranges",
+         "<index> <unused> <range channel> <start> <end> <function> <select channel> " & "[<center> <scale>]", Any);
+      Help_Entry (Into, Search, "aux", "configure modes", "<index> <mode> <aux> <start> <end> <logic>", Any);
+      Help_Entry (Into, Search, "batch", "start or end a batch of commands", "start | end", Any);
+      Help_Entry
+        (Into, Search, "beacon", "enable/disable Dshot beacon for a condition",
+         "list" & CRLF & ASCII.HT & "<->[name]", Any);
+      Help_Entry
+        (Into, Search, "beeper", "enable/disable beeper for a condition",
+         "list" & CRLF & ASCII.HT & "<->[name]", Any);
+      Help_Entry (Into, Search, "bind_rx", "initiate binding for RX SPI, SRXL2 or CRSF", "", Any);
+      Help_Entry (Into, Search, "bl", "reboot into bootloader", "[rom]", Any);
+      Help_Entry (Into, Search, "board_name", "get / set the name of the board model", "[board name]", Any);
+      Help_Entry (Into, Search, "color", "configure colors", "", Any);
+      Help_Entry (Into, Search, "defaults", "reset to defaults and reboot", "{nosave}", Any);
+      Help_Entry
+        (Into, Search, "diff", "list configuration changes from default",
+         "[master|profile|rates|hardware|all] {defaults|bare}", Any);
+      Help_Entry (Into, Search, "dshot_telemetry_info", "display dshot telemetry info and stats", "", Any);
+      Help_Entry (Into, Search, "dshotprog", "program DShot ESC(s)", "<index> <command>+", Any);
+      Help_Entry
+        (Into, Search, "dump", "dump configuration",
+         "[master|profile|rates|hardware|all] {defaults|bare}", Any);
+      Help_Entry (Into, Search, "env", "show environment (version + status as NAME=VALUE)", "[prefix]", Any);
+      Help_Entry (Into, Search, "escprog", "passthrough esc to serial", "<mode [sk/bl/ki/cc]> <index>", Any);
+      Help_Entry (Into, Search, "exit", "exit command line interface and reboot (default)", "[noreboot]", Any);
+      Help_Entry (Into, Search, "feature", "configure features", "list" & CRLF & ASCII.HT & "<->[name]", Any);
+      Help_Entry (Into, Search, "flash_erase", "erase flash chip", "", Any);
+      Help_Entry (Into, Search, "flash_info", "show flash chip info", "", Any);
+      Help_Entry (Into, Search, "flash_read", "", "<address> <length>", Any);
+      Help_Entry (Into, Search, "flash_scan", "scan flash device for errors", "", Any);
+      Help_Entry (Into, Search, "flash_write", "", "<address> <message>", Any);
+      Help_Entry (Into, Search, "get", "get variable value", "[name]", Any);
+      Help_Entry (Into, Search, "gpspassthrough", "passthrough gps to serial", "", Any);
+      Help_Entry (Into, Search, "gyroregisters", "dump gyro config registers contents", "", Any);
+      Help_Entry (Into, Search, "help", "display command help", "[search string]", Any);
+      Help_Entry (Into, Search, "led", "configure leds", "", Any);
+      Help_Entry
+        (Into, Search, "manufacturer_id", "get / set the id of the board manufacturer",
+         "[manufacturer id]", Any);
+      Help_Entry (Into, Search, "map", "configure rc channel order", "[<map>]", Any);
+      Help_Entry (Into, Search, "mcu_id", "id of the microcontroller", "", Any);
+      Help_Entry (Into, Search, "mixer", "configure mixer", "list" & CRLF & ASCII.HT & "<name>", Any);
+      Help_Entry (Into, Search, "mmix", "custom motor mixer", "", Any);
+      Help_Entry (Into, Search, "mode_color", "configure mode and special colors", "", Any);
+      Help_Entry (Into, Search, "motor", "get/set motor", "<index> [<value>]", Any);
+      Help_Entry (Into, Search, "msc", "switch into msc mode", "[<timezone offset minutes>]", Any);
+      Help_Entry (Into, Search, "options", "show build options", "", Any);
+      Help_Entry (Into, Search, "peripherals", "show attached peripherals", "", Any);
+      Help_Entry (Into, Search, "play_sound", "", "[<index>]", Any);
+      Help_Entry (Into, Search, "battery_profile", "change battery profile", "[<index>]", Any);
+      Help_Entry (Into, Search, "profile", "change profile", "[<index>]", Any);
+      Help_Entry (Into, Search, "rateprofile", "change rate profile", "[<index>]", Any);
+      Help_Entry (Into, Search, "rc_smoothing_info", "show rc_smoothing operational settings", "", Any);
+      Help_Entry (Into, Search, "rxfail", "show/set rx failsafe settings", "", Any);
+      Help_Entry (Into, Search, "rxrange", "configure rx channel ranges", "", Any);
+      Help_Entry (Into, Search, "save", "save and reboot (default)", "[noreboot]", Any);
+      Help_Entry (Into, Search, "sd_info", "sdcard info", "", Any);
+      Help_Entry
+        (Into, Search, "sensor_hardware", "list supported sensor hardware",
+         "[gyro|acc|baro|mag|rangefinder|opticalflow|pitot]", Any);
+      Help_Entry
+        (Into, Search, "serial", "show port assignments as set commands",
+         "[<identifier> <function mask> <msp baud> <gps baud> <telemetry baud> <blackbox "
+         & "baud> (deprecated)]", Any);
+      Help_Entry
+        (Into, Search, "serialpassthrough", "passthrough serial data data from port 1 to VCP / port 2",
+         "<id1> [<baud1>] [<mode1>] [none|<dtr pinio>|reset] [<id2>] [<baud2>] [<mode2>]", Any);
+      Help_Entry (Into, Search, "servo", "configure servos", "", Any);
+      Help_Entry (Into, Search, "set", "change setting", "[<name>=<value>]", Any);
+      Help_Entry (Into, Search, "signature", "get / set the board type signature", "[signature]", Any);
+      Help_Entry (Into, Search, "simplified_tuning", "applies or disables simplified tuning", "apply | disable", Any);
+      Help_Entry
+        (Into, Search, "smix", "servo mixer",
+         "<rule> <servo> <source> <rate> <speed> <min> <max> <box>" & CRLF & ASCII.HT & "reset" & CRLF
+         & ASCII.HT & "load <mixer>" & CRLF & ASCII.HT & "reverse <servo> <source> r|n", Any);
+      Help_Entry (Into, Search, "status", "show status", "", Any);
+      Help_Entry (Into, Search, "tasks", "show task stats", "", Any);
+      Help_Entry (Into, Search, "version", "show version", "", Any);
+      Help_Entry
+        (Into, Search, "vtx", "vtx channels on switch",
+         "<index> <aux_channel> <vtx_band> <vtx_channel> <vtx_power> <start_range> " & "<end_range>", Any);
+      Help_Entry (Into, Search, "vtx_info", "vtx power config dump", "", Any);
+      Help_Entry
+        (Into, Search, "vtxtable", "vtx frequency table",
+         "<band> <bandname> <bandletter> [FACTORY|CUSTOM] <freq> ... <freq>" & CRLF, Any);
+      Help_Entry
+        (Into, Search, "waypoint", "configure waypoints",
+         "list | status | insert <idx> <lat.ddddddd> <lon.ddddddd> <alt> <spd> <type> "
+         & "<dur> <pat> [<vrate> <yaw>] | update <idx> <lat.ddddddd> <lon.ddddddd> <alt> "
+         & "<spd> <type> <dur> <pat> [<vrate> <yaw>] | remove <idx> | clear", Any);
+      if Search'Length > 0 and then not Any then
+         Put_Error (Into, "help: NO MATCHES FOR '" & Search & "'###" & CRLF);
+      end if;
+   end Help_Command;
 
    --  The MCU's unique id as 24 hexadecimal digits.
    procedure Put_MCU_Id (Into : in out Output; Id : MCU_Words) is
@@ -4961,6 +5116,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
             Feature_Command (Into, C, Text_At (Buffer, Arguments));
          when Get_Command =>
             Get (Into, C, "get", Text_At (Buffer, Arguments), Ports);
+         when Help_Command_Word =>
+            Help_Command (Into, Text_At (Buffer, Arguments));
          when Color_Command_Word =>
             Color_Command (Into, C.Led_Strip_Status_Mode_Config.Colors, Text_At (Buffer, Arguments));
          when Led_Command_Word =>

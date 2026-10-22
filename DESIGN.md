@@ -6917,3 +6917,17 @@ The command line oracle prints a restart into the bootloader or into mass storag
 restart's kind and offset, and gains a restart mode: bl and msc with options and offsets of every kind
 between mass storage readiness lines and timezone settings. Every reply, restart and offset of the 1200
 lines replays exactly. Fifteen tampered paths each fail the vectors.
+
+## D305. Help command (2026-10-17)
+
+`Adaflight.Command_Line` gains help, which lists the commands of the build in the order of its command
+table: each command's name, its description after a dash, and its arguments on the next line after a tab.
+The table is that of the build the command line oracle compiles, so it names commands the port does not have
+yet, such as status and the flash tools, whose lines answer ERR_CMD_NA. A search keeps the commands whose
+name or description holds it without regard to case, and a search that keeps none prints the no-match error
+with the search in quotes. A command without a description prints no dash, one without arguments no second
+line, and the arguments of vtxtable end with their own line end, so an empty line follows its entry.
+
+The command line oracle gains a help mode: help alone and with searches that match names, descriptions,
+parts of words in any case, several commands or none. Every reply of the 400 lines replays exactly. Thirteen
+tampered paths each fail the vectors.
