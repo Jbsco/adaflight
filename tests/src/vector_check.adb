@@ -16054,12 +16054,21 @@ procedure Vector_Check is
       Serial_Protocol => 0,
       DShot_Telemetry => <>,
       SD_Card         => <>,
-      Flash           => <>);
+      Flash           => <>,
+      MSC_Ready       => False);
    CLI_Env      : CLI.Environment := CLI_Identity;
    CLI_Board    : CLI.Board_State;
    CLI_Reply    : CLI.Output;
    CLI_Sched    : Adaflight.Scheduler.State;
    CLI_Changes  : CLI.Effects;
+   --  Whether the oracle printed a restart for the line, and the restart the
+   --  line asked for in the oracle's numbering.
+   CLI_Restart_Seen : Boolean := False;
+   function CLI_Restart_Code return Integer_64 is
+     (case CLI_Changes.Restart is
+         when CLI.No_Restart     => 0,
+         when CLI.ROM_Bootloader => 1,
+         when CLI.Mass_Storage   => 3);
    --  The disarmed motor values the motor command and the MSP motor test set,
    --  and the beeper requests play_sound made since the last read-out.
    CLI_Disarmed      : Adaflight.MSP_Motor_In.Motor_Values := (others => 0.0);
@@ -16274,6 +16283,7 @@ procedure Vector_Check is
                MT_Reads := True;
             elsif Word (Command, 0) = "!msc" then
                MSP_Board.MSC_Ready := Word (Command, 1) /= "0";
+               CLI_Env.MSC_Ready := Word (Command, 1) /= "0";
             elsif Word (Command, 0) = "!osdport" then
                MSP_OSD_Port := Word (Command, 1) /= "0";
                MSP_OSD_Port_Takes := Word (Command, 2) /= "0";
@@ -16970,7 +16980,15 @@ procedure Vector_Check is
          Record_Int ("cli.save", Int (3), Boolean'Pos (CLI_Changes.Save));
          Record_Int ("cli.reboot", Int (4), Boolean'Pos (CLI_Changes.Reboot));
          Record_Int ("cli.leave", Int (5), Boolean'Pos (CLI_Changes.Leave));
+         CLI_Restart_Seen := False;
+      elsif Str (1) = "clrt" then
+         Record_Int ("cli.restart", Int (3), CLI_Restart_Code);
+         Record_Int ("cli.timezone", Int (4), Integer_64 (CLI_Changes.Timezone_Offset));
+         CLI_Restart_Seen := True;
       else
+         if not CLI_Restart_Seen then
+            Record_Int ("cli.restart", 0, CLI_Restart_Code);
+         end if;
          Record_Text ("cli.reply", To_String (CLI_Expected), To_String (CLI_Reply.Target.Text));
          declare
             D        : Adaflight.Config_Codec.Data;
@@ -24733,6 +24751,7 @@ begin
    Run (Dir & "/clisave.csv", "cliset");
    Run (Dir & "/clidshot.csv", "cliset");
    Run (Dir & "/clistorage.csv", "cliset");
+   Run (Dir & "/clirestart.csv", "cliset");
    if Settings_Seen /= Adaflight.Settings_Table.Setting'Pos (Adaflight.Settings_Table.Setting'Last) + 1 then
       Put_Line ("settings: the vectors hold" & Settings_Seen'Image & " settings");
       Failures := Failures + 1;

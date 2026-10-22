@@ -6900,3 +6900,20 @@ with null and high bytes, and "!flash" lines with chips of several geometries, a
 tables of one to five entries of every kind, some with a first sector past the last. The flash chip answers
 through the reference's flash driver, so the partition lookups and kind names are its own. Every reply to
 the 1502 lines replays exactly. Seventeen tampered paths each fail the vectors.
+
+## D304. Restart commands (2026-10-17)
+
+`Adaflight.Command_Line` gains bl and msc, which restart the board into another mode through a new restart
+field of the command's effects. bl, with no option or one that starts with rom in any case, prints the
+restart line and asks for a restart into the ROM bootloader. Any other option is an error, since the builds
+the port follows have no flash bootloader. msc, while the mass storage is ready, prints its restart line and
+asks for a restart into mass storage with the stored timezone offset, or with an offset read from its
+argument as C's atoi reads it: blanks, a sign and the digits up to the first other character. The offset
+must lie within 780 minutes either way. An argument without digits reads 0, so msc abc restarts with no
+offset. Without the mass storage, msc prints that the storage is missing. Neither command asks for the plain
+restart that save and exit ask for.
+
+The command line oracle prints a restart into the bootloader or into mass storage after its line, with the
+restart's kind and offset, and gains a restart mode: bl and msc with options and offsets of every kind
+between mass storage readiness lines and timezone settings. Every reply, restart and offset of the 1200
+lines replays exactly. Fifteen tampered paths each fail the vectors.

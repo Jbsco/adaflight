@@ -15,7 +15,8 @@
 --  a motor's or every motor's disarmed value, play_sound plays a beeper sound,
 --  and sensor_hardware lists the hardware each sensor type can be; bind_rx
 --  starts the receiver's bind; sd_info reports the SD card and its file
---  system, and flash_info the flash chip with its partitions;
+--  system, and flash_info the flash chip with its partitions; bl restarts
+--  the board into its ROM bootloader and msc into mass storage;
 --  save, exit and defaults without nosave ask for the configuration's write,
 --  the board's restart or the command line's end. A line naming no command
 --  gets the ERR_CMD_NA reply.
@@ -90,7 +91,10 @@ package Adaflight.Command_Line with SPARK_Mode is
    --  layout changed; the configuration written to its storage, the board
    --  restarted, or the command line left with the disarmed motors reset; a
    --  motor's disarmed value, or every motor's, set to a value; the beeper
-   --  silenced and a sound requested; a receiver bind started.
+   --  silenced and a sound requested; a receiver bind started; a restart
+   --  into the ROM bootloader, or into mass storage with its timezone offset
+   --  in minutes.
+   type Restart_Mode is (No_Restart, ROM_Bootloader, Mass_Storage);
    type Effects is record
       PID_Profile     : Boolean := False;
       Rate_Profile    : Boolean := False;
@@ -108,6 +112,8 @@ package Adaflight.Command_Line with SPARK_Mode is
       Sound           : Boolean := False;
       Sound_Mode      : Beeper.Sound := Beeper.Gyro_Calibrated;
       Bind            : RX_Bind.Bind := RX_Bind.No_Bind;
+      Restart         : Restart_Mode := No_Restart;
+      Timezone_Offset : Interfaces.Integer_16 := 0;
    end record;
 
    --  The flight plan executor's state the waypoint status reports: whether
@@ -233,8 +239,8 @@ package Adaflight.Command_Line with SPARK_Mode is
    --  whether a video transmitter is present with the power levels it
    --  reports, the running RC smoothing, the mixer's motors with their output
    --  and whether the 3D feature runs, the receiver and serial protocol the
-   --  board took at its start, the motors' DShot telemetry, the SD card and
-   --  the flash chip.
+   --  board took at its start, the motors' DShot telemetry, the SD card,
+   --  the flash chip, and whether the mass storage is ready.
    type Environment is record
       Navigation      : Navigation_Status;
       Firmware        : Identity_Text;
@@ -257,6 +263,7 @@ package Adaflight.Command_Line with SPARK_Mode is
       DShot_Telemetry : DShot_Status;
       SD_Card         : SD_Card_Status;
       Flash           : Flash_Status;
+      MSC_Ready       : Boolean := False;
    end record;
 
    --  The board's information as the commands see it: its name and
