@@ -3594,8 +3594,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Beeper_Command_Word, Bind_Rx_Command_Word, Board_Name_Command_Word, Defaults_Command_Word,
       Manufacturer_Id_Command_Word, Signature_Command_Word, Color_Command_Word, Diff_Command,
       Dshot_Telemetry_Info_Command_Word, Dshotprog_Command_Word, Dump_Command, Env_Command_Word, Escprog_Command_Word,
-      Feature_Command_Word, Flash_Info_Command_Word, Get_Command, Gpspassthrough_Command_Word, Help_Command_Word,
-      Led_Command_Word,
+      Feature_Command_Word, Flash_Info_Command_Word, Get_Command, Gpspassthrough_Command_Word,
+      Gyroregisters_Command_Word, Help_Command_Word, Led_Command_Word,
       Map_Command_Word,
       Mode_Color_Command_Word,
       Mixer_Command_Word, Motor_Mix_Command_Word, Options_Command_Word, Peripherals_Command_Word,
@@ -3635,6 +3635,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when Flash_Info_Command_Word => "flash_info",
          when Get_Command => "get",
          when Gpspassthrough_Command_Word => "gpspassthrough",
+         when Gyroregisters_Command_Word => "gyroregisters",
          when Help_Command_Word => "help",
          when Color_Command_Word => "color",
          when Led_Command_Word => "led",
@@ -5120,6 +5121,45 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Put_Sensor_Peripheral (Into, "mag", Mag_Sensor, C.Compass_Config.Mag_Hardware, Env.Mag);
    end Peripherals_Command;
 
+   --  gyroregisters: for each gyro position the configuration enables, an
+   --  empty line and the gyro's heading, then its identity and configuration
+   --  registers in upper case hexadecimal, the ICM-456xx registers with their
+   --  addresses when the raw gyro is such a part.
+   procedure Gyroregisters_Command (Into : in out Output; C : Configuration; Env : Environment) is
+
+      procedure Put_Register (Label : String; Gyro : Natural; Register : Unsigned_8; Address : String) is
+         Value : Unsigned_8;
+      begin
+         Gyro_Read_Register (Gyro, Register, Value);
+         Put (Into, Label);
+         if Value >= 16 then
+            Put (Into, Upper_Hex_Digits (Natural (Value / 16) + 1 .. Natural (Value / 16) + 1));
+         end if;
+         Put (Into, Upper_Hex_Digits (Natural (Value mod 16) + 1 .. Natural (Value mod 16) + 1));
+         Put (Into, Address);
+         Put (Into, CRLF);
+      end Put_Register;
+
+   begin
+      for Position in 0 .. Env.Gyro_Positions - 1 loop
+         pragma Loop_Invariant (Position in 0 .. Max_Gyro_Positions - 1);
+         if (C.Gyro_Config.Gyro_Enabled_Bitmask and 2 ** Position) /= 0 then
+            Put (Into, CRLF & "# Gyro " & Decimal (Integer_64 (Position + 1)) & CRLF);
+            if Env.Raw_Gyro_ICM456 then
+               Put_Register ("# WHO_AM_I      0x", Position, 16#72#, " (0x72)");
+               Put_Register ("# PWR_MGMT0     0x", Position, 16#10#, " (0x10)");
+               Put_Register ("# GYRO_CONFIG0  0x", Position, 16#1C#, " (0x1C)");
+               Put_Register ("# ACCEL_CONFIG0 0x", Position, 16#1B#, " (0x1B)");
+               Put_Register ("# INT1_STATUS0  0x", Position, 16#19#, " (0x19)");
+            else
+               Put_Register ("# WHO_AM_I    0x", Position, 16#75#, "");
+               Put_Register ("# CONFIG      0x", Position, 16#1A#, "");
+               Put_Register ("# GYRO_CONFIG 0x", Position, 16#1B#, "");
+            end if;
+         end if;
+      end loop;
+   end Gyroregisters_Command;
+
    --  The rates the baud rate indices name.
    Baud_Values : constant array (Serial_Feature_Map.Baud_Index) of Unsigned_32 :=
      (0, 9600, 19200, 38400, 57600, 115200, 230400, 250000, 400000, 460800, 500000, 921600, 1000000, 1500000,
@@ -6181,6 +6221,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
             Escprog_Command (Into, Env, Text_At (Buffer, Arguments));
          when Gpspassthrough_Command_Word =>
             Gpspassthrough_Command (Into);
+         when Gyroregisters_Command_Word =>
+            Gyroregisters_Command (Into, C, Env);
          when Options_Command_Word =>
             Options_Command (Into, Env);
          when Peripherals_Command_Word =>

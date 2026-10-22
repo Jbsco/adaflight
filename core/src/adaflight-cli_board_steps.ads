@@ -1,5 +1,6 @@
---  The board's DShot programming and passthrough starts as units that do
---  nothing, the shapes the command line's proof takes.
+--  The board's DShot programming, passthrough starts and gyro register
+--  reads as units that do nothing, the shapes the command line's proof
+--  takes.
 with Interfaces;
 with Adaflight.ESC_Info;
 
@@ -27,6 +28,9 @@ package Adaflight.CLI_Board_Steps with SPARK_Mode is
      with Global => null;
 
    procedure GPS_Passthrough (Started : out Boolean)
+     with Global => null;
+
+   procedure Gyro_Read_Register (Gyro : Natural; Register : Interfaces.Unsigned_8; Value : out Interfaces.Unsigned_8)
      with Global => null;
 
 end Adaflight.CLI_Board_Steps;

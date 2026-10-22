@@ -44,4 +44,11 @@ package body Adaflight.CLI_Board_Steps with SPARK_Mode is
       Started := False;
    end GPS_Passthrough;
 
+   procedure Gyro_Read_Register (Gyro : Natural; Register : Interfaces.Unsigned_8; Value : out Interfaces.Unsigned_8)
+   is
+      pragma Unreferenced (Gyro, Register);
+   begin
+      Value := 0;
+   end Gyro_Read_Register;
+
 end Adaflight.CLI_Board_Steps;

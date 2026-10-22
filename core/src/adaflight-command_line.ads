@@ -60,6 +60,9 @@ generic
    --  started.
    with procedure ESC_Passthrough (Index : Natural; Protocol : Interfaces.Unsigned_8; Started : out Boolean);
    with procedure GPS_Passthrough (Started : out Boolean);
+   --  The board's read of a gyro's register by gyro position.
+   with procedure Gyro_Read_Register
+     (Gyro : Natural; Register : Interfaces.Unsigned_8; Value : out Interfaces.Unsigned_8);
 package Adaflight.Command_Line with SPARK_Mode is
 
    subtype Port_List is CLI_Text.Port_List;
@@ -388,8 +391,9 @@ package Adaflight.Command_Line with SPARK_Mode is
    --  enabled and the hardware and bus of each, and the accelerometer, the
    --  barometer and the compass as the board detected them, the rangefinder,
    --  the optical flow sensor and the pitot with the accelerometer's
-   --  revision, whether the GPS feature runs with the receiver's state, and
-   --  the board's status.
+   --  revision, whether the GPS feature runs with the receiver's state, the
+   --  board's status, and whether the raw gyro's detected sensor is an
+   --  ICM-45605 or an ICM-45686, whose registers sit elsewhere.
    type Environment is record
       Navigation      : Navigation_Status;
       Firmware        : Identity_Text;
@@ -432,6 +436,7 @@ package Adaflight.Command_Line with SPARK_Mode is
       GPS_Enabled     : Boolean := False;
       GPS             : GPS_Status;
       Status          : System_Status;
+      Raw_Gyro_ICM456 : Boolean := False;
    end record;
 
    --  The board's information as the commands see it: its name and
