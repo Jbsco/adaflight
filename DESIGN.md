@@ -6962,3 +6962,14 @@ off, and KISS v1, KISS v2 and BLHeli_32 frames with good and bad checksums and r
 reply, command and switch of the 1575 lines replays exactly. Twenty-nine tampered paths each fail the
 vectors, one by stopping the harness with a range error. One is equivalent: no frame is 12 bytes long, so
 reading the version byte from a read of 12 bytes as well changes nothing.
+
+## D307. Options command (2026-10-17)
+
+`Adaflight.Command_Line` gains options, which prints each of the build's option numbers on its own line. The
+numbers come in through the environment, up to 64, since the target phase fixes them per build. The listing
+loop has a loop invariant.
+
+The command line oracle links the reference's build information unit, so its option numbers are those of the
+build it compiles. A "!buildopts" line prints them for the harness to take in. Its options mode runs options
+alone, with arguments, spaces and a comment, in other cases and misspelled. Every reply of the 60 lines
+replays exactly. Five tampered paths each fail the vectors.
