@@ -6997,3 +6997,36 @@ settings, soft serial switches latched as at boot, and sensor hardware settings,
 Every reply of the 300 lines replays exactly. Seventeen tampered paths each fail the vectors. One is equivalent.
 No target's port list holds the identifier just past its soft serial ports, so counting that identifier as a
 soft serial port changes nothing.
+
+## D309. Status command (2026-10-17)
+
+`Adaflight.Command_Line` gains status. Its environment gains the board's status: the MCU's name and clock, the
+clock sources where the platform reports them, the internal ADC's reference voltage and core temperature, the
+stack with its use where the build checks it, the stored configuration's size and the storage's, the SPI and
+I2C devices with the I2C errors, the OSD's display port device with its size, the build key and release name,
+the millisecond clock, the real-time clock, the battery and the reasons arming is disabled. It also gains the
+GPS receiver's link state, u-blox platform, port baud rate index, solution and satellite signals, whether the
+GPS feature runs as latched at boot, the rangefinder, optical flow sensor and pitot with the accelerometer's
+revision, and for each gyro its interrupt mode and the device count of its bus. The command reads the task
+rates and the load from the scheduler's state.
+
+The command prints the MCU line, the stack, the configuration and the bus devices, then each gyro position the
+configuration lists as detected with its hardware and whether it is enabled, locked to an interrupt, served by
+DMA or sharing its bus, and each detected sensor with its hardware. The GPS line follows: the provider without a
+port, or the port with its actual and set baud rates, then whether the receiver is configured and the u-blox
+platform, and while it delivers data the satellites, their mean signal, the dilutions, the position and the
+time. The OSD, sd_info's lines, the flash chip, the build key, the uptime with the local time, the load with
+the gyro, receiver and system rates, the battery and the arming disable reasons close it. The DroneCAN lines are
+left out, since the oracle's build compiles them out.
+
+The reference declares a GPS state for processing data and never enters it, and the GPS link has no such state.
+For a detected sensor whose hardware code names no hardware of the build the reference prints the name through
+a null pointer, and adaflight prints an empty name. For a GPS port that never opened the reference reads the
+port's baud rate through a null pointer (finding F243).
+
+The command line oracle defines the MCU, clock, ADC, stack, storage, bus and millisecond clock readings, links
+the reference's GPS and runtime configuration units with their symbols weakened for the GPS state and the arming
+disable names, and writes the battery state in place, so scripted lines set what status reads. Its status mode
+drives each of them, GPS feature switches latched as at boot, and GPS and time zone settings. Every reply of
+the 600 lines replays exactly. Twenty-eight tampered paths each fail the vectors. The twenty-ninth changes the
+separator between gyro entries. The oracle's build has a single gyro position, so the separator never prints.

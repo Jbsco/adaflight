@@ -26,15 +26,20 @@
 --  The text goes out through Put into a sink, inside an Output that also
 --  holds the batch's state and what the tasks command remembers.
 with Interfaces;
+with Adaflight.Arming;
+with Adaflight.Battery;
 with Adaflight.Beeper;
 with Adaflight.Board_Info;
 with Adaflight.Config_Groups; use Adaflight.Config_Groups;
 with Adaflight.CLI_Text;
 with Adaflight.DShot;
 with Adaflight.ESC_Info;
+with Adaflight.GPS_Frames;
+with Adaflight.GPS_Link;
 with Adaflight.MSP_Motor_In;
 with Adaflight.Receiver;
 with Adaflight.RX_Bind;
+with Adaflight.RTC;
 with Adaflight.Scheduler;
 with Adaflight.Serial_Feature_Map;
 
@@ -267,13 +272,19 @@ package Adaflight.Command_Line with SPARK_Mode is
    end record;
    type Serial_Port_Statuses is array (1 .. Serial_Feature_Map.Max_Ports) of Serial_Port_Status;
 
-   --  A detected gyro by position: its hardware by gyro hardware code, and
-   --  its bus.
+   --  A gyro's interrupt mode as its SPI driver sets it.
+   type Gyro_Mode is (Interrupt_Init, Interrupt_DMA, Interrupt, No_Interrupt);
+
+   --  A detected gyro by position: its hardware by gyro hardware code, its
+   --  bus, its interrupt mode, and the device count of its bus, zero without
+   --  one.
    Max_Gyro_Positions  : constant := 4;
    Gyro_Hardware_Count : constant := 30;
    type Gyro_Device is record
-      Hardware : Natural range 0 .. Gyro_Hardware_Count - 1 := 0;
-      Bus      : Device_Bus;
+      Hardware    : Natural range 0 .. Gyro_Hardware_Count - 1 := 0;
+      Bus         : Device_Bus;
+      Mode        : Gyro_Mode := Interrupt_Init;
+      Bus_Devices : Interfaces.Unsigned_8 := 0;
    end record;
    type Gyro_Devices is array (0 .. Max_Gyro_Positions - 1) of Gyro_Device;
 
@@ -283,6 +294,78 @@ package Adaflight.Command_Line with SPARK_Mode is
       Detected : Boolean := False;
       Hardware : Interfaces.Unsigned_8 := 0;
       Bus      : Device_Bus;
+   end record;
+
+   --  The GPS receiver as the status command reports it: the link's state,
+   --  the u-blox platform, the baud rate index its port runs at, and the
+   --  solution with the signal of each satellite channel.
+   Max_GPS_Channels : constant := 32;
+   type Signal_Levels is array (1 .. Max_GPS_Channels) of Interfaces.Unsigned_8;
+   type GPS_Status is record
+      State       : GPS_Link.Link_State := GPS_Link.Unknown;
+      Platform    : GPS_Frames.Platform := GPS_Frames.Undefined;
+      Port_Baud   : Serial_Feature_Map.Baud_Index := Serial_Feature_Map.Baud_Auto;
+      Satellites  : Interfaces.Unsigned_8 := 0;
+      HDOP        : Interfaces.Unsigned_16 := 0;
+      VDOP        : Interfaces.Unsigned_16 := 0;
+      Fix         : Boolean := False;
+      Latitude    : Interfaces.Integer_32 := 0;
+      Longitude   : Interfaces.Integer_32 := 0;
+      Altitude_Cm : Interfaces.Integer_32 := 0;
+      Time_Valid  : Boolean := False;
+      Year        : Interfaces.Unsigned_16 := 0;
+      Month       : Interfaces.Unsigned_8 := 0;
+      Day         : Interfaces.Unsigned_8 := 0;
+      Hour        : Interfaces.Unsigned_8 := 0;
+      Minute      : Interfaces.Unsigned_8 := 0;
+      Second      : Interfaces.Unsigned_8 := 0;
+      Channels    : Natural range 0 .. Max_GPS_Channels := 0;
+      Signals     : Signal_Levels := (others => 0);
+   end record;
+
+   --  The board as the status command reports it: the MCU's name and clock,
+   --  whether the platform reports its clock sources with the system clock's
+   --  source and the PLL's, whether it reads the internal ADC with the
+   --  reference voltage in millivolts and the core temperature, whether it
+   --  checks its stack with the stack's size, top and use, the stored
+   --  configuration's size and the storage's, the SPI and I2C devices with
+   --  the I2C errors, the OSD's display port device, whether it has a port
+   --  with its columns and rows, the build key and the release name where
+   --  the build has them, the millisecond clock, the real-time clock, the
+   --  battery's voltage in hundredths of a volt with its cells and state, and
+   --  the reasons arming is disabled.
+   type System_Status is record
+      MCU_Name         : Identity_Text;
+      Core_Clock_Hz    : Interfaces.Unsigned_32 := 0;
+      Clock_Sources    : Boolean := False;
+      System_Source    : Natural range 0 .. 3 := 0;
+      PLL_Source       : Natural range 0 .. 1 := 0;
+      Internal_ADC     : Boolean := False;
+      Vref_Mv          : Interfaces.Unsigned_16 := 0;
+      Core_Temp_C      : Interfaces.Integer_16 := 0;
+      Stack_Check      : Boolean := False;
+      Stack_Total      : Interfaces.Unsigned_32 := 0;
+      Stack_High       : Interfaces.Unsigned_32 := 0;
+      Stack_Used       : Interfaces.Unsigned_32 := 0;
+      Config_Size      : Interfaces.Unsigned_16 := 0;
+      Storage_Size     : Interfaces.Unsigned_32 := 0;
+      SPI_Devices      : Interfaces.Unsigned_8 := 0;
+      I2C_Devices      : Interfaces.Unsigned_8 := 0;
+      I2C_Errors       : Interfaces.Unsigned_16 := 0;
+      OSD_Device       : Natural range 0 .. 5 := 0;
+      OSD_Port         : Boolean := False;
+      OSD_Columns      : Interfaces.Unsigned_8 := 0;
+      OSD_Rows         : Interfaces.Unsigned_8 := 0;
+      Has_Build_Key    : Boolean := False;
+      Build_Key        : Identity_Text;
+      Has_Release_Name : Boolean := False;
+      Release_Name     : Identity_Text;
+      Uptime_Ms        : Interfaces.Unsigned_32 := 0;
+      Clock            : RTC.Clock;
+      Battery_Voltage  : Interfaces.Unsigned_16 := 0;
+      Battery_Cells    : Interfaces.Unsigned_8 := 0;
+      Battery_State    : Battery.Battery_State := Battery.OK;
+      Arming_Disabled  : Arming.Disable_Set := (others => False);
    end record;
 
    --  What the commands report from outside the configuration: the flight
@@ -298,7 +381,10 @@ package Adaflight.Command_Line with SPARK_Mode is
    --  numbers, whether the soft serial feature runs, the serial ports in the
    --  order of the target's list, the build's gyro positions with the gyros
    --  enabled and the hardware and bus of each, and the accelerometer, the
-   --  barometer and the compass as the board detected them.
+   --  barometer and the compass as the board detected them, the rangefinder,
+   --  the optical flow sensor and the pitot with the accelerometer's
+   --  revision, whether the GPS feature runs with the receiver's state, and
+   --  the board's status.
    type Environment is record
       Navigation      : Navigation_Status;
       Firmware        : Identity_Text;
@@ -334,6 +420,13 @@ package Adaflight.Command_Line with SPARK_Mode is
       Acc             : Sensor_Device;
       Baro            : Sensor_Device;
       Mag             : Sensor_Device;
+      Rangefinder     : Sensor_Device;
+      Optical_Flow    : Sensor_Device;
+      Pitot           : Sensor_Device;
+      Acc_Revision    : Interfaces.Unsigned_8 := 0;
+      GPS_Enabled     : Boolean := False;
+      GPS             : GPS_Status;
+      Status          : System_Status;
    end record;
 
    --  The board's information as the commands see it: its name and

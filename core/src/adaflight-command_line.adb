@@ -3603,7 +3603,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
       MSC_Command_Word,
       Play_Sound_Command_Word, Rx_Range_Command, Sd_Info_Command_Word, Sensor_Hardware_Command_Word,
       Serial_Command_Word,
-      Servo_Command_Word, Servo_Mix_Command_Word, Set_Command, Simplified_Tuning_Command_Word, Tasks_Command_Word,
+      Servo_Command_Word, Servo_Mix_Command_Word, Set_Command, Simplified_Tuning_Command_Word, Status_Command_Word,
+      Tasks_Command_Word,
       Version_Command_Word, Vtx_Command_Word, Vtx_Info_Command_Word, Vtx_Table_Command_Word, Waypoint_Command_Word);
    subtype Known_Command is Command_Kind range Adjustment_Range_Command_Word .. Waypoint_Command_Word;
 
@@ -3645,6 +3646,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when Motor_Mix_Command_Word => "mmix",
          when Options_Command_Word => "options",
          when Peripherals_Command_Word => "peripherals",
+         when Status_Command_Word => "status",
          when Profile_Command => "profile",
          when Rate_Profile_Command => "rateprofile",
          when Rc_Smoothing_Info_Command_Word => "rc_smoothing_info",
@@ -5014,6 +5016,361 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Put_Sensor_Peripheral (Into, "mag", Mag_Sensor, C.Compass_Config.Mag_Hardware, Env.Mag);
    end Peripherals_Command;
 
+   --  The rates the baud rate indices name.
+   Baud_Values : constant array (Serial_Feature_Map.Baud_Index) of Unsigned_32 :=
+     (0, 9600, 19200, 38400, 57600, 115200, 230400, 250000, 400000, 460800, 500000, 921600, 1000000, 1500000,
+      2000000, 2470000);
+
+   --  A word as %d prints it, past 2147483647 as a negative number.
+   function Signed_Text (V : Unsigned_32) return String is
+     (Decimal (if V >= 2 ** 31 then Integer_64 (V) - 2 ** 32 else Integer_64 (V)))
+     with Global => null,
+          Post   => Signed_Text'Result'Length in 1 .. 21;
+
+   --  A number with zeros before it up to a width, as %0Nd prints it.
+   function Zero_Padded (V : Natural; Width : Positive) return String
+     with Global => null,
+          Pre    => Width <= 7,
+          Post   => Zero_Padded'Result'Length in 1 .. 21
+   is
+      Text : constant String := Decimal (Integer_64 (V));
+   begin
+      if Text'Length >= Width then
+         return Text;
+      end if;
+      return (1 .. Width - Text'Length => '0') & Text;
+   end Zero_Padded;
+
+   --  A word in lower case hexadecimal digits without leading zeros, as %x
+   --  prints it.
+   function Hex_Minimal (V : Unsigned_32) return String
+     with Global => null,
+          Post   => Hex_Minimal'Result'Length in 1 .. 8
+   is
+      Width : Positive := 1;
+   begin
+      while Width < 8 and then Shift_Right (V, 4 * Width) /= 0 loop
+         pragma Loop_Invariant (Width in 1 .. 7);
+         pragma Loop_Variant (Increases => Width);
+         Width := Width + 1;
+      end loop;
+      return Hex_Text (V, Width);
+   end Hex_Minimal;
+
+   --  The system clock's sources by number, the PLL's two first.
+   function Clock_Source_Name (I : Natural) return String is
+     (case I is when 0 => "HSI", when 1 => "HSE", when 2 => "PLLP", when others => "PLLR");
+
+   --  The u-blox platform's name, unknown before the receiver reports it.
+   function GPS_Platform_Name (P : GPS_Frames.Platform) return String is
+     (case P is
+         when GPS_Frames.Undefined => "unknown", when GPS_Frames.M5 => "M5", when GPS_Frames.M6 => "M6",
+         when GPS_Frames.M7 => "M7", when GPS_Frames.M8 => "M8", when GPS_Frames.M9 => "M9",
+         when GPS_Frames.M10 => "M10");
+
+   function Battery_State_Name (B : Adaflight.Battery.Battery_State) return String is
+     (case B is
+         when Adaflight.Battery.OK => "OK", when Adaflight.Battery.Warning => "WARNING",
+         when Adaflight.Battery.Critical => "CRITICAL", when Adaflight.Battery.Not_Present => "NOT PRESENT",
+         when Adaflight.Battery.Init => "INIT");
+
+   --  The status lines of the MCU with its clock, the internal ADC's
+   --  readings, the stack, the stored configuration and the bus devices.
+   procedure Put_Status_Board (Into : in out Output; C : Configuration; S : System_Status)
+     with Global => null
+   is
+   begin
+      Put (Into, "MCU: ");
+      Put (Into, Text_Of (S.MCU_Name));
+      Put (Into, " CLK=" & Decimal (Integer_64 (S.Core_Clock_Hz / 1_000_000)) & "MHz");
+      if S.Clock_Sources then
+         Put (Into, " (" & Clock_Source_Name (S.System_Source)
+                    & (if S.System_Source < 2 then "" elsif S.PLL_Source = 0 then "-HSI" else "-HSE") & ")");
+      end if;
+      if S.Internal_ADC then
+         Put (Into, ", Vref=" & Decimal (Integer_64 (S.Vref_Mv / 1000)) & "."
+                    & Zero_Padded (Natural ((S.Vref_Mv mod 1000) / 10), 2) & "V, Core temp="
+                    & Decimal (Integer_64 (S.Core_Temp_C)) & "degC");
+      end if;
+      Put (Into, CRLF);
+      Put (Into, "STACK: " & Signed_Text (S.Stack_Total) & "b (0x" & Hex_Minimal (S.Stack_High) & ")");
+      if S.Stack_Check then
+         Put (Into, " / " & Signed_Text (S.Stack_Used) & "b");
+      end if;
+      Put (Into, CRLF);
+      Put (Into, "CONFIG: " & (if C.System_Config.Configuration_State = 0 then "UNCONFIGURED" else "CONFIGURED")
+                 & " (" & Decimal (Integer_64 (S.Config_Size)) & "b / " & Signed_Text (S.Storage_Size) & "b)"
+                 & CRLF);
+      Put (Into, CRLF);
+      Put (Into, "DEVICES DETECTED: SPI=" & Decimal (Integer_64 (S.SPI_Devices)) & ", I2C="
+                 & Decimal (Integer_64 (S.I2C_Devices)) & " (" & Decimal (Integer_64 (S.I2C_Errors)) & " errors)"
+                 & CRLF);
+   end Put_Status_Board;
+
+   subtype Detected_Sensor is Sensor_Type range Acc_Sensor .. Pitot_Sensor;
+
+   function Status_Sensor_Name (S : Detected_Sensor) return String is
+     (case S is
+         when Acc_Sensor => "ACC", when Baro_Sensor => "BARO", when Mag_Sensor => "MAG",
+         when Rangefinder_Sensor => "RANGEFINDER", when Opticalflow_Sensor => "OPTICAL-FLOW",
+         when Pitot_Sensor => "PITOT");
+
+   function Device_Of (Env : Environment; S : Detected_Sensor) return Sensor_Device is
+     (case S is
+         when Acc_Sensor => Env.Acc, when Baro_Sensor => Env.Baro, when Mag_Sensor => Env.Mag,
+         when Rangefinder_Sensor => Env.Rangefinder, when Opticalflow_Sensor => Env.Optical_Flow,
+         when Pitot_Sensor => Env.Pitot);
+
+   --  The status lines of the gyros the configuration lists as detected,
+   --  with their hardware, whether they are enabled, locked to an interrupt,
+   --  served by DMA or sharing their bus, and of the detected sensors with
+   --  their hardware and the accelerometer's revision.
+   procedure Put_Status_Sensors (Into : in out Output; C : Configuration; Env : Environment)
+     with Global => null
+   is
+      Found : Boolean := False;
+   begin
+      Put (Into, "GYRO: ");
+      for Position in 0 .. Env.Gyro_Positions - 1 loop
+         pragma Loop_Invariant (Position in 0 .. Max_Gyro_Positions - 1);
+         if (C.Gyro_Config.Gyros_Detected and 2 ** Position) /= 0 then
+            if Found then
+               Put (Into, ", ");
+            end if;
+            Found := True;
+            Put (Into, "(" & Decimal (Integer_64 (Position + 1)) & ") ");
+            Put (Into, Gyro_Hardware_Name (Env.Gyros (Position).Hardware));
+            if (Env.Gyros_Enabled and 2 ** Position) /= 0 then
+               Put (Into, " enabled");
+            end if;
+            if Env.Gyros (Position).Mode /= No_Interrupt then
+               Put (Into, " locked");
+            end if;
+            if Env.Gyros (Position).Mode = Interrupt_DMA then
+               Put (Into, " dma");
+            end if;
+            if Env.Gyros (Position).Bus_Devices > 1 then
+               Put (Into, " shared");
+            end if;
+         end if;
+      end loop;
+      if not Found then
+         Put (Into, "None");
+      end if;
+      Put (Into, CRLF);
+      for S in Detected_Sensor loop
+         pragma Loop_Invariant (S in Acc_Sensor .. Pitot_Sensor);
+         declare
+            D : constant Sensor_Device := Device_Of (Env, S);
+         begin
+            if D.Detected and then Natural (D.Hardware) < Hardware_Count (S) then
+               Put (Into, Status_Sensor_Name (S));
+               Put (Into, ": ");
+               Put (Into, Hardware_Name (S, Natural (D.Hardware)));
+               if S = Acc_Sensor and then Env.Acc_Revision /= 0 then
+                  Put (Into, "." & Character'Val (Env.Acc_Revision));
+               end if;
+               Put (Into, CRLF);
+            end if;
+         end;
+      end loop;
+   end Put_Status_Sensors;
+
+   --  The status line of the GPS receiver: whether it is connected, the
+   --  provider without a port or the port with its actual and set baud
+   --  rates and whether it is configured, the u-blox platform, and while it
+   --  delivers data the satellites, their mean signal, the dilutions, the
+   --  position and the time.
+   procedure Put_Status_GPS
+     (Into : in out Output; C : Configuration; Ports : Port_List; Enabled : Boolean; G : GPS_Status)
+     with Global => null,
+          Pre    => Ports'Length <= Serial_Feature_Map.Max_Ports
+   is
+      use type GPS_Link.Link_State;
+      Provider : constant Natural := Natural (C.Gps_Config.Provider);
+   begin
+      Put (Into, "GPS: ");
+      if not Enabled then
+         Put (Into, "NOT ENABLED" & CRLF);
+         return;
+      end if;
+      Put (Into, (if G.State >= GPS_Link.Configure then "connected, " else "NOT CONNECTED, "));
+      if Provider in 2 .. 4 then
+         if Provider < Value_Count (Table_Gps_Provider) then
+            Put (Into, Value_Name (Table_Gps_Provider, Provider));
+         end if;
+      else
+         if C.Gps_Config.Gps_Uart = -1 then
+            Put (Into, "NO PORT, ");
+         else
+            if CLI_Text.Port_Name (Integer_64 (C.Gps_Config.Gps_Uart), Ports)'Length > 0 then
+               Put (Into, CLI_Text.Port_Name (Integer_64 (C.Gps_Config.Gps_Uart), Ports));
+            else
+               Put (Into, "INVALID");
+            end if;
+            Put (Into, " " & Decimal (Integer_64 (Baud_Values (G.Port_Baud))) & " (set to ");
+            if C.Gps_Config.Auto_Baud /= 0 then
+               Put (Into, "AUTO");
+            elsif Natural (C.Gps_Config.Gps_Baud) <= Serial_Feature_Map.Baud_Index'Last then
+               Put (Into, Decimal (Integer_64 (Baud_Values (Natural (C.Gps_Config.Gps_Baud)))));
+            end if;
+            Put (Into, "), ");
+         end if;
+         if G.State <= GPS_Link.Configure then
+            Put (Into, "NOT CONFIGURED");
+         elsif C.Gps_Config.Auto_Config = 0 then
+            Put (Into, "auto config OFF");
+         else
+            Put (Into, "configured");
+         end if;
+         if Provider = 1 then
+            Put (Into, ", version =  " & GPS_Platform_Name (G.Platform));
+         end if;
+      end if;
+      if G.State = GPS_Link.Receiving_Data then
+         Put (Into, CRLF);
+         Put (Into, "  sats: " & Decimal (Integer_64 (G.Satellites)));
+         declare
+            Sum   : Natural := 0;
+            Count : Natural := 0;
+         begin
+            for I in 1 .. G.Channels loop
+               pragma Loop_Invariant (Sum <= (I - 1) * 255 and then Count <= I - 1);
+               if G.Signals (I) > 0 then
+                  Sum := Sum + Natural (G.Signals (I));
+                  Count := Count + 1;
+               end if;
+            end loop;
+            if Count > 0 then
+               Put (Into, ", signal: " & Decimal (Integer_64 (Sum / Count)) & " dBHz");
+            end if;
+         end;
+         if G.HDOP > 0 then
+            Put (Into, ", hdop: " & Decimal (Integer_64 (G.HDOP / 100)) & "."
+                       & Zero_Padded (Natural (G.HDOP mod 100), 2));
+         end if;
+         if G.VDOP > 0 then
+            Put (Into, ", vdop: " & Decimal (Integer_64 (G.VDOP / 100)) & "."
+                       & Zero_Padded (Natural (G.VDOP mod 100), 2));
+         end if;
+         if G.Fix then
+            declare
+               Lat : constant Integer_64 := Integer_64 (G.Latitude);
+               Lon : constant Integer_64 := Integer_64 (G.Longitude);
+               Alt : constant Integer_64 := Integer_64 (G.Altitude_Cm);
+            begin
+               Put (Into, ", pos: " & (if Lat < 0 then "-" else "") & Decimal (abs Lat / 10_000_000) & "."
+                          & Zero_Padded (Natural (abs Lat mod 10_000_000), 7));
+               Put (Into, " " & (if Lon < 0 then "-" else "") & Decimal (abs Lon / 10_000_000) & "."
+                          & Zero_Padded (Natural (abs Lon mod 10_000_000), 7));
+               Put (Into, ", alt: " & (if Alt < 0 then "-" else "") & Decimal (abs Alt / 100) & "."
+                          & Zero_Padded (Natural (abs Alt mod 100), 2) & "m");
+            end;
+         else
+            Put (Into, ", pos: no fix");
+         end if;
+         if G.Time_Valid then
+            Put (Into, ", " & Zero_Padded (Natural (G.Year), 4) & "-" & Zero_Padded (Natural (G.Month), 2) & "-"
+                       & Zero_Padded (Natural (G.Day), 2) & "T" & Zero_Padded (Natural (G.Hour), 2) & ":"
+                       & Zero_Padded (Natural (G.Minute), 2) & ":" & Zero_Padded (Natural (G.Second), 2) & "Z");
+         end if;
+      end if;
+      Put (Into, CRLF);
+   end Put_Status_GPS;
+
+   --  A task's average rate in hertz from its average period in tenths of a
+   --  microsecond, zero without one.
+   function Task_Rate (T : Scheduler.Task_Info) return Integer_64 is
+     (if T.Average_Delta_10th = 0 then 0
+      else Integer_64 (Maths.Round_Half_Even (1.0e7 / Float (T.Average_Delta_10th))))
+     with Global => null;
+
+   --  The status lines of the OSD, the SD card, the flash chip, the build
+   --  key, the uptime with the local time, the load with the gyro, receiver
+   --  and system rates, the battery and the reasons arming is disabled.
+   procedure Put_Status_Run (Into : in out Output; C : Configuration; Env : Environment; Sched : Scheduler.State)
+     with Global => null
+   is
+      S      : constant System_Status := Env.Status;
+      Gyro   : constant Scheduler.Task_Info := Scheduler.Info (Sched, Scheduler.Gyro);
+      System : constant Scheduler.Task_Info := Scheduler.Info (Sched, Scheduler.System);
+   begin
+      Put (Into, "OSD: ");
+      if S.OSD_Device < Value_Count (Table_Osd_Displayport_Device) then
+         Put (Into, Value_Name (Table_Osd_Displayport_Device, S.OSD_Device));
+      end if;
+      Put (Into, " ");
+      if S.OSD_Port then
+         Put (Into, "(" & Decimal (Integer_64 (S.OSD_Columns)) & " x " & Decimal (Integer_64 (S.OSD_Rows)) & ")");
+      end if;
+      Put (Into, CRLF);
+      SD_Info_Command (Into, C.Sdcard_Config.Mode, Env.SD_Card);
+      if Env.Flash.JEDEC_Id /= 0 then
+         Put (Into, "FLASH: JEDEC ID=0x" & Hex_Text (Env.Flash.JEDEC_Id, 8) & " "
+                    & Decimal (Integer_64 (Shift_Right (Env.Flash.Total_Size, 20))) & "M" & CRLF);
+      end if;
+      if S.Has_Build_Key then
+         Put (Into, CRLF);
+         Put (Into, "BUILD KEY: ");
+         Put (Into, Text_Of (S.Build_Key));
+         if S.Has_Release_Name then
+            Put (Into, " (");
+            Put (Into, Text_Of (S.Release_Name));
+            Put (Into, ")");
+         end if;
+         Put (Into, CRLF);
+      end if;
+      Put (Into, CRLF);
+      Put (Into, "System Uptime: " & Decimal (Integer_64 (S.Uptime_Ms / 1000)) & " seconds");
+      if RTC.Has_Time (S.Clock) then
+         declare
+            Zone   : constant Integer_16 := C.Time_Config.Tz_Offset_Minutes;
+            Text   : RTC.Formatted;
+            Length : Natural;
+            Valid  : Boolean;
+         begin
+            RTC.Format_Local
+              (RTC.Time_To_Date (RTC.Get (S.Clock, S.Uptime_Ms)), (Zone => (if Zone in RTC.Zone_Minutes then Zone
+                                                                              else 0)),
+               Text, Length, Valid);
+            pragma Unreferenced (Valid);
+            Put (Into, ", Current Time: " & Text (1 .. Length));
+         end;
+      end if;
+      Put (Into, CRLF);
+      Put (Into, "CPU:" & Decimal (Integer_64'Min (Integer_64 (Sched.Average_Load_Percent), 100)) & "%, cycle time: "
+                 & Signed_Text ((Gyro.Average_Delta_10th + 5) / 10) & ", GYRO rate: " & Decimal (Task_Rate (Gyro))
+                 & ", RX rate: "
+                 & Decimal (if Env.Smoothing.Rate_Valid
+                            then Integer_64 (Maths.Round_Half_Even (Env.Smoothing.Rate_Hz)) else 0)
+                 & ", System rate: " & Decimal (Task_Rate (System)) & CRLF);
+      Put (Into, "Voltage: " & Decimal (Integer_64 (S.Battery_Voltage / 100)) & "."
+                 & Zero_Padded (Natural (S.Battery_Voltage mod 100), 2) & "V ("
+                 & Decimal (Integer_64 (S.Battery_Cells)) & "S battery - " & Battery_State_Name (S.Battery_State)
+                 & ")" & CRLF);
+      Put (Into, "Arming disable flags:");
+      for R in Arming.Disable_Reason loop
+         pragma Loop_Invariant (R in Arming.No_Gyro .. Arming.Arm_Switch);
+         if S.Arming_Disabled (R) then
+            Put (Into, " " & Arming.Disable_Name (R));
+         end if;
+      end loop;
+      Put (Into, CRLF);
+   end Put_Status_Run;
+
+   --  status: the board, its sensors, the GPS receiver, and how it runs.
+   procedure Status_Command
+     (Into : in out Output; C : Configuration; Ports : Port_List; Env : Environment; Sched : Scheduler.State)
+     with Global => null,
+          Pre    => Ports'Length <= Serial_Feature_Map.Max_Ports
+   is
+   begin
+      Put_Status_Board (Into, C, Env.Status);
+      Put_Status_Sensors (Into, C, Env);
+      Put_Status_GPS (Into, C, Ports, Env.GPS_Enabled, Env.GPS);
+      Put_Status_Run (Into, C, Env, Sched);
+   end Status_Command;
+
    --  A signature as 64 hexadecimal digits.
    procedure Put_Signature_Digits (Into : in out Output; Signature : Signature_Bytes) is
    begin
@@ -5486,6 +5843,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
             Options_Command (Into, Env);
          when Peripherals_Command_Word =>
             Peripherals_Command (Into, C, Ports, Env);
+         when Status_Command_Word =>
+            Status_Command (Into, C, Ports, Env, Sched);
          when Sd_Info_Command_Word =>
             SD_Info_Command (Into, C.Sdcard_Config.Mode, Env.SD_Card);
          when Bootloader_Command_Word =>
