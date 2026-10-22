@@ -48,10 +48,19 @@ else:
                              check=True, capture_output=True, text=True).stdout.split()
 selected = {pathlib.Path(c).stem for c in changed
             if c.startswith("core/src/") and c.endswith((".ads", ".adb"))}
-for name in list(selected):
-    if is_generic(name):
-        selected.remove(name)
-        selected |= instantiations(name)
+pending = sorted(name for name in selected if is_generic(name))
+expanded = set()
+while pending:
+    name = pending.pop()
+    if name in expanded:
+        continue
+    expanded.add(name)
+    selected.discard(name)
+    for instance in instantiations(name):
+        if instance not in expanded:
+            selected.add(instance)
+            if is_generic(instance):
+                pending.append(instance)
 
 
 
