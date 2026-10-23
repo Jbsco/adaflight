@@ -76,4 +76,7 @@ package Adaflight.Gyro_Bus_Steps with SPARK_Mode is
    procedure Step_Start_Clock_In (D : in out Gyro_Line; Started : out Boolean)
      with Global => null;
 
+   procedure Step_Bus_Write_Register (D : in out Gyro_Line; Register : Byte; Value : Byte)
+     with Global => null;
+
 end Adaflight.Gyro_Bus_Steps;
