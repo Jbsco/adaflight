@@ -202,6 +202,7 @@ with Adaflight.Acc_Detect;
 with Adaflight.Baro_Detect.Scan;
 with Adaflight.Compass_Detect.Scan;
 with Adaflight.Rangefinder_Detect.Probe;
+with Adaflight.Optical_Flow_Detect.Probe;
 with Adaflight.QMC5883;
 with Adaflight.Gimbal_Control;
 with Adaflight.OSD_Custom_Text;
@@ -19308,6 +19309,83 @@ procedure Vector_Check is
       end if;
    end Check_Range_Detect_Line;
 
+   --  The optical flow detection oracle's drivers: each one's answer and the
+   --  delay a found one reports.
+   type FD_Delays is array (Adaflight.Optical_Flow_Detect.Driver) of Adaflight.Optical_Flow_Detect.Delay_Ms;
+
+   type FD_Device is record
+      Answers : Integer_64 := 0;
+      Delays  : FD_Delays := (others => 0);
+   end record;
+
+   FD_Dev      : FD_Device;
+   FD_Detected : Byte := 0;
+   FD_Found    : Boolean := False;
+
+   procedure FD_Detect_Chip
+     (D           : in out FD_Device;
+      Chip        : Adaflight.Optical_Flow_Detect.Driver;
+      Rangefinder : Byte;
+      Found       : out Boolean;
+      Reported    : out Adaflight.Optical_Flow_Detect.Delay_Ms)
+   is
+      use type Adaflight.Optical_Flow_Detect.Driver;
+      Index : constant Natural := Adaflight.Optical_Flow_Detect.Driver'Pos (Chip);
+   begin
+      if Chip = Adaflight.Optical_Flow_Detect.MT then
+         MX_Op ("detect," & BMP_Num (Integer_64 (Index)) & "," & BMP_Num (Integer_64 (Rangefinder)));
+      else
+         MX_Op ("detect," & BMP_Num (Integer_64 (Index)));
+      end if;
+      Found := D.Answers / 2 ** Index mod 2 = 1;
+      Reported := (if Found then D.Delays (Chip) else 0);
+   end FD_Detect_Chip;
+
+   procedure FD_Reschedule (D : in out FD_Device; Period_Us : Natural) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("resched,1," & BMP_Num (Integer_64 (Period_Us)));
+   end FD_Reschedule;
+
+   package FD_Probe is new Adaflight.Optical_Flow_Detect.Probe
+     (Device      => FD_Device,
+      Detect_Chip => FD_Detect_Chip,
+      Reschedule  => FD_Reschedule);
+
+   procedure Check_Flow_Detect_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "fdinit" then
+         MX_Op_Head := 1;
+         MX_Op_Count := 0;
+         FD_Dev := (others => <>);
+         FD_Dev.Answers := Int (6);
+         FD_Dev.Delays := (Natural (Int (7)), Natural (Int (8)));
+         FD_Detected := Byte (Int (9));
+         FD_Probe.Detect (FD_Dev, Int (3) /= 0, Byte (Int (4)), Byte (Int (5)), FD_Detected, FD_Found);
+      elsif Name = "fdop" then
+         declare
+            Expected : Ada.Strings.Unbounded.Unbounded_String := Ada.Strings.Unbounded.To_Unbounded_String (Str (3));
+         begin
+            for I in 4 .. NF loop
+               Ada.Strings.Unbounded.Append (Expected, "," & Str (I));
+            end loop;
+            if MX_Op_Head <= MX_Op_Count then
+               Record_Text ("flowdetect.op", Ada.Strings.Unbounded.To_String (Expected),
+                            Ada.Strings.Unbounded.To_String (MX_Ops (MX_Op_Head)));
+               MX_Op_Head := MX_Op_Head + 1;
+            else
+               Record_Text ("flowdetect.op", Ada.Strings.Unbounded.To_String (Expected), "none");
+            end if;
+         end;
+      elsif Name = "fdres" then
+         MX_Expect_No_Ops ("optical flow detection");
+         Record_Int ("flowdetect.found", Int (3), Boolean'Pos (FD_Found));
+         Record_Int ("flowdetect.detected", Int (4), Integer_64 (FD_Detected));
+         Record_Int ("flowdetect.present", Int (5), Boolean'Pos (FD_Found));
+      end if;
+   end Check_Flow_Detect_Line;
+
    GB_Seq      : Integer_64 := -1;
    GB_State    : Adaflight.Gimbal_Control.State;
    GB_Settings : Adaflight.Gimbal_Control.Settings;
@@ -29466,6 +29544,8 @@ procedure Vector_Check is
                   Check_Compass_Detect_Line;
                elsif Kind = "rangedetect" then
                   Check_Range_Detect_Line;
+               elsif Kind = "flowdetect" then
+                  Check_Flow_Detect_Line;
                elsif Kind = "gimbal" then
                   Check_Gimbal_Line;
                elsif Kind = "osdtext" then
@@ -29745,6 +29825,7 @@ begin
    Run (Dir & "/barodetect.csv", "barodetect");
    Run (Dir & "/compassdetect.csv", "compassdetect");
    Run (Dir & "/rangedetect.csv", "rangedetect");
+   Run (Dir & "/flowdetect.csv", "flowdetect");
    Run (Dir & "/gimbal.csv", "gimbal");
    Run (Dir & "/osdtext.csv", "osdtext");
    Run (Dir & "/pidaudio.csv", "pidaudio");
