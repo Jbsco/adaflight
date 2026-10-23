@@ -7429,3 +7429,26 @@ delay call, answer, mode, count and time, clock after detection, reading and tem
 exactly, 192 of them past detection. All 38 tampered paths fail the vectors, three of them by stopping the check on
 a range: a gyro register past the DMA read and two sign tests that let a reading pass 32767. On the first pass a
 shortened startup wait passed, since no vector showed the clock, and led to the clock check after detection.
+
+## D325. MPU6000 gyro driver (2026-10-18)
+
+`Adaflight.MPU_Gyro.MPU6000` drives the MPU6000 gyro and accelerometer over the SPI gyro layer (D324), a generic
+child that adds the chip's register writes and reads, a microsecond delay, the clock's microseconds to cycles and
+the failure call. Its detection is the layer's chip probe. It resets the device and then its signal paths, waiting
+100 ms after each, reads the identity, waits a microsecond for the select pin, and accepts identity 0x68 with one of
+the twelve product revisions the reference lists. A gyro of that sensor gets the 2000 degrees per second scale and a
+short interrupt interval of 82 microseconds in cycles. Initialization runs the layer's, then selects the gyro clock,
+disables the I2C interface, enables all axes, sets the sample rate divider, the 2000 degrees per second and 16 g
+ranges, any-read interrupt clear and the data ready interrupt, 15 microseconds apart, with the temperature scale of
+1/340 and zero of 36.53. The filter register takes the layer's setting, the clock goes to 20 MHz and one gyro read
+follows, which calls the failure when the low bytes of its first two axes both read 0xFF. The accelerometer's one g
+is 2048. The unit is SPARK for the sequence and the failure test.
+
+The MPU6000 oracle includes the reference driver and the gyro layer over a simulated MPU6000, one case per process.
+It draws the identity, the product revision, the bus, the startup clock, DMA, the interrupt pin, the sample rate
+divider, the filter settings, the readings of the initial read and its acknowledgement, then runs the detection, the
+gyro and accelerometer detection and initialization, stopping at a failure. Every bus, pin, delay and failure call,
+detection result, scale, interval, reading and setting of the 300 cases replays exactly, 198 of them past detection,
+23 with a failure and 17 with one failure byte. All 28 tampered paths fail the vectors. On the first pass two
+passed, since the oracle set the failure bytes of both axes together and ran the gyro detection only on a found
+chip, and led to cases with one failure byte and to the detection of an undetected chip.

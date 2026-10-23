@@ -102,4 +102,34 @@ package body Adaflight.Gyro_Bus_Steps with SPARK_Mode is
       OK := True;
    end Step_Read_Registers;
 
+   procedure Step_Write_Register (D : in out Gyro_Line; Register : Byte; Value : Byte) is
+      pragma Unreferenced (D, Register, Value);
+   begin
+      null;
+   end Step_Write_Register;
+
+   procedure Step_Read_Register (D : in out Gyro_Line; Register : Byte; Value : out Byte) is
+      pragma Unreferenced (D, Register);
+   begin
+      Value := 0;
+   end Step_Read_Register;
+
+   procedure Step_Delay_Us (D : in out Gyro_Line; Us : Natural) is
+      pragma Unreferenced (D, Us);
+   begin
+      null;
+   end Step_Delay_Us;
+
+   function Step_Micros_To_Cycles (Micros : Interfaces.Unsigned_32) return Interfaces.Unsigned_32 is
+      pragma Unreferenced (Micros);
+   begin
+      return 0;
+   end Step_Micros_To_Cycles;
+
+   procedure Step_Failure (D : in out Gyro_Line) is
+      pragma Unreferenced (D);
+   begin
+      null;
+   end Step_Failure;
+
 end Adaflight.Gyro_Bus_Steps;
