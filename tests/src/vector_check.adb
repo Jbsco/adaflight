@@ -183,6 +183,7 @@ with Adaflight.BLHeli_Bootloader;
 with Adaflight.STK_Bootloader;
 with Adaflight.USB_Joystick;
 with Adaflight.BMP280;
+with Adaflight.DPS310;
 with Adaflight.Gimbal_Control;
 with Adaflight.OSD_Custom_Text;
 with Adaflight.PID_Audio;
@@ -15550,7 +15551,7 @@ procedure Vector_Check is
       Last_Read      : Byte_Array (0 .. 5) := (others => 0);
    end record;
 
-   BMP_Max_Ops : constant := 16;
+   BMP_Max_Ops : constant := 64;
    type BMP_Op_Queue is array (1 .. BMP_Max_Ops) of Ada.Strings.Unbounded.Unbounded_String;
    BMP_Ops      : BMP_Op_Queue;
    BMP_Op_Head  : Positive := 1;
@@ -15777,6 +15778,208 @@ procedure Vector_Check is
          Record_Int ("bmp280.temperature", Int (6), Integer_64 (BMP_Temperature));
       end if;
    end Check_BMP280_Line;
+
+   --  The DPS310 oracle's bus: the simulated chip's registers, which writes
+   --  change, its address, the reads still to fail, the scripted busy and
+   --  start answers, and the bytes the last started read brought. Its calls
+   --  share the BMP280 bus's queue.
+   type DPS_Bus is record
+      SPI            : Boolean := False;
+      Address        : Byte := 0;
+      Device_Address : Byte := 0;
+      Registers      : Byte_Array (0 .. 255) := (others => 0);
+      Failures_Left  : Natural := 0;
+      Busy           : Boolean := False;
+      Started        : Boolean := False;
+      Last_Read      : Byte_Array (0 .. 5) := (others => 0);
+   end record;
+
+   function DPS_Responds (D : DPS_Bus) return Boolean is
+      use type Interfaces.Unsigned_8;
+   begin
+      return (if D.SPI then True else D.Device_Address /= 0 and then D.Address = D.Device_Address);
+   end DPS_Responds;
+
+   function DPS_Is_I2C (D : DPS_Bus) return Boolean is (not D.SPI);
+   function DPS_Is_SPI (D : DPS_Bus) return Boolean is (D.SPI);
+   function DPS_Address (D : DPS_Bus) return Byte is (D.Address);
+
+   procedure DPS_Set_Address (D : in out DPS_Bus; Address : Byte) is
+   begin
+      D.Address := Address;
+   end DPS_Set_Address;
+
+   procedure DPS_Prepare_SPI (D : in out DPS_Bus; Max_Clock_Hz : Interfaces.Unsigned_32) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("cshigh");
+      BMP_Op ("csinit,1,0");
+      BMP_Op ("csconfig");
+      BMP_Op ("spidivider," & BMP_Num (Integer_64 (Max_Clock_Hz)));
+      BMP_Op ("spiclock," & BMP_Num (Integer_64 (Max_Clock_Hz / 1_000_000)));
+   end DPS_Prepare_SPI;
+
+   procedure DPS_Release_SPI (D : in out DPS_Bus) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("cspreinit,1");
+   end DPS_Release_SPI;
+
+   procedure DPS_Read (D : in out DPS_Bus; Register : Byte; Data : in out Byte_Array; OK : out Boolean) is
+   begin
+      OK := DPS_Responds (D);
+      if OK and then D.Failures_Left > 0 then
+         D.Failures_Left := D.Failures_Left - 1;
+         OK := False;
+      end if;
+      BMP_Op ("read," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Data'Length)) & ","
+              & BMP_Num (Integer_64 (if D.SPI then 0 else D.Address)) & "," & BMP_Num (Boolean'Pos (OK)));
+      if OK then
+         for I in Data'Range loop
+            Data (I) := D.Registers (Natural ((Integer (Register) + I - Data'First) mod 256));
+         end loop;
+      end if;
+   end DPS_Read;
+
+   procedure DPS_Write (D : in out DPS_Bus; Register : Byte; Value : Byte; OK : out Boolean) is
+   begin
+      BMP_Op ("write," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Value)));
+      OK := DPS_Responds (D);
+      if OK then
+         D.Registers (Natural (Register)) := Value;
+      end if;
+   end DPS_Write;
+
+   procedure DPS_Start_Read (D : in out DPS_Bus; Register : Byte; Length : Positive; Started : out Boolean) is
+   begin
+      BMP_Op ("readstart," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Length)) & ","
+              & BMP_Num (Boolean'Pos (D.Started)));
+      Started := D.Started;
+      if Started then
+         for I in 0 .. Natural'Min (Length, D.Last_Read'Length) - 1 loop
+            D.Last_Read (I) := D.Registers ((Natural (Register) + I) mod 256);
+         end loop;
+      end if;
+   end DPS_Start_Read;
+
+   procedure DPS_Check_Busy (D : in out DPS_Bus; Busy : out Boolean; Error : out Boolean) is
+   begin
+      BMP_Op ("busy," & BMP_Num (Boolean'Pos (D.Busy)));
+      Busy := D.Busy;
+      Error := False;
+   end DPS_Check_Busy;
+
+   procedure DPS_Fetch (D : in out DPS_Bus; Data : out Byte_Array) is
+   begin
+      for I in Data'Range loop
+         Data (I) := D.Last_Read (I - Data'First);
+      end loop;
+   end DPS_Fetch;
+
+   procedure DPS_Register (D : in out DPS_Bus) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("register");
+   end DPS_Register;
+
+   procedure DPS_Delay (D : in out DPS_Bus; Ms : Natural) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("delay," & BMP_Num (Integer_64 (Ms)));
+   end DPS_Delay;
+
+   package DPS_Driver is new Adaflight.DPS310
+     (Bus_Device      => DPS_Bus,
+      Is_I2C          => DPS_Is_I2C,
+      Is_SPI          => DPS_Is_SPI,
+      I2C_Address     => DPS_Address,
+      Set_I2C_Address => DPS_Set_Address,
+      Prepare_SPI     => DPS_Prepare_SPI,
+      Release_SPI     => DPS_Release_SPI,
+      Read_Registers  => DPS_Read,
+      Write_Register  => DPS_Write,
+      Start_Read      => DPS_Start_Read,
+      Check_Busy      => DPS_Check_Busy,
+      Fetch           => DPS_Fetch,
+      Register_Device => DPS_Register,
+      Delay_Ms        => DPS_Delay);
+
+   DPS_Device      : DPS_Bus;
+   DPS_State       : DPS_Driver.State;
+   DPS_Found       : Boolean := False;
+   DPS_Settings    : Adaflight.Barometer_Task.Device;
+   DPS_Done        : Boolean := False;
+   DPS_Pressure    : Interfaces.Integer_32 := -1;
+   DPS_Temperature : Interfaces.Integer_32 := -1;
+
+   procedure Check_DPS310_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "dpsinit" then
+         BMP_Op_Head := 1;
+         BMP_Op_Count := 0;
+         DPS_Device := (others => <>);
+         DPS_Device.SPI := Int (3) /= 0;
+         DPS_Device.Address := Byte (Int (4));
+         DPS_Device.Device_Address := Byte (Int (5));
+         DPS_Device.Failures_Left := Natural (Int (6));
+         declare
+            Initial : constant Byte_Array := Hex_Bytes (7);
+         begin
+            for I in Initial'Range loop
+               DPS_Device.Registers (I) := Initial (I);
+            end loop;
+         end;
+         DPS_State := (others => <>);
+         DPS_Pressure := -1;
+         DPS_Temperature := -1;
+         DPS_Driver.Detect (DPS_Device, DPS_State, DPS_Found, DPS_Settings);
+      elsif Name = "dpsop" then
+         declare
+            Expected : Ada.Strings.Unbounded.Unbounded_String := Ada.Strings.Unbounded.To_Unbounded_String (Str (3));
+         begin
+            for I in 4 .. NF loop
+               Ada.Strings.Unbounded.Append (Expected, "," & Str (I));
+            end loop;
+            if BMP_Op_Head <= BMP_Op_Count then
+               Record_Text ("dps310.op", Ada.Strings.Unbounded.To_String (Expected),
+                            Ada.Strings.Unbounded.To_String (BMP_Ops (BMP_Op_Head)));
+               BMP_Op_Head := BMP_Op_Head + 1;
+            else
+               Record_Text ("dps310.op", Ada.Strings.Unbounded.To_String (Expected), "none");
+            end if;
+         end;
+      elsif Name = "dpsdet" then
+         BMP_Expect_No_Ops ("detection");
+         Record_Int ("dps310.found", Int (3), Boolean'Pos (DPS_Found));
+         Record_Int ("dps310.address", Int (4), Integer_64 (if DPS_Device.SPI then 0 else DPS_Device.Address));
+         Record_Int ("dps310.combined", Int (5), Boolean'Pos (DPS_Settings.Combined_Read));
+         Record_Int ("dps310.ut_delay", Int (6), Integer_64 (DPS_Settings.Temperature_Delay_Us));
+         Record_Int ("dps310.up_delay", Int (7), Integer_64 (DPS_Settings.Pressure_Delay_Us));
+      elsif Name = "dpsstep" then
+         DPS_Device.Busy := Int (5) /= 0;
+         DPS_Device.Started := Int (6) /= 0;
+         declare
+            Data : constant Byte_Array := Hex_Bytes (7);
+         begin
+            for I in Data'Range loop
+               DPS_Device.Registers (I) := Data (I);
+            end loop;
+         end;
+         case Int (4) is
+            when 0 .. 5 =>
+               DPS_Driver.Device_Call (DPS_Device, DPS_State, BMP_Calls (Integer (Int (4))), DPS_Done);
+            when others =>
+               DPS_Driver.Calculate (DPS_State, DPS_Pressure, DPS_Temperature);
+               DPS_Done := False;
+         end case;
+      elsif Name = "dpsres" then
+         BMP_Expect_No_Ops ("a result");
+         Record_Int ("dps310.done", Int (4), Boolean'Pos (DPS_Done));
+         Record_Int ("dps310.pressure", Int (5), Integer_64 (DPS_Pressure));
+         Record_Int ("dps310.temperature", Int (6), Integer_64 (DPS_Temperature));
+      end if;
+   end Check_DPS310_Line;
 
    GB_Seq      : Integer_64 := -1;
    GB_State    : Adaflight.Gimbal_Control.State;
@@ -25898,6 +26101,8 @@ procedure Vector_Check is
                   Check_USB_Joystick_Line;
                elsif Kind = "bmp280" then
                   Check_BMP280_Line;
+               elsif Kind = "dps310" then
+                  Check_DPS310_Line;
                elsif Kind = "gimbal" then
                   Check_Gimbal_Line;
                elsif Kind = "osdtext" then
@@ -26158,6 +26363,7 @@ begin
    Run (Dir & "/stkboot.csv", "stkboot");
    Run (Dir & "/usbhid.csv", "usbhid");
    Run (Dir & "/bmp280.csv", "bmp280");
+   Run (Dir & "/dps310.csv", "dps310");
    Run (Dir & "/gimbal.csv", "gimbal");
    Run (Dir & "/osdtext.csv", "osdtext");
    Run (Dir & "/pidaudio.csv", "pidaudio");
