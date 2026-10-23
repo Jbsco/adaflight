@@ -7708,3 +7708,29 @@ result, detected accelerometer and presence flag of the 38688 detections replays
 vectors, three by stopping the checker on a postcondition. On the first pass the one that lets the configured LSM6DSV32X
 start the scan in a build without that driver passed, since no build paired the virtual accelerometer with one LSM6DSV
 variant, and led to the two such builds.
+
+## D336. Barometer detection (2026-10-18)
+
+`Adaflight.Baro_Detect` lists the barometer drivers in the detection's order BMP085, MS5611, LPS, DPS310, BMP388,
+BMP280, QMP6988, 2SMPB-02B, LPS22DF and BMP5xx, then the virtual barometer. It names the hardware of a found chip. The
+DPS310 driver's SPL07-003 is the SPA06-003 when the build names that option. A BMP5xx with the identity 0x50 or 0x51 is
+the BMP580 or BMP581, and any other identity leaves the hardware at none. The generic child `Adaflight.Baro_Detect.Scan`
+detects over the bus. Without the virtual barometer it first sets the configured bus type's instance, then the I2C
+address or the SPI select pin, and a bus type the build lacks or an instance that refuses ends the detection. The scan
+starts at the configured hardware's driver, or at the first driver for the default. A hardware value keeps its place in
+the order when the build lacks its driver, so the scan goes on from there. The first built driver that finds its chip
+names the hardware and ends the scan, an unknown BMP5xx included. The configured value none and values past the list
+find nothing, and unlike the accelerometer detection a configured hardware that finds nothing does not start again from
+the first driver. A failed detection keeps the barometer the device had. The BMP085 detection receives the configured
+XCLR and EOC pins, the BMP388 and BMP5xx detections the EOC pin. The unit is SPARK for the result and the kept value
+over every build and configuration.
+
+The barometer detection oracle includes the reference barometer with every driver's detection stubbed, built once for
+each combination of I2C and SPI support and twice with the virtual barometer. Each case draws the drivers the build has,
+the SPA06-003 option, the configured hardware and bus, the bus instance answers and each driver's answer. A driver the
+build lacks answers false without a call, as its absent detection code would. A quarter of the virtual builds' cases
+find an unknown BMP5xx chip before any other driver. Every bus and driver call, result, detected barometer and I2C
+address of the 600 cases replays exactly. In them 219 barometers are found, every hardware value of the list among them,
+and 26 scans stop at an unknown BMP5xx in a build with the virtual barometer. All 31 tampered paths fail the vectors. On
+the first pass the one that lets the scan go on past an unknown BMP5xx passed, since no case reached one in a build with
+the virtual barometer, and led to those cases.

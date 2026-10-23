@@ -199,6 +199,7 @@ with Adaflight.Flash_Device.Layer;
 with Adaflight.Gyro_Start;
 with Adaflight.Gyro_Detect;
 with Adaflight.Acc_Detect;
+with Adaflight.Baro_Detect.Scan;
 with Adaflight.QMC5883;
 with Adaflight.Gimbal_Control;
 with Adaflight.OSD_Custom_Text;
@@ -18951,6 +18952,138 @@ procedure Vector_Check is
       end if;
    end Check_Acc_Detect_Line;
 
+   --  The barometer detection oracle's bus: the instance answers, each
+   --  driver's detection answer, the DPS310's SPL07-003 flag, the BMP5xx
+   --  chip identity and the address the detection sets.
+   type BD_Bus is record
+      Address    : Byte := 0;
+      I2C_OK     : Boolean := True;
+      SPI_OK     : Boolean := True;
+      Answers    : Integer_64 := 0;
+      SPL07      : Boolean := False;
+      Chip       : Byte := 0;
+      Virtual_OK : Boolean := True;
+   end record;
+
+   BD_Device   : BD_Bus;
+   BD_Build    : Adaflight.Baro_Detect.Build;
+   BD_Config   : Adaflight.Baro_Detect.Bus_Config;
+   BD_Detected : Byte := 0;
+   BD_Found    : Boolean := False;
+
+   procedure BD_Set_I2C_Instance (D : in out BD_Bus; Device : Byte; OK : out Boolean) is
+   begin
+      OK := D.I2C_OK;
+      MX_Op ("i2c," & BMP_Num (Integer_64 (Device)) & "," & BMP_Num (Boolean'Pos (OK)));
+   end BD_Set_I2C_Instance;
+
+   procedure BD_Set_I2C_Address (D : in out BD_Bus; Address : Byte) is
+   begin
+      D.Address := Address;
+   end BD_Set_I2C_Address;
+
+   procedure BD_Set_SPI_Instance (D : in out BD_Bus; Device : Byte; OK : out Boolean) is
+   begin
+      OK := D.SPI_OK;
+      MX_Op ("spi," & BMP_Num (Integer_64 (Device)) & "," & BMP_Num (Boolean'Pos (OK)));
+   end BD_Set_SPI_Instance;
+
+   procedure BD_Set_CS_Pin (D : in out BD_Bus; Tag : Byte) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("cs," & BMP_Num (Integer_64 (Tag)));
+   end BD_Set_CS_Pin;
+
+   procedure BD_Detect_Chip
+     (D        : in out BD_Bus;
+      Chip     : Adaflight.Baro_Detect.Driver;
+      EOC_Tag  : Byte;
+      XCLR_Tag : Byte;
+      Found    : out Boolean;
+      Variant  : out Byte)
+   is
+      use all type Adaflight.Baro_Detect.Driver;
+      Index : constant Natural := Adaflight.Baro_Detect.Driver'Pos (Chip);
+   begin
+      case Chip is
+         when BMP085 =>
+            MX_Op ("tags," & BMP_Num (Integer_64 (XCLR_Tag)) & "," & BMP_Num (Integer_64 (EOC_Tag)));
+         when BMP388 | BMP5xx =>
+            MX_Op ("tags," & BMP_Num (Integer_64 (EOC_Tag)));
+         when others =>
+            null;
+      end case;
+      MX_Op ("detect," & BMP_Num (Integer_64 (Index)));
+      Found := (if Chip = Virtual then D.Virtual_OK else D.Answers / 2 ** Index mod 2 = 1);
+      Variant := (case Chip is
+                     when DPS310 => Boolean'Pos (D.SPL07),
+                     when BMP5xx => D.Chip,
+                     when others => 0);
+   end BD_Detect_Chip;
+
+   package BD_Scan is new Adaflight.Baro_Detect.Scan
+     (Bus_Device       => BD_Bus,
+      Set_I2C_Instance => BD_Set_I2C_Instance,
+      Set_I2C_Address  => BD_Set_I2C_Address,
+      Set_SPI_Instance => BD_Set_SPI_Instance,
+      Set_CS_Pin       => BD_Set_CS_Pin,
+      Detect_Chip      => BD_Detect_Chip);
+
+   procedure Check_Baro_Detect_Line is
+      use all type Adaflight.Baro_Detect.Driver;
+      Name : constant String := Str (1);
+   begin
+      if Name = "bdinit" then
+         MX_Op_Head := 1;
+         MX_Op_Count := 0;
+         BD_Device := (others => <>);
+         for D in BMP085 .. BMP5xx loop
+            BD_Build.Drivers (D) := Int (3) / 2 ** Adaflight.Baro_Detect.Driver'Pos (D) mod 2 = 1;
+         end loop;
+         BD_Build.Drivers (Virtual) := Int (4) /= 0;
+         BD_Build.I2C := Int (5) /= 0;
+         BD_Build.SPI := Int (6) /= 0;
+         BD_Build.SPA06 := Int (7) /= 0;
+         BD_Device.SPL07 := Int (8) /= 0;
+         BD_Device.Chip := Byte (Int (9));
+         BD_Config :=
+           (Bus_Type    => Byte (Int (11)),
+            I2C_Device  => Byte (Int (12)),
+            I2C_Address => Byte (Int (13)),
+            SPI_Device  => Byte (Int (14)),
+            SPI_CS      => Byte (Int (15)),
+            EOC_Tag     => Byte (Int (16)),
+            XCLR_Tag    => Byte (Int (17)));
+         BD_Device.Answers := Int (18);
+         BD_Device.I2C_OK := Int (19) /= 0;
+         BD_Device.SPI_OK := Int (20) /= 0;
+         BD_Device.Virtual_OK := Int (21) /= 0;
+         BD_Detected := Byte (Int (22));
+         BD_Scan.Detect (BD_Device, BD_Build, BD_Config, Byte (Int (10)), BD_Detected, BD_Found);
+      elsif Name = "bdop" then
+         declare
+            Expected : Ada.Strings.Unbounded.Unbounded_String := Ada.Strings.Unbounded.To_Unbounded_String (Str (3));
+         begin
+            for I in 4 .. NF loop
+               Ada.Strings.Unbounded.Append (Expected, "," & Str (I));
+            end loop;
+            if MX_Op_Head <= MX_Op_Count then
+               Record_Text ("barodetect.op", Ada.Strings.Unbounded.To_String (Expected),
+                            Ada.Strings.Unbounded.To_String (MX_Ops (MX_Op_Head)));
+               MX_Op_Head := MX_Op_Head + 1;
+            else
+               Record_Text ("barodetect.op", Ada.Strings.Unbounded.To_String (Expected), "none");
+            end if;
+         end;
+      elsif Name = "bdres" then
+         MX_Expect_No_Ops ("barometer detection");
+         Record_Int ("barodetect.found", Int (3), Boolean'Pos (BD_Found));
+         Record_Int ("barodetect.detected", Int (4), Integer_64 (BD_Detected));
+         Record_Int ("barodetect.present", Int (5), Boolean'Pos (BD_Found));
+         Record_Int ("barodetect.address", Int (6), Integer_64 (BD_Device.Address));
+      end if;
+   end Check_Baro_Detect_Line;
+
    GB_Seq      : Integer_64 := -1;
    GB_State    : Adaflight.Gimbal_Control.State;
    GB_Settings : Adaflight.Gimbal_Control.Settings;
@@ -29103,6 +29236,8 @@ procedure Vector_Check is
                   Check_Gyro_Detect_Line;
                elsif Kind = "accdetect" then
                   Check_Acc_Detect_Line;
+               elsif Kind = "barodetect" then
+                  Check_Baro_Detect_Line;
                elsif Kind = "gimbal" then
                   Check_Gimbal_Line;
                elsif Kind = "osdtext" then
@@ -29379,6 +29514,7 @@ begin
    Run (Dir & "/qmc5883.csv", "qmc5883");
    Run (Dir & "/gyrodetect.csv", "gyrodetect");
    Run (Dir & "/accdetect.csv", "accdetect");
+   Run (Dir & "/barodetect.csv", "barodetect");
    Run (Dir & "/gimbal.csv", "gimbal");
    Run (Dir & "/osdtext.csv", "osdtext");
    Run (Dir & "/pidaudio.csv", "pidaudio");
