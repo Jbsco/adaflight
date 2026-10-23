@@ -7916,3 +7916,21 @@ Every bus call, detection, initialization and reading of the 300 cases replays e
 narrows the mode mask passed, since no read-back had bit 4 set, and the one that reads the mode back after a refused
 mode write passed, since the reset and mode writes shared one answer. They led to the read-backs with bit 4 set and the
 separate answer for the reset write.
+
+## D346. MMC560X compass driver (2026-10-18)
+
+`Adaflight.MMC560X` drives the MMC560X compass over the same bus as the other compass drivers. Detection gives an unset
+I2C address the chip's 0x30, waits 10 ms for the chip to power up and reads the product identity 0x10. Initialization
+registers the device, resets it and waits 20 ms, sets it and waits 1 ms, then writes the 2 ms bandwidth, the 100 Hz
+rate, continuous measurement with automatic set and reset, and high power continuous mode with periodic set. It stops
+at the first refused write and gives the 100 Hz output data rate only when every write went through. A read takes the
+nine output bytes in one blocking read with no status check. Each axis is its 18-bit count from the two high bytes and
+the top two bits of its low byte, centered on 131072 and shifted right by 2, which rounds a negative value down like
+the reference's arithmetic shift. The unit is SPARK for the axis conversion.
+
+The MMC560X oracle includes the reference driver over a simulated chip whose answers each case draws and prints before
+use, one case per process. It draws the bus type and a preset address, the product identity and its read
+acknowledgement and the six write acknowledgements, then 20 to 60 reads with read answers and data. Every bus call,
+detection, initialization and reading of the 300 cases replays exactly. In them 230 compasses are found, 139
+initialize, and 8397 readings arrive. Of 28 tampered paths, 27 fail the vectors. The one that takes another axis's low
+byte passes and is equivalent, since the low byte gives the count's two lowest bits, which the shift drops.
