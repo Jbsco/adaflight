@@ -8036,3 +8036,30 @@ configuration flags, then 6 to 20 operations, half of them within 600 bytes of t
 call and state after each operation of the 300 cases replays exactly. In them 145 W25M512 and 124 W25M02G chips are
 identified, and of 410 reads 54 span both dies, 47 die reads bring half their bytes and 50 bring none. All 34 tampered
 paths fail the vectors, the two that change a stacked chip's JEDEC ID by stopping the checker after its mismatches.
+
+## D350. LPS22DF barometer driver (2026-10-18)
+
+`Adaflight.LPS22DF` drives the LPS22DF barometer on I2C or SPI. Detection waits 20 ms, prepares the select pin and a 10
+MHz clock of an SPI chip, gives an unset I2C address the chip's 0x5D, and reads the identity 0xB4. A refused identity
+read leaves the identity the last read gave, which the reference keeps in a static variable and this unit keeps in its
+state. A chip without the identity gets its bus released and the default address taken back. Otherwise detection
+registers the device, sets the software reset and reads the second control register until the reset bit clears, reading
+the millisecond clock after each read and giving up, without releasing the bus, once more than 10 ms have passed. It
+then turns on the low-pass filter and the block data update and sets a continuous 10 Hz rate averaging 512 samples,
+whatever the writes answer, and sets up the barometer task for a combined read with a 10 ms pressure delay. A pressure
+read starts the five data bytes while the bus is free, a pressure sample takes the bytes the last read brought while the
+bus is free, and the other calls do nothing. The calculation gives the pressure in pascal as the 24-bit count times 100
+over 16 in single precision, cut toward zero and divided by 256, and the temperature in hundredths of a degree as the
+16-bit count taken unsigned, as the reference does (finding F270). The unit is SPARK for the reset timeout, the counts
+and the pressure arithmetic.
+
+The LPS22DF oracle includes the reference driver with both bus kinds over a simulated chip, one case per process. It
+draws the bus, the addresses, the identity, how many reads fail first, how many control register reads still show the
+reset, never clearing in 15 percent of the cases and 6 to 16 reads in a fifth, around the read the 10 ms timeout passes
+on, and the clock's pace, a fifth of the clocks within 12 ms of the 32-bit wrap. It then makes 50 of the driver's calls
+with scripted busy and start answers and raw readings, among them temperatures below 0 degrees and pressure counts whose
+scaled value ends in .5 or .75 just under a multiple of 256. Every bus, pin, delay and clock call, detection and
+calculation of the 300 cases replays exactly. In them 123 chips are found and 45 identified chips time out in the reset,
+21 of them with a reset that clears later. All 38 tampered paths fail the vectors. On the first pass the one that checks
+the timeout after the reset bit passed, since no reset cleared on the read that passed 10 ms, and the one that rounds
+the scaled count passed, since no count sat where rounding and truncation part; both led to the drawn resets and counts.
