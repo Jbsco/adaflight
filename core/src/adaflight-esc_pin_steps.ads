@@ -13,6 +13,9 @@ package Adaflight.ESC_Pin_Steps with SPARK_Mode is
    procedure Step_Read_Millis (L : in out Pin_Line; Now : out Interfaces.Unsigned_32)
      with Global => null;
 
+   procedure Step_Delay_Micros (L : in out Pin_Line; Micros : Natural)
+     with Global => null;
+
    procedure Step_Read_Pin (L : in out Pin_Line; ESC : Byte; High : out Boolean)
      with Global => null;
 
