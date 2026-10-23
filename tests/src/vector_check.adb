@@ -206,6 +206,7 @@ with Adaflight.Optical_Flow_Detect.Probe;
 with Adaflight.HMC5883;
 with Adaflight.IST8310;
 with Adaflight.LIS3MDL;
+with Adaflight.LIS2MDL;
 with Adaflight.QMC5883;
 with Adaflight.Gimbal_Control;
 with Adaflight.OSD_Custom_Text;
@@ -19860,6 +19861,144 @@ procedure Vector_Check is
       end if;
    end Check_LIS3MDL_Line;
 
+   --  The LIS2MDL oracle's chip: the bus type and address, the write
+   --  acknowledgements, the identity read's answer, the next read's answers
+   --  and the bytes a started read brought.
+   type L2_Bus is record
+      I2C        : Boolean := True;
+      Address    : Byte := 0;
+      Write_Acks : String (1 .. 3) := (others => '1');
+      Write_Next : Natural := 1;
+      Id_Ack     : Boolean := True;
+      Id_Value   : Byte := 0;
+      Start_Ack  : Boolean := True;
+      Data       : Byte_Array (0 .. 5) := (others => 0);
+      Fetched    : Byte_Array (0 .. 5) := (others => 0);
+   end record;
+
+   L2_Device : L2_Bus;
+
+   function L2_Is_I2C (D : L2_Bus) return Boolean is (D.I2C);
+
+   function L2_Address (D : L2_Bus) return Byte is (D.Address);
+
+   procedure L2_Set_Address (D : in out L2_Bus; Address : Byte) is
+   begin
+      D.Address := Address;
+   end L2_Set_Address;
+
+   procedure L2_Register (D : in out L2_Bus) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("register");
+   end L2_Register;
+
+   procedure L2_Read (D : in out L2_Bus; Register : Byte; Data : in out Byte_Array; OK : out Boolean) is
+   begin
+      OK := D.Id_Ack;
+      if OK then
+         Data := (others => D.Id_Value);
+      end if;
+      MX_Op ("read," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Data'Length)) & ","
+             & BMP_Num (Boolean'Pos (OK)) & "," & BMP_Num (Integer_64 (D.Id_Value)));
+   end L2_Read;
+
+   procedure L2_Write (D : in out L2_Bus; Register : Byte; Value : Byte; OK : out Boolean) is
+   begin
+      OK := (if D.Write_Next <= 3 then D.Write_Acks (D.Write_Next) = '1' else True);
+      D.Write_Next := D.Write_Next + 1;
+      MX_Op ("write," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Value)) & ","
+             & BMP_Num (Boolean'Pos (OK)));
+   end L2_Write;
+
+   procedure L2_Start_Read (D : in out L2_Bus; Register : Byte; Length : Positive; Started : out Boolean) is
+   begin
+      MX_Op ("start," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Length)) & ","
+             & BMP_Num (Boolean'Pos (D.Start_Ack)));
+      Started := D.Start_Ack;
+      if Started then
+         D.Fetched := D.Data;
+      end if;
+   end L2_Start_Read;
+
+   procedure L2_Fetch (D : in out L2_Bus; Data : out Byte_Array) is
+   begin
+      Data := D.Fetched (0 .. Data'Length - 1);
+   end L2_Fetch;
+
+   package L2_Chip is new Adaflight.LIS2MDL
+     (Bus_Device      => L2_Bus,
+      Is_I2C          => L2_Is_I2C,
+      I2C_Address     => L2_Address,
+      Set_I2C_Address => L2_Set_Address,
+      Register_Device => L2_Register,
+      Read_Registers  => L2_Read,
+      Write_Register  => L2_Write,
+      Start_Read      => L2_Start_Read,
+      Fetch           => L2_Fetch);
+
+   L2_State : L2_Chip.State;
+   L2_Data  : L2_Chip.Axes := (others => 0);
+   L2_Found : Boolean := False;
+   L2_OK    : Boolean := False;
+   L2_Got   : Boolean := False;
+
+   procedure Check_LIS2MDL_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "l2init" then
+         MX_Op_Head := 1;
+         MX_Op_Count := 0;
+         L2_Device := (others => <>);
+         L2_State := (others => <>);
+         L2_Data := (others => 0);
+         L2_Device.I2C := Int (3) /= 0;
+         L2_Device.Address := Byte (Int (4));
+         L2_Device.Write_Acks := Str (5);
+         L2_Device.Id_Ack := Int (6) /= 0;
+         L2_Device.Id_Value := Byte (Int (7));
+         L2_Chip.Detect (L2_Device, L2_Found);
+      elsif Name = "l2det" then
+         MX_Expect_No_Ops ("detection");
+         Record_Int ("lis2mdl.found", Int (3), Boolean'Pos (L2_Found));
+         Record_Int ("lis2mdl.address", Int (4), Integer_64 (L2_Device.Address));
+         if L2_Found then
+            L2_Chip.Init (L2_Device, L2_State, L2_OK);
+         end if;
+      elsif Name = "l2ready" then
+         MX_Expect_No_Ops ("initialization");
+         Record_Int ("lis2mdl.init", Int (3), Boolean'Pos (L2_OK));
+         Record_Int ("lis2mdl.odr", Int (4), Integer_64 (L2_State.ODR_Hz));
+      elsif Name = "l2step" then
+         MX_Op_Head := 1;
+         MX_Op_Count := 0;
+         L2_Device.Start_Ack := Int (4) /= 0;
+         L2_Device.Data := Hex_Bytes (5);
+         L2_Chip.Read (L2_Device, L2_State, L2_Data, L2_Got);
+      elsif Name = "l2op" then
+         declare
+            Expected : Ada.Strings.Unbounded.Unbounded_String := Ada.Strings.Unbounded.To_Unbounded_String (Str (3));
+         begin
+            for I in 4 .. NF loop
+               Ada.Strings.Unbounded.Append (Expected, "," & Str (I));
+            end loop;
+            if MX_Op_Head <= MX_Op_Count then
+               Record_Text ("lis2mdl.op", Ada.Strings.Unbounded.To_String (Expected),
+                            Ada.Strings.Unbounded.To_String (MX_Ops (MX_Op_Head)));
+               MX_Op_Head := MX_Op_Head + 1;
+            else
+               Record_Text ("lis2mdl.op", Ada.Strings.Unbounded.To_String (Expected), "none");
+            end if;
+         end;
+      elsif Name = "l2res" then
+         MX_Expect_No_Ops ("a read");
+         Record_Int ("lis2mdl.got", Int (4), Boolean'Pos (L2_Got));
+         for K in 0 .. 2 loop
+            Record_Int ("lis2mdl.axis", Int (5 + K), Integer_64 (L2_Data (K)));
+         end loop;
+      end if;
+   end Check_LIS2MDL_Line;
+
    GB_Seq      : Integer_64 := -1;
    GB_State    : Adaflight.Gimbal_Control.State;
    GB_Settings : Adaflight.Gimbal_Control.Settings;
@@ -30026,6 +30165,8 @@ procedure Vector_Check is
                   Check_IST8310_Line;
                elsif Kind = "lis3mdl" then
                   Check_LIS3MDL_Line;
+               elsif Kind = "lis2mdl" then
+                  Check_LIS2MDL_Line;
                elsif Kind = "gimbal" then
                   Check_Gimbal_Line;
                elsif Kind = "osdtext" then
@@ -30309,6 +30450,7 @@ begin
    Run (Dir & "/hmc5883.csv", "hmc5883");
    Run (Dir & "/ist8310.csv", "ist8310");
    Run (Dir & "/lis3mdl.csv", "lis3mdl");
+   Run (Dir & "/lis2mdl.csv", "lis2mdl");
    Run (Dir & "/gimbal.csv", "gimbal");
    Run (Dir & "/osdtext.csv", "osdtext");
    Run (Dir & "/pidaudio.csv", "pidaudio");
