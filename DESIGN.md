@@ -7395,3 +7395,37 @@ cleared flag and cursor row and the driver's state after each call replay exactl
 a port, 41 with a chip found by a later rescan. All 21 tampered paths fail the vectors, two of them by stopping the
 check: a port reported for a chip without a select pin leaves the check without the state to compare, and a redraw
 while armed instead of disarmed runs into the endless refresh of F255.
+
+## D324. SPI gyro layer (2026-10-18)
+
+`Adaflight.MPU_Gyro` is the layer the SPI gyro chip drivers share. It is generic over the gyro's SPI device and the
+number of chip probes the build includes: the select pin before, during and after detection, the bus instance, the
+clock divisor, the probes in the reference's order, the device's registration, the millisecond clock, a delay, the
+data ready interrupt, the cycle counter, transfers started with or without a completion call and the wait for them,
+the receive buffer they fill, whether the bus has DMA, and register reads within a call. Detection waits 35 ms and
+needs a bus type, a select pin and a bus instance. It prepares the select pin with the device's resource index,
+waits until 100 ms after start, sets a 1 MHz clock and asks each chip in turn. The first that answers is registered,
+and when none does the select pin goes back to an input with its pull-up. Without I2C gyro support the layer probes
+the SPI bus whatever bus type the configuration names.
+
+Initialization names the accelerometer, temperature and gyro data registers of the MPU family and arms the data
+ready interrupt when the board has the pin. Each interrupt takes the cycle count, moves the sync time to the last
+interrupt plus the longest DMA read when the interval was short or no short interval is set, keeps the count as the
+last interrupt time, starts the DMA read in DMA mode and counts. A completed DMA read keeps its duration since the
+interrupt when it is the longest and marks the data ready. The scheduler's gyro lock reads those times and counts.
+The first gyro read sets the longest DMA read to 5 cycles and picks the mode: DMA when more than 1000 interrupts
+came and the bus has DMA, reading 15 bytes from the accelerometer register, interrupt driven without DMA, or no
+interrupt otherwise. Reads in the interrupt and polled modes send the register with the read bit, wait and take
+three big-endian words. Reads in DMA mode take them from the last DMA read, the gyro with the temperature, scaled in
+single precision in two bounded steps and cut toward zero. The hardware filter setting is 0 for every setting of
+this build. The unit is SPARK for the word decoding, the buffer indices and the cycle and temperature arithmetic.
+
+The MPU gyro oracle includes the reference layer with the bus, pin, interrupt, clock and delay calls and three chip
+probes stubbed over a simulated device, one case per process. It draws the device configuration, the bus, the probe
+answers, the startup clock, DMA, the interrupt pin, the short interval, the filter settings and the temperature
+scale, then runs 60 interrupts, bursts of interrupts, DMA completions, reads, filter queries, new samples and
+consumer clears in a random order, half the cases after a burst of more than 1000 interrupts. Every bus, pin and
+delay call, answer, mode, count and time, clock after detection, reading and temperature of the 300 cases replays
+exactly, 192 of them past detection. All 38 tampered paths fail the vectors, three of them by stopping the check on
+a range: a gyro register past the DMA read and two sign tests that let a reading pass 32767. On the first pass a
+shortened startup wait passed, since no vector showed the clock, and led to the clock check after detection.
