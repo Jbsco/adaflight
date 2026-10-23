@@ -7632,3 +7632,32 @@ virtual gyro, the configuration's hardware filter setting, out of range in one c
 the interrupt pin, the alignment, the divider drops before the start and the data ready flag. Every rate, rate code,
 divider drop, protection, copied setting and data ready answer of the 300 cases replays exactly, with all five rates
 drawn. All 25 tampered paths fail the vectors, the two in the data ready check by its postcondition.
+
+## D333. QMC5883 compass driver (2026-10-18)
+
+`Adaflight.QMC5883` drives the QMC5883L and QMC5883P compasses, generic over the bus of the barometer drivers.
+Detection of the L sets the address 0x0D when none was set, resets the chip, waits 20 ms and reads the identity
+0xFF, then refuses a chip whose mode after the reset is not standby, while a failed read of the mode passes.
+Detection of the P sets the address 0x2C when none was set and reads the identity 0x80. Initialization registers the
+device and writes the L's reset and its continuous 200 Hz mode at 8 gauss with 512 times oversampling, or the P's
+sign setting, its continuous 100 Hz mode at 8 gauss and eightfold oversampling, stopping at the first refused write,
+and gives the output data rate when every write went through.
+
+Each read first collects the bytes of the transfer the previous call started. While it waits for data it starts the
+status read, starts the six data bytes once the status reports data ready, or, on the L, clears an overrun by reading
+the unlock register. The call after a data read hands over the three little-endian axes. The P rejects all-zero and
+all-one readings and the eleventh repeat in a row of one reading, and starts again from the status. The reference
+keeps the read state in static variables of its read function, shared by every QMC5883 device. This unit keeps the
+state per device, which behaves the same with one compass. The unit is SPARK for the read state and the reading
+checks.
+
+The QMC5883 oracle includes the reference driver over a simulated chip whose answers each case draws and prints before
+use, one case per process. It draws the variant, the bus type and a preset address, the identity and mode answers, the
+write and read acknowledgements, then 20 to 60 reads with status, data and start answers, among them all-zero, all-one
+and repeated readings. Half of the cases instead read 60 to 120 times, with one reading throughout or with a new reading
+every 12 to 25 reads. Every bus call, detection, initialization and reading of the 300 cases replays exactly. In them
+207 compasses initialize and 3070 readings arrive. The P rejects 397 all-zero, 245 all-one and 19 repeated readings, and
+the L clears 530 overruns. Of 39 tampered paths, 38 fail the vectors, one by stopping the checker. The one that drops
+the store of the unlock byte passes and is equivalent, since the next data read overwrites that byte before any use. On
+the first pass the one that keeps the repeat count across a changed reading passed, since the cases with changing
+readings repeated too few times to reach the limit, and led to the cases with a new reading every 12 to 25 reads.
