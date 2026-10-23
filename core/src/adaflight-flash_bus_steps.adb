@@ -127,4 +127,71 @@ package body Adaflight.Flash_Bus_Steps with SPARK_Mode is
       Response := (others => 0);
    end Step_Read_Id;
 
+   procedure Step_Die_Identify (Die : Natural; F : in out Device; JEDEC : Interfaces.Unsigned_32; OK : out Boolean)
+   is
+      pragma Unreferenced (Die, F, JEDEC);
+   begin
+      OK := False;
+   end Step_Die_Identify;
+
+   procedure Step_Die_Configure
+     (D : in out Flash_Line; Die : Natural; F : in out Device; Flags : Interfaces.Unsigned_32)
+   is
+      pragma Unreferenced (D, Die, F, Flags);
+   begin
+      null;
+   end Step_Die_Configure;
+
+   procedure Step_Die_Ready (D : in out Flash_Line; Die : Natural; F : in out Device; Ready : out Boolean) is
+      pragma Unreferenced (D, Die, F);
+   begin
+      Ready := False;
+   end Step_Die_Ready;
+
+   procedure Step_Die_Erase_Sector
+     (D : in out Flash_Line; Die : Natural; F : in out Device; Address : Interfaces.Unsigned_32)
+   is
+      pragma Unreferenced (D, Die, F, Address);
+   begin
+      null;
+   end Step_Die_Erase_Sector;
+
+   procedure Step_Die_Erase_Completely (D : in out Flash_Line; Die : Natural; F : in out Device) is
+      pragma Unreferenced (D, Die, F);
+   begin
+      null;
+   end Step_Die_Erase_Completely;
+
+   procedure Step_Die_Program_Begin
+     (Die : Natural; F : in out Device; Address : Interfaces.Unsigned_32; Has_Callback : Boolean)
+   is
+      pragma Unreferenced (Die, F, Address, Has_Callback);
+   begin
+      null;
+   end Step_Die_Program_Begin;
+
+   procedure Step_Die_Program_Continue
+     (D : in out Flash_Line; Die : Natural; F : in out Device; Data_1 : Byte_Array; Data_2 : Byte_Array;
+      Count : Natural; Written : out Interfaces.Unsigned_32)
+   is
+      pragma Unreferenced (D, Die, F, Data_1, Data_2, Count);
+   begin
+      Written := 0;
+   end Step_Die_Program_Continue;
+
+   procedure Step_Die_Program_Finish (Die : Natural; F : in out Device) is
+      pragma Unreferenced (Die, F);
+   begin
+      null;
+   end Step_Die_Program_Finish;
+
+   procedure Step_Die_Read
+     (D : in out Flash_Line; Die : Natural; F : in out Device; Address : Interfaces.Unsigned_32;
+      Buffer : in out Byte_Array; Count : out Natural)
+   is
+      pragma Unreferenced (D, Die, F, Address, Buffer);
+   begin
+      Count := 0;
+   end Step_Die_Read;
+
 end Adaflight.Flash_Bus_Steps;
