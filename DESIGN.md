@@ -7579,3 +7579,36 @@ transfer, segment, callback, result and device field of the 300 cases replays ex
 return erased or programmed bytes. Of 42 tampered paths, 41 fail the vectors, one by stopping the checker and one by
 a status read that never answers. The one that also reads the write enable bit as busy passes and is equivalent:
 every write enable is followed by its write in the same list, which clears the latch, so no status read sees it set.
+
+## D331. Flash layer (2026-10-18)
+
+`Adaflight.Flash_Device.Layer` is the flash layer over an SPI flash chip driver, a generic child over the select
+pin, the bus, the clock divisor, a delay, the identification read and the driver's procedures. Preinitialization
+leaves the select pin an input with its pull-up. Initialization clears the partition table and, when the
+configuration names a bus, checks for a select pin, that it is free and that the bus attaches, prepares the pin,
+sets a 5 MHz clock, waits 50 ms and reads four identification bytes, the first three of which the driver looks up. A
+known chip keeps its JEDEC ID and is configured. An unknown one returns the select pin to its pull-up. The
+partitions then give the flash filesystem the chip's sectors, ending before a bad block management partition when
+there is one. Setting a partition updates the entry of its type, or takes the next free entry while fewer than five
+are in use, so the table of six entries holds at most five. The type stays the raw byte the caller gave, and the
+sectors are cut to 16 bits.
+
+The layer hands the ready check, the wait, the programs and the reads to the driver. A sector erase clears the
+program report and waits for the chip, a chip erase clears it and returns at once, and a read clears it. A continued
+program trims its buffers to the room left in the page, the first alone when it fills the page. The geometry is the
+chip's, or empty without a chip. A lookup by type finds the first entry of the type, an empty entry being of the
+unknown type, and a lookup by index finds the entries added. Type names are padded to nine characters. The second
+reading of the identification for chips that answer a dummy byte first, the ready check that fails after a deadline
+and the flush serve drivers this build leaves out: the M25P16 sets no deadline and has no flush. The unit is SPARK
+for the partition table and the page arithmetic.
+
+The flash layer oracle includes the reference layer and M25P16 driver over the chip and bus of D330, one case per
+process. It draws the select pin and bus, whether the pin is free and the bus attaches, the identification bytes,
+from the table in 75 percent of cases and with a leading dummy byte in 10 percent, DMA with the bus's busy answers
+and the busy reads, then initializes the layer and runs 4 to 14 drawn calls, half of them near the last write, with
+bursts of one to six partition settings and, in a quarter of the continued programs, a first buffer that fills the
+page exactly. Every pin, bus, segment and delay call, result, geometry, partition and name of the 300 cases replays
+exactly, 183 of them with a chip, while 28 bursts fill the table and 23 programs fill the page exactly with two
+buffers. All 28 tampered paths fail the vectors, two by stopping the checker. On the first pass the one that keeps
+both buffers when the first fills the page exactly passed, since no case filled it exactly, and led to those
+programs.
