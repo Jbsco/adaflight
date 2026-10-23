@@ -192,6 +192,7 @@ with Adaflight.MPU_Gyro;
 with Adaflight.MPU_Gyro.MPU6000;
 with Adaflight.MPU_Gyro.ICM426xx;
 with Adaflight.MPU_Gyro.MPU6500;
+with Adaflight.MPU_Gyro.ICM20689;
 with Adaflight.Gimbal_Control;
 with Adaflight.OSD_Custom_Text;
 with Adaflight.PID_Audio;
@@ -17857,6 +17858,120 @@ procedure Vector_Check is
       end if;
    end Check_MPU6500_Line;
 
+   --  The ICM20689 oracle's chip over the MPU gyro oracle's device.
+   procedure I2_Probe (D : in out MG_Bus; Index : Positive; Sensor : out Byte);
+
+   package I2_Layer is new Adaflight.MPU_Gyro
+     (SPI_Device       => MG_Bus,
+      Chip_Count       => 1,
+      Preinit_CS       => MG_Preinit_CS,
+      Attach_Bus       => MG_Attach_Bus,
+      Prepare_CS       => MG_Prepare_CS,
+      Release_CS       => MG_Release_CS,
+      Divider          => MG_Divider,
+      Set_Divisor      => MG_Set_Divisor,
+      Probe_Chip       => I2_Probe,
+      Register_Device  => MG_Register,
+      Millis           => MG_Millis,
+      Delay_Ms         => MG_Delay,
+      Enable_Interrupt => MG_Enable_Interrupt,
+      Cycle_Count      => MG_Cycle_Count,
+      Start_Sequence   => MG_Start_Sequence,
+      Wait             => MG_Wait,
+      Fetch            => MG_Fetch,
+      Uses_DMA         => MG_Uses_DMA,
+      Read_Registers   => MG_Read);
+
+   package I2_Chip is new I2_Layer.ICM20689
+     (Write_Register => MG_Write_Register,
+      Read_Register  => MG_Read_Register,
+      Delay_Us       => MG_Delay_Us);
+
+   procedure I2_Probe (D : in out MG_Bus; Index : Positive; Sensor : out Byte) is
+      pragma Unreferenced (Index);
+   begin
+      I2_Chip.Detect (D, Sensor);
+   end I2_Probe;
+
+   I2_State : I2_Layer.State;
+   I2_Found : Boolean := False;
+   I2_Drops : Byte := 0;
+
+   procedure Check_ICM20689_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "i2init" then
+         MX_Op_Head := 1;
+         MX_Op_Count := 0;
+         MG_Device := (others => <>);
+         MG_Device.Bus_OK := Int (6) /= 0;
+         MG_Device.Regs (16#75#) := Byte (Int (7));
+         MG_Device.Now_Ms := Interfaces.Unsigned_32 (Int (8));
+         MG_Device.Ms_Step := Interfaces.Unsigned_32 (Int (9));
+         MG_Device.Use_DMA := Int (10) /= 0;
+         MG_Device.Read_Ack := Int (15) /= 0;
+         MG_Device.Cycles := Interfaces.Unsigned_32 (Int (16));
+         MG_Set_Registers (17);
+         I2_State := (others => <>);
+         I2_State.Interrupt_Pin := Int (11) /= 0;
+         I2_Drops := Byte (Int (12));
+         I2_State.Hardware_LPF := Byte (Int (13));
+         I2_State.Rate_KHz := Byte (Int (14));
+         declare
+            C : constant I2_Layer.Device_Config :=
+              (Index => Interfaces.Integer_8 (Int (3)), Bus_Type => 2, SPI_Bus => Byte (Int (4)),
+               CS_Tag => Byte (Int (5)));
+         begin
+            I2_Layer.Preinit (MG_Device, C);
+            I2_Layer.Detect (MG_Device, I2_State, C, I2_Found);
+         end;
+      elsif Name = "i2op" then
+         declare
+            Expected : Ada.Strings.Unbounded.Unbounded_String := Ada.Strings.Unbounded.To_Unbounded_String (Str (3));
+         begin
+            for I in 4 .. NF loop
+               Ada.Strings.Unbounded.Append (Expected, "," & Str (I));
+            end loop;
+            if MX_Op_Head <= MX_Op_Count then
+               Record_Text ("icm20689.op", Ada.Strings.Unbounded.To_String (Expected),
+                            Ada.Strings.Unbounded.To_String (MX_Ops (MX_Op_Head)));
+               MX_Op_Head := MX_Op_Head + 1;
+            else
+               Record_Text ("icm20689.op", Ada.Strings.Unbounded.To_String (Expected), "none");
+            end if;
+         end;
+      elsif Name = "i2det" then
+         MX_Expect_No_Ops ("detection");
+         Record_Int ("icm20689.found", Int (3), Boolean'Pos (I2_Found));
+         Record_Int ("icm20689.sensor", Int (4), Integer_64 (I2_State.Sensor));
+         Record_Int ("icm20689.clock", Int (5), Integer_64 (MG_Device.Now_Ms));
+      elsif Name = "i2chip" then
+         declare
+            Gyro_Found : Boolean;
+            Scale      : Float;
+         begin
+            I2_State.Hardware := Byte (Int (7));
+            I2_Chip.Gyro_Detect (I2_State, Gyro_Found, Scale);
+            Record_Int ("icm20689.gyro_found", Int (3), Boolean'Pos (Gyro_Found));
+            Record_Int ("icm20689.acc_found", Int (4), Boolean'Pos (I2_Chip.Acc_Detect (I2_State)));
+            Record_Int ("icm20689.scale", Int_Hex (5), Integer_64 (To_Bits (Scale)));
+            Record_Int ("icm20689.short_period", Int (6), Integer_64 (I2_State.Short_Period));
+            if Gyro_Found then
+               I2_Chip.Gyro_Init (MG_Device, I2_State, I2_Drops);
+            end if;
+         end;
+      elsif Name = "i2ready" then
+         MX_Expect_No_Ops ("initialization");
+         for K in 0 .. 2 loop
+            Record_Int ("icm20689.gyro", Int (3 + K), Integer_64 (I2_State.Raw (K)));
+         end loop;
+         Record_Int ("icm20689.temp_scale", Int_Hex (6), Integer_64 (To_Bits (I2_State.Temp_Scale)));
+         Record_Int ("icm20689.temp_zero", Int_Hex (7), Integer_64 (To_Bits (I2_State.Temp_Zero)));
+         Record_Int ("icm20689.acc_one_g", Int (8),
+                     (if I2_Chip.Acc_Detect (I2_State) then I2_Chip.Acc_One_G else 0));
+      end if;
+   end Check_ICM20689_Line;
+
    GB_Seq      : Integer_64 := -1;
    GB_State    : Adaflight.Gimbal_Control.State;
    GB_Settings : Adaflight.Gimbal_Control.Settings;
@@ -27995,6 +28110,8 @@ procedure Vector_Check is
                   Check_ICM426xx_Line;
                elsif Kind = "mpu6500" then
                   Check_MPU6500_Line;
+               elsif Kind = "icm20689" then
+                  Check_ICM20689_Line;
                elsif Kind = "gimbal" then
                   Check_Gimbal_Line;
                elsif Kind = "osdtext" then
@@ -28264,6 +28381,7 @@ begin
    Run (Dir & "/mpu6000.csv", "mpu6000");
    Run (Dir & "/icm426xx.csv", "icm426xx");
    Run (Dir & "/mpu6500.csv", "mpu6500");
+   Run (Dir & "/icm20689.csv", "icm20689");
    Run (Dir & "/gimbal.csv", "gimbal");
    Run (Dir & "/osdtext.csv", "osdtext");
    Run (Dir & "/pidaudio.csv", "pidaudio");

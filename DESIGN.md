@@ -7522,3 +7522,24 @@ also draw the gyro hardware, the MPU6050 or MPU6000 in 40 percent of them. Every
 initializations under the experimental setting, 36 of 45 on the MPU6500 write 7, the rest above 8 kHz, all 49 on the
 MPU6000 write 0, and the 53 on ICM426xx chips other than the ICM-42605 write the 1962 Hz entry. All 11 tampered
 paths fail the vectors, among them the MPU6500 driver's write of 0 for the filter setting (D327).
+
+## D329. ICM20689 gyro driver (2026-10-18)
+
+`Adaflight.MPU_Gyro.ICM20689` drives the ICM-20601, ICM-20602, ICM-20608-G and ICM-20689 over the SPI gyro layer
+(D324), a generic child that adds register writes and reads and a microsecond delay. Its detection is the layer's
+chip probe. It resets the chip, waits 100 ms and reads the identity, and for one of the four disables the I2C
+interface, resets the accelerometer and temperature signal paths and waits 100 ms. A gyro of the family gets the
+2000 degrees per second scale, and the ICM-20602 and ICM-20689 also an accelerometer with a one g of 2048.
+Initialization sets an 8 MHz clock before the layer's, then selects the clock, waits 120 microseconds and sets the
+2000 degrees per second and 16 g ranges, the layer's filter setting, the sample rate divider, any-read interrupt
+clear and the data ready interrupt, with the temperature scale of 0.003 and zero of 25. The reference's detection
+probes this driver before the MPU6500 driver (D327), and its gyro detection tries the MPU6500 driver first, so on a
+build with both the ICM-20601, ICM-20602 and ICM-20608-G take this detection and the MPU6500 initialization. The
+unit is SPARK for the sequence.
+
+The ICM20689 oracle includes the reference driver and the gyro layer over a simulated chip, one case per process,
+built with the experimental filter (D328). It draws the identity from the four the driver names or any byte, the
+bus, the startup clock, DMA, the interrupt pin, the sample rate divider and the filter settings, then runs the
+detection, the gyro and accelerometer detection and initialization. Every bus, pin, register and delay call,
+detection result, scale and setting of the 300 cases replays exactly, 241 of them initialized over all four chips
+and 44 of those with the experimental filter's 7. All 31 tampered paths fail the vectors.
