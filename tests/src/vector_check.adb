@@ -184,6 +184,7 @@ with Adaflight.STK_Bootloader;
 with Adaflight.USB_Joystick;
 with Adaflight.BMP280;
 with Adaflight.DPS310;
+with Adaflight.MS5611;
 with Adaflight.Gimbal_Control;
 with Adaflight.OSD_Custom_Text;
 with Adaflight.PID_Audio;
@@ -15981,6 +15982,216 @@ procedure Vector_Check is
       end if;
    end Check_DPS310_Line;
 
+   --  The MS5611 oracle's bus: the simulated chip's first PROM byte, PROM
+   --  words and ADC bytes, its address, the scripted busy and start answers,
+   --  and the bytes the last started read brought. Its calls share the
+   --  BMP280 bus's queue.
+   type MS_PROM is array (0 .. 7) of Interfaces.Unsigned_16;
+   type MS_Bus is record
+      SPI            : Boolean := False;
+      Address        : Byte := 0;
+      Device_Address : Byte := 0;
+      First_Byte     : Byte := 0;
+      PROM           : MS_PROM := (others => 0);
+      ADC            : Byte_Array (0 .. 2) := (others => 0);
+      Busy           : Boolean := False;
+      Started        : Boolean := False;
+      Last_Read      : Byte_Array (0 .. 2) := (others => 0);
+   end record;
+
+   function MS_Responds (D : MS_Bus) return Boolean is
+      use type Interfaces.Unsigned_8;
+   begin
+      return (if D.SPI then True else D.Device_Address /= 0 and then D.Address = D.Device_Address);
+   end MS_Responds;
+
+   function MS_Is_I2C (D : MS_Bus) return Boolean is (not D.SPI);
+   function MS_Is_SPI (D : MS_Bus) return Boolean is (D.SPI);
+   function MS_Address (D : MS_Bus) return Byte is (D.Address);
+
+   procedure MS_Set_Address (D : in out MS_Bus; Address : Byte) is
+   begin
+      D.Address := Address;
+   end MS_Set_Address;
+
+   procedure MS_Prepare_SPI (D : in out MS_Bus; Max_Clock_Hz : Interfaces.Unsigned_32) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("cshigh");
+      BMP_Op ("csinit,1,0");
+      BMP_Op ("csconfig");
+      BMP_Op ("spidivider," & BMP_Num (Integer_64 (Max_Clock_Hz)));
+      BMP_Op ("spiclock," & BMP_Num (Integer_64 (Max_Clock_Hz / 1_000_000)));
+   end MS_Prepare_SPI;
+
+   procedure MS_Release_SPI (D : in out MS_Bus) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("cspreinit,1");
+   end MS_Release_SPI;
+
+   procedure MS_Read (D : in out MS_Bus; Command : Byte; Data : in out Byte_Array; OK : out Boolean) is
+      use type Interfaces.Unsigned_8;
+      use type Interfaces.Unsigned_16;
+   begin
+      OK := MS_Responds (D);
+      BMP_Op ("rawread," & BMP_Num (Integer_64 (Command)) & "," & BMP_Num (Integer_64 (Data'Length)) & ","
+              & BMP_Num (Integer_64 (if D.SPI then 0 else D.Address)) & "," & BMP_Num (Boolean'Pos (OK)));
+      if OK then
+         if Data'Length = 1 then
+            Data (Data'First) := D.First_Byte;
+         elsif Command >= 16#A0# and then Command <= 16#AE# and then Data'Length = 2 then
+            Data (Data'First) := Byte (Interfaces.Shift_Right (D.PROM (Natural (Command - 16#A0#) / 2), 8));
+            Data (Data'First + 1) := Byte (D.PROM (Natural (Command - 16#A0#) / 2) and 16#FF#);
+         end if;
+      end if;
+   end MS_Read;
+
+   procedure MS_Write (D : in out MS_Bus; Command : Byte; Value : Byte; OK : out Boolean) is
+   begin
+      BMP_Op ("rawwrite," & BMP_Num (Integer_64 (Command)) & "," & BMP_Num (Integer_64 (Value)));
+      OK := MS_Responds (D);
+   end MS_Write;
+
+   procedure MS_Start_Read (D : in out MS_Bus; Command : Byte; Length : Positive; Started : out Boolean) is
+   begin
+      BMP_Op ("rawreadstart," & BMP_Num (Integer_64 (Command)) & "," & BMP_Num (Integer_64 (Length)) & ","
+              & BMP_Num (Boolean'Pos (D.Started)));
+      Started := D.Started;
+      if Started then
+         D.Last_Read := D.ADC;
+      end if;
+   end MS_Start_Read;
+
+   procedure MS_Start_Write (D : in out MS_Bus; Command : Byte; Value : Byte; Started : out Boolean) is
+   begin
+      BMP_Op ("rawwritestart," & BMP_Num (Integer_64 (Command)) & "," & BMP_Num (Integer_64 (Value)) & ","
+              & BMP_Num (Boolean'Pos (D.Started)));
+      Started := D.Started;
+   end MS_Start_Write;
+
+   procedure MS_Check_Busy (D : in out MS_Bus; Busy : out Boolean; Error : out Boolean) is
+   begin
+      BMP_Op ("busy," & BMP_Num (Boolean'Pos (D.Busy)));
+      Busy := D.Busy;
+      Error := False;
+   end MS_Check_Busy;
+
+   procedure MS_Fetch (D : in out MS_Bus; Data : out Byte_Array) is
+   begin
+      for I in Data'Range loop
+         Data (I) := D.Last_Read (I - Data'First);
+      end loop;
+   end MS_Fetch;
+
+   procedure MS_Register (D : in out MS_Bus) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("register");
+   end MS_Register;
+
+   procedure MS_Delay (D : in out MS_Bus; Ms : Natural) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("delay," & BMP_Num (Integer_64 (Ms)));
+   end MS_Delay;
+
+   procedure MS_Delay_Us (D : in out MS_Bus; Us : Natural) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("delayus," & BMP_Num (Integer_64 (Us)));
+   end MS_Delay_Us;
+
+   package MS_Driver is new Adaflight.MS5611
+     (Bus_Device      => MS_Bus,
+      Is_I2C          => MS_Is_I2C,
+      Is_SPI          => MS_Is_SPI,
+      I2C_Address     => MS_Address,
+      Set_I2C_Address => MS_Set_Address,
+      Prepare_SPI     => MS_Prepare_SPI,
+      Release_SPI     => MS_Release_SPI,
+      Raw_Read        => MS_Read,
+      Raw_Write       => MS_Write,
+      Raw_Start_Read  => MS_Start_Read,
+      Raw_Start_Write => MS_Start_Write,
+      Check_Busy      => MS_Check_Busy,
+      Fetch           => MS_Fetch,
+      Register_Device => MS_Register,
+      Delay_Ms        => MS_Delay,
+      Delay_Us        => MS_Delay_Us);
+
+   MS_Device      : MS_Bus;
+   MS_State       : MS_Driver.State;
+   MS_Found       : Boolean := False;
+   MS_Settings    : Adaflight.Barometer_Task.Device;
+   MS_Done        : Boolean := False;
+   MS_Pressure    : Interfaces.Integer_32 := -1;
+   MS_Temperature : Interfaces.Integer_32 := -1;
+
+   procedure Check_MS5611_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "msinit" then
+         BMP_Op_Head := 1;
+         BMP_Op_Count := 0;
+         MS_Device := (others => <>);
+         MS_Device.SPI := Int (3) /= 0;
+         MS_Device.Address := Byte (Int (4));
+         MS_Device.Device_Address := Byte (Int (5));
+         MS_Device.First_Byte := Byte (Int (6));
+         declare
+            Words : constant String := Str (7);
+         begin
+            for I in MS_PROM'Range loop
+               MS_Device.PROM (I) :=
+                 Interfaces.Unsigned_16'Value ("16#" & Words (Words'First + 4 * I .. Words'First + 4 * I + 3) & "#");
+            end loop;
+         end;
+         MS_State := (others => <>);
+         MS_Pressure := -1;
+         MS_Temperature := -1;
+         MS_Driver.Detect (MS_Device, MS_State, MS_Found, MS_Settings);
+      elsif Name = "msop" then
+         declare
+            Expected : Ada.Strings.Unbounded.Unbounded_String := Ada.Strings.Unbounded.To_Unbounded_String (Str (3));
+         begin
+            for I in 4 .. NF loop
+               Ada.Strings.Unbounded.Append (Expected, "," & Str (I));
+            end loop;
+            if BMP_Op_Head <= BMP_Op_Count then
+               Record_Text ("ms5611.op", Ada.Strings.Unbounded.To_String (Expected),
+                            Ada.Strings.Unbounded.To_String (BMP_Ops (BMP_Op_Head)));
+               BMP_Op_Head := BMP_Op_Head + 1;
+            else
+               Record_Text ("ms5611.op", Ada.Strings.Unbounded.To_String (Expected), "none");
+            end if;
+         end;
+      elsif Name = "msdet" then
+         BMP_Expect_No_Ops ("detection");
+         Record_Int ("ms5611.found", Int (3), Boolean'Pos (MS_Found));
+         Record_Int ("ms5611.address", Int (4), Integer_64 (if MS_Device.SPI then 0 else MS_Device.Address));
+         Record_Int ("ms5611.combined", Int (5), Boolean'Pos (MS_Settings.Combined_Read));
+         Record_Int ("ms5611.ut_delay", Int (6), Integer_64 (MS_Settings.Temperature_Delay_Us));
+         Record_Int ("ms5611.up_delay", Int (7), Integer_64 (MS_Settings.Pressure_Delay_Us));
+      elsif Name = "msstep" then
+         MS_Device.Busy := Int (5) /= 0;
+         MS_Device.Started := Int (6) /= 0;
+         MS_Device.ADC := Hex_Bytes (7);
+         case Int (4) is
+            when 0 .. 5 =>
+               MS_Driver.Device_Call (MS_Device, MS_State, BMP_Calls (Integer (Int (4))), MS_Done);
+            when others =>
+               MS_Driver.Calculate (MS_State, MS_Pressure, MS_Temperature);
+               MS_Done := False;
+         end case;
+      elsif Name = "msres" then
+         BMP_Expect_No_Ops ("a result");
+         Record_Int ("ms5611.done", Int (4), Boolean'Pos (MS_Done));
+         Record_Int ("ms5611.pressure", Int (5), Integer_64 (MS_Pressure));
+         Record_Int ("ms5611.temperature", Int (6), Integer_64 (MS_Temperature));
+      end if;
+   end Check_MS5611_Line;
+
    GB_Seq      : Integer_64 := -1;
    GB_State    : Adaflight.Gimbal_Control.State;
    GB_Settings : Adaflight.Gimbal_Control.Settings;
@@ -26103,6 +26314,8 @@ procedure Vector_Check is
                   Check_BMP280_Line;
                elsif Kind = "dps310" then
                   Check_DPS310_Line;
+               elsif Kind = "ms5611" then
+                  Check_MS5611_Line;
                elsif Kind = "gimbal" then
                   Check_Gimbal_Line;
                elsif Kind = "osdtext" then
@@ -26364,6 +26577,7 @@ begin
    Run (Dir & "/usbhid.csv", "usbhid");
    Run (Dir & "/bmp280.csv", "bmp280");
    Run (Dir & "/dps310.csv", "dps310");
+   Run (Dir & "/ms5611.csv", "ms5611");
    Run (Dir & "/gimbal.csv", "gimbal");
    Run (Dir & "/osdtext.csv", "osdtext");
    Run (Dir & "/pidaudio.csv", "pidaudio");

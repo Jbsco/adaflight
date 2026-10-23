@@ -49,4 +49,7 @@ package Adaflight.Sensor_Bus_Steps with SPARK_Mode is
    procedure Step_Delay_Ms (D : in out Bus_Line; Ms : Natural)
      with Global => null;
 
+   procedure Step_Delay_Us (D : in out Bus_Line; Us : Natural)
+     with Global => null;
+
 end Adaflight.Sensor_Bus_Steps;
