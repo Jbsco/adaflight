@@ -47,6 +47,10 @@ package Adaflight.MPU_Gyro with SPARK_Mode is
    Detect_Count  : constant := 1000;
    Rate_8_kHz    : constant Byte := 5;
 
+   LPF_Experimental : constant Byte := 3;
+   Hardware_MPU6050 : constant Byte := 2;
+   Hardware_MPU6000 : constant Byte := 4;
+
    subtype Buffer_Bytes is Byte_Array (0 .. 15);
    type Axis_Values is array (0 .. 2) of Interfaces.Integer_16;
 
@@ -68,7 +72,8 @@ package Adaflight.MPU_Gyro with SPARK_Mode is
    --  cycles, the short interval and the longest DMA read, the data ready
    --  flag, the raw readings and temperature with its scale and zero, the
    --  data registers, the DMA read length, the transmit buffer, whether the
-   --  board has the interrupt pin, and the hardware filter settings.
+   --  board has the interrupt pin, the hardware filter settings and the gyro
+   --  hardware the detection named.
    type State is record
       Sensor           : Byte := No_Sensor;
       Mode             : Read_Mode := EXTI_Init;
@@ -92,6 +97,7 @@ package Adaflight.MPU_Gyro with SPARK_Mode is
       Interrupt_Pin    : Boolean := False;
       Hardware_LPF     : Byte := 0;
       Rate_KHz         : Byte := 0;
+      Hardware         : Byte := 0;
    end record;
 
    procedure Preinit (D : in out SPI_Device; C : Device_Config);
@@ -114,7 +120,8 @@ package Adaflight.MPU_Gyro with SPARK_Mode is
 
    procedure Read_Acc (D : in out SPI_Device; S : in out State; OK : out Boolean);
 
-   --  The hardware filter setting: 0 for every setting of this build.
+   --  The hardware filter setting: 7 for the experimental filter at up to
+   --  8 kHz on a gyro other than the MPU6050 and MPU6000, 0 otherwise.
    function Gyro_DLPF (S : State) return Byte;
 
 end Adaflight.MPU_Gyro;

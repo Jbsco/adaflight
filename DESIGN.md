@@ -7417,8 +7417,9 @@ The first gyro read sets the longest DMA read to 5 cycles and picks the mode: DM
 came and the bus has DMA, reading 15 bytes from the accelerometer register, interrupt driven without DMA, or no
 interrupt otherwise. Reads in the interrupt and polled modes send the register with the read bit, wait and take
 three big-endian words. Reads in DMA mode take them from the last DMA read, the gyro with the temperature, scaled in
-single precision in two bounded steps and cut toward zero. The hardware filter setting is 0 for every setting of
-this build. The unit is SPARK for the word decoding, the buffer indices and the cycle and temperature arithmetic.
+single precision in two bounded steps and cut toward zero. The hardware filter setting is 7 for the experimental
+filter at up to 8 kHz on a gyro other than the MPU6050 and MPU6000, and 0 otherwise (D328). The unit is SPARK for
+the word decoding, the buffer indices and the cycle and temperature arithmetic.
 
 The MPU gyro oracle includes the reference layer with the bus, pin, interrupt, clock and delay calls and three chip
 probes stubbed over a simulated device, one case per process. It draws the device configuration, the bus, the probe
@@ -7502,5 +7503,22 @@ draws the identity from the nine the driver names or any byte, the high range op
 DMA, the interrupt pin, the sample rate divider and the filter settings, then runs the detection, the gyro and
 accelerometer detection and initialization. Every bus, pin, register and delay call, detection result, scale and
 setting of the 300 cases replays exactly, 170 of them initialized over all five sensor kinds and 15 of those with
-the high range scale. Of 43 tampered paths, 42 fail the vectors. The one that writes 0 for the filter setting
-passes, since the layer gives 0 for every filter setting it knows.
+the high range scale. All 43 tampered paths fail the vectors. The one that writes 0 for the filter setting passed
+until the layer knew the experimental filter (D328).
+
+## D328. Experimental gyro hardware filter (2026-10-18)
+
+Every reference build compiles the experimental gyro hardware filter, the fourth filter setting that the settings
+table and the configuration fix already know. The SPI gyro layer (D324) gives the filter register 7 under that
+setting at up to 8 kHz, unless the gyro hardware the detection named is the MPU6050 or MPU6000, and 0 for every
+other setting. The layer's state contains that hardware for the integration to set. The ICM426xx driver (D326) takes
+the 1962 Hz anti-alias entry under the experimental setting on every chip but the ICM-42605, which keeps 258 Hz. The
+gyro oracles compile against the unit test platform header, which leaves the setting out, so the layer had given 0
+and the ICM426xx driver 258 Hz for it.
+
+The gyro oracles now build with the experimental filter and draw all four settings, and the MPU6000 and MPU6500
+oracles print the hardware the gyro detection names, which the vectors hand to the layer. The layer's filter queries
+also draw the gyro hardware, the MPU6050 or MPU6000 in 40 percent of them. Every vector replays exactly. Of the
+initializations under the experimental setting, 36 of 45 on the MPU6500 write 7, the rest above 8 kHz, all 49 on the
+MPU6000 write 0, and the 53 on ICM426xx chips other than the ICM-42605 write the 1962 Hz entry. All 11 tampered
+paths fail the vectors, among them the MPU6500 driver's write of 0 for the filter setting (D327).

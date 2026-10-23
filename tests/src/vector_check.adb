@@ -17232,6 +17232,7 @@ procedure Vector_Check is
          MG_State.Short_Period := Interfaces.Integer_32 (Int (15));
          MG_State.Hardware_LPF := Byte (Int (16));
          MG_State.Rate_KHz := Byte (Int (17));
+         MG_State.Hardware := Byte (Int (18));
          MG_State.Temp_Scale := Flt (19);
          MG_State.Temp_Zero := Flt (20);
          declare
@@ -17311,7 +17312,8 @@ procedure Vector_Check is
                   MG_Result := Integer_64 (MG_Driver.Gyro_DLPF (MG_State));
                when 7 =>
                   MG_State.Hardware_LPF := Byte (A mod 16);
-                  MG_State.Rate_KHz := Byte (A / 16);
+                  MG_State.Rate_KHz := Byte (A / 16 mod 16);
+                  MG_State.Hardware := Byte (A / 256);
                   MG_Result := Integer_64 (MG_Driver.Gyro_DLPF (MG_State));
                when 8 =>
                   null;
@@ -17457,6 +17459,7 @@ procedure Vector_Check is
             Gyro_Found : Boolean;
             Scale      : Float;
          begin
+            M6_State.Hardware := Byte (Int (7));
             M6_Chip.Gyro_Detect (M6_State, Gyro_Found, Scale);
             Record_Int ("mpu6000.gyro_found", Int (3), Boolean'Pos (Gyro_Found));
             Record_Int ("mpu6000.acc_found", Int (4), Boolean'Pos (M6_Chip.Acc_Detect (M6_State)));
@@ -17833,6 +17836,7 @@ procedure Vector_Check is
             Gyro_Found : Boolean;
             Scale      : Float;
          begin
+            M5_State.Hardware := Byte (Int (7));
             M5_Chip.Gyro_Detect (M5_State, M5_High_Range, Gyro_Found, Scale);
             Record_Int ("mpu6500.gyro_found", Int (3), Boolean'Pos (Gyro_Found));
             Record_Int ("mpu6500.acc_found", Int (4), Boolean'Pos (M5_Chip.Acc_Detect (M5_State)));

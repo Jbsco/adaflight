@@ -219,7 +219,14 @@ package body Adaflight.MPU_Gyro with SPARK_Mode is
       Setting : Byte := 0;
    begin
       if S.Rate_KHz <= Rate_8_kHz then
-         Setting := 0;
+         case S.Hardware_LPF is
+            when LPF_Experimental =>
+               if S.Hardware not in Hardware_MPU6050 | Hardware_MPU6000 then
+                  Setting := 7;
+               end if;
+            when others =>
+               null;
+         end case;
       end if;
       return Setting;
    end Gyro_DLPF;

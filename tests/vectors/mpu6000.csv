@@ -1,4 +1,4 @@
-m6init,0,0,0,52,1,104,89,83,4,0,0,5,1,3,1,3614295571,0a1ec939e00a0e92b3fffeff4f35
+m6init,0,0,0,52,1,104,89,83,4,0,0,5,2,3,1,3614295571,0a1ec939e00a0e92b3fffeff4f35
 m6op,0,preinit,52,1,1
 m6op,0,delay,35
 m6op,0,bus,0,1
@@ -16,7 +16,7 @@ m6op,0,delayus,1
 m6op,0,rreg,140,89
 m6op,0,register
 m6det,0,1,3,107
-m6chip,0,1,1,3d7a0000,13776
+m6chip,0,1,1,3d7a0000,13776,4
 m6op,0,wreg,107,3
 m6op,0,delayus,15
 m6op,0,wreg,106,16
@@ -39,7 +39,7 @@ m6op,0,divider,20000000
 m6op,0,clock,4
 m6op,0,read,67,6,1
 m6op,0,failure,1
-m6init,1,1,1,52,1,104,220,132,2,1,69,5,2,2,1,428703454,4143e79d35b14c6b08ff0cffbb70
+m6init,1,1,1,52,1,104,220,132,2,1,69,5,3,2,1,428703454,4143e79d35b14c6b08ff0cffbb70
 m6op,1,preinit,52,1,1
 m6op,1,delay,35
 m6op,1,bus,1,1
@@ -57,8 +57,8 @@ m6op,1,delayus,1
 m6op,1,rreg,140,220
 m6op,1,preinitio,1,1
 m6det,1,0,0,134
-m6chip,1,0,0,00000000,0
-m6init,2,0,0,52,1,119,21,41,7,1,69,2,1,7,1,4143248984,3623ce293ae230b659fd35692935
+m6chip,1,0,0,00000000,0,4
+m6init,2,0,0,52,1,119,21,41,7,1,69,2,3,7,1,4143248984,3623ce293ae230b659fd35692935
 m6op,2,preinit,52,1,1
 m6op,2,delay,35
 m6op,2,bus,0,1
@@ -75,8 +75,8 @@ m6op,2,rreg,245,119
 m6op,2,delayus,1
 m6op,2,preinitio,1,1
 m6det,2,0,0,111
-m6chip,2,0,0,00000000,0
-m6init,3,0,0,52,1,104,87,25,1,1,69,6,2,4,1,3148405123,fd561dd64298a1fc0eff33ff8513
+m6chip,2,0,0,00000000,0,4
+m6init,3,0,0,52,1,104,87,25,1,1,69,6,1,4,1,3148405123,fd561dd64298a1fc0eff33ff8513
 m6op,3,preinit,52,1,1
 m6op,3,delay,35
 m6op,3,bus,0,1
@@ -94,7 +94,7 @@ m6op,3,delayus,1
 m6op,3,rreg,140,87
 m6op,3,register
 m6det,3,1,3,101
-m6chip,3,1,1,3d7a0000,13776
+m6chip,3,1,1,3d7a0000,13776,4
 m6op,3,ioinit,exti,0
 m6op,3,extihandler
 m6op,3,exticonfig,1
@@ -139,7 +139,7 @@ m6op,4,delayus,1
 m6op,4,rreg,140,86
 m6op,4,register
 m6det,4,1,3,124
-m6chip,4,1,1,3d7a0000,13776
+m6chip,4,1,1,3d7a0000,13776,4
 m6op,4,ioinit,exti,0
 m6op,4,extihandler
 m6op,4,exticonfig,1
@@ -166,7 +166,7 @@ m6op,4,divider,20000000
 m6op,4,clock,4
 m6op,4,read,67,6,0
 m6ready,4,0,0,0,3b40c0c1,42121eb8,2048
-m6init,5,0,0,52,1,104,23,139,2,1,69,3,0,7,1,136203967,b59fc87d015524a6f9ff14b74bcf
+m6init,5,0,0,52,1,104,23,139,2,1,69,3,3,7,1,136203967,b59fc87d015524a6f9ff14b74bcf
 m6op,5,preinit,52,1,1
 m6op,5,delay,35
 m6op,5,bus,0,1
@@ -184,7 +184,7 @@ m6op,5,delayus,1
 m6op,5,rreg,140,23
 m6op,5,register
 m6det,5,1,3,141
-m6chip,5,1,1,3d7a0000,13776
+m6chip,5,1,1,3d7a0000,13776,4
 m6op,5,ioinit,exti,0
 m6op,5,extihandler
 m6op,5,exticonfig,1
@@ -211,7 +211,7 @@ m6op,5,divider,20000000
 m6op,5,clock,4
 m6op,5,read,67,6,1
 m6ready,5,-1537,5303,19407,3b40c0c1,42121eb8,2048
-m6init,6,0,2,52,1,104,88,28,1,1,69,1,2,6,1,2495227644,33eedc77c16c8702000a8e764c86
+m6init,6,0,2,52,1,104,88,28,1,1,69,1,0,6,1,2495227644,33eedc77c16c8702000a8e764c86
 m6op,6,preinit,52,1,1
 m6op,6,delay,35
 m6op,6,bus,2,1
@@ -229,7 +229,7 @@ m6op,6,delayus,1
 m6op,6,rreg,140,88
 m6op,6,register
 m6det,6,1,3,101
-m6chip,6,1,1,3d7a0000,13776
+m6chip,6,1,1,3d7a0000,13776,4
 m6op,6,ioinit,exti,0
 m6op,6,extihandler
 m6op,6,exticonfig,1
@@ -256,7 +256,7 @@ m6op,6,divider,20000000
 m6op,6,clock,4
 m6op,6,read,67,6,1
 m6ready,6,10,-29066,19590,3b40c0c1,42121eb8,2048
-m6init,7,0,2,52,1,104,22,74,2,0,69,1,0,7,0,3568508250,2c04b32284b89e901a1cd064782e
+m6init,7,0,2,52,1,104,22,74,2,0,69,1,2,7,0,3568508250,2c04b32284b89e901a1cd064782e
 m6op,7,preinit,52,1,1
 m6op,7,delay,35
 m6op,7,bus,2,1
@@ -274,7 +274,7 @@ m6op,7,delayus,1
 m6op,7,rreg,140,22
 m6op,7,register
 m6det,7,1,3,102
-m6chip,7,1,1,3d7a0000,13776
+m6chip,7,1,1,3d7a0000,13776,4
 m6op,7,ioinit,exti,0
 m6op,7,extihandler
 m6op,7,exticonfig,1
@@ -301,7 +301,7 @@ m6op,7,divider,20000000
 m6op,7,clock,4
 m6op,7,read,67,6,0
 m6ready,7,0,0,0,3b40c0c1,42121eb8,2048
-m6init,8,1,1,52,1,104,89,81,3,1,0,7,2,3,1,1367369323,847d7d0080aed2ad5e671ac3b7b0
+m6init,8,1,1,52,1,104,89,81,3,1,0,7,0,3,1,1367369323,847d7d0080aed2ad5e671ac3b7b0
 m6op,8,preinit,52,1,1
 m6op,8,delay,35
 m6op,8,bus,1,1
@@ -319,7 +319,7 @@ m6op,8,delayus,1
 m6op,8,rreg,140,89
 m6op,8,register
 m6det,8,1,3,105
-m6chip,8,1,1,3d7a0000,13776
+m6chip,8,1,1,3d7a0000,13776,4
 m6op,8,wreg,107,3
 m6op,8,delayus,15
 m6op,8,wreg,106,16
@@ -342,7 +342,7 @@ m6op,8,divider,20000000
 m6op,8,clock,4
 m6op,8,read,67,6,1
 m6ready,8,24167,6851,-18512,3b40c0c1,42121eb8,2048
-m6init,9,0,0,52,1,104,90,71,3,1,69,1,1,0,1,3203780439,1d9fa80d023a5ef67bda0f9da6f2
+m6init,9,0,0,52,1,104,90,71,3,1,69,1,0,0,1,3203780439,1d9fa80d023a5ef67bda0f9da6f2
 m6op,9,preinit,52,1,1
 m6op,9,delay,35
 m6op,9,bus,0,1
@@ -360,7 +360,7 @@ m6op,9,delayus,1
 m6op,9,rreg,140,90
 m6op,9,register
 m6det,9,1,3,104
-m6chip,9,1,1,3d7a0000,13776
+m6chip,9,1,1,3d7a0000,13776,4
 m6op,9,ioinit,exti,0
 m6op,9,extihandler
 m6op,9,exticonfig,1
@@ -387,7 +387,7 @@ m6op,9,divider,20000000
 m6op,9,clock,4
 m6op,9,read,67,6,1
 m6ready,9,31706,3997,-22798,3b40c0c1,42121eb8,2048
-m6init,10,0,2,52,1,104,86,43,8,0,69,1,1,1,1,2028619408,e08a1de549acfb85f4a455bc87ee
+m6init,10,0,2,52,1,104,86,43,8,0,69,1,2,1,1,2028619408,e08a1de549acfb85f4a455bc87ee
 m6op,10,preinit,52,1,1
 m6op,10,delay,35
 m6op,10,bus,2,1
@@ -405,7 +405,7 @@ m6op,10,delayus,1
 m6op,10,rreg,140,86
 m6op,10,register
 m6det,10,1,3,115
-m6chip,10,1,1,3d7a0000,13776
+m6chip,10,1,1,3d7a0000,13776,4
 m6op,10,ioinit,exti,0
 m6op,10,extihandler
 m6op,10,exticonfig,1
@@ -450,7 +450,7 @@ m6op,11,delayus,1
 m6op,11,rreg,140,23
 m6op,11,register
 m6det,11,1,3,103
-m6chip,11,1,1,3d7a0000,13776
+m6chip,11,1,1,3d7a0000,13776,4
 m6op,11,ioinit,exti,0
 m6op,11,extihandler
 m6op,11,exticonfig,1
@@ -495,7 +495,7 @@ m6op,12,delayus,1
 m6op,12,rreg,140,88
 m6op,12,register
 m6det,12,1,3,110
-m6chip,12,1,1,3d7a0000,13776
+m6chip,12,1,1,3d7a0000,13776,4
 m6op,12,ioinit,exti,0
 m6op,12,extihandler
 m6op,12,exticonfig,1
@@ -522,7 +522,7 @@ m6op,12,divider,20000000
 m6op,12,clock,4
 m6op,12,read,67,6,0
 m6ready,12,0,0,0,3b40c0c1,42121eb8,2048
-m6init,13,0,1,52,1,104,88,83,3,1,69,5,2,3,0,4242298727,f638dd5d9e371274b20efa6dbf03
+m6init,13,0,1,52,1,104,88,83,3,1,69,5,0,3,0,4242298727,f638dd5d9e371274b20efa6dbf03
 m6op,13,preinit,52,1,1
 m6op,13,delay,35
 m6op,13,bus,1,1
@@ -540,7 +540,7 @@ m6op,13,delayus,1
 m6op,13,rreg,140,88
 m6op,13,register
 m6det,13,1,3,104
-m6chip,13,1,1,3d7a0000,13776
+m6chip,13,1,1,3d7a0000,13776,4
 m6op,13,ioinit,exti,0
 m6op,13,extihandler
 m6op,13,exticonfig,1
@@ -567,7 +567,7 @@ m6op,13,divider,20000000
 m6op,13,clock,4
 m6op,13,read,67,6,0
 m6ready,13,0,0,0,3b40c0c1,42121eb8,2048
-m6init,14,0,2,52,1,104,166,84,2,1,69,2,1,7,1,486786169,d34a10c896e28eb096ff0f653a39
+m6init,14,0,2,52,1,104,166,84,2,1,69,2,2,7,1,486786169,d34a10c896e28eb096ff0f653a39
 m6op,14,preinit,52,1,1
 m6op,14,delay,35
 m6op,14,bus,2,1
@@ -585,7 +585,7 @@ m6op,14,delayus,1
 m6op,14,rreg,140,166
 m6op,14,preinitio,1,1
 m6det,14,0,0,102
-m6chip,14,0,0,00000000,0
+m6chip,14,0,0,00000000,0,4
 m6init,15,0,0,52,1,104,89,51,9,1,69,1,0,4,1,1823857423,cd3afd1abfa76c43a420289637e6
 m6op,15,preinit,52,1,1
 m6op,15,delay,35
@@ -604,7 +604,7 @@ m6op,15,delayus,1
 m6op,15,rreg,140,89
 m6op,15,register
 m6det,15,1,3,114
-m6chip,15,1,1,3d7a0000,13776
+m6chip,15,1,1,3d7a0000,13776,4
 m6op,15,ioinit,exti,0
 m6op,15,extihandler
 m6op,15,exticonfig,1
@@ -631,7 +631,7 @@ m6op,15,divider,20000000
 m6op,15,clock,4
 m6op,15,read,67,6,1
 m6ready,15,-23520,10390,14310,3b40c0c1,42121eb8,2048
-m6init,16,1,0,52,1,104,89,90,6,1,69,2,1,5,1,3055291603,c42845c3f6b5506e8add86072c92
+m6init,16,1,0,52,1,104,89,90,6,1,69,2,2,5,1,3055291603,c42845c3f6b5506e8add86072c92
 m6op,16,preinit,52,1,1
 m6op,16,delay,35
 m6op,16,bus,0,1
@@ -649,7 +649,7 @@ m6op,16,delayus,1
 m6op,16,rreg,140,89
 m6op,16,register
 m6det,16,1,3,108
-m6chip,16,1,1,3d7a0000,13776
+m6chip,16,1,1,3d7a0000,13776,4
 m6op,16,ioinit,exti,0
 m6op,16,extihandler
 m6op,16,exticonfig,1
@@ -676,7 +676,7 @@ m6op,16,divider,20000000
 m6op,16,clock,4
 m6op,16,read,67,6,1
 m6ready,16,-29987,-31225,11410,3b40c0c1,42121eb8,2048
-m6init,17,0,2,52,1,162,88,112,3,1,69,6,2,3,1,353400744,7a035ca38ab19052cd6892a6dd7a
+m6init,17,0,2,52,1,162,88,112,3,1,69,6,3,3,1,353400744,7a035ca38ab19052cd6892a6dd7a
 m6op,17,preinit,52,1,1
 m6op,17,delay,35
 m6op,17,bus,2,1
@@ -693,8 +693,8 @@ m6op,17,rreg,245,162
 m6op,17,delayus,1
 m6op,17,preinitio,1,1
 m6det,17,0,0,115
-m6chip,17,0,0,00000000,0
-m6init,18,0,0,52,1,104,21,124,4,0,69,5,2,5,0,4196894716,22e75f155a6004e6aee268817b6f
+m6chip,17,0,0,00000000,0,4
+m6init,18,0,0,52,1,104,21,124,4,0,69,5,1,5,0,4196894716,22e75f155a6004e6aee268817b6f
 m6op,18,preinit,52,1,1
 m6op,18,delay,35
 m6op,18,bus,0,1
@@ -712,7 +712,7 @@ m6op,18,delayus,1
 m6op,18,rreg,140,21
 m6op,18,register
 m6det,18,1,3,128
-m6chip,18,1,1,3d7a0000,13776
+m6chip,18,1,1,3d7a0000,13776,4
 m6op,18,ioinit,exti,0
 m6op,18,extihandler
 m6op,18,exticonfig,1
@@ -739,7 +739,7 @@ m6op,18,divider,20000000
 m6op,18,clock,4
 m6op,18,read,67,6,0
 m6ready,18,0,0,0,3b40c0c1,42121eb8,2048
-m6init,19,0,1,52,1,104,90,78,3,0,0,3,0,4,1,2739134879,44ab5aa4a206397bd9ff65ff5420
+m6init,19,0,1,52,1,104,90,78,3,0,0,3,2,4,1,2739134879,44ab5aa4a206397bd9ff65ff5420
 m6op,19,preinit,52,1,1
 m6op,19,delay,35
 m6op,19,bus,1,1
@@ -757,7 +757,7 @@ m6op,19,delayus,1
 m6op,19,rreg,140,90
 m6op,19,register
 m6det,19,1,3,105
-m6chip,19,1,1,3d7a0000,13776
+m6chip,19,1,1,3d7a0000,13776,4
 m6op,19,wreg,107,3
 m6op,19,delayus,15
 m6op,19,wreg,106,16
@@ -780,7 +780,7 @@ m6op,19,divider,20000000
 m6op,19,clock,4
 m6op,19,read,67,6,1
 m6op,19,failure,1
-m6init,20,1,0,52,1,104,88,16,6,1,69,5,2,2,1,1712245990,0cdd5dfd22f56e477581300c910c
+m6init,20,1,0,52,1,104,88,16,6,1,69,5,3,2,1,1712245990,0cdd5dfd22f56e477581300c910c
 m6op,20,preinit,52,1,1
 m6op,20,delay,35
 m6op,20,bus,0,1
@@ -798,7 +798,7 @@ m6op,20,delayus,1
 m6op,20,rreg,140,88
 m6op,20,register
 m6det,20,1,3,106
-m6chip,20,1,1,3d7a0000,13776
+m6chip,20,1,1,3d7a0000,13776,4
 m6op,20,ioinit,exti,0
 m6op,20,extihandler
 m6op,20,exticonfig,1
@@ -825,7 +825,7 @@ m6op,20,divider,20000000
 m6op,20,clock,4
 m6op,20,read,67,6,1
 m6ready,20,30081,12300,-28404,3b40c0c1,42121eb8,2048
-m6init,21,0,2,52,1,104,123,78,7,0,69,7,0,0,1,4254819116,d06881c7efeadd6f756bd9cd0ac6
+m6init,21,0,2,52,1,104,123,78,7,0,69,7,1,0,1,4254819116,d06881c7efeadd6f756bd9cd0ac6
 m6op,21,preinit,52,1,1
 m6op,21,delay,35
 m6op,21,bus,2,1
@@ -843,7 +843,7 @@ m6op,21,delayus,1
 m6op,21,rreg,140,123
 m6op,21,preinitio,1,1
 m6det,21,0,0,113
-m6chip,21,0,0,00000000,0
+m6chip,21,0,0,00000000,0,4
 m6init,22,0,0,52,1,50,86,91,5,1,69,0,1,0,1,1791085197,e8b3df8999f4b2e5c8678f41af66
 m6op,22,preinit,52,1,1
 m6op,22,delay,35
@@ -861,8 +861,8 @@ m6op,22,rreg,245,50
 m6op,22,delayus,1
 m6op,22,preinitio,1,1
 m6det,22,0,0,106
-m6chip,22,0,0,00000000,0
-m6init,23,1,2,52,1,104,23,31,3,0,69,4,0,4,1,2494935581,7975adf948fc40ccbd41a6c53116
+m6chip,22,0,0,00000000,0,4
+m6init,23,1,2,52,1,104,23,31,3,0,69,4,3,4,1,2494935581,7975adf948fc40ccbd41a6c53116
 m6op,23,preinit,52,1,1
 m6op,23,delay,35
 m6op,23,bus,2,1
@@ -880,7 +880,7 @@ m6op,23,delayus,1
 m6op,23,rreg,140,23
 m6op,23,register
 m6det,23,1,3,103
-m6chip,23,1,1,3d7a0000,13776
+m6chip,23,1,1,3d7a0000,13776,4
 m6op,23,ioinit,exti,0
 m6op,23,extihandler
 m6op,23,exticonfig,1
@@ -907,7 +907,7 @@ m6op,23,divider,20000000
 m6op,23,clock,4
 m6op,23,read,67,6,1
 m6ready,23,-17087,-22843,12566,3b40c0c1,42121eb8,2048
-m6init,24,0,1,52,1,104,87,64,1,0,69,6,2,5,1,3441804096,4401a40adefa5afbb163f2b86424
+m6init,24,0,1,52,1,104,87,64,1,0,69,6,1,5,1,3441804096,4401a40adefa5afbb163f2b86424
 m6op,24,preinit,52,1,1
 m6op,24,delay,35
 m6op,24,bus,1,1
@@ -925,7 +925,7 @@ m6op,24,delayus,1
 m6op,24,rreg,140,87
 m6op,24,register
 m6det,24,1,3,101
-m6chip,24,1,1,3d7a0000,13776
+m6chip,24,1,1,3d7a0000,13776,4
 m6op,24,ioinit,exti,0
 m6op,24,extihandler
 m6op,24,exticonfig,1
@@ -952,7 +952,7 @@ m6op,24,divider,20000000
 m6op,24,clock,4
 m6op,24,read,67,6,1
 m6ready,24,-20125,-3400,25636,3b40c0c1,42121eb8,2048
-m6init,25,1,2,52,1,104,23,33,1,1,69,5,1,1,0,3037905205,83696917d7df6271bbcf9f3d708e
+m6init,25,1,2,52,1,104,23,33,1,1,69,5,0,1,0,3037905205,83696917d7df6271bbcf9f3d708e
 m6op,25,preinit,52,1,1
 m6op,25,delay,35
 m6op,25,bus,2,1
@@ -970,7 +970,7 @@ m6op,25,delayus,1
 m6op,25,rreg,140,23
 m6op,25,register
 m6det,25,1,3,101
-m6chip,25,1,1,3d7a0000,13776
+m6chip,25,1,1,3d7a0000,13776,4
 m6op,25,ioinit,exti,0
 m6op,25,extihandler
 m6op,25,exticonfig,1
@@ -997,7 +997,7 @@ m6op,25,divider,20000000
 m6op,25,clock,4
 m6op,25,read,67,6,0
 m6ready,25,0,0,0,3b40c0c1,42121eb8,2048
-m6init,26,1,1,52,1,104,85,108,8,1,69,4,2,4,1,3583105173,bb2ebce8affb0c98b94af451fb02
+m6init,26,1,1,52,1,104,85,108,8,1,69,4,1,4,1,3583105173,bb2ebce8affb0c98b94af451fb02
 m6op,26,preinit,52,1,1
 m6op,26,delay,35
 m6op,26,bus,1,1
@@ -1015,7 +1015,7 @@ m6op,26,delayus,1
 m6op,26,rreg,140,85
 m6op,26,register
 m6det,26,1,3,116
-m6chip,26,1,1,3d7a0000,13776
+m6chip,26,1,1,3d7a0000,13776,4
 m6op,26,ioinit,exti,0
 m6op,26,extihandler
 m6op,26,exticonfig,1
@@ -1060,7 +1060,7 @@ m6op,27,delayus,1
 m6op,27,rreg,140,22
 m6op,27,register
 m6det,27,1,3,112
-m6chip,27,1,1,3d7a0000,13776
+m6chip,27,1,1,3d7a0000,13776,4
 m6op,27,wreg,107,3
 m6op,27,delayus,15
 m6op,27,wreg,106,16
@@ -1100,8 +1100,8 @@ m6op,28,rreg,245,213
 m6op,28,delayus,1
 m6op,28,preinitio,1,1
 m6det,28,0,0,113
-m6chip,28,0,0,00000000,0
-m6init,29,1,2,52,1,104,88,135,8,1,69,1,2,7,1,1678928144,0583acd6d7b33e88b009a1de8590
+m6chip,28,0,0,00000000,0,4
+m6init,29,1,2,52,1,104,88,135,8,1,69,1,3,7,1,1678928144,0583acd6d7b33e88b009a1de8590
 m6op,29,preinit,52,1,1
 m6op,29,delay,35
 m6op,29,bus,2,1
@@ -1119,7 +1119,7 @@ m6op,29,delayus,1
 m6op,29,rreg,140,88
 m6op,29,register
 m6det,29,1,3,143
-m6chip,29,1,1,3d7a0000,13776
+m6chip,29,1,1,3d7a0000,13776,4
 m6op,29,ioinit,exti,0
 m6op,29,extihandler
 m6op,29,exticonfig,1
@@ -1164,7 +1164,7 @@ m6op,30,delayus,1
 m6op,30,rreg,140,24
 m6op,30,register
 m6det,30,1,3,125
-m6chip,30,1,1,3d7a0000,13776
+m6chip,30,1,1,3d7a0000,13776,4
 m6op,30,ioinit,exti,0
 m6op,30,extihandler
 m6op,30,exticonfig,1
@@ -1209,7 +1209,7 @@ m6op,31,delayus,1
 m6op,31,rreg,140,24
 m6op,31,register
 m6det,31,1,3,109
-m6chip,31,1,1,3d7a0000,13776
+m6chip,31,1,1,3d7a0000,13776,4
 m6op,31,ioinit,exti,0
 m6op,31,extihandler
 m6op,31,exticonfig,1
@@ -1236,7 +1236,7 @@ m6op,31,divider,20000000
 m6op,31,clock,4
 m6op,31,read,67,6,1
 m6ready,31,-9558,26869,-10245,3b40c0c1,42121eb8,2048
-m6init,32,1,1,52,1,104,84,114,5,0,69,2,0,0,1,1903949306,1664980cc2032dc5ff712975ced4
+m6init,32,1,1,52,1,104,84,114,5,0,69,2,3,0,1,1903949306,1664980cc2032dc5ff712975ced4
 m6op,32,preinit,52,1,1
 m6op,32,delay,35
 m6op,32,bus,1,1
@@ -1254,7 +1254,7 @@ m6op,32,delayus,1
 m6op,32,rreg,140,84
 m6op,32,register
 m6det,32,1,3,119
-m6chip,32,1,1,3d7a0000,13776
+m6chip,32,1,1,3d7a0000,13776,4
 m6op,32,ioinit,exti,0
 m6op,32,extihandler
 m6op,32,exticonfig,1
@@ -1281,7 +1281,7 @@ m6op,32,divider,20000000
 m6op,32,clock,4
 m6op,32,read,67,6,1
 m6ready,32,-143,10613,-12588,3b40c0c1,42121eb8,2048
-m6init,33,0,1,52,1,104,86,100,5,1,69,7,0,3,1,1331701908,7684127900e2ea572dc1c7c6aa8c
+m6init,33,0,1,52,1,104,86,100,5,1,69,7,2,3,1,1331701908,7684127900e2ea572dc1c7c6aa8c
 m6op,33,preinit,52,1,1
 m6op,33,delay,35
 m6op,33,bus,1,1
@@ -1299,7 +1299,7 @@ m6op,33,delayus,1
 m6op,33,rreg,140,86
 m6op,33,register
 m6det,33,1,3,105
-m6chip,33,1,1,3d7a0000,13776
+m6chip,33,1,1,3d7a0000,13776,4
 m6op,33,ioinit,exti,0
 m6op,33,extihandler
 m6op,33,exticonfig,1
@@ -1326,7 +1326,7 @@ m6op,33,divider,20000000
 m6op,33,clock,4
 m6op,33,read,67,6,1
 m6ready,33,11713,-14394,-21876,3b40c0c1,42121eb8,2048
-m6init,34,1,1,52,1,104,87,12,1,1,0,4,2,1,1,2027797586,e51f9e7be783abce2d045d12331a
+m6init,34,1,1,52,1,104,87,12,1,1,0,4,1,1,1,2027797586,e51f9e7be783abce2d045d12331a
 m6op,34,preinit,52,1,1
 m6op,34,delay,35
 m6op,34,bus,1,1
@@ -1344,7 +1344,7 @@ m6op,34,delayus,1
 m6op,34,rreg,140,87
 m6op,34,register
 m6det,34,1,3,101
-m6chip,34,1,1,3d7a0000,13776
+m6chip,34,1,1,3d7a0000,13776,4
 m6op,34,wreg,107,3
 m6op,34,delayus,15
 m6op,34,wreg,106,16
@@ -1367,7 +1367,7 @@ m6op,34,divider,20000000
 m6op,34,clock,4
 m6op,34,read,67,6,1
 m6ready,34,11524,23826,13082,3b40c0c1,42121eb8,2048
-m6init,35,1,2,52,1,104,88,7,8,1,69,6,0,7,1,2360589680,9d1f80f842e96c03e6277ac6f58e
+m6init,35,1,2,52,1,104,88,7,8,1,69,6,3,7,1,2360589680,9d1f80f842e96c03e6277ac6f58e
 m6op,35,preinit,52,1,1
 m6op,35,delay,35
 m6op,35,bus,2,1
@@ -1385,7 +1385,7 @@ m6op,35,delayus,1
 m6op,35,rreg,140,88
 m6op,35,register
 m6det,35,1,3,111
-m6chip,35,1,1,3d7a0000,13776
+m6chip,35,1,1,3d7a0000,13776,4
 m6op,35,ioinit,exti,0
 m6op,35,extihandler
 m6op,35,exticonfig,1
@@ -1430,7 +1430,7 @@ m6op,36,delayus,1
 m6op,36,rreg,140,87
 m6op,36,register
 m6det,36,1,3,111
-m6chip,36,1,1,3d7a0000,13776
+m6chip,36,1,1,3d7a0000,13776,4
 m6op,36,ioinit,exti,0
 m6op,36,extihandler
 m6op,36,exticonfig,1
@@ -1457,7 +1457,7 @@ m6op,36,divider,20000000
 m6op,36,clock,4
 m6op,36,read,67,6,1
 m6ready,36,17204,17377,-26550,3b40c0c1,42121eb8,2048
-m6init,37,0,0,52,1,104,90,94,4,0,69,0,0,6,1,1192041773,8c29235ccfbc43a9f33ac104f3ac
+m6init,37,0,0,52,1,104,90,94,4,0,69,0,3,6,1,1192041773,8c29235ccfbc43a9f33ac104f3ac
 m6op,37,preinit,52,1,1
 m6op,37,delay,35
 m6op,37,bus,0,1
@@ -1475,7 +1475,7 @@ m6op,37,delayus,1
 m6op,37,rreg,140,90
 m6op,37,register
 m6det,37,1,3,106
-m6chip,37,1,1,3d7a0000,13776
+m6chip,37,1,1,3d7a0000,13776,4
 m6op,37,ioinit,exti,0
 m6op,37,extihandler
 m6op,37,exticonfig,1
@@ -1502,7 +1502,7 @@ m6op,37,divider,20000000
 m6op,37,clock,4
 m6op,37,read,67,6,1
 m6ready,37,-3270,-16124,-3156,3b40c0c1,42121eb8,2048
-m6init,38,1,0,52,1,104,14,38,3,1,69,1,0,6,1,3182495348,7e977361e63d8a690ce7ddb08d53
+m6init,38,1,0,52,1,104,14,38,3,1,69,1,2,6,1,3182495348,7e977361e63d8a690ce7ddb08d53
 m6op,38,preinit,52,1,1
 m6op,38,delay,35
 m6op,38,bus,0,1
@@ -1520,8 +1520,8 @@ m6op,38,delayus,1
 m6op,38,rreg,140,14
 m6op,38,preinitio,1,1
 m6det,38,0,0,104
-m6chip,38,0,0,00000000,0
-m6init,39,0,0,52,1,104,20,85,3,1,0,3,0,4,1,311988644,339dd6a7092e6d269f7a93b7ed83
+m6chip,38,0,0,00000000,0,4
+m6init,39,0,0,52,1,104,20,85,3,1,0,3,2,4,1,311988644,339dd6a7092e6d269f7a93b7ed83
 m6op,39,preinit,52,1,1
 m6op,39,delay,35
 m6op,39,bus,0,1
@@ -1539,7 +1539,7 @@ m6op,39,delayus,1
 m6op,39,rreg,140,20
 m6op,39,register
 m6det,39,1,3,103
-m6chip,39,1,1,3d7a0000,13776
+m6chip,39,1,1,3d7a0000,13776,4
 m6op,39,wreg,107,3
 m6op,39,delayus,15
 m6op,39,wreg,106,16
@@ -1580,7 +1580,7 @@ m6op,40,delayus,1
 m6op,40,rreg,140,90
 m6op,40,register
 m6det,40,1,3,126
-m6chip,40,1,1,3d7a0000,13776
+m6chip,40,1,1,3d7a0000,13776,4
 m6op,40,ioinit,exti,0
 m6op,40,extihandler
 m6op,40,exticonfig,1
@@ -1607,7 +1607,7 @@ m6op,40,divider,20000000
 m6op,40,clock,4
 m6op,40,read,67,6,1
 m6ready,40,31358,-48,29933,3b40c0c1,42121eb8,2048
-m6init,41,0,2,52,1,104,90,73,5,1,69,6,1,7,1,1083051786,22445d4664126d8e75002c14294a
+m6init,41,0,2,52,1,104,90,73,5,1,69,6,0,7,1,1083051786,22445d4664126d8e75002c14294a
 m6op,41,preinit,52,1,1
 m6op,41,delay,35
 m6op,41,bus,2,1
@@ -1625,7 +1625,7 @@ m6op,41,delayus,1
 m6op,41,rreg,140,90
 m6op,41,register
 m6det,41,1,3,108
-m6chip,41,1,1,3d7a0000,13776
+m6chip,41,1,1,3d7a0000,13776,4
 m6op,41,ioinit,exti,0
 m6op,41,extihandler
 m6op,41,exticonfig,1
@@ -1670,7 +1670,7 @@ m6op,42,delayus,1
 m6op,42,rreg,140,85
 m6op,42,register
 m6det,42,1,3,125
-m6chip,42,1,1,3d7a0000,13776
+m6chip,42,1,1,3d7a0000,13776,4
 m6op,42,ioinit,exti,0
 m6op,42,extihandler
 m6op,42,exticonfig,1
@@ -1697,7 +1697,7 @@ m6op,42,divider,20000000
 m6op,42,clock,4
 m6op,42,read,67,6,1
 m6ready,42,17444,6876,8447,3b40c0c1,42121eb8,2048
-m6init,43,0,2,52,1,104,87,87,5,0,69,5,1,0,1,896146179,8062987cd7595c842d8beef5c029
+m6init,43,0,2,52,1,104,87,87,5,0,69,5,0,0,1,896146179,8062987cd7595c842d8beef5c029
 m6op,43,preinit,52,1,1
 m6op,43,delay,35
 m6op,43,bus,2,1
@@ -1715,7 +1715,7 @@ m6op,43,delayus,1
 m6op,43,rreg,140,87
 m6op,43,register
 m6det,43,1,3,107
-m6chip,43,1,1,3d7a0000,13776
+m6chip,43,1,1,3d7a0000,13776,4
 m6op,43,ioinit,exti,0
 m6op,43,extihandler
 m6op,43,exticonfig,1
@@ -1742,7 +1742,7 @@ m6op,43,divider,20000000
 m6op,43,clock,4
 m6op,43,read,67,6,1
 m6ready,43,11659,-4363,-16343,3b40c0c1,42121eb8,2048
-m6init,44,1,2,52,1,104,87,12,9,0,69,2,1,4,1,3032495895,a992296df1791c1b264270ff3f6e
+m6init,44,1,2,52,1,104,87,12,9,0,69,2,3,4,1,3032495895,a992296df1791c1b264270ff3f6e
 m6op,44,preinit,52,1,1
 m6op,44,delay,35
 m6op,44,bus,2,1
@@ -1760,7 +1760,7 @@ m6op,44,delayus,1
 m6op,44,rreg,140,87
 m6op,44,register
 m6det,44,1,3,111
-m6chip,44,1,1,3d7a0000,13776
+m6chip,44,1,1,3d7a0000,13776,4
 m6op,44,ioinit,exti,0
 m6op,44,extihandler
 m6op,44,exticonfig,1
@@ -1787,7 +1787,7 @@ m6op,44,divider,20000000
 m6op,44,clock,4
 m6op,44,read,67,6,1
 m6ready,44,9794,28927,16238,3b40c0c1,42121eb8,2048
-m6init,45,1,1,52,1,104,88,5,9,0,69,6,0,5,1,2229205557,be27460908ee053c43d9ff0d67c6
+m6init,45,1,1,52,1,104,88,5,9,0,69,6,3,5,1,2229205557,be27460908ee053c43d9ff0d67c6
 m6op,45,preinit,52,1,1
 m6op,45,delay,35
 m6op,45,bus,1,1
@@ -1805,7 +1805,7 @@ m6op,45,delayus,1
 m6op,45,rreg,140,88
 m6op,45,register
 m6det,45,1,3,113
-m6chip,45,1,1,3d7a0000,13776
+m6chip,45,1,1,3d7a0000,13776,4
 m6op,45,ioinit,exti,0
 m6op,45,extihandler
 m6op,45,exticonfig,1
@@ -1832,12 +1832,12 @@ m6op,45,divider,20000000
 m6op,45,clock,4
 m6op,45,read,67,6,1
 m6ready,45,17369,-243,26566,3b40c0c1,42121eb8,2048
-m6init,46,1,0,0,1,177,221,56,7,1,69,1,2,1,1,2347030703,bac1229e5d22240887bed8ffd1f5
+m6init,46,1,0,0,1,177,221,56,7,1,69,1,1,1,1,2347030703,bac1229e5d22240887bed8ffd1f5
 m6op,46,preinit,0,1,1
 m6op,46,delay,35
 m6det,46,0,0,56
-m6chip,46,0,0,00000000,0
-m6init,47,1,0,52,1,104,22,64,6,1,69,7,2,5,1,3767910827,063522f9b3881f9fcd9c96dc15b4
+m6chip,46,0,0,00000000,0,4
+m6init,47,1,0,52,1,104,22,64,6,1,69,7,0,5,1,3767910827,063522f9b3881f9fcd9c96dc15b4
 m6op,47,preinit,52,1,1
 m6op,47,delay,35
 m6op,47,bus,0,1
@@ -1855,7 +1855,7 @@ m6op,47,delayus,1
 m6op,47,rreg,140,22
 m6op,47,register
 m6det,47,1,3,106
-m6chip,47,1,1,3d7a0000,13776
+m6chip,47,1,1,3d7a0000,13776,4
 m6op,47,ioinit,exti,0
 m6op,47,extihandler
 m6op,47,exticonfig,1
@@ -1900,7 +1900,7 @@ m6op,48,delayus,1
 m6op,48,rreg,140,87
 m6op,48,register
 m6det,48,1,3,102
-m6chip,48,1,1,3d7a0000,13776
+m6chip,48,1,1,3d7a0000,13776,4
 m6op,48,wreg,107,3
 m6op,48,delayus,15
 m6op,48,wreg,106,16
@@ -1923,7 +1923,7 @@ m6op,48,divider,20000000
 m6op,48,clock,4
 m6op,48,read,67,6,1
 m6ready,48,24275,12270,30592,3b40c0c1,42121eb8,2048
-m6init,49,0,0,52,1,104,84,42,7,1,0,4,1,0,1,1943201070,836660346e14dbb591957fff04c1
+m6init,49,0,0,52,1,104,84,42,7,1,0,4,2,0,1,1943201070,836660346e14dbb591957fff04c1
 m6op,49,preinit,52,1,1
 m6op,49,delay,35
 m6op,49,bus,0,1
@@ -1941,7 +1941,7 @@ m6op,49,delayus,1
 m6op,49,rreg,140,84
 m6op,49,register
 m6det,49,1,3,112
-m6chip,49,1,1,3d7a0000,13776
+m6chip,49,1,1,3d7a0000,13776,4
 m6op,49,wreg,107,3
 m6op,49,delayus,15
 m6op,49,wreg,106,16
@@ -1964,7 +1964,7 @@ m6op,49,divider,20000000
 m6op,49,clock,4
 m6op,49,read,67,6,1
 m6ready,49,-28267,32767,1217,3b40c0c1,42121eb8,2048
-m6init,50,0,2,52,1,104,179,94,4,1,69,1,0,7,1,1598166528,bc44335e1750a37af8ffb0ff2ee8
+m6init,50,0,2,52,1,104,179,94,4,1,69,1,3,7,1,1598166528,bc44335e1750a37af8ffb0ff2ee8
 m6op,50,preinit,52,1,1
 m6op,50,delay,35
 m6op,50,bus,2,1
@@ -1982,7 +1982,7 @@ m6op,50,delayus,1
 m6op,50,rreg,140,179
 m6op,50,preinitio,1,1
 m6det,50,0,0,106
-m6chip,50,0,0,00000000,0
+m6chip,50,0,0,00000000,0,4
 m6init,51,0,0,52,1,104,84,72,7,0,69,0,2,7,1,2125928387,2e2ab92748a4df4ec8458307b1f3
 m6op,51,preinit,52,1,1
 m6op,51,delay,35
@@ -2001,7 +2001,7 @@ m6op,51,delayus,1
 m6op,51,rreg,140,84
 m6op,51,register
 m6det,51,1,3,107
-m6chip,51,1,1,3d7a0000,13776
+m6chip,51,1,1,3d7a0000,13776,4
 m6op,51,ioinit,exti,0
 m6op,51,extihandler
 m6op,51,exticonfig,1
@@ -2033,8 +2033,8 @@ m6op,52,preinit,52,1,1
 m6op,52,delay,35
 m6op,52,bus,2,0
 m6det,52,0,0,6
-m6chip,52,0,0,00000000,0
-m6init,53,0,0,52,1,155,88,2,2,1,69,7,1,5,1,141481639,c661c095c9a9fe66ae076e995634
+m6chip,52,0,0,00000000,0,4
+m6init,53,0,0,52,1,155,88,2,2,1,69,7,2,5,1,141481639,c661c095c9a9fe66ae076e995634
 m6op,53,preinit,52,1,1
 m6op,53,delay,35
 m6op,53,bus,0,1
@@ -2051,8 +2051,8 @@ m6op,53,rreg,245,155
 m6op,53,delayus,1
 m6op,53,preinitio,1,1
 m6det,53,0,0,102
-m6chip,53,0,0,00000000,0
-m6init,54,1,2,52,1,104,22,139,2,0,69,4,2,7,1,2267112198,d40ffd6ae4078e1160d5da04b9b3
+m6chip,53,0,0,00000000,0,4
+m6init,54,1,2,52,1,104,22,139,2,0,69,4,0,7,1,2267112198,d40ffd6ae4078e1160d5da04b9b3
 m6op,54,preinit,52,1,1
 m6op,54,delay,35
 m6op,54,bus,2,1
@@ -2070,7 +2070,7 @@ m6op,54,delayus,1
 m6op,54,rreg,140,22
 m6op,54,register
 m6det,54,1,3,141
-m6chip,54,1,1,3d7a0000,13776
+m6chip,54,1,1,3d7a0000,13776,4
 m6op,54,ioinit,exti,0
 m6op,54,extihandler
 m6op,54,exticonfig,1
@@ -2097,7 +2097,7 @@ m6op,54,divider,20000000
 m6op,54,clock,4
 m6op,54,read,67,6,1
 m6ready,54,24789,-9724,-17997,3b40c0c1,42121eb8,2048
-m6init,55,1,0,52,1,104,20,34,6,1,69,7,0,4,1,3179902868,2c999f99b91b9a3010fffdff1cd0
+m6init,55,1,0,52,1,104,20,34,6,1,69,7,1,4,1,3179902868,2c999f99b91b9a3010fffdff1cd0
 m6op,55,preinit,52,1,1
 m6op,55,delay,35
 m6op,55,bus,0,1
@@ -2115,7 +2115,7 @@ m6op,55,delayus,1
 m6op,55,rreg,140,20
 m6op,55,register
 m6det,55,1,3,106
-m6chip,55,1,1,3d7a0000,13776
+m6chip,55,1,1,3d7a0000,13776,4
 m6op,55,ioinit,exti,0
 m6op,55,extihandler
 m6op,55,exticonfig,1
@@ -2160,8 +2160,8 @@ m6op,56,delayus,1
 m6op,56,rreg,140,155
 m6op,56,preinitio,1,1
 m6det,56,0,0,110
-m6chip,56,0,0,00000000,0
-m6init,57,0,2,52,1,104,85,80,4,1,0,7,0,2,1,2135337195,5404bfcf89f4308220ff2c1e6eb1
+m6chip,56,0,0,00000000,0,4
+m6init,57,0,2,52,1,104,85,80,4,1,0,7,3,2,1,2135337195,5404bfcf89f4308220ff2c1e6eb1
 m6op,57,preinit,52,1,1
 m6op,57,delay,35
 m6op,57,bus,2,1
@@ -2179,7 +2179,7 @@ m6op,57,delayus,1
 m6op,57,rreg,140,85
 m6op,57,register
 m6det,57,1,3,104
-m6chip,57,1,1,3d7a0000,13776
+m6chip,57,1,1,3d7a0000,13776,4
 m6op,57,wreg,107,3
 m6op,57,delayus,15
 m6op,57,wreg,106,16
@@ -2202,7 +2202,7 @@ m6op,57,divider,20000000
 m6op,57,clock,4
 m6op,57,read,67,6,1
 m6ready,57,8447,11294,28337,3b40c0c1,42121eb8,2048
-m6init,58,1,1,52,1,181,57,16,8,1,69,6,2,3,1,1624045184,1d50679c2019bf3899a74495ce80
+m6init,58,1,1,52,1,181,57,16,8,1,69,6,1,3,1,1624045184,1d50679c2019bf3899a74495ce80
 m6op,58,preinit,52,1,1
 m6op,58,delay,35
 m6op,58,bus,1,1
@@ -2219,8 +2219,8 @@ m6op,58,rreg,245,181
 m6op,58,delayus,1
 m6op,58,preinitio,1,1
 m6det,58,0,0,112
-m6chip,58,0,0,00000000,0
-m6init,59,1,2,52,1,104,85,117,7,1,0,5,2,3,1,2372925047,01f28e2a89a38eab59ff82ff3e79
+m6chip,58,0,0,00000000,0,4
+m6init,59,1,2,52,1,104,85,117,7,1,0,5,0,3,1,2372925047,01f28e2a89a38eab59ff82ff3e79
 m6op,59,preinit,52,1,1
 m6op,59,delay,35
 m6op,59,bus,2,1
@@ -2238,7 +2238,7 @@ m6op,59,delayus,1
 m6op,59,rreg,140,85
 m6op,59,register
 m6det,59,1,3,124
-m6chip,59,1,1,3d7a0000,13776
+m6chip,59,1,1,3d7a0000,13776,4
 m6op,59,wreg,107,3
 m6op,59,delayus,15
 m6op,59,wreg,106,16
@@ -2261,7 +2261,7 @@ m6op,59,divider,20000000
 m6op,59,clock,4
 m6op,59,read,67,6,1
 m6op,59,failure,1
-m6init,60,1,1,52,1,104,89,135,4,0,0,0,2,3,1,1456381847,877262a0d72e4dddd5c7849eda9c
+m6init,60,1,1,52,1,104,89,135,4,0,0,0,3,3,1,1456381847,877262a0d72e4dddd5c7849eda9c
 m6op,60,preinit,52,1,1
 m6op,60,delay,35
 m6op,60,bus,1,1
@@ -2279,7 +2279,7 @@ m6op,60,delayus,1
 m6op,60,rreg,140,89
 m6op,60,register
 m6det,60,1,3,139
-m6chip,60,1,1,3d7a0000,13776
+m6chip,60,1,1,3d7a0000,13776,4
 m6op,60,wreg,107,3
 m6op,60,delayus,15
 m6op,60,wreg,106,16
@@ -2320,7 +2320,7 @@ m6op,61,delayus,1
 m6op,61,rreg,140,89
 m6op,61,register
 m6det,61,1,3,104
-m6chip,61,1,1,3d7a0000,13776
+m6chip,61,1,1,3d7a0000,13776,4
 m6op,61,wreg,107,3
 m6op,61,delayus,15
 m6op,61,wreg,106,16
@@ -2343,7 +2343,7 @@ m6op,61,divider,20000000
 m6op,61,clock,4
 m6op,61,read,67,6,1
 m6ready,61,-5745,15205,9927,3b40c0c1,42121eb8,2048
-m6init,62,0,2,52,1,104,23,92,7,1,69,0,0,0,1,3070620662,55594c2c4fd0e15202c2dcdbba44
+m6init,62,0,2,52,1,104,23,92,7,1,69,0,3,0,1,3070620662,55594c2c4fd0e15202c2dcdbba44
 m6op,62,preinit,52,1,1
 m6op,62,delay,35
 m6op,62,bus,2,1
@@ -2361,7 +2361,7 @@ m6op,62,delayus,1
 m6op,62,rreg,140,23
 m6op,62,register
 m6det,62,1,3,113
-m6chip,62,1,1,3d7a0000,13776
+m6chip,62,1,1,3d7a0000,13776,4
 m6op,62,ioinit,exti,0
 m6op,62,extihandler
 m6op,62,exticonfig,1
@@ -2388,7 +2388,7 @@ m6op,62,divider,20000000
 m6op,62,clock,4
 m6op,62,read,67,6,1
 m6ready,62,706,-8997,-17852,3b40c0c1,42121eb8,2048
-m6init,63,0,0,52,1,104,86,61,8,0,69,7,1,6,1,1865875104,6da2390c5daa3e2fab4a4cbd783c
+m6init,63,0,0,52,1,104,86,61,8,0,69,7,2,6,1,1865875104,6da2390c5daa3e2fab4a4cbd783c
 m6op,63,preinit,52,1,1
 m6op,63,delay,35
 m6op,63,bus,0,1
@@ -2406,7 +2406,7 @@ m6op,63,delayus,1
 m6op,63,rreg,140,86
 m6op,63,register
 m6det,63,1,3,109
-m6chip,63,1,1,3d7a0000,13776
+m6chip,63,1,1,3d7a0000,13776,4
 m6op,63,ioinit,exti,0
 m6op,63,extihandler
 m6op,63,exticonfig,1
@@ -2433,7 +2433,7 @@ m6op,63,divider,20000000
 m6op,63,clock,4
 m6op,63,read,67,6,1
 m6ready,63,-21686,19645,30780,3b40c0c1,42121eb8,2048
-m6init,64,1,1,52,1,104,89,44,1,1,0,6,2,6,1,3972070911,4ae821e166ee0aa2e072dbff1bba
+m6init,64,1,1,52,1,104,89,44,1,1,0,6,1,6,1,3972070911,4ae821e166ee0aa2e072dbff1bba
 m6op,64,preinit,52,1,1
 m6op,64,delay,35
 m6op,64,bus,1,1
@@ -2451,7 +2451,7 @@ m6op,64,delayus,1
 m6op,64,rreg,140,89
 m6op,64,register
 m6det,64,1,3,101
-m6chip,64,1,1,3d7a0000,13776
+m6chip,64,1,1,3d7a0000,13776,4
 m6op,64,wreg,107,3
 m6op,64,delayus,15
 m6op,64,wreg,106,16
@@ -2474,7 +2474,7 @@ m6op,64,divider,20000000
 m6op,64,clock,4
 m6op,64,read,67,6,1
 m6ready,64,-8078,-9217,7098,3b40c0c1,42121eb8,2048
-m6init,65,0,1,52,1,104,23,100,3,1,69,2,0,5,1,606356815,2a947c4464b20b3a49373f8cbed3
+m6init,65,0,1,52,1,104,23,100,3,1,69,2,3,5,1,606356815,2a947c4464b20b3a49373f8cbed3
 m6op,65,preinit,52,1,1
 m6op,65,delay,35
 m6op,65,bus,1,1
@@ -2492,7 +2492,7 @@ m6op,65,delayus,1
 m6op,65,rreg,140,23
 m6op,65,register
 m6det,65,1,3,103
-m6chip,65,1,1,3d7a0000,13776
+m6chip,65,1,1,3d7a0000,13776,4
 m6op,65,ioinit,exti,0
 m6op,65,extihandler
 m6op,65,exticonfig,1
@@ -2519,13 +2519,13 @@ m6op,65,divider,20000000
 m6op,65,clock,4
 m6op,65,read,67,6,1
 m6ready,65,18743,16268,-16685,3b40c0c1,42121eb8,2048
-m6init,66,0,0,52,0,104,20,112,7,1,69,1,0,2,1,3556497645,24ed9ab1c895bd3dd18ab5c70b28
+m6init,66,0,0,52,0,104,20,112,7,1,69,1,1,2,1,3556497645,24ed9ab1c895bd3dd18ab5c70b28
 m6op,66,preinit,52,1,1
 m6op,66,delay,35
 m6op,66,bus,0,0
 m6det,66,0,0,112
-m6chip,66,0,0,00000000,0
-m6init,67,1,1,52,1,22,22,0,4,1,69,4,1,1,1,925807368,81e9c9e9d38ab895b0cf6302f0d1
+m6chip,66,0,0,00000000,0,4
+m6init,67,1,1,52,1,22,22,0,4,1,69,4,0,1,1,925807368,81e9c9e9d38ab895b0cf6302f0d1
 m6op,67,preinit,52,1,1
 m6op,67,delay,35
 m6op,67,bus,1,1
@@ -2542,7 +2542,7 @@ m6op,67,rreg,245,22
 m6op,67,delayus,1
 m6op,67,preinitio,1,1
 m6det,67,0,0,104
-m6chip,67,0,0,00000000,0
+m6chip,67,0,0,00000000,0,4
 m6init,68,0,0,52,1,104,20,72,8,1,0,5,1,4,1,2449907465,b6bdc465f432590621ff29ffb36d
 m6op,68,preinit,52,1,1
 m6op,68,delay,35
@@ -2561,7 +2561,7 @@ m6op,68,delayus,1
 m6op,68,rreg,140,20
 m6op,68,register
 m6det,68,1,3,112
-m6chip,68,1,1,3d7a0000,13776
+m6chip,68,1,1,3d7a0000,13776,4
 m6op,68,wreg,107,3
 m6op,68,delayus,15
 m6op,68,wreg,106,16
@@ -2584,7 +2584,7 @@ m6op,68,divider,20000000
 m6op,68,clock,4
 m6op,68,read,67,6,1
 m6op,68,failure,1
-m6init,69,1,0,52,1,104,89,106,8,0,0,1,0,3,1,4143985858,6ab2588921786a4df2ea438db179
+m6init,69,1,0,52,1,104,89,106,8,0,0,1,1,3,1,4143985858,6ab2588921786a4df2ea438db179
 m6op,69,preinit,52,1,1
 m6op,69,delay,35
 m6op,69,bus,0,1
@@ -2602,7 +2602,7 @@ m6op,69,delayus,1
 m6op,69,rreg,140,89
 m6op,69,register
 m6det,69,1,3,114
-m6chip,69,1,1,3d7a0000,13776
+m6chip,69,1,1,3d7a0000,13776,4
 m6op,69,wreg,107,3
 m6op,69,delayus,15
 m6op,69,wreg,106,16
@@ -2625,7 +2625,7 @@ m6op,69,divider,20000000
 m6op,69,clock,4
 m6op,69,read,67,6,1
 m6ready,69,-3350,17293,-20103,3b40c0c1,42121eb8,2048
-m6init,70,0,1,52,1,104,21,11,9,0,69,4,2,0,1,1244010622,13fd17ebe373702bccf9039c1f52
+m6init,70,0,1,52,1,104,21,11,9,0,69,4,3,0,1,1244010622,13fd17ebe373702bccf9039c1f52
 m6op,70,preinit,52,1,1
 m6op,70,delay,35
 m6op,70,bus,1,1
@@ -2643,7 +2643,7 @@ m6op,70,delayus,1
 m6op,70,rreg,140,21
 m6op,70,register
 m6det,70,1,3,110
-m6chip,70,1,1,3d7a0000,13776
+m6chip,70,1,1,3d7a0000,13776,4
 m6op,70,ioinit,exti,0
 m6op,70,extihandler
 m6op,70,exticonfig,1
@@ -2670,7 +2670,7 @@ m6op,70,divider,20000000
 m6op,70,clock,4
 m6op,70,read,67,6,1
 m6ready,70,-13063,924,8018,3b40c0c1,42121eb8,2048
-m6init,71,0,2,52,1,104,154,89,2,1,69,7,1,3,1,1567061820,9e62149c9f32d6f2e5746ba13b76
+m6init,71,0,2,52,1,104,154,89,2,1,69,7,2,3,1,1567061820,9e62149c9f32d6f2e5746ba13b76
 m6op,71,preinit,52,1,1
 m6op,71,delay,35
 m6op,71,bus,2,1
@@ -2688,8 +2688,8 @@ m6op,71,delayus,1
 m6op,71,rreg,140,154
 m6op,71,preinitio,1,1
 m6det,71,0,0,103
-m6chip,71,0,0,00000000,0
-m6init,72,0,1,52,1,104,90,44,6,1,69,0,1,5,1,3623094435,66ae9d604f7de69421656ae3e194
+m6chip,71,0,0,00000000,0,4
+m6init,72,0,1,52,1,104,90,44,6,1,69,0,2,5,1,3623094435,66ae9d604f7de69421656ae3e194
 m6op,72,preinit,52,1,1
 m6op,72,delay,35
 m6op,72,bus,1,1
@@ -2707,7 +2707,7 @@ m6op,72,delayus,1
 m6op,72,rreg,140,90
 m6op,72,register
 m6det,72,1,3,110
-m6chip,72,1,1,3d7a0000,13776
+m6chip,72,1,1,3d7a0000,13776,4
 m6op,72,ioinit,exti,0
 m6op,72,extihandler
 m6op,72,exticonfig,1
@@ -2734,7 +2734,7 @@ m6op,72,divider,20000000
 m6op,72,clock,4
 m6op,72,read,67,6,1
 m6ready,72,8549,27363,-7788,3b40c0c1,42121eb8,2048
-m6init,73,1,2,52,1,115,62,0,6,0,69,1,2,0,1,596056981,0d9dbd5a9fae56a6be7153422414
+m6init,73,1,2,52,1,115,62,0,6,0,69,1,3,0,1,596056981,0d9dbd5a9fae56a6be7153422414
 m6op,73,preinit,52,1,1
 m6op,73,delay,35
 m6op,73,bus,2,1
@@ -2751,8 +2751,8 @@ m6op,73,rreg,245,115
 m6op,73,delayus,1
 m6op,73,preinitio,1,1
 m6det,73,0,0,108
-m6chip,73,0,0,00000000,0
-m6init,74,1,2,52,1,104,23,58,9,1,69,6,1,0,1,3121396069,315cfca887bf39696fff02fffaf6
+m6chip,73,0,0,00000000,0,4
+m6init,74,1,2,52,1,104,23,58,9,1,69,6,3,0,1,3121396069,315cfca887bf39696fff02fffaf6
 m6op,74,preinit,52,1,1
 m6op,74,delay,35
 m6op,74,bus,2,1
@@ -2770,7 +2770,7 @@ m6op,74,delayus,1
 m6op,74,rreg,140,23
 m6op,74,register
 m6det,74,1,3,112
-m6chip,74,1,1,3d7a0000,13776
+m6chip,74,1,1,3d7a0000,13776,4
 m6op,74,ioinit,exti,0
 m6op,74,extihandler
 m6op,74,exticonfig,1
@@ -2797,7 +2797,7 @@ m6op,74,divider,20000000
 m6op,74,clock,4
 m6op,74,read,67,6,1
 m6op,74,failure,1
-m6init,75,0,0,52,1,104,89,130,5,0,0,3,0,7,1,1931471604,bd828499ea1a01d1eed108ffd419
+m6init,75,0,0,52,1,104,89,130,5,0,0,3,3,7,1,1931471604,bd828499ea1a01d1eed108ffd419
 m6op,75,preinit,52,1,1
 m6op,75,delay,35
 m6op,75,bus,0,1
@@ -2815,7 +2815,7 @@ m6op,75,delayus,1
 m6op,75,rreg,140,89
 m6op,75,register
 m6det,75,1,3,135
-m6chip,75,1,1,3d7a0000,13776
+m6chip,75,1,1,3d7a0000,13776,4
 m6op,75,wreg,107,3
 m6op,75,delayus,15
 m6op,75,wreg,106,16
@@ -2838,7 +2838,7 @@ m6op,75,divider,20000000
 m6op,75,clock,4
 m6op,75,read,67,6,1
 m6ready,75,-4399,2303,-11239,3b40c0c1,42121eb8,2048
-m6init,76,1,2,52,1,104,87,60,6,1,69,6,2,7,1,1764960597,112007e3eaf0dd0247ff7bb2783c
+m6init,76,1,2,52,1,104,87,60,6,1,69,6,1,7,1,1764960597,112007e3eaf0dd0247ff7bb2783c
 m6op,76,preinit,52,1,1
 m6op,76,delay,35
 m6op,76,bus,2,1
@@ -2856,7 +2856,7 @@ m6op,76,delayus,1
 m6op,76,rreg,140,87
 m6op,76,register
 m6det,76,1,3,108
-m6chip,76,1,1,3d7a0000,13776
+m6chip,76,1,1,3d7a0000,13776,4
 m6op,76,ioinit,exti,0
 m6op,76,extihandler
 m6op,76,exticonfig,1
@@ -2888,8 +2888,8 @@ m6op,77,preinit,52,1,1
 m6op,77,delay,35
 m6op,77,bus,1,0
 m6det,77,0,0,25
-m6chip,77,0,0,00000000,0
-m6init,78,1,2,52,1,104,89,107,9,1,69,0,1,2,1,1942576110,d22b54a6a834d4cdeafebf5703b9
+m6chip,77,0,0,00000000,0,4
+m6init,78,1,2,52,1,104,89,107,9,1,69,0,2,2,1,1942576110,d22b54a6a834d4cdeafebf5703b9
 m6op,78,preinit,52,1,1
 m6op,78,delay,35
 m6op,78,bus,2,1
@@ -2907,7 +2907,7 @@ m6op,78,delayus,1
 m6op,78,rreg,140,89
 m6op,78,register
 m6det,78,1,3,116
-m6chip,78,1,1,3d7a0000,13776
+m6chip,78,1,1,3d7a0000,13776,4
 m6op,78,ioinit,exti,0
 m6op,78,extihandler
 m6op,78,exticonfig,1
@@ -2934,7 +2934,7 @@ m6op,78,divider,20000000
 m6op,78,clock,4
 m6op,78,read,67,6,1
 m6ready,78,-5378,-16553,953,3b40c0c1,42121eb8,2048
-m6init,79,1,2,52,1,104,130,36,2,0,0,1,0,2,1,3067343529,66cdfa43ef50a153a091497468d5
+m6init,79,1,2,52,1,104,130,36,2,0,0,1,1,2,1,3067343529,66cdfa43ef50a153a091497468d5
 m6op,79,preinit,52,1,1
 m6op,79,delay,35
 m6op,79,bus,2,1
@@ -2952,8 +2952,8 @@ m6op,79,delayus,1
 m6op,79,rreg,140,130
 m6op,79,preinitio,1,1
 m6det,79,0,0,102
-m6chip,79,0,0,00000000,0
-m6init,80,0,2,52,1,104,84,94,3,1,69,3,0,7,1,3272815310,7a2f1c66b514d06c8de3bc124f07
+m6chip,79,0,0,00000000,0,4
+m6init,80,0,2,52,1,104,84,94,3,1,69,3,1,7,1,3272815310,7a2f1c66b514d06c8de3bc124f07
 m6op,80,preinit,52,1,1
 m6op,80,delay,35
 m6op,80,bus,2,1
@@ -2971,7 +2971,7 @@ m6op,80,delayus,1
 m6op,80,rreg,140,84
 m6op,80,register
 m6det,80,1,3,103
-m6chip,80,1,1,3d7a0000,13776
+m6chip,80,1,1,3d7a0000,13776,4
 m6op,80,ioinit,exti,0
 m6op,80,extihandler
 m6op,80,exticonfig,1
@@ -2998,7 +2998,7 @@ m6op,80,divider,20000000
 m6op,80,clock,4
 m6op,80,read,67,6,1
 m6ready,80,-29213,-17390,20231,3b40c0c1,42121eb8,2048
-m6init,81,0,1,52,1,225,90,121,4,1,69,3,2,3,1,1341421107,584f1faeddcd8f49b754183bf043
+m6init,81,0,1,52,1,225,90,121,4,1,69,3,0,3,1,1341421107,584f1faeddcd8f49b754183bf043
 m6op,81,preinit,52,1,1
 m6op,81,delay,35
 m6op,81,bus,1,1
@@ -3015,7 +3015,7 @@ m6op,81,rreg,245,225
 m6op,81,delayus,1
 m6op,81,preinitio,1,1
 m6det,81,0,0,125
-m6chip,81,0,0,00000000,0
+m6chip,81,0,0,00000000,0,4
 m6init,82,1,2,52,1,104,37,2,4,0,69,0,1,1,1,2809088389,c8e5cc9fbbfdbf969b4aec8035fe
 m6op,82,preinit,52,1,1
 m6op,82,delay,35
@@ -3034,8 +3034,8 @@ m6op,82,delayus,1
 m6op,82,rreg,140,37
 m6op,82,preinitio,1,1
 m6det,82,0,0,106
-m6chip,82,0,0,00000000,0
-m6init,83,0,0,52,1,104,87,24,7,0,69,6,2,5,1,3689571344,be7668d5730916ccdcffbebfdc57
+m6chip,82,0,0,00000000,0,4
+m6init,83,0,0,52,1,104,87,24,7,0,69,6,1,5,1,3689571344,be7668d5730916ccdcffbebfdc57
 m6op,83,preinit,52,1,1
 m6op,83,delay,35
 m6op,83,bus,0,1
@@ -3053,7 +3053,7 @@ m6op,83,delayus,1
 m6op,83,rreg,140,87
 m6op,83,register
 m6det,83,1,3,108
-m6chip,83,1,1,3d7a0000,13776
+m6chip,83,1,1,3d7a0000,13776,4
 m6op,83,ioinit,exti,0
 m6op,83,extihandler
 m6op,83,exticonfig,1
@@ -3098,7 +3098,7 @@ m6op,84,delayus,1
 m6op,84,rreg,140,84
 m6op,84,register
 m6det,84,1,3,112
-m6chip,84,1,1,3d7a0000,13776
+m6chip,84,1,1,3d7a0000,13776,4
 m6op,84,wreg,107,3
 m6op,84,delayus,15
 m6op,84,wreg,106,16
@@ -3121,7 +3121,7 @@ m6op,84,divider,20000000
 m6op,84,clock,4
 m6op,84,read,67,6,1
 m6ready,84,20882,-19192,22110,3b40c0c1,42121eb8,2048
-m6init,85,0,1,52,1,104,84,12,2,1,69,3,2,1,1,3814908172,67a4c7e765ff4a8c22cb261cb70a
+m6init,85,0,1,52,1,104,84,12,2,1,69,3,1,1,1,3814908172,67a4c7e765ff4a8c22cb261cb70a
 m6op,85,preinit,52,1,1
 m6op,85,delay,35
 m6op,85,bus,1,1
@@ -3139,7 +3139,7 @@ m6op,85,delayus,1
 m6op,85,rreg,140,84
 m6op,85,register
 m6det,85,1,3,102
-m6chip,85,1,1,3d7a0000,13776
+m6chip,85,1,1,3d7a0000,13776,4
 m6op,85,ioinit,exti,0
 m6op,85,extihandler
 m6op,85,exticonfig,1
@@ -3184,7 +3184,7 @@ m6op,86,delayus,1
 m6op,86,rreg,140,153
 m6op,86,preinitio,1,1
 m6det,86,0,0,112
-m6chip,86,0,0,00000000,0
+m6chip,86,0,0,00000000,0,4
 m6init,87,0,2,52,1,214,21,99,2,0,69,5,1,7,1,690347850,c25d0a1980282dcd836c066a141c
 m6op,87,preinit,52,1,1
 m6op,87,delay,35
@@ -3202,7 +3202,7 @@ m6op,87,rreg,245,214
 m6op,87,delayus,1
 m6op,87,preinitio,1,1
 m6det,87,0,0,103
-m6chip,87,0,0,00000000,0
+m6chip,87,0,0,00000000,0,4
 m6init,88,0,1,52,1,104,217,8,2,1,69,2,0,6,1,1106800821,f9dc670f890ebee1255a7e30d7ab
 m6op,88,preinit,52,1,1
 m6op,88,delay,35
@@ -3221,8 +3221,8 @@ m6op,88,delayus,1
 m6op,88,rreg,140,217
 m6op,88,preinitio,1,1
 m6det,88,0,0,102
-m6chip,88,0,0,00000000,0
-m6init,89,0,1,52,1,104,86,101,9,1,0,6,2,7,1,351274222,097e5824b5c90adcb585bcfbf059
+m6chip,88,0,0,00000000,0,4
+m6init,89,0,1,52,1,104,86,101,9,1,0,6,3,7,1,351274222,097e5824b5c90adcb585bcfbf059
 m6op,89,preinit,52,1,1
 m6op,89,delay,35
 m6op,89,bus,1,1
@@ -3240,7 +3240,7 @@ m6op,89,delayus,1
 m6op,89,rreg,140,86
 m6op,89,register
 m6det,89,1,3,110
-m6chip,89,1,1,3d7a0000,13776
+m6chip,89,1,1,3d7a0000,13776,4
 m6op,89,wreg,107,3
 m6op,89,delayus,15
 m6op,89,wreg,106,16
@@ -3263,7 +3263,7 @@ m6op,89,divider,20000000
 m6op,89,clock,4
 m6op,89,read,67,6,1
 m6ready,89,-19067,-17157,-4007,3b40c0c1,42121eb8,2048
-m6init,90,0,2,52,1,104,129,4,2,0,69,3,1,6,1,3441537043,8fc9d222c7c2ed74a4f97e9a5521
+m6init,90,0,2,52,1,104,129,4,2,0,69,3,3,6,1,3441537043,8fc9d222c7c2ed74a4f97e9a5521
 m6op,90,preinit,52,1,1
 m6op,90,delay,35
 m6op,90,bus,2,1
@@ -3281,8 +3281,8 @@ m6op,90,delayus,1
 m6op,90,rreg,140,129
 m6op,90,preinitio,1,1
 m6det,90,0,0,102
-m6chip,90,0,0,00000000,0
-m6init,91,0,1,52,1,104,21,91,8,1,69,7,0,7,0,2795728577,4d519d4ae5e10ef61376a8e9a5e3
+m6chip,90,0,0,00000000,0,4
+m6init,91,0,1,52,1,104,21,91,8,1,69,7,1,7,0,2795728577,4d519d4ae5e10ef61376a8e9a5e3
 m6op,91,preinit,52,1,1
 m6op,91,delay,35
 m6op,91,bus,1,1
@@ -3300,7 +3300,7 @@ m6op,91,delayus,1
 m6op,91,rreg,140,21
 m6op,91,register
 m6det,91,1,3,115
-m6chip,91,1,1,3d7a0000,13776
+m6chip,91,1,1,3d7a0000,13776,4
 m6op,91,ioinit,exti,0
 m6op,91,extihandler
 m6op,91,exticonfig,1
@@ -3344,7 +3344,7 @@ m6op,92,rreg,245,101
 m6op,92,delayus,1
 m6op,92,preinitio,1,1
 m6det,92,0,0,104
-m6chip,92,0,0,00000000,0
+m6chip,92,0,0,00000000,0,4
 m6init,93,0,2,52,1,104,22,37,5,1,69,2,0,1,1,2747483960,e0d272d7a0a4ab14e751dc03e814
 m6op,93,preinit,52,1,1
 m6op,93,delay,35
@@ -3363,7 +3363,7 @@ m6op,93,delayus,1
 m6op,93,rreg,140,22
 m6op,93,register
 m6det,93,1,3,107
-m6chip,93,1,1,3d7a0000,13776
+m6chip,93,1,1,3d7a0000,13776,4
 m6op,93,ioinit,exti,0
 m6op,93,extihandler
 m6op,93,exticonfig,1
@@ -3390,7 +3390,7 @@ m6op,93,divider,20000000
 m6op,93,clock,4
 m6op,93,read,67,6,1
 m6ready,93,-6319,-9213,-6124,3b40c0c1,42121eb8,2048
-m6init,94,1,1,52,1,104,23,17,9,1,69,3,0,7,1,3702059019,a30d1a26be4dbc3cae28b6639135
+m6init,94,1,1,52,1,104,23,17,9,1,69,3,1,7,1,3702059019,a30d1a26be4dbc3cae28b6639135
 m6op,94,preinit,52,1,1
 m6op,94,delay,35
 m6op,94,bus,1,1
@@ -3408,7 +3408,7 @@ m6op,94,delayus,1
 m6op,94,rreg,140,23
 m6op,94,register
 m6det,94,1,3,116
-m6chip,94,1,1,3d7a0000,13776
+m6chip,94,1,1,3d7a0000,13776,4
 m6op,94,ioinit,exti,0
 m6op,94,extihandler
 m6op,94,exticonfig,1
@@ -3435,7 +3435,7 @@ m6op,94,divider,20000000
 m6op,94,clock,4
 m6op,94,read,67,6,1
 m6ready,94,-20952,-18845,-28363,3b40c0c1,42121eb8,2048
-m6init,95,0,2,52,1,104,21,33,4,1,0,7,1,4,1,452038437,1625eb418d44b188d73a56a1b460
+m6init,95,0,2,52,1,104,21,33,4,1,0,7,2,4,1,452038437,1625eb418d44b188d73a56a1b460
 m6op,95,preinit,52,1,1
 m6op,95,delay,35
 m6op,95,bus,2,1
@@ -3453,7 +3453,7 @@ m6op,95,delayus,1
 m6op,95,rreg,140,21
 m6op,95,register
 m6det,95,1,3,105
-m6chip,95,1,1,3d7a0000,13776
+m6chip,95,1,1,3d7a0000,13776,4
 m6op,95,wreg,107,3
 m6op,95,delayus,15
 m6op,95,wreg,106,16
@@ -3476,7 +3476,7 @@ m6op,95,divider,20000000
 m6op,95,clock,4
 m6op,95,read,67,6,1
 m6ready,95,-10438,22177,-19360,3b40c0c1,42121eb8,2048
-m6init,96,1,0,52,1,104,128,49,4,0,69,4,0,6,1,1787081989,1cb86f3fb8beb4a6c880531b7c13
+m6init,96,1,0,52,1,104,128,49,4,0,69,4,1,6,1,1787081989,1cb86f3fb8beb4a6c880531b7c13
 m6op,96,preinit,52,1,1
 m6op,96,delay,35
 m6op,96,bus,0,1
@@ -3494,8 +3494,8 @@ m6op,96,delayus,1
 m6op,96,rreg,140,128
 m6op,96,preinitio,1,1
 m6det,96,0,0,105
-m6chip,96,0,0,00000000,0
-m6init,97,0,0,52,1,104,21,102,6,0,69,0,2,7,1,2974450090,f3d4192a6e07778afb235a308637
+m6chip,96,0,0,00000000,0,4
+m6init,97,0,0,52,1,104,21,102,6,0,69,0,1,7,1,2974450090,f3d4192a6e07778afb235a308637
 m6op,97,preinit,52,1,1
 m6op,97,delay,35
 m6op,97,bus,0,1
@@ -3513,7 +3513,7 @@ m6op,97,delayus,1
 m6op,97,rreg,140,21
 m6op,97,register
 m6det,97,1,3,108
-m6chip,97,1,1,3d7a0000,13776
+m6chip,97,1,1,3d7a0000,13776,4
 m6op,97,ioinit,exti,0
 m6op,97,extihandler
 m6op,97,exticonfig,1
@@ -3540,7 +3540,7 @@ m6op,97,divider,20000000
 m6op,97,clock,4
 m6op,97,read,67,6,1
 m6ready,97,-1245,23088,-31177,3b40c0c1,42121eb8,2048
-m6init,98,1,2,52,1,104,85,97,7,1,0,4,1,7,1,3717362199,5e1337be5d2afb935003c5946ef4
+m6init,98,1,2,52,1,104,85,97,7,1,0,4,0,7,1,3717362199,5e1337be5d2afb935003c5946ef4
 m6op,98,preinit,52,1,1
 m6op,98,delay,35
 m6op,98,bus,2,1
@@ -3558,7 +3558,7 @@ m6op,98,delayus,1
 m6op,98,rreg,140,85
 m6op,98,register
 m6det,98,1,3,111
-m6chip,98,1,1,3d7a0000,13776
+m6chip,98,1,1,3d7a0000,13776,4
 m6op,98,wreg,107,3
 m6op,98,delayus,15
 m6op,98,wreg,106,16
@@ -3598,8 +3598,8 @@ m6op,99,rreg,245,177
 m6op,99,delayus,1
 m6op,99,preinitio,1,1
 m6det,99,0,0,108
-m6chip,99,0,0,00000000,0
-m6init,100,1,2,52,1,104,85,0,1,0,69,7,0,3,1,2897237819,aa8d5705faa1e38c3fbd0e9c8819
+m6chip,99,0,0,00000000,0,4
+m6init,100,1,2,52,1,104,85,0,1,0,69,7,3,3,1,2897237819,aa8d5705faa1e38c3fbd0e9c8819
 m6op,100,preinit,52,1,1
 m6op,100,delay,35
 m6op,100,bus,2,1
@@ -3617,7 +3617,7 @@ m6op,100,delayus,1
 m6op,100,rreg,140,85
 m6op,100,register
 m6det,100,1,3,101
-m6chip,100,1,1,3d7a0000,13776
+m6chip,100,1,1,3d7a0000,13776,4
 m6op,100,ioinit,exti,0
 m6op,100,extihandler
 m6op,100,exticonfig,1
@@ -3662,7 +3662,7 @@ m6op,101,delayus,1
 m6op,101,rreg,140,89
 m6op,101,register
 m6det,101,1,3,125
-m6chip,101,1,1,3d7a0000,13776
+m6chip,101,1,1,3d7a0000,13776,4
 m6op,101,wreg,107,3
 m6op,101,delayus,15
 m6op,101,wreg,106,16
@@ -3685,7 +3685,7 @@ m6op,101,divider,20000000
 m6op,101,clock,4
 m6op,101,read,67,6,1
 m6ready,101,-16088,-3242,22333,3b40c0c1,42121eb8,2048
-m6init,102,1,1,52,1,104,87,45,1,0,69,2,1,5,1,2783287048,d81a6f25264b884a47c3700f8da3
+m6init,102,1,1,52,1,104,87,45,1,0,69,2,3,5,1,2783287048,d81a6f25264b884a47c3700f8da3
 m6op,102,preinit,52,1,1
 m6op,102,delay,35
 m6op,102,bus,1,1
@@ -3703,7 +3703,7 @@ m6op,102,delayus,1
 m6op,102,rreg,140,87
 m6op,102,register
 m6det,102,1,3,101
-m6chip,102,1,1,3d7a0000,13776
+m6chip,102,1,1,3d7a0000,13776,4
 m6op,102,ioinit,exti,0
 m6op,102,extihandler
 m6op,102,exticonfig,1
@@ -3730,7 +3730,7 @@ m6op,102,divider,20000000
 m6op,102,clock,4
 m6op,102,read,67,6,1
 m6ready,102,18371,28687,-29277,3b40c0c1,42121eb8,2048
-m6init,103,1,2,52,1,104,85,5,4,1,69,0,1,3,1,2951665053,d3185d7800d6bc10c2919227327a
+m6init,103,1,2,52,1,104,85,5,4,1,69,0,3,3,1,2951665053,d3185d7800d6bc10c2919227327a
 m6op,103,preinit,52,1,1
 m6op,103,delay,35
 m6op,103,bus,2,1
@@ -3748,7 +3748,7 @@ m6op,103,delayus,1
 m6op,103,rreg,140,85
 m6op,103,register
 m6det,103,1,3,105
-m6chip,103,1,1,3d7a0000,13776
+m6chip,103,1,1,3d7a0000,13776,4
 m6op,103,ioinit,exti,0
 m6op,103,extihandler
 m6op,103,exticonfig,1
@@ -3775,7 +3775,7 @@ m6op,103,divider,20000000
 m6op,103,clock,4
 m6op,103,read,67,6,1
 m6ready,103,-15727,-28121,12922,3b40c0c1,42121eb8,2048
-m6init,104,0,1,52,1,104,87,50,2,0,0,4,0,4,1,2931419388,b8913a2de93867459e3cb8ab786b
+m6init,104,0,1,52,1,104,87,50,2,0,0,4,1,4,1,2931419388,b8913a2de93867459e3cb8ab786b
 m6op,104,preinit,52,1,1
 m6op,104,delay,35
 m6op,104,bus,1,1
@@ -3793,7 +3793,7 @@ m6op,104,delayus,1
 m6op,104,rreg,140,87
 m6op,104,register
 m6det,104,1,3,102
-m6chip,104,1,1,3d7a0000,13776
+m6chip,104,1,1,3d7a0000,13776,4
 m6op,104,wreg,107,3
 m6op,104,delayus,15
 m6op,104,wreg,106,16
@@ -3816,7 +3816,7 @@ m6op,104,divider,20000000
 m6op,104,clock,4
 m6op,104,read,67,6,1
 m6ready,104,-25028,-18261,30827,3b40c0c1,42121eb8,2048
-m6init,105,1,2,52,1,104,24,96,8,1,69,3,0,0,1,262129074,2a9070d06c37f9173557a6d6b75e
+m6init,105,1,2,52,1,104,24,96,8,1,69,3,2,0,1,262129074,2a9070d06c37f9173557a6d6b75e
 m6op,105,preinit,52,1,1
 m6op,105,delay,35
 m6op,105,bus,2,1
@@ -3834,7 +3834,7 @@ m6op,105,delayus,1
 m6op,105,rreg,140,24
 m6op,105,register
 m6det,105,1,3,112
-m6chip,105,1,1,3d7a0000,13776
+m6chip,105,1,1,3d7a0000,13776,4
 m6op,105,ioinit,exti,0
 m6op,105,extihandler
 m6op,105,exticonfig,1
@@ -3861,7 +3861,7 @@ m6op,105,divider,20000000
 m6op,105,clock,4
 m6op,105,read,67,6,1
 m6ready,105,13655,-22826,-18594,3b40c0c1,42121eb8,2048
-m6init,106,1,1,52,1,104,84,32,5,1,69,1,0,7,1,3783754281,346bac8ef60906cc4a1c9095dda5
+m6init,106,1,1,52,1,104,84,32,5,1,69,1,3,7,1,3783754281,346bac8ef60906cc4a1c9095dda5
 m6op,106,preinit,52,1,1
 m6op,106,delay,35
 m6op,106,bus,1,1
@@ -3879,7 +3879,7 @@ m6op,106,delayus,1
 m6op,106,rreg,140,84
 m6op,106,register
 m6det,106,1,3,107
-m6chip,106,1,1,3d7a0000,13776
+m6chip,106,1,1,3d7a0000,13776,4
 m6op,106,ioinit,exti,0
 m6op,106,extihandler
 m6op,106,exticonfig,1
@@ -3924,7 +3924,7 @@ m6op,107,delayus,1
 m6op,107,rreg,140,20
 m6op,107,register
 m6det,107,1,3,109
-m6chip,107,1,1,3d7a0000,13776
+m6chip,107,1,1,3d7a0000,13776,4
 m6op,107,wreg,107,3
 m6op,107,delayus,15
 m6op,107,wreg,106,16
@@ -3947,7 +3947,7 @@ m6op,107,divider,20000000
 m6op,107,clock,4
 m6op,107,read,67,6,1
 m6ready,107,-13613,-2772,6255,3b40c0c1,42121eb8,2048
-m6init,108,0,1,52,1,150,89,127,9,1,69,6,2,7,1,1481800211,1028d5c11518409003ff02ffa413
+m6init,108,0,1,52,1,150,89,127,9,1,69,6,0,7,1,1481800211,1028d5c11518409003ff02ffa413
 m6op,108,preinit,52,1,1
 m6op,108,delay,35
 m6op,108,bus,1,1
@@ -3964,7 +3964,7 @@ m6op,108,rreg,245,150
 m6op,108,delayus,1
 m6op,108,preinitio,1,1
 m6det,108,0,0,136
-m6chip,108,0,0,00000000,0
+m6chip,108,0,0,00000000,0,4
 m6init,109,0,2,52,1,104,20,16,3,0,0,5,0,1,1,177638329,53350408665f00599d372f973edd
 m6op,109,preinit,52,1,1
 m6op,109,delay,35
@@ -3983,7 +3983,7 @@ m6op,109,delayus,1
 m6op,109,rreg,140,20
 m6op,109,register
 m6det,109,1,3,103
-m6chip,109,1,1,3d7a0000,13776
+m6chip,109,1,1,3d7a0000,13776,4
 m6op,109,wreg,107,3
 m6op,109,delayus,15
 m6op,109,wreg,106,16
@@ -4023,8 +4023,8 @@ m6op,110,rreg,245,99
 m6op,110,delayus,1
 m6op,110,preinitio,1,1
 m6det,110,0,0,126
-m6chip,110,0,0,00000000,0
-m6init,111,1,0,52,1,104,22,17,4,0,69,4,2,5,1,2719560679,5763d77db820e969826ec4f5ef2d
+m6chip,110,0,0,00000000,0,4
+m6init,111,1,0,52,1,104,22,17,4,0,69,4,0,5,1,2719560679,5763d77db820e969826ec4f5ef2d
 m6op,111,preinit,52,1,1
 m6op,111,delay,35
 m6op,111,bus,0,1
@@ -4042,7 +4042,7 @@ m6op,111,delayus,1
 m6op,111,rreg,140,22
 m6op,111,register
 m6det,111,1,3,105
-m6chip,111,1,1,3d7a0000,13776
+m6chip,111,1,1,3d7a0000,13776,4
 m6op,111,ioinit,exti,0
 m6op,111,extihandler
 m6op,111,exticonfig,1
@@ -4069,7 +4069,7 @@ m6op,111,divider,20000000
 m6op,111,clock,4
 m6op,111,read,67,6,1
 m6ready,111,-32146,-15115,-4307,3b40c0c1,42121eb8,2048
-m6init,112,1,1,52,1,104,22,76,9,1,69,4,0,7,1,4260541037,ac0b89cd769843025c467cef2bce
+m6init,112,1,1,52,1,104,22,76,9,1,69,4,2,7,1,4260541037,ac0b89cd769843025c467cef2bce
 m6op,112,preinit,52,1,1
 m6op,112,delay,35
 m6op,112,bus,1,1
@@ -4087,7 +4087,7 @@ m6op,112,delayus,1
 m6op,112,rreg,140,22
 m6op,112,register
 m6det,112,1,3,112
-m6chip,112,1,1,3d7a0000,13776
+m6chip,112,1,1,3d7a0000,13776,4
 m6op,112,ioinit,exti,0
 m6op,112,extihandler
 m6op,112,exticonfig,1
@@ -4114,7 +4114,7 @@ m6op,112,divider,20000000
 m6op,112,clock,4
 m6op,112,read,67,6,1
 m6ready,112,23622,31983,11214,3b40c0c1,42121eb8,2048
-m6init,113,1,0,52,1,104,85,73,9,1,69,5,2,5,1,2012223637,de78c1ba7807083b33ff451a28e8
+m6init,113,1,0,52,1,104,85,73,9,1,69,5,1,5,1,2012223637,de78c1ba7807083b33ff451a28e8
 m6op,113,preinit,52,1,1
 m6op,113,delay,35
 m6op,113,bus,0,1
@@ -4132,7 +4132,7 @@ m6op,113,delayus,1
 m6op,113,rreg,140,85
 m6op,113,register
 m6det,113,1,3,109
-m6chip,113,1,1,3d7a0000,13776
+m6chip,113,1,1,3d7a0000,13776,4
 m6op,113,ioinit,exti,0
 m6op,113,extihandler
 m6op,113,exticonfig,1
@@ -4159,7 +4159,7 @@ m6op,113,divider,20000000
 m6op,113,clock,4
 m6op,113,read,67,6,1
 m6ready,113,13311,17690,10472,3b40c0c1,42121eb8,2048
-m6init,114,1,0,52,1,104,20,49,8,1,69,7,2,1,1,96586420,fec73427df6ef152e08a3de56416
+m6init,114,1,0,52,1,104,20,49,8,1,69,7,1,1,1,96586420,fec73427df6ef152e08a3de56416
 m6op,114,preinit,52,1,1
 m6op,114,delay,35
 m6op,114,bus,0,1
@@ -4177,7 +4177,7 @@ m6op,114,delayus,1
 m6op,114,rreg,140,20
 m6op,114,register
 m6det,114,1,3,113
-m6chip,114,1,1,3d7a0000,13776
+m6chip,114,1,1,3d7a0000,13776,4
 m6op,114,ioinit,exti,0
 m6op,114,extihandler
 m6op,114,exticonfig,1
@@ -4204,7 +4204,7 @@ m6op,114,divider,20000000
 m6op,114,clock,4
 m6op,114,read,67,6,1
 m6ready,114,-8054,15845,25622,3b40c0c1,42121eb8,2048
-m6init,115,1,1,52,1,104,88,56,9,0,0,6,1,2,1,1425905125,e301f41db49a4aa91e987acbcd7a
+m6init,115,1,1,52,1,104,88,56,9,0,0,6,3,2,1,1425905125,e301f41db49a4aa91e987acbcd7a
 m6op,115,preinit,52,1,1
 m6op,115,delay,35
 m6op,115,bus,1,1
@@ -4222,7 +4222,7 @@ m6op,115,delayus,1
 m6op,115,rreg,140,88
 m6op,115,register
 m6det,115,1,3,110
-m6chip,115,1,1,3d7a0000,13776
+m6chip,115,1,1,3d7a0000,13776,4
 m6op,115,wreg,107,3
 m6op,115,delayus,15
 m6op,115,wreg,106,16
@@ -4263,7 +4263,7 @@ m6op,116,delayus,1
 m6op,116,rreg,140,86
 m6op,116,register
 m6det,116,1,3,111
-m6chip,116,1,1,3d7a0000,13776
+m6chip,116,1,1,3d7a0000,13776,4
 m6op,116,ioinit,exti,0
 m6op,116,extihandler
 m6op,116,exticonfig,1
@@ -4308,7 +4308,7 @@ m6op,117,delayus,1
 m6op,117,rreg,140,196
 m6op,117,preinitio,1,1
 m6det,117,0,0,110
-m6chip,117,0,0,00000000,0
+m6chip,117,0,0,00000000,0,4
 m6init,118,0,0,52,1,104,68,31,6,0,0,7,2,3,1,1000970585,8bba8ddb709e7af91986a7d855d6
 m6op,118,preinit,52,1,1
 m6op,118,delay,35
@@ -4327,8 +4327,8 @@ m6op,118,delayus,1
 m6op,118,rreg,140,68
 m6op,118,preinitio,1,1
 m6det,118,0,0,109
-m6chip,118,0,0,00000000,0
-m6init,119,1,0,52,1,122,20,72,9,1,69,4,0,3,1,301421916,a41bb8a14350a46b7efff3ffa6fc
+m6chip,118,0,0,00000000,0,4
+m6init,119,1,0,52,1,122,20,72,9,1,69,4,1,3,1,301421916,a41bb8a14350a46b7efff3ffa6fc
 m6op,119,preinit,52,1,1
 m6op,119,delay,35
 m6op,119,bus,0,1
@@ -4345,7 +4345,7 @@ m6op,119,rreg,245,122
 m6op,119,delayus,1
 m6op,119,preinitio,1,1
 m6det,119,0,0,117
-m6chip,119,0,0,00000000,0
+m6chip,119,0,0,00000000,0,4
 m6init,120,1,2,52,1,155,88,33,6,1,69,0,2,2,1,806386353,73b93e36fd8b8c3c13e96effa785
 m6op,120,preinit,52,1,1
 m6op,120,delay,35
@@ -4363,8 +4363,8 @@ m6op,120,rreg,245,155
 m6op,120,delayus,1
 m6op,120,preinitio,1,1
 m6det,120,0,0,111
-m6chip,120,0,0,00000000,0
-m6init,121,0,2,52,1,104,168,89,9,0,69,4,1,3,1,1512333734,e3b5db17a22c26cafe78ddff54c0
+m6chip,120,0,0,00000000,0,4
+m6init,121,0,2,52,1,104,168,89,9,0,69,4,0,3,1,1512333734,e3b5db17a22c26cafe78ddff54c0
 m6op,121,preinit,52,1,1
 m6op,121,delay,35
 m6op,121,bus,2,1
@@ -4382,8 +4382,8 @@ m6op,121,delayus,1
 m6op,121,rreg,140,168
 m6op,121,preinitio,1,1
 m6det,121,0,0,116
-m6chip,121,0,0,00000000,0
-m6init,122,1,0,52,1,104,86,49,3,1,69,2,1,4,1,1945537713,5a5c97ff1ba70fb5efc41b59eee4
+m6chip,121,0,0,00000000,0,4
+m6init,122,1,0,52,1,104,86,49,3,1,69,2,3,4,1,1945537713,5a5c97ff1ba70fb5efc41b59eee4
 m6op,122,preinit,52,1,1
 m6op,122,delay,35
 m6op,122,bus,0,1
@@ -4401,7 +4401,7 @@ m6op,122,delayus,1
 m6op,122,rreg,140,86
 m6op,122,register
 m6det,122,1,3,103
-m6chip,122,1,1,3d7a0000,13776
+m6chip,122,1,1,3d7a0000,13776,4
 m6op,122,ioinit,exti,0
 m6op,122,extihandler
 m6op,122,exticonfig,1
@@ -4428,7 +4428,7 @@ m6op,122,divider,20000000
 m6op,122,clock,4
 m6op,122,read,67,6,1
 m6ready,122,-4156,7001,-4380,3b40c0c1,42121eb8,2048
-m6init,123,1,0,52,1,73,86,76,3,1,69,4,2,5,1,3557903219,e2ddcfa7f78084531528db52e7e6
+m6init,123,1,0,52,1,73,86,76,3,1,69,4,3,5,1,3557903219,e2ddcfa7f78084531528db52e7e6
 m6op,123,preinit,52,1,1
 m6op,123,delay,35
 m6op,123,bus,0,1
@@ -4445,8 +4445,8 @@ m6op,123,rreg,245,73
 m6op,123,delayus,1
 m6op,123,preinitio,1,1
 m6det,123,0,0,103
-m6chip,123,0,0,00000000,0
-m6init,124,0,1,52,1,104,86,9,7,1,69,0,1,7,1,2283723041,d1032ad2f2161c572a9dc415cca7
+m6chip,123,0,0,00000000,0,4
+m6init,124,0,1,52,1,104,86,9,7,1,69,0,2,7,1,2283723041,d1032ad2f2161c572a9dc415cca7
 m6op,124,preinit,52,1,1
 m6op,124,delay,35
 m6op,124,bus,1,1
@@ -4464,7 +4464,7 @@ m6op,124,delayus,1
 m6op,124,rreg,140,86
 m6op,124,register
 m6det,124,1,3,107
-m6chip,124,1,1,3d7a0000,13776
+m6chip,124,1,1,3d7a0000,13776,4
 m6op,124,ioinit,exti,0
 m6op,124,extihandler
 m6op,124,exticonfig,1
@@ -4491,7 +4491,7 @@ m6op,124,divider,20000000
 m6op,124,clock,4
 m6op,124,read,67,6,1
 m6ready,124,10909,-15339,-13145,3b40c0c1,42121eb8,2048
-m6init,125,1,2,52,1,104,20,40,5,1,69,3,0,3,1,4139795543,f603d4f926b2a5118affe3ffb5f7
+m6init,125,1,2,52,1,104,20,40,5,1,69,3,1,3,1,4139795543,f603d4f926b2a5118affe3ffb5f7
 m6op,125,preinit,52,1,1
 m6op,125,delay,35
 m6op,125,bus,2,1
@@ -4509,7 +4509,7 @@ m6op,125,delayus,1
 m6op,125,rreg,140,20
 m6op,125,register
 m6det,125,1,3,105
-m6chip,125,1,1,3d7a0000,13776
+m6chip,125,1,1,3d7a0000,13776,4
 m6op,125,ioinit,exti,0
 m6op,125,extihandler
 m6op,125,exticonfig,1
@@ -4536,12 +4536,12 @@ m6op,125,divider,20000000
 m6op,125,clock,4
 m6op,125,read,67,6,1
 m6op,125,failure,1
-m6init,126,1,1,0,1,104,87,15,2,1,69,2,0,0,1,1289786254,39f3558f994a53e0c6e9418a05dc
+m6init,126,1,1,0,1,104,87,15,2,1,69,2,1,0,1,1289786254,39f3558f994a53e0c6e9418a05dc
 m6op,126,preinit,0,1,1
 m6op,126,delay,35
 m6det,126,0,0,15
-m6chip,126,0,0,00000000,0
-m6init,127,0,1,52,1,104,23,40,5,0,69,7,0,0,1,623163431,d5c4e34337208d74ca5eb788ebce
+m6chip,126,0,0,00000000,0,4
+m6init,127,0,1,52,1,104,23,40,5,0,69,7,2,0,1,623163431,d5c4e34337208d74ca5eb788ebce
 m6op,127,preinit,52,1,1
 m6op,127,delay,35
 m6op,127,bus,1,1
@@ -4559,7 +4559,7 @@ m6op,127,delayus,1
 m6op,127,rreg,140,23
 m6op,127,register
 m6det,127,1,3,105
-m6chip,127,1,1,3d7a0000,13776
+m6chip,127,1,1,3d7a0000,13776,4
 m6op,127,ioinit,exti,0
 m6op,127,extihandler
 m6op,127,exticonfig,1
@@ -4586,7 +4586,7 @@ m6op,127,divider,20000000
 m6op,127,clock,4
 m6op,127,read,67,6,1
 m6ready,127,-13730,-18552,-5170,3b40c0c1,42121eb8,2048
-m6init,128,1,0,52,1,104,141,66,1,1,69,7,2,4,1,3693665534,4da47ed722cd0244cb53e5134fce
+m6init,128,1,0,52,1,104,141,66,1,1,69,7,1,4,1,3693665534,4da47ed722cd0244cb53e5134fce
 m6op,128,preinit,52,1,1
 m6op,128,delay,35
 m6op,128,bus,0,1
@@ -4604,8 +4604,8 @@ m6op,128,delayus,1
 m6op,128,rreg,140,141
 m6op,128,preinitio,1,1
 m6det,128,0,0,101
-m6chip,128,0,0,00000000,0
-m6init,129,0,2,52,1,104,21,95,3,1,69,1,0,0,1,64128858,cb4467603d70c0f40013140ed550
+m6chip,128,0,0,00000000,0,4
+m6init,129,0,2,52,1,104,21,95,3,1,69,1,2,0,1,64128858,cb4467603d70c0f40013140ed550
 m6op,129,preinit,52,1,1
 m6op,129,delay,35
 m6op,129,bus,2,1
@@ -4623,7 +4623,7 @@ m6op,129,delayus,1
 m6op,129,rreg,140,21
 m6op,129,register
 m6det,129,1,3,104
-m6chip,129,1,1,3d7a0000,13776
+m6chip,129,1,1,3d7a0000,13776,4
 m6op,129,ioinit,exti,0
 m6op,129,extihandler
 m6op,129,exticonfig,1
@@ -4668,7 +4668,7 @@ m6op,130,delayus,1
 m6op,130,rreg,140,88
 m6op,130,register
 m6det,130,1,3,132
-m6chip,130,1,1,3d7a0000,13776
+m6chip,130,1,1,3d7a0000,13776,4
 m6op,130,ioinit,exti,0
 m6op,130,extihandler
 m6op,130,exticonfig,1
@@ -4713,7 +4713,7 @@ m6op,131,delayus,1
 m6op,131,rreg,140,90
 m6op,131,register
 m6det,131,1,3,108
-m6chip,131,1,1,3d7a0000,13776
+m6chip,131,1,1,3d7a0000,13776,4
 m6op,131,ioinit,exti,0
 m6op,131,extihandler
 m6op,131,exticonfig,1
@@ -4758,7 +4758,7 @@ m6op,132,delayus,1
 m6op,132,rreg,140,86
 m6op,132,register
 m6det,132,1,3,108
-m6chip,132,1,1,3d7a0000,13776
+m6chip,132,1,1,3d7a0000,13776,4
 m6op,132,ioinit,exti,0
 m6op,132,extihandler
 m6op,132,exticonfig,1
@@ -4785,7 +4785,7 @@ m6op,132,divider,20000000
 m6op,132,clock,4
 m6op,132,read,67,6,1
 m6ready,132,-15355,-17937,25050,3b40c0c1,42121eb8,2048
-m6init,133,0,0,52,1,104,85,4,9,1,69,0,2,0,1,2315525546,2c80c7ea8fb085dbabff46ff3a9f
+m6init,133,0,0,52,1,104,85,4,9,1,69,0,3,0,1,2315525546,2c80c7ea8fb085dbabff46ff3a9f
 m6op,133,preinit,52,1,1
 m6op,133,delay,35
 m6op,133,bus,0,1
@@ -4803,7 +4803,7 @@ m6op,133,delayus,1
 m6op,133,rreg,140,85
 m6op,133,register
 m6det,133,1,3,112
-m6chip,133,1,1,3d7a0000,13776
+m6chip,133,1,1,3d7a0000,13776,4
 m6op,133,ioinit,exti,0
 m6op,133,extihandler
 m6op,133,exticonfig,1
@@ -4830,7 +4830,7 @@ m6op,133,divider,20000000
 m6op,133,clock,4
 m6op,133,read,67,6,1
 m6op,133,failure,1
-m6init,134,1,2,52,1,104,86,88,1,1,69,2,1,5,1,1379686440,20a53470c87070b662e68d3bd557
+m6init,134,1,2,52,1,104,86,88,1,1,69,2,3,5,1,1379686440,20a53470c87070b662e68d3bd557
 m6op,134,preinit,52,1,1
 m6op,134,delay,35
 m6op,134,bus,2,1
@@ -4848,7 +4848,7 @@ m6op,134,delayus,1
 m6op,134,rreg,140,86
 m6op,134,register
 m6det,134,1,3,101
-m6chip,134,1,1,3d7a0000,13776
+m6chip,134,1,1,3d7a0000,13776,4
 m6op,134,ioinit,exti,0
 m6op,134,extihandler
 m6op,134,exticonfig,1
@@ -4875,7 +4875,7 @@ m6op,134,divider,20000000
 m6op,134,clock,4
 m6op,134,read,67,6,1
 m6ready,134,25318,-29381,-10921,3b40c0c1,42121eb8,2048
-m6init,135,1,0,52,1,104,90,139,3,0,69,7,1,6,1,2028077874,2664e158d11562bb76e27c57e9fd
+m6init,135,1,0,52,1,104,90,139,3,0,69,7,2,6,1,2028077874,2664e158d11562bb76e27c57e9fd
 m6op,135,preinit,52,1,1
 m6op,135,delay,35
 m6op,135,bus,0,1
@@ -4893,7 +4893,7 @@ m6op,135,delayus,1
 m6op,135,rreg,140,90
 m6op,135,register
 m6det,135,1,3,142
-m6chip,135,1,1,3d7a0000,13776
+m6chip,135,1,1,3d7a0000,13776,4
 m6op,135,ioinit,exti,0
 m6op,135,extihandler
 m6op,135,exticonfig,1
@@ -4938,7 +4938,7 @@ m6op,136,delayus,1
 m6op,136,rreg,140,105
 m6op,136,preinitio,1,1
 m6det,136,0,0,108
-m6chip,136,0,0,00000000,0
+m6chip,136,0,0,00000000,0,4
 m6init,137,1,0,52,1,112,22,24,8,1,69,3,2,2,1,1491741569,88b03250e5cd501083294da4cb4b
 m6op,137,preinit,52,1,1
 m6op,137,delay,35
@@ -4956,8 +4956,8 @@ m6op,137,rreg,245,112
 m6op,137,delayus,1
 m6op,137,preinitio,1,1
 m6det,137,0,0,112
-m6chip,137,0,0,00000000,0
-m6init,138,0,2,52,1,104,89,123,9,1,0,0,1,1,1,2622769099,db957ebce9f366ee43f6fdc673e4
+m6chip,137,0,0,00000000,0,4
+m6init,138,0,2,52,1,104,89,123,9,1,0,0,2,1,1,2622769099,db957ebce9f366ee43f6fdc673e4
 m6op,138,preinit,52,1,1
 m6op,138,delay,35
 m6op,138,bus,2,1
@@ -4975,7 +4975,7 @@ m6op,138,delayus,1
 m6op,138,rreg,140,89
 m6op,138,register
 m6det,138,1,3,132
-m6chip,138,1,1,3d7a0000,13776
+m6chip,138,1,1,3d7a0000,13776,4
 m6op,138,wreg,107,3
 m6op,138,delayus,15
 m6op,138,wreg,106,16
@@ -4998,7 +4998,7 @@ m6op,138,divider,20000000
 m6op,138,clock,4
 m6op,138,read,67,6,1
 m6ready,138,17398,-570,29668,3b40c0c1,42121eb8,2048
-m6init,139,0,1,52,1,104,22,23,7,0,69,3,0,3,1,2723383098,093c81eece22cf52c844ff8dd00e
+m6init,139,0,1,52,1,104,22,23,7,0,69,3,2,3,1,2723383098,093c81eece22cf52c844ff8dd00e
 m6op,139,preinit,52,1,1
 m6op,139,delay,35
 m6op,139,bus,1,1
@@ -5016,7 +5016,7 @@ m6op,139,delayus,1
 m6op,139,rreg,140,22
 m6op,139,register
 m6det,139,1,3,107
-m6chip,139,1,1,3d7a0000,13776
+m6chip,139,1,1,3d7a0000,13776,4
 m6op,139,ioinit,exti,0
 m6op,139,extihandler
 m6op,139,exticonfig,1
@@ -5043,7 +5043,7 @@ m6op,139,divider,20000000
 m6op,139,clock,4
 m6op,139,read,67,6,1
 m6ready,139,-14268,-115,-12274,3b40c0c1,42121eb8,2048
-m6init,140,1,2,52,1,104,85,69,3,0,69,1,2,3,1,381187937,41a429a94fb17a7d81b1898b328f
+m6init,140,1,2,52,1,104,85,69,3,0,69,1,1,3,1,381187937,41a429a94fb17a7d81b1898b328f
 m6op,140,preinit,52,1,1
 m6op,140,delay,35
 m6op,140,bus,2,1
@@ -5061,7 +5061,7 @@ m6op,140,delayus,1
 m6op,140,rreg,140,85
 m6op,140,register
 m6det,140,1,3,105
-m6chip,140,1,1,3d7a0000,13776
+m6chip,140,1,1,3d7a0000,13776,4
 m6op,140,ioinit,exti,0
 m6op,140,extihandler
 m6op,140,exticonfig,1
@@ -5088,7 +5088,7 @@ m6op,140,divider,20000000
 m6op,140,clock,4
 m6op,140,read,67,6,1
 m6ready,140,-32335,-30325,12943,3b40c0c1,42121eb8,2048
-m6init,141,1,0,52,1,104,61,37,6,0,69,5,0,3,1,393777900,64009ba3eaaf6e0c80d62c5caccf
+m6init,141,1,0,52,1,104,61,37,6,0,69,5,2,3,1,393777900,64009ba3eaaf6e0c80d62c5caccf
 m6op,141,preinit,52,1,1
 m6op,141,delay,35
 m6op,141,bus,0,1
@@ -5106,8 +5106,8 @@ m6op,141,delayus,1
 m6op,141,rreg,140,61
 m6op,141,preinitio,1,1
 m6det,141,0,0,109
-m6chip,141,0,0,00000000,0
-m6init,142,1,2,52,1,104,23,63,4,1,69,1,1,4,1,4236020848,8f4eb3444e1e7aa6b43c59480ec8
+m6chip,141,0,0,00000000,0,4
+m6init,142,1,2,52,1,104,23,63,4,1,69,1,0,4,1,4236020848,8f4eb3444e1e7aa6b43c59480ec8
 m6op,142,preinit,52,1,1
 m6op,142,delay,35
 m6op,142,bus,2,1
@@ -5125,7 +5125,7 @@ m6op,142,delayus,1
 m6op,142,rreg,140,23
 m6op,142,register
 m6det,142,1,3,107
-m6chip,142,1,1,3d7a0000,13776
+m6chip,142,1,1,3d7a0000,13776,4
 m6op,142,ioinit,exti,0
 m6op,142,extihandler
 m6op,142,exticonfig,1
@@ -5152,7 +5152,7 @@ m6op,142,divider,20000000
 m6op,142,clock,4
 m6op,142,read,67,6,1
 m6ready,142,-19396,22856,3784,3b40c0c1,42121eb8,2048
-m6init,143,1,2,52,1,104,88,7,1,1,69,4,2,6,1,3237924361,a15b913f0b042376f5fbc362787b
+m6init,143,1,2,52,1,104,88,7,1,1,69,4,0,6,1,3237924361,a15b913f0b042376f5fbc362787b
 m6op,143,preinit,52,1,1
 m6op,143,delay,35
 m6op,143,bus,2,1
@@ -5170,7 +5170,7 @@ m6op,143,delayus,1
 m6op,143,rreg,140,88
 m6op,143,register
 m6det,143,1,3,101
-m6chip,143,1,1,3d7a0000,13776
+m6chip,143,1,1,3d7a0000,13776,4
 m6op,143,ioinit,exti,0
 m6op,143,extihandler
 m6op,143,exticonfig,1
@@ -5215,7 +5215,7 @@ m6op,144,delayus,1
 m6op,144,rreg,140,20
 m6op,144,register
 m6det,144,1,3,107
-m6chip,144,1,1,3d7a0000,13776
+m6chip,144,1,1,3d7a0000,13776,4
 m6op,144,ioinit,exti,0
 m6op,144,extihandler
 m6op,144,exticonfig,1
@@ -5246,8 +5246,8 @@ m6init,145,0,0,0,1,104,226,103,3,1,0,2,0,6,1,2041188651,4871970150bfaa488a770408
 m6op,145,preinit,0,1,1
 m6op,145,delay,35
 m6det,145,0,0,103
-m6chip,145,0,0,00000000,0
-m6init,146,1,0,52,1,104,57,98,5,0,69,5,2,1,1,1079215724,e517bb93eff64eef503db6df3233
+m6chip,145,0,0,00000000,0,4
+m6init,146,1,0,52,1,104,57,98,5,0,69,5,1,1,1,1079215724,e517bb93eff64eef503db6df3233
 m6op,146,preinit,52,1,1
 m6op,146,delay,35
 m6op,146,bus,0,1
@@ -5265,8 +5265,8 @@ m6op,146,delayus,1
 m6op,146,rreg,140,57
 m6op,146,preinitio,1,1
 m6det,146,0,0,108
-m6chip,146,0,0,00000000,0
-m6init,147,1,0,52,1,104,87,32,5,1,69,1,2,7,1,1330825517,593e7a82c3580b2c0bceab356d9b
+m6chip,146,0,0,00000000,0,4
+m6init,147,1,0,52,1,104,87,32,5,1,69,1,1,7,1,1330825517,593e7a82c3580b2c0bceab356d9b
 m6op,147,preinit,52,1,1
 m6op,147,delay,35
 m6op,147,bus,0,1
@@ -5284,7 +5284,7 @@ m6op,147,delayus,1
 m6op,147,rreg,140,87
 m6op,147,register
 m6det,147,1,3,107
-m6chip,147,1,1,3d7a0000,13776
+m6chip,147,1,1,3d7a0000,13776,4
 m6op,147,ioinit,exti,0
 m6op,147,extihandler
 m6op,147,exticonfig,1
@@ -5311,7 +5311,7 @@ m6op,147,divider,20000000
 m6op,147,clock,4
 m6op,147,read,67,6,1
 m6ready,147,3022,-21707,28059,3b40c0c1,42121eb8,2048
-m6init,148,1,2,52,1,104,251,134,5,0,69,4,2,1,1,3713581697,b07a665249d5055e63c4ab5a22d7
+m6init,148,1,2,52,1,104,251,134,5,0,69,4,1,1,1,3713581697,b07a665249d5055e63c4ab5a22d7
 m6op,148,preinit,52,1,1
 m6op,148,delay,35
 m6op,148,bus,2,1
@@ -5329,8 +5329,8 @@ m6op,148,delayus,1
 m6op,148,rreg,140,251
 m6op,148,preinitio,1,1
 m6det,148,0,0,139
-m6chip,148,0,0,00000000,0
-m6init,149,0,0,52,1,126,23,124,2,0,69,0,2,3,1,867719902,28588edd740b27b3b8f369c4ed59
+m6chip,148,0,0,00000000,0,4
+m6init,149,0,0,52,1,126,23,124,2,0,69,0,0,3,1,867719902,28588edd740b27b3b8f369c4ed59
 m6op,149,preinit,52,1,1
 m6op,149,delay,35
 m6op,149,bus,0,1
@@ -5347,8 +5347,8 @@ m6op,149,rreg,245,126
 m6op,149,delayus,1
 m6op,149,preinitio,1,1
 m6det,149,0,0,126
-m6chip,149,0,0,00000000,0
-m6init,150,0,2,52,1,104,20,21,8,0,0,2,1,4,0,4014834302,fa0296fd11f6c52a38c61eabfe73
+m6chip,149,0,0,00000000,0,4
+m6init,150,0,2,52,1,104,20,21,8,0,0,2,2,4,0,4014834302,fa0296fd11f6c52a38c61eabfe73
 m6op,150,preinit,52,1,1
 m6op,150,delay,35
 m6op,150,bus,2,1
@@ -5366,7 +5366,7 @@ m6op,150,delayus,1
 m6op,150,rreg,140,20
 m6op,150,register
 m6det,150,1,3,109
-m6chip,150,1,1,3d7a0000,13776
+m6chip,150,1,1,3d7a0000,13776,4
 m6op,150,wreg,107,3
 m6op,150,delayus,15
 m6op,150,wreg,106,16
@@ -5407,7 +5407,7 @@ m6op,151,delayus,1
 m6op,151,rreg,140,20
 m6op,151,register
 m6det,151,1,3,101
-m6chip,151,1,1,3d7a0000,13776
+m6chip,151,1,1,3d7a0000,13776,4
 m6op,151,ioinit,exti,0
 m6op,151,extihandler
 m6op,151,exticonfig,1
@@ -5434,7 +5434,7 @@ m6op,151,divider,20000000
 m6op,151,clock,4
 m6op,151,read,67,6,1
 m6ready,151,-26548,-14320,26163,3b40c0c1,42121eb8,2048
-m6init,152,0,1,52,1,190,21,58,7,0,0,7,2,6,1,416250304,d3defd4711a62a0b4cf7dea25c89
+m6init,152,0,1,52,1,190,21,58,7,0,0,7,3,6,1,416250304,d3defd4711a62a0b4cf7dea25c89
 m6op,152,preinit,52,1,1
 m6op,152,delay,35
 m6op,152,bus,1,1
@@ -5451,8 +5451,8 @@ m6op,152,rreg,245,190
 m6op,152,delayus,1
 m6op,152,preinitio,1,1
 m6det,152,0,0,107
-m6chip,152,0,0,00000000,0
-m6init,153,1,0,52,1,104,93,42,4,1,69,6,0,7,1,2887366927,fb8f8aa4ecf37ca81c568ea96892
+m6chip,152,0,0,00000000,0,4
+m6init,153,1,0,52,1,104,93,42,4,1,69,6,2,7,1,2887366927,fb8f8aa4ecf37ca81c568ea96892
 m6op,153,preinit,52,1,1
 m6op,153,delay,35
 m6op,153,bus,0,1
@@ -5470,8 +5470,8 @@ m6op,153,delayus,1
 m6op,153,rreg,140,93
 m6op,153,preinitio,1,1
 m6det,153,0,0,106
-m6chip,153,0,0,00000000,0
-m6init,154,1,1,52,1,104,89,91,3,1,69,6,1,2,1,1221063931,d65b7c7364fa8784b8eedaed4777
+m6chip,153,0,0,00000000,0,4
+m6init,154,1,1,52,1,104,89,91,3,1,69,6,2,2,1,1221063931,d65b7c7364fa8784b8eedaed4777
 m6op,154,preinit,52,1,1
 m6op,154,delay,35
 m6op,154,bus,1,1
@@ -5489,7 +5489,7 @@ m6op,154,delayus,1
 m6op,154,rreg,140,89
 m6op,154,register
 m6det,154,1,3,103
-m6chip,154,1,1,3d7a0000,13776
+m6chip,154,1,1,3d7a0000,13776,4
 m6op,154,ioinit,exti,0
 m6op,154,extihandler
 m6op,154,exticonfig,1
@@ -5516,7 +5516,7 @@ m6op,154,divider,20000000
 m6op,154,clock,4
 m6op,154,read,67,6,1
 m6ready,154,-18194,-9491,18295,3b40c0c1,42121eb8,2048
-m6init,155,0,0,52,1,104,88,126,6,0,69,5,0,6,1,1597157431,4ce8e1f9314b3ec26f12ef7a6859
+m6init,155,0,0,52,1,104,88,126,6,0,69,5,1,6,1,1597157431,4ce8e1f9314b3ec26f12ef7a6859
 m6op,155,preinit,52,1,1
 m6op,155,delay,35
 m6op,155,bus,0,1
@@ -5534,7 +5534,7 @@ m6op,155,delayus,1
 m6op,155,rreg,140,88
 m6op,155,register
 m6det,155,1,3,132
-m6chip,155,1,1,3d7a0000,13776
+m6chip,155,1,1,3d7a0000,13776,4
 m6op,155,ioinit,exti,0
 m6op,155,extihandler
 m6op,155,exticonfig,1
@@ -5579,7 +5579,7 @@ m6op,156,delayus,1
 m6op,156,rreg,140,85
 m6op,156,register
 m6det,156,1,3,107
-m6chip,156,1,1,3d7a0000,13776
+m6chip,156,1,1,3d7a0000,13776,4
 m6op,156,wreg,107,3
 m6op,156,delayus,15
 m6op,156,wreg,106,16
@@ -5620,7 +5620,7 @@ m6op,157,delayus,1
 m6op,157,rreg,140,87
 m6op,157,register
 m6det,157,1,3,113
-m6chip,157,1,1,3d7a0000,13776
+m6chip,157,1,1,3d7a0000,13776,4
 m6op,157,ioinit,exti,0
 m6op,157,extihandler
 m6op,157,exticonfig,1
@@ -5647,7 +5647,7 @@ m6op,157,divider,20000000
 m6op,157,clock,4
 m6op,157,read,67,6,1
 m6ready,157,-20497,-9182,-14268,3b40c0c1,42121eb8,2048
-m6init,158,0,2,52,1,104,20,5,1,0,69,2,1,0,1,1343345362,841d60c563938d95d2ff31ff264d
+m6init,158,0,2,52,1,104,20,5,1,0,69,2,2,0,1,1343345362,841d60c563938d95d2ff31ff264d
 m6op,158,preinit,52,1,1
 m6op,158,delay,35
 m6op,158,bus,2,1
@@ -5665,7 +5665,7 @@ m6op,158,delayus,1
 m6op,158,rreg,140,20
 m6op,158,register
 m6det,158,1,3,101
-m6chip,158,1,1,3d7a0000,13776
+m6chip,158,1,1,3d7a0000,13776,4
 m6op,158,ioinit,exti,0
 m6op,158,extihandler
 m6op,158,exticonfig,1
@@ -5692,13 +5692,13 @@ m6op,158,divider,20000000
 m6op,158,clock,4
 m6op,158,read,67,6,1
 m6op,158,failure,1
-m6init,159,1,0,52,0,104,84,98,3,1,0,1,0,1,1,208400985,b3f43d8e42323ca24105b0e69e72
+m6init,159,1,0,52,0,104,84,98,3,1,0,1,2,1,1,208400985,b3f43d8e42323ca24105b0e69e72
 m6op,159,preinit,52,1,1
 m6op,159,delay,35
 m6op,159,bus,0,0
 m6det,159,0,0,98
-m6chip,159,0,0,00000000,0
-m6init,160,0,1,52,1,104,2,19,9,1,0,2,2,6,1,3481995417,f6e1a3786147d5ca68bbd6b911b3
+m6chip,159,0,0,00000000,0,4
+m6init,160,0,1,52,1,104,2,19,9,1,0,2,0,6,1,3481995417,f6e1a3786147d5ca68bbd6b911b3
 m6op,160,preinit,52,1,1
 m6op,160,delay,35
 m6op,160,bus,1,1
@@ -5716,8 +5716,8 @@ m6op,160,delayus,1
 m6op,160,rreg,140,2
 m6op,160,preinitio,1,1
 m6det,160,0,0,109
-m6chip,160,0,0,00000000,0
-m6init,161,0,2,52,1,104,90,109,6,1,69,0,0,1,1,1856313210,8855a2eecdd17df48fd247a891f7
+m6chip,160,0,0,00000000,0,4
+m6init,161,0,2,52,1,104,90,109,6,1,69,0,2,1,1,1856313210,8855a2eecdd17df48fd247a891f7
 m6op,161,preinit,52,1,1
 m6op,161,delay,35
 m6op,161,bus,2,1
@@ -5735,7 +5735,7 @@ m6op,161,delayus,1
 m6op,161,rreg,140,90
 m6op,161,register
 m6det,161,1,3,115
-m6chip,161,1,1,3d7a0000,13776
+m6chip,161,1,1,3d7a0000,13776,4
 m6op,161,ioinit,exti,0
 m6op,161,extihandler
 m6op,161,exticonfig,1
@@ -5762,7 +5762,7 @@ m6op,161,divider,20000000
 m6op,161,clock,4
 m6op,161,read,67,6,1
 m6ready,161,-28718,18344,-28169,3b40c0c1,42121eb8,2048
-m6init,162,1,2,52,1,104,84,130,1,0,0,5,0,2,1,1896378981,6df827378549e063247852060a79
+m6init,162,1,2,52,1,104,84,130,1,0,0,5,3,2,1,1896378981,6df827378549e063247852060a79
 m6op,162,preinit,52,1,1
 m6op,162,delay,35
 m6op,162,bus,2,1
@@ -5780,7 +5780,7 @@ m6op,162,delayus,1
 m6op,162,rreg,140,84
 m6op,162,register
 m6det,162,1,3,131
-m6chip,162,1,1,3d7a0000,13776
+m6chip,162,1,1,3d7a0000,13776,4
 m6op,162,wreg,107,3
 m6op,162,delayus,15
 m6op,162,wreg,106,16
@@ -5803,7 +5803,7 @@ m6op,162,divider,20000000
 m6op,162,clock,4
 m6op,162,read,67,6,1
 m6ready,162,9336,20998,2681,3b40c0c1,42121eb8,2048
-m6init,163,0,0,52,1,104,23,22,7,1,69,3,2,4,1,2223390550,82b890fe8745fbf90220030ebdef
+m6init,163,0,0,52,1,104,23,22,7,1,69,3,0,4,1,2223390550,82b890fe8745fbf90220030ebdef
 m6op,163,preinit,52,1,1
 m6op,163,delay,35
 m6op,163,bus,0,1
@@ -5821,7 +5821,7 @@ m6op,163,delayus,1
 m6op,163,rreg,140,23
 m6op,163,register
 m6det,163,1,3,113
-m6chip,163,1,1,3d7a0000,13776
+m6chip,163,1,1,3d7a0000,13776,4
 m6op,163,ioinit,exti,0
 m6op,163,extihandler
 m6op,163,exticonfig,1
@@ -5866,7 +5866,7 @@ m6op,164,delayus,1
 m6op,164,rreg,140,87
 m6op,164,register
 m6det,164,1,3,101
-m6chip,164,1,1,3d7a0000,13776
+m6chip,164,1,1,3d7a0000,13776,4
 m6op,164,ioinit,exti,0
 m6op,164,extihandler
 m6op,164,exticonfig,1
@@ -5893,7 +5893,7 @@ m6op,164,divider,20000000
 m6op,164,clock,4
 m6op,164,read,67,6,1
 m6ready,164,-10019,-8478,-4024,3b40c0c1,42121eb8,2048
-m6init,165,0,0,52,1,104,90,120,2,1,69,5,1,0,1,2815209949,3c588d752b02bc4146e65868d92f
+m6init,165,0,0,52,1,104,90,120,2,1,69,5,0,0,1,2815209949,3c588d752b02bc4146e65868d92f
 m6op,165,preinit,52,1,1
 m6op,165,delay,35
 m6op,165,bus,0,1
@@ -5911,7 +5911,7 @@ m6op,165,delayus,1
 m6op,165,rreg,140,90
 m6op,165,register
 m6det,165,1,3,122
-m6chip,165,1,1,3d7a0000,13776
+m6chip,165,1,1,3d7a0000,13776,4
 m6op,165,ioinit,exti,0
 m6op,165,extihandler
 m6op,165,exticonfig,1
@@ -5938,7 +5938,7 @@ m6op,165,divider,20000000
 m6op,165,clock,4
 m6op,165,read,67,6,1
 m6ready,165,18150,22632,-9937,3b40c0c1,42121eb8,2048
-m6init,166,0,0,52,1,104,20,130,5,1,69,6,1,7,1,2321477390,8fc834703980e9fbd5ff44ffeeb0
+m6init,166,0,0,52,1,104,20,130,5,1,69,6,0,7,1,2321477390,8fc834703980e9fbd5ff44ffeeb0
 m6op,166,preinit,52,1,1
 m6op,166,delay,35
 m6op,166,bus,0,1
@@ -5956,7 +5956,7 @@ m6op,166,delayus,1
 m6op,166,rreg,140,20
 m6op,166,register
 m6det,166,1,3,135
-m6chip,166,1,1,3d7a0000,13776
+m6chip,166,1,1,3d7a0000,13776,4
 m6op,166,ioinit,exti,0
 m6op,166,extihandler
 m6op,166,exticonfig,1
@@ -6001,7 +6001,7 @@ m6op,167,delayus,1
 m6op,167,rreg,140,84
 m6op,167,register
 m6det,167,1,3,112
-m6chip,167,1,1,3d7a0000,13776
+m6chip,167,1,1,3d7a0000,13776,4
 m6op,167,ioinit,exti,0
 m6op,167,extihandler
 m6op,167,exticonfig,1
@@ -6028,7 +6028,7 @@ m6op,167,divider,20000000
 m6op,167,clock,4
 m6op,167,read,67,6,1
 m6ready,167,8073,19413,-22432,3b40c0c1,42121eb8,2048
-m6init,168,0,0,52,1,104,20,113,4,1,0,0,1,2,1,1011579822,ce532b1681b593f480f90c5bf985
+m6init,168,0,0,52,1,104,20,113,4,1,0,0,3,2,1,1011579822,ce532b1681b593f480f90c5bf985
 m6op,168,preinit,52,1,1
 m6op,168,delay,35
 m6op,168,bus,0,1
@@ -6046,7 +6046,7 @@ m6op,168,delayus,1
 m6op,168,rreg,140,20
 m6op,168,register
 m6det,168,1,3,117
-m6chip,168,1,1,3d7a0000,13776
+m6chip,168,1,1,3d7a0000,13776,4
 m6op,168,wreg,107,3
 m6op,168,delayus,15
 m6op,168,wreg,106,16
@@ -6069,7 +6069,7 @@ m6op,168,divider,20000000
 m6op,168,clock,4
 m6op,168,read,67,6,1
 m6ready,168,-32519,3163,-1659,3b40c0c1,42121eb8,2048
-m6init,169,1,0,52,1,230,195,51,6,0,69,1,1,6,1,1764151386,db12c8e54fbbb839434276f043e1
+m6init,169,1,0,52,1,230,195,51,6,0,69,1,3,6,1,1764151386,db12c8e54fbbb839434276f043e1
 m6op,169,preinit,52,1,1
 m6op,169,delay,35
 m6op,169,bus,0,1
@@ -6086,8 +6086,8 @@ m6op,169,rreg,245,230
 m6op,169,delayus,1
 m6op,169,preinitio,1,1
 m6det,169,0,0,111
-m6chip,169,0,0,00000000,0
-m6init,170,0,1,52,1,104,24,52,4,1,69,5,1,2,1,3557494962,10965bdedb5297ff2d0feaff3d29
+m6chip,169,0,0,00000000,0,4
+m6init,170,0,1,52,1,104,24,52,4,1,69,5,0,2,1,3557494962,10965bdedb5297ff2d0feaff3d29
 m6op,170,preinit,52,1,1
 m6op,170,delay,35
 m6op,170,bus,1,1
@@ -6105,7 +6105,7 @@ m6op,170,delayus,1
 m6op,170,rreg,140,24
 m6op,170,register
 m6det,170,1,3,104
-m6chip,170,1,1,3d7a0000,13776
+m6chip,170,1,1,3d7a0000,13776,4
 m6op,170,ioinit,exti,0
 m6op,170,extihandler
 m6op,170,exticonfig,1
@@ -6132,7 +6132,7 @@ m6op,170,divider,20000000
 m6op,170,clock,4
 m6op,170,read,67,6,1
 m6ready,170,11535,-5377,15657,3b40c0c1,42121eb8,2048
-m6init,171,0,2,52,1,104,20,90,1,1,69,6,2,7,1,798989080,0a7659e0316339485bdf0770b1ef
+m6init,171,0,2,52,1,104,20,90,1,1,69,6,3,7,1,798989080,0a7659e0316339485bdf0770b1ef
 m6op,171,preinit,52,1,1
 m6op,171,delay,35
 m6op,171,bus,2,1
@@ -6150,7 +6150,7 @@ m6op,171,delayus,1
 m6op,171,rreg,140,20
 m6op,171,register
 m6det,171,1,3,101
-m6chip,171,1,1,3d7a0000,13776
+m6chip,171,1,1,3d7a0000,13776,4
 m6op,171,ioinit,exti,0
 m6op,171,extihandler
 m6op,171,exticonfig,1
@@ -6177,7 +6177,7 @@ m6op,171,divider,20000000
 m6op,171,clock,4
 m6op,171,read,67,6,1
 m6ready,171,23519,1904,-19985,3b40c0c1,42121eb8,2048
-m6init,172,1,0,52,1,104,141,2,7,1,69,3,2,3,1,808536657,ce3f9086eb923dfe4fb139ff5ac7
+m6init,172,1,0,52,1,104,141,2,7,1,69,3,1,3,1,808536657,ce3f9086eb923dfe4fb139ff5ac7
 m6op,172,preinit,52,1,1
 m6op,172,delay,35
 m6op,172,bus,0,1
@@ -6195,8 +6195,8 @@ m6op,172,delayus,1
 m6op,172,rreg,140,141
 m6op,172,preinitio,1,1
 m6det,172,0,0,107
-m6chip,172,0,0,00000000,0
-m6init,173,1,2,52,1,104,20,118,3,0,69,0,0,7,0,2212072426,d5da584ac936cd3f6e3eec7f2ae3
+m6chip,172,0,0,00000000,0,4
+m6init,173,1,2,52,1,104,20,118,3,0,69,0,1,7,0,2212072426,d5da584ac936cd3f6e3eec7f2ae3
 m6op,173,preinit,52,1,1
 m6op,173,delay,35
 m6op,173,bus,2,1
@@ -6214,7 +6214,7 @@ m6op,173,delayus,1
 m6op,173,rreg,140,20
 m6op,173,register
 m6det,173,1,3,121
-m6chip,173,1,1,3d7a0000,13776
+m6chip,173,1,1,3d7a0000,13776,4
 m6op,173,ioinit,exti,0
 m6op,173,extihandler
 m6op,173,exticonfig,1
@@ -6241,7 +6241,7 @@ m6op,173,divider,20000000
 m6op,173,clock,4
 m6op,173,read,67,6,0
 m6ready,173,0,0,0,3b40c0c1,42121eb8,2048
-m6init,174,1,2,52,1,113,84,34,1,1,69,7,1,2,1,1658553649,87a6155358af25ec24ff8affb754
+m6init,174,1,2,52,1,113,84,34,1,1,69,7,3,2,1,1658553649,87a6155358af25ec24ff8affb754
 m6op,174,preinit,52,1,1
 m6op,174,delay,35
 m6op,174,bus,2,1
@@ -6258,8 +6258,8 @@ m6op,174,rreg,245,113
 m6op,174,delayus,1
 m6op,174,preinitio,1,1
 m6det,174,0,0,101
-m6chip,174,0,0,00000000,0
-m6init,175,0,0,52,1,104,136,28,5,0,69,0,0,7,1,1491132113,2c806e8c89a361ed54cfcf5f96f0
+m6chip,174,0,0,00000000,0,4
+m6init,175,0,0,52,1,104,136,28,5,0,69,0,2,7,1,1491132113,2c806e8c89a361ed54cfcf5f96f0
 m6op,175,preinit,52,1,1
 m6op,175,delay,35
 m6op,175,bus,0,1
@@ -6277,8 +6277,8 @@ m6op,175,delayus,1
 m6op,175,rreg,140,136
 m6op,175,preinitio,1,1
 m6det,175,0,0,108
-m6chip,175,0,0,00000000,0
-m6init,176,1,2,52,1,104,227,103,9,0,69,5,0,2,1,2199374213,e37f9a292606d1f1bda3137d1633
+m6chip,175,0,0,00000000,0,4
+m6init,176,1,2,52,1,104,227,103,9,0,69,5,3,2,1,2199374213,e37f9a292606d1f1bda3137d1633
 m6op,176,preinit,52,1,1
 m6op,176,delay,35
 m6op,176,bus,2,1
@@ -6296,8 +6296,8 @@ m6op,176,delayus,1
 m6op,176,rreg,140,227
 m6op,176,preinitio,1,1
 m6det,176,0,0,112
-m6chip,176,0,0,00000000,0
-m6init,177,1,1,52,1,104,86,94,5,1,69,0,2,7,1,2689536162,06d776f33e99ee3bba18e3ffc3a5
+m6chip,176,0,0,00000000,0,4
+m6init,177,1,1,52,1,104,86,94,5,1,69,0,1,7,1,2689536162,06d776f33e99ee3bba18e3ffc3a5
 m6op,177,preinit,52,1,1
 m6op,177,delay,35
 m6op,177,bus,1,1
@@ -6315,7 +6315,7 @@ m6op,177,delayus,1
 m6op,177,rreg,140,86
 m6op,177,register
 m6det,177,1,3,109
-m6chip,177,1,1,3d7a0000,13776
+m6chip,177,1,1,3d7a0000,13776,4
 m6op,177,ioinit,exti,0
 m6op,177,extihandler
 m6op,177,exticonfig,1
@@ -6342,7 +6342,7 @@ m6op,177,divider,20000000
 m6op,177,clock,4
 m6op,177,read,67,6,1
 m6ready,177,-17896,-7169,-15451,3b40c0c1,42121eb8,2048
-m6init,178,0,0,52,1,104,20,88,2,0,69,6,1,6,1,3321329611,08893e63e74cd6fad138f2845394
+m6init,178,0,0,52,1,104,20,88,2,0,69,6,0,6,1,3321329611,08893e63e74cd6fad138f2845394
 m6op,178,preinit,52,1,1
 m6op,178,delay,35
 m6op,178,bus,0,1
@@ -6360,7 +6360,7 @@ m6op,178,delayus,1
 m6op,178,rreg,140,20
 m6op,178,register
 m6det,178,1,3,102
-m6chip,178,1,1,3d7a0000,13776
+m6chip,178,1,1,3d7a0000,13776,4
 m6op,178,ioinit,exti,0
 m6op,178,extihandler
 m6op,178,exticonfig,1
@@ -6387,13 +6387,13 @@ m6op,178,divider,20000000
 m6op,178,clock,4
 m6op,178,read,67,6,1
 m6ready,178,-11976,-3452,21396,3b40c0c1,42121eb8,2048
-m6init,179,0,1,52,0,104,22,99,1,1,69,4,2,3,1,3543462951,36c07f485931d22e790c30c6bc80
+m6init,179,0,1,52,0,104,22,99,1,1,69,4,1,3,1,3543462951,36c07f485931d22e790c30c6bc80
 m6op,179,preinit,52,1,1
 m6op,179,delay,35
 m6op,179,bus,1,0
 m6det,179,0,0,99
-m6chip,179,0,0,00000000,0
-m6init,180,1,2,52,1,102,22,83,8,1,69,4,0,6,1,1757983749,04e6837ca1ae613c3a32e4bdd535
+m6chip,179,0,0,00000000,0,4
+m6init,180,1,2,52,1,102,22,83,8,1,69,4,2,6,1,1757983749,04e6837ca1ae613c3a32e4bdd535
 m6op,180,preinit,52,1,1
 m6op,180,delay,35
 m6op,180,bus,2,1
@@ -6410,8 +6410,8 @@ m6op,180,rreg,245,102
 m6op,180,delayus,1
 m6op,180,preinitio,1,1
 m6det,180,0,0,115
-m6chip,180,0,0,00000000,0
-m6init,181,1,1,52,1,56,90,69,1,1,69,1,0,5,1,852408250,047486e6a4df2ad1faffadff18eb
+m6chip,180,0,0,00000000,0,4
+m6init,181,1,1,52,1,56,90,69,1,1,69,1,2,5,1,852408250,047486e6a4df2ad1faffadff18eb
 m6op,181,preinit,52,1,1
 m6op,181,delay,35
 m6op,181,bus,1,1
@@ -6428,8 +6428,8 @@ m6op,181,rreg,245,56
 m6op,181,delayus,1
 m6op,181,preinitio,1,1
 m6det,181,0,0,101
-m6chip,181,0,0,00000000,0
-m6init,182,0,0,52,1,104,23,98,8,0,69,3,2,0,1,2409490992,fa57c2c604675ae285ff8b1f582c
+m6chip,181,0,0,00000000,0,4
+m6init,182,0,0,52,1,104,23,98,8,0,69,3,3,0,1,2409490992,fa57c2c604675ae285ff8b1f582c
 m6op,182,preinit,52,1,1
 m6op,182,delay,35
 m6op,182,bus,0,1
@@ -6447,7 +6447,7 @@ m6op,182,delayus,1
 m6op,182,rreg,140,23
 m6op,182,register
 m6det,182,1,3,114
-m6chip,182,1,1,3d7a0000,13776
+m6chip,182,1,1,3d7a0000,13776,4
 m6op,182,ioinit,exti,0
 m6op,182,extihandler
 m6op,182,exticonfig,1
@@ -6474,7 +6474,7 @@ m6op,182,divider,20000000
 m6op,182,clock,4
 m6op,182,read,67,6,1
 m6ready,182,-31233,-29921,22572,3b40c0c1,42121eb8,2048
-m6init,183,1,1,52,1,191,90,87,4,1,69,2,0,0,0,2854749547,f474a7c8e7d16313c6f300ad63cf
+m6init,183,1,1,52,1,191,90,87,4,1,69,2,3,0,0,2854749547,f474a7c8e7d16313c6f300ad63cf
 m6op,183,preinit,52,1,1
 m6op,183,delay,35
 m6op,183,bus,1,1
@@ -6491,8 +6491,8 @@ m6op,183,rreg,245,191
 m6op,183,delayus,1
 m6op,183,preinitio,1,1
 m6det,183,0,0,107
-m6chip,183,0,0,00000000,0
-m6init,184,1,2,52,1,104,86,93,4,1,0,6,1,7,1,3254319693,69595a1afe163bd015ede4cce2c8
+m6chip,183,0,0,00000000,0,4
+m6init,184,1,2,52,1,104,86,93,4,1,0,6,2,7,1,3254319693,69595a1afe163bd015ede4cce2c8
 m6op,184,preinit,52,1,1
 m6op,184,delay,35
 m6op,184,bus,2,1
@@ -6510,7 +6510,7 @@ m6op,184,delayus,1
 m6op,184,rreg,140,86
 m6op,184,register
 m6det,184,1,3,105
-m6chip,184,1,1,3d7a0000,13776
+m6chip,184,1,1,3d7a0000,13776,4
 m6op,184,wreg,107,3
 m6op,184,delayus,15
 m6op,184,wreg,106,16
@@ -6533,7 +6533,7 @@ m6op,184,divider,20000000
 m6op,184,clock,4
 m6op,184,read,67,6,1
 m6ready,184,5613,-6964,-7480,3b40c0c1,42121eb8,2048
-m6init,185,1,2,52,1,104,23,127,3,1,69,7,2,3,0,4211412320,0503ce192922c8bba2ff7cffec9b
+m6init,185,1,2,52,1,104,23,127,3,1,69,7,0,3,0,4211412320,0503ce192922c8bba2ff7cffec9b
 m6op,185,preinit,52,1,1
 m6op,185,delay,35
 m6op,185,bus,2,1
@@ -6551,7 +6551,7 @@ m6op,185,delayus,1
 m6op,185,rreg,140,23
 m6op,185,register
 m6det,185,1,3,130
-m6chip,185,1,1,3d7a0000,13776
+m6chip,185,1,1,3d7a0000,13776,4
 m6op,185,ioinit,exti,0
 m6op,185,extihandler
 m6op,185,exticonfig,1
@@ -6578,7 +6578,7 @@ m6op,185,divider,20000000
 m6op,185,clock,4
 m6op,185,read,67,6,0
 m6ready,185,0,0,0,3b40c0c1,42121eb8,2048
-m6init,186,1,2,52,1,104,57,55,7,0,69,3,0,2,1,1222072159,2386b78b26b8b4182df4e928919c
+m6init,186,1,2,52,1,104,57,55,7,0,69,3,1,2,1,1222072159,2386b78b26b8b4182df4e928919c
 m6op,186,preinit,52,1,1
 m6op,186,delay,35
 m6op,186,bus,2,1
@@ -6596,7 +6596,7 @@ m6op,186,delayus,1
 m6op,186,rreg,140,57
 m6op,186,preinitio,1,1
 m6det,186,0,0,111
-m6chip,186,0,0,00000000,0
+m6chip,186,0,0,00000000,0,4
 m6init,187,1,1,52,1,104,22,136,6,1,69,5,1,2,1,1344454993,9d9c2b0037df2faf520d18a374f9
 m6op,187,preinit,52,1,1
 m6op,187,delay,35
@@ -6615,7 +6615,7 @@ m6op,187,delayus,1
 m6op,187,rreg,140,22
 m6op,187,register
 m6det,187,1,3,142
-m6chip,187,1,1,3d7a0000,13776
+m6chip,187,1,1,3d7a0000,13776,4
 m6op,187,ioinit,exti,0
 m6op,187,extihandler
 m6op,187,exticonfig,1
@@ -6660,7 +6660,7 @@ m6op,188,delayus,1
 m6op,188,rreg,140,88
 m6op,188,register
 m6det,188,1,3,110
-m6chip,188,1,1,3d7a0000,13776
+m6chip,188,1,1,3d7a0000,13776,4
 m6op,188,wreg,107,3
 m6op,188,delayus,15
 m6op,188,wreg,106,16
@@ -6683,7 +6683,7 @@ m6op,188,divider,20000000
 m6op,188,clock,4
 m6op,188,read,67,6,1
 m6ready,188,-18522,-19868,-28334,3b40c0c1,42121eb8,2048
-m6init,189,0,1,52,1,36,23,99,9,0,69,2,2,3,1,1605315962,bf2219561b42f71ff29786bea6da
+m6init,189,0,1,52,1,36,23,99,9,0,69,2,0,3,1,1605315962,bf2219561b42f71ff29786bea6da
 m6op,189,preinit,52,1,1
 m6op,189,delay,35
 m6op,189,bus,1,1
@@ -6700,8 +6700,8 @@ m6op,189,rreg,245,36
 m6op,189,delayus,1
 m6op,189,preinitio,1,1
 m6det,189,0,0,117
-m6chip,189,0,0,00000000,0
-m6init,190,0,0,52,1,104,20,136,5,0,0,3,1,7,1,2961471928,e1671e92f6d4b53fece86dcbf787
+m6chip,189,0,0,00000000,0,4
+m6init,190,0,0,52,1,104,20,136,5,0,0,3,3,7,1,2961471928,e1671e92f6d4b53fece86dcbf787
 m6op,190,preinit,52,1,1
 m6op,190,delay,35
 m6op,190,bus,0,1
@@ -6719,7 +6719,7 @@ m6op,190,delayus,1
 m6op,190,rreg,140,20
 m6op,190,register
 m6det,190,1,3,141
-m6chip,190,1,1,3d7a0000,13776
+m6chip,190,1,1,3d7a0000,13776,4
 m6op,190,wreg,107,3
 m6op,190,delayus,15
 m6op,190,wreg,106,16
@@ -6760,7 +6760,7 @@ m6op,191,delayus,1
 m6op,191,rreg,140,90
 m6op,191,register
 m6det,191,1,3,104
-m6chip,191,1,1,3d7a0000,13776
+m6chip,191,1,1,3d7a0000,13776,4
 m6op,191,ioinit,exti,0
 m6op,191,extihandler
 m6op,191,exticonfig,1
@@ -6787,7 +6787,7 @@ m6op,191,divider,20000000
 m6op,191,clock,4
 m6op,191,read,67,6,0
 m6ready,191,0,0,0,3b40c0c1,42121eb8,2048
-m6init,192,1,0,52,1,104,87,83,6,1,0,5,2,0,1,3856069298,15d64694403819e51a0d1d9459cd
+m6init,192,1,0,52,1,104,87,83,6,1,0,5,3,0,1,3856069298,15d64694403819e51a0d1d9459cd
 m6op,192,preinit,52,1,1
 m6op,192,delay,35
 m6op,192,bus,0,1
@@ -6805,7 +6805,7 @@ m6op,192,delayus,1
 m6op,192,rreg,140,87
 m6op,192,register
 m6det,192,1,3,107
-m6chip,192,1,1,3d7a0000,13776
+m6chip,192,1,1,3d7a0000,13776,4
 m6op,192,wreg,107,3
 m6op,192,delayus,15
 m6op,192,wreg,106,16
@@ -6828,7 +6828,7 @@ m6op,192,divider,20000000
 m6op,192,clock,4
 m6op,192,read,67,6,1
 m6ready,192,6669,7572,22989,3b40c0c1,42121eb8,2048
-m6init,193,0,0,52,1,104,88,14,2,0,69,0,0,3,1,3002628724,771317f2357e65e4a2f1db167d72
+m6init,193,0,0,52,1,104,88,14,2,0,69,0,3,3,1,3002628724,771317f2357e65e4a2f1db167d72
 m6op,193,preinit,52,1,1
 m6op,193,delay,35
 m6op,193,bus,0,1
@@ -6846,7 +6846,7 @@ m6op,193,delayus,1
 m6op,193,rreg,140,88
 m6op,193,register
 m6det,193,1,3,102
-m6chip,193,1,1,3d7a0000,13776
+m6chip,193,1,1,3d7a0000,13776,4
 m6op,193,ioinit,exti,0
 m6op,193,extihandler
 m6op,193,exticonfig,1
@@ -6873,7 +6873,7 @@ m6op,193,divider,20000000
 m6op,193,clock,4
 m6op,193,read,67,6,1
 m6ready,193,-23823,-9450,32114,3b40c0c1,42121eb8,2048
-m6init,194,1,1,52,1,104,84,85,4,1,69,7,1,3,1,403288417,f12ba8e45c03a37aacfff4ffad7f
+m6init,194,1,1,52,1,104,84,85,4,1,69,7,3,3,1,403288417,f12ba8e45c03a37aacfff4ffad7f
 m6op,194,preinit,52,1,1
 m6op,194,delay,35
 m6op,194,bus,1,1
@@ -6891,7 +6891,7 @@ m6op,194,delayus,1
 m6op,194,rreg,140,84
 m6op,194,register
 m6det,194,1,3,105
-m6chip,194,1,1,3d7a0000,13776
+m6chip,194,1,1,3d7a0000,13776,4
 m6op,194,ioinit,exti,0
 m6op,194,extihandler
 m6op,194,exticonfig,1
@@ -6918,7 +6918,7 @@ m6op,194,divider,20000000
 m6op,194,clock,4
 m6op,194,read,67,6,1
 m6op,194,failure,1
-m6init,195,1,2,52,1,104,23,53,9,1,69,3,0,6,1,2963184062,c603fe3ca4ebb7871e063602c14b
+m6init,195,1,2,52,1,104,23,53,9,1,69,3,1,6,1,2963184062,c603fe3ca4ebb7871e063602c14b
 m6op,195,preinit,52,1,1
 m6op,195,delay,35
 m6op,195,bus,2,1
@@ -6936,7 +6936,7 @@ m6op,195,delayus,1
 m6op,195,rreg,140,23
 m6op,195,register
 m6det,195,1,3,116
-m6chip,195,1,1,3d7a0000,13776
+m6chip,195,1,1,3d7a0000,13776,4
 m6op,195,ioinit,exti,0
 m6op,195,extihandler
 m6op,195,exticonfig,1
@@ -6963,7 +6963,7 @@ m6op,195,divider,20000000
 m6op,195,clock,4
 m6op,195,read,67,6,1
 m6ready,195,7686,13826,-16053,3b40c0c1,42121eb8,2048
-m6init,196,0,0,52,1,104,86,117,9,0,69,1,1,2,1,1988068929,2e092a90d3441934bf53cb4f42c3
+m6init,196,0,0,52,1,104,86,117,9,0,69,1,3,2,1,1988068929,2e092a90d3441934bf53cb4f42c3
 m6op,196,preinit,52,1,1
 m6op,196,delay,35
 m6op,196,bus,0,1
@@ -6981,7 +6981,7 @@ m6op,196,delayus,1
 m6op,196,rreg,140,86
 m6op,196,register
 m6det,196,1,3,126
-m6chip,196,1,1,3d7a0000,13776
+m6chip,196,1,1,3d7a0000,13776,4
 m6op,196,ioinit,exti,0
 m6op,196,extihandler
 m6op,196,exticonfig,1
@@ -7008,7 +7008,7 @@ m6op,196,divider,20000000
 m6op,196,clock,4
 m6op,196,read,67,6,1
 m6ready,196,-16557,-13489,17091,3b40c0c1,42121eb8,2048
-m6init,197,0,2,52,1,104,85,44,2,1,69,2,2,5,0,1476902300,2b61c4725ca6772d5c72bd08952e
+m6init,197,0,2,52,1,104,85,44,2,1,69,2,0,5,0,1476902300,2b61c4725ca6772d5c72bd08952e
 m6op,197,preinit,52,1,1
 m6op,197,delay,35
 m6op,197,bus,2,1
@@ -7026,7 +7026,7 @@ m6op,197,delayus,1
 m6op,197,rreg,140,85
 m6op,197,register
 m6det,197,1,3,102
-m6chip,197,1,1,3d7a0000,13776
+m6chip,197,1,1,3d7a0000,13776,4
 m6op,197,ioinit,exti,0
 m6op,197,extihandler
 m6op,197,exticonfig,1
@@ -7053,7 +7053,7 @@ m6op,197,divider,20000000
 m6op,197,clock,4
 m6op,197,read,67,6,0
 m6ready,197,0,0,0,3b40c0c1,42121eb8,2048
-m6init,198,1,0,52,1,104,85,120,2,1,69,3,1,7,1,4104788938,38463e05dcea7d0e7eab91a4e9a5
+m6init,198,1,0,52,1,104,85,120,2,1,69,3,0,7,1,4104788938,38463e05dcea7d0e7eab91a4e9a5
 m6op,198,preinit,52,1,1
 m6op,198,delay,35
 m6op,198,bus,0,1
@@ -7071,7 +7071,7 @@ m6op,198,delayus,1
 m6op,198,rreg,140,85
 m6op,198,register
 m6det,198,1,3,122
-m6chip,198,1,1,3d7a0000,13776
+m6chip,198,1,1,3d7a0000,13776,4
 m6op,198,ioinit,exti,0
 m6op,198,extihandler
 m6op,198,exticonfig,1
@@ -7098,7 +7098,7 @@ m6op,198,divider,20000000
 m6op,198,clock,4
 m6op,198,read,67,6,1
 m6ready,198,32427,-28252,-5723,3b40c0c1,42121eb8,2048
-m6init,199,1,2,52,1,104,84,68,8,1,69,0,2,7,1,2275272660,04f2363f11ac7d51f139a865af39
+m6init,199,1,2,52,1,104,84,68,8,1,69,0,3,7,1,2275272660,04f2363f11ac7d51f139a865af39
 m6op,199,preinit,52,1,1
 m6op,199,delay,35
 m6op,199,bus,2,1
@@ -7116,7 +7116,7 @@ m6op,199,delayus,1
 m6op,199,rreg,140,84
 m6op,199,register
 m6det,199,1,3,108
-m6chip,199,1,1,3d7a0000,13776
+m6chip,199,1,1,3d7a0000,13776,4
 m6op,199,ioinit,exti,0
 m6op,199,extihandler
 m6op,199,exticonfig,1
@@ -7143,7 +7143,7 @@ m6op,199,divider,20000000
 m6op,199,clock,4
 m6op,199,read,67,6,1
 m6ready,199,-3783,-22427,-20679,3b40c0c1,42121eb8,2048
-m6init,200,1,2,52,1,104,87,122,4,1,0,3,0,4,1,636300682,eb55be625c1d9c9aef798e5b078a
+m6init,200,1,2,52,1,104,87,122,4,1,0,3,1,4,1,636300682,eb55be625c1d9c9aef798e5b078a
 m6op,200,preinit,52,1,1
 m6op,200,delay,35
 m6op,200,bus,2,1
@@ -7161,7 +7161,7 @@ m6op,200,delayus,1
 m6op,200,rreg,140,87
 m6op,200,register
 m6det,200,1,3,126
-m6chip,200,1,1,3d7a0000,13776
+m6chip,200,1,1,3d7a0000,13776,4
 m6op,200,wreg,107,3
 m6op,200,delayus,15
 m6op,200,wreg,106,16
@@ -7184,7 +7184,7 @@ m6op,200,divider,20000000
 m6op,200,clock,4
 m6op,200,read,67,6,1
 m6ready,200,-4231,-29093,1930,3b40c0c1,42121eb8,2048
-m6init,201,0,0,52,1,194,88,64,9,1,69,7,1,0,1,3750748026,76d838ff62c017431ff4883d7545
+m6init,201,0,0,52,1,194,88,64,9,1,69,7,0,0,1,3750748026,76d838ff62c017431ff4883d7545
 m6op,201,preinit,52,1,1
 m6op,201,delay,35
 m6op,201,bus,0,1
@@ -7201,8 +7201,8 @@ m6op,201,rreg,245,194
 m6op,201,delayus,1
 m6op,201,preinitio,1,1
 m6det,201,0,0,109
-m6chip,201,0,0,00000000,0
-m6init,202,0,0,52,1,104,23,58,8,1,69,0,0,4,1,3952189609,184979ce5a8285aa19a605706064
+m6chip,201,0,0,00000000,0,4
+m6init,202,0,0,52,1,104,23,58,8,1,69,0,3,4,1,3952189609,184979ce5a8285aa19a605706064
 m6op,202,preinit,52,1,1
 m6op,202,delay,35
 m6op,202,bus,0,1
@@ -7220,7 +7220,7 @@ m6op,202,delayus,1
 m6op,202,rreg,140,23
 m6op,202,register
 m6det,202,1,3,114
-m6chip,202,1,1,3d7a0000,13776
+m6chip,202,1,1,3d7a0000,13776,4
 m6op,202,ioinit,exti,0
 m6op,202,extihandler
 m6op,202,exticonfig,1
@@ -7247,7 +7247,7 @@ m6op,202,divider,20000000
 m6op,202,clock,4
 m6op,202,read,67,6,1
 m6ready,202,6566,1392,24676,3b40c0c1,42121eb8,2048
-m6init,203,1,2,52,1,104,87,65,8,0,0,6,2,3,0,1820443917,e1a0961e45f591d5f9059fc9cfde
+m6init,203,1,2,52,1,104,87,65,8,0,0,6,0,3,0,1820443917,e1a0961e45f591d5f9059fc9cfde
 m6op,203,preinit,52,1,1
 m6op,203,delay,35
 m6op,203,bus,2,1
@@ -7265,7 +7265,7 @@ m6op,203,delayus,1
 m6op,203,rreg,140,87
 m6op,203,register
 m6det,203,1,3,113
-m6chip,203,1,1,3d7a0000,13776
+m6chip,203,1,1,3d7a0000,13776,4
 m6op,203,wreg,107,3
 m6op,203,delayus,15
 m6op,203,wreg,106,16
@@ -7288,7 +7288,7 @@ m6op,203,divider,20000000
 m6op,203,clock,4
 m6op,203,read,67,6,0
 m6ready,203,0,0,0,3b40c0c1,42121eb8,2048
-m6init,204,0,1,52,1,104,88,77,5,1,69,7,2,2,1,1213352678,a3b19eddc38a5b1d6cc359676533
+m6init,204,0,1,52,1,104,88,77,5,1,69,7,3,2,1,1213352678,a3b19eddc38a5b1d6cc359676533
 m6op,204,preinit,52,1,1
 m6op,204,delay,35
 m6op,204,bus,1,1
@@ -7306,7 +7306,7 @@ m6op,204,delayus,1
 m6op,204,rreg,140,88
 m6op,204,register
 m6det,204,1,3,107
-m6chip,204,1,1,3d7a0000,13776
+m6chip,204,1,1,3d7a0000,13776,4
 m6op,204,ioinit,exti,0
 m6op,204,extihandler
 m6op,204,exticonfig,1
@@ -7333,7 +7333,7 @@ m6op,204,divider,20000000
 m6op,204,clock,4
 m6op,204,read,67,6,1
 m6ready,204,27843,22887,25907,3b40c0c1,42121eb8,2048
-m6init,205,1,0,52,1,195,13,59,4,1,69,6,2,3,1,2599501962,46efa6e9ad5d9bae31a09b88f83e
+m6init,205,1,0,52,1,195,13,59,4,1,69,6,1,3,1,2599501962,46efa6e9ad5d9bae31a09b88f83e
 m6op,205,preinit,52,1,1
 m6op,205,delay,35
 m6op,205,bus,0,1
@@ -7350,8 +7350,8 @@ m6op,205,rreg,245,195
 m6op,205,delayus,1
 m6op,205,preinitio,1,1
 m6det,205,0,0,107
-m6chip,205,0,0,00000000,0
-m6init,206,1,0,52,1,104,132,57,8,1,69,7,1,5,1,1914107939,d8e906ff0fc4a4b9d7fa13c7fac3
+m6chip,205,0,0,00000000,0,4
+m6init,206,1,0,52,1,104,132,57,8,1,69,7,0,5,1,1914107939,d8e906ff0fc4a4b9d7fa13c7fac3
 m6op,206,preinit,52,1,1
 m6op,206,delay,35
 m6op,206,bus,0,1
@@ -7369,8 +7369,8 @@ m6op,206,delayus,1
 m6op,206,rreg,140,132
 m6op,206,preinitio,1,1
 m6det,206,0,0,113
-m6chip,206,0,0,00000000,0
-m6init,207,1,0,52,1,104,88,36,1,0,0,1,1,7,1,843001568,88828fda3d2c553f6bff666c1836
+m6chip,206,0,0,00000000,0,4
+m6init,207,1,0,52,1,104,88,36,1,0,0,1,3,7,1,843001568,88828fda3d2c553f6bff666c1836
 m6op,207,preinit,52,1,1
 m6op,207,delay,35
 m6op,207,bus,0,1
@@ -7388,7 +7388,7 @@ m6op,207,delayus,1
 m6op,207,rreg,140,88
 m6op,207,register
 m6det,207,1,3,101
-m6chip,207,1,1,3d7a0000,13776
+m6chip,207,1,1,3d7a0000,13776,4
 m6op,207,wreg,107,3
 m6op,207,delayus,15
 m6op,207,wreg,106,16
@@ -7411,7 +7411,7 @@ m6op,207,divider,20000000
 m6op,207,clock,4
 m6op,207,read,67,6,1
 m6ready,207,27647,26220,6198,3b40c0c1,42121eb8,2048
-m6init,208,0,0,52,1,104,90,124,3,0,69,0,2,5,1,1957180,8b4af2f2745c970c05bc3fa4e59e
+m6init,208,0,0,52,1,104,90,124,3,0,69,0,3,5,1,1957180,8b4af2f2745c970c05bc3fa4e59e
 m6op,208,preinit,52,1,1
 m6op,208,delay,35
 m6op,208,bus,0,1
@@ -7429,7 +7429,7 @@ m6op,208,delayus,1
 m6op,208,rreg,140,90
 m6op,208,register
 m6det,208,1,3,127
-m6chip,208,1,1,3d7a0000,13776
+m6chip,208,1,1,3d7a0000,13776,4
 m6op,208,ioinit,exti,0
 m6op,208,extihandler
 m6op,208,exticonfig,1
@@ -7456,12 +7456,12 @@ m6op,208,divider,20000000
 m6op,208,clock,4
 m6op,208,read,67,6,1
 m6ready,208,1468,16292,-6754,3b40c0c1,42121eb8,2048
-m6init,209,0,1,0,1,104,20,25,8,1,0,6,2,6,1,1590517461,c5d3dc760a131538e15605b40fac
+m6init,209,0,1,0,1,104,20,25,8,1,0,6,1,6,1,1590517461,c5d3dc760a131538e15605b40fac
 m6op,209,preinit,0,1,1
 m6op,209,delay,35
 m6det,209,0,0,25
-m6chip,209,0,0,00000000,0
-m6init,210,0,2,52,1,104,162,16,1,1,69,6,0,0,1,3156789165,8290be286a1e0f0d5359223e88b0
+m6chip,209,0,0,00000000,0,4
+m6init,210,0,2,52,1,104,162,16,1,1,69,6,2,0,1,3156789165,8290be286a1e0f0d5359223e88b0
 m6op,210,preinit,52,1,1
 m6op,210,delay,35
 m6op,210,bus,2,1
@@ -7479,7 +7479,7 @@ m6op,210,delayus,1
 m6op,210,rreg,140,162
 m6op,210,preinitio,1,1
 m6det,210,0,0,101
-m6chip,210,0,0,00000000,0
+m6chip,210,0,0,00000000,0,4
 m6init,211,0,1,52,1,104,90,9,7,1,0,5,0,7,1,1239672161,09a77e9109a3d5f24d39c332e569
 m6op,211,preinit,52,1,1
 m6op,211,delay,35
@@ -7498,7 +7498,7 @@ m6op,211,delayus,1
 m6op,211,rreg,140,90
 m6op,211,register
 m6det,211,1,3,107
-m6chip,211,1,1,3d7a0000,13776
+m6chip,211,1,1,3d7a0000,13776,4
 m6op,211,wreg,107,3
 m6op,211,delayus,15
 m6op,211,wreg,106,16
@@ -7521,7 +7521,7 @@ m6op,211,divider,20000000
 m6op,211,clock,4
 m6op,211,read,67,6,1
 m6ready,211,19769,-15566,-6807,3b40c0c1,42121eb8,2048
-m6init,212,0,1,52,1,104,22,0,7,0,0,0,0,2,1,2592078591,6f61ea0f701e6c582a6f7aeb9ef3
+m6init,212,0,1,52,1,104,22,0,7,0,0,0,1,2,1,2592078591,6f61ea0f701e6c582a6f7aeb9ef3
 m6op,212,preinit,52,1,1
 m6op,212,delay,35
 m6op,212,bus,1,1
@@ -7539,7 +7539,7 @@ m6op,212,delayus,1
 m6op,212,rreg,140,22
 m6op,212,register
 m6det,212,1,3,112
-m6chip,212,1,1,3d7a0000,13776
+m6chip,212,1,1,3d7a0000,13776,4
 m6op,212,wreg,107,3
 m6op,212,delayus,15
 m6op,212,wreg,106,16
@@ -7562,7 +7562,7 @@ m6op,212,divider,20000000
 m6op,212,clock,4
 m6op,212,read,67,6,1
 m6ready,212,10863,31467,-24845,3b40c0c1,42121eb8,2048
-m6init,213,1,1,52,1,104,121,43,5,0,69,5,0,6,1,3493240840,9c7b3a60f245b59f04a31931dad8
+m6init,213,1,1,52,1,104,121,43,5,0,69,5,1,6,1,3493240840,9c7b3a60f245b59f04a31931dad8
 m6op,213,preinit,52,1,1
 m6op,213,delay,35
 m6op,213,bus,1,1
@@ -7580,8 +7580,8 @@ m6op,213,delayus,1
 m6op,213,rreg,140,121
 m6op,213,preinitio,1,1
 m6det,213,0,0,108
-m6chip,213,0,0,00000000,0
-m6init,214,0,0,52,1,104,84,15,7,0,69,0,0,7,1,3358843969,0f8c6a308a9f0ad17dffccbd0a4b
+m6chip,213,0,0,00000000,0,4
+m6init,214,0,0,52,1,104,84,15,7,0,69,0,1,7,1,3358843969,0f8c6a308a9f0ad17dffccbd0a4b
 m6op,214,preinit,52,1,1
 m6op,214,delay,35
 m6op,214,bus,0,1
@@ -7599,7 +7599,7 @@ m6op,214,delayus,1
 m6op,214,rreg,140,84
 m6op,214,register
 m6det,214,1,3,113
-m6chip,214,1,1,3d7a0000,13776
+m6chip,214,1,1,3d7a0000,13776,4
 m6op,214,ioinit,exti,0
 m6op,214,extihandler
 m6op,214,exticonfig,1
@@ -7626,7 +7626,7 @@ m6op,214,divider,20000000
 m6op,214,clock,4
 m6op,214,read,67,6,1
 m6ready,214,32255,-13123,2635,3b40c0c1,42121eb8,2048
-m6init,215,1,0,52,1,104,198,45,9,1,0,7,1,2,1,669229928,85d17f1a4c709a77ddc39eff7ca0
+m6init,215,1,0,52,1,104,198,45,9,1,0,7,2,2,1,669229928,85d17f1a4c709a77ddc39eff7ca0
 m6op,215,preinit,52,1,1
 m6op,215,delay,35
 m6op,215,bus,0,1
@@ -7644,8 +7644,8 @@ m6op,215,delayus,1
 m6op,215,rreg,140,198
 m6op,215,preinitio,1,1
 m6det,215,0,0,117
-m6chip,215,0,0,00000000,0
-m6init,216,0,1,52,1,104,160,54,8,1,69,7,0,5,1,2324128401,b4fa7b55488b1e7e2d26d02c5be8
+m6chip,215,0,0,00000000,0,4
+m6init,216,0,1,52,1,104,160,54,8,1,69,7,1,5,1,2324128401,b4fa7b55488b1e7e2d26d02c5be8
 m6op,216,preinit,52,1,1
 m6op,216,delay,35
 m6op,216,bus,1,1
@@ -7663,8 +7663,8 @@ m6op,216,delayus,1
 m6op,216,rreg,140,160
 m6op,216,preinitio,1,1
 m6det,216,0,0,110
-m6chip,216,0,0,00000000,0
-m6init,217,1,0,52,1,104,90,138,1,1,69,1,2,1,1,2677565301,2bd8f968c1d01015c9ff1eff612a
+m6chip,216,0,0,00000000,0,4
+m6init,217,1,0,52,1,104,90,138,1,1,69,1,1,1,1,2677565301,2bd8f968c1d01015c9ff1eff612a
 m6op,217,preinit,52,1,1
 m6op,217,delay,35
 m6op,217,bus,0,1
@@ -7682,7 +7682,7 @@ m6op,217,delayus,1
 m6op,217,rreg,140,90
 m6op,217,register
 m6det,217,1,3,139
-m6chip,217,1,1,3d7a0000,13776
+m6chip,217,1,1,3d7a0000,13776,4
 m6op,217,ioinit,exti,0
 m6op,217,extihandler
 m6op,217,exticonfig,1
@@ -7709,7 +7709,7 @@ m6op,217,divider,20000000
 m6op,217,clock,4
 m6op,217,read,67,6,1
 m6op,217,failure,1
-m6init,218,1,0,52,1,104,86,71,6,0,0,6,1,7,1,3452630559,8492461cacc2e4a23ede45b7ac9c
+m6init,218,1,0,52,1,104,86,71,6,0,0,6,2,7,1,3452630559,8492461cacc2e4a23ede45b7ac9c
 m6op,218,preinit,52,1,1
 m6op,218,delay,35
 m6op,218,bus,0,1
@@ -7727,7 +7727,7 @@ m6op,218,delayus,1
 m6op,218,rreg,140,86
 m6op,218,register
 m6det,218,1,3,107
-m6chip,218,1,1,3d7a0000,13776
+m6chip,218,1,1,3d7a0000,13776,4
 m6op,218,wreg,107,3
 m6op,218,delayus,15
 m6op,218,wreg,106,16
@@ -7750,7 +7750,7 @@ m6op,218,divider,20000000
 m6op,218,clock,4
 m6op,218,read,67,6,1
 m6ready,218,16094,17847,-21348,3b40c0c1,42121eb8,2048
-m6init,219,0,0,52,1,104,90,48,8,1,69,4,1,1,1,239939002,5ba863015c8da0e9657ef0f4c8ce
+m6init,219,0,0,52,1,104,90,48,8,1,69,4,0,1,1,239939002,5ba863015c8da0e9657ef0f4c8ce
 m6op,219,preinit,52,1,1
 m6op,219,delay,35
 m6op,219,bus,0,1
@@ -7768,7 +7768,7 @@ m6op,219,delayus,1
 m6op,219,rreg,140,90
 m6op,219,register
 m6det,219,1,3,112
-m6chip,219,1,1,3d7a0000,13776
+m6chip,219,1,1,3d7a0000,13776,4
 m6op,219,ioinit,exti,0
 m6op,219,extihandler
 m6op,219,exticonfig,1
@@ -7795,7 +7795,7 @@ m6op,219,divider,20000000
 m6op,219,clock,4
 m6op,219,read,67,6,1
 m6ready,219,25982,-3852,-14130,3b40c0c1,42121eb8,2048
-m6init,220,1,0,52,1,104,79,74,8,0,69,0,0,2,1,4290524015,75799f1ac0fffd9ca0e4d964eaa2
+m6init,220,1,0,52,1,104,79,74,8,0,69,0,1,2,1,4290524015,75799f1ac0fffd9ca0e4d964eaa2
 m6op,220,preinit,52,1,1
 m6op,220,delay,35
 m6op,220,bus,0,1
@@ -7813,8 +7813,8 @@ m6op,220,delayus,1
 m6op,220,rreg,140,79
 m6op,220,preinitio,1,1
 m6det,220,0,0,114
-m6chip,220,0,0,00000000,0
-m6init,221,1,0,52,1,122,20,14,4,0,69,3,1,5,1,3812895421,34f4aded6ee8f1f4bbff06ff090a
+m6chip,220,0,0,00000000,0,4
+m6init,221,1,0,52,1,122,20,14,4,0,69,3,3,5,1,3812895421,34f4aded6ee8f1f4bbff06ff090a
 m6op,221,preinit,52,1,1
 m6op,221,delay,35
 m6op,221,bus,0,1
@@ -7831,8 +7831,8 @@ m6op,221,rreg,245,122
 m6op,221,delayus,1
 m6op,221,preinitio,1,1
 m6det,221,0,0,106
-m6chip,221,0,0,00000000,0
-m6init,222,0,0,52,1,104,24,7,4,0,69,1,2,2,1,437579096,37658f18032530f1b90dd5e1e628
+m6chip,221,0,0,00000000,0,4
+m6init,222,0,0,52,1,104,24,7,4,0,69,1,0,2,1,437579096,37658f18032530f1b90dd5e1e628
 m6op,222,preinit,52,1,1
 m6op,222,delay,35
 m6op,222,bus,0,1
@@ -7850,7 +7850,7 @@ m6op,222,delayus,1
 m6op,222,rreg,140,24
 m6op,222,register
 m6det,222,1,3,107
-m6chip,222,1,1,3d7a0000,13776
+m6chip,222,1,1,3d7a0000,13776,4
 m6op,222,ioinit,exti,0
 m6op,222,extihandler
 m6op,222,exticonfig,1
@@ -7877,7 +7877,7 @@ m6op,222,divider,20000000
 m6op,222,clock,4
 m6op,222,read,67,6,1
 m6ready,222,-18163,-10783,-6616,3b40c0c1,42121eb8,2048
-m6init,223,1,0,52,1,104,90,35,9,0,69,2,0,7,1,175886381,f45e48aa6dc80ccd2df38ca09259
+m6init,223,1,0,52,1,104,90,35,9,0,69,2,3,7,1,175886381,f45e48aa6dc80ccd2df38ca09259
 m6op,223,preinit,52,1,1
 m6op,223,delay,35
 m6op,223,bus,0,1
@@ -7895,7 +7895,7 @@ m6op,223,delayus,1
 m6op,223,rreg,140,90
 m6op,223,register
 m6det,223,1,3,116
-m6chip,223,1,1,3d7a0000,13776
+m6chip,223,1,1,3d7a0000,13776,4
 m6op,223,ioinit,exti,0
 m6op,223,extihandler
 m6op,223,exticonfig,1
@@ -7922,7 +7922,7 @@ m6op,223,divider,20000000
 m6op,223,clock,4
 m6op,223,read,67,6,1
 m6ready,223,11763,-29536,-28071,3b40c0c1,42121eb8,2048
-m6init,224,1,2,52,1,104,86,85,7,1,0,4,2,7,1,3585362264,e88492d72034cb7001719c554cf9
+m6init,224,1,2,52,1,104,86,85,7,1,0,4,1,7,1,3585362264,e88492d72034cb7001719c554cf9
 m6op,224,preinit,52,1,1
 m6op,224,delay,35
 m6op,224,bus,2,1
@@ -7940,7 +7940,7 @@ m6op,224,delayus,1
 m6op,224,rreg,140,86
 m6op,224,register
 m6det,224,1,3,113
-m6chip,224,1,1,3d7a0000,13776
+m6chip,224,1,1,3d7a0000,13776,4
 m6op,224,wreg,107,3
 m6op,224,delayus,15
 m6op,224,wreg,106,16
@@ -7963,7 +7963,7 @@ m6op,224,divider,20000000
 m6op,224,clock,4
 m6op,224,read,67,6,1
 m6ready,224,369,-25515,19705,3b40c0c1,42121eb8,2048
-m6init,225,0,0,52,1,104,87,33,9,0,69,7,2,1,1,969501569,125a8fddf3aceae7aeffecc075a7
+m6init,225,0,0,52,1,104,87,33,9,0,69,7,3,1,1,969501569,125a8fddf3aceae7aeffecc075a7
 m6op,225,preinit,52,1,1
 m6op,225,delay,35
 m6op,225,bus,0,1
@@ -7981,7 +7981,7 @@ m6op,225,delayus,1
 m6op,225,rreg,140,87
 m6op,225,register
 m6det,225,1,3,114
-m6chip,225,1,1,3d7a0000,13776
+m6chip,225,1,1,3d7a0000,13776,4
 m6op,225,ioinit,exti,0
 m6op,225,extihandler
 m6op,225,exticonfig,1
@@ -8008,7 +8008,7 @@ m6op,225,divider,20000000
 m6op,225,clock,4
 m6op,225,read,67,6,1
 m6ready,225,-20737,-4928,30119,3b40c0c1,42121eb8,2048
-m6init,226,1,0,52,1,45,22,89,9,1,69,1,2,6,1,17838458,d436788f064a740cd2ffb9ffe435
+m6init,226,1,0,52,1,45,22,89,9,1,69,1,1,6,1,17838458,d436788f064a740cd2ffb9ffe435
 m6op,226,preinit,52,1,1
 m6op,226,delay,35
 m6op,226,bus,0,1
@@ -8025,8 +8025,8 @@ m6op,226,rreg,245,45
 m6op,226,delayus,1
 m6op,226,preinitio,1,1
 m6det,226,0,0,116
-m6chip,226,0,0,00000000,0
-m6init,227,1,0,52,1,104,20,15,3,1,69,5,0,3,1,739405237,c6ed58abe619c026fc979fc2157d
+m6chip,226,0,0,00000000,0,4
+m6init,227,1,0,52,1,104,20,15,3,1,69,5,2,3,1,739405237,c6ed58abe619c026fc979fc2157d
 m6op,227,preinit,52,1,1
 m6op,227,delay,35
 m6op,227,bus,0,1
@@ -8044,7 +8044,7 @@ m6op,227,delayus,1
 m6op,227,rreg,140,20
 m6op,227,register
 m6det,227,1,3,105
-m6chip,227,1,1,3d7a0000,13776
+m6chip,227,1,1,3d7a0000,13776,4
 m6op,227,ioinit,exti,0
 m6op,227,extihandler
 m6op,227,exticonfig,1
@@ -8071,7 +8071,7 @@ m6op,227,divider,20000000
 m6op,227,clock,4
 m6op,227,read,67,6,1
 m6ready,227,-873,-24638,5501,3b40c0c1,42121eb8,2048
-m6init,228,1,1,52,1,104,66,56,5,0,0,0,2,3,1,3581613333,a494a4984c7107ce7dff6fff6992
+m6init,228,1,1,52,1,104,66,56,5,0,0,0,3,3,1,3581613333,a494a4984c7107ce7dff6fff6992
 m6op,228,preinit,52,1,1
 m6op,228,delay,35
 m6op,228,bus,1,1
@@ -8089,8 +8089,8 @@ m6op,228,delayus,1
 m6op,228,rreg,140,66
 m6op,228,preinitio,1,1
 m6det,228,0,0,106
-m6chip,228,0,0,00000000,0
-m6init,229,0,2,52,1,249,22,10,9,1,69,3,2,5,1,3778434134,503f0adf894159a0b7d0b0a9b8c0
+m6chip,228,0,0,00000000,0,4
+m6init,229,0,2,52,1,249,22,10,9,1,69,3,1,5,1,3778434134,503f0adf894159a0b7d0b0a9b8c0
 m6op,229,preinit,52,1,1
 m6op,229,delay,35
 m6op,229,bus,2,1
@@ -8107,13 +8107,13 @@ m6op,229,rreg,245,249
 m6op,229,delayus,1
 m6op,229,preinitio,1,1
 m6det,229,0,0,109
-m6chip,229,0,0,00000000,0
-m6init,230,0,1,0,1,104,84,77,4,1,69,3,1,0,1,2322518209,a06e3b1a620db6cfc6b6e8e6bb43
+m6chip,229,0,0,00000000,0,4
+m6init,230,0,1,0,1,104,84,77,4,1,69,3,2,0,1,2322518209,a06e3b1a620db6cfc6b6e8e6bb43
 m6op,230,preinit,0,1,1
 m6op,230,delay,35
 m6det,230,0,0,77
-m6chip,230,0,0,00000000,0
-m6init,231,0,2,52,1,104,88,120,6,1,69,3,0,2,1,123389819,3c8f7f169b1d2eda23bf10b0096f
+m6chip,230,0,0,00000000,0,4
+m6init,231,0,2,52,1,104,88,120,6,1,69,3,2,2,1,123389819,3c8f7f169b1d2eda23bf10b0096f
 m6op,231,preinit,52,1,1
 m6op,231,delay,35
 m6op,231,bus,2,1
@@ -8131,7 +8131,7 @@ m6op,231,delayus,1
 m6op,231,rreg,140,88
 m6op,231,register
 m6det,231,1,3,126
-m6chip,231,1,1,3d7a0000,13776
+m6chip,231,1,1,3d7a0000,13776,4
 m6op,231,ioinit,exti,0
 m6op,231,extihandler
 m6op,231,exticonfig,1
@@ -8158,7 +8158,7 @@ m6op,231,divider,20000000
 m6op,231,clock,4
 m6op,231,read,67,6,1
 m6ready,231,9151,4272,2415,3b40c0c1,42121eb8,2048
-m6init,232,1,1,52,1,104,88,50,7,0,69,5,2,0,1,1079108792,5259ab2bb3ceebb20bff60ff0e05
+m6init,232,1,1,52,1,104,88,50,7,0,69,5,1,0,1,1079108792,5259ab2bb3ceebb20bff60ff0e05
 m6op,232,preinit,52,1,1
 m6op,232,delay,35
 m6op,232,bus,1,1
@@ -8176,7 +8176,7 @@ m6op,232,delayus,1
 m6op,232,rreg,140,88
 m6op,232,register
 m6det,232,1,3,113
-m6chip,232,1,1,3d7a0000,13776
+m6chip,232,1,1,3d7a0000,13776,4
 m6op,232,ioinit,exti,0
 m6op,232,extihandler
 m6op,232,exticonfig,1
@@ -8203,13 +8203,13 @@ m6op,232,divider,20000000
 m6op,232,clock,4
 m6op,232,read,67,6,1
 m6op,232,failure,1
-m6init,233,0,2,52,0,104,206,98,3,0,69,5,0,3,1,889447748,9f7c72cef9c7340e41ff45ffd046
+m6init,233,0,2,52,0,104,206,98,3,0,69,5,1,3,1,889447748,9f7c72cef9c7340e41ff45ffd046
 m6op,233,preinit,52,1,1
 m6op,233,delay,35
 m6op,233,bus,2,0
 m6det,233,0,0,98
-m6chip,233,0,0,00000000,0
-m6init,234,0,1,52,1,49,84,84,4,0,69,3,0,6,1,1810907677,ea4e375246cc36d5d1e3067e9336
+m6chip,233,0,0,00000000,0,4
+m6init,234,0,1,52,1,49,84,84,4,0,69,3,3,6,1,1810907677,ea4e375246cc36d5d1e3067e9336
 m6op,234,preinit,52,1,1
 m6op,234,delay,35
 m6op,234,bus,1,1
@@ -8226,8 +8226,8 @@ m6op,234,rreg,245,49
 m6op,234,delayus,1
 m6op,234,preinitio,1,1
 m6det,234,0,0,104
-m6chip,234,0,0,00000000,0
-m6init,235,0,0,52,1,104,96,95,4,1,69,2,2,7,1,2570547128,d35a0980844b5bca9e325caa5091
+m6chip,234,0,0,00000000,0,4
+m6init,235,0,0,52,1,104,96,95,4,1,69,2,3,7,1,2570547128,d35a0980844b5bca9e325caa5091
 m6op,235,preinit,52,1,1
 m6op,235,delay,35
 m6op,235,bus,0,1
@@ -8245,7 +8245,7 @@ m6op,235,delayus,1
 m6op,235,rreg,140,96
 m6op,235,preinitio,1,1
 m6det,235,0,0,107
-m6chip,235,0,0,00000000,0
+m6chip,235,0,0,00000000,0,4
 m6init,236,1,0,52,1,104,20,51,9,0,69,1,2,0,1,4166446373,8878aab27bfb26e51d03cfd262a3
 m6op,236,preinit,52,1,1
 m6op,236,delay,35
@@ -8264,7 +8264,7 @@ m6op,236,delayus,1
 m6op,236,rreg,140,20
 m6op,236,register
 m6det,236,1,3,114
-m6chip,236,1,1,3d7a0000,13776
+m6chip,236,1,1,3d7a0000,13776,4
 m6op,236,ioinit,exti,0
 m6op,236,extihandler
 m6op,236,exticonfig,1
@@ -8291,7 +8291,7 @@ m6op,236,divider,20000000
 m6op,236,clock,4
 m6op,236,read,67,6,1
 m6ready,236,7427,-12334,25251,3b40c0c1,42121eb8,2048
-m6init,237,1,1,52,1,104,23,94,1,1,0,7,0,4,1,2764735614,84b1e42d643468db55d5d98c84f5
+m6init,237,1,1,52,1,104,23,94,1,1,0,7,3,4,1,2764735614,84b1e42d643468db55d5d98c84f5
 m6op,237,preinit,52,1,1
 m6op,237,delay,35
 m6op,237,bus,1,1
@@ -8309,7 +8309,7 @@ m6op,237,delayus,1
 m6op,237,rreg,140,23
 m6op,237,register
 m6det,237,1,3,101
-m6chip,237,1,1,3d7a0000,13776
+m6chip,237,1,1,3d7a0000,13776,4
 m6op,237,wreg,107,3
 m6op,237,delayus,15
 m6op,237,wreg,106,16
@@ -8332,7 +8332,7 @@ m6op,237,divider,20000000
 m6op,237,clock,4
 m6op,237,read,67,6,1
 m6ready,237,21973,-9844,-31499,3b40c0c1,42121eb8,2048
-m6init,238,0,0,52,1,104,22,37,6,0,0,6,0,1,1,3821124803,8f67d825952235be4a888def6971
+m6init,238,0,0,52,1,104,22,37,6,0,0,6,2,1,1,3821124803,8f67d825952235be4a888def6971
 m6op,238,preinit,52,1,1
 m6op,238,delay,35
 m6op,238,bus,0,1
@@ -8350,7 +8350,7 @@ m6op,238,delayus,1
 m6op,238,rreg,140,22
 m6op,238,register
 m6det,238,1,3,109
-m6chip,238,1,1,3d7a0000,13776
+m6chip,238,1,1,3d7a0000,13776,4
 m6op,238,wreg,107,3
 m6op,238,delayus,15
 m6op,238,wreg,106,16
@@ -8373,7 +8373,7 @@ m6op,238,divider,20000000
 m6op,238,clock,4
 m6op,238,read,67,6,1
 m6ready,238,19080,-29201,26993,3b40c0c1,42121eb8,2048
-m6init,239,1,1,52,1,104,23,74,1,1,69,7,0,5,1,2184200525,5a0e0c0269b8065766ffddff2f94
+m6init,239,1,1,52,1,104,23,74,1,1,69,7,3,5,1,2184200525,5a0e0c0269b8065766ffddff2f94
 m6op,239,preinit,52,1,1
 m6op,239,delay,35
 m6op,239,bus,1,1
@@ -8391,7 +8391,7 @@ m6op,239,delayus,1
 m6op,239,rreg,140,23
 m6op,239,register
 m6det,239,1,3,101
-m6chip,239,1,1,3d7a0000,13776
+m6chip,239,1,1,3d7a0000,13776,4
 m6op,239,ioinit,exti,0
 m6op,239,extihandler
 m6op,239,exticonfig,1
@@ -8436,7 +8436,7 @@ m6op,240,delayus,1
 m6op,240,rreg,140,90
 m6op,240,register
 m6det,240,1,3,118
-m6chip,240,1,1,3d7a0000,13776
+m6chip,240,1,1,3d7a0000,13776,4
 m6op,240,ioinit,exti,0
 m6op,240,extihandler
 m6op,240,exticonfig,1
@@ -8463,7 +8463,7 @@ m6op,240,divider,20000000
 m6op,240,clock,4
 m6op,240,read,67,6,0
 m6ready,240,0,0,0,3b40c0c1,42121eb8,2048
-m6init,241,1,1,52,1,45,21,126,8,1,0,1,2,1,1,2536048126,2b79782ef169de535eff9cffef62
+m6init,241,1,1,52,1,45,21,126,8,1,0,1,3,1,1,2536048126,2b79782ef169de535eff9cffef62
 m6op,241,preinit,52,1,1
 m6op,241,delay,35
 m6op,241,bus,1,1
@@ -8480,8 +8480,8 @@ m6op,241,rreg,245,45
 m6op,241,delayus,1
 m6op,241,preinitio,1,1
 m6det,241,0,0,134
-m6chip,241,0,0,00000000,0
-m6init,242,0,2,52,1,104,90,106,2,1,69,2,0,0,1,4257186884,f4eb9a82f934eba6a5eb58f6ff3f
+m6chip,241,0,0,00000000,0,4
+m6init,242,0,2,52,1,104,90,106,2,1,69,2,1,0,1,4257186884,f4eb9a82f934eba6a5eb58f6ff3f
 m6op,242,preinit,52,1,1
 m6op,242,delay,35
 m6op,242,bus,2,1
@@ -8499,7 +8499,7 @@ m6op,242,delayus,1
 m6op,242,rreg,140,90
 m6op,242,register
 m6det,242,1,3,108
-m6chip,242,1,1,3d7a0000,13776
+m6chip,242,1,1,3d7a0000,13776,4
 m6op,242,ioinit,exti,0
 m6op,242,extihandler
 m6op,242,exticonfig,1
@@ -8526,7 +8526,7 @@ m6op,242,divider,20000000
 m6op,242,clock,4
 m6op,242,read,67,6,1
 m6ready,242,-23061,22774,-193,3b40c0c1,42121eb8,2048
-m6init,243,0,1,52,1,104,21,34,7,0,69,1,2,1,1,2413860202,c102f19a8eb57260a2784e906a2b
+m6init,243,0,1,52,1,104,21,34,7,0,69,1,0,1,1,2413860202,c102f19a8eb57260a2784e906a2b
 m6op,243,preinit,52,1,1
 m6op,243,delay,35
 m6op,243,bus,1,1
@@ -8544,7 +8544,7 @@ m6op,243,delayus,1
 m6op,243,rreg,140,21
 m6op,243,register
 m6det,243,1,3,111
-m6chip,243,1,1,3d7a0000,13776
+m6chip,243,1,1,3d7a0000,13776,4
 m6op,243,ioinit,exti,0
 m6op,243,extihandler
 m6op,243,exticonfig,1
@@ -8589,7 +8589,7 @@ m6op,244,delayus,1
 m6op,244,rreg,140,21
 m6op,244,register
 m6det,244,1,3,116
-m6chip,244,1,1,3d7a0000,13776
+m6chip,244,1,1,3d7a0000,13776,4
 m6op,244,ioinit,exti,0
 m6op,244,extihandler
 m6op,244,exticonfig,1
@@ -8616,7 +8616,7 @@ m6op,244,divider,20000000
 m6op,244,clock,4
 m6op,244,read,67,6,1
 m6ready,244,6365,8789,741,3b40c0c1,42121eb8,2048
-m6init,245,0,1,52,1,104,49,57,6,0,69,5,2,1,1,3801586794,1d5dc8bb4800abe958ffb7ff6bec
+m6init,245,0,1,52,1,104,49,57,6,0,69,5,3,1,1,3801586794,1d5dc8bb4800abe958ffb7ff6bec
 m6op,245,preinit,52,1,1
 m6op,245,delay,35
 m6op,245,bus,1,1
@@ -8634,13 +8634,13 @@ m6op,245,delayus,1
 m6op,245,rreg,140,49
 m6op,245,preinitio,1,1
 m6det,245,0,0,111
-m6chip,245,0,0,00000000,0
+m6chip,245,0,0,00000000,0,4
 m6init,246,1,0,0,1,104,84,3,7,1,69,2,0,1,1,426640653,8a0952079723bb54105a4007203c
 m6op,246,preinit,0,1,1
 m6op,246,delay,35
 m6det,246,0,0,3
-m6chip,246,0,0,00000000,0
-m6init,247,1,0,52,1,132,87,21,6,0,69,3,1,4,1,2628619378,962271bc9d6e95ce07d6672bbbe7
+m6chip,246,0,0,00000000,0,4
+m6init,247,1,0,52,1,132,87,21,6,0,69,3,2,4,1,2628619378,962271bc9d6e95ce07d6672bbbe7
 m6op,247,preinit,52,1,1
 m6op,247,delay,35
 m6op,247,bus,0,1
@@ -8657,8 +8657,8 @@ m6op,247,rreg,245,132
 m6op,247,delayus,1
 m6op,247,preinitio,1,1
 m6det,247,0,0,111
-m6chip,247,0,0,00000000,0
-m6init,248,0,1,52,1,104,85,115,9,1,69,2,0,3,1,195655542,35a8c5bd05730b66d2caea71f911
+m6chip,247,0,0,00000000,0,4
+m6init,248,0,1,52,1,104,85,115,9,1,69,2,3,3,1,195655542,35a8c5bd05730b66d2caea71f911
 m6op,248,preinit,52,1,1
 m6op,248,delay,35
 m6op,248,bus,1,1
@@ -8676,7 +8676,7 @@ m6op,248,delayus,1
 m6op,248,rreg,140,85
 m6op,248,register
 m6det,248,1,3,124
-m6chip,248,1,1,3d7a0000,13776
+m6chip,248,1,1,3d7a0000,13776,4
 m6op,248,ioinit,exti,0
 m6op,248,extihandler
 m6op,248,exticonfig,1
@@ -8703,7 +8703,7 @@ m6op,248,divider,20000000
 m6op,248,clock,4
 m6op,248,read,67,6,1
 m6ready,248,-11574,-5519,-1775,3b40c0c1,42121eb8,2048
-m6init,249,0,0,52,1,104,90,54,1,0,0,2,1,2,1,889006979,694dd2a5f64ec56559ff75ff1565
+m6init,249,0,0,52,1,104,90,54,1,0,0,2,2,2,1,889006979,694dd2a5f64ec56559ff75ff1565
 m6op,249,preinit,52,1,1
 m6op,249,delay,35
 m6op,249,bus,0,1
@@ -8721,7 +8721,7 @@ m6op,249,delayus,1
 m6op,249,rreg,140,90
 m6op,249,register
 m6det,249,1,3,101
-m6chip,249,1,1,3d7a0000,13776
+m6chip,249,1,1,3d7a0000,13776,4
 m6op,249,wreg,107,3
 m6op,249,delayus,15
 m6op,249,wreg,106,16
@@ -8744,7 +8744,7 @@ m6op,249,divider,20000000
 m6op,249,clock,4
 m6op,249,read,67,6,1
 m6op,249,failure,1
-m6init,250,0,1,52,1,104,89,122,6,0,69,2,0,2,1,2620535124,eb8b31610d08ddff4caa246f2cdf
+m6init,250,0,1,52,1,104,89,122,6,0,69,2,1,2,1,2620535124,eb8b31610d08ddff4caa246f2cdf
 m6op,250,preinit,52,1,1
 m6op,250,delay,35
 m6op,250,bus,1,1
@@ -8762,7 +8762,7 @@ m6op,250,delayus,1
 m6op,250,rreg,140,89
 m6op,250,register
 m6det,250,1,3,128
-m6chip,250,1,1,3d7a0000,13776
+m6chip,250,1,1,3d7a0000,13776,4
 m6op,250,ioinit,exti,0
 m6op,250,extihandler
 m6op,250,exticonfig,1
@@ -8789,7 +8789,7 @@ m6op,250,divider,20000000
 m6op,250,clock,4
 m6op,250,read,67,6,1
 m6ready,250,19626,9327,11487,3b40c0c1,42121eb8,2048
-m6init,251,1,2,52,1,104,23,70,8,0,69,0,2,4,1,3896866053,2688e16e1b777b41078f630e32b9
+m6init,251,1,2,52,1,104,23,70,8,0,69,0,3,4,1,3896866053,2688e16e1b777b41078f630e32b9
 m6op,251,preinit,52,1,1
 m6op,251,delay,35
 m6op,251,bus,2,1
@@ -8807,7 +8807,7 @@ m6op,251,delayus,1
 m6op,251,rreg,140,23
 m6op,251,register
 m6det,251,1,3,110
-m6chip,251,1,1,3d7a0000,13776
+m6chip,251,1,1,3d7a0000,13776,4
 m6op,251,ioinit,exti,0
 m6op,251,extihandler
 m6op,251,exticonfig,1
@@ -8834,7 +8834,7 @@ m6op,251,divider,20000000
 m6op,251,clock,4
 m6op,251,read,67,6,1
 m6ready,251,1935,25358,12985,3b40c0c1,42121eb8,2048
-m6init,252,0,2,52,1,104,89,121,2,1,69,5,2,1,1,251100034,9f97696f49026610390a69ff9707
+m6init,252,0,2,52,1,104,89,121,2,1,69,5,0,1,1,251100034,9f97696f49026610390a69ff9707
 m6op,252,preinit,52,1,1
 m6op,252,delay,35
 m6op,252,bus,2,1
@@ -8852,7 +8852,7 @@ m6op,252,delayus,1
 m6op,252,rreg,140,89
 m6op,252,register
 m6det,252,1,3,123
-m6chip,252,1,1,3d7a0000,13776
+m6chip,252,1,1,3d7a0000,13776,4
 m6op,252,ioinit,exti,0
 m6op,252,extihandler
 m6op,252,exticonfig,1
@@ -8879,12 +8879,12 @@ m6op,252,divider,20000000
 m6op,252,clock,4
 m6op,252,read,67,6,1
 m6ready,252,14602,27135,-26873,3b40c0c1,42121eb8,2048
-m6init,253,1,2,0,1,104,20,83,1,0,0,1,0,1,1,2847919124,29b4b222ceb2d3c5e9c0fd663015
+m6init,253,1,2,0,1,104,20,83,1,0,0,1,3,1,1,2847919124,29b4b222ceb2d3c5e9c0fd663015
 m6op,253,preinit,0,1,1
 m6op,253,delay,35
 m6det,253,0,0,83
-m6chip,253,0,0,00000000,0
-m6init,254,1,2,52,1,104,85,3,7,0,69,5,1,1,1,2553705208,67a924c7c2f306f57a1387647ff1
+m6chip,253,0,0,00000000,0,4
+m6init,254,1,2,52,1,104,85,3,7,0,69,5,3,1,1,2553705208,67a924c7c2f306f57a1387647ff1
 m6op,254,preinit,52,1,1
 m6op,254,delay,35
 m6op,254,bus,2,1
@@ -8902,7 +8902,7 @@ m6op,254,delayus,1
 m6op,254,rreg,140,85
 m6op,254,register
 m6det,254,1,3,108
-m6chip,254,1,1,3d7a0000,13776
+m6chip,254,1,1,3d7a0000,13776,4
 m6op,254,ioinit,exti,0
 m6op,254,extihandler
 m6op,254,exticonfig,1
@@ -8929,12 +8929,12 @@ m6op,254,divider,20000000
 m6op,254,clock,4
 m6op,254,read,67,6,1
 m6ready,254,31251,-30876,32753,3b40c0c1,42121eb8,2048
-m6init,255,0,1,0,1,104,24,18,3,1,69,2,1,4,1,1738160520,86ad3f615653e3e616839dbc89fb
+m6init,255,0,1,0,1,104,24,18,3,1,69,2,2,4,1,1738160520,86ad3f615653e3e616839dbc89fb
 m6op,255,preinit,0,1,1
 m6op,255,delay,35
 m6det,255,0,0,18
-m6chip,255,0,0,00000000,0
-m6init,256,0,2,52,1,104,86,105,2,1,0,7,1,7,1,2365681118,a47ba16274e1b04fb4f49155330c
+m6chip,255,0,0,00000000,0,4
+m6init,256,0,2,52,1,104,86,105,2,1,0,7,2,7,1,2365681118,a47ba16274e1b04fb4f49155330c
 m6op,256,preinit,52,1,1
 m6op,256,delay,35
 m6op,256,bus,2,1
@@ -8952,7 +8952,7 @@ m6op,256,delayus,1
 m6op,256,rreg,140,86
 m6op,256,register
 m6det,256,1,3,107
-m6chip,256,1,1,3d7a0000,13776
+m6chip,256,1,1,3d7a0000,13776,4
 m6op,256,wreg,107,3
 m6op,256,delayus,15
 m6op,256,wreg,106,16
@@ -8975,7 +8975,7 @@ m6op,256,divider,20000000
 m6op,256,clock,4
 m6op,256,read,67,6,1
 m6ready,256,-19212,-28331,13068,3b40c0c1,42121eb8,2048
-m6init,257,0,1,52,1,194,24,83,9,0,69,4,2,3,1,475987062,be7bae0220d5002a1c386c3ccfd8
+m6init,257,0,1,52,1,194,24,83,9,0,69,4,0,3,1,475987062,be7bae0220d5002a1c386c3ccfd8
 m6op,257,preinit,52,1,1
 m6op,257,delay,35
 m6op,257,bus,1,1
@@ -8992,7 +8992,7 @@ m6op,257,rreg,245,194
 m6op,257,delayus,1
 m6op,257,preinitio,1,1
 m6det,257,0,0,110
-m6chip,257,0,0,00000000,0
+m6chip,257,0,0,00000000,0,4
 m6init,258,0,2,52,1,104,86,113,3,1,69,2,1,6,1,2588245459,1636b57106a95586ba15a43ecee8
 m6op,258,preinit,52,1,1
 m6op,258,delay,35
@@ -9011,7 +9011,7 @@ m6op,258,delayus,1
 m6op,258,rreg,140,86
 m6op,258,register
 m6det,258,1,3,116
-m6chip,258,1,1,3d7a0000,13776
+m6chip,258,1,1,3d7a0000,13776,4
 m6op,258,ioinit,exti,0
 m6op,258,extihandler
 m6op,258,exticonfig,1
@@ -9038,7 +9038,7 @@ m6op,258,divider,20000000
 m6op,258,clock,4
 m6op,258,read,67,6,1
 m6ready,258,-17899,-23490,-12568,3b40c0c1,42121eb8,2048
-m6init,259,0,2,52,1,48,24,11,3,0,69,5,1,4,1,2592441629,a3cdf57cd7a9ffc709ccc9ffcf07
+m6init,259,0,2,52,1,48,24,11,3,0,69,5,2,4,1,2592441629,a3cdf57cd7a9ffc709ccc9ffcf07
 m6op,259,preinit,52,1,1
 m6op,259,delay,35
 m6op,259,bus,2,1
@@ -9055,8 +9055,8 @@ m6op,259,rreg,245,48
 m6op,259,delayus,1
 m6op,259,preinitio,1,1
 m6det,259,0,0,104
-m6chip,259,0,0,00000000,0
-m6init,260,1,0,52,1,104,24,68,1,0,69,6,1,7,1,457299284,b4a9eb65a7939cabaae684935787
+m6chip,259,0,0,00000000,0,4
+m6init,260,1,0,52,1,104,24,68,1,0,69,6,0,7,1,457299284,b4a9eb65a7939cabaae684935787
 m6op,260,preinit,52,1,1
 m6op,260,delay,35
 m6op,260,bus,0,1
@@ -9074,7 +9074,7 @@ m6op,260,delayus,1
 m6op,260,rreg,140,24
 m6op,260,register
 m6det,260,1,3,101
-m6chip,260,1,1,3d7a0000,13776
+m6chip,260,1,1,3d7a0000,13776,4
 m6op,260,ioinit,exti,0
 m6op,260,extihandler
 m6op,260,exticonfig,1
@@ -9119,7 +9119,7 @@ m6op,261,delayus,1
 m6op,261,rreg,140,182
 m6op,261,preinitio,1,1
 m6det,261,0,0,114
-m6chip,261,0,0,00000000,0
+m6chip,261,0,0,00000000,0,4
 m6init,262,1,2,52,1,104,21,5,3,0,69,5,0,3,1,650064288,af5e72a51f1306c3feacc01fd155
 m6op,262,preinit,52,1,1
 m6op,262,delay,35
@@ -9138,7 +9138,7 @@ m6op,262,delayus,1
 m6op,262,rreg,140,21
 m6op,262,register
 m6det,262,1,3,104
-m6chip,262,1,1,3d7a0000,13776
+m6chip,262,1,1,3d7a0000,13776,4
 m6op,262,ioinit,exti,0
 m6op,262,extihandler
 m6op,262,exticonfig,1
@@ -9165,7 +9165,7 @@ m6op,262,divider,20000000
 m6op,262,clock,4
 m6op,262,read,67,6,1
 m6ready,262,-340,-16353,-11947,3b40c0c1,42121eb8,2048
-m6init,263,1,1,52,1,104,23,19,7,0,69,1,1,3,1,2502705773,12271515be5d428f68b254c99f8d
+m6init,263,1,1,52,1,104,23,19,7,0,69,1,0,3,1,2502705773,12271515be5d428f68b254c99f8d
 m6op,263,preinit,52,1,1
 m6op,263,delay,35
 m6op,263,bus,1,1
@@ -9183,7 +9183,7 @@ m6op,263,delayus,1
 m6op,263,rreg,140,23
 m6op,263,register
 m6det,263,1,3,110
-m6chip,263,1,1,3d7a0000,13776
+m6chip,263,1,1,3d7a0000,13776,4
 m6op,263,ioinit,exti,0
 m6op,263,extihandler
 m6op,263,exticonfig,1
@@ -9228,7 +9228,7 @@ m6op,264,delayus,1
 m6op,264,rreg,140,88
 m6op,264,register
 m6det,264,1,3,102
-m6chip,264,1,1,3d7a0000,13776
+m6chip,264,1,1,3d7a0000,13776,4
 m6op,264,wreg,107,3
 m6op,264,delayus,15
 m6op,264,wreg,106,16
@@ -9268,7 +9268,7 @@ m6op,265,rreg,245,44
 m6op,265,delayus,1
 m6op,265,preinitio,1,1
 m6det,265,0,0,105
-m6chip,265,0,0,00000000,0
+m6chip,265,0,0,00000000,0,4
 m6init,266,1,0,52,1,104,87,127,3,1,69,6,0,3,1,2088978909,d0584bbaac0487f538fff0ff9d5a
 m6op,266,preinit,52,1,1
 m6op,266,delay,35
@@ -9287,7 +9287,7 @@ m6op,266,delayus,1
 m6op,266,rreg,140,87
 m6op,266,register
 m6det,266,1,3,130
-m6chip,266,1,1,3d7a0000,13776
+m6chip,266,1,1,3d7a0000,13776,4
 m6op,266,ioinit,exti,0
 m6op,266,extihandler
 m6op,266,exticonfig,1
@@ -9314,7 +9314,7 @@ m6op,266,divider,20000000
 m6op,266,clock,4
 m6op,266,read,67,6,1
 m6op,266,failure,1
-m6init,267,0,0,52,1,104,22,18,7,1,69,3,0,4,1,3538405094,b0be604a35514ab50e48c242a921
+m6init,267,0,0,52,1,104,22,18,7,1,69,3,3,4,1,3538405094,b0be604a35514ab50e48c242a921
 m6op,267,preinit,52,1,1
 m6op,267,delay,35
 m6op,267,bus,0,1
@@ -9332,7 +9332,7 @@ m6op,267,delayus,1
 m6op,267,rreg,140,22
 m6op,267,register
 m6det,267,1,3,109
-m6chip,267,1,1,3d7a0000,13776
+m6chip,267,1,1,3d7a0000,13776,4
 m6op,267,ioinit,exti,0
 m6op,267,extihandler
 m6op,267,exticonfig,1
@@ -9359,7 +9359,7 @@ m6op,267,divider,20000000
 m6op,267,clock,4
 m6op,267,read,67,6,1
 m6ready,267,3656,-15806,-22239,3b40c0c1,42121eb8,2048
-m6init,268,0,1,52,1,104,24,71,3,1,69,4,1,3,1,684015475,9fb53dccd94c2dacc1ede0810892
+m6init,268,0,1,52,1,104,24,71,3,1,69,4,2,3,1,684015475,9fb53dccd94c2dacc1ede0810892
 m6op,268,preinit,52,1,1
 m6op,268,delay,35
 m6op,268,bus,1,1
@@ -9377,7 +9377,7 @@ m6op,268,delayus,1
 m6op,268,rreg,140,24
 m6op,268,register
 m6det,268,1,3,104
-m6chip,268,1,1,3d7a0000,13776
+m6chip,268,1,1,3d7a0000,13776,4
 m6op,268,ioinit,exti,0
 m6op,268,extihandler
 m6op,268,exticonfig,1
@@ -9422,7 +9422,7 @@ m6op,269,delayus,1
 m6op,269,rreg,140,87
 m6op,269,register
 m6det,269,1,3,118
-m6chip,269,1,1,3d7a0000,13776
+m6chip,269,1,1,3d7a0000,13776,4
 m6op,269,ioinit,exti,0
 m6op,269,extihandler
 m6op,269,exticonfig,1
@@ -9449,7 +9449,7 @@ m6op,269,divider,20000000
 m6op,269,clock,4
 m6op,269,read,67,6,1
 m6op,269,failure,1
-m6init,270,0,0,52,1,104,22,72,7,0,69,5,2,3,1,2188230291,84fed522edecd8acd0270f26eb06
+m6init,270,0,0,52,1,104,22,72,7,0,69,5,0,3,1,2188230291,84fed522edecd8acd0270f26eb06
 m6op,270,preinit,52,1,1
 m6op,270,delay,35
 m6op,270,bus,0,1
@@ -9467,7 +9467,7 @@ m6op,270,delayus,1
 m6op,270,rreg,140,22
 m6op,270,register
 m6det,270,1,3,107
-m6chip,270,1,1,3d7a0000,13776
+m6chip,270,1,1,3d7a0000,13776,4
 m6op,270,ioinit,exti,0
 m6op,270,extihandler
 m6op,270,exticonfig,1
@@ -9494,7 +9494,7 @@ m6op,270,divider,20000000
 m6op,270,clock,4
 m6op,270,read,67,6,1
 m6ready,270,-12249,3878,-5370,3b40c0c1,42121eb8,2048
-m6init,271,1,2,52,1,182,24,84,2,0,69,6,2,4,1,548424414,3457952a0ef1a5938cff1aff4245
+m6init,271,1,2,52,1,182,24,84,2,0,69,6,1,4,1,548424414,3457952a0ef1a5938cff1aff4245
 m6op,271,preinit,52,1,1
 m6op,271,delay,35
 m6op,271,bus,2,1
@@ -9511,8 +9511,8 @@ m6op,271,rreg,245,182
 m6op,271,delayus,1
 m6op,271,preinitio,1,1
 m6det,271,0,0,102
-m6chip,271,0,0,00000000,0
-m6init,272,1,1,52,1,104,90,125,6,1,69,5,2,5,1,3715964516,d4b6f2c9e6a3ff8fdbff06ffd85f
+m6chip,271,0,0,00000000,0,4
+m6init,272,1,1,52,1,104,90,125,6,1,69,5,0,5,1,3715964516,d4b6f2c9e6a3ff8fdbff06ffd85f
 m6op,272,preinit,52,1,1
 m6op,272,delay,35
 m6op,272,bus,1,1
@@ -9530,7 +9530,7 @@ m6op,272,delayus,1
 m6op,272,rreg,140,90
 m6op,272,register
 m6det,272,1,3,131
-m6chip,272,1,1,3d7a0000,13776
+m6chip,272,1,1,3d7a0000,13776,4
 m6op,272,ioinit,exti,0
 m6op,272,extihandler
 m6op,272,exticonfig,1
@@ -9557,7 +9557,7 @@ m6op,272,divider,20000000
 m6op,272,clock,4
 m6op,272,read,67,6,1
 m6op,272,failure,1
-m6init,273,1,0,52,1,203,21,46,9,0,69,3,0,4,1,858777911,511fba1bb8770c197fa609886899
+m6init,273,1,0,52,1,203,21,46,9,0,69,3,1,4,1,858777911,511fba1bb8770c197fa609886899
 m6op,273,preinit,52,1,1
 m6op,273,delay,35
 m6op,273,bus,0,1
@@ -9574,8 +9574,8 @@ m6op,273,rreg,245,203
 m6op,273,delayus,1
 m6op,273,preinitio,1,1
 m6det,273,0,0,109
-m6chip,273,0,0,00000000,0
-m6init,274,0,2,52,1,104,77,28,9,1,69,4,0,1,1,734619445,6d56e4fb4cdaab1a9bff98ffbb88
+m6chip,273,0,0,00000000,0,4
+m6init,274,0,2,52,1,104,77,28,9,1,69,4,3,1,1,734619445,6d56e4fb4cdaab1a9bff98ffbb88
 m6op,274,preinit,52,1,1
 m6op,274,delay,35
 m6op,274,bus,2,1
@@ -9593,8 +9593,8 @@ m6op,274,delayus,1
 m6op,274,rreg,140,77
 m6op,274,preinitio,1,1
 m6det,274,0,0,109
-m6chip,274,0,0,00000000,0
-m6init,275,1,0,52,1,104,89,33,2,1,0,2,0,1,1,3815708392,a1c211fb0b44c335cfcbd4a14508
+m6chip,274,0,0,00000000,0,4
+m6init,275,1,0,52,1,104,89,33,2,1,0,2,1,1,1,3815708392,a1c211fb0b44c335cfcbd4a14508
 m6op,275,preinit,52,1,1
 m6op,275,delay,35
 m6op,275,bus,0,1
@@ -9612,7 +9612,7 @@ m6op,275,delayus,1
 m6op,275,rreg,140,89
 m6op,275,register
 m6det,275,1,3,103
-m6chip,275,1,1,3d7a0000,13776
+m6chip,275,1,1,3d7a0000,13776,4
 m6op,275,wreg,107,3
 m6op,275,delayus,15
 m6op,275,wreg,106,16
@@ -9635,7 +9635,7 @@ m6op,275,divider,20000000
 m6op,275,clock,4
 m6op,275,read,67,6,1
 m6ready,275,-12341,-11103,17672,3b40c0c1,42121eb8,2048
-m6init,276,1,2,52,1,104,221,72,4,1,69,5,2,0,1,3019915190,9bb041083557168b167a22f3bf3e
+m6init,276,1,2,52,1,104,221,72,4,1,69,5,0,0,1,3019915190,9bb041083557168b167a22f3bf3e
 m6op,276,preinit,52,1,1
 m6op,276,delay,35
 m6op,276,bus,2,1
@@ -9653,8 +9653,8 @@ m6op,276,delayus,1
 m6op,276,rreg,140,221
 m6op,276,preinitio,1,1
 m6det,276,0,0,104
-m6chip,276,0,0,00000000,0
-m6init,277,1,2,52,1,104,90,51,8,0,69,0,2,2,1,3846997456,6891cb56ee21428ba9387849ad80
+m6chip,276,0,0,00000000,0,4
+m6init,277,1,2,52,1,104,90,51,8,0,69,0,3,2,1,3846997456,6891cb56ee21428ba9387849ad80
 m6op,277,preinit,52,1,1
 m6op,277,delay,35
 m6op,277,bus,2,1
@@ -9672,7 +9672,7 @@ m6op,277,delayus,1
 m6op,277,rreg,140,90
 m6op,277,register
 m6det,277,1,3,115
-m6chip,277,1,1,3d7a0000,13776
+m6chip,277,1,1,3d7a0000,13776,4
 m6op,277,ioinit,exti,0
 m6op,277,extihandler
 m6op,277,exticonfig,1
@@ -9717,7 +9717,7 @@ m6op,278,delayus,1
 m6op,278,rreg,140,24
 m6op,278,register
 m6det,278,1,3,105
-m6chip,278,1,1,3d7a0000,13776
+m6chip,278,1,1,3d7a0000,13776,4
 m6op,278,ioinit,exti,0
 m6op,278,extihandler
 m6op,278,exticonfig,1
@@ -9761,7 +9761,7 @@ m6op,279,rreg,245,224
 m6op,279,delayus,1
 m6op,279,preinitio,1,1
 m6det,279,0,0,112
-m6chip,279,0,0,00000000,0
+m6chip,279,0,0,00000000,0,4
 m6init,280,1,2,52,1,104,88,20,2,1,69,5,2,7,1,2532591346,567c463d36adfe210bff2bffa79c
 m6op,280,preinit,52,1,1
 m6op,280,delay,35
@@ -9780,7 +9780,7 @@ m6op,280,delayus,1
 m6op,280,rreg,140,88
 m6op,280,register
 m6det,280,1,3,102
-m6chip,280,1,1,3d7a0000,13776
+m6chip,280,1,1,3d7a0000,13776,4
 m6op,280,ioinit,exti,0
 m6op,280,extihandler
 m6op,280,exticonfig,1
@@ -9807,7 +9807,7 @@ m6op,280,divider,20000000
 m6op,280,clock,4
 m6op,280,read,67,6,1
 m6op,280,failure,1
-m6init,281,0,1,52,1,104,126,44,2,1,69,4,0,3,1,706035915,b1f42db07544d12707ff5afff8cd
+m6init,281,0,1,52,1,104,126,44,2,1,69,4,3,3,1,706035915,b1f42db07544d12707ff5afff8cd
 m6op,281,preinit,52,1,1
 m6op,281,delay,35
 m6op,281,bus,1,1
@@ -9825,8 +9825,8 @@ m6op,281,delayus,1
 m6op,281,rreg,140,126
 m6op,281,preinitio,1,1
 m6det,281,0,0,102
-m6chip,281,0,0,00000000,0
-m6init,282,1,0,52,1,104,15,6,4,1,69,0,1,4,1,3314413160,bc3fbae1fc641689a300f3e51889
+m6chip,281,0,0,00000000,0,4
+m6init,282,1,0,52,1,104,15,6,4,1,69,0,3,4,1,3314413160,bc3fbae1fc641689a300f3e51889
 m6op,282,preinit,52,1,1
 m6op,282,delay,35
 m6op,282,bus,0,1
@@ -9844,8 +9844,8 @@ m6op,282,delayus,1
 m6op,282,rreg,140,15
 m6op,282,preinitio,1,1
 m6det,282,0,0,106
-m6chip,282,0,0,00000000,0
-m6init,283,0,2,52,1,104,20,62,3,0,69,4,2,7,1,1545545238,a9840b9b2f2f83175eff48ff1ba6
+m6chip,282,0,0,00000000,0,4
+m6init,283,0,2,52,1,104,20,62,3,0,69,4,1,7,1,1545545238,a9840b9b2f2f83175eff48ff1ba6
 m6op,283,preinit,52,1,1
 m6op,283,delay,35
 m6op,283,bus,2,1
@@ -9863,7 +9863,7 @@ m6op,283,delayus,1
 m6op,283,rreg,140,20
 m6op,283,register
 m6det,283,1,3,104
-m6chip,283,1,1,3d7a0000,13776
+m6chip,283,1,1,3d7a0000,13776,4
 m6op,283,ioinit,exti,0
 m6op,283,extihandler
 m6op,283,exticonfig,1
@@ -9890,13 +9890,13 @@ m6op,283,divider,20000000
 m6op,283,clock,4
 m6op,283,read,67,6,1
 m6op,283,failure,1
-m6init,284,1,2,52,0,104,87,17,1,0,69,0,2,2,1,1085795168,cc5f6a45b33ae41ca6ffdefffd34
+m6init,284,1,2,52,0,104,87,17,1,0,69,0,0,2,1,1085795168,cc5f6a45b33ae41ca6ffdefffd34
 m6op,284,preinit,52,1,1
 m6op,284,delay,35
 m6op,284,bus,2,0
 m6det,284,0,0,17
-m6chip,284,0,0,00000000,0
-m6init,285,1,1,52,1,104,87,103,3,0,69,0,0,1,1,230715783,457be0a7eb19422f9a38dd7cfa2c
+m6chip,284,0,0,00000000,0,4
+m6init,285,1,1,52,1,104,87,103,3,0,69,0,2,1,1,230715783,457be0a7eb19422f9a38dd7cfa2c
 m6op,285,preinit,52,1,1
 m6op,285,delay,35
 m6op,285,bus,1,1
@@ -9914,7 +9914,7 @@ m6op,285,delayus,1
 m6op,285,rreg,140,87
 m6op,285,register
 m6det,285,1,3,106
-m6chip,285,1,1,3d7a0000,13776
+m6chip,285,1,1,3d7a0000,13776,4
 m6op,285,ioinit,exti,0
 m6op,285,extihandler
 m6op,285,exticonfig,1
@@ -9959,8 +9959,8 @@ m6op,286,delayus,1
 m6op,286,rreg,140,55
 m6op,286,preinitio,1,1
 m6det,286,0,0,109
-m6chip,286,0,0,00000000,0
-m6init,287,0,0,52,1,104,87,105,8,1,0,7,1,0,1,163343129,82328e9fce475c199ca63490a5d2
+m6chip,286,0,0,00000000,0,4
+m6init,287,0,0,52,1,104,87,105,8,1,0,7,3,0,1,163343129,82328e9fce475c199ca63490a5d2
 m6op,287,preinit,52,1,1
 m6op,287,delay,35
 m6op,287,bus,0,1
@@ -9978,7 +9978,7 @@ m6op,287,delayus,1
 m6op,287,rreg,140,87
 m6op,287,register
 m6det,287,1,3,113
-m6chip,287,1,1,3d7a0000,13776
+m6chip,287,1,1,3d7a0000,13776,4
 m6op,287,wreg,107,3
 m6op,287,delayus,15
 m6op,287,wreg,106,16
@@ -10001,7 +10001,7 @@ m6op,287,divider,20000000
 m6op,287,clock,4
 m6op,287,read,67,6,1
 m6ready,287,-25434,13456,-23086,3b40c0c1,42121eb8,2048
-m6init,288,0,2,52,1,187,20,99,3,0,69,1,1,7,1,802448930,a8ab9dd95b3e801a8e70a4c1b6a4
+m6init,288,0,2,52,1,187,20,99,3,0,69,1,2,7,1,802448930,a8ab9dd95b3e801a8e70a4c1b6a4
 m6op,288,preinit,52,1,1
 m6op,288,delay,35
 m6op,288,bus,2,1
@@ -10018,8 +10018,8 @@ m6op,288,rreg,245,187
 m6op,288,delayus,1
 m6op,288,preinitio,1,1
 m6det,288,0,0,105
-m6chip,288,0,0,00000000,0
-m6init,289,0,2,52,1,216,23,62,7,1,69,0,2,5,1,27778041,8d145a9f15da414c67ff9cff94fa
+m6chip,288,0,0,00000000,0,4
+m6init,289,0,2,52,1,216,23,62,7,1,69,0,1,5,1,27778041,8d145a9f15da414c67ff9cff94fa
 m6op,289,preinit,52,1,1
 m6op,289,delay,35
 m6op,289,bus,2,1
@@ -10036,8 +10036,8 @@ m6op,289,rreg,245,216
 m6op,289,delayus,1
 m6op,289,preinitio,1,1
 m6det,289,0,0,111
-m6chip,289,0,0,00000000,0
-m6init,290,0,2,52,1,104,90,34,3,1,69,3,0,2,1,63905380,f5c862d9a0129abd5ae69d35b3e0
+m6chip,289,0,0,00000000,0,4
+m6init,290,0,2,52,1,104,90,34,3,1,69,3,1,2,1,63905380,f5c862d9a0129abd5ae69d35b3e0
 m6op,290,preinit,52,1,1
 m6op,290,delay,35
 m6op,290,bus,2,1
@@ -10055,7 +10055,7 @@ m6op,290,delayus,1
 m6op,290,rreg,140,90
 m6op,290,register
 m6det,290,1,3,103
-m6chip,290,1,1,3d7a0000,13776
+m6chip,290,1,1,3d7a0000,13776,4
 m6op,290,ioinit,exti,0
 m6op,290,extihandler
 m6op,290,exticonfig,1
@@ -10100,7 +10100,7 @@ m6op,291,delayus,1
 m6op,291,rreg,140,24
 m6op,291,register
 m6det,291,1,3,109
-m6chip,291,1,1,3d7a0000,13776
+m6chip,291,1,1,3d7a0000,13776,4
 m6op,291,ioinit,exti,0
 m6op,291,extihandler
 m6op,291,exticonfig,1
@@ -10131,8 +10131,8 @@ m6init,292,1,1,0,1,104,121,93,4,1,69,5,1,7,1,546458859,0de4e1779623eb9bd0a79c6fb
 m6op,292,preinit,0,1,1
 m6op,292,delay,35
 m6det,292,0,0,93
-m6chip,292,0,0,00000000,0
-m6init,293,1,2,52,1,104,88,21,2,0,0,6,0,1,1,1133960232,520b1ad16ac9224ec39562ada889
+m6chip,292,0,0,00000000,0,4
+m6init,293,1,2,52,1,104,88,21,2,0,0,6,1,1,1,1133960232,520b1ad16ac9224ec39562ada889
 m6op,293,preinit,52,1,1
 m6op,293,delay,35
 m6op,293,bus,2,1
@@ -10150,7 +10150,7 @@ m6op,293,delayus,1
 m6op,293,rreg,140,88
 m6op,293,register
 m6det,293,1,3,103
-m6chip,293,1,1,3d7a0000,13776
+m6chip,293,1,1,3d7a0000,13776,4
 m6op,293,wreg,107,3
 m6op,293,delayus,15
 m6op,293,wreg,106,16
@@ -10191,7 +10191,7 @@ m6op,294,delayus,1
 m6op,294,rreg,140,90
 m6op,294,register
 m6det,294,1,3,115
-m6chip,294,1,1,3d7a0000,13776
+m6chip,294,1,1,3d7a0000,13776,4
 m6op,294,wreg,107,3
 m6op,294,delayus,15
 m6op,294,wreg,106,16
@@ -10214,7 +10214,7 @@ m6op,294,divider,20000000
 m6op,294,clock,4
 m6op,294,read,67,6,1
 m6op,294,failure,1
-m6init,295,1,1,52,1,104,20,104,8,1,69,1,1,5,1,2905132490,880f1b501b72fbdec37c0b4d8401
+m6init,295,1,1,52,1,104,20,104,8,1,69,1,0,5,1,2905132490,880f1b501b72fbdec37c0b4d8401
 m6op,295,preinit,52,1,1
 m6op,295,delay,35
 m6op,295,bus,1,1
@@ -10232,7 +10232,7 @@ m6op,295,delayus,1
 m6op,295,rreg,140,20
 m6op,295,register
 m6det,295,1,3,112
-m6chip,295,1,1,3d7a0000,13776
+m6chip,295,1,1,3d7a0000,13776,4
 m6op,295,ioinit,exti,0
 m6op,295,extihandler
 m6op,295,exticonfig,1
@@ -10259,7 +10259,7 @@ m6op,295,divider,20000000
 m6op,295,clock,4
 m6op,295,read,67,6,1
 m6ready,295,-15492,2893,-31743,3b40c0c1,42121eb8,2048
-m6init,296,1,1,52,1,104,24,136,1,1,69,6,2,7,1,846014846,acd2a693ea3d18a4bcff68ff5da4
+m6init,296,1,1,52,1,104,24,136,1,1,69,6,1,7,1,846014846,acd2a693ea3d18a4bcff68ff5da4
 m6op,296,preinit,52,1,1
 m6op,296,delay,35
 m6op,296,bus,1,1
@@ -10277,7 +10277,7 @@ m6op,296,delayus,1
 m6op,296,rreg,140,24
 m6op,296,register
 m6det,296,1,3,137
-m6chip,296,1,1,3d7a0000,13776
+m6chip,296,1,1,3d7a0000,13776,4
 m6op,296,ioinit,exti,0
 m6op,296,extihandler
 m6op,296,exticonfig,1
@@ -10304,7 +10304,7 @@ m6op,296,divider,20000000
 m6op,296,clock,4
 m6op,296,read,67,6,1
 m6op,296,failure,1
-m6init,297,0,1,52,1,104,60,61,6,0,0,4,0,6,1,1459282102,8ee5396c822223d9268bb977842b
+m6init,297,0,1,52,1,104,60,61,6,0,0,4,3,6,1,1459282102,8ee5396c822223d9268bb977842b
 m6op,297,preinit,52,1,1
 m6op,297,delay,35
 m6op,297,bus,1,1
@@ -10322,8 +10322,8 @@ m6op,297,delayus,1
 m6op,297,rreg,140,60
 m6op,297,preinitio,1,1
 m6det,297,0,0,109
-m6chip,297,0,0,00000000,0
-m6init,298,0,1,52,1,192,21,97,4,0,0,6,0,5,1,4005025133,6578f7073c7f7f55a3cfa3edfa15
+m6chip,297,0,0,00000000,0,4
+m6init,298,0,1,52,1,192,21,97,4,0,0,6,2,5,1,4005025133,6578f7073c7f7f55a3cfa3edfa15
 m6op,298,preinit,52,1,1
 m6op,298,delay,35
 m6op,298,bus,1,1
@@ -10340,8 +10340,8 @@ m6op,298,rreg,245,192
 m6op,298,delayus,1
 m6op,298,preinitio,1,1
 m6det,298,0,0,105
-m6chip,298,0,0,00000000,0
-m6init,299,0,2,52,1,104,21,0,1,0,69,5,0,1,1,2513409735,e77da723bd1c0cb76e133f113973
+m6chip,298,0,0,00000000,0,4
+m6init,299,0,2,52,1,104,21,0,1,0,69,5,2,1,1,2513409735,e77da723bd1c0cb76e133f113973
 m6op,299,preinit,52,1,1
 m6op,299,delay,35
 m6op,299,bus,2,1
@@ -10359,7 +10359,7 @@ m6op,299,delayus,1
 m6op,299,rreg,140,21
 m6op,299,register
 m6det,299,1,3,101
-m6chip,299,1,1,3d7a0000,13776
+m6chip,299,1,1,3d7a0000,13776,4
 m6op,299,ioinit,exti,0
 m6op,299,extihandler
 m6op,299,exticonfig,1

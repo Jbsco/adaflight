@@ -59,7 +59,7 @@ package body Adaflight.MPU_Gyro.ICM426xx with SPARK_Mode is
    function AAF_Of (Sensor : Byte; Setting : Byte) return AAF_Config is
      (if Sensor = Sensor_ICM42605
       then (if Setting <= 2 then AAF_42605 (Natural (Setting)) else AAF_42605 (0))
-      else (if Setting <= 2 then AAF_42688 (Natural (Setting)) else AAF_42688 (0)))
+      else (if Setting <= 3 then AAF_42688 (Natural (Setting)) else AAF_42688 (0)))
      with Global => null;
 
    --  The base 2 logarithm rounded down, of at least 1.
