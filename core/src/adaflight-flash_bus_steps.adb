@@ -29,11 +29,43 @@ package body Adaflight.Flash_Bus_Steps with SPARK_Mode is
       Received := (others => 0);
    end Step_Run_Read;
 
+   procedure Step_Send (D : in out Flash_Line; Tx : Byte_Array) is
+      pragma Unreferenced (D, Tx);
+   begin
+      null;
+   end Step_Send;
+
+   procedure Step_Exchange (D : in out Flash_Line; Tx : Byte_Array; Rx : out Byte_Array) is
+      pragma Unreferenced (D, Tx);
+   begin
+      Rx := (others => 0);
+   end Step_Exchange;
+
+   procedure Step_Run_One
+     (D : in out Flash_Line; F : in out Device; Q : Sequence; First : Segment_Index; Data : Byte_Array)
+   is
+      pragma Unreferenced (D, F, Q, First, Data);
+   begin
+      null;
+   end Step_Run_One;
+
    procedure Step_Wait (D : in out Flash_Line) is
       pragma Unreferenced (D);
    begin
       null;
    end Step_Wait;
+
+   procedure Step_Millis (D : in out Flash_Line; Now : out Interfaces.Unsigned_32) is
+      pragma Unreferenced (D);
+   begin
+      Now := 0;
+   end Step_Millis;
+
+   procedure Step_Report_Written (D : in out Flash_Line; Bytes : Interfaces.Unsigned_32) is
+      pragma Unreferenced (D, Bytes);
+   begin
+      null;
+   end Step_Report_Written;
 
    function Step_Uses_DMA (D : Flash_Line) return Boolean is
       pragma Unreferenced (D);

@@ -23,7 +23,23 @@ package Adaflight.Flash_Bus_Steps with SPARK_Mode is
      (D : in out Flash_Line; F : in out Device; Q : Sequence; First : Segment_Index; Received : out Byte_Array)
      with Global => null;
 
+   procedure Step_Send (D : in out Flash_Line; Tx : Byte_Array)
+     with Global => null;
+
+   procedure Step_Exchange (D : in out Flash_Line; Tx : Byte_Array; Rx : out Byte_Array)
+     with Global => null;
+
+   procedure Step_Run_One
+     (D : in out Flash_Line; F : in out Device; Q : Sequence; First : Segment_Index; Data : Byte_Array)
+     with Global => null;
+
    procedure Step_Wait (D : in out Flash_Line)
+     with Global => null;
+
+   procedure Step_Millis (D : in out Flash_Line; Now : out Interfaces.Unsigned_32)
+     with Global => null;
+
+   procedure Step_Report_Written (D : in out Flash_Line; Bytes : Interfaces.Unsigned_32)
      with Global => null;
 
    function Step_Uses_DMA (D : Flash_Line) return Boolean

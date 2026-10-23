@@ -7973,3 +7973,41 @@ exactly. In them 225 compasses are found and initialize, 93 on I2C, 42 on SPI an
 readings arrive, 1963 of them through the gyro. All 61 tampered paths fail the vectors. On the first pass the one that
 ignores the first status read's answer passed, since a refused read brought no bytes, and led to the refused direct
 reads that bring the chip's bytes.
+
+## D348. W25N flash driver (2026-10-18)
+
+`Adaflight.Flash_Device.W25N` drives the W25N SPI NAND flash chips, the W25N01GV, the W25N02KV and the MX35LF2GE4AD,
+with blocks of 64 pages of 2048 bytes. Identification looks the JEDEC ID up for the block count, the read clock, the
+status register instructions, the page address form, the buffer read mode and the replacement blocks, and names the
+replacement blocks and one marker block at the end of the chip for bad block management. The reference enters that range
+in the partition table during identification. This unit keeps it in the device for the flash layer, which does not try
+this driver yet. Configuration resets the chip, waits for it, clears the protection register, turns on ECC with the
+buffer read mode and sets the read clock, unless the system runs from memory-mapped flash. A wait polls the status
+register until the busy flag clears and gives up at the millisecond the last command set, and a wait that ends ready
+clears that millisecond to 0. An erase waits, enables writes, erases the address's block and allows 15 ms. Erasing the
+whole chip erases every block in turn. The W25N02KV's erase, page read and flush send 0 in the byte where the page
+program sends a page's bits 16 to 23, as the reference does (finding F267).
+
+A program starts at its begin address only when the chip's data buffer holds no unprogrammed data, and otherwise goes on
+at the buffer's next column. It loads the first buffer after a ready poll, skipped when no write could have left the
+chip busy, and a write enable, with the data load instruction into an empty buffer or the random data load instruction
+into one that holds data. When the load reaches the end of a page, the linked segment list goes on to program the buffer
+into the page the program started at, with its own ready poll and write enable, and reports the bytes after that.
+Otherwise the load reports them. A program of no buffers reports 0 bytes. A flush programs a buffer that holds data. A
+read flushes, moves the address's page into the buffer when the buffer held data or holds another page, reads up to the
+end of the page after a ready poll, and resets the chip on an uncorrectable ECC result. A wait that times out ends the
+read with 0 bytes. The reference keeps the buffer state and the chip settings in static variables shared by every W25N
+device. This unit keeps them in the device, which behaves the same with one flash chip. The unit is SPARK for the buffer
+state, the addresses and the timeouts.
+
+The W25N oracle includes the reference driver over a simulated SPI NAND chip and SPI bus, with the millisecond clock
+advancing one millisecond every one to six calls. The bus runs segment lists with their callbacks and links. The chip
+keeps a data buffer, its registers and write enable latch, stays busy for a drawn number of status reads after each kind
+of command, and gives each page read a drawn ECC result. Each case draws the JEDEC ID, the configuration flags, DMA with
+the bus's busy answers, the busy reads, the ECC results and the clock, a fifth of the clocks within 40 ms of the 32-bit
+wrap, then runs 4 to 16 drawn operations, most of them at the address the last program reached. Two cases erase the
+whole of a W25N01GV. Every bus call, identification and state after each operation of the 300 cases replays exactly. In
+them 282 chips are identified and 260 configured, 60 of 401 wait operations time out, and of 352 reads 230 bring bytes,
+18 of them resetting the chip after an ECC result, and 122 end at a timeout. Of 67 tampered paths, 66 fail the vectors,
+one of them by flooding the checker's output. The one that narrows the ECC mask to its high bit passes and is
+equivalent, since only that bit separates the uncorrectable results that reset the chip.
