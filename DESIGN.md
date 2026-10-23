@@ -7682,3 +7682,29 @@ with and without the L3GD20, two sets with the virtual gyro, and five mixed sets
 build them. Each set runs every sensor value from 0 to 31 with a chip found and not found, from a starting hardware
 value. Every result, hardware, presence flag and chip detection call of the 2496 detections replays exactly. All 35
 tampered paths fail the vectors, three by stopping the checker on a postcondition.
+
+## D335. Accelerometer detection (2026-10-18)
+
+`Adaflight.Acc_Detect` names the accelerometer hardware of the sensor the gyro's chip detection found. The build's
+drivers try the sensor in the order MPU6050, MPU6000, MPU9250, MPU6500, ICM20649, ICM20689, ICM426xx, ICM456xx,
+ICM56686, BMI160, BMI270, BMI423, LSM6DSO, LSM6DSV, ICM40609D and LSM6DSK320X, then the virtual accelerometer. This
+order puts the MPU9250 before the MPU6500 and the ICM40609D before the LSM6DSK320X, unlike the gyro's. The scan starts
+at the driver of the configured hardware, or at the first driver when the configuration names the default, and the first
+driver that accepts the sensor names the hardware. A configured hardware whose driver the build lacks, or one that finds
+nothing, starts the scan again from the first driver. The configured value none finds nothing. The MPU6500 driver built
+for SPI accepts the MPU6500, MPU9250, ICM-20601, ICM-20602 and ICM-20608-G, and built only for I2C it accepts only the
+MPU6500 on I2C. The ICM20689 driver accepts only the ICM-20602 and ICM-20689, where its gyro detection also takes the
+ICM-20601 and ICM-20608-G. Configuring the ICM20689 on a build with both drivers gives an ICM-20602 the ICM20689
+hardware, where the default gives it the ICM-20602. A failed detection keeps the accelerometer the device had. The unit
+is SPARK for the result over every build and configured value. A found accelerometer is a hardware value other than the
+default and none, and the configured value none never finds one.
+
+The accelerometer detection oracle compiles the reference's accelerometer detection with the drivers' own detect
+functions once per driver set. Its 39 sets are each driver alone, no driver, the pairs whose drivers accept the same
+sensors or run in another order than the gyro's, every driver, five sets with the virtual accelerometer, two of them
+with one LSM6DSV variant, and five mixed sets, four of them as board configurations build them. Each set runs every
+sensor value from 0 to 31 against every configured value from 0 to 29 and 255, from a starting detected value. Every
+result, detected accelerometer and presence flag of the 38688 detections replays exactly. All 34 tampered paths fail the
+vectors, three by stopping the checker on a postcondition. On the first pass the one that lets the configured LSM6DSV32X
+start the scan in a build without that driver passed, since no build paired the virtual accelerometer with one LSM6DSV
+variant, and led to the two such builds.

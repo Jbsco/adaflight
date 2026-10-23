@@ -65,10 +65,12 @@ The core contains:
 </details>
 
 <details>
-<summary><b>Sensor drivers and detection</b> (2)</summary>
+<summary><b>Sensor drivers and detection</b> (3)</summary>
 
 - gyro detection: hardware of detected sensor from build's drivers in fixed order, no chip
   detection with virtual gyro
+- accelerometer detection: hardware of detected sensor from configured driver onward, retry from
+  first driver
 - gyro start: sample rates and rate code by detected sensor, overflow protection by gyro hardware,
   data ready check
 
@@ -4080,7 +4082,7 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 31986 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 31992 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
 - Recorded vectors replay bit for bit: 1753568 lines over 384 cases, every case exact except
   fifty-four declared deviations in `DESIGN.md` D6.
