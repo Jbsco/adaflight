@@ -196,6 +196,7 @@ with Adaflight.MPU_Gyro.ICM20689;
 with Adaflight.Flash_Device;
 with Adaflight.Flash_Device.M25P16;
 with Adaflight.Flash_Device.Layer;
+with Adaflight.Gyro_Start;
 with Adaflight.Gimbal_Control;
 with Adaflight.OSD_Custom_Text;
 with Adaflight.PID_Audio;
@@ -18684,6 +18685,49 @@ procedure Vector_Check is
       end if;
    end Check_Flash_Line;
 
+   --  The gyro start oracle's sensor: the detection result and hardware, the
+   --  configuration's settings and the data ready flag.
+   GS_Lpf      : Interfaces.Unsigned_8 := 0;
+   GS_High_FSR : Integer_64 := 0;
+   GS_EXTI     : Integer_64 := 0;
+   GS_Align    : Integer_64 := 0;
+   GS_Rates    : Adaflight.Gyro_Start.Rates;
+   GS_Overflow : Boolean := False;
+   GS_First    : Boolean := False;
+   GS_Second   : Boolean := False;
+
+   procedure Check_Gyro_Start_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "gsinit" then
+         declare
+            Ready : Boolean := Int (10) /= 0;
+         begin
+            GS_Lpf := Interfaces.Unsigned_8 (Int (5));
+            GS_High_FSR := Int (6);
+            GS_EXTI := Int (7);
+            GS_Align := Int (8);
+            GS_Rates := Adaflight.Gyro_Start.Sample_Rates (Interfaces.Unsigned_8 (Int (3)), GS_Lpf);
+            GS_Overflow := Adaflight.Gyro_Start.Overflow_Protected (Interfaces.Unsigned_8 (Int (4)));
+            Adaflight.Gyro_Start.Check_Update (Ready, GS_First);
+            Adaflight.Gyro_Start.Check_Update (Ready, GS_Second);
+         end;
+      elsif Name = "gsready" then
+         Record_Int ("gyrostart.gyro_hz", Int (3), Integer_64 (GS_Rates.Gyro_Hz));
+         Record_Int ("gyrostart.acc_hz", Int (4), Integer_64 (GS_Rates.Acc_Hz));
+         Record_Int ("gyrostart.rate_code", Int (5), Integer_64 (GS_Rates.Rate_Code));
+         Record_Int ("gyrostart.drops", Int (6), Integer_64 (Adaflight.Gyro_Start.Divider_Drops));
+         Record_Int ("gyrostart.overflow", Int (7), Boolean'Pos (GS_Overflow));
+         Record_Int ("gyrostart.lpf", Int (8), Integer_64 (GS_Lpf));
+         Record_Int ("gyrostart.high_fsr", Int (9), GS_High_FSR);
+         Record_Int ("gyrostart.exti", Int (10), GS_EXTI);
+         Record_Int ("gyrostart.align", Int (11), GS_Align);
+         Record_Int ("gyrostart.init", Int (12), 1);
+         Record_Int ("gyrostart.first", Int (13), Boolean'Pos (GS_First));
+         Record_Int ("gyrostart.second", Int (14), Boolean'Pos (GS_Second));
+      end if;
+   end Check_Gyro_Start_Line;
+
    GB_Seq      : Integer_64 := -1;
    GB_State    : Adaflight.Gimbal_Control.State;
    GB_Settings : Adaflight.Gimbal_Control.Settings;
@@ -28828,6 +28872,8 @@ procedure Vector_Check is
                   Check_M25P16_Line;
                elsif Kind = "flash" then
                   Check_Flash_Line;
+               elsif Kind = "gyrostart" then
+                  Check_Gyro_Start_Line;
                elsif Kind = "gimbal" then
                   Check_Gimbal_Line;
                elsif Kind = "osdtext" then
@@ -29100,6 +29146,7 @@ begin
    Run (Dir & "/icm20689.csv", "icm20689");
    Run (Dir & "/m25p16.csv", "m25p16");
    Run (Dir & "/flash.csv", "flash");
+   Run (Dir & "/gyrostart.csv", "gyrostart");
    Run (Dir & "/gimbal.csv", "gimbal");
    Run (Dir & "/osdtext.csv", "osdtext");
    Run (Dir & "/pidaudio.csv", "pidaudio");

@@ -7612,3 +7612,23 @@ exactly, 183 of them with a chip, while 28 bursts fill the table and 23 programs
 buffers. All 28 tampered paths fail the vectors, two by stopping the checker. On the first pass the one that keeps
 both buffers when the first fills the page exactly passed, since no case filled it exactly, and led to those
 programs.
+
+## D332. Gyro start (2026-10-18)
+
+`Adaflight.Gyro_Start` is a gyro sensor's start after its detection. The sample rates and the rate code follow the
+detected sensor: 3200 Hz with the accelerometer at 800 Hz for the BMI160 and the BMI270, which runs at 6400 Hz under
+the experimental hardware filter (D328), 6400 and 800 Hz for the BMI423, 9000 and 1125 Hz for the ICM-20649, 6664
+and 833 Hz for the LSM6DSO, 6400 and 1600 Hz for the ICM-45686, ICM-45605 and ICM-56686, and 8000 and 1000 Hz for
+every other sensor. The divider drops are 0 for every sensor, since the drivers no longer use the gyro's sample rate
+divider. The overflow protection follows the gyro hardware. The ICM-20601, ICM-20602, ICM-20608-G, ICM-20649,
+ICM-20689 and ICM-40609-D lack it, as does hardware past the list. The data ready check answers the flag and clears
+it. The settings the start copies into the driver, the configuration's hardware filter and high range and the
+device's interrupt pin and alignment, are left to the integration. The unit is SPARK for the tables.
+
+The gyro start oracle includes the reference gyro initialization, built with the experimental filter and the LSM6DSO
+driver, since a board detects that sensor only with its driver, and calls the sensor start with a stub
+initialization, one case per process. It draws the detection result, the gyro hardware except the simulator's
+virtual gyro, the configuration's hardware filter setting, out of range in one case of ten, the high range setting,
+the interrupt pin, the alignment, the divider drops before the start and the data ready flag. Every rate, rate code,
+divider drop, protection, copied setting and data ready answer of the 300 cases replays exactly, with all five rates
+drawn. All 25 tampered paths fail the vectors, the two in the data ready check by its postcondition.
