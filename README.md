@@ -33,7 +33,7 @@ The core contains:
 </details>
 
 <details>
-<summary><b>Flight control</b> (11)</summary>
+<summary><b>Flight control</b> (7)</summary>
 
 - rate curves and RC command path with smoothing, feedforward, low voltage cutoff and 3D throttle
 - in-flight adjustments and simplified tuning of PID gains and filters
@@ -52,13 +52,6 @@ The core contains:
   overrides, and arming logic with launch control, runaway takeoff prevention, DShot checks, crash
   flip arming, GPS checks, hold mode selection, statistics events, OSD menu gate, telemetry port
   sharing, VTX control, wing launch mode and in-flight accelerometer calibration
-- core loop cadence: PID loop sample counter, filter and controller readiness, yaw reset at low
-  throttle while arming by stick
-- PID loop pass: unit order of task, with launch wing, runaway check, PID audio, servos and flight
-  log conditions
-- analog motor endpoints: output range and disarm output of PWM, OneShot, MultiShot and brushed
-  protocols, with 3D limits and deadband
-- arming load check: scheduler's late task share against configured limit as disable reason
 
 </details>
 
@@ -72,33 +65,12 @@ The core contains:
 </details>
 
 <details>
-<summary><b>Sensor drivers and detection</b> (11)</summary>
+<summary><b>Sensor drivers and detection</b> (2)</summary>
 
+- gyro detection: hardware of detected sensor from build's drivers in fixed order, no chip
+  detection with virtual gyro
 - gyro start: sample rates and rate code by detected sensor, overflow protection by gyro hardware,
   data ready check
-- BMP280 barometer driver: I2C and SPI detection with address fallback, read cycle calls,
-  datasheet integer compensation
-- DPS310 barometer driver: DPS310 and SPL07-003 detection, coefficients and settings, continuous
-  reads, single-precision compensation
-- MS5611 barometer driver: signature and PROM check, separate temperature and pressure
-  conversions, datasheet second-order compensation in 64-bit integers
-- BMP388 barometer driver: BMP388 and BMP390 detection with SPI dummy byte, end of conversion
-  interrupt, forced measurements, 64-bit integer compensation
-- SPI gyro layer: chip detection over build's probes, data ready interrupt timing, read mode
-  selection, DMA and blocking reads of gyro, accelerometer and temperature, hardware filter
-  setting with experimental filter
-- MPU6000 gyro driver: detection with resets and product revisions, register initialization,
-  initial read failure check, 2000 degrees per second and 16 g ranges
-- ICM426xx gyro driver: six variants, detection with retries, external clock on ICM-42688-P,
-  anti-alias and interface filters, interrupt pin, ranges and output data rate from sample rate
-  divider
-- MPU6500 gyro driver: six chips from MPU6500 to ICM-20608-G, identity detection, register
-  initialization, 2000 degrees per second and 16 g ranges, 4000 degrees per second on high range
-  ICM-20601
-- ICM20689 gyro driver: four chips from ICM-20601 to ICM-20689, detection with reset, I2C disable
-  and signal path reset, 8 MHz clock, 2000 degrees per second and 16 g ranges
-- QMC5883 compass driver: QMC5883L and QMC5883P detection and setup, status and data read cycle,
-  overrun clear on QMC5883L, rejection of all-zero, all-one and stuck readings on QMC5883P
 
 </details>
 
@@ -4108,7 +4080,7 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 31978 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 31986 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
 - Recorded vectors replay bit for bit: 1753568 lines over 384 cases, every case exact except
   fifty-four declared deviations in `DESIGN.md` D6.

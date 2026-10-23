@@ -197,6 +197,7 @@ with Adaflight.Flash_Device;
 with Adaflight.Flash_Device.M25P16;
 with Adaflight.Flash_Device.Layer;
 with Adaflight.Gyro_Start;
+with Adaflight.Gyro_Detect;
 with Adaflight.QMC5883;
 with Adaflight.Gimbal_Control;
 with Adaflight.OSD_Custom_Text;
@@ -18900,6 +18901,31 @@ procedure Vector_Check is
       end if;
    end Check_QMC5883_Line;
 
+   --  The gyro detection oracle's build: the drivers its mask names.
+   GD_Build : Adaflight.Gyro_Detect.Driver_Set := (others => False);
+
+   procedure Check_Gyro_Detect_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "gdbuild" then
+         for D in Adaflight.Gyro_Detect.Driver loop
+            GD_Build (D) := Int (3) / 2 ** Adaflight.Gyro_Detect.Driver'Pos (D) mod 2 = 1;
+         end loop;
+      elsif Name = "gdres" then
+         declare
+            Hardware : Interfaces.Unsigned_8 := Interfaces.Unsigned_8 (Int (5));
+            Found    : Boolean;
+         begin
+            Adaflight.Gyro_Detect.Detect_Sensor
+              (GD_Build, Int (4) /= 0, Interfaces.Unsigned_8 (Int (3)), Hardware, Found);
+            Record_Int ("gyrodetect.found", Int (6), Boolean'Pos (Found));
+            Record_Int ("gyrodetect.hardware", Int (7), Integer_64 (Hardware));
+            Record_Int ("gyrodetect.present", Int (8), Boolean'Pos (Found));
+            Record_Int ("gyrodetect.chip", Int (9), Boolean'Pos (Adaflight.Gyro_Detect.Needs_Chip (GD_Build)));
+         end;
+      end if;
+   end Check_Gyro_Detect_Line;
+
    GB_Seq      : Integer_64 := -1;
    GB_State    : Adaflight.Gimbal_Control.State;
    GB_Settings : Adaflight.Gimbal_Control.Settings;
@@ -29048,6 +29074,8 @@ procedure Vector_Check is
                   Check_Gyro_Start_Line;
                elsif Kind = "qmc5883" then
                   Check_QMC5883_Line;
+               elsif Kind = "gyrodetect" then
+                  Check_Gyro_Detect_Line;
                elsif Kind = "gimbal" then
                   Check_Gimbal_Line;
                elsif Kind = "osdtext" then
@@ -29322,6 +29350,7 @@ begin
    Run (Dir & "/flash.csv", "flash");
    Run (Dir & "/gyrostart.csv", "gyrostart");
    Run (Dir & "/qmc5883.csv", "qmc5883");
+   Run (Dir & "/gyrodetect.csv", "gyrodetect");
    Run (Dir & "/gimbal.csv", "gimbal");
    Run (Dir & "/osdtext.csv", "osdtext");
    Run (Dir & "/pidaudio.csv", "pidaudio");
