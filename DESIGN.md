@@ -7760,3 +7760,19 @@ with the bus type and address each driver sees, result, detected compass, alignm
 replays exactly. In them 287 compasses are found, every hardware value among them. All 33 tampered paths fail the
 vectors. On the first pass the one that gives the simulator the board's alignment passed, since the simulator build had
 none, and led to a simulator build with one.
+
+## D338. Rangefinder detection (2026-10-18)
+
+`Adaflight.Rangefinder_Detect` maps the configured rangefinder hardware to its driver, which is the HC-SR04, the TF
+family (TFmini, TF02, TF-Nova), the MT family (MTF01, MTF02 and their P variants), the Nooploop family of six models, or
+the UPT-1. Every build with a rangefinder has every driver. The generic child `Adaflight.Rangefinder_Detect.Probe` tries
+the configured hardware's driver alone, with no fallthrough to another driver. A found rangefinder reschedules the
+rangefinder task and names the configured hardware. The HC-SR04 runs at 70 ms and the UPT-1 at its 20 ms frame period,
+the others at the delay their driver reports. The UPT-1 driver reports 10 ms, which the detection does not use. Hardware
+none and values past the list find nothing. A failure keeps the detected rangefinder and clears its presence flag, which
+the caller applies from the result. The unit is SPARK for the found hardware, which is always the configured one.
+
+The rangefinder detection oracle includes the reference rangefinder with every driver built and its detection stubbed.
+Each case draws the configured hardware, each driver's answer and the delay a found driver reports. Every driver call,
+task reschedule, result, detected rangefinder and presence flag of the 300 cases replays exactly, 158 of them found,
+every hardware value among them. All 14 tampered paths fail the vectors.

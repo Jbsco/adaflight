@@ -201,6 +201,7 @@ with Adaflight.Gyro_Detect;
 with Adaflight.Acc_Detect;
 with Adaflight.Baro_Detect.Scan;
 with Adaflight.Compass_Detect.Scan;
+with Adaflight.Rangefinder_Detect.Probe;
 with Adaflight.QMC5883;
 with Adaflight.Gimbal_Control;
 with Adaflight.OSD_Custom_Text;
@@ -19233,6 +19234,80 @@ procedure Vector_Check is
       end if;
    end Check_Compass_Detect_Line;
 
+   --  The rangefinder detection oracle's drivers: each one's answer and the
+   --  delay a found one reports.
+   type RD_Delays is array (Adaflight.Rangefinder_Detect.Driver) of Adaflight.Rangefinder_Detect.Delay_Ms;
+
+   type RD_Device is record
+      Answers : Integer_64 := 0;
+      Delays  : RD_Delays := (others => 0);
+   end record;
+
+   RD_Dev      : RD_Device;
+   RD_Detected : Byte := 0;
+   RD_Found    : Boolean := False;
+
+   procedure RD_Detect_Chip
+     (D        : in out RD_Device;
+      Chip     : Adaflight.Rangefinder_Detect.Driver;
+      Hardware : Byte;
+      Found    : out Boolean;
+      Reported : out Adaflight.Rangefinder_Detect.Delay_Ms)
+   is
+      Index : constant Natural := Adaflight.Rangefinder_Detect.Driver'Pos (Chip);
+   begin
+      MX_Op ("detect," & BMP_Num (Integer_64 (Index)) & "," & BMP_Num (Integer_64 (Hardware)));
+      Found := D.Answers / 2 ** Index mod 2 = 1;
+      Reported := (if Found then D.Delays (Chip) else 0);
+   end RD_Detect_Chip;
+
+   procedure RD_Reschedule (D : in out RD_Device; Period_Us : Natural) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("resched,1," & BMP_Num (Integer_64 (Period_Us)));
+   end RD_Reschedule;
+
+   package RD_Probe is new Adaflight.Rangefinder_Detect.Probe
+     (Device      => RD_Device,
+      Detect_Chip => RD_Detect_Chip,
+      Reschedule  => RD_Reschedule);
+
+   procedure Check_Range_Detect_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "rdinit" then
+         MX_Op_Head := 1;
+         MX_Op_Count := 0;
+         RD_Dev := (others => <>);
+         RD_Dev.Answers := Int (4);
+         for C in Adaflight.Rangefinder_Detect.Driver loop
+            RD_Dev.Delays (C) := Natural (Int (5 + Adaflight.Rangefinder_Detect.Driver'Pos (C)));
+         end loop;
+         RD_Detected := Byte (Int (10));
+         RD_Probe.Detect (RD_Dev, Byte (Int (3)), RD_Detected, RD_Found);
+      elsif Name = "rdop" then
+         declare
+            Expected : Ada.Strings.Unbounded.Unbounded_String := Ada.Strings.Unbounded.To_Unbounded_String (Str (3));
+         begin
+            for I in 4 .. NF loop
+               Ada.Strings.Unbounded.Append (Expected, "," & Str (I));
+            end loop;
+            if MX_Op_Head <= MX_Op_Count then
+               Record_Text ("rangedetect.op", Ada.Strings.Unbounded.To_String (Expected),
+                            Ada.Strings.Unbounded.To_String (MX_Ops (MX_Op_Head)));
+               MX_Op_Head := MX_Op_Head + 1;
+            else
+               Record_Text ("rangedetect.op", Ada.Strings.Unbounded.To_String (Expected), "none");
+            end if;
+         end;
+      elsif Name = "rdres" then
+         MX_Expect_No_Ops ("rangefinder detection");
+         Record_Int ("rangedetect.found", Int (3), Boolean'Pos (RD_Found));
+         Record_Int ("rangedetect.detected", Int (4), Integer_64 (RD_Detected));
+         Record_Int ("rangedetect.present", Int (5), Boolean'Pos (RD_Found));
+      end if;
+   end Check_Range_Detect_Line;
+
    GB_Seq      : Integer_64 := -1;
    GB_State    : Adaflight.Gimbal_Control.State;
    GB_Settings : Adaflight.Gimbal_Control.Settings;
@@ -29389,6 +29464,8 @@ procedure Vector_Check is
                   Check_Baro_Detect_Line;
                elsif Kind = "compassdetect" then
                   Check_Compass_Detect_Line;
+               elsif Kind = "rangedetect" then
+                  Check_Range_Detect_Line;
                elsif Kind = "gimbal" then
                   Check_Gimbal_Line;
                elsif Kind = "osdtext" then
@@ -29667,6 +29744,7 @@ begin
    Run (Dir & "/accdetect.csv", "accdetect");
    Run (Dir & "/barodetect.csv", "barodetect");
    Run (Dir & "/compassdetect.csv", "compassdetect");
+   Run (Dir & "/rangedetect.csv", "rangedetect");
    Run (Dir & "/gimbal.csv", "gimbal");
    Run (Dir & "/osdtext.csv", "osdtext");
    Run (Dir & "/pidaudio.csv", "pidaudio");
