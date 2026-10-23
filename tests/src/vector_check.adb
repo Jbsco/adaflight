@@ -182,6 +182,7 @@ with Adaflight.Four_Way;
 with Adaflight.BLHeli_Bootloader;
 with Adaflight.STK_Bootloader;
 with Adaflight.USB_Joystick;
+with Adaflight.BMP280;
 with Adaflight.Gimbal_Control;
 with Adaflight.OSD_Custom_Text;
 with Adaflight.PID_Audio;
@@ -15534,6 +15535,249 @@ procedure Vector_Check is
       end if;
    end Check_USB_Joystick_Line;
 
+   --  The BMP280 oracle's bus: the simulated chip's registers and address,
+   --  the scripted busy, error and start answers, the bytes the last started
+   --  read brought, and the bus, pin and delay calls in the oracle's
+   --  notation, queued for the "bmpop" lines that follow.
+   type BMP_Bus is record
+      SPI            : Boolean := False;
+      Address        : Byte := 0;
+      Device_Address : Byte := 0;
+      Registers      : Byte_Array (0 .. 255) := (others => 0);
+      Busy           : Boolean := False;
+      Error          : Boolean := False;
+      Started        : Boolean := False;
+      Last_Read      : Byte_Array (0 .. 5) := (others => 0);
+   end record;
+
+   BMP_Max_Ops : constant := 16;
+   type BMP_Op_Queue is array (1 .. BMP_Max_Ops) of Ada.Strings.Unbounded.Unbounded_String;
+   BMP_Ops      : BMP_Op_Queue;
+   BMP_Op_Head  : Positive := 1;
+   BMP_Op_Count : Natural := 0;
+
+   procedure BMP_Op (Image : String) is
+   begin
+      if BMP_Op_Count < BMP_Max_Ops then
+         BMP_Op_Count := BMP_Op_Count + 1;
+         BMP_Ops (BMP_Op_Count) := Ada.Strings.Unbounded.To_Unbounded_String (Image);
+      else
+         Put_Line ("BMP280 operation queue full");
+         Failures := Failures + 1;
+      end if;
+   end BMP_Op;
+
+   function BMP_Num (V : Integer_64) return String is
+      Img : constant String := Integer_64'Image (V);
+   begin
+      return (if V < 0 then Img else Img (Img'First + 1 .. Img'Last));
+   end BMP_Num;
+
+   function BMP_Responds (D : BMP_Bus) return Boolean is
+      use type Interfaces.Unsigned_8;
+   begin
+      return (if D.SPI then True else D.Device_Address /= 0 and then D.Address = D.Device_Address);
+   end BMP_Responds;
+
+   function BMP_Is_I2C (D : BMP_Bus) return Boolean is (not D.SPI);
+   function BMP_Is_SPI (D : BMP_Bus) return Boolean is (D.SPI);
+   function BMP_Address (D : BMP_Bus) return Byte is (D.Address);
+
+   procedure BMP_Set_Address (D : in out BMP_Bus; Address : Byte) is
+   begin
+      D.Address := Address;
+   end BMP_Set_Address;
+
+   procedure BMP_Prepare_SPI (D : in out BMP_Bus; Max_Clock_Hz : Interfaces.Unsigned_32) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("cshigh");
+      BMP_Op ("csinit,1,0");
+      BMP_Op ("csconfig");
+      BMP_Op ("spidivider," & BMP_Num (Integer_64 (Max_Clock_Hz)));
+      BMP_Op ("spiclock," & BMP_Num (Integer_64 (Max_Clock_Hz / 1_000_000)));
+   end BMP_Prepare_SPI;
+
+   procedure BMP_Release_SPI (D : in out BMP_Bus) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("cspreinit,1");
+   end BMP_Release_SPI;
+
+   procedure BMP_Read (D : in out BMP_Bus; Register : Byte; Data : in out Byte_Array; OK : out Boolean) is
+   begin
+      OK := BMP_Responds (D);
+      BMP_Op ("read," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Data'Length)) & ","
+              & BMP_Num (Integer_64 (if D.SPI then 0 else D.Address)) & "," & BMP_Num (Boolean'Pos (OK)));
+      if OK then
+         for I in Data'Range loop
+            Data (I) := D.Registers (Natural ((Integer (Register) + I - Data'First) mod 256));
+         end loop;
+      end if;
+   end BMP_Read;
+
+   procedure BMP_Write (D : in out BMP_Bus; Register : Byte; Value : Byte; OK : out Boolean) is
+   begin
+      BMP_Op ("write," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Value)));
+      OK := BMP_Responds (D);
+   end BMP_Write;
+
+   procedure BMP_Start_Read (D : in out BMP_Bus; Register : Byte; Length : Positive; Started : out Boolean) is
+   begin
+      BMP_Op ("readstart," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Length)) & ","
+              & BMP_Num (Boolean'Pos (D.Started)));
+      Started := D.Started;
+      if Started then
+         for I in 0 .. Natural'Min (Length, D.Last_Read'Length) - 1 loop
+            D.Last_Read (I) := D.Registers ((Natural (Register) + I) mod 256);
+         end loop;
+      end if;
+   end BMP_Start_Read;
+
+   procedure BMP_Start_Write (D : in out BMP_Bus; Register : Byte; Value : Byte; Started : out Boolean) is
+   begin
+      BMP_Op ("writestart," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Value)) & ","
+              & BMP_Num (Boolean'Pos (D.Started)));
+      Started := D.Started;
+   end BMP_Start_Write;
+
+   procedure BMP_Check_Busy (D : in out BMP_Bus; Busy : out Boolean; Error : out Boolean) is
+   begin
+      BMP_Op ("busy," & BMP_Num (Boolean'Pos (D.Busy)) & "," & BMP_Num (Boolean'Pos (D.Error)));
+      Busy := D.Busy;
+      Error := D.Error;
+   end BMP_Check_Busy;
+
+   procedure BMP_Fetch (D : in out BMP_Bus; Data : out Byte_Array) is
+   begin
+      for I in Data'Range loop
+         Data (I) := D.Last_Read (I - Data'First);
+      end loop;
+   end BMP_Fetch;
+
+   procedure BMP_Register (D : in out BMP_Bus) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("register");
+   end BMP_Register;
+
+   procedure BMP_Delay (D : in out BMP_Bus; Ms : Natural) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("delay," & BMP_Num (Integer_64 (Ms)));
+   end BMP_Delay;
+
+   package BMP_Driver is new Adaflight.BMP280
+     (Bus_Device      => BMP_Bus,
+      Is_I2C          => BMP_Is_I2C,
+      Is_SPI          => BMP_Is_SPI,
+      I2C_Address     => BMP_Address,
+      Set_I2C_Address => BMP_Set_Address,
+      Prepare_SPI     => BMP_Prepare_SPI,
+      Release_SPI     => BMP_Release_SPI,
+      Read_Registers  => BMP_Read,
+      Write_Register  => BMP_Write,
+      Start_Read      => BMP_Start_Read,
+      Start_Write     => BMP_Start_Write,
+      Check_Busy      => BMP_Check_Busy,
+      Fetch           => BMP_Fetch,
+      Register_Device => BMP_Register,
+      Delay_Ms        => BMP_Delay);
+
+   BMP_Calls : constant array (0 .. 5) of Adaflight.Barometer_Task.Device_Call :=
+     (Adaflight.Barometer_Task.Start_Temperature, Adaflight.Barometer_Task.Read_Temperature,
+      Adaflight.Barometer_Task.Get_Temperature, Adaflight.Barometer_Task.Start_Pressure,
+      Adaflight.Barometer_Task.Read_Pressure, Adaflight.Barometer_Task.Get_Pressure);
+
+   BMP_Device      : BMP_Bus;
+   BMP_State       : BMP_Driver.State;
+   BMP_Found       : Boolean := False;
+   BMP_Settings    : Adaflight.Barometer_Task.Device;
+   BMP_Done        : Boolean := False;
+   BMP_Pressure    : Interfaces.Integer_32 := -1;
+   BMP_Temperature : Interfaces.Integer_32 := -1;
+
+   procedure BMP_Expect_No_Ops (Where : String) is
+   begin
+      if BMP_Op_Head <= BMP_Op_Count then
+         Put_Line ("BMP280 operations left before " & Where & ": "
+                   & Ada.Strings.Unbounded.To_String (BMP_Ops (BMP_Op_Head)));
+         Failures := Failures + 1;
+      end if;
+      BMP_Op_Head := 1;
+      BMP_Op_Count := 0;
+   end BMP_Expect_No_Ops;
+
+   procedure Check_BMP280_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "bmpinit" then
+         BMP_Op_Head := 1;
+         BMP_Op_Count := 0;
+         BMP_Device := (others => <>);
+         BMP_Device.SPI := Int (3) /= 0;
+         BMP_Device.Address := Byte (Int (4));
+         BMP_Device.Device_Address := Byte (Int (5));
+         BMP_Device.Registers (16#D0#) := Byte (Int (6));
+         declare
+            Calibration : constant Byte_Array := Hex_Bytes (7);
+         begin
+            for I in Calibration'Range loop
+               BMP_Device.Registers (16#88# + I) := Calibration (I);
+            end loop;
+         end;
+         BMP_State := (others => <>);
+         BMP_Pressure := -1;
+         BMP_Temperature := -1;
+         BMP_Driver.Detect (BMP_Device, BMP_State, BMP_Found, BMP_Settings);
+      elsif Name = "bmpop" then
+         declare
+            Expected : Ada.Strings.Unbounded.Unbounded_String := Ada.Strings.Unbounded.To_Unbounded_String (Str (3));
+         begin
+            for I in 4 .. NF loop
+               Ada.Strings.Unbounded.Append (Expected, "," & Str (I));
+            end loop;
+            if BMP_Op_Head <= BMP_Op_Count then
+               Record_Text ("bmp280.op", Ada.Strings.Unbounded.To_String (Expected),
+                            Ada.Strings.Unbounded.To_String (BMP_Ops (BMP_Op_Head)));
+               BMP_Op_Head := BMP_Op_Head + 1;
+            else
+               Record_Text ("bmp280.op", Ada.Strings.Unbounded.To_String (Expected), "none");
+            end if;
+         end;
+      elsif Name = "bmpdet" then
+         BMP_Expect_No_Ops ("detection");
+         Record_Int ("bmp280.found", Int (3), Boolean'Pos (BMP_Found));
+         Record_Int ("bmp280.address", Int (4), Integer_64 (if BMP_Device.SPI then 0 else BMP_Device.Address));
+         Record_Int ("bmp280.combined", Int (5), Boolean'Pos (BMP_Settings.Combined_Read));
+         Record_Int ("bmp280.ut_delay", Int (6), Integer_64 (BMP_Settings.Temperature_Delay_Us));
+         Record_Int ("bmp280.up_delay", Int (7), Integer_64 (BMP_Settings.Pressure_Delay_Us));
+      elsif Name = "bmpstep" then
+         BMP_Device.Busy := Int (5) /= 0;
+         BMP_Device.Error := Int (6) /= 0;
+         BMP_Device.Started := Int (7) /= 0;
+         declare
+            Data : constant Byte_Array := Hex_Bytes (8);
+         begin
+            for I in Data'Range loop
+               BMP_Device.Registers (16#F7# + I) := Data (I);
+            end loop;
+         end;
+         case Int (4) is
+            when 0 .. 5 =>
+               BMP_Driver.Device_Call (BMP_Device, BMP_State, BMP_Calls (Integer (Int (4))), BMP_Done);
+            when others =>
+               BMP_Driver.Calculate (BMP_State, BMP_Pressure, BMP_Temperature);
+               BMP_Done := False;
+         end case;
+      elsif Name = "bmpres" then
+         BMP_Expect_No_Ops ("a result");
+         Record_Int ("bmp280.done", Int (4), Boolean'Pos (BMP_Done));
+         Record_Int ("bmp280.pressure", Int (5), Integer_64 (BMP_Pressure));
+         Record_Int ("bmp280.temperature", Int (6), Integer_64 (BMP_Temperature));
+      end if;
+   end Check_BMP280_Line;
+
    GB_Seq      : Integer_64 := -1;
    GB_State    : Adaflight.Gimbal_Control.State;
    GB_Settings : Adaflight.Gimbal_Control.Settings;
@@ -25652,6 +25896,8 @@ procedure Vector_Check is
                   Check_STK_Boot_Line;
                elsif Kind = "usbhid" then
                   Check_USB_Joystick_Line;
+               elsif Kind = "bmp280" then
+                  Check_BMP280_Line;
                elsif Kind = "gimbal" then
                   Check_Gimbal_Line;
                elsif Kind = "osdtext" then
@@ -25911,6 +26157,7 @@ begin
    Run (Dir & "/blboot.csv", "blboot");
    Run (Dir & "/stkboot.csv", "stkboot");
    Run (Dir & "/usbhid.csv", "usbhid");
+   Run (Dir & "/bmp280.csv", "bmp280");
    Run (Dir & "/gimbal.csv", "gimbal");
    Run (Dir & "/osdtext.csv", "osdtext");
    Run (Dir & "/pidaudio.csv", "pidaudio");
