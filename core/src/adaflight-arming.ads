@@ -1,8 +1,10 @@
 --  The arming logic: the arming flags and the reasons that block arming,
 --  the throttle status and percent from the throttle channel, the arm and
 --  disarm paths with their beeps, the stick combinations that arm, disarm,
---  and command the calibrations and profiles, the automatic disarm on a low
---  throttle, and the flight modes the mode boxes select.
+--  and command the calibrations and profiles, which stop while the board
+--  may be a USB joystick or the stick command disable mode is on, the
+--  automatic disarm on a low throttle, and the flight modes the mode boxes
+--  select.
 with Interfaces;
 with Adaflight.Clock;
 with Adaflight.Axes;
@@ -263,6 +265,8 @@ package Adaflight.Arming with SPARK_Mode is
       CMS_In_Menu                : Boolean := False;
       CLI_Mode                   : Boolean := False;
       VTX_Can_Update             : Boolean := True;
+      --  Whether the board may be in use as a USB joystick.
+      Joystick_Active            : Boolean := False;
       --  The sensors the wing launch reads to tell whether the airframe is at
       --  rest as it arms.
       Launch_Sensed              : Wing_Launch.Inputs;

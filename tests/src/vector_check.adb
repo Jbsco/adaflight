@@ -181,6 +181,7 @@ with Adaflight.MSP_Out;
 with Adaflight.Four_Way;
 with Adaflight.BLHeli_Bootloader;
 with Adaflight.STK_Bootloader;
+with Adaflight.USB_Joystick;
 with Adaflight.Gimbal_Control;
 with Adaflight.OSD_Custom_Text;
 with Adaflight.PID_Audio;
@@ -4307,6 +4308,8 @@ procedure Vector_Check is
    Arm_Prev_CLI      : Boolean := False;
    --  The wing sequences' scripted rest and launch state before each step.
    Arm_Wing_Mode     : Boolean := False;
+   --  The joystick sequences' scripted test before each step.
+   Arm_Joystick      : Boolean := False;
    Arm_Wing_At_Rest  : Boolean := True;
    Arm_Wing_State    : Integer := -1;
 
@@ -4411,6 +4414,7 @@ procedure Vector_Check is
          Arm_DShot_Mode := False;
          Arm_Wing_Mode := False;
          Arm_Hooks_Mode := False;
+         Arm_Joystick := False;
          Arm_Prev_CLI := False;
          Arm_GPS_Mode := False;
          for M in Adaflight.Modes.Condition_Index loop
@@ -4475,6 +4479,7 @@ procedure Vector_Check is
                CMS_In_Menu                => Arm_Hooks_Mode and then Arm_Hooks_In.CMS_In_Menu,
                CLI_Mode                   => Arm_Prev_CLI,
                VTX_Can_Update             => not Arm_Hooks_Mode or else Arm_Hooks_In.VTX_Can_Update,
+               Joystick_Active            => Arm_Joystick,
                Launch_Sensed              =>
                  (Acc_Magnitude => (if Arm_Wing_Mode and then not Arm_Wing_At_Rest then 1.4 else 1.0), others => <>));
             --  The calibration state the receiver pass reads, recorded before
@@ -4734,6 +4739,8 @@ procedure Vector_Check is
       elsif Name = "armwinginit" then
          Arming_Settings.Launch_Wing := True;
          Arm_Wing_Mode := True;
+      elsif Name = "armjoyin" then
+         Arm_Joystick := Int (4) /= 0;
       elsif Name = "armwingin" then
          Arm_Wing_At_Rest := Int (4) /= 0;
          Arm_Wing_State := Integer (Int (5));
@@ -14475,8 +14482,9 @@ procedure Vector_Check is
       end if;
    end Check_RC_Stats_Line;
 
-   RT_Seq  : Integer_64 := -1;
-   RT_Task : Adaflight.RX_Task.State;
+   RT_Seq    : Integer_64 := -1;
+   RT_Task   : Adaflight.RX_Task.State;
+   RT_Before : Adaflight.RX_Task.Step := Adaflight.RX_Task.Check;
 
    procedure Check_RX_Task_Line is
       use Adaflight.RX_Task;
@@ -14493,6 +14501,7 @@ procedure Vector_Check is
             Before : constant Step := Current_Step (RT_Task);
             Next   : Interfaces.Integer_32;
          begin
+            RT_Before := Before;
             Record_Int (Name & ".before", Int (8), Step'Pos (Before));
             Record_Int (Name & ".rx_called", Int (10), Boolean'Pos (Before = Check));
             Record_Int (Name & ".modes_called", Int (11), Boolean'Pos (Before = Modes));
@@ -14509,6 +14518,8 @@ procedure Vector_Check is
                         - (if RT_Task.Duration (Before) < 0 then 1 else 0));
             Record_Int (Name & ".in_progress", Int (18), Boolean'Pos (In_Progress (RT_Task)));
          end;
+      elsif Name = "rthid" then
+         Record_Int ("rthid.reports", Int (4), Boolean'Pos (Sends_Joystick_Report (RT_Before, Armed => Int (3) /= 0)));
       end if;
    end Check_RX_Task_Line;
 
@@ -15494,6 +15505,34 @@ procedure Vector_Check is
          end;
       end if;
    end Check_STK_Boot_Line;
+
+   procedure Check_USB_Joystick_Line is
+      use Adaflight.USB_Joystick;
+      Name : constant String := Str (1);
+   begin
+      if Name = "hid" then
+         declare
+            Data   : Channel_Data;
+            R      : Report;
+            Actual : Byte_Array (0 .. Report_Length - 1);
+         begin
+            for I in Channel_Index loop
+               Data (I) := Flt (3 + I);
+            end loop;
+            R := Report_Of (Data);
+            for I in Report_Index loop
+               Actual (I) := R (I);
+            end loop;
+            Record_Text ("usbhid.report", Str (21), BL_Hex (Actual));
+         end;
+      elsif Name = "hidact" then
+         Record_Int ("usbhid.active", Int (7),
+                     Boolean'Pos (May_Be_Active (Composite        => Int (3) = 1,
+                                                 Connected        => Int (4) /= 0,
+                                                 Battery_Absent   => Int (5) = 3,
+                                                 No_Voltage_Meter => Int (6) = 0)));
+      end if;
+   end Check_USB_Joystick_Line;
 
    GB_Seq      : Integer_64 := -1;
    GB_State    : Adaflight.Gimbal_Control.State;
@@ -25611,6 +25650,8 @@ procedure Vector_Check is
                   Check_BL_Boot_Line;
                elsif Kind = "stkboot" then
                   Check_STK_Boot_Line;
+               elsif Kind = "usbhid" then
+                  Check_USB_Joystick_Line;
                elsif Kind = "gimbal" then
                   Check_Gimbal_Line;
                elsif Kind = "osdtext" then
@@ -25769,6 +25810,7 @@ begin
    Run (Dir & "/armhooks.csv", "arming");
    Run (Dir & "/armwing.csv", "arming");
    Run (Dir & "/arminfl.csv", "arming");
+   Run (Dir & "/armjoy.csv", "arming");
    Run (Dir & "/compass.csv", "compass");
    Run (Dir & "/compread.csv", "compass");
    Run (Dir & "/position.csv", "position");
@@ -25868,6 +25910,7 @@ begin
    Run (Dir & "/fourway.csv", "fourway");
    Run (Dir & "/blboot.csv", "blboot");
    Run (Dir & "/stkboot.csv", "stkboot");
+   Run (Dir & "/usbhid.csv", "usbhid");
    Run (Dir & "/gimbal.csv", "gimbal");
    Run (Dir & "/osdtext.csv", "osdtext");
    Run (Dir & "/pidaudio.csv", "pidaudio");
