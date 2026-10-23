@@ -207,6 +207,7 @@ with Adaflight.HMC5883;
 with Adaflight.IST8310;
 with Adaflight.LIS3MDL;
 with Adaflight.LIS2MDL;
+with Adaflight.AK8975;
 with Adaflight.QMC5883;
 with Adaflight.Gimbal_Control;
 with Adaflight.OSD_Custom_Text;
@@ -19999,6 +20000,196 @@ procedure Vector_Check is
       end if;
    end Check_LIS2MDL_Line;
 
+   --  The AK8975 oracle's chip: the bus type and address, the write and status
+   --  read acknowledgements, the identity read's answer, the fuse ROM values,
+   --  the next read's start, write, status and data answers, and the bytes a
+   --  started read brought.
+   type AK_Bus is record
+      I2C             : Boolean := True;
+      Address         : Byte := 0;
+      Write_Acks      : String (1 .. 4) := (others => '1');
+      Write_Next      : Natural := 1;
+      Id_Ack          : Boolean := True;
+      Id_Value        : Byte := 0;
+      ASA             : Byte_Array (0 .. 2) := (others => 0);
+      Status_Acks     : String (1 .. 2) := (others => '1');
+      Read_Next       : Natural := 0;
+      Start_Ack       : Boolean := True;
+      Write_Start_Ack : Boolean := True;
+      ST1             : Byte := 0;
+      ST2             : Byte := 0;
+      Data            : Byte_Array (0 .. 5) := (others => 0);
+      Fetched         : Byte_Array (0 .. 5) := (others => 0);
+   end record;
+
+   AK_Device : AK_Bus;
+
+   function AK_Is_I2C (D : AK_Bus) return Boolean is (D.I2C);
+
+   function AK_Address (D : AK_Bus) return Byte is (D.Address);
+
+   procedure AK_Set_Address (D : in out AK_Bus; Address : Byte) is
+   begin
+      D.Address := Address;
+   end AK_Set_Address;
+
+   procedure AK_Register (D : in out AK_Bus) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("register");
+   end AK_Register;
+
+   procedure AK_Read (D : in out AK_Bus; Register : Byte; Data : in out Byte_Array; OK : out Boolean) is
+      use type Interfaces.Unsigned_8;
+      Value : Integer_64 := 0;
+   begin
+      if D.Read_Next = 0 then
+         OK := D.Id_Ack;
+         Value := Integer_64 (D.Id_Value);
+         if OK then
+            Data := (others => D.Id_Value);
+         end if;
+      elsif Register = 16#10# then
+         OK := True;
+         Value := Integer_64 (D.ASA (0)) * 65_536 + Integer_64 (D.ASA (1)) * 256 + Integer_64 (D.ASA (2));
+         Data := D.ASA (0 .. Data'Length - 1);
+      else
+         OK := (if D.Read_Next - 2 < 2 then D.Status_Acks (D.Read_Next - 1) = '1' else True);
+         if OK then
+            Data := (others => 0);
+         end if;
+      end if;
+      D.Read_Next := D.Read_Next + 1;
+      MX_Op ("read," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Data'Length)) & ","
+             & BMP_Num (Boolean'Pos (OK)) & "," & BMP_Num (Value));
+   end AK_Read;
+
+   procedure AK_Write (D : in out AK_Bus; Register : Byte; Value : Byte; OK : out Boolean) is
+   begin
+      OK := (if D.Write_Next <= 4 then D.Write_Acks (D.Write_Next) = '1' else True);
+      D.Write_Next := D.Write_Next + 1;
+      MX_Op ("write," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Value)) & ","
+             & BMP_Num (Boolean'Pos (OK)));
+   end AK_Write;
+
+   procedure AK_Start_Read (D : in out AK_Bus; Register : Byte; Length : Positive; Started : out Boolean) is
+      use type Interfaces.Unsigned_8;
+   begin
+      MX_Op ("start," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Length)) & ","
+             & BMP_Num (Boolean'Pos (D.Start_Ack)));
+      Started := D.Start_Ack;
+      if Started then
+         if Register = 16#03# and then Length = 6 then
+            D.Fetched := D.Data;
+         elsif Register = 16#02# then
+            D.Fetched (0) := D.ST1;
+         else
+            D.Fetched (0) := D.ST2;
+         end if;
+      end if;
+   end AK_Start_Read;
+
+   procedure AK_Start_Write (D : in out AK_Bus; Register : Byte; Value : Byte; Started : out Boolean) is
+   begin
+      MX_Op ("wstart," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Value)) & ","
+             & BMP_Num (Boolean'Pos (D.Write_Start_Ack)));
+      Started := D.Write_Start_Ack;
+   end AK_Start_Write;
+
+   procedure AK_Fetch (D : in out AK_Bus; Data : out Byte_Array) is
+   begin
+      Data := D.Fetched (0 .. Data'Length - 1);
+   end AK_Fetch;
+
+   procedure AK_Delay (D : in out AK_Bus; Ms : Natural) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("delay," & BMP_Num (Integer_64 (Ms)));
+   end AK_Delay;
+
+   package AK_Chip is new Adaflight.AK8975
+     (Bus_Device      => AK_Bus,
+      Is_I2C          => AK_Is_I2C,
+      I2C_Address     => AK_Address,
+      Set_I2C_Address => AK_Set_Address,
+      Register_Device => AK_Register,
+      Read_Registers  => AK_Read,
+      Write_Register  => AK_Write,
+      Start_Read      => AK_Start_Read,
+      Start_Write     => AK_Start_Write,
+      Fetch           => AK_Fetch,
+      Delay_Ms        => AK_Delay);
+
+   AK_State : AK_Chip.State;
+   AK_Data  : AK_Chip.Axes := (others => 0);
+   AK_Found : Boolean := False;
+   AK_OK    : Boolean := False;
+   AK_Got   : Boolean := False;
+
+   procedure Check_AK8975_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "akinit" then
+         MX_Op_Head := 1;
+         MX_Op_Count := 0;
+         AK_Device := (others => <>);
+         AK_State := (others => <>);
+         AK_Data := (others => 0);
+         AK_Device.I2C := Int (3) /= 0;
+         AK_Device.Address := Byte (Int (4));
+         AK_Device.Write_Acks := Str (5);
+         AK_Device.Id_Ack := Int (6) /= 0;
+         AK_Device.Id_Value := Byte (Int (7));
+         AK_Device.ASA := Hex_Bytes (8);
+         AK_Device.Status_Acks := Str (9);
+         AK_Chip.Detect (AK_Device, AK_Found);
+      elsif Name = "akdet" then
+         MX_Expect_No_Ops ("detection");
+         Record_Int ("ak8975.found", Int (3), Boolean'Pos (AK_Found));
+         Record_Int ("ak8975.address", Int (4), Integer_64 (AK_Device.Address));
+         if AK_Found then
+            AK_Chip.Init (AK_Device, AK_State, AK_OK);
+         end if;
+      elsif Name = "akready" then
+         MX_Expect_No_Ops ("initialization");
+         Record_Int ("ak8975.init", Int (3), Boolean'Pos (AK_OK));
+         Record_Int ("ak8975.odr", Int (4), Integer_64 (AK_State.ODR_Hz));
+         for K in 0 .. 2 loop
+            Record_Int ("ak8975.gain", Int (5 + K), Integer_64 (AK_State.Sensitivity (K)));
+         end loop;
+      elsif Name = "akstep" then
+         MX_Op_Head := 1;
+         MX_Op_Count := 0;
+         AK_Device.Start_Ack := Int (4) /= 0;
+         AK_Device.Write_Start_Ack := Int (5) /= 0;
+         AK_Device.ST1 := Byte (Int (6));
+         AK_Device.ST2 := Byte (Int (7));
+         AK_Device.Data := Hex_Bytes (8);
+         AK_Chip.Read (AK_Device, AK_State, AK_Data, AK_Got);
+      elsif Name = "akop" then
+         declare
+            Expected : Ada.Strings.Unbounded.Unbounded_String := Ada.Strings.Unbounded.To_Unbounded_String (Str (3));
+         begin
+            for I in 4 .. NF loop
+               Ada.Strings.Unbounded.Append (Expected, "," & Str (I));
+            end loop;
+            if MX_Op_Head <= MX_Op_Count then
+               Record_Text ("ak8975.op", Ada.Strings.Unbounded.To_String (Expected),
+                            Ada.Strings.Unbounded.To_String (MX_Ops (MX_Op_Head)));
+               MX_Op_Head := MX_Op_Head + 1;
+            else
+               Record_Text ("ak8975.op", Ada.Strings.Unbounded.To_String (Expected), "none");
+            end if;
+         end;
+      elsif Name = "akres" then
+         MX_Expect_No_Ops ("a read");
+         Record_Int ("ak8975.got", Int (4), Boolean'Pos (AK_Got));
+         for K in 0 .. 2 loop
+            Record_Int ("ak8975.axis", Int (5 + K), Integer_64 (AK_Data (K)));
+         end loop;
+      end if;
+   end Check_AK8975_Line;
+
    GB_Seq      : Integer_64 := -1;
    GB_State    : Adaflight.Gimbal_Control.State;
    GB_Settings : Adaflight.Gimbal_Control.Settings;
@@ -30167,6 +30358,8 @@ procedure Vector_Check is
                   Check_LIS3MDL_Line;
                elsif Kind = "lis2mdl" then
                   Check_LIS2MDL_Line;
+               elsif Kind = "ak8975" then
+                  Check_AK8975_Line;
                elsif Kind = "gimbal" then
                   Check_Gimbal_Line;
                elsif Kind = "osdtext" then
@@ -30451,6 +30644,7 @@ begin
    Run (Dir & "/ist8310.csv", "ist8310");
    Run (Dir & "/lis3mdl.csv", "lis3mdl");
    Run (Dir & "/lis2mdl.csv", "lis2mdl");
+   Run (Dir & "/ak8975.csv", "ak8975");
    Run (Dir & "/gimbal.csv", "gimbal");
    Run (Dir & "/osdtext.csv", "osdtext");
    Run (Dir & "/pidaudio.csv", "pidaudio");

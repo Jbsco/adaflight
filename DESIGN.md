@@ -7871,3 +7871,25 @@ negation wraps back to -32768. Every bus call, detection, initialization and rea
 In them 208 compasses are found, 123 initialize and 85 fail to, and 3909 readings arrive. All 23 tampered paths fail the
 vectors. On the first pass the one that saturates the negated X axis passed, since no reading had X at -32768, and led
 to the readings with that axis.
+
+## D344. AK8975 compass driver (2026-10-18)
+
+`Adaflight.AK8975` drives the AK8975 compass over the same bus as the other compass drivers. Detection gives an unset
+I2C address the chip's 0x0C and reads the identity 0x48. Initialization registers the device, powers it down, waits 20
+ms, enters fuse ROM access, waits 10 ms, reads the three sensitivity values, waits 10 ms, powers down again, waits 10
+ms, reads both status registers and starts a 16-bit single measurement, whatever the writes and reads answer. Each axis
+gain is its sensitivity value plus 128, and the output data rate is 50 Hz. A refused fuse ROM read leaves the values the
+buffer held, which in the reference is uninitialized stack memory and in this unit starts at zeros. A read starts the
+first status, and when it reports data ready starts the six data bytes and then the second status. It then starts the
+next single measurement, retried at each read until the bus takes it, drops the data on a data error or overflow, and
+otherwise hands the axes over at the next read. Each axis is its signed word times its gain divided by 256, clamped to
+16 bits, then negated and kept to its low 16 bits like the reference's 16-bit store. The reference keeps the read state
+in static variables of its read function, shared by every AK8975 device. This unit keeps the state per device, which
+behaves the same with one compass. The unit is SPARK for the read state and the axis conversion.
+
+The AK8975 oracle includes the reference driver over a simulated chip whose answers each case draws and prints before
+use, one case per process. It draws the bus type and a preset address, the identity and its read acknowledgement, the
+fuse ROM values, which the chip always answers, and the other write and status read acknowledgements, then 40 to 120
+reads with start, write, status and data answers. Every bus call, detection, initialization, gain and reading of the 300
+cases replays exactly. In them 239 compasses initialize and 2498 readings arrive, 344 axes at -32768 and 367 at -32767.
+All 28 tampered paths fail the vectors, one by stopping the checker.
