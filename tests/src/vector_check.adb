@@ -208,6 +208,7 @@ with Adaflight.IST8310;
 with Adaflight.LIS3MDL;
 with Adaflight.LIS2MDL;
 with Adaflight.AK8975;
+with Adaflight.AK9916;
 with Adaflight.QMC5883;
 with Adaflight.Gimbal_Control;
 with Adaflight.OSD_Custom_Text;
@@ -20190,6 +20191,157 @@ procedure Vector_Check is
       end if;
    end Check_AK8975_Line;
 
+   --  The AK9916 oracle's chip: the bus type and address, the identity read's
+   --  answer, the reset write's answer, the next mode write and read-back
+   --  answers, the next sample read's answer and its nine bytes.
+   type A9_Bus is record
+      I2C        : Boolean := True;
+      Address    : Byte := 0;
+      Id_Ack     : Boolean := True;
+      Id_Value   : Byte := 0;
+      Reset_Ack  : Boolean := True;
+      Write_Ack  : Boolean := True;
+      Mode_Ack   : Boolean := True;
+      Mode_Value : Byte := 0;
+      Read_Ack   : Boolean := True;
+      Sample     : Byte_Array (0 .. 8) := (others => 0);
+   end record;
+
+   A9_Device : A9_Bus;
+
+   function A9_Is_I2C (D : A9_Bus) return Boolean is (D.I2C);
+
+   function A9_Address (D : A9_Bus) return Byte is (D.Address);
+
+   procedure A9_Set_Address (D : in out A9_Bus; Address : Byte) is
+   begin
+      D.Address := Address;
+   end A9_Set_Address;
+
+   procedure A9_Register (D : in out A9_Bus) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("register");
+   end A9_Register;
+
+   procedure A9_Read (D : in out A9_Bus; Register : Byte; Data : in out Byte_Array; OK : out Boolean) is
+      use type Interfaces.Unsigned_8;
+      Value : Byte := 0;
+   begin
+      if Register = 16#01# then
+         OK := D.Id_Ack;
+         Value := D.Id_Value;
+         if OK then
+            Data := (others => D.Id_Value);
+         end if;
+      elsif Register = 16#31# then
+         OK := D.Mode_Ack;
+         Value := D.Mode_Value;
+         if OK then
+            Data := (others => D.Mode_Value);
+         end if;
+      else
+         OK := D.Read_Ack;
+         if OK then
+            Data := D.Sample (0 .. Data'Length - 1);
+         end if;
+      end if;
+      MX_Op ("read," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Data'Length)) & ","
+             & BMP_Num (Boolean'Pos (OK)) & "," & BMP_Num (Integer_64 (Value)));
+   end A9_Read;
+
+   procedure A9_Write (D : in out A9_Bus; Register : Byte; Value : Byte; OK : out Boolean) is
+      use type Interfaces.Unsigned_8;
+   begin
+      OK := (if Register = 16#32# then D.Reset_Ack else D.Write_Ack);
+      MX_Op ("write," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Value)) & ","
+             & BMP_Num (Boolean'Pos (OK)));
+   end A9_Write;
+
+   procedure A9_Delay (D : in out A9_Bus; Ms : Natural) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("delay," & BMP_Num (Integer_64 (Ms)));
+   end A9_Delay;
+
+   package A9_Chip is new Adaflight.AK9916
+     (Bus_Device      => A9_Bus,
+      Is_I2C          => A9_Is_I2C,
+      I2C_Address     => A9_Address,
+      Set_I2C_Address => A9_Set_Address,
+      Register_Device => A9_Register,
+      Read_Registers  => A9_Read,
+      Write_Register  => A9_Write,
+      Delay_Ms        => A9_Delay);
+
+   A9_State : A9_Chip.State;
+   A9_Data  : A9_Chip.Axes := (others => 0);
+   A9_Found : Boolean := False;
+   A9_OK    : Boolean := False;
+   A9_Got   : Boolean := False;
+
+   procedure Check_AK9916_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "a9init" then
+         MX_Op_Head := 1;
+         MX_Op_Count := 0;
+         A9_Device := (others => <>);
+         A9_State := (others => <>);
+         A9_Data := (others => 0);
+         A9_Device.I2C := Int (3) /= 0;
+         A9_Device.Address := Byte (Int (4));
+         A9_Device.Id_Ack := Int (5) /= 0;
+         A9_Device.Id_Value := Byte (Int (6));
+         A9_Device.Write_Ack := Int (7) /= 0;
+         A9_Device.Mode_Ack := Int (8) /= 0;
+         A9_Device.Mode_Value := Byte (Int (9));
+         A9_Device.Reset_Ack := Int (10) /= 0;
+         A9_Chip.Detect (A9_Device, A9_Found);
+      elsif Name = "a9det" then
+         MX_Expect_No_Ops ("detection");
+         Record_Int ("ak9916.found", Int (3), Boolean'Pos (A9_Found));
+         Record_Int ("ak9916.address", Int (4), Integer_64 (A9_Device.Address));
+         if A9_Found then
+            A9_Chip.Init (A9_Device, A9_State, A9_OK);
+         end if;
+      elsif Name = "a9ready" then
+         MX_Expect_No_Ops ("initialization");
+         Record_Int ("ak9916.init", Int (3), Boolean'Pos (A9_OK));
+         Record_Int ("ak9916.odr", Int (4), Integer_64 (A9_State.ODR_Hz));
+      elsif Name = "a9step" then
+         MX_Op_Head := 1;
+         MX_Op_Count := 0;
+         A9_Device.Read_Ack := Int (4) /= 0;
+         A9_Device.Sample := Hex_Bytes (5);
+         A9_Device.Write_Ack := Int (6) /= 0;
+         A9_Device.Mode_Ack := Int (7) /= 0;
+         A9_Device.Mode_Value := Byte (Int (8));
+         A9_Chip.Read (A9_Device, A9_State, A9_Data, A9_Got);
+      elsif Name = "a9op" then
+         declare
+            Expected : Ada.Strings.Unbounded.Unbounded_String := Ada.Strings.Unbounded.To_Unbounded_String (Str (3));
+         begin
+            for I in 4 .. NF loop
+               Ada.Strings.Unbounded.Append (Expected, "," & Str (I));
+            end loop;
+            if MX_Op_Head <= MX_Op_Count then
+               Record_Text ("ak9916.op", Ada.Strings.Unbounded.To_String (Expected),
+                            Ada.Strings.Unbounded.To_String (MX_Ops (MX_Op_Head)));
+               MX_Op_Head := MX_Op_Head + 1;
+            else
+               Record_Text ("ak9916.op", Ada.Strings.Unbounded.To_String (Expected), "none");
+            end if;
+         end;
+      elsif Name = "a9res" then
+         MX_Expect_No_Ops ("a read");
+         Record_Int ("ak9916.got", Int (4), Boolean'Pos (A9_Got));
+         for K in 0 .. 2 loop
+            Record_Int ("ak9916.axis", Int (5 + K), Integer_64 (A9_Data (K)));
+         end loop;
+      end if;
+   end Check_AK9916_Line;
+
    GB_Seq      : Integer_64 := -1;
    GB_State    : Adaflight.Gimbal_Control.State;
    GB_Settings : Adaflight.Gimbal_Control.Settings;
@@ -30360,6 +30512,8 @@ procedure Vector_Check is
                   Check_LIS2MDL_Line;
                elsif Kind = "ak8975" then
                   Check_AK8975_Line;
+               elsif Kind = "ak9916" then
+                  Check_AK9916_Line;
                elsif Kind = "gimbal" then
                   Check_Gimbal_Line;
                elsif Kind = "osdtext" then
@@ -30645,6 +30799,7 @@ begin
    Run (Dir & "/lis3mdl.csv", "lis3mdl");
    Run (Dir & "/lis2mdl.csv", "lis2mdl");
    Run (Dir & "/ak8975.csv", "ak8975");
+   Run (Dir & "/ak9916.csv", "ak9916");
    Run (Dir & "/gimbal.csv", "gimbal");
    Run (Dir & "/osdtext.csv", "osdtext");
    Run (Dir & "/pidaudio.csv", "pidaudio");
