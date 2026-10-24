@@ -8063,3 +8063,31 @@ calculation of the 300 cases replays exactly. In them 123 chips are found and 45
 21 of them with a reset that clears later. All 38 tampered paths fail the vectors. On the first pass the one that checks
 the timeout after the reset bit passed, since no reset cleared on the read that passed 10 ms, and the one that rounds
 the scaled count passed, since no count sat where rounding and truncation part; both led to the drawn resets and counts.
+
+## D351. QMP6988 barometer driver (2026-10-18)
+
+`Adaflight.QMP6988` drives the QMP6988 barometer on I2C or SPI. Detection waits 20 ms, prepares the select pin and a 10
+MHz clock of an SPI chip, gives an unset I2C address the chip's 0x70, and reads the identity 0x5C. A refused identity
+read leaves the identity the last read gave. A chip without the identity gets its select pin returned to an input for
+the preinit owner and the default address taken back. Otherwise detection registers the device, sets the IIR filter to
+5, reads the 25 calibration bytes into a buffer that starts at zeros, sets the power mode and the sampling, whatever the
+writes and the read answer, and sets up the barometer task for a combined read with a 23 ms pressure delay. The two
+20-bit coefficients are signed, the ten 16-bit ones are taken unsigned (finding F271), and each is scaled in single
+precision around its nominal value. A pressure start writes the forced measurement again and reports the write's answer,
+a pressure read starts the six data bytes while the bus is free, a pressure sample takes the bytes the last read brought
+while the bus is free, and the other calls do nothing. The calculation compensates the temperature and the pressure in
+single precision in the reference's operation order, gives the pressure in pascal cut toward zero and the temperature as
+the compensated value cut toward zero and divided by 256, and keeps the last pressure or temperature when the new one is
+exactly zero. The unit is SPARK for the coefficients, whose subtypes bound each one over every calibration byte, and for
+the compensation, whose terms are bounded one by one so the sums stay finite.
+
+The QMP6988 oracle includes the reference driver with both bus kinds over a simulated chip, one case per process. It
+draws the bus, the addresses, the identity, whether the first read fails, the 25 calibration bytes, typical in half of
+the cases and random in two fifths, whether the calibration read is refused, and whether writes answer, then makes 50 of
+the driver's calls with scripted busy and start answers and raw readings, a tenth of them at the 2^23 midpoint. Every
+bus, pin and delay call, detection and calculation of the 300 cases replays exactly. In them 194 chips are found, 113 on
+I2C and 81 on SPI, 18 with a refused calibration read and 16 with refused writes, 1047 samples are taken and 1384
+calculations run, 6 of them keeping both values on a zero result. Of 49 tampered paths, 44 fail the vectors and one
+stops the checker at a coefficient's subtype check. Four pass and are equivalent at the integer result: three reorder
+single precision products or sums, whose rounding the pascal and 1/256 degree results hide, and one divides the
+compensated temperature by 256 before the cut, which gives the same whole number.
