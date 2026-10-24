@@ -100,11 +100,11 @@ package body Adaflight.IST8310 with SPARK_Mode is
             Data (0) := Wrapped (Word (S.Buffer (0), S.Buffer (1)) * Scale);
             Data (1) := Wrapped ((-Word (S.Buffer (2), S.Buffer (3))) * Scale);
             Data (2) := Wrapped (Word (S.Buffer (4), S.Buffer (5)) * Scale);
+            Got := True;
             Start_Write (D, Control_1, Single, Started);
             if Started then
                S.Phase := Check_Status;
                S.Status := 0;
-               Got := True;
             else
                S.Phase := Trigger;
             end if;
@@ -113,7 +113,6 @@ package body Adaflight.IST8310 with SPARK_Mode is
             if Started then
                S.Phase := Check_Status;
                S.Status := 0;
-               Got := True;
             end if;
       end case;
    end Read;
