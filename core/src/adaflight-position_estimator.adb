@@ -22,7 +22,6 @@ package body Adaflight.Position_Estimator with SPARK_Mode is
    Step_Allowance_Cm       : constant := 50.0;
    Step_Max_Interval_S     : constant := 0.2;
    Step_Max_Rejects        : constant := 10;
-   Deg_180                 : constant Integer_32 := 1_800_000_000;
 
    --  One latitude unit, or one longitude unit at the equator, in
    --  centimetres, rounded at each step as the constant is formed.
@@ -39,8 +38,7 @@ package body Adaflight.Position_Estimator with SPARK_Mode is
    function To_Unsigned (I : Integer_32) return Unsigned_32 is
      (if I < 0 then not Unsigned_32 (-(I + 1)) else Unsigned_32 (I));
 
-   --  A difference of coordinates in thirty-two bits, wrapping as the
-   --  reference's subtraction does across the antimeridian (finding F58).
+   --  A latitude difference in thirty-two bits.
    function Wrapped_Difference (A, B : Integer_32) return Integer_32 is
      (To_Signed (To_Unsigned (A) - To_Unsigned (B)));
 
@@ -348,16 +346,9 @@ package body Adaflight.Position_Estimator with SPARK_Mode is
    -----------------
 
    procedure Distance_2d (From, To : Location; Cos_Lat : Longitude_Scale; East, North : out Float) is
-      Delta_Lon : Integer_32 := Wrapped_Difference (To.Lon, From.Lon);
+      Delta_Lon : constant Integer_32 := Longitude_Difference (To.Lon, From.Lon);
       Delta_Lat : constant Integer_32 := Wrapped_Difference (To.Lat, From.Lat);
    begin
-      if Delta_Lon > Deg_180 then
-         Delta_Lon := Delta_Lon - Deg_180;
-         Delta_Lon := Delta_Lon - Deg_180;
-      elsif Delta_Lon <= -Deg_180 then
-         Delta_Lon := Delta_Lon + Deg_180;
-         Delta_Lon := Delta_Lon + Deg_180;
-      end if;
       declare
          subtype Local_Cm is Float range -2.5e9 .. 2.5e9;
          Lon      : constant Float range -2.15e9 .. 2.15e9 := Float (Delta_Lon);

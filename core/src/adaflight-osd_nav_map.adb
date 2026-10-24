@@ -56,15 +56,8 @@ package body Adaflight.OSD_Nav_Map with SPARK_Mode is
    function Distance_2D (From, To : Location; Cos_Lat : Maths.Cosine) return Vector
      with Global => null
    is
-      D_Lon : Integer_32 := Wrapped_Difference (To.Longitude, From.Longitude);
+      D_Lon : constant Integer_32 := Maths.Longitude_Difference (To.Longitude, From.Longitude);
    begin
-      if D_Lon > 1_800_000_000 then
-         D_Lon := D_Lon - 1_800_000_000;
-         D_Lon := D_Lon - 1_800_000_000;
-      elsif D_Lon <= -1_800_000_000 then
-         D_Lon := D_Lon + 1_800_000_000;
-         D_Lon := D_Lon + 1_800_000_000;
-      end if;
       return (X => Float (D_Lon) * Cos_Lat * Angle_To_Cm,
               Y => Float (Wrapped_Difference (To.Latitude, From.Latitude)) * Angle_To_Cm);
    end Distance_2D;
