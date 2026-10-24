@@ -8877,23 +8877,24 @@ milestone is the LED blinking at 1 Hz on the F4S V1.2 after a DFU flash.
 and the commands. A session enters interactive or driven by a configurator and keeps the line typed so far, up to 255
 characters. An interactive entry prints the banner and the prompt and holds arming, which stays held when the session
 ends; a configurator entry answers a start of text. Each byte of a poll is taken in the reference's order: interactive,
-a tab or a question mark completes the line over the command names as far as the first and the last matching names
-agree, adds a space after a whole name, lists the names from the first to the last match when they differ or the line is
-empty, and redraws the line; control-D on an empty line closes the session with the restart line and the restart;
-control-L clears the screen and prompts; delete takes the last character back with a backspace, a space and a backspace;
-and any other byte goes to the common path, where a line end on a non-empty line echoes a line end, runs the line
-through `Process_Line` with the interactive flag set, clears the line and prompts again unless the command left the
-command line, and a printable character past the leading spaces joins the line and echoes. A line runs while the
-configuration's profile indices are valid, the line processor's precondition. The configuration fix sets them at load
-and the profile commands keep them in range, and the terminal checks the condition at each line since the line processor
-does not state it as a postcondition. A configurator session takes the common path without echo, and closes with an end
-of text at an end of text or at any byte more than two seconds after its entry, leaving the rest of the poll's bytes. An
-unknown command in an interactive session gets the `###ERROR IN input: UNKNOWN COMMAND, TRY 'HELP'###` line and the
-prompt, where a configurator gets `ERR_CMD_NA` with the line, so the command line's environment carries the interactive
-flag. The command line also names its 62 commands in the order of the reference's table, which `help` already follows
-and the completion walks. The reference's table keeps `battery_profile` after `play_sound`, so a completion whose
-matches span it lists the commands between them as well (finding F286); this unit keeps that walk, and the fix follows
-as a declared divergence. The unit is SPARK for the line buffer's bounds and the completion's walk.
+a tab or a question mark completes the line over the command names as far as every matching name agrees, adds a space
+after a whole name, lists the matching names when more than one matches or the line is empty, and redraws the line;
+control-D on an empty line closes the session with the restart line and the restart; control-L clears the screen and
+prompts; delete takes the last character back with a backspace, a space and a backspace; and any other byte goes to the
+common path, where a line end on a non-empty line echoes a line end, runs the line through `Process_Line` with the
+interactive flag set, clears the line and prompts again unless the command left the command line, and a printable
+character past the leading spaces joins the line and echoes. A line runs while the configuration's profile indices are
+valid, the line processor's precondition. The configuration fix sets them at load and the profile commands keep them in
+range, and the terminal checks the condition at each line since the line processor does not state it as a postcondition.
+A configurator session takes the common path without echo, and closes with an end of text at an end of text or at any
+byte more than two seconds after its entry, leaving the rest of the poll's bytes. An unknown command in an interactive
+session gets the `###ERROR IN input: UNKNOWN COMMAND, TRY 'HELP'###` line and the prompt, where a configurator gets
+`ERR_CMD_NA` with the line, so the command line's environment carries the interactive flag. The command line also names
+its 62 commands in the order of the reference's table, which `help` already follows and the completion walks. The
+reference extends the line while its first and last matching names agree and lists every name between them, and its
+table keeps `battery_profile` after `play_sound`, so a typed `b` lists 38 names of which 31 do not match and extends to
+`bat`; this unit walks the matching names only (finding F286, D6). The unit is SPARK for the line buffer's bounds and
+the completion's walk.
 
 The command line oracle gains terminal lines: each enters the reference's command line when it is closed, interactive or
 not, with the clock at a given millisecond, hands a batch of bytes to its poll through a stubbed port whose writes are

@@ -100,16 +100,16 @@ package body Adaflight.Command_Line.Terminal with SPARK_Mode is
       end if;
    end Character_In;
 
-   --  Whether the line typed so far matches the start of a command name
-   --  without regard to case.
-   function Matches (T : Session; Name : String) return Boolean
+   --  Whether the first Typed characters of the line match the start of a
+   --  command name without regard to case.
+   function Matches (T : Session; Typed : Line_Length; Name : String) return Boolean
      with Global => null
    is
    begin
-      if T.Length > Name'Length then
+      if Typed > Name'Length then
          return False;
       end if;
-      for I in 1 .. T.Length loop
+      for I in 1 .. Typed loop
          if CLI_Text.Lower (T.Text (I)) /= CLI_Text.Lower (Name (Name'First + (I - 1))) then
             return False;
          end if;
@@ -122,33 +122,46 @@ package body Adaflight.Command_Line.Terminal with SPARK_Mode is
      (if Position <= Name'Length then Name (Name'First + (Position - 1)) else ASCII.NUL)
      with Global => null;
 
-   --  Tab completion: the line extended as far as the first and the last
-   --  matching names agree, a space after a whole name, the names between the
-   --  first and the last match listed when they differ or the line is empty,
-   --  and the line redrawn from where it was or from the prompt.
+   --  Tab completion: the line extended as far as every matching name agrees,
+   --  a space after a whole name, the matching names listed when more than one
+   --  matches or the line is empty, and the line redrawn from where it was or
+   --  from the prompt. The reference walks from the first to the last match
+   --  and lists the names between them, which its table's order makes
+   --  non-matching names (finding F286, D6).
    procedure Complete (T : in out Session; Into : in out Output) is
-      First  : Natural := 0;
-      Last   : Natural := 0;
-      Redraw : Natural := T.Length;
+      Typed   : constant Line_Length := T.Length;
+      First   : Natural := 0;
+      Last    : Natural := 0;
+      Matched : Natural := 0;
+      Redraw  : Natural := T.Length;
    begin
       for I in 1 .. Command_Count loop
-         pragma Loop_Invariant (Last < I and then First <= Last and then Last <= Command_Count);
-         if T.Length = 0 or else Matches (T, Command_Name (I)) then
+         pragma Loop_Invariant (Last < I and then First <= Last and then Last <= Command_Count and then Matched < I);
+         if Typed = 0 or else Matches (T, Typed, Command_Name (I)) then
             if First = 0 then
                First := I;
             end if;
             Last := I;
+            Matched := Matched + 1;
          end if;
       end loop;
       if First > 0 then
          loop
             pragma Loop_Invariant (T.Length <= Buffer_Size - 1);
+            pragma Loop_Invariant (T.Length >= Typed);
             declare
-               C1 : constant Character := At_Position (Command_Name (First), T.Length + 1);
-               C2 : constant Character := At_Position (Command_Name (Last), T.Length + 1);
+               Next  : constant Character := At_Position (Command_Name (First), T.Length + 1);
+               Agree : Boolean := True;
             begin
-               exit when C1 /= C2;
-               if C1 = ASCII.NUL then
+               for I in First .. Last loop
+                  if (Typed = 0 or else Matches (T, Typed, Command_Name (I)))
+                    and then At_Position (Command_Name (I), T.Length + 1) /= Next
+                  then
+                     Agree := False;
+                  end if;
+               end loop;
+               exit when not Agree;
+               if Next = ASCII.NUL then
                   if T.Length < Buffer_Size - 2 then
                      T.Length := T.Length + 1;
                      T.Text (T.Length) := ' ';
@@ -157,16 +170,18 @@ package body Adaflight.Command_Line.Terminal with SPARK_Mode is
                end if;
                exit when T.Length >= Buffer_Size - 1;
                T.Length := T.Length + 1;
-               T.Text (T.Length) := C1;
+               T.Text (T.Length) := Next;
             end;
          end loop;
       end if;
-      if T.Length = 0 or else First /= Last then
+      if Typed = 0 or else Matched > 1 then
          Emit (Into, Line_End & ASCII.ESC & "[K");
          if First > 0 then
             for I in First .. Last loop
-               Emit (Into, Command_Name (I));
-               Emit (Into, (1 => ASCII.HT));
+               if Typed = 0 or else Matches (T, Typed, Command_Name (I)) then
+                  Emit (Into, Command_Name (I));
+                  Emit (Into, (1 => ASCII.HT));
+               end if;
             end loop;
          end if;
          Prompt (Into);

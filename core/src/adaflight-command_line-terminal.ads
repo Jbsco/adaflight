@@ -4,13 +4,15 @@
 --  each printable character past the leading spaces and keeps up to 255 of
 --  them; a line end runs a non-empty line and prompts again; a tab or a
 --  question mark completes the line over the command names as far as the
---  first and the last match agree and lists the names between them when they
---  differ; control-D on an empty line leaves with a restart, control-L clears
+--  matching names agree and lists them when more than one matches; control-D
+--  on an empty line leaves with a restart, control-L clears
 --  the screen and prompts, and delete takes the last character back. A session
 --  a configurator drives answers a start of text, takes the lines without
 --  echo, and closes with an end of text at an end of text or at any byte two
 --  seconds after its entry. A command that leaves the command line closes the
---  session.
+--  session. The completion lists only the names that match the typed text;
+--  the reference lists every name between its first and last match (finding
+--  F286).
 with Adaflight.Bytes; use Adaflight.Bytes;
 
 generic
