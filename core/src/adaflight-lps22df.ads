@@ -11,7 +11,7 @@
 --  takes the bytes the last read brought while the bus is free, and the other
 --  calls do nothing. The calculation gives the pressure in pascal from the
 --  24-bit count times 100 over 16 in single precision, cut toward zero and
---  divided by 256, and the temperature as the 16-bit count taken unsigned.
+--  divided by 256, and the temperature as the signed 16-bit count.
 with Interfaces;
 with Adaflight.Bytes; use Adaflight.Bytes;
 with Adaflight.Barometer_Task;
@@ -38,7 +38,7 @@ package Adaflight.LPS22DF with SPARK_Mode is
 
    subtype Data_Bytes is Byte_Array (0 .. 4);
    subtype Raw_Pressure_Count is Interfaces.Integer_32 range 0 .. 2 ** 24 - 1;
-   subtype Raw_Temperature_Count is Interfaces.Integer_32 range 0 .. 2 ** 16 - 1;
+   subtype Raw_Temperature_Count is Interfaces.Integer_32 range -2 ** 15 .. 2 ** 15 - 1;
 
    --  The chip identity the last identity read left, the data bytes of the
    --  last sample, and the raw pressure and temperature counts.
