@@ -65,3 +65,6 @@ A change is finished when `verify.do` is green.
 ## License
 
 GPL-3.0-or-later. See `LICENSE`.
+
+`core/src/adaflight-bmi270_config.ads` contains Bosch Sensortec's BMI270 configuration file under
+BSD-3-Clause license. `third_party/bosch-bmi270` contains that license and names the source.
