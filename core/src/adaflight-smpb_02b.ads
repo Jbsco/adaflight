@@ -4,8 +4,7 @@
 --  that never gives it gets its select pin returned to the preinit state and
 --  the default address taken back. Otherwise detection reads the nine
 --  coefficient registers, whatever the reads answer, scales them in single
---  precision, the pressure's linear one through an integer division (finding
---  F274), writes the IIR filter of 8 samples, whatever the write answers, and
+--  precision, writes the IIR filter of 8 samples, whatever the write answers, and
 --  gives the barometer task a 35 ms pressure delay; the chip measures the
 --  temperature with the pressure. A pressure start sets the forced measurement
 --  with 4 temperature and 32 pressure averages, a pressure read starts the six
@@ -54,7 +53,7 @@ package Adaflight.SMPB_02B with SPARK_Mode is
    subtype Aa_Value is Float range -4.21E-04 .. 4.21E-04;
    subtype Ba_Value is Float range -168.01 .. -151.99;
    subtype Ap_Value is Float range -3.01E-05 .. 3.01E-05;
-   subtype Bp_Value is Float range 20.0 .. 40.0;
+   subtype Bp_Value is Float range 19.99 .. 40.01;
    subtype A_T_Value is Float range -8.01E-11 .. 8.01E-11;
    subtype B_T_Value is Float range -8.21E-06 .. -4.99E-06;
    subtype C_T_Value is Float range 0.031 .. 0.049;
