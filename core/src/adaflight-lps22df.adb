@@ -105,7 +105,8 @@ package body Adaflight.LPS22DF with SPARK_Mode is
               Interfaces.Integer_32 (S.Sensor_Data (0)) + Interfaces.Integer_32 (S.Sensor_Data (1)) * 2 ** 8
               + Interfaces.Integer_32 (S.Sensor_Data (2)) * 2 ** 16;
             S.Raw_Temperature :=
-              Interfaces.Integer_32 (S.Sensor_Data (3)) + Interfaces.Integer_32 (S.Sensor_Data (4)) * 2 ** 8;
+              Interfaces.Integer_32 (S.Sensor_Data (3)) + Interfaces.Integer_32 (S.Sensor_Data (4)) * 2 ** 8
+              - (if S.Sensor_Data (4) >= 128 then 2 ** 16 else 0);
             Done := True;
       end case;
    end Device_Call;
