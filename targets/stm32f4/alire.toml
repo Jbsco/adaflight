@@ -1,0 +1,24 @@
+name = "adaflight_stm32f4"
+description = "STM32F4 target: the core on the CLRacing F4S and its board family"
+version = "0.1.0-dev"
+
+authors = ["Jacob Seman"]
+maintainers = ["Jacob Seman <90524106+Jbsco@users.noreply.github.com>"]
+maintainers-logins = ["Jbsco"]
+licenses = "GPL-3.0-or-later"
+tags = ["spark", "flight-control", "embedded", "stm32"]
+
+executables = ["adaflight_stm32f4"]
+
+[[depends-on]]
+gnat_arm_elf = "^16.1.0"
+adaflight_core = "*"
+
+[[pins]]
+adaflight_core = { path = "../../core" }
+
+# The board package is generated before every build from the pinned board configuration
+# repository; BOARD names the board, CLRACINGF4 when unset.
+[[actions]]
+type = "pre-build"
+command = ["sh", "-c", "python3 ../../tools/boardgen.py ../../third_party/board-configs/configs \"${BOARD:-CLRACINGF4}\" gen/adaflight-board.ads"]
