@@ -186,6 +186,7 @@ with Adaflight.BMP280;
 with Adaflight.DPS310;
 with Adaflight.LPS22DF;
 with Adaflight.QMP6988;
+with Adaflight.BMP085;
 with Adaflight.MS5611;
 with Adaflight.BMP388;
 with Adaflight.MAX7456;
@@ -16451,6 +16452,277 @@ procedure Vector_Check is
       end if;
    end Check_QMP6988_Line;
 
+   --  The BMP085 oracle's bus and pins: the simulated chip's registers, its
+   --  address, the reads still to fail, the two levels the conversion-end pin
+   --  shows, the scripted busy and start answers, and the bytes the last
+   --  started read brought. Its calls share the BMP280 bus's queue.
+   type BM_Bus is record
+      SPI            : Boolean := False;
+      Address        : Byte := 0;
+      Device_Address : Byte := 0;
+      Registers      : Byte_Array (0 .. 255) := (others => 0);
+      Failures_Left  : Natural := 0;
+      EOC_Levels     : String (1 .. 2) := "00";
+      EOC_Reads      : Natural := 0;
+      Busy           : Boolean := False;
+      Started        : Boolean := False;
+      Last_Read      : Byte_Array (0 .. 2) := (others => 0);
+   end record;
+
+   function BM_Responds (D : BM_Bus) return Boolean is
+      use type Interfaces.Unsigned_8;
+   begin
+      return (if D.SPI then True else D.Device_Address /= 0 and then D.Address = D.Device_Address);
+   end BM_Responds;
+
+   function BM_Is_I2C (D : BM_Bus) return Boolean is (not D.SPI);
+   function BM_Address (D : BM_Bus) return Byte is (D.Address);
+
+   procedure BM_Set_Address (D : in out BM_Bus; Address : Byte) is
+   begin
+      D.Address := Address;
+   end BM_Set_Address;
+
+   procedure BM_Read (D : in out BM_Bus; Register : Byte; Data : in out Byte_Array; OK : out Boolean) is
+   begin
+      OK := BM_Responds (D);
+      if OK and then D.Failures_Left > 0 then
+         D.Failures_Left := D.Failures_Left - 1;
+         OK := False;
+      end if;
+      BMP_Op ("read," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Data'Length)) & ","
+              & BMP_Num (Integer_64 (if D.SPI then 0 else D.Address)) & "," & BMP_Num (Boolean'Pos (OK)));
+      if OK then
+         for I in Data'Range loop
+            Data (I) := D.Registers (Natural ((Integer (Register) + I - Data'First) mod 256));
+         end loop;
+      end if;
+   end BM_Read;
+
+   procedure BM_Start_Write (D : in out BM_Bus; Register : Byte; Value : Byte; Started : out Boolean) is
+   begin
+      BMP_Op ("wstart," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Value)) & ","
+              & BMP_Num (Boolean'Pos (D.Started)));
+      Started := D.Started;
+   end BM_Start_Write;
+
+   procedure BM_Start_Read (D : in out BM_Bus; Register : Byte; Length : Positive; Started : out Boolean) is
+   begin
+      BMP_Op ("readstart," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Length)) & ","
+              & BMP_Num (Boolean'Pos (D.Started)));
+      Started := D.Started;
+      if Started then
+         for I in 0 .. Natural'Min (Length, D.Last_Read'Length) - 1 loop
+            D.Last_Read (I) := D.Registers ((Natural (Register) + I) mod 256);
+         end loop;
+      end if;
+   end BM_Start_Read;
+
+   procedure BM_Check_Busy (D : in out BM_Bus; Busy : out Boolean; Error : out Boolean) is
+   begin
+      BMP_Op ("busy," & BMP_Num (Boolean'Pos (D.Busy)));
+      Busy := D.Busy;
+      Error := False;
+   end BM_Check_Busy;
+
+   procedure BM_Fetch (D : in out BM_Bus; Data : out Byte_Array) is
+   begin
+      for I in Data'Range loop
+         Data (I) := D.Last_Read (I - Data'First);
+      end loop;
+   end BM_Fetch;
+
+   procedure BM_Register (D : in out BM_Bus) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("register");
+   end BM_Register;
+
+   procedure BM_Delay (D : in out BM_Bus; Ms : Natural) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("delay," & BMP_Num (Integer_64 (Ms)));
+   end BM_Delay;
+
+   procedure BM_Delay_Us (D : in out BM_Bus; Us : Natural) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("udelay," & BMP_Num (Integer_64 (Us)));
+   end BM_Delay_Us;
+
+   procedure BM_Init_Pin (D : in out BM_Bus; Tag : Byte; Owner : Byte) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("ioinit," & BMP_Num (Integer_64 (Tag)) & "," & BMP_Num (Integer_64 (Owner)) & ",0");
+   end BM_Init_Pin;
+
+   procedure BM_Config_Pin (D : in out BM_Bus; Tag : Byte) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("ioconfig," & BMP_Num (Integer_64 (Tag)));
+   end BM_Config_Pin;
+
+   procedure BM_Pin_High (D : in out BM_Bus; Tag : Byte) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("iohi," & BMP_Num (Integer_64 (Tag)));
+   end BM_Pin_High;
+
+   procedure BM_Pin_Low (D : in out BM_Bus; Tag : Byte) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("iolo," & BMP_Num (Integer_64 (Tag)));
+   end BM_Pin_Low;
+
+   procedure BM_Read_Pin (D : in out BM_Bus; Tag : Byte; High : out Boolean) is
+   begin
+      High := D.EOC_Reads < 2 and then D.EOC_Levels (D.EOC_Reads + 1) = '1';
+      D.EOC_Reads := D.EOC_Reads + 1;
+      BMP_Op ("ioread," & BMP_Num (Integer_64 (Tag)) & "," & BMP_Num (Boolean'Pos (High)));
+   end BM_Read_Pin;
+
+   procedure BM_Release_Pin (D : in out BM_Bus; Tag : Byte) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("iorelease," & BMP_Num (Integer_64 (Tag)));
+   end BM_Release_Pin;
+
+   procedure BM_Interrupt_Init (D : in out BM_Bus) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("extiinit");
+   end BM_Interrupt_Init;
+
+   procedure BM_Interrupt_Config (D : in out BM_Bus; Tag : Byte) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("exticonfig," & BMP_Num (Integer_64 (Tag)) & ",1");
+   end BM_Interrupt_Config;
+
+   procedure BM_Interrupt_Enable (D : in out BM_Bus; Tag : Byte) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("extienable," & BMP_Num (Integer_64 (Tag)));
+   end BM_Interrupt_Enable;
+
+   procedure BM_Interrupt_Release (D : in out BM_Bus; Tag : Byte) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("extirelease," & BMP_Num (Integer_64 (Tag)));
+   end BM_Interrupt_Release;
+
+   package BM_Driver is new Adaflight.BMP085
+     (Bus_Device        => BM_Bus,
+      Is_I2C            => BM_Is_I2C,
+      I2C_Address       => BM_Address,
+      Set_I2C_Address   => BM_Set_Address,
+      Read_Registers    => BM_Read,
+      Start_Write       => BM_Start_Write,
+      Start_Read        => BM_Start_Read,
+      Check_Busy        => BM_Check_Busy,
+      Fetch             => BM_Fetch,
+      Register_Device   => BM_Register,
+      Delay_Ms          => BM_Delay,
+      Delay_Us          => BM_Delay_Us,
+      Init_Pin          => BM_Init_Pin,
+      Config_Pin        => BM_Config_Pin,
+      Pin_High          => BM_Pin_High,
+      Pin_Low           => BM_Pin_Low,
+      Read_Pin          => BM_Read_Pin,
+      Release_Pin       => BM_Release_Pin,
+      Interrupt_Init    => BM_Interrupt_Init,
+      Interrupt_Config  => BM_Interrupt_Config,
+      Interrupt_Enable  => BM_Interrupt_Enable,
+      Interrupt_Release => BM_Interrupt_Release);
+
+   BM_Device      : BM_Bus;
+   BM_State       : BM_Driver.State;
+   BM_Config      : BM_Driver.Config;
+   BM_Found       : Boolean := False;
+   BM_Settings    : Adaflight.Barometer_Task.Device;
+   BM_Done        : Boolean := False;
+   BM_Pressure    : Interfaces.Integer_32 := -1;
+   BM_Temperature : Interfaces.Integer_32 := -1;
+
+   procedure Check_BMP085_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "bminit" then
+         BMP_Op_Head := 1;
+         BMP_Op_Count := 0;
+         BM_Device := (others => <>);
+         BM_Config := (XCLR_Tag => Byte (Int (3)), EOC_Tag => Byte (Int (4)));
+         BM_Device.SPI := Int (5) /= 0;
+         BM_Device.Address := Byte (Int (6));
+         BM_Device.Device_Address := Byte (Int (7));
+         BM_Device.Failures_Left := Natural (Int (8));
+         BM_Device.EOC_Levels := Str (9);
+         declare
+            Id  : constant Byte_Array := Hex_Bytes (10);
+            Cal : constant Byte_Array := Hex_Bytes (11);
+         begin
+            BM_Device.Registers (16#D0#) := Id (0);
+            BM_Device.Registers (16#D1#) := Id (1);
+            for I in Cal'Range loop
+               BM_Device.Registers (16#AA# + I) := Cal (I);
+            end loop;
+         end;
+         BM_State := (others => <>);
+         BM_Pressure := -1;
+         BM_Temperature := -1;
+         BM_Driver.Detect (BM_Device, BM_Config, BM_State, BM_Found, BM_Settings);
+      elsif Name = "bmop" then
+         declare
+            Expected : Ada.Strings.Unbounded.Unbounded_String := Ada.Strings.Unbounded.To_Unbounded_String (Str (3));
+         begin
+            for I in 4 .. NF loop
+               Ada.Strings.Unbounded.Append (Expected, "," & Str (I));
+            end loop;
+            if BMP_Op_Head <= BMP_Op_Count then
+               Record_Text ("bmp085.op", Ada.Strings.Unbounded.To_String (Expected),
+                            Ada.Strings.Unbounded.To_String (BMP_Ops (BMP_Op_Head)));
+               BMP_Op_Head := BMP_Op_Head + 1;
+            else
+               Record_Text ("bmp085.op", Ada.Strings.Unbounded.To_String (Expected), "none");
+            end if;
+         end;
+      elsif Name = "bmdet" then
+         BMP_Expect_No_Ops ("detection");
+         Record_Int ("bmp085.found", Int (3), Boolean'Pos (BM_Found));
+         Record_Int ("bmp085.address", Int (4), Integer_64 (if BM_Device.SPI then 0 else BM_Device.Address));
+         Record_Int ("bmp085.ut_delay", Int (5), Integer_64 (BM_Settings.Temperature_Delay_Us));
+         Record_Int ("bmp085.up_delay", Int (6), Integer_64 (BM_Settings.Pressure_Delay_Us));
+      elsif Name = "bmstep" then
+         if Int (5) /= 0 then
+            BM_Driver.Conversion_Ended (BM_State);
+         end if;
+         BM_Device.Busy := Int (6) /= 0;
+         BM_Device.Started := Int (7) /= 0;
+         declare
+            Data : constant Byte_Array := Hex_Bytes (8);
+         begin
+            for I in Data'Range loop
+               BM_Device.Registers (16#F6# + I) := Data (I);
+            end loop;
+         end;
+         case Int (4) is
+            when 0 .. 5 =>
+               BM_Driver.Device_Call (BM_Device, BM_State, BMP_Calls (Integer (Int (4))), BM_Done);
+            when others =>
+               BM_Driver.Calculate (BM_State, BM_Pressure, BM_Temperature);
+               BM_Done := False;
+         end case;
+      elsif Name = "bmres" then
+         BMP_Expect_No_Ops ("a result");
+         Record_Int ("bmp085.done", Int (4), Boolean'Pos (BM_Done));
+         Record_Int ("bmp085.pressure", Int (5), Integer_64 (BM_Pressure));
+         Record_Int ("bmp085.temperature", Int (6), Integer_64 (BM_Temperature));
+         Record_Int ("bmp085.b5", Int (7), Integer_64 (BM_State.B5));
+         Record_Int ("bmp085.ut", Int (8), Integer_64 (BM_State.UT));
+         Record_Int ("bmp085.up", Int (9), Integer_64 (BM_State.UP));
+      end if;
+   end Check_BMP085_Line;
+
    --  The MS5611 oracle's bus: the simulated chip's first PROM byte, PROM
    --  words and ADC bytes, its address, the scripted busy and start answers,
    --  and the bytes the last started read brought. Its calls share the
@@ -32080,6 +32352,8 @@ procedure Vector_Check is
                   Check_LPS22DF_Line;
                elsif Kind = "qmp6988" then
                   Check_QMP6988_Line;
+               elsif Kind = "bmp085" then
+                  Check_BMP085_Line;
                elsif Kind = "ms5611" then
                   Check_MS5611_Line;
                elsif Kind = "bmp388" then
@@ -32401,6 +32675,7 @@ begin
    Run (Dir & "/dps310.csv", "dps310");
    Run (Dir & "/lps22df.csv", "lps22df");
    Run (Dir & "/qmp6988.csv", "qmp6988");
+   Run (Dir & "/bmp085.csv", "bmp085");
    Run (Dir & "/ms5611.csv", "ms5611");
    Run (Dir & "/bmp388.csv", "bmp388");
    Run (Dir & "/max7456.csv", "max7456");
