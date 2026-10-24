@@ -1487,286 +1487,305 @@ default build compiles. The unit is SPARK for the output buffer and the narrowin
 
 ## D64. iBus telemetry sensors (2026-10-11)
 
-The iBus telemetry unit carries the reference's sensor protocol and its port handler: the
-receiver polls the half-duplex line with four byte requests of a length, a command with the
-address in its low nibble and a two byte checksum, and the link answers from a table of fifteen
-sensor ids, the first nonzero address polled becoming the base of the table, an address below
-the base, past the table or at an empty entry getting no answer. The three commands answer the
-discovery with the address, the type with the id and its length, and the measurement with the
-value: two bytes for most sensors, four for the pressure, the positions and the altitudes, and
-the parts in turn for the three combined sensors. The values follow the reference's conversions
-and narrowing: the temperature in tenths offset by forty degrees from the barometer when present,
-else from the gyro; the throttle, zero with the motors stopped, or the capacity as the rate; the
-mode code with the last matching flag deciding; the accelerations in thousandths of a g; the
-attitude in hundredths of a degree wrapping past the sixteen bits; the GPS values zero without
-the sensor or a fix, the status always carrying the fix type and the satellites; the pressure
-with the temperature in its high bits. The bytes received pass a four byte window, the echo of
-each answer skipped by its length, and a request is seen when the window's length byte is two
-to four and the checksum over that many bytes less two matches its last two bytes; the
-reference sums past the window for other length bytes (finding F80), so those never match here.
-Every byte offered is taken, and an answer that would not fit the output is dropped, which no
-recorded vector reaches. The unit is SPARK for the window, the frame and the output indexes.
+The iBus telemetry unit contains the sensor protocol and its port handler. The receiver polls the
+half-duplex line with four byte requests: a length, a command with the address in its low nibble,
+and a two byte checksum. The link answers from a table of fifteen sensor ids. The first nonzero
+address polled becomes the base of the table, and an address below the base, past the table or at an
+empty entry gets no answer. The three commands answer the discovery with the address, the type with
+the id and its length, and the measurement with the value: two bytes for most sensors, four for the
+pressure, the positions and the altitudes, and the parts in turn for the three combined sensors.
+
+Each value has its own conversion and narrowing. The temperature is in tenths offset by forty
+degrees, from the barometer when present, else from the gyro. The throttle is zero with the motors
+stopped, or the capacity as the rate. In the mode code the last matching flag decides. The
+accelerations are in thousandths of a g, and the attitude is in hundredths of a degree, wrapping
+past the sixteen bits. The GPS values are zero without the sensor or a fix, and the status always
+contains the fix type and the satellites. The pressure contains the temperature in its high bits.
+
+The bytes received pass a four byte window, and the echo of each answer is skipped by its length. A
+request is seen when the window's length byte is two to four and the checksum over that many bytes
+less two matches its last two bytes. The reference sums past the window for other length bytes
+(finding F80), so those never match here. Every byte offered is taken, and an answer that would not
+fit the output is dropped, which no recorded vector reaches. The unit is SPARK for the window, the
+frame and the output indexes.
 
 ## D65. HoTT telemetry link (2026-10-11)
 
-The HoTT unit carries the reference's binary mode: the receiver asks on the single wire with two
-bytes, a request id and a sensor address, and the link answers the electric air module address
-with its message and the GPS module address with its message when a GPS is present, a byte per
-call with three milliseconds between bytes and the running sum after the last, the line turned
-to send on the call after the request and back to receive, with every byte waiting flushed, on
-the call after the sum. A request is seen when exactly two bytes wait on two checks four
-milliseconds apart; more than two are flushed; the count is read as a byte, so a receive buffer
-of exactly 256 bytes reads as empty and stays until more bytes arrive (finding F81). The two
-messages are prepared
-from the sensors five times a second, while one may be on its way out, so the bytes after a
-preparation carry the new values: the voltage into the main and first battery fields, the alarm
-and its inverse flag once per configured interval from the voltage or the charge state, the
-current and the charge used in tenths, the altitude offset by five hundred metres, the climb rate
-offset by thirty thousand and the three-second rate by one hundred and twenty; the satellites and
-the fix character always, and with a fix the position in degrees and minutes with hundredths of a
-second, the speed in kilometres per hour, the home distance, the altitude bounded to the field,
-and the home direction in two-degree steps. Each field narrows as the reference's byte stores do.
-The text mode waits for the menu system. The unit is SPARK for the message indexes and the send
-position.
+The HoTT unit contains the binary mode. The receiver asks on the single wire with two bytes, a
+request id and a sensor address. The link answers the electric air module address with its message,
+and the GPS module address with its message when a GPS is present. It sends a byte per call with
+three milliseconds between bytes and the running sum after the last. The line turns to send on the
+call after the request, and back to receive, with every byte waiting flushed, on the call after the
+sum. A request is seen when exactly two bytes wait on two checks four milliseconds apart, and more
+than two are flushed. The count is read as a byte, so a receive buffer of exactly 256 bytes reads as
+empty and stays until more bytes arrive (finding F81).
+
+The two messages are prepared from the sensors five times a second, while one may be on its way out,
+so the bytes after a preparation contain the new values. The voltage goes into the main and first
+battery fields. The alarm and its inverse flag come once per configured interval from the voltage or
+the charge state. The current and the charge used are in tenths, the altitude is offset by five
+hundred metres, the climb rate by thirty thousand and the three-second rate by one hundred and
+twenty. The satellites and the fix character are always sent. With a fix the message adds the
+position in degrees and minutes with hundredths of a second, the speed in kilometres per hour, the
+home distance, the altitude bounded to the field, and the home direction in two-degree steps. Each
+field narrows to its byte width. The text mode waits for the menu system. The unit is SPARK for the
+message indexes and the send position.
 
 ## D66. Ghost telemetry frames (2026-10-11)
 
-The Ghost telemetry unit carries the reference's frame scheduler and encoders: a schedule of up to
-four frame types built once from the configuration and the sensors present, the battery frame
-when a voltage or current meter is configured and reported, the two GPS frames with the GPS
-feature and their sensors reported, and the heading and altitude frame with a compass or a
-barometer reported; then one frame per cycle of a tenth of a second divided by the schedule
-length, in order, each frame the receiver address, the length, the type, ten payload bytes and
-the checksum over the type and payload, handed to the receiver driver to send. The battery frame
-carries the pack or cell voltage, the current and the charge used in tens, and the disarmed flag;
-the first GPS frame the position and the altitude in metres, zero without a fix; the second the
-speed, course, satellites, the home distance and direction in tens, and the fix flags; the last
-the heading and the altitude in metres bounded to the field with their flags. Each value narrows
-as the reference's writers do. The climb rate of the last frame stays zero and its flag clear,
-as the reference tests a sensor bit no sensor sets (finding F82), and an empty schedule sends
-nothing, where the reference divides by its length (finding F83). The unit is SPARK for the frame
-and schedule indexes.
+The Ghost telemetry unit contains the frame scheduler and encoders. A schedule of up to four frame
+types is built once from the configuration and the sensors present: the battery frame when a voltage
+or current meter is configured and reported, the two GPS frames with the GPS feature and their
+sensors reported, and the heading and altitude frame with a compass or a barometer reported. One
+frame then goes out per cycle of a tenth of a second divided by the schedule length, in order. Each
+frame is the receiver address, the length, the type, ten payload bytes and the checksum over the
+type and payload, handed to the receiver driver to send.
+
+The battery frame contains the pack or cell voltage, the current and the charge used in tens, and
+the disarmed flag. The first GPS frame contains the position and the altitude in metres, zero
+without a fix. The second contains the speed, course, satellites, the home distance and direction in
+tens, and the fix flags. The last contains the heading and the altitude in metres bounded to the
+field with their flags. Each value narrows to the width of its field.
+
+The climb rate of the last frame stays zero and its flag clear, as the reference tests a sensor bit
+no sensor sets (finding F82). An empty schedule sends nothing, where the reference divides by its
+length (finding F83). The unit is SPARK for the frame and schedule indexes.
 
 ## D67. Race transponder codings (2026-10-11)
 
-The transponder unit carries the reference's three infrared codings and its repeat schedule. Each
-coding turns the configured code into the toggles a timer plays out on the carrier: ILAP sends
-six bytes, each a pulsed start bit, its eight bits low first and a silent stop bit, eleven toggles
-and a gap per bit, 720 toggles in all; Arcitimer sends nine bytes, each bit low first as four
-toggles, in a buffer of 620 with silence after the 288 of the bits; ERLT sends the inverted code's
-six low bits high first between two start bits and a parity bit, a one as twenty-five cycles and a
-zero as ten, pulsed on the odd bits, with a silent cycle after the parity, so its length follows
-the code. The pulse value of the ERLT coding passes through a byte, as the reference's helper
-narrows it (finding F84). The schedule starts a transmission when the hardware is ready and the
-signed difference to the next time is not negative, and sets the next time from the coding's delay
-and a tenth of its jitter times the next step of a fixed table of fifteen; no coding means no
-transmission. The timer period and the hardware are the target's. The unit is SPARK for the toggle
-buffer indexes, which the reference drives through a static offset.
+The transponder unit contains the three infrared codings and the repeat schedule. Each coding turns
+the configured code into the toggles a timer plays out on the carrier. ILAP sends six bytes, each a
+pulsed start bit, its eight bits low first and a silent stop bit, with eleven toggles and a gap per
+bit, 720 toggles in all. Arcitimer sends nine bytes, each bit low first as four toggles, in a buffer
+of 620 with silence after the 288 of the bits. ERLT sends the inverted code's six low bits high
+first between two start bits and a parity bit, a one as twenty-five cycles and a zero as ten, pulsed
+on the odd bits, with a silent cycle after the parity, so its length follows the code. The pulse
+value of the ERLT coding passes through a byte, as the reference's helper narrows it (finding F84).
+
+The schedule starts a transmission when the hardware is ready and the signed difference to the next
+time is not negative. It sets the next time from the coding's delay and a tenth of its jitter times
+the next step of a fixed table of fifteen. No coding means no transmission. The timer period and the
+hardware are the target's. The unit is SPARK for the toggle buffer indexes, which the reference
+drives through a static offset.
 
 ## D68. SRXL telemetry frames (2026-10-11)
 
-The SRXL telemetry unit carries the reference's frame schedule and encoders for the Spektrum
-receivers: three slots in turn, the link quality frame and the rate frame always, then one user
-frame cycling over the flight pack current, the GPS status, the GPS location and the text generator
-line, the text line taking the slot whatever the cycle while the menu is on this display; each
-frame two address bytes, a length, sixteen payload bytes and the CRC-16 over the payload, handed
-to the receiver driver when its buffer is empty, a slot whose frame has nothing to say passing in
-silence. The rate frame carries the period between pulses from the ESC rate, or the DShot average
-when the ESC gives none, bounded to the shown range, the pack or cell voltage and the core
-temperature in Fahrenheit, big-endian; the flight pack frame goes when the current or the charge
-changed or two seconds passed; the GPS frames go with the GPS feature, a fix and four satellites,
-their values in binary coded decimals narrowed as the reference's conversions narrow them, the low
-altitude field through a sixteen-bit integer before its digits (finding F85); the text frame sends
-the next line not yet sent, or the next in turn when all were, and the menu system's characters
-mark their line through `Put_Char`. The video transmitter frame follows the VTX control branch,
-where the schedule grows by one user frame. The unit is SPARK for the frame and text indexes and
-the narrowing arithmetic.
+The SRXL telemetry unit contains the frame schedule and encoders for the Spektrum receivers. Three
+slots run in turn: the link quality frame and the rate frame always, then one user frame cycling
+over the flight pack current, the GPS status, the GPS location and the text generator line. The text
+line takes the slot whatever the cycle while the menu is on this display. Each frame is two address
+bytes, a length, sixteen payload bytes and the CRC-16 over the payload, handed to the receiver
+driver when its buffer is empty. A slot whose frame has nothing to say passes in silence.
+
+The rate frame contains the period between pulses from the ESC rate, or the DShot average when the
+ESC gives none, bounded to the shown range, the pack or cell voltage and the core temperature in
+Fahrenheit, big-endian. The flight pack frame goes when the current or the charge changed or two
+seconds passed. The GPS frames go with the GPS feature, a fix and four satellites. Their values are
+binary coded decimals, each narrowed to its field, and the low altitude field goes through a
+sixteen-bit integer before its digits (finding F85). The text frame sends the next line not yet
+sent, or the next in turn when all were, and the menu system's characters mark their line through
+`Put_Char`. The video transmitter frame follows the VTX control branch, where the schedule grows by
+one user frame. The unit is SPARK for the frame and text indexes and the narrowing arithmetic.
 
 ## D69. FrSky OSD device link (2026-10-11)
 
-The FrSky OSD unit carries the reference's device link: the drawing, transform, context, grid and
-font commands queued into a buffer of 192 bytes, the queue flushed when a command would not fit,
-on a commit, on a request that waits and on the information request, each flush one frame of the
-preamble, the length as a varint, the commands and the checksum over the length and commands; a
-commit of a transaction with nothing drawn dropped with its beginning; the coordinates packed two
-to three bytes of twelve bits each; the transform values as the bits of the floats. The bytes
-received pass the frame states with the varint length, a complete response handled once per call
-and the bytes after it dropped until then; the information response sets the version and the grid,
-the first one clearing the screen and resetting the drawing; the font read fills the character
-being read. The information request goes out once a second for the life of the link, as the field
-meant to pace it after the device answered is never set (finding F86). The two font exchanges wait
-for their reply in the reference; the unit takes the bytes waiting before the request, handling a
-complete response among them and dropping a partial one, then the request goes out with whatever
-was queued, then the bytes arriving during the wait are all taken, the first complete response
-deciding the outcome, and the caller carries the time the wait took. The strings are bounded to
-the payload the reference writes them into, which a longer string would overrun (finding F87). The
-unit is SPARK for the queue, frame and payload indexes.
+The FrSky OSD unit contains the device link. The drawing, transform, context, grid and font commands
+are queued into a buffer of 192 bytes. The queue is flushed when a command would not fit, on a
+commit, on a request that waits and on the information request. Each flush is one frame of the
+preamble, the length as a varint, the commands and the checksum over the length and commands. A
+commit of a transaction with nothing drawn is dropped with its beginning. The coordinates are packed
+two to three bytes of twelve bits each, and the transform values go as the bits of the floats.
+
+The bytes received pass the frame states with the varint length. A complete response is handled once
+per call, and the bytes after it are dropped until then. The information response sets the version
+and the grid, the first one clearing the screen and resetting the drawing. The font read fills the
+character being read. The information request goes out once a second for the life of the link, as
+the field meant to pace it after the device answered is never set (finding F86).
+
+The two font exchanges wait for their reply in the reference. The unit takes the bytes waiting
+before the request, handling a complete response among them and dropping a partial one. The request
+then goes out with whatever was queued, and the bytes arriving during the wait are all taken, the
+first complete response deciding the outcome. The caller accounts for the time the wait took. The
+strings are bounded to the payload the reference writes them into, which a longer string would
+overrun (finding F87). The unit is SPARK for the queue, frame and payload indexes.
 
 ## D70. LED strip (2026-10-11)
 
-The LED strip unit carries the reference's strip: the layout derived once from the configuration
-(the LEDs in use up to the first empty one, the ring and scanner counts, the ring sequence length,
-the grid halves for the indicator, the overlay timers nothing uses, the bar lengths); the status
-profile, which paints every LED from its function (a palette color blended toward its neighbours by
-the auxiliary channel, the mode color of its first direction, the arm state, the battery, signal,
-GPS and altitude hues offset by the value, the bars) and then runs the overlay layers on their own
-timers in the reference's order (rainbow, blink, scanner, ring, indicator, GPS, battery, signal,
-warning), each layer repainting its LEDs every call and stepping its state when its time came, a
-timer more than five seconds behind restarted; the race and beacon profiles painting the whole
-strip one color, the race color flashing for the beeper switch or failsafe, the beacon on its
-period, the strip repainted on a change or every second; and the driver update scaling each LED by
-the brightness and converting it to red, green and blue, every LED after a change of count and the
-LEDs in use otherwise. The configuration text of a LED and of a color parse as the reference reads
-them, a chunk of more than ten characters failing and a color component over its limit or below
-zero failing. Two reference behaviours are kept: a function mask also matches the functions whose
-numbers hold its bits, so the battery, signal and GPS layers repaint the bar and ring LEDs too
-(finding F88), and the ring timer's rate reaches zero for a throttle of 861 to 880 while armed,
-where the reference divides by it and the unit adds nothing (finding F89). The video transmitter
-layer and the race color that follows the transmitter frequency wait for the VTX branches, the
-layer leaving its timer alone. The unit is SPARK for the LED, palette and timer indexes and the
-hue arithmetic.
+The LED strip unit contains the strip. The layout is derived once from the configuration: the LEDs
+in use up to the first empty one, the ring and scanner counts, the ring sequence length, the grid
+halves for the indicator, the overlay timers nothing uses, and the bar lengths.
+
+The status profile paints every LED from its function: a palette color blended toward its neighbours
+by the auxiliary channel, the mode color of its first direction, the arm state, the battery, signal,
+GPS and altitude hues offset by the value, and the bars. It then runs the overlay layers on their
+own timers in a fixed order: rainbow, blink, scanner, ring, indicator, GPS, battery, signal,
+warning. Each layer repaints its LEDs every call and steps its state when its time came, and a timer
+more than five seconds behind restarts. The race and beacon profiles paint the whole strip one
+color. The race color flashes for the beeper switch or failsafe, and the beacon follows its period.
+The strip is repainted on a change or every second. The driver update scales each LED by the
+brightness and converts it to red, green and blue, every LED after a change of count and the LEDs in
+use otherwise.
+
+The configuration text of a LED and of a color parses chunk by chunk. A chunk of more than ten
+characters fails, and so does a color component over its limit or below zero. Two reference
+behaviours are kept. A function mask also matches the functions whose numbers hold its bits, so the
+battery, signal and GPS layers repaint the bar and ring LEDs too (finding F88). The ring timer's
+rate reaches zero for a throttle of 861 to 880 while armed, where the reference divides by it and
+the unit adds nothing (finding F89). The video transmitter layer and the race color that follows the
+transmitter frequency wait for the VTX branches, and the layer leaves its timer alone. The unit is
+SPARK for the LED, palette and timer indexes and the hue arithmetic.
 
 ## D71. Rangefinder readings (2026-10-11)
 
-The rangefinder unit carries the reference's processing of the distance a driver reports: the
-reading's time and the interval between readings, a median of the last five readings in range
-with the reading itself until five were seen, the pseudo signal ratio as the sum of the last five
-squared changes over ten each bounded, the dynamic ceiling on the usable distance raised to three
-quarters of the reading while the ratio stays quiet and frozen once the ratio crosses six hundred,
-and the altitude from the reading and the cosine of the craft's tilt, out of range past the
-sensor's extended cone. The surface altitude is usable with positive readings, a quiet ratio and,
-once the ceiling froze, a reading under it; the sensor is healthy within half a second of a valid
-reading. The detection, the drivers and the legacy bounds the altitude estimator reads come with
-the target, the bounds computed here from the range and the tilt limit. The unit is SPARK for the
-sample windows and the integer bounds.
+The rangefinder unit contains the processing of the distance a driver reports: the reading's time
+and the interval between readings, and a median of the last five readings in range, with the reading
+itself until five were seen. The pseudo signal ratio is the sum of the last five squared changes
+over ten, each bounded. The dynamic ceiling on the usable distance rises to three quarters of the
+reading while the ratio stays quiet and freezes once the ratio crosses six hundred. The altitude
+comes from the reading and the cosine of the craft's tilt, out of range past the sensor's extended
+cone.
+
+The surface altitude is usable with positive readings, a quiet ratio and, once the ceiling froze, a
+reading under it. The sensor is healthy within half a second of a valid reading. The detection, the
+drivers and the legacy bounds the altitude estimator reads come with the target, and the bounds are
+computed here from the range and the tilt limit. The unit is SPARK for the sample windows and the
+integer bounds.
 
 ## D72. Optical flow readings (2026-10-11)
 
-The optical flow unit carries the reference's sensor processing without its drivers: each read
-of the driver sets the quality, and a sample whose time stamp moved is turned into the craft
-frame by the cosine and sine of the mounting rotation, with the x axis flipped when configured.
-One filtered gyro reading is kept per sample in a ring of sixteen with its time stamp, and the
-slot whose age is nearest the driver's gyro delay supplies the roll and pitch rates that are
-subtracted from the flow after their conversion to radians per second. An axis whose matched
-gyro rate exceeds two hundred degrees per second keeps its previous processed rate and loses
-its validity, so a consumer can skip the axis instead of reading a zero as rest. A slot still
-at time zero is passed over, as is a sample stamped zero, in the reference's order. The health
-check compares the clock with the last sample through the wrapping difference. The cosine and
-sine of the configured rotation come from the platform's trigonometry at init, because the
-reference computes them once with the C library and the unit keeps no transcendental code. One
-guard covers the reference's undefined behavior: the age error of a slot is computed in 64
-bits where the reference subtracts the delay from a 32-bit age that can be near its minimum
+The optical flow unit contains the sensor processing without its drivers. Each read of the driver
+sets the quality, and a sample whose time stamp moved is turned into the craft frame by the cosine
+and sine of the mounting rotation, with the x axis flipped when configured. One filtered gyro
+reading is kept per sample in a ring of sixteen with its time stamp. The slot whose age is nearest
+the driver's gyro delay supplies the roll and pitch rates, which are subtracted from the flow after
+their conversion to radians per second. An axis whose matched gyro rate exceeds two hundred degrees
+per second keeps its previous processed rate and loses its validity, so a consumer can skip the axis
+instead of reading a zero as rest. A slot still at time zero is passed over, as is a sample stamped
+zero. The health check compares the clock with the last sample through the wrapping difference.
+
+The cosine and sine of the configured rotation come from the platform's trigonometry at init,
+because the reference computes them once with the C library and the unit keeps no transcendental
+code. One guard covers undefined behavior in the reference: the age error of a slot is computed in
+64 bits, where the reference subtracts the delay from a 32-bit age that can be near its minimum
 after a long silence (finding F90). No recorded vector reaches the guard.
 
 ## D73. Pitot airspeed (2026-10-11)
 
-The pitot unit carries the reference's airspeed task without its drivers: the platform reads
-the I2C sensor and the latest DroneCAN frame each pass, and the unit picks the source in the
-reference's order, the configured one alone or, for the default, the I2C sensor first and the
-DroneCAN frame when it is less than half a second old. The pressure of the source that answered
-goes through a first-order low-pass at five hertz over the twenty hertz task period; a source
-that takes over resets the filter and, while disarmed and not yet zeroed, starts its
-calibration, twenty filtered samples averaged into the source's zero, abandoned by arming. The
-zero-corrected pressure gives the indicated airspeed as the square root of twice the pressure
-over the sea-level air density, signed by the flow direction and in centimetres per second. A
-pass without a sample keeps the last values for one second, then drops the source and zeroes
-the pressure and the airspeed. Two bounds hold the proof without touching a value in range: the
-accumulation of the calibration is held within twenty signal bounds, the most twenty samples
-can sum to, and the root of the pressure is capped at one million before the multiplication to
-centimetres, a bound no pressure within the signal bound reaches. The time comparisons use the
-wrapping difference. No recorded vector reaches a guard.
+The pitot unit contains the airspeed task without its drivers. The platform reads the I2C sensor and
+the latest DroneCAN frame each pass, and the unit picks the source: the configured one alone or, for
+the default, the I2C sensor first and the DroneCAN frame when it is less than half a second old. The
+pressure of the source that answered goes through a first-order low-pass at five hertz over the
+twenty hertz task period. A source that takes over resets the filter and, while disarmed and not yet
+zeroed, starts its calibration: twenty filtered samples averaged into the source's zero, abandoned
+by arming. The zero-corrected pressure gives the indicated airspeed as the square root of twice the
+pressure over the sea-level air density, signed by the flow direction and in centimetres per second.
+A pass without a sample keeps the last values for one second, then drops the source and zeroes the
+pressure and the airspeed.
+
+Two bounds hold the proof without touching a value in range. The accumulation of the calibration is
+held within twenty signal bounds, the most twenty samples can sum to. The root of the pressure is
+capped at one million before the multiplication to centimetres, a bound no pressure within the
+signal bound reaches. The time comparisons use the wrapping difference. No recorded vector reaches a
+guard.
 
 ## D74. Real-time clock calendar (2026-10-11)
 
-The clock unit carries the reference's calendar without its time source: the platform supplies the
-millisecond uptime, and the clock keeps the set time less that uptime, zero while nothing was
-set. A date becomes milliseconds since 1970 through the reference's four-year leap cycle, the year
-from 2000, a table of days to the start of each month, and the hours, minutes and seconds, in
-32-bit unsigned arithmetic that wraps as the reference's does and lands in a signed second count;
-the reverse conversion divides the seconds out and walks the table from the end. A time zone in
-minutes moves a date through the time and back. The text of a date is the reference's ISO 8601
-form with the zone, or the short form, each field padded with zeros to its width; a date outside
-the valid ranges shows as the first of January of the year zero. A split finds the letter T that
-separates the date from the time. The time with the zone applied is stored as two 32-bit words
-across a reset and read back when either word is set. The conversions reproduce the reference's
-wraps: a date past January 2038 lands before 1970 (finding F91), a negative zone under an hour
-prints as positive (F93), and a set time equal to the uptime reads as no time (F95). Two guards
-cover the reference's undefined behavior and its one buffer: the zone offset is applied only to a
-month that indexes the day table, the default date showing otherwise (F92), and a stored time
-outside the settable span of two to the sixty-second milliseconds is rejected on read. The
-five-digit year the text can carry fits the 30-character result (F94). No recorded vector reaches
-a guard.
+The clock unit contains the calendar without its time source. The platform supplies the millisecond
+uptime, and the clock keeps the set time less that uptime, zero while nothing was set. A date
+becomes milliseconds since 1970 through the four-year leap cycle, the year from 2000, a table of
+days to the start of each month, and the hours, minutes and seconds, in 32-bit unsigned arithmetic
+that wraps and lands in a signed second count. The reverse conversion divides the seconds out and
+walks the table from the end. A time zone in minutes moves a date through the time and back.
+
+The text of a date is the ISO 8601 form with the zone, or the short form, each field padded with
+zeros to its width. A date outside the valid ranges shows as the first of January of the year zero.
+A split finds the letter T that separates the date from the time. The time with the zone applied is
+stored as two 32-bit words across a reset and read back when either word is set.
+
+The conversions reproduce the reference's wraps: a date past January 2038 lands before 1970 (finding
+F91), a negative zone under an hour prints as positive (F93), and a set time equal to the uptime
+reads as no time (F95). Two guards cover the reference's undefined behavior and its one buffer. The
+zone offset is applied only to a month that indexes the day table, the default date showing
+otherwise (F92), and a stored time outside the settable span of two to the sixty-second milliseconds
+is rejected on read. The five-digit year the text can contain fits the 30-character result (F94). No
+recorded vector reaches a guard.
 
 ## D75. Internal ADC channels (2026-10-11)
 
-The internal ADC unit carries the reference's averaging and compensation without the conversions:
-the platform reads the band gap reference and the temperature sensor and hands the two 12-bit
-values to each pass, which runs each through a moving average of eight with the sum kept as the
-sum of the window by a record predicate, computes the analog supply in millivolts as the chip's
-calibration word times 3300 over the averaged reference, and the core temperature as the
-averaged sensor reading scaled by the supply over 3300, less the calibration point at thirty
-degrees, times the slope in thousandths of a degree, rounded to degrees and offset by thirty,
-with the reference's narrowing to sixteen bits. The nine conversions of the reference's init are
-nine passes driven by the platform. The calibration word, the point and the slope are bounded to
-the values the chips carry, so the products stay in 32 bits where the reference would overflow
-(finding F96). One guard covers the reference's division: an averaged reference reading of zero
-gives a supply of zero, the quotient the target's core produces (F97). No recorded vector reaches
-the guard.
+The internal ADC unit contains the averaging and compensation without the conversions. The platform
+reads the band gap reference and the temperature sensor and hands the two 12-bit values to each
+pass. The pass runs each through a moving average of eight, with the sum kept as the sum of the
+window by a record predicate. It computes the analog supply in millivolts as the chip's calibration
+word times 3300 over the averaged reference. The core temperature is the averaged sensor reading
+scaled by the supply over 3300, less the calibration point at thirty degrees, times the slope in
+thousandths of a degree, rounded to degrees, offset by thirty and narrowed to sixteen bits. The nine
+conversions at startup are nine passes driven by the platform.
+
+The calibration word, the point and the slope are bounded to the values the chips store, so the
+products stay in 32 bits where the reference would overflow (finding F96). One guard covers the
+reference's division: an averaged reference reading of zero gives a supply of zero, the quotient the
+target's core produces (F97). No recorded vector reaches the guard.
 
 ## D76. Flight statistics (2026-10-11)
 
-The flight statistics unit carries the reference's counters without the configuration store, the
-beeper and the scheduler: an arm records the millisecond clock and the distance flown so far, and
-a disarm, when the minimum armed time is not off, adds a flight, the armed seconds and the metres
-flown since the arm to the totals and records the battery draw, once the armed time reaches the
-minimum, then asks for the save after half a second while a save is owed. The save, when the
-platform runs it, does nothing while armed; while disarmed it writes the configuration and repeats
-the disarm beep when the craft lies still under the movement limit, or when the limit is zero,
-asks for another pass otherwise, and in either case clears the owed save; a configuration change
-waiting for its own save leaves the statistics to it. The seconds and the metres wrap as the
-reference's unsigned arithmetic, and a negative battery draw lands in the unsigned total as the
-reference stores it. No guard was needed.
+The flight statistics unit contains the counters without the configuration store, the beeper and the
+scheduler. An arm records the millisecond clock and the distance flown so far. A disarm, when the
+minimum armed time is not off and the armed time reaches it, adds a flight, the armed seconds and
+the metres flown since the arm to the totals and records the battery draw. It then asks for the save
+after half a second while a save is owed.
+
+The save, when the platform runs it, does nothing while armed. While disarmed it writes the
+configuration and repeats the disarm beep when the craft lies still under the movement limit, or
+when the limit is zero, and asks for another pass otherwise. In either case it clears the owed save.
+A configuration change waiting for its own save leaves the statistics to it. The seconds and the
+metres wrap in unsigned arithmetic, and a negative battery draw lands in the unsigned total. No
+guard was needed.
 
 ## D77. Wing launch (2026-10-12)
 
-The wing launch unit carries the reference's launch state machine without its sensors, receiver
-and modes, which the platform hands to each pass as inputs. An arm latches the launch when the
-switch is on, the airframe is a fixed wing with an accelerometer and it lies at rest: specific
-force within 0.15 g of one g, every gyro rate under 25 degrees per second, a vertical speed under
-a metre per second when an altitude exists, and a ground speed under half a metre per second when
-the fix has five satellites. The pass then walks the reference's states in its order: the throttle
-wait, which restarts its clock while the throttle is low and leaves after the idle delay; the idle
-ramp of a second and a half for the throttle and the climb angle; the detection wait, which holds
-the idle throttle and the climb angle and needs a bungee pull, a swing or a run to hold for the
-detection time, a frame without one seeding the clock again; the motor delay; the spin-up ramp
-from the idle to the launch throttle; the climb-out until the altitude, the timeout or the sticks;
-and the finish, a cross-fade of the handover factor to the pilot that any stick input ends early.
-A bungee pull is the forward specific force past the threshold while level within the tilt gate;
-a swing is the tangential speed about the thrower's shoulder, the sideways force times gravity
-over the yaw rate in radians, past the velocity threshold with a forward force; a run is the
-ground speed past the same threshold with a forward force and a fix of five satellites. From the
-motor delay on, a bank past the abort angle either way or a dive past it, held for a tenth of a
-second, aborts; the sticks abort past the deadband once the minimum time from detection has run;
-the mode going off or the failsafe aborts at once, as does the switch. Every exit hands the
+The wing launch unit contains the launch state machine without its sensors, receiver and modes,
+which the platform hands to each pass as inputs. An arm latches the launch when the switch is on,
+the airframe is a fixed wing with an accelerometer and it lies at rest: specific force within 0.15 g
+of one g, every gyro rate under 25 degrees per second, a vertical speed under a metre per second
+when an altitude exists, and a ground speed under half a metre per second when the fix has five
+satellites.
+
+The pass then walks the states in order. The throttle wait restarts its clock while the throttle is
+low and leaves after the idle delay. The idle ramp takes a second and a half for the throttle and
+the climb angle. The detection wait holds the idle throttle and the climb angle and needs a bungee
+pull, a swing or a run to hold for the detection time, and a frame without one seeds the clock
+again. The motor delay follows, then the spin-up ramp from the idle to the launch throttle, and the
+climb-out until the altitude, the timeout or the sticks. The finish cross-fades the handover factor
+to the pilot, and any stick input ends it early.
+
+A bungee pull is the forward specific force past the threshold while level within the tilt gate. A
+swing is the tangential speed about the thrower's shoulder, the sideways force times gravity over
+the yaw rate in radians, past the velocity threshold with a forward force. A run is the ground speed
+past the same threshold with a forward force and a fix of five satellites.
+
+From the motor delay on, a bank past the abort angle either way or a dive past it, held for a tenth
+of a second, aborts. The sticks abort past the deadband once the minimum time from detection has
+run. The mode going off or the failsafe aborts at once, as does the switch. Every exit hands the
 aircraft straight back with a handover of one. While the launch owns the aircraft the pass writes
-the angle targets the level controller reads, zero roll and the climb angle as a nose-down pitch;
-the targets live with the caller and keep their values otherwise, as the reference's globals do.
-The times compare through the wrapping difference. No guard was needed.
+the angle targets the level controller reads: zero roll and the climb angle as a nose-down pitch.
+The targets live with the caller and keep their values otherwise, where the reference keeps them in
+globals. The times compare through the wrapping difference. No guard was needed.
 
 ## D78. Navigation trail (2026-10-12)
 
-The navigation trail unit carries the reference's breadcrumb recorder for the OSD map without
-its GPS: the platform hands each poll the position east and north of home in centimetres, which
-the reference computes from the home and current coordinates. The poll runs at ten hertz on the
-wrapping clock, starts the line over on the arm edge before the cycle's position can land, and
-takes a position only while armed with a fix and a home. A position becomes whole metres east
-and north, rounded to the nearest and held in sixteen bits before the distance gate, so a glitch
-past the range leaves the stored point and the gate's arithmetic agreeing; the first point is
-stored, a later one when its distance from the last reaches the spacing, compared as squares in
-64 bits. A full store of 240 points keeps every second point and doubles the spacing, up to five
-kilometres, before the point goes in. The stored points live in the record and the harness
-checks their count, the spacing, the last point and a hash over every point. No guard was
-needed.
+The navigation trail unit contains the breadcrumb recorder for the OSD map without its GPS. The
+platform hands each poll the position east and north of home in centimetres, which the reference
+computes inside the recorder from the home and current coordinates. The poll runs at ten hertz on
+the wrapping clock, starts the line over on the arm edge before the cycle's position can land, and
+takes a position only while armed with a fix and a home.
+
+A position becomes whole metres east and north, rounded to the nearest and held in sixteen bits
+before the distance gate, so a glitch past the range leaves the stored point and the gate's
+arithmetic agreeing. The first point is stored, and a later one when its distance from the last
+reaches the spacing, compared as squares in 64 bits. A full store of 240 points keeps every second
+point and doubles the spacing, up to five kilometres, before the point goes in. The stored points
+live in the record, and the harness checks their count, the spacing, the last point and a hash over
+every point. No guard was needed.
 
 ## D79. The GPS frame decoders (2026-10-11)
 
