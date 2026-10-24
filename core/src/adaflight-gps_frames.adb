@@ -351,7 +351,7 @@ package body Adaflight.GPS_Frames with SPARK_Mode is
                      R.NMEA.Values.Longitude := Negate (R.NMEA.Values.Longitude);
                   end if;
                when 6 =>
-                  Set_Fix (R, R.NMEA.Field (0) > Zero);
+                  R.NMEA.Values.Fix := R.NMEA.Field (0) > Zero;
                when 7 =>
                   Grab_Fields (R.NMEA.Field, 0, V);
                   R.NMEA.Values.Num_Sat := Unsigned_8'Mod (V);
@@ -442,6 +442,7 @@ package body Adaflight.GPS_Frames with SPARK_Mode is
       New_Solution := False;
       case R.NMEA.Frame is
          when GGA =>
+            Set_Fix (R, R.NMEA.Values.Fix);
             if R.Fix then
                R.Sol.Llh.Lat := R.NMEA.Values.Latitude;
                R.Sol.Llh.Lon := R.NMEA.Values.Longitude;
