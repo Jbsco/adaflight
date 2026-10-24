@@ -107,11 +107,10 @@ package body Adaflight.GHST with SPARK_Mode is
       S.Telemetry_Enabled := RF in RF_Normal | RF_Race | RF_Long_Range | RF_Race_250;
       if Rx.RSSI_From = Receiver.Rx_Protocol then
          declare
-            Scaled  : constant Integer range -2_500 .. 2_100 :=
+            Scaled : constant Integer range -2_500 .. 2_100 :=
               Receiver.RSSI_Max * (-RSSI - RSSI_Dbm_Min) / (RSSI_Dbm_Max - RSSI_Dbm_Min);
-            Wrapped : constant Natural range 0 .. 65_535 := Scaled mod 65_536;
          begin
-            Receiver.Set_RSSI (Rx, Natural'Min (Wrapped, Receiver.RSSI_Max), Receiver.Rx_Protocol);
+            Receiver.Set_RSSI (Rx, Integer'Max (0, Integer'Min (Scaled, Receiver.RSSI_Max)), Receiver.Rx_Protocol);
          end;
       end if;
       Receiver.Set_RSSI_Dbm (Rx, -RSSI, Receiver.Rx_Protocol);
@@ -142,10 +141,10 @@ package body Adaflight.GHST with SPARK_Mode is
       end if;
       if Legacy then
          for I in 0 .. 3 loop
-            S.Data (I) := ((5 * S.Data (I)) / 4 - 430) mod 65_536;
+            S.Data (I) := Integer'Max (0, (5 * S.Data (I)) / 4 - 430) mod 65_536;
             if Next > 4 then
                Next := Next - 1;
-               S.Data (Next) := (5 * (S.Data (Next) / 4) - 108) mod 65_536;
+               S.Data (Next) := Integer'Max (0, 5 * (S.Data (Next) / 4) - 108) mod 65_536;
             end if;
          end loop;
       end if;
