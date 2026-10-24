@@ -7912,13 +7912,14 @@ NOR or the NAND driver, whatever that answers, and gives the chip the first die'
 twice its size. A die is selected with the die select command 0xC2 and the die's number between bus waits, only when
 another die was selected last. Configuration, waits and full erases go to each die in turn. A readiness check asks only
 the dies that could be busy, and the check and a wait stop at the first die that is not ready. An erase or a read goes
-to the address's die at the address within it, and a read that spans both dies reads from each in turn and gives up when
-a die read brings no bytes. Otherwise the read counts all the bytes asked for, also when a NAND die stopped at its page
-end (finding F268). A program's begin selects the address's die and hands it the whole address, and the continuation and
-finish go to the die of the last begin. The reference keeps the dies, the die size, the last selected die and the
-program's die in static variables. This unit keeps them in a record the caller passes, and the flash layer does not try
-this driver yet (finding F269 concerns that step). The unit is SPARK for the die selection and the address split, with a
-precondition that keeps an operation's address within the two dies.
+to the address's die at the address within it, and a read that spans both dies reads from each in turn and stops at the
+first die read that brings fewer bytes than asked, counting the bytes brought. The reference counts all the bytes asked
+for whenever every die read brought some, also when a NAND die stopped at its page end (finding F268, D6). A program's
+begin selects the address's die and hands it the whole address, and the continuation and finish go to the die of the
+last begin. The reference keeps the dies, the die size, the last selected die and the program's die in static variables.
+This unit keeps them in a record the caller passes, and the flash layer does not try this driver yet (finding F269
+concerns that step). The unit is SPARK for the die selection and the address split, with a precondition that keeps an
+operation's address within the two dies.
 
 The W25M oracle includes the reference driver with the die drivers stubbed. A die identification gives the die the
 geometry its driver would, the W25N one with its bad block partition request, and each die operation logs its die and
