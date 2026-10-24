@@ -1205,7 +1205,10 @@ package body Adaflight.FAT_FS with SPARK_Mode is
                exit when Status /= Success;
                FS.Files (Id).Operation.Truncation.Phase := Truncate_Success;
             when Erase_Chain =>
-               while not FAT_End_Of_Chain (FS.Vol, FS.Files (Id).Operation.Truncation.Current_Cluster) loop
+               --  A reserved cluster ends the walk, so an empty file frees nothing (D6).
+               while FS.Files (Id).Operation.Truncation.Current_Cluster >= Smallest_Cluster
+                 and then not FAT_End_Of_Chain (FS.Vol, FS.Files (Id).Operation.Truncation.Current_Cluster)
+               loop
                   pragma Loop_Invariant (FS.Vol = FS.Vol'Loop_Entry);
                   Next := 0;
                   FAT_Get_Next_Cluster (FS, Card, 0, FS.Files (Id).Operation.Truncation.Current_Cluster, Status, Next);

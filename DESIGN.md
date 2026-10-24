@@ -332,6 +332,10 @@ ledger. The deviations so far:
 - The RTC6705 menu's exit stores the band, channel and frequency only while both band and channel are set
   (D262). The reference stores band 0, channel 0 and frequency 0 when the device reports no band (F226).
   The menu contents oracle compiles the reference menu with the same change.
+- A truncation's or a delete's chain walk stops at a reserved cluster, 0 or 1, so deleting an empty file
+  frees nothing (D299). The reference starts the walk at the file's first cluster, 0 for an empty file,
+  frees FAT entry 0, and a second such delete never returns from the main task (F239). The FAT oracle
+  compiles the reference source with the same change.
 
 ## D7. Contribution conventions (2026-10-08)
 
@@ -6860,6 +6864,11 @@ not return ends its sequence (F239). Every card operation, clock read, result, e
 finder, notice, cache entry and the hash of the cache memory of the 18200 steps replays exactly.
 Thirty-one tampered paths each fail the vectors. In twelve of them the port does not return from a step the
 reference returns from.
+
+Amended 2026-10-24: the truncation's chain walk stops at a reserved cluster, so an empty file frees
+nothing, as declared in D6 (F239). The FAT oracle compiles the reference source with the same change,
+which alters 3392 of the directory run's 18200 steps. They replay exactly, and dropping the stop fails
+them.
 
 ## D300. SD card file system: initialization and shutdown (2026-10-17)
 
