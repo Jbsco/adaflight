@@ -840,7 +840,7 @@ package body Adaflight.FAT_FS with SPARK_Mode is
          when From_Current =>
             if Offset >= 0 then
                Seek_Forward
-                 (FS, Card, Id, Unsigned_32'Min (FS.Files (Id).Cursor_Offset + Target, FS.Files (Id).Logical_Size),
+                 (FS, Card, Id, Unsigned_32'Min (Target, FS.Files (Id).Logical_Size - FS.Files (Id).Cursor_Offset),
                   Status);
                return;
             end if;
