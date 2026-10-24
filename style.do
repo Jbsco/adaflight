@@ -47,6 +47,7 @@ fi
 VERBATIM='core/src/adaflight-settings_table.adb tests/vectors/settings.csv'
 LEAK=$(git ls-files -z | xargs -0 grep -nliE 'betaflight|cleanflight|inav|ema-gnc|lasp' 2>/dev/null \
        | grep -v '^style.do$' | grep -v '^README.md$' | grep -v '^DESIGN.md$' | grep -v '^ROADMAP.md$' \
+       | grep -v '^DIVERGENCES.md$' | grep -v '^docs/upstream/' \
        | grep -vxF -e core/src/adaflight-settings_table.adb -e tests/vectors/settings.csv || true)
 for f in $VERBATIM; do
     if git ls-files --error-unmatch "$f" >/dev/null 2>&1; then
@@ -56,7 +57,7 @@ for f in $VERBATIM; do
     fi
 done
 if [ -n "$LEAK" ]; then
-    echo "  reference to another project outside the README, the roadmap and the design ledger:"
+    echo "  reference to another project outside the README, the roadmap, the design ledger and the divergence documents:"
     echo "$LEAK" | sed 's/^/    /'
     FAIL=1
 fi
