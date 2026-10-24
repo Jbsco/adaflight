@@ -8762,3 +8762,40 @@ landing exactly 1000 us after the chain's stamp in 60 percent of them. Every bus
 with the bytes of each transfer, and the driver's state after each operation of the 330 cases replay exactly: 304 chips
 initialize, 935 interrupts arm the busy pin 257 times, 99 falls continue a chain, 277 packets are processed, 168 hops
 and 120 telemetry responses are sent. Of 126 tampered paths, every one fails the vectors.
+
+## D372. SX127x radio driver (2026-10-19)
+
+`Adaflight.SX127x` drives the SX127x radio of the ExpressLRS SPI receiver, a generic over the receiver's SPI command
+helpers (a register write, a burst write, a register read and a burst read, each with the register address as the
+command byte and the write bit set for a write), the reset pin, the delay, the receiver's interrupt line and the time of
+its last interrupt. Initialization needs the receiver's interrupt pin, pulses the reset pin low for 50 ms and lets it
+float, reads the version register up to three times 50 ms apart for the chip's id and puts the chip to sleep through a
+read, modify and write of the mode bits. The configuration writes the LoRa defaults (sleep, the LoRa range bit, standby,
+the flags cleared, an 8-byte payload, the default sync word, the FIFO bases, DIO0 on both done interrupts, the LNA
+boost, automatic gain, the 150 mA current limit, the default preamble and the IQ inversion bit), then the preamble
+length, the maximum output power, the spreading factor with its detection registers, the bandwidth, coding rate and CRC
+mode with the errata registers for 500 kHz, and the frequency. The sync word write steps up to the next allowed word of
+the 105. The bit field operations mask from the bit range and refuse ranges past bit 7. The frequency in hertz converts
+in steps of 15625 over 256 (61.03515625 Hz); the frequency error combines the three error registers as a signed 19-bit
+value scaled by the bandwidth's factor in unsigned arithmetic; the correction steps the offset against the error sign,
+back to zero at either bound of 1638 steps, and writes 95 percent of its parts per million as a truncated and wrapped
+byte (finding F282). The signal strength subtracts 157 as a wrapped byte and the packet statistics correct it by a
+quarter of a negative ratio (F282). The interrupt handler clears the receiver's interrupt, reads and clears the flags
+for the reason (received, sent, both or neither) and takes the receiver's last interrupt time when it is set. The unit
+is SPARK: the offset subtype bounds the scaled correction and a nonzero frequency guards its division.
+
+The SX127x oracle includes the reference driver over stubs: the receiver's SPI helpers logging each command and
+answering reads from a hash of the address, the case's seed and the step's salt, with the version register answering its
+id from a drawn read on, the reset pin, the delay and the interrupt line. Each process runs one case of 6 to 24
+operations: the initialization, with the interrupt pin missing in 5 percent of the cases and the reset pin in 20,
+configurations, modes, frequencies in hertz and in register steps, powers, preambles, spreading factors, bandwidth and
+coding writes, sync words, transmissions and receptions of 1 to 16 bytes, reception starts, bandwidth lookups with
+unknown codes in 20 percent, offsets and corrections at drawn offsets and frequencies, frequency errors, statistics,
+interrupt flags and reasons, interrupts with the last time set or clear, bit field reads and writes with invalid ranges
+in 30 percent, register writes, reads and bursts, and the LoRa defaults. Every bus, pin and delay call with its bytes
+and the results of the 4383 operations of the 300 cases replay exactly: 242 of 397 initializations find the chip, 215
+interrupts report their reason, 220 corrections step the offset and 28 lookups answer all ones. Of 151 tampered paths,
+140 fail the vectors and 8 stop the checker at a subtype check. Three pass and are equivalent: the signed conversion's
+case at exactly 2 ** 31, which the frequency error's product shifted right by four never reaches; the order of the
+transmit and receive flag tests, which follow the test of both flags at once; and the packet statistics' test for a
+negative signal to noise ratio, where a ratio of zero adds nothing to the strength.
