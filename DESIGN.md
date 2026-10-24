@@ -6658,6 +6658,11 @@ same change, which alters 11096 of the file run's 23000 steps, 1490 of the direc
 154 of the initialization run's 40200. They replay exactly. Keeping the sector fails them, and so
 does a position taken before the cluster rounds up to the jump.
 
+Amended 2026-10-24: a seek from the current position moves by the offset, bounded by the bytes left
+in the file, as declared in D6 (F238). The FAT oracle compiles the reference source with the same
+change, which alters 11362 of the file run's 23000 steps. They replay exactly. Seeking by the target
+position fails them, as does dropping the bound or bounding by the file size.
+
 ## D300. SD card file system: initialization and shutdown (2026-10-17)
 
 `Adaflight.FAT_FS` gains the initialization, the poll and the shutdown. The initialization reads the
