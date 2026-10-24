@@ -6652,6 +6652,12 @@ nothing, as declared in D6 (F239). The FAT oracle compiles the reference source 
 which alters 3392 of the directory run's 18200 steps. They replay exactly, and dropping the stop fails
 them.
 
+Amended 2026-10-24: the cluster search recomputes its FAT sector and entry index after it skips the
+free-space file, as declared in D6 (F237). The FAT oracle compiles the reference source with the
+same change, which alters 11096 of the file run's 23000 steps, 1490 of the directory run's 18200 and
+154 of the initialization run's 40200. They replay exactly. Keeping the sector fails them, and so
+does a position taken before the cluster rounds up to the jump.
+
 ## D300. SD card file system: initialization and shutdown (2026-10-17)
 
 `Adaflight.FAT_FS` gains the initialization, the poll and the shutdown. The initialization reads the
