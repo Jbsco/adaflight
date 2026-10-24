@@ -217,6 +217,7 @@ with Adaflight.MPU_Gyro.ICM20689;
 with Adaflight.Flash_Device;
 with Adaflight.Flash_Device.M25P16;
 with Adaflight.Flash_Device.W25Q128FV;
+with Adaflight.OLED_Display;
 with Adaflight.Flash_Device.W25N;
 with Adaflight.Flash_Device.W25M;
 with Adaflight.Flash_Device.Layer;
@@ -23497,6 +23498,100 @@ procedure Vector_Check is
       end if;
    end Check_W25Q128FV_Line;
 
+   --  The OLED oracle's I2C link: a drawn answer pattern over the first 64
+   --  writes of a case.
+   type OD_Bus is record
+      Fail_Bits : Interfaces.Unsigned_64 := 0;
+      Calls     : Natural := 0;
+   end record;
+
+   OD_Device : OD_Bus;
+
+   procedure OD_Write (D : in out OD_Bus; Control : Byte; Value : Byte; OK : out Boolean) is
+      use type Interfaces.Unsigned_64;
+   begin
+      OK := not (D.Calls < 64 and then (Interfaces.Shift_Right (D.Fail_Bits, D.Calls) and 1) = 1);
+      D.Calls := D.Calls + 1;
+      MX_Op ("write," & MX_Hex (Byte_Array'(0 => Control)) & "," & MX_Hex (Byte_Array'(0 => Value)) & ","
+             & BMP_Num (Boolean'Pos (OK)));
+   end OD_Write;
+
+   package OD_Display is new Adaflight.OLED_Display (I2C_Device => OD_Bus, Write => OD_Write);
+
+   OD_State  : OD_Display.Display;
+   OD_Result : Integer_64 := 0;
+
+   procedure Check_OLED_Line is
+      use type Interfaces.Unsigned_64;
+      Name : constant String := Str (1);
+   begin
+      if Name = "odinit" then
+         MX_Op_Head := 1;
+         MX_Op_Count := 0;
+         OD_Device := (others => <>);
+         OD_State := (others => <>);
+         declare
+            Bits : constant String := Str (3);
+         begin
+            OD_Device.Fail_Bits :=
+              Interfaces.Shift_Left
+                (Interfaces.Unsigned_64 (Integer_64'Value ("16#" & Bits (Bits'First .. Bits'First + 7) & "#")), 32)
+              or Interfaces.Unsigned_64 (Integer_64'Value ("16#" & Bits (Bits'First + 8 .. Bits'Last) & "#"));
+         end;
+      elsif Name = "odstep" then
+         MX_Op_Head := 1;
+         MX_Op_Count := 0;
+         OD_Result := 0;
+         case Int (4) is
+            when 0 =>
+               declare
+                  OK : Boolean;
+               begin
+                  OD_Display.Init (OD_Device, OD_State, OK);
+                  OD_Result := Boolean'Pos (OK);
+               end;
+            when 1 =>
+               OD_Display.Clear (OD_Device);
+            when 2 =>
+               OD_Display.Clear_Quick (OD_Device);
+            when 3 =>
+               OD_Display.Set_XY (OD_Device, Byte (Int (5)), Byte (Int (6)));
+            when 4 =>
+               OD_Display.Set_Line (OD_Device, Byte (Int (5)));
+            when 5 =>
+               OD_Display.Send_Char (OD_Device, OD_State, Byte (Int (5)));
+            when others =>
+               declare
+                  Bytes : constant Byte_Array := Hex_Bytes (5);
+                  Text  : String (1 .. Bytes'Length);
+               begin
+                  for K in Text'Range loop
+                     Text (K) := Character'Val (Bytes (Bytes'First + K - 1));
+                  end loop;
+                  OD_Display.Send_String (OD_Device, OD_State, Text);
+               end;
+         end case;
+      elsif Name = "odop" then
+         declare
+            Expected : Ada.Strings.Unbounded.Unbounded_String := Ada.Strings.Unbounded.To_Unbounded_String (Str (3));
+         begin
+            for I in 4 .. NF loop
+               Ada.Strings.Unbounded.Append (Expected, "," & Str (I));
+            end loop;
+            if MX_Op_Head <= MX_Op_Count then
+               Record_Text ("oled.op", Ada.Strings.Unbounded.To_String (Expected),
+                            Ada.Strings.Unbounded.To_String (MX_Ops (MX_Op_Head)));
+               MX_Op_Head := MX_Op_Head + 1;
+            else
+               Record_Text ("oled.op", Ada.Strings.Unbounded.To_String (Expected), "none");
+            end if;
+         end;
+      elsif Name = "odres" then
+         MX_Expect_No_Ops ("a result");
+         Record_Int ("oled.result", Int (4), OD_Result);
+      end if;
+   end Check_OLED_Line;
+
    --  The W25N oracle's chip: its page count, page address form and status
    --  register instructions, each block's last erase, the programs in order
    --  over a fixed initial pattern, the registers, data buffer and write
@@ -36740,6 +36835,8 @@ procedure Vector_Check is
                   Check_M25P16_Line;
                elsif Kind = "w25q128fv" then
                   Check_W25Q128FV_Line;
+               elsif Kind = "oled" then
+                  Check_OLED_Line;
                elsif Kind = "w25n" then
                   Check_W25N_Line;
                elsif Kind = "w25m" then
@@ -37069,6 +37166,7 @@ begin
    Run (Dir & "/icm20689.csv", "icm20689");
    Run (Dir & "/m25p16.csv", "m25p16");
    Run (Dir & "/w25q128fv.csv", "w25q128fv");
+   Run (Dir & "/oled.csv", "oled");
    Run (Dir & "/w25n.csv", "w25n");
    Run (Dir & "/w25m.csv", "w25m");
    Run (Dir & "/flash.csv", "flash");
