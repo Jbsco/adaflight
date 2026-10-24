@@ -8373,3 +8373,27 @@ replays exactly. In them 215 chips are found, 132 answer 0xE9 and 122 0xE5, 14 c
 access times out in 7, past all retries in 2, the reset in 11, 36 refuse the indirect writes, and of 6450 steps 1524
 read the gyro, 1265 the accelerometer and 2067 raise interrupts. Of 69 tampered paths, 68 fail the vectors. One passes
 and is equivalent: the masking of an update's value, since every value lies within its mask.
+
+## D361. LSM6DSO gyro driver (2026-10-19)
+
+`Adaflight.MPU_Gyro.LSM6DSO` drives the LSM6DSO gyro over the SPI gyro layer. Detection reads the identity, 0x6C, once.
+Initialization sets the reset bit of the third control register and waits 100 ms, enables the gyro data ready on both
+interrupt pins, sets the accelerometer to 833 Hz at 16 g from its first filter and the gyro to 6664 Hz at 2000 degrees
+per second, the block update and the address increment, the I2C disable and the gyro's first filter, the high
+performance accelerometer with the 335 Hz gyro filter, and the I3C disable, each masked write reading the register first
+and skipped when the read fails, waits 1 ms after each write, arms the data ready interrupt when the board has the pin,
+and sets a 10 MHz clock; it leaves the layer's data registers, DMA read and short period unset. The interrupt only marks
+data ready. The reads take the six little-endian bytes of the gyro or the accelerometer with a blocking transfer and
+fail when the transfer does. The gyro's scale is 0.07 degrees per second per count and the accelerometer's 2048 counts
+per g. The unit is SPARK.
+
+The LSM6DSO oracle includes the reference driver, its initialization and the common SPI gyro layer over a simulated
+chip, one case per process. It draws the bus, the chip identity, 0x6C in 85 percent of the cases, which of the first 32
+reads fail, in 15 percent, the startup clock and its step, the interrupt pin and the register values, lets the layer
+find another chip first in a twelfth of the cases, then runs the detection, the gyro and accelerometer detection and
+initialization, and 30 steps of interrupts, bursts, DMA completions, gyro and accelerometer reads and new samples. Every
+bus, pin, clock and delay call, detection, setting and reading of the 300 cases replays exactly. In them 254 chips
+answer the identity, 44 cases script read failures, the layer finds another chip first in 25 cases, 209 gyros are found,
+and of 6270 steps 1479 read the gyro, 1239 the accelerometer and 2004 raise interrupts. Of 45 tampered paths, 43 fail
+the vectors. Two pass and are equivalent: the delay guard of a write, since every write waits, and the acknowledgement
+check of the identity read, since a refused read leaves the byte zero.
