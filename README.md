@@ -18,7 +18,7 @@ adaflight is flight control firmware for multirotors and fixed-wing aircraft, wr
 
 ## Status
 
-The flight software is ported and runs on the host, where each ported function replays inputs recorded from a host build of Betaflight and must reproduce its results bit for bit. No board runs adaflight yet. Target support starts with STM32F405 boards in Phase 7 of `ROADMAP.md`.
+Flight software is ported and runs on host, where each ported function replays inputs recorded from Betaflight's host build and must reproduce its results bit for bit. Phase 7 of `ROADMAP.md` is in progress: `targets/stm32f4` builds STM32F405 images.
 
 ## Features
 
@@ -48,10 +48,16 @@ adaflight keeps the operation order of Betaflight's code, so a host build of eac
 
     cd core && alr build                      # build the core
     cd tests && alr build && ./bin/vector_check vectors
+    bash target.do                            # STM32F4 image for the CLRacing F4S family
     bash prove.do                             # SPARK proof of the core
     bash verify.do                            # every gate, cheapest first
 
 A change is finished when `verify.do` passes.
+
+The STM32F4 image is flashed through the STM32 bootloader over USB with the board in DFU mode:
+
+    cd targets/stm32f4 && alr exec -- arm-eabi-objcopy -O binary bin/adaflight_stm32f4 adaflight.bin
+    dfu-util -a 0 -s 0x08000000:leave -D adaflight.bin
 
 ## Verification
 
@@ -67,10 +73,11 @@ A change is finished when `verify.do` passes.
 |---|---|
 | `core/` | SPARK library crate `adaflight_core`: the proved, hardware-independent core |
 | `tests/` | Host crate `adaflight_tests`: replays `tests/vectors` through the core |
-| `tools/` | Repository tooling: changed units for CI, markdown rendering check |
-| `third_party/` | Third-party material with its license and source |
+| `targets/stm32f4/` | Alire crate `adaflight_stm32f4`: the core on STM32F4 boards with the platform drivers |
+| `tools/` | Repository tooling: changed units for CI, markdown rendering check, board package generator |
+| `third_party/` | Third-party material with its license and source, and the board configuration repository as a pinned submodule |
 | `docs/upstream/` | Write-ups of Betaflight bugs that adaflight fixes |
-| `style.do`, `test.do`, `prove.do`, `verify.do` | The gates, runnable with `bash` or `redo` |
+| `style.do`, `test.do`, `target.do`, `prove.do`, `verify.do` | The gates, runnable with `bash` or `redo` |
 | `DESIGN.md` | Numbered design decisions with their reasons |
 | `DIVERGENCES.md` | Every place where adaflight differs from Betaflight on purpose |
 | `ROADMAP.md` | Phases and the coverage of Betaflight's source areas |
