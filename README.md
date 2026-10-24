@@ -40,13 +40,7 @@ The flight software is ported and runs on the host, where each ported function r
 
 ## Differences from Betaflight
 
-adaflight keeps the operation order of Betaflight's code, so a host build of each gives the same results for the same inputs. `DIVERGENCES.md` lists every place where adaflight differs on purpose. Most of them keep a value in range where Betaflight's result is undefined, overflows or reads outside a buffer. Some fix Betaflight bugs found while porting, and each of those has a write-up for Betaflight:
-
-- [RTC6705 menu turns pit mode on at exit](docs/upstream/rtc6705-menu-pit-mode.md)
-- [RTC6705 menu stores band 0 at exit](docs/upstream/rtc6705-menu-band-zero.md)
-- [Deleting an empty file corrupts the FAT](docs/upstream/fat-empty-file-delete.md)
-- [Headfree mode deflects the sticks past full scale](docs/upstream/headfree-deflection.md)
-- [BMI270 accelerometer is not read in the experimental filter mode](docs/upstream/bmi270-fifo-accelerometer.md)
+adaflight keeps the operation order of Betaflight's code, so a host build of each gives the same results for the same inputs. `DIVERGENCES.md` lists every place where adaflight differs on purpose. Most of them keep a value in range where Betaflight's result is undefined, overflows or reads outside a buffer. Some fix Betaflight bugs found while porting, and [`docs/upstream/`](docs/upstream/README.md) has a write-up of each for Betaflight.
 
 ## Building and testing
 
