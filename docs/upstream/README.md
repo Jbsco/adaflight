@@ -18,3 +18,4 @@ Each document describes a Betaflight bug that adaflight fixes: the Betaflight ve
 - [GPS over MSP never recovers after a loss](gps-msp-recovery.md)
 - [IST8310 reports its last reading as new after a data-ready timeout](ist8310-stale-reading.md)
 - [NMEA fix state changes before the sentence is checked](nmea-fix-after-parity.md)
+- [MPU6500 family temperature uses the MPU6000's conversion](mpu6500-temperature.md)
