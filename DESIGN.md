@@ -1787,440 +1787,452 @@ point and doubles the spacing, up to five kilometres, before the point goes in. 
 live in the record, and the harness checks their count, the spacing, the last point and a hash over
 every point. No guard was needed.
 
-## D79. The GPS frame decoders (2026-10-11)
+## D79. GPS frame decoders (2026-10-11)
 
-`Adaflight.GPS_Frames` decodes the two serial protocols of a GPS module into one solution
-record: the position, altitude, dilution, accuracy, velocity, speeds, satellite count, time of
-week and calendar time, with the fix flags, the satellite list, and the request to set the
-clock while it has no time. The NMEA decoder gathers a sentence field by field into a fifteen
-character buffer, identifies GGA, RMC, GSV and GSA sentences from the three letters after the
-talker id, parses each field as it ends, and writes the gathered values to the solution once
-the parity after the star matches. The fix state follows the GGA quality field as the field
-arrives, before the parity check (finding F53). The UBX decoder walks the preamble, class,
-id, length, payload and the two Fletcher checksums, keeps up to 392 payload bytes, restarts
-on a declared length past 776 or on a bad checksum, and interprets a complete message by
-class and id: NAV-PVT, NAV-POSLLH, NAV-STATUS, NAV-DOP, NAV-SOL, NAV-VELNED, NAV-SAT,
-NAV-SVINFO, MON-VER and the acknowledgements. A message is read from the payload buffer at
-its field offsets whatever length arrived, so a short message takes the stale bytes of
-earlier ones from the shared buffer, the same bytes Betaflight reads. The configuration reply that
-makes the module transmit (CFG-GNSS) belongs with the autoconfiguration and is passed over.
-The narrowing conversions are kept: the speed in knots times 5144 over 1000 in thirty-two
-bits, the millisecond field of the clock request computed from the time with a bitwise and
-(finding F54), and the saturating hexadecimal read of the hardware version. The port departs
-from Betaflight only where its behaviour is undefined: the field cut that would land outside
-the buffer is dropped (F55), a satellite number of zero skips the list (F56), and a month
-outside the calendar counts thirty-one days (F57). The oracle feeds bursts of sentences and
-messages with cut frames, bad checksums, stale buffers and runs of garbage, built with
-unsigned characters as the targets are, and every recorded vector replays exactly.
+`Adaflight.GPS_Frames` decodes the two serial protocols of a GPS module into one solution record:
+the position, altitude, dilution, accuracy, velocity, speeds, satellite count, time of week and
+calendar time, with the fix flags, the satellite list, and the request to set the clock while it has
+no time.
 
-## D80. The GPS link (2026-10-11)
+The NMEA decoder gathers a sentence field by field into a fifteen character buffer, identifies GGA,
+RMC, GSV and GSA sentences from the three letters after the talker id, and parses each field as it
+ends. It writes the gathered values to the solution once the parity after the star matches. The fix
+state follows the GGA quality field as the field arrives, before the parity check (finding F53).
 
-`Adaflight.UBX_Config` builds the configuration messages for a u-blox module: the frame around
-a class, an id and a payload with the two running checksum bytes, the polls, the message rates,
-the navigation rate, the dynamic model with the fixed defaults of the other navigation settings,
-the autonomous assistance, the full power mode, the SBAS selection with the scan mask of the
-selected system and the NMEA output disable, each in the legacy form and, from the ninth
-generation, the keyed value form, and the GNSS configuration sent back from the module's own
-reply with SBAS and Galileo set as selected. A frame carries the id its acknowledgement names
-and whether the sender counts it acknowledged at once: the legacy navigation rate and every
-keyed message but the navigation rate are. The GNSS message holds at most seven blocks
-(finding F61).
+The UBX decoder walks the preamble, class, id, length, payload and the two Fletcher checksums. It
+keeps up to 392 payload bytes, restarts on a declared length past 776 or on a bad checksum, and
+interprets a complete message by class and id: NAV-PVT, NAV-POSLLH, NAV-STATUS, NAV-DOP, NAV-SOL,
+NAV-VELNED, NAV-SAT, NAV-SVINFO, MON-VER and the acknowledgements. A message is read from the
+payload buffer at its field offsets whatever length arrived, so a short message takes the stale
+bytes of earlier ones from the shared buffer. The configuration reply that makes the module transmit
+(CFG-GNSS) belongs with the autoconfiguration and is passed over.
 
-`Adaflight.GPS_Link` runs the connection over a serial port the caller owns. The caller hands
-over the bytes received since the last call and carries out what the call asks for: the bytes
-to send, the port rate to set, the indicator toggle, the ready beep, the clock to set and the
-task rate, fast while bytes arrive and normal one call after the last. The detection polls
-the version three times, 330 ms apart, at each rate of a sweep that starts at the configured
-rate, moves through the faster rates and wraps to 9600 upward; after two passes a step waits
-30 s. A version reply sends the module's own rate change sentence, the port follows a second
-later, and the configuration starts after another second: one step every 110 ms while no
-acknowledgement is awaited, each step moving on at the acknowledgement or 150 ms after the
-message, a negative acknowledgement of the first step restarting the configuration. The
-steps slow the navigation rate, turn the six NMEA sentences off, set the acquisition model,
-the assistance, the SBAS selection and the power mode where the generation has them, pick the
-solution messages of the generation (PVT from the seventh, the five legacy messages below),
-ask for the satellite information at a fifth of the rate, set the configured rate and poll
-the GNSS configuration when SBAS is off or Galileo is on; the reply is answered as it is
-received. Receiving, a fix switches the module to the flight model once, and 2.5 s without a
-solution counts a timeout, drops the fix and the satellite count and restarts the detection.
-An NMEA module keeps its own rate: the port is set to the configured rate and one custom
-command goes out, half a second apart; the next command waits for the next connection
-(finding F63). The ground link source takes offered solutions and starts initialized; after
-a loss it stays in the detection state (finding F62). Every solution with a fix counts the
-stamp, sets the interval and the frequency of the solutions, the distance and the direction
-home and, armed, the distance flown above 15 cm/s. The home position is set on request from
-a fix with at least the minimum satellites, unless it is kept once set; the request also
-turns the satellite information off on a u-blox module. Disarmed, the home fix clears each
-call unless kept, and the ready beep sounds once at a fix with enough satellites. The link's
-clock starts at zero, so the first version poll is counted against zero (finding F64). The
-distance over the local flat earth and the bearing use the maths approximations and the
-wrapped coordinate difference (finding F58); the ENU distance vector stays with the position
-estimate. The task time budget that stops the byte loop belongs to the caller, which decides
-how many bytes a call takes. Every recorded vector replays exactly.
+Some conversions narrow: the speed in knots times 5144 over 1000 in thirty-two bits, the millisecond
+field of the clock request computed from the time with a bitwise and (finding F54), and the
+saturating hexadecimal read of the hardware version. The unit departs from the reference only where
+its behaviour is undefined: the field cut that would land outside the buffer is dropped (F55), a
+satellite number of zero skips the list (F56), and a month outside the calendar counts thirty-one
+days (F57). The oracle feeds bursts of sentences and messages with cut frames, bad checksums, stale
+buffers and runs of garbage, built with unsigned characters as the targets are, and every recorded
+vector replays exactly.
 
-## D81. The horizontal position estimate from the GPS (2026-10-11)
+## D80. GPS link (2026-10-11)
 
-`Adaflight.Position_Estimator` takes over the altitude estimator of D33 and adds the east
-and north filters of the earth frame. The horizontal axes run while armed and asked for, by
-the position hold or rescue mode or by a GPS fix under a horizontal source setting that
-allows the GPS; starting them resets the two filters and takes the origin from the fix at
-hand, or from the first fix after. The linear acceleration comes from the north, west and up
-rows of the attitude rotation over the scaled counts, east being the negated west row, and
-corrects and predicts the horizontal filters while a measurement is less than two seconds
-old, else discards their state and keeps the origin. A fix is fused when its solution count
-has advanced or within the hold interval its rate gives, the velocity before the position,
-each with a noise scaled by the reported accuracy between one and ten times its base. The
-east and north distances from the origin follow the longitude difference, wrapped in
-thirty-two bits (finding F58) and corrected across the antimeridian, scaled by the cosine of
-the home latitude and by the centimetres per unit, that constant rounded at each step as the
-C forms it. Under an altitude source that allows the GPS, the fix also corrects the vertical
-filter, velocity then position against the first GPS altitude, and the barometer then
-corrects position alone, since the GPS measures the vertical velocity; below the default
-barometer preference the fix anchors a slow calibration of the barometer offset toward the
-offset the estimate implies, at a time constant of two hundred seconds times the accuracy
-scale, while armed and both fed in the task. The validity of each plane needs a measurement
-within two seconds, the trust falls with the mean position variance, and each task raises
-the update events the altitude and position hold tasks take once. A heading is required
-while the GPS is the horizontal source. The altitude hold now takes its centimetre type from
-the position filter. Distances and altitudes beyond the filter's state bound of 167 km are
-held at it; the oracle keeps the fixes within range and short of the antimeridian. Every
-recorded vector replays exactly, the earlier altitude vectors unchanged.
+`Adaflight.UBX_Config` builds the configuration messages for a u-blox module: the frame around a
+class, an id and a payload with the two running checksum bytes, the polls, the message rates, the
+navigation rate, the dynamic model with the fixed defaults of the other navigation settings, the
+autonomous assistance, the full power mode, the SBAS selection with the scan mask of the selected
+system and the NMEA output disable. Each comes in the legacy form and, from the ninth generation,
+the keyed value form, and the GNSS configuration goes back from the module's own reply with SBAS and
+Galileo set as selected. A frame contains the id its acknowledgement names and whether the sender
+counts it acknowledged at once: the legacy navigation rate and every keyed message but the
+navigation rate are. The GNSS message holds at most seven blocks (finding F61).
+
+`Adaflight.GPS_Link` runs the connection over a serial port the caller owns. The caller hands over
+the bytes received since the last call and carries out what the call asks for: the bytes to send,
+the port rate to set, the indicator toggle, the ready beep, the clock to set and the task rate, fast
+while bytes arrive and normal one call after the last.
+
+The detection polls the version three times, 330 ms apart, at each rate of a sweep that starts at
+the configured rate, moves through the faster rates and wraps to 9600 upward. After two passes a
+step waits 30 s. A version reply sends the module's own rate change sentence, the port follows a
+second later, and the configuration starts after another second. It sends one step every 110 ms
+while no acknowledgement is awaited, each step moving on at the acknowledgement or 150 ms after the
+message, and a negative acknowledgement of the first step restarts the configuration. The steps slow
+the navigation rate, turn the six NMEA sentences off, set the acquisition model, the assistance, the
+SBAS selection and the power mode where the generation has them, pick the solution messages of the
+generation (PVT from the seventh, the five legacy messages below), ask for the satellite information
+at a fifth of the rate, set the configured rate and poll the GNSS configuration when SBAS is off or
+Galileo is on. The reply is answered as it is received.
+
+Receiving, a fix switches the module to the flight model once, and 2.5 s without a solution counts a
+timeout, drops the fix and the satellite count and restarts the detection. An NMEA module keeps its
+own rate: the port is set to the configured rate and one custom command goes out, half a second
+apart, and the next command waits for the next connection (finding F63). The ground link source
+takes offered solutions and starts initialized, and after a loss it stays in the detection state
+(finding F62).
+
+Every solution with a fix counts the stamp, sets the interval and the frequency of the solutions,
+the distance and the direction home and, armed, the distance flown above 15 cm/s. The home position
+is set on request from a fix with at least the minimum satellites, unless it is kept once set, and
+the request also turns the satellite information off on a u-blox module. Disarmed, the home fix
+clears each call unless kept, and the ready beep sounds once at a fix with enough satellites. The
+link's clock starts at zero, so the first version poll is counted against zero (finding F64). The
+distance over the local flat earth and the bearing use the maths approximations and the wrapped
+coordinate difference (finding F58), and the ENU distance vector stays with the position estimate.
+The task time budget that stops the byte loop belongs to the caller, which decides how many bytes a
+call takes. Every recorded vector replays exactly.
+
+## D81. Horizontal position estimate from the GPS (2026-10-11)
+
+`Adaflight.Position_Estimator` takes over the altitude estimator of D33 and adds the east and north
+filters of the earth frame. The horizontal axes run while armed and asked for, by the position hold
+or rescue mode or by a GPS fix under a horizontal source setting that allows the GPS. Starting them
+resets the two filters and takes the origin from the fix at hand, or from the first fix after. The
+linear acceleration comes from the north, west and up rows of the attitude rotation over the scaled
+counts, east being the negated west row. It corrects and predicts the horizontal filters while a
+measurement is less than two seconds old, and otherwise discards their state and keeps the origin.
+
+A fix is fused when its solution count has advanced or within the hold interval its rate gives, the
+velocity before the position, each with a noise scaled by the reported accuracy between one and ten
+times its base. The east and north distances from the origin follow the longitude difference,
+wrapped in thirty-two bits (finding F58) and corrected across the antimeridian, scaled by the cosine
+of the home latitude and by the centimetres per unit, that constant rounded at each step as the C
+forms it.
+
+Under an altitude source that allows the GPS, the fix also corrects the vertical filter, velocity
+then position against the first GPS altitude, and the barometer then corrects position alone, since
+the GPS measures the vertical velocity. Below the default barometer preference the fix anchors a
+slow calibration of the barometer offset toward the offset the estimate implies, at a time constant
+of two hundred seconds times the accuracy scale, while armed and both fed in the task.
+
+The validity of each plane needs a measurement within two seconds, the trust falls with the mean
+position variance, and each task raises the update events the altitude and position hold tasks take
+once. A heading is required while the GPS is the horizontal source. The altitude hold now takes its
+centimetre type from the position filter. Distances and altitudes beyond the filter's state bound of
+167 km are held at it, and the oracle keeps the fixes within range and short of the antimeridian.
+Every recorded vector replays exactly, the earlier altitude vectors unchanged.
 
 ## D82. Position hold with the autopilot's horizontal control (2026-10-11)
 
-`Adaflight.Position_Control` is the autopilot's horizontal controller and
-`Adaflight.Position_Hold` the mode around it. The hold engages from its flight mode or a
-rescue: the controller resets, captures the hold point, enters braking against the speed
-carried in, and asks the estimator for the horizontal axes; it releases with the sticks
-cleared and the yaw controller stood down. Each task reads the sticks against the deadband,
-unless a failsafe or a rescue holds them, and checks the sensors for a valid horizontal
-estimate and, where the estimator requires one, a heading, with a heading recovery standing
-in; sensors returning after a dropout re-anchor the hold where the craft is. The controller
-measures its interval between a quarter and four times the nominal and retunes the
-feedforward filters when it moves by a twentieth. A missing estimate, an abort or a forced
-level park fail the hold with the errors dropped; a heading recovery levels the roll and
-pitches forward instead. The ground speed and its half-second trend feed the braking stop
-and the fence. The mode follows the rescue, the sticks and the braking. A rescue flies the
-velocity the rescue sets, the target walking at it with the fence on the target and the
-integral accumulating. The sticks fly their velocity,
-turned from the body frame by the heading, with the distance error integrated from the
-velocity error while the integral freezes. Braking drags the target to the craft with the
-integral frozen until the speed falls under the configured fraction of the entry speed, the
-velocity reverses along the entry direction, or 1.2 seconds pass, then captures the point.
-The settled hold anchors to the point and integrates against the wind, with the target
-velocity zero outside a rescue. The fence is the greater of twenty metres and twice the
-ground speed: a settled hold beyond it keeps the previous lean until a second has passed,
-then spends the one re-anchor a clean ten seconds earns back, or levels out and fails; a
-brake beyond it moves the fence ahead of a craft still slowing and runs the same clock
-otherwise. The law per axis takes the error and its integral, each within twenty metres,
-the proportional and integral terms, damping on the velocity with a boost of a half per
-thousand centimetres a second less the drag, the acceleration term, and the feedforward
-from the target velocity through the same boosted gain and from its rate of change through
-its own, smoothed by a third order filter; the sum turns into the body frame by the heading
-and is held to the lean limit, and a saturated lean stops the virtual error from winding
-up. The yaw controller steers to the rescue's heading or holds the heading captured at
-engagement or where the pilot last left the yaw stick, ramped in over a second, held to the
-configured and any external rate limit, and reversed with the yaw setting; it stands down
-while disarmed, without a mode that wants it, or without a trusted heading, and the heading
-hold task drives it alone outside a hold or a rescue. The navigation modes, their yaw
-modes and the velocity buildup clamp are in D145; there is no optical flow. A feedforward term beyond the signal bound and a target velocity beyond 2 to the 26
-centimetres per second are held at those bounds. Every recorded vector replays exactly.
+`Adaflight.Position_Control` is the autopilot's horizontal controller and `Adaflight.Position_Hold`
+the mode around it. The hold engages from its flight mode or a rescue: the controller resets,
+captures the hold point, enters braking against the speed carried in, and asks the estimator for the
+horizontal axes. It releases with the sticks cleared and the yaw controller stood down. Each task
+reads the sticks against the deadband, unless a failsafe or a rescue holds them. It checks the
+sensors for a valid horizontal estimate and, where the estimator requires one, a heading, with a
+heading recovery standing in. Sensors returning after a dropout re-anchor the hold where the craft
+is. The controller measures its interval between a quarter and four times the nominal and retunes
+the feedforward filters when it moves by a twentieth. A missing estimate, an abort or a forced level
+park fail the hold with the errors dropped, and a heading recovery levels the roll and pitches
+forward instead. The ground speed and its half-second trend feed the braking stop and the fence.
 
-## D83. The GPS rescue over the autopilot's controllers (2026-10-11)
+The mode follows the rescue, the sticks and the braking. A rescue flies the velocity the rescue
+sets, the target walking at it with the fence on the target and the integral accumulating. The
+sticks fly their velocity, turned from the body frame by the heading, with the distance error
+integrated from the velocity error while the integral freezes. Braking drags the target to the craft
+with the integral frozen until the speed falls under the configured fraction of the entry speed, the
+velocity reverses along the entry direction, or 1.2 seconds pass, then captures the point. The
+settled hold anchors to the point and integrates against the wind, with the target velocity zero
+outside a rescue.
 
-`Adaflight.GPS_Rescue` is the rescue of the default target build, where the flight plan is off
-and the rescue flies its own phases. Each task reads the sensors (the fix count, the heading
-and its validity, the GPS health, the altitude, the estimate while valid, the distance and
-speed from home, the bearing home from the C library's arctangent past the twenty centimetre
-acceptance radius, and the heading error), decides availability, runs the sanity checks, then
-the phase. The initialization fixes the return altitude from the mode, or a climb above the
-current altitude close to home, holds the heading and resets the ramps and the altitude
-controller. The climb runs at the ascend or descend rate until the return altitude is crossed,
-then the turn toward home with the yaw target ramped in over a second, or a forward pitch while
-the heading is unknown, until the error is within thirty degrees; the flight home at the
-ground speed, slowed within twice the descent distance and ramped in at the start, hands the
-horizontal controller a velocity toward home and the yaw target; the descent sets a rate from
-three times the setting at fifty metres to six tenths at ten, then the landing holds the
-velocity at zero and the emergency descent aborts the horizontal control. The sanity checks
-disarm on a start within the acceptance radius below the landing altitude or on a crash flip,
-answer a failure by the setting with an emergency descent when an altitude is available, and
-once a second record the GPS health, the satellite count over fifteen seconds, and the phase's
-own progress: the altitude change against the target change, the velocity home against a fifth
-of the target speed, and the seconds spent turning, pitching forward, descending or landing.
-The do-nothing phase is kept though the sanity check disarms first under its condition
-(finding F59). Headings in decidegrees reach the rescue through an integer division, so the
-rescue works in whole degrees (finding F60). The autopilot's altitude controller moves from
-the altitude hold into `Adaflight.Altitude_Control`, which the hold and the rescue drive with
-their own targets; the caller owns the controller state and the horizontal controller state,
-as the autopilot shares them, and passes both in. A target altitude change below a
-sixteen-millionth of a centimetre counts as none for the progress ratio, which the reference
-divides by. Every recorded vector replays exactly, the earlier altitude hold vectors unchanged.
+The fence is the greater of twenty metres and twice the ground speed. A settled hold beyond it keeps
+the previous lean until a second has passed, then spends the one re-anchor a clean ten seconds earns
+back, or levels out and fails. A brake beyond it moves the fence ahead of a craft still slowing and
+runs the same clock otherwise.
 
-## D84. The video transmitter table and the SmartAudio driver (2026-10-11)
+The law per axis takes the error and its integral, each within twenty metres, the proportional and
+integral terms, damping on the velocity with a boost of a half per thousand centimetres a second
+less the drag, the acceleration term, and the feedforward from the target velocity through the same
+boosted gain and from its rate of change through its own, smoothed by a third order filter. The sum
+turns into the body frame by the heading and is held to the lean limit, and a saturated lean stops
+the virtual error from winding up.
 
-`Adaflight.VTX_Table` holds up to eight bands of eight channels with their frequencies, names
-and letters, the factory band flags, and up to eight power levels with their values and
-labels, cleared to numbered defaults. It answers the lookups: the frequency of a band and
-channel, the band and channel of a frequency searched from the last band down so a frequency
-in two bands names the later one, and the value of a power index.
-
-`Adaflight.SmartAudio` drives a SmartAudio transmitter over one half-duplex serial line the
-caller owns: the caller hands in the bytes received and carries out the bytes and the line
-rate a call asks for. A request builds its frame (the two preamble bytes, the command code,
-the length, the payload and the checksum over the whole frame) into the buffer of its kind and
-queues the kind, five deep; a later request of the same kind replaces the bytes before they go
-out (finding F65). A call sends one frame: the outstanding command again 120 ms after its
-last transmission, else the next queued frame, else a settings poll while a command went out
-within the last second and 150 ms have passed since the last transmission. A disabled control
-drops the frame and clears the outstanding command. Received bytes are reassembled through
-the preamble, the code, a length up to nineteen, the payload and the checksum over the code,
-the length and the payload; the echo of a command fails that check and is passed over by its
-odd code. A response clears the outstanding command by its code, or by a settings code of a
-later version, and counts an out-of-order reply otherwise. The settings response gives the
-version from its code, the channel, the mode, the frequency, the boot flag while in pit mode,
-the power as the table index of the reported value, and the dBm levels of a 2.1 device. The
-line rate moves one step of 50 between 4800 and 4950 when fewer than seven frames in ten are
-answered. The start polls the settings, then asks a version 2 device for its pit mode
-frequency. Band and channel are set through the table as the device numbers them, the power
-by the table value with the dBm flag on a 2.1 device, the pit mode by the mode flags or, on a
-2.1 device not booting into pit mode, by a zero dBm power or a clearing mode, and the
-frequency within 5000 to 5999 MHz, through a neighbouring frequency when the device already
-holds it in channel mode. The getters give band and channel from the device's channel number
-split by the table's channel count (a zero count divides as the hardware does, finding F66),
-the power index, the frequency from the table in channel mode, the pit mode status, the power
-levels in dBm and in milliwatts through the C library's power function, and the status bytes
-for the ground link. The table value sent as the power is its low byte (finding F67). The menu
-hooks and the debug print of the reference are not ported. Every recorded vector replays
+The yaw controller steers to the rescue's heading or holds the heading captured at engagement or
+where the pilot last left the yaw stick, ramped in over a second, held to the configured and any
+external rate limit, and reversed with the yaw setting. It stands down while disarmed, without a
+mode that wants it, or without a trusted heading, and the heading hold task drives it alone outside
+a hold or a rescue. The navigation modes, their yaw modes and the velocity buildup clamp are in
+D145, and there is no optical flow. A feedforward term beyond the signal bound and a target velocity
+beyond 2 to the 26 centimetres per second are held at those bounds. Every recorded vector replays
 exactly.
 
-## D85. The video transmitter settings update and control (2026-10-11)
+## D83. GPS rescue over the autopilot's controllers (2026-10-11)
 
-`Adaflight.VTX` keeps the configured band, channel, power, frequency, pit mode frequency and
-low power disarm policy as settings the caller holds, since the sticks, the switches and the
-receiver change them at run time. The start makes the settings whole: the frequency of a
-configured band and channel, and a pit mode frequency raised to the user range, each asking
-for the settings to be stored. Each task call outside the menu brings one parameter to the
-device, moving through the power, the band and channel (or the frequency when no band is
-configured), the pit mode and a confirmation of the device state, and stopping at the first
-parameter that needed a change; the device is then driven while disarmed or while a change is
-pending. The settings in force put the pit mode frequency and the default power in place at
-the pit mode switch, and the default power while disarmed outside failsafe under the low
-power policy. The pit mode follows the switch's edges while disarmed and the device reports
-its status, except when a pit mode frequency is configured. The common layer over the one
-device selects a band and channel through the table, sends the device the band and channel of
-a factory band or the frequency of another, and reads band and channel back from the device
-or, while a non-factory band is selected, from the device's frequency through the table; the
-outputs keep their values when the device has none. A control word from the Spektrum
-receiver, once per change, sets band and channel through the table, the power through the
-device's steps and the pit mode at once, and stores the settings when they moved. The stick
-commands step the band or channel bytes without bounds (finding F69) and lock from the first
-arm on; the switch conditions apply in order, the later one winning a field, band and channel
-only until the first arm, the power always; the cycle commands step from the device's band,
-channel and power and wrap within the table, the power below the level count (finding F71). A
-Spektrum band past the five known ones is not a table band (finding F70). Every recorded
-vector replays exactly.
+`Adaflight.GPS_Rescue` is the rescue of the default target build, where the flight plan is off and
+the rescue flies its own phases. Each task reads the sensors: the fix count, the heading and its
+validity, the GPS health, the altitude, the estimate while valid, the distance and speed from home,
+the bearing home from the C library's arctangent past the twenty centimetre acceptance radius, and
+the heading error. It then decides availability, runs the sanity checks, then the phase.
 
-## D86. The Tramp driver and the device dispatch (2026-10-11)
+The initialization fixes the return altitude from the mode, or a climb above the current altitude
+close to home, holds the heading and resets the ramps and the altitude controller. The climb runs at
+the ascend or descend rate until the return altitude is crossed. The turn toward home follows, with
+the yaw target ramped in over a second, or a forward pitch while the heading is unknown, until the
+error is within thirty degrees. The flight home at the ground speed, slowed within twice the descent
+distance and ramped in at the start, hands the horizontal controller a velocity toward home and the
+yaw target. The descent sets a rate from three times the setting at fifty metres to six tenths at
+ten, then the landing holds the velocity at zero and the emergency descent aborts the horizontal
+control.
 
-`Adaflight.Tramp` drives a Tramp transmitter over one half-duplex serial line the caller owns,
-in sixteen-byte frames: a start byte, a command, twelve payload bytes, a checksum over the
-command and the payload, and a zero. The driver queries the device's limits every 200 ms until
-it answers, then its settings, then watches the frequency, the power and the pit mode against
-the configuration: one change goes out per 200 ms while retries remain, twenty from each
-configuration change, the frequency and the power held back under the device's race lock; a
-settings query follows each change, every second otherwise, and a temperature query follows
-each settings reply. The received bytes are read up to the first complete and valid reply and
-the count taken is returned, so the caller offers the rest again. A reply whose first word is
-zero is the echo of a request and is passed over, so a device reporting zero limits never comes
-online (finding F73). After a temperature reply the driver stays in the temperature state until
-the request period passes (finding F74). The frequency is accepted within the device's limits,
-or the user range while they are unknown; the power index is looked up in the table from the
-configured power, unknown for a value outside it; the status carries the configured pit mode and
-the race lock. `Adaflight.VTX` now drives either device: the device of the kind in use takes the
-frequency, the power, the pit mode and the queries, a factory band goes to a SmartAudio device
-as band and channel and to a Tramp device not at all, and the Spektrum power steps map to each
-device's indices. The protocol library beside the Tramp driver is not ported (finding F72).
-Every recorded vector replays exactly, the control vectors now over both devices.
+The sanity checks disarm on a start within the acceptance radius below the landing altitude or on a
+crash flip, and answer a failure by the setting with an emergency descent when an altitude is
+available. Once a second they record the GPS health, the satellite count over fifteen seconds, and
+the phase's own progress: the altitude change against the target change, the velocity home against a
+fifth of the target speed, and the seconds spent turning, pitching forward, descending or landing.
+The do-nothing phase is kept though the sanity check disarms first under its condition (finding
+F59). Headings in decidegrees reach the rescue through an integer division, so the rescue works in
+whole degrees (finding F60).
 
-## D87. The LTM telemetry stream (2026-10-11)
+The autopilot's altitude controller moves from the altitude hold into `Adaflight.Altitude_Control`,
+which the hold and the rescue drive with their own targets. The caller owns the controller state and
+the horizontal controller state, as the autopilot shares them, and passes both in. A target altitude
+change below a sixteen-millionth of a centimetre counts as none for the progress ratio, which the
+reference divides by. Every recorded vector replays exactly, the earlier altitude hold vectors
+unchanged.
 
-`Adaflight.LTM_Telemetry` writes the light telemetry stream: every 100 ms while enabled, an
-attitude frame with the pitch, roll and yaw in whole degrees, then on alternate cycles a status
-frame (the battery in millivolts, the charge drawn held to sixteen bits, the signal scaled from
-its 1023 range to a byte, no airspeed, and the mode code with the armed and failsafe bits) or a
-GPS frame (the position, the ground speed in metres per second, the altitude and the satellite
-count with the fix type, left out while no GPS is present), and on every tenth cycle an origin
-frame with the home position, no home altitude, the display flag and the home fix. Each frame
-is the two start bytes, the frame letter, the little-endian fields and the exclusive-or of the
-fields. The mode code follows the precedence of the flags: passthrough, headfree, angle,
-horizon, rescue, position hold, altitude hold, then rate. The port handling that enables the
-stream belongs to the caller, which passes the enable. Every recorded vector replays exactly.
+## D84. Video transmitter table and the SmartAudio driver (2026-10-11)
 
-## D88. The GPS lap timer (2026-10-12)
+`Adaflight.VTX_Table` contains up to eight bands of eight channels with their frequencies, names and
+letters, the factory band flags, and up to eight power levels with their values and labels, cleared
+to numbered defaults. It answers the lookups: the frequency of a band and channel, the band and
+channel of a frequency searched from the last band down so a frequency in two bands names the later
+one, and the value of a power index.
 
-The GPS lap timer unit carries the reference's gate timer over the fixes the platform hands
-it: the position, the fix time in milliseconds, the cosine of the latitude the GPS link keeps
-for the local flat earth, and the reset switch's state. Every fix first takes the distance and
-bearing to the gate through the GPS link's flat-earth arithmetic (D80), the bearing through
-the fast arctangent in hundredths of a degree. While the gate is being set the fix joins a
-running average of up to a thousand readings whose sums live in the timer in 64 bits, bounded
-by the readings counted so the averages fit the gate; the count moves before the sums so the
-bound holds at every step, which the reference's order leaves unobservable, and the quotient
-is held at the coordinate bound it never reaches. Ending the set writes the averaged gate into
-the settings. The reset switch clears the gate from the settings and every lap figure but
-keeps the circle tracking, as the reference's file statics do. A lap is looked for while the
-timer is stopped or the shortest lap has passed since the last one: inside the gate's circle
-the closest approach and its time are tracked, and leaving the circle records a lap from that
-time, moves the three previous laps along, keeps the best lap and the best sum of three in a
-row, and restarts the timer from the closest approach. The lap count and the sums wrap in
-sixteen and thirty-two bits as the reference's do. The harness replays 20000 steps over ten
-courses that loop through the gate, hover at it while it is set, pulse the reset, cap the
-readings and wrap the millisecond clock, and checks every figure, the file-level state and the
-settings' gate.
+`Adaflight.SmartAudio` drives a SmartAudio transmitter over one half-duplex serial line the caller
+owns. The caller hands in the bytes received and carries out the bytes and the line rate a call asks
+for. A request builds its frame (the two preamble bytes, the command code, the length, the payload
+and the checksum over the whole frame) into the buffer of its kind and queues the kind, five deep. A
+later request of the same kind replaces the bytes before they go out (finding F65). A call sends one
+frame: the outstanding command again 120 ms after its last transmission, else the next queued frame,
+else a settings poll while a command went out within the last second and 150 ms have passed since
+the last transmission. A disabled control drops the frame and clears the outstanding command.
 
-## D89. The MSP box table (2026-10-12)
+Received bytes are reassembled through the preamble, the code, a length up to nineteen, the payload
+and the checksum over the code, the length and the payload. The echo of a command fails that check
+and is passed over by its odd code. A response clears the outstanding command by its code, or by a
+settings code of a later version, and counts an out-of-order reply otherwise. The settings response
+gives the version from its code, the channel, the mode, the frequency, the boot flag while in pit
+mode, the power as the table index of the reported value, and the dBm levels of a 2.1 device. The
+line rate moves one step of 50 between 4800 and 4950 when fewer than seven frames in ten are
+answered. The start polls the settings, then asks a version 2 device for its pit mode frequency.
 
-The MSP box unit carries the reference's box table and its MSP services. The table names each
-flight and switch mode box and gives it the permanent id that identifies it to the configurator
-for life, with lookups by box and by permanent id. The box name serializer writes a user box's
-custom name of up to sixteen characters when its first character is set and the table's name
-otherwise, each with the semicolon separator, or nothing when they would not fit; the permanent
-id serializer writes the one byte or nothing. The box reply walks the active boxes in their
-order and serializes the thirty-two of the requested page, stopping at the first that does not
-fit. A box's state is the arming flag for the arm box, the flight mode flag for the flight mode
-boxes, the launch flight mode for the launch box on a wing build, and the switch state
-otherwise. The status packing sets one bit per active box in the order they are counted, in two
-32-bit words as the reference's bit array, and returns the count. The active set from the
-build's features, sensors and settings stays with the target, which hands it in as a mask. The
-harness replays 20000 steps of random active sets, flags, switches, user names, pages and buffer
-sizes, half from a host build and half from a wing build, and checks the packed words and count,
-every serialized byte of both replies and the lookup by permanent id. No guard was needed.
+Band and channel are set through the table as the device numbers them, the power by the table value
+with the dBm flag on a 2.1 device, the pit mode by the mode flags or, on a 2.1 device not booting
+into pit mode, by a zero dBm power or a clearing mode, and the frequency within 5000 to 5999 MHz,
+through a neighbouring frequency when the device already holds it in channel mode. The getters give
+band and channel from the device's channel number split by the table's channel count (a zero count
+divides as the hardware does, finding F66), the power index, the frequency from the table in channel
+mode, the pit mode status, the power levels in dBm and in milliwatts through the C library's power
+function, and the status bytes for the ground link. The table value sent as the power is its low
+byte (finding F67). The menu hooks and the debug print of the reference are not ported. Every
+recorded vector replays exactly.
 
-## D90. The dispatch queue (2026-10-12)
+## D85. Video transmitter settings update and control (2026-10-11)
 
-The dispatch unit carries the reference's delayed-call queue over target numbers up to a
-capacity of eight, with the handlers left to the caller: the reference links entries that
-carry a function pointer, and SPARK keeps the entry table and the order while the caller
-numbers its targets and runs each one the queue hands back. An added target takes its due time from the clock plus the delay,
-which wraps as the reference's unsigned sum does for a negative delay, and goes before the
-first entry not due earlier on the wrapping clock difference; a target already queued stays
-where it is. A processing pass takes the head while it is due, unlinks it first and hands it
-back, so the handler can queue it again as the reference's can; the caller loops until nothing
-is due. The queue keeps its entries in an array by position rather than through pointers, with
-one slot per target; the one guard refuses an addition at full capacity, which one entry per
-target never reaches. Adaflight.Dispatch_Targets numbers the three calls the reference
-queues: the statistics save, the MSP reboot, and the settings write and read. The harness
-replays 20000 operations over the eight targets of adds with
-positive and negative delays, clock advances that wrap, enabling, and processing passes whose
-handlers requeue themselves at random, checking the fired order with every requeue, the
-queue's order, and each entry's due time and flag.
+`Adaflight.VTX` keeps the configured band, channel, power, frequency, pit mode frequency and low
+power disarm policy as settings the caller holds, since the sticks, the switches and the receiver
+change them at run time. The start makes the settings whole: the frequency of a configured band and
+channel, and a pit mode frequency raised to the user range, each asking for the settings to be
+stored.
 
-## D91. The ExpressLRS receiver (2026-10-12)
+Each task call outside the menu brings one parameter to the device. It moves through the power, the
+band and channel (or the frequency when no band is configured), the pit mode and a confirmation of
+the device state, and stops at the first parameter that needed a change. The device is then driven
+while disarmed or while a change is pending. The settings in force put the pit mode frequency and
+the default power in place at the pit mode switch, and the default power while disarmed outside
+failsafe under the low power policy. The pit mode follows the switch's edges while disarmed and the
+device reports its status, except when a pit mode frequency is configured.
 
-The ExpressLRS receiver unit contains the reference's SPI receiver over the hopping tables
-and link quality counter (D54) and the telemetry link (D55). A packet from the radio is
-checked against its 14-bit CRC seeded from the unique id, with the CRC's upper bits cleared
-from its first byte in place as the reference clears them before the check, so the payload
-copy contains the cleared byte. It is then decoded by type: a channel packet is copied to
-the payload for the channel decode, a sync packet contains the rate, the switch mode, the
-telemetry ratio and the model match that drive the connection, an MSP packet with the bind
-command writes the unique id while binding, and any other MSP packet feeds the MSP receiver
-on a connection, whose finished frame sets the model id or is handed to the target. The
-telemetry slot builds the response from the link statistics or from the sender's next
-chunk, counting the burst the rate and telemetry ratio allow, and the next frame the target
-offers starts in the sender when it is idle. The timer's tick advances the nonce and the
-link quality window after the phase lock update, the tock records its time for the lock,
-and each programs the next half-period with the lock's frequency offset and phase shift.
-The receiver task runs the delayed start, a pending initialization, a bind request, the
-connection states with the rate cycling while disconnected, the configuration write-back
-and the link statistics reports. The radio, the timer hardware, the bind button and the
-LEDs stay with the target, which reads the radio configuration, the timer period, the
-start, power and save requests and the reports the unit records.
+The common layer over the one device selects a band and channel through the table. It sends the
+device the band and channel of a factory band or the frequency of another, and reads band and
+channel back from the device or, while a non-factory band is selected, from the device's frequency
+through the table. The outputs keep their values when the device has none. A control word from the
+Spektrum receiver, once per change, sets band and channel through the table, the power through the
+device's steps and the pit mode at once, and stores the settings when they moved.
 
-The receiver record keeps the reference's receiver structure and its file-level state side
-by side under one predicate that holds every rate within its band's table, so the 900 MHz
-bands' four rates and the 2.4 GHz band's six are never mixed. Initialization takes the
-time, which the reference reads from the clock for the rate cycle. The telemetry frame
-comes in through the telemetry slot's parameters where the reference calls out for it, and
-the sender keeps its own copy, as the reference's static frame buffer is rewritten only
-while the sender is idle. The signal to noise mean holds its sample count at 2 ** 24 - 1
-(D6). The burst limit keeps the reference's 8-bit wrap at 1000 Hz with a 1:2 telemetry
-ratio (findings F99).
+The stick commands step the band or channel bytes without bounds (finding F69) and lock from the
+first arm on. The switch conditions apply in order, the later one winning a field, band and channel
+only until the first arm, the power always. The cycle commands step from the device's band, channel
+and power and wrap within the table, the power below the level count (finding F71). A Spektrum band
+past the five known ones is not a table band (finding F70). Every recorded vector replays exactly.
 
-The harness replays ten sequences of 2000 operations recorded from the reference compiled
-with its driver and telemetry sources: the transmitter's packets at the rate's cadence
-(sync packets with rate, switch mode and telemetry ratio changes, channel packets in the
-wide and hybrid switch modes, bind packets, MSP chunks with model id commands, and
-corrupted, lost and off-rate packets), timer overflows at the programmed period, task
-passes with the system ready flag and bind requests, and channel decodes of fresh
-payloads, over both bands, a bound or unbound unique id and every telemetry ratio,
-checking the decoded payload and channels, the telemetry response, the hop and status
-results and ninety-two state fields after every operation.
+## D86. Tramp driver and the device dispatch (2026-10-11)
 
-## D92. The flight log header (2026-10-12)
+`Adaflight.Tramp` drives a Tramp transmitter over one half-duplex serial line the caller owns, in
+sixteen-byte frames: a start byte, a command, twelve payload bytes, a checksum over the command and
+the payload, and a zero. The driver queries the device's limits every 200 ms until it answers, then
+its settings, then watches the frequency, the power and the pit mode against the configuration. One
+change goes out per 200 ms while retries remain, twenty from each configuration change, with the
+frequency and the power held back under the device's race lock. A settings query follows each
+change, every second otherwise, and a temperature query follows each settings reply.
 
-The flight log header unit contains the reference's log header: the field definition tables of
-the main, GPS, GPS home and slow frames with each field's name, index, sign, predictors,
-encodings and condition, the condition cache built once at the log start, and the chunked
-writers that send the fixed header text, the field definition lines and the system information
-lines under the device's byte budget. The budget is replenished each iteration from the
-device's free space, grown by the per-iteration allowance and held at the accumulated limit,
-and a reservation the budget cannot cover fails for the iteration, permanently when the
-device's buffer could never hold the bytes. The writer appends to a caller owned array, lowers
-the device's free space by one per byte, and drops a byte a serial port with no room cannot
-take. A wing's main table has the three stabilization terms after the feedforward terms and
-its sysinfo lists the stabilization settings in place of the autopilot and rescue settings, so
-one unit serves both crafts through a flag.
+The received bytes are read up to the first complete and valid reply, and the count taken is
+returned, so the caller offers the rest again. A reply whose first word is zero is the echo of a
+request and is passed over, so a device reporting zero limits never comes online (finding F73).
+After a temperature reply the driver stays in the temperature state until the request period passes
+(finding F74). The frequency is accepted within the device's limits, or the user range while they
+are unknown. The power index is looked up in the table from the configured power, unknown for a
+value outside it. The status contains the configured pit mode and the race lock.
 
-The device, the settings and the clock stay with the target: it reports the device kind, the
-per-iteration allowance, the buffer size and the free space, fills the sysinfo's values and
-texts (the firmware identity, the board, the craft name and the debug mode name are texts the
-target provides, and the motor outputs and receiver rate arrive already rounded), and reads
-the writer's budget and counts. The P ratio line divides the intervals in the reference's
-16-bit width.
+`Adaflight.VTX` now drives either device. The device of the kind in use takes the frequency, the
+power, the pit mode and the queries. A factory band goes to a SmartAudio device as band and channel
+and to a Tramp device not at all, and the Spektrum power steps map to each device's indices. The
+protocol library beside the Tramp driver is not ported (finding F72). Every recorded vector replays
+exactly, the control vectors now over both devices.
 
-The harness replays ten header transmissions recorded from the reference's recorder and
-device layer over serial, flash and SD card stubs, seven multirotor and three wing: the fixed
-text, the field definition lines of each table, and the sysinfo lines, each step with a
-scripted free space, a replenished budget and a clock advance, checking every byte written,
-the budget, the header index, the field cursor and the completion flag after each of the
-13505 steps.
+## D87. LTM telemetry stream (2026-10-11)
 
-## D93. The flight log recorder (2026-10-12)
+`Adaflight.LTM_Telemetry` writes the light telemetry stream every 100 ms while enabled. Each cycle
+sends an attitude frame with the pitch, roll and yaw in whole degrees. Alternate cycles then send a
+status frame (the battery in millivolts, the charge drawn held to sixteen bits, the signal scaled
+from its 1023 range to a byte, no airspeed, and the mode code with the armed and failsafe bits) or a
+GPS frame (the position, the ground speed in metres per second, the altitude and the satellite count
+with the fix type, left out while no GPS is present). Every tenth cycle adds an origin frame with
+the home position, no home altitude, the display flag and the home fix.
 
-The flight log recorder unit contains the reference's recorder over the header unit (D92)
-and the field encodings (D56): the log states from disabled and stopped through the log
-file, the header, the field definitions, the sysinfo and the cache flush to running, paused
-and shutting down, with the erase states beside them; the intra frame with every field its
-condition admits, the delta frame against the previous frame or the average of the two
-before it, with the compact encodings of the term, command and optional field groups; the
-slow frame on change or at its interval; the GPS and GPS home frames; the events, with the
-arming beep and flight mode changes logged as they happen; and the iteration policy that
-places the frames by the intra and delta intervals derived from the loop time and the sample
-rate. The motor test and always-on modes start and stop the log around the motors running
-while disarmed, and a full device stops it.
+Each frame is the two start bytes, the frame letter, the little-endian fields and the exclusive-or
+of the fields. The mode code follows the precedence of the flags: passthrough, headfree, angle,
+horizon, rescue, position hold, altitude hold, then rate. The port handling that enables the stream
+belongs to the caller, which passes the enable. Every recorded vector replays exactly.
 
-The device, the sensors, the settings and the clock stay with the target. Each update
-brings the device's answers (its free space, whether it opened with its buffer size,
-whether the log file is ready and closed, whether its buffers are flushed, whether it is
-full or erased, and whether a serial port is shared), the state to log as the reference
-reads it (the controller terms, rates, commands and setpoints as values, the quaternion,
-the motors, servos, battery, altitude and GPS solution, and the date and time already
-converted to seconds), and the sysinfo settings; the recorder rounds the values as the
-reference rounds them, keeps the three-deep history, and appends the bytes to a caller
-owned array through the header unit's writer, so a full serial port drops them as the
-reference's port does. The counts of the flushes, forced flushes, erases, beeps, opens and
-closes the target carries out stand in for the device calls. The first motor's intra frame
-field saturates at zero where the motor output is below the output low, which the reference
-leaves undefined (findings F101).
+## D88. GPS lap timer (2026-10-12)
 
-The harness replays ten logs of 2500 iterations recorded from the reference's recorder and
-device layer over serial, flash, SD card and no device, eight multirotor and two wing, with
-the flight state on random walks, the device's answers, the boxes, the arming and the clock
-scripted, disarms finishing the log and events and reinitializations between the updates,
-checking every byte written, the log state, the iteration counters and intervals, the header
-transmission, the budget, the histories and the request counts after each of the 22800
-steps.
+The GPS lap timer unit contains the gate timer over the fixes the platform hands it: the position,
+the fix time in milliseconds, the cosine of the latitude the GPS link keeps for the local flat
+earth, and the reset switch's state. Every fix first takes the distance and bearing to the gate
+through the GPS link's flat-earth arithmetic (D80), the bearing through the fast arctangent in
+hundredths of a degree.
+
+While the gate is being set, the fix joins a running average of up to a thousand readings whose sums
+live in the timer in 64 bits, bounded by the readings counted so the averages fit the gate. The
+count moves before the sums so the bound holds at every step, an order the reference leaves
+unobservable, and the quotient is held at the coordinate bound it never reaches. Ending the set
+writes the averaged gate into the settings. The reset switch clears the gate from the settings and
+every lap figure but keeps the circle tracking, which the reference keeps in file statics.
+
+A lap is looked for while the timer is stopped or the shortest lap has passed since the last one.
+Inside the gate's circle the closest approach and its time are tracked. Leaving the circle records a
+lap from that time, moves the three previous laps along, keeps the best lap and the best sum of
+three in a row, and restarts the timer from the closest approach. The lap count and the sums wrap in
+sixteen and thirty-two bits. The harness replays 20000 steps over ten courses that loop through the
+gate, hover at it while it is set, pulse the reset, cap the readings and wrap the millisecond clock,
+and checks every figure, the file-level state and the settings' gate.
+
+## D89. MSP box table (2026-10-12)
+
+The MSP box unit contains the box table and its MSP services. The table names each flight and switch
+mode box and gives it the permanent id that identifies it to the configurator for life, with lookups
+by box and by permanent id. The box name serializer writes a user box's custom name of up to sixteen
+characters when its first character is set and the table's name otherwise, each with the semicolon
+separator, or nothing when they would not fit. The permanent id serializer writes the one byte or
+nothing. The box reply walks the active boxes in their order and serializes the thirty-two of the
+requested page, stopping at the first that does not fit.
+
+A box's state is the arming flag for the arm box, the flight mode flag for the flight mode boxes,
+the launch flight mode for the launch box on a wing build, and the switch state otherwise. The
+status packing sets one bit per active box in the order they are counted, in two 32-bit words, and
+returns the count. The active set from the build's features, sensors and settings stays with the
+target, which hands it in as a mask. The harness replays 20000 steps of random active sets, flags,
+switches, user names, pages and buffer sizes, half from a host build and half from a wing build, and
+checks the packed words and count, every serialized byte of both replies and the lookup by permanent
+id. No guard was needed.
+
+## D90. Dispatch queue (2026-10-12)
+
+The dispatch unit contains the delayed-call queue over target numbers up to a capacity of eight,
+with the handlers left to the caller. The reference links entries that contain a function pointer,
+and SPARK keeps the entry table and the order while the caller numbers its targets and runs each one
+the queue hands back. An added target takes its due time from the clock plus the delay, which wraps
+in unsigned arithmetic for a negative delay, and goes before the first entry not due earlier on the
+wrapping clock difference. A target already queued stays where it is. A processing pass takes the
+head while it is due, unlinks it first and hands it back, so the handler can queue it again, and the
+caller loops until nothing is due.
+
+The queue keeps its entries in an array by position rather than through pointers, with one slot per
+target. The one guard refuses an addition at full capacity, which one entry per target never
+reaches. `Adaflight.Dispatch_Targets` numbers the three calls the reference queues: the statistics
+save, the MSP reboot, and the settings write and read. The harness replays 20000 operations over the
+eight targets of adds with positive and negative delays, clock advances that wrap, enabling, and
+processing passes whose handlers requeue themselves at random, checking the fired order with every
+requeue, the queue's order, and each entry's due time and flag.
+
+## D91. ExpressLRS receiver (2026-10-12)
+
+The ExpressLRS receiver unit contains the SPI receiver over the hopping tables and link quality
+counter (D54) and the telemetry link (D55). A packet from the radio is checked against its 14-bit
+CRC seeded from the unique id, with the CRC's upper bits cleared from its first byte in place before
+the check, so the payload copy contains the cleared byte. It is then decoded by type. A channel
+packet is copied to the payload for the channel decode. A sync packet contains the rate, the switch
+mode, the telemetry ratio and the model match that drive the connection. An MSP packet with the bind
+command writes the unique id while binding, and any other MSP packet feeds the MSP receiver on a
+connection, whose finished frame sets the model id or is handed to the target.
+
+The telemetry slot builds the response from the link statistics or from the sender's next chunk,
+counting the burst the rate and telemetry ratio allow, and the next frame the target offers starts
+in the sender when it is idle. The timer's tick advances the nonce and the link quality window after
+the phase lock update, the tock records its time for the lock, and each programs the next
+half-period with the lock's frequency offset and phase shift. The receiver task runs the delayed
+start, a pending initialization, a bind request, the connection states with the rate cycling while
+disconnected, the configuration write-back and the link statistics reports. The radio, the timer
+hardware, the bind button and the LEDs stay with the target, which reads the radio configuration,
+the timer period, the start, power and save requests and the reports the unit records.
+
+The receiver record keeps the receiver structure and the file-level state side by side under one
+predicate that holds every rate within its band's table, so the 900 MHz bands' four rates and the
+2.4 GHz band's six are never mixed. Initialization takes the time, which the reference reads from
+the clock for the rate cycle. The telemetry frame comes in through the telemetry slot's parameters
+where the reference calls out for it, and the sender keeps its own copy, as the reference's static
+frame buffer is rewritten only while the sender is idle. The signal to noise mean holds its sample
+count at 2 ** 24 - 1 (D6). The burst limit keeps the reference's 8-bit wrap at 1000 Hz with a 1:2
+telemetry ratio (finding F99).
+
+The harness replays ten sequences of 2000 operations recorded from the reference compiled with its
+driver and telemetry sources: the transmitter's packets at the rate's cadence (sync packets with
+rate, switch mode and telemetry ratio changes, channel packets in the wide and hybrid switch modes,
+bind packets, MSP chunks with model id commands, and corrupted, lost and off-rate packets), timer
+overflows at the programmed period, task passes with the system ready flag and bind requests, and
+channel decodes of fresh payloads. They run over both bands, a bound or unbound unique id and every
+telemetry ratio, checking the decoded payload and channels, the telemetry response, the hop and
+status results and ninety-two state fields after every operation.
+
+## D92. Flight log header (2026-10-12)
+
+The flight log header unit contains the log header: the field definition tables of the main, GPS,
+GPS home and slow frames with each field's name, index, sign, predictors, encodings and condition,
+the condition cache built once at the log start, and the chunked writers that send the fixed header
+text, the field definition lines and the system information lines under the device's byte budget.
+The budget is replenished each iteration from the device's free space, grown by the per-iteration
+allowance and held at the accumulated limit. A reservation the budget cannot cover fails for the
+iteration, permanently when the device's buffer could never hold the bytes. The writer appends to a
+caller owned array, lowers the device's free space by one per byte, and drops a byte a serial port
+with no room cannot take. A wing's main table has the three stabilization terms after the
+feedforward terms, and its sysinfo lists the stabilization settings in place of the autopilot and
+rescue settings, so one unit serves both crafts through a flag.
+
+The device, the settings and the clock stay with the target. It reports the device kind, the
+per-iteration allowance, the buffer size and the free space, fills the sysinfo's values and texts,
+and reads the writer's budget and counts. The firmware identity, the board, the craft name and the
+debug mode name are texts the target provides, and the motor outputs and receiver rate arrive
+already rounded. The P ratio line divides the intervals in 16-bit width.
+
+The harness replays ten header transmissions recorded from the reference's recorder and device layer
+over serial, flash and SD card stubs, seven multirotor and three wing: the fixed text, the field
+definition lines of each table, and the sysinfo lines. Each step has a scripted free space, a
+replenished budget and a clock advance, and the harness checks every byte written, the budget, the
+header index, the field cursor and the completion flag after each of the 13505 steps.
+
+## D93. Flight log recorder (2026-10-12)
+
+The flight log recorder unit contains the recorder over the header unit (D92) and the field
+encodings (D56). The log states run from disabled and stopped through the log file, the header, the
+field definitions, the sysinfo and the cache flush to running, paused and shutting down, with the
+erase states beside them. The intra frame contains every field its condition admits, and the delta
+frame is taken against the previous frame or the average of the two before it, with the compact
+encodings of the term, command and optional field groups. The slow frame goes on change or at its
+interval, beside the GPS and GPS home frames and the events, with the arming beep and flight mode
+changes logged as they happen. The iteration policy places the frames by the intra and delta
+intervals derived from the loop time and the sample rate. The motor test and always-on modes start
+and stop the log around the motors running while disarmed, and a full device stops it.
+
+The device, the sensors, the settings and the clock stay with the target. Each update brings the
+device's answers: its free space, whether it opened with its buffer size, whether the log file is
+ready and closed, whether its buffers are flushed, whether it is full or erased, and whether a
+serial port is shared. It also brings the state to log (the controller terms, rates, commands and
+setpoints as values, the quaternion, the motors, servos, battery, altitude and GPS solution, and the
+date and time already converted to seconds) and the sysinfo settings. The recorder rounds the
+values, keeps the three-deep history, and appends the bytes to a caller owned array through the
+header unit's writer, so a full serial port drops them. The counts of the flushes, forced flushes,
+erases, beeps, opens and closes the target carries out stand in for the device calls. The first
+motor's intra frame field saturates at zero where the motor output is below the output low, which
+the reference leaves undefined (finding F101).
+
+The harness replays ten logs of 2500 iterations recorded from the reference's recorder and device
+layer over serial, flash, SD card and no device, eight multirotor and two wing. The flight state
+runs on random walks, with the device's answers, the boxes, the arming and the clock scripted,
+disarms finishing the log, and events and reinitializations between the updates. It checks every
+byte written, the log state, the iteration counters and intervals, the header transmission, the
+budget, the histories and the request counts after each of the 22800 steps.
 
 ## D94. The position navigation target (2026-10-12)
 
