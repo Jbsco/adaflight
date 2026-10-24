@@ -1536,7 +1536,9 @@ no time.
 The NMEA decoder gathers a sentence field by field into a fifteen character buffer, identifies GGA,
 RMC, GSV and GSA sentences from the three letters after the talker id, and parses each field as it
 ends. It writes the gathered values to the solution once the parity after the star matches. The fix
-state follows the GGA quality field as the field arrives, before the parity check (finding F53).
+state follows the GGA quality field once the parity matches, before the values are written. The
+reference sets it as the field arrives, before the parity check, so a corrupted sentence or line
+noise sets or clears the fix (finding F53, D6).
 
 The UBX decoder walks the preamble, class, id, length, payload and the two Fletcher checksums. It
 keeps up to 392 payload bytes, restarts on a declared length past 776 or on a bad checksum, and

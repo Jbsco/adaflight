@@ -102,6 +102,7 @@ package Adaflight.GPS_Frames with SPARK_Mode is
    type NMEA_Values is record
       Latitude, Longitude, Altitude_Cm       : Integer_32 := 0;
       Num_Sat                                : Unsigned_8 := 0;
+      Fix                                    : Boolean := False;
       Speed, Pdop, Hdop, Vdop, Ground_Course : Unsigned_16 := 0;
       Time, Date                             : Unsigned_32 := 0;
    end record;
