@@ -68,6 +68,22 @@ package body Adaflight.VTX_RTC6705 with SPARK_Mode is
       end if;
    end Set_Power_Index;
 
+   --  The power pin on, the boot delay, then the stored power and frequency.
+   procedure Enable_And_Configure (D : in out Driver; T : VTX_Table.Table)
+     with Global => null
+   is
+   begin
+      D.Powered := True;
+      Add (D.Pending, (Kind => Power_On, Address => 0, Value => 0));
+      Add (D.Pending, (Kind => Wait, Address => 0, Value => Boot_Delay_Ms));
+      Write_Power
+        (D, (if VTX_Table.Has_Power_Value (T, Natural (D.Power_Index))
+             then VTX_Table.Power_Value_Of (T, Natural (D.Power_Index)) else 0));
+      if D.Frequency in Freq_Min .. Freq_Max then
+         Write_Frequency (D, D.Frequency);
+      end if;
+   end Enable_And_Configure;
+
    procedure Set_Pit_Mode (D : in out Driver; T : VTX_Table.Table; On : Boolean) is
    begin
       if On then
@@ -77,15 +93,15 @@ package body Adaflight.VTX_RTC6705 with SPARK_Mode is
          end if;
       elsif D.Pit_Active then
          D.Pit_Active := False;
-         Add (D.Pending, (Kind => Power_On, Address => 0, Value => 0));
-         Add (D.Pending, (Kind => Wait, Address => 0, Value => Boot_Delay_Ms));
-         Write_Power
-           (D, (if VTX_Table.Has_Power_Value (T, Natural (D.Power_Index))
-                then VTX_Table.Power_Value_Of (T, Natural (D.Power_Index)) else 0));
-         if D.Frequency in Freq_Min .. Freq_Max then
-            Write_Frequency (D, D.Frequency);
-         end if;
+         Enable_And_Configure (D, T);
       end if;
    end Set_Pit_Mode;
+
+   procedure Process (D : in out Driver; T : VTX_Table.Table) is
+   begin
+      if not D.Pit_Active and then not D.Powered then
+         Enable_And_Configure (D, T);
+      end if;
+   end Process;
 
 end Adaflight.VTX_RTC6705;
