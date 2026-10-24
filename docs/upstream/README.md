@@ -27,3 +27,4 @@ Each document describes a Betaflight bug that adaflight fixes: the Betaflight ve
 - [Longitude differences overflow across the antimeridian](gps-antimeridian.md)
 - [HC-SR04 reports hardware failure after 71.6 minutes](hcsr04-echo-clock.md)
 - [SDIO card production year reads at most 2015](sdio-production-year.md)
+- [SDIO card reset leaves the card in the state that failed](sdio-reset-state.md)
