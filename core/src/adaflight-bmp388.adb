@@ -265,7 +265,7 @@ package body Adaflight.BMP388 with SPARK_Mode is
       Temp  : Temperature_Range;
    begin
       Compensate_Temperature (S.Raw_Temperature, S.Calibration, T_Lin, Temp);
-      Pressure := I32 (I64 (Compensate_Pressure (S.Raw_Pressure, S.Calibration, T_Lin)) / 256);
+      Pressure := I32 (I64 (Compensate_Pressure (S.Raw_Pressure, S.Calibration, T_Lin)) / 100);
       Temperature := I32 (Temp);
    end Calculate;
 

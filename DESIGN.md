@@ -7173,11 +7173,13 @@ The chip measures both values together in 36.9 ms, so only the pressure calls do
 measurement, a read starts the six data bytes, seven on SPI, once the bus is free, and a sample takes them once the
 bus is done. The interrupt reads the interrupt status and drops it.
 
-The calculation follows the datasheet's 64-bit integer compensation. Its terms run in modular arithmetic, so a
-calibration that overflows them wraps as two's complement arithmetic does, and its signed divisions truncate toward
-zero. The driver gives the temperature in hundredths of a degree and the compensated pressure, in hundredths of a
-pascal, divided by 256 (F253). The unit is SPARK for that arithmetic, which the proof shows free of overflow, with
-both results within 32 bits, for any calibration and reading.
+The calculation follows the datasheet's 64-bit integer compensation. Its terms run in modular
+arithmetic, so a calibration that overflows them wraps as two's complement arithmetic does, and its
+signed divisions truncate toward zero. The driver gives the temperature in hundredths of a degree
+and the pressure in pascals, the compensation's hundredths of a pascal divided by 100. The reference
+divides by 256 and reports a pressure 2.56 times too low (F253, D6). The unit is SPARK for that
+arithmetic, which the proof shows free of overflow, with both results within 32 bits, for any
+calibration and reading.
 
 The BMP388 oracle includes the reference driver with the bus, pin, interrupt and delay calls stubbed over a
 simulated chip, one case per process. It draws the bus, the configured and the chip's addresses, the identity, the
