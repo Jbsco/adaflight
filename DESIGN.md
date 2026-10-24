@@ -341,6 +341,11 @@ ledger. The deviations so far:
   roll and pitch turned by 45 degrees deflect one axis to 1.41, and the rates run up to twice the
   configured maximum or to the rate limit (F284). The RC oracle compiles the reference module with the
   same scaling.
+- With the experimental filter setting the BMI270 driver takes the interrupt-driven read mode at
+  initialization, so its accelerometer reads read (D376). The reference reads the gyro from the FIFO in
+  that setting and never leaves the first read mode, in which its accelerometer read reports success
+  without reading, so the accelerometer stays at zero (F285). The BMI270 oracle compiles the reference
+  driver with the same change.
 
 ## D7. Contribution conventions (2026-10-08)
 
@@ -8963,3 +8968,50 @@ vector, then replays the commands, deflections, setpoints and feedforward. Feedf
 in these sequences, as in the throttle sequences, since the averaging carries a declared tolerance (D6).
 40 sequences of 80 steps replay exactly, 2418 of the steps in headfree mode and 1117 of those scaled. Five
 tampered paths each fail the vectors.
+
+## D376. BMI270 gyro driver (2026-10-24)
+
+`Adaflight.MPU_Gyro.BMI270` drives the BMI270 gyro over the SPI gyro layer. The chip starts in I2C mode, and
+the select pin low for 1 ms then high for 10 ms selects SPI. A register read returns one dummy byte before
+the value. Detection selects SPI and reads the identity, 0x24. The gyro detection sets the scale of 2000
+degrees per second over the 16-bit count.
+
+Initialization writes the soft reset, waits 100 ms, selects SPI again and loads the chip's configuration
+file: advanced power save off, loading open, the 328 bytes to the loading register, 10 ms, loading closed.
+`Adaflight.BMI270_Config` contains the bytes, the configuration file of the maximum FIFO variant from Bosch
+Sensortec's BMI270 Sensor API, release v2.113.0, under the BSD-3-Clause license. `third_party/bosch-bmi270`
+names the source and contains the license. The experimental filter setting then sets the FIFO for gyro
+frames without headers or downsampling and a watermark of one frame. The accelerometer goes to 16 g and
+800 Hz and the gyro to 2000 degrees per second and 3.2 kHz, both in performance mode, the gyro with the
+oversampling of the filter setting. The interrupt pin then carries data ready, or the FIFO watermark in the
+experimental setting, push-pull and active high, and the gyro, accelerometer and temperature sensor start.
+The experimental setting flushes the FIFO last. Each write waits 1 ms. Initialization then enables the
+interrupt when the board has the pin and sets a 10 MHz clock. The interrupt handler is the layer's, the
+chip's own with no short period.
+
+In the experimental setting a gyro read takes the FIFO length and the first frame in one 10-byte transfer.
+It keeps a whole frame unless all three words are -32768, the mark of an invalid frame, and flushes the FIFO
+when bytes remain. Outside that setting the first gyro read picks the mode as in the BMI423 driver (D363):
+DMA after 1000 interrupts when the bus has it, each interrupt then starting the 14-byte read of both
+sensors, interrupt driven without DMA, or no interrupt. The mode without interrupts stays, where the
+BMI423's returns to the first read after 1000 interrupts. The other reads take a sensor's six bytes at byte
+2 of an 8-byte transfer. The experimental setting takes the interrupt-driven mode at initialization, so its
+accelerometer reads read (D6). The reference never leaves the first mode in that setting, and its
+accelerometer read reports success without reading, which leaves the accelerometer at zero (F285). The unit
+is SPARK, with the sample offsets bounded by the receive buffer.
+
+The BMI270 oracle includes the reference driver, compiled with the same mode change, and the common SPI gyro
+layer over a simulated chip whose 8-bit registers read behind one dummy byte and whose FIFO flush clears the
+FIFO length. It links the reference's copy of the configuration file and records the burst as its length
+and CRC-32, 9fa5db37, the CRC-32 of Bosch's bytes too. It draws the bus, the chip identity, 0x24 in 85
+percent of the cases, the dummy byte, refused reads in 5 percent, the startup clock and its step, DMA, the
+interrupt pin, the filter setting, past the known ones in 8 percent, the register values and, at each new
+sample, a FIFO length near one frame and frames of -32768 words. It then runs the detection, the gyro and
+accelerometer detection and initialization, and 30 steps of interrupts, a burst of 990 to 1050 interrupts or
+exactly 1000, DMA completions, reads and new samples. Every bus, pin, clock and delay call, detection,
+setting and reading of the 300 cases replays exactly. In them 234 chips are found, 55 with the experimental
+setting and 17 with an unknown one, and of 7020 steps 1640 read the gyro and 1380 the accelerometer. The
+experimental setting's 384 gyro reads keep 181 frames, drop 27 invalid ones, find less than a frame 176
+times and flush 71 times, and its 340 accelerometer reads each make the transfer the reference skips.
+Outside it the cases end 39 in DMA mode, 34 interrupt driven and 106 without interrupts, after 187 bursts,
+22 of exactly 1000. Of 114 tampered paths, 113 fail the vectors and 1 stops the checker at a range check.
