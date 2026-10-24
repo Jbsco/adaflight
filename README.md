@@ -178,18 +178,22 @@ The core contains:
 </details>
 
 <details>
-<summary><b>Navigation</b> (2)</summary>
+<summary><b>Navigation</b> (5)</summary>
 
 - position Kalman filter, position estimator from barometer, accelerometer and GPS, altitude hold,
   position hold with autopilot's navigation modes, GPS rescue, and position navigation target
 - flight plan storage with waypoint capture gesture, and executor's plan queries, leg geometry,
   carrot legs, dispatch, landing, update cycle, engagement, plan injection, geofence return,
   rescue plan and descent, and waypoint distance, bearing and time
+- navigation trail with distance gate and decimation
+- GPS frame decoders for NMEA sentences and UBX messages, UBX configuration messages, and GPS link
+  with rate detection, autoconfiguration and home distances
+- GPS lap timer with averaged gate and best three laps
 
 </details>
 
 <details>
-<summary><b>Receivers</b> (13)</summary>
+<summary><b>Receivers</b> (14)</summary>
 
 - SBUS, CRSF, SUMD, SUMH, IBUS, Spektrum, XBUS, Jeti EX Bus, Ghost, SRXL2 and FPORT protocols, PPM
   and parallel PWM inputs, and MSP and MAVLink receivers
@@ -204,6 +208,7 @@ The core contains:
   stop
 - RC statistics for full throttle time and count and average throttle
 - receiver task's state machine with step time estimates
+- receiver bind: CRSF, SRXL2 and SPI receivers from bind_rx command and MSP bind message
 - SX1280 radio driver: initialization, LoRa and FLRC configuration, command, register and buffer
   transfers behind busy pin, interrupt chain of DMA transfers with hop, telemetry and packet
   processing hooks
