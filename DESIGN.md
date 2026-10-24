@@ -8123,3 +8123,33 @@ conversion-end pin, 49 of those connected, and 26 on SPI, 2280 interrupts fire, 
 calculations run. Of 63 tampered paths, 60 fail the vectors and two stop the checker at a subtype check. One passes and
 is equivalent: the rounding term of the B3 step adds 2 before a shift by 2 to a value the fixed oversampling of 3 makes
 a multiple of 8, so the shift drops it.
+
+## D353. TF rangefinder driver (2026-10-18)
+
+`Adaflight.Lidar_TF` drives the Benewake TF serial rangefinders, the TFmini with a 40 cm to 12 m range, the TF02 with 40
+cm to 22 m and the TFnova with 10 cm to 14 m. Detection takes one of the three rangefinder types and needs a configured
+serial port, which it opens at 115200 baud, then gives the task a 10 ms period, the model's maximum range and a 90
+degree cone, and sends the TFmini and TF02 the 100 Hz command. Initialization resets the frame state. An update reads
+the clock and every waiting byte through the frame state machine, two sync bytes 0x59, six payload bytes and a checksum
+over all eight. A frame whose checksum fits gives the reading, out of range below the model's minimum or above its
+maximum, for a TF02 whose reliability byte is under 7 and for a TFnova whose confidence byte is under 90, and otherwise
+the distance in centimeters, 13 less for a TFmini whose integral time byte is 7, and notes the frame's time. A frame
+whose checksum does not fit counts an error. After the bytes, an update that saw no frame for more than 200 ms and sent
+no command for more than 500 ms, both as signed 32-bit differences of the millisecond clock, sends the command again. A
+read gives the last reading, 0 before the first frame. The reference keeps the port, the frame state, the reading and
+the times in static variables. This unit keeps them in its state, which behaves the same with one rangefinder, and keeps
+the last frame's distance, strength and trailing bytes, which the reference shows through its debug values. The unit is
+SPARK for the frame state machine and the reading.
+
+The TF rangefinder oracle includes the reference driver over a stubbed serial port and clock, one case per process. It
+draws the rangefinder type, a non-TF one in a seventh of the cases, whether a port is configured and opens, and the
+clock, a fifth of them within 2 s of the 32-bit wrap, then detects and runs 40 updates, each after a drawn clock advance
+of 10 ms, up to 100 ms, 150 to 700 ms or up to 3 s, in a sixth of them to exactly 200 ms after the last good frame or
+500 ms after the last command, over a drawn byte stream of up to three frames with distances in and out of range, long
+integral times, low reliabilities and confidences, wrong checksums in 15 percent of the frames, false sync bytes and
+frames split across updates. Every port open, write and clock read, detection and update of the 300 cases replays
+exactly, with the reading, the last frame's values and the error count. In them 227 rangefinders are found, 98 TFmini,
+65 TF02 and 64 TFnova, 7328 of 9080 updates bring bytes, 6143 updates end with a distance and 2937 out of range, 2680
+frames fail their checksum, and the command goes 555 times. Of 45 tampered paths, 43 fail the vectors. Two pass and are
+equivalent: the phase reset of the initialization, which repeats the phase detection leaves, and the port guard of the
+update, which the device table reaches only after a detection.

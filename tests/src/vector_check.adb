@@ -187,6 +187,7 @@ with Adaflight.DPS310;
 with Adaflight.LPS22DF;
 with Adaflight.QMP6988;
 with Adaflight.BMP085;
+with Adaflight.Lidar_TF;
 with Adaflight.MS5611;
 with Adaflight.BMP388;
 with Adaflight.MAX7456;
@@ -16723,6 +16724,132 @@ procedure Vector_Check is
       end if;
    end Check_BMP085_Line;
 
+   --  The TF rangefinder oracle's port: whether it opens, the bytes of the
+   --  current update and the millisecond clock. Its calls share the BMP280
+   --  bus's queue.
+   type TF_Port is record
+      Opens  : Boolean := True;
+      Stream : Byte_Array (0 .. 511) := (others => 0);
+      Pos    : Natural := 0;
+      Last   : Natural := 0;
+      Clock  : Interfaces.Unsigned_32 := 0;
+   end record;
+
+   procedure TF_Open
+     (D : in out TF_Port; Port : Interfaces.Integer_8; Baud : Interfaces.Unsigned_32; Opened : out Boolean)
+   is
+   begin
+      Opened := D.Opens;
+      BMP_Op ("open," & BMP_Num (Integer_64 (Port)) & ",1," & BMP_Num (Integer_64 (Baud)) & ",1,0,"
+              & BMP_Num (Boolean'Pos (Opened)));
+   end TF_Open;
+
+   procedure TF_Waiting (D : in out TF_Port; Count : out Natural) is
+   begin
+      Count := D.Last - D.Pos;
+   end TF_Waiting;
+
+   procedure TF_Read_Byte (D : in out TF_Port; B : out Byte) is
+   begin
+      B := D.Stream (D.Pos);
+      D.Pos := D.Pos + 1;
+   end TF_Read_Byte;
+
+   procedure TF_Write (D : in out TF_Port; Data : Byte_Array) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("write," & BL_Hex (Data));
+   end TF_Write;
+
+   procedure TF_Millis (D : in out TF_Port; Now : out Interfaces.Unsigned_32) is
+   begin
+      Now := D.Clock;
+      BMP_Op ("millis," & BMP_Num (Integer_64 (Now)));
+   end TF_Millis;
+
+   package TF_Driver is new Adaflight.Lidar_TF
+     (Serial_Device => TF_Port,
+      Open_Port     => TF_Open,
+      Bytes_Waiting => TF_Waiting,
+      Read_Byte     => TF_Read_Byte,
+      Write_Bytes   => TF_Write,
+      Millis        => TF_Millis);
+
+   TF_Device : TF_Port;
+   TF_State  : TF_Driver.State;
+   TF_Found  : Boolean := False;
+   TF_Dev    : TF_Driver.Device;
+
+   function TF_Int16 (V : Interfaces.Unsigned_16) return Integer_64 is
+      use type Interfaces.Unsigned_16;
+   begin
+      return (if V >= 32_768 then Integer_64 (V) - 65_536 else Integer_64 (V));
+   end TF_Int16;
+
+   procedure Check_Lidar_TF_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "tfinit" then
+         BMP_Op_Head := 1;
+         BMP_Op_Count := 0;
+         TF_Device := (others => <>);
+         TF_State := (others => <>);
+         TF_Device.Opens := Int (5) /= 0;
+         TF_Device.Clock := Interfaces.Unsigned_32 (Int (6));
+         TF_Driver.Detect (TF_Device, TF_State, Byte (Int (3)), Interfaces.Integer_8 (Int (4)), TF_Found, TF_Dev);
+      elsif Name = "tfop" then
+         declare
+            Expected : Ada.Strings.Unbounded.Unbounded_String := Ada.Strings.Unbounded.To_Unbounded_String (Str (3));
+         begin
+            for I in 4 .. NF loop
+               Ada.Strings.Unbounded.Append (Expected, "," & Str (I));
+            end loop;
+            if BMP_Op_Head <= BMP_Op_Count then
+               Record_Text ("lidartf.op", Ada.Strings.Unbounded.To_String (Expected),
+                            Ada.Strings.Unbounded.To_String (BMP_Ops (BMP_Op_Head)));
+               BMP_Op_Head := BMP_Op_Head + 1;
+            else
+               Record_Text ("lidartf.op", Ada.Strings.Unbounded.To_String (Expected), "none");
+            end if;
+         end;
+      elsif Name = "tfdet" then
+         BMP_Expect_No_Ops ("detection");
+         Record_Int ("lidartf.found", Int (3), Boolean'Pos (TF_Found));
+         Record_Int ("lidartf.delay", Int (4), Integer_64 (TF_Dev.Delay_Ms));
+         Record_Int ("lidartf.max_range", Int (5), Integer_64 (TF_Dev.Max_Range_Cm));
+         Record_Int ("lidartf.cone", Int (6), Integer_64 (TF_Dev.Cone_Decidegrees));
+         Record_Int ("lidartf.cone_extended", Int (7), Integer_64 (TF_Dev.Cone_Extended_Decidegrees));
+         if TF_Found then
+            TF_Driver.Init (TF_State);
+         end if;
+      elsif Name = "tfstep" then
+         BMP_Op_Head := 1;
+         BMP_Op_Count := 0;
+         TF_Device.Clock := Interfaces.Unsigned_32 (Int (4));
+         TF_Device.Pos := 0;
+         TF_Device.Last := 0;
+         if Str (5) /= "-" then
+            declare
+               Data : constant Byte_Array := Hex_Bytes (5);
+            begin
+               for I in Data'Range loop
+                  TF_Device.Stream (I) := Data (I);
+               end loop;
+               TF_Device.Last := Data'Length;
+            end;
+         end if;
+         TF_Driver.Update (TF_Device, TF_State);
+      elsif Name = "tfres" then
+         BMP_Expect_No_Ops ("a result");
+         Record_Int ("lidartf.value", Int (4), Integer_64 (TF_Driver.Read (TF_State)));
+         Record_Int ("lidartf.distance", Int (5), TF_Int16 (TF_State.Last_Distance));
+         Record_Int ("lidartf.strength", Int (6), TF_Int16 (TF_State.Last_Strength));
+         Record_Int ("lidartf.byte_4", Int (7), Integer_64 (TF_State.Last_Byte_4));
+         Record_Int ("lidartf.byte_5", Int (8), Integer_64 (TF_State.Last_Byte_5));
+         Record_Int ("lidartf.errors", Int (9), TF_Int16 (Interfaces.Unsigned_16 (TF_State.Errors mod 65_536)));
+      end if;
+   end Check_Lidar_TF_Line;
+
    --  The MS5611 oracle's bus: the simulated chip's first PROM byte, PROM
    --  words and ADC bytes, its address, the scripted busy and start answers,
    --  and the bytes the last started read brought. Its calls share the
@@ -32354,6 +32481,8 @@ procedure Vector_Check is
                   Check_QMP6988_Line;
                elsif Kind = "bmp085" then
                   Check_BMP085_Line;
+               elsif Kind = "lidartf" then
+                  Check_Lidar_TF_Line;
                elsif Kind = "ms5611" then
                   Check_MS5611_Line;
                elsif Kind = "bmp388" then
@@ -32676,6 +32805,7 @@ begin
    Run (Dir & "/lps22df.csv", "lps22df");
    Run (Dir & "/qmp6988.csv", "qmp6988");
    Run (Dir & "/bmp085.csv", "bmp085");
+   Run (Dir & "/lidartf.csv", "lidartf");
    Run (Dir & "/ms5611.csv", "ms5611");
    Run (Dir & "/bmp388.csv", "bmp388");
    Run (Dir & "/max7456.csv", "max7456");
