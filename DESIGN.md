@@ -325,6 +325,13 @@ ledger. The deviations so far:
   leaves zero stick range on that side, and the mixer's throttle holds at zero there (D291). The reference
   divides zero by zero, and its throttle turns undefined (F235). The recorded vectors keep the minimum check
   off those values.
+- The RTC6705 menu's exit turns pit mode on only when its pit line shows ON (D262). The reference passes
+  the line's raw value, 1 for OFF and 2 for ON, to a setter that turns pit mode on for any value but 0, so
+  leaving the menu always turns pit mode on (F225). The menu contents oracle compiles the reference menu
+  with the same change, so its recorded sessions show the fixed exit.
+- The RTC6705 menu's exit stores the band, channel and frequency only while both band and channel are set
+  (D262). The reference stores band 0, channel 0 and frequency 0 when the device reports no band (F226).
+  The menu contents oracle compiles the reference menu with the same change.
 
 ## D7. Contribution conventions (2026-10-08)
 
@@ -6117,14 +6124,20 @@ band, channel and power with the band and channel's frequency, and saves. The me
 save output for this, and the navigation saves after the hook returns.
 
 The common pit mode setter now takes the reference's byte. The MSP and Tramp devices store it as given,
-and the SmartAudio and RTC6705 devices test it for zero. The other callers pass 0 or 1. The menu passes
-the pit line's value, so its exit turns pit mode on whatever the line shows (F225), and the exit can store
-band 0, channel 0 and frequency 0 (F226). Adaflight keeps both.
+and the SmartAudio and RTC6705 devices test it for zero. The other callers pass 0 or 1. The reference
+menu passes the pit line's value, so its exit turns pit mode on whatever the line shows (F225), and the
+exit can store band 0, channel 0 and frequency 0 (F226).
 
 The menu oracle adds the RTC6705 from the D261 source over stand-in pins. It opens the menu in RTC6705
 sessions and, through direct jumps, with the other devices, and records the RTC6705's frequency, power
 index, pit mode and operations after every step. Six runs with 240 sessions in all replay exactly, with 37
 jumps to the menu and 12 RTC6705 sessions.
+
+Amended 2026-10-24: the exit turns pit mode on only for the ON line, and stores the band, channel and
+frequency only while both band and channel are set, as declared in D6. The power is stored either way. The
+menu contents oracle now compiles the reference menu with the same two changes, which alter 2003 lines in
+16 of the 240 sessions. Those sessions replay exactly with the fix, and reverting either half of it fails
+them.
 
 ## D263. DShot telemetry information command (2026-10-16)
 
