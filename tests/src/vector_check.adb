@@ -1985,6 +1985,14 @@ procedure Vector_Check is
    RC_Inputs  : Adaflight.RC_Command.Command_Inputs;
    RC_Runtime : Adaflight.PID_Config.Runtime;
    RC_Time    : Interfaces.Unsigned_32 := 0;
+   --  The headfree sequences' step: the mode, a level or hold mode, the turned
+   --  vector the oracle's stand-in hands back, and the stick vector the port
+   --  turned.
+   RC_Headfree : Boolean := False;
+   RC_Level    : Boolean := False;
+   RC_Turned   : Adaflight.Vectors.Vector3;
+   RC_Stick    : Adaflight.Vectors.Vector3;
+   RC_Did_Turn : Boolean := False;
 
    procedure Check_RC_Line is
       use Adaflight.RC_Command;
@@ -2001,6 +2009,8 @@ procedure Vector_Check is
       end Expect_Float;
    begin
       if Name = "rcinit" then
+         RC_Headfree := False;
+         RC_Level := False;
          declare
             use Adaflight.Rates;
             use Adaflight.PID_Config;
@@ -2066,6 +2076,17 @@ procedure Vector_Check is
                        Failsafe_Active => Str (7) = "1");
       elsif Name = "rcthr" then
          Record_Int ("rcthr.reversed", Int (4), Boolean'Pos (RC_State.Motors_Reversed));
+      elsif Name = "rchfin" then
+         RC_Headfree := Str (4) = "1";
+         RC_Level := Int (5) /= 0;
+         RC_Turned := (X => Flt (6), Y => Flt (7), Z => Flt (8));
+      elsif Name = "rchf" then
+         Record_Int ("rchf.turned", Int (4), Boolean'Pos (RC_Did_Turn));
+         if RC_Did_Turn then
+            Record_Result ("rchf.stick_x", Bits (5), To_Bits (RC_Stick.X));
+            Record_Result ("rchf.stick_y", Bits (6), To_Bits (RC_Stick.Y));
+            Record_Result ("rchf.stick_z", Bits (7), To_Bits (RC_Stick.Z));
+         end if;
       elsif Name = "rcstep" then
          declare
             Interval : constant Integer := Integer'Value (Str (4));
@@ -2079,6 +2100,11 @@ procedure Vector_Check is
                Data (Ch) := Flt (6 + Ch);
             end loop;
             Update_Commands (RC_State, RC_Config, Data, RC_Inputs);
+            RC_Did_Turn := RC_Headfree;
+            if RC_Headfree then
+               RC_Stick := Headfree_Vector (RC_State, RC_Level);
+               Apply_Headfree (RC_State, RC_Turned, RC_Level);
+            end if;
             Process (RC_State, RC_Config, RC_Runtime);
             for J in 2 .. Loops loop
                Process (RC_State, RC_Config, RC_Runtime);
@@ -38200,6 +38226,7 @@ begin
    Run (Dir & "/wingmix.csv", "mix");
    Run (Dir & "/rc.csv", "rc");
    Run (Dir & "/rcthr.csv", "rc");
+   Run (Dir & "/rchf.csv", "rc");
    Run (Dir & "/gyro.csv", "gyro");
    Run (Dir & "/gyromulti.csv", "gyro");
    Run (Dir & "/gyrosel.csv", "gyro");

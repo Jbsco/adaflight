@@ -1,5 +1,6 @@
 --  The stick command path: deadbands, the throttle curve with the low voltage
---  cutoff and the 3D throttle from the receiver channels, the deflections and
+--  cutoff and the 3D throttle from the receiver channels, the headfree turn of
+--  the sticks, the deflections and
 --  rates into raw setpoints, feedforward from the setpoint motion, and the
 --  smoothing filters whose cutoffs follow the receiver frame rate, in the
 --  operation order of the reference.
@@ -9,6 +10,7 @@ with Adaflight.Axes; use Adaflight.Axes;
 with Adaflight.Maths; use Adaflight.Maths;
 with Adaflight.Filters; use Adaflight.Filters;
 with Adaflight.Rates;
+with Adaflight.Vectors;
 with Adaflight.PID_Config; use Adaflight.PID_Config;
 
 package Adaflight.RC_Command with SPARK_Mode, Pure is
@@ -139,6 +141,23 @@ package Adaflight.RC_Command with SPARK_Mode, Pure is
 
    --  Commands from the channels: deadbands on the sticks, the curve on the throttle.
    procedure Update_Commands (S : in out State; C : Config; Data : Channel_Values; Inp : Command_Inputs);
+
+   --  The stick commands headfree mode turns: roll and pitch, and yaw unless
+   --  a level or hold mode is on.
+   function Headfree_Vector (S : State; Level_Or_Hold : Boolean) return Vectors.Vector3 is
+     ((X => S.Command (Axis'Pos (Roll)), Y => S.Command (Axis'Pos (Pitch)),
+       Z => (if Level_Or_Hold then 0.0 else S.Command (Axis'Pos (Yaw)))));
+
+   --  The turned commands back on the sticks, scaled together so that no
+   --  deflection passes one (D6).
+   procedure Apply_Headfree (S : in out State; Turned : Vectors.Vector3; Level_Or_Hold : Boolean)
+     with Pre  => Vectors.Bounded (Turned, 2.0 ** 16),
+          Post => abs S.Command (Axis'Pos (Roll)) <= S.Command_Divider
+                  and then abs S.Command (Axis'Pos (Pitch)) <= S.Command_Divider
+                  and then (if Level_Or_Hold then S.Command (Axis'Pos (Yaw)) = S.Command'Old (Axis'Pos (Yaw))
+                            else abs S.Command (Axis'Pos (Yaw)) <= S.Yaw_Divider)
+                  and then S.Command (Throttle_Channel) = S.Command'Old (Throttle_Channel)
+                  and then S.Command_Divider = S.Command_Divider'Old and then S.Yaw_Divider = S.Yaw_Divider'Old;
 
    --  Deflections, raw setpoints, feedforward, and the smoothing filters; runs
    --  every loop and does the receiver-side work when the data is new.
