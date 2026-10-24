@@ -7931,8 +7931,8 @@ read leaves the identity the last read gave. A chip without the identity gets it
 the preinit owner and the default address taken back. Otherwise detection registers the device, sets the IIR filter to
 5, reads the 25 calibration bytes into a buffer that starts at zeros, sets the power mode and the sampling, whatever the
 writes and the read answer, and sets up the barometer task for a combined read with a 23 ms pressure delay. The two
-20-bit coefficients are signed, the ten 16-bit ones are taken unsigned (finding F271), and each is scaled in single
-precision around its nominal value. A pressure start writes the forced measurement again and reports the write's answer,
+20-bit and the ten 16-bit coefficients are signed and each is scaled in single precision around its nominal value.
+The reference takes the ten 16-bit ones unsigned, where the vendor's driver reads them signed (finding F271, D6). A pressure start writes the forced measurement again and reports the write's answer,
 a pressure read starts the six data bytes while the bus is free, a pressure sample takes the bytes the last read brought
 while the bus is free, and the other calls do nothing. The calculation compensates the temperature and the pressure in
 single precision in the reference's operation order, gives the pressure in pascal cut toward zero and the temperature as
