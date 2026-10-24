@@ -2819,21 +2819,24 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       T.Config.Pid_Profiles (I) := P;
    end Leave_Dynamic_Filter_Menu;
 
-   --  The RTC6705 menu's exit: the device's pit mode set from the pit line,
-   --  on for any shown value, then the band, channel and power stored with
-   --  the band and channel's frequency.
+   --  The RTC6705 menu's exit: pit mode on for the ON line only, then the
+   --  power stored, and the band, channel and their frequency while both are
+   --  set (D6).
    procedure Leave_VTX_RTC6705_Menu (T : in out Target)
      with Global => null
    is
       S : Adaflight.Config_Groups.Vtx_Settings_Config_Record := T.Config.Vtx_Settings_Config;
    begin
-      Adaflight.VTX.Common_Set_Pit_Mode (T.VTX, T.VTX_Table, T.RTC.Pit_Mode);
-      S.Band := T.RTC.Band;
-      S.Channel := T.RTC.Channel;
+      Adaflight.VTX.Common_Set_Pit_Mode (T.VTX, T.VTX_Table, (if T.RTC.Pit_Mode = 2 then 1 else 0));
       S.Power := T.RTC.Power;
-      S.Freq :=
-        (if T.Live.VTX_Present
-         then Adaflight.VTX_Table.Frequency_Of (T.VTX_Table, Natural (T.RTC.Band), Natural (T.RTC.Channel)) else 0);
+      if T.RTC.Band /= 0 and then T.RTC.Channel /= 0 then
+         S.Band := T.RTC.Band;
+         S.Channel := T.RTC.Channel;
+         S.Freq :=
+           (if T.Live.VTX_Present
+            then Adaflight.VTX_Table.Frequency_Of (T.VTX_Table, Natural (T.RTC.Band), Natural (T.RTC.Channel))
+            else 0);
+      end if;
       T.Config.Vtx_Settings_Config := S;
    end Leave_VTX_RTC6705_Menu;
 
