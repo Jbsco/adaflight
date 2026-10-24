@@ -9,3 +9,4 @@ Each document describes a Betaflight bug that adaflight fixes: the Betaflight ve
 - [BMI270 accelerometer is not read in the experimental filter mode](bmi270-fifo-accelerometer.md)
 - [BMP388 pressure reads 2.56 times too low](bmp388-pressure-scale.md)
 - [QMP6988 calibration coefficients read unsigned](qmp6988-coefficient-sign.md)
+- [LPS22DF temperatures below zero read 655.36 degrees too high](lps22df-temperature-sign.md)
