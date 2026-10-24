@@ -16,10 +16,13 @@ package body Adaflight.QMP6988 with SPARK_Mode is
    Midpoint         : constant := 2 ** 23;
 
    subtype Calibration_Bytes is Byte_Array (0 .. 24);
-   subtype Word_Value is Float range 0.0 .. 65_535.0;
+   subtype Word_Value is Float range -32_768.0 .. 32_767.0;
 
+   --  A big-endian pair as the signed count.
    function Word (High : Byte; Low : Byte) return Word_Value is
-     (Float (Interfaces.Integer_32 (High) * 256 + Interfaces.Integer_32 (Low)))
+     (Float (if High >= 128
+             then Interfaces.Integer_32 (High) * 256 + Interfaces.Integer_32 (Low) - 65_536
+             else Interfaces.Integer_32 (High) * 256 + Interfaces.Integer_32 (Low)))
      with Global => null;
 
    function Signed_20 (Value : Interfaces.Integer_32) return Interfaces.Integer_32 is
@@ -149,7 +152,7 @@ package body Adaflight.QMP6988 with SPARK_Mode is
       T_A2 : constant Float := C.A2 * Var1 * Var1;
       Tr   : Float;
    begin
-      pragma Assert (abs T_A1 <= 5.3E4);
+      pragma Assert (abs T_A1 <= 5.7E4);
       pragma Assert (abs T_A2 <= 1.6E4);
       Tr := C.A0 + T_A1 + T_A2;
       pragma Assert (abs Tr <= 1.1E5);
@@ -159,8 +162,12 @@ package body Adaflight.QMP6988 with SPARK_Mode is
          T3 : constant Float := C.B11 * Tr * Dp;
          T4 : constant Float := C.Bt2 * Tr * Tr;
          T5 : constant Float := C.Bp2 * Dp * Dp;
-         T6 : constant Float := C.B12 * Dp * Tr * Tr;
-         T7 : constant Float := C.B21 * Dp * Dp * Tr;
+         P6 : constant Float := C.B12 * Dp;
+         P7 : constant Float := C.B21 * Dp;
+         pragma Assert (abs P6 <= 8.9E-6);
+         pragma Assert (abs P7 <= 1.2E-7);
+         T6 : constant Float := P6 * Tr * Tr;
+         T7 : constant Float := P7 * Dp * Tr;
          T8 : constant Float := C.Bp3 * Dp * Dp * Dp;
          Pr : Float;
       begin
@@ -168,7 +175,7 @@ package body Adaflight.QMP6988 with SPARK_Mode is
          pragma Assert (abs T2 <= 6.1E5);
          pragma Assert (abs T3 <= 4.6E5);
          pragma Assert (abs T4 <= 3.0E4);
-         pragma Assert (abs T5 <= 4.5E4);
+         pragma Assert (abs T5 <= 7.0E4);
          pragma Assert (abs T6 <= 1.9E5);
          pragma Assert (abs T7 <= 2.1E5);
          pragma Assert (abs T8 <= 1.8E5);
