@@ -207,6 +207,7 @@ with Adaflight.MPU_Gyro.ICM56686;
 with Adaflight.MPU_Gyro.BMI423;
 with Adaflight.MPU_Gyro.LSM6DSV16X;
 with Adaflight.MPU_Gyro.BMI160;
+with Adaflight.MPU_Gyro.ICM40609;
 with Adaflight.MPU_Gyro.MPU6500;
 with Adaflight.MPU_Gyro.ICM20689;
 with Adaflight.Flash_Device;
@@ -21172,6 +21173,241 @@ procedure Vector_Check is
       end if;
    end Check_BMI160_Line;
 
+   --  The ICM40609 oracle's chip: five register banks over the MPU gyro
+   --  oracle's device, with the data registers of bank 0 taking no writes.
+   type I9_Banks is array (0 .. 4) of Byte_Array (0 .. 127);
+
+   I9_Bank_Regs : I9_Banks := (others => (others => 0));
+   I9_Bank      : Natural := 0;
+   I9_Filter    : Byte := 0;
+
+   procedure I9_Write_Register (D : in out MG_Bus; Register : Byte; Value : Byte) is
+      use type Interfaces.Unsigned_8;
+      Address : constant Natural := Natural (Register and 16#7F#);
+   begin
+      MX_Op ("wreg," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Value)));
+      if Address = 16#76# then
+         I9_Bank := Natural (Value and 7);
+      elsif I9_Bank < 5 and then not (I9_Bank = 0 and then Address in 16#1D# .. 16#2A#) then
+         I9_Bank_Regs (I9_Bank) (Address) := Value;
+         if I9_Bank = 0 then
+            D.Regs (Address) := Value;
+         end if;
+      end if;
+   end I9_Write_Register;
+
+   procedure I9_Read_Register (D : in out MG_Bus; Register : Byte; Value : out Byte) is
+      pragma Unreferenced (D);
+      use type Interfaces.Unsigned_8;
+      Address : constant Natural := Natural (Register and 16#7F#);
+   begin
+      Value := (if I9_Bank < 5 then I9_Bank_Regs (I9_Bank) (Address) else 0);
+      MX_Op ("rreg," & BMP_Num (Integer_64 (Register or 16#80#)) & "," & BMP_Num (Integer_64 (Value)));
+   end I9_Read_Register;
+
+   procedure I9_Delay_Us (D : in out MG_Bus; Us : Natural) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("udelay," & BMP_Num (Integer_64 (Us)));
+   end I9_Delay_Us;
+
+   procedure I9_Probe (D : in out MG_Bus; Index : Positive; Sensor : out Byte);
+
+   package I9_Layer is new Adaflight.MPU_Gyro
+     (SPI_Device       => MG_Bus,
+      Chip_Count       => 2,
+      Preinit_CS       => MG_Preinit_CS,
+      Attach_Bus       => MG_Attach_Bus,
+      Prepare_CS       => MG_Prepare_CS,
+      Release_CS       => MG_Release_CS,
+      Divider          => MG_Divider,
+      Set_Divisor      => MG_Set_Divisor,
+      Probe_Chip       => I9_Probe,
+      Register_Device  => MG_Register,
+      Millis           => MG_Millis,
+      Delay_Ms         => MG_Delay,
+      Enable_Interrupt => MG_Enable_Interrupt,
+      Cycle_Count      => MG_Cycle_Count,
+      Start_Sequence   => MG_Start_Sequence,
+      Wait             => MG_Wait,
+      Fetch            => MG_Fetch,
+      Uses_DMA         => MG_Uses_DMA,
+      Read_Registers   => MG_Read);
+
+   package I9_Chip is new I9_Layer.ICM40609
+     (Write_Register => I9_Write_Register,
+      Read_Register  => I9_Read_Register,
+      Delay_Us       => I9_Delay_Us);
+
+   --  The layer probes another chip first.
+   procedure I9_Probe (D : in out MG_Bus; Index : Positive; Sensor : out Byte) is
+   begin
+      if Index = 1 then
+         MG_Probe_Chip (D, Index, Sensor);
+      else
+         I9_Chip.Detect (D, Sensor);
+      end if;
+   end I9_Probe;
+
+   I9_State  : I9_Layer.State;
+   I9_Found  : Boolean := False;
+   I9_Scale  : Float := 0.0;
+   I9_Result : Integer_64 := 0;
+
+   procedure I9_Set_Data (Field : Positive) is
+      Data : constant Byte_Array := Hex_Bytes (Field);
+   begin
+      for I in Data'Range loop
+         I9_Bank_Regs (0) (16#1D# + I - Data'First) := Data (I);
+         MG_Device.Regs (16#1D# + I - Data'First) := Data (I);
+      end loop;
+   end I9_Set_Data;
+
+   procedure I9_Record_State (First : Positive) is
+   begin
+      Record_Int ("icm40609.mode", Int (First), Integer_64 (I9_Layer.Read_Mode'Pos (I9_State.Mode)));
+      Record_Int ("icm40609.exti_count", Int (First + 1), Integer_64 (I9_State.Detected_EXTI));
+      Record_Int ("icm40609.last_exti", Int (First + 2), Integer_64 (I9_State.Last_EXTI));
+      Record_Int ("icm40609.sync_exti", Int (First + 3), Integer_64 (I9_State.Sync_EXTI));
+      Record_Int ("icm40609.dma_max", Int (First + 4), Integer_64 (I9_State.DMA_Max_Duration));
+      Record_Int ("icm40609.ready", Int (First + 5), Boolean'Pos (I9_State.Data_Ready));
+      for K in 0 .. 2 loop
+         Record_Int ("icm40609.gyro", Int (First + 6 + K), Integer_64 (I9_State.Raw (K)));
+      end loop;
+      Record_Int ("icm40609.temperature", Int (First + 9), Integer_64 (I9_State.Temperature));
+      for K in 0 .. 2 loop
+         Record_Int ("icm40609.acc", Int (First + 10 + K), Integer_64 (I9_State.Acc_Raw (K)));
+      end loop;
+   end I9_Record_State;
+
+   procedure Check_ICM40609_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "i9init" then
+         MX_Op_Head := 1;
+         MX_Op_Count := 0;
+         MG_Device := (others => <>);
+         MG_Device.Bus_OK := Int (5) /= 0;
+         MG_Device.Now_Ms := Interfaces.Unsigned_32 (Int (7));
+         MG_Device.Ms_Step := Interfaces.Unsigned_32 (Int (8));
+         MG_Device.Use_DMA := Int (9) /= 0;
+         MG_Device.Read_Ack := Int (14) /= 0;
+         MG_Device.Cycles := Interfaces.Unsigned_32 (Int (15));
+         MG_Device.Probes (1) := Byte (Int (16));
+         for B in 0 .. 2 loop
+            declare
+               Data : constant Byte_Array := Hex_Bytes (17 + B);
+            begin
+               I9_Bank_Regs (B) := Data;
+            end;
+         end loop;
+         I9_Bank_Regs (3) := (others => 0);
+         I9_Bank_Regs (4) := (others => 0);
+         I9_Bank := 0;
+         MG_Device.Regs := I9_Bank_Regs (0);
+         I9_State := (others => <>);
+         I9_State.Interrupt_Pin := Int (10) /= 0;
+         I9_State.Rate_KHz := Byte (Int (12));
+         I9_Filter := Byte (Int (13));
+         I9_Scale := 0.0;
+         declare
+            C : constant I9_Layer.Device_Config :=
+              (Index => 0, Bus_Type => 2, SPI_Bus => Byte (Int (3)), CS_Tag => Byte (Int (4)));
+         begin
+            I9_Layer.Preinit (MG_Device, C);
+            I9_Layer.Detect (MG_Device, I9_State, C, I9_Found);
+         end;
+      elsif Name = "i9op" then
+         declare
+            Expected : Ada.Strings.Unbounded.Unbounded_String := Ada.Strings.Unbounded.To_Unbounded_String (Str (3));
+         begin
+            for I in 4 .. NF loop
+               Ada.Strings.Unbounded.Append (Expected, "," & Str (I));
+            end loop;
+            if MX_Op_Head <= MX_Op_Count then
+               Record_Text ("icm40609.op", Ada.Strings.Unbounded.To_String (Expected),
+                            Ada.Strings.Unbounded.To_String (MX_Ops (MX_Op_Head)));
+               MX_Op_Head := MX_Op_Head + 1;
+            else
+               Record_Text ("icm40609.op", Ada.Strings.Unbounded.To_String (Expected), "none");
+            end if;
+         end;
+      elsif Name = "i9det" then
+         MX_Expect_No_Ops ("detection");
+         Record_Int ("icm40609.found", Int (3), Boolean'Pos (I9_Found));
+         Record_Int ("icm40609.sensor", Int (4), Integer_64 (I9_State.Sensor));
+         Record_Int ("icm40609.clock", Int (5), Integer_64 (MG_Device.Now_Ms));
+         Record_Int ("icm40609.bank", Int (6), Integer_64 (I9_Bank));
+      elsif Name = "i9chip" then
+         declare
+            Gyro_Found : Boolean;
+         begin
+            I9_Chip.Gyro_Detect (I9_State, Gyro_Found);
+            Record_Int ("icm40609.gyro_found", Int (3), Boolean'Pos (Gyro_Found));
+            Record_Int ("icm40609.acc_found", Int (4), Boolean'Pos (I9_Chip.Acc_Detect (I9_State)));
+            if Gyro_Found then
+               I9_Chip.Gyro_Init (MG_Device, I9_State, I9_Filter, I9_Scale);
+            end if;
+         end;
+      elsif Name = "i9ready" then
+         MX_Expect_No_Ops ("initialization");
+         Record_Int ("icm40609.rate", Int (3), Integer_64 (I9_State.Rate_KHz));
+         Record_Int ("icm40609.acc_one_g", Int (4), I9_Chip.Acc_One_G);
+         Record_Int ("icm40609.acc_rate", Int (5), I9_Chip.Acc_Sample_Rate_Hz);
+         Record_Int ("icm40609.scale", Int_Hex (6), Integer_64 (To_Bits (I9_Scale)));
+         Record_Int ("icm40609.temp_scale", Int_Hex (7), Integer_64 (To_Bits (I9_State.Temp_Scale)));
+         Record_Int ("icm40609.temp_zero", Int_Hex (8), Integer_64 (To_Bits (I9_State.Temp_Zero)));
+         Record_Int ("icm40609.acc_reg", Int (9), Integer_64 (I9_State.Acc_Data_Reg));
+         Record_Int ("icm40609.gyro_reg", Int (10), Integer_64 (I9_State.Gyro_Data_Reg));
+         Record_Int ("icm40609.temp_reg", Int (11), Integer_64 (I9_State.Temp_Data_Reg));
+         Record_Int ("icm40609.dma_start", Int (12), Integer_64 (I9_State.DMA_Read_Start));
+         Record_Int ("icm40609.dma_max", Int (13), Integer_64 (I9_State.DMA_Max_Duration));
+         Record_Int ("icm40609.bank", Int (14), Integer_64 (I9_Bank));
+      elsif Name = "i9step" then
+         declare
+            Which : constant Integer_64 := Int (4);
+            A     : constant Interfaces.Unsigned_32 := Interfaces.Unsigned_32 (Int (5));
+            Flag  : Boolean;
+         begin
+            MG_Device.Read_Ack := Int (6) /= 0;
+            I9_Set_Data (7);
+            I9_Result := 0;
+            case Which is
+               when 0 =>
+                  MG_Device.Cycles := MG_Device.Cycles + A;
+                  if I9_State.Interrupt_Pin then
+                     I9_Layer.Interrupt (MG_Device, I9_State);
+                  end if;
+               when 1 =>
+                  for I in 1 .. A loop
+                     MG_Device.Cycles := MG_Device.Cycles + 79 * 168;
+                     if I9_State.Interrupt_Pin then
+                        I9_Layer.Interrupt (MG_Device, I9_State);
+                     end if;
+                  end loop;
+               when 2 =>
+                  MG_Device.Cycles := MG_Device.Cycles + A;
+                  if MG_Device.Pending then
+                     MG_Device.Pending := False;
+                     I9_Layer.Transfer_Complete (MG_Device, I9_State);
+                  end if;
+               when 3 =>
+                  I9_Layer.Read_Gyro_SPI (MG_Device, I9_State, Flag);
+                  I9_Result := Boolean'Pos (Flag);
+               when 4 =>
+                  I9_Layer.Read_Acc_SPI (MG_Device, I9_State, Flag);
+                  I9_Result := Boolean'Pos (Flag);
+               when others =>
+                  null;
+            end case;
+         end;
+      elsif Name = "i9res" then
+         MX_Expect_No_Ops ("a result");
+         Record_Int ("icm40609.result", Int (4), I9_Result);
+         I9_Record_State (5);
+      end if;
+   end Check_ICM40609_Line;
+
    --  The MPU6500 oracle's chip over the MPU gyro oracle's device, with its
    --  bus register writes beside the plain register writes and reads.
    procedure MG_Bus_Write (D : in out MG_Bus; Register : Byte; Value : Byte) is
@@ -35102,6 +35338,8 @@ procedure Vector_Check is
                   Check_LSM6DSV16X_Line;
                elsif Kind = "bmi160" then
                   Check_BMI160_Line;
+               elsif Kind = "icm40609" then
+                  Check_ICM40609_Line;
                elsif Kind = "mpu6500" then
                   Check_MPU6500_Line;
                elsif Kind = "icm20689" then
@@ -35430,6 +35668,7 @@ begin
    Run (Dir & "/bmi423.csv", "bmi423");
    Run (Dir & "/lsm6dsv16x.csv", "lsm6dsv16x");
    Run (Dir & "/bmi160.csv", "bmi160");
+   Run (Dir & "/icm40609.csv", "icm40609");
    Run (Dir & "/mpu6500.csv", "mpu6500");
    Run (Dir & "/icm20689.csv", "icm20689");
    Run (Dir & "/m25p16.csv", "m25p16");
