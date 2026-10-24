@@ -149,7 +149,6 @@ package body Adaflight.Flash_Device.W25M with SPARK_Mode is
       Done       : Natural := 0;
       Got        : Natural;
    begin
-      Count := 0;
       while Done < Buffer'Length loop
          pragma Loop_Invariant (Valid (T));
          pragma Loop_Invariant (Done <= Buffer'Length);
@@ -169,7 +168,8 @@ package body Adaflight.Flash_Device.W25M with SPARK_Mode is
             Select_Die (D, T, Die);
             Die_Read (D, Die, T.Dies (Die), Die_Address,
                       Buffer (Buffer'First + Done .. Buffer'First + Done + Transfer - 1), Got);
-            if Got = 0 then
+            if Got < Transfer then
+               Count := Done + Got;
                return;
             end if;
             At_Address := At_Address + Interfaces.Unsigned_32 (Transfer);

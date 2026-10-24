@@ -94,8 +94,8 @@ package Adaflight.Flash_Device.W25M with SPARK_Mode is
       Has_Callback : Boolean)
      with Pre => Within (T, Address);
 
-   --  Count is the bytes asked for when every die read brought bytes, and 0
-   --  when one brought none.
+   --  Count is the bytes the die reads brought, up to the first one that
+   --  brought fewer than asked.
    procedure Read_Bytes
      (D : in out SPI_Device; T : in out Stack; Address : Interfaces.Unsigned_32; Buffer : in out Byte_Array;
       Count : out Natural)
