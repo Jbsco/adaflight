@@ -8534,12 +8534,14 @@ in a cache of 16 and go to the card in one transfer when the cache fills or the 
 success without a completion and the run's count and next block advanced; a run started from the ready state keeps the
 blocks an earlier run left in the cache, and a block out of sequence joins the cache, as in the reference (F278). A run
 of writes takes its count and ends when a write leaves the run or its count runs out. A failure asks the controller for
-a new initialization: one refused counts the failure, up to eight in a row or a missing card before the card counts as
-absent; one accepted leaves the state as it was, since the controller's initialization runs once and repeats its first
-answer (F278). An initialization past a second starts over. A refused read reports the failure through the previous
-operation's completion (F278). An operation the controller refuses answers a failure; one in the wrong state answers
-busy. A card whose mode is off takes no operation. The unit is SPARK, with the poll's repeats, the cache count and the
-cache slices bounded.
+a new initialization and counts the failure, up to eight in a row or a missing card before the card counts as absent,
+and otherwise returns the card to the reset state with the time, whether the controller accepted or not. The reference
+counts only a refused initialization and leaves the state as it was after an accepted one, which on its controllers runs
+once and repeats its first answer, so a card that failed an operation stays in the state that failed (finding F278, D6).
+An initialization past a second starts over. A refused read reports the failure through the previous operation's
+completion (F278). An operation the controller refuses answers a failure; one in the wrong state answers busy. A card
+whose mode is off takes no operation. The unit is SPARK, with the poll's repeats, the cache count and the cache slices
+bounded.
 
 The SDIO card oracle includes the reference driver and its dispatch over a stubbed controller: an initialization
 answering every call with one drawn result, refused in 10 percent of the cases, a card ready after a drawn number of

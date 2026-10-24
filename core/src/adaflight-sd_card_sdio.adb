@@ -28,13 +28,10 @@ package body Adaflight.SD_Card_SDIO with SPARK_Mode is
      with Global => null;
 
    procedure Reset_Card (D : in out SDIO_Device; S : in out Card) is
-      OK       : Boolean;
-      Inserted : Boolean;
+      Unused_OK : Boolean;
+      Inserted  : Boolean;
    begin
-      Init_Card (D, OK);
-      if OK then
-         return;
-      end if;
+      Init_Card (D, Unused_OK);
       S.Failure_Count := S.Failure_Count + 1;
       if S.Failure_Count >= Max_Failures then
          S.State := Not_Present;
