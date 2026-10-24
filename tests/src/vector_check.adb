@@ -190,6 +190,7 @@ with Adaflight.BMP085;
 with Adaflight.Lidar_TF;
 with Adaflight.Nooploop;
 with Adaflight.UPT1;
+with Adaflight.HCSR04;
 with Adaflight.MS5611;
 with Adaflight.BMP388;
 with Adaflight.MAX7456;
@@ -17060,6 +17061,204 @@ procedure Vector_Check is
       end if;
    end Check_UPT1_Line;
 
+   --  The HC-SR04 oracle's pins: which pin has an owner, whether the echo pin
+   --  is low at first and at which poll it goes high, and the millisecond
+   --  clock, which advances its step at each read. Its calls share the BMP280
+   --  bus's queue.
+   type HS_Pins is record
+      Owned_Which  : Natural := 0;
+      Trigger_Tag  : Byte := 0;
+      Echo_Tag     : Byte := 0;
+      Echo_Low     : Boolean := True;
+      Respond_Read : Integer := -1;
+      Echo_Reads   : Natural := 0;
+      Clock        : Interfaces.Unsigned_32 := 0;
+      Step         : Interfaces.Unsigned_32 := 7;
+   end record;
+
+   procedure HS_Owned (D : in out HS_Pins; Tag : Byte; Owned : out Boolean) is
+      use type Interfaces.Unsigned_8;
+   begin
+      Owned := (D.Owned_Which = 1 and then Tag = D.Trigger_Tag) or else (D.Owned_Which = 2 and then Tag = D.Echo_Tag);
+      BMP_Op ("owner," & BMP_Num (Integer_64 (Tag)) & "," & BMP_Num (Boolean'Pos (Owned)));
+   end HS_Owned;
+
+   procedure HS_Init_Pin (D : in out HS_Pins; Tag : Byte; Owner : Byte) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("ioinit," & BMP_Num (Integer_64 (Tag)) & "," & BMP_Num (Integer_64 (Owner)) & ",0");
+   end HS_Init_Pin;
+
+   procedure HS_Config_Pin (D : in out HS_Pins; Tag : Byte; Input : Boolean) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("ioconfig," & BMP_Num (Integer_64 (Tag)) & "," & BMP_Num (Boolean'Pos (Input)));
+   end HS_Config_Pin;
+
+   procedure HS_Pin_High (D : in out HS_Pins; Tag : Byte) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("iohi," & BMP_Num (Integer_64 (Tag)));
+   end HS_Pin_High;
+
+   procedure HS_Pin_Low (D : in out HS_Pins; Tag : Byte) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("iolo," & BMP_Num (Integer_64 (Tag)));
+   end HS_Pin_Low;
+
+   procedure HS_Read_Pin (D : in out HS_Pins; Tag : Byte; High : out Boolean) is
+   begin
+      High := (if D.Echo_Reads = 0 then not D.Echo_Low else D.Echo_Reads = D.Respond_Read);
+      D.Echo_Reads := D.Echo_Reads + 1;
+      BMP_Op ("ioread," & BMP_Num (Integer_64 (Tag)) & "," & BMP_Num (Boolean'Pos (High)));
+   end HS_Read_Pin;
+
+   procedure HS_Release_Pin (D : in out HS_Pins; Tag : Byte) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("iorelease," & BMP_Num (Integer_64 (Tag)));
+   end HS_Release_Pin;
+
+   procedure HS_Interrupt_Init (D : in out HS_Pins) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("extiinit");
+   end HS_Interrupt_Init;
+
+   procedure HS_Interrupt_Config (D : in out HS_Pins; Tag : Byte) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("exticonfig," & BMP_Num (Integer_64 (Tag)) & ",1,1");
+   end HS_Interrupt_Config;
+
+   procedure HS_Interrupt_Enable (D : in out HS_Pins; Tag : Byte) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("extienable," & BMP_Num (Integer_64 (Tag)));
+   end HS_Interrupt_Enable;
+
+   procedure HS_Delay (D : in out HS_Pins; Ms : Natural) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("delay," & BMP_Num (Integer_64 (Ms)));
+   end HS_Delay;
+
+   procedure HS_Delay_Us (D : in out HS_Pins; Us : Natural) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("udelay," & BMP_Num (Integer_64 (Us)));
+   end HS_Delay_Us;
+
+   procedure HS_Millis (D : in out HS_Pins; Now : out Interfaces.Unsigned_32) is
+   begin
+      Now := D.Clock;
+      D.Clock := D.Clock + D.Step;
+      BMP_Op ("millis," & BMP_Num (Integer_64 (Now)));
+   end HS_Millis;
+
+   package HS_Driver is new Adaflight.HCSR04
+     (Pin_Device       => HS_Pins,
+      Pin_Owned        => HS_Owned,
+      Init_Pin         => HS_Init_Pin,
+      Config_Pin       => HS_Config_Pin,
+      Pin_High         => HS_Pin_High,
+      Pin_Low          => HS_Pin_Low,
+      Read_Pin         => HS_Read_Pin,
+      Release_Pin      => HS_Release_Pin,
+      Interrupt_Init   => HS_Interrupt_Init,
+      Interrupt_Config => HS_Interrupt_Config,
+      Interrupt_Enable => HS_Interrupt_Enable,
+      Delay_Ms         => HS_Delay,
+      Delay_Us         => HS_Delay_Us,
+      Millis           => HS_Millis);
+
+   HS_Device : HS_Pins;
+   HS_State  : HS_Driver.State;
+   HS_Config : HS_Driver.Config;
+   HS_Found  : Boolean := False;
+   HS_Dev    : HS_Driver.Device;
+
+   procedure Check_HCSR04_Line is
+      Name     : constant String := Str (1);
+      Distance : HS_Driver.Reading;
+   begin
+      if Name = "hsinit" then
+         BMP_Op_Head := 1;
+         BMP_Op_Count := 0;
+         HS_Device := (others => <>);
+         HS_State := (others => <>);
+         HS_Dev := (others => <>);
+         HS_Config := (Trigger_Tag => Byte (Int (3)), Echo_Tag => Byte (Int (4)));
+         HS_Device.Owned_Which := Natural (Int (5));
+         HS_Device.Trigger_Tag := HS_Config.Trigger_Tag;
+         HS_Device.Echo_Tag := HS_Config.Echo_Tag;
+         HS_Device.Echo_Low := Int (6) /= 0;
+         HS_Device.Respond_Read := Integer (Int (7));
+         HS_Device.Clock := Interfaces.Unsigned_32 (Int (8));
+         HS_Device.Step := Interfaces.Unsigned_32 (Int (9));
+         HS_Driver.Detect (HS_Device, HS_Config, HS_State, HS_Found, HS_Dev);
+      elsif Name = "hsop" then
+         declare
+            Expected : Ada.Strings.Unbounded.Unbounded_String := Ada.Strings.Unbounded.To_Unbounded_String (Str (3));
+         begin
+            for I in 4 .. NF loop
+               Ada.Strings.Unbounded.Append (Expected, "," & Str (I));
+            end loop;
+            if BMP_Op_Head <= BMP_Op_Count then
+               Record_Text ("hcsr04.op", Ada.Strings.Unbounded.To_String (Expected),
+                            Ada.Strings.Unbounded.To_String (BMP_Ops (BMP_Op_Head)));
+               BMP_Op_Head := BMP_Op_Head + 1;
+            else
+               Record_Text ("hcsr04.op", Ada.Strings.Unbounded.To_String (Expected), "none");
+            end if;
+         end;
+      elsif Name = "hsdet" then
+         BMP_Expect_No_Ops ("detection");
+         Record_Int ("hcsr04.found", Int (3), Boolean'Pos (HS_Found));
+         Record_Int ("hcsr04.delay", Int (4), Integer_64 (HS_Dev.Delay_Ms));
+         Record_Int ("hcsr04.max_range", Int (5), Integer_64 (HS_Dev.Max_Range_Cm));
+         Record_Int ("hcsr04.cone", Int (6), Integer_64 (HS_Dev.Cone_Decidegrees));
+         Record_Int ("hcsr04.cone_extended", Int (7), Integer_64 (HS_Dev.Cone_Extended_Decidegrees));
+      elsif Name = "hsstep" then
+         BMP_Op_Head := 1;
+         BMP_Op_Count := 0;
+         HS_Device.Clock := Interfaces.Unsigned_32 (Int (4));
+         if Str (5) /= "-" then
+            declare
+               Edges : constant String := Str (5);
+               First : Positive := Edges'First;
+            begin
+               while First <= Edges'Last loop
+                  declare
+                     Last : Natural := First;
+                  begin
+                     while Last < Edges'Last and then Edges (Last + 1) /= ';' loop
+                        Last := Last + 1;
+                     end loop;
+                     declare
+                        High : constant Boolean := Edges (First) = 'H';
+                        Us   : constant Interfaces.Unsigned_32 :=
+                          Interfaces.Unsigned_32'Value (Edges (First + 1 .. Last));
+                     begin
+                        BMP_Op ("microsisr," & BMP_Num (Integer_64 (Us)));
+                        BMP_Op ("ioread," & BMP_Num (Integer_64 (HS_Config.Echo_Tag)) & "," &
+                                BMP_Num (Boolean'Pos (High)));
+                        HS_Driver.Echo_Edge (HS_State, High, Us);
+                     end;
+                     First := Last + 2;
+                  end;
+               end loop;
+            end;
+         end if;
+         HS_Driver.Update (HS_Device, HS_State);
+      elsif Name = "hsres" then
+         BMP_Expect_No_Ops ("a result");
+         HS_Driver.Read (HS_State, Distance);
+         Record_Int ("hcsr04.value", Int (4), Integer_64 (Distance));
+      end if;
+   end Check_HCSR04_Line;
+
    --  The MS5611 oracle's bus: the simulated chip's first PROM byte, PROM
    --  words and ADC bytes, its address, the scripted busy and start answers,
    --  and the bytes the last started read brought. Its calls share the
@@ -32697,6 +32896,8 @@ procedure Vector_Check is
                   Check_Nooploop_Line;
                elsif Kind = "upt1" then
                   Check_UPT1_Line;
+               elsif Kind = "hcsr04" then
+                  Check_HCSR04_Line;
                elsif Kind = "ms5611" then
                   Check_MS5611_Line;
                elsif Kind = "bmp388" then
@@ -33022,6 +33223,7 @@ begin
    Run (Dir & "/lidartf.csv", "lidartf");
    Run (Dir & "/nooploop.csv", "nooploop");
    Run (Dir & "/upt1.csv", "upt1");
+   Run (Dir & "/hcsr04.csv", "hcsr04");
    Run (Dir & "/ms5611.csv", "ms5611");
    Run (Dir & "/bmp388.csv", "bmp388");
    Run (Dir & "/max7456.csv", "max7456");
