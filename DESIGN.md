@@ -8186,3 +8186,39 @@ them with the clock at 0, 7013 of 8960 updates bring bytes, and of 11572 reads 3
 the two resets of the initialization repeat the defaults of a state built once, and a read before the first frame gives
 no new data either way, the sign check of the distance rejects what the range check after it rejects as well, and the
 port guard of the update is reached only after a detection.
+
+## D355. UP-T1 sensor driver (2026-10-18)
+
+`Adaflight.UPT1` drives the Upixels UP-T1 serial module, a laser rangefinder and an optical flow sensor in one frame
+stream, which the rangefinder update parses for both. Either detection opens the configured serial port at 115200 baud
+when the other has not already, and fails without a port or when it does not open. The rangefinder detection gives its
+task a 10 ms period, a 12 m range and a 90 degree cone; the optical flow detection gives its task a 20 ms period, an 8
+cm minimum range, a quality threshold of 30 and a 60 ms gyro delay. Initialization resets the parser and the reading to
+out of range. An update counts every byte received and, before the 22nd, ignores them as the module's startup text, then
+sends the command that selects the protocol. It then takes frames of a header 0xFE, a length 0x0A, ten data bytes, their
+exclusive-or and a footer 0x55, counting a wrong checksum or footer as an error. A frame gives the reading in
+centimeters when the laser status is 0xF5 and the distance lies between 25 and 12000 mm, and out of range otherwise,
+with the distance and its microsecond time kept for the flow. The frames with a valid laser status and a positive
+integration time add their flow integrals, in 32 bits that wrap, and their windows over the update. When the summed
+window is between 1 us and 1 s, the update stamps the time and gives the rates in radians per second, each integral sum
+over 10000 over the window in single precision, with the quality of the last usable frame, 0 when its distance fell
+outside 80 to 12000 mm. Otherwise the invalid frames add to a count that, past 5, stays at 5 and zeros the rates and the
+quality. A read gives the reading once, then no new data. The reference keeps the port, the parser, the counts and the
+flow data in static variables. This unit keeps them in its state, which behaves the same with one module, and keeps the
+last frame's values and the parser phase before the last byte, which the reference shows through its debug values. The
+unit is SPARK for the parser, the wrapping sums and the rates, whose subtype bounds the division by a window of at least
+1 us.
+
+The UP-T1 oracle includes the reference driver with the optical flow build over a stubbed serial port and a microsecond
+clock that advances 997 us at each read, one case per process. It draws whether a port is configured and opens, which
+detections run and in which order, and the clock, then runs 40 updates over a drawn byte stream: 5 to 30 startup bytes,
+then frames with flow integrals, integration times of 0, 1 or up to 65535 us, laser distances in and out of range and at
+each limit, status and confidence bytes, wrong checksums in a tenth, wrong footers and lengths, false headers, frames
+split across updates, and in 7 percent of the updates 16 to 22 frames with windows of 50 to 65 ms, past the 1 s limit.
+Every port open, write and clock read, detection, reading, debug value and flow sample of the 300 cases replays exactly,
+the rates bit for bit. In them 243 rangefinders and 210 flow sensors are found, 192 together, 4342 of 9720 updates end
+with a distance and 2777 out of range, 7680 flow samples come with 2400 at quality 0 and 145 zeroed, and 172 updates
+carry more than 16 whole frames. Of 54 tampered paths, 47 fail the vectors and two stop the checker at a subtype check.
+Five pass and are equivalent: the initial reading, which a read before the first frame never shows, the two error
+counts, which nothing reads, the flow frame count in the window test, which a positive integration sum implies, and the
+saturated invalid count, whose value no longer matters once the rates are zero.

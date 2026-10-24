@@ -147,7 +147,7 @@ The core contains:
 </details>
 
 <details>
-<summary><b>Sensors and estimation</b> (3)</summary>
+<summary><b>Sensors and estimation</b> (4)</summary>
 
 - accelerometer path with in-flight calibration, barometer altitude and read cycle, compass with
   bias calibration and read cycle, battery meters (analog with sag filter, ESC sensor, virtual,
@@ -156,11 +156,13 @@ The core contains:
   validity
 - MT rangefinder and optical flow bridge: device table, distance reads, flow samples with range
   validity
+- MT rangefinder and optical flow bridge: device table, distance reads, flow samples with range
+  validity
 
 </details>
 
 <details>
-<summary><b>Sensor drivers and detection</b> (222)</summary>
+<summary><b>Sensor drivers and detection</b> (225)</summary>
 
 - gyro detection: hardware of detected sensor from build's drivers in fixed order, no chip
   detection with virtual gyro
@@ -649,6 +651,15 @@ The core contains:
 - Nooploop rangefinder driver: detection by model with serial port, frame parser with byte sum,
   24-bit distances cut by range and status of model, hardware failure 200 ms after last frame or
   first update
+- TF rangefinder driver: detection by model with serial port at 115200 baud and 100 Hz command,
+  frame parser with checksum, readings cut by range, reliability and confidence rules of model,
+  command resend after 200 ms without a frame
+- Nooploop rangefinder driver: detection by model with serial port, frame parser with byte sum,
+  24-bit distances cut by range and status of model, hardware failure 200 ms after last frame or
+  first update
+- UP-T1 sensor driver: rangefinder and optical flow detections over one serial port, startup bytes
+  and protocol command, frame parser with exclusive-or checksum, laser readings, flow rates summed
+  over frames of each update with invalid-frame cutoff
 
 </details>
 
@@ -6379,7 +6390,7 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 32681 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 32733 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
 - Recorded vectors replay bit for bit: 1753568 lines over 384 cases, every case exact except
   fifty-four declared deviations in `DESIGN.md` D6.
