@@ -22,3 +22,4 @@ Each document describes a Betaflight bug that adaflight fixes: the Betaflight ve
 - [SD card free-cluster search reads the wrong FAT sectors past the free-space file](fat-free-cluster-sector.md)
 - [SD card forward seek moves to twice the position](fat-forward-seek.md)
 - [W25N02KV upper-half pages address the lower half](w25n02kv-page-address.md)
+- [W25M read reports bytes a die did not read](w25m-short-read.md)
