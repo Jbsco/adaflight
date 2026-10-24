@@ -187,6 +187,7 @@ with Adaflight.DPS310;
 with Adaflight.LPS22DF;
 with Adaflight.QMP6988;
 with Adaflight.SMPB_02B;
+with Adaflight.LPS;
 with Adaflight.BMP085;
 with Adaflight.Lidar_TF;
 with Adaflight.Nooploop;
@@ -16690,6 +16691,184 @@ procedure Vector_Check is
       end if;
    end Check_SMPB_Line;
 
+   --  The LPS oracle's bus: the simulated chip's registers, which writes
+   --  change, the verified writes that read back wrong, the status readiness
+   --  and the sample bytes, the reads of detection that stay empty, and the
+   --  millisecond clock with its step. Its calls share the BMP280 bus's
+   --  queue.
+   type LS_Fails is array (0 .. 255) of Boolean;
+   type LS_Bus is record
+      SPI             : Boolean := False;
+      Registers       : Byte_Array (0 .. 255) := (others => 0);
+      Verify_Fails    : LS_Fails := (others => False);
+      Clock           : Interfaces.Unsigned_32 := 0;
+      Step            : Interfaces.Unsigned_32 := 1;
+      Reads_Left_Zero : Natural := 0;
+      Status_Ready    : Boolean := False;
+      Ready_Bits      : Byte := 16#03#;
+      Data            : Byte_Array (0 .. 4) := (others => 0);
+   end record;
+
+   function LS_Is_SPI (D : LS_Bus) return Boolean is (D.SPI);
+
+   procedure LS_Prepare_SPI (D : in out LS_Bus; Max_Clock_Hz : Interfaces.Unsigned_32) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("csinit,1,0");
+      BMP_Op ("csconfig");
+      BMP_Op ("cshigh");
+      BMP_Op ("spidivider," & BMP_Num (Integer_64 (Max_Clock_Hz)));
+      BMP_Op ("spiclock," & BMP_Num (Integer_64 (Max_Clock_Hz / 1_000_000)));
+   end LS_Prepare_SPI;
+
+   procedure LS_Read_Registers (D : in out LS_Bus; Command : Byte; Data : out Byte_Array) is
+      use type Interfaces.Unsigned_8;
+      Base : constant Natural := Natural (Command and 16#3F#);
+   begin
+      if Base = 16#27# then
+         declare
+            Ready : constant Boolean := D.Status_Ready and then D.Reads_Left_Zero = 0;
+            Bits  : constant Byte := D.Registers (16#27#) and 16#FC#;
+         begin
+            if D.Reads_Left_Zero > 0 then
+               D.Reads_Left_Zero := D.Reads_Left_Zero - 1;
+            end if;
+            Data := (others => 0);
+            Data (Data'First) := (if Ready then D.Ready_Bits or Bits else Bits);
+         end;
+      elsif Base = 16#28# and then Data'Length = 5 then
+         for I in Data'Range loop
+            Data (I) := D.Data (I - Data'First);
+         end loop;
+      else
+         for I in Data'Range loop
+            Data (I) := D.Registers ((Base + I - Data'First) mod 256);
+         end loop;
+      end if;
+      BMP_Op ("readbuf," & BMP_Num (Integer_64 (Command)) & "," & BMP_Num (Integer_64 (Data'Length)) & "," &
+              BL_Hex (Data));
+   end LS_Read_Registers;
+
+   procedure LS_Write_Register (D : in out LS_Bus; Register : Byte; Value : Byte) is
+   begin
+      BMP_Op ("writerb," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Value)));
+      D.Registers (Natural (Register)) := Value;
+   end LS_Write_Register;
+
+   procedure LS_Write_Plain (D : in out LS_Bus; Register : Byte; Value : Byte) is
+      use type Interfaces.Unsigned_8;
+   begin
+      BMP_Op ("write," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Value)));
+      D.Registers (Natural (Register)) := (if D.Verify_Fails (Natural (Register)) then Value xor 16#01# else Value);
+   end LS_Write_Plain;
+
+   procedure LS_Read_Byte (D : in out LS_Bus; Register : Byte; Value : out Byte) is
+   begin
+      Value := D.Registers (Natural (Register));
+      BMP_Op ("readmsk," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Value)));
+   end LS_Read_Byte;
+
+   procedure LS_Millis (D : in out LS_Bus; Now : out Interfaces.Unsigned_32) is
+   begin
+      Now := D.Clock;
+      D.Clock := D.Clock + D.Step;
+      BMP_Op ("millis," & BMP_Num (Integer_64 (Now)));
+   end LS_Millis;
+
+   package LS_Driver is new Adaflight.LPS
+     (Bus_Device     => LS_Bus,
+      Is_SPI         => LS_Is_SPI,
+      Prepare_SPI    => LS_Prepare_SPI,
+      Read_Registers => LS_Read_Registers,
+      Write_Register => LS_Write_Register,
+      Write_Plain    => LS_Write_Plain,
+      Read_Byte      => LS_Read_Byte,
+      Millis         => LS_Millis);
+
+   LS_Device      : LS_Bus;
+   LS_State       : LS_Driver.State;
+   LS_Found       : Boolean := False;
+   LS_Settings    : Adaflight.Barometer_Task.Device;
+   LS_Done        : Boolean := False;
+   LS_Pressure    : Interfaces.Integer_32 := -1;
+   LS_Temperature : Interfaces.Integer_32 := -1;
+
+   procedure LS_Take_Sample (I : Positive; J : Positive) is
+      Data : constant Byte_Array := Hex_Bytes (I);
+   begin
+      for K in Data'Range loop
+         LS_Device.Data (K - Data'First) := Data (K);
+      end loop;
+      LS_Device.Registers (16#27#) := Byte (Int (J));
+      LS_Device.Ready_Bits := Byte (Int (J + 1));
+   end LS_Take_Sample;
+
+   procedure Check_LPS_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "lsinit" then
+         BMP_Op_Head := 1;
+         BMP_Op_Count := 0;
+         LS_Device := (others => <>);
+         LS_Device.SPI := Int (3) /= 0;
+         LS_Device.Registers (16#0F#) := Byte (Int (4));
+         declare
+            Fails : constant String := Str (5);
+         begin
+            LS_Device.Verify_Fails (16#21#) := Fails (Fails'First) = '1';
+            LS_Device.Verify_Fails (16#10#) := Fails (Fails'First + 1) = '1';
+            LS_Device.Verify_Fails (16#23#) := Fails (Fails'First + 2) = '1';
+         end;
+         LS_Device.Clock := Interfaces.Unsigned_32 (Int (6));
+         LS_Device.Step := Interfaces.Unsigned_32 (Int (7));
+         LS_Device.Reads_Left_Zero := Natural (Int (8));
+         LS_Device.Status_Ready := Int (9) /= 0;
+         LS_Take_Sample (10, 11);
+         LS_State := (others => <>);
+         LS_Pressure := -1;
+         LS_Temperature := -1;
+         LS_Driver.Detect (LS_Device, LS_State, LS_Found, LS_Settings);
+      elsif Name = "lsop" then
+         declare
+            Expected : Ada.Strings.Unbounded.Unbounded_String := Ada.Strings.Unbounded.To_Unbounded_String (Str (3));
+         begin
+            for I in 4 .. NF loop
+               Ada.Strings.Unbounded.Append (Expected, "," & Str (I));
+            end loop;
+            if BMP_Op_Head <= BMP_Op_Count then
+               Record_Text ("lps.op", Ada.Strings.Unbounded.To_String (Expected),
+                            Ada.Strings.Unbounded.To_String (BMP_Ops (BMP_Op_Head)));
+               BMP_Op_Head := BMP_Op_Head + 1;
+            else
+               Record_Text ("lps.op", Ada.Strings.Unbounded.To_String (Expected), "none");
+            end if;
+         end;
+      elsif Name = "lsdet" then
+         BMP_Expect_No_Ops ("detection");
+         Record_Int ("lps.found", Int (3), Boolean'Pos (LS_Found));
+         Record_Int ("lps.combined", Int (4), Boolean'Pos (LS_Settings.Combined_Read));
+         Record_Int ("lps.ut_delay", Int (5), Integer_64 (LS_Settings.Temperature_Delay_Us));
+         Record_Int ("lps.up_delay", Int (6), Integer_64 (LS_Settings.Pressure_Delay_Us));
+      elsif Name = "lsstep" then
+         LS_Device.Status_Ready := Int (5) /= 0;
+         LS_Take_Sample (6, 7);
+         case Int (4) is
+            when 0 .. 5 =>
+               LS_Driver.Device_Call (LS_Device, LS_State, BMP_Calls (Integer (Int (4))), LS_Done);
+            when others =>
+               LS_Driver.Calculate (LS_State, LS_Pressure, LS_Temperature);
+               LS_Done := False;
+         end case;
+      elsif Name = "lsres" then
+         BMP_Expect_No_Ops ("a result");
+         Record_Int ("lps.done", Int (4), Boolean'Pos (LS_Done));
+         Record_Int ("lps.pressure", Int (5), Integer_64 (LS_Pressure));
+         Record_Int ("lps.temperature", Int (6), Integer_64 (LS_Temperature));
+         Record_Int ("lps.raw_p", Int (7), Integer_64 (LS_State.Raw_P));
+         Record_Int ("lps.raw_t", Int (8), Integer_64 (LS_State.Raw_T));
+      end if;
+   end Check_LPS_Line;
+
    --  The BMP085 oracle's bus and pins: the simulated chip's registers, its
    --  address, the reads still to fail, the two levels the conversion-end pin
    --  shows, the scripted busy and start answers, and the bytes the last
@@ -33124,6 +33303,8 @@ procedure Vector_Check is
                   Check_QMP6988_Line;
                elsif Kind = "smpb" then
                   Check_SMPB_Line;
+               elsif Kind = "lps" then
+                  Check_LPS_Line;
                elsif Kind = "bmp085" then
                   Check_BMP085_Line;
                elsif Kind = "lidartf" then
@@ -33456,6 +33637,7 @@ begin
    Run (Dir & "/lps22df.csv", "lps22df");
    Run (Dir & "/qmp6988.csv", "qmp6988");
    Run (Dir & "/2smpb.csv", "smpb");
+   Run (Dir & "/lps.csv", "lps");
    Run (Dir & "/bmp085.csv", "bmp085");
    Run (Dir & "/lidartf.csv", "lidartf");
    Run (Dir & "/nooploop.csv", "nooploop");

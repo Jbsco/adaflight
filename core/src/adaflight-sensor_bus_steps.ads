@@ -31,6 +31,12 @@ package Adaflight.Sensor_Bus_Steps with SPARK_Mode is
    procedure Step_Read_Byte (D : in out Bus_Line; Register : Byte; Value : out Byte)
      with Global => null;
 
+   procedure Step_Read_Buffer (D : in out Bus_Line; Command : Byte; Data : out Byte_Array)
+     with Global => null;
+
+   procedure Step_Write_Byte (D : in out Bus_Line; Register : Byte; Value : Byte)
+     with Global => null;
+
    procedure Step_Read_Registers (D : in out Bus_Line; Register : Byte; Data : in out Byte_Array; OK : out Boolean)
      with Global => null;
 
