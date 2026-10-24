@@ -1588,8 +1588,8 @@ Receiving, a fix switches the module to the flight model once, and 2.5 s without
 timeout, drops the fix and the satellite count and restarts the detection. An NMEA module keeps its
 own rate: the port is set to the configured rate and one custom command goes out, half a second
 apart, and the next command waits for the next connection (finding F63). The ground link source
-takes offered solutions and starts initialized, and after a loss it stays in the detection state
-(finding F62).
+takes offered solutions and starts initialized. After a loss it leaves the detection state at the
+next offered solution, where the reference stays in that state for good (finding F62, D6).
 
 Every solution with a fix counts the stamp, sets the interval and the frequency of the solutions,
 the distance and the direction home and, armed, the distance flown above 15 cm/s. The home position
