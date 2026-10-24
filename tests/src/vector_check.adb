@@ -232,6 +232,7 @@ with Adaflight.Rangefinder_Detect.Probe;
 with Adaflight.Optical_Flow_Detect.Probe;
 with Adaflight.HMC5883;
 with Adaflight.IST8310;
+with Adaflight.BMM350;
 with Adaflight.LIS3MDL;
 with Adaflight.LIS2MDL;
 with Adaflight.AK8975;
@@ -26438,6 +26439,259 @@ procedure Vector_Check is
       end if;
    end Check_IST8310_Line;
 
+   --  The BMM350 oracle's chip: the bus type and address, the identity
+   --  answers, the power manager's initial command and busy polls, the
+   --  status read, command read and write that fail, the trim word whose
+   --  read fails and how, the polls a trim read takes, the trim words, the
+   --  counters the answers follow and the next read's answer.
+   type BQ_Bus is record
+      I2C              : Boolean := True;
+      Address          : Byte := 0;
+      Id_Acks          : String (1 .. 6) := (others => '1');
+      Id_Vals          : Byte_Array (0 .. 5) := (others => 16#33#);
+      PMU_Initial      : Byte := 0;
+      Busy_Polls       : Integer := 0;
+      FGR_Busy         : Integer := 0;
+      Status_Nack_At   : Integer := -1;
+      Cmd_Read_Nack_At : Integer := -1;
+      Write_Nack_At    : Integer := -1;
+      OTP_Fail_At      : Integer := -1;
+      OTP_Fail_Kind    : Integer := 0;
+      OTP_Polls        : Integer := 1;
+      Words            : Byte_Array (0 .. 63) := (others => 0);
+      Id_Reads         : Integer := 0;
+      Cmd_Reads        : Integer := 0;
+      Status_Reads     : Integer := 0;
+      Writes           : Integer := 0;
+      Last_Cmd         : Byte := 0;
+      Polls_Since      : Integer := 1000;
+      OTP_Index        : Integer := 0;
+      OTP_Status_Polls : Integer := 0;
+      Read_Ack         : Boolean := True;
+      Data             : Byte_Array (0 .. 11) := (others => 0);
+      Keeps_Mode       : Boolean := False;
+   end record;
+
+   BQ_Device : BQ_Bus;
+
+   function BQ_Is_I2C (D : BQ_Bus) return Boolean is (D.I2C);
+
+   function BQ_Address (D : BQ_Bus) return Byte is (D.Address);
+
+   procedure BQ_Set_Address (D : in out BQ_Bus; Address : Byte) is
+   begin
+      D.Address := Address;
+   end BQ_Set_Address;
+
+   procedure BQ_Register (D : in out BQ_Bus) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("register");
+   end BQ_Register;
+
+   procedure BQ_Read (D : in out BQ_Bus; Register : Byte; Data : in out Byte_Array; OK : out Boolean) is
+      use type Interfaces.Unsigned_8;
+      Ack   : Boolean := True;
+      Value : Byte := 0;
+   begin
+      Data := (others => 0);
+      case Register is
+         when 16#00# =>
+            if D.Id_Reads < 6 then
+               Ack := D.Id_Acks (D.Id_Reads + 1) = '1';
+               Value := D.Id_Vals (D.Id_Reads);
+            else
+               Value := 16#33#;
+            end if;
+            D.Id_Reads := D.Id_Reads + 1;
+         when 16#06# =>
+            Ack := D.Cmd_Reads /= D.Cmd_Read_Nack_At;
+            Value := D.Last_Cmd;
+            D.Cmd_Reads := D.Cmd_Reads + 1;
+         when 16#07# =>
+            declare
+               Busy : constant Boolean := D.Polls_Since < (if D.Last_Cmd = 5 then D.FGR_Busy else D.Busy_Polls);
+            begin
+               Ack := D.Status_Reads /= D.Status_Nack_At;
+               Value :=
+                 (if Busy then 1 else 0) or (if D.Last_Cmd = 1 and then not Busy then 8 else 0)
+                 or (D.Last_Cmd and 7) * 32;
+               D.Polls_Since := D.Polls_Since + 1;
+               D.Status_Reads := D.Status_Reads + 1;
+            end;
+         when 16#55# =>
+            D.OTP_Status_Polls := D.OTP_Status_Polls + 1;
+            if D.OTP_Index = D.OTP_Fail_At and then D.OTP_Fail_Kind = 1 then
+               Ack := False;
+            elsif D.OTP_Index = D.OTP_Fail_At and then D.OTP_Fail_Kind = 2 then
+               Value := Byte (Interfaces.Shift_Left (Interfaces.Unsigned_32'(16#20#), D.OTP_Fail_At mod 3)) or 1;
+            elsif D.OTP_Index = D.OTP_Fail_At and then D.OTP_Fail_Kind = 3 then
+               Value := 0;
+            else
+               Value := (if D.OTP_Status_Polls >= D.OTP_Polls then 1 else 0);
+            end if;
+         when 16#52# =>
+            Ack := not (D.OTP_Index = D.OTP_Fail_At and then D.OTP_Fail_Kind = 4);
+            if Data'Length >= 4 then
+               Data (Data'First + 2) := D.Words (2 * D.OTP_Index);
+               Data (Data'First + 3) := D.Words (2 * D.OTP_Index + 1);
+            end if;
+         when 16#31# =>
+            Ack := D.Read_Ack;
+            for I in 2 .. Data'Length - 1 loop
+               exit when I - 2 > 11;
+               Data (Data'First + I) := D.Data (I - 2);
+            end loop;
+         when others =>
+            null;
+      end case;
+      if Register /= 16#52# and then Register /= 16#31# then
+         for I in 2 .. Data'Length - 1 loop
+            Data (Data'First + I) := Value;
+         end loop;
+      end if;
+      MX_Op ("read," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Data'Length)) & ","
+             & BMP_Num (Boolean'Pos (Ack)) & "," & MX_Hex (Data));
+      OK := Ack;
+   end BQ_Read;
+
+   procedure BQ_Write (D : in out BQ_Bus; Register : Byte; Value : Byte; OK : out Boolean) is
+      use type Interfaces.Unsigned_8;
+      Ack : Boolean := D.Writes /= D.Write_Nack_At;
+   begin
+      D.Writes := D.Writes + 1;
+      if Register = 16#50# and then (Value and 16#20#) /= 0 then
+         D.OTP_Index := Integer (Value and 16#1F#);
+         D.OTP_Status_Polls := 0;
+         if D.OTP_Index = D.OTP_Fail_At and then D.OTP_Fail_Kind = 0 then
+            Ack := False;
+         end if;
+      end if;
+      if Ack then
+         if Register = 16#06# then
+            D.Last_Cmd := Value;
+            D.Polls_Since := 0;
+         end if;
+         if Register = 16#7E# and then Value = 16#B6# then
+            if not D.Keeps_Mode then
+               D.Last_Cmd := 0;
+            end if;
+            D.Polls_Since := 1000;
+         end if;
+      end if;
+      MX_Op ("write," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Value)) & ","
+             & BMP_Num (Boolean'Pos (Ack)));
+      OK := Ack;
+   end BQ_Write;
+
+   procedure BQ_Delay (D : in out BQ_Bus; Ms : Natural) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("delay," & BMP_Num (Integer_64 (Ms)));
+   end BQ_Delay;
+
+   procedure BQ_Delay_Us (D : in out BQ_Bus; Us : Natural) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("delayus," & BMP_Num (Integer_64 (Us)));
+   end BQ_Delay_Us;
+
+   package BQ_Chip is new Adaflight.BMM350
+     (Bus_Device      => BQ_Bus,
+      Is_I2C          => BQ_Is_I2C,
+      I2C_Address     => BQ_Address,
+      Set_I2C_Address => BQ_Set_Address,
+      Register_Device => BQ_Register,
+      Read_Registers  => BQ_Read,
+      Write_Register  => BQ_Write,
+      Delay_Ms        => BQ_Delay,
+      Delay_Us        => BQ_Delay_Us);
+
+   BQ_State : BQ_Chip.State;
+   BQ_Data  : BQ_Chip.Axes := (others => 0);
+   BQ_Found : Boolean := False;
+   BQ_OK    : Boolean := False;
+   BQ_Got   : Boolean := False;
+
+   procedure Check_BMM350_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "bminit" then
+         MX_Op_Head := 1;
+         MX_Op_Count := 0;
+         BQ_Device := (others => <>);
+         BQ_State := (others => <>);
+         BQ_Data := (others => 0);
+         BQ_Device.I2C := Int (3) /= 0;
+         BQ_Device.Address := Byte (Int (4));
+         BQ_Device.Id_Acks := Str (5);
+         BQ_Device.Id_Vals := Hex_Bytes (6);
+         BQ_Device.PMU_Initial := Byte (Int (7));
+         BQ_Device.Last_Cmd := BQ_Device.PMU_Initial;
+         BQ_Device.Busy_Polls := Integer (Int (8));
+         BQ_Device.Status_Nack_At := Integer (Int (9));
+         BQ_Device.Cmd_Read_Nack_At := Integer (Int (10));
+         BQ_Device.Write_Nack_At := Integer (Int (11));
+         BQ_Device.OTP_Fail_At := Integer (Int (12));
+         BQ_Device.OTP_Fail_Kind := Integer (Int (13));
+         BQ_Device.OTP_Polls := Integer (Int (14));
+         BQ_Device.Words := Hex_Bytes (15);
+         BQ_Device.Keeps_Mode := Int (16) /= 0;
+         BQ_Device.FGR_Busy := (if NF >= 17 then Integer (Int (17)) else BQ_Device.Busy_Polls);
+         BQ_Chip.Detect (BQ_Device, BQ_Found);
+      elsif Name = "bmdet" then
+         MX_Expect_No_Ops ("detection");
+         Record_Int ("bmm350.found", Int (3), Boolean'Pos (BQ_Found));
+         Record_Int ("bmm350.address", Int (4), Integer_64 (BQ_Device.Address));
+         if BQ_Found then
+            BQ_Chip.Init (BQ_Device, BQ_State, BQ_OK);
+         end if;
+      elsif Name = "bmready" then
+         MX_Expect_No_Ops ("initialization");
+         Record_Int ("bmm350.init", Int (3), Boolean'Pos (BQ_OK));
+         Record_Int ("bmm350.odr", Int (4), Integer_64 (BQ_State.ODR_Hz));
+      elsif Name = "bmtrim" then
+         declare
+            T : BQ_Chip.Compensation renames BQ_State.Trim;
+            Values : constant array (1 .. 19) of Float :=
+              (T.Offset_X, T.Offset_Y, T.Offset_Z, T.Offset_Temp, T.Sensit_X, T.Sensit_Y, T.Sensit_Z, T.Sensit_Temp,
+               T.TCO_X, T.TCO_Y, T.TCO_Z, T.TCS_X, T.TCS_Y, T.TCS_Z, T.T0, T.Cross_XY, T.Cross_YX, T.Cross_ZX,
+               T.Cross_ZY);
+         begin
+            for K in Values'Range loop
+               Record_Result ("bmm350.trim", Bits (2 + K), To_Bits (Values (K)));
+            end loop;
+         end;
+      elsif Name = "bmstep" then
+         MX_Op_Head := 1;
+         MX_Op_Count := 0;
+         BQ_Device.Read_Ack := Int (4) /= 0;
+         BQ_Device.Data := Hex_Bytes (5);
+         BQ_Chip.Read (BQ_Device, BQ_State, BQ_Data, BQ_Got);
+      elsif Name = "bmop" then
+         declare
+            Expected : Ada.Strings.Unbounded.Unbounded_String := Ada.Strings.Unbounded.To_Unbounded_String (Str (3));
+         begin
+            for I in 4 .. NF loop
+               Ada.Strings.Unbounded.Append (Expected, "," & Str (I));
+            end loop;
+            if MX_Op_Head <= MX_Op_Count then
+               Record_Text ("bmm350.op", Ada.Strings.Unbounded.To_String (Expected),
+                            Ada.Strings.Unbounded.To_String (MX_Ops (MX_Op_Head)));
+               MX_Op_Head := MX_Op_Head + 1;
+            else
+               Record_Text ("bmm350.op", Ada.Strings.Unbounded.To_String (Expected), "none");
+            end if;
+         end;
+      elsif Name = "bmres" then
+         MX_Expect_No_Ops ("a read");
+         Record_Int ("bmm350.got", Int (4), Boolean'Pos (BQ_Got));
+         for K in 0 .. 2 loop
+            Record_Int ("bmm350.axis", Int (5 + K), Integer_64 (BQ_Data (K)));
+         end loop;
+      end if;
+   end Check_BMM350_Line;
+
    --  The LIS3MDL oracle's chip: the bus type and address, the write
    --  acknowledgements, the identity read's answer, the next read's answers
    --  and the bytes a started read brought.
@@ -37645,6 +37899,8 @@ procedure Vector_Check is
                   Check_HMC5883_Line;
                elsif Kind = "ist8310" then
                   Check_IST8310_Line;
+               elsif Kind = "bmm350" then
+                  Check_BMM350_Line;
                elsif Kind = "lis3mdl" then
                   Check_LIS3MDL_Line;
                elsif Kind = "lis2mdl" then
@@ -37964,6 +38220,7 @@ begin
    Run (Dir & "/flowdetect.csv", "flowdetect");
    Run (Dir & "/hmc5883.csv", "hmc5883");
    Run (Dir & "/ist8310.csv", "ist8310");
+   Run (Dir & "/bmm350.csv", "bmm350");
    Run (Dir & "/lis3mdl.csv", "lis3mdl");
    Run (Dir & "/lis2mdl.csv", "lis2mdl");
    Run (Dir & "/ak8975.csv", "ak8975");

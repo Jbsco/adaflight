@@ -8799,3 +8799,40 @@ interrupts report their reason, 220 corrections step the offset and 28 lookups a
 case at exactly 2 ** 31, which the frequency error's product shifted right by four never reaches; the order of the
 transmit and receive flag tests, which follow the test of both flags at once; and the packet statistics' test for a
 negative signal to noise ratio, where a ratio of zero adds nothing to the strength.
+
+## D373. BMM350 compass driver (2026-10-19)
+
+`Adaflight.BMM350` drives the BMM350 compass over I2C, a generic over the bus device: whether it is I2C, its address,
+the device's registration, register reads and writes with their acknowledgement, and millisecond and microsecond delays.
+Detection waits 3 ms and reads the chip identity 0x33 at the configured address, or at 0x14 then 0x15 when none is set,
+leaving the address unset when neither answers. Initialization registers the device, soft resets the chip up to three
+times until it answers its identity 24 ms later, reads the 32 trim words of the one-time memory, each after its read
+command completes within ten polls 300 us apart with no error bit, and parses them into the axis and temperature offsets
+and sensitivities, the temperature coefficients of the offsets and scales, the reference temperature and the cross-axis
+terms, all zero when the read fails. It powers the memory off, resets the magnet through the bit and flux guide commands
+with the chip suspended first, then enables the data ready interrupt, four-sample averaging at 100 Hz, the offset
+update, the three axes and the normal power mode, each power command waited for in the status register up to its timeout
+and the normal mode's success deciding the initialization. A read takes the twelve data bytes behind the two dummy
+bytes, assembles the three axes and the temperature as 24-bit values, scales them by the reference's single precision
+constants, applies the trim in the reference's order of operations and hands over the axes in tenths of a microtesla
+rounded half to even and held within 16 bits. An axis whose temperature scale term makes its divisor zero carries its
+class, an infinity by the sign of its sum or an undefined value, through the cross axis terms, and reads as the limit of
+its sign or as zero, as the target's conversion of the reference's result does (finding F283); the SPARK proof bounds
+every intermediate from the trim subtypes and the 24-bit readings, with a nonzero single precision divisor at least 2 **
+-24.
+
+The BMM350 oracle includes the reference driver, with the target's conversion of a float to an integer in place of the
+host's (an infinity saturates at the 32-bit limits, an undefined value reads as zero), over stubs: a chip answering each
+identity read, command read and status poll from drawn tables, with the power manager busy for a drawn number of polls
+after each command, one status read, one command read and one write that fail, a trim word whose read fails in one of
+five ways with a single error bit, the polls a trim read takes, the 32 trim words, small in half the cases, and soft
+resets that keep the power mode in 30 percent of the chips. Each process runs one case: the bus type and preset address,
+the detection, the initialization and 40 to 120 reads with drawn acknowledgements and data, small readings in 60 percent
+of them. Thirty more cases hold a found chip that answers every access, busy at the suspend and bit reset limits, and
+busy for 22 or 23 polls after the flux guide reset, its own count in a last init field, and a reference temperature word
+at the sign boundary in half of them. Every bus, registration and delay call with its bytes, the detection, the
+initialization's result and its parsed trim, and each read's result and axes of the 330 cases replay exactly: 244 chips
+are found, 64 at a configured address and 180 by the scan, 219 initialize, 41 of them after a failed trim read, and
+18480 of 20004 reads bring axes. Of 128 tampered paths, 115 fail the vectors and 9 stop the checker at a subtype check.
+Four pass and are equivalent: the last digits of the three scale constants, which single precision does not hold; and
+the trim's clear before the memory read, which initialization runs once on a trim still at its defaults.
