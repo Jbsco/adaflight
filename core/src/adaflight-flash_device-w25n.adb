@@ -68,10 +68,8 @@ package body Adaflight.Flash_Device.W25N with SPARK_Mode is
       Wait (D);
    end One_Byte_Command;
 
-   procedure Page_Address_Command
-     (D : in out SPI_Device; F : Device; Instruction : Byte; Page : Interfaces.Unsigned_32)
-   is
-      High : constant Byte := (if F.NAND.Dummy_Byte then 0 else Byte (Page / 2 ** 16 mod 256));
+   procedure Page_Address_Command (D : in out SPI_Device; Instruction : Byte; Page : Interfaces.Unsigned_32) is
+      High : constant Byte := Byte (Page / 2 ** 16 mod 256);
    begin
       Send (D, (Instruction, High, Byte (Page / 2 ** 8 mod 256), Byte (Page mod 256)));
       Wait (D);
@@ -185,7 +183,7 @@ package body Adaflight.Flash_Device.W25N with SPARK_Mode is
    begin
       Wait_For_Ready (D, F, Ignored);
       Write_Enable (D, F);
-      Page_Address_Command (D, F, Block_Erase_Instruction, Address / Page_Bytes);
+      Page_Address_Command (D, Block_Erase_Instruction, Address / Page_Bytes);
       Set_Timeout (D, F, Block_Erase_Timeout_Ms);
    end Erase_Sector;
 
@@ -277,7 +275,7 @@ package body Adaflight.Flash_Device.W25N with SPARK_Mode is
       Ignored : Boolean;
    begin
       Wait_For_Ready (D, F, Ignored);
-      Page_Address_Command (D, F, Program_Execute_Instruction, Page);
+      Page_Address_Command (D, Program_Execute_Instruction, Page);
       Set_Timeout (D, F, Page_Program_Timeout_Ms);
    end Program_Execute;
 
@@ -310,7 +308,7 @@ package body Adaflight.Flash_Device.W25N with SPARK_Mode is
             return;
          end if;
          F.NAND.Current_Page := No_Page;
-         Page_Address_Command (D, F, Page_Data_Read_Instruction, Target);
+         Page_Address_Command (D, Page_Data_Read_Instruction, Target);
          Set_Timeout (D, F, Page_Read_Timeout_Ms);
          Wait_For_Ready (D, F, Ready);
          if not Ready then
