@@ -48,44 +48,115 @@ package body Adaflight.SMPB_02B with SPARK_Mode is
         - (if Data (0) >= 128 then 2 ** 24 else 0);
    end Read_24;
 
+   --  Each coefficient scaled from its register value in single precision, a
+   --  function each so that every proof context holds one expression.
+   function Aa_Of (V : Signed_16_Value) return Aa_Value
+     with Global => null,
+          Post => Aa_Of'Result = 0.0 or else abs Aa_Of'Result >= 1.28E-08;
+   function Ba_Of (V : Signed_16_Value) return Ba_Value
+     with Global => null;
+   function Ap_Of (V : Signed_16_Value) return Ap_Value
+     with Global => null,
+          Post => Ap_Of'Result = 0.0 or else abs Ap_Of'Result >= 9.15E-10;
+   function Bp_Of (V : Signed_16_Value) return Bp_Value
+     with Global => null;
+   function A_T_Of (V : Signed_16_Value) return A_T_Value
+     with Global => null;
+   function B_T_Of (V : Signed_16_Value) return B_T_Value
+     with Global => null;
+   function C_T_Of (V : Signed_16_Value) return C_T_Value
+     with Global => null;
+
+   function Aa_Of (V : Signed_16_Value) return Aa_Value is
+      Product : constant Float := 4.2E-04 * Float (V);
+      Scaled  : constant Float := Product / 32_767.0;
+   begin
+      pragma Assert (abs Product <= 13.77);
+      pragma Assert (if V = 0 then Scaled = 0.0 else abs Scaled >= 1.28E-08);
+      return Scaled;
+   end Aa_Of;
+
+   function Ba_Of (V : Signed_16_Value) return Ba_Value is
+      Product : constant Float := 8.0 * Float (V);
+      Scaled  : constant Float := Product / 32_767.0;
+   begin
+      pragma Assert (abs Product <= 262_144.0);
+      pragma Assert (abs Scaled <= 8.001);
+      return Scaled - 160.0;
+   end Ba_Of;
+
+   function Ap_Of (V : Signed_16_Value) return Ap_Value is
+      Product : constant Float := 3.0E-05 * Float (V);
+      Scaled  : constant Float := Product / 32_767.0;
+   begin
+      pragma Assert (abs Product <= 0.984);
+      pragma Assert (if V = 0 then Scaled = 0.0 else abs Scaled >= 9.15E-10);
+      return Scaled;
+   end Ap_Of;
+
+   function Bp_Of (V : Signed_16_Value) return Bp_Value is
+      Product : constant Float := 10.0 * Float (V);
+      Scaled  : constant Float := Product / 32_767.0;
+   begin
+      pragma Assert (abs Product <= 327_680.0);
+      pragma Assert (abs Scaled <= 10.001);
+      return Scaled + 30.0;
+   end Bp_Of;
+
+   function A_T_Of (V : Signed_16_Value) return A_T_Value is
+      Product : constant Float := 8.0E-11 * Float (V);
+   begin
+      pragma Assert (abs Product <= 2.63E-06);
+      return Product / 32_767.0;
+   end A_T_Of;
+
+   function B_T_Of (V : Signed_16_Value) return B_T_Value is
+      Product : constant Float := 1.6E-06 * Float (V);
+      Scaled  : constant Float := Product / 32_767.0;
+   begin
+      pragma Assert (abs Product <= 0.0525);
+      pragma Assert (abs Scaled <= 1.601E-06);
+      return Scaled - 6.6E-06;
+   end B_T_Of;
+
+   function C_T_Of (V : Signed_16_Value) return C_T_Value is
+      Product : constant Float := 8.5E-03 * Float (V);
+      Scaled  : constant Float := Product / 32_767.0;
+   begin
+      pragma Assert (abs Product <= 278.6);
+      pragma Assert (abs Scaled <= 8.51E-03);
+      return Scaled + 4.0E-02;
+   end C_T_Of;
+
    --  The nine coefficients in the order the reference reads them.
    procedure Configure (D : in out Bus_Device; C : out Coefficients) is
-      V  : Signed_16_Value;
-      Ca : Raw_Delta;
-      Cp : Raw_Delta;
-      Aa : Float;
-      Ba : Float;
-      Ap : Float;
-      Bp : Float;
-      A_T : Float;
-      B_T : Float;
-      C_T : Float;
+      V   : Signed_16_Value;
+      Ca  : Raw_Delta;
+      Cp  : Raw_Delta;
+      Aa  : Aa_Value;
+      Ba  : Ba_Value;
+      Ap  : Ap_Value;
+      Bp  : Bp_Value;
+      A_T : A_T_Value;
+      B_T : B_T_Value;
+      C_T : C_T_Value;
    begin
       Read_16 (D, Coe_PTAT31, V);
-      Aa := (4.2E-04 * Float (V)) / 32_767.0;
-      pragma Assert (abs Aa <= 4.21E-04);
-      pragma Assert (if V = 0 then Aa = 0.0 else abs Aa >= 1.28E-08);
+      Aa := Aa_Of (V);
       Read_16 (D, Coe_PTAT21, V);
-      Ba := (8.0 * Float (V)) / 32_767.0 - 160.0;
-      pragma Assert (Ba in -168.01 .. -151.99);
+      Ba := Ba_Of (V);
       Read_24 (D, Coe_PTAT11, Ca);
       Read_16 (D, Coe_PR31, V);
-      Ap := (3.0E-05 * Float (V)) / 32_767.0;
-      pragma Assert (abs Ap <= 3.01E-05);
-      pragma Assert (if V = 0 then Ap = 0.0 else abs Ap >= 9.15E-10);
+      Ap := Ap_Of (V);
       Read_16 (D, Coe_PR21, V);
-      Bp := Float ((10 * V) / 32_767) + 30.0;
-      pragma Assert (Bp in 20.0 .. 40.0);
+      Bp := Bp_Of (V);
       Read_24 (D, Coe_PR11, Cp);
       Read_16 (D, Coe_TEMP31, V);
-      A_T := (8.0E-11 * Float (V)) / 32_767.0;
-      pragma Assert (abs A_T <= 8.01E-11);
+      A_T := A_T_Of (V);
       Read_16 (D, Coe_TEMP21, V);
-      B_T := (1.6E-06 * Float (V)) / 32_767.0 - 6.6E-06;
-      pragma Assert (B_T in -8.21E-06 .. -4.99E-06);
+      B_T := B_T_Of (V);
       Read_16 (D, Coe_TEMP11, V);
-      C_T := (8.5E-03 * Float (V)) / 32_767.0 + 4.0E-02;
-      pragma Assert (C_T in 0.031 .. 0.049);
+      C_T := C_T_Of (V);
       C := (Aa => Aa, Ba => Ba, Ca => Ca, Ap => Ap, Bp => Bp, Cp => Cp, A_T => A_T, B_T => B_T, C_T => C_T);
    end Configure;
 
