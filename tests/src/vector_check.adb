@@ -17899,7 +17899,7 @@ procedure Vector_Check is
                         BMP_Op ("microsisr," & BMP_Num (Integer_64 (Us)));
                         BMP_Op ("ioread," & BMP_Num (Integer_64 (HS_Config.Echo_Tag)) & "," &
                                 BMP_Num (Boolean'Pos (High)));
-                        HS_Driver.Echo_Edge (HS_State, High, Us);
+                        HS_Driver.Echo_Edge (HS_Device, HS_State, High, Us);
                      end;
                      First := Last + 2;
                   end;
