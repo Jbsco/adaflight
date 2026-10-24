@@ -795,10 +795,11 @@ quarter of a primary count or an aux count as it is, plus 988.
 The unit keeps the completed frame's length beside the buffers, where the reference reads the length
 byte again at the poll and the processing. The validated buffer is not written until the next swap,
 so the two agree. The swap itself is kept so the stale bytes of a short frame come from the same
-buffer as the reference's. The RSSI scaling and the legacy rescaling keep the reference's
-sixteen-bit wraps of their negative results (findings F37, F38), so the recorded vectors match. The
-telemetry content, the MSP handling, the idle callback's source, and the serial port stay with their
-layers. No guard was needed.
+buffer as the reference's. The RSSI scaling and the legacy rescaling hold a negative result at zero,
+where the reference wraps it to sixteen bits, so a weak RSSI reads as full strength and a low
+channel count as a value near the top of the range (findings F37, F38, D6). The telemetry content,
+the MSP handling, the idle callback's source, and the serial port stay with their layers. No guard
+was needed.
 
 ## D49. MSP receiver (2026-10-10)
 
