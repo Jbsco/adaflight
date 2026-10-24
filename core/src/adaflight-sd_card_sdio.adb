@@ -137,6 +137,19 @@ package body Adaflight.SD_Card_SDIO with SPARK_Mode is
       end if;
    end End_Write_Blocks;
 
+   --  A read that timed out or failed: the card reset, then the failure
+   --  reported through the read's completion.
+   procedure Fail_Read (D : in out SDIO_Device; S : in out Card)
+     with Global => null;
+
+   procedure Fail_Read (D : in out SDIO_Device; S : in out Card) is
+   begin
+      Reset_Card (D, S);
+      if S.Op.Has_Callback then
+         Complete (D, False, S.Op.Index, False, S.Op.Callback_Data, S.Data);
+      end if;
+   end Fail_Read;
+
    procedure Init (D : in out SDIO_Device; S : in out Card; C : Config) is
       Identifier : Natural;
       OK         : Boolean;
@@ -263,8 +276,12 @@ package body Adaflight.SD_Card_SDIO with SPARK_Mode is
                      end if;
                   when In_Progress =>
                      Millis (D, Now);
-                     Again := Now > S.Operation_Start + Read_Timeout_Ms;
+                     if Now > S.Operation_Start + Read_Timeout_Ms then
+                        Fail_Read (D, S);
+                        Again := True;
+                     end if;
                   when Error =>
+                     Fail_Read (D, S);
                      Again := True;
                end case;
             when Stopping_Multiple =>
@@ -323,8 +340,8 @@ package body Adaflight.SD_Card_SDIO with SPARK_Mode is
          Accepted := True;
       else
          Reset_Card (D, S);
-         if S.Op.Has_Callback then
-            Complete (D, False, S.Op.Index, False, S.Op.Callback_Data, S.Data);
+         if Has_Callback then
+            Complete (D, False, Index, False, Callback_Data, S.Data);
          end if;
          Accepted := False;
       end if;
