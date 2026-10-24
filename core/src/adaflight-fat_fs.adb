@@ -221,12 +221,13 @@ package body Adaflight.FAT_FS with SPARK_Mode is
          pragma Loop_Invariant (FS.Vol = FS.Vol'Loop_Entry);
          pragma Loop_Invariant (Entry_Index < Per_Sector);
          pragma Loop_Invariant (Jump in 1 .. Per_Sector);
-         --  The free-space file holds no free cluster. The FAT sector stays
-         --  where it was.
+         --  The free-space file holds no free cluster. The FAT sector moves to
+         --  the cluster after it.
          if FS.Files (Free_File).Logical_Size > 0 and then Cluster = FS.Files (Free_File).First_Cluster then
             Cluster := Cluster
               + Divide (FS.Files (Free_File).Logical_Size + Cluster_Size (FS.Vol) - 1, Cluster_Size (FS.Vol));
             Cluster := Round_Up_To (Cluster, Jump);
+            FAT_Position (FS.Vol, Cluster, FAT_Sector, Entry_Index);
          else
             Cache_Sector (FS, Card, FAT_Sector_To_Physical (FS.Vol, 0, FAT_Sector),
                           (Read => True, Discardable => True, others => False), 0, Result, Buffer);
