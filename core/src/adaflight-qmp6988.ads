@@ -5,8 +5,8 @@
 --  detection registers the device, sets the IIR filter, reads the 25
 --  calibration bytes into a buffer that starts at zeros, and sets the power
 --  mode and the sampling, whatever the writes and the read answer. The two
---  20-bit coefficients are signed and the ten 16-bit ones are taken unsigned,
---  each scaled in single precision. The chip measures the temperature with the
+--  20-bit and the ten 16-bit coefficients are signed, each scaled in single
+--  precision. The chip measures the temperature with the
 --  pressure: a pressure start sets the forced measurement again, a pressure
 --  read starts the six data bytes while the bus is free, a pressure sample
 --  takes the bytes the last read brought while the bus is free, and the other
@@ -42,16 +42,16 @@ package Adaflight.QMP6988 with SPARK_Mode is
    --  Bounds of each coefficient over every calibration byte, widened past
    --  the single precision rounding.
    subtype Offset_Value is Float range -32_769.0 .. 32_769.0;
-   subtype A1_Value is Float range -6.31E-03 .. -5.43E-03;
-   subtype A2_Value is Float range -1.91E-11 .. 2.22E-10;
-   subtype Bt1_Value is Float range 0.099 .. 0.283;
-   subtype Bt2_Value is Float range 1.1E-08 .. 2.42E-06;
-   subtype Bp1_Value is Float range 0.032 .. 0.072;
-   subtype B11_Value is Float range 2.09E-07 .. 4.91E-07;
-   subtype Bp2_Value is Float range -6.31E-10 .. 7.1E-11;
-   subtype B12_Value is Float range 2.89E-13 .. 1.82E-12;
-   subtype B21_Value is Float range 2.09E-15 .. 2.62E-14;
-   subtype Bp3_Value is Float range 1.29E-16 .. 2.89E-16;
+   subtype A1_Value is Float range -6.74E-03 .. -5.86E-03;
+   subtype A2_Value is Float range -1.40E-10 .. 1.02E-10;
+   subtype Bt1_Value is Float range 0.0089 .. 0.192;
+   subtype Bt2_Value is Float range -1.19E-06 .. 1.22E-06;
+   subtype Bp1_Value is Float range 0.0139 .. 0.053;
+   subtype B11_Value is Float range 6.9E-08 .. 3.51E-07;
+   subtype Bp2_Value is Float range -9.81E-10 .. -2.79E-10;
+   subtype B12_Value is Float range -4.71E-13 .. 1.06E-12;
+   subtype B21_Value is Float range -9.91E-15 .. 1.42E-14;
+   subtype Bp3_Value is Float range 5.09E-17 .. 2.1E-16;
 
    type Coefficients is record
       A0  : Offset_Value := 0.0;
