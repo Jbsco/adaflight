@@ -26,3 +26,4 @@ Each document describes a Betaflight bug that adaflight fixes: the Betaflight ve
 - [RTC6705 with a power pin stays off until a pit mode cycle](rtc6705-power-pin.md)
 - [Longitude differences overflow across the antimeridian](gps-antimeridian.md)
 - [HC-SR04 reports hardware failure after 71.6 minutes](hcsr04-echo-clock.md)
+- [SDIO card production year reads at most 2015](sdio-production-year.md)
