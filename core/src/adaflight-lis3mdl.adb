@@ -11,6 +11,9 @@ package body Adaflight.LIS3MDL with SPARK_Mode is
    Control_4      : constant Byte := 16#23#;
    Control_5      : constant Byte := 16#24#;
    Data_Register  : constant Byte := 16#28#;
+   --  The address bit that steps through the registers of a multi-byte read.
+   I2C_Auto_Increment : constant Byte := 16#80#;
+   SPI_Auto_Increment : constant Byte := 16#40#;
    Range_4_Gauss  : constant Byte := 16#00#;
    Ultra_High_80  : constant Byte := 16#80# or 16#60# or 16#1C#;
    Block_Update   : constant Byte := 16#40#;
@@ -52,7 +55,7 @@ package body Adaflight.LIS3MDL with SPARK_Mode is
       B       : Byte_Array (0 .. 5);
    begin
       if S.Start_Next then
-         Start_Read (D, Data_Register, 6, Started);
+         Start_Read (D, Data_Register or (if Is_I2C (D) then I2C_Auto_Increment else SPI_Auto_Increment), 6, Started);
          if Started then
             S.Start_Next := False;
          end if;
