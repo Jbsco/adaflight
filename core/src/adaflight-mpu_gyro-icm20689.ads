@@ -24,7 +24,8 @@ package Adaflight.MPU_Gyro.ICM20689 with SPARK_Mode is
    procedure Gyro_Detect (S : State; Found : out Boolean; Scale : out Float)
      with Global => null;
 
-   function Acc_Detect (S : State) return Boolean is (S.Sensor in Sensor_ICM20602 | Sensor_ICM20689);
+   function Acc_Detect (S : State) return Boolean is
+     (S.Sensor in Sensor_ICM20601 | Sensor_ICM20602 | Sensor_ICM20608 | Sensor_ICM20689);
 
    procedure Gyro_Init (D : in out SPI_Device; S : in out State; Divider_Drops : Byte);
 
