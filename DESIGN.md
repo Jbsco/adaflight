@@ -7865,17 +7865,20 @@ reads that bring the chip's bytes.
 
 ## D348. W25N flash driver (2026-10-18)
 
-`Adaflight.Flash_Device.W25N` drives the W25N SPI NAND flash chips, the W25N01GV, the W25N02KV and the MX35LF2GE4AD,
-with blocks of 64 pages of 2048 bytes. Identification looks the JEDEC ID up for the block count, the read clock, the
-status register instructions, the page address form, the buffer read mode and the replacement blocks, and names the
-replacement blocks and one marker block at the end of the chip for bad block management. The reference enters that range
-in the partition table during identification. This unit keeps it in the device for the flash layer, which does not try
-this driver yet. Configuration resets the chip, waits for it, clears the protection register, turns on ECC with the
-buffer read mode and sets the read clock, unless the system runs from memory-mapped flash. A wait polls the status
-register until the busy flag clears and gives up at the millisecond the last command set, and a wait that ends ready
-clears that millisecond to 0. An erase waits, enables writes, erases the address's block and allows 15 ms. Erasing the
-whole chip erases every block in turn. The W25N02KV's erase, page read and flush send 0 in the byte where the page
-program sends a page's bits 16 to 23, as the reference does (finding F267).
+`Adaflight.Flash_Device.W25N` drives the W25N SPI NAND flash chips, the W25N01GV, the W25N02KV and
+the MX35LF2GE4AD, with blocks of 64 pages of 2048 bytes. Identification looks the JEDEC ID up for
+the block count, the read clock, the status register instructions, the page address form, the buffer
+read mode and the replacement blocks, and names the replacement blocks and one marker block at the
+end of the chip for bad block management. The reference enters that range in the partition table
+during identification. This unit keeps it in the device for the flash layer, which does not try this
+driver yet. Configuration resets the chip, waits for it, clears the protection register, turns on
+ECC with the buffer read mode and sets the read clock, unless the system runs from memory-mapped
+flash. A wait polls the status register until the busy flag clears and gives up at the millisecond
+the last command set, and a wait that ends ready clears that millisecond to 0. An erase waits,
+enables writes, erases the address's block and allows 15 ms. Erasing the whole chip erases every
+block in turn. Every page address instruction sends the page's bits 16 to 23 in the byte after the
+instruction, which the W25N02KV's 131072 pages need. The reference sends 0 there for that chip, so
+its upper half addresses the lower half (finding F267, D6).
 
 A program starts at its begin address only when the chip's data buffer holds no unprogrammed data, and otherwise goes on
 at the buffer's next column. It loads the first buffer after a ready poll, skipped when no write could have left the
