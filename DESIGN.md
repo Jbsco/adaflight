@@ -7385,17 +7385,20 @@ paths fail the vectors, among them the MPU6500 driver's write of 0 for the filte
 
 ## D329. ICM20689 gyro driver (2026-10-18)
 
-`Adaflight.MPU_Gyro.ICM20689` drives the ICM-20601, ICM-20602, ICM-20608-G and ICM-20689 over the SPI gyro layer
-(D324), a generic child that adds register writes and reads and a microsecond delay. Its detection is the layer's
-chip probe. It resets the chip, waits 100 ms and reads the identity, and for one of the four disables the I2C
-interface, resets the accelerometer and temperature signal paths and waits 100 ms. A gyro of the family gets the
-2000 degrees per second scale, and the ICM-20602 and ICM-20689 also an accelerometer with a one g of 2048.
-Initialization sets an 8 MHz clock before the layer's, then selects the clock, waits 120 microseconds and sets the
-2000 degrees per second and 16 g ranges, the layer's filter setting, the sample rate divider, any-read interrupt
-clear and the data ready interrupt, with the temperature scale of 0.003 and zero of 25. The reference's detection
-probes this driver before the MPU6500 driver (D327), and its gyro detection tries the MPU6500 driver first, so on a
-build with both the ICM-20601, ICM-20602 and ICM-20608-G take this detection and the MPU6500 initialization. The
-unit is SPARK for the sequence.
+`Adaflight.MPU_Gyro.ICM20689` drives the ICM-20601, ICM-20602, ICM-20608-G and ICM-20689 over the
+SPI gyro layer (D324), a generic child that adds register writes and reads and a microsecond delay.
+Its detection is the layer's chip probe. It resets the chip, waits 100 ms and reads the identity,
+and for one of the four disables the I2C interface, resets the accelerometer and temperature signal
+paths and waits 100 ms. A gyro of the family gets the 2000 degrees per second scale and an
+accelerometer with a one g of 2048. The reference's accelerometer detection accepts the ICM-20602
+and ICM-20689 only, so an ICM-20601 or ICM-20608-G flies with its gyro and no accelerometer (F262,
+D6). Initialization sets an 8 MHz clock before the layer's, then selects the clock, waits 120
+microseconds and sets the 2000 degrees per second and 16 g ranges, the layer's filter setting, the
+sample rate divider, any-read interrupt clear and the data ready interrupt, with the temperature
+scale of 0.003 and zero of 25. The reference's detection probes this driver before the MPU6500
+driver (D327), and its gyro detection tries the MPU6500 driver first, so on a build with both the
+ICM-20601, ICM-20602 and ICM-20608-G take this detection and the MPU6500 initialization. The unit is
+SPARK for the sequence.
 
 The ICM20689 oracle includes the reference driver and the gyro layer over a simulated chip, one case per process,
 built with the experimental filter (D328). It draws the identity from the four the driver names or any byte, the
