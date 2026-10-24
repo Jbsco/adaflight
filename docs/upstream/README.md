@@ -23,3 +23,4 @@ Each document describes a Betaflight bug that adaflight fixes: the Betaflight ve
 - [SD card forward seek moves to twice the position](fat-forward-seek.md)
 - [W25N02KV upper-half pages address the lower half](w25n02kv-page-address.md)
 - [W25M read reports bytes a die did not read](w25m-short-read.md)
+- [RTC6705 with a power pin stays off until a pit mode cycle](rtc6705-power-pin.md)

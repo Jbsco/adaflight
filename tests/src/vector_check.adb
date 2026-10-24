@@ -37361,6 +37361,7 @@ procedure Vector_Check is
               (Frequency   => Interfaces.Unsigned_16 (Freq),
                Power_Index => Interfaces.Unsigned_8 (Index),
                Pit_Active  => Pit = 1,
+               Powered     => False,
                Pending     => Adaflight.VTX_RTC6705.No_Operations);
          end;
       elsif Name = "cmrtc" then

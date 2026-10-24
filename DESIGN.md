@@ -5936,7 +5936,10 @@ write with a millisecond per clock edge, which the board's driver need not copy.
 readings are its own, and the Spektrum power steps map to its two levels. The pit mode setter takes the
 table, which the RTC6705 reads on leaving pit mode. A task call hands the operations out with its events,
 and a caller that sets the device outside one takes them after. The start leaves the transmitter
-unpowered until a pit mode cycle (F224); adaflight keeps that order.
+unpowered, and the device's process powers it on with the boot delay and the stored power and frequency
+once the pit mode is off and it has not been powered since the start. The reference powers it on only
+when a pit mode cycle ends, so a board with a power pin never transmits until the pilot cycles pit mode
+(finding F224, D6).
 
 The VTX control oracle adds two RTC6705 sequences: the reference's soft SPI driver and device layer as
 source over stand-in pins, with the register writes decoded from the chip select, clock and data edges and
