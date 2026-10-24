@@ -8457,3 +8457,40 @@ clock and delay call, detection, setting and reading of the 300 cases replays ex
 cases have DMA, 66 the experimental filter and 26 an unknown one, 194 raise a burst, 33 of them at or below the 1000
 threshold, 21 repeat the first read from the mode without interrupts, and of 7200 steps 1813 read the gyro and 1381 the
 accelerometer. Of 75 tampered paths, 74 fail the vectors and 1 stop the checker at a subtype check.
+
+## D364. LSM6DSV16X gyro driver (2026-10-19)
+
+`Adaflight.MPU_Gyro.LSM6DSV16X` drives the LSM6DSV16X, LSM6DSV32X and LSM6DSK320X gyros over the SPI gyro layer. The
+LSM6DSV16X probe reads the identity, 0x70, resets the chip and takes the variant bit of control register 8 for the
+LSM6DSV32X; the LSM6DSK320X probe reads its identity, 0x75. A reset clears the two rate fields with their modes kept,
+sets the address increment, each write read back, waits 500 us, writes the reset bit, waits 10 ms and polls the register
+once a millisecond for up to 10 more until the reset bit clears with the block update set, then checks the identity
+again. Initialization sets a 10 MHz clock and configures the chip in up to three attempts, each a reset and the control
+registers written and read back: block update and increment, high accuracy mode 1, the high accuracy modes of both
+sensors, the accelerometer at 16 g, or 32 g on the LSM6DSV32X, with its second low pass filter at a quarter of its rate,
+the gyro at 2000 degrees per second, or 4000, with the first low pass filter bandwidth of the filter setting and a bit
+the LSM6DSK320X needs, its filter on, the pulsed data ready on the first interrupt pin, then after 500 us the gyro at 8
+kHz and the accelerometer at 1 kHz; when every attempt fails the failure call takes over, otherwise the scale is 0.07
+degrees per second per count, or 0.14, and the layer's initialization runs. The interrupt and the DMA read are the
+layer's; a DMA completion latches the twelve bytes of both sensors behind a sequence count before the layer's
+completion. The reads take a sensor's six little-endian bytes with a blocking transfer, or the latched sample once one
+is ready, and fail before the first gyro read. The reference reads the latched sample twice over when a completion
+changes the count during the copy; here the latch is a parameter of the read, so one copy under the count suffices. The
+reference indexes its four-entry bandwidth table with the filter setting, which MSP writes unchecked (finding F276); a
+setting past the known ones takes the 288 Hz bandwidth here. The unit is SPARK, with the sample offsets bounded by the
+receive buffer and the latch.
+
+The LSM6DSV16X oracle includes the reference driver and the common SPI gyro layer over a simulated chip, one case per
+process. It draws the chip identity, 0x75 in 45 percent of the cases and 0x70 in 40, the variant bit, set in 30 percent,
+the polls a reset takes to clear, past the driver's 10 in 6 percent, the identity the chip answers after a reset,
+another in 4 percent, whether that reset sets block update, not in 5 percent, a register that ignores writes from its
+first, second or third one, in 10 percent, the bus, the startup clock and its step, DMA, the interrupt pin, the filter
+setting and the register values, lets the layer find another chip in a twelfth of the cases when neither identity
+answers, then runs the detection, the gyro and accelerometer detection and initialization, and 30 steps of interrupts, a
+burst of 990 to 1050 interrupts first or after some reads outside the DMA mode, DMA completions, gyro and accelerometer
+reads and new samples; a failure ends the case. Every bus, pin, clock, delay and failure call, detection, setting,
+reading and latch state of the 300 cases replays exactly. In them 126 chips are LSM6DSK320X, 75 LSM6DSV16X and 30
+LSM6DSV32X, 231 gyros are found, 52 initializations fail after three attempts, and of 5370 steps 1285 read the gyro,
+1048 the accelerometer and 1730 raise interrupts. Of 101 tampered paths, 98 fail the vectors and 1 stop the checker at a
+subtype check. Two pass and are equivalent: the return after the failure call, which never returns in the reference, and
+the latch reset at the first gyro read, since the latch starts cleared and no later read returns to that mode.

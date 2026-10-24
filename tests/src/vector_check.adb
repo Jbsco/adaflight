@@ -205,6 +205,7 @@ with Adaflight.MPU_Gyro.ICM456xx;
 with Adaflight.MPU_Gyro.LSM6DSO;
 with Adaflight.MPU_Gyro.ICM56686;
 with Adaflight.MPU_Gyro.BMI423;
+with Adaflight.MPU_Gyro.LSM6DSV16X;
 with Adaflight.MPU_Gyro.MPU6500;
 with Adaflight.MPU_Gyro.ICM20689;
 with Adaflight.Flash_Device;
@@ -20699,6 +20700,276 @@ procedure Vector_Check is
       end if;
    end Check_BMI423_Line;
 
+   --  The LSM6DSV16X oracle's chip over the MPU gyro oracle's device: a
+   --  register that ignores writes from one of its first three, the fixed
+   --  variant bit, the polls a reset shows its bit and the defaults, with or
+   --  without block update, and identity it restores after.
+   LV_Stuck          : Integer := -1;
+   LV_Variant        : Boolean := False;
+   LV_Reset_Polls    : Natural := 0;
+   LV_Reset_Pending  : Natural := 0;
+   LV_Reset_Identity : Byte := 0;
+   LV_Stuck_From     : Natural := 1;
+   LV_Stuck_Writes   : Natural := 0;
+   LV_BDU            : Boolean := True;
+   LV_Filter         : Byte := 0;
+
+   procedure LV_Reset_Defaults is
+      Cleared : constant Byte_Array := (16#0D#, 16#0E#, 16#10#, 16#11#, 16#13#, 16#15#, 16#16#, 16#18#, 16#62#);
+   begin
+      for R of Cleared loop
+         MG_Device.Regs (Natural (R)) := 0;
+      end loop;
+      MG_Device.Regs (16#12#) := (if LV_BDU then 16#44# else 16#04#);
+      MG_Device.Regs (16#17#) := (if LV_Variant then 16#04# else 0);
+      MG_Device.Regs (16#0F#) := LV_Reset_Identity;
+   end LV_Reset_Defaults;
+
+   procedure LV_Write_Register (D : in out MG_Bus; Register : Byte; Value : Byte) is
+      use type Interfaces.Unsigned_8;
+      Address : constant Natural := Natural (Register and 16#7F#);
+   begin
+      MX_Op ("wreg," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Value)));
+      if Address = LV_Stuck then
+         LV_Stuck_Writes := LV_Stuck_Writes + 1;
+         if LV_Stuck_Writes >= LV_Stuck_From then
+            return;
+         end if;
+      end if;
+      if Address = 16#17# then
+         D.Regs (Address) := (Value and not 16#04#) or (if LV_Variant then 16#04# else 0);
+         return;
+      end if;
+      D.Regs (Address) := Value;
+      if Address = 16#12# and then (Value and 16#01#) /= 0 then
+         if LV_Reset_Polls = 0 then
+            LV_Reset_Defaults;
+         else
+            LV_Reset_Pending := LV_Reset_Polls;
+         end if;
+      end if;
+   end LV_Write_Register;
+
+   procedure LV_Read_Register (D : in out MG_Bus; Register : Byte; Value : out Byte) is
+      use type Interfaces.Unsigned_8;
+      Address : constant Natural := Natural (Register and 16#7F#);
+   begin
+      Value := D.Regs (Address);
+      if Address = 16#12# and then LV_Reset_Pending > 0 then
+         Value := Value or 16#01#;
+         LV_Reset_Pending := LV_Reset_Pending - 1;
+         if LV_Reset_Pending = 0 then
+            LV_Reset_Defaults;
+         end if;
+      end if;
+      MX_Op ("rreg," & BMP_Num (Integer_64 (Register or 16#80#)) & "," & BMP_Num (Integer_64 (Value)));
+   end LV_Read_Register;
+
+   procedure LV_Delay_Us (D : in out MG_Bus; Us : Natural) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("udelay," & BMP_Num (Integer_64 (Us)));
+   end LV_Delay_Us;
+
+   procedure LV_Failure (D : in out MG_Bus) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("failure,1");
+   end LV_Failure;
+
+   procedure LV_Probe (D : in out MG_Bus; Index : Positive; Sensor : out Byte);
+
+   package LV_Layer is new Adaflight.MPU_Gyro
+     (SPI_Device       => MG_Bus,
+      Chip_Count       => 3,
+      Preinit_CS       => MG_Preinit_CS,
+      Attach_Bus       => MG_Attach_Bus,
+      Prepare_CS       => MG_Prepare_CS,
+      Release_CS       => MG_Release_CS,
+      Divider          => MG_Divider,
+      Set_Divisor      => MG_Set_Divisor,
+      Probe_Chip       => LV_Probe,
+      Register_Device  => MG_Register,
+      Millis           => MG_Millis,
+      Delay_Ms         => MG_Delay,
+      Enable_Interrupt => MG_Enable_Interrupt,
+      Cycle_Count      => MG_Cycle_Count,
+      Start_Sequence   => MG_Start_Sequence,
+      Wait             => MG_Wait,
+      Fetch            => MG_Fetch,
+      Uses_DMA         => MG_Uses_DMA,
+      Read_Registers   => MG_Read);
+
+   package LV_Chip is new LV_Layer.LSM6DSV16X
+     (Write_Register => LV_Write_Register,
+      Read_Register  => LV_Read_Register,
+      Delay_Us       => LV_Delay_Us,
+      Failure        => LV_Failure);
+
+   --  The layer probes the two identities, then another chip.
+   procedure LV_Probe (D : in out MG_Bus; Index : Positive; Sensor : out Byte) is
+   begin
+      case Index is
+         when 1 =>
+            LV_Chip.Detect_LSM6DSV16X (D, Sensor);
+         when 2 =>
+            LV_Chip.Detect_LSM6DSK320X (D, Sensor);
+         when others =>
+            MG_Probe_Chip (D, Index, Sensor);
+      end case;
+   end LV_Probe;
+
+   LV_State  : LV_Layer.State;
+   LV_Latch  : LV_Chip.Sample_Latch;
+   LV_Found  : Boolean := False;
+   LV_Scale  : Float := 0.0;
+   LV_Result : Integer_64 := 0;
+
+   procedure LV_Set_Sample (Field : Positive) is
+      Data : constant Byte_Array := Hex_Bytes (Field);
+   begin
+      for I in Data'Range loop
+         MG_Device.Regs (16#22# + I - Data'First) := Data (I);
+      end loop;
+   end LV_Set_Sample;
+
+   procedure LV_Record_State (First : Positive) is
+   begin
+      Record_Int ("lsm6dsv16x.mode", Int (First), Integer_64 (LV_Layer.Read_Mode'Pos (LV_State.Mode)));
+      Record_Int ("lsm6dsv16x.exti_count", Int (First + 1), Integer_64 (LV_State.Detected_EXTI));
+      Record_Int ("lsm6dsv16x.last_exti", Int (First + 2), Integer_64 (LV_State.Last_EXTI));
+      Record_Int ("lsm6dsv16x.sync_exti", Int (First + 3), Integer_64 (LV_State.Sync_EXTI));
+      Record_Int ("lsm6dsv16x.dma_max", Int (First + 4), Integer_64 (LV_State.DMA_Max_Duration));
+      Record_Int ("lsm6dsv16x.ready", Int (First + 5), Boolean'Pos (LV_State.Data_Ready));
+      for K in 0 .. 2 loop
+         Record_Int ("lsm6dsv16x.gyro", Int (First + 6 + K), Integer_64 (LV_State.Raw (K)));
+      end loop;
+      Record_Int ("lsm6dsv16x.temperature", Int (First + 9), Integer_64 (LV_State.Temperature));
+      for K in 0 .. 2 loop
+         Record_Int ("lsm6dsv16x.acc", Int (First + 10 + K), Integer_64 (LV_State.Acc_Raw (K)));
+      end loop;
+      Record_Int ("lsm6dsv16x.sequence", Int (First + 13), Integer_64 (LV_Latch.Sequence));
+      Record_Int ("lsm6dsv16x.latched", Int (First + 14), Boolean'Pos (LV_Latch.Ready));
+   end LV_Record_State;
+
+   procedure Check_LSM6DSV16X_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "lvinit" then
+         MX_Op_Head := 1;
+         MX_Op_Count := 0;
+         MG_Device := (others => <>);
+         MG_Device.Bus_OK := Int (5) /= 0;
+         MG_Device.Now_Ms := Interfaces.Unsigned_32 (Int (7));
+         MG_Device.Ms_Step := Interfaces.Unsigned_32 (Int (8));
+         MG_Device.Use_DMA := Int (9) /= 0;
+         MG_Device.Cycles := Interfaces.Unsigned_32 (Int (14));
+         LV_Reset_Polls := Natural (Int (15));
+         LV_Reset_Identity := Byte (Int (16));
+         LV_Stuck := Integer (Int (17));
+         LV_Variant := Int (18) /= 0;
+         MG_Device.Probes (3) := Byte (Int (19));
+         MG_Device.Regs := Hex_Bytes (20);
+         LV_Stuck_From := Natural (Int (21));
+         LV_BDU := Int (22) /= 0;
+         LV_Stuck_Writes := 0;
+         LV_Reset_Pending := 0;
+         LV_State := (others => <>);
+         LV_Latch := (others => <>);
+         LV_State.Interrupt_Pin := Int (10) /= 0;
+         LV_State.Rate_KHz := Byte (Int (12));
+         LV_Filter := Byte (Int (13));
+         LV_Scale := 0.0;
+         declare
+            C : constant LV_Layer.Device_Config :=
+              (Index => 0, Bus_Type => 2, SPI_Bus => Byte (Int (3)), CS_Tag => Byte (Int (4)));
+         begin
+            LV_Layer.Preinit (MG_Device, C);
+            LV_Layer.Detect (MG_Device, LV_State, C, LV_Found);
+         end;
+      elsif Name = "lvop" then
+         declare
+            Expected : Ada.Strings.Unbounded.Unbounded_String := Ada.Strings.Unbounded.To_Unbounded_String (Str (3));
+         begin
+            for I in 4 .. NF loop
+               Ada.Strings.Unbounded.Append (Expected, "," & Str (I));
+            end loop;
+            if MX_Op_Head <= MX_Op_Count then
+               Record_Text ("lsm6dsv16x.op", Ada.Strings.Unbounded.To_String (Expected),
+                            Ada.Strings.Unbounded.To_String (MX_Ops (MX_Op_Head)));
+               MX_Op_Head := MX_Op_Head + 1;
+            else
+               Record_Text ("lsm6dsv16x.op", Ada.Strings.Unbounded.To_String (Expected), "none");
+            end if;
+         end;
+      elsif Name = "lvdet" then
+         MX_Expect_No_Ops ("detection");
+         Record_Int ("lsm6dsv16x.found", Int (3), Boolean'Pos (LV_Found));
+         Record_Int ("lsm6dsv16x.sensor", Int (4), Integer_64 (LV_State.Sensor));
+         Record_Int ("lsm6dsv16x.clock", Int (5), Integer_64 (MG_Device.Now_Ms));
+      elsif Name = "lvchip" then
+         declare
+            Gyro_Found : Boolean;
+         begin
+            LV_Chip.Gyro_Detect (LV_State, Gyro_Found);
+            Record_Int ("lsm6dsv16x.gyro_found", Int (3), Boolean'Pos (Gyro_Found));
+            Record_Int ("lsm6dsv16x.acc_found", Int (4), Boolean'Pos (LV_Chip.Acc_Detect (LV_State)));
+            if Gyro_Found then
+               LV_Chip.Gyro_Init (MG_Device, LV_State, LV_Filter, LV_Scale);
+            end if;
+         end;
+      elsif Name = "lvready" then
+         MX_Expect_No_Ops ("initialization");
+         Record_Int ("lsm6dsv16x.rate", Int (3), Integer_64 (LV_State.Rate_KHz));
+         Record_Int ("lsm6dsv16x.acc_one_g", Int (4), Integer_64 (LV_Chip.Acc_One_G (LV_State)));
+         Record_Int ("lsm6dsv16x.scale", Int_Hex (5), Integer_64 (To_Bits (LV_Scale)));
+         Record_Int ("lsm6dsv16x.acc_reg", Int (6), Integer_64 (LV_State.Acc_Data_Reg));
+         Record_Int ("lsm6dsv16x.gyro_reg", Int (7), Integer_64 (LV_State.Gyro_Data_Reg));
+         Record_Int ("lsm6dsv16x.dma_max", Int (8), Integer_64 (LV_State.DMA_Max_Duration));
+      elsif Name = "lvstep" then
+         declare
+            Which : constant Integer_64 := Int (4);
+            A     : constant Interfaces.Unsigned_32 := Interfaces.Unsigned_32 (Int (5));
+            Flag  : Boolean;
+         begin
+            LV_Set_Sample (6);
+            LV_Result := 0;
+            case Which is
+               when 0 =>
+                  MG_Device.Cycles := MG_Device.Cycles + A;
+                  if LV_State.Interrupt_Pin then
+                     LV_Layer.Interrupt (MG_Device, LV_State);
+                  end if;
+               when 1 =>
+                  for I in 1 .. A loop
+                     MG_Device.Cycles := MG_Device.Cycles + 79 * 168;
+                     if LV_State.Interrupt_Pin then
+                        LV_Layer.Interrupt (MG_Device, LV_State);
+                     end if;
+                  end loop;
+               when 2 =>
+                  MG_Device.Cycles := MG_Device.Cycles + A;
+                  if MG_Device.Pending then
+                     MG_Device.Pending := False;
+                     LV_Chip.Transfer_Complete (MG_Device, LV_State, LV_Latch);
+                  end if;
+               when 3 =>
+                  LV_Chip.Read_Gyro (MG_Device, LV_State, LV_Latch, Flag);
+                  LV_Result := Boolean'Pos (Flag);
+               when 4 =>
+                  LV_Chip.Read_Acc (MG_Device, LV_State, LV_Latch, Flag);
+                  LV_Result := Boolean'Pos (Flag);
+               when others =>
+                  null;
+            end case;
+         end;
+      elsif Name = "lvres" then
+         MX_Expect_No_Ops ("a result");
+         Record_Int ("lsm6dsv16x.result", Int (4), LV_Result);
+         LV_Record_State (5);
+      end if;
+   end Check_LSM6DSV16X_Line;
+
    --  The MPU6500 oracle's chip over the MPU gyro oracle's device, with its
    --  bus register writes beside the plain register writes and reads.
    procedure MG_Bus_Write (D : in out MG_Bus; Register : Byte; Value : Byte) is
@@ -34625,6 +34896,8 @@ procedure Vector_Check is
                   Check_ICM56686_Line;
                elsif Kind = "bmi423" then
                   Check_BMI423_Line;
+               elsif Kind = "lsm6dsv16x" then
+                  Check_LSM6DSV16X_Line;
                elsif Kind = "mpu6500" then
                   Check_MPU6500_Line;
                elsif Kind = "icm20689" then
@@ -34951,6 +35224,7 @@ begin
    Run (Dir & "/lsm6dso.csv", "lsm6dso");
    Run (Dir & "/icm56686.csv", "icm56686");
    Run (Dir & "/bmi423.csv", "bmi423");
+   Run (Dir & "/lsm6dsv16x.csv", "lsm6dsv16x");
    Run (Dir & "/mpu6500.csv", "mpu6500");
    Run (Dir & "/icm20689.csv", "icm20689");
    Run (Dir & "/m25p16.csv", "m25p16");
