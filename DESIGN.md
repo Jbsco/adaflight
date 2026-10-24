@@ -696,337 +696,350 @@ products and the filter's bounds. The trust is one where the position variance i
 which no filter step produces, and the displayed altitude is held to the rounding range. No
 recorded vector reaches a guard.
 
-## D34. The altitude hold with the autopilot's altitude controller (2026-10-09)
+## D34. Altitude hold with the autopilot's altitude controller (2026-10-09)
 
-`Adaflight.Altitude_Hold` keeps the reference's hold in its order per task: the engagement
-from the flight mode, which resets the controller, takes the target from the current
-altitude, and captures the hover throttle from the stick when no setting gives one; the
-release, which resets the controller and drops the captured throttle; the target moved by
-the stick outside its deadband around the hover throttle, or driven down at a rate that grows
-with the altitude under a failsafe or an emergency descent, while the estimate stays within a
-second of climb from the target; and the autopilot's altitude controller with the relaxed
-integral, the proportional term held through the derivative gain, the boosted derivative, the
-acceleration and feedforward terms, the hover offset, the tilt compensation, and the throttle
-limits into a fraction of the receiver's range. The hold takes the mode, the task interval,
-the stick and its low status, the failsafe, the emergency descent, the altitude estimate, and
-the tilt as inputs, because their units own them; the navigation targets that can replace the
-stick's come with the navigation port. One guard covers the reference's division by zero: a
-stick beyond the receiver's range against a hover throttle at the range's edge leaves the
-stick factor at zero. The target velocity is held to a bound a stick within the receiver's
-range cannot reach. No recorded vector reaches a guard.
+`Adaflight.Altitude_Hold` runs the hold in this order each task. Engaging the flight mode resets the
+controller, sets the target to the current altitude, and captures the hover throttle from the stick
+when no setting gives one. Releasing the mode resets the controller and drops the captured throttle.
+Outside its deadband around the hover throttle, the stick moves the target. Under a failsafe or an
+emergency descent the target instead drops at a rate that grows with altitude. Either way the target
+moves only while the altitude estimate stays within one second of climb of it. Last, the autopilot's
+altitude controller sets the throttle: relaxed integral, proportional term held through the
+derivative gain, boosted derivative, acceleration and feedforward terms, hover offset, tilt
+compensation, and throttle limits as a fraction of the receiver's range.
+
+The mode, task interval, stick and its low status, failsafe, emergency descent, altitude estimate,
+and tilt come in as inputs, since other units own them. Navigation targets that can replace the
+stick's come with the navigation port. One guard covers a division by zero in the reference: a stick
+beyond the receiver's range against a hover throttle at the range's edge leaves the stick factor at
+zero. The target velocity is held to a bound that a stick within the receiver's range cannot reach.
+No recorded vector reaches a guard.
 
 ## D35. Launch control inside the rate loop (2026-10-09)
 
-The rate loop carries the reference's launch control where the reference keeps it: while
-the mode is active the setpoint is twice the stick's deflection within a half, scaled to the
-launch rate, on pitch alone or on every axis, and on pitch run down to the minimum rate over
-the last ten degrees before the angle limit and to zero past it; the iterm relax is skipped;
-the integral gain is the launch gain on every axis, with the yaw windup limit and the
-anti-gravity accelerator left as they were; the D term and the feedforward are zero; and
-after each axis the yaw I term is held to its launch limit and, in the pitch-only mode, the
-roll P and I terms and the yaw P term to zero and the pitch I term to at or above zero, so
-each axis's sum sees the holds the reference's loop applies before it. The loop takes the
-mode's activity and the yaw stick as inputs; the activation from the mode switch, the throttle
-trigger, and the arming delay stay with the core loop's port. The launch setpoint and the
-held terms are contracted helpers, and the setpoint's scaling over the angle window is held to
-the launch rate, which a stick within a half cannot exceed. No recorded vector reaches a guard.
+The rate loop contains launch control. While the mode is active, the setpoint is twice the stick's
+deflection within a half, scaled to the launch rate, on pitch alone or on every axis. On pitch the
+setpoint runs down to the minimum rate over the last ten degrees before the angle limit, and to zero
+past it. Iterm relax is skipped. The integral gain is the launch gain on every axis, and the yaw
+windup limit and anti-gravity accelerator stay as they were. The D term and feedforward are zero.
+After each axis the loop holds the yaw I term to its launch limit. In the pitch-only mode it also
+holds the roll P and I terms and the yaw P term at zero and the pitch I term at or above zero. Each
+axis's sum sees the holds applied before it.
+
+The loop takes the mode's activity and the yaw stick as inputs. Activation from the mode switch, the
+throttle trigger, and the arming delay stay with the core loop's port. The launch setpoint and the
+held terms are contracted helpers. The setpoint's scaling over the angle window is held to the
+launch rate, which a stick within a half cannot exceed. No recorded vector reaches a guard.
 
 ## D36. Launch control activation and runaway takeoff prevention in the core loop (2026-10-09)
 
-The arming unit carries the reference's two core-loop guards in their places. Launch control
-activates at arming when the switch is on, arming is by switch, the motors run or airmode is
-on, there is no 3D, and no flight mode is selected; it triggers when the throttle passes its
-percentage, which also requests an I term reset, and it clears on disarm, or on a trigger
-only when the switch is off and the trigger reset is allowed; while active it keeps the
-stabilisation on and airmode from latching. Runaway takeoff prevention runs after the
-controller: a sum past 600 with a rate past 15 degrees per second on roll or pitch or 50 on
-yaw, held for 75 milliseconds while armed and the motors run, disarms with its own reason and
-disable flag; stable flight, with the throttle above the deactivation level and the sticks
-active or above twice that level, and every sum under 100, ends the check once the delay has
-accumulated, halved at high throttle. The controller's sums, the gyro's whole-degree rates,
-and the sticks' deflections join the inputs, because their units own them, and the arming
-attempt zeroes the runaway timers. The trigger deadline uses the wrapping difference, which
-D6 records. The GPS rescue's hold on the runaway check and the temporary disable other
-features request come with their ports.
+The arming unit contains two core-loop guards. Launch control activates at arming when the switch is
+on, arming is by switch, the motors run or airmode is on, 3D is off, and no flight mode is selected.
+It triggers when the throttle passes its percentage, which also requests an I term reset. It clears
+on disarm, or on a trigger only when the switch is off and the trigger reset is allowed. While
+active it keeps stabilisation on and stops airmode from latching.
+
+Runaway takeoff prevention runs after the controller. It watches for a sum past 600 with a rate past
+15 degrees per second on roll or pitch, or 50 on yaw. Held for 75 milliseconds while armed with the
+motors running, that condition disarms with its own reason and disable flag. Stable flight ends the
+check once its delay has accumulated, halved at high throttle. Stable flight means the throttle
+above the deactivation level with the sticks active, or above twice that level, and every sum under
+100.
+
+The controller's sums, the gyro's whole-degree rates, and the sticks' deflections join the inputs,
+since other units own them. An arming attempt zeroes the runaway timers. The trigger deadline uses
+the wrapping difference, which D6 records. The GPS rescue's hold on the runaway check and the
+temporary disable that other features request come with their ports.
 
 ## D37. In-flight adjustments (2026-10-09)
 
-The adjustments unit carries the reference's adjustment task: the ranges that are set are
-listed once into the steps, whose center is zero and whose function steps, and the dials;
-each pass runs the steps whose range is active, with the half-second ready timer, one step
-per hold of the switch past four tenths of its deflection from the configured center, and the
-switch back at the center arming the next step at once; then, while the receiver has a
-signal, the dials whose switch channel moved, selecting a profile, the horizon strength, the
-master multiplier, or a peripheral mode by the position of the channel over the range of the
-mode steps, or setting a stepping function from the dial through its scale and center. Every
-step and dial change applies to the rate profile that was active when the pass began, as the
-reference's task passes that profile by pointer. The unit owns the selections the profiles
-and the peripherals read, the display the on-screen element names for two seconds after a
-change, and the sticky configuration-dirty flag; it reports the confirmation beeps and the
-PID, RC, and battery reinitializations a pass asks for, because their units own those. The
-master multiplier runs the simplified tuning of the PID gains, ported in its own unit from the
-reference defaults; the simplified filter sliders are in D152, and the OSD profiles come with the
-configuration phase. Two guards cover the reference's undefined behavior: a range whose function is
-None is skipped where the reference reads outside its function table (finding F27), and a
-dial value is held within two to the thirtieth before its conversion to an integer. The
-feedforward and horizon strength holds are declared in D6. The display and the timers compare
-through the wrapping difference as the reference does. No recorded vector reaches a guard.
+The adjustments unit contains the adjustment task. The set ranges are listed once, as steps when
+their center is zero and their function steps, and as dials otherwise. Each pass runs the steps
+whose range is active. A step waits out the half-second ready timer and fires once per hold of the
+switch past four tenths of its deflection from the configured center. The switch back at the center
+arms the next step at once. Then, while the receiver has a signal, the pass runs the dials whose
+switch channel moved. A dial selects a profile, the horizon strength, the master multiplier, or a
+peripheral mode by the channel's position over the range of the mode steps. Otherwise it sets a
+stepping function from the dial through its scale and center. Every step and dial change applies to
+the rate profile that was active when the pass began.
 
-## D38. The cooperative scheduler as phases around the clock reads (2026-10-09)
+The unit owns the selections that profiles and peripherals read, the display that names the
+on-screen element for two seconds after a change, and the sticky configuration-dirty flag. It
+reports the confirmation beeps and the PID, RC, and battery reinitializations a pass asks for, since
+other units own those. The master multiplier runs the simplified tuning of the PID gains, which has
+its own unit. The simplified filter sliders are in D152, and the OSD profiles come with the
+configuration phase.
 
-The scheduler unit carries the reference's task scheduler: the task table with each task's
-period, static priority, and check function; the queue of enabled tasks ordered by static
-priority with equal priorities in order of arrival; the gyro cycle the realtime gyro,
-filter, and PID tasks lock to, with the recovery from a gross overrun, the start wait tuned
-up when the loop arrives late and down when it polls, the gyro rate measured over 25000
-interrupts, and the skew to the interrupts removed every 50; the dynamic priorities that
-grow with the periods a task has waited, the check functions that signal the event-driven
-tasks, and the fit of the highest-priority task into the time left before the next gyro
-cycle, with the measured check time and the guard margin tuned on each run's overrun, the
-deferral that lets an unfit task run every eighth pass, and the tenth cut from the estimate
-of a task skipped often enough; and the execution statistics in the reference's units. One
-pass of the reference runs the tasks and reads the clocks inline, so the unit splits it into
-phases at those points: the pass begins with the first cycle reading, the caller polls up to
-the target and runs the realtime tasks between the execution prologue and epilogue, the
-realtime block ends with the gyro lock, the selection begins with the second reading and
-takes each queued task in turn with its check's result, ends with the third, the fourth
-confirms the fit, and the fifth follows the run. The caller reads the cycle counter at the
-same points the reference does, so the replay of the recorded passes, with a cycle per read
-and the recorded durations, matches cycle for cycle. Every count keeps the reference's
-32-bit wrapping arithmetic through the two casts between the signed and unsigned counts.
+Two guards cover undefined behavior in the reference. A range whose function is None is skipped,
+where the reference reads outside its function table (finding F27). A dial value is held within two
+to the thirtieth before its conversion to an integer. D6 declares the feedforward and horizon
+strength holds. The display and the timers compare through the wrapping difference. No recorded
+vector reaches a guard.
 
-Amended 2026-10-13: the floor on a rescheduled period and the gyro loop's period are the
-platform's, settings: 10 and 125 microseconds on the STM32 F4 and later, 100 and 1000 on AT32
-and the older STM32, 1 and 100 on the simulator. The unit had held the floor at 100 for every
-platform. With a floor of 1, a checked task's age, one plus its waiting time
-over its period, can pass the 32-bit range, so the sum is taken in 64 bits and keeps the low 16
-bits the reference stores. The recorded passes reschedule at 125 microseconds and up, so they
-replay the same, and the checker gives the scheduler the oracle platform's floor of 1.
-Two guards cover the reference's divisions by zero: the overrun recovery and the skew run
-only while the gyro period in cycles is positive, where the reference divides by it as it
-stands. No recorded vector reaches a guard.
+## D38. Cooperative scheduler as phases around the clock reads (2026-10-09)
 
-## D39. The beeper (2026-10-09)
+The scheduler unit contains the task scheduler. Each task in the table has a period, a static
+priority, and a check function. Enabled tasks queue by static priority, equal priorities in order of
+arrival. The realtime gyro, filter, and PID tasks lock to the gyro cycle. That lock recovers from a
+gross overrun and tunes the start wait up when the loop arrives late and down when it polls. It
+measures the gyro rate over 25000 interrupts and removes the skew to the interrupts every 50.
+Dynamic priorities grow with the periods a task has waited, and check functions signal the
+event-driven tasks. The highest-priority task must fit into the time left before the next gyro
+cycle. The measured check time and the guard margin are tuned on each run's overrun. An unfit task
+is deferred but runs every eighth pass, and a task skipped often enough has a tenth cut from its
+estimate. Execution statistics are kept per task.
 
-The beeper unit carries the reference's beeper: the sound table in priority order, a
-request that starts its sound only when it outranks the one playing and that silences the
-beeper for the silence mode, the mute switch, or the bench suppression of the USB flag with no
-battery and a USB or configurator link; the sequences of on and off durations in tens of
-milliseconds, a leading zero for a pause first, ended by a stop or a repeat; the multi-beep
-buffer the confirmation beeps, the warning beeps, and the satellite count fill and play through
-the multi-beep entry, with room kept for the stop; and the periodic update, which requests the
-beep switch's sound or the satellite count, raises the DShot beacon when the motors are stopped
-and the link is lost without a configurator or the beep switch is on with a link, past the
-guard after a disarm, not while arming, and at most every 450 milliseconds, clamps the beacon
-time to a minute's age, and then plays the next step of the sequence once its toggle time has
-passed, recording the first on step of an arming sound as the arming beep's time. The unit
-owns the beeper's on state, the warning LED's enable, and the visual beep's edge; it reports
-the beacon command, the visual beep, and the scheduler's exec-time waiver as the update's
-outputs, because their units own those. The conditions the beeper reads from the battery, the
-links, the mode boxes, the GPS, the motors, the failsafe, and the arming state come in as a
-record. The arming beep's time is the update's time, where the reference reads the clock
-again. One guard covers the reference's read past its buffer: a sequence that reaches the end
-of the buffer without a stop ends as an error and silences the beeper, where the reference
-walks into adjacent memory (finding F29). No recorded vector reaches a guard.
+The reference runs a whole pass inline, tasks and clock reads together. The unit splits the pass
+into phases at the clock reads. The pass begins with the first cycle reading. The caller polls up to
+the target and runs the realtime tasks between the execution prologue and epilogue. The realtime
+block ends with the gyro lock. The selection begins with the second reading, takes each queued task
+in turn with its check's result, and ends with the third. The fourth reading confirms the fit, and
+the fifth follows the run. The caller reads the cycle counter at those five points, so the recorded
+passes, replayed with a cycle per read and the recorded durations, match cycle for cycle. Every
+count keeps 32-bit wrapping arithmetic through the two casts between signed and unsigned counts.
 
-## D40. The receiver (2026-10-09)
+Amended 2026-10-13: the floor on a rescheduled period and the gyro loop's period are platform
+settings. They are 10 and 125 microseconds on the STM32 F4 and later, 100 and 1000 on AT32 and the
+older STM32, and 1 and 100 on the simulator. The unit had held the floor at 100 for every platform.
+With a floor of 1, a checked task's age, one plus its waiting time over its period, can pass the
+32-bit range. The sum is therefore taken in 64 bits and keeps the low 16 bits that the reference
+stores. The recorded passes reschedule at 125 microseconds and up, so they replay the same, and the
+checker gives the scheduler the oracle platform's floor of 1. Two guards cover divisions by zero in
+the reference: the overrun recovery and the skew run only while the gyro period in cycles is
+positive. No recorded vector reaches a guard.
 
-The receiver unit carries the reference's channel processing: the raw channels of the active
-provider read through the map into flight order, the four flight channels scaled through
-their calibration ranges, which invert a channel whose low end is above its high end and
-which the type keeps from equal ends, where the reference's scale divides by zero (finding
-F31); the frame check that marks the signal and the data to process on a received frame,
-drops the signal 150 milliseconds after the last frame and asks for the loss to be processed
-and then rechecks every 50 milliseconds; the signal loss behaviour that resets a good
-channel's hold timer, holds a bad channel at its last value for 300 milliseconds and then at
-its failsafe setting, declares the flight channels invalid on a bad flight channel past that,
-applies the failsafe switch's settings at once, and in stage two keeps the valid flight
-channels and sets the failsafe throttle and the center on the others and the settings on the
-aux channels; the three-sample moving average of the pulse receivers with their suspension and
-their two skipped samples; the link quality from the last sixteen frames; and the RSSI from an
-aux channel, the frame errors over each 100 milliseconds, the analog input every 20
-milliseconds, the protocol, or the configurator with its 1.5-second timeout, smoothed toward
-its raw value with the dBm and the SNR. The frame's flags, the raw channels, the failsafe
-switch, the 3D switch, the stage, and the task's state come in; the data to process, the
-auxiliary frame to process, and the validity the failsafe hears go out, because their units
-own them. The frame error sum keeps the reference's 16-bit wrap (finding F30). Every
-conversion of a channel value to a 16-bit count holds a value outside the count at the
-bound, where the reference's conversion is undefined; the negative RSSI case is declared in
-D6, and the recorded vectors keep the pulses and the ranges where the scaled values stay
-within the count. No recorded vector reaches a guard.
+## D39. Beeper (2026-10-09)
 
-## D41. The SBUS protocol (2026-10-10)
+The beeper unit contains the beeper. Sounds sit in a table in priority order. A request starts its
+sound only when it outranks the one playing. The silence mode, the mute switch, and bench
+suppression silence the beeper. Bench suppression applies to the USB flag with no battery and a USB
+or configurator link. A sound is a sequence of on and off durations in tens of milliseconds, with a
+leading zero for a pause first, ended by a stop or a repeat. Confirmation beeps, warning beeps, and
+the satellite count fill a multi-beep buffer and play through the multi-beep entry, with room kept
+for the stop.
 
-The SBUS unit carries the reference's SBUS receiver. Each serial byte arrives with its time.
-A gap of more than five byte times restarts the frame. A frame starts only on the begin byte,
-and the twenty-fifth byte completes it. The status poll decodes a complete frame once: the
-sixteen eleven-bit channels from the little-endian bit stream of the twenty-two channel bytes,
-and the two digital channels from their flags. The poll reports failsafe when the receiver flags
-it and dropped when it flags a signal loss. Otherwise it keeps the frame's start as the frame
-time. The raw value the receiver reads is the channel's fit to the X4R, five eighths of the
-count plus 880. Every channel starts at the count that reads as the configured center. The
-serial port and the telemetry sharing stay with the port layer. The reference's packed bit
-fields are unpacked by position, so the decoded channels agree bit for bit. No guard was
-needed.
+The periodic update requests the beep switch's sound or the satellite count. It raises the DShot
+beacon when the motors are stopped and either the link is lost without a configurator or the beep
+switch is on with a link. The beacon waits out the guard after a disarm, stays off while arming, and
+comes at most every 450 milliseconds. The update clamps the beacon time to a minute's age. It then
+plays the next step of the sequence once its toggle time has passed, recording the first on step of
+an arming sound as the arming beep's time.
 
-## D42. The CRSF protocol (2026-10-10)
+The unit owns the beeper's on state, the warning LED's enable, and the visual beep's edge. The
+beacon command, the visual beep, and the scheduler's exec-time waiver are the update's outputs,
+since other units own them. The conditions the beeper reads come in as a record: battery, links,
+mode boxes, GPS, motors, failsafe, and arming state. The arming beep's time is the update's time,
+where the reference reads the clock again. One guard covers a read past the buffer in the reference.
+A sequence that reaches the buffer's end without a stop ends as an error and silences the beeper,
+where the reference walks into adjacent memory (finding F29). No recorded vector reaches a guard.
 
-The CRSF unit carries the reference's CRSF receiver. Each serial byte arrives with its time into
-a frame. The frame restarts after the time a frame needs at the current rate, and a restart with
-a frame under way counts an error. The declared length is checked as it arrives, and an invalid
-one drops the frame without an error. The CRC runs over the type and the payload with the
-DVB-S2 polynomial. A good frame clears the error count and asks for a telemetry response. The RC
-channel frames for the flight controller are copied for the status poll. The poll unpacks the
-sixteen eleven-bit channels of the packed frame, or the subset frame's channels at its ten to
-thirteen-bit resolution from its start channel. A subset with no channels or a start past the
-last is dropped. The link statistics for the flight controller go into the receiver: the active
-antenna's RSSI in dBm scaled onto the RSSI range when the protocol owns the RSSI, the dBm, the
-antenna, the SNR, the link quality and RF mode when the protocol owns the quality, and the
-uplink power from its table. The transmitter statistics of the third version go the same way.
-The 250-millisecond statistics timeout at each poll zeroes the owned values. A command frame for
-the flight controller is checked by the command CRC and reported for the port layer to process.
-The error count asks for the default speed at three, unless a baud negotiation or an EEPROM
-write is under way. The raw channel value goes through the frame type's scale. A negotiated
-rate recomputes the frame time, and above the default rate the inbound frames drive the
-telemetry. The serial port, the telemetry, and the configurator frames stay with their layers.
-The frame time and the frame's start are kept in the unit, as the SBUS unit keeps them. Two
-guards cover values the reference's conversions leave undefined: a scaled RSSI below zero is
-held at zero, and a frame whose declared length escaped the check is held to the frame size. The
-receiver takes the protocol's claims of the RSSI and the link quality at its own init. No
+## D40. Receiver (2026-10-09)
+
+The receiver unit contains channel processing. The active provider's raw channels are read through
+the map into flight order. The four flight channels are scaled through their calibration ranges. A
+range whose low end is above its high end inverts its channel. The type rules out equal ends, where
+the reference's scale divides by zero (finding F31).
+
+A received frame marks the signal and the data to process. The signal drops 150 milliseconds after
+the last frame and asks for the loss to be processed, then rechecks every 50 milliseconds. On signal
+loss a good channel's hold timer resets. A bad channel holds its last value for 300 milliseconds and
+then its failsafe setting. A bad flight channel past that hold declares the flight channels invalid.
+The failsafe switch applies its settings at once. In stage two the valid flight channels stay, the
+throttle takes the failsafe throttle and the other flight channels the center, and the aux channels
+take their settings.
+
+Pulse receivers keep a three-sample moving average with its suspension and two skipped samples. Link
+quality comes from the last sixteen frames. RSSI comes from an aux channel, from the frame errors
+over each 100 milliseconds, from the analog input every 20 milliseconds, from the protocol, or from
+the configurator with its 1.5-second timeout. RSSI is smoothed toward its raw value, along with the
+dBm and the SNR.
+
+The frame's flags, the raw channels, the failsafe switch, the 3D switch, the stage, and the task's
+state come in. The data to process, the auxiliary frame to process, and the validity the failsafe
+hears go out, since other units own them. The frame error sum keeps the reference's 16-bit wrap
+(finding F30). Every conversion of a channel value to a 16-bit count holds a value outside the count
+at the bound, where the reference's conversion is undefined. D6 declares the negative RSSI case. The
+recorded vectors keep the pulses and ranges where the scaled values stay within the count. No
 recorded vector reaches a guard.
 
-## D43. The SUMD and SUMH protocols (2026-10-10)
+## D41. SBUS protocol (2026-10-10)
 
-The SUMD unit carries the reference's SUMD receiver. Each byte arrives with its time, and a gap
-over four milliseconds restarts the frame. The sync byte starts the frame and clears the CRC.
-The third byte gives the channel count. The bytes are kept while the buffer has room. The CRC
-runs over the header and the channels, and the frame completes two bytes after the channels.
-The status poll takes a complete frame only when its CRC matches the two bytes after the
-channels. The state byte makes the frame failsafe or complete, and up to eighteen channels are
-copied. The raw value is the channel's eighth. A frame that declares more than thirty-two
-channels is dropped at the poll, where the reference reads its CRC bytes past the buffer
-(finding F32). The caller takes the unit's frame time for a frame that is not failsafe, as the
-reference publishes it. The SUMH unit carries the simpler SUMH receiver: twenty-one bytes, with
-a restart after a gap over five milliseconds. The poll takes the eight channels when the sync
-byte and the zero before the last byte check. Each goes through the reference's scale, a sixth
-and four tenths less 375, and is held at zero where the reference's conversion of a negative
-value is undefined. The raw value reads zero past the eighth channel. The recorded vectors keep
-the channel words where that conversion is defined. The serial ports stay with the port layer.
-No recorded vector reaches a guard.
+The SBUS unit contains the SBUS receiver. Each serial byte arrives with its time. A gap of more than
+five byte times restarts the frame. A frame starts only on the begin byte, and the twenty-fifth byte
+completes it. The status poll decodes a complete frame once: sixteen eleven-bit channels from the
+little-endian bit stream of the twenty-two channel bytes, and two digital channels from their flags.
+The poll reports failsafe when the receiver flags it and dropped when it flags a signal loss.
+Otherwise it keeps the frame's start as the frame time. The raw value the receiver reads is the
+channel's fit to the X4R, five eighths of the count plus 880. Every channel starts at the count that
+reads as the configured center. The serial port and the telemetry sharing stay with the port layer.
+Where the reference uses packed bit fields, the unit unpacks by position, and the decoded channels
+agree bit for bit. No guard was needed.
 
-## D44. The IBUS protocol (2026-10-10)
+## D42. CRSF protocol (2026-10-10)
 
-The IBUS unit carries the reference's IBUS receiver for its two receiver families. Each byte
-arrives with its time. A gap over 500 microseconds starts a new frame and ends any echo skip. A
-byte of a telemetry reply's echo is skipped. A frame starts on an IA6B length byte (four for a
-telemetry request, thirty-two for channels), on the IA6 sync byte before any family is known,
-or on the known sync byte. The last byte of the frame's length completes it. The status poll
-takes a complete frame once its checksum matches: the IA6B subtraction from all ones over the
-bytes before the two checksum bytes, or the IA6 sum of the fourteen slots onto the seed. The
-poll decodes the eighteen channels, fourteen from the slots' twelve bits and four from the
-spare high bits, or reports a telemetry request from a short IA6B frame. The reference checks
-that the frame has room for each of the four high-bit channels, which holds for both families'
-offsets, so the unit reads them without the check. The telemetry layer hands back the length of
-its reply so its echo is skipped. The raw value is the channel count itself. The state's
-predicate ties the family to its sync byte, frame length, and slot offset and keeps the frame's
-first byte equal to the sync byte. The checksum and channel reads are therefore proved within
-the frame without clamps, and a frame start writes those fields as one aggregate to keep the
-predicate. A byte is kept only while the frame has room. The reference writes past its buffer
-when a zero byte before any sync is known is followed by more than thirty-one bytes without a
-gap (finding F33). The telemetry reply itself is Phase 6, and the serial port stays with the
-port layer. No recorded vector reaches the guard.
+The CRSF unit contains the CRSF receiver. Each serial byte arrives with its time into a frame. The
+frame restarts after the time a frame needs at the current rate, and a restart with a frame under
+way counts an error. The declared length is checked as it arrives, and an invalid one drops the
+frame without an error. The CRC runs over the type and the payload with the DVB-S2 polynomial. A
+good frame clears the error count and asks for a telemetry response. The RC channel frames for the
+flight controller are copied for the status poll. The poll unpacks the sixteen eleven-bit channels
+of the packed frame, or the subset frame's channels at its ten to thirteen-bit resolution from its
+start channel. A subset with no channels or a start past the last is dropped.
 
-## D45. The Spektrum protocols (2026-10-10)
+Link statistics for the flight controller go into the receiver. When the protocol owns the RSSI, the
+active antenna's RSSI in dBm is scaled onto the RSSI range. The dBm, the antenna, and the SNR always
+go in, and the link quality and RF mode go in when the protocol owns the quality. The uplink power
+comes from its table. Third-version transmitter statistics go the same way. The 250-millisecond
+statistics timeout at each poll zeroes the owned values. A command frame for the flight controller
+is checked by the command CRC and reported for the port layer to process. The error count asks for
+the default speed at three, unless a baud negotiation or an EEPROM write is under way.
 
-The Spektrum unit carries the reference's DSM receiver for its two resolutions and the SRXL
-variant. Each byte arrives with its time. A gap over five milliseconds starts a new frame, and
-the sixteenth byte completes the frame at its own time. The status poll takes a complete frame
-once and fills the RSSI channel first. For SRXL the RSSI channel comes from the dBm report in
-the first byte, held through four fades and dropped to the minimum at the fifth, through the
-range table onto the resolution. For a satellite receiver it comes from the fade count: one
-byte with the system type while the receiver reads as bound by the flight controller, and two
-bytes once a frame says otherwise. The count is differenced over the half second and mapped
-from the fade limit down to zero, with the reference's sixteen-bit conversion wrapping it. The
-poll then takes the VTX control word from the last four bytes of a first-phase frame for the
-VTX layer and leaves those bytes out of the channels. The channel pairs that remain are decoded
-by the resolution's shift and mask into the channels below the count, and the RSSI channel is
-skipped. A first-phase frame opens the SRXL telemetry request. Once a queued reply has waited
-a millisecond after the request, the poll asks for processing, which sends the reply and clears
-it. The raw value is zero past the channel count, half the count plus 988 at the high
-resolution, and the count plus 988 otherwise. The settings give the provider, whether the
-telemetry feature is on with the port unshared, and the one-based RSSI channel. A channel past
-the count is dropped, as the reference's byte wrap drops zero. The range table's interpolation
-runs on typed intermediates sized from the table, so it proves without clamps. The fade
-mapping's wrap is the reference's own. The VTX control handling, the telemetry content, the
-bind pulses, and the serial port stay with their layers. The reference assembles the VTX
-control word with a shift that overflows a signed integer on every control frame (finding
-F34). The unit shifts the unsigned word. No guard was needed.
+The raw channel value goes through the frame type's scale. A negotiated rate recomputes the frame
+time, and above the default rate the inbound frames drive the telemetry. The serial port, the
+telemetry, and the configurator frames stay with their layers. The unit keeps the frame time and the
+frame's start, like the SBUS unit. Two guards cover values the reference's conversions leave
+undefined: a scaled RSSI below zero is held at zero, and a frame whose declared length escaped the
+check is held to the frame size. The receiver takes the protocol's claims of the RSSI and the link
+quality at its own init. No recorded vector reaches a guard.
 
-## D46. The XBUS protocol (2026-10-10)
+## D43. SUMD and SUMH protocols (2026-10-10)
 
-The XBUS unit carries the reference's XBUS receiver for the Mode B and RJ01 providers. Each
-byte arrives with its time, and a gap over eight milliseconds drops the frame in progress. A
-frame starts on the twelve-channel start byte, or on the sixteen-channel one in Mode B, with
-the length the provider and the start byte give it. The last byte of that length unpacks the
-frame where the reference does, in the receive path rather than at the status poll. A Mode B
-frame yields its twelve channels through the pulse conversion, 800 plus the word's 1400
-fraction of 4096, once the CRC-16 over all but its last two bytes matches them. An RJ01 outer
-frame yields the Mode B frame three bytes in once its length byte reads 30 and the Dallas CRC-8
-over all but its last byte matches that byte. The status poll reports complete once per
-unpacked frame. The raw value is the channel value itself. The reference's Mode B case falls
-through into the RJ01 check after its own unpack (finding F35). The unit keeps that order so
-the recorded vectors match, stale buffer bytes included. The state's predicate keeps the
-position below the frame length while a frame comes in and at zero otherwise, and ties the
-length to the provider. The frame writes and the unpackers' reads are therefore proved within
-the buffer without clamps. The completion check moves ahead of the position increment to keep
+The SUMD unit contains the SUMD receiver. Each byte arrives with its time, and a gap over four
+milliseconds restarts the frame. The sync byte starts the frame and clears the CRC. The third byte
+gives the channel count. Bytes are kept while the buffer has room. The CRC runs over the header and
+the channels, and the frame completes two bytes after the channels. The status poll takes a complete
+frame only when its CRC matches those two bytes. The state byte makes the frame failsafe or
+complete, and up to eighteen channels are copied. The raw value is the channel's eighth. A frame
+that declares more than thirty-two channels is dropped at the poll, where the reference reads its
+CRC bytes past the buffer (finding F32). The caller takes the unit's frame time for a frame that is
+not failsafe.
+
+The SUMH unit contains the simpler SUMH receiver: twenty-one bytes, with a restart after a gap over
+five milliseconds. The poll takes the eight channels when the sync byte and the zero before the last
+byte check. Each goes through the scale, a sixth and four tenths less 375, and is held at zero where
+the reference's conversion of a negative value is undefined. The raw value reads zero past the
+eighth channel. The recorded vectors keep the channel words where that conversion is defined. The
+serial ports stay with the port layer. No recorded vector reaches a guard.
+
+## D44. IBUS protocol (2026-10-10)
+
+The IBUS unit contains the IBUS receiver for its two receiver families. Each byte arrives with its
+time. A gap over 500 microseconds starts a new frame and ends any echo skip. A byte of a telemetry
+reply's echo is skipped. A frame starts on an IA6B length byte (four for a telemetry request,
+thirty-two for channels), on the IA6 sync byte before any family is known, or on the known sync
+byte. The last byte of the frame's length completes it. The status poll takes a complete frame once
+its checksum matches: the IA6B subtraction from all ones over the bytes before the two checksum
+bytes, or the IA6 sum of the fourteen slots onto the seed. The poll decodes eighteen channels,
+fourteen from the slots' twelve bits and four from the spare high bits, or reports a telemetry
+request from a short IA6B frame.
+
+The reference checks that the frame has room for each of the four high-bit channels. That holds for
+both families' offsets, so the unit reads them without the check. The telemetry layer hands back the
+length of its reply so its echo is skipped. The raw value is the channel count itself. The state's
+predicate ties the family to its sync byte, frame length, and slot offset, and keeps the frame's
+first byte equal to the sync byte. The checksum and channel reads are therefore proved within the
+frame without clamps, and a frame start writes those fields as one aggregate to keep the predicate.
+A byte is kept only while the frame has room. The reference writes past its buffer when a zero byte
+before any sync is known is followed by more than thirty-one bytes without a gap (finding F33). The
+telemetry reply itself is Phase 6, and the serial port stays with the port layer. No recorded vector
+reaches the guard.
+
+## D45. Spektrum protocols (2026-10-10)
+
+The Spektrum unit contains the DSM receiver for its two resolutions and the SRXL variant. Each byte
+arrives with its time. A gap over five milliseconds starts a new frame, and the sixteenth byte
+completes the frame at its own time. The status poll takes a complete frame once and fills the RSSI
+channel first. For SRXL the RSSI channel comes from the dBm report in the first byte, held through
+four fades and dropped to the minimum at the fifth, through the range table onto the resolution. For
+a satellite receiver it comes from the fade count: one byte with the system type while the receiver
+reads as bound by the flight controller, and two bytes once a frame says otherwise. The count is
+differenced over the half second and mapped from the fade limit down to zero, and the reference's
+sixteen-bit conversion wraps it.
+
+The poll then takes the VTX control word from the last four bytes of a first-phase frame for the VTX
+layer and leaves those bytes out of the channels. The remaining channel pairs are decoded by the
+resolution's shift and mask into the channels below the count, skipping the RSSI channel. A
+first-phase frame opens the SRXL telemetry request. Once a queued reply has waited a millisecond
+after the request, the poll asks for processing, which sends the reply and clears it. The raw value
+is zero past the channel count, half the count plus 988 at the high resolution, and the count plus
+988 otherwise.
+
+The settings give the provider, whether the telemetry feature is on with the port unshared, and the
+one-based RSSI channel. A channel past the count is dropped, as the reference's byte wrap drops
+zero. The range table's interpolation runs on typed intermediates sized from the table, so it proves
+without clamps. The fade mapping's wrap is the reference's own. The VTX control handling, the
+telemetry content, the bind pulses, and the serial port stay with their layers. The reference
+assembles the VTX control word with a shift that overflows a signed integer on every control frame
+(finding F34). The unit shifts the unsigned word. No guard was needed.
+
+## D46. XBUS protocol (2026-10-10)
+
+The XBUS unit contains the XBUS receiver for the Mode B and RJ01 providers. Each byte arrives with
+its time, and a gap over eight milliseconds drops the frame in progress. A frame starts on the
+twelve-channel start byte, or on the sixteen-channel one in Mode B, with the length the provider and
+the start byte give it. The last byte of that length unpacks the frame in the receive path, not at
+the status poll. A Mode B frame yields its twelve channels through the pulse conversion, 800 plus
+the word's 1400 fraction of 4096, once the CRC-16 over all but its last two bytes matches them. An
+RJ01 outer frame yields the Mode B frame three bytes in, once its length byte reads 30 and the
+Dallas CRC-8 over all but its last byte matches that byte. The status poll reports complete once per
+unpacked frame. The raw value is the channel value itself.
+
+The reference's Mode B case falls through into the RJ01 check after its own unpack (finding F35).
+The unit keeps that order so the recorded vectors match, stale buffer bytes included. The state's
+predicate keeps the position below the frame length while a frame comes in and at zero otherwise,
+and ties the length to the provider. The frame writes and the unpackers' reads are therefore proved
+within the buffer without clamps. The completion check moves ahead of the position increment to keep
 the predicate. The serial port stays with the port layer. No guard was needed.
 
-## D47. The Jeti EX Bus protocol (2026-10-10)
+## D47. Jeti EX Bus protocol (2026-10-10)
 
-The Jeti EX Bus unit carries the reference's EX Bus receiver. Each byte arrives with its time,
-and a gap over a millisecond drops the frame in progress. A frame starts on the channel or the
-request sync byte into its own buffer. The second byte says whether the receiver may transmit.
-The sixth byte's message length takes the frame when it is within its buffer's range and drops
-it otherwise. A byte at the buffer's end drops the frame. The last byte of the length completes
-the frame with its time: the channel frame for the status poll, the request frame for the
-telemetry. The status poll takes a received channel frame once. When the CRC over the frame
-reads zero, the poll decodes the channels and keeps the frame's time. It decodes as many words
-as the data length holds, up to sixteen, each word's eighth, when the header names channel data
-with or without a request. The raw value is the channel value itself. The unit keeps the
-received frame's length beside the buffer, where the reference reads the buffer's length byte
-again at the poll. The byte cannot change between the completion and the poll, since a new
-frame into that buffer takes the state out of received first, so the two reads agree. The
-state's predicate keeps the position within the size of the buffer the bytes go to, so the
-buffer writes are proved without clamps. The CRC runs on eight- and sixteen-bit modular words as
-the reference's nibble-wise form does. The decode trusts the header's data length over the
-message length as the reference does (finding F36). The request frame, its state and time, the
-transmit permission, and the serial port stay with the telemetry and port layers. No guard was
-needed.
+The Jeti EX Bus unit contains the EX Bus receiver. Each byte arrives with its time, and a gap over a
+millisecond drops the frame in progress. A frame starts on the channel or the request sync byte into
+its own buffer. The second byte says whether the receiver may transmit. The sixth byte's message
+length takes the frame when it is within its buffer's range and drops it otherwise. A byte at the
+buffer's end drops the frame. The last byte of the length completes the frame with its time: the
+channel frame for the status poll, the request frame for the telemetry.
 
-## D48. The Ghost protocol (2026-10-10)
+The status poll takes a received channel frame once. When the CRC over the frame reads zero, the
+poll decodes the channels and keeps the frame's time. It decodes as many words as the data length
+holds, up to sixteen, each word's eighth, when the header names channel data with or without a
+request. The raw value is the channel value itself.
 
-The GHST unit carries the reference's Ghost receiver. Each byte arrives with its time, and a
-byte after the frame time of 500 microseconds starts a new frame. The frame is five bytes long
-until its length byte is in, and that byte plus two after. A byte is kept while the frame has
-room. The last byte of a frame addressed to the flight controller swaps the two buffers, marks
-the frame available, and stamps its end. The status poll takes an available frame once. The
-frame is complete with processing to do when the CRC over its type and payload matches its last
-byte, and dropped otherwise. With no frame available, the poll asks for processing alone when a
-telemetry reply waits and the bus has been quiet for more than one and less than two
-milliseconds since the last frame. The processing sends the reply in that window and then
-decodes the validated frame. A statistics frame sets the RF protocol with the telemetry it
-allows and gives the receiver its RSSI, dBm, and link quality. The aux frames name the four
-channels they carry in turn. Once the protocol is known, the four primary channels come from
-their packed twelve bits, the aux four widened from eight, and a legacy frame is rescaled to
-the twelve-bit range. The MSP frames go to the MSP layer with their payload length. The raw
-value is a quarter of a primary count or an aux count as it is, plus 988. The unit keeps the
-completed frame's length beside the buffers, where the reference reads the length byte again
-at the poll and the processing. The validated buffer is not written until the next swap, so
-the two agree. The swap itself is kept so the stale bytes of a short frame come from the same
+The unit keeps the received frame's length beside the buffer, where the reference reads the buffer's
+length byte again at the poll. The byte cannot change between the completion and the poll, since a
+new frame into that buffer takes the state out of received first, so the two reads agree. The
+state's predicate keeps the position within the size of the buffer the bytes go to, so the buffer
+writes are proved without clamps. The CRC computes the nibble-wise form on eight- and sixteen-bit
+modular words. The decode trusts the header's data length over the message length (finding F36). The
+request frame, its state and time, the transmit permission, and the serial port stay with the
+telemetry and port layers. No guard was needed.
+
+## D48. Ghost protocol (2026-10-10)
+
+The GHST unit contains the Ghost receiver. Each byte arrives with its time, and a byte after the
+frame time of 500 microseconds starts a new frame. The frame is five bytes long until its length
+byte is in, and that byte plus two after. A byte is kept while the frame has room. The last byte of
+a frame addressed to the flight controller swaps the two buffers, marks the frame available, and
+stamps its end.
+
+The status poll takes an available frame once. The frame is complete with processing to do when the
+CRC over its type and payload matches its last byte, and dropped otherwise. With no frame available,
+the poll asks for processing alone when a telemetry reply waits and the bus has been quiet for more
+than one and less than two milliseconds since the last frame. The processing sends the reply in that
+window and then decodes the validated frame. A statistics frame sets the RF protocol with the
+telemetry it allows and gives the receiver its RSSI, dBm, and link quality. The aux frames name the
+four channels each one contains. Once the protocol is known, the four primary channels come from
+their packed twelve bits, the aux four widened from eight, and a legacy frame is rescaled to the
+twelve-bit range. The MSP frames go to the MSP layer with their payload length. The raw value is a
+quarter of a primary count or an aux count as it is, plus 988.
+
+The unit keeps the completed frame's length beside the buffers, where the reference reads the length
+byte again at the poll and the processing. The validated buffer is not written until the next swap,
+so the two agree. The swap itself is kept so the stale bytes of a short frame come from the same
 buffer as the reference's. The RSSI scaling and the legacy rescaling keep the reference's
-sixteen-bit wraps of their negative results (findings F37, F38), so the recorded vectors match.
-The telemetry content, the MSP handling, the idle callback's source, and the serial port stay
-with their layers. No guard was needed.
+sixteen-bit wraps of their negative results (findings F37, F38), so the recorded vectors match. The
+telemetry content, the MSP handling, the idle callback's source, and the serial port stay with their
+layers. No guard was needed.
 
 ## D49. The MSP receiver (2026-10-10)
 
