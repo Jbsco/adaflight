@@ -8494,3 +8494,31 @@ LSM6DSV32X, 231 gyros are found, 52 initializations fail after three attempts, a
 1048 the accelerometer and 1730 raise interrupts. Of 101 tampered paths, 98 fail the vectors and 1 stop the checker at a
 subtype check. Two pass and are equivalent: the return after the failure call, which never returns in the reference, and
 the latch reset at the first gyro read, since the latch starts cleared and no later read returns to that mode.
+
+## D365. BMI160 gyro driver (2026-10-19)
+
+`Adaflight.MPU_Gyro.BMI160` drives the BMI160 gyro over the SPI gyro layer. Detection sends one 0xFF byte to select SPI,
+waits 100 ms and reads the identity, 0xD1. Initialization commands the gyro and the accelerometer into normal power
+mode, 100 and 5 ms apart, and checks the power status; when both are normal it sets the accelerometer to 800 Hz with the
+second oversampling and the gyro to 3200 Hz with the oversampling of the filter setting, the ranges 8 g and 2000 degrees
+per second, 1 ms after each, sets the two offset enable bits over the offset register, and enables the data ready
+interrupt on the first interrupt pin, pushed, 1 ms after each; it then enables the interrupt when the board has the pin
+and sets a 10 MHz clock, whether the power status passed. The reference answers a second detection or initialization
+from flags; here each call does its bus work, and the reference's fast offset compensation, behind a constant that never
+enables it, is left out. The interrupt and the DMA read are the layer's: the first gyro read after 1000 interrupts takes
+the DMA mode when the bus has it, in which each interrupt reads the twelve bytes of both sensors and the reads decode
+the gyro at byte 2 and the accelerometer at byte 8; the other modes read a sensor's six little-endian bytes with a
+blocking transfer; the reads answer true in every mode. The scale of 2000 degrees per second over the 16-bit count is
+set at the gyro detection and the accelerometer counts 4096 per g. The unit is SPARK, with the sample offsets bounded by
+the receive buffer.
+
+The BMI160 oracle includes the reference driver and the common SPI gyro layer over a simulated chip, one case per
+process. It draws the chip identity, 0xD1 in 85 percent of the cases, the power status after the mode commands, normal
+in 85 percent, the bus, the startup clock and its step, DMA, the interrupt pin, the filter setting, past the known ones
+in 8 percent, and the register values, lets the layer find another chip first in a twelfth of the cases, then runs the
+detection, the gyro and accelerometer detection and initialization, and 30 steps of interrupts, a burst of 990 to 1050
+interrupts first or after some reads outside the DMA mode, DMA completions, gyro and accelerometer reads and new
+samples. Every bus, pin, clock and delay call, detection, setting and reading of the 300 cases replays exactly. In them
+219 chips are found, 23 fail the power status, 21 have an unknown filter setting, 175 raise a burst, and of 6570 steps
+1532 read the gyro, 1306 the accelerometer and 2107 raise interrupts. Of 71 tampered paths, 70 fail the vectors and 1
+stop the checker at a subtype check.
