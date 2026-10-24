@@ -8524,21 +8524,22 @@ stream, 0 where the family takes one from the map and the map has none, the writ
 asks the controller to start the card, which it runs to the end: each poll moves the card from the reset through the
 initialization, done when the controller reports the card ready and gives its information, which names the version, 2
 for every kind but the first, the capacity class, the block count from the capacity cut to 32 bits, and the
-identification for the metadata, whose production year takes the two nibbles of the date's year field one over the
-other, as the reference does (finding F278). A read starts a one block transfer and the poll takes the block when the
-transfer ends with the card ready, within 100 ms; past that, or when the card reports an error, the poll repeats until
-the card answers, without a reset (F278), and the port stops after 64 repeats, which the vectors never reach. A write
-starts the transfer, the poll calls the completion when the transfer ends and waits for the card to leave busy within
-250 ms. With the write cache, the blocks of a run collect in a cache of 16 and go to the card in one transfer when the
-cache fills or the run ends, each cached block answered success without a completion and the run's count and next block
-advanced; a run started from the ready state keeps the blocks an earlier run left in the cache, and a block out of
-sequence joins the cache, as in the reference (F278). A run of writes takes its count and ends when a write leaves the
-run or its count runs out. A failure asks the controller for a new initialization: one refused counts the failure, up to
-eight in a row or a missing card before the card counts as absent; one accepted leaves the state as it was, since the
-controller's initialization runs once and repeats its first answer (F278). An initialization past a second starts over.
-A refused read reports the failure through the previous operation's completion (F278). An operation the controller
-refuses answers a failure; one in the wrong state answers busy. A card whose mode is off takes no operation. The unit is
-SPARK, with the poll's repeats, the cache count and the cache slices bounded.
+identification for the metadata, whose production year is 2000 plus the eight bits of the date's year field above the
+month, where the reference ORs the field's two nibbles onto each other and gives at most 2015 (finding F278, D6). A read
+starts a one block transfer and the poll takes the block when the transfer ends with the card ready, within 100 ms; past
+that, or when the card reports an error, the poll repeats until the card answers, without a reset (F278), and the port
+stops after 64 repeats, which the vectors never reach. A write starts the transfer, the poll calls the completion when
+the transfer ends and waits for the card to leave busy within 250 ms. With the write cache, the blocks of a run collect
+in a cache of 16 and go to the card in one transfer when the cache fills or the run ends, each cached block answered
+success without a completion and the run's count and next block advanced; a run started from the ready state keeps the
+blocks an earlier run left in the cache, and a block out of sequence joins the cache, as in the reference (F278). A run
+of writes takes its count and ends when a write leaves the run or its count runs out. A failure asks the controller for
+a new initialization: one refused counts the failure, up to eight in a row or a missing card before the card counts as
+absent; one accepted leaves the state as it was, since the controller's initialization runs once and repeats its first
+answer (F278). An initialization past a second starts over. A refused read reports the failure through the previous
+operation's completion (F278). An operation the controller refuses answers a failure; one in the wrong state answers
+busy. A card whose mode is off takes no operation. The unit is SPARK, with the poll's repeats, the cache count and the
+cache slices bounded.
 
 The SDIO card oracle includes the reference driver and its dispatch over a stubbed controller: an initialization
 answering every call with one drawn result, refused in 10 percent of the cases, a card ready after a drawn number of
