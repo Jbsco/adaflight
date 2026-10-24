@@ -85,8 +85,13 @@ package body Adaflight.MPU_Gyro.MPU6500 with SPARK_Mode is
       Delay_Ms (D, 15);
       Bus_Write_Register (D, Interrupt_Register, Raw_Ready_Enable);
       Delay_Ms (D, 15);
-      S.Temp_Scale := 1.0 / 340.0;
-      S.Temp_Zero := 36.53;
+      if S.Sensor in Sensor_MPU6500 | Sensor_MPU9250 then
+         S.Temp_Scale := 2.99517787E-03;
+         S.Temp_Zero := 21.0;
+      else
+         S.Temp_Scale := 3.05997557E-03;
+         S.Temp_Zero := 25.0;
+      end if;
       Write_Register (D, User_Control_Register, I2C_Disable);
       Delay_Ms (D, 100);
       Divider (D, Max_SPI_Clock_Hz, Divisor);
