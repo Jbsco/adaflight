@@ -1041,385 +1041,428 @@ sixteen-bit wraps of their negative results (findings F37, F38), so the recorded
 telemetry content, the MSP handling, the idle callback's source, and the serial port stay with their
 layers. No guard was needed.
 
-## D49. The MSP receiver (2026-10-10)
+## D49. MSP receiver (2026-10-10)
 
-The MSP receiver unit carries the reference's receiver fed over MSP. A frame from the command
-handler sets the channels it carries and resets the ones it leaves out to zero. It marks the
-frame done for the receiver and for the override path, and keeps its time and channel count. A
-channel is fresh while a frame has ever arrived, the last frame carried it, and the frame
-arrived within the last 300 milliseconds. The status poll reports complete once per frame and
-stamps the frame at the poll. The override poll reports complete once per frame. The raw value
-is the channel value itself. The command handler bounds the count at eighteen, so the count is
-a subtype. The millisecond difference is the reference's unsigned one. No guard was needed.
+The MSP receiver unit contains the receiver fed over MSP. A frame from the command handler sets the
+channels it contains and resets the ones it leaves out to zero. It marks the frame done for the
+receiver and for the override path, and keeps its time and channel count. A channel is fresh while a
+frame has ever arrived, the last frame contained it, and that frame arrived within the last 300
+milliseconds. The status poll reports complete once per frame and stamps the frame at the poll. The
+override poll reports complete once per frame. The raw value is the channel value itself. The
+command handler bounds the count at eighteen, so the count is a subtype. The millisecond difference
+is the reference's unsigned one. No guard was needed.
 
-## D50. The SRXL2 protocol (2026-10-10)
+## D50. SRXL2 protocol (2026-10-10)
 
-The SRXL2 unit carries the reference's SRXL2 receiver. Each byte arrives with its time and goes
-into the read buffer while it is free and has room. Otherwise the packet is dropped. The port's
-idle ends a transmission, frees the read buffer when nothing came in, or hands the packet over
-by swapping the two buffers with the idle time kept. The status poll processes the handed-over
-packet. The packet is dropped unless its id, its length byte, and its CRC over the whole packet
-check, and then it is valid at the poll's time. A broadcast handshake names the bus master,
-takes the fast rate when the master supports it, and runs the link. A handshake to this unit
-gets the reply with the ids swapped, the priority, and the rate offered. Control data requests
-telemetry when its reply id is this unit's. Its channel data gives the RSSI percent onto the
-receiver's range when it is not negative, a dropped frame when the mask is empty, and each
-channel under the mask from the next word. Its failsafe sets the RSSI to zero. Its VTX data is
-packed into the Spektrum control word for the VTX layer. The link state machine then runs. It
-listens for activity and toggles the rate while bytes come without a valid packet. At its
-timeout it moves to sending or listening for a handshake. When a handshake or the frames time
-out, it falls back to listening at the default rate with a failsafe result. Processing is asked
-for when the write buffer holds a reply, and the processing sends it once the bus has been idle
-for the reply quiescence. The bind request and the telemetry frame the telemetry layer fills go
-out through the same write buffer with the CRC in their last two bytes. The raw value is the
-count's quarter over sixteen plus 988. The reference reads a handshake's or a control packet's
-fields without checking the packet's length against them, so a short packet yields stale buffer
-bytes. The unit reads the same bytes from the same buffer so the recorded vectors match
-(finding F39). The sending state asks for processing without a reply to send (finding F40),
-kept as the reference has it. The baud rate the unit asks of the port is kept as its own field,
-where the reference asks the port back. The telemetry content, the MSP and VTX handling, the
-serial port, and the idle callback's source stay with their layers. No guard was needed.
+The SRXL2 unit contains the SRXL2 receiver. Each byte arrives with its time and goes into the read
+buffer while it is free and has room. Otherwise the packet is dropped. The port's idle ends a
+transmission. It frees the read buffer when nothing came in, or hands the packet over by swapping
+the two buffers, keeping the idle time.
 
-## D51. The FPORT protocol (2026-10-10)
+The status poll processes the handed-over packet. The packet is dropped unless its id, its length
+byte, and its CRC over the whole packet check, and then it is valid at the poll's time. A broadcast
+handshake names the bus master, takes the fast rate when the master supports it, and runs the link.
+A handshake to this unit gets the reply with the ids swapped, the priority, and the rate offered.
+Control data requests telemetry when its reply id is this unit's. Its channel data gives the RSSI
+percent onto the receiver's range when it is not negative, a dropped frame when the mask is empty,
+and each channel under the mask from the next word. Its failsafe sets the RSSI to zero. Its VTX data
+is packed into the Spektrum control word for the VTX layer.
 
-The FPORT unit carries the FrSky FPORT receiver. Each serial byte arrives with its time. A
-marker byte closes the frame in progress when it holds two bytes or more. The frame goes into
-a ring of three buffers when the ring has room, a telemetry request opens the reply window and
-stamps its time, and the marker starts the next frame. A byte after the escape has its fifth
-bit flipped, the byte in the type position marks a telemetry request, and a byte is kept
-while the frame has room. A frame older than the frame time plus half a millisecond is
-dropped, and so is one that outgrows its buffer. The status poll takes one frame from the
-ring. The frame counts when its length byte agrees with the frame and the FrSky checksum
-folds to all ones. A control frame decodes its channels and flags through the SBUS channel
-block, which the SBUS unit now exposes for both protocols, scales its RSSI from a percentage
-onto the receiver's range, stamps the control time, and keeps its start as the frame time
-unless the receiver flags failsafe or a signal loss. A telemetry request counts only while
-the telemetry layer is on. A data frame hands the frame rate to the receiver and asks for a
-reply. A null frame asks for a reply until two have gone unanswered while the receiver does
-not drive the rate, unless an MSP payload waits. A read or write frame keeps its payload for
-the telemetry layer. The poll asks for processing when a reply or a payload waits and half a
-millisecond has passed since the window opened, and it drops the RSSI to zero half a second
-after the last control frame. The processing closes the window two milliseconds after it
-opened, consults the telemetry layer while it is open, sends the empty reply when the layer
-left the window unused, and consumes the payload. The reply's bytes, the telemetry content,
-the MSP handling, and the serial port stay with their layers. A reply the telemetry layer
-writes drops the frame in progress through Begin_Reply. The raw value is the SBUS fit of the
-channel count. The ring indices, the frame position, and the escape and request flags keep
-the state the recorded vectors see. No guard was needed.
+The link state machine then runs. It listens for activity and toggles the rate while bytes come
+without a valid packet. At its timeout it moves to sending or listening for a handshake. When a
+handshake or the frames time out, it falls back to listening at the default rate with a failsafe
+result. Processing is asked for when the write buffer holds a reply, and the processing sends it
+once the bus has been idle for the reply quiescence. The bind request and the telemetry frame that
+the telemetry layer fills go out through the same write buffer, with the CRC in their last two
+bytes. The raw value is the count's quarter over sixteen plus 988.
 
-## D52. The MAVLink receiver (2026-10-10)
+The reference reads a handshake's or a control packet's fields without checking the packet's length
+against them, so a short packet yields stale buffer bytes. The unit reads the same bytes from the
+same buffer so the recorded vectors match (finding F39). The sending state asks for processing
+without a reply to send (finding F40), and the unit keeps that. The baud rate the unit asks of the
+port is its own field, where the reference asks the port back. The telemetry content, the MSP and
+VTX handling, the serial port, and the idle callback's source stay with their layers. No guard was
+needed.
 
-The MAVLink unit carries the MAVLink receiver with the library's frame parser, and the
-MAVLink_Entries unit carries the library's message table behind the same bisection. Each
-serial byte goes through the parser's states in the library's order. A start byte of either
-framing version opens a frame and resets the checksum. The version one header has no flag
-bytes and a one-byte id, the version two header carries two flag bytes and a three-byte id,
-and an incompatibility flag other than the signing bit drops the frame. The payload bytes
-fold into the X.25 checksum as they arrive, and the message's CRC extra folds in last when
-the table knows the id. An unknown id, or a checksum byte that disagrees, marks the frame bad
-but the parser still reads it to the end. A signed frame waits for its thirteen signature
-bytes and passes without a signing key, as the receiver holds none. A complete frame is
-copied out of the parser, with the wire's checksum in place of the computed one when the
-two disagree, and the copy's length follows the parser's length on every byte. A bad
-checksum returns the parser to idle, or to the start state when the byte itself is a version
-two start byte. A good RC channels override message takes its
-eighteen channels as consecutive words from its first channel, so the ninth word is the two
-target ids and the following words are each one channel early, and channel eighteen is never
-read (finding F41). A word of zero or all ones leaves the channel as it was. The byte's time
-is the frame time. A good radio status message keeps the transmitter's free buffer, scales
-the remote RSSI from the negative dBm range onto the receiver's range, where a report below
-the range minimum wraps (finding F42), and gives the receiver the dBm, the noise as the SNR,
-and the local RSSI as the link quality. Every other good message goes into a queue of sixteen
-for the telemetry task. The status poll is complete once after each override message. The
-telemetry may send when the last radio status left more free buffer than the configured
-minimum. The raw value is the channel as it is. The payload index is held below the payload
-size and the signature count above zero by guards the recorded vectors never reach. The
-signature bytes, the parse error count, and the parser's status copy are not kept, since
-nothing reads them. The
-serial port and the telemetry task stay with their layers.
+## D51. FPORT protocol (2026-10-10)
 
-## D53. The MSP serial port with its frame decoder and reply encoder (2026-10-11)
+The FPORT unit contains the FrSky FPORT receiver. Each serial byte arrives with its time. A marker
+byte closes the frame in progress when it holds two bytes or more. The frame goes into a ring of
+three buffers when the ring has room, a telemetry request opens the reply window and stamps its
+time, and the marker starts the next frame. A byte after the escape has its fifth bit flipped, the
+byte in the type position marks a telemetry request, and a byte is kept while the frame has room. A
+frame older than the frame time plus half a millisecond is dropped, and so is one that outgrows its
+buffer.
 
-`Adaflight.MSP_Port` is the serial port of the configurator protocol. The decoder takes one byte
-at a time through the three framings (version 1, version 2 carried in a version 1 frame, and
-version 2 native) with the exclusive-or checksum of version 1 and the CRC-8 of version 2, and
-rejects a header whose size passes the 192-byte receive buffer. Between frames a frame start
-cancels a pending request, the reboot character and the hash mark set one, a start of text
-enters the command line, and any other byte cancels a pending reboot. A pending request fires
-once the port has been quiet for a hundred milliseconds. One call of `Process` is one scheduler
-pass: it completes at most one frame and leaves the bytes after it for the next call. The caller
-answers a command frame itself and hands the reply to `Encode`, which lays out the header for
-the request's framing with the jumbo size past 254 payload bytes and closes the frame with its
+The status poll takes one frame from the ring. The frame counts when its length byte agrees with the
+frame and the FrSky checksum folds to all ones. A control frame decodes its channels and flags
+through the SBUS channel block, which the SBUS unit now exposes for both protocols. It scales its
+RSSI from a percentage onto the receiver's range, stamps the control time, and keeps its start as
+the frame time unless the receiver flags failsafe or a signal loss. A telemetry request counts only
+while the telemetry layer is on. A data frame hands the frame rate to the receiver and asks for a
+reply. A null frame asks for a reply until two have gone unanswered while the receiver does not
+drive the rate, unless an MSP payload waits. A read or write frame keeps its payload for the
+telemetry layer.
+
+The poll asks for processing when a reply or a payload waits and half a millisecond has passed since
+the window opened. It drops the RSSI to zero half a second after the last control frame. The
+processing closes the window two milliseconds after it opened, consults the telemetry layer while it
+is open, sends the empty reply when the layer left the window unused, and consumes the payload. The
+reply's bytes, the telemetry content, the MSP handling, and the serial port stay with their layers.
+A reply that the telemetry layer writes drops the frame in progress through `Begin_Reply`. The raw
+value is the SBUS fit of the channel count. The ring indices, the frame position, and the escape and
+request flags keep the state the recorded vectors see. No guard was needed.
+
+## D52. MAVLink receiver (2026-10-10)
+
+The MAVLink unit contains the MAVLink receiver with the library's frame parser, and the
+MAVLink_Entries unit contains the library's message table behind the same bisection. Each serial
+byte goes through the parser's states in the library's order. A start byte of either framing version
+opens a frame and resets the checksum. The version one header has no flag bytes and a one-byte id.
+The version two header contains two flag bytes and a three-byte id, and an incompatibility flag
+other than the signing bit drops the frame. The payload bytes fold into the X.25 checksum as they
+arrive, and the message's CRC extra folds in last when the table knows the id. An unknown id, or a
+checksum byte that disagrees, marks the frame bad, but the parser still reads it to the end. A
+signed frame waits for its thirteen signature bytes and passes without a signing key, since the
+receiver holds none. A complete frame is copied out of the parser, with the wire's checksum in place
+of the computed one when the two disagree, and the copy's length follows the parser's length on
+every byte. A bad checksum returns the parser to idle, or to the start state when the byte itself is
+a version two start byte.
+
+A good RC channels override message takes its eighteen channels as consecutive words from its first
+channel. The ninth word is therefore the two target ids, the following words are each one channel
+early, and channel eighteen is never read (finding F41). A word of zero or all ones leaves the
+channel as it was. The byte's time is the frame time. A good radio status message keeps the
+transmitter's free buffer and scales the remote RSSI from the negative dBm range onto the receiver's
+range, where a report below the range minimum wraps (finding F42). It gives the receiver the dBm,
+the noise as the SNR, and the local RSSI as the link quality. Every other good message goes into a
+queue of sixteen for the telemetry task.
+
+The status poll is complete once after each override message. The telemetry may send when the last
+radio status left more free buffer than the configured minimum. The raw value is the channel as it
+is. The payload index is held below the payload size and the signature count above zero by guards
+the recorded vectors never reach. The signature bytes, the parse error count, and the parser's
+status copy are not kept, since nothing reads them. The serial port and the telemetry task stay with
+their layers.
+
+## D53. MSP serial port with its frame decoder and reply encoder (2026-10-11)
+
+`Adaflight.MSP_Port` is the serial port of the configurator protocol. The decoder takes one byte at
+a time through the three framings: version 1, version 2 inside a version 1 frame, and version 2
+native. It checks the exclusive-or checksum of version 1 and the CRC-8 of version 2, and rejects a
+header whose size passes the 192-byte receive buffer. Between frames a frame start cancels a pending
+request, the reboot character and the hash mark set one, a start of text enters the command line,
+and any other byte cancels a pending reboot. A pending request fires once the port has been quiet
+for a hundred milliseconds. One call of `Process` is one scheduler pass: it completes at most one
+frame and leaves the bytes after it for the next call.
+
+The caller answers a command frame itself and hands the reply to `Encode`, which lays out the header
+for the request's framing, with the jumbo size past 254 payload bytes, and closes the frame with its
 checksums. The send rule (an empty transmit buffer, or room for the frame) and the five-second
-configurator activity window are functions beside it. The caller supplies per call whether the
-bytes between frames are read as requests, whether a device streams on the port, the reboot
-character, and whether the command line kept the port, since the serial layer and the command
-line own that state. Proof covers the receive buffer index through a predicate on the port
-record: the position is zero before a header, at most the header size while a header fills, and
-below the data size while a payload fills, with the data size held to the buffer by the header
-checks, so no byte can land past the buffer. The encoder's frame buffer is sized for the longest
-header, the largest reply, and both checksums. The reference writes the jumbo size of a
-combined-framing reply after the version 2 header instead of after the version 1 header, and the
-encoder keeps that order so the recorded vectors match (finding F43).
+configurator activity window are functions beside it. Per call the caller supplies whether the bytes
+between frames are read as requests, whether a device streams on the port, the reboot character, and
+whether the command line kept the port, since the serial layer and the command line own that state.
 
-## D54. The ExpressLRS hopping tables and link counters (2026-10-11)
+Proof covers the receive buffer index through a predicate on the port record. The position is zero
+before a header, at most the header size while a header fills, and below the data size while a
+payload fills, with the data size held to the buffer by the header checks, so no byte can land past
+the buffer. The encoder's frame buffer is sized for the longest header, the largest reply, and both
+checksums. The reference writes the jumbo size of a combined-framing reply after the version 2
+header instead of after the version 1 header, and the encoder keeps that order so the recorded
+vectors match (finding F43).
 
-`Adaflight.ExpressLRS` holds the common part of the ExpressLRS link ahead of its receiver: the
-air rate and performance tables of the 900 MHz and 2.4 GHz bands as constants, the eight
-frequency domains with their first and last channel as register values and their channel count,
-the hopping sequence, the 14-bit CRC of the over-the-air packet, the link quality counter, and
-the conversions of switches, telemetry ratios, rates, power indices, and the air rate index of a
-sync packet. The sequence generator fills whole blocks of the channel count with the sync
-channel first (the channel count halved plus one, where the version 3 protocol places it), the
-channel that would repeat the sync channel as channel zero, and the others in order, then swaps
-every entry but the first of each block with an entry drawn by the seeded linear congruential
-generator from the same block, in the draw order of a single pass. Proof covers the sequence
-indices through the block structure (an entry and its swap partner stay within the block, and
-the blocks within the 256 entries), the frequency arithmetic in modular 32-bit words as the
-radio registers hold it, and the link quality window through a predicate on its record (the bit
-position stays below four in the last word, so the window wraps where the hundred periods end
-and the word index never passes the fourth word). The current index stays below the sequence
-count by the record's predicate, and a regeneration reduces the index into the new count before
-the count changes. The telemetry ratio value is a byte, so the standard marker reads zero and
-the disarmed marker one, as the sync packet carries them. The CRC table entry is computed per
-byte instead of held in a table of 256 words, the same function of the byte. The receiver's
+## D54. ExpressLRS hopping tables and link counters (2026-10-11)
+
+`Adaflight.ExpressLRS` holds the common part of the ExpressLRS link ahead of its receiver:
+
+- air rate and performance tables of the 900 MHz and 2.4 GHz bands as constants
+- eight frequency domains with their first and last channel as register values and their channel
+  count
+- hopping sequence and the 14-bit CRC of the over-the-air packet
+- link quality counter
+- conversions of switches, telemetry ratios, rates, power indices, and the air rate index of a sync
+  packet
+
+The sequence generator fills whole blocks of the channel count. The sync channel comes first (the
+channel count halved plus one, where the version 3 protocol places it), the channel that would
+repeat the sync channel becomes channel zero, and the others follow in order. It then swaps every
+entry but the first of each block with an entry from the same block, drawn by the seeded linear
+congruential generator in the draw order of a single pass.
+
+Proof covers the sequence indices through the block structure: an entry and its swap partner stay
+within the block, and the blocks within the 256 entries. It covers the frequency arithmetic in
+modular 32-bit words as the radio registers hold it, and the link quality window through a predicate
+on its record. The bit position stays below four in the last word, so the window wraps where the
+hundred periods end and the word index never passes the fourth word. The current index stays below
+the sequence count by the record's predicate, and a regeneration reduces the index into the new
+count before the count changes. The telemetry ratio value is a byte, so the standard marker reads
+zero and the disarmed marker one, as the sync packet contains them. The CRC table entry is computed
+per byte instead of held in a table of 256 words, the same function of the byte. The receiver's
 packet handling, the connection states, and the telemetry link follow in their own units.
 
-## D55. The ExpressLRS telemetry link (2026-10-11)
+## D55. ExpressLRS telemetry link (2026-10-11)
 
-`Adaflight.ExpressLRS_Telemetry` carries a telemetry frame to the transmitter and assembles the
-transmitter's MSP frames, five bytes per packet each way, with the stubborn confirm scheme of
-the link. The sender keeps the frame under way (copied in, up to the 64 bytes of a CRSF frame),
-the chunk position, the size of the last chunk handed out, the package number, the confirm bit
-it awaits, and the count of wrong bits against a limit. A telemetry slot takes the next chunk
-with its package number: the resync marker (63) while resyncing, zero for the last chunk of a
-frame of more than one, else the package number. The transmitter's bit comes back in every
-packet: the awaited value advances the frame, flips the awaited bit, and ends the frame or,
-after a first package, waits for one more confirm so the transmitter can tell a new frame from a
-resend. A wrong bit counts, and past the limit the sender resyncs. A frame set while another is
-under way resyncs first. The limit is the packets between telemetry slots (the ratio times one
-plus the burst, over the burst) times twenty missed packets, eighty at reset. The receiver takes
-the transmitter's chunks by package number: the marker restarts the frame and flips its bit, the
-expected package or a final package is taken and flips the bit, a first package in mid frame
-restarts the frame, and a package after the last is ignored until the caller unlocks it. Proof
-covers both buffers through predicates on the records: the position never passes the length, so
-a chunk copied in or out stays within the frame. The sender's advance by the last chunk is held
-at the length, which a frame replaced between the chunk and its confirm could pass; the protocol
-never does, since the transmitter flips its bit only for a chunk it received. The CRSF frames
-the sender carries, the device info reply, and the MSP frame handling behind the receiver come
+`Adaflight.ExpressLRS_Telemetry` sends a telemetry frame to the transmitter and assembles the
+transmitter's MSP frames, five bytes per packet each way, with the link's stubborn confirm scheme.
+The sender keeps the frame under way, copied in, up to the 64 bytes of a CRSF frame. It also keeps
+the chunk position, the size of the last chunk handed out, the package number, the confirm bit it
+awaits, and the count of wrong bits against a limit. A telemetry slot takes the next chunk with its
+package number: the resync marker (63) while resyncing, zero for the last chunk of a frame of more
+than one, else the package number.
+
+The transmitter's bit comes back in every packet. The awaited value advances the frame, flips the
+awaited bit, and ends the frame or, after a first package, waits for one more confirm so the
+transmitter can tell a new frame from a resend. A wrong bit counts, and past the limit the sender
+resyncs. A frame set while another is under way resyncs first. The limit is the packets between
+telemetry slots (the ratio times one plus the burst, over the burst) times twenty missed packets,
+eighty at reset.
+
+The receiver takes the transmitter's chunks by package number. The marker restarts the frame and
+flips its bit. The expected package or a final package is taken and flips the bit. A first package
+in mid frame restarts the frame, and a package after the last is ignored until the caller unlocks
+it. Proof covers both buffers through predicates on the records: the position never passes the
+length, so a chunk copied in or out stays within the frame. The sender's advance by the last chunk
+is held at the length. A frame replaced between the chunk and its confirm could pass it, but the
+protocol never does that, since the transmitter flips its bit only for a chunk it received. The CRSF
+frames the sender sends, the device info reply, and the MSP frame handling behind the receiver come
 with the CRSF telemetry port.
 
-## D56. The flight log field encodings (2026-10-11)
+## D56. Flight log field encodings (2026-10-11)
 
 `Adaflight.Blackbox_Encoding` writes the field encodings of the flight log into a stream over a
-caller owned array: unsigned variable byte integers (seven bits per byte, low bits first, the
-high bit set while more follow), signed values through the zigzag mapping, the 16-bit and 32-bit
-words low byte first, the float as its bit pattern, and the packed groups. The group of three
-takes a two-bit selector for 2, 4, or 6 bits per field, or 32-bit fields of 1 to 4 bytes each
-behind a second selector of byte counts, the first field in the low bits; the variable group
-uses the 5-5-4 and 8-7-7 bit splits instead and returns its selector. The group of four takes a
-one-byte selector of field widths (none, 4, 8, or 16 bits) and packs the fields by nibbles, the
-high nibble first, with a closing nibble when one is left open. The group of up to eight writes
-one field bare and more behind a header byte that marks the fields that are not zero, the first
-field in the low bit, then those fields as signed variable bytes. The bytes come from the two's
-complement bits of each value, so a field wider than its selected width is cut to it. Every
-encoder asks for the room its longest form needs (five bytes per variable byte integer, thirteen
-for a group of three, ten for the group of four, one plus five per field for the group of eight)
-and proof covers every write through the stream's contract, so no encoder can run past the
+caller-owned array:
+
+- unsigned variable byte integers: seven bits per byte, low bits first, the high bit set while more
+  follow
+- signed values through the zigzag mapping
+- 16-bit and 32-bit words, low byte first
+- float as its bit pattern
+- packed groups
+
+The group of three takes a two-bit selector for 2, 4, or 6 bits per field, or 32-bit fields of 1 to
+4 bytes each behind a second selector of byte counts, the first field in the low bits. The variable
+group uses the 5-5-4 and 8-7-7 bit splits instead and returns its selector. The group of four takes
+a one-byte selector of field widths (none, 4, 8, or 16 bits) and packs the fields by nibbles, the
+high nibble first, with a closing nibble when one is left open. The group of up to eight writes one
+field bare, and more behind a header byte that marks the fields that are not zero, the first field
+in the low bit, then those fields as signed variable bytes. The bytes come from the two's complement
+bits of each value, so a field wider than its selected width is cut to it.
+
+Every encoder asks for the room its longest form needs: five bytes per variable byte integer,
+thirteen for a group of three, ten for the group of four, and one plus five per field for the group
+of eight. Proof covers every write through the stream's contract, so no encoder can run past the
 array. The header lines in text and the frame logic that chooses the encodings come with the log
 itself.
 
-## D57. The text conversions (2026-10-11)
+## D57. Text conversions (2026-10-11)
 
 `Adaflight.Text` holds the conversions the command line, the display, and the log headers need:
-the digits of a number in a base from two to thirty-six with lower or upper case letters past
-nine, a signed number in decimal or in a base with uppercase letters where a base outside the
-range reads as ten, the fixed form of a float with three decimals behind a leading space or
-minus sign and rounded half away from zero, a float read from its text, the character classes
-and case folds over the basic letters alone, the comparison and the search that ignore case,
-and the formatter. Every writer takes the caller's buffer and reports the length it used, and
-each contract asks for the room of the longest form, so no writer can run past its buffer: the
-fixed form accepts magnitudes to two million and asks for twelve characters, where the
-reference's declared buffer of eleven overflows from a magnitude of one hundred thousand
-(finding F45). The float reader keeps the operation order of the reference and adds three
-rules: a mantissa or a divisor past 3.0E37 takes no further digit, the scale of an exponent
-comes from a table of the thirty-nine values that the repeated products of 1.0E8 and 10.0
-produce, and the product of mantissa and scale is formed in double precision and saturates at
-Float'Last where the reference overflows to infinity, so every finite result matches and no
-float operation can overflow. The formatter takes its arguments as a list of 32-bit values and
-slices of a caller's text pool, fills the d, u, x, X, c, s, and %% conversions behind an
-optional zero flag and width, treats the l modifier as nothing since every number is 32 bits,
-stops at a template that ends inside a conversion, writes nothing for a conversion with no
-argument left, and holds the output to the buffer's length. Its width parser takes a letter a
-or A after a width digit as a digit of ten, the comparison of the reference kept so the vectors
-match (finding F44). The search returns no match for an empty text, where the reference reads
-past it (finding F46). Proof covers every buffer index and the float bounds of the reader. No
-recorded vector reaches the saturation or the empty-text guard.
 
-## D58. The DShot protocol (2026-10-11)
+- digits of a number in a base from two to thirty-six, with lower or upper case letters past nine
+- signed number in decimal, or in a base with uppercase letters where a base outside the range reads
+  as ten
+- fixed form of a float with three decimals behind a leading space or minus sign, rounded half away
+  from zero
+- float read from its text
+- character classes and case folds over the basic letters alone
+- comparison and search that ignore case
+- formatter
 
-`Adaflight.DShot` holds the protocol pieces that need no output hardware. The frame puts
-eleven value bits over the telemetry request bit and the checksum of the three nibbles
-above it, inverted when the reply shares the signal line. The command conversions map the
-1000 to 2000 range onto 48 to 2047 and back, each linear map as one factor and one offset
-written as nine-digit literals of the single-precision constants a compiled reference
-folds, so every product and sum rounds once as the compiled form does. The reverse map
-rounds to the nearest command with a tie going to the even one, through a helper that
-takes the exact fraction above the truncated value, because the hosted rounding attribute
-is outside the proof tool's support and the maths unit's rounding has no postcondition
-that ties its result to its argument, which the command range needs. The endpoints take
-the idle setting in hundredths of a percent and the output limit as a fraction and write
-the low and high outputs and the stop. The two deadband edges of the two direction mode
-are written only in that mode.
+Every writer takes the caller's buffer and reports the length it used, and each contract asks for
+the room of the longest form, so no writer can run past its buffer. The fixed form accepts
+magnitudes to two million and asks for twelve characters, where the reference's declared buffer of
+eleven overflows from a magnitude of one hundred thousand (finding F45).
 
-The sampled reply decoder keeps the preamble skip, the smallest margin and the next check
-time in a record the caller owns. It finds the first low sample, then reads the samples
-one at a time within the count, closing a run at every level change that is not the last
-position in reach. The reference's unrolled scan reads up to three samples past the count
-when the preamble ends within sixty-nine samples of it. Those reads never change the
-result, so the single reads are the same decoder without the over-read (finding F48). The
-groups decode through the table of sixteen five-bit codes with the invalid marker, and the
-nibble checksum gates the twelve bit value. The period decode shifts nine mantissa bits by
-the three exponent bits and divides sixty million hundredths by the period, with the all
-ones value as a stopped motor and a zero period as invalid, and proof bounds the result at
-six hundred thousand.
+The float reader adds three rules. A mantissa or a divisor past 3.0E37 takes no further digit. The
+scale of an exponent comes from a table of the thirty-nine values that the repeated products of
+1.0E8 and 10.0 produce. The product of mantissa and scale is formed in double precision and
+saturates at Float'Last where the reference overflows to infinity, so every finite result matches
+and no float operation can overflow.
 
-The telemetry record carries the raw value, the last value per kind, the received set as a
-byte and the highest temperature per motor, the processing state, the motor count, the
-rate factor from the pole count, the forced extended decode, the rate filters, and the
-rates. Update decodes every motor once per marked frame, keeps the kind's value as a
-16-bit word, folds the rate, then runs the rate filters over the stored words and takes
-their minimum. A rate above 65535 hundredths wraps in the stored word while the per-motor
-rate uses the full value, as the reference does (finding F50). The sensor record gives the
-period word as a signed 16-bit value. The pole count is one to 255, so the rate factor
-stays below four. The reference accepts a zero pole count from the ground link and divides
-by it (finding F49).
+The formatter takes its arguments as a list of 32-bit values and slices of a caller's text pool. It
+fills the d, u, x, X, c, s, and %% conversions behind an optional zero flag and width, and treats
+the l modifier as nothing, since every number is 32 bits. It stops at a template that ends inside a
+conversion, writes nothing for a conversion with no argument left, and holds the output to the
+buffer's length. Its width parser takes a letter a or A after a width digit as a digit of ten, a
+comparison kept from the reference so the vectors match (finding F44). The search returns no match
+for an empty text, where the reference reads past it (finding F46). Proof covers every buffer index
+and the float bounds of the reader. No recorded vector reaches the saturation or the empty-text
+guard.
 
-The quality record counts replies per hundred millisecond bucket over ten buckets with the
-two running sums. The invalid share is the rounded ratio in hundredths of a percent. A
-share at or above 9999.5 is returned as the whole without the rounding helper, which is
-the value the rounding gives there, and this keeps the result in its range when the sums
-disagree, a state no counting sequence produces. The output order check resets an order
-that is not a permutation of its indices to the identity, and the postcondition bounds
-every entry by the length. Proof covers the sample indices against the count, the shifts,
-the margin narrowing to a byte, the bounded period, the rate bounds, and the order bounds.
-Every recorded vector replays exactly.
+## D58. DShot protocol (2026-10-11)
 
-## D59. The CRSF telemetry frames (2026-10-11)
+`Adaflight.DShot` holds the protocol pieces that need no output hardware. The frame puts eleven
+value bits over the telemetry request bit and the checksum of the three nibbles above it, inverted
+when the reply shares the signal line. The command conversions map the 1000 to 2000 range onto 48 to
+2047 and back. Each linear map is one factor and one offset written as nine-digit literals of the
+single-precision constants a compiled reference folds, so every product and sum rounds once as the
+compiled form does. The reverse map rounds to the nearest command with a tie going to the even one.
+It uses a helper that takes the exact fraction above the truncated value, because the hosted
+rounding attribute is outside the proof tool's support, and the maths unit's rounding has no
+postcondition that ties its result to its argument, which the command range needs. The endpoints
+take the idle setting in hundredths of a percent and the output limit as a fraction, and write the
+low and high outputs and the stop. The two deadband edges of the two-direction mode are written only
+in that mode.
+
+The sampled reply decoder keeps the preamble skip, the smallest margin, and the next check time in a
+record the caller owns. It finds the first low sample, then reads the samples one at a time within
+the count, closing a run at every level change that is not the last position in reach. The
+reference's unrolled scan reads up to three samples past the count when the preamble ends within
+sixty-nine samples of it. Those reads never change the result, so the single reads are the same
+decoder without the over-read (finding F48). The groups decode through the table of sixteen five-bit
+codes with the invalid marker, and the nibble checksum gates the twelve-bit value. The period decode
+shifts nine mantissa bits by the three exponent bits and divides sixty million hundredths by the
+period, with the all-ones value as a stopped motor and a zero period as invalid. Proof bounds the
+result at six hundred thousand.
+
+The telemetry record contains the raw value, the last value per kind, the received set as a byte,
+the highest temperature per motor, the processing state, the motor count, the rate factor from the
+pole count, the forced extended decode, the rate filters, and the rates. Update decodes every motor
+once per marked frame, keeps the kind's value as a 16-bit word, and folds the rate. It then runs the
+rate filters over the stored words and takes their minimum. A rate above 65535 hundredths wraps in
+the stored word while the per-motor rate uses the full value (finding F50). The sensor record gives
+the period word as a signed 16-bit value. The pole count is one to 255, so the rate factor stays
+below four. The reference accepts a zero pole count from the ground link and divides by it (finding
+F49).
+
+The quality record counts replies per hundred-millisecond bucket over ten buckets with the two
+running sums. The invalid share is the rounded ratio in hundredths of a percent. A share at or above
+9999.5 is returned as the whole without the rounding helper. That is the value the rounding gives
+there, and it keeps the result in its range when the sums disagree, a state no counting sequence
+produces. The output order check resets an order that is not a permutation of its indices to the
+identity, and the postcondition bounds every entry by the length. Proof covers the sample indices
+against the count, the shifts, the margin narrowing to a byte, the bounded period, the rate bounds,
+and the order bounds. Every recorded vector replays exactly.
+
+## D59. CRSF telemetry frames (2026-10-11)
 
 `Adaflight.CRSF_Telemetry` writes every telemetry frame of the link from readings the caller
-supplies, so the sensors, the battery meter, the attitude estimate and the flight state stay
-with their units. A frame is the sync byte, the length, the type, the payload and the
-checksum over type and payload. The position frame scales speed and course and holds the
-altitude to zero to five thousand meters, the extended position frame derives the fix type
-from the fix flag and the satellite count, the battery frame carries the drawn charge in three
-bytes, the attitude frame reduces each decidegree angle into a half turn and scales it by the
-single precision product of pi over 180 and a thousand, and the compass frame truncates three
-times the field. The flight mode frame picks its name by priority and adds one character
-while disarmed outside a failsafe. The device info frame takes its name from the caller.
+supplies, so the sensors, the battery meter, the attitude estimate, and the flight state stay with
+their units. A frame is the sync byte, the length, the type, the payload, and the checksum over type
+and payload.
 
-The packed altitude of the barometer frame keeps the reference's wrap above 32767 meters
-(finding F51), and the packed climb rate goes through the logarithm approximation and the
-ties-to-even rounding of the maths unit. The inertial frame scales rates and accelerations to
-sixteen bits through a clamp that proof needs and the values never reach.
+- position frame: speed and course scaled, altitude held to zero to five thousand meters
+- extended position frame: fix type derived from the fix flag and the satellite count
+- battery frame: drawn charge in three bytes
+- attitude frame: each decidegree angle reduced into a half turn and scaled by the single precision
+  product of pi over 180 and a thousand
+- compass frame: three times the field, truncated
+- flight mode frame: name picked by priority, one character added while disarmed outside a failsafe
+- device info frame: name from the caller
 
-The schedule has one slot per enabled kind, heartbeats fill it to five slots unless inertial
-frames run, and the position and barometer frames are timed rather than slotted. The slots
-keep stale entries past the count and the slot index survives a new schedule, so a shorter
-schedule reads them until the index wraps, which the vectors cover. The speed negotiation
-answers a proposal with the command frame and its second checksum, applies the rate after
-four milliseconds and marks the third version running. The reference drains its one-frame
-receiver buffer before every pass, so its check before the schedule is always true and the
-port has no such gate. The MSP buffer and the display port chunks stay with their units.
-Proof covers every frame against the room of the longest, the sixteen bit conversions, the
-angle reduction, and the slot and baud table indices. Every recorded vector replays exactly.
+The packed altitude of the barometer frame keeps the reference's wrap above 32767 meters (finding
+F51), and the packed climb rate goes through the logarithm approximation and the ties-to-even
+rounding of the maths unit. The inertial frame scales rates and accelerations to sixteen bits
+through a clamp that proof needs and the values never reach.
 
-## D60. The ESC telemetry over the serial line (2026-10-11)
-
-`Adaflight.ESC_Sensor` polls each motor in turn for the ten byte telemetry frame: a boot
-delay of five seconds, then a request for the motor in turn, then the reply decoded once
-complete and checked with the eight bit checksum over its first nine bytes, or the reading
-aged on a bad checksum or after a hundred milliseconds without a complete frame. The
-request itself is the caller's, so the unit reports it and the motor it is for. The byte
-receiver keeps bytes only while a frame is in flight. The readings hold the temperature,
-voltage, current, consumption and electrical rate of each motor with the age of the
-reading, and the combined reading takes the oldest age, the highest temperature, the
-average voltage and rate, and the summed current and consumption, cached until a reading
-changes. The reference counts timeouts and checksum errors only inside its debug mode
-(finding F52), so the port carries no such counters. An outside source may replace a
-motor's reading or age it. Current and consumption from such a source are bounded by a
-predicate so the sums over every motor fit, which the serial frames' sixteen bit values
-always do. The frame fill never passes the frame size by the same predicate. Every recorded
+The schedule has one slot per enabled kind. Heartbeats fill it to five slots unless inertial frames
+run, and the position and barometer frames are timed rather than slotted. The slots keep stale
+entries past the count, and the slot index survives a new schedule, so a shorter schedule reads them
+until the index wraps, which the vectors cover. The speed negotiation answers a proposal with the
+command frame and its second checksum, applies the rate after four milliseconds, and marks the third
+version running. The reference drains its one-frame receiver buffer before every pass, so its check
+before the schedule is always true and the port has no such gate. The MSP buffer and the display
+port chunks stay with their units. Proof covers every frame against the room of the longest, the
+sixteen-bit conversions, the angle reduction, and the slot and baud table indices. Every recorded
 vector replays exactly.
 
-## D61. The SmartPort telemetry stream (2026-10-11)
+## D60. ESC telemetry over the serial line (2026-10-11)
+
+`Adaflight.ESC_Sensor` polls each motor in turn for the ten-byte telemetry frame. After a boot delay
+of five seconds it requests the next motor, then decodes the reply once complete and checks it with
+the eight-bit checksum over its first nine bytes. A bad checksum, or a hundred milliseconds without
+a complete frame, ages the reading instead. The request itself is the caller's, so the unit reports
+it and the motor it is for. The byte receiver keeps bytes only while a frame is in flight.
+
+The readings hold the temperature, voltage, current, consumption, and electrical rate of each motor
+with the age of the reading. The combined reading takes the oldest age, the highest temperature, the
+average voltage and rate, and the summed current and consumption, cached until a reading changes.
+The reference counts timeouts and checksum errors only inside its debug mode (finding F52), so the
+port keeps no such counters. An outside source may replace a motor's reading or age it. Current and
+consumption from such a source are bounded by a predicate so the sums over every motor fit, which
+the serial frames' sixteen-bit values always do. The same predicate keeps the frame fill within the
+frame size. Every recorded vector replays exactly.
+
+## D61. SmartPort telemetry stream (2026-10-11)
 
 `Adaflight.SmartPort_Telemetry` answers the receiver's polls on the half-duplex line. The value
-table is built once from the sensors enabled in the configuration and the sensors present: the
-mode words, the core temperature, the battery and cell voltages, the current with the fuel and
-the charge used, the heading, the attitude and the accelerations, the altitude and the climb
-rate, and with the GPS feature the ground speed, the two coordinate words, the home distance and
-the GPS altitude; the ESC table holds the voltage, current, rate and temperature ids that the
-configuration leaves to the ESCs. Received bytes are reassembled through the start byte, the
-sensor id and the escaped payload with its checksum, and a poll of this sensor's id as the last
-byte waiting clears the stream to send; the bytes are read up to the first complete payload and
-the count taken is returned, so the caller offers the rest again. Once cleared, the next value
-goes out within the attempts the caller allows, which stand for the reference's time budget of
-one millisecond: the table position moves on each attempt, every seventh value comes from the
-ESC table over each motor and the combined reading in turn, and a value with nothing to report
-(a GPS value without a fix, an ESC value without a reading, the mode word without a source)
-passes its turn. The frame is the frame id, the value id, the value and the FrSky checksum,
-each byte escaped when it is one of the two reserved bytes. The table positions count in a byte
-as the reference does, and a read past the table gives no value (finding F75); the table holds
-all twenty-one ids a configuration can enable (finding F76). The MSP tunnel over the stream waits
-for the MSP serial port. Every recorded vector replays exactly.
+table is built once from the sensors enabled in the configuration and the sensors present:
+
+- mode words and core temperature
+- battery and cell voltages
+- current, with the fuel and the charge used
+- heading, attitude, and accelerations
+- altitude and climb rate
+- with the GPS feature: ground speed, the two coordinate words, home distance, and GPS altitude
+
+The ESC table holds the voltage, current, rate, and temperature ids that the configuration leaves to
+the ESCs. Received bytes are reassembled through the start byte, the sensor id, and the escaped
+payload with its checksum. A poll of this sensor's id as the last byte waiting clears the stream to
+send. The bytes are read up to the first complete payload and the count taken is returned, so the
+caller offers the rest again.
+
+Once cleared, the next value goes out within the attempts the caller allows, which stand for the
+reference's time budget of one millisecond. The table position moves on each attempt, and every
+seventh value comes from the ESC table over each motor and the combined reading in turn. A value
+with nothing to report passes its turn: a GPS value without a fix, an ESC value without a reading,
+the mode word without a source. The frame is the frame id, the value id, the value, and the FrSky
+checksum, each byte escaped when it is one of the two reserved bytes. The table positions count in a
+byte, and a read past the table gives no value (finding F75). The table holds all twenty-one ids a
+configuration can enable (finding F76). The MSP tunnel over the stream waits for the MSP serial
+port. Every recorded vector replays exactly.
 
 ## D62. RunCam device protocol (2026-10-11)
 
-The RunCam device unit carries the reference's device protocol and camera control: the packet of
-header, command, data and a checksum over all of them, and the five byte command of the older
-cameras with its high-first checksum computed with the tail in the checksum's place; at the start
-the device information request with the configured retries and interval, and after its last
-failure the older command sent once; one request at a time waiting for its reply, the reply taken
-from its header byte to the expected length, checked, parsed, and dropped on success, sent again
-at the timeout while retries remain, else parsed as timed out; the camera's own requests parsed
-from the bytes a waiting request leaves, the attitude request answered with roll, pitch and the
-yaw in whole degrees as little-endian words; the three camera buttons once per switch activation,
-the wifi and mode buttons held while armed or while arming is blocked by a runaway takeoff or a
-crash; and the five key cable from the sticks: the connection opened with yaw high and closed with
-yaw low at centred throttle, roll and pitch, the keys from roll and pitch while in the menu, the
-set key from yaw high, the release when the three sticks return to centre, each with the beep the
-connection result asks for. The bytes a call does not take are offered again, as the reference's
-port keeps them, and a request flushes them all before it is sent, whether or not the one slot is
-free. Three reference behaviours are kept: an unsupported request parks the parser in an invalid
-state and the 200 ms reset returns it to the command state (finding F77); the older-protocol
-request after a failed device information request never waits for its reply (finding F78); and a
-reply failing its checksum leaves the request waiting with its count full, where the unit stops
-storing at the buffer's end and the reference writes past it (finding F79). With the port closed
-a call does nothing, as the task never runs then. The unit is SPARK for the reply and request
-buffers, whose indexes the reference does not bound.
+The RunCam device unit contains the device protocol and camera control. A packet is a header,
+command, data, and a checksum over all of them. The older cameras take a five-byte command with a
+high-first checksum, computed with the tail in the checksum's place. At the start the unit sends the
+device information request with the configured retries and interval, and after its last failure it
+sends the older command once. One request at a time waits for its reply. The reply is taken from its
+header byte to the expected length, checked, parsed, and dropped on success. At the timeout the
+request is sent again while retries remain, and otherwise parsed as timed out. The camera's own
+requests are parsed from the bytes a waiting request leaves. The attitude request is answered with
+roll, pitch, and the yaw in whole degrees as little-endian words.
+
+The three camera buttons fire once per switch activation. The wifi and mode buttons are held while
+armed, or while arming is blocked by a runaway takeoff or a crash. The five-key cable works from the
+sticks. Yaw high at centred throttle, roll, and pitch opens the connection, and yaw low closes it.
+In the menu, roll and pitch give the keys and yaw high the set key. The release comes when the three
+sticks return to centre, each with the beep the connection result asks for. The bytes a call does
+not take are offered again, as the reference's port keeps them, and a request flushes them all
+before it is sent, whether or not the one slot is free.
+
+Three behaviours of the reference are kept. An unsupported request parks the parser in an invalid
+state, and the 200 ms reset returns it to the command state (finding F77). The older-protocol
+request after a failed device information request never waits for its reply (finding F78). A reply
+that fails its checksum leaves the request waiting with its count full, where the unit stops storing
+at the buffer's end and the reference writes past it (finding F79). With the port closed a call does
+nothing, since the task never runs then. The unit is SPARK for the reply and request buffers, whose
+indexes the reference does not bound.
 
 ## D63. FrSky hub telemetry (2026-10-11)
 
-The FrSky hub unit carries the reference's hub encoder: every 125 ms by the signed difference of
-the microsecond clock, a cycle counted one to forty, and in it the frames of a header, an id and
-a sixteen-bit value low byte first with its two bytes stuffed, then the tail. Every cycle sends
-the three accelerations in thousandths of a g, truncated to whole g first, and the climb rate;
-every fourth the altitude in metres and centimetres, zero for the first five seconds after boot,
-and the heading in whole degrees with a zero fraction; every eighth the ESC temperature and rate
-in tens of revolutions per minute, the cell voltage with its cell number in two-millivolt steps
-and the pack voltage in tenths or in fifths, the current and the fuel as the percentage left or
-the charge used, the ground speed in knots with a fix, the GPS altitude, the satellite count or
-the dilution while it is poor on the first half of every sixteen cycles in the configured unit,
-and the position in degrees and minutes with the hemisphere letters, the configured position
-until the first fix and the last known one after it, or one degree each with a compass and no
-GPS; every fortieth the minutes and the seconds of the uptime. Each value narrows to sixteen
-bits as the reference's frame parameter does, and the configured no-fix coordinates are bounded
-to eighteen thousand hundredths so their conversion stays within the reference's defined range.
-The sensors present and the configuration are settings of the stream; the cell voltage's cell
-counter and the fix memory are its state. The ESC branches of the temperature and the rate are
-the ones the default build compiles. The unit is SPARK for the output buffer and the narrowing
-arithmetic.
+The FrSky hub unit contains the hub encoder. Every 125 ms, by the signed difference of the
+microsecond clock, a cycle counted one to forty sends its frames, then the tail. A frame is a
+header, an id, and a sixteen-bit value low byte first, with its two bytes stuffed.
+
+- Every cycle sends the three accelerations in thousandths of a g, truncated to whole g first, and
+  the climb rate.
+- Every fourth cycle sends the altitude in metres and centimetres, zero for the first five seconds
+  after boot, and the heading in whole degrees with a zero fraction.
+- Every eighth cycle sends the ESC temperature, the rate in tens of revolutions per minute, the cell
+  voltage with its cell number in two-millivolt steps, and the pack voltage in tenths or in fifths.
+  It also sends the current, the fuel as the percentage left or the charge used, the ground speed in
+  knots with a fix, and the GPS altitude. The satellite count, or the dilution while it is poor,
+  goes out on the first half of every sixteen cycles in the configured unit. The position goes out
+  in degrees and minutes with the hemisphere letters: the configured position until the first fix
+  and the last known one after it, or one degree each with a compass and no GPS.
+- Every fortieth cycle sends the minutes and the seconds of the uptime.
+
+Each value narrows to the frame's sixteen bits. The configured no-fix coordinates are bounded to
+eighteen thousand hundredths, so their conversion stays within the reference's defined range. The
+sensors present and the configuration are settings of the stream. The cell voltage's cell counter
+and the fix memory are its state. The ESC branches of the temperature and the rate are the ones the
+default build compiles. The unit is SPARK for the output buffer and the narrowing arithmetic.
 
 ## D64. iBus telemetry sensors (2026-10-11)
 
