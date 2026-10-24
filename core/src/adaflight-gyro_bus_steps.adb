@@ -114,6 +114,18 @@ package body Adaflight.Gyro_Bus_Steps with SPARK_Mode is
       Value := 0;
    end Step_Read_Register;
 
+   procedure Step_Write_Buffer (D : in out Gyro_Line; Register : Byte; Data : Byte_Array) is
+      pragma Unreferenced (D, Register, Data);
+   begin
+      null;
+   end Step_Write_Buffer;
+
+   procedure Step_Read_Masked (D : in out Gyro_Line; Register : Byte; Data : in out Byte_Array; OK : out Boolean) is
+      pragma Unreferenced (D, Register, Data);
+   begin
+      OK := True;
+   end Step_Read_Masked;
+
    procedure Step_Delay_Us (D : in out Gyro_Line; Us : Natural) is
       pragma Unreferenced (D, Us);
    begin

@@ -8343,3 +8343,33 @@ negative, at the sign bit, at 63 and 64 counts or at the ends, redrawn in 60 per
 call, detection, call result, raw count and calculation of the 300 cases replays exactly. In them 175 chips are found,
 84 BMP580 and 91 BMP581, 132 cases configure the data ready pin, and 8750 calls run. Of 51 tampered paths, 50 fail the
 vectors. One passes and is equivalent: the select pin return in the address retry, which only an I2C chip reaches.
+
+## D360. ICM456xx gyro driver (2026-10-19)
+
+`Adaflight.MPU_Gyro.ICM456xx` drives the ICM-45686 and ICM-45605 gyros over the SPI gyro layer. Detection resets the
+chip and polls the reset bit 10 us apart for up to 20 ms, wakes it and reads its identity up to 21 times, 1 ms apart.
+Initialization sets a 24 MHz clock, runs the layer's, turns the sensors on in low noise mode and waits 1 ms, sets the
+accelerometer to 16 g at 1600 Hz and waits 10 ms, enables the gyro's anti-alias filter and interpolator and sets its low
+pass filter from the filter setting through the indirect registers, falling back to the raw path and the bypass when an
+update fails, sets the gyro to 2000 degrees per second at 6400 Hz and waits 35 ms, takes the short period of 156 us,
+sets the pulsed, push-pull, active high interrupt on data ready and names the data registers. The accelerometer
+initialization enables its anti-alias filter and interpolator and sets its low pass filter to an eighth of its rate the
+same way. An indirect register access waits for the done bit 4 us apart for up to 5 ms, writes the address and reads or
+writes the data 4 us apart; an update reads, writes when the masked bits differ, reads back and tries three times, and a
+read while armed fails. The reads take the six little-endian bytes of the gyro or the accelerometer with a blocking
+transfer; the first gyro read leaves the interrupt mode without DMA, which the reference never selects. The reference
+keeps the arming state in a global flag; this unit takes it as an argument of the initializations. The unit is SPARK,
+with the polls bounded by their timeouts.
+
+The ICM456xx oracle includes the reference driver and the common SPI gyro layer over a simulated chip with its indirect
+registers, one case per process. It draws the bus, the chip identity, 0xE9 or 0xE5 in 85 percent of the cases, and the
+reads before it answers, the polls the reset bit and each indirect access take to clear, the first access past the
+driver's 5 ms timeout in 4 percent of the cases, past all three retries in some, and the reset past its 20 ms timeout in
+3, whether indirect writes take, refused in 12 percent, the arming state, armed in 5 percent, the startup clock and its
+step, the interrupt pin, the filter setting and the register values, then runs the detection, the gyro and accelerometer
+detection and initialization, and 30 steps of interrupts, bursts, DMA completions, gyro and accelerometer reads and new
+samples. Every bus, pin, clock and delay call, detection, setting, reading and indirect register value of the 300 cases
+replays exactly. In them 215 chips are found, 132 answer 0xE9 and 122 0xE5, 14 cases are armed, the first indirect
+access times out in 7, past all retries in 2, the reset in 11, 36 refuse the indirect writes, and of 6450 steps 1524
+read the gyro, 1265 the accelerometer and 2067 raise interrupts. Of 69 tampered paths, 68 fail the vectors. One passes
+and is equivalent: the masking of an update's value, since every value lies within its mask.
