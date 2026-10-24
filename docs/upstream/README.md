@@ -20,3 +20,4 @@ Each document describes a Betaflight bug that adaflight fixes: the Betaflight ve
 - [NMEA fix state changes before the sentence is checked](nmea-fix-after-parity.md)
 - [MPU6500 family temperature uses the MPU6000's conversion](mpu6500-temperature.md)
 - [SD card free-cluster search reads the wrong FAT sectors past the free-space file](fat-free-cluster-sector.md)
+- [SD card forward seek moves to twice the position](fat-forward-seek.md)
