@@ -4,504 +4,51 @@
 [![Vector Checks](https://github.com/Jbsco/adaflight/actions/workflows/test.yml/badge.svg)](https://github.com/Jbsco/adaflight/actions/workflows/test.yml)
 [![Style](https://github.com/Jbsco/adaflight/actions/workflows/style.yml/badge.svg)](https://github.com/Jbsco/adaflight/actions/workflows/style.yml)
 
-Flight control firmware for multirotors and wings, written in SPARK and Ada as a port of
-[Betaflight](https://github.com/betaflight/betaflight). The goal is feature and performance
-parity with Betaflight, with a proved core where proof gives assurance that testing cannot:
-no filter or controller can produce an infinity or a NaN whatever its input history, no
-decoder can index outside its buffer, and every motor command is in range by type.
+adaflight is flight control firmware for multirotors and fixed-wing aircraft, written in Ada and SPARK as a port of [Betaflight](https://github.com/betaflight/betaflight). It aims at parity with Betaflight in features and flight behaviour. Its core is proved free of run-time errors with SPARK: no filter or controller can produce an infinity or a NaN whatever its input history, no decoder can index outside its buffer, and every motor command is in range by type.
 
 ## Contents
 
 - [Status](#status)
+- [Features](#features)
+- [Differences from Betaflight](#differences-from-betaflight)
+- [Building and testing](#building-and-testing)
+- [Verification](#verification)
 - [Repository layout](#repository-layout)
-- [Development](#development)
-- [Verification policy](#verification-policy)
 - [License](#license)
 
 ## Status
 
-The core contains:
+The flight software is ported and runs on the host, where each ported function replays inputs recorded from a host build of Betaflight and must reproduce its results bit for bit. No board runs adaflight yet. Target support starts with STM32F405 boards in Phase 7 of `ROADMAP.md`.
 
-<details>
-<summary><b>Maths and encodings</b> (2)</summary>
+## Features
 
-- bounded maths with fast exponential and logarithm, filter set, three-axis vectors and rotations,
-  sliding DFT, piecewise-linear tables, integrity codes, encodings, bit arrays, stream buffers,
-  and Huffman encoder
-- GPS coordinate conversion, sensor alignment, color conversion, and chirp generator
+- **Flight control**: Betaflight, Raceflight, KISS, Actual and Quick rates, RC smoothing and feedforward, PID controller with anti-gravity, I-term relax, TPA and dynamic idle, launch control, crash flip, EZ landing, in-flight adjustments, simplified tuning, failsafe
+- **Filters**: gyro and D-term lowpass and notch filters, dynamic notch over a sliding DFT, RPM filter
+- **Motors and servos**: multirotor and wing mixers with custom mixes, servos, 3D mode, DShot with bidirectional telemetry, PWM, OneShot, MultiShot and brushed outputs
+- **Attitude and navigation**: attitude estimator with compass heading, accelerometer calibration, position estimate from barometer, accelerometer and GPS, altitude hold, position hold, GPS rescue, flight plans with waypoints, NMEA and UBX GPS with u-blox configuration
+- **Gyros and accelerometers**: MPU6000, MPU6500, ICM20689 family, ICM426xx, ICM456xx, ICM40609, ICM56686, LSM6DSO, LSM6DSV16X, BMI160, BMI270, BMI423
+- **Barometers**: BMP085, BMP280, BMP388, BMP5xx, DPS310, MS5611, LPS, LPS22DF, QMP6988, 2SMPB-02B
+- **Compasses**: HMC5883L, QMC5883, IST8310, LIS3MDL, LIS2MDL, AK8963, AK8975, AK9916, MMC560X, BMM350
+- **Rangefinders, optical flow and airspeed**: TF, Nooploop, HC-SR04 and MT rangefinders, MT and UP-T1 optical flow, pitot airspeed
+- **Receivers**: SBUS, CRSF, SUMD, SUMH, IBUS, Spektrum, XBUS, Jeti EX Bus, Ghost, SRXL2, FPORT, PPM, PWM, MSP and MAVLink, and SPI receivers for ExpressLRS, FrSky D8 and X, Redpine, S-FHSS, FlySky AFHDS and AFHDS 2A, Spektrum DSM2 and DSMX and NRF24L01 protocols
+- **Telemetry**: CRSF, SmartPort, FrSky hub, iBus, HoTT, Ghost, SRXL, LTM, MAVLink with the mission protocol, Jeti EX Bus, MSP over telemetry
+- **Configuration**: command line with Betaflight's setting names, dump and diff, MSP with the messages Betaflight Configurator uses, configuration storage image
+- **OSD and menus**: MAX7456, MSP display port, FrSky OSD and OLED dashboard, OSD elements, warnings, statistics and navigation map, menus over the OSD and CRSF
+- **Flight log**: blackbox to SPI flash, to an SD card over SPI or SDIO with its FAT file system, or to a serial port
+- **Peripherals**: video transmitter control over SmartAudio, Tramp, MSP and RTC6705, LED strip, beeper and DShot beacon, ESC sensor, BLHeli passthrough, RunCam, gimbal, PINIO, race transponder, GPS lap timer, real-time clock, USB joystick
+- **Scheduler**: cooperative scheduler with Betaflight's task set
 
-</details>
+## Differences from Betaflight
 
-<details>
-<summary><b>Flight control</b> (11)</summary>
+adaflight keeps the operation order of Betaflight's code, so a host build of each gives the same results for the same inputs. `DIVERGENCES.md` lists every place where adaflight differs on purpose. Most of them keep a value in range where Betaflight's result is undefined, overflows or reads outside a buffer. Some fix Betaflight bugs found while porting, and each of those has a write-up for Betaflight:
 
-- rate curves and RC command path with smoothing, feedforward, low voltage cutoff, 3D throttle and
-  headfree turn
-- in-flight adjustments and simplified tuning of PID gains and filters
-- PID profile with runtime configuration, filter initialization, rate loop, throttle-side
-  features, crash recovery, launch control, yaw spin recovery, landing disarm, and wing airspeed
-  TPA with S term, setpoint attenuation, pitch offset, passthrough and launch level mode
-- motor mixer with mixer setup: frame tables, custom mixes, launch control mix, launch control,
-  altitude hold and GPS rescue throttles, RPM limiter, crash flip mixing, DShot failsafe floor,
-  battery sag compensation, dynamic idle, 3D throttle with motor reversal, wing RMS output and
-  launch throttle
-- gyro calibration and averaging over up to four sensors with selection at startup, filtering
-  chain, dynamic notch, RPM filter, and full-scale detections
-- attitude estimator with compass heading and headfree frame, and angle and horizon level modes
-  with GPS rescue, altitude hold and position hold
-- failsafe state machine with rescue and autopilot stages, runtime modes with ground station
-  overrides, and arming logic with launch control, runaway takeoff prevention, DShot checks, crash
-  flip arming, GPS checks, hold mode selection, statistics events, OSD menu gate, telemetry port
-  sharing, VTX control, wing launch mode and in-flight accelerometer calibration
-- core loop cadence: PID loop sample counter, filter and controller readiness, yaw reset at low
-  throttle while arming by stick
-- PID loop pass: unit order of task, with launch wing, runaway check, PID audio, servos and flight
-  log conditions
-- analog motor endpoints: output range and disarm output of PWM, OneShot, MultiShot and brushed
-  protocols, with 3D limits and deadband
-- arming load check: scheduler's late task share against configured limit as disable reason
+- [RTC6705 menu turns pit mode on at exit](docs/upstream/rtc6705-menu-pit-mode.md)
+- [RTC6705 menu stores band 0 at exit](docs/upstream/rtc6705-menu-band-zero.md)
+- [Deleting an empty file corrupts the FAT](docs/upstream/fat-empty-file-delete.md)
+- [Headfree mode deflects the sticks past full scale](docs/upstream/headfree-deflection.md)
+- [BMI270 accelerometer is not read in the experimental filter mode](docs/upstream/bmi270-fifo-accelerometer.md)
 
-</details>
-
-<details>
-<summary><b>Sensors and estimation</b> (2)</summary>
-
-- accelerometer path with in-flight calibration, barometer altitude and read cycle, compass with
-  bias calibration and read cycle, battery meters (analog with sag filter, ESC sensor, virtual,
-  MSP), states and pack connection, and sensor and board alignment
-- MT rangefinder and optical flow bridge: device table, distance reads, flow samples with range
-  validity
-
-</details>
-
-<details>
-<summary><b>Sensor drivers and detection</b> (43)</summary>
-
-- gyro detection: hardware of detected sensor from build's drivers in fixed order, no chip
-  detection with virtual gyro
-- accelerometer detection: hardware of detected sensor from configured driver onward, retry from
-  first driver
-- barometer detection: bus instance with address or select pin, drivers from configured one
-  onward, BMP5xx naming
-- compass detection: interrupt pin and bus, drivers from configured one onward with address reset,
-  DroneCAN, MPU925x
-- rangefinder detection: configured hardware's driver alone, task period by driver, presence
-  cleared on failure
-- optical flow detection: configured hardware's driver alone with rangefinder drivers, task period
-  from driver
-- gyro start: sample rates and rate code by detected sensor, overflow protection by gyro hardware,
-  data ready check
-- BMP280 barometer driver: I2C and SPI detection with address fallback, read cycle calls,
-  datasheet integer compensation
-- DPS310 barometer driver: DPS310 and SPL07-003 detection, coefficients and settings, continuous
-  reads, single-precision compensation
-- MS5611 barometer driver: signature and PROM check, separate temperature and pressure
-  conversions, datasheet second-order compensation in 64-bit integers
-- BMP388 barometer driver: BMP388 and BMP390 detection with SPI dummy byte, end of conversion
-  interrupt, forced measurements, 64-bit integer compensation
-- SPI gyro layer: chip detection over build's probes, data ready interrupt timing, read mode
-  selection, DMA and blocking reads of gyro, accelerometer and temperature, hardware filter
-  setting with experimental filter
-- MPU6000 gyro driver: detection with resets and product revisions, register initialization,
-  initial read failure check, 2000 degrees per second and 16 g ranges
-- ICM426xx gyro driver: six variants, detection with retries, external clock on ICM-42688-P,
-  anti-alias and interface filters, interrupt pin, ranges and output data rate from sample rate
-  divider
-- MPU6500 gyro driver: six chips from MPU6500 to ICM-20608-G, identity detection, register
-  initialization, 2000 degrees per second and 16 g ranges, 4000 degrees per second on high range
-  ICM-20601
-- ICM20689 gyro driver: four chips from ICM-20601 to ICM-20689, detection with reset, I2C disable
-  and signal path reset, 8 MHz clock, 2000 degrees per second and 16 g ranges
-- QMC5883 compass driver: QMC5883L and QMC5883P detection and setup, status and data read cycle,
-  overrun clear on QMC5883L, rejection of all-zero, all-one and stuck readings on QMC5883P
-- HMC5883L compass driver: SPI or I2C detection by identity, 75 Hz continuous setup, data ready
-  interrupt, alternating read cycle
-- IST8310 compass driver: detection by identity, averaging setup, single measurements polled for
-  data ready, 16-bit scaled axes
-- LIS3MDL compass driver: detection by identity, 80 Hz ultra-high-performance setup, alternating
-  read cycle
-- LIS2MDL compass driver: detection by identity, chained 100 Hz setup, alternating read cycle with
-  X negated
-- AK8975 compass driver: detection by identity, fuse ROM sensitivity, single measurements with
-  status checks
-- AK9916 compass driver: I2C detection by device identity, checked 100 Hz mode, mode set again
-  after 25 reads without data
-- MMC560X compass driver: detection by product identity, chained continuous 100 Hz setup, 18-bit
-  axes shifted to 16 bits
-- AK8963 compass driver: detection on I2C, SPI and MPU slave bus, fuse ROM sensitivity, queued
-  reads through gyro's I2C master
-- LPS22DF barometer driver: detection by identity on I2C or SPI, software reset polled for 10 ms,
-  continuous 10 Hz setup, combined pressure and temperature read
-- QMP6988 barometer driver: detection by identity on I2C or SPI, 25 calibration bytes scaled in
-  single precision, combined read with single-precision compensation
-- BMP085 barometer driver: detection by identity on I2C with clear and conversion-end pins, 22
-  calibration bytes as read, conversion-end pin test, interrupt flag on each conversion, datasheet
-  compensation in wrapping 32-bit arithmetic with zero for a division by zero
-- TF rangefinder driver: detection by model with serial port at 115200 baud and 100 Hz command,
-  frame parser with checksum, readings cut by range, reliability and confidence rules of model,
-  command resend after 200 ms without a frame
-- Nooploop rangefinder driver: detection by model with serial port, frame parser with byte sum,
-  24-bit distances cut by range and status of model, hardware failure 200 ms after last frame or
-  first update
-- UP-T1 sensor driver: rangefinder and optical flow detections over one serial port, startup bytes
-  and protocol command, frame parser with exclusive-or checksum, laser readings, flow rates summed
-  over frames of each update with invalid-frame cutoff
-- HC-SR04 rangefinder driver: pin detection with trigger pulses and echo poll, echo interrupt
-  timing, distance from travel time with 4 m cut, hardware failure on a late or wrapped echo,
-  trigger cadence
-- 2SMPB-02B barometer driver: detection by identity with five tries, coefficient scaling with
-  integer division, forced measurement, square-root compensation with NaN and infinity kinds of
-  reference, ARM conversions of results
-- LPS barometer driver: SPI detection with verified setup writes and 500 ms wait for a first
-  sample, status-gated sample read, integer pressure and temperature scaling
-- BMP5xx barometer driver: detection with data ready pin, address fallback and configuration
-  writes, SPI dummy byte, six-byte sample, integer temperature and pressure scaling
-- ICM456xx gyro driver: ICM-45686 and ICM-45605 detection with reset and identity polls, indirect
-  register low pass filter setup with retries and fallbacks, sensor configuration, little-endian
-  reads
-- LSM6DSO gyro driver: identity read, reset and masked configuration writes with read-backs, data
-  ready interrupt, little-endian reads
-- ICM56686 gyro driver: reset and identity polls, indirect register setup with waits,
-  modifications and fallbacks, sensor configuration, little-endian reads
-- BMI423 gyro driver: SPI selection by select pin, 16-bit registers behind two dummy bytes, reset
-  and configuration writes, DMA read of both sensors, little-endian reads
-- LSM6DSV16X gyro driver: LSM6DSV16X, LSM6DSV32X and LSM6DSK320X probes, verified writes, polled
-  reset, three configuration attempts with failure call, DMA sample latch, little-endian reads
-- BMI160 gyro driver: SPI selection byte, power mode commands with status check, rate, range,
-  offset and interrupt writes, little-endian reads over blocking and DMA transfers
-- ICM40609 gyro driver: reset and identity probe, banked power, endianness, rate, filter order,
-  anti-alias profile, notch and high pass filter configuration, data ready interrupt, layer reads
-- BMM350 compass driver: detection by identity at two addresses, one-time memory trim with parse,
-  magnet reset and power modes waited in status register, 24-bit axes compensated in single
-  precision
-
-</details>
-
-<details>
-<summary><b>Navigation</b> (5)</summary>
-
-- position Kalman filter, position estimator from barometer, accelerometer and GPS, altitude hold,
-  position hold with autopilot's navigation modes, GPS rescue, and position navigation target
-- flight plan storage with waypoint capture gesture, and executor's plan queries, leg geometry,
-  carrot legs, dispatch, landing, update cycle, engagement, plan injection, geofence return,
-  rescue plan and descent, and waypoint distance, bearing and time
-- navigation trail with distance gate and decimation
-- GPS frame decoders for NMEA sentences and UBX messages, UBX configuration messages, and GPS link
-  with rate detection, autoconfiguration and home distances
-- GPS lap timer with averaged gate and best three laps
-
-</details>
-
-<details>
-<summary><b>Receivers</b> (14)</summary>
-
-- SBUS, CRSF, SUMD, SUMH, IBUS, Spektrum, XBUS, Jeti EX Bus, Ghost, SRXL2 and FPORT protocols, PPM
-  and parallel PWM inputs, and MSP and MAVLink receivers
-- FrSky SPI D8 and X receivers with binding, hopping, hub data and telemetry transport
-- S-FHSS receiver with offset tuning, hunt and hop code
-- Redpine receiver with fast and slow modes, bind tuning and hop table
-- FlySky AFHDS and AFHDS 2A receivers with binding, hopping and telemetry
-- Spektrum DSM2 and DSMX SPI receiver with binding, hopping and telemetry
-- NRF24L01 driver, XN297 payloads, and V202, SYMA, H8_3D, CX10 and acknowledgment payload
-  receivers
-- SPI receiver layer: receiver family per protocol, frame checks and processing, channel reads and
-  stop
-- RC statistics for full throttle time and count and average throttle
-- receiver task's state machine with step time estimates
-- receiver bind: CRSF, SRXL2 and SPI receivers from bind_rx command and MSP bind message
-- SX1280 radio driver: initialization, LoRa and FLRC configuration, command, register and buffer
-  transfers behind busy pin, interrupt chain of DMA transfers with hop, telemetry and packet
-  processing hooks
-- SX127x radio driver: initialization, LoRa configuration, register bit fields, frequency and
-  correction arithmetic, packet statistics, interrupt reason
-- CC2500 radio driver: FIFO reads and writes, register and burst access, strobes, power table,
-  reset check
-
-</details>
-
-<details>
-<summary><b>Telemetry</b> (13)</summary>
-
-- CRSF telemetry frames with link type check, ESC sensor telemetry
-- SmartPort telemetry stream
-- FrSky hub telemetry stream
-- iBus telemetry sensors
-- HoTT telemetry link in binary and text modes, text mode screen for menu system
-- Ghost telemetry frames
-- race transponder codings and repeat schedule
-- SRXL telemetry frames with text generator and display port for menu system
-- LTM telemetry stream
-- MSP tunnel over telemetry with chunked requests and replies
-- MAVLink telemetry streams with intervals and arming status text, and MAVLink commands with
-  replies and requests
-- MAVLink mission protocol with uploads, downloads, fence store and current item reports
-- Jeti EX Bus telemetry with sensor descriptions and value messages
-
-</details>
-
-<details>
-<summary><b>MSP</b> (34)</summary>
-
-- MSP serial port, ExpressLRS hopping tables, telemetry link and receiver, flight log field
-  encodings, header and recorder, text conversions, and DShot protocol
-- MSP box table with paged replies and status bits
-- MSP common replies: versions, board and build information, unique id, feature and beeper
-  configuration, meters and sensors, battery and transponder configuration, OSD canvas
-- MSP tuning replies: PID gains, rate profile, advanced, filter and advanced PID configuration,
-  alignments, arming configuration, 3D throttle and deadbands
-- MSP receiver replies: mode and adjustment ranges, receiver, failsafe and channel failsafe
-  configuration, RSSI channel and channel map
-- MSP hardware replies: mixer, motors, compass, GPS, rescue, trims, flight log, sensors, and flash
-  and SD card storage
-- MSP peripheral replies: servos, motor order, LED strip, video transmitter and wing tuning
-- MSP text replies: names, texts by type, transmitter table rows, LED strip values and battery
-  profiles
-- MSP simplified tuning messages: slider read and write, gain and filter calculations, validation
-- MSP OSD replies: configuration and warnings line
-- MSP serial port replies: available ports with baud rates in legacy and common layouts
-- MSP transmitter device status: type, readiness, band and channel, power, frequency, status,
-  power levels and device block
-- MSP state replies: status, sensor readings, motors, RC channels, attitude, altitudes, battery,
-  debug values, GPS, ESC and motor telemetry, pitot, transmitter information and clock
-- MSP tuning writes: PID gains, rate tuning, arming, trims, 3D throttle, deadbands, alignments and
-  PID reset, whole-request range check
-- MSP filter and advanced writes: advanced configuration, filters and advanced PID settings with
-  gyro checks of configuration fix
-- MSP receiver writes: mode and adjustment ranges, receiver and failsafe settings, channel
-  failsafe values, RSSI channel and channel map
-- MSP hardware writes: mixer, sensors, motors, GPS, compass declination, GPS rescue and gains
-- MSP battery writes: voltage and current meters, cell voltages, capacity and meter sources
-- MSP feature writes: features, beeper and beacon conditions, beacon tone, motor output order
-- MSP blackbox write: device, sample rate from rate or frame ratio, fields left out
-- MSP servo writes: servo parameters and servo mix rules with servo and smix command bounds
-- MSP LED writes: colors, LED configurations and mode colors with command line bounds
-- MSP text writes: craft name, texts by type, LED strip values and battery profiles
-- MSP peripheral writes: wing tuning, transponder provider and data, VTX table bands and power
-  levels
-- MSP control writes: flash erase, arming switch per link, calibrations, configuration write,
-  restart into a mode, DShot commands
-- MSP OSD writes: general settings with video system switch, timers, element positions,
-  statistics, canvas
-- MSP profile writes: profile selection and copy
-- MSP VTX configuration write: band and channel or frequency, power, pit mode, table counts and
-  clearing
-- MSP runtime writes: raw receiver channels, raw GPS solution, GPS sensor solution, transmitter
-  RSSI, clock, MT sensor readings
-- MSP board writes: board information and signature set once, configuration reset with reply
-- MSP motor test: disarmed motor values converted for motor protocol
-- MSP OSD font character write: four request forms, character handed to OSD display port
-- MSP command line setting message: settings read by name, strict writes by name with new value in
-  reply
-- MSP command line setting information message: parameter group, type, range or values, default
-
-</details>
-
-<details>
-<summary><b>Configuration and command line</b> (43)</summary>
-
-- configuration storage image: structure and version checks, record lookup, load and save
-- settings table: names, types, scopes, ranges and lookup tables of command line's 789 settings
-- configuration groups: a record per parameter group with Betaflight's defaults, every setting's
-  value and write, and groups' bytes for storage image
-- configuration fix: checks of every load and save over mixer mode, telemetry slots, serial ports,
-  filter cutoffs, receiver features, mode links, DShot settings, PID loop rate, profile
-  selections, rates and battery voltages
-- command line get and set: line handling, setting values, ranges and defaults, value parsing and
-  error lines
-- command line profiles, dump and diff: profile selection, profile and rate sections with defaults
-- command line features and beepers: feature, beeper and beacon lists and switches
-- command line mode conditions: aux lists and writes
-- command line receiver channels: channel map, stick ranges and failsafe values
-- command line adjustment ranges: adjrange lists and writes
-- command line serial ports: claim lists and legacy port lines
-- command line mixer and motor mix: mixer names, custom motor mixes, float reading and text
-- command line servos: servo parameters, servo rules with loads and reversed sources
-- command line LEDs: LED configurations, colors and mode colors
-- command line VTX settings: VTX channel conditions and VTX table
-- command line flight plan: waypoint lists, edits and status with executor's report
-- command line master dump: section commands, master settings and selected profiles, version line
-- command line master diff: changed lines with defaults, hardware section
-- command line dump of every profile: profile restores and save, MCU id and signature lines
-- command line board information: board name, manufacturer and signature commands
-- command line simplified tuning: apply and disable over stored profiles and gyro settings
-- command line defaults: whole and single-group resets without save
-- command line batches: batch start and end with error flag, unknown line reply
-- command line tasks: task list with rates, execution times and loads, check functions and total
-  load lines, peak time resets
-- command line save and exit: save with board persistence and batch refusal, exit, defaults with
-  save, requests to write, restart and leave
-- command line information: VTX power levels, receiver frame rate and RC smoothing cutoffs
-- command line motors and sounds: disarmed values for one or every motor, beeper table sounds
-- command line sensor hardware: hardware names of every sensor type or of one
-- command line DShot telemetry: driver counts, direction change time, each motor's replies, RPM
-  and invalid share, decoder edge times
-- command line storage information: SD card state, identity and file system, flash chip geometry,
-  partitions and file system use
-- command line restarts: ROM bootloader, and mass storage with timezone offset
-- command line help: command list with descriptions and arguments, search by name or description
-- command line DShot programming: commands to one ESC or all, ESC information of KISS v1, KISS v2
-  and BLHeli_32 ESCs
-- command line build options: option numbers of build, one per line
-- command line peripherals: serial ports with claims, detected gyros and sensors with buses
-- command line status: MCU, clock, stack, configuration, bus devices, gyros, sensors, GPS
-  receiver, OSD, storage, uptime, load, battery, arming disable reasons
-- command line environment: status readings and build identity as name and value lines with a name
-  filter
-- command line passthrough starts: ESC serial links by protocol and output, GPS receiver
-- command line gyro registers: identity and configuration registers of each enabled gyro
-- command line flash tools: whole erase, verify, writes and reads at an address
-- command line tasks late columns: late and run counts and anticipated time per task
-- runtime records from stored configuration: PID profile, rate profile, gyro, arming, failsafe,
-  receiver, RC command, adjustment, mixer, accelerometer, attitude, barometer, compass, battery,
-  beeper, GPS link, GPS rescue, position, altitude, flight plan, blackbox, scheduler, LED strip,
-  VTX, statistics, lap timer, rangefinder, optical flow, pitot, gimbal, clock, OSD, telemetry and
-  receiver link settings and mode conditions with range holds, fix's postcondition as precondition
-- serial feature map: port function bits and baud rates from feature settings, claims, mask and
-  baud writes, conflict rule, configuration fix, port sharing and telemetry provider ports
-
-</details>
-
-<details>
-<summary><b>Scheduler and tasks</b> (9)</summary>
-
-- scheduler late task statistics: run and late counts per task, anticipated times, late share per
-  timing window
-- scheduler debug values: pass overhead, gyro cycle determinism, timing accuracy and debug task
-  values
-- task functions: main with SD card poll, serial, battery alerts, accelerometer, GPS rescue,
-  barometer, pitot, compass, position, rangefinder, optical flow, telemetry and camera control
-  tasks over units, sensor tasks rescheduled by updates
-- PID audio tone
-- PINIO outputs switched by boxes
-- warning LED
-- dispatch queue of delayed calls
-- cooperative scheduler, beeper, and receiver's channel processing with MSP override
-- task setup: tasks enabled at boot and periods from build, features, sensors and settings
-
-</details>
-
-<details>
-<summary><b>OSD and menus</b> (26)</summary>
-
-- OLED dashboard: pages of board state with cycling, armed page, failsafe and receiver corner
-- OLED display driver: command and data framing, initialization sequence, clears, positions and
-  characters from 5 by 7 font
-- MAX7456 OSD chip driver: detection with AT7456E variant and clock setting, video standard
-  detection with stall recovery, shadow buffer drawing in address runs, font character writes
-- MAX7456 display port: profile inversion and brightness on clear, disarmed redraw, readiness
-  check with rescan, rows and columns from video system and profile adjustments
-- OSD custom text from a serial port
-- OSD warnings line with precedence, arming reason rotation and ESC alarms
-- OSD formatting of numbers, altitudes, distances, coordinates with plus codes, clock and timers,
-  with battery and direction symbols
-- MSP display port with payloads, attribute byte and canvas size
-- OSD statistics with extremes and page texts
-- OSD page with arming and boot screens and cycle steps around them
-- OSD element set with alarms and renderers, warnings element, draw cycle, spec prearm screen and
-  OSD task
-- OSD navigation map: home, flight plan waypoints and flown trail with automatic width
-- OSD flight plan items: waypoint number, coordinates, altitude, distance, direction, next
-  waypoint, arrival time and airspeed
-- OSD flight plan warnings: waypoint aborts, capture messages, landing and plan complete cues,
-  rescue descent failure
-- OSD warnings reports: visual beeper and capture message reads passed to target through draw
-  cycle and OSD task
-- menu system lines and page layout: element and flag encoding, screen geometry, page count and
-  selection, cursor row, skip rule, fixed-point text, field alignment and display character set
-- menu draw: page labels, values and cursor within display's byte budget, element value forms,
-  slider marks and page arrows
-- menu navigation: open on current display or next one, menu changes over context stack with enter
-  and leave hooks, page selection, draw with update hook, exits of every kind with target's
-  actions in order
-- menu keys: cursor moves over rows and pages, value edits at widths and ranges, submenu,
-  function, exit and back lines, save menu by reboot state, edits delivered to target
-- menu update: open gesture, sticks read as keys with delay and repeat, external keys, draw,
-  heartbeat and drawing transactions per pass
-- menu hook effects: menu changes and exits made inside enter hooks and line functions, exit lines
-  calling own functions
-- menu line refresh: current menu's lines refreshed from target's variables before draw and key
-  edits
-- menu target state: configuration, readings and menu values kept in target's state, passed to
-  every hook
-- menus: quick menu with throttle and motor output limits and forced cells, main menu with
-  features menu and setup popup for accelerometer calibration and battery restore, profile menu
-  with PID, rate, simplified tuning, misc, launch control, filter and profile copy menus, VTX
-  selection with error menu, MSP, Tramp and SmartAudio VTX menus with confirmations, RTC6705 VTX
-  menu, SmartAudio configuration, statistics and frequency menus, save and exit menus, OSD menu
-  with active elements, timers and alarms, blackbox menu with flash erase and mass storage, LED
-  strip, power, failsafe with GPS rescue and rescue PID, RPM limit, misc, RC preview, GPS lap
-  timer, persistent statistics, firmware and calibration menus
-- menu hook operations: clears, texts, redraws, background types and configuration saves, and save
-  menu inhibition from hooks
-- menu over CRSF: display port screen with clears, delays and transmitter commands, run-length
-  chunks and clear frames in CRSF telemetry
-
-</details>
-
-<details>
-<summary><b>Peripherals and storage</b> (20)</summary>
-
-- BLHeli 4-way interface for ESC configuration through flight controller
-- BLHeli bootloader protocol: software serial on ESC signal pin with connect, keep-alive, restart,
-  reads, writes, erases and verifies
-- STK500v2 bootloader protocol: pulse-coded ESC signal pin with learned bit threshold, sign-on,
-  signature, chip erase, reads and writes
-- USB joystick: report of eight axes and eight buttons while disarmed, joystick test that stops
-  stick commands
-- SD card SPI driver: initialization through card registers and metadata, command and block waits,
-  single and multiple block writes with completions, reads, timeouts, reset path
-- SD card SDIO driver: initialization through controller's card information, reads, single and
-  cached multiple block writes with completions, timeouts, reset path
-- M25P16 flash driver: 40 SPI NOR chips by JEDEC ID, status reads repeated while busy, sector and
-  chip erases, page programs of one or two buffers, reads, 4-byte addresses past 16 MB
-- flash layer: select pin and bus checks, identification read at 5 MHz, partition table, erases
-  that wait for chip, programs trimmed at page end
-- W25N flash driver: three SPI NAND chips by JEDEC ID with bad block range, buffered page
-  programs, flushes, page reads with ECC check, millisecond timeouts
-- W25M flash driver: W25M512 and W25M02G identified through two dies, die select, operations at
-  addresses within dies, reads split across dies
-- W25Q128FV flash driver: nine quad SPI NOR chips by JEDEC ID, reset with quad enable bit, erases,
-  programs as four-line segment lists, four-line reads, timeouts
-- gimbal control from a head tracker and sticks
-- flash filesystem for flight log, with ring buffer, erases and free space search
-- SD card file system: sector cache, partition table and volume ID, FAT entries, 8.3 names,
-  cluster search and appends, file cursor with seeks, reads and writes, free-space search, file
-  opens, closes, deletes and truncations, directory walks, makes and changes, start with
-  free-space file, poll and shutdown
-- flight log on SD card: log directory, log numbers from names in it, a new file per log, log ends
-  that close or delete, flushes and device state
-- RunCam device protocol with camera buttons and five key cable
-- FrSky OSD device link
-- LED strip with status, race and beacon profiles
-- real-time clock calendar with zone offset and ISO 8601 text
-- video transmitter table, SmartAudio, Tramp, MSP and RTC6705 drivers, transmitter settings update
-  over all four with stick, switch and Spektrum control, and SmartAudio menu state from each
-  device response
-
-</details>
-
-The state of `main`:
-
-- Core proves at Silver and Gold: 34276 checks, nothing unproved, no `pragma Assume`, no justified
-  suppression (`gnatprove` 16.1.0, level 2).
-- Recorded vectors replay bit for bit: 6870680 lines over 5907 cases, every case exact except
-  fifty-eight declared deviations in `DESIGN.md` D6.
-- No target builds yet. `ROADMAP.md` contains phases, parity inventory, and one question for after
-  parity: whether a proved core leaves room on F4 boards for features Betaflight has to leave out
-  there.
-
-## Repository layout
-
-| Path | Contents |
-|---|---|
-| `core/` | SPARK library crate `adaflight_core`: the proved, hardware-independent core |
-| `tests/` | Host crate `adaflight_tests`: replays `tests/vectors` through the core |
-| `tools/` | Repository tooling (markdown rendering check) |
-| `style.do`, `test.do`, `prove.do`, `verify.do` | The gates, runnable with `bash` or `redo` |
-| `DESIGN.md` | Numbered design decisions with their reasons |
-| `ROADMAP.md` | Phases and the parity inventory |
-
-## Development
+## Building and testing
 
 [Alire](https://alire.ada.dev) provides the compiler and the prover.
 
@@ -510,29 +57,32 @@ The state of `main`:
     bash prove.do                             # SPARK proof of the core
     bash verify.do                            # every gate, cheapest first
 
-A change is finished when `verify.do` is green.
+A change is finished when `verify.do` passes.
 
-## Verification policy
+## Verification
 
-- Every unit in `core/` is SPARK and proves free of run-time errors, except the four bodies
-  outside SPARK that `DESIGN.md` names: the accurate power (D15), the rescue's arctangent (D83),
-  the configuration codec (D166) and the configuration fix's call sequence (D167). The proof gate
-  counts such bodies on every run.
-- No `pragma Assume` and no justified suppression. `prove.do` prints both counts.
-- A pull request proves the units whose sources it changed (`tools/changed-units.py`).
-  A nightly run proves every core unit in four parallel groups. Both prove a generic unit
-  through its instantiations, a generic child through its instantiations under its parent's
-  instances.
-- A ported function keeps the operation order of its Betaflight original, so the host
-  build reproduces its results bit for bit. The vector checker reports the distance in
-  representable values for every case.
-- A deliberate deviation carries a tolerance in the checker and an entry in `DESIGN.md`.
-- Vectors under `tests/vectors` were recorded from a host build of Betaflight at commit af0638839
-  by a tool outside this repository, so the checker holds the port to Betaflight's exact results.
+- Every unit in `core/` is SPARK and proved free of run-time errors at Silver or Gold, except four bodies outside SPARK that `DESIGN.md` names: the accurate power (D15), the rescue's arctangent (D83), the configuration codec (D166) and the configuration fix's call sequence (D167). The proof gate counts such bodies on every run.
+- No `pragma Assume` and no justified suppression. `prove.do` counts both on every run.
+- A pull request proves the units whose sources it changed (`tools/changed-units.py`). A nightly run proves every core unit in four parallel groups. Both prove a generic unit through its instantiations.
+- A ported function keeps the operation order of its Betaflight original, so the host build reproduces its results bit for bit. The vector checker reports the distance in representable values for every case, and each deliberate difference has a declared tolerance and a line in `DIVERGENCES.md`.
+- Vectors under `tests/vectors` were recorded from a host build of Betaflight at commit af0638839 by a tool outside this repository.
+
+## Repository layout
+
+| Path | Contents |
+|---|---|
+| `core/` | SPARK library crate `adaflight_core`: the proved, hardware-independent core |
+| `tests/` | Host crate `adaflight_tests`: replays `tests/vectors` through the core |
+| `tools/` | Repository tooling: changed units for CI, markdown rendering check |
+| `third_party/` | Third-party material with its license and source |
+| `docs/upstream/` | Write-ups of Betaflight bugs that adaflight fixes |
+| `style.do`, `test.do`, `prove.do`, `verify.do` | The gates, runnable with `bash` or `redo` |
+| `DESIGN.md` | Numbered design decisions with their reasons |
+| `DIVERGENCES.md` | Every place where adaflight differs from Betaflight on purpose |
+| `ROADMAP.md` | Phases and the coverage of Betaflight's source areas |
 
 ## License
 
 GPL-3.0-or-later. See `LICENSE`.
 
-`core/src/adaflight-bmi270_config.ads` contains Bosch Sensortec's BMI270 configuration file under
-BSD-3-Clause license. `third_party/bosch-bmi270` contains that license and names the source.
+`core/src/adaflight-bmi270_config.ads` contains Bosch Sensortec's BMI270 configuration file under BSD-3-Clause license. `third_party/bosch-bmi270` contains that license and names the source.
