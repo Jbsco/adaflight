@@ -218,6 +218,7 @@ with Adaflight.Flash_Device;
 with Adaflight.Flash_Device.M25P16;
 with Adaflight.Flash_Device.W25Q128FV;
 with Adaflight.OLED_Display;
+with Adaflight.SX1280;
 with Adaflight.Flash_Device.W25N;
 with Adaflight.Flash_Device.W25M;
 with Adaflight.Flash_Device.Layer;
@@ -23592,6 +23593,485 @@ procedure Vector_Check is
       end if;
    end Check_OLED_Line;
 
+   --  The SX1280 oracle's chip, pins, clock and receiver: register and buffer
+   --  reads answered from hashes, the status, buffer status, statistics and
+   --  interrupt status from the step's draws, a busy pattern over the step's
+   --  busy reads, and the receiver's hop, telemetry and packet answers.
+   type SX_Link is record
+      Reg_Seed        : Interfaces.Unsigned_32 := 0;
+      Version_Answer  : Integer := 0;
+      Us_Clock        : Interfaces.Unsigned_32 := 0;
+      Us_Step         : Interfaces.Unsigned_32 := 1;
+      Status_Answer   : Byte := 0;
+      Exti_Configured : Boolean := True;
+      Busy_Pin_Set    : Boolean := False;
+      Busy_Mask       : Interfaces.Unsigned_16 := 0;
+      Busy_Reads      : Natural := 0;
+      Irq_Answer      : Interfaces.Unsigned_16 := 0;
+      FIFO_Answer     : Byte := 0;
+      Len_Answer      : Byte := 0;
+      Stats_Answer    : Byte_Array (0 .. 1) := (0, 0);
+      Process_Answer  : Byte := 0;
+      Last_Exti       : Interfaces.Unsigned_32 := 0;
+      Hop_Answer      : Boolean := False;
+      Telem_Answer    : Boolean := False;
+      Freq_Answer     : Interfaces.Unsigned_32 := 0;
+      Telem_Seed      : Interfaces.Unsigned_32 := 0;
+      Telemetry       : Byte_Array (0 .. 7) := (others => 0);
+      Exti_Armed      : Boolean := False;
+   end record;
+
+   SX_Device : SX_Link;
+
+   function SX_Reg_Byte (D : SX_Link; Address : Interfaces.Unsigned_16) return Byte is
+     (Byte ((Interfaces.Unsigned_32 (Address) * 2_654_435_761 + D.Reg_Seed * 40_503) / 2 ** 24));
+
+   function SX_Reg_Read (D : SX_Link; Address : Interfaces.Unsigned_16) return Byte is
+     (if D.Version_Answer /= 0 and then Address in 16#153# .. 16#154# then (if D.Version_Answer = 1 then 16#FF# else 0)
+      else SX_Reg_Byte (D, Address));
+
+   function SX_FIFO_Byte (D : SX_Link; Offset : Byte) return Byte is
+     (Byte ((Interfaces.Unsigned_32 (Offset) * 2_246_822_519 + D.Reg_Seed * 3_266_489_917) / 2 ** 24));
+
+   --  The chip's answer to a transfer, by its command byte.
+   function SX_Answer (D : SX_Link; Tx : Byte_Array) return Byte_Array is
+      use type Interfaces.Unsigned_8;
+      use type Interfaces.Unsigned_16;
+      Rx : Byte_Array (0 .. Tx'Length - 1) := (others => 0);
+   begin
+      case Tx (Tx'First) is
+         when 16#19# =>
+            declare
+               Address : constant Interfaces.Unsigned_16 :=
+                 Interfaces.Unsigned_16 (Tx (Tx'First + 1)) * 256 + Interfaces.Unsigned_16 (Tx (Tx'First + 2));
+            begin
+               for I in 4 .. Rx'Last loop
+                  Rx (I) := SX_Reg_Read (D, Address + Interfaces.Unsigned_16 (I - 4));
+               end loop;
+            end;
+         when 16#1B# =>
+            for I in 3 .. Rx'Last loop
+               Rx (I) := SX_FIFO_Byte (D, Tx (Tx'First + 1) + Byte (I - 3));
+            end loop;
+         when 16#C0# =>
+            Rx (0) := D.Status_Answer;
+         when 16#17# =>
+            if Rx'Last >= 3 then
+               Rx (2) := D.Len_Answer;
+               Rx (3) := D.FIFO_Answer;
+            end if;
+         when 16#1D# =>
+            if Rx'Last >= 3 then
+               Rx (2) := D.Stats_Answer (0);
+               Rx (3) := D.Stats_Answer (1);
+            end if;
+         when 16#15# =>
+            if Rx'Last >= 3 then
+               Rx (2) := Byte (D.Irq_Answer / 256);
+               Rx (3) := Byte (D.Irq_Answer mod 256);
+            end if;
+         when others =>
+            null;
+      end case;
+      return Rx;
+   end SX_Answer;
+
+   function SX_Flag (B : Boolean) return String is (BMP_Num (Boolean'Pos (B)));
+
+   procedure SX_Read_Busy (D : in out SX_Link; Busy : out Boolean) is
+      use type Interfaces.Unsigned_16;
+   begin
+      if not D.Busy_Pin_Set then
+         Busy := False;
+         return;
+      end if;
+      Busy := D.Busy_Reads < 16 and then (Interfaces.Shift_Right (D.Busy_Mask, D.Busy_Reads) and 1) = 1;
+      D.Busy_Reads := D.Busy_Reads + 1;
+      MX_Op ("busy," & SX_Flag (Busy));
+   end SX_Read_Busy;
+
+   procedure SX_Micros (D : in out SX_Link; Now : out Interfaces.Unsigned_32) is
+   begin
+      Now := D.Us_Clock;
+      D.Us_Clock := D.Us_Clock + D.Us_Step;
+      MX_Op ("micros," & BMP_Num (Integer_64 (Now)));
+   end SX_Micros;
+
+   procedure SX_Exti_Configured (D : in out SX_Link; Configured : out Boolean) is
+   begin
+      Configured := D.Exti_Configured;
+      MX_Op ("exticonfigured," & SX_Flag (Configured));
+   end SX_Exti_Configured;
+
+   procedure SX_Set_Normal_Speed (D : in out SX_Link; Hz : Interfaces.Unsigned_32) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("speed," & BMP_Num (Integer_64 (Hz)));
+      MX_Op ("normalspeed");
+   end SX_Set_Normal_Speed;
+
+   procedure SX_Init_Reset_Pin (D : in out SX_Link) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("ioinit,reset");
+      MX_Op ("ioconfig,reset,outpp");
+   end SX_Init_Reset_Pin;
+
+   procedure SX_Init_Busy_Pin (D : in out SX_Link) is
+   begin
+      D.Busy_Pin_Set := True;
+      MX_Op ("ioinit,busy");
+      MX_Op ("ioconfig,busy,floating");
+   end SX_Init_Busy_Pin;
+
+   procedure SX_Reset_Low (D : in out SX_Link) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("iolo,reset");
+   end SX_Reset_Low;
+
+   procedure SX_Reset_Float (D : in out SX_Link) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("ioconfig,reset,floating");
+   end SX_Reset_Float;
+
+   procedure SX_Delay_Ms (D : in out SX_Link; Ms : Natural) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("delay," & BMP_Num (Integer_64 (Ms)));
+   end SX_Delay_Ms;
+
+   procedure SX_Busy_Exti_Config (D : in out SX_Link) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("exti,config");
+   end SX_Busy_Exti_Config;
+
+   procedure SX_Busy_Exti_Arm (D : in out SX_Link) is
+   begin
+      D.Exti_Armed := True;
+      MX_Op ("exti,init");
+      MX_Op ("exti,enable");
+   end SX_Busy_Exti_Arm;
+
+   procedure SX_Busy_Exti_Disable (D : in out SX_Link) is
+   begin
+      D.Exti_Armed := False;
+      MX_Op ("exti,disable");
+   end SX_Busy_Exti_Disable;
+
+   procedure SX_Enable_Receiver_Exti (D : in out SX_Link) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("rxexti");
+   end SX_Enable_Receiver_Exti;
+
+   procedure SX_Last_Exti_Time (D : in out SX_Link; Time : out Interfaces.Unsigned_32) is
+   begin
+      Time := D.Last_Exti;
+   end SX_Last_Exti_Time;
+
+   procedure SX_Bus_Write_Command (D : in out SX_Link; Command : Byte; Value : Byte) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("wreg," & MX_Hex (Byte_Array'(0 => Command)) & "," & MX_Hex (Byte_Array'(0 => Value)));
+   end SX_Bus_Write_Command;
+
+   procedure SX_Bus_Transfer (D : in out SX_Link; Data : in out Byte_Array) is
+      Rx : constant Byte_Array := SX_Answer (D, Data);
+   begin
+      MX_Op ("rw," & BMP_Num (Integer_64 (Data'Length)) & "," & M2_Show (Data, True) & "," & M2_Show (Rx, True));
+      Data := Rx;
+   end SX_Bus_Transfer;
+
+   procedure SX_Bus_Write (D : in out SX_Link; Data : Byte_Array) is
+      Rx : constant Byte_Array := SX_Answer (D, Data);
+   begin
+      MX_Op ("rw," & BMP_Num (Integer_64 (Data'Length)) & "," & M2_Show (Data, True) & "," & M2_Show (Rx, True));
+   end SX_Bus_Write;
+
+   function SX_Has_Answer (Command : Byte) return Boolean is (Command in 16#15# | 16#17# | 16#1D#);
+
+   procedure SX_Run_Transfer (D : in out SX_Link; Step : Byte; Data : in out Byte_Array) is
+      pragma Unreferenced (Step);
+      Rx : constant Byte_Array := SX_Answer (D, Data);
+   begin
+      MX_Op ("seq");
+      MX_Op ("seg," & BMP_Num (Integer_64 (Data'Length)) & ",1," & M2_Show (Data, True) & ","
+             & M2_Show (Rx, SX_Has_Answer (Data (Data'First))));
+      if SX_Has_Answer (Data (Data'First)) then
+         Data := Rx;
+      end if;
+   end SX_Run_Transfer;
+
+   procedure SX_Run_Write (D : in out SX_Link; Step : Byte; Data : Byte_Array) is
+      pragma Unreferenced (Step);
+      Rx : constant Byte_Array := SX_Answer (D, Data);
+   begin
+      MX_Op ("seq");
+      MX_Op ("seg," & BMP_Num (Integer_64 (Data'Length)) & ",1," & M2_Show (Data, True) & ","
+             & M2_Show (Rx, SX_Has_Answer (Data (Data'First))));
+   end SX_Run_Write;
+
+   procedure SX_Run_Pair (D : in out SX_Link; Step : Byte; Head : Byte_Array; Tail : in out Byte_Array) is
+      pragma Unreferenced (Step);
+      use type Interfaces.Unsigned_8;
+      Rx : Byte_Array (0 .. Tail'Length - 1) := (others => 0);
+   begin
+      MX_Op ("seq");
+      MX_Op ("seg," & BMP_Num (Integer_64 (Head'Length)) & ",0," & M2_Show (Head, True) & ",-");
+      if Head (Head'First) = 16#1B# then
+         for K in Rx'Range loop
+            Rx (K) := SX_FIFO_Byte (D, Head (Head'First + 1) + Byte (K));
+         end loop;
+         MX_Op ("seg," & BMP_Num (Integer_64 (Tail'Length)) & ",1,-," & M2_Show (Rx, True));
+         Tail := Rx;
+      else
+         MX_Op ("seg," & BMP_Num (Integer_64 (Tail'Length)) & ",1," & M2_Show (Tail, True) & ",-");
+      end if;
+   end SX_Run_Pair;
+
+   procedure SX_Run_Pair_Write (D : in out SX_Link; Step : Byte; Head : Byte_Array; Tail : Byte_Array) is
+      pragma Unreferenced (D, Step);
+   begin
+      MX_Op ("seq");
+      MX_Op ("seg," & BMP_Num (Integer_64 (Head'Length)) & ",0," & M2_Show (Head, True) & ",-");
+      MX_Op ("seg," & BMP_Num (Integer_64 (Tail'Length)) & ",1," & M2_Show (Tail, True) & ",-");
+   end SX_Run_Pair_Write;
+
+   procedure SX_Hop_Requested (D : in out SX_Link; Requested : out Boolean) is
+   begin
+      Requested := D.Hop_Answer;
+      MX_Op ("hopreq," & SX_Flag (Requested));
+   end SX_Hop_Requested;
+
+   procedure SX_Current_Frequency (D : in out SX_Link; Frequency : out Interfaces.Unsigned_32) is
+   begin
+      Frequency := D.Freq_Answer;
+      MX_Op ("freq," & BMP_Num (Integer_64 (Frequency)));
+   end SX_Current_Frequency;
+
+   procedure SX_Telemetry_Requested (D : in out SX_Link; Requested : out Boolean) is
+   begin
+      Requested := D.Telem_Answer;
+      MX_Op ("telemreq," & SX_Flag (Requested));
+   end SX_Telemetry_Requested;
+
+   procedure SX_Do_Telemetry (D : in out SX_Link) is
+   begin
+      D.Telemetry := M2_Fill (8, D.Telem_Seed);
+      MX_Op ("dotelem");
+   end SX_Do_Telemetry;
+
+   procedure SX_Telemetry_Buffer (D : in out SX_Link; Data : out Byte_Array) is
+   begin
+      Data := D.Telemetry;
+   end SX_Telemetry_Buffer;
+
+   procedure SX_Process_Packet
+     (D : in out SX_Link; Payload : Byte_Array; Timestamp : Interfaces.Unsigned_32; Status : out Byte) is
+   begin
+      Status := D.Process_Answer;
+      MX_Op ("process," & BMP_Num (Integer_64 (Timestamp)) & "," & SD_Hash (Payload) & ","
+             & BMP_Num (Integer_64 (Status)));
+   end SX_Process_Packet;
+
+   procedure SX_Set_Packet_Status (D : in out SX_Link; Status : Byte) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("setstatus," & BMP_Num (Integer_64 (Status)));
+   end SX_Set_Packet_Status;
+
+   package SX_Driver is new Adaflight.SX1280
+     (Radio_Device         => SX_Link,
+      Read_Busy            => SX_Read_Busy,
+      Micros               => SX_Micros,
+      Exti_Configured      => SX_Exti_Configured,
+      Set_Normal_Speed     => SX_Set_Normal_Speed,
+      Init_Reset_Pin       => SX_Init_Reset_Pin,
+      Init_Busy_Pin        => SX_Init_Busy_Pin,
+      Reset_Low            => SX_Reset_Low,
+      Reset_Float          => SX_Reset_Float,
+      Delay_Ms             => SX_Delay_Ms,
+      Busy_Exti_Config     => SX_Busy_Exti_Config,
+      Busy_Exti_Arm        => SX_Busy_Exti_Arm,
+      Busy_Exti_Disable    => SX_Busy_Exti_Disable,
+      Enable_Receiver_Exti => SX_Enable_Receiver_Exti,
+      Last_Exti_Time       => SX_Last_Exti_Time,
+      Bus_Write_Command    => SX_Bus_Write_Command,
+      Bus_Transfer         => SX_Bus_Transfer,
+      Bus_Write            => SX_Bus_Write,
+      Run_Transfer         => SX_Run_Transfer,
+      Run_Write            => SX_Run_Write,
+      Run_Pair             => SX_Run_Pair,
+      Run_Pair_Write       => SX_Run_Pair_Write,
+      Hop_Requested        => SX_Hop_Requested,
+      Current_Frequency    => SX_Current_Frequency,
+      Telemetry_Requested  => SX_Telemetry_Requested,
+      Do_Telemetry         => SX_Do_Telemetry,
+      Telemetry_Buffer     => SX_Telemetry_Buffer,
+      Process_Packet       => SX_Process_Packet,
+      Set_Packet_Status    => SX_Set_Packet_Status);
+
+   SX_State     : SX_Driver.Radio;
+   SX_Has_Reset : Boolean := False;
+   SX_Has_Busy  : Boolean := False;
+   SX_Result    : Integer_64 := 0;
+
+   procedure Check_SX1280_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "sxinit" then
+         MX_Op_Head := 1;
+         MX_Op_Count := 0;
+         SX_Device := (others => <>);
+         SX_State := (others => <>);
+         SX_Device.Reg_Seed := Interfaces.Unsigned_32 (Int (3));
+         SX_Device.Exti_Configured := Int (4) /= 0;
+         SX_Has_Reset := Int (5) /= 0;
+         SX_Has_Busy := Int (6) /= 0;
+         SX_Device.Us_Clock := Interfaces.Unsigned_32 (Int (7));
+         SX_Device.Us_Step := Interfaces.Unsigned_32 (Int (8));
+         SX_Device.Status_Answer := Byte (Int (9));
+         SX_Device.Version_Answer := (if NF >= 10 then Integer (Int (10)) else 0);
+      elsif Name = "sxstep" then
+         MX_Op_Head := 1;
+         MX_Op_Count := 0;
+         SX_Result := 0;
+         SX_Device.Busy_Mask := Interfaces.Unsigned_16 (Int (5));
+         SX_Device.Busy_Reads := 0;
+         case Int (4) is
+            when 0 =>
+               declare
+                  OK : Boolean;
+               begin
+                  SX_Driver.Init (SX_Device, SX_Has_Reset, SX_Has_Busy, OK);
+                  SX_Result := Boolean'Pos (OK);
+               end;
+            when 1 =>
+               SX_Driver.Config
+                 (SX_Device, SX_State, Byte (Int (6)), Byte (Int (7)), Byte (Int (8)), Interfaces.Unsigned_32 (Int (9)),
+                  Byte (Int (10)), Int (11) /= 0, Interfaces.Unsigned_32 (Int (12)), Interfaces.Unsigned_16 (Int (13)),
+                  Int (14) /= 0);
+            when 2 =>
+               SX_Driver.Set_Mode (SX_Device, SX_Driver.Operating_Mode'Val (Int (6)));
+            when 3 =>
+               SX_Driver.Set_Frequency_Reg (SX_Device, Interfaces.Unsigned_32 (Int (6)));
+            when 4 =>
+               SX_Driver.Set_Output_Power (SX_Device, Interfaces.Integer_8 (Int (6)));
+            when 5 =>
+               SX_Driver.Set_FIFO_Addr (SX_Device, Byte (Int (6)), Byte (Int (7)));
+            when 6 =>
+               SX_Driver.Set_DIO_IRQ_Params
+                 (SX_Device, Interfaces.Unsigned_16 (Int (6)), Interfaces.Unsigned_16 (Int (7)),
+                  Interfaces.Unsigned_16 (Int (8)), Interfaces.Unsigned_16 (Int (9)));
+            when 7 =>
+               SX_Driver.Transmit_Data (SX_Device, M2_Fill (Natural (Int (6)), Interfaces.Unsigned_32 (Int (7))));
+            when 8 =>
+               declare
+                  Data : Byte_Array (0 .. Natural (Int (6)) - 1) := (others => 0);
+               begin
+                  SX_Device.FIFO_Answer := Byte (Int (7));
+                  SX_Device.Len_Answer := Byte (Int (8));
+                  SX_Driver.Receive_Data (SX_Device, Data);
+                  SX_Result := Integer_64 (M2_Hash (Data));
+               end;
+            when 9 =>
+               SX_Driver.Start_Receiving (SX_Device, SX_State);
+            when 10 =>
+               declare
+                  RSSI : Interfaces.Integer_8;
+                  SNR  : Interfaces.Integer_8;
+               begin
+                  SX_Driver.Get_Last_Packet_Stats (SX_State, RSSI, SNR);
+                  SX_Result :=
+                    Integer_64 (Interfaces.Unsigned_8'Mod (Integer (RSSI))) * 256
+                    + Integer_64 (Interfaces.Unsigned_8'Mod (Integer (SNR)));
+               end;
+            when 11 =>
+               SX_Driver.Clear_Irq_Status (SX_Device, Interfaces.Unsigned_16 (Int (6)));
+            when 12 =>
+               declare
+                  Status : Byte;
+               begin
+                  SX_Driver.Get_Status (SX_Device, Status);
+                  SX_Result := Integer_64 (Status);
+               end;
+            when 13 =>
+               SX_Driver.Write_Register (SX_Device, Interfaces.Unsigned_16 (Int (6)), Byte (Int (7)));
+            when 14 =>
+               declare
+                  Value : Byte;
+               begin
+                  SX_Driver.Read_Register (SX_Device, Interfaces.Unsigned_16 (Int (6)), Value);
+                  SX_Result := Integer_64 (Value);
+               end;
+            when 15 =>
+               SX_Device.Irq_Answer := Interfaces.Unsigned_16 (Int (6));
+               SX_Device.FIFO_Answer := Byte (Int (7));
+               SX_Device.Len_Answer := Byte (Int (8));
+               SX_Device.Stats_Answer := (Byte (Int (9)), Byte (Int (10)));
+               SX_Device.Process_Answer := Byte (Int (11));
+               SX_Device.Last_Exti := Interfaces.Unsigned_32 (Int (12));
+               SX_Device.Hop_Answer := Int (13) /= 0;
+               SX_Device.Telem_Answer := Int (14) /= 0;
+               SX_Device.Freq_Answer := Interfaces.Unsigned_32 (Int (15));
+               SX_Device.Telem_Seed := Interfaces.Unsigned_32 (Int (16));
+               SX_Driver.ISR (SX_Device, SX_State);
+            when 16 =>
+               if SX_Device.Exti_Armed then
+                  SX_Result := 1;
+               end if;
+               SX_Driver.Busy_Fell (SX_Device, SX_State);
+            when 17 =>
+               declare
+                  Handled : Boolean;
+               begin
+                  SX_Device.Us_Clock := SX_Device.Us_Clock + Interfaces.Unsigned_32 (Int (6));
+                  SX_Driver.Handle_From_Tick (SX_Device, SX_State, Handled);
+                  SX_Result := Boolean'Pos (Handled);
+               end;
+            when 18 =>
+               SX_Device.Hop_Answer := Int (6) /= 0;
+               SX_Driver.Handle_From_Tock (SX_Device, SX_State);
+            when others =>
+               declare
+                  Busy : Boolean;
+               begin
+                  SX_Driver.Is_Busy (SX_Device, Busy);
+                  SX_Result := Boolean'Pos (Busy);
+               end;
+         end case;
+      elsif Name = "sxop" then
+         declare
+            Expected : Ada.Strings.Unbounded.Unbounded_String := Ada.Strings.Unbounded.To_Unbounded_String (Str (3));
+         begin
+            for I in 4 .. NF loop
+               Ada.Strings.Unbounded.Append (Expected, "," & Str (I));
+            end loop;
+            if MX_Op_Head <= MX_Op_Count then
+               Record_Text ("sx1280.op", Ada.Strings.Unbounded.To_String (Expected),
+                            Ada.Strings.Unbounded.To_String (MX_Ops (MX_Op_Head)));
+               MX_Op_Head := MX_Op_Head + 1;
+            else
+               Record_Text ("sx1280.op", Ada.Strings.Unbounded.To_String (Expected), "none");
+            end if;
+         end;
+      elsif Name = "sxres" then
+         MX_Expect_No_Ops ("a result");
+         Record_Int ("sx1280.result", Int (4), SX_Result);
+         Record_Int ("sx1280.processing", Int (5), Integer_64 (SX_State.Processing));
+         Record_Int ("sx1280.pending_hop", Int (6), Boolean'Pos (SX_State.Pending_Hop));
+         Record_Int ("sx1280.flrc", Int (7), Boolean'Pos (SX_State.FLRC));
+         Record_Int ("sx1280.reason", Int (8), Integer_64 (SX_State.Irq_Reason));
+         Record_Int ("sx1280.stats0", Int (9), Integer_64 (SX_State.Packet_Stats (0)));
+         Record_Int ("sx1280.stats1", Int (10), Integer_64 (SX_State.Packet_Stats (1)));
+         Record_Int ("sx1280.fifo", Int (11), Integer_64 (SX_State.FIFO_Addr));
+         Record_Int ("sx1280.waiting", Int (12), SX_Driver.Step'Pos (SX_State.Waiting));
+      end if;
+   end Check_SX1280_Line;
+
    --  The W25N oracle's chip: its page count, page address form and status
    --  register instructions, each block's last erase, the programs in order
    --  over a fixed initial pattern, the registers, data buffer and write
@@ -36837,6 +37317,8 @@ procedure Vector_Check is
                   Check_W25Q128FV_Line;
                elsif Kind = "oled" then
                   Check_OLED_Line;
+               elsif Kind = "sx1280" then
+                  Check_SX1280_Line;
                elsif Kind = "w25n" then
                   Check_W25N_Line;
                elsif Kind = "w25m" then
@@ -37167,6 +37649,7 @@ begin
    Run (Dir & "/m25p16.csv", "m25p16");
    Run (Dir & "/w25q128fv.csv", "w25q128fv");
    Run (Dir & "/oled.csv", "oled");
+   Run (Dir & "/sx1280.csv", "sx1280");
    Run (Dir & "/w25n.csv", "w25n");
    Run (Dir & "/w25m.csv", "w25m");
    Run (Dir & "/flash.csv", "flash");

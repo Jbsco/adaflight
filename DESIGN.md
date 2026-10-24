@@ -8719,3 +8719,46 @@ replay exactly: 401 initializations, 367 clears, 586 texts and 793 writes the di
 paths, 28 fail the vectors and 1 stop the checker at a subtype check. Two pass and are equivalent: the initial result of
 a command list, which the first command's write overwrites; and the operator that applies the character format, a format
 the reference never changes from zero.
+
+## D371. SX1280 radio driver (2026-10-19)
+
+`Adaflight.SX1280` drives the SX1280 radio of the ExpressLRS SPI receiver, a generic over the busy pin, the microsecond
+clock, the receiver's interrupt line, the reset and busy pins, the receiver's SPI as a command write and a full-duplex
+transfer, the DMA segments the interrupt chain sends, and the receiver's answers: whether a hop or a telemetry response
+is due, the hop frequency, the telemetry assembly and packet, and the processing of a received packet into its status.
+Every transfer waits for the busy pin to fall, up to a millisecond. Initialization needs the receiver's interrupt pin,
+sets the 18 MHz clock, pulses the reset pin low for 50 ms and lets it float for 20 ms, reads the firmware version, which
+has to be neither 0 nor 65535, then sets standby on the RC oscillator, automatic frequency synthesis and the high
+sensitivity gain regime. The configuration sets the packet type, the LoRa modulation with the spreading register and
+packet parameters, or the FLRC modulation and packet parameters with the CRC seed, the sync word swapped and marked for
+the two coding rates that collide with it, and the sync address control masked, then the interrupt masks, 13 dBm and the
+frequency. The interrupt claims the radio when it is free, stamps the time and configures the busy interrupt, then runs
+a chain of DMA transfers, each started when the busy pin reads low or when it falls, with the interrupt disabled before
+each transfer: the interrupt status read, which names the reason, with a hardware error for a FLRC packet without a
+valid sync word or with a CRC or sync error; the clear of every interrupt; then for a received packet the buffer
+address, the eight packet bytes, the packet statistics and the receiver's processing with the time of the receiver's
+last interrupt; the hop frequency when the receiver asks for one or a hop waits; the telemetry packet and transmission
+when the receiver asks for that, or the return to reception; and the receiver's interrupt enabled again and the radio
+freed, unless a hop still waits. A hardware error ends the chain after the clear with the radio held. The tick handler
+frees a radio held past a millisecond; the tock handler starts the hop when the receiver asks or one waits. The packet
+statistics give the signal strength and ratio, with the FLRC strength from the second byte and the LoRa strength
+corrected by a quarter of a negative ratio, wrapping below -128 as the reference's signed byte does (finding F281). The
+chain runs at most 12 steps, which the reference's recursion never reaches. The unit is SPARK for the command bytes and
+the chain.
+
+The SX1280 oracle includes the reference driver over stubs: a chip that answers register reads from a hash of the
+address, the buffer from a hash of its offset, the status from a drawn byte and the buffer status, packet statistics and
+interrupt status from values drawn at each interrupt step; a busy pin answering from a pattern drawn per step over its
+first 16 reads; a clock stepping 40 to 400 us per read; the interrupt lines; and the receiver's hooks with answers drawn
+per step. The reference's uninitialized transfer bytes are zeroed at compile time (F281). Each process runs one case of
+6 to 24 operations: the initialization, with the interrupt pin missing in 5 percent and the reset or busy pin missing in
+20 and 10 percent, configurations with drawn parameters, FLRC in 40 percent and the colliding sync words in 30 percent,
+their last byte at the marking boundary of the 3/4 coding rate in 40 percent of those, modes, frequencies, powers,
+buffer addresses, interrupt masks, transmissions, receptions, statistics, status reads, register writes and reads,
+interrupts in 20 percent of the steps, busy pin falls in 10, tick handling with the clock advanced past the millisecond
+in half of them, tock handling and busy checks. Thirty more cases answer the firmware version registers with 0xFFFF in
+20 percent and 0 in 10, as a tenth init field, and while a chain waits on the busy pin make half the steps ticks,
+landing exactly 1000 us after the chain's stamp in 60 percent of them. Every bus, pin, interrupt, clock and hook call,
+with the bytes of each transfer, and the driver's state after each operation of the 330 cases replay exactly: 304 chips
+initialize, 935 interrupts arm the busy pin 257 times, 99 falls continue a chain, 277 packets are processed, 168 hops
+and 120 telemetry responses are sent. Of 126 tampered paths, every one fails the vectors.
