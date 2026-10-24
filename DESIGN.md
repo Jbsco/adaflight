@@ -7699,21 +7699,26 @@ the scaled axes.
 
 ## D342. LIS3MDL compass driver (2026-10-18)
 
-`Adaflight.LIS3MDL` drives the LIS3MDL compass over the same bus as the other compass drivers. Detection gives an unset
-I2C address the chip's 0x1E, the HMC5883L's address too, and reads the identity 0x3D. Initialization registers the
-device and writes the 4 gauss range, the temperature sensor with ultra-high-performance X and Y at 80 Hz, the block data
-update, ultra-high-performance Z and continuous conversion, whatever the writes answer, waits 100 ms and gives the 80 Hz
-output data rate. A read alternates between starting the six data bytes at the X low byte and handing over the axes they
-brought, each low byte first and divided by 4 with the quotient truncated toward zero. The six-byte read starts at 0x28
-without the auto-increment bit that the chip's I2C reads may need. The reference keeps the read state in static
-variables of its read function, shared by every LIS3MDL device. This unit keeps the state per device, which behaves the
-same with one compass. The unit is SPARK for the read state and the axis conversion.
+`Adaflight.LIS3MDL` drives the LIS3MDL compass over the same bus as the other compass drivers.
+Detection gives an unset I2C address the chip's 0x1E, the HMC5883L's address too, and reads the
+identity 0x3D. Initialization registers the device and writes the 4 gauss range, the temperature
+sensor with ultra-high-performance X and Y at 80 Hz, the block data update, ultra-high-performance Z
+and continuous conversion, whatever the writes answer, waits 100 ms and gives the 80 Hz output data
+rate. A read alternates between starting the six data bytes at the X low byte and handing over the
+axes they brought, each low byte first and divided by 4 with the quotient truncated toward zero. The
+six-byte read starts at 0x28 with the auto-increment bit set, the sub-address's top bit on I2C and
+the MS bit on SPI, which the datasheet requires for a multi-byte read. The reference reads without
+it, so the chip answers its X low byte six times (F265, D6). The reference keeps the read state in
+static variables of its read function, shared by every LIS3MDL device. This unit keeps the state per
+device, which behaves the same with one compass. The unit is SPARK for the read state and the axis
+conversion.
 
-The LIS3MDL oracle includes the reference driver over a simulated chip whose answers each case draws and prints before
-use, one case per process. It draws the bus type and a preset address, the identity and its read acknowledgement and the
-write acknowledgements, then 20 to 60 reads with start answers and data. Every bus call, detection, initialization and
-reading of the 300 cases replays exactly. In them 226 compasses initialize and 4177 readings arrive. All 25 tampered
-paths fail the vectors, among them the one that adds the auto-increment bit to the data register.
+The LIS3MDL oracle includes the reference driver over a simulated chip whose answers each case draws
+and prints before use, one case per process. It draws the bus type and a preset address, the
+identity and its read acknowledgement and the write acknowledgements, then 20 to 60 reads with start
+answers and data. Every bus call, detection, initialization and reading of the 300 cases replays
+exactly. In them 226 compasses initialize and 4177 readings arrive. Every tampered path fails the
+vectors, among them the one that reads without the auto-increment bit.
 
 ## D343. LIS2MDL compass driver (2026-10-18)
 
