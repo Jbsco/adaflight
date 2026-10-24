@@ -336,6 +336,11 @@ ledger. The deviations so far:
   frees nothing (D299). The reference starts the walk at the file's first cluster, 0 for an empty file,
   frees FAT entry 0, and a second such delete never returns from the main task (F239). The FAT oracle
   compiles the reference source with the same change.
+- Headfree mode's turned stick commands are divided together by their largest ratio to their divider when
+  it passes one, so no deflection passes one (D375). The reference passes the turned commands on, so full
+  roll and pitch turned by 45 degrees deflect one axis to 1.41, and the rates run up to twice the
+  configured maximum or to the rate limit (F284). The RC oracle compiles the reference module with the
+  same scaling.
 
 ## D7. Contribution conventions (2026-10-08)
 
@@ -8934,3 +8939,27 @@ register reads with the first frequency register in 20 percent, strobes, registe
 percent and resets. Every bus, DMA and delay call with its bytes and each operation's result of the 300 cases replay
 exactly: 5983 operations, 720 of them resets and 614 power levels, over 159133 logged calls. Of 36 tampered paths, every
 one fails the vectors.
+
+## D375. Headfree turn of the stick commands (2026-10-24)
+
+`Adaflight.RC_Command` contains the stick half of headfree mode. `Headfree_Vector` takes the roll and
+pitch commands, and the yaw command unless a level or hold mode is on (angle, horizon, altitude hold,
+position hold, GPS rescue), as an earth frame vector. The attitude's `Headfree_To_Body` (D289) turns it
+into the headfree frame. `Apply_Headfree` puts the turned commands back on the sticks: roll and pitch, and
+yaw outside the level and hold modes.
+
+The turn keeps the vector's length, so it can push a command past its divider. Full roll and pitch turned
+by 45 degrees put about 707 on one axis, a deflection of 1.41 where the reference states a range of -1 to
+1, and the rates then run up to twice the configured maximum or to the rate limit (F284). When the largest
+ratio of a turned command to its divider passes one, `Apply_Headfree` divides the turned commands by that
+ratio and holds each to its divider, so the stick direction stays and no deflection passes one (D6). The
+divider is 500 less the deadband, 500 less the yaw deadband for yaw.
+
+The RC oracle gains headfree sequences: headfree mode in three steps of four, a level or hold mode in one
+of three, and a stand-in for the turn that keeps the stick vector it is given and hands back a turned
+vector drawn within 500 or 1200 per component. The turn itself is the attitude oracle's. The reference
+module compiles with the same scaling. The checker gives the port's stick vector the recorded turned
+vector, then replays the commands, deflections, setpoints and feedforward. Feedforward averaging stays off
+in these sequences, as in the throttle sequences, since the averaging carries a declared tolerance (D6).
+40 sequences of 80 steps replay exactly, 2418 of the steps in headfree mode and 1117 of those scaled. Five
+tampered paths each fail the vectors.

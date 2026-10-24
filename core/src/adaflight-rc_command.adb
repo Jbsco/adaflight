@@ -220,6 +220,34 @@ package body Adaflight.RC_Command with SPARK_Mode is
       end;
    end Update_Commands;
 
+   --------------------
+   -- Apply_Headfree --
+   --------------------
+
+   procedure Apply_Headfree (S : in out State; Turned : Vectors.Vector3; Level_Or_Hold : Boolean) is
+      Div     : constant Divider := S.Command_Divider;
+      Yaw_Div : constant Divider := S.Yaw_Divider;
+      Ratio   : constant Float :=
+        Float'Max (Float'Max (abs Turned.X / Div, abs Turned.Y / Div),
+                   (if Level_Or_Hold then 0.0 else abs Turned.Z / Yaw_Div));
+      X       : Float := Turned.X;
+      Y       : Float := Turned.Y;
+      Z       : Float := Turned.Z;
+   begin
+      if Ratio > 1.0 then
+         X := Constrain_F (Turned.X / Ratio, -Div, Div);
+         Y := Constrain_F (Turned.Y / Ratio, -Div, Div);
+         if not Level_Or_Hold then
+            Z := Constrain_F (Turned.Z / Ratio, -Yaw_Div, Yaw_Div);
+         end if;
+      end if;
+      S.Command (Axis'Pos (Roll)) := X;
+      S.Command (Axis'Pos (Pitch)) := Y;
+      if not Level_Or_Hold then
+         S.Command (Axis'Pos (Yaw)) := Z;
+      end if;
+   end Apply_Headfree;
+
    procedure Should_Update_Smoothing (S : in out State; Update : out Boolean) is
    begin
       Update := False;
