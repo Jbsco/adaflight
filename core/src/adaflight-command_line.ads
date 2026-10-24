@@ -407,8 +407,10 @@ package Adaflight.Command_Line with SPARK_Mode is
    --  barometer and the compass as the board detected them, the rangefinder,
    --  the optical flow sensor and the pitot with the accelerometer's
    --  revision, whether the GPS feature runs with the receiver's state, the
-   --  board's status, and whether the raw gyro's detected sensor is an
-   --  ICM-45605 or an ICM-45686, whose registers sit elsewhere.
+   --  board's status, whether the raw gyro's detected sensor is an
+   --  ICM-45605 or an ICM-45686, whose registers sit elsewhere, and whether a
+   --  terminal drives the session, where an unknown command gets the
+   --  interactive error line.
    type Environment is record
       Navigation      : Navigation_Status;
       Firmware        : Identity_Text;
@@ -452,6 +454,7 @@ package Adaflight.Command_Line with SPARK_Mode is
       GPS             : GPS_Status;
       Status          : System_Status;
       Raw_Gyro_ICM456 : Boolean := False;
+      Interactive     : Boolean := False;
    end record;
 
    --  The board's information as the commands see it: its name and
@@ -472,5 +475,13 @@ package Adaflight.Command_Line with SPARK_Mode is
      (Into : in out Output; C : in out Configuration; Line : String; Ports : Port_List; Env : Environment;
       Board : in out Board_State; Sched : in out Scheduler.State; Changes : out Effects)
      with Pre => Valid (Current (C)) and then Ports'Length <= Serial_Feature_Map.Max_Ports;
+
+   --  The command names in the order of the reference's table, which the
+   --  terminal's completion walks.
+   function Command_Count return Positive;
+
+   function Command_Name (Position : Positive) return String
+     with Pre  => Position <= Command_Count,
+          Post => Command_Name'Result'Length in 1 .. 20;
 
 end Adaflight.Command_Line;
