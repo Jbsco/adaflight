@@ -11,3 +11,5 @@ Each document describes a Betaflight bug that adaflight fixes: the Betaflight ve
 - [QMP6988 calibration coefficients read unsigned](qmp6988-coefficient-sign.md)
 - [LPS22DF temperatures below zero read 655.36 degrees too high](lps22df-temperature-sign.md)
 - [2SMPB-02B pressure coefficient truncated to a whole number](2smpb-coefficient-truncation.md)
+- [Ghost RSSI below the long-range minimum reads as full strength](ghost-rssi-floor.md)
+- [Ghost legacy channel values below the minimum wrap to the top of the range](ghost-channel-floor.md)
