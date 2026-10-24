@@ -7675,19 +7675,23 @@ readings arrive. All 22 tampered paths fail the vectors.
 
 ## D341. IST8310 compass driver (2026-10-18)
 
-`Adaflight.IST8310` drives the IST8310 compass over the same bus as the other compass drivers. Detection gives an unset
-I2C address the chip's 0x0E and reads the identity 0x10. Initialization registers the device and writes 16-sample
-averaging, the normal pulse duration and a single measurement, each only after the one before went through, waits 6 ms
-after each of the first two whether or not they went through, and gives the 100 Hz output data rate. A read first
-collects the bytes of the transfer the previous call started. While it waits for data it polls the status register,
-starts the six data bytes once the status reports data ready, and after 15 polls without data ready moves on to trigger
-a new measurement. The call after a data read hands over the axes, X and Z times 3 and Y negated and times 3, each kept
-to its low 16 bits like the reference's 16-bit store, and triggers the next single measurement. A trigger that goes
-through reports a reading, so after 15 polls without data ready the read reports the axes it handed over last as new,
-every 17 calls when every status read starts. A trigger the bus refuses is tried again at the next read. The reference
-keeps the read state in static variables of its read function, shared by every IST8310 device. This unit keeps the state
-per device, which behaves the same with one compass. The unit is SPARK for the read state, the poll limit and the 16-bit
-axis conversion.
+`Adaflight.IST8310` drives the IST8310 compass over the same bus as the other compass drivers.
+Detection gives an unset I2C address the chip's 0x0E and reads the identity 0x10. Initialization
+registers the device and writes 16-sample averaging, the normal pulse duration and a single
+measurement, each only after the one before went through, waits 6 ms after each of the first two
+whether or not they went through, and gives the 100 Hz output data rate. A read first collects the
+bytes of the transfer the previous call started. While it waits for data it polls the status
+register, starts the six data bytes once the status reports data ready, and after 15 polls without
+data ready moves on to trigger a new measurement. The call after a data read hands over the axes, X
+and Z times 3 and Y negated and times 3, each kept to its low 16 bits like the reference's 16-bit
+store, and triggers the next single measurement. A read that hands over the axes reports a reading
+whether or not its trigger goes out, and a trigger alone reports none. The reference reports a
+reading at a trigger that goes through, so after 15 polls without data ready it reports the axes it
+handed over last as new, every 17 calls when every status read starts (finding F264, D6). A trigger
+the bus refuses is tried again at the next read. The reference keeps the read state in static
+variables of its read function, shared by every IST8310 device. This unit keeps the state per
+device, which behaves the same with one compass. The unit is SPARK for the read state, the poll
+limit and the 16-bit axis conversion.
 
 The IST8310 oracle includes the reference driver over a simulated chip whose answers each case draws and prints before
 use, one case per process. It draws the bus type and a preset address, the identity and its read acknowledgement and the

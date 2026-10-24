@@ -7,7 +7,7 @@
 --  starts the six data bytes, and hands over the axes, X and Z scaled by 3 and
 --  Y negated and scaled by 3, with the next measurement triggered. After 15
 --  polls without data ready, or a trigger the bus refused, the read triggers
---  the next measurement and reports the axes it handed over last.
+--  the next measurement and reports no new axes.
 with Interfaces;
 with Adaflight.Bytes; use Adaflight.Bytes;
 
