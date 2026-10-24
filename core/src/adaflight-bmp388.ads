@@ -11,8 +11,8 @@
 --  the bus is free, and a sample takes them once the bus is done. The
 --  interrupt reads the interrupt status. The calculation is the datasheet's
 --  64-bit integer compensation, wrapping as two's complement arithmetic does,
---  with the pressure in hundredths of a pascal divided by 256 and the
---  temperature in hundredths of a degree.
+--  with the pressure in pascals, the compensation's hundredths of a pascal
+--  divided by 100, and the temperature in hundredths of a degree.
 with Interfaces;
 with Adaflight.Bytes; use Adaflight.Bytes;
 with Adaflight.Barometer_Task;
