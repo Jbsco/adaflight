@@ -23,6 +23,7 @@
 with Interfaces;
 with Adaflight.Bytes; use Adaflight.Bytes;
 with Adaflight.SD_Card_Bus; use Adaflight.SD_Card_Bus;
+with Adaflight.SD_Card_Types; use Adaflight.SD_Card_Types;
 
 generic
    type SPI_Device is limited private;
@@ -63,37 +64,6 @@ generic
       Data       : Interfaces.Unsigned_32);
 package Adaflight.SD_Card with SPARK_Mode is
    use type Interfaces.Unsigned_32;
-
-   Mode_Off : constant Byte := 0;
-   Mode_SPI : constant Byte := 1;
-
-   type Card_State is
-     (Not_Present, Resetting, Initializing, Receiving_CID, Ready, Reading, Sending_Write, Waiting_For_Write,
-      Writing_Multiple, Stopping_Multiple);
-
-   type Operation_Status is (In_Progress, Busy, Success, Failure);
-
-   --  The bus, the detect and select pin tags, 0 for none, whether the
-   --  detect pin reads low for a card, and the mode.
-   type Config is record
-      Device          : Byte := 0;
-      Detect_Tag      : Byte := 0;
-      CS_Tag          : Byte := 0;
-      Detect_Inverted : Boolean := False;
-      Mode            : Byte := Mode_Off;
-   end record;
-
-   type Metadata is record
-      Num_Blocks       : Interfaces.Unsigned_32 := 0;
-      OEM_Id           : Interfaces.Unsigned_16 := 0;
-      Manufacturer     : Byte := 0;
-      Product_Name     : Byte_Array (0 .. 4) := (others => 0);
-      Serial           : Interfaces.Unsigned_32 := 0;
-      Revision_Major   : Byte := 0;
-      Revision_Minor   : Byte := 0;
-      Production_Year  : Interfaces.Unsigned_16 := 0;
-      Production_Month : Byte := 0;
-   end record;
 
    --  The block a read or write works on, the chunks of it sent without
    --  DMA, and the completion's data.

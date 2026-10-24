@@ -8606,3 +8606,51 @@ version across the resets of a run; the send completion's comparison with the ch
 after it sent the second chunk; the run begin's test of the first command's reply, since the second command answers only
 after the first succeeded; and the write's busy answer when a run's end stays in progress, which the stopping state
 answers with busy on the next pass.
+
+## D368. SD card SDIO driver (2026-10-19)
+
+`Adaflight.SD_Card_SDIO` drives an SD card through an SDIO controller, which runs the card commands itself; the card
+state, the operation results, the configuration and the metadata moved from the SPI driver into
+`Adaflight.SD_Card_Types`, which both card drivers share. Initialization takes the detect pin, the controller's DMA
+stream, 0 where the family takes one from the map and the map has none, the write cache setting and the controller, then
+asks the controller to start the card, which it runs to the end: each poll moves the card from the reset through the
+initialization, done when the controller reports the card ready and gives its information, which names the version, 2
+for every kind but the first, the capacity class, the block count from the capacity cut to 32 bits, and the
+identification for the metadata, whose production year takes the two nibbles of the date's year field one over the
+other, as the reference does (finding F278). A read starts a one block transfer and the poll takes the block when the
+transfer ends with the card ready, within 100 ms; past that, or when the card reports an error, the poll repeats until
+the card answers, without a reset (F278), and the port stops after 64 repeats, which the vectors never reach. A write
+starts the transfer, the poll calls the completion when the transfer ends and waits for the card to leave busy within
+250 ms. With the write cache, the blocks of a run collect in a cache of 16 and go to the card in one transfer when the
+cache fills or the run ends, each cached block answered success without a completion and the run's count and next block
+advanced; a run started from the ready state keeps the blocks an earlier run left in the cache, and a block out of
+sequence joins the cache, as in the reference (F278). A run of writes takes its count and ends when a write leaves the
+run or its count runs out. A failure asks the controller for a new initialization: one refused counts the failure, up to
+eight in a row or a missing card before the card counts as absent; one accepted leaves the state as it was, since the
+controller's initialization runs once and repeats its first answer (F278). An initialization past a second starts over.
+A refused read reports the failure through the previous operation's completion (F278). An operation the controller
+refuses answers a failure; one in the wrong state answers busy. A card whose mode is off takes no operation. The unit is
+SPARK, with the poll's repeats, the cache count and the cache slices bounded.
+
+The SDIO card oracle includes the reference driver and its dispatch over a stubbed controller: an initialization
+answering every call with one drawn result, refused in 10 percent of the cases, a card ready after a drawn number of
+status calls past the first initialization and past each write, past three in 30 percent, and not at drawn calls in 15
+percent, card information refused for a drawn number of calls and at drawn calls, block transfers pending for a drawn
+number of checks, past three in 30 percent, one drawn transfer refused in 20 percent, and a DMA map without a stream in
+7 percent. Each process runs one case: it draws the card's kind, high capacity in 60 percent, its capacity, past 32 bits
+in 20 percent, and its identification, the configuration, with the write cache in half of the cases and the mode off in
+5 percent, the detect pin, present in 40 percent, the clock and its step, initializes the driver and runs 40 drawn
+operations: polls, block reads and writes, runs of up to 24 writes with the next block of the run drawn ahead of the
+others and bursts of up to 16 of them that fill the cache, run begins at the run's next block, card removals and clock
+advances, which while the card initializes or a read or a write waits put the next poll on the timeout boundary in 35
+percent of the steps and on the stop timeout in half of those, only polls when the mode is off. Thirty more cases take
+an accepted initialization, a card not ready at half of the status calls, no refused transfer and runs of one to three
+blocks, advance the clock in 60 percent of the waiting steps, onto the stop limit itself in 75 percent of those, and
+poll right after each advance in 85 percent. Every controller, pin and completion call, the written blocks by their
+hash, the driver's state and cache count after each operation and the metadata of the 330 cases replay exactly. In them
+236 cards reach the ready state, 426 transfers write 660 blocks, 38 of them several blocks from the cache and 5 the full
+cache, 175 reads start, 480 completions are called, and the results cover every driver state. Of 100 tampered paths, 92
+fail the vectors. Eight pass and are equivalent: the refused initialization's count, threshold, start and insertion
+checks, which a controller that answers every initialization with its first result never reaches; the information copy
+of an unanswered call, which brings the same values; the status of an ended write run, which every caller compares with
+success only; and the failed read's completion with the operation's stored index and data, which equal the call's.
