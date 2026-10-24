@@ -3,8 +3,9 @@
 --  the 4 gauss range, the temperature sensor with ultra-high-performance X and
 --  Y at 80 Hz, the block data update, ultra-high-performance Z and continuous
 --  conversion, whatever the writes answer, waits 100 ms and gives the 80 Hz
---  output data rate. A read alternates between starting the six data bytes and
---  handing over the axes they brought, each low byte first and divided by 4.
+--  output data rate. A read alternates between starting the six data bytes,
+--  with the bus's auto-increment bit in the address, and handing over the axes
+--  they brought, each low byte first and divided by 4.
 with Interfaces;
 with Adaflight.Bytes; use Adaflight.Bytes;
 

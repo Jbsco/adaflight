@@ -14,3 +14,4 @@ Each document describes a Betaflight bug that adaflight fixes: the Betaflight ve
 - [Ghost RSSI below the long-range minimum reads as full strength](ghost-rssi-floor.md)
 - [Ghost legacy channel values below the minimum wrap to the top of the range](ghost-channel-floor.md)
 - [ICM-20601 and ICM-20608-G get a gyro but no accelerometer](icm20689-accelerometer-detection.md)
+- [LIS3MDL six-byte read lacks the auto-increment bit](lis3mdl-auto-increment.md)
