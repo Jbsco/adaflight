@@ -220,6 +220,7 @@ with Adaflight.Flash_Device.W25Q128FV;
 with Adaflight.OLED_Display;
 with Adaflight.SX1280;
 with Adaflight.SX127x;
+with Adaflight.CC2500;
 with Adaflight.Flash_Device.W25N;
 with Adaflight.Flash_Device.W25M;
 with Adaflight.Flash_Device.Layer;
@@ -24371,6 +24372,155 @@ procedure Vector_Check is
       end if;
    end Check_SX127x_Line;
 
+   --  The CC2500 oracle's chip: the register seed, the step's salt and
+   --  whether the first frequency register answers its reset value.
+   type C5_Link is record
+      Reg_Seed     : Interfaces.Unsigned_32 := 0;
+      Salt         : Interfaces.Unsigned_32 := 0;
+      Reset_Answer : Boolean := False;
+   end record;
+
+   C5_Device : C5_Link;
+
+   function C5_Reg_Byte (D : C5_Link; Command : Byte; Index : Natural) return Byte is
+     (if D.Reset_Answer and then Natural (Command) = 16#8E# then 16#C4#
+      else Byte (((Interfaces.Unsigned_32 (Command) + Interfaces.Unsigned_32 (Index)) * 2_654_435_761
+                  + D.Reg_Seed * 40_503 + D.Salt * 2_246_822_519) / 2 ** 24));
+
+   procedure C5_Write_Command (D : in out C5_Link; Command : Byte; Value : Byte) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("wreg," & MX_Hex (Byte_Array'(0 => Command)) & "," & MX_Hex (Byte_Array'(0 => Value)));
+   end C5_Write_Command;
+
+   procedure C5_Write_Command_Multi (D : in out C5_Link; Command : Byte; Data : Byte_Array) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("wmulti," & MX_Hex (Byte_Array'(0 => Command)) & "," & BMP_Num (Integer_64 (Data'Length)) & ","
+             & MX_Hex (Data));
+   end C5_Write_Command_Multi;
+
+   procedure C5_Read_Command (D : in out C5_Link; Command : Byte; Value : out Byte) is
+   begin
+      Value := C5_Reg_Byte (D, Command, 0);
+      MX_Op ("rreg," & MX_Hex (Byte_Array'(0 => Command)) & ",ff," & MX_Hex (Byte_Array'(0 => Value)));
+   end C5_Read_Command;
+
+   procedure C5_Read_Command_Multi (D : in out C5_Link; Command : Byte; Data : out Byte_Array) is
+   begin
+      for I in Data'Range loop
+         Data (I) := C5_Reg_Byte (D, Command, I - Data'First);
+      end loop;
+      MX_Op ("rmulti," & MX_Hex (Byte_Array'(0 => Command)) & ",ff," & BMP_Num (Integer_64 (Data'Length)) & ","
+             & MX_Hex (Data));
+   end C5_Read_Command_Multi;
+
+   procedure C5_Write_Byte (D : in out C5_Link; Value : Byte) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("wbyte," & MX_Hex (Byte_Array'(0 => Value)));
+   end C5_Write_Byte;
+
+   procedure C5_DMA_Enable (D : in out C5_Link; Enable : Boolean) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("dma," & BMP_Num (Boolean'Pos (Enable)));
+   end C5_DMA_Enable;
+
+   procedure C5_Delay_Us (D : in out C5_Link; Us : Natural) is
+      pragma Unreferenced (D);
+   begin
+      MX_Op ("delayus," & BMP_Num (Integer_64 (Us)));
+   end C5_Delay_Us;
+
+   package C5_Driver is new Adaflight.CC2500
+     (Radio_Device            => C5_Link,
+      Bus_Write_Command       => C5_Write_Command,
+      Bus_Write_Command_Multi => C5_Write_Command_Multi,
+      Bus_Read_Command        => C5_Read_Command,
+      Bus_Read_Command_Multi  => C5_Read_Command_Multi,
+      Bus_Write_Byte          => C5_Write_Byte,
+      Bus_DMA_Enable          => C5_DMA_Enable,
+      Delay_Us                => C5_Delay_Us);
+
+   C5_Result : Integer_64 := 0;
+
+   procedure Check_CC2500_Line is
+      Name : constant String := Str (1);
+   begin
+      if Name = "ccinit" then
+         MX_Op_Head := 1;
+         MX_Op_Count := 0;
+         C5_Device := (others => <>);
+         C5_Device.Reg_Seed := Interfaces.Unsigned_32 (Int (3));
+      elsif Name = "ccstep" then
+         MX_Op_Head := 1;
+         MX_Op_Count := 0;
+         C5_Result := 0;
+         C5_Device.Salt := Interfaces.Unsigned_32 (Int (5));
+         C5_Device.Reset_Answer := Int (6) /= 0;
+         case Int (4) is
+            when 0 =>
+               declare
+                  Data : Byte_Array (0 .. Natural (Int (7)) - 1) := (others => 0);
+               begin
+                  C5_Driver.Read_FIFO (C5_Device, Data);
+                  C5_Result := Integer_64 (M2_Hash (Data));
+               end;
+            when 1 =>
+               C5_Driver.Write_FIFO (C5_Device, M2_Fill (Natural (Int (7)), Interfaces.Unsigned_32 (Int (8))));
+            when 2 =>
+               declare
+                  Data : Byte_Array (0 .. Natural (Int (8)) - 1) := (others => 0);
+               begin
+                  C5_Driver.Read_Register_Multi (C5_Device, Byte (Int (7)), Data);
+                  C5_Result := Integer_64 (M2_Hash (Data));
+               end;
+            when 3 =>
+               C5_Driver.Write_Register_Multi
+                 (C5_Device, Byte (Int (7)), M2_Fill (Natural (Int (8)), Interfaces.Unsigned_32 (Int (9))));
+            when 4 =>
+               declare
+                  Value : Byte;
+               begin
+                  C5_Driver.Read_Register (C5_Device, Byte (Int (7)), Value);
+                  C5_Result := Integer_64 (Value);
+               end;
+            when 5 =>
+               C5_Driver.Strobe (C5_Device, Byte (Int (7)));
+            when 6 =>
+               C5_Driver.Write_Register (C5_Device, Byte (Int (7)), Byte (Int (8)));
+            when 7 =>
+               C5_Driver.Set_Power (C5_Device, Byte (Int (7)));
+            when others =>
+               declare
+                  OK : Boolean;
+               begin
+                  C5_Driver.Reset (C5_Device, OK);
+                  C5_Result := Boolean'Pos (OK);
+               end;
+         end case;
+      elsif Name = "ccop" then
+         declare
+            Expected : Ada.Strings.Unbounded.Unbounded_String := Ada.Strings.Unbounded.To_Unbounded_String (Str (3));
+         begin
+            for I in 4 .. NF loop
+               Ada.Strings.Unbounded.Append (Expected, "," & Str (I));
+            end loop;
+            if MX_Op_Head <= MX_Op_Count then
+               Record_Text ("cc2500.op", Ada.Strings.Unbounded.To_String (Expected),
+                            Ada.Strings.Unbounded.To_String (MX_Ops (MX_Op_Head)));
+               MX_Op_Head := MX_Op_Head + 1;
+            else
+               Record_Text ("cc2500.op", Ada.Strings.Unbounded.To_String (Expected), "none");
+            end if;
+         end;
+      elsif Name = "ccres" then
+         MX_Expect_No_Ops ("a result");
+         Record_Int ("cc2500.result", Int (4), C5_Result);
+      end if;
+   end Check_CC2500_Line;
+
    --  The W25N oracle's chip: its page count, page address form and status
    --  register instructions, each block's last erase, the programs in order
    --  over a fixed initial pattern, the registers, data buffer and write
@@ -37873,6 +38023,8 @@ procedure Vector_Check is
                   Check_SX1280_Line;
                elsif Kind = "sx127x" then
                   Check_SX127x_Line;
+               elsif Kind = "cc2500" then
+                  Check_CC2500_Line;
                elsif Kind = "w25n" then
                   Check_W25N_Line;
                elsif Kind = "w25m" then
@@ -38207,6 +38359,7 @@ begin
    Run (Dir & "/oled.csv", "oled");
    Run (Dir & "/sx1280.csv", "sx1280");
    Run (Dir & "/sx127x.csv", "sx127x");
+   Run (Dir & "/cc2500.csv", "cc2500");
    Run (Dir & "/w25n.csv", "w25n");
    Run (Dir & "/w25m.csv", "w25m");
    Run (Dir & "/flash.csv", "flash");
