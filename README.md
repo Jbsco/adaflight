@@ -35,7 +35,8 @@ The core contains:
 <details>
 <summary><b>Flight control</b> (131)</summary>
 
-- rate curves and RC command path with smoothing, feedforward, low voltage cutoff and 3D throttle
+- rate curves and RC command path with smoothing, feedforward, low voltage cutoff, 3D throttle and
+  headfree turn
 - in-flight adjustments and simplified tuning of PID gains and filters
 - PID profile with runtime configuration, filter initialization, rate loop, throttle-side
   features, crash recovery, launch control, yaw spin recovery, landing disarm, and wing airspeed
@@ -10169,10 +10170,10 @@ The core contains:
 
 The state of `main`:
 
-- Core proves at Silver and Gold: 34256 checks, nothing unproved, no `pragma Assume`, no justified
+- Core proves at Silver and Gold: 34276 checks, nothing unproved, no `pragma Assume`, no justified
   suppression (`gnatprove` 16.1.0, level 2).
-- Recorded vectors replay bit for bit: 1753568 lines over 384 cases, every case exact except
-  fifty-seven declared deviations in `DESIGN.md` D6.
+- Recorded vectors replay bit for bit: 6870680 lines over 5907 cases, every case exact except
+  fifty-eight declared deviations in `DESIGN.md` D6.
 - No target builds yet. `ROADMAP.md` contains phases, parity inventory, and one question for after
   parity: whether a proved core leaves room on F4 boards for features Betaflight has to leave out
   there.
