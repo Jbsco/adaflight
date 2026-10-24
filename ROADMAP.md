@@ -26,9 +26,10 @@ Silver with no assume, and pass the gates on `main`.
 - Phase 6, open. Flight features. Blackbox, OSD, menu system, telemetry protocols, LED
   strip, beeper, VTX control, GPS with rescue and position modes, servos and wing
   support.
-- Phase 7, open. Targets. STM32F4 first, then F7 and H7, then the other families Betaflight
-  runs on, plus a host simulator target. Drivers for SPI, I2C, DMA, timers, UART, USB,
-  flash, SD card, DShot.
+- Phase 7, in progress. Targets. STM32F4 first: `targets/stm32f4` builds for the CLRacing F4S
+  board family from the pinned board configuration repository, and its first image blinks the
+  LED. Then F7 and H7, then the other families Betaflight runs on, plus a host simulator
+  target. Drivers for SPI, I2C, DMA, timers, UART, USB, flash, SD card, DShot.
 - Phase 8, open. Tooling. A native Linux flashing tool over DFU with the features of the
   Betaflight flasher and faster transfers, then the configuration path.
 
