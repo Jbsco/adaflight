@@ -226,7 +226,7 @@ package body Adaflight.Tramp with SPARK_Mode is
             end if;
          when Monitor_Temperature =>
             if Reply = Cmd_Temp then
-               D.Current := Monitor_Temperature;
+               D.Current := Monitor_Settings;
             elsif Due then
                D.Current := Monitor_Settings;
             end if;
