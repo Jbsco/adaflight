@@ -49,3 +49,4 @@ Each document describes a Betaflight bug that adaflight fixes: the Betaflight ve
 - [Tramp temperature reply leaves the driver in the temperature state](tramp-temperature-state.md)
 - [SmartAudio queued commands share one buffer per kind](smartaudio-queue-copies.md)
 - [SmartAudio menu's pit mode kind line cannot reach out-of-range pit mode](smartaudio-pit-mode-line.md)
+- [MSP transmitter reads its frequency back from the table](msp-vtx-frequency-readback.md)
