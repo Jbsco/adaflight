@@ -36,3 +36,5 @@ Each document describes a Betaflight bug that adaflight fixes: the Betaflight ve
 - [ExpressLRS telemetry burst limit wraps at 1000 Hz with a 1:2 ratio](elrs-telemetry-burst.md)
 - [FrSky SPI D8 hub telemetry stalls on a full buffer](frsky-hub-buffer.md)
 - [RMC clock request masks the time for its milliseconds](rmc-clock-millis.md)
+- [Clock conversions wrap in 2038 and 2068](rtc-conversion-wraps.md)
+- [A clock set to the uptime reads as unset](rtc-set-equal-uptime.md)

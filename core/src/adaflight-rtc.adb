@@ -13,9 +13,6 @@ package body Adaflight.RTC with SPARK_Mode is
 
    Cycle_Days : constant := 365 * 4 + 1;
 
-   function Signed (U : Unsigned_32) return Integer_32 is
-     (if U >= 2 ** 31 then Integer_32 (Interfaces.Integer_64 (U) - 2 ** 32) else Integer_32 (U));
-
    function Wrapped_8 (V : Integer) return Unsigned_8 is (Unsigned_8 (V mod 256));
    function Wrapped_16 (V : Interfaces.Integer_64) return Unsigned_16 is (Unsigned_16 (V mod 65536));
 
@@ -23,8 +20,7 @@ package body Adaflight.RTC with SPARK_Mode is
    -- Seconds_Of --
    ----------------
 
-   function Seconds_Of (T : Interfaces.Integer_64) return Integer_32 is
-     (Signed (Unsigned_32'Mod (T / Millis_Per_Second)));
+   function Seconds_Of (T : Interfaces.Integer_64) return Interfaces.Integer_64 is (T / Millis_Per_Second);
 
    ---------------
    -- Millis_Of --
@@ -45,8 +41,8 @@ package body Adaflight.RTC with SPARK_Mode is
    begin
       U := Year / 4 * Cycle_Days + Unsigned_32 (Days (Cycle_Year (Year mod 4), Month)) + Day;
       U := (U * 24 + Unsigned_32 (D.Hours)) * 60 + Unsigned_32 (D.Minutes);
-      U := U * 60 + Unsigned_32 (D.Seconds) + Epoch_2000_Offset;
-      return Make (Signed (U), D.Millis);
+      U := U * 60 + Unsigned_32 (D.Seconds);
+      return Make (Interfaces.Integer_64 (U) + Epoch_2000_Offset, D.Millis);
    end Date_To_Time;
 
    ------------------
@@ -54,8 +50,8 @@ package body Adaflight.RTC with SPARK_Mode is
    ------------------
 
    function Time_To_Date (T : Interfaces.Integer_64) return Date_Time is
-      Unix  : Integer_32 := Signed (Unsigned_32'Mod (T / Millis_Per_Second - Epoch_2000_Offset));
-      Years : Unsigned_32;
+      Unix  : Interfaces.Integer_64 := T / Millis_Per_Second - Epoch_2000_Offset;
+      Years : Interfaces.Integer_64;
       Year  : Cycle_Year := 0;
       Month : Month_Index := 0;
       D     : Date_Time;
@@ -66,21 +62,21 @@ package body Adaflight.RTC with SPARK_Mode is
       Unix := Unix / 60;
       D.Hours := Wrapped_8 (Integer (Unix rem 24));
       Unix := Unix / 24;
-      Years := Unsigned_32'Mod (Unix / Cycle_Days * 4);
+      Years := Unix / Cycle_Days * 4;
       Unix := Unix rem Cycle_Days;
       for Y in reverse 1 .. 3 loop
-         if Unix >= Integer_32 (Days (Y, 0)) then
+         if Unix >= Interfaces.Integer_64 (Days (Y, 0)) then
             Year := Y;
             exit;
          end if;
       end loop;
       for M in reverse 1 .. 11 loop
-         if Unix >= Integer_32 (Days (Year, M)) then
+         if Unix >= Interfaces.Integer_64 (Days (Year, M)) then
             Month := M;
             exit;
          end if;
       end loop;
-      D.Year := Wrapped_16 (Interfaces.Integer_64 (Years + Unsigned_32 (Year) + Reference_Year));
+      D.Year := Wrapped_16 (Years + Interfaces.Integer_64 (Year) + Reference_Year);
       D.Month := Unsigned_8 (Month + 1);
       D.Day := Wrapped_8 (Integer (Unix) - Integer (Days (Year, Month)) + 1);
       D.Millis := Millis_Of (T);
@@ -92,11 +88,9 @@ package body Adaflight.RTC with SPARK_Mode is
    -----------------
 
    function With_Offset (D : Date_Time; Minutes : Zone_Minutes) return Date_Time is
-      T    : constant Time := Date_To_Time (D);
-      Secs : constant Integer_32 :=
-        Signed (Unsigned_32'Mod (Interfaces.Integer_64 (Seconds_Of (T)) + Interfaces.Integer_64 (Minutes) * 60));
+      T : constant Time := Date_To_Time (D);
    begin
-      return Time_To_Date (Make (Secs, Millis_Of (T)));
+      return Time_To_Date (T + Interfaces.Integer_64 (Minutes) * 60 * Millis_Per_Second);
    end With_Offset;
 
    ------------
@@ -234,6 +228,7 @@ package body Adaflight.RTC with SPARK_Mode is
    procedure Set (C : out Clock; T : Time; Now_Ms : Unsigned_32) is
    begin
       C.Started := T - Interfaces.Integer_64 (Now_Ms);
+      C.Is_Set := True;
    end Set;
 
    -------------------
