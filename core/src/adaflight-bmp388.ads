@@ -32,6 +32,7 @@ generic
    with procedure Prepare_SPI (D : in out Bus_Device; Max_Clock_Hz : Interfaces.Unsigned_32);
    with procedure Release_SPI (D : in out Bus_Device);
    with procedure Enable_EOC_Interrupt (D : in out Bus_Device);
+   with procedure Release_EOC_Interrupt (D : in out Bus_Device);
    with procedure Read_Registers (D : in out Bus_Device; Register : Byte; Data : in out Byte_Array; OK : out Boolean);
    with procedure Write_Register (D : in out Bus_Device; Register : Byte; Value : Byte; OK : out Boolean);
    with procedure Start_Read (D : in out Bus_Device; Register : Byte; Length : Positive; Started : out Boolean);

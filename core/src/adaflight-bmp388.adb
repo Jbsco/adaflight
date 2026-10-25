@@ -93,6 +93,9 @@ package body Adaflight.BMP388 with SPARK_Mode is
       Read (D, Chip_Id_Register, Id, Unused_OK);
       S.Chip_Id := Id (0);
       if not Known (S.Chip_Id) then
+         if EOC_Pin then
+            Release_EOC_Interrupt (D);
+         end if;
          if Is_SPI (D) then
             Release_SPI (D);
          end if;
