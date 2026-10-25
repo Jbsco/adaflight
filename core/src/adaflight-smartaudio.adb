@@ -34,12 +34,12 @@ package body Adaflight.SmartAudio with SPARK_Mode is
    function Queue_Empty (D : Driver) return Boolean is (D.Head = D.Tail);
    function Queue_Full (D : Driver) return Boolean is ((D.Head + 1) mod Queue_Size = D.Tail);
 
-   procedure Enqueue (D : in out Driver; Kind : Frame_Kind) is
+   procedure Enqueue (D : in out Driver; F : Frame) is
    begin
       if Queue_Full (D) then
          return;
       end if;
-      D.Pending (D.Head) := Kind;
+      D.Pending (D.Head) := F;
       D.Head := (D.Head + 1) mod Queue_Size;
    end Enqueue;
 
@@ -75,7 +75,7 @@ package body Adaflight.SmartAudio with SPARK_Mode is
 
    procedure Send_Queue (D : in out Driver; Now_Ms : Unsigned_32; Control_Disabled, Prepend_Zero : Boolean;
                          E : in out Events) is
-      F : constant Frame := D.Buffers (D.Pending (D.Tail));
+      F : constant Frame := D.Pending (D.Tail);
    begin
       if Queue_Empty (D) or else F.Length < 3 then
          return;
@@ -86,9 +86,7 @@ package body Adaflight.SmartAudio with SPARK_Mode is
 
    procedure Queue_Get_Settings (D : in out Driver) is
    begin
-      D.Buffers (Get_Settings) := (Data => (Preamble_1, Preamble_2, Command_Code (Cmd_Get_Settings), 0, 16#9F#, 0, 0),
-                                   Length => 5);
-      Enqueue (D, Get_Settings);
+      Enqueue (D, (Data => (Preamble_1, Preamble_2, Command_Code (Cmd_Get_Settings), 0, 16#9F#, 0, 0), Length => 5));
    end Queue_Get_Settings;
 
    --  The settings response: the version from the code, the channel, the
@@ -348,8 +346,7 @@ package body Adaflight.SmartAudio with SPARK_Mode is
          D.Device.Will_Boot_Into_Pit_Mode := True;
       end if;
       Finish (F);
-      D.Buffers (Set_Mode) := F;
-      Enqueue (D, Set_Mode);
+      Enqueue (D, F);
    end Set_Mode;
 
    ------------------------
@@ -370,12 +367,10 @@ package body Adaflight.SmartAudio with SPARK_Mode is
          Switch.Data (4) := Byte (Interfaces.Shift_Right (Near, 8));
          Switch.Data (5) := Byte (Near and 16#FF#);
          Finish (Switch);
-         D.Buffers (Set_Freq_Switch) := Switch;
-         Enqueue (D, Set_Freq_Switch);
+         Enqueue (D, Switch);
          Queue_Get_Settings (D);
       end if;
-      D.Buffers (Set_Freq) := F;
-      Enqueue (D, Set_Freq);
+      Enqueue (D, F);
    end Set_Frequency_Word;
 
    -----------------------
@@ -397,8 +392,7 @@ package body Adaflight.SmartAudio with SPARK_Mode is
       if Band in 1 .. Unsigned_8 (T.Bands) and then Channel in 1 .. Unsigned_8 (T.Channels) then
          F.Data (4) := (Band - 1) * Unsigned_8 (T.Channels) + (Channel - 1);
          Finish (F);
-         D.Buffers (Set_Channel) := F;
-         Enqueue (D, Set_Channel);
+         Enqueue (D, F);
       end if;
    end Set_Band_Channel;
 
@@ -417,8 +411,7 @@ package body Adaflight.SmartAudio with SPARK_Mode is
          F.Data (4) := F.Data (4) or 128;
       end if;
       Finish (F);
-      D.Buffers (Set_Power) := F;
-      Enqueue (D, Set_Power);
+      Enqueue (D, F);
    end Set_Power_Index;
 
    ------------------
@@ -440,8 +433,7 @@ package body Adaflight.SmartAudio with SPARK_Mode is
                F : Frame := (Data => (Preamble_1, Preamble_2, Command_Code (Cmd_Set_Power), 1, 128, 0, 0), Length => 6);
             begin
                Finish (F);
-               D.Buffers (Set_Power_Pit) := F;
-               Enqueue (D, Set_Power_Pit);
+               Enqueue (D, F);
             end;
          else
             Set_Mode (D, Set_Clear_Pit);
