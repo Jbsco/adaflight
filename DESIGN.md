@@ -1911,8 +1911,10 @@ predicate that holds every rate within its band's table, so the 900 MHz bands' f
 the clock for the rate cycle. The telemetry frame comes in through the telemetry slot's parameters
 where the reference calls out for it, and the sender keeps its own copy, as the reference's static
 frame buffer is rewritten only while the sender is idle. The signal to noise mean holds its sample
-count at 2 ** 24 - 1 (D6). The burst limit keeps the reference's 8-bit wrap at 1000 Hz with a 1:2
-telemetry ratio (finding F99).
+count at 2 ** 24 - 1 (D6). The burst limit is computed in a wide count, reserves the link
+statistics slot and is held at 255, so a 1000 Hz link with a 1:2 telemetry ratio sends 255 data
+frames per link statistics frame. The reference's 8-bit limit wraps to zero there and the two
+kinds alternate (finding F99).
 
 The harness replays ten sequences of 2000 operations recorded from the reference compiled with its
 driver and telemetry sources: the transmitter's packets at the rate's cadence (sync packets with
