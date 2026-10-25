@@ -111,6 +111,15 @@ package Adaflight.Receiver with SPARK_Mode is
    Link_Quality_Max : constant := 1_023;
    Link_Quality_Samples : constant := 16;
    type Quality_Samples is array (0 .. Link_Quality_Samples - 1) of Unsigned_16;
+   subtype Frame_RSSI_Total is Natural range 0 .. Unsigned_16'Last * RSSI_Max;
+
+   --  The frame error RSSI over a window: the full RSSI once per good frame,
+   --  bounded by the count of polls, which stops at the count's last value.
+   type Frame_RSSI_Accumulator is record
+      Sum   : Frame_RSSI_Total := 0;
+      Count : Unsigned_16 := 0;
+   end record
+     with Dynamic_Predicate => Frame_RSSI_Accumulator.Sum <= Frame_RSSI_Accumulator.Count * RSSI_Max;
 
    type State is record
       Raw                 : Values := (others => 0.0);
@@ -148,8 +157,7 @@ package Adaflight.Receiver with SPARK_Mode is
       Quality_Window      : Quality_Samples := (others => 0);
       Quality_Index       : Natural range 0 .. Link_Quality_Samples - 1 := 0;
       Quality_Sum         : Unsigned_16 := 0;
-      Frame_RSSI_Sum      : Unsigned_16 := 0;
-      Frame_RSSI_Count    : Unsigned_16 := 0;
+      Frame_RSSI          : Frame_RSSI_Accumulator;
       Resample_Us         : Time_Delta := 0;
       ADC_Update_At_Us    : Time_Us := 0;
       RSSI_From           : RSSI_Source := None;
