@@ -744,7 +744,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
                          Has_Func => True));
       Add (M, N, Choice ("FSEL MODE", U8 (V.Fsel_Mode_New), 1, SA_Fsel_Name (Natural (V.Fsel_Mode_New)),
                          Flags => Dynamic, Has_Func => True));
-      Add (M, N, Choice ("PIT FMODE", U8 (V.Pit_F_Mode), 1, SA_Pit_F_Mode_Name (Natural (V.Pit_F_Mode)),
+      Add (M, N, Choice ("PIT FMODE", U8 (V.Pit_F_Mode), 2, SA_Pit_F_Mode_Name (Natural (V.Pit_F_Mode)),
                          Has_Func => True));
       Add (M, N, Make ("POR FREQ", Submenu, Has_Func => True, Has_Data => True,
                        Value => Interfaces.Integer_32 (SA_POR_Freq_Menu), Flags => Opt_String));
