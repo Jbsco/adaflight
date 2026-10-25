@@ -48,3 +48,4 @@ Each document describes a Betaflight bug that adaflight fixes: the Betaflight ve
 - [VTX power cycle never reaches the highest level](vtx-power-cycle-top.md)
 - [Tramp temperature reply leaves the driver in the temperature state](tramp-temperature-state.md)
 - [SmartAudio queued commands share one buffer per kind](smartaudio-queue-copies.md)
+- [SmartAudio menu's pit mode kind line cannot reach out-of-range pit mode](smartaudio-pit-mode-line.md)
