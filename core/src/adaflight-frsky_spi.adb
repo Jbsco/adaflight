@@ -276,8 +276,8 @@ package body Adaflight.FrSky_SPI with SPARK_Mode is
 
    --  The hub stream's bytes for the frame: a new burst once the last is
    --  sent and its last frame acknowledged, a resend when the transmitter
-   --  asks again, at most ten bytes a frame. The send position wraps at the
-   --  buffer's size, so a burst that fills the buffer never completes.
+   --  asks again, at most ten bytes a frame. A burst that fills the buffer
+   --  completes at the buffer's end.
    procedure Append_Hub_Data (S : in out State; C : Settings; Inp : Inputs; Count : out Natural)
      with Global => null, Post => Count <= 10
    is
@@ -309,12 +309,12 @@ package body Adaflight.FrSky_SPI with SPARK_Mode is
       Count := 0;
       for K in 0 .. 9 loop
          pragma Loop_Invariant (Count = K);
-         if S.Hub_Sent = S.Hub_Generated then
+         if S.Hub_Sent = S.Hub_Generated or else S.Hub_Sent = Hub_Buffer_Size then
             S.Hub_Generated := 0;
             exit;
          end if;
          S.Frame (8 + K) := S.Hub_Data (S.Hub_Sent);
-         S.Hub_Sent := (S.Hub_Sent + 1) mod Hub_Buffer_Size;
+         S.Hub_Sent := S.Hub_Sent + 1;
          Count := Count + 1;
       end loop;
    end Append_Hub_Data;
