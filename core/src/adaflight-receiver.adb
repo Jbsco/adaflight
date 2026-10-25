@@ -258,17 +258,16 @@ package body Adaflight.Receiver with SPARK_Mode is
       end if;
       if S.RSSI_From = Frame_Errors then
          S.Resample_Us := Wrapped (Interfaces.Integer_64 (S.Resample_Us) + Interfaces.Integer_64 (Delta_Us));
-         S.Frame_RSSI_Sum := (S.Frame_RSSI_Sum + (if Valid_Frame then RSSI_Max else 0)) mod 65_536;
-         S.Frame_RSSI_Count := (S.Frame_RSSI_Count + 1) mod 65_536;
+         if S.Frame_RSSI.Count < Unsigned_16'Last then
+            S.Frame_RSSI := (Sum   => S.Frame_RSSI.Sum + (if Valid_Frame then RSSI_Max else 0),
+                             Count => S.Frame_RSSI.Count + 1);
+         end if;
          if S.Resample_Us >= Frame_Resample_Us then
             declare
                Left : constant Time_Delta := S.Resample_Us - Frame_Resample_Us;
             begin
-               if S.Frame_RSSI_Count > 0 then
-                  Set_RSSI (S, S.Frame_RSSI_Sum / S.Frame_RSSI_Count, S.RSSI_From);
-               end if;
-               S.Frame_RSSI_Sum := 0;
-               S.Frame_RSSI_Count := 0;
+               Set_RSSI (S, S.Frame_RSSI.Sum / S.Frame_RSSI.Count, S.RSSI_From);
+               S.Frame_RSSI := (Sum => 0, Count => 0);
                S.Resample_Us := Left;
             end;
          end if;
