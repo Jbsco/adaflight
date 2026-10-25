@@ -50,3 +50,4 @@ Each document describes a Betaflight bug that adaflight fixes: the Betaflight ve
 - [SmartAudio queued commands share one buffer per kind](smartaudio-queue-copies.md)
 - [SmartAudio menu's pit mode kind line cannot reach out-of-range pit mode](smartaudio-pit-mode-line.md)
 - [MSP transmitter reads its frequency back from the table](msp-vtx-frequency-readback.md)
+- [MSP and Tramp VTX menus store frequency zero in user frequency mode](vtx-menu-user-frequency.md)
