@@ -1500,9 +1500,10 @@ package body Adaflight.OSD_Render with SPARK_Mode is
             O.Line := (others => <>);
             Link_Quality_Message (Inp, O);
          end if;
-         for K in 1 .. Max_Name - 1 loop
+         for K in 1 .. Max_Name loop
             Craft (K) := (if K <= O.Line.Length then O.Line.Data (K) else Character'Val (0));
          end loop;
+         Craft (Max_Name + 1) := Character'Val (0);
       end if;
    end Render_Warnings;
 
