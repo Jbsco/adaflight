@@ -777,7 +777,7 @@ package body Adaflight.VTX with SPARK_Mode is
          return;
       end if;
       New_Power := Integer (Power) + Integer (Power_Step);
-      if New_Power >= T.Power_Levels then
+      if New_Power > T.Power_Levels then
          New_Power := 1;
       elsif New_Power < 0 then
          New_Power := T.Power_Levels;
