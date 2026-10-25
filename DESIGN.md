@@ -745,8 +745,13 @@ RJ01 outer frame yields the Mode B frame three bytes in, once its length byte re
 Dallas CRC-8 over all but its last byte matches that byte. The status poll reports complete once per
 unpacked frame. The raw value is the channel value itself.
 
-The reference's Mode B case falls through into the RJ01 check after its own unpack (finding F35).
-The unit keeps that order so the recorded vectors match, stale buffer bytes included. The state's
+The Mode B case ends at its own unpack. The reference's falls through into the RJ01 check, which
+accepts a Mode B frame whose second byte reads 30 and whose Dallas CRC-8 matches its last byte, and
+unpacks the bytes from offset 3 through the stale tail of the buffer (finding F35). The Mode B
+sequences of the vectors each contain a frame pair built for that path: a sixteen-channel frame that
+leaves its bytes 27 to 29 in the buffer, then a twelve-channel frame with length byte 30, a matching
+outer CRC-8, a failing CRC-16 of its own and an inner CRC-16 that matches through the stale bytes.
+The reference takes channels from that pair, the unit takes none. The state's
 predicate keeps the position below the frame length while a frame comes in and at zero otherwise,
 and ties the length to the provider. The frame writes and the unpackers' reads are therefore proved
 within the buffer without clamps. The completion check moves ahead of the position increment to keep
