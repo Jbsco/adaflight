@@ -5838,8 +5838,10 @@ again. The menu navigation now loads a menu's lines after its entry hook, since 
 which lines the menu has. The band, channel, power and pit mode lines step from none and keep their
 values until the save, the configuration lines send the pit mode ranges to the device, the pit and user
 frequency menus copy and store their frequencies, and the confirmation stores the settings, saving the
-configuration only when they changed, and leaves the menu system. The pit mode kind line cannot reach
-out-of-range pit mode (F221), and option strings stay undrawn (F183); adaflight keeps both.
+configuration only when they changed, and leaves the menu system. The pit mode kind line reaches
+out-of-range pit mode, POR, at its third value and sends it to the device. The reference's line stops
+at the second value, so POR is never shown or sent (finding F221). Option strings stay undrawn
+(F183); adaflight keeps that.
 
 The menu contents oracle wraps the reference's SmartAudio driver and menu beside the other VTX devices,
 scripts the device's report, statistics and line rate and the VTX settings per session, and hands the
