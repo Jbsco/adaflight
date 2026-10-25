@@ -660,36 +660,40 @@ package body Adaflight.VTX with SPARK_Mode is
       V.Spektrum_Word := Word;
    end Offer_Spektrum_Control;
 
-   procedure Step_Band_Channel (V : in out State; S : in out Settings; Armed : Boolean;
-                                Band_Step, Channel_Step : Unsigned_8) is
+   subtype Stick_Step is Integer range -1 .. 1;
+
+   --  A stick step holds the band and channel within the table's counts, zero
+   --  to the count, so a step past either end stays there.
+   procedure Step_Band_Channel (V : in out State; S : in out Settings; T : VTX_Table.Table; Armed : Boolean;
+                                Band_Step, Channel_Step : Stick_Step) is
    begin
       if Armed then
          V.Locked := True;
       end if;
       if not V.Locked and then V.Device_Present then
-         S.Band := S.Band + Band_Step;
-         S.Channel := S.Channel + Channel_Step;
+         S.Band := Unsigned_8 (Integer'Max (0, Integer'Min (T.Bands, Integer (S.Band) + Band_Step)));
+         S.Channel := Unsigned_8 (Integer'Max (0, Integer'Min (T.Channels, Integer (S.Channel) + Channel_Step)));
       end if;
    end Step_Band_Channel;
 
-   procedure Increment_Band (V : in out State; S : in out Settings; Armed : Boolean) is
+   procedure Increment_Band (V : in out State; S : in out Settings; T : VTX_Table.Table; Armed : Boolean) is
    begin
-      Step_Band_Channel (V, S, Armed, 1, 0);
+      Step_Band_Channel (V, S, T, Armed, 1, 0);
    end Increment_Band;
 
-   procedure Decrement_Band (V : in out State; S : in out Settings; Armed : Boolean) is
+   procedure Decrement_Band (V : in out State; S : in out Settings; T : VTX_Table.Table; Armed : Boolean) is
    begin
-      Step_Band_Channel (V, S, Armed, 255, 0);
+      Step_Band_Channel (V, S, T, Armed, -1, 0);
    end Decrement_Band;
 
-   procedure Increment_Channel (V : in out State; S : in out Settings; Armed : Boolean) is
+   procedure Increment_Channel (V : in out State; S : in out Settings; T : VTX_Table.Table; Armed : Boolean) is
    begin
-      Step_Band_Channel (V, S, Armed, 0, 1);
+      Step_Band_Channel (V, S, T, Armed, 0, 1);
    end Increment_Channel;
 
-   procedure Decrement_Channel (V : in out State; S : in out Settings; Armed : Boolean) is
+   procedure Decrement_Channel (V : in out State; S : in out Settings; T : VTX_Table.Table; Armed : Boolean) is
    begin
-      Step_Band_Channel (V, S, Armed, 0, 255);
+      Step_Band_Channel (V, S, T, Armed, 0, -1);
    end Decrement_Channel;
 
    ------------------------------
