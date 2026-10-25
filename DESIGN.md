@@ -4909,16 +4909,16 @@ error that leaves the configuration unchanged.
 `Adaflight.MSP_LED_In` contains the MSP in messages that write the LED strip's sixteen colors, one
 LED's packed configuration and a mode color. Their fields have no settings and take the bounds of
 the command line's color, led and mode_color commands (D6, D203): a hue up to 359; a configuration
-whose function is one of the ten and whose overlays are among the seven, in a request of exactly
-five bytes for a LED below 32; and a mode up to 5 with a direction up to 5, the special colors with
-an index up to 10, or the aux channel with index 0, with a color below 16. The reference rejects a
-LED configuration of other than five bytes and a mode color outside those cases as well, so the
-configuration's profile byte never arrives (findings F192). `Effects` asks the runtime to evaluate
-the strip's layout again after a LED configuration.
+whose function is one of the ten and whose overlays are among the seven, in a request of five
+bytes, or six with the strip's profile within its setting's range, for a LED below 32; and a mode up
+to 5 with a direction up to 5, the special colors with an index up to 10, or the aux channel with
+index 0, with a color below 16. The reference rejects a LED configuration of other than five bytes,
+so the profile byte never arrives there (finding F192), and a mode color outside those cases as
+well. `Effects` asks the runtime to evaluate the strip's layout again after a LED configuration.
 
-The harness replays two sequences of 600 lines from the command line oracle, 1091 requests among
-resets and listings: 907 within their bounds, whose results, runtime work and configuration hashes
-all match the reference's, 113 that both reject before writing, and 71 outside the bounds, each an
+The harness replays two sequences of 600 lines from the command line oracle, 1083 requests among
+resets and listings: 859 within their bounds, whose results, runtime work and configuration hashes
+all match the reference's, 106 that both reject before writing, and 118 outside the bounds, each an
 error that leaves the configuration unchanged.
 
 ## D212. MSP text writes (2026-10-15)
