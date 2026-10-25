@@ -32,7 +32,7 @@ package body Adaflight.Gyro_Selection with SPARK_Mode is
          return;
       end if;
       R.Found := True;
-      if Scan /= I.Stored_Detected then
+      if R.Detected /= I.Stored_Detected then
          R.Stored_Detected := R.Detected;
          R.Write := True;
       end if;
