@@ -61,8 +61,7 @@ package body Adaflight.GPS_Link with SPARK_Mode is
    function To_Unsigned (I : Integer_32) return Unsigned_32 is
      (if I < 0 then not Unsigned_32 (-(I + 1)) else Unsigned_32 (I));
 
-   --  A difference of coordinates in thirty-two bits, wrapping across the
-   --  antimeridian (finding F58).
+   --  A difference of latitudes or altitudes in thirty-two bits.
    function Wrapped_Difference (A, B : Integer_32) return Integer_32 is
      (To_Signed (To_Unsigned (A) - To_Unsigned (B)));
 
@@ -140,7 +139,7 @@ package body Adaflight.GPS_Link with SPARK_Mode is
      (Float (Wrapped_Difference (To.Lat, From.Lat)) * Angle_To_Cm);
 
    function East_Cm (From, To : Location; Cos_Lat : Cosine) return Local_Cm is
-     ((Float (Wrapped_Difference (To.Lon, From.Lon)) * Cos_Lat) * Angle_To_Cm);
+     ((Float (Adaflight.Maths.Longitude_Difference (To.Lon, From.Lon)) * Cos_Lat) * Angle_To_Cm);
 
    --  The distance between two positions in centimetres, with the altitude
    --  when asked.

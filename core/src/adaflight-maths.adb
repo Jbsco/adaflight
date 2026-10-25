@@ -316,6 +316,21 @@ package body Adaflight.Maths with SPARK_Mode is
       end if;
    end Constrain_F;
 
+   --------------------------
+   -- Longitude_Difference --
+   --------------------------
+
+   function Longitude_Difference (To, From : Integer_32) return Integer_32 is
+      Difference : Interfaces.Integer_64 := Interfaces.Integer_64 (To) - Interfaces.Integer_64 (From);
+   begin
+      if Difference > 1_800_000_000 then
+         Difference := Difference - 3_600_000_000;
+      elsif Difference <= -1_800_000_000 then
+         Difference := Difference + 3_600_000_000;
+      end if;
+      return Integer_32 (Difference);
+   end Longitude_Difference;
+
    --------------------
    -- Apply_Deadband --
    --------------------
