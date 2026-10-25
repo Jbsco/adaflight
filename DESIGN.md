@@ -1787,8 +1787,10 @@ through the table. The outputs keep their values when the device has none. A con
 Spektrum receiver, once per change, sets band and channel through the table, the power through the
 device's steps and the pit mode at once, and stores the settings when they moved.
 
-The stick commands step the band or channel bytes without bounds (finding F69) and lock from the
-first arm on. The switch conditions apply in order, the later one winning a field, band and channel
+The stick commands step the band or channel within the table's counts, zero to the band or channel
+count, and lock from the first arm on. The reference steps the bytes without bounds, so a band of
+eight steps to nine and the table lookups find no frequency until the sticks step back (finding
+F69). The switch conditions apply in order, the later one winning a field, band and channel
 only until the first arm, the power always. The cycle commands step from the device's band, channel
 and power and wrap within the table, the power below the level count (finding F71). A Spektrum band
 past the five known ones is not a table band (finding F70). Every recorded vector replays exactly.

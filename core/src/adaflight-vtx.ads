@@ -116,11 +116,12 @@ package Adaflight.VTX with SPARK_Mode is
    --  A control word from the Spektrum receiver, taken at the next call.
    procedure Offer_Spektrum_Control (V : in out State; Word : Unsigned_32);
 
-   --  The stick commands, locked from the first arm on.
-   procedure Increment_Band (V : in out State; S : in out Settings; Armed : Boolean);
-   procedure Decrement_Band (V : in out State; S : in out Settings; Armed : Boolean);
-   procedure Increment_Channel (V : in out State; S : in out Settings; Armed : Boolean);
-   procedure Decrement_Channel (V : in out State; S : in out Settings; Armed : Boolean);
+   --  The stick commands, locked from the first arm on, within the table's
+   --  band and channel counts.
+   procedure Increment_Band (V : in out State; S : in out Settings; T : VTX_Table.Table; Armed : Boolean);
+   procedure Decrement_Band (V : in out State; S : in out Settings; T : VTX_Table.Table; Armed : Boolean);
+   procedure Increment_Channel (V : in out State; S : in out Settings; T : VTX_Table.Table; Armed : Boolean);
+   procedure Decrement_Channel (V : in out State; S : in out Settings; T : VTX_Table.Table; Armed : Boolean);
 
    --  Every active condition applies in order, the later one winning a
    --  field; band and channel only until the first arm.
