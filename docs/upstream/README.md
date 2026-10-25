@@ -33,3 +33,4 @@ Each document describes a Betaflight bug that adaflight fixes: the Betaflight ve
 - [Tab completion lists commands that do not match](cli-completion-range.md)
 - [Frame-error RSSI sum wraps above 64 good frames per window](rssi-frame-sum.md)
 - [MAVLink remote RSSI below the range minimum wraps](mavlink-rssi-floor.md)
+- [ExpressLRS telemetry burst limit wraps at 1000 Hz with a 1:2 ratio](elrs-telemetry-burst.md)
