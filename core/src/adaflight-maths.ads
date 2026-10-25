@@ -92,6 +92,11 @@ package Adaflight.Maths with SPARK_Mode, Pure is
                       elsif Value > High then Constrain_F'Result = High
                       else Constrain_F'Result = Value);
 
+   --  The difference of two longitudes in ten-millionths of a degree, folded
+   --  across the antimeridian to half a turn either way.
+   function Longitude_Difference (To, From : Integer_32) return Integer_32
+     with Post => Longitude_Difference'Result in -1_800_000_000 .. 1_800_000_000;
+
    subtype Deadband_Width is Integer_32 range 0 .. Integer_32'Last;
 
    function Apply_Deadband (Value : Integer_32; Deadband : Deadband_Width)

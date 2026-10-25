@@ -1599,10 +1599,12 @@ is set on request from a fix with at least the minimum satellites, unless it is 
 the request also turns the satellite information off on a u-blox module. Disarmed, the home fix
 clears each call unless kept, and the ready beep sounds once at a fix with enough satellites. The
 link's clock starts at zero, so the first version poll is counted against zero (finding F64). The
-distance over the local flat earth and the bearing use the maths approximations and the wrapped
-coordinate difference (finding F58), and the ENU distance vector stays with the position estimate.
-The task time budget that stops the byte loop belongs to the caller, which decides how many bytes a
-call takes. Every recorded vector replays exactly.
+distance over the local flat earth and the bearing use the maths approximations and the longitude
+difference taken in 64 bits and folded across the antimeridian, where the reference's 32-bit
+subtraction overflows and puts the east distance thousands of kilometres off (finding F58, D6), and
+the ENU distance vector stays with the position estimate. The task time budget that stops the byte
+loop belongs to the caller, which decides how many bytes a call takes. Every recorded vector
+replays exactly.
 
 ## D81. Horizontal position estimate from the GPS (2026-10-11)
 
@@ -1616,10 +1618,10 @@ measurement is less than two seconds old, and otherwise discards their state and
 
 A fix is fused when its solution count has advanced or within the hold interval its rate gives, the
 velocity before the position, each with a noise scaled by the reported accuracy between one and ten
-times its base. The east and north distances from the origin follow the longitude difference,
-wrapped in thirty-two bits (finding F58) and corrected across the antimeridian, scaled by the cosine
-of the home latitude and by the centimetres per unit, that constant rounded at each step as the C
-forms it.
+times its base. The east and north distances from the origin follow the longitude difference, taken
+in 64 bits and folded across the antimeridian where the reference's 32-bit subtraction overflows
+before its correction (finding F58, D6), scaled by the cosine of the home latitude and by the
+centimetres per unit, that constant rounded at each step as the C forms it.
 
 Under an altitude source that allows the GPS, the fix also corrects the vertical filter, velocity
 then position against the first GPS altitude, and the barometer then corrects position alone, since
@@ -1631,8 +1633,9 @@ The validity of each plane needs a measurement within two seconds, the trust fal
 position variance, and each task raises the update events the altitude and position hold tasks take
 once. A heading is required while the GPS is the horizontal source. The altitude hold now takes its
 centimetre type from the position filter. Distances and altitudes beyond the filter's state bound of
-167 km are held at it, and the oracle keeps the fixes within range and short of the antimeridian.
-Every recorded vector replays exactly, the earlier altitude vectors unchanged.
+167 km are held at it, and the oracle keeps the fixes within range. Four of its runs start within a
+metre of the antimeridian and cross it. Every recorded vector replays exactly, the earlier altitude
+vectors unchanged.
 
 ## D82. Position hold with the autopilot's horizontal control (2026-10-11)
 
@@ -5293,8 +5296,9 @@ blinking; home as a flag, or as an arrow on the nearest edge pointing to it; and
 arrow, or within a cell of home as the over-home ring, or NO GPS without a fix. A row past the
 screen's bottom or right edge ends the frame, and a row is cut at the right edge.
 
-The coordinate differences wrap in 32 bits, as the GPS link's do (finding F58). Rounding follows
-the C library's ties to even, exact past 2 ** 24. The unit is SPARK for the float bounds of the
+The latitude difference wraps in 32 bits, and the longitude difference is taken in 64 bits and
+folded across the antimeridian, as the GPS link's are (finding F58, D6). Rounding follows the C
+library's ties to even, exact past 2 ** 24. The unit is SPARK for the float bounds of the
 projection and the clipping, and the cell indexes. Its place in the OSD's item list comes with the
 flight plan items.
 
