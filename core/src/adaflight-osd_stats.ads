@@ -48,7 +48,7 @@ package Adaflight.OSD_Stats with SPARK_Mode is
       Max_Current      : Integer_16 := 0;
       Min_RSSI         : Unsigned_8 := 0;
       Max_Altitude     : Integer_32 := 0;
-      Max_Distance     : Integer_16 := 0;
+      Max_Distance     : Unsigned_16 := 0;
       Max_G_Force      : G_Force := 0.0;
       Max_ESC_Temp_Ix  : Integer_16 := 0;
       Max_ESC_Temp     : Integer_16 := 0;

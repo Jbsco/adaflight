@@ -11983,7 +11983,7 @@ procedure Vector_Check is
                    Max_Current => Interfaces.Integer_16 (Int (F + 4)),
                    Min_RSSI => Interfaces.Unsigned_8 (Int (F + 5)),
                    Max_Altitude => Interfaces.Integer_32 (Int (F + 6)),
-                   Max_Distance => Interfaces.Integer_16 (Int (F + 7)),
+                   Max_Distance => Interfaces.Unsigned_16 (Int (F + 7)),
                    Max_G_Force => Flt (F + 8),
                    Max_ESC_Temp_Ix => Interfaces.Integer_16 (Int (F + 9)),
                    Max_ESC_Temp => Interfaces.Integer_16 (Int (F + 10)),
