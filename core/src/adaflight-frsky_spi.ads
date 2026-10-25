@@ -119,8 +119,8 @@ package Adaflight.FrSky_SPI with SPARK_Mode is
       Hub               : Adaflight.FrSky_Hub_Telemetry.Stream;
       Hub_Data          : Hub_Bytes := (others => 0);
       Hub_Generated     : Natural range 0 .. Hub_Buffer_Size := 0;
-      Hub_Sent          : Natural range 0 .. Hub_Buffer_Size - 1 := 0;
-      Hub_Acknowledged  : Natural range 0 .. Hub_Buffer_Size - 1 := 0;
+      Hub_Sent          : Natural range 0 .. Hub_Buffer_Size := 0;
+      Hub_Acknowledged  : Natural range 0 .. Hub_Buffer_Size := 0;
       Hub_Id_Expected   : Unsigned_8 := 0;
    end record;
 
