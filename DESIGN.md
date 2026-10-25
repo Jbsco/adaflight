@@ -5770,8 +5770,10 @@ the common layer, which `Adaflight.VTX` now exports, and without a device it goe
 sets the device's pit mode, the band, channel and power lines step from none to the first, and the
 confirmation sends the band, channel and power to the device, stores them with the frequency of the band
 and channel, and saves the configuration, a new hook operation, before going back. The MSP driver reads
-its frequency back from the one it was given at band 0 (D249). Saving in user frequency mode stores
-band, channel and frequency zero (F219); adaflight keeps that.
+its frequency back from the one it was given at band 0 (D249). A save stores band, channel and
+frequency only while the menu holds a band and a channel, so a save in user frequency mode keeps the
+configured frequency. The reference stores band 0, channel 0 and the table's frequency at band 0,
+which is 0, and the next configuration frame carries 0 MHz (finding F219).
 
 The menu contents oracle wraps the reference's VTX common layer, MSP driver and MSP VTX menu. Per session
 it scripts a VTX table and the driver's state and registers the MSP driver for the MSP type or a stand-in
@@ -5789,7 +5791,9 @@ confirmation sends and stores the settings, saves, and leaves the menu system. I
 actual power, marked when it differs from the configured level's value, and the target updates it with
 `Update_Tramp_Status` after every Tramp cycle, which the VTX layer's events now flag as they flag the MSP
 driver's. The Tramp driver reports no band or channel, so the menu reads them only through the common
-layer's selection, and a save in user frequency mode stores zeros here too (F219).
+layer's selection. A save stores band, channel and frequency only while the menu holds both, as the
+MSP menu does; the reference stores zeros here too in user frequency mode, which the Tramp driver
+refuses as a frequency, so the stored frequency is lost while the transmitter keeps its own (F219).
 
 The menu contents oracle wraps the reference's Tramp driver and menu beside the MSP ones and scripts the
 Tramp driver's state per session. The harness replays 240 sessions with 19368 keys, 803 menu changes and
