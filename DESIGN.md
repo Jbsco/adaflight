@@ -1808,11 +1808,12 @@ change, every second otherwise, and a temperature query follows each settings re
 
 The received bytes are read up to the first complete and valid reply, and the count taken is
 returned, so the caller offers the rest again. A reply whose first word is zero is the echo of a
-request and is passed over, so a device reporting zero limits never comes online (finding F73).
-After a temperature reply the driver stays in the temperature state until the request period passes
-(finding F74). The frequency is accepted within the device's limits, or the user range while they
-are unknown. The power index is looked up in the table from the configured power, unknown for a
-value outside it. The status contains the configured pit mode and the race lock.
+request and is passed over, so a device reporting zero limits never comes online (finding F73). A
+temperature reply returns the driver to the settings monitor. The reference stays in the temperature
+state until the request period passes, so its settings monitor waits one period after every
+temperature reply (finding F74). The frequency is accepted within the device's limits, or the user
+range while they are unknown. The power index is looked up in the table from the configured power,
+unknown for a value outside it. The status contains the configured pit mode and the race lock.
 
 `Adaflight.VTX` now drives either device. The device of the kind in use takes the frequency, the
 power, the pit mode and the queries. A factory band goes to a SmartAudio device as band and channel
