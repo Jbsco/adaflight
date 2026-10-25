@@ -5741,10 +5741,13 @@ hold the MSP driver without a circular dependency.
 `Adaflight.VTX` now drives an MSP device too. The control layer passes the band and channel it sets
 to the device, to a SmartAudio device only for a factory band, and a band not from the factory also as
 its frequency. The MSP driver takes the power index, pit mode and frequency, its getters answer the
-control layer's queries, and the Spektrum power steps give it no index. A task call that runs the
-device runs the driver's cycle, and the events return the configuration frame to push with a flag for
-the MSP menu's status line, set at every cycle while the transmitter is offline and after each frame
-sent.
+control layer's queries, and the Spektrum power steps give it no index. The frequency getter answers
+the frequency the driver was given while no band is set, and the table's frequency of its band and
+channel otherwise. The reference's getter answers the table's frequency in both cases, so in user
+frequency mode the control layer's frequency step sets the frequency again at every pass and reports
+an update pending (finding F218). A task call that runs the device runs the driver's cycle, and the
+events return the configuration frame to push with a flag for the MSP menu's status line, set at
+every cycle while the transmitter is offline and after each frame sent.
 
 The driver converts each power level to milliwatts as a 16-bit integer, which C leaves undefined from
 level 49 (F217). adaflight saturates at 65535, as in D93 and D103.
@@ -5767,8 +5770,8 @@ the common layer, which `Adaflight.VTX` now exports, and without a device it goe
 sets the device's pit mode, the band, channel and power lines step from none to the first, and the
 confirmation sends the band, channel and power to the device, stores them with the frequency of the band
 and channel, and saves the configuration, a new hook operation, before going back. The MSP driver reads
-its frequency back from the table (F218), and saving in user frequency mode stores band, channel and
-frequency zero (F219); adaflight keeps both.
+its frequency back from the one it was given at band 0 (D249). Saving in user frequency mode stores
+band, channel and frequency zero (F219); adaflight keeps that.
 
 The menu contents oracle wraps the reference's VTX common layer, MSP driver and MSP VTX menu. Per session
 it scripts a VTX table and the driver's state and registers the MSP driver for the MSP type or a stand-in
