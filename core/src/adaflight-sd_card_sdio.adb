@@ -83,7 +83,7 @@ package body Adaflight.SD_Card_SDIO with SPARK_Mode is
       S.Meta.Revision_Major := Info.Revision / 16;
       S.Meta.Revision_Minor := Info.Revision and 16#0F#;
       S.Meta.Serial := Info.Serial;
-      S.Meta.Production_Year := (((Info.Date and 16#0F00#) / 256) or ((Info.Date and 16#FF#) / 16)) + 2000;
+      S.Meta.Production_Year := ((Info.Date and 16#0FF0#) / 16) + 2000;
       S.Meta.Production_Month := Byte (Info.Date and 16#000F#);
    end Receive_CID;
 
