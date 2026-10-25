@@ -265,7 +265,7 @@ package body Adaflight.STK_Bootloader with SPARK_Mode is
          return;
       end if;
       Read_Byte (L, ESC, X, Len_Low, Unused_Got);
-      if Len_Low < 1 then
+      if Natural (Len_High) * 256 + Natural (Len_Low) < 2 then
          return;
       end if;
       Read_Byte (L, ESC, X, B, Got);

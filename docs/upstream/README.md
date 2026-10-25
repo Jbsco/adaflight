@@ -58,3 +58,4 @@ Each document describes a Betaflight bug that adaflight fixes: the Betaflight ve
 - [Gimbal passthrough writes 1 for the held-back opcode byte](gimbal-opcode-byte.md)
 - [BLHeli bootloader bit timing loses its deadline at the microsecond wrap](blheli-bit-timing-wrap.md)
 - [STK500v2 bit read waits forever when its deadline is the clock's last value](stk500-bit-wait-wrap.md)
+- [STK500v2 read of 253 bytes always fails](stk500-reply-length.md)
