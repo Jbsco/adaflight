@@ -39,3 +39,4 @@ Each document describes a Betaflight bug that adaflight fixes: the Betaflight ve
 - [Clock conversions wrap in 2038 and 2068](rtc-conversion-wraps.md)
 - [A clock set to the uptime reads as unset](rtc-set-equal-uptime.md)
 - [GPS rescue steers in whole degrees](rescue-heading-degrees.md)
+- [One NMEA custom command goes out per connection](nmea-custom-commands.md)
