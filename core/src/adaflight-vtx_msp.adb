@@ -174,7 +174,8 @@ package body Adaflight.VTX_MSP with SPARK_Mode is
       Freq := 0;
       Known := Is_Ready (D);
       if Known then
-         Freq := Adaflight.VTX_Table.Frequency_Of (T, Natural (D.Conf_Band), Natural (D.Conf_Channel));
+         Freq := (if D.Conf_Band = 0 then D.Conf_Freq
+                  else Adaflight.VTX_Table.Frequency_Of (T, Natural (D.Conf_Band), Natural (D.Conf_Channel)));
       end if;
    end Get_Frequency;
 
