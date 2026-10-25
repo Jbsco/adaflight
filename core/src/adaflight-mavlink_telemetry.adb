@@ -323,11 +323,8 @@ package body Adaflight.MAVLink_Telemetry with SPARK_Mode is
             if S.Streams (M).Interval_Ms = Disabled then
                return -1;
             end if;
-            declare
-               Us : constant Unsigned_32 := S.Streams (M).Interval_Ms * 1_000;
-            begin
-               return (if Us <= Unsigned_32 (Integer_32'Last) then Integer_32 (Us) else Integer_32'Last);
-            end;
+            return (if S.Streams (M).Interval_Ms <= Unsigned_32 (Integer_32'Last) / 1_000
+                    then Integer_32 (S.Streams (M).Interval_Ms * 1_000) else Integer_32'Last);
          end if;
       end loop;
       return 0;

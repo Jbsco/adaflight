@@ -137,8 +137,8 @@ package Adaflight.MAVLink_Telemetry with SPARK_Mode is
    --  and three milliseconds a place from now, a stream off staying off.
    procedure Configure_Intervals (S : in out State; C : Settings; Now_Ms : Unsigned_32);
 
-   --  A message's interval in microseconds: minus one when off, zero when
-   --  not a stream message.
+   --  A message's interval in microseconds, at most Integer_32'Last: minus one
+   --  when off, zero when not a stream message.
    function Message_Interval_Us (S : State; Id : Natural) return Integer_32;
 
    --  A message's interval set by the ground station: zero restores the

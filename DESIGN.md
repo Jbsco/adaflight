@@ -2482,14 +2482,16 @@ arming unit, which both readers share.
 
 Stream rates set the intervals, at least 20 ms, each first due one interval plus 3 ms per table
 place ahead. A ground station sets one message's interval, zero restoring the rate's, and reads it
-back in microseconds. The reply wraps above 4294967 ms (F115). Global position sends the
-microsecond clock in its millisecond boot time field (F114). Port, receiver link and readings stay
-with the target. Incoming commands and the mission protocol are open.
+back in microseconds, held at the largest signed 32-bit count. The reference multiplies the
+milliseconds in 32 bits before it compares, so an interval above 4294967 ms wraps and reads back
+short (finding F115). Global position sends the microsecond clock in its millisecond boot time
+field (F114). Port, receiver link and readings stay with the target. Incoming commands and the
+mission protocol are open.
 
 The harness replays six sequences of 500 steps recorded from the reference: telemetry passes under
-random readings, rates, arming reasons and clocks, interval sets including unknown messages, and
-interval reads. Every frame byte, due time, interval and sequence number of the 3006 lines replays
-byte for byte.
+random readings, rates, arming reasons and clocks, interval sets including unknown messages and
+the saturation and wrap edges, each edge set read straight back, and interval reads. Every frame
+byte, due time, interval and sequence number of the 3019 lines replays byte for byte.
 
 ## D111. MAVLink commands (2026-10-13)
 
