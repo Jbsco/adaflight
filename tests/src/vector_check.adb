@@ -8456,7 +8456,7 @@ procedure Vector_Check is
       if Name = "rtcinit" then
          RTC_Seq := Int (2);
          RTC_Config := (Zone => Zone_Minutes (Int (3)));
-         RTC_Clock := (Started => 0);
+         RTC_Clock := (Started => 0, Is_Set => False);
          Record_Int (Name & ".hastime", Int (5), (if Has_Time (RTC_Clock) then 1 else 0));
       elsif Name = "rtcstep" then
          if Int (2) /= RTC_Seq then

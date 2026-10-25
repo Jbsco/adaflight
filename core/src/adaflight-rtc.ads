@@ -7,7 +7,6 @@ with Interfaces;
 
 package Adaflight.RTC with SPARK_Mode is
    use type Interfaces.Integer_64;
-   use type Interfaces.Integer_32;
    use type Interfaces.Integer_16;
    use type Interfaces.Unsigned_32;
    use type Interfaces.Unsigned_16;
@@ -17,7 +16,6 @@ package Adaflight.RTC with SPARK_Mode is
    subtype Unsigned_16 is Interfaces.Unsigned_16;
    subtype Unsigned_32 is Interfaces.Unsigned_32;
    subtype Integer_16 is Interfaces.Integer_16;
-   subtype Integer_32 is Interfaces.Integer_32;
 
    --  Milliseconds since the first of January 1970, within a span the
    --  arithmetic on the millisecond clock cannot leave.
@@ -47,21 +45,25 @@ package Adaflight.RTC with SPARK_Mode is
       Zone : Zone_Minutes := 0;
    end record;
 
-   --  The clock: the time at boot, zero while no time was set.
+   --  The clock: the time at boot, and whether a time was set.
    type Clock is record
       Started : Started_Time := 0;
+      Is_Set  : Boolean := False;
    end record;
 
-   function Has_Time (C : Clock) return Boolean is (C.Started /= 0);
+   function Has_Time (C : Clock) return Boolean is (C.Is_Set);
 
-   function Make (Seconds : Integer_32; Millis : Unsigned_16) return Time is
-     (Interfaces.Integer_64 (Seconds) * Millis_Per_Second + Interfaces.Integer_64 (Millis));
+   subtype Seconds_Count is Interfaces.Integer_64 range -2 ** 52 .. 2 ** 52;
 
-   function Seconds_Of (T : Interfaces.Integer_64) return Integer_32;
+   function Make (Seconds : Seconds_Count; Millis : Unsigned_16) return Time is
+     (Seconds * Millis_Per_Second + Interfaces.Integer_64 (Millis));
+
+   function Seconds_Of (T : Interfaces.Integer_64) return Interfaces.Integer_64;
    function Millis_Of (T : Interfaces.Integer_64) return Unsigned_16;
 
    --  A date in the reference's leap cycle, with the month indexing the
-   --  day table; every other field wraps as the reference's arithmetic.
+   --  day table and the seconds counted in 64 bits; every other field wraps
+   --  as the reference's arithmetic.
    function Date_To_Time (D : Date_Time) return Time
      with Pre => D.Month in 1 .. 12;
 
