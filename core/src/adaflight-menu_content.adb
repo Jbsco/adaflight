@@ -2509,9 +2509,6 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       O : constant Other_Copies := T.Other;
       P : Adaflight.Config_Groups.Pid_Profile_Record := T.Config.Pid_Profiles (I);
    begin
-      if T.Asked.PID_Config_Inits < Natural'Last then
-         T.Asked.PID_Config_Inits := T.Asked.PID_Config_Inits + 1;
-      end if;
       P.Pid (3).P := O.Angle_P;
       P.Pid (3).F := Interfaces.Unsigned_16 (O.Angle_FF);
       P.Angle_Limit := O.Angle_Limit;
@@ -2547,6 +2544,9 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       T.Config.Pid_Profiles (I) := P;
       if T.Asked.Endpoint_Inits < Natural'Last then
          T.Asked.Endpoint_Inits := T.Asked.Endpoint_Inits + 1;
+      end if;
+      if T.Asked.PID_Config_Inits < Natural'Last then
+         T.Asked.PID_Config_Inits := T.Asked.PID_Config_Inits + 1;
       end if;
    end Leave_Profile_Other_Menu;
 
