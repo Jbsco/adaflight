@@ -1747,8 +1747,9 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       end case;
    end RTC_Line_Changed;
 
-   --  The VTX device menus' band, channel and power sent to the device and
-   --  stored with the band and channel's frequency.
+   --  The VTX device menus' band, channel and power sent to the device, the
+   --  power stored, and the band and channel stored with their frequency
+   --  while the menu holds both.
    procedure Commence_VTX
      (V       : in out Adaflight.VTX.State;
       Run     : Adaflight.VTX_Table.Table;
@@ -1760,10 +1761,13 @@ package body Adaflight.Menu_Content with SPARK_Mode is
    begin
       Adaflight.VTX.Common_Set_Band_Channel (V, Run, C.Band, C.Channel);
       Adaflight.VTX.Common_Set_Power_Index (V, Run, C.Power);
-      S.Band := C.Band;
-      S.Channel := C.Channel;
       S.Power := C.Power;
-      S.Freq := (if Present then Adaflight.VTX_Table.Frequency_Of (Run, Natural (C.Band), Natural (C.Channel)) else 0);
+      if C.Band /= 0 and then C.Channel /= 0 then
+         S.Band := C.Band;
+         S.Channel := C.Channel;
+         S.Freq := (if Present then Adaflight.VTX_Table.Frequency_Of (Run, Natural (C.Band), Natural (C.Channel))
+                    else 0);
+      end if;
    end Commence_VTX;
 
    --  A VTX device menu's line after its value changed: the pit mode set on
