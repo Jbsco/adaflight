@@ -2399,10 +2399,10 @@ warnings unit (D95) with its severity, and the element's blink bit set while the
 blinks and cleared otherwise. With the craft name messages on, a link quality message
 replaces the line while the blink is in its hidden half or the line is empty: the mode,
 quality and RSSI dBm for Crossfire, the quality and RSSI dBm for Ghost, else the quality
-scaled to one digit. The element then copies its first fifteen characters into the craft
-name, zero filled after a shorter text; a text of fifteen characters or more leaves the
-name's sixteenth byte as it was (F111). The craft name buffer, the blink and the readings
-stay with the target.
+scaled to one digit. The element then copies its first sixteen characters into the craft
+name, zero filled after a shorter text, and ends the name with a zero. The reference copies
+fifteen, so a text of fifteen characters or more leaves the name's sixteenth byte as it was
+(F111). The craft name buffer, the blink and the readings stay with the target.
 
 The harness replays six sequences of 500 steps recorded from the reference, the warnings
 scripted as for D95 with the craft name messages, link sources, qualities, modes, blink
