@@ -69,8 +69,8 @@ package body Adaflight.OSD_Stats with SPARK_Mode is
          S.Min_RSNR := R.RSNR;
       end if;
       if R.GPS_Fix and then R.GPS_Fix_Home then
-         if Integer (S.Max_Distance) < Integer (R.Distance_To_Home) then
-            S.Max_Distance := Wrap16 (Integer_32 (R.Distance_To_Home));
+         if S.Max_Distance < R.Distance_To_Home then
+            S.Max_Distance := R.Distance_To_Home;
          end if;
       end if;
       if R.ESC_Sensor_Feature then
