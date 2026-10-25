@@ -288,19 +288,20 @@ package body Adaflight.MSP_Port with SPARK_Mode is
             end if;
 
          when V2_Over_V1 =>
-            --  The version 2 header follows the version 1 header, and the jumbo
-            --  size follows the version 2 header (finding F43).
+            --  The jumbo size follows the version 1 header and the version 2
+            --  header follows it, as in the version 1 framing.
             declare
                V1_Size : constant Natural := V2_Header_Size + N + 1;
             begin
                Frame (4) := V2_Frame_Id;
-               Put_V2_Header (3 + V1_Header_Size);
                if V1_Size >= Jumbo_Limit then
                   Frame (3) := Jumbo_Limit;
-                  Frame (10) := Byte (V1_Size mod 256);
-                  Frame (11) := Byte (V1_Size / 256);
+                  Frame (5) := Byte (V1_Size mod 256);
+                  Frame (6) := Byte (V1_Size / 256);
+                  Put_V2_Header (3 + V1_Header_Size + Jumbo_Header_Size);
                else
                   Frame (3) := Byte (V1_Size);
+                  Put_V2_Header (3 + V1_Header_Size);
                end if;
             end;
 
@@ -319,8 +320,7 @@ package body Adaflight.MSP_Port with SPARK_Mode is
          when V2_Over_V1 =>
             declare
                CRC : constant Byte :=
-                 CRC8_Update (CRC8_Update (0, Frame (3 + V1_Header_Size .. 2 + V1_Header_Size + V2_Header_Size),
-                                           DVB_S2_Polynomial),
+                 CRC8_Update (CRC8_Update (0, Frame (H - V2_Header_Size .. H - 1), DVB_S2_Polynomial),
                               Payload, DVB_S2_Polynomial);
             begin
                Frame (H + N) := CRC;
