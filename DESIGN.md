@@ -7799,9 +7799,10 @@ to the readings with that axis.
 `Adaflight.AK8975` drives the AK8975 compass over the same bus as the other compass drivers. Detection gives an unset
 I2C address the chip's 0x0C and reads the identity 0x48. Initialization registers the device, powers it down, waits 20
 ms, enters fuse ROM access, waits 10 ms, reads the three sensitivity values, waits 10 ms, powers down again, waits 10
-ms, reads both status registers and starts a 16-bit single measurement, whatever the writes and reads answer. Each axis
-gain is its sensitivity value plus 128, and the output data rate is 50 Hz. A refused fuse ROM read leaves the values the
-buffer held, which in the reference is uninitialized stack memory and in this unit starts at zeros. A read starts the
+ms, reads both status registers and starts a 16-bit single measurement, whatever the writes and the status reads
+answer. A refused fuse ROM read fails the initialization, where the reference takes the gains from the uninitialized
+stack memory the read left (F266). Each axis gain is its sensitivity value plus 128, and the output data rate is 50 Hz. A
+read starts the
 first status, and when it reports data ready starts the six data bytes and then the second status. It then starts the
 next single measurement, retried at each read until the bus takes it, drops the data on a data error or overflow, and
 otherwise hands the axes over at the next read. Each axis is its signed word times its gain divided by 256, clamped to
@@ -7811,10 +7812,12 @@ behaves the same with one compass. The unit is SPARK for the read state and the 
 
 The AK8975 oracle includes the reference driver over a simulated chip whose answers each case draws and prints before
 use, one case per process. It draws the bus type and a preset address, the identity and its read acknowledgement, the
-fuse ROM values, which the chip always answers, and the other write and status read acknowledgements, then 40 to 120
-reads with start, write, status and data answers. Every bus call, detection, initialization, gain and reading of the 300
-cases replays exactly. In them 239 compasses initialize and 2498 readings arrive, 344 axes at -32768 and 367 at -32767.
-All 28 tampered paths fail the vectors, one by stopping the checker.
+fuse ROM values and whether the chip answers them, from the case number so the other draws keep their places, and the
+other write and status read acknowledgements, then 40 to 120 reads with start, write, status and data answers. Every bus
+call, detection, initialization, gain and reading of the 300 cases replays exactly. In them 200 compasses initialize, 39
+fail at a refused fuse ROM read, and 2082 readings arrive, 286 axes at -32768 and 310 at -32767. The 28 tampered paths of
+the first campaign failed its vectors, one by stopping the checker, and the unchecked fuse read and an initialization
+that reports success after a refused read, tampered back in, fail these.
 
 ## D345. AK9916 compass driver (2026-10-18)
 
@@ -7866,9 +7869,9 @@ configuration to bypass, its I2C master to 400 kHz and its user control to maste
 wait. Detection then resets the chip, waits 4 ms and reads the identity 0x48, and a chip that does not answer gets its
 bus released. Initialization registers the device, powers down, enters fuse ROM access, reads the three sensitivity
 values, powers down again, reads both status registers and starts a 16-bit single measurement, whatever the writes and
-reads answer, with no waits between them. Each axis gain is its sensitivity value plus 128, and the output data rate is
-50 Hz. A refused fuse ROM read leaves the buffer's values, uninitialized stack memory in the reference and zeros in this
-unit.
+the status reads answer, with no waits between them. A refused fuse ROM read fails the initialization, where the
+reference takes the gains from the uninitialized stack memory the read left (F266). Each axis gain is its sensitivity
+value plus 128, and the output data rate is 50 Hz.
 
 On the MPU slave bus a chip write sets the gyro's slave 0 address, register, data and a one-byte transfer, and reports
 success. A chip read sets the address with the read bit, the register and the length, waits 4 ms and reads the gyro's
@@ -7885,16 +7888,17 @@ unit is SPARK for the slave read phase, the queued read timing and the axis conv
 
 The AK8963 oracle includes the reference driver built with the MPU slave bus, over a simulated chip whose registers and
 answers each case draws and prints before use, one case per process. A read returns the chip's registers from the one it
-names, or on the MPU slave bus from the one in the gyro's slave 0 register. The fuse ROM read always answers, a refused
-direct read still brings the chip's bytes, as an I2C read that ends in an error can, and a refused read through the busy
-gyro brings none. It draws the bus type, a preset address, the registers, the read and write acknowledgements and the
+names, or on the MPU slave bus from the one in the gyro's slave 0 register. Every read takes its drawn acknowledgement,
+the fuse ROM read among them, a refused direct read still brings the chip's bytes, as an I2C read that ends in an error
+can, and a refused read through the busy gyro brings none. It draws the bus type, a preset address, the registers, the read and write acknowledgements and the
 microsecond clock, a fifth of the clocks within 200 ms of the 32-bit wrap. Then come 30 to 80 reads on I2C and SPI or 60
 to 200 on the MPU slave bus, each with registers, acknowledgements and the time since the read before, a fifth of those
 times within 10 µs of 8 ms. Every bus call, detection, initialization, gain and reading of the 300 cases replays
-exactly. In them 225 compasses are found and initialize, 93 on I2C, 42 on SPI and 90 on the MPU slave bus, and 6499
-readings arrive, 1963 of them through the gyro. All 61 tampered paths fail the vectors. On the first pass the one that
-ignores the first status read's answer passed, since a refused read brought no bytes, and led to the refused direct
-reads that bring the chip's bytes.
+exactly. In them 225 compasses are found, 201 initialize, 86 on I2C, 36 on SPI and 79 on the MPU slave bus, 24 fail at
+a refused fuse ROM read, and 5908 readings arrive, 1709 of them through the gyro. The 61 tampered paths of the first
+campaign failed its vectors. On its first pass the one that ignores the first status read's answer passed, since a
+refused read brought no bytes, and led to the refused direct reads that bring the chip's bytes. The unchecked fuse read
+and an initialization that reports success after a refused read, tampered back in, fail these vectors.
 
 ## D348. W25N flash driver (2026-10-18)
 
