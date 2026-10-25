@@ -36865,7 +36865,7 @@ procedure Vector_Check is
          Record_Int (Name & ".sa_queue", Next, Integer_64 (Count));
          for I in 0 .. Count - 1 loop
             declare
-               F : Frame renames D.Buffers (D.Pending ((D.Tail + I) mod Queue_Size));
+               F : Frame renames D.Pending ((D.Tail + I) mod Queue_Size);
             begin
                for J in 0 .. F.Length - 1 loop
                   Bytes (Last) := F.Data (J);

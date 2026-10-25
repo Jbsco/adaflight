@@ -1738,8 +1738,10 @@ one, and the value of a power index.
 `Adaflight.SmartAudio` drives a SmartAudio transmitter over one half-duplex serial line the caller
 owns. The caller hands in the bytes received and carries out the bytes and the line rate a call asks
 for. A request builds its frame (the two preamble bytes, the command code, the length, the payload
-and the checksum over the whole frame) into the buffer of its kind and queues the kind, five deep. A
-later request of the same kind replaces the bytes before they go out (finding F65). A call sends one
+and the checksum over the whole frame) and queues it, five deep, each queued frame with its own
+bytes. The reference queues a pointer to one static buffer per command kind, so a later request of
+the same kind rewrites an earlier one still queued and the earlier goes out with the later's bytes
+(finding F65). A call sends one
 frame: the outstanding command again 120 ms after its last transmission, else the next queued frame,
 else a settings poll while a command went out within the last second and 150 ms have passed since
 the last transmission. A disabled control drops the frame and clears the outstanding command.
