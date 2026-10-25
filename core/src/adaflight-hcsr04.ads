@@ -7,10 +7,10 @@
 --  on both edges and gives the task a 100 ms period, a 4 m range, a 30 degree
 --  cone and a 45 degree extended cone; one that does not gets both pins
 --  released. The echo interrupt notes the rising edge's microsecond time and,
---  at a falling edge after it, the travel time and the millisecond it ended.
---  An update that finds the echo ended within 60 ms after the last trigger
---  gives the distance as the travel time over 59, out of range past 4 m; one
---  that finds the echo later, or before the trigger by the 32-bit wrap, gives
+--  at a falling edge after it by less than 2^31 us, the travel time and the
+--  millisecond clock's reading. An update that finds the echo ended within 60
+--  ms after the last trigger gives the distance as the travel time over 59, out
+--  of range past 4 m; one that finds no echo within 60 ms of the trigger gives
 --  a hardware failure. An update more than 60 ms after the last trigger fires
 --  the next pulse. A read gives the distance once, then no new data.
 with Interfaces;
@@ -44,9 +44,8 @@ package Adaflight.HCSR04 with SPARK_Mode is
    Hardware_Failure : constant Interfaces.Integer_32 := -2;
    No_New_Data      : constant Interfaces.Integer_32 := -3;
 
-   --  The travel time over 59 reaches 36.4 million either way, and the
-   --  distance is cut at 4 m.
-   subtype Reading is Interfaces.Integer_32 range -36_400_000 .. 400;
+   --  The distance in centimetres, cut at 4 m, or one of the three codes.
+   subtype Reading is Interfaces.Integer_32 range -3 .. 400;
 
    type Config is record
       Trigger_Tag : Byte := 0;
@@ -65,7 +64,7 @@ package Adaflight.HCSR04 with SPARK_Mode is
    --  of the last rising edge.
    type State is record
       Pins            : Config;
-      Travel_Us       : Interfaces.Integer_32 := 0;
+      Travel_Us       : Interfaces.Integer_32 range 0 .. Interfaces.Integer_32'Last := 0;
       Received_Ms     : Interfaces.Unsigned_32 := 0;
       Last_Distance   : Reading := Out_Of_Range;
       Started_Ms      : Interfaces.Unsigned_32 := 0;
@@ -74,9 +73,9 @@ package Adaflight.HCSR04 with SPARK_Mode is
 
    procedure Detect (D : in out Pin_Device; C : Config; S : in out State; Found : out Boolean; Dev : out Device);
 
-   --  The echo pin's interrupt with the pin's level and the time.
-   procedure Echo_Edge (S : in out State; High : Boolean; Now_Us : Interfaces.Unsigned_32)
-     with Global => null;
+   --  The echo pin's interrupt with the pin's level and the microsecond time;
+   --  a falling edge that ends a pulse reads the millisecond clock.
+   procedure Echo_Edge (D : in out Pin_Device; S : in out State; High : Boolean; Now_Us : Interfaces.Unsigned_32);
 
    procedure Update (D : in out Pin_Device; S : in out State);
 
