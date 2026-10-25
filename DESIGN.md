@@ -1710,8 +1710,8 @@ available. Once a second they record the GPS health, the satellite count over fi
 the phase's own progress: the altitude change against the target change, the velocity home against a
 fifth of the target speed, and the seconds spent turning, pitching forward, descending or landing.
 The do-nothing phase is kept though the sanity check disarms first under its condition (finding
-F59). Headings in decidegrees reach the rescue through an integer division, so the rescue works in
-whole degrees (finding F60).
+F59). Headings in decidegrees reach the rescue as tenths of a degree in floating point. The
+reference divides them as integers first, so it steers in whole degrees (finding F60).
 
 The autopilot's altitude controller moves from the altitude hold into `Adaflight.Altitude_Control`,
 which the hold and the rescue drive with their own targets. The caller owns the controller state and

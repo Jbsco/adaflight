@@ -38,3 +38,4 @@ Each document describes a Betaflight bug that adaflight fixes: the Betaflight ve
 - [RMC clock request masks the time for its milliseconds](rmc-clock-millis.md)
 - [Clock conversions wrap in 2038 and 2068](rtc-conversion-wraps.md)
 - [A clock set to the uptime reads as unset](rtc-set-equal-uptime.md)
+- [GPS rescue steers in whole degrees](rescue-heading-degrees.md)
