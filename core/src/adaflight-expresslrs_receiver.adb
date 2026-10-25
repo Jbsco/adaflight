@@ -603,12 +603,11 @@ package body Adaflight.ExpressLRS_Receiver with SPARK_Mode is
       end if;
       R.Burst_Valid := True;
       Hz := Rate_Hz (Mod_Of (R).Rate);
-      R.Burst_Max := Byte'Mod (Telem_Min_Link_Interval * Hz / Natural (R.Tlm_Denom) / 1_000);
-      if R.Burst_Max > 1 then
-         R.Burst_Max := R.Burst_Max - 1;
-      else
-         R.Burst_Max := 1;
-      end if;
+      declare
+         Burst : constant Natural := Telem_Min_Link_Interval * Hz / Natural (R.Tlm_Denom) / 1_000;
+      begin
+         R.Burst_Max := Byte (Natural'Min ((if Burst > 1 then Burst - 1 else 1), 255));
+      end;
       Tlm.Update_Rate (R.Sender, Natural (R.Tlm_Denom), Positive (R.Burst_Max));
    end Update_Telemetry_Burst;
 
