@@ -4463,8 +4463,9 @@ page holds at least four items; the page count; the page selected by number, wra
 count, with its top line, its last row from the lines left, the items on a page and the row limit,
 and the lines' flags copied for the draw into the byte the reference keeps them in, which drops
 the flags above the dynamic one (F183); the cursor's absolute row; the rows the cursor skips,
-which are labels, strings and the narrow numbers a slider overrides, with the reference's dynamic
-test kept as written (F182); and the value text helpers: a value in thousandths with its trailing
+which are labels, strings and the narrow numbers that are dynamic or that a slider overrides,
+where the reference's dynamic test compares the whole flags word with the flag and never holds
+(F182); and the value text helpers: a value in thousandths with its trailing
 zeros cut down to the first decimal and a leading zero blanked, a value cut to its field and
 aligned right in it, and the display's character set. The proof covers the page arithmetic: the
 selected page's top line stays within the table and the flags copy within the page's rows. The
@@ -5619,7 +5620,8 @@ to analyze the active elements again. The timers menu splits each timer into sou
 alarm and joins them again on the way out; tenths, the third precision, show an empty name where the
 reference reads past its two names (F212). The alarms menu copies the RSSI, link quality, RSSI dBm,
 signal to noise, capacity, altitude and distance alarms and the battery voltage durations, with the
-reference's ranges (F213).
+reference's ranges but the RSSI dBm line ending at 0 like its setting, where the reference's runs to
+20 (F213).
 
 The menu contents oracle scripts the element positions, the alarms, the timers, the background and
 the display settings, counts the analyses and profile changes, and keeps timer precisions to the two

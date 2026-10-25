@@ -1262,7 +1262,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
          Add (M, N, Make ("--- ALARMS ---", Label));
          Add (M, N, Number ("RSSI", Interfaces.Integer_32 (A.RSSI), 5, 90, Step => 5));
          Add (M, N, Number ("LINK QUALITY", Interfaces.Integer_32 (A.Link_Quality), 5, 300, UInt16, 5));
-         Add (M, N, Number ("RSSI DBM", Interfaces.Integer_32 (A.RSSI_Dbm), -130, 20, Int16, 5));
+         Add (M, N, Number ("RSSI DBM", Interfaces.Integer_32 (A.RSSI_Dbm), -130, 0, Int16, 5));
          Add (M, N, Number ("RSNR", Interfaces.Integer_32 (A.RSNR), -30, 20, Int16, 5));
          Add (M, N, Number ("MAIN BAT", Interfaces.Integer_32 (A.Capacity), 50, 30_000, UInt16, 50));
          Add (M, N, Number ("MAX ALT", Interfaces.Integer_32 (A.Altitude), 1, 200, UInt16));
