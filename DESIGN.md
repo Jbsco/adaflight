@@ -6539,8 +6539,8 @@ the earlier gyro vectors stay byte for byte. Seven tampered paths each fail the 
 every sensor when they are zero, together with the enabled setting and every sensor with a configured bus,
 and the detected sensors are the scanned ones that answer. Without one it stores nothing and reports a scale
 of one and a 1 kHz sample rate. Otherwise the stored flags become the detected ones with a configuration
-write whenever the scanned set differs from them, which a configured sensor that never answers keeps true at
-every boot (F236). The enabled sensors are the detected ones in the enabled setting, or the lowest detected
+write whenever the detected set differs from them, where the reference compares the scanned set, which a
+configured sensor that never answers keeps different at every boot, so it writes at every boot (F236). The enabled sensors are the detected ones in the enabled setting, or the lowest detected
 one, and only the lowest enabled one when the enabled sensors disagree on sample rate or scale. The enabled
 setting takes the result with a write when it changes. The overflow protection holds only when every enabled
 sensor has it, and the scale and sample rate are the first enabled sensor's. The caller hands the enabled
