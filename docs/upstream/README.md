@@ -43,3 +43,4 @@ Each document describes a Betaflight bug that adaflight fixes: the Betaflight ve
 - [MAVLink message interval reads back short above 4294967 ms](mavlink-interval-wrap.md)
 - [MAVLink reboot over a receiver link is acknowledged and never run](mavlink-queue-reboot.md)
 - [MSP jumbo reply in the combined framing puts its size after the version 2 header](msp-jumbo-combined-framing.md)
+- [XBUS Mode B frames fall through into the RJ01 unpacker](xbus-mode-b-fall-through.md)
