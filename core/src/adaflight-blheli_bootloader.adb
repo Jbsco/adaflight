@@ -1,7 +1,10 @@
+with Adaflight.Clock;
+
 package body Adaflight.BLHeli_Bootloader with SPARK_Mode is
    use type Interfaces.Unsigned_8;
    use type Interfaces.Unsigned_16;
    use type Interfaces.Unsigned_32;
+   use type Interfaces.Integer_32;
 
    Start_Bit_Timeout_Ms : constant := 2;
    Bit_Time             : constant := 52;
@@ -54,7 +57,7 @@ package body Adaflight.BLHeli_Bootloader with SPARK_Mode is
    begin
       loop
          Read_Micros (L, Now);
-         exit when Now >= Time;
+         exit when Adaflight.Clock.Elapsed (Now, Time) >= 0;
       end loop;
    end Wait_Until;
 
