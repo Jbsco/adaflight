@@ -615,11 +615,13 @@ dBm and the SNR.
 
 The frame's flags, the raw channels, the failsafe switch, the 3D switch, the stage, and the task's
 state come in. The data to process, the auxiliary frame to process, and the validity the failsafe
-hears go out, since other units own them. The frame error sum keeps the reference's 16-bit wrap
-(finding F30). Every conversion of a channel value to a 16-bit count holds a value outside the count
-at the bound, where the reference's conversion is undefined. D6 declares the negative RSSI case. The
-recorded vectors keep the pulses and ranges where the scaled values stay within the count. No
-recorded vector reaches a guard.
+hears go out, since other units own them. The frame error sum is bounded by its poll count times the
+full RSSI and the count stops at 65535 polls, so the mean over a window is exact at any frame rate.
+The reference's 16-bit sum wraps above 64 good frames per window (finding F30). Every conversion of
+a channel value to a 16-bit count holds a value outside the count at the bound, where the
+reference's conversion is undefined. D6 declares the negative RSSI case. The recorded vectors keep
+the pulses and ranges where the scaled values stay within the count. No recorded vector reaches a
+guard.
 
 ## D41. SBUS protocol (2026-10-10)
 
