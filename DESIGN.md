@@ -1792,8 +1792,9 @@ count, and lock from the first arm on. The reference steps the bytes without bou
 eight steps to nine and the table lookups find no frequency until the sticks step back (finding
 F69). The switch conditions apply in order, the later one winning a field, band and channel
 only until the first arm, the power always. The cycle commands step from the device's band, channel
-and power and wrap within the table, the power below the level count (finding F71). A Spektrum band
-past the five known ones is not a table band (finding F70). Every recorded vector replays exactly.
+and power and wrap within the table. The reference wraps the power when its index reaches the level
+count, so the top level is never selected (finding F71). A Spektrum band past the five known ones is
+not a table band (finding F70). Every recorded vector replays exactly.
 
 ## D86. Tramp driver and the device dispatch (2026-10-11)
 
