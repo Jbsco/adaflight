@@ -18,6 +18,7 @@ package Adaflight.MSP_Port with SPARK_Mode is
    Pending_Guard_Ms    : constant := 100;
    Activity_Timeout_Ms : constant := 5_000;
    V1_Header_Size      : constant := 2;
+   Jumbo_Header_Size   : constant := 2;
    V2_Header_Size      : constant := 5;
    V2_Frame_Id         : constant Byte := 255;
 
@@ -107,7 +108,8 @@ package Adaflight.MSP_Port with SPARK_Mode is
    --  The header carries the start, the framing letter, the direction, then
    --  the version 1 size and command (with the jumbo size when the size byte
    --  reads 255), the version 2 flags, command and size, or both. In the
-   --  combined framing the jumbo size follows the version 2 header.
+   --  combined framing the jumbo size follows the version 1 header and the
+   --  version 2 header follows it.
    function Header_Length (Version : Framing; Payload : Payload_Size) return Positive is
      (case Version is
         when V1         => (if Payload >= Jumbo_Limit then 7 else 5),

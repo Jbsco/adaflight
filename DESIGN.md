@@ -930,9 +930,10 @@ Proof covers the receive buffer index through a predicate on the port record. Th
 before a header, at most the header size while a header fills, and below the data size while a
 payload fills, with the data size held to the buffer by the header checks, so no byte can land past
 the buffer. The encoder's frame buffer is sized for the longest header, the largest reply, and both
-checksums. The reference writes the jumbo size of a combined-framing reply after the version 2
-header instead of after the version 1 header, and the encoder keeps that order so the recorded
-vectors match (finding F43).
+checksums. The encoder writes the jumbo size of a combined-framing reply right after the version 1
+header and the version 2 header after it, as in the version 1 framing. The reference writes the
+jumbo size after the version 2 header, where a decoder that follows the version 1 layout reads the
+version 2 flags and command as the size (finding F43).
 
 ## D54. ExpressLRS hopping tables and link counters (2026-10-11)
 
