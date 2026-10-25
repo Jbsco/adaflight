@@ -107,6 +107,7 @@ package body Adaflight.BMP085 with SPARK_Mode is
       Cal_Data        : Calibration_Bytes := (others => 0);
       Connected       : Boolean;
       OK              : Boolean;
+      Got             : Boolean;
       Ignored         : Boolean;
    begin
       Device := (others => <>);
@@ -133,15 +134,19 @@ package body Adaflight.BMP085 with SPARK_Mode is
             Register_Device (D);
             Read_Registers (D, Version_Register, Id, Ignored);
             S.Version := Id (0);
-            Read_Registers (D, Calibration_Start, Cal_Data, Ignored);
-            Parse (Cal_Data, S.Cal);
-            Device :=
-              (Combined_Read => False, Temperature_Delay_Us => Temperature_Delay, Pressure_Delay_Us => Pressure_Delay);
-            Test_EOC (D, C, S, Connected);
-            S.EOC_Connected := Connected;
-            S.Init_Done := True;
-            Found := True;
-            return;
+            Read_Registers (D, Calibration_Start, Cal_Data, Got);
+            if Got then
+               Parse (Cal_Data, S.Cal);
+               Device :=
+                 (Combined_Read        => False,
+                  Temperature_Delay_Us => Temperature_Delay,
+                  Pressure_Delay_Us    => Pressure_Delay);
+               Test_EOC (D, C, S, Connected);
+               S.EOC_Connected := Connected;
+               S.Init_Done := True;
+               Found := True;
+               return;
+            end if;
          end if;
       end if;
       if C.EOC_Tag /= 0 then
