@@ -2591,8 +2591,9 @@ The FrSky SPI unit gains the D8 telemetry frame's hub data. With the telemetry f
 FrSky hub stream free of a serial port, the receiver owns the hub stream. When the transmitter
 acknowledges the last frame, the next frame starts a hub burst once the previous one is sent; when
 it asks again, the unacknowledged bytes go out again. A burst lands in a 64-byte buffer and goes
-out ten bytes a frame. A burst of 64 bytes or more fills the buffer and stalls it for good, as in
-the reference (F122).
+out ten bytes a frame. A burst of 64 bytes or more fills the buffer, goes out in full and clears
+for the next burst. The reference's send position wraps at the buffer's size and never reaches a
+full count, so it resends the same 64 bytes for good (finding F122).
 
 The harness replays the six D8 sequences of D114 unchanged and three more with telemetry on: one
 with every sensor and a GPS fix, where the eighth hub cycle stalls the buffer, and two with random
