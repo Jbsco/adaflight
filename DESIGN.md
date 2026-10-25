@@ -5705,8 +5705,9 @@ recomputes the gains and filters.
 The misc menu shows the profile's text, copies the feedforward, angle and horizon, anti gravity,
 throttle boost and linearization, I term relax, motor output limit, cell count, D max, battery sag and
 attenuation settings, and the landing disarm threshold. The angle feedforward copy is a byte, as in the
-reference. On the way out it asks for the PID controller's setup before storing the copies into the
-selected profile (F216), then asks for the motors' output range again. Its feedforward averaging line
+reference. On the way out it stores the copies into the selected profile, then asks for the PID
+controller's setup and the motors' output range again. The caller runs the setup after the stores, so
+it sees the stored values, where the reference sets up the controller before it stores (F216). Its feedforward averaging line
 runs to index 4 past the table's four names, where adaflight shows an empty name (F215). The launch
 control menu copies and stores the selected profile's launch control settings.
 
