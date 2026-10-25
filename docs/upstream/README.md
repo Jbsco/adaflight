@@ -42,3 +42,4 @@ Each document describes a Betaflight bug that adaflight fixes: the Betaflight ve
 - [One NMEA custom command goes out per connection](nmea-custom-commands.md)
 - [MAVLink message interval reads back short above 4294967 ms](mavlink-interval-wrap.md)
 - [MAVLink reboot over a receiver link is acknowledged and never run](mavlink-queue-reboot.md)
+- [MSP jumbo reply in the combined framing puts its size after the version 2 header](msp-jumbo-combined-framing.md)
