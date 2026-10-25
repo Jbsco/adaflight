@@ -59,3 +59,4 @@ Each document describes a Betaflight bug that adaflight fixes: the Betaflight ve
 - [BLHeli bootloader bit timing loses its deadline at the microsecond wrap](blheli-bit-timing-wrap.md)
 - [STK500v2 bit read waits forever when its deadline is the clock's last value](stk500-bit-wait-wrap.md)
 - [STK500v2 read of 253 bytes always fails](stk500-reply-length.md)
+- [Gyro initialization writes the configuration at every boot with a configured sensor missing](gyro-detected-flags-write.md)
