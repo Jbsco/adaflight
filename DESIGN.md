@@ -2200,7 +2200,10 @@ noise ratio, the home distance under a fix and a home fix, the ESC temperature f
 sensor's combined reading when its feature is on and from the telemetry's per-motor
 maxima otherwise with the motor that set it, and the average ESC rotation from the sensor
 converted or the telemetry averaged. A reading past sixteen bits wraps as the reference
-wraps it, so a home distance past 32767 metres records negative (finding F105).
+wraps it, except the home distance, which the statistics keep unsigned to 65535 metres. The
+reference keeps that distance in a signed field, so a distance from 32768 metres records negative,
+every later distance passes the comparison, and the statistics page prints a minus sign (finding
+F105).
 
 The page's text for a statistic comes with its label beside the value, or the value alone
 across the label's place for the clock, and reports when the statistic is not shown: the
