@@ -121,10 +121,21 @@ package body Adaflight.SD_Card_SDIO with SPARK_Mode is
 
    procedure End_Write_Blocks (D : in out SDIO_Device; S : in out Card; Status : out Operation_Status) is
       Free : Boolean;
+      OK   : Boolean;
    begin
       S.Multi_Remain := 0;
-      if S.Use_Cache then
+      if S.Use_Cache and then S.Cached > 0 then
+         S.Op := (Index => S.Multi_Next - Interfaces.Unsigned_32 (S.Cached), Has_Callback => False, Callback_Data => 0);
+         S.State := Sending_Write;
+         Start_Write (D, S.Op.Index, S.Cache (0 .. S.Cached * Block_Bytes - 1), OK);
          S.Cached := 0;
+         if OK then
+            Status := In_Progress;
+         else
+            Reset_Card (D, S);
+            Status := Failure;
+         end if;
+         return;
       end if;
       Check_Ready (D, Free);
       if Free then
@@ -372,6 +383,12 @@ package body Adaflight.SD_Card_SDIO with SPARK_Mode is
       elsif S.State /= Ready then
          Status := Busy;
          return;
+      elsif S.Multi_Remain /= 0 and then Index /= S.Multi_Next then
+         End_Write_Blocks (D, S, Ending);
+         if Ending /= Success then
+            Status := Busy;
+            return;
+         end if;
       end if;
       S.Op.Index := Index;
       if S.Cached < Cache_Blocks and then S.Multi_Remain /= 0 and then S.Use_Cache then
@@ -428,6 +445,12 @@ package body Adaflight.SD_Card_SDIO with SPARK_Mode is
                return;
             end if;
          else
+            Status := Busy;
+            return;
+         end if;
+      elsif S.Multi_Remain /= 0 and then Index /= S.Multi_Next then
+         End_Write_Blocks (D, S, Ending);
+         if Ending /= Success then
             Status := Busy;
             return;
          end if;
