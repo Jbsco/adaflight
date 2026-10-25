@@ -63,7 +63,7 @@ The STM32F4 image is flashed through the STM32 bootloader over USB with the boar
 
 - Every unit in `core/` is SPARK and proved free of run-time errors at Silver or Gold, except four bodies outside SPARK that `DESIGN.md` names: the accurate power (D15), the rescue's arctangent (D83), the configuration codec (D166) and the configuration fix's call sequence (D167). The proof gate counts such bodies on every run.
 - No `pragma Assume` and no justified suppression. `prove.do` counts both on every run.
-- A pull request proves the units whose sources it changed (`tools/changed-units.py`). A nightly run proves every core unit in four parallel groups. Both prove a generic unit through its instantiations.
+- A pull request proves the units whose sources it changed (`tools/changed-units.py`). A nightly run proves every core unit in parallel groups. Both prove a generic unit through its instantiations.
 - A ported function keeps the operation order of its Betaflight original, so the host build reproduces its results bit for bit. The vector checker reports the distance in representable values for every case, and each deliberate difference has a declared tolerance and a line in `DIVERGENCES.md`.
 - Vectors under `tests/vectors` were recorded from a host build of Betaflight at commit af0638839 by a tool outside this repository.
 
