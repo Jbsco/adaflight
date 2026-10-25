@@ -434,7 +434,7 @@ package body Adaflight.GPS_Frames with SPARK_Mode is
    --  The values of a sentence that passed its parity into the solution. A
    --  GGA sentence places the position under a fix and times the solution;
    --  an RMC sentence asks for the clock while it has no time, with the
-   --  millisecond field as the reference computes it (finding F54).
+   --  millisecond field from the time's hundredths.
    procedure Write_Solution (R : in out Receiver; Clock_Has_Time : Boolean; New_Solution : out Boolean;
                              Clock : in out Clock_Request) is
       Ten_Seconds : constant Unsigned_32 := 10_000;
@@ -470,7 +470,7 @@ package body Adaflight.GPS_Frames with SPARK_Mode is
                          Hours   => Unsigned_8 ((R.NMEA.Values.Time / 1_000_000) mod 100),
                          Minutes => Unsigned_8 ((R.NMEA.Values.Time / 10_000) mod 100),
                          Seconds => Unsigned_8 ((R.NMEA.Values.Time / 100) mod 100),
-                         Millis  => Unsigned_16 ((R.NMEA.Values.Time and 100) * 10));
+                         Millis  => Unsigned_16 ((R.NMEA.Values.Time mod 100) * 10));
             end if;
          when GSV | No_Frame =>
             null;

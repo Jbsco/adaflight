@@ -1551,14 +1551,15 @@ payload buffer at its field offsets whatever length arrived, so a short message 
 bytes of earlier ones from the shared buffer. The configuration reply that makes the module transmit
 (CFG-GNSS) belongs with the autoconfiguration and is passed over.
 
-Some conversions narrow: the speed in knots times 5144 over 1000 in thirty-two bits, the millisecond
-field of the clock request computed from the time with a bitwise and (finding F54), and the
-saturating hexadecimal read of the hardware version. The unit departs from the reference only where
-its behaviour is undefined: the field cut that would land outside the buffer is dropped (F55), a
-satellite number of zero skips the list (F56), and a month outside the calendar counts thirty-one
-days (F57). The oracle feeds bursts of sentences and messages with cut frames, bad checksums, stale
-buffers and runs of garbage, built with unsigned characters as the targets are, and every recorded
-vector replays exactly.
+Some conversions narrow: the speed in knots times 5144 over 1000 in thirty-two bits, and the
+saturating hexadecimal read of the hardware version. The clock request's millisecond field is the
+time's hundredths times ten. The reference masks the time with 100 in place of the remainder, so its
+field reads 0 or 1000 (finding F54). The unit departs from the reference only where its behaviour is
+undefined: the field cut that would land outside the buffer is dropped (F55), a satellite number of
+zero skips the list (F56), and a month outside the calendar counts thirty-one days (F57). The oracle
+feeds bursts of sentences and messages with cut frames, bad checksums, stale buffers and runs of
+garbage, built with unsigned characters as the targets are, and every recorded vector replays
+exactly.
 
 ## D80. GPS link (2026-10-11)
 
