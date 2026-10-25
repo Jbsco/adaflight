@@ -10016,13 +10016,13 @@ procedure Vector_Check is
             end loop;
             case Op is
                when 1 =>
-                  Increment_Band (VC_State, VC_Settings, Inp.Armed);
+                  Increment_Band (VC_State, VC_Settings, VC_Table, Inp.Armed);
                when 2 =>
-                  Decrement_Band (VC_State, VC_Settings, Inp.Armed);
+                  Decrement_Band (VC_State, VC_Settings, VC_Table, Inp.Armed);
                when 3 =>
-                  Increment_Channel (VC_State, VC_Settings, Inp.Armed);
+                  Increment_Channel (VC_State, VC_Settings, VC_Table, Inp.Armed);
                when 4 =>
-                  Decrement_Channel (VC_State, VC_Settings, Inp.Armed);
+                  Decrement_Channel (VC_State, VC_Settings, VC_Table, Inp.Armed);
                when 5 =>
                   Cycle_Band_Or_Channel (VC_State, VC_Settings, VC_Table, Interfaces.Unsigned_8 (A1),
                                          Interfaces.Unsigned_8 (A2));
