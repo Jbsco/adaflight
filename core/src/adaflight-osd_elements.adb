@@ -1,4 +1,5 @@
 package body Adaflight.OSD_Elements with SPARK_Mode is
+   use type Interfaces.Unsigned_64;
 
    procedure Sync_Blink (B : in out Blink; Now_Us : Unsigned_32) is
    begin
@@ -36,9 +37,11 @@ package body Adaflight.OSD_Elements with SPARK_Mode is
             Timer      : constant Unsigned_16 := C.Timers (T);
             Time       : constant Unsigned_32 :=
               Adaflight.OSD_Format.Timer_Value (Adaflight.OSD_Format.Timer_Source_Of (Timer), Inp.Clocks);
-            Alarm_Time : constant Unsigned_32 := Unsigned_32 (Adaflight.OSD_Format.Timer_Alarm_Of (Timer)) * 60_000_000;
+            Alarm_Time : constant Interfaces.Unsigned_64 :=
+              Interfaces.Unsigned_64 (Adaflight.OSD_Format.Timer_Alarm_Of (Timer)) * 60_000_000;
          begin
-            B.Bits (if T = 0 then Timer_1 else Timer_2) := Alarm_Time /= 0 and then Time >= Alarm_Time;
+            B.Bits (if T = 0 then Timer_1 else Timer_2) :=
+              Alarm_Time /= 0 and then Interfaces.Unsigned_64 (Time) >= Alarm_Time;
          end;
       end loop;
       B.Bits (MAh_Drawn) := Over_Capacity;
