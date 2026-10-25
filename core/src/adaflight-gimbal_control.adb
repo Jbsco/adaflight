@@ -149,7 +149,7 @@ package body Adaflight.Gimbal_Control with SPARK_Mode is
                      T.Phase := Command;
                      T.Count := 2;
                   else
-                     Write (1);
+                     Write (Opcode_Low_Byte);
                      Write (Input (K));
                      T.Phase := Opcode_Low;
                   end if;

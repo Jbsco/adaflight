@@ -2930,8 +2930,9 @@ its angles scaled by the gains, the roll, pitch, yaw and throttle sticks added b
 stick with separate gains below and above the centre, the offsets added, the limits applied, and
 the configured mode and sensitivity. A frame with a broken check is dropped. After 250 ms without
 bytes from the head tracker, each update sends the frame for the sticks alone. A byte after the
-first opcode byte that is not the second goes on behind a byte 1 in place of the held-back first
-opcode byte (F135). Without a configured port the control asks for its task to stop. The sticks lie
+first opcode byte that is not the second goes on behind the held-back first opcode byte, where the
+reference writes a byte 1, the value of a logical AND, in its place (F135). Without a configured
+port the control asks for its task to stop. The sticks lie
 within the receiver's pulse limits, where every sum of the reference's 16-bit arithmetic stays in
 range, and the integer scale truncates its division as C does. The output holds twice the input and
 one frame, which no update exceeds. The unit is SPARK for the 12-bit field packing, the scale
