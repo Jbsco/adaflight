@@ -1444,13 +1444,14 @@ zeros to its width. A date outside the valid ranges shows as the first of Januar
 A split finds the letter T that separates the date from the time. The time with the zone applied is
 stored as two 32-bit words across a reset and read back when either word is set.
 
-The conversions reproduce the reference's wraps: a date past January 2038 lands before 1970 (finding
-F91), a negative zone under an hour prints as positive (F93), and a set time equal to the uptime
-reads as no time (F95). Two guards cover the reference's undefined behavior and its one buffer. The
-zone offset is applied only to a month that indexes the day table, the default date showing
-otherwise (F92), and a stored time outside the settable span of two to the sixty-second milliseconds
-is rejected on read. The five-digit year the text can contain fits the 30-character result (F94). No
-recorded vector reaches a guard.
+The conversions count seconds in 64 bits, so a date past January 2038 and a time past January 2068
+convert exactly, and a set clock is marked set, so a time equal to the uptime stays. The reference's
+32-bit conversions wrap at those dates (findings F91 and F104) and its zero test for a set clock
+loses that time (F95). A negative zone under an hour prints as positive (F93). Two guards cover the
+reference's undefined behavior and its one buffer. The zone offset is applied only to a month that
+indexes the day table, the default date showing otherwise (F92), and a stored time outside the
+settable span of two to the sixty-second milliseconds is rejected on read. The five-digit year the
+text can contain fits the 30-character result (F94). No recorded vector reaches a guard.
 
 ## D75. Internal ADC channels (2026-10-11)
 
@@ -2110,9 +2111,10 @@ symbol requires the profile's cell voltage limits to differ, where the reference
 by their difference (finding F103). The readings and the settings stay with the target.
 
 The harness replays six sequences of 1500 calls recorded from the reference, each call to
-one helper under random readings, units, variants and symbols, the clock set to times
-before the reference's conversion limit (finding F104) and the formats of the elements'
-calls. Every text, symbol and conversion of the 9006 lines replays byte for byte.
+one helper under random readings, units, variants and symbols, the clock set to dates up
+to 2099, which the 64-bit conversions place exactly where the reference's 32-bit count
+wraps (finding F104) and the formats of the elements' calls. Every text, symbol and
+conversion of the 9006 lines replays byte for byte.
 
 ## D98. The transmitter driver over MSP (2026-10-12)
 
