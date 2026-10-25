@@ -8196,11 +8196,12 @@ and 2 stop the checker at the reading's subtype check.
 select pin and a 10 MHz clock of an SPI chip, sets the I2C address to 0x70 when none was given, and
 reads the chip identity, 0x5C, up to five times 50 ms apart. A chip that never gives it gets its
 select pin returned to the preinit state and the default address taken back. Otherwise detection
-reads the nine coefficient registers into buffers that start at zeros, whatever the reads answer
-(finding F275), scales them in single precision, the pressure's linear one as well, where the
-reference scales it through an integer division that truncates it to a whole number (finding F274,
-D6), writes the IIR filter of 8 samples, whatever the write answers, and gives the barometer task a
-35 ms pressure delay, the temperature coming with the pressure. A pressure start sets the forced
+reads the nine coefficient registers, scales them in single precision, the pressure's linear one as
+well, where the reference scales it through an integer division that truncates it to a whole number
+(finding F274, D6), and writes the IIR filter of 8 samples. A refused coefficient read or IIR write
+fails the detection, returning an SPI chip's select pin to the preinit state, where the reference
+parses the uninitialized buffer the read left and reports the chip found (F275). A found chip gives
+the barometer task a 35 ms pressure delay, the temperature coming with the pressure. A pressure start sets the forced
 measurement with 4 temperature and 32 pressure averages, a pressure read starts the six data bytes
 while the bus is free, a pressure sample takes the bytes the last read brought while the bus is free
 and compensates them, and the temperature calls do nothing. The compensation solves the datasheet's
@@ -8221,16 +8222,18 @@ every term and the quadratic coefficients zero or at least one register count.
 
 The 2SMPB-02B oracle includes the reference driver over a simulated chip, one case per process. It draws the bus, SPI in
 30 percent of the cases, the configured and real addresses, the identity each of the five attempts answers, whether
-writes answer, and the 21 coefficient bytes, with the 24-bit offsets within 20 bits in 45 percent of the cases and a
+writes answer, which coefficient read the chip refuses, if any, from the case number so the other draws keep their
+places, and the 21 coefficient bytes, with the 24-bit offsets within 20 bits in 45 percent of the cases and a
 quadratic coefficient zero or within three counts of it in a fifth, then makes 50 of the driver's calls, each with drawn
 busy and start answers and data bytes near the midpoint, at it, random or at the ends. The driver's conversion of a NaN
 is undefined on the host, so the oracle converts the results as the ARM processor does. Every bus and pin call,
 detection, call result, pressure and temperature of the 300 cases replays exactly, the single precision values bit for
-bit where finite and by kind otherwise. In them 191 chips are found, 81 on SPI, 203 writes are refused, 1040 samples
-compensate and 1355 calculations run; 1042 of the 9550 call results show a NaN pressure and 147 a NaN temperature, and
-none an infinity. Of 53 tampered paths, 45 fail the vectors and 6 stop the checker at a subtype check. Two pass and are
-equivalent: a commuted sum in the temperature polynomial, which the addition keeps exact, and an assignment the started
-read overwrites.
+bit where finite and by kind otherwise. In them 153 chips are found, 70 on SPI, 38 fail at a refused coefficient read or
+IIR write, 24 writes are refused, 829 samples compensate and 1075 calculations run. 870 of the 7650 call results show a
+NaN pressure and 112 a NaN temperature, and none an infinity. Of the first campaign's 53 tampered paths, 45 failed its
+vectors and 6 stopped the checker at a subtype check. Two pass and are equivalent: a commuted sum in the temperature
+polynomial, which the addition keeps exact, and an assignment the started read overwrites. The unchecked configuration,
+tampered back in, fails these vectors.
 
 ## D358. LPS barometer driver (2026-10-19)
 
