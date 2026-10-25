@@ -99,7 +99,6 @@ package body Adaflight.XBUS with SPARK_Mode is
             case S.Kind is
                when Mode_B =>
                   Unpack_Mode_B (S, 0, S.Length);
-                  Unpack_RJ01 (S);
                when Mode_B_RJ01 =>
                   Unpack_RJ01 (S);
             end case;

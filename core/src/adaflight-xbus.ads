@@ -59,8 +59,8 @@ package Adaflight.XBUS with SPARK_Mode is
    --  milliseconds drops the frame in progress, a frame starts on the
    --  twelve-channel start byte, or on the sixteen-channel one in Mode B,
    --  and the last byte of the frame's length unpacks it: a Mode B frame on
-   --  its own and then, as for the RJ01 provider, as an outer frame when its
-   --  length byte and CRC check, with the Mode B frame inside it.
+   --  its own, or for the RJ01 provider an outer frame, when its length byte
+   --  and CRC check, with the Mode B frame inside it.
    procedure Receive_Byte (S : in out State; C : Serial_Word; Now_Us : Time_Us);
 
    --  Complete once per unpacked frame.
