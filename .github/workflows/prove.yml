@@ -79,16 +79,17 @@ jobs:
         run: echo "no core unit changed; the proof of main stands"
 
   # The nightly run proves every unit of the core, a generic unit through its
-  # instantiations, in four shards of about equal source, each within the
-  # hosted job limit.
+  # instantiations, in six shards of about equal source, each within an
+  # eight hour limit; the shard that held the terminal and the menu contents
+  # passed the six hour limit of four shards on 2026-10-25.
   prove-core:
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 480
     strategy:
       fail-fast: false
       matrix:
-        shard: [0, 1, 2, 3]
+        shard: [0, 1, 2, 3, 4, 5]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -122,7 +123,7 @@ jobs:
 
       - name: Select the shard's units
         run: |
-          python3 tools/changed-units.py --all --shard ${{ matrix.shard }}/4 > units.txt
+          python3 tools/changed-units.py --all --shard ${{ matrix.shard }}/6 > units.txt
           cat units.txt
 
       - name: Run SPARK proofs
