@@ -1,6 +1,9 @@
+with Adaflight.Clock;
+
 package body Adaflight.STK_Bootloader with SPARK_Mode is
    use type Interfaces.Unsigned_8;
    use type Interfaces.Unsigned_32;
+   use type Interfaces.Integer_32;
 
    Bit_Low_Us  : constant := 32;
    Bit_High_Us : constant := 2 * Bit_Low_Us;
@@ -116,7 +119,7 @@ package body Adaflight.STK_Bootloader with SPARK_Mode is
          Read_Pin (L, ESC, Level);
          exit when Level /= High;
          Read_Micros (L, Now);
-         if Now > Deadline then
+         if Adaflight.Clock.Elapsed (Now, Deadline) > 0 then
             OK := False;
             return;
          end if;
