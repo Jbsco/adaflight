@@ -6,8 +6,8 @@
 --  requests, message intervals, disarming, mode overrides, return to launch,
 --  the home position and reboots. Arming over the link, an option the
 --  default build leaves out, answers unsupported. Disarming, the mode
---  overrides and the home position go out as requests in call order; a
---  reboot waits for the end of the port's drain.
+--  overrides and the home position go out as requests in call order. A
+--  reboot goes out at the end of the pass that accepted it.
 with Interfaces;
 with Adaflight.MAVLink;
 with Adaflight.MAVLink_Frames;
@@ -109,8 +109,8 @@ package Adaflight.MAVLink_Commands with SPARK_Mode is
       R        : out Requests)
      with Post => Consumed = Natural'Min (Port_Budget, Waiting'Length);
 
-   --  The receiver's queue: up to sixteen messages popped and dispatched; a
-   --  reboot they accept stays pending.
+   --  The receiver's queue: up to sixteen messages popped and dispatched,
+   --  then a pending reboot.
    procedure Process_Queue
      (S   : in out State;
       T   : in out Adaflight.MAVLink_Telemetry.State;
