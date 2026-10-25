@@ -8532,11 +8532,14 @@ the reference repeats the poll until the card answers, without a reset or a comp
 port's passes stop at 64, which the vectors never reach. A write starts the transfer, the poll calls the completion when
 the transfer ends and waits for the card to leave busy within 250 ms. With the write cache, the blocks of a run collect
 in a cache of 16 and go to the card in one transfer when the cache fills or the run ends, each cached block answered
-success without a completion and the run's count and next block advanced; a run started from the ready state keeps the
-blocks an earlier run left in the cache, and a block out of sequence joins the cache, as in the reference (F278). A run
-of writes takes its count and ends when a write leaves the run or its count runs out. A failure asks the controller for
-a new initialization and counts the failure, up to eight in a row or a missing card before the card counts as absent,
-and otherwise returns the card to the reset state with the time, whether the controller accepted or not. The reference
+success without a completion and the run's count and next block advanced. A run's end writes the blocks still cached as
+one transfer without a completion, and a write or a run begun at a block out of sequence, in the ready state as in the
+writing state, ends the run first and waits while the transfer runs. The reference drops the cached blocks at a run's
+end, lets a block out of sequence join the cache in the ready state and begins a run from the ready state over the
+blocks an earlier run left, so blocks are lost or written at the wrong index (finding F278, D6). A run of writes takes
+its count and ends when a write leaves the run or its count runs out. A failure asks the controller for a new
+initialization and counts the failure, up to eight in a row or a missing card before the card counts as absent, and
+otherwise returns the card to the reset state with the time, whether the controller accepted or not. The reference
 counts only a refused initialization and leaves the state as it was after an accepted one, which on its controllers runs
 once and repeats its first answer, so a card that failed an operation stays in the state that failed (finding F278, D6).
 An initialization past a second starts over. A refused read resets the card and reports the failure through the
