@@ -7100,8 +7100,9 @@ learns the threshold as three quarters of the last bit's time and reads on to a 
 byte, the sequence number, a length high byte of at most 1 and a low byte of at least 1, the token, the command
 and its status, reads the rest of the body into the buffer, where a failed byte leaves its bits so far, and checks
 the XOR. Bytes past the end of the buffer are read and checked but not kept. The reference writes them past its
-buffers, and every 256-byte read does so, since the reply has a status byte after the data (F250). A length whose
-low byte is 0 fails, so a 253-byte read, whose reply body is 256 bytes, always fails (F252). Every deadline
+buffers, and every 256-byte read does so, since the reply has a status byte after the data (F250). A length
+below 2 fails, so a 253-byte read, whose reply body is 256 bytes, succeeds, where the reference fails a length
+whose low byte is 0 (F252). Every deadline
 is met through the signed difference of the clock and the deadline, so a bit read across the clock's wrap times
 out as any other, where the reference compares the clock with the absolute deadline and waits for an edge without
 end when the deadline is the clock's last value (F251).
