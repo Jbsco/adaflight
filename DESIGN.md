@@ -8842,3 +8842,31 @@ experimental setting's 384 gyro reads keep 181 frames, drop 27 invalid ones, fin
 times and flush 71 times, and its 340 accelerometer reads each make the transfer the reference skips.
 Outside it the cases end 39 in DMA mode, 34 interrupt driven and 106 without interrupts, after 187 bursts,
 22 of exactly 1000. Of 114 tampered paths, 113 fail the vectors and 1 stops the checker at a range check.
+
+## D377. STM32F4 target crate and the first image (2026-10-24)
+
+Phase 7 starts with a target crate beside the core and the tests, `targets/stm32f4`, Alire crate `adaflight_stm32f4`. It
+builds with the `gnat_arm_elf` 16.1.0 toolchain from Alire on the `light-tasking-stm32f4` runtime, which brings the
+startup code, a 168 MHz system clock from the board's 8 MHz crystal, the F405's memory map of 1 MB of flash, 128 KB of
+SRAM and 64 KB of CCM, `Ada.Real_Time` and the Ravenscar tasking the drivers will use for interrupts. The crate depends
+on the core by path, so the core cross-compiles for the target with every build and the generic drivers can be
+instantiated with the platform's bus procedures; the core keeps no target code and the host vector checks stay as they
+are.
+
+Board data comes from the board configuration repository, a pinned submodule at `third_party/board-configs`, through
+`tools/boardgen.py`: before every build it reads the board's configuration file and writes `Adaflight.Board` into the
+crate's `gen/` directory, with the board, manufacturer and MCU names, the crystal frequency, the beeper polarity and
+frequency, every pin define as a `Pin` of `Adaflight.Pins` (a port letter and a number), the inverter pins and the timer
+pin map. The generated package is deterministic for a given file and is not committed; `BOARD` selects the board,
+CLRACINGF4 when unset, which the CLRacing F4S V1.2 and V1.4, the F4 Mini V1.2 and the RDQ Bardwell F4 AIO V2 share.
+Feature defines, bus instances and DMA options are not generated yet; the generator grows with the drivers.
+
+`Adaflight.STM32.GPIO` overlays the GPIO port registers at their AHB1 addresses with a volatile record, enables a port's
+clock in the RCC, sets a pin as a push-pull output and sets, clears or toggles it through the bit set and reset
+register. It is plain Ada: the proofs that buy assurance on the target are the DMA buffer and register bounds of the bus
+drivers to come. The first image sets the board's LED pin as an output and toggles it every 500 ms with `delay until`,
+an image of 9960 bytes of text, 452 of data and 8960 of bss by `arm-eabi-size`, the core linked and garbage-collected to
+what the image uses. `target.do` builds the image and prints its sizes, `verify.do` runs it after the vectors, and the
+Target Build workflow keeps the image and its map as an artifact. The image is flashed through the STM32 ROM bootloader
+over USB with `dfu-util` at the start of flash, the board put into DFU mode by its boot button; the bench test of this
+milestone is the LED blinking at 1 Hz on the F4S V1.2 after a DFU flash.

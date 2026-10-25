@@ -46,7 +46,7 @@ fi
 # the gated names stand in them as whole upper-case strings (DESIGN.md D2); nothing else may.
 VERBATIM='core/src/adaflight-settings_table.adb tests/vectors/settings.csv'
 LEAK=$(git ls-files -z | xargs -0 grep -nliE 'betaflight|cleanflight|inav|ema-gnc|lasp' 2>/dev/null \
-       | grep -v '^style.do$' | grep -v '^README.md$' | grep -v '^DESIGN.md$' | grep -v '^ROADMAP.md$' \
+       | grep -v '^style.do$' | grep -v '^README.md$' | grep -v '^DESIGN.md$' | grep -v '^ROADMAP.md$' | grep -v '^.gitmodules$' \
        | grep -v '^DIVERGENCES.md$' | grep -v '^docs/upstream/' \
        | grep -vxF -e core/src/adaflight-settings_table.adb -e tests/vectors/settings.csv || true)
 for f in $VERBATIM; do
