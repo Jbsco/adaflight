@@ -896,9 +896,10 @@ channel. The ninth word is therefore the two target ids, the following words are
 early, and channel eighteen is never read (finding F41). A word of zero or all ones leaves the
 channel as it was. The byte's time is the frame time. A good radio status message keeps the
 transmitter's free buffer and scales the remote RSSI from the negative dBm range onto the receiver's
-range, where a report below the range minimum wraps (finding F42). It gives the receiver the dBm,
-the noise as the SNR, and the local RSSI as the link quality. Every other good message goes into a
-queue of sixteen for the telemetry task.
+range, with a report below the range minimum held at the minimum. The reference's scale wraps such a
+report to above 64000 (finding F42). It gives the receiver the dBm, the noise as the SNR, and the
+local RSSI as the link quality. Every other good message goes into a queue of sixteen for the
+telemetry task.
 
 The status poll is complete once after each override message. The telemetry may send when the last
 radio status left more free buffer than the configured minimum. The raw value is the channel as it
