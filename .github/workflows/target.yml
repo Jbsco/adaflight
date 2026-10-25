@@ -1,0 +1,44 @@
+name: Target Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  target:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Cache Alire
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.config/alire
+            ~/.cache/alire
+            ~/.local/share/alire
+          key: alire-target-${{ runner.os }}-${{ hashFiles('targets/stm32f4/alire.toml', 'core/alire.toml') }}
+          restore-keys: alire-target-${{ runner.os }}-
+
+      - name: Install Alire
+        uses: alire-project/setup-alire@v3
+        with:
+          version: 2.1.1
+
+      - name: Build the STM32F4 image
+        run: bash target.do
+
+      - name: Keep the image
+        uses: actions/upload-artifact@v4
+        with:
+          name: adaflight-stm32f4-clracingf4
+          path: |
+            targets/stm32f4/bin/adaflight_stm32f4
+            targets/stm32f4/obj/adaflight_stm32f4.map
+          retention-days: 14

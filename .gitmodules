@@ -1,0 +1,3 @@
+[submodule "third_party/board-configs"]
+	path = third_party/board-configs
+	url = https://github.com/betaflight/config.git
