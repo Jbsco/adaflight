@@ -236,14 +236,13 @@ package body Adaflight.RunCam_Device with SPARK_Mode is
    end Reply_Byte;
 
    --  A byte of the camera's own request. A command other than the
-   --  attitude request parks the parser in an invalid state, and the
-   --  200 ms reset returns it to the command state (finding F77).
+   --  attitude request and the 200 ms reset both return the parser to
+   --  the header state (finding F77).
    procedure Request_Byte (D : in out Device; Now_Ms : Unsigned_32; B : Byte) is
       R : Request renames D.Req;
    begin
       if R.State /= State_Header and then Now_Ms - R.Last_Byte_Ms > Request_Reset then
          R := (others => <>);
-         R.State := State_Command;
       end if;
       if R.State = State_Header then
          if B = Header then
@@ -252,7 +251,7 @@ package body Adaflight.RunCam_Device with SPARK_Mode is
          end if;
       elsif R.State = State_Command then
          R.Command := B;
-         R.State := (if B = Cmd_Attitude then State_Crc else Header);
+         R.State := (if B = Cmd_Attitude then State_Crc else State_Header);
       elsif R.State = State_Data_Length then
          R.Expected_Length := B;
          R.State := State_Data;

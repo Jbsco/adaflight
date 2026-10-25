@@ -1200,9 +1200,12 @@ sticks return to centre, each with the beep the connection result asks for. The 
 not take are offered again, as the reference's port keeps them, and a request flushes them all
 before it is sent, whether or not the one slot is free.
 
-Three behaviours of the reference are kept. An unsupported request parks the parser in an invalid
-state, and the 200 ms reset returns it to the command state (finding F77). The older-protocol
-request after a failed device information request never waits for its reply (finding F78). A reply
+An unsupported request returns the parser to the header state, and so does the 200 ms reset. The
+reference parks the parser in a state no case handles after an unsupported request and resets it
+to the command state after the gap, so one unsupported request stops its request parsing until a
+gap falls between a header and its command byte (finding F77). Two behaviours of the reference are
+kept. The older-protocol request after a failed device information request never waits for its
+reply (finding F78). A reply
 that fails its checksum leaves the request waiting with its count full, where the unit stops storing
 at the buffer's end and the reference writes past it (finding F79). With the port closed a call does
 nothing, since the task never runs then. The unit is SPARK for the reply and request buffers, whose

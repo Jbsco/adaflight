@@ -80,9 +80,8 @@ package Adaflight.RunCam_Device with SPARK_Mode is
       Outcome      : Result := Success;
    end record;
 
-   --  The camera's own request being parsed; the state counts as the
-   --  reference does, an unsupported command leaving an invalid value
-   --  until the 200 ms reset (finding F77).
+   --  The camera's own request being parsed; an unsupported command and
+   --  the 200 ms reset return the state to the header (finding F77).
    Max_Data : constant := 61;
    subtype Data_Fill is Natural range 0 .. Max_Data;
    subtype Data_Bytes is Byte_Array (0 .. Max_Data - 1);
