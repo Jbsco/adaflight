@@ -51,3 +51,4 @@ Each document describes a Betaflight bug that adaflight fixes: the Betaflight ve
 - [SmartAudio menu's pit mode kind line cannot reach out-of-range pit mode](smartaudio-pit-mode-line.md)
 - [MSP transmitter reads its frequency back from the table](msp-vtx-frequency-readback.md)
 - [MSP and Tramp VTX menus store frequency zero in user frequency mode](vtx-menu-user-frequency.md)
+- [OSD maximum distance statistic wraps past 32767 metres](osd-distance-stat-sign.md)
