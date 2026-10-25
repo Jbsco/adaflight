@@ -30,3 +30,4 @@ Each document describes a Betaflight bug that adaflight fixes: the Betaflight ve
 - [SDIO card reset leaves the card in the state that failed](sdio-reset-state.md)
 - [SDIO card read failures loop or report the wrong operation](sdio-read-failure.md)
 - [SDIO card write cache loses blocks at a run's end](sdio-write-cache.md)
+- [Tab completion lists commands that do not match](cli-completion-range.md)
