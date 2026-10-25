@@ -43,6 +43,7 @@ package body Adaflight.AK8975 with SPARK_Mode is
 
    procedure Init (D : in out Bus_Device; S : in out State; OK : out Boolean) is
       Ignored        : Boolean;
+      Got            : Boolean;
       ASA            : Byte_Array (0 .. 2) := (others => 0);
       Ignored_Status : Byte_Array (0 .. 0) := (others => 0);
    begin
@@ -51,7 +52,11 @@ package body Adaflight.AK8975 with SPARK_Mode is
       Delay_Ms (D, 20);
       Write_Register (D, Control, Fuse_ROM, Ignored);
       Delay_Ms (D, 10);
-      Read_Registers (D, Sensitivity_X, ASA, Ignored);
+      Read_Registers (D, Sensitivity_X, ASA, Got);
+      if not Got then
+         OK := False;
+         return;
+      end if;
       Delay_Ms (D, 10);
       for K in 0 .. 2 loop
          S.Sensitivity (K) := Integer (ASA (K)) + 128;

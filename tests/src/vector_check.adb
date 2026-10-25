@@ -27413,6 +27413,7 @@ procedure Vector_Check is
       Id_Value        : Byte := 0;
       ASA             : Byte_Array (0 .. 2) := (others => 0);
       Status_Acks     : String (1 .. 2) := (others => '1');
+      ASA_Ack         : Boolean := True;
       Read_Next       : Natural := 0;
       Start_Ack       : Boolean := True;
       Write_Start_Ack : Boolean := True;
@@ -27450,9 +27451,11 @@ procedure Vector_Check is
             Data := (others => D.Id_Value);
          end if;
       elsif Register = 16#10# then
-         OK := True;
+         OK := D.ASA_Ack;
          Value := Integer_64 (D.ASA (0)) * 65_536 + Integer_64 (D.ASA (1)) * 256 + Integer_64 (D.ASA (2));
-         Data := D.ASA (0 .. Data'Length - 1);
+         if OK then
+            Data := D.ASA (0 .. Data'Length - 1);
+         end if;
       else
          OK := (if D.Read_Next - 2 < 2 then D.Status_Acks (D.Read_Next - 1) = '1' else True);
          if OK then
@@ -27542,6 +27545,9 @@ procedure Vector_Check is
          AK_Device.Id_Value := Byte (Int (7));
          AK_Device.ASA := Hex_Bytes (8);
          AK_Device.Status_Acks := Str (9);
+         if NF >= 10 then
+            AK_Device.ASA_Ack := Int (10) /= 0;
+         end if;
          AK_Chip.Detect (AK_Device, AK_Found);
       elsif Name = "akdet" then
          MX_Expect_No_Ops ("detection");
@@ -27553,10 +27559,12 @@ procedure Vector_Check is
       elsif Name = "akready" then
          MX_Expect_No_Ops ("initialization");
          Record_Int ("ak8975.init", Int (3), Boolean'Pos (AK_OK));
-         Record_Int ("ak8975.odr", Int (4), Integer_64 (AK_State.ODR_Hz));
-         for K in 0 .. 2 loop
-            Record_Int ("ak8975.gain", Int (5 + K), Integer_64 (AK_State.Sensitivity (K)));
-         end loop;
+         if Int (3) /= 0 then
+            Record_Int ("ak8975.odr", Int (4), Integer_64 (AK_State.ODR_Hz));
+            for K in 0 .. 2 loop
+               Record_Int ("ak8975.gain", Int (5 + K), Integer_64 (AK_State.Sensitivity (K)));
+            end loop;
+         end if;
       elsif Name = "akstep" then
          MX_Op_Head := 1;
          MX_Op_Count := 0;
@@ -27932,14 +27940,9 @@ procedure Vector_Check is
    end K3_Register;
 
    procedure K3_Answer (D : in out K3_Bus; Register : Byte; Ack : out Boolean; Value : out Byte_Array) is
-      use type Interfaces.Unsigned_8;
    begin
-      if Register = 16#10# then
-         Ack := True;
-      else
-         Ack := (if D.Read_Next <= 8 then D.Read_Acks (D.Read_Next) = '1' else True);
-         D.Read_Next := D.Read_Next + 1;
-      end if;
+      Ack := (if D.Read_Next <= 8 then D.Read_Acks (D.Read_Next) = '1' else True);
+      D.Read_Next := D.Read_Next + 1;
       for I in Value'Range loop
          Value (I) := D.Regs ((Natural (Register) + I - Value'First) mod 32);
       end loop;
@@ -28072,10 +28075,12 @@ procedure Vector_Check is
       elsif Name = "k3ready" then
          MX_Expect_No_Ops ("initialization");
          Record_Int ("ak8963.init", Int (3), Boolean'Pos (K3_OK));
-         Record_Int ("ak8963.odr", Int (4), Integer_64 (K3_State.ODR_Hz));
-         for K in 0 .. 2 loop
-            Record_Int ("ak8963.gain", Int (5 + K), Integer_64 (K3_State.Sensitivity (K)));
-         end loop;
+         if Int (3) /= 0 then
+            Record_Int ("ak8963.odr", Int (4), Integer_64 (K3_State.ODR_Hz));
+            for K in 0 .. 2 loop
+               Record_Int ("ak8963.gain", Int (5 + K), Integer_64 (K3_State.Sensitivity (K)));
+            end loop;
+         end if;
       elsif Name = "k3step" then
          MX_Op_Head := 1;
          MX_Op_Count := 0;

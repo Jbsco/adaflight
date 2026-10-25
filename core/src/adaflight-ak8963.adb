@@ -118,11 +118,16 @@ package body Adaflight.AK8963 with SPARK_Mode is
       ASA            : Byte_Array (0 .. 2) := (others => 0);
       Ignored_Status : Byte_Array (0 .. 0) := (others => 0);
       Ignored        : Boolean;
+      Got            : Boolean;
    begin
       Register_Device (D);
       Write_Any (D, Control_1, Power_Down);
       Write_Any (D, Control_1, Fuse_ROM);
-      Read_Any (D, Sensitivity_X, ASA, Ignored);
+      Read_Any (D, Sensitivity_X, ASA, Got);
+      if not Got then
+         OK := False;
+         return;
+      end if;
       for K in 0 .. 2 loop
          S.Sensitivity (K) := Integer (ASA (K)) + 128;
       end loop;
