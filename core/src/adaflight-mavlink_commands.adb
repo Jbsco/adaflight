@@ -741,6 +741,10 @@ package body Adaflight.MAVLink_Commands with SPARK_Mode is
          exit when not Got;
          Dispatch (S, T, TC, C, Inp, Msg, O, R);
       end loop;
+      if S.Reboot_Pending then
+         S.Reboot_Pending := False;
+         R.Reboot := (if S.To_Bootloader then Bootloader else Reset);
+      end if;
    end Process_Queue;
 
 end Adaflight.MAVLink_Commands;

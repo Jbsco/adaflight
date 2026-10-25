@@ -41,3 +41,4 @@ Each document describes a Betaflight bug that adaflight fixes: the Betaflight ve
 - [GPS rescue steers in whole degrees](rescue-heading-degrees.md)
 - [One NMEA custom command goes out per connection](nmea-custom-commands.md)
 - [MAVLink message interval reads back short above 4294967 ms](mavlink-interval-wrap.md)
+- [MAVLink reboot over a receiver link is acknowledged and never run](mavlink-queue-reboot.md)
