@@ -2511,12 +2511,14 @@ unsupported. Float parameters are decoded from their bits. A parameter counts as
 only when finite, not negative and not above the handler's maximum.
 
 Disarms, mode override clears and sets, and home resets and sets go out as requests in call order,
-for the target to apply to the arming, modes and GPS units. An accepted reboot waits for the end of
-the port's drain and goes out as a reboot request. One accepted from the receiver's queue stays
-pending (F116). Coordinates, altitudes and intervals past the range of the reference's float
-conversions saturate, where the reference is undefined (F117). A set-home altitude goes out as
-commanded, and the home position telemetry multiplies it by ten (F118). The modes unit's override
-mask, which the reference adds to the switch-selected modes and clears at each disarm, is open.
+for the target to apply to the arming, modes and GPS units. An accepted reboot goes out as a reboot
+request at the end of the pass that accepted it, from the port's drain or the receiver's queue. The
+reference runs a pending reboot only after the port's drain, so one accepted from the receiver's
+queue stays pending for good (finding F116). Coordinates, altitudes and intervals past the range of
+the reference's float conversions saturate, where the reference is undefined (F117). A set-home
+altitude goes out as commanded, and the home position telemetry multiplies it by ten (F118). The
+modes unit's override mask, which the reference adds to the switch-selected modes and clears at
+each disarm, is open.
 
 The harness replays six sequences of 500 steps recorded from the reference, alternating the owned
 port and the receiver's queue: heartbeats, pings, time syncs, and command long and command int
