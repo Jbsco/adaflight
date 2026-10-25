@@ -97,7 +97,8 @@ package Adaflight.VTX_MSP with SPARK_Mode is
    procedure Set_Pit_Mode (D : in out Driver; Value : Unsigned_8);
    procedure Set_Frequency (D : in out Driver; Freq : Unsigned_16);
 
-   --  The configuration read back once ready; Known says the driver is.
+   --  The configuration read back once ready; Known says the driver is. The
+   --  frequency is the one given while no band is set, else the table's.
    procedure Get_Band_Channel (D : Driver; Band, Channel : out Unsigned_8; Known : out Boolean);
    procedure Get_Power_Index (D : Driver; T : Adaflight.VTX_Table.Table; Index : in out Unsigned_8;
                               Known : out Boolean);
