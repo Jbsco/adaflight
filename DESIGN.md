@@ -1593,10 +1593,11 @@ Galileo is on. The reply is answered as it is received.
 
 Receiving, a fix switches the module to the flight model once, and 2.5 s without a solution counts a
 timeout, drops the fix and the satellite count and restarts the detection. An NMEA module keeps its
-own rate: the port is set to the configured rate and one custom command goes out, half a second
-apart, and the next command waits for the next connection (finding F63). The ground link source
-takes offered solutions and starts initialized. After a loss it leaves the detection state at the
-next offered solution, where the reference stays in that state for good (finding F62, D6).
+own rate: the port is set to the configured rate and the custom commands go out one every half
+second, the link turning to receiving after the last. The reference leaves for receiving after the
+first command and sends the next one per connection (finding F63). The ground link source takes
+offered solutions and starts initialized. After a loss it leaves the detection state at the next
+offered solution, where the reference stays in that state for good (finding F62, D6).
 
 Every solution with a fix counts the stamp, sets the interval and the frequency of the solutions,
 the distance and the direction home and, armed, the distance flown above 15 cm/s. The home position
