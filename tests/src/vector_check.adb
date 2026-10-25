@@ -259,6 +259,7 @@ with Adaflight.Config_Codec;
 with Adaflight.Config_Fix;
 with Adaflight.Config_Runtime;
 with Adaflight.Command_Line;
+with Adaflight.Command_Line.Terminal;
 with Ada.Strings.Unbounded;
 with Adaflight.Dispatch;
 with Adaflight.ExpressLRS_Receiver;
@@ -29380,6 +29381,13 @@ procedure Vector_Check is
       CLI_Flash_Supported_Now, CLI_Flash_Erase_Completely, CLI_Flash_Ready, CLI_Flash_Erase_Async, CLI_Flash_Verify,
       CLI_Flash_Seek, CLI_Flash_Write, CLI_Flash_Flush, CLI_Flash_Read);
 
+   package CLI_Term is new CLI.Terminal;
+
+   --  The terminal session the "!term" lines drive, and whether the line
+   --  was one of them, whose leave flag is the session's closed state.
+   CLI_Session   : CLI_Term.Session;
+   CLI_Term_Line : Boolean := False;
+
    CLI_Config   : Adaflight.Config_Groups.Configuration := Adaflight.Config_Groups.Defaults;
    CLI_Identity : constant CLI.Environment :=
      (Navigation      => <>,
@@ -29417,6 +29425,7 @@ procedure Vector_Check is
       Baro            => <>,
       Mag             => <>,
       Raw_Gyro_ICM456 => False,
+      Interactive     => False,
       Rangefinder     => <>,
       Optical_Flow    => <>,
       Pitot           => <>,
@@ -29544,6 +29553,7 @@ procedure Vector_Check is
             CLI_Reply.Last_Tasks_Us := 0;
             CLI_Reply.Last_Check_Total_Us := 0;
             CLI_Reply.Last_Sound := -1;
+            CLI_Session := (others => <>);
             CLI_Disarmed := (others => 0.0);
             CLI_Beep_Silences := 0;
             CLI_Beep_Calls := 0;
@@ -30031,6 +30041,33 @@ procedure Vector_Check is
                   end if;
                end;
                CLI_Disarmed := MSP_Motor_Effects.Values;
+            elsif Word (Command, 0) = "!term" then
+               declare
+                  Interactive : constant Boolean := Word (Command, 1) = "1";
+                  Now         : constant Interfaces.Unsigned_32 := Interfaces.Unsigned_32'Value (Word (Command, 2));
+                  Hex         : constant String := Word (Command, 3);
+                  Input       : Byte_Array (1 .. Hex'Length / 2);
+               begin
+                  for I in Input'Range loop
+                     Input (I) :=
+                       Byte'Value ("16#" & Hex (Hex'First + 2 * (I - 1) .. Hex'First + 2 * (I - 1) + 1) & "#");
+                  end loop;
+                  CLI_Term_Line := True;
+                  CLI_Env.Status.Uptime_Ms := Now;
+                  if not CLI_Session.Open then
+                     CLI_Term.Enter (CLI_Session, CLI_Reply, Interactive, Now);
+                  end if;
+                  if CLI_Session.Arming_Held then
+                     CLI_Env.Status.Arming_Disabled (Adaflight.Arming.CLI_Open) := True;
+                  end if;
+                  CLI_Term.Process
+                    (CLI_Session, CLI_Reply, Input, Now, CLI_Config, Ports, CLI_Env, CLI_Board, CLI_Sched, CLI_Changes);
+               end;
+            elsif Word (Command, 0) = "!termexit" then
+               CLI_Term_Line := True;
+               if CLI_Session.Open then
+                  CLI_Term.Leave (CLI_Session, CLI_Changes);
+               end if;
             elsif Word (Command, 0) = "!clock" then
                CLI_Env.Now_Us := Interfaces.Unsigned_32'Value (Word (Command, 1));
             elsif Word (Command, 0) = "!debug" then
@@ -30543,10 +30580,17 @@ procedure Vector_Check is
                            Boolean'Pos (MSP_Profile_Effects.Battery_Profile));
             end if;
          end;
+      elsif Str (1) = "clt" then
+         Record_Int ("cli.term_open", Int (3), Boolean'Pos (CLI_Session.Open));
+         Record_Int ("cli.term_interactive", Int (4), Boolean'Pos (CLI_Session.Interactive));
+         Record_Int ("cli.term_buffered", Int (5), Integer_64 (CLI_Session.Length));
+         Record_Int ("cli.term_arming", Int (6), Boolean'Pos (CLI_Session.Arming_Held));
       elsif Str (1) = "clx" then
          Record_Int ("cli.save", Int (3), Boolean'Pos (CLI_Changes.Save));
          Record_Int ("cli.reboot", Int (4), Boolean'Pos (CLI_Changes.Reboot));
-         Record_Int ("cli.leave", Int (5), Boolean'Pos (CLI_Changes.Leave));
+         Record_Int ("cli.leave", Int (5),
+                     (if CLI_Term_Line then Boolean'Pos (not CLI_Session.Open) else Boolean'Pos (CLI_Changes.Leave)));
+         CLI_Term_Line := False;
          CLI_Restart_Seen := False;
       elsif Str (1) = "clbo" then
          CLI_Env.Option_Count := Natural (Int (3));
@@ -38694,6 +38738,7 @@ begin
    Run (Dir & "/clidef.csv", "cliset");
    Run (Dir & "/clibatch.csv", "cliset");
    Run (Dir & "/clitask.csv", "cliset");
+   Run (Dir & "/cliterm.csv", "cliset");
    Run (Dir & "/mspintune.csv", "cliset");
    Run (Dir & "/mspinfilt.csv", "cliset");
    Run (Dir & "/mspinrx.csv", "cliset");

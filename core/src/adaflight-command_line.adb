@@ -3675,6 +3675,74 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when Waypoint_Command_Word => "waypoint")
      with Post => Command_Word'Result'Length in 1 .. 20;
 
+   function Command_Count return Positive is (62);
+
+   function Command_Name (Position : Positive) return String is
+     (case Position is
+         when 1 => "adjrange",
+         when 2 => "aux",
+         when 3 => "batch",
+         when 4 => "beacon",
+         when 5 => "beeper",
+         when 6 => "bind_rx",
+         when 7 => "bl",
+         when 8 => "board_name",
+         when 9 => "color",
+         when 10 => "defaults",
+         when 11 => "diff",
+         when 12 => "dshot_telemetry_info",
+         when 13 => "dshotprog",
+         when 14 => "dump",
+         when 15 => "env",
+         when 16 => "escprog",
+         when 17 => "exit",
+         when 18 => "feature",
+         when 19 => "flash_erase",
+         when 20 => "flash_info",
+         when 21 => "flash_read",
+         when 22 => "flash_scan",
+         when 23 => "flash_write",
+         when 24 => "get",
+         when 25 => "gpspassthrough",
+         when 26 => "gyroregisters",
+         when 27 => "help",
+         when 28 => "led",
+         when 29 => "manufacturer_id",
+         when 30 => "map",
+         when 31 => "mcu_id",
+         when 32 => "mixer",
+         when 33 => "mmix",
+         when 34 => "mode_color",
+         when 35 => "motor",
+         when 36 => "msc",
+         when 37 => "options",
+         when 38 => "peripherals",
+         when 39 => "play_sound",
+         when 40 => "battery_profile",
+         when 41 => "profile",
+         when 42 => "rateprofile",
+         when 43 => "rc_smoothing_info",
+         when 44 => "rxfail",
+         when 45 => "rxrange",
+         when 46 => "save",
+         when 47 => "sd_info",
+         when 48 => "sensor_hardware",
+         when 49 => "serial",
+         when 50 => "serialpassthrough",
+         when 51 => "servo",
+         when 52 => "set",
+         when 53 => "signature",
+         when 54 => "simplified_tuning",
+         when 55 => "smix",
+         when 56 => "status",
+         when 57 => "tasks",
+         when 58 => "version",
+         when 59 => "vtx",
+         when 60 => "vtx_info",
+         when 61 => "vtxtable",
+         when 62 => "waypoint",
+         when others => "");
+
    --  The line's command and the position of its arguments.
    procedure Find_Command (Buffer : Line_Buffer; Kind : out Command_Kind; Arguments : out Natural)
      with Post => Arguments <= Line_Size + 1 and then (Kind = No_Command or else Arguments >= 1)
@@ -6267,9 +6335,13 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Find_Command (Buffer, Kind, Arguments);
       case Kind is
          when No_Command =>
-            Put (Into, "ERR_CMD_NA: ");
-            Put (Into, Buffer (1 .. Length));
-            Put (Into, CRLF);
+            if Env.Interactive then
+               Put_Error (Into, "input: UNKNOWN COMMAND, TRY 'HELP'###");
+            else
+               Put (Into, "ERR_CMD_NA: ");
+               Put (Into, Buffer (1 .. Length));
+               Put (Into, CRLF);
+            end if;
          when Adjustment_Range_Command_Word =>
             Adjustment_Range_Command (Into, C, Text_At (Buffer, Arguments), Changes);
          when Aux_Command_Word =>
