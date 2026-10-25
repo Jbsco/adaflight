@@ -2001,461 +2001,439 @@ disarms finishing the log, and events and reinitializations between the updates.
 byte written, the log state, the iteration counters and intervals, the header transmission, the
 budget, the histories and the request counts after each of the 22800 steps.
 
-## D94. The position navigation target (2026-10-12)
+## D94. Position navigation target (2026-10-12)
 
-The position navigation unit contains the reference's navigation target: a leg's target east,
-north and up in metres with its cruise speed, arrival radius and completion speed; the
-horizontal velocity toward it under the position gain, braked onto the target at the
-approach deceleration and held within the acceleration limits, or the velocity the owner
-states for a leg it profiles itself; the vertical ramp that walks the commanded altitude at
-the leg's rate, braked into the leg altitude, slewed out of the rate of a leg it takes over
-from and leashed to the craft; and the arrival test on the radius and the altitude window
-with their hysteresis, the completion speed and the settle timeout. A new leg takes over the
-velocity commanded so far, a moved target flies on without disturbing the ramp or the
-arrival state, and the sequence survives a reset so a consumer still sees the next leg as a
-change.
+The position navigation unit contains the navigation target. A leg has its target east, north and up
+in metres, a cruise speed, an arrival radius and a completion speed. The horizontal velocity toward
+the target comes from the position gain, brakes onto the target at the approach deceleration and
+stays within the acceleration limits, unless the owner states the velocity for a leg it profiles
+itself. The vertical ramp walks the commanded altitude at the leg's rate, brakes into the leg
+altitude, slews out of the rate of a leg it takes over from, and stays leashed to the craft. The
+arrival test checks the radius and the altitude window with their hysteresis, the completion speed
+and the settle timeout. A new leg takes over the velocity commanded so far. A moved target flies on
+without disturbing the ramp or the arrival state. The sequence survives a reset, so a consumer still
+sees the next leg as a change.
 
-The owner that issues the legs stays with the target. The reference calls the leg's
-callback inside its update, and a callback that issues the next leg keeps the velocity
-flowing where a silent one has it cleared; the port's update reports the leg reached, and
-the owner either sets the next leg or finishes the reached one, which clears the horizontal
-velocity and the leg when it clears itself. The port's bounds are the estimator's position
-bound, a kilometre per second of stated speed and the saturations declared in D6.
+The owner that issues the legs stays with the target. The reference calls the leg's callback inside
+its update, and a callback that issues the next leg keeps the velocity flowing where a silent one
+has it cleared. The port's update reports the leg reached, and the owner either sets the next leg or
+finishes the reached one, which clears the horizontal velocity and the leg when it clears itself.
+The port's bounds are the estimator's position bound, a kilometre per second of stated speed and the
+saturations declared in D6.
 
-The harness replays six sequences of 2500 operations recorded from the reference: legs set,
-moved, lowered and cleared, vertical profiles, acceleration limits, stated velocities,
-approach brakes, arrival policies, settle timeouts, resets, approach speed queries, and
-updates against an estimate on a random walk that drifts toward the target, with the
-reached callback silent or issuing the next leg, checking every field of the leg, the
-velocities, the arrival windows and the altitude and rate queries after each of the 15000
-operations.
+The harness replays six sequences of 2500 operations recorded from the reference: legs set, moved,
+lowered and cleared, vertical profiles, acceleration limits, stated velocities, approach brakes,
+arrival policies, settle timeouts, resets, approach speed queries, and updates against an estimate
+on a random walk that drifts toward the target, with the reached callback silent or issuing the next
+leg. Every field of the leg, the velocities, the arrival windows and the altitude and rate queries
+are checked after each of the 15000 operations.
 
-## D95. The OSD warnings line (2026-10-12)
+## D95. OSD warnings line (2026-10-12)
 
-The OSD warnings unit contains the reference's warnings line: one message chosen in the
-reference's order of precedence, with its severity and its blink. Rescue failure comes
-first. Arming disable reasons follow, rotated every half second to the next reason set
-above the one on display and round to the lowest, with the arm switch dropped unless it is
-the only reason. Then the DShot beacon guard, which shows the beacon for its first half
-second and the tenths of a second until arming after it; the failsafe; and the ESC alarms
-from the ESC sensor and then from the DShot telemetry, each alarmed motor with its letters,
-R for a rotation at or below the alarm while the motor runs, C and T for a current and a
-temperature at or above theirs, a plus where the thirty-one characters run out, and the
-line centred in twelve when shorter than eleven. Below those come the crash flip, active or
-switched on while disarmed; the launch control with the pitch in degrees when an
-accelerometer is present, blinking within ten percent of the launch throttle; the RSSI,
-RSSI dBm, SNR and link quality alarms; the critical battery; the CPU load; the rescue
-unavailable in the first five seconds armed and the heading not yet known; the position
-hold failure; the headfree mode; the core temperature in the selected unit with its symbol;
-the low battery; the capacity alarm from the battery profile's capacity, else the setting;
-the battery continued; the battery not full before the first arming; the visual beeper,
-which the line reports shown so the target clears it; and the chirp excitation finished,
-its series finished or one axis done.
+The OSD warnings unit contains the warnings line: one message chosen in a fixed order of precedence,
+with its severity and its blink. Rescue failure comes first. Arming disable reasons follow, rotated
+every half second to the next reason set above the one on display and round to the lowest, with the
+arm switch dropped unless it is the only reason. Then come the DShot beacon guard, which shows the
+beacon for its first half second and the tenths of a second until arming after it, the failsafe, and
+the ESC alarms from the ESC sensor and then from the DShot telemetry. An alarmed motor prints with
+its letters, R for a rotation at or below the alarm while the motor runs, C and T for a current and
+a temperature at or above theirs, and a plus where the thirty-one characters run out. A line shorter
+than eleven is centred in twelve. Below those come, in order:
 
-The port follows the multirotor default build. The flight plan cues and the flight plan's
-rescue descent, compiled out on default targets, and the wing launch cues, wing targets
-only, are not in it. The settings, the sensors, the modes and the clock stay with the
-target, which brings the values the line reads; the reason on display and the time it was
-chosen are the only state the line keeps.
+- the crash flip, active or switched on while disarmed
+- the launch control with the pitch in degrees when an accelerometer is present, blinking within ten
+  percent of the launch throttle
+- the RSSI, RSSI dBm, SNR and link quality alarms
+- the critical battery
+- the CPU load
+- the rescue unavailable in the first five seconds armed and the heading not yet known
+- the position hold failure
+- the headfree mode
+- the core temperature in the selected unit with its symbol
+- the low battery
+- the capacity alarm from the battery profile's capacity, else the setting
+- the battery continued
+- the battery not full before the first arming
+- the visual beeper, which the line reports shown so the target clears it
+- the chirp excitation finished, its series finished or one axis done
 
-The harness replays six sequences of 2000 frames recorded from the reference, each sequence
-under its own settings and enabled set, the frames under a precedence depth that holds off
-the conditions above it so every message gets its turn. Every message of the 12000 frames
-replays byte for byte with its blink, its severity and the beeper flag.
+The port follows the multirotor default build. The flight plan cues and the flight plan's rescue
+descent, compiled out on default targets, and the wing launch cues, wing targets only, are not in
+it. The settings, the sensors, the modes and the clock stay with the target, which brings the values
+the line reads. The reason on display and the time it was chosen are the only state the line keeps.
 
-## D96. The MSP tunnel over telemetry (2026-10-12)
+The harness replays six sequences of 2000 frames recorded from the reference, each sequence under
+its own settings and enabled set, the frames under a precedence depth that holds off the conditions
+above it so every message gets its turn. Every message of the 12000 frames replays byte for byte
+with its blink, its severity and the beeper flag.
 
-The MSP telemetry unit contains the reference's tunnel that carries MSP over a telemetry
-link. A request arrives in chunks behind a status byte that holds the chunk's sequence
-number, a start flag and the protocol version. The first chunk declares the request: the
-command and payload size of a version 1 frame, the jumbo size past 254 bytes, or the flags,
-the 16-bit command and the size of a version 2 frame; a version above two answers with a
-mismatch error, a size past the 192-byte request buffer with a too-big error. The chunks
-that follow continue the request while their sequence numbers run on from the last; a
-chunk out of sequence drops the request, a chunk without a start is ignored, and a chunk
-shorter than its header is ignored. The last chunk completes the request at the declared
-size, extra bytes ignored, and a completed EEPROM write command reports itself so the
-owner skips a few telemetry requests before replying. The reply goes back in chunks of the
-link's size behind the same status byte: the first chunk carries the start flag, the error
-bit for a failed request and the reply header in the request's framing, and every chunk
-fills the link's size until the last carries the remainder; a reply that ends exactly on
-a chunk boundary is followed by a chunk of the status byte alone.
+## D96. MSP tunnel over telemetry (2026-10-12)
 
-The command processor stays with the target. The reference runs it inside the chunk
-handler; the port's chunk handler reports a request ready, the owner processes it and
-hands back the verdict and the payload, which the tunnel stores with an error byte
-appended for a failed verdict, in the same state the reference leaves. The reply's flags
-byte is zero, as the reference never sets it.
+The MSP telemetry unit contains the tunnel that transports MSP over a telemetry link. A request
+arrives in chunks behind a status byte that holds the chunk's sequence number, a start flag and the
+protocol version. The first chunk declares the request: the command and payload size of a version 1
+frame, the jumbo size past 254 bytes, or the flags, the 16-bit command and the size of a version 2
+frame. A version above two answers with a mismatch error, a size past the 192-byte request buffer
+with a too-big error. The chunks that follow continue the request while their sequence numbers run
+on from the last. A chunk out of sequence drops the request, a chunk without a start is ignored, and
+a chunk shorter than its header is ignored. The last chunk completes the request at the declared
+size, extra bytes ignored. A completed EEPROM write command reports itself, so the owner skips a few
+telemetry requests before replying. The reply goes back in chunks of the link's size behind the same
+status byte. The first chunk holds the start flag, the error bit for a failed request and the reply
+header in the request's framing. Every chunk fills the link's size until the last takes the
+remainder, and a reply that ends exactly on a chunk boundary is followed by a chunk of the status
+byte alone.
 
-The harness replays six sequences of 400 operations recorded from the reference: requests
-of every framing in chunks of random sizes with lost and out-of-sequence chunks, truncated
-headers, trailing bytes and lone chunks, the processor's reply of random size under a
-random verdict, requests arriving while a reply is still going out, and the replies pulled
-at the SmartPort, CRSF and random chunk sizes. Every chunk, request state and reply state
-of the 28655 lines replays byte for byte.
+The command processor stays with the target. The reference runs it inside the chunk handler. The
+port's chunk handler reports a request ready, the owner processes it and hands back the verdict and
+the payload, which the tunnel stores with an error byte appended for a failed verdict. The reply's
+flags byte is always zero.
 
-## D97. The OSD formatting (2026-10-12)
+The harness replays six sequences of 400 operations recorded from the reference: requests of every
+framing in chunks of random sizes with lost and out-of-sequence chunks, truncated headers, trailing
+bytes and lone chunks, the processor's reply of random size under a random verdict, requests
+arriving while a reply is still going out, and the replies pulled at the SmartPort, CRSF and random
+chunk sizes. Every chunk, request state and reply state of the 28655 lines replays byte for byte.
 
-The OSD format unit contains the reference's formatting helpers, the functions the OSD
-elements call to turn readings into text. A number prints with a leading and a trailing
-symbol, its decimals, rounded half to even or cut at the last decimal, the integer part in
-a width with zeros or spaces and a character before it, and a minus sign when the value is
-negative and the digits are not all zero. Altitudes print in the selected unit with one
-decimal or none, above the launch point or above sea level. Coordinates print from
-ten-millionths of a degree with seven or four decimals, as degrees, minutes, seconds and
-tenths with the hemisphere letter, or as the eleven-digit plus code, and read as zero until
-the first fix. Distances print in feet or metres below a mile or a kilometre and in miles or
-kilometres above with one decimal from ten and two below. A PID line prints its label and the
-five gains in three places each. The clock prints the reference's short local form, the month,
-day, hours and minutes, or the time alone, and prints nothing without a clock. Timers print
-minutes and seconds with hundredths or tenths by their precision from the source their
-setting names, the on time, the flight time, the last armed time, one or the other by the
-arming state, or the launch time, with the source's symbol before them. The battery symbol
-is the critical one or the cell voltage's step over the profile's range, the direction
-symbol the heading's sector of sixteen, and the unit conversions cover metres, speeds,
+## D97. OSD formatting (2026-10-12)
+
+The OSD format unit contains the formatting helpers that the OSD elements call to turn readings into
+text. A number prints with a leading and a trailing symbol, its decimals rounded half to even or cut
+at the last decimal, the integer part in a width with zeros or spaces and a character before it, and
+a minus sign when the value is negative and the digits are not all zero. Altitudes print in the
+selected unit with one decimal or none, above the launch point or above sea level. Coordinates print
+from ten-millionths of a degree with seven or four decimals, as degrees, minutes, seconds and tenths
+with the hemisphere letter, or as the eleven-digit plus code, and read as zero until the first fix.
+Distances print in feet or metres below a mile or a kilometre and in miles or kilometres above, with
+one decimal from ten and two below. A PID line prints its label and the five gains in three places
+each. The clock prints the short local form, the month, day, hours and minutes, or the time alone,
+and prints nothing without a clock. Timers print minutes and seconds with hundredths or tenths by
+their precision, from the source their setting names: the on time, the flight time, the last armed
+time, one or the other by the arming state, or the launch time, with the source's symbol before
+them. The battery symbol is the critical one or the cell voltage's step over the profile's range.
+The direction symbol is the heading's sector of sixteen. The unit conversions cover metres, speeds,
 climb rates and temperatures with their symbols.
 
-The plus code unit contains the reference library's encoder for the grid lengths, the
-only lengths the OSD asks for: the latitude clipped to its range and the pole moved half
-a precision south, the longitude wrapped into its range, the two positions scaled to
-integers at the grid precision, the five grid digits from the five by four refinement and
-the ten pair digits from the base twenty alphabet with the separator after the eighth.
+The plus code unit contains the reference library's encoder for the grid lengths, the only lengths
+the OSD asks for: the latitude clipped to its range and the pole moved half a precision south, the
+longitude wrapped into its range, the two positions scaled to integers at the grid precision, the
+five grid digits from the five by four refinement and the ten pair digits from the base twenty
+alphabet with the separator after the eighth.
 
-The warnings line now takes its unit system and its temperature conversion and symbol
-from the format unit, where the reference's warnings call the elements file. The battery
-symbol requires the profile's cell voltage limits to differ, where the reference divides
-by their difference (finding F103). The readings and the settings stay with the target.
+The warnings line takes its unit system and its temperature conversion and symbol from the format
+unit, where the reference's warnings call the elements file. The battery symbol requires the
+profile's cell voltage limits to differ, where the reference divides by their difference (finding
+F103). The readings and the settings stay with the target.
 
-The harness replays six sequences of 1500 calls recorded from the reference, each call to
-one helper under random readings, units, variants and symbols, the clock set to dates up
-to 2099, which the 64-bit conversions place exactly where the reference's 32-bit count
-wraps (finding F104) and the formats of the elements' calls. Every text, symbol and
-conversion of the 9006 lines replays byte for byte.
+The harness replays six sequences of 1500 calls recorded from the reference, each call to one helper
+under random readings, units, variants and symbols, with the clock set to dates up to 2099, which
+the 64-bit conversions place exactly where the reference's 32-bit count wraps (finding F104), and
+the formats of the elements' calls. Every text, symbol and conversion of the 9006 lines replays byte
+for byte.
 
-## D98. The transmitter driver over MSP (2026-10-12)
+## D98. Transmitter driver over MSP (2026-10-12)
 
-The VTX MSP unit contains the reference's transmitter driver for a video transmitter
-reached over the MSP link, the goggle systems' way. The driver starts offline and is ready
-once the transmitter has answered on the driver's link and the table has bands, channels and
-power levels. The configuration it holds is what the control layer sets, band and channel,
-the power looked up in the table by index, the pit mode and the frequency, each marking
-the configuration changed when it differs. Each cycle, once ready, a change of the low
-power state marks the configuration changed too, and a changed configuration goes out once
-two hundred milliseconds have passed since the last: the fifteen-byte frame with the device
-type, the settings' band, channel and power, the lowest power while low power disarmed, the
-pit mode, the frequency, the readiness, the low power setting, the pit mode frequency and
-the table's counts, as an MSP reply carrying the transmitter configuration command. The
-same frame wrapped for the CRSF telemetry buffer gets the sync byte, the length, the MSP
-response type, the receiver and flight controller addresses, the header of a first chunk
-in version 2, the MSP checksum and the frame checksum. The configuration reads back once
-ready: the band and channel, the power index found in the table or zero for no power, the
-frequency of the band and channel, the pit mode, and the table's power levels in
-decibel-milliwatts and in milliwatts through the C library's power function.
+The VTX MSP unit contains the transmitter driver for a video transmitter reached over the MSP link,
+the goggle systems' way. The driver starts offline and is ready once the transmitter has answered on
+the driver's link and the table has bands, channels and power levels. The configuration it holds is
+what the control layer sets: band and channel, the power looked up in the table by index, the pit
+mode and the frequency, each marking the configuration changed when it differs. Each cycle, once
+ready, a change of the low power state marks the configuration changed too, and a changed
+configuration goes out once two hundred milliseconds have passed since the last. The frame has
+fifteen bytes: the device type, the settings' band, channel and power, the lowest power while low
+power disarmed, the pit mode, the frequency, the readiness, the low power setting, the pit mode
+frequency and the table's counts, sent as an MSP reply with the transmitter configuration command.
+The same frame wrapped for the CRSF telemetry buffer gets the sync byte, the length, the MSP
+response type, the receiver and flight controller addresses, the header of a first chunk in version
+2, the MSP checksum and the frame checksum. The configuration reads back once ready: the band and
+channel, the power index found in the table or zero for no power, the frequency of the band and
+channel, the pit mode, and the table's power levels in decibel-milliwatts and in milliwatts through
+the C library's power function.
 
-The link, the port sharing that decides between the serial push and the CRSF wrapper, the
-port selection of the initialization, and the command processor that reports the
-transmitter's answer stay with the target: the owner tells the driver its link answered,
-and pushes the frame the cycle hands back by the way its link requires.
+The link, the port sharing that decides between the serial push and the CRSF wrapper, the port
+selection of the initialization, and the command processor that reports the transmitter's answer
+stay with the target. The owner tells the driver its link answered, and pushes the frame the cycle
+hands back by the way its link requires.
 
-The harness replays six sequences of 1200 operations recorded from the reference, each
-sequence under its own table and settings, the operations the control layer's setters and
-getters, the link's readiness with matching and foreign descriptors, the cycle under random
-times, arming, failsafe and link flags, and the frame preparation alone. Every state field,
-reply frame, wrapped frame and reading of the 7206 lines replays byte for byte.
+The harness replays six sequences of 1200 operations recorded from the reference, each sequence
+under its own table and settings: the control layer's setters and getters, the link's readiness with
+matching and foreign descriptors, the cycle under random times, arming, failsafe and link flags, and
+the frame preparation alone. Every state field, reply frame, wrapped frame and reading of the 7206
+lines replays byte for byte.
 
-## D99. The MSP display port (2026-10-12)
+## D99. MSP display port (2026-10-12)
 
-The display port MSP unit contains the reference's display port over the MSP link, the
-OSD canvas of a goggle system. Each operation is a display port payload the target sends
-as an MSP reply in the first framing: the heartbeat, the release, the clear, the draw, a
-string at its column and row with the attribute byte, a system element at its column and
-row, and a font character at its address with the sixty-four bytes of the glyph. The
-attribute byte takes the profile's font bank for the element's severity and the device
-blink bit for a blinking element; a string is cut at thirty characters, an empty string
-sends nothing, and a character is the string of that character, the null character an
-empty one. The initialization takes the canvas size from the configuration for a high
-definition system and the standard lines of PAL or NTSC with the standard columns
-otherwise, each with the profile's adjustment, and sends a clear and a draw. The display
-layer's bookkeeping over the port is in the unit: a grab sends the heartbeat and a clear
-and counts, a release the release payload, a clear marks the screen cleared and the
-cursor off, and the device reports itself synced, ready and never mid-transfer.
+The display port MSP unit contains the display port over the MSP link, the OSD canvas of a goggle
+system. Each operation is a display port payload the target sends as an MSP reply in the first
+framing: the heartbeat, the release, the clear, the draw, a string at its column and row with the
+attribute byte, a system element at its column and row, and a font character at its address with the
+sixty-four bytes of the glyph. The attribute byte takes the profile's font bank for the element's
+severity and the device blink bit for a blinking element. A string is cut at thirty characters, an
+empty string sends nothing, and a character is the string of that character, the null character an
+empty one. The initialization takes the canvas size from the configuration for a high definition
+system and the standard lines of PAL or NTSC with the standard columns otherwise, each with the
+profile's adjustment, and sends a clear and a draw. The display layer's bookkeeping over the port is
+in the unit: a grab sends the heartbeat and a clear and counts, a release the release payload, a
+clear marks the screen cleared and the cursor off, and the device reports itself synced, ready and
+never mid-transfer.
 
-The MSP link, the serial port the display answers on, the port selection of the
-initialization and the eighty millisecond pause after a font character stay with the
-target.
+The MSP link, the serial port the display answers on, the port selection of the initialization and
+the eighty millisecond pause after a font character stay with the target.
 
-The harness replays six sequences of 600 operations recorded from the reference behind
-its display layer, each sequence under its own profile, video system and canvas: grabs,
-releases, clears, draws, heartbeats, redraws, strings of every length and attribute,
-characters, system elements, font characters and the state queries. Every state field,
-payload and result of the 3606 lines replays byte for byte.
+The harness replays six sequences of 600 operations recorded from the reference behind its display
+layer, each sequence under its own profile, video system and canvas: grabs, releases, clears, draws,
+heartbeats, redraws, strings of every length and attribute, characters, system elements, font
+characters and the state queries. Every state field, payload and result of the 3606 lines replays
+byte for byte.
 
-## D100. The OSD statistics (2026-10-12)
+## D100. OSD statistics (2026-10-12)
 
-The OSD stats unit contains the reference's flight statistics: the extremes tracked while
-armed and the text of every statistic on the page after a flight. The reset at arming
-sets each extreme at its far end, the link quality floor at 99 without a link quality
-source and 100 with one. Each update takes the readings of the cycle through the
-reference's sixteen-bit comparisons: the speed in three dimensions or over the ground,
-the voltage of the pack or the average cell by the setting, the current, the signal
-percent, the altitude, the acceleration, the link quality, the signal strength and the
-noise ratio, the home distance under a fix and a home fix, the ESC temperature from the
-sensor's combined reading when its feature is on and from the telemetry's per-motor
-maxima otherwise with the motor that set it, and the average ESC rotation from the sensor
-converted or the telemetry averaged. A reading past sixteen bits wraps as the reference
-wraps it, except the home distance, which the statistics keep unsigned to 65535 metres. The
+The OSD stats unit contains the flight statistics: the extremes tracked while armed and the text of
+every statistic on the page after a flight. The reset at arming sets each extreme at its far end,
+the link quality floor at 99 without a link quality source and 100 with one. Each update takes the
+readings of the cycle through sixteen-bit comparisons: the speed in three dimensions or over the
+ground, the voltage of the pack or the average cell by the setting, the current, the signal percent,
+the altitude, the acceleration, the link quality, the signal strength and the noise ratio, the home
+distance under a fix and a home fix, the ESC temperature from the sensor's combined reading when its
+feature is on and from the telemetry's per-motor maxima otherwise with the motor that set it, and
+the average ESC rotation from the sensor converted or the telemetry averaged. A reading past sixteen
+bits wraps, except the home distance, which the statistics keep unsigned to 65535 metres. The
 reference keeps that distance in a signed field, so a distance from 32768 metres records negative,
 every later distance passes the comparison, and the statistics page prints a minus sign (finding
 F105).
 
-The page's text for a statistic comes with its label beside the value, or the value alone
-across the label's place for the clock, and reports when the statistic is not shown: the
-speed, distance and flight distance only with the GPS feature, the current, charge and
-energy only with a current meter, the flight log status only for a flash or card device,
-the log number only when there is one, the acceleration only with an accelerometer, the
-peak frequency only with the dynamic notch active. The timer statistics print the timer
-without its symbol under its precision unless its source is the on time, and label it with
-the source's name; the lap times print seconds and hundredths rounded or a blank; the
-flight log status prints the storage used in percent from the card's blocks and free
-space or the flash partition's sectors and offset, or a fault. The display, the readings
-and the settings stay with the target, which places the label thirteen columns left of the
-middle, the colon five right and the value seven right.
+The page's text for a statistic comes with its label beside the value, or the value alone across the
+label's place for the clock, and reports when the statistic is not shown: the speed, distance and
+flight distance only with the GPS feature, the current, charge and energy only with a current meter,
+the flight log status only for a flash or card device, the log number only when there is one, the
+acceleration only with an accelerometer, the peak frequency only with the dynamic notch active. The
+timer statistics print the timer without its symbol under its precision unless its source is the on
+time, and label it with the source's name. The lap times print seconds and hundredths rounded, or a
+blank. The flight log status prints the storage used in percent from the card's blocks and free
+space or the flash partition's sectors and offset, or a fault. The display, the readings and the
+settings stay with the target, which places the label thirteen columns left of the middle, the colon
+five right and the value seven right.
 
-The harness replays six sequences of 1500 operations recorded from the reference: resets
-with and without a link quality source, updates under random readings with the wrapping
-ones among them, and each statistic's text under random settings, clocks, meters, devices
-and totals, checked against the display writes the reference made with their columns and
-rows. Every extreme, text and position of the 9006 lines replays byte for byte.
+The harness replays six sequences of 1500 operations recorded from the reference: resets with and
+without a link quality source, updates under random readings with the wrapping ones among them, and
+each statistic's text under random settings, clocks, meters, devices and totals, checked against the
+display writes the reference made with their columns and rows. Every extreme, text and position of
+the 9006 lines replays byte for byte.
 
-## D101. The OSD page and the arming screen (2026-10-12)
+## D101. OSD page and arming screen (2026-10-12)
 
-The OSD page unit contains the reference's statistics page, its arming and boot screens,
-and the three steps the OSD runs around them each cycle. The page is laid out one row per
-step from the statistics enabled, in the reference's display order, each row the label
-thirteen columns left of the middle, a colon five right and the value seven right, or the
-clock alone at the label's place; a counting pass finds the row count, then the page is
-centred vertically with its heading when the rows fit, and the refresh walks its phases of
-the first clear, the count, the clear between and the rows until the page is complete or
-the rows run out. The arming screen clears the display, draws the logo when the setting
-shows it always or until the first arming, writes the armed word in the middle and the
-crash flip warning below it when that mode is on; the pause after it lasts the logo's
-duration or half a second. The boot screen clears the display and draws the logo, the
-version in capitals, the menu help and the clock when there is one, with a pause of four
-seconds. The logo goes to the display as a whole when the display draws it itself, else as
-the font's logo characters row by row.
+The OSD page unit contains the statistics page, its arming and boot screens, and the three steps the
+OSD runs around them each cycle. The page is laid out one row per statistic enabled, in display
+order, each row the label thirteen columns left of the middle, a colon five right and the value
+seven right, or the clock alone at the label's place. A counting pass finds the row count, then the
+page is centred vertically with its heading when the rows fit, and the refresh walks its phases of
+the first clear, the count, the clear between and the rows until the page is complete or the rows
+run out. The arming screen clears the display, draws the logo when the setting shows it always or
+until the first arming, and writes the armed word in the middle and the crash flip warning below it
+when that mode is on. The pause after it lasts the logo's duration or half a second. The boot screen
+clears the display and draws the logo, the version in capitals, the menu help and the clock when
+there is one, with a pause of four seconds. The logo goes to the display as a whole when the display
+draws it itself, else as the font's logo characters row by row.
 
-The first step of a cycle sees the arming transitions: arming resets the statistics and
-starts the pause with the arming screen; disarming enables the page when a statistic is
-enabled, the page is not suppressed, no failsafe is active, and the disarm was not a
-runaway or crash with the warnings visible, keeping the end voltage and resetting the row
-count. While armed the extremes update and the flight and launch times grow by the cycle,
-the launch time resetting while launch control is active; while disarmed with the page
-enabled, a grabbed display drops the page, the switch hides it and shows it again, and a
-shown page refreshes every second. The auxiliary value follows its channel every second.
-The second step keeps the pause: while it lasts the cycle draws nothing, and a high
-throttle or pitch stick or the crash flip switch while disarmed ends it early; once it has
-passed the display clears and the page is dropped. The third step reads the acceleration
-when the element shows it or its statistic is enabled. The display, the sticks, the
-switches, the arming disable reasons and the readings stay with the target, which draws
-the writes each step hands back; the counting pass sees the display's rows and columns.
+The first step of a cycle sees the arming transitions. Arming resets the statistics and starts the
+pause with the arming screen. Disarming enables the page when a statistic is enabled, the page is
+not suppressed, no failsafe is active, and the disarm was not a runaway or crash with the warnings
+visible, keeping the end voltage and resetting the row count. While armed the extremes update and
+the flight and launch times grow by the cycle, the launch time resetting while launch control is
+active. While disarmed with the page enabled, a grabbed display drops the page, the switch hides it
+and shows it again, and a shown page refreshes every second. The auxiliary value follows its channel
+every second. The second step keeps the pause: while it lasts the cycle draws nothing, and a high
+throttle or pitch stick or the crash flip switch while disarmed ends it early. Once the pause has
+passed the display clears and the page is dropped. The third step reads the acceleration when the
+element shows it or its statistic is enabled. The display, the sticks, the switches, the arming
+disable reasons and the readings stay with the target, which draws the writes each step hands back.
+The counting pass sees the display's rows and columns.
 
-The harness replays six sequences of 500 operations recorded from the reference: the
-first step under random times, arming, failsafe, grabbing, switch, launch control and
-readings; the refresh walked to completion under random settings, pages and extremes with
-displays that draw the logo themselves and ones that do not; the second step under random
-sticks, switch and pauses; the third step; the arming screen; and the boot screen with
-the version and the clock. Every state field, extreme, write and position of the 11803
-lines replays byte for byte.
+The harness replays six sequences of 500 operations recorded from the reference: the first step
+under random times, arming, failsafe, grabbing, switch, launch control and readings; the refresh
+walked to completion under random settings, pages and extremes with displays that draw the logo
+themselves and ones that do not; the second step under random sticks, switch and pauses; the third
+step; the arming screen; and the boot screen with the version and the clock. Every state field,
+extreme, write and position of the 11803 lines replays byte for byte.
 
 ## D102. OSD element set, alarms and active list (2026-10-12)
 
-The OSD elements unit contains the reference's item set with its position fields, the blink
-the alarms drive and the list of the active elements. The item set is the eighty-nine items
-of a one-megabyte target without flight plan, map or pitot, in the reference's order, which
-fixes each item's place in the position table and in the blink bits. A position field holds
-the column in five bits with a sixth above the row for wide displays, the row in five bits,
-the three profile bits and the variant in the top two; an item is visible when its profile
-bits meet the active profile's bit, the first profile standing in for profile zero. The blink
-has a bit per item and a state the half second cadence sets from the clock, on in the first
-half; an item blinks while its bit is set in the on half, and a reset clears every bit.
+The OSD elements unit contains the item set with its position fields, the blink the alarms drive and
+the list of the active elements. The item set is the eighty-nine items of a one-megabyte target
+without flight plan, map or pitot, in the reference's order, which fixes each item's place in the
+position table and in the blink bits. A position field holds the column in five bits with a sixth
+above the row for wide displays, the row in five bits, the three profile bits and the variant in the
+top two. An item is visible when its profile bits meet the active profile's bit, the first profile
+standing in for profile zero. The blink has a bit per item and a state the half second cadence sets
+from the clock, on in the first half. An item blinks while its bit is set in the on half, and a
+reset clears every bit.
 
-The alarms set the bits each cycle: RSSI, RSSI dBm and link quality under their thresholds;
-battery voltage and cell voltage while the battery state is not OK; satellites without a fix,
-under four, or under the rescue's minimum when the rescue is configured; each timer whose
-source has reached its alarm minutes, taken times sixty million in sixty-four bits, so an alarm
-the thirty-two-bit timer cannot reach never fires, where the reference's thirty-two-bit product
-wraps past seventy-one minutes and fires almost at once (F107); charge drawn and remaining time
-estimate at the
-capacity alarm; battery usage at the capacity alarm, or on a low battery without one;
-altitude at its alarm while armed; home distance at its alarm while armed with a home fix;
-and ESC temperature at its alarm from the ESC sensor's combined reading, or from the first
-motor whose DShot telemetry contains one. The capacity alarm is the battery profile's
-capacity when it has one, else the setting. The altitude compared is the selected unit's
-value over a hundred, truncated.
+The alarms set the bits each cycle: RSSI, RSSI dBm and link quality under their thresholds; battery
+voltage and cell voltage while the battery state is not OK; satellites without a fix, under four, or
+under the rescue's minimum when the rescue is configured; each timer whose source has reached its
+alarm minutes; charge drawn and remaining time estimate at the capacity alarm; battery usage at the
+capacity alarm, or on a low battery without one; altitude at its alarm while armed; home distance at
+its alarm while armed with a home fix; and ESC temperature at its alarm from the ESC sensor's
+combined reading, or from the first motor whose DShot telemetry contains one. The timer alarm is the
+alarm minutes times sixty million in sixty-four bits, so an alarm the thirty-two-bit timer cannot
+reach never fires. The reference multiplies in thirty-two bits, which wraps past seventy-one minutes
+and fires almost at once (F107). The capacity alarm is the battery profile's capacity when it has
+one, else the setting. The altitude compared is the selected unit's value over a hundred, truncated.
 
-The active list is built from the positions and the active profile: horizon, g force and up
-and down reference with an accelerometer, then the display order of seventy-three items,
-then the eight GPS items with a GPS, the three ESC items with an ESC sensor or DShot
-telemetry, the three lap times with a GPS, and the total flights. The up and down reference
-and the total flights are listed twice when visible, and the list holds the ninety-one adds
-of a list with every item visible (F106). Six items ask for the accelerometer when active.
-Settings, sensors, clocks and readings stay with the target.
+The active list is built from the positions and the active profile: horizon, g force and up and down
+reference with an accelerometer, then the display order of seventy-three items, then the eight GPS
+items with a GPS, the three ESC items with an ESC sensor or DShot telemetry, the three lap times
+with a GPS, and the total flights. The up and down reference and the total flights are listed twice
+when visible, and the list holds the ninety-one adds of a list with every item visible (F106). Six
+items ask for the accelerometer when active. Settings, sensors, clocks and readings stay with the
+target.
 
-The harness replays six sequences of 400 operations recorded from the reference: the active
-list under random positions, profiles, sensors and features; the alarms under random
-thresholds, readings, clocks, battery profiles and motor telemetry, with the blink synced to
-the clock and one item's blink read back; and the reset. Every count, listed item,
-accelerometer need, blink word and state of the 2406 lines replays byte for byte.
+The harness replays six sequences of 400 operations recorded from the reference: the active list
+under random positions, profiles, sensors and features; the alarms under random thresholds,
+readings, clocks, battery profiles and motor telemetry, with the blink synced to the clock and one
+item's blink read back; and the reset. Every count, listed item, accelerometer need, blink word and
+state of the 2406 lines replays byte for byte.
 
 ## D103. OSD element renderers for readings (2026-10-12)
 
-The OSD render unit contains the reference's element renderers that format readings,
-thirty-eight of the seventy-six: altitude, pitch and roll angles, anti gravity, average
-cell voltage, compass bar, core temperature, crosshairs, current, the two debug lines,
-disarmed, g force, charge drawn, watt hours, battery usage, battery voltage, numerical
-heading, vario, PID and rate profile, the three PID lines, power, remaining time estimate,
-RSSI, RSSI dBm, RSNR, throttle, the two timers, auxiliary value, ready mode, position hold
-ready, total flights, flip arrow, flight mode and clock. Each render starts from an empty
-text, offsets at zero, normal severity, drawn and complete, and fills them as its element
-does: the altitude in the unit when a barometer or a GPS fix supplies it, else the altitude
-symbol and a hyphen, critical past the altitude alarm while armed; the angles with a sign
-and two digits; the cell and pack voltages with the battery symbol, warning and critical by
-the battery state, the pack voltage with one decimal from ten volts; the compass bar as nine
-characters of the heading strip; charge, watt hours and remaining time critical past the
-capacity alarm, the remaining time as the flight time scaled by the charge left over the
-charge drawn, dashes below a tenth of the capacity and zero past it; the battery usage as a
-percentage of the profile's capacity or of the voltage estimate, or as a bar of eleven cells
-with a half cell; the RSSI capped at ninety-nine and critical under its alarm; the RSSI dBm
-with the antenna once a second antenna has reported; the timers critical when either alarm
-has passed; the flip arrow from the folded roll and the pitch while crash flip is on or the
-craft lies disarmed off its feet; the flight mode in the reference's precedence from
-failsafe to acro, with the chirp's axis, repeat and finish; the clock in the variant's form
-when the clock is set. The remaining time's conversion to microseconds saturates at the
-signed thirty-two-bit limit (F108). The PID line's feedforward widens to sixteen bits (D97).
-Settings, sensors and readings stay with the target; the graphics, GPS, link, ESC and name
-elements and the draw cycle come later.
+The OSD render unit contains the element renderers that format readings, thirty-eight of the
+seventy-six: altitude, pitch and roll angles, anti gravity, average cell voltage, compass bar, core
+temperature, crosshairs, current, the two debug lines, disarmed, g force, charge drawn, watt hours,
+battery usage, battery voltage, numerical heading, vario, PID and rate profile, the three PID lines,
+power, remaining time estimate, RSSI, RSSI dBm, RSNR, throttle, the two timers, auxiliary value,
+ready mode, position hold ready, total flights, flip arrow, flight mode and clock. Each render
+starts from an empty text, offsets at zero, normal severity, drawn and complete, and fills them as
+its element does. The altitude prints in the unit when a barometer or a GPS fix supplies it, else
+the altitude symbol and a hyphen, critical past the altitude alarm while armed. The angles print
+with a sign and two digits. The cell and pack voltages print with the battery symbol, warning and
+critical by the battery state, the pack voltage with one decimal from ten volts. The compass bar is
+nine characters of the heading strip. Charge, watt hours and remaining time are critical past the
+capacity alarm, the remaining time being the flight time scaled by the charge left over the charge
+drawn, dashes below a tenth of the capacity and zero past it. The battery usage prints as a
+percentage of the profile's capacity or of the voltage estimate, or as a bar of eleven cells with a
+half cell. The RSSI is capped at ninety-nine and critical under its alarm. The RSSI dBm prints with
+the antenna once a second antenna has reported. The timers are critical when either alarm has
+passed. The flip arrow comes from the folded roll and the pitch while crash flip is on or the craft
+lies disarmed off its feet. The flight mode prints in order of precedence from failsafe to acro,
+with the chirp's axis, repeat and finish. The clock prints in the variant's form when the clock is
+set. The remaining time's conversion to microseconds saturates at the signed thirty-two-bit limit
+(F108). The PID line's feedforward widens to sixteen bits (D97). Settings, sensors and readings stay
+with the target. The graphics, GPS, link, ESC and name elements and the draw cycle come later.
 
-The harness replays six sequences of 500 renders recorded from the reference, each element
-under random settings, readings, attitude, battery profile, gains, clocks, switches, modes
-and clock. Every text, offset, severity and flag of the 3006 lines replays byte for byte.
+The harness replays six sequences of 500 renders recorded from the reference, each element under
+random settings, readings, attitude, battery profile, gains, clocks, switches, modes and clock.
+Every text, offset, severity and flag of the 3006 lines replays byte for byte.
 
 ## D104. OSD element renderers for GPS, link, ESC and names (2026-10-12)
 
-The OSD render unit grows by the reference's GPS, link, ESC, motor, log, name and text
-renderers, twenty-nine items, and the craft and pilot name backgrounds: flight distance,
-home direction and distance, the two coordinates, satellites, speed, efficiency, the three
-lap times, link quality, uplink power, log status, ESC temperature, ESC rotation and
-frequency, motor diagnostics, the rate, PID, OSD and battery profile names, the four custom
-messages, the custom serial text, the adjustment range and the lidar distance. The GPS
-elements print their values with a fix and a hyphen without one; the home direction points
-to the lap timer's start while a lap runs and the home distance measures to it; the
-coordinates set their blink while a fix once held is lost. The satellite count is critical
-without a fix or under four and a warning under the rescue's minimum, with the dilution
-appended on request; the efficiency filters the current over the speed at half a hertz and
-prints up to four digits. The link quality prints by its source, with the mode before it
-for Crossfire except in the second variant; the uplink power prints in milliwatts below a
-watt. The ESC temperature prints the sensor's combined reading or each motor's telemetry
-and stops at the text's thirty-one characters where the reference writes past its buffer
-(F109); the ESC rotation elements walk the motors one row a render; the motor diagnostics
-scale each output into a bar and mark a stopped motor. A name prints in capitals, or its
-default with the profile's number when empty; a custom message prints as stored or its
-number; the serial text prints up to thirty-one characters or dashes. Settings, sensors and
-readings stay with the target; the graphics and the draw cycle come later.
+The OSD render unit grows by the GPS, link, ESC, motor, log, name and text renderers, twenty-nine
+items, and the craft and pilot name backgrounds: flight distance, home direction and distance, the
+two coordinates, satellites, speed, efficiency, the three lap times, link quality, uplink power, log
+status, ESC temperature, ESC rotation and frequency, motor diagnostics, the rate, PID, OSD and
+battery profile names, the four custom messages, the custom serial text, the adjustment range and
+the lidar distance. The GPS elements print their values with a fix and a hyphen without one. The
+home direction points to the lap timer's start while a lap runs, and the home distance measures to
+it. The coordinates set their blink while a fix once held is lost. The satellite count is critical
+without a fix or under four and a warning under the rescue's minimum, with the dilution appended on
+request. The efficiency filters the current over the speed at half a hertz and prints up to four
+digits. The link quality prints by its source, with the mode before it for Crossfire except in the
+second variant. The uplink power prints in milliwatts below a watt. The ESC temperature prints the
+sensor's combined reading or each motor's telemetry and stops at the text's thirty-one characters,
+where the reference writes past its buffer (F109). The ESC rotation elements walk the motors one row
+a render. The motor diagnostics scale each output into a bar and mark a stopped motor. A name prints
+in capitals, or its default with the profile's number when empty. A custom message prints as stored
+or its number. The serial text prints up to thirty-one characters or dashes. Settings, sensors and
+readings stay with the target. The graphics and the draw cycle come later.
 
-The harness replays six sequences of 500 renders recorded from the reference, each element
-under random fixes, positions, satellites, speeds, laps, links, logs, ESC telemetry, motor
-outputs, names, messages and texts, with the efficiency filter carried between renders.
-Every text, offset, severity, blink, flag and filter state of the 3006 lines replays byte
-for byte.
+The harness replays six sequences of 500 renders recorded from the reference, each element under
+random fixes, positions, satellites, speeds, laps, links, logs, ESC telemetry, motor outputs, names,
+messages and texts, with the efficiency filter kept between renders. Every text, offset, severity,
+blink, flag and filter state of the 3006 lines replays byte for byte.
 
 ## D105. OSD element renderers for graphics and the VTX channel (2026-10-12)
 
-The OSD render unit grows by the reference's graphics renderers, the VTX channel and the
-remaining backgrounds: artificial horizon, up and down reference, the left and right stick
-overlays, RC channels, VTX channel, and the horizon sidebar, camera frame and stick overlay
-backgrounds. The artificial horizon walks nine columns one a render, each bar character from
-the roll and pitch held to their limits and scaled, drawn only when its row falls on the
-ladder; the up and down reference marks the zenith or nadir from the attitude matrix's up
-row within twenty-five degrees, its offsets scaled from the small angles; the stick overlay
-places the cursor sprite from the radio mode's sticks and draws its cross one row a render;
-the RC channels print one channel a render scaled to thousandths; the VTX channel prints the
-band letter, channel name and power label from the table, the band and channel looked up
-from the frequency when the band is zero, the power from the transmitter while it limits
-power disarmed, dashes when locked, with the disable or pit mode mark. The horizon sidebars
-write their decorations row by row and then the level marks; the camera frame writes its
-top, its sides row by row and its bottom. A renderer's direct writes are one-character
-string writes with the blink bit while the element blinks. The reference prints the up and
-down reference's symbol as the low byte of its string's address (F110); adaflight prints the
-letter, a deviation declared in D6. Settings, sensors, sticks, tables and readings stay with
-the target; the draw cycle comes next.
+The OSD render unit grows by the graphics renderers, the VTX channel and the remaining backgrounds:
+artificial horizon, up and down reference, the left and right stick overlays, RC channels, VTX
+channel, and the horizon sidebar, camera frame and stick overlay backgrounds. The artificial horizon
+walks nine columns one a render, each bar character from the roll and pitch held to their limits and
+scaled, drawn only when its row falls on the ladder. The up and down reference marks the zenith or
+nadir from the attitude matrix's up row within twenty-five degrees, its offsets scaled from the
+small angles. The stick overlay places the cursor sprite from the radio mode's sticks and draws its
+cross one row a render. The RC channels print one channel a render scaled to thousandths. The VTX
+channel prints the band letter, channel name and power label from the table, the band and channel
+looked up from the frequency when the band is zero, the power from the transmitter while it limits
+power disarmed, dashes when locked, with the disable or pit mode mark. The horizon sidebars write
+their decorations row by row and then the level marks. The camera frame writes its top, its sides
+row by row and its bottom. A renderer's direct writes are one-character string writes with the blink
+bit while the element blinks. The reference prints the up and down reference's symbol as the low
+byte of its string's address (F110). Adaflight prints the letter, a deviation declared in D6.
+Settings, sensors, sticks, tables and readings stay with the target. The draw cycle comes next.
 
-The harness replays six sequences of 500 renders recorded from the reference, each element
-under random attitude, limits, sticks, radio modes, channel settings, frame sizes, tables,
-transmitter states and blink bits, with the rows walked between renders. Every text, offset,
-severity, flag and direct write of the 3006 lines replays byte for byte, the up and down
-reference's letters standing for the bytes the reference printed.
+The harness replays six sequences of 500 renders recorded from the reference, each element under
+random attitude, limits, sticks, radio modes, channel settings, frame sizes, tables, transmitter
+states and blink bits, with the rows walked between renders. Every text, offset, severity, flag and
+direct write of the 3006 lines replays byte for byte, the up and down reference's letters standing
+for the bytes the reference printed.
 
 ## D106. OSD warnings element (2026-10-12)
 
-The OSD render unit contains the reference's warnings element: the warnings line from the
-warnings unit (D95) with its severity, and the element's blink bit set while the line
-blinks and cleared otherwise. With the craft name messages on, a link quality message
-replaces the line while the blink is in its hidden half or the line is empty: the mode,
-quality and RSSI dBm for Crossfire, the quality and RSSI dBm for Ghost, else the quality
-scaled to one digit. The element then copies its first sixteen characters into the craft
-name, zero filled after a shorter text, and ends the name with a zero. The reference copies
-fifteen, so a text of fifteen characters or more leaves the name's sixteenth byte as it was
-(F111). The craft name buffer, the blink and the readings stay with the target.
+The OSD render unit contains the warnings element: the warnings line from the warnings unit (D95)
+with its severity, and the element's blink bit set while the line blinks and cleared otherwise. With
+the craft name messages on, a link quality message replaces the line while the blink is in its
+hidden half or the line is empty: the mode, quality and RSSI dBm for Crossfire, the quality and RSSI
+dBm for Ghost, else the quality scaled to one digit. The element then copies its first sixteen
+characters into the craft name, zero filled after a shorter text, and ends the name with a zero. The
+reference copies fifteen, so a text of fifteen characters or more leaves the name's sixteenth byte
+as it was (F111). The craft name buffer, the blink and the readings stay with the target.
 
-The harness replays six sequences of 500 steps recorded from the reference, the warnings
-scripted as for D95 with the craft name messages, link sources, qualities, modes, blink
-halves and stored names added. Every text, blink bit, severity, beeper flag and craft name
-byte of the 3006 lines replays byte for byte.
+The harness replays six sequences of 500 steps recorded from the reference, the warnings scripted as
+for D95 with the craft name messages, link sources, qualities, modes, blink halves and stored names
+added. Every text, blink bit, severity, beeper flag and craft name byte of the 3006 lines replays
+byte for byte.
 
 ## D107. OSD draw cycle (2026-10-12)
 
-The OSD draw unit contains the reference's element draw cycle. Each call takes the element on
-turn from the active list. Where the display has no background layer and the element has a
-background not yet drawn, the call draws the background; otherwise it draws the foreground and
-moves to the next element once the renderer reports the element complete, returning false after
-the last element and starting again at the first. A foreground draw is skipped for an element
-without a foreground, and for an element whose blink is in its hidden half unless the display
-blinks it itself. A system element goes to the display as a system write at its position, the
-warnings element renders through the warnings unit with the craft name messages, and every other
-element renders through the render unit with its variant, its blink bit taking the renderer's
-change. A render stores its text in the element buffer when it writes one, and the buffer keeps
-its old text otherwise, so renderer outputs gain a flag for whether they stored their text. The
-pending write goes to the display at the element's position plus its offsets, with its severity
-and the blink attribute while its blink bit is set, a background's before a foreground's; an
-empty buffer writes nothing. The background pass after an analysis selects and clears a
-background layer and draws every active element's background to completion into it, or asks a
-display without the layer to redraw its background; the pass writes the renderers' own
-characters and leaves text backgrounds pending (F112). The element on turn keeps its number
-across an analysis that shortens the list, and the bound checks restart the cycle. The display,
-active list, blink, settings and readings stay with the target, which carries out the operations
+The OSD draw unit contains the element draw cycle. Each call takes the element on turn from the
+active list. Where the display has no background layer and the element has a background not yet
+drawn, the call draws the background. Otherwise it draws the foreground and moves to the next
+element once the renderer reports the element complete, returning false after the last element and
+starting again at the first. A foreground draw is skipped for an element without a foreground, and
+for an element whose blink is in its hidden half unless the display blinks it itself. A system
+element goes to the display as a system write at its position. The warnings element renders through
+the warnings unit with the craft name messages. Every other element renders through the render unit
+with its variant, its blink bit taking the renderer's change. A render stores its text in the
+element buffer when it writes one, and the buffer keeps its old text otherwise, so renderer outputs
+gain a flag for whether they stored their text. The pending write goes to the display at the
+element's position plus its offsets, with its severity and the blink attribute while its blink bit
+is set, a background's before a foreground's. An empty buffer writes nothing. The background pass
+after an analysis selects and clears a background layer and draws every active element's background
+to completion into it, or asks a display without the layer to redraw its background. The pass writes
+the renderers' own characters and leaves text backgrounds pending (F112). The element on turn keeps
+its number across an analysis that shortens the list, and the bound checks restart the cycle. The
+display, active list, blink, settings and readings stay with the target, which runs the operations
 each call hands back.
 
-The harness replays six sequences recorded from the reference as the OSD task steps the cycle,
-one draw or display call at a time with readings rescripted between calls: eighteen elements
-visible at random positions and variants, an occasional re-analysis with new positions and
-sensors, and displays with and without a background layer and their own blink. Every return,
-pending flag, element number, blink bit, craft name byte and display operation of the 3612 lines
-replays byte for byte.
+The harness replays six sequences recorded from the reference as the OSD task steps the cycle, one
+draw or display call at a time with readings rescripted between calls: eighteen elements visible at
+random positions and variants, an occasional re-analysis with new positions and sensors, and
+displays with and without a background layer and their own blink. Every return, pending flag,
+element number, blink bit, craft name byte and display operation of the 3612 lines replays byte for
+byte.
 
 ## D108. OSD spec prearm screen (2026-10-12)
 
-The OSD spec unit contains the reference's spec prearm screen, drawn one row a call. The first
-row is the RPM limit: on with its value when the limit is set and the motors run bidirectional
-DShot, else off; with the limit on, the screen adds the motor's KV and pole count and the
-limit's three gains. The throttle limit follows with its kind and, unless off, its percentage,
-then the motor output limit, the pack voltage with two decimals and the battery symbol, and the
-version, after which the screen is complete and starts again. Each row is centred on the
-display's middle column; the first goes three rows above the middle row and each next row below
-the one before. The settings, readings and version stay with the target, which writes each row.
+The OSD spec unit contains the spec prearm screen, drawn one row a call. The first row is the RPM
+limit: on with its value when the limit is set and the motors run bidirectional DShot, else off.
+With the limit on, the screen adds the motor's KV and pole count and the limit's three gains. The
+throttle limit follows with its kind and, unless off, its percentage, then the motor output limit,
+the pack voltage with two decimals and the battery symbol, and the version, after which the screen
+is complete and starts again. Each row is centred on the display's middle column. The first goes
+three rows above the middle row and each next row below the one before. The settings, readings and
+version stay with the target, which writes each row.
 
 The harness replays six sequences of 600 calls recorded from the reference under random limits,
-motors, gains, batteries and display sizes. Every row's text, position and completion of the
-3606 lines replays byte for byte.
+motors, gains, batteries and display sizes. Every row's text, position and completion of the 3606
+lines replays byte for byte.
 
 ## D109. OSD task (2026-10-13)
 
