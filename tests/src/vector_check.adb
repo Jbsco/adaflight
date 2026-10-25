@@ -16517,6 +16517,8 @@ procedure Vector_Check is
       Id_Answers     : Byte_Array (0 .. 4) := (others => 0);
       Id_Attempt     : Natural := 0;
       Writes_Answer  : Boolean := True;
+      Coef_Refused   : Integer := -1;
+      Coef_Reads     : Natural := 0;
       Busy           : Boolean := False;
       Started        : Boolean := False;
       Last_Read      : Byte_Array (0 .. 5) := (others => 0);
@@ -16571,6 +16573,12 @@ procedure Vector_Check is
    procedure SB_Read (D : in out SB_Bus; Register : Byte; Data : in out Byte_Array; OK : out Boolean) is
    begin
       OK := SB_Responds (D);
+      if Register in 16#A0# .. 16#B3# then
+         if D.Coef_Reads = D.Coef_Refused then
+            OK := False;
+         end if;
+         D.Coef_Reads := D.Coef_Reads + 1;
+      end if;
       BMP_Op ("read," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Data'Length)) & "," &
               SB_Addr_Num (D) & "," & BMP_Num (Boolean'Pos (OK)));
       for I in Data'Range loop
@@ -16674,6 +16682,9 @@ procedure Vector_Check is
          SB_Device.Address := Byte (Int (4));
          SB_Device.Device_Address := Byte (Int (5));
          SB_Device.Writes_Answer := Int (6) /= 0;
+         if NF >= 9 then
+            SB_Device.Coef_Refused := Integer (Int (9));
+         end if;
          declare
             Ids : constant Byte_Array := Hex_Bytes (7);
             Coe : constant Byte_Array := Hex_Bytes (8);
