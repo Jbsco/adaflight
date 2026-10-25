@@ -2279,8 +2279,10 @@ half; an item blinks while its bit is set in the on half, and a reset clears eve
 The alarms set the bits each cycle: RSSI, RSSI dBm and link quality under their thresholds;
 battery voltage and cell voltage while the battery state is not OK; satellites without a fix,
 under four, or under the rescue's minimum when the rescue is configured; each timer whose
-source has reached its alarm minutes, taken times sixty million in thirty-two bits, which
-wraps past seventy-one minutes (F107); charge drawn and remaining time estimate at the
+source has reached its alarm minutes, taken times sixty million in sixty-four bits, so an alarm
+the thirty-two-bit timer cannot reach never fires, where the reference's thirty-two-bit product
+wraps past seventy-one minutes and fires almost at once (F107); charge drawn and remaining time
+estimate at the
 capacity alarm; battery usage at the capacity alarm, or on a low battery without one;
 altitude at its alarm while armed; home distance at its alarm while armed with a home fix;
 and ESC temperature at its alarm from the ESC sensor's combined reading, or from the first

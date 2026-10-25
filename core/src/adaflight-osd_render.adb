@@ -2,6 +2,7 @@ with Adaflight.Maths;
 
 package body Adaflight.OSD_Render with SPARK_Mode is
    use type Interfaces.Integer_64;
+   use type Interfaces.Unsigned_64;
    use Adaflight.OSD_Format;
    use all type Adaflight.OSD_Warnings.Severity;
    use all type Adaflight.Battery.Battery_State;
@@ -376,9 +377,10 @@ package body Adaflight.OSD_Render with SPARK_Mode is
          declare
             Timer      : constant Unsigned_16 := C.Timers (T);
             Time       : constant Unsigned_32 := Timer_Value (Timer_Source_Of (Timer), Inp.Clocks);
-            Alarm_Time : constant Unsigned_32 := Unsigned_32 (Timer_Alarm_Of (Timer)) * 60_000_000;
+            Alarm_Time : constant Interfaces.Unsigned_64 :=
+              Interfaces.Unsigned_64 (Timer_Alarm_Of (Timer)) * 60_000_000;
          begin
-            if Alarm_Time /= 0 and then Time >= Alarm_Time then
+            if Alarm_Time /= 0 and then Interfaces.Unsigned_64 (Time) >= Alarm_Time then
                O.Attr := Critical;
             end if;
          end;
