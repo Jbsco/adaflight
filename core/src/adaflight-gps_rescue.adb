@@ -112,7 +112,7 @@ package body Adaflight.GPS_Rescue with SPARK_Mode is
       end if;
       S.Sense.Distance_To_Home_Cm := Length_Of (S.Sense.Current_Position);
       S.Sense.Current_Speed_Cms := Length_Of (S.Sense.Current_Velocity);
-      S.Sense.Aircraft_Heading_Deg := Float (Inp.Yaw / 10);
+      S.Sense.Aircraft_Heading_Deg := Float (Inp.Yaw) / 10.0;
       if S.Sense.Distance_To_Home_Cm > Accept_Radius_Cm then
          declare
             Rad : constant Float range -4.0 .. 4.0 :=
@@ -362,7 +362,7 @@ package body Adaflight.GPS_Rescue with SPARK_Mode is
          end case;
       end if;
       S.Want.Target_Altitude_Cm := Current;
-      Position_Control.Set_Yaw_Target (Position, Float (Inp.Yaw / 10));
+      Position_Control.Set_Yaw_Target (Position, Float (Inp.Yaw) / 10.0);
       S.Want.Target_Altitude_Vel := 0.0;
       S.Want.Yaw_Attenuator := 0.0;
       S.Want.XY_Start_Attenuator := 0.0;
