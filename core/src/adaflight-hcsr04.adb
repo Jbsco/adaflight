@@ -10,10 +10,6 @@ package body Adaflight.HCSR04 with SPARK_Mode is
    Us_Per_Cm_Twice    : constant := 59;
    Attempts           : constant := 5;
 
-   function To_I32 (U : U32) return I32 is
-     (if U < 2 ** 31 then I32 (U) else I32 (U - 2 ** 31) - 2_147_483_647 - 1)
-     with Global => null;
-
    procedure Fire (D : in out Pin_Device; C : Config) is
    begin
       Pin_High (D, C.Trigger_Tag);
@@ -75,13 +71,13 @@ package body Adaflight.HCSR04 with SPARK_Mode is
       end if;
    end Detect;
 
-   procedure Echo_Edge (S : in out State; High : Boolean; Now_Us : Interfaces.Unsigned_32) is
+   procedure Echo_Edge (D : in out Pin_Device; S : in out State; High : Boolean; Now_Us : Interfaces.Unsigned_32) is
    begin
       if High then
          S.Timing_Start_Us := Now_Us;
-      elsif Now_Us > S.Timing_Start_Us then
-         S.Received_Ms := Now_Us / 1000;
-         S.Travel_Us := To_I32 (Now_Us - S.Timing_Start_Us);
+      elsif Now_Us > S.Timing_Start_Us and then Now_Us - S.Timing_Start_Us <= 2 ** 31 - 1 then
+         Millis (D, S.Received_Ms);
+         S.Travel_Us := I32 (Now_Us - S.Timing_Start_Us);
       end if;
    end Echo_Edge;
 

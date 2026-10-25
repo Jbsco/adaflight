@@ -8134,15 +8134,15 @@ the echo pin up as an input and, when the echo pin reads low, fires up to five 1
 60 ms of polling the echo pin for a high level by the millisecond clock. A sensor that answers gets the echo pin's
 interrupt on both edges and gives the task a 100 ms period, a 4 m range, a 30 degree cone and a 45 degree extended
 cone; one that does not gets both pins released. The echo interrupt keeps the microsecond time of a rising edge and, at
-a falling edge later than it, the travel time as a signed 32-bit difference and the millisecond the echo ended, its
-microsecond time over 1000. An update that finds the echo ended after the last trigger and within 60 ms of it gives the
-distance as the travel time over 59, out of range past 4 m and negative for a travel time past 2^31 us; one that finds
-the echo more than 60 ms after the trigger, or before it by the 32-bit wrap, gives a hardware failure; one that finds
-it in the trigger's millisecond leaves the reading. An update more than 60 ms after the last trigger fires the next
-pulse. A read gives the reading once, then no new data. The echo's millisecond comes from the microsecond clock, which
-wraps after 71.6 min of uptime while the millisecond clock runs on, so every reading after that is a hardware failure
-(finding F273); this unit keeps that. The reference keeps its state in static variables; this unit keeps it per device,
-which behaves the same with one sensor. The unit is SPARK for the travel time conversion and the division.
+a falling edge later than it by less than 2^31 us, the travel time and the millisecond clock's reading. An update that
+finds the echo ended after the last trigger and within 60 ms of it gives the distance as the travel time over 59, out
+of range past 4 m; one that finds the echo more than 60 ms after the trigger, or before it, gives a hardware failure;
+one that finds it in the trigger's millisecond leaves the reading. An update more than 60 ms after the last trigger
+fires the next pulse. A read gives the reading once, then no new data. The reference stamps the echo with the
+microsecond clock over 1000, which wraps after 71.6 min of uptime while the millisecond clock runs on, so every reading
+after that is a hardware failure, and it keeps a falling edge more than 2^31 us after its rise as a negative travel
+time and a negative distance (finding F273, D6). The reference keeps its state in static variables; this unit keeps it
+per device, which behaves the same with one sensor. The unit is SPARK for the travel time conversion and the division.
 
 The HC-SR04 oracle includes the reference driver without its unit test guard, so its echo interrupt handler and trigger
 pulse are built, over stubbed pins, interrupt setup, delays and both clocks, one case per process since the driver keeps
