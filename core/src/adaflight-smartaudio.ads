@@ -77,10 +77,7 @@ package Adaflight.SmartAudio with SPARK_Mode is
       Sent, Received, Bad_Preamble, Bad_Length, Crc_Errors, Out_Of_Order, Bad_Code : Unsigned_16 := 0;
    end record;
 
-   --  The frame each queued command is sent from; a later request of the
-   --  same kind replaces the bytes before they go out.
-   type Frame_Kind is (Get_Settings, Set_Freq, Set_Freq_Switch, Set_Mode, Set_Channel, Set_Power, Set_Power_Pit);
-
+   --  The frames of the queued commands, each with its own bytes.
    Max_Frame : constant := 7;
    subtype Frame_Length is Natural range 0 .. Max_Frame;
    subtype Frame_Bytes is Byte_Array (0 .. Max_Frame - 1);
@@ -90,11 +87,9 @@ package Adaflight.SmartAudio with SPARK_Mode is
       Length : Frame_Length := 0;
    end record;
 
-   type Frame_Buffers is array (Frame_Kind) of Frame;
-
    Queue_Size : constant := 6;
    subtype Queue_Index is Natural range 0 .. Queue_Size - 1;
-   type Queue is array (Queue_Index) of Frame_Kind;
+   type Queue is array (Queue_Index) of Frame;
 
    type Receive_Phase is (Wait_Preamble_1, Wait_Preamble_2, Wait_Code, Wait_Length, Payload, Wait_Crc);
 
@@ -131,8 +126,7 @@ package Adaflight.SmartAudio with SPARK_Mode is
       Last_Tx_Ms       : Unsigned_32 := 0;
       Outstanding      : Unsigned_8 := Cmd_None;
       Outstanding_Frame : Frame;
-      Buffers          : Frame_Buffers;
-      Pending          : Queue := (others => Get_Settings);
+      Pending          : Queue := (others => <>);
       Head, Tail       : Queue_Index := 0;
       Phase            : Receive_Phase := Wait_Preamble_1;
       Rx_Length        : Receive_Length := 0;
