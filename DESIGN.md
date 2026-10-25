@@ -7070,9 +7070,10 @@ start with 471. A keep-alive succeeds on the command error reply. A restart mark
 the run command. An erase, read, write or verify first sets the address unless it is 16#FFFF#. A write or verify
 then sets the buffer, which must draw no reply, sends the data and waits for its acknowledgement. Erases and
 EEPROM writes wait up to 1500 tries of 2 ms, flash writes 250, and a verify returns the bootloader's reply byte
-for the interface to judge. Every wait compares the clock with an absolute deadline, so a byte across the 32-bit
-wrap of the microsecond clock loses its timing (F249). The unit is SPARK for the 256-byte buffers, the bit
-counts and the CRC.
+for the interface to judge. Every bit wait ends when the signed difference of the clock and its deadline turns
+non-negative, so a byte across the 32-bit wrap of the microsecond clock keeps its timing, where the reference
+compares the clock with the absolute deadline and loses it (F249). The unit is SPARK for the 256-byte buffers,
+the bit counts and the CRC.
 
 The bootloader oracle includes the reference protocol with the pins and clocks over a simulated 64-bit
 microsecond clock that every clock read, pin read and pin write advances by one. A scripted ESC answers each turn
@@ -7080,8 +7081,7 @@ of the pin to an input with framed bytes after a gap, at bit times from 44 to 60
 bits, missing and short replies, bad checks and wrong acknowledgements. The harness runs the port over the same
 simulation. The code, device information, read buffer, sent bytes, write count, hash of every write with its time
 and end clock of all 540 operations replay exactly, among them 60 keep-alive exchanges stepped across the clock
-wrap. Of 30 tampered paths, 29 fail the vectors and one stops the harness: a wait for the clock to pass its
-deadline never ends when the deadline is the clock's last value.
+wrap. The absolute deadline comparison, put back in place, fails the vectors at the exchanges across the wrap.
 
 ## D316. STK500v2 bootloader protocol (2026-10-17)
 
