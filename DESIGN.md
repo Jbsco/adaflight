@@ -8527,8 +8527,9 @@ for every kind but the first, the capacity class, the block count from the capac
 identification for the metadata, whose production year is 2000 plus the eight bits of the date's year field above the
 month, where the reference ORs the field's two nibbles onto each other and gives at most 2015 (finding F278, D6). A read
 starts a one block transfer and the poll takes the block when the transfer ends with the card ready, within 100 ms; past
-that, or when the card reports an error, the poll repeats until the card answers, without a reset (F278), and the port
-stops after 64 repeats, which the vectors never reach. A write starts the transfer, the poll calls the completion when
+that, or when the card reports an error, the poll resets the card and reports the failure through the completion, where
+the reference repeats the poll until the card answers, without a reset or a completion (finding F278, D6), and the
+port's passes stop at 64, which the vectors never reach. A write starts the transfer, the poll calls the completion when
 the transfer ends and waits for the card to leave busy within 250 ms. With the write cache, the blocks of a run collect
 in a cache of 16 and go to the card in one transfer when the cache fills or the run ends, each cached block answered
 success without a completion and the run's count and next block advanced; a run started from the ready state keeps the
@@ -8538,10 +8539,10 @@ a new initialization and counts the failure, up to eight in a row or a missing c
 and otherwise returns the card to the reset state with the time, whether the controller accepted or not. The reference
 counts only a refused initialization and leaves the state as it was after an accepted one, which on its controllers runs
 once and repeats its first answer, so a card that failed an operation stays in the state that failed (finding F278, D6).
-An initialization past a second starts over. A refused read reports the failure through the previous operation's
-completion (F278). An operation the controller refuses answers a failure; one in the wrong state answers busy. A card
-whose mode is off takes no operation. The unit is SPARK, with the poll's repeats, the cache count and the cache slices
-bounded.
+An initialization past a second starts over. A refused read resets the card and reports the failure through the
+completion of the read asked for, where the reference reports it through the previous operation's (finding F278, D6). An
+operation the controller refuses answers a failure; one in the wrong state answers busy. A card whose mode is off takes
+no operation. The unit is SPARK, with the poll's repeats, the cache count and the cache slices bounded.
 
 The SDIO card oracle includes the reference driver and its dispatch over a stubbed controller: an initialization
 answering every call with one drawn result, refused in 10 percent of the cases, a card ready after a drawn number of
