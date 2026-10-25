@@ -46,3 +46,4 @@ Each document describes a Betaflight bug that adaflight fixes: the Betaflight ve
 - [XBUS Mode B frames fall through into the RJ01 unpacker](xbus-mode-b-fall-through.md)
 - [VTX stick commands step the band and channel past the table](vtx-stick-step-bounds.md)
 - [VTX power cycle never reaches the highest level](vtx-power-cycle-top.md)
+- [Tramp temperature reply leaves the driver in the temperature state](tramp-temperature-state.md)
