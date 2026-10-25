@@ -304,6 +304,8 @@ b3op,3,csconfig
 b3op,3,spidivider,10000000
 b3op,3,spiclock,10
 b3op,3,read,0,2,0,0
+b3op,3,iorelease,eoc
+b3op,3,extirelease
 b3op,3,cspreinit,1
 b3det,3,0,0,0,0,0
 b3init,4,0,119,118,80,0,2,177,0,d670f148f5450355f82500055f0777f5f87e3e13c2
@@ -1477,6 +1479,8 @@ b3op,17,extihandler
 b3op,17,exticonfig,1
 b3op,17,extienable
 b3op,17,read,0,1,118,0
+b3op,17,iorelease,eoc
+b3op,17,extirelease
 b3det,17,0,0,0,0,0
 b3init,18,0,118,0,80,0,1,131,0,476be845f55d039af725fef264dd7cf5f7434215c9
 b3op,18,delay,20
@@ -2074,6 +2078,8 @@ b3op,24,extihandler
 b3op,24,exticonfig,1
 b3op,24,extienable
 b3op,24,read,0,1,118,0
+b3op,24,iorelease,eoc
+b3op,24,extirelease
 b3det,24,0,118,0,0,0
 b3init,25,0,0,119,96,1,2,235,0,1e6af047f5650307f81f00af5a5e7bf4f5083e18c9
 b3op,25,delay,20
@@ -2082,6 +2088,8 @@ b3op,25,extihandler
 b3op,25,exticonfig,1
 b3op,25,extienable
 b3op,25,read,0,1,118,0
+b3op,25,iorelease,eoc
+b3op,25,extirelease
 b3det,25,0,0,0,0,0
 b3init,26,0,0,118,80,0,0,2,322979904,0866d849f8a403c6f725fe5062b47bf4f7e13d18c0
 b3op,26,delay,20
@@ -2383,6 +2391,8 @@ b3op,30,extihandler
 b3op,30,exticonfig,1
 b3op,30,extienable
 b3op,30,read,0,1,118,1
+b3op,30,iorelease,eoc
+b3op,30,extirelease
 b3det,30,0,0,0,0,0
 b3init,31,0,0,118,80,1,1,5,0,fd698548f46603e8f72400255d7879f2f5364312bf
 b3op,31,delay,20
@@ -2671,6 +2681,8 @@ b3op,33,extihandler
 b3op,33,exticonfig,1
 b3op,33,extienable
 b3op,33,read,0,1,118,0
+b3op,33,iorelease,eoc
+b3op,33,extirelease
 b3det,33,0,0,0,0,0
 b3init,34,1,0,118,80,1,3,255,0,3481f87ebf7199270d88e2a67c8f69f03ab2ef0c9f
 b3op,34,delay,20
@@ -3682,6 +3694,8 @@ b3op,46,extihandler
 b3op,46,exticonfig,1
 b3op,46,extienable
 b3op,46,read,0,1,119,0
+b3op,46,iorelease,eoc
+b3op,46,extirelease
 b3det,46,0,119,0,0,0
 b3init,47,0,0,0,96,1,2,10,0,4b6d884bf44303b6f72702685dfd7af1f4e74013c3
 b3op,47,delay,20
@@ -3690,6 +3704,8 @@ b3op,47,extihandler
 b3op,47,exticonfig,1
 b3op,47,extienable
 b3op,47,read,0,1,118,0
+b3op,47,iorelease,eoc
+b3op,47,extirelease
 b3det,47,0,0,0,0,0
 b3init,48,0,119,118,196,1,3,253,0,06157bd958e62af8e522c331faef81f722f2e5b454
 b3op,48,delay,20
@@ -3698,6 +3714,8 @@ b3op,48,extihandler
 b3op,48,exticonfig,1
 b3op,48,extienable
 b3op,48,read,0,1,119,0
+b3op,48,iorelease,eoc
+b3op,48,extirelease
 b3det,48,0,119,0,0,0
 b3init,49,0,119,119,96,0,3,193,0,f86bf8b941f19f1cc1e906673c4a67c9b00eecc591
 b3op,49,delay,20
@@ -6579,6 +6597,8 @@ b3op,75,extihandler
 b3op,75,exticonfig,1
 b3op,75,extienable
 b3op,75,read,0,1,119,0
+b3op,75,iorelease,eoc
+b3op,75,extirelease
 b3det,75,0,119,0,0,0
 b3init,76,0,118,119,66,0,3,199,0,e6702c4af5980307f827ff4d5dee6ff4f7193f15c2
 b3op,76,delay,20
@@ -6729,6 +6749,8 @@ b3op,78,extihandler
 b3op,78,exticonfig,1
 b3op,78,extienable
 b3op,78,read,0,1,118,1
+b3op,78,iorelease,eoc
+b3op,78,extirelease
 b3det,78,0,118,0,0,0
 b3init,79,0,118,118,80,0,1,113,266249,7f67b444f8890328f82402de5ddf71f1f7733f15c0
 b3op,79,delay,20
@@ -6887,6 +6909,8 @@ b3op,83,extihandler
 b3op,83,exticonfig,1
 b3op,83,extienable
 b3op,83,read,0,1,118,1
+b3op,83,iorelease,eoc
+b3op,83,extirelease
 b3det,83,0,0,0,0,0
 b3init,84,0,118,118,80,0,3,66,4194354,f971cf47f5720313f82001725aef79f2f5203f13c2
 b3op,84,delay,20
@@ -7186,6 +7210,8 @@ b3op,86,extihandler
 b3op,86,exticonfig,1
 b3op,86,extienable
 b3op,86,read,0,1,118,1
+b3op,86,iorelease,eoc
+b3op,86,extirelease
 b3det,86,0,0,0,0,0
 b3init,87,1,0,0,33,0,0,118,1076913308,236be149f77a03d1f71fffb8625379f2f4754317bf
 b3op,87,delay,20
@@ -8055,6 +8081,8 @@ b3op,94,extihandler
 b3op,94,exticonfig,1
 b3op,94,extienable
 b3op,94,read,0,1,118,0
+b3op,94,iorelease,eoc
+b3op,94,extirelease
 b3det,94,0,0,0,0,0
 b3init,95,0,119,119,80,0,2,133,405801120,a03ce98ccd29ac4f3bd3cd55e2bf3949c7dd1095fb
 b3op,95,delay,20
@@ -8345,6 +8373,8 @@ b3op,98,extihandler
 b3op,98,exticonfig,1
 b3op,98,extienable
 b3op,98,read,0,1,119,0
+b3op,98,iorelease,eoc
+b3op,98,extirelease
 b3det,98,0,119,0,0,0
 b3init,99,1,0,118,80,1,2,227,0,68727647f49403c2f726fe9462517cf1f7203e18c9
 b3op,99,delay,20
@@ -8802,6 +8832,8 @@ b3op,105,extihandler
 b3op,105,exticonfig,1
 b3op,105,extienable
 b3op,105,read,0,1,119,0
+b3op,105,iorelease,eoc
+b3op,105,extirelease
 b3det,105,0,119,0,0,0
 b3init,106,1,0,118,80,0,3,61,0,3e51cf220ed122f8e14dc44c2061d175dba46b398d
 b3op,106,delay,20
@@ -8957,6 +8989,8 @@ b3op,107,csconfig
 b3op,107,spidivider,10000000
 b3op,107,spiclock,10
 b3op,107,read,0,2,0,1
+b3op,107,iorelease,eoc
+b3op,107,extirelease
 b3op,107,cspreinit,1
 b3det,107,0,0,0,0,0
 b3init,108,1,0,0,80,0,2,201,0,3f66ad4af57c036df82402da5f7a75f5f5e24213c2
@@ -9112,6 +9146,8 @@ b3op,109,extihandler
 b3op,109,exticonfig,1
 b3op,109,extienable
 b3op,109,read,0,1,118,0
+b3op,109,iorelease,eoc
+b3op,109,extirelease
 b3det,109,0,0,0,0,0
 b3init,110,0,118,118,96,0,0,0,3158330467,f21f1851f27218388ae3ab2f768102aa0a8d419e29
 b3op,110,delay,20
@@ -9276,6 +9312,8 @@ b3op,112,extihandler
 b3op,112,exticonfig,1
 b3op,112,extienable
 b3op,112,read,0,1,118,1
+b3op,112,iorelease,eoc
+b3op,112,extirelease
 b3det,112,0,0,0,0,0
 b3init,113,1,0,118,80,0,2,154,0,096ebb45f77d0399f82101a0601576f4f6de4217c8
 b3op,113,delay,20
@@ -9429,6 +9467,8 @@ b3op,115,extihandler
 b3op,115,exticonfig,1
 b3op,115,extienable
 b3op,115,read,0,1,118,0
+b3op,115,iorelease,eoc
+b3op,115,extirelease
 b3det,115,0,0,0,0,0
 b3init,116,1,0,118,80,0,1,145,0,58666c45f761037af82101e85e0e7bf3f63b4218c6
 b3op,116,delay,20
@@ -9884,6 +9924,8 @@ b3op,119,extihandler
 b3op,119,exticonfig,1
 b3op,119,extienable
 b3op,119,read,0,1,119,0
+b3op,119,iorelease,eoc
+b3op,119,extirelease
 b3det,119,0,119,0,0,0
 b3init,120,0,0,119,80,1,3,241,0,2169a34bf7a603aef723006461e570f4f7064218c0
 b3op,120,delay,20
@@ -9892,6 +9934,8 @@ b3op,120,extihandler
 b3op,120,exticonfig,1
 b3op,120,extienable
 b3op,120,read,0,1,118,0
+b3op,120,iorelease,eoc
+b3op,120,extirelease
 b3det,120,0,0,0,0,0
 b3init,121,0,119,118,80,1,3,216,0,8b6f5944f59b036bf82200425ac47cf5f7a94414c9
 b3op,121,delay,20
@@ -9900,6 +9944,8 @@ b3op,121,extihandler
 b3op,121,exticonfig,1
 b3op,121,extienable
 b3op,121,read,0,1,119,0
+b3op,121,iorelease,eoc
+b3op,121,extirelease
 b3det,121,0,119,0,0,0
 b3init,122,0,0,118,96,0,1,70,0,5e6a7947f75303f4f72602185fd676f5f5324313bf
 b3op,122,delay,20
@@ -10057,6 +10103,8 @@ b3op,125,extihandler
 b3op,125,exticonfig,1
 b3op,125,extienable
 b3op,125,read,0,1,118,0
+b3op,125,iorelease,eoc
+b3op,125,extirelease
 b3det,125,0,0,0,0,0
 b3init,126,0,119,118,80,0,0,192,0,be72d04bf73e03d7f720023d61af72f3f7553f14c5
 b3op,126,delay,20
@@ -10500,6 +10548,8 @@ b3op,132,extihandler
 b3op,132,exticonfig,1
 b3op,132,extienable
 b3op,132,read,0,1,119,0
+b3op,132,iorelease,eoc
+b3op,132,extirelease
 b3det,132,0,119,0,0,0
 b3init,133,1,0,118,80,1,2,180,0,1566d74bf46e030cf8220132630279f3f82e3d17c5
 b3op,133,delay,20
@@ -11221,6 +11271,8 @@ b3op,142,extihandler
 b3op,142,exticonfig,1
 b3op,142,extienable
 b3op,142,read,0,1,118,0
+b3op,142,iorelease,eoc
+b3op,142,extirelease
 b3det,142,0,118,0,0,0
 b3init,143,0,0,119,162,0,1,245,671358984,846a7946f590034af822ff335e097ef4f84b4413c1
 b3op,143,delay,20
@@ -11663,6 +11715,8 @@ b3op,148,extihandler
 b3op,148,exticonfig,1
 b3op,148,extienable
 b3op,148,read,0,1,119,0
+b3op,148,iorelease,eoc
+b3op,148,extirelease
 b3det,148,0,119,0,0,0
 b3init,149,0,119,119,96,1,2,80,1410632774,fe6c0d47f550034af823ffe159d577f5f8c03e15c2
 b3op,149,delay,20
@@ -12135,6 +12189,8 @@ b3op,155,extihandler
 b3op,155,exticonfig,1
 b3op,155,extienable
 b3op,155,read,0,1,119,0
+b3op,155,iorelease,eoc
+b3op,155,extirelease
 b3det,155,0,119,0,0,0
 b3init,156,0,0,119,96,0,2,6,0,4f6a3848f5830362f82100ad5f3877f2f7454214c7
 b3op,156,delay,20
@@ -13292,6 +13348,8 @@ b3op,165,extihandler
 b3op,165,exticonfig,1
 b3op,165,extienable
 b3op,165,read,0,1,118,1
+b3op,165,iorelease,eoc
+b3op,165,extirelease
 b3det,165,0,0,0,0,0
 b3init,166,0,0,119,96,1,2,81,0,a0171df0814338ee7e5cb2aee8fc3c3493a6ecc738
 b3op,166,delay,20
@@ -13300,6 +13358,8 @@ b3op,166,extihandler
 b3op,166,exticonfig,1
 b3op,166,extienable
 b3op,166,read,0,1,118,0
+b3op,166,iorelease,eoc
+b3op,166,extirelease
 b3det,166,0,0,0,0,0
 b3init,167,0,0,119,80,0,2,246,2316579584,4b71c84cf68b033bf820015c643b77f2f56d3f18c2
 b3op,167,delay,20
@@ -13312,6 +13372,8 @@ b3op,168,extihandler
 b3op,168,exticonfig,1
 b3op,168,extienable
 b3op,168,read,0,1,118,1
+b3op,168,iorelease,eoc
+b3op,168,extirelease
 b3det,168,0,0,0,0,0
 b3init,169,0,0,118,80,0,3,105,0,636c6d45f53603b4f722fea95a7077f5f52e4317bf
 b3op,169,delay,20
@@ -13453,6 +13515,8 @@ b3op,170,extihandler
 b3op,170,exticonfig,1
 b3op,170,extienable
 b3op,170,read,0,1,119,0
+b3op,170,iorelease,eoc
+b3op,170,extirelease
 b3det,170,0,119,0,0,0
 b3init,171,1,0,118,126,1,2,162,0,7ac0d8c1fea973c6dc50312216a6d91fe420e4284e
 b3op,171,delay,20
@@ -13466,6 +13530,8 @@ b3op,171,csconfig
 b3op,171,spidivider,10000000
 b3op,171,spiclock,10
 b3op,171,read,0,2,0,1
+b3op,171,iorelease,eoc
+b3op,171,extirelease
 b3op,171,cspreinit,1
 b3det,171,0,0,0,0,0
 b3init,172,0,0,118,163,0,2,151,0,196c374cf6840372f824feae623779f5f5804114c8
@@ -14204,6 +14270,8 @@ b3op,184,extihandler
 b3op,184,exticonfig,1
 b3op,184,extienable
 b3op,184,read,0,1,118,0
+b3op,184,iorelease,eoc
+b3op,184,extirelease
 b3det,184,0,0,0,0,0
 b3init,185,1,0,118,80,0,3,89,0,2b67154bf468037df8270298635970f5f7214414c7
 b3op,185,delay,20
@@ -14354,6 +14422,8 @@ b3op,186,extihandler
 b3op,186,exticonfig,1
 b3op,186,extienable
 b3op,186,read,0,1,118,0
+b3op,186,iorelease,eoc
+b3op,186,extirelease
 b3det,186,0,0,0,0,0
 b3init,187,1,0,0,96,1,3,142,0,3a11498ad84b044e9fbbf4e9e097be4b024730dcc3
 b3op,187,delay,20
@@ -14957,6 +15027,8 @@ b3op,192,extihandler
 b3op,192,exticonfig,1
 b3op,192,extienable
 b3op,192,read,0,1,118,1
+b3op,192,iorelease,eoc
+b3op,192,extirelease
 b3det,192,0,0,0,0,0
 b3init,193,0,0,118,236,1,2,216,2434924556,1b6a754cf4580327f82302af60f974f2f4974017c8
 b3op,193,delay,20
@@ -14965,6 +15037,8 @@ b3op,193,extihandler
 b3op,193,exticonfig,1
 b3op,193,extienable
 b3op,193,read,0,1,118,1
+b3op,193,iorelease,eoc
+b3op,193,extirelease
 b3det,193,0,0,0,0,0
 b3init,194,0,0,118,235,0,0,224,0,396f724bf8910364f826012b5c7c78f1f4f64313bf
 b3op,194,delay,20
@@ -14977,6 +15051,8 @@ b3op,195,extihandler
 b3op,195,exticonfig,1
 b3op,195,extienable
 b3op,195,read,0,1,118,1
+b3op,195,iorelease,eoc
+b3op,195,extirelease
 b3det,195,0,0,0,0,0
 b3init,196,0,118,118,165,0,3,235,0,16dd14e7e22f5a421c524438d8c44e5cccc241b76e
 b3op,196,delay,20
@@ -15713,6 +15789,8 @@ b3op,202,csconfig
 b3op,202,spidivider,10000000
 b3op,202,spiclock,10
 b3op,202,read,0,2,0,1
+b3op,202,iorelease,eoc
+b3op,202,extirelease
 b3op,202,cspreinit,1
 b3det,202,0,0,0,0,0
 b3init,203,1,0,119,96,1,0,133,1092879936,5d68c94bf7470357f826ff915c367ef5f7d33e18c1
@@ -16578,6 +16656,8 @@ b3op,210,extihandler
 b3op,210,exticonfig,1
 b3op,210,extienable
 b3op,210,read,0,1,118,1
+b3op,210,iorelease,eoc
+b3op,210,extirelease
 b3det,210,0,118,0,0,0
 b3init,211,0,0,118,96,0,3,84,1120993675,1b6f314af674037ff8220058631074f5f6ea3f13bf
 b3op,211,delay,20
@@ -16590,6 +16670,8 @@ b3op,212,extihandler
 b3op,212,exticonfig,1
 b3op,212,extienable
 b3op,212,read,0,1,118,0
+b3op,212,iorelease,eoc
+b3op,212,extirelease
 b3det,212,0,0,0,0,0
 b3init,213,0,118,119,80,1,3,181,0,f0701b47f63f038bf82301765a1970f2f8ea4015c9
 b3op,213,delay,20
@@ -16598,6 +16680,8 @@ b3op,213,extihandler
 b3op,213,exticonfig,1
 b3op,213,extienable
 b3op,213,read,0,1,118,0
+b3op,213,iorelease,eoc
+b3op,213,extirelease
 b3det,213,0,118,0,0,0
 b3init,214,0,118,118,234,0,0,68,0,ce65254df69103adf72501175b047ef4f7bd3f13c4
 b3op,214,delay,20
@@ -16879,6 +16963,8 @@ b3op,217,extihandler
 b3op,217,exticonfig,1
 b3op,217,extienable
 b3op,217,read,0,1,118,0
+b3op,217,iorelease,eoc
+b3op,217,extirelease
 b3det,217,0,0,0,0,0
 b3init,218,0,0,118,80,0,1,230,0,d46da14cf463035bf82102c8626276f2f4594017c9
 b3op,218,delay,20
@@ -17319,6 +17405,8 @@ b3op,221,extihandler
 b3op,221,exticonfig,1
 b3op,221,extienable
 b3op,221,read,0,1,118,0
+b3op,221,iorelease,eoc
+b3op,221,extirelease
 b3det,221,0,118,0,0,0
 b3init,222,0,118,0,96,1,1,204,0,ee6c4c46f4960386f825ff3b5d0e7ef4f6e33e18c4
 b3op,222,delay,20
@@ -17327,6 +17415,8 @@ b3op,222,extihandler
 b3op,222,exticonfig,1
 b3op,222,extienable
 b3op,222,read,0,1,118,0
+b3op,222,iorelease,eoc
+b3op,222,extirelease
 b3det,222,0,118,0,0,0
 b3init,223,1,0,118,212,1,3,102,0,dc65fc4af77703a2f720004a63597bf3f5b24116c9
 b3op,223,delay,20
@@ -17340,6 +17430,8 @@ b3op,223,csconfig
 b3op,223,spidivider,10000000
 b3op,223,spiclock,10
 b3op,223,read,0,2,0,1
+b3op,223,iorelease,eoc
+b3op,223,extirelease
 b3op,223,cspreinit,1
 b3det,223,0,0,0,0,0
 b3init,224,0,0,118,5,0,1,104,0,c76ebe45f68c036df81fff585dbe71f2f81a4418c6
@@ -17764,6 +17856,8 @@ b3op,228,extihandler
 b3op,228,exticonfig,1
 b3op,228,extienable
 b3op,228,read,0,1,118,0
+b3op,228,iorelease,eoc
+b3op,228,extirelease
 b3det,228,0,118,0,0,0
 b3init,229,0,0,118,96,0,2,195,0,0699159355b77dc7e743d7b728fa78d02581e32c6a
 b3op,229,delay,20
@@ -18044,6 +18138,8 @@ b3op,231,csconfig
 b3op,231,spidivider,10000000
 b3op,231,spiclock,10
 b3op,231,read,0,2,0,1
+b3op,231,iorelease,eoc
+b3op,231,extirelease
 b3op,231,cspreinit,1
 b3det,231,0,0,0,0,0
 b3init,232,0,0,0,80,1,1,18,0,8f717d44f46f0352f81f0287605876f3f6d93f14c2
@@ -18053,6 +18149,8 @@ b3op,232,extihandler
 b3op,232,exticonfig,1
 b3op,232,extienable
 b3op,232,read,0,1,118,0
+b3op,232,iorelease,eoc
+b3op,232,extirelease
 b3det,232,0,0,0,0,0
 b3init,233,0,119,118,80,0,2,60,0,93705845f49d0373f82000fa5c5471f2f60a3d18c5
 b3op,233,delay,20
@@ -18065,6 +18163,8 @@ b3op,234,extihandler
 b3op,234,exticonfig,1
 b3op,234,extienable
 b3op,234,read,0,1,119,0
+b3op,234,iorelease,eoc
+b3op,234,extirelease
 b3det,234,0,119,0,0,0
 b3init,235,0,119,119,136,0,1,9,0,45529aa26596702fbae846dc0527eb17f641d5cdd6
 b3op,235,delay,20
@@ -18230,6 +18330,8 @@ b3op,237,extihandler
 b3op,237,exticonfig,1
 b3op,237,extienable
 b3op,237,read,0,1,118,1
+b3op,237,iorelease,eoc
+b3op,237,extirelease
 b3det,237,0,0,0,0,0
 b3init,238,1,0,118,96,0,2,72,0,72afb82bc26728e7e9a54f590e48964a462ff736a9
 b3op,238,delay,20
@@ -19097,6 +19199,8 @@ b3op,246,csconfig
 b3op,246,spidivider,10000000
 b3op,246,spiclock,10
 b3op,246,read,0,2,0,1
+b3op,246,iorelease,eoc
+b3op,246,extirelease
 b3op,246,cspreinit,1
 b3det,246,0,0,0,0,0
 b3init,247,0,119,118,80,0,1,84,0,8d6aeb4bf43d03e6f723008a5f7a76f1f7c14018c3
@@ -19707,6 +19811,8 @@ b3op,253,extihandler
 b3op,253,exticonfig,1
 b3op,253,extienable
 b3op,253,read,0,1,118,0
+b3op,253,iorelease,eoc
+b3op,253,extirelease
 b3det,253,0,0,0,0,0
 b3init,254,1,0,118,96,1,1,146,0,0fc5f161d1298ea51e3e581a1aaa1d809789555b88
 b3op,254,delay,20
@@ -20722,6 +20828,8 @@ b3op,262,extihandler
 b3op,262,exticonfig,1
 b3op,262,extienable
 b3op,262,read,0,1,118,0
+b3op,262,iorelease,eoc
+b3op,262,extirelease
 b3det,262,0,0,0,0,0
 b3init,263,0,119,118,80,0,2,72,0,b43735a17ae5ae82716963356131441e1493bacf73
 b3op,263,delay,20
@@ -20743,6 +20851,8 @@ b3op,265,csconfig
 b3op,265,spidivider,10000000
 b3op,265,spiclock,10
 b3op,265,read,0,2,0,1
+b3op,265,iorelease,eoc
+b3op,265,extirelease
 b3op,265,cspreinit,1
 b3det,265,0,0,0,0,0
 b3init,266,1,0,118,96,0,2,80,0,0b5ba8b2f5bdcc1c1a7e2378313b50785a9d224b76
@@ -20902,6 +21012,8 @@ b3op,267,extihandler
 b3op,267,exticonfig,1
 b3op,267,extienable
 b3op,267,read,0,1,118,0
+b3op,267,iorelease,eoc
+b3op,267,extirelease
 b3det,267,0,0,0,0,0
 b3init,268,1,0,118,80,1,0,205,0,e2681e48f861031ef824019b5c187df5f51f3d18c5
 b3op,268,delay,20
@@ -21945,6 +22057,8 @@ b3op,278,extihandler
 b3op,278,exticonfig,1
 b3op,278,extienable
 b3op,278,read,0,1,119,1
+b3op,278,iorelease,eoc
+b3op,278,extirelease
 b3det,278,0,119,0,0,0
 b3init,279,0,0,119,160,0,2,45,0,c766484af5560333f827018c5b527cf4f7593f13c4
 b3op,279,delay,20
@@ -22103,6 +22217,8 @@ b3op,282,extihandler
 b3op,282,exticonfig,1
 b3op,282,extienable
 b3op,282,read,0,1,118,0
+b3op,282,iorelease,eoc
+b3op,282,extirelease
 b3det,282,0,0,0,0,0
 b3init,283,0,119,119,80,0,3,28,0,2e68a048f46d0355f82400a15e477cf3f8114013c2
 b3op,283,delay,20
@@ -22797,6 +22913,8 @@ b3op,288,extihandler
 b3op,288,exticonfig,1
 b3op,288,extienable
 b3op,288,read,0,1,118,0
+b3op,288,iorelease,eoc
+b3op,288,extirelease
 b3det,288,0,118,0,0,0
 b3init,289,1,0,119,96,0,0,143,0,3fb8198baeb93f6fcd1a688717f70d664b3dcf6dfc
 b3op,289,delay,20
@@ -22946,6 +23064,8 @@ b3op,290,extihandler
 b3op,290,exticonfig,1
 b3op,290,extienable
 b3op,290,read,0,1,118,0
+b3op,290,iorelease,eoc
+b3op,290,extirelease
 b3det,290,0,0,0,0,0
 b3init,291,1,0,118,96,1,2,54,0,b269a046f587039ef720024965957bf5f5554212c3
 b3op,291,delay,20
@@ -23541,6 +23661,8 @@ b3op,297,extihandler
 b3op,297,exticonfig,1
 b3op,297,extienable
 b3op,297,read,0,1,119,0
+b3op,297,iorelease,eoc
+b3op,297,extirelease
 b3det,297,0,119,0,0,0
 b3init,298,0,0,119,80,0,2,8,1075841052,d6703e4df86103b2f724fe695d0672f5f7cc4117c0
 b3op,298,delay,20

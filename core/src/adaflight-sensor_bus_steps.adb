@@ -42,6 +42,12 @@ package body Adaflight.Sensor_Bus_Steps with SPARK_Mode is
       null;
    end Step_Enable_EOC_Interrupt;
 
+   procedure Step_Release_EOC_Interrupt (D : in out Bus_Line) is
+      pragma Unreferenced (D);
+   begin
+      null;
+   end Step_Release_EOC_Interrupt;
+
    procedure Step_Read_Byte (D : in out Bus_Line; Register : Byte; Value : out Byte) is
       pragma Unreferenced (D, Register);
    begin

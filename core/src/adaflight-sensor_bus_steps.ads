@@ -28,6 +28,9 @@ package Adaflight.Sensor_Bus_Steps with SPARK_Mode is
    procedure Step_Enable_EOC_Interrupt (D : in out Bus_Line)
      with Global => null;
 
+   procedure Step_Release_EOC_Interrupt (D : in out Bus_Line)
+     with Global => null;
+
    procedure Step_Read_Byte (D : in out Bus_Line; Register : Byte; Value : out Byte)
      with Global => null;
 

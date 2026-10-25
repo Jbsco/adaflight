@@ -18210,6 +18210,13 @@ procedure Vector_Check is
       BMP_Op ("extienable");
    end B3_Enable_EOC;
 
+   procedure B3_Release_EOC (D : in out B3_Bus) is
+      pragma Unreferenced (D);
+   begin
+      BMP_Op ("iorelease,eoc");
+      BMP_Op ("extirelease");
+   end B3_Release_EOC;
+
    procedure B3_Read (D : in out B3_Bus; Register : Byte; Data : in out Byte_Array; OK : out Boolean) is
       Scripted_Fail : constant Boolean :=
         D.Reads_Done < 32 and then (Interfaces.Shift_Right (D.Fail_Mask, D.Reads_Done) and 1) = 1;
@@ -18292,6 +18299,7 @@ procedure Vector_Check is
       Prepare_SPI          => B3_Prepare_SPI,
       Release_SPI          => B3_Release_SPI,
       Enable_EOC_Interrupt => B3_Enable_EOC,
+      Release_EOC_Interrupt => B3_Release_EOC,
       Read_Registers       => B3_Read,
       Write_Register       => B3_Write,
       Start_Read           => B3_Start_Read,
