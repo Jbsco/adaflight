@@ -1,3 +1,4 @@
+with Adaflight.Settings_Table; use Adaflight.Settings_Table;
 with Adaflight.MSP_Write_Plans; use Adaflight.MSP_Write_Plans;
 
 package body Adaflight.MSP_LED_In with SPARK_Mode is
@@ -29,8 +30,9 @@ package body Adaflight.MSP_LED_In with SPARK_Mode is
       R := Ack;
    end Set_Colors;
 
-   --  A LED and its packed configuration, in exactly five bytes; the
-   --  function must be one of the ten and the overlays among the seven.
+   --  A LED and its packed configuration, in five bytes, or six with the
+   --  strip's profile; the function must be one of the ten, the overlays
+   --  among the seven and the profile within its setting's range.
    procedure Set_Strip_Config (C : in out Configuration; Request : Byte_Array; R : out Result; E : in out Effects)
      with Pre  => Request'Length <= Max_Request,
           Post => (if R = Error then C = C'Old and then E = E'Old)
@@ -39,14 +41,18 @@ package body Adaflight.MSP_LED_In with SPARK_Mode is
       Config : constant Interfaces.Unsigned_32 := Interfaces.Unsigned_32 (U32 (Request, 1));
    begin
       if Led >= Led_Count
-        or else Request'Length /= 5
+        or else Request'Length not in 5 | 6
         or else Interfaces.Shift_Right (Config, 8) mod 16 >= Function_Count
         or else Interfaces.Shift_Right (Config, 12) mod 1024 >= 2 ** Overlay_Bits
+        or else (Request'Length = 6 and then not In_Range (Ledstrip_Profile, U8 (Request, 5)))
       then
          R := Error;
          return;
       end if;
       C.Led_Strip_Status_Mode_Config.Led_Configs (Natural (Led)) := Config;
+      if Request'Length = 6 then
+         C.Led_Strip_Config.Ledstrip_Profile := Interfaces.Unsigned_8 (U8 (Request, 5));
+      end if;
       E.Layout := True;
       R := Ack;
    end Set_Strip_Config;

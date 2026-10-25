@@ -61,3 +61,4 @@ Each document describes a Betaflight bug that adaflight fixes: the Betaflight ve
 - [STK500v2 read of 253 bytes always fails](stk500-reply-length.md)
 - [Gyro initialization writes the configuration at every boot with a configured sensor missing](gyro-detected-flags-write.md)
 - [Misc profile menu sets up the PID controller before it stores its values](misc-menu-setup-order.md)
+- [MSP LED strip configuration can never take its profile byte](msp-led-strip-profile.md)
