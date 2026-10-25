@@ -190,16 +190,18 @@ package body Adaflight.MAVLink with SPARK_Mode is
    end Take_Override;
 
    --  The radio status: the free transmitter buffer, the remote RSSI as a
-   --  negative dBm scaled onto the receiver's range, wrapping below the
-   --  range minimum (finding F42), the dBm itself, the noise as the SNR, and
-   --  the local RSSI as the link quality.
+   --  negative dBm held at the range minimum and scaled onto the receiver's
+   --  range, the dBm itself, the noise as the SNR, and the local RSSI as the
+   --  link quality.
    procedure Take_Radio_Status (S : in out State; Rx : in out Receiver.State) is
       Dbm    : constant Integer range -255 .. 0 := -S.Frames.Received.Payload (5);
-      Scaled : constant Integer range -1_000 .. 1_023 := (Receiver.RSSI_Max * (Dbm - RSSI_Dbm_Min)) / (-RSSI_Dbm_Min);
+      Floor  : constant Integer range RSSI_Dbm_Min .. 0 := Integer'Max (Dbm, RSSI_Dbm_Min);
+      Scaled : constant Integer range 0 .. Receiver.RSSI_Max :=
+        (Receiver.RSSI_Max * (Floor - RSSI_Dbm_Min)) / (-RSSI_Dbm_Min);
    begin
       S.Tx_Buffer_Valid := True;
       S.Tx_Buffer_Free := S.Frames.Received.Payload (6);
-      Receiver.Set_RSSI (Rx, Scaled mod 65_536, Receiver.Protocol_Mavlink);
+      Receiver.Set_RSSI (Rx, Scaled, Receiver.Protocol_Mavlink);
       Receiver.Set_RSSI_Dbm (Rx, Dbm, Receiver.Protocol_Mavlink);
       Receiver.Set_RSNR (Rx, S.Frames.Received.Payload (7));
       if Rx.Quality_From = Receiver.Mavlink then
