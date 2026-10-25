@@ -232,8 +232,8 @@ package body Adaflight.GPS_Link with SPARK_Mode is
    end Handle_Frame_Complete;
 
    --  The NMEA commands: the command at the offset goes out with its line
-   --  end, the offset moves to the next or restarts at the last, and the
-   --  link receives data from here.
+   --  end and the offset moves to the next; after the last the offset clears
+   --  and the link receives data from here.
    procedure Send_Command (L : in out Link; R : in out Receiver; C : Settings; Tx : in out Transmission) is
       Pos : Natural := L.Command_Offset;
       Len : Natural := 0;
@@ -254,12 +254,16 @@ package body Adaflight.GPS_Link with SPARK_Mode is
          pragma Loop_Invariant (Pos < C.Commands_Length);
          Pos := Pos + 1;
       end loop;
-      L.Command_Offset := (if Pos < C.Commands_Length then Pos else 0);
-      Set_State (L, R, Receiving_Data);
+      if Pos < C.Commands_Length then
+         L.Command_Offset := Pos;
+      else
+         L.Command_Offset := 0;
+         Set_State (L, R, Receiving_Data);
+      end if;
    end Send_Command;
 
    --  An NMEA module keeps its own rate: the port is set to the configured
-   --  rate and the first custom command goes out, half a second apart.
+   --  rate and the custom commands go out, one every half second.
    procedure Configure_NMEA (L : in out Link; R : in out Receiver; C : Settings; Tx_Empty : Boolean;
                              E : in out Events) is
    begin
