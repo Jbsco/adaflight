@@ -56,3 +56,4 @@ Each document describes a Betaflight bug that adaflight fixes: the Betaflight ve
 - [OSD craft name messages keep the old name's last character](osd-craft-name-copy.md)
 - [RunCam request parser parks after an unsupported request](rcdevice-request-parser.md)
 - [Gimbal passthrough writes 1 for the held-back opcode byte](gimbal-opcode-byte.md)
+- [BLHeli bootloader bit timing loses its deadline at the microsecond wrap](blheli-bit-timing-wrap.md)
