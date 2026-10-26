@@ -2,8 +2,8 @@
 """The host image's smoke check. Starts the image with an empty configuration store, asks it over MSP
 on UART1 (TCP port 5761) for its API version, firmware variant and status, enters the command line and
 reads the status and the task list, sets a setting, turns the OSD on with the MAX7456 as its display and
-saves, which restarts the image, then reads the OSD flags, writes a font character and reads the setting
-back from the stored configuration.
+saves, which restarts the image, then reads the OSD flags, writes a font character, reads the setting
+back from the stored configuration and finds the craft name on the OSD's screen.
 
 Usage: host-smoke.py <host image>
 """
@@ -25,7 +25,7 @@ def check(name, ok, detail=""):
 
 
 def start(image, store):
-    env = dict(os.environ, ADAFLIGHT_EEPROM=store)
+    env = dict(os.environ, ADAFLIGHT_EEPROM=store, ADAFLIGHT_OSD_SCREEN=store + ".osd.txt")
     proc = subprocess.Popen([image], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     deadline = time.time() + 15
     while time.time() < deadline:
@@ -105,6 +105,9 @@ def main():
             check("OSD feature on", "Enabled" in text, text[-120:])
             text = cli(sock, "set osd_displayport_device = MAX7456")
             check("OSD display device set", "osd_displayport_device set to MAX7456" in text, text[-120:])
+            cli(sock, "set craft_name = ADAHOST")
+            text = cli(sock, "set osd_craft_name_pos = 2122")
+            check("craft name element placed", "osd_craft_name_pos set to 2122" in text, text[-120:])
             cli(sock, "save", wait=2.0)
             proc.wait(timeout=10)
             check("save restarts the image", proc.returncode == 0)
@@ -128,6 +131,13 @@ def main():
             text = cli(sock, "status")
             check("status names the MAX7456 display", "OSD: MAX7456 (30 x 16)" in text,
                   text[text.find("OSD:"):][:40])
+            time.sleep(5.0)
+            try:
+                with open(store + ".osd.txt") as f:
+                    screen = f.read()
+            except OSError:
+                screen = ""
+            check("OSD draws the craft name", "ADAHOST" in screen, repr(screen[:200]))
         finally:
             proc.kill()
             sock.close()
