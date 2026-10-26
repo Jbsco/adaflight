@@ -1,3 +1,4 @@
+with Ada.Characters.Handling;
 with Ada.Real_Time; use Ada.Real_Time;
 with GNAT.Source_Info;
 with Interfaces; use Interfaces;
@@ -8,12 +9,15 @@ with Adaflight.Arming;
 with Adaflight.Attitude;
 with Adaflight.Axes;
 with Adaflight.Board;
+with Adaflight.Board_Info;
 with Adaflight.Bytes;
 with Adaflight.Clock;
+with Adaflight.Config_Codec;
 with Adaflight.Config_Fix;
 with Adaflight.Config_Groups;
 with Adaflight.Config_Reset;
 with Adaflight.Config_Runtime;
+with Adaflight.Config_Store;
 with Adaflight.Core_Loop;
 with Adaflight.Gyro_Filters;
 with Adaflight.Gyro_Selection;
@@ -32,6 +36,7 @@ with Adaflight.RPM_Filter;
 with Adaflight.Scheduler;
 with Adaflight.Serial_Feature_Map;
 with Adaflight.STM32.Console;
+with Adaflight.STM32.Flash;
 with Adaflight.STM32.GPIO;
 with Adaflight.STM32.Gyro;
 with Adaflight.STM32.SPI;
@@ -74,10 +79,15 @@ package body Adaflight.STM32.Flight is
      with Import, Volatile, Address => System'To_Address (16#E000_ED0C#);
    System_Reset_Request : constant Unsigned_32 := 16#05FA_0004#;
 
-   --  The failure codes the LED flashes: a missing gyro, and a gyro whose
-   --  initialization read failed.
-   Failure_Missing_Acc      : constant := 1;
-   Failure_Gyro_Init_Failed : constant := 6;
+   --  The failure codes the LED flashes: a missing gyro, a configuration
+   --  store that could not be written, and a gyro whose initialization read
+   --  failed.
+   Failure_Missing_Acc          : constant := 1;
+   Failure_Config_Store_Failure : constant := 5;
+   Failure_Gyro_Init_Failed     : constant := 6;
+
+   --  The board identifier a stored configuration must name.
+   Board_Identifier : constant String := "F405";
 
    --  The scheduler starts after the data ready interrupts of the gyro's
    --  start have passed the layer's detection count, the time the
@@ -112,6 +122,10 @@ package body Adaflight.STM32.Flight is
    Frame_Length : Positive := 1;
    Gyro_Report  : Adaflight.STM32.Gyro.Report;
    Selection    : Adaflight.Gyro_Selection.Result;
+   --  The running feature mask, from the stored features at the load, and
+   --  the hash of each group's stored bytes.
+   Runtime_Features : Unsigned_32 := 0;
+   Hashes           : Adaflight.Config_Store.Hash_List (1 .. Adaflight.Config_Codec.Group_Count) := (others => 0);
    --  The divisor of the accelerometer counts in the raw readings reply, by
    --  the count for one g.
    Acc_Scale    : constant Float :=
@@ -264,6 +278,103 @@ package body Adaflight.STM32.Flight is
       end loop;
    end Indicate_Failure;
 
+   --  The configuration's checks over the hardware the board knows: the
+   --  gyro's sample rate once it runs, no motors and no timers yet.
+   procedure Fix_Configuration is
+      Hardware : constant Adaflight.Config_Fix.Hardware :=
+        (Gyro_Sample_Rate_Hz => Ctx.Gyro_Sample_Rate_Hz, others => <>);
+      Results  : Adaflight.Config_Fix.Results;
+   begin
+      Adaflight.Config_Fix.Fix (Config, Hardware, Ports, Runtime_Features, Results);
+   end Fix_Configuration;
+
+   --  Whether the stored configuration names this board.
+   function Board_Matches return Boolean is
+      Stored : String (1 .. Board_Identifier'Length);
+   begin
+      for I in Stored'Range loop
+         Stored (I) := Character'Val (Config.System_Config.Board_Identifier (I - 1));
+      end loop;
+      return Ada.Characters.Handling.To_Upper (Stored) = Board_Identifier;
+   end Board_Matches;
+
+   --  The configuration written to the store after its checks: the region
+   --  as it reads, the image of every group when any changed, programmed
+   --  and checked back, in up to three attempts; a store that still fails
+   --  flashes its code and resets.
+   procedure Write_Configuration is
+      Data    : Adaflight.Config_Codec.Data;
+      Image   : Adaflight.Bytes.Byte_Array (Adaflight.STM32.Flash.Config'Range);
+      Written : Boolean;
+      Fits    : Boolean;
+      OK      : Boolean;
+      Valid   : Boolean;
+      Size    : Natural;
+   begin
+      Fix_Configuration;
+      Adaflight.Config_Codec.Encode (Config, Data);
+      for Attempt in 1 .. 3 loop
+         Image := Adaflight.STM32.Flash.Config;
+         Adaflight.Config_Store.Save (Adaflight.Config_Codec.Registry, Data, Hashes, Image, Written, Fits);
+         if not Written then
+            return;
+         end if;
+         Adaflight.Config_Store.Check_Structure (Image, Valid, Size);
+         Adaflight.STM32.Flash.Write (Image (0 .. Size - 1), OK);
+         Adaflight.Config_Store.Check_Structure (Adaflight.STM32.Flash.Config, Valid, Size);
+         if OK and then Valid and then Adaflight.Config_Store.Version_Valid (Adaflight.STM32.Flash.Config) then
+            return;
+         end if;
+      end loop;
+      Indicate_Failure (Failure_Config_Store_Failure, 10);
+      Reset;
+   end Write_Configuration;
+
+   --  The stored configuration loaded: every group from its defaults and
+   --  its stored bytes, the running features, the checks, and the board's
+   --  information taken in; Success says the image held every group.
+   procedure Load_Configuration (Success : out Boolean) is
+      Defaults : Adaflight.Config_Codec.Data;
+      Data     : Adaflight.Config_Codec.Data;
+   begin
+      Adaflight.Config_Codec.Encode (Adaflight.Config_Reset.Reset (Board), Defaults);
+      Adaflight.Config_Store.Load
+        (Adaflight.STM32.Flash.Config, Adaflight.Config_Codec.Registry, Defaults, Data, Hashes, Success);
+      Adaflight.Config_Codec.Decode (Data, Config);
+      Runtime_Features := Config.Feature_Config.Enabled_Features;
+      Fix_Configuration;
+      Adaflight.Board_Info.Init (Board, Config);
+   end Load_Configuration;
+
+   --  The configuration reset to its defaults, written and read back.
+   procedure Reset_Configuration is
+      Unused_Success : Boolean;
+   begin
+      Config := Adaflight.Config_Reset.Reset (Board);
+      Write_Configuration;
+      Load_Configuration (Unused_Success);
+   end Reset_Configuration;
+
+   --  The configuration at boot: a region without a valid structure, a
+   --  load that missed a group, a stored version other than the core's, or
+   --  another board's identifier reset the store.
+   procedure Init_Configuration is
+      Valid   : Boolean;
+      Size    : Natural;
+      Success : Boolean;
+   begin
+      Adaflight.Config_Store.Check_Structure (Adaflight.STM32.Flash.Config, Valid, Size);
+      if not Valid then
+         Reset_Configuration;
+      end if;
+      Load_Configuration (Success);
+      if not Success or else not Adaflight.Config_Store.Version_Valid (Adaflight.STM32.Flash.Config)
+        or else not Board_Matches
+      then
+         Reset_Configuration;
+      end if;
+   end Init_Configuration;
+
    --  The gyro's interrupt mode as the status report names it.
    function Gyro_Mode return CLI.Gyro_Mode is
      (case Adaflight.STM32.Gyro.Mode is
@@ -394,14 +505,21 @@ package body Adaflight.STM32.Flight is
       Terminal.Enter (Session, Into, Interactive, Now_Ms);
    end Enter_Command_Line;
 
-   --  One command frame through the processor, its reply framed and sent.
+   --  One command frame through the processor, a requested write of the
+   --  configuration with its read back, then its reply framed and sent.
    procedure Answer is
+      Unused_Success : Boolean;
    begin
       Env.Now_Us := Now_Ms * 1000;
       Env.Status.Uptime_Ms := Now_Ms;
       Adaflight.Stream_Buffers.Init (Stream, 0, Reply'Length);
       MSP.Process (Ctx, Config, Board, Links, Unsigned_16 (Port.Command_Id), Port.Data (0 .. Port.Data_Size - 1),
                    Ports, Reply, Stream, Result, Effects);
+      if Effects.Save then
+         Scheduler.Ignore_Task_State_Time (Sched);
+         Write_Configuration;
+         Load_Configuration (Unused_Success);
+      end if;
       Adaflight.MSP_Port.Encode (Port.Version, Port.Command_Id, Port.Flags, Result = MSP.Error,
                                  Reply (0 .. Stream.Next - 1), Frame, Frame_Length);
       Adaflight.STM32.USART.Put (Into.Target, Frame (0 .. Frame_Length - 1));
@@ -435,6 +553,9 @@ package body Adaflight.STM32.Flight is
             Terminal.Process (Session, Into, Pending (0 .. Waiting - 1), Now_Ms, Config, Ports, Env, Board, Sched,
                               Changes);
             Waiting := 0;
+            if Changes.Save then
+               Write_Configuration;
+            end if;
             if Changes.Reboot then
                Reset;
             end if;
@@ -625,6 +746,7 @@ package body Adaflight.STM32.Flight is
       Adaflight.STM32.GPIO.Set_Low (Adaflight.Board.Inverter_Pin_UART1);
       Adaflight.STM32.USART.Init (Adaflight.Board.UART1_TX_Pin, Adaflight.Board.UART1_RX_Pin, Baud);
       Adaflight.MSP_Port.Init (Port);
+      Init_Configuration;
       Ctx.Out_Views.Common := Common_Snapshot;
       Ctx.Out_Views.Build := (others => True);
       Ctx.Out_Views.Serial_Ports (1) := (Port => UART1_Id, Available => True);
