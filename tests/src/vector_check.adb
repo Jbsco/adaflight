@@ -26331,6 +26331,11 @@ procedure Vector_Check is
       D.Address := Address;
    end CD_Set_MPU_Slave;
 
+   procedure CD_Set_Bus_Type (D : in out CD_Bus; Bus : Byte) is
+   begin
+      D.Bus := Bus;
+   end CD_Set_Bus_Type;
+
    procedure CD_Detect_DroneCAN (D : in out CD_Bus; Found : out Boolean) is
    begin
       Found := D.DroneCAN_Ready;
@@ -26359,6 +26364,7 @@ procedure Vector_Check is
       Set_SPI_Instance  => CD_Set_SPI_Instance,
       Set_CS_Pin        => CD_Set_CS_Pin,
       Set_MPU_Slave     => CD_Set_MPU_Slave,
+      Set_Bus_Type      => CD_Set_Bus_Type,
       Detect_DroneCAN   => CD_Detect_DroneCAN,
       Detect_Chip       => CD_Detect_Chip);
 
