@@ -9493,3 +9493,27 @@ erases in a fraction of the time of a 128 KB sector, and the image gains the 128
 it now ends 131 KB below the flash's end. Flashing writes two files, the vector table at the flash's
 start and the code from sector 2, so the stored configuration survives a new image.
 
+## D390. STM32F4 control loop (2026-10-26)
+
+The STM32F4 image runs the rate controller and the mixer on the PID task. `Adaflight.STM32.Control`
+holds their states with the settings from the stored configuration over the selected profiles: the
+mixer's configuration with its mode, table and output range (D159), the RPM limiter and the dynamic
+idle without motor telemetry, and the controller from the PID profile with the loop's runtime
+constants. It instantiates the PID loop pass (D191) over the yaw reset, the RC command, the
+controller with the runaway check, and the mix. The launch wing, the PID audio, the servos, the
+motors and the flight log take no step until their drivers reach the board. The pass reads the
+arming and the modes, the filtered rates with the gyro's overflow and yaw spin detections, the
+attitude with the accelerometer trims, the tilt and the throttle correction, the accelerometer's
+jerk, the receiver's throttle channel, the failsafe and the 3D switch. The yaw command resets before
+the RC command while the sticks arm at low throttle (D190). The controller's landing check reads the
+mixer's RC throttle from the pass before. The arming's receiver pass sets the stabilisation and the
+zero throttle I term reset, its modes pass the anti-gravity, and its controller pass runs the
+runaway check over the controller's sums, with a disarm the board applies. A new throttle step in the
+mixer moves the gyro's dynamic first lowpass on the board beside the controller's D term lowpass in
+the mixer. The motor reply holds the mixer's outputs and reports zeros while no motor protocol
+enables the motors.
+
+The image is 918508 bytes of text, 4660 of data and 116680 of zeroed data. The bench check is the
+command line's `tasks` listing the PID task at the gyro's loop rate with its time, and `status`
+reporting the load.
+

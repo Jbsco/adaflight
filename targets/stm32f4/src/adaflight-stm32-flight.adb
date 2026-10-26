@@ -33,6 +33,7 @@ with Adaflight.MSP_Out;
 with Adaflight.MSP_Port;
 with Adaflight.MSP_Processor;
 with Adaflight.PID_Config;
+with Adaflight.PID_Controller;
 with Adaflight.RC_Command;
 with Adaflight.Receiver;
 with Adaflight.RPM_Filter;
@@ -40,6 +41,7 @@ with Adaflight.RX_Task;
 with Adaflight.Scheduler;
 with Adaflight.Serial_Feature_Map;
 with Adaflight.STM32.Console;
+with Adaflight.STM32.Control;
 with Adaflight.STM32.Flash;
 with Adaflight.STM32.GPIO;
 with Adaflight.STM32.Gyro;
@@ -586,6 +588,7 @@ package body Adaflight.STM32.Flight is
             end if;
             if Changes.PID_Profile or else Changes.Rate_Profile then
                Adaflight.STM32.Pilot.Configure (Config, Runtime_Features, Pilot_Facts);
+               Adaflight.STM32.Control.Init (Config, Runtime_Features);
             end if;
             if Changes.Save then
                Write_Configuration;
@@ -755,6 +758,7 @@ package body Adaflight.STM32.Flight is
       Sensed.First_Arm_Gyro_Cal_Running := Adaflight.Gyro_Filters.First_Arm_Calibration_Running (Gyro_State);
       Sensed.Motor_Protocol_Enabled := False;
       Sensed.Late_Permille := Scheduler.CPU_Percentage_Late (Sched);
+      Sensed.PID_Sums := Adaflight.STM32.Control.PID_Sums;
       for A in Adaflight.Axes.Axis loop
          Sensed.Gyro_Abs_Dps (A) := Natural (Float'Min (65_535.0, abs Gyro_State.Filtered (A)));
       end loop;
@@ -785,6 +789,7 @@ package body Adaflight.STM32.Flight is
               Unsigned_8 (Adaflight.Arming.Stick_Command'Pos (Profile)
                           - Adaflight.Arming.Stick_Command'Pos (Adaflight.Arming.PID_Profile_1));
             Adaflight.STM32.Pilot.Configure (Config, Runtime_Features, Pilot_Facts);
+            Adaflight.STM32.Control.Init (Config, Runtime_Features);
          end if;
       end loop;
       for Profile in Adaflight.Arming.Rate_Profile_1 .. Adaflight.Arming.Rate_Profile_4 loop
@@ -793,6 +798,7 @@ package body Adaflight.STM32.Flight is
               Unsigned_8 (Adaflight.Arming.Stick_Command'Pos (Profile)
                           - Adaflight.Arming.Stick_Command'Pos (Adaflight.Arming.Rate_Profile_1));
             Adaflight.STM32.Pilot.Configure (Config, Runtime_Features, Pilot_Facts);
+            Adaflight.STM32.Control.Init (Config, Runtime_Features);
          end if;
       end loop;
       if Step.Trim_Roll /= 0 or else Step.Trim_Pitch /= 0 then
@@ -834,6 +840,67 @@ package body Adaflight.STM32.Flight is
       Ctx.Control.Armed := Adaflight.STM32.Pilot.Armed;
    end Report_Pilot;
 
+   --  The flight channels of the receiver, as the arming logic and the core
+   --  loop read them.
+   function Flight_Channels return Adaflight.RC_Command.Channel_Values is
+      Channels : Adaflight.RC_Command.Channel_Values := (others => 1_500.0);
+   begin
+      for Ch in Adaflight.RC_Command.Channel loop
+         Channels (Ch) := Float'Max (750.0, Float'Min (2_250.0, Adaflight.STM32.Radio.Channel (Ch)));
+      end loop;
+      return Channels;
+   end Flight_Channels;
+
+   --  The PID loop task: the pass over the control loop with what the board
+   --  senses, what the runaway check asked, the gyro's dynamic lowpass at a
+   --  new throttle step, and the motor outputs into the motor reply, which
+   --  reads them disabled until the motors have a driver.
+   procedure Run_Control (Before : Unsigned_32) is
+      Channels : constant Adaflight.RC_Command.Channel_Values := Flight_Channels;
+      Mode     : constant Adaflight.Mixer_Init.Mixer_Mode := Adaflight.STM32.Pilot.Mixer_Mode;
+      I        : Adaflight.STM32.Control.Inputs;
+      Asked    : Adaflight.Arming.Outputs;
+      Trims    : Adaflight.Config_Groups.Integer_16_List_2 renames Config.Accelerometer_Config.Accelerometer_Trims;
+   begin
+      I.Now_Us := Before;
+      I.Armed := Adaflight.STM32.Pilot.Armed;
+      I.Acc_Present := Gyro_Report.Acc_Found;
+      I.Failsafe := Adaflight.STM32.Radio.Failsafe_Active;
+      I.Box_3D := Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Three_D);
+      for A in Adaflight.Axes.Axis loop
+         I.Gyro (A) := Float'Max (-Adaflight.PID_Controller.Rate_Bound,
+                                  Float'Min (Adaflight.PID_Controller.Rate_Bound, Gyro_State.Filtered (A)));
+      end loop;
+      I.Gyro_Overflow := Gyro_State.Overflow_Detected;
+      I.Yaw_Spin := Gyro_State.Yaw_Spin_Detected;
+      I.Attitude := (Adaflight.Axes.Roll => Att_State.Euler.Roll, Adaflight.Axes.Pitch => Att_State.Euler.Pitch);
+      I.Trims := (Adaflight.Axes.Roll  => Integer'Max (-300, Integer'Min (300, Integer (Trims (0)))),
+                  Adaflight.Axes.Pitch => Integer'Max (-300, Integer'Min (300, Integer (Trims (1)))));
+      I.Cos_Tilt := Adaflight.Attitude.Cos_Tilt (Att_State);
+      I.Throttle_Correction := Att_State.Throttle_Correction;
+      I.Jerk_Magnitude := Acc_State.Jerk_Magnitude;
+      I.RC_Data_Throttle := Channels (Adaflight.RC_Command.Throttle_Channel);
+      Adaflight.STM32.Control.Pass
+        (I, Sense, Channels,
+         Resets_Yaw  => Adaflight.Core_Loop.Resets_Yaw
+                          (Adaflight.STM32.Pilot.Sticks_Arm, Channels (Adaflight.RC_Command.Throttle_Channel),
+                           Natural (Config.Rx_Config.Mincheck), Mode, Config.Servo_Config.Tri_Unarmed_Servo /= 0),
+         Uses_Servos => Adaflight.Mixer_Init.Uses_Servos (Mode),
+         CLI_Open    => Session.Open,
+         PID_Audio   => Adaflight.STM32.Pilot.PID_Audio_Present,
+         Asked       => Asked);
+      Apply (Asked);
+      if Adaflight.STM32.Control.Throttle_Step_Changed then
+         Adaflight.Gyro_Filters.Update_Dynamic_Lowpass
+           (Gyro_State, Gyro_Settings, Adaflight.STM32.Control.Throttle_Step);
+      end if;
+      Ctx.Out_Views.State.Motors.Enabled := False;
+      for M in Adaflight.MSP_Out.Motor_Index loop
+         Ctx.Out_Views.State.Motors.External (M) :=
+           Unsigned_16 (Float'Max (0.0, Float'Min (65_535.0, Adaflight.STM32.Control.Motors (M))));
+      end loop;
+   end Run_Control;
+
    --  The receiver task's state machine: the rate ignored on every step but
    --  the last, the check step through the link and the arming's receiver
    --  pass with the frame rate, the modes step through the arming's modes
@@ -853,9 +920,7 @@ package body Adaflight.STM32.Flight is
       if Adaflight.RX_Task.Ignore_Rate (RX_State) then
          Scheduler.Ignore_Task_Exec_Rate (Sched);
       end if;
-      for Ch in Adaflight.RC_Command.Channel loop
-         Channels (Ch) := Float'Max (750.0, Float'Min (2_250.0, Adaflight.STM32.Radio.Channel (Ch)));
-      end loop;
+      Channels := Flight_Channels;
       for A in Adaflight.Modes.Aux_Channel loop
          Aux (A) := Adaflight.STM32.Radio.Channel (A + Adaflight.Receiver.Flight_Channel_Count);
       end loop;
@@ -866,9 +931,11 @@ package body Adaflight.STM32.Flight is
                Adaflight.STM32.Pilot.Update_Refresh_Rate
                  (Before, Adaflight.STM32.Radio.Receiving, Adaflight.STM32.Radio.Last_Frame_Us);
                Adaflight.STM32.Pilot.Receiver_Pass (Sense, Channels, Before, Asked);
+               Adaflight.STM32.Control.Set_Stabilisation (Asked.Stabilisation_On, Asked.Iterm_Reset);
             end if;
          when Adaflight.RX_Task.Modes =>
             Adaflight.STM32.Pilot.Modes_Pass (Sense, Channels, Aux, Before, Delta_Us, Asked);
+            Adaflight.STM32.Control.Set_Anti_Gravity (Asked.Anti_Gravity);
          when Adaflight.RX_Task.Update =>
             Adaflight.STM32.Pilot.Update_Pass
               (Sense, Channels,
@@ -915,6 +982,8 @@ package body Adaflight.STM32.Flight is
             Run_Attitude (Before);
          when Scheduler.Rx =>
             Run_Receiver (Before);
+         when Scheduler.PID =>
+            Run_Control (Before);
          when others =>
             null;
       end case;
@@ -952,6 +1021,7 @@ package body Adaflight.STM32.Flight is
                       Loop_Ratio     => Positive (Loop_Ratio),
                       CRSF           => Adaflight.STM32.Radio.Linked);
       Adaflight.STM32.Pilot.Init (Config, Runtime_Features, Pilot_Facts);
+      Adaflight.STM32.Control.Init (Config, Runtime_Features);
       if Selection.Found then
          Adaflight.STM32.Time.Delay_Ms (First_Read_Delay_Ms);
       end if;
