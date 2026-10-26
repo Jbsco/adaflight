@@ -37,7 +37,8 @@ package Adaflight.Flight_Plan_Capture with SPARK_Mode is
    end record;
 
    --  One step of the gesture with the switch, the channels' validity and
-   --  whether the executor flies the plan.
+   --  whether the executor flies the plan. An expired message is cleared
+   --  first.
    procedure Update (C : in out Capture; P : in out Flight_Plan.Plan; Now_Us : Unsigned_32;
                      Switch_Active, Channels_Valid, Plan_Active : Boolean; Where : Position)
      with Global => null;
