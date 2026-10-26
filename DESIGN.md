@@ -3129,19 +3129,18 @@ ground station uploads a plan with a count and then each item on request. The un
 first item, for the next one as each arrives, and again after 1.5 s up to five times before it
 cancels. Waypoints and splines become fly-by waypoints with their dwell. Loiter times, turns,
 unlimited loiters, loiters to an altitude and follows become holds. The landing and takeoff forms
-become landings and takeoffs, and altitude changes, delays and yaw speeds become the modifier
-types. A return to launch in the last slot ends the plan. An item with a non-finite parameter, a
-position out of range, an unsupported frame or a relative altitude without a home fix is refused
-with its reason. The plan's count drops to zero when an upload starts and takes the received
-count, less a final return to launch, at its end. A download answers requests for the next item or
-the one before it, each stored item sent in the command that carries its type. A fence of up to 16
-items is kept in memory the same way, without enforcement. Uploads and clears of the plan are
-denied in the autopilot mode. A set-current request goes to the executor, and the caller hands its
-answer back: the current item report when it took the index, an error acknowledgement when not.
-The unit reports the current item every second and each waypoint the executor reaches. Wire floats
-are decoded from their bits in exact steps, so the unit stays SPARK, and altitudes beyond the
-32-bit range saturate (D6). The unit is SPARK for the payload offsets, the stores' indices and the
-float decoding.
+become landings and takeoffs, and altitude changes, delays and yaw speeds become the modifier types.
+A return to launch in the last slot ends the plan. An item with a non-finite parameter, a position
+out of range, an unsupported frame or a relative altitude without a home fix is refused with its
+reason. The plan's count drops to zero when an upload starts and takes the received count, less a
+final return to launch, at its end. A download answers requests for the next item or the one before
+it, each stored item sent in the command of its type. A fence of up to 16 items is kept in memory
+the same way, without enforcement. Uploads and clears of the plan are denied in the autopilot mode.
+A set-current request goes to the executor, and the caller hands its answer back: the current item
+report when it took the index, an error acknowledgement when not. The unit reports the current item
+every second and each waypoint the executor reaches. Wire floats are decoded from their bits in
+exact steps, so the unit stays SPARK, and altitudes beyond the 32-bit range saturate (D6). The unit
+is SPARK for the payload offsets, the stores' indices and the float decoding.
 
 The harness replays six sequences of 2500 steps recorded from the reference protocol with the
 reference executor's orbit period: uploads and downloads of missions and fences with every item
@@ -3157,30 +3156,28 @@ and the geometry its legs are built from. The plan is the stored mission or, whi
 waypoints, an injected one of up to four. The next positional waypoint skips the modifiers, and a
 fly-over or fly-by waypoint with another positional one after it, or one that faces its target,
 flies a carrot along its leg. A waypoint's target comes from the GPS distance to the estimator's
-origin, now public in `Adaflight.Position_Estimator`, with the altitude offset between the
-estimator and the GPS frame. The braking deceleration at a lean of 10 to 70 whole degrees takes its
-tangent from a static table of the correctly rounded single-precision values, which the C
-library's tangent gives at every entry, so the unit needs no elementary function. The rest point,
-the carrot placed within the controller's 5 m reach of the craft or of its rest point, the braking
-distance with a turn-in's width, the navigation deltas, the bearing with its 2 m floor and the nose
-test follow the reference's operations. The angle wrap takes the remainder of the division by 360
-by one exact subtraction of the whole turns, which equals the C library's remainder over the
-inputs the executor gives it. The pattern carrot is an orbit or a figure eight through the centre.
-The unit is SPARK for the plan's indices, the table and the geometry's bounds. Each square root is
-held at a bound whose square covers its input, as the core's other bounded roots are, so the hold
-never acts.
+origin, now public in `Adaflight.Position_Estimator`, with the altitude offset between the estimator
+and the GPS frame. The braking deceleration at a lean of 10 to 70 whole degrees takes its tangent
+from a static table of the correctly rounded single-precision values, which the C library's tangent
+gives at every entry, so the unit needs no elementary function. The rest point, the carrot placed
+within the controller's 5 m reach of the craft or of its rest point, the braking distance with a
+turn-in's width, the navigation deltas, the bearing with its 2 m floor and the nose test keep their
+operations in order. The angle wrap takes the remainder of the division by 360 by one exact
+subtraction of the whole turns, which equals the C library's remainder over the inputs the executor
+gives it. The pattern carrot is an orbit or a figure eight through the centre. The unit is SPARK for
+the plan's indices, the table and the geometry's bounds. Each square root is held at a bound whose
+square covers its input, as the core's other bounded roots are, so the hold never acts.
 
 The harness replays 1200 calls of each group of helpers recorded from the reference executor with
 random plans, waypoints, estimates, leg states and settings within the configuration interface's
 ranges. Every result of the 9600 lines replays exactly.
 
-
 ## D141. Flight plan executor legs (2026-10-13)
 
-`Adaflight.Flight_Plan_Nav` contains the second part of the executor: one cycle of a carrot leg.
-The tracker reads back the carrot the navigation has walked and finds the next positional waypoint.
-The corner speed comes from a constant velocity-change budget, and a point leg next lowers it to
-its braking speed. The gate is the corner speed's radius on a fly-by and the arrival radius on a
+`Adaflight.Flight_Plan_Nav` contains the second part of the executor: one cycle of a carrot leg. The
+tracker reads back the carrot the navigation has walked and finds the next positional waypoint. The
+corner speed comes from a constant velocity-change budget, and a point leg next lowers it to its
+braking speed. The gate is the corner speed's radius on a fly-by and the arrival radius on a
 fly-over. It is crossed at the waypoint, at the carrot where the leg turns, or past the waypoint
 inside an 8 m corridor. Before the gate, the stall and flyaway checks judge the distance to the
 waypoint: 30 s without closing by 2 m, or a fall back past a margin of 20 m to 100 m, aborts the
@@ -3192,213 +3189,212 @@ up to 4 m/s and releases its lean cap once the craft's course is within 15 degre
 states its yaw holds the nose or faces its target or the next waypoint, and a face-the-target leg
 waits until the nose has come round, for at most 10 s. The heading-fault detector reports a GPS
 course 70 degrees off the nose for 2 s at speed while the nose is on the waypoint. Each cycle
-returns its calls into the autopilot in order. The caller advances the plan on a crossed gate,
-which is the executor's next part.
+returns its calls into the autopilot in order. The caller advances the plan on a crossed gate, which
+is the executor's next part.
 
-The unit is SPARK for the leg's bounds. Every cycle keeps the leg's points and the carrot within
-the navigator's 2^18 m bound and the carrot's velocity within 1000 m/s in each component. Each
-intermediate of the tracker has a stated range, and the steering, its turn, the corner speed and
-the leg line are separate subprograms, so each proof runs in a small context. The leg's direction
-and the steering aim are held within 2 in each component, which a unit vector never reaches, and
-the carrot's velocity within 1000 m/s, which no cruise reaches, so no hold acts. The time a fault
-is held saturates at 10^6 s, past the 2 s abort. `Adaflight.Maths.Atan2_Approx` now takes any
-finite arguments, as the reference's does: the turn-in's course test passes it products of the
-craft's velocity and its distance to the waypoint.
+The unit is SPARK for the leg's bounds. Every cycle keeps the leg's points and the carrot within the
+navigator's 2^18 m bound and the carrot's velocity within 1000 m/s in each component. Each
+intermediate of the tracker has a stated range, and the steering, its turn, the corner speed and the
+leg line are separate subprograms, so each proof runs in a small context. The leg's direction and
+the steering aim are held within 2 in each component, which a unit vector never reaches, and the
+carrot's velocity within 1000 m/s, which no cruise reaches, so no hold acts. The time a fault is
+held saturates at 10^6 s, past the 2 s abort. `Adaflight.Maths.Atan2_Approx` now takes any finite
+arguments: the turn-in's course test passes it products of the craft's velocity and its distance to
+the waypoint.
 
-The harness replays 120 scenarios recorded from the reference executor with its rescue plan
-compiled in. Each sets up a carrot leg through the navigation's own calls, with a craft that
-follows the commanded velocity or only drifts, a nose that turns toward the commanded heading at
-90 degrees a second, and a GPS course that follows the nose, off by a bias in some scenarios. Every
-state field, autopilot call and commanded velocity of the 43076 steps replays exactly, and every
-line of the executor's body runs.
+The harness replays 120 scenarios recorded from the reference executor with its rescue plan compiled
+in. Each sets up a carrot leg through the navigation's own calls, with a craft that follows the
+commanded velocity or only drifts, a nose that turns toward the commanded heading at 90 degrees a
+second, and a GPS course that follows the nose, off by a bias in some scenarios. Every state field,
+autopilot call and commanded velocity of the 43076 steps replays exactly, and every line of the
+executor's body runs.
 
 ## D142. Flight plan executor dispatch and landing (2026-10-13)
 
-`Adaflight.Flight_Plan_Nav` contains the third part of the executor: the dispatch of a leg,
-the arrival at a waypoint, and the landing. The dispatch walks past the modifier waypoints and
-stages each for the next leg: an altitude override, a delay window, and a yaw rate cap the
-autopilot is told of. The leg's target comes from the GPS distance, at the craft for a takeoff
-and at the craft's resting point for the rescue's first stop. Its radius is the hold radius on
-a station-keeping waypoint and the arrival radius, at most 12 m, on any other, and a rescue
-leg arrives at the descent distance and brakes onto its point. A delay lowers the cruise to
-cover the rest of the leg in the delay's time, never below 0.1 m/s. A carrot leg starts on the
-craft when it turns in, from the carrot the leg before held the craft to, or from where the
-craft comes to rest at its speed along the leg. A point leg goes to the navigator with its
-arrival and the executor's reached handler, which the owner runs when the navigator reports
-the leg reached. A face-the-target point leg first holds the craft where it is while the nose
-comes round. The rescue's first stop without a heading starts the heading recovery's level
-climb.
+`Adaflight.Flight_Plan_Nav` contains the third part of the executor: the dispatch of a leg, the
+arrival at a waypoint, and the landing. The dispatch walks past the modifier waypoints and stages
+each for the next leg: an altitude override, a delay window, and a yaw rate cap the autopilot is
+told of. The leg's target comes from the GPS distance, at the craft for a takeoff and at the craft's
+resting point for the rescue's first stop. Its radius is the hold radius on a station-keeping
+waypoint and the arrival radius, at most 12 m, on any other, and a rescue leg arrives at the descent
+distance and brakes onto its point. A delay lowers the cruise to cover the rest of the leg in the
+delay's time, never below 0.1 m/s. A carrot leg starts on the craft when it turns in, from the
+carrot the leg before held the craft to, or from where the craft comes to rest at its speed along
+the leg. A point leg goes to the navigator with its arrival and the executor's reached handler,
+which the owner runs when the navigator reports the leg reached. A face-the-target point leg first
+holds the craft where it is while the nose comes round. The rescue's first stop without a heading
+starts the heading recovery's level climb.
 
-On arrival the listener hears the stored plan's index, a station-keeping waypoint with a
-duration holds, a landing waypoint lands at the leg's target, and the plan advances or
-completes. The rescue's first stop without a heading pitches forward instead, or waits for
-the climb's drift to die away. A landing descends at no less than 0.3 m/s toward a target kept
-200 m below the craft. It watches for touchdown once the descent is established, or once the
-craft has been below the landing altitude for 5 s, and completes the plan with a disarm when
-the descent has stopped for the touchdown time.
+On arrival the listener hears the stored plan's index, a station-keeping waypoint with a duration
+holds, a landing waypoint lands at the leg's target, and the plan advances or completes. The
+rescue's first stop without a heading pitches forward instead, or waits for the climb's drift to die
+away. A landing descends at no less than 0.3 m/s toward a target kept 200 m below the craft. It
+watches for touchdown once the descent is established, or once the craft has been below the landing
+altitude for 5 s, and completes the plan with a disarm when the descent has stopped for the
+touchdown time.
 
-The navigator's command records whether its owner handles the arrival, in place of the
-reference's callback. The executor's outputs became a list of the calls it makes out, to the
-autopilot, to the arming, and to the reached waypoint's listener.
+The navigator's command records whether its owner handles the arrival, in place of the reference's
+callback. The executor's outputs became a list of the calls it makes out, to the autopilot, to the
+arming, and to the reached waypoint's listener.
 
-The harness replays 3000 calls recorded from the reference executor on random executor
-states, navigator legs and plans within their ranges: half of them dispatches, a quarter
-arrivals, and a quarter landings followed by up to 30 cycles of the touchdown watch. Every
-executor field, navigator field and call of the 22175 lines replays exactly.
+The harness replays 3000 calls recorded from the reference executor on random executor states,
+navigator legs and plans within their ranges: half of them dispatches, a quarter arrivals, and a
+quarter landings followed by up to 30 cycles of the touchdown watch. Every executor field, navigator
+field and call of the 22175 lines replays exactly.
 
 ## D143. Flight plan executor update (2026-10-13)
 
-`Adaflight.Flight_Plan_Nav` contains the fourth part of the executor: its cycle, its engagement
-and the plans it takes. Each update takes its interval from the last, at most 0.25 s. The
-rescue's heading recovery waits for the GPS course to stay within 5 degrees of the nose at speed
-for half a second, or 2 s after the attitude trusts its heading, then turns in onto the next
-leg, and aborts after 15 s without a heading. An idle executor dispatches again until the
-estimator has an origin, and a leg the position controller lost is dispatched afresh. A landing
-runs its touchdown watch. While a leg or a hold flies, an invalid estimate aborts, and past the
-geofence's distance from home the executor returns home at the return altitude or lands in
-place. A delay's end restores the leg's cruise. The rescue's blind climb keeps its target over
-the craft and pitches forward once the climb's drift has died away or after 5 s. A leg runs nose
-control, swaps a nose hold for the real target once the nose is round, flies a carrot or checks
-progress, and on a heading fault parks the craft level and aborts. A hold counts time in
-per-update deltas, starts a pattern once arrival braking has settled or after 5 s, advances
-pattern phase every 0.2 s, and on expiry lands or moves on.
+`Adaflight.Flight_Plan_Nav` contains the fourth part of the executor: its cycle, its engagement and
+the plans it takes. Each update takes its interval from the last, at most 0.25 s. The rescue's
+heading recovery waits for the GPS course to stay within 5 degrees of the nose at speed for half a
+second, or 2 s after the attitude trusts its heading, then turns in onto the next leg, and aborts
+after 15 s without a heading. An idle executor dispatches again until the estimator has an origin,
+and a leg the position controller lost is dispatched afresh. A landing runs its touchdown watch.
+While a leg or a hold flies, an invalid estimate aborts, and past the geofence's distance from home
+the executor returns home at the return altitude or lands in place. A delay's end restores the leg's
+cruise. The rescue's blind climb keeps its target over the craft and pitches forward once the
+climb's drift has died away or after 5 s. A leg runs nose control, swaps a nose hold for the real
+target once the nose is round, flies a carrot or checks progress, and on a heading fault parks the
+craft level and aborts. A hold counts time in per-update deltas, starts a pattern once arrival
+braking has settled or after 5 s, advances pattern phase every 0.2 s, and on expiry lands or moves
+on.
 
-Engaging clears heading-fault park, nose command, modifiers and nose gate, captures altitude
-frame, and flies a staged rescue plan or the stored plan from the waypoint a set-current chose
-while idle. Disengaging drops plan and target. An injected plan of one to four waypoints
-replaces the stored one while the executor is active, and a set-current moves the stored plan's
-current waypoint, or the next engage's start while idle. Queries give distance and bearing in
-tenths of a degree to the waypoint, and time to it at the craft's ground speed, at most 65535 s.
+Engaging clears heading-fault park, nose command, modifiers and nose gate, captures altitude frame,
+and flies a staged rescue plan or the stored plan from the waypoint a set-current chose while idle.
+Disengaging drops plan and target. An injected plan of one to four waypoints replaces the stored one
+while the executor is active, and a set-current moves the stored plan's current waypoint, or the
+next engage's start while idle. Queries give distance and bearing in tenths of a degree to the
+waypoint, and time to it at the craft's ground speed, at most 65535 s.
 
 The harness replays 3600 calls recorded from the reference executor on random executor states,
-navigator legs and plans within their ranges: half of them updates, the rest engages,
-disengages, injections, set-currents and initializations. Every executor field, navigator
-field, call and query of the 7200 lines replays exactly. Every line of the executor's body runs
-except three the reference never reaches: landing in place when a return plan cannot be
-injected, which the update only reaches while the executor is active; a point leg's progress
-check without a target, which the update dispatches afresh first; and orbit period saturation,
-beyond hold radius and cruise ranges.
+navigator legs and plans within their ranges: half of them updates, the rest engages, disengages,
+injections, set-currents and initializations. Every executor field, navigator field, call and query
+of the 7200 lines replays exactly. Every line of the executor's body runs except three the reference
+never reaches:
+
+- landing in place when a return plan cannot be injected, which the update only reaches while the
+  executor is active
+- a point leg's progress check without a target, which the update dispatches afresh first
+- orbit period saturation, beyond hold radius and cruise ranges
 
 ## D144. Flight plan executor rescue plan (2026-10-13)
 
-`Adaflight.Flight_Plan_Nav` contains the last part of the executor: the failsafe rescue's plan.
-With a GPS fix and home, the plan climbs where the craft comes to a stop, returns home and lands
-there. Its altitude is the highest flown plus the initial climb, a fixed height above home, or
-the current altitude plus the initial climb, and never below the craft. A craft that stops
-within the minimum start distance of home lands where it stops instead, and gets no plan without
-a heading to hold that point. The plan replaces one already flying at once, or waits for the
-next engage. Without a plan the rescue descends on altitude alone: alt hold's emergency descent
-at the rescue's rate, with the landing's touchdown watch and disarm.
+`Adaflight.Flight_Plan_Nav` contains the last part of the executor: the failsafe rescue's plan. With
+a GPS fix and home, the plan climbs where the craft comes to a stop, returns home and lands there.
+Its altitude is the highest flown plus the initial climb, a fixed height above home, or the current
+altitude plus the initial climb, and never below the craft. A craft that stops within the minimum
+start distance of home lands where it stops instead, and gets no plan without a heading to hold that
+point. The plan replaces one already flying at once, or waits for the next engage. Without a plan
+the rescue descends on altitude alone: alt hold's emergency descent at the rescue's rate, with the
+landing's touchdown watch and disarm.
 
-The harness replays 1440 stagings and 960 descents of up to 32 cycles recorded from the
-reference executor on random executor states, navigator legs, GPS fixes and settings within
-their ranges. Every executor field, navigator field and call of the 21766 lines replays exactly.
+The harness replays 1440 stagings and 960 descents of up to 32 cycles recorded from the reference
+executor on random executor states, navigator legs, GPS fixes and settings within their ranges.
+Every executor field, navigator field and call of the 21766 lines replays exactly.
 
 ## D145. Autopilot navigation modes (2026-10-13)
 
 `Adaflight.Position_Control` contains the autopilot's three navigation modes over the navigation
 target (D94). A target flown at a velocity its owner states is tracked as a moving anchor. A fixed
-target is approached through a reference point, seeded where the position error stands, walked
-onto the target at the navigator's velocity and held within 5 m of the craft in each axis. A
-target its owner moves without a stated velocity is tracked from within 5 m until it is 7.5 m
-away and flown by the navigator's velocity otherwise, and each new leg starts unanchored.
-Navigation takes up a leg with the feedforward filters at the nominal interval, the distance
-error, its integral and the target velocity's history dropped, and no braking. A heading
-recovery ends that continuity, so the leg is taken up afresh after it. On a leg the distance
-error is held within 5 m, the integral stays at zero, and a leg's own lean limit applies below
-the configured one. A leg whose velocity starts from the craft's motion seeds the feedforward
-filters and the target velocity's history with the current command, on the first task of
-navigation and on each new leg. Flying by velocity, the damping and feedforward drive that
-builds speed is held to the configured buildup lean, and a drive that sheds speed is left
-whole. On a leg the nose takes the override heading when one is set, and otherwise follows the
-configured yaw mode. The velocity mode steers along the course over the ground above the
-minimum forward speed and releases it below three quarters of that speed. The bearing mode
-steers at the target outside its acceptance radius, or along a stated velocity above half a
-metre a second. The hybrid mode steers along the course and falls back to the bearing. A rescue
-flown as a plan leaves the rescue's own velocity mode to the navigation modes.
+target is approached through a reference point, seeded where the position error stands, walked onto
+the target at the navigator's velocity and held within 5 m of the craft in each axis. A target its
+owner moves without a stated velocity is tracked from within 5 m until it is 7.5 m away and flown by
+the navigator's velocity otherwise, and each new leg starts unanchored. Navigation takes up a leg
+with the feedforward filters at the nominal interval, the distance error, its integral and the
+target velocity's history dropped, and no braking. A heading recovery ends that continuity, so the
+leg is taken up afresh after it. On a leg the distance error is held within 5 m, the integral stays
+at zero, and a leg's own lean limit applies below the configured one. A leg whose velocity starts
+from the craft's motion seeds the feedforward filters and the target velocity's history with the
+current command, on the first task of navigation and on each new leg. Flying by velocity, the
+damping and feedforward drive that builds speed is held to the configured buildup lean, and a drive
+that sheds speed is left whole. On a leg the nose takes the override heading when one is set, and
+otherwise follows the configured yaw mode. The velocity mode steers along the course over the ground
+above the minimum forward speed and releases it below three quarters of that speed. The bearing mode
+steers at the target outside its acceptance radius, or along a stated velocity above half a metre a
+second. The hybrid mode steers along the course and falls back to the bearing. A rescue flown as a
+plan leaves the rescue's own velocity mode to the navigation modes.
 
-The navigator updates between the checks that fail a hold and the rest of the task, and a
-reached leg's owner runs there, so a leg its owner replaces on arrival is flown on the same
-task. `Begin_Step` and `Finish_Step` split the task at that point, and `Adaflight.Position_Hold`
-offers the same split around its engagement and sensor checks. Its single `Update` finishes a
-reached leg with no owner. The navigator's velocity is held at 2 ** 26 centimetres per second,
-the bound of the controller's target velocity (D82).
+The navigator updates between the checks that fail a hold and the rest of the task, and a reached
+leg's owner runs there, so a leg its owner replaces on arrival is flown on the same task.
+`Begin_Step` and `Finish_Step` split the task at that point, and `Adaflight.Position_Hold` offers
+the same split around its engagement and sensor checks. Its single `Update` finishes a reached leg
+with no owner. The navigator's velocity is held at 2 ** 26 centimetres per second, the bound of the
+controller's target velocity (D82).
 
-The harness replays 16 flights of 900 tasks recorded from the reference autopilot and position
-hold with the navigation module, 12 with the rescue flown by its own velocity and 4 with the
-rescue flown as a plan: legs to fixed, moved and velocity-stated targets with every setter, an
-owner that issues the next leg from inside the navigator's update on 18 of 31 arrivals,
-retargets, clears, nose overrides, sticks, heading recoveries, level parks, estimate dropouts
-and rescue windows, in every yaw mode. Every controller field, navigator field, lean and yaw
-rate of the 14416 lines replays exactly.
+The harness replays 16 flights of 900 tasks recorded from the reference autopilot and position hold
+with the navigation module, 12 with the rescue flown by its own velocity and 4 with the rescue flown
+as a plan: legs to fixed, moved and velocity-stated targets with every setter, an owner that issues
+the next leg from inside the navigator's update on 18 of 31 arrivals, retargets, clears, nose
+overrides, sticks, heading recoveries, level parks, estimate dropouts and rescue windows, in every
+yaw mode. Every controller field, navigator field, lean and yaw rate of the 14416 lines replays
+exactly.
 
 ## D146. MSP identification and meter replies (2026-10-13)
 
 `Adaflight.MSP_Common_Out` contains the MSP out messages every MSP host answers: the protocol and
-API versions, the firmware variant and calendar version, the MCU name, the board information,
-the build information with its option codes, the unique id, the feature and beeper
-configuration, the voltage and current meters, the analog voltage sensors, the analog and virtual
-current sensors, the battery and transponder configuration, and the OSD canvas. The board
-information covers the target's capabilities, names, signature, configuration state, gyro rate,
-configuration problems and bus device counts. The version reply leaves out the version text for a
-request from the port an HD video transmitter shares. The caller gathers the firmware's identity,
-the target's options, the configuration and the meter readings into a snapshot, so the replies
-hold no identity of their own. With the ESC sensor built in, both meter replies leave out the
-per-motor slots past the motor count. The current meters keep the reference's trim, which drops
-the MSP meter when that meter is built as well (findings F141). A displayed voltage rounds to
-tenths within a byte, consumption and current in milliamperes saturate at the field's range, and
-the year since 2000 and the cell voltages in tenths wrap to a byte. The beeper configuration
-reply exists only with the beeper built in.
+API versions, the firmware variant and calendar version, the MCU name, the board information, the
+build information with its option codes, the unique id, the feature and beeper configuration, the
+voltage and current meters, the analog voltage sensors, the analog and virtual current sensors, the
+battery and transponder configuration, and the OSD canvas. The board information covers the target's
+capabilities, names, signature, configuration state, gyro rate, configuration problems and bus
+device counts. The version reply leaves out the version text for a request from the port an HD video
+transmitter shares. The caller gathers the firmware's identity, the target's options, the
+configuration and the meter readings into a snapshot, so the replies hold no identity of their own.
+With the ESC sensor built in, both meter replies leave out the per-motor slots past the motor count.
+The current meters keep the reference's trim, which drops the MSP meter when that meter is built as
+well (findings F141). A displayed voltage rounds to tenths within a byte, consumption and current in
+milliamperes saturate at the field's range, and the year since 2000 and the cell voltages in tenths
+wrap to a byte. The beeper configuration reply exists only with the beeper built in.
 
-The harness replays 4800 requests recorded from the reference MSP processor in two builds, one
-with every option the replies branch on and one without, on random identities, configurations
-and meter readings. Every result, length and byte of the 4808 lines replays exactly.
+The harness replays 4800 requests recorded from the reference MSP processor in two builds, one with
+every option the replies branch on and one without, on random identities, configurations and meter
+readings. Every result, length and byte of the 4808 lines replays exactly.
 
 ## D147. MSP tuning replies (2026-10-13)
 
-`Adaflight.MSP_Tuning_Out` contains the MSP out messages that report the tuning: the PID gains
-with their names and controller, the rate profile, the advanced configuration, the filter
-configuration, the advanced PID configuration, the board and sensor alignment, the arming
-configuration, the 3D throttle and the stick deadbands. The caller gathers the active PID and
-rate profiles, the gyro, filter, motor and system configuration and the build's options into a
-snapshot. Each value keeps its configuration width and the reply narrows it to the protocol's
-field: the first gyro cutoff wraps to a byte, the board alignment in degrees wraps to sixteen
-bits, and the signed gyro yaw offset, compass alignment and profile cell count wrap to their
-fields. A value whose option is left out of the build goes out as zero. Retired fields keep
-their place in the layout and go out as zero, or one for the retired gyro sync divider.
+`Adaflight.MSP_Tuning_Out` contains the MSP out messages that report the tuning: the PID gains with
+their names and controller, the rate profile, the advanced configuration, the filter configuration,
+the advanced PID configuration, the board and sensor alignment, the arming configuration, the 3D
+throttle and the stick deadbands. The caller gathers the active PID and rate profiles, the gyro,
+filter, motor and system configuration and the build's options into a snapshot. Each value keeps its
+configuration width and the reply narrows it to the protocol's field: the first gyro cutoff wraps to
+a byte, the board alignment in degrees wraps to sixteen bits, and the signed gyro yaw offset,
+compass alignment and profile cell count wrap to their fields. A value whose option is left out of
+the build goes out as zero. Retired fields keep their place in the layout and go out as zero, or one
+for the retired gyro sync divider.
 
-The harness replays 4800 requests recorded from the reference MSP processor with the reference
-PID names, in a build with every option the replies branch on and one without, on random
-profiles and configurations. Every result, length and byte of the 4808 lines replays exactly.
+The harness replays 4800 requests recorded from the reference MSP processor with the reference PID
+names, in a build with every option the replies branch on and one without, on random profiles and
+configurations. Every result, length and byte of the 4808 lines replays exactly.
 
 ## D148. MSP receiver and mode replies (2026-10-13)
 
 `Adaflight.MSP_Receiver_Out` contains the MSP out messages that report the receiver and the
-switches: the mode ranges, their logic and links, the adjustment ranges, the receiver
-configuration, the failsafe configuration, each channel's failsafe, the RSSI channel and the
-channel map. The mode replies name each box by its permanent id from `Adaflight.MSP_Box`, and a
-channel's failsafe step goes out as its pulse, 750 microseconds and 25 more per step. The caller
-gathers the configured conditions and ranges, the receiver and failsafe settings, the runtime
-channel count and the build's options into a snapshot. The SPI receiver's settings, RC
-smoothing, the USB device type and the ExpressLRS binding go out as zero when their option is
-left out of the build, and the retired fields keep their place as zero.
+switches: the mode ranges, their logic and links, the adjustment ranges, the receiver configuration,
+the failsafe configuration, each channel's failsafe, the RSSI channel and the channel map. The mode
+replies name each box by its permanent id from `Adaflight.MSP_Box`, and a channel's failsafe step
+goes out as its pulse, 750 microseconds and 25 more per step. The caller gathers the configured
+conditions and ranges, the receiver and failsafe settings, the runtime channel count and the build's
+options into a snapshot. The SPI receiver's settings, RC smoothing, the USB device type and the
+ExpressLRS binding go out as zero when their option is left out of the build, and the retired fields
+keep their place as zero.
 
-The harness replays 4800 requests recorded from the reference MSP processor with its box table,
-in a build with every option the replies branch on and one without, on random configurations
-within their ranges. Every result, length and byte of the 4808 lines replays exactly.
+The harness replays 4800 requests recorded from the reference MSP processor with its box table, in a
+build with every option the replies branch on and one without, on random configurations within their
+ranges. Every result, length and byte of the 4808 lines replays exactly.
 
 ## D149. MSP hardware replies (2026-10-13)
 
-`Adaflight.MSP_Hardware_Out` contains the MSP out messages that report the hardware
-configuration: the mixer, the motors, the compass declination, the GPS receiver, the GPS rescue
-and its gains, the accelerometer trims, the flight log, the sensors selected and detected, the
-gyros detected, and the flash and SD card storage. The caller gathers the configuration, the
-recorder's rate divider and P ratio, the sensors detected, the storage state and the build's
-options into a snapshot. The compass, GPS, rescue and trim replies exist only with their option
-built. A sensor left out of the build reports its hardware selection as none and its detection as
-16#FF#. The flash summary counts the partition's sectors from its first and last, and the SD card
-summary merges the card's presence and health with the file system's state, giving the free and
-total space in kilobytes once the card is ready.
+`Adaflight.MSP_Hardware_Out` contains the MSP out messages that report the hardware configuration:
+the mixer, the motors, the compass declination, the GPS receiver, the GPS rescue and its gains, the
+accelerometer trims, the flight log, the sensors selected and detected, the gyros detected, and the
+flash and SD card storage. The caller gathers the configuration, the recorder's rate divider and P
+ratio, the sensors detected, the storage state and the build's options into a snapshot. The compass,
+GPS, rescue and trim replies exist only with their option built. A sensor left out of the build
+reports its hardware selection as none and its detection as 16#FF#. The flash summary counts the
+partition's sectors from its first and last, and the SD card summary merges the card's presence and
+health with the file system's state, giving the free and total space in kilobytes once the card is
+ready.
 
 The harness replays 4800 requests recorded from the reference MSP processor, in a build with every
 option the replies branch on and one without, on random configurations and storage states. Every
@@ -3406,73 +3402,73 @@ result, length and byte of the 4808 lines replays exactly.
 
 ## D150. MSP peripheral replies (2026-10-13)
 
-`Adaflight.MSP_Peripheral_Out` contains the MSP out messages that report the peripherals: the
-servo outputs, the servos' configuration and mix rules, the motor output order, the LED colors,
-the LED strip and its mode colors, the video transmitter's configuration, and the wing's tuning.
-The caller gathers the outputs, the configuration, the transmitter's state, the target's servo
-count and strip length, and the build's options into a snapshot. Signed values wrap to their
-fields. The servo, LED and transmitter replies exist only with their option built, and a strip
-built without its status mode reports every LED as zero. The transmitter's type, pit mode and
-readiness come from its device when one is present. The reply for the MSP transmitter's own port
-also marks that transmitter ready, and that call stays with the caller.
+`Adaflight.MSP_Peripheral_Out` contains the MSP out messages that report the peripherals: the servo
+outputs, the servos' configuration and mix rules, the motor output order, the LED colors, the LED
+strip and its mode colors, the video transmitter's configuration, and the wing's tuning. The caller
+gathers the outputs, the configuration, the transmitter's state, the target's servo count and strip
+length, and the build's options into a snapshot. Signed values wrap to their fields. The servo, LED
+and transmitter replies exist only with their option built, and a strip built without its status
+mode reports every LED as zero. The transmitter's type, pit mode and readiness come from its device
+when one is present. The reply for the MSP transmitter's own port also marks that transmitter ready,
+and that call stays with the caller.
 
 The harness replays 4800 requests recorded from the reference MSP processor, in a build with the
-servos, the 64-LED strip with its status mode and the transmitter with its table, and one
-without them, on random outputs, configurations and devices. Every result, length and byte of the
-4808 lines replays exactly.
+servos, the 64-LED strip with its status mode and the transmitter with its table, and one without
+them, on random outputs, configurations and devices. Every result, length and byte of the 4808 lines
+replays exactly.
 
 ## D151. MSP text, table and battery profile replies (2026-10-13)
 
 `Adaflight.MSP_Text_Out` contains the MSP out messages that answer with text, a table row or a
 profile: the craft name, a text by its type, a video transmitter band or power level from the
-frequency table, the LED strip's brightness and rainbow, and a battery profile. The request's
-first byte selects the text type, the band, the level or the profile, and the profile falls back
-to the active one without it. An unknown text type, a text the build leaves out, a band or level
-outside the table and a profile beyond the third are errors that write nothing. The caller
-gathers the names, the build key and release name, the battery profiles, the strip settings and
-the table into a snapshot. The table replies exist only with the table built and the strip
-values only with the strip. A band or level reply to the MSP transmitter's own port also marks
-that transmitter ready, and that call stays with the caller.
+frequency table, the LED strip's brightness and rainbow, and a battery profile. The request's first
+byte selects the text type, the band, the level or the profile, and the profile falls back to the
+active one without it. An unknown text type, a text the build leaves out, a band or level outside
+the table and a profile beyond the third are errors that write nothing. The caller gathers the
+names, the build key and release name, the battery profiles, the strip settings and the table into a
+snapshot. The table replies exist only with the table built and the strip values only with the
+strip. A band or level reply to the MSP transmitter's own port also marks that transmitter ready,
+and that call stays with the caller.
 
-The harness replays 4800 requests recorded from the reference MSP processor with the reference
-build strings, in a build with the table, the strip, a build key and a release name, and one
-without, on random names, profiles, tables and request bytes. Every result, length and byte of
-the 4808 lines replays exactly.
+The harness replays 4800 requests recorded from the reference MSP processor with the reference build
+strings, in a build with the table, the strip, a build key and a release name, and one without, on
+random names, profiles, tables and request bytes. Every result, length and byte of the 4808 lines
+replays exactly.
 
 ## D152. Simplified tuning filter sliders (2026-10-13)
 
 `Adaflight.Simplified_Tuning` contains the filter sliders beside the gain sliders. With the D term
 filter slider on, each D term lowpass cutoff in use is set from its default through the slider in
 percent: the dynamic range from 75 and 150 hertz, the first static cutoff from 75 and the second
-from 150, each held to 1000 hertz. The gyro filter slider does the same for the gyro lowpass
-filters from 250 and 500 hertz. A cutoff that is off stays off. Apply runs the gains, the D term
-filters and the gyro filters in that order, and Disable turns every slider off.
+from 150, each held to 1000 hertz. The gyro filter slider does the same for the gyro lowpass filters
+from 250 and 500 hertz. A cutoff that is off stays off. Apply runs the gains, the D term filters and
+the gyro filters in that order, and Disable turns every slider off.
 `Adaflight.Gyro_Filters.Settings` gains the gyro filter slider and its multiplier. The dynamic
 range's ends are written in the order that keeps the lower end at or below the upper end at every
 step, the invariant the profile and gyro settings state.
 
-The harness replays 6000 calls recorded from the reference simplified tuning on random profiles
-and gyro configurations within their ranges, each applying one slider set or turning the sliders
-off. Every gain, cutoff and flag of the 6000 lines replays exactly.
+The harness replays 6000 calls recorded from the reference simplified tuning on random profiles and
+gyro configurations within their ranges, each applying one slider set or turning the sliders off.
+Every gain, cutoff and flag of the 6000 lines replays exactly.
 
 ## D153. MSP simplified tuning messages (2026-10-13)
 
-`Adaflight.MSP_Simplified_Tuning` contains the MSP messages of simplified tuning: slider read with
-D term and gyro cutoffs, gains, D term filters or gyro filters computed from a requested slider set
+`Adaflight.MSP_Simplified_Tuning` contains the MSP messages of simplified tuning: slider read with D
+term and gyro cutoffs, gains, D term filters or gyro filters computed from a requested slider set
 without storing them, validation of gains, gyro filters and D term filters against their sliders,
 and an in message that stores a slider set with its cutoffs and applies every slider. A request
-reads zero past its end. A request with a field outside its setting's range is an error that
-writes and changes nothing: mode beyond roll, pitch and yaw, gain slider above 200, filter switch
-above one, filter multiplier outside 10 to 200, cutoff above 1000 hertz, or dynamic range with its
-lower end above its upper end (D6). The in message checks the whole request before it stores
-anything. Dynamic range ends are written in the order that keeps the lower end at or below the
-upper end at every step.
+reads zero past its end. A request with a field outside its setting's range is an error that writes
+and changes nothing: mode beyond roll, pitch and yaw, gain slider above 200, filter switch above
+one, filter multiplier outside 10 to 200, cutoff above 1000 hertz, or dynamic range with its lower
+end above its upper end (D6). The in message checks the whole request before it stores anything.
+Dynamic range ends are written in the order that keeps the lower end at or below the upper end at
+every step.
 
 The harness replays 4800 requests recorded from the reference MSP processor on random profiles and
 gyro configurations, about a third of them already at their sliders' result, with requests within
-their ranges, short, long, or with one field outside its range. Every result, length, reply byte
-and setting of the 4025 requests within their ranges replays exactly, and each of the 775 outside
-them is an error that leaves the settings unchanged.
+their ranges, short, long, or with one field outside its range. Every result, length, reply byte and
+setting of the 4025 requests within their ranges replays exactly, and each of the 775 outside them
+is an error that leaves the settings unchanged.
 
 ## D154. MSP OSD replies (2026-10-13)
 
