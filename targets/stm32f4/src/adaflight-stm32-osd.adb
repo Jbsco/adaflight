@@ -436,6 +436,7 @@ package body Adaflight.STM32.OSD is
       Context.Draw.Inputs.Min_Cell := Min_Cell;
       Context.Draw.Inputs.Max_Cell := (if Max_Cell = Min_Cell then Min_Cell + 1 else Max_Cell);
       Context.Draw.Inputs.Craft_Name := Name_Of (C.Pilot_Config.Craft_Name);
+      Context.Draw.Inputs.Rescue_Min_Sats := C.Gps_Rescue_Config.Min_Sats;
       Context.Draw.Inputs.Pilot_Name := Name_Of (C.Pilot_Config.Pilot_Name);
       Context.Spec_Settings := Adaflight.Config_Runtime.OSD_Spec_Settings_Of
         (C.Mixer_Config, C.Motor_Config, C.Control_Rate_Profiles (Rate), C.Pid_Profiles (PID),
@@ -514,6 +515,12 @@ package body Adaflight.STM32.OSD is
       R.RSNR := F.RSNR;
       R.Acceleration := F.G_Force;
       R.Motors := F.Motors;
+      R.GPS_Fix := F.GPS.Fix;
+      R.GPS_Fix_Home := F.GPS.Fix_Home;
+      R.Distance_To_Home := F.GPS.Distance_To_Home_M;
+      R.Speed_3D := F.GPS.Speed_3D;
+      R.Ground_Speed := F.GPS.Ground_Speed;
+      R.Use_3D_Speed := F.GPS.Use_3D_Speed;
 
       A.RSSI_Percent := F.RSSI_Percent;
       A.RSSI_Dbm := F.RSSI_Dbm;
@@ -522,8 +529,15 @@ package body Adaflight.STM32.OSD is
       A.Profile_Capacity := F.Battery_Capacity;
       A.MAh_Drawn := F.MAh_Drawn;
       A.Motors := F.Motors;
+      A.GPS_Present := F.GPS_Feature;
+      A.GPS_Fix := F.GPS.Fix;
+      A.GPS_Fix_Home := F.GPS.Fix_Home;
+      A.Satellites := F.GPS.Satellites;
+      A.Home_Distance_M := F.GPS.Distance_To_Home_M;
 
       Context.Element_Inputs.Acc_Present := F.Acc_Present;
+      Context.Element_Inputs.GPS_Present := F.GPS_Feature;
+      Context.Page.GPS_Feature := F.GPS_Feature;
 
       D.Roll := F.Roll;
       D.Pitch := F.Pitch;
@@ -555,6 +569,23 @@ package body Adaflight.STM32.OSD is
       D.Output_Low := F.Output_Low;
       D.Output_High := (if F.Output_High > F.Output_Low + 1.0 then F.Output_High else F.Output_Low + 2.0);
       D.Motors_Running := F.Motors_Running;
+      D.GPS_Present := F.GPS_Feature;
+      D.GPS_Fix := F.GPS.Fix;
+      D.GPS_Fix_Home := F.GPS.Fix_Home;
+      D.GPS_Fix_Ever := F.GPS.Fix_Ever;
+      D.Latitude := Interfaces.Integer_32'Max (Interfaces.Integer_32'First + 1, F.GPS.Latitude);
+      D.Longitude := Interfaces.Integer_32'Max (Interfaces.Integer_32'First + 1, F.GPS.Longitude);
+      D.Satellites := F.GPS.Satellites;
+      D.PDOP := F.GPS.PDOP;
+      D.Speed_3D := F.GPS.Speed_3D;
+      D.Ground_Speed := F.GPS.Ground_Speed;
+      D.GPS_Time_Ms := F.GPS.Time_Ms;
+      D.Home_Distance_M := F.GPS.Distance_To_Home_M;
+      D.Home_Direction :=
+        Adaflight.OSD_Render.Yaw_Decidegrees ((Integer (F.GPS.Direction_To_Home) mod 3_600 + 3_600) mod 3_600);
+      D.Flown_Cm := F.GPS.Distance_Flown_Cm;
+      D.Use_3D_Speed := F.GPS.Use_3D_Speed;
+      D.GPS_Healthy := F.GPS.Healthy;
       D.Screen_Rows := Port.Rows;
       D.Screen_Cols := Port.Cols;
 
