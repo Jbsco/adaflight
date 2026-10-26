@@ -59,7 +59,7 @@ package body Adaflight.STM32.USART is
       GPIO.Enable_Port (TX.Port);
       GPIO.Enable_Port (RX.Port);
       GPIO.Set_Alternate (TX, 7);
-      GPIO.Set_Alternate (RX, 7, Pull_Up => True);
+      GPIO.Set_Alternate (RX, 7, GPIO.Up);
       Interfaces.STM32.RCC.RCC_Periph.APB2ENR.USART1EN := 1;
       Regs.CR1 := (others => <>);
       Regs.BRR := (DIV_Mantissa => Interfaces.STM32.UInt12 (Divider / 16),
