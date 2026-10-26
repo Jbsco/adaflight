@@ -3473,54 +3473,52 @@ is an error that leaves the settings unchanged.
 ## D154. MSP OSD replies (2026-10-13)
 
 `Adaflight.MSP_OSD_Out` contains the MSP out messages of the OSD: configuration and warnings line.
-The configuration reply holds OSD flags from the display device's type and readiness, video
-system, units, alarms, element positions, statistics enabled, timers, warnings enabled as low half
-and full mask, profile count and selection, stick overlay mode, camera frame, and link quality and
-RSSI dBm alarms. A reply to the MSP display port's own serial port keeps the layout of the first
-80 elements without the RSSI dBm alarm. A build without the video system, profile or stick
-overlay options reports the HD video system, one profile selected, or overlay mode zero. The
-warnings reply gives the line's severity with the blink bit and the line as a length-prefixed
-string. The element set is the 89 items of D102. The caller gathers the settings, the display
-device's type and readiness and the rendered warnings line into a snapshot.
+The configuration reply holds OSD flags from the display device's type and readiness, video system,
+units, alarms, element positions, statistics enabled, timers, warnings enabled as low half and full
+mask, profile count and selection, stick overlay mode, camera frame, and link quality and RSSI dBm
+alarms. A reply to the MSP display port's own serial port keeps the layout of the first 80 elements
+without the RSSI dBm alarm. A build without the video system, profile or stick overlay options
+reports the HD video system, one profile selected, or overlay mode zero. The warnings reply gives
+the line's severity with the blink bit and the line as a length-prefixed string. The element set is
+the 89 items of D102. The caller gathers the settings, the display device's type and readiness and
+the rendered warnings line into a snapshot.
 
 The harness replays 4800 requests recorded from the reference MSP processor, in a build with the
-video system, profiles, stick overlay, MSP display port with its font and frame buffer OSD and
-one without, on random settings, devices and warnings lines. Every result, length and byte of the
-4808 lines replays exactly.
+video system, profiles, stick overlay, MSP display port with its font and frame buffer OSD and one
+without, on random settings, devices and warnings lines. Every result, length and byte of the 4808
+lines replays exactly.
 
 ## D155. Serial feature map (2026-10-13)
 
 `Adaflight.Serial_Feature_Map` contains the map between the features that name a serial port in
-their own settings and the per-port view of function bits and baud rates: a port's function bits
-and its baud rate of a class from the features naming it, the claims on a port with their setting
-names, a function mask applied to a port, a baud rate applied to a port's features of a class,
-implied MSP ports, port conflict rule, configuration check and its fix. Applying a mask clears
-every claim on the port first, and changes nothing when the mask asks for two VTX protocols or for
-more MSP or telemetry slots than are free. A port's functions conflict when MSP or a serial
-receiver is on a soft serial port, when an MSP VTX is alone on its port, or when shared functions
-are neither MSP with functions that share with it nor a serial receiver with telemetry it carries.
-The fix drops every claim but MSP on each conflicting port and, when the assignment is still
-invalid, clears every claim and puts MSP on the target's first port at its default baud rate. The
-build's features, telemetry protocols and soft serial ports come in as options, with one telemetry
-slot per protocol built, at most three. The rangefinder's and optical flow's hardware enter as
-whether they talk MSP.
+their own settings and the per-port view of function bits and baud rates: a port's function bits and
+its baud rate of a class from the features naming it, the claims on a port with their setting names,
+a function mask applied to a port, a baud rate applied to a port's features of a class, implied MSP
+ports, port conflict rule, configuration check and its fix. Applying a mask clears every claim on
+the port first, and changes nothing when the mask asks for two VTX protocols or for more MSP or
+telemetry slots than are free. A port's functions conflict when MSP or a serial receiver is on a
+soft serial port, when an MSP VTX is alone on its port, or when shared functions are neither MSP
+with functions that share with it nor a serial receiver with the telemetry of its link. The fix
+drops every claim but MSP on each conflicting port and, when the assignment is still invalid, clears
+every claim and puts MSP on the target's first port at its default baud rate. The build's features,
+telemetry protocols and soft serial ports come in as options, with one telemetry slot per protocol
+built, at most three. The rangefinder's and optical flow's hardware enter as whether they talk MSP.
 
 The harness replays 4800 operations recorded from the reference feature map, conflict rule, port
 types and telemetry port sharing check, in a build with every feature that names a port and one
-without the ESC sensor, RC device, gimbal, Tramp and MSP VTX, rangefinder, optical flow, MSP
-display port and MSP over telemetry, on random assignments, half of them sparse. Every function
-mask, claim, baud rate, conflict, check result and assignment of the 4808 lines replays exactly.
+without the ESC sensor, RC device, gimbal, Tramp and MSP VTX, rangefinder, optical flow, MSP display
+port and MSP over telemetry, on random assignments, half of them sparse. Every function mask, claim,
+baud rate, conflict, check result and assignment of the 4808 lines replays exactly.
 
 ## D156. MSP serial port replies (2026-10-13)
 
 `Adaflight.MSP_Serial_Out` contains the MSP out messages of the serial ports in the legacy and the
 common layout: each available port's identifier, an empty function mask and its baud rate of each
-class from the serial feature map (D155), with the common layout led by the count of available
-ports and carrying a 32-bit mask. Port functions live in the features' settings and the command
-line shows them, so both layouts give an empty mask, which an older configurator reads as an
-unassigned port. The caller gives the target's ports with their availability, which the serial
-layer's initialization and port removals decide, the build's options and the feature assignments
-in a snapshot.
+class from the serial feature map (D155), with the common layout led by the count of available ports
+and holding a 32-bit mask. Port functions live in the features' settings and the command line shows
+them, so both layouts give an empty mask, which an older configurator reads as an unassigned port.
+The caller gives the target's ports with their availability, which the serial layer's initialization
+and port removals decide, the build's options and the feature assignments in a snapshot.
 
 The harness replays 4800 requests recorded from the reference MSP processor with the reference
 feature map and serial layer linked, in the full and the reduced build of D155, on random
@@ -3532,67 +3530,72 @@ the 4808 lines replays exactly.
 `Adaflight.MSP_VTX_Status_Out` contains the MSP out message of the video transmitter's device
 status: device type and readiness, band and channel, power index, frequency and status with whether
 the device knows each, power levels in decibel-milliwatts and milliwatts, and the device's own
-status block. The values come from the driver of the device in use, SmartAudio (D84), Tramp (D86)
-or MSP (D98), and a value the device does not know goes out as zero. The status has the pit mode
-bit and, for Tramp, the race lock bit. SmartAudio reports its own power levels from version 2 on,
-the MSP device reports the table's, and Tramp reports none. Only SmartAudio has a status block of
-its own: version, mode, pit mode frequency and boot flag; the others send a zero length. Nothing
-goes out without a device. The RTC6705 driver is not ported, so its device does not appear.
+status block. The values come from the driver of the device in use, SmartAudio (D84), Tramp (D86) or
+MSP (D98), and a value the device does not know goes out as zero. The status has the pit mode bit
+and, for Tramp, the race lock bit. SmartAudio reports its own power levels from version 2 on, the
+MSP device reports the table's, and Tramp reports none. Only SmartAudio has a status block of its
+own: version, mode, pit mode frequency and boot flag. The others send a zero length. Nothing goes
+out without a device. The RTC6705 driver is not ported, so its device does not appear.
 
 The harness replays 4800 device states drawn into the reference common transmitter layer and its
-SmartAudio, Tramp and MSP drivers, with random frequency tables, each step making one device
-current or none. Every length and byte of the 4808 lines replays exactly.
+SmartAudio, Tramp and MSP drivers, with random frequency tables, each step making one device current
+or none. Every length and byte of the 4808 lines replays exactly.
 
 ## D158. Configuration storage image (2026-10-13)
 
 `Adaflight.Config_Store` contains the storage image of the parameter groups: header with storage
 version 178 and magic byte, one record per group with its size, group number, version and class,
 zero terminator, and the CRC over all of it, inverted and big-endian, so the CRC of the whole image
-is a constant. The structure check scans the records to the terminator, each record at least its
-own header long and ending before the region does. Lookup finds a group's first record of a class
-with the same scan. Loading resets every group to its defaults, takes its stored bytes when a
-system record has the group's version, as many as the group holds, and hashes each group with
-FNV-1a. Saving writes only when the image's version or structure is invalid or a group's bytes no
-longer match its hash; it zeroes the region, as the reference's RAM storage does, then writes
-header, records, terminator and CRC. Each group's bytes are adaflight's own layout, so an image
-the reference writes does not load. Bytes past the region read as erased and an image longer than
-the region is not written (D6).
+is a constant. The structure check scans the records to the terminator, each record at least its own
+header long and ending before the region does. Lookup finds a group's first record of a class with
+the same scan. Loading resets every group to its defaults, takes its stored bytes when a system
+record has the group's version, as many as the group holds, and hashes each group with FNV-1a.
+Saving writes only when the image's version or structure is invalid or a group's bytes no longer
+match its hash. It zeroes the region, as the reference's RAM storage does, then writes header,
+records, terminator and CRC. Each group's bytes are adaflight's own layout, so an image the
+reference writes does not load. Bytes past the region read as erased and an image longer than the
+region is not written (D6).
 
 The harness replays 4800 operations recorded from the reference storage code over a 512-byte RAM
 region with six parameter groups: structure checks, lookups, loads and saves on images built from
-random records, about a third of them clean and the rest often corrupted, never one whose scan
-reads past the region. Every result, group, hash and image byte of the 4808 lines replays exactly.
+random records, about a third of them clean and the rest often corrupted, never one whose scan reads
+past the region. Every result, group, hash and image byte of the 4808 lines replays exactly.
 
 ## D159. Mixer setup (2026-10-13)
 
-`Adaflight.Mixer_Init` contains the mixer setup: each mixer mode's motor count, whether it drives
-servos, and its motor table where the build has it; the motors in use and their mix, from the
-mode or, for the custom modes, from the custom table up to its first entry without throttle, at
-most the build's motors; the launch control mix, which holds every motor that pitches the nose up
-at zero; disarmed outputs reset to the disarm value; a mode's table loaded into the custom table
-for the command line; and whether the motors run or saturate. The modes keep the configuration's
-order, from tri to octo X8 plus. The build's options select quad X only, the uncommon frames, the
-motor count and launch control. A mode whose table the build leaves out keeps the previous mix
-for its motor count, as the reference does (findings F144). The motor mixer (D16) takes the count
-and the mix.
+`Adaflight.Mixer_Init` contains the mixer setup:
+
+- each mixer mode's motor count, whether it drives servos, and its motor table where the build has
+  it
+- the motors in use and their mix, from the mode or, for the custom modes, from the custom table up
+  to its first entry without throttle, at most the build's motors
+- the launch control mix, which holds every motor that pitches the nose up at zero
+- disarmed outputs reset to the disarm value
+- a mode's table loaded into the custom table for the command line
+- whether the motors run or saturate
+
+The modes keep the configuration's order, from tri to octo X8 plus. The build's options select quad
+X only, the uncommon frames, the motor count and launch control. A mode whose table the build leaves
+out keeps the previous mix for its motor count, as the reference does (findings F144). The motor
+mixer (D16) takes the count and the mix.
 
 The harness replays 4800 setups recorded from the reference mixer setup, in a build with every
-frame, launch control and 8 motors, one without the uncommon frames and launch control for 6
-motors, and one for quad X only, on random previous and custom mixes and outputs. Every count,
-flag and weight of the 4808 lines replays exactly.
+frame, launch control and 8 motors, one without the uncommon frames and launch control for 6 motors,
+and one for quad X only, on random previous and custom mixes and outputs. Every count, flag and
+weight of the 4808 lines replays exactly.
 
 ## D160. Task setup (2026-10-13)
 
-`Adaflight.Task_Init` contains the task setup over the scheduler's task table: which tasks run
-from boot and at what period, from the build's options, the features, the sensors detected and
-the settings, in the reference's order. The serial task takes its update rate, the voltage task
-the fast rate with sag compensation, the gyro, filter and PID tasks the gyro's sample and loop
-periods, the accelerometer task its sample rate, the telemetry task 500 hertz on a Jeti Ex Bus or
-CRSF receiver, and the OSD task its frame rate. The battery alert task runs with a meter and an
-alert or the OSD, the position task with any measurement source, the hold tasks with their
-sources, and the menu task with the MSP display port or the OSD or dashboard. The heading hold
-task follows the compass and a heading mode on a switch, and is set again whenever the modes
-change. The caller gives the PINIO box task's state, which `Adaflight.PINIO_Box` decides.
+`Adaflight.Task_Init` contains the task setup over the scheduler's task table: which tasks run from
+boot and at what period, from the build's options, the features, the sensors detected and the
+settings. The serial task takes its update rate, the voltage task the fast rate with sag
+compensation, the gyro, filter and PID tasks the gyro's sample and loop periods, the accelerometer
+task its sample rate, the telemetry task 500 hertz on a Jeti Ex Bus or CRSF receiver, and the OSD
+task its frame rate. The battery alert task runs with a meter and an alert or the OSD, the position
+task with any measurement source, the hold tasks with their sources, and the menu task with the MSP
+display port or the OSD or dashboard. The heading hold task follows the compass and a heading mode
+on a switch, and is set again whenever the modes change. The caller gives the PINIO box task's
+state, which `Adaflight.PINIO_Box` decides.
 
 The harness replays 4800 setups recorded from the reference task setup and scheduler, in a build
 with every task but BST, whose bus header the host build lacks, and one without pitot, stack check,
@@ -3660,16 +3663,16 @@ exactly.
 `Adaflight.Settings_Table` contains the command line's 789 settings in the reference's table order:
 each one's name, value type, scope (master, PID profile, rate profile, hardware, battery profile)
 and mode (a direct value with its range, a lookup, an array, a bit, a text, a serial port
-identifier) with its limits, and the parameter group that holds it; and the 72 lookup tables of
-value names. A local tool generates the unit from a settings oracle: the reference's settings table
-and parameter group sources built for the host with the option set of an STM32F405 board and the
-options of the features adaflight implements beyond it (acro trainer, 3D speed, chirp, Galileo,
-gimbal, GPS lap timer, pitot with its MS4525 driver, the flight plan, the MSP current meter, PID
-audio, the UPT1 optical flow and two soft serial ports). Names and lookup strings are verbatim (D2).
-A lookup entry the build leaves out, a driver compiled away, has an empty name, which the command
-line skips. The values, their defaults and the groups' records follow in the next steps of the
-configuration layer, and the hardware settings wait for Phase 7. The unit is SPARK at no cost, and
-its lookups prove in range.
+identifier) with its limits, and the parameter group that holds it. The unit also contains the 72
+lookup tables of value names. A local tool generates the unit from a settings oracle: the
+reference's settings table and parameter group sources built for the host with the option set of an
+STM32F405 board and the options of the features adaflight implements beyond it (acro trainer, 3D
+speed, chirp, Galileo, gimbal, GPS lap timer, pitot with its MS4525 driver, the flight plan, the MSP
+current meter, PID audio, the UPT1 optical flow and two soft serial ports). Names and lookup strings
+are verbatim (D2). A lookup entry the build leaves out, a driver compiled away, has an empty name,
+which the command line skips. The values, their defaults and the groups' records follow in the next
+steps of the configuration layer, and the hardware settings wait for Phase 7. The unit is SPARK at
+no cost, and its lookups prove in range.
 
 The harness compares every setting's name, type, scope, mode, limits and group, and every lookup
 table's count and names, with the oracle's dump. All 789 settings and 72 tables replay exactly.
@@ -3689,7 +3692,7 @@ them, so the hardware groups hold the values of a board without pins.
 `Get` gives a setting's value in a configuration as the reference's command line reads it: the
 setting's own type over the field's bytes, a bit setting's bit, an array setting's element, a
 profile setting's profile. For 13 settings the setting's type differs from the field's in sign, and
-for 7 the field is wider than the setting's type, so only its low bytes are read; no setting's range
+for 7 the field is wider than the setting's type, so only its low bytes are read. No setting's range
 holds a value outside the field's type. `Get_Text` gives a text setting's characters before the
 first zero. Writing values follows in the next step. The unit is SPARK for the profile and element
 indexing.
@@ -3743,10 +3746,10 @@ save, in order: unsupported mixer modes to a custom mode, telemetry protocols re
 slot dropped, conflicting serial ports cleared through the serial feature map (D155), filter cutoffs
 past 1000 hertz and notches above their cutoff reset, receiver features reduced to one, linked mode
 chains and the GPS rescue mode without GPS taken out, DShot settings the protocol or timers cannot
-run reset, PID loop slowed to the motor protocol's update rate, profile selections past their
-counts back to the first, rates held to their type's limits, and battery voltages out of order back
-to their defaults. `Fix_Gyro` is the gyro's part alone, which also runs once the gyro's sample rate
-is known and after the MSP advanced and filter configuration writes.
+run reset, PID loop slowed to the motor protocol's update rate, profile selections past their counts
+back to the first, rates held to their type's limits, and battery voltages out of order back to
+their defaults. `Fix_Gyro` is the gyro's part alone, which also runs once the gyro's sample rate is
+known and after the MSP advanced and filter configuration writes.
 
 Hardware inputs: gyro sample rate, motors in use, timer behind each pin and board's serial ports.
 The runtime feature mask is a parameter: a load starts it from the configuration's features, a save
@@ -3755,10 +3758,10 @@ MSP display port draws over and the GPS port taken out of use, for the caller to
 running ports. A port setting outside the serial map's identifiers stands for a port the board does
 not have, and a port setting changes only where the serial check changed it.
 
-Three inputs make the reference read past a table or shift past a word: a mixer mode past 27
-(F150), a rates type past 4 (F151) and an MSP override condition's aux channel past 27 (F152).
-adaflight leaves such a mode and such rates as they are and takes such a channel to name no bit
-(D6). Sensor alignment codes past the custom one wrap onto the eight standard alignments.
+Three inputs make the reference read past a table or shift past a word: a mixer mode past 27 (F150),
+a rates type past 4 (F151) and an MSP override condition's aux channel past 27 (F152). adaflight
+leaves such a mode and such rates as they are and takes such a channel to name no bit (D6). Sensor
+alignment codes past the custom one wrap onto the eight standard alignments.
 
 Each check is a procedure over the groups it reads and writes, SPARK for the indexing of the mode
 conditions, the shifts of the override mask, the conversions of port settings and of the PID loop
@@ -3778,8 +3781,8 @@ display port and GPS port taken out of use. All 4000 match exactly: 3998 change 
 ## D168. Command line get and set (2026-10-14)
 
 `Adaflight.Command_Line` contains the command line's line handling and its `get` and `set` commands
-over the configuration's settings. A line keeps its printable characters past the leading spaces,
-up to 255 of them, loses a comment from the first number sign and its trailing spaces, and names a
+over the configuration's settings. A line keeps its printable characters past the leading spaces, up
+to 255 of them, loses a comment from the first number sign and its trailing spaces, and names a
 command by its first word without regard to case. `get` lists every setting whose name contains a
 fragment without regard to case, with its value, its profile for a profile setting, its allowed
 values and its default where the value differs. `set` lists every setting, with each direct
@@ -3797,10 +3800,10 @@ case, and the board's serial port names. `Config_Groups.Set_Text` writes a text 
 settings table's direct limits are bounded to the 32-bit types.
 
 A command word followed directly by a comment takes the comment as its arguments (F153), so
-`get#motor_pwm_rate` prints that setting. adaflight reproduces it. On the oracle's 64-bit host the
-C library reads a number past the 32-bit range by its low 32 bits, where a 32-bit target holds it
-at the range. adaflight follows the target. The recorded numbers stay within the range, where the
-two agree.
+`get#motor_pwm_rate` prints that setting. adaflight reproduces it. On the oracle's 64-bit host the C
+library reads a number past the 32-bit range by its low 32 bits, where a 32-bit target holds it at
+the range. adaflight follows the target. The recorded numbers stay within the range, where the two
+agree.
 
 The harness replays two sequences of command lines, 7582 in all, recorded from the oracle, which
 runs the reference's command line over the settings oracle's configuration: get of every setting,
