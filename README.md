@@ -49,6 +49,7 @@ adaflight keeps the operation order of Betaflight's code, so a host build of eac
     cd core && alr build                      # build the core
     cd tests && alr build && ./bin/vector_check vectors
     bash target.do                            # STM32F4 image for the CLRacing F4S family
+    bash host.do                              # host image, checked over its UART1 TCP port
     bash prove.do                             # SPARK proof of the core
     bash verify.do                            # every gate, cheapest first
 
@@ -71,10 +72,11 @@ Feature selection, board flashing and host image: [`docs/building.md`](docs/buil
 | `core/` | SPARK library crate `adaflight_core`: the proved, hardware-independent core |
 | `tests/` | Host crate `adaflight_tests`: replays `tests/vectors` through the core |
 | `targets/stm32f4/` | Alire crate `adaflight_stm32f4`: the core on STM32F4 boards with the platform drivers |
+| `targets/host/` | Alire crate `adaflight_host`: the STM32F4 flight software on the host, with its UARTs on TCP |
 | `tools/` | Repository tooling: changed units for CI, markdown rendering check, board package generator |
 | `third_party/` | Third-party material with its license and source, and the board configuration repository as a pinned submodule |
 | `docs/upstream/` | Write-ups of Betaflight bugs that adaflight fixes |
-| `style.do`, `test.do`, `target.do`, `prove.do`, `verify.do` | The gates, runnable with `bash` or `redo` |
+| `style.do`, `test.do`, `target.do`, `host.do`, `prove.do`, `verify.do` | The gates, runnable with `bash` or `redo` |
 | `DESIGN.md` | Numbered design decisions with their reasons |
 | `DIVERGENCES.md` | Every place where adaflight differs from Betaflight on purpose |
 | `ROADMAP.md` | Phases and the coverage of Betaflight's source areas |
