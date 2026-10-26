@@ -108,6 +108,8 @@ package body Adaflight.MSP_Box with SPARK_Mode is
       for Which in Box loop
          pragma Loop_Invariant (Index <= Box'Pos (Which));
          pragma Loop_Invariant (Adaflight.Stream_Buffers.Fits (S, B));
+         pragma Loop_Invariant (S.Last = S.Last'Loop_Entry);
+         pragma Loop_Invariant (S.Next >= S.Next'Loop_Entry);
          if Active (Which) then
             if Index >= Page_Start and then Index < Page_End then
                case Kind is
