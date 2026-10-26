@@ -3776,23 +3776,18 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end if;
    end Simplified_Tuning_Command;
 
-   --  batch: start opens a batch, clearing its error unless one is open
-   --  already; end closes it, with the error line when a command in it
-   --  printed an error; any other option is the error. An option only has
-   --  to begin with its word, in any case.
+   --  batch: start opens a batch, or starts an open one again, clearing its
+   --  error; end closes it, with the error line when a command in it
+   --  printed an error; any other option is the error. An option is its
+   --  whole word, in any case (finding F180).
    procedure Batch_Command (Into : in out Output; Arguments : String) is
-      function Begins_With (Word : String) return Boolean is
-        (Arguments'Length >= Word'Length
-         and then CLI_Text.Same_Ignoring_Case
-                    (Arguments (Arguments'First .. Arguments'First + (Word'Length - 1)), Word));
+      function Is_Word (Word : String) return Boolean is (CLI_Text.Same_Ignoring_Case (Arguments, Word));
    begin
-      if Begins_With ("start") then
-         if not Into.Batch_Active then
-            Into.Batch_Active := True;
-            Into.Batch_Error := False;
-         end if;
+      if Is_Word ("start") then
+         Into.Batch_Active := True;
+         Into.Batch_Error := False;
          Put (Into, "Command batch started" & CRLF);
-      elsif Begins_With ("end") then
+      elsif Is_Word ("end") then
          if Into.Batch_Active and then Into.Batch_Error then
             Put_Error (Into, "batch: ERRORS WERE DETECTED - PLEASE REVIEW BEFORE CONTINUING###" & CRLF);
          else
@@ -3911,12 +3906,13 @@ package body Adaflight.Command_Line with SPARK_Mode is
    end Exit_Command;
 
    --  defaults with nosave: the configuration reset to its defaults, or one
-   --  parameter group's after group_id and its number taken modulo 2 ** 16,
-   --  with the simplified tuning applied to every PID profile of the reset
-   --  configuration first and the board's information kept in it. A word with neither group_id nor nosave, a zero
-   --  group or a missing one is the parse error. A reset clears an open
-   --  batch's error. Without nosave, the save's preparation follows, then
-   --  the configuration's write and the board's restart.
+   --  parameter group's after group_id and its number, with the simplified
+   --  tuning applied to every PID profile of the reset configuration first
+   --  and the board's information kept in it. A word other than group_id or
+   --  nosave, in any case, a group number outside 1 to 65535 or a missing
+   --  one is the parse error (finding F178). A reset clears an open batch's
+   --  error. Without nosave, the save's preparation follows, then the
+   --  configuration's write and the board's restart.
    procedure Defaults_Command
      (Into : in out Output; C : in out Configuration; Board : in out Board_State; Arguments : String;
       Changes : in out Effects)
@@ -3936,15 +3932,19 @@ package body Adaflight.Command_Line with SPARK_Mode is
          Next_Word (Arguments, P, First, Last);
          exit when First = 0;
          if Expect then
-            Group := Unsigned_16'Mod (CLI_Text.To_Integer (Arguments (First .. Last)));
-            Expect := False;
-            if Group = 0 then
-               Put_Error (Into, "defaults: PARSING FAILED###" & CRLF);
-               return;
-            end if;
-         elsif CLI_Text.Contains_Ignoring_Case (Arguments (First .. Last), "group_id") then
+            declare
+               Number : constant Integer_32 := CLI_Text.To_Integer (Arguments (First .. Last));
+            begin
+               Expect := False;
+               if Number not in 1 .. 65_535 then
+                  Put_Error (Into, "defaults: PARSING FAILED###" & CRLF);
+                  return;
+               end if;
+               Group := Unsigned_16 (Number);
+            end;
+         elsif CLI_Text.Same_Ignoring_Case (Arguments (First .. Last), "group_id") then
             Expect := True;
-         elsif CLI_Text.Contains_Ignoring_Case (Arguments (First .. Last), "nosave") then
+         elsif CLI_Text.Same_Ignoring_Case (Arguments (First .. Last), "nosave") then
             Save := False;
          else
             Put_Error (Into, "defaults: PARSING FAILED###" & CRLF);
