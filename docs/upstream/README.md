@@ -73,3 +73,5 @@ Each document describes a Betaflight bug that adaflight fixes: the Betaflight ve
 - [The defaults command takes any word containing its keywords and wraps the group number](cli-defaults-batch-words.md)
 - [The batch command matches the start of its option and keeps the error over a second start](cli-defaults-batch-words.md)
 - [A feature prefix takes the first feature it starts](feature-prefix-count.md)
+- [The signature command takes spaces and signs inside a byte's two digits](board-info-fields.md)
+- [A board name past 20 characters is cut, and the full name is refused once stored](board-info-fields.md)
