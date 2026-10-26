@@ -139,13 +139,10 @@ with Adaflight.LTM_Telemetry;
 with Adaflight.GPS_Lap_Timer;
 with Adaflight.MSP_Box;
 with Adaflight.MSP_Common_Out;
+with Adaflight.MSP_Processor;
 with Adaflight.MSP_Tuning_Out;
 with Adaflight.MSP_Tuning_In;
 with Adaflight.MSP_Receiver_In;
-with Adaflight.MSP_Hardware_In;
-with Adaflight.MSP_Battery_In;
-with Adaflight.MSP_Feature_In;
-with Adaflight.MSP_Blackbox_In;
 with Adaflight.MSP_Servo_In;
 with Adaflight.MSP_LED_In;
 with Adaflight.MSP_Text_In;
@@ -29782,305 +29779,100 @@ procedure Vector_Check is
                MSP_Gyro_Rate := Adaflight.Config_Fix.Gyro_Rate'Value (Word (Command, 1));
             elsif Word (Command, 0) = "!msp" then
                declare
+                  use type Adaflight.MSP_Processor.Result;
                   Hex     : constant String := Word (Command, 2);
                   Count   : constant Natural := (if Hex = "-" then 0 else Hex'Length / 2);
                   Request : Adaflight.Bytes.Byte_Array (0 .. Count - 1);
                   Cmd     : constant Interfaces.Unsigned_16 := Interfaces.Unsigned_16'Value (Word (Command, 1));
+                  B       : Adaflight.MSP_Control_In.Board := MSP_Board;
+                  Ctx     : Adaflight.MSP_Processor.Context;
+                  E       : Adaflight.MSP_Processor.Effects;
+                  R       : Adaflight.MSP_Processor.Result;
+                  Reply   : Byte_Array (0 .. 4095) := (others => 0);
+                  St      : Adaflight.Stream_Buffers.Stream;
                begin
                   for K in Request'Range loop
                      Request (K) := Interfaces.Unsigned_8'Value
                        ("16#" & Hex (Hex'First + 2 * K .. Hex'First + 2 * K + 1) & "#");
                   end loop;
-                  MSP_In_Effects := Adaflight.MSP_Tuning_In.No_Effects;
-                  MSP_Rx_Effects := Adaflight.MSP_Receiver_In.No_Effects;
-                  MSP_Servo_Effects := Adaflight.MSP_Servo_In.No_Effects;
-                  MSP_LED_Effects := Adaflight.MSP_LED_In.No_Effects;
-                  MSP_Text_Effects := Adaflight.MSP_Text_In.No_Effects;
-                  MSP_Peripheral_Effects := Adaflight.MSP_Peripheral_In.No_Effects;
-                  MSP_Control_Effects := Adaflight.MSP_Control_In.No_Effects;
-                  MSP_OSD_Effects := Adaflight.MSP_OSD_In.No_Effects;
-                  MSP_Profile_Effects := Adaflight.MSP_Profile_In.No_Effects;
-                  MSP_VTX_Effects := Adaflight.MSP_VTX_In.No_Effects;
-                  MSP_Runtime_Effects := Adaflight.MSP_Runtime_In.No_Effects;
-                  MSP_Board_Effects := Adaflight.MSP_Board_In.No_Effects;
-                  MSP_Motor_Effects := Adaflight.MSP_Motor_In.No_Effects;
+                  B.From_Telemetry := Integer (MSP_Board.Source) = MSP_Telemetry;
+                  Ctx := (Control             => B,
+                          Gyro_Sample_Rate_Hz => MSP_Gyro_Rate,
+                          Log                 => MSP_Log,
+                          Loop_Time           => MSP_Loop_Time,
+                          Motors              => MSP_Motors,
+                          Motor_Device        => MSP_Motor_Kind,
+                          Three_D             => MSP_Three_D,
+                          OSD_Port            => MSP_OSD_Port,
+                          Font_Write_Taken    => MSP_OSD_Port_Takes,
+                          VTX_Device          => MSP_VTX_Device,
+                          VTX_Table           => MSP_VTX_Running,
+                          Receiver_Source     => CLI_Env.Receiver_Source,
+                          Serial_Protocol     => CLI_Env.Serial_Protocol);
+                  Adaflight.Stream_Buffers.Init (St, 0, Reply'Length);
+                  Adaflight.MSP_Processor.Process
+                    (Ctx, CLI_Config, CLI_Board, MSP_Links, Cmd, Request, Ports, Reply, St, R, E);
+                  MSP_In_Ran := E.Handled;
+                  MSP_In_Result :=
+                    (if R = Adaflight.MSP_Processor.Ack then Adaflight.MSP_Tuning_In.Ack
+                     else Adaflight.MSP_Tuning_In.Error);
+                  MSP_In_Effects := E.Tuning;
+                  MSP_Rx_Effects := E.Receiver;
+                  MSP_Servo_Effects := E.Servo;
+                  MSP_LED_Effects := E.LED;
+                  MSP_Text_Effects := E.Text;
+                  MSP_Peripheral_Effects := E.Peripheral;
+                  MSP_Control_Effects := E.Control;
+                  MSP_OSD_Effects := E.OSD;
+                  MSP_Profile_Effects := E.Profile;
+                  MSP_VTX_Effects := E.VTX;
+                  MSP_Runtime_Effects := E.Runtime;
+                  MSP_Board_Effects := E.Board;
+                  MSP_Motor_Effects := E.Motor;
+                  MSP_Font_Effects := E.Font;
                   MSP_Setting_Reply := (Length => 0, Text => (others => ' '));
                   MSP_Info_Reply := (Length => 0, Data => (others => 0));
                   MSP_Info_Ran := False;
-                  MSP_Font_Effects := Adaflight.MSP_Font_In.No_Effects;
-                  if Adaflight.MSP_Tuning_In.Handles (Cmd) then
-                     Adaflight.MSP_Tuning_In.Process
-                       (CLI_Config, Cmd, Request, MSP_Gyro_Rate, MSP_In_Result, MSP_In_Effects);
-                     MSP_In_Ran := True;
-                  elsif Adaflight.MSP_Font_In.Handles (Cmd) then
+                  CLI_Changes.Save := E.Save;
+                  CLI_Changes.Reboot := E.OSD.Reboot;
+                  if Adaflight.MSP_CLI_Setting.Handles (Cmd) then
+                     MSP_Setting_Reply.Length := St.Next;
+                     for K in 1 .. St.Next loop
+                        MSP_Setting_Reply.Text (K) := Character'Val (Reply (K - 1));
+                     end loop;
+                  elsif Adaflight.MSP_CLI_Setting.Handles_Info (Cmd) then
+                     MSP_Info_Ran := True;
+                     MSP_Info_Reply.Length := St.Next;
+                     MSP_Info_Reply.Data (0 .. St.Next - 1) := Reply (0 .. St.Next - 1);
                      declare
-                        use type Adaflight.MSP_Font_In.Result;
-                        Font_Result : Adaflight.MSP_Font_In.Result;
+                        Name : Unbounded_String;
                      begin
-                        Adaflight.MSP_Font_In.Process (Request, MSP_OSD_Port, Font_Result, MSP_Font_Effects);
-                        MSP_In_Result :=
-                          (if Font_Result = Adaflight.MSP_Font_In.Ack and then MSP_OSD_Port_Takes
-                           then Adaflight.MSP_Tuning_In.Ack
-                           else Adaflight.MSP_Tuning_In.Error);
-                        MSP_In_Ran := True;
-                     end;
-                  elsif Adaflight.MSP_Motor_In.Handles (Cmd) then
-                     declare
-                        use type Adaflight.MSP_Motor_In.Result;
-                        Motor_Result : Adaflight.MSP_Motor_In.Result;
-                     begin
-                        Adaflight.MSP_Motor_In.Process
-                          (Request, MSP_Motors, MSP_Motor_Kind, MSP_Three_D, Motor_Result, MSP_Motor_Effects);
-                        MSP_In_Result :=
-                          (if Motor_Result = Adaflight.MSP_Motor_In.Ack then Adaflight.MSP_Tuning_In.Ack
-                           else Adaflight.MSP_Tuning_In.Error);
-                        MSP_In_Ran := True;
-                     end;
-                  elsif Adaflight.MSP_CLI_Setting.Handles (Cmd) then
-                     declare
-                        use type Adaflight.MSP_CLI_Setting.Result;
-                        Setting_Result : Adaflight.MSP_CLI_Setting.Result;
-                     begin
-                        Adaflight.MSP_CLI_Setting.Process
-                          (CLI_Config, Request, Ports, Setting_Result, MSP_Setting_Reply);
-                        MSP_In_Result :=
-                          (if Setting_Result = Adaflight.MSP_CLI_Setting.Ack then Adaflight.MSP_Tuning_In.Ack
-                           else Adaflight.MSP_Tuning_In.Error);
-                        MSP_In_Ran := True;
+                        for Bt of Request loop
+                           exit when Integer (Bt) = 0;
+                           Append (Name, Character'Val (Bt));
+                        end loop;
+                        MSP_Info_Stats := Ada.Characters.Handling.To_Lower (To_String (Name)) = "osd_stat_bitmask";
                      end;
                   elsif Adaflight.RX_Bind.Handles (Cmd) then
-                     declare
-                        use type Adaflight.RX_Bind.Bind;
-                        B : constant Adaflight.RX_Bind.Bind :=
-                          Adaflight.RX_Bind.Bind_For
-                            (CLI_Env.Receiver_Source, CLI_Env.Serial_Protocol,
-                             Natural (CLI_Config.Rx_Spi_Config.Rx_Spi_Protocol));
-                     begin
-                        MSP_In_Result :=
-                          (if B = Adaflight.RX_Bind.No_Bind then Adaflight.MSP_Tuning_In.Error
-                           else Adaflight.MSP_Tuning_In.Ack);
-                        CLI_Binds (B) := CLI_Binds (B) + 1;
-                        MSP_In_Ran := True;
-                     end;
-                  elsif Adaflight.MSP_CLI_Setting.Handles_Info (Cmd) then
-                     declare
-                        use type Adaflight.MSP_CLI_Setting.Result;
-                        Info_Result : Adaflight.MSP_CLI_Setting.Result;
-                     begin
-                        Adaflight.MSP_CLI_Setting.Setting_Info
-                          (CLI_Config, Request, Ports, Info_Result, MSP_Info_Reply);
-                        declare
-                           Name : Unbounded_String;
-                        begin
-                           for B of Request loop
-                              exit when Integer (B) = 0;
-                              Append (Name, Character'Val (B));
-                           end loop;
-                           MSP_Info_Stats := Ada.Characters.Handling.To_Lower (To_String (Name)) = "osd_stat_bitmask";
-                        end;
-                        MSP_In_Result :=
-                          (if Info_Result = Adaflight.MSP_CLI_Setting.Ack then Adaflight.MSP_Tuning_In.Ack
-                           else Adaflight.MSP_Tuning_In.Error);
-                        MSP_Info_Ran := True;
-                        MSP_In_Ran := True;
-                     end;
-                  elsif Adaflight.MSP_Board_In.Handles (Cmd) then
-                     declare
-                        use type Adaflight.MSP_Board_In.Result;
-                        Board_Result : Adaflight.MSP_Board_In.Result;
-                     begin
-                        Adaflight.MSP_Board_In.Process
-                          (CLI_Config, CLI_Board, Cmd, Request, MSP_Board.Armed, Board_Result, MSP_Board_Effects);
-                        MSP_In_Result :=
-                          (if Board_Result = Adaflight.MSP_Board_In.Ack then Adaflight.MSP_Tuning_In.Ack
-                           else Adaflight.MSP_Tuning_In.Error);
-                        CLI_Changes.Save := MSP_Board_Effects.Save;
-                        MSP_In_Ran := True;
-                     end;
-                  elsif Adaflight.MSP_Runtime_In.Handles (Cmd) then
-                     declare
-                        use type Adaflight.MSP_Runtime_In.Result;
-                        Runtime_Result : Adaflight.MSP_Runtime_In.Result;
-                     begin
-                        Adaflight.MSP_Runtime_In.Process (Cmd, Request, Runtime_Result, MSP_Runtime_Effects);
-                        if MSP_Runtime_Effects.MT_Range then
-                           Adaflight.MT_Sensor.Range_Receive
-                             (MT_State, MSP_Runtime_Effects.MT_Distance_Mm, CLI_Env.Now_Us);
-                        end if;
-                        if MSP_Runtime_Effects.MT_Flow then
-                           Adaflight.MT_Sensor.Flow_Receive
-                             (MT_State, MSP_Runtime_Effects.MT_Quality, MSP_Runtime_Effects.MT_Motion_X,
-                              MSP_Runtime_Effects.MT_Motion_Y, CLI_Env.Now_Us);
-                        end if;
-                        MSP_In_Result :=
-                          (if Runtime_Result = Adaflight.MSP_Runtime_In.Ack then Adaflight.MSP_Tuning_In.Ack
-                           else Adaflight.MSP_Tuning_In.Error);
-                        MSP_In_Ran := True;
-                     end;
-                  elsif Adaflight.MSP_VTX_In.Handles (Cmd) then
-                     declare
-                        use type Adaflight.MSP_VTX_In.Result;
-                        VTX_Result : Adaflight.MSP_VTX_In.Result;
-                     begin
-                        Adaflight.MSP_VTX_In.Process
-                          (CLI_Config, Cmd, Request, MSP_VTX_Device, MSP_VTX_Running, VTX_Result, MSP_VTX_Effects);
-                        MSP_In_Result :=
-                          (if VTX_Result = Adaflight.MSP_VTX_In.Ack then Adaflight.MSP_Tuning_In.Ack
-                           else Adaflight.MSP_Tuning_In.Error);
-                        MSP_Peripheral_Effects.VTX_Ready := MSP_VTX_Effects.VTX_Ready;
-                        MSP_In_Ran := True;
-                     end;
-                  elsif Adaflight.MSP_Profile_In.Handles (Cmd) then
-                     Adaflight.MSP_Profile_In.Process
-                       (CLI_Config, Cmd, Request, MSP_Board.Armed, MSP_Profile_Effects);
-                     MSP_In_Result := Adaflight.MSP_Tuning_In.Ack;
-                     MSP_In_Effects.ESC_Endpoints := MSP_Profile_Effects.PID_Profile;
-                     MSP_In_Effects.Mixer_Profile := MSP_Profile_Effects.PID_Profile;
-                     MSP_In_Effects.RC_Init := MSP_Profile_Effects.Rate_Profile;
-                     MSP_In_Ran := True;
-                  elsif Adaflight.MSP_OSD_In.Handles (Cmd) then
-                     declare
-                        use type Adaflight.MSP_OSD_In.Result;
-                        OSD_Result : Adaflight.MSP_OSD_In.Result;
-                     begin
-                        Adaflight.MSP_OSD_In.Process (CLI_Config, Cmd, Request, OSD_Result, MSP_OSD_Effects);
-                        MSP_In_Result :=
-                          (if OSD_Result = Adaflight.MSP_OSD_In.Ack then Adaflight.MSP_Tuning_In.Ack
-                           else Adaflight.MSP_Tuning_In.Error);
-                        MSP_Text_Effects.OSD_Elements := MSP_OSD_Effects.OSD_Elements;
-                        CLI_Changes.Save := MSP_OSD_Effects.Save;
-                        CLI_Changes.Reboot := MSP_OSD_Effects.Reboot;
-                        MSP_In_Ran := True;
-                     end;
-                  elsif Adaflight.MSP_Control_In.Handles (Cmd) then
-                     declare
-                        use type Adaflight.MSP_Control_In.Result;
-                        use all type Adaflight.MSP_Control_In.Arming_Change;
-                        Control_Result : Adaflight.MSP_Control_In.Result;
-                        B : Adaflight.MSP_Control_In.Board := MSP_Board;
-                     begin
-                        B.From_Telemetry := Integer (MSP_Board.Source) = MSP_Telemetry;
-                        Adaflight.MSP_Control_In.Process
-                          (CLI_Config, MSP_Links, Cmd, Request, B, Control_Result, MSP_Control_Effects);
-                        MSP_In_Result :=
-                          (if Control_Result = Adaflight.MSP_Control_In.Ack then Adaflight.MSP_Tuning_In.Ack
-                           else Adaflight.MSP_Tuning_In.Error);
-                        CLI_Changes.Save := MSP_Control_Effects.Save;
-                        case MSP_Control_Effects.MSP_Arming is
-                           when Disable =>
-                              MSP_Arming_Off := True;
-                           when Enable =>
-                              MSP_Arming_Off := False;
-                           when Unchanged =>
-                              null;
-                        end case;
-                        MSP_In_Ran := True;
-                     end;
-                  elsif Adaflight.MSP_Peripheral_In.Handles (Cmd) then
-                     declare
-                        use type Adaflight.MSP_Peripheral_In.Result;
-                        Peripheral_Result : Adaflight.MSP_Peripheral_In.Result;
-                     begin
-                        Adaflight.MSP_Peripheral_In.Process
-                          (CLI_Config, Cmd, Request, Peripheral_Result, MSP_Peripheral_Effects);
-                        MSP_In_Result :=
-                          (if Peripheral_Result = Adaflight.MSP_Peripheral_In.Ack then Adaflight.MSP_Tuning_In.Ack
-                           else Adaflight.MSP_Tuning_In.Error);
-                        MSP_In_Effects.PID_Init := MSP_Peripheral_Effects.PID_Init;
-                        MSP_In_Ran := True;
-                     end;
-                  elsif Adaflight.MSP_Text_In.Handles (Cmd) then
-                     declare
-                        use type Adaflight.MSP_Text_In.Result;
-                        Text_Result : Adaflight.MSP_Text_In.Result;
-                     begin
-                        Adaflight.MSP_Text_In.Process (CLI_Config, Cmd, Request, Text_Result, MSP_Text_Effects);
-                        MSP_In_Result :=
-                          (if Text_Result = Adaflight.MSP_Text_In.Ack then Adaflight.MSP_Tuning_In.Ack
-                           else Adaflight.MSP_Tuning_In.Error);
-                        MSP_In_Ran := True;
-                     end;
-                  elsif Adaflight.MSP_LED_In.Handles (Cmd) then
-                     declare
-                        use type Adaflight.MSP_LED_In.Result;
-                        LED_Result : Adaflight.MSP_LED_In.Result;
-                     begin
-                        Adaflight.MSP_LED_In.Process (CLI_Config, Cmd, Request, LED_Result, MSP_LED_Effects);
-                        MSP_In_Result :=
-                          (if LED_Result = Adaflight.MSP_LED_In.Ack then Adaflight.MSP_Tuning_In.Ack
-                           else Adaflight.MSP_Tuning_In.Error);
-                        MSP_In_Ran := True;
-                     end;
-                  elsif Adaflight.MSP_Servo_In.Handles (Cmd) then
-                     declare
-                        use type Adaflight.MSP_Servo_In.Result;
-                        Servo_Result : Adaflight.MSP_Servo_In.Result;
-                     begin
-                        Adaflight.MSP_Servo_In.Process (CLI_Config, Cmd, Request, Servo_Result, MSP_Servo_Effects);
-                        MSP_In_Result :=
-                          (if Servo_Result = Adaflight.MSP_Servo_In.Ack then Adaflight.MSP_Tuning_In.Ack
-                           else Adaflight.MSP_Tuning_In.Error);
-                        MSP_In_Ran := True;
-                     end;
-                  elsif Adaflight.MSP_Blackbox_In.Handles (Cmd) then
-                     declare
-                        use type Adaflight.MSP_Blackbox_In.Result;
-                        Log_Result : Adaflight.MSP_Blackbox_In.Result;
-                     begin
-                        Adaflight.MSP_Blackbox_In.Process
-                          (CLI_Config, Cmd, Request, MSP_Log, MSP_Loop_Time, Log_Result);
-                        MSP_In_Result :=
-                          (if Log_Result = Adaflight.MSP_Blackbox_In.Ack then Adaflight.MSP_Tuning_In.Ack
-                           else Adaflight.MSP_Tuning_In.Error);
-                        MSP_In_Ran := True;
-                     end;
-                  elsif Adaflight.MSP_Feature_In.Handles (Cmd) then
-                     declare
-                        use type Adaflight.MSP_Feature_In.Result;
-                        Feature_Result : Adaflight.MSP_Feature_In.Result;
-                     begin
-                        Adaflight.MSP_Feature_In.Process (CLI_Config, Cmd, Request, Feature_Result);
-                        MSP_In_Result :=
-                          (if Feature_Result = Adaflight.MSP_Feature_In.Ack then Adaflight.MSP_Tuning_In.Ack
-                           else Adaflight.MSP_Tuning_In.Error);
-                        MSP_In_Ran := True;
-                     end;
-                  elsif Adaflight.MSP_Battery_In.Handles (Cmd) then
-                     declare
-                        use type Adaflight.MSP_Battery_In.Result;
-                        Bat_Result : Adaflight.MSP_Battery_In.Result;
-                     begin
-                        Adaflight.MSP_Battery_In.Process (CLI_Config, Cmd, Request, Bat_Result);
-                        MSP_In_Result :=
-                          (if Bat_Result = Adaflight.MSP_Battery_In.Ack then Adaflight.MSP_Tuning_In.Ack
-                           else Adaflight.MSP_Tuning_In.Error);
-                        MSP_In_Ran := True;
-                     end;
-                  elsif Adaflight.MSP_Hardware_In.Handles (Cmd) then
-                     declare
-                        use type Adaflight.MSP_Hardware_In.Result;
-                        Hw_Result : Adaflight.MSP_Hardware_In.Result;
-                     begin
-                        Adaflight.MSP_Hardware_In.Process (CLI_Config, Cmd, Request, Hw_Result);
-                        MSP_In_Result :=
-                          (if Hw_Result = Adaflight.MSP_Hardware_In.Ack then Adaflight.MSP_Tuning_In.Ack
-                           else Adaflight.MSP_Tuning_In.Error);
-                        MSP_In_Ran := True;
-                     end;
-                  elsif Adaflight.MSP_Receiver_In.Handles (Cmd) then
-                     declare
-                        use type Adaflight.MSP_Receiver_In.Result;
-                        Rx_Result : Adaflight.MSP_Receiver_In.Result;
-                     begin
-                        Adaflight.MSP_Receiver_In.Process (CLI_Config, Cmd, Request, Rx_Result, MSP_Rx_Effects);
-                        MSP_In_Result :=
-                          (if Rx_Result = Adaflight.MSP_Receiver_In.Ack then Adaflight.MSP_Tuning_In.Ack
-                           else Adaflight.MSP_Tuning_In.Error);
-                        MSP_In_Ran := True;
-                     end;
+                     CLI_Binds (E.Bind) := CLI_Binds (E.Bind) + 1;
                   end if;
+                  case E.Control.MSP_Arming is
+                     when Adaflight.MSP_Control_In.Disable =>
+                        MSP_Arming_Off := True;
+                     when Adaflight.MSP_Control_In.Enable =>
+                        MSP_Arming_Off := False;
+                     when Adaflight.MSP_Control_In.Unchanged =>
+                        null;
+                  end case;
+                  if E.Runtime.MT_Range then
+                     Adaflight.MT_Sensor.Range_Receive (MT_State, E.Runtime.MT_Distance_Mm, CLI_Env.Now_Us);
+                  end if;
+                  if E.Runtime.MT_Flow then
+                     Adaflight.MT_Sensor.Flow_Receive
+                       (MT_State, E.Runtime.MT_Quality, E.Runtime.MT_Motion_X, E.Runtime.MT_Motion_Y, CLI_Env.Now_Us);
+                  end if;
+                  CLI_Disarmed := E.Motor.Values;
                end;
-               CLI_Disarmed := MSP_Motor_Effects.Values;
             elsif Word (Command, 0) = "!term" then
                declare
                   Interactive : constant Boolean := Word (Command, 1) = "1";
