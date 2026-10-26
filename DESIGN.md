@@ -8030,29 +8030,34 @@ equivalent, since only that bit separates the uncorrectable results that reset t
 
 ## D349. W25M flash driver (2026-10-18)
 
-`Adaflight.Flash_Device.W25M` drives the W25M stacked-die flash chips behind one select pin, the W25M512 with two
-W25Q256 NOR dies and the W25M02G with two W25N01GV NAND dies. Identification selects each die and identifies it with the
-NOR or the NAND driver, whatever that answers, and gives the chip the first die's geometry with twice its blocks and
-twice its size. A die is selected with the die select command 0xC2 and the die's number between bus waits, only when
-another die was selected last. Configuration, waits and full erases go to each die in turn. A readiness check asks only
-the dies that could be busy, and the check and a wait stop at the first die that is not ready. An erase or a read goes
-to the address's die at the address within it, and a read that spans both dies reads from each in turn and stops at the
-first die read that brings fewer bytes than asked, counting the bytes brought. The reference counts all the bytes asked
-for whenever every die read brought some, also when a NAND die stopped at its page end (finding F268, D6). A program's
-begin selects the address's die and hands it the whole address, and the continuation and finish go to the die of the
-last begin. The reference keeps the dies, the die size, the last selected die and the program's die in static variables.
-This unit keeps them in a record the caller passes, and the flash layer does not try this driver yet (finding F269
-concerns that step). The unit is SPARK for the die selection and the address split, with a precondition that keeps an
-operation's address within the two dies.
+`Adaflight.Flash_Device.W25M` drives the W25M stacked-die flash chips behind one select pin, the
+W25M512 with two W25Q256 NOR dies and the W25M02G with two W25N01GV NAND dies. Identification
+selects each die and identifies it with the NOR or the NAND driver, whatever that answers, and gives
+the chip the first die's geometry with twice its blocks and twice its size. A die is selected with
+the die select command 0xC2 and the die's number between bus waits, only when another die was
+selected last. Configuration, waits and full erases go to each die in turn. A readiness check asks
+only the dies that could be busy, and the check and a wait stop at the first die that is not ready.
+An erase or a read goes to the address's die at the address within it, and a read that spans both
+dies reads from each in turn and stops at the first die read that brings fewer bytes than asked,
+counting the bytes brought. The reference counts all the bytes asked for whenever every die read
+brought some, also when a NAND die stopped at its page end (finding F268, D6). A program's begin
+selects the address's die and hands it the whole address, and the continuation and finish go to the
+die of the last begin. The reference keeps the dies, the die size, the last selected die and the
+program's die in static variables. This unit keeps them in a record the caller passes, and the flash
+layer does not try this driver yet (finding F269 concerns that step). The unit is SPARK for the die
+selection and the address split, with a precondition that keeps an operation's address within the
+two dies.
 
-The W25M oracle includes the reference driver with the die drivers stubbed. A die identification gives the die the
-geometry its driver would, the W25N one with its bad block partition request, and each die operation logs its die and
-arguments and answers from the step's drawn answers, which give ready or not, a wait that ends ready or times out, a
-read of all, half or none of its bytes, and a program that takes its bytes or none. Each case draws the JEDEC ID and the
-configuration flags, then 6 to 20 operations, half of them within 600 bytes of the die boundary. Every die select, die
-call and state after each operation of the 300 cases replays exactly. In them 145 W25M512 and 124 W25M02G chips are
-identified, and of 410 reads 54 span both dies, 47 die reads bring half their bytes and 50 bring none. All 34 tampered
-paths fail the vectors, the two that change a stacked chip's JEDEC ID by stopping the checker after its mismatches.
+The W25M oracle includes the reference driver with the die drivers stubbed. A die identification
+gives the die the geometry its driver would, the W25N one with its bad block partition request, and
+each die operation logs its die and arguments and answers from the step's drawn answers, which give
+ready or not, a wait that ends ready or times out, a read of all, half or none of its bytes, and a
+program that takes its bytes or none. Each case draws the JEDEC ID and the configuration flags, then
+6 to 20 operations, half of them within 600 bytes of the die boundary. Every die select, die call
+and state after each operation of the 300 cases replays exactly. In them 145 W25M512 and 124 W25M02G
+chips are identified, and of 410 reads 54 span both dies, 47 die reads bring half their bytes and 50
+bring none. All 34 tampered paths fail the vectors, the two that change a stacked chip's JEDEC ID by
+stopping the checker after its mismatches.
 
 ## D350. LPS22DF barometer driver (2026-10-18)
 
@@ -8073,209 +8078,246 @@ of a degree as the signed 16-bit count. The reference takes the count unsigned, 
 below zero reads 655.36 degrees too high (finding F270, D6). The unit is SPARK for the reset
 timeout, the counts and the pressure arithmetic.
 
-The LPS22DF oracle includes the reference driver with both bus kinds over a simulated chip, one case per process. It
-draws the bus, the addresses, the identity, how many reads fail first, how many control register reads still show the
-reset, never clearing in 15 percent of the cases and 6 to 16 reads in a fifth, around the read the 10 ms timeout passes
-on, and the clock's pace, a fifth of the clocks within 12 ms of the 32-bit wrap. It then makes 50 of the driver's calls
-with scripted busy and start answers and raw readings, among them temperatures below 0 degrees and pressure counts whose
-scaled value ends in .5 or .75 just under a multiple of 256. Every bus, pin, delay and clock call, detection and
-calculation of the 300 cases replays exactly. In them 123 chips are found and 45 identified chips time out in the reset,
-21 of them with a reset that clears later. All 38 tampered paths fail the vectors. On the first pass the one that checks
-the timeout after the reset bit passed, since no reset cleared on the read that passed 10 ms, and the one that rounds
-the scaled count passed, since no count sat where rounding and truncation part; both led to the drawn resets and counts.
+The LPS22DF oracle includes the reference driver with both bus kinds over a simulated chip, one case
+per process. It draws the bus, the addresses, the identity, how many reads fail first, how many
+control register reads still show the reset, never clearing in 15 percent of the cases and 6 to 16
+reads in a fifth, around the read the 10 ms timeout passes on, and the clock's pace, a fifth of the
+clocks within 12 ms of the 32-bit wrap. It then makes 50 of the driver's calls with scripted busy
+and start answers and raw readings, among them temperatures below 0 degrees and pressure counts
+whose scaled value ends in .5 or .75 just under a multiple of 256. Every bus, pin, delay and clock
+call, detection and calculation of the 300 cases replays exactly. In them 123 chips are found and 45
+identified chips time out in the reset, 21 of them with a reset that clears later. All 38 tampered
+paths fail the vectors. On the first pass the one that checks the timeout after the reset bit
+passed, since no reset cleared on the read that passed 10 ms, and the one that rounds the scaled
+count passed, since no count sat where rounding and truncation part. Both led to the drawn resets
+and counts.
 
 ## D351. QMP6988 barometer driver (2026-10-18)
 
-`Adaflight.QMP6988` drives the QMP6988 barometer on I2C or SPI. Detection waits 20 ms, prepares the select pin and a 10
-MHz clock of an SPI chip, gives an unset I2C address the chip's 0x70, and reads the identity 0x5C. A refused identity
-read leaves the identity the last read gave. A chip without the identity gets its select pin returned to an input for
-the preinit owner and the default address taken back. Otherwise detection registers the device, sets the IIR filter to
-5, reads the 25 calibration bytes into a buffer that starts at zeros, sets the power mode and the sampling, whatever the
-writes and the read answer, and sets up the barometer task for a combined read with a 23 ms pressure delay. The two
-20-bit and the ten 16-bit coefficients are signed and each is scaled in single precision around its nominal value.
-The reference takes the ten 16-bit ones unsigned, where the vendor's driver reads them signed (finding F271, D6). A pressure start writes the forced measurement again and reports the write's answer,
-a pressure read starts the six data bytes while the bus is free, a pressure sample takes the bytes the last read brought
-while the bus is free, and the other calls do nothing. The calculation compensates the temperature and the pressure in
-single precision in the reference's operation order, gives the pressure in pascal cut toward zero and the temperature as
-the compensated value cut toward zero and divided by 256, and keeps the last pressure or temperature when the new one is
-exactly zero. The unit is SPARK for the coefficients, whose subtypes bound each one over every calibration byte, and for
-the compensation, whose terms are bounded one by one so the sums stay finite.
+`Adaflight.QMP6988` drives the QMP6988 barometer on I2C or SPI. Detection waits 20 ms, prepares the
+select pin and a 10 MHz clock of an SPI chip, gives an unset I2C address the chip's 0x70, and reads
+the identity 0x5C. A refused identity read leaves the identity the last read gave. A chip without
+the identity gets its select pin returned to an input for the preinit owner and the default address
+taken back. Otherwise detection registers the device, sets the IIR filter to 5, reads the 25
+calibration bytes into a buffer that starts at zeros, sets the power mode and the sampling, whatever
+the writes and the read answer, and sets up the barometer task for a combined read with a 23 ms
+pressure delay. The two 20-bit and the ten 16-bit coefficients are signed and each is scaled in
+single precision around its nominal value. The reference takes the ten 16-bit ones unsigned, where
+the vendor's driver reads them signed (finding F271, D6). A pressure start writes the forced
+measurement again and reports the write's answer, a pressure read starts the six data bytes while
+the bus is free, a pressure sample takes the bytes the last read brought while the bus is free, and
+the other calls do nothing. The calculation compensates the temperature and the pressure in single
+precision in the reference's operation order, gives the pressure in pascal cut toward zero and the
+temperature as the compensated value cut toward zero and divided by 256, and keeps the last pressure
+or temperature when the new one is exactly zero. The unit is SPARK for the coefficients, whose
+subtypes bound each one over every calibration byte, and for the compensation, whose terms are
+bounded one by one so the sums stay finite.
 
-The QMP6988 oracle includes the reference driver with both bus kinds over a simulated chip, one case per process. It
-draws the bus, the addresses, the identity, whether the first read fails, the 25 calibration bytes, typical in half of
-the cases and random in two fifths, whether the calibration read is refused, and whether writes answer, then makes 50 of
-the driver's calls with scripted busy and start answers and raw readings, a tenth of them at the 2^23 midpoint. Every
-bus, pin and delay call, detection and calculation of the 300 cases replays exactly. In them 194 chips are found, 113 on
-I2C and 81 on SPI, 18 with a refused calibration read and 16 with refused writes, 1047 samples are taken and 1384
-calculations run, 6 of them keeping both values on a zero result. Of 49 tampered paths, 44 fail the vectors and one
-stops the checker at a coefficient's subtype check. Four pass and are equivalent at the integer result: three reorder
-single precision products or sums, whose rounding the pascal and 1/256 degree results hide, and one divides the
-compensated temperature by 256 before the cut, which gives the same whole number.
+The QMP6988 oracle includes the reference driver with both bus kinds over a simulated chip, one case
+per process. It draws the bus, the addresses, the identity, whether the first read fails, the 25
+calibration bytes, typical in half of the cases and random in two fifths, whether the calibration
+read is refused, and whether writes answer, then makes 50 of the driver's calls with scripted busy
+and start answers and raw readings, a tenth of them at the 2^23 midpoint. Every bus, pin and delay
+call, detection and calculation of the 300 cases replays exactly. In them 194 chips are found, 113
+on I2C and 81 on SPI, 18 with a refused calibration read and 16 with refused writes, 1047 samples
+are taken and 1384 calculations run, 6 of them keeping both values on a zero result. Of 49 tampered
+paths, 44 fail the vectors and one stops the checker at a coefficient's subtype check. Four pass and
+are equivalent at the integer result: three reorder single precision products or sums, whose
+rounding the pascal and 1/256 degree results hide, and one divides the compensated temperature by
+256 before the cut, which gives the same whole number.
 
 ## D352. BMP085 barometer driver (2026-10-18)
 
-`Adaflight.BMP085` drives the BMP085 barometer on I2C with its clear and conversion-end pins, which the configuration
-names by tag, 0 for none. Detection sets the clear pin up as an output driven high, sets the conversion-end pin up with
-a rising-edge interrupt, waits 20 ms, gives an unset I2C address the chip's 0x77, and reads the identity 0x55. A chip
-that does not answer, or answers another identity, gets its conversion-end pin and interrupt released when it has one,
-its clear pin driven low and the default address taken back. Otherwise detection registers the device, reads the version
-byte, whatever it answers, and the 22 calibration bytes, whose refused read fails the detection the way a wrong identity
-does, where the reference parses the uninitialized buffer the read left (F272), then gives the barometer task a 6 ms
-temperature delay and a 27 ms pressure delay and tests the conversion-end pin, which counts as connected when it reads
-low and then high 12 ms after a temperature start. A second detection answers found at once. A
-temperature or pressure start clears the conversion flag and starts the control write, the interrupt sets the flag, a
-read starts the two or three data bytes while the bus is free and, with the pin connected, the flag set, and a sample
-takes the bytes the last read brought while the bus is free, the pressure as 19 bits of the three bytes. The calculation
-compensates with the datasheet's integer arithmetic in 32 bits that wrap, as the processor computes them, with
-arithmetic right shifts, and gives a division by zero, which the reference never checks and the ARM processor answers
-with zero, that zero. It gives the temperature in hundredths of a degree and the pressure in pascal, and keeps the fine
-temperature for the next calculation. The reference keeps everything in static variables shared by every BMP085 device.
-This unit keeps them per device, which behaves the same with one barometer. The unit is SPARK for the wrapping
-arithmetic, the shifts and the divisions.
+`Adaflight.BMP085` drives the BMP085 barometer on I2C with its clear and conversion-end pins, which
+the configuration names by tag, 0 for none. Detection sets the clear pin up as an output driven
+high, sets the conversion-end pin up with a rising-edge interrupt, waits 20 ms, gives an unset I2C
+address the chip's 0x77, and reads the identity 0x55. A chip that does not answer, or answers
+another identity, gets its conversion-end pin and interrupt released when it has one, its clear pin
+driven low and the default address taken back. Otherwise detection registers the device, reads the
+version byte, whatever it answers, and the 22 calibration bytes, whose refused read fails the
+detection the way a wrong identity does, where the reference parses the uninitialized buffer the
+read left (F272), then gives the barometer task a 6 ms temperature delay and a 27 ms pressure delay
+and tests the conversion-end pin, which counts as connected when it reads low and then high 12 ms
+after a temperature start. A second detection answers found at once. A temperature or pressure start
+clears the conversion flag and starts the control write, the interrupt sets the flag, a read starts
+the two or three data bytes while the bus is free and, with the pin connected, the flag set, and a
+sample takes the bytes the last read brought while the bus is free, the pressure as 19 bits of the
+three bytes. The calculation compensates with the datasheet's integer arithmetic in 32 bits that
+wrap, as the processor computes them, with arithmetic right shifts, and gives a division by zero,
+which the reference never checks and the ARM processor answers with zero, that zero. It gives the
+temperature in hundredths of a degree and the pressure in pascal, and keeps the fine temperature for
+the next calculation. The reference keeps everything in static variables shared by every BMP085
+device. This unit keeps them per device, which behaves the same with one barometer. The unit is
+SPARK for the wrapping arithmetic, the shifts and the divisions.
 
-The BMP085 oracle includes the reference driver, built with wrapping signed arithmetic as the ARM processor computes,
-over a simulated chip, one case per process. It draws the clear and conversion-end pin tags, the bus and the addresses,
-the identity, whether the first read fails, whether the calibration read is refused, from the case number so the other
-draws keep their places, the two levels the conversion-end pin shows during detection, and the 22 calibration bytes,
-near the datasheet's example or random, then makes 50 of the driver's calls, each after a drawn interrupt or none, with
-scripted busy and start answers and raw readings. A division by zero would end the case; none of the 300 cases reaches
-one. Every bus, pin, interrupt and delay call, detection and calculation of the 300 cases replays exactly, with the fine
-temperature and the raw readings. In them 135 chips are found, 79 with a clear pin, 80 with a conversion-end pin, 42 of
-those connected, and 24 on SPI, 20 fail at a refused calibration read, 2015 interrupts fire, 1483 samples are taken and
-935 calculations run. Of the first campaign's 63 tampered paths, 60 failed its vectors and two stopped the checker at a
-subtype check. One passes and is equivalent: the rounding term of the B3 step adds 2 before a shift by 2 to a value the
-fixed oversampling of 3 makes a multiple of 8, so the shift drops it. The unchecked calibration read and a refusal that
-skips the pin release, tampered back in, fail these vectors.
+The BMP085 oracle includes the reference driver, built with wrapping signed arithmetic as the ARM
+processor computes, over a simulated chip, one case per process. It draws the clear and
+conversion-end pin tags, the bus and the addresses, the identity, whether the first read fails,
+whether the calibration read is refused, from the case number so the other draws keep their places,
+the two levels the conversion-end pin shows during detection, and the 22 calibration bytes, near the
+datasheet's example or random, then makes 50 of the driver's calls, each after a drawn interrupt or
+none, with scripted busy and start answers and raw readings. A division by zero would end the case.
+None of the 300 cases reaches one. Every bus, pin, interrupt and delay call, detection and
+calculation of the 300 cases replays exactly, with the fine temperature and the raw readings. In
+them 135 chips are found, 79 with a clear pin, 80 with a conversion-end pin, 42 of those connected,
+and 24 on SPI, 20 fail at a refused calibration read, 2015 interrupts fire, 1483 samples are taken
+and 935 calculations run. Of the first campaign's 63 tampered paths, 60 failed its vectors and two
+stopped the checker at a subtype check. One passes and is equivalent: the rounding term of the B3
+step adds 2 before a shift by 2 to a value the fixed oversampling of 3 makes a multiple of 8, so the
+shift drops it. The unchecked calibration read and a refusal that skips the pin release, tampered
+back in, fail these vectors.
 
 ## D353. TF rangefinder driver (2026-10-18)
 
-`Adaflight.Lidar_TF` drives the Benewake TF serial rangefinders, the TFmini with a 40 cm to 12 m range, the TF02 with 40
-cm to 22 m and the TFnova with 10 cm to 14 m. Detection takes one of the three rangefinder types and needs a configured
-serial port, which it opens at 115200 baud, then gives the task a 10 ms period, the model's maximum range and a 90
-degree cone, and sends the TFmini and TF02 the 100 Hz command. Initialization resets the frame state. An update reads
-the clock and every waiting byte through the frame state machine, two sync bytes 0x59, six payload bytes and a checksum
-over all eight. A frame whose checksum fits gives the reading, out of range below the model's minimum or above its
-maximum, for a TF02 whose reliability byte is under 7 and for a TFnova whose confidence byte is under 90, and otherwise
-the distance in centimeters, 13 less for a TFmini whose integral time byte is 7, and notes the frame's time. A frame
-whose checksum does not fit counts an error. After the bytes, an update that saw no frame for more than 200 ms and sent
-no command for more than 500 ms, both as signed 32-bit differences of the millisecond clock, sends the command again. A
-read gives the last reading, 0 before the first frame. The reference keeps the port, the frame state, the reading and
-the times in static variables. This unit keeps them in its state, which behaves the same with one rangefinder, and keeps
-the last frame's distance, strength and trailing bytes, which the reference shows through its debug values. The unit is
-SPARK for the frame state machine and the reading.
+`Adaflight.Lidar_TF` drives the Benewake TF serial rangefinders, the TFmini with a 40 cm to 12 m
+range, the TF02 with 40 cm to 22 m and the TFnova with 10 cm to 14 m. Detection takes one of the
+three rangefinder types and needs a configured serial port, which it opens at 115200 baud, then
+gives the task a 10 ms period, the model's maximum range and a 90 degree cone, and sends the TFmini
+and TF02 the 100 Hz command. Initialization resets the frame state. An update reads the clock and
+every waiting byte through the frame state machine, two sync bytes 0x59, six payload bytes and a
+checksum over all eight. A frame whose checksum fits gives the reading, out of range below the
+model's minimum or above its maximum, for a TF02 whose reliability byte is under 7 and for a TFnova
+whose confidence byte is under 90, and otherwise the distance in centimeters, 13 less for a TFmini
+whose integral time byte is 7, and notes the frame's time. A frame whose checksum does not fit
+counts an error. After the bytes, an update that saw no frame for more than 200 ms and sent no
+command for more than 500 ms, both as signed 32-bit differences of the millisecond clock, sends the
+command again. A read gives the last reading, 0 before the first frame. The reference keeps the
+port, the frame state, the reading and the times in static variables. This unit keeps them in its
+state, which behaves the same with one rangefinder, and keeps the last frame's distance, strength
+and trailing bytes, which the reference shows through its debug values. The unit is SPARK for the
+frame state machine and the reading.
 
-The TF rangefinder oracle includes the reference driver over a stubbed serial port and clock, one case per process. It
-draws the rangefinder type, a non-TF one in a seventh of the cases, whether a port is configured and opens, and the
-clock, a fifth of them within 2 s of the 32-bit wrap, then detects and runs 40 updates, each after a drawn clock advance
-of 10 ms, up to 100 ms, 150 to 700 ms or up to 3 s, in a sixth of them to exactly 200 ms after the last good frame or
-500 ms after the last command, over a drawn byte stream of up to three frames with distances in and out of range, long
-integral times, low reliabilities and confidences, wrong checksums in 15 percent of the frames, false sync bytes and
-frames split across updates. Every port open, write and clock read, detection and update of the 300 cases replays
-exactly, with the reading, the last frame's values and the error count. In them 227 rangefinders are found, 98 TFmini,
-65 TF02 and 64 TFnova, 7328 of 9080 updates bring bytes, 6143 updates end with a distance and 2937 out of range, 2680
-frames fail their checksum, and the command goes 555 times. Of 45 tampered paths, 43 fail the vectors. Two pass and are
-equivalent: the phase reset of the initialization, which repeats the phase detection leaves, and the port guard of the
-update, which the device table reaches only after a detection.
+The TF rangefinder oracle includes the reference driver over a stubbed serial port and clock, one
+case per process. It draws the rangefinder type, a non-TF one in a seventh of the cases, whether a
+port is configured and opens, and the clock, a fifth of them within 2 s of the 32-bit wrap, then
+detects and runs 40 updates, each after a drawn clock advance of 10 ms, up to 100 ms, 150 to 700 ms
+or up to 3 s, in a sixth of them to exactly 200 ms after the last good frame or 500 ms after the
+last command, over a drawn byte stream of up to three frames with distances in and out of range,
+long integral times, low reliabilities and confidences, wrong checksums in 15 percent of the frames,
+false sync bytes and frames split across updates. Every port open, write and clock read, detection
+and update of the 300 cases replays exactly, with the reading, the last frame's values and the error
+count. In them 227 rangefinders are found, 98 TFmini, 65 TF02 and 64 TFnova, 7328 of 9080 updates
+bring bytes, 6143 updates end with a distance and 2937 out of range, 2680 frames fail their
+checksum, and the command goes 555 times. Of 45 tampered paths, 43 fail the vectors. Two pass and
+are equivalent: the phase reset of the initialization, which repeats the phase detection leaves, and
+the port guard of the update, which the device table reaches only after a detection.
 
 ## D354. Nooploop rangefinder driver (2026-10-18)
 
-`Adaflight.Nooploop` drives the Nooploop TOFSense serial rangefinders, the F, FP, F2, F2P, F2PH and F2MINI, with ranges
-from 2 cm to 10, 17, 5, 17, 33 and 5 m. Detection takes one of the six models and needs a configured serial port, which
-it opens at 115200 baud, then gives the task a 10 ms period, the model's maximum range and a 90 degree cone.
-Initialization resets the frame state and the reading to no new data. An update reads the clock, notes the time of the
-first update, and reads every waiting byte through the frame state machine: the sync bytes 0x57 and 0x00, after which a
-second 0x57 keeps waiting for the 0x00, then 14 more bytes, the last the 8-bit sum of the 15 before it. A frame whose
-sum fits gives a reading: out of range for a negative 24-bit distance, one outside the model's range in millimeters or a
-status byte of 0xFF, and otherwise the distance in millimeters divided by 10. The reading is new and the frame's time
-noted. A frame whose sum does not fit changes nothing. After the bytes, when no frame came for more than 200 ms, or none
-ever came and the first update was more than 200 ms ago, an update more than 200 ms after the last failure report makes
-the reading a hardware failure, new when it was not one already, and notes the report. The reference takes a time of 0
-as none for all three times, so a frame, a first update or a report at the millisecond 0 does not count, and this unit
-does the same. A read gives no new data until a new reading, then the reading once. The reference keeps the port, the
-frame state, the reading and the times in static variables. This unit keeps them in its state, which behaves the same
-with one rangefinder. The unit is SPARK for the frame state machine and the reading, whose subtype the model ranges
-bound.
+`Adaflight.Nooploop` drives the Nooploop TOFSense serial rangefinders, the F, FP, F2, F2P, F2PH and
+F2MINI, with ranges from 2 cm to 10, 17, 5, 17, 33 and 5 m. Detection takes one of the six models
+and needs a configured serial port, which it opens at 115200 baud, then gives the task a 10 ms
+period, the model's maximum range and a 90 degree cone. Initialization resets the frame state and
+the reading to no new data. An update reads the clock, notes the time of the first update, and reads
+every waiting byte through the frame state machine: the sync bytes 0x57 and 0x00, after which a
+second 0x57 keeps waiting for the 0x00, then 14 more bytes, the last the 8-bit sum of the 15 before
+it. A frame whose sum fits gives a reading: out of range for a negative 24-bit distance, one outside
+the model's range in millimeters or a status byte of 0xFF, and otherwise the distance in millimeters
+divided by 10. The reading is new and the frame's time noted. A frame whose sum does not fit changes
+nothing. After the bytes, when no frame came for more than 200 ms, or none ever came and the first
+update was more than 200 ms ago, an update more than 200 ms after the last failure report makes the
+reading a hardware failure, new when it was not one already, and notes the report. The reference
+takes a time of 0 as none for all three times, so a frame, a first update or a report at the
+millisecond 0 does not count, and this unit does the same. A read gives no new data until a new
+reading, then the reading once. The reference keeps the port, the frame state, the reading and the
+times in static variables. This unit keeps them in its state, which behaves the same with one
+rangefinder. The unit is SPARK for the frame state machine and the reading, whose subtype the model
+ranges bound.
 
-The Nooploop oracle includes the reference driver over a stubbed serial port and clock, one case per process. It draws
-the model, another type in a seventh of the cases, whether a port is configured and opens, and the clock, 0 in 8 percent
-of the cases and within 2 s of the 32-bit wrap in 17 percent, then detects and runs 40 updates, each after a drawn clock
-advance, in a seventh of them to exactly 200 ms after the last good frame or, before any, after the first update, in an
-eighth of the cases with one to four silent updates first, over a drawn byte stream of up to three frames with distances
-in and out of range or negative, invalid status bytes, wrong sums in 15 percent of the frames, repeated and false sync
-bytes and frames split across updates, and reads the distance after each update, twice in 30 percent of them. Every port
-open and clock read, detection and reading of the 300 cases replays exactly. In them 224 rangefinders are found, 14 of
-them with the clock at 0, 7013 of 8960 updates bring bytes, and of 11572 reads 3734 give a distance, 2458 out of range,
-585 a hardware failure and 4795 no new data. Of 47 tampered paths, 43 fail the vectors. Four pass and are equivalent:
-the two resets of the initialization repeat the defaults of a state built once, and a read before the first frame gives
-no new data either way, the sign check of the distance rejects what the range check after it rejects as well, and the
-port guard of the update is reached only after a detection.
+The Nooploop oracle includes the reference driver over a stubbed serial port and clock, one case per
+process. It draws the model, another type in a seventh of the cases, whether a port is configured
+and opens, and the clock, 0 in 8 percent of the cases and within 2 s of the 32-bit wrap in 17
+percent, then detects and runs 40 updates, each after a drawn clock advance, in a seventh of them to
+exactly 200 ms after the last good frame or, before any, after the first update, in an eighth of the
+cases with one to four silent updates first, over a drawn byte stream of up to three frames with
+distances in and out of range or negative, invalid status bytes, wrong sums in 15 percent of the
+frames, repeated and false sync bytes and frames split across updates, and reads the distance after
+each update, twice in 30 percent of them. Every port open and clock read, detection and reading of
+the 300 cases replays exactly. In them 224 rangefinders are found, 14 of them with the clock at 0,
+7013 of 8960 updates bring bytes, and of 11572 reads 3734 give a distance, 2458 out of range, 585 a
+hardware failure and 4795 no new data. Of 47 tampered paths, 43 fail the vectors. Four pass and are
+equivalent: the two resets of the initialization repeat the defaults of a state built once, and a
+read before the first frame gives no new data either way, the sign check of the distance rejects
+what the range check after it rejects as well, and the port guard of the update is reached only
+after a detection.
 
 ## D355. UP-T1 sensor driver (2026-10-18)
 
-`Adaflight.UPT1` drives the Upixels UP-T1 serial module, a laser rangefinder and an optical flow sensor in one frame
-stream, which the rangefinder update parses for both. Either detection opens the configured serial port at 115200 baud
-when the other has not already, and fails without a port or when it does not open. The rangefinder detection gives its
-task a 10 ms period, a 12 m range and a 90 degree cone; the optical flow detection gives its task a 20 ms period, an 8
-cm minimum range, a quality threshold of 30 and a 60 ms gyro delay. Initialization resets the parser and the reading to
-out of range. An update counts every byte received and, before the 22nd, ignores them as the module's startup text, then
-sends the command that selects the protocol. It then takes frames of a header 0xFE, a length 0x0A, ten data bytes, their
-exclusive-or and a footer 0x55, counting a wrong checksum or footer as an error. A frame gives the reading in
-centimeters when the laser status is 0xF5 and the distance lies between 25 and 12000 mm, and out of range otherwise,
-with the distance and its microsecond time kept for the flow. The frames with a valid laser status and a positive
-integration time add their flow integrals, in 32 bits that wrap, and their windows over the update. When the summed
-window is between 1 us and 1 s, the update stamps the time and gives the rates in radians per second, each integral sum
-over 10000 over the window in single precision, with the quality of the last usable frame, 0 when its distance fell
-outside 80 to 12000 mm. Otherwise the invalid frames add to a count that, past 5, stays at 5 and zeros the rates and the
-quality. A read gives the reading once, then no new data. The reference keeps the port, the parser, the counts and the
-flow data in static variables. This unit keeps them in its state, which behaves the same with one module, and keeps the
-last frame's values and the parser phase before the last byte, which the reference shows through its debug values. The
-unit is SPARK for the parser, the wrapping sums and the rates, whose subtype bounds the division by a window of at least
-1 us.
+`Adaflight.UPT1` drives the Upixels UP-T1 serial module, a laser rangefinder and an optical flow
+sensor in one frame stream, which the rangefinder update parses for both. Either detection opens the
+configured serial port at 115200 baud when the other has not already, and fails without a port or
+when it does not open. The rangefinder detection gives its task a 10 ms period, a 12 m range and a
+90 degree cone. The optical flow detection gives its task a 20 ms period, an 8 cm minimum range, a
+quality threshold of 30 and a 60 ms gyro delay. Initialization resets the parser and the reading to
+out of range. An update counts every byte received and, before the 22nd, ignores them as the
+module's startup text, then sends the command that selects the protocol. It then takes frames of a
+header 0xFE, a length 0x0A, ten data bytes, their exclusive-or and a footer 0x55, counting a wrong
+checksum or footer as an error. A frame gives the reading in centimeters when the laser status is
+0xF5 and the distance lies between 25 and 12000 mm, and out of range otherwise, with the distance
+and its microsecond time kept for the flow. The frames with a valid laser status and a positive
+integration time add their flow integrals, in 32 bits that wrap, and their windows over the update.
+When the summed window is between 1 us and 1 s, the update stamps the time and gives the rates in
+radians per second, each integral sum over 10000 over the window in single precision, with the
+quality of the last usable frame, 0 when its distance fell outside 80 to 12000 mm. Otherwise the
+invalid frames add to a count that, past 5, stays at 5 and zeros the rates and the quality. A read
+gives the reading once, then no new data. The reference keeps the port, the parser, the counts and
+the flow data in static variables. This unit keeps them in its state, which behaves the same with
+one module, and keeps the last frame's values and the parser phase before the last byte, which the
+reference shows through its debug values. The unit is SPARK for the parser, the wrapping sums and
+the rates, whose subtype bounds the division by a window of at least 1 us.
 
-The UP-T1 oracle includes the reference driver with the optical flow build over a stubbed serial port and a microsecond
-clock that advances 997 us at each read, one case per process. It draws whether a port is configured and opens, which
-detections run and in which order, and the clock, then runs 40 updates over a drawn byte stream: 5 to 30 startup bytes,
-then frames with flow integrals, integration times of 0, 1 or up to 65535 us, laser distances in and out of range and at
-each limit, status and confidence bytes, wrong checksums in a tenth, wrong footers and lengths, false headers, frames
-split across updates, and in 7 percent of the updates 16 to 22 frames with windows of 50 to 65 ms, past the 1 s limit.
-Every port open, write and clock read, detection, reading, debug value and flow sample of the 300 cases replays exactly,
-the rates bit for bit. In them 243 rangefinders and 210 flow sensors are found, 192 together, 4342 of 9720 updates end
-with a distance and 2777 out of range, 7680 flow samples come with 2400 at quality 0 and 145 zeroed, and 172 updates
-carry more than 16 whole frames. Of 54 tampered paths, 47 fail the vectors and two stop the checker at a subtype check.
-Five pass and are equivalent: the initial reading, which a read before the first frame never shows, the two error
-counts, which nothing reads, the flow frame count in the window test, which a positive integration sum implies, and the
-saturated invalid count, whose value no longer matters once the rates are zero.
+The UP-T1 oracle includes the reference driver with the optical flow build over a stubbed serial
+port and a microsecond clock that advances 997 us at each read, one case per process. It draws
+whether a port is configured and opens, which detections run and in which order, and the clock, then
+runs 40 updates over a drawn byte stream: 5 to 30 startup bytes, then frames with flow integrals,
+integration times of 0, 1 or up to 65535 us, laser distances in and out of range and at each limit,
+status and confidence bytes, wrong checksums in a tenth, wrong footers and lengths, false headers,
+frames split across updates, and in 7 percent of the updates 16 to 22 frames with windows of 50 to
+65 ms, past the 1 s limit. Every port open, write and clock read, detection, reading, debug value
+and flow sample of the 300 cases replays exactly, the rates bit for bit. In them 243 rangefinders
+and 210 flow sensors are found, 192 together, 4342 of 9720 updates end with a distance and 2777 out
+of range, 7680 flow samples come with 2400 at quality 0 and 145 zeroed, and 172 updates bring more
+than 16 whole frames. Of 54 tampered paths, 47 fail the vectors and two stop the checker at a
+subtype check. Five pass and are equivalent: the initial reading, which a read before the first
+frame never shows, the two error counts, which nothing reads, the flow frame count in the window
+test, which a positive integration sum implies, and the saturated invalid count, whose value no
+longer matters once the rates are zero.
 
 ## D356. HC-SR04 rangefinder driver (2026-10-18)
 
-`Adaflight.HCSR04` drives the HC-SR04 ultrasonic rangefinder on a trigger pin and an echo pin, named by tag. Detection
-fails when either pin has an owner. Otherwise it sets the trigger pin up as an output driven low, waits 100 ms, sets
-the echo pin up as an input and, when the echo pin reads low, fires up to five 11 us trigger pulses, each followed by
-60 ms of polling the echo pin for a high level by the millisecond clock. A sensor that answers gets the echo pin's
-interrupt on both edges and gives the task a 100 ms period, a 4 m range, a 30 degree cone and a 45 degree extended
-cone; one that does not gets both pins released. The echo interrupt keeps the microsecond time of a rising edge and, at
-a falling edge later than it by less than 2^31 us, the travel time and the millisecond clock's reading. An update that
-finds the echo ended after the last trigger and within 60 ms of it gives the distance as the travel time over 59, out
-of range past 4 m; one that finds the echo more than 60 ms after the trigger, or before it, gives a hardware failure;
-one that finds it in the trigger's millisecond leaves the reading. An update more than 60 ms after the last trigger
-fires the next pulse. A read gives the reading once, then no new data. The reference stamps the echo with the
-microsecond clock over 1000, which wraps after 71.6 min of uptime while the millisecond clock runs on, so every reading
-after that is a hardware failure, and it keeps a falling edge more than 2^31 us after its rise as a negative travel
-time and a negative distance (finding F273, D6). The reference keeps its state in static variables; this unit keeps it
-per device, which behaves the same with one sensor. The unit is SPARK for the travel time conversion and the division.
+`Adaflight.HCSR04` drives the HC-SR04 ultrasonic rangefinder on a trigger pin and an echo pin, named
+by tag. Detection fails when either pin has an owner. Otherwise it sets the trigger pin up as an
+output driven low, waits 100 ms, sets the echo pin up as an input and, when the echo pin reads low,
+fires up to five 11 us trigger pulses, each followed by 60 ms of polling the echo pin for a high
+level by the millisecond clock. A sensor that answers gets the echo pin's interrupt on both edges
+and gives the task a 100 ms period, a 4 m range, a 30 degree cone and a 45 degree extended cone. One
+that does not gets both pins released. The echo interrupt keeps the microsecond time of a rising
+edge and, at a falling edge later than it by less than 2^31 us, the travel time and the millisecond
+clock's reading. An update that finds the echo ended after the last trigger and within 60 ms of it
+gives the distance as the travel time over 59, out of range past 4 m. One that finds the echo more
+than 60 ms after the trigger, or before it, gives a hardware failure. One that finds it in the
+trigger's millisecond leaves the reading. An update more than 60 ms after the last trigger fires the
+next pulse. A read gives the reading once, then no new data. The reference stamps the echo with the
+microsecond clock over 1000, which wraps after 71.6 min of uptime while the millisecond clock runs
+on, so every reading after that is a hardware failure, and it keeps a falling edge more than 2^31 us
+after its rise as a negative travel time and a negative distance (finding F273, D6). The reference
+keeps its state in static variables. This unit keeps it per device, which behaves the same with one
+sensor. The unit is SPARK for the travel time conversion and the division.
 
-The HC-SR04 oracle includes the reference driver without its unit test guard, so its echo interrupt handler and trigger
-pulse are built, over stubbed pins, interrupt setup, delays and both clocks, one case per process since the driver keeps
-its state in statics. It draws the pin tags, which pin has an owner, whether the echo pin is low at first and at which
-poll it goes high, and the millisecond clock, which advances 7 ms at each read and starts near its wrap, below 100 s,
-anywhere in its 32 bits or between 36 and 71 min of uptime, then detects and, when the sensor answers, runs 40 updates,
-each after a drawn clock advance, in a fifth of them exactly 60 or 61 ms after the last trigger, with drawn echo edges
-fed to the handler at their microsecond times: pairs with travel times up to 30 ms, at the 4 m limit, zero, negative by
-a few ms or past 2^31 us, some ending in the clock's millisecond, and lone edges, a rise sometimes more than 2^31 us in
-the past. Every pin, interrupt, delay and clock call, detection and reading of the 300 cases replays exactly. In them 25
-cases have an owned pin, 213 sensors are found, and of 8520 updates 1293 end with a distance, 75 of them at 4 m and 8
-negative, 555 out of range, 6583 in hardware failure and 81 without new data. Of 49 tampered paths, 47 fail the vectors
-and 2 stop the checker at the reading's subtype check.
+The HC-SR04 oracle includes the reference driver without its unit test guard, so its echo interrupt
+handler and trigger pulse are built, over stubbed pins, interrupt setup, delays and both clocks, one
+case per process since the driver keeps its state in statics. It draws the pin tags, which pin has
+an owner, whether the echo pin is low at first and at which poll it goes high, and the millisecond
+clock, which advances 7 ms at each read and starts near its wrap, below 100 s, anywhere in its 32
+bits or between 36 and 71 min of uptime, then detects and, when the sensor answers, runs 40 updates,
+each after a drawn clock advance, in a fifth of them exactly 60 or 61 ms after the last trigger,
+with drawn echo edges fed to the handler at their microsecond times: pairs with travel times up to
+30 ms, at the 4 m limit, zero, negative by a few ms or past 2^31 us, some ending in the clock's
+millisecond, and lone edges, a rise sometimes more than 2^31 us in the past. Every pin, interrupt,
+delay and clock call, detection and reading of the 300 cases replays exactly. In them 25 cases have
+an owned pin, 213 sensors are found, and of 8520 updates 1293 end with a distance, 75 of them at 4 m
+and 8 negative, 555 out of range, 6583 in hardware failure and 81 without new data. Of 49 tampered
+paths, 47 fail the vectors and 2 stop the checker at the reading's subtype check.
 
 ## D357. 2SMPB-02B barometer driver (2026-10-19)
 
@@ -8288,205 +8330,240 @@ well, where the reference scales it through an integer division that truncates i
 (finding F274, D6), and writes the IIR filter of 8 samples. A refused coefficient read or IIR write
 fails the detection, returning an SPI chip's select pin to the preinit state, where the reference
 parses the uninitialized buffer the read left and reports the chip found (F275). A found chip gives
-the barometer task a 35 ms pressure delay, the temperature coming with the pressure. A pressure start sets the forced
-measurement with 4 temperature and 32 pressure averages, a pressure read starts the six data bytes
-while the bus is free, a pressure sample takes the bytes the last read brought while the bus is free
-and compensates them, and the temperature calls do nothing. The compensation solves the datasheet's
-quadratics in single precision in the reference's order: the temperature as the negated linear
-coefficient less the root of the discriminant, over twice the quadratic coefficient, then over 256;
-the raw pressure as the root less its linear coefficient, over twice its quadratic coefficient; and
-the pressure as the raw pressure over the temperature polynomial. A negative discriminant gives the
-reference a NaN and a zero quadratic coefficient a NaN or an infinity, which the IEEE arithmetic
-carries into the results. This unit keeps a kind beside each value, finite, an infinity of either
-sign or not a number, and follows the same propagation, with the final quotient computed in double
-precision, which rounds to the same single, so that an overflow becomes a kind instead of a check.
-The calculation gives the pressure in pascal and the temperature in hundredths of a degree as the
-ARM processor converts a single to a signed 32-bit integer: toward zero, saturated past the range,
-and 0 for a NaN, a conversion the host leaves undefined. The reference keeps everything in static
-variables; this unit keeps them per device, which behaves the same with one barometer. The unit is
-SPARK for the scaling, the compensation and the conversions, with the coefficient subtypes bounding
-every term and the quadratic coefficients zero or at least one register count.
+the barometer task a 35 ms pressure delay, the temperature coming with the pressure. A pressure
+start sets the forced measurement with 4 temperature and 32 pressure averages, a pressure read
+starts the six data bytes while the bus is free, a pressure sample takes the bytes the last read
+brought while the bus is free and compensates them, and the temperature calls do nothing. The
+compensation solves the datasheet's quadratics in single precision in the reference's order:
 
-The 2SMPB-02B oracle includes the reference driver over a simulated chip, one case per process. It draws the bus, SPI in
-30 percent of the cases, the configured and real addresses, the identity each of the five attempts answers, whether
-writes answer, which coefficient read the chip refuses, if any, from the case number so the other draws keep their
-places, and the 21 coefficient bytes, with the 24-bit offsets within 20 bits in 45 percent of the cases and a
-quadratic coefficient zero or within three counts of it in a fifth, then makes 50 of the driver's calls, each with drawn
-busy and start answers and data bytes near the midpoint, at it, random or at the ends. The driver's conversion of a NaN
-is undefined on the host, so the oracle converts the results as the ARM processor does. Every bus and pin call,
-detection, call result, pressure and temperature of the 300 cases replays exactly, the single precision values bit for
-bit where finite and by kind otherwise. In them 153 chips are found, 70 on SPI, 38 fail at a refused coefficient read or
-IIR write, 24 writes are refused, 829 samples compensate and 1075 calculations run. 870 of the 7650 call results show a
-NaN pressure and 112 a NaN temperature, and none an infinity. Of the first campaign's 53 tampered paths, 45 failed its
-vectors and 6 stopped the checker at a subtype check. Two pass and are equivalent: a commuted sum in the temperature
-polynomial, which the addition keeps exact, and an assignment the started read overwrites. The unchecked configuration,
-tampered back in, fails these vectors.
+- the temperature as the negated linear coefficient less the root of the discriminant, over twice
+  the quadratic coefficient, then over 256
+- the raw pressure as the root less its linear coefficient, over twice its quadratic coefficient
+- the pressure as the raw pressure over the temperature polynomial
+
+A negative discriminant gives the reference a NaN and a zero quadratic coefficient a NaN or an
+infinity, which the IEEE arithmetic propagates into the results. This unit keeps a kind beside each
+value, finite, an infinity of either sign or not a number, and follows the same propagation, with
+the final quotient computed in double precision, which rounds to the same single, so that an
+overflow becomes a kind instead of a check. The calculation gives the pressure in pascal and the
+temperature in hundredths of a degree as the ARM processor converts a single to a signed 32-bit
+integer: toward zero, saturated past the range, and 0 for a NaN, a conversion the host leaves
+undefined. The reference keeps everything in static variables. This unit keeps them per device,
+which behaves the same with one barometer. The unit is SPARK for the scaling, the compensation and
+the conversions, with the coefficient subtypes bounding every term and the quadratic coefficients
+zero or at least one register count.
+
+The 2SMPB-02B oracle includes the reference driver over a simulated chip, one case per process. It
+draws the bus, SPI in 30 percent of the cases, the configured and real addresses, the identity each
+of the five attempts answers, whether writes answer, which coefficient read the chip refuses, if
+any, from the case number so the other draws keep their places, and the 21 coefficient bytes, with
+the 24-bit offsets within 20 bits in 45 percent of the cases and a quadratic coefficient zero or
+within three counts of it in a fifth, then makes 50 of the driver's calls, each with drawn busy and
+start answers and data bytes near the midpoint, at it, random or at the ends. The driver's
+conversion of a NaN is undefined on the host, so the oracle converts the results as the ARM
+processor does. Every bus and pin call, detection, call result, pressure and temperature of the 300
+cases replays exactly, the single precision values bit for bit where finite and by kind otherwise.
+In them 153 chips are found, 70 on SPI, 38 fail at a refused coefficient read or IIR write, 24
+writes are refused, 829 samples compensate and 1075 calculations run. 870 of the 7650 call results
+show a NaN pressure and 112 a NaN temperature, and none an infinity. Of the first campaign's 53
+tampered paths, 45 failed its vectors and 6 stopped the checker at a subtype check. Two pass and are
+equivalent: a commuted sum in the temperature polynomial, which the addition keeps exact, and an
+assignment the started read overwrites. The unchecked configuration, tampered back in, fails these
+vectors.
 
 ## D358. LPS barometer driver (2026-10-19)
 
-`Adaflight.LPS` drives the ST LPS22, LPS25, LPS33 and LPS35 barometers on SPI. Detection fails on another bus, prepares
-the select pin and a 10 MHz clock, and reads the identity, 0xB1 for the LPS22, LPS33 and LPS35 and 0xBD for the LPS25.
-It then powers the chip down with block updates, writes and reads back the second control register, the averages, 64 for
-the temperature and 512 for the pressure, and the data ready pin, failing when one reads back differently, starts the
-chip at 25 Hz with block updates, the interrupt and the autozero reset, reads the first control register back, gives the
-barometer task a combined read, a 1 us temperature delay and a 41666 us pressure delay, and reads samples until one is
-not zero or more than 500 ms pass by the millisecond clock, which fails the detection with the task's values left set. A
-sample reads the status and, when a pressure or a temperature is ready, the three pressure bytes, sign extended, and the
-two temperature bytes, and zeros otherwise. Only the pressure sample call reads; the other calls do nothing and succeed.
-The calculation gives the pressure as the raw count times 100 over 4096 and the temperature as the raw count times 10
-over 48 plus 4250, in hundredths of a degree, both with the integer division. The reference keeps the raw counts in
-static variables; this unit keeps them in its state, which behaves the same with one barometer. The unit is SPARK for
-the sample decoding and the calculation, whose 24-bit subtype bounds the products.
+`Adaflight.LPS` drives the ST LPS22, LPS25, LPS33 and LPS35 barometers on SPI. Detection fails on
+another bus, prepares the select pin and a 10 MHz clock, and reads the identity, 0xB1 for the LPS22,
+LPS33 and LPS35 and 0xBD for the LPS25. It then powers the chip down with block updates, writes and
+reads back the second control register, the averages, 64 for the temperature and 512 for the
+pressure, and the data ready pin, failing when one reads back differently, starts the chip at 25 Hz
+with block updates, the interrupt and the autozero reset, reads the first control register back,
+gives the barometer task a combined read, a 1 us temperature delay and a 41666 us pressure delay,
+and reads samples until one is not zero or more than 500 ms pass by the millisecond clock, which
+fails the detection with the task's values left set. A sample reads the status and, when a pressure
+or a temperature is ready, the three pressure bytes, sign extended, and the two temperature bytes,
+and zeros otherwise. Only the pressure sample call reads. The other calls do nothing and succeed.
+The calculation gives the pressure as the raw count times 100 over 4096 and the temperature as the
+raw count times 10 over 48 plus 4250, in hundredths of a degree, both with the integer division. The
+reference keeps the raw counts in static variables. This unit keeps them in its state, which behaves
+the same with one barometer. The unit is SPARK for the sample decoding and the calculation, whose
+24-bit subtype bounds the products.
 
-The LPS oracle includes the reference driver over a simulated chip on a stubbed SPI bus and millisecond clock, one case
-per process. It draws the bus, SPI in 88 percent of the cases, the identity, 0xB1 in 45 percent and 0xBD in 35, which of
-the three verified writes read back wrong, 6 percent each, the clock, a fifth of the cases within 600 ms of its 32-bit
-wrap, its step, 1 to 40 ms or 100 to 400 ms and a divisor of 500 ms in some, how many of detection's reads stay empty,
-none, one to six or all, and the readiness, status bits and data bytes of each sample, with one count zero in some, then
-detects and makes 50 of the driver's calls, redrawing the sample in 60 percent of them. Every pin and bus call, clock
-read, detection, call result, raw count and calculation of the 300 cases replays exactly. In them 212 chips answer a
-known identity, 44 fail a read back, 69 time out, 99 are found and 4950 calls run. Of 43 tampered paths, 42 fail the
-vectors and 1 stop the checker at a subtype check.
+The LPS oracle includes the reference driver over a simulated chip on a stubbed SPI bus and
+millisecond clock, one case per process. It draws the bus, SPI in 88 percent of the cases, the
+identity, 0xB1 in 45 percent and 0xBD in 35, which of the three verified writes read back wrong, 6
+percent each, the clock, a fifth of the cases within 600 ms of its 32-bit wrap, its step, 1 to 40 ms
+or 100 to 400 ms and a divisor of 500 ms in some, how many of detection's reads stay empty, none,
+one to six or all, and the readiness, status bits and data bytes of each sample, with one count zero
+in some, then detects and makes 50 of the driver's calls, redrawing the sample in 60 percent of
+them. Every pin and bus call, clock read, detection, call result, raw count and calculation of the
+300 cases replays exactly. In them 212 chips answer a known identity, 44 fail a read back, 69 time
+out, 99 are found and 4950 calls run. Of 43 tampered paths, 42 fail the vectors and 1 stop the
+checker at a subtype check.
 
 ## D359. BMP5xx barometer driver (2026-10-19)
 
-`Adaflight.BMP5xx` drives the Bosch BMP580 and BMP581 barometers on I2C or SPI. Detection waits 20 ms, sets up the data
-ready pin and its rising edge interrupt when one is configured, prepares the select pin and a 10 MHz clock of an SPI
-chip, sets the I2C address to 0x47 when none was given, and reads the chip identity, 0x50 or 0x51, trying 0x46 when the
-default address gave another. A chip that gives neither gets its select pin returned to the preinit state and the
-default address taken back. Otherwise detection registers the device, resets the chip and waits 5 ms, sets the pulsed,
-active high interrupt on data ready when the pin is configured, the compensation with the IIR output in the shadow
-registers, an IIR coefficient of 15 on both values, 128 pressure and 4 temperature oversamples and the normal mode at 50
-Hz, whatever the writes answer, gives the barometer task a combined read with a 15 ms pressure delay, and waits while
-the bus is busy. A chip on SPI sends a dummy byte before its registers, which the reads skip. The pressure read brings
-the six data bytes, kept on a failed read, and the pressure sample takes the temperature from the first three and the
-pressure from the last three; the other calls do nothing. The calculation gives the temperature as the signed 24-bit
-count times 100 over 65536, in hundredths of a degree, and the pressure as the count over 64, in pascal, both with the
-integer division. The reference keeps the raw counts and the data bytes in static variables; this unit keeps them per
-device, which behaves the same with one barometer. The unit is SPARK for the sample decoding and the calculation, whose
-24-bit subtype bounds the products.
+`Adaflight.BMP5xx` drives the Bosch BMP580 and BMP581 barometers on I2C or SPI. Detection waits 20
+ms, sets up the data ready pin and its rising edge interrupt when one is configured, prepares the
+select pin and a 10 MHz clock of an SPI chip, sets the I2C address to 0x47 when none was given, and
+reads the chip identity, 0x50 or 0x51, trying 0x46 when the default address gave another. A chip
+that gives neither gets its select pin returned to the preinit state and the default address taken
+back. Otherwise detection registers the device, resets the chip and waits 5 ms, sets the pulsed,
+active high interrupt on data ready when the pin is configured, the compensation with the IIR output
+in the shadow registers, an IIR coefficient of 15 on both values, 128 pressure and 4 temperature
+oversamples and the normal mode at 50 Hz, whatever the writes answer, gives the barometer task a
+combined read with a 15 ms pressure delay, and waits while the bus is busy. A chip on SPI sends a
+dummy byte before its registers, which the reads skip. The pressure read brings the six data bytes,
+kept on a failed read, and the pressure sample takes the temperature from the first three and the
+pressure from the last three. The other calls do nothing. The calculation gives the temperature as
+the signed 24-bit count times 100 over 65536, in hundredths of a degree, and the pressure as the
+count over 64, in pascal, both with the integer division. The reference keeps the raw counts and the
+data bytes in static variables. This unit keeps them per device, which behaves the same with one
+barometer. The unit is SPARK for the sample decoding and the calculation, whose 24-bit subtype
+bounds the products.
 
-The BMP5xx oracle includes the reference driver over a simulated chip, one case per process. It draws the bus, SPI in 30
-percent of the cases, the configured and real addresses, the identity, 0x50 or 0x51 in 80 percent, whether a data ready
-pin is configured, how many busy answers detection waits out, the SPI dummy byte and which of the first 32 reads fail,
-in 15 percent of the cases, then detects and makes 50 of the driver's calls over drawn data bytes, typical, random,
-negative, at the sign bit, at 63 and 64 counts or at the ends, redrawn in 60 percent of the calls. Every pin and bus
-call, detection, call result, raw count and calculation of the 300 cases replays exactly. In them 175 chips are found,
-84 BMP580 and 91 BMP581, 132 cases configure the data ready pin, and 8750 calls run. Of 51 tampered paths, 50 fail the
-vectors. One passes and is equivalent: the select pin return in the address retry, which only an I2C chip reaches.
+The BMP5xx oracle includes the reference driver over a simulated chip, one case per process. It
+draws the bus, SPI in 30 percent of the cases, the configured and real addresses, the identity, 0x50
+or 0x51 in 80 percent, whether a data ready pin is configured, how many busy answers detection waits
+out, the SPI dummy byte and which of the first 32 reads fail, in 15 percent of the cases, then
+detects and makes 50 of the driver's calls over drawn data bytes, typical, random, negative, at the
+sign bit, at 63 and 64 counts or at the ends, redrawn in 60 percent of the calls. Every pin and bus
+call, detection, call result, raw count and calculation of the 300 cases replays exactly. In them
+175 chips are found, 84 BMP580 and 91 BMP581, 132 cases configure the data ready pin, and 8750 calls
+run. Of 51 tampered paths, 50 fail the vectors. One passes and is equivalent: the select pin return
+in the address retry, which only an I2C chip reaches.
 
 ## D360. ICM456xx gyro driver (2026-10-19)
 
-`Adaflight.MPU_Gyro.ICM456xx` drives the ICM-45686 and ICM-45605 gyros over the SPI gyro layer. Detection resets the
-chip and polls the reset bit 10 us apart for up to 20 ms, wakes it and reads its identity up to 21 times, 1 ms apart.
-Initialization sets a 24 MHz clock, runs the layer's, turns the sensors on in low noise mode and waits 1 ms, sets the
-accelerometer to 16 g at 1600 Hz and waits 10 ms, enables the gyro's anti-alias filter and interpolator and sets its low
-pass filter from the filter setting through the indirect registers, falling back to the raw path and the bypass when an
-update fails, sets the gyro to 2000 degrees per second at 6400 Hz and waits 35 ms, takes the short period of 156 us,
-sets the pulsed, push-pull, active high interrupt on data ready and names the data registers. The accelerometer
-initialization enables its anti-alias filter and interpolator and sets its low pass filter to an eighth of its rate the
-same way. An indirect register access waits for the done bit 4 us apart for up to 5 ms, writes the address and reads or
-writes the data 4 us apart; an update reads, writes when the masked bits differ, reads back and tries three times, and a
-read while armed fails. The reads take the six little-endian bytes of the gyro or the accelerometer with a blocking
-transfer; the first gyro read leaves the interrupt mode without DMA, which the reference never selects. The reference
-keeps the arming state in a global flag; this unit takes it as an argument of the initializations. The unit is SPARK,
-with the polls bounded by their timeouts.
+`Adaflight.MPU_Gyro.ICM456xx` drives the ICM-45686 and ICM-45605 gyros over the SPI gyro layer.
+Detection resets the chip and polls the reset bit 10 us apart for up to 20 ms, wakes it and reads
+its identity up to 21 times, 1 ms apart. Initialization sets a 24 MHz clock, runs the layer's, turns
+the sensors on in low noise mode and waits 1 ms, sets the accelerometer to 16 g at 1600 Hz and waits
+10 ms, enables the gyro's anti-alias filter and interpolator and sets its low pass filter from the
+filter setting through the indirect registers, falling back to the raw path and the bypass when an
+update fails, sets the gyro to 2000 degrees per second at 6400 Hz and waits 35 ms, takes the short
+period of 156 us, sets the pulsed, push-pull, active high interrupt on data ready and names the data
+registers. The accelerometer initialization enables its anti-alias filter and interpolator and sets
+its low pass filter to an eighth of its rate the same way. An indirect register access waits for the
+done bit 4 us apart for up to 5 ms, writes the address and reads or writes the data 4 us apart. An
+update reads, writes when the masked bits differ, reads back and tries three times, and a read while
+armed fails. The reads take the six little-endian bytes of the gyro or the accelerometer with a
+blocking transfer. The first gyro read leaves the interrupt mode without DMA, which the reference
+never selects. The reference keeps the arming state in a global flag. This unit takes it as an
+argument of the initializations. The unit is SPARK, with the polls bounded by their timeouts.
 
-The ICM456xx oracle includes the reference driver and the common SPI gyro layer over a simulated chip with its indirect
-registers, one case per process. It draws the bus, the chip identity, 0xE9 or 0xE5 in 85 percent of the cases, and the
-reads before it answers, the polls the reset bit and each indirect access take to clear, the first access past the
-driver's 5 ms timeout in 4 percent of the cases, past all three retries in some, and the reset past its 20 ms timeout in
-3, whether indirect writes take, refused in 12 percent, the arming state, armed in 5 percent, the startup clock and its
-step, the interrupt pin, the filter setting and the register values, then runs the detection, the gyro and accelerometer
-detection and initialization, and 30 steps of interrupts, bursts, DMA completions, gyro and accelerometer reads and new
-samples. Every bus, pin, clock and delay call, detection, setting, reading and indirect register value of the 300 cases
-replays exactly. In them 215 chips are found, 132 answer 0xE9 and 122 0xE5, 14 cases are armed, the first indirect
-access times out in 7, past all retries in 2, the reset in 11, 36 refuse the indirect writes, and of 6450 steps 1524
-read the gyro, 1265 the accelerometer and 2067 raise interrupts. Of 69 tampered paths, 68 fail the vectors. One passes
-and is equivalent: the masking of an update's value, since every value lies within its mask.
+The ICM456xx oracle includes the reference driver and the common SPI gyro layer over a simulated
+chip with its indirect registers, one case per process. It draws the bus, the chip identity, 0xE9 or
+0xE5 in 85 percent of the cases, and the reads before it answers, the polls the reset bit and each
+indirect access take to clear, the first access past the driver's 5 ms timeout in 4 percent of the
+cases, past all three retries in some, and the reset past its 20 ms timeout in 3, whether indirect
+writes take, refused in 12 percent, the arming state, armed in 5 percent, the startup clock and its
+step, the interrupt pin, the filter setting and the register values, then runs the detection, the
+gyro and accelerometer detection and initialization, and 30 steps of interrupts, bursts, DMA
+completions, gyro and accelerometer reads and new samples. Every bus, pin, clock and delay call,
+detection, setting, reading and indirect register value of the 300 cases replays exactly. In them
+215 chips are found, 132 answer 0xE9 and 122 0xE5, 14 cases are armed, the first indirect access
+times out in 7, past all retries in 2, the reset in 11, 36 refuse the indirect writes, and of 6450
+steps 1524 read the gyro, 1265 the accelerometer and 2067 raise interrupts. Of 69 tampered paths, 68
+fail the vectors. One passes and is equivalent: the masking of an update's value, since every value
+lies within its mask.
 
 ## D361. LSM6DSO gyro driver (2026-10-19)
 
-`Adaflight.MPU_Gyro.LSM6DSO` drives the LSM6DSO gyro over the SPI gyro layer. Detection reads the identity, 0x6C, once.
-Initialization sets the reset bit of the third control register and waits 100 ms, enables the gyro data ready on both
-interrupt pins, sets the accelerometer to 833 Hz at 16 g from its first filter and the gyro to 6664 Hz at 2000 degrees
-per second, the block update and the address increment, the I2C disable and the gyro's first filter, the high
-performance accelerometer with the 335 Hz gyro filter, and the I3C disable, each masked write reading the register first
-and skipped when the read fails, waits 1 ms after each write, arms the data ready interrupt when the board has the pin,
-and sets a 10 MHz clock; it leaves the layer's data registers, DMA read and short period unset. The interrupt only marks
-data ready. The reads take the six little-endian bytes of the gyro or the accelerometer with a blocking transfer and
-fail when the transfer does. The gyro's scale is 0.07 degrees per second per count and the accelerometer's 2048 counts
-per g. The unit is SPARK.
+`Adaflight.MPU_Gyro.LSM6DSO` drives the LSM6DSO gyro over the SPI gyro layer. Detection reads the
+identity, 0x6C, once. Initialization sets the reset bit of the third control register and waits 100
+ms, enables the gyro data ready on both interrupt pins, sets the accelerometer to 833 Hz at 16 g
+from its first filter and the gyro to 6664 Hz at 2000 degrees per second, the block update and the
+address increment, the I2C disable and the gyro's first filter, the high performance accelerometer
+with the 335 Hz gyro filter, and the I3C disable, each masked write reading the register first and
+skipped when the read fails, waits 1 ms after each write, arms the data ready interrupt when the
+board has the pin, and sets a 10 MHz clock. It leaves the layer's data registers, DMA read and short
+period unset. The interrupt only marks data ready. The reads take the six little-endian bytes of the
+gyro or the accelerometer with a blocking transfer and fail when the transfer does. The gyro's scale
+is 0.07 degrees per second per count and the accelerometer's 2048 counts per g. The unit is SPARK.
 
-The LSM6DSO oracle includes the reference driver, its initialization and the common SPI gyro layer over a simulated
-chip, one case per process. It draws the bus, the chip identity, 0x6C in 85 percent of the cases, which of the first 32
-reads fail, in 15 percent, the startup clock and its step, the interrupt pin and the register values, lets the layer
-find another chip first in a twelfth of the cases, then runs the detection, the gyro and accelerometer detection and
-initialization, and 30 steps of interrupts, bursts, DMA completions, gyro and accelerometer reads and new samples. Every
-bus, pin, clock and delay call, detection, setting and reading of the 300 cases replays exactly. In them 254 chips
-answer the identity, 44 cases script read failures, the layer finds another chip first in 25 cases, 209 gyros are found,
-and of 6270 steps 1479 read the gyro, 1239 the accelerometer and 2004 raise interrupts. Of 45 tampered paths, 43 fail
-the vectors. Two pass and are equivalent: the delay guard of a write, since every write waits, and the acknowledgement
-check of the identity read, since a refused read leaves the byte zero.
+The LSM6DSO oracle includes the reference driver, its initialization and the common SPI gyro layer
+over a simulated chip, one case per process. It draws the bus, the chip identity, 0x6C in 85 percent
+of the cases, which of the first 32 reads fail, in 15 percent, the startup clock and its step, the
+interrupt pin and the register values, lets the layer find another chip first in a twelfth of the
+cases, then runs the detection, the gyro and accelerometer detection and initialization, and 30
+steps of interrupts, bursts, DMA completions, gyro and accelerometer reads and new samples. Every
+bus, pin, clock and delay call, detection, setting and reading of the 300 cases replays exactly. In
+them 254 chips answer the identity, 44 cases script read failures, the layer finds another chip
+first in 25 cases, 209 gyros are found, and of 6270 steps 1479 read the gyro, 1239 the accelerometer
+and 2004 raise interrupts. Of 45 tampered paths, 43 fail the vectors. Two pass and are equivalent:
+the delay guard of a write, since every write waits, and the acknowledgement check of the identity
+read, since a refused read leaves the byte zero.
 
 ## D362. ICM56686 gyro driver (2026-10-19)
 
-`Adaflight.MPU_Gyro.ICM56686` drives the ICM-56686 gyro over the SPI gyro layer. Detection resets the chip and polls the
-reset bit 10 us apart for up to 20 ms, wakes it and reads its identity up to 21 times, 1 ms apart. Initialization sets a
-24 MHz clock, runs the layer's, and through the indirect registers selects 16-bit little-endian data, turns on the
-gyro's sample rate converter and prefilter, sets its low pass filter from the filter setting, bypasses its notch, and
-turns on the accelerometer's converter and prefilter with its low pass filter at an eighth of its rate, whatever each
-access answers; it then sets the accelerometer to 16 g at 1600 Hz and the gyro to 2000 degrees per second at 6400 Hz and
-the pulsed, push-pull, active high interrupt, turns the sensors on in low noise mode and waits 35 ms, takes the
-temperature scale of 1/128 degree per count with its zero at 25 degrees and the short period of 156 us, names the data
-registers and enables the data ready interrupt. An indirect access writes the address, and the data for a write, then
-waits 4 us and polls the done bit 10 us apart for up to 5 ms; a read then takes the data and waits again; a modification
-reads first and writes the masked bits, or the masked value alone when the read fails; a write while armed fails. The
-reads take the six little-endian bytes of the gyro or the accelerometer with a blocking transfer; the first gyro read
-leaves the interrupt mode without DMA, which the reference never selects. The reference keeps the arming state in a
-global flag; this unit takes it as an argument of the initialization. The unit is SPARK, with the polls bounded by their
+`Adaflight.MPU_Gyro.ICM56686` drives the ICM-56686 gyro over the SPI gyro layer. Detection resets
+the chip and polls the reset bit 10 us apart for up to 20 ms, wakes it and reads its identity up to
+21 times, 1 ms apart. Initialization sets a 24 MHz clock, runs the layer's, and through the indirect
+registers selects 16-bit little-endian data, turns on the gyro's sample rate converter and
+prefilter, sets its low pass filter from the filter setting, bypasses its notch, and turns on the
+accelerometer's converter and prefilter with its low pass filter at an eighth of its rate, whatever
+each access answers. It then sets the accelerometer to 16 g at 1600 Hz and the gyro to 2000 degrees
+per second at 6400 Hz and the pulsed, push-pull, active high interrupt, turns the sensors on in low
+noise mode and waits 35 ms, takes the temperature scale of 1/128 degree per count with its zero at
+25 degrees and the short period of 156 us, names the data registers and enables the data ready
+interrupt. An indirect access writes the address, and the data for a write, then waits 4 us and
+polls the done bit 10 us apart for up to 5 ms. A read then takes the data and waits again. A
+modification reads first and writes the masked bits, or the masked value alone when the read fails.
+A write while armed fails. The reads take the six little-endian bytes of the gyro or the
+accelerometer with a blocking transfer. The first gyro read leaves the interrupt mode without DMA,
+which the reference never selects. The reference keeps the arming state in a global flag. This unit
+takes it as an argument of the initialization. The unit is SPARK, with the polls bounded by their
 timeouts.
 
-The ICM56686 oracle includes the reference driver and the common SPI gyro layer over a simulated chip with its indirect
-registers, one case per process. It draws the bus, the chip identity, 0x08 in 85 percent of the cases, and the reads
-before it answers, the polls the reset bit and each indirect access take to clear, the first access past the driver's 5
-ms timeout in 4 percent of the cases, every later access past it in 5 and the reset past its 20 ms timeout in 3, whether
-indirect writes take, refused in 12 percent, the arming state, armed in 5 percent, the startup clock and its step, the
-interrupt pin, the filter setting, past the known ones in 8 percent, and the register values, then runs the detection,
-the gyro and accelerometer detection and initialization, and 30 steps of interrupts, bursts, DMA completions, gyro and
-accelerometer reads and new samples. Every bus, pin, clock and delay call, detection, setting, reading and indirect
-register value of the 300 cases replays exactly. In them 214 chips are found, 12 cases are armed, 12 time out on the
-first indirect access, 14 on every later one and 10 on the reset, 39 refuse the indirect writes, 26 have an unknown
-filter setting, and of 6420 steps 1515 read the gyro, 1272 the accelerometer and 2060 raise interrupts. Of 75 tampered
-paths, 74 fail the vectors. One passes and is equivalent: the masking of a modification's value, since every value lies
-within its mask.
+The ICM56686 oracle includes the reference driver and the common SPI gyro layer over a simulated
+chip with its indirect registers, one case per process. It draws the bus, the chip identity, 0x08 in
+85 percent of the cases, and the reads before it answers, the polls the reset bit and each indirect
+access take to clear, the first access past the driver's 5 ms timeout in 4 percent of the cases,
+every later access past it in 5 and the reset past its 20 ms timeout in 3, whether indirect writes
+take, refused in 12 percent, the arming state, armed in 5 percent, the startup clock and its step,
+the interrupt pin, the filter setting, past the known ones in 8 percent, and the register values,
+then runs the detection, the gyro and accelerometer detection and initialization, and 30 steps of
+interrupts, bursts, DMA completions, gyro and accelerometer reads and new samples. Every bus, pin,
+clock and delay call, detection, setting, reading and indirect register value of the 300 cases
+replays exactly. In them 214 chips are found, 12 cases are armed, 12 time out on the first indirect
+access, 14 on every later one and 10 on the reset, 39 refuse the indirect writes, 26 have an unknown
+filter setting, and of 6420 steps 1515 read the gyro, 1272 the accelerometer and 2060 raise
+interrupts. Of 75 tampered paths, 74 fail the vectors. One passes and is equivalent: the masking of
+a modification's value, since every value lies within its mask.
 
 ## D363. BMI423 gyro driver (2026-10-19)
 
-`Adaflight.MPU_Gyro.BMI423` drives the BMI423 gyro over the SPI gyro layer. The chip starts in I2C mode: the select pin
-low for 1 ms then high for 2 ms and a discarded identity read select SPI. A register is 16 bits little-endian behind two
-dummy bytes. Detection selects SPI and reads the identity, 0xAB in the low byte. Initialization writes the soft reset
-and waits 2 ms, selects SPI again, selects the 16-bit samples, writes the filter configuration, second order filters on
-both sensors or the gyro's bypassed for the experimental setting, before each sensor's configuration, the accelerometer
-at 16 g and 800 Hz and the gyro at 2000 degrees per second and 6.4 kHz with the bandwidth of the filter setting, which
-waits 55 ms, then the push-pull active high interrupt pin in long pulse mode with the gyro data ready on it, the other
-writes 1 ms apart, enables the interrupt when the board has the pin, and sets a 10 MHz clock. The interrupt handler is
-the layer's, the chip's own with no short period. The first gyro read after 1000 interrupts takes the DMA mode when the
-bus has it, in which each interrupt starts the 15-byte read of both sensors and the reads decode the accelerometer at
-byte 3 and the gyro at byte 9; the other modes read a sensor's six little-endian bytes behind the address and the dummy
-bytes with a blocking transfer, a gyro read in the mode without interrupts repeats the first read once 1000 interrupts
-have come, and a read in the first mode fails. The scale of 2000 degrees per second over the 16-bit count is set at the
-gyro detection. The unit is SPARK, with the sample offsets bounded by the receive buffer.
+`Adaflight.MPU_Gyro.BMI423` drives the BMI423 gyro over the SPI gyro layer. The chip starts in I2C
+mode: the select pin low for 1 ms then high for 2 ms and a discarded identity read select SPI. A
+register is 16 bits little-endian behind two dummy bytes. Detection selects SPI and reads the
+identity, 0xAB in the low byte. Initialization writes the soft reset and waits 2 ms, selects SPI
+again, selects the 16-bit samples, writes the filter configuration, second order filters on both
+sensors or the gyro's bypassed for the experimental setting, before each sensor's configuration, the
+accelerometer at 16 g and 800 Hz and the gyro at 2000 degrees per second and 6.4 kHz with the
+bandwidth of the filter setting, which waits 55 ms, then the push-pull active high interrupt pin in
+long pulse mode with the gyro data ready on it, the other writes 1 ms apart, enables the interrupt
+when the board has the pin, and sets a 10 MHz clock. The interrupt handler is the layer's, the
+chip's own with no short period. The first gyro read after 1000 interrupts takes the DMA mode when
+the bus has it, in which each interrupt starts the 15-byte read of both sensors and the reads decode
+the accelerometer at byte 3 and the gyro at byte 9. The other modes read a sensor's six
+little-endian bytes behind the address and the dummy bytes with a blocking transfer, a gyro read in
+the mode without interrupts repeats the first read once 1000 interrupts have come, and a read in the
+first mode fails. The scale of 2000 degrees per second over the 16-bit count is set at the gyro
+detection. The unit is SPARK, with the sample offsets bounded by the receive buffer.
 
-The BMI423 oracle includes the reference driver and the common SPI gyro layer over a simulated chip with 16-bit
-registers behind two dummy bytes, one case per process. It draws the bus, the chip identity, 0xAB in 85 percent of the
-cases, the dummy bytes, whether reads answer, refused in 5 percent, the startup clock and its step, DMA, the interrupt
-pin, the filter setting, past the known ones in 8 percent, and the register values, then runs the detection, the gyro
-and accelerometer detection and initialization, and 30 steps of interrupts, a burst of 990 to 1050 interrupts first or
-after some reads outside the DMA mode, DMA completions, gyro and accelerometer reads and new samples. Every bus, pin,
-clock and delay call, detection, setting and reading of the 300 cases replays exactly. In them 240 chips are found, 185
-cases have DMA, 66 the experimental filter and 26 an unknown one, 194 raise a burst, 33 of them at or below the 1000
-threshold, 21 repeat the first read from the mode without interrupts, and of 7200 steps 1813 read the gyro and 1381 the
+The BMI423 oracle includes the reference driver and the common SPI gyro layer over a simulated chip
+with 16-bit registers behind two dummy bytes, one case per process. It draws the bus, the chip
+identity, 0xAB in 85 percent of the cases, the dummy bytes, whether reads answer, refused in 5
+percent, the startup clock and its step, DMA, the interrupt pin, the filter setting, past the known
+ones in 8 percent, and the register values, then runs the detection, the gyro and accelerometer
+detection and initialization, and 30 steps of interrupts, a burst of 990 to 1050 interrupts first or
+after some reads outside the DMA mode, DMA completions, gyro and accelerometer reads and new
+samples. Every bus, pin, clock and delay call, detection, setting and reading of the 300 cases
+replays exactly. In them 240 chips are found, 185 cases have DMA, 66 the experimental filter and 26
+an unknown one, 194 raise a burst, 33 of them at or below the 1000 threshold, 21 repeat the first
+read from the mode without interrupts, and of 7200 steps 1813 read the gyro and 1381 the
 accelerometer. Of 75 tampered paths, 74 fail the vectors and 1 stop the checker at a subtype check.
 
 ## D364. LSM6DSV16X gyro driver (2026-10-19)
