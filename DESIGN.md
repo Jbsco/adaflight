@@ -8032,9 +8032,10 @@ names by tag, 0 for none. Detection sets the clear pin up as an output driven hi
 a rising-edge interrupt, waits 20 ms, gives an unset I2C address the chip's 0x77, and reads the identity 0x55. A chip
 that does not answer, or answers another identity, gets its conversion-end pin and interrupt released when it has one,
 its clear pin driven low and the default address taken back. Otherwise detection registers the device, reads the version
-byte and the 22 calibration bytes, whatever they answer and into a buffer that starts at zeros (finding F272), gives the
-barometer task a 6 ms temperature delay and a 27 ms pressure delay, and tests the conversion-end pin, which counts as
-connected when it reads low and then high 12 ms after a temperature start. A second detection answers found at once. A
+byte, whatever it answers, and the 22 calibration bytes, whose refused read fails the detection the way a wrong identity
+does, where the reference parses the uninitialized buffer the read left (F272), then gives the barometer task a 6 ms
+temperature delay and a 27 ms pressure delay and tests the conversion-end pin, which counts as connected when it reads
+low and then high 12 ms after a temperature start. A second detection answers found at once. A
 temperature or pressure start clears the conversion flag and starts the control write, the interrupt sets the flag, a
 read starts the two or three data bytes while the bus is free and, with the pin connected, the flag set, and a sample
 takes the bytes the last read brought while the bus is free, the pressure as 19 bits of the three bytes. The calculation
@@ -8047,15 +8048,17 @@ arithmetic, the shifts and the divisions.
 
 The BMP085 oracle includes the reference driver, built with wrapping signed arithmetic as the ARM processor computes,
 over a simulated chip, one case per process. It draws the clear and conversion-end pin tags, the bus and the addresses,
-the identity, whether the first read fails, the two levels the conversion-end pin shows during detection, and the 22
-calibration bytes, near the datasheet's example or random, then makes 50 of the driver's calls, each after a drawn
-interrupt or none, with scripted busy and start answers and raw readings. A division by zero would end the case; none of
-the 300 cases reaches one. Every bus, pin, interrupt and delay call, detection and calculation of the 300 cases replays
-exactly, with the fine temperature and the raw readings. In them 155 chips are found, 91 with a clear pin, 91 with a
-conversion-end pin, 49 of those connected, and 26 on SPI, 2280 interrupts fire, 1694 samples are taken and 1085
-calculations run. Of 63 tampered paths, 60 fail the vectors and two stop the checker at a subtype check. One passes and
-is equivalent: the rounding term of the B3 step adds 2 before a shift by 2 to a value the fixed oversampling of 3 makes
-a multiple of 8, so the shift drops it.
+the identity, whether the first read fails, whether the calibration read is refused, from the case number so the other
+draws keep their places, the two levels the conversion-end pin shows during detection, and the 22 calibration bytes,
+near the datasheet's example or random, then makes 50 of the driver's calls, each after a drawn interrupt or none, with
+scripted busy and start answers and raw readings. A division by zero would end the case; none of the 300 cases reaches
+one. Every bus, pin, interrupt and delay call, detection and calculation of the 300 cases replays exactly, with the fine
+temperature and the raw readings. In them 135 chips are found, 79 with a clear pin, 80 with a conversion-end pin, 42 of
+those connected, and 24 on SPI, 20 fail at a refused calibration read, 2015 interrupts fire, 1483 samples are taken and
+935 calculations run. Of the first campaign's 63 tampered paths, 60 failed its vectors and two stopped the checker at a
+subtype check. One passes and is equivalent: the rounding term of the B3 step adds 2 before a shift by 2 to a value the
+fixed oversampling of 3 makes a multiple of 8, so the shift drops it. The unchecked calibration read and a refusal that
+skips the pin release, tampered back in, fail these vectors.
 
 ## D353. TF rangefinder driver (2026-10-18)
 
