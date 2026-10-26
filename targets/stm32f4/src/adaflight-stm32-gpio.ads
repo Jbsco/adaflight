@@ -14,6 +14,9 @@ package Adaflight.STM32.GPIO is
 
    procedure Set_Input (P : Pin; Resistor : Pull := No_Pull);
 
+   --  The pin in analog mode for the ADC, without pull resistors.
+   procedure Set_Analog (P : Pin);
+
    --  The pin on an alternate function, push-pull at high speed.
    procedure Set_Alternate (P : Pin; Func : Alternate_Function; Resistor : Pull := No_Pull);
 

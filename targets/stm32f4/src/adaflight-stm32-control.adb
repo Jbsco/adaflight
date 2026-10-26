@@ -21,7 +21,8 @@ package body Adaflight.STM32.Control is
    function Index_Of (Setting : Interfaces.Unsigned_8; Last : Natural) return Natural is
      (Natural'Min (Last, Natural (Setting)));
 
-   procedure Init (Config : Adaflight.Config_Groups.Configuration; Runtime_Features : Interfaces.Unsigned_32) is
+   procedure Init (Config : Adaflight.Config_Groups.Configuration; Runtime_Features : Interfaces.Unsigned_32;
+                   Battery_Voltage : Interfaces.Unsigned_16 := 0) is
       Options : constant Adaflight.Mixer_Init.Options := (others => <>);
       P       : constant Natural := Index_Of (Config.System_Config.Pid_Profile_Index, 3);
       R       : constant Natural := Index_Of (Config.System_Config.Active_Rate_Profile, 3);
@@ -34,7 +35,7 @@ package body Adaflight.STM32.Control is
       Adaflight.PID_Controller.Init (Ctl, Adaflight.STM32.Pilot.Profile, Adaflight.STM32.Pilot.Loop_Runtime);
       Adaflight.PID_Controller.Set_Stabilisation (Ctl, Stabilised);
       Mix := (others => <>);
-      Adaflight.Mixer.Init_RPM_Limiter (Mix, Mix_Config, Adaflight.STM32.Pilot.Loop_Runtime, Battery_Voltage => 0);
+      Adaflight.Mixer.Init_RPM_Limiter (Mix, Mix_Config, Adaflight.STM32.Pilot.Loop_Runtime, Battery_Voltage);
       Adaflight.Mixer.Init_Dyn_Idle
         (Mix, Mix_Config, Adaflight.STM32.Pilot.Loop_Runtime, Adaflight.STM32.Pilot.Profile,
          DShot_Telemetry => False, Motor_Idle => Natural'Min (2_000, Natural (Config.Motor_Config.Motor_Idle)));
@@ -131,6 +132,9 @@ package body Adaflight.STM32.Control is
       Inp.Cos_Tilt := Float'Max (-1.0, Float'Min (1.0, Current.Cos_Tilt));
       Inp.Attitude := Current.Attitude;
       Inp.Throttle_Raised := Adaflight.STM32.Pilot.Throttle_Raised;
+      Inp.Battery_Voltage := Current.Battery_Voltage;
+      Inp.Sag_Cell_Voltage := Current.Sag_Cell_Voltage;
+      Inp.Battery_Voltage_Latest := Current.Battery_Latest;
       Inp.Motors_Enabled := False;
       Inp.Motor_Enabled := (others => False);
       Adaflight.Mixer.Update
@@ -166,6 +170,13 @@ package body Adaflight.STM32.Control is
           PID_Audio => PID_Audio));
       Asked := Step;
    end Pass;
+
+   procedure Reset_RPM_Limiter (Battery_Voltage : Interfaces.Unsigned_16) is
+   begin
+      Adaflight.Mixer.Reset_RPM_Limiter (Mix, Mix_Config, Battery_Voltage);
+   end Reset_RPM_Limiter;
+
+   function Throttle return Float is (Mix.Throttle);
 
    function Throttle_Step_Changed return Boolean is (Step_Changed);
 
