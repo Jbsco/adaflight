@@ -9591,3 +9591,17 @@ init sound is off. The task setup enables the beeper task.
 The image is 932688 bytes of text, 5068 of data and 116840 of zeroed data. The bench check is the
 boot beeps, the arming tones and the battery alarm on a supply below the warning voltage.
 
+## D394. STM32F4 accelerometer calibration store (2026-10-26)
+
+A finished accelerometer calibration reaches the stored configuration. When the accelerometer's
+calibration count reaches zero after its 400 samples, or its in-flight calibration saves, the image
+writes the offsets into the accelerometer group, marks the calibration complete and resets the level
+trims, then writes the configuration, reads it back and confirms with one beep (D386, D393). The end
+of an in-flight measurement sounds the calibration tone. Before this a calibration from the sticks or
+a message ran in memory and was lost at the next boot, and the stored calibration flag the arming
+logic reads stayed clear.
+
+The image is 932692 bytes of text, 5068 of data and 116840 of zeroed data. The bench check is a
+calibration from the sticks with the board level, one confirmation beep, and the offsets in `dump`
+after a power cycle.
+

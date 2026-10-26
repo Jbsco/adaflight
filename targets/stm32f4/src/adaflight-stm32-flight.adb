@@ -722,17 +722,41 @@ package body Adaflight.STM32.Flight is
       end case;
    end Battery_Alarms;
 
+   --  A finished accelerometer calibration stored: its offsets, the
+   --  calibration marked complete and the level trims reset, then written,
+   --  read back and confirmed with a beep.
+   procedure Store_Acc_Calibration is
+      Unused_Success : Boolean;
+   begin
+      Config.Accelerometer_Config.Acc_Zero (0) := Integer_16 (Acc_State.Zero (Adaflight.Vectors.X));
+      Config.Accelerometer_Config.Acc_Zero (1) := Integer_16 (Acc_State.Zero (Adaflight.Vectors.Y));
+      Config.Accelerometer_Config.Acc_Zero (2) := Integer_16 (Acc_State.Zero (Adaflight.Vectors.Z));
+      Config.Accelerometer_Config.Acc_Zero (3) := 1;
+      Config.Accelerometer_Config.Accelerometer_Trims := (others => 0);
+      Write_Configuration;
+      Load_Configuration (Unused_Success);
+      Confirmation_Beeps (1);
+   end Store_Acc_Calibration;
+
    procedure Acc_Update (Now_Us : Scheduler.Time_Us) is
       pragma Unreferenced (Now_Us);
-      Raw : Adaflight.STM32.Gyro.Axis_Values;
-      OK  : Boolean;
+      Raw         : Adaflight.STM32.Gyro.Axis_Values;
+      OK          : Boolean;
+      Calibrating : Adaflight.Accelerometer.Cycle_Count;
    begin
       Adaflight.STM32.Gyro.Read_Acc (Raw, OK);
       if not OK then
          return;
       end if;
+      Calibrating := Acc_State.Calibrating;
       Adaflight.Accelerometer.Update
         (Acc_State, Acc_Settings, (Integer (Raw (0)), Integer (Raw (1)), Integer (Raw (2))), Acc_Cal);
+      if Acc_State.Inflight_Ended then
+         Request_Beep (Adaflight.Beeper.Acc_Calibration);
+      end if;
+      if (Calibrating = 1 and then Acc_State.Calibrating = 0) or else Acc_State.Inflight_Saved then
+         Store_Acc_Calibration;
+      end if;
       Ctx.Out_Views.State.IMU.Acc :=
         (0 => Acc_State.Acc.X / Acc_Scale, 1 => Acc_State.Acc.Y / Acc_Scale, 2 => Acc_State.Acc.Z / Acc_Scale);
    end Acc_Update;
