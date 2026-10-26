@@ -5141,7 +5141,8 @@ commands to the motors. The restart, an error while armed, takes a mode below fi
 when the request leaves it out, and answers it back. For mass storage the file system's readiness
 follows in the reply, and only a ready one restarts; the restart waits out a delay over the
 telemetry link with the SPI receiver running, as the configuration write does. The mass storage
-mode with UTC time restarts without the check (findings F199). The DShot command message, while
+mode with UTC time takes the same check, where the reference restarts without it (finding F199,
+amended 2026-10-25 as declared in D6). The DShot command message, while
 disarmed, takes a command type, a motor, a count and that many commands, and is an error when the
 request holds fewer; armed, it does nothing. `Effects` carries the restart with its mode, the reply,
 and the commands for the motor command queue, with the motors switched off around blocking ones;
@@ -5151,7 +5152,9 @@ The command line oracle routes the restart through the reference's out command p
 the DShot command calls and the motor switching, and scripts the mass storage readiness with a
 directive. The harness replays two sequences of 600 lines, 907 requests among armed, link, feature,
 mass storage and motor scripts: every result, reply, restart, delay and DShot command matches the
-reference's, with 159 rejected by both.
+reference's, with 159 rejected by both. The MSP device vectors, which hold the restart requests
+with the readiness scripted either way, were regenerated on 2026-10-25 against the reference's
+restart message with the same check.
 
 ## D224. MSP GPS sensor (2026-10-15)
 
