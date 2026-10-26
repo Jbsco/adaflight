@@ -21,6 +21,25 @@ package body Adaflight.MAX7456.Display_Port with SPARK_Mode is
       P.Cursor_Row := -1;
    end Clear_Screen;
 
+   --  The port's rows from the video system, NTSC, PAL for PAL, HD and any
+   --  other system, or the chip's count for an automatic one, and 30
+   --  columns, each with the profile's adjustment.
+   procedure Set_Dimensions (S : State; Video : Video_Profile; Display : Display_Profile; P : in out Port)
+     with Global => null
+   is
+      Lines : Byte;
+   begin
+      if Video.Video_System = 2 then
+         Lines := Lines_NTSC;
+      elsif Video.Video_System = 0 then
+         Lines := Rows_Count (S);
+      else
+         Lines := Lines_PAL;
+      end if;
+      P.Rows := Adjusted (Lines, Display.Row_Adjust);
+      P.Cols := Adjusted (Chars_Per_Line, Display.Col_Adjust);
+   end Set_Dimensions;
+
    procedure Init
      (D             : in out SPI_Device;
       S             : in out State;
@@ -33,7 +52,6 @@ package body Adaflight.MAX7456.Display_Port with SPARK_Mode is
       Ready         : out Boolean)
    is
       Status : Init_Status;
-      Lines  : Byte;
    begin
       P := (others => <>);
       Init (D, S, C, Video, CPU_Overclock, Status);
@@ -49,15 +67,7 @@ package body Adaflight.MAX7456.Display_Port with SPARK_Mode is
          Ready := False;
          return;
       end if;
-      if Video.Video_System = 2 then
-         Lines := Lines_NTSC;
-      elsif Video.Video_System = 0 then
-         Lines := Rows_Count (S);
-      else
-         Lines := Lines_PAL;
-      end if;
-      P.Rows := Adjusted (Lines, Display.Row_Adjust);
-      P.Cols := Adjusted (Chars_Per_Line, Display.Col_Adjust);
+      Set_Dimensions (S, Video, Display, P);
       Ready := True;
    end Init;
 
@@ -119,8 +129,10 @@ package body Adaflight.MAX7456.Display_Port with SPARK_Mode is
    procedure Check_Ready
      (D             : in out SPI_Device;
       S             : in out State;
+      P             : in out Port;
       C             : Config;
       Video         : Video_Profile;
+      Display       : Display_Profile;
       CPU_Overclock : Boolean;
       Armed         : Boolean;
       Rescan        : Boolean;
@@ -138,6 +150,7 @@ package body Adaflight.MAX7456.Display_Port with SPARK_Mode is
             Ready := False;
             return;
          end if;
+         Set_Dimensions (S, Video, Display, P);
          Redraw (D, S, Armed);
       end if;
       Ready := True;
