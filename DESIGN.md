@@ -5772,6 +5772,13 @@ of the readings. The harness replays 240 sessions with 19636 keys, 792 menu chan
 of their states in the MSP VTX menu and 114 in its confirmation: every display operation, menu context,
 page, request, driver state, menu copy and configuration hash matches the reference's.
 
+Amended 2026-10-25: the band, channel and power names of the four VTX menus are blank above the table's
+counts, as declared in D6 (finding F287). The reference draws the name at the line's value. The SmartAudio
+driver's band is the device's channel divided by the table's channel count, so a channel outside the table
+gives a band above the eight slots, which reads past the name array, and the other device menus copy that
+band through the common layer when opened with the SmartAudio device. The menu contents oracle compiles
+the reference menu system with the bound, which changes 14 draws in 240 sessions.
+
 ## D251. Tramp VTX menu (2026-10-16)
 
 `Adaflight.Menu_Content` gains the Tramp VTX menu with its confirmation, over helpers the MSP VTX menu
