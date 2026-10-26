@@ -9221,3 +9221,26 @@ printable range, lines past the buffer, and configurator batches with and withou
 timed inside and past the two seconds. Every reply of the 1658 that print and every session state
 replays exactly, with at most one line end per batch so the line's effects read as the command
 lines' do.
+
+## D379. STM32F4 USART1 and the command line (2026-10-26)
+
+The second milestone of Phase 7 puts the command line on the board. `Adaflight.STM32.USART` drives
+USART1 at eight data bits, no parity and one stop bit over the board's UART1 pins, PA9 and PA10 on
+alternate function 7, with the APB2 clock the runtime sets, 84 MHz, and a divider rounded to the
+nearest sixteenth: a blocking transmitter the command line puts its text through, and a receiver
+whose interrupt keeps the bytes in a ring of 256 until the main loop takes them and drops the rest.
+`Adaflight.STM32.GPIO` gains the alternate function setting with an optional pull-up.
+`Adaflight.STM32.Console` instantiates the command line over the USART with the core's board step
+units, since the board's DShot, flash and passthrough tools wait for their drivers, and the terminal
+over it.
+
+The image drives the UART1 inverter pin low, enters an interactive session at boot, and polls the
+receiver every millisecond. The bytes go to the terminal with the millisecond clock, the uptime and
+the arming hold, a session the terminal closed is entered again, and a restart request resets the
+core through its reset control register. The configuration starts from the reset configuration of
+`Adaflight.Config_Reset`, with no storage behind a save yet. The environment names the board and the
+MCU from the generated board package, takes the build date and time from the compiler, and reads the
+device's three unique identifier words. The main stack is 32 KB, set in the project's linker
+switches. The LED keeps its 1 Hz blink. The bench check is a serial adapter on the UART1 pads at
+115200 baud: the banner and prompt show at boot and after `exit`, which restarts the board, and the
+commands reply as the host vectors record them.
