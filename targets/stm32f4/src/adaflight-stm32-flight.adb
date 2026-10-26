@@ -8,6 +8,7 @@ with Adaflight.Accelerometer;
 with Adaflight.Arming;
 with Adaflight.Attitude;
 with Adaflight.Axes;
+with Adaflight.Battery;
 with Adaflight.Board;
 with Adaflight.Board_Info;
 with Adaflight.Bytes;
@@ -33,6 +34,7 @@ with Adaflight.MSP_Out;
 with Adaflight.MSP_Port;
 with Adaflight.MSP_Processor;
 with Adaflight.PID_Config;
+with Adaflight.Pins;
 with Adaflight.PID_Controller;
 with Adaflight.RC_Command;
 with Adaflight.Receiver;
@@ -40,6 +42,7 @@ with Adaflight.RPM_Filter;
 with Adaflight.RX_Task;
 with Adaflight.Scheduler;
 with Adaflight.Serial_Feature_Map;
+with Adaflight.STM32.ADC;
 with Adaflight.STM32.Console;
 with Adaflight.STM32.Control;
 with Adaflight.STM32.Flash;
@@ -134,12 +137,16 @@ package body Adaflight.STM32.Flight is
    --  the hash of each group's stored bytes.
    Runtime_Features : Unsigned_32 := 0;
    RX_State         : Adaflight.RX_Task.State;
+   Bat              : Adaflight.Battery.State;
+   Bat_Settings     : Adaflight.Battery.Settings;
    Pilot_Facts      : Adaflight.STM32.Pilot.Facts;
    --  The attitude task's periods with the level modes on and off.
    Attitude_Period_Slow_Us : constant Scheduler.Time_Delta := 10_000;
    Attitude_Period_Fast_Us : Scheduler.Time_Delta := 2_000;
 
    procedure Apply (Step : Adaflight.Arming.Outputs);
+   procedure Report_Battery;
+   function Flight_Channels return Adaflight.RC_Command.Channel_Values;
    Hashes           : Adaflight.Config_Store.Hash_List (1 .. Adaflight.Config_Codec.Group_Count) := (others => 0);
    --  The divisor of the accelerometer counts in the raw readings reply, by
    --  the count for one g.
@@ -500,7 +507,7 @@ package body Adaflight.STM32.Flight is
    --  accelerometer and attitude tasks, and the receiver task whose check
    --  finds no frames yet.
    procedure Init_Scheduler is
-      Options : constant Adaflight.Task_Init.Options := (Accel => True, others => False);
+      Options : constant Adaflight.Task_Init.Options := (Accel => True, Sag_Compensation => True, others => False);
       Inputs  : Adaflight.Task_Init.Inputs;
    begin
       Sched_Settings := Adaflight.Config_Runtime.Scheduler_Settings_Of
@@ -508,6 +515,11 @@ package body Adaflight.STM32.Flight is
          Delay_Limit_Us => Delay_Limit_Us, Gyro_Period_Us => Sample_Us, Debug_Mode => Config.System_Config.Debug_Mode);
       Inputs.Serial_Update_Rate_Hz :=
         Adaflight.Task_Init.Rate_Hz (Natural'Max (1, Natural (Config.Serial_Config.Serial_Update_Rate_Hz)));
+      Inputs.Voltage_Meter := Adaflight.Battery."/=" (Bat_Settings.Voltage_Meter, Adaflight.Battery.None);
+      Inputs.Current_Meter := Adaflight.Battery."/=" (Bat_Settings.Current_Meter, Adaflight.Battery.None);
+      Inputs.Voltage_Alerts := Bat_Settings.Voltage_Alerts;
+      Inputs.Consumption_Alerts := Bat_Settings.Consumption_Alerts;
+      Inputs.Sag_Compensation := Bat_Settings.Sag_Compensation;
       Inputs.Gyro_Detected := Selection.Found;
       Inputs.Gyro_Sample_Looptime_Us := Sample_Us;
       Inputs.Gyro_Target_Looptime_Us := Sample_Us * Scheduler.Time_Delta (Loop_Ratio);
@@ -567,6 +579,7 @@ package body Adaflight.STM32.Flight is
       Ctx.Out_Views.State.Status.PID_Delta_Us := Scheduler.Task_Delta_Time (Sched, Scheduler.PID);
       Ctx.Out_Views.State.Status.Load_Percent := Unsigned_16 (Sched.Average_Load_Percent);
       Env.Gyros (0).Mode := Gyro_Mode;
+      Report_Battery;
       Adaflight.STM32.USART.Take (Adaflight.STM32.USART.UART1, Input, Count);
       if Count > 0 then
          declare
@@ -640,6 +653,119 @@ package body Adaflight.STM32.Flight is
         (0 => Acc_State.Acc.X / Acc_Scale, 1 => Acc_State.Acc.Y / Acc_Scale, 2 => Acc_State.Acc.Z / Acc_Scale);
    end Acc_Update;
 
+   --  The battery settings from the stored battery, sensor and selected
+   --  profile groups, read again at every battery task as the stored values
+   --  may change.
+   function Battery_Settings return Adaflight.Battery.Settings is
+     (Adaflight.Config_Runtime.Battery_Settings_Of
+        (Config.Battery_Config,
+         Config.Battery_Profiles (Natural'Min (2, Natural (Config.System_Config.Active_Battery_Profile))),
+         Config.Voltage_Sensor_Adc_Config (0), Config.Current_Sensor_Adc_Config,
+         Config.Current_Sensor_Virtual_Config, Config.Esc_Sensor_Config,
+         Adaflight.Config_Runtime.Sag_Compensation_Of (Config.Pid_Profiles, Config.Mixer_Config)));
+
+   --  An analog channel's sample, zero when the channel is off.
+   function Analog (Channel : Adaflight.Config_Groups.Adc_Channel_Config_T_Record; P : Adaflight.Pins.Pin)
+                    return Natural is
+     (if Channel.Enabled and then Adaflight.STM32.ADC.Has_Channel (P)
+      then Natural (Adaflight.STM32.ADC.Read (P)) else 0);
+
+   --  What the battery's other meters read: the arming, the throttle status
+   --  with the motor stop feature and the mixer's throttle for the virtual
+   --  meter.
+   function Meters return Adaflight.Battery.Meter_Inputs is
+     (ESC_Sensor   => False,
+      ESC          => <>,
+      Armed        => Adaflight.STM32.Pilot.Armed,
+      Throttle_Low => Adaflight.STM32.Pilot.Throttle_Low (Flight_Channels),
+      Motor_Stop   => (Runtime_Features and Adaflight.Config_Fix.Feature_Motor_Stop) /= 0,
+      Throttle     => Float'Max (0.0, Float'Min (1.0, Adaflight.STM32.Control.Throttle)),
+      Now_Ms       => Adaflight.STM32.Time.Millis);
+
+   procedure Run_Battery_Voltage is
+   begin
+      Bat_Settings := Battery_Settings;
+      Adaflight.Battery.Update_Voltage
+        (Bat, Bat_Settings, Analog (Config.Adc_Config.Vbat, Adaflight.Board.ADC_VBAT_Pin),
+         Adaflight.STM32.Time.Millis, Meters);
+   end Run_Battery_Voltage;
+
+   procedure Run_Battery_Current (Before : Unsigned_32) is
+   begin
+      Bat_Settings := Battery_Settings;
+      Adaflight.Battery.Update_Current
+        (Bat, Bat_Settings, Analog (Config.Adc_Config.Current, Adaflight.Board.ADC_CURR_Pin), Before, Meters);
+   end Run_Battery_Current;
+
+   --  A battery's connection: the PID profile for the detected cells while
+   --  disarmed, then the RPM limiter's reset.
+   procedure Battery_Presence is
+      Events  : Adaflight.Battery.Presence_Events;
+      Current : constant Adaflight.Config_Runtime.Profile_Index :=
+        Natural'Min (3, Natural (Config.System_Config.Pid_Profile_Index));
+      Chosen  : Adaflight.Config_Runtime.Profile_Index;
+   begin
+      Bat_Settings := Battery_Settings;
+      Adaflight.Battery.Update_Presence (Bat, Bat_Settings, Events);
+      if not Events.Connected then
+         return;
+      end if;
+      if Events.Detected_Cells > 0 and then not Adaflight.STM32.Pilot.Armed then
+         Chosen := Adaflight.Config_Runtime.Profile_For_Cells (Config.Pid_Profiles, Current, Events.Detected_Cells);
+         if Chosen /= Current then
+            Config.System_Config.Pid_Profile_Index := Unsigned_8 (Chosen);
+            Adaflight.STM32.Pilot.Configure (Config, Runtime_Features, Pilot_Facts);
+            Adaflight.STM32.Control.Init (Config, Runtime_Features, Unsigned_16 (Bat.Voltage.Display_Filtered));
+         end if;
+      end if;
+      Adaflight.STM32.Control.Reset_RPM_Limiter (Unsigned_16 (Bat.Voltage.Display_Filtered));
+   end Battery_Presence;
+
+   procedure Battery_States (Now_Us : Scheduler.Time_Us) is
+   begin
+      Adaflight.Battery.Update_States (Bat, Bat_Settings, Now_Us, Adaflight.STM32.Time.Millis);
+   end Battery_States;
+
+   --  The battery's readings into the replies and the status report: the
+   --  analog and battery replies, the battery meter at its id with the
+   --  current meter of the configured source, and the status's battery line.
+   procedure Report_Battery is
+      use type Adaflight.Battery.Voltage_Source;
+      use type Adaflight.Battery.Current_Source;
+      B : Adaflight.MSP_Out.Battery_Values renames Ctx.Out_Views.State.Battery;
+      M : Adaflight.MSP_Common_Out.Meter_Values renames Ctx.Out_Views.Common.Meters;
+      Volts    : constant Natural := Bat.Voltage.Display_Filtered;
+      Source   : constant Adaflight.Battery.Current_Source := Bat_Settings.Current_Meter;
+      Profile  : Adaflight.Config_Groups.Battery_Profile_Record renames
+        Config.Battery_Profiles (Natural'Min (2, Natural (Config.System_Config.Active_Battery_Profile)));
+      function Reading (Id : Unsigned_8; Of_Source : Adaflight.Battery.Current_Source)
+                        return Adaflight.MSP_Common_Out.Current_Reading is
+        (if Source = Of_Source
+         then (Id => Id, mAh_Drawn => Bat.Current.mAh_Drawn, Amperage => Bat.Current.Amperage)
+         else (Id => Id, mAh_Drawn => 0, Amperage => 0));
+   begin
+      B.Legacy_Voltage := Unsigned_16 ((Volts + 5) / 10);
+      B.MAh_Drawn := Bat.Current.mAh_Drawn;
+      B.RSSI := Adaflight.STM32.Radio.RSSI;
+      B.Amperage := Bat.Current.Amperage;
+      B.Voltage := Unsigned_16 (Volts);
+      B.Cell_Count := Unsigned_8 (Bat.Cells);
+      B.Capacity_MAh := Profile.Battery_Capacity;
+      B.State := Bat.Overall;
+      M.Voltage_Count := 1;
+      M.Voltages (1) :=
+        (Id               => 10,
+         Display_Filtered =>
+           (if Bat_Settings.Voltage_Meter = Adaflight.Battery.Analog then Unsigned_16 (Volts) else 0));
+      M.Current_Count := 3;
+      M.Currents (1) := Reading (10, Adaflight.Battery.Analog);
+      M.Currents (2) := Reading (80, Adaflight.Battery.Virtual);
+      M.Currents (3) := Reading (90, Adaflight.Battery.MSP);
+      Env.Status.Battery_Voltage := Unsigned_16 (Volts);
+      Env.Status.Battery_Cells := Unsigned_8 (Bat.Cells);
+      Env.Status.Battery_State := Bat.Overall;
+   end Report_Battery;
+
    procedure No_Step is null;
    procedure No_Step_At (Now_Us : Scheduler.Time_Us) is null;
    procedure No_Step_Tilt (Now_Us : Scheduler.Time_Us; Cos_Tilt : Float) is null;
@@ -653,8 +779,8 @@ package body Adaflight.STM32.Flight is
      (SD_Card_Poll           => No_Step,
       Flash_Erase            => No_Step,
       MSP_Serial             => MSP_Serial,
-      Battery_Presence       => No_Step,
-      Battery_States         => No_Step_At,
+      Battery_Presence       => Battery_Presence,
+      Battery_States         => Battery_States,
       Battery_Alarms         => No_Step,
       Acc_Update             => Acc_Update,
       GPS_Rescue_Update      => No_Step,
@@ -879,6 +1005,9 @@ package body Adaflight.STM32.Flight is
       I.Throttle_Correction := Att_State.Throttle_Correction;
       I.Jerk_Magnitude := Acc_State.Jerk_Magnitude;
       I.RC_Data_Throttle := Channels (Adaflight.RC_Command.Throttle_Channel);
+      I.Battery_Voltage := Unsigned_16 (Bat.Voltage.Display_Filtered);
+      I.Sag_Cell_Voltage := Adaflight.Battery.Sag_Cell_Voltage (Bat);
+      I.Battery_Latest := Bat.Voltage.Unfiltered;
       Adaflight.STM32.Control.Pass
         (I, Sense, Channels,
          Resets_Yaw  => Adaflight.Core_Loop.Resets_Yaw
@@ -925,7 +1054,11 @@ package body Adaflight.STM32.Flight is
       end loop;
       case Step is
          when Adaflight.RX_Task.Check =>
-            Adaflight.STM32.Radio.Process (Before, Adaflight.STM32.Time.Millis, Ready);
+            Adaflight.STM32.Radio.Process
+              (Before, Adaflight.STM32.Time.Millis,
+               (if Adaflight.STM32.Radio.RSSI_ADC
+                then Analog (Config.Adc_Config.Rssi, Adaflight.Board.ADC_RSSI_Pin) else 0),
+               Ready);
             if Ready then
                Adaflight.STM32.Pilot.Update_Refresh_Rate
                  (Before, Adaflight.STM32.Radio.Receiving, Adaflight.STM32.Radio.Last_Frame_Us);
@@ -939,7 +1072,8 @@ package body Adaflight.STM32.Flight is
             Adaflight.STM32.Pilot.Update_Pass
               (Sense, Channels,
                (Box_3D => Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Three_D),
-                Failsafe_Active => Adaflight.STM32.Radio.Failsafe_Active, others => <>),
+                LVC_Enabled => Bat.LVC_Enabled, LVC_Percentage => Bat.LVC_Percentage,
+                Failsafe_Active => Adaflight.STM32.Radio.Failsafe_Active),
                Before, Asked);
       end case;
       Apply (Asked);
@@ -962,7 +1096,7 @@ package body Adaflight.STM32.Flight is
    --  epilogue, at the clock around its run.
    procedure Run_Body (Id : Scheduler.Task_Id) is
       Before : constant Unsigned_32 := Adaflight.STM32.Time.Micros;
-      Inputs : constant Tasks.Inputs := (CLI_Open => Session.Open, others => <>);
+      Inputs : constant Tasks.Inputs := (Armed => Adaflight.STM32.Pilot.Armed, CLI_Open => Session.Open, others => <>);
    begin
       case Id is
          when Scheduler.System =>
@@ -983,6 +1117,12 @@ package body Adaflight.STM32.Flight is
             Run_Receiver (Before);
          when Scheduler.PID =>
             Run_Control (Before);
+         when Scheduler.Battery_Voltage =>
+            Run_Battery_Voltage;
+         when Scheduler.Battery_Current =>
+            Run_Battery_Current (Before);
+         when Scheduler.Battery_Alerts =>
+            Tasks.Battery_Alerts (Inputs, Before);
          when others =>
             null;
       end case;
@@ -994,6 +1134,11 @@ package body Adaflight.STM32.Flight is
       Scheduler.Execute_Begin (Sched, Id, Now_Us);
       Run_Body (Id);
    end Run_Task;
+
+   --  The board's analog inputs: the battery voltage, the current and the
+   --  RSSI.
+   Analog_Pins : constant array (1 .. 3) of Adaflight.Pins.Pin :=
+     (Adaflight.Board.ADC_VBAT_Pin, Adaflight.Board.ADC_CURR_Pin, Adaflight.Board.ADC_RSSI_Pin);
 
    procedure Init is
    begin
@@ -1012,6 +1157,12 @@ package body Adaflight.STM32.Flight is
          Ctx.Out_Views.Serial_Ports (I) := (Port => Ports (I), Available => True);
       end loop;
       Ctx.Out_Views.Serial_Count := Ports'Length;
+      Adaflight.STM32.ADC.Init;
+      for P of Analog_Pins loop
+         if Adaflight.STM32.ADC.Has_Channel (P) then
+            Adaflight.STM32.ADC.Enable (P);
+         end if;
+      end loop;
       Start_Gyro;
       Init_Loop_Units;
       Adaflight.STM32.Radio.Init (Config, Runtime_Features, Adaflight.STM32.Time.Millis);
@@ -1021,6 +1172,8 @@ package body Adaflight.STM32.Flight is
                       CRSF           => Adaflight.STM32.Radio.Linked);
       Adaflight.STM32.Pilot.Init (Config, Runtime_Features, Pilot_Facts);
       Adaflight.STM32.Control.Init (Config, Runtime_Features);
+      Bat_Settings := Battery_Settings;
+      Adaflight.Battery.Init (Bat, Bat_Settings);
       if Selection.Found then
          Adaflight.STM32.Time.Delay_Ms (First_Read_Delay_Ms);
       end if;

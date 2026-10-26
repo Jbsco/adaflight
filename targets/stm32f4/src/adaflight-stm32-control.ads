@@ -30,10 +30,20 @@ package Adaflight.STM32.Control is
       Throttle_Correction : Integer := 0;
       Jerk_Magnitude      : Float := 0.0;
       RC_Data_Throttle    : Float := 1_000.0;
+      --  The battery's display voltage, sag-filtered cell voltage and latest
+      --  voltage in hundredths of a volt.
+      Battery_Voltage     : Interfaces.Unsigned_16 := 0;
+      Sag_Cell_Voltage    : Natural range 0 .. 65_535 := 0;
+      Battery_Latest      : Natural range 0 .. 65_535 := 0;
    end record;
    --  The settings from the configuration over the pilot's selected
    --  profiles; the states start over.
-   procedure Init (Config : Adaflight.Config_Groups.Configuration; Runtime_Features : Interfaces.Unsigned_32);
+   procedure Init (Config : Adaflight.Config_Groups.Configuration; Runtime_Features : Interfaces.Unsigned_32;
+                   Battery_Voltage : Interfaces.Unsigned_16 := 0);
+   --  The RPM limiter's reset when a battery connects.
+   procedure Reset_RPM_Limiter (Battery_Voltage : Interfaces.Unsigned_16);
+   --  The mixer's throttle, which the virtual current meter reads.
+   function Throttle return Float;
    --  What the arming's receiver pass asked of the controller: the
    --  stabilisation state and the zero throttle I term reset, kept until the
    --  next receiver pass.

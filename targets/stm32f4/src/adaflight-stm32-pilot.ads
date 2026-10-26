@@ -71,6 +71,8 @@ package Adaflight.STM32.Pilot is
    function Max_Rate (A : Adaflight.Axes.Axis) return Float;
    function Throttle_Command return Float;
    function Motors_Reversed return Boolean;
+   --  Whether the throttle is low, as the virtual current meter reads it.
+   function Throttle_Low (Channels : Adaflight.RC_Command.Channel_Values) return Boolean;
    function Armed return Boolean;
    function Disabled return Adaflight.Arming.Disable_Set;
    function Flight_Modes return Adaflight.Arming.Mode_Set;
