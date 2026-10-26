@@ -13,6 +13,7 @@ package Adaflight.BMP388_Shape is new Adaflight.BMP388
    Prepare_SPI          => Adaflight.Sensor_Bus_Steps.Step_Prepare_SPI,
    Release_SPI          => Adaflight.Sensor_Bus_Steps.Step_Release_SPI,
    Enable_EOC_Interrupt => Adaflight.Sensor_Bus_Steps.Step_Enable_EOC_Interrupt,
+   Release_EOC_Interrupt => Adaflight.Sensor_Bus_Steps.Step_Release_EOC_Interrupt,
    Read_Registers       => Adaflight.Sensor_Bus_Steps.Step_Read_Registers,
    Write_Register       => Adaflight.Sensor_Bus_Steps.Step_Write_Register,
    Start_Read           => Adaflight.Sensor_Bus_Steps.Step_Start_Read,
