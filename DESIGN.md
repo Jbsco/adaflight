@@ -2807,25 +2807,24 @@ Every step, hook call, estimate and state of the 16004 lines replays exactly.
 ## D124. Barometer read cycle (2026-10-13)
 
 The barometer task unit contains the barometer's read cycle. One call starts a temperature
-conversion, the next calls read and sample it, and the same three steps follow for the pressure.
-The pressure sample computes the altitude through the barometer unit and starts the cycle over,
-from the pressure when the device reads both values at once. A start sleeps for the device's
-conversion delay, and a restart sleeps for the rest of the 40 Hz period when the cycle was shorter.
-Other calls sleep 1 ms. A read or sample the device has not finished keeps the phase and tells the
-scheduler to ignore the call's time. A busy bus keeps the phase and tells the scheduler to ignore
-the state's time. Every phase but the pressure start tells the scheduler to ignore the task's rate.
-The unit keeps the longest execution of each phase without decay (F133) and names the next phase's
-to the scheduler as a signed time delta, which wraps past 2 ** 31 microseconds. The caller makes
-the device call the unit names and passes its answer, and after a finished pressure sample the
-device's pressure and temperature. The unit is SPARK for its state machine and the time delta
-conversion.
+conversion, the next calls read and sample it, and the same three steps follow for the pressure. The
+pressure sample computes the altitude through the barometer unit and starts the cycle over, from the
+pressure when the device reads both values at once. A start sleeps for the device's conversion
+delay, and a restart sleeps for the rest of the 40 Hz period when the cycle was shorter. Other calls
+sleep 1 ms. A read or sample the device has not finished keeps the phase and tells the scheduler to
+ignore the call's time. A busy bus keeps the phase and tells the scheduler to ignore the state's
+time. Every phase but the pressure start tells the scheduler to ignore the task's rate. The unit
+keeps the longest execution of each phase without decay (F133) and names the next phase's to the
+scheduler as a signed time delta, which wraps past 2 ** 31 microseconds. The caller makes the device
+call the unit names and passes its answer, and after a finished pressure sample the device's
+pressure and temperature. The unit is SPARK for its state machine and the time delta conversion.
 
 The harness replays eight sequences of 2500 calls recorded from the reference barometer with the
 device, the bus and the scheduler's hooks stubbed: separate and combined reads, a device without
 temperature delay, slow pressure conversions, unfinished reads, a busy bus, invalid pressures, a
-ground level reset, execution times past 2 ** 31 microseconds, and clocks that start at zero or
-near their wrap. Every phase, device call, hook call, sleep time, estimate and barometer value of
-the 20008 lines replays exactly, with the altitude in the declared 3 cm tolerance (D6): 4 of 20000
+ground level reset, execution times past 2 ** 31 microseconds, and clocks that start at zero or near
+their wrap. Every phase, device call, hook call, sleep time, estimate and barometer value of the
+20008 lines replays exactly, with the altitude in the declared 3 cm tolerance (D6): 4 of 20000
 altitudes needed it.
 
 ## D125. MSP state replies (2026-10-13)
@@ -2835,33 +2834,33 @@ extended status, the raw accelerometer, gyro and compass readings, the motor out
 channels, the attitude as angles and as a quaternion, the estimated altitude with the vario, the
 rangefinder altitude, the analog and battery state readings, and the debug values. The caller
 gathers the state into a snapshot: the packed mode flags from the box unit, the arming disable
-reasons, the sensors present, the profiles, the readings and the motor protocol's external
-values. Each reply writes its fields in the protocol's order and width. Integers wrap to their
-field. Readings and quaternion components round to the nearest integer with ties to even, and
-pulses truncate. The battery voltage, drawn capacity and current saturate to their fields, and the
-load to 100%. The extended mode flag bytes follow the count of active boxes. Any other command
-writes nothing. The unit is SPARK for the reply length, which stays within the 36 bytes of a full
-RC reply, and for the conversions.
+reasons, the sensors present, the profiles, the readings and the motor protocol's external values.
+Each reply writes its fields in the protocol's order and width. Integers wrap to their field.
+Readings and quaternion components round to the nearest integer with ties to even, and pulses
+truncate. The battery voltage, drawn capacity and current saturate to their fields, and the load to
+100%. The extended mode flag bytes follow the count of active boxes. Any other command writes
+nothing. The unit is SPARK for the reply length, which stays within the 36 bytes of a full RC reply,
+and for the conversions.
 
 The harness replays eight sequences of 500 requests recorded from the reference MSP processor with
 the target's accelerometer, motor, rangefinder, vario, internal ADC and I2C switches on and the
-state it reads stubbed: random snapshots with values inside and outside each field's range, ties
-in the readings, and channel counts from 0 to 18. Every result, length and byte of the 4008 lines
+state it reads stubbed: random snapshots with values inside and outside each field's range, ties in
+the readings, and channel counts from 0 to 18. Every result, length and byte of the 4008 lines
 replays exactly.
 
 ## D126. MSP GPS, ESC and clock replies (2026-10-13)
 
-The MSP out unit adds the replies for the GPS solution, the home vector and the satellites, the
-ESC sensor data and the motor telemetry, the pitot readings, the transmitter information and the
+The MSP out unit adds the replies for the GPS solution, the home vector and the satellites, the ESC
+sensor data and the motor telemetry, the pitot readings, the transmitter information and the
 real-time clock. The GPS solution reports the fix as the reference's state flag value 2 and the
 altitude in whole metres saturated to 16 bits, and the home direction drops to whole degrees. The
 satellite list holds up to 32 entries. The ESC data comes from the ESC sensor when that feature is
 on, from the DShot telemetry otherwise, and without either the reply is an error. The motor
 telemetry takes the rate from the DShot telemetry ahead of the ESC sensor, the invalid share as the
-whole without an active motor, and the extended DShot values when the motor reported them, which
-the ESC sensor's record then overrides. Rates round to the nearest integer with ties to even, and
-the pitot readings truncate to 32-bit integers. The clock reply is empty while the clock is unset.
-The caller gathers each source's values into the snapshot, the ESC sensor's rate converted to
+whole without an active motor, and the extended DShot values when the motor reported them, which the
+ESC sensor's record then overrides. Rates round to the nearest integer with ties to even, and the
+pitot readings truncate to 32-bit integers. The clock reply is empty while the clock is unset. The
+caller gathers each source's values into the snapshot, the ESC sensor's rate converted to
 revolutions per minute by the DShot unit. The longest reply is the satellite list at 129 bytes.
 
 The harness replays eight sequences of 400 requests recorded from the reference MSP processor with
@@ -2877,51 +2876,50 @@ lines replays exactly.
 The four-way unit contains the BLHeli 4-way interface that ESC configurators reach through the MSP
 passthrough. A host frame is an escape byte, a command, a 16-bit address, a parameter length with 0
 for 256, the parameters and a CRC-16/XMODEM. The reply repeats the command and the address and adds
-the output parameters, the acknowledgement and its own check. The unit takes the host's bytes one
-at a time, where the reference blocks in a loop on the port, and asks the caller for each bootloader
+the output parameters, the acknowledgement and its own check. The unit takes the host's bytes one at
+a time, where the reference blocks in a loop on the port, and asks the caller for each bootloader
 operation in turn with the selected ESC, the address, the count and the data. A connect tries up to
 three times, each with the STK500v2 bootloader first unless the interface is in the ARM mode, then
 the BLHeli bootloader, and keeps the first device whose signature matches an Atmel, SiLabs or ARM
 part. The other commands read, write, erase and verify the flash and EEPROM through the bootloader
 of the interface mode, set that mode, restart the ESC with an optional 300 ms low pulse on its pin,
-and report the interface name and versions. A flash write in the power-on C2 mode replies OK
-without a bootloader call (F134). Starting the interface stops the motors and takes the pins of the
-enabled motors as the ESCs. The exit command hands the pins back and restarts the motors when every
-motor took its pin back. The receive LED lights from the escape byte to the reply, the transmit LED
-from the check to the end of the reply. The interface mode, the device information and the selected
-ESC carry over between sessions. The unit is SPARK for the 256-byte parameter buffer, the reply
-length and the operation list.
+and report the interface name and versions. A flash write in the power-on C2 mode replies OK without
+a bootloader call (F134). Starting the interface stops the motors and takes the pins of the enabled
+motors as the ESCs. The exit command hands the pins back and restarts the motors when every motor
+took its pin back. The receive LED lights from the escape byte to the reply, the transmit LED from
+the check to the end of the reply. The interface mode, the device information and the selected ESC
+persist between sessions. The unit is SPARK for the 256-byte parameter buffer, the reply length and
+the operation list.
 
 The harness replays six sessions recorded from the reference interface with both bootloader
 protocols on and the port, the pins, the motors, the LEDs and the bootloader calls stubbed: 120
-frames each of every command with random addresses, lengths up to 256 and data, broken checks,
-stray bytes between frames, scripted bootloader answers and device signatures, and one session
-without ESCs. Every operation, bootloader call with its arguments, and reply byte of the 5530 lines
-replays exactly. The host platform defines every pin configuration as 0, so the oracle gives the
-input, output and alternate settings distinct values.
+frames each of every command with random addresses, lengths up to 256 and data, broken checks, stray
+bytes between frames, scripted bootloader answers and device signatures, and one session without
+ESCs. Every operation, bootloader call with its arguments, and reply byte of the 5530 lines replays
+exactly. The host platform defines every pin configuration as 0, so the oracle gives the input,
+output and alternate settings distinct values.
 
 ## D128. Gimbal control (2026-10-13)
 
 The gimbal control unit moves a camera gimbal from a head tracker's frames and the sticks. The head
 tracker's frames arrive on the gimbal port mixed with bytes for the gimbal, which pass through. A
 frame is the opcode 16#5AA5#, the stabilisation mode and the sensitivity, the roll, pitch and yaw as
-12-bit angles, and a CRC-16 CCITT sent high byte first. A valid frame goes on to the gimbal with
-its angles scaled by the gains, the roll, pitch, yaw and throttle sticks added by theirs, the pitch
-stick with separate gains below and above the centre, the offsets added, the limits applied, and
-the configured mode and sensitivity. A frame with a broken check is dropped. After 250 ms without
-bytes from the head tracker, each update sends the frame for the sticks alone. A byte after the
-first opcode byte that is not the second goes on behind the held-back first opcode byte, where the
+12-bit angles, and a CRC-16 CCITT sent high byte first. A valid frame goes on to the gimbal with its
+angles scaled by the gains, the roll, pitch, yaw and throttle sticks added by theirs, the pitch
+stick with separate gains below and above the centre, the offsets added, the limits applied, and the
+configured mode and sensitivity. A frame with a broken check is dropped. After 250 ms without bytes
+from the head tracker, each update sends the frame for the sticks alone. A byte after the first
+opcode byte that is not the second goes on behind the held-back first opcode byte, where the
 reference writes a byte 1, the value of a logical AND, in its place (F135). Without a configured
-port the control asks for its task to stop. The sticks lie
-within the receiver's pulse limits, where every sum of the reference's 16-bit arithmetic stays in
-range, and the integer scale truncates its division as C does. The output holds twice the input and
-one frame, which no update exceeds. The unit is SPARK for the 12-bit field packing, the scale
-arithmetic and the buffers.
+port the control asks for its task to stop. The sticks lie within the receiver's pulse limits, where
+every sum of the reference's 16-bit arithmetic stays in range, and the integer scale truncates its
+division as C does. The output holds twice the input and one frame, which no update exceeds. The
+unit is SPARK for the 12-bit field packing, the scale arithmetic and the buffers.
 
 The harness replays six sequences of about 1670 updates recorded from the reference with its
 settings registered and the port and sticks scripted: default and random gains, offsets and limits,
-valid frames, frames with broken checks, broken opcodes, passthrough bytes, gaps past the timeout,
-a clock near its wrap, and a sequence without a port. The sticks start centred with the throttle at
+valid frames, frames with broken checks, broken opcodes, passthrough bytes, gaps past the timeout, a
+clock near its wrap, and a sequence without a port. The sticks start centred with the throttle at
 its minimum, as the receiver leaves them before the gimbal starts. Every frame and output byte of
 the 10061 lines replays exactly.
 
@@ -2931,8 +2929,8 @@ The OSD custom text unit contains the text that a serial port sends for the OSD'
 element. A message ends with a line feed or a null as configured. Carriage returns are dropped, and
 so are nulls when the line feed ends messages. The unit keeps the first 63 bytes of a message and
 drops the rest up to the end of the message, and the text shows the first 31. An empty message
-clears the text. Without a configured port the text stays empty. The port opening with its baud
-rate default stays with the target. The unit is SPARK for the two buffers.
+clears the text. Without a configured port the text stays empty. The port opening with its baud rate
+default stays with the target. The unit is SPARK for the two buffers.
 
 The harness replays six sequences of updates recorded from the reference source with its settings
 registered and the port stubbed: messages from empty to 90 bytes with both terminators, carriage
@@ -2957,14 +2955,14 @@ across all four, and sums with fractions, whole values near the limit and magnit
 
 The PINIO box unit sets each of the four PINIO outputs to the state of the box that its setting
 names by permanent id, looked up in the MSP box table at start. An unknown or unset id leaves its
-output alone. The task runs while any assigned box has a mode condition. The caller computes the
-box states with the box unit and drives the outputs. The unit is SPARK for the box lookup and the
-output contract.
+output alone. The task runs while any assigned box has a mode condition. The caller computes the box
+states with the box unit and drives the outputs. The unit is SPARK for the box lookup and the output
+contract.
 
-The harness replays six sequences of 1000 updates recorded from the reference with the box table
-for the permanent ids and the box states, mode conditions, outputs and task switch stubbed:
-permanent ids that name a box, unset ones, and unknown ones, with the states and conditions drawn
-at random. Every assignment, output and task state of the 6006 lines replays exactly.
+The harness replays six sequences of 1000 updates recorded from the reference with the box table for
+the permanent ids and the box states, mode conditions, outputs and task switch stubbed: permanent
+ids that name a box, unset ones, and unknown ones, with the states and conditions drawn at random.
+Every assignment, output and task state of the 6006 lines replays exactly.
 
 ## D132. Warning LED (2026-10-13)
 
@@ -2980,20 +2978,19 @@ to two seconds and around 500 ms, direct refreshes, and a clock near its wrap. E
 
 ## D133. NRF24L01 driver and V202 receiver (2026-10-13)
 
-The NRF24L01 unit contains the radio driver the NRF24 receivers share. Register writes go out as
-SPI commands with the write bit, address registers as block writes, the payload read and the FIFO
-flushes as their commands, and the chip enable pin sets the standby, receive and transmit modes.
-The power-up waits out the chip's 100 ms settling time from start before it writes the
-configuration, then 4.5 ms. Register reads, the status and the FIFO status, are inputs the target
-supplies. The SPI radio unit gains the chip enable pin and a delay longer than sixteen bits for
-that settling wait.
+The NRF24L01 unit contains the radio driver the NRF24 receivers share. Register writes go out as SPI
+commands with the write bit, address registers as block writes, the payload read and the FIFO
+flushes as their commands, and the chip enable pin sets the standby, receive and transmit modes. The
+power-up waits out the chip's 100 ms settling time from start before it writes the configuration,
+then 4.5 ms. Register reads, the status and the FIFO status, are inputs the target supplies. The SPI
+radio unit gains the chip enable pin and a delay longer than sixteen bits for that settling wait.
 
 The V202 unit contains the V202 receiver. It takes 16-byte packets with a two-byte CRC on a fixed
 address. Unbound, it hops the first row of the frequency table every millisecond and binds to the
 first packet with both bind flags, whose transmitter id picks a table row and an offset for its
 sixteen channels. Bound, a packet with that id gives the throttle, the three sticks in sign and
 magnitude scaled onto 1000 to 2000 in integer arithmetic, four switches from the flag byte and three
-from the mode byte; a bound receiver ignores bind packets and other ids. The receiver hops after
+from the mode byte. A bound receiver ignores bind packets and other ids. The receiver hops after
 each packet, and after the timeout of 1 ms while binding or 10 ms once data arrives. The unit is
 SPARK for the hop table and the channel scaling.
 
@@ -3007,13 +3004,13 @@ result, channel and binding state of the 15006 lines replays exactly.
 
 The SYMA unit contains the SYMA X and X5C receivers on the NRF24L01. The X starts unbound on a fixed
 address at 250 kbit/s and binds to a 10-byte packet with three bind marks, whose first five bytes
-give its transmitter's address in reverse; the address's low five bits pick four hop channels,
+give its transmitter's address in reverse. The address's low five bits pick four hop channels,
 computed as one 32-bit word stored low byte first. The X5C starts bound at 1 Mbit/s on its own
 address and fifteen channels. Data packets give the throttle, the three sticks in sign and magnitude
 scaled onto 1000 to 2000, a three-position rate, and four switches from the flag bytes. The receiver
 hops every second packet and after 10 ms without one. The timeout compares a plain 32-bit sum, so
 within 10 ms of the clock's wrap every call hops (F136). The X reads its headless switch from byte
-14, which a 10-byte packet never writes, so the switch stays low (F137); the caller hands back the
+14, which a 10-byte packet never writes, so the switch stays low (F137). The caller hands back the
 receiver's buffer with the bytes a shorter packet leaves. The unit is SPARK for the hop table and
 the channel scaling.
 
@@ -3025,42 +3022,42 @@ Every operation, result, channel, hop and address of the 15006 lines replays exa
 
 ## D135. XN297 payloads and H8_3D receiver (2026-10-13)
 
-The XN297 unit contains the payload helpers for NRF24L01 receivers that talk to XN297
-transmitters. The unscramble works in place: each byte as received joins a CRC-16 CCITT that
-starts from 16#B5D2# over the receive address in reverse, then is XORed with its scramble byte and
-bit-reversed; the CRC takes a final value per length.
+The XN297 unit contains the payload helpers for NRF24L01 receivers that talk to XN297 transmitters.
+The unscramble works in place: each byte as received joins a CRC-16 CCITT that starts from 16#B5D2#
+over the receive address in reverse, then is XORed with its scramble byte and bit-reversed. The CRC
+takes a final value per length.
 
 The H8_3D unit contains the H8_3D receiver. Unbound, it hops the bind channels 6 to 38 every
 millisecond and binds to a packet with a good check, three bind marks and a checksum over its
-transmitter id. The id picks four hop channels and, when the receiver's id setting is empty,
-becomes that setting; a stored id at start binds at once. A data packet with a good check gives the
-four sticks between their ends with the truncating division of C, a three-position rate, six
-switches, the camera tilt and three trims, each wrapped to sixteen bits. The receiver hops after
-each data packet and after 5 ms without one, and the timeout compares a plain 32-bit sum (F136). The
-unit is SPARK for the hop channels, the channel arithmetic and the buffer.
+transmitter id. The id picks four hop channels and, when the receiver's id setting is empty, becomes
+that setting. A stored id at start binds at once. A data packet with a good check gives the four
+sticks between their ends with the truncating division of C, a three-position rate, six switches,
+the camera tilt and three trims, each wrapped to sixteen bits. The receiver hops after each data
+packet and after 5 ms without one, and the timeout compares a plain 32-bit sum (F136). The unit is
+SPARK for the hop channels, the channel arithmetic and the buffer.
 
 The harness replays six sequences of 2500 calls recorded from the reference driver, XN297 helpers
 and protocol with the SPI commands, the chip enable pin and the clock stubbed: a transmitter that
-scrambles its packets with the reference's tables, bind packets with good and broken checksums,
-data packets with the sticks inside and outside their ends, broken checks, gaps that make the
-receiver hop, a stored id at start, a start inside the settling time, and two clocks near their
-wrap. Every operation, result, channel, hop and stored id of the 15006 lines replays exactly.
+scrambles its packets with the reference's tables, bind packets with good and broken checksums, data
+packets with the sticks inside and outside their ends, broken checks, gaps that make the receiver
+hop, a stored id at start, a start inside the settling time, and two clocks near their wrap. Every
+operation, result, channel, hop and stored id of the 15006 lines replays exactly.
 
 ## D136. Battery meter sources (2026-10-13)
 
-`Adaflight.Battery` contains the ESC sensor, virtual and MSP meters beside the analog ones. The
-ESC voltage meter runs the combined ESC reading through the display filter while the ESC sensor
-feature is on and reads zero once the data is more than 10 sensor periods old. With the feature
-off the voltage meter keeps its last values. The virtual current meter starts from its offset and,
-while armed, adds the throttle factor times the scale over 1000. The factor is the mixer throttle
-in thousandths, rounded with a tie going to the even one, plus its square over 50, or zero at low
-throttle with motor stop on. Its charge accumulates as the analog meter's does (D6). The ESC
-current meter adds a tenth of the configured offset to the combined current, and the offset's
-charge over the millisecond clock to the consumption. That charge comes from a 32-bit unsigned
-product that wraps after 268 s at 16000 mA (F139), and the unit forms the same product. The MSP
-meter reports the current and the capacity of the last analog reply and asks for a new reply
-every 100 ms on the wrapping microsecond comparison. The rounding helper sits in the unit, so its
-postcondition bounds the throttle factor for the proof.
+`Adaflight.Battery` contains the ESC sensor, virtual and MSP meters beside the analog ones. The ESC
+voltage meter runs the combined ESC reading through the display filter while the ESC sensor feature
+is on and reads zero once the data is more than 10 sensor periods old. With the feature off the
+voltage meter keeps its last values. The virtual current meter starts from its offset and, while
+armed, adds the throttle factor times the scale over 1000. The factor is the mixer throttle in
+thousandths, rounded with a tie going to the even one, plus its square over 50, or zero at low
+throttle with motor stop on. Its charge accumulates as the analog meter's does (D6). The ESC current
+meter adds a tenth of the configured offset to the combined current, and the offset's charge over
+the millisecond clock to the consumption. That charge comes from a 32-bit unsigned product that
+wraps after 268 s at 16000 mA (F139), and the unit forms the same product. The MSP meter reports the
+current and the capacity of the last analog reply and asks for a new reply every 100 ms on the
+wrapping microsecond comparison. The rounding helper sits in the unit, so its postcondition bounds
+the throttle factor for the proof.
 
 The harness replays six sequences of 2000 steps recorded from the reference voltage, current and
 battery logic with the ESC sensor reading, the throttle, the arming flag, the MSP replies and the
@@ -3073,57 +3070,56 @@ meter field and request of the 12006 lines replays exactly.
 ## D137. Flash filesystem (2026-10-13)
 
 `Adaflight.Flash_FS` contains the volume the flight log writes to on SPI flash. The volume starts at
-the start of the flash and spans the filesystem partition. Bytes go into a 128-byte ring buffer
-that holds up to 127 of them. Once 64 are in use, an asynchronous flush hands the buffered runs to
-the flash as one page program at the tail address, trimmed at the page boundary as the flash layer
-trims it, and the tail address and the ring's tail advance when the program ends. A byte past a
-full buffer empties it and loses the buffered bytes. The erase takes the chip erase when one
-partition covers a whole NOR chip and otherwise erases one sector per call, toggling the status
-LED, and turns the LED off at the end. The search for the start of the free space reads the first
-sixteen bytes of 2048-byte blocks in a binary search and stops at a short read. A close puts the
-tail on the next 2048-byte boundary, after the flash's flush and the next page on NAND. Synchronous
-flushes, seeks and reads wait for the flash before and after their program.
+the start of the flash and spans the filesystem partition. Bytes go into a 128-byte ring buffer that
+holds up to 127 of them. Once 64 are in use, an asynchronous flush hands the buffered runs to the
+flash as one page program at the tail address, trimmed at the page boundary as the flash layer trims
+it, and the tail address and the ring's tail advance when the program ends. A byte past a full
+buffer empties it and loses the buffered bytes. The erase takes the chip erase when one partition
+covers a whole NOR chip and otherwise erases one sector per call, toggling the status LED, and turns
+the LED off at the end. The search for the start of the free space reads the first sixteen bytes of
+2048-byte blocks in a binary search and stops at a short read. A close puts the tail on the next
+2048-byte boundary, after the flash's flush and the next page on NAND. Synchronous flushes, seeks
+and reads wait for the flash before and after their program.
 
 The unit hands the flash its operations in order, as the SPI receivers do: ready checks and waits,
 page programs with their bytes, erases, reads, the NAND flush and the status LED. Each call takes
 the flash's readiness as it stands at the call, where the reference polls the flash at every check.
 A flash that completes a program inside the program call, as a bus without background transfers
-does, ends the program at once. On a bus with background transfers the caller reports each
-program's end between calls, and a synchronous flush ends its own program after its wait, as the
-reference's wait for the flash does. The unit applies every end the caller reports, where the
-reference's flash layer drops the end of a program still in flight when an erase or a read starts
-(F140). A synchronous write needs a flash that completes inside the call. The range erase has no
-caller and stays out, as do the test pattern and the verify tool. The unit is SPARK for the ring
-indices, the trimmed program lengths and the search bounds.
+does, ends the program at once. On a bus with background transfers the caller reports each program's
+end between calls, and a synchronous flush ends its own program after its wait. The unit applies
+every end the caller reports, where the reference's flash layer drops the end of a program still in
+flight when an erase or a read starts (F140). A synchronous write needs a flash that completes
+inside the call. The range erase has no caller and stays out, as do the test pattern and the verify
+tool. The unit is SPARK for the ring indices, the trimmed program lengths and the search bounds.
 
 The harness replays eight sequences of 1500 calls recorded from the reference flash layer and
 filesystem over a stub chip whose memory is an array: NOR and NAND layouts, one partition and two,
-completions inside the call and between calls, completions that arrive late so the buffer fills
-past its end, a short read in the search, a nearly full volume, sector and chip erases, seeks and
-reads past the end, and closes. The stub completes programs as the m25p16 driver does, is busy
-while a transfer is in flight, and has each pending completion delivered before an erase or a call
-that waits for one. Every operation, program byte, result and state field of the 12008 lines
-replays exactly.
+completions inside the call and between calls, completions that arrive late so the buffer fills past
+its end, a short read in the search, a nearly full volume, sector and chip erases, seeks and reads
+past the end, and closes. The stub completes programs as the m25p16 driver does, is busy while a
+transfer is in flight, and has each pending completion delivered before an erase or a call that
+waits for one. Every operation, program byte, result and state field of the 12008 lines replays
+exactly.
 
 ## D138. Flight plan storage and waypoint capture (2026-10-13)
 
 `Adaflight.Flight_Plan` contains the stored plan: up to 30 waypoints with their position in 1e-7
-degrees and centimeters, speed, duration, climb rate, type, hold pattern and yaw behaviour. The
-last three stay the configuration's bytes, for the executor to check. `Adaflight.Flight_Plan_Capture`
+degrees and centimeters, speed, duration, climb rate, type, hold pattern and yaw behaviour. The last
+three stay the configuration's bytes, for the executor to check. `Adaflight.Flight_Plan_Capture`
 contains the capture gesture on the capture switch. A press samples the GPS position while the
 executor is idle and the fix is good. A release before 1.5 s appends the sampled point as a fly-by
-waypoint or reports the plan full, and a hold of 1.5 s deletes the last waypoint once per press,
-so a hold works on a full plan. Edits are refused while the executor flies the plan, and invalid
+waypoint or reports the plan full, and a hold of 1.5 s deletes the last waypoint once per press, so
+a hold works on a full plan. Edits are refused while the executor flies the plan, and invalid
 channels freeze the gesture with its press time. Each edit leaves its message, formatted with the
 printf-style formatter, for 2.5 s on the wrapping microsecond clock, and the OSD's read clears an
-expired one. The OSD warnings line shows the message in the reference. That line gains it with
-the executor. The unit is SPARK for the plan's bounds and the message buffer.
+expired one. The reference shows the message on the OSD warnings line, which gains it here with the
+executor. The unit is SPARK for the plan's bounds and the message buffer.
 
 The harness replays six sequences of 2500 steps recorded from the reference capture with the plan,
 the executor's activity, the fix, the position, the switch, the channel validity and the clock
-scripted: short and long presses, signal losses during a press, an executor that starts and
-stops, empty, nearly full and full plans, and a clock across its wrap. Every gesture state, plan
-count, last waypoint and message of the 15006 lines replays exactly.
+scripted: short and long presses, signal losses during a press, an executor that starts and stops,
+empty, nearly full and full plans, and a clock across its wrap. Every gesture state, plan count,
+last waypoint and message of the 15006 lines replays exactly.
 
 ## D139. MAVLink mission protocol (2026-10-13)
 
