@@ -159,7 +159,7 @@ package body Adaflight.STM32.Gyro is
    procedure Set_Divisor (D : in out Device; Divisor : Unsigned_16) is
       pragma Unreferenced (D);
    begin
-      SPI.Set_Divisor (Divisor);
+      SPI.Set_Divisor (SPI.SPI1, Divisor);
    end Set_Divisor;
 
    procedure Probe_Chip (D : in out Device; Index : Positive; Sensor : out Byte) is
@@ -209,7 +209,7 @@ package body Adaflight.STM32.Gyro is
       pragma Unreferenced (Completion);
    begin
       Select_Chip (D);
-      SPI.Transfer (Data, D.Rx);
+      SPI.Transfer (SPI.SPI1, Data, D.Rx);
       Deselect_Chip (D);
    end Start_Sequence;
 
@@ -239,7 +239,7 @@ package body Adaflight.STM32.Gyro is
       Rx : Byte_Array (0 .. Data'Length);
    begin
       Select_Chip (D);
-      SPI.Transfer (Tx, Rx);
+      SPI.Transfer (SPI.SPI1, Tx, Rx);
       Deselect_Chip (D);
       Data := Rx (1 .. Data'Length);
       OK := True;
@@ -249,7 +249,7 @@ package body Adaflight.STM32.Gyro is
       Rx : Byte_Array (0 .. 1);
    begin
       Select_Chip (D);
-      SPI.Transfer ((Register, Value), Rx);
+      SPI.Transfer (SPI.SPI1, (Register, Value), Rx);
       Deselect_Chip (D);
    end Write_Register;
 
@@ -257,7 +257,7 @@ package body Adaflight.STM32.Gyro is
       Rx : Byte_Array (0 .. 1);
    begin
       Select_Chip (D);
-      SPI.Transfer ((Register or Read_Bit, 16#FF#), Rx);
+      SPI.Transfer (SPI.SPI1, (Register or Read_Bit, 16#FF#), Rx);
       Deselect_Chip (D);
       Value := Rx (1);
    end Read_Register;
