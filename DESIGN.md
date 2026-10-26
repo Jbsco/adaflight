@@ -9423,3 +9423,32 @@ reference starts from defaults.
 The image is 838900 bytes of text, 3924 of data and 105832 of zeroed data. The bench check is a
 setting written from the configurator or the command line surviving a power cycle, and `status`
 reporting the configuration configured after a `save`.
+
+## D387. STM32F4 serial receiver link (2026-10-26)
+
+The STM32F4 image takes a CRSF receiver on the serial port the stored configuration assigns.
+`Adaflight.STM32.USART` now drives the four UARTs the board family brings out, USART1 and USART6 on
+the 84 MHz bus and USART3 and UART4 on the 42 MHz bus, each with a blocking transmitter and a
+receiver whose interrupt keeps the bytes with their arrival times in a ring of 256, so a protocol
+sees each byte at the time it came in. `Adaflight.STM32.Radio` is the receiver link: at boot it takes
+the receiver settings (D40) and the failsafe settings from the configuration, finds the port with the
+serial receiver function through the serial feature map (D155) when the serial receiver feature is on
+and the provider is CRSF, starts the receiver with the protocol's RSSI and link quality claims, puts
+the arm switch's channel just outside its range, and opens the port at 420000 baud with the CRSF
+protocol (D42). An inverted or half-duplex port setting and the other serial protocols leave the link
+closed until their drivers land. After the realtime tasks of each pass the link feeds the received
+bytes to the protocol at their times, polls the frame status while the receiver task is not past its
+check, and runs the receiver's frame check with the time since the task last ran; at the ten
+millisecond mark the failsafe checks its data failure period and runs its state machine, disarmed. The
+receiver task runs its state machine (D123) with the scheduler's rate ignored on every step but the
+last: the check step calculates the channels and tells the failsafe what the data was worth, then
+updates the RSSI and starts the failsafe's monitoring once five seconds have passed; the modes and
+update steps stay empty until the modes and the arming reach the board. The task's check function
+is the receiver's. The channels go into the RC reply, so the configurator's receiver tab follows the
+sticks. The protocol's requests for telemetry, device information, display port and MSP frames wait
+for the telemetry link.
+
+The image is 849196 bytes of text, 4620 of data and 111984 of zeroed data. The bench check is a
+CRSF receiver on UART3 assigned the serial receiver function in the ports tab, with the receiver tab
+following the sticks and `status` reporting the receiver signal.
+
