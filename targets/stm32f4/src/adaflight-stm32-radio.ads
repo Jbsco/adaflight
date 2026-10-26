@@ -1,8 +1,8 @@
 --  The receiver link of the board: the serial receiver port the stored
 --  configuration assigns with the CRSF protocol over it, the receiver's
---  channel processing and the failsafe's link state, in the reference's
---  order. The other serial receiver protocols, inverted ports and
---  half-duplex ports wait for their drivers.
+--  channel processing and the failsafe's link state. The other serial
+--  receiver protocols, inverted ports and half-duplex ports wait for their
+--  drivers.
 with Interfaces;
 with Adaflight.Config_Groups;
 with Adaflight.Receiver;

@@ -98,8 +98,7 @@ package body Adaflight.STM32.Flight is
    Board_Identifier : constant String := "F405";
 
    --  The scheduler starts after the data ready interrupts of the gyro's
-   --  start have passed the layer's detection count, the time the
-   --  reference's longer startup gives them.
+   --  start have passed the layer's detection count.
    First_Read_Delay_Ms : constant := 250;
 
    --  The platform's floor on a rescheduled period.
