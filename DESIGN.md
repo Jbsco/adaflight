@@ -3847,8 +3847,9 @@ whose name the text starts, ALL standing for every allowed one: the beeper's 23 
 `beeper`, RX_LOST and RX_SET for `beacon`. Each beeper table entry's flag comes from its mode, and
 ARMING_GPS_NO_FIX sits in the table before its flag's order.
 
-Prefix matching takes the first match (F154): `feature R` enables RX_PPM and `feature -` disables
-it. adaflight reproduces it.
+Prefix matching counts the names the text starts, and two or more are the multiple match error,
+where the reference takes the first match, so its `feature R` enables RX_PPM and `feature -`
+disables it (finding F154, amended 2026-10-25 as declared in D6).
 
 The harness replays two sequences of 2000 feature, beeper and beacon commands recorded from the
 oracle: lists, names in mixed case, prefixes, minus forms and names no table holds. With the
