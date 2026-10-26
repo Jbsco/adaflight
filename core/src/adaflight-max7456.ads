@@ -111,7 +111,6 @@ package Adaflight.MAX7456 with SPARK_Mode is
       DMM_Register      : Byte := 0;
       HOS               : Byte := 0;
       VOS               : Byte := 0;
-      Font_Loading      : Boolean := False;
       Device_Type       : Device_Kind := MAX_Device;
       Background        : Natural := 0;
       Previous_BW       : Byte := 255;
@@ -179,7 +178,7 @@ package Adaflight.MAX7456 with SPARK_Mode is
 
    procedure Write_NVM
      (D            : in out SPI_Device;
-      S            : in out State;
+      S            : State;
       Char_Address : Byte;
       Font_Data    : Font_Bytes;
       Written      : out Boolean);

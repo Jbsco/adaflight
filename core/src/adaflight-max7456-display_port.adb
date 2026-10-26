@@ -117,7 +117,7 @@ package body Adaflight.MAX7456.Display_Port with SPARK_Mode is
 
    procedure Write_Font_Character
      (D       : in out SPI_Device;
-      S       : in out State;
+      S       : State;
       Address : Interfaces.Unsigned_16;
       Data    : Character_Data;
       Written : out Boolean)
