@@ -66,3 +66,6 @@ Each document describes a Betaflight bug that adaflight fixes: the Betaflight ve
 - [BMP085 uses 22 uninitialized bytes as its calibration when the read is refused](bmp085-calibration-read.md)
 - [2SMPB-02B takes its coefficients from unchecked reads of an uninitialized buffer](smpb-configuration-check.md)
 - [A failed BMP388 detection leaves the end of conversion interrupt enabled](bmp388-interrupt-release.md)
+- [Dynamic numeric menu rows are never skipped](menu-skip-alarm-range.md)
+- [The alarms menu lets the RSSI dBm alarm above the command line's range](menu-skip-alarm-range.md)
+- [VTX menus index the band, channel and power names past the table](vtx-menu-name-index.md)
