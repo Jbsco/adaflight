@@ -79,6 +79,17 @@ package body Adaflight.STM32.USART is
       end loop;
    end Put;
 
+   procedure Put (Into : in out Port; Data : Byte_Array) is
+      pragma Unreferenced (Into);
+   begin
+      for D of Data loop
+         loop
+            exit when Regs.SR.TXE = 1;
+         end loop;
+         Regs.DR.DR := Interfaces.STM32.UInt9 (D);
+      end loop;
+   end Put;
+
    procedure Take (Into : out Byte_Array; Count : out Natural) is
    begin
       Receiver.Take (Into, Count);

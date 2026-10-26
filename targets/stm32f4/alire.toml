@@ -17,6 +17,17 @@ adaflight_core = "*"
 [[pins]]
 adaflight_core = { path = "../../core" }
 
+# The image is built for size. The proved core builds in the release profile without run-time
+# checks, assertions or debug information; the target sources keep the default checks.
+[build-profiles]
+adaflight_core = "release"
+
+[build-switches]
+"*".optimization = "size"
+"*".debug_info = "no"
+release.runtime_checks = "none"
+release.contracts = "no"
+
 # The board package is generated before every build from the pinned board configuration
 # repository; BOARD names the board, CLRACINGF4 when unset.
 [[actions]]
