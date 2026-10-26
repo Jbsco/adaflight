@@ -416,13 +416,22 @@ package body Adaflight.STM32.Flight is
    --  what the MSP replies and the status report say about the sensors. A
    --  missing gyro flashes its code on a configured board and holds arming;
    --  a failed initialization flashes its code and resets.
+   --  The SPI buses of the board.
+   procedure Start_Buses is
+   begin
+      Adaflight.STM32.SPI.Init (Adaflight.STM32.SPI.SPI1, Adaflight.Board.SPI1_SCK_Pin, Adaflight.Board.SPI1_SDI_Pin,
+                                Adaflight.Board.SPI1_SDO_Pin);
+      Adaflight.STM32.SPI.Init (Adaflight.STM32.SPI.SPI2, Adaflight.Board.SPI2_SCK_Pin, Adaflight.Board.SPI2_SDI_Pin,
+                                Adaflight.Board.SPI2_SDO_Pin);
+      Adaflight.STM32.SPI.Init (Adaflight.STM32.SPI.SPI3, Adaflight.Board.SPI3_SCK_Pin, Adaflight.Board.SPI3_SDI_Pin,
+                                Adaflight.Board.SPI3_SDO_Pin);
+   end Start_Buses;
+
    procedure Start_Gyro is
       Inputs : Adaflight.Gyro_Selection.Inputs;
       Rate   : Adaflight.Config_Fix.Gyro_Rate;
       Bus    : constant CLI.Device_Bus := (Kind => CLI.SPI_Bus, Number => 1, Address => 0);
    begin
-      Adaflight.STM32.SPI.Init (Adaflight.Board.SPI1_SCK_Pin, Adaflight.Board.SPI1_SDI_Pin,
-                                Adaflight.Board.SPI1_SDO_Pin);
       Adaflight.STM32.Gyro.Start (Config.Gyro_Config.Gyro_Hardware_Lpf, Config.Gyro_Config.Gyro_High_Fsr /= 0,
                                   Config.Accelerometer_Config.Acc_Hardware, Gyro_Report);
       if Gyro_Report.Init_Failed then
@@ -1336,6 +1345,7 @@ package body Adaflight.STM32.Flight is
             end if;
          end loop;
       end;
+      Start_Buses;
       Start_Gyro;
       Init_Loop_Units;
       Boot_Beeps;
