@@ -5654,29 +5654,30 @@ operation, menu context, page, request and configuration hash matches the refere
 
 ## D244. OSD menus (2026-10-16)
 
-A hook's answer in `Adaflight.Menu` gains a fourth display operation, a background type set, with the
-type in the operation's attribute; the navigation hands it to the display as the background action.
+A hook's answer in `Adaflight.Menu` gains a fourth display operation, a background type set, with
+the type in the operation's attribute. The navigation hands it to the display as the background
+action.
 
 The content's loading splits into one loader per menu group, main, settings, system and OSD, each
-with the fixed-point bound as its postcondition; a single loader over every menu took the provers past
-their time and memory limits on that bound.
+with the fixed-point bound as its postcondition. A single loader over every menu took the provers
+past their time and memory limits on that bound.
 
 `Adaflight.Menu_Content` gains the OSD menu with its active elements, timers and alarms menus, for a
 build with OSD profiles, the extended menus and the MAX7456 display. The OSD menu copies the OSD
 profile, the display's inversion and black and white brightness, and the menu background on entry
 (F214). Its inversion and brightness lines store all three copies and clear the display after each
-change; its background line stores the background and sets the display's background type. On the
-way out it asks the runtime to change the OSD profile to its copy, which it stores when the copy is
-at most three.
+change. Its background line stores the background and sets the display's background type. On the way
+out it asks the runtime to change the OSD profile to its copy, which it stores when the copy is at
+most three.
 
 The active elements menu copies every element's position and profile flags, shows 77 elements as
-visibility lines in the reference's order, and on the way out stores the copies and asks the runtime
-to analyze the active elements again. The timers menu splits each timer into source, precision and
-alarm and joins them again on the way out; tenths, the third precision, show an empty name where the
-reference reads past its two names (F212). The alarms menu copies the RSSI, link quality, RSSI dBm,
-signal to noise, capacity, altitude and distance alarms and the battery voltage durations, with the
-reference's ranges but the RSSI dBm line ending at 0 like its setting, where the reference's runs to
-20 (F213).
+visibility lines, and on the way out stores the copies and asks the runtime to analyze the active
+elements again. The timers menu splits each timer into source, precision and alarm and joins them
+again on the way out. Tenths, the third precision, show an empty name where the reference reads past
+its two names (F212). The alarms menu copies the RSSI, link quality, RSSI dBm, signal to noise,
+capacity, altitude and distance alarms and the battery voltage durations, with the ranges of the
+reference's lines, except the RSSI dBm line, which ends at 0 like its setting where the reference's
+runs to 20 (F213).
 
 The menu contents oracle scripts the element positions, the alarms, the timers, the background and
 the display settings, counts the analyses and profile changes, and keeps timer precisions to the two
@@ -5696,192 +5697,199 @@ OR NOT CONFIGURED without a device, UNSUPPORTED VTX TYPE for the unsupported typ
 TYPE otherwise. Its lines show them after empty labels.
 
 The menu contents oracle scripts the device's presence and type, builds the reference's selection
-with its error menu reachable, and replaces a right key on a VTX line with a down key while the device
-has a menu adaflight does not have yet. The harness replays 240 sessions with 19324 keys, 801 menu
-changes and 20125 draws, 340 of their states in the error menu, entered 20 times from the quick menu
-and 41 times from the features menu: every display operation, menu context, page, request and
+with its error menu reachable, and replaces a right key on a VTX line with a down key while the
+device has a menu adaflight does not have yet. The harness replays 240 sessions with 19324 keys, 801
+menu changes and 20125 draws, 340 of their states in the error menu, entered 20 times from the quick
+menu and 41 times from the features menu: every display operation, menu context, page, request and
 configuration hash matches the reference's.
 
 ## D246. Profile, PID and rate menus (2026-10-16)
 
-`Adaflight.Menu_Content` gains the profile menu with its PID and rate menus; the profile menu's other
-submenus have their numbers and wait for later slices. On entry the profile menu names every PID and
-rate profile by its number from one and its name in upper case in parentheses, and copies the current
-PID and rate profiles. Its two profile lines change the profile at once on each step, and its way out
-changes both again: a change counts as a request to the runtime, stored when the profile exists.
+`Adaflight.Menu_Content` gains the profile menu with its PID and rate menus. The profile menu's
+other submenus have their numbers and wait for later slices. On entry the profile menu names every
+PID and rate profile by its number from one and its name in upper case in parentheses, and copies
+the current PID and rate profiles. Its two profile lines change the profile at once on each step,
+and its way out changes both again: a change counts as a request to the runtime, stored when the
+profile exists.
 
 The PID menu copies each axis's P, I and D gains and feedforward from the profile the profile menu
 last selected, names the current profile in its title, and on the way out stores the copies into the
-current profile and asks for the PID controller's setup from it, as the reference reads one and writes
-the other. Its lines carry the roll and pitch and the yaw slider flags. The rate menu copies the whole
-rate profile, shows its rates, super rates and expos as tenths, its throttle middle, expo and hover
-and its throttle limit, and stores the whole copy back on the way out.
+current profile and asks for the PID controller's setup from it. The read profile and the written
+one differ when the selection changed in between, in the reference as well. Its lines have the roll
+and pitch and the yaw slider flags. The rate menu copies the whole rate profile, shows its rates,
+super rates and expos as tenths, its throttle middle, expo and hover and its throttle limit, and
+stores the whole copy back on the way out.
 
-The harness now hands the navigation the slider settings of the current profile and the gyro's filter
-slider, which skip the overridden rows and mark them. The menu contents oracle scripts the profiles'
-names, gains, rates and slider settings and counts the profile changes. The harness replays 240
-sessions with 19458 keys, 773 menu changes and 20231 draws, 2768 of their states in the profile menu,
-910 in the PID menu and 280 in the rate menu, with 435 PID and 214 rate profile changes and 1396
-slider marks drawn: every display operation, menu context, page, request and configuration hash
-matches the reference's.
+The harness now hands the navigation the slider settings of the current profile and the gyro's
+filter slider, which skip the overridden rows and mark them. The menu contents oracle scripts the
+profiles' names, gains, rates and slider settings and counts the profile changes. The harness
+replays 240 sessions with 19458 keys, 773 menu changes and 20231 draws, 2768 of their states in the
+profile menu, 910 in the PID menu and 280 in the rate menu, with 435 PID and 214 rate profile
+changes and 1396 slider marks drawn: every display operation, menu context, page, request and
+configuration hash matches the reference's.
 
 ## D247. Simplified tuning, misc and launch control menus (2026-10-16)
 
-`Adaflight.Menu_Content` gains the profile menu's simplified tuning and misc menus and the misc menu's
-launch control menu. Their names for lookup values come from the command line's tables through one
-helper, which the debug mode and background names now share.
+`Adaflight.Menu_Content` gains the profile menu's simplified tuning and misc menus and the misc
+menu's launch control menu. Their names for lookup values come from the command line's tables
+through one helper, which the debug mode and background names now share.
 
-The simplified tuning menu copies the PID tuning mode, the sliders and the filter switches with their
-multipliers from the profile the profile menu selected and from the gyro configuration. On the way out
-it compares the copies with the current profile and the gyro configuration, and when any differs it
-stores them and applies simplified tuning through `Adaflight.Simplified_Tuning.Stored.Apply`, which
-recomputes the gains and filters.
+The simplified tuning menu copies the PID tuning mode, the sliders and the filter switches with
+their multipliers from the profile the profile menu selected and from the gyro configuration. On the
+way out it compares the copies with the current profile and the gyro configuration, and when any
+differs it stores them and applies simplified tuning through
+`Adaflight.Simplified_Tuning.Stored.Apply`, which recomputes the gains and filters.
 
 The misc menu shows the profile's text, copies the feedforward, angle and horizon, anti gravity,
-throttle boost and linearization, I term relax, motor output limit, cell count, D max, battery sag and
-attenuation settings, and the landing disarm threshold. The angle feedforward copy is a byte, as in the
-reference. On the way out it stores the copies into the selected profile, then asks for the PID
-controller's setup and the motors' output range again. The caller runs the setup after the stores, so
-it sees the stored values, where the reference sets up the controller before it stores (F216). Its feedforward averaging line
-runs to index 4 past the table's four names, where adaflight shows an empty name (F215). The launch
-control menu copies and stores the selected profile's launch control settings.
+throttle boost and linearization, I term relax, motor output limit, cell count, D max, battery sag
+and attenuation settings, and the landing disarm threshold. The angle feedforward copy is a byte. On
+the way out it stores the copies into the selected profile, then asks for the PID controller's setup
+and the motors' output range again. The caller runs the setup after the stores, so it sees the
+stored values, where the reference sets up the controller before it stores (F216). Its feedforward
+averaging line runs to index 4 past the table's four names, where adaflight shows an empty name
+(F215). The launch control menu copies and stores the selected profile's launch control settings.
 
 The menu contents oracle scripts the profiles' settings, links the reference's simplified tuning,
-counts the output range requests, and keeps the averaging to its named values. The harness replays 240
-sessions with 19477 keys, 792 menu changes and 20269 draws, 606 of their states in the simplified
-tuning menu, 454 in the misc menu and 294 in the launch control menu, with 23 tuning changes applied
-and 23 output range requests: every display operation, menu context, page, request and configuration
-hash matches the reference's.
+counts the output range requests, and keeps the averaging to its named values. The harness replays
+240 sessions with 19477 keys, 792 menu changes and 20269 draws, 606 of their states in the
+simplified tuning menu, 454 in the misc menu and 294 in the launch control menu, with 23 tuning
+changes applied and 23 output range requests: every display operation, menu context, page, request
+and configuration hash matches the reference's.
 
 ## D248. Filter and profile copy menus (2026-10-16)
 
-`Adaflight.Menu_Content` gains the profile menu's filter menus and its profile copy menu. The profile
-filter menu copies the D term lowpass and notch filters and the yaw lowpass from the profile the
-profile menu selected, and stores them into the current profile; the global filter menu copies and
-stores the gyro lowpass and notch filters. The dynamic filter menu copies the dynamic notch's count,
-Q and range, the gyro's dynamic lowpass range and expo, and the selected profile's D term dynamic
-lowpass, and stores the last into the current profile. The profile copy menu starts both destinations
-at none, and its copy lines copy the current PID or rate profile over the chosen one when it is
-another profile.
+`Adaflight.Menu_Content` gains the profile menu's filter menus and its profile copy menu. The
+profile filter menu copies the D term lowpass and notch filters and the yaw lowpass from the profile
+the profile menu selected, and stores them into the current profile. The global filter menu copies
+and stores the gyro lowpass and notch filters. The dynamic filter menu copies the dynamic notch's
+count, Q and range, the gyro's dynamic lowpass range and expo, and the selected profile's D term
+dynamic lowpass, and stores the last into the current profile. The profile copy menu starts both
+destinations at none, and its copy lines copy the current PID or rate profile over the chosen one
+when it is another profile.
 
 The content's proof had grown to 57 minutes. gnatprove analyzes each subprogram separately and in
-parallel, but proves a helper without a contract inside every caller, so the helpers now carry a data
+parallel, but proves a helper without a contract inside every caller, so the helpers now have a data
 contract and are proved once. The menus now load in one procedure each and store their copies in one
-procedure each, and the stores that change a PID profile or the gyro configuration change a local copy
-of the record and store it whole. With the filter menus, the content and its navigation instance prove
-in 22 minutes, of which about 9 are the analysis of the project before proof.
+procedure each, and the stores that change a PID profile or the gyro configuration change a local
+copy of the record and store it whole. With the filter menus, the content and its navigation
+instance prove in 22 minutes, of which about 9 are the analysis of the project before proof.
 
 The menu contents oracle scripts the filter settings and links the reference's profile copy. The
-harness replays 240 sessions with 19378 keys, 789 menu changes and 20167 draws, 306 of their states in
-the profile filter menu, 266 in the global filter menu, 204 in the dynamic filter menu and 302 in the
-profile copy menu: every display operation, menu context, page, request and configuration hash
+harness replays 240 sessions with 19378 keys, 789 menu changes and 20167 draws, 306 of their states
+in the profile filter menu, 266 in the global filter menu, 204 in the dynamic filter menu and 302 in
+the profile copy menu: every display operation, menu context, page, request and configuration hash
 matches the reference's.
 
 ## D249. MSP device in the VTX control layer (2026-10-16)
 
-`Adaflight.VTX_Settings` contains the transmitter settings that `Adaflight.VTX` and `Adaflight.VTX_MSP`
-both read. They moved out of `Adaflight.VTX`, which keeps them as subtypes, so the control layer can
-hold the MSP driver without a circular dependency.
+`Adaflight.VTX_Settings` contains the transmitter settings that `Adaflight.VTX` and
+`Adaflight.VTX_MSP` both read. They moved out of `Adaflight.VTX`, which keeps them as subtypes, so
+the control layer can hold the MSP driver without a circular dependency.
 
 `Adaflight.VTX` now drives an MSP device too. The control layer passes the band and channel it sets
-to the device, to a SmartAudio device only for a factory band, and a band not from the factory also as
-its frequency. The MSP driver takes the power index, pit mode and frequency, its getters answer the
-control layer's queries, and the Spektrum power steps give it no index. The frequency getter answers
-the frequency the driver was given while no band is set, and the table's frequency of its band and
-channel otherwise. The reference's getter answers the table's frequency in both cases, so in user
-frequency mode the control layer's frequency step sets the frequency again at every pass and reports
-an update pending (finding F218). A task call that runs the device runs the driver's cycle, and the
-events return the configuration frame to push with a flag for the MSP menu's status line, set at
-every cycle while the transmitter is offline and after each frame sent.
+to the device, to a SmartAudio device only for a factory band, and a band not from the factory also
+as its frequency. The MSP driver takes the power index, pit mode and frequency, its getters answer
+the control layer's queries, and the Spektrum power steps give it no index. The frequency getter
+answers the frequency the driver was given while no band is set, and the table's frequency of its
+band and channel otherwise. The reference's getter answers the table's frequency in both cases, so
+in user frequency mode the control layer's frequency step sets the frequency again at every pass and
+reports an update pending (finding F218). A task call that runs the device runs the driver's cycle,
+and the events return the configuration frame to push with a flag for the MSP menu's status line,
+set at every cycle while the transmitter is offline and after each frame sent.
 
-The driver converts each power level to milliwatts as a 16-bit integer, which C leaves undefined from
-level 49 (F217). adaflight saturates at 65535, as in D93 and D103.
+The driver converts each power level to milliwatts as a 16-bit integer, which C leaves undefined
+from level 49 (F217). adaflight saturates at 65535, as in D93 and D103.
 
 The control oracle adds four sequences over an MSP device: tables of four and five power levels with
-a zero and a repeated value, a table without power levels that never comes ready, and a device without
-a port. At random the transmitter answers on its own link or on another. Every recorded vector replays
-exactly, 3600 of the 12600 steps over the MSP device.
+a zero and a repeated value, a table without power levels that never comes ready, and a device
+without a port. At random the transmitter answers on its own link or on another. Every recorded
+vector replays exactly, 3600 of the 12600 steps over the MSP device.
 
 ## D250. MSP VTX menu (2026-10-16)
 
-`Adaflight.Menu_Content` gains the MSP VTX menu with its confirmation. The target now contains the VTX
-layer's state with the MSP driver, the running VTX table and the menu's status line, which the target
-updates through `Update_MSP_Status` when the VTX layer's events ask: a request to set the table up while
-it has no bands or no power levels, else the band's letter and the channel's name or U F, the frequency
-in four places and the power, each as dashes while the device does not know it.
+`Adaflight.Menu_Content` gains the MSP VTX menu with its confirmation. The target now contains the
+VTX layer's state with the MSP driver, the running VTX table and the menu's status line, which the
+target updates through `Update_MSP_Status` when the VTX layer's events ask: a request to set the
+table up while it has no bands or no power levels, else the band's letter and the channel's name or
+U F, the frequency in four places and the power, each as dashes while the device does not know it.
 
-On entry the menu reads the band and channel, the pit mode and the power index from the device through
-the common layer, which `Adaflight.VTX` now exports, and without a device it goes back. The pit mode line
-sets the device's pit mode, the band, channel and power lines step from none to the first, and the
-confirmation sends the band, channel and power to the device, stores them with the frequency of the band
-and channel, and saves the configuration, a new hook operation, before going back. The MSP driver reads
-its frequency back from the one it was given at band 0 (D249). A save stores band, channel and
-frequency only while the menu holds a band and a channel, so a save in user frequency mode keeps the
-configured frequency. The reference stores band 0, channel 0 and the table's frequency at band 0,
-which is 0, and the next configuration frame carries 0 MHz (finding F219).
+On entry the menu reads the band and channel, the pit mode and the power index from the device
+through the common layer, which `Adaflight.VTX` now exports, and without a device it goes back. The
+pit mode line sets the device's pit mode, the band, channel and power lines step from none to the
+first, and the confirmation sends the band, channel and power to the device, stores them with the
+frequency of the band and channel, and saves the configuration, a new hook operation, before going
+back. The MSP driver reads its frequency back from the one it was given at band 0 (D249). A save
+stores band, channel and frequency only while the menu holds a band and a channel, so a save in user
+frequency mode keeps the configured frequency. The reference stores band 0, channel 0 and the
+table's frequency at band 0, which is 0, and the next configuration frame sends 0 MHz (finding
+F219).
 
-The menu contents oracle wraps the reference's VTX common layer, MSP driver and MSP VTX menu. Per session
-it scripts a VTX table and the driver's state and registers the MSP driver for the MSP type or a stand-in
-that answers nothing for any other type, and it updates the status line at the start and at each change
-of the readings. The harness replays 240 sessions with 19636 keys, 792 menu changes and 20428 draws, 708
-of their states in the MSP VTX menu and 114 in its confirmation: every display operation, menu context,
-page, request, driver state, menu copy and configuration hash matches the reference's.
+The menu contents oracle wraps the reference's VTX common layer, MSP driver and MSP VTX menu. Per
+session it scripts a VTX table and the driver's state and registers the MSP driver for the MSP type
+or a stand-in that answers nothing for any other type, and it updates the status line at the start
+and at each change of the readings. The harness replays 240 sessions with 19636 keys, 792 menu
+changes and 20428 draws, 708 of their states in the MSP VTX menu and 114 in its confirmation: every
+display operation, menu context, page, request, driver state, menu copy and configuration hash
+matches the reference's.
 
-Amended 2026-10-25: the band, channel and power names of the four VTX menus are blank above the table's
-counts, as declared in D6 (finding F287). The reference draws the name at the line's value. The SmartAudio
-driver's band is the device's channel divided by the table's channel count, so a channel outside the table
-gives a band above the eight slots, which reads past the name array, and the other device menus copy that
-band through the common layer when opened with the SmartAudio device. The menu contents oracle compiles
-the reference menu system with the bound, which changes 14 draws in 240 sessions.
+Amended 2026-10-25: the band, channel and power names of the four VTX menus are blank above the
+table's counts, as declared in D6 (finding F287). The reference draws the name at the line's value.
+The SmartAudio driver's band is the device's channel divided by the table's channel count, so a
+channel outside the table gives a band above the eight slots, which reads past the name array, and
+the other device menus copy that band through the common layer when opened with the SmartAudio
+device. The menu contents oracle compiles the reference menu system with the bound, which changes 14
+draws in 240 sessions.
 
 ## D251. Tramp VTX menu (2026-10-16)
 
-`Adaflight.Menu_Content` gains the Tramp VTX menu with its confirmation, over helpers the MSP VTX menu
-now shares: the first seven lines, the copies read from the device on entry, the steps of the pit mode,
-band, channel and power lines, and the save. The Tramp menu adds the transmitter's temperature, and its
-confirmation sends and stores the settings, saves, and leaves the menu system. Its status line shows the
-actual power, marked when it differs from the configured level's value, and the target updates it with
-`Update_Tramp_Status` after every Tramp cycle, which the VTX layer's events now flag as they flag the MSP
-driver's. The Tramp driver reports no band or channel, so the menu reads them only through the common
-layer's selection. A save stores band, channel and frequency only while the menu holds both, as the
-MSP menu does; the reference stores zeros here too in user frequency mode, which the Tramp driver
-refuses as a frequency, so the stored frequency is lost while the transmitter keeps its own (F219).
+`Adaflight.Menu_Content` gains the Tramp VTX menu with its confirmation, over helpers the MSP VTX
+menu now shares: the first seven lines, the copies read from the device on entry, the steps of the
+pit mode, band, channel and power lines, and the save. The Tramp menu adds the transmitter's
+temperature, and its confirmation sends and stores the settings, saves, and leaves the menu system.
+Its status line shows the actual power, marked when it differs from the configured level's value,
+and the target updates it with `Update_Tramp_Status` after every Tramp cycle, which the VTX layer's
+events now flag as they flag the MSP driver's. The Tramp driver reports no band or channel, so the
+menu reads them only through the common layer's selection. A save stores band, channel and frequency
+only while the menu holds both, as the MSP menu does. The reference stores zeros here too in user
+frequency mode, which the Tramp driver refuses as a frequency, so the stored frequency is lost while
+the transmitter keeps its own (F219).
 
-The menu contents oracle wraps the reference's Tramp driver and menu beside the MSP ones and scripts the
-Tramp driver's state per session. The harness replays 240 sessions with 19368 keys, 803 menu changes and
-20171 draws, 648 of their states in the Tramp VTX menu and 96 in its confirmation: every display
-operation, menu context, page, request, driver state, menu copy and configuration hash matches the
-reference's. The VTX control vectors replay exactly with the status flag over both devices.
+The menu contents oracle wraps the reference's Tramp driver and menu beside the MSP ones and scripts
+the Tramp driver's state per session. The harness replays 240 sessions with 19368 keys, 803 menu
+changes and 20171 draws, 648 of their states in the Tramp VTX menu and 96 in its confirmation: every
+display operation, menu context, page, request, driver state, menu copy and configuration hash
+matches the reference's. The VTX control vectors replay exactly with the status flag over both
+devices.
 
 ## D252. GPS rescue menus (2026-10-16)
 
-`Adaflight.Menu_Content` gains the GPS rescue menu and its PID menu, reached from a GPS RESCUE line of
-the failsafe menu. The rescue menu copies the start distance, the altitude mode, the climb, the return
-and descent settings, the throttle limits, the satellites required and the arming without a fix from
-the GPS rescue and autopilot groups on entry, and stores them on leaving. The PID menu does the same
-for the altitude, yaw and position gains and the position smoothing. Every value line asks for a
-reboot.
+`Adaflight.Menu_Content` gains the GPS rescue menu and its PID menu, reached from a GPS RESCUE line
+of the failsafe menu. The rescue menu copies the start distance, the altitude mode, the climb, the
+return and descent settings, the throttle limits, the satellites required and the arming without a
+fix from the GPS rescue and autopilot groups on entry, and stores them on leaving. The PID menu does
+the same for the altitude, yaw and position gains and the position smoothing. Every value line asks
+for a reboot.
 
 The reference's build headers leave both menus out of a target that derives the rescue from GPS
-(F220), the menu oracle's own build included. The oracle now builds the menus as a build that defines
-the rescue in its options does, so the failsafe menu's vectors gain the GPS RESCUE line. The wing
-variant waits for a wing build of the oracle. The harness replays 240 sessions with 19399 keys, 842
-menu changes and 20241 draws, 274 of their states in the rescue menu and 204 in its PID menu: every
-display operation, menu context, page, request and configuration hash matches the reference's.
+(F220), the menu oracle's own build included. The oracle now builds the menus as a build that
+defines the rescue in its options does, so the failsafe menu's vectors gain the GPS RESCUE line. The
+wing variant waits for a wing build of the oracle. The harness replays 240 sessions with 19399 keys,
+842 menu changes and 20241 draws, 274 of their states in the rescue menu and 204 in its PID menu:
+every display operation, menu context, page, request and configuration hash matches the reference's.
 
 ## D253. SmartAudio menu state in the VTX layer (2026-10-16)
 
-`Adaflight.SmartAudio` now receives the line one byte at a time through `Receive_Byte`, which reports
-each response it takes in and whether the response changed the device's report against the report
-before it, and sends through `Process_Line`; `Process` runs both as before. `Adaflight.VTX` keeps the
-SmartAudio menu's state and updates it after each response: a changed report starts the menu's
-operating model over, a menu without a model takes it from the device's boot pit mode, with the
-frequency selection, band, channel, frequency and power from the device and the settings, and once
-the device's version is known the menu takes the version, the first pit and user frequencies, the pit
-mode's kind and the status line. Two responses in one task call update the menu twice, each after its
-own response. The status line contains all 31 bytes with their nulls, since its updates write some
-places and leave others. `Adaflight.Number_Text` now contains the decimal text that both the menus and
-the status line print.
+`Adaflight.SmartAudio` now receives the line one byte at a time through `Receive_Byte`, which
+reports each response it takes in and whether the response changed the device's report against the
+report before it, and sends through `Process_Line`. `Process` runs both as before. `Adaflight.VTX`
+keeps the SmartAudio menu's state and updates it after each response: a changed report starts the
+menu's operating model over, a menu without a model takes it from the device's boot pit mode, with
+the frequency selection, band, channel, frequency and power from the device and the settings, and
+once the device's version is known the menu takes the version, the first pit and user frequencies,
+the pit mode's kind and the status line. Two responses in one task call update the menu twice, each
+after its own response. The status line contains all 31 bytes with their nulls, since its updates
+write some places and leave others. `Adaflight.Number_Text` now contains the decimal text that both
+the menus and the status line print.
 
 The VTX control oracle links the reference's SmartAudio menu code in place of its stubs and records
 the menu's state at every step: every recorded vector replays exactly, the SmartAudio vectors
@@ -5903,81 +5911,87 @@ it to the device. The reference's line stops at the second value, so POR is neve
 (finding F221). The frequency submenus show their frequencies as option strings in four characters
 (F183, D194).
 
-The menu contents oracle wraps the reference's SmartAudio driver and menu beside the other VTX devices,
-scripts the device's report, statistics and line rate and the VTX settings per session, and hands the
-menu a response of the device at the start and at changes of the readings. The harness replays 240
-sessions with 19174 keys, 834 menu changes and 20008 draws, 336 of their states in the SmartAudio menu,
-182 in its configuration, 432 in its statistics, 180 and 220 in the pit and user frequency menus and 58
-in the confirmation: every display operation, menu context, page, request, driver state, queued frame,
-menu state and configuration hash matches the reference's.
+The menu contents oracle wraps the reference's SmartAudio driver and menu beside the other VTX
+devices, scripts the device's report, statistics and line rate and the VTX settings per session, and
+hands the menu a response of the device at the start and at changes of the readings. The harness
+replays 240 sessions with 19174 keys, 834 menu changes and 20008 draws, 336 of their states in the
+SmartAudio menu, 182 in its configuration, 432 in its statistics, 180 and 220 in the pit and user
+frequency menus and 58 in the confirmation: every display operation, menu context, page, request,
+driver state, queued frame, menu state and configuration hash matches the reference's.
 
 ## D255. Command line information commands (2026-10-16)
 
-`Adaflight.Command_Line` gains vtx_info and rc_smoothing_info. vtx_info lists each power level the video
-transmitter reports, in dBm with its power in mW, or prints the error for no transmitter or no levels.
-rc_smoothing_info prints the receiver's frame rate rounded to the nearest whole Hz with ties to even, or no
-signal, then whether RC smoothing is on in the configuration, and when it is, the setpoint and throttle
-cutoffs with whether a setting fixed each. Both report from outside the configuration, so the environment
-gains the transmitter's presence and power levels and the running smoothing's rate and cutoffs. The cutoffs
-come from the running smoothing, not from settings a set command changed since its start.
+`Adaflight.Command_Line` gains vtx_info and rc_smoothing_info. vtx_info lists each power level the
+video transmitter reports, in dBm with its power in mW, or prints the error for no transmitter or no
+levels. rc_smoothing_info prints the receiver's frame rate rounded to the nearest whole Hz with ties
+to even, or no signal, then whether RC smoothing is on in the configuration, and when it is, the
+setpoint and throttle cutoffs with whether a setting fixed each. Both report from outside the
+configuration, so the environment gains the transmitter's presence and power levels and the running
+smoothing's rate and cutoffs. The cutoffs come from the running smoothing, not from settings a set
+command changed since its start.
 
-The command line oracle scripts the transmitter's power levels and the receiver's rate and running cutoffs,
-and switches RC smoothing between the commands. Two runs of 600 lines, rates from 15 to 1250 Hz with halves,
-replay exactly.
+The command line oracle scripts the transmitter's power levels and the receiver's rate and running
+cutoffs, and switches RC smoothing between the commands. Two runs of 600 lines, rates from 15 to
+1250 Hz with halves, replay exactly.
 
 ## D256. Motor and play_sound commands (2026-10-16)
 
 `Adaflight.Command_Line` gains motor and play_sound. motor reads its words between spaces as the C
-library's atoi reads them. The first names the output and prints it, or every output at 255, or prints the
-error for an output past the motors. With exactly two words and a value from 1000 to 2000 it sets that
-motor's disarmed value, or every motor's, to the value converted for the motor protocol and truncated to a
-whole number, and prints it. The conversion is the MSP motor test's (D221), now in the spec of
-`Adaflight.MSP_Motor_In`. play_sound plays the beeper table's entry at the given index, or without one the
-entry after the one played last, the first after the last entry, and prints its name; an index without an
-entry prints that line. Every entry of the table has a name, so the search for a named entry stops at the
-first index it tries. The command line keeps the index played last in its output record and hands the
-motor values and the sound to its caller as effects, with the beeper silenced before the sound.
+library's atoi reads them. The first names the output and prints it, or every output at 255, or
+prints the error for an output past the motors. With exactly two words and a value from 1000 to 2000
+it sets that motor's disarmed value, or every motor's, to the value converted for the motor protocol
+and truncated to a whole number, and prints it. The conversion is the MSP motor test's (D221), now
+in the spec of `Adaflight.MSP_Motor_In`. play_sound plays the beeper table's entry at the given
+index, or without one the entry after the one played last, the first after the last entry, and
+prints its name. An index without an entry prints that line. Every entry of the table has a name, so
+the search for a named entry stops at the first index it tries. The command line keeps the index
+played last in its output record and hands the motor values and the sound to its caller as effects,
+with the beeper silenced before the sound.
 
-The command line oracle prints the disarmed motor values and the beeper requests at read-out lines, and the
-harness keeps both from the effects. Two runs of 600 lines, with motor devices, motor counts and the 3D
-feature switched between them, replay exactly.
+The command line oracle prints the disarmed motor values and the beeper requests at read-out lines,
+and the harness keeps both from the effects. Two runs of 600 lines, with motor devices, motor counts
+and the 3D feature switched between them, replay exactly.
 
 ## D257. sensor_hardware command (2026-10-16)
 
-`Adaflight.Command_Line` gains sensor_hardware. Without an argument it lists the seven sensor types, each
-with the hardware it can be, skipping hardware the build lacks. With a type's name, in any case, it lists
-that type's hardware and prints a lacking entry as an empty name between commas (F222). Any other argument
-prints the error. The gyro's names are a table of their own, since no setting takes them; the other types'
-names are their hardware settings' values.
+`Adaflight.Command_Line` gains sensor_hardware. Without an argument it lists the seven sensor types,
+each with the hardware it can be, skipping hardware the build lacks. With a type's name, in any
+case, it lists that type's hardware and prints a lacking entry as an empty name between commas
+(F222). Any other argument prints the error. The gyro's names are a table of their own, since no
+setting takes them. The other types' names are their hardware settings' values.
 
-The command line oracle runs the command with every type in several cases and with other arguments. Two
-runs of 200 lines replay exactly.
+The command line oracle runs the command with every type in several cases and with other arguments.
+Two runs of 200 lines replay exactly.
 
 ## D258. MSP command line setting message (2026-10-16)
 
-`Adaflight.MSP_CLI_Setting` answers the MSP2 command line setting message. A request is text up to its
-first zero byte. Without an equals sign it names a setting, without regard to case, and the reply is the
-setting's name, " = " and its value as the command line prints it; no such setting, or a lookup or port
-value without a name, is an error. With an equals sign the request writes the value through the
-reference's setting writer, which is stricter than the set command: a number is whole with nothing after
-it, read as the C library's strto functions read it with white space and a sign before it, and an
-unsigned one must not start with a minus; lookup and bit values match a name without regard to case; an
-array takes exactly its elements between commas, each within its element type; a write-once text takes
-only its stored value. A value that does not parse is an error that writes nothing. One that parses is
-written and echoed as a read is, and a write whose echo has no text still acknowledges. The echo reads
-the profiles the configuration selects after the write, and adaflight skips it should a write leave them
-outside the profiles, which no setting does.
+`Adaflight.MSP_CLI_Setting` answers the MSP2 command line setting message. A request is text up to
+its first zero byte. Without an equals sign it names a setting, without regard to case, and the
+reply is the setting's name, " = " and its value as the command line prints it. No such setting, or
+a lookup or port value without a name, is an error. With an equals sign the request writes the value
+through the reference's setting writer, which is stricter than the set command:
 
-The value text repeats the command line's rather than sharing it, since the command line prints through
-its generic output; both replay against the reference. The reply is bounded at 256 characters, past the
-longest setting's 225. An unsigned array element read after white space and a minus is rejected as the
-64-bit host's strtoul rejects it; no setting has an array of 32-bit unsigned elements, the one type where
-a 32-bit target would differ.
+- a number is whole with nothing after it, read as the C library's strto functions read it with
+  white space and a sign before it, and an unsigned one must not start with a minus
+- lookup and bit values match a name without regard to case
+- an array takes exactly its elements between commas, each within its element type
+- a write-once text takes only its stored value
 
-The settings oracle routes the message through the reference's MSP handler with its reply buffer of 4112
-bytes and prints the whole reply. Two runs of 600 requests, with names in several cases and with stray
-characters, values of every mode, white space around the value and zero bytes inside the text, replay
-exactly, with the configuration hash after each.
+A value that does not parse is an error that writes nothing. One that parses is written and echoed
+as a read is, and a write whose echo has no text still acknowledges. The echo reads the profiles the
+configuration selects after the write, and adaflight skips it should a write leave them outside the
+profiles, which no setting does.
+
+The value text repeats the command line's rather than sharing it, since the command line prints
+through its generic output. Both replay against the reference. The reply is bounded at 256
+characters, past the longest setting's 225. An unsigned array element read after white space and a
+minus is rejected as the 64-bit host's strtoul rejects it. No setting has an array of 32-bit
+unsigned elements, the one type where a 32-bit target would differ.
+
+The settings oracle routes the message through the reference's MSP handler with its reply buffer of
+4112 bytes and prints the whole reply. Two runs of 600 requests, with names in several cases and
+with stray characters, values of every mode, white space around the value and zero bytes inside the
+text, replay exactly, with the configuration hash after each.
 
 ## D259. MSP command line setting information message (2026-10-16)
 
