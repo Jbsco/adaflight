@@ -4667,29 +4667,28 @@ reference's, and so does the configuration's hash after every command.
 
 ## D199. Command line save and exit (2026-10-15)
 
-`save` prepares the save. Inside a batch that printed an error, it prints the batch warning, the
+`save` prepares the save. Inside a batch that printed an error, it prints the batch warning and the
 error lines `ERRORS WERE DETECTED - PLEASE REVIEW BEFORE CONTINUING` and `PLEASE FIX ERRORS THEN
 'SAVE'`, closes the batch and stops. Otherwise it stores the board's information in the
 configuration when a command updated it, and its signature when a command updated it and none is
-stored, and takes both in again; then it marks the configuration configured, asks for its write,
-prints `# saving` and asks for the restart, which `noreboot` withholds. `exit` prints `# leaving
-CLI mode, unsaved changes lost`, or `# leaving CLI mode, no reboot` after `noreboot`, asks for the
+stored, and takes both in again. It then marks the configuration configured, asks for its write,
+prints `# saving` and asks for the restart, which `noreboot` withholds. `exit` prints `# leaving CLI
+mode, unsaved changes lost`, or `# leaving CLI mode, no reboot` after `noreboot`, asks for the
 command line's end and, without `noreboot`, for the restart. `defaults` without `nosave` resets as
 with it, prepares the save the same way, and asks for the write and the restart. The restart prints
-`Rebooting` after an empty line. The requests are the `Effects` fields `Save`, `Reboot` and
-`Leave`; `Process_Line` loses `Handled`, since every line is handled now.
+`Rebooting` after an empty line. The requests are the `Effects` fields `Save`, `Reboot` and `Leave`.
+`Process_Line` loses `Handled`, since every line is handled now.
 
-The reference's write runs its configuration fix before storing. In adaflight the fix belongs to
-the storage layer (D158, D167), which runs it on the `Save` request with the hardware facts the
-command line does not hold, so the command line's configuration keeps the unfixed values until the
-runtime answers the request. The oracle's write is a stub for the same reason, and the recorded
-hashes carry no fix.
+The reference's write runs its configuration fix before storing. In adaflight the fix belongs to the
+storage layer (D158, D167), which runs it on the `Save` request with the hardware facts the command
+line does not hold, so the command line's configuration keeps the unfixed values until the runtime
+answers the request. The oracle's write is a stub for the same reason, and the recorded hashes
+contain no fix.
 
-A reset keeps the board's information. The reference's reset function for the board group writes
-the information and the signature the board has taken in back into the reset group, so `defaults`
-after a save keeps them, and so does a reset of that group alone. `Reset_Board_Config` does the
-same in adaflight. The earlier `defaults` left them out, which the save vectors found: no earlier
-sequence had saved board information before a reset.
+A reset keeps the board's information. The board group's reset writes the information and the
+signature the board has taken in back into the reset group, in `Reset_Board_Config`, so `defaults`
+after a save keeps them, and so does a reset of that group alone. The earlier `defaults` left them
+out, which the save vectors found: no earlier sequence had saved board information before a reset.
 
 The harness replays two sequences of 500 lines: saves and exits with and without `noreboot`, resets
 with and without `nosave` and by group, board names, manufacturers and signatures before saves,
@@ -4703,19 +4702,18 @@ The STM32 builds of the reference keep the late task statistics, which the simul
 scheduler was first recorded from leaves out. Each task now counts its runs and its runs that ended
 past their anticipated end, and keeps the execution time anticipated for its latest selection. The
 scheduler counts, over a timing window of one second from the first realtime pass after the last
-window's end, the tasks run from the selection, the late ones among them, the serial task excepted
-as in the reference, and the cycles they ran late by; at the window's end it keeps their share in
-tenths of a percent, `CPU_Percentage_Late`, which the reference's arming check compares with
-`cpu_late_limit_permille` (the check comes with the arming port, ROADMAP). The reference measures
-the gyro cycle time's mean and deviation and the extremes of the gyro interrupt period in the same
-block, for its debug values alone; adaflight keeps no debug values, so these stay out, and so does
-the per-task debug output of the task the `scheduler_debug_task` setting names.
+window's end, the tasks run from the selection, the late ones among them, the serial task excepted,
+and the cycles they ran late by. At the window's end it keeps their share in tenths of a percent,
+`CPU_Percentage_Late`, which the arming check compares with `cpu_late_limit_permille` (the check
+comes with the arming port, ROADMAP). The reference measures the gyro cycle time's mean and
+deviation and the extremes of the gyro interrupt period in the same block, for its debug values
+alone. adaflight keeps no debug values, so these stay out, and so does the per-task debug output of
+the task the `scheduler_debug_task` setting names.
 
 The first window of a boot ends on the first realtime pass, before any task ran from the selection,
 so the reference divides the late count by zero there. Its Cortex-M targets run with the
-divide-by-zero trap off and take a zero quotient; adaflight gives zero for a window without a run,
-and the oracle, whose host traps the division, steps over it with a zero quotient the same way
-(findings F188).
+divide-by-zero trap off and take a zero quotient. adaflight gives zero for a window without a run,
+and the oracle, whose host traps the division, steps over it with a zero quotient (findings F188).
 
 The oracle compiles the reference's scheduler with the statistics and records three more fields per
 task and five more per pass. All 8 sequences of 2500 passes replay exactly, the new fields with the
@@ -4723,24 +4721,24 @@ old.
 
 ## D201. Tasks command late columns (2026-10-15)
 
-With the scheduler's late task statistics (D200), `tasks` prints the reference's full form: after
-the total time, each queued task's late run count, its run count and the execution time anticipated
-for its latest selection, under the header's `late`, `run` and `reqd/us`. The resets after each
-line clear the two counts with the peak times, as the reference's reset does. The shorter form of
-D198 was the simulator build's; the STM32 builds print this one.
+With the scheduler's late task statistics (D200), `tasks` prints the full form: after the total
+time, each queued task's late run count, its run count and the execution time anticipated for its
+latest selection, under the header's `late`, `run` and `reqd/us`. The reset after each line clears
+the two counts with the peak times. The shorter form of D198 was the simulator build's. The STM32
+builds print this one.
 
-The harness replays the two sequences of D198 recorded again with the late statistics compiled
-into the oracle and three more raw fields per task line. All 985116 reply characters match the
+The harness replays the two sequences of D198 recorded again with the late statistics compiled into
+the oracle and three more raw fields per task line. All 985116 reply characters match the
 reference's, and so does the configuration's hash after every command.
 
 ## D202. Arming load check (2026-10-15)
 
-With the scheduler's late task statistics, the arming status update sets the `LOAD` disable
-reason while the scheduler's late task share of its last timing window, in tenths of a percent, is
-above `cpu_late_limit_permille`, and clears it otherwise, between the angle and the calibration
-reasons as in the reference. The share reaches the arming logic as the input `Late_Permille`,
-which the runtime takes from `Scheduler.CPU_Percentage_Late`, and the limit through the arming
-settings, which `Config_Runtime.Arming_Settings_Of` now reads from the scheduler group.
+With the scheduler's late task statistics, the arming status update sets the `LOAD` disable reason
+while the scheduler's late task share of its last timing window, in tenths of a percent, is above
+`cpu_late_limit_permille`, and clears it otherwise, between the angle and the calibration reasons.
+The share reaches the arming logic as the input `Late_Permille`, which the runtime takes from
+`Scheduler.CPU_Percentage_Late`, and the limit through the arming settings, which
+`Config_Runtime.Arming_Settings_Of` now reads from the scheduler group.
 
 The arming oracle compiles the reference's status update with the statistics, scripts the share per
 step with values below, at and above the limit and past the signed range, and scripts the limit at
@@ -4751,84 +4749,81 @@ its default or anywhere in its range. All 30 sequences replay exactly.
 `Adaflight.MSP_Tuning_In` contains the MSP in messages that write the tuning to the stored
 configuration: the PID gains, the rate tuning, the arming configuration, the PID controller, the
 accelerometer trims, the 3D throttle, the deadbands, the reset of the current PID profile, and the
-sensor and board alignments. The gains and the PID reset act on the current PID profile and the
-rates on the current rate profile, as the configuration's system group selects them.
+sensor and board alignments. The gains and the PID reset act on the PID profile the configuration's
+system group selects, and the rates on its rate profile.
 
-Each message reads its fields in the reference's order into a list of setting writes, checks every
+Each message reads its fields in the message's order into a list of setting writes, checks every
 write against its setting's range, and makes the writes only when all pass, so a request with one
-field outside its range is an error that changes nothing (D6). The range is the setting's bounds
-for a direct setting and a named value of its table for a lookup setting, from
+field outside its range is an error that changes nothing (D6). The range is the setting's bounds for
+a direct setting and a named value of its table for a lookup setting, from
 `Adaflight.Settings_Table`, and `Config_Groups.Set` makes each write as the command line does. The
-heading item's three gains and the gyros in use have no setting, so any byte goes to them. A
-request reads zero past its end and its remaining length stops at zero, as the reference's bounded
-stream reads give; the rate tuning with fewer than ten bytes is an error, and its optional fields
-follow from the remaining length. The pitch rate and expo take the roll's new value while they
-equal the roll's. The PID reset restores the profile's defaults. `Effects` asks the runtime to take
-the PID settings in again after the gains, and to set up the stick processing again after the rate
-tuning.
+heading item's three gains and the gyros in use have no setting, so any byte goes to them. A request
+reads zero past its end and its remaining length stops at zero. The rate tuning with fewer than ten
+bytes is an error, and its optional fields follow from the remaining length. The pitch rate and expo
+take the roll's new value while they equal the roll's. The PID reset restores the profile's
+defaults. `Effects` asks the runtime to take the PID settings in again after the gains, and to set
+up the stick processing again after the rate tuning.
 
 The command line oracle hands the reference's MSP processor each request through a directive and
 puts the configuration back after a request outside the ranges, which the generator marks by
-decoding the request as the reference reads it. The harness replays two sequences of 600 lines,
-1036 requests among profile selections, stored roll and pitch values and resets: 882 within their
-ranges, whose results, runtime work and configuration hashes all match the reference's, 10 short
-rate tunings that both reject, and 144 outside the ranges, each an error that leaves the
-configuration unchanged.
+decoding the request as the reference reads it. The harness replays two sequences of 600 lines, 1036
+requests among profile selections, stored roll and pitch values and resets: 882 within their ranges,
+whose results, runtime work and configuration hashes all match the reference's, 10 short rate
+tunings that both reject, and 144 outside the ranges, each an error that leaves the configuration
+unchanged.
 
 ## D204. MSP filter and advanced writes (2026-10-15)
 
-`Adaflight.MSP_Tuning_In` gains the advanced configuration, filter configuration and advanced PID
-in messages, under the same whole-request range check as D203. The advanced configuration writes
-the PID loop's divider, the motor update mode, protocol, rate, idle value and inversion, the
-gyro's range, calibration and overflow settings, and the debug mode. The filter configuration
-writes the gyro's and the D term's lowpasses and notches, the dynamic lowpasses, the dynamic
-notch, and the RPM filter with its fade range, Q and harmonic weights. The advanced PID message
-writes the feedforward, acceleration limit, angle limit, anti gravity, I term relax, throttle
-boost, acro trainer, D max, motor output limit, profile cell count, dynamic idle, feedforward
-smoothing, sag compensation, thrust linearization and TPA settings. Each reads its optional
-groups as the remaining length reaches them, and the filter message's first gyro lowpass arrives
-in one byte before its later 16-bit value.
+`Adaflight.MSP_Tuning_In` gains the advanced configuration, filter configuration and advanced PID in
+messages, under the same whole-request range check as D203. The advanced configuration writes the
+PID loop's divider, the motor update mode, protocol, rate, idle value and inversion, the gyro's
+range, calibration and overflow settings, and the debug mode. The filter configuration writes the
+gyro's and the D term's lowpasses and notches, the dynamic lowpasses, the dynamic notch, and the RPM
+filter with its fade range, Q and harmonic weights. The advanced PID message writes the feedforward,
+acceleration limit, angle limit, anti gravity, I term relax, throttle boost, acro trainer, D max,
+motor output limit, profile cell count, dynamic idle, feedforward smoothing, sag compensation,
+thrust linearization and TPA settings. Each reads its optional groups as the remaining length
+reaches them, and the filter message's first gyro lowpass arrives in one byte before its later
+16-bit value.
 
 The reference's own limits count as ranges: an RPM filter weight above 100 is outside its range,
-though the weights' setting has none, and a dynamic notch count above seven, an RPM filter Q or
-fade range outside its limits or a feedforward averaging above three already are outside their
-settings' ranges. The TPA rate is held at 100, as the reference holds it, so it never makes a
-request an error. The advanced configuration and the filter configuration end with the gyro's
-checks of the configuration fix (D167), which read the gyro's sample rate that the caller passes
-in. `Effects` asks the runtime to set up the gyro's and the PID controller's filters again after
-the filters, and to take the PID settings in again with the motor output endpoints and the
-mixer's profile after the advanced PID message.
+though the weights' setting has none, and a dynamic notch count above seven, an RPM filter Q or fade
+range outside its limits or a feedforward averaging above three already are outside their settings'
+ranges. The TPA rate is held at 100, so it never makes a request an error. The advanced
+configuration and the filter configuration end with the gyro's checks of the configuration fix
+(D167), which read the gyro's sample rate the caller passes in. `Effects` asks the runtime to set up
+the gyro's and the PID controller's filters again after the filters, and to take the PID settings in
+again with the motor output endpoints and the mixer's profile after the advanced PID message.
 
 The command line oracle links the reference's motor source for the protocol check of the fix and
-gains a directive that sets the gyro's sample rate. The harness replays two sequences of 700
-lines, 1210 requests among sample rates, stored motor protocols, bidirectional DShot, profile
-selections and resets: 944 within their ranges, whose results, runtime work and configuration
-hashes all match the reference's, and 266 outside them, each an error that leaves the
-configuration unchanged, 11 of them ones the reference also rejects after its partial writes.
+gains a directive that sets the gyro's sample rate. The harness replays two sequences of 700 lines,
+1210 requests among sample rates, stored motor protocols, bidirectional DShot, profile selections
+and resets: 944 within their ranges, whose results, runtime work and configuration hashes all match
+the reference's, and 266 outside them, each an error that leaves the configuration unchanged, 11 of
+them ones the reference also rejects after its partial writes.
 
 ## D205. MSP receiver writes (2026-10-15)
 
-`Adaflight.MSP_Receiver_In` contains the MSP in messages that write the receiver's configuration:
-a mode range, the receiver settings, the RSSI channel, an adjustment range, the channel map, the
-failsafe settings and a channel's failsafe value. `Adaflight.MSP_Write_Plans` now holds the request
-readers, the write plans and the range check that the tuning writes and these share.
+`Adaflight.MSP_Receiver_In` contains the MSP in messages that write the receiver's configuration: a
+mode range, the receiver settings, the RSSI channel, an adjustment range, the channel map, the
+failsafe settings and a channel's failsafe value. `Adaflight.MSP_Write_Plans` now contains the
+request readers, the write plans and the range check that the tuning writes and these share.
 
 The receiver and failsafe settings, the RSSI channel and the ExpressLRS id and model go through
-setting writes checked as a whole (D6). The air mode threshold arrives as a pulse and is stored as
-the reference converts it, a tenth of the pulse past 1000 in integer division; the stick smoothing
-factor is held to its bounds, as the reference holds it; the SPI receiver's id and channel count
-have no setting, so any value goes to them. A change to a stick smoothing cutoff, factor or switch
-asks for a restart in `Effects`, as the reference's update check does.
+setting writes checked as a whole (D6). The air mode threshold arrives as a pulse and is stored as a
+tenth of the pulse past 1000, in integer division. The stick smoothing factor is held to its bounds.
+The SPI receiver's id and channel count have no setting, so any value goes to them. A change to a
+stick smoothing cutoff, factor or switch asks for a restart in `Effects`.
 
 Mode ranges, adjustment ranges, channel failsafe values and the channel map have no settings, so
-their fields take the bounds of the command line commands that write them: an aux channel below
-14, steps up to 48, mode logic OR or AND, an adjustment function below 34, a failsafe mode of
-automatic or hold for a stick and hold or set for an aux channel, and a channel map that is a
-permutation of the eight channels. A slot or channel past its count and an unknown mode are errors
-in the reference as well. The mode and the linked mode come by permanent id from the box table
-(D89). A channel's failsafe value is stored as a step from its pulse held to the pulse limits.
-`Effects` asks the runtime to take the mode conditions in again after a mode range and to clear
-the active adjustment ranges after an adjustment range.
+their fields take the bounds of the command line commands that write them: an aux channel below 14,
+steps up to 48, mode logic OR or AND, an adjustment function below 34, a failsafe mode of automatic
+or hold for a stick and hold or set for an aux channel, and a channel map that is a permutation of
+the eight channels. A slot or channel past its count and an unknown mode are errors in the reference
+as well. The mode and the linked mode come by permanent id from the box table (D89). A channel's
+failsafe value is stored as a step from its pulse held to the pulse limits. `Effects` asks the
+runtime to take the mode conditions in again after a mode range and to clear the active adjustment
+ranges after an adjustment range.
 
 The harness replays two sequences of 700 lines from the command line oracle, 1265 requests among
 resets and listings: 983 within their ranges, whose results, runtime work and configuration hashes
@@ -4840,13 +4835,12 @@ error that leaves the configuration unchanged, 4 of them ones the reference reje
 `Adaflight.MSP_Hardware_In` contains the MSP in messages that write the mixer type with the yaw
 motor reversal, the sensor hardware selections, the motor limits, pole count, bidirectional DShot
 and motor KV, the GPS link, the compass declination, and the GPS rescue with its autopilot limits
-and controller gains, under the same whole-request range check as D203. Each optional group is
-read whole when the bytes remaining at its position cover it and skipped otherwise, so a later
-group can follow a skipped one at the same position, as the reference reads them. The mixer type
-has no setting and takes the command line mixer's bounds, one of the 27 named mixers. Gains and
-angles that the reference reads as 16-bit values into 8-bit fields are checked as they arrive. None
-of these messages asks the runtime for work; the mixer and the sensors take a new value at the next
-start.
+and controller gains, under the same whole-request range check as D203. Each optional group is read
+whole when the bytes remaining at its position cover it and skipped otherwise, so a later group can
+follow a skipped one at the same position. The mixer type has no setting and takes the command line
+mixer's bounds, one of the 27 named mixers. Gains and angles that arrive as 16-bit values for 8-bit
+fields are checked as they arrive. None of these messages asks the runtime for work. The mixer and
+the sensors take a new value at the next start.
 
 The harness replays two sequences of 600 lines from the command line oracle, 1108 requests among
 resets and listings: 895 within their ranges, whose results and configuration hashes all match the
@@ -4855,17 +4849,16 @@ reference's, and 213 outside them, each an error that leaves the configuration u
 ## D207. MSP battery writes (2026-10-15)
 
 `Adaflight.MSP_Battery_In` contains the MSP in messages that write the battery meter's scale,
-divider and multiplier, the battery and virtual current meters' scale and offset, and the
-battery's cell voltages, capacity and meter sources, under the same whole-request range check as
-D203. The meter messages name their meter by id, battery 10 or virtual 80; another id writes
-nothing and is not an error, as in the reference, since this build has no other ADC meters. The
-battery message needs seven bytes, takes the cell voltages in tenths of a volt or, when six more
-bytes follow, in hundredths, and puts them and the capacity into the current battery profile. Cell
-voltages out of order, a minimum above the warning or a warning above the maximum, are an error,
-checked with the ranges before any write.
+divider and multiplier, the battery and virtual current meters' scale and offset, and the battery's
+cell voltages, capacity and meter sources, under the same whole-request range check as D203. The
+meter messages name their meter by id, battery 10 or virtual 80. Another id writes nothing and is
+not an error, since this build has no other ADC meters. The battery message needs seven bytes, takes
+the cell voltages in tenths of a volt or, when six more bytes follow, in hundredths, and puts them
+and the capacity into the current battery profile. Cell voltages out of order, a minimum above the
+warning or a warning above the maximum, are an error, checked with the ranges before any write.
 
 The command line oracle now enters the reference's MSP processor through its common in-command
-handler, which holds these messages and hands the rest to the flight controller's; the earlier MSP
+handler, which holds these messages and hands the rest to the flight controller's. The earlier MSP
 recordings replay unchanged. The harness replays two sequences of 600 lines, 1083 requests among
 battery profile selections, resets and listings: 812 within their ranges, whose results and
 configuration hashes all match the reference's, 38 short battery requests that both reject, and 233
@@ -4874,13 +4867,13 @@ reference rejects after writing the meter sources.
 
 ## D208. MSP feature writes (2026-10-15)
 
-`Adaflight.MSP_Feature_In` contains the MSP in messages that replace the features in use, write
-the beeper conditions with the DShot beacon's tone and conditions, and write the motor output order,
+`Adaflight.MSP_Feature_In` contains the MSP in messages that replace the features in use, write the
+beeper conditions with the DShot beacon's tone and conditions, and write the motor output order,
 under the same whole-request check as D203. The feature mask may hold only the features the command
 line's feature command names, and the beeper and beacon masks only the conditions its beeper and
-beacon commands switch; the beacon's tone takes its setting's range and arrives when a byte remains,
+beacon commands switch. The beacon's tone takes its setting's range and arrives when a byte remains,
 the beacon conditions when four more remain. The motor order message names a count and that many
-positions up to eight, and the motors past the count keep their own place; a request without the
+positions up to eight, and the motors past the count keep their own place. A request without the
 count or with fewer positions than it names is an error, in the reference as well. The order's
 setting has no range, so any position goes in, and the storage layer's fix checks it at the save
 (D199).
@@ -4894,13 +4887,13 @@ error that leaves the configuration unchanged.
 
 `Adaflight.MSP_Blackbox_In` contains the MSP in message that writes the flight log's device, sample
 rate and fields left out, under the same whole-request check as D203. A log past its stopped state
-takes no change and the message succeeds, as in the reference. The sample rate comes from its own
-byte held at 1/16 when the bytes reach it, or else from the intra to delta frame ratio: given when
-two bytes remain after the legacy rate, or else from the legacy rate's numerator and denominator
-through `Blackbox.P_Denominator`, cut to 16 bits, and turned into a rate for the PID loop time by
+takes no change and the message succeeds. The sample rate comes from its own byte held at 1/16 when
+the bytes reach it, or else from the intra to delta frame ratio: given when two bytes remain after
+the legacy rate, or else from the legacy rate's numerator and denominator through
+`Blackbox.P_Denominator`, cut to 16 bits, and turned into a rate for the PID loop time by
 `Blackbox.Sample_Rate_For`. The fields left out arrive when four bytes remain and may hold only the
-bits the disable settings name. The message reads the recorder's state and intra frame interval
-and the loop time from its caller.
+bits the disable settings name. The message reads the recorder's state and intra frame interval and
+the loop time from its caller.
 
 The command line oracle copies the reference's blackbox object with the log state and the intra
 frame interval made global and sets them, with the loop time, from a directive. The harness replays
@@ -4911,13 +4904,13 @@ outside them, each an error that leaves the configuration unchanged.
 ## D210. MSP servo writes (2026-10-15)
 
 `Adaflight.MSP_Servo_In` contains the MSP in messages that write a servo's parameters and a servo
-mix rule. Neither has settings, so their fields take the bounds of the command line's servo and
-smix commands (D6, D203): pulses from 500 to 2500 with the middle between the minimum and the
-maximum, a rate within 100 either way, a forwarded channel below 18, where a negative one turns
-forwarding off, reversed sources among the 14 inputs, and for a rule a range within 0 to 100 with
-its minimum below its maximum and a box up to 3. A servo parameter request of other than thirteen
-bytes, a servo or rule past its count, and a target or input past its count are errors in the
-reference as well. `Effects` asks the runtime to load the servo mixer's rules again after a rule.
+mix rule. Neither has settings, so their fields take the bounds of the command line's servo and smix
+commands (D6, D203): pulses from 500 to 2500 with the middle between the minimum and the maximum, a
+rate within 100 either way, a forwarded channel below 18, where a negative one turns forwarding off,
+reversed sources among the 14 inputs, and for a rule a range within 0 to 100 with its minimum below
+its maximum and a box up to 3. A servo parameter request of other than thirteen bytes, a servo or
+rule past its count, and a target or input past its count are errors in the reference as well.
+`Effects` asks the runtime to load the servo mixer's rules again after a rule.
 
 The harness replays two sequences of 600 lines from the command line oracle, 1082 requests among
 resets and listings: 767 within their bounds, whose results, runtime work and configuration hashes
@@ -4928,13 +4921,18 @@ error that leaves the configuration unchanged.
 
 `Adaflight.MSP_LED_In` contains the MSP in messages that write the LED strip's sixteen colors, one
 LED's packed configuration and a mode color. Their fields have no settings and take the bounds of
-the command line's color, led and mode_color commands (D6, D203): a hue up to 359; a configuration
-whose function is one of the ten and whose overlays are among the seven, in a request of five
-bytes, or six with the strip's profile within its setting's range, for a LED below 32; and a mode up
-to 5 with a direction up to 5, the special colors with an index up to 10, or the aux channel with
-index 0, with a color below 16. The reference rejects a LED configuration of other than five bytes,
-so the profile byte never arrives there (finding F192), and a mode color outside those cases as
-well. `Effects` asks the runtime to evaluate the strip's layout again after a LED configuration.
+the command line's color, led and mode_color commands (D6, D203):
+
+- a hue up to 359
+- a configuration whose function is one of the ten and whose overlays are among the seven, in a
+  request of five bytes, or six with the strip's profile within its setting's range, for a LED below
+  32
+- a mode up to 5 with a direction up to 5, the special colors with an index up to 10, or the aux
+  channel with index 0, with a color below 16
+
+The reference rejects a LED configuration of other than five bytes, so the profile byte never
+arrives there (finding F192), and a mode color outside those cases as well. `Effects` asks the
+runtime to evaluate the strip's layout again after a LED configuration.
 
 The harness replays two sequences of 600 lines from the command line oracle, 1083 requests among
 resets and listings: 859 within their bounds, whose results, runtime work and configuration hashes
@@ -4961,8 +4959,8 @@ cell voltage of zero, which its cell count detection divides by (findings F194).
 
 The harness replays two sequences of 600 lines from the command line oracle, 1045 requests among
 profile selections, resets, name sets and listings: 810 within their bounds, whose results, runtime
-work and configuration hashes all match the reference's, 163 that both reject before writing, and
-72 outside the bounds, each an error that leaves the configuration unchanged.
+work and configuration hashes all match the reference's, 163 that both reject before writing, and 72
+outside the bounds, each an error that leaves the configuration unchanged.
 
 ## D213. MSP peripheral writes (2026-10-15)
 
@@ -4977,15 +4975,15 @@ The transponder message takes a provider up to the three and, for one of them, e
 length: 6 bytes for ILAP, 9 for ARCITIMER and 1 for ERLT. The stored data is cleared before the
 request's is written, and `Effects` asks the runtime to encode the transponder's data again. A
 request without a provider, a provider past the three or data of another length is an error that
-changes nothing (D6). The reference stores the provider before it checks the length, and its stop
-of the repeating transmission on a provider change never runs (findings F195). `Effects` has no
-stop request, so a provider change leaves the transmission repeating in adaflight as well.
+changes nothing (D6). The reference stores the provider before it checks the length, and its stop of
+the repeating transmission on a provider change never runs (findings F195). `Effects` has no stop
+request, so a provider change leaves the transmission repeating in adaflight as well.
 
 The harness replays two sequences of 600 lines from the command line oracle, 1053 requests among
 profile selections, resets, transponder sets and listings: 878 within their bounds, whose results,
 runtime work and configuration hashes all match the reference's, 117 that both reject before
-writing, and 58 transponder requests the reference rejects after storing the provider, each an
-error that leaves the configuration unchanged.
+writing, and 58 transponder requests the reference rejects after storing the provider, each an error
+that leaves the configuration unchanged.
 
 ## D214. MSP VTX table writes (2026-10-15)
 
