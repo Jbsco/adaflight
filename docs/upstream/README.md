@@ -82,3 +82,4 @@ Each document describes a Betaflight bug that adaflight fixes: the Betaflight ve
 - [A diff never resets the custom motor mix or the servo rules](cli-diff-lines.md)
 - [A channel failsafe default line takes its format from the channel's own mode](cli-diff-lines.md)
 - [The VTX table diff ignores a band's factory flag and prints eight default power entries](cli-diff-lines.md)
+- [A command followed directly by a comment takes the comment as its arguments](cli-comment-arguments.md)
