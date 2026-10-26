@@ -29,8 +29,10 @@ Silver with no assume, and pass the gates on `main`.
 - Phase 7, in progress. Targets. STM32F4 first: `targets/stm32f4` builds STM32F405 images. Then F7,
   H7 and other families Betaflight runs on, plus a physics simulator link for host target. Drivers for
   SPI, I2C, DMA, timers, USB, flash, SD card, DShot.
-- Phase 8, open. Tooling. A native Linux flashing tool over DFU with the features of the
-  Betaflight flasher and faster transfers, then the configuration path.
+- Phase 8, open. Tooling. The configurator as the adaflight-configurator repository, the upstream
+  configurator with adaflight's changes, starting with the firmware variant. A native Linux flashing
+  tool over DFU with the features of the Betaflight flasher and faster transfers, then the
+  configuration path.
 
 ## After parity
 
