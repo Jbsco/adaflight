@@ -68,3 +68,4 @@ Each document describes a Betaflight bug that adaflight fixes: the Betaflight ve
 - [A failed BMP388 detection leaves the end of conversion interrupt enabled](bmp388-interrupt-release.md)
 - [Dynamic numeric menu rows are never skipped](menu-skip-alarm-range.md)
 - [The alarms menu lets the RSSI dBm alarm above the command line's range](menu-skip-alarm-range.md)
+- [VTX menus index the band, channel and power names past the table](vtx-menu-name-index.md)
