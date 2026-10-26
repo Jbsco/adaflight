@@ -7724,11 +7724,13 @@ stack. Otherwise the interrupt pin comes first, then the configured bus, which i
 instance and select pin, or the MPU slave bus behind an MPU9250 gyro. A bus type the build lacks, an instance that
 refuses, or an MPU slave bus without an MPU9250 ends the detection. The scan starts at the configured hardware's driver,
 or at the first for the default, and sets the configured address again before each driver while the bus is I2C. Behind
-an MPU9250 gyro the AK8963 case moves the bus onto the MPU slave bus before its probe, and the drivers after it keep
-that bus and the address the last failing driver left. The MPU925x passthrough is tried only when configured, and its
-failure ends the detection. The simulator's virtual compass is found unless the configuration is none, and it reports
-the default hardware. A failed detection keeps the compass the device had. The unit is SPARK for the result and the kept
-value over every build and configuration.
+an MPU9250 gyro the AK8963 case moves the bus onto the MPU slave bus for its probe and puts the configured bus back when
+the probe fails, so the drivers after it probe on the configured bus. The reference leaves the shared bus retyped, so
+its later drivers probe on the MPU slave bus with the address the last failing driver left (finding F263, amended
+2026-10-26 as declared in D6). The MPU925x passthrough is tried only when configured, and its failure ends the
+detection. The simulator's virtual compass is found unless the configuration is none, and it reports the default
+hardware. A failed detection keeps the compass the device had. The unit is SPARK for the result and the kept value over
+every build and configuration.
 
 The compass detection oracle includes the reference compass with every driver's detection stubbed, built for both buses
 with and without the MPU slave bus, for SPI only, for I2C only, with DroneCAN and a board alignment, and twice for the

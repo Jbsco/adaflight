@@ -65,9 +65,18 @@ package body Adaflight.Compass_Detect.Scan with SPARK_Mode is
                Set_I2C_Address (D, C.I2C_Address);
             end if;
             if Chip = AK8963 and then Gyro_Is_MPU9250 then
-               Set_MPU_Slave (D, C.I2C_Address);
+               declare
+                  Saved : constant Byte := Bus_Type (D);
+               begin
+                  Set_MPU_Slave (D, C.I2C_Address);
+                  Detect_Chip (D, Chip, Chip_Found);
+                  if not Chip_Found then
+                     Set_Bus_Type (D, Saved);
+                  end if;
+               end;
+            else
+               Detect_Chip (D, Chip, Chip_Found);
             end if;
-            Detect_Chip (D, Chip, Chip_Found);
             if Chip_Found then
                Result := Named (Chip);
                exit;
