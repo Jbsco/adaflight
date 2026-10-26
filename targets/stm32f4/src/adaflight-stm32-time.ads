@@ -1,6 +1,7 @@
---  The time base of the STM32F405 at 168 MHz: milliseconds since boot from
---  the runtime clock, the core's cycle counter for microsecond intervals, and
---  the two delays the drivers take.
+--  The time base of the STM32F405 at 168 MHz: milliseconds and microseconds
+--  since boot from the runtime clock, the core's cycle counter for the
+--  scheduler and the microsecond intervals, and the two delays the drivers
+--  take.
 with Interfaces;
 package Adaflight.STM32.Time is
    use type Interfaces.Unsigned_32;
@@ -9,6 +10,7 @@ package Adaflight.STM32.Time is
    --  Starts the cycle counter.
    procedure Init;
    function Millis return Interfaces.Unsigned_32;
+   function Micros return Interfaces.Unsigned_32;
    function Cycle_Count return Interfaces.Unsigned_32;
    function Micros_To_Cycles (Micros : Interfaces.Unsigned_32) return Interfaces.Unsigned_32 is
      (Micros * Cycles_Per_Us);

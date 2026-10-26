@@ -13,8 +13,6 @@ package body Adaflight.STM32.Time is
    Trace_Enable         : constant Unsigned_32 := 2 ** 24;
    Cycle_Counter_Enable : constant Unsigned_32 := 1;
 
-   Epoch : constant Ada.Real_Time.Time := Clock;
-
    procedure Init is
    begin
       DEMCR := DEMCR or Trace_Enable;
@@ -22,8 +20,30 @@ package body Adaflight.STM32.Time is
       DWT_CTRL := DWT_CTRL or Cycle_Counter_Enable;
    end Init;
 
+   --  The clock since boot as whole seconds and the rest, which keeps the
+   --  conversions within the integer range at any uptime.
+   procedure Since_Boot (Seconds : out Unsigned_64; Rest : out Time_Span) is
+      Count : Seconds_Count;
+   begin
+      Split (Clock, Count, Rest);
+      Seconds := Unsigned_64 (Count);
+   end Since_Boot;
+
    function Millis return Unsigned_32 is
-     (Unsigned_32 ((Clock - Epoch) / Milliseconds (1)));
+      Seconds : Unsigned_64;
+      Rest    : Time_Span;
+   begin
+      Since_Boot (Seconds, Rest);
+      return Unsigned_32 ((Seconds * 1_000 + Unsigned_64 (Rest / Milliseconds (1))) mod 2 ** 32);
+   end Millis;
+
+   function Micros return Unsigned_32 is
+      Seconds : Unsigned_64;
+      Rest    : Time_Span;
+   begin
+      Since_Boot (Seconds, Rest);
+      return Unsigned_32 ((Seconds * 1_000_000 + Unsigned_64 (Rest / Microseconds (1))) mod 2 ** 32);
+   end Micros;
 
    function Cycle_Count return Unsigned_32 is (DWT_CYCCNT);
 
