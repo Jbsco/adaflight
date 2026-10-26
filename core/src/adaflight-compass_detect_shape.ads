@@ -15,5 +15,6 @@ package Adaflight.Compass_Detect_Shape is new Adaflight.Compass_Detect.Scan
    Set_SPI_Instance  => Adaflight.Baro_Detect_Steps.Step_Set_SPI_Instance,
    Set_CS_Pin        => Adaflight.Baro_Detect_Steps.Step_Set_CS_Pin,
    Set_MPU_Slave     => Adaflight.Compass_Detect_Steps.Step_Set_MPU_Slave,
+   Set_Bus_Type      => Adaflight.Compass_Detect_Steps.Step_Set_Bus_Type,
    Detect_DroneCAN   => Adaflight.Compass_Detect_Steps.Step_Detect_DroneCAN,
    Detect_Chip       => Adaflight.Compass_Detect_Steps.Step_Detect_Chip);
