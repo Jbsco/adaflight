@@ -4192,8 +4192,10 @@ The command line's `defaults` with `nosave` resets the configuration to its defa
 the simplified tuning to every PID profile. With `group_id` and a number it resets one parameter
 group: the reset configuration, tuned, is encoded with `Config_Codec`, and that group's bytes
 replace the group in the encoded configuration before it is decoded back. A word with neither
-keyword, a missing group or a zero group is the parse error. A word only has to contain its keyword,
-and the group number wraps to 16 bits (findings F178).
+keyword, a missing group or a zero group is the parse error. A word is its whole keyword, in any
+case, and a group number outside 1 to 65535 is the parse error, where the reference takes any word
+containing the keyword and wraps the number to 16 bits (finding F178, amended 2026-10-25 as
+declared in D6).
 
 Without `nosave` the reset is followed by a save and a restart, which wait for the `save` command,
 and `Process_Line` returns Known false.
@@ -4380,8 +4382,9 @@ text, and notes the error when a batch is open. `batch start` opens a batch and 
 unless one is open already, and prints `Command batch started`. `batch end` prints `Command batch
 ended`, or the error line `ERRORS WERE DETECTED - PLEASE REVIEW BEFORE CONTINUING` when a command
 in the batch printed an error, and closes the batch either way. Any other option is the `Invalid
-option` error. An option only has to begin with its word, in any case (findings F180). A
-`defaults` reset clears the batch's error and leaves the batch open.
+option` error. An option is its whole word, in any case, and a second start clears the batch's
+error, where the reference takes a prefix and keeps the error (finding F180, amended 2026-10-25 as
+declared in D6). A `defaults` reset clears the batch's error and leaves the batch open.
 
 A line naming no command gets the reply `ERR_CMD_NA: ` and the line, with its comment and trailing
 spaces cut, and no error is noted. This is the reply of the reference's non-interactive stream,
