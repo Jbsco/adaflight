@@ -61,6 +61,23 @@ package body Adaflight.STM32.GPIO is
       Regs.PUPDR := Regs.PUPDR and not Shift_Left (3, Shift);
    end Set_Output;
 
+   procedure Set_Alternate (P : Pin; Func : Alternate_Function; Pull_Up : Boolean := False) is
+      Regs   : Port_Registers with Import, Address => Port_Base (P.Port);
+      Shift  : constant Natural := 2 * Natural (P.Number);
+      Nibble : constant Natural := 4 * (Natural (P.Number) mod 8);
+      AF     : constant Unsigned_32 := Unsigned_32 (Func);
+   begin
+      Regs.MODER := (Regs.MODER and not Shift_Left (3, Shift)) or Shift_Left (2, Shift);
+      Regs.OTYPER := Regs.OTYPER and not Shift_Left (1, Natural (P.Number));
+      Regs.OSPEEDR := (Regs.OSPEEDR and not Shift_Left (3, Shift)) or Shift_Left (2, Shift);
+      Regs.PUPDR := (Regs.PUPDR and not Shift_Left (3, Shift)) or (if Pull_Up then Shift_Left (1, Shift) else 0);
+      if P.Number < 8 then
+         Regs.AFRL := (Regs.AFRL and not Shift_Left (15, Nibble)) or Shift_Left (AF, Nibble);
+      else
+         Regs.AFRH := (Regs.AFRH and not Shift_Left (15, Nibble)) or Shift_Left (AF, Nibble);
+      end if;
+   end Set_Alternate;
+
    procedure Set_High (P : Pin) is
       Regs : Port_Registers with Import, Address => Port_Base (P.Port);
    begin
