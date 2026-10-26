@@ -1,11 +1,12 @@
 --  The internal flash of the STM32F405: the configuration region at the
---  start of the last sector, 128 KB at 16#080E_0000#, read in place, and
---  written by erasing the sector and programming words.
+--  start of sector 1, 16 KB at 16#0800_4000#, which the image's layout keeps
+--  free, read in place, and written by erasing the sector and programming
+--  words.
 with System;
 with Adaflight.Bytes; use Adaflight.Bytes;
 package Adaflight.STM32.Flash is
-   Config_Sector  : constant := 11;
-   Config_Address : constant := 16#080E_0000#;
+   Config_Sector  : constant := 1;
+   Config_Address : constant := 16#0800_4000#;
    Config_Size    : constant := 8_192;
    --  The configuration region as the core reads it.
    Config : Byte_Array (0 .. Config_Size - 1)
