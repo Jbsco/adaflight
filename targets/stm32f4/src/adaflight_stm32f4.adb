@@ -1,8 +1,10 @@
---  The STM32F4 image. Milestone 3: MSP and the command line on UART1 at
---  115200 baud while the board's LED blinks at 1 Hz. The port starts as an
---  MSP port; a hash mark hands it to the command line after the guard time,
---  a start of text at once, and the command line hands it back when its
---  session closes.
+--  The STM32F4 image. Milestone 4: the gyro and accelerometer detected and
+--  started over SPI1 at boot and read every millisecond into the state the
+--  MSP replies and the status report, with MSP and the command line on UART1
+--  at 115200 baud while the board's LED blinks at 1 Hz. The port starts as
+--  an MSP port; a hash mark hands it to the command line after the guard
+--  time, a start of text at once, and the command line hands it back when
+--  its session closes.
 with Ada.Real_Time; use Ada.Real_Time;
 with GNAT.Source_Info;
 with Interfaces; use Interfaces;
@@ -10,11 +12,15 @@ with System;
 with Adaflight.Arming;
 with Adaflight.Board;
 with Adaflight.Bytes;
+with Adaflight.Config_Fix;
 with Adaflight.Config_Groups;
 with Adaflight.Config_Reset;
+with Adaflight.Gyro_Selection;
 with Adaflight.MSP_Common_Out;
 with Adaflight.MSP_Control_In;
+with Adaflight.MSP_Hardware_Out;
 with Adaflight.MSP_Motor_In;
+with Adaflight.MSP_Out;
 with Adaflight.MSP_Port;
 with Adaflight.MSP_Processor;
 with Adaflight.Receiver;
@@ -22,6 +28,9 @@ with Adaflight.Scheduler;
 with Adaflight.Serial_Feature_Map;
 with Adaflight.STM32.Console;
 with Adaflight.STM32.GPIO;
+with Adaflight.STM32.Gyro;
+with Adaflight.STM32.SPI;
+with Adaflight.STM32.Time;
 with Adaflight.STM32.USART;
 with Adaflight.Stream_Buffers;
 
@@ -55,9 +64,18 @@ procedure Adaflight_Stm32f4 is
      with Import, Volatile, Address => System'To_Address (16#E000_ED0C#);
    System_Reset_Request : constant Unsigned_32 := 16#05FA_0004#;
 
-   Epoch    : constant Time := Clock;
-   Next     : Time := Epoch;
-   Blink    : Time := Epoch;
+   --  The failure codes the LED flashes: a missing gyro, and a gyro whose
+   --  initialization read failed.
+   Failure_Missing_Acc      : constant := 1;
+   Failure_Gyro_Init_Failed : constant := 6;
+
+   --  The first gyro read waits for the data ready interrupts of the start
+   --  to pass the layer's detection count, as the reference's longer
+   --  startup lets them.
+   First_Read_Delay_Ms : constant := 250;
+
+   Next     : Time := Clock;
+   Blink    : Time := Clock;
    Board    : CLI.Board_State;
    Config   : Adaflight.Config_Groups.Configuration := Adaflight.Config_Reset.Reset (Board);
    Sched    : Adaflight.Scheduler.State;
@@ -80,6 +98,19 @@ procedure Adaflight_Stm32f4 is
    Effects  : MSP.Effects;
    Frame    : Adaflight.MSP_Port.Frame_Buffer := (others => 0);
    Frame_Length : Positive := 1;
+   Gyro_Report  : Adaflight.STM32.Gyro.Report;
+   Selection    : Adaflight.Gyro_Selection.Result;
+   Gyro_Raw     : Adaflight.STM32.Gyro.Axis_Values;
+   Acc_Raw      : Adaflight.STM32.Gyro.Axis_Values;
+   Read_OK      : Boolean;
+   Reads_From   : Unsigned_32 := 0;
+   --  The divisor of the accelerometer counts in the raw readings reply, by
+   --  the count for one g.
+   Acc_Scale    : constant Float :=
+     (if Adaflight.STM32.Gyro.Acc_One_G > 512 * 4 then 8.0
+      elsif Adaflight.STM32.Gyro.Acc_One_G > 512 * 2 then 4.0
+      elsif Adaflight.STM32.Gyro.Acc_One_G >= 512 then 2.0
+      else 1.0);
 
    function Text (S : String) return Common.Text is
       T : Common.Text;
@@ -178,9 +209,6 @@ procedure Adaflight_Stm32f4 is
                           Stack_High    => 16#2002_0000#,
                           others        => <>));
 
-   function Milliseconds_Since_Boot return Unsigned_32 is
-     (Unsigned_32 ((Clock - Epoch) / Milliseconds (1)));
-
    procedure Reset is
    begin
       AIRCR := System_Reset_Request;
@@ -188,6 +216,104 @@ procedure Adaflight_Stm32f4 is
          null;
       end loop;
    end Reset;
+
+   --  Count flashes of the LED from off, each on and off for the duration.
+   procedure Flash (Count : Natural; Duration_Ms : Natural) is
+   begin
+      Adaflight.STM32.GPIO.Set_High (Adaflight.Board.LED0_Pin);
+      for I in 1 .. Count loop
+         Adaflight.STM32.GPIO.Toggle (Adaflight.Board.LED0_Pin);
+         Adaflight.STM32.Time.Delay_Ms (Duration_Ms);
+         Adaflight.STM32.GPIO.Toggle (Adaflight.Board.LED0_Pin);
+         Adaflight.STM32.Time.Delay_Ms (Duration_Ms);
+      end loop;
+   end Flash;
+
+   --  The failure indication: five short flashes, a pause, the code as long
+   --  flashes and a second's pause, repeated.
+   procedure Indicate_Failure (Code : Natural; Repeats : Natural) is
+   begin
+      for I in 1 .. Repeats loop
+         Flash (5, 50);
+         Adaflight.STM32.Time.Delay_Ms (500);
+         Flash (Code + 1, 250);
+         Adaflight.STM32.Time.Delay_Ms (1000);
+      end loop;
+   end Indicate_Failure;
+
+   --  The gyro's start: the bus, the detection and initialization, the
+   --  selection over the one position, the configuration's gyro checks, and
+   --  what the MSP replies and the status report say about the sensors. A
+   --  missing gyro flashes its code on a configured board and holds arming;
+   --  a failed initialization flashes its code and resets.
+   procedure Start_Gyro is
+      Inputs : Adaflight.Gyro_Selection.Inputs;
+      Rate   : Adaflight.Config_Fix.Gyro_Rate;
+      Bus    : constant CLI.Device_Bus := (Kind => CLI.SPI_Bus, Number => 1, Address => 0);
+   begin
+      Adaflight.STM32.SPI.Init (Adaflight.Board.SPI1_SCK_Pin, Adaflight.Board.SPI1_SDI_Pin,
+                                Adaflight.Board.SPI1_SDO_Pin);
+      Adaflight.STM32.Gyro.Start (Config.Gyro_Config.Gyro_Hardware_Lpf, Config.Gyro_Config.Gyro_High_Fsr /= 0,
+                                  Config.Accelerometer_Config.Acc_Hardware, Gyro_Report);
+      if Gyro_Report.Init_Failed then
+         Indicate_Failure (Failure_Gyro_Init_Failed, 10);
+         Reset;
+      end if;
+      Inputs.Count := 1;
+      Inputs.Stored_Detected := Config.Gyro_Config.Gyros_Detected;
+      Inputs.Enabled_Setting := Config.Gyro_Config.Gyro_Enabled_Bitmask;
+      Inputs.Configured (0) := True;
+      Inputs.Present (0) := Gyro_Report.Found;
+      Inputs.Reports (0) := (Sample_Rate_Hz     => Gyro_Report.Sample_Rate_Hz,
+                             Scale              => Gyro_Report.Scale,
+                             Overflow_Protected => Gyro_Report.Overflow_Protected);
+      Adaflight.Gyro_Selection.Choose (Inputs, Selection);
+      if not Selection.Found then
+         if Config.System_Config.Configuration_State /= 0 then
+            Indicate_Failure (Failure_Missing_Acc, 2);
+         end if;
+         Env.Status.Arming_Disabled (Adaflight.Arming.No_Gyro) := True;
+         Ctx.Out_Views.State.Status.Arming_Disabled (Adaflight.Arming.No_Gyro) := True;
+         return;
+      end if;
+      Config.Gyro_Config.Gyros_Detected := Selection.Stored_Detected;
+      Config.Gyro_Config.Gyro_Enabled_Bitmask := Selection.Enabled_Setting;
+      Rate := Adaflight.Config_Fix.Gyro_Rate (Natural'Min (Selection.Sample_Rate_Hz, 32_000));
+      Adaflight.Config_Fix.Fix_Gyro (Config, Rate);
+      Ctx.Gyro_Sample_Rate_Hz := Rate;
+      Ctx.Out_Views.State.Status.Sensors (Adaflight.MSP_Out.Gyro) := True;
+      Ctx.Out_Views.State.Status.Sensors (Adaflight.MSP_Out.Acc) := Gyro_Report.Acc_Found;
+      Ctx.Out_Views.Detected_Flags := Selection.Detected;
+      Ctx.Out_Views.Hardware.Detected (Adaflight.MSP_Hardware_Out.Gyro) := Gyro_Report.Hardware;
+      Ctx.Out_Views.Hardware.Detected (Adaflight.MSP_Hardware_Out.Acc) := Gyro_Report.Acc_Hardware;
+      Ctx.Out_Views.Hardware.Gyro_Count := 1;
+      Ctx.Out_Views.Hardware.Detected_Gyros (1) := Gyro_Report.Hardware;
+      Env.Gyros (0) := (Hardware => Natural (Gyro_Report.Hardware), Bus => Bus, Mode => CLI.Interrupt_Init,
+                        Bus_Devices => 1);
+      Env.Gyros_Enabled := Selection.Enabled;
+      Env.Acc := (Detected => Gyro_Report.Acc_Found, Hardware => Gyro_Report.Acc_Hardware, Bus => Bus);
+      Reads_From := Adaflight.STM32.Time.Millis + First_Read_Delay_Ms;
+   end Start_Gyro;
+
+   --  One gyro and accelerometer read into the raw readings reply, the
+   --  gyro as counts and the accelerometer scaled, and the gyro's interrupt
+   --  mode into the status report.
+   procedure Read_Sensors is
+   begin
+      Adaflight.STM32.Gyro.Read (Gyro_Raw, Acc_Raw, Read_OK);
+      if Read_OK then
+         for I in Adaflight.MSP_Out.Axis loop
+            Ctx.Out_Views.State.IMU.Gyro_Dps (I) := Gyro_Raw (I);
+            Ctx.Out_Views.State.IMU.Acc (I) := Float (Acc_Raw (I)) / Acc_Scale;
+         end loop;
+      end if;
+      Env.Gyros (0).Mode :=
+        (case Adaflight.STM32.Gyro.Mode is
+            when Adaflight.STM32.Gyro.Interrupt_Init => CLI.Interrupt_Init,
+            when Adaflight.STM32.Gyro.Interrupt_DMA  => CLI.Interrupt_DMA,
+            when Adaflight.STM32.Gyro.Interrupt      => CLI.Interrupt,
+            when Adaflight.STM32.Gyro.No_Interrupt   => CLI.No_Interrupt);
+   end Read_Sensors;
 
    --  The command line takes the port: an interactive session from the hash
    --  mark, a configurator session from the start of text.
@@ -214,6 +340,7 @@ procedure Adaflight_Stm32f4 is
    end Answer;
 
 begin
+   Adaflight.STM32.Time.Init;
    Adaflight.STM32.GPIO.Enable_Port (Adaflight.Board.LED0_Pin.Port);
    Adaflight.STM32.GPIO.Set_Output (Adaflight.Board.LED0_Pin);
    Adaflight.STM32.GPIO.Enable_Port (Adaflight.Board.Inverter_Pin_UART1.Port);
@@ -225,8 +352,14 @@ begin
    Ctx.Out_Views.Build := (others => True);
    Ctx.Out_Views.Serial_Ports (1) := (Port => UART1_Id, Available => True);
    Ctx.Out_Views.Serial_Count := 1;
+   Start_Gyro;
+   Next := Clock;
+   Blink := Next;
    loop
-      Now_Ms := Milliseconds_Since_Boot;
+      Now_Ms := Adaflight.STM32.Time.Millis;
+      if Selection.Found and then Now_Ms >= Reads_From then
+         Read_Sensors;
+      end if;
       Adaflight.STM32.USART.Take (Input, Count);
       if Count > 0 then
          declare

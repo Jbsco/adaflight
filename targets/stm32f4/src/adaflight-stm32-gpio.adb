@@ -61,7 +61,18 @@ package body Adaflight.STM32.GPIO is
       Regs.PUPDR := Regs.PUPDR and not Shift_Left (3, Shift);
    end Set_Output;
 
-   procedure Set_Alternate (P : Pin; Func : Alternate_Function; Pull_Up : Boolean := False) is
+   --  The pull-up and pull-down register's code for a resistor.
+   Resistor_Code : constant array (Pull) of Unsigned_32 := (No_Pull => 0, Up => 1, Down => 2);
+
+   procedure Set_Input (P : Pin; Resistor : Pull := No_Pull) is
+      Regs  : Port_Registers with Import, Address => Port_Base (P.Port);
+      Shift : constant Natural := 2 * Natural (P.Number);
+   begin
+      Regs.MODER := Regs.MODER and not Shift_Left (3, Shift);
+      Regs.PUPDR := (Regs.PUPDR and not Shift_Left (3, Shift)) or Shift_Left (Resistor_Code (Resistor), Shift);
+   end Set_Input;
+
+   procedure Set_Alternate (P : Pin; Func : Alternate_Function; Resistor : Pull := No_Pull) is
       Regs   : Port_Registers with Import, Address => Port_Base (P.Port);
       Shift  : constant Natural := 2 * Natural (P.Number);
       Nibble : constant Natural := 4 * (Natural (P.Number) mod 8);
@@ -70,7 +81,7 @@ package body Adaflight.STM32.GPIO is
       Regs.MODER := (Regs.MODER and not Shift_Left (3, Shift)) or Shift_Left (2, Shift);
       Regs.OTYPER := Regs.OTYPER and not Shift_Left (1, Natural (P.Number));
       Regs.OSPEEDR := (Regs.OSPEEDR and not Shift_Left (3, Shift)) or Shift_Left (2, Shift);
-      Regs.PUPDR := (Regs.PUPDR and not Shift_Left (3, Shift)) or (if Pull_Up then Shift_Left (1, Shift) else 0);
+      Regs.PUPDR := (Regs.PUPDR and not Shift_Left (3, Shift)) or Shift_Left (Resistor_Code (Resistor), Shift);
       if P.Number < 8 then
          Regs.AFRL := (Regs.AFRL and not Shift_Left (15, Nibble)) or Shift_Left (AF, Nibble);
       else
