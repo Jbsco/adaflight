@@ -56,6 +56,7 @@ with Adaflight.STM32.Sound;
 with Adaflight.STM32.SPI;
 with Adaflight.MSP_OSD_Out;
 with Adaflight.OSD_Task;
+with Adaflight.OSD_Render;
 with Adaflight.STM32.OSD;
 with Adaflight.STM32.Time;
 with Adaflight.STM32.USART;
@@ -443,6 +444,7 @@ package body Adaflight.STM32.Flight is
       if Disable then
          Runtime_Features := Runtime_Features and not Adaflight.Config_Fix.Feature_OSD;
       end if;
+      Adaflight.STM32.OSD.Configure (Config, Version_Text);
    end Start_OSD;
 
    procedure Start_Gyro is
@@ -541,7 +543,7 @@ package body Adaflight.STM32.Flight is
    --  finds no frames yet.
    procedure Init_Scheduler is
       Options : constant Adaflight.Task_Init.Options :=
-        (Accel => True, Beeper => True, Sag_Compensation => True, others => False);
+        (Accel => True, Beeper => True, Sag_Compensation => True, OSD => True, others => False);
       Inputs  : Adaflight.Task_Init.Inputs;
    begin
       Sched_Settings := Adaflight.Config_Runtime.Scheduler_Settings_Of
@@ -559,6 +561,10 @@ package body Adaflight.STM32.Flight is
       Inputs.Gyro_Target_Looptime_Us := Sample_Us * Scheduler.Time_Delta (Loop_Ratio);
       Inputs.Acc_Detected := Gyro_Report.Acc_Found;
       Inputs.Acc_Sample_Rate_Hz := Gyro_Report.Acc_Sample_Rate_Hz;
+      Inputs.Feature_OSD := (Runtime_Features and Adaflight.Config_Fix.Feature_OSD) /= 0;
+      Inputs.OSD_Framerate_Hz :=
+        Adaflight.Task_Init.Rate_Hz (Natural'Max (1, Natural (Config.Osd_Config.Framerate_Hz)));
+      Inputs.OSD_Display_Port := Adaflight.STM32.OSD.Port_Present;
       Adaflight.Task_Init.Init (Sched, Sched_Settings, Adaflight.STM32.Time.Cycle_Count, Options, Inputs);
    end Init_Scheduler;
 
@@ -589,6 +595,10 @@ package body Adaflight.STM32.Flight is
                    Ports, Reply, Stream, Result, Effects);
       if Effects.Font.Write then
          Adaflight.STM32.OSD.Write_Font (Effects.Font.Address, Effects.Font.Data);
+      end if;
+      if Effects.OSD.OSD_Elements or else Effects.OSD.Profile_Change then
+         Adaflight.STM32.OSD.Configure (Config, Version_Text);
+         Adaflight.STM32.OSD.Analyze_Again;
       end if;
       if Effects.Receiver.Modes_Init then
          Adaflight.STM32.Pilot.Reload_Modes (Config);
@@ -1015,7 +1025,8 @@ package body Adaflight.STM32.Flight is
    --  The check function of a task with one: the receiver task's check
    --  over the link; no display yet, so no other is signaled.
    function Check (Id : Scheduler.Task_Id) return Boolean is
-     (Id = Scheduler.Rx and then Adaflight.STM32.Radio.Update_Check (Adaflight.RX_Task.In_Progress (RX_State)));
+     ((Id = Scheduler.Rx and then Adaflight.STM32.Radio.Update_Check (Adaflight.RX_Task.In_Progress (RX_State)))
+      or else (Id = Scheduler.OSD and then Adaflight.STM32.OSD.Task_Due (Adaflight.STM32.Time.Micros)));
 
    --  What the arming logic senses on the board: the link and the failsafe,
    --  the attitude within the small angle once established or no
@@ -1278,6 +1289,58 @@ package body Adaflight.STM32.Flight is
       end loop;
    end Run_Receiver;
 
+   --  The OSD task: the flight's readings for the frame, then one state of
+   --  the task on the display.
+   procedure Run_OSD (Before : Unsigned_32) is
+      F        : Adaflight.STM32.OSD.Facts;
+      Channels : constant Adaflight.RC_Command.Channel_Values := Flight_Channels;
+      Outputs  : constant Adaflight.Mixer.Motor_Outputs := Adaflight.STM32.Control.Motors;
+      Motors   : constant Natural := Natural'Max (1, Natural'Min (8, Adaflight.STM32.Control.Motor_Count));
+      Volts    : constant Natural := Natural'Min (20_000, Bat.Voltage.Display_Filtered);
+      Throttle : constant Float := Adaflight.STM32.Pilot.Throttle_Command;
+      Profile  : Adaflight.Config_Groups.Battery_Profile_Record renames
+        Config.Battery_Profiles (Natural'Min (2, Natural (Config.System_Config.Active_Battery_Profile)));
+   begin
+      F.Armed := Adaflight.STM32.Pilot.Armed;
+      F.Was_Ever_Armed := Adaflight.STM32.Pilot.Was_Ever_Armed;
+      F.Failsafe_Active := Adaflight.STM32.Radio.Failsafe_Active;
+      F.Trying_To_Arm := Adaflight.STM32.Pilot.Trying_To_Arm;
+      F.Arm_Box := Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Arm);
+      F.OSD_Switch := Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.OSD);
+      F.Disabled := Adaflight.STM32.Pilot.Disabled;
+      F.Modes := Adaflight.STM32.Pilot.Flight_Modes;
+      F.Airmode := Adaflight.STM32.Pilot.Airmode_Enabled;
+      F.Crash_Flip_Box := Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Crash_Flip);
+      F.Crash_Flip_Active := Adaflight.STM32.Pilot.Crash_Flip_Active;
+      F.Launch_Control := Adaflight.STM32.Pilot.Launch_Control_Active;
+      F.Acc_Present := Gyro_Report.Acc_Found;
+      F.G_Force := Float'Max (0.0, Float'Min (100.0, Acc_State.Magnitude));
+      F.Roll := Integer_16 (Att_State.Euler.Roll);
+      F.Pitch := Integer_16 (Att_State.Euler.Pitch);
+      F.Yaw :=
+        Adaflight.OSD_Render.Yaw_Decidegrees (Integer'Max (0, Integer'Min (3_599, Integer (Att_State.Euler.Yaw))));
+      F.Throttle_Percent := Integer'Max (0, Integer'Min (100, (Integer (Float'Rounding (Throttle)) - 1_000) / 10));
+      F.Throttle_High := Channels (Adaflight.RC_Command.Throttle_Channel) > 1_750.0;
+      F.Pitch_High := Channels (1) > 1_750.0;
+      F.RSSI_Percent := Unsigned_8 (Natural (Adaflight.STM32.Radio.RSSI) * 100 / 1_023);
+      F.Battery := Bat.Overall;
+      F.Pack_Voltage := Unsigned_16 (Volts);
+      F.Cell_Voltage := (if Bat.Cells > 0 then Unsigned_16 (Volts / Bat.Cells) else 0);
+      F.Full_Cell_Voltage := Unsigned_16 (Bat_Settings.Full_Cell_Voltage);
+      F.Amperage := Integer_32'Max (-100_000, Integer_32'Min (100_000, Integer_32 (Bat.Current.Amperage)));
+      F.MAh_Drawn := Integer_32'Max (0, Integer_32'Min (2 ** 24, Integer_32 (Bat.Current.mAh_Drawn)));
+      F.Battery_Percent := Unsigned_8 (Adaflight.Battery.Percentage_Remaining (Bat, Bat_Settings));
+      F.Battery_Capacity := Profile.Battery_Capacity;
+      F.Motors := Motors;
+      for I in 0 .. Motors - 1 loop
+         F.Motor_Output (I) := Float'Min (3_000.0, Outputs (I));
+      end loop;
+      F.Motors_Running := Adaflight.STM32.Pilot.Armed;
+      F.PID_Index := Config.System_Config.Pid_Profile_Index;
+      F.Rate_Index := Config.System_Config.Active_Rate_Profile;
+      Adaflight.STM32.OSD.Run (F, Before, Sched);
+   end Run_OSD;
+
    --  A task's body between the scheduler's execution prologue and
    --  epilogue, at the clock around its run.
    procedure Run_Body (Id : Scheduler.Task_Id) is
@@ -1311,6 +1374,8 @@ package body Adaflight.STM32.Flight is
             Tasks.Battery_Alerts (Inputs, Before);
          when Scheduler.Beeper =>
             Run_Beeper (Before);
+         when Scheduler.OSD =>
+            Run_OSD (Before);
          when others =>
             null;
       end case;

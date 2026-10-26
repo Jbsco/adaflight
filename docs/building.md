@@ -15,4 +15,4 @@ The host image runs the board's flight software on Linux, with each UART as a TC
     cd targets/host && alr build
     while ./bin/adaflight_host; do :; done
 
-The configuration is kept in `adaflight-eeprom.bin` in the working directory, or in the file `ADAFLIGHT_EEPROM` names.
+The configuration is kept in `adaflight-eeprom.bin` in the working directory, or in the file `ADAFLIGHT_EEPROM` names. With the OSD on, its screen is written to `adaflight-osd.txt`, or to the file `ADAFLIGHT_OSD_SCREEN` names.

@@ -4,10 +4,15 @@
 --  stored canvas fitted to the display, the readiness the OSD replies report
 --  and the font characters a configurator writes.
 with Interfaces;
+with Adaflight.Arming;
+with Adaflight.Battery;
 with Adaflight.Config_Groups;
 with Adaflight.MSP_Font_In;
+with Adaflight.OSD_Render;
 with Adaflight.OSD_Task;
+with Adaflight.Scheduler;
 package Adaflight.STM32.OSD is
+   use type Interfaces.Integer_32;
    --  The select pin as the stored configuration names it, before the SPI
    --  buses start: driven high when the configuration asks for it, else an
    --  input with its pull up.
@@ -31,4 +36,65 @@ package Adaflight.STM32.OSD is
    --  Whether a font character write goes to the chip, which needs it found.
    function Font_Write_Taken return Boolean;
    procedure Write_Font (Address : Interfaces.Unsigned_16; Data : Adaflight.MSP_Font_In.Character_Data);
+
+   --  What the OSD reads from the flight at a frame: the arming and its
+   --  reasons, the failsafe, the boxes and flight modes, the attitude in
+   --  decidegrees, the acceleration in g, the throttle and the sticks, the
+   --  RSSI, the battery in centivolts, centiamps and milliamp hours, the
+   --  motors with their outputs and range, and the profiles.
+   type Facts is record
+      Armed             : Boolean := False;
+      Was_Ever_Armed    : Boolean := False;
+      Failsafe_Active   : Boolean := False;
+      Trying_To_Arm     : Boolean := False;
+      Arm_Box           : Boolean := False;
+      OSD_Switch        : Boolean := False;
+      Disabled          : Adaflight.Arming.Disable_Set := (others => False);
+      Modes             : Adaflight.Arming.Mode_Set := (others => False);
+      Airmode           : Boolean := False;
+      Anti_Gravity      : Boolean := False;
+      Crash_Flip_Box    : Boolean := False;
+      Crash_Flip_Active : Boolean := False;
+      Launch_Control    : Boolean := False;
+      Acc_Present       : Boolean := False;
+      G_Force           : Float range 0.0 .. 100.0 := 0.0;
+      Roll              : Interfaces.Integer_16 := 0;
+      Pitch             : Interfaces.Integer_16 := 0;
+      Yaw               : Adaflight.OSD_Render.Yaw_Decidegrees := 0;
+      Throttle_Percent  : Integer range -100 .. 100 := 0;
+      Throttle_High     : Boolean := False;
+      Pitch_High        : Boolean := False;
+      Aux_Rc            : Float range 0.0 .. 5_000.0 := 1_500.0;
+      RSSI_Percent      : Interfaces.Unsigned_8 range 0 .. 100 := 0;
+      Battery           : Adaflight.Battery.Battery_State := Adaflight.Battery.OK;
+      Pack_Voltage      : Interfaces.Unsigned_16 range 0 .. 20_000 := 0;
+      Cell_Voltage      : Interfaces.Unsigned_16 := 0;
+      Full_Cell_Voltage : Interfaces.Unsigned_16 := 410;
+      Amperage          : Interfaces.Integer_32 range -100_000 .. 100_000 := 0;
+      MAh_Drawn         : Interfaces.Integer_32 range 0 .. 2 ** 24 := 0;
+      Battery_Percent   : Interfaces.Unsigned_8 := 0;
+      Battery_Capacity  : Interfaces.Unsigned_16 := 0;
+      Motors            : Adaflight.OSD_Render.Motor_Count := 4;
+      Motor_Output      : Adaflight.OSD_Render.Motor_Outputs := (others => 0.0);
+      Output_Low        : Float range 0.0 .. 3_000.0 := 1_000.0;
+      Output_High       : Float range 0.0 .. 3_000.0 := 2_000.0;
+      Motors_Running    : Boolean := False;
+      PID_Index         : Interfaces.Unsigned_8 := 0;
+      Rate_Index        : Interfaces.Unsigned_8 := 0;
+   end record;
+
+   --  The OSD's settings from the stored configuration and the firmware's
+   --  version for its boot screen, again after the configuration changes.
+   procedure Configure (C : Adaflight.Config_Groups.Configuration; Version : String)
+     with Pre => Version'Length in 1 .. Adaflight.OSD_Task.Max_Version;
+
+   --  The element positions analyzed again at the next frame.
+   procedure Analyze_Again;
+
+   --  The OSD task's check: due once a frame is.
+   function Task_Due (Now_Us : Interfaces.Unsigned_32) return Boolean;
+
+   --  One state of the OSD task: the display's answers for the state taken
+   --  first, then the state, then its operations done on the display.
+   procedure Run (F : Facts; Now_Us : Interfaces.Unsigned_32; Sched : in out Adaflight.Scheduler.State);
 end Adaflight.STM32.OSD;
