@@ -9401,3 +9401,25 @@ the beeper. The bench check is the command line's `tasks` listing the running ta
 rates and times, `status` with the system load and the gyro locked, and the configurator's setup
 tab following the board's attitude.
 
+
+## D386. STM32F4 configuration store in flash (2026-10-26)
+
+The STM32F4 image keeps its configuration in the internal flash. `Adaflight.STM32.Flash` reads the
+first 8 KB of the last sector, 128 KB at 16#080E_0000#, in place, and writes an image by unlocking
+the controller, erasing the sector, programming 32-bit words and resetting the data cache; the image
+of the core ends below that sector. At boot the main checks the region's structure (D158) and resets
+the store when it is invalid, then loads every group from its defaults and its stored bytes through
+the codec, takes the running features from the stored ones, runs the configuration's checks (D167)
+over the hardware the board knows, takes the board's information in (D183), and resets the store
+again when a group was missing, the stored version is not the core's or the identifier is another
+board's. A reset writes the defaults and reads them back. A write runs the checks, encodes the
+groups and saves the image when any group changed since its hash was taken, programs it and checks
+the region's structure and version back, in up to three attempts; a store that still fails flashes
+its code and resets the core. A message's write request ignores the pass's time for the scheduler,
+writes and reads back before the reply, and the command line's `save` writes before its restart.
+The core's own group layout keeps a reference image from loading (D158), so a board that ran the
+reference starts from defaults.
+
+The image is 838900 bytes of text, 3924 of data and 105832 of zeroed data. The bench check is a
+setting written from the configurator or the command line surviving a power cycle, and `status`
+reporting the configuration configured after a `save`.
