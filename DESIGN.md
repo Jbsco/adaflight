@@ -5322,12 +5322,12 @@ call, key and screen byte matches the reference's.
 ## D229. SRXL display port (2026-10-15)
 
 `Adaflight.SRXL_Display_Port` contains the menu system's side of the Spektrum text generator: a
-character goes to the text buffer through `Put_Char`, a string a character at a time with the
-column stepping as a byte, and a clear writes spaces over the nine rows of twelve characters, then
-the firmware's name at the top. While the menu does not hold the display, the clear adds the three
-lines that tell how to open it. The release clears, and the registration at every SRXL telemetry
-init releases and clears, so the generator shows the name and the three lines from the start. The
-caller gives the name, which keeps it out of the code. The unit is SPARK for the column stepping.
+character goes to the text buffer through `Put_Char`, a string a character at a time with the column
+stepping as a byte, and a clear writes spaces over the nine rows of twelve characters, then the
+firmware's name at the top. While the menu does not hold the display, the clear adds the three lines
+that tell how to open it. The release clears, and the registration at every SRXL telemetry init
+releases and clears, so the generator shows the name and the three lines from the start. The caller
+gives the name, which keeps it out of the code. The unit is SPARK for the column stepping.
 
 The SRXL telemetry oracle compiles the reference display port in and draws, clears, grabs and
 releases between task calls. The harness replays 12000 task calls: every text byte, line flag and
@@ -5339,27 +5339,31 @@ frame byte matches the reference's.
 eight characters with home, the flight plan's waypoints and the flown trail, one row per call. A
 frame is prepared at its first row. The craft and the waypoints are placed east and north of home
 through the longitude difference folded across the antimeridian and the cosine of home's latitude.
-The view is centred on home or on the craft, and with a position and the heading-up setting it
-turns with the craft's heading through the approximate sine and cosine. The width comes from a
-table of steps from 20 m to 51.2 km and is at least the configured minimum. It grows at once to fit
-the craft and the first nine positional waypoints, and shrinks only once the required width is
-under eight tenths of the smaller step. The border carries the up mark and, for 24 frames after a
-change of width (18 for the first), the width in the selected unit, pulsing outward when the map
-zoomed out and inward when it zoomed in.
+The view is centred on home or on the craft, and with a position and the heading-up setting it turns
+with the craft's heading through the approximate sine and cosine. The width comes from a table of
+steps from 20 m to 51.2 km and is at least the configured minimum. It grows at once to fit the craft
+and the first nine positional waypoints, and shrinks only once the required width is under eight
+tenths of the smaller step. The border shows the up mark and, for 24 frames after a change of width
+(18 for the first), the width in the selected unit, pulsing outward when the map zoomed out and
+inward when it zoomed in.
 
-Without home the map shows SET HOME or WAIT GPS. With home it draws, lowest first, a range ring of
-ticks at the largest round radius that fits; the trail as one bar glyph per column for a shallow
-segment and one vertical bar per row for a steep one, clipped to the view, skipping a column whose
-bar sits within a row of the one already there; the waypoint numbers with the executor's waypoint
-blinking; home as a flag, or as an arrow on the nearest edge pointing to it; and the craft as an
-arrow, or within a cell of home as the over-home ring, or NO GPS without a fix. A row past the
-screen's bottom or right edge ends the frame, and a row is cut at the right edge.
+Without home the map shows SET HOME or WAIT GPS. With home it draws, lowest first:
+
+- a range ring of ticks at the largest round radius that fits
+- the trail as one bar glyph per column for a shallow segment and one vertical bar per row for a
+  steep one, clipped to the view, skipping a column whose bar sits within a row of the one already
+  there
+- the waypoint numbers with the executor's waypoint blinking
+- home as a flag, or as an arrow on the nearest edge pointing to it
+- the craft as an arrow, or within a cell of home as the over-home ring, or NO GPS without a fix
+
+A row past the screen's bottom or right edge ends the frame, and a row is cut at the right edge.
 
 The latitude difference wraps in 32 bits, and the longitude difference is taken in 64 bits and
 folded across the antimeridian, as the GPS link's are (finding F58, D6). Rounding follows the C
-library's ties to even, exact past 2 ** 24. The unit is SPARK for the float bounds of the
-projection and the clipping, and the cell indexes. Its place in the OSD's item list comes with the
-flight plan items.
+library's ties to even, exact past 2 ** 24. The unit is SPARK for the float bounds of the projection
+and the clipping, and the cell indexes. Its place in the OSD's item list comes with the flight plan
+items.
 
 The oracle compiles the reference element in with the reference OSD helpers and GPS module, and sets
 the trail, the flight plan, the executor's waypoint and the craft per frame. The harness replays
@@ -5371,11 +5375,11 @@ reference's.
 The OSD units first followed a build without flight plan, navigation map and pitot, with 89 items
 (D102). The full build has 99, and the stored configuration, the settings and the MSP OSD writes
 already contain their positions. `Adaflight.OSD_Elements` gains the eight waypoint items and the map
-before position hold ready, and the airspeed after it, in the reference's order, which moves position
-hold ready from 88 to 97. While a GPS is present the active list adds the waypoint items and the map
-after the efficiency item, and it adds the airspeed last. With every item visible the adds reach 101
-against the reference's array of 99 (finding F106), and the list is sized to 101. The MSP OSD
-replies send the 99 positions.
+before position hold ready, and the airspeed after it, in the reference's order, which moves
+position hold ready from 88 to 97. While a GPS is present the active list adds the waypoint items
+and the map after the efficiency item, and it adds the airspeed last. With every item visible the
+adds reach 101 against the reference's array of 99 (finding F106), and the list is sized to 101. The
+MSP OSD replies send the 99 positions.
 
 `Adaflight.OSD_Render` renders the new items. Without a stored plan the waypoint number, next
 number, coordinates and altitude show a hyphen, and an executor's waypoint past the plan's end is
@@ -5395,20 +5399,21 @@ heading gives the direction arrow, and the time prints as minutes and seconds. T
 the pitot's speed in the selected unit, or a hyphen without the sensor. The map draws through
 `Adaflight.OSD_Nav_Map` (D230) with its settings from the stored configuration.
 
-The OSD oracles now compile the reference with flight plan, map and pitot. The element, render, draw,
-task and MSP OSD recordings change with the item list and are recorded again, and the other OSD
-recordings do not change. A new waypoint oracle renders the nine items with random plans, executor
-values, units, headings and airspeeds. The harness replays 3000 renders: every text byte and draw
-flag matches the reference's, with 14 waypoint altitudes past 400 km.
+The OSD oracles now compile the reference with flight plan, map and pitot. The element, render,
+draw, task and MSP OSD recordings change with the item list and are recorded again, and the other
+OSD recordings do not change. A new waypoint oracle renders the nine items with random plans,
+executor values, units, headings and airspeeds. The harness replays 3000 renders: every text byte
+and draw flag matches the reference's, with 14 waypoint altitudes past 400 km.
 
 ## D232. OSD flight plan warnings (2026-10-15)
 
-`Adaflight.OSD_Warnings` gains the full build's flight plan cues in the reference's order. The rescue
-failure also shows while the flight plan's rescue descent is active. The position hold failure gives
-way to a mission abort, and below it the autopilot mode with an abort reason shows WP GPS LOST, WP
-STALLED, WP FLYAWAY, WP HEADING or WP MAG FAULT, critical and blinking. Next the line reads the
-waypoint capture message and shows it at the info level until it expires. In the autopilot mode the
-landing then shows WP LANDING, and the completed plan WP COMPLETE blinking, both at the info level.
+`Adaflight.OSD_Warnings` gains the full build's flight plan cues in the reference's order. The
+rescue failure also shows while the flight plan's rescue descent is active. The position hold
+failure gives way to a mission abort, and below it the autopilot mode with an abort reason shows WP
+GPS LOST, WP STALLED, WP FLYAWAY, WP HEADING or WP MAG FAULT, critical and blinking. Next the line
+reads the waypoint capture message and shows it at the info level until it expires. In the autopilot
+mode the landing then shows WP LANDING, and the completed plan WP COMPLETE blinking, both at the
+info level.
 
 A read of the capture message clears an expired message, which changes the capture's state. The line
 reads a copy and reports the read, and the target then reads the message itself, as it clears the
@@ -5442,36 +5447,34 @@ rests on the draw vectors' reports and its proof.
 
 `Adaflight.Menu_Nav`'s enter hooks and line functions answer with what they did inside the call: a
 change to a menu, or for a function an exit by a kind, as the reference's content menus call the
-change and the exit themselves before they return. The main menu's enter hook opens the setup
-popup, function lines open the save menu, the VTX device's menu and the accelerometer calibration
-menu, and the battery restore exits. The navigation runs a change made in an enter hook inside the
-change that asked the hook, then the rest of that change on the current menu, in the reference's
-order. It runs a function's change or exit after the call, then the way back when the function asks
-for it and the menu is still open. A function that exits and asks for the way back would make the
-reference read the closed menu, and no reference function does, so the port leaves that way back
-out. No recorded vector reaches the guard.
+change and the exit themselves before they return. The main menu's enter hook opens the setup popup,
+function lines open the save menu, the VTX device's menu and the accelerometer calibration menu, and
+the battery restore exits. The navigation runs a change made in an enter hook inside the change that
+asked the hook, then the rest of that change on the current menu. It runs a function's change or
+exit after the call, then the way back when the function asks for it and the menu is still open. A
+function that exits and asks for the way back would make the reference read the closed menu, and no
+reference function does, so the port leaves that way back out. No recorded vector reaches the guard.
 
-An exit line now calls its function too. The target answers the exit by the line's kind, as the
-reference's exit function takes it, or with the change or exit its own function made, as the
-SmartAudio and Tramp commit lines do. A change nested in enter hooks past 21 levels is left out,
-since the menu stack's limit ends the reference's nesting before that. After a lookup table line's
-function changed the menu, the reboot check compares the edited value, as the reference reads the
-line's variable, not the new menu's line. `Adaflight.Menu` holds the exit kinds and the answer.
+An exit line now calls its function too. The target answers the exit by the line's kind, or with the
+change or exit its own function made, as the SmartAudio and Tramp commit lines do. A change nested
+in enter hooks past 21 levels is left out, since the menu stack's limit ends any nesting before
+that. After a lookup table line's function changed the menu, the reboot check compares the edited
+line's variable, not the new menu's line. `Adaflight.Menu` contains the exit kinds and the answer.
 
 The menu oracle's hooks now change the menu and exit at random inside themselves, and some exit
 lines get a function of the menu's own. The harness replays the six sequences' 179171 lines, with
-408 changes in enter hooks and 154 changes and 114 exits in functions: every display operation,
-hook call, context, stack frame, display state and page matches the reference's.
+408 changes in enter hooks and 154 changes and 114 exits in functions: every display operation, hook
+call, context, stack frame, display state and page matches the reference's.
 
 ## D235. Menu line refresh (2026-10-15)
 
-The reference reads a line's variable each time it draws the line's value or handles a key on it,
-so a value a hook or a function changed shows at the next draw. `Adaflight.Menu_Draw` and
+The reference reads a line's variable each time it draws the line's value or handles a key on it, so
+a value a hook or a function changed shows at the next draw. `Adaflight.Menu_Draw` and
 `Adaflight.Menu_Nav` gain the target's refresh of the current menu's lines: the draw refreshes them
-after the display update hook and before it writes the lines, and the key handler before it reads the
-line under the cursor. A refresh updates the lines' texts, values and value texts, and the proof
-carries the line count and the fixed-point values' range through it. Lines loaded before an enter
-hook show the values the hook set from the next draw on, as the reference's do.
+after the display update hook and before it writes the lines, and the key handler before it reads
+the line under the cursor. A refresh updates the lines' texts, values and value texts, and the proof
+keeps the line count and the fixed-point values' range through it. Lines loaded before an enter hook
+show the values the hook set from the next draw on.
 
 The menu oracle's enter and display update hooks now give a random line's variable a new value
 within its type, and the harness's value store takes it from the hook log. The harness replays the
@@ -5481,13 +5484,13 @@ and page matches the reference's. Without the refresh, drawn values and edits di
 ## D236. Menu target state (2026-10-15)
 
 `Adaflight.Menu_Nav` and `Adaflight.Menu_Draw` gain a formal type for the target's state, passed in
-out through every operation that reaches a hook: open, change, way back, draw, keys, exit and update.
-The loading, the hooks, the value store, the refresh and the lookup take it, so the menus can read
-and write the configuration, the readings and their own temporary values in the target's state, as
-the reference's menus use their files' statics and the parameter groups. The core keeps no package
-state, so the menus' state stays with the target. The hook sets and the target's actions take no
-state. The proof shapes count the hook calls in the state, and the harness passes an empty state
-over its value store. Every recorded menu line replays as before.
+out through every operation that reaches a hook: open, change, way back, draw, keys, exit and
+update. The loading, the hooks, the value store, the refresh and the lookup take it, so the menus
+can read and write the configuration, the readings and their own temporary values in the target's
+state. The reference's menus keep these in their files' statics and the parameter groups. The core
+keeps no package state, so the menus' state stays with the target. The hook sets and the target's
+actions take no state. The proof shapes count the hook calls in the state, and the harness passes an
+empty state over its value store. Every recorded menu line replays as before.
 
 ## D237. Menu contents: quick, main, features, setup and save menus (2026-10-15)
 
@@ -5500,22 +5503,22 @@ OSD's setting asks for it, as by default, else on the main menu.
 The quick menu copies the current rate profile, the active battery profile and the current PID
 profile's motor output limit on entry, edits the throttle limit type and percentage, the motor
 output limit and the forced cell count, and writes them back on the way back or a save, with a
-request for the PID controller's setup. Its main menu line opens the main menu, which the reference
-does not stack. The main menu's entry builds the setup popup: a line for the accelerometer
-calibration when arming waits for it, one for the battery restore when charge was drawn, and the
-exit, and opens it when a line came in besides the exit. The popup's display update sets the
-calibration status and the restore text, and the restore asks the runtime to set the charge drawn
-back to the stored value, clears the stored value and exits. The main menu's save line opens the save
-menu by the reboot flag. The restore label is cut to the reference's 18-byte buffer, which a stored
-charge of 100000 mAh or more overruns there (finding F208). `Adaflight.Menu_Content_Shape`
-instantiates the navigation over the menus for the proof.
+request for the PID controller's setup. Its main menu line opens the main menu without stacking the
+quick menu. The main menu's entry builds the setup popup: a line for the accelerometer calibration
+when arming waits for it, one for the battery restore when charge was drawn, and the exit, and opens
+it when a line came in besides the exit. The popup's display update sets the calibration status and
+the restore text, and the restore asks the runtime to set the charge drawn back to the stored value,
+clears the stored value and exits. The main menu's save line opens the save menu by the reboot flag.
+The restore label is cut to the reference's 18-byte buffer, which a stored charge of 100000 mAh or
+more overruns there (finding F208). `Adaflight.Menu_Content_Shape` instantiates the navigation over
+the menus for the proof.
 
 The menu contents oracle (`settings/cms_oracle.c`) links the reference's menu system and all its
-menus over the settings oracle's configuration, scripts the popup's readings, the reboot flag and the
-quick menu's profiles, and presses random keys with a draw after each, replacing a right key that
-would enter a menu of a later slice with a down key. The harness replays 240 sessions with 11960 keys
-and 11960 draws: every display operation, menu context, page, request and configuration hash matches
-the reference's, over 51 battery restores and 739 quick menu write backs.
+menus over the settings oracle's configuration, scripts the popup's readings, the reboot flag and
+the quick menu's profiles, and presses random keys with a draw after each, replacing a right key
+that would enter a menu of a later slice with a down key. The harness replays 240 sessions with
+11960 keys and 11960 draws: every display operation, menu context, page, request and configuration
+hash matches the reference's, over 51 battery restores and 739 quick menu write backs.
 
 ## D238. Power, failsafe and RPM limit menus (2026-10-15)
 
@@ -5524,37 +5527,37 @@ the way back or a save. The power menu edits the voltage and current meter sourc
 reboot when changed, the active battery profile's minimum, maximum and warning cell voltages, the
 voltage meter's scale, and the current meter's and the virtual current meter's scales and offsets.
 The failsafe menu edits the procedure, the guard time as tenths of a second, the landing time and
-the stage 2 throttle, each asking for a reboot when changed; this build has no GPS rescue line in it.
-The RPM limit menu, reached from the quick menu, switches the limit, edits its value in steps of 100
-and the motors' KV, and has its own save and reboot line. The menus' copies, like the reference's
-file statics, stay in the target's state between openings.
+the stage 2 throttle, each asking for a reboot when changed. This build has no GPS rescue line in
+it. The RPM limit menu, reached from the quick menu, switches the limit, edits its value in steps of
+100 and the motors' KV, and has its own save and reboot line. The menus' copies stay in the target's
+state between openings.
 
-The menu contents oracle now draws these menus' settings at random, within and past their ranges, and
-walks deeper with fewer escape and save keys. The harness replays 240 sessions with 19513 keys and
-19513 draws, 962 of their states in the power menu, 320 in the failsafe menu and 3772 in the RPM limit
-menu: every display operation, menu context, page, request and configuration hash matches the
+The menu contents oracle now draws these menus' settings at random, within and past their ranges,
+and walks deeper with fewer escape and save keys. The harness replays 240 sessions with 19513 keys
+and 19513 draws, 962 of their states in the power menu, 320 in the failsafe menu and 3772 in the RPM
+limit menu: every display operation, menu context, page, request and configuration hash matches the
 reference's.
 
 ## D239. Misc, RC preview and persistent statistics menus (2026-10-15)
 
-A hook's answer in `Adaflight.Menu` gains the display operations the hook made, up to six clears that
-wait, texts and redraws, and the save menu's inhibition. The navigation carries them out after the
-hook returns and before the menu change or exit the hook made, in the order the reference's hooks
-make them inside the call. The proof shape's hooks answer with operations of every kind.
+A hook's answer in `Adaflight.Menu` gains the display operations the hook made, up to six clears
+that wait, texts and redraws, and the save menu's inhibition. The navigation performs them after the
+hook returns and before the menu change or exit the hook made, in the order the hook made them. The
+proof shape's hooks answer with operations of every kind.
 
 `Adaflight.Menu_Content` gains the misc menu, which copies the motor idle offset in tens, cut to a
-byte as the reference's copy is, the camera angle and the crash flip rate, with lines into the RC
-preview and into the GPS lap timer of a later slice. The RC preview inhibits the save menu on entry,
-rounds the eight channels to whole numbers with ties to even at each display update, shows them as
-values the keys leave alone, and lets the way back through only from its back line. Its lines list
-the throttle before the yaw, while the channels come yaw first. The persistent statistics menu
-copies the flight, time and distance totals and the minimum armed time, and its reset line zeroes
-the totals and clears and redraws the display.
+byte, the camera angle and the crash flip rate, with lines into the RC preview and into the GPS lap
+timer of a later slice. The RC preview inhibits the save menu on entry, rounds the eight channels to
+whole numbers with ties to even at each display update, shows them as values the keys leave alone,
+and lets the way back through only from its back line. Its lines list the throttle before the yaw,
+while the channels come yaw first. The persistent statistics menu copies the flight, time and
+distance totals and the minimum armed time, and its reset line zeroes the totals and clears and
+redraws the display.
 
 The menu contents oracle draws the new settings, and eight channel readings with quarter fractions
-at every draw. The harness replays 240 sessions with 19788 keys and 19788 draws, 1722 of their states
-in the misc menu, 1076 in the RC preview and 274 in the persistent statistics menu: every display
-operation, menu context, page, request and configuration hash matches the reference's.
+at every draw. The harness replays 240 sessions with 19788 keys and 19788 draws, 1722 of their
+states in the misc menu, 1076 in the RC preview and 274 in the persistent statistics menu: every
+display operation, menu context, page, request and configuration hash matches the reference's.
 
 ## D240. Firmware and calibration menus (2026-10-15)
 
@@ -5573,47 +5576,48 @@ accelerometer is present. That menu's start line requests the calibration when t
 present and goes back in every case.
 
 The menu contents oracle builds the reference's firmware menu with a neutral identifier and version,
-scripts gyro and barometer readings, gives manufacturer and board names longer than their copies, and
-counts calibration requests. The harness replays 240 sessions with 19889 keys and 19889 draws, 702 of
-their states in the firmware menu, 744 in the calibration menu and 500 in the accelerometer
+scripts gyro and barometer readings, gives manufacturer and board names longer than their copies,
+and counts calibration requests. The harness replays 240 sessions with 19889 keys and 19889 draws,
+702 of their states in the firmware menu, 744 in the calibration menu and 500 in the accelerometer
 calibration menu, with 42 gyro, 59 accelerometer and 3 barometer calibration requests: every display
 operation, menu context, page, request and configuration hash matches the reference's.
 
 ## D241. GPS lap timer menus (2026-10-15)
 
-`Adaflight.Menu_Content` gains the GPS lap timer menu, which the misc menu leads to, and its set gate
-menu. The lap timer menu copies the gate radius and the minimum lap time on entry and stores them on
-the way out. Entering the set gate menu asks the runtime to start setting the gate, and leaving it asks
-the runtime to end, for `Adaflight.GPS_Lap_Timer.Start_Set_Gate` and `End_Set_Gate`. The set gate menu
-shows the readings taken and the distance to the gate as dynamic values with a zero step, which the
-keys leave unchanged.
+`Adaflight.Menu_Content` gains the GPS lap timer menu, which the misc menu leads to, and its set
+gate menu. The lap timer menu copies the gate radius and the minimum lap time on entry and stores
+them on the way out. Entering the set gate menu asks the runtime to start setting the gate, and
+leaving it asks the runtime to end, for `Adaflight.GPS_Lap_Timer.Start_Set_Gate` and `End_Set_Gate`.
+The set gate menu shows the readings taken and the distance to the gate as dynamic values with a
+zero step, which the keys leave unchanged.
 
-The reference's SET POSITION line is a function call line that changes to the set gate menu and draws
-the menu structure's first bytes, its hook addresses, as the line's value (F209). adaflight's line is a
-submenu line to the same menu, with `>` alone as its value: a deviation from the reference.
+The reference's SET POSITION line is a function call line that changes to the set gate menu and
+draws the menu structure's first bytes, its hook addresses, as the line's value (F209). adaflight's
+line is a submenu line to the same menu, with `>` alone as its value: a deviation from the
+reference.
 
-The menu contents oracle builds the reference's lap timer menu with that line typed as a submenu line,
-scripts gate readings and distances at every draw, and counts the gate setting requests. It now also
-changes now and then to a random menu other than the setup popup, as a submenu line would, which the
-harness repeats through `Change`. The harness replays 240 sessions with 19491 keys, 773 menu changes
-and 20264 draws, 386 of their states in the lap timer menu and 522 in the set gate menu, with 69 gate
-setting starts and 44 ends: every display operation, menu context, page, request and configuration
-hash matches the reference's.
+The menu contents oracle builds the reference's lap timer menu with that line typed as a submenu
+line, scripts gate readings and distances at every draw, and counts the gate setting requests. It
+now also changes now and then to a random menu other than the setup popup, as a submenu line would,
+which the harness repeats through `Change`. The harness replays 240 sessions with 19491 keys, 773
+menu changes and 20264 draws, 386 of their states in the lap timer menu and 522 in the set gate
+menu, with 69 gate setting starts and 44 ends: every display operation, menu context, page, request
+and configuration hash matches the reference's.
 
 ## D242. LED strip menu (2026-10-15)
 
 `Adaflight.Menu_Content` gains the LED strip menu. The target gains the features active at run time.
-On entry the menu copies whether the strip's feature is active, the profile, the race and beacon colors,
-the beacon's period, on share and armed-only switch, and the visual beeper with its color. On the way
-out an enabled strip sets the feature in both the configured and the active features and asks the
-runtime to turn the strip on. A disabled strip asks the runtime to turn it off, then clears the
-feature in both. The profile is stored only when it is one of the three, and the other copies are
-stored as they are.
+On entry the menu copies whether the strip's feature is active, the profile, the race and beacon
+colors, the beacon's period, on share and armed-only switch, and the visual beeper with its color.
+On the way out an enabled strip sets the feature in both the configured and the active features and
+asks the runtime to turn the strip on. A disabled strip asks the runtime to turn it off, then clears
+the feature in both. The profile is stored only when it is one of the three, and the other copies
+are stored as they are.
 
 The menu contents oracle scripts the strip's feature, configured and active apart now and then, and
 the strip's settings, and counts the strip's enables and disables. The harness now starts each
-sequence's first session from a fresh target, as the oracle runs each sequence in a new process whose
-menu copies start at zero. It replays 240 sessions with 18990 keys, 797 menu changes and 19787
+sequence's first session from a fresh target, as the oracle runs each sequence in a new process
+whose menu copies start at zero. It replays 240 sessions with 18990 keys, 797 menu changes and 19787
 draws, 1002 of their states in the LED strip menu, with 48 enables and 25 disables: every display
 operation, menu context, page, request, active feature set and configuration hash matches the
 reference's.
@@ -5632,14 +5636,14 @@ hertz as the reference casts it (F210). The counts print as a signed 32-bit numb
 and each text is cut to the reference's seven characters (F211). The debug mode names come from the
 command line's table, which holds the reference's names. On the way out the device is stored only
 while the recorder lets its configuration change, with a device other than flash, SD card or serial
-port stored as none; the sample rate and debug mode are stored as they are.
+port stored as none. The sample rate and debug mode are stored as they are.
 
 The erase confirmation, with flash support, clears the display, writes `ERASING FLASH...`, redraws,
 asks the runtime to erase the flash and to beep when done, clears and redraws again, sets the status
 again with the flash's offset at zero, and goes back. The reference's erase blocks until the flash
 is ready, so its status shows the erased flash. The mass storage confirmation, when the file system
 is ready, clears the display, writes its two lines, redraws and asks the runtime to reset into mass
-storage with the time zone offset; otherwise it writes its failure line, redraws and goes back.
+storage with the time zone offset. Otherwise it writes its failure line, redraws and goes back.
 
 The menu contents oracle scripts the readings, the configured device, sample rate, debug mode and
 time zone, completes an erase at once, and counts the erases, beeps and resets. The harness sets the
