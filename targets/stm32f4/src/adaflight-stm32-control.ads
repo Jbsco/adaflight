@@ -1,0 +1,57 @@
+--  The control loop on the board: the rate controller and the mixer with
+--  their settings from the stored configuration, run as the PID loop pass
+--  over the units in the task's order. The motors have no driver yet, so
+--  the outputs stop at the mixer and the replies.
+with Interfaces;
+with Adaflight.Arming;
+with Adaflight.Config_Groups;
+with Adaflight.Mixer;
+with Adaflight.PID_Controller;
+with Adaflight.RC_Command;
+package Adaflight.STM32.Control is
+   subtype Time_Us is Interfaces.Unsigned_32;
+   --  What the pass reads from the board: the time, the arming, the
+   --  accelerometer, the failsafe and the 3D switch, the filtered rates with
+   --  the gyro's overflow and yaw spin detections, the attitude with the
+   --  level trims, the tilt and the throttle correction, the accelerometer's
+   --  jerk, and the receiver's throttle channel.
+   type Inputs is record
+      Now_Us              : Time_Us := 0;
+      Armed               : Boolean := False;
+      Acc_Present         : Boolean := False;
+      Failsafe            : Boolean := False;
+      Box_3D              : Boolean := False;
+      Gyro                : Adaflight.PID_Controller.Axis_Rates := (others => 0.0);
+      Gyro_Overflow       : Boolean := False;
+      Yaw_Spin            : Boolean := False;
+      Attitude            : Adaflight.PID_Controller.Level_Angles := (others => 0);
+      Trims               : Adaflight.PID_Controller.Level_Trims := (others => 0);
+      Cos_Tilt            : Float := 1.0;
+      Throttle_Correction : Integer := 0;
+      Jerk_Magnitude      : Float := 0.0;
+      RC_Data_Throttle    : Float := 1_000.0;
+   end record;
+   --  The settings from the configuration over the pilot's selected
+   --  profiles; the states start over.
+   procedure Init (Config : Adaflight.Config_Groups.Configuration; Runtime_Features : Interfaces.Unsigned_32);
+   --  What the arming's receiver pass asked of the controller: the
+   --  stabilisation state and the zero throttle I term reset, kept until the
+   --  next receiver pass.
+   procedure Set_Stabilisation (Enabled : Boolean; Iterm_Reset : Boolean);
+   --  What the arming's modes pass asked: the anti-gravity state.
+   procedure Set_Anti_Gravity (Enabled : Boolean);
+   --  One PID loop pass: the yaw reset when the sticks ask for it, the RC
+   --  command, the controller with the runaway check, and the mix, with the
+   --  servos, the flight log and the PID audio as the pass's conditions
+   --  name them; Asked is what the runaway check asked.
+   procedure Pass
+     (I : Inputs; Sensed : Adaflight.Arming.Inputs; Channels : Adaflight.RC_Command.Channel_Values;
+      Resets_Yaw, Uses_Servos, CLI_Open, PID_Audio : Boolean; Asked : out Adaflight.Arming.Outputs);
+   --  Whether the mixer's throttle step changed on the last pass, which
+   --  moves the gyro's dynamic lowpass, and the throttle it moved to.
+   function Throttle_Step_Changed return Boolean;
+   function Throttle_Step return Float;
+   function Motors return Adaflight.Mixer.Motor_Outputs;
+   function Motor_Count return Natural;
+   function PID_Sums return Adaflight.Arming.Axis_Sums;
+end Adaflight.STM32.Control;
