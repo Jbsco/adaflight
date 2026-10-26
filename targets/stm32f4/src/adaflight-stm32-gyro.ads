@@ -29,7 +29,12 @@ package Adaflight.STM32.Gyro is
    --  The detection and initialization with the hardware filter setting, the
    --  high range option and the configured accelerometer hardware.
    procedure Start (Hardware_LPF : Byte; High_Range : Boolean; Acc_Configured : Byte; R : out Report);
-   procedure Read (Gyro, Acc : out Axis_Values; OK : out Boolean);
+   procedure Read_Gyro (Raw : out Axis_Values; OK : out Boolean);
+   procedure Read_Acc (Raw : out Axis_Values; OK : out Boolean);
    function Mode return Read_Mode;
+   --  What the scheduler's gyro lock reads: the interrupt count, the cycle
+   --  count of the last sync and whether the chip syncs to a short period.
    function Interrupt_Count return Interfaces.Unsigned_32;
+   function Sync_Cycles return Interfaces.Unsigned_32;
+   function Short_Period return Boolean;
 end Adaflight.STM32.Gyro;

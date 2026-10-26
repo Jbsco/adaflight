@@ -14,6 +14,7 @@ with Adaflight.STM32.SPI;
 with Adaflight.STM32.Time;
 package body Adaflight.STM32.Gyro is
    use type Interfaces.Unsigned_8;
+   use type Interfaces.Integer_32;
    Read_Bit : constant Byte := 16#80#;
 
    --  The gyro's SPI device: its select pin, its data ready line, the bytes
@@ -322,15 +323,17 @@ package body Adaflight.STM32.Gyro is
       Acc_Detect.Detect (Acc_Build, Acc_Configured, State.Sensor, R.Acc_Hardware, R.Acc_Found);
    end Start;
 
-   procedure Read (Gyro, Acc : out Axis_Values; OK : out Boolean) is
-      Gyro_OK, Acc_OK : Boolean;
+   procedure Read_Gyro (Raw : out Axis_Values; OK : out Boolean) is
    begin
-      Layer.Read_Gyro_SPI (Bus, State, Gyro_OK);
-      Layer.Read_Acc_SPI (Bus, State, Acc_OK);
-      Gyro := (State.Raw (0), State.Raw (1), State.Raw (2));
-      Acc := (State.Acc_Raw (0), State.Acc_Raw (1), State.Acc_Raw (2));
-      OK := Gyro_OK and then Acc_OK;
-   end Read;
+      Layer.Read_Gyro_SPI (Bus, State, OK);
+      Raw := (State.Raw (0), State.Raw (1), State.Raw (2));
+   end Read_Gyro;
+
+   procedure Read_Acc (Raw : out Axis_Values; OK : out Boolean) is
+   begin
+      Layer.Read_Acc_SPI (Bus, State, OK);
+      Raw := (State.Acc_Raw (0), State.Acc_Raw (1), State.Acc_Raw (2));
+   end Read_Acc;
 
    function Mode return Read_Mode is
      (case State.Mode is
@@ -340,4 +343,8 @@ package body Adaflight.STM32.Gyro is
          when Layer.EXTI_No_Int  => No_Interrupt);
 
    function Interrupt_Count return Unsigned_32 is (Data_Ready.Count);
+
+   function Sync_Cycles return Unsigned_32 is (State.Sync_EXTI);
+
+   function Short_Period return Boolean is (State.Short_Period /= 0);
 end Adaflight.STM32.Gyro;

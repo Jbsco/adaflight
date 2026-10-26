@@ -9369,3 +9369,35 @@ and opens its command line tab alone for any other, so the full tabs need its va
 to `ADFL`: three string comparisons in its source, at the connect gate, the command line completion
 and the build information read. That build is the adaflight-configurator repository, the upstream
 configurator's history with adaflight's changes on its main branch. The bench check moves to it.
+
+## D385. STM32F4 scheduler and sensor tasks (2026-10-26)
+
+The STM32F4 image runs the scheduler (D38) in place of its millisecond loop. `Adaflight.STM32.Flight`
+holds the board's flight software: the configuration, the MSP context and the command line
+environment, the gyro filters (D26), the accelerometer and the attitude estimate with their settings
+from the configuration (D187), the scheduler with its settings, and the core loop's cadence (D190).
+The start runs the gyro's start (D383), the configuration's gyro checks, the loop ratio from the PID
+loop setting, the gyro filters at the gyro's sample period with its scale, the accelerometer at its
+sample rate and count for one g, the attitude estimate, the gyro calibration, and after the data
+ready wait the task setup (D160) over the tasks the image serves: the system load, the main and
+serial tasks, the realtime gyro, filter and PID tasks, the accelerometer and attitude tasks, and the
+receiver task, whose check finds no frames yet. The pass takes the scheduler's phases as the harness
+does, with the clock from the runtime at cycle resolution and the core's cycle counter: the realtime
+block at the gyro's target with the gyro task reading the sensor into the filters' accumulation and
+the cadence, the filter task when the cadence says so, the PID task's slot empty until the control
+loop reaches the board, the failsafe check mark, and the gyro lock from the interrupt count, the sync
+cycles and the chip's short period; then the selection over the queue, the held task's run and the
+pass's end. The serial task is the MSP port and the command line of D382, evaluating the other data
+while disarmed, and reads the PID loop's delta and the system load into the status reply first. The
+task functions (D192) take the serial and accelerometer tasks and no step for the units the board
+has no driver for. The attitude task takes the filters' attitude lowpass and the accelerometer
+without a compass, disarmed and without the angle or headfree modes. The raw readings reply takes
+the filtered rates as counts and the calibrated accelerometer over the one g divisor; the attitude
+replies take the angles and the quaternion.
+
+The image is 825352 bytes of text, 3512 of data and 105448 of zeroed data. The yaw spin recovery
+waits for the receiver's rates setup, the RPM notches for the motors and the calibration tone for
+the beeper. The bench check is the command line's `tasks` listing the running tasks with their
+rates and times, `status` with the system load and the gyro locked, and the configurator's setup
+tab following the board's attitude.
+
