@@ -9452,3 +9452,30 @@ The image is 849196 bytes of text, 4620 of data and 111984 of zeroed data. The b
 CRSF receiver on UART3 assigned the serial receiver function in the ports tab, with the receiver tab
 following the sticks and `status` reporting the receiver signal.
 
+## D388. STM32F4 arming logic and modes (2026-10-26)
+
+The STM32F4 image runs the arming logic (D24), the modes and the RC commands on the receiver task.
+`Adaflight.STM32.Pilot` holds their states and settings from the stored configuration over the
+selected PID and rate profiles (D187), with the sensors detected, the gyro's sample period and loop
+ratio and a CRSF receiver as the facts beside it, and reads the settings again when a stick command
+or the command line selects a profile and the mode conditions again when a message or the command
+line changes them. The receiver task's check step, once the channels were processed, tracks the
+frame rate for the RC command smoothing and runs the arming's receiver pass; the modes step runs the
+arming's modes pass over the auxiliary channels with the task's delta time; the update step runs the
+RC commands and the arming status, in the reference's order (D123). What the arming logic senses
+comes from the board before each step: the link and the failsafe, the attitude within the small
+angle once established, the calibrations, the scheduler's late share, the filtered rates, the stick
+deflections and the command line; no motor protocol runs yet, so arming stays disabled by that
+reason until the motors reach the board. What the passes ask, the board serves: the gyro and
+accelerometer calibrations, the profile selections, the trims and the saves, the first arming
+calibration, the headfree offset, the failsafe's monitoring, which left the receiver link for this
+output, and the attitude task's rate with the level modes. The adjustments, the beeper, the DShot
+commands, the statistics, the telemetry ports and the VTX wait for their units on the board. The
+replies take the disable reasons, the flight mode flags, the active boxes and the armed flag, and a
+message's disarm, accelerometer calibration and mode change requests reach the units.
+
+The image is 881216 bytes of text, 4628 of data and 114512 of zeroed data, 35 KB below the
+configuration sector, which the next pieces will want moved (D386). The bench check is the
+configurator's modes tab following a switch, `status` listing the arming disable reasons, and the
+stick commands calibrating the gyro.
+

@@ -25,12 +25,15 @@ with Adaflight.Mixer;
 with Adaflight.Mixer_Init;
 with Adaflight.MSP_Common_Out;
 with Adaflight.MSP_Control_In;
+with Adaflight.MSP_Box;
 with Adaflight.MSP_Hardware_Out;
 with Adaflight.MSP_Motor_In;
+with Adaflight.Modes;
 with Adaflight.MSP_Out;
 with Adaflight.MSP_Port;
 with Adaflight.MSP_Processor;
 with Adaflight.PID_Config;
+with Adaflight.RC_Command;
 with Adaflight.Receiver;
 with Adaflight.RPM_Filter;
 with Adaflight.RX_Task;
@@ -40,6 +43,7 @@ with Adaflight.STM32.Console;
 with Adaflight.STM32.Flash;
 with Adaflight.STM32.GPIO;
 with Adaflight.STM32.Gyro;
+with Adaflight.STM32.Pilot;
 with Adaflight.STM32.Radio;
 with Adaflight.STM32.SPI;
 with Adaflight.STM32.Time;
@@ -129,6 +133,12 @@ package body Adaflight.STM32.Flight is
    --  the hash of each group's stored bytes.
    Runtime_Features : Unsigned_32 := 0;
    RX_State         : Adaflight.RX_Task.State;
+   Pilot_Facts      : Adaflight.STM32.Pilot.Facts;
+   --  The attitude task's periods with the level modes on and off.
+   Attitude_Period_Slow_Us : constant Scheduler.Time_Delta := 10_000;
+   Attitude_Period_Fast_Us : Scheduler.Time_Delta := 2_000;
+
+   procedure Apply (Step : Adaflight.Arming.Outputs);
    Hashes           : Adaflight.Config_Store.Hash_List (1 .. Adaflight.Config_Codec.Group_Count) := (others => 0);
    --  The divisor of the accelerometer counts in the raw readings reply, by
    --  the count for one g.
@@ -474,6 +484,10 @@ package body Adaflight.STM32.Flight is
          Sample_Rate_Hz => Acc_Hz, One_G => Adaflight.STM32.Gyro.Acc_One_G,
          Features => Config.Feature_Config.Enabled_Features);
       Adaflight.Accelerometer.Init (Acc_State, Acc_Settings);
+      Attitude_Period_Fast_Us :=
+        Scheduler.Time_Delta'Max
+          (100, Scheduler.Time_Delta
+                  (1_000_000 * Natural'Max (1, Natural (Config.Imu_Config.Imu_Process_Denom)) / Acc_Hz));
       Att_Config := Adaflight.Attitude.Configure
         (Adaflight.Config_Runtime.Attitude_Settings_Of (Config.Imu_Config, Config.Throttle_Correction_Config));
       Adaflight.Attitude.Init (Att_State);
@@ -513,12 +527,23 @@ package body Adaflight.STM32.Flight is
    --  configuration with its read back, then its reply framed and sent.
    procedure Answer is
       Unused_Success : Boolean;
+      Asked          : Adaflight.Arming.Outputs;
    begin
       Env.Now_Us := Now_Ms * 1000;
       Env.Status.Uptime_Ms := Now_Ms;
       Adaflight.Stream_Buffers.Init (Stream, 0, Reply'Length);
       MSP.Process (Ctx, Config, Board, Links, Unsigned_16 (Port.Command_Id), Port.Data (0 .. Port.Data_Size - 1),
                    Ports, Reply, Stream, Result, Effects);
+      if Effects.Receiver.Modes_Init then
+         Adaflight.STM32.Pilot.Reload_Modes (Config);
+      end if;
+      if Effects.Control.Acc_Calibration then
+         Adaflight.Accelerometer.Start_Calibration (Acc_State);
+      end if;
+      if Effects.Control.Disarm then
+         Adaflight.STM32.Pilot.Disarm (Adaflight.STM32.Time.Micros, Asked);
+         Apply (Asked);
+      end if;
       if Effects.Save then
          Scheduler.Ignore_Task_State_Time (Sched);
          Write_Configuration;
@@ -553,10 +578,15 @@ package body Adaflight.STM32.Flight is
       end if;
       if Session.Open then
          if Waiting > 0 then
-            Env.Status.Arming_Disabled (Adaflight.Arming.CLI_Open) := Session.Arming_Held;
             Terminal.Process (Session, Into, Pending (0 .. Waiting - 1), Now_Ms, Config, Ports, Env, Board, Sched,
                               Changes);
             Waiting := 0;
+            if Changes.Modes then
+               Adaflight.STM32.Pilot.Reload_Modes (Config);
+            end if;
+            if Changes.PID_Profile or else Changes.Rate_Profile then
+               Adaflight.STM32.Pilot.Configure (Config, Runtime_Features, Pilot_Facts);
+            end if;
             if Changes.Save then
                Write_Configuration;
             end if;
@@ -704,25 +734,150 @@ package body Adaflight.STM32.Flight is
    function Check (Id : Scheduler.Task_Id) return Boolean is
      (Id = Scheduler.Rx and then Adaflight.STM32.Radio.Update_Check (Adaflight.RX_Task.In_Progress (RX_State)));
 
+   --  What the arming logic senses on the board: the link and the failsafe,
+   --  the attitude within the small angle once established or no
+   --  accelerometer, the calibrations, no motor protocol yet, the scheduler's
+   --  late share, the filtered rates and the stick deflections, and the
+   --  command line.
+   function Sense return Adaflight.Arming.Inputs is
+      Sensed : Adaflight.Arming.Inputs;
+   begin
+      Sensed.Rx_Signal := Adaflight.STM32.Radio.Receiving;
+      Sensed.Failsafe_Receiving := Adaflight.STM32.Radio.Failsafe_Receiving;
+      Sensed.Failsafe_Active := Adaflight.STM32.Radio.Failsafe_Active;
+      Sensed.Failsafe_Monitoring := Adaflight.STM32.Radio.Failsafe_Monitoring;
+      Sensed.Upright := not Gyro_Report.Acc_Found
+        or else (Att_State.Established
+                 and then Adaflight.Attitude.Cos_Tilt (Att_State) > Att_Config.Small_Angle_Cos);
+      Sensed.Gyro_Calibrated := Adaflight.Gyro_Filters.Calibration_Complete (Gyro_State);
+      Sensed.Acc_Calibrated := Adaflight.Accelerometer.Calibration_Complete (Acc_State);
+      Sensed.Acc_Has_Calibration := Config.Accelerometer_Config.Acc_Zero (3) /= 0;
+      Sensed.First_Arm_Gyro_Cal_Running := Adaflight.Gyro_Filters.First_Arm_Calibration_Running (Gyro_State);
+      Sensed.Motor_Protocol_Enabled := False;
+      Sensed.Late_Permille := Scheduler.CPU_Percentage_Late (Sched);
+      for A in Adaflight.Axes.Axis loop
+         Sensed.Gyro_Abs_Dps (A) := Natural (Float'Min (65_535.0, abs Gyro_State.Filtered (A)));
+      end loop;
+      Sensed.Deflection_Abs := Adaflight.STM32.Pilot.Deflections;
+      Sensed.CLI_Mode := Session.Open;
+      return Sensed;
+   end Sense;
+
+   --  What the arming logic asked of the board after a step: the stick
+   --  commands the board can serve, the saves, the trims, the first arming
+   --  calibration, the headfree offset, the failsafe's monitoring and the
+   --  attitude task's rate. The adjustments, the beeper, the DShot commands,
+   --  the statistics and the ports wait for their units on the board.
+   procedure Apply (Step : Adaflight.Arming.Outputs) is
+      Trims : Adaflight.Config_Groups.Integer_16_List_2 renames Config.Accelerometer_Config.Accelerometer_Trims;
+      Set   : Boolean;
+      Unused_Success : Boolean;
+   begin
+      if Step.Commands (Adaflight.Arming.Gyro_Calibration) then
+         Adaflight.Gyro_Filters.Start_Calibration (Gyro_State, Gyro_Settings, First_Arm => False);
+      end if;
+      if Step.Commands (Adaflight.Arming.Acc_Calibration) then
+         Adaflight.Accelerometer.Start_Calibration (Acc_State);
+      end if;
+      for Profile in Adaflight.Arming.PID_Profile_1 .. Adaflight.Arming.PID_Profile_3 loop
+         if Step.Commands (Profile) then
+            Config.System_Config.Pid_Profile_Index :=
+              Unsigned_8 (Adaflight.Arming.Stick_Command'Pos (Profile)
+                          - Adaflight.Arming.Stick_Command'Pos (Adaflight.Arming.PID_Profile_1));
+            Adaflight.STM32.Pilot.Configure (Config, Runtime_Features, Pilot_Facts);
+         end if;
+      end loop;
+      for Profile in Adaflight.Arming.Rate_Profile_1 .. Adaflight.Arming.Rate_Profile_4 loop
+         if Step.Commands (Profile) then
+            Config.System_Config.Active_Rate_Profile :=
+              Unsigned_8 (Adaflight.Arming.Stick_Command'Pos (Profile)
+                          - Adaflight.Arming.Stick_Command'Pos (Adaflight.Arming.Rate_Profile_1));
+            Adaflight.STM32.Pilot.Configure (Config, Runtime_Features, Pilot_Facts);
+         end if;
+      end loop;
+      if Step.Trim_Roll /= 0 or else Step.Trim_Pitch /= 0 then
+         Trims (0) := Integer_16 (Integer'Max (-300, Integer'Min (300, Integer (Trims (0)) + Step.Trim_Roll)));
+         Trims (1) := Integer_16 (Integer'Max (-300, Integer'Min (300, Integer (Trims (1)) + Step.Trim_Pitch)));
+      end if;
+      if Step.Saves > 0 then
+         Write_Configuration;
+         Load_Configuration (Unused_Success);
+      end if;
+      if Step.First_Arm_Gyro_Cal > 0 then
+         Adaflight.Gyro_Filters.Start_Calibration (Gyro_State, Gyro_Settings, First_Arm => True);
+      end if;
+      if Step.Headfree_Offsets > 0 then
+         Adaflight.Attitude.Set_Headfree_Offset (Att_State, Set);
+      end if;
+      if Step.Start_Failsafe_Monitoring then
+         Adaflight.STM32.Radio.Start_Failsafe_Monitoring;
+      end if;
+      if Step.Attitude_Fast then
+         Scheduler.Reschedule (Sched, Sched_Settings, Scheduler.Attitude, Attitude_Period_Fast_Us);
+      else
+         Scheduler.Reschedule (Sched, Sched_Settings, Scheduler.Attitude, Attitude_Period_Slow_Us);
+      end if;
+   end Apply;
+
+   --  The arming and mode state into the replies: the disable reasons, the
+   --  flight mode flags, the active boxes and the armed flag.
+   procedure Report_Pilot is
+      Status : Adaflight.MSP_Out.Status_Values renames Ctx.Out_Views.State.Status;
+   begin
+      Status.Arming_Disabled := Adaflight.STM32.Pilot.Disabled;
+      Env.Status.Arming_Disabled := Adaflight.STM32.Pilot.Disabled;
+      Adaflight.MSP_Box.Pack_Flight_Mode_Flags
+        (Active => Adaflight.STM32.Pilot.Active_Boxes, Armed => Adaflight.STM32.Pilot.Armed,
+         Flight => Adaflight.STM32.Pilot.Flight_Modes, Switches => Adaflight.STM32.Pilot.Active_Boxes,
+         Wing => False, Packed => Status.Mode_Flags, Count => Status.Mode_Flag_Count);
+      Ctx.Out_Views.Active := Adaflight.STM32.Pilot.Active_Boxes;
+      Ctx.Control.Armed := Adaflight.STM32.Pilot.Armed;
+   end Report_Pilot;
+
    --  The receiver task's state machine: the rate ignored on every step but
-   --  the last, the check step through the link, the modes and update
-   --  steps empty until the modes and the arming reach the board, then the
-   --  step's estimate for the scheduler and the channels into the RC reply.
+   --  the last, the check step through the link and the arming's receiver
+   --  pass with the frame rate, the modes step through the arming's modes
+   --  pass over the auxiliary channels, the update step through the RC
+   --  commands and the arming status, then what the passes asked, the step's
+   --  estimate for the scheduler and the channels into the RC reply.
    procedure Run_Receiver (Before : Unsigned_32) is
       Step        : constant Adaflight.RX_Task.Step := Adaflight.RX_Task.Current_Step (RX_State);
       Ready       : Boolean := True;
       Anticipated : constant Scheduler.Time_Delta := Scheduler.Next_State_Time (Sched);
       Next        : Integer_32;
+      Channels    : Adaflight.RC_Command.Channel_Values := (others => 1_500.0);
+      Aux         : Adaflight.Modes.Aux_Values := (others => 1_500.0);
+      Asked       : Adaflight.Arming.Outputs;
+      Delta_Us    : constant Natural := Natural (Integer_32'Max (0, Scheduler.Task_Delta_Time (Sched, Scheduler.Rx)));
    begin
       if Adaflight.RX_Task.Ignore_Rate (RX_State) then
          Scheduler.Ignore_Task_Exec_Rate (Sched);
       end if;
+      for Ch in Adaflight.RC_Command.Channel loop
+         Channels (Ch) := Float'Max (750.0, Float'Min (2_250.0, Adaflight.STM32.Radio.Channel (Ch)));
+      end loop;
+      for A in Adaflight.Modes.Aux_Channel loop
+         Aux (A) := Adaflight.STM32.Radio.Channel (A + Adaflight.Receiver.Flight_Channel_Count);
+      end loop;
       case Step is
          when Adaflight.RX_Task.Check =>
             Adaflight.STM32.Radio.Process (Before, Adaflight.STM32.Time.Millis, Ready);
-         when Adaflight.RX_Task.Modes | Adaflight.RX_Task.Update =>
-            null;
+            if Ready then
+               Adaflight.STM32.Pilot.Update_Refresh_Rate
+                 (Before, Adaflight.STM32.Radio.Receiving, Adaflight.STM32.Radio.Last_Frame_Us);
+               Adaflight.STM32.Pilot.Receiver_Pass (Sense, Channels, Before, Asked);
+            end if;
+         when Adaflight.RX_Task.Modes =>
+            Adaflight.STM32.Pilot.Modes_Pass (Sense, Channels, Aux, Before, Delta_Us, Asked);
+         when Adaflight.RX_Task.Update =>
+            Adaflight.STM32.Pilot.Update_Pass
+              (Sense, Channels,
+               (Box_3D => Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Three_D),
+                Failsafe_Active => Adaflight.STM32.Radio.Failsafe_Active, others => <>),
+               Before, Asked);
       end case;
+      Apply (Asked);
+      Report_Pilot;
       Adaflight.RX_Task.Finish
         (RX_State, Rx_Ready => Ready, Ignore_Exec_Time => Scheduler.Ignoring_Task_Exec_Time (Sched),
          Anticipated_Us => Adaflight.RX_Task.Execution_Us
@@ -792,6 +947,11 @@ package body Adaflight.STM32.Flight is
       Start_Gyro;
       Init_Loop_Units;
       Adaflight.STM32.Radio.Init (Config, Runtime_Features, Adaflight.STM32.Time.Millis);
+      Pilot_Facts := (Sensors        => (Gyro => Selection.Found, Acc => Gyro_Report.Acc_Found, others => False),
+                      Sample_Time_Us => Natural (Sample_Us),
+                      Loop_Ratio     => Positive (Loop_Ratio),
+                      CRSF           => Adaflight.STM32.Radio.Linked);
+      Adaflight.STM32.Pilot.Init (Config, Runtime_Features, Pilot_Facts);
       if Selection.Found then
          Adaflight.STM32.Time.Delay_Ms (First_Read_Delay_Ms);
       end if;
