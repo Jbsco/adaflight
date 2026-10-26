@@ -63,3 +63,4 @@ Each document describes a Betaflight bug that adaflight fixes: the Betaflight ve
 - [Misc profile menu sets up the PID controller before it stores its values](misc-menu-setup-order.md)
 - [MSP LED strip configuration can never take its profile byte](msp-led-strip-profile.md)
 - [AK8975 and AK8963 use the fuse ROM sensitivity whether or not its read went through](compass-fuse-read-check.md)
+- [BMP085 uses 22 uninitialized bytes as its calibration when the read is refused](bmp085-calibration-read.md)

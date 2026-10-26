@@ -17122,6 +17122,7 @@ procedure Vector_Check is
       Device_Address : Byte := 0;
       Registers      : Byte_Array (0 .. 255) := (others => 0);
       Failures_Left  : Natural := 0;
+      Cal_Refused    : Boolean := False;
       EOC_Levels     : String (1 .. 2) := "00";
       EOC_Reads      : Natural := 0;
       Busy           : Boolean := False;
@@ -17144,10 +17145,14 @@ procedure Vector_Check is
    end BM_Set_Address;
 
    procedure BM_Read (D : in out BM_Bus; Register : Byte; Data : in out Byte_Array; OK : out Boolean) is
+      use type Interfaces.Unsigned_8;
    begin
       OK := BM_Responds (D);
       if OK and then D.Failures_Left > 0 then
          D.Failures_Left := D.Failures_Left - 1;
+         OK := False;
+      end if;
+      if OK and then Register = 16#AA# and then D.Cal_Refused then
          OK := False;
       end if;
       BMP_Op ("read," & BMP_Num (Integer_64 (Register)) & "," & BMP_Num (Integer_64 (Data'Length)) & ","
@@ -17317,6 +17322,9 @@ procedure Vector_Check is
          BM_Device.Device_Address := Byte (Int (7));
          BM_Device.Failures_Left := Natural (Int (8));
          BM_Device.EOC_Levels := Str (9);
+         if NF >= 12 then
+            BM_Device.Cal_Refused := Int (12) /= 0;
+         end if;
          declare
             Id  : constant Byte_Array := Hex_Bytes (10);
             Cal : constant Byte_Array := Hex_Bytes (11);
