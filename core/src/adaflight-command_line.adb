@@ -4003,7 +4003,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
 
    --  board_name and manufacturer_id: the value, after a new one up to its
    --  length is taken while the stored information is not set or the value
-   --  is empty; a different value for a set one is the error.
+   --  is empty; a different value for a set one is the error, the new one
+   --  cut to the length as it would be stored (finding F176).
    procedure Board_Text_Command
      (Into : in out Output; Command : String; Label : String; Value : in out Identity_Text; Limit : Natural;
       Information_Set : Boolean; Updated : in out Boolean; Arguments : String)
@@ -4011,7 +4012,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
    is
    begin
       if Arguments'Length > 0 and then Value.Length /= 0 and then Information_Set
-        and then Arguments /= Text_Of (Value)
+        and then Arguments (Arguments'First .. Arguments'First + (Natural'Min (Arguments'Length, Limit) - 1))
+                 /= Text_Of (Value)
       then
          Put_Error (Into, Command);
          Put (Into, ": ");
@@ -5972,44 +5974,29 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Put (Into, CRLF);
    end Put_Signature;
 
-   --  Two characters read as the C library reads a hexadecimal number:
-   --  spaces, a sign, then digits. The value is taken modulo 256, negated
-   --  after a minus sign, and Stop is the position after the last digit, 3
-   --  for the whole text, or 1 when no digit follows the spaces and sign.
+   --  Two hexadecimal digits as a byte: Stop is 3 when both characters are
+   --  digits, else the position of the first character that is not one.
+   --  The reference reads the pair as the C library reads a number, with
+   --  spaces and a sign allowed before the digits (finding F175).
    procedure Read_Hex_Pair (Pair : String; Value : out Unsigned_8; Stop : out Positive)
      with Pre => Pair'First = 1 and then Pair'Last = 2, Post => Stop in 1 .. 3
    is
-      P        : Positive := 1;
-      Negative : Boolean := False;
-      Start    : Positive;
-      Number   : Unsigned_8 := 0;
+      function Digit (C : Character) return Unsigned_8 is
+        (case C is
+            when '0' .. '9' => Character'Pos (C) - Character'Pos ('0'),
+            when 'a' .. 'f' => Character'Pos (C) - Character'Pos ('a') + 10,
+            when others => Character'Pos (C) - Character'Pos ('A') + 10)
+        with Pre => C in '0' .. '9' | 'a' .. 'f' | 'A' .. 'F';
    begin
+      Value := 0;
+      Stop := 3;
       for K in 1 .. 2 loop
-         exit when Pair (K) /= ' ';
-         P := K + 1;
+         if Pair (K) not in '0' .. '9' | 'a' .. 'f' | 'A' .. 'F' then
+            Stop := K;
+            return;
+         end if;
       end loop;
-      if P <= 2 and then Pair (P) in '+' | '-' then
-         Negative := Pair (P) = '-';
-         P := P + 1;
-      end if;
-      Start := P;
-      for K in Start .. 2 loop
-         pragma Loop_Invariant (P = K);
-         exit when Pair (K) not in '0' .. '9' | 'a' .. 'f' | 'A' .. 'F';
-         Number := Number * 16
-           + (case Pair (K) is
-                 when '0' .. '9' => Character'Pos (Pair (K)) - Character'Pos ('0'),
-                 when 'a' .. 'f' => Character'Pos (Pair (K)) - Character'Pos ('a') + 10,
-                 when others => Character'Pos (Pair (K)) - Character'Pos ('A') + 10);
-         P := K + 1;
-      end loop;
-      if P = Start then
-         Value := 0;
-         Stop := 1;
-      else
-         Value := (if Negative then -Number else Number);
-         Stop := P;
-      end if;
+      Value := Digit (Pair (1)) * 16 + Digit (Pair (2));
    end Read_Hex_Pair;
 
    --  signature: the board's signature, after a new one of 64 hexadecimal
