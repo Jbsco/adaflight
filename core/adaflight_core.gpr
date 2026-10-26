@@ -15,8 +15,12 @@ project Adaflight_Core is
    for Library_Kind use Library_Type;
 
    package Compiler is
-      for Default_Switches ("Ada") use Adaflight_Core_Config.Ada_Compiler_Switches &
-        ("-gnatyM120", "-gnata");
+      case Adaflight_Core_Config.Build_Profile is
+         when "release" =>
+            for Default_Switches ("Ada") use Adaflight_Core_Config.Ada_Compiler_Switches & ("-gnatyM120");
+         when others =>
+            for Default_Switches ("Ada") use Adaflight_Core_Config.Ada_Compiler_Switches & ("-gnatyM120", "-gnata");
+      end case;
    end Compiler;
 
    package Binder is

@@ -9761,3 +9761,18 @@ against its threshold.
 
 The image is 970560 bytes of text, 5172 of data and 85584 of zeroed data. The bench check is the
 link quality and RSSI dBm elements following the transmitter's distance.
+
+## D402. Board image without assertions (2026-10-26)
+
+The core's project file appended `-gnata` to the compiler switches of every build profile, so the
+board image, with the core in its release profile, still evaluated every precondition, postcondition
+and assertion and compiled every ghost entity: 1387 ghost routines of 178454 bytes, plus the
+contract code inside each subprogram, in an image of 970560 bytes of text. The project files of the
+core and of the STM32F4 crate now add the switch in every profile but release.
+
+The STM32F4 crate builds in its release profile as well: for size, without contracts and without
+debug information, with the language's run-time checks kept in the target's own sources, which are
+not proved. The host target and the tests keep the validation profile with its checks and contracts.
+
+The image is 526584 bytes of text, 5172 of data and 85584 of zeroed data: 531756 of the 1015808
+bytes of the code region.
