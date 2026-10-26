@@ -7306,13 +7306,15 @@ configured ones.
 
 The video system follows the configuration or, when automatic, the chip's video sense, with PAL when there is no
 signal. A stall check once a second, or when forced, reads back the video mode register and sets the registers again
-when the chip lost them. Once a second in automatic mode the driver compares the sensed standard with the one it
-set, and after a 100 ms debounce sets the registers again for the new one. Characters go to the foreground layer. A
-draw compares the layer with a shadow of the chip's display memory, half the screen per call, and sends each changed
+when the chip lost them. Once a second in automatic mode the driver compares the sensed standard with the one it set,
+and after a 100 ms debounce sets the registers again for the new one. Characters go to the foreground layer. A draw
+compares the layer with a shadow of the chip's display memory, half the screen per call, and sends each changed
 character with its address, in auto-increment runs where the next one also changed, within 250 bytes over DMA or 12
-polled and an encoding time of 20 or 10 µs. A full refresh draws until the screen is done. A font character write
-stops all further drawing (F255). Brightness, inversion and the background gray level are written when they change,
-and the debug values of the signal and clock debug modes are kept.
+polled and an encoding time of 20 or 10 µs. A full refresh draws until the screen is done. A font character write is
+one synchronous call, so the driver keeps no font loading flag and drawing goes on after it. The reference sets a flag
+the write never clears, so its drawing stops for good and a full refresh after a font write loops forever when a draw
+pass had stopped mid-screen (finding F255, amended 2026-10-26 as declared in D6). Brightness, inversion and the
+background gray level are written when they change, and the debug values of the signal and clock debug modes are kept.
 
 The draw's transfer buffer holds 256 bytes, the length the reference's encoding can reach past its 250-byte buffer
 (F257). At the last character of a PAL screen the reference compares bytes past both buffers to choose a run (F256).

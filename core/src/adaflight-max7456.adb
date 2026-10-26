@@ -391,79 +391,77 @@ package body Adaflight.MAX7456 with SPARK_Mode is
       Now         : U32;
       P           : Screen_Index;
    begin
-      if not S.Font_Loading then
-         Pos_Limit := S.Position + S.Screen_Size / 2;
-         if Uses_DMA (D) then
-            Max_Start := Max_Bytes_DMA;
-            Max_Encode := Max_Encode_Us_DMA;
-         else
-            Max_Start := Max_Bytes_Polled;
-            Max_Encode := Max_Encode_Us_Polled;
-         end if;
-         Check_Busy (D, Busy);
-         if Busy then
-            In_Progress := True;
-            return;
-         end if;
-         Micros (D, Start);
-         Max_Start := Max_Start - 4;
-         loop
-            exit when Index >= Max_Start or else S.Position >= Pos_Limit;
-            Micros (D, Now);
-            exit when Elapsed (Now, Start) >= Max_Encode;
-            pragma Loop_Invariant (Index mod 2 = 0 and then Index < Max_Start and then Max_Start <= 246);
-            P := S.Position;
-            if S.Layers (Layer) (P) /= S.Shadow (P) then
-               if S.Layers (Layer) (P) = 16#FF# then
-                  S.Layers (Layer) (P) := 16#20#;
-               end if;
-               if Set_Address or else not Increment then
-                  S.Transfer (Index) := DMM_Address;
-                  if Next_Changed (S, Layer, P) then
-                     S.Transfer (Index + 1) := S.DMM_Register or Auto_Inc;
-                     Increment := True;
-                  else
-                     S.Transfer (Index + 1) := S.DMM_Register;
-                     Increment := False;
-                  end if;
-                  S.Transfer (Index + 2) := DMAH_Address;
-                  S.Transfer (Index + 3) := Byte (P / 256);
-                  S.Transfer (Index + 4) := DMAL_Address;
-                  S.Transfer (Index + 5) := Byte (P mod 256);
-                  Index := Index + 6;
-                  Set_Address := False;
-               end if;
-               S.Transfer (Index) := DMDI_Address;
-               S.Transfer (Index + 1) := S.Layers (Layer) (P);
-               Index := Index + 2;
-               S.Shadow (P) := S.Layers (Layer) (P);
-            elsif not Set_Address then
-               Set_Address := True;
-               if Increment then
-                  S.Transfer (Index) := DMDI_Address;
-                  S.Transfer (Index + 1) := End_String;
-                  Index := Index + 2;
-               end if;
+      Pos_Limit := S.Position + S.Screen_Size / 2;
+      if Uses_DMA (D) then
+         Max_Start := Max_Bytes_DMA;
+         Max_Encode := Max_Encode_Us_DMA;
+      else
+         Max_Start := Max_Bytes_Polled;
+         Max_Encode := Max_Encode_Us_Polled;
+      end if;
+      Check_Busy (D, Busy);
+      if Busy then
+         In_Progress := True;
+         return;
+      end if;
+      Micros (D, Start);
+      Max_Start := Max_Start - 4;
+      loop
+         exit when Index >= Max_Start or else S.Position >= Pos_Limit;
+         Micros (D, Now);
+         exit when Elapsed (Now, Start) >= Max_Encode;
+         pragma Loop_Invariant (Index mod 2 = 0 and then Index < Max_Start and then Max_Start <= 246);
+         P := S.Position;
+         if S.Layers (Layer) (P) /= S.Shadow (P) then
+            if S.Layers (Layer) (P) = 16#FF# then
+               S.Layers (Layer) (P) := 16#20#;
             end if;
-            if P + 1 >= S.Screen_Size then
-               S.Position := 0;
-               exit;
+            if Set_Address or else not Increment then
+               S.Transfer (Index) := DMM_Address;
+               if Next_Changed (S, Layer, P) then
+                  S.Transfer (Index + 1) := S.DMM_Register or Auto_Inc;
+                  Increment := True;
+               else
+                  S.Transfer (Index + 1) := S.DMM_Register;
+                  Increment := False;
+               end if;
+               S.Transfer (Index + 2) := DMAH_Address;
+               S.Transfer (Index + 3) := Byte (P / 256);
+               S.Transfer (Index + 4) := DMAL_Address;
+               S.Transfer (Index + 5) := Byte (P mod 256);
+               Index := Index + 6;
+               Set_Address := False;
             end if;
-            S.Position := P + 1;
-         end loop;
-         if Increment then
-            if not Set_Address then
+            S.Transfer (Index) := DMDI_Address;
+            S.Transfer (Index + 1) := S.Layers (Layer) (P);
+            Index := Index + 2;
+            S.Shadow (P) := S.Layers (Layer) (P);
+         elsif not Set_Address then
+            Set_Address := True;
+            if Increment then
                S.Transfer (Index) := DMDI_Address;
                S.Transfer (Index + 1) := End_String;
                Index := Index + 2;
             end if;
-            S.Transfer (Index) := DMM_Address;
-            S.Transfer (Index + 1) := S.DMM_Register;
+         end if;
+         if P + 1 >= S.Screen_Size then
+            S.Position := 0;
+            exit;
+         end if;
+         S.Position := P + 1;
+      end loop;
+      if Increment then
+         if not Set_Address then
+            S.Transfer (Index) := DMDI_Address;
+            S.Transfer (Index + 1) := End_String;
             Index := Index + 2;
          end if;
-         if Index > 0 then
-            Start_Transfer (D, S.Transfer (0 .. Index - 1));
-         end if;
+         S.Transfer (Index) := DMM_Address;
+         S.Transfer (Index + 1) := S.DMM_Register;
+         Index := Index + 2;
+      end if;
+      if Index > 0 then
+         Start_Transfer (D, S.Transfer (0 .. Index - 1));
       end if;
       In_Progress := S.Position /= 0;
    end Draw_Screen;
@@ -481,7 +479,7 @@ package body Adaflight.MAX7456 with SPARK_Mode is
 
    procedure Write_NVM
      (D            : in out SPI_Device;
-      S            : in out State;
+      S            : State;
       Char_Address : Byte;
       Font_Data    : Font_Bytes;
       Written      : out Boolean)
@@ -493,7 +491,6 @@ package body Adaflight.MAX7456 with SPARK_Mode is
          return;
       end if;
       Wait (D);
-      S.Font_Loading := True;
       Write_Register (D, VM0_Address, 0);
       Write_Register (D, CMAH_Address, Char_Address);
       for X in Font_Data'Range loop
