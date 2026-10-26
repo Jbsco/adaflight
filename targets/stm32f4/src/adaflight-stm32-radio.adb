@@ -127,9 +127,10 @@ package body Adaflight.STM32.Radio is
       Adaflight.Receiver.Update_RSSI (Rx, Rx_Settings, Now_Us, ADC_Sample);
    end Process;
 
-   procedure Failsafe_Check (Now_Ms : Time_Ms; Beep : out Adaflight.Failsafe.Beep) is
-      In_Flight    : Adaflight.Failsafe.Inputs;
-      Disarm       : Boolean;
+   procedure Failsafe_Check
+     (Now_Ms : Time_Ms; In_Flight : Adaflight.Failsafe.Inputs; Beep : out Adaflight.Failsafe.Beep;
+      Disarm : out Boolean)
+   is
       Stage_Rescue : Boolean;
    begin
       Adaflight.Failsafe.Check_Data_Failure_Period (FS, Now_Ms);
@@ -144,6 +145,8 @@ package body Adaflight.STM32.Radio is
    function Failsafe_Receiving return Boolean is (Adaflight.Failsafe.Receiving_Rx_Data (FS));
 
    function Failsafe_Active return Boolean is (FS.Active);
+
+   function Failsafe_Mode return Boolean is (FS.Failsafe_Mode);
 
    function Failsafe_Monitoring return Boolean is (FS.Monitoring);
 

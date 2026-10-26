@@ -44,8 +44,12 @@ package Adaflight.STM32.Pilot is
       Inp : Adaflight.RC_Command.Command_Inputs; Now_Us : Time_Us; Step : in out Adaflight.Arming.Outputs);
    --  The receiver's frame rate tracked for the RC command smoothing.
    procedure Update_Refresh_Rate (Now_Us : Time_Us; Receiving : Boolean; Frame_Time_Us : Time_Us);
-   --  A disarm a message asks for.
-   procedure Disarm (Now_Us : Time_Us; Step : in out Adaflight.Arming.Outputs);
+   --  A disarm a message or the failsafe asks for.
+   procedure Disarm
+     (Reason : Adaflight.Arming.Disarm_Reason; Now_Us : Time_Us; Step : in out Adaflight.Arming.Outputs);
+   --  The failsafe's flight mode, set as the failsafe has it; Changed says it
+   --  changed.
+   procedure Set_Failsafe_Mode (On : Boolean; Changed : out Boolean);
    --  The PID loop's RC command pass, the yaw command reset before it, and
    --  the arming's controller pass with the runaway check.
    procedure Process_Commands;

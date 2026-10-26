@@ -63,5 +63,7 @@ package Adaflight.STM32.Control is
    function Throttle_Step return Float;
    function Motors return Adaflight.Mixer.Motor_Outputs;
    function Motor_Count return Natural;
+   --  Whether the controller's crash recovery runs, which the failsafe reads.
+   function Crash_Recovery_Active return Boolean;
    function PID_Sums return Adaflight.Arming.Axis_Sums;
 end Adaflight.STM32.Control;
