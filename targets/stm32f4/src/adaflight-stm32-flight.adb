@@ -57,6 +57,7 @@ with Adaflight.STM32.SPI;
 with Adaflight.MSP_OSD_Out;
 with Adaflight.OSD_Task;
 with Adaflight.OSD_Render;
+with Adaflight.STM32.Menu;
 with Adaflight.STM32.OSD;
 with Adaflight.STM32.Time;
 with Adaflight.STM32.USART;
@@ -445,6 +446,14 @@ package body Adaflight.STM32.Flight is
          Runtime_Features := Runtime_Features and not Adaflight.Config_Fix.Feature_OSD;
       end if;
       Adaflight.STM32.OSD.Configure (Config, Version_Text);
+      declare
+         Columns, Rows : Unsigned_8;
+      begin
+         Adaflight.STM32.OSD.Dimensions (Columns, Rows);
+         Adaflight.STM32.Menu.Init
+           (Version_Text, Adaflight.Board.MCU_Name, Adaflight.Board.Board_Name, Adaflight.Board.Manufacturer_ID,
+            Adaflight.STM32.OSD.Port_Present, Columns, Rows);
+      end;
    end Start_OSD;
 
    procedure Start_Gyro is
@@ -543,7 +552,7 @@ package body Adaflight.STM32.Flight is
    --  finds no frames yet.
    procedure Init_Scheduler is
       Options : constant Adaflight.Task_Init.Options :=
-        (Accel => True, Beeper => True, Sag_Compensation => True, OSD => True, others => False);
+        (Accel => True, Beeper => True, Sag_Compensation => True, OSD => True, CMS => True, others => False);
       Inputs  : Adaflight.Task_Init.Inputs;
    begin
       Sched_Settings := Adaflight.Config_Runtime.Scheduler_Settings_Of
@@ -1229,6 +1238,8 @@ package body Adaflight.STM32.Flight is
       Adaflight.STM32.Pilot.Set_Reason
         (Adaflight.Arming.Failsafe_Active, Adaflight.STM32.Radio.Failsafe_Blocks_Arming);
       Adaflight.STM32.Pilot.Set_Reason (Adaflight.Arming.CLI_Open, Session.Arming_Held);
+      Adaflight.STM32.Pilot.Set_Reason (Adaflight.Arming.CMS_Open, Adaflight.STM32.Menu.Arming_Held);
+      Adaflight.STM32.Pilot.Set_Reason (Adaflight.Arming.Reboot_Required, Adaflight.STM32.Menu.Reboot_Required);
    end Sync_Reasons;
 
    procedure Run_Receiver (Before : Unsigned_32) is
@@ -1350,6 +1361,61 @@ package body Adaflight.STM32.Flight is
       Adaflight.STM32.OSD.Run (F, Before, Sched);
    end Run_OSD;
 
+   --  The menu task: the flight's readings for the pass, one pass of the
+   --  menu system, then its requests: the calibrations, the OSD's elements,
+   --  the profiles, the configuration written and the reset.
+   procedure Run_Menu (Before : Unsigned_32) is
+      F : Adaflight.STM32.Menu.Facts;
+      R : Adaflight.STM32.Menu.Requests;
+   begin
+      F.Channels := Flight_Channels;
+      for A in 0 .. 3 loop
+         F.Aux (A) := Float'Max (750.0, Float'Min (2_250.0, Adaflight.STM32.Radio.Channel
+                                                                (A + Adaflight.Receiver.Flight_Channel_Count)));
+      end loop;
+      F.Armed := Adaflight.STM32.Pilot.Armed;
+      F.Paralyzed := Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Paralyze);
+      F.Stick_Commands_Disabled := Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Stick_Command_Disable);
+      F.Acc_Present := Gyro_Report.Acc_Found;
+      F.Acc_Calibration_Complete := Adaflight.Accelerometer.Calibration_Complete (Acc_State);
+      F.Acc_Calibrated := Config.Accelerometer_Config.Acc_Zero (3) /= 0;
+      F.Gyro_Present := Selection.Found;
+      F.Gyro_Calibration_Complete := Adaflight.Gyro_Filters.Calibration_Complete (Gyro_State);
+      F.PID_Frequency := Float'Min (65_535.0, 1.0e6 / Float (Natural'Max (1, Natural (Sample_Us))));
+      F.Runtime_Features := Runtime_Features;
+      Adaflight.STM32.Menu.Run (Config, F, Before, Adaflight.STM32.Time.Millis, R);
+      if R.Acc_Calibration then
+         Adaflight.Accelerometer.Start_Calibration (Acc_State);
+      end if;
+      if R.Gyro_Calibration then
+         Adaflight.Gyro_Filters.Start_Calibration (Gyro_State, Gyro_Settings, First_Arm => False);
+      end if;
+      if R.PID_Profile then
+         Config.System_Config.Pid_Profile_Index := Unsigned_8'Min (3, R.PID_Profile_Idx);
+      end if;
+      if R.Rate_Profile then
+         Config.System_Config.Active_Rate_Profile := Unsigned_8'Min (3, R.Rate_Profile_Idx);
+      end if;
+      if R.OSD_Profile then
+         Config.Osd_Config.Osd_Profile_Index := Unsigned_8'Max (1, Unsigned_8'Min (3, R.OSD_Profile_Idx));
+      end if;
+      if R.PID_Profile or else R.Rate_Profile or else R.PID_Init then
+         Adaflight.STM32.Pilot.Configure (Config, Runtime_Features, Pilot_Facts);
+         Adaflight.STM32.Control.Init (Config, Runtime_Features);
+      end if;
+      if R.Elements or else R.OSD_Profile or else R.PID_Profile or else R.Rate_Profile then
+         Adaflight.STM32.OSD.Configure (Config, Version_Text);
+         Adaflight.STM32.OSD.Analyze_Again;
+      end if;
+      if R.Save then
+         Scheduler.Ignore_Task_State_Time (Sched);
+         Write_Configuration;
+      end if;
+      if R.Reset then
+         Reset;
+      end if;
+   end Run_Menu;
+
    --  A task's body between the scheduler's execution prologue and
    --  epilogue, at the clock around its run.
    procedure Run_Body (Id : Scheduler.Task_Id) is
@@ -1385,6 +1451,8 @@ package body Adaflight.STM32.Flight is
             Run_Beeper (Before);
          when Scheduler.OSD =>
             Run_OSD (Before);
+         when Scheduler.CMS =>
+            Run_Menu (Before);
          when others =>
             null;
       end case;
