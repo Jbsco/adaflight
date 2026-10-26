@@ -32,7 +32,7 @@ package body Adaflight.Menu with SPARK_Mode is
       P.Top := Top;
       P.Max_Row := Natural'Min (Natural'Min (M.Count - Top, L.Max_Items), Max_Rows) - 1;
       for I in 0 .. P.Max_Row loop
-         P.Flags (I) := Unsigned_8 (M.Lines (Top + I).Flags and 16#FF#);
+         P.Flags (I) := M.Lines (Top + I).Flags;
       end loop;
    end Select_Page;
 

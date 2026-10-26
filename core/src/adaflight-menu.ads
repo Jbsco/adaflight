@@ -116,9 +116,9 @@ package Adaflight.Menu with SPARK_Mode is
    function Pages (M : Table; L : Layout) return Page_Count is ((M.Count - 1) / L.Max_Items + 1)
      with Pre => M.Count >= 1;
 
-   --  The draw keeps a line's flags in a byte, which drops the flags above
-   --  the dynamic one.
-   type Runtime_Flags is array (Row) of Unsigned_8;
+   --  The draw keeps a line's flags whole, so the option string and
+   --  scrolling ticker flags survive the copy into the page.
+   type Runtime_Flags is array (Row) of Unsigned_16;
 
    --  The selected page: its number, its top line, its last row, and the
    --  lines' flags as the draw keeps them.

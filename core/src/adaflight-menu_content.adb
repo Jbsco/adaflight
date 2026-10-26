@@ -40,14 +40,35 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       Has_Func : Boolean := False;
       Has_Data : Boolean := False;
       Value    : Interfaces.Integer_32 := 0;
-      Flags    : Interfaces.Unsigned_16 := 0) return Line
+      Flags    : Interfaces.Unsigned_16 := 0;
+      Shown    : Adaflight.Menu.Label_Text := Label ("")) return Line
    is
      ((Text => Label (Text), Flags => Code (E) or Flags, Has_Data => Has_Data, Has_Func => Has_Func, Value => Value,
-       others => <>))
+       Value_Text => Shown, others => <>))
      with Pre  => Text'Length <= Adaflight.Menu.Max_Text and then E /= Adaflight.Menu.Fixed
                   and then (Flags and Adaflight.Menu.Element_Mask) = 0;
 
    Reboot : constant Interfaces.Unsigned_16 := Adaflight.Menu.Reboot_Required;
+
+   --  A number right-aligned in four characters, wider when it needs more,
+   --  as the frequency submenus show their option strings.
+   function Right_4 (V : Interfaces.Unsigned_16) return Adaflight.Menu.Label_Text is
+      N       : Interfaces.Unsigned_16 := V;
+      Figures : String (1 .. 5) := (others => '0');
+      Count   : Natural range 0 .. 5 := 0;
+      T       : Adaflight.Menu.Label_Text;
+   begin
+      for K in 1 .. 5 loop
+         pragma Loop_Invariant (Count = K - 1);
+         Figures (6 - K) := Character'Val (Character'Pos ('0') + Natural (N mod 10));
+         N := N / 10;
+         Count := K;
+         exit when N = 0;
+      end loop;
+      T.Length := Natural'Max (4, Count);
+      T.Data (T.Length - Count + 1 .. T.Length) := Figures (6 - Count .. 5);
+      return T;
+   end Right_4;
 
    --  A number line of an element with its value, range and step.
    function Number
@@ -719,7 +740,8 @@ package body Adaflight.Menu_Content with SPARK_Mode is
                                   Flags => Dynamic));
             else
                Add (M, N, Make ("FREQ", Submenu, Has_Func => True, Has_Data => True,
-                                Value => Interfaces.Integer_32 (SA_User_Freq_Menu), Flags => Opt_String));
+                                Value => Interfaces.Integer_32 (SA_User_Freq_Menu), Flags => Opt_String,
+                                Shown => Right_4 (V.User_Freq)));
             end if;
             Add (M, N, Choice ("POWER", U8 (V.Power), Interfaces.Integer_32 (T.VTX_Table.Power_Levels),
                                Power_Name (T.VTX_Table, Natural (V.Power)), Flags => Dynamic, Has_Func => True));
@@ -749,7 +771,8 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       Add (M, N, Choice ("PIT FMODE", U8 (V.Pit_F_Mode), 2, SA_Pit_F_Mode_Name (Natural (V.Pit_F_Mode)),
                          Has_Func => True));
       Add (M, N, Make ("POR FREQ", Submenu, Has_Func => True, Has_Data => True,
-                       Value => Interfaces.Integer_32 (SA_POR_Freq_Menu), Flags => Opt_String));
+                       Value => Interfaces.Integer_32 (SA_POR_Freq_Menu), Flags => Opt_String,
+                       Shown => Right_4 (V.OR_Freq)));
       Add (M, N, Sub ("STATX", SA_Stats_Menu));
       Add (M, N, Make ("BACK", Back));
       M.Count := N;

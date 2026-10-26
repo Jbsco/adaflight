@@ -341,7 +341,6 @@ package body Adaflight.Menu_Nav with SPARK_Mode is
       Delay_Ms        : out Key_Delay)
    is
       use type Interfaces.Integer_64;
-      use type Interfaces.Unsigned_8;
       use type Interfaces.Unsigned_16;
       use type Adaflight.Menu.Element;
       Reply : Adaflight.Menu.Answer;
