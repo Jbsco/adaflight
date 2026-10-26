@@ -7311,7 +7311,9 @@ the transfer and sync flags, layers and the background go to the driver, an empt
 transmit space is 65535. The heartbeat runs the driver's stall and signal checks without forcing, and a redraw
 refreshes the whole screen while disarmed. A font character takes the first 54 of its 64 bytes at the low byte of
 its address. A readiness check of a chip that did not answer fails without rescan. With rescan it initializes the
-chip and redraws, keeping the rows and columns at 0 (F259). The unit is SPARK for the port's counts and dimensions.
+chip, sets the rows and columns as the initialization does, through one helper, and redraws, where the reference
+leaves them at 0 (finding F259, amended 2026-10-25 as declared in D6). The unit is SPARK for the port's counts and
+dimensions.
 
 The MAX7456 display port oracle includes the reference display port, the MAX7456 driver and the display layer over
 the simulated chip of the MAX7456 oracle, one case per process. It draws the chip, the bus, the MAX7456 settings,

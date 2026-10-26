@@ -84,8 +84,10 @@ package Adaflight.MAX7456.Display_Port with SPARK_Mode is
    procedure Check_Ready
      (D             : in out SPI_Device;
       S             : in out State;
+      P             : in out Port;
       C             : Config;
       Video         : Video_Profile;
+      Display       : Display_Profile;
       CPU_Overclock : Boolean;
       Armed         : Boolean;
       Rescan        : Boolean;

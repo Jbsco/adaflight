@@ -18967,7 +18967,8 @@ procedure Vector_Check is
                when 17 =>
                   MX_Driver.Set_Background (MX_Device, MX_State, Natural (A));
                when others =>
-                  MD_Port.Check_Ready (MX_Device, MX_State, MD_Config, MD_Video, MD_Overclock, Armed, A /= 0, Flag);
+                  MD_Port.Check_Ready (MX_Device, MX_State, MD_P, MD_Config, MD_Video, MD_Display, MD_Overclock, Armed,
+                                       A /= 0, Flag);
                   MD_Result := Boolean'Pos (Flag);
             end case;
          end;
