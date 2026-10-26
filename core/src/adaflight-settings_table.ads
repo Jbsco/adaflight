@@ -195,9 +195,13 @@ package Adaflight.Settings_Table with SPARK_Mode is
    --  The bounds of the 32-bit value types.
    subtype Limit is Interfaces.Integer_64 range -2 ** 32 .. 2 ** 32;
 
+   subtype Count_Value is Natural range 0 .. 255;
+   subtype Group_Number is Natural range 0 .. 65_535;
+
    --  Min and Max bound a direct value; Table names a lookup; Count is an
    --  array's length, a bit's position or a text's longest length, and
-   --  Min_Length a text's shortest.
+   --  Min_Length a text's shortest. The record is packed, as the table
+   --  of every setting lives in flash.
    type Info is record
       Kind       : Value_Type := U8;
       Where      : Value_Scope := Master;
@@ -205,11 +209,11 @@ package Adaflight.Settings_Table with SPARK_Mode is
       Min        : Limit := 0;
       Max        : Limit := 0;
       Table      : Lookup_Table := Table_Off_On;
-      Count      : Natural := 0;
-      Min_Length : Natural := 0;
+      Count      : Count_Value := 0;
+      Min_Length : Count_Value := 0;
       Write_Once : Boolean := False;
-      Group      : Natural := 0;
-   end record;
+      Group      : Group_Number := 0;
+   end record with Pack;
 
    function Describe (S : Setting) return Info;
 
