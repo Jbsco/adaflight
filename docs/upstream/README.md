@@ -85,3 +85,4 @@ Each document describes a Betaflight bug that adaflight fixes: the Betaflight ve
 - [A command followed directly by a comment takes the comment as its arguments](cli-comment-arguments.md)
 - [A MAX7456 full refresh after a font write never returns](max7456-font-write-flag.md)
 - [The waypoint altitude element shows the craft's altitude in its sea-level variants](osd-waypoint-altitude-frame.md)
+- [The waypoint capture message clears only when the OSD reads it](capture-message-expiry.md)
