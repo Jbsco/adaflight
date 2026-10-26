@@ -8568,540 +8568,653 @@ accelerometer. Of 75 tampered paths, 74 fail the vectors and 1 stop the checker 
 
 ## D364. LSM6DSV16X gyro driver (2026-10-19)
 
-`Adaflight.MPU_Gyro.LSM6DSV16X` drives the LSM6DSV16X, LSM6DSV32X and LSM6DSK320X gyros over the SPI gyro layer. The
-LSM6DSV16X probe reads the identity, 0x70, resets the chip and takes the variant bit of control register 8 for the
-LSM6DSV32X; the LSM6DSK320X probe reads its identity, 0x75. A reset clears the two rate fields with their modes kept,
-sets the address increment, each write read back, waits 500 us, writes the reset bit, waits 10 ms and polls the register
-once a millisecond for up to 10 more until the reset bit clears with the block update set, then checks the identity
-again. Initialization sets a 10 MHz clock and configures the chip in up to three attempts, each a reset and the control
-registers written and read back: block update and increment, high accuracy mode 1, the high accuracy modes of both
-sensors, the accelerometer at 16 g, or 32 g on the LSM6DSV32X, with its second low pass filter at a quarter of its rate,
-the gyro at 2000 degrees per second, or 4000, with the first low pass filter bandwidth of the filter setting and a bit
-the LSM6DSK320X needs, its filter on, the pulsed data ready on the first interrupt pin, then after 500 us the gyro at 8
-kHz and the accelerometer at 1 kHz; when every attempt fails the failure call takes over, otherwise the scale is 0.07
-degrees per second per count, or 0.14, and the layer's initialization runs. The interrupt and the DMA read are the
-layer's; a DMA completion latches the twelve bytes of both sensors behind a sequence count before the layer's
-completion. The reads take a sensor's six little-endian bytes with a blocking transfer, or the latched sample once one
-is ready, and fail before the first gyro read. The reference reads the latched sample twice over when a completion
-changes the count during the copy; here the latch is a parameter of the read, so one copy under the count suffices. The
-reference indexes its four-entry bandwidth table with the filter setting, which MSP writes unchecked (finding F276); a
-setting past the known ones takes the 288 Hz bandwidth here. The unit is SPARK, with the sample offsets bounded by the
-receive buffer and the latch.
+`Adaflight.MPU_Gyro.LSM6DSV16X` drives the LSM6DSV16X, LSM6DSV32X and LSM6DSK320X gyros over the SPI
+gyro layer. The LSM6DSV16X probe reads the identity, 0x70, resets the chip and takes the variant bit
+of control register 8 for the LSM6DSV32X. The LSM6DSK320X probe reads its identity, 0x75. A reset
+clears the two rate fields with their modes kept, sets the address increment, each write read back,
+waits 500 us, writes the reset bit, waits 10 ms and polls the register once a millisecond for up to
+10 more until the reset bit clears with the block update set, then checks the identity again.
+Initialization sets a 10 MHz clock and configures the chip in up to three attempts, each a reset and
+the control registers written and read back: block update and increment, high accuracy mode 1, the
+high accuracy modes of both sensors, the accelerometer at 16 g, or 32 g on the LSM6DSV32X, with its
+second low pass filter at a quarter of its rate, the gyro at 2000 degrees per second, or 4000, with
+the first low pass filter bandwidth of the filter setting and a bit the LSM6DSK320X needs, its
+filter on, the pulsed data ready on the first interrupt pin, then after 500 us the gyro at 8 kHz and
+the accelerometer at 1 kHz. When every attempt fails the failure call takes over. Otherwise the
+scale is 0.07 degrees per second per count, or 0.14, and the layer's initialization runs. The
+interrupt and the DMA read are the layer's. A DMA completion latches the twelve bytes of both
+sensors behind a sequence count before the layer's completion. The reads take a sensor's six
+little-endian bytes with a blocking transfer, or the latched sample once one is ready, and fail
+before the first gyro read. The reference reads the latched sample twice over when a completion
+changes the count during the copy. Here the latch is a parameter of the read, so one copy under the
+count suffices. The reference indexes its four-entry bandwidth table with the filter setting, which
+MSP writes unchecked (finding F276). A setting past the known ones takes the 288 Hz bandwidth here.
+The unit is SPARK, with the sample offsets bounded by the receive buffer and the latch.
 
-The LSM6DSV16X oracle includes the reference driver and the common SPI gyro layer over a simulated chip, one case per
-process. It draws the chip identity, 0x75 in 45 percent of the cases and 0x70 in 40, the variant bit, set in 30 percent,
-the polls a reset takes to clear, past the driver's 10 in 6 percent, the identity the chip answers after a reset,
-another in 4 percent, whether that reset sets block update, not in 5 percent, a register that ignores writes from its
-first, second or third one, in 10 percent, the bus, the startup clock and its step, DMA, the interrupt pin, the filter
-setting and the register values, lets the layer find another chip in a twelfth of the cases when neither identity
-answers, then runs the detection, the gyro and accelerometer detection and initialization, and 30 steps of interrupts, a
-burst of 990 to 1050 interrupts first or after some reads outside the DMA mode, DMA completions, gyro and accelerometer
-reads and new samples; a failure ends the case. Every bus, pin, clock, delay and failure call, detection, setting,
-reading and latch state of the 300 cases replays exactly. In them 126 chips are LSM6DSK320X, 75 LSM6DSV16X and 30
-LSM6DSV32X, 231 gyros are found, 52 initializations fail after three attempts, and of 5370 steps 1285 read the gyro,
-1048 the accelerometer and 1730 raise interrupts. Of 101 tampered paths, 98 fail the vectors and 1 stop the checker at a
-subtype check. Two pass and are equivalent: the return after the failure call, which never returns in the reference, and
-the latch reset at the first gyro read, since the latch starts cleared and no later read returns to that mode.
+The LSM6DSV16X oracle includes the reference driver and the common SPI gyro layer over a simulated
+chip, one case per process. It draws the chip identity, 0x75 in 45 percent of the cases and 0x70 in
+40, the variant bit, set in 30 percent, the polls a reset takes to clear, past the driver's 10 in 6
+percent, the identity the chip answers after a reset, another in 4 percent, whether that reset sets
+block update, not in 5 percent, a register that ignores writes from its first, second or third one,
+in 10 percent, the bus, the startup clock and its step, DMA, the interrupt pin, the filter setting
+and the register values, lets the layer find another chip in a twelfth of the cases when neither
+identity answers, then runs the detection, the gyro and accelerometer detection and initialization,
+and 30 steps of interrupts, a burst of 990 to 1050 interrupts first or after some reads outside the
+DMA mode, DMA completions, gyro and accelerometer reads and new samples. A failure ends the case.
+Every bus, pin, clock, delay and failure call, detection, setting, reading and latch state of the
+300 cases replays exactly. In them 126 chips are LSM6DSK320X, 75 LSM6DSV16X and 30 LSM6DSV32X, 231
+gyros are found, 52 initializations fail after three attempts, and of 5370 steps 1285 read the gyro,
+1048 the accelerometer and 1730 raise interrupts. Of 101 tampered paths, 98 fail the vectors and 1
+stop the checker at a subtype check. Two pass and are equivalent: the return after the failure call,
+which never returns in the reference, and the latch reset at the first gyro read, since the latch
+starts cleared and no later read returns to that mode.
 
 ## D365. BMI160 gyro driver (2026-10-19)
 
-`Adaflight.MPU_Gyro.BMI160` drives the BMI160 gyro over the SPI gyro layer. Detection sends one 0xFF byte to select SPI,
-waits 100 ms and reads the identity, 0xD1. Initialization commands the gyro and the accelerometer into normal power
-mode, 100 and 5 ms apart, and checks the power status; when both are normal it sets the accelerometer to 800 Hz with the
-second oversampling and the gyro to 3200 Hz with the oversampling of the filter setting, the ranges 8 g and 2000 degrees
-per second, 1 ms after each, sets the two offset enable bits over the offset register, and enables the data ready
-interrupt on the first interrupt pin, pushed, 1 ms after each; it then enables the interrupt when the board has the pin
-and sets a 10 MHz clock, whether the power status passed. The reference answers a second detection or initialization
-from flags; here each call does its bus work, and the reference's fast offset compensation, behind a constant that never
-enables it, is left out. The interrupt and the DMA read are the layer's: the first gyro read after 1000 interrupts takes
-the DMA mode when the bus has it, in which each interrupt reads the twelve bytes of both sensors and the reads decode
-the gyro at byte 2 and the accelerometer at byte 8; the other modes read a sensor's six little-endian bytes with a
-blocking transfer; the reads answer true in every mode. The scale of 2000 degrees per second over the 16-bit count is
-set at the gyro detection and the accelerometer counts 4096 per g. The unit is SPARK, with the sample offsets bounded by
-the receive buffer.
+`Adaflight.MPU_Gyro.BMI160` drives the BMI160 gyro over the SPI gyro layer. Detection sends one 0xFF
+byte to select SPI, waits 100 ms and reads the identity, 0xD1. Initialization commands the gyro and
+the accelerometer into normal power mode, 100 and 5 ms apart, and checks the power status. When both
+are normal it sets the accelerometer to 800 Hz with the second oversampling and the gyro to 3200 Hz
+with the oversampling of the filter setting, the ranges 8 g and 2000 degrees per second, 1 ms after
+each, sets the two offset enable bits over the offset register, and enables the data ready interrupt
+on the first interrupt pin, pushed, 1 ms after each. It then enables the interrupt when the board
+has the pin and sets a 10 MHz clock, whether the power status passed. The reference answers a second
+detection or initialization from flags. Here each call does its bus work, and the reference's fast
+offset compensation, behind a constant that never enables it, is left out. The interrupt and the DMA
+read are the layer's: the first gyro read after 1000 interrupts takes the DMA mode when the bus has
+it, in which each interrupt reads the twelve bytes of both sensors and the reads decode the gyro at
+byte 2 and the accelerometer at byte 8. The other modes read a sensor's six little-endian bytes with
+a blocking transfer. The reads answer true in every mode. The scale of 2000 degrees per second over
+the 16-bit count is set at the gyro detection and the accelerometer counts 4096 per g. The unit is
+SPARK, with the sample offsets bounded by the receive buffer.
 
-The BMI160 oracle includes the reference driver and the common SPI gyro layer over a simulated chip, one case per
-process. It draws the chip identity, 0xD1 in 85 percent of the cases, the power status after the mode commands, normal
-in 85 percent, the bus, the startup clock and its step, DMA, the interrupt pin, the filter setting, past the known ones
-in 8 percent, and the register values, lets the layer find another chip first in a twelfth of the cases, then runs the
-detection, the gyro and accelerometer detection and initialization, and 30 steps of interrupts, a burst of 990 to 1050
-interrupts first or after some reads outside the DMA mode, DMA completions, gyro and accelerometer reads and new
-samples. Every bus, pin, clock and delay call, detection, setting and reading of the 300 cases replays exactly. In them
-219 chips are found, 23 fail the power status, 21 have an unknown filter setting, 175 raise a burst, and of 6570 steps
-1532 read the gyro, 1306 the accelerometer and 2107 raise interrupts. Of 71 tampered paths, 70 fail the vectors and 1
-stop the checker at a subtype check.
+The BMI160 oracle includes the reference driver and the common SPI gyro layer over a simulated chip,
+one case per process. It draws the chip identity, 0xD1 in 85 percent of the cases, the power status
+after the mode commands, normal in 85 percent, the bus, the startup clock and its step, DMA, the
+interrupt pin, the filter setting, past the known ones in 8 percent, and the register values, lets
+the layer find another chip first in a twelfth of the cases, then runs the detection, the gyro and
+accelerometer detection and initialization, and 30 steps of interrupts, a burst of 990 to 1050
+interrupts first or after some reads outside the DMA mode, DMA completions, gyro and accelerometer
+reads and new samples. Every bus, pin, clock and delay call, detection, setting and reading of the
+300 cases replays exactly. In them 219 chips are found, 23 fail the power status, 21 have an unknown
+filter setting, 175 raise a burst, and of 6570 steps 1532 read the gyro, 1306 the accelerometer and
+2107 raise interrupts. Of 71 tampered paths, 70 fail the vectors and 1 stop the checker at a subtype
+check.
 
 ## D366. ICM40609 gyro driver (2026-10-19)
 
-`Adaflight.MPU_Gyro.ICM40609` drives the ICM-40609-D gyro over the SPI gyro layer. Detection selects register bank 0,
-resets the chip, waits 1 ms and reads the identity, 0x3B. Initialization sets a 24 MHz clock, runs the layer's with the
-chip's data registers and the DMA read from the temperature, takes the temperature scale of 1/132.48 degree per count
-with its zero at 25 degrees, turns the sensors on in low noise mode with the RC oscillator and waits 200 us then 35 ms,
-selects big-endian data, sets the accelerometer to 16 g at 1 kHz and waits 10 ms, sets the temperature filter to 4 kHz,
-the third order user interface filters of both sensors and the second order decimator, the low latency filter
-bandwidths, the anti-alias filters of both sensors from the corner of the filter setting, 213, 488, 997 or 1962 Hz,
-through the 63 profiles of the chip, the notch at 1.5 kHz with its widest bandwidth and the coefficient of its cosine,
-rounded from eight times its distance from one, the first order high pass filter at its second bandwidth, each in its
-register bank with bank 0 selected after, the gyro to 2000 degrees per second at 8 kHz, waits 35 ms, and routes the
-pulsed, push-pull, active high data ready interrupt to the first pin, cleared on the status read, with the 8 us pulse
-and no deassertion. The reads are the layer's. The unit is SPARK, with the profile search bounded by the table.
+`Adaflight.MPU_Gyro.ICM40609` drives the ICM-40609-D gyro over the SPI gyro layer. Detection selects
+register bank 0, resets the chip, waits 1 ms and reads the identity, 0x3B. Initialization sets a 24
+MHz clock, runs the layer's with the chip's data registers and the DMA read from the temperature,
+takes the temperature scale of 1/132.48 degree per count with its zero at 25 degrees, turns the
+sensors on in low noise mode with the RC oscillator and waits 200 us then 35 ms, selects big-endian
+data, sets the accelerometer to 16 g at 1 kHz and waits 10 ms, sets the temperature filter to 4 kHz,
+the third order user interface filters of both sensors and the second order decimator, the low
+latency filter bandwidths, the anti-alias filters of both sensors from the corner of the filter
+setting, 213, 488, 997 or 1962 Hz, through the 63 profiles of the chip, the notch at 1.5 kHz with
+its widest bandwidth and the coefficient of its cosine, rounded from eight times its distance from
+one, the first order high pass filter at its second bandwidth, each in its register bank with bank 0
+selected after, the gyro to 2000 degrees per second at 8 kHz, waits 35 ms, and routes the pulsed,
+push-pull, active high data ready interrupt to the first pin, cleared on the status read, with the 8
+us pulse and no deassertion. The reads are the layer's. The unit is SPARK, with the profile search
+bounded by the table.
 
-The ICM40609 oracle includes the reference driver and the common SPI gyro layer over a simulated chip with five register
-banks, one case per process. It draws the chip identity, 0x3B in 85 percent of the cases, the bus, the startup clock and
-its step, DMA, the interrupt pin, the sample rate divider, the filter setting, past the known ones in 8 percent, and the
-register values of the banks, lets the layer find another chip first in a twelfth of the cases, then runs the detection,
-the gyro and accelerometer detection and initialization, and 30 steps of interrupts, a burst of 990 to 1050 interrupts,
-exactly 1000 in a tenth of the cases, first or after some reads outside the DMA mode, DMA completions, gyro and
-accelerometer reads and new samples. Every bus, pin, clock and delay call, detection, setting and reading of the 300
-cases replays exactly, the notch coefficient from the cosine among them. In them 225 chips are found, 29 have an unknown
-filter setting, and of 6750 steps 1607 read the gyro, 1377 the accelerometer and 2127 raise interrupts. Of 107 tampered
-paths, 99 fail the vectors. Eight pass and are equivalent: the bits of the filter order, decimator and bank masks that
-their values set, the keep mask bit cleared just before, the profile table corner at 1962 Hz and its last entry, which
-the fixed targets reach exactly and never pass, and the notch coefficient, 88.19 at the constant 1.5 kHz, which rounds
-and truncates alike.
+The ICM40609 oracle includes the reference driver and the common SPI gyro layer over a simulated
+chip with five register banks, one case per process. It draws the chip identity, 0x3B in 85 percent
+of the cases, the bus, the startup clock and its step, DMA, the interrupt pin, the sample rate
+divider, the filter setting, past the known ones in 8 percent, and the register values of the banks,
+lets the layer find another chip first in a twelfth of the cases, then runs the detection, the gyro
+and accelerometer detection and initialization, and 30 steps of interrupts, a burst of 990 to 1050
+interrupts, exactly 1000 in a tenth of the cases, first or after some reads outside the DMA mode,
+DMA completions, gyro and accelerometer reads and new samples. Every bus, pin, clock and delay call,
+detection, setting and reading of the 300 cases replays exactly, the notch coefficient from the
+cosine among them. In them 225 chips are found, 29 have an unknown filter setting, and of 6750 steps
+1607 read the gyro, 1377 the accelerometer and 2127 raise interrupts. Of 107 tampered paths, 99 fail
+the vectors. Eight pass and are equivalent: the bits of the filter order, decimator and bank masks
+that their values set, the keep mask bit cleared just before, the profile table corner at 1962 Hz
+and its last entry, which the fixed targets reach exactly and never pass, and the notch coefficient,
+88.19 at the constant 1.5 kHz, which rounds and truncates alike.
 
 ## D367. SD card SPI driver (2026-10-19)
 
-`Adaflight.SD_Card` drives an SD card over SPI, the layer under the FAT file system. Initialization takes the detect
-pin, the bus and the select pin, sets the 400 kHz clock, waits a second and clocks ten idle bytes before it starts the
-card: each poll advances the card from the reset command through the interface condition, which names the version, the
-initialization command repeated until it answers, the operating conditions for the capacity of a version 2 card, the
-card specific data for the block count, the identification for the metadata and the 512 byte block length of a standard
-capacity card, then sets the 25 MHz clock. A command waits for an idle byte, up to eight, sends its six bytes and waits
-for the answer, up to eight bytes; a data block waits for its token, up to eight bytes, and its two check bytes are
-discarded. A read sends the read command and the poll takes the block when its token comes, within 100 ms. A write sends
-the write command, the token and the block, the whole block with DMA or 256 bytes at a time, the poll finishes it with
-two check bytes and takes the card's answer, calls the completion, and waits for the card to leave busy within 250 ms; a
-run of writes sends its count and the multiple block command, and ends with the stop token when a write leaves the run
-or its count runs out. Each failure resets the card, up to eight in a row before it counts as absent, and an
-initialization past a second starts over. The reference keeps a pointer to the caller's block while a write is pending;
-here the driver keeps a copy, and a read's bytes arrive in that copy at the completion. A card whose mode is off takes
-no operation, where the reference calls through a null dispatch table (finding F277), and a reset command whose idle
-wait aborts answers 0, where the reference returns an uninitialized byte. The bit field reader stops at the end of the
-card specific data, where the reference reads one byte past it. The unit is SPARK, with the segment lengths and the bit
-fields bounded.
+`Adaflight.SD_Card` drives an SD card over SPI, the layer under the FAT file system. Initialization
+takes the detect pin, the bus and the select pin, sets the 400 kHz clock, waits a second and clocks
+ten idle bytes before it starts the card: each poll advances the card from the reset command through
+the interface condition, which names the version, the initialization command repeated until it
+answers, the operating conditions for the capacity of a version 2 card, the card specific data for
+the block count, the identification for the metadata and the 512 byte block length of a standard
+capacity card, then sets the 25 MHz clock. A command waits for an idle byte, up to eight, sends its
+six bytes and waits for the answer, up to eight bytes. A data block waits for its token, up to eight
+bytes, and its two check bytes are discarded. A read sends the read command and the poll takes the
+block when its token comes, within 100 ms. A write sends the write command, the token and the block,
+the whole block with DMA or 256 bytes at a time, the poll finishes it with two check bytes and takes
+the card's answer, calls the completion, and waits for the card to leave busy within 250 ms. A run
+of writes sends its count and the multiple block command, and ends with the stop token when a write
+leaves the run or its count runs out. Each failure resets the card, up to eight in a row before it
+counts as absent, and an initialization past a second starts over. The reference keeps a pointer to
+the caller's block while a write is pending. Here the driver keeps a copy, and a read's bytes arrive
+in that copy at the completion. A card whose mode is off takes no operation, where the reference
+calls through a null dispatch table (finding F277), and a reset command whose idle wait aborts
+answers 0, where the reference returns an uninitialized byte. The bit field reader stops at the end
+of the card specific data, where the reference reads one byte past it. The unit is SPARK, with the
+segment lengths and the bit fields bounded.
 
-The SD card oracle includes the reference driver, its dispatch and its bit field reader over a simulated card and the
-reference's segment semantics: chip select asserted at the first segment and after each negation, a callback answering
-busy repeating its segment, an abort skipping the rest. The card parses commands byte by byte, answers after a drawn
-number of idle bytes, past the driver's eight in 7 percent of the cases, sends its registers after a drawn wait, past
-eight in 20 percent, and its data blocks after another, past eight in 30 percent, takes written blocks, stays busy for a
-drawn number of bytes after each, past the driver's eight in 20 percent, and refuses one drawn command in 20 percent.
-Each process runs one case: it draws the card's version, 1 in 20 percent, its capacity, high in 70 percent of the
-version 2 cards, its registers, the initialization answers, the write answer, accepted in 90 percent, the configuration,
-with the mode off in 5 percent, the detect pin, present in 40 percent, the clock and its step, DMA and the bus's busy
-answers, initializes the driver and runs 40 drawn operations: polls, block reads with an error token in place of the
-start token in 10 percent of them, block writes with a malformed data response from a few percent of the cards, runs of
-writes continued at their next block in 55 percent of the steps inside a run, card removals and clock advances, only
-polls when the mode is off, with the card busy for up to 12 bytes after the application command in 30 percent of the
-cards, and each written block gets its own buffer, since the reference keeps the pointer. While a read waits for its
-data token or a write waits for the card, 35 percent of the steps advance the clock so that the next poll lands on the
-timeout boundary: at the limit, one past it, up to nine before it or up to 60 past it. Thirty more cases hold a present
-card whose data tokens come past the poll's eight idle bytes and which refuses no command, advance the clock in 60
-percent of the waiting steps, onto the limit itself in 60 percent of those, poll right after each advance in 85 percent,
-and while a run is open begin runs in place of reads, at the run's next block in 60 percent. Every bus, pin, clock and
-delay call, each segment with its bytes or their hash, the completions, the driver's state after each operation and the
-metadata of the 330 cases replay exactly. In them 151 cards reach the ready state, 343 blocks are stored, 517
-completions are called, 433 with a block, and the results cover every driver state but the identification wait, which
-ends within the poll that starts it, since the two registers share one delay. Of 111 tampered paths, 98 fail the vectors
-and 3 stop the checker at a subtype check. Ten pass and are equivalent: the reset command's no-reply exception, whose
-answer of zero after an aborted idle wait the reset state rejects as it rejects no reply; the detect inversion gated on
-the detect pin, which is read only behind that pin; the enable test on any nonzero mode, since the layer starts this
-driver for the SPI mode only; the SPI mode constant, which that test no longer compares; the failure count's clear at
-initialization, which the firmware calls once on a count of zero; the card-absent state the poll writes while disabled,
-which initialization wrote already; the capacity flag's clear for a version 1 card, clear already since a card keeps its
-version across the resets of a run; the send completion's comparison with the chunk count, which the poll reaches only
-after it sent the second chunk; the run begin's test of the first command's reply, since the second command answers only
-after the first succeeded; and the write's busy answer when a run's end stays in progress, which the stopping state
-answers with busy on the next pass.
+The SD card oracle includes the reference driver, its dispatch and its bit field reader over a
+simulated card and the reference's segment semantics: chip select asserted at the first segment and
+after each negation, a callback answering busy repeating its segment, an abort skipping the rest.
+The card parses commands byte by byte, answers after a drawn number of idle bytes, past the driver's
+eight in 7 percent of the cases, sends its registers after a drawn wait, past eight in 20 percent,
+and its data blocks after another, past eight in 30 percent, takes written blocks, stays busy for a
+drawn number of bytes after each, past the driver's eight in 20 percent, and refuses one drawn
+command in 20 percent. Each process runs one case: it draws the card's version, 1 in 20 percent, its
+capacity, high in 70 percent of the version 2 cards, its registers, the initialization answers, the
+write answer, accepted in 90 percent, the configuration, with the mode off in 5 percent, the detect
+pin, present in 40 percent, the clock and its step, DMA and the bus's busy answers, initializes the
+driver and runs 40 drawn operations: polls, block reads with an error token in place of the start
+token in 10 percent of them, block writes with a malformed data response from a few percent of the
+cards, runs of writes continued at their next block in 55 percent of the steps inside a run, card
+removals and clock advances, only polls when the mode is off, with the card busy for up to 12 bytes
+after the application command in 30 percent of the cards, and each written block gets its own
+buffer, since the reference keeps the pointer. While a read waits for its data token or a write
+waits for the card, 35 percent of the steps advance the clock so that the next poll lands on the
+timeout boundary: at the limit, one past it, up to nine before it or up to 60 past it. Thirty more
+cases hold a present card whose data tokens come past the poll's eight idle bytes and which refuses
+no command, advance the clock in 60 percent of the waiting steps, onto the limit itself in 60
+percent of those, poll right after each advance in 85 percent, and while a run is open begin runs in
+place of reads, at the run's next block in 60 percent. Every bus, pin, clock and delay call, each
+segment with its bytes or their hash, the completions, the driver's state after each operation and
+the metadata of the 330 cases replay exactly. In them 151 cards reach the ready state, 343 blocks
+are stored, 517 completions are called, 433 with a block, and the results cover every driver state
+but the identification wait, which ends within the poll that starts it, since the two registers
+share one delay. Of 111 tampered paths, 98 fail the vectors and 3 stop the checker at a subtype
+check. Ten pass and are equivalent:
+
+- the reset command's no-reply exception, whose answer of zero after an aborted idle wait the reset
+  state rejects as it rejects no reply
+- the detect inversion gated on the detect pin, which is read only behind that pin
+- the enable test on any nonzero mode, since the layer starts this driver for the SPI mode only
+- the SPI mode constant, which that test no longer compares
+- the failure count's clear at initialization, which the firmware calls once on a count of zero
+- the card-absent state the poll writes while disabled, which initialization wrote already
+- the capacity flag's clear for a version 1 card, clear already since a card keeps its version
+  across the resets of a run
+- the send completion's comparison with the chunk count, which the poll reaches only after it sent
+  the second chunk
+- the run begin's test of the first command's reply, since the second command answers only after the
+  first succeeded
+- the write's busy answer when a run's end stays in progress, which the stopping state answers with
+  busy on the next pass
 
 ## D368. SD card SDIO driver (2026-10-19)
 
-`Adaflight.SD_Card_SDIO` drives an SD card through an SDIO controller, which runs the card commands itself; the card
-state, the operation results, the configuration and the metadata moved from the SPI driver into
-`Adaflight.SD_Card_Types`, which both card drivers share. Initialization takes the detect pin, the controller's DMA
-stream, 0 where the family takes one from the map and the map has none, the write cache setting and the controller, then
-asks the controller to start the card, which it runs to the end: each poll moves the card from the reset through the
-initialization, done when the controller reports the card ready and gives its information, which names the version, 2
-for every kind but the first, the capacity class, the block count from the capacity cut to 32 bits, and the
-identification for the metadata, whose production year is 2000 plus the eight bits of the date's year field above the
-month, where the reference ORs the field's two nibbles onto each other and gives at most 2015 (finding F278, D6). A read
-starts a one block transfer and the poll takes the block when the transfer ends with the card ready, within 100 ms; past
-that, or when the card reports an error, the poll resets the card and reports the failure through the completion, where
-the reference repeats the poll until the card answers, without a reset or a completion (finding F278, D6), and the
-port's passes stop at 64, which the vectors never reach. A write starts the transfer, the poll calls the completion when
-the transfer ends and waits for the card to leave busy within 250 ms. With the write cache, the blocks of a run collect
-in a cache of 16 and go to the card in one transfer when the cache fills or the run ends, each cached block answered
-success without a completion and the run's count and next block advanced. A run's end writes the blocks still cached as
-one transfer without a completion, and a write or a run begun at a block out of sequence, in the ready state as in the
-writing state, ends the run first and waits while the transfer runs. The reference drops the cached blocks at a run's
-end, lets a block out of sequence join the cache in the ready state and begins a run from the ready state over the
-blocks an earlier run left, so blocks are lost or written at the wrong index (finding F278, D6). A run of writes takes
-its count and ends when a write leaves the run or its count runs out. A failure asks the controller for a new
-initialization and counts the failure, up to eight in a row or a missing card before the card counts as absent, and
-otherwise returns the card to the reset state with the time, whether the controller accepted or not. The reference
-counts only a refused initialization and leaves the state as it was after an accepted one, which on its controllers runs
-once and repeats its first answer, so a card that failed an operation stays in the state that failed (finding F278, D6).
-An initialization past a second starts over. A refused read resets the card and reports the failure through the
-completion of the read asked for, where the reference reports it through the previous operation's (finding F278, D6). An
-operation the controller refuses answers a failure; one in the wrong state answers busy. A card whose mode is off takes
-no operation. The unit is SPARK, with the poll's repeats, the cache count and the cache slices bounded.
+`Adaflight.SD_Card_SDIO` drives an SD card through an SDIO controller, which runs the card commands
+itself. The card state, the operation results, the configuration and the metadata moved from the SPI
+driver into `Adaflight.SD_Card_Types`, which both card drivers share. Initialization takes the
+detect pin, the controller's DMA stream, 0 where the family takes one from the map and the map has
+none, the write cache setting and the controller, then asks the controller to start the card, which
+it runs to the end: each poll moves the card from the reset through the initialization, done when
+the controller reports the card ready and gives its information, which names the version, 2 for
+every kind but the first, the capacity class, the block count from the capacity cut to 32 bits, and
+the identification for the metadata, whose production year is 2000 plus the eight bits of the date's
+year field above the month, where the reference ORs the field's two nibbles onto each other and
+gives at most 2015 (finding F278, D6). A read starts a one block transfer and the poll takes the
+block when the transfer ends with the card ready, within 100 ms. Past that, or when the card reports
+an error, the poll resets the card and reports the failure through the completion, where the
+reference repeats the poll until the card answers, without a reset or a completion (finding F278,
+D6), and the port's passes stop at 64, which the vectors never reach. A write starts the transfer,
+the poll calls the completion when the transfer ends and waits for the card to leave busy within 250
+ms. With the write cache, the blocks of a run collect in a cache of 16 and go to the card in one
+transfer when the cache fills or the run ends, each cached block answered success without a
+completion and the run's count and next block advanced. A run's end writes the blocks still cached
+as one transfer without a completion, and a write or a run begun at a block out of sequence, in the
+ready state as in the writing state, ends the run first and waits while the transfer runs. The
+reference drops the cached blocks at a run's end, lets a block out of sequence join the cache in the
+ready state and begins a run from the ready state over the blocks an earlier run left, so blocks are
+lost or written at the wrong index (finding F278, D6). A run of writes takes its count and ends when
+a write leaves the run or its count runs out. A failure asks the controller for a new initialization
+and counts the failure, up to eight in a row or a missing card before the card counts as absent, and
+otherwise returns the card to the reset state with the time, whether the controller accepted or not.
+The reference counts only a refused initialization and leaves the state as it was after an accepted
+one, which on its controllers runs once and repeats its first answer, so a card that failed an
+operation stays in the state that failed (finding F278, D6). An initialization past a second starts
+over. A refused read resets the card and reports the failure through the completion of the read
+asked for, where the reference reports it through the previous operation's (finding F278, D6). An
+operation the controller refuses answers a failure. One in the wrong state answers busy. A card
+whose mode is off takes no operation. The unit is SPARK, with the poll's repeats, the cache count
+and the cache slices bounded.
 
-The SDIO card oracle includes the reference driver and its dispatch over a stubbed controller: an initialization
-answering every call with one drawn result, refused in 10 percent of the cases, a card ready after a drawn number of
-status calls past the first initialization and past each write, past three in 30 percent, and not at drawn calls in 15
-percent, card information refused for a drawn number of calls and at drawn calls, block transfers pending for a drawn
-number of checks, past three in 30 percent, one drawn transfer refused in 20 percent, and a DMA map without a stream in
-7 percent. Each process runs one case: it draws the card's kind, high capacity in 60 percent, its capacity, past 32 bits
-in 20 percent, and its identification, the configuration, with the write cache in half of the cases and the mode off in
-5 percent, the detect pin, present in 40 percent, the clock and its step, initializes the driver and runs 40 drawn
-operations: polls, block reads and writes, runs of up to 24 writes with the next block of the run drawn ahead of the
-others and bursts of up to 16 of them that fill the cache, run begins at the run's next block, card removals and clock
-advances, which while the card initializes or a read or a write waits put the next poll on the timeout boundary in 35
-percent of the steps and on the stop timeout in half of those, only polls when the mode is off. Thirty more cases take
-an accepted initialization, a card not ready at half of the status calls, no refused transfer and runs of one to three
-blocks, advance the clock in 60 percent of the waiting steps, onto the stop limit itself in 75 percent of those, and
-poll right after each advance in 85 percent. Every controller, pin and completion call, the written blocks by their
-hash, the driver's state and cache count after each operation and the metadata of the 330 cases replay exactly. In them
-236 cards reach the ready state, 426 transfers write 660 blocks, 38 of them several blocks from the cache and 5 the full
-cache, 175 reads start, 480 completions are called, and the results cover every driver state. Of 100 tampered paths, 92
-fail the vectors. Eight pass and are equivalent: the refused initialization's count, threshold, start and insertion
-checks, which a controller that answers every initialization with its first result never reaches; the information copy
-of an unanswered call, which brings the same values; the status of an ended write run, which every caller compares with
-success only; and the failed read's completion with the operation's stored index and data, which equal the call's.
+The SDIO card oracle includes the reference driver and its dispatch over a stubbed controller: an
+initialization answering every call with one drawn result, refused in 10 percent of the cases, a
+card ready after a drawn number of status calls past the first initialization and past each write,
+past three in 30 percent, and not at drawn calls in 15 percent, card information refused for a drawn
+number of calls and at drawn calls, block transfers pending for a drawn number of checks, past three
+in 30 percent, one drawn transfer refused in 20 percent, and a DMA map without a stream in 7
+percent. Each process runs one case: it draws the card's kind, high capacity in 60 percent, its
+capacity, past 32 bits in 20 percent, and its identification, the configuration, with the write
+cache in half of the cases and the mode off in 5 percent, the detect pin, present in 40 percent, the
+clock and its step, initializes the driver and runs 40 drawn operations: polls, block reads and
+writes, runs of up to 24 writes with the next block of the run drawn ahead of the others and bursts
+of up to 16 of them that fill the cache, run begins at the run's next block, card removals and clock
+advances, which while the card initializes or a read or a write waits put the next poll on the
+timeout boundary in 35 percent of the steps and on the stop timeout in half of those, only polls
+when the mode is off. Thirty more cases take an accepted initialization, a card not ready at half of
+the status calls, no refused transfer and runs of one to three blocks, advance the clock in 60
+percent of the waiting steps, onto the stop limit itself in 75 percent of those, and poll right
+after each advance in 85 percent. Every controller, pin and completion call, the written blocks by
+their hash, the driver's state and cache count after each operation and the metadata of the 330
+cases replay exactly. In them 236 cards reach the ready state, 426 transfers write 660 blocks, 38 of
+them several blocks from the cache and 5 the full cache, 175 reads start, 480 completions are
+called, and the results cover every driver state. Of 100 tampered paths, 92 fail the vectors. Eight
+pass and are equivalent:
+
+- the refused initialization's count, threshold, start and insertion checks, which a controller that
+  answers every initialization with its first result never reaches
+- the information copy of an unanswered call, which brings the same values
+- the status of an ended write run, which every caller compares with success only
+- the failed read's completion with the operation's stored index and data, which equal the call's
 
 ## D369. W25Q128FV flash driver (2026-10-19)
 
-`Adaflight.Flash_Device.W25Q128FV` drives the nine NOR flash chips of the W25Q128FV family, 2 to 32 MB parts with
-256-byte pages and 64 KB sectors, over a quad SPI controller: a generic child of the flash device over the controller's
-one-line instructions with data, an answer or an address, its four-line read with an address and dummy cycles, segment
-lists with their buffers on four lines, the wait, the millisecond clock and the report of written bytes. Identification
-looks the JEDEC ID up for the sectors and sets the geometry; an unknown ID clears it. Configuration does nothing on a
-memory-mapped system and otherwise resets the chip: it waits for the chip, sends the reset pair, waits a millisecond and
-for the chip again, then reads the second status register and, when the quad enable bit is clear, reads it again and
-writes it back with the bit set after a volatile write enable. The ready check reads the first status register. A wait
-for the chip ends when the chip reads ready or the timeout the last operation set passes, and clears the timeout, so a
-wait that follows another with no operation between ends at the first busy answer. Erases wait for the chip, enable
-writes, send the block or chip erase and set the erase timeout. A program goes to the bus as a segment list: the status
-read repeated while the chip is busy, the write enable, the quad program command with its address and one or two buffers
-on four lines, the last of which releases the chip and ends the program, after which a program without a report waits
-for the bus; no buffer reports zero bytes to a program with a report, and any other count sends nothing and returns 0
-after the written bytes take the first buffer's length. A read waits for the chip, reads on four lines after eight dummy
-cycles, sets the read timeout and returns the length, or 0 when the chip stayed busy or the bus refused. The driver
-never sets a program timeout, which only the octo SPI path of the reference does; that path and the memory-mapped octo
-SPI operation stay out, since three SPRacing H7 boards reach them memory mapped and the other builds leave them behind
-an experimental define. The bus formal runs the segment list's callbacks, which the STM32 quad SPI controller code does
-not (finding F279). The unit is SPARK for the command bytes, the table and the segment lists.
+`Adaflight.Flash_Device.W25Q128FV` drives the nine NOR flash chips of the W25Q128FV family, 2 to 32
+MB parts with 256-byte pages and 64 KB sectors, over a quad SPI controller: a generic child of the
+flash device over the controller's one-line instructions with data, an answer or an address, its
+four-line read with an address and dummy cycles, segment lists with their buffers on four lines, the
+wait, the millisecond clock and the report of written bytes. Identification looks the JEDEC ID up
+for the sectors and sets the geometry. An unknown ID clears it. Configuration does nothing on a
+memory-mapped system and otherwise resets the chip: it waits for the chip, sends the reset pair,
+waits a millisecond and for the chip again, then reads the second status register and, when the quad
+enable bit is clear, reads it again and writes it back with the bit set after a volatile write
+enable. The ready check reads the first status register. A wait for the chip ends when the chip
+reads ready or the timeout the last operation set passes, and clears the timeout, so a wait that
+follows another with no operation between ends at the first busy answer. Erases wait for the chip,
+enable writes, send the block or chip erase and set the erase timeout. A program goes to the bus as
+a segment list: the status read repeated while the chip is busy, the write enable, the quad program
+command with its address and one or two buffers on four lines, the last of which releases the chip
+and ends the program, after which a program without a report waits for the bus. No buffer reports
+zero bytes to a program with a report, and any other count sends nothing and returns 0 after the
+written bytes take the first buffer's length. A read waits for the chip, reads on four lines after
+eight dummy cycles, sets the read timeout and returns the length, or 0 when the chip stayed busy or
+the bus refused. The driver never sets a program timeout, which only the octo SPI path of the
+reference does. That path and the memory-mapped octo SPI operation stay out, since three SPRacing H7
+boards reach them memory mapped and the other builds leave them behind an experimental define. The
+bus formal runs the segment list's callbacks, which the STM32 quad SPI controller code does not
+(finding F279). The unit is SPARK for the command bytes, the table and the segment lists.
 
-The W25Q128FV oracle includes the reference driver over a simulated chip, bus and clock, one case per process. The bus
-runs segment lists as the SPI handler does and clocks the one and four line transfers through the chip as bytes. The
-chip keeps a write enable latch and a volatile one, a quad enable bit with a stored copy the reset restores, stays busy
-for a drawn number of status reads after a program, an erase or a reset, ignores commands while busy and wraps a program
-within its page; the clock advances a millisecond every one to six calls and stays clear of the microsecond wrap, where
-the reference hangs (F279). It draws the JEDEC ID, from the table in 85 percent of cases, the memory-mapped flag in 10
-percent, the busy reads, past three in 30 percent of programs, the quad enable bit and the other bits of the second
-status register, reads the bus refuses in 15 percent of cases, and the clock, then runs 4 to 14 drawn operations, half
-of them near the last write: ready checks, waits, sector and chip erases, programs of one buffer or of none to three,
-reads of up to 64 bytes and geometry queries. Every bus and clock call, with the bytes of each transfer or their hash,
-and the device's state after each operation of the 300 cases replay exactly. In them 251 chips identify, 555 programs
-run through the bus, 206 reads start, 61 waits time out and 68 reads return nothing. Of 88 tampered paths, 82 fail the
-vectors and 3 stop the checker at a subtype check. Three pass and are equivalent: the deadline comparison at a
-difference of exactly 2 ** 31 ms, which a millisecond clock under 2 ** 23 never produces; the clear of the deadline
-after a timed wait, since a deadline of zero and a passed one both read as timed out under that clock; and the sector
-count a failed identification clears, which is zero already since the geometry starts empty and identification runs
-once.
+The W25Q128FV oracle includes the reference driver over a simulated chip, bus and clock, one case
+per process. The bus runs segment lists as the SPI handler does and clocks the one and four line
+transfers through the chip as bytes. The chip keeps a write enable latch and a volatile one, a quad
+enable bit with a stored copy the reset restores, stays busy for a drawn number of status reads
+after a program, an erase or a reset, ignores commands while busy and wraps a program within its
+page. The clock advances a millisecond every one to six calls and stays clear of the microsecond
+wrap, where the reference hangs (F279). It draws the JEDEC ID, from the table in 85 percent of
+cases, the memory-mapped flag in 10 percent, the busy reads, past three in 30 percent of programs,
+the quad enable bit and the other bits of the second status register, reads the bus refuses in 15
+percent of cases, and the clock, then runs 4 to 14 drawn operations, half of them near the last
+write: ready checks, waits, sector and chip erases, programs of one buffer or of none to three,
+reads of up to 64 bytes and geometry queries. Every bus and clock call, with the bytes of each
+transfer or their hash, and the device's state after each operation of the 300 cases replay exactly.
+In them 251 chips identify, 555 programs run through the bus, 206 reads start, 61 waits time out and
+68 reads return nothing. Of 88 tampered paths, 82 fail the vectors and 3 stop the checker at a
+subtype check. Three pass and are equivalent:
+
+- the deadline comparison at a difference of exactly 2 ** 31 ms, which a millisecond clock under 2
+  ** 23 never produces
+- the clear of the deadline after a timed wait, since a deadline of zero and a passed one both read
+  as timed out under that clock
+- the sector count a failed identification clears, which is zero already since the geometry starts
+  empty and identification runs once
 
 ## D370. OLED display driver (2026-10-19)
 
-`Adaflight.OLED_Display` drives the UG-2864HSWEG01 display of the dashboard over I2C, 128 by 64 pixels drawn as 8 rows
-of 21 characters from a 5 by 7 font with a one-pixel gap, a generic over the link's write of a control byte and a value,
-which the display answers or not. A command goes behind the control byte 16#80#, a data byte behind 16#40#, and a
-command list stops at the first write the display does not answer. Initialization sends the display-off command, which
-has to be answered, then the 22 setup commands and a clear, and answers true after. A clear sends the normal display,
-display off and horizontal addressing commands, a quick clear, then the contrast 200 and display on; a quick clear
-resets the page, the start line and the column and writes 1024 zero bytes. A position sets the page from the row and the
-column address from six times the column, in its low and high halves. A character sends its five font columns and a gap
-byte, each combined with the format, normal or inverse, which the reference keeps as a global nothing writes. A
-character below the space or past the font's 135 glyphs sends the blank, where the reference reads past its table
-(finding F280). The unit is SPARK, with the font index bounded.
+`Adaflight.OLED_Display` drives the UG-2864HSWEG01 display of the dashboard over I2C, 128 by 64
+pixels drawn as 8 rows of 21 characters from a 5 by 7 font with a one-pixel gap, a generic over the
+link's write of a control byte and a value, which the display answers or not. A command goes behind
+the control byte 16#80#, a data byte behind 16#40#, and a command list stops at the first write the
+display does not answer. Initialization sends the display-off command, which has to be answered,
+then the 22 setup commands and a clear, and answers true after. A clear sends the normal display,
+display off and horizontal addressing commands, a quick clear, then the contrast 200 and display on.
+A quick clear resets the page, the start line and the column and writes 1024 zero bytes. A position
+sets the page from the row and the column address from six times the column, in its low and high
+halves. A character sends its five font columns and a gap byte, each combined with the format,
+normal or inverse, which the reference keeps as a global nothing writes. A character below the space
+or past the font's 135 glyphs sends the blank, where the reference reads past its table (finding
+F280). The unit is SPARK, with the font index bounded.
 
-The OLED oracle includes the reference driver over a stubbed I2C write that answers from a drawn pattern over the first
-64 writes of a case, with failures in 25 percent of the cases. Each process runs one case of 4 to 12 drawn operations:
-the initialization, in 70 percent of the cases first, clears, quick clears, positions and lines in the screen in 90
-percent and out to 255 otherwise, characters from the font's range and texts of up to 40 characters with bytes past 127
-in 15 percent. Every write with its control byte, value and answer, and the initialization's result of the 300 cases
-replay exactly: 401 initializations, 367 clears, 586 texts and 793 writes the display does not answer. Of 31 tampered
-paths, 28 fail the vectors and 1 stop the checker at a subtype check. Two pass and are equivalent: the initial result of
-a command list, which the first command's write overwrites; and the operator that applies the character format, a format
-the reference never changes from zero.
+The OLED oracle includes the reference driver over a stubbed I2C write that answers from a drawn
+pattern over the first 64 writes of a case, with failures in 25 percent of the cases. Each process
+runs one case of 4 to 12 drawn operations: the initialization, in 70 percent of the cases first,
+clears, quick clears, positions and lines in the screen in 90 percent and out to 255 otherwise,
+characters from the font's range and texts of up to 40 characters with bytes past 127 in 15 percent.
+Every write with its control byte, value and answer, and the initialization's result of the 300
+cases replay exactly: 401 initializations, 367 clears, 586 texts and 793 writes the display does not
+answer. Of 31 tampered paths, 28 fail the vectors and 1 stop the checker at a subtype check. Two
+pass and are equivalent: the initial result of a command list, which the first command's write
+overwrites, and the operator that applies the character format, a format the reference never changes
+from zero.
 
 ## D371. SX1280 radio driver (2026-10-19)
 
-`Adaflight.SX1280` drives the SX1280 radio of the ExpressLRS SPI receiver, a generic over the busy pin, the microsecond
-clock, the receiver's interrupt line, the reset and busy pins, the receiver's SPI as a command write and a full-duplex
-transfer, the DMA segments the interrupt chain sends, and the receiver's answers: whether a hop or a telemetry response
-is due, the hop frequency, the telemetry assembly and packet, and the processing of a received packet into its status.
-Every transfer waits for the busy pin to fall, up to a millisecond. Initialization needs the receiver's interrupt pin,
-sets the 18 MHz clock, pulses the reset pin low for 50 ms and lets it float for 20 ms, reads the firmware version, which
-has to be neither 0 nor 65535, then sets standby on the RC oscillator, automatic frequency synthesis and the high
-sensitivity gain regime. The configuration sets the packet type, the LoRa modulation with the spreading register and
-packet parameters, or the FLRC modulation and packet parameters with the CRC seed, the sync word swapped and marked for
-the two coding rates that collide with it, and the sync address control masked, then the interrupt masks, 13 dBm and the
-frequency. The interrupt claims the radio when it is free, stamps the time and configures the busy interrupt, then runs
-a chain of DMA transfers, each started when the busy pin reads low or when it falls, with the interrupt disabled before
-each transfer: the interrupt status read, which names the reason, with a hardware error for a FLRC packet without a
-valid sync word or with a CRC or sync error; the clear of every interrupt; then for a received packet the buffer
-address, the eight packet bytes, the packet statistics and the receiver's processing with the time of the receiver's
-last interrupt; the hop frequency when the receiver asks for one or a hop waits; the telemetry packet and transmission
-when the receiver asks for that, or the return to reception; and the receiver's interrupt enabled again and the radio
-freed, unless a hop still waits. A hardware error ends the chain after the clear with the radio held. The tick handler
-frees a radio held past a millisecond; the tock handler starts the hop when the receiver asks or one waits. The packet
-statistics give the signal strength and ratio, with the FLRC strength from the second byte and the LoRa strength
-corrected by a quarter of a negative ratio, wrapping below -128 as the reference's signed byte does (finding F281). The
-chain runs at most 12 steps, which the reference's recursion never reaches. The unit is SPARK for the command bytes and
-the chain.
+`Adaflight.SX1280` drives the SX1280 radio of the ExpressLRS SPI receiver, a generic over the busy
+pin, the microsecond clock, the receiver's interrupt line, the reset and busy pins, the receiver's
+SPI as a command write and a full-duplex transfer, the DMA segments the interrupt chain sends, and
+the receiver's answers: whether a hop or a telemetry response is due, the hop frequency, the
+telemetry assembly and packet, and the processing of a received packet into its status. Every
+transfer waits for the busy pin to fall, up to a millisecond. Initialization needs the receiver's
+interrupt pin, sets the 18 MHz clock, pulses the reset pin low for 50 ms and lets it float for 20
+ms, reads the firmware version, which has to be neither 0 nor 65535, then sets standby on the RC
+oscillator, automatic frequency synthesis and the high sensitivity gain regime. The configuration
+sets the packet type, the LoRa modulation with the spreading register and packet parameters, or the
+FLRC modulation and packet parameters with the CRC seed, the sync word swapped and marked for the
+two coding rates that collide with it, and the sync address control masked, then the interrupt
+masks, 13 dBm and the frequency. The interrupt claims the radio when it is free, stamps the time and
+configures the busy interrupt, then runs a chain of DMA transfers, each started when the busy pin
+reads low or when it falls, with the interrupt disabled before each transfer:
 
-The SX1280 oracle includes the reference driver over stubs: a chip that answers register reads from a hash of the
-address, the buffer from a hash of its offset, the status from a drawn byte and the buffer status, packet statistics and
-interrupt status from values drawn at each interrupt step; a busy pin answering from a pattern drawn per step over its
-first 16 reads; a clock stepping 40 to 400 us per read; the interrupt lines; and the receiver's hooks with answers drawn
-per step. The reference's uninitialized transfer bytes are zeroed at compile time (F281). Each process runs one case of
-6 to 24 operations: the initialization, with the interrupt pin missing in 5 percent and the reset or busy pin missing in
-20 and 10 percent, configurations with drawn parameters, FLRC in 40 percent and the colliding sync words in 30 percent,
-their last byte at the marking boundary of the 3/4 coding rate in 40 percent of those, modes, frequencies, powers,
-buffer addresses, interrupt masks, transmissions, receptions, statistics, status reads, register writes and reads,
-interrupts in 20 percent of the steps, busy pin falls in 10, tick handling with the clock advanced past the millisecond
-in half of them, tock handling and busy checks. Thirty more cases answer the firmware version registers with 0xFFFF in
-20 percent and 0 in 10, as a tenth init field, and while a chain waits on the busy pin make half the steps ticks,
-landing exactly 1000 us after the chain's stamp in 60 percent of them. Every bus, pin, interrupt, clock and hook call,
-with the bytes of each transfer, and the driver's state after each operation of the 330 cases replay exactly: 304 chips
-initialize, 935 interrupts arm the busy pin 257 times, 99 falls continue a chain, 277 packets are processed, 168 hops
-and 120 telemetry responses are sent. Of 126 tampered paths, every one fails the vectors.
+- the interrupt status read, which names the reason, with a hardware error for a FLRC packet without
+  a valid sync word or with a CRC or sync error
+- the clear of every interrupt
+- for a received packet, the buffer address, the eight packet bytes, the packet statistics and the
+  receiver's processing with the time of the receiver's last interrupt
+- the hop frequency when the receiver asks for one or a hop waits
+- the telemetry packet and transmission when the receiver asks for that, or the return to reception
+- the receiver's interrupt enabled again and the radio freed, unless a hop still waits
+
+A hardware error ends the chain after the clear with the radio held. The tick handler frees a radio
+held past a millisecond. The tock handler starts the hop when the receiver asks or one waits. The
+packet statistics give the signal strength and ratio, with the FLRC strength from the second byte
+and the LoRa strength corrected by a quarter of a negative ratio, wrapping below -128 as the
+reference's signed byte does (finding F281). The chain runs at most 12 steps, which the reference's
+recursion never reaches. The unit is SPARK for the command bytes and the chain.
+
+The SX1280 oracle includes the reference driver over stubs:
+
+- a chip that answers register reads from a hash of the address, the buffer from a hash of its
+  offset, the status from a drawn byte and the buffer status, packet statistics and interrupt status
+  from values drawn at each interrupt step
+- a busy pin answering from a pattern drawn per step over its first 16 reads
+- a clock stepping 40 to 400 us per read
+- the interrupt lines
+- the receiver's hooks with answers drawn per step
+
+The reference's uninitialized transfer bytes are zeroed at compile time (F281). Each process runs
+one case of 6 to 24 operations: the initialization, with the interrupt pin missing in 5 percent and
+the reset or busy pin missing in 20 and 10 percent, configurations with drawn parameters, FLRC in 40
+percent and the colliding sync words in 30 percent, their last byte at the marking boundary of the
+3/4 coding rate in 40 percent of those, modes, frequencies, powers, buffer addresses, interrupt
+masks, transmissions, receptions, statistics, status reads, register writes and reads, interrupts in
+20 percent of the steps, busy pin falls in 10, tick handling with the clock advanced past the
+millisecond in half of them, tock handling and busy checks. Thirty more cases answer the firmware
+version registers with 0xFFFF in 20 percent and 0 in 10, as a tenth init field, and while a chain
+waits on the busy pin make half the steps ticks, landing exactly 1000 us after the chain's stamp in
+60 percent of them. Every bus, pin, interrupt, clock and hook call, with the bytes of each transfer,
+and the driver's state after each operation of the 330 cases replay exactly: 304 chips initialize,
+935 interrupts arm the busy pin 257 times, 99 falls continue a chain, 277 packets are processed, 168
+hops and 120 telemetry responses are sent. Of 126 tampered paths, every one fails the vectors.
 
 ## D372. SX127x radio driver (2026-10-19)
 
-`Adaflight.SX127x` drives the SX127x radio of the ExpressLRS SPI receiver, a generic over the receiver's SPI command
-helpers (a register write, a burst write, a register read and a burst read, each with the register address as the
-command byte and the write bit set for a write), the reset pin, the delay, the receiver's interrupt line and the time of
-its last interrupt. Initialization needs the receiver's interrupt pin, pulses the reset pin low for 50 ms and lets it
-float, reads the version register up to three times 50 ms apart for the chip's id and puts the chip to sleep through a
-read, modify and write of the mode bits. The configuration writes the LoRa defaults (sleep, the LoRa range bit, standby,
-the flags cleared, an 8-byte payload, the default sync word, the FIFO bases, DIO0 on both done interrupts, the LNA
-boost, automatic gain, the 150 mA current limit, the default preamble and the IQ inversion bit), then the preamble
-length, the maximum output power, the spreading factor with its detection registers, the bandwidth, coding rate and CRC
-mode with the errata registers for 500 kHz, and the frequency. The sync word write steps up to the next allowed word of
-the 105. The bit field operations mask from the bit range and refuse ranges past bit 7. The frequency in hertz converts
-in steps of 15625 over 256 (61.03515625 Hz); the frequency error combines the three error registers as a signed 19-bit
-value scaled by the bandwidth's factor in unsigned arithmetic; the correction steps the offset against the error sign,
-back to zero at either bound of 1638 steps, and writes 95 percent of its parts per million as a truncated and wrapped
-byte (finding F282). The signal strength subtracts 157 as a wrapped byte and the packet statistics correct it by a
-quarter of a negative ratio (F282). The interrupt handler clears the receiver's interrupt, reads and clears the flags
-for the reason (received, sent, both or neither) and takes the receiver's last interrupt time when it is set. The unit
-is SPARK: the offset subtype bounds the scaled correction and a nonzero frequency guards its division.
+`Adaflight.SX127x` drives the SX127x radio of the ExpressLRS SPI receiver, a generic over the
+receiver's SPI command helpers (a register write, a burst write, a register read and a burst read,
+each with the register address as the command byte and the write bit set for a write), the reset
+pin, the delay, the receiver's interrupt line and the time of its last interrupt. Initialization
+needs the receiver's interrupt pin, pulses the reset pin low for 50 ms and lets it float, reads the
+version register up to three times 50 ms apart for the chip's id and puts the chip to sleep through
+a read, modify and write of the mode bits. The configuration writes the LoRa defaults (sleep, the
+LoRa range bit, standby, the flags cleared, an 8-byte payload, the default sync word, the FIFO
+bases, DIO0 on both done interrupts, the LNA boost, automatic gain, the 150 mA current limit, the
+default preamble and the IQ inversion bit), then the preamble length, the maximum output power, the
+spreading factor with its detection registers, the bandwidth, coding rate and CRC mode with the
+errata registers for 500 kHz, and the frequency. The sync word write steps up to the next allowed
+word of the 105. The bit field operations mask from the bit range and refuse ranges past bit 7. The
+frequency in hertz converts in steps of 15625 over 256 (61.03515625 Hz). The frequency error
+combines the three error registers as a signed 19-bit value scaled by the bandwidth's factor in
+unsigned arithmetic. The correction steps the offset against the error sign, back to zero at either
+bound of 1638 steps, and writes 95 percent of its parts per million as a truncated and wrapped byte
+(finding F282). The signal strength subtracts 157 as a wrapped byte and the packet statistics
+correct it by a quarter of a negative ratio (F282). The interrupt handler clears the receiver's
+interrupt, reads and clears the flags for the reason (received, sent, both or neither) and takes the
+receiver's last interrupt time when it is set. The unit is SPARK: the offset subtype bounds the
+scaled correction and a nonzero frequency guards its division.
 
-The SX127x oracle includes the reference driver over stubs: the receiver's SPI helpers logging each command and
-answering reads from a hash of the address, the case's seed and the step's salt, with the version register answering its
-id from a drawn read on, the reset pin, the delay and the interrupt line. Each process runs one case of 6 to 24
-operations: the initialization, with the interrupt pin missing in 5 percent of the cases and the reset pin in 20,
-configurations, modes, frequencies in hertz and in register steps, powers, preambles, spreading factors, bandwidth and
-coding writes, sync words, transmissions and receptions of 1 to 16 bytes, reception starts, bandwidth lookups with
-unknown codes in 20 percent, offsets and corrections at drawn offsets and frequencies, frequency errors, statistics,
-interrupt flags and reasons, interrupts with the last time set or clear, bit field reads and writes with invalid ranges
-in 30 percent, register writes, reads and bursts, and the LoRa defaults. Every bus, pin and delay call with its bytes
-and the results of the 4383 operations of the 300 cases replay exactly: 242 of 397 initializations find the chip, 215
-interrupts report their reason, 220 corrections step the offset and 28 lookups answer all ones. Of 151 tampered paths,
-140 fail the vectors and 8 stop the checker at a subtype check. Three pass and are equivalent: the signed conversion's
-case at exactly 2 ** 31, which the frequency error's product shifted right by four never reaches; the order of the
-transmit and receive flag tests, which follow the test of both flags at once; and the packet statistics' test for a
-negative signal to noise ratio, where a ratio of zero adds nothing to the strength.
+The SX127x oracle includes the reference driver over stubs: the receiver's SPI helpers logging each
+command and answering reads from a hash of the address, the case's seed and the step's salt, with
+the version register answering its id from a drawn read on, the reset pin, the delay and the
+interrupt line. Each process runs one case of 6 to 24 operations: the initialization, with the
+interrupt pin missing in 5 percent of the cases and the reset pin in 20, configurations, modes,
+frequencies in hertz and in register steps, powers, preambles, spreading factors, bandwidth and
+coding writes, sync words, transmissions and receptions of 1 to 16 bytes, reception starts,
+bandwidth lookups with unknown codes in 20 percent, offsets and corrections at drawn offsets and
+frequencies, frequency errors, statistics, interrupt flags and reasons, interrupts with the last
+time set or clear, bit field reads and writes with invalid ranges in 30 percent, register writes,
+reads and bursts, and the LoRa defaults. Every bus, pin and delay call with its bytes and the
+results of the 4383 operations of the 300 cases replay exactly: 242 of 397 initializations find the
+chip, 215 interrupts report their reason, 220 corrections step the offset and 28 lookups answer all
+ones. Of 151 tampered paths, 140 fail the vectors and 8 stop the checker at a subtype check. Three
+pass and are equivalent:
+
+- the signed conversion's case at exactly 2 ** 31, which the frequency error's product shifted right
+  by four never reaches
+- the order of the transmit and receive flag tests, which follow the test of both flags at once
+- the packet statistics' test for a negative signal to noise ratio, where a ratio of zero adds
+  nothing to the strength
 
 ## D373. BMM350 compass driver (2026-10-19)
 
-`Adaflight.BMM350` drives the BMM350 compass over I2C, a generic over the bus device: whether it is I2C, its address,
-the device's registration, register reads and writes with their acknowledgement, and millisecond and microsecond delays.
-Detection waits 3 ms and reads the chip identity 0x33 at the configured address, or at 0x14 then 0x15 when none is set,
-leaving the address unset when neither answers. Initialization registers the device, soft resets the chip up to three
-times until it answers its identity 24 ms later, reads the 32 trim words of the one-time memory, each after its read
-command completes within ten polls 300 us apart with no error bit, and parses them into the axis and temperature offsets
-and sensitivities, the temperature coefficients of the offsets and scales, the reference temperature and the cross-axis
-terms, all zero when the read fails. It powers the memory off, resets the magnet through the bit and flux guide commands
-with the chip suspended first, then enables the data ready interrupt, four-sample averaging at 100 Hz, the offset
-update, the three axes and the normal power mode, each power command waited for in the status register up to its timeout
-and the normal mode's success deciding the initialization. A read takes the twelve data bytes behind the two dummy
-bytes, assembles the three axes and the temperature as 24-bit values, scales them by the reference's single precision
-constants, applies the trim in the reference's order of operations and hands over the axes in tenths of a microtesla
-rounded half to even and held within 16 bits. An axis whose temperature scale term makes its divisor zero carries its
-class, an infinity by the sign of its sum or an undefined value, through the cross axis terms, and reads as the limit of
-its sign or as zero, as the target's conversion of the reference's result does (finding F283); the SPARK proof bounds
-every intermediate from the trim subtypes and the 24-bit readings, with a nonzero single precision divisor at least 2 **
--24.
+`Adaflight.BMM350` drives the BMM350 compass over I2C, a generic over the bus device: whether it is
+I2C, its address, the device's registration, register reads and writes with their acknowledgement,
+and millisecond and microsecond delays. Detection waits 3 ms and reads the chip identity 0x33 at the
+configured address, or at 0x14 then 0x15 when none is set, leaving the address unset when neither
+answers. Initialization registers the device, soft resets the chip up to three times until it
+answers its identity 24 ms later, reads the 32 trim words of the one-time memory, each after its
+read command completes within ten polls 300 us apart with no error bit, and parses them into the
+axis and temperature offsets and sensitivities, the temperature coefficients of the offsets and
+scales, the reference temperature and the cross-axis terms, all zero when the read fails. It powers
+the memory off, resets the magnet through the bit and flux guide commands with the chip suspended
+first, then enables the data ready interrupt, four-sample averaging at 100 Hz, the offset update,
+the three axes and the normal power mode, each power command waited for in the status register up to
+its timeout and the normal mode's success deciding the initialization. A read takes the twelve data
+bytes behind the two dummy bytes, assembles the three axes and the temperature as 24-bit values,
+scales them by the reference's single precision constants, applies the trim in the reference's order
+of operations and hands over the axes in tenths of a microtesla rounded half to even and held within
+16 bits. An axis whose temperature scale term makes its divisor zero keeps its class, an infinity by
+the sign of its sum or an undefined value, through the cross axis terms, and reads as the limit of
+its sign or as zero, as the target's conversion of the reference's result does (finding F283). The
+SPARK proof bounds every intermediate from the trim subtypes and the 24-bit readings, with a nonzero
+single precision divisor at least 2 ** -24.
 
-The BMM350 oracle includes the reference driver, with the target's conversion of a float to an integer in place of the
-host's (an infinity saturates at the 32-bit limits, an undefined value reads as zero), over stubs: a chip answering each
-identity read, command read and status poll from drawn tables, with the power manager busy for a drawn number of polls
-after each command, one status read, one command read and one write that fail, a trim word whose read fails in one of
-five ways with a single error bit, the polls a trim read takes, the 32 trim words, small in half the cases, and soft
-resets that keep the power mode in 30 percent of the chips. Each process runs one case: the bus type and preset address,
-the detection, the initialization and 40 to 120 reads with drawn acknowledgements and data, small readings in 60 percent
-of them. Thirty more cases hold a found chip that answers every access, busy at the suspend and bit reset limits, and
-busy for 22 or 23 polls after the flux guide reset, its own count in a last init field, and a reference temperature word
-at the sign boundary in half of them. Every bus, registration and delay call with its bytes, the detection, the
-initialization's result and its parsed trim, and each read's result and axes of the 330 cases replay exactly: 244 chips
-are found, 64 at a configured address and 180 by the scan, 219 initialize, 41 of them after a failed trim read, and
-18480 of 20004 reads bring axes. Of 128 tampered paths, 115 fail the vectors and 9 stop the checker at a subtype check.
-Four pass and are equivalent: the last digits of the three scale constants, which single precision does not hold; and
-the trim's clear before the memory read, which initialization runs once on a trim still at its defaults.
+The BMM350 oracle includes the reference driver, with the target's conversion of a float to an
+integer in place of the host's (an infinity saturates at the 32-bit limits, an undefined value reads
+as zero), over stubs: a chip answering each identity read, command read and status poll from drawn
+tables, with the power manager busy for a drawn number of polls after each command, one status read,
+one command read and one write that fail, a trim word whose read fails in one of five ways with a
+single error bit, the polls a trim read takes, the 32 trim words, small in half the cases, and soft
+resets that keep the power mode in 30 percent of the chips. Each process runs one case: the bus type
+and preset address, the detection, the initialization and 40 to 120 reads with drawn
+acknowledgements and data, small readings in 60 percent of them. Thirty more cases hold a found chip
+that answers every access, busy at the suspend and bit reset limits, and busy for 22 or 23 polls
+after the flux guide reset, its own count in a last init field, and a reference temperature word at
+the sign boundary in half of them. Every bus, registration and delay call with its bytes, the
+detection, the initialization's result and its parsed trim, and each read's result and axes of the
+330 cases replay exactly: 244 chips are found, 64 at a configured address and 180 by the scan, 219
+initialize, 41 of them after a failed trim read, and 18480 of 20004 reads bring axes. Of 128
+tampered paths, 115 fail the vectors and 9 stop the checker at a subtype check. Four pass and are
+equivalent: the last digits of the three scale constants, which single precision does not hold, and
+the trim's clear before the memory read, which initialization runs once on a trim still at its
+defaults.
 
 ## D374. CC2500 radio driver (2026-10-19)
 
-`Adaflight.CC2500` contains the CC2500 radio's register access behind the SPI radio unit's operations, a generic over
-the receiver's SPI helpers: a command byte with a value, a command with a burst, a single and a burst read, a lone byte,
-the DMA switch and a microsecond delay. A FIFO read takes its bytes with the FIFO address under the read burst flag; a
-FIFO write flushes the transmit FIFO, sends the bytes under the write burst flag and strobes the transmission. Burst
-reads and writes take the address as the caller formed it, a register read sets the single read flag, a strobe is one
-byte and a register write one command. The power level selects one of eight amplifier table bytes, levels past seven as
-the last, written to the table register. The reset switches DMA off, strobes the reset, waits 1 ms and reports whether
-the first frequency register reads its reset value 0xC4. The unit is SPARK and holds no state.
+`Adaflight.CC2500` contains the CC2500 radio's register access behind the SPI radio unit's
+operations, a generic over the receiver's SPI helpers: a command byte with a value, a command with a
+burst, a single and a burst read, a lone byte, the DMA switch and a microsecond delay. A FIFO read
+takes its bytes with the FIFO address under the read burst flag. A FIFO write flushes the transmit
+FIFO, sends the bytes under the write burst flag and strobes the transmission. Burst reads and
+writes take the address as the caller formed it, a register read sets the single read flag, a strobe
+is one byte and a register write one command. The power level selects one of eight amplifier table
+bytes, levels past seven as the last, written to the table register. The reset switches DMA off,
+strobes the reset, waits 1 ms and reports whether the first frequency register reads its reset value
+0xC4. The unit is SPARK and holds no state.
 
-The CC2500 oracle includes the reference helpers over stubs: the receiver's SPI helpers logging each call and answering
-reads from a hash of the command byte, the case's seed and the step's salt, the first frequency register answering its
-reset value in 70 percent of the steps, the DMA switch and the delay. Each process runs one case of 10 to 30 operations
-drawn evenly from FIFO reads and writes of 1 to 32 bytes, burst reads and writes of 1 to 8 bytes at drawn addresses,
-register reads with the first frequency register in 20 percent, strobes, register writes, power levels past seven in 20
-percent and resets. Every bus, DMA and delay call with its bytes and each operation's result of the 300 cases replay
-exactly: 5983 operations, 720 of them resets and 614 power levels, over 159133 logged calls. Of 36 tampered paths, every
-one fails the vectors.
+The CC2500 oracle includes the reference helpers over stubs: the receiver's SPI helpers logging each
+call and answering reads from a hash of the command byte, the case's seed and the step's salt, the
+first frequency register answering its reset value in 70 percent of the steps, the DMA switch and
+the delay. Each process runs one case of 10 to 30 operations drawn evenly from FIFO reads and writes
+of 1 to 32 bytes, burst reads and writes of 1 to 8 bytes at drawn addresses, register reads with the
+first frequency register in 20 percent, strobes, register writes, power levels past seven in 20
+percent and resets. Every bus, DMA and delay call with its bytes and each operation's result of the
+300 cases replay exactly: 5983 operations, 720 of them resets and 614 power levels, over 159133
+logged calls. Of 36 tampered paths, every one fails the vectors.
 
 ## D375. Headfree turn of the stick commands (2026-10-24)
 
-`Adaflight.RC_Command` contains the stick half of headfree mode. `Headfree_Vector` takes the roll and
-pitch commands, and the yaw command unless a level or hold mode is on (angle, horizon, altitude hold,
-position hold, GPS rescue), as an earth frame vector. The attitude's `Headfree_To_Body` (D289) turns it
-into the headfree frame. `Apply_Headfree` puts the turned commands back on the sticks: roll and pitch, and
-yaw outside the level and hold modes.
+`Adaflight.RC_Command` contains the stick half of headfree mode. `Headfree_Vector` takes the roll
+and pitch commands, and the yaw command unless a level or hold mode is on (angle, horizon, altitude
+hold, position hold, GPS rescue), as an earth frame vector. The attitude's `Headfree_To_Body` (D289)
+turns it into the headfree frame. `Apply_Headfree` puts the turned commands back on the sticks: roll
+and pitch, and yaw outside the level and hold modes.
 
-The turn keeps the vector's length, so it can push a command past its divider. Full roll and pitch turned
-by 45 degrees put about 707 on one axis, a deflection of 1.41 where the reference states a range of -1 to
-1, and the rates then run up to twice the configured maximum or to the rate limit (F284). When the largest
-ratio of a turned command to its divider passes one, `Apply_Headfree` divides the turned commands by that
-ratio and holds each to its divider, so the stick direction stays and no deflection passes one (D6). The
-divider is 500 less the deadband, 500 less the yaw deadband for yaw.
+The turn keeps the vector's length, so it can push a command past its divider. Full roll and pitch
+turned by 45 degrees put about 707 on one axis, a deflection of 1.41 where the reference states a
+range of -1 to 1, and the rates then run up to twice the configured maximum or to the rate limit
+(F284). When the largest ratio of a turned command to its divider passes one, `Apply_Headfree`
+divides the turned commands by that ratio and holds each to its divider, so the stick direction
+stays and no deflection passes one (D6). The divider is 500 less the deadband, 500 less the yaw
+deadband for yaw.
 
-The RC oracle gains headfree sequences: headfree mode in three steps of four, a level or hold mode in one
-of three, and a stand-in for the turn that keeps the stick vector it is given and hands back a turned
-vector drawn within 500 or 1200 per component. The turn itself is the attitude oracle's. The reference
-module compiles with the same scaling. The checker gives the port's stick vector the recorded turned
-vector, then replays the commands, deflections, setpoints and feedforward. Feedforward averaging stays off
-in these sequences, as in the throttle sequences, since the averaging carries a declared tolerance (D6).
-40 sequences of 80 steps replay exactly, 2418 of the steps in headfree mode and 1117 of those scaled. Five
-tampered paths each fail the vectors.
+The RC oracle gains headfree sequences: headfree mode in three steps of four, a level or hold mode
+in one of three, and a stand-in for the turn that keeps the stick vector it is given and hands back
+a turned vector drawn within 500 or 1200 per component. The turn itself is the attitude oracle's.
+The reference module compiles with the same scaling. The checker gives the port's stick vector the
+recorded turned vector, then replays the commands, deflections, setpoints and feedforward.
+Feedforward averaging stays off in these sequences, as in the throttle sequences, since the
+averaging has a declared tolerance (D6). 40 sequences of 80 steps replay exactly, 2418 of the steps
+in headfree mode and 1117 of those scaled. Five tampered paths each fail the vectors.
 
 ## D376. BMI270 gyro driver (2026-10-24)
 
-`Adaflight.MPU_Gyro.BMI270` drives the BMI270 gyro over the SPI gyro layer. The chip starts in I2C mode, and
-the select pin low for 1 ms then high for 10 ms selects SPI. A register read returns one dummy byte before
-the value. Detection selects SPI and reads the identity, 0x24. The gyro detection sets the scale of 2000
-degrees per second over the 16-bit count.
+`Adaflight.MPU_Gyro.BMI270` drives the BMI270 gyro over the SPI gyro layer. The chip starts in I2C
+mode, and the select pin low for 1 ms then high for 10 ms selects SPI. A register read returns one
+dummy byte before the value. Detection selects SPI and reads the identity, 0x24. The gyro detection
+sets the scale of 2000 degrees per second over the 16-bit count.
 
-Initialization writes the soft reset, waits 100 ms, selects SPI again and loads the chip's configuration
-file: advanced power save off, loading open, the 328 bytes to the loading register, 10 ms, loading closed.
-`Adaflight.BMI270_Config` contains the bytes, the configuration file of the maximum FIFO variant from Bosch
-Sensortec's BMI270 Sensor API, release v2.113.0, under the BSD-3-Clause license. `third_party/bosch-bmi270`
-names the source and contains the license. The experimental filter setting then sets the FIFO for gyro
-frames without headers or downsampling and a watermark of one frame. The accelerometer goes to 16 g and
-800 Hz and the gyro to 2000 degrees per second and 3.2 kHz, both in performance mode, the gyro with the
-oversampling of the filter setting. The interrupt pin then carries data ready, or the FIFO watermark in the
-experimental setting, push-pull and active high, and the gyro, accelerometer and temperature sensor start.
-The experimental setting flushes the FIFO last. Each write waits 1 ms. Initialization then enables the
-interrupt when the board has the pin and sets a 10 MHz clock. The interrupt handler is the layer's, the
-chip's own with no short period.
+Initialization writes the soft reset, waits 100 ms, selects SPI again and loads the chip's
+configuration file: advanced power save off, loading open, the 328 bytes to the loading register, 10
+ms, loading closed. `Adaflight.BMI270_Config` contains the bytes, the configuration file of the
+maximum FIFO variant from Bosch Sensortec's BMI270 Sensor API, release v2.113.0, under the
+BSD-3-Clause license. `third_party/bosch-bmi270` names the source and contains the license. The
+experimental filter setting then sets the FIFO for gyro frames without headers or downsampling and a
+watermark of one frame. The accelerometer goes to 16 g and 800 Hz and the gyro to 2000 degrees per
+second and 3.2 kHz, both in performance mode, the gyro with the oversampling of the filter setting.
+The interrupt pin then signals data ready, or the FIFO watermark in the experimental setting,
+push-pull and active high, and the gyro, accelerometer and temperature sensor start. The
+experimental setting flushes the FIFO last. Each write waits 1 ms. Initialization then enables the
+interrupt when the board has the pin and sets a 10 MHz clock. The interrupt handler is the layer's,
+the chip's own with no short period.
 
-In the experimental setting a gyro read takes the FIFO length and the first frame in one 10-byte transfer.
-It keeps a whole frame unless all three words are -32768, the mark of an invalid frame, and flushes the FIFO
-when bytes remain. Outside that setting the first gyro read picks the mode as in the BMI423 driver (D363):
-DMA after 1000 interrupts when the bus has it, each interrupt then starting the 14-byte read of both
-sensors, interrupt driven without DMA, or no interrupt. The mode without interrupts stays, where the
-BMI423's returns to the first read after 1000 interrupts. The other reads take a sensor's six bytes at byte
-2 of an 8-byte transfer. The experimental setting takes the interrupt-driven mode at initialization, so its
-accelerometer reads read (D6). The reference never leaves the first mode in that setting, and its
-accelerometer read reports success without reading, which leaves the accelerometer at zero (F285). The unit
-is SPARK, with the sample offsets bounded by the receive buffer.
+In the experimental setting a gyro read takes the FIFO length and the first frame in one 10-byte
+transfer. It keeps a whole frame unless all three words are -32768, the mark of an invalid frame,
+and flushes the FIFO when bytes remain. Outside that setting the first gyro read picks the mode as
+in the BMI423 driver (D363): DMA after 1000 interrupts when the bus has it, each interrupt then
+starting the 14-byte read of both sensors, interrupt driven without DMA, or no interrupt. The mode
+without interrupts stays, where the BMI423's returns to the first read after 1000 interrupts. The
+other reads take a sensor's six bytes at byte 2 of an 8-byte transfer. The experimental setting
+takes the interrupt-driven mode at initialization, so its accelerometer reads read (D6). The
+reference never leaves the first mode in that setting, and its accelerometer read reports success
+without reading, which leaves the accelerometer at zero (F285). The unit is SPARK, with the sample
+offsets bounded by the receive buffer.
 
-The BMI270 oracle includes the reference driver, compiled with the same mode change, and the common SPI gyro
-layer over a simulated chip whose 8-bit registers read behind one dummy byte and whose FIFO flush clears the
-FIFO length. It links the reference's copy of the configuration file and records the burst as its length
-and CRC-32, 9fa5db37, the CRC-32 of Bosch's bytes too. It draws the bus, the chip identity, 0x24 in 85
-percent of the cases, the dummy byte, refused reads in 5 percent, the startup clock and its step, DMA, the
-interrupt pin, the filter setting, past the known ones in 8 percent, the register values and, at each new
-sample, a FIFO length near one frame and frames of -32768 words. It then runs the detection, the gyro and
-accelerometer detection and initialization, and 30 steps of interrupts, a burst of 990 to 1050 interrupts or
-exactly 1000, DMA completions, reads and new samples. Every bus, pin, clock and delay call, detection,
-setting and reading of the 300 cases replays exactly. In them 234 chips are found, 55 with the experimental
-setting and 17 with an unknown one, and of 7020 steps 1640 read the gyro and 1380 the accelerometer. The
-experimental setting's 384 gyro reads keep 181 frames, drop 27 invalid ones, find less than a frame 176
-times and flush 71 times, and its 340 accelerometer reads each make the transfer the reference skips.
-Outside it the cases end 39 in DMA mode, 34 interrupt driven and 106 without interrupts, after 187 bursts,
-22 of exactly 1000. Of 114 tampered paths, 113 fail the vectors and 1 stops the checker at a range check.
+The BMI270 oracle includes the reference driver, compiled with the same mode change, and the common
+SPI gyro layer over a simulated chip whose 8-bit registers read behind one dummy byte and whose FIFO
+flush clears the FIFO length. It links the reference's copy of the configuration file and records
+the burst as its length and CRC-32, 9fa5db37, the CRC-32 of Bosch's bytes too. It draws the bus, the
+chip identity, 0x24 in 85 percent of the cases, the dummy byte, refused reads in 5 percent, the
+startup clock and its step, DMA, the interrupt pin, the filter setting, past the known ones in 8
+percent, the register values and, at each new sample, a FIFO length near one frame and frames of
+-32768 words. It then runs the detection, the gyro and accelerometer detection and initialization,
+and 30 steps of interrupts, a burst of 990 to 1050 interrupts or exactly 1000, DMA completions,
+reads and new samples. Every bus, pin, clock and delay call, detection, setting and reading of the
+300 cases replays exactly. In them 234 chips are found, 55 with the experimental setting and 17 with
+an unknown one, and of 7020 steps 1640 read the gyro and 1380 the accelerometer. The experimental
+setting's 384 gyro reads keep 181 frames, drop 27 invalid ones, find less than a frame 176 times and
+flush 71 times, and its 340 accelerometer reads each make the transfer the reference skips. Outside
+it the cases end 39 in DMA mode, 34 interrupt driven and 106 without interrupts, after 187 bursts,
+22 of exactly 1000. Of 114 tampered paths, 113 fail the vectors and 1 stops the checker at a range
+check.
 
 ## D377. STM32F4 target crate and the first image (2026-10-24)
 
-Phase 7 starts with a target crate beside the core and the tests, `targets/stm32f4`, Alire crate `adaflight_stm32f4`. It
-builds with the `gnat_arm_elf` 16.1.0 toolchain from Alire on the `light-tasking-stm32f4` runtime, which brings the
-startup code, a 168 MHz system clock from the board's 8 MHz crystal, the F405's memory map of 1 MB of flash, 128 KB of
-SRAM and 64 KB of CCM, `Ada.Real_Time` and the Ravenscar tasking the drivers will use for interrupts. The crate depends
-on the core by path, so the core cross-compiles for the target with every build and the generic drivers can be
-instantiated with the platform's bus procedures; the core keeps no target code and the host vector checks stay as they
-are.
+Phase 7 starts with a target crate beside the core and the tests, `targets/stm32f4`, Alire crate
+`adaflight_stm32f4`. It builds with the `gnat_arm_elf` 16.1.0 toolchain from Alire on the
+`light-tasking-stm32f4` runtime, which brings the startup code, a 168 MHz system clock from the
+board's 8 MHz crystal, the F405's memory map of 1 MB of flash, 128 KB of SRAM and 64 KB of CCM,
+`Ada.Real_Time` and the Ravenscar tasking the drivers will use for interrupts. The crate depends on
+the core by path, so the core cross-compiles for the target with every build and the generic drivers
+can be instantiated with the platform's bus procedures. The core keeps no target code and the host
+vector checks stay as they are.
 
-Board data comes from the board configuration repository, a pinned submodule at `third_party/board-configs`, through
-`tools/boardgen.py`: before every build it reads the board's configuration file and writes `Adaflight.Board` into the
-crate's `gen/` directory, with the board, manufacturer and MCU names, the crystal frequency, the beeper polarity and
-frequency, every pin define as a `Pin` of `Adaflight.Pins` (a port letter and a number), the inverter pins and the timer
-pin map. The generated package is deterministic for a given file and is not committed; `BOARD` selects the board,
-CLRACINGF4 when unset, which the CLRacing F4S V1.2 and V1.4, the F4 Mini V1.2 and the RDQ Bardwell F4 AIO V2 share.
-Feature defines, bus instances and DMA options are not generated yet; the generator grows with the drivers.
+Board data comes from the board configuration repository, a pinned submodule at
+`third_party/board-configs`, through `tools/boardgen.py`: before every build it reads the board's
+configuration file and writes `Adaflight.Board` into the crate's `gen/` directory, with the board,
+manufacturer and MCU names, the crystal frequency, the beeper polarity and frequency, every pin
+define as a `Pin` of `Adaflight.Pins` (a port letter and a number), the inverter pins and the timer
+pin map. The generated package is deterministic for a given file and is not committed. `BOARD`
+selects the board, CLRACINGF4 when unset, which the CLRacing F4S V1.2 and V1.4, the F4 Mini V1.2 and
+the RDQ Bardwell F4 AIO V2 share. Feature defines, bus instances and DMA options are not generated
+yet. The generator grows with the drivers.
 
-`Adaflight.STM32.GPIO` overlays the GPIO port registers at their AHB1 addresses with a volatile record, enables a port's
-clock in the RCC, sets a pin as a push-pull output and sets, clears or toggles it through the bit set and reset
-register. It is plain Ada: the proofs that buy assurance on the target are the DMA buffer and register bounds of the bus
-drivers to come. The first image sets the board's LED pin as an output and toggles it every 500 ms with `delay until`,
-an image of 9960 bytes of text, 452 of data and 8960 of bss by `arm-eabi-size`, the core linked and garbage-collected to
-what the image uses. `target.do` builds the image and prints its sizes, `verify.do` runs it after the vectors, and the
-Target Build workflow keeps the image and its map as an artifact. The image is flashed through the STM32 ROM bootloader
-over USB with `dfu-util` at the start of flash, the board put into DFU mode by its boot button; the bench test of this
-milestone is the LED blinking at 1 Hz on the F4S V1.2 after a DFU flash.
+`Adaflight.STM32.GPIO` overlays the GPIO port registers at their AHB1 addresses with a volatile
+record, enables a port's clock in the RCC, sets a pin as a push-pull output and sets, clears or
+toggles it through the bit set and reset register. It is plain Ada: the proofs that buy assurance on
+the target are the DMA buffer and register bounds of the bus drivers to come. The first image sets
+the board's LED pin as an output and toggles it every 500 ms with `delay until`, an image of 9960
+bytes of text, 452 of data and 8960 of bss by `arm-eabi-size`, the core linked and garbage-collected
+to what the image uses. `target.do` builds the image and prints its sizes, `verify.do` runs it after
+the vectors, and the Target Build workflow keeps the image and its map as an artifact. The image is
+flashed through the STM32 ROM bootloader over USB with `dfu-util` at the start of flash, the board
+put into DFU mode by its boot button. The bench test of this milestone is the LED blinking at 1 Hz
+on the F4S V1.2 after a DFU flash.
 
 ## D378. Command line terminal (2026-10-24)
 
-`Adaflight.Command_Line.Terminal`, a child of the command line's instantiation, is the character layer between a port
-and the commands. A session enters interactive or driven by a configurator and keeps the line typed so far, up to 255
-characters. An interactive entry prints the banner and the prompt and holds arming, which stays held when the session
-ends; a configurator entry answers a start of text. Each byte of a poll is taken in the reference's order: interactive,
-a tab or a question mark completes the line over the command names as far as every matching name agrees, adds a space
-after a whole name, lists the matching names when more than one matches or the line is empty, and redraws the line;
-control-D on an empty line closes the session with the restart line and the restart; control-L clears the screen and
-prompts; delete takes the last character back with a backspace, a space and a backspace; and any other byte goes to the
-common path, where a line end on a non-empty line echoes a line end, runs the line through `Process_Line` with the
-interactive flag set, clears the line and prompts again unless the command left the command line, and a printable
-character past the leading spaces joins the line and echoes. A line runs while the configuration's profile indices are
-valid, the line processor's precondition. The configuration fix sets them at load and the profile commands keep them in
-range, and the terminal checks the condition at each line since the line processor does not state it as a postcondition.
-A configurator session takes the common path without echo, and closes with an end of text at an end of text or at any
-byte more than two seconds after its entry, leaving the rest of the poll's bytes. An unknown command in an interactive
-session gets the `###ERROR IN input: UNKNOWN COMMAND, TRY 'HELP'###` line and the prompt, where a configurator gets
-`ERR_CMD_NA` with the line, so the command line's environment carries the interactive flag. The command line also names
-its 62 commands in the order of the reference's table, which `help` already follows and the completion walks. The
-reference extends the line while its first and last matching names agree and lists every name between them, and its
-table keeps `battery_profile` after `play_sound`, so a typed `b` lists 38 names of which 31 do not match and extends to
-`bat`; this unit walks the matching names only (finding F286, D6). The unit is SPARK for the line buffer's bounds and
-the completion's walk.
+`Adaflight.Command_Line.Terminal`, a child of the command line's instantiation, is the character
+layer between a port and the commands. A session enters interactive or driven by a configurator and
+keeps the line typed so far, up to 255 characters. An interactive entry prints the banner and the
+prompt and holds arming, which stays held when the session ends. A configurator entry answers a
+start of text. Each byte of a poll is taken in the reference's order. Interactive:
 
-The command line oracle gains terminal lines: each enters the reference's command line when it is closed, interactive or
-not, with the clock at a given millisecond, hands a batch of bytes to its poll through a stubbed port whose writes are
-collected like the command replies, and reports the session's state after it; a closing line ends the session. The
-generator draws 600 sessions, 1275 of them interactive, with 1739 batches of 35483 bytes: unknown words, comments,
-commands that print little, tabs and question marks after prefixes of command names or on an empty line, control-L,
-control-D on empty and typed lines, deletes, every line end, leading spaces, bytes outside the printable range, lines
-past the buffer, and configurator batches with and without an end of text, timed inside and past the two seconds. Every
-reply of the 1658 that print and every session state replays exactly, with at most one line end per batch so the line's
-effects read as the command lines' do.
+- a tab or a question mark completes the line over the command names as far as every matching name
+  agrees, adds a space after a whole name, lists the matching names when more than one matches or
+  the line is empty, and redraws the line
+- control-D on an empty line closes the session with the restart line and the restart
+- control-L clears the screen and prompts
+- delete takes the last character back with a backspace, a space and a backspace
+- any other byte goes to the common path, where a line end on a non-empty line echoes a line end,
+  runs the line through `Process_Line` with the interactive flag set, clears the line and prompts
+  again unless the command left the command line, and a printable character past the leading spaces
+  joins the line and echoes
+
+A line runs while the configuration's profile indices are valid, the line processor's precondition.
+The configuration fix sets them at load and the profile commands keep them in range, and the
+terminal checks the condition at each line since the line processor does not state it as a
+postcondition. A configurator session takes the common path without echo, and closes with an end of
+text at an end of text or at any byte more than two seconds after its entry, leaving the rest of the
+poll's bytes. An unknown command in an interactive session gets the `###ERROR IN input: UNKNOWN
+COMMAND, TRY 'HELP'###` line and the prompt, where a configurator gets `ERR_CMD_NA` with the line,
+so the command line's environment has the interactive flag. The command line also names its 62
+commands in the order of the reference's table, which `help` already follows and the completion
+walks. The reference extends the line while its first and last matching names agree and lists every
+name between them, and its table keeps `battery_profile` after `play_sound`, so a typed `b` lists 38
+names of which 31 do not match and extends to `bat`. This unit walks the matching names only
+(finding F286, D6). The unit is SPARK for the line buffer's bounds and the completion's walk.
+
+The command line oracle gains terminal lines: each enters the reference's command line when it is
+closed, interactive or not, with the clock at a given millisecond, hands a batch of bytes to its
+poll through a stubbed port whose writes are collected like the command replies, and reports the
+session's state after it. A closing line ends the session. The generator draws 600 sessions, 1275 of
+them interactive, with 1739 batches of 35483 bytes: unknown words, comments, commands that print
+little, tabs and question marks after prefixes of command names or on an empty line, control-L,
+control-D on empty and typed lines, deletes, every line end, leading spaces, bytes outside the
+printable range, lines past the buffer, and configurator batches with and without an end of text,
+timed inside and past the two seconds. Every reply of the 1658 that print and every session state
+replays exactly, with at most one line end per batch so the line's effects read as the command
+lines' do.
