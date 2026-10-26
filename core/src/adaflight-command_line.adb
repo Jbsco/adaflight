@@ -692,8 +692,10 @@ package body Adaflight.Command_Line with SPARK_Mode is
    end Put_Features;
 
    --  feature: the enabled, available and unavailable features; a feature,
-   --  the first whose name the text starts, enabled or, after a minus,
-   --  disabled in the configuration.
+   --  the one whose name the text starts, enabled or, after a minus,
+   --  disabled in the configuration. A text that starts two or more names
+   --  is the multiple match error, which the reference's first-match loop
+   --  can never print (finding F154).
    procedure Feature_Command (Into : in out Output; C : in out Configuration; Arguments : String)
      with Pre => Arguments'Last < Positive'Last
    is
@@ -710,29 +712,40 @@ package body Adaflight.Command_Line with SPARK_Mode is
          Remove : constant Boolean := Arguments (Arguments'First) = '-';
          Text   : constant String :=
            (if Remove then Arguments (Arguments'First + 1 .. Arguments'Last) else Arguments);
+         Found  : Natural := 0;
+         Match  : Feature_Bit := Feature_Bit'First;
       begin
          for Bit in Feature_Bit loop
+            pragma Loop_Invariant (Found <= Bit - Feature_Bit'First);
             if Feature_Name (Bit)'Length > 0 and then Starts (Text, Feature_Name (Bit)) then
-               declare
-                  Feature : constant Unsigned_32 := Shift_Left (1, Bit);
-               begin
-                  if (Feature and Supported) = 0 then
-                     Put (Into, "Unavailable");
-                  elsif Remove then
-                     C.Feature_Config.Enabled_Features := C.Feature_Config.Enabled_Features and not Feature;
-                     Put (Into, (if (Mask and Feature) /= 0 then "Disabled" else "AlreadyDisabled"));
-                  else
-                     C.Feature_Config.Enabled_Features := C.Feature_Config.Enabled_Features or Feature;
-                     Put (Into, (if (Mask and Feature) /= 0 then "AlreadyEnabled" else "Enabled"));
-                  end if;
-                  Put (Into, " " & Feature_Name (Bit) & CRLF);
-               end;
-               return;
+               Found := Found + 1;
+               Match := Bit;
             end if;
          end loop;
-         Put_Error (Into, "feature: INVALID NAME: ");
-         Put (Into, Text);
-         Put (Into, "###" & CRLF);
+         if Found = 1 then
+            declare
+               Feature : constant Unsigned_32 := Shift_Left (1, Match);
+            begin
+               if (Feature and Supported) = 0 then
+                  Put (Into, "Unavailable");
+               elsif Remove then
+                  C.Feature_Config.Enabled_Features := C.Feature_Config.Enabled_Features and not Feature;
+                  Put (Into, (if (Mask and Feature) /= 0 then "Disabled" else "AlreadyDisabled"));
+               else
+                  C.Feature_Config.Enabled_Features := C.Feature_Config.Enabled_Features or Feature;
+                  Put (Into, (if (Mask and Feature) /= 0 then "AlreadyEnabled" else "Enabled"));
+               end if;
+               Put (Into, " " & Feature_Name (Match) & CRLF);
+            end;
+         elsif Found > 1 then
+            Put_Error (Into, "feature: Multiple features match ");
+            Put (Into, Text);
+            Put (Into, "###" & CRLF);
+         else
+            Put_Error (Into, "feature: INVALID NAME: ");
+            Put (Into, Text);
+            Put (Into, "###" & CRLF);
+         end if;
       end;
    end Feature_Command;
 
