@@ -7212,7 +7212,9 @@ BMP280 driver (D318), with one more that enables the interrupt of an end of conv
 enables that interrupt when the board has the pin, prepares the select pin of an SPI chip for 10 MHz, sets the I2C
 address to 0x76 when none was given, and reads the chip identity, 0x50 or 0x60. A chip on SPI sends a dummy byte
 before the registers of each read, which the driver reads and drops. A failed read leaves the identity read before
-it, and any other identity releases the select pin and clears a default address. A found chip is registered, gets
+it, and any other identity releases the end of conversion pin and its interrupt when the board has them, where the
+reference leaves the interrupt enabled with its handler attached (F254), releases the select pin and clears a default
+address. A found chip is registered, gets
 the data ready interrupt when the pin exists, and has its 21 calibration bytes read. The driver then sets eight
 times pressure and once temperature oversampling, starts a forced measurement and waits until the bus is free.
 
