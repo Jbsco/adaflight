@@ -6324,6 +6324,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          pragma Loop_Invariant (Length < Line_Size);
          if Buffer (K) = '#' then
             Length := K - 1;
+            Buffer (K .. Line_Size) := (others => ASCII.NUL);
             exit;
          end if;
       end loop;
