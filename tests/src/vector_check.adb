@@ -11346,7 +11346,7 @@ procedure Vector_Check is
          OSF_Record_Text (Name, 10, T);
          Record_Int (Name & ".pos", Int (11), Integer_64 (T.Length));
       elsif Name = "ofalt" then
-         Altitude_String (T, I32 (4), Variant (5), Flt (6), Units (3));
+         Altitude_String (T, I32 (4), Variant (5), Flt (6), I32 (4), False, Units (3));
          OSF_Record_Text (Name, 7, T);
       elsif Name = "ofcoord" then
          Adaflight.OSD_Format.Coordinate (T, Int (4) = 1, Variant (5), Int (6) = 1, I32 (7), I32 (8));
@@ -12458,6 +12458,7 @@ procedure Vector_Check is
             Inp.Altitude_Asl_Cm := Flt (12);
             Inp.Pitot_Present := Int (13) = 1;
             Inp.Airspeed_Cm_S := Flt (14);
+            Inp.Altitude_Cm := I32 (107);
             for W in Adaflight.OSD_Nav_Map.Waypoint_Index loop
                Inp.Nav.Waypoints (W) :=
                  (Kind => 0, Latitude => I32 (15 + 3 * W), Longitude => I32 (16 + 3 * W), Altitude => I32 (17 + 3 * W));

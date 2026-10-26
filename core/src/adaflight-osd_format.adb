@@ -88,10 +88,18 @@ package body Adaflight.OSD_Format with SPARK_Mode is
    end Print_Float;
 
    procedure Altitude_String (T : out Text; Altitude_Cm : Integer_32; Variant : Element_Type; Altitude_Asl_Cm : Float;
-                              Units : Unit_System) is
-      Alt  : constant Integer_32 :=
-        (if Variant in Type_3 | Type_4 then Integer_32 (Float'Truncation (Altitude_Asl_Cm)) else Altitude_Cm);
-      Decs : constant Decimals := (if Variant in Type_1 | Type_3 then 1 else 0);
+                              Estimated_Cm : Integer_32; Is_Asl : Boolean; Units : Unit_System) is
+      Home_Asl  : constant Interfaces.Integer_64 :=
+        Interfaces.Integer_64 (Integer_32 (Float'Truncation (Altitude_Asl_Cm))) - Interfaces.Integer_64 (Estimated_Cm);
+      Converted : constant Interfaces.Integer_64 :=
+        (if Variant in Type_3 | Type_4 and then not Is_Asl then Interfaces.Integer_64 (Altitude_Cm) + Home_Asl
+         elsif Variant in Type_1 | Type_2 and then Is_Asl then Interfaces.Integer_64 (Altitude_Cm) - Home_Asl
+         else Interfaces.Integer_64 (Altitude_Cm));
+      Clamped   : constant Interfaces.Integer_64 :=
+        Interfaces.Integer_64'Max (Interfaces.Integer_64 (Integer_32'First),
+                                   Interfaces.Integer_64'Min (Interfaces.Integer_64 (Integer_32'Last), Converted));
+      Alt       : constant Integer_32 := Integer_32 (Clamped);
+      Decs      : constant Decimals := (if Variant in Type_1 | Type_3 then 1 else 0);
    begin
       Print_Float (T, Symbol_Altitude, Meters_To_Unit (Alt, Units) / 100.0, Default_Format, Decs, True,
                    Meters_Symbol (Units));

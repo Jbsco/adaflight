@@ -5375,18 +5375,23 @@ after the efficiency item, and it adds the airspeed last. With every item visibl
 against the reference's array of 99 (finding F106), and the list is sized to 101. The MSP OSD
 replies send the 99 positions.
 
-`Adaflight.OSD_Render` renders the new items. Without a stored plan the waypoint number, next number,
-coordinates and altitude show a hyphen, and an executor's waypoint past the plan's end is held to the
-last. The number shows as WP with the waypoint's number and the plan's count, and the next number as
-NEXT with the following waypoint's number, or a hyphen at the last. Coordinates print in degrees with
-seven decimals. The altitude goes through the altitude formatter, whose sea-level variants show the
-craft's altitude above sea level instead of the waypoint's (finding F206). A stored waypoint altitude
-can take any 32-bit value, so the float printer now takes values to 2e9 after scaling: past 2 ** 24
-the scaled value is whole and is taken without rounding. The executor's distance, bearing and time to
-the waypoint show a hyphen when the executor gives none. The distance rounds to whole metres with ties
-to even, the bearing less the heading gives the direction arrow, and the time prints as minutes and
-seconds. The airspeed shows the pitot's speed in the selected unit, or a hyphen without the sensor.
-The map draws through `Adaflight.OSD_Nav_Map` (D230) with its settings from the stored configuration.
+`Adaflight.OSD_Render` renders the new items. Without a stored plan the waypoint number, next
+number, coordinates and altitude show a hyphen, and an executor's waypoint past the plan's end is
+held to the last. The number shows as WP with the waypoint's number and the plan's count, and the
+next number as NEXT with the following waypoint's number, or a hyphen at the last. Coordinates print
+in degrees with seven decimals. The altitude goes through the altitude formatter as a value above
+mean sea level, which is how a waypoint stores it: the sea-level variants show it as stored and the
+launch point variants show it less the launch point's altitude above sea level, the craft's altitude
+above sea level less its estimated altitude. The reference's formatter replaces the altitude its
+sea-level variants are given with the craft's altitude above sea level, so those variants show the
+craft's altitude, and its launch point variants show the stored sea-level value (finding F206,
+amended 2026-10-26 as declared in D6). A stored waypoint altitude can take any 32-bit value, so the
+float printer now takes values to 2e9 after scaling: past 2 ** 24 the scaled value is whole and is
+taken without rounding. The executor's distance, bearing and time to the waypoint show a hyphen when
+the executor gives none. The distance rounds to whole metres with ties to even, the bearing less the
+heading gives the direction arrow, and the time prints as minutes and seconds. The airspeed shows
+the pitot's speed in the selected unit, or a hyphen without the sensor. The map draws through
+`Adaflight.OSD_Nav_Map` (D230) with its settings from the stored configuration.
 
 The OSD oracles now compile the reference with flight plan, map and pitot. The element, render, draw,
 task and MSP OSD recordings change with the item list and are recorded again, and the other OSD

@@ -70,7 +70,7 @@ package body Adaflight.OSD_Render with SPARK_Mode is
          O.Attr := Critical;
       end if;
       if Inp.Baro_Present or else (Inp.GPS_Present and then Inp.GPS_Fix) then
-         Altitude_String (O.Line, Inp.Altitude_Cm, Variant, Inp.Altitude_Asl_Cm, C.Units);
+         Altitude_String (O.Line, Inp.Altitude_Cm, Variant, Inp.Altitude_Asl_Cm, Inp.Altitude_Cm, False, C.Units);
       else
          Append (O.Line, Symbol_Altitude);
          Append (O.Line, Symbol_Hyphen);
@@ -1204,7 +1204,8 @@ package body Adaflight.OSD_Render with SPARK_Mode is
                         Append_Natural (O.Line, Natural (Mag mod 10_000_000), 7, True);
                      end;
                   when others =>
-                     Altitude_String (O.Line, WP.Altitude, Variant, Inp.Altitude_Asl_Cm, C.Units);
+                     Altitude_String
+                       (O.Line, WP.Altitude, Variant, Inp.Altitude_Asl_Cm, Inp.Altitude_Cm, True, C.Units);
                end case;
             end;
          when WP_Distance =>
