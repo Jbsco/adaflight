@@ -4195,8 +4195,8 @@ group: the reset configuration, tuned, is encoded with `Config_Codec`, and that 
 replace the group in the encoded configuration before it is decoded back. A word with neither
 keyword, a missing group or a zero group is the parse error. A word is its whole keyword, in any
 case, and a group number outside 1 to 65535 is the parse error, where the reference takes any word
-containing the keyword and wraps the number to 16 bits (finding F178, amended 2026-10-25 as
-declared in D6).
+containing the keyword and wraps the number to 16 bits (finding F178, amended 2026-10-25 as declared
+in D6).
 
 Without `nosave` the reset is followed by a save and a restart, which wait for the `save` command,
 and `Process_Line` returns Known false.
@@ -4231,7 +4231,7 @@ establish is a proof failure at the constructor, so the fix's coverage is checke
 
 The stored configuration keeps every value a foreign image can hold, which the command line and MSP
 recordings need (D6). The runtime records keep the narrow ranges the control proofs rest on. The
-constructor is the one boundary between them; a stored value outside its range is held to the range
+constructor is the one boundary between them. A stored value outside its range is held to the range
 there (D6).
 
 `Rate_Profile_Of` builds `Rates.Profile` from a stored rate profile. The rates have no order rule,
@@ -4253,7 +4253,7 @@ to 1000 to 2000. An equal channel range is widened by one step, and a zero RSSI 
 as one (D6).
 
 `Arming_Settings_Of` builds `Arming.Settings` from the stored arming, system, receiver, 3D, mixer
-and PID loop groups, the current PID profile, the features in use and the sensors found at boot; the
+and PID loop groups, the current PID profile, the features in use and the sensors found at boot. The
 fixed wing flag comes from the mixer mode through `Mixer_Init.Is_Fixed_Wing`. `Conditions_Of` builds
 the mode conditions, a condition whose mode is outside the box table never active and a link outside
 it no link (D6).
@@ -4261,22 +4261,22 @@ it no link (D6).
 `RC_Config_Of` builds `RC_Command.Config` from the stored receiver, RC controls and PID loop groups
 and the current rate profile, through `Rate_Profile_Of`, with the sample time whose product with the
 loop ratio is the loop time. The command path's minimum check is held to 1999, below its setting's
-2250 (D6). `Adjustment_Settings_Of` builds `Adjustments.Settings` from the stored receiver and system
-groups.
+2250 (D6). `Adjustment_Settings_Of` builds `Adjustments.Settings` from the stored receiver and
+system groups.
 
 `Mixer_Config_Of` builds `Mixer.Config` from the stored mixer, motor, 3D and receiver groups, the
 current rate and PID profiles, the custom motor mix, the features in use and the build's mixers. The
 output range comes from the protocol family: `DShot.Endpoints` for the DShot family, and
-`PWM_Output.Endpoints` for the analog family, which raises the minimum command by a tenth of the idle
-setting and brings the maximum throttle down by what the output limit leaves of the span, or in the
-two direction mode brings the 3D limits in by half the limited span. The range is then held to the
-motor values and at least one step wide, with the disarm output held below its top; a disabled
+`PWM_Output.Endpoints` for the analog family, which raises the minimum command by a tenth of the
+idle setting and brings the maximum throttle down by what the output limit leaves of the span, or in
+the two direction mode brings the 3D limits in by half the limited span. The range is then held to
+the motor values and at least one step wide, with the disarm output held below its top. A disabled
 protocol's range is zero to one. The motors in use and their mix come from
 `Mixer_Init.Configure_Output`, over a mode outside the table read as quad X and weights that are not
-numbers read as zero; a custom mix without motors reads as one motor with a zero mix (D6).
+numbers read as zero. A custom mix without motors reads as one motor with a zero mix (D6).
 
 `Accelerometer_Settings_Of` builds `Accelerometer.Settings` from the stored accelerometer, gyro
-device and board alignment groups, with the hardware's sample rate and counts per g; the alignment
+device and board alignment groups, with the hardware's sample rate and counts per g. The alignment
 is the first gyro's, since the boards use one chip for both. `Attitude_Settings_Of` builds
 `Attitude.Settings` from the stored IMU and throttle correction groups, `Barometer_Settings_Of`
 builds `Barometer.Settings` from the stored barometer group, with the virtual device from the
@@ -4285,10 +4285,11 @@ alignment groups.
 
 `Battery_Settings_Of` builds `Battery.Settings` from the stored battery, voltage meter, current
 meter, virtual meter and ESC sensor groups and the current battery profile. `Beeper_Settings_Of`
-builds `Beeper.Settings` from the stored beeper group, each sound's flag from the bit below its code.
+builds `Beeper.Settings` from the stored beeper group, each sound's flag from the bit below its
+code.
 
 `GPS_Link_Settings_Of` builds `GPS_Link.Settings` from the stored GPS and GPS rescue groups, with
-whether a serial port has the GPS function; the baud is the user's from the module's table, 230400
+whether a serial port has the GPS function. The baud is the user's from the module's table, 230400
 for a rate the table lacks, and the custom NMEA commands are the stored text up to its first NUL.
 `GPS_Rescue_Settings_Of` builds `GPS_Rescue.Settings` from the stored GPS rescue, autopilot and GPS
 groups.
@@ -4303,7 +4304,7 @@ and altitude hold groups, with the climb rate the altitude hold flies at, ten ti
 none for a wing.
 
 `Blackbox_Settings_Of` builds `Blackbox.Settings` from the stored blackbox group, with whether the
-build is a wing; a serial device runs fast from a megabaud up. `Scheduler_Settings_Of` builds
+build is a wing. A serial device runs fast from a megabaud up. `Scheduler_Settings_Of` builds
 `Scheduler.Settings` from the stored scheduler group, with the platform's clock, its floor on a
 rescheduled period and the gyro's period. `LED_Strip_Settings_Of` builds `LED_Strip.Settings` from
 the stored LED strip and status mode groups, the first eight stored special colors being the
@@ -4311,13 +4312,14 @@ strip's. `VTX_Settings_Of`, `Flight_Stats_Settings_Of` and `Lap_Timer_Settings_O
 settings from the stored VTX settings, statistics and lap timer groups.
 
 `Rangefinder_Settings_Of` builds `Rangefinder.Settings` from the stored position group, with the
-cone the detected sensor reports; `Optical_Flow_Settings_Of` and `Pitot_Settings_Of` build their
-settings from the stored optical flow and pitot groups; `Gimbal_Settings_Of` builds
+cone the detected sensor reports. `Optical_Flow_Settings_Of` and `Pitot_Settings_Of` build their
+settings from the stored optical flow and pitot groups. `Gimbal_Settings_Of` builds
 `Gimbal_Control.Settings` from the stored gimbal tracking and receiver groups, with whether a serial
-port has the gimbal function; and `RTC_Settings_Of` builds `RTC.Settings` from the stored time group.
+port has the gimbal function, and `RTC_Settings_Of` builds `RTC.Settings` from the stored time
+group.
 
 `OSD_Page_Settings_Of` builds `OSD_Page.Settings` from the stored OSD and OSD element groups, with
-whether the display supports a logo; an element is visible when its stored position shows it in the
+whether the display supports a logo. An element is visible when its stored position shows it in the
 stored profile. `OSD_Render_Settings_Of` builds `OSD_Render.Settings` from the stored OSD and VTX
 settings groups, a profile name being the stored text up to its first NUL. `OSD_Spec_Settings_Of`
 builds `OSD_Spec.Settings` from the stored mixer and motor groups and the current rate, PID and
@@ -4334,10 +4336,10 @@ the build sends event driven frames, and Jeti the system group's debug mode.
 
 The receiver link constructors build the ExpressLRS, FrSky SPI, Redpine, SFHSS, FlySky, Spektrum,
 Spektrum SPI and SRXL2 settings from the stored SPI receiver, CC2500, ExpressLRS, FlySky, Spektrum
-and receiver groups and the features in use. A radio's pins come from the stored pin tags. The
-FrSky SPI protocol comes from the SPI protocol code, FrSky D for a code outside the family, the
-FlySky variant is AFHDS 2A for its code and AFHDS otherwise, and the Spektrum kind comes from the
-serial provider, Spektrum 2048 for a code outside the three (D6).
+and receiver groups and the features in use. A radio's pins come from the stored pin tags. The FrSky
+SPI protocol comes from the SPI protocol code, FrSky D for a code outside the family, the FlySky
+variant is AFHDS 2A for its code and AFHDS otherwise, and the Spektrum kind comes from the serial
+provider, Spektrum 2048 for a code outside the three (D6).
 
 The harness builds the four PID profiles and the four rate profiles of every fixed configuration in
 the configuration fix recordings, 16000 of each, and the gyro settings of each with a running gyro
@@ -4354,14 +4356,13 @@ only. The oracle now builds with them and records the inputs the stages read.
 The GPS rescue procedure asks the caller to stage the executor's rescue plan, through the
 `Stage_Rescue` output of `Update`, and takes whether a plan is possible as an input. With a possible
 plan the failsafe enters the autopilot stage with a grace period of one second for the caller to
-engage the plan; without one it lands. A link loss during a mission enters the autopilot stage at
-once when the autopilot's loss policy continues the mission, or lands when the policy lands; the
+engage the plan. Without one it lands. A link loss during a mission enters the autopilot stage at
+once when the autopilot's loss policy continues the mission, or lands when the policy lands. The
 mission's own throttle keeps the low-throttle shortcut from disarming. In the autopilot stage the
 failsafe recovers on stick movement or a switch, lands when disarmed, waits through the grace period
 while the plan is not yet engaged, falls back to the configured procedure, auto-landing in place of
 the rescue, when the mission ended or never engaged, and sounds the landing tone otherwise. The
-plain GPS rescue stage of a build without the flight plan is in the state machine but not entered,
-as in the reference's build with it.
+plain GPS rescue stage of a build without the flight plan is in the state machine but not entered.
 
 The harness builds the four PID profiles and the four rate profiles of every fixed configuration in
 the configuration fix recordings, 16000 of each, the arming, failsafe, receiver, adjustment, mixer,
@@ -4371,28 +4372,29 @@ strip, VTX, statistics, lap timer, rangefinder, optical flow, pitot, gimbal, clo
 render, OSD specification, OSD warning, OSD alarm, the eight telemetry and the eight receiver link
 settings and the mode conditions of each, 4000 of each, and the gyro, RC command and accelerometer
 settings of each with a running gyro and motors, 3082, with the preconditions and the predicates
-checked at run time, and compares one field of each. The analog endpoints replay 235 recorded motor and 3D settings from
-the DShot oracle bit for bit, 70 of them with an inverted range (findings F181).
+checked at run time, and compares one field of each. The analog endpoints replay 235 recorded motor
+and 3D settings from the DShot oracle bit for bit, 70 of them with an inverted range (findings
+F181).
 
 ## D189. Command line batches (2026-10-14)
 
 The command line's text goes out through an `Output` record: the sink the instantiation supplies,
-and the command batch's state, whether a batch is open and whether a command in it printed an
-error. Every error goes through one printer, `Put_Error`, which prints `###ERROR IN ` and the
-text, and notes the error when a batch is open. `batch start` opens a batch and clears its error,
-unless one is open already, and prints `Command batch started`. `batch end` prints `Command batch
-ended`, or the error line `ERRORS WERE DETECTED - PLEASE REVIEW BEFORE CONTINUING` when a command
-in the batch printed an error, and closes the batch either way. Any other option is the `Invalid
-option` error. An option is its whole word, in any case, and a second start clears the batch's
-error, where the reference takes a prefix and keeps the error (finding F180, amended 2026-10-25 as
-declared in D6). A `defaults` reset clears the batch's error and leaves the batch open.
+and the command batch's state, whether a batch is open and whether a command in it printed an error.
+Every error goes through one printer, `Put_Error`, which prints `###ERROR IN ` and the text, and
+notes the error when a batch is open. `batch start` opens a batch and clears its error, unless one
+is open already, and prints `Command batch started`. `batch end` prints `Command batch ended`, or
+the error line `ERRORS WERE DETECTED - PLEASE REVIEW BEFORE CONTINUING` when a command in the batch
+printed an error, and closes the batch either way. Any other option is the `Invalid option` error.
+An option is its whole word, in any case, and a second start clears the batch's error, where the
+reference takes a prefix and keeps the error (finding F180, amended 2026-10-25 as declared in D6). A
+`defaults` reset clears the batch's error and leaves the batch open.
 
 A line naming no command gets the reply `ERR_CMD_NA: ` and the line, with its comment and trailing
 spaces cut, and no error is noted. This is the reply of the reference's non-interactive stream,
 which the oracle records. Its interactive session prints the `UNKNOWN COMMAND, TRY 'HELP'` error
-instead, which notes the error (findings F179); that error, the echo and the prompt belong to the
-target phase's interactive session. `Process_Line` reports Handled false only for `defaults`
-without `nosave`.
+instead, which notes the error (findings F179). That error, the echo and the prompt belong to the
+target phase's interactive session. `Process_Line` reports Handled false only for `defaults` without
+`nosave`.
 
 The harness replays two sequences of 1019 command lines in all, recorded from the oracle: batch
 starts and ends in any case and with trailing text, settings and commands with and without errors
@@ -4402,8 +4404,8 @@ match the reference's byte for byte, and so does the configuration's hash after 
 
 ## D190. Core loop cadence and yaw reset (2026-10-14)
 
-`Adaflight.Core_Loop` holds the core loop's cadence: a counter of gyro samples that starts over at
-a multiple of the PID loop ratio and counts from one, with the gyro filtering ready when the count
+`Adaflight.Core_Loop` holds the core loop's cadence: a counter of gyro samples that starts over at a
+multiple of the PID loop ratio and counts from one, with the gyro filtering ready when the count
 reaches the ratio and the controller ready halfway through it, the integer half, so a ratio of one
 runs both on every sample. The counter is a byte and wraps at 256 should the ratio shrink under it.
 `Resets_Yaw` is the stick rule before the RC command: the yaw command is reset while arming by stick
@@ -4416,11 +4418,11 @@ is the target phase's main loop.
 the status check inside the arming attempt sees it running. A stick calibration earlier in the same
 pass is read from the step's state before the pass.
 
-The harness replays the cadence and the yaw rule on every step of the arming recordings, 15000
-steps of one to three samples each over loop ratios of one to eight, and compares the counter, both
-ready flags and the yaw reset with the reference's. The recordings hold the calibration state before
-each step's commands for the receiver pass and the state after them for the PID loop and the final
-status update, which a stick calibration in the same step as an arming attempt tells apart.
+The harness replays the cadence and the yaw rule on every step of the arming recordings, 15000 steps
+of one to three samples each over loop ratios of one to eight, and compares the counter, both ready
+flags and the yaw reset with the reference's. The recordings hold the calibration state before each
+step's commands for the receiver pass and the state after them for the PID loop and the final status
+update, which a stick calibration in the same step as an arming attempt tells apart.
 
 ## D191. PID loop pass (2026-10-14)
 
@@ -4429,7 +4431,7 @@ procedures are the units: the yaw reset before the RC command, the launch wing i
 controller with the runaway check and the PID audio after it, the mix, the servos when the mixer
 drives them, the motors, and the flight log outside the command line when a log device is set. The
 pass reads those conditions as inputs. `Adaflight.Main_Loop_Shape` instantiates it over counting
-units for the proof; the target phase instantiates it over the units' updates with their states.
+units for the proof. The target phase instantiates it over the units' updates with their states.
 
 The harness instantiates the pass over logging units, one letter each, on every step of the arming
 recordings, with the runaway check over the arming state, and compares the letters with the order
@@ -4443,62 +4445,74 @@ procedures are the units: the main task's flash erase, the serial task's MSP pas
 other data only while disarmed, the battery alerts with the presence check while disarmed, the
 accelerometer, the GPS rescue when configured, the barometer, pitot and compass whose updates name
 the next period, the position estimator, the rangefinder and optical flow when detected, telemetry
-outside the command line with the feature, and the camera control while disarmed. The functions
-read those conditions as inputs. A sensor task runs as the scheduler's current task and reschedules
-it through `Adaflight.Scheduler.Reschedule` when its update names a period other than zero; the
+outside the command line with the feature, and the camera control while disarmed. The functions read
+those conditions as inputs. A sensor task runs as the scheduler's current task and reschedules it
+through `Adaflight.Scheduler.Reschedule` when its update names a period other than zero. The
 reschedule's gyro branch stays out of reach, since no realtime task reschedules itself.
 `Adaflight.Task_Functions_Shape` instantiates the functions over counting units in the shapes the
-units take, for the proof, which covers that a sensor task reschedules only a running task; the
+units take, for the proof, which covers that a sensor task reschedules only a running task. The
 target phase instantiates them over the units' updates with their states.
 
-The harness instantiates the functions over logging units, one letter each, after every step of
-the task setup recordings, with the running task set before each sensor task, and compares the
-letters with the order the reference's functions called their units in and the barometer, pitot
-and compass periods after them, over 4800 steps with the arming flag, command line, rescue
-configuration and sensor deadlines drawn at random.
+The harness instantiates the functions over logging units, one letter each, after every step of the
+task setup recordings, with the running task set before each sensor task, and compares the letters
+with the order the reference's functions called their units in and the barometer, pitot and compass
+periods after them, over 4800 steps with the arming flag, command line, rescue configuration and
+sensor deadlines drawn at random.
 
 ## D193. Menu lines and page layout (2026-10-14)
 
-`Adaflight.Menu` is the menu system's lines and page layout: a line's element and flags in the
-reference's encoding, with the element in the low five bits and the guard type standing for every
-code above the table's; a menu as a bounded table of up to 192 lines with its count before the end
-marker; the screen geometry from the display's size, with the smallest display at eight rows so a
-page holds at least four items; the page count; the page selected by number, wrapped within the
-count, with its top line, its last row from the lines left, the items on a page and the row limit,
-and the lines' flags copied for the draw into the byte the reference keeps them in, which drops
-the flags above the dynamic one (F183); the cursor's absolute row; the rows the cursor skips,
-which are labels, strings and the narrow numbers that are dynamic or that a slider overrides,
-where the reference's dynamic test compares the whole flags word with the flag and never holds
-(F182); and the value text helpers: a value in thousandths with its trailing
-zeros cut down to the first decimal and a leading zero blanked, a value cut to its field and
-aligned right in it, and the display's character set. The proof covers the page arithmetic: the
-selected page's top line stays within the table and the flags copy within the page's rows. The
-menus, their lines' values, the display and the draw stay with the target or later slices.
+`Adaflight.Menu` is the menu system's lines and page layout:
+
+- a line's element and flags in the reference's encoding, with the element in the low five bits and
+  the guard type standing for every code above the table's
+- a menu as a bounded table of up to 192 lines with its count before the end marker
+- the screen geometry from the display's size, with the smallest display at eight rows so a page
+  holds at least four items
+- the page count
+- the page selected by number, wrapped within the count, with its top line, its last row from the
+  lines left, the items on a page and the row limit, and the lines' flags copied for the draw into
+  the byte the reference keeps them in, which drops the flags above the dynamic one (F183)
+- the cursor's absolute row
+- the rows the cursor skips, which are labels, strings and the narrow numbers that are dynamic or
+  that a slider overrides, where the reference's dynamic test compares the whole flags word with the
+  flag and never holds (F182)
+- the value text helpers: a value in thousandths with its trailing zeros cut down to the first
+  decimal and a leading zero blanked, a value cut to its field and aligned right in it, and the
+  display's character set
+
+The proof covers the page arithmetic: the selected page's top line stays within the table and the
+flags copy within the page's rows. The menus, their lines' values, the display and the draw stay
+with the target or later slices.
 
 The harness replays 1800 menus drawn at random (one to sixty lines, displays of eight to eighty
 columns and eight to forty rows, full screen displays among them) through the layout, the page
 count, the first page and four page turns, asks every line whether the cursor skips it under random
-slider settings, and checks 1800 fixed-point values, right alignments and character set passes
-each against the reference's text.
+slider settings, and checks 1800 fixed-point values, right alignments and character set passes each
+against the reference's text.
 
 ## D194. Menu draw (2026-10-14)
 
 `Adaflight.Menu_Draw` is the menu's draw, a generic whose procedures are the display's writes of a
-text and of a character, the text write naming the bytes it takes: a page's labels, values and
-cursor written within the bytes the display has room for, every row after the screen was cleared
-and else the values marked for a print, the dynamic ones every tenth of a second; the cursor moved
-past the rows it skips and erased from its old row; each value in its element's form in a field
-aligned to the right column (a string in twelve characters, a function call's text with its arrow,
-a boolean as YES or NO, a lookup table's text in the space its label leaves, the visibility marks
-of the three OSD profiles with the editing cursor's blink, a number or a fixed-point value in five
-characters); the slider mark beside an overridden value; and the page arrows after a clear. The
-byte of runtime flags leaves a submenu's option string and the scrolling of a lookup table's text
-unreachable (F183), so neither is drawn and the ticker only resets. The byte budget wraps below
-zero as the reference's does. The menu's display update hook stays with the target until the menu
-stack lands. The proof covers the row and column arithmetic within the page and the display, and
-the value fields within the text bound, which every display's layout keeps and the draw requires
-(a full screen display wider than 32 columns would overrun the reference's table value buffer,
-F184). `Adaflight.Menu_Draw_Shape` instantiates the draw over counting writes for the proof.
+text and of a character, the text write naming the bytes it takes:
+
+- a page's labels, values and cursor written within the bytes the display has room for, every row
+  after the screen was cleared and else the values marked for a print, the dynamic ones every tenth
+  of a second
+- the cursor moved past the rows it skips and erased from its old row
+- each value in its element's form in a field aligned to the right column (a string in twelve
+  characters, a function call's text with its arrow, a boolean as YES or NO, a lookup table's text
+  in the space its label leaves, the visibility marks of the three OSD profiles with the editing
+  cursor's blink, a number or a fixed-point value in five characters)
+- the slider mark beside an overridden value
+- the page arrows after a clear
+
+The byte of runtime flags leaves a submenu's option string and the scrolling of a lookup table's
+text unreachable (F183), so neither is drawn and the ticker only resets. The byte budget wraps below
+zero. The menu's display update hook stays with the target until the menu stack lands. The proof
+covers the row and column arithmetic within the page and the display, and the value fields within
+the text bound, which every display's layout keeps and the draw requires (a full screen display
+wider than 32 columns would overrun the reference's table value buffer, F184).
+`Adaflight.Menu_Draw_Shape` instantiates the draw over counting writes for the proof.
 
 The harness instantiates the draw over logging writes that take the bytes the reference's display
 reported, and replays 12600 draws over the 1800 random menus, three after each open and one after
@@ -4509,85 +4523,99 @@ tickers after the draw.
 ## D195. Menu navigation (2026-10-14)
 
 `Adaflight.Menu_Nav` is the menu's navigation, a generic over the menus' hook sets and lines, the
-hooks and the target's actions: the menu opened from its start menu on the current display, or
-moved to the next registered display while open with the cursor carried as an absolute row and the
-display's background type set; a change to a menu, which stacks the menu left except on the way to
-the main menu, loads the new menu's lines, asks its enter hook and selects its first page, or
-restores the page and cursor from the absolute row when the menu stays; the way back, which asks
-the leave hook, which may refuse it, and restores the stacked menu; a page selected with the screen
-cleared; the draw with its update hook and the way back it may ask for; and the exit by its kind,
-which asks the current menu's leave hook and, for a popup, the stacked menus' hooks, saves, releases
-the display, and for a reboot writes the notice, redraws, stops and shuts down the motors, waits and
-resets. The display layer's grab, release, clear, layer selection, background type and redraw, the
-save, the arming disable flag, the motor stops, the delay and the reset go to the target as actions
-on a display, in the reference's order. The lines are loaded before the enter hook, as the
-reference's current menu changes before it, and a chain back that restores no menu selects the
-entered menu's first page (D6, F185). The state holds the current menu with its hooks, the context
-stack of up to ten menus, the current menu's lines, the layout and selected page, the draw's
-context, the save inhibition and the registered displays with the current one. The proof covers the
-state's consistency between operations: every full screen display within the text bound (F184), an
-open menu on a registered display whose layout keeps a value's space and fits its rows, and a
-current menu with at least one line, its fixed-point values in range, and its selected page within
-its lines and the layout's items. `Adaflight.Menu_Draw` gains the display index on its writes and
-the update hook with the way back it asks for; `Adaflight.Menu` holds the displays, the menu
-numbers with their hook sets, the draw's context and the actions, which the draw and the navigation
-share. `Adaflight.Menu_Nav_Shape` instantiates the navigation over counting menus, hooks, actions
-and writes for the proof. The resume of the OSD's refresh at the open and the stick scanning stay
-with the target or later slices.
+hooks and the target's actions:
+
+- the menu opened from its start menu on the current display, or moved to the next registered
+  display while open with the cursor carried as an absolute row and the display's background type
+  set
+- a change to a menu, which stacks the menu left except on the way to the main menu, loads the new
+  menu's lines, asks its enter hook and selects its first page, or restores the page and cursor from
+  the absolute row when the menu stays
+- the way back, which asks the leave hook, which may refuse it, and restores the stacked menu
+- a page selected with the screen cleared
+- the draw with its update hook and the way back it may ask for
+- the exit by its kind, which asks the current menu's leave hook and, for a popup, the stacked
+  menus' hooks, saves, releases the display, and for a reboot writes the notice, redraws, stops and
+  shuts down the motors, waits and resets
+
+The display layer's grab, release, clear, layer selection, background type and redraw, the save, the
+arming disable flag, the motor stops, the delay and the reset go to the target as actions on a
+display. The lines are loaded before the enter hook, as the reference's current menu changes before
+it, and a chain back that restores no menu selects the entered menu's first page (D6, F185). The
+state holds the current menu with its hooks, the context stack of up to ten menus, the current
+menu's lines, the layout and selected page, the draw's context, the save inhibition and the
+registered displays with the current one. The proof covers the state's consistency between
+operations: every full screen display within the text bound (F184), an open menu on a registered
+display whose layout keeps a value's space and fits its rows, and a current menu with at least one
+line, its fixed-point values in range, and its selected page within its lines and the layout's
+items. `Adaflight.Menu_Draw` gains the display index on its writes and the update hook with the way
+back it asks for. `Adaflight.Menu` holds the displays, the menu numbers with their hook sets, the
+draw's context and the actions, which the draw and the navigation share. `Adaflight.Menu_Nav_Shape`
+instantiates the navigation over counting menus, hooks, actions and writes for the proof. The resume
+of the OSD's refresh at the open and the stick scanning stay with the target or later slices.
 
 The harness instantiates the navigation over the recorded menu sets, hooks that answer as the
 reference's did, and logging actions and writes, and replays 1800 random menu trees of up to six
-menus on two displays of random size: each open, three draws, four page turns with a draw each,
-six navigation operations (a change to a submenu, the way back, or a reopen that switches the
-display) with a draw each, the skip rule and an exit of a random kind, comparing every display
-operation, hook call, context, stack frame, display state and page with the reference's.
+menus on two displays of random size: each open, three draws, four page turns with a draw each, six
+navigation operations (a change to a submenu, the way back, or a reopen that switches the display)
+with a draw each, the skip rule and an exit of a random kind, comparing every display operation,
+hook call, context, stack frame, display state and page with the reference's.
 
 ## D196. Menu keys (2026-10-14)
 
-`Adaflight.Menu_Nav` gains the key handler: the menu key moves the menu to the next display and the
-escape key ends an edit or takes the way back, each with the longer pause; the save key, unless the
-save menu is inhibited, ends an edit and changes to the save menu of the reboot state; down moves
-the cursor a row or to the next page's top; up moves it a row and over the rows the cursor skips,
-and from a label or the page's top to the previous page's last row; and left and right act on the
-line under the cursor in its element's form: a submenu entered on the right, a function line called
-on the right with the way back it may ask for and the reboot flag it may set, an exit line's exit
-by its kind, the way back from a back line, a boolean set on the right and cleared otherwise, the
-OSD profile marks edited with the profile cursor, a number stepped up on the right within its
-maximum and down otherwise within its minimum but wrapped in its width, and a lookup table's index
-stepped within its bounds with its text looked up again; every edit written to the target's value
-and marked for a print, the reboot flag set when a reboot line's value changed, and the line's hook
-called after. A line's range, step, multiplier and hook join the line record; a number wider than
-the signed word is held as the reference's integer conversion and compared unsigned. The target's
-value store and the lookup of a table's text come in as procedures, and the reboot flag's set as an
-action. The handler keeps two bounds the reference lacks (D6, F186). The proof covers the state's
-consistency through every key, the edits within the lines, the widths' wraps and the page requests.
+`Adaflight.Menu_Nav` gains the key handler:
+
+- the menu key moves the menu to the next display and the escape key ends an edit or takes the way
+  back, each with the longer pause
+- the save key, unless the save menu is inhibited, ends an edit and changes to the save menu of the
+  reboot state
+- down moves the cursor a row or to the next page's top
+- up moves it a row and over the rows the cursor skips, and from a label or the page's top to the
+  previous page's last row
+- left and right act on the line under the cursor in its element's form: a submenu entered on the
+  right, a function line called on the right with the way back it may ask for and the reboot flag it
+  may set, an exit line's exit by its kind, the way back from a back line, a boolean set on the
+  right and cleared otherwise, the OSD profile marks edited with the profile cursor, a number
+  stepped up on the right within its maximum and down otherwise within its minimum but wrapped in
+  its width, and a lookup table's index stepped within its bounds with its text looked up again
+- every edit written to the target's value and marked for a print, the reboot flag set when a reboot
+  line's value changed, and the line's hook called after
+
+A line's range, step, multiplier and hook join the line record. A number wider than the signed word
+is held as the reference's integer conversion and compared unsigned. The target's value store and
+the lookup of a table's text come in as procedures, and the reboot flag's set as an action. The
+handler keeps two bounds the reference lacks (D6, F186). The proof covers the state's consistency
+through every key, the edits within the lines, the widths' wraps and the page requests.
 
 The harness replays twelve random keys per menu tree after the navigation operations, 21600 keys,
-with the line under the cursor compared after each, the edits written back to the recorded menus
-and the reboot flag followed from the actions.
+with the line under the cursor compared after each, the edits written back to the recorded menus and
+the reboot flag followed from the actions.
 
 ## D197. Menu update (2026-10-15)
 
-`Adaflight.Menu_Nav` gains the update, one pass of the menu task: nothing while a paralyze mode, a
-camera device menu or a joystick in use holds the menu off; with the menu closed, the menu opened on
-the stick gesture (throttle mid, yaw low, pitch high) while disarmed and stick commands allowed,
-with the longer key pause; with the menu open, a drawing transaction begun on the display, the keys
-scanned, the draw, the display's heartbeat every half second, and the transaction committed, each on
-the display current at that point, since the menu key moves the menu between them. The scan takes
-an external key first, kept since it was set until a pass reads it and not replaced while pending;
-else the sticks read as a key in the reference's order, the menu gesture while disarmed, then pitch
-up or down, roll left or right, yaw left for escape and right for the save menu; a key released
-resets the hold count and the repeats; a key held counts; the delay since the last key runs down by
-the pass interval, wrapped in the reference's sixteen bits; once run out, the key is handled as many
-times as the repeats say, and left or right held past twenty passes shortens the delay by the hold
-beyond that, and below the scheduling interval grows the repeats by a fifth of the hold since the
-repeats began, to five. The repeats are kept in one to five where the reference's hold count would
-wrap after years. The target's heartbeat and transactions join the actions.
+`Adaflight.Menu_Nav` gains the update, one pass of the menu task:
+
+- nothing while a paralyze mode, a camera device menu or a joystick in use holds the menu off
+- with the menu closed, the menu opened on the stick gesture (throttle mid, yaw low, pitch high)
+  while disarmed and stick commands allowed, with the longer key pause
+- with the menu open, a drawing transaction begun on the display, the keys scanned, the draw, the
+  display's heartbeat every half second, and the transaction committed, each on the display current
+  at that point, since the menu key moves the menu between them
+
+The scan takes an external key first, kept since it was set until a pass reads it and not replaced
+while pending. Else the sticks read as a key, in order: the menu gesture while disarmed, then pitch
+up or down, roll left or right, yaw left for escape and right for the save menu. A key released
+resets the hold count and the repeats, and a key held counts. The delay since the last key runs down
+by the pass interval, wrapped in sixteen bits. Once run out, the key is handled as many times as the
+repeats say, and left or right held past twenty passes shortens the delay by the hold beyond that,
+and below the scheduling interval grows the repeats by a fifth of the hold since the repeats began,
+to five. The repeats are kept in one to five where the reference's hold count would wrap after
+years. The target's heartbeat and transactions join the actions.
 
 The harness replays forty update passes per menu tree after the exit, 72000 passes, with the sticks
-held or redrawn at random, the arming flag, modes, external keys, byte budgets, device types, editing
-states and clock readings drawn at random, and compares every display operation, hook call, context
-and page with the reference's.
+held or redrawn at random, the arming flag, modes, external keys, byte budgets, device types,
+editing states and clock readings drawn at random, and compares every display operation, hook call,
+context and page with the reference's.
 
 ## D198. Command line tasks (2026-10-15)
 
@@ -4595,37 +4623,36 @@ and page with the reference's.
 right-justified in fifteen columns, and its rate in hertz, the nearest integer to ten million over
 its average interval in tenths of a microsecond. With `task_statistics` on, each line adds the peak
 and average execution times in microseconds, the peak and average loads in tenths of a percent, and
-the total execution time in milliseconds; then come the check functions' line, with their peak and
-average times, their load over the time since the last `tasks` and their total, the total load
-line, and in the scheduler determinism debug mode the loop start and guard cycles. Each queued
-task's peak times reset after its line, the check functions' peak after theirs. The task
-information comes from `Adaflight.Scheduler.Info`, the reference's `getTaskInfo`: the moving sums
-over eight samples give the averages, and the load products wrap at 32 bits as the reference's
-unsigned arithmetic does. `Adaflight.Scheduler.Check_Functions` gives the check functions' summary
-and `Adaflight.Scheduler.Name` the task names; the system and main tasks share the name `SYSTEM`.
+the total execution time in milliseconds. Then come the check functions' line, with their peak and
+average times, their load over the time since the last `tasks` and their total, the total load line,
+and in the scheduler determinism debug mode the loop start and guard cycles. Each queued task's peak
+times reset after its line, the check functions' peak after theirs. The task information comes from
+`Adaflight.Scheduler.Info`, the reference's `getTaskInfo`: the moving sums over eight samples give
+the averages, and the load products wrap at 32 bits. `Adaflight.Scheduler.Check_Functions` gives the
+check functions' summary and `Adaflight.Scheduler.Name` the task names. The system and main tasks
+share the name `SYSTEM`.
 
 `Process_Line` takes the scheduler's state, so the command reads it and resets it directly. The
 `Environment` gains the clock in microseconds and the running debug mode, and `Output` keeps what
 the reference keeps in function statics: the clock at the last `tasks` and the check functions'
-total at that time. The reference reads the clock twice, before the list and after it; the port's
-one reading stands for both (D6). Counts print as the C library prints a 32-bit pattern with `%d`:
-a peak time past 2^31 microseconds prints negative, and the total load, an `int` sum in the
-reference, wraps at 32 bits where the reference's addition overflows. The check functions' load is
-the reference's float quotient truncated and taken in its low 32 bits, which is what the
-reference's conversion of a negative or oversized value to `uint32_t` yields on its targets
-(findings F187).
+total at that time. The reference reads the clock twice, before the list and after it. The port's
+one reading stands for both (D6). Counts print as the C library prints a 32-bit pattern with `%d`: a
+peak time past 2^31 microseconds prints negative, and the total load, an `int` sum in the reference,
+wraps at 32 bits where the reference's addition overflows. The check functions' load is the
+reference's float quotient truncated and taken in its low 32 bits, which is what the reference's
+conversion of a negative or oversized value to `uint32_t` yields on its targets (findings F187).
 
 The reference prints three more columns, the late count, run count and required time, on the
-platforms that keep late task statistics, the STM32 F4 and F7 among them. The port's scheduler
-keeps no late task statistics yet (ROADMAP), so the port prints the reference's shorter form, the
-one its simulator build prints; the columns come with the scheduler's late statistics.
+platforms that keep late task statistics, the STM32 F4 and F7 among them. The port's scheduler keeps
+no late task statistics yet (ROADMAP), so the port prints the reference's shorter form, the one its
+simulator build prints. The columns come with the scheduler's late statistics.
 
 The harness replays two sequences of 649 lines, recorded from the oracle with the reference's
 scheduler and task table linked in and the stack check, BST, DroneCAN and camera control tasks
 compiled, so its task ids match the port's table: task statistics stored in the reference's raw
 units, realistic or anywhere in the 32-bit range, tasks queued and dequeued, the clock moved
-forward, back and past half its range, check function statistics, debug modes and cycle counts,
-task statistics switched on and off, and `tasks` commands. All 692842 reply characters match the
+forward, back and past half its range, check function statistics, debug modes and cycle counts, task
+statistics switched on and off, and `tasks` commands. All 692842 reply characters match the
 reference's, and so does the configuration's hash after every command.
 
 ## D199. Command line save and exit (2026-10-15)
