@@ -142,17 +142,19 @@ package body Adaflight.Menu_Content with SPARK_Mode is
 
    --  The VTX device menus' names of the running table's bands, channels and
    --  power levels by index, the first for none.
+   --  The VTX menus' band, channel and power names: the none name at zero,
+   --  the table's name within its count, and blank above it (finding F287).
    function Band_Name (Run : Adaflight.VTX_Table.Table; Index : Natural) return Adaflight.Menu.Label_Text is
      (if Index = 0 then Label ("--------")
-      elsif Index <= Adaflight.VTX_Table.Max_Bands then C_Text (Run.Names (Index))
+      elsif Index <= Natural (Run.Bands) then C_Text (Run.Names (Index))
       else Label (""));
    function Channel_Name (Run : Adaflight.VTX_Table.Table; Index : Natural) return Adaflight.Menu.Label_Text is
      (if Index = 0 then Label ("-")
-      elsif Index <= Adaflight.VTX_Table.Max_Channels then C_Text ((1 => Run.Channel_Name (Index)))
+      elsif Index <= Natural (Run.Channels) then C_Text ((1 => Run.Channel_Name (Index)))
       else Label (""));
    function Power_Name (Run : Adaflight.VTX_Table.Table; Index : Natural) return Adaflight.Menu.Label_Text is
      (if Index = 0 then Label ("---")
-      elsif Index <= Adaflight.VTX_Table.Max_Power_Levels then C_Text (Run.Label (Index))
+      elsif Index <= Natural (Run.Power_Levels) then C_Text (Run.Label (Index))
       else Label (""));
 
    SA_Opmodel_Names    : constant array (0 .. 2) of Adaflight.Menu.Label_Text :=
@@ -1262,7 +1264,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
          Add (M, N, Make ("--- ALARMS ---", Label));
          Add (M, N, Number ("RSSI", Interfaces.Integer_32 (A.RSSI), 5, 90, Step => 5));
          Add (M, N, Number ("LINK QUALITY", Interfaces.Integer_32 (A.Link_Quality), 5, 300, UInt16, 5));
-         Add (M, N, Number ("RSSI DBM", Interfaces.Integer_32 (A.RSSI_Dbm), -130, 20, Int16, 5));
+         Add (M, N, Number ("RSSI DBM", Interfaces.Integer_32 (A.RSSI_Dbm), -130, 0, Int16, 5));
          Add (M, N, Number ("RSNR", Interfaces.Integer_32 (A.RSNR), -30, 20, Int16, 5));
          Add (M, N, Number ("MAIN BAT", Interfaces.Integer_32 (A.Capacity), 50, 30_000, UInt16, 50));
          Add (M, N, Number ("MAX ALT", Interfaces.Integer_32 (A.Altitude), 1, 200, UInt16));

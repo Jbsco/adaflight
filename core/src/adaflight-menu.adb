@@ -52,7 +52,7 @@ package body Adaflight.Menu with SPARK_Mode is
          when Label | Str =>
             return True;
          when UInt8 | Int8 | UInt16 | Int16 =>
-            return E.Flags = Dynamic or else Slider_Override (E.Flags, S);
+            return (E.Flags and Dynamic) /= 0 or else Slider_Override (E.Flags, S);
          when Back | OSD_Exit | Submenu | Funcall | Bool | UInt32 | Int32 | Fixed | Visible | Tab | End_Marker
             | Guard =>
             return False;
