@@ -48,11 +48,13 @@ package Adaflight.MSP_Box with SPARK_Mode is
    procedure Serialize_Box_Name (B : in out Byte_Array; S : in out Stream; Which : Box; Names : User_Names;
                                  Written : out Integer)
      with Pre  => Adaflight.Stream_Buffers.Fits (S, B),
-          Post => Written in -1 | 1 .. Max_Name_Length + 1 and then Adaflight.Stream_Buffers.Fits (S, B);
+          Post => Written in -1 | 1 .. Max_Name_Length + 1 and then Adaflight.Stream_Buffers.Fits (S, B)
+                  and then S.Last = S.Last'Old and then S.Next >= S.Next'Old;
 
    procedure Serialize_Box_Permanent_Id (B : in out Byte_Array; S : in out Stream; Which : Box; Written : out Integer)
      with Pre  => Adaflight.Stream_Buffers.Fits (S, B),
-          Post => Written in -1 | 1 and then Adaflight.Stream_Buffers.Fits (S, B);
+          Post => Written in -1 | 1 and then Adaflight.Stream_Buffers.Fits (S, B) and then S.Last = S.Last'Old
+                  and then S.Next >= S.Next'Old;
 
    type Reply_Kind is (Box_Names, Box_Permanent_Ids);
 
@@ -61,7 +63,7 @@ package Adaflight.MSP_Box with SPARK_Mode is
    procedure Serialize_Box_Reply (B : in out Byte_Array; S : in out Stream; Active : Active_Mask; Page : Natural;
                                   Kind : Reply_Kind; Names : User_Names)
      with Pre  => Adaflight.Stream_Buffers.Fits (S, B) and then Page <= 255,
-          Post => Adaflight.Stream_Buffers.Fits (S, B);
+          Post => Adaflight.Stream_Buffers.Fits (S, B) and then S.Last = S.Last'Old and then S.Next >= S.Next'Old;
 
    --  Whether a box is on: the arming flag, the flight mode, or the switch;
    --  on a wing the launch box reads the launch flight mode.

@@ -88,3 +88,4 @@ Each document describes a Betaflight bug that adaflight fixes: the Betaflight ve
 - [The waypoint capture message clears only when the OSD reads it](capture-message-expiry.md)
 - [The AK8963 detection turns a shared I2C bus into an MPU slave bus](compass-scan-bus-restore.md)
 - [Menu runtime flags drop the option string and ticker flags](menu-runtime-flags-word.md)
+- [A request for several MSP replies wraps the size of a sub-reply past 255 bytes](msp-multiple-reply-size.md)

@@ -29537,6 +29537,22 @@ procedure Vector_Check is
    MSP_Gyro_Rate  : Adaflight.Config_Fix.Gyro_Rate := 0;
    MSP_Log        : Adaflight.Blackbox.Recorder;
    MSP_Loop_Time  : Adaflight.Blackbox.Loop_Time_Us := 125;
+   --  The configuration views family: the out command waiting for its runtime
+   --  line and reply, and the runtime values the oracle's reply read.
+   MV_Pending         : Boolean := False;
+   MV_Command         : Interfaces.Unsigned_16 := 0;
+   MV_Request         : Byte_Array (0 .. 299) := (others => 0);
+   MV_Request_Len     : Natural := 0;
+   MV_Motor_Count     : Interfaces.Unsigned_8 := 0;
+   MV_Channel_Count   : Natural := 0;
+   MV_Flags           : Interfaces.Unsigned_8 := 0;
+   MV_DShot_Telemetry : Boolean := False;
+   MV_Rate_Denom      : Interfaces.Unsigned_8 := 0;
+   MV_P_Ratio         : Interfaces.Unsigned_16 := 0;
+   MV_VTX_Present     : Boolean := False;
+   MV_VTX_Type        : Interfaces.Unsigned_8 := 16#FF#;
+   MV_VTX_Pit         : Boolean := False;
+   MV_VTX_Ready       : Boolean := False;
    CLI_Expected : Ada.Strings.Unbounded.Unbounded_String;
 
    --  The reference's command line over a sequence of command lines from the
@@ -29598,6 +29614,10 @@ procedure Vector_Check is
             CLI_Binds := (others => 0);
             CLI_Sched := (others => <>);
             MSP_Gyro_Rate := 0;
+            MV_Pending := False;
+            MV_Flags := 0;
+            MV_VTX_Present := False;
+            MV_VTX_Type := 16#FF#;
             MSP_Log.State := Adaflight.Blackbox.Disabled;
             MSP_Log.I_Interval := 0;
             MSP_Links := (others => <>);
@@ -29777,6 +29797,20 @@ procedure Vector_Check is
                end if;
             elsif Word (Command, 0) = "!gyro" then
                MSP_Gyro_Rate := Adaflight.Config_Fix.Gyro_Rate'Value (Word (Command, 1));
+            elsif Word (Command, 0) = "!gyroflags" then
+               MV_Flags := Interfaces.Unsigned_8'Value (Word (Command, 1));
+            elsif Word (Command, 0) = "!mspout" then
+               declare
+                  Hex : constant String := Word (Command, 2);
+               begin
+                  MV_Command := Interfaces.Unsigned_16'Value (Word (Command, 1));
+                  MV_Request_Len := (if Hex = "-" then 0 else Hex'Length / 2);
+                  for K in 0 .. MV_Request_Len - 1 loop
+                     MV_Request (K) := Interfaces.Unsigned_8'Value
+                       ("16#" & Hex (Hex'First + 2 * K .. Hex'First + 2 * K + 1) & "#");
+                  end loop;
+                  MV_Pending := True;
+               end;
             elsif Word (Command, 0) = "!msp" then
                declare
                   use type Adaflight.MSP_Processor.Result;
@@ -29808,7 +29842,8 @@ procedure Vector_Check is
                           VTX_Device          => MSP_VTX_Device,
                           VTX_Table           => MSP_VTX_Running,
                           Receiver_Source     => CLI_Env.Receiver_Source,
-                          Serial_Protocol     => CLI_Env.Serial_Protocol);
+                          Serial_Protocol     => CLI_Env.Serial_Protocol,
+                          Out_Views           => <>);
                   Adaflight.Stream_Buffers.Init (St, 0, Reply'Length);
                   Adaflight.MSP_Processor.Process
                     (Ctx, CLI_Config, CLI_Board, MSP_Links, Cmd, Request, Ports, Reply, St, R, E);
@@ -30163,6 +30198,82 @@ procedure Vector_Check is
          end;
       elsif Str (1) = "clo" then
          Append (CLI_Expected, Hex_String (3));
+      elsif Str (1) = "clr" then
+         MV_Motor_Count := Interfaces.Unsigned_8 (Int (3));
+         MV_Channel_Count := Natural'Min (Natural (Int (4)), Adaflight.Receiver.Channel_Count);
+         MV_Flags := Interfaces.Unsigned_8 (Int (5));
+         MV_DShot_Telemetry := Int (6) /= 0;
+         MV_Rate_Denom := Interfaces.Unsigned_8 (Int (7));
+         MV_P_Ratio := Interfaces.Unsigned_16 (Int (8));
+         MV_VTX_Present := Int (9) /= 0;
+         MV_VTX_Type := Interfaces.Unsigned_8 (Int (10));
+         MV_VTX_Pit := Int (11) /= 0;
+         MV_VTX_Ready := Int (12) /= 0;
+      elsif Str (1) = "clq" then
+         declare
+            use type Adaflight.MSP_Processor.Result;
+            B     : Adaflight.MSP_Control_In.Board := MSP_Board;
+            Ctx   : Adaflight.MSP_Processor.Context;
+            Vw    : Adaflight.MSP_Processor.Views;
+            E     : Adaflight.MSP_Processor.Effects;
+            R     : Adaflight.MSP_Processor.Result;
+            Reply : Byte_Array (0 .. 4095) := (others => 0);
+            St    : Adaflight.Stream_Buffers.Stream;
+            function Optional (T : CLI.Identity_Text; Present : Boolean) return Adaflight.MSP_Text_Out.Optional_Text is
+               O : Adaflight.MSP_Text_Out.Optional_Text;
+            begin
+               O.Present := Present;
+               O.Value.Length := Natural'Min (T.Length, Adaflight.MSP_Text_Out.Max_Text);
+               O.Value.Data (1 .. O.Value.Length) := T.Data (1 .. O.Value.Length);
+               return O;
+            end Optional;
+         begin
+            if MV_Pending then
+               Vw.Common.Beeper := True;
+               Vw.Common.Transponder.Built_In := True;
+               Vw.Common.Meters.Virtual := True;
+               Vw.Common.OSD := True;
+               Vw.Build := (others => True);
+               Vw.Detected_Flags := MV_Flags;
+               Vw.Receiver.Channel_Count := MV_Channel_Count;
+               Vw.Hardware.Motor_Count := MV_Motor_Count;
+               Vw.Hardware.Use_DShot_Telemetry := MV_DShot_Telemetry;
+               Vw.Hardware.Rate_Denom := MV_Rate_Denom;
+               Vw.Hardware.P_Ratio := MV_P_Ratio;
+               Vw.Peripheral.VTX_Device := MV_VTX_Present;
+               Vw.Peripheral.VTX_Type := MV_VTX_Type;
+               Vw.Peripheral.VTX_Pit_Mode := MV_VTX_Pit;
+               Vw.Peripheral.VTX_Ready := MV_VTX_Ready;
+               Vw.Serial_Count := Ports'Length;
+               for I in Ports'Range loop
+                  Vw.Serial_Ports (I) := (Port => Ports (I), Available => CLI_Env.Serial_Ports (I).Available);
+               end loop;
+               Vw.Text.Build_Key := Optional (CLI_Env.Status.Build_Key, CLI_Env.Status.Has_Build_Key);
+               Vw.Text.Release_Name := Optional (CLI_Env.Status.Release_Name, CLI_Env.Status.Has_Release_Name);
+               B.From_Telemetry := Integer (MSP_Board.Source) = MSP_Telemetry;
+               Ctx := (Control             => B,
+                       Gyro_Sample_Rate_Hz => MSP_Gyro_Rate,
+                       Log                 => MSP_Log,
+                       Loop_Time           => MSP_Loop_Time,
+                       Motors              => MSP_Motors,
+                       Motor_Device        => MSP_Motor_Kind,
+                       Three_D             => MSP_Three_D,
+                       OSD_Port            => MSP_OSD_Port,
+                       Font_Write_Taken    => MSP_OSD_Port_Takes,
+                       VTX_Device          => MSP_VTX_Device,
+                       VTX_Table           => MSP_VTX_Running,
+                       Receiver_Source     => CLI_Env.Receiver_Source,
+                       Serial_Protocol     => CLI_Env.Serial_Protocol,
+                       Out_Views           => Vw);
+               Adaflight.Stream_Buffers.Init (St, 0, 512);
+               Adaflight.MSP_Processor.Process
+                 (Ctx, CLI_Config, CLI_Board, MSP_Links, MV_Command, MV_Request (0 .. MV_Request_Len - 1), Ports,
+                  Reply, St, R, E);
+               Record_Int ("mspviews.result", Int (3), (if R = Adaflight.MSP_Processor.Ack then 1 else -1));
+               Record_Bytes ("mspviews.reply", Hex_Bytes (4), Reply (0 .. St.Next - 1));
+               MV_Pending := False;
+            end if;
+         end;
       elsif Str (1) = "clm" then
          declare
             use type Adaflight.MSP_Tuning_In.Result;
@@ -38587,6 +38698,7 @@ begin
    Run (Dir & "/mspintext.csv", "cliset");
    Run (Dir & "/mspinperi.csv", "cliset");
    Run (Dir & "/mspinvtx.csv", "cliset");
+   Run (Dir & "/mspviews.csv", "cliset");
    Run (Dir & "/mspinctl.csv", "cliset");
    Run (Dir & "/mspinosd.csv", "cliset");
    Run (Dir & "/mspinprof.csv", "cliset");
