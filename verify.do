@@ -17,6 +17,7 @@ run () {
 run "style + sanitization" bash style.do
 run "vectors"              bash test.do
 run "STM32F4 image"        bash target.do
+run "host image"           bash host.do
 run "SPARK proof"          bash prove.do
 echo "=========================================="
 if [ "$fail" -ne 0 ]; then
