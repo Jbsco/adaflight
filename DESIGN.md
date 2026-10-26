@@ -9314,7 +9314,7 @@ byte transmitter the USART driver gains. A hash mark opens an interactive comman
 the port's guard time and a start of text a configurator session at once. While the session is open
 the bytes go to the terminal (D378), and when it closes the port takes them again. A reboot request
 on the port, a restart a message asks for and the command line's `exit` reset the core through its
-reset register after the reply. The context names the firmware variant the configurator accepts, the
+reset register after the reply. The context names the firmware variant (D384), the
 version as 2026.10.0 with the text 0.1.0, the compilation date and time, the microcontroller and
 board names, the manufacturer, the device identifier words, the board identifier and configuration
 state from the configuration, the MAX7456 and beeper built in, UART1 as the one serial port, and no
@@ -9360,3 +9360,12 @@ scheduler takes the sensor tasks. The image is 785076 bytes of text, 1768 of dat
 data. The bench check is the configurator's sensors tab showing the gyro and accelerometer traces
 following the board, and the command line's `status` naming the gyro and accelerometer with the gyro
 locked.
+
+## D384. Firmware variant (2026-10-26)
+
+The image answers the firmware variant `ADFL` in the variant reply, its own name beside the version
+numbering of D382 and the image layout of D6. The stock configurator accepts one variant at connect
+and opens its command line tab alone for any other, so the full tabs need its variant check widened
+to `ADFL`: three string comparisons in its source, at the connect gate, the command line completion
+and the build information read. That build is the adaflight-configurator repository, the upstream
+configurator's history with adaflight's changes on its main branch. The bench check moves to it.
