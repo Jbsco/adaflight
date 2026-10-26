@@ -75,3 +75,4 @@ Each document describes a Betaflight bug that adaflight fixes: the Betaflight ve
 - [A feature prefix takes the first feature it starts](feature-prefix-count.md)
 - [The signature command takes spaces and signs inside a byte's two digits](board-info-fields.md)
 - [A board name past 20 characters is cut, and the full name is refused once stored](board-info-fields.md)
+- [A MAX7456 found by a later rescan keeps a display port of 0 rows and 0 columns](max7456-rescan-dimensions.md)
