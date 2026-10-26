@@ -72,3 +72,4 @@ Each document describes a Betaflight bug that adaflight fixes: the Betaflight ve
 - [MSP restart into mass storage with UTC time skips the file system check](msp-restart-storage-check.md)
 - [The defaults command takes any word containing its keywords and wraps the group number](cli-defaults-batch-words.md)
 - [The batch command matches the start of its option and keeps the error over a second start](cli-defaults-batch-words.md)
+- [A feature prefix takes the first feature it starts](feature-prefix-count.md)
