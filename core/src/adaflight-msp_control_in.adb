@@ -8,6 +8,7 @@ package body Adaflight.MSP_Control_In with SPARK_Mode is
    Configured   : constant := 1;
    Reboot_Modes : constant := 5;
    MSC_Mode     : constant := 2;
+   MSC_UTC_Mode : constant := 3;
    Blocking     : constant := 1;
 
    --  A command byte that switches arming off for the request's link, or on
@@ -35,9 +36,9 @@ package body Adaflight.MSP_Control_In with SPARK_Mode is
    end Set_Arming;
 
    --  A restart mode, the firmware when the request leaves it out, answered
-   --  back; for mass storage the file system's readiness follows and only a
-   --  ready one restarts. The restart waits out a delay over the telemetry
-   --  link with the SPI receiver running.
+   --  back; for either mass storage mode the file system's readiness follows
+   --  and only a ready one restarts (finding F199). The restart waits out a
+   --  delay over the telemetry link with the SPI receiver running.
    procedure Set_Reboot (Request : Byte_Array; B : Board; R : out Result; E : in out Effects)
      with Pre  => Request'Length <= Max_Request,
           Post => (if R = Error then E = E'Old)
@@ -51,7 +52,7 @@ package body Adaflight.MSP_Control_In with SPARK_Mode is
       E.Reply_Length := 1;
       E.Reply (0) := Byte (Mode);
       R := Ack;
-      if Mode = MSC_Mode then
+      if Mode in MSC_Mode | MSC_UTC_Mode then
          E.Reply_Length := 2;
          E.Reply (1) := (if B.MSC_Ready then 1 else 0);
          if not B.MSC_Ready then
