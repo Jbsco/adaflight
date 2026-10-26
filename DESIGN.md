@@ -9244,3 +9244,28 @@ device's three unique identifier words. The main stack is 32 KB, set in the proj
 switches. The LED keeps its 1 Hz blink. The bench check is a serial adapter on the UART1 pads at
 115200 baud: the banner and prompt show at boot and after `exit`, which restarts the board, and the
 commands reply as the host vectors record them.
+
+## D380. MSP command processor (2026-10-26)
+
+`Adaflight.MSP_Processor` routes one MSP command frame to the unit that answers it, in the
+reference's stage order: the out replies that take an argument and read the configuration (the
+command line setting and its information, the configuration reset and the restart), then the common
+in messages (the transponder, the battery and its meters, the OSD and its canvas, a font character),
+then the in messages. The out replies that read a snapshot of the board's state wait for the
+snapshot layer. The simplified tuning write, which acts on the running profile and gyro settings,
+answers an error until that layer lands. A command no unit answers is an error with an empty reply.
+`Context` holds what the board reports to the messages: the control state, the gyro's sample rate,
+the flight log and the PID loop time, the motors and their output device with the 3D feature, the
+OSD display port and whether it took the font character, the video transmitter and its running
+table, and the receiver's provider with its serial protocol. The reply's bytes go to the caller's
+stream, cut to its room. The port's reply payload holds 512 bytes, so the flash read reply, which
+needs 4096 more, waits for the flash layer (F269). `Effects` returns every unit's effects together
+with the runtime work the reference does between the units: a PID profile change asks for the motor
+output endpoints and the mixer profile again, a rate profile change for the stick processing, the
+wing's tuning for the PID settings, an OSD write for the elements, and a VTX configuration write
+marks the MSP transmitter ready. The configuration write and the restart that the board, control and
+OSD messages ask for come back as one flag each.
+
+The harness hands every MSP in line of the command line vectors to the processor in place of its own
+routing: 23956 requests over 72 commands in 24 families replay exactly, result, reply and effects.
+Four tampered paths each fail the vectors.
