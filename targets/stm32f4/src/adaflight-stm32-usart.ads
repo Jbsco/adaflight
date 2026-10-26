@@ -18,6 +18,9 @@ package Adaflight.STM32.USART is
    --  Every character of Text, each after the transmit register empties.
    procedure Put (Into : in out Port; Text : String);
 
+   --  Every byte of Data, each after the transmit register empties.
+   procedure Put (Into : in out Port; Data : Byte_Array);
+
    --  The bytes received since the last take, up to Into's length, and
    --  their count; the rest of Into is zero.
    procedure Take (Into : out Byte_Array; Count : out Natural);

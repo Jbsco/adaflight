@@ -9303,3 +9303,29 @@ build key directives, and 718 requests over 61 commands with their arguments, se
 one, passthrough modes and unknown commands. Every result and every one of the 19953 reply bytes
 replays exactly, and the MSP in and bind families replay unchanged through the extended processor.
 Five tampered paths each fail the vectors.
+
+## D382. STM32F4 MSP on UART1 (2026-10-26)
+
+The STM32F4 image serves MSP on UART1 beside the command line. The main owns an MSP port (D53) and
+polls the receiver ring every millisecond: while the command line's session is closed the bytes go
+to the port, which hands each complete command frame to the MSP command processor (D380, D381) with
+a context built from the board, and the reply goes out as a frame in the request's framing through a
+byte transmitter the USART driver gains. A hash mark opens an interactive command line session after
+the port's guard time and a start of text a configurator session at once. While the session is open
+the bytes go to the terminal (D378), and when it closes the port takes them again. A reboot request
+on the port, a restart a message asks for and the command line's `exit` reset the core through its
+reset register after the reply. The context names the firmware variant the configurator accepts, the
+version as 2026.10.0 with the text 0.1.0, the compilation date and time, the microcontroller and
+board names, the manufacturer, the device identifier words, the board identifier and configuration
+state from the configuration, the MAX7456 and beeper built in, UART1 as the one serial port, and no
+sensors, motors, meters or devices yet. The state replies read zeros until the sensor tasks run on
+the board.
+
+The image left the development profile: with the eighteen MSP in units and the out units linked at
+the debug optimization level with validity checks, it overflowed the 1 MB flash by 155 KB. The core
+now builds for the board in its release profile, optimized for size without run-time checks,
+assertions or debug information, which the proof makes safe. The target sources keep their checks.
+The host checks build the core in the validation profile, with its checks on. The image is 777232
+bytes of text, 1672 of data and 83424 of zeroed data. The bench check is a serial adapter on the
+UART1 pads at 115200 baud with the configurator connecting, reading the setup, PID, receiver, modes,
+OSD and ports tabs and writing a setting, and the command line still entering with a hash mark.

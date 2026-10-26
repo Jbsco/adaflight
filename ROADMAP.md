@@ -28,7 +28,7 @@ Silver with no assume, and pass the gates on `main`.
   support.
 - Phase 7, in progress. Targets. STM32F4 first: `targets/stm32f4` builds for the CLRacing F4S
   board family from the pinned board configuration repository, and its image blinks the LED and
-  serves the command line on UART1. Then F7 and H7, then the other families Betaflight runs on,
+  serves MSP and the command line on UART1. Then F7 and H7, then the other families Betaflight runs on,
   plus a host simulator target. Drivers for SPI, I2C, DMA, timers, USB, flash, SD card, DShot.
 - Phase 8, open. Tooling. A native Linux flashing tool over DFU with the features of the
   Betaflight flasher and faster transfers, then the configuration path.

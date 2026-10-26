@@ -10,3 +10,11 @@ tags = ["spark", "flight-control", "embedded"]
 
 [[depends-on]]
 gnatprove = "^16.1.0"
+
+# The release profile is the board image: built for size, with the proved core free of run-time
+# checks, assertions and debug information. Hosts build the core in the validation profile.
+[build-switches]
+release.optimization = "size"
+release.runtime_checks = "none"
+release.contracts = "no"
+release.debug_info = "no"

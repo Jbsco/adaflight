@@ -14,3 +14,7 @@ adaflight_core = "*"
 
 [[pins]]
 adaflight_core = { path = "../core" }
+
+# The host checks run the core with its checks on; the release profile is the board image.
+[build-profiles]
+adaflight_core = "validation"
