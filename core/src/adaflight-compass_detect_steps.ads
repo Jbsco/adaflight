@@ -17,6 +17,9 @@ package Adaflight.Compass_Detect_Steps with SPARK_Mode is
    procedure Step_Set_MPU_Slave (D : in out Adaflight.Sensor_Bus_Steps.Bus_Line; Address : Byte)
      with Global => null;
 
+   procedure Step_Set_Bus_Type (D : in out Adaflight.Sensor_Bus_Steps.Bus_Line; Bus : Byte)
+     with Global => null;
+
    procedure Step_Detect_DroneCAN (D : in out Adaflight.Sensor_Bus_Steps.Bus_Line; Found : out Boolean)
      with Global => null;
 

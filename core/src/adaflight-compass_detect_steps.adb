@@ -18,6 +18,12 @@ package body Adaflight.Compass_Detect_Steps with SPARK_Mode is
       null;
    end Step_Set_MPU_Slave;
 
+   procedure Step_Set_Bus_Type (D : in out Adaflight.Sensor_Bus_Steps.Bus_Line; Bus : Byte) is
+      pragma Unreferenced (D, Bus);
+   begin
+      null;
+   end Step_Set_Bus_Type;
+
    procedure Step_Detect_DroneCAN (D : in out Adaflight.Sensor_Bus_Steps.Bus_Line; Found : out Boolean) is
       pragma Unreferenced (D);
    begin

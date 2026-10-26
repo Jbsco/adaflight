@@ -5,8 +5,9 @@
 --  instance that refuses, or an MPU slave bus without an MPU9250 ends the
 --  detection. The scan starts at the configured hardware's driver, or at the
 --  first for the default, sets the configured address again before each
---  driver while the bus is I2C, and moves the AK8963 onto the MPU slave bus
---  behind an MPU9250. The MPU925x passthrough is tried only when configured.
+--  driver while the bus is I2C, moves the AK8963 onto the MPU slave bus
+--  behind an MPU9250, and puts the bus back when that probe fails. The MPU925x
+--  passthrough is tried only when configured.
 --  The simulator's virtual compass is found unless the configuration is none.
 generic
    type Bus_Device is limited private;
@@ -17,6 +18,7 @@ generic
    with procedure Set_SPI_Instance (D : in out Bus_Device; Device : Byte; OK : out Boolean);
    with procedure Set_CS_Pin (D : in out Bus_Device; Tag : Byte);
    with procedure Set_MPU_Slave (D : in out Bus_Device; Address : Byte);
+   with procedure Set_Bus_Type (D : in out Bus_Device; Bus : Byte);
    with procedure Detect_DroneCAN (D : in out Bus_Device; Found : out Boolean);
    with procedure Detect_Chip (D : in out Bus_Device; Chip : Driver; Found : out Boolean);
 package Adaflight.Compass_Detect.Scan with SPARK_Mode is
