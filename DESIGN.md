@@ -4114,9 +4114,11 @@ and the hardware settings under the master heading. The listing commands use the
 no heading.
 
 A diff prints no `mmix reset` or `smix reset` line, since both follow the default configuration's
-first motor and first rule (findings F169), and its flight plan lines print with no heading of their
-own (F170). A changed beeper's default line, and some features' default lines, print before their
-headings (F171, F172). A channel failsafe default line takes the format of the channel's own mode
+first motor and first rule (findings F169). The flight plan's heading precedes its first printed line,
+and so does the beeper heading a changed condition's default line and the feature heading a feature's
+default line, where the reference prints the flight plan lines under the previous section's heading
+and those default lines before their headings (findings F170, F171 and F172, amended 2026-10-25 as
+declared in D6). A channel failsafe default line takes the format of the channel's own mode
 (F173). A VTX band compares its name without regard to case, its letter and its frequencies, and the
 power values' and labels' default lines list all eight entries (F174). With the printers in the
 master dump, the unit's largest prover process holds 3.9 gigabytes, for `Dump_Master`.

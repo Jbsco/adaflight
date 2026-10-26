@@ -752,8 +752,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  The features as commands: every feature disabled, then each enabled one
    --  enabled. A diff keeps a feature's disabled line when it was enabled by
    --  default and its enabled line when it was disabled; the default lines
-   --  print for the opposite changes, and only the kept lines' changes print
-   --  the heading.
+   --  print for the opposite changes, and the heading precedes the first line
+   --  printed either way (finding F172).
    procedure Put_Feature_Dump
      (Into : in out Output; Mask : Unsigned_32; Default : Unsigned_32 := Defaults.Feature_Config.Enabled_Features;
       Mode : Dump_Mode := Listing; Heading : String := "")
@@ -768,7 +768,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
                B     : constant Unsigned_32 := Shift_Left (1, Bit);
                Equal : constant Boolean := (((not Default) or Mask) and B) /= 0;
             begin
-               Put_Heading (Into, Mode, not Equal, Heading, Pending);
+               Put_Heading (Into, Mode, ((Mask xor Default) and B) /= 0, Heading, Pending);
                if Shows_Default (Mode, ((Default or not Mask) and B) /= 0) then
                   Put (Into, "#feature -" & Feature_Name (Bit) & CRLF);
                end if;
@@ -783,6 +783,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
             declare
                B : constant Unsigned_32 := Shift_Left (1, Bit);
             begin
+               Put_Heading (Into, Mode, ((Mask xor Default) and B) /= 0, Heading, Pending);
                if (Default and B) /= 0 and then Shows_Default (Mode, (((not Default) or Mask) and B) /= 0) then
                   Put (Into, "#feature " & Feature_Name (Bit) & CRLF);
                end if;
@@ -905,8 +906,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
    Beacon_Allowed : constant Unsigned_32 := 16#202#;
 
    --  The beeper or beacon conditions as commands: each allowed one but ALL
-   --  enabled or, after a minus, disabled. A changed condition's default
-   --  prints before the heading.
+   --  enabled or, after a minus, disabled. The heading precedes a changed
+   --  condition's default line (finding F171).
    procedure Put_Beeper_Dump
      (Into : in out Output; Command : String; Flags : Unsigned_32; Default : Unsigned_32; Allowed : Unsigned_32;
       Mode : Dump_Mode; Heading : String)
@@ -922,12 +923,12 @@ package body Adaflight.Command_Line with SPARK_Mode is
                Off   : constant Boolean := (Flags and Beeper_Mask (I)) /= 0;
                Equal : constant Boolean := ((not (Flags xor Default)) and Beeper_Mask (I)) /= 0;
             begin
+               Put_Heading (Into, Mode, not Equal, Heading, Pending);
                if Shows_Default (Mode, Equal) then
                   Put (Into, "#");
                   Put (Into, Command);
                   Put (Into, (if Off then " " else " -") & Beeper_Name (I) & CRLF);
                end if;
-               Put_Heading (Into, Mode, not Equal, Heading, Pending);
                if Shows_Line (Mode, Equal) then
                   Put (Into, Command);
                   Put (Into, (if Off then " -" else " ") & Beeper_Name (I) & CRLF);
@@ -2925,9 +2926,10 @@ package body Adaflight.Command_Line with SPARK_Mode is
    end Put_Waypoint;
 
    --  The plan as a clear line and an insert line for each waypoint. A diff
-   --  keeps the clear line when the plan differs from the default plan, and
-   --  a waypoint past the default plan's count prints no heading; a changed
-   --  waypoint within it prints its default first for Show_Defaults.
+   --  keeps the clear line when the plan differs from the default plan, the
+   --  heading precedes the first line printed (finding F170), and a changed
+   --  waypoint within the default plan's count prints its default first for
+   --  Show_Defaults.
    procedure Put_Waypoints
      (Into : in out Output; Count : Unsigned_8; Points : Waypoint_List;
       Default_Count : Unsigned_8 := Defaults.Flight_Plan_Config.Waypoint_Count;
@@ -2947,6 +2949,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
             end if;
          end loop;
       end if;
+      Put_Heading (Into, Mode, not All_Equal, Heading, Pending);
       if Shows_Line (Mode, All_Equal) then
          Put (Into, "waypoint clear" & CRLF);
       end if;
@@ -2955,8 +2958,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
          declare
             Equal : constant Boolean := I < Natural (Default_Count) and then Points (I) = Default (I);
          begin
+            Put_Heading (Into, Mode, not Equal, Heading, Pending);
             if I < Natural (Default_Count) then
-               Put_Heading (Into, Mode, not Equal, Heading, Pending);
                if Shows_Default (Mode, Equal) then
                   Put (Into, "#");
                   Put_Waypoint (Into, I, Default (I));
