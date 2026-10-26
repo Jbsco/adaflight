@@ -54,6 +54,9 @@ with Adaflight.STM32.Pilot;
 with Adaflight.STM32.Radio;
 with Adaflight.STM32.Sound;
 with Adaflight.STM32.SPI;
+with Adaflight.MSP_OSD_Out;
+with Adaflight.OSD_Task;
+with Adaflight.STM32.OSD;
 with Adaflight.STM32.Time;
 with Adaflight.STM32.USART;
 with Adaflight.Stream_Buffers;
@@ -418,9 +421,11 @@ package body Adaflight.STM32.Flight is
    --  what the MSP replies and the status report say about the sensors. A
    --  missing gyro flashes its code on a configured board and holds arming;
    --  a failed initialization flashes its code and resets.
-   --  The SPI buses of the board.
+   --  The SPI buses with their devices' select pins held first: the OSD
+   --  chip's as the configuration names it.
    procedure Start_Buses is
    begin
+      Adaflight.STM32.OSD.Preinit (Config);
       Adaflight.STM32.SPI.Init (Adaflight.STM32.SPI.SPI1, Adaflight.Board.SPI1_SCK_Pin, Adaflight.Board.SPI1_SDI_Pin,
                                 Adaflight.Board.SPI1_SDO_Pin);
       Adaflight.STM32.SPI.Init (Adaflight.STM32.SPI.SPI2, Adaflight.Board.SPI2_SCK_Pin, Adaflight.Board.SPI2_SDI_Pin,
@@ -428,6 +433,17 @@ package body Adaflight.STM32.Flight is
       Adaflight.STM32.SPI.Init (Adaflight.STM32.SPI.SPI3, Adaflight.Board.SPI3_SCK_Pin, Adaflight.Board.SPI3_SDI_Pin,
                                 Adaflight.Board.SPI3_SDO_Pin);
    end Start_Buses;
+
+   --  The OSD display with the OSD feature on; no display started turns the
+   --  feature off until the next start.
+   procedure Start_OSD is
+      Disable : Boolean;
+   begin
+      Adaflight.STM32.OSD.Init (Config, (Runtime_Features and Adaflight.Config_Fix.Feature_OSD) /= 0, Disable);
+      if Disable then
+         Runtime_Features := Runtime_Features and not Adaflight.Config_Fix.Feature_OSD;
+      end if;
+   end Start_OSD;
 
    procedure Start_Gyro is
       Inputs : Adaflight.Gyro_Selection.Inputs;
@@ -563,8 +579,17 @@ package body Adaflight.STM32.Flight is
       Env.Now_Us := Now_Ms * 1000;
       Env.Status.Uptime_Ms := Now_Ms;
       Adaflight.Stream_Buffers.Init (Stream, 0, Reply'Length);
+      Ctx.OSD_Port := Adaflight.STM32.OSD.Port_Present;
+      Ctx.Font_Write_Taken := Adaflight.STM32.OSD.Font_Write_Taken;
+      Ctx.Out_Views.OSD.Device := Adaflight.STM32.OSD.Device;
+      if Unsigned_16 (Port.Command_Id) = Adaflight.MSP_OSD_Out.OSD_Config_Command then
+         Adaflight.STM32.OSD.Check_Ready (Config, Adaflight.STM32.Pilot.Armed, Ctx.Out_Views.OSD.Device_Ready);
+      end if;
       MSP.Process (Ctx, Config, Board, Links, Unsigned_16 (Port.Command_Id), Port.Data (0 .. Port.Data_Size - 1),
                    Ports, Reply, Stream, Result, Effects);
+      if Effects.Font.Write then
+         Adaflight.STM32.OSD.Write_Font (Effects.Font.Address, Effects.Font.Data);
+      end if;
       if Effects.Receiver.Modes_Init then
          Adaflight.STM32.Pilot.Reload_Modes (Config);
       end if;
@@ -602,6 +627,9 @@ package body Adaflight.STM32.Flight is
       Ctx.Out_Views.State.Status.PID_Delta_Us := Scheduler.Task_Delta_Time (Sched, Scheduler.PID);
       Ctx.Out_Views.State.Status.Load_Percent := Unsigned_16 (Sched.Average_Load_Percent);
       Env.Gyros (0).Mode := Gyro_Mode;
+      Env.Status.OSD_Device := Adaflight.OSD_Task.Device_Kind'Pos (Adaflight.STM32.OSD.Device);
+      Env.Status.OSD_Port := Adaflight.STM32.OSD.Port_Present;
+      Adaflight.STM32.OSD.Dimensions (Env.Status.OSD_Columns, Env.Status.OSD_Rows);
       Report_Battery;
       Adaflight.STM32.USART.Take (Adaflight.STM32.USART.UART1, Input, Count);
       if Count > 0 then
@@ -1361,6 +1389,7 @@ package body Adaflight.STM32.Flight is
       Adaflight.STM32.Control.Init (Config, Runtime_Features);
       Bat_Settings := Battery_Settings;
       Adaflight.Battery.Init (Bat, Bat_Settings);
+      Start_OSD;
       if Selection.Found then
          Adaflight.STM32.Time.Delay_Ms (First_Read_Delay_Ms);
       end if;
