@@ -9329,3 +9329,34 @@ The host checks build the core in the validation profile, with its checks on. Th
 bytes of text, 1672 of data and 83424 of zeroed data. The bench check is a serial adapter on the
 UART1 pads at 115200 baud with the configurator connecting, reading the setup, PID, receiver, modes,
 OSD and ports tabs and writing a setting, and the command line still entering with a hash mark.
+
+## D383. STM32F4 gyro over SPI1 (2026-10-26)
+
+The STM32F4 image starts the board's gyro at boot and reads it every millisecond. `Adaflight.STM32.SPI`
+drives SPI1 as a master in mode 3 with eight-bit frames, most significant bit first, the select pins
+left to the devices: a polled full duplex transfer, and the clock divisor as the smallest power of two
+from 2 to 256 that brings the 84 MHz bus clock to the asked rate or below, so detection at 1 MHz runs
+at 656 kHz and the MPU6000's 20 MHz reads run at 10.5 MHz. `Adaflight.STM32.EXTI` arms a pin's
+external interrupt line on its rising edge and clears its pending flag. `Adaflight.STM32.Time` holds
+the millisecond clock, the core's cycle counter for the microsecond delays and the layer's interrupt
+times, and the millisecond delay. `Adaflight.STM32.Gyro` instantiates the SPI gyro layer (D324) over
+a device of the select pin, the data ready line and the receive bytes, with the MPU6000 (D325) and
+MPU6500 (D327) drivers as its two chip probes in that order, the bus never in DMA mode, and a
+protected handler on the data ready line's interrupt that counts and times each sample through the
+layer. Its start runs the layer's preinitialization and detection, names the gyro hardware through
+the gyro detection (D334), takes the chip driver's scale, the sample rates of the gyro start (D332)
+and the driver's initialization, then the accelerometer detection over the same chip. The main brings
+the result through the gyro selection (D294) over the one position and the configuration's gyro
+checks, and into the state the replies read: the status sensor flags, the detected flags, the active
+sensor hardware, the raw readings reply with the gyro as counts and the accelerometer divided by the
+count for one g, and the status report's gyro and accelerometer lines with the interrupt mode. A
+missing gyro flashes its failure code twice on a configured board and holds arming on the no-gyro
+flag. A failed initialization read flashes its code ten times and resets the core, where the
+reference's release build requests the bootloader, which the image has no request path for yet.
+
+The first read waits 250 ms after the start so the interrupt count passes the layer's detection
+threshold and the reads run locked to the interrupt. The reads stay in the main loop until the
+scheduler takes the sensor tasks. The image is 785076 bytes of text, 1768 of data and 83472 of zeroed
+data. The bench check is the configurator's sensors tab showing the gyro and accelerometer traces
+following the board, and the command line's `status` naming the gyro and accelerometer with the gyro
+locked.
