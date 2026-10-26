@@ -33033,7 +33033,11 @@ procedure Vector_Check is
                                        Latitude    => Interfaces.Integer_32 (Int (9)),
                                        Longitude   => Interfaces.Integer_32 (Int (10)),
                                        Altitude_Cm => Interfaces.Integer_32 (Int (11))));
-            Read_Message (Capture_State, Now, Valid);
+            if Int (30) /= 0 then
+               Read_Message (Capture_State, Now, Valid);
+            else
+               Valid := False;
+            end if;
             Record_Int ("fpstep.switch_was", Int (12), Boolean'Pos (Capture_State.Switch_Was));
             Record_Int ("fpstep.press_time", Int (13), Integer_64 (Capture_State.Press_Time_Us));
             Record_Int ("fpstep.delete_fired", Int (14), Boolean'Pos (Capture_State.Delete_Fired));

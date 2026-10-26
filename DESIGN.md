@@ -3111,9 +3111,10 @@ executor is idle and the fix is good. A release before 1.5 s appends the sampled
 waypoint or reports the plan full, and a hold of 1.5 s deletes the last waypoint once per press, so
 a hold works on a full plan. Edits are refused while the executor flies the plan, and invalid
 channels freeze the gesture with its press time. Each edit leaves its message, formatted with the
-printf-style formatter, for 2.5 s on the wrapping microsecond clock, and the OSD's read clears an
-expired one. The reference shows the message on the OSD warnings line, which gains it here with the
-executor. The unit is SPARK for the plan's bounds and the message buffer.
+printf-style formatter, for 2.5 s on the wrapping microsecond clock, and the capture's step or the
+OSD's read clears an expired one (finding F207, amended 2026-10-26 as declared in D6 and D232). The
+reference shows the message on the OSD warnings line, which gains it here with the executor. The
+unit is SPARK for the plan's bounds and the message buffer.
 
 The harness replays six sequences of 2500 steps recorded from the reference capture with the plan,
 the executor's activity, the fix, the position, the switch, the channel validity and the clock
@@ -5410,9 +5411,10 @@ landing then shows WP LANDING, and the completed plan WP COMPLETE blinking, both
 
 A read of the capture message clears an expired message, which changes the capture's state. The line
 reads a copy and reports the read, and the target then reads the message itself, as it clears the
-visual beeper the line reports shown. A message the line has not read for 2 ** 31 µs past its expiry
-counts as unexpired again (finding F207), and the port keeps that. The draw cycle does not yet pass
-the reports on.
+visual beeper the line reports shown. The capture's step clears an expired message too, so a message
+the line has not read cannot count as unexpired again 2 ** 31 µs past its expiry. The reference
+clears it only at a read, where such a message shows for up to another 35.8 minutes (finding F207,
+amended 2026-10-26 as declared in D6). The draw cycle does not yet pass the reports on.
 
 The warnings oracles now compile the reference with the flight plan and the rescue plan, include the
 capture module as source, and script the executor's abort reason and state, the rescue descent and

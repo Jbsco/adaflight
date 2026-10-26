@@ -22,6 +22,9 @@ package body Adaflight.Flight_Plan_Capture with SPARK_Mode is
                      Switch_Active, Channels_Valid, Plan_Active : Boolean; Where : Position)
    is
    begin
+      if C.Message_Valid and then Clock.Elapsed (Now_Us, C.Message_Expire_Us) >= 0 then
+         C.Message_Valid := False;
+      end if;
       if not Channels_Valid then
          return;
       end if;
