@@ -37,6 +37,10 @@ package Adaflight.STM32.Radio is
       Disarm : out Boolean);
    --  The failsafe's own flight mode.
    function Failsafe_Mode return Boolean;
+   --  The failsafe's arming disable reasons: the link lost and the failsafe
+   --  active.
+   function Failsafe_Rx_Loss return Boolean;
+   function Failsafe_Blocks_Arming return Boolean;
    --  The failsafe's monitoring, which the arming logic starts.
    procedure Start_Failsafe_Monitoring;
    function Failsafe_Receiving return Boolean;
