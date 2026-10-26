@@ -4,7 +4,8 @@ on UART1 (TCP port 5761) for its API version, firmware variant and status, enter
 reads the status and the task list, sets a setting, turns the OSD on with the MAX7456 as its display and
 saves, which restarts the image, then feeds CRSF frames on UART3's port, reads the OSD flags, writes a
 font character, reads the setting back from the stored configuration, finds the channels in the RC reply
-and the link in the arming flags, and finds the craft name on the OSD's screen.
+and the link in the arming flags, finds the craft name on the OSD's screen, then opens the menu with the
+stick gesture and finds it on the screen with its arming hold.
 
 Usage: host-smoke.py <host image>
 """
@@ -43,8 +44,11 @@ class Receiver(threading.Thread):
 
     def __init__(self):
         super().__init__(daemon=True)
-        self.frame = crsf_frame([992, 992, 172, 992] + [992] * 12)
+        self.channels = [992, 992, 172, 992] + [992] * 12
         self.stop = threading.Event()
+
+    def set(self, roll, pitch, throttle, yaw):
+        self.channels = [roll, pitch, throttle, yaw] + [992] * 12
 
     def run(self):
         sock = None
@@ -56,7 +60,7 @@ class Receiver(threading.Thread):
                 time.sleep(0.1)
         while sock is not None and not self.stop.is_set():
             try:
-                sock.sendall(self.frame)
+                sock.sendall(crsf_frame(self.channels))
             except OSError:
                 break
             time.sleep(0.02)
@@ -197,6 +201,19 @@ def main():
             except OSError:
                 screen = ""
             check("OSD draws the craft name", "ADAHOST" in screen, repr(screen[:200]))
+            receiver.set(992, 1811, 992, 172)
+            time.sleep(1.0)
+            receiver.set(992, 992, 172, 992)
+            time.sleep(1.5)
+            try:
+                with open(store + ".osd.txt") as f:
+                    screen = f.read()
+            except OSError:
+                screen = ""
+            check("stick gesture opens the menu", "-- QUICK --" in screen or "-- MAIN --" in screen, repr(screen[:300]))
+            text = cli(sock, "status")
+            flags = text.split("Arming disable flags:")[-1]
+            check("open menu holds arming", "CMS" in flags, flags.strip()[:80])
         finally:
             receiver.stop.set()
             proc.kill()

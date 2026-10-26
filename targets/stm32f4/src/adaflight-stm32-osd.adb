@@ -15,6 +15,7 @@ with Adaflight.STM32.SPI;
 with Adaflight.STM32.Time;
 package body Adaflight.STM32.OSD is
    use type Interfaces.Unsigned_8;
+   use type Interfaces.Integer_8;
    use type Adaflight.OSD_Task.Device_Kind;
    subtype Unsigned_16 is Interfaces.Unsigned_16;
    subtype Unsigned_32 is Interfaces.Unsigned_32;
@@ -310,6 +311,66 @@ package body Adaflight.STM32.OSD is
                              Rescan => True, Ready => Ready);
    end Check_Ready;
 
+   procedure Menu_Grab is
+   begin
+      if Present and then Port.Grab_Count < Interfaces.Integer_8'Last then
+         Chip_Port.Grab (Dev, Chip_State, Port, Display_Settings);
+      end if;
+   end Menu_Grab;
+
+   procedure Menu_Release is
+   begin
+      if Port.Grab_Count > Interfaces.Integer_8'First then
+         Chip_Port.Release (Port);
+      end if;
+   end Menu_Release;
+
+   function Grabbed return Boolean is (Port.Grab_Count > 0);
+
+   procedure Menu_Clear is
+   begin
+      if Present then
+         Chip_Port.Clear_Screen (Dev, Chip_State, Port, Display_Settings);
+      end if;
+   end Menu_Clear;
+
+   procedure Menu_Layer_Select (Layer : Natural) is
+      Unused : Boolean;
+   begin
+      Chip.Layer_Select (Chip_State, Layer, Unused);
+   end Menu_Layer_Select;
+
+   procedure Menu_Background (Kind : Natural) is
+   begin
+      if Present then
+         Chip.Set_Background (Dev, Chip_State, Kind);
+      end if;
+   end Menu_Background;
+
+   procedure Menu_Redraw (Armed : Boolean) is
+   begin
+      if Present then
+         Chip_Port.Redraw (Dev, Chip_State, Armed);
+      end if;
+   end Menu_Redraw;
+
+   procedure Menu_Heartbeat is
+      Unused : Boolean;
+   begin
+      if Present then
+         Chip_Port.Heartbeat (Dev, Chip_State, Unused);
+      end if;
+   end Menu_Heartbeat;
+
+   procedure Menu_Write (X, Y : Interfaces.Unsigned_8; Text : String) is
+      Data : Byte_Array (0 .. Text'Length - 1);
+   begin
+      for I in Data'Range loop
+         Data (I) := Byte (Character'Pos (Text (Text'First + I)));
+      end loop;
+      Chip_Port.Write_String (Chip_State, X, Y, Data);
+   end Menu_Write;
+
    function Font_Write_Taken return Boolean is (Present and then Chip_State.Detected);
 
    procedure Write_Font (Address : Interfaces.Unsigned_16; Data : Adaflight.MSP_Font_In.Character_Data) is
@@ -432,7 +493,7 @@ package body Adaflight.STM32.OSD is
       P.Was_Ever_Armed := F.Was_Ever_Armed;
       P.Has_Link_Quality_Source := F.Link_Source /= Adaflight.OSD_Render.None;
       P.Failsafe_Active := F.Failsafe_Active;
-      P.Display_Grabbed := False;
+      P.Display_Grabbed := Grabbed;
       P.OSD_Switch := F.OSD_Switch;
       P.Launch_Control_Active := F.Launch_Control;
       P.Aux_Rc := F.Aux_Rc;
@@ -586,6 +647,7 @@ package body Adaflight.STM32.OSD is
       Draw_End : Unsigned_32;
    begin
       Refresh (F, Now_Us);
+      Answers.Grabbed := Grabbed;
       case State is
          when Adaflight.OSD_Task.Init =>
             Chip_Port.Check_Ready (Dev, Chip_State, Port, Chip_Settings, Video_Settings, Display_Settings,
