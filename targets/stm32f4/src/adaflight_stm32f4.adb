@@ -46,9 +46,9 @@ procedure Adaflight_Stm32f4 is
    Stack_Size : constant := 32_768;
    UART1_Id   : constant Adaflight.Serial_Feature_Map.Port_Id := 51;
 
-   --  The identity the configurator reads: the variant it accepts, the
-   --  version as a year, month and patch with its text.
-   Variant       : constant Common.Four_Letters := "BTFL";
+   --  The identity the configurator reads: the firmware variant, the version
+   --  as a year, month and patch with its text.
+   Variant       : constant Common.Four_Letters := "ADFL";
    Version_Year  : constant := 2026;
    Version_Month : constant := 10;
    Version_Patch : constant := 0;

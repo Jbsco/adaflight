@@ -54,10 +54,7 @@ adaflight keeps the operation order of Betaflight's code, so a host build of eac
 
 A change is finished when `verify.do` passes.
 
-The STM32F4 image is flashed through the STM32 bootloader over USB with the board in DFU mode:
-
-    cd targets/stm32f4 && alr exec -- arm-eabi-objcopy -O binary bin/adaflight_stm32f4 adaflight.bin
-    dfu-util -a 0 -s 0x08000000:leave -D adaflight.bin
+Feature selection, board flashing and host image: [`docs/building.md`](docs/building.md).
 
 ## Verification
 
