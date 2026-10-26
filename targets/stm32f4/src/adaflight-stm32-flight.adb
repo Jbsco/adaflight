@@ -2,7 +2,6 @@ with Ada.Characters.Handling;
 with Ada.Real_Time; use Ada.Real_Time;
 with GNAT.Source_Info;
 with Interfaces; use Interfaces;
-with System;
 with Adaflight.Acc_Inflight;
 with Adaflight.Accelerometer;
 with Adaflight.Arming;
@@ -49,6 +48,7 @@ with Adaflight.STM32.Console;
 with Adaflight.STM32.Control;
 with Adaflight.STM32.Flash;
 with Adaflight.STM32.GPIO;
+with Adaflight.STM32.MCU;
 with Adaflight.STM32.Gyro;
 with Adaflight.STM32.Pilot;
 with Adaflight.STM32.Radio;
@@ -83,15 +83,7 @@ package body Adaflight.STM32.Flight is
    Version_Patch : constant := 0;
    Version_Text  : constant String := "0.1.0";
 
-   --  The device's unique identifier, the three words the status prints.
-   UID : array (1 .. 3) of Unsigned_32
-     with Import, Volatile, Address => System'To_Address (16#1FFF_7A10#);
-
-   --  The core's application interrupt and reset control register: the key
-   --  in its high half with the system reset request.
-   AIRCR : Unsigned_32
-     with Import, Volatile, Address => System'To_Address (16#E000_ED0C#);
-   System_Reset_Request : constant Unsigned_32 := 16#05FA_0004#;
+   UID : constant Adaflight.STM32.MCU.Identifier := Adaflight.STM32.MCU.UID;
 
    --  The failure codes the LED flashes: a missing gyro, a configuration
    --  store that could not be written, and a gyro whose initialization read
@@ -287,13 +279,7 @@ package body Adaflight.STM32.Flight is
                           Stack_High    => 16#2002_0000#,
                           others        => <>));
 
-   procedure Reset is
-   begin
-      AIRCR := System_Reset_Request;
-      loop
-         null;
-      end loop;
-   end Reset;
+   procedure Reset renames Adaflight.STM32.MCU.Reset;
 
    --  Count flashes of the LED from off, each on and off for the duration.
    procedure Flash (Count : Natural; Duration_Ms : Natural) is
