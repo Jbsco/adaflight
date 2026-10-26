@@ -116,7 +116,9 @@ package body Adaflight.STM32.Flight is
       Voltage_Source   => Adaflight.Board.Default_Voltage_Meter_Source,
       Current_Source   => Adaflight.Board.Default_Current_Meter_Source,
       Voltage_Scale    => Adaflight.Board.Default_Voltage_Meter_Scale,
-      Current_Scale    => Adaflight.Board.Default_Current_Meter_Scale);
+      Current_Scale    => Adaflight.Board.Default_Current_Meter_Scale,
+      OSD_CS_Tag       => Adaflight.Board.MAX7456_CS_Tag,
+      OSD_SPI_Device   => Adaflight.Board.MAX7456_SPI_Device);
 
    Board    : CLI.Board_State := (Hardware => Board_Hardware, others => <>);
    Config   : Adaflight.Config_Groups.Configuration := Adaflight.Config_Reset.Reset (Board);
