@@ -3,8 +3,12 @@
 --  steps run them, with their settings from the stored configuration.
 with Interfaces;
 with Adaflight.Arming;
+with Adaflight.Axes;
 with Adaflight.Config_Groups;
+with Adaflight.Mixer_Init;
 with Adaflight.Modes;
+with Adaflight.PID_Config;
+with Adaflight.PID_Profile;
 with Adaflight.RC_Command;
 package Adaflight.STM32.Pilot is
    subtype Time_Us is Interfaces.Unsigned_32;
@@ -42,6 +46,31 @@ package Adaflight.STM32.Pilot is
    procedure Update_Refresh_Rate (Now_Us : Time_Us; Receiving : Boolean; Frame_Time_Us : Time_Us);
    --  A disarm a message asks for.
    procedure Disarm (Now_Us : Time_Us; Step : in out Adaflight.Arming.Outputs);
+   --  The PID loop's RC command pass, the yaw command reset before it, and
+   --  the arming's controller pass with the runaway check.
+   procedure Process_Commands;
+   procedure Reset_Yaw;
+   procedure Runaway_Check
+     (Sensed : Adaflight.Arming.Inputs; Channels : Adaflight.RC_Command.Channel_Values; Now_Us : Time_Us;
+      Step : in out Adaflight.Arming.Outputs);
+   function Loop_Runtime return Adaflight.PID_Config.Runtime;
+   function Profile return Adaflight.PID_Profile.Profile;
+   function Mixer_Mode return Adaflight.Mixer_Init.Mixer_Mode;
+   function Sticks_Arm return Boolean;
+   function Throttle_Raised return Boolean;
+   function Crash_Flip_Active return Boolean;
+   function Launch_Control_Active return Boolean;
+   function Airmode_Enabled return Boolean;
+   function PID_Audio_Present return Boolean;
+   --  The RC command's values the controller and the mixer read.
+   function Setpoint_Rate (A : Adaflight.Axes.Axis) return Float;
+   function Feedforward (A : Adaflight.Axes.Axis) return Float;
+   function Deflection (A : Adaflight.Axes.Axis) return Float;
+   function Deflection_Abs (A : Adaflight.Axes.Axis) return Float;
+   function Max_Deflection_Abs return Float;
+   function Max_Rate (A : Adaflight.Axes.Axis) return Float;
+   function Throttle_Command return Float;
+   function Motors_Reversed return Boolean;
    function Armed return Boolean;
    function Disabled return Adaflight.Arming.Disable_Set;
    function Flight_Modes return Adaflight.Arming.Mode_Set;
