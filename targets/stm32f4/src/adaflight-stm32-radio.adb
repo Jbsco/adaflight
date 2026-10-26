@@ -12,11 +12,10 @@ package body Adaflight.STM32.Radio is
    use type Interfaces.Unsigned_32;
    use type Adaflight.Modes.Box;
 
-   --  The serial receiver provider setting for CRSF, the serial receiver
-   --  feature's bit, and the delay before the failsafe monitors the link.
+   --  The serial receiver provider setting for CRSF and the serial receiver
+   --  feature's bit.
    CRSF_Provider     : constant Interfaces.Unsigned_8 := 9;
    Feature_RX_Serial : constant Interfaces.Unsigned_32 := 8;
-   Power_On_Delay_Us : constant := 5_000_000;
    --  The serial port identifiers of the board's UARTs.
    Port_Ids : constant array (USART.Number) of SFM.Port_Id :=
      (USART.UART1 => 51, USART.UART3 => 53, USART.UART4 => 54, USART.UART6 => 56);
@@ -127,9 +126,6 @@ package body Adaflight.STM32.Radio is
          return;
       end if;
       Adaflight.Receiver.Update_RSSI (Rx, Rx_Settings, Now_Us, ADC_Sample => 0);
-      if Now_Us > Power_On_Delay_Us and then not FS.Monitoring then
-         Adaflight.Failsafe.Start_Monitoring (FS);
-      end if;
    end Process;
 
    procedure Failsafe_Check (Now_Ms : Time_Ms) is
@@ -141,6 +137,19 @@ package body Adaflight.STM32.Radio is
       Adaflight.Failsafe.Check_Data_Failure_Period (FS, Now_Ms);
       Adaflight.Failsafe.Update (FS, FS_Settings, Now_Ms, In_Flight, Beeper, Disarm, Stage_Rescue);
    end Failsafe_Check;
+
+   procedure Start_Failsafe_Monitoring is
+   begin
+      Adaflight.Failsafe.Start_Monitoring (FS);
+   end Start_Failsafe_Monitoring;
+
+   function Failsafe_Receiving return Boolean is (Adaflight.Failsafe.Receiving_Rx_Data (FS));
+
+   function Failsafe_Active return Boolean is (FS.Active);
+
+   function Failsafe_Monitoring return Boolean is (FS.Monitoring);
+
+   function Last_Frame_Us return Time_Us is (Proto.Last_Frame_Us);
 
    function Channel_Count return Natural is (Rx.Channels);
 
