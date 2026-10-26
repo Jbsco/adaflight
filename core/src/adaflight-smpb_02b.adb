@@ -31,19 +31,25 @@ package body Adaflight.SMPB_02B with SPARK_Mode is
 
    Not_A_Number_Value : constant Real := (Not_A_Number, 0.0);
 
-   procedure Read_16 (D : in out Bus_Device; Register : Byte; V : out Signed_16_Value) is
-      Data      : Byte_Array (0 .. 1) := (others => 0);
-      Unused_OK : Boolean;
+   procedure Read_16 (D : in out Bus_Device; Register : Byte; V : out Signed_16_Value; OK : in out Boolean)
+     with Global => null
+   is
+      Data : Byte_Array (0 .. 1) := (others => 0);
+      Got  : Boolean;
    begin
-      Read_Registers (D, Register, Data, Unused_OK);
+      Read_Registers (D, Register, Data, Got);
+      OK := OK and Got;
       V := I32 (Data (0)) * 256 + I32 (Data (1)) - (if Data (0) >= 128 then 65_536 else 0);
    end Read_16;
 
-   procedure Read_24 (D : in out Bus_Device; Register : Byte; V : out Raw_Delta) is
-      Data      : Byte_Array (0 .. 2) := (others => 0);
-      Unused_OK : Boolean;
+   procedure Read_24 (D : in out Bus_Device; Register : Byte; V : out Raw_Delta; OK : in out Boolean)
+     with Global => null
+   is
+      Data : Byte_Array (0 .. 2) := (others => 0);
+      Got  : Boolean;
    begin
-      Read_Registers (D, Register, Data, Unused_OK);
+      Read_Registers (D, Register, Data, Got);
+      OK := OK and Got;
       V := I32 (Data (0)) * 65_536 + I32 (Data (1)) * 256 + I32 (Data (2))
         - (if Data (0) >= 128 then 2 ** 24 else 0);
    end Read_24;
@@ -128,8 +134,11 @@ package body Adaflight.SMPB_02B with SPARK_Mode is
       return Scaled + 4.0E-02;
    end C_T_Of;
 
-   --  The nine coefficients in the order the reference reads them.
-   procedure Configure (D : in out Bus_Device; C : out Coefficients) is
+   --  The nine coefficients in the order the reference reads them; OK is
+   --  False when the chip refused any of the reads.
+   procedure Configure (D : in out Bus_Device; C : out Coefficients; OK : out Boolean)
+     with Global => null
+   is
       V   : Signed_16_Value;
       Ca  : Raw_Delta;
       Cp  : Raw_Delta;
@@ -141,21 +150,22 @@ package body Adaflight.SMPB_02B with SPARK_Mode is
       B_T : B_T_Value;
       C_T : C_T_Value;
    begin
-      Read_16 (D, Coe_PTAT31, V);
+      OK := True;
+      Read_16 (D, Coe_PTAT31, V, OK);
       Aa := Aa_Of (V);
-      Read_16 (D, Coe_PTAT21, V);
+      Read_16 (D, Coe_PTAT21, V, OK);
       Ba := Ba_Of (V);
-      Read_24 (D, Coe_PTAT11, Ca);
-      Read_16 (D, Coe_PR31, V);
+      Read_24 (D, Coe_PTAT11, Ca, OK);
+      Read_16 (D, Coe_PR31, V, OK);
       Ap := Ap_Of (V);
-      Read_16 (D, Coe_PR21, V);
+      Read_16 (D, Coe_PR21, V, OK);
       Bp := Bp_Of (V);
-      Read_24 (D, Coe_PR11, Cp);
-      Read_16 (D, Coe_TEMP31, V);
+      Read_24 (D, Coe_PR11, Cp, OK);
+      Read_16 (D, Coe_TEMP31, V, OK);
       A_T := A_T_Of (V);
-      Read_16 (D, Coe_TEMP21, V);
+      Read_16 (D, Coe_TEMP21, V, OK);
       B_T := B_T_Of (V);
-      Read_16 (D, Coe_TEMP11, V);
+      Read_16 (D, Coe_TEMP11, V, OK);
       C_T := C_T_Of (V);
       C := (Aa => Aa, Ba => Ba, Ca => Ca, Ap => Ap, Bp => Bp, Cp => Cp, A_T => A_T, B_T => B_T, C_T => C_T);
    end Configure;
@@ -168,7 +178,8 @@ package body Adaflight.SMPB_02B with SPARK_Mode is
    is
       Default_Applied : Boolean := False;
       Detected        : Boolean := False;
-      Unused_OK       : Boolean;
+      Reads_OK        : Boolean;
+      Write_OK        : Boolean;
    begin
       Device := (others => <>);
       Found := False;
@@ -196,8 +207,14 @@ package body Adaflight.SMPB_02B with SPARK_Mode is
          end if;
          return;
       end if;
-      Configure (D, S.Calibration);
-      Write_Register (D, IIR_Register, IIR_8_Samples, Unused_OK);
+      Configure (D, S.Calibration, Reads_OK);
+      Write_Register (D, IIR_Register, IIR_8_Samples, Write_OK);
+      if not (Reads_OK and Write_OK) then
+         if Is_SPI (D) then
+            Preinit_CS (D);
+         end if;
+         return;
+      end if;
       Device.Combined_Read := False;
       Device.Temperature_Delay_Us := 0;
       Device.Pressure_Delay_Us := Pressure_Delay_Us;

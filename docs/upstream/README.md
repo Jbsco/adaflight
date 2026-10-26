@@ -64,3 +64,4 @@ Each document describes a Betaflight bug that adaflight fixes: the Betaflight ve
 - [MSP LED strip configuration can never take its profile byte](msp-led-strip-profile.md)
 - [AK8975 and AK8963 use the fuse ROM sensitivity whether or not its read went through](compass-fuse-read-check.md)
 - [BMP085 uses 22 uninitialized bytes as its calibration when the read is refused](bmp085-calibration-read.md)
+- [2SMPB-02B takes its coefficients from unchecked reads of an uninitialized buffer](smpb-configuration-check.md)
