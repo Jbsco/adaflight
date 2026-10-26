@@ -4157,10 +4157,13 @@ when stored, the signature only when stored.
 
 Each command prints its value, after taking a new one while nothing is stored or the stored value is
 empty: up to 20 characters of a name, 4 of a manufacturer, or 64 hexadecimal digits of a signature.
-A different value for a stored one is the error. The signature reads each pair with spaces and a
-sign allowed before its digits, a minus negating the byte (findings F175), and a long name or
-manufacturer keeps its first characters (F176). The dumps and `version` print the board's lines from
-this state.
+A different value for a stored one is the error. The signature takes a pair only as two hexadecimal
+digits, where the reference reads it as the C library reads a number, with spaces and a sign allowed
+before the digits and a minus negating the byte (finding F175, amended 2026-10-25 as declared in D6).
+A long name or manufacturer keeps its first characters, and a name for a stored one is compared cut
+to the stored length, where the reference compares the whole name and refuses the name it stored
+(finding F176, amended 2026-10-25 as declared in D6). The dumps and `version` print the board's lines
+from this state.
 
 The harness replays two sequences of 800 command lines in all, recorded from the oracle with
 `!board` lines that store the board's information: names, manufacturers and signatures of every
