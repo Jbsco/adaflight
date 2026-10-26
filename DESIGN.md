@@ -9605,3 +9605,17 @@ The image is 932692 bytes of text, 5068 of data and 116840 of zeroed data. The b
 calibration from the sticks with the board level, one confirmation beep, and the offsets in `dump`
 after a power cycle.
 
+## D395. STM32F4 failsafe inputs (2026-10-26)
+
+The failsafe on the STM32F4 image reads the board in flight. Its check at the ten millisecond mark of
+the realtime block takes the arming, the failsafe box, the throttle status and the controller's
+crash recovery, with no configurator link and no autopilot on this image (D18, D387). A disarm that
+its landed stage asks for reaches the arming logic with the failsafe as the reason. Its flight mode
+reaches the arming logic's flight mode flags with a confirmation beep when it changes, so the flight
+mode reply reports it. Before this the check read a record that was always disarmed and its disarm
+went nowhere, which no motor output could act on yet.
+
+The image is 933236 bytes of text, 5068 of data and 116840 of zeroed data. The bench check is the
+receiver switched off while disarmed, with the lost link tones and the failsafe flight mode in the
+modes tab.
+

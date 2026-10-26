@@ -187,6 +187,8 @@ package body Adaflight.STM32.Control is
 
    function Motor_Count return Natural is (Mix_Config.Count);
 
+   function Crash_Recovery_Active return Boolean is (Adaflight.PID_Controller.Crash_Recovery_Active (Ctl));
+
    function PID_Sums return Adaflight.Arming.Axis_Sums is
       Sums : Adaflight.Arming.Axis_Sums := (others => 0.0);
    begin
