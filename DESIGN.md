@@ -5995,15 +5995,15 @@ text, replay exactly, with the configuration hash after each.
 
 ## D259. MSP command line setting information message (2026-10-16)
 
-`Adaflight.MSP_CLI_Setting` gains the MSP2 setting information message. A request names a setting up to
-a zero byte, with a 16-bit offset in the two bytes after it when they are there. The reply is the length
-of the setting's description, then the description from the offset: the parameter group, the type with
-its range for a number, its names for a lookup or a port, its length for an array or its lengths for a
-text, each on a line, then the default without a line end, at most 255 characters of it. An empty request
-or one past 128 bytes is an error without a reply. A request naming no setting is an error whose reply is
-a zero length, as the reference writes the length before it looks the name up and its serial port sends
-the reply with an error too. The longest description, the debug mode's, is 1440 bytes, so the window is
-the description from the offset; the reply holds 2048 bytes.
+`Adaflight.MSP_CLI_Setting` gains the MSP2 setting information message. A request names a setting up
+to a zero byte, with a 16-bit offset in the two bytes after it when they are there. The reply is the
+length of the setting's description, then the description from the offset: the parameter group, the
+type with its range for a number, its names for a lookup or a port, its length for an array or its
+lengths for a text, each on a line, then the default without a line end, at most 255 characters of
+it. An empty request or one past 128 bytes is an error without a reply. A request naming no setting
+is an error whose reply is a zero length, since the length goes out before the name lookup and the
+serial port sends the reply with an error too. The longest description, the debug mode's, is 1440
+bytes, so the window is the description from the offset. The reply holds 2048 bytes.
 
 The default comes from the stored defaults at the profile the configuration selects. For the OSD stats
 bitmask the reference reads zero instead (F223), a declared deviation (D6).
@@ -6015,13 +6015,13 @@ past 128 bytes, replay exactly but for the stats bitmask's default.
 
 ## D260. Receiver bind (2026-10-16)
 
-`Adaflight.RX_Bind` decides the receiver bind. The CRSF and SRXL2 serial receivers take one, as do the SPI
-receivers of the FrSky D and X, Redpine, S-FHSS, FlySky, Spektrum and ExpressLRS protocols; no other
-receiver does. The receiver and its serial protocol are the board's from its start and the SPI protocol is
-the configuration's at the request, which is where the reference reads each. The command line's bind_rx
-starts the bind with "Binding..." or prints the error for a receiver without one, and the MSP bind message
-starts it or answers an error. Both hand the bind to their caller as an effect. The board information's
-bind capability is the same decision.
+`Adaflight.RX_Bind` decides the receiver bind. The CRSF and SRXL2 serial receivers take one, as do
+the SPI receivers of the FrSky D and X, Redpine, S-FHSS, FlySky, Spektrum and ExpressLRS protocols.
+No other receiver does. The receiver and its serial protocol are the board's from its start and the
+SPI protocol is the configuration's at the request. The command line's bind_rx starts the bind with
+"Binding..." or prints the error for a receiver without one, and the MSP bind message starts it or
+answers an error. Both hand the bind to their caller as an effect. The board information's bind
+capability is the same decision.
 
 The command line oracle links the reference's bind module with its three bind calls counted, scripts the
 receiver the board took at its start and switches the SPI protocol between the requests. Two runs of 600
@@ -6029,14 +6029,14 @@ lines replay exactly.
 
 ## D261. RTC6705 video transmitter (2026-10-16)
 
-`Adaflight.VTX_RTC6705` drives the RTC6705 as the reference's soft SPI build does. A frequency from 5600
-to 5950 MHz writes 400 to the reference divider register, then the frequency's divider register: its
-steps of 40 kHz, the multiple of 64 shifted above the remainder. A power index with a table value writes
-the power amplifier register, cut to the value's low byte as the reference's 8-bit parameter cuts it, held
-from one to two, full power at two. Pit mode switches the power pin off. Leaving it switches the pin on,
-waits the 350 ms boot delay and writes the stored power and frequency. The writes, the pin and the waits
-leave as operations in their order for the board to carry out over its pins; the reference bit-bangs each
-write with a millisecond per clock edge, which the board's driver need not copy.
+`Adaflight.VTX_RTC6705` drives the RTC6705 over soft SPI. A frequency from 5600 to 5950 MHz writes
+400 to the reference divider register, then the frequency's divider register: its steps of 40 kHz,
+the multiple of 64 shifted above the remainder. A power index with a table value writes the power
+amplifier register, cut to the value's low 8 bits, held from one to two, full power at two. Pit mode
+switches the power pin off. Leaving it switches the pin on, waits the 350 ms boot delay and writes
+the stored power and frequency. The writes, the pin and the waits leave as operations in their order
+for the board to carry out over its pins. The reference bit-bangs each write with a millisecond per
+clock edge, which the board's driver need not copy.
 
 `Adaflight.VTX` gains the RTC6705 as a device kind: bands and channels reach it only as frequencies, its
 readings are its own, and the Spektrum power steps map to its two levels. The pit mode setter takes the
@@ -6054,11 +6054,11 @@ operations replay exactly, and the fourteen earlier sequences stay byte for byte
 
 ## D262. RTC6705 VTX menu (2026-10-16)
 
-The RTC6705 menu has a label line, band, channel, power and pit mode lines over the VTX table, and a back
-line. Entering it reads the device's band and channel, power index and status into the menu's copies, which
-start at zero and keep their values between visits, as the reference's statics do. A line that shows
-none steps to the first when changed. The exit sets the device's pit mode from the pit line, stores the
-band, channel and power with the band and channel's frequency, and saves. The menu's leave hook gains a
+The RTC6705 menu has a label line, band, channel, power and pit mode lines over the VTX table, and a
+back line. Entering it reads the device's band and channel, power index and status into the menu's
+copies, which start at zero and keep their values between visits. A line that shows none steps to
+the first when changed. The exit sets the device's pit mode from the pit line, stores the band,
+channel and power with the band and channel's frequency, and saves. The menu's leave hook gains a
 save output for this, and the navigation saves after the hook returns.
 
 The common pit mode setter now takes the reference's byte. The MSP and Tramp devices store it as given,
@@ -6180,11 +6180,11 @@ battery voltage. With the limit on, the throttle limit stays off. The mixer's pr
 the settings and the loop time, and arming resets the I term and the scale. The I term is held under 1e30,
 which no flight reaches, so that the prover can bound it.
 
-The PID oracle builds with the F405 build's RPM limiter, and the existing vectors stay byte for byte. New
-mixer runs switch the limit on in seven runs of eight and script its settings, the KV, the maximum throttle
-and the maximum check, which the oracle's zero-filled motor and receiver groups otherwise leave at 0; they
-reset the limiter as at arming and feed the averaged RPM and the battery voltage every loop. They replay
-exactly.
+The PID oracle builds with the F405 build's RPM limiter, and the existing vectors stay byte for
+byte. New mixer runs switch the limit on in seven runs of eight and script its settings, the KV, the
+maximum throttle and the maximum check, which the oracle's zero-filled motor and receiver groups
+otherwise leave at 0. They reset the limiter as at arming and feed the averaged RPM and the battery
+voltage every loop. They replay exactly.
 
 ## D270. Crash flip mixing (2026-10-16)
 
@@ -6460,14 +6460,15 @@ replays exactly, the earlier arming vectors stay byte for byte, and six tampered
 
 ## D286. In-flight accelerometer calibration measurement (2026-10-16)
 
-With the in-flight calibration feature, `Accelerometer.Update` runs the calibration the arming logic starts
-(D285), after the power-on calibration and before the offsets apply. As a measurement starts it keeps the
-zero offsets and the angle trims. For 50 samples it adds each aligned sample to a whole-number total, as the
-reference's integer total takes a float sum truncated, and holds the output and the offsets at zero. At the
-end it restores the kept values, sets the measurement done and the update's end flag, which sounds the
-calibration tone. When the arming logic asks for the save, the offsets take the totals' averages, the
-vertical one less a g, the angle trims clear, and the update's save flag asks the target to save the
-configuration as calibrated. The settings take the feature from the stored features.
+With the in-flight calibration feature, `Accelerometer.Update` runs the calibration the arming logic
+starts (D285), after the power-on calibration and before the offsets apply. As a measurement starts
+it keeps the zero offsets and the angle trims. For 50 samples it adds each aligned sample to a
+whole-number total, the float sum truncated at each addition, and holds the output and the offsets
+at zero. At the end it restores the kept values, sets the measurement done and the update's end
+flag, which sounds the calibration tone. When the arming logic asks for the save, the offsets take
+the totals' averages, the vertical one less a g, the angle trims clear, and the update's save flag
+asks the target to save the configuration as calibrated. The settings take the feature from the
+stored features.
 
 The accelerometer oracle gains in-flight sequences that start measurements, turn the calibration switch on,
 ask for saves and set angle trims, and every step replays exactly. A tone check that took the done flag's
@@ -6496,15 +6497,15 @@ throttle's rise, and every step replays exactly. Six tampered paths each fail th
 
 ## D288. Low voltage cutoff and 3D throttle (2026-10-17)
 
-`RC_Command.Update_Commands` takes the battery's low voltage cutoff and the 3D throttle. With the 3D feature
-the throttle takes the whole stick from 1000 to 2000 and leaves out the minimum check. With the cutoff on,
-the stick's share scales by the cutoff's percentage in whole numbers before the throttle curve. With the 3D
-feature and no failsafe, the 3D switch maps the curve's output from the middle stick up to the top. In the
-switched 3D mode the switch reverses the motors and maps the output from the middle down to the bottom, and
-with the switch off the output maps from the middle up to the top. The mapping takes the output above 1000
-as a twelve-bit share of 1000, times the span, rounded down as the reference's shift rounds. The settings
-take the 3D feature from the stored features and the switched mode from the 3D settings. The mixer does not
-read the reversal yet.
+`RC_Command.Update_Commands` takes the battery's low voltage cutoff and the 3D throttle. With the 3D
+feature the throttle takes the whole stick from 1000 to 2000 and leaves out the minimum check. With
+the cutoff on, the stick's share scales by the cutoff's percentage in whole numbers before the
+throttle curve. With the 3D feature and no failsafe, the 3D switch maps the curve's output from the
+middle stick up to the top. In the switched 3D mode the switch reverses the motors and maps the
+output from the middle down to the bottom, and with the switch off the output maps from the middle
+up to the top. The mapping takes the output above 1000 as a twelve-bit share of 1000, times the
+span, rounded down. The settings take the 3D feature from the stored features and the switched mode
+from the 3D settings. The mixer does not read the reversal yet.
 
 The RC oracle gains throttle sequences that script the 3D feature, its switched mode, the middle stick, the
 3D switch, the cutoff with its percentage and failsafe, with the feedforward averaging off (D6). Every step
@@ -6604,23 +6605,24 @@ setting takes the result with a write when it changes. The overflow protection h
 sensor has it, and the scale and sample rate are the first enabled sensor's. The caller hands the enabled
 sensors and the scale to the gyro unit (D293).
 
-The gyro selection oracle builds the reference's initialization for four sensors with its detection weakened,
-so the oracle answers per sensor with a hardware type, the detection result that sets the sample rate, and a
-scale, and runs three boots per sequence that carry the stored settings over. Every boot replays exactly.
-Seven tampered paths each fail the vectors.
+The gyro selection oracle builds the reference's initialization for four sensors with its detection
+weakened, so the oracle answers per sensor with a hardware type, the detection result that sets the
+sample rate, and a scale, and runs three boots per sequence, each keeping the stored settings of the
+boot before. Every boot replays exactly. Seven tampered paths each fail the vectors.
 
 ## D295. PPM and PWM receiver inputs (2026-10-17)
 
-`Adaflight.RX_PWM` decodes the pulse receivers' timer captures. The PPM decoder rebuilds each edge's time from
-the 16-bit capture, the overflows counted since the start and a wrap since the last edge, divides it by the
-count divisor that a shared motor timer sets, and takes the time since the previous edge in 32-bit arithmetic
-that wraps as the reference's does. A gap longer than 2.7 ms ends a frame. After 25 frames with the same pulse
-count, from 4 to 12, that count becomes the frame size. Each frame with that many pulses while tracking hands
-its pulses over as the channels, times out the rest and counts the frame. A pulse outside 0.75 to 2.25 ms stops
-the tracking until the next sync and clears the pulses. The parallel PWM decoder times each of eight channels
-from its rising to its falling edge in 16-bit arithmetic, tells the caller which edge to look for next, and
-times a channel out after ten overflows without an edge. The receiving checks are whether a PPM frame arrived
-since the last check and whether any channel holds a pulse.
+`Adaflight.RX_PWM` decodes the pulse receivers' timer captures. The PPM decoder rebuilds each edge's
+time from the 16-bit capture, the overflows counted since the start and a wrap since the last edge,
+divides it by the count divisor that a shared motor timer sets, and takes the time since the
+previous edge in 32-bit arithmetic that wraps. A gap longer than 2.7 ms ends a frame. After 25
+frames with the same pulse count, from 4 to 12, that count becomes the frame size. Each frame with
+that many pulses while tracking hands its pulses over as the channels, times out the rest and counts
+the frame. A pulse outside 0.75 to 2.25 ms stops the tracking until the next sync and clears the
+pulses. The parallel PWM decoder times each of eight channels from its rising to its falling edge in
+16-bit arithmetic, tells the caller which edge to look for next, and times a channel out after ten
+overflows without an edge. The receiving checks are whether a PPM frame arrived since the last check
+and whether any channel holds a pulse.
 
 The pulse oracle includes the reference's decoder source with the timer and pin drivers stubbed and calls its
 handlers directly: PPM signals with changing channel counts, stray pulses and count divisors over a 16-bit
@@ -7143,13 +7145,14 @@ wrap. The absolute deadline comparison, put back in place, fails the vectors at 
 
 ## D316. STK500v2 bootloader protocol (2026-10-17)
 
-`Adaflight.STK_Bootloader` performs the 4-way interface's STK500v2 operations on an ESC's signal pin, over the
-same board procedures as the BLHeli bootloader and a microsecond delay. A link record keeps the sequence number of
-the last message and the 16-byte buffer short replies land in, which the reference also keeps between operations.
-The line carries a pulse code. A one goes out as a high and a low of 64 microseconds, a zero as two highs and lows
-of 32, from the lowest bit. A message goes out with the pin as an output: the leader bytes FF FF 7F, the start
-byte 1B, the next sequence number, the body's length, the token 0E, the body and an XOR check of everything from
-the start byte, then a high of 32 microseconds before the pin returns to an input.
+`Adaflight.STK_Bootloader` performs the 4-way interface's STK500v2 operations on an ESC's signal
+pin, over the same board procedures as the BLHeli bootloader and a microsecond delay. A link record
+keeps the sequence number of the last message and the 16-byte buffer short replies land in, both
+kept between operations. Bits go over the line as pulses. A one goes out as a high and a low of 64
+microseconds, a zero as two highs and lows of 32, from the lowest bit. A message goes out with the
+pin as an output: the leader bytes FF FF 7F, the start byte 1B, the next sequence number, the body's
+length, the token 0E, the body and an XOR check of everything from the start byte, then a high of 32
+microseconds before the pin returns to an input.
 
 A bit is timed from the call to the end of the next rising edge, against a deadline 250 microseconds on. A time at
 or below the threshold is a zero, whose second pulse gets 250 more. A reply waits for the leader's first bit for
