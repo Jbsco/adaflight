@@ -76,7 +76,7 @@ package Adaflight.MAX7456.Display_Port with SPARK_Mode is
    --  The character's first 54 bytes at the low byte of the address.
    procedure Write_Font_Character
      (D       : in out SPI_Device;
-      S       : in out State;
+      S       : State;
       Address : Interfaces.Unsigned_16;
       Data    : Character_Data;
       Written : out Boolean);
