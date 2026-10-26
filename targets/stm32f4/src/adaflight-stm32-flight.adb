@@ -156,6 +156,7 @@ package body Adaflight.STM32.Flight is
    Attitude_Period_Fast_Us : Scheduler.Time_Delta := 2_000;
 
    procedure Apply (Step : Adaflight.Arming.Outputs);
+   procedure Sync_Reasons;
    procedure Report_Battery;
    function Flight_Channels return Adaflight.RC_Command.Channel_Values;
    Hashes           : Adaflight.Config_Store.Hash_List (1 .. Adaflight.Config_Codec.Group_Count) := (others => 0);
@@ -563,6 +564,11 @@ package body Adaflight.STM32.Flight is
          Adaflight.STM32.Pilot.Disarm (Adaflight.Arming.Serial_Command, Adaflight.STM32.Time.Micros, Asked);
          Apply (Asked);
       end if;
+      case Effects.Control.MSP_Arming is
+         when Adaflight.MSP_Control_In.Disable => Adaflight.STM32.Pilot.Set_Reason (Adaflight.Arming.MSP_Open, True);
+         when Adaflight.MSP_Control_In.Enable => Adaflight.STM32.Pilot.Set_Reason (Adaflight.Arming.MSP_Open, False);
+         when Adaflight.MSP_Control_In.Unchanged => null;
+      end case;
       if Effects.Save then
          Scheduler.Ignore_Task_State_Time (Sched);
          Write_Configuration;
@@ -1164,6 +1170,17 @@ package body Adaflight.STM32.Flight is
    --  pass over the auxiliary channels, the update step through the RC
    --  commands and the arming status, then what the passes asked, the step's
    --  estimate for the scheduler and the channels into the RC reply.
+   --  The arming disable reasons other units decide: the failsafe's lost link
+   --  and active failsafe, and the command line's hold while its session is
+   --  open.
+   procedure Sync_Reasons is
+   begin
+      Adaflight.STM32.Pilot.Set_Reason (Adaflight.Arming.Rx_Loss, Adaflight.STM32.Radio.Failsafe_Rx_Loss);
+      Adaflight.STM32.Pilot.Set_Reason
+        (Adaflight.Arming.Failsafe_Active, Adaflight.STM32.Radio.Failsafe_Blocks_Arming);
+      Adaflight.STM32.Pilot.Set_Reason (Adaflight.Arming.CLI_Open, Session.Arming_Held);
+   end Sync_Reasons;
+
    procedure Run_Receiver (Before : Unsigned_32) is
       Step        : constant Adaflight.RX_Task.Step := Adaflight.RX_Task.Current_Step (RX_State);
       Ready       : Boolean := True;
@@ -1177,6 +1194,7 @@ package body Adaflight.STM32.Flight is
       if Adaflight.RX_Task.Ignore_Rate (RX_State) then
          Scheduler.Ignore_Task_Exec_Rate (Sched);
       end if;
+      Sync_Reasons;
       Channels := Flight_Channels;
       for A in Adaflight.Modes.Aux_Channel loop
          Aux (A) := Adaflight.STM32.Radio.Channel (A + Adaflight.Receiver.Flight_Channel_Count);
@@ -1327,6 +1345,7 @@ package body Adaflight.STM32.Flight is
                       Loop_Ratio     => Positive (Loop_Ratio),
                       CRSF           => Adaflight.STM32.Radio.Linked);
       Adaflight.STM32.Pilot.Init (Config, Runtime_Features, Pilot_Facts);
+      Adaflight.STM32.Pilot.Set_Reason (Adaflight.Arming.No_Gyro, not Selection.Found);
       Adaflight.STM32.Control.Init (Config, Runtime_Features);
       Bat_Settings := Battery_Settings;
       Adaflight.Battery.Init (Bat, Bat_Settings);
@@ -1356,6 +1375,7 @@ package body Adaflight.STM32.Flight is
          others              => False);
    begin
       Adaflight.STM32.Radio.Failsafe_Check (Adaflight.STM32.Time.Millis, In_Flight, Beep, Disarm);
+      Sync_Reasons;
       case Beep is
          when Adaflight.Failsafe.Rx_Lost => Request_Beep (Adaflight.Beeper.Rx_Lost);
          when Adaflight.Failsafe.Rx_Lost_Landing => Request_Beep (Adaflight.Beeper.Rx_Lost_Landing);

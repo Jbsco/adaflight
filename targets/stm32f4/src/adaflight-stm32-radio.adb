@@ -147,6 +147,10 @@ package body Adaflight.STM32.Radio is
 
    function Failsafe_Mode return Boolean is (FS.Failsafe_Mode);
 
+   function Failsafe_Rx_Loss return Boolean is (FS.Arming_Disabled_Rx);
+
+   function Failsafe_Blocks_Arming return Boolean is (FS.Arming_Disabled);
+
    function Failsafe_Monitoring return Boolean is (FS.Monitoring);
 
    function Last_Frame_Us return Time_Us is (Proto.Last_Frame_Us);
