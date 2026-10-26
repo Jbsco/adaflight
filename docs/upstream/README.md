@@ -84,3 +84,4 @@ Each document describes a Betaflight bug that adaflight fixes: the Betaflight ve
 - [The VTX table diff ignores a band's factory flag and prints eight default power entries](cli-diff-lines.md)
 - [A command followed directly by a comment takes the comment as its arguments](cli-comment-arguments.md)
 - [A MAX7456 full refresh after a font write never returns](max7456-font-write-flag.md)
+- [The waypoint altitude element shows the craft's altitude in its sea-level variants](osd-waypoint-altitude-frame.md)
