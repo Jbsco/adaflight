@@ -79,3 +79,6 @@ Each document describes a Betaflight bug that adaflight fixes: the Betaflight ve
 - [A diff's flight plan lines print under the previous section's heading](cli-diff-headings.md)
 - [A beeper's default line in a diff prints before the beeper heading](cli-diff-headings.md)
 - [A feature's default line in a diff can print before the feature heading](cli-diff-headings.md)
+- [A diff never resets the custom motor mix or the servo rules](cli-diff-lines.md)
+- [A channel failsafe default line takes its format from the channel's own mode](cli-diff-lines.md)
+- [The VTX table diff ignores a band's factory flag and prints eight default power entries](cli-diff-lines.md)
