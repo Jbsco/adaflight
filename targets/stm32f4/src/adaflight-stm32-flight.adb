@@ -33,12 +33,14 @@ with Adaflight.MSP_Processor;
 with Adaflight.PID_Config;
 with Adaflight.Receiver;
 with Adaflight.RPM_Filter;
+with Adaflight.RX_Task;
 with Adaflight.Scheduler;
 with Adaflight.Serial_Feature_Map;
 with Adaflight.STM32.Console;
 with Adaflight.STM32.Flash;
 with Adaflight.STM32.GPIO;
 with Adaflight.STM32.Gyro;
+with Adaflight.STM32.Radio;
 with Adaflight.STM32.SPI;
 with Adaflight.STM32.Time;
 with Adaflight.STM32.USART;
@@ -104,7 +106,8 @@ package body Adaflight.STM32.Flight is
    Session  : Terminal.Session;
    Into     : CLI.Output;
    Changes  : CLI.Effects;
-   Ports    : constant CLI.Port_List (1 .. 1) := (1 => UART1_Id);
+   --  The board's serial ports by identifier: UART1, UART3, UART4 and UART6.
+   Ports    : constant CLI.Port_List (1 .. 4) := (UART1_Id, 53, 54, 56);
    Input    : Adaflight.Bytes.Byte_Array (0 .. 63);
    Count    : Natural;
    Now_Ms   : Unsigned_32;
@@ -125,6 +128,7 @@ package body Adaflight.STM32.Flight is
    --  The running feature mask, from the stored features at the load, and
    --  the hash of each group's stored bytes.
    Runtime_Features : Unsigned_32 := 0;
+   RX_State         : Adaflight.RX_Task.State;
    Hashes           : Adaflight.Config_Store.Hash_List (1 .. Adaflight.Config_Codec.Group_Count) := (others => 0);
    --  The divisor of the accelerometer counts in the raw readings reply, by
    --  the count for one g.
@@ -537,7 +541,7 @@ package body Adaflight.STM32.Flight is
       Ctx.Out_Views.State.Status.PID_Delta_Us := Scheduler.Task_Delta_Time (Sched, Scheduler.PID);
       Ctx.Out_Views.State.Status.Load_Percent := Unsigned_16 (Sched.Average_Load_Percent);
       Env.Gyros (0).Mode := Gyro_Mode;
-      Adaflight.STM32.USART.Take (Input, Count);
+      Adaflight.STM32.USART.Take (Adaflight.STM32.USART.UART1, Input, Count);
       if Count > 0 then
          declare
             Room : constant Natural := Pending'Length - Waiting;
@@ -695,13 +699,43 @@ package body Adaflight.STM32.Flight is
          Z     => Adaflight.MSP_Out.Component (Att_State.Reported.Z));
    end Run_Attitude;
 
-   --  The check function of a task with one: no receiver frames and no
-   --  display yet, so none is signaled.
+   --  The check function of a task with one: the receiver task's check
+   --  over the link; no display yet, so no other is signaled.
    function Check (Id : Scheduler.Task_Id) return Boolean is
-      pragma Unreferenced (Id);
+     (Id = Scheduler.Rx and then Adaflight.STM32.Radio.Update_Check (Adaflight.RX_Task.In_Progress (RX_State)));
+
+   --  The receiver task's state machine: the rate ignored on every step but
+   --  the last, the check step through the link, the modes and update
+   --  steps empty until the modes and the arming reach the board, then the
+   --  step's estimate for the scheduler and the channels into the RC reply.
+   procedure Run_Receiver (Before : Unsigned_32) is
+      Step        : constant Adaflight.RX_Task.Step := Adaflight.RX_Task.Current_Step (RX_State);
+      Ready       : Boolean := True;
+      Anticipated : constant Scheduler.Time_Delta := Scheduler.Next_State_Time (Sched);
+      Next        : Integer_32;
    begin
-      return False;
-   end Check;
+      if Adaflight.RX_Task.Ignore_Rate (RX_State) then
+         Scheduler.Ignore_Task_Exec_Rate (Sched);
+      end if;
+      case Step is
+         when Adaflight.RX_Task.Check =>
+            Adaflight.STM32.Radio.Process (Before, Adaflight.STM32.Time.Millis, Ready);
+         when Adaflight.RX_Task.Modes | Adaflight.RX_Task.Update =>
+            null;
+      end case;
+      Adaflight.RX_Task.Finish
+        (RX_State, Rx_Ready => Ready, Ignore_Exec_Time => Scheduler.Ignoring_Task_Exec_Time (Sched),
+         Anticipated_Us => Adaflight.RX_Task.Execution_Us
+           (Integer_32'Max (0, Integer_32'Min (Adaflight.RX_Task.Max_Execution_Us, Anticipated))),
+         Elapsed_Us => Adaflight.STM32.Time.Micros - Before + 1, Next_State_Us => Next);
+      Scheduler.Set_Next_State_Time (Sched, Next);
+      Ctx.Out_Views.State.RC.Count :=
+        Natural'Min (Adaflight.STM32.Radio.Channel_Count, Adaflight.MSP_Out.Channel_Count);
+      for I in 0 .. Ctx.Out_Views.State.RC.Count - 1 loop
+         Ctx.Out_Views.State.RC.Channels (I) :=
+           Float'Max (0.0, Float'Min (65_535.0, Adaflight.STM32.Radio.Channel (I)));
+      end loop;
+   end Run_Receiver;
 
    --  A task's body between the scheduler's execution prologue and
    --  epilogue, at the clock around its run.
@@ -724,6 +758,8 @@ package body Adaflight.STM32.Flight is
             Tasks.Accelerometer (Before);
          when Scheduler.Attitude =>
             Run_Attitude (Before);
+         when Scheduler.Rx =>
+            Run_Receiver (Before);
          when others =>
             null;
       end case;
@@ -744,15 +780,18 @@ package body Adaflight.STM32.Flight is
       Adaflight.STM32.GPIO.Enable_Port (Adaflight.Board.Inverter_Pin_UART1.Port);
       Adaflight.STM32.GPIO.Set_Output (Adaflight.Board.Inverter_Pin_UART1);
       Adaflight.STM32.GPIO.Set_Low (Adaflight.Board.Inverter_Pin_UART1);
-      Adaflight.STM32.USART.Init (Adaflight.Board.UART1_TX_Pin, Adaflight.Board.UART1_RX_Pin, Baud);
+      Adaflight.STM32.USART.Init (Adaflight.STM32.USART.UART1, Baud);
       Adaflight.MSP_Port.Init (Port);
       Init_Configuration;
       Ctx.Out_Views.Common := Common_Snapshot;
       Ctx.Out_Views.Build := (others => True);
-      Ctx.Out_Views.Serial_Ports (1) := (Port => UART1_Id, Available => True);
-      Ctx.Out_Views.Serial_Count := 1;
+      for I in Ports'Range loop
+         Ctx.Out_Views.Serial_Ports (I) := (Port => Ports (I), Available => True);
+      end loop;
+      Ctx.Out_Views.Serial_Count := Ports'Length;
       Start_Gyro;
       Init_Loop_Units;
+      Adaflight.STM32.Radio.Init (Config, Runtime_Features, Adaflight.STM32.Time.Millis);
       if Selection.Found then
          Adaflight.STM32.Time.Delay_Ms (First_Read_Delay_Ms);
       end if;
@@ -789,7 +828,15 @@ package body Adaflight.STM32.Flight is
                Run_Task (Scheduler.PID, Now_Us);
             end if;
          end;
+         declare
+            Now_Us : constant Unsigned_32 := Adaflight.STM32.Time.Micros;
+         begin
+            Adaflight.STM32.Radio.Frame_Check
+              (Now_Us, Adaflight.Clock.Elapsed (Now_Us, Sched.Tasks (Scheduler.Rx).Last_Executed_Us),
+               Adaflight.RX_Task.In_Progress (RX_State));
+         end;
          if Scheduler.Failsafe_Due (Sched, Adaflight.STM32.Time.Millis) then
+            Adaflight.STM32.Radio.Failsafe_Check (Adaflight.STM32.Time.Millis);
             Scheduler.Failsafe_Checked (Sched, Adaflight.STM32.Time.Millis);
          end if;
          G := (Interrupts   => Adaflight.STM32.Gyro.Mode /= Adaflight.STM32.Gyro.No_Interrupt,

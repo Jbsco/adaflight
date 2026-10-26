@@ -18,7 +18,7 @@ adaflight is flight control firmware for multirotors and fixed-wing aircraft, wr
 
 ## Status
 
-The flight software is ported and runs on the host, where each ported function replays inputs recorded from a host build of Betaflight and must reproduce its results bit for bit. Phase 7 of `ROADMAP.md` has started: `targets/stm32f4` builds an image for the CLRacing F4S board family that blinks the LED, serves MSP and the command line on UART1, so a configurator connects, runs the scheduler with the gyro, filter, accelerometer and attitude tasks over the MPU6000 on SPI1, and keeps its configuration in flash. No control loop runs on a board yet.
+The flight software is ported and runs on the host, where each ported function replays inputs recorded from a host build of Betaflight and must reproduce its results bit for bit. Phase 7 of `ROADMAP.md` has started: `targets/stm32f4` builds an image for the CLRacing F4S board family that blinks the LED, serves MSP and the command line on UART1, so a configurator connects, runs the scheduler with the gyro, filter, accelerometer, attitude and receiver tasks over the MPU6000 on SPI1 and a CRSF receiver on a UART, and keeps its configuration in flash. No control loop runs on a board yet.
 
 ## Features
 
