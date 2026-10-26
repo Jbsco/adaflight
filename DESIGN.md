@@ -4113,15 +4113,19 @@ craft name print in a diff only when set. The hardware dump keeps the board's li
 and the hardware settings under the master heading. The listing commands use the same printers with
 no heading.
 
-A diff prints no `mmix reset` or `smix reset` line, since both follow the default configuration's
-first motor and first rule (findings F169). The flight plan's heading precedes its first printed line,
-and so does the beeper heading a changed condition's default line and the feature heading a feature's
-default line, where the reference prints the flight plan lines under the previous section's heading
-and those default lines before their headings (findings F170, F171 and F172, amended 2026-10-25 as
-declared in D6). A channel failsafe default line takes the format of the channel's own mode
-(F173). A VTX band compares its name without regard to case, its letter and its frequencies, and the
-power values' and labels' default lines list all eight entries (F174). With the printers in the
-master dump, the unit's largest prover process holds 3.9 gigabytes, for `Dump_Master`.
+A diff decides its `mmix reset` and `smix reset` lines from the stored first motor and first rule.
+The reference reads the default configuration it has just reset to, so its diff never prints either
+line (finding F169, amended 2026-10-26 as declared in D6). The flight plan's heading precedes its
+first printed line, and so does the beeper heading a changed condition's default line and the
+feature heading a feature's default line, where the reference prints the flight plan lines under the
+previous section's heading and those default lines before their headings (findings F170, F171 and
+F172, amended 2026-10-25 as declared in D6). A channel failsafe default line takes the format of the
+default's mode. The reference formats it by the channel's own mode (finding F173, amended 2026-10-26
+as declared in D6). A VTX band compares its name without regard to case, its letter, its factory
+flag and its frequencies, and the power values' and labels' default lines list the default level
+count. The reference skips the flag and lists all eight entries (finding F174, amended 2026-10-26 as
+declared in D6). With the printers in the master dump, the unit's largest prover process holds 3.9
+gigabytes, for `Dump_Master`.
 
 The harness replays two sequences of 2350 command lines in all, recorded from the oracle: the dump
 mode's rounds, each ended by a master or hardware diff, plain, bare or with defaults, or by a master

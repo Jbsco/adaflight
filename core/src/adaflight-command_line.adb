@@ -2552,9 +2552,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  The table's bands, channels, each band's line, power levels, power
    --  values and power labels, a changed part's default first for
    --  Show_Defaults. A band compares its name without regard to case, its
-   --  letter and its frequencies, and its default line has the default
-   --  channel count; the power values and labels compare and print all eight
-   --  defaults.
+   --  letter, its factory flag and its frequencies, and its default line has
+   --  the default channel count. The power values and labels compare all
+   --  eight entries and print the default level count.
    procedure Put_Vtx_Table
      (Into : in out Output; T : Vtx_Table_Config_Record; Default : Vtx_Table_Config_Record := Defaults.Vtx_Table_Config;
       Mode : Dump_Mode := Listing; Heading : String := "")
@@ -2583,6 +2583,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
             Equal : constant Boolean :=
               CLI_Text.Same_Ignoring_Case (Stored_Text (T.Band_Names (Band)), Stored_Text (Default.Band_Names (Band)))
               and then T.Band_Letters (Band) = Default.Band_Letters (Band)
+              and then T.Is_Factory_Band (Band) = Default.Is_Factory_Band (Band)
               and then T.Frequency (Band) = Default.Frequency (Band);
          begin
             Put_Heading (Into, Mode, not Equal, Heading, Pending);
@@ -2605,7 +2606,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Put_Heading (Into, Mode, T.Power_Values /= Default.Power_Values, Heading, Pending);
       if Shows_Default (Mode, T.Power_Values = Default.Power_Values) then
          Put (Into, "#");
-         Put_Power_Values (Into, Default, Table_Powers);
+         Put_Power_Values (Into, Default, Natural (Default.Power_Levels));
       end if;
       if Shows_Line (Mode, T.Power_Values = Default.Power_Values) then
          Put_Power_Values (Into, T, Natural (T.Power_Levels));
@@ -2625,7 +2626,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          end if;
          if Shows_Default (Mode, Equal) then
             Put (Into, "#");
-            Put_Power_Labels (Into, Default, Table_Powers);
+            Put_Power_Labels (Into, Default, Natural (Default.Power_Levels));
          end if;
          if Shows_Line (Mode, Equal) then
             Put_Power_Labels (Into, T, Natural (T.Power_Levels));
@@ -3466,7 +3467,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
 
    --  Every channel's failsafe line, with its value for the set mode, and a
    --  changed one's default first for Show_Defaults, with a value when the
-   --  channel's own mode is the set mode.
+   --  default's mode is the set mode.
    procedure Put_Failsafes
      (Into : in out Output; Configs : Rx_Failsafe_Channel_Config_Record_List_18;
       Default : Rx_Failsafe_Channel_Config_Record_List_18 := Defaults.Rx_Failsafe_Channel_Configs;
@@ -3485,7 +3486,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
             Put_Heading (Into, Mode, not Equal, Heading, Pending);
             if Shows_Default (Mode, Equal) then
                Put (Into, "#");
-               Put_Failsafe (Into, I, Default (I), With_Value);
+               Put_Failsafe (Into, I, Default (I), Default (I).Mode = 2);
             end if;
             if Shows_Line (Mode, Equal) then
                Put_Failsafe (Into, I, Configs (I), With_Value);
@@ -4074,12 +4075,12 @@ package body Adaflight.Command_Line with SPARK_Mode is
          Put_Mixer_Name (Into, Mixer);
          Put (Into, CRLF);
       end if;
-      if Shows_Line (Mode, Defaults.Custom_Motor_Mixer (0).Throttle = 0.0) then
+      if Shows_Line (Mode, C.Custom_Motor_Mixer (0).Throttle = 0.0) then
          Put (Into, CRLF & "mmix reset" & CRLF & CRLF);
       end if;
       Put_Motor_Mix (Into, C.Custom_Motor_Mixer, Mode => Mode, Heading => (if Pending then "mixer" else ""));
       Put_Servos (Into, C.Servo_Params, Mode => Mode, Heading => "servo");
-      if not Mode.Diff or else Defaults.Custom_Servo_Mixers (0).Rate /= 0 then
+      if not Mode.Diff or else C.Custom_Servo_Mixers (0).Rate /= 0 then
          Put_Hash_Line (Into, "servo mixer");
          Put (Into, "smix reset" & CRLF & CRLF);
          Put_Servo_Rules (Into, C.Custom_Servo_Mixers, Mode => Mode);
