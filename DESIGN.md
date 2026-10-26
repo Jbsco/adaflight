@@ -3799,10 +3799,12 @@ line's C library reads them on a 32-bit target, held at the 32-bit range, the co
 case, and the board's serial port names. `Config_Groups.Set_Text` writes a text setting, and the
 settings table's direct limits are bounded to the 32-bit types.
 
-A command word followed directly by a comment takes the comment as its arguments (F153), so
-`get#motor_pwm_rate` prints that setting. adaflight reproduces it. On the oracle's 64-bit host the C
-library reads a number past the 32-bit range by its low 32 bits, where a 32-bit target holds it at
-the range. adaflight follows the target. The recorded numbers stay within the range, where the two
+A comment is cut from the line and the buffer behind the cut is cleared, so a command word followed
+directly by a comment has no arguments and `get#motor_pwm_rate` prints every setting. The reference
+leaves the comment's text behind the terminator, where its command matcher reads it as the arguments
+(finding F153, amended 2026-10-26 as declared in D6). On the oracle's 64-bit host the C library
+reads a number past the 32-bit range by its low 32 bits, where a 32-bit target holds it at the
+range. adaflight follows the target. The recorded numbers stay within the range, where the two
 agree.
 
 The harness replays two sequences of command lines, 7582 in all, recorded from the oracle, which
@@ -3823,8 +3825,9 @@ heading, `diff` prints only those off their default under a heading printed with
 and the option `defaults` adds each changed setting's default as a commented set line. The other
 sections of `dump` and `diff` come with the commands they print.
 
-The line's command words are read from the line buffer by position, so an option after a section
-name that a comment cut off still applies (F153): `dump profile#defaults` dumps with defaults.
+The line's command words are read from the line buffer by position, and the buffer behind a comment
+cut is cleared, so an option a comment cut off does not apply: `dump profile#defaults` dumps without
+defaults (finding F153, amended 2026-10-26 as declared in D6).
 
 The harness replays two sequences of 2500 command lines recorded from the oracle: profile
 selections in and out of range, dumps and diffs of both sections with their options, sets and gets
