@@ -9424,6 +9424,9 @@ The image is 838900 bytes of text, 3924 of data and 105832 of zeroed data. The b
 setting written from the configurator or the command line surviving a power cycle, and `status`
 reporting the configuration configured after a `save`.
 
+Amended 2026-10-26: the store moved to sector 1, 16 KB at 16#0800_4000#, with the flash layout of
+D389.
+
 ## D387. STM32F4 serial receiver link (2026-10-26)
 
 The STM32F4 image takes a CRSF receiver on the serial port the stored configuration assigns.
@@ -9478,4 +9481,15 @@ The image is 881216 bytes of text, 4628 of data and 114512 of zeroed data, 35 KB
 configuration sector, which the next pieces will want moved (D386). The bench check is the
 configurator's modes tab following a switch, `status` listing the arming disable reasons, and the
 stick commands calibrating the gyro.
+
+## D389. STM32F4 flash layout (2026-10-26)
+
+The STM32F4 image lays out the flash as the reference does on the F405: the vector table alone in
+sector 0, sector 1 kept for the configuration store, and the code from sector 2 at 16#0800_8000#.
+The crate's linker script is the runtime's section script with its memory map inlined and the
+vector table in a region of its own, and the crate takes the runtime's `USER` loader setting so the
+runtime adds no script of its own. The store (D386) moves from the last sector to sector 1, which
+erases in a fraction of the time of a 128 KB sector, and the image gains the 128 KB the store took:
+it now ends 131 KB below the flash's end. Flashing writes two files, the vector table at the flash's
+start and the code from sector 2, so the stored configuration survives a new image.
 

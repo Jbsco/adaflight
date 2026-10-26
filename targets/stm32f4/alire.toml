@@ -28,6 +28,11 @@ adaflight_core = "release"
 release.runtime_checks = "none"
 release.contracts = "no"
 
+# The runtime leaves the linker script to the crate, whose flash layout keeps sector 1 for the
+# configuration store.
+[gpr-set-externals]
+LOADER = "USER"
+
 # The board package is generated before every build from the pinned board configuration
 # repository; BOARD names the board, CLRACINGF4 when unset.
 [[actions]]
