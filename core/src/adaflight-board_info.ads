@@ -2,7 +2,8 @@
 --  manufacturer and whether the stored configuration set them, whether a
 --  command changed them, and the same for its signature. It is taken in from
 --  the stored configuration as the board starts, stored back when a command
---  or a message sets it, and written back into a reset configuration.
+--  or a message sets it, and written back into a reset configuration with
+--  the defaults of the board's hardware.
 with Interfaces;
 with Adaflight.Config_Groups; use Adaflight.Config_Groups;
 
@@ -26,6 +27,32 @@ package Adaflight.Board_Info with SPARK_Mode is
    Board_Name_Length   : constant := 20;
    Manufacturer_Length : constant := 4;
 
+   --  An analog input as the board has it: whether it is on, and its pin's
+   --  tag, zero for none.
+   type Analog_Input is record
+      Enabled : Boolean := False;
+      Io_Tag  : Interfaces.Unsigned_8 := 0;
+   end record;
+
+   --  The defaults of the groups that name the board's hardware: the battery
+   --  voltage, current, RSSI and external analog inputs, the beeper's pin,
+   --  inversion and PWM frequency, the battery's voltage and current meter
+   --  sources, and the analog meters' scales. The values given here are the
+   --  host build's, which has none of this hardware.
+   type Hardware_Defaults is record
+      Vbat             : Analog_Input;
+      Current          : Analog_Input;
+      RSSI             : Analog_Input;
+      External1        : Analog_Input;
+      Beeper_Tag       : Interfaces.Unsigned_8 := 0;
+      Beeper_Inverted  : Boolean := False;
+      Beeper_Frequency : Interfaces.Unsigned_16 := 0;
+      Voltage_Source   : Interfaces.Unsigned_8 := 0;
+      Current_Source   : Interfaces.Unsigned_8 := 2;
+      Voltage_Scale    : Interfaces.Unsigned_8 := 110;
+      Current_Scale    : Interfaces.Integer_16 := 400;
+   end record;
+
    type State is record
       Name                : Identity_Text;
       Manufacturer        : Identity_Text;
@@ -34,6 +61,7 @@ package Adaflight.Board_Info with SPARK_Mode is
       Signature           : Signature_Bytes := (others => 0);
       Signature_Set       : Boolean := False;
       Signature_Updated   : Boolean := False;
+      Hardware            : Hardware_Defaults;
    end record;
 
    --  The stored board information taken in as the board starts: the name
@@ -48,7 +76,8 @@ package Adaflight.Board_Info with SPARK_Mode is
    procedure Store_Signature (C : in out Configuration; Board : State);
 
    --  The board configuration's reset: a reset configuration keeps the
-   --  information and the signature the board has taken in.
+   --  information and the signature the board has taken in, and takes the
+   --  board's hardware defaults.
    procedure Reset_Config (C : in out Configuration; Board : State);
 
    --  The board's information as a command set it, stored and taken in
