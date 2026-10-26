@@ -275,6 +275,7 @@ with Adaflight.OSD_Elements;
 with Adaflight.OSD_Render;
 with Adaflight.OSD_Draw;
 with Adaflight.OSD_Spec;
+with Adaflight.OSD_Canvas;
 with Adaflight.OSD_Task;
 with Adaflight.MAVLink_Commands;
 with Adaflight.MAVLink_Frames;
@@ -4359,6 +4360,26 @@ procedure Vector_Check is
          Failures := Failures + 1;
       end if;
    end Check_Battery_Line;
+
+   procedure Check_OSD_Canvas_Line is
+      O : Adaflight.Config_Groups.Osd_Config_Record := Adaflight.Config_Groups.Defaults.Osd_Config;
+      E : Adaflight.Config_Groups.Osd_Element_Config_Record;
+      function Position (Field : Positive; K : Natural) return Interfaces.Unsigned_16 is
+        (Interfaces.Unsigned_16'Value ("16#" & Str (Field) (Str (Field)'First + 4 * K .. Str (Field)'First + 4 * K + 3)
+                                       & "#"));
+   begin
+      O.Canvas_Cols := Interfaces.Unsigned_8 (Int (5));
+      O.Canvas_Rows := Interfaces.Unsigned_8 (Int (6));
+      for K in E.Item_Pos'Range loop
+         E.Item_Pos (K) := Position (7, K);
+      end loop;
+      Adaflight.OSD_Canvas.Fit (O, E, Interfaces.Unsigned_8 (Int (3)), Interfaces.Unsigned_8 (Int (4)));
+      Record_Int ("osdcanvas.cols", Int (8), Integer_64 (O.Canvas_Cols));
+      Record_Int ("osdcanvas.rows", Int (9), Integer_64 (O.Canvas_Rows));
+      for K in E.Item_Pos'Range loop
+         Record_Int ("osdcanvas.pos", Integer_64 (Position (10, K)), Integer_64 (E.Item_Pos (K)));
+      end loop;
+   end Check_OSD_Canvas_Line;
 
    procedure Check_Cell_Profile_Line is
       Profiles : Adaflight.Config_Groups.Pid_Profile_Record_List_4 := Adaflight.Config_Groups.Defaults.Pid_Profiles;
@@ -38001,6 +38022,8 @@ procedure Vector_Check is
                   Check_PID_Thr_Line;
                elsif Kind = "cellprof" then
                   Check_Cell_Profile_Line;
+               elsif Kind = "osdcanvas" then
+                  Check_OSD_Canvas_Line;
                elsif Kind = "mix" then
                   Check_Mix_Line;
                elsif Kind = "rc" then
@@ -38484,6 +38507,7 @@ begin
    Run (Dir & "/batsag.csv", "battery");
    Run (Dir & "/batevent.csv", "battery");
    Run (Dir & "/cellprof.csv", "cellprof");
+   Run (Dir & "/osdcanvas.csv", "osdcanvas");
    Run (Dir & "/arming.csv", "arming");
    Run (Dir & "/armdshot.csv", "arming");
    Run (Dir & "/armflip.csv", "arming");

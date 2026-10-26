@@ -9651,3 +9651,19 @@ bytes of text, 5068 of data and 116848 of zeroed data.
 
 Betaflight's SITL target exchanges sensor values and motor outputs with a physics simulator over
 UDP. The host target has no simulator link yet.
+
+## D397. OSD canvas fit (2026-10-26)
+
+`Adaflight.OSD_Canvas.Fit` runs as the OSD's display starts. It sets the stored canvas to the
+display's columns and rows, and moves an element placed past the last column or row onto it, with
+the element's profile and variant bits kept. A display that reports no columns or no rows changes
+nothing.
+
+We proved the fit because every element's position comes from the stored configuration, which a
+command or a message can set to any value, and the draw cycle places text at those positions. The
+postcondition states that after a fit to a display with a size, the stored canvas is the display's
+and every element's column and row lie on it.
+
+The osdcanvas vectors replay 400 inits from a host build with OSD profiles on, as a board build has
+them: stored canvases and positions drawn at random, then the sizes of PAL, NTSC and HD displays,
+zero sizes and random sizes.
