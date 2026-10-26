@@ -4996,7 +4996,7 @@ letter in upper case, a factory flag, and a count with that many 16-bit frequenc
 shorter than its name, its three fixed bytes or its frequencies is an error, and so is a band past
 the table's band count. The band's frequencies up to the table's channels come from the request,
 zero past those it gives, and its name is kept to its first zero byte and padded with spaces to
-eight. When the band is the VTX's, the VTX frequency follows the VTX channel; that write takes the
+eight. When the band is the VTX's, the VTX frequency follows the VTX channel. That write takes the
 whole-request check of D203, so a frequency past the setting's 5999 MHz is an error. A power level
 write takes a level within the table's count, a value, and a label kept to three bytes in upper
 case. Names, letters, factory flags and table frequencies take any byte or value, as texts do in
@@ -5005,10 +5005,10 @@ to mark the MSP transmitter ready for the requesting link.
 
 The command line oracle defines the reference's MSP transmitter ready call, which its build makes
 but did not link, and reads the table's pending setup from the MSP source. The harness replays two
-sequences of 600 lines, 993 requests among table counts, VTX band and channel sets and listings:
-797 within their bounds, whose results, runtime work and configuration hashes all match the
-reference's, 181 that both reject before writing, and 15 band writes whose VTX frequency is outside
-its range, each an error that leaves the configuration unchanged.
+sequences of 600 lines, 993 requests among table counts, VTX band and channel sets and listings: 797
+within their bounds, whose results, runtime work and configuration hashes all match the reference's,
+181 that both reject before writing, and 15 band writes whose VTX frequency is outside its range,
+each an error that leaves the configuration unchanged.
 
 ## D215. MSP control writes (2026-10-15)
 
@@ -5018,12 +5018,12 @@ write. They read the board through `Board`: armed, the SPI receiver running, and
 with whether it is the telemetry link. The arming switch keeps a bit per link in `Link_State`. A
 nonzero command byte sets the request's link's bit and the MSP arming reason, disarms an armed
 board, and turns the runaway takeoff prevention's temporary disable off. A zero byte clears the
-link's bit; once no link holds arming off, it clears the reason and sets the temporary disable to
+link's bit. Once no link holds arming off, it clears the reason and sets the temporary disable to
 the request's second byte. A calibration starts only while disarmed. The configuration write is an
 error while armed. Otherwise it has the scheduler ignore the current task's state time, and either
 marks the configuration configured and asks for it to be written and read back, or, for a request
 over the telemetry link with the SPI receiver running, asks for the same after a delay. `Effects`
-carries each request to the runtime; no field has a setting to check.
+hands each request to the runtime. No field has a setting to check.
 
 The command line oracle defines the arming flags, the arming reason setters, the telemetry link's
 descriptor, the delayed dispatch and the flash erase, which the reference's MSP code calls and the
@@ -5044,12 +5044,12 @@ altitude alarms, then while bytes remain the warnings in 16 and then 32 bits, a 
 overlay, the camera frame and the link quality and RSSI dBm alarms. A video system that switches to
 HD takes the HD canvas and the MSP display port, and one that leaves HD takes the SD canvas for its
 system and the automatic display port. A profile up to the three is taken up, with the OSD's
-elements analyzed again; a profile byte past three changes nothing, and profile 0 lies outside its
-setting's range. Byte 254 writes a timer, within the two; the reference also accepts index 2 and
+elements analyzed again. A profile byte past three changes nothing, and profile 0 lies outside its
+setting's range. Byte 254 writes a timer, within the two. The reference also accepts index 2 and
 writes past its timers (findings F196). Any other byte is an element: a statistic's switch on the
-post flight screen 0, or an element's position on a flight screen, with its elements analyzed
-again. The canvas message writes the canvas size and, for a board not yet in HD with the MSP display
-port, switches to both, marks the configuration configured, and asks for a write and a restart.
+post flight screen 0, or an element's position on a flight screen, with its elements analyzed again.
+The canvas message writes the canvas size and, for a board not yet in HD with the MSP display port,
+switches to both, marks the configuration configured, and asks for a write and a restart.
 
 The command line oracle now counts the OSD element analyses through a weakened copy of the
 reference's OSD object, since the profile change calls the analysis from inside it, and counts the
@@ -5062,13 +5062,13 @@ outside the bounds, each an error that leaves the configuration unchanged.
 
 `Adaflight.MSP_Profile_In` contains the MSP in messages that select a profile and copy one profile
 over another. The selection byte names a battery profile when its battery bit is set, else a PID
-profile when its rate bit is clear, else a rate profile; an index past its list selects the first.
-A PID profile is selected only while the board is disarmed. `Effects` asks the runtime to take the
-selected profile up: for a PID profile the PID settings, motor output endpoints, mixer profile and
-a confirmation beep per profile number, for a rate profile the stick processing, and for a battery
+profile when its rate bit is clear, else a rate profile. An index past its list selects the first. A
+PID profile is selected only while the board is disarmed. `Effects` asks the runtime to take the
+selected profile up: for a PID profile the PID settings, motor output endpoints, mixer profile and a
+confirmation beep per profile number, for a rate profile the stick processing, and for a battery
 profile its thresholds. The copy message copies a whole PID profile for kind 0 or rate profile for
-kind 1, name included, from a source onto a different destination, both within their list, and
-asks the runtime for nothing. Every request succeeds.
+kind 1, name included, from a source onto a different destination, both within their list, and asks
+the runtime for nothing. Every request succeeds.
 
 The command line oracle links the reference's PID profile copy, which it had not linked, with the
 PID initializations the oracle stubs left weak in that object, and counts the profile changes
@@ -5080,14 +5080,14 @@ names, and resets: every result, runtime request and configuration hash matches 
 
 `Adaflight.MSP_VTX_In` contains the MSP in message that writes the video transmitter's settings,
 under the whole-request check of D203. Its first 16-bit field up to 63 encodes a band and channel,
-whose frequency comes from the running table when a transmitter is present; up to 5999 it is a
-frequency with no band; past that it writes nothing. While bytes remain the message then takes the
+whose frequency comes from the running table when a transmitter is present. Up to 5999 it is a
+frequency with no band. Past that it writes nothing. While bytes remain the message then takes the
 power with a pit mode, the low power while disarmed, the pit mode frequency, the band, channel and
 frequency again, the frequency again from the running table for a nonzero band, and the table's
 band, channel and power level counts, up to eight each, with a byte that clears the table. A
-transmitter of a known type whose pit mode differs from the request's is asked for the request's
-pit mode, and every accepted request marks the MSP transmitter ready. The reference makes its writes
-and the pit mode call before it checks the table counts (findings F197).
+transmitter of a known type whose pit mode differs from the request's is asked for the request's pit
+mode, and every accepted request marks the MSP transmitter ready. The reference makes its writes and
+the pit mode call before it checks the table counts (findings F197).
 
 `Adaflight.VTX_Table_Store` contains the clearing of the stored table's bands, channels, power
 values and power labels, and the running table taken from the stored one, as at boot. The command
@@ -5105,12 +5105,12 @@ eight, each an error that leaves the configuration unchanged.
 `Adaflight.MSP_Runtime_In` contains the MSP in messages that hand the board running values: the
 receiver's channels, a GPS solution, the transmitter's RSSI and the clock. None writes the
 configuration. The raw receiver message takes as many 16-bit channels as the request holds whole, up
-to eighteen, and is an error past them; `Effects` hands the frame on with zero for the channels it
+to eighteen, and is an error past them. `Effects` hands the frame on with zero for the channels it
 leaves out, for `MSP_Receiver.Frame_Receive`. The raw GPS message gives the fix, the satellites, the
-latitude and longitude as signed 32-bit values, the altitude in meters scaled to centimeters and
-the ground speed, as an MSP update. The transmitter information message gives the RSSI byte, and
-the clock message gives seconds as a signed 32-bit value and milliseconds, combined into
-milliseconds since the epoch.
+latitude and longitude as signed 32-bit values, the altitude in meters scaled to centimeters and the
+ground speed, as an MSP update. The transmitter information message gives the RSSI byte, and the
+clock message gives seconds as a signed 32-bit value and milliseconds, combined into milliseconds
+since the epoch.
 
 The command line oracle records the frame, the GPS solution with its fix and update flag, the clock
 and the RSSI the reference hands on, through stubs for the functions it did not link and wraps for
@@ -5121,12 +5121,12 @@ matches the reference's, with 41 frames of more than eighteen channels rejected 
 
 `Adaflight.MSP_Board_In` contains the MSP in messages that set the board's information and its
 signature and reset the configuration. Board information is a name and a manufacturer, each a length
-byte and that many bytes, kept to their first 20 and 4 bytes and to their first zero byte; a board
+byte and that many bytes, kept to their first 20 and 4 bytes and to their first zero byte. A board
 that holds its information already, or a request shorter than its declared lengths, makes it an
 error. A signature is 32 bytes, zero past the request's end, and a board that holds one already
 makes it an error. Each is stored and taken in again through `Board_Info`. The reset, while
 disarmed, gives the reset configuration of `Config_Reset`, asks for the configuration's write and a
-restart after the reply, and answers 1; armed, it changes nothing and answers 0.
+restart after the reply, and answers 1. Armed, it changes nothing and answers 0.
 
 `Adaflight.Board_Info` contains the board's information as the board holds it: the name and
 manufacturer, the signature, whether the stored configuration set each, and whether a command
@@ -5134,7 +5134,7 @@ changed them, with how the board takes them in at start, stores and persists the
 back into a reset configuration. `Adaflight.Config_Reset` contains the configuration reset: the
 defaults, the simplified tuning applied to every PID profile, and the board's information kept. The
 command line uses both, and the stored VTX table clearing of `Adaflight.VTX_Table_Store` (D218), in
-place of its own copies; its names for the moved types stay as subtypes and renamings. We moved them
+place of its own copies. Its names for the moved types stay as subtypes and renamings. We moved them
 out of the generic command line, whose types exist once per instance, so these messages can share
 them.
 
@@ -5148,9 +5148,9 @@ information or a signature the board already holds, or shorter than declared, re
 
 `Adaflight.MSP_Motor_In` contains the MSP in message that sets the motors' values while disarmed,
 which a configurator's motor test sends. It takes a 16-bit value per motor of the mixer and is an
-error when the request holds fewer; bytes past them are ignored. Each value converts for the motor
+error when the request holds fewer. Bytes past them are ignored. Each value converts for the motor
 protocol: unchanged for analog pulses, through `DShot.From_External` with the running 3D feature for
-DShot, and zero without a motor device. `Effects` carries the values for the mixer's disarmed
+DShot, and zero without a motor device. `Effects` hands the values on for the mixer's disarmed
 outputs.
 
 The command line oracle links the reference's DShot source with its unit-test definitions, scripts
@@ -5173,30 +5173,30 @@ out are zero, where the reference sends whatever its stack holds (findings F198)
 The command line oracle links the reference's display driver and scripts the OSD display port,
 whether it is present and whether it takes a character, with a directive. The harness replays two
 sequences of 600 lines, 1079 requests among port scripts: every result, address, font update flag
-and all 51884 character bytes the requests give match the reference's, with 337 requests rejected
-by both, for a missing port or one that refuses the character.
+and all 51884 character bytes the requests give match the reference's, with 337 requests rejected by
+both, for a missing port or one that refuses the character.
 
 ## D223. MSP restart and DShot commands (2026-10-15)
 
 `Adaflight.MSP_Control_In` gains the MSP messages that restart the board into a mode and send DShot
 commands to the motors. The restart, an error while armed, takes a mode below five, the firmware
 when the request leaves it out, and answers it back. For mass storage the file system's readiness
-follows in the reply, and only a ready one restarts; the restart waits out a delay over the
-telemetry link with the SPI receiver running, as the configuration write does. The mass storage
-mode with UTC time takes the same check, where the reference restarts without it (finding F199,
-amended 2026-10-25 as declared in D6). The DShot command message, while
-disarmed, takes a command type, a motor, a count and that many commands, and is an error when the
-request holds fewer; armed, it does nothing. `Effects` carries the restart with its mode, the reply,
-and the commands for the motor command queue, with the motors switched off around blocking ones;
-`Board` gains the mass storage readiness.
+follows in the reply, and only a ready one restarts. The restart waits out a delay over the
+telemetry link with the SPI receiver running, as the configuration write does. The mass storage mode
+with UTC time takes the same check, where the reference restarts without it (finding F199, amended
+2026-10-25 as declared in D6). The DShot command message, while disarmed, takes a command type, a
+motor, a count and that many commands, and is an error when the request holds fewer. Armed, it does
+nothing. `Effects` contains the restart with its mode, the reply, and the commands for the motor
+command queue, with the motors switched off around blocking ones. `Board` gains the mass storage
+readiness.
 
 The command line oracle routes the restart through the reference's out command processor, records
 the DShot command calls and the motor switching, and scripts the mass storage readiness with a
 directive. The harness replays two sequences of 600 lines, 907 requests among armed, link, feature,
 mass storage and motor scripts: every result, reply, restart, delay and DShot command matches the
-reference's, with 159 rejected by both. The MSP device vectors, which hold the restart requests
-with the readiness scripted either way, were regenerated on 2026-10-25 against the reference's
-restart message with the same check.
+reference's, with 159 rejected by both. The MSP device vectors, which hold the restart requests with
+the readiness scripted either way, were regenerated on 2026-10-25 against the reference's restart
+message with the same check.
 
 ## D224. MSP GPS sensor (2026-10-15)
 
@@ -5220,17 +5220,17 @@ around their 52 bytes and 275 raw GPS messages: every handed-on value matches th
 ## D225. MT rangefinder and optical flow bridge (2026-10-15)
 
 `Adaflight.MT_Sensor` contains the bridge an MT device uses to send its distance and its flow over
-MSP, and `Adaflight.MSP_Runtime_In` gains the two messages, which hand on the distance in millimeters
-and the flow's quality and motion. Both read zero past a short request's end, where the reference
-reads past the payload (finding F200). The configured rangefinder hardware picks the device: MTF01,
-MTF02, MTF01P or MTF02P with its delay and range, none otherwise. A distance is new until a read
-takes it, which gives the distance in centimeters or out of range for a negative one, and no new
-data after. A flow message stamps its sample, and the interval since the last sample, valid within
-a second, turns the motion into rates and the quality into percent. The distance gives the range
-validity at 80 mm or more and no older than five of the device's delays, and an invalid range or a
-stale distance replaces the quality with its code. The distance's time starts at the no new data
-code (finding F202), and the 80 mm minimum is the one the reference also gives the device as
-centimeters (finding F203). The unit is SPARK for the interval's division and the bounds it hands
+MSP, and `Adaflight.MSP_Runtime_In` gains the two messages, which hand on the distance in
+millimeters and the flow's quality and motion. Both read zero past a short request's end, where the
+reference reads past the payload (finding F200). The configured rangefinder hardware picks the
+device: MTF01, MTF02, MTF01P or MTF02P with its delay and range, none otherwise. A distance is new
+until a read takes it, which gives the distance in centimeters or out of range for a negative one,
+and no new data after. A flow message stamps its sample, and the interval since the last sample,
+valid within a second, turns the motion into rates and the quality into percent. The distance gives
+the range validity at 80 mm or more and no older than five of the device's delays, and an invalid
+range or a stale distance replaces the quality with its code. The distance's time starts at the no
+new data code (finding F202), and the 80 mm minimum is the one the reference also gives the device
+as centimeters (finding F203). The unit is SPARK for the interval's division and the bounds it hands
 on.
 
 A flow message before an MT device is detected changes nothing, where the reference reads the
@@ -5247,9 +5247,9 @@ reference's.
 ## D226. CRSF device frames and link type (2026-10-15)
 
 `Adaflight.CRSF` hands on the frames the CRSF telemetry and the menu system take from the receiver:
-a ping asks for the device information reply, a device information frame goes to the telemetry
-from its payload, and a display port command and an MSP request or write go on from the byte after
-the destination and origin, the MSP frame when its length is four or more. `Adaflight.CRSF_Telemetry`
+a ping asks for the device information reply, a device information frame goes to the telemetry from
+its payload, and a display port command and an MSP request or write go on from the byte after the
+destination and origin, the MSP frame when its length is four or more. `Adaflight.CRSF_Telemetry`
 gains the link type. While no device information reply has named the link, the negotiation pass
 pings the receiver at most every quarter second, after a pending speed reply, a speed change and a
 heartbeat. A reply whose serial number after the name is ELRS marks an ExpressLRS link and sets the
@@ -5261,10 +5261,10 @@ One guard covers a reply without the name's end or four bytes after it: it marks
 ExpressLRS, where the reference reads on past the frame (finding F204). No recorded vector reaches
 the guard.
 
-The receiver oracle counts the new frames with the first byte each handler takes, and the
-telemetry oracle builds with the menu system's CRSF telemetry, an idle display port and a device
-information reply now and then. The harness replays 6000 receiver steps and 6576 telemetry passes
-with 93872 frames, 41 of them pings: every output, link type and interval matches the reference's.
+The receiver oracle counts the new frames with the first byte each handler takes, and the telemetry
+oracle builds with the menu system's CRSF telemetry, an idle display port and a device information
+reply now and then. The harness replays 6000 receiver steps and 6576 telemetry passes with 93872
+frames, 41 of them pings: every output, link type and interval matches the reference's.
 
 ## D227. CRSF display port (2026-10-15)
 
@@ -5282,11 +5282,11 @@ display, and the caller sets the 400 ms delay after the menu's own clear.
 the clear frame. Once the delay has passed while the menu runs on this display, an updated screen
 starts a batch over its rows and columns with the next of 63 batch numbers, and each pass past the
 chunk interval sends a chunk: the batch, its index with the first and last chunk marked, and up to
-50 bytes of the screen with a run of a repeated character as the character with its top bit set
-and the run's length, 256 as zero. Each frame sent restarts the telemetry's cycle time. Readiness
+50 bytes of the screen with a run of a repeated character as the character with its top bit set and
+the run's length, 256 as zero. Each frame sent restarts the telemetry's cycle time. Readiness
 compares the millisecond clock with the delay through the wrapping difference, where the reference
-compares them directly (finding F205, D6). The units are SPARK for the screen's index bounds and
-the chunk's room in its frame.
+compares them directly (finding F205, D6). The units are SPARK for the screen's index bounds and the
+chunk's room in its frame.
 
 The CRSF telemetry oracle compiles the reference display port in, with the menu system's state, its
 selection and its open and leave calls scripted. The harness replays 2123 display operations with
