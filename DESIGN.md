@@ -9569,3 +9569,25 @@ its analog inputs through the configured pin tags, so a `resource` change takes 
 boot. The battery meters of D391 read zero on a configuration from the host defaults, which this
 entry corrects.
 
+## D393. STM32F4 beeper (2026-10-26)
+
+The STM32F4 image drives the beeper (D39). `Adaflight.STM32.Sound` takes the stored beeper device
+settings at boot: at frequency zero a pin driven high or low, high when on for an inverted beeper and
+low when on otherwise, with an open drain output when set, and at a frequency a square wave from the
+pin's timer channel at half duty. For the CLRacing F4S that is TIM3 channel 1 on B04 at 3800 Hz, a 1
+MHz count to 263 with the channel's compare at 131 when on and at zero when off (D392). A pin without
+a channel the driver knows stays silent. The beeper task runs the unit's update at 100 Hz, sets the
+output to the beeper's state and tells the scheduler when the update was short. The beeper settings
+come from the stored beeper group at every use. The beeper reads the battery's presence, the beeper
+boxes, the motors running while armed, the failsafe's link, the last disarm and a waiting arming,
+with no USB, configurator link or GPS on this image.
+
+The requests come from the units that make them: the arming logic's last request of each pass with
+its count, a stick save's confirmation beep after the write and the read back, the battery alarm
+while the voltage alerts are on, the end of the gyro calibration, and the failsafe's lost link
+tones. After the sensors start, the LED flashes ten times with a 25 ms beep each, unless the system
+init sound is off. The task setup enables the beeper task.
+
+The image is 932688 bytes of text, 5068 of data and 116840 of zeroed data. The bench check is the
+boot beeps, the arming tones and the battery alarm on a supply below the warning voltage.
+
