@@ -4480,8 +4480,9 @@ sensor deadlines drawn at random.
   holds at least four items
 - the page count
 - the page selected by number, wrapped within the count, with its top line, its last row from the
-  lines left, the items on a page and the row limit, and the lines' flags copied for the draw into
-  the byte the reference keeps them in, which drops the flags above the dynamic one (F183)
+  lines left, the items on a page and the row limit, and the lines' flags copied whole for the draw,
+  where the reference's byte drops the flags above the dynamic one (finding F183, amended 2026-10-26
+  as declared in D6)
 - the cursor's absolute row
 - the rows the cursor skips, which are labels, strings and the narrow numbers that are dynamic or
   that a slider overrides, where the reference's dynamic test compares the whole flags word with the
@@ -4516,13 +4517,15 @@ text and of a character, the text write naming the bytes it takes:
 - the slider mark beside an overridden value
 - the page arrows after a clear
 
-The byte of runtime flags leaves a submenu's option string and the scrolling of a lookup table's
-text unreachable (F183), so neither is drawn and the ticker only resets. The byte budget wraps below
-zero. The menu's display update hook stays with the target until the menu stack lands. The proof
-covers the row and column arithmetic within the page and the display, and the value fields within
-the text bound, which every display's layout keeps and the draw requires (a full screen display
-wider than 32 columns would overrun the reference's table value buffer, F184).
-`Adaflight.Menu_Draw_Shape` instantiates the draw over counting writes for the proof.
+The runtime flags keep sixteen bits, so a submenu with an option string shows its line's text before
+the arrow, and a lookup table's text longer than its space scrolls: the ticker holds 20 draw cycles
+at each end and 3 between steps. The reference's byte of runtime flags leaves both unreachable
+(finding F183, amended 2026-10-26 as declared in D6). The byte budget wraps below zero. The menu's
+display update hook stays with the target until the menu stack lands. The proof covers the row and
+column arithmetic within the page and the display, and the value fields within the text bound, which
+every display's layout keeps and the draw requires (a full screen display wider than 32 columns
+would overrun the reference's table value buffer, F184). `Adaflight.Menu_Draw_Shape` instantiates
+the draw over counting writes for the proof.
 
 The harness instantiates the draw over logging writes that take the bytes the reference's display
 reported, and replays 12600 draws over the 1800 random menus, three after each open and one after
@@ -5882,18 +5885,19 @@ unchanged.
 
 ## D254. SmartAudio VTX menus (2026-10-16)
 
-`Adaflight.Menu_Content` gains the SmartAudio VTX menu with its configuration, statistics, pit and user
-frequency and confirmation menus, over the SmartAudio menu state the VTX layer keeps (D253). On entry
-the menu chooses its lines from that state: offline lines while the device's version is unknown, else
-lines by band and channel or by frequency. The configuration menu's frequency selection chooses them
-again. The menu navigation now loads a menu's lines after its entry hook, since this entry hook decides
-which lines the menu has. The band, channel, power and pit mode lines step from none and keep their
-values until the save, the configuration lines send the pit mode ranges to the device, the pit and user
-frequency menus copy and store their frequencies, and the confirmation stores the settings, saving the
-configuration only when they changed, and leaves the menu system. The pit mode kind line reaches
-out-of-range pit mode, POR, at its third value and sends it to the device. The reference's line stops
-at the second value, so POR is never shown or sent (finding F221). Option strings stay undrawn
-(F183); adaflight keeps that.
+`Adaflight.Menu_Content` gains the SmartAudio VTX menu with its configuration, statistics, pit and
+user frequency and confirmation menus, over the SmartAudio menu state the VTX layer keeps (D253). On
+entry the menu chooses its lines from that state: offline lines while the device's version is
+unknown, else lines by band and channel or by frequency. The configuration menu's frequency
+selection chooses them again. The menu navigation now loads a menu's lines after its entry hook,
+since this entry hook decides which lines the menu has. The band, channel, power and pit mode lines
+step from none and keep their values until the save, the configuration lines send the pit mode
+ranges to the device, the pit and user frequency menus copy and store their frequencies, and the
+confirmation stores the settings, saving the configuration only when they changed, and leaves the
+menu system. The pit mode kind line reaches out-of-range pit mode, POR, at its third value and sends
+it to the device. The reference's line stops at the second value, so POR is never shown or sent
+(finding F221). The frequency submenus show their frequencies as option strings in four characters
+(F183, D194).
 
 The menu contents oracle wraps the reference's SmartAudio driver and menu beside the other VTX devices,
 scripts the device's report, statistics and line rate and the VTX settings per session, and hands the

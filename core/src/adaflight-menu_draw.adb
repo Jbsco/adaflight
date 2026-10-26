@@ -4,13 +4,18 @@ package body Adaflight.Menu_Draw with SPARK_Mode is
    subtype Label_Text is Adaflight.Menu.Label_Text;
    subtype Text_Length is Adaflight.Menu.Text_Length;
 
-   Print_Value_Bit : constant Unsigned_8 := 16#20#;
-   Print_Label_Bit : constant Unsigned_8 := 16#40#;
+   Print_Value_Bit : constant Interfaces.Unsigned_16 := 16#20#;
+   Print_Label_Bit : constant Interfaces.Unsigned_16 := 16#40#;
+
+   Ticker_Start_Cycles  : constant := 20;
+   Ticker_Scroll_Cycles : constant := 3;
 
    function Col (N : Integer) return Column is (N mod 256);
 
-   function Print_Value (Flags : Unsigned_8) return Boolean is ((Flags and Print_Value_Bit) /= 0);
-   function Print_Label (Flags : Unsigned_8) return Boolean is ((Flags and Print_Label_Bit) /= 0);
+   function Print_Value (Flags : Interfaces.Unsigned_16) return Boolean is ((Flags and Print_Value_Bit) /= 0);
+   function Print_Label (Flags : Interfaces.Unsigned_16) return Boolean is ((Flags and Print_Label_Bit) /= 0);
+   function Scrolling (Flags : Interfaces.Unsigned_16) return Boolean is
+     ((Flags and Adaflight.Menu.Scrolling_Ticker) /= 0);
 
    function Cut (T : Label_Text; Length : Text_Length) return Label_Text is
       R : Label_Text := T;
@@ -77,16 +82,16 @@ package body Adaflight.Menu_Draw with SPARK_Mode is
       Display_Write (On, Col (L.Right_Column - Size), Y, Text, Cost);
    end Draw_Value;
 
-   --  A line's value in its element's form. The option string of a submenu
-   --  and the scrolling of a lookup table's text hang on flags the byte
-   --  does not hold, so neither is drawn.
+   --  A line's value in its element's form. A submenu with an option string
+   --  shows its line's text, and a lookup table's text longer than its space
+   --  scrolls through the ticker.
    procedure Draw_Entry
      (On             : Adaflight.Menu.Display_Index;
       L              : Adaflight.Menu.Layout;
       E              : Adaflight.Menu.Line;
       Row_Y          : Column;
       Selected       : Boolean;
-      Flags          : in out Unsigned_8;
+      Flags          : in out Interfaces.Unsigned_16;
       Tk             : in out Adaflight.Menu.Ticker;
       Editing        : Boolean;
       Profile_Cursor : Adaflight.Menu.Profile_Number;
@@ -108,7 +113,11 @@ package body Adaflight.Menu_Draw with SPARK_Mode is
             end if;
          when Adaflight.Menu.Submenu | Adaflight.Menu.Funcall =>
             if Print_Value (Flags) then
-               if Adaflight.Menu.Element_Of (E.Flags) = Adaflight.Menu.Funcall and then E.Has_Data then
+               if Adaflight.Menu.Element_Of (E.Flags) = Adaflight.Menu.Submenu and then E.Has_Func
+                 and then (Flags and Adaflight.Menu.Opt_String) /= 0
+               then
+                  Buff := Cut (E.Value_Text, Draw_Buffer_Length);
+               elsif Adaflight.Menu.Element_Of (E.Flags) = Adaflight.Menu.Funcall and then E.Has_Data then
                   Buff := Cut (E.Value_Text, Draw_Buffer_Length);
                end if;
                Buff.Length := Buff.Length + 1;
@@ -127,17 +136,56 @@ package body Adaflight.Menu_Draw with SPARK_Mode is
                Flags := Flags and not Print_Value_Bit;
             end if;
          when Adaflight.Menu.Tab =>
-            if Print_Value (Flags) then
+            if Print_Value (Flags) or else Scrolling (Flags) then
                declare
-                  Label_Length : constant Natural := E.Text.Length + 1;
-                  Available    : constant Text_Length :=
+                  Label_Length   : constant Natural := E.Text.Length + 1;
+                  Available      : constant Text_Length :=
                     Integer'Max (Draw_Buffer_Length, L.Right_Column - Label_Length - L.Left_Column - 1);
+                  Display_Length : constant Text_Length := E.Value_Text.Length;
+                  Overflow       : constant Integer := Display_Length - Available;
+                  Draw_Text      : Boolean := False;
                begin
-                  Tk := (Loop_Counter => 0, State => 0);
-                  Buff := Cut (E.Value_Text, Table_Value_Length);
-                  Draw_Value (On, L, Buff, Y, Available, Cost);
+                  if Print_Value (Flags) then
+                     Draw_Text := True;
+                     Tk := (Loop_Counter => 0, State => 0);
+                     if Overflow > 0 then
+                        Flags := Flags or Adaflight.Menu.Scrolling_Ticker;
+                     else
+                        Flags := Flags and not Adaflight.Menu.Scrolling_Ticker;
+                     end if;
+                  else
+                     declare
+                        Limit : constant Unsigned_8 :=
+                          (if Tk.State = 0 or else Integer (Tk.State) = Overflow then Ticker_Start_Cycles
+                           else Ticker_Scroll_Cycles);
+                     begin
+                        Tk.Loop_Counter := Tk.Loop_Counter + 1;
+                        if Tk.Loop_Counter >= Limit then
+                           Tk.Loop_Counter := 0;
+                           Draw_Text := True;
+                           Tk.State := Tk.State + 1;
+                           if Integer (Tk.State) > Overflow then
+                              Tk.State := 0;
+                           end if;
+                        end if;
+                     end;
+                  end if;
+                  if Draw_Text then
+                     declare
+                        Start : constant Natural := Natural (Tk.State);
+                        Len   : constant Text_Length :=
+                          (if Start < Display_Length then Natural'Min (Table_Value_Length, Display_Length - Start)
+                           else 0);
+                     begin
+                        Buff := (Data => (others => ' '), Length => Len);
+                        if Len > 0 then
+                           Buff.Data (1 .. Len) := E.Value_Text.Data (Start + 1 .. Start + Len);
+                        end if;
+                     end;
+                     Draw_Value (On, L, Buff, Y, Available, Cost);
+                  end if;
+                  Flags := Flags and not Print_Value_Bit;
                end;
-               Flags := Flags and not Print_Value_Bit;
             end if;
          when Adaflight.Menu.Visible =>
             if Print_Value (Flags) and then E.Has_Data then
@@ -270,7 +318,7 @@ package body Adaflight.Menu_Draw with SPARK_Mode is
             if Adaflight.Menu.Slider_Override (E.Flags, S) then
                Write_Char (On, Col (L.Left_Column - 1), Y, Normal, 'S');
             end if;
-            if Print_Value (P.Flags (I)) then
+            if Print_Value (P.Flags (I)) or else Scrolling (P.Flags (I)) then
                Draw_Entry
                  (On, L, E, Y, I = C.Cursor_Row, P.Flags (I), C.Table_Tickers (I), Editing, Profile_Cursor, Now_Ms,
                   Cost);
