@@ -2437,76 +2437,81 @@ lines replays byte for byte.
 
 ## D109. OSD task (2026-10-13)
 
-The OSD task unit contains the reference's OSD task: the update check and the update state
-machine. The check wakes an idle task once the clock passes the frame's due time, which steps past
-the clock by whole frames of a second over the frame rate, or starts one frame ahead; a check or
-transfer state waits while the display transfers. Each update runs one state. The boot state, once
-the display is ready, selects the foreground, opens a transaction, draws the boot screen, sets a
-four-second pause, resets the element state and analyzes the active elements. Then come the
-heartbeat; the three statistics steps with the arming screen and the clears they ask for, the
-statistics page between the first and second when due, and the second opening a transaction each
-time; the alarms, skipped while the menu holds the display; the canvas, which waits out the pause,
-clears for the OSD switch, clears or copies the background layer, re-analyzes the elements when the
-GPS sensor appears or goes, and syncs the blink; the draw cycle's element draws and displays; the
-spec prearm screen after the elements while disarmed when the setting asks for it; the commit; and
-the transfer, repeated while the display reports more to draw. Each update keeps a running peak
-time per state, and per element place for the draws, decaying by one and replaced by a longer time,
-and names the next state's anticipated time to the scheduler; the state times wrap past 2047 µs in
-sixteen bits (F113). The display port's answers come in with the call and its operations go back in
-order; the clock is read where the reference reads it. The statistics page renders only when its
-readings fit the page's bounds, which every physical altitude does. Settings, readings and the
-display stay with the target.
+The OSD task unit contains the OSD task: the update check and the update state machine. The check
+wakes an idle task once the clock passes the frame's due time, which steps past the clock by whole
+frames of a second over the frame rate, or starts one frame ahead. A check or transfer state waits
+while the display transfers. Each update runs one state, in this order:
+
+- the boot state, once the display is ready: it selects the foreground, opens a transaction, draws
+  the boot screen, sets a four-second pause, resets the element state and analyzes the active
+  elements
+- the heartbeat
+- the three statistics steps with the arming screen and the clears they ask for, the statistics page
+  between the first and second when due, and the second opening a transaction each time
+- the alarms, skipped while the menu holds the display
+- the canvas, which waits out the pause, clears for the OSD switch, clears or copies the background
+  layer, re-analyzes the elements when the GPS sensor appears or goes, and syncs the blink
+- the draw cycle's element draws and displays
+- the spec prearm screen after the elements while disarmed when the setting asks for it
+- the commit
+- the transfer, repeated while the display reports more to draw
+
+Each update keeps a running peak time per state, and per element place for the draws, decaying by
+one and replaced by a longer time, and names the next state's anticipated time to the scheduler. The
+state times wrap past 2047 µs in sixteen bits (F113). The display port's answers come in with the
+call, and its operations go back in order. The statistics page renders only when its readings fit
+the page's bounds, which every physical altitude does. Settings, readings and the display stay with
+the target.
 
 The harness replays six sequences of 1500 scheduler steps recorded from the reference, each a check
 and, when due, an update, over MAX7456, MSP and FrSky displays with and without the logo and with
-random answers, arming, switches, sticks, sensors and readings, six elements visible, the
-statistics page off, and clocks that sometimes run a state past 2 ms. Every check result, state,
-scheduler flag and time, page state, statistic and display operation of the 17162 lines replays
-byte for byte.
+random answers, arming, switches, sticks, sensors and readings, six elements visible, the statistics
+page off, and clocks that sometimes run a state past 2 ms. Every check result, state, scheduler flag
+and time, page state, statistic and display operation of the 17162 lines replays byte for byte.
 
 ## D110. MAVLink telemetry streams (2026-10-13)
 
-The MAVLink telemetry unit contains the reference's stream messages: system status with system
-time, raw RC channels, raw GPS, global position, GPS origin, home position, attitude, heartbeat,
-HUD and battery status. Each message is packed in the library's wire order and framed as MAVLink 2
-with trailing payload zeros trimmed, the link's sequence number and the message's CRC extra.
+The MAVLink telemetry unit contains the stream messages: system status with system time, raw RC
+channels, raw GPS, global position, GPS origin, home position, attitude, heartbeat, HUD and battery
+status. Each message is packed in the library's wire order and framed as MAVLink 2 with trailing
+payload zeros trimmed, the link's sequence number and the message's CRC extra.
 
 A pass runs when the receiver's buffer report asks for one, or 20 ms after the last pass when no
-report is valid. It sends each message past its due time in table order and moves that due time
-one interval past the clock, whether or not the message had anything to send. The pass ends with
-the arming report: a status text of the disable reasons, cut at 49 characters, sent when the
-reasons change to a nonzero set. The disable reason names move from the OSD warnings unit into the
-arming unit, which both readers share.
+report is valid. It sends each message past its due time in table order and moves that due time one
+interval past the clock, whether or not the message had anything to send. The pass ends with the
+arming report: a status text of the disable reasons, cut at 49 characters, sent when the reasons
+change to a nonzero set. The disable reason names move from the OSD warnings unit into the arming
+unit, which both readers share.
 
 Stream rates set the intervals, at least 20 ms, each first due one interval plus 3 ms per table
 place ahead. A ground station sets one message's interval, zero restoring the rate's, and reads it
 back in microseconds, held at the largest signed 32-bit count. The reference multiplies the
 milliseconds in 32 bits before it compares, so an interval above 4294967 ms wraps and reads back
-short (finding F115). Global position sends the microsecond clock in its millisecond boot time
-field (F114). Port, receiver link and readings stay with the target. Incoming commands and the
-mission protocol are open.
+short (finding F115). Global position sends the microsecond clock in its millisecond boot time field
+(F114). Port, receiver link and readings stay with the target. Incoming commands and the mission
+protocol are open.
 
 The harness replays six sequences of 500 steps recorded from the reference: telemetry passes under
-random readings, rates, arming reasons and clocks, interval sets including unknown messages and
-the saturation and wrap edges, each edge set read straight back, and interval reads. Every frame
-byte, due time, interval and sequence number of the 3019 lines replays byte for byte.
+random readings, rates, arming reasons and clocks, interval sets including unknown messages and the
+saturation and wrap edges, each edge set read straight back, and interval reads. Every frame byte,
+due time, interval and sequence number of the 3019 lines replays byte for byte.
 
 ## D111. MAVLink commands (2026-10-13)
 
-The MAVLink commands unit contains the incoming side of the reference's telemetry file. Messages
-from a ground station arrive two ways: drained from the telemetry's own port, up to 64 bytes a
-pass through a frame parser of its own, or popped from the MAVLink receiver's queue, up to sixteen
-a pass. The parser state moves out of the receiver's record into a record of its own so both
-parsers share the code. MAVLink 2 framing moves into a unit of its own, shared by the stream
-messages and the replies with one sequence number.
+The MAVLink commands unit contains the telemetry's incoming side. Messages from a ground station
+arrive two ways: drained from the telemetry's own port, up to 64 bytes a pass through a frame parser
+of its own, or popped from the MAVLink receiver's queue, up to sixteen a pass. The parser state
+moves out of the receiver's record into a record of its own so both parsers share the code. MAVLink
+2 framing moves into a unit of its own, shared by the stream messages and the replies with one
+sequence number.
 
-Ping and time sync requests are answered. A command long or command int addressed to this system,
-or to every system, is executed and acknowledged. Command long also requests the autopilot
-version, protocol version, component information, available modes, modes monitor and a message's
-interval, and sets a message's interval. Both execute disarm, mode selection, return to launch,
-set home and reboot. Arming over the link is a build option the default leaves out, so it answers
-unsupported. Float parameters are decoded from their bits. A parameter counts as a whole number
-only when finite, not negative and not above the handler's maximum.
+Ping and time sync requests are answered. A command long or command int addressed to this system, or
+to every system, is executed and acknowledged. Command long also requests the autopilot version,
+protocol version, component information, available modes, modes monitor and a message's interval,
+and sets a message's interval. Both execute disarm, mode selection, return to launch, set home and
+reboot. Arming over the link is a build option the default leaves out, so it answers unsupported.
+Float parameters are decoded from their bits. A parameter counts as a whole number only when finite,
+not negative and not above the handler's maximum.
 
 Disarms, mode override clears and sets, and home resets and sets go out as requests in call order,
 for the target to apply to the arming, modes and GPS units. An accepted reboot goes out as a reboot
@@ -2515,8 +2520,8 @@ reference runs a pending reboot only after the port's drain, so one accepted fro
 queue stays pending for good (finding F116). Coordinates, altitudes and intervals past the range of
 the reference's float conversions saturate, where the reference is undefined (F117). A set-home
 altitude goes out as commanded, and the home position telemetry multiplies it by ten (F118). The
-modes unit's override mask, which the reference adds to the switch-selected modes and clears at
-each disarm, is open.
+modes unit's override mask, which the reference adds to the switch-selected modes and clears at each
+disarm, is open.
 
 The harness replays six sequences of 500 steps recorded from the reference, alternating the owned
 port and the receiver's queue: heartbeats, pings, time syncs, and command long and command int
@@ -2529,9 +2534,8 @@ home value, interval, sequence number and parser state of the 3006 lines replays
 The mode update takes a mask of overridden boxes and forces them on after the switches vote. A
 ground station sets these boxes through the MAVLink commands (D111). The mask lives in the arming
 state, where every disarm clears it before anything else, and the arming unit hands it to the mode
-update. The reference keeps the mask with the mode state and clears it from the disarm path, which
-gives the same order. Boxes are forced on or released one at a time, and the whole mask clears at
-once.
+update. The reference keeps the mask with the mode state and clears it from its disarm path, in the
+same order. Boxes are forced on or released one at a time, and the whole mask clears at once.
 
 The arming vectors were recorded again with a third random stream that clears, sets and releases
 overrides before each step. Of the 15030 lines, 4015 change from the earlier recording. Overrides
@@ -2540,15 +2544,15 @@ for byte.
 
 ## D113. Jeti EX Bus telemetry (2026-10-13)
 
-The Jeti telemetry unit contains the reference's answer to a transmitter's telemetry request. A call
-answers when the receiver may transmit, the request is a telemetry request no older than 3 ms with
-a good CRC, and no byte waits on the port. A stale or failed request is dropped, and an answer ends
-the permission to transmit. The receiver's request state gains the processed state an answer sets.
+The Jeti telemetry unit contains the answer to a transmitter's telemetry request. A call answers
+when the receiver may transmit, the request is a telemetry request no older than 3 ms with a good
+CRC, and no byte waits on the port. A stale or failed request is dropped, and an answer ends the
+permission to transmit. The receiver's request state gains the processed state an answer sets.
 
 The first 255 answers are text messages that describe the enabled sensors and the two device
-descriptions in turn. The answers after them carry sensor values: each message starts at the next
-sensor and holds the following enabled sensors of its group of fifteen, at most four values. A
-value takes three bytes with its decimals in the top byte, and a GPS coordinate takes four bytes of
+descriptions in turn. The answers after them hold sensor values: each message starts at the next
+sensor and holds the following enabled sensors of its group of fifteen, at most four values. A value
+takes three bytes with its decimals in the top byte, and a GPS coordinate takes four bytes of
 degrees and thousandths of a minute with the longitude and sign flags. The GPS sensors leave the
 values when the text phase ends with the GPS feature on, and return once a GPS is detected. The RPM
 value averages the motors with fresh ESC data and rounds ties to even. With no sensor enabled the
@@ -2556,27 +2560,26 @@ reference reads a value length past its table (F119), and adaflight sends no val
 product past 32 bits wraps as the target's multiply does, and a G-force past 16 bits saturates.
 
 The harness replays seven sequences recorded from the reference, each request frame fed through the
-receiver byte by byte: telemetry requests, other requests, channel frames, corrupted and cut
-frames, stray bytes, waits up to 5 ms and busy ports, under random sensor sets, readings and ESC
-data. One sequence enables a single sensor, and one enables none and stops inside the text phase.
-Every request state, permission, sensor set and frame byte of the 15707 lines replays byte for
-byte.
+receiver byte by byte: telemetry requests, other requests, channel frames, corrupted and cut frames,
+stray bytes, waits up to 5 ms and busy ports, under random sensor sets, readings and ESC data. One
+sequence enables a single sensor, and one enables none and stops inside the text phase. Every
+request state, permission, sensor set and frame byte of the 15707 lines replays byte for byte.
 
 ## D114. FrSky SPI receiver, D8 (2026-10-13)
 
-The FrSky SPI unit contains the reference's FrSky receiver on a CC2500 radio for the D8 protocol,
-with the SPI receiver's LED and bind button handling and the CC2500 helpers. Start-up checks the
-chip when the setting asks, raises the LNA and antenna pins, lowers the transmit enable pin and
-claims the RSSI source. The first protocol call after 10 ms resets and configures the radio and
-calibrates every channel. The target measures the calibration and hands it back.
+The FrSky SPI unit contains the FrSky receiver on a CC2500 radio for the D8 protocol, with the SPI
+receiver's LED and bind button handling and the CC2500 helpers. Start-up checks the chip when the
+setting asks, raises the LNA and antenna pins, lowers the transmit enable pin and claims the RSSI
+source. The first protocol call after 10 ms resets and configures the radio and calibrates every
+channel. The target measures the calibration and hands it back.
 
 Binding, on a bind request or with auto bind, tunes the frequency offset up and then down in steps
 of two every 50 ms until a bind packet arrives at each end, keeps the midpoint, and collects the
-transmitter id and the hop table in ten chunks of five. Bound, the receiver hops over 47 channels.
-A packet from its transmitter with the CRC bit set hops on, sets the RSSI from its status byte, and
+transmitter id and the hop table in ten chunks of five. Bound, the receiver hops over 47 channels. A
+packet from its transmitter with the CRC bit set hops on, sets the RSSI from its status byte, and
 every fourth one is answered 1.38 ms later with the telemetry frame: transmitter id, A1 and A2
-values and RSSI. Without packets the receiver hops on, switches antennas after two misses, drops
-the RSSI after 100, and searches with a 13-channel skip at the slow timeout. Channels decode at two
+values and RSSI. Without packets the receiver hops on, switches antennas after two misses, drops the
+RSSI after 100, and searches with a 13-channel skip at the slow timeout. Channels decode at two
 thirds of their 12-bit values and are kept unless one leaves 800 to 2200.
 
 Radio operations, pin changes, RSSI updates, delays and the configuration save go out in order. The
@@ -2595,16 +2598,16 @@ replays byte for byte.
 
 The FrSky SPI unit gains the D8 telemetry frame's hub data. With the telemetry feature on and the
 FrSky hub stream free of a serial port, the receiver owns the hub stream. When the transmitter
-acknowledges the last frame, the next frame starts a hub burst once the previous one is sent; when
-it asks again, the unacknowledged bytes go out again. A burst lands in a 64-byte buffer and goes
-out ten bytes a frame. A burst of 64 bytes or more fills the buffer, goes out in full and clears
-for the next burst. The reference's send position wraps at the buffer's size and never reaches a
-full count, so it resends the same 64 bytes for good (finding F122).
+acknowledges the last frame, the next frame starts a hub burst once the previous one is sent. When
+it asks again, the unacknowledged bytes go out again. A burst lands in a 64-byte buffer and goes out
+ten bytes a frame. A burst of 64 bytes or more fills the buffer, goes out in full and clears for the
+next burst. The reference's send position wraps at the buffer's size and never reaches a full count,
+so it resends the same 64 bytes for good (finding F122).
 
 The harness replays the six D8 sequences of D114 unchanged and three more with telemetry on: one
 with every sensor and a GPS fix, where the eighth hub cycle stalls the buffer, and two with random
-sensor sets and settings, the scripted transmitter acknowledging nine telemetry frames in ten.
-Every operation, frame byte and buffer count of the 27009 lines replays byte for byte.
+sensor sets and settings, the scripted transmitter acknowledging nine telemetry frames in ten. Every
+operation, frame byte and buffer count of the 27009 lines replays byte for byte.
 
 ## D116. FrSky SPI X receivers (2026-10-13)
 
@@ -2614,20 +2617,20 @@ mask, whose transmitter id seeds a generated hop table that steps around each ba
 channels. A packet passes the D16 CRC over its body, the transmitter id, and the receiver number
 when both sides set one. The first good packet after a reset gives the hop skip.
 
-Each good packet stores the transmitter's telemetry slot by its sequence id and answers with
-either a resend request for the first missing slot or an acknowledgement of the slots received in
-order. Five resend requests in a row reset the transport. The receiver's own telemetry frame
-alternates the RSSI and the A1 value, answers an init request, resends a slot on request, or fills
-the next slot with up to five SmartPort bytes, and carries the D16 CRC. After the telemetry slot
-the receiver waits 3.7 ms, hops by the skip, switches antennas after two misses, and resets the hop
-skip after 100. Channels decode as eleven-bit values with a shift bit that moves a channel eight
-up, and a failsafe packet leaves them as they were. SmartPort payloads over the link are open.
+Each good packet stores the transmitter's telemetry slot by its sequence id and answers with either
+a resend request for the first missing slot or an acknowledgement of the slots received in order.
+Five resend requests in a row reset the transport. The receiver's own telemetry frame alternates the
+RSSI and the A1 value, answers an init request, resends a slot on request, or fills the next slot
+with up to five SmartPort bytes, and ends with the D16 CRC. After the telemetry slot the receiver
+waits 3.7 ms, hops by the skip, switches antennas after two misses, and resets the hop skip after
+100. Channels decode as eleven-bit values with a shift bit that moves a channel eight up, and a
+failsafe packet leaves them as they were. SmartPort payloads over the link are open.
 
-The harness replays eight sequences of 4000 calls recorded from the reference, two for each
-variant, with a scripted transmitter: bind packets, D16 packets with random skips, receiver
-numbers, failsafe flags, shifted channels and telemetry markers with init and resend requests,
-corrupted and short packets, noise and dropouts up to 900 calls. Every operation, frame byte,
-channel value, bind result and state of the 32008 lines replays byte for byte.
+The harness replays eight sequences of 4000 calls recorded from the reference, two for each variant,
+with a scripted transmitter: bind packets, D16 packets with random skips, receiver numbers, failsafe
+flags, shifted channels and telemetry markers with init and resend requests, corrupted and short
+packets, noise and dropouts up to 900 calls. Every operation, frame byte, channel value, bind result
+and state of the 32008 lines replays byte for byte.
 
 ## D117. S-FHSS receiver (2026-10-13)
 
@@ -2640,23 +2643,23 @@ The target measures the calibration and hands it back.
 
 Binding listens on channel 15. The frequency offset rises by 16 every 220 ms until a packet arrives
 with a link quality above 40, which gives the transmitter id. The offset then widens by 4 up and
-down while packets keep arriving within 880 ms, and the midpoint becomes the bind offset, or
-binding starts over when the two ends meet. The coarse sweep wraps from 112 to -128 as a signed
-byte (F125). Bound, the receiver hunts with a hop every 500 ms until a packet with channels 5 to 8
-arrives, then hops 0.5 ms after that half, 3.5 ms after the other half, or 6.8 ms after a miss. It
-switches antennas after two missed hops and hunts again after 100. Each packet's hop code moves the
-channel. A code of 30 or 31 moves it past the calibrated channels, where adaflight writes zero
-calibration and the reference reads past its table (F123). The proof shows that the hop loop ends
-in every state the receiver can reach. Start-up reports success when the chip does not answer,
-without the radio's pins or the RSSI source (F124).
+down while packets keep arriving within 880 ms, and the midpoint becomes the bind offset, or binding
+starts over when the two ends meet. The coarse sweep wraps from 112 to -128 as a signed byte (F125).
+Bound, the receiver hunts with a hop every 500 ms until a packet with channels 5 to 8 arrives, then
+hops 0.5 ms after that half, 3.5 ms after the other half, or 6.8 ms after a miss. It switches
+antennas after two missed hops and hunts again after 100. Each packet's hop code moves the channel.
+A code of 30 or 31 moves it past the calibrated channels, where adaflight writes zero calibration
+and the reference reads past its table (F123). The proof shows that the hop loop ends in every state
+the receiver can reach. Start-up reports success when the chip does not answer, without the radio's
+pins or the RSSI source (F124).
 
 The harness replays ten sequences of 3000 calls recorded from the reference with a scripted
-transmitter: packets inside an offset window during binding with poor link quality, failed CRCs,
-bad headers and other ids, a transmitter that goes quiet after the coarse sweep, channel packets
-with failsafe flags, wrong channels and short FIFOs, hop codes 28 and 29 and an occasional code of
-30 or 31, noise, dropouts up to 260 calls, bind presses and bind commands, a clock near its wrap
-and a chip that does not answer. Every operation, channel value, bind result and state of the
-30010 lines replays byte for byte.
+transmitter: packets inside an offset window during binding with poor link quality, failed CRCs, bad
+headers and other ids, a transmitter that goes quiet after the coarse sweep, channel packets with
+failsafe flags, wrong channels and short FIFOs, hop codes 28 and 29 and an occasional code of 30 or
+31, noise, dropouts up to 260 calls, bind presses and bind commands, a clock near its wrap and a
+chip that does not answer. Every operation, channel value, bind result and state of the 30010 lines
+replays byte for byte.
 
 ## D118. Redpine receiver (2026-10-13)
 
@@ -2668,10 +2671,10 @@ Binding switches to the fast mode, configures and calibrates again, and listens 
 the hop table cleared. The frequency offset rises by 16 every 220 ms until a bind packet arrives,
 then widens by 2 up and down while bind packets keep arriving within 880 ms. Each bind packet gives
 the transmitter id and five hop table entries at its chunk index. A chunk past the table writes
-nothing beyond it, where the reference writes into the settings after it (F126). Binding starts
-over when the two ends are 10 or less apart, and returns to the coarse sweep without clearing the
-table while an entry is still zero. The midpoint becomes the bind offset. Auto bind blinks the LED
-80 times over 4 s instead of saving, and restarts binding after any 2 s without packets (F127). The
+nothing beyond it, where the reference writes into the settings after it (F126). Binding starts over
+when the two ends are 10 or less apart, and returns to the coarse sweep without clearing the table
+while an entry is still zero. The midpoint becomes the bind offset. Auto bind blinks the LED 80
+times over 4 s instead of saving, and restarts binding after any 2 s without packets (F127). The
 coarse sweep wraps from 112 to -128 as a signed byte (F125).
 
 Bound, the receiver hops over 49 channels. A 13-byte packet from its transmitter gives the loop
@@ -2690,12 +2693,12 @@ value, bind result, hop table and state of the 28008 lines replays byte for byte
 
 ## D119. FlySky receivers (2026-10-13)
 
-The FlySky unit contains the FlySky receivers on an A7105 radio: AFHDS with eight channels and
-AFHDS 2A with fourteen. The CC2500 radio unit becomes the SPI radio unit, shared by both radios, and
-gains what the A7105 needs: an id write, FIFO writes of up to 64 bytes, a discarded register read,
-a wait for a register to clear, the interrupt flag reset, and the LED's link loss blink. Start-up
-resets the A7105, writes its id and registers, starts its calibration and waits for it, then
-listens on the bind channel, or on the stored map when bound.
+The FlySky unit contains the FlySky receivers on an A7105 radio: AFHDS with eight channels and AFHDS
+2A with fourteen. The CC2500 radio unit becomes the SPI radio unit, shared by both radios, and gains
+what the A7105 needs: an id write, FIFO writes of up to 64 bytes, a discarded register read, a wait
+for a register to clear, the interrupt flag reset, and the LED's link loss blink. Start-up resets
+the A7105, writes its id and registers, starts its calibration and waits for it, then listens on the
+bind channel, or on the stored map when bound.
 
 The radio raises an interrupt when it finishes a transmission or a reception. The target shows the
 interrupt flag and its time, the mode and RSSI registers and the receive FIFO on each call, and
@@ -2705,17 +2708,17 @@ receiver hops when bound and listens again. A reception with a good CRC is a pac
 answer restarts reception.
 
 Unbound, an AFHDS bind packet gives the transmitter id, which chooses one of 16 channel tables and
-an offset. An AFHDS 2A bind packet gives the id and the channel map, and the receiver answers it
-0.5 ms later with its own id. Binding completes 200 ms after the last bind packet and saves the id
-and the map. Bound, a packet with the transmitter's id, and for AFHDS 2A the receiver's id, gives
-the channels as two bytes each, updates a 16-sample RSSI average and hops on. AFHDS 2A answers a
-channel packet with telemetry every 57 ms: battery voltage, RSSI and error rate, the full frame the
-first time and its changing part after that. Without packets the receiver hops by the packet times
-missed, and after 32 timeouts lengthens its timeout and drops the RSSI. The error rate is the
-number of packets short of 100 in each period of 101 packet times. The RSSI conversion leaves 0 to
-1023 at both ends, and adaflight passes the values on as computed (F128). Unbound, AFHDS 2A reads
-27 bytes of a packet, and adaflight reads zeros for the rest where the reference copies unread
-bytes into five channels (F129).
+an offset. An AFHDS 2A bind packet gives the id and the channel map, and the receiver answers it 0.5
+ms later with its own id. Binding completes 200 ms after the last bind packet and saves the id and
+the map. Bound, a packet with the transmitter's id, and for AFHDS 2A the receiver's id, gives the
+channels as two bytes each, updates a 16-sample RSSI average and hops on. AFHDS 2A answers a channel
+packet with telemetry every 57 ms: battery voltage, RSSI and error rate, the full frame the first
+time and its changing part after that. Without packets the receiver hops by the packet times missed,
+and after 32 timeouts lengthens its timeout and drops the RSSI. The error rate is the number of
+packets short of 100 in each period of 101 packet times. The RSSI conversion leaves 0 to 1023 at
+both ends, and adaflight passes the values on as computed (F128). Unbound, AFHDS 2A reads 27 bytes
+of a packet, and adaflight reads zeros for the rest where the reference copies unread bytes into
+five channels (F129).
 
 The harness replays eight sequences of 3000 calls, five AFHDS 2A and three AFHDS, recorded from the
 reference with a scripted transmitter: bind packets with and without a channel map, channel packets
@@ -2739,10 +2742,10 @@ hop channels from a linear congruential sequence, at most 8, 7 and 8 in its thre
 through the channels until it finds its two. Bound, a packet whose first two bytes match the id, as
 sent or inverted by protocol, gives seven channel words, each naming its channel, and the receiver
 hops on with the RSSI from the radio. Misses hop on with a timeout chosen by CRC seed and channel
-count, and after 31 the receiver searches again. With the telemetry feature on, a packet on the
-id's own seed is answered every 176 ms with the battery voltage and the RSSI percentage. A packet
-length from the radio is taken up to 16 bytes with zeros for the bytes not read, where the
-reference reads any length into a 16-byte buffer (F130).
+count, and after 31 the receiver searches again. With the telemetry feature on, a packet on the id's
+own seed is answered every 176 ms with the battery voltage and the RSSI percentage. A packet length
+from the radio is taken up to 16 bytes with zeros for the bytes not read, where the reference reads
+any length into a 16-byte buffer (F130).
 
 The harness replays seven sequences of 3000 calls and one start-up with no radio, recorded from the
 reference with a scripted transmitter for each protocol: bind packets with broken repeats and
@@ -2755,13 +2758,12 @@ for byte.
 
 The RC statistics unit contains the statistics the OSD statistics page shows as full throttle time,
 full throttle count and average throttle. Each update at 100 Hz takes the throttle percentage. Once
-the throttle passes 15% after arming, each update while armed and out of crash flip counts a
-sample, adds the percentage to the sum, adds the time since the last update while the throttle is
-at 100%, and counts each new arrival at 100%. Arming clears only the raised flag, so the statistics
-run from power-on across flights, as in the reference. The average is the float quotient of the sum
-by the count plus 0.5, truncated. Before the first sample adaflight returns 0, and when 3D reverse
-throttle has wrapped the unsigned sum it returns 127, where the reference conversions are undefined
-(F131).
+the throttle passes 15% after arming, each update while armed and out of crash flip counts a sample,
+adds the percentage to the sum, adds the time since the last update while the throttle is at 100%,
+and counts each new arrival at 100%. Arming clears only the raised flag, so the statistics run from
+power-on across flights. The average is the float quotient of the sum by the count plus 0.5,
+truncated. Before the first sample adaflight returns 0, and when 3D reverse throttle has wrapped the
+unsigned sum it returns 127, where the reference conversions are undefined (F131).
 
 The harness replays six sequences of 3000 updates recorded from the reference: flights with arming
 and disarming, throttle ramps and holds at full throttle, crash flip, irregular update times, one
@@ -2770,37 +2772,37 @@ defined average of the 18006 lines replays exactly.
 
 ## D122. MSP override in the receiver (2026-10-13)
 
-The receiver takes its raw channels as floats, so a provider's fraction of a microsecond reaches
-the channel ranges as it does in the reference. The receiver unit adds the MSP override: the
-channels set for it and whether it may stand in for a lost link. While any channel is set, every
-channel reads as a whole microsecond. A channel that is set and fresh on the MSP receiver reads the
-MSP channel within the pulse limits when the override mode is on, and the provider's channel
-otherwise. The reference truncates every channel this way (F132). With the override mode on and
-the link setting on, a complete override frame counts as a received frame in the frame check. The
-frame check reads the MSP receiver's override status only then, since a read consumes it.
+The receiver takes its raw channels as floats, so a provider's fraction of a microsecond reaches the
+channel ranges. The receiver unit adds the MSP override: the channels set for it and whether it may
+stand in for a lost link. While any channel is set, every channel reads as a whole microsecond. A
+channel that is set and fresh on the MSP receiver reads the MSP channel within the pulse limits when
+the override mode is on, and the provider's channel otherwise. The reference truncates every channel
+this way (F132). With the override mode on and the link setting on, a complete override frame counts
+as a received frame in the frame check. The frame check reads the MSP receiver's override status
+only then, since a read consumes it.
 
-The receiver vectors gain eight sequences of 300 steps recorded from the reference with the
-override compiled in: fractional pulses throughout, six with an override mask and random link
-settings, the override mode switched on and off, MSP channels inside and outside the limits,
-random freshness and override frame status. The 30 earlier sequences record byte for byte as
-before. Every value of the 11894 lines replays exactly.
+The receiver vectors gain eight sequences of 300 steps recorded from the reference with the override
+compiled in: fractional pulses throughout, six with an override mask and random link settings, the
+override mode switched on and off, MSP channels inside and outside the limits, random freshness and
+override frame status. The 30 earlier sequences record byte for byte as before. Every value of the
+11894 lines replays exactly.
 
 ## D123. Receiver task (2026-10-13)
 
-The RX task unit contains the receiver task's state machine. One call checks the receiver, the
-next updates the modes when the check found data, and the next updates the RC commands and the
-arming status; the caller runs the step the unit names. Every step but the last tells the
-scheduler to ignore the task's rate. Unless the scheduler ignores the call's time, the estimate of
-the step just run takes the scheduler's anticipated time when that differs, then the execution time
-plus a microsecond when that is longer, and otherwise decays by a 64th of a microsecond. The
-estimate of the next step goes to the scheduler. The unit takes the scheduler's values as inputs
-and names its outputs, so it stays independent of the scheduler unit, and the target joins them.
-An execution past 33 seconds counts as 33 seconds, where the reference's shift would overflow.
+The RX task unit contains the receiver task's state machine. One call checks the receiver, the next
+updates the modes when the check found data, and the next updates the RC commands and the arming
+status. The caller runs the step the unit names. Every step but the last tells the scheduler to
+ignore the task's rate. Unless the scheduler ignores the call's time, the estimate of the step just
+run takes the scheduler's anticipated time when that differs, then the execution time plus a
+microsecond when that is longer, and otherwise decays by a 64th of a microsecond. The estimate of
+the next step goes to the scheduler. The unit takes the scheduler's values as inputs and names its
+outputs, so it stays independent of the scheduler unit, and the target joins them. An execution past
+33 seconds counts as 33 seconds, where the reference's shift would overflow.
 
 The harness replays four sequences of 4000 calls recorded from the reference task source with the
 processing and the scheduler's hooks stubbed: random check results, execution times, ignored
-execution times, anticipated times that echo the last estimate or change, and a clock near its
-wrap. Every step, hook call, estimate and state of the 16004 lines replays exactly.
+execution times, anticipated times that echo the last estimate or change, and a clock near its wrap.
+Every step, hook call, estimate and state of the 16004 lines replays exactly.
 
 ## D124. Barometer read cycle (2026-10-13)
 
