@@ -97,9 +97,12 @@ package Adaflight.OSD_Format with SPARK_Mode is
    Altitude_Bound : constant := 40_000_000;
 
    --  The altitude in the unit with the altitude symbol: one decimal or none,
-   --  above the launch point or above sea level by the variant.
+   --  above the launch point or above sea level by the variant. The given
+   --  altitude is above the launch point, or above sea level when Is_Asl, and
+   --  the other frame is reached through the launch point's altitude above sea
+   --  level, the craft's altitude above sea level less its estimated altitude.
    procedure Altitude_String (T : out Text; Altitude_Cm : Integer_32; Variant : Element_Type; Altitude_Asl_Cm : Float;
-                              Units : Unit_System)
+                              Estimated_Cm : Integer_32; Is_Asl : Boolean; Units : Unit_System)
      with Pre => Altitude_Asl_Cm in -Float (Altitude_Bound) .. Float (Altitude_Bound);
 
    --  A coordinate in ten-millionths of a degree: seven or four decimals,
