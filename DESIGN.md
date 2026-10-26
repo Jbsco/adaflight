@@ -9269,3 +9269,37 @@ OSD messages ask for come back as one flag each.
 The harness hands every MSP in line of the command line vectors to the processor in place of its own
 routing: 23956 requests over 72 commands in 24 families replay exactly, result, reply and effects.
 Four tampered paths each fail the vectors.
+
+## D381. MSP configuration views and the out replies (2026-10-26)
+
+`Adaflight.MSP_Views` builds the snapshots the MSP out units read from the stored configuration: the
+mode conditions, adjustment ranges, channel map and failsafe channels in the runtime types the
+flight tasks read, and the tuning, receiver, hardware, peripheral, serial, text, OSD and common
+views, each with a record for what the board reports beside the configuration (the options built in,
+the detected gyros, the motors in use, the flight log's rate values, the display and transmitter
+devices, the request's port). A stored value past its runtime type leaves its entry empty: a mode or
+linked box past the boxes, a function past the adjustments, a channel past the eighteen, a step past
+the range, a failsafe mode past the three or an OSD profile past the three.
+`Adaflight.MSP_Processor` gains the out stages in the reference's order before the in messages: the
+common replies, the state and configuration replies, then the replies with an argument (the box
+names and ids, the restart, several replies in one, the VTX table rows, the simplified tuning, the
+configuration reset, the texts, the battery profile, the LED strip values, the command line setting
+and its information) and the passthrough request, whose mode and argument come back as an effect
+while its reply counts the motors for the ESC passthroughs and answers no port for the serial one. A
+reply the build or the state leaves out answers an error with an empty reply. A request for several
+replies measures each sub-reply in full and answers an error when one exceeds the 255 bytes its size
+byte holds, where the reference wraps the size and its room accounting (finding F288, declared in
+D6). The reply room is the MSP port's 512-byte payload. The reference's buffer holds 4112 bytes with
+the flash file system, whose read reply waits for the flash layer (F269). The VTX configuration and
+table replies mark the MSP transmitter ready.
+
+The command line oracle gains out reply lines: each runs one command through the reference's
+dispatch over the configuration the set lines built, with the reply room cut to 512 bytes and the
+sub-reply check of F288 in its fixed copy, and prints the runtime values the reply read (the motor
+count, the channel count, the detected gyro flags, the DShot telemetry use, the log rate values and
+the transmitter state) before the result and the reply bytes. The generator draws 1200 lines in two
+runs: settings of every group, profile selections, motor, gyro flag, serial port, transmitter and
+build key directives, and 718 requests over 61 commands with their arguments, several replies in
+one, passthrough modes and unknown commands. Every result and every one of the 19953 reply bytes
+replays exactly, and the MSP in and bind families replay unchanged through the extended processor.
+Five tampered paths each fail the vectors.
