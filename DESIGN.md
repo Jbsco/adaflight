@@ -10196,3 +10196,23 @@ The host target writes each command frame its transfers send to the file the env
 ADAFLIGHT_DSHOT_LOG names. The smoke check queues a beacon over MSP and finds it once on each motor with
 a telemetry request, then runs dshotprog 0 7 and finds the spin direction command ten times on motor 0
 alone.
+
+## D422. STM32F4 ESC sensor (2026-10-27)
+
+`Adaflight.STM32.ESC_Sensor` reads the ESC telemetry of D60 on a UART. With the ESC sensor feature on, the
+port that esc_sensor_uart names opens at 115200 baud, over its transmit pin alone when
+esc_sensor_halfduplex is on, unless the receiver or the GPS holds it, and the readings start as not yet
+received. The video transmitter, the flight log's serial port and MSP on UART1 leave a port the ESC sensor
+holds. The UART's transmitter is on as well and sends nothing, where the reference opens the port to
+receive only.
+
+The ESC sensor task runs at 100 Hz: it takes the bytes received since its last run into the frame in
+flight, then polls the motors, and a poll's request goes out as the telemetry request in the motor's next
+DShot frame. The battery's ESC meters read the reading over every motor, the MSP ESC sensor and motor
+telemetry replies read each motor's reading, and the command line knows the feature is on. The rate in
+revolutions per minute uses the pole count as the DShot telemetry does, and a negative rate, which no
+motor reaches, reports none. The ESC information read of dshotprog and the OSD's ESC elements are later
+steps.
+
+The host smoke check enables the feature on UART6, sends a frame every 30 ms as the ESCs, and reads the
+temperature, rate, voltage, current and consumption back from the MSP replies.

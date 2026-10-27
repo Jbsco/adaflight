@@ -215,6 +215,46 @@ def check(name, ok, detail=""):
         failures.append(name)
 
 
+def kiss_crc(data):
+    crc = 0
+    for byte in data:
+        crc ^= byte
+        for _ in range(8):
+            crc = ((crc << 1) ^ 0x07) & 0xFF if crc & 0x80 else (crc << 1) & 0xFF
+    return crc
+
+
+class ESC(threading.Thread):
+    """The ESCs' telemetry line on UART6's port: a ten byte frame every 30 ms with 42 degrees, 16.10 V,
+    2.50 A, 77 mAh and 345 hundred electrical revolutions per minute."""
+
+    FRAME = bytes([42]) + (1610).to_bytes(2, "big") + (250).to_bytes(2, "big") + (77).to_bytes(2, "big") \
+        + (345).to_bytes(2, "big")
+
+    def __init__(self):
+        super().__init__(daemon=True)
+        self.stop = threading.Event()
+
+    def run(self):
+        sock = None
+        deadline = time.time() + 10
+        while sock is None and time.time() < deadline and not self.stop.is_set():
+            try:
+                sock = socket.create_connection(("127.0.0.1", LOG_PORT), timeout=1)
+            except OSError:
+                time.sleep(0.1)
+        if sock is None:
+            return
+        frame = self.FRAME + bytes([kiss_crc(self.FRAME)])
+        while not self.stop.is_set():
+            try:
+                sock.sendall(frame)
+            except OSError:
+                break
+            time.sleep(0.03)
+        sock.close()
+
+
 def fat16_image(path, sectors):
     """A card image: a partition table, then a FAT16 volume of 8-sector clusters from sector 8."""
     start = 8
@@ -683,8 +723,39 @@ def main():
             check("vtx_info lists the power levels", "level " in text and " mW" in text, text[-160:])
             text = cli(sock, "tasks", 1.5)
             check("PINIO box task runs for the USER1 range", "PINIOBOX" in text, text[-300:])
+            text = cli(sock, "set vtx_uart = NONE")
+            check("transmitter port released", "vtx_uart set to NONE" in text, text[-120:])
+            text = cli(sock, "feature ESC_SENSOR")
+            check("ESC sensor feature on", "Enabled" in text, text[-120:])
+            text = cli(sock, "set esc_sensor_uart = UART6")
+            check("ESC sensor port assigned", "esc_sensor_uart set to UART6" in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
         finally:
             vtx.stop.set()
+            stop(proc)
+            sock.close()
+        esc = ESC()
+        proc, sock = start(image, store)
+        esc.start()
+        try:
+            time.sleep(7.5)
+            data = msp(sock, 134)
+            readings = [(data[1 + 3 * m], int.from_bytes(data[2 + 3 * m:4 + 3 * m], "little")) for m in range(4)] \
+                if data and len(data) == 13 else []
+            check("MSP ESC sensor data reads each motor's temperature and rate",
+                  data is not None and len(data) == 13 and data[0] == 4 and readings == [(42, 345)] * 4, repr(data))
+            data = msp(sock, 139)
+            first = (int.from_bytes(data[1:5], "little"), data[7], int.from_bytes(data[8:10], "little"),
+                     int.from_bytes(data[10:12], "little"), int.from_bytes(data[12:14], "little")) \
+                if data and len(data) == 53 else None
+            check("MSP motor telemetry reads the ESC sensor's values", first == (4929, 42, 1610, 250, 77), repr(first))
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "tasks", 1.5)
+            check("ESC sensor task runs", "ESC_SENSOR" in text, text[-300:])
+        finally:
+            esc.stop.set()
             stop(proc)
             sock.close()
     print(f"host smoke: {'all checks passed' if not failures else str(len(failures)) + ' failed'}")
