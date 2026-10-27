@@ -1,5 +1,6 @@
 with Adaflight.Config_Runtime;
 with Adaflight.DShot_Command;
+with Adaflight.Vectors;
 with Adaflight.STM32.DShot_Output;
 package body Adaflight.STM32.Pilot is
    use type Interfaces.Unsigned_8;
@@ -83,9 +84,23 @@ package body Adaflight.STM32.Pilot is
 
    procedure Update_Pass
      (Sensed : Adaflight.Arming.Inputs; Channels : Adaflight.RC_Command.Channel_Values;
-      Inp : Adaflight.RC_Command.Command_Inputs; Now_Us : Time_Us; Step : in out Adaflight.Arming.Outputs) is
+      Inp : Adaflight.RC_Command.Command_Inputs; Att : in out Adaflight.Attitude.State; Now_Us : Time_Us;
+      Step : in out Adaflight.Arming.Outputs)
+   is
+      use Adaflight.Arming;
+      Level_Or_Hold : constant Boolean :=
+        Arm.Flight_Modes (Angle_Mode) or else Arm.Flight_Modes (Alt_Hold_Mode) or else Arm.Flight_Modes (Pos_Hold_Mode)
+        or else Arm.Flight_Modes (Horizon_Mode) or else Arm.Flight_Modes (GPS_Rescue_Mode);
    begin
       Adaflight.RC_Command.Update_Commands (RC, RC_Config, Channels, Inp);
+      if Arm.Flight_Modes (Headfree_Mode) then
+         declare
+            Stick : Adaflight.Vectors.Vector3 := Adaflight.RC_Command.Headfree_Vector (RC, Level_Or_Hold);
+         begin
+            Adaflight.Attitude.Headfree_To_Body (Att, Stick);
+            Adaflight.RC_Command.Apply_Headfree (RC, Stick, Level_Or_Hold);
+         end;
+      end if;
       Adaflight.Arming.Update_Status (Arm, Arm_Settings, M, Conds, Sensed, Channels, Now_Us, Step);
    end Update_Pass;
 

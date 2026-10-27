@@ -2079,7 +2079,7 @@ package body Adaflight.STM32.Flight is
                (Box_3D => Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Three_D),
                 LVC_Enabled => Bat.LVC_Enabled, LVC_Percentage => Bat.LVC_Percentage,
                 Failsafe_Active => Adaflight.STM32.Radio.Failsafe_Active),
-               Before, Asked);
+               Att_State, Before, Asked);
       end case;
       Apply (Asked);
       Report_Pilot;
