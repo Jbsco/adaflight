@@ -18,6 +18,7 @@ with Adaflight.Bytes;
 with Adaflight.Clock;
 with Adaflight.Config_Codec;
 with Adaflight.Config_Fix;
+with Adaflight.DShot;
 with Adaflight.Config_Groups;
 with Adaflight.Config_Reset;
 with Adaflight.Config_Runtime;
@@ -62,6 +63,7 @@ with Adaflight.STM32.GPS;
 with Adaflight.GPS_Frames;
 with Adaflight.GPS_Link;
 with Adaflight.STM32.MCU;
+with Adaflight.STM32.Motors;
 with Adaflight.STM32.Gyro;
 with Adaflight.STM32.Pilot;
 with Adaflight.STM32.PINIO;
@@ -711,6 +713,8 @@ package body Adaflight.STM32.Flight is
       Ctx.Log := Adaflight.STM32.Blackbox.Recorder;
       Ctx.Loop_Time := Loop_Time_Us;
       Ctx.Out_Views.OSD.Device := Adaflight.STM32.OSD.Device;
+      Ctx.Motors := Adaflight.STM32.Control.Motor_Count;
+      Ctx.Motor_Device := Adaflight.STM32.Motors.Device;
       Ctx.VTX_Device := Adaflight.STM32.VTX.Device;
       Ctx.VTX_Table := Adaflight.STM32.VTX.Table;
       Ctx.Out_Views.VTX_Status := Adaflight.STM32.VTX.Status;
@@ -878,6 +882,8 @@ package body Adaflight.STM32.Flight is
       Env.Gyros (0).Mode := Gyro_Mode;
       Env.SD_Card := SD_Status;
       Env.VTX_Present := Adaflight.STM32.VTX.Device.Present;
+      Env.Motors := Adaflight.STM32.Control.Motor_Count;
+      Env.Motor_Device := Adaflight.STM32.Motors.Device;
       declare
          Count          : Natural;
          Levels, Powers : Adaflight.SmartAudio.Level_Values;
@@ -891,6 +897,7 @@ package body Adaflight.STM32.Flight is
       end;
       Ctx.Out_Views.Hardware.SD_Card := Adaflight.STM32.SD.Summary;
       Ctx.Out_Views.Hardware.Flash := Adaflight.STM32.Flash_Chip.Summary;
+      Ctx.Out_Views.Hardware.Motor_Count := Unsigned_8 (Adaflight.STM32.Control.Motor_Count);
       Env.Flash := Flash_Status;
       Adaflight.STM32.RTC.Set_Zone (Config.Time_Config.Tz_Offset_Minutes);
       Ctx.Out_Views.State.Clock := Adaflight.STM32.RTC.Clock_Values;
@@ -1555,10 +1562,15 @@ package body Adaflight.STM32.Flight is
          Adaflight.Gyro_Filters.Update_Dynamic_Lowpass
            (Gyro_State, Gyro_Settings, Adaflight.STM32.Control.Throttle_Step);
       end if;
-      Ctx.Out_Views.State.Motors.Enabled := False;
+      Ctx.Out_Views.State.Motors.Enabled := Adaflight.STM32.Motors.Enabled;
       for M in Adaflight.MSP_Out.Motor_Index loop
+         Ctx.Out_Views.State.Motors.Motor_Enabled (M) := Adaflight.STM32.Motors.Motor_Enabled (M);
          Ctx.Out_Views.State.Motors.External (M) :=
-           Unsigned_16 (Float'Max (0.0, Float'Min (65_535.0, Adaflight.STM32.Control.Motors (M))));
+           (if Adaflight.MSP_Motor_In."=" (Adaflight.STM32.Motors.Device, Adaflight.MSP_Motor_In.DShot)
+            then Unsigned_16 (Adaflight.DShot.To_External
+                                (Adaflight.STM32.Control.Motors (M),
+                                 (Runtime_Features and Adaflight.Config_Fix.Feature_3D) /= 0))
+            else Unsigned_16 (Float'Max (0.0, Float'Min (65_535.0, Adaflight.STM32.Control.Motors (M)))));
       end loop;
    end Run_Control;
 
@@ -2094,6 +2106,7 @@ package body Adaflight.STM32.Flight is
       Adaflight.STM32.PINIO.Init_Boxes (Config);
       Adaflight.STM32.Pilot.Set_Reason (Adaflight.Arming.No_Gyro, not Selection.Found);
       Adaflight.STM32.Control.Init (Config, Runtime_Features);
+      Adaflight.STM32.Motors.Init (Config, Adaflight.STM32.Control.Motor_Count);
       Bat_Settings := Battery_Settings;
       Adaflight.Battery.Init (Bat, Bat_Settings);
       Start_OSD;
@@ -2102,6 +2115,7 @@ package body Adaflight.STM32.Flight is
       end if;
       Init_Scheduler;
       Adaflight.STM32.Blackbox.Init (Config, Loop_Time_Us);
+      Adaflight.STM32.Motors.Enable;
       Blink := Ada.Real_Time.Clock;
    end Init;
 
