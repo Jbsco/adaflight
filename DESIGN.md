@@ -9957,3 +9957,25 @@ The log names the firmware Adaflight in its type and revision lines, which the s
 not know. The adaflight-blackbox-log-viewer fork reads them. The host target serves the port on TCP,
 and the smoke check sets the device, the port and the always-on mode, then reads the header, the
 field definitions and the first frames from UART6's port. The image is 591420 bytes of text.
+
+## D412. STM32F4 Crossfire telemetry (2026-10-26)
+
+The receiver link sends the CRSF telemetry of D71 back on its port. The telemetry task runs the
+negotiation, then the frames due from the sources the flight gives it: the GPS solution with its date,
+the battery with its cell voltage option, the attitude, the flight state with the mode word, the
+arming hold, the switches and the rescue settings, the inertial sample and the craft name. The frames
+leave through the port's transmit ring. The receiver's frames feed the telemetry as they arrive: a
+ping schedules the device information reply, a response slot opens the next frame, a speed proposal
+and a device information frame are handed over from the byte past the destination and origin, and
+the default rate returns after repeated errors. A negotiated rate reinitializes the port and tells the
+receiver its timing. The display port over CRSF waits for its menu.
+
+The telemetry's configuration comes from the board's sensors, the telemetry group's disabled kinds and
+inertial frames, the battery meters, the GPS and telemetry features and the negotiated rate option.
+The task runs with the telemetry feature outside the command line. The smoke check's receiver reads
+the port back and counts the frames by type. The image is 598016 bytes of text.
+
+The GPS frames are timed on a change of the solution's time. The board stamps each solution with the
+clock and gives the telemetry that stamp, so an NMEA module's solutions send their frames as a u-blox
+module's do. The reference keys the frames on the solution time its NMEA parser never sets, so an NMEA
+module sends no GPS telemetry over CRSF (DIVERGENCES.md). The flight log keeps the module's own time.

@@ -55,6 +55,9 @@ package Adaflight.STM32.GPS is
       Direction_To_Home   : Interfaces.Integer_16 := 0;
       Distance_Flown_Cm   : Interfaces.Unsigned_32 := 0;
       Time_Ms             : Interfaces.Unsigned_32 := 0;
+      --  The clock at the last solution, which the telemetry reads as the
+      --  solution's time.
+      Solution_Ms         : Interfaces.Unsigned_32 := 0;
       Use_3D_Speed        : Boolean := False;
       Home                : Adaflight.GPS_Frames.Location;
       In_View             : Interfaces.Unsigned_8 := 0;

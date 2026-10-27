@@ -23,6 +23,7 @@ with Adaflight.Config_Reset;
 with Adaflight.Config_Runtime;
 with Adaflight.Config_Store;
 with Adaflight.Core_Loop;
+with Adaflight.CRSF_Telemetry;
 with Adaflight.Failsafe;
 with Adaflight.Gyro_Filters;
 with Adaflight.Gyro_Selection;
@@ -626,7 +627,7 @@ package body Adaflight.STM32.Flight is
    procedure Init_Scheduler is
       Options : constant Adaflight.Task_Init.Options :=
         (Accel => True, Beeper => True, Sag_Compensation => True, OSD => True, CMS => True, GPS => True,
-         others => False);
+         Telemetry => True, others => False);
       Inputs  : Adaflight.Task_Init.Inputs;
    begin
       Sched_Settings := Adaflight.Config_Runtime.Scheduler_Settings_Of
@@ -649,6 +650,7 @@ package body Adaflight.STM32.Flight is
       Inputs.Acc_Sample_Rate_Hz := Gyro_Report.Acc_Sample_Rate_Hz;
       Inputs.Feature_OSD := (Runtime_Features and Adaflight.Config_Fix.Feature_OSD) /= 0;
       Inputs.Feature_GPS := (Runtime_Features and Adaflight.Config_Fix.Feature_GPS) /= 0;
+      Inputs.Feature_Telemetry := (Runtime_Features and Adaflight.Config_Fix.Feature_Telemetry) /= 0;
       Inputs.OSD_Framerate_Hz :=
         Adaflight.Task_Init.Rate_Hz (Natural'Max (1, Natural (Config.Osd_Config.Framerate_Hz)));
       Inputs.OSD_Display_Port := Adaflight.STM32.OSD.Port_Present;
@@ -1044,6 +1046,8 @@ package body Adaflight.STM32.Flight is
       Env.Status.Battery_State := Bat.Overall;
    end Report_Battery;
 
+   procedure Run_Telemetry (Now_Us : Scheduler.Time_Us);
+
    procedure No_Step is null;
    procedure No_Step_At (Now_Us : Scheduler.Time_Us) is null;
    procedure No_Step_Tilt (Now_Us : Scheduler.Time_Us; Cos_Tilt : Float) is null;
@@ -1071,7 +1075,7 @@ package body Adaflight.STM32.Flight is
       Optical_Flow_Update    => No_Step,
       Optical_Flow_Process   => No_Step,
       Telemetry_Poll_Sensors => No_Step_At,
-      Telemetry_Process      => No_Step_At,
+      Telemetry_Process      => Run_Telemetry,
       Camera_Control_Process => No_Step_At);
 
    --  The gyro task: one reading into the gyro filters' accumulation, and
@@ -1702,11 +1706,130 @@ package body Adaflight.STM32.Flight is
       Report_GPS;
    end Run_GPS;
 
+   --  The telemetry's configuration: the sensors the board has, the
+   --  telemetry group's disabled kinds and inertial frames, the battery
+   --  meters, the GPS and telemetry features and the negotiated rate option.
+   function Telemetry_Config return Adaflight.CRSF_Telemetry.Config is
+      use type Adaflight.Battery.Voltage_Source;
+      use type Adaflight.Battery.Current_Source;
+      Meters : constant Adaflight.Battery.Settings := Battery_Settings;
+   begin
+      return
+        (Acc_Present         => Gyro_Report.Acc_Found,
+         Baro_Present        => False,
+         Mag_Present         => False,
+         Gyro_Present        => Selection.Found,
+         Disabled_Kinds      => Config.Telemetry_Config.Disabled_Sensors,
+         Voltage_Configured  => Meters.Voltage_Meter /= Adaflight.Battery.None,
+         Amperage_Configured => Meters.Current_Meter /= Adaflight.Battery.None,
+         GPS_Feature         => (Runtime_Features and Adaflight.Config_Fix.Feature_GPS) /= 0,
+         Telemetry_Feature   => (Runtime_Features and Adaflight.Config_Fix.Feature_Telemetry) /= 0,
+         Inertial_Frames     => Config.Telemetry_Config.Crsf_Tlm_Accgyro /= 0,
+         Event_Driven        => False,
+         Use_Negotiated_Baud => Config.Rx_Config.Crsf_Use_Negotiated_Baud /= 0);
+   end Telemetry_Config;
+
+   --  The flight mode word of the telemetry's flight mode frame.
+   function Telemetry_Mode_Flags return Unsigned_16 is
+      use Adaflight.CRSF_Telemetry;
+      M : constant Adaflight.Arming.Mode_Set := Adaflight.STM32.Pilot.Flight_Modes;
+   begin
+      return
+        (if M (Adaflight.Arming.Angle_Mode) then Mode_Angle else 0)
+        or (if M (Adaflight.Arming.Horizon_Mode) then Mode_Horizon else 0)
+        or (if M (Adaflight.Arming.Alt_Hold_Mode) then Mode_Alt_Hold else 0)
+        or (if M (Adaflight.Arming.Pos_Hold_Mode) then Mode_Pos_Hold else 0)
+        or (if M (Adaflight.Arming.Chirp_Mode) then Mode_Chirp else 0)
+        or (if M (Adaflight.Arming.Passthru_Mode) then Mode_Passthru else 0)
+        or (if M (Adaflight.Arming.Failsafe_Mode) then Mode_Failsafe else 0)
+        or (if M (Adaflight.Arming.GPS_Rescue_Mode) then Mode_GPS_Rescue else 0);
+   end Telemetry_Mode_Flags;
+
+   --  What the telemetry reads: the GPS solution with its date, the battery,
+   --  the attitude, the flight state, the inertial sample and the craft name.
+   function Telemetry_Sources return Adaflight.CRSF_Telemetry.Sources is
+      Src      : Adaflight.CRSF_Telemetry.Sources;
+      G        : constant Adaflight.STM32.GPS.Readings := Adaflight.STM32.GPS.Current;
+      T        : constant Adaflight.GPS_Frames.Date_Time := Adaflight.STM32.GPS.Time;
+      Volts    : constant Natural := Natural'Min (65_535, Bat.Voltage.Display_Filtered);
+      Disabled : constant Adaflight.Arming.Disable_Set := Adaflight.STM32.Pilot.Disabled;
+   begin
+      Src.GPS :=
+        (Latitude       => G.Latitude,
+         Longitude      => G.Longitude,
+         Altitude_Cm    => G.Altitude_Cm,
+         Ground_Speed   => G.Ground_Speed,
+         Ground_Course  => G.Ground_Course,
+         Satellites     => G.Satellites,
+         Fix            => G.Fix,
+         Time           => G.Solution_Ms,
+         Velocity_North => G.Velocity.North,
+         Velocity_East  => G.Velocity.East,
+         Velocity_Down  => G.Velocity.Down,
+         HDOP           => G.HDOP,
+         VDOP           => G.VDOP,
+         Date_Valid     => T.Valid,
+         Year           => T.Year,
+         Month          => T.Month,
+         Day            => T.Day,
+         Hour           => T.Hour,
+         Minute         => T.Minute,
+         Second         => T.Second,
+         Millisecond    => T.Millis,
+         others         => <>);
+      Src.Battery :=
+        (Legacy_Voltage      => Unsigned_16 ((Volts + 5) / 10),
+         Cell_Voltage        => (if Bat.Cells > 0 then Unsigned_16 (Volts / Bat.Cells) else 0),
+         Amperage            => Integer_32'Max (-2 ** 31, Integer_32'Min (2 ** 31 - 1, Integer_32 (Bat.Current.Amperage))),
+         Drawn_Mah           => Integer_32'Max (0, Integer_32'Min (2 ** 31 - 1, Integer_32 (Bat.Current.mAh_Drawn))),
+         Remaining_Percent   => Unsigned_8 (Adaflight.Battery.Percentage_Remaining (Bat, Bat_Settings)),
+         Report_Cell_Voltage => Config.Telemetry_Config.Report_Cell_Voltage /= 0);
+      Src.Attitude :=
+        (Pitch => Integer_16 (Att_State.Euler.Pitch),
+         Roll  => Integer_16 (Att_State.Euler.Roll),
+         Yaw   => Integer_16 (Att_State.Euler.Yaw));
+      Src.Flight :=
+        (Mode_Flags            => Telemetry_Mode_Flags,
+         Armed                 => Adaflight.STM32.Pilot.Armed,
+         Failsafe_Switch       => Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Failsafe),
+         Rescue_Switch         => Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.GPS_Rescue),
+         Rescue_Plan           => False,
+         Position_Hold_Failure => False,
+         Airmode               => Adaflight.STM32.Pilot.Airmode_Enabled,
+         Arming_Disabled       => (for some R in Adaflight.Arming.Disable_Reason => Disabled (R)),
+         GPS_Feature           => Adaflight.STM32.GPS.Enabled,
+         Rescue_Configured     => Adaflight.STM32.Pilot.Box_Configured (Adaflight.Modes.GPS_Rescue),
+         Rescue_Min_Satellites => Config.Gps_Rescue_Config.Min_Sats);
+      Src.IMU.Fresh := True;
+      for A in Adaflight.Axes.Axis loop
+         Src.IMU.Gyro (Adaflight.Axes.Axis'Pos (A)) := Float'Max (-1.0e6, Float'Min (1.0e6, Gyro_State.Filtered (A)));
+      end loop;
+      Src.IMU.Acc := (0 => Float'Max (-1.0e6, Float'Min (1.0e6, Acc_State.Acc.X)),
+                      1 => Float'Max (-1.0e6, Float'Min (1.0e6, Acc_State.Acc.Y)),
+                      2 => Float'Max (-1.0e6, Float'Min (1.0e6, Acc_State.Acc.Z)));
+      Src.IMU.Acc_1G_Reciprocal := 1.0 / Float (Natural'Max (1, Adaflight.STM32.Gyro.Acc_One_G));
+      for I in Config.Pilot_Config.Craft_Name'Range loop
+         exit when Config.Pilot_Config.Craft_Name (I) = 0 or else Src.Name_Last = Adaflight.CRSF_Telemetry.Name_Length_Max;
+         Src.Name_Last := Src.Name_Last + 1;
+         Src.Name (Src.Name_Last) := Character'Val (Config.Pilot_Config.Craft_Name (I));
+      end loop;
+      return Src;
+   end Telemetry_Sources;
+
+   procedure Run_Telemetry (Now_Us : Scheduler.Time_Us) is
+   begin
+      Adaflight.STM32.Radio.Telemetry_Step (Now_Us, Telemetry_Sources);
+   end Run_Telemetry;
+
    --  A task's body between the scheduler's execution prologue and
    --  epilogue, at the clock around its run.
    procedure Run_Body (Id : Scheduler.Task_Id) is
       Before : constant Unsigned_32 := Adaflight.STM32.Time.Micros;
-      Inputs : constant Tasks.Inputs := (Armed => Adaflight.STM32.Pilot.Armed, CLI_Open => Session.Open, others => <>);
+      Inputs : constant Tasks.Inputs :=
+        (Armed             => Adaflight.STM32.Pilot.Armed,
+         CLI_Open          => Session.Open,
+         Feature_Telemetry => (Runtime_Features and Adaflight.Config_Fix.Feature_Telemetry) /= 0,
+         others            => <>);
    begin
       case Id is
          when Scheduler.System =>
@@ -1741,6 +1864,8 @@ package body Adaflight.STM32.Flight is
             Run_Menu (Before);
          when Scheduler.GPS =>
             Run_GPS (Before);
+         when Scheduler.Telemetry =>
+            Tasks.Telemetry (Inputs, Before);
          when others =>
             null;
       end case;
@@ -1813,7 +1938,7 @@ package body Adaflight.STM32.Flight is
       Start_Gyro;
       Init_Loop_Units;
       Boot_Beeps;
-      Adaflight.STM32.Radio.Init (Config, Runtime_Features, Adaflight.STM32.Time.Millis);
+      Adaflight.STM32.Radio.Init (Config, Runtime_Features, Adaflight.STM32.Time.Millis, Telemetry_Config);
       Adaflight.STM32.GPS.Init (Config, Runtime_Features, Adaflight.STM32.Time.Millis);
       Ctx.Out_Views.State.Status.Sensors (Adaflight.MSP_Out.GPS) := Adaflight.STM32.GPS.Enabled;
       Pilot_Facts := (Sensors        => (Gyro => Selection.Found, Acc => Gyro_Report.Acc_Found, others => False),

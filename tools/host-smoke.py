@@ -55,9 +55,13 @@ class GPS(threading.Thread):
 
     def __init__(self):
         super().__init__(daemon=True)
-        self.frames = nmea("GPGGA,123519.00,4807.03800,N,01131.00000,E,1,10,0.9,545.4,M,46.9,M,,") + nmea(
-            "GPRMC,123519.00,A,4807.03800,N,01131.00000,E,022.4,084.4,230394,003.1,W")
         self.stop = threading.Event()
+
+    def frames(self, tick):
+        """The fix at a time that advances a fifth of a second per frame, so each solution is new."""
+        clock = f"{12 + tick // 18000:02d}{(tick // 300) % 60:02d}{(tick // 5) % 60:02d}.{(tick % 5) * 20:02d}"
+        return nmea(f"GPGGA,{clock},4807.03800,N,01131.00000,E,1,10,0.9,545.4,M,46.9,M,,") + nmea(
+            f"GPRMC,{clock},A,4807.03800,N,01131.00000,E,022.4,084.4,230394,003.1,W")
 
     def run(self):
         sock = None
@@ -67,11 +71,13 @@ class GPS(threading.Thread):
                 sock = socket.create_connection(("127.0.0.1", GPS_PORT), timeout=1)
             except OSError:
                 time.sleep(0.1)
+        tick = 0
         while sock is not None and not self.stop.is_set():
             try:
-                sock.sendall(self.frames)
+                sock.sendall(self.frames(tick))
             except OSError:
                 break
+            tick += 1
             time.sleep(0.2)
         if sock is not None:
             sock.close()
@@ -84,6 +90,23 @@ class Receiver(threading.Thread):
         super().__init__(daemon=True)
         self.channels = [992, 992, 172, 992] + [992] * 12
         self.stop = threading.Event()
+        self.frames = {}
+        self.pending = b""
+
+    def count_frames(self, data):
+        """Counts the telemetry frames by type in the bytes read back from the port."""
+        self.pending += data
+        while len(self.pending) >= 2:
+            length = self.pending[1]
+            if length < 2 or length > 62:
+                self.pending = self.pending[1:]
+                continue
+            if len(self.pending) < length + 2:
+                break
+            frame = self.pending[:length + 2]
+            self.pending = self.pending[length + 2:]
+            if crc8(frame[2:-1]) == frame[-1]:
+                self.frames[frame[2]] = self.frames.get(frame[2], 0) + 1
 
     def set(self, roll, pitch, throttle, yaw):
         self.channels = [roll, pitch, throttle, yaw] + [992] * 12
@@ -96,9 +119,17 @@ class Receiver(threading.Thread):
                 sock = socket.create_connection(("127.0.0.1", RX_PORT), timeout=1)
             except OSError:
                 time.sleep(0.1)
+        if sock is not None:
+            sock.settimeout(0.005)
         while sock is not None and not self.stop.is_set():
             try:
                 sock.sendall(crsf_frame(self.channels))
+            except OSError:
+                break
+            try:
+                self.count_frames(sock.recv(4096))
+            except socket.timeout:
+                pass
             except OSError:
                 break
             time.sleep(0.02)
@@ -303,6 +334,10 @@ def main():
             text = cli(vcp, "status")
             flags = text.split("Arming disable flags:")[-1]
             check("open menu holds arming", "CMS" in flags, flags.strip()[:80])
+            frames = dict(receiver.frames)
+            check("telemetry frames reach the receiver port",
+                  frames.get(0x1E, 0) > 5 and frames.get(0x08, 0) > 5 and frames.get(0x21, 0) > 5
+                  and frames.get(0x02, 0) > 5, repr(frames))
         finally:
             receiver.stop.set()
             gps.stop.set()
