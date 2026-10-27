@@ -103,6 +103,18 @@ def ibus_frame(channels_us):
     return body + ((0xFFFF - sum(body)) & 0xFFFF).to_bytes(2, "little")
 
 
+def fport_frame(sbus_channels, rssi=100):
+    """An FPORT control frame: between the markers, the length, the control type, the SBUS channel block
+    with its flags, the RSSI and the FrSky checksum, with the markers and the escape byte stuffed."""
+    body = bytes([0x19, 0x00]) + sbus_frame(sbus_channels)[1:24] + bytes([rssi])
+    total = sum(body)
+    while total > 0xFF:
+        total = (total & 0xFF) + (total >> 8)
+    body += bytes([0xFF - total])
+    stuffed = b"".join(bytes([0x7D, b ^ 0x20]) if b in (0x7D, 0x7E) else bytes([b]) for b in body)
+    return bytes([0x7E]) + stuffed + bytes([0x7E])
+
+
 def crc16_xmodem(data):
     """The CRC16 of polynomial 0x1021 from zero, most significant bit first."""
     crc = 0
@@ -1083,7 +1095,8 @@ def main():
         for name, frame, extra in (("SBUS", sbus_frame([992, 1150, 172, 992] + [992] * 12), []),
                                    ("IBUS", ibus_frame(us), ["serialrx_halfduplex = ON"]),
                                    ("SUMD", sumd_frame(us), []), ("SPEK2048", spektrum_frame(us), []),
-                                   ("XB-B", xbus_frame(us), [])):
+                                   ("XB-B", xbus_frame(us), []),
+                                   ("FPORT", fport_frame([992, 1150, 172, 992] + [992] * 12), [])):
             store = os.path.join(work, name.lower() + ".bin")
             proc, sock = start(image, store)
             try:
