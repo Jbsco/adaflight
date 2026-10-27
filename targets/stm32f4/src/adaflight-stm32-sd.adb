@@ -6,6 +6,7 @@ with Adaflight.SD_Card;
 with Adaflight.SD_Card_Bus;
 with Adaflight.SD_Card_Types;
 with Adaflight.STM32.GPIO;
+with Adaflight.STM32.RTC;
 with Adaflight.STM32.SPI;
 with Adaflight.STM32.Time;
 package body Adaflight.STM32.SD is
@@ -264,13 +265,11 @@ package body Adaflight.STM32.SD is
       Card.Begin_Write_Blocks (M.Dev, M.S, Sector, Unsigned_32 (Count), Result);
    end FS_Begin_Write_Blocks;
 
-   --  The board has no clock set, so new entries carry the file system's
-   --  default time.
+   --  New entries carry the local time once the clock is set.
    procedure FS_Read_Clock (M : in out Media; Valid : out Boolean; Local : out Adaflight.FAT.Clock_Reading) is
       pragma Unreferenced (M);
    begin
-      Valid := False;
-      Local := (others => <>);
+      Adaflight.STM32.RTC.Local_Now (Valid, Local);
    end FS_Read_Clock;
 
    package FS_Ops is new Adaflight.FAT_FS
