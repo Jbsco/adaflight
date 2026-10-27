@@ -54,11 +54,9 @@ def crsf_msp_request(payload):
     return bytes([0xC8, len(body) + 1]) + body + bytes([crc8(body)])
 
 
-def msp_tunnel_reply(frames):
-    """The MSP reply in a run of CRSF MSP response frames: the command, the declared size, a jumbo size
-    included, the data and whether the chunks' sequence numbers follow on from the first, which has the start
-    flag."""
-    chunks = [f[5:-1] for f in frames]
+def msp_tunnel_reply(chunks):
+    """The MSP reply in a run of MSP tunnel chunks: the command, the declared size, a jumbo size included, the
+    data and whether the chunks' sequence numbers follow on from the first, which has the start flag."""
     if not chunks or not chunks[0] or not chunks[0][0] & 0x10:
         return None
     size, command, start = chunks[0][1], chunks[0][2], 3
@@ -209,6 +207,13 @@ def ghst_frames(channels_us):
     return [frame(0x33, [100, 60, 0x05, 20]), frame(0x30, [128, 128, 128, 128])]
 
 
+def ghst_msp_request(payload):
+    """A Ghost MSP request frame for the flight controller: the address, the length, the type, the MSP
+    tunnel's payload zero-filled to ten bytes and the CRC8 of the type and payload."""
+    body = bytes([0x21]) + payload.ljust(10, b"\0")
+    return bytes([0x82, 12]) + body + bytes([crc8_dvb_s2(body)])
+
+
 def ghst_replies(data):
     """The Ghost telemetry frames in the bytes from the flight controller: the receiver's address, the length
     twelve, the type, ten payload bytes and the CRC8 of the type and payload, which must check."""
@@ -277,6 +282,7 @@ class SerialReceiver(threading.Thread):
         self.frames = frame if isinstance(frame, list) else [frame]
         self.stop = threading.Event()
         self.received = b""
+        self.outbox = []
 
     def run(self):
         sock = None
@@ -289,7 +295,7 @@ class SerialReceiver(threading.Thread):
         turn = 0
         while sock is not None and not self.stop.is_set():
             try:
-                sock.sendall(self.frames[turn % len(self.frames)])
+                sock.sendall(self.outbox.pop(0) if self.outbox else self.frames[turn % len(self.frames)])
             except OSError:
                 break
             turn += 1
@@ -1404,7 +1410,7 @@ def main():
             receiver.outbox.append(crsf_msp_request(bytes([0x30, 0, 1])))
             time.sleep(0.5)
             replies = list(receiver.msp_replies)
-            reply = msp_tunnel_reply(replies)
+            reply = msp_tunnel_reply([f[5:-1] for f in replies])
             check("MSP over CRSF answers the API version to the request's origin",
                   len(replies) == 1 and replies[0][3:5] == bytes([0xEA, 0xC8]) and reply is not None
                   and reply[0] == 1 and reply[1] == 3 and reply[2][:2] == bytes([0, 1]) and reply[3], repr(replies))
@@ -1412,7 +1418,7 @@ def main():
             receiver.outbox.append(crsf_msp_request(bytes([0x31, 0, 52])))
             time.sleep(0.8)
             replies = list(receiver.msp_replies)
-            reply = msp_tunnel_reply(replies)
+            reply = msp_tunnel_reply([f[5:-1] for f in replies])
             serial = msp(sock, 52)
             check("MSP over CRSF sends the 300-byte adjustment ranges in six numbered chunks as serial MSP does",
                   len(replies) == 6 and reply is not None and reply[0] == 52 and reply[1] == 300
@@ -1449,6 +1455,23 @@ def main():
             check("Ghost telemetry answers in the receiver's quiet window with checked frames", len(frames) >= 10,
                   repr(sender.received[:60]))
             check("Ghost telemetry sends the battery pack frame", kinds == [0x23], repr(kinds))
+            mark = len(sender.received)
+            sender.outbox.append(ghst_msp_request(bytes([0x30, 0, 1])))
+            time.sleep(0.5)
+            chunks = [p[:6] for k, p in ghst_replies(sender.received[mark:]) if k == 0x28]
+            reply = msp_tunnel_reply(chunks)
+            check("MSP over Ghost answers the API version in a full chunk and an empty last one",
+                  len(chunks) == 2 and chunks[1][1:] == bytes(5) and reply is not None and reply[0] == 1
+                  and reply[1] == 3 and reply[2][:2] == bytes([0, 1]) and reply[3], repr(chunks))
+            mark = len(sender.received)
+            sender.outbox.append(ghst_msp_request(bytes([0x31, 0, 52])))
+            time.sleep(2.0)
+            chunks = [p[:6] for k, p in ghst_replies(sender.received[mark:]) if k == 0x28]
+            reply = msp_tunnel_reply(chunks)
+            serial = msp(sock, 52)
+            check("MSP over Ghost sends the 300-byte adjustment ranges in six-byte chunks as serial MSP does",
+                  len(chunks) == 61 and reply is not None and reply[0] == 52 and reply[1] == 300
+                  and reply[2] == serial and reply[3], repr((len(chunks), chunks[:3])))
         finally:
             sender.stop.set()
             stop(proc)

@@ -95,6 +95,12 @@ package body Adaflight.STM32.Radio is
    MSP_Pending     : Boolean := False;
    MSP_Link        : Adaflight.MSP_Telemetry.Tunnel;
    MSP_Chunks_Left : Boolean := False;
+   --  Whether an MSP reply is due over the Ghost link, the size of the
+   --  chunks its frames take, and the response frame's address and type.
+   GHST_MSP_Pending      : Boolean := False;
+   GHST_MSP_Chunk        : constant := 6;
+   GHST_Receiver_Address : constant Adaflight.Bytes.Byte := 16#89#;
+   GHST_MSP_Response     : constant Adaflight.Bytes.Byte := 16#28#;
    MSP_Answer      : Adaflight.Bytes.Byte_Array (0 .. Adaflight.MSP_Telemetry.Response_Buffer_Size - 1) :=
      (others => 0);
 
@@ -325,8 +331,8 @@ package body Adaflight.STM32.Radio is
             Length := Natural (MSP_Frames (Pos));
             Adaflight.MSP_Telemetry.Handle_Frame (MSP_Link, MSP_Frames (Pos + 1 .. Pos + Length), Outcome, Unused_Write);
             if Outcome = Adaflight.MSP_Telemetry.Request_Ready then
-               Process (MSP_Link.Request_Command, Adaflight.MSP_Telemetry.Request_Data (MSP_Link), MSP_Answer, Count,
-                        Failed);
+               Answer (MSP_Link.Request_Command, Adaflight.MSP_Telemetry.Request_Data (MSP_Link), MSP_Answer, Count,
+                       Failed);
                Adaflight.MSP_Telemetry.Prepare_Reply
                  (MSP_Link, (if Failed then Adaflight.MSP_Telemetry.Result_Error else MSP_Ack), MSP_Answer (0 .. Count - 1));
             end if;
@@ -372,13 +378,40 @@ package body Adaflight.STM32.Radio is
       GHST_Tlm_Set := Settings;
       GHST_Tlm_On := Feature_On and then Open and then Kind = GHST;
       GHST_Length := 0;
+      GHST_MSP_Pending := False;
       Adaflight.GHST_Telemetry.Init (GHST_Tlm, GHST_Tlm_Set);
    end Init_GHST_Telemetry;
 
    procedure GHST_Telemetry_Step (Inp : Adaflight.GHST_Telemetry.Inputs) is
       O : Adaflight.GHST_Telemetry.Output;
+
+      --  The MSP reply's next chunk in a response frame to the receiver,
+      --  zero-filled to the frame's payload, behind its type and CRC.
+      procedure Queue_MSP_Chunk is
+         Chunk  : Adaflight.MSP_Telemetry.Chunk_Buffer;
+         Length : Natural;
+         Body_Bytes : Adaflight.Bytes.Byte_Array (0 .. Adaflight.GHST_Telemetry.Frame_Size - 4) := (others => 0);
+      begin
+         Adaflight.MSP_Telemetry.Send_Reply (MSP_Link, GHST_MSP_Chunk, Chunk, Length, GHST_MSP_Pending);
+         Body_Bytes (0) := GHST_MSP_Response;
+         Body_Bytes (1 .. Length) := Chunk (0 .. Length - 1);
+         GHST_Reply (0) := GHST_Receiver_Address;
+         GHST_Reply (1) := Adaflight.Bytes.Byte (Body_Bytes'Length + 1);
+         GHST_Reply (2 .. Body_Bytes'Length + 1) := Body_Bytes;
+         GHST_Reply (Body_Bytes'Length + 2) :=
+           Adaflight.Bytes.CRC8_Update (0, Body_Bytes, Adaflight.Bytes.DVB_S2_Polynomial);
+         GHST_Length := Adaflight.GHST_Telemetry.Frame_Size;
+         Adaflight.GHST.Queue_Telemetry (GHST_State, GHST_Length);
+      end Queue_MSP_Chunk;
    begin
       if not GHST_Tlm_On or else not GHST_State.Telemetry_Enabled then
+         return;
+      end if;
+      if GHST_MSP_Pending then
+         GHST_Tlm.Last_Cycle_Us := Inp.Now_Us;
+         if GHST_State.Telemetry_Length = 0 then
+            Queue_MSP_Chunk;
+         end if;
          return;
       end if;
       Adaflight.GHST_Telemetry.Update (GHST_Tlm, GHST_Tlm_Set, Inp, O);
@@ -488,10 +521,38 @@ package body Adaflight.STM32.Radio is
      (Adaflight.Receiver.Update_Check (Rx, Task_In_Progress));
 
    procedure Process (Now_Us : Time_Us; Now_Ms : Time_Ms; ADC_Sample : Natural; Processed : out Boolean) is
+      use type Adaflight.GHST.MSP_Kind;
       Raw             : Adaflight.Receiver.Raw_Values := (others => 0.0);
       Override        : Adaflight.Receiver.Override_Report;
       Frame_Processed : Boolean;
       Valid           : Adaflight.Receiver.Validity;
+
+      --  A Ghost MSP frame's payload, past its address, length and type,
+      --  through the tunnel, a completed request through Answer, and a reply
+      --  made due for any request the tunnel answers.
+      procedure Answer_GHST_MSP (Length : Natural) is
+         use type Adaflight.MSP_Telemetry.Outcome;
+         F            : Adaflight.GHST.Frame_Bytes renames GHST_State.Buffers (1 - GHST_State.Incoming);
+         Payload      : Adaflight.Bytes.Byte_Array (0 .. Length - 1);
+         Outcome      : Adaflight.MSP_Telemetry.Outcome;
+         Unused_Write : Boolean;
+         Count        : Natural;
+         Failed       : Boolean;
+      begin
+         for K in Payload'Range loop
+            Payload (K) := Adaflight.Bytes.Byte (F (3 + K));
+         end loop;
+         Adaflight.MSP_Telemetry.Handle_Frame (MSP_Link, Payload, Outcome, Unused_Write);
+         if Outcome = Adaflight.MSP_Telemetry.Request_Ready then
+            Answer (MSP_Link.Request_Command, Adaflight.MSP_Telemetry.Request_Data (MSP_Link), MSP_Answer, Count,
+                    Failed);
+            Adaflight.MSP_Telemetry.Prepare_Reply
+              (MSP_Link, (if Failed then Adaflight.MSP_Telemetry.Result_Error else MSP_Ack), MSP_Answer (0 .. Count - 1));
+         end if;
+         if Outcome /= Adaflight.MSP_Telemetry.Ignored then
+            GHST_MSP_Pending := True;
+         end if;
+      end Answer_GHST_MSP;
    begin
       --  The processing a frame status asked for runs before the channels
       --  are read: Ghost decodes its channels and link statistics there.
@@ -503,6 +564,9 @@ package body Adaflight.STM32.Radio is
             if Result.Telemetry_Sent and then GHST_Length > 0 then
                USART.Put (Port, GHST_Reply (0 .. GHST_Length - 1));
                GHST_Length := 0;
+            end if;
+            if Result.MSP /= Adaflight.GHST.None then
+               Answer_GHST_MSP (Result.MSP_Length);
             end if;
          end;
       end if;

@@ -1146,6 +1146,7 @@ package body Adaflight.STM32.Flight is
    end Telemetry_Request;
 
    procedure Telemetry_Step is new Adaflight.STM32.Radio.Telemetry_Step (Telemetry_Request);
+   procedure Receiver_Step is new Adaflight.STM32.Radio.Process (Telemetry_Request);
 
    --  The serial task: while the command line is open its port's bytes go to
    --  it, otherwise each port's bytes go to its MSP framing. The status reply
@@ -2215,7 +2216,7 @@ package body Adaflight.STM32.Flight is
       end loop;
       case Step is
          when Adaflight.RX_Task.Check =>
-            Adaflight.STM32.Radio.Process
+            Receiver_Step
               (Before, Adaflight.STM32.Time.Millis,
                (if Adaflight.STM32.Radio.RSSI_ADC
                 then Analog (Config.Adc_Config.Rssi) else 0),
