@@ -85,10 +85,17 @@ package body Adaflight.STM32.Pilot is
       Adaflight.RC_Command.Update_Refresh_Rate (RC, Now_Us, Receiving, Frame_Time_Us);
    end Update_Refresh_Rate;
 
-   procedure Disarm (Now_Us : Time_Us; Step : in out Adaflight.Arming.Outputs) is
+   procedure Disarm
+     (Reason : Adaflight.Arming.Disarm_Reason; Now_Us : Time_Us; Step : in out Adaflight.Arming.Outputs) is
    begin
-      Adaflight.Arming.Disarm (Arm, Arm_Settings, M, Adaflight.Arming.Serial_Command, Now_Us, Step);
+      Adaflight.Arming.Disarm (Arm, Arm_Settings, M, Reason, Now_Us, Step);
    end Disarm;
+
+   procedure Set_Failsafe_Mode (On : Boolean; Changed : out Boolean) is
+   begin
+      Changed := Arm.Flight_Modes (Adaflight.Arming.Failsafe_Mode) /= On;
+      Arm.Flight_Modes (Adaflight.Arming.Failsafe_Mode) := On;
+   end Set_Failsafe_Mode;
 
    procedure Process_Commands is
    begin

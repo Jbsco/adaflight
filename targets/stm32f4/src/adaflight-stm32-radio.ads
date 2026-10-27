@@ -29,7 +29,13 @@ package Adaflight.STM32.Radio is
    function RSSI_ADC return Boolean;
    function RSSI return Interfaces.Unsigned_16;
    --  The failsafe's check every ten milliseconds of the realtime block.
-   procedure Failsafe_Check (Now_Ms : Time_Ms; Beep : out Adaflight.Failsafe.Beep);
+   --  The failsafe's check over what it reads in flight; Disarm says its
+   --  landed stage asks for a disarm.
+   procedure Failsafe_Check
+     (Now_Ms : Time_Ms; In_Flight : Adaflight.Failsafe.Inputs; Beep : out Adaflight.Failsafe.Beep;
+      Disarm : out Boolean);
+   --  The failsafe's own flight mode.
+   function Failsafe_Mode return Boolean;
    --  The failsafe's monitoring, which the arming logic starts.
    procedure Start_Failsafe_Monitoring;
    function Failsafe_Receiving return Boolean;

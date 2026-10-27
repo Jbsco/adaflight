@@ -574,7 +574,7 @@ package body Adaflight.STM32.Flight is
          Adaflight.Accelerometer.Start_Calibration (Acc_State);
       end if;
       if Effects.Control.Disarm then
-         Adaflight.STM32.Pilot.Disarm (Adaflight.STM32.Time.Micros, Asked);
+         Adaflight.STM32.Pilot.Disarm (Adaflight.Arming.Serial_Command, Adaflight.STM32.Time.Micros, Asked);
          Apply (Asked);
       end if;
       if Effects.Save then
@@ -1351,6 +1351,40 @@ package body Adaflight.STM32.Flight is
       Blink := Ada.Real_Time.Clock;
    end Init;
 
+   --  The failsafe's check every ten milliseconds of the realtime block over
+   --  the arming, the failsafe box, the throttle status and the controller's
+   --  crash recovery, with no autopilot on this image: its lost link tones,
+   --  its landed stage's disarm, and its flight mode with the confirmation
+   --  beep of a change.
+   procedure Check_Failsafe is
+      Beep     : Adaflight.Failsafe.Beep;
+      Disarm   : Boolean;
+      Changed  : Boolean;
+      Asked    : Adaflight.Arming.Outputs;
+      In_Flight : constant Adaflight.Failsafe.Inputs :=
+        (Armed               => Adaflight.STM32.Pilot.Armed,
+         Switch_On           => Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Failsafe),
+         Throttle_Low        => Adaflight.STM32.Pilot.Throttle_Low (Flight_Channels),
+         Configurator_Active => False,
+         Crash_Recovery      => Adaflight.STM32.Control.Crash_Recovery_Active,
+         others              => False);
+   begin
+      Adaflight.STM32.Radio.Failsafe_Check (Adaflight.STM32.Time.Millis, In_Flight, Beep, Disarm);
+      case Beep is
+         when Adaflight.Failsafe.Rx_Lost => Request_Beep (Adaflight.Beeper.Rx_Lost);
+         when Adaflight.Failsafe.Rx_Lost_Landing => Request_Beep (Adaflight.Beeper.Rx_Lost_Landing);
+         when Adaflight.Failsafe.Silence => null;
+      end case;
+      if Disarm then
+         Adaflight.STM32.Pilot.Disarm (Adaflight.Arming.Failsafe, Adaflight.STM32.Time.Micros, Asked);
+         Apply (Asked);
+      end if;
+      Adaflight.STM32.Pilot.Set_Failsafe_Mode (Adaflight.STM32.Radio.Failsafe_Mode, Changed);
+      if Changed then
+         Confirmation_Beeps (1);
+      end if;
+   end Check_Failsafe;
+
    --  One pass of the scheduler in its phases: the realtime tasks at the
    --  gyro's target, the gyro lock, the selection over the queue with the
    --  checks, the held task's run, and the LED's blink.
@@ -1388,16 +1422,7 @@ package body Adaflight.STM32.Flight is
                Adaflight.RX_Task.In_Progress (RX_State));
          end;
          if Scheduler.Failsafe_Due (Sched, Adaflight.STM32.Time.Millis) then
-            declare
-               Failsafe_Beep : Adaflight.Failsafe.Beep;
-            begin
-               Adaflight.STM32.Radio.Failsafe_Check (Adaflight.STM32.Time.Millis, Failsafe_Beep);
-               case Failsafe_Beep is
-                  when Adaflight.Failsafe.Rx_Lost => Request_Beep (Adaflight.Beeper.Rx_Lost);
-                  when Adaflight.Failsafe.Rx_Lost_Landing => Request_Beep (Adaflight.Beeper.Rx_Lost_Landing);
-                  when Adaflight.Failsafe.Silence => null;
-               end case;
-            end;
+            Check_Failsafe;
             Scheduler.Failsafe_Checked (Sched, Adaflight.STM32.Time.Millis);
          end if;
          G := (Interrupts   => Adaflight.STM32.Gyro.Mode /= Adaflight.STM32.Gyro.No_Interrupt,
