@@ -10374,3 +10374,16 @@ hold mode from engaging.
 The host cannot arm, so no smoke check flies the hold. The host smoke check reads the task list with the
 GPS feature on and finds the altitude hold task at 80 to 120 Hz, a rate only the estimator's update events
 give: the fallback alone runs it at 50 Hz.
+
+## D433. Autopilot yaw in the RC setpoints (2026-10-27)
+
+The RC processing takes the autopilot's yaw as an input: whether its yaw controller holds the yaw in a mode
+it serves, the rate it asks for, and the stick deadband from the autopilot settings. While the autopilot
+holds the yaw and the yaw command stays inside the deadband, the yaw's raw setpoint is the autopilot's rate
+within the axis's rate limit, its deflection is zero, and the largest deflection leaves the yaw out. A yaw
+command at the deadband or past it hands the yaw back to the stick. The input defaults to no autopilot, so
+a caller without one keeps its setpoints.
+
+The oracle's RC generator draws the autopilot's yaw in its own family: held in one step of two, a rate
+within 250 or 1000 degrees per second, and a deadband on the yaw command's magnitude, one past it, or
+anywhere in its range, so the deadband's edge and the rate limit both appear.
