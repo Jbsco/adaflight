@@ -20,8 +20,12 @@ package Adaflight.STM32.ESC_Sensor is
    function Holds (N : Adaflight.STM32.USART.Number) return Boolean;
    --  One run of the task over the mixer's motors.
    procedure Run (Now_Us : Interfaces.Unsigned_32; Motors : Natural);
-   --  The reading over every motor, for the battery's meters.
+   --  The reading over every motor, for the battery's meters and the OSD.
    procedure Combined (Motors : Natural; R : out Adaflight.ESC_Sensor.Reading);
+   --  A motor's reading, and the factor from its electrical rate to
+   --  revolutions per second, for the OSD.
+   function Motor_Reading (M : Natural) return Adaflight.ESC_Sensor.Reading;
+   function Erpm_Factor return Float;
    --  The readings of the mixer's motors as the MSP replies take them.
    function Values (Motors : Natural) return Adaflight.MSP_Out.ESC_Values;
    --  An ESC information read: the bytes received before it go to the

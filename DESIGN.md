@@ -10211,8 +10211,8 @@ flight, then polls the motors, and a poll's request goes out as the telemetry re
 DShot frame. The battery's ESC meters read the reading over every motor, the MSP ESC sensor and motor
 telemetry replies read each motor's reading, and the command line knows the feature is on. The rate in
 revolutions per minute uses the pole count as the DShot telemetry does, and a negative rate, which no
-motor reaches, reports none. The ESC information read of dshotprog is D423, and the OSD's ESC elements
-are a later step.
+motor reaches, reports none. The ESC information read of dshotprog is D423 and the OSD's ESC elements are
+D424.
 
 The host smoke check enables the feature on UART6, sends a frame every 30 ms as the ESCs, and reads the
 temperature, rate, voltage, current and consumption back from the MSP replies.
@@ -10229,3 +10229,15 @@ line's stack after the read, a declared divergence with an upstream write-up.
 The host smoke check plays an ESC that watches the image's DShot frame log for the information command to
 motor 0 and answers with a KISS version 2 frame, then reads the type, serial number, firmware and 3D state
 from dshotprog's output.
+
+## D424. STM32F4 ESC sensor on the OSD (2026-10-27)
+
+The board's OSD reads the ESC sensor of D422 at each frame while the ESC sensor feature is on. The reading
+over every motor gives the ESC temperature element, the temperature alarm, and the statistics' highest
+temperature and rate. Each motor's reading gives the ESC rate elements and the ESC warning, which flags a
+motor's rate only while its output is above the mixer's disarm output. The rate factor comes from the pole
+count, and a negative rate counts as none. With the feature on, the active element list takes the ESC
+elements in.
+
+The host smoke check places the ESC temperature element and finds the ESC frames' 42 degrees on the
+host's OSD screen.

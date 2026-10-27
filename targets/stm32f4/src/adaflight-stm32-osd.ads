@@ -7,6 +7,7 @@ with Interfaces;
 with Adaflight.Arming;
 with Adaflight.Battery;
 with Adaflight.Config_Groups;
+with Adaflight.ESC_Sensor;
 with Adaflight.MSP_Font_In;
 with Adaflight.OSD_Render;
 with Adaflight.OSD_Task;
@@ -57,7 +58,9 @@ package Adaflight.STM32.OSD is
    --  reasons, the failsafe, the boxes and flight modes, the attitude in
    --  decidegrees, the acceleration in g, the throttle and the sticks, the
    --  RSSI and the link's quality, the battery in centivolts, centiamps and milliamp hours, the
-   --  motors with their outputs and range, and the profiles.
+   --  motors with their outputs and range, which of them run above the disarm output, the ESC
+   --  sensor's readings over every motor and for each one, and the profiles.
+   type Motor_Flags is array (Adaflight.OSD_Render.Motor_Index) of Boolean;
    type Facts is record
       Armed             : Boolean := False;
       Was_Ever_Armed    : Boolean := False;
@@ -104,6 +107,11 @@ package Adaflight.STM32.OSD is
       Output_Low        : Float range 0.0 .. 3_000.0 := 1_000.0;
       Output_High       : Float range 0.0 .. 3_000.0 := 2_000.0;
       Motors_Running    : Boolean := False;
+      Motor_Active      : Motor_Flags := (others => False);
+      ESC_Feature       : Boolean := False;
+      ESC_Erpm_To_Hz    : Float range 0.0 .. 1.0 := 0.0;
+      ESC_Combined      : Adaflight.ESC_Sensor.Reading;
+      ESC_Motors        : Adaflight.ESC_Sensor.Readings;
       PID_Index         : Interfaces.Unsigned_8 := 0;
       Rate_Index        : Interfaces.Unsigned_8 := 0;
    end record;

@@ -1790,8 +1790,17 @@ package body Adaflight.STM32.Flight is
       F.Motors := Motors;
       for I in 0 .. Motors - 1 loop
          F.Motor_Output (I) := Float'Min (3_000.0, Outputs (I));
+         F.Motor_Active (I) := Outputs (I) > Adaflight.STM32.Control.Disarm_Output;
       end loop;
       F.Motors_Running := Adaflight.STM32.Control.Motors_Running;
+      F.ESC_Feature := Adaflight.STM32.ESC_Sensor.Feature_On;
+      if F.ESC_Feature then
+         F.ESC_Erpm_To_Hz := Float'Min (1.0, Adaflight.STM32.ESC_Sensor.Erpm_Factor);
+         Adaflight.STM32.ESC_Sensor.Combined (Adaflight.STM32.Control.Motor_Count, F.ESC_Combined);
+         for M in F.ESC_Motors'Range loop
+            F.ESC_Motors (M) := Adaflight.STM32.ESC_Sensor.Motor_Reading (M);
+         end loop;
+      end if;
       F.PID_Index := Config.System_Config.Pid_Profile_Index;
       F.Rate_Index := Config.System_Config.Active_Rate_Profile;
       Adaflight.STM32.OSD.Run (F, Before, Sched);
