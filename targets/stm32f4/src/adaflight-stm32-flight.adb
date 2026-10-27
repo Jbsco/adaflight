@@ -1386,9 +1386,9 @@ package body Adaflight.STM32.Flight is
 
    --  The attitude task: the estimate from the attitude lowpass of the gyro
    --  and the accelerometer, without a compass, over the arming, the angle
-   --  or horizon mode that turns the throttle correction on, and the
-   --  headfree mode, then the angles and the quaternion into the attitude
-   --  replies.
+   --  or horizon mode that turns the throttle correction on, the headfree
+   --  mode, and the GPS course with the filtered yaw rate, then the angles
+   --  and the quaternion into the attitude replies.
    procedure Run_Attitude (Now_Us : Scheduler.Time_Us) is
       Rates : constant Adaflight.Vectors.Vector3 :=
         (X => Gyro_State.Downsampled (Adaflight.Axes.Roll),
@@ -1397,13 +1397,23 @@ package body Adaflight.STM32.Flight is
       No_Mag : constant Adaflight.Vectors.Vector3 := (0.0, 0.0, 0.0);
       Magnitude : constant Float := Float'Max (0.0, Float'Min (1.0e3, Acc_State.Magnitude));
       M : constant Adaflight.Arming.Mode_Set := Adaflight.STM32.Pilot.Flight_Modes;
+      G : constant Adaflight.STM32.GPS.Readings := Adaflight.STM32.GPS.Current;
+      Rate_Bound : constant := Adaflight.Attitude.Rate_Bound;
    begin
       Adaflight.Attitude.Update
         (Att_State, Att_Config, Now_Us, Rates, Acc_State.Acc, Magnitude, No_Mag,
          Use_Mag       => False,
          Armed         => Adaflight.STM32.Pilot.Armed,
          Angle_Mode    => M (Adaflight.Arming.Angle_Mode) or else M (Adaflight.Arming.Horizon_Mode),
-         Headfree_Mode => M (Adaflight.Arming.Headfree_Mode));
+         Headfree_Mode => M (Adaflight.Arming.Headfree_Mode),
+         Course        =>
+           (Usable       =>
+              G.Present and then G.Fix and then Natural (G.Satellites) > Adaflight.Attitude.Min_Satellites,
+            Ground_Speed => Natural (G.Ground_Speed),
+            Course       => Natural'Min (3_599, Natural (G.Ground_Course)),
+            Yaw_Rate     =>
+              Float'Max (-Rate_Bound, Float'Min (Rate_Bound, Gyro_State.Filtered (Adaflight.Axes.Yaw))),
+            Fixed_Wing   => Adaflight.Mixer_Init.Is_Fixed_Wing (Adaflight.STM32.Pilot.Mixer_Mode)));
       Ctx.Out_Views.State.Attitude :=
         (Roll  => Integer_16 (Att_State.Euler.Roll),
          Pitch => Integer_16 (Att_State.Euler.Pitch),
@@ -2386,8 +2396,8 @@ package body Adaflight.STM32.Flight is
    end Run_Altitude_Hold;
 
    --  Whether the attitude's heading is good to fly by: the board has no
-   --  compass, and the attitude estimate takes no GPS course yet.
-   function Heading_Valid return Boolean is (False);
+   --  compass, so only a GPS course the attitude has matched long enough.
+   function Heading_Valid return Boolean is (Adaflight.Attitude.Heading_Valid (Att_State, Compass_Calibrated => False));
 
    --  What the position hold reads: the arming, the failsafe and the modes,
    --  the interval the scheduler measured since its last run, the estimate's

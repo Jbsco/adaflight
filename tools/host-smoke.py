@@ -644,6 +644,10 @@ def main():
             check("GPS fix reaches the raw GPS reply",
                   raw is not None and len(raw) >= 10 and raw[0] != 0 and raw[1] == 10 and lat == 481173000
                   and abs(lon - 115166667) <= 10, repr(raw[:10] if raw else raw))
+            att = msp(sock, 108)
+            yaw = int.from_bytes(att[4:6], "little", signed=True) if att and len(att) >= 6 else None
+            check("first GPS fix past 1 m/s turns the heading to the 84.4 degree course",
+                  yaw is not None and 83 <= yaw <= 85, repr(att))
             gps.altitude = 555.4
             time.sleep(6.0)
             alt = msp(sock, 109)

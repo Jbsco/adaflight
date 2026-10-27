@@ -10446,3 +10446,15 @@ applied. The headfree mode now reaches the attitude's headfree frame. The sticks
 on the board yet.
 
 The host cannot arm, so no smoke check covers the change.
+
+## D437. STM32F4 GPS course in the attitude (2026-10-27)
+
+The board's attitude task passes the GPS course to the estimator: usable while a present module has a fix
+with more than four satellites, the ground speed and the course, the filtered yaw rate, and whether the mixer
+is a fixed wing's. The board has no compass, so the attitude's heading is good to fly by once the GPS course
+has matched it long enough, and the position hold takes that heading. The first usable fix faster than one
+metre per second turns the attitude's heading to the course.
+
+The host smoke check's GPS reports 22.4 knots on an 84.4 degree course, and the MSP attitude reply's heading
+reads 84 degrees once the fix arrives. The host's accelerometer reads level, so the course's weight stays at
+zero and no smoke check reaches a usable GPS heading.
