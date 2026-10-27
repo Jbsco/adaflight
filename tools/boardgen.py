@@ -99,15 +99,15 @@ def generate(config: Path) -> str:
     out.append(f"   Beeper_Inverted : constant Boolean := {'True' if 'BEEPER_INVERTED' in defines else 'False'};")
     out.append(f"   Beeper_PWM_Hz   : constant := {int(defines.get('BEEPER_PWM_HZ', '0'))};")
     out.append("")
-    out.append("   --  The pin tags of the inputs, the beeper, the OSD chip's select and the")
-    out.append("   --  SD card's select and detect, zero for none, the OSD chip's and the SD")
-    out.append("   --  card's SPI buses from 1, zero for none, whether the detect pin reads low")
+    out.append("   --  The pin tags of the inputs, the beeper, the OSD chip's select, the SD")
+    out.append("   --  card's select and detect, and the flash chip's select, zero for none,")
+    out.append("   --  their SPI buses from 1, zero for none, whether the detect pin reads low")
     out.append("   --  for a card, the flight log device, and the meter defaults, the host")
     out.append("   --  defaults where the board names none.")
     tags = [("Beeper_Tag", "BEEPER_PIN"), ("ADC_VBAT_Tag", "ADC_VBAT_PIN"), ("ADC_CURR_Tag", "ADC_CURR_PIN"),
             ("ADC_RSSI_Tag", "ADC_RSSI_PIN"), ("ADC_External1_Tag", "ADC_EXTERNAL1_PIN"),
             ("MAX7456_CS_Tag", "MAX7456_SPI_CS_PIN"), ("SDCARD_CS_Tag", "SDCARD_SPI_CS_PIN"),
-            ("SDCARD_Detect_Tag", "SDCARD_DETECT_PIN")]
+            ("SDCARD_Detect_Tag", "SDCARD_DETECT_PIN"), ("FLASH_CS_Tag", "FLASH_CS_PIN")]
     defaults = [("Default_Voltage_Meter_Source", VOLTAGE_SOURCES[defines.get("DEFAULT_VOLTAGE_METER_SOURCE",
                                                                              "VOLTAGE_METER_NONE")]),
                 ("Default_Current_Meter_Source", CURRENT_SOURCES[defines.get("DEFAULT_CURRENT_METER_SOURCE",
@@ -116,6 +116,7 @@ def generate(config: Path) -> str:
                 ("Default_Current_Meter_Scale", number(defines.get("DEFAULT_CURRENT_METER_SCALE"), 400)),
                 ("MAX7456_SPI_Device", spi_device(defines.get("MAX7456_SPI_INSTANCE", ""))),
                 ("SDCARD_SPI_Device", spi_device(defines.get("SDCARD_SPI_INSTANCE", ""))),
+                ("FLASH_SPI_Device", spi_device(defines.get("FLASH_SPI_INSTANCE", ""))),
                 ("SDCARD_Detect_Low", "True" if "SDCARD_DETECT_INVERTED" in defines else "False"),
                 ("Default_Blackbox_Device", BLACKBOX_DEVICES[defines.get("DEFAULT_BLACKBOX_DEVICE",
                                                                          "BLACKBOX_DEVICE_NONE")])]

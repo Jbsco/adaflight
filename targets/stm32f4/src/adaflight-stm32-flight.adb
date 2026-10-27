@@ -145,6 +145,8 @@ package body Adaflight.STM32.Flight is
       SD_CS_Tag        => Adaflight.Board.SDCARD_CS_Tag,
       SD_Detect_Tag    => Adaflight.Board.SDCARD_Detect_Tag,
       SD_Detect_Low    => Adaflight.Board.SDCARD_Detect_Low,
+      Flash_SPI_Device => Adaflight.Board.FLASH_SPI_Device,
+      Flash_CS_Tag     => Adaflight.Board.FLASH_CS_Tag,
       Blackbox_Device  => Adaflight.Board.Default_Blackbox_Device);
 
    Board    : CLI.Board_State := (Hardware => Board_Hardware, others => <>);
