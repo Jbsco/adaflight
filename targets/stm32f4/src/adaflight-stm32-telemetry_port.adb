@@ -1,6 +1,7 @@
 with Adaflight.Config_Fix;
 with Adaflight.STM32.Blackbox;
 with Adaflight.STM32.ESC_Sensor;
+with Adaflight.STM32.GPIO;
 with Adaflight.STM32.GPS;
 with Adaflight.STM32.Radio;
 with Adaflight.STM32.VTX;
@@ -21,6 +22,8 @@ package body Adaflight.STM32.Telemetry_Port is
    Port_Sharing : Sharing := Unused;
    Baud         : SFM.Baud_Index := Default_Baud;
    Is_Open      : Boolean := False;
+   Inverted     : Boolean := False;
+   Wire         : USART.Half_Duplex := USART.Full_Duplex;
 
    procedure Init (Config : Adaflight.Config_Groups.Configuration; Runtime_Features : Interfaces.Unsigned_32) is
       Assigned : constant SFM.Assignments := Adaflight.Config_Fix.Serial_Assignments (Config);
@@ -28,6 +31,13 @@ package body Adaflight.STM32.Telemetry_Port is
       Have_Port := False;
       Is_Open := False;
       Port_Sharing := Unused;
+      Inverted := (Config.Telemetry_Config.Telemetry_Inverted /= 0) /= Inverted_Default;
+      --  One wire is push-pull with a pull-down when inverted, open drain
+      --  with a pull-up otherwise.
+      Wire :=
+        (if Half_Duplex_Use and then Config.Telemetry_Config.Half_Duplex /= 0
+         then (On => True, Push_Pull => Inverted, Resistor => (if Inverted then GPIO.Down else GPIO.Up))
+         else USART.Full_Duplex);
       if (Runtime_Features and Adaflight.Config_Fix.Feature_Telemetry) = 0 then
          return;
       end if;
@@ -38,7 +48,9 @@ package body Adaflight.STM32.Telemetry_Port is
                if Integer (Port_Ids (N)) = Integer (P.Uart) then
                   Have_Port := True;
                   Which := N;
-                  Baud := (if P.Baud = 0 then Default_Baud else SFM.Baud_Index (Natural'Min (15, Natural (P.Baud))));
+                  Baud :=
+                    (if P.Baud = 0 or else Fixed_Rate then Default_Baud
+                     else SFM.Baud_Index (Natural'Min (15, Natural (P.Baud))));
                end if;
             end loop;
             exit Find_Provider;
@@ -74,7 +86,7 @@ package body Adaflight.STM32.Telemetry_Port is
       end if;
       if Wanted then
          if Have_Port and then not Held_Elsewhere (Which) then
-            USART.Init (Which, Positive (SFM.Rate_Of (Baud)));
+            USART.Init (Which, Positive (SFM.Rate_Of (Baud)), Line => Wire, Inverted => Inverted);
             Is_Open := True;
          end if;
       else
