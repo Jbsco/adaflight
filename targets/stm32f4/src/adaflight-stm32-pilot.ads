@@ -77,6 +77,10 @@ package Adaflight.STM32.Pilot is
    function Motors_Reversed return Boolean;
    --  Whether the throttle is low, as the virtual current meter reads it.
    function Throttle_Low (Channels : Adaflight.RC_Command.Channel_Values) return Boolean;
+   --  An arming disable reason the arming logic does not decide itself:
+   --  the missing gyro, the failsafe's two, the command line, the MSP and the
+   --  reboot request.
+   procedure Set_Reason (Reason : Adaflight.Arming.Disable_Reason; On : Boolean);
    function Armed return Boolean;
    --  The time of the last disarm and whether an arming waits, which the
    --  beeper reads.

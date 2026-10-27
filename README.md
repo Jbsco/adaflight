@@ -18,7 +18,7 @@ adaflight is flight control firmware for multirotors and fixed-wing aircraft, wr
 
 ## Status
 
-The flight software is ported and runs on the host, where each ported function replays inputs recorded from a host build of Betaflight and must reproduce its results bit for bit. Phase 7 of `ROADMAP.md` has started: `targets/stm32f4` builds an image for the CLRacing F4S board family that blinks the LED, serves MSP and the command line on UART1, so a configurator connects, runs the scheduler with the gyro, filter, accelerometer, attitude and receiver tasks over the MPU6000 on SPI1 and a CRSF receiver on a UART with the arming logic and the modes, runs the rate controller and the mixer, measures the battery, drives the beeper, and keeps its configuration in flash. The motors have no driver yet.
+The flight software is ported and runs on the host, where each ported function replays inputs recorded from a host build of Betaflight and must reproduce its results bit for bit. Phase 7 of `ROADMAP.md` has started: `targets/stm32f4` builds an image for the CLRacing F4S board family that blinks the LED, serves MSP and the command line on UART1, so a configurator connects, runs the scheduler with the gyro, filter, accelerometer, attitude and receiver tasks over the MPU6000 on SPI1 and a CRSF receiver on a UART with the arming logic and the modes, runs the rate controller and the mixer, measures the battery, drives the beeper, and keeps its configuration in flash. The motors have no driver yet. `targets/host` runs the same flight software on the host with its UARTs on TCP ports, so a configurator connects without a board.
 
 ## Features
 
@@ -49,6 +49,7 @@ adaflight keeps the operation order of Betaflight's code, so a host build of eac
     cd core && alr build                      # build the core
     cd tests && alr build && ./bin/vector_check vectors
     bash target.do                            # STM32F4 image for the CLRacing F4S family
+    bash host.do                              # host image, checked over its UART1 TCP port
     bash prove.do                             # SPARK proof of the core
     bash verify.do                            # every gate, cheapest first
 
@@ -63,6 +64,13 @@ The STM32F4 image is flashed through the STM32 bootloader over USB with the boar
     dfu-util -a 0 -s 0x08008000:leave -D code.bin
 
 The image answers the firmware variant `ADFL`. The stock configurator opens its command line tab alone for that variant; [adaflight-configurator](https://github.com/Jbsco/adaflight-configurator) accepts it with the full tabs.
+
+The host image runs the board's flight software on Linux, with each UART as a TCP server on port 5760 plus its number. A configurator connects to UART1 at `tcp://localhost:5761`. A save or a reboot ends the process, so a loop starts it again:
+
+    cd targets/host && alr build
+    while ./bin/adaflight_host; do :; done
+
+The configuration is kept in `adaflight-eeprom.bin` in the working directory, or in the file `ADAFLIGHT_EEPROM` names.
 
 ## Verification
 
@@ -79,10 +87,11 @@ The image answers the firmware variant `ADFL`. The stock configurator opens its 
 | `core/` | SPARK library crate `adaflight_core`: the proved, hardware-independent core |
 | `tests/` | Host crate `adaflight_tests`: replays `tests/vectors` through the core |
 | `targets/stm32f4/` | Alire crate `adaflight_stm32f4`: the core on STM32F4 boards with the platform drivers |
+| `targets/host/` | Alire crate `adaflight_host`: the STM32F4 flight software on the host, with its UARTs on TCP |
 | `tools/` | Repository tooling: changed units for CI, markdown rendering check, board package generator |
 | `third_party/` | Third-party material with its license and source, and the board configuration repository as a pinned submodule |
 | `docs/upstream/` | Write-ups of Betaflight bugs that adaflight fixes |
-| `style.do`, `test.do`, `target.do`, `prove.do`, `verify.do` | The gates, runnable with `bash` or `redo` |
+| `style.do`, `test.do`, `target.do`, `host.do`, `prove.do`, `verify.do` | The gates, runnable with `bash` or `redo` |
 | `DESIGN.md` | Numbered design decisions with their reasons |
 | `DIVERGENCES.md` | Every place where adaflight differs from Betaflight on purpose |
 | `ROADMAP.md` | Phases and the coverage of Betaflight's source areas |

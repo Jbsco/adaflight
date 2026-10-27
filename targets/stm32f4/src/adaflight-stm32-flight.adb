@@ -2,7 +2,6 @@ with Ada.Characters.Handling;
 with Ada.Real_Time; use Ada.Real_Time;
 with GNAT.Source_Info;
 with Interfaces; use Interfaces;
-with System;
 with Adaflight.Acc_Inflight;
 with Adaflight.Accelerometer;
 with Adaflight.Arming;
@@ -49,6 +48,7 @@ with Adaflight.STM32.Console;
 with Adaflight.STM32.Control;
 with Adaflight.STM32.Flash;
 with Adaflight.STM32.GPIO;
+with Adaflight.STM32.MCU;
 with Adaflight.STM32.Gyro;
 with Adaflight.STM32.Pilot;
 with Adaflight.STM32.Radio;
@@ -83,15 +83,7 @@ package body Adaflight.STM32.Flight is
    Version_Patch : constant := 0;
    Version_Text  : constant String := "0.1.0";
 
-   --  The device's unique identifier, the three words the status prints.
-   UID : array (1 .. 3) of Unsigned_32
-     with Import, Volatile, Address => System'To_Address (16#1FFF_7A10#);
-
-   --  The core's application interrupt and reset control register: the key
-   --  in its high half with the system reset request.
-   AIRCR : Unsigned_32
-     with Import, Volatile, Address => System'To_Address (16#E000_ED0C#);
-   System_Reset_Request : constant Unsigned_32 := 16#05FA_0004#;
+   UID : constant Adaflight.STM32.MCU.Identifier := Adaflight.STM32.MCU.UID;
 
    --  The failure codes the LED flashes: a missing gyro, a configuration
    --  store that could not be written, and a gyro whose initialization read
@@ -164,6 +156,7 @@ package body Adaflight.STM32.Flight is
    Attitude_Period_Fast_Us : Scheduler.Time_Delta := 2_000;
 
    procedure Apply (Step : Adaflight.Arming.Outputs);
+   procedure Sync_Reasons;
    procedure Report_Battery;
    function Flight_Channels return Adaflight.RC_Command.Channel_Values;
    Hashes           : Adaflight.Config_Store.Hash_List (1 .. Adaflight.Config_Codec.Group_Count) := (others => 0);
@@ -287,13 +280,7 @@ package body Adaflight.STM32.Flight is
                           Stack_High    => 16#2002_0000#,
                           others        => <>));
 
-   procedure Reset is
-   begin
-      AIRCR := System_Reset_Request;
-      loop
-         null;
-      end loop;
-   end Reset;
+   procedure Reset renames Adaflight.STM32.MCU.Reset;
 
    --  Count flashes of the LED from off, each on and off for the duration.
    procedure Flash (Count : Natural; Duration_Ms : Natural) is
@@ -577,6 +564,11 @@ package body Adaflight.STM32.Flight is
          Adaflight.STM32.Pilot.Disarm (Adaflight.Arming.Serial_Command, Adaflight.STM32.Time.Micros, Asked);
          Apply (Asked);
       end if;
+      case Effects.Control.MSP_Arming is
+         when Adaflight.MSP_Control_In.Disable => Adaflight.STM32.Pilot.Set_Reason (Adaflight.Arming.MSP_Open, True);
+         when Adaflight.MSP_Control_In.Enable => Adaflight.STM32.Pilot.Set_Reason (Adaflight.Arming.MSP_Open, False);
+         when Adaflight.MSP_Control_In.Unchanged => null;
+      end case;
       if Effects.Save then
          Scheduler.Ignore_Task_State_Time (Sched);
          Write_Configuration;
@@ -1178,6 +1170,17 @@ package body Adaflight.STM32.Flight is
    --  pass over the auxiliary channels, the update step through the RC
    --  commands and the arming status, then what the passes asked, the step's
    --  estimate for the scheduler and the channels into the RC reply.
+   --  The arming disable reasons other units decide: the failsafe's lost link
+   --  and active failsafe, and the command line's hold while its session is
+   --  open.
+   procedure Sync_Reasons is
+   begin
+      Adaflight.STM32.Pilot.Set_Reason (Adaflight.Arming.Rx_Loss, Adaflight.STM32.Radio.Failsafe_Rx_Loss);
+      Adaflight.STM32.Pilot.Set_Reason
+        (Adaflight.Arming.Failsafe_Active, Adaflight.STM32.Radio.Failsafe_Blocks_Arming);
+      Adaflight.STM32.Pilot.Set_Reason (Adaflight.Arming.CLI_Open, Session.Arming_Held);
+   end Sync_Reasons;
+
    procedure Run_Receiver (Before : Unsigned_32) is
       Step        : constant Adaflight.RX_Task.Step := Adaflight.RX_Task.Current_Step (RX_State);
       Ready       : Boolean := True;
@@ -1191,6 +1194,7 @@ package body Adaflight.STM32.Flight is
       if Adaflight.RX_Task.Ignore_Rate (RX_State) then
          Scheduler.Ignore_Task_Exec_Rate (Sched);
       end if;
+      Sync_Reasons;
       Channels := Flight_Channels;
       for A in Adaflight.Modes.Aux_Channel loop
          Aux (A) := Adaflight.STM32.Radio.Channel (A + Adaflight.Receiver.Flight_Channel_Count);
@@ -1341,6 +1345,7 @@ package body Adaflight.STM32.Flight is
                       Loop_Ratio     => Positive (Loop_Ratio),
                       CRSF           => Adaflight.STM32.Radio.Linked);
       Adaflight.STM32.Pilot.Init (Config, Runtime_Features, Pilot_Facts);
+      Adaflight.STM32.Pilot.Set_Reason (Adaflight.Arming.No_Gyro, not Selection.Found);
       Adaflight.STM32.Control.Init (Config, Runtime_Features);
       Bat_Settings := Battery_Settings;
       Adaflight.Battery.Init (Bat, Bat_Settings);
@@ -1370,6 +1375,7 @@ package body Adaflight.STM32.Flight is
          others              => False);
    begin
       Adaflight.STM32.Radio.Failsafe_Check (Adaflight.STM32.Time.Millis, In_Flight, Beep, Disarm);
+      Sync_Reasons;
       case Beep is
          when Adaflight.Failsafe.Rx_Lost => Request_Beep (Adaflight.Beeper.Rx_Lost);
          when Adaflight.Failsafe.Rx_Lost_Landing => Request_Beep (Adaflight.Beeper.Rx_Lost_Landing);

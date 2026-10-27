@@ -156,6 +156,11 @@ package body Adaflight.STM32.Pilot is
                               (Arm_Settings, Channels, Adaflight.Modes.Is_Active (M, Adaflight.Modes.Three_D)),
                             Adaflight.Arming.Throttle_Low));
 
+   procedure Set_Reason (Reason : Adaflight.Arming.Disable_Reason; On : Boolean) is
+   begin
+      Arm.Disabled (Reason) := On;
+   end Set_Reason;
+
    function Armed return Boolean is (Arm.Armed);
 
    function Last_Disarm_Us return Time_Us is (Arm.Last_Disarm_Us);
