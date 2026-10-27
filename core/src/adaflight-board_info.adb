@@ -97,6 +97,8 @@ package body Adaflight.Board_Info with SPARK_Mode is
       C.Sdcard_Config.Card_Detect_Tag := H.SD_Detect_Tag;
       C.Sdcard_Config.Card_Detect_Inverted := (if H.SD_Detect_Low then 1 else 0);
       C.Sdcard_Config.Mode := (if H.SD_SPI_Device > 0 and then H.SD_CS_Tag /= 0 then 1 else 0);
+      C.Flash_Config.Spi_Device := H.Flash_SPI_Device;
+      C.Flash_Config.Cs_Tag := H.Flash_CS_Tag;
       C.Blackbox_Config.Device := H.Blackbox_Device;
    end Reset_Config;
 
