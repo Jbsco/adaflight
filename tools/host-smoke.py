@@ -47,6 +47,28 @@ def crsf_frame(channels):
     return bytes([0xC8, 24, 0x16]) + payload + bytes([crc8(bytes([0x16]) + payload)])
 
 
+def crsf_msp_request(payload):
+    """An MSP request frame from the radio: the address, the length, the type, the flight controller as the
+    destination and the radio as the origin, the MSP tunnel's payload and the CRC8."""
+    body = bytes([0x7A, 0xC8, 0xEA]) + payload
+    return bytes([0xC8, len(body) + 1]) + body + bytes([crc8(body)])
+
+
+def msp_tunnel_reply(frames):
+    """The MSP reply in a run of CRSF MSP response frames: the command, the declared size, a jumbo size
+    included, the data and whether the chunks' sequence numbers follow on from the first, which has the start
+    flag."""
+    chunks = [f[5:-1] for f in frames]
+    if not chunks or not chunks[0] or not chunks[0][0] & 0x10:
+        return None
+    size, command, start = chunks[0][1], chunks[0][2], 3
+    if size == 0xFF:
+        size, start = chunks[0][3] | chunks[0][4] << 8, 5
+    data = chunks[0][start:] + b"".join(c[1:] for c in chunks[1:])
+    ordered = all((c[0] & 0x0F) == ((chunks[0][0] + n) & 0x0F) for n, c in enumerate(chunks))
+    return command, size, data[:size], ordered
+
+
 def nmea(body):
     check = 0
     for byte in body.encode():
@@ -290,6 +312,8 @@ class Receiver(threading.Thread):
         self.stop = threading.Event()
         self.frames = {}
         self.pending = b""
+        self.outbox = []
+        self.msp_replies = []
 
     def count_frames(self, data):
         """Counts the telemetry frames by type in the bytes read back from the port."""
@@ -305,6 +329,8 @@ class Receiver(threading.Thread):
             self.pending = self.pending[length + 2:]
             if crc8(frame[2:-1]) == frame[-1]:
                 self.frames[frame[2]] = self.frames.get(frame[2], 0) + 1
+                if frame[2] == 0x7B:
+                    self.msp_replies.append(frame)
 
     def set(self, roll, pitch, throttle, yaw):
         self.channels = [roll, pitch, throttle, yaw] + [992] * 12
@@ -322,6 +348,8 @@ class Receiver(threading.Thread):
         while sock is not None and not self.stop.is_set():
             try:
                 sock.sendall(crsf_frame(self.channels))
+                if self.outbox:
+                    sock.sendall(self.outbox.pop(0))
             except OSError:
                 break
             try:
@@ -1347,6 +1375,44 @@ def main():
                 sender.stop.set()
                 stop(proc)
                 sock.close()
+        store = os.path.join(work, "crsfmsp.bin")
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "set rx_uart = UART3")
+            check("CRSF receiver port assigned for MSP", "rx_uart set to UART3" in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store)
+        receiver = Receiver()
+        receiver.start()
+        try:
+            time.sleep(3.0)
+            receiver.outbox.append(crsf_msp_request(bytes([0x30, 0, 1])))
+            time.sleep(0.5)
+            replies = list(receiver.msp_replies)
+            reply = msp_tunnel_reply(replies)
+            check("MSP over CRSF answers the API version to the request's origin",
+                  len(replies) == 1 and replies[0][3:5] == bytes([0xEA, 0xC8]) and reply is not None
+                  and reply[0] == 1 and reply[1] == 3 and reply[2][:2] == bytes([0, 1]) and reply[3], repr(replies))
+            receiver.msp_replies.clear()
+            receiver.outbox.append(crsf_msp_request(bytes([0x31, 0, 52])))
+            time.sleep(0.8)
+            replies = list(receiver.msp_replies)
+            reply = msp_tunnel_reply(replies)
+            serial = msp(sock, 52)
+            check("MSP over CRSF sends the 300-byte adjustment ranges in six numbered chunks as serial MSP does",
+                  len(replies) == 6 and reply is not None and reply[0] == 52 and reply[1] == 300
+                  and reply[2] == serial and reply[3], repr(replies[:2]))
+        finally:
+            receiver.stop.set()
+            stop(proc)
+            sock.close()
         store = os.path.join(work, "ghsttlm.bin")
         proc, sock = start(image, store)
         try:

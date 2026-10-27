@@ -1,4 +1,3 @@
-with Adaflight.Bytes;
 with Adaflight.Config_Fix;
 with Adaflight.Config_Runtime;
 with Adaflight.CRSF;
@@ -7,6 +6,7 @@ with Adaflight.FPort;
 with Adaflight.GHST;
 with Adaflight.IBUS;
 with Adaflight.Jeti_Ex_Bus;
+with Adaflight.MSP_Telemetry;
 with Adaflight.SBUS;
 with Adaflight.Spektrum;
 with Adaflight.SUMD;
@@ -83,6 +83,20 @@ package body Adaflight.STM32.Radio is
    Out_Bytes   : Adaflight.Bytes.Byte_Array (0 .. 1_023);
    Out_Stream  : Adaflight.Stream_Buffers.Stream;
    Port        : USART.Port;
+   --  The MSP requests over the CRSF link: the frames waiting, each behind
+   --  its length, the origin the reply goes back to, whether a reply is due,
+   --  the tunnel with whether its reply has chunks left, and the processor's
+   --  reply.
+   MSP_Buffer_Size : constant := 96;
+   MSP_Ack         : constant := 1;
+   MSP_Frames      : Adaflight.Bytes.Byte_Array (0 .. MSP_Buffer_Size - 1) := (others => 0);
+   MSP_Waiting     : Natural range 0 .. MSP_Buffer_Size := 0;
+   MSP_Origin      : Adaflight.Bytes.Byte := 0;
+   MSP_Pending     : Boolean := False;
+   MSP_Link        : Adaflight.MSP_Telemetry.Tunnel;
+   MSP_Chunks_Left : Boolean := False;
+   MSP_Answer      : Adaflight.Bytes.Byte_Array (0 .. Adaflight.MSP_Telemetry.Response_Buffer_Size - 1) :=
+     (others => 0);
 
    --  The port at a new rate, with the receiver's timing told.
    procedure Set_Rate (Rate : Interfaces.Unsigned_32) is
@@ -222,6 +236,9 @@ package body Adaflight.STM32.Radio is
       end if;
       Adaflight.CRSF_Telemetry.Init (Tlm, Telemetry, Active => Open and then Kind = CRSF);
       Adaflight.CRSF_Display_Port.Init (Screen, Now_Ms);
+      MSP_Waiting := 0;
+      MSP_Pending := False;
+      MSP_Chunks_Left := False;
    end Init;
 
    --  What a received frame asked of the telemetry: a device information
@@ -252,6 +269,15 @@ package body Adaflight.STM32.Radio is
       if Outputs.Device_Info and then Length in 3 .. Adaflight.CRSF.Frame_Size_Max - 1 then
          Adaflight.CRSF_Telemetry.Handle_Device_Info (Tlm, Payload (3, Length));
       end if;
+      if Outputs.MSP_Frame and then MSP_Waiting + 1 + (Length - 4) <= MSP_Buffer_Size then
+         MSP_Frames (MSP_Waiting) := Adaflight.Bytes.Byte (Length - 4);
+         for K in 0 .. Length - 5 loop
+            MSP_Frames (MSP_Waiting + 1 + K) := Adaflight.Bytes.Byte (Proto.Frame (5 + K));
+         end loop;
+         MSP_Waiting := MSP_Waiting + 1 + (Length - 4);
+         MSP_Pending := True;
+         MSP_Origin := Adaflight.Bytes.Byte (Proto.Frame (4));
+      end if;
       if Outputs.Default_Speed then
          Set_Rate (Adaflight.CRSF.Baudrate);
       end if;
@@ -260,6 +286,62 @@ package body Adaflight.STM32.Radio is
    procedure Telemetry_Step (Now_Us : Time_Us; Src : Adaflight.CRSF_Telemetry.Sources) is
       Run      : Boolean;
       New_Baud : Interfaces.Unsigned_32;
+      --  Where this run's frames start after the negotiation's, which go out
+      --  at once on their own.
+      First    : Natural;
+
+      --  The reply's next chunk to the request's origin.
+      procedure Send_Chunk is
+         Chunk  : Adaflight.MSP_Telemetry.Chunk_Buffer;
+         Length : Natural;
+      begin
+         Adaflight.MSP_Telemetry.Send_Reply
+           (MSP_Link, Adaflight.CRSF_Telemetry.MSP_Payload_Max, Chunk, Length, MSP_Chunks_Left);
+         Adaflight.CRSF_Telemetry.Write_MSP_Response (Out_Bytes, Out_Stream, MSP_Origin, Chunk (0 .. Length - 1));
+      end Send_Chunk;
+
+      --  A reply under way sends its next chunk while this run has sent no
+      --  frame. Otherwise the waiting frames go through the tunnel in order,
+      --  a completed request through the processor, and each reply's first
+      --  chunk goes out while this run has sent no frame, or waits for the
+      --  next run.
+      procedure Serve_MSP_Frames is
+         use type Adaflight.MSP_Telemetry.Outcome;
+         Pos          : Natural := 0;
+         Length       : Natural;
+         Outcome      : Adaflight.MSP_Telemetry.Outcome;
+         Unused_Write : Boolean;
+         Count        : Natural;
+         Failed       : Boolean;
+      begin
+         if MSP_Chunks_Left then
+            if Out_Stream.Next = First then
+               Send_Chunk;
+            end if;
+            MSP_Pending := MSP_Chunks_Left;
+            return;
+         end if;
+         while Pos < MSP_Waiting loop
+            Length := Natural (MSP_Frames (Pos));
+            Adaflight.MSP_Telemetry.Handle_Frame (MSP_Link, MSP_Frames (Pos + 1 .. Pos + Length), Outcome, Unused_Write);
+            if Outcome = Adaflight.MSP_Telemetry.Request_Ready then
+               Process (MSP_Link.Request_Command, Adaflight.MSP_Telemetry.Request_Data (MSP_Link), MSP_Answer, Count,
+                        Failed);
+               Adaflight.MSP_Telemetry.Prepare_Reply
+                 (MSP_Link, (if Failed then Adaflight.MSP_Telemetry.Result_Error else MSP_Ack), MSP_Answer (0 .. Count - 1));
+            end if;
+            if Outcome /= Adaflight.MSP_Telemetry.Ignored then
+               if Out_Stream.Next = First then
+                  Send_Chunk;
+               else
+                  MSP_Chunks_Left := True;
+               end if;
+            end if;
+            Pos := Pos + 1 + Length;
+         end loop;
+         MSP_Waiting := 0;
+         MSP_Pending := MSP_Chunks_Left;
+      end Serve_MSP_Frames;
    begin
       if not Open or else Kind /= CRSF then
          return;
@@ -268,8 +350,15 @@ package body Adaflight.STM32.Radio is
       Adaflight.Stream_Buffers.Init (Out_Stream, 0, Out_Bytes'Length);
       Adaflight.CRSF_Telemetry.Update_Check (Tlm, Now_Us, Run);
       Adaflight.CRSF_Telemetry.Negotiate (Tlm, Now_Us, Out_Bytes, Out_Stream, New_Baud);
-      Adaflight.CRSF_Telemetry.Update (Tlm, Now_Us, Src, Screen, Display_Ready => False, B => Out_Bytes,
-                                       S => Out_Stream);
+      First := Out_Stream.Next;
+      if MSP_Pending and then Tlm.Enabled and then not Adaflight.CRSF_Telemetry.Negotiation_In_Progress (Tlm) then
+         Serve_MSP_Frames;
+         Tlm.Last_Cycle_Time := Now_Us;
+         Tlm.Response_Pending := False;
+      else
+         Adaflight.CRSF_Telemetry.Update (Tlm, Now_Us, Src, Screen, Display_Ready => False, B => Out_Bytes,
+                                          S => Out_Stream);
+      end if;
       if Out_Stream.Next > 0 then
          USART.Put (Port, Out_Bytes (0 .. Out_Stream.Next - 1));
       end if;

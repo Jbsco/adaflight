@@ -10653,3 +10653,22 @@ attitude's heading. MSP over the Ghost link is not on the board, so the receiver
 The host smoke check turns the telemetry feature on with the Ghost receiver on UART3 and a fresh store,
 sends the two Ghost frames in turn, and finds at least ten 14-byte frames addressed to the receiver with a
 CRC8 that checks, all of them the battery pack frame.
+
+## D452. STM32F4 MSP over CRSF (2026-10-27)
+
+The board answers MSP requests that arrive over the CRSF link, which tuning scripts on the transmitter use. A
+request or write frame from the receiver goes, past its destination and origin, into a 96-byte buffer behind
+its length when the buffer has room, and makes a reply to its origin due. The next telemetry task run after
+the speed negotiation serves the buffer in place of the scheduled frames and restarts the telemetry's cycle.
+Each frame goes through the core's MSP tunnel in order, a completed request goes through the board's MSP
+processor with the views taken fresh as the serial task takes them, and the reply goes back in MSP response
+frames of up to 58 bytes behind the tunnel's status byte, one chunk per run. A reply under way holds back the
+requests waiting behind it until a new request frame makes a reply due again. A reboot that a request asks
+for happens before its reply goes out.
+
+The tunnel's reply takes a full 512-byte payload when the verdict is not an error, so the processor's largest
+reply passes whole. The error byte still needs one byte of room.
+
+The host smoke check sends an API version request and an adjustment ranges request as CRSF MSP frames from
+the transmitter's address. It finds the API version answered to that address, and the 300-byte adjustment
+ranges in six chunks under the jumbo size with their sequence numbers in order, equal to the serial MSP reply.
