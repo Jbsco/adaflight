@@ -124,6 +124,8 @@ package Adaflight.STM32.OSD is
       Total_Time_S       : Interfaces.Unsigned_32 := 0;
       Total_Dist_M       : Interfaces.Unsigned_32 := 0;
       Vario             : Interfaces.Integer_16 := 0;
+      Pos_Hold_Ready    : Boolean := False;
+      Pos_Hold_Failure  : Boolean := False;
    end record;
 
    --  The OSD's settings from the stored configuration and the firmware's

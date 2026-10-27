@@ -99,6 +99,10 @@ package body Adaflight.STM32.Control is
       Inp.Jerk_Magnitude := Float'Max (0.0, Float'Min (1.0e30, Current.Jerk_Magnitude));
       Inp.Passthru_Mode := Modes (Adaflight.Arming.Passthru_Mode);
       Inp.Alt_Hold_Mode := Modes (Adaflight.Arming.Alt_Hold_Mode);
+      Inp.Pos_Hold_Mode := Modes (Adaflight.Arming.Pos_Hold_Mode);
+      Inp.Autopilot_Angle := Current.Autopilot_Angles;
+      Inp.Autopilot_Max_Angle := Current.Autopilot_Max_Angle;
+      Inp.Autopilot_In_Control := Current.Autopilot_Control;
       Inp.Below_Landing_Altitude := Current.Below_Landing;
       Adaflight.PID_Controller.Update (Ctl, Adaflight.STM32.Pilot.Loop_Runtime, Adaflight.STM32.Pilot.Profile, Inp);
    end Run_Controller;
@@ -131,6 +135,7 @@ package body Adaflight.STM32.Control is
       Inp.Yaw_Spin_Detected := Current.Yaw_Spin;
       Inp.Crash_Flip_Active := Adaflight.STM32.Pilot.Crash_Flip_Active;
       Inp.Alt_Hold_Mode := Modes (Adaflight.Arming.Alt_Hold_Mode);
+      Inp.Pos_Hold_Mode := Modes (Adaflight.Arming.Pos_Hold_Mode);
       Inp.Autopilot_Throttle_Valid := True;
       Inp.Autopilot_Throttle := Current.Autopilot_Throttle;
       for A in Adaflight.Axes.Axis loop

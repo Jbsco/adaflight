@@ -21,8 +21,7 @@ package Adaflight.STM32.Pilot is
       CRSF           : Boolean := False;
    end record;
    --  The settings from the configuration and the facts, over the selected
-   --  profiles, with no position control law on the board yet; the states
-   --  start over.
+   --  profiles; the states start over.
    procedure Init (Config : Adaflight.Config_Groups.Configuration; Runtime_Features : Interfaces.Unsigned_32;
                    F : Facts);
    --  The settings again after a profile selection or a message changed
@@ -54,6 +53,9 @@ package Adaflight.STM32.Pilot is
    --  The PID loop's RC command pass, the yaw command reset before it, and
    --  the arming's controller pass with the runaway check.
    procedure Process_Commands;
+   --  The position controller's yaw: whether it holds the yaw and its rate,
+   --  which the RC processing takes in the modes the controller serves.
+   procedure Set_Autopilot_Yaw (Held : Boolean; Rate_Dps : Float);
    procedure Reset_Yaw;
    procedure Runaway_Check
      (Sensed : Adaflight.Arming.Inputs; Channels : Adaflight.RC_Command.Channel_Values; Now_Us : Time_Us;
