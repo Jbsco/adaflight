@@ -301,6 +301,24 @@ class ESCInfo(threading.Thread):
         sock.close()
 
 
+def ltm_frames(data):
+    """The LTM frames in a byte stream with good checksums, as (letter, payload) pairs."""
+    sizes = {ord("A"): 6, ord("S"): 7, ord("G"): 14, ord("O"): 14}
+    frames = []
+    i = data.find(b"$T")
+    while 0 <= i and i + 3 <= len(data):
+        size = sizes.get(data[i + 2])
+        if size is not None and i + 3 + size < len(data):
+            payload = data[i + 3:i + 3 + size]
+            check = 0
+            for b in payload:
+                check ^= b
+            if check == data[i + 3 + size]:
+                frames.append((chr(data[i + 2]), payload))
+        i = data.find(b"$T", i + 2)
+    return frames
+
+
 def fat16_image(path, sectors):
     """A card image: a partition table, then a FAT16 volume of 8-sector clusters from sector 8."""
     start = 8
@@ -831,6 +849,39 @@ def main():
             esc.stop.set()
             if "info" in locals():
                 info.stop.set()
+            stop(proc)
+            sock.close()
+        store = os.path.join(work, "ltm.bin")
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "feature TELEMETRY")
+            check("telemetry feature on", "Enabled" in text, text[-120:])
+            text = cli(sock, "set telemetry_1_protocol = LTM")
+            check("telemetry provider set to LTM", "telemetry_1_protocol set to LTM" in text, text[-120:])
+            text = cli(sock, "set telemetry_1_uart = UART3")
+            check("LTM port assigned", "telemetry_1_uart set to UART3" in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            ltm = socket.create_connection(("127.0.0.1", RX_PORT), timeout=1)
+            ltm.settimeout(0.3)
+            frames = ltm_frames(read_all(ltm, 1.5))
+            ltm.close()
+            letters = "".join(f for f, _ in frames)
+            check("LTM sends attitude frames ten times a second", 10 <= letters.count("A") <= 20, letters)
+            status = [p for f, p in frames if f == "S"]
+            check("LTM status frames report disarmed in rate mode", bool(status) and status[-1][6] == 1 << 2,
+                  repr(status[-1:]))
+            check("LTM sends an origin frame every tenth cycle", 1 <= letters.count("O") <= 3, letters)
+        finally:
             stop(proc)
             sock.close()
     print(f"host smoke: {'all checks passed' if not failures else str(len(failures)) + ' failed'}")

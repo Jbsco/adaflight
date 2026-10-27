@@ -20,6 +20,7 @@ with Adaflight.Config_Codec;
 with Adaflight.Config_Fix;
 with Adaflight.DShot;
 with Adaflight.DShot_Command;
+with Adaflight.LTM_Telemetry;
 with Adaflight.ESC_Sensor;
 with Adaflight.Config_Groups;
 with Adaflight.Config_Reset;
@@ -63,6 +64,7 @@ with Adaflight.STM32.ESC_Sensor;
 with Adaflight.STM32.Flash;
 with Adaflight.STM32.Flash_Chip;
 with Adaflight.STM32.GPIO;
+with Adaflight.STM32.LTM;
 with Adaflight.STM32.GPS;
 with Adaflight.GPS_Frames;
 with Adaflight.GPS_Link;
@@ -981,7 +983,8 @@ package body Adaflight.STM32.Flight is
             if L /= Line_UART1
               or else not (Adaflight.STM32.Blackbox.Holds (Adaflight.STM32.USART.UART1)
                            or else Adaflight.STM32.VTX.Holds (Adaflight.STM32.USART.UART1)
-                           or else Adaflight.STM32.ESC_Sensor.Holds (Adaflight.STM32.USART.UART1))
+                           or else Adaflight.STM32.ESC_Sensor.Holds (Adaflight.STM32.USART.UART1)
+                           or else Adaflight.STM32.LTM.Holds (Adaflight.STM32.USART.UART1))
             then
                Take_Line (L);
                Serve_MSP (L, Evaluate_Other_Data);
@@ -1386,6 +1389,21 @@ package body Adaflight.STM32.Flight is
       return Sensed;
    end Sense;
 
+   --  The LTM port opened or released as its sharing asks, and UART1 back at
+   --  the MSP rate with a fresh MSP framing when the stream gives it up.
+   procedure Check_LTM is
+      Was : constant Boolean := Adaflight.STM32.LTM.Holds (Adaflight.STM32.USART.UART1);
+   begin
+      Adaflight.STM32.LTM.Check_State
+        (Armed       => Adaflight.STM32.Pilot.Armed,
+         Box_Present => Adaflight.STM32.Pilot.Box_Configured (Adaflight.Modes.Telemetry),
+         Box_Active  => Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Telemetry));
+      if Was and then not Adaflight.STM32.LTM.Holds (Adaflight.STM32.USART.UART1) then
+         Adaflight.STM32.USART.Init (Adaflight.STM32.USART.UART1, Baud);
+         Adaflight.MSP_Port.Init (Lines (Line_UART1).Port);
+      end if;
+   end Check_LTM;
+
    --  What the arming logic asked of the board after a step: the stick
    --  commands the board can serve, the saves, the trims, the beeper, the
    --  first arming calibration, the headfree offset, the failsafe's
@@ -1465,6 +1483,9 @@ package body Adaflight.STM32.Flight is
          Scheduler.Reschedule (Sched, Sched_Settings, Scheduler.Attitude, Attitude_Period_Fast_Us);
       else
          Scheduler.Reschedule (Sched, Sched_Settings, Scheduler.Attitude, Attitude_Period_Slow_Us);
+      end if;
+      if Adaflight.Arming."/=" (Step.Telemetry_Ports, Adaflight.Arming.No_Port_Change) then
+         Check_LTM;
       end if;
       for I in 1 .. Natural'Min (Step.DShot_Commands.Count, Adaflight.Arming.Command_Slot'Last) loop
          Adaflight.STM32.DShot_Output.Write_Command
@@ -1972,6 +1993,42 @@ package body Adaflight.STM32.Flight is
         or (if M (Adaflight.Arming.GPS_Rescue_Mode) then Mode_GPS_Rescue else 0);
    end Telemetry_Mode_Flags;
 
+   --  What the LTM stream reads: the attitude, the flight modes, the arming
+   --  and the failsafe, the battery, the signal and the GPS solution with
+   --  its home. The board has no altitude estimate yet, so the GPS frame's
+   --  altitude reads zero.
+   function LTM_Inputs return Adaflight.LTM_Telemetry.Inputs is
+      M : constant Adaflight.Arming.Mode_Set := Adaflight.STM32.Pilot.Flight_Modes;
+      G : constant Adaflight.STM32.GPS.Readings := Adaflight.STM32.GPS.Current;
+   begin
+      return
+        (Pitch         => Integer_16 (Att_State.Euler.Pitch),
+         Roll          => Integer_16 (Att_State.Euler.Roll),
+         Yaw           => Integer_16 (Att_State.Euler.Yaw),
+         Passthru      => M (Adaflight.Arming.Passthru_Mode),
+         Headfree      => M (Adaflight.Arming.Headfree_Mode),
+         Angle         => M (Adaflight.Arming.Angle_Mode),
+         Horizon       => M (Adaflight.Arming.Horizon_Mode),
+         Rescue        => M (Adaflight.Arming.GPS_Rescue_Mode),
+         Position_Hold => M (Adaflight.Arming.Pos_Hold_Mode),
+         Altitude_Hold => M (Adaflight.Arming.Alt_Hold_Mode),
+         Armed         => Adaflight.STM32.Pilot.Armed,
+         Failsafe      => Adaflight.STM32.Radio.Failsafe_Active,
+         Voltage_Cv    => Unsigned_16 (Natural'Min (65_535, Bat.Voltage.Display_Filtered)),
+         Mah_Drawn     => Integer_32'Max (-2 ** 31, Integer_32'Min (2 ** 31 - 1, Integer_32 (Bat.Current.mAh_Drawn))),
+         Rssi          => Adaflight.STM32.Radio.RSSI,
+         GPS_Present   => G.Present,
+         Fix           => G.Fix,
+         Num_Sat       => G.Satellites,
+         Lat           => G.Latitude,
+         Lon           => G.Longitude,
+         Ground_Speed  => G.Ground_Speed,
+         Altitude_Cm   => 0,
+         Home_Lat      => G.Home.Lat,
+         Home_Lon      => G.Home.Lon,
+         Fix_Home      => G.Fix_Home);
+   end LTM_Inputs;
+
    --  What the telemetry reads: the GPS solution with its date, the battery,
    --  the attitude, the flight state, the inertial sample and the craft name.
    function Telemetry_Sources return Adaflight.CRSF_Telemetry.Sources is
@@ -2094,6 +2151,9 @@ package body Adaflight.STM32.Flight is
          when Scheduler.ESC_Sensor =>
             Adaflight.STM32.ESC_Sensor.Run (Before, Adaflight.STM32.Control.Motor_Count);
          when Scheduler.Telemetry =>
+            if not Session.Open and then (Runtime_Features and Adaflight.Config_Fix.Feature_Telemetry) /= 0 then
+               Adaflight.STM32.LTM.Run (Adaflight.STM32.Time.Millis, LTM_Inputs);
+            end if;
             Tasks.Telemetry (Inputs, Before);
          when Scheduler.PINIO_Box =>
             Adaflight.STM32.PINIO.Update;
@@ -2211,6 +2271,8 @@ package body Adaflight.STM32.Flight is
       end if;
       Init_Scheduler;
       Adaflight.STM32.Blackbox.Init (Config, Loop_Time_Us);
+      Adaflight.STM32.LTM.Init (Config, Runtime_Features);
+      Check_LTM;
       Adaflight.STM32.DShot_Output.Enable;
       Blink := Ada.Real_Time.Clock;
    end Init;
