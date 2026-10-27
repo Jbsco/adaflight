@@ -17,13 +17,14 @@ adaflight_core = "*"
 [[pins]]
 adaflight_core = { path = "../../core" }
 
-# The image is built for size. The proved core builds in the release profile without run-time
-# checks, assertions or debug information; the target sources keep the default checks.
+# The image is built for size with link-time optimization. The proved core builds in the release
+# profile without run-time checks, assertions or debug information; the target sources keep the
+# default checks.
 [build-profiles]
 adaflight_core = "release"
 
 [build-switches]
-"*".optimization = "size"
+"*".optimization = ["-Os", "-gnatn", "-ffunction-sections", "-fdata-sections", "-flto", "-ffat-lto-objects"]
 "*".debug_info = "no"
 release.contracts = "no"
 
