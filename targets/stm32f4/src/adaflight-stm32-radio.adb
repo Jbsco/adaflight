@@ -2,7 +2,6 @@ with Adaflight.Bytes;
 with Adaflight.Config_Fix;
 with Adaflight.Config_Runtime;
 with Adaflight.CRSF;
-with Adaflight.Failsafe;
 with Adaflight.Modes;
 with Adaflight.Serial_Feature_Map;
 with Adaflight.STM32.USART;
@@ -128,14 +127,13 @@ package body Adaflight.STM32.Radio is
       Adaflight.Receiver.Update_RSSI (Rx, Rx_Settings, Now_Us, ADC_Sample);
    end Process;
 
-   procedure Failsafe_Check (Now_Ms : Time_Ms) is
+   procedure Failsafe_Check (Now_Ms : Time_Ms; Beep : out Adaflight.Failsafe.Beep) is
       In_Flight    : Adaflight.Failsafe.Inputs;
-      Beeper       : Adaflight.Failsafe.Beep;
       Disarm       : Boolean;
       Stage_Rescue : Boolean;
    begin
       Adaflight.Failsafe.Check_Data_Failure_Period (FS, Now_Ms);
-      Adaflight.Failsafe.Update (FS, FS_Settings, Now_Ms, In_Flight, Beeper, Disarm, Stage_Rescue);
+      Adaflight.Failsafe.Update (FS, FS_Settings, Now_Ms, In_Flight, Beep, Disarm, Stage_Rescue);
    end Failsafe_Check;
 
    procedure Start_Failsafe_Monitoring is

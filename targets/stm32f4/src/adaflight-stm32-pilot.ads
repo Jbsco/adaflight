@@ -74,6 +74,10 @@ package Adaflight.STM32.Pilot is
    --  Whether the throttle is low, as the virtual current meter reads it.
    function Throttle_Low (Channels : Adaflight.RC_Command.Channel_Values) return Boolean;
    function Armed return Boolean;
+   --  The time of the last disarm and whether an arming waits, which the
+   --  beeper reads.
+   function Last_Disarm_Us return Time_Us;
+   function Trying_To_Arm return Boolean;
    function Disabled return Adaflight.Arming.Disable_Set;
    function Flight_Modes return Adaflight.Arming.Mode_Set;
    function Active_Boxes return Adaflight.Modes.Mask;

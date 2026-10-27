@@ -9,6 +9,7 @@ with Adaflight.Arming;
 with Adaflight.Attitude;
 with Adaflight.Axes;
 with Adaflight.Battery;
+with Adaflight.Beeper;
 with Adaflight.Board;
 with Adaflight.Board_Info;
 with Adaflight.Bytes;
@@ -20,6 +21,7 @@ with Adaflight.Config_Reset;
 with Adaflight.Config_Runtime;
 with Adaflight.Config_Store;
 with Adaflight.Core_Loop;
+with Adaflight.Failsafe;
 with Adaflight.Gyro_Filters;
 with Adaflight.Gyro_Selection;
 with Adaflight.Mixer;
@@ -50,6 +52,7 @@ with Adaflight.STM32.GPIO;
 with Adaflight.STM32.Gyro;
 with Adaflight.STM32.Pilot;
 with Adaflight.STM32.Radio;
+with Adaflight.STM32.Sound;
 with Adaflight.STM32.SPI;
 with Adaflight.STM32.Time;
 with Adaflight.STM32.USART;
@@ -153,6 +156,7 @@ package body Adaflight.STM32.Flight is
    Runtime_Features : Unsigned_32 := 0;
    RX_State         : Adaflight.RX_Task.State;
    Bat              : Adaflight.Battery.State;
+   Beep             : Adaflight.Beeper.State;
    Bat_Settings     : Adaflight.Battery.Settings;
    Pilot_Facts      : Adaflight.STM32.Pilot.Facts;
    --  The attitude task's periods with the level modes on and off.
@@ -522,7 +526,8 @@ package body Adaflight.STM32.Flight is
    --  accelerometer and attitude tasks, and the receiver task whose check
    --  finds no frames yet.
    procedure Init_Scheduler is
-      Options : constant Adaflight.Task_Init.Options := (Accel => True, Sag_Compensation => True, others => False);
+      Options : constant Adaflight.Task_Init.Options :=
+        (Accel => True, Beeper => True, Sag_Compensation => True, others => False);
       Inputs  : Adaflight.Task_Init.Inputs;
    begin
       Sched_Settings := Adaflight.Config_Runtime.Scheduler_Settings_Of
@@ -653,17 +658,105 @@ package body Adaflight.STM32.Flight is
 
    --  The accelerometer task: one reading through the accelerometer unit,
    --  and its counts over the one g divisor into the raw readings reply.
+   --  The beeper settings from the stored beeper group, read at every use.
+   function Beep_Settings return Adaflight.Beeper.Settings is
+     (Adaflight.Config_Runtime.Beeper_Settings_Of (Config.Beeper_Config));
+
+   --  What the beeper reads: the battery's presence, no USB or configurator
+   --  link on this image, the beeper boxes, no GPS, the motors running while
+   --  armed, the failsafe's link, the last disarm and a waiting arming.
+   function Beep_Conditions return Adaflight.Beeper.Conditions is
+     (Battery_Present     => Adaflight.Battery."/=" (Bat.Overall, Adaflight.Battery.Not_Present),
+      USB_Active          => False,
+      Configurator_Active => False,
+      Mute_Switch         => Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Beeper_Mute),
+      Beep_Switch         => Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Beeper_On),
+      Satellite_Switch    => Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Beep_GPS_Count),
+      GPS_Feature         => False,
+      GPS_Fix             => False,
+      Satellites          => 0,
+      Motors_Running      => Adaflight.STM32.Pilot.Armed,
+      Failsafe_Monitoring => Adaflight.STM32.Radio.Failsafe_Monitoring,
+      Failsafe_Receiving  => Adaflight.STM32.Radio.Failsafe_Receiving,
+      Last_Disarm_Us      => Adaflight.STM32.Pilot.Last_Disarm_Us,
+      Trying_To_Arm       => Adaflight.STM32.Pilot.Trying_To_Arm);
+
+   procedure Request_Beep (M : Adaflight.Beeper.Mode) is
+   begin
+      Adaflight.Beeper.Request (Beep, Beep_Settings, Beep_Conditions, M);
+   end Request_Beep;
+
+   procedure Confirmation_Beeps (Count : Adaflight.Beeper.Beep_Count) is
+   begin
+      Adaflight.Beeper.Confirmation_Beeps (Beep, Beep_Settings, Beep_Conditions, Count);
+   end Confirmation_Beeps;
+
+   procedure Silence_Beeper is
+   begin
+      Adaflight.Beeper.Silence_Beeper (Beep);
+      Adaflight.STM32.Sound.Set (False);
+   end Silence_Beeper;
+
+   --  The beeper task: the update, the output following it, and the
+   --  scheduler told when the update was short.
+   procedure Run_Beeper (Before : Unsigned_32) is
+      Result : Adaflight.Beeper.Update_Outputs;
+   begin
+      Adaflight.Beeper.Update (Beep, Beep_Settings, Beep_Conditions, Before, Result);
+      Adaflight.STM32.Sound.Set (Adaflight.Beeper.Is_On (Beep));
+      if Result.Ignore_Exec_Time then
+         Scheduler.Ignore_Task_Exec_Time (Sched);
+      end if;
+   end Run_Beeper;
+
+   --  The battery's alarm while its voltage alerts are on.
+   procedure Battery_Alarms is
+   begin
+      case Adaflight.Battery.Alarm (Bat, Bat_Settings) is
+         when Adaflight.Battery.Low =>
+            Request_Beep (Adaflight.Beeper.Battery_Low);
+         when Adaflight.Battery.Critical_Low =>
+            Request_Beep (Adaflight.Beeper.Battery_Critical_Low);
+         when Adaflight.Battery.Silence =>
+            null;
+      end case;
+   end Battery_Alarms;
+
+   --  A finished accelerometer calibration stored: its offsets, the
+   --  calibration marked complete and the level trims reset, then written,
+   --  read back and confirmed with a beep.
+   procedure Store_Acc_Calibration is
+      Unused_Success : Boolean;
+   begin
+      Config.Accelerometer_Config.Acc_Zero (0) := Integer_16 (Acc_State.Zero (Adaflight.Vectors.X));
+      Config.Accelerometer_Config.Acc_Zero (1) := Integer_16 (Acc_State.Zero (Adaflight.Vectors.Y));
+      Config.Accelerometer_Config.Acc_Zero (2) := Integer_16 (Acc_State.Zero (Adaflight.Vectors.Z));
+      Config.Accelerometer_Config.Acc_Zero (3) := 1;
+      Config.Accelerometer_Config.Accelerometer_Trims := (others => 0);
+      Write_Configuration;
+      Load_Configuration (Unused_Success);
+      Confirmation_Beeps (1);
+   end Store_Acc_Calibration;
+
    procedure Acc_Update (Now_Us : Scheduler.Time_Us) is
       pragma Unreferenced (Now_Us);
-      Raw : Adaflight.STM32.Gyro.Axis_Values;
-      OK  : Boolean;
+      Raw         : Adaflight.STM32.Gyro.Axis_Values;
+      OK          : Boolean;
+      Calibrating : Adaflight.Accelerometer.Cycle_Count;
    begin
       Adaflight.STM32.Gyro.Read_Acc (Raw, OK);
       if not OK then
          return;
       end if;
+      Calibrating := Acc_State.Calibrating;
       Adaflight.Accelerometer.Update
         (Acc_State, Acc_Settings, (Integer (Raw (0)), Integer (Raw (1)), Integer (Raw (2))), Acc_Cal);
+      if Acc_State.Inflight_Ended then
+         Request_Beep (Adaflight.Beeper.Acc_Calibration);
+      end if;
+      if (Calibrating = 1 and then Acc_State.Calibrating = 0) or else Acc_State.Inflight_Saved then
+         Store_Acc_Calibration;
+      end if;
       Ctx.Out_Views.State.IMU.Acc :=
         (0 => Acc_State.Acc.X / Acc_Scale, 1 => Acc_State.Acc.Y / Acc_Scale, 2 => Acc_State.Acc.Z / Acc_Scale);
    end Acc_Update;
@@ -809,7 +902,7 @@ package body Adaflight.STM32.Flight is
       MSP_Serial             => MSP_Serial,
       Battery_Presence       => Battery_Presence,
       Battery_States         => Battery_States,
-      Battery_Alarms         => No_Step,
+      Battery_Alarms         => Battery_Alarms,
       Acc_Update             => Acc_Update,
       GPS_Rescue_Update      => No_Step,
       Baro_Update            => No_Step_Period,
@@ -829,13 +922,16 @@ package body Adaflight.STM32.Flight is
    procedure Run_Gyro is
       Raw      : Adaflight.STM32.Gyro.Axis_Values;
       OK       : Boolean;
-      Unused_Finished : Boolean;
+      Finished : Boolean;
    begin
       Adaflight.STM32.Gyro.Read_Gyro (Raw, OK);
       Adaflight.Gyro_Filters.Accumulate
         (Gyro_State, Gyro_Settings,
          (0 => (Integer (Raw (0)), Integer (Raw (1)), Integer (Raw (2))), others => (0, 0, 0)),
-         (0 => OK, others => False), Unused_Finished);
+         (0 => OK, others => False), Finished);
+      if Finished then
+         Request_Beep (Adaflight.Beeper.Gyro_Calibrated);
+      end if;
       Adaflight.Core_Loop.Gyro_Sampled (Cadence, Loop_Ratio);
    end Run_Gyro;
 
@@ -961,6 +1057,25 @@ package body Adaflight.STM32.Flight is
       if Step.Saves > 0 then
          Write_Configuration;
          Load_Configuration (Unused_Success);
+         Confirmation_Beeps (1);
+      end if;
+      if Step.Beeper.Calls > 0 then
+         case Step.Beeper.Last is
+            when Adaflight.Arming.Silence => Silence_Beeper;
+            when Adaflight.Arming.Arm_Tone => Request_Beep (Adaflight.Beeper.Arming);
+            when Adaflight.Arming.Disarm_Tone => Request_Beep (Adaflight.Beeper.Disarming);
+            when Adaflight.Arming.Armed_Tone => Request_Beep (Adaflight.Beeper.Armed);
+            when Adaflight.Arming.Disarm_Repeat_Tone => Request_Beep (Adaflight.Beeper.Disarm_Repeat);
+            when Adaflight.Arming.Rx_Set_Tone => Request_Beep (Adaflight.Beeper.Rx_Set);
+            when Adaflight.Arming.Warning_Tones =>
+               Adaflight.Beeper.Warning_Beeps (Beep, Beep_Settings, Beep_Conditions, Step.Beeper.Count);
+            when Adaflight.Arming.Confirmation_Tones => Confirmation_Beeps (Step.Beeper.Count);
+            when Adaflight.Arming.Crash_Flip_Tone => Request_Beep (Adaflight.Beeper.Crash_Flip);
+            when Adaflight.Arming.GPS_Fix_Arm_Tone => Request_Beep (Adaflight.Beeper.Arming_GPS_Fix);
+            when Adaflight.Arming.GPS_No_Fix_Arm_Tone => Request_Beep (Adaflight.Beeper.Arming_GPS_No_Fix);
+            when Adaflight.Arming.Acc_Calibration_Tone => Request_Beep (Adaflight.Beeper.Acc_Calibration);
+            when Adaflight.Arming.Acc_Calibration_Fail_Tone => Request_Beep (Adaflight.Beeper.Acc_Calibration_Fail);
+         end case;
       end if;
       if Step.First_Arm_Gyro_Cal > 0 then
          Adaflight.Gyro_Filters.Start_Calibration (Gyro_State, Gyro_Settings, First_Arm => True);
@@ -1151,6 +1266,8 @@ package body Adaflight.STM32.Flight is
             Run_Battery_Current (Before);
          when Scheduler.Battery_Alerts =>
             Tasks.Battery_Alerts (Inputs, Before);
+         when Scheduler.Beeper =>
+            Run_Beeper (Before);
          when others =>
             null;
       end case;
@@ -1162,6 +1279,24 @@ package body Adaflight.STM32.Flight is
       Scheduler.Execute_Begin (Sched, Id, Now_Us);
       Run_Body (Id);
    end Run_Task;
+
+   --  The boot signal after the sensors: ten flashes of the LED, each with a
+   --  25 millisecond beep unless the system init sound is off.
+   procedure Boot_Beeps is
+      Beeps : constant Boolean := not Beep_Settings.Off_Flags (Adaflight.Beeper.System_Init);
+   begin
+      Adaflight.STM32.GPIO.Set_High (Adaflight.Board.LED0_Pin);
+      for I in 1 .. 10 loop
+         Adaflight.STM32.GPIO.Toggle (Adaflight.Board.LED0_Pin);
+         Adaflight.STM32.Time.Delay_Ms (25);
+         if Beeps then
+            Adaflight.STM32.Sound.Set (True);
+         end if;
+         Adaflight.STM32.Time.Delay_Ms (25);
+         Adaflight.STM32.Sound.Set (False);
+      end loop;
+      Adaflight.STM32.GPIO.Set_High (Adaflight.Board.LED0_Pin);
+   end Boot_Beeps;
 
    procedure Init is
    begin
@@ -1180,6 +1315,12 @@ package body Adaflight.STM32.Flight is
          Ctx.Out_Views.Serial_Ports (I) := (Port => Ports (I), Available => True);
       end loop;
       Ctx.Out_Views.Serial_Count := Ports'Length;
+      if Tagged_Pin (Config.Beeper_Dev_Config.Io_Tag) then
+         Adaflight.STM32.Sound.Init
+           (Pin_Of (Config.Beeper_Dev_Config.Io_Tag), Config.Beeper_Dev_Config.Frequency,
+            Inverted => Config.Beeper_Dev_Config.Is_Inverted /= 0,
+            Open_Drain => Config.Beeper_Dev_Config.Is_Open_Drain /= 0);
+      end if;
       Adaflight.STM32.ADC.Init;
       declare
          Inputs : constant array (1 .. 3) of Adaflight.Config_Groups.Adc_Channel_Config_T_Record :=
@@ -1193,6 +1334,7 @@ package body Adaflight.STM32.Flight is
       end;
       Start_Gyro;
       Init_Loop_Units;
+      Boot_Beeps;
       Adaflight.STM32.Radio.Init (Config, Runtime_Features, Adaflight.STM32.Time.Millis);
       Pilot_Facts := (Sensors        => (Gyro => Selection.Found, Acc => Gyro_Report.Acc_Found, others => False),
                       Sample_Time_Us => Natural (Sample_Us),
@@ -1246,7 +1388,16 @@ package body Adaflight.STM32.Flight is
                Adaflight.RX_Task.In_Progress (RX_State));
          end;
          if Scheduler.Failsafe_Due (Sched, Adaflight.STM32.Time.Millis) then
-            Adaflight.STM32.Radio.Failsafe_Check (Adaflight.STM32.Time.Millis);
+            declare
+               Failsafe_Beep : Adaflight.Failsafe.Beep;
+            begin
+               Adaflight.STM32.Radio.Failsafe_Check (Adaflight.STM32.Time.Millis, Failsafe_Beep);
+               case Failsafe_Beep is
+                  when Adaflight.Failsafe.Rx_Lost => Request_Beep (Adaflight.Beeper.Rx_Lost);
+                  when Adaflight.Failsafe.Rx_Lost_Landing => Request_Beep (Adaflight.Beeper.Rx_Lost_Landing);
+                  when Adaflight.Failsafe.Silence => null;
+               end case;
+            end;
             Scheduler.Failsafe_Checked (Sched, Adaflight.STM32.Time.Millis);
          end if;
          G := (Interrupts   => Adaflight.STM32.Gyro.Mode /= Adaflight.STM32.Gyro.No_Interrupt,
