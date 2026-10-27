@@ -1614,6 +1614,47 @@ def main():
         finally:
             stop(proc)
             sock.close()
+        store = os.path.join(work, "uart1rx.bin")
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "set rx_uart = UART1")
+            check("CRSF receiver on UART1", "rx_uart set to UART1" in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store)
+        stop_feed = threading.Event()
+
+        def feed_uart1():
+            while not stop_feed.is_set():
+                try:
+                    sock.sendall(crsf_frame([992, 1150, 172, 992] + [992] * 12))
+                except OSError:
+                    break
+                time.sleep(0.02)
+        feeder = threading.Thread(target=feed_uart1, daemon=True)
+        feeder.start()
+        vcp = None
+        try:
+            time.sleep(3.0)
+            vcp = socket.create_connection(("127.0.0.1", VCP_PORT), timeout=1)
+            vcp.settimeout(0.3)
+            time.sleep(0.5)
+            rc = msp(vcp, 105)
+            values = [rc[i] | rc[i + 1] << 8 for i in range(0, 8, 2)] if rc and len(rc) >= 8 else []
+            check("receiver on UART1 keeps its bytes from the MSP framing",
+                  len(values) == 4 and abs(values[0] - 1500) <= 2 and abs(values[1] - 1599) <= 2, repr(values))
+        finally:
+            stop_feed.set()
+            stop(proc)
+            sock.close()
+            if vcp is not None:
+                vcp.close()
         store = os.path.join(work, "ghsttlm.bin")
         proc, sock = start(image, store)
         try:

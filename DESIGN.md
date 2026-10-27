@@ -10772,3 +10772,14 @@ analog one, as the configurator's OSD tab does when analog video is chosen.
 
 The host smoke check sets the MSP device on UART1 and finds the heartbeat, clear, string and draw payloads
 with the craft name, and UART1 still answering MSP. The MAX7456 phase now sets the PAL video system.
+
+## D458. STM32F4 UART1 holders (2026-10-27)
+
+The board serves MSP on UART1 only while no other device holds it: the receiver, the GPS, the ESC sensor, the
+video transmitter, the camera, the flight log and the telemetry ports. The list had left out the receiver, the
+GPS and the camera, which can all take UART1. With a receiver there, the MSP framing read the receiver's bytes
+as well, so the receiver lost them, and a hash mark in the stream opened the command line on UART1, which
+stops MSP on the USB port. The MSP framing also acts on the reboot character while the board is disarmed,
+which resets it. The CLRacing F4S boards carry their receiver inverter on UART1, so SBUS takes that port.
+
+The host smoke check puts a CRSF receiver on UART1 and finds its channels in the MSP reply over the USB port.
