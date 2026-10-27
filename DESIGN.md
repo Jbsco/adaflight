@@ -10800,3 +10800,12 @@ telemetry and the flight log field do not read the rangefinder yet.
 
 The host smoke check streams TFmini frames of 150 cm on UART4 and finds the sensor bit and a 150 cm sonar
 altitude.
+
+## D460. STM32F4 rangefinder in the flight log (2026-10-27)
+
+The flight log takes the rangefinder: the header lists the `surfaceRaw` field when a rangefinder was found,
+and each frame logs the rangefinder's distance after the median filter and before the tilt correction. The
+reference logs the corrected altitude there, under a comment that says it stores the raw value (finding F299),
+so the board follows the comment and the field's name. The MSP sonar altitude stays the corrected one.
+
+The host smoke check's lidar phase sends the flight log to UART6 and finds `surfaceRaw` among the frame fields.
