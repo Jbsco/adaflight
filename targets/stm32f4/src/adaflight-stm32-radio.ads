@@ -22,7 +22,11 @@ package Adaflight.STM32.Radio is
    --  The receiver task's check step: the channels calculated with the
    --  failsafe told what they were worth, then the RSSI; Processed says the
    --  task moves on.
-   procedure Process (Now_Us : Time_Us; Now_Ms : Time_Ms; Processed : out Boolean);
+   procedure Process (Now_Us : Time_Us; Now_Ms : Time_Ms; ADC_Sample : Natural; Processed : out Boolean)
+     with Pre => ADC_Sample <= 4_095;
+   --  Whether the RSSI comes from the analog input, and the RSSI.
+   function RSSI_ADC return Boolean;
+   function RSSI return Interfaces.Unsigned_16;
    --  The failsafe's check every ten milliseconds of the realtime block.
    procedure Failsafe_Check (Now_Ms : Time_Ms);
    --  The failsafe's monitoring, which the arming logic starts.

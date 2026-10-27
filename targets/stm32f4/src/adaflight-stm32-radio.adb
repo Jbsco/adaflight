@@ -100,7 +100,7 @@ package body Adaflight.STM32.Radio is
    function Update_Check (Task_In_Progress : Boolean) return Boolean is
      (Adaflight.Receiver.Update_Check (Rx, Task_In_Progress));
 
-   procedure Process (Now_Us : Time_Us; Now_Ms : Time_Ms; Processed : out Boolean) is
+   procedure Process (Now_Us : Time_Us; Now_Ms : Time_Ms; ADC_Sample : Natural; Processed : out Boolean) is
       Raw             : Adaflight.Receiver.Raw_Values := (others => 0.0);
       Override        : Adaflight.Receiver.Override_Report;
       Frame_Processed : Boolean;
@@ -125,7 +125,7 @@ package body Adaflight.STM32.Radio is
       if not Processed then
          return;
       end if;
-      Adaflight.Receiver.Update_RSSI (Rx, Rx_Settings, Now_Us, ADC_Sample => 0);
+      Adaflight.Receiver.Update_RSSI (Rx, Rx_Settings, Now_Us, ADC_Sample);
    end Process;
 
    procedure Failsafe_Check (Now_Ms : Time_Ms) is
@@ -150,6 +150,10 @@ package body Adaflight.STM32.Radio is
    function Failsafe_Monitoring return Boolean is (FS.Monitoring);
 
    function Last_Frame_Us return Time_Us is (Proto.Last_Frame_Us);
+
+   function RSSI_ADC return Boolean is (Rx_Settings.RSSI_ADC);
+
+   function RSSI return Interfaces.Unsigned_16 is (Interfaces.Unsigned_16 (Adaflight.Receiver.RSSI (Rx, Rx_Settings)));
 
    function Channel_Count return Natural is (Rx.Channels);
 
