@@ -9619,3 +9619,35 @@ The image is 933236 bytes of text, 5068 of data and 116840 of zeroed data. The b
 receiver switched off while disarmed, with the lost link tones and the failsafe flight mode in the
 modes tab.
 
+## D396. Host target (2026-10-26)
+
+`targets/host` builds the STM32F4 image's flight software as a Linux program. The crate compiles the
+STM32F4 integration sources unchanged and gives the board's hardware packages host bodies through
+its project file. Each UART is a TCP server on port 5760 plus its number, one client at a time. The
+configuration store is an 8192 byte region loaded at start from `adaflight-eeprom.bin` in the
+working directory, or from the file the environment variable `ADAFLIGHT_EEPROM` names, and written
+back at each save. A reset ends the process with exit status zero. The gyro and the accelerometer
+are the virtual sensors at 1 kHz, reading zero rates and one g on the vertical axis. Time comes from
+the host's monotonic clock, with a cycle count at the board's 168 MHz derived from it. The pins, the
+external interrupts and the beeper do nothing, SPI reads 16#FF# and the ADC reads zero. The core
+builds in its validation profile with its checks and contracts on. The MCU's unique identifier and
+reset moved from the flight package into `Adaflight.STM32.MCU`, so the host gives its own.
+
+We added the host target to run the board integration on every push without a board. `host.do`
+builds the image and runs `tools/host-smoke.py`, which starts it with an empty store and checks over
+UART1: the MSP API version, the firmware variant and the sensor status, the command line's entry,
+the arming flags of `status` and the task list of `tasks`, then a `set` and a `save`, which ends the
+process. The script starts the image again and reads the value back from the stored configuration.
+`verify.do` and the target workflow run the gate. A configurator connects at `tcp://localhost:5761`.
+
+The first runs found two faults in the STM32F4 integration, which this change fixes. The receiver's
+frame check ran only while a serial receiver was open, so with no receiver the receiver task never
+ran and the arming status it computes stayed empty (D387). The arming reasons that other units
+decide never reached the arming state: the receiver loss and the active failsafe, the command line's
+hold, the arming block set over MSP, and the missing gyro (D388). The flight package now sets the
+failsafe's two and the command line's hold before the receiver task and after the failsafe check,
+the MSP block when its message arrives, and the missing gyro at start. The STM32F4 image is 933744
+bytes of text, 5068 of data and 116848 of zeroed data.
+
+Betaflight's SITL target exchanges sensor values and motor outputs with a physics simulator over
+UDP. The host target has no simulator link yet.

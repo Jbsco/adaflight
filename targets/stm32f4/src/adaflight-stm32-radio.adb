@@ -81,17 +81,16 @@ package body Adaflight.STM32.Radio is
       Status   : Adaflight.Receiver.Frame_Report;
       Override : Adaflight.Receiver.Override_Report;
    begin
-      if not Open then
-         return;
-      end if;
-      USART.Take (Link, Input, Times, Count);
-      for I in 0 .. Count - 1 loop
-         Adaflight.CRSF.Receive_Byte
-           (Proto, Rx, Natural (Input (I)), Times (I), Negotiating => False, Eeprom_Writing => False,
-            Result => Outputs);
-      end loop;
-      if not Task_In_Progress then
-         Adaflight.CRSF.Frame_Status (Proto, Rx, Now_Us, Status);
+      if Open then
+         USART.Take (Link, Input, Times, Count);
+         for I in 0 .. Count - 1 loop
+            Adaflight.CRSF.Receive_Byte
+              (Proto, Rx, Natural (Input (I)), Times (I), Negotiating => False, Eeprom_Writing => False,
+               Result => Outputs);
+         end loop;
+         if not Task_In_Progress then
+            Adaflight.CRSF.Frame_Status (Proto, Rx, Now_Us, Status);
+         end if;
       end if;
       Adaflight.Receiver.Frame_Check (Rx, Rx_Settings, Now_Us, Delta_Us, Task_In_Progress, Status, Override);
    end Frame_Check;
@@ -147,6 +146,10 @@ package body Adaflight.STM32.Radio is
    function Failsafe_Active return Boolean is (FS.Active);
 
    function Failsafe_Mode return Boolean is (FS.Failsafe_Mode);
+
+   function Failsafe_Rx_Loss return Boolean is (FS.Arming_Disabled_Rx);
+
+   function Failsafe_Blocks_Arming return Boolean is (FS.Arming_Disabled);
 
    function Failsafe_Monitoring return Boolean is (FS.Monitoring);
 

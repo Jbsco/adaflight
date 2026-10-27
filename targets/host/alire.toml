@@ -1,0 +1,27 @@
+name = "adaflight_host"
+description = "Host target: the STM32F4 board integration on the host, UARTs on TCP"
+version = "0.1.0-dev"
+
+authors = ["Jacob Seman"]
+maintainers = ["Jacob Seman <90524106+Jbsco@users.noreply.github.com>"]
+maintainers-logins = ["Jbsco"]
+licenses = "GPL-3.0-or-later"
+tags = ["spark", "flight-control", "simulator"]
+
+executables = ["adaflight_host"]
+
+[[depends-on]]
+adaflight_core = "*"
+
+[[pins]]
+adaflight_core = { path = "../../core" }
+
+# The host image runs the core with its checks on.
+[build-profiles]
+adaflight_core = "validation"
+
+# The board package is generated before every build from the pinned board configuration
+# repository; BOARD names the board, CLRACINGF4 when unset.
+[[actions]]
+type = "pre-build"
+command = ["sh", "-c", "python3 ../../tools/boardgen.py ../../third_party/board-configs/configs \"${BOARD:-CLRACINGF4}\" gen/adaflight-board.ads"]

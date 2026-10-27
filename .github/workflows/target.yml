@@ -23,7 +23,7 @@ jobs:
             ~/.config/alire
             ~/.cache/alire
             ~/.local/share/alire
-          key: alire-target-${{ runner.os }}-${{ hashFiles('targets/stm32f4/alire.toml', 'core/alire.toml') }}
+          key: alire-target-${{ runner.os }}-${{ hashFiles('targets/stm32f4/alire.toml', 'targets/host/alire.toml', 'core/alire.toml') }}
           restore-keys: alire-target-${{ runner.os }}-
 
       - name: Install Alire
@@ -33,6 +33,14 @@ jobs:
 
       - name: Build the STM32F4 image
         run: bash target.do
+
+      - name: Select the native GNAT toolchain
+        run: |
+          cd targets/host
+          alr -n toolchain --select gnat_native
+
+      - name: Build and check the host image
+        run: bash host.do
 
       - name: Keep the image
         uses: actions/upload-artifact@v4

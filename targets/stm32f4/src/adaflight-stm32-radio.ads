@@ -15,8 +15,9 @@ package Adaflight.STM32.Radio is
    --  Whether a serial receiver port is open.
    function Linked return Boolean;
    --  After the realtime tasks: the bytes received through the protocol at
-   --  their arrival times, the frame status when the receiver task is not
-   --  past its check, and the receiver's frame check.
+   --  their arrival times and the frame status when the receiver task is not
+   --  past its check, while a link is open, then the receiver's frame check,
+   --  which processes the signal's loss without a link.
    procedure Frame_Check (Now_Us : Time_Us; Delta_Us : Interfaces.Integer_32; Task_In_Progress : Boolean);
    --  The receiver task's check function.
    function Update_Check (Task_In_Progress : Boolean) return Boolean;
@@ -36,6 +37,10 @@ package Adaflight.STM32.Radio is
       Disarm : out Boolean);
    --  The failsafe's own flight mode.
    function Failsafe_Mode return Boolean;
+   --  The failsafe's arming disable reasons: the link lost and the failsafe
+   --  active.
+   function Failsafe_Rx_Loss return Boolean;
+   function Failsafe_Blocks_Arming return Boolean;
    --  The failsafe's monitoring, which the arming logic starts.
    procedure Start_Failsafe_Monitoring;
    function Failsafe_Receiving return Boolean;
