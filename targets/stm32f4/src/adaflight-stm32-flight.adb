@@ -1158,8 +1158,8 @@ package body Adaflight.STM32.Flight is
    procedure Receiver_Step is new Adaflight.STM32.Radio.Process (Telemetry_Request);
 
    --  The serial task: while the command line is open its port's bytes go to
-   --  it, otherwise each port's bytes go to its MSP framing. The status reply
-   --  reads the loop timing first.
+   --  it, otherwise each port's bytes go to its MSP framing, UART1's while no
+   --  other device holds it. The status reply reads the loop timing first.
    procedure MSP_Serial (Evaluate_Other_Data : Boolean) is
    begin
       Refresh_Views;
@@ -1205,9 +1205,12 @@ package body Adaflight.STM32.Flight is
       else
          for L in MSP_Line loop
             if L /= Line_UART1
-              or else not (Adaflight.STM32.Blackbox.Holds (Adaflight.STM32.USART.UART1)
-                           or else Adaflight.STM32.VTX.Holds (Adaflight.STM32.USART.UART1)
+              or else not (Adaflight.STM32.Radio.Holds (Adaflight.STM32.USART.UART1)
+                           or else Adaflight.STM32.GPS.Holds (Adaflight.STM32.USART.UART1)
                            or else Adaflight.STM32.ESC_Sensor.Holds (Adaflight.STM32.USART.UART1)
+                           or else Adaflight.STM32.VTX.Holds (Adaflight.STM32.USART.UART1)
+                           or else Adaflight.STM32.RunCam.Holds (Adaflight.STM32.USART.UART1)
+                           or else Adaflight.STM32.Blackbox.Holds (Adaflight.STM32.USART.UART1)
                            or else Telemetry_Holds (Adaflight.STM32.USART.UART1))
             then
                Take_Line (L);
