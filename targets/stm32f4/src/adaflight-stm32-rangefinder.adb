@@ -137,4 +137,6 @@ package body Adaflight.STM32.Rangefinder is
    end Process;
 
    function Altitude_Cm return Interfaces.Integer_32 is (Sensor.Calculated_Altitude);
+
+   function Raw_Altitude_Cm return Interfaces.Integer_32 is (Sensor.Raw_Altitude);
 end Adaflight.STM32.Rangefinder;

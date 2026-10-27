@@ -1963,6 +1963,8 @@ package body Adaflight.STM32.Flight is
       F.Conditions.Has_Servos := Adaflight.Mixer_Init.Uses_Servos (Adaflight.STM32.Pilot.Mixer_Mode);
       F.Conditions.DShot_Telemetry := False;
       F.Conditions.Acc_Present := Gyro_Report.Acc_Found;
+      F.Conditions.Rangefinder_Present := Adaflight.STM32.Rangefinder.Detected;
+      F.Surface_Raw := Adaflight.STM32.Rangefinder.Raw_Altitude_Cm;
       F.Conditions.RSSI_Configured := Adaflight.STM32.Radio.RSSI_Configured;
       F.Conditions.Debug_Active := Config.System_Config.Debug_Mode /= 0;
       F.Conditions.Voltage_Meter := Bat_Settings.Voltage_Meter;

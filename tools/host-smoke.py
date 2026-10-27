@@ -1695,6 +1695,9 @@ def main():
             check("rangefinder port assigned", "rangefinder_uart set to UART4" in text, text[-120:])
             text = cli(sock, "feature RANGEFINDER")
             check("rangefinder feature on", "Enabled" in text, text[-120:])
+            for line in ("blackbox_device = SERIAL", "blackbox_uart = UART6", "blackbox_mode = ALWAYS"):
+                text = cli(sock, "set " + line)
+                check(f"rangefinder flight log {line}", line.replace(" = ", " set to ") in text, text[-120:])
             cli(sock, "save", wait=2.0)
             proc.wait(timeout=10)
         finally:
@@ -1703,8 +1706,19 @@ def main():
         lidar = Lidar()
         lidar.start()
         proc, sock = start(image, store)
+        log = None
+        deadline = time.time() + 5
+        while log is None and time.time() < deadline:
+            try:
+                log = socket.create_connection(("127.0.0.1", LOG_PORT), timeout=1)
+                log.settimeout(0.3)
+            except OSError:
+                time.sleep(0.01)
         try:
-            time.sleep(3.0)
+            data = read_all(log, 3.0) if log is not None else b""
+            fields = next((line for line in data.split(b"\n") if line.startswith(b"H Field I name:")), b"")
+            check("flight log lists the rangefinder's surfaceRaw field", b",surfaceRaw," in fields + b",",
+                  repr(fields[-80:]))
             status = msp(sock, 101)
             check("MSP status names the rangefinder", status is not None and len(status) > 5
                   and (status[4] | status[5] << 8) & 0x10 != 0, repr(status))
@@ -1716,6 +1730,8 @@ def main():
             lidar.stop.set()
             stop(proc)
             sock.close()
+            if log is not None:
+                log.close()
         store = os.path.join(work, "ghsttlm.bin")
         proc, sock = start(image, store)
         try:
