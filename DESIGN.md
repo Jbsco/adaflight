@@ -9548,3 +9548,24 @@ evaluating other data while armed.
 The image is 924664 bytes of text, 4764 of data and 116816 of zeroed data. The bench check is the
 configurator's power tab showing the battery voltage within a few hundredths of a volt of a meter
 across the pads, and `status` with the battery line.
+
+## D392. Board hardware defaults (2026-10-26)
+
+The configuration reset takes the board's hardware defaults. `Adaflight.Board_Info.State` contains a
+record of them, which `Board_Info.Reset_Config` writes into the reset configuration after the
+board's information: the battery voltage, current, RSSI and external analog inputs with their pin
+tags, the beeper's pin, inversion and PWM frequency with the open drain output for a beeper that is
+not inverted, the battery's voltage and current meter sources, and the voltage and current meters'
+scales. The record's own values are the host build's, which names none of this hardware, so every
+recorded vector keeps its values. The boot reset, the command line's `defaults` and the reset
+message reach the hardware defaults through the board state the target holds.
+
+`tools/boardgen.py` writes the pin tags of the inputs and the beeper, zero for none, and the meter
+defaults from the board's configuration file, with no voltage meter, the virtual current meter and
+the scales 110 and 400 where the file names none. For the CLRacing F4S the tags are 36, 50, 49 and
+51 for B04, C02, C01 and C03, both meters read the ADC and the current scale is 250, matching a dump
+of the board under Betaflight. The STM32F4 image builds the record from the board package and reads
+its analog inputs through the configured pin tags, so a `resource` change takes effect at the next
+boot. The battery meters of D391 read zero on a configuration from the host defaults, which this
+entry corrects.
+

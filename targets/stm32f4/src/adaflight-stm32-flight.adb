@@ -108,7 +108,22 @@ package body Adaflight.STM32.Flight is
    Delay_Limit_Us : constant Scheduler.Delay_Limit := 10;
 
    Blink    : Ada.Real_Time.Time := Ada.Real_Time.Clock;
-   Board    : CLI.Board_State;
+   --  The defaults of the board's hardware, which every reset of the
+   --  configuration takes.
+   Board_Hardware : constant Adaflight.Board_Info.Hardware_Defaults :=
+     (Vbat             => (Adaflight.Board.ADC_VBAT_Tag /= 0, Adaflight.Board.ADC_VBAT_Tag),
+      Current          => (Adaflight.Board.ADC_CURR_Tag /= 0, Adaflight.Board.ADC_CURR_Tag),
+      RSSI             => (Adaflight.Board.ADC_RSSI_Tag /= 0, Adaflight.Board.ADC_RSSI_Tag),
+      External1        => (Adaflight.Board.ADC_External1_Tag /= 0, Adaflight.Board.ADC_External1_Tag),
+      Beeper_Tag       => Adaflight.Board.Beeper_Tag,
+      Beeper_Inverted  => Adaflight.Board.Beeper_Inverted,
+      Beeper_Frequency => Adaflight.Board.Beeper_PWM_Hz,
+      Voltage_Source   => Adaflight.Board.Default_Voltage_Meter_Source,
+      Current_Source   => Adaflight.Board.Default_Current_Meter_Source,
+      Voltage_Scale    => Adaflight.Board.Default_Voltage_Meter_Scale,
+      Current_Scale    => Adaflight.Board.Default_Current_Meter_Scale);
+
+   Board    : CLI.Board_State := (Hardware => Board_Hardware, others => <>);
    Config   : Adaflight.Config_Groups.Configuration := Adaflight.Config_Reset.Reset (Board);
    Sched    : Scheduler.State;
    Session  : Terminal.Session;
@@ -664,11 +679,24 @@ package body Adaflight.STM32.Flight is
          Config.Current_Sensor_Virtual_Config, Config.Esc_Sensor_Config,
          Adaflight.Config_Runtime.Sag_Compensation_Of (Config.Pid_Profiles, Config.Mixer_Config)));
 
-   --  An analog channel's sample, zero when the channel is off.
-   function Analog (Channel : Adaflight.Config_Groups.Adc_Channel_Config_T_Record; P : Adaflight.Pins.Pin)
-                    return Natural is
-     (if Channel.Enabled and then Adaflight.STM32.ADC.Has_Channel (P)
-      then Natural (Adaflight.STM32.ADC.Read (P)) else 0);
+   --  The pin of a tag as the configuration stores it: the port from one in
+   --  the high nibble and the pin number in the low one.
+   function Tagged_Pin (Tag : Unsigned_8) return Boolean is
+     (Tag / 16 in 1 .. Adaflight.Pins.Port_Name'Pos (Adaflight.Pins.Port_Name'Last) + 1);
+
+   function Pin_Of (Tag : Unsigned_8) return Adaflight.Pins.Pin is
+     ((Port => Adaflight.Pins.Port_Name'Val (Natural (Tag / 16) - 1),
+       Number => Adaflight.Pins.Pin_Number (Tag mod 16)))
+     with Pre => Tagged_Pin (Tag);
+
+   --  Whether an analog input is on with a pin that has a converter channel.
+   function Analog_Input (Channel : Adaflight.Config_Groups.Adc_Channel_Config_T_Record) return Boolean is
+     (Channel.Enabled and then Tagged_Pin (Channel.Io_Tag)
+      and then Adaflight.STM32.ADC.Has_Channel (Pin_Of (Channel.Io_Tag)));
+
+   --  An analog input's sample, zero when the input is off.
+   function Analog (Channel : Adaflight.Config_Groups.Adc_Channel_Config_T_Record) return Natural is
+     (if Analog_Input (Channel) then Natural (Adaflight.STM32.ADC.Read (Pin_Of (Channel.Io_Tag))) else 0);
 
    --  What the battery's other meters read: the arming, the throttle status
    --  with the motor stop feature and the mixer's throttle for the virtual
@@ -686,7 +714,7 @@ package body Adaflight.STM32.Flight is
    begin
       Bat_Settings := Battery_Settings;
       Adaflight.Battery.Update_Voltage
-        (Bat, Bat_Settings, Analog (Config.Adc_Config.Vbat, Adaflight.Board.ADC_VBAT_Pin),
+        (Bat, Bat_Settings, Analog (Config.Adc_Config.Vbat),
          Adaflight.STM32.Time.Millis, Meters);
    end Run_Battery_Voltage;
 
@@ -694,7 +722,7 @@ package body Adaflight.STM32.Flight is
    begin
       Bat_Settings := Battery_Settings;
       Adaflight.Battery.Update_Current
-        (Bat, Bat_Settings, Analog (Config.Adc_Config.Current, Adaflight.Board.ADC_CURR_Pin), Before, Meters);
+        (Bat, Bat_Settings, Analog (Config.Adc_Config.Current), Before, Meters);
    end Run_Battery_Current;
 
    --  A battery's connection: the PID profile for the detected cells while
@@ -1057,7 +1085,7 @@ package body Adaflight.STM32.Flight is
             Adaflight.STM32.Radio.Process
               (Before, Adaflight.STM32.Time.Millis,
                (if Adaflight.STM32.Radio.RSSI_ADC
-                then Analog (Config.Adc_Config.Rssi, Adaflight.Board.ADC_RSSI_Pin) else 0),
+                then Analog (Config.Adc_Config.Rssi) else 0),
                Ready);
             if Ready then
                Adaflight.STM32.Pilot.Update_Refresh_Rate
@@ -1135,11 +1163,6 @@ package body Adaflight.STM32.Flight is
       Run_Body (Id);
    end Run_Task;
 
-   --  The board's analog inputs: the battery voltage, the current and the
-   --  RSSI.
-   Analog_Pins : constant array (1 .. 3) of Adaflight.Pins.Pin :=
-     (Adaflight.Board.ADC_VBAT_Pin, Adaflight.Board.ADC_CURR_Pin, Adaflight.Board.ADC_RSSI_Pin);
-
    procedure Init is
    begin
       Adaflight.STM32.Time.Init;
@@ -1158,11 +1181,16 @@ package body Adaflight.STM32.Flight is
       end loop;
       Ctx.Out_Views.Serial_Count := Ports'Length;
       Adaflight.STM32.ADC.Init;
-      for P of Analog_Pins loop
-         if Adaflight.STM32.ADC.Has_Channel (P) then
-            Adaflight.STM32.ADC.Enable (P);
-         end if;
-      end loop;
+      declare
+         Inputs : constant array (1 .. 3) of Adaflight.Config_Groups.Adc_Channel_Config_T_Record :=
+           (Config.Adc_Config.Vbat, Config.Adc_Config.Current, Config.Adc_Config.Rssi);
+      begin
+         for Channel of Inputs loop
+            if Analog_Input (Channel) then
+               Adaflight.STM32.ADC.Enable (Pin_Of (Channel.Io_Tag));
+            end if;
+         end loop;
+      end;
       Start_Gyro;
       Init_Loop_Units;
       Adaflight.STM32.Radio.Init (Config, Runtime_Features, Adaflight.STM32.Time.Millis);

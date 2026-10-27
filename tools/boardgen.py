@@ -38,6 +38,23 @@ def pin_literal(text: str) -> str:
     return f"(Port_{m.group(1)}, {int(m.group(2))})"
 
 
+VOLTAGE_SOURCES = {"VOLTAGE_METER_NONE": 0, "VOLTAGE_METER_ADC": 1, "VOLTAGE_METER_ESC": 2}
+CURRENT_SOURCES = {"CURRENT_METER_NONE": 0, "CURRENT_METER_ADC": 1, "CURRENT_METER_VIRTUAL": 2,
+                   "CURRENT_METER_ESC": 3, "CURRENT_METER_MSP": 4}
+
+
+def pin_tag(text: str) -> int:
+    """The pin's tag as the configuration stores it: the port from one in the high nibble and the
+    pin number in the low one, zero for none."""
+    m = re.fullmatch(r"P([A-K])(\d{1,2})", text)
+    return ((ord(m.group(1)) - ord("A") + 1) << 4) | int(m.group(2)) if m else 0
+
+
+def number(text, default: int) -> int:
+    m = re.match(r"\s*(-?\d+)", text or "")
+    return int(m.group(1)) if m else default
+
+
 def find_config(configs: Path, board: str) -> Path:
     hits = sorted(configs.glob(f"*/{board}/config.h"))
     if len(hits) != 1:
@@ -73,6 +90,22 @@ def generate(config: Path) -> str:
     out.append(f"   HSE_MHz         : constant := {int(defines.get('SYSTEM_HSE_MHZ', '8'))};")
     out.append(f"   Beeper_Inverted : constant Boolean := {'True' if 'BEEPER_INVERTED' in defines else 'False'};")
     out.append(f"   Beeper_PWM_Hz   : constant := {int(defines.get('BEEPER_PWM_HZ', '0'))};")
+    out.append("")
+    out.append("   --  The pin tags of the inputs and the beeper, zero for none, and the")
+    out.append("   --  meter defaults, the host defaults where the board names none.")
+    tags = [("Beeper_Tag", "BEEPER_PIN"), ("ADC_VBAT_Tag", "ADC_VBAT_PIN"), ("ADC_CURR_Tag", "ADC_CURR_PIN"),
+            ("ADC_RSSI_Tag", "ADC_RSSI_PIN"), ("ADC_External1_Tag", "ADC_EXTERNAL1_PIN")]
+    defaults = [("Default_Voltage_Meter_Source", VOLTAGE_SOURCES[defines.get("DEFAULT_VOLTAGE_METER_SOURCE",
+                                                                             "VOLTAGE_METER_NONE")]),
+                ("Default_Current_Meter_Source", CURRENT_SOURCES[defines.get("DEFAULT_CURRENT_METER_SOURCE",
+                                                                             "CURRENT_METER_VIRTUAL")]),
+                ("Default_Voltage_Meter_Scale", number(defines.get("DEFAULT_VOLTAGE_METER_SCALE"), 110)),
+                ("Default_Current_Meter_Scale", number(defines.get("DEFAULT_CURRENT_METER_SCALE"), 400))]
+    column = max(len(n) for n, _ in tags + defaults)
+    for name, define in tags:
+        out.append(f"   {name.ljust(column)} : constant := {pin_tag(defines.get(define, ''))};")
+    for name, value in defaults:
+        out.append(f"   {name.ljust(column)} : constant := {value};")
     out.append("")
     for name, lit in pins:
         out.append(f"   {name.ljust(width)} : constant Pin := {lit};")
