@@ -9517,3 +9517,34 @@ enables the motors.
 The image is 918508 bytes of text, 4660 of data and 116680 of zeroed data. The bench check is the
 command line's `tasks` listing the PID task at the gyro's loop rate with its time, and `status`
 reporting the load.
+
+## D391. STM32F4 battery meters (2026-10-26)
+
+The STM32F4 image measures the battery. `Adaflight.STM32.ADC` drives ADC1 at a 10.5 MHz clock: a pin
+in analog mode, and one conversion of its channel on request with 12 bits after 480 sample cycles,
+about 47 microseconds. The reference scans its channels continuously into memory and reads the
+latest sample, and a conversion at the read gives the same value without the scan. The board's
+battery voltage, current and RSSI pins take their channels at boot, before the sensors start. After
+the receiver the battery unit (D22, D136) starts with its settings from the stored battery, voltage
+sensor, current sensor and selected battery profile groups, which each battery task reads again, as
+the stored values may change while the board runs. The voltage task takes the battery voltage
+channel's sample, the current task the current channel's with its time, and both read the arming,
+the throttle status with the motor stop feature and the mixer's throttle for the virtual meter. The
+alerts task runs the battery's presence check while disarmed, its states and no alarm, since the
+board has no beeper yet (D192). A battery's connection selects the PID profile for the detected cells
+while disarmed and resets the mixer's RPM limiter (D277). A channel that is off reads zero. The
+receiver's check step reads the RSSI channel when the RSSI comes from the analog input.
+
+The analog and battery replies take the display voltage, the charge drawn, the current, the cells,
+the capacity, the overall state and the receiver's RSSI. The voltage meter reply lists the battery
+meter, and the current meter reply lists the battery, virtual and MSP meters, with the configured
+source's readings at its id. The status report's battery line takes the voltage, the cells and the
+state. The low voltage cutoff reaches the RC commands, and the display voltage, the sag-filtered
+cell voltage and the latest voltage reach the mixer. The task setup enables the voltage and current
+tasks with their meters and the alerts task with an alert, at 200 Hz for the voltage with the sag
+compensation. The task functions now read the arming flag, which the serial task needs to stop
+evaluating other data while armed.
+
+The image is 924664 bytes of text, 4764 of data and 116816 of zeroed data. The bench check is the
+configurator's power tab showing the battery voltage within a few hundredths of a volt of a meter
+across the pads, and `status` with the battery line.

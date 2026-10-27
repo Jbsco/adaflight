@@ -144,6 +144,11 @@ package body Adaflight.STM32.Pilot is
 
    function Motors_Reversed return Boolean is (RC.Motors_Reversed);
 
+   function Throttle_Low (Channels : Adaflight.RC_Command.Channel_Values) return Boolean is
+     (Adaflight.Arming."=" (Adaflight.Arming.Throttle_Status
+                              (Arm_Settings, Channels, Adaflight.Modes.Is_Active (M, Adaflight.Modes.Three_D)),
+                            Adaflight.Arming.Throttle_Low));
+
    function Armed return Boolean is (Arm.Armed);
 
    function Disabled return Adaflight.Arming.Disable_Set is (Arm.Disabled);
