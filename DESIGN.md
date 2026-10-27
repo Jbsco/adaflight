@@ -10058,3 +10058,31 @@ transfers. The
 smoke check writes a blank image, sets the flight log device to the chip, restarts the image, reads the
 MSP summary and the command line's flash information and read, then finds the header at the start of
 the image.
+
+## D416. STM32F4 video transmitter control (2026-10-27)
+
+`Adaflight.STM32.VTX` runs the video transmitter control of D84 to D86 on the board. The device is the
+one the stored configuration names, on the UART its `vtx_uart` setting names. SmartAudio opens the port
+at 4800 baud with two stop bits, half duplex on the transmit pin, push-pull with a pull-down. Tramp opens
+it at 9600 baud, half duplex and open drain with a pull-up when `vtx_halfduplex` is on, full duplex
+otherwise. `Adaflight.STM32.USART` gained the half duplex line for this: the transmit pin alone at low
+speed with its drive and pull, and the half duplex selection bit. The transmitter takes its port after
+the receiver and the GPS link, and the port is refused when either holds it. The MSP leaves UART1 and the
+serial flight log leaves its port when the transmitter holds it, since in the reference the MSP and the
+log open their ports after the transmitter.
+
+The start builds the running table from the stored one and starts the control layer, which saves the
+configuration when it made the settings whole. The VTX task runs at 5 Hz with the stored settings, the
+arming state, the failsafe, the command line's state and the pit mode and control disable boxes. It
+hands the control layer the bytes the device sent, keeps the bytes a Tramp reply left unread for the
+next call, queues the frames on the port, follows a SmartAudio rate change, and writes the settings the
+layer changed back to the configuration. The channel switches of D85 apply after each mode pass. The MSP
+VTX configuration and device status replies and the configuration write read the device, its readiness,
+its pit mode and the running table, a pit mode write goes to the device, and `vtx_info` lists the
+SmartAudio power levels.
+
+The smoke check releases UART6 from the serial flight log, names it for a SmartAudio transmitter,
+restarts the image and plays a SmartAudio V2 transmitter on the port: it answers the settings request,
+the pit mode frequency request and each command. The MSP configuration reply names a ready SmartAudio
+device, a configuration write of 5800 MHz reaches the transmitter as a frequency command, and
+`vtx_info` lists the power levels.

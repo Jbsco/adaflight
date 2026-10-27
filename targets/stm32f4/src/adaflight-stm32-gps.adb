@@ -2,8 +2,8 @@ with Adaflight.Bytes; use Adaflight.Bytes;
 with Adaflight.Config_Fix;
 with Adaflight.Config_Runtime;
 with Adaflight.STM32.RTC;
-with Adaflight.STM32.USART;
 package body Adaflight.STM32.GPS is
+   use type Adaflight.STM32.USART.Number;
    use type Interfaces.Unsigned_32;
    package SFM renames Adaflight.Serial_Feature_Map;
    package USART renames Adaflight.STM32.USART;
@@ -57,6 +57,8 @@ package body Adaflight.STM32.GPS is
    end Init;
 
    function Enabled return Boolean is (Open);
+
+   function Holds (N : USART.Number) return Boolean is (Open and then N = Which);
 
    procedure Run (Now_Ms, Now_Us : Interfaces.Unsigned_32; Armed : Boolean; R : out Report) is
       Count    : Natural := 0;

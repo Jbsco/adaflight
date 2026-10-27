@@ -7,6 +7,7 @@ with Adaflight.Config_Groups;
 with Adaflight.GPS_Frames;
 with Adaflight.GPS_Link;
 with Adaflight.Serial_Feature_Map;
+with Adaflight.STM32.USART;
 package Adaflight.STM32.GPS is
    --  The link's settings and its port, which opens at the link's rate
    --  when the GPS feature is on and a serial port has the GPS function.
@@ -16,6 +17,8 @@ package Adaflight.STM32.GPS is
 
    --  Whether the GPS feature runs with a port.
    function Enabled return Boolean;
+   --  Whether the GPS link holds a UART.
+   function Holds (N : Adaflight.STM32.USART.Number) return Boolean;
 
    --  What a run of the task asks of the flight: the ready beep, the task
    --  rate and the solutions the run took in.
