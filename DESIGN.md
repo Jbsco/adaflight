@@ -9895,3 +9895,24 @@ The usbvcp vectors come from a host build of the reference's device library, cla
 corrections behind toggles, over stubs of the endpoint layer that keep its state and record its operations:
 64 sessions of enumeration, line coding, data both ways, malformed requests and bus events, each event with
 its operations and the state after it. Eight tampers fail the vectors.
+## D409. STM32F4 USB virtual serial port (2026-10-26)
+
+`Adaflight.STM32.USB` drives the F405's full-speed OTG controller for the device of D408, after the
+controller code the reference builds for the F4: PA11 and PA12 on their alternate function, the core reset on
+the embedded transceiver with bus sensing off, device mode, the FIFOs (128 words to receive, 32, 64 and 64
+words to send on endpoints 0, 1 and 3), every endpoint disabled, and the interrupts. Its interrupt reads the
+receive FIFO into the endpoint buffers, hands setup packets, finished transfers, frames, bus resets,
+suspends and resumes to the device, and carries out the endpoint operations each one returns, writing a
+packet into its transmit FIFO when the FIFO has room. The controller's state sits in CCM RAM.
+
+`Adaflight.STM32.Serial` puts the UARTs and the virtual serial port behind one port type. The MSP and the
+command line serve the virtual serial port and UART1, the virtual serial port first in the port list as
+identifier 20, and the command line runs on the port it was entered from, with the MSP paused on every port
+while it runs. A write to the virtual serial port goes out while the host has the port configured, retried
+for up to 50 ms while a transfer runs. The host target serves the virtual serial port on TCP port 5780, and
+the smoke check runs the MSP and the command line over it.
+
+Two details differ from the reference. The device address goes into its field of the device configuration
+register, where the reference ORs it into the register, so a second address request without a bus reset
+leaves bits of both addresses (DIVERGENCES.md). The incomplete isochronous interrupts, which no endpoint of
+the class raises, are cleared without the class callbacks the reference calls through null pointers.
