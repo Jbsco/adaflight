@@ -10617,3 +10617,19 @@ frame's time for the RC smoothing. The EX Bus telemetry waits, so the request fr
 
 The host smoke check's receiver phase adds EX Bus channel frames, each with its reflected CRC16, with the
 same channels.
+
+## D450. STM32F4 iBus telemetry (2026-10-27)
+
+The board answers a FlySky receiver's iBus sensor polls on the telemetry port of the first provider with the
+iBus protocol, at 115,200 baud whatever rate the provider names, always on the transmit pin alone, and
+inverted when the telemetry's inversion setting asks. Each telemetry task run hands every byte received to
+the core's iBus sensors, which find a request through a four-byte window, skip the echo of each answer by
+its length, and answer from the sensor table the configuration names, with the first address polled as its
+base. The values come from the battery, the arming, the throttle and the modes, the accelerometer, the
+attitude, the climb rate and the GPS, with no barometer and no gyro temperature on the board. iBus runs last
+in the port checks and the telemetry task, after the CRSF telemetry. The telemetry port generic gains the
+single-wire choice for a protocol that always takes one wire.
+
+The host smoke check sets iBus telemetry on UART3 with a fresh store, sends a discovery, a sensor type and a
+measurement request for address 1, echoing each answer back as the single wire would. It finds the discovery
+answered and the type and value replies.
