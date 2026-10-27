@@ -24,6 +24,10 @@ package body Adaflight.STM32.ESC_Sensor is
    Which   : USART.Number := USART.UART1;
    Sensor  : Core.Sensor;
    Input   : Byte_Array (0 .. 255);
+   --  The information frame while a read runs, and its bytes.
+   Reading_Info : Boolean := False;
+   Info         : Adaflight.ESC_Info.Frame := (others => 0);
+   Info_Count   : Natural range 0 .. Adaflight.ESC_Info.Frame_Size := 0;
    --  The electrical rate's factor to revolutions per second from the pole
    --  count, for the rate in revolutions per minute.
    Erpm_To_Hz : Float := 0.0;
@@ -62,17 +66,29 @@ package body Adaflight.STM32.ESC_Sensor is
 
    function Count_Of (Motors : Natural) return Core.Motor_Count is (Natural'Min (Motors, Core.Motor_Count'Last));
 
+   --  The bytes received since the last take, into the information frame
+   --  while a read runs, otherwise into the telemetry frame in flight.
+   procedure Drain is
+      Count : Natural;
+   begin
+      USART.Take (Which, Input, Count);
+      for I in 0 .. Count - 1 loop
+         if not Reading_Info then
+            Core.Receive (Sensor, Input (I));
+         elsif Info_Count < Adaflight.ESC_Info.Frame_Size then
+            Info (Info_Count) := Input (I);
+            Info_Count := Info_Count + 1;
+         end if;
+      end loop;
+   end Drain;
+
    procedure Run (Now_Us : Interfaces.Unsigned_32; Motors : Natural) is
-      Count   : Natural;
       Request : Boolean;
    begin
       if not Open then
          return;
       end if;
-      USART.Take (Which, Input, Count);
-      for I in 0 .. Count - 1 loop
-         Core.Receive (Sensor, Input (I));
-      end loop;
+      Drain;
       Core.Process (Sensor, Now_Us, Count_Of (Motors), Adaflight.STM32.Motors.Enabled, Request);
       if Request then
          Adaflight.STM32.DShot_Output.Request_Telemetry (Sensor.Motor);
@@ -105,4 +121,23 @@ package body Adaflight.STM32.ESC_Sensor is
       end loop;
       return V;
    end Values;
+   procedure Info_Read_Start is
+   begin
+      if Open then
+         Drain;
+      end if;
+      Info := (others => 0);
+      Info_Count := 0;
+      Reading_Info := True;
+   end Info_Read_Start;
+
+   procedure Info_Read_Bytes (F : out Adaflight.ESC_Info.Frame; Count : out Natural) is
+   begin
+      if Open then
+         Drain;
+      end if;
+      F := Info;
+      Count := Info_Count;
+      Reading_Info := False;
+   end Info_Read_Bytes;
 end Adaflight.STM32.ESC_Sensor;

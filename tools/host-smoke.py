@@ -255,6 +255,51 @@ class ESC(threading.Thread):
         sock.close()
 
 
+class ESCInfo(threading.Thread):
+    """The ESC on UART6's port that answers the DShot ESC information command, a frame of 6 to motor 0 in the
+    image's DShot log, with a KISS version 2 information frame: serial number 01 to 0C, firmware 1.31b, a
+    KISS24A, normal rotation and 3D off."""
+
+    FRAME = bytes(range(1, 13)) + bytes([255, 131, ord("b"), 3, 0, 0, 0, 0])
+
+    def __init__(self, log):
+        super().__init__(daemon=True)
+        self.stop = threading.Event()
+        self.log = log
+        self.answers = 0
+
+    def requests(self):
+        try:
+            with open(self.log) as f:
+                return f.read().split().count("0,6,1")
+        except OSError:
+            return 0
+
+    def run(self):
+        sock = None
+        deadline = time.time() + 10
+        while sock is None and time.time() < deadline and not self.stop.is_set():
+            try:
+                sock = socket.create_connection(("127.0.0.1", LOG_PORT), timeout=1)
+            except OSError:
+                time.sleep(0.1)
+        if sock is None:
+            return
+        frame = self.FRAME + bytes([kiss_crc(self.FRAME)])
+        seen = self.requests()
+        while not self.stop.is_set():
+            now = self.requests()
+            if now > seen:
+                seen = now
+                try:
+                    sock.sendall(frame)
+                except OSError:
+                    break
+                self.answers += 1
+            time.sleep(0.0005)
+        sock.close()
+
+
 def fat16_image(path, sectors):
     """A card image: a partition table, then a FAT16 volume of 8-sector clusters from sector 8."""
     start = 8
@@ -750,12 +795,26 @@ def main():
                      int.from_bytes(data[10:12], "little"), int.from_bytes(data[12:14], "little")) \
                 if data and len(data) == 53 else None
             check("MSP motor telemetry reads the ESC sensor's values", first == (4929, 42, 1610, 250, 77), repr(first))
+            esc.stop.set()
+            esc.join(timeout=2)
+            info = ESCInfo(store + ".dshot.txt")
+            info.start()
+            time.sleep(0.5)
             sock.sendall(b"#")
             read_all(sock, 0.8)
             text = cli(sock, "tasks", 1.5)
             check("ESC sensor task runs", "ESC_SENSOR" in text, text[-300:])
+            for _ in range(3):
+                text = cli(sock, "dshotprog 0 6", 1.5)
+                if "ESC Type: KISS24A" in text:
+                    break
+            check("dshotprog reads the ESC's information",
+                  "ESC Type: KISS24A" in text and "mcu serial no: 0x010203-040506-070809-0a0b0c" in text.lower()
+                  and "Firmware Version: 1.31b" in text and "3D: off" in text, text[-400:])
         finally:
             esc.stop.set()
+            if "info" in locals():
+                info.stop.set()
             stop(proc)
             sock.close()
     print(f"host smoke: {'all checks passed' if not failures else str(len(failures)) + ' failed'}")
