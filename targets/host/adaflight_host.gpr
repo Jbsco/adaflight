@@ -13,7 +13,8 @@ project Adaflight_Host is
      ("adaflight-stm32-adc.adb", "adaflight-stm32-exti.adb", "adaflight-stm32-flash.ads",
       "adaflight-stm32-flash.adb", "adaflight-stm32-gpio.adb", "adaflight-stm32-gyro.adb",
       "adaflight-stm32-mcu.adb", "adaflight-stm32-sound.adb", "adaflight-stm32-spi.adb",
-      "adaflight-stm32-time.adb", "adaflight-stm32-usart.adb", "adaflight_stm32f4.adb");
+      "adaflight-stm32-time.adb", "adaflight-stm32-usart.adb", "adaflight-stm32-usb.adb",
+      "adaflight_stm32f4.adb");
 
    package Naming is
       for Body ("Adaflight.STM32.ADC") use "adaflight-host-adc.adb";
@@ -27,6 +28,7 @@ project Adaflight_Host is
       for Body ("Adaflight.STM32.SPI") use "adaflight-host-spi.adb";
       for Body ("Adaflight.STM32.Time") use "adaflight-host-time.adb";
       for Body ("Adaflight.STM32.USART") use "adaflight-host-usart.adb";
+      for Body ("Adaflight.STM32.USB") use "adaflight-host-usb.adb";
    end Naming;
 
    package Compiler is

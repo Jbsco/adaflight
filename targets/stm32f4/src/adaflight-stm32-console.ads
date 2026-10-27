@@ -1,16 +1,16 @@
---  The command line over USART1 and its terminal. The board's DShot
+--  The command line over the board's serial ports and its terminal. The board's DShot
 --  programming, passthrough starts, gyro register reads and flash tools are
 --  the core's units that do nothing until their drivers land.
 with Adaflight.CLI_Board_Steps;
 with Adaflight.Command_Line;
 with Adaflight.Command_Line.Terminal;
-with Adaflight.STM32.USART;
+with Adaflight.STM32.Serial;
 
 package Adaflight.STM32.Console is
 
    package CLI is new Adaflight.Command_Line
-     (Sink                   => Adaflight.STM32.USART.Port,
-      Put                    => Adaflight.STM32.USART.Put,
+     (Sink                   => Adaflight.STM32.Serial.Port,
+      Put                    => Adaflight.STM32.Serial.Put,
       DShot_Write            => Adaflight.CLI_Board_Steps.DShot_Write,
       Motors_Disable         => Adaflight.CLI_Board_Steps.Motors_Disable,
       Motors_Enable          => Adaflight.CLI_Board_Steps.Motors_Enable,
