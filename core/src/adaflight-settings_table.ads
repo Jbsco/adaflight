@@ -217,12 +217,18 @@ package Adaflight.Settings_Table with SPARK_Mode is
 
    function Describe (S : Setting) return Info;
 
-   function Name (S : Setting) return String;
+   --  The longest setting name and the longest value name.
+   Max_Name_Length  : constant := 43;
+   Max_Value_Length : constant := 27;
+
+   function Name (S : Setting) return String
+     with Post => Name'Result'Length in 1 .. Max_Name_Length;
 
    function Value_Count (T : Lookup_Table) return Natural;
 
    --  A value's name, empty where the build has no such value.
    function Value_Name (T : Lookup_Table; Index : Natural) return String
-     with Pre => Index < Value_Count (T);
+     with Pre  => Index < Value_Count (T),
+          Post => Value_Name'Result'Length <= Max_Value_Length;
 
 end Adaflight.Settings_Table;

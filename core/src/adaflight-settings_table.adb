@@ -2371,797 +2371,230 @@ package body Adaflight.Settings_Table with SPARK_Mode is
 
    function Describe (S : Setting) return Info is (Infos (S));
 
+   --  The setting names in one text, each at its start for its length; the
+   --  text ends with room for a longest name, so every slice stays within
+   --  it by the types alone.
+   Names_Length : constant := 13947;
+   Names : constant String (1 .. Names_Length + Max_Name_Length) :=
+     "gyro_hardware_lpfgyro_lpf1_typegyro_lpf1_static_hzgyro_lpf2_typegyro_lpf2_static_hzgyro_notch1_hzgyro_notch"
+     & "1_cutoffgyro_notch2_hzgyro_notch2_cutoffgyro_calib_durationgyro_calib_noise_limitgyro_offset_yawgyro_overfl"
+     & "ow_detectyaw_spin_recoveryyaw_spin_thresholddyn_notch_countdyn_notch_qdyn_notch_min_hzdyn_notch_max_hzgyro_"
+     & "lpf1_dyn_min_hzgyro_lpf1_dyn_max_hzgyro_lpf1_dyn_expogyro_filter_debug_axisacc_hardwareacc_lpf_hzacc_trim_p"
+     & "itchacc_trim_rollacc_calibrationalign_magmag_align_rollmag_align_pitchmag_align_yawmag_bustypemag_i2c_devic"
+     & "emag_i2c_addressmag_spi_devicemag_hardwaremag_calibrationbaro_bustypebaro_spi_devicebaro_i2c_devicebaro_i2c"
+     & "_addressbaro_hardwarebaro_driftpitot_bustypepitot_i2c_devicepitot_i2c_addresspitot_hardwaremid_rcmin_checkm"
+     & "ax_checkrssi_channelrssi_src_frame_errorsrssi_scalerssi_offsetrssi_invertrssi_src_frame_lpf_periodrssi_smoo"
+     & "thingrc_smoothingrc_smoothing_auto_factorrc_smoothing_auto_factor_throttlerc_smoothing_setpoint_cutoffrc_sm"
+     & "oothing_throttle_cutoffrc_smoothing_debug_axisfpv_mix_degreesmax_aux_channelsserialrx_providerserialrx_inve"
+     & "rtedspektrum_sat_bindspektrum_sat_bind_autoresetsrxl2_unit_idsrxl2_baud_fastsbus_baud_fastcrsf_use_negotiat"
+     & "ed_baudairmode_start_throttle_percentrx_min_usecrx_max_usecserialrx_halfduplexrx_uartmsp_override_channels_"
+     & "maskmsp_override_failsaferx_spi_protocolrx_spi_busrx_spi_led_inversionadc_deviceadc_vrefint_calibrationadc_"
+     & "tempsensor_calibration30adc_tempsensor_calibration110input_filtering_modeblackbox_sample_rateblackbox_devic"
+     & "eblackbox_disable_pidsblackbox_disable_rcblackbox_disable_setpointblackbox_disable_batblackbox_disable_magb"
+     & "lackbox_disable_altblackbox_disable_rssiblackbox_disable_gyroblackbox_disable_gyrounfiltblackbox_disable_ac"
+     & "cblackbox_disable_attitudeblackbox_disable_debugblackbox_disable_motorsblackbox_disable_servosblackbox_disa"
+     & "ble_rpmblackbox_disable_gpsblackbox_disable_pitotblackbox_modeblackbox_high_resolutionblackbox_uartblackbox"
+     & "_baudmax_throttlemin_commandmotor_kvmotor_idledshot_burstdshot_bidirdshot_edtdshot_bitbangdshot_bitbang_tim"
+     & "eruse_unsynced_pwmmotor_pwm_protocolmotor_pwm_ratemotor_pwm_inversionmotor_polesmotor_output_reorderingthr_"
+     & "corr_valuethr_corr_anglefailsafe_delayfailsafe_landing_timefailsafe_throttlefailsafe_switch_modefailsafe_th"
+     & "rottle_low_delayfailsafe_procedurefailsafe_recovery_delayfailsafe_stick_thresholdalign_board_rollalign_boar"
+     & "d_pitchalign_board_yawgimbal_modebattery_profile_namebat_capacityvbat_max_cell_voltagevbat_full_cell_voltag"
+     & "evbat_min_cell_voltagevbat_warning_cell_voltagecbat_alert_percentforce_battery_cell_countvbat_hysteresiscur"
+     & "rent_meterbattery_metervbat_detect_cell_voltageuse_vbat_alertsuse_cbat_alertsvbat_cutoff_percentvbat_displa"
+     & "y_lpf_periodvbat_sag_lpf_periodibat_lpf_periodvbat_duration_for_warningvbat_duration_for_criticalvbat_scale"
+     & "vbat_dividervbat_multiplieribata_scaleibata_offsetibatv_scaleibatv_offsetbattery_continuebeeper_inversionbe"
+     & "eper_odbeeper_frequencybeeper_dshot_beacon_toneyaw_motors_reversedmixer_typecrashflip_motor_percentcrashfli"
+     & "p_ratecrashflip_auto_rearmrpm_limitrpm_limit_prpm_limit_irpm_limit_drpm_limit_value3d_deadband_low3d_deadba"
+     & "nd_high3d_neutral3d_deadband_throttle3d_limit_low3d_limit_high3d_switched_modeservo_center_pulseservo_pwm_r"
+     & "ateservo_lowpass_hztri_unarmed_servochannel_forwarding_startrateprofile_namethr_midthr_expothr_hoverrates_t"
+     & "ypequickrates_rc_exporoll_rc_ratepitch_rc_rateyaw_rc_rateroll_expopitch_expoyaw_exporoll_sratepitch_srateya"
+     & "w_sratethrottle_limit_typethrottle_limit_percentroll_rate_limitpitch_rate_limityaw_rate_limitreboot_charact"
+     & "erserial_update_rate_hzimu_dcm_kpimu_dcm_kismall_angleimu_process_denommag_declinationauto_disarm_delaygyro"
+     & "_cal_on_first_armprearm_allow_rearmgps_providergps_sbas_modegps_auto_configgps_auto_baudgps_ublox_acquire_m"
+     & "odelgps_ublox_flight_modelgps_update_rate_hzgps_ublox_utc_standardgps_ublox_use_galileogps_ublox_enable_ana"
+     & "gps_set_home_point_oncegps_use_3d_speedgps_sbas_integritygps_nmea_custom_commandsgps_uartgps_baudgps_rescue"
+     & "_min_start_distgps_rescue_alt_modegps_rescue_initial_climbgps_rescue_ascend_rategps_rescue_return_altgps_re"
+     & "scue_ground_speedgps_rescue_descent_distgps_rescue_descend_rategps_rescue_sanity_checksgps_rescue_min_satsg"
+     & "ps_rescue_allow_arming_without_fixgps_rescue_yaw_pgps_lap_timer_gate_latgps_lap_timer_gate_longps_lap_timer"
+     & "_min_lap_time_sgps_lap_timer_gate_tolerance_mdeadbandyaw_deadbandyaw_control_reversedalt_hold_climb_ratealt"
+     & "_hold_deadbandpos_hold_deadbandposhold_position_sourceposhold_opticalflow_quality_minposhold_opticalflow_ma"
+     & "x_rangepid_process_denomrunaway_takeoff_preventionrunaway_takeoff_deactivate_delayrunaway_takeoff_deactivat"
+     & "e_throttle_percentprofile_namedterm_lpf1_dyn_min_hzdterm_lpf1_dyn_max_hzdterm_lpf1_dyn_expodterm_lpf1_typed"
+     & "term_lpf1_static_hzdterm_lpf2_typedterm_lpf2_static_hzdterm_notch_hzdterm_notch_cutoffvbat_sag_compensation"
+     & "pid_at_min_throttleanti_gravity_gainanti_gravity_cutoff_hzanti_gravity_p_gainacc_limit_yawacc_limitcrash_dt"
+     & "hresholdcrash_gthresholdcrash_setpoint_thresholdcrash_timecrash_delaycrash_recovery_anglecrash_recovery_rat"
+     & "ecrash_limit_yawcrash_recoveryiterm_rotationiterm_relaxiterm_relax_typeiterm_relax_cutoffiterm_winduppidsum"
+     & "_limitpidsum_limit_yawyaw_lowpass_hzthrottle_boostthrottle_boost_cutoffacro_trainer_angle_limitacro_trainer"
+     & "_lookahead_msacro_trainer_debug_axisacro_trainer_gainp_pitchi_pitchd_pitchf_pitchp_rolli_rolld_rollf_rollp_"
+     & "yawi_yawd_yawf_yawangle_p_gainangle_feedforwardangle_feedforward_smoothing_msangle_limitangle_earth_refhori"
+     & "zon_level_strengthhorizon_limit_stickshorizon_limit_degreeshorizon_ignore_stickshorizon_delay_mschirp_lag_f"
+     & "req_hzchirp_lead_freq_hzchirp_amplitude_rollchirp_amplitude_pitchchirp_amplitude_yawchirp_frequency_start_d"
+     & "eci_hzchirp_frequency_end_deci_hzchirp_time_secondschirp_repeatd_max_rolld_max_pitchd_max_yawd_max_gaind_ma"
+     & "x_advancemotor_output_limitauto_profile_cell_countlaunch_control_modelaunch_trigger_allow_resetlaunch_trigg"
+     & "er_throttle_percentlaunch_angle_limitlaunch_control_gainthrust_linearfeedforward_transitionfeedforward_aver"
+     & "agingfeedforward_smooth_factorfeedforward_jitter_factorfeedforward_boostfeedforward_max_rate_limitfeedforwa"
+     & "rd_yaw_hold_gainfeedforward_yaw_hold_timedyn_idle_min_rpmdyn_idle_p_gaindyn_idle_i_gaindyn_idle_d_gaindyn_i"
+     & "dle_max_increaselevel_race_modesimplified_pids_modesimplified_master_multipliersimplified_i_gainsimplified_"
+     & "d_gainsimplified_pi_gainsimplified_d_max_gainsimplified_feedforward_gainsimplified_pitch_d_gainsimplified_p"
+     & "itch_pi_gainsimplified_dterm_filtersimplified_dterm_filter_multipliersimplified_gyro_filtersimplified_gyro_"
+     & "filter_multipliertpa_modetpa_ratetpa_breakpointtpa_low_ratetpa_low_breakpointtpa_low_alwaysez_landing_thres"
+     & "holdez_landing_limitez_landing_speedlanding_disarm_thresholdtlm_invertedtlm_halfduplextelemetry_1_protocolt"
+     & "elemetry_1_uarttelemetry_1_baudtelemetry_2_protocoltelemetry_2_uarttelemetry_2_baudtelemetry_3_protocoltele"
+     & "metry_3_uarttelemetry_3_baudcrsf_tlm_accgyrofrsky_default_latfrsky_default_longfrsky_gps_formatfrsky_unitfr"
+     & "sky_vfas_precisionhott_alarm_intpid_in_tlmreport_cell_voltageibus_sensormavlink_mah_as_heading_divisormavli"
+     & "nk_min_txbuffmavlink_ext_status_ratemavlink_rc_chan_ratemavlink_pos_ratemavlink_extra1_ratemavlink_extra2_r"
+     & "atemavlink_extra3_ratetelemetry_disabled_voltagetelemetry_disabled_currenttelemetry_disabled_fueltelemetry_"
+     & "disabled_modetelemetry_disabled_acc_xtelemetry_disabled_acc_ytelemetry_disabled_acc_ztelemetry_disabled_pit"
+     & "chtelemetry_disabled_rolltelemetry_disabled_headingtelemetry_disabled_altitudetelemetry_disabled_variotelem"
+     & "etry_disabled_lat_longtelemetry_disabled_ground_speedtelemetry_disabled_distancetelemetry_disabled_esc_curr"
+     & "enttelemetry_disabled_esc_voltagetelemetry_disabled_esc_rpmtelemetry_disabled_esc_temperaturetelemetry_disa"
+     & "bled_temperaturetelemetry_disabled_cap_usedledstrip_visual_beeperledstrip_visual_beeper_colorledstrip_grb_r"
+     & "gbledstrip_profileledstrip_race_colorledstrip_beacon_colorledstrip_beacon_period_msledstrip_beacon_percentl"
+     & "edstrip_beacon_armed_onlyledstrip_brightnessledstrip_rainbow_deltaledstrip_rainbow_freqtransponder_provider"
+     & "transponder_datasdcard_detect_invertedsdcard_modeosd_unitsosd_warn_bitmaskosd_rssi_alarmosd_link_quality_al"
+     & "armosd_rssi_dbm_alarmosd_rsnr_alarmosd_cap_alarmosd_alt_alarmosd_distance_alarmosd_esc_temp_alarmosd_esc_rp"
+     & "m_alarmosd_esc_current_alarmosd_core_temp_alarmosd_ah_max_pitosd_ah_max_rolosd_ah_invertosd_logo_on_armingo"
+     & "sd_logo_on_arming_durationosd_arming_logoosd_use_quick_menuosd_show_spec_prearmosd_tim1osd_tim2osd_vbat_pos"
+     & "osd_rssi_pososd_link_quality_pososd_link_tx_power_pososd_rssi_dbm_pososd_rsnr_pososd_tim_1_pososd_tim_2_pos"
+     & "osd_remaining_time_estimate_pososd_flymode_pososd_anti_gravity_pososd_g_force_pososd_throttle_pososd_vtx_ch"
+     & "annel_pososd_crosshairs_pososd_ah_sbar_pososd_ah_pososd_current_pososd_mah_drawn_pososd_wh_drawn_pososd_mot"
+     & "or_diag_pososd_craft_name_pososd_pilot_name_pososd_gps_speed_pososd_gps_lon_pososd_gps_lat_pososd_gps_lap_c"
+     & "urr_pososd_gps_lap_prev_pososd_gps_lap_best3_pososd_gps_sats_pososd_home_dir_pososd_home_dist_pososd_flight"
+     & "_dist_pososd_compass_bar_pososd_altitude_pososd_pid_roll_pososd_pid_pitch_pososd_pid_yaw_pososd_debug_posos"
+     & "d_debug2_pososd_power_pososd_pidrate_profile_pososd_warnings_pososd_avg_cell_voltage_pososd_pit_ang_pososd_"
+     & "rol_ang_pososd_battery_usage_pososd_disarmed_pososd_nheading_pososd_up_down_reference_pososd_ready_mode_pos"
+     & "osd_pos_hold_ready_pososd_nvario_pososd_esc_tmp_pososd_esc_rpm_pososd_esc_rpm_freq_pososd_rtc_date_time_pos"
+     & "osd_adjustment_range_pososd_flip_arrow_pososd_core_temp_pososd_log_status_pososd_stick_overlay_left_pososd_"
+     & "stick_overlay_right_pososd_stick_overlay_radio_modeosd_rate_profile_name_pososd_pid_profile_name_pososd_bat"
+     & "tery_profile_name_pososd_profile_name_pososd_rcchannels_pososd_camera_frame_pososd_efficiency_pososd_total_"
+     & "flights_pososd_aux_pososd_sys_goggle_voltage_pososd_sys_vtx_voltage_pososd_sys_bitrate_pososd_sys_delay_pos"
+     & "osd_sys_distance_pososd_sys_lq_pososd_sys_goggle_dvr_pososd_sys_vtx_dvr_pososd_sys_warnings_pososd_sys_vtx_"
+     & "temp_pososd_sys_fan_speed_pososd_stat_bitmaskosd_profileosd_profile_1_nameosd_profile_2_nameosd_profile_3_n"
+     & "ameosd_gps_sats_show_pdoposd_displayport_deviceosd_uartosd_rcchannelsosd_camera_frame_widthosd_camera_frame"
+     & "_heightosd_stat_avg_cell_valueosd_framerate_hzosd_menu_backgroundosd_aux_channelosd_aux_scaleosd_aux_symbol"
+     & "osd_craftname_msgsosd_lidar_dist_pososd_custom_serial_text_pososd_custom_serial_text_terminatorosd_custom_t"
+     & "ext_uartosd_custom_text_baudosd_wp_number_pososd_wp_current_lat_pososd_wp_current_lon_pososd_wp_current_alt"
+     & "_pososd_wp_distance_pososd_wp_direction_pososd_wp_next_number_pososd_wp_eta_pososd_nav_map_pososd_nav_map_m"
+     & "odeosd_nav_map_centreosd_nav_map_min_scale_mosd_airspeedsystem_hse_mhztask_statisticsdebug_moderate_6pos_sw"
+     & "itchcpu_overclockpwr_on_arm_graceenable_stick_armingvtx_bandvtx_channelvtx_powervtx_low_power_disarmvtx_sof"
+     & "tserial_altvtx_typevtx_uartvtx_freqvtx_pit_mode_freqvtx_halfduplexvtx_spi_busvcd_video_systemvcd_h_offsetvc"
+     & "d_v_offsetmax7456_clockmax7456_spi_busmax7456_preinit_opudisplayport_msp_col_adjustdisplayport_msp_row_adju"
+     & "stdisplayport_msp_fontsdisplayport_msp_use_device_blinkdisplayport_max7456_col_adjustdisplayport_max7456_ro"
+     & "w_adjustdisplayport_max7456_invdisplayport_max7456_blkdisplayport_max7456_whtesc_sensor_halfduplexesc_senso"
+     & "r_current_offsetesc_sensor_uartfrsky_spi_autobindfrsky_spi_tx_idfrsky_spi_offsetfrsky_spi_bind_hop_datafrsk"
+     & "y_x_rx_numfrsky_spi_a1_sourcecc2500_spi_chip_detectled_inversiondashboard_i2c_busdashboard_i2c_addrrangefin"
+     & "der_hardwarerangefinder_uartopticalflow_hardwareopticalflow_uartopticalflow_rotationopticalflow_flip_xpinio"
+     & "_configpinio_boxusb_hid_cdcusb_msc_pin_pullupflash_spi_busrcdevice_init_dev_attemptsrcdevice_init_dev_attem"
+     & "pt_intervalrcdevice_protocol_versionrcdevice_featurercdevice_uartgyro_1_bustypegyro_1_spibusgyro_1_i2cBusgy"
+     & "ro_1_i2c_addressi2c1_pullupi2c1_clockspeed_khzi2c2_pullupi2c2_clockspeed_khzi2c3_pullupi2c3_clockspeed_khzm"
+     & "co2_on_pc9spektrum_spi_protocolspektrum_spi_mfg_idspektrum_spi_num_channelsexpresslrs_uidexpresslrs_domaine"
+     & "xpresslrs_model_idscheduler_relax_rxscheduler_relax_osdscheduler_debug_taskcpu_late_limit_permilleserialmsp"
+     & "_halfduplexmsp_1_uartmsp_1_baudmsp_2_uartmsp_2_baudmsp_3_uartmsp_3_baudtimezone_offset_minutesrpm_filter_ha"
+     & "rmonicsrpm_filter_weightsrpm_filter_qrpm_filter_min_hzrpm_filter_fade_range_hzrpm_filter_lpf_hzflysky_spi_t"
+     & "x_idflysky_spi_rf_channelsstats_min_armed_time_sstats_total_flightsstats_total_time_sstats_total_dist_mstat"
+     & "s_save_move_limitstats_mah_usedcraft_namepilot_namealtitude_sourcealtitude_prefer_baroaltitude_lpfrangefind"
+     & "er_max_range_cmaltitude_d_lpfap_landing_altitude_map_hover_throttleap_throttle_minap_throttle_maxap_altitud"
+     & "e_pap_altitude_iap_altitude_dap_altitude_aap_altitude_fap_position_pap_position_iap_position_dap_position_a"
+     & "ap_position_fap_position_cutoffap_stop_thresholdap_max_angleap_max_yaw_rateap_yaw_pap_velocity_drag_coeffap"
+     & "_max_velocityap_waypoint_arrival_radiusap_waypoint_hold_radiusap_stick_deadbandap_throttle_deadbandap_yaw_m"
+     & "odeap_min_forward_velocityap_nav_corner_speedap_nav_corner_delta_vap_nav_decelap_nav_accelap_nav_carrot_lea"
+     & "d_timeap_nav_carrot_lead_maxap_nav_preturn_distap_velocity_buildup_max_pitchap_max_turn_rateap_hold_orbit_r"
+     & "adiusap_hold_figure8_widthap_landing_descent_rateap_landing_detection_timeap_landing_spiral_enableap_landin"
+     & "g_spiral_radiusap_landing_spiral_rateap_landing_velocity_thresholdap_landing_throttle_thresholdap_l1_enable"
+     & "ap_l1_periodap_l1_min_lookaheadap_l1_max_lookaheadap_l1_max_cross_track_errorap_l1_turn_rateap_min_nav_alti"
+     & "tude_map_rx_loss_policyap_max_distance_from_homeap_geofence_actionbox_user_1_namebox_user_2_namebox_user_3_"
+     & "namebox_user_4_namegimbal_roll_rc_gaingimbal_pitch_rc_thr_gaingimbal_pitch_rc_low_gaingimbal_pitch_rc_high_"
+     & "gaingimbal_yaw_rc_gaingimbal_roll_gaingimbal_roll_offsetgimbal_roll_limitgimbal_pitch_gaingimbal_pitch_offs"
+     & "etgimbal_pitch_low_limitgimbal_pitch_high_limitgimbal_yaw_gaingimbal_yaw_offsetgimbal_yaw_limitgimbal_stabi"
+     & "lisationgimbal_sensitivitygimbal_uart                                           ";
+
+   type Name_Start is range 0 .. Names_Length;
+   type Name_Length is range 1 .. Max_Name_Length;
+
+   Name_Starts : constant array (Setting) of Name_Start :=
+     (0, 17, 31, 50, 64, 83, 97, 115, 129, 147, 166, 188, 203, 223, 240, 258, 273, 284, 300, 316, 336, 356, 374,
+      396, 408, 418, 432, 445, 460, 469, 483, 498, 511, 522, 536, 551, 565, 577, 592, 604, 619, 634, 650, 663,
+      673, 686, 702, 719, 733, 739, 748, 757, 769, 790, 800, 811, 822, 847, 861, 873, 897, 930, 958, 986, 1009,
+      1024, 1040, 1057, 1074, 1091, 1118, 1131, 1146, 1160, 1184, 1214, 1225, 1236, 1255, 1262, 1288, 1309,
+      1324, 1334, 1354, 1364, 1387, 1415, 1444, 1464, 1484, 1499, 1520, 1539, 1564, 1584, 1604, 1624, 1645,
+      1666, 1693, 1713, 1738, 1760, 1783, 1806, 1826, 1846, 1868, 1881, 1905, 1918, 1931, 1943, 1954, 1962,
+      1972, 1983, 1994, 2003, 2016, 2035, 2051, 2069, 2083, 2102, 2113, 2136, 2150, 2164, 2178, 2199, 2216,
+      2236, 2263, 2281, 2304, 2328, 2344, 2361, 2376, 2387, 2407, 2419, 2440, 2462, 2483, 2508, 2526, 2550,
+      2565, 2578, 2591, 2615, 2630, 2645, 2664, 2687, 2706, 2721, 2746, 2772, 2782, 2794, 2809, 2820, 2832,
+      2843, 2855, 2871, 2887, 2896, 2912, 2936, 2955, 2965, 2988, 3002, 3022, 3031, 3042, 3053, 3064, 3079,
+      3094, 3110, 3120, 3140, 3152, 3165, 3181, 3199, 3213, 3229, 3246, 3270, 3286, 3293, 3301, 3310, 3320,
+      3338, 3350, 3363, 3374, 3383, 3393, 3401, 3411, 3422, 3431, 3450, 3472, 3487, 3503, 3517, 3533, 3554,
+      3564, 3574, 3585, 3602, 3617, 3634, 3655, 3673, 3685, 3698, 3713, 3726, 3749, 3771, 3789, 3811, 3832,
+      3852, 3875, 3891, 3909, 3933, 3941, 3949, 3974, 3993, 4017, 4039, 4060, 4083, 4106, 4129, 4153, 4172,
+      4207, 4223, 4245, 4267, 4295, 4325, 4333, 4345, 4365, 4384, 4401, 4418, 4441, 4472, 4501, 4518, 4544,
+      4576, 4619, 4631, 4652, 4673, 4692, 4707, 4727, 4742, 4762, 4776, 4794, 4815, 4834, 4851, 4873, 4892,
+      4905, 4914, 4930, 4946, 4970, 4980, 4991, 5011, 5030, 5045, 5059, 5073, 5084, 5100, 5118, 5130, 5142,
+      5158, 5172, 5186, 5207, 5231, 5256, 5279, 5296, 5303, 5310, 5317, 5324, 5330, 5336, 5342, 5348, 5353,
+      5358, 5363, 5368, 5380, 5397, 5427, 5438, 5453, 5475, 5495, 5516, 5537, 5553, 5570, 5588, 5608, 5629,
+      5648, 5677, 5704, 5722, 5734, 5744, 5755, 5764, 5774, 5787, 5805, 5828, 5847, 5873, 5904, 5922, 5941,
+      5954, 5976, 5997, 6022, 6047, 6064, 6090, 6115, 6140, 6156, 6171, 6186, 6201, 6222, 6237, 6257, 6285,
+      6302, 6319, 6337, 6358, 6385, 6408, 6432, 6455, 6489, 6511, 6544, 6552, 6560, 6574, 6586, 6604, 6618,
+      6638, 6654, 6670, 6694, 6706, 6720, 6740, 6756, 6772, 6792, 6808, 6824, 6844, 6860, 6876, 6892, 6909,
+      6927, 6943, 6953, 6973, 6987, 6997, 7016, 7027, 7057, 7075, 7098, 7118, 7134, 7153, 7172, 7191, 7217,
+      7243, 7266, 7289, 7313, 7337, 7361, 7385, 7408, 7434, 7461, 7485, 7512, 7543, 7570, 7600, 7630, 7656,
+      7690, 7720, 7747, 7769, 7797, 7813, 7829, 7848, 7869, 7894, 7917, 7943, 7962, 7984, 8005, 8025, 8041,
+      8063, 8074, 8083, 8099, 8113, 8135, 8153, 8167, 8180, 8193, 8211, 8229, 8246, 8267, 8286, 8300, 8314,
+      8327, 8345, 8372, 8387, 8405, 8425, 8433, 8441, 8453, 8465, 8485, 8506, 8522, 8534, 8547, 8560, 8591,
+      8606, 8626, 8641, 8657, 8676, 8694, 8709, 8719, 8734, 8751, 8767, 8785, 8803, 8821, 8838, 8853, 8868,
+      8888, 8908, 8929, 8945, 8961, 8978, 8997, 9016, 9032, 9048, 9065, 9080, 9093, 9107, 9120, 9143, 9159,
+      9183, 9198, 9213, 9234, 9250, 9266, 9291, 9309, 9331, 9345, 9360, 9375, 9395, 9416, 9440, 9458, 9475,
+      9493, 9519, 9546, 9574, 9599, 9623, 9651, 9671, 9689, 9709, 9727, 9748, 9759, 9785, 9808, 9827, 9844,
+      9864, 9878, 9900, 9919, 9939, 9959, 9980, 9996, 10007, 10025, 10043, 10061, 10083, 10105, 10113, 10127,
+      10149, 10172, 10195, 10211, 10230, 10245, 10258, 10272, 10290, 10308, 10334, 10367, 10387, 10407, 10424,
+      10446, 10468, 10490, 10509, 10529, 10551, 10565, 10580, 10596, 10614, 10637, 10649, 10663, 10678, 10688,
+      10704, 10717, 10733, 10752, 10760, 10771, 10780, 10800, 10818, 10826, 10834, 10842, 10859, 10873, 10884,
+      10900, 10912, 10924, 10937, 10952, 10971, 10997, 11023, 11044, 11076, 11106, 11136, 11159, 11182, 11205,
+      11226, 11251, 11266, 11284, 11299, 11315, 11338, 11352, 11371, 11393, 11406, 11423, 11441, 11461, 11477,
+      11497, 11513, 11533, 11551, 11563, 11572, 11583, 11601, 11614, 11640, 11674, 11699, 11715, 11728, 11742,
+      11755, 11768, 11786, 11797, 11816, 11827, 11846, 11857, 11876, 11887, 11908, 11927, 11952, 11966, 11983,
+      12002, 12020, 12039, 12059, 12082, 12102, 12112, 12122, 12132, 12142, 12152, 12162, 12185, 12205, 12223,
+      12235, 12252, 12276, 12293, 12309, 12331, 12353, 12372, 12390, 12408, 12429, 12443, 12453, 12463, 12478,
+      12498, 12510, 12534, 12548, 12569, 12586, 12601, 12616, 12629, 12642, 12655, 12668, 12681, 12694, 12707,
+      12720, 12733, 12746, 12764, 12781, 12793, 12808, 12816, 12838, 12853, 12879, 12902, 12919, 12939, 12950,
+      12973, 12992, 13013, 13025, 13037, 13060, 13082, 13101, 13130, 13146, 13166, 13187, 13210, 13235, 13259,
+      13283, 13305, 13334, 13363, 13375, 13387, 13406, 13425, 13452, 13467, 13488, 13505, 13530, 13548, 13563,
+      13578, 13593, 13608, 13627, 13651, 13675, 13700, 13718, 13734, 13752, 13769, 13786, 13805, 13827, 13850,
+      13865, 13882, 13898, 13918, 13936);
+
+   Name_Lengths : constant array (Setting) of Name_Length :=
+     (17, 14, 19, 14, 19, 14, 18, 14, 18, 19, 22, 15, 20, 17, 18, 15, 11, 16, 16, 20, 20, 18, 22, 12, 10, 14,
+      13, 15, 9, 14, 15, 13, 11, 14, 15, 14, 12, 15, 12, 15, 15, 16, 13, 10, 13, 16, 17, 14, 6, 9, 9, 12, 21,
+      10, 11, 11, 25, 14, 12, 24, 33, 28, 28, 23, 15, 16, 17, 17, 17, 27, 13, 15, 14, 24, 30, 11, 11, 19, 7, 26,
+      21, 15, 10, 20, 10, 23, 28, 29, 20, 20, 15, 21, 19, 25, 20, 20, 20, 21, 21, 27, 20, 25, 22, 23, 23, 20,
+      20, 22, 13, 24, 13, 13, 12, 11, 8, 10, 11, 11, 9, 13, 19, 16, 18, 14, 19, 11, 23, 14, 14, 14, 21, 17, 20,
+      27, 18, 23, 24, 16, 17, 15, 11, 20, 12, 21, 22, 21, 25, 18, 24, 15, 13, 13, 24, 15, 15, 19, 23, 19, 15,
+      25, 26, 10, 12, 15, 11, 12, 11, 12, 16, 16, 9, 16, 24, 19, 10, 23, 14, 20, 9, 11, 11, 11, 15, 15, 16, 10,
+      20, 12, 13, 16, 18, 14, 16, 17, 24, 16, 7, 8, 9, 10, 18, 12, 13, 11, 9, 10, 8, 10, 11, 9, 19, 22, 15, 16,
+      14, 16, 21, 10, 10, 11, 17, 15, 17, 21, 18, 12, 13, 15, 13, 23, 22, 18, 22, 21, 20, 23, 16, 18, 24, 8, 8,
+      25, 19, 24, 22, 21, 23, 23, 23, 24, 19, 35, 16, 22, 22, 28, 30, 8, 12, 20, 19, 17, 17, 23, 31, 29, 17, 26,
+      32, 43, 12, 21, 21, 19, 15, 20, 15, 20, 14, 18, 21, 19, 17, 22, 19, 13, 9, 16, 16, 24, 10, 11, 20, 19, 15,
+      14, 14, 11, 16, 18, 12, 12, 16, 14, 14, 21, 24, 25, 23, 17, 7, 7, 7, 7, 6, 6, 6, 6, 5, 5, 5, 5, 12, 17,
+      30, 11, 15, 22, 20, 21, 21, 16, 17, 18, 20, 21, 19, 29, 27, 18, 12, 10, 11, 9, 10, 13, 18, 23, 19, 26, 31,
+      18, 19, 13, 22, 21, 25, 25, 17, 26, 25, 25, 16, 15, 15, 15, 21, 15, 20, 28, 17, 17, 18, 21, 27, 23, 24,
+      23, 34, 22, 33, 8, 8, 14, 12, 18, 14, 20, 16, 16, 24, 12, 14, 20, 16, 16, 20, 16, 16, 20, 16, 16, 16, 17,
+      18, 16, 10, 20, 14, 10, 19, 11, 30, 18, 23, 20, 16, 19, 19, 19, 26, 26, 23, 23, 24, 24, 24, 24, 23, 26,
+      27, 24, 27, 31, 27, 30, 30, 26, 34, 30, 27, 22, 28, 16, 16, 19, 21, 25, 23, 26, 19, 22, 21, 20, 16, 22,
+      11, 9, 16, 14, 22, 18, 14, 13, 13, 18, 18, 17, 21, 19, 14, 14, 13, 18, 27, 15, 18, 20, 8, 8, 12, 12, 20,
+      21, 16, 12, 13, 13, 31, 15, 20, 15, 16, 19, 18, 15, 10, 15, 17, 16, 18, 18, 18, 17, 15, 15, 20, 20, 21,
+      16, 16, 17, 19, 19, 16, 16, 17, 15, 13, 14, 13, 23, 16, 24, 15, 15, 21, 16, 16, 25, 18, 22, 14, 15, 15,
+      20, 21, 24, 18, 17, 18, 26, 27, 28, 25, 24, 28, 20, 18, 20, 18, 21, 11, 26, 23, 19, 17, 20, 14, 22, 19,
+      20, 20, 21, 16, 11, 18, 18, 18, 22, 22, 8, 14, 22, 23, 23, 16, 19, 15, 13, 14, 18, 18, 26, 33, 20, 20, 17,
+      22, 22, 22, 19, 20, 22, 14, 15, 16, 18, 23, 12, 14, 15, 10, 16, 13, 16, 19, 8, 11, 9, 20, 18, 8, 8, 8, 17,
+      14, 11, 16, 12, 12, 13, 15, 19, 26, 26, 21, 32, 30, 30, 23, 23, 23, 21, 25, 15, 18, 15, 16, 23, 14, 19,
+      22, 13, 17, 18, 20, 16, 20, 16, 20, 18, 12, 9, 11, 18, 13, 26, 34, 25, 16, 13, 14, 13, 13, 18, 11, 19, 11,
+      19, 11, 19, 11, 21, 19, 25, 14, 17, 19, 18, 19, 20, 23, 20, 10, 10, 10, 10, 10, 10, 23, 20, 18, 12, 17,
+      24, 17, 16, 22, 22, 19, 18, 18, 21, 14, 10, 10, 15, 20, 12, 24, 14, 21, 17, 15, 15, 13, 13, 13, 13, 13,
+      13, 13, 13, 13, 13, 18, 17, 12, 15, 8, 22, 15, 26, 23, 17, 20, 11, 23, 19, 21, 12, 12, 23, 22, 19, 29, 16,
+      20, 21, 23, 25, 24, 24, 22, 29, 29, 12, 12, 19, 19, 27, 15, 21, 17, 25, 18, 15, 15, 15, 15, 19, 24, 24,
+      25, 18, 16, 18, 17, 17, 19, 22, 23, 15, 17, 16, 20, 18, 11);
+
    function Name (S : Setting) return String is
-     (case S is
-        when Gyro_Hardware_Lpf => "gyro_hardware_lpf",
-        when Gyro_Lpf1_Type => "gyro_lpf1_type",
-        when Gyro_Lpf1_Static_Hz => "gyro_lpf1_static_hz",
-        when Gyro_Lpf2_Type => "gyro_lpf2_type",
-        when Gyro_Lpf2_Static_Hz => "gyro_lpf2_static_hz",
-        when Gyro_Notch1_Hz => "gyro_notch1_hz",
-        when Gyro_Notch1_Cutoff => "gyro_notch1_cutoff",
-        when Gyro_Notch2_Hz => "gyro_notch2_hz",
-        when Gyro_Notch2_Cutoff => "gyro_notch2_cutoff",
-        when Gyro_Calib_Duration => "gyro_calib_duration",
-        when Gyro_Calib_Noise_Limit => "gyro_calib_noise_limit",
-        when Gyro_Offset_Yaw => "gyro_offset_yaw",
-        when Gyro_Overflow_Detect => "gyro_overflow_detect",
-        when Yaw_Spin_Recovery => "yaw_spin_recovery",
-        when Yaw_Spin_Threshold => "yaw_spin_threshold",
-        when Dyn_Notch_Count => "dyn_notch_count",
-        when Dyn_Notch_Q => "dyn_notch_q",
-        when Dyn_Notch_Min_Hz => "dyn_notch_min_hz",
-        when Dyn_Notch_Max_Hz => "dyn_notch_max_hz",
-        when Gyro_Lpf1_Dyn_Min_Hz => "gyro_lpf1_dyn_min_hz",
-        when Gyro_Lpf1_Dyn_Max_Hz => "gyro_lpf1_dyn_max_hz",
-        when Gyro_Lpf1_Dyn_Expo => "gyro_lpf1_dyn_expo",
-        when Gyro_Filter_Debug_Axis => "gyro_filter_debug_axis",
-        when Acc_Hardware => "acc_hardware",
-        when Acc_Lpf_Hz => "acc_lpf_hz",
-        when Acc_Trim_Pitch => "acc_trim_pitch",
-        when Acc_Trim_Roll => "acc_trim_roll",
-        when Acc_Calibration => "acc_calibration",
-        when Align_Mag => "align_mag",
-        when Mag_Align_Roll => "mag_align_roll",
-        when Mag_Align_Pitch => "mag_align_pitch",
-        when Mag_Align_Yaw => "mag_align_yaw",
-        when Mag_Bustype => "mag_bustype",
-        when Mag_I2c_Device => "mag_i2c_device",
-        when Mag_I2c_Address => "mag_i2c_address",
-        when Mag_Spi_Device => "mag_spi_device",
-        when Mag_Hardware => "mag_hardware",
-        when Mag_Calibration => "mag_calibration",
-        when Baro_Bustype => "baro_bustype",
-        when Baro_Spi_Device => "baro_spi_device",
-        when Baro_I2c_Device => "baro_i2c_device",
-        when Baro_I2c_Address => "baro_i2c_address",
-        when Baro_Hardware => "baro_hardware",
-        when Baro_Drift => "baro_drift",
-        when Pitot_Bustype => "pitot_bustype",
-        when Pitot_I2c_Device => "pitot_i2c_device",
-        when Pitot_I2c_Address => "pitot_i2c_address",
-        when Pitot_Hardware => "pitot_hardware",
-        when Mid_Rc => "mid_rc",
-        when Min_Check => "min_check",
-        when Max_Check => "max_check",
-        when Rssi_Channel => "rssi_channel",
-        when Rssi_Src_Frame_Errors => "rssi_src_frame_errors",
-        when Rssi_Scale => "rssi_scale",
-        when Rssi_Offset => "rssi_offset",
-        when Rssi_Invert => "rssi_invert",
-        when Rssi_Src_Frame_Lpf_Period => "rssi_src_frame_lpf_period",
-        when Rssi_Smoothing => "rssi_smoothing",
-        when Rc_Smoothing => "rc_smoothing",
-        when Rc_Smoothing_Auto_Factor => "rc_smoothing_auto_factor",
-        when Rc_Smoothing_Auto_Factor_Throttle => "rc_smoothing_auto_factor_throttle",
-        when Rc_Smoothing_Setpoint_Cutoff => "rc_smoothing_setpoint_cutoff",
-        when Rc_Smoothing_Throttle_Cutoff => "rc_smoothing_throttle_cutoff",
-        when Rc_Smoothing_Debug_Axis => "rc_smoothing_debug_axis",
-        when Fpv_Mix_Degrees => "fpv_mix_degrees",
-        when Max_Aux_Channels => "max_aux_channels",
-        when Serialrx_Provider => "serialrx_provider",
-        when Serialrx_Inverted => "serialrx_inverted",
-        when Spektrum_Sat_Bind => "spektrum_sat_bind",
-        when Spektrum_Sat_Bind_Autoreset => "spektrum_sat_bind_autoreset",
-        when Srxl2_Unit_Id => "srxl2_unit_id",
-        when Srxl2_Baud_Fast => "srxl2_baud_fast",
-        when Sbus_Baud_Fast => "sbus_baud_fast",
-        when Crsf_Use_Negotiated_Baud => "crsf_use_negotiated_baud",
-        when Airmode_Start_Throttle_Percent => "airmode_start_throttle_percent",
-        when Rx_Min_Usec => "rx_min_usec",
-        when Rx_Max_Usec => "rx_max_usec",
-        when Serialrx_Halfduplex => "serialrx_halfduplex",
-        when Rx_Uart => "rx_uart",
-        when Msp_Override_Channels_Mask => "msp_override_channels_mask",
-        when Msp_Override_Failsafe => "msp_override_failsafe",
-        when Rx_Spi_Protocol => "rx_spi_protocol",
-        when Rx_Spi_Bus => "rx_spi_bus",
-        when Rx_Spi_Led_Inversion => "rx_spi_led_inversion",
-        when Adc_Device => "adc_device",
-        when Adc_Vrefint_Calibration => "adc_vrefint_calibration",
-        when Adc_Tempsensor_Calibration30 => "adc_tempsensor_calibration30",
-        when Adc_Tempsensor_Calibration110 => "adc_tempsensor_calibration110",
-        when Input_Filtering_Mode => "input_filtering_mode",
-        when Blackbox_Sample_Rate => "blackbox_sample_rate",
-        when Blackbox_Device => "blackbox_device",
-        when Blackbox_Disable_Pids => "blackbox_disable_pids",
-        when Blackbox_Disable_Rc => "blackbox_disable_rc",
-        when Blackbox_Disable_Setpoint => "blackbox_disable_setpoint",
-        when Blackbox_Disable_Bat => "blackbox_disable_bat",
-        when Blackbox_Disable_Mag => "blackbox_disable_mag",
-        when Blackbox_Disable_Alt => "blackbox_disable_alt",
-        when Blackbox_Disable_Rssi => "blackbox_disable_rssi",
-        when Blackbox_Disable_Gyro => "blackbox_disable_gyro",
-        when Blackbox_Disable_Gyrounfilt => "blackbox_disable_gyrounfilt",
-        when Blackbox_Disable_Acc => "blackbox_disable_acc",
-        when Blackbox_Disable_Attitude => "blackbox_disable_attitude",
-        when Blackbox_Disable_Debug => "blackbox_disable_debug",
-        when Blackbox_Disable_Motors => "blackbox_disable_motors",
-        when Blackbox_Disable_Servos => "blackbox_disable_servos",
-        when Blackbox_Disable_Rpm => "blackbox_disable_rpm",
-        when Blackbox_Disable_Gps => "blackbox_disable_gps",
-        when Blackbox_Disable_Pitot => "blackbox_disable_pitot",
-        when Blackbox_Mode => "blackbox_mode",
-        when Blackbox_High_Resolution => "blackbox_high_resolution",
-        when Blackbox_Uart => "blackbox_uart",
-        when Blackbox_Baud => "blackbox_baud",
-        when Max_Throttle => "max_throttle",
-        when Min_Command => "min_command",
-        when Motor_Kv => "motor_kv",
-        when Motor_Idle => "motor_idle",
-        when Dshot_Burst => "dshot_burst",
-        when Dshot_Bidir => "dshot_bidir",
-        when Dshot_Edt => "dshot_edt",
-        when Dshot_Bitbang => "dshot_bitbang",
-        when Dshot_Bitbang_Timer => "dshot_bitbang_timer",
-        when Use_Unsynced_Pwm => "use_unsynced_pwm",
-        when Motor_Pwm_Protocol => "motor_pwm_protocol",
-        when Motor_Pwm_Rate => "motor_pwm_rate",
-        when Motor_Pwm_Inversion => "motor_pwm_inversion",
-        when Motor_Poles => "motor_poles",
-        when Motor_Output_Reordering => "motor_output_reordering",
-        when Thr_Corr_Value => "thr_corr_value",
-        when Thr_Corr_Angle => "thr_corr_angle",
-        when Failsafe_Delay => "failsafe_delay",
-        when Failsafe_Landing_Time => "failsafe_landing_time",
-        when Failsafe_Throttle => "failsafe_throttle",
-        when Failsafe_Switch_Mode => "failsafe_switch_mode",
-        when Failsafe_Throttle_Low_Delay => "failsafe_throttle_low_delay",
-        when Failsafe_Procedure => "failsafe_procedure",
-        when Failsafe_Recovery_Delay => "failsafe_recovery_delay",
-        when Failsafe_Stick_Threshold => "failsafe_stick_threshold",
-        when Align_Board_Roll => "align_board_roll",
-        when Align_Board_Pitch => "align_board_pitch",
-        when Align_Board_Yaw => "align_board_yaw",
-        when Gimbal_Mode => "gimbal_mode",
-        when Battery_Profile_Name => "battery_profile_name",
-        when Bat_Capacity => "bat_capacity",
-        when Vbat_Max_Cell_Voltage => "vbat_max_cell_voltage",
-        when Vbat_Full_Cell_Voltage => "vbat_full_cell_voltage",
-        when Vbat_Min_Cell_Voltage => "vbat_min_cell_voltage",
-        when Vbat_Warning_Cell_Voltage => "vbat_warning_cell_voltage",
-        when Cbat_Alert_Percent => "cbat_alert_percent",
-        when Force_Battery_Cell_Count => "force_battery_cell_count",
-        when Vbat_Hysteresis => "vbat_hysteresis",
-        when Current_Meter => "current_meter",
-        when Battery_Meter => "battery_meter",
-        when Vbat_Detect_Cell_Voltage => "vbat_detect_cell_voltage",
-        when Use_Vbat_Alerts => "use_vbat_alerts",
-        when Use_Cbat_Alerts => "use_cbat_alerts",
-        when Vbat_Cutoff_Percent => "vbat_cutoff_percent",
-        when Vbat_Display_Lpf_Period => "vbat_display_lpf_period",
-        when Vbat_Sag_Lpf_Period => "vbat_sag_lpf_period",
-        when Ibat_Lpf_Period => "ibat_lpf_period",
-        when Vbat_Duration_For_Warning => "vbat_duration_for_warning",
-        when Vbat_Duration_For_Critical => "vbat_duration_for_critical",
-        when Vbat_Scale => "vbat_scale",
-        when Vbat_Divider => "vbat_divider",
-        when Vbat_Multiplier => "vbat_multiplier",
-        when Ibata_Scale => "ibata_scale",
-        when Ibata_Offset => "ibata_offset",
-        when Ibatv_Scale => "ibatv_scale",
-        when Ibatv_Offset => "ibatv_offset",
-        when Battery_Continue => "battery_continue",
-        when Beeper_Inversion => "beeper_inversion",
-        when Beeper_Od => "beeper_od",
-        when Beeper_Frequency => "beeper_frequency",
-        when Beeper_Dshot_Beacon_Tone => "beeper_dshot_beacon_tone",
-        when Yaw_Motors_Reversed => "yaw_motors_reversed",
-        when Mixer_Type => "mixer_type",
-        when Crashflip_Motor_Percent => "crashflip_motor_percent",
-        when Crashflip_Rate => "crashflip_rate",
-        when Crashflip_Auto_Rearm => "crashflip_auto_rearm",
-        when Rpm_Limit => "rpm_limit",
-        when Rpm_Limit_P => "rpm_limit_p",
-        when Rpm_Limit_I => "rpm_limit_i",
-        when Rpm_Limit_D => "rpm_limit_d",
-        when Rpm_Limit_Value => "rpm_limit_value",
-        when Three_D_Deadband_Low => "3d_deadband_low",
-        when Three_D_Deadband_High => "3d_deadband_high",
-        when Three_D_Neutral => "3d_neutral",
-        when Three_D_Deadband_Throttle => "3d_deadband_throttle",
-        when Three_D_Limit_Low => "3d_limit_low",
-        when Three_D_Limit_High => "3d_limit_high",
-        when Three_D_Switched_Mode => "3d_switched_mode",
-        when Servo_Center_Pulse => "servo_center_pulse",
-        when Servo_Pwm_Rate => "servo_pwm_rate",
-        when Servo_Lowpass_Hz => "servo_lowpass_hz",
-        when Tri_Unarmed_Servo => "tri_unarmed_servo",
-        when Channel_Forwarding_Start => "channel_forwarding_start",
-        when Rateprofile_Name => "rateprofile_name",
-        when Thr_Mid => "thr_mid",
-        when Thr_Expo => "thr_expo",
-        when Thr_Hover => "thr_hover",
-        when Rates_Type => "rates_type",
-        when Quickrates_Rc_Expo => "quickrates_rc_expo",
-        when Roll_Rc_Rate => "roll_rc_rate",
-        when Pitch_Rc_Rate => "pitch_rc_rate",
-        when Yaw_Rc_Rate => "yaw_rc_rate",
-        when Roll_Expo => "roll_expo",
-        when Pitch_Expo => "pitch_expo",
-        when Yaw_Expo => "yaw_expo",
-        when Roll_Srate => "roll_srate",
-        when Pitch_Srate => "pitch_srate",
-        when Yaw_Srate => "yaw_srate",
-        when Throttle_Limit_Type => "throttle_limit_type",
-        when Throttle_Limit_Percent => "throttle_limit_percent",
-        when Roll_Rate_Limit => "roll_rate_limit",
-        when Pitch_Rate_Limit => "pitch_rate_limit",
-        when Yaw_Rate_Limit => "yaw_rate_limit",
-        when Reboot_Character => "reboot_character",
-        when Serial_Update_Rate_Hz => "serial_update_rate_hz",
-        when Imu_Dcm_Kp => "imu_dcm_kp",
-        when Imu_Dcm_Ki => "imu_dcm_ki",
-        when Small_Angle => "small_angle",
-        when Imu_Process_Denom => "imu_process_denom",
-        when Mag_Declination => "mag_declination",
-        when Auto_Disarm_Delay => "auto_disarm_delay",
-        when Gyro_Cal_On_First_Arm => "gyro_cal_on_first_arm",
-        when Prearm_Allow_Rearm => "prearm_allow_rearm",
-        when Gps_Provider => "gps_provider",
-        when Gps_Sbas_Mode => "gps_sbas_mode",
-        when Gps_Auto_Config => "gps_auto_config",
-        when Gps_Auto_Baud => "gps_auto_baud",
-        when Gps_Ublox_Acquire_Model => "gps_ublox_acquire_model",
-        when Gps_Ublox_Flight_Model => "gps_ublox_flight_model",
-        when Gps_Update_Rate_Hz => "gps_update_rate_hz",
-        when Gps_Ublox_Utc_Standard => "gps_ublox_utc_standard",
-        when Gps_Ublox_Use_Galileo => "gps_ublox_use_galileo",
-        when Gps_Ublox_Enable_Ana => "gps_ublox_enable_ana",
-        when Gps_Set_Home_Point_Once => "gps_set_home_point_once",
-        when Gps_Use_3d_Speed => "gps_use_3d_speed",
-        when Gps_Sbas_Integrity => "gps_sbas_integrity",
-        when Gps_Nmea_Custom_Commands => "gps_nmea_custom_commands",
-        when Gps_Uart => "gps_uart",
-        when Gps_Baud => "gps_baud",
-        when Gps_Rescue_Min_Start_Dist => "gps_rescue_min_start_dist",
-        when Gps_Rescue_Alt_Mode => "gps_rescue_alt_mode",
-        when Gps_Rescue_Initial_Climb => "gps_rescue_initial_climb",
-        when Gps_Rescue_Ascend_Rate => "gps_rescue_ascend_rate",
-        when Gps_Rescue_Return_Alt => "gps_rescue_return_alt",
-        when Gps_Rescue_Ground_Speed => "gps_rescue_ground_speed",
-        when Gps_Rescue_Descent_Dist => "gps_rescue_descent_dist",
-        when Gps_Rescue_Descend_Rate => "gps_rescue_descend_rate",
-        when Gps_Rescue_Sanity_Checks => "gps_rescue_sanity_checks",
-        when Gps_Rescue_Min_Sats => "gps_rescue_min_sats",
-        when Gps_Rescue_Allow_Arming_Without_Fix => "gps_rescue_allow_arming_without_fix",
-        when Gps_Rescue_Yaw_P => "gps_rescue_yaw_p",
-        when Gps_Lap_Timer_Gate_Lat => "gps_lap_timer_gate_lat",
-        when Gps_Lap_Timer_Gate_Lon => "gps_lap_timer_gate_lon",
-        when Gps_Lap_Timer_Min_Lap_Time_S => "gps_lap_timer_min_lap_time_s",
-        when Gps_Lap_Timer_Gate_Tolerance_M => "gps_lap_timer_gate_tolerance_m",
-        when Deadband => "deadband",
-        when Yaw_Deadband => "yaw_deadband",
-        when Yaw_Control_Reversed => "yaw_control_reversed",
-        when Alt_Hold_Climb_Rate => "alt_hold_climb_rate",
-        when Alt_Hold_Deadband => "alt_hold_deadband",
-        when Pos_Hold_Deadband => "pos_hold_deadband",
-        when Poshold_Position_Source => "poshold_position_source",
-        when Poshold_Opticalflow_Quality_Min => "poshold_opticalflow_quality_min",
-        when Poshold_Opticalflow_Max_Range => "poshold_opticalflow_max_range",
-        when Pid_Process_Denom => "pid_process_denom",
-        when Runaway_Takeoff_Prevention => "runaway_takeoff_prevention",
-        when Runaway_Takeoff_Deactivate_Delay => "runaway_takeoff_deactivate_delay",
-        when Runaway_Takeoff_Deactivate_Throttle_Percent => "runaway_takeoff_deactivate_throttle_percent",
-        when Profile_Name => "profile_name",
-        when Dterm_Lpf1_Dyn_Min_Hz => "dterm_lpf1_dyn_min_hz",
-        when Dterm_Lpf1_Dyn_Max_Hz => "dterm_lpf1_dyn_max_hz",
-        when Dterm_Lpf1_Dyn_Expo => "dterm_lpf1_dyn_expo",
-        when Dterm_Lpf1_Type => "dterm_lpf1_type",
-        when Dterm_Lpf1_Static_Hz => "dterm_lpf1_static_hz",
-        when Dterm_Lpf2_Type => "dterm_lpf2_type",
-        when Dterm_Lpf2_Static_Hz => "dterm_lpf2_static_hz",
-        when Dterm_Notch_Hz => "dterm_notch_hz",
-        when Dterm_Notch_Cutoff => "dterm_notch_cutoff",
-        when Vbat_Sag_Compensation => "vbat_sag_compensation",
-        when Pid_At_Min_Throttle => "pid_at_min_throttle",
-        when Anti_Gravity_Gain => "anti_gravity_gain",
-        when Anti_Gravity_Cutoff_Hz => "anti_gravity_cutoff_hz",
-        when Anti_Gravity_P_Gain => "anti_gravity_p_gain",
-        when Acc_Limit_Yaw => "acc_limit_yaw",
-        when Acc_Limit => "acc_limit",
-        when Crash_Dthreshold => "crash_dthreshold",
-        when Crash_Gthreshold => "crash_gthreshold",
-        when Crash_Setpoint_Threshold => "crash_setpoint_threshold",
-        when Crash_Time => "crash_time",
-        when Crash_Delay => "crash_delay",
-        when Crash_Recovery_Angle => "crash_recovery_angle",
-        when Crash_Recovery_Rate => "crash_recovery_rate",
-        when Crash_Limit_Yaw => "crash_limit_yaw",
-        when Crash_Recovery => "crash_recovery",
-        when Iterm_Rotation => "iterm_rotation",
-        when Iterm_Relax => "iterm_relax",
-        when Iterm_Relax_Type => "iterm_relax_type",
-        when Iterm_Relax_Cutoff => "iterm_relax_cutoff",
-        when Iterm_Windup => "iterm_windup",
-        when Pidsum_Limit => "pidsum_limit",
-        when Pidsum_Limit_Yaw => "pidsum_limit_yaw",
-        when Yaw_Lowpass_Hz => "yaw_lowpass_hz",
-        when Throttle_Boost => "throttle_boost",
-        when Throttle_Boost_Cutoff => "throttle_boost_cutoff",
-        when Acro_Trainer_Angle_Limit => "acro_trainer_angle_limit",
-        when Acro_Trainer_Lookahead_Ms => "acro_trainer_lookahead_ms",
-        when Acro_Trainer_Debug_Axis => "acro_trainer_debug_axis",
-        when Acro_Trainer_Gain => "acro_trainer_gain",
-        when P_Pitch => "p_pitch",
-        when I_Pitch => "i_pitch",
-        when D_Pitch => "d_pitch",
-        when F_Pitch => "f_pitch",
-        when P_Roll => "p_roll",
-        when I_Roll => "i_roll",
-        when D_Roll => "d_roll",
-        when F_Roll => "f_roll",
-        when P_Yaw => "p_yaw",
-        when I_Yaw => "i_yaw",
-        when D_Yaw => "d_yaw",
-        when F_Yaw => "f_yaw",
-        when Angle_P_Gain => "angle_p_gain",
-        when Angle_Feedforward => "angle_feedforward",
-        when Angle_Feedforward_Smoothing_Ms => "angle_feedforward_smoothing_ms",
-        when Angle_Limit => "angle_limit",
-        when Angle_Earth_Ref => "angle_earth_ref",
-        when Horizon_Level_Strength => "horizon_level_strength",
-        when Horizon_Limit_Sticks => "horizon_limit_sticks",
-        when Horizon_Limit_Degrees => "horizon_limit_degrees",
-        when Horizon_Ignore_Sticks => "horizon_ignore_sticks",
-        when Horizon_Delay_Ms => "horizon_delay_ms",
-        when Chirp_Lag_Freq_Hz => "chirp_lag_freq_hz",
-        when Chirp_Lead_Freq_Hz => "chirp_lead_freq_hz",
-        when Chirp_Amplitude_Roll => "chirp_amplitude_roll",
-        when Chirp_Amplitude_Pitch => "chirp_amplitude_pitch",
-        when Chirp_Amplitude_Yaw => "chirp_amplitude_yaw",
-        when Chirp_Frequency_Start_Deci_Hz => "chirp_frequency_start_deci_hz",
-        when Chirp_Frequency_End_Deci_Hz => "chirp_frequency_end_deci_hz",
-        when Chirp_Time_Seconds => "chirp_time_seconds",
-        when Chirp_Repeat => "chirp_repeat",
-        when D_Max_Roll => "d_max_roll",
-        when D_Max_Pitch => "d_max_pitch",
-        when D_Max_Yaw => "d_max_yaw",
-        when D_Max_Gain => "d_max_gain",
-        when D_Max_Advance => "d_max_advance",
-        when Motor_Output_Limit => "motor_output_limit",
-        when Auto_Profile_Cell_Count => "auto_profile_cell_count",
-        when Launch_Control_Mode => "launch_control_mode",
-        when Launch_Trigger_Allow_Reset => "launch_trigger_allow_reset",
-        when Launch_Trigger_Throttle_Percent => "launch_trigger_throttle_percent",
-        when Launch_Angle_Limit => "launch_angle_limit",
-        when Launch_Control_Gain => "launch_control_gain",
-        when Thrust_Linear => "thrust_linear",
-        when Feedforward_Transition => "feedforward_transition",
-        when Feedforward_Averaging => "feedforward_averaging",
-        when Feedforward_Smooth_Factor => "feedforward_smooth_factor",
-        when Feedforward_Jitter_Factor => "feedforward_jitter_factor",
-        when Feedforward_Boost => "feedforward_boost",
-        when Feedforward_Max_Rate_Limit => "feedforward_max_rate_limit",
-        when Feedforward_Yaw_Hold_Gain => "feedforward_yaw_hold_gain",
-        when Feedforward_Yaw_Hold_Time => "feedforward_yaw_hold_time",
-        when Dyn_Idle_Min_Rpm => "dyn_idle_min_rpm",
-        when Dyn_Idle_P_Gain => "dyn_idle_p_gain",
-        when Dyn_Idle_I_Gain => "dyn_idle_i_gain",
-        when Dyn_Idle_D_Gain => "dyn_idle_d_gain",
-        when Dyn_Idle_Max_Increase => "dyn_idle_max_increase",
-        when Level_Race_Mode => "level_race_mode",
-        when Simplified_Pids_Mode => "simplified_pids_mode",
-        when Simplified_Master_Multiplier => "simplified_master_multiplier",
-        when Simplified_I_Gain => "simplified_i_gain",
-        when Simplified_D_Gain => "simplified_d_gain",
-        when Simplified_Pi_Gain => "simplified_pi_gain",
-        when Simplified_D_Max_Gain => "simplified_d_max_gain",
-        when Simplified_Feedforward_Gain => "simplified_feedforward_gain",
-        when Simplified_Pitch_D_Gain => "simplified_pitch_d_gain",
-        when Simplified_Pitch_Pi_Gain => "simplified_pitch_pi_gain",
-        when Simplified_Dterm_Filter => "simplified_dterm_filter",
-        when Simplified_Dterm_Filter_Multiplier => "simplified_dterm_filter_multiplier",
-        when Simplified_Gyro_Filter => "simplified_gyro_filter",
-        when Simplified_Gyro_Filter_Multiplier => "simplified_gyro_filter_multiplier",
-        when Tpa_Mode => "tpa_mode",
-        when Tpa_Rate => "tpa_rate",
-        when Tpa_Breakpoint => "tpa_breakpoint",
-        when Tpa_Low_Rate => "tpa_low_rate",
-        when Tpa_Low_Breakpoint => "tpa_low_breakpoint",
-        when Tpa_Low_Always => "tpa_low_always",
-        when Ez_Landing_Threshold => "ez_landing_threshold",
-        when Ez_Landing_Limit => "ez_landing_limit",
-        when Ez_Landing_Speed => "ez_landing_speed",
-        when Landing_Disarm_Threshold => "landing_disarm_threshold",
-        when Tlm_Inverted => "tlm_inverted",
-        when Tlm_Halfduplex => "tlm_halfduplex",
-        when Telemetry_1_Protocol => "telemetry_1_protocol",
-        when Telemetry_1_Uart => "telemetry_1_uart",
-        when Telemetry_1_Baud => "telemetry_1_baud",
-        when Telemetry_2_Protocol => "telemetry_2_protocol",
-        when Telemetry_2_Uart => "telemetry_2_uart",
-        when Telemetry_2_Baud => "telemetry_2_baud",
-        when Telemetry_3_Protocol => "telemetry_3_protocol",
-        when Telemetry_3_Uart => "telemetry_3_uart",
-        when Telemetry_3_Baud => "telemetry_3_baud",
-        when Crsf_Tlm_Accgyro => "crsf_tlm_accgyro",
-        when Frsky_Default_Lat => "frsky_default_lat",
-        when Frsky_Default_Long => "frsky_default_long",
-        when Frsky_Gps_Format => "frsky_gps_format",
-        when Frsky_Unit => "frsky_unit",
-        when Frsky_Vfas_Precision => "frsky_vfas_precision",
-        when Hott_Alarm_Int => "hott_alarm_int",
-        when Pid_In_Tlm => "pid_in_tlm",
-        when Report_Cell_Voltage => "report_cell_voltage",
-        when Ibus_Sensor => "ibus_sensor",
-        when Mavlink_Mah_As_Heading_Divisor => "mavlink_mah_as_heading_divisor",
-        when Mavlink_Min_Txbuff => "mavlink_min_txbuff",
-        when Mavlink_Ext_Status_Rate => "mavlink_ext_status_rate",
-        when Mavlink_Rc_Chan_Rate => "mavlink_rc_chan_rate",
-        when Mavlink_Pos_Rate => "mavlink_pos_rate",
-        when Mavlink_Extra1_Rate => "mavlink_extra1_rate",
-        when Mavlink_Extra2_Rate => "mavlink_extra2_rate",
-        when Mavlink_Extra3_Rate => "mavlink_extra3_rate",
-        when Telemetry_Disabled_Voltage => "telemetry_disabled_voltage",
-        when Telemetry_Disabled_Current => "telemetry_disabled_current",
-        when Telemetry_Disabled_Fuel => "telemetry_disabled_fuel",
-        when Telemetry_Disabled_Mode => "telemetry_disabled_mode",
-        when Telemetry_Disabled_Acc_X => "telemetry_disabled_acc_x",
-        when Telemetry_Disabled_Acc_Y => "telemetry_disabled_acc_y",
-        when Telemetry_Disabled_Acc_Z => "telemetry_disabled_acc_z",
-        when Telemetry_Disabled_Pitch => "telemetry_disabled_pitch",
-        when Telemetry_Disabled_Roll => "telemetry_disabled_roll",
-        when Telemetry_Disabled_Heading => "telemetry_disabled_heading",
-        when Telemetry_Disabled_Altitude => "telemetry_disabled_altitude",
-        when Telemetry_Disabled_Vario => "telemetry_disabled_vario",
-        when Telemetry_Disabled_Lat_Long => "telemetry_disabled_lat_long",
-        when Telemetry_Disabled_Ground_Speed => "telemetry_disabled_ground_speed",
-        when Telemetry_Disabled_Distance => "telemetry_disabled_distance",
-        when Telemetry_Disabled_Esc_Current => "telemetry_disabled_esc_current",
-        when Telemetry_Disabled_Esc_Voltage => "telemetry_disabled_esc_voltage",
-        when Telemetry_Disabled_Esc_Rpm => "telemetry_disabled_esc_rpm",
-        when Telemetry_Disabled_Esc_Temperature => "telemetry_disabled_esc_temperature",
-        when Telemetry_Disabled_Temperature => "telemetry_disabled_temperature",
-        when Telemetry_Disabled_Cap_Used => "telemetry_disabled_cap_used",
-        when Ledstrip_Visual_Beeper => "ledstrip_visual_beeper",
-        when Ledstrip_Visual_Beeper_Color => "ledstrip_visual_beeper_color",
-        when Ledstrip_Grb_Rgb => "ledstrip_grb_rgb",
-        when Ledstrip_Profile => "ledstrip_profile",
-        when Ledstrip_Race_Color => "ledstrip_race_color",
-        when Ledstrip_Beacon_Color => "ledstrip_beacon_color",
-        when Ledstrip_Beacon_Period_Ms => "ledstrip_beacon_period_ms",
-        when Ledstrip_Beacon_Percent => "ledstrip_beacon_percent",
-        when Ledstrip_Beacon_Armed_Only => "ledstrip_beacon_armed_only",
-        when Ledstrip_Brightness => "ledstrip_brightness",
-        when Ledstrip_Rainbow_Delta => "ledstrip_rainbow_delta",
-        when Ledstrip_Rainbow_Freq => "ledstrip_rainbow_freq",
-        when Transponder_Provider => "transponder_provider",
-        when Transponder_Data => "transponder_data",
-        when Sdcard_Detect_Inverted => "sdcard_detect_inverted",
-        when Sdcard_Mode => "sdcard_mode",
-        when Osd_Units => "osd_units",
-        when Osd_Warn_Bitmask => "osd_warn_bitmask",
-        when Osd_Rssi_Alarm => "osd_rssi_alarm",
-        when Osd_Link_Quality_Alarm => "osd_link_quality_alarm",
-        when Osd_Rssi_Dbm_Alarm => "osd_rssi_dbm_alarm",
-        when Osd_Rsnr_Alarm => "osd_rsnr_alarm",
-        when Osd_Cap_Alarm => "osd_cap_alarm",
-        when Osd_Alt_Alarm => "osd_alt_alarm",
-        when Osd_Distance_Alarm => "osd_distance_alarm",
-        when Osd_Esc_Temp_Alarm => "osd_esc_temp_alarm",
-        when Osd_Esc_Rpm_Alarm => "osd_esc_rpm_alarm",
-        when Osd_Esc_Current_Alarm => "osd_esc_current_alarm",
-        when Osd_Core_Temp_Alarm => "osd_core_temp_alarm",
-        when Osd_Ah_Max_Pit => "osd_ah_max_pit",
-        when Osd_Ah_Max_Rol => "osd_ah_max_rol",
-        when Osd_Ah_Invert => "osd_ah_invert",
-        when Osd_Logo_On_Arming => "osd_logo_on_arming",
-        when Osd_Logo_On_Arming_Duration => "osd_logo_on_arming_duration",
-        when Osd_Arming_Logo => "osd_arming_logo",
-        when Osd_Use_Quick_Menu => "osd_use_quick_menu",
-        when Osd_Show_Spec_Prearm => "osd_show_spec_prearm",
-        when Osd_Tim1 => "osd_tim1",
-        when Osd_Tim2 => "osd_tim2",
-        when Osd_Vbat_Pos => "osd_vbat_pos",
-        when Osd_Rssi_Pos => "osd_rssi_pos",
-        when Osd_Link_Quality_Pos => "osd_link_quality_pos",
-        when Osd_Link_Tx_Power_Pos => "osd_link_tx_power_pos",
-        when Osd_Rssi_Dbm_Pos => "osd_rssi_dbm_pos",
-        when Osd_Rsnr_Pos => "osd_rsnr_pos",
-        when Osd_Tim_1_Pos => "osd_tim_1_pos",
-        when Osd_Tim_2_Pos => "osd_tim_2_pos",
-        when Osd_Remaining_Time_Estimate_Pos => "osd_remaining_time_estimate_pos",
-        when Osd_Flymode_Pos => "osd_flymode_pos",
-        when Osd_Anti_Gravity_Pos => "osd_anti_gravity_pos",
-        when Osd_G_Force_Pos => "osd_g_force_pos",
-        when Osd_Throttle_Pos => "osd_throttle_pos",
-        when Osd_Vtx_Channel_Pos => "osd_vtx_channel_pos",
-        when Osd_Crosshairs_Pos => "osd_crosshairs_pos",
-        when Osd_Ah_Sbar_Pos => "osd_ah_sbar_pos",
-        when Osd_Ah_Pos => "osd_ah_pos",
-        when Osd_Current_Pos => "osd_current_pos",
-        when Osd_Mah_Drawn_Pos => "osd_mah_drawn_pos",
-        when Osd_Wh_Drawn_Pos => "osd_wh_drawn_pos",
-        when Osd_Motor_Diag_Pos => "osd_motor_diag_pos",
-        when Osd_Craft_Name_Pos => "osd_craft_name_pos",
-        when Osd_Pilot_Name_Pos => "osd_pilot_name_pos",
-        when Osd_Gps_Speed_Pos => "osd_gps_speed_pos",
-        when Osd_Gps_Lon_Pos => "osd_gps_lon_pos",
-        when Osd_Gps_Lat_Pos => "osd_gps_lat_pos",
-        when Osd_Gps_Lap_Curr_Pos => "osd_gps_lap_curr_pos",
-        when Osd_Gps_Lap_Prev_Pos => "osd_gps_lap_prev_pos",
-        when Osd_Gps_Lap_Best3_Pos => "osd_gps_lap_best3_pos",
-        when Osd_Gps_Sats_Pos => "osd_gps_sats_pos",
-        when Osd_Home_Dir_Pos => "osd_home_dir_pos",
-        when Osd_Home_Dist_Pos => "osd_home_dist_pos",
-        when Osd_Flight_Dist_Pos => "osd_flight_dist_pos",
-        when Osd_Compass_Bar_Pos => "osd_compass_bar_pos",
-        when Osd_Altitude_Pos => "osd_altitude_pos",
-        when Osd_Pid_Roll_Pos => "osd_pid_roll_pos",
-        when Osd_Pid_Pitch_Pos => "osd_pid_pitch_pos",
-        when Osd_Pid_Yaw_Pos => "osd_pid_yaw_pos",
-        when Osd_Debug_Pos => "osd_debug_pos",
-        when Osd_Debug2_Pos => "osd_debug2_pos",
-        when Osd_Power_Pos => "osd_power_pos",
-        when Osd_Pidrate_Profile_Pos => "osd_pidrate_profile_pos",
-        when Osd_Warnings_Pos => "osd_warnings_pos",
-        when Osd_Avg_Cell_Voltage_Pos => "osd_avg_cell_voltage_pos",
-        when Osd_Pit_Ang_Pos => "osd_pit_ang_pos",
-        when Osd_Rol_Ang_Pos => "osd_rol_ang_pos",
-        when Osd_Battery_Usage_Pos => "osd_battery_usage_pos",
-        when Osd_Disarmed_Pos => "osd_disarmed_pos",
-        when Osd_Nheading_Pos => "osd_nheading_pos",
-        when Osd_Up_Down_Reference_Pos => "osd_up_down_reference_pos",
-        when Osd_Ready_Mode_Pos => "osd_ready_mode_pos",
-        when Osd_Pos_Hold_Ready_Pos => "osd_pos_hold_ready_pos",
-        when Osd_Nvario_Pos => "osd_nvario_pos",
-        when Osd_Esc_Tmp_Pos => "osd_esc_tmp_pos",
-        when Osd_Esc_Rpm_Pos => "osd_esc_rpm_pos",
-        when Osd_Esc_Rpm_Freq_Pos => "osd_esc_rpm_freq_pos",
-        when Osd_Rtc_Date_Time_Pos => "osd_rtc_date_time_pos",
-        when Osd_Adjustment_Range_Pos => "osd_adjustment_range_pos",
-        when Osd_Flip_Arrow_Pos => "osd_flip_arrow_pos",
-        when Osd_Core_Temp_Pos => "osd_core_temp_pos",
-        when Osd_Log_Status_Pos => "osd_log_status_pos",
-        when Osd_Stick_Overlay_Left_Pos => "osd_stick_overlay_left_pos",
-        when Osd_Stick_Overlay_Right_Pos => "osd_stick_overlay_right_pos",
-        when Osd_Stick_Overlay_Radio_Mode => "osd_stick_overlay_radio_mode",
-        when Osd_Rate_Profile_Name_Pos => "osd_rate_profile_name_pos",
-        when Osd_Pid_Profile_Name_Pos => "osd_pid_profile_name_pos",
-        when Osd_Battery_Profile_Name_Pos => "osd_battery_profile_name_pos",
-        when Osd_Profile_Name_Pos => "osd_profile_name_pos",
-        when Osd_Rcchannels_Pos => "osd_rcchannels_pos",
-        when Osd_Camera_Frame_Pos => "osd_camera_frame_pos",
-        when Osd_Efficiency_Pos => "osd_efficiency_pos",
-        when Osd_Total_Flights_Pos => "osd_total_flights_pos",
-        when Osd_Aux_Pos => "osd_aux_pos",
-        when Osd_Sys_Goggle_Voltage_Pos => "osd_sys_goggle_voltage_pos",
-        when Osd_Sys_Vtx_Voltage_Pos => "osd_sys_vtx_voltage_pos",
-        when Osd_Sys_Bitrate_Pos => "osd_sys_bitrate_pos",
-        when Osd_Sys_Delay_Pos => "osd_sys_delay_pos",
-        when Osd_Sys_Distance_Pos => "osd_sys_distance_pos",
-        when Osd_Sys_Lq_Pos => "osd_sys_lq_pos",
-        when Osd_Sys_Goggle_Dvr_Pos => "osd_sys_goggle_dvr_pos",
-        when Osd_Sys_Vtx_Dvr_Pos => "osd_sys_vtx_dvr_pos",
-        when Osd_Sys_Warnings_Pos => "osd_sys_warnings_pos",
-        when Osd_Sys_Vtx_Temp_Pos => "osd_sys_vtx_temp_pos",
-        when Osd_Sys_Fan_Speed_Pos => "osd_sys_fan_speed_pos",
-        when Osd_Stat_Bitmask => "osd_stat_bitmask",
-        when Osd_Profile => "osd_profile",
-        when Osd_Profile_1_Name => "osd_profile_1_name",
-        when Osd_Profile_2_Name => "osd_profile_2_name",
-        when Osd_Profile_3_Name => "osd_profile_3_name",
-        when Osd_Gps_Sats_Show_Pdop => "osd_gps_sats_show_pdop",
-        when Osd_Displayport_Device => "osd_displayport_device",
-        when Osd_Uart => "osd_uart",
-        when Osd_Rcchannels => "osd_rcchannels",
-        when Osd_Camera_Frame_Width => "osd_camera_frame_width",
-        when Osd_Camera_Frame_Height => "osd_camera_frame_height",
-        when Osd_Stat_Avg_Cell_Value => "osd_stat_avg_cell_value",
-        when Osd_Framerate_Hz => "osd_framerate_hz",
-        when Osd_Menu_Background => "osd_menu_background",
-        when Osd_Aux_Channel => "osd_aux_channel",
-        when Osd_Aux_Scale => "osd_aux_scale",
-        when Osd_Aux_Symbol => "osd_aux_symbol",
-        when Osd_Craftname_Msgs => "osd_craftname_msgs",
-        when Osd_Lidar_Dist_Pos => "osd_lidar_dist_pos",
-        when Osd_Custom_Serial_Text_Pos => "osd_custom_serial_text_pos",
-        when Osd_Custom_Serial_Text_Terminator => "osd_custom_serial_text_terminator",
-        when Osd_Custom_Text_Uart => "osd_custom_text_uart",
-        when Osd_Custom_Text_Baud => "osd_custom_text_baud",
-        when Osd_Wp_Number_Pos => "osd_wp_number_pos",
-        when Osd_Wp_Current_Lat_Pos => "osd_wp_current_lat_pos",
-        when Osd_Wp_Current_Lon_Pos => "osd_wp_current_lon_pos",
-        when Osd_Wp_Current_Alt_Pos => "osd_wp_current_alt_pos",
-        when Osd_Wp_Distance_Pos => "osd_wp_distance_pos",
-        when Osd_Wp_Direction_Pos => "osd_wp_direction_pos",
-        when Osd_Wp_Next_Number_Pos => "osd_wp_next_number_pos",
-        when Osd_Wp_Eta_Pos => "osd_wp_eta_pos",
-        when Osd_Nav_Map_Pos => "osd_nav_map_pos",
-        when Osd_Nav_Map_Mode => "osd_nav_map_mode",
-        when Osd_Nav_Map_Centre => "osd_nav_map_centre",
-        when Osd_Nav_Map_Min_Scale_M => "osd_nav_map_min_scale_m",
-        when Osd_Airspeed => "osd_airspeed",
-        when System_Hse_Mhz => "system_hse_mhz",
-        when Task_Statistics => "task_statistics",
-        when Debug_Mode => "debug_mode",
-        when Rate_6pos_Switch => "rate_6pos_switch",
-        when Cpu_Overclock => "cpu_overclock",
-        when Pwr_On_Arm_Grace => "pwr_on_arm_grace",
-        when Enable_Stick_Arming => "enable_stick_arming",
-        when Vtx_Band => "vtx_band",
-        when Vtx_Channel => "vtx_channel",
-        when Vtx_Power => "vtx_power",
-        when Vtx_Low_Power_Disarm => "vtx_low_power_disarm",
-        when Vtx_Softserial_Alt => "vtx_softserial_alt",
-        when Vtx_Type => "vtx_type",
-        when Vtx_Uart => "vtx_uart",
-        when Vtx_Freq => "vtx_freq",
-        when Vtx_Pit_Mode_Freq => "vtx_pit_mode_freq",
-        when Vtx_Halfduplex => "vtx_halfduplex",
-        when Vtx_Spi_Bus => "vtx_spi_bus",
-        when Vcd_Video_System => "vcd_video_system",
-        when Vcd_H_Offset => "vcd_h_offset",
-        when Vcd_V_Offset => "vcd_v_offset",
-        when Max7456_Clock => "max7456_clock",
-        when Max7456_Spi_Bus => "max7456_spi_bus",
-        when Max7456_Preinit_Opu => "max7456_preinit_opu",
-        when Displayport_Msp_Col_Adjust => "displayport_msp_col_adjust",
-        when Displayport_Msp_Row_Adjust => "displayport_msp_row_adjust",
-        when Displayport_Msp_Fonts => "displayport_msp_fonts",
-        when Displayport_Msp_Use_Device_Blink => "displayport_msp_use_device_blink",
-        when Displayport_Max7456_Col_Adjust => "displayport_max7456_col_adjust",
-        when Displayport_Max7456_Row_Adjust => "displayport_max7456_row_adjust",
-        when Displayport_Max7456_Inv => "displayport_max7456_inv",
-        when Displayport_Max7456_Blk => "displayport_max7456_blk",
-        when Displayport_Max7456_Wht => "displayport_max7456_wht",
-        when Esc_Sensor_Halfduplex => "esc_sensor_halfduplex",
-        when Esc_Sensor_Current_Offset => "esc_sensor_current_offset",
-        when Esc_Sensor_Uart => "esc_sensor_uart",
-        when Frsky_Spi_Autobind => "frsky_spi_autobind",
-        when Frsky_Spi_Tx_Id => "frsky_spi_tx_id",
-        when Frsky_Spi_Offset => "frsky_spi_offset",
-        when Frsky_Spi_Bind_Hop_Data => "frsky_spi_bind_hop_data",
-        when Frsky_X_Rx_Num => "frsky_x_rx_num",
-        when Frsky_Spi_A1_Source => "frsky_spi_a1_source",
-        when Cc2500_Spi_Chip_Detect => "cc2500_spi_chip_detect",
-        when Led_Inversion => "led_inversion",
-        when Dashboard_I2c_Bus => "dashboard_i2c_bus",
-        when Dashboard_I2c_Addr => "dashboard_i2c_addr",
-        when Rangefinder_Hardware => "rangefinder_hardware",
-        when Rangefinder_Uart => "rangefinder_uart",
-        when Opticalflow_Hardware => "opticalflow_hardware",
-        when Opticalflow_Uart => "opticalflow_uart",
-        when Opticalflow_Rotation => "opticalflow_rotation",
-        when Opticalflow_Flip_X => "opticalflow_flip_x",
-        when Pinio_Config => "pinio_config",
-        when Pinio_Box => "pinio_box",
-        when Usb_Hid_Cdc => "usb_hid_cdc",
-        when Usb_Msc_Pin_Pullup => "usb_msc_pin_pullup",
-        when Flash_Spi_Bus => "flash_spi_bus",
-        when Rcdevice_Init_Dev_Attempts => "rcdevice_init_dev_attempts",
-        when Rcdevice_Init_Dev_Attempt_Interval => "rcdevice_init_dev_attempt_interval",
-        when Rcdevice_Protocol_Version => "rcdevice_protocol_version",
-        when Rcdevice_Feature => "rcdevice_feature",
-        when Rcdevice_Uart => "rcdevice_uart",
-        when Gyro_1_Bustype => "gyro_1_bustype",
-        when Gyro_1_Spibus => "gyro_1_spibus",
-        when Gyro_1_I2c_Bus => "gyro_1_i2cBus",
-        when Gyro_1_I2c_Address => "gyro_1_i2c_address",
-        when I2c1_Pullup => "i2c1_pullup",
-        when I2c1_Clockspeed_Khz => "i2c1_clockspeed_khz",
-        when I2c2_Pullup => "i2c2_pullup",
-        when I2c2_Clockspeed_Khz => "i2c2_clockspeed_khz",
-        when I2c3_Pullup => "i2c3_pullup",
-        when I2c3_Clockspeed_Khz => "i2c3_clockspeed_khz",
-        when Mco2_On_Pc9 => "mco2_on_pc9",
-        when Spektrum_Spi_Protocol => "spektrum_spi_protocol",
-        when Spektrum_Spi_Mfg_Id => "spektrum_spi_mfg_id",
-        when Spektrum_Spi_Num_Channels => "spektrum_spi_num_channels",
-        when Expresslrs_Uid => "expresslrs_uid",
-        when Expresslrs_Domain => "expresslrs_domain",
-        when Expresslrs_Model_Id => "expresslrs_model_id",
-        when Scheduler_Relax_Rx => "scheduler_relax_rx",
-        when Scheduler_Relax_Osd => "scheduler_relax_osd",
-        when Scheduler_Debug_Task => "scheduler_debug_task",
-        when Cpu_Late_Limit_Permille => "cpu_late_limit_permille",
-        when Serialmsp_Halfduplex => "serialmsp_halfduplex",
-        when Msp_1_Uart => "msp_1_uart",
-        when Msp_1_Baud => "msp_1_baud",
-        when Msp_2_Uart => "msp_2_uart",
-        when Msp_2_Baud => "msp_2_baud",
-        when Msp_3_Uart => "msp_3_uart",
-        when Msp_3_Baud => "msp_3_baud",
-        when Timezone_Offset_Minutes => "timezone_offset_minutes",
-        when Rpm_Filter_Harmonics => "rpm_filter_harmonics",
-        when Rpm_Filter_Weights => "rpm_filter_weights",
-        when Rpm_Filter_Q => "rpm_filter_q",
-        when Rpm_Filter_Min_Hz => "rpm_filter_min_hz",
-        when Rpm_Filter_Fade_Range_Hz => "rpm_filter_fade_range_hz",
-        when Rpm_Filter_Lpf_Hz => "rpm_filter_lpf_hz",
-        when Flysky_Spi_Tx_Id => "flysky_spi_tx_id",
-        when Flysky_Spi_Rf_Channels => "flysky_spi_rf_channels",
-        when Stats_Min_Armed_Time_S => "stats_min_armed_time_s",
-        when Stats_Total_Flights => "stats_total_flights",
-        when Stats_Total_Time_S => "stats_total_time_s",
-        when Stats_Total_Dist_M => "stats_total_dist_m",
-        when Stats_Save_Move_Limit => "stats_save_move_limit",
-        when Stats_Mah_Used => "stats_mah_used",
-        when Craft_Name => "craft_name",
-        when Pilot_Name => "pilot_name",
-        when Altitude_Source => "altitude_source",
-        when Altitude_Prefer_Baro => "altitude_prefer_baro",
-        when Altitude_Lpf => "altitude_lpf",
-        when Rangefinder_Max_Range_Cm => "rangefinder_max_range_cm",
-        when Altitude_D_Lpf => "altitude_d_lpf",
-        when Ap_Landing_Altitude_M => "ap_landing_altitude_m",
-        when Ap_Hover_Throttle => "ap_hover_throttle",
-        when Ap_Throttle_Min => "ap_throttle_min",
-        when Ap_Throttle_Max => "ap_throttle_max",
-        when Ap_Altitude_P => "ap_altitude_p",
-        when Ap_Altitude_I => "ap_altitude_i",
-        when Ap_Altitude_D => "ap_altitude_d",
-        when Ap_Altitude_A => "ap_altitude_a",
-        when Ap_Altitude_F => "ap_altitude_f",
-        when Ap_Position_P => "ap_position_p",
-        when Ap_Position_I => "ap_position_i",
-        when Ap_Position_D => "ap_position_d",
-        when Ap_Position_A => "ap_position_a",
-        when Ap_Position_F => "ap_position_f",
-        when Ap_Position_Cutoff => "ap_position_cutoff",
-        when Ap_Stop_Threshold => "ap_stop_threshold",
-        when Ap_Max_Angle => "ap_max_angle",
-        when Ap_Max_Yaw_Rate => "ap_max_yaw_rate",
-        when Ap_Yaw_P => "ap_yaw_p",
-        when Ap_Velocity_Drag_Coeff => "ap_velocity_drag_coeff",
-        when Ap_Max_Velocity => "ap_max_velocity",
-        when Ap_Waypoint_Arrival_Radius => "ap_waypoint_arrival_radius",
-        when Ap_Waypoint_Hold_Radius => "ap_waypoint_hold_radius",
-        when Ap_Stick_Deadband => "ap_stick_deadband",
-        when Ap_Throttle_Deadband => "ap_throttle_deadband",
-        when Ap_Yaw_Mode => "ap_yaw_mode",
-        when Ap_Min_Forward_Velocity => "ap_min_forward_velocity",
-        when Ap_Nav_Corner_Speed => "ap_nav_corner_speed",
-        when Ap_Nav_Corner_Delta_V => "ap_nav_corner_delta_v",
-        when Ap_Nav_Decel => "ap_nav_decel",
-        when Ap_Nav_Accel => "ap_nav_accel",
-        when Ap_Nav_Carrot_Lead_Time => "ap_nav_carrot_lead_time",
-        when Ap_Nav_Carrot_Lead_Max => "ap_nav_carrot_lead_max",
-        when Ap_Nav_Preturn_Dist => "ap_nav_preturn_dist",
-        when Ap_Velocity_Buildup_Max_Pitch => "ap_velocity_buildup_max_pitch",
-        when Ap_Max_Turn_Rate => "ap_max_turn_rate",
-        when Ap_Hold_Orbit_Radius => "ap_hold_orbit_radius",
-        when Ap_Hold_Figure8_Width => "ap_hold_figure8_width",
-        when Ap_Landing_Descent_Rate => "ap_landing_descent_rate",
-        when Ap_Landing_Detection_Time => "ap_landing_detection_time",
-        when Ap_Landing_Spiral_Enable => "ap_landing_spiral_enable",
-        when Ap_Landing_Spiral_Radius => "ap_landing_spiral_radius",
-        when Ap_Landing_Spiral_Rate => "ap_landing_spiral_rate",
-        when Ap_Landing_Velocity_Threshold => "ap_landing_velocity_threshold",
-        when Ap_Landing_Throttle_Threshold => "ap_landing_throttle_threshold",
-        when Ap_L1_Enable => "ap_l1_enable",
-        when Ap_L1_Period => "ap_l1_period",
-        when Ap_L1_Min_Lookahead => "ap_l1_min_lookahead",
-        when Ap_L1_Max_Lookahead => "ap_l1_max_lookahead",
-        when Ap_L1_Max_Cross_Track_Error => "ap_l1_max_cross_track_error",
-        when Ap_L1_Turn_Rate => "ap_l1_turn_rate",
-        when Ap_Min_Nav_Altitude_M => "ap_min_nav_altitude_m",
-        when Ap_Rx_Loss_Policy => "ap_rx_loss_policy",
-        when Ap_Max_Distance_From_Home => "ap_max_distance_from_home",
-        when Ap_Geofence_Action => "ap_geofence_action",
-        when Box_User_1_Name => "box_user_1_name",
-        when Box_User_2_Name => "box_user_2_name",
-        when Box_User_3_Name => "box_user_3_name",
-        when Box_User_4_Name => "box_user_4_name",
-        when Gimbal_Roll_Rc_Gain => "gimbal_roll_rc_gain",
-        when Gimbal_Pitch_Rc_Thr_Gain => "gimbal_pitch_rc_thr_gain",
-        when Gimbal_Pitch_Rc_Low_Gain => "gimbal_pitch_rc_low_gain",
-        when Gimbal_Pitch_Rc_High_Gain => "gimbal_pitch_rc_high_gain",
-        when Gimbal_Yaw_Rc_Gain => "gimbal_yaw_rc_gain",
-        when Gimbal_Roll_Gain => "gimbal_roll_gain",
-        when Gimbal_Roll_Offset => "gimbal_roll_offset",
-        when Gimbal_Roll_Limit => "gimbal_roll_limit",
-        when Gimbal_Pitch_Gain => "gimbal_pitch_gain",
-        when Gimbal_Pitch_Offset => "gimbal_pitch_offset",
-        when Gimbal_Pitch_Low_Limit => "gimbal_pitch_low_limit",
-        when Gimbal_Pitch_High_Limit => "gimbal_pitch_high_limit",
-        when Gimbal_Yaw_Gain => "gimbal_yaw_gain",
-        when Gimbal_Yaw_Offset => "gimbal_yaw_offset",
-        when Gimbal_Yaw_Limit => "gimbal_yaw_limit",
-        when Gimbal_Stabilisation => "gimbal_stabilisation",
-        when Gimbal_Sensitivity => "gimbal_sensitivity",
-        when Gimbal_Uart => "gimbal_uart");
+     (Names (Natural (Name_Starts (S)) + 1 .. Natural (Name_Starts (S)) + Natural (Name_Lengths (S))));
 
    function Value_Count (T : Lookup_Table) return Natural is
      (case T is
@@ -3238,304 +2671,116 @@ package body Adaflight.Settings_Table with SPARK_Mode is
         when Table_Baud_Rate => 16,
         when Table_Telemetry_Protocol => 7);
 
+   --  The value names in one text, with each table's first value index;
+   --  the index tables run past the last value by a longest table, so a
+   --  table's first index plus an index under its count stays within them.
+   Values_Length : constant := 3644;
+   Value_Names : constant String (1 .. Values_Length + Max_Value_Length) :=
+     "OFFONIMPERIALMETRICBRITISHDEFAULTCW0CW90CW180CW270CW0FLIPCW90FLIPCW180FLIPCW270FLIPCUSTOMNMEAUBLOXMSPVIRTUA"
+     & "LAUTOEGNOSWAASMSASGAGANNONEPORTABLESTATIONARYPEDESTRIANAUTOMOTIVEAT_SEAAIRBORNE_1GAIRBORNE_2GAIRBORNE_4GAUT"
+     & "OUSNOEUSUNTSCVELOCITYBEARINGHYBRIDFIXEDDAMPENERDISABLECONTINUELANDLANDRTHRESCUE_SANITY_OFFRESCUE_SANITY_ONR"
+     & "ESCUE_SANITY_FS_ONLYMAX_ALTFIXED_ALTCURRENT_ALTNONESPIFLASHSDCARDSERIALNORMALMOTOR_TESTALWAYS1/11/21/41/81/"
+     & "16NONEADCVIRTUALESCMSPNONEADCESCNORMALMIXTILTNONESPEK2048SBUSSUMDSUMHXB-BXB-B-RJ01IBUSJETIEXBUSCRSFSRXLCUST"
+     & "OMFPORTSRXL2GHSTSPEK1024MAVLINKV202_250KV202_1MSYMA_XSYMA_X5CCX10CX10AH8_3DINAVFRSKY_DFRSKY_XFLYSKYFLYSKY_2"
+     & "AKNSFHSSSPEKTRUMFRSKY_X_LBTREDPINEFRSKY_X_V2FRSKY_X_LBT_V2EXPRESSLRSNORMALOPTION_1OPTION_2EXPERIMENTALAUTON"
+     & "ONEMPU6050MPU6000MPU6500MPU9250ICM20601ICM20602ICM20608GICM20649ICM20689ICM42605ICM42688PBMI160BMI270LSM6DS"
+     & "OLSM6DSV16XIIM42653ICM45605ICM45686ICM40609DIIM42652LSM6DSK320XICM42622PICM42686PICM56686BMI423VIRTUALLSM6D"
+     & "SV32XAUTONONEBMP085MS5611BMP280LPSQMP6988BMP388DPS3102SMPB_02BLPS22DFBMP580BMP581VIRTUALSPA06_003AUTONONEHM"
+     & "C5883AK8975AK8963QMC5883LLIS2MDLLIS3MDLMPU925X_AK8963IST8310MMC560XQMC5883PBMM350AK9916NONECYCLETIMEBATTERY"
+     & "GYRO_FILTEREDACCELEROMETERPIDLOOPRC_INTERPOLATIONANGLERATEESC_SENSORSCHEDULERSTACKESC_SENSOR_RPMESC_SENSOR_"
+     & "TMPALTITUDEFFTFFT_TIMEFFT_FREQRX_FRSKY_SPIRX_SFHSS_SPIGYRO_RAWMULTI_GYRO_RAWMULTI_GYRO_DIFFMAX7456_SIGNALMA"
+     & "X7456_SPICLOCKSBUSFPORTRANGEFINDERRANGEFINDER_QUALITYOPTICALFLOWLIDAR_TFADC_INTERNALRUNAWAY_TAKEOFFSDIOCURR"
+     & "ENT_SENSORUSBSMARTAUDIORTHITERM_RELAXACRO_TRAINERRC_SMOOTHINGRX_SIGNAL_LOSSRC_SMOOTHING_RATEANTI_GRAVITYDYN"
+     & "_LPFRX_SPEKTRUM_SPIDSHOT_RPM_TELEMETRYRPM_FILTERD_MAXAC_CORRECTIONAC_ERRORMULTI_GYRO_SCALEDDSHOT_RPM_ERRORS"
+     & "CRSF_LINK_STATISTICS_UPLINKCRSF_LINK_STATISTICS_PWRCRSF_LINK_STATISTICS_DOWNBAROAUTOPILOT_ALTITUDEDYN_IDLEF"
+     & "EEDFORWARD_LIMITFEEDFORWARDBLACKBOX_OUTPUTGYRO_SAMPLERX_TIMINGD_LPFVTX_TRAMPGHSTGHST_MSPSCHEDULER_DETERMINI"
+     & "SMTIMING_ACCURACYRX_EXPRESSLRS_SPIRX_EXPRESSLRS_PHASELOCKRX_STATE_TIMEGPS_RESCUE_VELOCITYGPS_RESCUE_HEADING"
+     & "GPS_RESCUE_TRACKINGGPS_CONNECTIONATTITUDEVTX_MSPGPS_DOPFAILSAFEGYRO_CALIBRATIONANGLE_MODEANGLE_TARGETCURREN"
+     & "T_ANGLEDSHOT_TELEMETRY_COUNTSRPM_LIMITRC_STATSMAG_CALIBMAG_TASK_RATEEZLANDINGTPAS_TERMSPATASKGIMBALWING_SET"
+     & "POINTCHIRPFLASH_TEST_PRBSMAVLINK_TELEMETRYAUTOPILOT_PIDPOSITION_NAVAUTOPILOT_STOPPITOTPOSITION_ESTAUTOPILOT"
+     & "_HEADINGRX_REDPINE_SPILAUNCHVELOCITY_ESTSAG_COMPENSATIONUPT1FLIGHT_PLANPWMONESHOT125ONESHOT42MULTISHOTBRUSH"
+     & "EDDSHOT150DSHOT300DSHOT600PROSHOT1000DISABLEDDRONECANOFFONFORCEPT1BIQUADPT2PT3PT1BIQUADPT2PT3AUTO-LANDDROPG"
+     & "PS-RESCUESTAGE1KILLSTAGE2OFFONBEEPDISARMNONEI2CSPISLAVEHALFNOMINALDOUBLEVBATEXTADCCONSTNONEHCSR04TFMINITF02"
+     & "MTF01MTF02MTF01PMTF02PTFNOVANOOPLOOP_F2NOOPLOOP_F2PNOOPLOOP_F2PHNOOPLOOP_FNOOPLOOP_FPNOOPLOOP_F2MINIUPT1NON"
+     & "EMTUPT1AUTONONEMS4525AUTOGPS_ONLYOPTICALFLOW_ONLYOFFYAWALLBETAFLIGHTRACEFLIGHTKISSACTUALQUICKOFF192MHZ216MH"
+     & "Z240MHZGRBRGBGRBWOFFSCALECLIPAUTOPALNTSCHDOFFRPRPYRP_INCRPY_INCGYROSETPOINTROLLPITCHROLLPITCHYAWTHROTTLEOFF"
+     & "ONUNTIL_FIRST_ARMOFFSPISDIONORMALPITCHONLYFULLPDDOFFI_FREEZEIPIDPD_I_FREEZERACEBEACONSTATUSBLACKWHITEREDORA"
+     & "NGEYELLOWLIME_GREENGREENMINT_GREENCYANLIGHT_BLUEBLUEDARK_VIOLETMAGENTADEEP_PINKROLLPITCHYAWDEFAULTBARO_ONLY"
+     & "GPS_ONLYRANGEFINDER_PREFERRANGEFINDER_ONLYOFFONAUTOOFF2_POINT3_POINT4_POINTAUTOTIM1TIM8NONEAUTOMAX7456MSPFR"
+     & "SKYOSDFBOSDNONERTC6705SMARTAUDIOTRAMPMSPOFFONFIRST_ARMINGNULLLFLEGACYLINEARDYNAMICEZLANDINGOFFRPRPYTRANSPAR"
+     & "ENTBLACKGRAYLIGHT_GRAYAU433AU915EU433EU868IN866FCC915ISM2400CE2400NONEILAPARCITIMERERLTAUTO9600192003840057"
+     & "6001152002304002500004000004608005000009216001000000150000020000002470000NONEFRSKY_HUBHOTTLTMSMARTPORTMAVLI"
+     & "NKIBUS                           ";
+
+   type Value_Index is range 0 .. 614;
+   type Value_Start is range 0 .. Values_Length;
+   type Value_Length is range 0 .. Max_Value_Length;
+   subtype Table_First_Index is Value_Index range 0 .. 503;
+
+   Table_Firsts : constant array (Lookup_Table) of Table_First_Index :=
+     (0, 2, 5, 15, 19, 25, 33, 38, 43, 46, 48, 51, 54, 58, 61, 66, 71, 74, 76, 93, 113, 117, 146, 161, 176, 287,
+      298, 301, 305, 309, 312, 315, 319, 323, 326, 329, 345, 348, 352, 355, 358, 363, 367, 370, 373, 377, 382,
+      384, 386, 390, 393, 396, 399, 401, 406, 409, 423, 426, 431, 434, 438, 441, 447, 453, 456, 458, 462, 465,
+      469, 477, 481, 497);
+
+   Value_Starts : constant array (Value_Index) of Value_Start :=
+     (0, 3, 5, 13, 19, 26, 33, 36, 40, 45, 50, 57, 65, 74, 83, 89, 93, 98, 101, 108, 112, 117, 121, 125, 130,
+      134, 142, 152, 162, 172, 178, 189, 200, 211, 215, 219, 221, 223, 227, 235, 242, 248, 253, 261, 268, 276,
+      280, 284, 287, 304, 320, 341, 348, 357, 368, 372, 380, 386, 392, 398, 408, 414, 417, 420, 423, 426, 430,
+      434, 437, 444, 447, 450, 454, 457, 460, 466, 473, 477, 485, 489, 493, 497, 501, 510, 514, 523, 527, 531,
+      537, 542, 547, 551, 559, 566, 575, 582, 588, 596, 600, 605, 610, 614, 621, 628, 634, 643, 645, 650, 658,
+      669, 676, 686, 700, 710, 716, 724, 732, 744, 748, 752, 759, 766, 773, 780, 788, 796, 805, 813, 821, 829,
+      838, 844, 850, 857, 867, 875, 883, 891, 900, 908, 919, 928, 937, 945, 951, 958, 968, 972, 976, 982, 988,
+      994, 997, 1004, 1010, 1016, 1025, 1032, 1038, 1044, 1051, 1060, 1064, 1068, 1075, 1081, 1087, 1095, 1102,
+      1109, 1123, 1130, 1137, 1145, 1145, 1151, 1157, 1161, 1170, 1177, 1190, 1203, 1210, 1226, 1235, 1245,
+      1254, 1259, 1273, 1287, 1295, 1298, 1306, 1314, 1326, 1338, 1346, 1360, 1375, 1389, 1405, 1409, 1414,
+      1425, 1444, 1455, 1463, 1475, 1490, 1494, 1508, 1511, 1521, 1524, 1535, 1547, 1559, 1573, 1590, 1602,
+      1609, 1624, 1643, 1653, 1658, 1671, 1679, 1696, 1712, 1739, 1763, 1788, 1792, 1810, 1818, 1835, 1846,
+      1861, 1872, 1881, 1886, 1895, 1899, 1907, 1928, 1943, 1960, 1983, 1996, 2015, 2033, 2052, 2066, 2074,
+      2081, 2088, 2096, 2112, 2122, 2134, 2147, 2169, 2178, 2186, 2195, 2208, 2217, 2220, 2226, 2229, 2233,
+      2239, 2252, 2257, 2272, 2289, 2302, 2314, 2328, 2333, 2345, 2362, 2376, 2382, 2394, 2410, 2414, 2425,
+      2428, 2438, 2447, 2456, 2463, 2471, 2479, 2487, 2498, 2506, 2514, 2517, 2519, 2524, 2527, 2533, 2536,
+      2539, 2542, 2548, 2551, 2554, 2563, 2567, 2577, 2583, 2587, 2593, 2596, 2598, 2602, 2608, 2612, 2615,
+      2618, 2623, 2627, 2634, 2640, 2644, 2650, 2655, 2659, 2665, 2671, 2675, 2680, 2685, 2691, 2697, 2703,
+      2714, 2726, 2739, 2749, 2760, 2775, 2779, 2783, 2785, 2789, 2793, 2797, 2803, 2803, 2807, 2815, 2831,
+      2834, 2837, 2840, 2850, 2860, 2864, 2870, 2875, 2878, 2884, 2890, 2896, 2899, 2902, 2906, 2909, 2914,
+      2918, 2922, 2925, 2929, 2931, 2934, 2936, 2939, 2945, 2952, 2956, 2964, 2968, 2973, 2977, 2982, 2985,
+      2993, 2996, 2998, 3013, 3016, 3019, 3023, 3029, 3038, 3042, 3044, 3045, 3048, 3056, 3057, 3060, 3071,
+      3075, 3081, 3087, 3092, 3097, 3100, 3106, 3112, 3122, 3127, 3137, 3141, 3151, 3155, 3166, 3173, 3182,
+      3186, 3191, 3194, 3201, 3210, 3218, 3236, 3252, 3255, 3257, 3261, 3264, 3271, 3278, 3285, 3289, 3293,
+      3297, 3301, 3305, 3312, 3315, 3323, 3328, 3332, 3339, 3339, 3349, 3354, 3357, 3360, 3362, 3374, 3378,
+      3380, 3386, 3392, 3399, 3408, 3411, 3413, 3416, 3427, 3432, 3436, 3446, 3451, 3456, 3461, 3466, 3471,
+      3477, 3484, 3490, 3494, 3498, 3507, 3511, 3515, 3519, 3524, 3529, 3534, 3540, 3546, 3552, 3558, 3564,
+      3570, 3576, 3583, 3590, 3597, 3604, 3608, 3617, 3621, 3624, 3633, 3640, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+
+   Value_Lengths : constant array (Value_Index) of Value_Length :=
+     (3, 2, 8, 6, 7, 7, 3, 4, 5, 5, 7, 8, 9, 9, 6, 4, 5, 3, 7, 4, 5, 4, 4, 5, 4, 8, 10, 10, 10, 6, 11, 11, 11,
+      4, 4, 2, 2, 4, 8, 7, 6, 5, 8, 7, 8, 4, 4, 3, 17, 16, 21, 7, 9, 11, 4, 8, 6, 6, 6, 10, 6, 3, 3, 3, 3, 4, 4,
+      3, 7, 3, 3, 4, 3, 3, 6, 7, 4, 8, 4, 4, 4, 4, 9, 4, 9, 4, 4, 6, 5, 5, 4, 8, 7, 9, 7, 6, 8, 4, 5, 5, 4, 7,
+      7, 6, 9, 2, 5, 8, 11, 7, 10, 14, 10, 6, 8, 8, 12, 4, 4, 7, 7, 7, 7, 8, 8, 9, 8, 8, 8, 9, 6, 6, 7, 10, 8,
+      8, 8, 9, 8, 11, 9, 9, 8, 6, 7, 10, 4, 4, 6, 6, 6, 3, 7, 6, 6, 9, 7, 6, 6, 7, 9, 4, 4, 7, 6, 6, 8, 7, 7,
+      14, 7, 7, 8, 0, 6, 6, 4, 9, 7, 13, 13, 7, 16, 9, 10, 9, 5, 14, 14, 8, 3, 8, 8, 12, 12, 8, 14, 15, 14, 16,
+      4, 5, 11, 19, 11, 8, 12, 15, 4, 14, 3, 10, 3, 11, 12, 12, 14, 17, 12, 7, 15, 19, 10, 5, 13, 8, 17, 16, 27,
+      24, 25, 4, 18, 8, 17, 11, 15, 11, 9, 5, 9, 4, 8, 21, 15, 17, 23, 13, 19, 18, 19, 14, 8, 7, 7, 8, 16, 10,
+      12, 13, 22, 9, 8, 9, 13, 9, 3, 6, 3, 4, 6, 13, 5, 15, 17, 13, 12, 14, 5, 12, 17, 14, 6, 12, 16, 4, 11, 3,
+      10, 9, 9, 7, 8, 8, 8, 11, 8, 8, 3, 2, 5, 3, 6, 3, 3, 3, 6, 3, 3, 9, 4, 10, 6, 4, 6, 3, 2, 4, 6, 4, 3, 3,
+      5, 4, 7, 6, 4, 6, 5, 4, 6, 6, 4, 5, 5, 6, 6, 6, 11, 12, 13, 10, 11, 15, 4, 4, 2, 4, 4, 4, 6, 0, 4, 8, 16,
+      3, 3, 3, 10, 10, 4, 6, 5, 3, 6, 6, 6, 3, 3, 4, 3, 5, 4, 4, 3, 4, 2, 3, 2, 3, 6, 7, 4, 8, 4, 5, 4, 5, 3, 8,
+      3, 2, 15, 3, 3, 4, 6, 9, 4, 2, 1, 3, 8, 1, 3, 11, 4, 6, 6, 5, 5, 3, 6, 6, 10, 5, 10, 4, 10, 4, 11, 7, 9,
+      4, 5, 3, 7, 9, 8, 18, 16, 3, 2, 4, 3, 7, 7, 7, 4, 4, 4, 4, 4, 7, 3, 8, 5, 4, 7, 0, 10, 5, 3, 3, 2, 12, 4,
+      2, 6, 6, 7, 9, 3, 2, 3, 11, 5, 4, 10, 5, 5, 5, 5, 5, 6, 7, 6, 4, 4, 9, 4, 4, 4, 5, 5, 5, 6, 6, 6, 6, 6, 6,
+      6, 7, 7, 7, 7, 4, 9, 4, 3, 9, 7, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+
    function Value_Name (T : Lookup_Table; Index : Natural) return String is
-     (case T is
-        when Table_Off_On =>
-          (case Index is
-             when 0 => "OFF", when 1 => "ON", when others => ""),
-        when Table_Unit =>
-          (case Index is
-             when 0 => "IMPERIAL", when 1 => "METRIC", when 2 => "BRITISH", when others => ""),
-        when Table_Alignment =>
-          (case Index is
-             when 0 => "DEFAULT", when 1 => "CW0", when 2 => "CW90", when 3 => "CW180", when 4 => "CW270", when 5
-             => "CW0FLIP", when 6 => "CW90FLIP", when 7 => "CW180FLIP", when 8 => "CW270FLIP", when 9 =>
-             "CUSTOM", when others => ""),
-        when Table_Gps_Provider =>
-          (case Index is
-             when 0 => "NMEA", when 1 => "UBLOX", when 2 => "MSP", when 3 => "VIRTUAL", when others => ""),
-        when Table_Gps_Sbas_Mode =>
-          (case Index is
-             when 0 => "AUTO", when 1 => "EGNOS", when 2 => "WAAS", when 3 => "MSAS", when 4 => "GAGAN", when 5
-             => "NONE", when others => ""),
-        when Table_Gps_Ublox_Models =>
-          (case Index is
-             when 0 => "PORTABLE", when 1 => "STATIONARY", when 2 => "PEDESTRIAN", when 3 => "AUTOMOTIVE", when 4
-             => "AT_SEA", when 5 => "AIRBORNE_1G", when 6 => "AIRBORNE_2G", when 7 => "AIRBORNE_4G", when others
-             => ""),
-        when Table_Gps_Ublox_Utc_Standard =>
-          (case Index is
-             when 0 => "AUTO", when 1 => "USNO", when 2 => "EU", when 3 => "SU", when 4 => "NTSC", when others =>
-             ""),
-        when Table_Ap_Yaw_Mode =>
-          (case Index is
-             when 0 => "VELOCITY", when 1 => "BEARING", when 2 => "HYBRID", when 3 => "FIXED", when 4 =>
-             "DAMPENER", when others => ""),
-        when Table_Ap_Rx_Loss_Policy =>
-          (case Index is
-             when 0 => "DISABLE", when 1 => "CONTINUE", when 2 => "LAND", when others => ""),
-        when Table_Ap_Geofence_Action =>
-          (case Index is
-             when 0 => "LAND", when 1 => "RTH", when others => ""),
-        when Table_Gps_Rescue_Sanity_Check =>
-          (case Index is
-             when 0 => "RESCUE_SANITY_OFF", when 1 => "RESCUE_SANITY_ON", when 2 => "RESCUE_SANITY_FS_ONLY", when
-             others => ""),
-        when Table_Gps_Rescue_Alt_Mode =>
-          (case Index is
-             when 0 => "MAX_ALT", when 1 => "FIXED_ALT", when 2 => "CURRENT_ALT", when others => ""),
-        when Table_Blackbox_Device =>
-          (case Index is
-             when 0 => "NONE", when 1 => "SPIFLASH", when 2 => "SDCARD", when 3 => "SERIAL", when others => ""),
-        when Table_Blackbox_Mode =>
-          (case Index is
-             when 0 => "NORMAL", when 1 => "MOTOR_TEST", when 2 => "ALWAYS", when others => ""),
-        when Table_Blackbox_Sample_Rate =>
-          (case Index is
-             when 0 => "1/1", when 1 => "1/2", when 2 => "1/4", when 3 => "1/8", when 4 => "1/16", when others =>
-             ""),
-        when Table_Current_Meter =>
-          (case Index is
-             when 0 => "NONE", when 1 => "ADC", when 2 => "VIRTUAL", when 3 => "ESC", when 4 => "MSP", when
-             others => ""),
-        when Table_Voltage_Meter =>
-          (case Index is
-             when 0 => "NONE", when 1 => "ADC", when 2 => "ESC", when others => ""),
-        when Table_Gimbal_Mode =>
-          (case Index is
-             when 0 => "NORMAL", when 1 => "MIXTILT", when others => ""),
-        when Table_Serial_Rx =>
-          (case Index is
-             when 0 => "NONE", when 1 => "SPEK2048", when 2 => "SBUS", when 3 => "SUMD", when 4 => "SUMH", when 5
-             => "XB-B", when 6 => "XB-B-RJ01", when 7 => "IBUS", when 8 => "JETIEXBUS", when 9 => "CRSF", when 10
-             => "SRXL", when 11 => "CUSTOM", when 12 => "FPORT", when 13 => "SRXL2", when 14 => "GHST", when 15
-             => "SPEK1024", when 16 => "MAVLINK", when others => ""),
-        when Table_Rx_Spi =>
-          (case Index is
-             when 0 => "V202_250K", when 1 => "V202_1M", when 2 => "SYMA_X", when 3 => "SYMA_X5C", when 4 =>
-             "CX10", when 5 => "CX10A", when 6 => "H8_3D", when 7 => "INAV", when 8 => "FRSKY_D", when 9 =>
-             "FRSKY_X", when 10 => "FLYSKY", when 11 => "FLYSKY_2A", when 12 => "KN", when 13 => "SFHSS", when 14
-             => "SPEKTRUM", when 15 => "FRSKY_X_LBT", when 16 => "REDPINE", when 17 => "FRSKY_X_V2", when 18 =>
-             "FRSKY_X_LBT_V2", when 19 => "EXPRESSLRS", when others => ""),
-        when Table_Gyro_Hardware_Lpf =>
-          (case Index is
-             when 0 => "NORMAL", when 1 => "OPTION_1", when 2 => "OPTION_2", when 3 => "EXPERIMENTAL", when
-             others => ""),
-        when Table_Acc_Hardware =>
-          (case Index is
-             when 0 => "AUTO", when 1 => "NONE", when 2 => "MPU6050", when 3 => "MPU6000", when 4 => "MPU6500",
-             when 5 => "MPU9250", when 6 => "ICM20601", when 7 => "ICM20602", when 8 => "ICM20608G", when 9 =>
-             "ICM20649", when 10 => "ICM20689", when 11 => "ICM42605", when 12 => "ICM42688P", when 13 =>
-             "BMI160", when 14 => "BMI270", when 15 => "LSM6DSO", when 16 => "LSM6DSV16X", when 17 => "IIM42653",
-             when 18 => "ICM45605", when 19 => "ICM45686", when 20 => "ICM40609D", when 21 => "IIM42652", when 22
-             => "LSM6DSK320X", when 23 => "ICM42622P", when 24 => "ICM42686P", when 25 => "ICM56686", when 26 =>
-             "BMI423", when 27 => "VIRTUAL", when 28 => "LSM6DSV32X", when others => ""),
-        when Table_Baro_Hardware =>
-          (case Index is
-             when 0 => "AUTO", when 1 => "NONE", when 2 => "BMP085", when 3 => "MS5611", when 4 => "BMP280", when
-             5 => "LPS", when 6 => "QMP6988", when 7 => "BMP388", when 8 => "DPS310", when 9 => "2SMPB_02B", when
-             10 => "LPS22DF", when 11 => "BMP580", when 12 => "BMP581", when 13 => "VIRTUAL", when 14 =>
-             "SPA06_003", when others => ""),
-        when Table_Mag_Hardware =>
-          (case Index is
-             when 0 => "AUTO", when 1 => "NONE", when 2 => "HMC5883", when 3 => "AK8975", when 4 => "AK8963",
-             when 5 => "QMC5883L", when 6 => "LIS2MDL", when 7 => "LIS3MDL", when 8 => "MPU925X_AK8963", when 9
-             => "IST8310", when 10 => "MMC560X", when 11 => "QMC5883P", when 12 => "", when 13 => "BMM350", when
-             14 => "AK9916", when others => ""),
-        when Table_Debug =>
-          (case Index is
-             when 0 => "NONE", when 1 => "CYCLETIME", when 2 => "BATTERY", when 3 => "GYRO_FILTERED", when 4 =>
-             "ACCELEROMETER", when 5 => "PIDLOOP", when 6 => "RC_INTERPOLATION", when 7 => "ANGLERATE", when 8 =>
-             "ESC_SENSOR", when 9 => "SCHEDULER", when 10 => "STACK", when 11 => "ESC_SENSOR_RPM", when 12 =>
-             "ESC_SENSOR_TMP", when 13 => "ALTITUDE", when 14 => "FFT", when 15 => "FFT_TIME", when 16 =>
-             "FFT_FREQ", when 17 => "RX_FRSKY_SPI", when 18 => "RX_SFHSS_SPI", when 19 => "GYRO_RAW", when 20 =>
-             "MULTI_GYRO_RAW", when 21 => "MULTI_GYRO_DIFF", when 22 => "MAX7456_SIGNAL", when 23 =>
-             "MAX7456_SPICLOCK", when 24 => "SBUS", when 25 => "FPORT", when 26 => "RANGEFINDER", when 27 =>
-             "RANGEFINDER_QUALITY", when 28 => "OPTICALFLOW", when 29 => "LIDAR_TF", when 30 => "ADC_INTERNAL",
-             when 31 => "RUNAWAY_TAKEOFF", when 32 => "SDIO", when 33 => "CURRENT_SENSOR", when 34 => "USB", when
-             35 => "SMARTAUDIO", when 36 => "RTH", when 37 => "ITERM_RELAX", when 38 => "ACRO_TRAINER", when 39
-             => "RC_SMOOTHING", when 40 => "RX_SIGNAL_LOSS", when 41 => "RC_SMOOTHING_RATE", when 42 =>
-             "ANTI_GRAVITY", when 43 => "DYN_LPF", when 44 => "RX_SPEKTRUM_SPI", when 45 =>
-             "DSHOT_RPM_TELEMETRY", when 46 => "RPM_FILTER", when 47 => "D_MAX", when 48 => "AC_CORRECTION", when
-             49 => "AC_ERROR", when 50 => "MULTI_GYRO_SCALED", when 51 => "DSHOT_RPM_ERRORS", when 52 =>
-             "CRSF_LINK_STATISTICS_UPLINK", when 53 => "CRSF_LINK_STATISTICS_PWR", when 54 =>
-             "CRSF_LINK_STATISTICS_DOWN", when 55 => "BARO", when 56 => "AUTOPILOT_ALTITUDE", when 57 =>
-             "DYN_IDLE", when 58 => "FEEDFORWARD_LIMIT", when 59 => "FEEDFORWARD", when 60 => "BLACKBOX_OUTPUT",
-             when 61 => "GYRO_SAMPLE", when 62 => "RX_TIMING", when 63 => "D_LPF", when 64 => "VTX_TRAMP", when
-             65 => "GHST", when 66 => "GHST_MSP", when 67 => "SCHEDULER_DETERMINISM", when 68 =>
-             "TIMING_ACCURACY", when 69 => "RX_EXPRESSLRS_SPI", when 70 => "RX_EXPRESSLRS_PHASELOCK", when 71 =>
-             "RX_STATE_TIME", when 72 => "GPS_RESCUE_VELOCITY", when 73 => "GPS_RESCUE_HEADING", when 74 =>
-             "GPS_RESCUE_TRACKING", when 75 => "GPS_CONNECTION", when 76 => "ATTITUDE", when 77 => "VTX_MSP",
-             when 78 => "GPS_DOP", when 79 => "FAILSAFE", when 80 => "GYRO_CALIBRATION", when 81 => "ANGLE_MODE",
-             when 82 => "ANGLE_TARGET", when 83 => "CURRENT_ANGLE", when 84 => "DSHOT_TELEMETRY_COUNTS", when 85
-             => "RPM_LIMIT", when 86 => "RC_STATS", when 87 => "MAG_CALIB", when 88 => "MAG_TASK_RATE", when 89
-             => "EZLANDING", when 90 => "TPA", when 91 => "S_TERM", when 92 => "SPA", when 93 => "TASK", when 94
-             => "GIMBAL", when 95 => "WING_SETPOINT", when 96 => "CHIRP", when 97 => "FLASH_TEST_PRBS", when 98
-             => "MAVLINK_TELEMETRY", when 99 => "AUTOPILOT_PID", when 100 => "POSITION_NAV", when 101 =>
-             "AUTOPILOT_STOP", when 102 => "PITOT", when 103 => "POSITION_EST", when 104 => "AUTOPILOT_HEADING",
-             when 105 => "RX_REDPINE_SPI", when 106 => "LAUNCH", when 107 => "VELOCITY_EST", when 108 =>
-             "SAG_COMPENSATION", when 109 => "UPT1", when 110 => "FLIGHT_PLAN", when others => ""),
-        when Table_Motor_Pwm_Protocol =>
-          (case Index is
-             when 0 => "PWM", when 1 => "ONESHOT125", when 2 => "ONESHOT42", when 3 => "MULTISHOT", when 4 =>
-             "BRUSHED", when 5 => "DSHOT150", when 6 => "DSHOT300", when 7 => "DSHOT600", when 8 =>
-             "PROSHOT1000", when 9 => "DISABLED", when 10 => "DRONECAN", when others => ""),
-        when Table_Dshot_Edt =>
-          (case Index is
-             when 0 => "OFF", when 1 => "ON", when 2 => "FORCE", when others => ""),
-        when Table_Gyro_Lpf_Type =>
-          (case Index is
-             when 0 => "PT1", when 1 => "BIQUAD", when 2 => "PT2", when 3 => "PT3", when others => ""),
-        when Table_Dterm_Lpf_Type =>
-          (case Index is
-             when 0 => "PT1", when 1 => "BIQUAD", when 2 => "PT2", when 3 => "PT3", when others => ""),
-        when Table_Failsafe =>
-          (case Index is
-             when 0 => "AUTO-LAND", when 1 => "DROP", when 2 => "GPS-RESCUE", when others => ""),
-        when Table_Failsafe_Switch_Mode =>
-          (case Index is
-             when 0 => "STAGE1", when 1 => "KILL", when 2 => "STAGE2", when others => ""),
-        when Table_Crash_Recovery =>
-          (case Index is
-             when 0 => "OFF", when 1 => "ON", when 2 => "BEEP", when 3 => "DISARM", when others => ""),
-        when Table_Bus_Type =>
-          (case Index is
-             when 0 => "NONE", when 1 => "I2C", when 2 => "SPI", when 3 => "SLAVE", when others => ""),
-        when Table_Max7456_Clock =>
-          (case Index is
-             when 0 => "HALF", when 1 => "NOMINAL", when 2 => "DOUBLE", when others => ""),
-        when Table_Rx_Frsky_Spi_A1_Source =>
-          (case Index is
-             when 0 => "VBAT", when 1 => "EXTADC", when 2 => "CONST", when others => ""),
-        when Table_Rangefinder_Hardware =>
-          (case Index is
-             when 0 => "NONE", when 1 => "HCSR04", when 2 => "TFMINI", when 3 => "TF02", when 4 => "MTF01", when
-             5 => "MTF02", when 6 => "MTF01P", when 7 => "MTF02P", when 8 => "TFNOVA", when 9 => "NOOPLOOP_F2",
-             when 10 => "NOOPLOOP_F2P", when 11 => "NOOPLOOP_F2PH", when 12 => "NOOPLOOP_F", when 13 =>
-             "NOOPLOOP_FP", when 14 => "NOOPLOOP_F2MINI", when 15 => "UPT1", when others => ""),
-        when Table_Opticalflow_Hardware =>
-          (case Index is
-             when 0 => "NONE", when 1 => "MT", when 2 => "UPT1", when others => ""),
-        when Table_Pitot_Hardware =>
-          (case Index is
-             when 0 => "AUTO", when 1 => "NONE", when 2 => "MS4525", when 3 => "", when others => ""),
-        when Table_Poshold_Source =>
-          (case Index is
-             when 0 => "AUTO", when 1 => "GPS_ONLY", when 2 => "OPTICALFLOW_ONLY", when others => ""),
-        when Table_Gyro_Overflow_Check =>
-          (case Index is
-             when 0 => "OFF", when 1 => "YAW", when 2 => "ALL", when others => ""),
-        when Table_Rates_Type =>
-          (case Index is
-             when 0 => "BETAFLIGHT", when 1 => "RACEFLIGHT", when 2 => "KISS", when 3 => "ACTUAL", when 4 =>
-             "QUICK", when others => ""),
-        when Table_Overclock =>
-          (case Index is
-             when 0 => "OFF", when 1 => "192MHZ", when 2 => "216MHZ", when 3 => "240MHZ", when others => ""),
-        when Table_Rgb_Grb =>
-          (case Index is
-             when 0 => "GRB", when 1 => "RGB", when 2 => "GRBW", when others => ""),
-        when Table_Throttle_Limit_Type =>
-          (case Index is
-             when 0 => "OFF", when 1 => "SCALE", when 2 => "CLIP", when others => ""),
-        when Table_Video_System =>
-          (case Index is
-             when 0 => "AUTO", when 1 => "PAL", when 2 => "NTSC", when 3 => "HD", when others => ""),
-        when Table_Iterm_Relax =>
-          (case Index is
-             when 0 => "OFF", when 1 => "RP", when 2 => "RPY", when 3 => "RP_INC", when 4 => "RPY_INC", when
-             others => ""),
-        when Table_Iterm_Relax_Type =>
-          (case Index is
-             when 0 => "GYRO", when 1 => "SETPOINT", when others => ""),
-        when Table_Acro_Trainer_Debug =>
-          (case Index is
-             when 0 => "ROLL", when 1 => "PITCH", when others => ""),
-        when Table_Rc_Smoothing_Debug =>
-          (case Index is
-             when 0 => "ROLL", when 1 => "PITCH", when 2 => "YAW", when 3 => "THROTTLE", when others => ""),
-        when Table_Vtx_Low_Power_Disarm =>
-          (case Index is
-             when 0 => "OFF", when 1 => "ON", when 2 => "UNTIL_FIRST_ARM", when others => ""),
-        when Table_Sdcard_Mode =>
-          (case Index is
-             when 0 => "OFF", when 1 => "SPI", when 2 => "SDIO", when others => ""),
-        when Table_Launch_Control_Mode =>
-          (case Index is
-             when 0 => "NORMAL", when 1 => "PITCHONLY", when 2 => "FULL", when others => ""),
-        when Table_Tpa_Mode =>
-          (case Index is
-             when 0 => "PD", when 1 => "D", when others => ""),
-        when Table_Spa_Mode =>
-          (case Index is
-             when 0 => "OFF", when 1 => "I_FREEZE", when 2 => "I", when 3 => "PID", when 4 => "PD_I_FREEZE", when
-             others => ""),
-        when Table_Led_Profile =>
-          (case Index is
-             when 0 => "RACE", when 1 => "BEACON", when 2 => "STATUS", when others => ""),
-        when Table_Ledstrip_Color =>
-          (case Index is
-             when 0 => "BLACK", when 1 => "WHITE", when 2 => "RED", when 3 => "ORANGE", when 4 => "YELLOW", when
-             5 => "LIME_GREEN", when 6 => "GREEN", when 7 => "MINT_GREEN", when 8 => "CYAN", when 9 =>
-             "LIGHT_BLUE", when 10 => "BLUE", when 11 => "DARK_VIOLET", when 12 => "MAGENTA", when 13 =>
-             "DEEP_PINK", when others => ""),
-        when Table_Gyro_Filter_Debug =>
-          (case Index is
-             when 0 => "ROLL", when 1 => "PITCH", when 2 => "YAW", when others => ""),
-        when Table_Position_Alt_Source =>
-          (case Index is
-             when 0 => "DEFAULT", when 1 => "BARO_ONLY", when 2 => "GPS_ONLY", when 3 => "RANGEFINDER_PREFER",
-             when 4 => "RANGEFINDER_ONLY", when others => ""),
-        when Table_Off_On_Auto =>
-          (case Index is
-             when 0 => "OFF", when 1 => "ON", when 2 => "AUTO", when others => ""),
-        when Table_Feedforward_Averaging =>
-          (case Index is
-             when 0 => "OFF", when 1 => "2_POINT", when 2 => "3_POINT", when 3 => "4_POINT", when others => ""),
-        when Table_Dshot_Bitbanged_Timer =>
-          (case Index is
-             when 0 => "AUTO", when 1 => "TIM1", when 2 => "TIM8", when others => ""),
-        when Table_Osd_Displayport_Device =>
-          (case Index is
-             when 0 => "NONE", when 1 => "AUTO", when 2 => "MAX7456", when 3 => "MSP", when 4 => "FRSKYOSD", when
-             5 => "FBOSD", when others => ""),
-        when Table_Vtx_Type =>
-          (case Index is
-             when 0 => "NONE", when 1 => "RTC6705", when 2 => "", when 3 => "SMARTAUDIO", when 4 => "TRAMP", when
-             5 => "MSP", when others => ""),
-        when Table_Osd_Logo_On_Arming =>
-          (case Index is
-             when 0 => "OFF", when 1 => "ON", when 2 => "FIRST_ARMING", when others => ""),
-        when Table_Osd_Custom_Text_Terminator =>
-          (case Index is
-             when 0 => "NULL", when 1 => "LF", when others => ""),
-        when Table_Mixer_Type =>
-          (case Index is
-             when 0 => "LEGACY", when 1 => "LINEAR", when 2 => "DYNAMIC", when 3 => "EZLANDING", when others =>
-             ""),
-        when Table_Simplified_Tuning_Pids_Mode =>
-          (case Index is
-             when 0 => "OFF", when 1 => "RP", when 2 => "RPY", when others => ""),
-        when Table_Cms_Background =>
-          (case Index is
-             when 0 => "TRANSPARENT", when 1 => "BLACK", when 2 => "GRAY", when 3 => "LIGHT_GRAY", when others =>
-             ""),
-        when Table_Freq_Domain =>
-          (case Index is
-             when 0 => "AU433", when 1 => "AU915", when 2 => "EU433", when 3 => "EU868", when 4 => "IN866", when
-             5 => "FCC915", when 6 => "ISM2400", when 7 => "CE2400", when others => ""),
-        when Table_Transponder_Provider =>
-          (case Index is
-             when 0 => "NONE", when 1 => "ILAP", when 2 => "ARCITIMER", when 3 => "ERLT", when others => ""),
-        when Table_Baud_Rate =>
-          (case Index is
-             when 0 => "AUTO", when 1 => "9600", when 2 => "19200", when 3 => "38400", when 4 => "57600", when 5
-             => "115200", when 6 => "230400", when 7 => "250000", when 8 => "400000", when 9 => "460800", when 10
-             => "500000", when 11 => "921600", when 12 => "1000000", when 13 => "1500000", when 14 => "2000000",
-             when 15 => "2470000", when others => ""),
-        when Table_Telemetry_Protocol =>
-          (case Index is
-             when 0 => "NONE", when 1 => "FRSKY_HUB", when 2 => "HOTT", when 3 => "LTM", when 4 => "SMARTPORT",
-             when 5 => "MAVLINK", when 6 => "IBUS", when others => ""));
+     (Value_Names
+        (Natural (Value_Starts (Table_Firsts (T) + Value_Index (Index))) + 1
+         .. Natural (Value_Starts (Table_Firsts (T) + Value_Index (Index)))
+            + Natural (Value_Lengths (Table_Firsts (T) + Value_Index (Index)))));
 
 end Adaflight.Settings_Table;
