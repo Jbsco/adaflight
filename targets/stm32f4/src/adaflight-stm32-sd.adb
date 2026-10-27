@@ -394,6 +394,11 @@ package body Adaflight.STM32.SD is
       Log.Flush_Force (FS, M, Done);
    end Log_Flush;
 
+   procedure Log_Flush_Complete (Done : out Boolean) is
+   begin
+      Log.Flush_Force_Complete (FS, M, Done);
+   end Log_Flush_Complete;
+
    procedure Log_Write (Data : Byte_Array) is
       Text   : Adaflight.FAT.Data_Bytes (0 .. Data'Length - 1);
       Length : Natural;

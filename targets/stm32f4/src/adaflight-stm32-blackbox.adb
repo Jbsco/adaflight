@@ -125,7 +125,8 @@ package body Adaflight.STM32.Blackbox is
    end Flush;
 
    --  The card device's answers for the recorder's state: a log start step
-   --  while the log file is prepared, a flush while the cache flushes, and
+   --  while the log file is prepared, a flush until every sector is on the
+   --  card while the cache flushes, and
    --  while the log shuts down its end, then its flush inside the shutdown
    --  timeout.
    procedure Card_Device (D : out Core.Device_Inputs) is
@@ -144,7 +145,7 @@ package body Adaflight.STM32.Blackbox is
          when Core.Prepare_Log_File =>
             Adaflight.STM32.SD.Log_Begin (D.Begin_Log_Done);
          when Core.Cache_Flush =>
-            Adaflight.STM32.SD.Log_Flush (D.Flush_Complete);
+            Adaflight.STM32.SD.Log_Flush_Complete (D.Flush_Complete);
          when Core.Shutting_Down =>
             Adaflight.STM32.SD.Log_End (L.Logged_Any_Frames, D.End_Log_Done);
             if D.End_Log_Done
