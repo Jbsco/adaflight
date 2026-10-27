@@ -179,6 +179,20 @@ def ghst_frames(channels_us):
     return [frame(0x33, [100, 60, 0x05, 20]), frame(0x30, [128, 128, 128, 128])]
 
 
+def jeti_frame(channels_us):
+    """A Jeti EX Bus channel frame: the channel header with the frame length, a packet id, the channel data
+    id and the data length, the channels in eighths of a microsecond little-endian, and the reflected CRC16
+    little-endian, so the CRC over the whole frame reads zero."""
+    data = b"".join((v * 8).to_bytes(2, "little") for v in channels_us[:16])
+    body = bytes([0x3E, 0x03, 6 + len(data) + 2, 0x01, 0x31, len(data)]) + data
+    crc = 0
+    for b in body:
+        d = b ^ (crc & 0xFF)
+        d ^= (d << 4) & 0xFF
+        crc = (((d << 8) | ((crc & 0xFF00) >> 8)) ^ (d >> 4) ^ (d << 3)) & 0xFFFF
+    return body + crc.to_bytes(2, "little")
+
+
 def crc16_xmodem(data):
     """The CRC16 of polynomial 0x1021 from zero, most significant bit first."""
     crc = 0
@@ -1230,7 +1244,7 @@ def main():
                                    ("SUMD", sumd_frame(us), []), ("SPEK2048", spektrum_frame(us), []),
                                    ("XB-B", xbus_frame(us), []),
                                    ("FPORT", fport_frame([992, 1150, 172, 992] + [992] * 12), []),
-                                   ("GHST", ghst_frames(us), [])):
+                                   ("GHST", ghst_frames(us), []), ("JETIEXBUS", jeti_frame(us), [])):
             store = os.path.join(work, name.lower() + ".bin")
             proc, sock = start(image, store)
             try:

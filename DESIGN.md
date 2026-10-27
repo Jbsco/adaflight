@@ -10606,3 +10606,14 @@ never finds a reply queued.
 
 The host smoke check's receiver phase adds Ghost frames in turn, one with the link statistics and the normal
 RF protocol, one with aux channels 5 to 8, each with its CRC8.
+
+## D449. STM32F4 Jeti EX Bus receiver (2026-10-27)
+
+The board reads a Jeti EX Bus receiver on the serial receiver UART at 125,000 baud on the transmit pin
+alone, open drain with a pull-up or push-pull with a pull-down when inverted, inverted only when the setting
+asks. The bytes go through the core's EX Bus frame assembly at their arrival times, and the frame status
+after the realtime tasks decodes the sixteen channels once a channel frame's CRC reads zero and keeps the
+frame's time for the RC smoothing. The EX Bus telemetry waits, so the request frames go unanswered.
+
+The host smoke check's receiver phase adds EX Bus channel frames, each with its reflected CRC16, with the
+same channels.
