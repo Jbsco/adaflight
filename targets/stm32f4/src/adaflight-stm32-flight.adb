@@ -1322,7 +1322,16 @@ package body Adaflight.STM32.Flight is
       F.Throttle_Percent := Integer'Max (0, Integer'Min (100, (Integer (Float'Rounding (Throttle)) - 1_000) / 10));
       F.Throttle_High := Channels (Adaflight.RC_Command.Throttle_Channel) > 1_750.0;
       F.Pitch_High := Channels (1) > 1_750.0;
-      F.RSSI_Percent := Unsigned_8 (Natural (Adaflight.STM32.Radio.RSSI) * 100 / 1_023);
+      F.RSSI_Percent := Unsigned_8'Min (100, Adaflight.STM32.Radio.RSSI_Percent);
+      F.RSSI_Dbm := Adaflight.STM32.Radio.RSSI_Dbm;
+      F.RSNR := Adaflight.STM32.Radio.RSNR;
+      F.Link_Quality := Unsigned_16'Min (1_023, Adaflight.STM32.Radio.Link_Quality);
+      F.Link_Percent := Unsigned_16'Min (300, Adaflight.STM32.Radio.Link_Quality_Percent);
+      F.Link_Source :=
+        Adaflight.OSD_Render.Link_Quality_Source'Val
+          (Adaflight.Receiver.Link_Quality_Source'Pos (Adaflight.STM32.Radio.Link_Source));
+      F.RF_Mode := Unsigned_8 (Natural'Min (255, Adaflight.STM32.Radio.RF_Mode));
+      F.Uplink_mW := Adaflight.STM32.Radio.Uplink_Power_mW;
       F.Battery := Bat.Overall;
       F.Pack_Voltage := Unsigned_16 (Volts);
       F.Cell_Voltage := (if Bat.Cells > 0 then Unsigned_16 (Volts / Bat.Cells) else 0);

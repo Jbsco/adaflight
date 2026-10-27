@@ -323,6 +323,7 @@ package body Adaflight.STM32.OSD is
    end Write_Font;
 
    use type Adaflight.OSD_Task.Task_State;
+   use type Adaflight.OSD_Render.Link_Quality_Source;
    use type Interfaces.Unsigned_16;
    use type Interfaces.Unsigned_32;
 
@@ -429,7 +430,7 @@ package body Adaflight.STM32.OSD is
       P.Now_Us := Now_Us;
       P.Armed := F.Armed;
       P.Was_Ever_Armed := F.Was_Ever_Armed;
-      P.Has_Link_Quality_Source := False;
+      P.Has_Link_Quality_Source := F.Link_Source /= Adaflight.OSD_Render.None;
       P.Failsafe_Active := F.Failsafe_Active;
       P.Display_Grabbed := False;
       P.OSD_Switch := F.OSD_Switch;
@@ -447,10 +448,15 @@ package body Adaflight.STM32.OSD is
       R.Show_Cell_Value := Context.Page.Show_Cell_Value;
       R.Amperage := F.Amperage;
       R.RSSI_Percent := F.RSSI_Percent;
+      R.Link_Quality_Percent := F.Link_Percent;
+      R.RSSI_Dbm := F.RSSI_Dbm;
+      R.RSNR := F.RSNR;
       R.Acceleration := F.G_Force;
       R.Motors := F.Motors;
 
       A.RSSI_Percent := F.RSSI_Percent;
+      A.RSSI_Dbm := F.RSSI_Dbm;
+      A.Link_Quality := F.Link_Percent;
       A.Battery := F.Battery;
       A.Profile_Capacity := F.Battery_Capacity;
       A.MAh_Drawn := F.MAh_Drawn;
@@ -473,6 +479,13 @@ package body Adaflight.STM32.OSD is
       D.PID_Index := F.PID_Index;
       D.Rate_Index := F.Rate_Index;
       D.RSSI_Percent := F.RSSI_Percent;
+      D.RSSI_Dbm := F.RSSI_Dbm;
+      D.RSNR := F.RSNR;
+      D.Link_Source := F.Link_Source;
+      D.Link_Quality := F.Link_Quality;
+      D.RF_Mode := F.RF_Mode;
+      D.Link_Quality_Percent := F.Link_Percent;
+      D.Uplink_Mw := F.Uplink_mW;
       D.Throttle_Percent := Interfaces.Integer_8 (F.Throttle_Percent);
       D.Modes := Modes_Of (F.Modes);
       D.Airmode := F.Airmode;
@@ -500,6 +513,9 @@ package body Adaflight.STM32.OSD is
       W.Pitch_Decidegrees := F.Pitch;
       W.Throttle_Percent := F.Throttle_Percent;
       W.RSSI_Percent := Natural (F.RSSI_Percent);
+      W.RSSI_Dbm := F.RSSI_Dbm;
+      W.RSNR := F.RSNR;
+      W.Link_Quality_Percent := Natural (F.Link_Percent);
       W.Armed_Time_Us := Task_Data.Stats.Armed_Time_Us;
       W.Headfree_Mode := F.Modes (Adaflight.Arming.Headfree_Mode);
       W.Battery_Capacity := Natural (F.Battery_Capacity);
