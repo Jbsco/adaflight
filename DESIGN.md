@@ -10435,3 +10435,14 @@ The oracle's attitude generator flies a GPS module in its own family, with the m
 or not, the satellite count, a ground speed, a course near the estimate's heading in three steps of four,
 and the latest yaw rate. Every other sequence flies steadily forward so the confidence can build, and seven
 of the forty sequences reach a usable GPS heading.
+
+## D436. STM32F4 attitude on the arming state (2026-10-27)
+
+The board's attitude task passes the pilot's arming state, the angle or horizon mode, and the headfree mode
+to the estimator. Since the scheduler increment the task had passed a disarmed craft and no modes, before
+the board had its arming logic. In flight the estimator would have kept the disarmed gain schedule, ten times
+the configured gain or the reconvergence after a disarm, and the throttle angle correction would never have
+applied. The headfree mode now reaches the attitude's headfree frame. The sticks do not turn in headfree mode
+on the board yet.
+
+The host cannot arm, so no smoke check covers the change.

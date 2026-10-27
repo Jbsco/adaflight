@@ -1385,9 +1385,10 @@ package body Adaflight.STM32.Flight is
    end Run_Filter;
 
    --  The attitude task: the estimate from the attitude lowpass of the gyro
-   --  and the accelerometer, without a compass, disarmed and without the
-   --  angle or headfree modes, then the angles and the quaternion into the
-   --  attitude replies.
+   --  and the accelerometer, without a compass, over the arming, the angle
+   --  or horizon mode that turns the throttle correction on, and the
+   --  headfree mode, then the angles and the quaternion into the attitude
+   --  replies.
    procedure Run_Attitude (Now_Us : Scheduler.Time_Us) is
       Rates : constant Adaflight.Vectors.Vector3 :=
         (X => Gyro_State.Downsampled (Adaflight.Axes.Roll),
@@ -1395,10 +1396,14 @@ package body Adaflight.STM32.Flight is
          Z => Gyro_State.Downsampled (Adaflight.Axes.Yaw));
       No_Mag : constant Adaflight.Vectors.Vector3 := (0.0, 0.0, 0.0);
       Magnitude : constant Float := Float'Max (0.0, Float'Min (1.0e3, Acc_State.Magnitude));
+      M : constant Adaflight.Arming.Mode_Set := Adaflight.STM32.Pilot.Flight_Modes;
    begin
       Adaflight.Attitude.Update
         (Att_State, Att_Config, Now_Us, Rates, Acc_State.Acc, Magnitude, No_Mag,
-         Use_Mag => False, Armed => False, Angle_Mode => False, Headfree_Mode => False);
+         Use_Mag       => False,
+         Armed         => Adaflight.STM32.Pilot.Armed,
+         Angle_Mode    => M (Adaflight.Arming.Angle_Mode) or else M (Adaflight.Arming.Horizon_Mode),
+         Headfree_Mode => M (Adaflight.Arming.Headfree_Mode));
       Ctx.Out_Views.State.Attitude :=
         (Roll  => Integer_16 (Att_State.Euler.Roll),
          Pitch => Integer_16 (Att_State.Euler.Pitch),
