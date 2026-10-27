@@ -3,13 +3,17 @@ with Adaflight.Pins; use Adaflight.Pins;
 with Adaflight.Board;
 with Adaflight.MAX7456;
 with Adaflight.MAX7456.Display_Port;
+with Adaflight.Config_Fix;
 with Adaflight.Config_Runtime;
+with Adaflight.Display_Port_MSP;
+with Adaflight.MSP_Port;
 with Adaflight.OSD_Canvas;
 with Adaflight.OSD_Elements;
 with Adaflight.OSD_Format;
 with Adaflight.OSD_Page;
 with Adaflight.OSD_Stats;
 with Adaflight.OSD_Warnings;
+with Adaflight.Serial_Feature_Map;
 with Adaflight.STM32.GPIO;
 with Adaflight.STM32.RTC;
 with Adaflight.STM32.SPI;
@@ -227,6 +231,108 @@ package body Adaflight.STM32.OSD is
    Kind       : Adaflight.OSD_Task.Device_Kind := Adaflight.OSD_Task.None;
    Present    : Boolean := False;
 
+   package DPM renames Adaflight.Display_Port_MSP;
+   package SFM renames Adaflight.Serial_Feature_Map;
+   use type Interfaces.Unsigned_32;
+
+   --  The MSP display port: its canvas and grab count, the profile it was
+   --  started with, and the serial port its frames go to as MSP replies,
+   --  which reach a goggle system on UART1, the board's MSP UART.
+   MSP_Display    : DPM.Port;
+   MSP_Profile    : DPM.Profile;
+   Display_Serial : SFM.Port_Id := SFM.No_Port;
+   --  The UARTs a device streams MSP on: the display's, or one with an MSP
+   --  video transmitter or a lidar.
+   Device_UARTs   : array (USART.Number) of Boolean := (others => False);
+   MSP_UART       : constant SFM.Port_Id := 51;
+   Display_UART   : USART.Port := (Which => USART.UART1);
+   Board_UARTs    : constant array (USART.Number) of SFM.Port_Id :=
+     (USART.UART1 => 51, USART.UART3 => 53, USART.UART4 => 54, USART.UART6 => 56);
+
+   function Device_Pos (D : Adaflight.OSD_Task.Device_Kind) return Byte is
+     (Byte (Adaflight.OSD_Task.Device_Kind'Pos (D)));
+
+   --  A display port payload as an MSP reply on the display's UART, dropped
+   --  when the transmit buffer has no room for the frame; Sent counts the
+   --  bytes queued.
+   procedure Push (Data : DPM.Payload; Length : Natural; Sent : out Interfaces.Unsigned_32) is
+      Frame        : Adaflight.MSP_Port.Frame_Buffer;
+      Frame_Length : Positive;
+   begin
+      Sent := 0;
+      if Display_Serial /= MSP_UART or else Length = 0 then
+         return;
+      end if;
+      Adaflight.MSP_Port.Encode
+        (Adaflight.MSP_Port.V1, DPM.Command, 0, False, Data (0 .. Length - 1), Frame, Frame_Length);
+      if Adaflight.MSP_Port.May_Send
+           (Frame_Length, USART.Transmit_Empty (Display_UART.Which), USART.Free (Display_UART.Which))
+      then
+         USART.Put (Display_UART, Frame (0 .. Frame_Length - 1));
+         Sent := Interfaces.Unsigned_32 (Frame_Length);
+      end if;
+   end Push;
+
+   procedure Push (Data : DPM.Payload; Length : Natural) is
+      Unused_Sent : Interfaces.Unsigned_32;
+   begin
+      Push (Data, Length, Unused_Sent);
+   end Push;
+
+   --  The heartbeat, release, clear and draw payloads.
+   procedure Send_Heartbeat is
+      D : DPM.Payload;
+      L : Natural;
+   begin
+      DPM.Heartbeat (D, L);
+      Push (D, L);
+   end Send_Heartbeat;
+
+   procedure Send_Release is
+      D : DPM.Payload;
+      L : Natural;
+   begin
+      DPM.Release_Payload (D, L);
+      Push (D, L);
+   end Send_Release;
+
+   procedure Send_Clear is
+      D : DPM.Payload;
+      L : Natural;
+   begin
+      DPM.Clear_Screen_Payload (D, L);
+      Push (D, L);
+   end Send_Clear;
+
+   procedure Send_Draw is
+      D : DPM.Payload;
+      L : Natural;
+   begin
+      DPM.Draw_Screen_Payload (D, L);
+      Push (D, L);
+   end Send_Draw;
+
+   --  The serial port the MSP display port draws over: the OSD's port when
+   --  the display device setting is MSP and names one, else the first UART
+   --  with an MSP video transmitter.
+   function Display_Serial_Of (C : Adaflight.Config_Groups.Configuration; Assigned : SFM.Assignments)
+      return SFM.Port_Id is
+   begin
+      if C.Osd_Config.Display_Port_Device = Device_Pos (Adaflight.OSD_Task.MSP)
+        and then Integer (C.Osd_Config.Osd_Uart) /= SFM.No_Port
+      then
+         return SFM.Port_Id (C.Osd_Config.Osd_Uart);
+      end if;
+      for N in USART.Number loop
+         if (SFM.Function_Mask (Adaflight.Config_Fix.Serial_Options, Assigned, Board_UARTs (N))
+             and SFM.Function_VTX_MSP) /= 0
+         then
+            return Board_UARTs (N);
+         end if;
+      end loop;
+      return SFM.No_Port;
+   end Display_Serial_Of;
+
    function Chip_Config (C : Adaflight.Config_Groups.Configuration) return Chip.Config is
      ((Clock_Config => C.Max7456_Config.Clock_Config, CS_Tag => C.Max7456_Config.Cs_Tag,
        SPI_Instance => C.Max7456_Config.Spi_Device, Pre_Init_OPU => C.Max7456_Config.Pre_Init_Opu));
@@ -257,7 +363,34 @@ package body Adaflight.STM32.OSD is
       Video_Settings := Video (C);
       Display_Settings := Display (C);
       Overclocked := Overclock (C);
+      declare
+         Assigned : constant SFM.Assignments := Adaflight.Config_Fix.Serial_Assignments (C);
+      begin
+         Display_Serial := Display_Serial_Of (C, Assigned);
+         for N in USART.Number loop
+            Device_UARTs (N) :=
+              Board_UARTs (N) = Display_Serial
+              or else (SFM.Function_Mask (Adaflight.Config_Fix.Serial_Options, Assigned, Board_UARTs (N))
+                       and (SFM.Function_VTX_MSP or SFM.Function_Lidar)) /= 0;
+         end loop;
+      end;
    end Keep_Settings;
+
+   --  The MSP display port on the stored profile, video system and canvas.
+   procedure Start_MSP_Display (C : Adaflight.Config_Groups.Configuration) is
+      P : Adaflight.Config_Groups.Display_Port_Profile_Record renames C.Display_Port_Profile_Msp;
+   begin
+      MSP_Profile :=
+        (Font             => (P.Font_Selection (0), P.Font_Selection (1), P.Font_Selection (2), P.Font_Selection (3)),
+         Use_Device_Blink => P.Use_Device_Blink /= 0,
+         Row_Adjust       => P.Row_Adjust,
+         Col_Adjust       => P.Col_Adjust);
+      DPM.Init
+        (MSP_Display,
+         (if Natural (C.Vcd_Profile.Video_System) <= DPM.Video_System'Pos (DPM.Video_System'Last)
+          then DPM.Video_System'Val (C.Vcd_Profile.Video_System) else DPM.Auto),
+         MSP_Profile, C.Osd_Config.Canvas_Rows, C.Osd_Config.Canvas_Cols);
+   end Start_MSP_Display;
 
    procedure Preinit (C : Adaflight.Config_Groups.Configuration) is
    begin
@@ -267,7 +400,10 @@ package body Adaflight.STM32.OSD is
    procedure Init
      (C : in out Adaflight.Config_Groups.Configuration; Feature_OSD : Boolean; Disable_Feature : out Boolean)
    is
-      Setting   : constant Byte := C.Osd_Config.Display_Port_Device;
+      HD_Video  : constant Byte := Byte (DPM.Video_System'Pos (DPM.HD));
+      Setting   : constant Byte :=
+        (if C.Vcd_Profile.Video_System = HD_Video then Device_Pos (Adaflight.OSD_Task.MSP)
+         else C.Osd_Config.Display_Port_Device);
       Available : Boolean;
       Ready     : Boolean;
    begin
@@ -276,17 +412,26 @@ package body Adaflight.STM32.OSD is
       if not Feature_OSD then
          return;
       end if;
-      if Setting = Adaflight.OSD_Task.Device_Kind'Pos (Adaflight.OSD_Task.Auto)
-        or else Setting = Adaflight.OSD_Task.Device_Kind'Pos (Adaflight.OSD_Task.MAX7456)
-      then
+      if Setting = Device_Pos (Adaflight.OSD_Task.Auto) or else Setting = Device_Pos (Adaflight.OSD_Task.MAX7456) then
          Chip_Port.Init (Dev, Chip_State, Port, Chip_Config (C), Video (C), Display (C), Overclock (C), Available,
                          Ready);
-         if Available or else Setting = Adaflight.OSD_Task.Device_Kind'Pos (Adaflight.OSD_Task.MAX7456) then
+         if Available or else Setting = Device_Pos (Adaflight.OSD_Task.MAX7456) then
             Kind := Adaflight.OSD_Task.MAX7456;
             Present := Available;
          end if;
       end if;
-      if Present then
+      if Kind = Adaflight.OSD_Task.None
+        and then (Setting = Device_Pos (Adaflight.OSD_Task.Auto) or else Setting = Device_Pos (Adaflight.OSD_Task.MSP))
+      then
+         Start_MSP_Display (C);
+         Kind := Adaflight.OSD_Task.MSP;
+         Present := True;
+      end if;
+      if Present and then Kind = Adaflight.OSD_Task.MSP then
+         if MSP_Display.Rows > 0 and then MSP_Display.Cols > 0 then
+            Adaflight.OSD_Canvas.Fit (C.Osd_Config, C.Osd_Element_Config, MSP_Display.Rows, MSP_Display.Cols);
+         end if;
+      elsif Present then
          Adaflight.OSD_Canvas.Fit (C.Osd_Config, C.Osd_Element_Config, Port.Rows, Port.Cols);
       end if;
       Disable_Feature := Kind = Adaflight.OSD_Task.None;
@@ -298,8 +443,13 @@ package body Adaflight.STM32.OSD is
 
    procedure Dimensions (Columns, Rows : out Interfaces.Unsigned_8) is
    begin
-      Columns := (if Present then Port.Cols else 0);
-      Rows := (if Present then Port.Rows else 0);
+      if Present and then Kind = Adaflight.OSD_Task.MSP then
+         Columns := MSP_Display.Cols;
+         Rows := MSP_Display.Rows;
+      else
+         Columns := (if Present then Port.Cols else 0);
+         Rows := (if Present then Port.Rows else 0);
+      end if;
    end Dimensions;
 
    procedure Check_Ready (C : Adaflight.Config_Groups.Configuration; Armed : Boolean; Ready : out Boolean) is
@@ -308,49 +458,75 @@ package body Adaflight.STM32.OSD is
          Ready := False;
          return;
       end if;
+      if Kind = Adaflight.OSD_Task.MSP then
+         Ready := DPM.Is_Ready;
+         return;
+      end if;
       Chip_Port.Check_Ready (Dev, Chip_State, Port, Chip_Config (C), Video (C), Display (C), Overclock (C), Armed,
                              Rescan => True, Ready => Ready);
    end Check_Ready;
 
+   function On_MSP return Boolean is (Present and then Kind = Adaflight.OSD_Task.MSP);
+
    procedure Menu_Grab is
    begin
-      if Present and then Port.Grab_Count < Interfaces.Integer_8'Last then
+      if On_MSP then
+         if MSP_Display.Grab_Count < Interfaces.Integer_8'Last then
+            Send_Heartbeat;
+            Send_Clear;
+            DPM.Grab (MSP_Display);
+         end if;
+      elsif Present and then Port.Grab_Count < Interfaces.Integer_8'Last then
          Chip_Port.Grab (Dev, Chip_State, Port, Display_Settings);
       end if;
    end Menu_Grab;
 
    procedure Menu_Release is
    begin
-      if Port.Grab_Count > Interfaces.Integer_8'First then
+      if On_MSP then
+         if MSP_Display.Grab_Count > Interfaces.Integer_8'First then
+            Send_Release;
+            DPM.Release (MSP_Display);
+         end if;
+      elsif Port.Grab_Count > Interfaces.Integer_8'First then
          Chip_Port.Release (Port);
       end if;
    end Menu_Release;
 
-   function Grabbed return Boolean is (Port.Grab_Count > 0);
+   function Grabbed return Boolean is
+     (if On_MSP then DPM.Is_Grabbed (MSP_Display) else Port.Grab_Count > 0);
 
    procedure Menu_Clear is
    begin
-      if Present then
+      if On_MSP then
+         Send_Clear;
+         DPM.Clear (MSP_Display);
+      elsif Present then
          Chip_Port.Clear_Screen (Dev, Chip_State, Port, Display_Settings);
       end if;
    end Menu_Clear;
 
+   --  The MSP display port has no layers and no background.
    procedure Menu_Layer_Select (Layer : Natural) is
       Unused : Boolean;
    begin
-      Chip.Layer_Select (Chip_State, Layer, Unused);
+      if not On_MSP then
+         Chip.Layer_Select (Chip_State, Layer, Unused);
+      end if;
    end Menu_Layer_Select;
 
    procedure Menu_Background (Kind : Natural) is
    begin
-      if Present then
+      if Present and then not On_MSP then
          Chip.Set_Background (Dev, Chip_State, Kind);
       end if;
    end Menu_Background;
 
    procedure Menu_Redraw (Armed : Boolean) is
    begin
-      if Present then
+      if On_MSP then
+         Send_Draw;
+      elsif Present then
          Chip_Port.Redraw (Dev, Chip_State, Armed);
       end if;
    end Menu_Redraw;
@@ -358,21 +534,40 @@ package body Adaflight.STM32.OSD is
    procedure Menu_Heartbeat is
       Unused : Boolean;
    begin
-      if Present then
+      if On_MSP then
+         Send_Heartbeat;
+      elsif Present then
          Chip_Port.Heartbeat (Dev, Chip_State, Unused);
       end if;
    end Menu_Heartbeat;
 
-   procedure Menu_Write (X, Y : Interfaces.Unsigned_8; Text : String) is
+   procedure Menu_Write (X, Y : Interfaces.Unsigned_8; Text : String; Cost : out Interfaces.Unsigned_32) is
       Data : Byte_Array (0 .. Text'Length - 1);
    begin
+      Cost := 0;
+      if On_MSP then
+         declare
+            D : DPM.Payload;
+            L : Natural;
+         begin
+            DPM.Write_String (MSP_Profile.Font, X, Y, 0, Text, D, L);
+            Push (D, L, Cost);
+         end;
+         return;
+      end if;
       for I in Data'Range loop
          Data (I) := Byte (Character'Pos (Text (Text'First + I)));
       end loop;
       Chip_Port.Write_String (Chip_State, X, Y, Data);
    end Menu_Write;
 
-   function Font_Write_Taken return Boolean is (Present and then Chip_State.Detected);
+   function Menu_Room return Interfaces.Unsigned_32 is
+     (if On_MSP then Interfaces.Unsigned_32 (USART.Free (USART.UART1)) else Interfaces.Unsigned_32'Last);
+
+   function Peripheral (N : USART.Number) return Boolean is (Device_UARTs (N));
+
+   function Font_Write_Taken return Boolean is
+     (Present and then Kind = Adaflight.OSD_Task.MAX7456 and then Chip_State.Detected);
 
    procedure Write_Font (Address : Interfaces.Unsigned_16; Data : Adaflight.MSP_Font_In.Character_Data) is
       Bytes          : Chip_Port.Character_Data;
@@ -387,7 +582,6 @@ package body Adaflight.STM32.OSD is
    use type Adaflight.OSD_Task.Task_State;
    use type Adaflight.OSD_Render.Link_Quality_Source;
    use type Interfaces.Unsigned_16;
-   use type Interfaces.Unsigned_32;
 
    Task_Data : Adaflight.OSD_Task.OSD;
    Context   : Adaflight.OSD_Task.Context;
@@ -420,7 +614,7 @@ package body Adaflight.STM32.OSD is
       Keep_Settings (C);
       Context.Device := Kind;
       Context.Background_Layer := False;
-      Context.Device_Blink := False;
+      Context.Device_Blink := Kind = Adaflight.OSD_Task.MSP and then MSP_Profile.Use_Device_Blink;
       Context.Rate_Hz := Adaflight.OSD_Task.Frame_Rate (Unsigned_16'Max (1, Unsigned_16'Min (60, O.Framerate_Hz)));
       Context.Show_Spec := O.Osd_Show_Spec_Prearm /= 0;
       Context.Version (1 .. Version'Length) := Version;
@@ -682,6 +876,45 @@ package body Adaflight.STM32.OSD is
       return B;
    end Bytes_Of;
 
+   --  The task's display operations as MSP display port payloads. The port
+   --  has no layers, background, logo or transactions, and a redraw draws
+   --  the screen.
+   procedure Execute_MSP (Result : Adaflight.OSD_Task.Ops) is
+      use all type Adaflight.OSD_Task.Op_Kind;
+      D : DPM.Payload;
+      L : Natural;
+   begin
+      for K in 1 .. Result.Count loop
+         declare
+            Op : Adaflight.OSD_Task.Op renames Result.List (K);
+         begin
+            case Op.Kind is
+               when Clear =>
+                  Send_Clear;
+                  DPM.Clear (MSP_Display);
+               when Write =>
+                  DPM.Write_String (MSP_Profile.Font, Op.X, Op.Y, Op.Attr, Op.Line.Data (1 .. Op.Line.Length), D, L);
+                  Push (D, L);
+               when Write_Char =>
+                  if Op.Line.Length > 0 then
+                     DPM.Write_Char (MSP_Profile.Font, Op.X, Op.Y, Op.Attr, Op.Line.Data (1), D, L);
+                     Push (D, L);
+                  end if;
+               when Write_Sys =>
+                  DPM.Write_Sys (Op.X, Op.Y, Op.Attr, D, L);
+                  Push (D, L);
+               when Heartbeat =>
+                  Send_Heartbeat;
+               when Redraw | Draw_Screen =>
+                  Send_Draw;
+               when Write_Logo | Select_Layer | Layer_Copy | Redraw_Background | Begin_Transaction
+                  | Commit_Transaction =>
+                  null;
+            end case;
+         end;
+      end loop;
+   end Execute_MSP;
+
    --  The task's display operations on the MAX7456. The chip has no system
    --  elements, background redraw or transactions, and the heartbeat and
    --  the draw ran before the state for its answers.
@@ -726,17 +959,21 @@ package body Adaflight.STM32.OSD is
    begin
       Refresh (F, Now_Us);
       Answers.Grabbed := Grabbed;
-      case State is
-         when Adaflight.OSD_Task.Init =>
-            Chip_Port.Check_Ready (Dev, Chip_State, Port, Chip_Settings, Video_Settings, Display_Settings,
-                                   Overclocked, F.Armed, Rescan => False, Ready => Answers.Ready);
-         when Adaflight.OSD_Task.Update_Heartbeat =>
-            Chip_Port.Heartbeat (Dev, Chip_State, Answers.Heartbeat_Taken);
-         when Adaflight.OSD_Task.Transfer =>
-            Chip.Draw_Screen (Dev, Chip_State, Answers.More_To_Draw);
-         when others =>
-            null;
-      end case;
+      --  The MSP display port is always ready, never mid-transfer, and its
+      --  heartbeat and draw go out as the task's operations.
+      if not On_MSP then
+         case State is
+            when Adaflight.OSD_Task.Init =>
+               Chip_Port.Check_Ready (Dev, Chip_State, Port, Chip_Settings, Video_Settings, Display_Settings,
+                                      Overclocked, F.Armed, Rescan => False, Ready => Answers.Ready);
+            when Adaflight.OSD_Task.Update_Heartbeat =>
+               Chip_Port.Heartbeat (Dev, Chip_State, Answers.Heartbeat_Taken);
+            when Adaflight.OSD_Task.Transfer =>
+               Chip.Draw_Screen (Dev, Chip_State, Answers.More_To_Draw);
+            when others =>
+               null;
+         end case;
+      end if;
       Start := Time.Micros;
       if State = Adaflight.OSD_Task.Draw_Element then
          Clock_Us := Start;
@@ -746,7 +983,11 @@ package body Adaflight.STM32.OSD is
          Draw_End := Clock_Us;
       end if;
       Adaflight.OSD_Task.Update (Task_Data, Context, Now_Us, Clock_Us, Draw_End, Answers, Sched, Result);
-      Execute (Result, F.Armed);
+      if On_MSP then
+         Execute_MSP (Result);
+      else
+         Execute (Result, F.Armed);
+      end if;
       if State = Adaflight.OSD_Task.Draw_Element then
          Element_Us := Time.Micros - Start;
       else

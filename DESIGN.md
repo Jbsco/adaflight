@@ -10747,3 +10747,28 @@ set the debug sensors read zero.
 The host smoke check sends EX Bus channel frames and telemetry requests in turn on UART3. It finds at least ten
 answers with a CRC16 that checks, each with the request's packet id and the EX telemetry header. One 4 s run
 on the host answered 28 of about 140 requests.
+
+## D457. STM32F4 MSP display port (2026-10-27)
+
+The board draws the OSD and runs the menu over the MSP display port, which digital video goggle systems take
+on a UART. The OSD start takes the MSP device for an HD video system whatever the display device setting
+says, otherwise for the MSP setting, or for the automatic one when no MAX7456 answers, and the OSD feature
+stays on with it. The port's canvas is the stored canvas for HD, else the PAL or NTSC lines and the standard
+columns with the profile's adjustments, and the stored canvas fits to it. The OSD task's operations become
+display port payloads sent as MSP replies with command 182: the heartbeat, the clear, the strings and
+characters with the profile's font per severity and the device blink, the system elements, and the draw for
+a redraw or a draw. The port has no layers, background, logo or transactions, and it is always ready and
+never mid-transfer. The menu grabs it with a heartbeat and a clear, releases it with the release payload, and
+spends the free transmit room of UART1 on its writes, each costing the frame it queued.
+
+The frames go to the serial port the OSD's port setting names when the display device setting is MSP, else to
+the first UART with an MSP video transmitter. The board serves MSP on UART1 alone, so the frames reach goggles
+only there, and a frame that does not fit the transmit buffer is dropped. The display's UART, and one with an
+MSP video transmitter or a lidar, carries a device's stream: its bytes never open the command line, ask for a
+reboot or count as configurator activity.
+
+The stored default video system is HD, so a MAX7456 board draws over MSP until the video system is set to an
+analog one, as the configurator's OSD tab does when analog video is chosen.
+
+The host smoke check sets the MSP device on UART1 and finds the heartbeat, clear, string and draw payloads
+with the craft name, and UART1 still answering MSP. The MAX7456 phase now sets the PAL video system.
