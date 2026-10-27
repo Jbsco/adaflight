@@ -10299,7 +10299,7 @@ last pass. The telemetry task runs the LTM stream before the MAVLink one.
 
 The ground station's requests run after the drain in their order: a disarm by serial command, the mode
 overrides through the arming state, a home reset or a home position, and a reboot once the port's queued
-bytes have left or 100 ms have passed. A reboot to the bootloader resets the board as the MSP reboot does.
+bytes have left or 100 ms have passed. A reboot to the bootloader goes through the ROM bootloader reset of D429.
 The inputs take the battery and its meters, the RSSI and the first eight channels, the attitude, the GPS
 solution with its accuracies and home, the estimated altitude of D426, the mixer, the arming, the
 failsafe, the flight modes as the flight mode word the MAVLink unit decodes, the clock and the disable
@@ -10307,3 +10307,20 @@ reasons.
 
 The host smoke check sets the first provider to MAVLink on UART3, checks the heartbeat and attitude
 messages' CRCs, and requests the autopilot version, which comes back with its acknowledgement.
+
+## D429. STM32F4 reboot into the ROM bootloader (2026-10-27)
+
+`Adaflight.STM32.MCU` keeps seven persistent words in the RTC backup registers, which a system reset
+leaves alone: the magic word, then the reset reason at index 3. At the start, before any of the board's
+devices, the words are kept over a software reset with the magic word and cleared after any other reset,
+and the reset flags are cleared. A reset reason of 1 is a request for the ROM bootloader: it is cleared,
+the interrupts and the system tick stop, the NVIC's enables and pending bits clear, the clocks return to
+the internal oscillator with the PLL and the external oscillator off as a reset leaves them, the system
+memory is mapped at address zero, and the code jumps to the bootloader with its stack. The check runs after
+the runtime has set up the clocks, where the reference checks before its clock setup, so the board puts the
+clocks back first.
+
+MSP's reboot into the ROM bootloader, the command line's `bl`, and MAVLink's reboot to the bootloader
+write the request and reset. The MSP reboot into the flash bootloader leaves the board running, since the
+board has no flash bootloader. The host image ends with status 2 on a bootloader request, and the host
+smoke check asks for one over MSP and over the command line.

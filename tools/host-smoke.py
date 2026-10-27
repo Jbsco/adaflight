@@ -926,6 +926,15 @@ def main():
             check("LTM status frames report disarmed in rate mode", bool(status) and status[-1][6] == 1 << 2,
                   repr(status[-1:]))
             check("LTM sends an origin frame every tenth cycle", 1 <= letters.count("O") <= 3, letters)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            sock.sendall(b"bl\r\n")
+            read_all(sock, 0.8)
+            try:
+                code = proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                code = None
+            check("bl restarts into the bootloader", code == 2, repr(code))
         finally:
             stop(proc)
             sock.close()
@@ -960,6 +969,13 @@ def main():
             ids = [m for m, _ in replies]
             check("MAVLink answers an autopilot version request", 148 in ids and 77 in ids, repr(ids[:40]))
             mav.close()
+            ack = msp(sock, 68, bytes([1]))
+            check("MSP reboot into the bootloader accepted", ack == bytes([1]), repr(ack))
+            try:
+                code = proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                code = None
+            check("MSP reboot restarts into the bootloader", code == 2, repr(code))
         finally:
             stop(proc)
             sock.close()
