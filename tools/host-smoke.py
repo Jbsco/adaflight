@@ -1364,11 +1364,18 @@ def main():
                   text[-120:])
             text = cli(sock, "set telemetry_1_uart = UART3")
             check("FrSky hub port assigned", "telemetry_1_uart set to UART3" in text, text[-120:])
+            for line in ("rangefinder_hardware = TFMINI", "rangefinder_uart = UART4"):
+                text = cli(sock, "set " + line)
+                check(f"FrSky hub rangefinder {line}", line.replace(" = ", " set to ") in text, text[-120:])
+            text = cli(sock, "feature RANGEFINDER")
+            check("rangefinder feature on for the FrSky hub", "Enabled" in text, text[-120:])
             cli(sock, "save", wait=2.0)
             proc.wait(timeout=10)
         finally:
             stop(proc)
             sock.close()
+        lidar = Lidar()
+        lidar.start()
         proc, sock = start(image, store)
         try:
             time.sleep(2.5)
@@ -1378,7 +1385,10 @@ def main():
             hub.close()
             ids = [i for i, _ in frames]
             check("FrSky hub sends the acceleration frames every 125 ms", 6 <= ids.count(0x24) <= 14, repr(ids[:40]))
+            check("FrSky hub sends the vario and altitude frames with a rangefinder",
+                  0x30 in ids and 0x10 in ids and 0x21 in ids, repr(sorted(set(ids))))
         finally:
+            lidar.stop.set()
             stop(proc)
             sock.close()
         store = os.path.join(work, "ibustlm.bin")

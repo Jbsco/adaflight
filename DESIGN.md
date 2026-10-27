@@ -10818,3 +10818,13 @@ renderer's rangefinder input at zero, so a placed element showed dashes with a r
 
 The host smoke check's lidar phase places the element on the MAX7456 with the PAL video system and finds
 `RF:150` once the boot logo clears.
+
+## D462. STM32F4 FrSky hub altitude from the rangefinder (2026-10-27)
+
+The FrSky hub telemetry sends its vario and altitude frames when a barometer, a rangefinder or a GPS is
+present. The board has no barometer and had passed no altitude sensor at all, so with the GPS feature off the
+hub never sent them. A rangefinder found at the start now counts. The frames carry the estimated altitude
+and climb rate, as with the other sensors.
+
+The host smoke check's FrSky hub phase adds a TFmini on UART4 and finds the vario frame and both altitude
+frames beside the acceleration frames.
