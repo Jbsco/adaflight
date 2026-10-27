@@ -159,9 +159,20 @@ package Adaflight.RC_Command with SPARK_Mode, Pure is
                   and then S.Command (Throttle_Channel) = S.Command'Old (Throttle_Channel)
                   and then S.Command_Divider = S.Command_Divider'Old and then S.Yaw_Divider = S.Yaw_Divider'Old;
 
+   --  The autopilot's yaw: whether its yaw controller holds the yaw in a
+   --  mode it serves, the rate it asks for, and the stick deadband in
+   --  receiver units inside which the yaw stick leaves the yaw to it.
+   type Autopilot_Yaw is record
+      Active   : Boolean := False;
+      Rate_Dps : Float range -1_000.0 .. 1_000.0 := 0.0;
+      Deadband : Natural range 0 .. 500 := 0;
+   end record;
+
    --  Deflections, raw setpoints, feedforward, and the smoothing filters; runs
-   --  every loop and does the receiver-side work when the data is new.
-   procedure Process (S : in out State; C : Config; R : Runtime);
+   --  every loop and does the receiver-side work when the data is new. The
+   --  autopilot's rate takes the yaw setpoint while it holds the yaw and the
+   --  yaw stick stays inside its deadband, with no yaw deflection.
+   procedure Process (S : in out State; C : Config; R : Runtime; Autopilot : Autopilot_Yaw := (others => <>));
 
    function Setpoint_Rate (S : State; C : Config; A : Axis) return Signal is
      (if C.Receiver.Smoothing then S.Setpoint_Rate (A) else S.Raw_Setpoint (A));

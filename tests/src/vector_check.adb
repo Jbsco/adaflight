@@ -1998,6 +1998,9 @@ procedure Vector_Check is
    RC_Turned   : Adaflight.Vectors.Vector3;
    RC_Stick    : Adaflight.Vectors.Vector3;
    RC_Did_Turn : Boolean := False;
+   --  The autopilot sequences' yaw: held or not, its rate and the stick
+   --  deadband.
+   RC_Autopilot : Adaflight.RC_Command.Autopilot_Yaw;
 
    procedure Check_RC_Line is
       use Adaflight.RC_Command;
@@ -2016,6 +2019,7 @@ procedure Vector_Check is
       if Name = "rcinit" then
          RC_Headfree := False;
          RC_Level := False;
+         RC_Autopilot := (others => <>);
          declare
             use Adaflight.Rates;
             use Adaflight.PID_Config;
@@ -2085,6 +2089,8 @@ procedure Vector_Check is
          RC_Headfree := Str (4) = "1";
          RC_Level := Int (5) /= 0;
          RC_Turned := (X => Flt (6), Y => Flt (7), Z => Flt (8));
+      elsif Name = "rcapin" then
+         RC_Autopilot := (Active => Str (4) = "1", Rate_Dps => Flt (5), Deadband => Integer (Int (6)));
       elsif Name = "rchf" then
          Record_Int ("rchf.turned", Int (4), Boolean'Pos (RC_Did_Turn));
          if RC_Did_Turn then
@@ -2110,9 +2116,9 @@ procedure Vector_Check is
                RC_Stick := Headfree_Vector (RC_State, RC_Level);
                Apply_Headfree (RC_State, RC_Turned, RC_Level);
             end if;
-            Process (RC_State, RC_Config, RC_Runtime);
+            Process (RC_State, RC_Config, RC_Runtime, RC_Autopilot);
             for J in 2 .. Loops loop
-               Process (RC_State, RC_Config, RC_Runtime);
+               Process (RC_State, RC_Config, RC_Runtime, RC_Autopilot);
             end loop;
             for Ch in Channel loop
                Expect_Float ("command", RC_State.Command (Ch));
@@ -38939,6 +38945,7 @@ begin
    Run (Dir & "/rc.csv", "rc");
    Run (Dir & "/rcthr.csv", "rc");
    Run (Dir & "/rchf.csv", "rc");
+   Run (Dir & "/rcap.csv", "rc");
    Run (Dir & "/gyro.csv", "gyro");
    Run (Dir & "/gyromulti.csv", "gyro");
    Run (Dir & "/gyrosel.csv", "gyro");

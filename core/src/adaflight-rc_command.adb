@@ -451,7 +451,7 @@ package body Adaflight.RC_Command with SPARK_Mode is
    -- Process --
    -------------
 
-   procedure Process (S : in out State; C : Config; R : Runtime) is
+   procedure Process (S : in out State; C : Config; R : Runtime; Autopilot : Autopilot_Yaw := (others => <>)) is
    begin
       if S.Data_New then
          declare
@@ -468,18 +468,29 @@ package body Adaflight.RC_Command with SPARK_Mode is
          S.Max_Deflection_Abs := 0.0;
          for A in Axis loop
             declare
-               Command_F : constant Float :=
-                 (if A = Yaw then S.Command (Axis'Pos (A)) / S.Yaw_Divider
-                  else S.Command (Axis'Pos (A)) / S.Command_Divider);
-               Deflection : constant Float := Constrain_F (Command_F, -1.0, 1.0);
-               Magnitude  : constant Float := abs Deflection;
-               Limit      : constant Float := Float (C.Rates.Limits (A));
+               Limit : constant Float := Float (C.Rates.Limits (A));
             begin
-               S.Deflection (A) := Deflection;
-               S.Deflection_Abs (A) := Magnitude;
-               S.Max_Deflection_Abs := Float'Max (S.Max_Deflection_Abs, Magnitude);
-               S.Raw_Setpoint (A) := Constrain_F
-                 (Adaflight.Rates.Apply (C.Rates, A, Deflection, Magnitude), -1.0 * Limit, 1.0 * Limit);
+               if A = Yaw and then Autopilot.Active
+                 and then abs S.Command (Axis'Pos (Yaw)) < Float (Autopilot.Deadband)
+               then
+                  S.Deflection (A) := 0.0;
+                  S.Deflection_Abs (A) := 0.0;
+                  S.Raw_Setpoint (A) := Constrain_F (Autopilot.Rate_Dps, -1.0 * Limit, 1.0 * Limit);
+               else
+                  declare
+                     Command_F : constant Float :=
+                       (if A = Yaw then S.Command (Axis'Pos (A)) / S.Yaw_Divider
+                        else S.Command (Axis'Pos (A)) / S.Command_Divider);
+                     Deflection : constant Float := Constrain_F (Command_F, -1.0, 1.0);
+                     Magnitude  : constant Float := abs Deflection;
+                  begin
+                     S.Deflection (A) := Deflection;
+                     S.Deflection_Abs (A) := Magnitude;
+                     S.Max_Deflection_Abs := Float'Max (S.Max_Deflection_Abs, Magnitude);
+                     S.Raw_Setpoint (A) := Constrain_F
+                       (Adaflight.Rates.Apply (C.Rates, A, Deflection, Magnitude), -1.0 * Limit, 1.0 * Limit);
+                  end;
+               end if;
                Calculate_Feedforward (S, R, A);
             end;
          end loop;
