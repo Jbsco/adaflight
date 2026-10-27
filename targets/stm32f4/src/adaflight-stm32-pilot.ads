@@ -82,6 +82,7 @@ package Adaflight.STM32.Pilot is
    --  reboot request.
    procedure Set_Reason (Reason : Adaflight.Arming.Disable_Reason; On : Boolean);
    function Armed return Boolean;
+   function Was_Ever_Armed return Boolean;
    --  The time of the last disarm and whether an arming waits, which the
    --  beeper reads.
    function Last_Disarm_Us return Time_Us;

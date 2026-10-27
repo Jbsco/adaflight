@@ -9700,3 +9700,35 @@ writes a font character and reads the display in `status`.
 
 The image is 938848 bytes of text, 5084 of data and 118624 of zeroed data. The bench check is the
 configurator's OSD tab showing the chip, and a font upload.
+
+## D399. STM32F4 OSD task (2026-10-26)
+
+The OSD task runs on the STM32F4 image at the stored frame rate over the MAX7456 display port
+(D398). The flight hands the task its readings before each state: the arming with its reasons, the
+failsafe, the arm, OSD and crash flip boxes, the flight modes, the attitude in decidegrees, the
+acceleration in g, the throttle and the sticks, the RSSI, the battery in centivolts, centiamps and
+milliamp hours with its state, the motors with their outputs, and the profile indexes. The task's
+settings come from the stored configuration at start and again after an OSD message changes the
+elements or the profile, which also analyzes the elements again. The craft name goes into the task's
+own buffer, which the draw reads.
+
+The display's answers for a state come from the display port before the state runs: the readiness in
+the init state, the heartbeat before the heartbeat state, and a draw before the transfer state. The
+state's operations then go to the chip: a clear, a string, a character, a layer selection, a layer
+copy and a redraw. Transactions, system elements and background redraws are nothing on this chip.
+The task reads its clock as an input, so a state's clock reading is its start plus the time the same
+state took on its last run, and an element draw's end is its start plus the last draw's time.
+
+The GPS, barometer, link quality, ESC, blackbox, video transmitter and clock readings stay at their
+defaults, and no menu grabs the display yet.
+
+The host target's chip model writes the display memory to a text file after a change, at most ten
+times a second, sixteen lines of thirty characters with a dot for a code outside printable ASCII, in
+the file the environment variable `ADAFLIGHT_OSD_SCREEN` names, `adaflight-osd.txt` in the working
+directory when unset. The host smoke check sets a craft name and its element, and after the restart
+finds the name on the screen once the boot screen has passed.
+
+The image is 990468 bytes of text, 5172 of data and 123456 of zeroed data. Text and data fill 995640
+of the 1015808 bytes of the code region, so 20168 bytes remain for the motors and the rest. The
+bench check is a monitor on the board's video output showing the boot logo and version, then the
+craft name and the elements the configuration places.

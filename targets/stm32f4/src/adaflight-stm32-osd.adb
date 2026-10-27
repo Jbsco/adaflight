@@ -3,7 +3,13 @@ with Adaflight.Pins; use Adaflight.Pins;
 with Adaflight.Board;
 with Adaflight.MAX7456;
 with Adaflight.MAX7456.Display_Port;
+with Adaflight.Config_Runtime;
 with Adaflight.OSD_Canvas;
+with Adaflight.OSD_Elements;
+with Adaflight.OSD_Format;
+with Adaflight.OSD_Page;
+with Adaflight.OSD_Stats;
+with Adaflight.OSD_Warnings;
 with Adaflight.STM32.GPIO;
 with Adaflight.STM32.SPI;
 with Adaflight.STM32.Time;
@@ -237,6 +243,20 @@ package body Adaflight.STM32.OSD is
    function Overclock (C : Adaflight.Config_Groups.Configuration) return Boolean is
      (C.System_Config.Cpu_Overclock /= 0);
 
+   --  The driver's settings as the last start or configuration gave them.
+   Chip_Settings    : Chip.Config;
+   Video_Settings   : Chip.Video_Profile;
+   Display_Settings : Chip_Port.Display_Profile;
+   Overclocked      : Boolean := False;
+
+   procedure Keep_Settings (C : Adaflight.Config_Groups.Configuration) is
+   begin
+      Chip_Settings := Chip_Config (C);
+      Video_Settings := Video (C);
+      Display_Settings := Display (C);
+      Overclocked := Overclock (C);
+   end Keep_Settings;
+
    procedure Preinit (C : Adaflight.Config_Groups.Configuration) is
    begin
       Chip.Preinit (Dev, Chip_Config (C));
@@ -250,6 +270,7 @@ package body Adaflight.STM32.OSD is
       Ready     : Boolean;
    begin
       Disable_Feature := False;
+      Keep_Settings (C);
       if not Feature_OSD then
          return;
       end if;
@@ -300,4 +321,280 @@ package body Adaflight.STM32.OSD is
       end loop;
       Chip_Port.Write_Font_Character (Dev, Chip_State, Address, Bytes, Unused_Written);
    end Write_Font;
+
+   use type Adaflight.OSD_Task.Task_State;
+   use type Interfaces.Unsigned_16;
+   use type Interfaces.Unsigned_32;
+
+   Task_Data : Adaflight.OSD_Task.OSD;
+   Context   : Adaflight.OSD_Task.Context;
+
+   --  A state's last run and an element draw's last time in microseconds,
+   --  which stand for the current ones, as the task takes its clock readings
+   --  as inputs before it runs.
+   State_Us   : array (Adaflight.OSD_Task.Task_State) of Unsigned_32 := (others => 0);
+   Element_Us : Unsigned_32 := 0;
+
+   function Name_Of (B : Adaflight.Config_Groups.Bytes_17) return Adaflight.OSD_Render.Name is
+      N : Adaflight.OSD_Render.Name;
+   begin
+      for I in B'Range loop
+         exit when B (I) = 0 or else N.Length = Adaflight.OSD_Render.Max_Name;
+         N.Length := N.Length + 1;
+         N.Data (N.Length) := Character'Val (B (I));
+      end loop;
+      return N;
+   end Name_Of;
+
+   procedure Configure (C : Adaflight.Config_Groups.Configuration; Version : String) is
+      O        : Adaflight.Config_Groups.Osd_Config_Record renames C.Osd_Config;
+      Rate     : constant Natural := Natural'Min (3, Natural (C.System_Config.Active_Rate_Profile));
+      PID      : constant Natural := Natural'Min (3, Natural (C.System_Config.Pid_Profile_Index));
+      Bat      : constant Natural := Natural'Min (2, Natural (C.System_Config.Active_Battery_Profile));
+      Min_Cell : constant Unsigned_16 := C.Battery_Profiles (Bat).Vbatmincellvoltage;
+      Max_Cell : constant Unsigned_16 := C.Battery_Profiles (Bat).Vbatmaxcellvoltage;
+   begin
+      Keep_Settings (C);
+      Context.Device := Kind;
+      Context.Background_Layer := False;
+      Context.Device_Blink := False;
+      Context.Rate_Hz := Adaflight.OSD_Task.Frame_Rate (Unsigned_16'Max (1, Unsigned_16'Min (60, O.Framerate_Hz)));
+      Context.Show_Spec := O.Osd_Show_Spec_Prearm /= 0;
+      Context.Version (1 .. Version'Length) := Version;
+      Context.Version_Length := Version'Length;
+      Context.Page_Settings := Adaflight.Config_Runtime.OSD_Page_Settings_Of (O, C.Osd_Element_Config, False);
+      Context.Alarm_Settings := Adaflight.Config_Runtime.OSD_Alarm_Settings_Of (O, C.Gps_Rescue_Config);
+      for I in Adaflight.OSD_Elements.Item loop
+         Context.Positions (I) := C.Osd_Element_Config.Item_Pos (Adaflight.OSD_Elements.Item'Pos (I));
+      end loop;
+      Context.Draw.Settings :=
+        Adaflight.Config_Runtime.OSD_Render_Settings_Of (O, C.Vtx_Settings_Config, C.Osd_Nav_Map_Config);
+      Context.Draw.Warn_Settings := Adaflight.Config_Runtime.OSD_Warnings_Settings_Of (O);
+      Context.Draw.Craft_Name_Messages := O.Osd_Craftname_Msgs /= 0;
+      Context.Draw.Inputs.Min_Cell := Min_Cell;
+      Context.Draw.Inputs.Max_Cell := (if Max_Cell = Min_Cell then Min_Cell + 1 else Max_Cell);
+      Context.Draw.Inputs.Craft_Name := Name_Of (C.Pilot_Config.Craft_Name);
+      Context.Draw.Inputs.Pilot_Name := Name_Of (C.Pilot_Config.Pilot_Name);
+      Context.Spec_Settings := Adaflight.Config_Runtime.OSD_Spec_Settings_Of
+        (C.Mixer_Config, C.Motor_Config, C.Control_Rate_Profiles (Rate), C.Pid_Profiles (PID),
+         C.Battery_Profiles (Bat));
+      if Context.Spec_Settings.Min_Cell = Context.Spec_Settings.Max_Cell then
+         Context.Spec_Settings.Max_Cell := Context.Spec_Settings.Min_Cell + 1;
+      end if;
+      Context.Page.Units :=
+        (if O.Units <= Adaflight.OSD_Format.Unit_System'Pos (Adaflight.OSD_Format.Unit_System'Last)
+         then Adaflight.OSD_Format.Unit_System'Val (O.Units) else Adaflight.OSD_Format.Metric);
+      Context.Page.Timer_1 := O.Timers (0);
+      Context.Page.Timer_2 := O.Timers (1);
+      Context.Page.Show_Cell_Value := O.Stat_Show_Cell_Value /= 0;
+      Context.RTC_Variant := Adaflight.OSD_Elements.Variant (Context.Positions (Adaflight.OSD_Elements.RTC_Date_Time));
+      Task_Data.Craft := (others => Character'Val (0));
+      for K in 1 .. Adaflight.OSD_Render.Max_Name loop
+         exit when C.Pilot_Config.Craft_Name (C.Pilot_Config.Craft_Name'First + K - 1) = 0;
+         Task_Data.Craft (K) := Character'Val (C.Pilot_Config.Craft_Name (C.Pilot_Config.Craft_Name'First + K - 1));
+      end loop;
+   end Configure;
+
+   procedure Analyze_Again is
+   begin
+      Task_Data.Last_GPS := not Context.Element_Inputs.GPS_Present;
+   end Analyze_Again;
+
+   function Task_Due (Now_Us : Unsigned_32) return Boolean is
+      Due : Boolean;
+   begin
+      Adaflight.OSD_Task.Update_Check (Task_Data, Context, Now_Us, False, Due);
+      return Due;
+   end Task_Due;
+
+   function Modes_Of (M : Adaflight.Arming.Mode_Set) return Adaflight.OSD_Render.Mode_Flags is
+     ((Failsafe   => M (Adaflight.Arming.Failsafe_Mode),
+       GPS_Rescue => M (Adaflight.Arming.GPS_Rescue_Mode),
+       Headfree   => M (Adaflight.Arming.Headfree_Mode),
+       Passthru   => M (Adaflight.Arming.Passthru_Mode),
+       Pos_Hold   => M (Adaflight.Arming.Pos_Hold_Mode),
+       Alt_Hold   => M (Adaflight.Arming.Alt_Hold_Mode),
+       Chirp      => M (Adaflight.Arming.Chirp_Mode),
+       Angle      => M (Adaflight.Arming.Angle_Mode),
+       Horizon    => M (Adaflight.Arming.Horizon_Mode)));
+
+   --  The frame's readings into the task's context.
+   procedure Refresh (F : Facts; Now_Us : Unsigned_32) is
+      P : Adaflight.OSD_Page.Inputs renames Context.Page_Inputs;
+      R : Adaflight.OSD_Stats.Readings renames Context.Readings;
+      A : Adaflight.OSD_Elements.Alarm_Inputs renames Context.Alarm_Inputs;
+      D : Adaflight.OSD_Render.Inputs renames Context.Draw.Inputs;
+      W : Adaflight.OSD_Warnings.Inputs renames Context.Draw.Warn_Inputs;
+   begin
+      P.Now_Us := Now_Us;
+      P.Armed := F.Armed;
+      P.Was_Ever_Armed := F.Was_Ever_Armed;
+      P.Has_Link_Quality_Source := False;
+      P.Failsafe_Active := F.Failsafe_Active;
+      P.Display_Grabbed := False;
+      P.OSD_Switch := F.OSD_Switch;
+      P.Launch_Control_Active := F.Launch_Control;
+      P.Aux_Rc := F.Aux_Rc;
+      P.Throttle_High := F.Throttle_High;
+      P.Pitch_High := F.Pitch_High;
+      P.Crash_Flip_Box := F.Crash_Flip_Box;
+      P.Crash_Flip_Active := F.Crash_Flip_Active;
+      P.Acc_Present := F.Acc_Present;
+      P.Acc_Magnitude := F.G_Force;
+
+      R.Pack_Voltage := F.Pack_Voltage;
+      R.Cell_Voltage := F.Cell_Voltage;
+      R.Show_Cell_Value := Context.Page.Show_Cell_Value;
+      R.Amperage := F.Amperage;
+      R.RSSI_Percent := F.RSSI_Percent;
+      R.Acceleration := F.G_Force;
+      R.Motors := F.Motors;
+
+      A.RSSI_Percent := F.RSSI_Percent;
+      A.Battery := F.Battery;
+      A.Profile_Capacity := F.Battery_Capacity;
+      A.MAh_Drawn := F.MAh_Drawn;
+      A.Motors := F.Motors;
+
+      Context.Element_Inputs.Acc_Present := F.Acc_Present;
+
+      D.Roll := F.Roll;
+      D.Pitch := F.Pitch;
+      D.Yaw := F.Yaw;
+      D.Anti_Gravity := F.Anti_Gravity;
+      D.Cell_Voltage := F.Cell_Voltage;
+      D.Battery := F.Battery;
+      D.Amperage := F.Amperage;
+      D.G_Force := F.G_Force;
+      D.MAh_Drawn := F.MAh_Drawn;
+      D.Profile_Capacity := F.Battery_Capacity;
+      D.Battery_Percent := F.Battery_Percent;
+      D.Pack_Voltage := F.Pack_Voltage;
+      D.PID_Index := F.PID_Index;
+      D.Rate_Index := F.Rate_Index;
+      D.RSSI_Percent := F.RSSI_Percent;
+      D.Throttle_Percent := Interfaces.Integer_8 (F.Throttle_Percent);
+      D.Modes := Modes_Of (F.Modes);
+      D.Airmode := F.Airmode;
+      D.Motors := F.Motors;
+      D.Motor_Output := F.Motor_Output;
+      D.Output_Low := F.Output_Low;
+      D.Output_High := (if F.Output_High > F.Output_Low + 1.0 then F.Output_High else F.Output_Low + 2.0);
+      D.Motors_Running := F.Motors_Running;
+      D.Screen_Rows := Port.Rows;
+      D.Screen_Cols := Port.Cols;
+
+      W.Now_Us := Now_Us;
+      W.Battery := F.Battery;
+      W.Armed := F.Armed;
+      W.Was_Ever_Armed := F.Was_Ever_Armed;
+      W.Arm_Box := F.Arm_Box;
+      W.Disable_Flags := F.Disabled;
+      W.Trying_To_Arm := F.Trying_To_Arm;
+      W.Failsafe_Active := F.Failsafe_Active;
+      W.Motors := F.Motors;
+      W.Crash_Flip_Box := F.Crash_Flip_Box;
+      W.Crash_Flip_Active := F.Crash_Flip_Active;
+      W.Launch_Control_Active := F.Launch_Control;
+      W.Acc_Present := F.Acc_Present;
+      W.Pitch_Decidegrees := F.Pitch;
+      W.Throttle_Percent := F.Throttle_Percent;
+      W.RSSI_Percent := Natural (F.RSSI_Percent);
+      W.Armed_Time_Us := Task_Data.Stats.Armed_Time_Us;
+      W.Headfree_Mode := F.Modes (Adaflight.Arming.Headfree_Mode);
+      W.Battery_Capacity := Natural (F.Battery_Capacity);
+      W.MAh_Drawn := Natural (F.MAh_Drawn);
+      W.Has_Used_MAh := F.MAh_Drawn > 0;
+      W.Average_Cell_Voltage := Natural (F.Cell_Voltage);
+      W.Full_Cell_Voltage := Natural (F.Full_Cell_Voltage);
+
+      Context.Spec_Inputs.Pack_Voltage := F.Pack_Voltage;
+      Context.Spec_Inputs.Cell_Voltage := F.Cell_Voltage;
+      Context.Spec_Inputs.Battery := F.Battery;
+
+      Context.Page.Acc_Present := F.Acc_Present;
+      Context.Page.Pack_Voltage := F.Pack_Voltage;
+      Context.Page.Cell_Voltage := F.Cell_Voltage;
+      Context.Page.MAh_Drawn := F.MAh_Drawn;
+   end Refresh;
+
+   function Bytes_Of (T : Adaflight.OSD_Format.Text) return Byte_Array is
+      B : Byte_Array (0 .. T.Length - 1);
+   begin
+      for I in B'Range loop
+         B (I) := Byte (Character'Pos (T.Data (I + 1)));
+      end loop;
+      return B;
+   end Bytes_Of;
+
+   --  The task's display operations on the MAX7456. The chip has no system
+   --  elements, background redraw or transactions, and the heartbeat and
+   --  the draw ran before the state for its answers.
+   procedure Execute (Result : Adaflight.OSD_Task.Ops; Armed : Boolean) is
+      use all type Adaflight.OSD_Task.Op_Kind;
+      Unused : Boolean;
+   begin
+      for K in 1 .. Result.Count loop
+         declare
+            Op : Adaflight.OSD_Task.Op renames Result.List (K);
+         begin
+            case Op.Kind is
+               when Clear =>
+                  Chip_Port.Clear_Screen (Dev, Chip_State, Port, Display_Settings);
+               when Write =>
+                  Chip_Port.Write_String (Chip_State, Op.X, Op.Y, Bytes_Of (Op.Line));
+               when Write_Char =>
+                  if Op.Line.Length > 0 then
+                     Chip.Write_Char (Chip_State, Op.X, Op.Y, Byte (Character'Pos (Op.Line.Data (1))));
+                  end if;
+               when Select_Layer =>
+                  Chip.Layer_Select (Chip_State, Natural (Op.Attr), Unused);
+               when Layer_Copy =>
+                  Chip_Port.Port_Layer_Copy (Chip_State, 0, 1, Unused);
+               when Redraw =>
+                  Chip_Port.Redraw (Dev, Chip_State, Armed);
+               when Write_Logo | Write_Sys | Redraw_Background | Begin_Transaction | Commit_Transaction | Heartbeat
+                  | Draw_Screen =>
+                  null;
+            end case;
+         end;
+      end loop;
+   end Execute;
+
+   procedure Run (F : Facts; Now_Us : Unsigned_32; Sched : in out Adaflight.Scheduler.State) is
+      State    : constant Adaflight.OSD_Task.Task_State := Task_Data.State;
+      Answers  : Adaflight.OSD_Task.Display_Answers;
+      Result   : Adaflight.OSD_Task.Ops;
+      Start    : Unsigned_32;
+      Clock_Us : Unsigned_32;
+      Draw_End : Unsigned_32;
+   begin
+      Refresh (F, Now_Us);
+      case State is
+         when Adaflight.OSD_Task.Init =>
+            Chip_Port.Check_Ready (Dev, Chip_State, Port, Chip_Settings, Video_Settings, Display_Settings,
+                                   Overclocked, F.Armed, Rescan => False, Ready => Answers.Ready);
+         when Adaflight.OSD_Task.Update_Heartbeat =>
+            Chip_Port.Heartbeat (Dev, Chip_State, Answers.Heartbeat_Taken);
+         when Adaflight.OSD_Task.Transfer =>
+            Chip.Draw_Screen (Dev, Chip_State, Answers.More_To_Draw);
+         when others =>
+            null;
+      end case;
+      Start := Time.Micros;
+      if State = Adaflight.OSD_Task.Draw_Element then
+         Clock_Us := Start;
+         Draw_End := Start + Element_Us;
+      else
+         Clock_Us := Start + State_Us (State);
+         Draw_End := Clock_Us;
+      end if;
+      Adaflight.OSD_Task.Update (Task_Data, Context, Now_Us, Clock_Us, Draw_End, Answers, Sched, Result);
+      Execute (Result, F.Armed);
+      if State = Adaflight.OSD_Task.Draw_Element then
+         Element_Us := Time.Micros - Start;
+      else
+         State_Us (State) := Time.Micros - Start;
+      end if;
+   end Run;
 end Adaflight.STM32.OSD;
