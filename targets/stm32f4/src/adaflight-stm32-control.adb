@@ -2,6 +2,7 @@ with Adaflight.Axes;
 with Adaflight.Config_Runtime;
 with Adaflight.Main_Loop;
 with Adaflight.Mixer_Init;
+with Adaflight.STM32.Blackbox;
 with Adaflight.STM32.Pilot;
 package body Adaflight.STM32.Control is
    Ctl          : Adaflight.PID_Controller.State;
@@ -153,11 +154,11 @@ package body Adaflight.STM32.Control is
       Mix_Table       => Run_Mixer,
       Write_Servos    => Nothing,
       Write_Motors    => Nothing,
-      Blackbox_Update => Nothing);
+      Blackbox_Update => Adaflight.STM32.Blackbox.Update);
 
    procedure Pass
      (I : Inputs; Sensed : Adaflight.Arming.Inputs; Channels : Adaflight.RC_Command.Channel_Values;
-      Resets_Yaw, Uses_Servos, CLI_Open, PID_Audio : Boolean; Asked : out Adaflight.Arming.Outputs) is
+      Resets_Yaw, Uses_Servos, Log_Device, CLI_Open, PID_Audio : Boolean; Asked : out Adaflight.Arming.Outputs) is
    begin
       Current := I;
       Control.Sensed := Sensed;
@@ -166,7 +167,7 @@ package body Adaflight.STM32.Control is
       Step_Changed := False;
       Loop_Pass.PID_Loop
         ((Wing_Launch => False),
-         (Resets_Yaw => Resets_Yaw, Uses_Servos => Uses_Servos, Log_Device => False, CLI_Open => CLI_Open,
+         (Resets_Yaw => Resets_Yaw, Uses_Servos => Uses_Servos, Log_Device => Log_Device, CLI_Open => CLI_Open,
           PID_Audio => PID_Audio));
       Asked := Step;
    end Pass;
@@ -186,6 +187,14 @@ package body Adaflight.STM32.Control is
    function Motors return Adaflight.Mixer.Motor_Outputs is (Mix.Motors);
 
    function Motor_Count return Natural is (Mix_Config.Count);
+
+   function Terms (A : Adaflight.Axes.Axis) return Adaflight.PID_Controller.Terms is (Ctl.Data (A));
+
+   function Previous_Setpoint (A : Adaflight.Axes.Axis) return Float is (Ctl.Previous_PID_Setpoint (A));
+
+   function Output_Low return Float is (Mix_Config.Output_Low);
+
+   function Output_High return Float is (Mix_Config.Output_High);
 
    function Crash_Recovery_Active return Boolean is (Adaflight.PID_Controller.Crash_Recovery_Active (Ctl));
 

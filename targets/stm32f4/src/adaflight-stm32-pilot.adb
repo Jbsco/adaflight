@@ -177,6 +177,18 @@ package body Adaflight.STM32.Pilot is
 
    function Box_Active (B : Adaflight.Modes.Box) return Boolean is (Adaflight.Modes.Is_Active (M, B));
 
+   function Box_Configured (B : Adaflight.Modes.Box) return Boolean is (Adaflight.Modes.Condition_Present (Conds, B));
+
+   function Command (Ch : Adaflight.RC_Command.Channel) return Float is (RC.Command (Ch));
+
+   function Last_Disarm_Reason return Adaflight.Arming.Disarm_Reason is (Arm.Last_Disarm_Reason);
+
+   function Setpoint_Cutoff_Hz return Natural is (RC.Setpoint_Cutoff_Hz);
+
+   function Throttle_Cutoff_Hz return Natural is (RC.Throttle_Cutoff_Hz);
+
+   function RX_Rate_Hz return Float is (RC.Smoothed_Rate_Hz);
+
    function Deflections return Adaflight.Arming.Axis_Deflections is
       D : Adaflight.Arming.Axis_Deflections := (others => 0.0);
    begin

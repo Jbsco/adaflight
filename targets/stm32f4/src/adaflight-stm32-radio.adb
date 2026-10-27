@@ -182,4 +182,11 @@ package body Adaflight.STM32.Radio is
    function Channel (I : Adaflight.Receiver.Channel) return Float is (Rx.Data (I));
 
    function Receiving return Boolean is (Adaflight.Receiver.Receiving_Signal (Rx));
+
+   function Failsafe_Phase return Adaflight.Failsafe.Phase is (FS.Current);
+
+   function Flight_Channels_Valid return Boolean is (Adaflight.Receiver.Flight_Channels_Valid (Rx));
+
+   function RSSI_Configured return Boolean is
+     (Adaflight.Receiver."/=" (Rx.RSSI_From, Adaflight.Receiver.None));
 end Adaflight.STM32.Radio;

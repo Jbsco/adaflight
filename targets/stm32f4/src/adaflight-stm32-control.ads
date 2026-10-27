@@ -4,6 +4,7 @@
 --  the outputs stop at the mixer and the replies.
 with Interfaces;
 with Adaflight.Arming;
+with Adaflight.Axes;
 with Adaflight.Config_Groups;
 with Adaflight.Mixer;
 with Adaflight.PID_Controller;
@@ -56,13 +57,19 @@ package Adaflight.STM32.Control is
    --  name them; Asked is what the runaway check asked.
    procedure Pass
      (I : Inputs; Sensed : Adaflight.Arming.Inputs; Channels : Adaflight.RC_Command.Channel_Values;
-      Resets_Yaw, Uses_Servos, CLI_Open, PID_Audio : Boolean; Asked : out Adaflight.Arming.Outputs);
+      Resets_Yaw, Uses_Servos, Log_Device, CLI_Open, PID_Audio : Boolean; Asked : out Adaflight.Arming.Outputs);
    --  Whether the mixer's throttle step changed on the last pass, which
    --  moves the gyro's dynamic lowpass, and the throttle it moved to.
    function Throttle_Step_Changed return Boolean;
    function Throttle_Step return Float;
    function Motors return Adaflight.Mixer.Motor_Outputs;
    function Motor_Count return Natural;
+   --  What the flight log reads: the controller's terms and its last
+   --  setpoint per axis, and the mixer's motor output range.
+   function Terms (A : Adaflight.Axes.Axis) return Adaflight.PID_Controller.Terms;
+   function Previous_Setpoint (A : Adaflight.Axes.Axis) return Float;
+   function Output_Low return Float;
+   function Output_High return Float;
    --  Whether the controller's crash recovery runs, which the failsafe reads.
    function Crash_Recovery_Active return Boolean;
    function PID_Sums return Adaflight.Arming.Axis_Sums;

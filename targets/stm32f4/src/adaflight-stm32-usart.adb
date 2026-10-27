@@ -44,11 +44,13 @@ package body Adaflight.STM32.USART is
      with Volatile, Import, Address => System'To_Address (16#4002_3844#);
 
    Receive_Not_Empty : constant Unsigned_32 := 2 ** 5;
-   Transmit_Empty    : constant Unsigned_32 := 2 ** 7;
+   Register_Empty    : constant Unsigned_32 := 2 ** 7;
    Receiver_Enable   : constant Unsigned_32 := 2 ** 2;
    Transmitter       : constant Unsigned_32 := 2 ** 3;
    Receive_Interrupt : constant Unsigned_32 := 2 ** 5;
+   Transmit_Interrupt : constant Unsigned_32 := 2 ** 7;
    Enable            : constant Unsigned_32 := 2 ** 13;
+   Stop_Bits_2       : constant Unsigned_32 := 2 ** 13;
 
    Ring_Size : constant := 256;
    subtype Ring_Index is Natural range 0 .. Ring_Size - 1;
@@ -62,15 +64,28 @@ package body Adaflight.STM32.USART is
    end record;
    type Rings is array (Number) of Ring;
 
+   --  A transmit ring: the bytes queued, the next to send and the count.
+   type Send_Ring is record
+      Bytes : Byte_Array (Ring_Index) := (others => 0);
+      Head  : Ring_Index := 0;
+      Fill  : Natural range 0 .. Ring_Size := 0;
+   end record;
+   type Send_Rings is array (Number) of Send_Ring;
+
    protected Receivers with Interrupt_Priority => System.Interrupt_Priority'First is
       procedure Take (N : Number; Into : out Byte_Array; Times : out Time_Array; Count : out Natural);
+      procedure Queue (N : Number; Data : Byte_Array; Taken : out Natural);
+      function Free (N : Number) return Natural;
+      function Empty (N : Number) return Boolean;
    private
       procedure Receive (N : Number);
+      procedure Send (N : Number);
       procedure Handler_1 with Attach_Handler => Ada.Interrupts.Names.USART1_Interrupt;
       procedure Handler_3 with Attach_Handler => Ada.Interrupts.Names.USART3_Interrupt;
       procedure Handler_4 with Attach_Handler => Ada.Interrupts.Names.UART4_Interrupt;
       procedure Handler_6 with Attach_Handler => Ada.Interrupts.Names.USART6_Interrupt;
       Queues : Rings;
+      Sends  : Send_Rings;
    end Receivers;
 
    protected body Receivers is
@@ -95,24 +110,71 @@ package body Adaflight.STM32.USART is
          end loop;
       end Receive;
 
+      --  The transmit register filled from the ring while the interrupt is
+      --  on; an empty ring turns the interrupt off.
+      procedure Send (N : Number) is
+         Regs : Registers with Import, Address => Base (N);
+         Q    : Send_Ring renames Sends (N);
+      begin
+         if (Regs.CR1 and Transmit_Interrupt) = 0 or else (Regs.SR and Register_Empty) = 0 then
+            return;
+         end if;
+         if Q.Fill = 0 then
+            Regs.CR1 := Regs.CR1 and not Transmit_Interrupt;
+         else
+            Regs.DR := Unsigned_32 (Q.Bytes (Q.Head));
+            Q.Head := (Q.Head + 1) mod Ring_Size;
+            Q.Fill := Q.Fill - 1;
+            if Q.Fill = 0 then
+               Regs.CR1 := Regs.CR1 and not Transmit_Interrupt;
+            end if;
+         end if;
+      end Send;
+
+      procedure Queue (N : Number; Data : Byte_Array; Taken : out Natural) is
+         Regs : Registers with Import, Address => Base (N);
+         Q    : Send_Ring renames Sends (N);
+      begin
+         Taken := Natural'Min (Data'Length, Ring_Size - Q.Fill);
+         for K in 0 .. Taken - 1 loop
+            Q.Bytes ((Q.Head + Q.Fill + K) mod Ring_Size) := Data (Data'First + K);
+         end loop;
+         Q.Fill := Q.Fill + Taken;
+         if Q.Fill > 0 then
+            Regs.CR1 := Regs.CR1 or Transmit_Interrupt;
+         end if;
+      end Queue;
+
+      function Free (N : Number) return Natural is (Ring_Size - Sends (N).Fill);
+
+      function Empty (N : Number) return Boolean is
+         Regs : Registers with Import, Address => Base (N);
+      begin
+         return Sends (N).Fill = 0 and then (Regs.SR and Register_Empty) /= 0;
+      end Empty;
+
       procedure Handler_1 is
       begin
          Receive (UART1);
+         Send (UART1);
       end Handler_1;
 
       procedure Handler_3 is
       begin
          Receive (UART3);
+         Send (UART3);
       end Handler_3;
 
       procedure Handler_4 is
       begin
          Receive (UART4);
+         Send (UART4);
       end Handler_4;
 
       procedure Handler_6 is
       begin
          Receive (UART6);
+         Send (UART6);
       end Handler_6;
 
       procedure Take (N : Number; Into : out Byte_Array; Times : out Time_Array; Count : out Natural) is
@@ -130,7 +192,7 @@ package body Adaflight.STM32.USART is
       end Take;
    end Receivers;
 
-   procedure Init (N : Number; Baud : Positive) is
+   procedure Init (N : Number; Baud : Positive; Two_Stop_Bits : Boolean := False) is
       Regs : Registers with Import, Address => Base (N);
       --  Sixteen times the baud rate divider, rounded.
       Divider : constant Natural := (Bus_Hz (N) + Baud / 2) / Baud;
@@ -147,30 +209,38 @@ package body Adaflight.STM32.USART is
       end case;
       Regs.CR1 := 0;
       Regs.BRR := Unsigned_32 (Divider / 16) * 16 + Unsigned_32 (Divider mod 16);
+      Regs.CR2 := (if Two_Stop_Bits then Stop_Bits_2 else 0);
       Regs.CR1 := Enable or Transmitter or Receiver_Enable or Receive_Interrupt;
    end Init;
 
    procedure Put (Into : in out Port; Text : String) is
-      Regs : Registers with Import, Address => Base (Into.Which);
+      Data : Byte_Array (0 .. Text'Length - 1);
    begin
-      for C of Text loop
-         while (Regs.SR and Transmit_Empty) = 0 loop
-            null;
-         end loop;
-         Regs.DR := Unsigned_32 (Character'Pos (C));
+      for I in Data'Range loop
+         Data (I) := Byte (Character'Pos (Text (Text'First + I)));
+      end loop;
+      Put (Into, Data);
+   end Put;
+
+   --  Every byte queued, waiting for room while the interrupt drains the ring.
+   procedure Put (Into : in out Port; Data : Byte_Array) is
+      Next  : Natural := Data'First;
+      Taken : Natural;
+   begin
+      while Next <= Data'Last loop
+         Receivers.Queue (Into.Which, Data (Next .. Data'Last), Taken);
+         Next := Next + Taken;
       end loop;
    end Put;
 
-   procedure Put (Into : in out Port; Data : Byte_Array) is
-      Regs : Registers with Import, Address => Base (Into.Which);
+   procedure Queue (N : Number; Data : Byte_Array; Taken : out Natural) is
    begin
-      for D of Data loop
-         while (Regs.SR and Transmit_Empty) = 0 loop
-            null;
-         end loop;
-         Regs.DR := Unsigned_32 (D);
-      end loop;
-   end Put;
+      Receivers.Queue (N, Data, Taken);
+   end Queue;
+
+   function Free (N : Number) return Natural is (Receivers.Free (N));
+
+   function Transmit_Empty (N : Number) return Boolean is (Receivers.Empty (N));
 
    procedure Take (N : Number; Into : out Byte_Array; Count : out Natural) is
       Times : Time_Array (0 .. Into'Length - 1);
