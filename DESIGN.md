@@ -10001,9 +10001,9 @@ the file system's state.
 The flight log of D411 takes the card as its device. Before each pass the facts come from the file
 system: whether it takes a log and whether it is full, the bytes its cache takes as the device's room,
 and the calls the recorder's state asks for in the order the reference makes them: the log start step
-while the log file is prepared, a flush while the cache flushes, and while the log shuts down its end,
-then its flush while the shutdown timeout has not passed, which the core now names in its spec. The
-iteration's bytes go to the log file as one text. The image is 614784 bytes of text, with the file
+while the log file is prepared, a flush until every sector is on the card while the cache flushes, and
+while the log shuts down its end, then its flush while the shutdown timeout has not passed, which the core
+now names in its spec. The iteration's bytes go to the log file as one text. The image is 614784 bytes of text, with the file
 system and the card in CCM RAM.
 
 The host target carries a model of a high capacity version 2 card on SPI2 over the image file the

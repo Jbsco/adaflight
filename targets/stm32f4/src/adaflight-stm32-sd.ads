@@ -38,6 +38,8 @@ package Adaflight.STM32.SD is
    procedure Log_Begin (Done : out Boolean);
    procedure Log_End (Retain : Boolean; Done : out Boolean);
    procedure Log_Flush (Done : out Boolean);
+   --  Done once every sector is on the card, a flush otherwise.
+   procedure Log_Flush_Complete (Done : out Boolean);
    procedure Log_Write (Data : Byte_Array);
    function Log_Number return Interfaces.Integer_32;
 end Adaflight.STM32.SD;
