@@ -1,5 +1,5 @@
---  The flight log on the board: the recorder over a serial port, which the
---  stored configuration names with its rate, run as the PID loop's log step
+--  The flight log on the board: the recorder over the SD card's file or over
+--  a serial port, which the stored configuration names with its rate, run as the PID loop's log step
 --  with what the flight gives it before each pass and what the controller
 --  and the mixer hold after theirs, its bytes queued on the port, and the
 --  disarm event with the log's end when the arming logic disarms.

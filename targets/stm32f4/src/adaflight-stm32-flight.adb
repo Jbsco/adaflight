@@ -25,6 +25,7 @@ with Adaflight.Config_Store;
 with Adaflight.Core_Loop;
 with Adaflight.CRSF_Telemetry;
 with Adaflight.Failsafe;
+with Adaflight.FAT;
 with Adaflight.Gyro_Filters;
 with Adaflight.Gyro_Selection;
 with Adaflight.Mixer;
@@ -62,6 +63,8 @@ with Adaflight.STM32.MCU;
 with Adaflight.STM32.Gyro;
 with Adaflight.STM32.Pilot;
 with Adaflight.STM32.Radio;
+with Adaflight.STM32.SD;
+with Adaflight.SD_Card_Types;
 with Adaflight.STM32.Sound;
 with Adaflight.STM32.Serial;
 with Adaflight.STM32.SPI;
@@ -136,7 +139,12 @@ package body Adaflight.STM32.Flight is
       Voltage_Scale    => Adaflight.Board.Default_Voltage_Meter_Scale,
       Current_Scale    => Adaflight.Board.Default_Current_Meter_Scale,
       OSD_CS_Tag       => Adaflight.Board.MAX7456_CS_Tag,
-      OSD_SPI_Device   => Adaflight.Board.MAX7456_SPI_Device);
+      OSD_SPI_Device   => Adaflight.Board.MAX7456_SPI_Device,
+      SD_SPI_Device    => Adaflight.Board.SDCARD_SPI_Device,
+      SD_CS_Tag        => Adaflight.Board.SDCARD_CS_Tag,
+      SD_Detect_Tag    => Adaflight.Board.SDCARD_Detect_Tag,
+      SD_Detect_Low    => Adaflight.Board.SDCARD_Detect_Low,
+      Blackbox_Device  => Adaflight.Board.Default_Blackbox_Device);
 
    Board    : CLI.Board_State := (Hardware => Board_Hardware, others => <>);
    Config   : Adaflight.Config_Groups.Configuration := Adaflight.Config_Reset.Reset (Board);
@@ -502,12 +510,14 @@ package body Adaflight.STM32.Flight is
    procedure Start_Buses is
    begin
       Adaflight.STM32.OSD.Preinit (Config);
+      Adaflight.STM32.SD.Preinit (Config);
       Adaflight.STM32.SPI.Init (Adaflight.STM32.SPI.SPI1, Adaflight.Board.SPI1_SCK_Pin, Adaflight.Board.SPI1_SDI_Pin,
                                 Adaflight.Board.SPI1_SDO_Pin);
       Adaflight.STM32.SPI.Init (Adaflight.STM32.SPI.SPI2, Adaflight.Board.SPI2_SCK_Pin, Adaflight.Board.SPI2_SDI_Pin,
                                 Adaflight.Board.SPI2_SDO_Pin);
       Adaflight.STM32.SPI.Init (Adaflight.STM32.SPI.SPI3, Adaflight.Board.SPI3_SCK_Pin, Adaflight.Board.SPI3_SDI_Pin,
                                 Adaflight.Board.SPI3_SDO_Pin);
+      Adaflight.STM32.SD.Init (Config);
    end Start_Buses;
 
    --  The OSD display with the OSD feature on; no display started turns the
@@ -766,6 +776,39 @@ package body Adaflight.STM32.Flight is
       end loop;
    end Serve_MSP;
 
+   --  The SD card as the command line reports it.
+   function SD_Status return CLI.SD_Card_Status is
+      Meta : constant Adaflight.SD_Card_Types.Metadata := Adaflight.STM32.SD.Card_Info;
+      Name : String (1 .. 5);
+   begin
+      for K in Name'Range loop
+         Name (K) := Character'Val (Meta.Product_Name (K - 1));
+      end loop;
+      return
+        (Inserted     => Adaflight.STM32.SD.Inserted,
+         Functional   => Adaflight.STM32.SD.Summary.Functional,
+         Initialized  => Adaflight.STM32.SD.Summary.Initialized,
+         Manufacturer => Meta.Manufacturer,
+         Blocks       => Meta.Num_Blocks,
+         Month        => Meta.Production_Month,
+         Year         => Meta.Production_Year,
+         Major        => Meta.Revision_Major,
+         Minor        => Meta.Revision_Minor,
+         Name         => Name,
+         State        =>
+           (case Adaflight.STM32.SD.File_System_State is
+               when Adaflight.FAT.Unknown        => CLI.Unknown,
+               when Adaflight.FAT.Fatal          => CLI.Fatal,
+               when Adaflight.FAT.Initialization => CLI.Initializing,
+               when Adaflight.FAT.Ready          => CLI.Ready),
+         Last_Error   =>
+           (case Adaflight.STM32.SD.Last_Error is
+               when Adaflight.FAT.None                  => CLI.No_Error,
+               when Adaflight.FAT.Generic_Error         => CLI.Generic_Error,
+               when Adaflight.FAT.Bad_MBR               => CLI.Bad_MBR,
+               when Adaflight.FAT.Bad_Filesystem_Header => CLI.Bad_Header));
+   end SD_Status;
+
    --  The serial task: while the command line is open its port's bytes go to
    --  it, otherwise each port's bytes go to its MSP framing. The status reply
    --  reads the loop timing first.
@@ -775,6 +818,8 @@ package body Adaflight.STM32.Flight is
       Ctx.Out_Views.State.Status.PID_Delta_Us := Scheduler.Task_Delta_Time (Sched, Scheduler.PID);
       Ctx.Out_Views.State.Status.Load_Percent := Unsigned_16 (Sched.Average_Load_Percent);
       Env.Gyros (0).Mode := Gyro_Mode;
+      Env.SD_Card := SD_Status;
+      Ctx.Out_Views.Hardware.SD_Card := Adaflight.STM32.SD.Summary;
       Env.Status.OSD_Device := Adaflight.OSD_Task.Device_Kind'Pos (Adaflight.STM32.OSD.Device);
       Env.Status.OSD_Port := Adaflight.STM32.OSD.Port_Present;
       Adaflight.STM32.OSD.Dimensions (Env.Status.OSD_Columns, Env.Status.OSD_Rows);
@@ -1058,7 +1103,7 @@ package body Adaflight.STM32.Flight is
    end No_Step_Period;
 
    package Tasks is new Adaflight.Task_Functions
-     (SD_Card_Poll           => No_Step,
+     (SD_Card_Poll           => Adaflight.STM32.SD.Poll,
       Flash_Erase            => No_Step,
       MSP_Serial             => MSP_Serial,
       Battery_Presence       => Battery_Presence,
