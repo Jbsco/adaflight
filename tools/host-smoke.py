@@ -154,6 +154,30 @@ def sport_frames(data):
     return frames
 
 
+def crc8_dvb_s2(data):
+    """The CRC8 of polynomial 0xD5 from zero."""
+    crc = 0
+    for b in data:
+        crc ^= b
+        for _ in range(8):
+            crc = ((crc << 1) ^ 0xD5) & 0xFF if crc & 0x80 else (crc << 1) & 0xFF
+    return crc
+
+
+def ghst_frames(channels_us):
+    """Two Ghost frames for the flight controller, each the address, the length, the type, the four
+    twelve-bit primary channels in quarter microseconds from 988 us, four more bytes and the CRC8 of the type
+    and payload: one with the link quality, the RSSI and the normal RF protocol, one with aux channels 5 to 8."""
+    bits = 0
+    for i, v in enumerate(channels_us[:4]):
+        bits |= ((v - 988) * 4 & 0xFFF) << (12 * i)
+
+    def frame(kind, tail):
+        body = bytes([kind]) + bits.to_bytes(6, "little") + bytes(tail)
+        return bytes([0x82, 12]) + body + bytes([crc8_dvb_s2(body)])
+    return [frame(0x33, [100, 60, 0x05, 20]), frame(0x30, [128, 128, 128, 128])]
+
+
 def crc16_xmodem(data):
     """The CRC16 of polynomial 0x1021 from zero, most significant bit first."""
     crc = 0
@@ -191,7 +215,7 @@ class SerialReceiver(threading.Thread):
 
     def __init__(self, frame):
         super().__init__(daemon=True)
-        self.frame = frame
+        self.frames = frame if isinstance(frame, list) else [frame]
         self.stop = threading.Event()
 
     def run(self):
@@ -202,11 +226,13 @@ class SerialReceiver(threading.Thread):
                 sock = socket.create_connection(("127.0.0.1", RX_PORT), timeout=1)
             except OSError:
                 time.sleep(0.1)
+        turn = 0
         while sock is not None and not self.stop.is_set():
             try:
-                sock.sendall(self.frame)
+                sock.sendall(self.frames[turn % len(self.frames)])
             except OSError:
                 break
+            turn += 1
             time.sleep(0.014)
         if sock is not None:
             sock.close()
@@ -1203,7 +1229,8 @@ def main():
                                    ("IBUS", ibus_frame(us), ["serialrx_halfduplex = ON"]),
                                    ("SUMD", sumd_frame(us), []), ("SPEK2048", spektrum_frame(us), []),
                                    ("XB-B", xbus_frame(us), []),
-                                   ("FPORT", fport_frame([992, 1150, 172, 992] + [992] * 12), [])):
+                                   ("FPORT", fport_frame([992, 1150, 172, 992] + [992] * 12), []),
+                                   ("GHST", ghst_frames(us), [])):
             store = os.path.join(work, name.lower() + ".bin")
             proc, sock = start(image, store)
             try:

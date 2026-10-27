@@ -10591,3 +10591,18 @@ GPS sensor reports at each cycle. The hub stream runs first in the port checks a
 
 The host smoke check sets the hub protocol on UART3 with a fresh store and counts six to fourteen
 acceleration frames in 1.3 s.
+
+## D448. STM32F4 Ghost receiver (2026-10-27)
+
+The board reads an ImmersionRC Ghost receiver on the serial receiver UART at 420,000 baud on the transmit pin
+alone, push-pull, with a pull-down when inverted and a pull-up otherwise, inverted only when the setting asks.
+The bytes go through the core's Ghost frame assembly into its pair of buffers, and the frame status after the
+realtime tasks checks each frame's CRC and asks for processing. The receiver's channel calculation runs the
+protocol's processing first, so the board calls the Ghost processing before it reads the raw channels when the
+receiver holds a processing request. The processing decodes the link statistics, with the RF protocol that
+lets the channels decode, and the twelve-bit primary channels with the aux channels. The RSSI and the link
+quality come from the protocol unless other sources are set. The Ghost telemetry waits, so the processing
+never finds a reply queued.
+
+The host smoke check's receiver phase adds Ghost frames in turn, one with the link statistics and the normal
+RF protocol, one with aux channels 5 to 8, each with its CRC8.
