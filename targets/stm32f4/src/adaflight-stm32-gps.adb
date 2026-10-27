@@ -111,6 +111,12 @@ package body Adaflight.STM32.GPS is
       Send (Tx);
    end Reset_Home;
 
+   procedure Set_Home (Lat, Lon, Alt_Cm : Interfaces.Integer_32) is
+   begin
+      Link.Home := (Lat => Lat, Lon => Lon, Alt_Cm => Alt_Cm);
+      Link.Fix_Home := True;
+   end Set_Home;
+
    function Current return Readings is
      ((Present             => Link.Sensor_Present,
        Fix                 => Rx.Fix,
