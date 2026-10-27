@@ -9,6 +9,7 @@ with Adaflight.Config_Groups;
 with Adaflight.CRSF_Telemetry;
 with Adaflight.Failsafe;
 with Adaflight.Receiver;
+with Adaflight.STM32.USART;
 package Adaflight.STM32.Radio is
    subtype Time_Us is Interfaces.Unsigned_32;
    subtype Time_Ms is Interfaces.Unsigned_32;
@@ -19,6 +20,8 @@ package Adaflight.STM32.Radio is
    procedure Telemetry_Step (Now_Us : Time_Us; Src : Adaflight.CRSF_Telemetry.Sources);
    --  Whether a serial receiver port is open.
    function Linked return Boolean;
+   --  Whether the receiver link holds a UART.
+   function Holds (N : Adaflight.STM32.USART.Number) return Boolean;
    --  After the realtime tasks: the bytes received through the protocol at
    --  their arrival times and the frame status when the receiver task is not
    --  past its check, while a link is open, then the receiver's frame check,

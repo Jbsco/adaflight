@@ -68,10 +68,12 @@ with Adaflight.STM32.Radio;
 with Adaflight.STM32.RTC;
 with Adaflight.STM32.SD;
 with Adaflight.SD_Card_Types;
+with Adaflight.SmartAudio;
 with Adaflight.STM32.Sound;
 with Adaflight.STM32.Serial;
 with Adaflight.STM32.SPI;
 with Adaflight.STM32.USB;
+with Adaflight.STM32.VTX;
 with Adaflight.MSP_OSD_Out;
 with Adaflight.OSD_Task;
 with Adaflight.OSD_Render;
@@ -644,7 +646,7 @@ package body Adaflight.STM32.Flight is
    procedure Init_Scheduler is
       Options : constant Adaflight.Task_Init.Options :=
         (Accel => True, Beeper => True, Sag_Compensation => True, OSD => True, CMS => True, GPS => True,
-         Telemetry => True, others => False);
+         Telemetry => True, VTX_Control => True, VTX_Driver => True, others => False);
       Inputs  : Adaflight.Task_Init.Inputs;
    begin
       Sched_Settings := Adaflight.Config_Runtime.Scheduler_Settings_Of
@@ -698,6 +700,12 @@ package body Adaflight.STM32.Flight is
       Ctx.Log := Adaflight.STM32.Blackbox.Recorder;
       Ctx.Loop_Time := Loop_Time_Us;
       Ctx.Out_Views.OSD.Device := Adaflight.STM32.OSD.Device;
+      Ctx.VTX_Device := Adaflight.STM32.VTX.Device;
+      Ctx.VTX_Table := Adaflight.STM32.VTX.Table;
+      Ctx.Out_Views.VTX_Status := Adaflight.STM32.VTX.Status;
+      Adaflight.STM32.VTX.Peripheral
+        (Ctx.Out_Views.Peripheral.VTX_Device, Ctx.Out_Views.Peripheral.VTX_Pit_Mode,
+         Ctx.Out_Views.Peripheral.VTX_Ready, Ctx.Out_Views.Peripheral.VTX_Type);
       if Unsigned_16 (Port.Command_Id) = Adaflight.MSP_OSD_Out.OSD_Config_Command then
          Adaflight.STM32.OSD.Check_Ready (Config, Adaflight.STM32.Pilot.Armed, Ctx.Out_Views.OSD.Device_Ready);
       end if;
@@ -705,6 +713,9 @@ package body Adaflight.STM32.Flight is
                    Ports, Reply, Stream, Result, Effects);
       if Effects.Runtime.Clock then
          Adaflight.STM32.RTC.Set_Ms (Effects.Runtime.Clock_Ms);
+      end if;
+      if Effects.VTX.Pit_Mode_Set then
+         Adaflight.STM32.VTX.Set_Pit_Mode (Effects.VTX.Pit_Mode_Value);
       end if;
       if Effects.Font.Write then
          Adaflight.STM32.OSD.Write_Font (Effects.Font.Address, Effects.Font.Data);
@@ -854,6 +865,18 @@ package body Adaflight.STM32.Flight is
       Ctx.Out_Views.State.Status.Load_Percent := Unsigned_16 (Sched.Average_Load_Percent);
       Env.Gyros (0).Mode := Gyro_Mode;
       Env.SD_Card := SD_Status;
+      Env.VTX_Present := Adaflight.STM32.VTX.Device.Present;
+      declare
+         Count          : Natural;
+         Levels, Powers : Adaflight.SmartAudio.Level_Values;
+      begin
+         Adaflight.STM32.VTX.Power_Levels (Count, Levels, Powers);
+         Env.VTX_Power.Count := Natural'Min (CLI.Max_Power_Levels, Count);
+         for I in 1 .. Env.VTX_Power.Count loop
+            Env.VTX_Power.Levels (I) := Levels (I - 1);
+            Env.VTX_Power.Powers (I) := Powers (I - 1);
+         end loop;
+      end;
       Ctx.Out_Views.Hardware.SD_Card := Adaflight.STM32.SD.Summary;
       Ctx.Out_Views.Hardware.Flash := Adaflight.STM32.Flash_Chip.Summary;
       Env.Flash := Flash_Status;
@@ -890,7 +913,10 @@ package body Adaflight.STM32.Flight is
          end;
       else
          for L in MSP_Line loop
-            if L /= Line_UART1 or else not Adaflight.STM32.Blackbox.Holds (Adaflight.STM32.USART.UART1) then
+            if L /= Line_UART1
+              or else not (Adaflight.STM32.Blackbox.Holds (Adaflight.STM32.USART.UART1)
+                           or else Adaflight.STM32.VTX.Holds (Adaflight.STM32.USART.UART1))
+            then
                Take_Line (L);
                Serve_MSP (L, Evaluate_Other_Data);
             end if;
@@ -1575,6 +1601,7 @@ package body Adaflight.STM32.Flight is
             end if;
          when Adaflight.RX_Task.Modes =>
             Adaflight.STM32.Pilot.Modes_Pass (Sense, Channels, Aux, Before, Delta_Us, Asked);
+            Adaflight.STM32.VTX.Switches (Config, Aux, Adaflight.STM32.Pilot.Armed);
             Adaflight.STM32.Control.Set_Anti_Gravity (Asked.Anti_Gravity);
          when Adaflight.RX_Task.Update =>
             Adaflight.STM32.Pilot.Update_Pass
@@ -1950,6 +1977,15 @@ package body Adaflight.STM32.Flight is
             Run_GPS (Before);
          when Scheduler.Telemetry =>
             Tasks.Telemetry (Inputs, Before);
+         when Scheduler.VTX_Control =>
+            declare
+               Save : Boolean;
+            begin
+               Adaflight.STM32.VTX.Run (Config, Adaflight.STM32.Time.Millis, Before, Session.Open, Save);
+               if Save then
+                  Write_Configuration;
+               end if;
+            end;
          when others =>
             null;
       end case;
@@ -2025,6 +2061,14 @@ package body Adaflight.STM32.Flight is
       Boot_Beeps;
       Adaflight.STM32.Radio.Init (Config, Runtime_Features, Adaflight.STM32.Time.Millis, Telemetry_Config);
       Adaflight.STM32.GPS.Init (Config, Runtime_Features, Adaflight.STM32.Time.Millis);
+      declare
+         Save : Boolean;
+      begin
+         Adaflight.STM32.VTX.Init (Config, Save);
+         if Save then
+            Write_Configuration;
+         end if;
+      end;
       Ctx.Out_Views.State.Status.Sensors (Adaflight.MSP_Out.GPS) := Adaflight.STM32.GPS.Enabled;
       Pilot_Facts := (Sensors        => (Gyro => Selection.Found, Acc => Gyro_Report.Acc_Found, others => False),
                       Sample_Time_Us => Natural (Sample_Us),
