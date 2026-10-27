@@ -1006,6 +1006,11 @@ package body Adaflight.STM32.Flight is
       end if;
    end Take_Line;
 
+   --  Whether a device streams MSP on the line: UART1 when the OSD names it as
+   --  a device's UART.
+   function Peripheral_Line (L : MSP_Line) return Boolean is
+     (L = Line_UART1 and then Adaflight.STM32.OSD.Peripheral (Adaflight.STM32.USART.UART1));
+
    --  A port's bytes through its MSP framing, which evaluates the other data
    --  while disarmed; the command line entered there takes the port.
    procedure Serve_MSP (L : MSP_Line; Evaluate_Other_Data : Boolean) is
@@ -1014,7 +1019,7 @@ package body Adaflight.STM32.Flight is
       loop
          Adaflight.MSP_Port.Process
            (S.Port, S.Pending (0 .. S.Waiting - 1), Consumed, Now_Ms,
-            (Evaluate_Non_MSP => Evaluate_Other_Data, Peripheral => False,
+            (Evaluate_Non_MSP => Evaluate_Other_Data, Peripheral => Peripheral_Line (L),
              Reboot_Character => Config.Serial_Config.Reboot_Character, CLI_Running => False),
             Event);
          S.Pending (0 .. S.Waiting - Consumed - 1) := S.Pending (Consumed .. S.Waiting - 1);
@@ -1235,7 +1240,8 @@ package body Adaflight.STM32.Flight is
    --  MSP within the activity timeout.
    function Configurator_Active return Boolean is
      (for some L in MSP_Line =>
-        Adaflight.MSP_Port.Configurator_Active (Lines (L).Port, Adaflight.STM32.Time.Millis, Peripheral => False));
+        Adaflight.MSP_Port.Configurator_Active
+          (Lines (L).Port, Adaflight.STM32.Time.Millis, Peripheral => Peripheral_Line (L)));
 
    --  What the beeper reads: the battery's presence, the USB cable, a
    --  configurator on MSP, the beeper boxes, the GPS, the motors running while

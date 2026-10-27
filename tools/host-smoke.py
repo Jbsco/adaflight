@@ -47,6 +47,24 @@ def crsf_frame(channels):
     return bytes([0xC8, 24, 0x16]) + payload + bytes([crc8(bytes([0x16]) + payload)])
 
 
+def msp_pushes(data, command):
+    """The payloads of the MSP version 1 replies with the command in a byte stream, each frame's checksum
+    checked."""
+    found = []
+    i = data.find(b"$M>")
+    while i != -1 and i + 6 <= len(data):
+        size, cmd = data[i + 3], data[i + 4]
+        end = i + 5 + size
+        if end < len(data):
+            check = size ^ cmd
+            for b in data[i + 5:end]:
+                check ^= b
+            if cmd == command and check == data[end]:
+                found.append(data[i + 5:end])
+        i = data.find(b"$M>", i + 1)
+    return found
+
+
 def crsf_msp_request(payload):
     """An MSP request frame from the radio: the address, the length, the type, the flight controller as the
     destination and the radio as the origin, the MSP tunnel's payload and the CRC8."""
@@ -882,6 +900,8 @@ def main():
             check("OSD feature on", "Enabled" in text, text[-120:])
             text = cli(sock, "set osd_displayport_device = MAX7456")
             check("OSD display device set", "osd_displayport_device set to MAX7456" in text, text[-120:])
+            text = cli(sock, "set vcd_video_system = PAL")
+            check("analog video system set", "vcd_video_system set to PAL" in text, text[-120:])
             text = cli(sock, "set rx_uart = UART3")
             check("receiver port assigned", "rx_uart set to UART3" in text, text[-120:])
             text = cli(sock, "set gps_provider = NMEA")
@@ -1557,6 +1577,41 @@ def main():
                                         for a in answers), repr(answers[:2]))
         finally:
             sender.stop.set()
+            stop(proc)
+            sock.close()
+        store = os.path.join(work, "mspdp.bin")
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "set osd_displayport_device = MSP")
+            check("OSD display device set to MSP", "osd_displayport_device set to MSP" in text, text[-120:])
+            text = cli(sock, "set osd_uart = UART1")
+            check("OSD display port on UART1", "osd_uart set to UART1" in text, text[-120:])
+            cli(sock, "set craft_name = ADAHOST")
+            text = cli(sock, "set osd_craft_name_pos = 2122")
+            check("craft name element placed for the MSP display", "osd_craft_name_pos set to 2122" in text,
+                  text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store)
+        try:
+            data = read_all(sock, 7.0)
+            pushes = msp_pushes(data, 182)
+            subs = sorted({p[0] for p in pushes if p})
+            check("MSP display port pushes the heartbeat, clear, string and draw subcommands on UART1",
+                  {0, 2, 3, 4} <= set(subs), repr(subs))
+            check("MSP display port writes the craft name",
+                  any(p[0] == 3 and b"ADAHOST" in p[4:] for p in pushes), repr(pushes[-6:]))
+            sock.sendall(b"$M<" + bytes([0, 1, 1]))
+            api = msp_pushes(read_all(sock, 0.5), 1)
+            check("UART1 still answers MSP beside the display port", len(api) == 1 and len(api[0]) == 3,
+                  repr(api))
+        finally:
             stop(proc)
             sock.close()
         store = os.path.join(work, "ghsttlm.bin")
