@@ -151,7 +151,13 @@ package body Adaflight.STM32.Flight is
       SD_Detect_Low    => Adaflight.Board.SDCARD_Detect_Low,
       Flash_SPI_Device => Adaflight.Board.FLASH_SPI_Device,
       Flash_CS_Tag     => Adaflight.Board.FLASH_CS_Tag,
-      Blackbox_Device  => Adaflight.Board.Default_Blackbox_Device);
+      Blackbox_Device  => Adaflight.Board.Default_Blackbox_Device,
+      PINIO_Tags       => (Adaflight.Board.PINIO1_Tag, Adaflight.Board.PINIO2_Tag, Adaflight.Board.PINIO3_Tag,
+                           Adaflight.Board.PINIO4_Tag),
+      PINIO_Configs    => (Adaflight.Board.PINIO1_Config, Adaflight.Board.PINIO2_Config,
+                           Adaflight.Board.PINIO3_Config, Adaflight.Board.PINIO4_Config),
+      PINIO_Boxes      => (Adaflight.Board.PINIO1_Box, Adaflight.Board.PINIO2_Box, Adaflight.Board.PINIO3_Box,
+                           Adaflight.Board.PINIO4_Box));
 
    Board    : CLI.Board_State := (Hardware => Board_Hardware, others => <>);
    Config   : Adaflight.Config_Groups.Configuration := Adaflight.Config_Reset.Reset (Board);
