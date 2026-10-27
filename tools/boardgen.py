@@ -38,6 +38,8 @@ def pin_literal(text: str) -> str:
     return f"(Port_{m.group(1)}, {int(m.group(2))})"
 
 
+BLACKBOX_DEVICES = {"BLACKBOX_DEVICE_NONE": 0, "BLACKBOX_DEVICE_FLASH": 1, "BLACKBOX_DEVICE_SDCARD": 2,
+                    "BLACKBOX_DEVICE_SERIAL": 3}
 VOLTAGE_SOURCES = {"VOLTAGE_METER_NONE": 0, "VOLTAGE_METER_ADC": 1, "VOLTAGE_METER_ESC": 2}
 CURRENT_SOURCES = {"CURRENT_METER_NONE": 0, "CURRENT_METER_ADC": 1, "CURRENT_METER_VIRTUAL": 2,
                    "CURRENT_METER_ESC": 3, "CURRENT_METER_MSP": 4}
@@ -97,24 +99,32 @@ def generate(config: Path) -> str:
     out.append(f"   Beeper_Inverted : constant Boolean := {'True' if 'BEEPER_INVERTED' in defines else 'False'};")
     out.append(f"   Beeper_PWM_Hz   : constant := {int(defines.get('BEEPER_PWM_HZ', '0'))};")
     out.append("")
-    out.append("   --  The pin tags of the inputs, the beeper and the OSD chip's select, zero")
-    out.append("   --  for none, the OSD chip's SPI bus from 1, zero for none, and the meter")
-    out.append("   --  defaults, the host defaults where the board names none.")
+    out.append("   --  The pin tags of the inputs, the beeper, the OSD chip's select and the")
+    out.append("   --  SD card's select and detect, zero for none, the OSD chip's and the SD")
+    out.append("   --  card's SPI buses from 1, zero for none, whether the detect pin reads low")
+    out.append("   --  for a card, the flight log device, and the meter defaults, the host")
+    out.append("   --  defaults where the board names none.")
     tags = [("Beeper_Tag", "BEEPER_PIN"), ("ADC_VBAT_Tag", "ADC_VBAT_PIN"), ("ADC_CURR_Tag", "ADC_CURR_PIN"),
             ("ADC_RSSI_Tag", "ADC_RSSI_PIN"), ("ADC_External1_Tag", "ADC_EXTERNAL1_PIN"),
-            ("MAX7456_CS_Tag", "MAX7456_SPI_CS_PIN")]
+            ("MAX7456_CS_Tag", "MAX7456_SPI_CS_PIN"), ("SDCARD_CS_Tag", "SDCARD_SPI_CS_PIN"),
+            ("SDCARD_Detect_Tag", "SDCARD_DETECT_PIN")]
     defaults = [("Default_Voltage_Meter_Source", VOLTAGE_SOURCES[defines.get("DEFAULT_VOLTAGE_METER_SOURCE",
                                                                              "VOLTAGE_METER_NONE")]),
                 ("Default_Current_Meter_Source", CURRENT_SOURCES[defines.get("DEFAULT_CURRENT_METER_SOURCE",
                                                                              "CURRENT_METER_VIRTUAL")]),
                 ("Default_Voltage_Meter_Scale", number(defines.get("DEFAULT_VOLTAGE_METER_SCALE"), 110)),
                 ("Default_Current_Meter_Scale", number(defines.get("DEFAULT_CURRENT_METER_SCALE"), 400)),
-                ("MAX7456_SPI_Device", spi_device(defines.get("MAX7456_SPI_INSTANCE", "")))]
+                ("MAX7456_SPI_Device", spi_device(defines.get("MAX7456_SPI_INSTANCE", ""))),
+                ("SDCARD_SPI_Device", spi_device(defines.get("SDCARD_SPI_INSTANCE", ""))),
+                ("SDCARD_Detect_Low", "True" if "SDCARD_DETECT_INVERTED" in defines else "False"),
+                ("Default_Blackbox_Device", BLACKBOX_DEVICES[defines.get("DEFAULT_BLACKBOX_DEVICE",
+                                                                         "BLACKBOX_DEVICE_NONE")])]
     column = max(len(n) for n, _ in tags + defaults)
     for name, define in tags:
         out.append(f"   {name.ljust(column)} : constant := {pin_tag(defines.get(define, ''))};")
     for name, value in defaults:
-        out.append(f"   {name.ljust(column)} : constant := {value};")
+        kind = "Boolean " if value in ("True", "False") else ""
+        out.append(f"   {name.ljust(column)} : constant {kind}:= {value};")
     out.append("")
     for name, lit in pins:
         out.append(f"   {name.ljust(width)} : constant Pin := {lit};")

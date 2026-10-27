@@ -37,9 +37,10 @@ package Adaflight.Board_Info with SPARK_Mode is
    --  The defaults of the groups that name the board's hardware: the battery
    --  voltage, current, RSSI and external analog inputs, the beeper's pin,
    --  inversion and PWM frequency, the battery's voltage and current meter
-   --  sources, the analog meters' scales, and the OSD chip's select pin and
-   --  SPI bus, numbered from 1. The values given here are the host build's,
-   --  which has none of this hardware.
+   --  sources, the analog meters' scales, the OSD chip's select pin and
+   --  SPI bus, numbered from 1, the SD card's SPI bus, select and detect
+   --  pins with the detect pin's sense, and the flight log device. The values
+   --  given here are the host build's, which has none of this hardware.
    type Hardware_Defaults is record
       Vbat             : Analog_Input;
       Current          : Analog_Input;
@@ -54,6 +55,11 @@ package Adaflight.Board_Info with SPARK_Mode is
       Current_Scale    : Interfaces.Integer_16 := 400;
       OSD_CS_Tag       : Interfaces.Unsigned_8 := 0;
       OSD_SPI_Device   : Interfaces.Unsigned_8 := 0;
+      SD_SPI_Device    : Interfaces.Integer_8 := 0;
+      SD_CS_Tag        : Interfaces.Unsigned_8 := 0;
+      SD_Detect_Tag    : Interfaces.Unsigned_8 := 0;
+      SD_Detect_Low    : Boolean := False;
+      Blackbox_Device  : Interfaces.Unsigned_8 := 0;
    end record;
 
    type State is record

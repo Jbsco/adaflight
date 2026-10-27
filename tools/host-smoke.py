@@ -144,8 +144,85 @@ def check(name, ok, detail=""):
         failures.append(name)
 
 
-def start(image, store):
-    env = dict(os.environ, ADAFLIGHT_EEPROM=store, ADAFLIGHT_OSD_SCREEN=store + ".osd.txt")
+def fat16_image(path, sectors):
+    """A card image: a partition table, then a FAT16 volume of 8-sector clusters from sector 8."""
+    start = 8
+    volume = sectors - start
+    fat_sectors = (volume // 8 * 2 + 511) // 512
+    mbr = bytearray(512)
+    mbr[446:462] = bytes([0x00, 0x01, 0x01, 0x00, 0x06, 0xFE, 0xFF, 0xFF]) + start.to_bytes(4, "little") \
+        + volume.to_bytes(4, "little")
+    mbr[510:512] = b"\x55\xAA"
+    boot = bytearray(512)
+    boot[0:3] = b"\xEB\x3C\x90"
+    boot[3:11] = b"ADAFLGHT"
+    boot[11:13] = (512).to_bytes(2, "little")
+    boot[13] = 8
+    boot[14:16] = (1).to_bytes(2, "little")
+    boot[16] = 2
+    boot[17:19] = (512).to_bytes(2, "little")
+    boot[19:21] = volume.to_bytes(2, "little")
+    boot[21] = 0xF8
+    boot[22:24] = fat_sectors.to_bytes(2, "little")
+    boot[24:26] = (63).to_bytes(2, "little")
+    boot[26:28] = (255).to_bytes(2, "little")
+    boot[28:32] = start.to_bytes(4, "little")
+    boot[36] = 0x80
+    boot[38] = 0x29
+    boot[43:54] = b"ADAFLIGHT  "
+    boot[54:62] = b"FAT16   "
+    boot[510:512] = b"\x55\xAA"
+    fat = bytearray(fat_sectors * 512)
+    fat[0:4] = b"\xF8\xFF\xFF\xFF"
+    with open(path, "wb") as f:
+        f.write(mbr)
+        f.write(bytes(512 * (start - 1)))
+        f.write(boot)
+        f.write(fat)
+        f.write(fat)
+        f.truncate(sectors * 512)
+
+
+def fat16_find(data, start, length, name):
+    """The directory entry of an 8.3 name in a directory's bytes."""
+    for at in range(start, start + length, 32):
+        entry = data[at:at + 32]
+        if entry[0] == 0:
+            return None
+        if entry[0:11] == name and entry[11] & 0x08 == 0:
+            return entry
+    return None
+
+
+def fat16_log(path):
+    """The LOGS directory's first log file's first cluster, from the card image, or the reason there is none."""
+    with open(path, "rb") as f:
+        data = f.read()
+    start = int.from_bytes(data[454:458], "little") * 512
+    reserved = int.from_bytes(data[start + 14:start + 16], "little")
+    fats = data[start + 16]
+    fat_sectors = int.from_bytes(data[start + 22:start + 24], "little")
+    root_entries = int.from_bytes(data[start + 17:start + 19], "little")
+    cluster_bytes = data[start + 13] * 512
+    root = start + (reserved + fats * fat_sectors) * 512
+    clusters = root + root_entries * 32
+    logs = fat16_find(data, root, root_entries * 32, b"LOGS       ")
+    if logs is None or logs[11] & 0x10 == 0:
+        return None, "no LOGS directory"
+    first = int.from_bytes(logs[26:28], "little")
+    at = clusters + (first - 2) * cluster_bytes
+    log = fat16_find(data, at, cluster_bytes, b"LOG00001BFL")
+    if log is None:
+        return None, "no LOG00001.BFL in LOGS"
+    first = int.from_bytes(log[26:28], "little")
+    if first < 2:
+        return None, "log file without a cluster"
+    at = clusters + (first - 2) * cluster_bytes
+    return data[at:at + cluster_bytes], ""
+
+
+def start(image, store, extra=None):
+    env = dict(os.environ, ADAFLIGHT_EEPROM=store, ADAFLIGHT_OSD_SCREEN=store + ".osd.txt", **(extra or {}))
     proc = subprocess.Popen([image], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     deadline = time.time() + 15
     while time.time() < deadline:
@@ -203,7 +280,7 @@ def main():
         store = os.path.join(work, "eeprom.bin")
         proc, sock = start(image, store)
         try:
-            time.sleep(1.0)
+            time.sleep(2.5)
             api = msp(sock, 1)
             check("MSP API version 1.x", api is not None and len(api) == 3 and api[1] == 1)
             variant = msp(sock, 2)
@@ -273,7 +350,7 @@ def main():
         gps = GPS()
         gps.start()
         try:
-            time.sleep(1.0)
+            time.sleep(2.5)
             osd = msp(sock, 84)
             check("MSP OSD flags name the MAX7456 found", osd is not None and len(osd) > 0 and osd[0] & 0x31 == 0x31,
                   repr(osd[:1] if osd else osd))
@@ -347,6 +424,44 @@ def main():
                 vcp.close()
             if log is not None:
                 log.close()
+        card = os.path.join(work, "sdcard.img")
+        fat16_image(card, 40960)
+        proc, sock = start(image, store, {"ADAFLIGHT_SD_IMAGE": card})
+        try:
+            time.sleep(1.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "set blackbox_device = SDCARD")
+            check("flight log device set to the card", "blackbox_device set to SDCARD" in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+            sock.close()
+        proc, sock = start(image, store, {"ADAFLIGHT_SD_IMAGE": card})
+        try:
+            time.sleep(6.0)
+            summary = msp(sock, 79)
+            check("MSP SD card summary reports the card ready",
+                  summary is not None and len(summary) == 11 and summary[0] == 1 and summary[1] == 4, repr(summary))
+            total = int.from_bytes(summary[7:11], "little") if summary and len(summary) == 11 else 0
+            check("MSP SD card summary sizes the card", total == 20480, str(total))
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "sd_info")
+            check("sd_info names the card", "20480kB" in text and "'ADAFL FS: Ready" in text, text[-160:])
+            time.sleep(2.0)
+        finally:
+            proc.kill()
+            sock.close()
+        data, why = fat16_log(card)
+        check("card image holds the log file", data is not None, why)
+        check("log file on the card starts with the header",
+              data is not None and data.startswith(b"H Product:Blackbox flight data recorder by Nicholas Sherlock\n"),
+              repr(data[:60] if data else data))
+        check("log file on the card names the firmware", data is not None and b"H Firmware type:Adaflight\n" in data,
+              repr(data[:200] if data else data))
     print(f"host smoke: {'all checks passed' if not failures else str(len(failures)) + ' failed'}")
     sys.exit(1 if failures else 0)
 

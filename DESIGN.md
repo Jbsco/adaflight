@@ -9981,3 +9981,36 @@ The GPS frames are timed on a change of the solution's time. The board stamps ea
 clock and gives the telemetry that stamp, so an NMEA module's solutions send their frames as a u-blox
 module's do. The reference keys the frames on the solution time its NMEA parser never sets, so an NMEA
 module sends no GPS telemetry over CRSF (DIVERGENCES.md). The flight log keeps the module's own time.
+
+## D413. STM32F4 flight log on the SD card (2026-10-26)
+
+`Adaflight.STM32.SD` puts the SD card driver of D367, the file system of D297 to D300 and the flight
+log device of D301 on the board. The card's SPI device is the bus the stored configuration names, with
+its select and detect pins from the configuration's tags. A sequence selects the card at its first
+segment and after each segment that negated the select pin, a segment clocks its bytes over the polled
+SPI driver, and the device has no DMA, so a block goes out 256 bytes at a time. The driver's completion
+is kept in the device and delivered to the file system once the poll returns with the block, since the
+driver holds the block while it polls. The file system reads no clock, so new entries carry its default
+time. The board's defaults name the card: the board generator emits the card's select and detect tags,
+its SPI bus, the detect pin's sense and the default flight log device, and the hardware defaults of
+D392 apply them at a reset, with the card's mode SPI when the bus and the select pin are named. The
+main task's poll runs the card's poll, the completion, then the file system's poll with the card's
+readiness. The MSP SD card summary and the command line's SD information read the card's metadata and
+the file system's state.
+
+The flight log of D411 takes the card as its device. Before each pass the facts come from the file
+system: whether it takes a log and whether it is full, the bytes its cache takes as the device's room,
+and the calls the recorder's state asks for in the order the reference makes them: the log start step
+while the log file is prepared, a flush while the cache flushes, and while the log shuts down its end,
+then its flush while the shutdown timeout has not passed, which the core now names in its spec. The
+iteration's bytes go to the log file as one text. The image is 614784 bytes of text, with the file
+system and the card in CCM RAM.
+
+The host target carries a model of a high capacity version 2 card on SPI2 over the image file the
+environment variable `ADAFLIGHT_SD_IMAGE` names, answering while its select pin is low, which the
+host's pin levels record, with the registers of a card named ADAFL, block reads and writes against the
+file, and runs of writes ended by the stop token. The detect pin reads a card while the variable is set.
+The smoke check writes a 20 MB FAT16 image with a partition table, sets the flight log device to the
+card, restarts the image, reads the MSP summary and the command line's information with the card ready,
+then reads the log file's first cluster from the image through the LOGS directory and checks the
+header.

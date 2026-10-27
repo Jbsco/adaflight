@@ -7,7 +7,6 @@ package body Adaflight.Blackbox with SPARK_Mode is
 
    package Enc renames Adaflight.Blackbox_Encoding;
 
-   Shutdown_Timeout_Ms  : constant := 200;
    Test_Mode_Hold_Ms    : constant := 5_000;
    Target_Header_Budget : constant := Header.Target_Budget_Per_Iteration;
 
