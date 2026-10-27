@@ -9813,3 +9813,25 @@ body holds `pragma Static_Elaboration_Desired`, so the table is read-only data i
 On the STM32F4 image the change moves 18436 bytes from the main RAM to flash: 610936 bytes of text,
 5276 of data, 91040 of zeroed data in the main RAM and 26440 in the core coupled memory. The menu
 vectors replay unchanged.
+
+## D405. STM32F4 GPS link (2026-10-26)
+
+The STM32F4 image reads a GPS module on a UART. `Adaflight.STM32.GPS` finds the serial port with the
+GPS function when the GPS feature is on, opens it at the link's rate and runs the GPS link (D387 for
+the receiver's port lookup): the bytes received go through the link each run of the GPS task, the
+bytes the link asks for go out, a rate change reopens the port, and the task runs at 1 kHz while the
+link asks for the fast rate and at 100 Hz otherwise. The ready beep sounds on the first fix with
+enough satellites. The board has no real time clock, so the link never sets one.
+
+The readings reach the arming logic as the fix and the satellite count, the beeper as the GPS
+feature and the fix, the OSD as the fix flags, position, speeds, dilution, home vector and distance
+flown with the rescue's satellite minimum, the raw and computed GPS replies with the satellite list,
+the status reply's GPS sensor flag, and the command line's `status` with the link's state, platform,
+port rate, solution, time and satellite signals. The GPS rescue, the altitude and position holds and
+the lap timer stay off this image.
+
+The host smoke check assigns UART4 to the GPS with the NMEA provider, feeds GGA and RMC sentences
+with a fix on its port at 5 Hz after the restart, and finds the fix, ten satellites and the position
+in the raw GPS reply and the link connected in the status. The image is 623400 bytes of text, 5284
+of data and 118640 of zeroed data. The bench check is a module on UART4 with the satellites in the
+configurator's GPS tab.

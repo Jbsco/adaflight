@@ -11,6 +11,7 @@ with Adaflight.MSP_Font_In;
 with Adaflight.OSD_Render;
 with Adaflight.OSD_Task;
 with Adaflight.Scheduler;
+with Adaflight.STM32.GPS;
 package Adaflight.STM32.OSD is
    use type Interfaces.Integer_16;
    use type Interfaces.Integer_32;
@@ -88,6 +89,8 @@ package Adaflight.STM32.OSD is
       Link_Source       : Adaflight.OSD_Render.Link_Quality_Source := Adaflight.OSD_Render.None;
       RF_Mode           : Interfaces.Unsigned_8 := 0;
       Uplink_mW         : Interfaces.Unsigned_16 := 0;
+      GPS_Feature       : Boolean := False;
+      GPS               : Adaflight.STM32.GPS.Readings;
       Battery           : Adaflight.Battery.Battery_State := Adaflight.Battery.OK;
       Pack_Voltage      : Interfaces.Unsigned_16 range 0 .. 20_000 := 0;
       Cell_Voltage      : Interfaces.Unsigned_16 := 0;
