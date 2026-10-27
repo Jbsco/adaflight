@@ -1,4 +1,3 @@
-with Adaflight.Axes;
 with Adaflight.Config_Runtime;
 with Adaflight.Main_Loop;
 with Adaflight.Mixer_Init;
