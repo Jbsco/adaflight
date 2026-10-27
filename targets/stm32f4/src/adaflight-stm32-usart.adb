@@ -51,6 +51,7 @@ package body Adaflight.STM32.USART is
    Transmit_Interrupt : constant Unsigned_32 := 2 ** 7;
    Enable            : constant Unsigned_32 := 2 ** 13;
    Stop_Bits_2       : constant Unsigned_32 := 2 ** 13;
+   Half_Duplex_Select : constant Unsigned_32 := 2 ** 3;
 
    Ring_Size : constant := 256;
    subtype Ring_Index is Natural range 0 .. Ring_Size - 1;
@@ -192,15 +193,26 @@ package body Adaflight.STM32.USART is
       end Take;
    end Receivers;
 
-   procedure Init (N : Number; Baud : Positive; Two_Stop_Bits : Boolean := False) is
+   --  A half duplex line configures the transmit pin alone at low speed, as
+   --  the reference does on the F4, and sets the half duplex selection.
+   procedure Init
+     (N : Number; Baud : Positive; Two_Stop_Bits : Boolean := False; Line : Half_Duplex := Full_Duplex)
+   is
       Regs : Registers with Import, Address => Base (N);
       --  Sixteen times the baud rate divider, rounded.
       Divider : constant Natural := (Bus_Hz (N) + Baud / 2) / Baud;
    begin
       GPIO.Enable_Port (TX (N).Port);
-      GPIO.Enable_Port (RX (N).Port);
-      GPIO.Set_Alternate (TX (N), Func (N));
-      GPIO.Set_Alternate (RX (N), Func (N), GPIO.Up);
+      if Line.On then
+         GPIO.Set_Alternate (TX (N), Func (N), Line.Resistor, Rate => GPIO.Low);
+         if not Line.Push_Pull then
+            GPIO.Set_Open_Drain (TX (N));
+         end if;
+      else
+         GPIO.Enable_Port (RX (N).Port);
+         GPIO.Set_Alternate (TX (N), Func (N));
+         GPIO.Set_Alternate (RX (N), Func (N), GPIO.Up);
+      end if;
       case N is
          when UART1 => RCC_APB2ENR := RCC_APB2ENR or 2 ** 4;
          when UART6 => RCC_APB2ENR := RCC_APB2ENR or 2 ** 5;
@@ -210,6 +222,7 @@ package body Adaflight.STM32.USART is
       Regs.CR1 := 0;
       Regs.BRR := Unsigned_32 (Divider / 16) * 16 + Unsigned_32 (Divider mod 16);
       Regs.CR2 := (if Two_Stop_Bits then Stop_Bits_2 else 0);
+      Regs.CR3 := (if Line.On then Half_Duplex_Select else 0);
       Regs.CR1 := Enable or Transmitter or Receiver_Enable or Receive_Interrupt;
    end Init;
 
