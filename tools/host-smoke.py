@@ -11,6 +11,7 @@ the screen with its arming hold.
 Usage: host-smoke.py <host image>
 """
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -780,6 +781,8 @@ def main():
             check("ESC sensor feature on", "Enabled" in text, text[-120:])
             text = cli(sock, "set esc_sensor_uart = UART6")
             check("ESC sensor port assigned", "esc_sensor_uart set to UART6" in text, text[-120:])
+            text = cli(sock, "set osd_esc_tmp_pos = 2241")
+            check("ESC temperature element placed", "osd_esc_tmp_pos set to 2241" in text, text[-120:])
             cli(sock, "save", wait=2.0)
             proc.wait(timeout=10)
         finally:
@@ -801,6 +804,13 @@ def main():
                      int.from_bytes(data[10:12], "little"), int.from_bytes(data[12:14], "little")) \
                 if data and len(data) == 53 else None
             check("MSP motor telemetry reads the ESC sensor's values", first == (4929, 42, 1610, 250, 77), repr(first))
+            try:
+                with open(store + ".osd.txt") as f:
+                    rows = f.read().splitlines()
+            except OSError:
+                rows = []
+            check("OSD draws the ESC temperature", len(rows) > 6 and re.match(r"^.E. 42", rows[6]) is not None,
+                  repr(rows[6] if len(rows) > 6 else rows))
             esc.stop.set()
             esc.join(timeout=2)
             info = ESCInfo(store + ".dshot.txt")

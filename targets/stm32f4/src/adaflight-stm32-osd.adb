@@ -522,6 +522,10 @@ package body Adaflight.STM32.OSD is
       R.Speed_3D := F.GPS.Speed_3D;
       R.Ground_Speed := F.GPS.Ground_Speed;
       R.Use_3D_Speed := F.GPS.Use_3D_Speed;
+      R.ESC_Sensor_Feature := F.ESC_Feature;
+      R.ESC_Temperature := F.ESC_Combined.Temperature;
+      R.ESC_Erpm := Natural (Interfaces.Integer_16'Max (0, F.ESC_Combined.Rpm));
+      R.Erpm_To_Hz := F.ESC_Erpm_To_Hz;
 
       A.RSSI_Percent := F.RSSI_Percent;
       A.RSSI_Dbm := F.RSSI_Dbm;
@@ -535,9 +539,12 @@ package body Adaflight.STM32.OSD is
       A.GPS_Fix_Home := F.GPS.Fix_Home;
       A.Satellites := F.GPS.Satellites;
       A.Home_Distance_M := F.GPS.Distance_To_Home_M;
+      A.ESC_Sensor_Feature := F.ESC_Feature;
+      A.ESC_Temperature := F.ESC_Combined.Temperature;
 
       Context.Element_Inputs.Acc_Present := F.Acc_Present;
       Context.Element_Inputs.GPS_Present := F.GPS_Feature;
+      Context.Element_Inputs.ESC_Sensor_Feature := F.ESC_Feature;
       Adaflight.STM32.RTC.Date_Now (Context.Has_Time, Context.Date);
       Context.Zone := (Zone => Adaflight.STM32.RTC.Zone);
       Context.Draw.Inputs.Has_Time := Context.Has_Time;
@@ -575,6 +582,12 @@ package body Adaflight.STM32.OSD is
       D.Output_Low := F.Output_Low;
       D.Output_High := (if F.Output_High > F.Output_Low + 1.0 then F.Output_High else F.Output_Low + 2.0);
       D.Motors_Running := F.Motors_Running;
+      D.ESC_Sensor_Feature := F.ESC_Feature;
+      D.ESC_Temperature := F.ESC_Combined.Temperature;
+      D.ERPM_To_Hz := F.ESC_Erpm_To_Hz;
+      for K in Adaflight.OSD_Render.Motor_Index loop
+         D.ESC_RPM (K) := Natural (Interfaces.Integer_16'Max (0, F.ESC_Motors (K).Rpm));
+      end loop;
       D.GPS_Present := F.GPS_Feature;
       D.GPS_Fix := F.GPS.Fix;
       D.GPS_Fix_Home := F.GPS.Fix_Home;
@@ -604,6 +617,16 @@ package body Adaflight.STM32.OSD is
       W.Trying_To_Arm := F.Trying_To_Arm;
       W.Failsafe_Active := F.Failsafe_Active;
       W.Motors := F.Motors;
+      W.ESC_Sensor_Feature := F.ESC_Feature;
+      W.Erpm_To_Hz := F.ESC_Erpm_To_Hz;
+      for K in Adaflight.OSD_Render.Motor_Index loop
+         W.ESC_Sensor (K) :=
+           (Present     => F.ESC_Feature and then K < F.Motors,
+            RPM         => F.ESC_Motors (K).Rpm,
+            Current     => F.ESC_Motors (K).Current,
+            Temperature => F.ESC_Motors (K).Temperature);
+         W.Motor_Active (K) := F.Motor_Active (K);
+      end loop;
       W.Crash_Flip_Box := F.Crash_Flip_Box;
       W.Crash_Flip_Active := F.Crash_Flip_Active;
       W.Launch_Control_Active := F.Launch_Control;

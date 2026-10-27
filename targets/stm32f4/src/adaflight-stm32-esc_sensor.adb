@@ -100,6 +100,11 @@ package body Adaflight.STM32.ESC_Sensor is
       Core.Combined_Reading (Sensor, Count_Of (Motors), R);
    end Combined;
 
+   function Motor_Reading (M : Natural) return Core.Reading is
+     (if M <= Core.Motor_Index'Last then Sensor.Data (M) else (others => <>));
+
+   function Erpm_Factor return Float is (Erpm_To_Hz);
+
    function Values (Motors : Natural) return Adaflight.MSP_Out.ESC_Values is
       V     : Adaflight.MSP_Out.ESC_Values;
       Count : constant Core.Motor_Count := Count_Of (Motors);
