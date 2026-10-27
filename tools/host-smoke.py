@@ -707,7 +707,13 @@ def main():
         proc, sock = start(image, store, {"ADAFLIGHT_FLASH_IMAGE": chip})
         try:
             time.sleep(4.0)
-            summary = msp(sock, 70)
+            deadline = time.time() + 6.0
+            while True:
+                summary = msp(sock, 70)
+                used = int.from_bytes(summary[9:13], "little") if summary and len(summary) == 13 else 0
+                if used >= 2048 or time.time() > deadline:
+                    break
+                time.sleep(0.5)
             sectors = int.from_bytes(summary[1:5], "little") if summary and len(summary) == 13 else 0
             size = int.from_bytes(summary[5:9], "little") if summary and len(summary) == 13 else 0
             used = int.from_bytes(summary[9:13], "little") if summary and len(summary) == 13 else 0
