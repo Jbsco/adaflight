@@ -87,6 +87,42 @@ class GPS(threading.Thread):
             sock.close()
 
 
+def sbus_frame(channels):
+    """An SBUS frame: the begin byte, sixteen eleven-bit channels packed from the low bit, no flags, the end
+    byte."""
+    bits = 0
+    for i, value in enumerate(channels[:16]):
+        bits |= (value & 0x7FF) << (11 * i)
+    return bytes([0x0F]) + bits.to_bytes(22, "little") + bytes([0x00, 0x00])
+
+
+class SBUS(threading.Thread):
+    """Sends SBUS frames on UART3's port about every 14 ms: roll and yaw at mid, pitch at 1150 counts,
+    throttle low."""
+
+    def __init__(self):
+        super().__init__(daemon=True)
+        self.channels = [992, 1150, 172, 992] + [992] * 12
+        self.stop = threading.Event()
+
+    def run(self):
+        sock = None
+        deadline = time.time() + 10
+        while sock is None and time.time() < deadline and not self.stop.is_set():
+            try:
+                sock = socket.create_connection(("127.0.0.1", RX_PORT), timeout=1)
+            except OSError:
+                time.sleep(0.1)
+        while sock is not None and not self.stop.is_set():
+            try:
+                sock.sendall(sbus_frame(self.channels))
+            except OSError:
+                break
+            time.sleep(0.014)
+        if sock is not None:
+            sock.close()
+
+
 class Receiver(threading.Thread):
     """Sends CRSF frames on UART3's port at 50 Hz: roll, pitch and yaw at mid, throttle low."""
 
@@ -1003,6 +1039,41 @@ def main():
                 code = None
             check("MSP reboot restarts into the bootloader", code == 2, repr(code))
         finally:
+            stop(proc)
+            sock.close()
+        store = os.path.join(work, "sbus.bin")
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "set serialrx_provider = SBUS")
+            check("receiver protocol set to SBUS", "serialrx_provider set to SBUS" in text, text[-120:])
+            text = cli(sock, "set rx_uart = UART3")
+            check("SBUS port assigned", "rx_uart set to UART3" in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store)
+        sbus = SBUS()
+        sbus.start()
+        try:
+            time.sleep(2.5)
+            rc = msp(sock, 105)
+            values = [rc[i] | rc[i + 1] << 8 for i in range(0, 8, 2)] if rc and len(rc) >= 8 else []
+            check("SBUS channels reach the MSP RC reply",
+                  len(values) == 4 and abs(values[0] - 1500) <= 2 and abs(values[1] - 1599) <= 2
+                  and abs(values[2] - 1500) <= 2 and values[3] <= 1000, repr(values))
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "status")
+            flags = text.split("Arming disable flags:")[-1]
+            check("SBUS link clears the signal loss", "Arming disable flags:" in text and "RXLOSS" not in flags,
+                  flags.strip()[:80])
+        finally:
+            sbus.stop.set()
             stop(proc)
             sock.close()
     print(f"host smoke: {'all checks passed' if not failures else str(len(failures)) + ' failed'}")

@@ -2918,6 +2918,7 @@ package body Adaflight.STM32.Flight is
             Inverted => Config.Beeper_Dev_Config.Is_Inverted /= 0,
             Open_Drain => Config.Beeper_Dev_Config.Is_Open_Drain /= 0);
       end if;
+      Adaflight.STM32.USART.Init_Inverters;
       Adaflight.STM32.ADC.Init;
       declare
          Inputs : constant array (1 .. 3) of Adaflight.Config_Groups.Adc_Channel_Config_T_Record :=
@@ -2952,7 +2953,7 @@ package body Adaflight.STM32.Flight is
       Pilot_Facts := (Sensors        => (Gyro => Selection.Found, Acc => Gyro_Report.Acc_Found, others => False),
                       Sample_Time_Us => Natural (Sample_Us),
                       Loop_Ratio     => Positive (Loop_Ratio),
-                      CRSF           => Adaflight.STM32.Radio.Linked);
+                      CRSF           => Adaflight.STM32.Radio.Is_CRSF);
       Adaflight.STM32.Pilot.Init (Config, Runtime_Features, Pilot_Facts);
       Adaflight.STM32.PINIO.Init_Boxes (Config);
       Adaflight.STM32.Pilot.Set_Reason (Adaflight.Arming.No_Gyro, not Selection.Found);
