@@ -52,16 +52,18 @@ def nmea(body):
 
 
 class GPS(threading.Thread):
-    """Sends a fix on UART4's port at 5 Hz: ten satellites at 48.1173 north, 11.5167 east, 545 m."""
+    """Sends a fix on UART4's port at 5 Hz: ten satellites at 48.1173 north, 11.5167 east, 545.4 m or the
+    altitude the check sets."""
 
     def __init__(self):
         super().__init__(daemon=True)
         self.stop = threading.Event()
+        self.altitude = 545.4
 
     def frames(self, tick):
         """The fix at a time that advances a fifth of a second per frame, so each solution is new."""
         clock = f"{12 + tick // 18000:02d}{(tick // 300) % 60:02d}{(tick // 5) % 60:02d}.{(tick % 5) * 20:02d}"
-        return nmea(f"GPGGA,{clock},4807.03800,N,01131.00000,E,1,10,0.9,545.4,M,46.9,M,,") + nmea(
+        return nmea(f"GPGGA,{clock},4807.03800,N,01131.00000,E,1,10,0.9,{self.altitude:.1f},M,46.9,M,,") + nmea(
             f"GPRMC,{clock},A,4807.03800,N,01131.00000,E,022.4,084.4,230394,003.1,W")
 
     def run(self):
@@ -604,6 +606,13 @@ def main():
             check("GPS fix reaches the raw GPS reply",
                   raw is not None and len(raw) >= 10 and raw[0] != 0 and raw[1] == 10 and lat == 481173000
                   and abs(lon - 115166667) <= 10, repr(raw[:10] if raw else raw))
+            gps.altitude = 555.4
+            time.sleep(6.0)
+            alt = msp(sock, 109)
+            estimate = int.from_bytes(alt[0:4], "little", signed=True) if alt and len(alt) >= 6 else None
+            check("position estimate follows a 10 m GPS climb in the MSP altitude reply",
+                  estimate is not None and 700 <= estimate <= 1300, repr(alt))
+            gps.altitude = 545.4
             data = read_all(log, 4.0) if log is not None else b""
             head = data.split(b"\n")
             check("flight log header starts the log", data.startswith(b"H Product:Blackbox flight data recorder by Nicholas Sherlock\nH Data version:2\n"),

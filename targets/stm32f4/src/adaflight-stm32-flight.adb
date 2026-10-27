@@ -21,6 +21,8 @@ with Adaflight.Config_Fix;
 with Adaflight.DShot;
 with Adaflight.DShot_Command;
 with Adaflight.LTM_Telemetry;
+with Adaflight.Maths;
+with Adaflight.Position_Estimator;
 with Adaflight.ESC_Sensor;
 with Adaflight.Config_Groups;
 with Adaflight.Config_Reset;
@@ -247,6 +249,22 @@ package body Adaflight.STM32.Flight is
    Acc_Cal        : Adaflight.Acc_Inflight.State;
    Att_Config     : Adaflight.Attitude.Config;
    Att_State      : Adaflight.Attitude.State;
+   Pos_Settings   : Adaflight.Position_Estimator.Settings;
+   Pos_State      : Adaflight.Position_Estimator.State;
+
+   --  The displayed altitude to the nearest centimetre, and the climb rate
+   --  in centimetres per second with its 10 cm/s deadband.
+   function Estimated_Altitude_Cm return Integer_32 is
+     (Integer_32 (Integer'Max (-600_000_000, Integer'Min
+        (600_000_000, Adaflight.Position_Estimator.Estimated_Altitude_Cm (Pos_State)))));
+
+   function Estimated_Vario return Integer_16 is
+      Rate : constant Float := Float'Max (-1.0e6, Float'Min (1.0e6, Pos_State.Filtered_Derivative));
+      V    : constant Integer_32 :=
+        Adaflight.Maths.Apply_Deadband (Integer_32 (Adaflight.Maths.Round_Half_Even (Rate)), 10);
+   begin
+      return Integer_16 (Integer_32'Max (-32_768, Integer_32'Min (32_767, V)));
+   end Estimated_Vario;
 
    function Text (S : String) return Common.Text is
       T : Common.Text;
@@ -921,6 +939,8 @@ package body Adaflight.STM32.Flight is
       Env.DShot_Protocol := Adaflight.STM32.DShot_Output.Protocol_Is_DShot;
       Env.ESC_Sensor := Adaflight.STM32.ESC_Sensor.Feature_On;
       Ctx.Out_Views.State.ESC := Adaflight.STM32.ESC_Sensor.Values (Adaflight.STM32.Control.Motor_Count);
+      Ctx.Out_Views.State.Altitude :=
+        (Estimate_Cm => Estimated_Altitude_Cm, Vario => Estimated_Vario, Rangefinder_Cm => 0);
       declare
          Count          : Natural;
          Levels, Powers : Adaflight.SmartAudio.Level_Values;
@@ -1809,6 +1829,8 @@ package body Adaflight.STM32.Flight is
       F.Battery_Percent := Unsigned_8 (Adaflight.Battery.Percentage_Remaining (Bat, Bat_Settings));
       F.Battery_Capacity := Profile.Battery_Capacity;
       F.Motors := Motors;
+      F.Altitude_Cm := Integer_32'Max (-40_000_000, Integer_32'Min (40_000_000, Estimated_Altitude_Cm));
+      F.Vario := Estimated_Vario;
       for I in 0 .. Motors - 1 loop
          F.Motor_Output (I) := Float'Min (3_000.0, Outputs (I));
          F.Motor_Active (I) := Outputs (I) > Adaflight.STM32.Control.Disarm_Output;
@@ -1993,10 +2015,41 @@ package body Adaflight.STM32.Flight is
         or (if M (Adaflight.Arming.GPS_Rescue_Mode) then Mode_GPS_Rescue else 0);
    end Telemetry_Mode_Flags;
 
+   --  What the position estimate reads: the accelerometer through the
+   --  attitude, no barometer, the GPS as its link reports it, and the modes
+   --  that ask for the horizontal estimate.
+   function Position_Inputs (Now_Us : Unsigned_32) return Adaflight.Position_Estimator.Inputs is
+      G     : constant Adaflight.STM32.GPS.Readings := Adaflight.STM32.GPS.Current;
+      M     : constant Adaflight.Arming.Mode_Set := Adaflight.STM32.Pilot.Flight_Modes;
+      Bound : constant := Adaflight.Position_Estimator.Acc_Bound;
+      function Held (V : Float) return Float is (Float'Max (-Bound, Float'Min (Bound, V)));
+   begin
+      return
+        (Now_Us             => Now_Us,
+         Armed              => Adaflight.STM32.Pilot.Armed,
+         Acc                => (Held (Acc_State.Acc.X), Held (Acc_State.Acc.Y), Held (Acc_State.Acc.Z)),
+         One_G_Reciprocal   => Float'Max (2.0 ** (-16), Float'Min (1.0, Acc_State.One_G_Reciprocal)),
+         Rotation           => Att_State.Rotation,
+         GPS_Present        => G.Present,
+         GPS_Fix            => G.Fix,
+         GPS_Stamp          => G.Stamp,
+         GPS_Rate_Hz        => G.Rate_Hz,
+         GPS_Location       => (Lat => G.Latitude, Lon => G.Longitude, Alt_Cm => G.Altitude_Cm),
+         GPS_Velocity_North => G.Velocity.North,
+         GPS_Velocity_East  => G.Velocity.East,
+         GPS_Velocity_Down  => G.Velocity.Down,
+         GPS_H_Acc          => G.Accuracy.Horizontal,
+         GPS_S_Acc          => G.Accuracy.Speed,
+         GPS_V_Acc          => G.Accuracy.Vertical,
+         Cos_Lat            => G.Cos_Lat,
+         Position_Hold_Mode => M (Adaflight.Arming.Pos_Hold_Mode),
+         Rescue_Mode        => M (Adaflight.Arming.GPS_Rescue_Mode),
+         others             => <>);
+   end Position_Inputs;
+
    --  What the LTM stream reads: the attitude, the flight modes, the arming
-   --  and the failsafe, the battery, the signal and the GPS solution with
-   --  its home. The board has no altitude estimate yet, so the GPS frame's
-   --  altitude reads zero.
+   --  and the failsafe, the battery, the signal, the GPS solution with its
+   --  home, and the estimated altitude.
    function LTM_Inputs return Adaflight.LTM_Telemetry.Inputs is
       M : constant Adaflight.Arming.Mode_Set := Adaflight.STM32.Pilot.Flight_Modes;
       G : constant Adaflight.STM32.GPS.Readings := Adaflight.STM32.GPS.Current;
@@ -2023,7 +2076,7 @@ package body Adaflight.STM32.Flight is
          Lat           => G.Latitude,
          Lon           => G.Longitude,
          Ground_Speed  => G.Ground_Speed,
-         Altitude_Cm   => 0,
+         Altitude_Cm   => Estimated_Altitude_Cm,
          Home_Lat      => G.Home.Lat,
          Home_Lon      => G.Home.Lon,
          Fix_Home      => G.Fix_Home);
@@ -2068,6 +2121,7 @@ package body Adaflight.STM32.Flight is
          Drawn_Mah           => Integer_32'Max (0, Integer_32'Min (2 ** 31 - 1, Integer_32 (Bat.Current.mAh_Drawn))),
          Remaining_Percent   => Unsigned_8 (Adaflight.Battery.Percentage_Remaining (Bat, Bat_Settings)),
          Report_Cell_Voltage => Config.Telemetry_Config.Report_Cell_Voltage /= 0);
+      Src.Vario := Estimated_Vario;
       Src.Attitude :=
         (Pitch => Integer_16 (Att_State.Euler.Pitch),
          Roll  => Integer_16 (Att_State.Euler.Roll),
@@ -2148,6 +2202,8 @@ package body Adaflight.STM32.Flight is
             Run_Menu (Before);
          when Scheduler.GPS =>
             Run_GPS (Before);
+         when Scheduler.Position =>
+            Adaflight.Position_Estimator.Update (Pos_State, Pos_Settings, Position_Inputs (Before));
          when Scheduler.ESC_Sensor =>
             Adaflight.STM32.ESC_Sensor.Run (Before, Adaflight.STM32.Control.Motor_Count);
          when Scheduler.Telemetry =>
@@ -2271,6 +2327,9 @@ package body Adaflight.STM32.Flight is
       end if;
       Init_Scheduler;
       Adaflight.STM32.Blackbox.Init (Config, Loop_Time_Us);
+      Pos_Settings :=
+        Adaflight.Config_Runtime.Position_Estimator_Settings_Of (Config.Position_Config, Config.Pos_Hold_Config);
+      Adaflight.Position_Estimator.Init (Pos_State, Pos_Settings, Armed => Adaflight.STM32.Pilot.Armed);
       Adaflight.STM32.LTM.Init (Config, Runtime_Features);
       Check_LTM;
       Adaflight.STM32.DShot_Output.Enable;
