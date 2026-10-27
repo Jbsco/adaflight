@@ -262,6 +262,7 @@ with Adaflight.Dispatch;
 with Adaflight.ExpressLRS_Receiver;
 with Adaflight.Blackbox_Header;
 with Adaflight.Blackbox_Info;
+with Adaflight.USB_VCP;
 with Adaflight.Blackbox;
 with Adaflight.Position_Nav;
 with Adaflight.OSD_Warnings;
@@ -4381,6 +4382,127 @@ procedure Vector_Check is
          Record_Int ("osdcanvas.pos", Integer_64 (Position (10, K)), Integer_64 (E.Item_Pos (K)));
       end loop;
    end Check_OSD_Canvas_Line;
+
+   USB_Dev : Adaflight.USB_VCP.Device;
+
+   --  One event of a USB session: the event through the device, then its
+   --  endpoint operations and the state after it against the reference's.
+   procedure Check_USB_VCP_Line is
+      package U renames Adaflight.USB_VCP;
+      Event  : constant String := Str (4);
+      Arg    : constant Integer_64 := Int (5);
+      A      : U.Actions;
+      Result : Integer_64 := 0;
+      Got    : Byte_Array (0 .. 511) := (others => 0);
+      Got_N  : Natural := 0;
+      P      : Positive := 10;
+
+      procedure Append (F : U.Actions) is
+      begin
+         for K in 1 .. F.Count loop
+            if A.Count < U.Max_Actions then
+               A.Count := A.Count + 1;
+               A.List (A.Count) := F.List (K);
+            end if;
+         end loop;
+      end Append;
+   begin
+      if Event = "init" then
+         declare
+            B : constant Byte_Array := Hex_Bytes (6);
+            T : String (1 .. B'Length);
+         begin
+            for K in T'Range loop
+               T (K) := Character'Val (B (B'First + K - 1));
+            end loop;
+            U.Init (USB_Dev, T);
+         end;
+      elsif Event = "reset" then
+         U.Reset (USB_Dev, A);
+      elsif Event = "setup" then
+         declare
+            B : constant Byte_Array := Hex_Bytes (6);
+         begin
+            U.Setup (USB_Dev, B (0 .. 7), A);
+         end;
+      elsif Event = "out" then
+         U.Data_Out (USB_Dev, Natural (Arg), Hex_Bytes (6), A);
+      elsif Event = "in" then
+         U.Data_In (USB_Dev, Natural (Arg), A);
+      elsif Event = "sof" then
+         for K in 1 .. Arg loop
+            declare
+               F : U.Actions;
+            begin
+               U.Start_Of_Frame (USB_Dev, F);
+               Append (F);
+            end;
+         end loop;
+      elsif Event = "suspend" then
+         U.Suspend (USB_Dev);
+      elsif Event = "resume" then
+         U.Resume (USB_Dev);
+      elsif Event = "send" then
+         declare
+            Accepted : Natural;
+         begin
+            U.Send (USB_Dev, Hex_Bytes (6), Accepted);
+            Result := Integer_64 (Accepted);
+         end;
+      elsif Event = "recv" then
+         U.Receive (USB_Dev, Got (0 .. Natural (Arg) - 1), Got_N);
+         Result := Integer_64 (Got_N);
+         Record_Bytes ("usb.received", Hex_Bytes (8), Got (0 .. Got_N - 1));
+      else
+         Record_Int ("usb.event", 0, 1);
+      end if;
+      Record_Int ("usb.result", Int (7), Result);
+      Record_Int ("usb.actions", Int (9), Integer_64 (A.Count));
+      for K in 1 .. Natural (Int (9)) loop
+         if K <= A.Count then
+            declare
+               X : U.Action renames A.List (K);
+            begin
+               Record_Int ("usb.action.kind", Int (P), U.Action_Kind'Pos (X.Kind));
+               Record_Int ("usb.action.address", Int (P + 1), Integer_64 (X.Address));
+               Record_Int ("usb.action.length", Int (P + 2), Integer_64 (X.Length));
+               Record_Int ("usb.action.ep_kind", Int (P + 3), U.Endpoint_Kind'Pos (X.EP_Kind));
+               Record_Int ("usb.action.count", Int (P + 4), Integer_64 (X.Count));
+               Record_Bytes ("usb.action.data", Hex_Bytes (P + 5), X.Data (0 .. X.Count - 1));
+            end;
+         end if;
+         P := P + 6;
+      end loop;
+      Record_Int ("usb.fields", Integer_64 (NF), Integer_64 (P + 31));
+      Record_Int ("usb.status", Int (P), U.Device_Status'Pos (USB_Dev.Status) + 1);
+      Record_Int ("usb.stage", Int (P + 1), U.Control_Stage'Pos (USB_Dev.Stage));
+      Record_Int ("usb.device_address", Int (P + 2), Integer_64 (USB_Dev.Address));
+      Record_Int ("usb.config", Int (P + 3), Integer_64 (USB_Dev.Config));
+      Record_Int ("usb.remote_wakeup", Int (P + 4), Boolean'Pos (USB_Dev.Remote_Wakeup));
+      Record_Int ("usb.alt_setting", Int (P + 5), Integer_64 (USB_Dev.Alt_Setting));
+      Record_Int ("usb.bit_rate", Int (P + 6), Integer_64 (USB_Dev.Line.Bit_Rate));
+      Record_Int ("usb.format", Int (P + 7), Integer_64 (USB_Dev.Line.Format));
+      Record_Int ("usb.parity", Int (P + 8), Integer_64 (USB_Dev.Line.Parity));
+      Record_Int ("usb.data_bits", Int (P + 9), Integer_64 (USB_Dev.Line.Data_Bits));
+      Record_Int ("usb.sending", Int (P + 10), U.Transmit_State'Pos (USB_Dev.Sending));
+      Record_Int ("usb.to_host_in", Int (P + 11), Integer_64 (USB_Dev.To_Host_In));
+      Record_Int ("usb.to_host_out", Int (P + 12), Integer_64 (USB_Dev.To_Host_Out));
+      Record_Int ("usb.block_length", Int (P + 13), Integer_64 (USB_Dev.Block_Length));
+      Record_Int ("usb.from_host_in", Int (P + 14), Integer_64 (USB_Dev.From_Host_In));
+      Record_Int ("usb.from_host_out", Int (P + 15), Integer_64 (USB_Dev.From_Host_Out));
+      Record_Int ("usb.configured", Int (P + 16), Boolean'Pos (U.Configured (USB_Dev)));
+      Record_Int ("usb.descriptor_class", Int (P + 17), Integer_64 (USB_Dev.Descriptor (4)));
+      Record_Int ("usb.descriptor_subclass", Int (P + 18), Integer_64 (USB_Dev.Descriptor (5)));
+      for E in U.Endpoint_Number loop
+         Record_Int ("usb.in_halted", Int (P + 19 + E), Boolean'Pos (USB_Dev.In_EP (E).Halted));
+         Record_Int ("usb.out_halted", Int (P + 23 + E), Boolean'Pos (USB_Dev.Out_EP (E).Halted));
+      end loop;
+      Record_Int ("usb.control_length", Int (P + 27), Integer_64 (USB_Dev.Control_Length));
+      Record_Int ("usb.in_remaining", Int (P + 28), Integer_64 (USB_Dev.In_EP (0).Remaining));
+      Record_Int ("usb.out_remaining", Int (P + 29), Integer_64 (USB_Dev.Out_EP (0).Remaining));
+      Record_Int ("usb.test_pending", Int (P + 30), Boolean'Pos (USB_Dev.Test_Pending));
+      Record_Int ("usb.command_code", Int (P + 31), Integer_64 (USB_Dev.Command_Code));
+   end Check_USB_VCP_Line;
 
    procedure Check_Blackbox_Info_Line is
       use type Adaflight.Settings_Table.Setting;
@@ -38169,6 +38291,8 @@ procedure Vector_Check is
                   Check_Cell_Profile_Line;
                elsif Kind = "bbinfo" then
                   Check_Blackbox_Info_Line;
+               elsif Kind = "usbvcp" then
+                  Check_USB_VCP_Line;
                elsif Kind = "osdcanvas" then
                   Check_OSD_Canvas_Line;
                elsif Kind = "mix" then
@@ -38729,6 +38853,7 @@ begin
    Run (Dir & "/elrsrx.csv", "elrsrx");
    Run (Dir & "/bbhdr.csv", "bbhdr");
    Run (Dir & "/bbinfo.csv", "bbinfo");
+   Run (Dir & "/usbvcp.csv", "usbvcp");
    Run (Dir & "/bbrec.csv", "bbrec");
    Run (Dir & "/posnav.csv", "posnav");
    Run (Dir & "/osdwarn.csv", "osdwarn");
