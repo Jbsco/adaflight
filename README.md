@@ -18,7 +18,7 @@ adaflight is flight control firmware for multirotors and fixed-wing aircraft, wr
 
 ## Status
 
-The flight software is ported and runs on the host, where each ported function replays inputs recorded from a host build of Betaflight and must reproduce its results bit for bit. Phase 7 of `ROADMAP.md` has started: `targets/stm32f4` builds an image for the CLRacing F4S board family that blinks the LED, serves MSP and the command line on UART1, so a configurator connects, runs the scheduler with the gyro, filter, accelerometer, attitude and receiver tasks over the MPU6000 on SPI1 and a CRSF receiver on a UART with the arming logic and the modes, runs the rate controller and the mixer, measures the battery, drives the beeper, starts the MAX7456 OSD chip on SPI3, and keeps its configuration in flash. The motors have no driver yet. `targets/host` runs the same flight software on the host with its UARTs on TCP ports, so a configurator connects without a board.
+The flight software is ported and runs on the host, where each ported function replays inputs recorded from a host build of Betaflight and must reproduce its results bit for bit. Phase 7 of `ROADMAP.md` has started: `targets/stm32f4` builds an image for the CLRacing F4S board family that blinks the LED, serves MSP and the command line on UART1, so a configurator connects, runs the scheduler with the gyro, filter, accelerometer, attitude and receiver tasks over the MPU6000 on SPI1 and a CRSF receiver on a UART with the arming logic and the modes, runs the rate controller and the mixer, measures the battery, drives the beeper, draws the OSD on the MAX7456 chip on SPI3, and keeps its configuration in flash. The motors have no driver yet. `targets/host` runs the same flight software on the host with its UARTs on TCP ports, so a configurator connects without a board.
 
 ## Features
 
@@ -70,7 +70,7 @@ The host image runs the board's flight software on Linux, with each UART as a TC
     cd targets/host && alr build
     while ./bin/adaflight_host; do :; done
 
-The configuration is kept in `adaflight-eeprom.bin` in the working directory, or in the file `ADAFLIGHT_EEPROM` names.
+The configuration is kept in `adaflight-eeprom.bin` in the working directory, or in the file `ADAFLIGHT_EEPROM` names. With the OSD on, its screen is written to `adaflight-osd.txt`, or to the file `ADAFLIGHT_OSD_SCREEN` names.
 
 ## Verification
 

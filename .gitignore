@@ -19,3 +19,7 @@ gnatprove-run.txt
 
 # Generated board packages of the target crates
 targets/*/gen/
+
+# The host image's configuration store and OSD screen when run from its directory
+targets/host/adaflight-eeprom.bin
+targets/host/adaflight-osd.txt

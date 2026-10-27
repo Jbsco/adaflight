@@ -163,6 +163,8 @@ package body Adaflight.STM32.Pilot is
 
    function Armed return Boolean is (Arm.Armed);
 
+   function Was_Ever_Armed return Boolean is (Arm.Was_Ever_Armed);
+
    function Last_Disarm_Us return Time_Us is (Arm.Last_Disarm_Us);
 
    function Trying_To_Arm return Boolean is (Adaflight.Arming.Trying_To_Arm (Arm));

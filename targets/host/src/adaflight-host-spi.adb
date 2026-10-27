@@ -4,8 +4,16 @@
 --  automatic increment ended by 16#FF#, the character memory written to the
 --  font store on its write command and read back on its read command, the
 --  reset bit clear at once, the insertion register at its default and a PAL
---  signal on the status.
+--  signal on the status. The display memory goes to a text file at most ten
+--  times a second after it changes: sixteen lines of thirty characters, a
+--  dot for a code outside printable ASCII, in the file the environment
+--  variable ADAFLIGHT_OSD_SCREEN names, adaflight-osd.txt when unset.
+with Ada.Environment_Variables;
+with Ada.Real_Time;
+with Ada.Text_IO;
 package body Adaflight.STM32.SPI is
+   use type Ada.Real_Time.Time;
+   use type Ada.Real_Time.Time_Span;
    use type Interfaces.Unsigned_8;
    use type Interfaces.Unsigned_16;
    use type Interfaces.Unsigned_32;
@@ -21,6 +29,29 @@ package body Adaflight.STM32.SPI is
    Increment : Boolean := False;
    Glyph     : Byte_Array (0 .. 63) := (others => 0);
    Font      : array (Byte) of Byte_Array (0 .. 53) := (others => (others => 0));
+   Changed   : Boolean := False;
+   Written   : Ada.Real_Time.Time := Ada.Real_Time.Clock;
+
+   procedure Dump_Screen is
+      File : Ada.Text_IO.File_Type;
+      Name : constant String := Ada.Environment_Variables.Value ("ADAFLIGHT_OSD_SCREEN", "adaflight-osd.txt");
+   begin
+      Ada.Text_IO.Create (File, Ada.Text_IO.Out_File, Name);
+      for Row in 0 .. 15 loop
+         for Col in 0 .. 29 loop
+            declare
+               Code : constant Byte := Display (Row * 30 + Col);
+            begin
+               Ada.Text_IO.Put (File, (if Code in 16#20# .. 16#7E# then Character'Val (Code) else '.'));
+            end;
+         end loop;
+         Ada.Text_IO.New_Line (File);
+      end loop;
+      Ada.Text_IO.Close (File);
+   exception
+      when others =>
+         null;
+   end Dump_Screen;
 
    procedure Chip_Write (Register : Byte; Value : Byte) is
    begin
@@ -32,6 +63,7 @@ package body Adaflight.STM32.SPI is
             Increment := (Value and 16#01#) /= 0;
             if (Value and 16#04#) /= 0 then
                Display := (others => 0);
+               Changed := True;
             end if;
          when 16#05# =>
             Registers (5) := Value;
@@ -43,6 +75,7 @@ package body Adaflight.STM32.SPI is
             if Increment and then Value = 16#FF# then
                Increment := False;
             else
+               Changed := Changed or else Display (Address) /= Value;
                Display (Address) := Value;
                if Increment then
                   Address := (Address + 1) mod Display'Length;
@@ -111,6 +144,11 @@ package body Adaflight.STM32.SPI is
    begin
       if B = SPI3 then
          Chip_Frame (Tx, Rx);
+         if Changed and then Ada.Real_Time.Clock - Written >= Ada.Real_Time.Milliseconds (100) then
+            Dump_Screen;
+            Changed := False;
+            Written := Ada.Real_Time.Clock;
+         end if;
       else
          Rx := (others => 16#FF#);
       end if;
