@@ -261,6 +261,7 @@ with Ada.Strings.Unbounded;
 with Adaflight.Dispatch;
 with Adaflight.ExpressLRS_Receiver;
 with Adaflight.Blackbox_Header;
+with Adaflight.Blackbox_Info;
 with Adaflight.Blackbox;
 with Adaflight.Position_Nav;
 with Adaflight.OSD_Warnings;
@@ -4380,6 +4381,150 @@ procedure Vector_Check is
          Record_Int ("osdcanvas.pos", Integer_64 (Position (10, K)), Integer_64 (E.Item_Pos (K)));
       end loop;
    end Check_OSD_Canvas_Line;
+
+   procedure Check_Blackbox_Info_Line is
+      use type Adaflight.Settings_Table.Setting;
+      C     : Adaflight.Config_Groups.Configuration := Adaflight.Config_Groups.Defaults;
+      F     : Adaflight.Blackbox_Info.Facts;
+      Count : constant Natural := Natural (Int (4));
+      Base  : constant Positive := 5 + 3 * Count;
+      function V (I : Natural) return Interfaces.Integer_32 is (Interfaces.Integer_32 (Int (Base + I)));
+      function T (I : Natural) return Adaflight.Blackbox_Header.Text is
+         Raw : constant Byte_Array := Hex_Bytes (Base + 262 + I);
+         R   : Adaflight.Blackbox_Header.Text;
+      begin
+         R.Length := Natural'Min (Raw'Length, Adaflight.Blackbox_Header.Text_Max);
+         for K in 1 .. R.Length loop
+            R.Data (K) := Character'Val (Raw (Raw'First + K - 1));
+         end loop;
+         return R;
+      end T;
+   begin
+      for K in 0 .. Count - 1 loop
+         declare
+            Name  : constant String := Str (5 + 3 * K);
+            Index : constant Natural := Natural (Int (6 + 3 * K));
+            Value : constant Integer_64 := Int (7 + 3 * K);
+            Found : Boolean := False;
+            PI    : constant Natural := Natural'Min (3, Natural (C.System_Config.Pid_Profile_Index));
+         begin
+            if Name = "pid_profile_index" then
+               C.System_Config.Pid_Profile_Index := Interfaces.Unsigned_8'Mod (Value);
+               Found := True;
+            elsif Name = "rate_profile_index" then
+               C.System_Config.Active_Rate_Profile := Interfaces.Unsigned_8'Mod (Value);
+               Found := True;
+            elsif Name = "battery_profile_index" then
+               C.System_Config.Active_Battery_Profile := Interfaces.Unsigned_8'Mod (Value);
+               Found := True;
+            elsif Name = "features" then
+               C.Feature_Config.Enabled_Features := Interfaces.Unsigned_32'Mod (Value);
+               Found := True;
+            elsif Name = "gyro_enabled_bitmask" then
+               C.Gyro_Config.Gyro_Enabled_Bitmask := Interfaces.Unsigned_8'Mod (Value);
+               Found := True;
+            elsif Name = "fields_disabled_mask" then
+               C.Blackbox_Config.Fields_Disabled_Mask := Interfaces.Unsigned_32'Mod (Value);
+               Found := True;
+            elsif Name = "tpa_curve_type" then
+               C.Pid_Profiles (PI).Tpa_Curve_Type := Interfaces.Unsigned_8'Mod (Value);
+               Found := True;
+            elsif Name = "tpa_curve_stall_throttle" then
+               C.Pid_Profiles (PI).Tpa_Curve_Stall_Throttle := Interfaces.Unsigned_8'Mod (Value);
+               Found := True;
+            elsif Name = "tpa_curve_pid_thr0" then
+               C.Pid_Profiles (PI).Tpa_Curve_Pid_Thr0 := Interfaces.Unsigned_16'Mod (Value);
+               Found := True;
+            elsif Name = "tpa_curve_pid_thr100" then
+               C.Pid_Profiles (PI).Tpa_Curve_Pid_Thr100 := Interfaces.Unsigned_16'Mod (Value);
+               Found := True;
+            elsif Name = "tpa_curve_expo" then
+               C.Pid_Profiles (PI).Tpa_Curve_Expo := Interfaces.Integer_8 (Value);
+               Found := True;
+            else
+               for S in Adaflight.Settings_Table.Setting loop
+                  if Adaflight.Settings_Table.Name (S) = Name then
+                     declare
+                        use Adaflight.Settings_Table;
+                        Profile : constant Natural :=
+                          (case Describe (S).Where is
+                              when PID_Profile     => Natural'Min (3, Natural (C.System_Config.Pid_Profile_Index)),
+                              when Rate_Profile    => Natural'Min (3, Natural (C.System_Config.Active_Rate_Profile)),
+                              when Battery_Profile => Natural'Min (2, Natural (C.System_Config.Active_Battery_Profile)),
+                              when others          => 0);
+                     begin
+                        Adaflight.Config_Groups.Set (C, S, Value, Profile => Profile, Index => Index);
+                     end;
+                     Found := True;
+                     exit;
+                  end if;
+               end loop;
+            end if;
+            if not Found then
+               Put_Line ("flight log information: no setting " & Name);
+               Failures := Failures + 1;
+            end if;
+         end;
+      end loop;
+      declare
+         Craft : constant Adaflight.Blackbox_Header.Text := T (12);
+      begin
+         Adaflight.Config_Groups.Set_Text (C, Adaflight.Settings_Table.Craft_Name, Craft.Data (1 .. Craft.Length));
+      end;
+      F.I_Interval := V (0);
+      F.P_Interval := V (1);
+      F.Motor_Output_Low := V (3);
+      F.Motor_Output_High := V (4);
+      F.Acc_1G := V (6);
+      F.VBat_Reference := V (11);
+      F.Loop_Time := V (14);
+      F.PID_Process_Denom := V (15);
+      F.DShot_Telemetry := V (143) /= 0;
+      F.Debug_Mode := V (191);
+      F.RC_Setpoint_Cutoff := V (196);
+      F.RC_Throttle_Cutoff := V (197);
+      F.RC_Debug_Axis := V (198);
+      F.RC_Setpoint_Cutoff_Hz := V (199);
+      F.RC_Throttle_Cutoff_Hz := V (200);
+      F.RX_Rate_Hz := V (201);
+      F.Device_UID_0 := V (259);
+      F.Device_UID_1 := V (260);
+      F.Device_UID_2 := V (261);
+      F.Firmware_Type := T (0);
+      F.Firmware_Name := T (1);
+      F.Firmware_Version := T (2);
+      F.Git_Revision := T (3);
+      F.Target_Name := T (4);
+      F.Build_Date := T (5);
+      F.Build_Time := T (6);
+      F.Build_Key := T (7);
+      F.Release_Name := T (8);
+      F.Manufacturer_Id := T (9);
+      F.Board_Name := T (10);
+      F.Start_Date_Time := T (11);
+      declare
+         Info : constant Adaflight.Blackbox_Header.Sysinfo := Adaflight.Blackbox_Info.Sysinfo_Of (C, F, Wing => False);
+      begin
+         for N in Adaflight.Blackbox_Header.Value_Name loop
+            Record_Int ("bbinfo." & Adaflight.Blackbox_Header.Value_Name'Image (N),
+                        Integer_64 (V (Adaflight.Blackbox_Header.Value_Name'Pos (N))), Integer_64 (Info.Values (N)));
+         end loop;
+         for X in Adaflight.Blackbox_Header.Text_Name loop
+            declare
+               Expected : constant Adaflight.Blackbox_Header.Text := T (Adaflight.Blackbox_Header.Text_Name'Pos (X));
+               Actual   : constant Adaflight.Blackbox_Header.Text := Info.Texts (X);
+            begin
+               Record_Int ("bbinfo.text", Integer_64 (Expected.Length), Integer_64 (Actual.Length));
+               if Expected.Length = Actual.Length then
+                  for K in 1 .. Expected.Length loop
+                     Record_Int ("bbinfo.text", Integer_64 (Character'Pos (Expected.Data (K))),
+                                 Integer_64 (Character'Pos (Actual.Data (K))));
+                  end loop;
+               end if;
+            end;
+         end loop;
+      end;
+   end Check_Blackbox_Info_Line;
 
    procedure Check_Cell_Profile_Line is
       Profiles : Adaflight.Config_Groups.Pid_Profile_Record_List_4 := Adaflight.Config_Groups.Defaults.Pid_Profiles;
@@ -38022,6 +38167,8 @@ procedure Vector_Check is
                   Check_PID_Thr_Line;
                elsif Kind = "cellprof" then
                   Check_Cell_Profile_Line;
+               elsif Kind = "bbinfo" then
+                  Check_Blackbox_Info_Line;
                elsif Kind = "osdcanvas" then
                   Check_OSD_Canvas_Line;
                elsif Kind = "mix" then
@@ -38581,6 +38728,7 @@ begin
    Run (Dir & "/dispatch.csv", "dispatch");
    Run (Dir & "/elrsrx.csv", "elrsrx");
    Run (Dir & "/bbhdr.csv", "bbhdr");
+   Run (Dir & "/bbinfo.csv", "bbinfo");
    Run (Dir & "/bbrec.csv", "bbrec");
    Run (Dir & "/posnav.csv", "posnav");
    Run (Dir & "/osdwarn.csv", "osdwarn");
