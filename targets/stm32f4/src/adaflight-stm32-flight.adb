@@ -36,6 +36,7 @@ with Adaflight.CRSF_Telemetry;
 with Adaflight.Failsafe;
 with Adaflight.FAT;
 with Adaflight.Flash_Device;
+with Adaflight.Flight_Stats;
 with Adaflight.Gyro_Filters;
 with Adaflight.Gyro_Selection;
 with Adaflight.Mixer;
@@ -225,6 +226,9 @@ package body Adaflight.STM32.Flight is
    Bat_Settings     : Adaflight.Battery.Settings;
    Pilot_Facts      : Adaflight.STM32.Pilot.Facts;
    Adj_State        : Adaflight.Adjustments.State;
+   Stats_Tracker    : Adaflight.Flight_Stats.Tracker;
+   Stats_Save_Due   : Boolean := False;
+   Stats_Save_At_Us : Unsigned_32 := 0;
    Adj_Ranges       : Adaflight.Adjustments.Ranges := (others => Adaflight.Adjustments.Unset);
    --  The attitude task's periods with the level modes on and off.
    Attitude_Period_Slow_Us : constant Scheduler.Time_Delta := 10_000;
@@ -483,6 +487,7 @@ package body Adaflight.STM32.Flight is
       Valid   : Boolean;
       Size    : Natural;
    begin
+      Adj_State.Config_Dirty := False;
       Fix_Configuration;
       Adaflight.Config_Codec.Encode (Config, Data);
       for Attempt in 1 .. 3 loop
@@ -1436,6 +1441,58 @@ package body Adaflight.STM32.Flight is
       return Sensed;
    end Sense;
 
+   --  The statistics at a disarm: the totals in the configuration move on
+   --  past the minimum armed time, and a save waits half a second, unless
+   --  one waits already.
+   procedure Stats_On_Disarm is
+      Stored   : Adaflight.Config_Groups.Stats_Config_Record renames Config.Stats_Config;
+      T        : Adaflight.Flight_Stats.Totals :=
+        (Flights => Stored.Stats_Total_Flights, Time_S => Stored.Stats_Total_Time_S,
+         Dist_M  => Stored.Stats_Total_Dist_M, Mah_Used => Stored.Stats_Mah_Used);
+      Schedule : Boolean;
+   begin
+      Adaflight.Flight_Stats.On_Disarm
+        (Stats_Tracker, Adaflight.Config_Runtime.Flight_Stats_Settings_Of (Stored), T, Adaflight.STM32.Time.Millis,
+         Adaflight.STM32.GPS.Current.Distance_Flown_Cm,
+         Integer_32'Max (-2 ** 31, Integer_32'Min (2 ** 31 - 1, Integer_32 (Bat.Current.mAh_Drawn))), Schedule);
+      Stored.Stats_Total_Flights := T.Flights;
+      Stored.Stats_Total_Time_S := T.Time_S;
+      Stored.Stats_Total_Dist_M := T.Dist_M;
+      Stored.Stats_Mah_Used := T.Mah_Used;
+      if Schedule and then not Stats_Save_Due then
+         Stats_Save_Due := True;
+         Stats_Save_At_Us := Adaflight.STM32.Time.Micros + Adaflight.Flight_Stats.Save_Delay_Us;
+      end if;
+   end Stats_On_Disarm;
+
+   --  The statistics' waiting save once its time has come: written with the
+   --  disarm beep while disarmed, still and with no other change unsaved,
+   --  asked again after half a second while the craft moves.
+   procedure Run_Stats_Save is
+      Action : Adaflight.Flight_Stats.Save_Action;
+      function Rate (A : Adaflight.Axes.Axis) return Adaflight.Flight_Stats.Rate is
+        (Float'Max (-1.0e6, Float'Min (1.0e6, Gyro_State.Filtered (A))));
+   begin
+      if not Stats_Save_Due or else Adaflight.STM32.Time.Micros - Stats_Save_At_Us >= 16#8000_0000# then
+         return;
+      end if;
+      Stats_Save_Due := False;
+      Adaflight.Flight_Stats.Write
+        (Stats_Tracker, Adaflight.Config_Runtime.Flight_Stats_Settings_Of (Config.Stats_Config),
+         Adaflight.STM32.Pilot.Armed, Adj_State.Config_Dirty, Rate (Adaflight.Axes.Roll), Rate (Adaflight.Axes.Pitch),
+         Rate (Adaflight.Axes.Yaw), Action);
+      case Action is
+         when Adaflight.Flight_Stats.Save =>
+            Write_Configuration;
+            Request_Beep (Adaflight.Beeper.Disarming);
+         when Adaflight.Flight_Stats.Retry =>
+            Stats_Save_Due := True;
+            Stats_Save_At_Us := Adaflight.STM32.Time.Micros + Adaflight.Flight_Stats.Save_Delay_Us;
+         when Adaflight.Flight_Stats.Nothing =>
+            null;
+      end case;
+   end Run_Stats_Save;
+
    --  The telemetry ports opened or released as their sharing asks, and UART1
    --  back at the MSP rate with a fresh MSP framing when a stream gives it up.
    procedure Check_Telemetry is
@@ -1453,11 +1510,11 @@ package body Adaflight.STM32.Flight is
    end Check_Telemetry;
 
    --  What the arming logic asked of the board after a step: the GPS home
-   --  resets, the stick commands the board can serve, the saves, the trims,
-   --  the beeper, the first arming calibration, the headfree offset, the
-   --  failsafe's monitoring, the attitude task's rate, the telemetry ports'
-   --  state and the DShot commands queued for the motors. The statistics
-   --  wait for their unit on the board.
+   --  resets, the flight statistics at arming and disarming, the stick
+   --  commands the board can serve, the saves, the trims, the beeper, the
+   --  first arming calibration, the headfree offset, the failsafe's
+   --  monitoring, the attitude task's rate, the telemetry ports' state and
+   --  the DShot commands queued for the motors.
    procedure Apply (Step : Adaflight.Arming.Outputs) is
       Trims : Adaflight.Config_Groups.Integer_16_List_2 renames Config.Accelerometer_Config.Accelerometer_Trims;
       Set   : Boolean;
@@ -1465,6 +1522,13 @@ package body Adaflight.STM32.Flight is
    begin
       for I in 1 .. Step.GPS_Home_Resets loop
          Adaflight.STM32.GPS.Reset_Home;
+      end loop;
+      for I in 1 .. Step.Stats_Arms loop
+         Adaflight.Flight_Stats.On_Arm
+           (Stats_Tracker, Adaflight.STM32.Time.Millis, Adaflight.STM32.GPS.Current.Distance_Flown_Cm);
+      end loop;
+      for I in 1 .. Step.Stats_Disarms loop
+         Stats_On_Disarm;
       end loop;
       if Step.Commands (Adaflight.Arming.Gyro_Calibration) then
          Adaflight.Gyro_Filters.Start_Calibration (Gyro_State, Gyro_Settings, First_Arm => False);
@@ -2050,6 +2114,9 @@ package body Adaflight.STM32.Flight is
             F.Adjustment_Value := Integer_32 (Adj_State.Shown.Value);
          end;
       end if;
+      F.Total_Flights := Config.Stats_Config.Stats_Total_Flights;
+      F.Total_Time_S := Config.Stats_Config.Stats_Total_Time_S;
+      F.Total_Dist_M := Config.Stats_Config.Stats_Total_Dist_M;
       F.PID_Index := Config.System_Config.Pid_Profile_Index;
       F.Rate_Index := Config.System_Config.Active_Rate_Profile;
       Adaflight.STM32.OSD.Run (F, Before, Sched);
@@ -2497,6 +2564,7 @@ package body Adaflight.STM32.Flight is
             Tasks.Main;
          when Scheduler.Serial =>
             Tasks.Serial (Inputs);
+            Run_Stats_Save;
          when Scheduler.Gyro =>
             Run_Gyro;
          when Scheduler.Filter =>
