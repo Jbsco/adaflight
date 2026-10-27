@@ -10357,3 +10357,20 @@ happens otherwise. Every configuration save clears the unsaved adjustment flag. 
 shows the stored totals.
 
 The host cannot arm yet, so no smoke check covers the statistics.
+
+## D432. STM32F4 altitude hold (2026-10-27)
+
+The board runs the core's altitude hold in its own task at 100 Hz. The task's check function wakes it on
+each update event of the position estimate, or after twice its period without one, so mode changes still
+reach the hold when the estimator stops. Each run takes the interval the scheduler measured since the last
+run, the altitude hold flight mode, the RC throttle command and its low status, the failsafe, the
+estimate's control altitude, climb rate and vertical acceleration, and the cosine of the tilt. The arming
+logic sees the altitude estimate's validity, so the altitude hold mode engages on an armed board once the
+throttle was raised. Under the mode the mixer takes the altitude controller's throttle, and the
+controller's landing disarm reads whether the estimate is below the autopilot's landing altitude. The board
+keeps the platform's position control law off until it runs the position hold, which keeps the position
+hold mode from engaging.
+
+The host cannot arm, so no smoke check flies the hold. The host smoke check reads the task list with the
+GPS feature on and finds the altitude hold task at 80 to 120 Hz, a rate only the estimator's update events
+give: the fallback alone runs it at 50 Hz.
