@@ -1698,6 +1698,9 @@ def main():
             for line in ("blackbox_device = SERIAL", "blackbox_uart = UART6", "blackbox_mode = ALWAYS"):
                 text = cli(sock, "set " + line)
                 check(f"rangefinder flight log {line}", line.replace(" = ", " set to ") in text, text[-120:])
+            for line in ("osd_displayport_device = MAX7456", "vcd_video_system = PAL", "osd_lidar_dist_pos = 2177"):
+                text = cli(sock, "set " + line)
+                check(f"rangefinder OSD {line}", line.replace(" = ", " set to ") in text, text[-120:])
             cli(sock, "save", wait=2.0)
             proc.wait(timeout=10)
         finally:
@@ -1726,6 +1729,14 @@ def main():
             altitude = int.from_bytes(sonar[:4], "little", signed=True) if sonar and len(sonar) >= 4 else None
             check("MSP sonar altitude reads the lidar's 150 cm", altitude is not None and abs(altitude - 150) <= 2,
                   repr(altitude))
+            time.sleep(4.5)
+            try:
+                with open(store + ".osd.txt") as f:
+                    rows = f.read().splitlines()
+            except OSError:
+                rows = []
+            check("OSD lidar element draws the 150 cm", len(rows) > 4 and "RF:150" in rows[4],
+                  repr(rows[4] if len(rows) > 4 else rows))
         finally:
             lidar.stop.set()
             stop(proc)

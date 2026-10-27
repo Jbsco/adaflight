@@ -70,8 +70,8 @@ package Adaflight.STM32.OSD is
    --  RSSI and the link's quality, the battery in centivolts, centiamps and milliamp hours, the
    --  motors with their outputs and range, which of them run above the disarm output, the ESC
    --  sensor's readings over every motor and for each one, the profiles, the
-   --  estimated altitude and climb rate, the adjustment shown with its value,
-   --  and the flight totals.
+   --  estimated altitude and climb rate, the rangefinder's altitude, the
+   --  adjustment shown with its value, and the flight totals.
    type Motor_Flags is array (Adaflight.OSD_Render.Motor_Index) of Boolean;
    type Facts is record
       Armed             : Boolean := False;
@@ -127,6 +127,7 @@ package Adaflight.STM32.OSD is
       PID_Index         : Interfaces.Unsigned_8 := 0;
       Rate_Index        : Interfaces.Unsigned_8 := 0;
       Altitude_Cm       : Interfaces.Integer_32 range -40_000_000 .. 40_000_000 := 0;
+      Rangefinder_Cm    : Interfaces.Integer_32 := 0;
       Adjustment_Present : Boolean := False;
       Adjustment_Name    : Adaflight.OSD_Render.Name;
       Adjustment_Value   : Interfaces.Integer_32 := 0;

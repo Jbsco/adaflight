@@ -2339,6 +2339,7 @@ package body Adaflight.STM32.Flight is
       F.Battery_Capacity := Profile.Battery_Capacity;
       F.Motors := Motors;
       F.Altitude_Cm := Integer_32'Max (-40_000_000, Integer_32'Min (40_000_000, Estimated_Altitude_Cm));
+      F.Rangefinder_Cm := Adaflight.STM32.Rangefinder.Altitude_Cm;
       F.Vario := Estimated_Vario;
       F.Pos_Hold_Ready := Pos_Hold_Ready;
       F.Pos_Hold_Failure := Pos_Hold_Failure;
