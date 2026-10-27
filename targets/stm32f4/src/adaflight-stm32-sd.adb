@@ -1,10 +1,8 @@
 with Adaflight.Blackbox_SD;
-with Adaflight.FAT;
 with Adaflight.FAT_FS;
 with Adaflight.Pins; use Adaflight.Pins;
 with Adaflight.SD_Card;
 with Adaflight.SD_Card_Bus;
-with Adaflight.SD_Card_Types;
 with Adaflight.STM32.GPIO;
 with Adaflight.STM32.RTC;
 with Adaflight.STM32.SPI;
@@ -186,7 +184,11 @@ package body Adaflight.STM32.SD is
       Busy := False;
    end Bus_Busy;
 
-   function Uses_DMA (D : Card_Bus) return Boolean is (False);
+   function Uses_DMA (D : Card_Bus) return Boolean is
+      pragma Unreferenced (D);
+   begin
+      return False;
+   end Uses_DMA;
 
    procedure Read_Write (D : in out Card_Bus; Tx : Byte_Array) is
       Got : Byte_Array (Tx'Range);

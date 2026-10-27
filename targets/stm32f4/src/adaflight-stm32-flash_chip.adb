@@ -167,7 +167,11 @@ package body Adaflight.STM32.Flash_Chip is
 
    procedure Wait (D : in out Chip_Bus) is null;
 
-   function Uses_DMA (D : Chip_Bus) return Boolean is (False);
+   function Uses_DMA (D : Chip_Bus) return Boolean is
+      pragma Unreferenced (D);
+   begin
+      return False;
+   end Uses_DMA;
 
    procedure Bus_Busy (D : in out Chip_Bus; Busy : out Boolean) is
       pragma Unreferenced (D);
