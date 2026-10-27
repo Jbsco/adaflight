@@ -8,6 +8,7 @@ with Adaflight.Serial_Feature_Map;
 with Adaflight.Stream_Buffers;
 with Adaflight.STM32.Control;
 with Adaflight.STM32.Pilot;
+with Adaflight.STM32.SD;
 with Adaflight.STM32.Time;
 package body Adaflight.STM32.Blackbox is
    use type Interfaces.Unsigned_32;
@@ -107,16 +108,54 @@ package body Adaflight.STM32.Blackbox is
    function Logged (X : Float) return Core.Logged_Float is
      (Float'Max (-1_000_000.0, Float'Min (1_000_000.0, X)));
 
-   --  The bytes of the iteration onto the port, which takes what its ring
-   --  has room for; the writer counted the rest against the device's room.
+   --  The bytes of the iteration onto the card's file, or onto the port,
+   --  which takes what its ring has room for; the writer counted the rest
+   --  against the device's room.
    procedure Flush is
       Taken : Natural;
    begin
-      if Open_Port and then Stream.Next > 0 then
-         USART.Queue (Which, Buffer (0 .. Stream.Next - 1), Taken);
+      if Stream.Next > 0 then
+         if C.Device = Header.SD_Card then
+            Adaflight.STM32.SD.Log_Write (Buffer (0 .. Stream.Next - 1));
+         elsif Open_Port then
+            USART.Queue (Which, Buffer (0 .. Stream.Next - 1), Taken);
+         end if;
       end if;
       Adaflight.Stream_Buffers.Init (Stream, 0, Buffer'Length);
    end Flush;
+
+   --  The card device's answers for the recorder's state: a log start step
+   --  while the log file is prepared, a flush while the cache flushes, and
+   --  while the log shuts down its end, then its flush inside the shutdown
+   --  timeout.
+   procedure Card_Device (D : out Core.Device_Inputs) is
+   begin
+      D := (Free            => Natural'Min (Adaflight.STM32.SD.Log_Free_Space, Header.Device_Space'Last),
+            Open_OK         => Adaflight.STM32.SD.Log_Open_OK,
+            Buffer_Size     => 0,
+            Begin_Log_Done  => True,
+            End_Log_Done    => True,
+            Flush_Complete  => True,
+            Flush_Forced    => True,
+            Full            => Adaflight.STM32.SD.Log_Full,
+            Erased          => True,
+            Shared_MSP_Port => False);
+      case L.State is
+         when Core.Prepare_Log_File =>
+            Adaflight.STM32.SD.Log_Begin (D.Begin_Log_Done);
+         when Core.Cache_Flush =>
+            Adaflight.STM32.SD.Log_Flush (D.Flush_Complete);
+         when Core.Shutting_Down =>
+            Adaflight.STM32.SD.Log_End (L.Logged_Any_Frames, D.End_Log_Done);
+            if D.End_Log_Done
+              and then In_Flight.Now_Ms <= L.Header_St.Start_Time_Ms + Core.Shutdown_Timeout_Ms
+            then
+               Adaflight.STM32.SD.Log_Flush (D.Flush_Forced);
+            end if;
+         when others =>
+            null;
+      end case;
+   end Card_Device;
 
    --  The log step: the device's room and state, what the controller and
    --  the mixer hold, the boxes, then the recorder's iteration; the port
@@ -130,17 +169,21 @@ package body Adaflight.STM32.Blackbox is
       In_Flight.Erase_Box := Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Blackbox_Erase);
       In_Flight.Motors_Running := Adaflight.STM32.Pilot.Armed;
       In_Flight.Mode_Activation_Present := Adaflight.STM32.Pilot.Box_Configured (Adaflight.Modes.Blackbox);
-      In_Flight.Device :=
-        (Free            => (if Open_Port then Natural'Min (USART.Free (Which), Header.Device_Space'Last) else 0),
-         Open_OK         => Open_Port,
-         Buffer_Size     => Ring_Size,
-         Begin_Log_Done  => True,
-         End_Log_Done    => True,
-         Flush_Complete  => (if Open_Port then USART.Transmit_Empty (Which) else True),
-         Flush_Forced    => (if Open_Port then USART.Transmit_Empty (Which) else True),
-         Full            => False,
-         Erased          => True,
-         Shared_MSP_Port => Shared);
+      if C.Device = Header.SD_Card then
+         Card_Device (In_Flight.Device);
+      else
+         In_Flight.Device :=
+           (Free            => (if Open_Port then Natural'Min (USART.Free (Which), Header.Device_Space'Last) else 0),
+            Open_OK         => Open_Port,
+            Buffer_Size     => Ring_Size,
+            Begin_Log_Done  => True,
+            End_Log_Done    => True,
+            Flush_Complete  => (if Open_Port then USART.Transmit_Empty (Which) else True),
+            Flush_Forced    => (if Open_Port then USART.Transmit_Empty (Which) else True),
+            Full            => False,
+            Erased          => True,
+            Shared_MSP_Port => Shared);
+      end if;
       for A in Adaflight.Axes.Axis loop
          declare
             T : constant Adaflight.PID_Controller.Terms := Adaflight.STM32.Control.Terms (A);
