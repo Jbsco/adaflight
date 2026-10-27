@@ -10475,3 +10475,14 @@ warnings read the rescue mode and the rescue's health, availability and heading.
 The host cannot arm, so no smoke check flies a rescue. With the rescue as the failsafe procedure, the host
 smoke check finds the rescue task at 80 to 120 Hz, which shows the task runs but not the rescue's update,
 since a disarmed rescue has nothing the replies show.
+
+## D439. STM32F4 headfree sticks (2026-10-27)
+
+In headfree mode the board turns the RC commands into the attitude's headfree frame between the command
+update and the arming status update, the receiver task's update step. The roll and pitch commands turn,
+and the yaw command turns too unless an angle, horizon, altitude hold, position hold or rescue mode is on.
+The core's turn scales the commands back together where a deflection would pass one (D6), and the headfree
+offset comes from the arming or the headfree adjust box as before. D436 gave the attitude the headfree mode.
+
+The host reports no RC command that the turn changes, so no smoke check covers it. The core's turn has
+its own recorded vectors.
