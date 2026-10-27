@@ -1,4 +1,5 @@
---  The host's SPI buses. SPI3 carries a model of the MAX7456 OSD chip, SPI2
+--  The host's SPI buses. SPI3 carries a model of the MAX7456 OSD chip and a
+--  model of a flash chip, each answering while its select pin is low, SPI2
 --  a model of an SD card, and every other bus reads 16#FF#. The chip model
 --  takes a transfer as one selection of register writes and reads in pairs:
 --  the display memory with its automatic increment ended by 16#FF#, the
@@ -13,12 +14,18 @@
 --  names, answering while its select pin is low: one idle byte before each
 --  answer, the registers of a card named ADAFL, block reads and writes with
 --  the write's data answer followed by two busy bytes, and runs of writes
---  ended by the stop token. No image means no card.
+--  ended by the stop token. No image means no card. The flash model is a
+--  16 MB W25Q128FV over the image file the environment variable
+--  ADAFLIGHT_FLASH_IMAGE names: the identification, the status with the
+--  write enable latch, page programs of up to 256 bytes that wrap in the
+--  page, 64 KB sector erases, the chip erase, and reads from an address
+--  with the fast read's idle byte. No image means no chip.
 with Ada.Direct_IO;
 with Ada.Environment_Variables;
 with Ada.Real_Time;
 with Ada.Text_IO;
 with Adaflight.Board;
+with Adaflight.Host_Pins;
 with Adaflight.STM32.GPIO;
 package body Adaflight.STM32.SPI is
    use type Ada.Real_Time.Time;
@@ -318,6 +325,161 @@ package body Adaflight.STM32.SPI is
       return 16#FF#;
    end Card_Clock;
 
+   --  The flash model over its image file of 256-byte pages.
+   subtype Page is Byte_Array (0 .. 255);
+   package Page_IO is new Ada.Direct_IO (Page);
+
+   Flash_Checked  : Boolean := False;
+   Flash_Present  : Boolean := False;
+   Flash_File     : Page_IO.File_Type;
+   Flash_Pages    : Interfaces.Unsigned_32 := 0;
+   Flash_Idle     : Boolean := True;
+   Flash_Command  : Byte := 0;
+   Flash_Pos      : Natural := 0;
+   Flash_Address  : Interfaces.Unsigned_32 := 0;
+   Flash_WEL      : Boolean := False;
+   Flash_Page     : Page := (others => 16#FF#);
+   Flash_Page_At  : Interfaces.Unsigned_32 := 0;
+   Flash_Loaded   : Boolean := False;
+   Flash_Rises    : Natural := 0;
+
+   procedure Flash_Open is
+   begin
+      Flash_Checked := True;
+      if not Ada.Environment_Variables.Exists ("ADAFLIGHT_FLASH_IMAGE") then
+         return;
+      end if;
+      Page_IO.Open (Flash_File, Page_IO.Inout_File, Ada.Environment_Variables.Value ("ADAFLIGHT_FLASH_IMAGE"));
+      Flash_Pages := Interfaces.Unsigned_32 (Page_IO.Size (Flash_File));
+      Flash_Present := Flash_Pages = 65_536;
+   exception
+      when others =>
+         Flash_Present := False;
+   end Flash_Open;
+
+   procedure Flash_Load (Index : Interfaces.Unsigned_32) is
+   begin
+      if Flash_Loaded and then Flash_Page_At = Index then
+         return;
+      end if;
+      Page_IO.Read (Flash_File, Flash_Page, Page_IO.Positive_Count (Index + 1));
+      Flash_Page_At := Index;
+      Flash_Loaded := True;
+   end Flash_Load;
+
+   procedure Flash_Store is
+   begin
+      Page_IO.Write (Flash_File, Flash_Page, Page_IO.Positive_Count (Flash_Page_At + 1));
+      Page_IO.Flush (Flash_File);
+   end Flash_Store;
+
+   procedure Flash_Erase_Pages (First, Count : Interfaces.Unsigned_32) is
+      Blank : constant Page := (others => 16#FF#);
+   begin
+      for K in First .. First + Count - 1 loop
+         exit when K >= Flash_Pages;
+         Page_IO.Write (Flash_File, Blank, Page_IO.Positive_Count (K + 1));
+      end loop;
+      Page_IO.Flush (Flash_File);
+      Flash_Loaded := False;
+   end Flash_Erase_Pages;
+
+   --  One byte clocked to the flash chip while it is selected, and the
+   --  byte it answers.
+   function Flash_Clock (Input : Byte) return Byte is
+      Output : Byte := 16#FF#;
+   begin
+      if Flash_Idle then
+         Flash_Idle := False;
+         Flash_Command := Input;
+         Flash_Pos := 0;
+         Flash_Address := 0;
+         case Input is
+            when 16#06# =>
+               Flash_WEL := True;
+            when 16#04# =>
+               Flash_WEL := False;
+            when 16#C7# =>
+               if Flash_WEL then
+                  Flash_Erase_Pages (0, Flash_Pages);
+                  Flash_WEL := False;
+               end if;
+            when others =>
+               null;
+         end case;
+         return 16#FF#;
+      end if;
+      Flash_Pos := Flash_Pos + 1;
+      case Flash_Command is
+         when 16#9F# =>
+            Output := (case Flash_Pos is when 1 => 16#EF#, when 2 => 16#40#, when 3 => 16#18#, when others => 0);
+         when 16#05# =>
+            Output := (if Flash_WEL then 16#02# else 16#00#);
+         when 16#03# | 16#0B# | 16#02# | 16#D8# =>
+            if Flash_Pos <= 3 then
+               Flash_Address := Flash_Address * 256 + Interfaces.Unsigned_32 (Input);
+               if Flash_Pos = 3 and then Flash_Command = 16#D8# and then Flash_WEL then
+                  Flash_Erase_Pages ((Flash_Address / 16#10000#) * 256, 256);
+                  Flash_WEL := False;
+               end if;
+            elsif Flash_Command = 16#0B# and then Flash_Pos = 4 then
+               null;
+            elsif Flash_Command = 16#02# then
+               if Flash_WEL then
+                  Flash_Load (Flash_Address / 256);
+                  Flash_Page (Natural (Flash_Address mod 256)) := Flash_Page (Natural (Flash_Address mod 256)) and Input;
+                  Flash_Address := (Flash_Address / 256) * 256 + (Flash_Address + 1) mod 256;
+               end if;
+            elsif Flash_Command in 16#03# | 16#0B# then
+               if Flash_Address < Flash_Pages * 256 then
+                  Flash_Load (Flash_Address / 256);
+                  Output := Flash_Page (Natural (Flash_Address mod 256));
+               end if;
+               Flash_Address := Flash_Address + 1;
+            end if;
+         when others =>
+            null;
+      end case;
+      return Output;
+   end Flash_Clock;
+
+   procedure Flash_Deselect is
+   begin
+      if not Flash_Idle and then Flash_Command = 16#02# and then Flash_Loaded then
+         Flash_Store;
+         Flash_WEL := False;
+      end if;
+      Flash_Idle := True;
+   end Flash_Deselect;
+
+   --  A rise of the select pin since the last transfer ends the command.
+   procedure Flash_Check_Select is
+   begin
+      if Adaflight.Host_Pins.Rises (Adaflight.Board.Flash_CS_Pin) /= Flash_Rises then
+         Flash_Rises := Adaflight.Host_Pins.Rises (Adaflight.Board.Flash_CS_Pin);
+         Flash_Deselect;
+      end if;
+   end Flash_Check_Select;
+
+   procedure Flash_Transfer (Tx : Byte_Array; Rx : out Byte_Array) is
+   begin
+      if not Flash_Checked then
+         Flash_Open;
+      end if;
+      Rx := (others => 16#FF#);
+      if not Flash_Present then
+         return;
+      end if;
+      Flash_Check_Select;
+      if Adaflight.STM32.GPIO.Is_High (Adaflight.Board.Flash_CS_Pin) then
+         Flash_Deselect;
+         return;
+      end if;
+      for K in Tx'Range loop
+         Rx (Rx'First + (K - Tx'First)) := Flash_Clock (Tx (K));
+      end loop;
+   end Flash_Transfer;
+
    procedure Card_Transfer (Tx : Byte_Array; Rx : out Byte_Array) is
    begin
       if not Card_Checked then
@@ -361,7 +523,12 @@ package body Adaflight.STM32.SPI is
 
    procedure Transfer (B : Bus; Tx : Byte_Array; Rx : out Byte_Array) is
    begin
-      if B = SPI3 then
+      if B = SPI3 and then not Adaflight.STM32.GPIO.Is_High (Adaflight.Board.Flash_CS_Pin) then
+         Flash_Transfer (Tx, Rx);
+      elsif B = SPI3 then
+         if Flash_Present then
+            Flash_Check_Select;
+         end if;
          Chip_Frame (Tx, Rx);
          if Changed and then Ada.Real_Time.Clock - Written >= Ada.Real_Time.Milliseconds (100) then
             Dump_Screen;
