@@ -122,8 +122,10 @@ package body Adaflight.STM32.USART is
    Listeners : array (Number) of Listener;
    Started   : array (Number) of Boolean := (others => False);
 
-   procedure Init (N : Number; Baud : Positive; Two_Stop_Bits : Boolean := False) is
-      pragma Unreferenced (Baud, Two_Stop_Bits);
+   procedure Init
+     (N : Number; Baud : Positive; Two_Stop_Bits : Boolean := False; Line : Half_Duplex := Full_Duplex)
+   is
+      pragma Unreferenced (Baud, Two_Stop_Bits, Line);
    begin
       if not Started (N) then
          Started (N) := True;

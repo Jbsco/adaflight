@@ -6,8 +6,8 @@ with Adaflight.CRSF_Display_Port;
 with Adaflight.Stream_Buffers;
 with Adaflight.Modes;
 with Adaflight.Serial_Feature_Map;
-with Adaflight.STM32.USART;
 package body Adaflight.STM32.Radio is
+   use type Adaflight.STM32.USART.Number;
    package SFM renames Adaflight.Serial_Feature_Map;
    use type Interfaces.Unsigned_8;
    use type Interfaces.Unsigned_32;
@@ -147,6 +147,8 @@ package body Adaflight.STM32.Radio is
    end Telemetry_Step;
 
    function Linked return Boolean is (Open);
+
+   function Holds (N : USART.Number) return Boolean is (Open and then N = Link);
 
    procedure Frame_Check (Now_Us : Time_Us; Delta_Us : Interfaces.Integer_32; Task_In_Progress : Boolean) is
       Count    : Natural;
