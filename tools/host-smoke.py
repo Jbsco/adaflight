@@ -19,6 +19,7 @@ import threading
 import time
 
 PORT = 5761
+VCP_PORT = 5780
 RX_PORT = 5763
 GPS_PORT = 5764
 
@@ -176,6 +177,13 @@ def main():
             variant = msp(sock, 2)
             check("MSP firmware variant ADFL", variant == b"ADFL", repr(variant))
             status = msp(sock, 101)
+            vcp = socket.create_connection(("127.0.0.1", VCP_PORT), timeout=1)
+            vcp.settimeout(0.3)
+            time.sleep(0.2)
+            vcp_api = msp(vcp, 1)
+            check("MSP over the USB serial port", vcp_api is not None and len(vcp_api) == 3 and vcp_api[1] == 1,
+                  repr(vcp_api))
+            vcp.close()
             check("MSP status with the gyro", status is not None and len(status) > 5
                   and (status[4] | status[5] << 8) & 0x20 != 0)
             sock.sendall(b"#")
@@ -212,6 +220,7 @@ def main():
             sock.close()
         check("configuration store written", os.path.exists(store) and os.path.getsize(store) == 8192)
         proc, sock = start(image, store)
+        vcp = None
         receiver = Receiver()
         receiver.start()
         gps = GPS()
@@ -234,14 +243,18 @@ def main():
             check("GPS fix reaches the raw GPS reply",
                   raw is not None and len(raw) >= 10 and raw[0] != 0 and raw[1] == 10 and lat == 481173000
                   and abs(lon - 115166667) <= 10, repr(raw[:10] if raw else raw))
-            sock.sendall(b"#")
-            read_all(sock, 0.8)
-            text = cli(sock, "get gyro_lpf1_static_hz")
+            vcp = socket.create_connection(("127.0.0.1", VCP_PORT), timeout=1)
+            vcp.settimeout(0.3)
+            time.sleep(0.2)
+            vcp.sendall(b"#")
+            banner = read_all(vcp, 0.8).decode(errors="replace")
+            check("command line over the USB serial port", "Entering CLI Mode" in banner, banner[:80])
+            text = cli(vcp, "get gyro_lpf1_static_hz")
             check("setting kept across the restart", "gyro_lpf1_static_hz = 321" in text, text[-160:])
-            text = cli(sock, "status")
+            text = cli(vcp, "status")
             check("status names the MAX7456 display", "OSD: MAX7456 (30 x 16)" in text,
                   text[text.find("OSD:"):][:40])
-            text = cli(sock, "status")
+            text = cli(vcp, "status")
             flags = text.split("Arming disable flags:")[-1]
             check("receiver link clears the signal loss", "RXLOSS" not in flags and "CLI" in flags, flags.strip()[:80])
             check("status shows the GPS connected", "GPS: connected" in text, text[text.find("GPS:"):][:60])
@@ -262,7 +275,7 @@ def main():
             except OSError:
                 screen = ""
             check("stick gesture opens the menu", "-- QUICK --" in screen or "-- MAIN --" in screen, repr(screen[:300]))
-            text = cli(sock, "status")
+            text = cli(vcp, "status")
             flags = text.split("Arming disable flags:")[-1]
             check("open menu holds arming", "CMS" in flags, flags.strip()[:80])
         finally:
@@ -270,6 +283,8 @@ def main():
             gps.stop.set()
             proc.kill()
             sock.close()
+            if vcp is not None:
+                vcp.close()
     print(f"host smoke: {'all checks passed' if not failures else str(len(failures)) + ' failed'}")
     sys.exit(1 if failures else 0)
 
