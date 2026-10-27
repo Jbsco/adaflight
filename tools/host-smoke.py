@@ -135,6 +135,77 @@ class Receiver(threading.Thread):
             time.sleep(0.02)
         if sock is not None:
             sock.close()
+def sa_crc(data):
+    """The SmartAudio check byte: CRC-8 with the polynomial 0xD5."""
+    crc = 0
+    for b in data:
+        crc ^= b
+        for _ in range(8):
+            crc = ((crc << 1) ^ 0xD5) & 0xFF if crc & 0x80 else (crc << 1) & 0xFF
+    return crc
+
+
+class SmartAudio(threading.Thread):
+    """A SmartAudio V2 transmitter on UART6's port: it answers the settings request with channel A1 at the
+    first power level, the pit mode frequency request with 5584 MHz, and every other command with its
+    value, and records each command with its value."""
+
+    def __init__(self):
+        super().__init__(daemon=True)
+        self.stop = threading.Event()
+        self.commands = []
+        self.pending = b""
+
+    def take(self, sock):
+        while True:
+            start = self.pending.find(b"\xaa\x55")
+            if start < 0 or len(self.pending) < start + 4:
+                return
+            length = self.pending[start + 3]
+            if len(self.pending) < start + 5 + length:
+                return
+            code = self.pending[start + 2] >> 1
+            payload = self.pending[start + 4:start + 4 + length]
+            self.pending = self.pending[start + 5 + length:]
+            value = int.from_bytes(payload, "big") if payload else 0
+            self.commands.append((code, value))
+            if code == 1:
+                body = bytes([0x09, 0x05, 0, 0, 0, 0x16, 0xE9])
+            elif code == 4:
+                freq = (5584 | 0x4000) if value & 0x4000 else value
+                body = bytes([0x04, 0x03, freq >> 8, freq & 0xFF, 0x01])
+            else:
+                body = bytes([code, 0x03, payload[0] if payload else 0, 0x01])
+            sock.sendall(b"\xaa\x55" + body + bytes([sa_crc(body)]))
+
+    def run(self):
+        sock = None
+        deadline = time.time() + 10
+        while sock is None and time.time() < deadline and not self.stop.is_set():
+            try:
+                sock = socket.create_connection(("127.0.0.1", LOG_PORT), timeout=1)
+            except OSError:
+                time.sleep(0.1)
+        if sock is not None:
+            sock.settimeout(0.05)
+        while sock is not None and not self.stop.is_set():
+            try:
+                data = sock.recv(4096)
+            except socket.timeout:
+                continue
+            except OSError:
+                break
+            if not data:
+                break
+            self.pending += data
+            try:
+                self.take(sock)
+            except OSError:
+                break
+        if sock is not None:
+            sock.close()
+
+
 failures = []
 
 
@@ -519,6 +590,45 @@ def main():
         check("flash image starts with the log header",
               head.startswith(b"H Product:Blackbox flight data recorder by Nicholas Sherlock\n"), repr(head[:60]))
         check("flash image names the firmware", b"H Firmware type:Adaflight\n" in head, repr(head[:200]))
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "set blackbox_uart = NONE")
+            check("flight log port released", "blackbox_uart set to NONE" in text, text[-120:])
+            text = cli(sock, "set vtx_uart = UART6")
+            check("transmitter port assigned", "vtx_uart set to UART6" in text, text[-120:])
+            text = cli(sock, "set vtx_type = SMARTAUDIO")
+            check("transmitter type set to SmartAudio", "vtx_type set to SMARTAUDIO" in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        vtx = SmartAudio()
+        proc, sock = start(image, store)
+        vtx.start()
+        try:
+            time.sleep(4.0)
+            config = msp(sock, 88)
+            check("MSP VTX config names a ready SmartAudio device",
+                  config is not None and len(config) >= 8 and config[0] == 3 and config[7] == 1, repr(config))
+            check("SmartAudio settings request reaches the transmitter", any(c == 1 for c, _ in vtx.commands),
+                  repr(vtx.commands[:6]))
+            ack = msp(sock, 89, (5800).to_bytes(2, "little") + bytes([1, 0]))
+            check("MSP VTX config write accepted", ack == b"", repr(ack))
+            time.sleep(2.0)
+            check("SmartAudio frequency command reaches the transmitter", (4, 5800) in vtx.commands,
+                  repr(vtx.commands[-8:]))
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "vtx_info")
+            check("vtx_info lists the power levels", "level " in text and " mW" in text, text[-160:])
+        finally:
+            vtx.stop.set()
+            stop(proc)
+            sock.close()
     print(f"host smoke: {'all checks passed' if not failures else str(len(failures)) + ' failed'}")
     sys.exit(1 if failures else 0)
 
