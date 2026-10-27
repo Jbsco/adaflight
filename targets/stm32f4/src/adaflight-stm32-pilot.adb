@@ -1,4 +1,6 @@
 with Adaflight.Config_Runtime;
+with Adaflight.DShot_Command;
+with Adaflight.STM32.DShot_Output;
 package body Adaflight.STM32.Pilot is
    use type Interfaces.Unsigned_8;
    Arm          : Adaflight.Arming.State;
@@ -34,6 +36,7 @@ package body Adaflight.STM32.Pilot is
          Config.Flight3_D_Config, Runtime_Features);
       PID := Adaflight.Config_Runtime.PID_Profile_Of (Config.Pid_Profiles (P));
       Adaflight.PID_Config.Configure (Runtime, PID, Loop_Time, Has_Acc => F.Sensors.Acc, Serial_Rx_Is_CRSF => F.CRSF);
+      Adaflight.STM32.DShot_Output.Set_Loop_Time (Adaflight.DShot_Command.Loop_Time_Us (Loop_Time));
       if Config.Mixer_Config.Mixer_Mode in
            1 .. Adaflight.Mixer_Init.Mixer_Mode'Pos (Adaflight.Mixer_Init.Mixer_Mode'Last) + 1
       then

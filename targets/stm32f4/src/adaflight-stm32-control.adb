@@ -2,6 +2,7 @@ with Adaflight.Config_Runtime;
 with Adaflight.Main_Loop;
 with Adaflight.Mixer_Init;
 with Adaflight.STM32.Blackbox;
+with Adaflight.STM32.DShot_Output;
 with Adaflight.STM32.Motors;
 with Adaflight.STM32.Pilot;
 package body Adaflight.STM32.Control is
@@ -155,7 +156,7 @@ package body Adaflight.STM32.Control is
    --  The mix's outputs to the motors.
    procedure Write_Motors is
    begin
-      Adaflight.STM32.Motors.Write_All (Mix.Motors);
+      Adaflight.STM32.DShot_Output.Write_All (Mix.Motors);
    end Write_Motors;
 
    package Loop_Pass is new Adaflight.Main_Loop
