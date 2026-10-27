@@ -11,6 +11,7 @@ with Adaflight.OSD_Page;
 with Adaflight.OSD_Stats;
 with Adaflight.OSD_Warnings;
 with Adaflight.STM32.GPIO;
+with Adaflight.STM32.RTC;
 with Adaflight.STM32.SPI;
 with Adaflight.STM32.Time;
 package body Adaflight.STM32.OSD is
@@ -537,6 +538,11 @@ package body Adaflight.STM32.OSD is
 
       Context.Element_Inputs.Acc_Present := F.Acc_Present;
       Context.Element_Inputs.GPS_Present := F.GPS_Feature;
+      Adaflight.STM32.RTC.Date_Now (Context.Has_Time, Context.Date);
+      Context.Zone := (Zone => Adaflight.STM32.RTC.Zone);
+      Context.Draw.Inputs.Has_Time := Context.Has_Time;
+      Context.Draw.Inputs.Date := Context.Date;
+      Context.Draw.Inputs.Zone := Context.Zone;
       Context.Page.GPS_Feature := F.GPS_Feature;
 
       D.Roll := F.Roll;
