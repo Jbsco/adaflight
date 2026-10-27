@@ -11,10 +11,12 @@ tags = ["spark", "flight-control", "embedded"]
 [[depends-on]]
 gnatprove = "^16.1.0"
 
-# The release profile is the board image: built for size, with the proved core free of run-time
-# checks, assertions and debug information. Hosts build the core in the validation profile.
+# The release profile is the board image: built for size with link-time optimization, with the
+# proved core free of run-time checks, assertions and debug information. Hosts build the core in
+# the validation profile. The objects keep their machine code beside the optimizer's form, since
+# the board links the core from an archive.
 [build-switches]
-release.optimization = "size"
+release.optimization = ["-Os", "-gnatn", "-ffunction-sections", "-fdata-sections", "-flto", "-ffat-lto-objects"]
 release.runtime_checks = "none"
 release.contracts = "no"
 release.debug_info = "no"

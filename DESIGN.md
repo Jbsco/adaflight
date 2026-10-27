@@ -9854,3 +9854,17 @@ reported with its setting name so the harness writes it through the settings lay
 mapping runs. Four fields have no setting in that build and are written to their groups directly:
 the gyro enable mask, the feature flags, the disabled field mask, and the TPA curve's five values.
 The level feedforward's setting is a byte, so the oracle draws it within one.
+
+## D407. Board image with link-time optimization (2026-10-26)
+
+The board image compiles the core and the STM32F4 sources for link-time optimization, so the linker
+optimizes the image as one program and drops the code and data no call reaches. The objects keep
+their machine code beside the optimizer's form. The board links the core from an archive, and an
+archive member with the optimizer's form alone leaves the binder's calls to the elaboration
+procedures unresolved.
+
+Trial builds of the D405 image compared the build modes. Compiling for `-Oz` in place of `-Os`
+changed no byte, and dropping the cross-unit inlining switch added 512 bytes. Link-time optimization
+took the image from 623400 bytes of text and 5284 of data to 601924 and 2380. It is the first step
+toward the boards with 512 KB of flash, which need the rest from the tables the port writes as code.
+The host target and the tests keep their profiles without it.
