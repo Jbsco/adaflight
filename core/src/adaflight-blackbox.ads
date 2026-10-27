@@ -124,6 +124,9 @@ package Adaflight.Blackbox with SPARK_Mode is
    --  opened with its buffer size, whether the log file is ready and closed,
    --  whether its buffers are flushed, whether it is full or erased, and
    --  whether the serial port is shared with the MSP.
+   --  The milliseconds a log end waits for the device's flush.
+   Shutdown_Timeout_Ms : constant := 200;
+
    type Device_Inputs is record
       Free            : Header.Device_Space := 0;
       Open_OK         : Boolean := False;
