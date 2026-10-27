@@ -9868,3 +9868,30 @@ changed no byte, and dropping the cross-unit inlining switch added 512 bytes. Li
 took the image from 623400 bytes of text and 5284 of data to 601924 and 2380. It is the first step
 toward the boards with 512 KB of flash, which need the rest from the tables the port writes as code.
 The host target and the tests keep their profiles without it.
+
+## D408. USB virtual serial port (2026-10-26)
+
+`Adaflight.USB_VCP` contains the board's USB device as a virtual serial port, from the device library and the
+communications class the reference builds for the F4: the standard requests on the control endpoint with
+their transfer stages, the descriptors, the class's line coding and command requests, and the two buffers
+between the host and the flight software, with a transmit started every sixteenth frame. The controller stays
+with the target. Each event, a bus reset, a setup packet, an OUT packet, an IN transfer done, a frame, a
+suspend or a resume, returns the endpoint operations it asks for in their order, and the target's driver
+carries them out.
+
+The device keeps the reference's vendor and product identifiers, so a host's serial driver binds to it, and
+names Adaflight as its manufacturer and in its product name beside the board's name.
+
+Five corrections differ from the reference (DIVERGENCES.md). A standard request that names an endpoint the
+controller lacks is an error, where the reference indexes its endpoint arrays and the controller's registers
+with the request's number. A class request's data stage is cut to the 8-byte command buffer, where the
+reference moves the request's full length through it. The buffer from the host takes a packet only while it
+stays one byte short of full, where the reference fills it to its size and its indexes then read empty. A
+resume restores the status the suspend left, where the reference sets the device configured. The control
+endpoint's halt ends at the next setup packet, as the controller's stall does, where the reference keeps the
+flag after a request error.
+
+The usbvcp vectors come from a host build of the reference's device library, class and port sources with the
+corrections behind toggles, over stubs of the endpoint layer that keep its state and record its operations:
+64 sessions of enumeration, line coding, data both ways, malformed requests and bus events, each event with
+its operations and the state after it. Eight tampers fail the vectors.
