@@ -1,9 +1,6 @@
 with Adaflight.STM32.Time;
 package body Adaflight.STM32.RTC is
    package Core renames Adaflight.RTC;
-   use type Interfaces.Integer_16;
-   use type Interfaces.Integer_64;
-   use type Interfaces.Unsigned_8;
 
    C            : Core.Clock;
    Zone_Setting : Core.Settings;

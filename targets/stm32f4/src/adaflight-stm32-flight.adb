@@ -26,6 +26,7 @@ with Adaflight.Core_Loop;
 with Adaflight.CRSF_Telemetry;
 with Adaflight.Failsafe;
 with Adaflight.FAT;
+with Adaflight.Flash_Device;
 with Adaflight.Gyro_Filters;
 with Adaflight.Gyro_Selection;
 with Adaflight.Mixer;
@@ -55,6 +56,7 @@ with Adaflight.STM32.Blackbox;
 with Adaflight.STM32.Console;
 with Adaflight.STM32.Control;
 with Adaflight.STM32.Flash;
+with Adaflight.STM32.Flash_Chip;
 with Adaflight.STM32.GPIO;
 with Adaflight.STM32.GPS;
 with Adaflight.GPS_Frames;
@@ -145,6 +147,8 @@ package body Adaflight.STM32.Flight is
       SD_CS_Tag        => Adaflight.Board.SDCARD_CS_Tag,
       SD_Detect_Tag    => Adaflight.Board.SDCARD_Detect_Tag,
       SD_Detect_Low    => Adaflight.Board.SDCARD_Detect_Low,
+      Flash_SPI_Device => Adaflight.Board.FLASH_SPI_Device,
+      Flash_CS_Tag     => Adaflight.Board.FLASH_CS_Tag,
       Blackbox_Device  => Adaflight.Board.Default_Blackbox_Device);
 
    Board    : CLI.Board_State := (Hardware => Board_Hardware, others => <>);
@@ -512,12 +516,14 @@ package body Adaflight.STM32.Flight is
    begin
       Adaflight.STM32.OSD.Preinit (Config);
       Adaflight.STM32.SD.Preinit (Config);
+      Adaflight.STM32.Flash_Chip.Preinit (Config);
       Adaflight.STM32.SPI.Init (Adaflight.STM32.SPI.SPI1, Adaflight.Board.SPI1_SCK_Pin, Adaflight.Board.SPI1_SDI_Pin,
                                 Adaflight.Board.SPI1_SDO_Pin);
       Adaflight.STM32.SPI.Init (Adaflight.STM32.SPI.SPI2, Adaflight.Board.SPI2_SCK_Pin, Adaflight.Board.SPI2_SDI_Pin,
                                 Adaflight.Board.SPI2_SDO_Pin);
       Adaflight.STM32.SPI.Init (Adaflight.STM32.SPI.SPI3, Adaflight.Board.SPI3_SCK_Pin, Adaflight.Board.SPI3_SDI_Pin,
                                 Adaflight.Board.SPI3_SDO_Pin);
+      Adaflight.STM32.Flash_Chip.Init (Config);
       Adaflight.STM32.SD.Init (Config);
    end Start_Buses;
 
@@ -780,6 +786,31 @@ package body Adaflight.STM32.Flight is
       end loop;
    end Serve_MSP;
 
+   --  The flash chip as the command line reports it.
+   function Flash_Status return CLI.Flash_Status is
+      G : constant Adaflight.Flash_Device.Geometry := Adaflight.STM32.Flash_Chip.Geometry;
+      S : CLI.Flash_Status;
+      Found : Boolean;
+      Kind  : Natural;
+      First, Last : Unsigned_16;
+   begin
+      S.Sectors := G.Sectors;
+      S.Sector_Size := G.Sector_Size;
+      S.Pages_Per_Sector := G.Pages_Per_Sector;
+      S.Page_Size := G.Page_Size;
+      S.Total_Size := G.Total_Size;
+      S.JEDEC_Id := G.JEDEC_Id;
+      S.Count := Natural'Min (CLI.Max_Flash_Partitions, Adaflight.STM32.Flash_Chip.Partition_Count);
+      for I in 0 .. S.Count - 1 loop
+         Adaflight.STM32.Flash_Chip.Partition (I, Found, Kind, First, Last);
+         if Found then
+            S.Partitions (I) := (Kind => Natural'Min (5, Kind), First_Sector => First, Last_Sector => Last);
+         end if;
+      end loop;
+      S.Used := Adaflight.STM32.Flash_Chip.Offset;
+      return S;
+   end Flash_Status;
+
    --  The SD card as the command line reports it.
    function SD_Status return CLI.SD_Card_Status is
       Meta : constant Adaflight.SD_Card_Types.Metadata := Adaflight.STM32.SD.Card_Info;
@@ -824,6 +855,8 @@ package body Adaflight.STM32.Flight is
       Env.Gyros (0).Mode := Gyro_Mode;
       Env.SD_Card := SD_Status;
       Ctx.Out_Views.Hardware.SD_Card := Adaflight.STM32.SD.Summary;
+      Ctx.Out_Views.Hardware.Flash := Adaflight.STM32.Flash_Chip.Summary;
+      Env.Flash := Flash_Status;
       Adaflight.STM32.RTC.Set_Zone (Config.Time_Config.Tz_Offset_Minutes);
       Ctx.Out_Views.State.Clock := Adaflight.STM32.RTC.Clock_Values;
       Env.Status.OSD_Device := Adaflight.OSD_Task.Device_Kind'Pos (Adaflight.STM32.OSD.Device);
@@ -1110,7 +1143,7 @@ package body Adaflight.STM32.Flight is
 
    package Tasks is new Adaflight.Task_Functions
      (SD_Card_Poll           => Adaflight.STM32.SD.Poll,
-      Flash_Erase            => No_Step,
+      Flash_Erase            => Adaflight.STM32.Flash_Chip.Erase_Step,
       MSP_Serial             => MSP_Serial,
       Battery_Presence       => Battery_Presence,
       Battery_States         => Battery_States,

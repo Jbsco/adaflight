@@ -221,6 +221,13 @@ def fat16_log(path):
     return data[at:at + cluster_bytes], ""
 
 
+def stop(proc):
+    """The image killed, and its exit waited for, so the next start cannot reach its ports."""
+    if proc.poll() is None:
+        proc.kill()
+    proc.wait(timeout=10)
+
+
 def start(image, store, extra=None):
     env = dict(os.environ, ADAFLIGHT_EEPROM=store, ADAFLIGHT_OSD_SCREEN=store + ".osd.txt", **(extra or {}))
     proc = subprocess.Popen([image], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -332,8 +339,7 @@ def main():
             proc.wait(timeout=10)
             check("save restarts the image", proc.returncode == 0)
         finally:
-            if proc.poll() is None:
-                proc.kill()
+            stop(proc)
             sock.close()
         check("configuration store written", os.path.exists(store) and os.path.getsize(store) == 8192)
         proc, sock = start(image, store)
@@ -430,7 +436,7 @@ def main():
         finally:
             receiver.stop.set()
             gps.stop.set()
-            proc.kill()
+            stop(proc)
             sock.close()
             if vcp is not None:
                 vcp.close()
@@ -448,8 +454,7 @@ def main():
             cli(sock, "save", wait=2.0)
             proc.wait(timeout=10)
         finally:
-            if proc.poll() is None:
-                proc.kill()
+            stop(proc)
             sock.close()
         proc, sock = start(image, store, {"ADAFLIGHT_SD_IMAGE": card})
         try:
@@ -465,7 +470,7 @@ def main():
             check("sd_info names the card", "20480kB" in text and "'ADAFL FS: Ready" in text, text[-160:])
             time.sleep(2.0)
         finally:
-            proc.kill()
+            stop(proc)
             sock.close()
         data, why = fat16_log(card)
         check("card image holds the log file", data is not None, why)
@@ -474,6 +479,46 @@ def main():
               repr(data[:60] if data else data))
         check("log file on the card names the firmware", data is not None and b"H Firmware type:Adaflight\n" in data,
               repr(data[:200] if data else data))
+        chip = os.path.join(work, "flash.img")
+        with open(chip, "wb") as f:
+            f.write(b"\xff" * (16 * 1024 * 1024))
+        proc, sock = start(image, store, {"ADAFLIGHT_FLASH_IMAGE": chip})
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "set blackbox_device = SPIFLASH")
+            check("flight log device set to the flash chip", "blackbox_device set to SPIFLASH" in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store, {"ADAFLIGHT_FLASH_IMAGE": chip})
+        try:
+            time.sleep(4.0)
+            summary = msp(sock, 70)
+            sectors = int.from_bytes(summary[1:5], "little") if summary and len(summary) == 13 else 0
+            size = int.from_bytes(summary[5:9], "little") if summary and len(summary) == 13 else 0
+            used = int.from_bytes(summary[9:13], "little") if summary and len(summary) == 13 else 0
+            check("MSP flash summary reports the chip ready",
+                  summary is not None and len(summary) == 13 and summary[0] == 3, repr(summary))
+            check("MSP flash summary sizes the chip", sectors == 256 and size == 16 * 1024 * 1024, f"{sectors} {size}")
+            check("MSP flash summary counts the log's bytes", 2048 <= used < 16 * 1024 * 1024, str(used))
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "flash_info", 1.5)
+            check("flash_info names the chip", "sectors=256" in text and "FlashFS size=16777216" in text, text[-200:])
+            text = cli(sock, "flash_read 0 60", 1.5)
+            check("flash_read shows the header", "H Product:Blackbox flight data recorder" in text, text[-200:])
+        finally:
+            stop(proc)
+            sock.close()
+        with open(chip, "rb") as f:
+            head = f.read(4096)
+        check("flash image starts with the log header",
+              head.startswith(b"H Product:Blackbox flight data recorder by Nicholas Sherlock\n"), repr(head[:60]))
+        check("flash image names the firmware", b"H Firmware type:Adaflight\n" in head, repr(head[:200]))
     print(f"host smoke: {'all checks passed' if not failures else str(len(failures)) + ' failed'}")
     sys.exit(1 if failures else 0)
 
