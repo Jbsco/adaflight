@@ -9372,28 +9372,29 @@ configurator's history with adaflight's changes on its main branch. The bench ch
 
 ## D385. STM32F4 scheduler and sensor tasks (2026-10-26)
 
-The STM32F4 image runs the scheduler (D38) in place of its millisecond loop. `Adaflight.STM32.Flight`
-holds the board's flight software: the configuration, the MSP context and the command line
-environment, the gyro filters (D26), the accelerometer and the attitude estimate with their settings
-from the configuration (D187), the scheduler with its settings, and the core loop's cadence (D190).
-The start runs the gyro's start (D383), the configuration's gyro checks, the loop ratio from the PID
-loop setting, the gyro filters at the gyro's sample period with its scale, the accelerometer at its
-sample rate and count for one g, the attitude estimate, the gyro calibration, and after the data
-ready wait the task setup (D160) over the tasks the image serves: the system load, the main and
-serial tasks, the realtime gyro, filter and PID tasks, the accelerometer and attitude tasks, and the
-receiver task, whose check finds no frames yet. The pass takes the scheduler's phases as the harness
-does, with the clock from the runtime at cycle resolution and the core's cycle counter: the realtime
-block at the gyro's target with the gyro task reading the sensor into the filters' accumulation and
-the cadence, the filter task when the cadence says so, the PID task's slot empty until the control
-loop reaches the board, the failsafe check mark, and the gyro lock from the interrupt count, the sync
-cycles and the chip's short period; then the selection over the queue, the held task's run and the
-pass's end. The serial task is the MSP port and the command line of D382, evaluating the other data
-while disarmed, and reads the PID loop's delta and the system load into the status reply first. The
-task functions (D192) take the serial and accelerometer tasks and no step for the units the board
-has no driver for. The attitude task takes the filters' attitude lowpass and the accelerometer
-without a compass, disarmed and without the angle or headfree modes. The raw readings reply takes
-the filtered rates as counts and the calibrated accelerometer over the one g divisor; the attitude
-replies take the angles and the quaternion.
+The STM32F4 image runs the scheduler (D38) in place of its millisecond loop.
+`Adaflight.STM32.Flight` holds the board's flight software: the configuration, the MSP context and
+the command line environment, the gyro filters (D26), the accelerometer and the attitude estimate
+with their settings from the configuration (D187), the scheduler with its settings, and the core
+loop's cadence (D190). The start runs the gyro's start (D383), the configuration's gyro checks, the
+loop ratio from the PID loop setting, the gyro filters at the gyro's sample period with its scale,
+the accelerometer at its sample rate and count for one g, the attitude estimate, the gyro
+calibration, and after the data ready wait the task setup (D160) over the tasks the image serves:
+the system load, the main and serial tasks, the realtime gyro, filter and PID tasks, the
+accelerometer and attitude tasks, and the receiver task, whose check finds no frames yet. The pass
+takes the scheduler's phases as the harness does, with the clock from the runtime at cycle
+resolution and the core's cycle counter. The realtime block runs at the gyro's target: the gyro task
+reads the sensor into the filters' accumulation and the cadence, the filter task runs when the
+cadence says so, the PID task's slot stays empty until the control loop reaches the board, the
+failsafe check is marked, and the gyro lock reads the interrupt count, the sync cycles and the
+chip's short period. The selection over the queue, the held task's run and the pass's end follow.
+The serial task is the MSP port and the command line of D382, evaluating the other data while
+disarmed, and reads the PID loop's delta and the system load into the status reply first. The task
+functions (D192) take the serial and accelerometer tasks and no step for the units the board has no
+driver for. The attitude task takes the filters' attitude lowpass and the accelerometer without a
+compass, disarmed and without the angle or headfree modes. The raw readings reply takes the filtered
+rates as counts and the calibrated accelerometer over the one g divisor. The attitude replies take
+the angles and the quaternion.
 
 The image is 825352 bytes of text, 3512 of data and 105448 of zeroed data. The yaw spin recovery
 waits for the receiver's rates setup, the RPM notches for the motors and the calibration tone for
@@ -9406,7 +9407,7 @@ tab following the board's attitude.
 
 The STM32F4 image keeps its configuration in the internal flash. `Adaflight.STM32.Flash` reads the
 first 8 KB of the last sector, 128 KB at 16#080E_0000#, in place, and writes an image by unlocking
-the controller, erasing the sector, programming 32-bit words and resetting the data cache; the image
+the controller, erasing the sector, programming 32-bit words and resetting the data cache. The image
 of the core ends below that sector. At boot the main checks the region's structure (D158) and resets
 the store when it is invalid, then loads every group from its defaults and its stored bytes through
 the codec, takes the running features from the stored ones, runs the configuration's checks (D167)
@@ -9414,10 +9415,10 @@ over the hardware the board knows, takes the board's information in (D183), and 
 again when a group was missing, the stored version is not the core's or the identifier is another
 board's. A reset writes the defaults and reads them back. A write runs the checks, encodes the
 groups and saves the image when any group changed since its hash was taken, programs it and checks
-the region's structure and version back, in up to three attempts; a store that still fails flashes
+the region's structure and version back, in up to three attempts. A store that still fails flashes
 its code and resets the core. A message's write request ignores the pass's time for the scheduler,
-writes and reads back before the reply, and the command line's `save` writes before its restart.
-The core's own group layout keeps a reference image from loading (D158), so a board that ran the
+writes and reads back before the reply, and the command line's `save` writes before its restart. The
+core's own group layout keeps a reference image from loading (D158), so a board that ran the
 reference starts from defaults.
 
 The image is 838900 bytes of text, 3924 of data and 105832 of zeroed data. The bench check is a
@@ -9433,23 +9434,23 @@ The STM32F4 image takes a CRSF receiver on the serial port the stored configurat
 `Adaflight.STM32.USART` now drives the four UARTs the board family brings out, USART1 and USART6 on
 the 84 MHz bus and USART3 and UART4 on the 42 MHz bus, each with a blocking transmitter and a
 receiver whose interrupt keeps the bytes with their arrival times in a ring of 256, so a protocol
-sees each byte at the time it came in. `Adaflight.STM32.Radio` is the receiver link: at boot it takes
-the receiver settings (D40) and the failsafe settings from the configuration, finds the port with the
-serial receiver function through the serial feature map (D155) when the serial receiver feature is on
-and the provider is CRSF, starts the receiver with the protocol's RSSI and link quality claims, puts
-the arm switch's channel just outside its range, and opens the port at 420000 baud with the CRSF
-protocol (D42). An inverted or half-duplex port setting and the other serial protocols leave the link
-closed until their drivers land. After the realtime tasks of each pass the link feeds the received
-bytes to the protocol at their times, polls the frame status while the receiver task is not past its
-check, and runs the receiver's frame check with the time since the task last ran; at the ten
-millisecond mark the failsafe checks its data failure period and runs its state machine, disarmed. The
-receiver task runs its state machine (D123) with the scheduler's rate ignored on every step but the
-last: the check step calculates the channels and tells the failsafe what the data was worth, then
-updates the RSSI and starts the failsafe's monitoring once five seconds have passed; the modes and
-update steps stay empty until the modes and the arming reach the board. The task's check function
-is the receiver's. The channels go into the RC reply, so the configurator's receiver tab follows the
-sticks. The protocol's requests for telemetry, device information, display port and MSP frames wait
-for the telemetry link.
+sees each byte at the time it came in. `Adaflight.STM32.Radio` is the receiver link: at boot it
+takes the receiver settings (D40) and the failsafe settings from the configuration, finds the port
+with the serial receiver function through the serial feature map (D155) when the serial receiver
+feature is on and the provider is CRSF, starts the receiver with the protocol's RSSI and link
+quality claims, puts the arm switch's channel just outside its range, and opens the port at 420000
+baud with the CRSF protocol (D42). An inverted or half-duplex port setting and the other serial
+protocols leave the link closed until their drivers land. After the realtime tasks of each pass the
+link feeds the received bytes to the protocol at their times, polls the frame status while the
+receiver task is not past its check, and runs the receiver's frame check with the time since the
+task last ran. At the ten millisecond mark the failsafe checks its data failure period and runs its
+state machine, disarmed. The receiver task runs its state machine (D123) with the scheduler's rate
+ignored on every step but the last. The check step calculates the channels and tells the failsafe
+what the data was worth, then updates the RSSI and starts the failsafe's monitoring once five
+seconds have passed. The modes and update steps stay empty until the modes and the arming reach the
+board. The task's check function is the receiver's. The channels go into the RC reply, so the
+configurator's receiver tab follows the sticks. The protocol's requests for telemetry, device
+information, display port and MSP frames wait for the telemetry link.
 
 The image is 849196 bytes of text, 4620 of data and 111984 of zeroed data. The bench check is a
 CRSF receiver on UART3 assigned the serial receiver function in the ports tab, with the receiver tab
@@ -9463,19 +9464,19 @@ selected PID and rate profiles (D187), with the sensors detected, the gyro's sam
 ratio and a CRSF receiver as the facts beside it, and reads the settings again when a stick command
 or the command line selects a profile and the mode conditions again when a message or the command
 line changes them. The receiver task's check step, once the channels were processed, tracks the
-frame rate for the RC command smoothing and runs the arming's receiver pass; the modes step runs the
-arming's modes pass over the auxiliary channels with the task's delta time; the update step runs the
-RC commands and the arming status, in the reference's order (D123). What the arming logic senses
-comes from the board before each step: the link and the failsafe, the attitude within the small
-angle once established, the calibrations, the scheduler's late share, the filtered rates, the stick
-deflections and the command line; no motor protocol runs yet, so arming stays disabled by that
-reason until the motors reach the board. What the passes ask, the board serves: the gyro and
-accelerometer calibrations, the profile selections, the trims and the saves, the first arming
-calibration, the headfree offset, the failsafe's monitoring, which left the receiver link for this
-output, and the attitude task's rate with the level modes. The adjustments, the beeper, the DShot
-commands, the statistics, the telemetry ports and the VTX wait for their units on the board. The
-replies take the disable reasons, the flight mode flags, the active boxes and the armed flag, and a
-message's disarm, accelerometer calibration and mode change requests reach the units.
+frame rate for the RC command smoothing and runs the arming's receiver pass. The modes step runs the
+arming's modes pass over the auxiliary channels with the task's delta time. The update step runs the
+RC commands and the arming status (D123). What the arming logic senses comes from the board before
+each step: the link and the failsafe, the attitude within the small angle once established, the
+calibrations, the scheduler's late share, the filtered rates, the stick deflections and the command
+line. No motor protocol runs yet, so arming stays disabled by that reason until the motors reach the
+board. What the passes ask, the board serves: the gyro and accelerometer calibrations, the profile
+selections, the trims and the saves, the first arming calibration, the headfree offset, the
+failsafe's monitoring, which left the receiver link for this output, and the attitude task's rate
+with the level modes. The adjustments, the beeper, the DShot commands, the statistics, the telemetry
+ports and the VTX wait for their units on the board. The replies take the disable reasons, the
+flight mode flags, the active boxes and the armed flag, and a message's disarm, accelerometer
+calibration and mode change requests reach the units.
 
 The image is 881216 bytes of text, 4628 of data and 114512 of zeroed data, 35 KB below the
 configuration sector, which the next pieces will want moved (D386). The bench check is the
@@ -9484,14 +9485,14 @@ stick commands calibrating the gyro.
 
 ## D389. STM32F4 flash layout (2026-10-26)
 
-The STM32F4 image lays out the flash as the reference does on the F405: the vector table alone in
-sector 0, sector 1 kept for the configuration store, and the code from sector 2 at 16#0800_8000#.
-The crate's linker script is the runtime's section script with its memory map inlined and the
-vector table in a region of its own, and the crate takes the runtime's `USER` loader setting so the
-runtime adds no script of its own. The store (D386) moves from the last sector to sector 1, which
-erases in a fraction of the time of a 128 KB sector, and the image gains the 128 KB the store took:
-it now ends 131 KB below the flash's end. Flashing writes two files, the vector table at the flash's
-start and the code from sector 2, so the stored configuration survives a new image.
+The STM32F4 image lays out the flash of the F405 with the vector table alone in sector 0, sector 1
+kept for the configuration store, and the code from sector 2 at 16#0800_8000#. The crate's linker
+script is the runtime's section script with its memory map inlined and the vector table in a region
+of its own, and the crate takes the runtime's `USER` loader setting so the runtime adds no script of
+its own. The store (D386) moves from the last sector to sector 1, which erases in a fraction of the
+time of a 128 KB sector, and the image gains the 128 KB the store took: it now ends 131 KB below the
+flash's end. Flashing writes two files, the vector table at the flash's start and the code from
+sector 2, so the stored configuration survives a new image.
 
 ## D390. STM32F4 control loop (2026-10-26)
 
@@ -9516,4 +9517,3 @@ enables the motors.
 The image is 918508 bytes of text, 4660 of data and 116680 of zeroed data. The bench check is the
 command line's `tasks` listing the PID task at the gyro's loop rate with its time, and `status`
 reporting the load.
-

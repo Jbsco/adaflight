@@ -1,7 +1,6 @@
 --  The board's gyro on SPI1: the SPI gyro layer over the bus driver with the
 --  MPU6000 and MPU6500 family drivers the board family builds, the data ready
---  line's interrupt, the start at boot in the reference order, and the
---  readings the main takes.
+--  line's interrupt, the start at boot, and the readings the main takes.
 with Interfaces;
 with Adaflight.Acc_Detect;
 package Adaflight.STM32.Gyro is
