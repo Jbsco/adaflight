@@ -522,6 +522,7 @@ package body Adaflight.STM32.OSD is
       R.Speed_3D := F.GPS.Speed_3D;
       R.Ground_Speed := F.GPS.Ground_Speed;
       R.Use_3D_Speed := F.GPS.Use_3D_Speed;
+      R.Altitude_Cm := F.Altitude_Cm;
       R.ESC_Sensor_Feature := F.ESC_Feature;
       R.ESC_Temperature := F.ESC_Combined.Temperature;
       R.ESC_Erpm := Natural (Interfaces.Integer_16'Max (0, F.ESC_Combined.Rpm));
@@ -539,6 +540,7 @@ package body Adaflight.STM32.OSD is
       A.GPS_Fix_Home := F.GPS.Fix_Home;
       A.Satellites := F.GPS.Satellites;
       A.Home_Distance_M := F.GPS.Distance_To_Home_M;
+      A.Altitude_Cm := F.Altitude_Cm;
       A.ESC_Sensor_Feature := F.ESC_Feature;
       A.ESC_Temperature := F.ESC_Combined.Temperature;
 
@@ -604,6 +606,8 @@ package body Adaflight.STM32.OSD is
         Adaflight.OSD_Render.Yaw_Decidegrees ((Integer (F.GPS.Direction_To_Home) mod 3_600 + 3_600) mod 3_600);
       D.Flown_Cm := F.GPS.Distance_Flown_Cm;
       D.Use_3D_Speed := F.GPS.Use_3D_Speed;
+      D.Altitude_Cm := F.Altitude_Cm;
+      D.Vario_Cm_S := F.Vario;
       D.GPS_Healthy := F.GPS.Healthy;
       D.Screen_Rows := Port.Rows;
       D.Screen_Cols := Port.Cols;

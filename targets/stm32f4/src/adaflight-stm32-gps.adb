@@ -124,7 +124,11 @@ package body Adaflight.STM32.GPS is
        Use_3D_Speed        => Settings.Use_3D_Speed,
        Home                => Link.Home,
        In_View             => Rx.Num_Channels,
-       Tick                => Link.Tick));
+       Tick                => Link.Tick,
+       Stamp               => Link.Stamp,
+       Rate_Hz             => Link.Data_Frequency_Hz,
+       Cos_Lat             => Link.Cos_Lat,
+       Accuracy            => Rx.Sol.Acc));
 
    function Link_State return Adaflight.GPS_Link.Link_State is (Link.State);
 

@@ -10255,7 +10255,24 @@ stream.
 
 The telemetry task runs the stream outside the command line. The inputs are the attitude, the flight modes
 in the stream's order of precedence, the arming, the failsafe, the battery, the RSSI and the GPS solution
-with its home. The board has no altitude estimate yet, so the GPS frame's altitude reads zero.
+with its home. The GPS frame's altitude is the position estimate of D426.
 
 The host smoke check sets the first provider to LTM on UART3 and reads attitude frames ten times a second,
 status frames that report the craft disarmed in rate mode, and an origin frame every tenth cycle.
+
+## D426. STM32F4 position estimate (2026-10-27)
+
+The board runs the position task of `Adaflight.Position_Estimator` (D81) at 100 Hz, which the task setup
+enables with the GPS feature. The estimate reads the accelerometer's filtered values with their scale, the
+attitude's rotation, and the GPS as its link keeps it: the sensor and fix flags, the solutions' stamp and
+rate, the location, the north, east and down velocities, the horizontal, speed and vertical accuracies,
+and the cosine of the home latitude. The CLRacing F4 boards have no barometer, so the estimate runs on the
+accelerometer and the GPS. The position hold and rescue modes ask for the horizontal axes. The settings
+come from the position and position hold configuration, and the estimator starts after the flight log.
+
+The displayed altitude and the climb rate, rounded and with its 10 cm/s deadband, go to the MSP altitude
+reply, the CRSF vario frame, the LTM GPS frame, and the OSD's altitude and vario elements, statistics and
+altitude alarm. The OSD takes the altitude held to its 400 km bound. The rescue and the hold modes are
+later steps.
+
+The host smoke check climbs the NMEA fix by 10 m and reads the climb from the MSP altitude reply.
