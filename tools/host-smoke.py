@@ -10,6 +10,7 @@ the screen with its arming hold.
 
 Usage: host-smoke.py <host image>
 """
+import calendar
 import os
 import re
 import socket
@@ -831,11 +832,10 @@ def main():
             ack = msp(sock, 246, now.to_bytes(4, "little") + (500).to_bytes(2, "little"))
             check("MSP sets the clock", ack == b"", repr(ack))
             clock = msp(sock, 247)
+            read = (calendar.timegm((clock[0] | clock[1] << 8, clock[2], clock[3], clock[4], clock[5], clock[6]))
+                    if clock is not None and len(clock) == 9 else None)
+            check("MSP clock reply holds the date", read is not None and now <= read <= now + 2, repr(clock))
             stamp = time.gmtime(now)
-            check("MSP clock reply holds the date",
-                  clock is not None and len(clock) == 9 and (clock[0] | clock[1] << 8) == stamp.tm_year
-                  and clock[2] == stamp.tm_mon and clock[3] == stamp.tm_mday and clock[4] == stamp.tm_hour
-                  and clock[5] == stamp.tm_min and stamp.tm_sec <= clock[6] <= stamp.tm_sec + 2, repr(clock))
             vcp = socket.create_connection(("127.0.0.1", VCP_PORT), timeout=1)
             vcp.settimeout(0.3)
             time.sleep(0.2)
