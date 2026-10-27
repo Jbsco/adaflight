@@ -7,6 +7,7 @@ with Adaflight.Modes;
 with Adaflight.Serial_Feature_Map;
 with Adaflight.Stream_Buffers;
 with Adaflight.STM32.Control;
+with Adaflight.STM32.Flash_Chip;
 with Adaflight.STM32.Pilot;
 with Adaflight.STM32.SD;
 with Adaflight.STM32.Time;
@@ -40,6 +41,9 @@ package body Adaflight.STM32.Blackbox is
    Info_Set  : Boolean := False;
    Opens     : Interfaces.Unsigned_32 := 0;
    Closes    : Interfaces.Unsigned_32 := 0;
+   Flushes   : Interfaces.Unsigned_32 := 0;
+   Erases    : Interfaces.Unsigned_32 := 0;
+   Header_Flushes : Interfaces.Unsigned_32 := 0;
 
    procedure Init
      (Config : Adaflight.Config_Groups.Configuration; Loop_Time : Adaflight.Blackbox.Loop_Time_Us)
@@ -71,6 +75,9 @@ package body Adaflight.STM32.Blackbox is
       Info_Set := False;
       Opens := L.Opens;
       Closes := L.Closes;
+      Flushes := L.Flush_Requests;
+      Erases := L.Erase_Requests;
+      Header_Flushes := L.Writer.Flushes;
    end Init;
 
    function Device_Set return Boolean is (C.Device /= Header.No_Device);
@@ -108,15 +115,17 @@ package body Adaflight.STM32.Blackbox is
    function Logged (X : Float) return Core.Logged_Float is
      (Float'Max (-1_000_000.0, Float'Min (1_000_000.0, X)));
 
-   --  The bytes of the iteration onto the card's file, or onto the port,
-   --  which takes what its ring has room for; the writer counted the rest
-   --  against the device's room.
+   --  The bytes of the iteration onto the card's file, into the flash
+   --  chip's write buffer, or onto the port, which takes what its ring has
+   --  room for; the writer counted the rest against the device's room.
    procedure Flush is
       Taken : Natural;
    begin
       if Stream.Next > 0 then
          if C.Device = Header.SD_Card then
             Adaflight.STM32.SD.Log_Write (Buffer (0 .. Stream.Next - 1));
+         elsif C.Device = Header.Flash then
+            Adaflight.STM32.Flash_Chip.Write (Buffer (0 .. Stream.Next - 1));
          elsif Open_Port then
             USART.Queue (Which, Buffer (0 .. Stream.Next - 1), Taken);
          end if;
@@ -158,11 +167,42 @@ package body Adaflight.STM32.Blackbox is
       end case;
    end Card_Device;
 
+   --  The flash chip's answers for the recorder's state: the volume's room
+   --  and fullness, the chip's readiness while the volume erases, and the
+   --  forced flush while the cache flushes and while the log shuts down
+   --  inside the shutdown timeout.
+   procedure Chip_Device (D : out Core.Device_Inputs) is
+   begin
+      D := (Free            => Natural'Min (Adaflight.STM32.Flash_Chip.Free_Space, Header.Device_Space'Last),
+            Open_OK         => Adaflight.STM32.Flash_Chip.Supported and then not Adaflight.STM32.Flash_Chip.Full,
+            Buffer_Size     => Natural'Min (Adaflight.STM32.Flash_Chip.Buffer_Usable, Header.Device_Space'Last),
+            Begin_Log_Done  => True,
+            End_Log_Done    => True,
+            Flush_Complete  => True,
+            Flush_Forced    => True,
+            Full            => not Adaflight.STM32.Flash_Chip.Supported or else Adaflight.STM32.Flash_Chip.Full,
+            Erased          => True,
+            Shared_MSP_Port => False);
+      case L.State is
+         when Core.Erasing =>
+            Adaflight.STM32.Flash_Chip.Is_Ready (D.Erased);
+         when Core.Cache_Flush =>
+            Adaflight.STM32.Flash_Chip.Flush (True, D.Flush_Forced);
+         when Core.Shutting_Down =>
+            if In_Flight.Now_Ms <= L.Header_St.Start_Time_Ms + Core.Shutdown_Timeout_Ms then
+               Adaflight.STM32.Flash_Chip.Flush (True, D.Flush_Forced);
+            end if;
+         when others =>
+            null;
+      end case;
+   end Chip_Device;
+
    --  The log step: the device's room and state, what the controller and
    --  the mixer hold, the boxes, then the recorder's iteration; the port
    --  returns to the MSP when the log closes and leaves it when it opens.
    procedure Update is
-      Motors : constant Natural := Natural'Min (Core.Motor_Count, Adaflight.STM32.Control.Motor_Count);
+      Motors  : constant Natural := Natural'Min (Core.Motor_Count, Adaflight.STM32.Control.Motor_Count);
+      Ignored : Boolean;
    begin
       In_Flight.Now_Us := Adaflight.STM32.Time.Micros;
       In_Flight.Armed := Adaflight.STM32.Pilot.Armed;
@@ -172,6 +212,8 @@ package body Adaflight.STM32.Blackbox is
       In_Flight.Mode_Activation_Present := Adaflight.STM32.Pilot.Box_Configured (Adaflight.Modes.Blackbox);
       if C.Device = Header.SD_Card then
          Card_Device (In_Flight.Device);
+      elsif C.Device = Header.Flash then
+         Chip_Device (In_Flight.Device);
       else
          In_Flight.Device :=
            (Free            => (if Open_Port then Natural'Min (USART.Free (Which), Header.Device_Space'Last) else 0),
@@ -213,9 +255,30 @@ package body Adaflight.STM32.Blackbox is
       if L.State = Core.Stopped or else L.State = Core.Disabled then
          Info_Set := False;
       end if;
+      if L.Writer.Flushes /= Header_Flushes then
+         Header_Flushes := L.Writer.Flushes;
+         if C.Device = Header.Flash then
+            Adaflight.STM32.Flash_Chip.Flush (True, Ignored);
+         end if;
+      end if;
+      if L.Flush_Requests /= Flushes then
+         Flushes := L.Flush_Requests;
+         if C.Device = Header.Flash then
+            Adaflight.STM32.Flash_Chip.Flush (False, Ignored);
+         end if;
+      end if;
+      if L.Erase_Requests /= Erases then
+         Erases := L.Erase_Requests;
+         if C.Device = Header.Flash then
+            Adaflight.STM32.Flash_Chip.Erase_Completely;
+         end if;
+      end if;
       if L.Closes /= Closes then
          Closes := L.Closes;
          Held := False;
+         if C.Device = Header.Flash then
+            Adaflight.STM32.Flash_Chip.Close;
+         end if;
       end if;
       if L.Opens /= Opens then
          Opens := L.Opens;
