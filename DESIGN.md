@@ -10278,3 +10278,11 @@ altitude alarm. The OSD takes the altitude held to its 400 km bound. The rescue 
 later steps.
 
 The host smoke check climbs the NMEA fix by 10 m and reads the climb from the MSP altitude reply.
+
+## D427. STM32F4 GPS home on arming (2026-10-27)
+
+The board resets the GPS home position for each home reset the arming logic asks for when the craft arms
+with the GPS feature on: the home takes the current fix when it has the rescue's minimum satellites,
+unless the home is kept once set, its longitude scale follows, a u-blox module's satellite reports turn
+off, and the distance flown restarts. The board had dropped these resets, so the home position never
+formed. The GPS package's send of the link's bytes serves both the task and the reset.

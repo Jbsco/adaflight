@@ -1424,17 +1424,20 @@ package body Adaflight.STM32.Flight is
       end if;
    end Check_LTM;
 
-   --  What the arming logic asked of the board after a step: the stick
-   --  commands the board can serve, the saves, the trims, the beeper, the
-   --  first arming calibration, the headfree offset, the failsafe's
-   --  monitoring, the attitude task's rate and the DShot commands queued for
-   --  the motors. The adjustments, the statistics and the ports wait for
-   --  their units on the board.
+   --  What the arming logic asked of the board after a step: the GPS home
+   --  resets, the stick commands the board can serve, the saves, the trims,
+   --  the beeper, the first arming calibration, the headfree offset, the
+   --  failsafe's monitoring, the attitude task's rate and the DShot commands
+   --  queued for the motors. The adjustments, the statistics and the ports
+   --  wait for their units on the board.
    procedure Apply (Step : Adaflight.Arming.Outputs) is
       Trims : Adaflight.Config_Groups.Integer_16_List_2 renames Config.Accelerometer_Config.Accelerometer_Trims;
       Set   : Boolean;
       Unused_Success : Boolean;
    begin
+      for I in 1 .. Step.GPS_Home_Resets loop
+         Adaflight.STM32.GPS.Reset_Home;
+      end loop;
       if Step.Commands (Adaflight.Arming.Gyro_Calibration) then
          Adaflight.Gyro_Filters.Start_Calibration (Gyro_State, Gyro_Settings, First_Arm => False);
       end if;
