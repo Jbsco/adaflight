@@ -221,6 +221,13 @@ def fat16_log(path):
     return data[at:at + cluster_bytes], ""
 
 
+def stop(proc):
+    """The image killed, and its exit waited for, so the next start cannot reach its ports."""
+    if proc.poll() is None:
+        proc.kill()
+    proc.wait(timeout=10)
+
+
 def start(image, store, extra=None):
     env = dict(os.environ, ADAFLIGHT_EEPROM=store, ADAFLIGHT_OSD_SCREEN=store + ".osd.txt", **(extra or {}))
     proc = subprocess.Popen([image], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -332,8 +339,7 @@ def main():
             proc.wait(timeout=10)
             check("save restarts the image", proc.returncode == 0)
         finally:
-            if proc.poll() is None:
-                proc.kill()
+            stop(proc)
             sock.close()
         check("configuration store written", os.path.exists(store) and os.path.getsize(store) == 8192)
         proc, sock = start(image, store)
@@ -430,7 +436,7 @@ def main():
         finally:
             receiver.stop.set()
             gps.stop.set()
-            proc.kill()
+            stop(proc)
             sock.close()
             if vcp is not None:
                 vcp.close()
@@ -448,8 +454,7 @@ def main():
             cli(sock, "save", wait=2.0)
             proc.wait(timeout=10)
         finally:
-            if proc.poll() is None:
-                proc.kill()
+            stop(proc)
             sock.close()
         proc, sock = start(image, store, {"ADAFLIGHT_SD_IMAGE": card})
         try:
@@ -465,7 +470,7 @@ def main():
             check("sd_info names the card", "20480kB" in text and "'ADAFL FS: Ready" in text, text[-160:])
             time.sleep(2.0)
         finally:
-            proc.kill()
+            stop(proc)
             sock.close()
         data, why = fat16_log(card)
         check("card image holds the log file", data is not None, why)
@@ -487,8 +492,7 @@ def main():
             cli(sock, "save", wait=2.0)
             proc.wait(timeout=10)
         finally:
-            if proc.poll() is None:
-                proc.kill()
+            stop(proc)
             sock.close()
         proc, sock = start(image, store, {"ADAFLIGHT_FLASH_IMAGE": chip})
         try:
@@ -508,7 +512,7 @@ def main():
             text = cli(sock, "flash_read 0 60", 1.5)
             check("flash_read shows the header", "H Product:Blackbox flight data recorder" in text, text[-200:])
         finally:
-            proc.kill()
+            stop(proc)
             sock.close()
         with open(chip, "rb") as f:
             head = f.read(4096)
