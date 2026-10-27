@@ -55,6 +55,12 @@ def number(text, default: int) -> int:
     return int(m.group(1)) if m else default
 
 
+def spi_device(text: str) -> int:
+    """The SPI bus a configuration stores for an instance such as SPI3: its number, zero for none."""
+    match = re.fullmatch(r"SPI([1-6])", text.strip())
+    return int(match.group(1)) if match else 0
+
+
 def find_config(configs: Path, board: str) -> Path:
     hits = sorted(configs.glob(f"*/{board}/config.h"))
     if len(hits) != 1:
@@ -91,16 +97,19 @@ def generate(config: Path) -> str:
     out.append(f"   Beeper_Inverted : constant Boolean := {'True' if 'BEEPER_INVERTED' in defines else 'False'};")
     out.append(f"   Beeper_PWM_Hz   : constant := {int(defines.get('BEEPER_PWM_HZ', '0'))};")
     out.append("")
-    out.append("   --  The pin tags of the inputs and the beeper, zero for none, and the")
-    out.append("   --  meter defaults, the host defaults where the board names none.")
+    out.append("   --  The pin tags of the inputs, the beeper and the OSD chip's select, zero")
+    out.append("   --  for none, the OSD chip's SPI bus from 1, zero for none, and the meter")
+    out.append("   --  defaults, the host defaults where the board names none.")
     tags = [("Beeper_Tag", "BEEPER_PIN"), ("ADC_VBAT_Tag", "ADC_VBAT_PIN"), ("ADC_CURR_Tag", "ADC_CURR_PIN"),
-            ("ADC_RSSI_Tag", "ADC_RSSI_PIN"), ("ADC_External1_Tag", "ADC_EXTERNAL1_PIN")]
+            ("ADC_RSSI_Tag", "ADC_RSSI_PIN"), ("ADC_External1_Tag", "ADC_EXTERNAL1_PIN"),
+            ("MAX7456_CS_Tag", "MAX7456_SPI_CS_PIN")]
     defaults = [("Default_Voltage_Meter_Source", VOLTAGE_SOURCES[defines.get("DEFAULT_VOLTAGE_METER_SOURCE",
                                                                              "VOLTAGE_METER_NONE")]),
                 ("Default_Current_Meter_Source", CURRENT_SOURCES[defines.get("DEFAULT_CURRENT_METER_SOURCE",
                                                                              "CURRENT_METER_VIRTUAL")]),
                 ("Default_Voltage_Meter_Scale", number(defines.get("DEFAULT_VOLTAGE_METER_SCALE"), 110)),
-                ("Default_Current_Meter_Scale", number(defines.get("DEFAULT_CURRENT_METER_SCALE"), 400))]
+                ("Default_Current_Meter_Scale", number(defines.get("DEFAULT_CURRENT_METER_SCALE"), 400)),
+                ("MAX7456_SPI_Device", spi_device(defines.get("MAX7456_SPI_INSTANCE", "")))]
     column = max(len(n) for n, _ in tags + defaults)
     for name, define in tags:
         out.append(f"   {name.ljust(column)} : constant := {pin_tag(defines.get(define, ''))};")
