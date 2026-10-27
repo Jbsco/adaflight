@@ -9732,3 +9732,20 @@ The image is 990468 bytes of text, 5172 of data and 123456 of zeroed data. Text 
 of the 1015808 bytes of the code region, so 20168 bytes remain for the motors and the rest. The
 bench check is a monitor on the board's video output showing the boot logo and version, then the
 craft name and the elements the configuration places.
+
+## D400. Settings table in flash (2026-10-26)
+
+`Adaflight.Settings_Table.Infos` is the table of every setting's kind, scope, mode, limits, lookup
+table, count and group, generated from the settings oracle. Its aggregate left the count, the
+length, the lookup table and the write-once flag to the record's defaults with `others => <>`, which
+the compiler builds at elaboration: 37872 bytes of RAM and 33150 bytes of elaboration code in the
+STM32F4 image. The generator now gives every component, so the aggregate is static and the table is
+read-only data in flash.
+
+The record is packed, with the count and the shortest length in a byte and the group in two bytes:
+15 bytes per setting instead of 48, 11835 bytes for the 789 settings. The clients read the record
+into a local and take its fields, unchanged.
+
+On the STM32F4 image the change moves 37872 bytes from RAM to flash and takes 20932 bytes from the
+text: 969536 bytes of text, 5172 of data and 85584 of zeroed data, 974708 of the 1015808 bytes of
+the code region. The settings vectors and every command line family replay unchanged.
