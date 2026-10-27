@@ -9835,3 +9835,22 @@ with a fix on its port at 5 Hz after the restart, and finds the fix, ten satelli
 in the raw GPS reply and the link connected in the status. The image is 623400 bytes of text, 5284
 of data and 118640 of zeroed data. The bench check is a module on UART4 with the satellites in the
 configurator's GPS tab.
+
+## D406. Flight log header information (2026-10-26)
+
+`Adaflight.Blackbox_Info.Sysinfo_Of` fills the flight log header's system information from the
+stored configuration and the runtime's facts: each of the 262 values as the reference's line reads
+it, from the active PID, rate and battery profiles and the groups, with a 32-bit word printed as the
+reference prints it, the accelerometer lowpass in hundredths, and the wing and multirotor lines of
+the other build at zero. The facts are what the header reads outside the stored configuration: the
+recorder's intervals, the motor output range, the accelerometer's count for one g, the battery
+reference, the loop time, the PID denominator, the DShot telemetry flag, the RC smoothing filter's
+settings, axis and running cutoffs, the receiver's rate, the debug mode, the device identifier and
+the build's texts. The craft name comes from the configuration and the debug mode's name from the
+settings' table, UNKNOWN past it.
+
+The bbinfo vectors come from the header oracle's random fields, 200 configurations, each field
+reported with its setting name so the harness writes it through the settings layer before the
+mapping runs. Four fields have no setting in that build and are written to their groups directly:
+the gyro enable mask, the feature flags, the disabled field mask, and the TPA curve's five values.
+The level feedforward's setting is a byte, so the oracle draws it within one.
