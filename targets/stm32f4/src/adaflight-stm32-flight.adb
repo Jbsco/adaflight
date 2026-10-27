@@ -5,6 +5,7 @@ with Interfaces; use Interfaces;
 with Adaflight.Acc_Inflight;
 with Adaflight.Accelerometer;
 with Adaflight.Adjustments;
+with Adaflight.Altitude_Hold;
 with Adaflight.Arming;
 with Adaflight.Attitude;
 with Adaflight.Axes;
@@ -263,6 +264,9 @@ package body Adaflight.STM32.Flight is
    Att_State      : Adaflight.Attitude.State;
    Pos_Settings   : Adaflight.Position_Estimator.Settings;
    Pos_State      : Adaflight.Position_Estimator.State;
+
+   Alt_Hold_Settings : Adaflight.Altitude_Hold.Settings;
+   Alt_Hold_State    : Adaflight.Altitude_Hold.State;
 
    --  The displayed altitude to the nearest centimetre, and the climb rate
    --  in centimetres per second with its 10 cm/s deadband.
@@ -699,8 +703,8 @@ package body Adaflight.STM32.Flight is
    procedure Init_Scheduler is
       Options : constant Adaflight.Task_Init.Options :=
         (Accel => True, Beeper => True, Sag_Compensation => True, OSD => True, CMS => True, GPS => True,
-         Telemetry => True, VTX_Control => True, VTX_Driver => True, PINIO_Box => True, ESC_Sensor => True,
-         others => False);
+         Alt_Hold => True, Telemetry => True, VTX_Control => True, VTX_Driver => True, PINIO_Box => True,
+         ESC_Sensor => True, others => False);
       Inputs  : Adaflight.Task_Init.Inputs;
    begin
       Sched_Settings := Adaflight.Config_Runtime.Scheduler_Settings_Of
@@ -1396,18 +1400,30 @@ package body Adaflight.STM32.Flight is
          Z     => Adaflight.MSP_Out.Component (Att_State.Reported.Z));
    end Run_Attitude;
 
-   --  The check function of a task with one: the receiver task's check
-   --  over the link; no display yet, so no other is signaled.
-   function Check (Id : Scheduler.Task_Id) return Boolean is
-     ((Id = Scheduler.Rx and then Adaflight.STM32.Radio.Update_Check (Adaflight.RX_Task.In_Progress (RX_State)))
-      or else (Id = Scheduler.OSD and then Adaflight.STM32.OSD.Task_Due (Adaflight.STM32.Time.Micros)));
+   --  The check function of a task with one: the receiver task's over the
+   --  link, the display's frame time, and the altitude hold's update event
+   --  from the position estimate, or twice its period since its last run.
+   procedure Check (Id : Scheduler.Task_Id; Delta_Us : Scheduler.Time_Delta; Due : out Boolean) is
+   begin
+      case Id is
+         when Scheduler.Rx =>
+            Due := Adaflight.STM32.Radio.Update_Check (Adaflight.RX_Task.In_Progress (RX_State));
+         when Scheduler.OSD =>
+            Due := Adaflight.STM32.OSD.Task_Due (Adaflight.STM32.Time.Micros);
+         when Scheduler.Alt_Hold =>
+            Adaflight.Position_Estimator.Take_Update (Pos_State, Adaflight.Position_Estimator.Altitude_Hold, Due);
+            Due := Due or else Delta_Us >= 2 * Adaflight.Altitude_Hold.Nominal_Interval_Us;
+         when others =>
+            Due := False;
+      end case;
+   end Check;
 
    --  What the arming logic senses on the board: the link and the failsafe,
    --  the attitude within the small angle once established or no
-   --  accelerometer, the calibrations, no motor protocol yet, the scheduler's
-   --  late share, the filtered rates and the stick deflections, the command
-   --  line, and the DShot streaming commands, asked only where the boot grace
-   --  check asks for them.
+   --  accelerometer, the calibrations, the GPS and the altitude estimate, no
+   --  motor protocol yet, the scheduler's late share, the filtered rates and
+   --  the stick deflections, the command line, and the DShot streaming
+   --  commands, asked only where the boot grace check asks for them.
    function Sense return Adaflight.Arming.Inputs is
       Sensed : Adaflight.Arming.Inputs;
    begin
@@ -1421,6 +1437,7 @@ package body Adaflight.STM32.Flight is
       Sensed.Gyro_Calibrated := Adaflight.Gyro_Filters.Calibration_Complete (Gyro_State);
       Sensed.GPS_Fix := Adaflight.STM32.GPS.Current.Fix;
       Sensed.GPS_Sats := Natural (Adaflight.STM32.GPS.Current.Satellites);
+      Sensed.Altitude_Available := Pos_State.Valid_Z;
       Sensed.Acc_Calibrated := Adaflight.Accelerometer.Calibration_Complete (Acc_State);
       Sensed.Acc_Has_Calibration := Config.Accelerometer_Config.Acc_Zero (3) /= 0;
       Sensed.First_Arm_Gyro_Cal_Running := Adaflight.Gyro_Filters.First_Arm_Calibration_Running (Gyro_State);
@@ -1762,6 +1779,9 @@ package body Adaflight.STM32.Flight is
       I.Throttle_Correction := Att_State.Throttle_Correction;
       I.Jerk_Magnitude := Acc_State.Jerk_Magnitude;
       I.RC_Data_Throttle := Channels (Adaflight.RC_Command.Throttle_Channel);
+      I.Autopilot_Throttle := Alt_Hold_State.Control.Throttle_Out;
+      I.Below_Landing :=
+        Pos_State.Control_Altitude_Cm < 100.0 * Float (Config.Autopilot_Config.Landing_Altitude_M);
       I.Battery_Voltage := Unsigned_16 (Bat.Voltage.Display_Filtered);
       I.Sag_Cell_Voltage := Adaflight.Battery.Sag_Cell_Voltage (Bat);
       I.Battery_Latest := Bat.Voltage.Unfiltered;
@@ -2320,6 +2340,26 @@ package body Adaflight.STM32.Flight is
          others             => <>);
    end Position_Inputs;
 
+   --  The altitude hold task over the estimate's control values, at the
+   --  interval the scheduler measured since its last run.
+   procedure Run_Altitude_Hold is
+      M : constant Adaflight.Arming.Mode_Set := Adaflight.STM32.Pilot.Flight_Modes;
+   begin
+      Adaflight.Altitude_Hold.Update
+        (Alt_Hold_State, Alt_Hold_Settings,
+         (Hold_Mode             => M (Adaflight.Arming.Alt_Hold_Mode),
+          Interval_Us           => Scheduler.Task_Delta_Time (Sched, Scheduler.Alt_Hold),
+          Throttle_Command      => Float'Max (750.0, Float'Min (2_250.0, Adaflight.STM32.Pilot.Throttle_Command)),
+          Throttle_Low          => Adaflight.STM32.Pilot.Throttle_Low (Flight_Channels),
+          Failsafe_Active       => Adaflight.STM32.Radio.Failsafe_Active,
+          Emergency_Descent     => False,
+          Emergency_Rate_Cms    => 0.0,
+          Altitude_Cm           => Pos_State.Control_Altitude_Cm,
+          Vertical_Velocity     => Pos_State.Control_Derivative,
+          Vertical_Acceleration => Pos_State.Control_Acceleration,
+          Cos_Tilt              => Float'Max (-1.0, Float'Min (1.0, Adaflight.Attitude.Cos_Tilt (Att_State)))));
+   end Run_Altitude_Hold;
+
    --  The flight modes as the reference's flight mode word: angle, horizon,
    --  magnetometer and altitude hold in bits 0 to 3, then position hold,
    --  headfree, chirp and passthru from bit 5, then failsafe, rescue,
@@ -2593,6 +2633,8 @@ package body Adaflight.STM32.Flight is
             Run_GPS (Before);
          when Scheduler.Position =>
             Adaflight.Position_Estimator.Update (Pos_State, Pos_Settings, Position_Inputs (Before));
+         when Scheduler.Alt_Hold =>
+            Run_Altitude_Hold;
          when Scheduler.ESC_Sensor =>
             Adaflight.STM32.ESC_Sensor.Run (Before, Adaflight.STM32.Control.Motor_Count);
          when Scheduler.Telemetry =>
@@ -2731,6 +2773,9 @@ package body Adaflight.STM32.Flight is
       Pos_Settings :=
         Adaflight.Config_Runtime.Position_Estimator_Settings_Of (Config.Position_Config, Config.Pos_Hold_Config);
       Adaflight.Position_Estimator.Init (Pos_State, Pos_Settings, Armed => Adaflight.STM32.Pilot.Armed);
+      Alt_Hold_Settings := Adaflight.Config_Runtime.Altitude_Hold_Settings_Of
+        (Config.Autopilot_Config, Config.Alt_Hold_Config, Config.Rx_Config);
+      Adaflight.Altitude_Hold.Init (Alt_Hold_State, Alt_Hold_Settings, Pos_State.Control_Altitude_Cm);
       Adaflight.STM32.LTM.Init (Config, Runtime_Features);
       Adaflight.STM32.MAVLink.Init (Config, Runtime_Features, (UID (1), UID (2), UID (3)));
       Check_Telemetry;
@@ -2782,6 +2827,7 @@ package body Adaflight.STM32.Flight is
       Proceed  : Boolean;
       Selected : Boolean;
       Run_It   : Boolean;
+      Due      : Boolean;
       Now      : Unsigned_32;
       Start_Us : constant Unsigned_32 := Adaflight.STM32.Time.Micros;
    begin
@@ -2824,8 +2870,8 @@ package body Adaflight.STM32.Flight is
       if Proceed then
          for Q in 0 .. Sched.Queue_Size - 1 loop
             if Scheduler.Needs_Check (Sched, Q) then
-               Scheduler.Consider (Sched, Sched_Settings, Q, Check (Scheduler.Queued (Sched, Q)),
-                                   Adaflight.STM32.Time.Micros);
+               Check (Scheduler.Queued (Sched, Q), Scheduler.Check_Delta (Sched, Q), Due);
+               Scheduler.Consider (Sched, Sched_Settings, Q, Due, Adaflight.STM32.Time.Micros);
             else
                Scheduler.Consider (Sched, Sched_Settings, Q, False, 0);
             end if;
