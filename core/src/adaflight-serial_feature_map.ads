@@ -29,6 +29,13 @@ package Adaflight.Serial_Feature_Map with SPARK_Mode is
    Baud_57600  : constant Baud_Index := 4;
    Baud_115200 : constant Baud_Index := 5;
 
+   --  A baud index's rate, zero for the automatic one.
+   function Rate_Of (B : Baud_Index) return Unsigned_32 is
+     (case B is
+         when 0 => 0, when 1 => 9_600, when 2 => 19_200, when 3 => 38_400, when 4 => 57_600, when 5 => 115_200,
+         when 6 => 230_400, when 7 => 250_000, when 8 => 400_000, when 9 => 460_800, when 10 => 500_000,
+         when 11 => 921_600, when 12 => 1_000_000, when 13 => 1_500_000, when 14 => 2_000_000, when 15 => 2_470_000);
+
    Function_MSP             : constant Unsigned_32 := 16#0000_0001#;
    Function_GPS             : constant Unsigned_32 := 16#0000_0002#;
    Function_FrSky_Hub       : constant Unsigned_32 := 16#0000_0004#;

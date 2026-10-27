@@ -46,6 +46,7 @@ package Adaflight.STM32.GPS is
       Ground_Speed        : Interfaces.Unsigned_16 := 0;
       Speed_3D            : Interfaces.Unsigned_16 := 0;
       Ground_Course       : Interfaces.Unsigned_16 := 0;
+      Velocity            : Adaflight.GPS_Frames.Velocity;
       PDOP                : Interfaces.Unsigned_16 := 0;
       HDOP                : Interfaces.Unsigned_16 := 0;
       VDOP                : Interfaces.Unsigned_16 := 0;

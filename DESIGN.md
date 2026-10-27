@@ -9933,3 +9933,27 @@ their bounds more outside the named symbols. The pools and their index tables ta
 of it read-only data, and the image dropped from 609936 bytes of text to 553112. The settings vectors
 check every setting and value name against the oracle's dump, and four tampers of the slices fail
 them.
+
+## D411. STM32F4 flight log on a serial port (2026-10-26)
+
+`Adaflight.STM32.Blackbox` runs the recorder of D93 on the board. The configuration names the port and
+its rate, as the reference's settings do. The port opens at that rate, with two stop bits at 230400
+baud, unless it is the MSP's, in which case it keeps the MSP's rate and the MSP leaves it while the log
+holds it: from the start, and again at every log open, until the log closes. The flight gives the log
+its facts before each PID pass: the time, the arming beep, the battery, the gyro rates filtered and
+raw, the accelerometer, the attitude quaternion, the link's signal, the failsafe phase, the active
+boxes as the log's flight mode word, the state flags, the GPS solution with its date as seconds since
+1970, and the conditions of a log start. The log step after the mixer takes the controller's terms and
+last setpoints, the RC commands, the mixer's throttle and motors, and the port's room, then runs the
+recorder's iteration and queues its bytes on the port. The header's system information comes from
+D406 once per log, built while the header is on its way. A disarm logs its event with the reason, then
+ends the log.
+
+The UART driver gained a transmit ring of 256 bytes per port, filled by the transmit interrupt. A
+write queues its bytes and waits only for room, so a long command line reply no longer holds the
+flight loop for its whole length, and the log's writer takes the ring's room as the device's.
+
+The log names the firmware Adaflight in its type and revision lines, which the stock log viewer does
+not know. The adaflight-blackbox-log-viewer fork reads them. The host target serves the port on TCP,
+and the smoke check sets the device, the port and the always-on mode, then reads the header, the
+field definitions and the first frames from UART6's port. The image is 591420 bytes of text.

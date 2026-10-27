@@ -91,5 +91,15 @@ package Adaflight.STM32.Pilot is
    function Flight_Modes return Adaflight.Arming.Mode_Set;
    function Active_Boxes return Adaflight.Modes.Mask;
    function Box_Active (B : Adaflight.Modes.Box) return Boolean;
+   --  Whether a box has a mode condition.
+   function Box_Configured (B : Adaflight.Modes.Box) return Boolean;
    function Deflections return Adaflight.Arming.Axis_Deflections;
+   --  What the flight log reads: the RC command of a channel, the reason of
+   --  the last disarm, and the RC smoothing's running cutoffs and receiver
+   --  rate.
+   function Command (Ch : Adaflight.RC_Command.Channel) return Float;
+   function Last_Disarm_Reason return Adaflight.Arming.Disarm_Reason;
+   function Setpoint_Cutoff_Hz return Natural;
+   function Throttle_Cutoff_Hz return Natural;
+   function RX_Rate_Hz return Float;
 end Adaflight.STM32.Pilot;
