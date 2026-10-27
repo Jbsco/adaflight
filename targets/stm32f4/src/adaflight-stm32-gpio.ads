@@ -27,6 +27,9 @@ package Adaflight.STM32.GPIO is
    procedure Set_Alternate
      (P : Pin; Func : Alternate_Function; Resistor : Pull := No_Pull; Rate : Speed := High);
 
+   --  The level of a pin.
+   function Is_High (P : Pin) return Boolean;
+
    procedure Set_High (P : Pin);
 
    procedure Set_Low (P : Pin);
