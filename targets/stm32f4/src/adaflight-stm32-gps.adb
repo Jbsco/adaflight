@@ -98,6 +98,7 @@ package body Adaflight.STM32.GPS is
        Ground_Speed        => Rx.Sol.Ground_Speed,
        Speed_3D            => Rx.Sol.Speed_3d,
        Ground_Course       => Rx.Sol.Ground_Course,
+       Velocity            => Rx.Sol.Velned,
        PDOP                => Rx.Sol.Dop.Pdop,
        HDOP                => Rx.Sol.Dop.Hdop,
        VDOP                => Rx.Sol.Dop.Vdop,

@@ -62,4 +62,9 @@ package Adaflight.STM32.Radio is
    function Channel_Count return Natural;
    function Channel (I : Adaflight.Receiver.Channel) return Float;
    function Receiving return Boolean;
+   --  What the flight log reads: the failsafe's phase, whether the flight
+   --  channels are valid, and whether an RSSI source is set.
+   function Failsafe_Phase return Adaflight.Failsafe.Phase;
+   function Flight_Channels_Valid return Boolean;
+   function RSSI_Configured return Boolean;
 end Adaflight.STM32.Radio;
