@@ -38,6 +38,7 @@ with Adaflight.Config_Store;
 with Adaflight.Core_Loop;
 with Adaflight.CRSF_Telemetry;
 with Adaflight.Failsafe;
+with Adaflight.FrSky_Hub_Telemetry;
 with Adaflight.FAT;
 with Adaflight.Flash_Device;
 with Adaflight.Flight_Stats;
@@ -76,6 +77,7 @@ with Adaflight.STM32.ESC_Sensor;
 with Adaflight.STM32.Flash;
 with Adaflight.STM32.Flash_Chip;
 with Adaflight.STM32.GPIO;
+with Adaflight.STM32.FrSky_Hub;
 with Adaflight.STM32.LTM;
 with Adaflight.STM32.SmartPort;
 with Adaflight.STM32.MAVLink;
@@ -305,8 +307,8 @@ package body Adaflight.STM32.Flight is
 
    --  Whether a telemetry stream holds a UART.
    function Telemetry_Holds (N : Adaflight.STM32.USART.Number) return Boolean is
-     (Adaflight.STM32.SmartPort.Holds (N) or else Adaflight.STM32.LTM.Holds (N)
-      or else Adaflight.STM32.MAVLink.Holds (N));
+     (Adaflight.STM32.FrSky_Hub.Holds (N) or else Adaflight.STM32.SmartPort.Holds (N)
+      or else Adaflight.STM32.LTM.Holds (N) or else Adaflight.STM32.MAVLink.Holds (N));
 
    function Text (S : String) return Common.Text is
       T : Common.Text;
@@ -1577,6 +1579,7 @@ package body Adaflight.STM32.Flight is
       Box_Present : constant Boolean := Adaflight.STM32.Pilot.Box_Configured (Adaflight.Modes.Telemetry);
       Box_Active  : constant Boolean := Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Telemetry);
    begin
+      Adaflight.STM32.FrSky_Hub.Check_State (Armed, Box_Present, Box_Active);
       Adaflight.STM32.SmartPort.Check_State (Armed, Box_Present, Box_Active);
       Adaflight.STM32.LTM.Check_State (Armed, Box_Present, Box_Active);
       Adaflight.STM32.MAVLink.Check_State (Armed, Box_Present, Box_Active, Adaflight.STM32.Time.Millis);
@@ -2671,6 +2674,48 @@ package body Adaflight.STM32.Flight is
    --  What the LTM stream reads: the attitude, the flight modes, the arming
    --  and the failsafe, the battery, the signal, the GPS solution with its
    --  home, and the estimated altitude.
+   --  What the FrSky hub telemetry reads: the clocks, the accelerometer, the
+   --  combined ESC reading, the GPS, the battery, and the altitude estimate
+   --  with its climb rate and the heading.
+   function FrSky_Hub_Inputs return Adaflight.FrSky_Hub_Telemetry.Inputs is
+      package FH renames Adaflight.FrSky_Hub_Telemetry;
+      G     : constant Adaflight.STM32.GPS.Readings := Adaflight.STM32.GPS.Current;
+      Volts : constant Natural := Natural'Min (65_535, Bat.Voltage.Display_Filtered);
+      ESC   : Adaflight.ESC_Sensor.Reading;
+      function Held (V : Float) return FH.Acceleration is (Float'Max (-1.0e6, Float'Min (1.0e6, V)));
+      function Wide (V : Long_Integer) return Integer_32 is
+        (Integer_32 (Long_Integer'Max (-2 ** 31, Long_Integer'Min (2 ** 31 - 1, V))));
+   begin
+      Adaflight.STM32.ESC_Sensor.Combined (Adaflight.STM32.Control.Motor_Count, ESC);
+      return
+        (Now_Us              => Adaflight.STM32.Time.Micros,
+         Now_Ms              => Adaflight.STM32.Time.Millis,
+         Acc_X               => Held (Acc_State.Acc.X),
+         Acc_Y               => Held (Acc_State.Acc.Y),
+         Acc_Z               => Held (Acc_State.Acc.Z),
+         ESC_Valid           => Adaflight.STM32.ESC_Sensor.Feature_On,
+         ESC_Rpm             => ESC.Rpm,
+         ESC_Temperature     => ESC.Temperature,
+         Fix                 => G.Fix,
+         Lat                 => Integer_32'Max (-(2 ** 31 - 1), G.Latitude),
+         Lon                 => Integer_32'Max (-(2 ** 31 - 1), G.Longitude),
+         Alt_Cm              => G.Altitude_Cm,
+         Ground_Speed        => G.Ground_Speed,
+         Num_Sat             => G.Satellites,
+         Pdop                => G.PDOP,
+         Voltage_Configured  => Adaflight.Battery."/=" (Bat_Settings.Voltage_Meter, Adaflight.Battery.None),
+         Amperage_Configured => Adaflight.Battery."/=" (Bat_Settings.Current_Meter, Adaflight.Battery.None),
+         Cell_Count          => Unsigned_8 (Natural'Min (255, Bat.Cells)),
+         Voltage_Cv          => Unsigned_16 (Volts),
+         Amperage_Ca         => Wide (Long_Integer (Bat.Current.Amperage)),
+         Capacity            => Unsigned_16 (Natural'Min (65_535, Bat_Settings.Capacity_mAh)),
+         Percent             => Unsigned_8 (Adaflight.Battery.Percentage_Remaining (Bat, Bat_Settings)),
+         Mah_Drawn           => Wide (Long_Integer (Bat.Current.mAh_Drawn)),
+         Vario_Cms           => Estimated_Vario,
+         Altitude_Cm         => Estimated_Altitude_Cm,
+         Yaw                 => Integer_16 (Att_State.Euler.Yaw));
+   end FrSky_Hub_Inputs;
+
    --  The SmartPort value tables: the sensors the configuration leaves
    --  enabled, the battery meters configured, the accelerometer and the GPS
    --  feature, with no barometer on the board.
@@ -2940,6 +2985,7 @@ package body Adaflight.STM32.Flight is
             Adaflight.STM32.ESC_Sensor.Run (Before, Adaflight.STM32.Control.Motor_Count);
          when Scheduler.Telemetry =>
             if not Session.Open and then (Runtime_Features and Adaflight.Config_Fix.Feature_Telemetry) /= 0 then
+               Adaflight.STM32.FrSky_Hub.Run (FrSky_Hub_Inputs);
                Adaflight.STM32.SmartPort.Run (SmartPort_Inputs);
                Adaflight.STM32.LTM.Run (Adaflight.STM32.Time.Millis, LTM_Inputs);
                declare
@@ -3091,6 +3137,14 @@ package body Adaflight.STM32.Flight is
       Rescue_Settings := Adaflight.Config_Runtime.GPS_Rescue_Settings_Of
         (Config.Gps_Rescue_Config, Config.Autopilot_Config, Config.Gps_Config);
       Adaflight.GPS_Rescue.Init (Rescue_State, Rescue_Settings);
+      Adaflight.STM32.FrSky_Hub.Init
+        (Config, Runtime_Features,
+         Adaflight.Config_Runtime.FrSky_Hub_Settings_Of
+           (Config.Telemetry_Config, Config.Motor_Config,
+            (Gyro => Selection.Found, Acc => Gyro_Report.Acc_Found, Baro => False, Mag => False),
+            Altitude_Present => False,
+            GPS_Present      => (Runtime_Features and Adaflight.Config_Fix.Feature_GPS) /= 0,
+            Acc_1G_Rec       => Float'Max (0.0, Float'Min (1.0, Acc_State.One_G_Reciprocal))));
       Adaflight.STM32.SmartPort.Init (Config, Runtime_Features, SmartPort_Build);
       Adaflight.STM32.LTM.Init (Config, Runtime_Features);
       Adaflight.STM32.MAVLink.Init (Config, Runtime_Features, (UID (1), UID (2), UID (3)));
