@@ -13,6 +13,7 @@ Usage: host-smoke.py <host image>
 import os
 import re
 import socket
+import struct
 import subprocess
 import sys
 import tempfile
@@ -319,6 +320,41 @@ def ltm_frames(data):
                 frames.append((chr(data[i + 2]), payload))
         i = data.find(b"$T", i + 2)
     return frames
+
+
+MAVLINK_CRC_EXTRA = {0: 50, 30: 39, 77: 143, 148: 178}
+
+
+def x25(data, crc=0xFFFF):
+    for byte in data:
+        tmp = (byte ^ crc) & 0xFF
+        tmp = (tmp ^ (tmp << 4)) & 0xFF
+        crc = ((crc >> 8) ^ (tmp << 8) ^ (tmp << 3) ^ (tmp >> 4)) & 0xFFFF
+    return crc
+
+
+def mavlink_frames(data):
+    """The MAVLink 2 frames in a byte stream with good checksums among the known messages, as (id, payload)."""
+    frames = []
+    i = data.find(b"\xfd")
+    while 0 <= i and i + 12 <= len(data):
+        length = data[i + 1]
+        end = i + 10 + length + 2 + (13 if data[i + 2] & 1 else 0)
+        msg = data[i + 7] | data[i + 8] << 8 | data[i + 9] << 16
+        if msg in MAVLINK_CRC_EXTRA and end <= len(data):
+            crc = x25(bytes(data[i + 1:i + 10 + length]) + bytes([MAVLINK_CRC_EXTRA[msg]]))
+            if crc == data[i + 10 + length] | data[i + 11 + length] << 8:
+                frames.append((msg, data[i + 10:i + 10 + length]))
+        i = data.find(b"\xfd", i + 1)
+    return frames
+
+
+def mavlink_command_long(command, param1):
+    """A COMMAND_LONG from a ground station (system 255) to system 1, component 1."""
+    payload = struct.pack("<7fHBBB", param1, 0, 0, 0, 0, 0, 0, command, 1, 1, 0)
+    header = bytes([len(payload), 0, 0, 0, 255, 190]) + (76).to_bytes(3, "little")
+    crc = x25(header + payload + bytes([152]))
+    return b"\xfd" + header + payload + crc.to_bytes(2, "little")
 
 
 def fat16_image(path, sectors):
@@ -890,6 +926,40 @@ def main():
             check("LTM status frames report disarmed in rate mode", bool(status) and status[-1][6] == 1 << 2,
                   repr(status[-1:]))
             check("LTM sends an origin frame every tenth cycle", 1 <= letters.count("O") <= 3, letters)
+        finally:
+            stop(proc)
+            sock.close()
+        store = os.path.join(work, "mavlink.bin")
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "feature TELEMETRY")
+            check("telemetry feature on for MAVLink", "Enabled" in text, text[-120:])
+            text = cli(sock, "set telemetry_1_protocol = MAVLINK")
+            check("telemetry provider set to MAVLink", "telemetry_1_protocol set to MAVLINK" in text, text[-120:])
+            text = cli(sock, "set telemetry_1_uart = UART3")
+            check("MAVLink port assigned", "telemetry_1_uart set to UART3" in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            mav = socket.create_connection(("127.0.0.1", RX_PORT), timeout=1)
+            mav.settimeout(0.3)
+            frames = mavlink_frames(read_all(mav, 3.0))
+            ids = [m for m, _ in frames]
+            check("MAVLink sends heartbeats", ids.count(0) >= 2, repr(ids[:40]))
+            check("MAVLink sends attitude messages", ids.count(30) >= 4, repr(ids[:40]))
+            mav.sendall(mavlink_command_long(512, 148.0))
+            replies = mavlink_frames(read_all(mav, 1.5))
+            ids = [m for m, _ in replies]
+            check("MAVLink answers an autopilot version request", 148 in ids and 77 in ids, repr(ids[:40]))
+            mav.close()
         finally:
             stop(proc)
             sock.close()

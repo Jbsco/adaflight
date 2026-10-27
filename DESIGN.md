@@ -10286,3 +10286,24 @@ with the GPS feature on: the home takes the current fix when it has the rescue's
 unless the home is kept once set, its longitude scale follows, a u-blox module's satellite reports turn
 off, and the distance flown restarts. The board had dropped these resets, so the home position never
 formed. The GPS package's send of the link's bytes serves both the task and the reset.
+
+## D428. STM32F4 MAVLink telemetry (2026-10-27)
+
+`Adaflight.STM32.MAVLink` runs the core's MAVLink telemetry and command units on the telemetry port of the
+first provider with the MAVLink protocol, at its rate or 57600 baud, through the telemetry port generic of
+D425. When the port opens, the arming report starts over, the frame parser restarts, and the stream
+intervals start again from the settings. Each telemetry task takes the bytes received into a 512-byte
+buffer, gives the command unit up to 64 of them, sends its replies, keeps the rest for the next task, then
+sends the stream messages due. The board has no MAVLink receiver, so the streams go out 20 ms after the
+last pass. The telemetry task runs the LTM stream before the MAVLink one.
+
+The ground station's requests run after the drain in their order: a disarm by serial command, the mode
+overrides through the arming state, a home reset or a home position, and a reboot once the port's queued
+bytes have left or 100 ms have passed. A reboot to the bootloader resets the board as the MSP reboot does.
+The inputs take the battery and its meters, the RSSI and the first eight channels, the attitude, the GPS
+solution with its accuracies and home, the estimated altitude of D426, the mixer, the arming, the
+failsafe, the flight modes as the flight mode word the MAVLink unit decodes, the clock and the disable
+reasons.
+
+The host smoke check sets the first provider to MAVLink on UART3, checks the heartbeat and attitude
+messages' CRCs, and requests the autopilot version, which comes back with its acknowledgement.

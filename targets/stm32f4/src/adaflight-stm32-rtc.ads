@@ -10,6 +10,8 @@ package Adaflight.STM32.RTC is
    procedure Set_Zone (Minutes : Interfaces.Integer_16);
    function Zone return Adaflight.RTC.Zone_Minutes;
    function Has_Time return Boolean;
+   --  The time in milliseconds since 1970, meaningful once the clock has time.
+   function Now_Ms return Interfaces.Integer_64;
    --  The clock set to milliseconds since 1970, or to a calendar date.
    procedure Set_Ms (T : Interfaces.Integer_64);
    procedure Set_Date (D : Adaflight.RTC.Date_Time);
