@@ -354,13 +354,22 @@ class SerialReceiver(threading.Thread):
             sock.close()
 
 
-class Lidar(threading.Thread):
-    """A TFmini lidar on UART4's port: a frame every 10 ms with the two sync bytes, 150 cm, a strength of 500,
-    the short integral time, a reserved byte and the checksum of the first eight bytes."""
+def tofsense_frame(distance_mm):
+    """A Nooploop TOFSense frame: the two sync bytes, the id, the system time, the distance in millimetres in
+    three bytes, a valid status, the signal strength, a reserved byte and the sum of the first fifteen bytes."""
+    body = (bytes([0x57, 0x00, 0xFF, 0x00]) + (1000).to_bytes(4, "little") + distance_mm.to_bytes(3, "little")
+            + bytes([0x00]) + (300).to_bytes(2, "little") + bytes([0x00]))
+    return body + bytes([sum(body) & 0xFF])
 
-    def __init__(self):
+
+class Lidar(threading.Thread):
+    """A rangefinder on UART4's port sending a frame every 10 ms: by default a TFmini's two sync bytes, 150 cm,
+    a strength of 500, the short integral time, a reserved byte and the checksum of the first eight bytes."""
+
+    def __init__(self, frame=None):
         super().__init__(daemon=True)
         self.stop = threading.Event()
+        self.frame = frame
 
     def run(self):
         sock = None
@@ -371,7 +380,7 @@ class Lidar(threading.Thread):
             except OSError:
                 time.sleep(0.1)
         body = bytes([0x59, 0x59]) + (150).to_bytes(2, "little") + (500).to_bytes(2, "little") + bytes([0x02, 0x00])
-        frame = body + bytes([sum(body) & 0xFF])
+        frame = self.frame if self.frame is not None else body + bytes([sum(body) & 0xFF])
         while sock is not None and not self.stop.is_set():
             try:
                 sock.sendall(frame)
@@ -1753,6 +1762,36 @@ def main():
             sock.close()
             if log is not None:
                 log.close()
+        store = os.path.join(work, "tofsense.bin")
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "set rangefinder_hardware = NOOPLOOP_F2")
+            check("rangefinder set to a TOFSense F2", "rangefinder_hardware set to NOOPLOOP_F2" in text, text[-120:])
+            text = cli(sock, "set rangefinder_uart = UART4")
+            check("TOFSense port assigned", "rangefinder_uart set to UART4" in text, text[-120:])
+            text = cli(sock, "feature RANGEFINDER")
+            check("rangefinder feature on for the TOFSense", "Enabled" in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        tof = Lidar(tofsense_frame(1234))
+        tof.start()
+        proc, sock = start(image, store)
+        try:
+            time.sleep(3.0)
+            sonar = msp(sock, 58)
+            altitude = int.from_bytes(sonar[:4], "little", signed=True) if sonar and len(sonar) >= 4 else None
+            check("MSP sonar altitude reads the TOFSense's 123 cm", altitude is not None and abs(altitude - 123) <= 1,
+                  repr(altitude))
+        finally:
+            tof.stop.set()
+            stop(proc)
+            sock.close()
         store = os.path.join(work, "ghsttlm.bin")
         proc, sock = start(image, store)
         try:

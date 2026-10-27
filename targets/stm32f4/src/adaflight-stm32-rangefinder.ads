@@ -1,12 +1,12 @@
---  The rangefinder on a UART: a Benewake TF lidar on the port the
---  rangefinder setting names, found at the start, and the rangefinder task,
---  which reads its frames and turns the distance into an altitude with the
---  craft's tilt.
+--  The rangefinder on a UART: a Benewake TF lidar or a Nooploop TOFSense on
+--  the port the rangefinder setting names, found at the start, and the
+--  rangefinder task, which reads its frames and turns the distance into an
+--  altitude with the craft's tilt.
 with Interfaces;
 with Adaflight.Config_Groups;
 with Adaflight.STM32.USART;
 package Adaflight.STM32.Rangefinder is
-   --  The lidar the rangefinder hardware setting names, on its UART at
+   --  The sensor the rangefinder hardware setting names, on its UART at
    --  115200 baud, and the filter on the range and cone it reports.
    procedure Init (Config : Adaflight.Config_Groups.Configuration);
    --  Whether a rangefinder was found, the task period it asks for, and

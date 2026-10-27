@@ -10828,3 +10828,14 @@ and climb rate, as with the other sensors.
 
 The host smoke check's FrSky hub phase adds a TFmini on UART4 and finds the vario frame and both altitude
 frames beside the acceleration frames.
+
+## D463. STM32F4 Nooploop TOFSense rangefinder (2026-10-27)
+
+The board's rangefinder also takes the six Nooploop TOFSense models on the rangefinder UART. The hardware
+setting picks the driver: the TF lidars or the TOFSense through the core's Nooploop driver, which opens the
+port at 115,200 baud, reports a 10 ms period, the model's range and a 90 degree cone, and parses the 16-byte
+frames behind the 0x57 and 0x00 sync bytes. The TOFSense hands a new reading to the filter once, and between
+frames the filter gets no new data and keeps its last altitude. After 200 ms without a frame the driver
+reports a hardware failure. The HC-SR04, the MicoAir MTF and the UP-T1 wait for their drivers.
+
+The host smoke check streams TOFSense F2 frames of 1234 mm on UART4 and finds a 123 cm sonar altitude.

@@ -1,5 +1,6 @@
 with Adaflight.Bytes; use Adaflight.Bytes;
 with Adaflight.Lidar_TF;
+with Adaflight.Nooploop;
 with Adaflight.Rangefinder;
 with Adaflight.Rangefinder_Detect;
 with Adaflight.STM32.Time;
@@ -85,29 +86,70 @@ package body Adaflight.STM32.Rangefinder is
       Write_Bytes   => Write_Bytes,
       Millis        => Millis);
 
-   Port   : Lidar_Port;
-   State  : Lidar.State;
-   Sensor : Core.Sensor;
-   Found  : Boolean := False;
-   Period : Natural := 0;
+   package TOFSense is new Adaflight.Nooploop
+     (Serial_Device => Lidar_Port,
+      Open_Port     => Open_Port,
+      Bytes_Waiting => Bytes_Waiting,
+      Read_Byte     => Read_Byte,
+      Millis        => Millis);
+
+   Port       : Lidar_Port;
+   State      : Lidar.State;
+   TOF_State  : TOFSense.State;
+   Sensor     : Core.Sensor;
+   Found      : Boolean := False;
+   Driver     : Adaflight.Rangefinder_Detect.Driver := Adaflight.Rangefinder_Detect.TF;
+   Period     : Natural := 0;
 
    procedure Init (Config : Adaflight.Config_Groups.Configuration) is
       Hardware : constant Byte := Config.Rangefinder_Config.Rangefinder_Hardware;
-      Dev      : Lidar.Device;
+      Uart     : constant Interfaces.Integer_8 := Config.Rangefinder_Config.Rangefinder_Uart;
+      Delay_Ms : Natural := 0;
+      Range_Cm : Interfaces.Unsigned_16 := 0;
+      Cone     : Natural := 0;
    begin
       Found := False;
-      if Adaflight.Rangefinder_Detect.Has_Driver (Hardware)
-        and then Adaflight.Rangefinder_Detect.Driver_Of (Hardware) = Adaflight.Rangefinder_Detect.TF
-      then
-         Lidar.Detect (Port, State, Hardware, Config.Rangefinder_Config.Rangefinder_Uart, Found, Dev);
+      if Adaflight.Rangefinder_Detect.Has_Driver (Hardware) then
+         Driver := Adaflight.Rangefinder_Detect.Driver_Of (Hardware);
+         case Driver is
+            when Adaflight.Rangefinder_Detect.TF =>
+               declare
+                  Dev : Lidar.Device;
+               begin
+                  Lidar.Detect (Port, State, Hardware, Uart, Found, Dev);
+                  Delay_Ms := Dev.Delay_Ms;
+                  Range_Cm := Dev.Max_Range_Cm;
+                  Cone := Dev.Cone_Extended_Decidegrees;
+               end;
+            when Adaflight.Rangefinder_Detect.Nooploop =>
+               declare
+                  Dev : TOFSense.Device;
+               begin
+                  TOFSense.Detect (Port, TOF_State, Hardware, Uart, Found, Dev);
+                  Delay_Ms := Dev.Delay_Ms;
+                  Range_Cm := Dev.Max_Range_Cm;
+                  Cone := Dev.Cone_Extended_Decidegrees;
+               end;
+            when Adaflight.Rangefinder_Detect.HCSR04 | Adaflight.Rangefinder_Detect.MT
+               | Adaflight.Rangefinder_Detect.UPT1 =>
+               null;
+         end case;
       end if;
       if Found then
-         Period := Adaflight.Rangefinder_Detect.Period_Ms (Adaflight.Rangefinder_Detect.TF, Dev.Delay_Ms);
-         Lidar.Init (State);
+         Period := Adaflight.Rangefinder_Detect.Period_Ms (Driver, Delay_Ms);
+         case Driver is
+            when Adaflight.Rangefinder_Detect.TF =>
+               Lidar.Init (State);
+            when Adaflight.Rangefinder_Detect.Nooploop =>
+               TOFSense.Init (TOF_State);
+            when Adaflight.Rangefinder_Detect.HCSR04 | Adaflight.Rangefinder_Detect.MT
+               | Adaflight.Rangefinder_Detect.UPT1 =>
+               null;
+         end case;
          Core.Init
            (Sensor,
-            (Max_Range_Cm              => Core.Range_Cm (Natural'Min (32_767, Natural (Dev.Max_Range_Cm))),
-             Cone_Extended_Decidegrees => Core.Decidegrees (Dev.Cone_Extended_Decidegrees)),
+            (Max_Range_Cm              => Core.Range_Cm (Natural'Min (32_767, Natural (Range_Cm))),
+             Cone_Extended_Decidegrees => Core.Decidegrees (Cone)),
             Adaflight.STM32.Time.Millis);
       end if;
    end Init;
@@ -121,19 +163,44 @@ package body Adaflight.STM32.Rangefinder is
    procedure Update is
    begin
       if Found then
-         Lidar.Update (Port, State);
+         case Driver is
+            when Adaflight.Rangefinder_Detect.TF =>
+               Lidar.Update (Port, State);
+            when Adaflight.Rangefinder_Detect.Nooploop =>
+               TOFSense.Update (Port, TOF_State);
+            when Adaflight.Rangefinder_Detect.HCSR04 | Adaflight.Rangefinder_Detect.MT
+               | Adaflight.Rangefinder_Detect.UPT1 =>
+               null;
+         end case;
       end if;
    end Update;
 
+   --  The driver's reading: the TF lidar's last, the TOFSense's new one once.
    procedure Process (Now_Us : Interfaces.Unsigned_32; Cos_Tilt : Float) is
       Unused_Processed : Boolean;
+      Distance         : Interfaces.Integer_32 := Core.No_New_Data;
    begin
-      if Found then
-         Core.Process
-           (Sensor, Now_Us, Adaflight.STM32.Time.Millis,
-            Core.Reading (Interfaces.Integer_32'Min (Core.Reading'Last, Lidar.Read (State))),
-            Float'Max (-1.0, Float'Min (1.0, Cos_Tilt)), Unused_Processed);
+      if not Found then
+         return;
       end if;
+      case Driver is
+         when Adaflight.Rangefinder_Detect.TF =>
+            Distance := Lidar.Read (State);
+         when Adaflight.Rangefinder_Detect.Nooploop =>
+            declare
+               R : TOFSense.Reading;
+            begin
+               TOFSense.Read (TOF_State, R);
+               Distance := R;
+            end;
+         when Adaflight.Rangefinder_Detect.HCSR04 | Adaflight.Rangefinder_Detect.MT
+            | Adaflight.Rangefinder_Detect.UPT1 =>
+            null;
+      end case;
+      Core.Process
+        (Sensor, Now_Us, Adaflight.STM32.Time.Millis,
+         Core.Reading (Interfaces.Integer_32'Min (Core.Reading'Last, Distance)),
+         Float'Max (-1.0, Float'Min (1.0, Cos_Tilt)), Unused_Processed);
    end Process;
 
    function Altitude_Cm return Interfaces.Integer_32 is (Sensor.Calculated_Altitude);
