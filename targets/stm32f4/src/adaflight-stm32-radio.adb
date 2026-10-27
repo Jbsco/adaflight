@@ -11,6 +11,7 @@ with Adaflight.XBUS;
 with Adaflight.Stream_Buffers;
 with Adaflight.Modes;
 with Adaflight.Serial_Feature_Map;
+with Adaflight.STM32.GPIO;
 package body Adaflight.STM32.Radio is
    use type Adaflight.STM32.USART.Number;
    package SFM renames Adaflight.Serial_Feature_Map;
@@ -47,6 +48,9 @@ package body Adaflight.STM32.Radio is
    Spek_State  : Adaflight.Spektrum.State;
    XBUS_State  : Adaflight.XBUS.State;
    Link        : USART.Number := USART.UART3;
+   --  The link's line: inverted, and on its transmit pin alone.
+   Inverted    : Boolean := False;
+   Line        : USART.Half_Duplex := USART.Full_Duplex;
    Rx          : Adaflight.Receiver.State;
    Rx_Settings : Adaflight.Receiver.Settings;
    Proto       : Adaflight.CRSF.State;
@@ -65,7 +69,7 @@ package body Adaflight.STM32.Radio is
    --  The port at a new rate, with the receiver's timing told.
    procedure Set_Rate (Rate : Interfaces.Unsigned_32) is
    begin
-      USART.Init (Link, Positive (Interfaces.Unsigned_32'Max (1, Rate)));
+      USART.Init (Link, Positive (Interfaces.Unsigned_32'Max (1, Rate)), Line => Line, Inverted => Inverted);
       Adaflight.CRSF.Update_Baudrate (Proto, Rate);
    end Set_Rate;
 
@@ -97,7 +101,7 @@ package body Adaflight.STM32.Radio is
                                   when XBUS => Adaflight.XBUS.Channel_Count));
       FS_Settings := Adaflight.Config_Runtime.Failsafe_Settings_Of (Config.Failsafe_Config, Config.Autopilot_Config);
       Adaflight.Failsafe.Init (FS, FS_Settings);
-      if (Runtime_Features and Feature_RX_Serial) /= 0 and then R.Half_Duplex = 0
+      if (Runtime_Features and Feature_RX_Serial) /= 0
         and then R.Serialrx_Provider in Spektrum_2048_Provider | SBUS_Provider | SUMD_Provider | XBUS_B_Provider
                                       | XBUS_RJ01_Provider | IBUS_Provider | CRSF_Provider | Spektrum_1024_Provider
       then
@@ -128,17 +132,27 @@ package body Adaflight.STM32.Radio is
             Adaflight.Receiver.Init_Arm_Switch (Rx, C.Aux, C.Span);
          end if;
       end loop;
+      --  SBUS is inverted unless the setting says the receiver's line is not,
+      --  the others only when it says so. A half-duplex line, which CRSF
+      --  does not take, is push-pull with a pull-down when inverted and open
+      --  drain with a pull-up otherwise.
+      Inverted := (if Kind = SBUS then R.Serialrx_Inverted = 0 else R.Serialrx_Inverted /= 0);
+      Line :=
+        (if Kind /= CRSF and then R.Half_Duplex /= 0
+         then (On => True, Push_Pull => Inverted,
+               Resistor => (if Inverted then Adaflight.STM32.GPIO.Down else Adaflight.STM32.GPIO.Up))
+         else USART.Full_Duplex);
       if Open then
          case Kind is
             when CRSF =>
                Adaflight.CRSF.Init (Proto, Rx_Settings.Mid_RC);
-               USART.Init (Link, Adaflight.CRSF.Baudrate, Inverted => R.Serialrx_Inverted /= 0);
+               USART.Init (Link, Adaflight.CRSF.Baudrate, Line => Line, Inverted => Inverted);
             when IBUS =>
                Adaflight.IBUS.Init (IBUS_State);
-               USART.Init (Link, IBUS_SUMD_Baud, Inverted => R.Serialrx_Inverted /= 0);
+               USART.Init (Link, IBUS_SUMD_Baud, Line => Line, Inverted => Inverted);
             when SUMD =>
                Adaflight.SUMD.Init (SUMD_State);
-               USART.Init (Link, IBUS_SUMD_Baud, Inverted => R.Serialrx_Inverted /= 0);
+               USART.Init (Link, IBUS_SUMD_Baud, Line => Line, Inverted => Inverted);
             when Spektrum =>
                Adaflight.Spektrum.Init
                  (Spek_State,
@@ -147,7 +161,7 @@ package body Adaflight.STM32.Radio is
                       else Adaflight.Spektrum.Spektrum_2048),
                    Telemetry    => False,
                    RSSI_Channel => Natural (R.Rssi_Channel)));
-               USART.Init (Link, IBUS_SUMD_Baud, Inverted => R.Serialrx_Inverted /= 0);
+               USART.Init (Link, IBUS_SUMD_Baud, Line => Line, Inverted => Inverted);
             when XBUS =>
                Adaflight.XBUS.Init
                  (XBUS_State,
@@ -155,13 +169,12 @@ package body Adaflight.STM32.Radio is
                    else Adaflight.XBUS.Mode_B));
                USART.Init
                  (Link, (if R.Serialrx_Provider = XBUS_RJ01_Provider then XBUS_RJ01_Baud else IBUS_SUMD_Baud),
-                  Inverted => R.Serialrx_Inverted /= 0);
+                  Line => Line, Inverted => Inverted);
             when SBUS =>
-               --  Inverted unless the setting says the receiver's line is not.
                Adaflight.SBUS.Init (SBUS_State, Rx_Settings.Mid_RC);
                USART.Init
                  (Link, (if R.Sbus_Baud_Fast /= 0 then SBUS_Fast_Baud else SBUS_Baud), Two_Stop_Bits => True,
-                  Even_Parity => True, Inverted => R.Serialrx_Inverted = 0);
+                  Line => Line, Even_Parity => True, Inverted => Inverted);
          end case;
          Port.Which := Link;
       end if;

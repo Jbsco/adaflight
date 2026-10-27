@@ -1080,9 +1080,10 @@ def main():
             stop(proc)
             sock.close()
         us = [1500, 1599, 988, 1500] + [1500] * 10
-        for name, frame in (("SBUS", sbus_frame([992, 1150, 172, 992] + [992] * 12)),
-                            ("IBUS", ibus_frame(us)), ("SUMD", sumd_frame(us)),
-                            ("SPEK2048", spektrum_frame(us)), ("XB-B", xbus_frame(us))):
+        for name, frame, extra in (("SBUS", sbus_frame([992, 1150, 172, 992] + [992] * 12), []),
+                                   ("IBUS", ibus_frame(us), ["serialrx_halfduplex = ON"]),
+                                   ("SUMD", sumd_frame(us), []), ("SPEK2048", spektrum_frame(us), []),
+                                   ("XB-B", xbus_frame(us), [])):
             store = os.path.join(work, name.lower() + ".bin")
             proc, sock = start(image, store)
             try:
@@ -1093,6 +1094,9 @@ def main():
                 check(f"receiver protocol set to {name}", f"serialrx_provider set to {name}" in text, text[-120:])
                 text = cli(sock, "set rx_uart = UART3")
                 check(f"{name} port assigned", "rx_uart set to UART3" in text, text[-120:])
+                for line in extra:
+                    text = cli(sock, f"set {line}")
+                    check(f"{name} receiver {line}", line.replace(" = ", " set to ") in text, text[-120:])
                 cli(sock, "save", wait=2.0)
                 proc.wait(timeout=10)
             finally:
