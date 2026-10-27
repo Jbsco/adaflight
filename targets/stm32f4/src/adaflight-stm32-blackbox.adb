@@ -7,6 +7,7 @@ with Adaflight.Modes;
 with Adaflight.Serial_Feature_Map;
 with Adaflight.Stream_Buffers;
 with Adaflight.STM32.Control;
+with Adaflight.STM32.ESC_Sensor;
 with Adaflight.STM32.Flash_Chip;
 with Adaflight.STM32.Pilot;
 with Adaflight.STM32.SD;
@@ -61,7 +62,7 @@ package body Adaflight.STM32.Blackbox is
          for N in USART.Number loop
             if Integer (Port_Ids (N)) = Integer (Config.Blackbox_Config.Blackbox_Uart) then
                Which := N;
-               Open_Port := not Adaflight.STM32.VTX.Holds (N);
+               Open_Port := not Adaflight.STM32.VTX.Holds (N) and then not Adaflight.STM32.ESC_Sensor.Holds (N);
                Shared :=
                  (SFM.Function_Mask (Adaflight.Config_Fix.Serial_Options, Assigned, Port_Ids (N)) and SFM.Function_MSP)
                  /= 0;
