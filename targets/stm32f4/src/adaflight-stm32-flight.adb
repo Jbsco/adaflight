@@ -48,6 +48,9 @@ with Adaflight.STM32.Console;
 with Adaflight.STM32.Control;
 with Adaflight.STM32.Flash;
 with Adaflight.STM32.GPIO;
+with Adaflight.STM32.GPS;
+with Adaflight.GPS_Frames;
+with Adaflight.GPS_Link;
 with Adaflight.STM32.MCU;
 with Adaflight.STM32.Gyro;
 with Adaflight.STM32.Pilot;
@@ -552,7 +555,8 @@ package body Adaflight.STM32.Flight is
    --  finds no frames yet.
    procedure Init_Scheduler is
       Options : constant Adaflight.Task_Init.Options :=
-        (Accel => True, Beeper => True, Sag_Compensation => True, OSD => True, CMS => True, others => False);
+        (Accel => True, Beeper => True, Sag_Compensation => True, OSD => True, CMS => True, GPS => True,
+         others => False);
       Inputs  : Adaflight.Task_Init.Inputs;
    begin
       Sched_Settings := Adaflight.Config_Runtime.Scheduler_Settings_Of
@@ -571,6 +575,7 @@ package body Adaflight.STM32.Flight is
       Inputs.Acc_Detected := Gyro_Report.Acc_Found;
       Inputs.Acc_Sample_Rate_Hz := Gyro_Report.Acc_Sample_Rate_Hz;
       Inputs.Feature_OSD := (Runtime_Features and Adaflight.Config_Fix.Feature_OSD) /= 0;
+      Inputs.Feature_GPS := (Runtime_Features and Adaflight.Config_Fix.Feature_GPS) /= 0;
       Inputs.OSD_Framerate_Hz :=
         Adaflight.Task_Init.Rate_Hz (Natural'Max (1, Natural (Config.Osd_Config.Framerate_Hz)));
       Inputs.OSD_Display_Port := Adaflight.STM32.OSD.Port_Present;
@@ -722,8 +727,8 @@ package body Adaflight.STM32.Flight is
       Mute_Switch         => Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Beeper_Mute),
       Beep_Switch         => Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Beeper_On),
       Satellite_Switch    => Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Beep_GPS_Count),
-      GPS_Feature         => False,
-      GPS_Fix             => False,
+      GPS_Feature         => Adaflight.STM32.GPS.Enabled,
+      GPS_Fix             => Adaflight.STM32.GPS.Current.Fix,
       Satellites          => 0,
       Motors_Running      => Adaflight.STM32.Pilot.Armed,
       Failsafe_Monitoring => Adaflight.STM32.Radio.Failsafe_Monitoring,
@@ -1053,6 +1058,8 @@ package body Adaflight.STM32.Flight is
         or else (Att_State.Established
                  and then Adaflight.Attitude.Cos_Tilt (Att_State) > Att_Config.Small_Angle_Cos);
       Sensed.Gyro_Calibrated := Adaflight.Gyro_Filters.Calibration_Complete (Gyro_State);
+      Sensed.GPS_Fix := Adaflight.STM32.GPS.Current.Fix;
+      Sensed.GPS_Sats := Natural (Adaflight.STM32.GPS.Current.Satellites);
       Sensed.Acc_Calibrated := Adaflight.Accelerometer.Calibration_Complete (Acc_State);
       Sensed.Acc_Has_Calibration := Config.Accelerometer_Config.Acc_Zero (3) /= 0;
       Sensed.First_Arm_Gyro_Cal_Running := Adaflight.Gyro_Filters.First_Arm_Calibration_Running (Gyro_State);
@@ -1343,6 +1350,8 @@ package body Adaflight.STM32.Flight is
           (Adaflight.Receiver.Link_Quality_Source'Pos (Adaflight.STM32.Radio.Link_Source));
       F.RF_Mode := Unsigned_8 (Natural'Min (255, Adaflight.STM32.Radio.RF_Mode));
       F.Uplink_mW := Adaflight.STM32.Radio.Uplink_Power_mW;
+      F.GPS_Feature := Adaflight.STM32.GPS.Enabled;
+      F.GPS := Adaflight.STM32.GPS.Current;
       F.Battery := Bat.Overall;
       F.Pack_Voltage := Unsigned_16 (Volts);
       F.Cell_Voltage := (if Bat.Cells > 0 then Unsigned_16 (Volts / Bat.Cells) else 0);
@@ -1416,6 +1425,78 @@ package body Adaflight.STM32.Flight is
       end if;
    end Run_Menu;
 
+   --  The GPS readings into the replies and the status.
+   procedure Report_GPS is
+      G : constant Adaflight.STM32.GPS.Readings := Adaflight.STM32.GPS.Current;
+      T : constant Adaflight.GPS_Frames.Date_Time := Adaflight.STM32.GPS.Time;
+      V : Adaflight.MSP_Out.GPS_Values renames Ctx.Out_Views.State.GPS;
+   begin
+      V.Fix := G.Fix;
+      V.Satellite_Count := G.Satellites;
+      V.Latitude := G.Latitude;
+      V.Longitude := G.Longitude;
+      V.Altitude_Cm := G.Altitude_Cm;
+      V.Ground_Speed := G.Ground_Speed;
+      V.Ground_Course := G.Ground_Course;
+      V.PDOP := G.PDOP;
+      V.HDOP := G.HDOP;
+      V.VDOP := G.VDOP;
+      V.In_View := G.In_View;
+      V.Distance_To_Home := G.Distance_To_Home_M;
+      V.Direction_To_Home := G.Direction_To_Home;
+      V.Update := Boolean'Pos (G.Tick);
+      V.Channels := Natural'Min (Adaflight.MSP_Out.Max_Satellites, Natural (G.In_View));
+      for I in 0 .. V.Channels - 1 loop
+         declare
+            S : constant Adaflight.GPS_Frames.Satellite := Adaflight.STM32.GPS.Satellite (I);
+         begin
+            V.Satellites (I) := (S.Channel, S.Id, S.Quality, S.Cno);
+         end;
+      end loop;
+      Env.GPS_Enabled := Adaflight.STM32.GPS.Enabled;
+      Env.GPS.State := Adaflight.STM32.GPS.Link_State;
+      Env.GPS.Platform := Adaflight.STM32.GPS.Platform;
+      Env.GPS.Port_Baud := Adaflight.STM32.GPS.Port_Baud;
+      Env.GPS.Satellites := G.Satellites;
+      Env.GPS.HDOP := G.HDOP;
+      Env.GPS.VDOP := G.VDOP;
+      Env.GPS.Fix := G.Fix;
+      Env.GPS.Latitude := G.Latitude;
+      Env.GPS.Longitude := G.Longitude;
+      Env.GPS.Altitude_Cm := G.Altitude_Cm;
+      Env.GPS.Time_Valid := T.Valid;
+      Env.GPS.Year := T.Year;
+      Env.GPS.Month := T.Month;
+      Env.GPS.Day := T.Day;
+      Env.GPS.Hour := T.Hour;
+      Env.GPS.Minute := T.Minute;
+      Env.GPS.Second := T.Second;
+      Env.GPS.Channels := Natural'Min (CLI.Max_GPS_Channels, Natural (G.In_View));
+      for I in 1 .. Env.GPS.Channels loop
+         Env.GPS.Signals (I) := Adaflight.STM32.GPS.Satellite (I - 1).Cno;
+      end loop;
+   end Report_GPS;
+
+   --  The GPS task: one run of the link, its ready beep, its task rate, and
+   --  its readings into the replies and the status.
+   procedure Run_GPS (Before : Unsigned_32) is
+      R : Adaflight.STM32.GPS.Report;
+   begin
+      Adaflight.STM32.GPS.Run (Adaflight.STM32.Time.Millis, Before, Adaflight.STM32.Pilot.Armed, R);
+      if R.Ready_Beep then
+         Request_Beep (Adaflight.Beeper.Ready);
+      end if;
+      case R.Rate is
+         when Adaflight.GPS_Link.Fast =>
+            Scheduler.Reschedule (Sched, Sched_Settings, Scheduler.GPS, 1_000);
+         when Adaflight.GPS_Link.Normal =>
+            Scheduler.Reschedule (Sched, Sched_Settings, Scheduler.GPS, 10_000);
+         when Adaflight.GPS_Link.Unchanged =>
+            null;
+      end case;
+      Report_GPS;
+   end Run_GPS;
+
    --  A task's body between the scheduler's execution prologue and
    --  epilogue, at the clock around its run.
    procedure Run_Body (Id : Scheduler.Task_Id) is
@@ -1453,6 +1534,8 @@ package body Adaflight.STM32.Flight is
             Run_OSD (Before);
          when Scheduler.CMS =>
             Run_Menu (Before);
+         when Scheduler.GPS =>
+            Run_GPS (Before);
          when others =>
             null;
       end case;
@@ -1522,6 +1605,8 @@ package body Adaflight.STM32.Flight is
       Init_Loop_Units;
       Boot_Beeps;
       Adaflight.STM32.Radio.Init (Config, Runtime_Features, Adaflight.STM32.Time.Millis);
+      Adaflight.STM32.GPS.Init (Config, Runtime_Features, Adaflight.STM32.Time.Millis);
+      Ctx.Out_Views.State.Status.Sensors (Adaflight.MSP_Out.GPS) := Adaflight.STM32.GPS.Enabled;
       Pilot_Facts := (Sensors        => (Gyro => Selection.Found, Acc => Gyro_Report.Acc_Found, others => False),
                       Sample_Time_Us => Natural (Sample_Us),
                       Loop_Ratio     => Positive (Loop_Ratio),
