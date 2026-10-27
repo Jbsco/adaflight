@@ -8,6 +8,9 @@ package Adaflight.STM32.GPIO is
 
    type Pull is (No_Pull, Up, Down);
 
+   --  The output speed classes of a pin.
+   type Speed is (Low, Medium, High, Very_High);
+
    procedure Enable_Port (Port : Port_Name);
 
    procedure Set_Output (P : Pin);
@@ -20,8 +23,9 @@ package Adaflight.STM32.GPIO is
    --  The pin in analog mode for the ADC, without pull resistors.
    procedure Set_Analog (P : Pin);
 
-   --  The pin on an alternate function, push-pull at high speed.
-   procedure Set_Alternate (P : Pin; Func : Alternate_Function; Resistor : Pull := No_Pull);
+   --  The pin on an alternate function, push-pull at the given speed.
+   procedure Set_Alternate
+     (P : Pin; Func : Alternate_Function; Resistor : Pull := No_Pull; Rate : Speed := High);
 
    procedure Set_High (P : Pin);
 
