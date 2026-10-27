@@ -10809,3 +10809,12 @@ reference logs the corrected altitude there, under a comment that says it stores
 so the board follows the comment and the field's name. The MSP sonar altitude stays the corrected one.
 
 The host smoke check's lidar phase sends the flight log to UART6 and finds `surfaceRaw` among the frame fields.
+
+## D461. STM32F4 OSD lidar distance (2026-10-27)
+
+The OSD's lidar distance element draws the rangefinder's altitude, the tilt-corrected one the MSP sonar reply
+carries, in centimetres behind its label, or dashes while the rangefinder reads none. The board had left the
+renderer's rangefinder input at zero, so a placed element showed dashes with a rangefinder working.
+
+The host smoke check's lidar phase places the element on the MAX7456 with the PAL video system and finds
+`RF:150` once the boot logo clears.
