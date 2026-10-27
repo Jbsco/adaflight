@@ -30,9 +30,9 @@ Silver with no assume, and pass the gates on `main`.
   family from the pinned board configuration repository, and its image blinks the LED, serves MSP and
   the command line on its USB port and UART1, runs the scheduler with the gyro, filter, accelerometer,
   attitude and receiver tasks over SPI1 and a CRSF receiver with its telemetry or an SBUS, IBUS, SUMD,
-  Spektrum, XBUS or FPORT receiver on a UART, the arming logic and the modes, runs the rate controller
-  and the mixer with the motors in DShot from the timers and their DShot commands, measures the
-  battery, drives the beeper, draws the OSD and runs the menu system on the MAX7456 chip on SPI3,
+  Spektrum, XBUS, FPORT or Ghost receiver on a UART, the arming logic and the modes, runs the rate
+  controller and the mixer with the motors in DShot from the timers and their DShot commands, measures
+  the battery, drives the beeper, draws the OSD and runs the menu system on the MAX7456 chip on SPI3,
   reads a GPS module and the ESC sensor on UARTs, estimates its altitude and position from the
   accelerometer and the GPS with its heading from the GPS course, holds them in the altitude and
   position hold modes, flies the GPS rescue home, writes its flight log to the SD card, the flash chip
