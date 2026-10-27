@@ -354,6 +354,34 @@ class SerialReceiver(threading.Thread):
             sock.close()
 
 
+class Lidar(threading.Thread):
+    """A TFmini lidar on UART4's port: a frame every 10 ms with the two sync bytes, 150 cm, a strength of 500,
+    the short integral time, a reserved byte and the checksum of the first eight bytes."""
+
+    def __init__(self):
+        super().__init__(daemon=True)
+        self.stop = threading.Event()
+
+    def run(self):
+        sock = None
+        deadline = time.time() + 10
+        while sock is None and time.time() < deadline and not self.stop.is_set():
+            try:
+                sock = socket.create_connection(("127.0.0.1", GPS_PORT), timeout=1)
+            except OSError:
+                time.sleep(0.1)
+        body = bytes([0x59, 0x59]) + (150).to_bytes(2, "little") + (500).to_bytes(2, "little") + bytes([0x02, 0x00])
+        frame = body + bytes([sum(body) & 0xFF])
+        while sock is not None and not self.stop.is_set():
+            try:
+                sock.sendall(frame)
+            except OSError:
+                break
+            time.sleep(0.01)
+        if sock is not None:
+            sock.close()
+
+
 class Camera(threading.Thread):
     """A RunCam camera on UART4's port: answers each device information request with protocol 1.0 and the
     power, WiFi and mode buttons, and keeps every packet the flight controller sends."""
@@ -1655,6 +1683,39 @@ def main():
             sock.close()
             if vcp is not None:
                 vcp.close()
+        store = os.path.join(work, "lidar.bin")
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "set rangefinder_hardware = TFMINI")
+            check("rangefinder set to a TFmini", "rangefinder_hardware set to TFMINI" in text, text[-120:])
+            text = cli(sock, "set rangefinder_uart = UART4")
+            check("rangefinder port assigned", "rangefinder_uart set to UART4" in text, text[-120:])
+            text = cli(sock, "feature RANGEFINDER")
+            check("rangefinder feature on", "Enabled" in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        lidar = Lidar()
+        lidar.start()
+        proc, sock = start(image, store)
+        try:
+            time.sleep(3.0)
+            status = msp(sock, 101)
+            check("MSP status names the rangefinder", status is not None and len(status) > 5
+                  and (status[4] | status[5] << 8) & 0x10 != 0, repr(status))
+            sonar = msp(sock, 58)
+            altitude = int.from_bytes(sonar[:4], "little", signed=True) if sonar and len(sonar) >= 4 else None
+            check("MSP sonar altitude reads the lidar's 150 cm", altitude is not None and abs(altitude - 150) <= 2,
+                  repr(altitude))
+        finally:
+            lidar.stop.set()
+            stop(proc)
+            sock.close()
         store = os.path.join(work, "ghsttlm.bin")
         proc, sock = start(image, store)
         try:
