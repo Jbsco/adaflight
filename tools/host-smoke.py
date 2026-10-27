@@ -601,6 +601,8 @@ def main():
             check("transmitter port assigned", "vtx_uart set to UART6" in text, text[-120:])
             text = cli(sock, "set vtx_type = SMARTAUDIO")
             check("transmitter type set to SmartAudio", "vtx_type set to SMARTAUDIO" in text, text[-120:])
+            text = cli(sock, "aux 0 40 1 1700 2100 0 0")
+            check("USER1 range set", "aux 0 40 1 1700 2100 0 0" in text, text[-120:])
             cli(sock, "save", wait=2.0)
             proc.wait(timeout=10)
         finally:
@@ -625,6 +627,8 @@ def main():
             read_all(sock, 0.8)
             text = cli(sock, "vtx_info")
             check("vtx_info lists the power levels", "level " in text and " mW" in text, text[-160:])
+            text = cli(sock, "tasks", 1.5)
+            check("PINIO box task runs for the USER1 range", "PINIOBOX" in text, text[-300:])
         finally:
             vtx.stop.set()
             stop(proc)

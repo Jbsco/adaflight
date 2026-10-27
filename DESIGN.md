@@ -10086,3 +10086,18 @@ restarts the image and plays a SmartAudio V2 transmitter on the port: it answers
 the pit mode frequency request and each command. The MSP configuration reply names a ready SmartAudio
 device, a configuration write of 5800 MHz reaches the transmitter as a frequency command, and
 `vtx_info` lists the power levels.
+
+## D417. STM32F4 PINIO outputs (2026-10-27)
+
+`Adaflight.STM32.PINIO` drives the board's PINIO outputs with the PINIO boxes of D131. The board generator
+emits each output's pin, configuration byte and box by permanent id, the push-pull mode and no box where
+the board names none, and the hardware defaults of D392 apply them at a reset: on the CLRacing F4 boards
+the first output is PA14 on the USER1 box. The start makes each configured pin a push-pull output, high
+before the switch when its configuration inverts it, then sets it to its idle level, high when inverted.
+The boxes map from their permanent ids after the modes start. The PINIO box task runs at 20 Hz while one
+of the named boxes has a mode condition, which the flight checks again whenever the modes reload from an
+MSP write or the command line. Each run sets the assigned outputs from their boxes, inverted outputs low
+when the box is on, and a pin changes only when its level does.
+
+The host's pins keep their levels, so the image runs the same code. The smoke check sets a USER1 range
+with the command line and finds the PINIO box task in the task list after the restart.
