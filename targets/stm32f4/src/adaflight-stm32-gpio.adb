@@ -78,6 +78,12 @@ package body Adaflight.STM32.GPIO is
       Regs.OTYPER := Regs.OTYPER or Shift_Left (1, Natural (P.Number));
    end Set_Open_Drain;
 
+   function Is_High (P : Pin) return Boolean is
+      Regs : Port_Registers with Import, Address => Port_Base (P.Port);
+   begin
+      return (Regs.IDR and Shift_Left (1, Natural (P.Number))) /= 0;
+   end Is_High;
+
    procedure Set_Analog (P : Pin) is
       Regs  : Port_Registers with Import, Address => Port_Base (P.Port);
       Shift : constant Natural := 2 * Natural (P.Number);
