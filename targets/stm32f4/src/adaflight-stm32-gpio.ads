@@ -12,6 +12,9 @@ package Adaflight.STM32.GPIO is
 
    procedure Set_Output (P : Pin);
 
+   --  An output pin switched to open drain.
+   procedure Set_Open_Drain (P : Pin);
+
    procedure Set_Input (P : Pin; Resistor : Pull := No_Pull);
 
    --  The pin in analog mode for the ADC, without pull resistors.

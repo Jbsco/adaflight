@@ -72,6 +72,12 @@ package body Adaflight.STM32.GPIO is
       Regs.PUPDR := (Regs.PUPDR and not Shift_Left (3, Shift)) or Shift_Left (Resistor_Code (Resistor), Shift);
    end Set_Input;
 
+   procedure Set_Open_Drain (P : Pin) is
+      Regs : Port_Registers with Import, Address => Port_Base (P.Port);
+   begin
+      Regs.OTYPER := Regs.OTYPER or Shift_Left (1, Natural (P.Number));
+   end Set_Open_Drain;
+
    procedure Set_Analog (P : Pin) is
       Regs  : Port_Registers with Import, Address => Port_Base (P.Port);
       Shift : constant Natural := 2 * Natural (P.Number);

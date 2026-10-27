@@ -5,6 +5,7 @@
 --  drivers.
 with Interfaces;
 with Adaflight.Config_Groups;
+with Adaflight.Failsafe;
 with Adaflight.Receiver;
 package Adaflight.STM32.Radio is
    subtype Time_Us is Interfaces.Unsigned_32;
@@ -28,7 +29,7 @@ package Adaflight.STM32.Radio is
    function RSSI_ADC return Boolean;
    function RSSI return Interfaces.Unsigned_16;
    --  The failsafe's check every ten milliseconds of the realtime block.
-   procedure Failsafe_Check (Now_Ms : Time_Ms);
+   procedure Failsafe_Check (Now_Ms : Time_Ms; Beep : out Adaflight.Failsafe.Beep);
    --  The failsafe's monitoring, which the arming logic starts.
    procedure Start_Failsafe_Monitoring;
    function Failsafe_Receiving return Boolean;
