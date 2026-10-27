@@ -10497,3 +10497,20 @@ the detect pin down as an input at boot, after the ESC sensor, where its configu
 board generator gives its tag. The board had passed no USB link and no configurator.
 
 The host reports no beeper state, so no smoke check covers it.
+
+## D441. STM32F4 SBUS receiver (2026-10-27)
+
+The board reads an SBUS receiver on the UART the configuration assigns to the serial receiver: 100,000 baud,
+or 200,000 with the fast SBUS setting, eight data bits with even parity and two stop bits, and an inverted
+line unless the setting says the receiver's line is not inverted. The bytes go through the core's SBUS
+frame assembly at their arrival times, the frame status after the realtime tasks, the eighteen channels to
+the receiver's processing, and the frame time to the RC smoothing. The RSSI comes from the frame errors
+when that source is set. The CRSF telemetry and the PID settings' CRSF case stay with a CRSF receiver.
+
+The UART driver gains even parity, a ninth word bit with parity control, and the board's inverters: the
+board generator gives each UART's inverter tag, the boot drives every inverter low after the beeper, and a
+port opened inverted drives its UART's inverter high where the board has one. Without an inverter the line
+stays as the UART reads it, so an inverted SBUS line needs UART1 on this board. Half-duplex SBUS waits.
+
+The host smoke check sets SBUS on UART3 with a fresh store, sends SBUS frames about every 14 ms, reads the
+roll, pitch, yaw and throttle channels back over MSP, and finds the signal loss cleared.
