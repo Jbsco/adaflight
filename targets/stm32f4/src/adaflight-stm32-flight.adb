@@ -158,7 +158,10 @@ package body Adaflight.STM32.Flight is
       PINIO_Configs    => (Adaflight.Board.PINIO1_Config, Adaflight.Board.PINIO2_Config,
                            Adaflight.Board.PINIO3_Config, Adaflight.Board.PINIO4_Config),
       PINIO_Boxes      => (Adaflight.Board.PINIO1_Box, Adaflight.Board.PINIO2_Box, Adaflight.Board.PINIO3_Box,
-                           Adaflight.Board.PINIO4_Box));
+                           Adaflight.Board.PINIO4_Box),
+      Motor_Tags       => (Adaflight.Board.MOTOR1_Tag, Adaflight.Board.MOTOR2_Tag, Adaflight.Board.MOTOR3_Tag,
+                           Adaflight.Board.MOTOR4_Tag, Adaflight.Board.MOTOR5_Tag, Adaflight.Board.MOTOR6_Tag,
+                           Adaflight.Board.MOTOR7_Tag, Adaflight.Board.MOTOR8_Tag));
 
    Board    : CLI.Board_State := (Hardware => Board_Hardware, others => <>);
    Config   : Adaflight.Config_Groups.Configuration := Adaflight.Config_Reset.Reset (Board);
