@@ -10241,3 +10241,21 @@ elements in.
 
 The host smoke check places the ESC temperature element and finds the ESC frames' 42 degrees on the
 host's OSD screen.
+
+## D425. STM32F4 LTM telemetry (2026-10-27)
+
+`Adaflight.STM32.LTM` sends the LTM stream of the core's LTM telemetry unit on a UART. With the telemetry
+feature on, the first telemetry provider set to LTM with a port names the UART, at the provider's rate, or
+19200 baud for the automatic rate. The port's sharing comes from the serial functions the configuration
+assigns it. A port with no other function sends at once. A port shared with MSP sends while armed, or while
+the telemetry box is on when the box has a range, and MSP on UART1 stops while the stream holds the port.
+The arming logic's shared port transitions check the state again, and UART1 returns to the MSP rate with a
+fresh MSP framing when the stream gives it up. A port another board function holds stays closed to the
+stream.
+
+The telemetry task runs the stream outside the command line. The inputs are the attitude, the flight modes
+in the stream's order of precedence, the arming, the failsafe, the battery, the RSSI and the GPS solution
+with its home. The board has no altitude estimate yet, so the GPS frame's altitude reads zero.
+
+The host smoke check sets the first provider to LTM on UART3 and reads attitude frames ten times a second,
+status frames that report the craft disarmed in rate mode, and an origin frame every tenth cycle.
