@@ -39,6 +39,7 @@ with Adaflight.Core_Loop;
 with Adaflight.CRSF_Telemetry;
 with Adaflight.Failsafe;
 with Adaflight.FrSky_Hub_Telemetry;
+with Adaflight.GHST_Telemetry;
 with Adaflight.IBus_Telemetry;
 with Adaflight.FAT;
 with Adaflight.Flash_Device;
@@ -2720,6 +2721,35 @@ package body Adaflight.STM32.Flight is
          Yaw                 => Integer_16 (Att_State.Euler.Yaw));
    end FrSky_Hub_Inputs;
 
+   --  What the Ghost telemetry reads: the battery, the arming, the GPS with
+   --  its home, the altitude estimate and the attitude's heading.
+   function GHST_Inputs return Adaflight.GHST_Telemetry.Inputs is
+      G     : constant Adaflight.STM32.GPS.Readings := Adaflight.STM32.GPS.Current;
+      Volts : constant Natural := Natural'Min (65_535, Bat.Voltage.Display_Filtered);
+      function Wide (V : Long_Integer) return Integer_32 is
+        (Integer_32 (Long_Integer'Max (-2 ** 31, Long_Integer'Min (2 ** 31 - 1, V))));
+   begin
+      return
+        (Now_Us         => Adaflight.STM32.Time.Micros,
+         Voltage_Cv     => Unsigned_16 (Volts),
+         Cell_Cv        => (if Bat.Cells > 0 then Unsigned_16 (Volts / Bat.Cells) else 0),
+         Amperage_Ca    => Wide (Long_Integer (Bat.Current.Amperage)),
+         Mah_Drawn      => Wide (Long_Integer (Bat.Current.mAh_Drawn)),
+         Armed          => Adaflight.STM32.Pilot.Armed,
+         Lat            => G.Latitude,
+         Lon            => G.Longitude,
+         Alt_Cm         => G.Altitude_Cm,
+         Fix            => G.Fix,
+         Fix_Home       => G.Fix_Home,
+         Ground_Speed   => G.Ground_Speed,
+         Ground_Course  => G.Ground_Course,
+         Num_Sat        => G.Satellites,
+         Distance_Home  => G.Distance_To_Home_M,
+         Direction_Home => G.Direction_To_Home,
+         Altitude_Cm    => Estimated_Altitude_Cm,
+         Yaw            => Integer_16 (Att_State.Euler.Yaw));
+   end GHST_Inputs;
+
    --  What the iBus telemetry reads: the battery, the arming, the throttle
    --  and the modes, the accelerometer, the attitude, the climb rate and the
    --  GPS, with no barometer and no gyro temperature on the board.
@@ -3054,6 +3084,7 @@ package body Adaflight.STM32.Flight is
             end if;
             Tasks.Telemetry (Inputs, Before);
             if not Session.Open and then (Runtime_Features and Adaflight.Config_Fix.Feature_Telemetry) /= 0 then
+               Adaflight.STM32.Radio.GHST_Telemetry_Step (GHST_Inputs);
                Adaflight.STM32.IBus.Run (IBus_Inputs);
             end if;
          when Scheduler.PINIO_Box =>
@@ -3204,6 +3235,11 @@ package body Adaflight.STM32.Flight is
       Adaflight.STM32.SmartPort.Init (Config, Runtime_Features, SmartPort_Build);
       Adaflight.STM32.LTM.Init (Config, Runtime_Features);
       Adaflight.STM32.MAVLink.Init (Config, Runtime_Features, (UID (1), UID (2), UID (3)));
+      Adaflight.STM32.Radio.Init_GHST_Telemetry
+        (Adaflight.Config_Runtime.GHST_Settings_Of
+           (Config.Telemetry_Config, Config.Battery_Config, Runtime_Features,
+            (Gyro => Selection.Found, Acc => Gyro_Report.Acc_Found, Baro => False, Mag => False)),
+         Feature_On => (Runtime_Features and Adaflight.Config_Fix.Feature_Telemetry) /= 0);
       Adaflight.STM32.IBus.Init
         (Config, Runtime_Features,
          Adaflight.Config_Runtime.IBus_Settings_Of
