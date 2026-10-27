@@ -10387,3 +10387,25 @@ a caller without one keeps its setpoints.
 The oracle's RC generator draws the autopilot's yaw in its own family: held in one step of two, a rate
 within 250 or 1000 degrees per second, and a deadband on the yaw command's magnitude, one past it, or
 anywhere in its range, so the deadband's edge and the rate limit both appear.
+
+## D434. STM32F4 position hold (2026-10-27)
+
+The board runs the core's position hold in its own 100 Hz task, which the position estimate's update
+events wake, or twice its period without one, as for the altitude hold. Each run takes the arming, the
+failsafe, the position hold, rescue, autopilot and magnetometer modes, the measured interval, the
+estimate's east and north position, velocity and acceleration with its height and validity, whether the
+estimate's source needs a heading, the attitude's heading, the pilot's pitch and roll setpoint rates with
+their maxima, the yaw command, and the pitch and roll deflections. The hold flies over an idle navigator,
+since the board has no flight plan, and asks the estimator for its horizontal axes when its controller
+starts. The arming logic's position control law is on, so the mode engages on an armed board once the
+throttle was raised. Under the mode the controller flies the autopilot's angles while the autopilot holds
+the position, and the pilot's angles within the autopilot's angle limit otherwise, and the mixer keeps the
+motors running. The RC processing takes the controller's yaw rate in the modes the controller serves, with
+the modes read when the RC processing runs. The OSD's position hold ready element, its failure warning and
+the CRSF flight mode's failure flag read the hold.
+
+The board has no compass, and the attitude estimate takes no GPS course yet, so the heading is never
+valid. With the GPS as the estimate's source the hold needs a heading, so on this board the hold engages
+with level angles and reports a failure until the attitude takes the GPS course.
+
+The host smoke check finds the position hold task at 80 to 120 Hz with the GPS feature on.

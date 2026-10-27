@@ -15,8 +15,9 @@ package Adaflight.STM32.Control is
    --  accelerometer, the failsafe and the 3D switch, the filtered rates with
    --  the gyro's overflow and yaw spin detections, the attitude with the
    --  level trims, the tilt and the throttle correction, the accelerometer's
-   --  jerk, the receiver's throttle channel, and the autopilot's throttle
-   --  with whether the altitude estimate is below its landing altitude.
+   --  jerk, the receiver's throttle channel, the autopilot's throttle with
+   --  whether the altitude estimate is below its landing altitude, and the
+   --  autopilot's angles with their limit and whether it holds the position.
    type Inputs is record
       Now_Us              : Time_Us := 0;
       Armed               : Boolean := False;
@@ -34,6 +35,9 @@ package Adaflight.STM32.Control is
       RC_Data_Throttle    : Float := 1_000.0;
       Autopilot_Throttle  : Float range 0.0 .. 1.0 := 0.0;
       Below_Landing       : Boolean := False;
+      Autopilot_Angles    : Adaflight.PID_Controller.Autopilot_Angles := (others => 0.0);
+      Autopilot_Max_Angle : Natural range 0 .. 90 := 50;
+      Autopilot_Control   : Boolean := False;
       --  The battery's display voltage, sag-filtered cell voltage and latest
       --  voltage in hundredths of a volt.
       Battery_Voltage     : Interfaces.Unsigned_16 := 0;
