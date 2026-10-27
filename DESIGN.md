@@ -10547,3 +10547,16 @@ keeps its inversion and its line, so a CRSF baud change reopens the port as it w
 dropped the inversion.
 
 The host smoke check's IBUS phase sets the half-duplex setting, and the channels still arrive.
+
+## D445. STM32F4 FPORT receiver (2026-10-27)
+
+The board reads an FPORT receiver's control frames on the serial receiver UART at 115,200 baud, eight data
+bits without parity, inverted only when the setting asks and on one wire when the half-duplex setting asks.
+The bytes go through the core's FPORT unstuffing into its ring of frames, and the frame status after the
+realtime tasks checks each frame's length and FrSky checksum, decodes the SBUS channel block and the RSSI,
+and keeps the frame time for the RC smoothing. The RSSI comes from the protocol unless another source is
+set. The core runs without its telemetry layer, so telemetry requests go unanswered and the reply window
+stays unused until the board sends SmartPort telemetry over FPORT.
+
+The host smoke check's receiver phase adds FPORT control frames, stuffed and checksummed, with the same
+channels.
