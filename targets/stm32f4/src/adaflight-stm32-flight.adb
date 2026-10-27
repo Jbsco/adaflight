@@ -63,6 +63,7 @@ with Adaflight.STM32.MCU;
 with Adaflight.STM32.Gyro;
 with Adaflight.STM32.Pilot;
 with Adaflight.STM32.Radio;
+with Adaflight.STM32.RTC;
 with Adaflight.STM32.SD;
 with Adaflight.SD_Card_Types;
 with Adaflight.STM32.Sound;
@@ -310,7 +311,7 @@ package body Adaflight.STM32.Flight is
       F.Build_Time := Log_Text (GNAT.Source_Info.Compilation_Time);
       F.Manufacturer_Id := Log_Text (Adaflight.Board.Manufacturer_ID);
       F.Board_Name := Log_Text (Adaflight.Board.Board_Name);
-      F.Start_Date_Time := Log_Text ("0000-01-01T00:00:00.000");
+      F.Start_Date_Time := Log_Text (Adaflight.STM32.RTC.Start_Text);
       return F;
    end Log_Facts;
 
@@ -696,6 +697,9 @@ package body Adaflight.STM32.Flight is
       end if;
       MSP.Process (Ctx, Config, Board, Links, Unsigned_16 (Port.Command_Id), Port.Data (0 .. Port.Data_Size - 1),
                    Ports, Reply, Stream, Result, Effects);
+      if Effects.Runtime.Clock then
+         Adaflight.STM32.RTC.Set_Ms (Effects.Runtime.Clock_Ms);
+      end if;
       if Effects.Font.Write then
          Adaflight.STM32.OSD.Write_Font (Effects.Font.Address, Effects.Font.Data);
       end if;
@@ -820,6 +824,8 @@ package body Adaflight.STM32.Flight is
       Env.Gyros (0).Mode := Gyro_Mode;
       Env.SD_Card := SD_Status;
       Ctx.Out_Views.Hardware.SD_Card := Adaflight.STM32.SD.Summary;
+      Adaflight.STM32.RTC.Set_Zone (Config.Time_Config.Tz_Offset_Minutes);
+      Ctx.Out_Views.State.Clock := Adaflight.STM32.RTC.Clock_Values;
       Env.Status.OSD_Device := Adaflight.OSD_Task.Device_Kind'Pos (Adaflight.STM32.OSD.Device);
       Env.Status.OSD_Port := Adaflight.STM32.OSD.Port_Present;
       Adaflight.STM32.OSD.Dimensions (Env.Status.OSD_Columns, Env.Status.OSD_Rows);
@@ -1955,6 +1961,7 @@ package body Adaflight.STM32.Flight is
          Replies (L).Which := Line_Serial (L);
       end loop;
       Init_Configuration;
+      Adaflight.STM32.RTC.Set_Zone (Config.Time_Config.Tz_Offset_Minutes);
       Adaflight.STM32.USB.Init ("Adaflight (" & Adaflight.Board.Board_Name & ")");
       Ctx.Out_Views.Common := Common_Snapshot;
       Ctx.Out_Views.Build := (others => True);

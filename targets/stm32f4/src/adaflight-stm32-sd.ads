@@ -1,6 +1,6 @@
 --  The SD card of the board: the card driver over the SPI bus the stored
 --  configuration names with its select and detect pins, the FAT file system
---  over the card with no clock, and the flight log's card device. The main
+--  over the card with the board's clock, and the flight log's card device. The main
 --  task's poll advances the card, hands a finished block to the file system
 --  and then polls the file system.
 with Interfaces;

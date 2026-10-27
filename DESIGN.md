@@ -10014,3 +10014,15 @@ The smoke check writes a 20 MB FAT16 image with a partition table, sets the flig
 card, restarts the image, reads the MSP summary and the command line's information with the card ready,
 then reads the log file's first cluster from the image through the LOGS directory and checks the
 header.
+
+## D414. STM32F4 real time clock (2026-10-26)
+
+`Adaflight.STM32.RTC` keeps the core's clock of D74 over the board's millisecond clock. The
+configurator sets it through the MSP clock message, as milliseconds since 1970, and the GPS link sets
+it from the first fix's date while it has no time, as the reference does on a published solution. The
+time zone comes from the stored configuration at each serial pass, so a command line change shows at
+once. The log header's start line formats the local time with its offset, the OSD's clock element
+reads the date and the zone each frame, the MSP clock reply gives the date once a time was set, and the
+card's new file entries take the local time. A reboot loses the time, as in the reference, which keeps
+it across a reboot only into the mass storage mode. The smoke check sets the clock over MSP, reads the
+date back and finds it on the OSD screen.

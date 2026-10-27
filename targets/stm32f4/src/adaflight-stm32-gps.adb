@@ -1,6 +1,7 @@
 with Adaflight.Bytes; use Adaflight.Bytes;
 with Adaflight.Config_Fix;
 with Adaflight.Config_Runtime;
+with Adaflight.STM32.RTC;
 with Adaflight.STM32.USART;
 package body Adaflight.STM32.GPS is
    use type Interfaces.Unsigned_32;
@@ -16,7 +17,6 @@ package body Adaflight.STM32.GPS is
    Link     : Adaflight.GPS_Link.Link;
    Rx       : Adaflight.GPS_Frames.Receiver;
    Settings : Adaflight.GPS_Link.Settings;
-   Has_Time : Boolean := False;
    Solution_At : Interfaces.Unsigned_32 := 0;
    Input    : Byte_Array (0 .. 255);
 
@@ -59,17 +59,24 @@ package body Adaflight.STM32.GPS is
    function Enabled return Boolean is (Open);
 
    procedure Run (Now_Ms, Now_Us : Interfaces.Unsigned_32; Armed : Boolean; R : out Report) is
-      Count : Natural := 0;
-      E     : Adaflight.GPS_Link.Events;
+      Count    : Natural := 0;
+      E        : Adaflight.GPS_Link.Events;
+      Has_Time : Boolean;
    begin
       R := (others => <>);
       if not Open then
          return;
       end if;
       USART.Take (Which, Input, Count);
+      Has_Time := Adaflight.STM32.RTC.Has_Time;
       Adaflight.GPS_Link.Update
         (Link, Rx, Settings, Now_Ms, Now_Us, Input (0 .. Count - 1), Tx_Empty => True, Armed => Armed,
          Clock_Has_Time => Has_Time, E => E);
+      if E.Clock.Set then
+         Adaflight.STM32.RTC.Set_Date
+           ((Year => E.Clock.Year, Month => E.Clock.Month, Day => E.Clock.Day, Hours => E.Clock.Hours,
+             Minutes => E.Clock.Minutes, Seconds => E.Clock.Seconds, Millis => E.Clock.Millis));
+      end if;
       if E.Tx.Length > 0 then
          declare
             Out_Bytes : Byte_Array (0 .. E.Tx.Length - 1);
