@@ -4,22 +4,26 @@
 --  its DMA stream from the map's option. The timer counts at the protocol's
 --  bit clock, twenty counts a bit, and the stream writes the frame's sixteen
 --  bits and two zero slots into the channel's compare register at each
---  compare event. A write loads each motor's frame and arms its stream, then
---  each timer restarts and asks for the transfers.
+--  compare event. A frame loads into its motor's buffer and arms its stream,
+--  then each timer restarts and asks for the transfers.
+with Interfaces;
 with Adaflight.Config_Groups;
-with Adaflight.Mixer;
 with Adaflight.MSP_Motor_In;
 package Adaflight.STM32.Motors is
    --  The outputs of the mixer's motors from the configuration; every motor
    --  needs its timer channel and stream, or none is driven.
    procedure Init (C : Adaflight.Config_Groups.Configuration; Count : Natural);
-   --  The writes start once the start of the flight software is done.
+   --  The writes start once the start of the flight software is done, and
+   --  stop while the command line or MSP sends blocking DShot commands.
    procedure Enable;
+   procedure Disable;
    function Enabled return Boolean;
    function Motor_Enabled (Index : Natural) return Boolean;
    --  The motor count and the output device the MSP replies report.
    function Count return Natural;
    function Device return Adaflight.MSP_Motor_In.Device_Kind;
-   --  Each motor's value as its frame, then the transfers.
-   procedure Write_All (Values : Adaflight.Mixer.Motor_Outputs);
+   --  A motor's frame of a value and its telemetry request, its stream armed.
+   procedure Send_Frame (Index : Natural; Value : Interfaces.Unsigned_16; Request : Boolean);
+   --  Each timer used restarts and asks for the transfers its motors armed.
+   procedure Start_Transfers;
 end Adaflight.STM32.Motors;

@@ -442,6 +442,11 @@ package body Adaflight.STM32.Motors is
       Is_On := Driven > 0;
    end Enable;
 
+   procedure Disable is
+   begin
+      Is_On := False;
+   end Disable;
+
    function Enabled return Boolean is (Is_On);
 
    function Motor_Enabled (Index : Natural) return Boolean is
@@ -455,14 +460,14 @@ package body Adaflight.STM32.Motors is
    --  zero slots, and its stream armed; the stream and the request the
    --  previous frame left on end first, as the reference's transfer complete
    --  interrupt ends them.
-   procedure Write_One (Slot : Motor_Slot; Value : Float) is
+   procedure Send_Frame (Index : Natural; Value : Unsigned_16; Request : Boolean) is
+      Slot   : constant Motor_Slot := Index;
       O      : Output renames Outputs (Slot);
       Regs   : Timer_Registers with Import, Address => Timer_Base (O.Timer);
       Stream : Stream_Registers with Import, Address => Stream_Address (O.Stream);
-      Rounded : constant Float := Float'Unbiased_Rounding (Float'Max (0.0, Float'Min (2_047.0, Value)));
       Packet : Unsigned_16 :=
-        Adaflight.DShot.Frame (Adaflight.DShot.Frame_Value (Rounded), Request_Telemetry => False,
-                               Inverted_Checksum => False);
+        Adaflight.DShot.Frame (Adaflight.DShot.Frame_Value (Unsigned_16'Min (Value, 2_047)),
+                               Request_Telemetry => Request, Inverted_Checksum => False);
    begin
       if not O.Configured then
          return;
@@ -482,11 +487,11 @@ package body Adaflight.STM32.Motors is
       Stream.NDTR := Buffer_Size;
       Stream.CR := Stream.CR or EN;
       Sources (O.Timer) := Sources (O.Timer) or O.Source;
-   end Write_One;
+   end Send_Frame;
 
    --  Each timer used restarts with its period reloaded and asks for the
    --  transfers its motors armed.
-   procedure Complete is
+   procedure Start_Transfers is
    begin
       for T in Timer_Name loop
          if Used (T) then
@@ -502,16 +507,5 @@ package body Adaflight.STM32.Motors is
             end;
          end if;
       end loop;
-   end Complete;
-
-   procedure Write_All (Values : Adaflight.Mixer.Motor_Outputs) is
-   begin
-      if not Is_On then
-         return;
-      end if;
-      for M in 0 .. Driven - 1 loop
-         Write_One (M, Float (Values (M)));
-      end loop;
-      Complete;
-   end Write_All;
+   end Start_Transfers;
 end Adaflight.STM32.Motors;

@@ -10127,8 +10127,8 @@ runs every 125 or 250 microseconds.
 
 The mixer gets the motors' enables, the MSP motor configuration reply counts the mixer's motors, and
 the MSP motor reply gives each enabled motor's value in the external range, the stop at 1000 while
-disarmed. The configurator's motor test is D419. DShot commands, the bidirectional telemetry and the analog
-protocols are later steps. The host target keeps the motor path without timers, and the smoke check
+disarmed. The configurator's motor test is D419 and the DShot commands are D421. The bidirectional
+telemetry and the analog protocols are later steps. The host target keeps the motor path without timers, and the smoke check
 reads the motor count and the stop values over MSP. The branch waits for a bench check with the
 propellers off before it lands.
 
@@ -10172,3 +10172,27 @@ updates through a model of the timer layer's write, and queries. Every third seq
 with the motors mostly disabled and the writes mostly blocking, and the clock lands next to the end of the
 protocol detection delay. The vectors replay every write and query, each entry's state after each step,
 and the motor table's calls in order.
+
+## D421. STM32F4 DShot commands (2026-10-27)
+
+`Adaflight.STM32.DShot_Output` drives the motors' DShot output through the command queue of D420, and
+`Adaflight.STM32.Motors` keeps the frame load and the transfer start. Each motor's write sends the
+queue's current command in place of the mix's value while one is processing, with a telemetry request
+when it is not the stop. The value stays as the motor's idle state for the queue's idle wait, and the
+frame takes the request. The update starts the transfers only when the queue is empty or its output
+gate opens. The queue counts its waits in cycles of the PID loop time, set each time the PID settings
+are configured, and the motors' enable time starts the first streaming command's detection delay.
+
+The command line's dshotprog and the MSP DShot command message send blocking commands with the motors
+disabled around them, through a motor table of the board's busy waits, telemetry requests, writes and
+update ends. Telemetry decoding is a later step, so the decode before each repeat returns at once. The
+arming logic's spin direction and extended telemetry commands and the beeper's beacon enter the queue
+as inline commands. The arming logic's boot grace check reads whether streaming commands are enabled,
+and the board asks the queue only while the boot grace flag is set past the grace time with a DShot
+protocol, where the check reads it, since the first answer past the detection delay ends the delay for
+good. The command line's environment reports the DShot protocol, which dshotprog needs.
+
+The host target writes each command frame its transfers send to the file the environment variable
+ADAFLIGHT_DSHOT_LOG names. The smoke check queues a beacon over MSP and finds it once on each motor with
+a telemetry request, then runs dshotprog 0 7 and finds the spin direction command ten times on motor 0
+alone.
