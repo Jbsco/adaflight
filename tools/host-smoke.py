@@ -13,6 +13,7 @@ Usage: host-smoke.py <host image>
 import calendar
 import os
 import re
+import select
 import socket
 import struct
 import subprocess
@@ -186,6 +187,20 @@ def ghst_frames(channels_us):
     return [frame(0x33, [100, 60, 0x05, 20]), frame(0x30, [128, 128, 128, 128])]
 
 
+def ghst_replies(data):
+    """The Ghost telemetry frames in the bytes from the flight controller: the receiver's address, the length
+    twelve, the type, ten payload bytes and the CRC8 of the type and payload, which must check."""
+    frames = []
+    i = 0
+    while i + 14 <= len(data):
+        if data[i] == 0x89 and data[i + 1] == 12 and crc8_dvb_s2(data[i + 2:i + 13]) == data[i + 13]:
+            frames.append((data[i + 2], data[i + 3:i + 13]))
+            i += 14
+        else:
+            i += 1
+    return frames
+
+
 def jeti_frame(channels_us):
     """A Jeti EX Bus channel frame: the channel header with the frame length, a packet id, the channel data
     id and the data length, the channels in eighths of a microsecond little-endian, and the reflected CRC16
@@ -239,6 +254,7 @@ class SerialReceiver(threading.Thread):
         super().__init__(daemon=True)
         self.frames = frame if isinstance(frame, list) else [frame]
         self.stop = threading.Event()
+        self.received = b""
 
     def run(self):
         sock = None
@@ -256,6 +272,11 @@ class SerialReceiver(threading.Thread):
                 break
             turn += 1
             time.sleep(0.014)
+            if select.select([sock], [], [], 0)[0]:
+                try:
+                    self.received += sock.recv(4096)
+                except OSError:
+                    break
         if sock is not None:
             sock.close()
 
@@ -1326,6 +1347,38 @@ def main():
                 sender.stop.set()
                 stop(proc)
                 sock.close()
+        store = os.path.join(work, "ghsttlm.bin")
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "feature TELEMETRY")
+            check("telemetry feature on for Ghost", "Enabled" in text, text[-120:])
+            text = cli(sock, "set serialrx_provider = GHST")
+            check("receiver protocol set to GHST for its telemetry", "serialrx_provider set to GHST" in text,
+                  text[-120:])
+            text = cli(sock, "set rx_uart = UART3")
+            check("Ghost telemetry port assigned", "rx_uart set to UART3" in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store)
+        sender = SerialReceiver(ghst_frames(us))
+        sender.start()
+        try:
+            time.sleep(4.0)
+            frames = ghst_replies(sender.received)
+            kinds = sorted({k for k, _ in frames})
+            check("Ghost telemetry answers in the receiver's quiet window with checked frames", len(frames) >= 10,
+                  repr(sender.received[:60]))
+            check("Ghost telemetry sends the battery pack frame", kinds == [0x23], repr(kinds))
+        finally:
+            sender.stop.set()
+            stop(proc)
+            sock.close()
     print(f"host smoke: {'all checks passed' if not failures else str(len(failures)) + ' failed'}")
     sys.exit(1 if failures else 0)
 
