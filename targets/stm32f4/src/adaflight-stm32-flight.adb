@@ -9,6 +9,9 @@ with Adaflight.Attitude;
 with Adaflight.Axes;
 with Adaflight.Battery;
 with Adaflight.Beeper;
+with Adaflight.Blackbox;
+with Adaflight.Blackbox_Header;
+with Adaflight.Blackbox_Info;
 with Adaflight.Board;
 with Adaflight.Board_Info;
 with Adaflight.Bytes;
@@ -35,7 +38,9 @@ with Adaflight.MSP_Out;
 with Adaflight.MSP_Port;
 with Adaflight.MSP_Processor;
 with Adaflight.PID_Config;
+with Adaflight.PID_Profile;
 with Adaflight.Pins;
+with Adaflight.RTC;
 with Adaflight.PID_Controller;
 with Adaflight.RC_Command;
 with Adaflight.Receiver;
@@ -44,6 +49,7 @@ with Adaflight.RX_Task;
 with Adaflight.Scheduler;
 with Adaflight.Serial_Feature_Map;
 with Adaflight.STM32.ADC;
+with Adaflight.STM32.Blackbox;
 with Adaflight.STM32.Console;
 with Adaflight.STM32.Control;
 with Adaflight.STM32.Flash;
@@ -249,6 +255,55 @@ package body Adaflight.STM32.Flight is
    end Common_Snapshot;
 
    Ctx : MSP.Context;
+
+   --  The PID loop's time, which the log's intervals and the replies read.
+   Loop_Time_Us : Adaflight.Blackbox.Loop_Time_Us := 125;
+
+   function Log_Text (S : String) return Adaflight.Blackbox_Header.Text is
+      T : Adaflight.Blackbox_Header.Text;
+   begin
+      T.Length := Natural'Min (S'Length, Adaflight.Blackbox_Header.Text_Max);
+      T.Data (1 .. T.Length) := S (S'First .. S'First + T.Length - 1);
+      return T;
+   end Log_Text;
+
+   --  A 32-bit word as the log prints it.
+   function Log_Word (X : Unsigned_32) return Integer_32 is
+     (if X >= 2 ** 31 then Integer_32 (Integer_64 (X) - 2 ** 32) else Integer_32 (X));
+
+   --  The header's facts outside the stored configuration: the recorder's
+   --  intervals and battery reference come from the recorder itself.
+   function Log_Facts return Adaflight.Blackbox_Info.Facts is
+      F : Adaflight.Blackbox_Info.Facts;
+   begin
+      F.Motor_Output_Low := Integer_32 (Float'Rounding (Adaflight.STM32.Control.Output_Low));
+      F.Motor_Output_High := Integer_32 (Float'Rounding (Adaflight.STM32.Control.Output_High));
+      F.Acc_1G := Integer_32 (Adaflight.STM32.Gyro.Acc_One_G);
+      F.Loop_Time := Integer_32 (Loop_Time_Us);
+      F.PID_Process_Denom := Integer_32 (Loop_Ratio);
+      F.DShot_Telemetry := False;
+      F.RC_Setpoint_Cutoff := Integer_32 (Config.Rx_Config.Rc_Smoothing_Setpoint_Cutoff);
+      F.RC_Throttle_Cutoff := Integer_32 (Config.Rx_Config.Rc_Smoothing_Throttle_Cutoff);
+      F.RC_Debug_Axis := Integer_32 (Config.Rx_Config.Rc_Smoothing_Debug_Axis);
+      F.RC_Setpoint_Cutoff_Hz := Integer_32 (Adaflight.STM32.Pilot.Setpoint_Cutoff_Hz);
+      F.RC_Throttle_Cutoff_Hz := Integer_32 (Adaflight.STM32.Pilot.Throttle_Cutoff_Hz);
+      F.RX_Rate_Hz := Integer_32 (Float'Rounding (Adaflight.STM32.Pilot.RX_Rate_Hz));
+      F.Debug_Mode := Integer_32 (Config.System_Config.Debug_Mode);
+      F.Device_UID_0 := Log_Word (UID (1));
+      F.Device_UID_1 := Log_Word (UID (2));
+      F.Device_UID_2 := Log_Word (UID (3));
+      F.Firmware_Type := Log_Text ("Adaflight");
+      F.Firmware_Name := Log_Text ("Adaflight");
+      F.Firmware_Version := Log_Text (Version_Text);
+      F.Git_Revision := Log_Text ("0000000");
+      F.Target_Name := Log_Text (Adaflight.Board.MCU_Name);
+      F.Build_Date := Log_Text (GNAT.Source_Info.Compilation_Date);
+      F.Build_Time := Log_Text (GNAT.Source_Info.Compilation_Time);
+      F.Manufacturer_Id := Log_Text (Adaflight.Board.Manufacturer_ID);
+      F.Board_Name := Log_Text (Adaflight.Board.Board_Name);
+      F.Start_Date_Time := Log_Text ("0000-01-01T00:00:00.000");
+      return F;
+   end Log_Facts;
 
    Env : CLI.Environment :=
      (Navigation      => <>,
@@ -587,6 +642,9 @@ package body Adaflight.STM32.Flight is
       Inputs.Gyro_Detected := Selection.Found;
       Inputs.Gyro_Sample_Looptime_Us := Sample_Us;
       Inputs.Gyro_Target_Looptime_Us := Sample_Us * Scheduler.Time_Delta (Loop_Ratio);
+      Loop_Time_Us :=
+        Adaflight.Blackbox.Loop_Time_Us'Max (1, Adaflight.Blackbox.Loop_Time_Us'Min
+          (Adaflight.Blackbox.Loop_Time_Us'Last, Natural (Sample_Us) * Positive (Loop_Ratio)));
       Inputs.Acc_Detected := Gyro_Report.Acc_Found;
       Inputs.Acc_Sample_Rate_Hz := Gyro_Report.Acc_Sample_Rate_Hz;
       Inputs.Feature_OSD := (Runtime_Features and Adaflight.Config_Fix.Feature_OSD) /= 0;
@@ -618,6 +676,8 @@ package body Adaflight.STM32.Flight is
       Adaflight.Stream_Buffers.Init (Stream, 0, Reply'Length);
       Ctx.OSD_Port := Adaflight.STM32.OSD.Port_Present;
       Ctx.Font_Write_Taken := Adaflight.STM32.OSD.Font_Write_Taken;
+      Ctx.Log := Adaflight.STM32.Blackbox.Recorder;
+      Ctx.Loop_Time := Loop_Time_Us;
       Ctx.Out_Views.OSD.Device := Adaflight.STM32.OSD.Device;
       if Unsigned_16 (Port.Command_Id) = Adaflight.MSP_OSD_Out.OSD_Config_Command then
          Adaflight.STM32.OSD.Check_Ready (Config, Adaflight.STM32.Pilot.Armed, Ctx.Out_Views.OSD.Device_Ready);
@@ -744,8 +804,10 @@ package body Adaflight.STM32.Flight is
          end;
       else
          for L in MSP_Line loop
-            Take_Line (L);
-            Serve_MSP (L, Evaluate_Other_Data);
+            if L /= Line_UART1 or else not Adaflight.STM32.Blackbox.Holds (Adaflight.STM32.USART.UART1) then
+               Take_Line (L);
+               Serve_MSP (L, Evaluate_Other_Data);
+            end if;
             exit when Session.Open;
          end loop;
       end if;
@@ -1178,6 +1240,10 @@ package body Adaflight.STM32.Flight is
       if Step.First_Arm_Gyro_Cal > 0 then
          Adaflight.Gyro_Filters.Start_Calibration (Gyro_State, Gyro_Settings, First_Arm => True);
       end if;
+      if Step.Disarm_Calls > 0 then
+         Adaflight.STM32.Blackbox.Disarmed
+           (Adaflight.STM32.Pilot.Last_Disarm_Reason, Adaflight.STM32.Time.Micros, Adaflight.STM32.Time.Millis);
+      end if;
       if Step.Headfree_Offsets > 0 then
          Adaflight.Attitude.Set_Headfree_Offset (Att_State, Set);
       end if;
@@ -1221,6 +1287,100 @@ package body Adaflight.STM32.Flight is
    --  senses, what the runaway check asked, the gyro's dynamic lowpass at a
    --  new throttle step, and the motor outputs into the motor reply, which
    --  reads them disabled until the motors have a driver.
+   --  The first thirty-two boxes active as the log's flight mode word.
+   function Box_Word return Unsigned_32 is
+      Active : constant Adaflight.Modes.Mask := Adaflight.STM32.Pilot.Active_Boxes;
+      Word   : Unsigned_32 := 0;
+   begin
+      for B in Adaflight.Modes.Box loop
+         if Adaflight.Modes.Box'Pos (B) < 32 and then Active (B) then
+            Word := Word or Shift_Left (1, Adaflight.Modes.Box'Pos (B));
+         end if;
+      end loop;
+      return Word;
+   end Box_Word;
+
+   --  The GPS date and time as seconds since 1970, zero without a valid one
+   --  from 1980 on.
+   function GPS_Epoch return Unsigned_32 is
+      T : constant Adaflight.GPS_Frames.Date_Time := Adaflight.STM32.GPS.Time;
+      D : Adaflight.RTC.Date_Time;
+      Seconds : Integer_64;
+   begin
+      if not T.Valid or else T.Year < 1980 or else T.Month not in 1 .. 12 or else T.Day not in 1 .. 31
+        or else T.Hour > 23 or else T.Minute > 59 or else T.Second > 60
+      then
+         return 0;
+      end if;
+      D := (Year => Unsigned_16 (T.Year), Month => Unsigned_8 (T.Month), Day => Unsigned_8 (T.Day),
+            Hours => Unsigned_8 (T.Hour), Minutes => Unsigned_8 (T.Minute), Seconds => Unsigned_8 (T.Second),
+            Millis => 0);
+      Seconds := Adaflight.RTC.Seconds_Of (Adaflight.RTC.Date_To_Time (D));
+      return (if Seconds in 0 .. Integer_64 (Unsigned_32'Last) then Unsigned_32 (Seconds) else 0);
+   end GPS_Epoch;
+
+   --  What the log reads from the flight before the pass.
+   function Log_Inputs (Now_Us : Unsigned_32) return Adaflight.STM32.Blackbox.Facts is
+      pragma Unreferenced (Now_Us);
+      F : Adaflight.STM32.Blackbox.Facts;
+      G : constant Adaflight.STM32.GPS.Readings := Adaflight.STM32.GPS.Current;
+      Profile : constant Adaflight.PID_Profile.Profile := Adaflight.STM32.Pilot.Profile;
+      Small_Angle : constant Boolean :=
+        not Gyro_Report.Acc_Found
+        or else (Att_State.Established
+                 and then Adaflight.Attitude.Cos_Tilt (Att_State) > Att_Config.Small_Angle_Cos);
+   begin
+      F.Now_Ms := Adaflight.STM32.Time.Millis;
+      F.Arming_Beep_Us := Adaflight.Beeper.Arming_Beep_Time (Beep);
+      F.Battery_Voltage := Unsigned_16 (Natural'Min (65_535, Bat.Voltage.Display_Filtered));
+      F.VBat_Latest := Unsigned_16 (Natural'Min (65_535, Bat.Voltage.Unfiltered));
+      F.Amperage := Integer_32'Max (-2 ** 31, Integer_32'Min (2 ** 31 - 1, Integer_32 (Bat.Current.Amperage)));
+      F.RSSI := Adaflight.STM32.Radio.RSSI;
+      for A in Adaflight.Axes.Axis loop
+         F.Gyro_Filtered (Adaflight.Axes.Axis'Pos (A)) :=
+           Float'Max (-1.0e6, Float'Min (1.0e6, Gyro_State.Filtered (A)));
+         F.Gyro_Raw (Adaflight.Axes.Axis'Pos (A)) :=
+           Float'Max (-1.0e6, Float'Min (1.0e6, Gyro_State.Downsampled (A)));
+      end loop;
+      F.Acc := (0 => Float'Max (-1.0e6, Float'Min (1.0e6, Acc_State.Acc.X)),
+                1 => Float'Max (-1.0e6, Float'Min (1.0e6, Acc_State.Acc.Y)),
+                2 => Float'Max (-1.0e6, Float'Min (1.0e6, Acc_State.Acc.Z)));
+      F.Quaternion_W := Att_State.Reported.W;
+      F.Quaternion_XYZ := (0 => Att_State.Reported.X, 1 => Att_State.Reported.Y, 2 => Att_State.Reported.Z);
+      F.Slow :=
+        (Flight_Mode_Flags        => Box_Word,
+         State_Flags              => (if G.Fix_Home then 1 else 0) or (if G.Fix then 2 else 0)
+                                     or (if G.Fix_Ever then 4 else 0) or (if Small_Angle then 16 else 0),
+         Failsafe_Phase           => Adaflight.STM32.Radio.Failsafe_Phase,
+         RX_Signal_Received       => Adaflight.STM32.Radio.Receiving,
+         RX_Flight_Channels_Valid => Adaflight.STM32.Radio.Flight_Channels_Valid);
+      F.GPS :=
+        (Home          => G.Home,
+         Position      => (Lat => G.Latitude, Lon => G.Longitude, Alt_Cm => G.Altitude_Cm),
+         Num_Sat       => G.Satellites,
+         Speed_3D      => G.Speed_3D,
+         Ground_Speed  => G.Ground_Speed,
+         Ground_Course => G.Ground_Course,
+         Vel_N         => G.Velocity.North,
+         Vel_E         => G.Velocity.East,
+         Vel_D         => G.Velocity.Down,
+         Time_Ms       => G.Time_Ms,
+         Epoch         => GPS_Epoch,
+         Use_3D_Speed  => G.Use_3D_Speed);
+      F.GPS_Feature := Adaflight.STM32.GPS.Enabled;
+      F.Conditions.Has_Servos := Adaflight.Mixer_Init.Uses_Servos (Adaflight.STM32.Pilot.Mixer_Mode);
+      F.Conditions.DShot_Telemetry := False;
+      F.Conditions.Acc_Present := Gyro_Report.Acc_Found;
+      F.Conditions.RSSI_Configured := Adaflight.STM32.Radio.RSSI_Configured;
+      F.Conditions.Debug_Active := Config.System_Config.Debug_Mode /= 0;
+      F.Conditions.Voltage_Meter := Bat_Settings.Voltage_Meter;
+      F.Conditions.Current_Meter := Bat_Settings.Current_Meter;
+      for A in Adaflight.Axes.Axis loop
+         F.Conditions.PID_D (Adaflight.Axes.Axis'Pos (A)) := Integer_32 (Profile.Gains (A).D);
+      end loop;
+      return F;
+   end Log_Inputs;
+
    procedure Run_Control (Before : Unsigned_32) is
       Channels : constant Adaflight.RC_Command.Channel_Values := Flight_Channels;
       Mode     : constant Adaflight.Mixer_Init.Mixer_Mode := Adaflight.STM32.Pilot.Mixer_Mode;
@@ -1228,6 +1388,10 @@ package body Adaflight.STM32.Flight is
       Asked    : Adaflight.Arming.Outputs;
       Trims    : Adaflight.Config_Groups.Integer_16_List_2 renames Config.Accelerometer_Config.Accelerometer_Trims;
    begin
+      Adaflight.STM32.Blackbox.Set_Facts (Log_Inputs (Before));
+      if Adaflight.STM32.Blackbox.Needs_Info then
+         Adaflight.STM32.Blackbox.Set_Info (Adaflight.Blackbox_Info.Sysinfo_Of (Config, Log_Facts, Wing => False));
+      end if;
       I.Now_Us := Before;
       I.Armed := Adaflight.STM32.Pilot.Armed;
       I.Acc_Present := Gyro_Report.Acc_Found;
@@ -1255,6 +1419,7 @@ package body Adaflight.STM32.Flight is
                           (Adaflight.STM32.Pilot.Sticks_Arm, Channels (Adaflight.RC_Command.Throttle_Channel),
                            Natural (Config.Rx_Config.Mincheck), Mode, Config.Servo_Config.Tri_Unarmed_Servo /= 0),
          Uses_Servos => Adaflight.Mixer_Init.Uses_Servos (Mode),
+         Log_Device  => Adaflight.STM32.Blackbox.Device_Set,
          CLI_Open    => Session.Open,
          PID_Audio   => Adaflight.STM32.Pilot.PID_Audio_Present,
          Asked       => Asked);
@@ -1665,6 +1830,7 @@ package body Adaflight.STM32.Flight is
          Adaflight.STM32.Time.Delay_Ms (First_Read_Delay_Ms);
       end if;
       Init_Scheduler;
+      Adaflight.STM32.Blackbox.Init (Config, Loop_Time_Us);
       Blink := Ada.Real_Time.Clock;
    end Init;
 

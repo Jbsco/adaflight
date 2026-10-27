@@ -122,8 +122,8 @@ package body Adaflight.STM32.USART is
    Listeners : array (Number) of Listener;
    Started   : array (Number) of Boolean := (others => False);
 
-   procedure Init (N : Number; Baud : Positive) is
-      pragma Unreferenced (Baud);
+   procedure Init (N : Number; Baud : Positive; Two_Stop_Bits : Boolean := False) is
+      pragma Unreferenced (Baud, Two_Stop_Bits);
    begin
       if not Started (N) then
          Started (N) := True;
@@ -161,6 +161,16 @@ package body Adaflight.STM32.USART is
    begin
       Send (Into.Which, Data);
    end Put;
+
+   procedure Queue (N : Number; Data : Byte_Array; Taken : out Natural) is
+   begin
+      Send (N, Data);
+      Taken := Data'Length;
+   end Queue;
+
+   function Free (N : Number) return Natural is (256);
+
+   function Transmit_Empty (N : Number) return Boolean is (True);
 
    procedure Take (N : Number; Into : out Byte_Array; Count : out Natural) is
       Times : Time_Array (0 .. Into'Length - 1);

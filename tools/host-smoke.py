@@ -22,6 +22,7 @@ PORT = 5761
 VCP_PORT = 5780
 RX_PORT = 5763
 GPS_PORT = 5764
+LOG_PORT = 5766
 
 
 def crc8(data):
@@ -208,6 +209,12 @@ def main():
             check("GPS port assigned", "gps_uart set to UART4" in text, text[-120:])
             text = cli(sock, "feature GPS")
             check("GPS feature on", "Enabled GPS" in text, text[-120:])
+            text = cli(sock, "set blackbox_device = SERIAL")
+            check("flight log device set", "blackbox_device set to SERIAL" in text, text[-120:])
+            text = cli(sock, "set blackbox_uart = UART6")
+            check("flight log port assigned", "blackbox_uart set to UART6" in text, text[-120:])
+            text = cli(sock, "set blackbox_mode = ALWAYS")
+            check("flight log always on", "blackbox_mode set to ALWAYS" in text, text[-120:])
             cli(sock, "set craft_name = ADAHOST")
             text = cli(sock, "set osd_craft_name_pos = 2122")
             check("craft name element placed", "osd_craft_name_pos set to 2122" in text, text[-120:])
@@ -221,6 +228,15 @@ def main():
         check("configuration store written", os.path.exists(store) and os.path.getsize(store) == 8192)
         proc, sock = start(image, store)
         vcp = None
+        log = None
+        deadline = time.time() + 5
+        while log is None and time.time() < deadline:
+            try:
+                log = socket.create_connection(("127.0.0.1", LOG_PORT), timeout=1)
+                log.settimeout(0.3)
+            except OSError:
+                time.sleep(0.01)
+        check("flight log port opened", log is not None)
         receiver = Receiver()
         receiver.start()
         gps = GPS()
@@ -243,6 +259,15 @@ def main():
             check("GPS fix reaches the raw GPS reply",
                   raw is not None and len(raw) >= 10 and raw[0] != 0 and raw[1] == 10 and lat == 481173000
                   and abs(lon - 115166667) <= 10, repr(raw[:10] if raw else raw))
+            data = read_all(log, 4.0) if log is not None else b""
+            head = data.split(b"\n")
+            check("flight log header starts the log", data.startswith(b"H Product:Blackbox flight data recorder by Nicholas Sherlock\nH Data version:2\n"),
+                  repr(data[:80]))
+            check("flight log names the firmware", b"H Firmware type:Adaflight\n" in data and b"H Firmware revision:Adaflight 0.1.0 (0000000) STM32F405\n" in data,
+                  repr([l for l in head if l.startswith(b"H Firmware")][:2]))
+            check("flight log names the craft", b"H Craft name:ADAHOST\n" in data, repr([l for l in head if l.startswith(b"H Craft")]))
+            check("flight log lists the fields", b"H Field I name:loopIteration,time,axisP[0]" in data, repr([l for l in head if l.startswith(b"H Field I name")][:1])[:120])
+            check("flight log writes frames", len(data) > 4000 and b"\nI" in data[data.find(b"H Craft name:"):], f"{len(data)} bytes")
             vcp = socket.create_connection(("127.0.0.1", VCP_PORT), timeout=1)
             vcp.settimeout(0.3)
             time.sleep(0.2)
@@ -285,6 +310,8 @@ def main():
             sock.close()
             if vcp is not None:
                 vcp.close()
+            if log is not None:
+                log.close()
     print(f"host smoke: {'all checks passed' if not failures else str(len(failures)) + ' failed'}")
     sys.exit(1 if failures else 0)
 
