@@ -10001,9 +10001,9 @@ the file system's state.
 The flight log of D411 takes the card as its device. Before each pass the facts come from the file
 system: whether it takes a log and whether it is full, the bytes its cache takes as the device's room,
 and the calls the recorder's state asks for in the order the reference makes them: the log start step
-while the log file is prepared, a flush while the cache flushes, and while the log shuts down its end,
-then its flush while the shutdown timeout has not passed, which the core now names in its spec. The
-iteration's bytes go to the log file as one text. The image is 614784 bytes of text, with the file
+while the log file is prepared, a flush until every sector is on the card while the cache flushes, and
+while the log shuts down its end, then its flush while the shutdown timeout has not passed, which the core
+now names in its spec. The iteration's bytes go to the log file as one text. The image is 614784 bytes of text, with the file
 system and the card in CCM RAM.
 
 The host target carries a model of a high capacity version 2 card on SPI2 over the image file the
@@ -10026,3 +10026,35 @@ reads the date and the zone each frame, the MSP clock reply gives the date once 
 card's new file entries take the local time. A reboot loses the time, as in the reference, which keeps
 it across a reboot only into the mass storage mode. The smoke check sets the clock over MSP, reads the
 date back and finds it on the OSD screen.
+
+## D415. STM32F4 flight log on the flash chip (2026-10-26)
+
+`Adaflight.STM32.Flash_Chip` puts the SPI flash chip driver of D330, the flash layer of D331 and the flash
+file system of D137 on the board. The chip's SPI device is the bus the stored configuration names with its
+select pin, which the board's defaults take from the board generator, as the SD card's. A segment list
+runs as the reference's bus runs it: the select pin low at the first segment and after each negation, a
+segment's bytes from its command or a buffer, idle bytes for a read, the callback after it, a busy answer
+repeating the segment and an abort skipping the rest. The bus has no DMA, so a program ends inside its
+call, and the end of a program reports its bytes to the file system. Initialization identifies the chip on
+a 5 MHz clock, lays the file system over the flash file system partition, searches for the start of the
+free space in 16-byte probes and seeks there. Each file system call lists its operations, which the
+package carries out on the chip in their order: a ready wait, a page program, a sector or chip erase, a
+read into the caller's buffer, and the LED's toggle and off during the erase. The main task runs the erase
+step.
+
+The flight log of D411 takes the chip as its device. The facts are the write buffer's room and usable
+size, whether a file system sits on the chip and whether its volume is full, the chip's readiness while
+the volume erases, and the forced flush while the cache flushes and while the log shuts down inside the
+shutdown timeout. The recorder's device flush, erase and close requests, counted in its state, become
+the file system's flush at the end of every logging iteration, its erase and its close, and the header
+writer's flush requests, counted when the buffer has no room for a reserve, become a forced flush. The
+MSP flash summary and the command line's flash tools, which the console bound to the core's placeholders
+before, read and drive the chip.
+
+The host target carries a model of a 16 MB W25Q128FV on SPI3 beside the OSD chip, each answering while
+its select pin is low, over the image file the environment variable `ADAFLIGHT_FLASH_IMAGE` names. The
+host's pins record their rising edges, so the model ends a command when its select pin rose between two
+transfers. The
+smoke check writes a blank image, sets the flight log device to the chip, restarts the image, reads the
+MSP summary and the command line's flash information and read, then finds the header at the start of
+the image.
