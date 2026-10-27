@@ -501,8 +501,24 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       N := N + 1;
    end Add;
 
+   --  The empty table's aggregate gives every component and the pragma asks
+   --  for its elaboration at compile time, so the table is read-only data.
+   pragma Warnings (GNATprove, Off, "pragma ""Static_Elaboration_Desired"" ignored*",
+                    Reason => "The pragma directs the compiler's elaboration only.");
+   pragma Static_Elaboration_Desired;
+   pragma Warnings (GNATprove, On, "pragma ""Static_Elaboration_Desired"" ignored*");
    Empty_Table : constant Table :=
-     (Lines => (others => (Flags => Code (Adaflight.Menu.Label), others => <>)), Count => 1);
+     (Lines => (others => (Text       => (Data => (others => ' '), Length => 0),
+                           Flags      => Interfaces.Unsigned_16 (Adaflight.Menu.Element'Pos (Adaflight.Menu.Label)),
+                           Has_Data   => False,
+                           Has_Func   => False,
+                           Value      => 0,
+                           Min        => 0,
+                           Max        => 0,
+                           Step       => 0,
+                           Multiplier => 1,
+                           Value_Text => (Data => (others => ' '), Length => 0))),
+      Count => 1);
 
    procedure Load_Quick_Menu (T : Target; M : out Table)
      with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
