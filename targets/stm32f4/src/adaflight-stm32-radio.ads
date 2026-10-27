@@ -1,8 +1,9 @@
 --  The receiver link of the board: the serial receiver port the stored
---  configuration assigns with the CRSF or SBUS protocol over it, the
---  receiver's channel processing, the failsafe's link state, and the CRSF
---  telemetry sent back on the port with its speed negotiation. The other
---  serial receiver protocols and half-duplex ports wait for their drivers.
+--  configuration assigns with the CRSF, SBUS, IBUS or SUMD protocol over it,
+--  the receiver's channel processing, the failsafe's link state, and the
+--  CRSF telemetry sent back on the port with its speed negotiation. The
+--  other serial receiver protocols and half-duplex ports wait for their
+--  drivers.
 with Interfaces;
 with Adaflight.Config_Groups;
 with Adaflight.CRSF_Telemetry;
