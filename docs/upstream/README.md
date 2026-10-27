@@ -89,3 +89,4 @@ Each document describes a Betaflight bug that adaflight fixes: the Betaflight ve
 - [The AK8963 detection turns a shared I2C bus into an MPU slave bus](compass-scan-bus-restore.md)
 - [Menu runtime flags drop the option string and ticker flags](menu-runtime-flags-word.md)
 - [A request for several MSP replies wraps the size of a sub-reply past 255 bytes](msp-multiple-reply-size.md)
+- [ESC information read leaves the ESC sensor writing into a dead stack frame](esc-info-read-buffer.md)
