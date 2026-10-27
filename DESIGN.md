@@ -10344,3 +10344,16 @@ to remove when the element takes longer names.
 
 The host smoke check sets an RC rate adjustment on AUX1, holds AUX1 high for 2.5 s, and reads the RC rate
 three to seven steps higher from the MSP RC tuning reply.
+
+## D431. STM32F4 flight statistics (2026-10-27)
+
+The board keeps the core's flight statistics. Each arming the arming logic reports notes the time and the
+GPS distance flown, and each disarm moves the stored totals of flights, armed seconds, metres flown and
+charge used on when the flight lasted the minimum armed time, and asks for a save half a second later
+unless one waits already. The serial task runs the waiting save once its time has come: the configuration
+is written with the disarm beep while the craft is disarmed, still within the save move limit, and holds
+no unsaved adjustment, the save is asked again half a second later while the craft moves, and nothing
+happens otherwise. Every configuration save clears the unsaved adjustment flag. The OSD's statistics page
+shows the stored totals.
+
+The host cannot arm yet, so no smoke check covers the statistics.

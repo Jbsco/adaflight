@@ -553,6 +553,9 @@ package body Adaflight.STM32.OSD is
       Context.Draw.Inputs.Date := Context.Date;
       Context.Draw.Inputs.Zone := Context.Zone;
       Context.Page.GPS_Feature := F.GPS_Feature;
+      Context.Page.Total_Flights := F.Total_Flights;
+      Context.Page.Total_Time_S := F.Total_Time_S;
+      Context.Page.Total_Dist_M := F.Total_Dist_M;
 
       D.Roll := F.Roll;
       D.Pitch := F.Pitch;
