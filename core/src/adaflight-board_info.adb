@@ -65,6 +65,7 @@ package body Adaflight.Board_Info with SPARK_Mode is
    end Store_Signature;
 
    procedure Reset_Config (C : in out Configuration; Board : State) is
+      H : Hardware_Defaults renames Board.Hardware;
    begin
       if Board.Information_Set then
          Store_Information (C, Board);
@@ -72,6 +73,22 @@ package body Adaflight.Board_Info with SPARK_Mode is
       if Board.Signature_Set then
          Store_Signature (C, Board);
       end if;
+      C.Adc_Config.Vbat.Enabled := H.Vbat.Enabled;
+      C.Adc_Config.Vbat.Io_Tag := H.Vbat.Io_Tag;
+      C.Adc_Config.External1.Enabled := H.External1.Enabled;
+      C.Adc_Config.External1.Io_Tag := H.External1.Io_Tag;
+      C.Adc_Config.Current.Enabled := H.Current.Enabled;
+      C.Adc_Config.Current.Io_Tag := H.Current.Io_Tag;
+      C.Adc_Config.Rssi.Enabled := H.RSSI.Enabled;
+      C.Adc_Config.Rssi.Io_Tag := H.RSSI.Io_Tag;
+      C.Beeper_Dev_Config.Is_Open_Drain := (if H.Beeper_Inverted then 0 else 1);
+      C.Beeper_Dev_Config.Is_Inverted := (if H.Beeper_Inverted then 1 else 0);
+      C.Beeper_Dev_Config.Io_Tag := H.Beeper_Tag;
+      C.Beeper_Dev_Config.Frequency := H.Beeper_Frequency;
+      C.Battery_Config.Voltage_Meter_Source := H.Voltage_Source;
+      C.Battery_Config.Current_Meter_Source := H.Current_Source;
+      C.Voltage_Sensor_Adc_Config (0).Vbatscale := H.Voltage_Scale;
+      C.Current_Sensor_Adc_Config.Scale := H.Current_Scale;
    end Reset_Config;
 
    procedure Persist_Information (C : in out Configuration; Board : in out State) is
