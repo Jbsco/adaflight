@@ -126,6 +126,10 @@ package Adaflight.STM32.OSD is
       Vario             : Interfaces.Integer_16 := 0;
       Pos_Hold_Ready    : Boolean := False;
       Pos_Hold_Failure  : Boolean := False;
+      Rescue_Configured : Boolean := False;
+      Rescue_Available  : Boolean := False;
+      Rescue_OK         : Boolean := True;
+      Rescue_Heading_OK : Boolean := False;
    end record;
 
    --  The OSD's settings from the stored configuration and the firmware's
