@@ -380,6 +380,16 @@ def main():
             check("MSP motor reply holds the DShot stop while disarmed",
                   outputs is not None and len(outputs) == 16 and outputs == (1000).to_bytes(2, "little") * 4 + bytes(8),
                   repr(outputs))
+            ack = msp(sock, 214, b"".join(v.to_bytes(2, "little") for v in [1100, 1200, 1300, 1400] + [1000] * 4))
+            check("MSP motor test write accepted", ack == b"", repr(ack))
+            time.sleep(0.3)
+            outputs = msp(sock, 104)
+            values = [int.from_bytes(outputs[i:i + 2], "little") for i in range(0, 8, 2)] if outputs else []
+            check("motor test values reach the motors while disarmed",
+                  len(values) == 4 and all(abs(v - w) <= 1 for v, w in zip(values, [1100, 1200, 1300, 1400])),
+                  repr(values))
+            ack = msp(sock, 214, (1000).to_bytes(2, "little") * 8)
+            check("motor test stopped", ack == b"", repr(ack))
             sock.sendall(b"#")
             banner = read_all(sock, 0.8).decode(errors="replace")
             check("command line entered", "Entering CLI Mode" in banner, banner[:80])
