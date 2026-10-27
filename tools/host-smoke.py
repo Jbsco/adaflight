@@ -2,8 +2,9 @@
 """The host image's smoke check. Starts the image with an empty configuration store, asks it over MSP
 on UART1 (TCP port 5761) for its API version, firmware variant and status, enters the command line and
 reads the status and the task list, sets a setting, turns the OSD on with the MAX7456 as its display and
-saves, which restarts the image, then reads the OSD flags, writes a font character, reads the setting
-back from the stored configuration and finds the craft name on the OSD's screen.
+saves, which restarts the image, then feeds CRSF frames on UART3's port, reads the OSD flags, writes a
+font character, reads the setting back from the stored configuration, finds the channels in the RC reply
+and the link in the arming flags, and finds the craft name on the OSD's screen.
 
 Usage: host-smoke.py <host image>
 """
@@ -12,9 +13,55 @@ import socket
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 
 PORT = 5761
+RX_PORT = 5763
+
+
+def crc8(data):
+    crc = 0
+    for byte in data:
+        crc ^= byte
+        for _ in range(8):
+            crc = ((crc << 1) ^ 0xD5) & 0xFF if crc & 0x80 else (crc << 1) & 0xFF
+    return crc
+
+
+def crsf_frame(channels):
+    """An RC channels frame: sixteen 11-bit values, 172 to 1811, low bits first."""
+    bits = 0
+    for n, value in enumerate(channels):
+        bits |= (value & 0x7FF) << (11 * n)
+    payload = bits.to_bytes(22, "little")
+    return bytes([0xC8, 24, 0x16]) + payload + bytes([crc8(bytes([0x16]) + payload)])
+
+
+class Receiver(threading.Thread):
+    """Sends CRSF frames on UART3's port at 50 Hz: roll, pitch and yaw at mid, throttle low."""
+
+    def __init__(self):
+        super().__init__(daemon=True)
+        self.frame = crsf_frame([992, 992, 172, 992] + [992] * 12)
+        self.stop = threading.Event()
+
+    def run(self):
+        sock = None
+        deadline = time.time() + 10
+        while sock is None and time.time() < deadline and not self.stop.is_set():
+            try:
+                sock = socket.create_connection(("127.0.0.1", RX_PORT), timeout=1)
+            except OSError:
+                time.sleep(0.1)
+        while sock is not None and not self.stop.is_set():
+            try:
+                sock.sendall(self.frame)
+            except OSError:
+                break
+            time.sleep(0.02)
+        if sock is not None:
+            sock.close()
 failures = []
 
 
@@ -105,6 +152,8 @@ def main():
             check("OSD feature on", "Enabled" in text, text[-120:])
             text = cli(sock, "set osd_displayport_device = MAX7456")
             check("OSD display device set", "osd_displayport_device set to MAX7456" in text, text[-120:])
+            text = cli(sock, "set rx_uart = UART3")
+            check("receiver port assigned", "rx_uart set to UART3" in text, text[-120:])
             cli(sock, "set craft_name = ADAHOST")
             text = cli(sock, "set osd_craft_name_pos = 2122")
             check("craft name element placed", "osd_craft_name_pos set to 2122" in text, text[-120:])
@@ -117,6 +166,8 @@ def main():
             sock.close()
         check("configuration store written", os.path.exists(store) and os.path.getsize(store) == 8192)
         proc, sock = start(image, store)
+        receiver = Receiver()
+        receiver.start()
         try:
             time.sleep(1.0)
             osd = msp(sock, 84)
@@ -124,6 +175,11 @@ def main():
                   repr(osd[:1] if osd else osd))
             glyph = msp(sock, 87, bytes([0x41, 0x00]) + bytes(range(64)))
             check("MSP font character written", glyph == b"", repr(glyph))
+            time.sleep(2.5)
+            rc = msp(sock, 105)
+            values = [rc[i] | rc[i + 1] << 8 for i in range(0, 8, 2)] if rc and len(rc) >= 8 else []
+            check("receiver channels reach the MSP RC reply",
+                  len(values) == 4 and all(abs(v - 1500) <= 2 for v in values[:3]) and values[3] <= 1000, repr(values))
             sock.sendall(b"#")
             read_all(sock, 0.8)
             text = cli(sock, "get gyro_lpf1_static_hz")
@@ -131,6 +187,9 @@ def main():
             text = cli(sock, "status")
             check("status names the MAX7456 display", "OSD: MAX7456 (30 x 16)" in text,
                   text[text.find("OSD:"):][:40])
+            text = cli(sock, "status")
+            flags = text.split("Arming disable flags:")[-1]
+            check("receiver link clears the signal loss", "RXLOSS" not in flags and "CLI" in flags, flags.strip()[:80])
             time.sleep(5.0)
             try:
                 with open(store + ".osd.txt") as f:
@@ -139,6 +198,7 @@ def main():
                 screen = ""
             check("OSD draws the craft name", "ADAHOST" in screen, repr(screen[:200]))
         finally:
+            receiver.stop.set()
             proc.kill()
             sock.close()
     print(f"host smoke: {'all checks passed' if not failures else str(len(failures)) + ' failed'}")
