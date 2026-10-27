@@ -1,4 +1,5 @@
 package body Adaflight.Board_Info with SPARK_Mode is
+   use type Interfaces.Integer_8;
    use type Interfaces.Unsigned_8;
 
    function To_Identity (Text : String) return Identity_Text is
@@ -91,6 +92,12 @@ package body Adaflight.Board_Info with SPARK_Mode is
       C.Current_Sensor_Adc_Config.Scale := H.Current_Scale;
       C.Max7456_Config.Cs_Tag := H.OSD_CS_Tag;
       C.Max7456_Config.Spi_Device := H.OSD_SPI_Device;
+      C.Sdcard_Config.Device := H.SD_SPI_Device;
+      C.Sdcard_Config.Chip_Select_Tag := H.SD_CS_Tag;
+      C.Sdcard_Config.Card_Detect_Tag := H.SD_Detect_Tag;
+      C.Sdcard_Config.Card_Detect_Inverted := (if H.SD_Detect_Low then 1 else 0);
+      C.Sdcard_Config.Mode := (if H.SD_SPI_Device > 0 and then H.SD_CS_Tag /= 0 then 1 else 0);
+      C.Blackbox_Config.Device := H.Blackbox_Device;
    end Reset_Config;
 
    procedure Persist_Information (C : in out Configuration; Board : in out State) is
