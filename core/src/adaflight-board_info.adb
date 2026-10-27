@@ -89,6 +89,8 @@ package body Adaflight.Board_Info with SPARK_Mode is
       C.Battery_Config.Current_Meter_Source := H.Current_Source;
       C.Voltage_Sensor_Adc_Config (0).Vbatscale := H.Voltage_Scale;
       C.Current_Sensor_Adc_Config.Scale := H.Current_Scale;
+      C.Max7456_Config.Cs_Tag := H.OSD_CS_Tag;
+      C.Max7456_Config.Spi_Device := H.OSD_SPI_Device;
    end Reset_Config;
 
    procedure Persist_Information (C : in out Configuration; Board : in out State) is

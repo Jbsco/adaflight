@@ -9667,3 +9667,36 @@ and every element's column and row lie on it.
 The osdcanvas vectors replay 400 inits from a host build with OSD profiles on, as a board build has
 them: stored canvases and positions drawn at random, then the sizes of PAL, NTSC and HD displays,
 zero sizes and random sizes.
+
+## D398. STM32F4 OSD chip (2026-10-26)
+
+The STM32F4 image drives the three SPI buses of the STM32F405 and starts the MAX7456 OSD chip on its
+configured bus. `Adaflight.STM32.SPI` takes the bus with each call. SPI2 and SPI3 run from a bus
+clock of 42 MHz, so a divisor computed for 84 MHz is halved on them, and a device gets the same SPI
+clock for the same divisor on every bus. The buses start before the gyro, after the OSD chip's
+select pin is held as an input with its pull up, or driven high when the configuration asks for it.
+
+The configuration reset takes the OSD chip's select pin and bus from the board (D392). For the
+CLRacing F4S that is the tag 31 for A15 and SPI3, so `resource OSD_CS 1 A15` and
+`max7456_spi_bus = 3` match a dump of the board under Betaflight.
+
+With the OSD feature on and the display device setting at AUTO or MAX7456, the image starts the chip
+and its display port after the battery, and fits the stored canvas to the display (D397). A chip
+that does not answer leaves the port in place for a later start. A display device setting of MSP,
+FRSKYOSD or FBOSD starts no display on this image, and the OSD feature stays off until the next
+start. The OSD configuration reply reports the chip and its readiness, starting a chip that did not
+answer first, and a font character write goes to the chip's character memory once the chip answered.
+The command line's `status` names the display with its columns and rows. Nothing draws on the
+display yet.
+
+The defaults stay those of a Betaflight build with HD OSD support, the display device MSP and a
+canvas of 53 by 20. The analog OSD on a board needs `osd_displayport_device` at AUTO or MAX7456.
+
+The host target models the chip on SPI3 (D396): register writes and reads in pairs, the display
+memory with its automatic increment, the character memory with its write and read commands, the
+reset bit, the insertion register's default and a PAL signal. The host smoke check turns the OSD on
+with the MAX7456 as its display, then after the restart reads the OSD flags with the chip found,
+writes a font character and reads the display in `status`.
+
+The image is 938848 bytes of text, 5084 of data and 118624 of zeroed data. The bench check is the
+configurator's OSD tab showing the chip, and a font upload.

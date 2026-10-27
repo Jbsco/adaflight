@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """The host image's smoke check. Starts the image with an empty configuration store, asks it over MSP
 on UART1 (TCP port 5761) for its API version, firmware variant and status, enters the command line and
-reads the status and the task list, sets a setting and saves it, which restarts the image, and reads
-the setting back from the stored configuration.
+reads the status and the task list, sets a setting, turns the OSD on with the MAX7456 as its display and
+saves, which restarts the image, then reads the OSD flags, writes a font character and reads the setting
+back from the stored configuration.
 
 Usage: host-smoke.py <host image>
 """
@@ -56,11 +57,16 @@ def read_all(sock, wait):
     return data
 
 
-def msp(sock, cmd):
-    sock.sendall(b"$M<" + bytes([0, cmd, cmd]))
+def msp(sock, cmd, payload=b""):
+    check = len(payload) ^ cmd
+    for b in payload:
+        check ^= b
+    sock.sendall(b"$M<" + bytes([len(payload), cmd]) + payload + bytes([check]))
     data = read_all(sock, 0.5)
     if len(data) < 6 or data[:3] != b"$M>":
         return None
+    if data[3] == 255:
+        return data[7:7 + (data[5] | data[6] << 8)]
     return data[5:5 + data[3]]
 
 
@@ -95,6 +101,10 @@ def main():
             check("tasks run the gyro and the PID loop", "GYRO" in text and "PID" in text)
             text = cli(sock, "set gyro_lpf1_static_hz = 321")
             check("set accepted", "gyro_lpf1_static_hz set to 321" in text, text[-120:])
+            text = cli(sock, "feature OSD")
+            check("OSD feature on", "Enabled" in text, text[-120:])
+            text = cli(sock, "set osd_displayport_device = MAX7456")
+            check("OSD display device set", "osd_displayport_device set to MAX7456" in text, text[-120:])
             cli(sock, "save", wait=2.0)
             proc.wait(timeout=10)
             check("save restarts the image", proc.returncode == 0)
@@ -106,10 +116,18 @@ def main():
         proc, sock = start(image, store)
         try:
             time.sleep(1.0)
+            osd = msp(sock, 84)
+            check("MSP OSD flags name the MAX7456 found", osd is not None and len(osd) > 0 and osd[0] & 0x31 == 0x31,
+                  repr(osd[:1] if osd else osd))
+            glyph = msp(sock, 87, bytes([0x41, 0x00]) + bytes(range(64)))
+            check("MSP font character written", glyph == b"", repr(glyph))
             sock.sendall(b"#")
             read_all(sock, 0.8)
             text = cli(sock, "get gyro_lpf1_static_hz")
             check("setting kept across the restart", "gyro_lpf1_static_hz = 321" in text, text[-160:])
+            text = cli(sock, "status")
+            check("status names the MAX7456 display", "OSD: MAX7456 (30 x 16)" in text,
+                  text[text.find("OSD:"):][:40])
         finally:
             proc.kill()
             sock.close()
