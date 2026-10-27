@@ -74,7 +74,7 @@ The configuration is kept in `adaflight-eeprom.bin` in the working directory, or
 
 ## Verification
 
-- Every unit in `core/` is SPARK and proved free of run-time errors at Silver or Gold, except four bodies outside SPARK that `DESIGN.md` names: the accurate power (D15), the rescue's arctangent (D83), the configuration codec (D166) and the configuration fix's call sequence (D167). The proof gate counts such bodies on every run.
+- Every unit in `core/` is SPARK and proved free of run-time errors at Silver or Gold, except the bodies outside SPARK that `DESIGN.md` names: the accurate power (D15), the rescue's arctangent (D83), the configuration codec (D166) and the configuration fix's call sequence (D167). The proof gate counts such bodies on every run.
 - No `pragma Assume` and no justified suppression. `prove.do` counts both on every run.
 - A pull request proves the units whose sources it changed (`tools/changed-units.py`). A nightly run proves every core unit in parallel groups. Both prove a generic unit through its instantiations.
 - A ported function keeps the operation order of its Betaflight original, so the host build reproduces its results bit for bit. The vector checker reports the distance in representable values for every case, and each deliberate difference has a declared tolerance and a line in `DIVERGENCES.md`.
