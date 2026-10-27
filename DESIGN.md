@@ -9776,3 +9776,28 @@ not proved. The host target and the tests keep the validation profile with its c
 
 The image is 526584 bytes of text, 5172 of data and 85584 of zeroed data: 531756 of the 1015808
 bytes of the code region.
+
+## D403. STM32F4 menu system (2026-10-26)
+
+The menu system runs on the STM32F4 image over the OSD display (D398). `Adaflight.STM32.Menu`
+instantiates the menu navigation over the menu content's target, with the display's actions and
+writes on the MAX7456 display port: the grab and release, the clear, the layer and background
+selection, the redraw while disarmed and the heartbeat. The menu task runs at 20 Hz with the sticks
+from the RC command channels, the aux channels for the RC preview, the arming, the paralyze and
+stick command boxes, the sensors with their calibrations, the loop rate and the running features.
+The stick gesture opens the quick menu, or the main menu when the setting asks for it, and the menu
+holds arming while open.
+
+The menus edit the target's copy of the configuration: the live configuration goes into it on every
+pass while the menu is closed and comes back out while it is open, so an edit takes effect at once
+and a save writes it. After each pass the flight carries out the menu's requests: the accelerometer
+and gyro calibrations, the OSD's elements analyzed again, the OSD, PID and rate profiles changed to
+the ones asked for, the configuration written, and the reset. The requests for a flash erase, the
+mass storage, the LED strip, the gate, a charge restore and the motor endpoints have nothing to act
+on yet, and the VTX menus find no device. The OSD task waits while the menu holds the display.
+
+The navigation's state and the target, 26440 bytes, live in the core coupled memory through a linker
+section, since the main RAM has no room for them. The image is 592496 bytes of text, 5276 of data,
+109480 of zeroed data in the main RAM and 26440 in the core coupled memory. The host smoke check
+feeds the stick gesture through the receiver stream and finds the quick menu on the screen with the
+menu's arming hold in the status.
