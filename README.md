@@ -18,7 +18,7 @@ adaflight is flight control firmware for multirotors and fixed-wing aircraft, wr
 
 ## Status
 
-The flight software is ported and runs on the host, where each ported function replays inputs recorded from a host build of Betaflight and must reproduce its results bit for bit. Phase 7 of `ROADMAP.md` has started: `targets/stm32f4` builds an image for the CLRacing F4S board family that blinks the LED, serves MSP and the command line on UART1, so a configurator connects, runs the scheduler with the gyro, filter, accelerometer, attitude and receiver tasks over the MPU6000 on SPI1 and a CRSF receiver on a UART with the arming logic and the modes, runs the rate controller and the mixer, measures the battery, drives the beeper, draws the OSD and runs the menu system on the MAX7456 chip on SPI3, reads a GPS module on a UART, and keeps its configuration in flash. The motors have no driver yet. `targets/host` runs the same flight software on the host with its UARTs on TCP ports, so a configurator connects without a board.
+The flight software is ported and runs on the host, where each ported function replays inputs recorded from a host build of Betaflight and must reproduce its results bit for bit. Phase 7 of `ROADMAP.md` has started: `targets/stm32f4` builds an image for the CLRacing F4S board family that blinks the LED, serves MSP and the command line on its USB port and UART1, so a configurator connects over USB, runs the scheduler with the gyro, filter, accelerometer, attitude and receiver tasks over the MPU6000 on SPI1 and a CRSF receiver on a UART with the arming logic and the modes, runs the rate controller and the mixer, measures the battery, drives the beeper, draws the OSD and runs the menu system on the MAX7456 chip on SPI3, reads a GPS module on a UART, and keeps its configuration in flash. The motors have no driver yet. `targets/host` runs the same flight software on the host with its UARTs on TCP ports, so a configurator connects without a board.
 
 ## Features
 
@@ -63,9 +63,9 @@ The STM32F4 image is flashed through the STM32 bootloader over USB with the boar
     dfu-util -a 0 -s 0x08000000 -D vectors.bin
     dfu-util -a 0 -s 0x08008000:leave -D code.bin
 
-The image answers the firmware variant `ADFL`. The stock configurator opens its command line tab alone for that variant; [adaflight-configurator](https://github.com/Jbsco/adaflight-configurator) accepts it with the full tabs.
+The image serves the board's USB port as a virtual serial port, where a configurator connects, and answers the firmware variant `ADFL`. The stock configurator opens its command line tab alone for that variant; [adaflight-configurator](https://github.com/Jbsco/adaflight-configurator) accepts it with the full tabs.
 
-The host image runs the board's flight software on Linux, with each UART as a TCP server on port 5760 plus its number. A configurator connects to UART1 at `tcp://localhost:5761`, and a receiver's frames go to its UART's port, UART3 at 5763 in `tools/host-smoke.py`. A save or a reboot ends the process, so a loop starts it again:
+The host image runs the board's flight software on Linux, with each UART as a TCP server on port 5760 plus its number. A configurator connects to the virtual serial port at `tcp://localhost:5780` or to UART1 at `tcp://localhost:5761`, and a receiver's frames go to its UART's port, UART3 at 5763 in `tools/host-smoke.py`. A save or a reboot ends the process, so a loop starts it again:
 
     cd targets/host && alr build
     while ./bin/adaflight_host; do :; done

@@ -56,7 +56,9 @@ with Adaflight.STM32.Gyro;
 with Adaflight.STM32.Pilot;
 with Adaflight.STM32.Radio;
 with Adaflight.STM32.Sound;
+with Adaflight.STM32.Serial;
 with Adaflight.STM32.SPI;
+with Adaflight.STM32.USB;
 with Adaflight.MSP_OSD_Out;
 with Adaflight.OSD_Task;
 with Adaflight.OSD_Render;
@@ -82,6 +84,7 @@ package body Adaflight.STM32.Flight is
    Baud       : constant := 115_200;
    Stack_Size : constant := 32_768;
    UART1_Id   : constant Adaflight.Serial_Feature_Map.Port_Id := 51;
+   VCP_Id     : constant Adaflight.Serial_Feature_Map.Port_Id := 20;
 
    --  The identity the configurator reads: the firmware variant, the version
    --  as a year, month and patch with its text.
@@ -134,15 +137,27 @@ package body Adaflight.STM32.Flight is
    Session  : Terminal.Session;
    Into     : CLI.Output;
    Changes  : CLI.Effects;
-   --  The board's serial ports by identifier: UART1, UART3, UART4 and UART6.
-   Ports    : constant CLI.Port_List (1 .. 4) := (UART1_Id, 53, 54, 56);
+   --  The board's serial ports by identifier: the USB virtual serial port,
+   --  UART1, UART3, UART4 and UART6.
+   Ports    : constant CLI.Port_List (1 .. 5) := (VCP_Id, UART1_Id, 53, 54, 56);
    Input    : Adaflight.Bytes.Byte_Array (0 .. 63);
    Count    : Natural;
    Now_Ms   : Unsigned_32;
-   Port     : Adaflight.MSP_Port.Port;
    Links    : Adaflight.MSP_Control_In.Link_State;
-   Pending  : Adaflight.Bytes.Byte_Array (0 .. 255) := (others => 0);
-   Waiting  : Natural := 0;
+   --  The ports that serve the MSP and the command line, the USB virtual
+   --  serial port first, each with its MSP framing, its bytes waiting and its
+   --  reply port; the command line runs on the one it was entered from.
+   type MSP_Line is (Line_VCP, Line_UART1);
+   Line_Serial : constant array (MSP_Line) of Adaflight.STM32.Serial.Line :=
+     (Line_VCP => Adaflight.STM32.Serial.VCP, Line_UART1 => Adaflight.STM32.Serial.UART1);
+   type Line_State is record
+      Port    : Adaflight.MSP_Port.Port;
+      Pending : Adaflight.Bytes.Byte_Array (0 .. 255) := (others => 0);
+      Waiting : Natural := 0;
+   end record;
+   Lines    : array (MSP_Line) of Line_State;
+   Replies  : array (MSP_Line) of Adaflight.STM32.Serial.Port;
+   CLI_Line : MSP_Line := Line_UART1;
    Consumed : Natural;
    Event    : Adaflight.MSP_Port.Event;
    Reply    : Adaflight.Bytes.Byte_Array (0 .. MSP.Max_Reply_Length - 1) := (others => 0);
@@ -591,8 +606,10 @@ package body Adaflight.STM32.Flight is
    end Enter_Command_Line;
 
    --  One command frame through the processor, a requested write of the
-   --  configuration with its read back, then its reply framed and sent.
-   procedure Answer is
+   --  configuration with its read back, then its reply framed and sent back
+   --  through the port it came in on.
+   procedure Answer (L : MSP_Line) is
+      Port           : Adaflight.MSP_Port.Port renames Lines (L).Port;
       Unused_Success : Boolean;
       Asked          : Adaflight.Arming.Outputs;
    begin
@@ -636,15 +653,60 @@ package body Adaflight.STM32.Flight is
       end if;
       Adaflight.MSP_Port.Encode (Port.Version, Port.Command_Id, Port.Flags, Result = MSP.Error,
                                  Reply (0 .. Stream.Next - 1), Frame, Frame_Length);
-      Adaflight.STM32.USART.Put (Into.Target, Frame (0 .. Frame_Length - 1));
+      Adaflight.STM32.Serial.Put (Replies (L), Frame (0 .. Frame_Length - 1));
       if Effects.Reboot then
          Reset;
       end if;
    end Answer;
 
-   --  The serial task: the bytes received go to the command line while its
-   --  session is open, otherwise to the MSP port, which evaluates the other
-   --  data while disarmed. The status reply reads the loop timing first.
+   --  A port's bytes received since the last take, after the bytes waiting.
+   procedure Take_Line (L : MSP_Line) is
+      S : Line_State renames Lines (L);
+   begin
+      Adaflight.STM32.Serial.Take (Line_Serial (L), Input, Count);
+      if Count > 0 then
+         declare
+            Room : constant Natural := S.Pending'Length - S.Waiting;
+            Take : constant Natural := Natural'Min (Count, Room);
+         begin
+            S.Pending (S.Waiting .. S.Waiting + Take - 1) := Input (0 .. Take - 1);
+            S.Waiting := S.Waiting + Take;
+         end;
+      end if;
+   end Take_Line;
+
+   --  A port's bytes through its MSP framing, which evaluates the other data
+   --  while disarmed; the command line entered there takes the port.
+   procedure Serve_MSP (L : MSP_Line; Evaluate_Other_Data : Boolean) is
+      S : Line_State renames Lines (L);
+   begin
+      loop
+         Adaflight.MSP_Port.Process
+           (S.Port, S.Pending (0 .. S.Waiting - 1), Consumed, Now_Ms,
+            (Evaluate_Non_MSP => Evaluate_Other_Data, Peripheral => False,
+             Reboot_Character => Config.Serial_Config.Reboot_Character, CLI_Running => False),
+            Event);
+         S.Pending (0 .. S.Waiting - Consumed - 1) := S.Pending (Consumed .. S.Waiting - 1);
+         S.Waiting := S.Waiting - Consumed;
+         case Event is
+            when Adaflight.MSP_Port.Command_Frame =>
+               Answer (L);
+            when Adaflight.MSP_Port.CLI_Opened | Adaflight.MSP_Port.CLI_Command_Entered =>
+               CLI_Line := L;
+               Into.Target.Which := Line_Serial (L);
+               Enter_Command_Line (Interactive => Event = Adaflight.MSP_Port.CLI_Opened);
+            when Adaflight.MSP_Port.Reset_Requested =>
+               Reset;
+            when Adaflight.MSP_Port.Reply_Frame | Adaflight.MSP_Port.Nothing =>
+               null;
+         end case;
+         exit when Session.Open or else Consumed = 0 or else S.Waiting = 0;
+      end loop;
+   end Serve_MSP;
+
+   --  The serial task: while the command line is open its port's bytes go to
+   --  it, otherwise each port's bytes go to its MSP framing. The status reply
+   --  reads the loop timing first.
    procedure MSP_Serial (Evaluate_Other_Data : Boolean) is
    begin
       Now_Ms := Adaflight.STM32.Time.Millis;
@@ -655,58 +717,36 @@ package body Adaflight.STM32.Flight is
       Env.Status.OSD_Port := Adaflight.STM32.OSD.Port_Present;
       Adaflight.STM32.OSD.Dimensions (Env.Status.OSD_Columns, Env.Status.OSD_Rows);
       Report_Battery;
-      Adaflight.STM32.USART.Take (Adaflight.STM32.USART.UART1, Input, Count);
-      if Count > 0 then
-         declare
-            Room : constant Natural := Pending'Length - Waiting;
-            Take : constant Natural := Natural'Min (Count, Room);
-         begin
-            Pending (Waiting .. Waiting + Take - 1) := Input (0 .. Take - 1);
-            Waiting := Waiting + Take;
-         end;
-      end if;
       if Session.Open then
-         if Waiting > 0 then
-            Terminal.Process (Session, Into, Pending (0 .. Waiting - 1), Now_Ms, Config, Ports, Env, Board, Sched,
-                              Changes);
-            Waiting := 0;
-            if Changes.Modes then
-               Adaflight.STM32.Pilot.Reload_Modes (Config);
-            end if;
-            if Changes.PID_Profile or else Changes.Rate_Profile then
-               Adaflight.STM32.Pilot.Configure (Config, Runtime_Features, Pilot_Facts);
-               Adaflight.STM32.Control.Init (Config, Runtime_Features);
-            end if;
-            if Changes.Save then
-               Write_Configuration;
-            end if;
-            if Changes.Reboot then
-               Reset;
-            end if;
-            Changes := (others => <>);
-         end if;
-      else
-         loop
-            Adaflight.MSP_Port.Process
-              (Port, Pending (0 .. Waiting - 1), Consumed, Now_Ms,
-               (Evaluate_Non_MSP => Evaluate_Other_Data, Peripheral => False,
-                Reboot_Character => Config.Serial_Config.Reboot_Character, CLI_Running => False),
-               Event);
-            Pending (0 .. Waiting - Consumed - 1) := Pending (Consumed .. Waiting - 1);
-            Waiting := Waiting - Consumed;
-            case Event is
-               when Adaflight.MSP_Port.Command_Frame =>
-                  Answer;
-               when Adaflight.MSP_Port.CLI_Opened =>
-                  Enter_Command_Line (Interactive => True);
-               when Adaflight.MSP_Port.CLI_Command_Entered =>
-                  Enter_Command_Line (Interactive => False);
-               when Adaflight.MSP_Port.Reset_Requested =>
+         Take_Line (CLI_Line);
+         declare
+            S : Line_State renames Lines (CLI_Line);
+         begin
+            if S.Waiting > 0 then
+               Terminal.Process (Session, Into, S.Pending (0 .. S.Waiting - 1), Now_Ms, Config, Ports, Env, Board,
+                                 Sched, Changes);
+               S.Waiting := 0;
+               if Changes.Modes then
+                  Adaflight.STM32.Pilot.Reload_Modes (Config);
+               end if;
+               if Changes.PID_Profile or else Changes.Rate_Profile then
+                  Adaflight.STM32.Pilot.Configure (Config, Runtime_Features, Pilot_Facts);
+                  Adaflight.STM32.Control.Init (Config, Runtime_Features);
+               end if;
+               if Changes.Save then
+                  Write_Configuration;
+               end if;
+               if Changes.Reboot then
                   Reset;
-               when Adaflight.MSP_Port.Reply_Frame | Adaflight.MSP_Port.Nothing =>
-                  null;
-            end case;
-            exit when Session.Open or else Consumed = 0 or else Waiting = 0;
+               end if;
+               Changes := (others => <>);
+            end if;
+         end;
+      else
+         for L in MSP_Line loop
+            Take_Line (L);
+            Serve_MSP (L, Evaluate_Other_Data);
+            exit when Session.Open;
          end loop;
       end if;
    end MSP_Serial;
@@ -1575,8 +1615,12 @@ package body Adaflight.STM32.Flight is
       Adaflight.STM32.GPIO.Set_Output (Adaflight.Board.Inverter_Pin_UART1);
       Adaflight.STM32.GPIO.Set_Low (Adaflight.Board.Inverter_Pin_UART1);
       Adaflight.STM32.USART.Init (Adaflight.STM32.USART.UART1, Baud);
-      Adaflight.MSP_Port.Init (Port);
+      for L in MSP_Line loop
+         Adaflight.MSP_Port.Init (Lines (L).Port);
+         Replies (L).Which := Line_Serial (L);
+      end loop;
       Init_Configuration;
+      Adaflight.STM32.USB.Init ("Adaflight (" & Adaflight.Board.Board_Name & ")");
       Ctx.Out_Views.Common := Common_Snapshot;
       Ctx.Out_Views.Build := (others => True);
       for I in Ports'Range loop
