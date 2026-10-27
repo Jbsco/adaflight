@@ -3480,7 +3480,7 @@ package body Adaflight.STM32.Flight is
          Adaflight.Config_Runtime.FrSky_Hub_Settings_Of
            (Config.Telemetry_Config, Config.Motor_Config,
             (Gyro => Selection.Found, Acc => Gyro_Report.Acc_Found, Baro => False, Mag => False),
-            Altitude_Present => False,
+            Altitude_Present => Adaflight.STM32.Rangefinder.Detected,
             GPS_Present      => (Runtime_Features and Adaflight.Config_Fix.Feature_GPS) /= 0,
             Acc_1G_Rec       => Float'Max (0.0, Float'Min (1.0, Acc_State.One_G_Reciprocal))));
       Adaflight.STM32.SmartPort.Init (Config, Runtime_Features, SmartPort_Build);
