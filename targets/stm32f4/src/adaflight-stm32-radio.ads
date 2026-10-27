@@ -1,10 +1,11 @@
 --  The receiver link of the board: the serial receiver port the stored
 --  configuration assigns with the CRSF, SBUS, IBUS, SUMD, Spektrum, XBUS,
---  FPORT or Ghost protocol over it, the receiver's channel processing, the
---  failsafe's link state, and the CRSF telemetry sent back on the port with
---  its speed negotiation, on its two pins or, apart from CRSF, on its
---  transmit pin alone, which Ghost always takes. The other serial receiver
---  protocols and the FPORT and Ghost telemetry wait for their drivers.
+--  FPORT, Ghost or Jeti EX Bus protocol over it, the receiver's channel
+--  processing, the failsafe's link state, and the CRSF telemetry sent back
+--  on the port with its speed negotiation, on its two pins or, apart from
+--  CRSF, on its transmit pin alone, which Ghost and EX Bus always take. The
+--  other serial receiver protocols and the FPORT, Ghost and EX Bus telemetry
+--  wait for their drivers.
 with Interfaces;
 with Adaflight.Config_Groups;
 with Adaflight.CRSF_Telemetry;
