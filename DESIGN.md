@@ -10526,3 +10526,14 @@ setting asks, through the board's inverter, where it had stayed closed.
 
 The host smoke check runs its receiver phase for SBUS, IBUS and SUMD, each with a fresh store and its own
 frames carrying the same channels, and reads the channels back over MSP.
+
+## D443. STM32F4 Spektrum and XBUS receivers (2026-10-27)
+
+The board reads a Spektrum satellite at 1024 or 2048 resolution, seven or twelve channels, or an XBUS
+receiver in mode B, at 115,200 baud, or mode B RJ01 at 250,000, twelve channels, all eight data bits
+without parity and inverted only when the setting asks. The Spektrum frame status takes the RSSI channel
+setting, and its frame time goes to the RC smoothing. The XBUS frame status gives no frame time, so the
+smoothing measures the frames' arrivals. A VTX control word in a Spektrum frame goes unused until the
+board's VTX control takes one, and SRXL waits for its half-duplex telemetry.
+
+The host smoke check's receiver phase adds Spektrum 2048 and XBUS mode B frames with the same channels.

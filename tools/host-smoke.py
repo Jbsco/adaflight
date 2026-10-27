@@ -103,16 +103,35 @@ def ibus_frame(channels_us):
     return body + ((0xFFFF - sum(body)) & 0xFFFF).to_bytes(2, "little")
 
 
-def sumd_frame(channels_us):
-    """A SUMD frame: the sync byte, the valid state, the channel count, the channels in eighths of a
-    microsecond big-endian, and the CRC16 of the XMODEM polynomial over all of it."""
-    body = bytes([0xA8, 0x01, len(channels_us)]) + b"".join((v * 8).to_bytes(2, "big") for v in channels_us)
+def crc16_xmodem(data):
+    """The CRC16 of polynomial 0x1021 from zero, most significant bit first."""
     crc = 0
-    for b in body:
+    for b in data:
         crc ^= b << 8
         for _ in range(8):
             crc = ((crc << 1) ^ 0x1021) & 0xFFFF if crc & 0x8000 else (crc << 1) & 0xFFFF
-    return body + crc.to_bytes(2, "big")
+    return crc
+
+
+def sumd_frame(channels_us):
+    """A SUMD frame: the sync byte, the valid state, the channel count, the channels in eighths of a
+    microsecond big-endian, and the CRC16 over all of it."""
+    body = bytes([0xA8, 0x01, len(channels_us)]) + b"".join((v * 8).to_bytes(2, "big") for v in channels_us)
+    return body + crc16_xmodem(body).to_bytes(2, "big")
+
+
+def spektrum_frame(channels_us):
+    """A Spektrum 2048 frame: the fade count and the DSMX 11 ms system byte, then seven channel words
+    big-endian, each the channel number above an eleven-bit value in half microseconds from 988 us."""
+    words = b"".join(((ch << 11) | ((v - 988) * 2 & 0x7FF)).to_bytes(2, "big") for ch, v in enumerate(channels_us[:7]))
+    return bytes([0x00, 0xB2]) + words
+
+
+def xbus_frame(channels_us):
+    """An XBUS mode B frame of twelve channels: the start byte, the channels big-endian in steps of
+    1400/4096 us from 800 us, and the CRC16 over the rest."""
+    body = bytes([0xA1]) + b"".join((round((v - 800) * 4096 / 1400)).to_bytes(2, "big") for v in channels_us[:12])
+    return body + crc16_xmodem(body).to_bytes(2, "big")
 
 
 class SerialReceiver(threading.Thread):
@@ -1062,7 +1081,8 @@ def main():
             sock.close()
         us = [1500, 1599, 988, 1500] + [1500] * 10
         for name, frame in (("SBUS", sbus_frame([992, 1150, 172, 992] + [992] * 12)),
-                            ("IBUS", ibus_frame(us)), ("SUMD", sumd_frame(us))):
+                            ("IBUS", ibus_frame(us)), ("SUMD", sumd_frame(us)),
+                            ("SPEK2048", spektrum_frame(us)), ("XB-B", xbus_frame(us))):
             store = os.path.join(work, name.lower() + ".bin")
             proc, sock = start(image, store)
             try:
