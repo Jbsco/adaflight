@@ -8,4 +8,15 @@ package body Adaflight.STM32.MCU is
    begin
       GNAT.OS_Lib.OS_Exit (0);
    end Reset;
+
+   --  The host has no backup registers and no bootloader: the request ends
+   --  the process with status 2 so the caller can tell it from a reset.
+   procedure Init_Persistent is null;
+
+   procedure Reset_To_Bootloader is
+   begin
+      GNAT.OS_Lib.OS_Exit (2);
+   end Reset_To_Bootloader;
+
+   procedure Check_Bootloader_Request is null;
 end Adaflight.STM32.MCU;
