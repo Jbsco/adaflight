@@ -746,6 +746,9 @@ package body Adaflight.STM32.Flight is
       if Effects.Control.Acc_Calibration then
          Adaflight.Accelerometer.Start_Calibration (Acc_State);
       end if;
+      if Effects.Motor.Set then
+         Adaflight.STM32.Control.Set_Disarmed (Effects.Motor.Values);
+      end if;
       if Effects.Control.Disarm then
          Adaflight.STM32.Pilot.Disarm (Adaflight.Arming.Serial_Command, Adaflight.STM32.Time.Micros, Asked);
          Apply (Asked);
@@ -922,6 +925,16 @@ package body Adaflight.STM32.Flight is
                   Adaflight.STM32.Pilot.Configure (Config, Runtime_Features, Pilot_Facts);
                   Adaflight.STM32.Control.Init (Config, Runtime_Features);
                end if;
+               if Changes.Motor then
+                  if Changes.Every_Motor then
+                     Adaflight.STM32.Control.Set_Disarmed_All (Changes.Motor_Value);
+                  else
+                     Adaflight.STM32.Control.Set_Disarmed_Motor (Changes.Motor_Index, Changes.Motor_Value);
+                  end if;
+               end if;
+               if not Session.Open then
+                  Adaflight.STM32.Control.Reset_Disarmed;
+               end if;
                if Changes.Save then
                   Write_Configuration;
                end if;
@@ -964,7 +977,7 @@ package body Adaflight.STM32.Flight is
       GPS_Feature         => Adaflight.STM32.GPS.Enabled,
       GPS_Fix             => Adaflight.STM32.GPS.Current.Fix,
       Satellites          => 0,
-      Motors_Running      => Adaflight.STM32.Pilot.Armed,
+      Motors_Running      => Adaflight.STM32.Control.Motors_Running,
       Failsafe_Monitoring => Adaflight.STM32.Radio.Failsafe_Monitoring,
       Failsafe_Receiving  => Adaflight.STM32.Radio.Failsafe_Receiving,
       Last_Disarm_Us      => Adaflight.STM32.Pilot.Last_Disarm_Us,
@@ -1709,7 +1722,7 @@ package body Adaflight.STM32.Flight is
       for I in 0 .. Motors - 1 loop
          F.Motor_Output (I) := Float'Min (3_000.0, Outputs (I));
       end loop;
-      F.Motors_Running := Adaflight.STM32.Pilot.Armed;
+      F.Motors_Running := Adaflight.STM32.Control.Motors_Running;
       F.PID_Index := Config.System_Config.Pid_Profile_Index;
       F.Rate_Index := Config.System_Config.Active_Rate_Profile;
       Adaflight.STM32.OSD.Run (F, Before, Sched);
@@ -2106,6 +2119,7 @@ package body Adaflight.STM32.Flight is
       Adaflight.STM32.PINIO.Init_Boxes (Config);
       Adaflight.STM32.Pilot.Set_Reason (Adaflight.Arming.No_Gyro, not Selection.Found);
       Adaflight.STM32.Control.Init (Config, Runtime_Features);
+      Adaflight.STM32.Control.Reset_Disarmed;
       Adaflight.STM32.Motors.Init (Config, Adaflight.STM32.Control.Motor_Count);
       Bat_Settings := Battery_Settings;
       Adaflight.Battery.Init (Bat, Bat_Settings);

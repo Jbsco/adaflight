@@ -10127,8 +10127,21 @@ runs every 125 or 250 microseconds.
 
 The mixer gets the motors' enables, the MSP motor configuration reply counts the mixer's motors, and
 the MSP motor reply gives each enabled motor's value in the external range, the stop at 1000 while
-disarmed. The configurator's motor test does not spin the motors yet, since the mixer sends the disarm
-output to every motor while disarmed. DShot commands, the bidirectional telemetry and the analog
+disarmed. The configurator's motor test is D419. DShot commands, the bidirectional telemetry and the analog
 protocols are later steps. The host target keeps the motor path without timers, and the smoke check
 reads the motor count and the stop values over MSP. The branch waits for a bench check with the
 propellers off before it lands.
+
+## D419. STM32F4 motor test (2026-10-27)
+
+The board's control unit keeps the values the motors take while disarmed, which start at the mixer's
+disarm output. While disarmed, each pass of the mixer ends with every motor of the mix set to its
+disarmed value. The MSP motor
+write sets each motor of the mix from its request, converted from the external range as the core's MSP
+unit converts it, and the command line's motor command sets one motor or every motor. The values return
+to the disarm output when the command line closes. The motors run while armed or while a disarmed value
+differs from the disarm output, which the flight log, the OSD and the beeper read, where the board
+passed the arming alone before.
+
+The smoke check writes 1100, 1200, 1300 and 1400 to the four motors over MSP, reads them back from the
+motor reply while disarmed, and writes the stop again.

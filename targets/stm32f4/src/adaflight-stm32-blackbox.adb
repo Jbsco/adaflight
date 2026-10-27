@@ -209,7 +209,7 @@ package body Adaflight.STM32.Blackbox is
       In_Flight.Armed := Adaflight.STM32.Pilot.Armed;
       In_Flight.Blackbox_Box := Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Blackbox);
       In_Flight.Erase_Box := Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Blackbox_Erase);
-      In_Flight.Motors_Running := Adaflight.STM32.Pilot.Armed;
+      In_Flight.Motors_Running := Adaflight.STM32.Control.Motors_Running;
       In_Flight.Mode_Activation_Present := Adaflight.STM32.Pilot.Box_Configured (Adaflight.Modes.Blackbox);
       if C.Device = Header.SD_Card then
          Card_Device (In_Flight.Device);
