@@ -134,6 +134,7 @@ package body Adaflight.Attitude with SPARK_Mode is
                   and then S.Reset_Phase = S.Reset_Phase'Old and then S.Phase_Timeout = S.Phase_Timeout'Old
                   and then S.Euler = S.Euler'Old and then S.Established = S.Established'Old
                   and then S.Throttle_Correction = S.Throttle_Correction'Old
+                  and then S.Course_Set = S.Course_Set'Old and then S.GPS_Heading = S.GPS_Heading'Old
    is
       subtype Product is Float range -4.0 .. 4.0;
       WX : constant Product := S.Q.W * S.Q.X;
@@ -171,7 +172,11 @@ package body Adaflight.Attitude with SPARK_Mode is
             Throttle_Correction => 0,
             Headfree_Offset     => Identity,
             Headfree            => Identity,
-            Reported            => Identity);
+            Reported            => Identity,
+            Course_Set          => False,
+            Yaw_Suppression     => 0.0,
+            Heading_Confidence  => 0.0,
+            GPS_Heading         => False);
       Compute_Rotation (S);
    end Init;
 
@@ -241,6 +246,13 @@ package body Adaflight.Attitude with SPARK_Mode is
 
    subtype Delta_Seconds is Float range -2_200.0 .. 2_200.0;
 
+   --  The GPS course's share of the heading error is held at a bound no
+   --  update interval within a second reaches (DESIGN.md D435); the compass's
+   --  share adds to it.
+   Course_Error_Bound : constant := 2.0 ** 14;
+   subtype Course_Error is Float range -Course_Error_Bound .. Course_Error_Bound;
+   subtype Total_Heading_Error is Float range -(Course_Error_Bound + 4.0) .. Course_Error_Bound + 4.0;
+
    procedure Mahony_Update (
       S       : in out State;
       C       : Config;
@@ -248,7 +260,7 @@ package body Adaflight.Attitude with SPARK_Mode is
       Gyro    : Vector3;
       Use_Acc : Boolean;
       Acc     : Vector3;
-      Heading_Err : Heading_Error;
+      Heading_Err : Total_Heading_Error;
       Kp_Gain : Scheduled_Gain
    ) with Pre  => Bounded (Gyro, Rate_Bound) and then Bounded (Acc, Acc_Bound)
                   and then Bounded (S.Integral, Signal_Bound) and then Bounded (S.Rotation, Matrix_Bound),
@@ -258,11 +270,11 @@ package body Adaflight.Attitude with SPARK_Mode is
    is
       subtype Rad_Rate is Float range -200.0 .. 200.0;
       subtype Rate_Square is Float range 0.0 .. 2.0 ** 17;
-      subtype Error is Float range -150.0 .. 150.0;
+      subtype Error is Float range -3.0e5 .. 3.0e5;
       subtype Acc_Square is Float range 0.0 .. 2.0 ** 35;
-      subtype Ki_Error is Float range -600.0 .. 600.0;
-      subtype Integral_Step is Float range -1.4e6 .. 1.4e6;
-      subtype Kp_Error is Float range -61_000.0 .. 61_000.0;
+      subtype Ki_Error is Float range -1.2e6 .. 1.2e6;
+      subtype Integral_Step is Float range -2.7e9 .. 2.7e9;
+      subtype Kp_Error is Float range -1.2e8 .. 1.2e8;
       subtype Corrected_Rate is Float range -2.0 ** 33 .. 2.0 ** 33;
       --  The rate with the proportional and integral feedback added, in a
       --  context of its own so the bound is checked on the three operands.
@@ -412,6 +424,147 @@ package body Adaflight.Attitude with SPARK_Mode is
       end;
    end Throttle_Correction_Of;
 
+   ----------------------
+   -- Groundspeed_Gain --
+   ----------------------
+
+   --  The weight of the GPS course: the ground speed's share, the yaw rate
+   --  suppression that decays back over about a second, the roll's and,
+   --  for a multirotor, the pitch's suppressions, and a tenth with a
+   --  calibrated compass.
+   Course_Speed : constant := 100;
+   Gain_Bound   : constant := 2.0 ** 32;
+   subtype Course_Gain is Float range -Gain_Bound .. Gain_Bound;
+
+   procedure Groundspeed_Gain
+     (S : in out State; Course : Course_Inputs; Use_Mag : Boolean; Dt : Delta_Seconds; Gain : out Course_Gain)
+     with Post => S.Q = S.Q'Old and then S.Rotation = S.Rotation'Old and then S.Integral = S.Integral'Old
+                  and then S.Euler = S.Euler'Old and then S.Established = S.Established'Old
+                  and then S.Course_Set = S.Course_Set'Old and then S.GPS_Heading = S.GPS_Heading'Old
+   is
+      subtype Ratio is Float range 0.0 .. 400.0;
+      subtype Spread is Float range -(Suppression_Bound + 1.0) .. Suppression_Bound + 1.0;
+      subtype Suppressed is Float range -2.0 ** 26 .. 2.0 ** 26;
+      Speed_Ratio : constant Ratio := 0.5 * Float (Course.Ground_Speed) / Float (Course_Speed);
+      Speed_Gain  : constant Float range 0.0 .. 10.0 :=
+        (if Speed_Ratio > 1.0 then Float'Min (Speed_Ratio, 10.0) else Speed_Ratio * Speed_Ratio);
+      Rate_Factor : constant Float range 0.0 .. 1.0 := Float'Min (abs (Course.Yaw_Rate * 0.1), 1.0);
+      Yaw_Factor  : constant Float range 0.0 .. 1.0 := 1.0 - Rate_Factor * Rate_Factor;
+      K           : constant Delta_Seconds := 1.0 * Dt;
+      Yaw_Supp    : constant Suppressed := S.Yaw_Suppression + K * Spread'(Yaw_Factor - S.Yaw_Suppression);
+      Roll_Abs    : constant Float range 0.0 .. 200.0 := abs (Float (S.Euler.Roll) * 0.1);
+      Roll_Max    : constant Float range 10.0 .. 25.0 := (if Course.Fixed_Wing then 25.0 else 10.0);
+      Roll_Supp   : constant Float range 0.0 .. 1.0 :=
+        (if Roll_Abs < Roll_Max then (Roll_Max - Roll_Abs) / Roll_Max else 0.0);
+      Pitch_Supp  : Float range 0.0 .. 5.0 := 1.0;
+      Mag_Supp    : constant Float range 0.0 .. 1.0 := (if Use_Mag then 0.1 else 1.0);
+   begin
+      S.Yaw_Suppression := Float'Max (-Suppression_Bound, Float'Min (Yaw_Supp, Yaw_Factor));
+      if not Course.Fixed_Wing then
+         declare
+            Pitch_Factor : constant Float range -10.0 .. 10.0 := Float (S.Euler.Pitch) * 0.1 / 10.0;
+            Held         : constant Float range -10.0 .. 5.0 := Float'Min (Pitch_Factor, 5.0);
+         begin
+            Pitch_Supp := (if Held >= 0.0 then Held else 0.0);
+         end;
+      end if;
+      Gain := Speed_Gain * Yaw_Supp * Roll_Supp * Pitch_Supp * Mag_Supp;
+   end Groundspeed_Gain;
+
+   ---------------------
+   -- Course_Error_Of --
+   ---------------------
+
+   --  The heading error against the GPS course: the course as a unit vector
+   --  north and west, the nose in the ground plane normalized, and the sine
+   --  of the angle between them within a quarter turn, else one toward the
+   --  shorter turn.
+   function Course_Error_Of (North, West : Float; Course : Heading_Decidegrees) return Float
+     with Global => null,
+          Pre    => North in -Matrix_Bound .. Matrix_Bound and then West in -Matrix_Bound .. Matrix_Bound,
+          Post   => Course_Error_Of'Result in -2.0 .. 2.0
+   is
+      Tenths : constant Float range 0.0 .. 400.0 := Float (Course) / 10.0;
+      Cog    : constant Float range 0.0 .. 8.0 := Tenths * Rad_Per_Degree;
+      Nose   : constant Vector2 := Normalize (Vector2'(X => North, Y => West));
+      Sin_C  : Cosine;
+      Cos_C  : Cosine;
+   begin
+      Sin_Cos_Approx (-Cog, Sin_C, Cos_C);
+      declare
+         Cr : constant Float range -2.0 .. 2.0 := Nose.X * Sin_C - Nose.Y * Cos_C;
+         D  : constant Float range -2.0 .. 2.0 := Nose.X * Cos_C + Nose.Y * Sin_C;
+      begin
+         if D > 0.0 then
+            return Cr;
+         elsif Cr < 0.0 then
+            return -1.0;
+         else
+            return 1.0;
+         end if;
+      end;
+   end Course_Error_Of;
+
+   ---------------------------
+   -- Update_Heading_Usable --
+   ---------------------------
+
+   --  The GPS heading's confidence follows the course's weight while the
+   --  heading lines up within about fifteen degrees, with a time constant of
+   --  two seconds, and makes the heading good to fly by above one and a half;
+   --  once it is, the confidence rests at zero.
+   procedure Update_Heading_Usable (S : in out State; Gain : Course_Gain; Error : Float; Dt : Delta_Seconds)
+     with Pre  => Error in -2.0 .. 2.0,
+          Post => S.Q = S.Q'Old and then S.Rotation = S.Rotation'Old and then S.Integral = S.Integral'Old
+                  and then S.Euler = S.Euler'Old and then S.Established = S.Established'Old
+                  and then S.Course_Set = S.Course_Set'Old
+   is
+   begin
+      if not S.GPS_Heading then
+         declare
+            subtype Step is Float range -2.0 ** 72 .. 2.0 ** 72;
+            Alignment : constant Float range 0.0 .. 1.0 := Float'Max (1.0 - abs Error * 4.0, 0.0);
+            Target    : constant Course_Gain := Gain * Alignment;
+            Next      : constant Float := S.Heading_Confidence + Step'(0.5 * Dt * (Target - S.Heading_Confidence));
+         begin
+            S.Heading_Confidence := Float'Max (-Confidence_Bound, Float'Min (Confidence_Bound, Next));
+            S.GPS_Heading := S.Heading_Confidence > 1.5;
+         end;
+      else
+         S.Heading_Confidence := 0.0;
+      end if;
+   end Update_Heading_Usable;
+
+   -------------------------
+   -- Quaternion_From_RPY --
+   -------------------------
+
+   --  The attitude set from Euler angles in decidegrees, the yaw turned
+   --  clockwise as the GPS course runs; the attitude counts as established.
+   procedure Quaternion_From_RPY (S : in out State; Roll : Decidegrees; Pitch : Pitch_Decidegrees; Yaw : Natural)
+     with Pre  => Yaw <= 3_599,
+          Post => S.Integral = S.Integral'Old and then S.Euler = S.Euler'Old
+                  and then S.Course_Set = S.Course_Set'Old and then S.GPS_Heading = S.GPS_Heading'Old
+   is
+      Turn  : constant Integer range -1_800 .. 1_800 := (if Yaw > 1_800 then Yaw - 3_600 else Yaw);
+      Sin_R : Cosine;
+      Cos_R : Cosine;
+      Sin_P : Cosine;
+      Cos_P : Cosine;
+      Sin_Y : Cosine;
+      Cos_Y : Cosine;
+   begin
+      Sin_Cos_Approx (Float (Roll) / 10.0 * Rad_Per_Degree * 0.5, Sin_R, Cos_R);
+      Sin_Cos_Approx (Float (Pitch) / 10.0 * Rad_Per_Degree * 0.5, Sin_P, Cos_P);
+      Sin_Cos_Approx (Float (-Turn) / 10.0 * Rad_Per_Degree * 0.5, Sin_Y, Cos_Y);
+      S.Q := (W => Cos_R * Cos_P * Cos_Y + Sin_R * Sin_P * Sin_Y,
+              X => Sin_R * Cos_P * Cos_Y - Cos_R * Sin_P * Sin_Y,
+              Y => Cos_R * Sin_P * Cos_Y + Sin_R * Cos_P * Sin_Y,
+              Z => Cos_R * Cos_P * Sin_Y - Sin_R * Sin_P * Cos_Y);
+      Compute_Rotation (S);
+      S.Established := True;
+   end Quaternion_From_RPY;
+
    ------------
    -- Update --
    ------------
@@ -427,16 +580,35 @@ package body Adaflight.Attitude with SPARK_Mode is
       Use_Mag       : Boolean;
       Armed         : Boolean;
       Angle_Mode    : Boolean;
-      Headfree_Mode : Boolean
+      Headfree_Mode : Boolean;
+      Course        : Course_Inputs := (others => <>)
    ) is
       Dt      : constant Delta_Seconds := Float (Clock.Elapsed (Now, S.Previous_Time)) * 1.0e-6;
       Use_Acc : constant Boolean := 0.9 < Acc_Magnitude and then Acc_Magnitude < 1.1;
       Heading : constant Heading_Error := (if Use_Mag then Mag_Error (S, C, Mag) else 0.0);
+      Cog_Err : Course_Error := 0.0;
       Kp_Gain : Scheduled_Gain;
    begin
       S.Previous_Time := Now;
+      if Course.Usable then
+         if S.Course_Set then
+            declare
+               Error : constant Float := Course_Error_Of (S.Rotation (X, X), S.Rotation (Y, X), Course.Course);
+               Gain  : Course_Gain;
+            begin
+               Groundspeed_Gain (S, Course, Use_Mag, Dt, Gain);
+               Cog_Err := Float'Max (-Course_Error_Bound, Float'Min (Course_Error_Bound, Error * Gain));
+               Update_Heading_Usable (S, Gain, Error, Dt);
+            end;
+         elsif Course.Ground_Speed > Course_Speed then
+            if not Use_Mag then
+               Quaternion_From_RPY (S, S.Euler.Roll, S.Euler.Pitch, Course.Course);
+            end if;
+            S.Course_Set := True;
+         end if;
+      end if;
       Schedule_Gain (S, C, Now, Use_Acc, Gyro, Armed, Kp_Gain);
-      Mahony_Update (S, C, Dt, Gyro, Use_Acc, Acc, Heading, Kp_Gain);
+      Mahony_Update (S, C, Dt, Gyro, Use_Acc, Acc, Heading + Cog_Err, Kp_Gain);
       Update_Euler (S, Headfree_Mode);
       if C.Throttle_Angle_Value /= 0 and then Angle_Mode and then Armed then
          S.Throttle_Correction := Throttle_Correction_Of (S, C);
