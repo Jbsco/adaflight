@@ -10252,6 +10252,8 @@ the telemetry box is on when the box has a range, and MSP on UART1 stops while t
 The arming logic's shared port transitions check the state again, and UART1 returns to the MSP rate with a
 fresh MSP framing when the stream gives it up. A port another board function holds stays closed to the
 stream.
+The port handling is the generic `Adaflight.STM32.Telemetry_Port`, instantiated per protocol with its
+provider number, serial function and default rate.
 
 The telemetry task runs the stream outside the command line. The inputs are the attitude, the flight modes
 in the stream's order of precedence, the arming, the failsafe, the battery, the RSSI and the GPS solution
