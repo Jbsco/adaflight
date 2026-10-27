@@ -10537,3 +10537,13 @@ smoothing measures the frames' arrivals. A VTX control word in a Spektrum frame 
 board's VTX control takes one, and SRXL waits for its half-duplex telemetry.
 
 The host smoke check's receiver phase adds Spektrum 2048 and XBUS mode B frames with the same channels.
+
+## D444. STM32F4 half-duplex receiver ports (2026-10-27)
+
+The board opens the serial receiver on its UART's transmit pin alone when the half-duplex setting asks,
+for every protocol it reads but CRSF, which takes both pins whatever the setting. The single wire is
+push-pull with a pull-down when the line is inverted, and open drain with a pull-up otherwise. The link
+keeps its inversion and its line, so a CRSF baud change reopens the port as it was opened, where it had
+dropped the inversion.
+
+The host smoke check's IBUS phase sets the half-duplex setting, and the channels still arrive.

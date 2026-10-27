@@ -2,8 +2,8 @@
 --  configuration assigns with the CRSF, SBUS, IBUS, SUMD, Spektrum or XBUS
 --  protocol over it, the receiver's channel processing, the failsafe's link
 --  state, and the CRSF telemetry sent back on the port with its speed
---  negotiation. The other serial receiver protocols and half-duplex ports
---  wait for their drivers.
+--  negotiation, on its two pins or, apart from CRSF, on its transmit pin
+--  alone. The other serial receiver protocols wait for their drivers.
 with Interfaces;
 with Adaflight.Config_Groups;
 with Adaflight.CRSF_Telemetry;
