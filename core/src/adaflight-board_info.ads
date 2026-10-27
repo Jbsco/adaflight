@@ -40,8 +40,11 @@ package Adaflight.Board_Info with SPARK_Mode is
    --  sources, the analog meters' scales, the OSD chip's select pin and
    --  SPI bus, numbered from 1, the SD card's SPI bus, select and detect
    --  pins with the detect pin's sense, the flash chip's SPI bus and select
-   --  pin, and the flight log device. The values given here are the host
+   --  pin, the flight log device, and the PINIO outputs' pins, configuration
+   --  bytes and boxes by permanent id. The values given here are the host
    --  build's, which has none of this hardware.
+   type PINIO_Bytes is array (0 .. 3) of Interfaces.Unsigned_8;
+
    type Hardware_Defaults is record
       Vbat             : Analog_Input;
       Current          : Analog_Input;
@@ -63,6 +66,9 @@ package Adaflight.Board_Info with SPARK_Mode is
       Flash_SPI_Device : Interfaces.Unsigned_8 := 0;
       Flash_CS_Tag     : Interfaces.Unsigned_8 := 0;
       Blackbox_Device  : Interfaces.Unsigned_8 := 0;
+      PINIO_Tags       : PINIO_Bytes := (others => 0);
+      PINIO_Configs    : PINIO_Bytes := (others => 1);
+      PINIO_Boxes      : PINIO_Bytes := (others => 255);
    end record;
 
    type State is record

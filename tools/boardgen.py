@@ -57,6 +57,16 @@ def number(text, default: int) -> int:
     return int(m.group(1)) if m else default
 
 
+def pinio_config(text) -> int:
+    """A PINIO output's configuration byte: a number, or the inverted flag and the push-pull mode by name,
+    the push-pull mode when unset."""
+    if not text:
+        return 1
+    if re.match(r"\s*\d", text):
+        return number(text, 1)
+    return (0x80 if "PINIO_CONFIG_OUT_INVERTED" in text else 0) | (1 if "PINIO_CONFIG_MODE_OUT_PP" in text else 0)
+
+
 def spi_device(text: str) -> int:
     """The SPI bus a configuration stores for an instance such as SPI3: its number, zero for none."""
     match = re.fullmatch(r"SPI([1-6])", text.strip())
@@ -102,12 +112,14 @@ def generate(config: Path) -> str:
     out.append("   --  The pin tags of the inputs, the beeper, the OSD chip's select, the SD")
     out.append("   --  card's select and detect, and the flash chip's select, zero for none,")
     out.append("   --  their SPI buses from 1, zero for none, whether the detect pin reads low")
-    out.append("   --  for a card, the flight log device, and the meter defaults, the host")
+    out.append("   --  for a card, the flight log device, the meter defaults, and the PINIO")
+    out.append("   --  outputs' pins, configurations and boxes by permanent id, the host")
     out.append("   --  defaults where the board names none.")
     tags = [("Beeper_Tag", "BEEPER_PIN"), ("ADC_VBAT_Tag", "ADC_VBAT_PIN"), ("ADC_CURR_Tag", "ADC_CURR_PIN"),
             ("ADC_RSSI_Tag", "ADC_RSSI_PIN"), ("ADC_External1_Tag", "ADC_EXTERNAL1_PIN"),
             ("MAX7456_CS_Tag", "MAX7456_SPI_CS_PIN"), ("SDCARD_CS_Tag", "SDCARD_SPI_CS_PIN"),
-            ("SDCARD_Detect_Tag", "SDCARD_DETECT_PIN"), ("FLASH_CS_Tag", "FLASH_CS_PIN")]
+            ("SDCARD_Detect_Tag", "SDCARD_DETECT_PIN"), ("FLASH_CS_Tag", "FLASH_CS_PIN")] \
+        + [(f"PINIO{i}_Tag", f"PINIO{i}_PIN") for i in range(1, 5)]
     defaults = [("Default_Voltage_Meter_Source", VOLTAGE_SOURCES[defines.get("DEFAULT_VOLTAGE_METER_SOURCE",
                                                                              "VOLTAGE_METER_NONE")]),
                 ("Default_Current_Meter_Source", CURRENT_SOURCES[defines.get("DEFAULT_CURRENT_METER_SOURCE",
@@ -119,7 +131,9 @@ def generate(config: Path) -> str:
                 ("FLASH_SPI_Device", spi_device(defines.get("FLASH_SPI_INSTANCE", ""))),
                 ("SDCARD_Detect_Low", "True" if "SDCARD_DETECT_INVERTED" in defines else "False"),
                 ("Default_Blackbox_Device", BLACKBOX_DEVICES[defines.get("DEFAULT_BLACKBOX_DEVICE",
-                                                                         "BLACKBOX_DEVICE_NONE")])]
+                                                                         "BLACKBOX_DEVICE_NONE")])] \
+        + [(f"PINIO{i}_Config", pinio_config(defines.get(f"PINIO{i}_CONFIG"))) for i in range(1, 5)] \
+        + [(f"PINIO{i}_Box", number(defines.get(f"PINIO{i}_BOX"), 255)) for i in range(1, 5)]
     column = max(len(n) for n, _ in tags + defaults)
     for name, define in tags:
         out.append(f"   {name.ljust(column)} : constant := {pin_tag(defines.get(define, ''))};")

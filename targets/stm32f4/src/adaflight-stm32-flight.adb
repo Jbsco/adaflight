@@ -64,6 +64,7 @@ with Adaflight.GPS_Link;
 with Adaflight.STM32.MCU;
 with Adaflight.STM32.Gyro;
 with Adaflight.STM32.Pilot;
+with Adaflight.STM32.PINIO;
 with Adaflight.STM32.Radio;
 with Adaflight.STM32.RTC;
 with Adaflight.STM32.SD;
@@ -151,7 +152,13 @@ package body Adaflight.STM32.Flight is
       SD_Detect_Low    => Adaflight.Board.SDCARD_Detect_Low,
       Flash_SPI_Device => Adaflight.Board.FLASH_SPI_Device,
       Flash_CS_Tag     => Adaflight.Board.FLASH_CS_Tag,
-      Blackbox_Device  => Adaflight.Board.Default_Blackbox_Device);
+      Blackbox_Device  => Adaflight.Board.Default_Blackbox_Device,
+      PINIO_Tags       => (Adaflight.Board.PINIO1_Tag, Adaflight.Board.PINIO2_Tag, Adaflight.Board.PINIO3_Tag,
+                           Adaflight.Board.PINIO4_Tag),
+      PINIO_Configs    => (Adaflight.Board.PINIO1_Config, Adaflight.Board.PINIO2_Config,
+                           Adaflight.Board.PINIO3_Config, Adaflight.Board.PINIO4_Config),
+      PINIO_Boxes      => (Adaflight.Board.PINIO1_Box, Adaflight.Board.PINIO2_Box, Adaflight.Board.PINIO3_Box,
+                           Adaflight.Board.PINIO4_Box));
 
    Board    : CLI.Board_State := (Hardware => Board_Hardware, others => <>);
    Config   : Adaflight.Config_Groups.Configuration := Adaflight.Config_Reset.Reset (Board);
@@ -646,7 +653,7 @@ package body Adaflight.STM32.Flight is
    procedure Init_Scheduler is
       Options : constant Adaflight.Task_Init.Options :=
         (Accel => True, Beeper => True, Sag_Compensation => True, OSD => True, CMS => True, GPS => True,
-         Telemetry => True, VTX_Control => True, VTX_Driver => True, others => False);
+         Telemetry => True, VTX_Control => True, VTX_Driver => True, PINIO_Box => True, others => False);
       Inputs  : Adaflight.Task_Init.Inputs;
    begin
       Sched_Settings := Adaflight.Config_Runtime.Scheduler_Settings_Of
@@ -670,6 +677,7 @@ package body Adaflight.STM32.Flight is
       Inputs.Feature_OSD := (Runtime_Features and Adaflight.Config_Fix.Feature_OSD) /= 0;
       Inputs.Feature_GPS := (Runtime_Features and Adaflight.Config_Fix.Feature_GPS) /= 0;
       Inputs.Feature_Telemetry := (Runtime_Features and Adaflight.Config_Fix.Feature_Telemetry) /= 0;
+      Inputs.PINIO_Box_Enabled := Adaflight.STM32.PINIO.Task_Enabled;
       Inputs.OSD_Framerate_Hz :=
         Adaflight.Task_Init.Rate_Hz (Natural'Max (1, Natural (Config.Osd_Config.Framerate_Hz)));
       Inputs.OSD_Display_Port := Adaflight.STM32.OSD.Port_Present;
@@ -726,6 +734,7 @@ package body Adaflight.STM32.Flight is
       end if;
       if Effects.Receiver.Modes_Init then
          Adaflight.STM32.Pilot.Reload_Modes (Config);
+         Scheduler.Set_Task_Enabled (Sched, Scheduler.PINIO_Box, Adaflight.STM32.PINIO.Task_Enabled);
       end if;
       if Effects.Control.Acc_Calibration then
          Adaflight.Accelerometer.Start_Calibration (Acc_State);
@@ -897,6 +906,7 @@ package body Adaflight.STM32.Flight is
                S.Waiting := 0;
                if Changes.Modes then
                   Adaflight.STM32.Pilot.Reload_Modes (Config);
+                  Scheduler.Set_Task_Enabled (Sched, Scheduler.PINIO_Box, Adaflight.STM32.PINIO.Task_Enabled);
                end if;
                if Changes.PID_Profile or else Changes.Rate_Profile then
                   Adaflight.STM32.Pilot.Configure (Config, Runtime_Features, Pilot_Facts);
@@ -1977,6 +1987,8 @@ package body Adaflight.STM32.Flight is
             Run_GPS (Before);
          when Scheduler.Telemetry =>
             Tasks.Telemetry (Inputs, Before);
+         when Scheduler.PINIO_Box =>
+            Adaflight.STM32.PINIO.Update;
          when Scheduler.VTX_Control =>
             declare
                Save : Boolean;
@@ -2030,6 +2042,7 @@ package body Adaflight.STM32.Flight is
          Replies (L).Which := Line_Serial (L);
       end loop;
       Init_Configuration;
+      Adaflight.STM32.PINIO.Init (Config);
       Adaflight.STM32.RTC.Set_Zone (Config.Time_Config.Tz_Offset_Minutes);
       Adaflight.STM32.USB.Init ("Adaflight (" & Adaflight.Board.Board_Name & ")");
       Ctx.Out_Views.Common := Common_Snapshot;
@@ -2075,6 +2088,7 @@ package body Adaflight.STM32.Flight is
                       Loop_Ratio     => Positive (Loop_Ratio),
                       CRSF           => Adaflight.STM32.Radio.Linked);
       Adaflight.STM32.Pilot.Init (Config, Runtime_Features, Pilot_Facts);
+      Adaflight.STM32.PINIO.Init_Boxes (Config);
       Adaflight.STM32.Pilot.Set_Reason (Adaflight.Arming.No_Gyro, not Selection.Found);
       Adaflight.STM32.Control.Init (Config, Runtime_Features);
       Bat_Settings := Battery_Settings;
