@@ -4,6 +4,7 @@ with GNAT.Source_Info;
 with Interfaces; use Interfaces;
 with Adaflight.Acc_Inflight;
 with Adaflight.Accelerometer;
+with Adaflight.Adjustments;
 with Adaflight.Arming;
 with Adaflight.Attitude;
 with Adaflight.Axes;
@@ -41,6 +42,7 @@ with Adaflight.Mixer;
 with Adaflight.Mixer_Init;
 with Adaflight.MSP_Common_Out;
 with Adaflight.MSP_Control_In;
+with Adaflight.MSP_Views;
 with Adaflight.MSP_Box;
 with Adaflight.MSP_Hardware_Out;
 with Adaflight.MSP_Motor_In;
@@ -50,6 +52,7 @@ with Adaflight.MSP_Port;
 with Adaflight.MSP_Processor;
 with Adaflight.PID_Config;
 with Adaflight.PID_Profile;
+with Adaflight.Rates;
 with Adaflight.Pins;
 with Adaflight.RTC;
 with Adaflight.PID_Controller;
@@ -221,6 +224,8 @@ package body Adaflight.STM32.Flight is
    Beep             : Adaflight.Beeper.State;
    Bat_Settings     : Adaflight.Battery.Settings;
    Pilot_Facts      : Adaflight.STM32.Pilot.Facts;
+   Adj_State        : Adaflight.Adjustments.State;
+   Adj_Ranges       : Adaflight.Adjustments.Ranges := (others => Adaflight.Adjustments.Unset);
    --  The attitude task's periods with the level modes on and off.
    Attitude_Period_Slow_Us : constant Scheduler.Time_Delta := 10_000;
    Attitude_Period_Fast_Us : Scheduler.Time_Delta := 2_000;
@@ -1450,9 +1455,9 @@ package body Adaflight.STM32.Flight is
    --  What the arming logic asked of the board after a step: the GPS home
    --  resets, the stick commands the board can serve, the saves, the trims,
    --  the beeper, the first arming calibration, the headfree offset, the
-   --  failsafe's monitoring, the attitude task's rate and the DShot commands
-   --  queued for the motors. The adjustments, the statistics and the ports
-   --  wait for their units on the board.
+   --  failsafe's monitoring, the attitude task's rate, the telemetry ports'
+   --  state and the DShot commands queued for the motors. The statistics
+   --  wait for their unit on the board.
    procedure Apply (Step : Adaflight.Arming.Outputs) is
       Trims : Adaflight.Config_Groups.Integer_16_List_2 renames Config.Accelerometer_Config.Accelerometer_Trims;
       Set   : Boolean;
@@ -1742,6 +1747,167 @@ package body Adaflight.STM32.Flight is
       Adaflight.STM32.Pilot.Set_Reason (Adaflight.Arming.Reboot_Required, Adaflight.STM32.Menu.Reboot_Required);
    end Sync_Reasons;
 
+   --  The names the OSD shows for each adjustment.
+   function Adjustment_Label (K : Adaflight.Adjustments.Function_Kind) return String is
+     (case K is
+         when Adaflight.Adjustments.None                   => "",
+         when Adaflight.Adjustments.RC_Rate                => "RC RATE",
+         when Adaflight.Adjustments.RC_Expo                => "RC EXPO",
+         when Adaflight.Adjustments.Throttle_Expo          => "THROTTLE EXPO",
+         when Adaflight.Adjustments.Pitch_Roll_Rate        => "ROLL RATE",
+         when Adaflight.Adjustments.Yaw_Rate               => "YAW RATE",
+         when Adaflight.Adjustments.Pitch_Roll_P           => "PITCH/ROLL P",
+         when Adaflight.Adjustments.Pitch_Roll_I           => "PITCH/ROLL I",
+         when Adaflight.Adjustments.Pitch_Roll_D           => "PITCH/ROLL D",
+         when Adaflight.Adjustments.Yaw_P                  => "YAW P",
+         when Adaflight.Adjustments.Yaw_I                  => "YAW I",
+         when Adaflight.Adjustments.Yaw_D                  => "YAW D",
+         when Adaflight.Adjustments.Rate_Profile           => "RATE PROFILE",
+         when Adaflight.Adjustments.Pitch_Rate             => "PITCH RATE",
+         when Adaflight.Adjustments.Roll_Rate              => "ROLL RATE",
+         when Adaflight.Adjustments.Pitch_P                => "PITCH P",
+         when Adaflight.Adjustments.Pitch_I                => "PITCH I",
+         when Adaflight.Adjustments.Pitch_D                => "PITCH D",
+         when Adaflight.Adjustments.Roll_P                 => "ROLL P",
+         when Adaflight.Adjustments.Roll_I                 => "ROLL I",
+         when Adaflight.Adjustments.Roll_D                 => "ROLL D",
+         when Adaflight.Adjustments.RC_Rate_Yaw            => "RC RATE YAW",
+         when Adaflight.Adjustments.Pitch_Roll_F           => "PITCH/ROLL F",
+         when Adaflight.Adjustments.Feedforward_Transition => "FF TRANSITION",
+         when Adaflight.Adjustments.Horizon_Strength       => "HORIZON STRENGTH",
+         when Adaflight.Adjustments.PID_Audio              => "PID AUDIO",
+         when Adaflight.Adjustments.Pitch_F                => "PITCH F",
+         when Adaflight.Adjustments.Roll_F                 => "ROLL F",
+         when Adaflight.Adjustments.Yaw_F                  => "YAW F",
+         when Adaflight.Adjustments.OSD_Profile            => "OSD PROFILE",
+         when Adaflight.Adjustments.LED_Profile            => "LED PROFILE",
+         when Adaflight.Adjustments.LED_Dimmer             => "LED DIMMER",
+         when Adaflight.Adjustments.Master_Multiplier      => "SLIDER MASTER MULTIPLIER",
+         when Adaflight.Adjustments.Battery_Profile        => "BATTERY PROFILE");
+
+   --  The adjustment fields of a rate profile and a PID profile written back
+   --  to the stored ones where the pass changed them, so the stored values the
+   --  pass did not touch keep their own.
+   procedure Store_Rates
+     (Stored : in out Adaflight.Config_Groups.Control_Rate_Config_Record; Was, Now : Adaflight.Rates.Profile)
+   is
+      use type Adaflight.Rates.Profile;
+      Axes : constant array (0 .. 2) of Adaflight.Axes.Axis :=
+        (Adaflight.Axes.Roll, Adaflight.Axes.Pitch, Adaflight.Axes.Yaw);
+   begin
+      if Was = Now then
+         return;
+      end if;
+      for I in Axes'Range loop
+         if Now.RC_Rates (Axes (I)) /= Was.RC_Rates (Axes (I)) then
+            Stored.Rc_Rates (I) := Unsigned_8 (Now.RC_Rates (Axes (I)));
+         end if;
+         if Now.RC_Expo (Axes (I)) /= Was.RC_Expo (Axes (I)) then
+            Stored.Rc_Expo (I) := Unsigned_8 (Now.RC_Expo (Axes (I)));
+         end if;
+         if Now.Super_Rates (Axes (I)) /= Was.Super_Rates (Axes (I)) then
+            Stored.Rates (I) := Unsigned_8 (Now.Super_Rates (Axes (I)));
+         end if;
+      end loop;
+      if Now.Throttle_Expo /= Was.Throttle_Expo then
+         Stored.Thr_Expo8 := Unsigned_8 (Now.Throttle_Expo);
+      end if;
+   end Store_Rates;
+
+   procedure Store_PID
+     (Stored : in out Adaflight.Config_Groups.Pid_Profile_Record; Was, Now : Adaflight.PID_Profile.Profile)
+   is
+      Axes : constant array (0 .. 2) of Adaflight.Axes.Axis :=
+        (Adaflight.Axes.Roll, Adaflight.Axes.Pitch, Adaflight.Axes.Yaw);
+   begin
+      for I in Axes'Range loop
+         declare
+            G : Adaflight.PID_Profile.Axis_Gains renames Now.Gains (Axes (I));
+            W : Adaflight.PID_Profile.Axis_Gains renames Was.Gains (Axes (I));
+         begin
+            if G.P /= W.P then
+               Stored.Pid (I).P := Unsigned_8 (G.P);
+            end if;
+            if G.I /= W.I then
+               Stored.Pid (I).I := Unsigned_8 (G.I);
+            end if;
+            if G.D /= W.D then
+               Stored.Pid (I).D := Unsigned_8 (G.D);
+            end if;
+            if G.F /= W.F then
+               Stored.Pid (I).F := Unsigned_16 (G.F);
+            end if;
+         end;
+         if Now.D_Max (Axes (I)) /= Was.D_Max (Axes (I)) then
+            Stored.D_Max (I) := Unsigned_8 (Now.D_Max (Axes (I)));
+         end if;
+      end loop;
+      if Now.Level.D /= Was.Level.D then
+         Stored.Pid (3).D := Unsigned_8 (Now.Level.D);
+      end if;
+      if Now.Feedforward_Transition /= Was.Feedforward_Transition then
+         Stored.Feedforward_Transition := Unsigned_8 (Now.Feedforward_Transition);
+      end if;
+      if Now.Simplified_Master_Multiplier /= Was.Simplified_Master_Multiplier then
+         Stored.Simplified_Master_Multiplier := Unsigned_8 (Now.Simplified_Master_Multiplier);
+      end if;
+   end Store_PID;
+
+   --  One adjustment pass over the stored rate and PID profiles: the ranges'
+   --  lists rebuilt when the stored ranges changed, the selections taken from
+   --  the configuration, the changed values and selections written back, the
+   --  profiles' users configured again as the pass asks, and the
+   --  confirmation beeps.
+   procedure Run_Adjustments (Aux : Adaflight.Modes.Aux_Values) is
+      use type Adaflight.Adjustments.Ranges;
+      Ranges : constant Adaflight.Adjustments.Ranges := Adaflight.MSP_Views.Adjustment_Ranges (Config);
+      P_Idx  : constant Natural := Natural'Min (3, Natural (Config.System_Config.Pid_Profile_Index));
+      Rates  : Adaflight.Adjustments.Rate_Profiles;
+      Was_R  : Adaflight.Adjustments.Rate_Profiles;
+      P      : Adaflight.PID_Profile.Profile := Adaflight.Config_Runtime.PID_Profile_Of (Config.Pid_Profiles (P_Idx));
+      Was_P  : constant Adaflight.PID_Profile.Profile := P;
+      Sel    : Adaflight.Adjustments.Selections renames Adj_State.Selected;
+      Rate_Was : Natural;
+      Result : Adaflight.Adjustments.Outputs;
+   begin
+      if Ranges /= Adj_Ranges then
+         Adj_Ranges := Ranges;
+         Adaflight.Adjustments.Reset_List (Adj_State);
+      end if;
+      for I in Rates'Range loop
+         Rates (I) := Adaflight.Config_Runtime.Rate_Profile_Of (Config.Control_Rate_Profiles (I));
+      end loop;
+      Was_R := Rates;
+      Sel.Rate_Profile := Natural'Min (3, Natural (Config.System_Config.Active_Rate_Profile));
+      Sel.Battery_Profile := Natural'Min (2, Natural (Config.System_Config.Active_Battery_Profile));
+      Sel.LED_Profile := Natural'Min (2, Natural (Config.Led_Strip_Config.Ledstrip_Profile));
+      Sel.LED_Brightness := Natural (Config.Led_Strip_Config.Ledstrip_Brightness);
+      Rate_Was := Sel.Rate_Profile;
+      Adaflight.Adjustments.Process
+        (Adj_State, Adaflight.Config_Runtime.Adjustment_Settings_Of (Config.Rx_Config, Config.System_Config),
+         Adj_Ranges, Rates, P,
+         (Now_Ms => Adaflight.STM32.Time.Millis, Rx_Signal => Adaflight.STM32.Radio.Receiving, Aux => Aux),
+         Result);
+      for I in Rates'Range loop
+         Store_Rates (Config.Control_Rate_Profiles (I), Was_R (I), Rates (I));
+      end loop;
+      Store_PID (Config.Pid_Profiles (P_Idx), Was_P, P);
+      Config.System_Config.Active_Rate_Profile := Unsigned_8 (Sel.Rate_Profile);
+      Config.System_Config.Active_Battery_Profile := Unsigned_8 (Sel.Battery_Profile);
+      Config.Led_Strip_Config.Ledstrip_Profile := Unsigned_8 (Sel.LED_Profile);
+      Config.Led_Strip_Config.Ledstrip_Brightness := Unsigned_8 (Sel.LED_Brightness);
+      if Result.PID_Reinit or else Result.RC_Reinit or else Sel.Rate_Profile /= Rate_Was then
+         Adaflight.STM32.Pilot.Configure (Config, Runtime_Features, Pilot_Facts);
+         Adaflight.STM32.Control.Init (Config, Runtime_Features);
+      end if;
+      if Result.Battery_Reinit then
+         Bat_Settings := Battery_Settings;
+      end if;
+      if Result.Beep_Requests > 0 then
+         Confirmation_Beeps (Result.Beeps);
+      end if;
+   end Run_Adjustments;
+
    procedure Run_Receiver (Before : Unsigned_32) is
       Step        : constant Adaflight.RX_Task.Step := Adaflight.RX_Task.Current_Step (RX_State);
       Ready       : Boolean := True;
@@ -1775,6 +1941,9 @@ package body Adaflight.STM32.Flight is
             end if;
          when Adaflight.RX_Task.Modes =>
             Adaflight.STM32.Pilot.Modes_Pass (Sense, Channels, Aux, Before, Delta_Us, Asked);
+            if Asked.Run_Adjustments then
+               Run_Adjustments (Aux);
+            end if;
             Adaflight.STM32.VTX.Switches (Config, Aux, Adaflight.STM32.Pilot.Armed);
             Adaflight.STM32.Control.Set_Anti_Gravity (Asked.Anti_Gravity);
          when Adaflight.RX_Task.Update =>
@@ -1869,6 +2038,17 @@ package body Adaflight.STM32.Flight is
          for M in F.ESC_Motors'Range loop
             F.ESC_Motors (M) := Adaflight.STM32.ESC_Sensor.Motor_Reading (M);
          end loop;
+      end if;
+      if Adaflight.Adjustments."/=" (Adj_State.Shown.Kind, Adaflight.Adjustments.None) then
+         declare
+            Label : constant String := Adjustment_Label (Adj_State.Shown.Kind);
+            Shown : constant Natural := Natural'Min (Label'Length, Adaflight.OSD_Render.Max_Name);
+         begin
+            F.Adjustment_Present := True;
+            F.Adjustment_Name.Length := Shown;
+            F.Adjustment_Name.Data (1 .. Shown) := Label (Label'First .. Label'First + Shown - 1);
+            F.Adjustment_Value := Integer_32 (Adj_State.Shown.Value);
+         end;
       end if;
       F.PID_Index := Config.System_Config.Pid_Profile_Index;
       F.Rate_Index := Config.System_Config.Active_Rate_Profile;
