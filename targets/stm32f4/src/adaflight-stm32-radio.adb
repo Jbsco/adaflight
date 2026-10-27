@@ -2,6 +2,8 @@ with Adaflight.Bytes;
 with Adaflight.Config_Fix;
 with Adaflight.Config_Runtime;
 with Adaflight.CRSF;
+with Adaflight.CRSF_Display_Port;
+with Adaflight.Stream_Buffers;
 with Adaflight.Modes;
 with Adaflight.Serial_Feature_Map;
 with Adaflight.STM32.USART;
@@ -28,9 +30,23 @@ package body Adaflight.STM32.Radio is
    FS_Settings : Adaflight.Failsafe.Settings;
    Input       : Adaflight.Bytes.Byte_Array (0 .. 63);
    Times       : USART.Time_Array (0 .. 63);
+   --  The telemetry with its display port screen, which no menu draws on
+   --  yet, and the frames of one run.
+   Tlm         : Adaflight.CRSF_Telemetry.Telemetry;
+   Screen      : Adaflight.CRSF_Display_Port.Screen;
+   Out_Bytes   : Adaflight.Bytes.Byte_Array (0 .. 1_023);
+   Out_Stream  : Adaflight.Stream_Buffers.Stream;
+   Port        : USART.Port;
+
+   --  The port at a new rate, with the receiver's timing told.
+   procedure Set_Rate (Rate : Interfaces.Unsigned_32) is
+   begin
+      USART.Init (Link, Positive (Interfaces.Unsigned_32'Max (1, Rate)));
+      Adaflight.CRSF.Update_Baudrate (Proto, Rate);
+   end Set_Rate;
 
    procedure Init (Config : Adaflight.Config_Groups.Configuration; Runtime_Features : Interfaces.Unsigned_32;
-                   Now_Ms : Time_Ms) is
+                   Now_Ms : Time_Ms; Telemetry : Adaflight.CRSF_Telemetry.Config) is
       Conditions : constant Adaflight.Modes.Conditions :=
         Adaflight.Config_Runtime.Conditions_Of (Config.Mode_Activation_Conditions);
    begin
@@ -70,8 +86,65 @@ package body Adaflight.STM32.Radio is
       if Open then
          Adaflight.CRSF.Init (Proto, Rx_Settings.Mid_RC);
          USART.Init (Link, Adaflight.CRSF.Baudrate);
+         Port.Which := Link;
       end if;
+      Adaflight.CRSF_Telemetry.Init (Tlm, Telemetry, Active => Open);
+      Adaflight.CRSF_Display_Port.Init (Screen, Now_Ms);
    end Init;
+
+   --  What a received frame asked of the telemetry: a device information
+   --  reply to a ping, a response slot, a speed proposal from the frame past
+   --  its destination and origin, a device information frame from the same
+   --  point, and the default rate after repeated errors.
+   procedure Telemetry_Events (Outputs : Adaflight.CRSF.Byte_Outputs) is
+      Length : constant Natural := Natural (Proto.Frame (1));
+      --  The frame's bytes from First to Last as the telemetry reads them.
+      function Payload (First, Last : Adaflight.CRSF.Frame_Index) return Adaflight.Bytes.Byte_Array is
+         P : Adaflight.Bytes.Byte_Array (0 .. Last - First);
+      begin
+         for K in P'Range loop
+            P (K) := Adaflight.Bytes.Byte (Proto.Frame (First + K));
+         end loop;
+         return P;
+      end Payload;
+   begin
+      if Outputs.Device_Ping then
+         Adaflight.CRSF_Telemetry.Schedule_Device_Info (Tlm);
+      end if;
+      if Outputs.Telemetry_Response then
+         Adaflight.CRSF_Telemetry.Schedule_Response (Tlm);
+      end if;
+      if Outputs.Command and then Length >= 10 then
+         Adaflight.CRSF_Telemetry.Process_Command (Tlm, Payload (5, 12));
+      end if;
+      if Outputs.Device_Info and then Length in 3 .. Adaflight.CRSF.Frame_Size_Max - 1 then
+         Adaflight.CRSF_Telemetry.Handle_Device_Info (Tlm, Payload (3, Length));
+      end if;
+      if Outputs.Default_Speed then
+         Set_Rate (Adaflight.CRSF.Baudrate);
+      end if;
+   end Telemetry_Events;
+
+   procedure Telemetry_Step (Now_Us : Time_Us; Src : Adaflight.CRSF_Telemetry.Sources) is
+      Run      : Boolean;
+      New_Baud : Interfaces.Unsigned_32;
+   begin
+      if not Open then
+         return;
+      end if;
+      Tlm.Event_Driven := Proto.Event_Telemetry;
+      Adaflight.Stream_Buffers.Init (Out_Stream, 0, Out_Bytes'Length);
+      Adaflight.CRSF_Telemetry.Update_Check (Tlm, Now_Us, Run);
+      Adaflight.CRSF_Telemetry.Negotiate (Tlm, Now_Us, Out_Bytes, Out_Stream, New_Baud);
+      Adaflight.CRSF_Telemetry.Update (Tlm, Now_Us, Src, Screen, Display_Ready => False, B => Out_Bytes,
+                                       S => Out_Stream);
+      if Out_Stream.Next > 0 then
+         USART.Put (Port, Out_Bytes (0 .. Out_Stream.Next - 1));
+      end if;
+      if New_Baud /= 0 then
+         Set_Rate (New_Baud);
+      end if;
+   end Telemetry_Step;
 
    function Linked return Boolean is (Open);
 
@@ -85,8 +158,10 @@ package body Adaflight.STM32.Radio is
          USART.Take (Link, Input, Times, Count);
          for I in 0 .. Count - 1 loop
             Adaflight.CRSF.Receive_Byte
-              (Proto, Rx, Natural (Input (I)), Times (I), Negotiating => False, Eeprom_Writing => False,
+              (Proto, Rx, Natural (Input (I)), Times (I),
+               Negotiating => Adaflight.CRSF_Telemetry.Negotiation_In_Progress (Tlm), Eeprom_Writing => False,
                Result => Outputs);
+            Telemetry_Events (Outputs);
          end loop;
          if not Task_In_Progress then
             Adaflight.CRSF.Frame_Status (Proto, Rx, Now_Us, Status);

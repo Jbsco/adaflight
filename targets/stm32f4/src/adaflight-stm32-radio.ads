@@ -1,17 +1,22 @@
 --  The receiver link of the board: the serial receiver port the stored
 --  configuration assigns with the CRSF protocol over it, the receiver's
---  channel processing and the failsafe's link state. The other serial
+--  channel processing, the failsafe's link state, and the CRSF telemetry
+--  sent back on the port with its speed negotiation. The other serial
 --  receiver protocols, inverted ports and half-duplex ports wait for their
 --  drivers.
 with Interfaces;
 with Adaflight.Config_Groups;
+with Adaflight.CRSF_Telemetry;
 with Adaflight.Failsafe;
 with Adaflight.Receiver;
 package Adaflight.STM32.Radio is
    subtype Time_Us is Interfaces.Unsigned_32;
    subtype Time_Ms is Interfaces.Unsigned_32;
    procedure Init (Config : Adaflight.Config_Groups.Configuration; Runtime_Features : Interfaces.Unsigned_32;
-                   Now_Ms : Time_Ms);
+                   Now_Ms : Time_Ms; Telemetry : Adaflight.CRSF_Telemetry.Config);
+   --  One run of the telemetry task: the negotiation, then the frames due
+   --  from the sources, sent on the port.
+   procedure Telemetry_Step (Now_Us : Time_Us; Src : Adaflight.CRSF_Telemetry.Sources);
    --  Whether a serial receiver port is open.
    function Linked return Boolean;
    --  After the realtime tasks: the bytes received through the protocol at
