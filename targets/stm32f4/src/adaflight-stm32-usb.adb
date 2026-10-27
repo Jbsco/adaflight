@@ -504,15 +504,23 @@ package body Adaflight.STM32.USB is
       function Configured return Boolean is (U.Configured (D));
    end Controller;
 
-   --  The pins and clocks, then the controller as the reference's device
-   --  start brings it up: the core reset on the embedded transceiver with bus
-   --  sensing off, device mode, the full-speed device with its FIFOs, every
-   --  endpoint disabled, the interrupts, and the global interrupt last.
+   --  The disconnect pulse of the reference's port open, D+ held low for 200
+   --  milliseconds so a host still holding the previous connection sees a new
+   --  device, then the pins and clocks, then the controller as the
+   --  reference's device start brings it up: the core reset on the embedded
+   --  transceiver with bus sensing off, device mode, the full-speed device
+   --  with its FIFOs, every endpoint disabled, the interrupts, and the global
+   --  interrupt last.
    procedure Init (Product : String) is
    begin
       GPIO.Enable_Port (Port_A);
-      GPIO.Set_Alternate (DM, 10);
-      GPIO.Set_Alternate (DP, 10);
+      GPIO.Set_Output (DP);
+      GPIO.Set_Open_Drain (DP);
+      GPIO.Set_Low (DP);
+      Adaflight.STM32.Time.Delay_Ms (200);
+      GPIO.Set_High (DP);
+      GPIO.Set_Alternate (DM, 10, Rate => GPIO.Very_High);
+      GPIO.Set_Alternate (DP, 10, Rate => GPIO.Very_High);
       RCC_APB2ENR := RCC_APB2ENR or 2 ** 14;
       RCC_AHB2ENR := RCC_AHB2ENR or 2 ** 7;
       GAHBCFG := GAHBCFG and not GINTMSK_GLOBAL;

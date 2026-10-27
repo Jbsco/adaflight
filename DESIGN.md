@@ -9898,9 +9898,11 @@ its operations and the state after it. Eight tampers fail the vectors.
 ## D409. STM32F4 USB virtual serial port (2026-10-26)
 
 `Adaflight.STM32.USB` drives the F405's full-speed OTG controller for the device of D408, after the
-controller code the reference builds for the F4: PA11 and PA12 on their alternate function, the core reset on
-the embedded transceiver with bus sensing off, device mode, the FIFOs (128 words to receive, 32, 64 and 64
-words to send on endpoints 0, 1 and 3), every endpoint disabled, and the interrupts. Its interrupt reads the
+controller code the reference builds for the F4: the disconnect pulse of the reference's port open (D+ held
+low for 200 ms as an open-drain output, so a host still holding the previous connection sees a new device),
+PA11 and PA12 on their alternate function at the very high output speed, the core reset on the embedded
+transceiver with bus sensing off, device mode, the FIFOs (128 words to receive, 32, 64 and 64 words to send
+on endpoints 0, 1 and 3), every endpoint disabled, and the interrupts. Its interrupt reads the
 receive FIFO into the endpoint buffers, hands setup packets, finished transfers, frames, bus resets,
 suspends and resumes to the device, and carries out the endpoint operations each one returns, writing a
 packet into its transmit FIFO when the FIFO has room. The controller's state sits in CCM RAM.
