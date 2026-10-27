@@ -17,6 +17,7 @@ package body Adaflight.STM32.GPS is
    Rx       : Adaflight.GPS_Frames.Receiver;
    Settings : Adaflight.GPS_Link.Settings;
    Has_Time : Boolean := False;
+   Solution_At : Interfaces.Unsigned_32 := 0;
    Input    : Byte_Array (0 .. 255);
 
    function Baud_Index_Of (B : Adaflight.GPS_Link.Baud_Rate) return SFM.Baud_Index is
@@ -82,6 +83,9 @@ package body Adaflight.STM32.GPS is
       if E.Baud_Changed then
          USART.Init (Which, Positive (Adaflight.GPS_Link.Rate_Of (E.New_Baud)));
       end if;
+      if E.Solutions > 0 then
+         Solution_At := Now_Ms;
+      end if;
       R := (Ready_Beep => E.Ready_Beep, Rate => E.Rate, Solutions => E.Solutions);
    end Run;
 
@@ -107,6 +111,7 @@ package body Adaflight.STM32.GPS is
        Direction_To_Home   => Link.Direction_To_Home,
        Distance_Flown_Cm   => Link.Distance_Flown_Cm,
        Time_Ms             => Rx.Sol.Time,
+       Solution_Ms         => Solution_At,
        Use_3D_Speed        => Settings.Use_3D_Speed,
        Home                => Link.Home,
        In_View             => Rx.Num_Channels,

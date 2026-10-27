@@ -29,13 +29,13 @@ Silver with no assume, and pass the gates on `main`.
 - Phase 7, in progress. Targets. STM32F4 first: `targets/stm32f4` builds for the CLRacing F4S board
   family from the pinned board configuration repository, and its image blinks the LED, serves MSP
   and the command line on its USB port and UART1, runs the scheduler with the gyro, filter,
-  accelerometer, attitude and receiver tasks over SPI1 and a CRSF receiver on a UART with the arming
-  logic and the modes, runs the rate controller and the mixer, measures the battery, drives the
-  beeper, draws the OSD and runs the menu system on the MAX7456 chip on SPI3, reads a GPS module on
-  a UART, writes its flight log to a serial port, and keeps its configuration in flash.
-  `targets/host` runs the same flight software on the host with its UARTs and USB port on TCP ports.
-  Then F7 and H7, then the other families Betaflight runs on, and a physics simulator link for the
-  host target. Drivers for SPI, I2C, DMA, timers, USB, flash, SD card, DShot.
+  accelerometer, attitude and receiver tasks over SPI1 and a CRSF receiver on a UART with its
+  telemetry, the arming logic and the modes, runs the rate controller and the mixer, measures the
+  battery, drives the beeper, draws the OSD and runs the menu system on the MAX7456 chip on SPI3,
+  reads a GPS module on a UART, writes its flight log to a serial port, and keeps its configuration
+  in flash. `targets/host` runs the same flight software on the host with its UARTs and USB port on
+  TCP ports. Then F7 and H7, then the other families Betaflight runs on, and a physics simulator
+  link for the host target. Drivers for SPI, I2C, DMA, timers, USB, flash, SD card, DShot.
 - Phase 8, open. Tooling. The configurator as the adaflight-configurator repository, the upstream
   configurator with adaflight's changes, starting with the firmware variant. A native Linux flashing
   tool over DFU with the features of the Betaflight flasher and faster transfers, then the
