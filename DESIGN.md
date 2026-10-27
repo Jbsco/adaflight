@@ -9801,3 +9801,15 @@ section, since the main RAM has no room for them. The image is 592496 bytes of t
 109480 of zeroed data in the main RAM and 26440 in the core coupled memory. The host smoke check
 feeds the stick gesture through the receiver stream and finds the quick menu on the screen with the
 menu's arming hold in the status.
+
+## D404. Menu content table in flash (2026-10-26)
+
+`Adaflight.Menu_Content.Empty_Table`, the table of 192 label lines a menu loads before its own
+lines, was built at elaboration: its aggregate called `Code` for the flags and left the other
+components to their defaults, and an `others` aggregate of that size is expanded at run time unless
+the unit asks for static elaboration. The aggregate now gives every component as a literal and the
+body holds `pragma Static_Elaboration_Desired`, so the table is read-only data in flash.
+
+On the STM32F4 image the change moves 18436 bytes from the main RAM to flash: 610936 bytes of text,
+5276 of data, 91040 of zeroed data in the main RAM and 26440 in the core coupled memory. The menu
+vectors replay unchanged.
