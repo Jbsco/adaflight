@@ -34,6 +34,20 @@ package Adaflight.STM32.OSD is
    --  answer is started again first, with a redraw while disarmed.
    procedure Check_Ready (C : Adaflight.Config_Groups.Configuration; Armed : Boolean; Ready : out Boolean);
 
+   --  The display as the menu takes it: grabbed and released, cleared,
+   --  its layer and background selected, redrawn while disarmed, its
+   --  heartbeat run, and text written at a position; Grabbed while the
+   --  menu holds it, which the OSD task waits out.
+   procedure Menu_Grab;
+   procedure Menu_Release;
+   function Grabbed return Boolean;
+   procedure Menu_Clear;
+   procedure Menu_Layer_Select (Layer : Natural);
+   procedure Menu_Background (Kind : Natural);
+   procedure Menu_Redraw (Armed : Boolean);
+   procedure Menu_Heartbeat;
+   procedure Menu_Write (X, Y : Interfaces.Unsigned_8; Text : String);
+
    --  Whether a font character write goes to the chip, which needs it found.
    function Font_Write_Taken return Boolean;
    procedure Write_Font (Address : Interfaces.Unsigned_16; Data : Adaflight.MSP_Font_In.Character_Data);

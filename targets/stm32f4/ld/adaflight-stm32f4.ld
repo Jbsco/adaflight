@@ -166,6 +166,16 @@ SECTIONS
   } > ccm_da
   __ccmdata_words = (__ccmdata_end - __ccmdata_start) >> 2;
 
+  /* Zeroed data placed in the core coupled memory by its section name: the
+     menu's state and target, which the main RAM cannot hold. */
+  .ccmbss (NOLOAD) : {
+   . = ALIGN(0x8);
+   __ccmbss_start = .;
+   *(.bss.ccm .bss.ccm.*)
+   . = ALIGN(0x8);
+   __ccmbss_end = .;
+  } > ccm
+
   .bss (NOLOAD): {
    . = ALIGN(0x8);
    __bss_start = .;
