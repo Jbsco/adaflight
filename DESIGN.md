@@ -9916,3 +9916,20 @@ Two details differ from the reference. The device address goes into its field of
 register, where the reference ORs it into the register, so a second address request without a bus reset
 leaves bits of both addresses (DIVERGENCES.md). The incomplete isochronous interrupts, which no endpoint of
 the class raises, are cleared without the class callbacks the reference calls through null pointers.
+
+## D410. Setting names in pools (2026-10-26)
+
+The settings table keeps the setting names in one text, with a start and a length for each setting,
+and the value names in another, with each lookup table's first value index and a start and a length
+for each value. A name is a slice of its pool. The pools end with room for a longest name, and the
+value index tables run past the last value by a longest table, so every slice and every index stays
+within its bounds by the types alone, and the proof needs no fact about the tables' contents. The
+starts take sixteen bits and the lengths eight. `Name` and `Value_Name` now state that a name is at
+most the longest, 43 and 27 characters, which their callers get in place of the inlined literals.
+
+The generator wrote the two functions as case expressions over string literals, one alternative per
+setting and per value. Their code took 49102 bytes in the board image, and their 1293 literals and
+their bounds more outside the named symbols. The pools and their index tables take 21912 bytes, all
+of it read-only data, and the image dropped from 609936 bytes of text to 553112. The settings vectors
+check every setting and value name against the oracle's dump, and four tampers of the slices fail
+them.
