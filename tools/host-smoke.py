@@ -326,6 +326,8 @@ def main():
             cli(sock, "set craft_name = ADAHOST")
             text = cli(sock, "set osd_craft_name_pos = 2122")
             check("craft name element placed", "osd_craft_name_pos set to 2122" in text, text[-120:])
+            text = cli(sock, "set osd_rtc_date_time_pos = 2177")
+            check("clock element placed", "osd_rtc_date_time_pos set to 2177" in text, text[-120:])
             cli(sock, "save", wait=2.0)
             proc.wait(timeout=10)
             check("save restarts the image", proc.returncode == 0)
@@ -376,6 +378,15 @@ def main():
             check("flight log names the craft", b"H Craft name:ADAHOST\n" in data, repr([l for l in head if l.startswith(b"H Craft")]))
             check("flight log lists the fields", b"H Field I name:loopIteration,time,axisP[0]" in data, repr([l for l in head if l.startswith(b"H Field I name")][:1])[:120])
             check("flight log writes frames", len(data) > 4000 and b"\nI" in data[data.find(b"H Craft name:"):], f"{len(data)} bytes")
+            now = int(time.time())
+            ack = msp(sock, 246, now.to_bytes(4, "little") + (500).to_bytes(2, "little"))
+            check("MSP sets the clock", ack == b"", repr(ack))
+            clock = msp(sock, 247)
+            stamp = time.gmtime(now)
+            check("MSP clock reply holds the date",
+                  clock is not None and len(clock) == 9 and (clock[0] | clock[1] << 8) == stamp.tm_year
+                  and clock[2] == stamp.tm_mon and clock[3] == stamp.tm_mday and clock[4] == stamp.tm_hour
+                  and clock[5] == stamp.tm_min and stamp.tm_sec <= clock[6] <= stamp.tm_sec + 2, repr(clock))
             vcp = socket.create_connection(("127.0.0.1", VCP_PORT), timeout=1)
             vcp.settimeout(0.3)
             time.sleep(0.2)
@@ -398,6 +409,7 @@ def main():
             except OSError:
                 screen = ""
             check("OSD draws the craft name", "ADAHOST" in screen, repr(screen[:200]))
+            check("OSD draws the date", time.strftime("%Y-%m-%d", stamp) in screen, repr(screen[:200]))
             receiver.set(992, 1811, 992, 172)
             time.sleep(1.0)
             receiver.set(992, 992, 172, 992)
