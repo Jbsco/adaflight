@@ -2,12 +2,13 @@
 --  configuration assigns with the CRSF, SBUS, IBUS, SUMD, Spektrum, XBUS,
 --  FPORT, Ghost or Jeti EX Bus protocol over it, the receiver's channel
 --  processing, the failsafe's link state, and the CRSF telemetry sent back
---  on the port with its speed negotiation, on its two pins or, apart from
---  CRSF, on its transmit pin alone, which Ghost and EX Bus always take, and
---  the Ghost telemetry answered in the receiver's quiet window. The other
---  serial receiver protocols and the FPORT and EX Bus telemetry wait for
---  their drivers.
+--  on the port with its speed negotiation and the MSP requests answered, on
+--  its two pins or, apart from CRSF, on its transmit pin alone, which Ghost
+--  and EX Bus always take, and the Ghost telemetry answered in the
+--  receiver's quiet window. The other serial receiver protocols and the
+--  FPORT and EX Bus telemetry wait for their drivers.
 with Interfaces;
+with Adaflight.Bytes;
 with Adaflight.Config_Groups;
 with Adaflight.CRSF_Telemetry;
 with Adaflight.Failsafe;
@@ -19,8 +20,14 @@ package Adaflight.STM32.Radio is
    subtype Time_Ms is Interfaces.Unsigned_32;
    procedure Init (Config : Adaflight.Config_Groups.Configuration; Runtime_Features : Interfaces.Unsigned_32;
                    Now_Ms : Time_Ms; Telemetry : Adaflight.CRSF_Telemetry.Config);
-   --  One run of the telemetry task: the negotiation, then the frames due
-   --  from the sources, sent on the port.
+   --  One run of the telemetry task: the negotiation, then the next chunk of
+   --  a reply to the link's MSP requests, whose commands go through Process,
+   --  or else the frames due from the sources, sent on the port. Process
+   --  returns the reply's payload in Reply up to Length, and Failed for an
+   --  error verdict.
+   generic
+      with procedure Process (Command : Interfaces.Unsigned_16; Request : Adaflight.Bytes.Byte_Array;
+                              Reply : out Adaflight.Bytes.Byte_Array; Length : out Natural; Failed : out Boolean);
    procedure Telemetry_Step (Now_Us : Time_Us; Src : Adaflight.CRSF_Telemetry.Sources);
    --  The Ghost telemetry's schedule, with the telemetry feature on and a
    --  Ghost link open, and one run of it in the telemetry task: the next

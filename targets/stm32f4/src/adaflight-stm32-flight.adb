@@ -797,11 +797,10 @@ package body Adaflight.STM32.Flight is
    Firmware_Reboot       : constant := 0;
    ROM_Bootloader_Reboot : constant := 1;
 
-   --  One command frame through the processor, a requested write of the
-   --  configuration with its read back, then its reply framed and sent back
-   --  through the port it came in on, and a reboot in its mode.
-   procedure Answer (L : MSP_Line) is
-      Port           : Adaflight.MSP_Port.Port renames Lines (L).Port;
+   --  One command through the processor with its request, the effects it
+   --  asks for, and a requested write of the configuration with its read
+   --  back; the reply stays in the stream.
+   procedure Process_Command (Command : Unsigned_16; Request : Adaflight.Bytes.Byte_Array) is
       Unused_Success : Boolean;
       Asked          : Adaflight.Arming.Outputs;
    begin
@@ -821,11 +820,10 @@ package body Adaflight.STM32.Flight is
       Adaflight.STM32.VTX.Peripheral
         (Ctx.Out_Views.Peripheral.VTX_Device, Ctx.Out_Views.Peripheral.VTX_Pit_Mode,
          Ctx.Out_Views.Peripheral.VTX_Ready, Ctx.Out_Views.Peripheral.VTX_Type);
-      if Unsigned_16 (Port.Command_Id) = Adaflight.MSP_OSD_Out.OSD_Config_Command then
+      if Command = Adaflight.MSP_OSD_Out.OSD_Config_Command then
          Adaflight.STM32.OSD.Check_Ready (Config, Adaflight.STM32.Pilot.Armed, Ctx.Out_Views.OSD.Device_Ready);
       end if;
-      MSP.Process (Ctx, Config, Board, Links, Unsigned_16 (Port.Command_Id), Port.Data (0 .. Port.Data_Size - 1),
-                   Ports, Reply, Stream, Result, Effects);
+      MSP.Process (Ctx, Config, Board, Links, Command, Request, Ports, Reply, Stream, Result, Effects);
       if Effects.Runtime.Clock then
          Adaflight.STM32.RTC.Set_Ms (Effects.Runtime.Clock_Ms);
       end if;
@@ -866,9 +864,11 @@ package body Adaflight.STM32.Flight is
          Write_Configuration;
          Load_Configuration (Unused_Success);
       end if;
-      Adaflight.MSP_Port.Encode (Port.Version, Port.Command_Id, Port.Flags, Result = MSP.Error,
-                                 Reply (0 .. Stream.Next - 1), Frame, Frame_Length);
-      Adaflight.STM32.Serial.Put (Replies (L), Frame (0 .. Frame_Length - 1));
+   end Process_Command;
+
+   --  The reboot the processed command asked for, in its mode.
+   procedure Reboot_If_Asked is
+   begin
       if Effects.Reboot then
          case Effects.Control.Reboot_Mode is
             when Firmware_Reboot =>
@@ -879,6 +879,18 @@ package body Adaflight.STM32.Flight is
                null;
          end case;
       end if;
+   end Reboot_If_Asked;
+
+   --  One command frame through the processor, then its reply framed and
+   --  sent back through the port it came in on, and a reboot in its mode.
+   procedure Answer (L : MSP_Line) is
+      Port : Adaflight.MSP_Port.Port renames Lines (L).Port;
+   begin
+      Process_Command (Unsigned_16 (Port.Command_Id), Port.Data (0 .. Port.Data_Size - 1));
+      Adaflight.MSP_Port.Encode (Port.Version, Port.Command_Id, Port.Flags, Result = MSP.Error,
+                                 Reply (0 .. Stream.Next - 1), Frame, Frame_Length);
+      Adaflight.STM32.Serial.Put (Replies (L), Frame (0 .. Frame_Length - 1));
+      Reboot_If_Asked;
    end Answer;
 
    --  A port's bytes received since the last take, after the bytes waiting.
@@ -984,10 +996,11 @@ package body Adaflight.STM32.Flight is
                when Adaflight.FAT.Bad_Filesystem_Header => CLI.Bad_Header));
    end SD_Status;
 
-   --  The serial task: while the command line is open its port's bytes go to
-   --  it, otherwise each port's bytes go to its MSP framing. The status reply
-   --  reads the loop timing first.
-   procedure MSP_Serial (Evaluate_Other_Data : Boolean) is
+   --  What the MSP replies and the command line read, taken fresh: the
+   --  clock, the loop timing and load, the devices, the ESC readings, the
+   --  altitude estimate, the video transmitter's power levels, the storage,
+   --  the real-time clock, the OSD and the battery.
+   procedure Refresh_Views is
    begin
       Now_Ms := Adaflight.STM32.Time.Millis;
       Ctx.Out_Views.State.Status.PID_Delta_Us := Scheduler.Task_Delta_Time (Sched, Scheduler.PID);
@@ -1023,6 +1036,30 @@ package body Adaflight.STM32.Flight is
       Env.Status.OSD_Port := Adaflight.STM32.OSD.Port_Present;
       Adaflight.STM32.OSD.Dimensions (Env.Status.OSD_Columns, Env.Status.OSD_Rows);
       Report_Battery;
+   end Refresh_Views;
+
+   --  A request from the receiver link's MSP tunnel, processed as a serial
+   --  one, with the reboot it asks for before its reply goes out.
+   procedure Telemetry_Request (Command : Unsigned_16; Request : Adaflight.Bytes.Byte_Array;
+                                Answer_Bytes : out Adaflight.Bytes.Byte_Array; Length : out Natural;
+                                Failed : out Boolean) is
+   begin
+      Refresh_Views;
+      Process_Command (Command, Request);
+      Reboot_If_Asked;
+      Length := Natural'Min (Stream.Next, Answer_Bytes'Length);
+      Answer_Bytes (Answer_Bytes'First .. Answer_Bytes'First + Length - 1) := Reply (0 .. Length - 1);
+      Failed := Result = MSP.Error;
+   end Telemetry_Request;
+
+   procedure Telemetry_Step is new Adaflight.STM32.Radio.Telemetry_Step (Telemetry_Request);
+
+   --  The serial task: while the command line is open its port's bytes go to
+   --  it, otherwise each port's bytes go to its MSP framing. The status reply
+   --  reads the loop timing first.
+   procedure MSP_Serial (Evaluate_Other_Data : Boolean) is
+   begin
+      Refresh_Views;
       if Session.Open then
          Take_Line (CLI_Line);
          declare
@@ -3008,7 +3045,7 @@ package body Adaflight.STM32.Flight is
 
    procedure Run_Telemetry (Now_Us : Scheduler.Time_Us) is
    begin
-      Adaflight.STM32.Radio.Telemetry_Step (Now_Us, Telemetry_Sources);
+      Telemetry_Step (Now_Us, Telemetry_Sources);
    end Run_Telemetry;
 
    --  A task's body between the scheduler's execution prologue and
