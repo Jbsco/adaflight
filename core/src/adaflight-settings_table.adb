@@ -2,1486 +2,2372 @@ package body Adaflight.Settings_Table with SPARK_Mode is
 
    Infos : constant array (Setting) of Info :=
      (Gyro_Hardware_Lpf =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Gyro_Hardware_Lpf, Group => 10, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Gyro_Hardware_Lpf, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 10),
       Gyro_Lpf1_Type =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Gyro_Lpf_Type, Group => 10, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Gyro_Lpf_Type, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 10),
       Gyro_Lpf1_Static_Hz =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 1000, Group => 10, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 1000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 10),
       Gyro_Lpf2_Type =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Gyro_Lpf_Type, Group => 10, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Gyro_Lpf_Type, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 10),
       Gyro_Lpf2_Static_Hz =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 1000, Group => 10, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 1000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 10),
       Gyro_Notch1_Hz =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 1000, Group => 10, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 1000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 10),
       Gyro_Notch1_Cutoff =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 1000, Group => 10, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 1000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 10),
       Gyro_Notch2_Hz =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 1000, Group => 10, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 1000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 10),
       Gyro_Notch2_Cutoff =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 1000, Group => 10, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 1000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 10),
       Gyro_Calib_Duration =>
-        (Kind => U16, Where => Master, How => Direct, Min => 50, Max => 3000, Group => 10, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 50, Max => 3000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 10),
       Gyro_Calib_Noise_Limit =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 200, Group => 10, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 200, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 10),
       Gyro_Offset_Yaw =>
-        (Kind => I16, Where => Master, How => Direct, Min => -1000, Max => 1000, Group => 10, others => <>),
+        (Kind => I16, Where => Master, How => Direct, Min => -1000, Max => 1000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 10),
       Gyro_Overflow_Detect =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Gyro_Overflow_Check, Group => 10, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Gyro_Overflow_Check, Count =>
+         0, Min_Length => 0, Write_Once => False, Group => 10),
       Yaw_Spin_Recovery =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On_Auto, Group => 10, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On_Auto, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 10),
       Yaw_Spin_Threshold =>
-        (Kind => U16, Where => Master, How => Direct, Min => 500, Max => 1950, Group => 10, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 500, Max => 1950, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 10),
       Dyn_Notch_Count =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 7, Group => 554, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 7, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 554),
       Dyn_Notch_Q =>
-        (Kind => U16, Where => Master, How => Direct, Min => 1, Max => 1000, Group => 554, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 1, Max => 1000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 554),
       Dyn_Notch_Min_Hz =>
-        (Kind => U16, Where => Master, How => Direct, Min => 20, Max => 250, Group => 554, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 20, Max => 250, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 554),
       Dyn_Notch_Max_Hz =>
-        (Kind => U16, Where => Master, How => Direct, Min => 200, Max => 1000, Group => 554, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 200, Max => 1000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 554),
       Gyro_Lpf1_Dyn_Min_Hz =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 1000, Group => 10, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 1000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 10),
       Gyro_Lpf1_Dyn_Max_Hz =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 1000, Group => 10, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 1000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 10),
       Gyro_Lpf1_Dyn_Expo =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 10, Group => 10, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 10, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 10),
       Gyro_Filter_Debug_Axis =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Gyro_Filter_Debug, Group => 10, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Gyro_Filter_Debug, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 10),
       Acc_Hardware =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Acc_Hardware, Group => 35, others => <>),
-      Acc_Lpf_Hz => (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 500, Group => 35, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Acc_Hardware, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 35),
+      Acc_Lpf_Hz =>
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 500, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 35),
       Acc_Trim_Pitch =>
-        (Kind => I16, Where => Master, How => Direct, Min => -300, Max => 300, Group => 35, others => <>),
+        (Kind => I16, Where => Master, How => Direct, Min => -300, Max => 300, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 35),
       Acc_Trim_Roll =>
-        (Kind => I16, Where => Master, How => Direct, Min => -300, Max => 300, Group => 35, others => <>),
-      Acc_Calibration => (Kind => I16, Where => Master, How => List, Count => 4, Group => 35, others => <>),
+        (Kind => I16, Where => Master, How => Direct, Min => -300, Max => 300, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 35),
+      Acc_Calibration =>
+        (Kind => I16, Where => Master, How => List, Min => 0, Max => 0, Table => Table_Off_On, Count => 4, Min_Length
+         => 0, Write_Once => False, Group => 35),
       Align_Mag =>
-        (Kind => U8, Where => Hardware, How => Lookup, Table => Table_Alignment, Group => 40, others => <>),
+        (Kind => U8, Where => Hardware, How => Lookup, Min => 0, Max => 0, Table => Table_Alignment, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 40),
       Mag_Align_Roll =>
-        (Kind => I16, Where => Hardware, How => Direct, Min => -3600, Max => 3600, Group => 40, others => <>),
+        (Kind => I16, Where => Hardware, How => Direct, Min => -3600, Max => 3600, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 40),
       Mag_Align_Pitch =>
-        (Kind => I16, Where => Hardware, How => Direct, Min => -3600, Max => 3600, Group => 40, others => <>),
+        (Kind => I16, Where => Hardware, How => Direct, Min => -3600, Max => 3600, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 40),
       Mag_Align_Yaw =>
-        (Kind => I16, Where => Hardware, How => Direct, Min => -3600, Max => 3600, Group => 40, others => <>),
+        (Kind => I16, Where => Hardware, How => Direct, Min => -3600, Max => 3600, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 40),
       Mag_Bustype =>
-        (Kind => U8, Where => Hardware, How => Lookup, Table => Table_Bus_Type, Group => 40, others => <>),
+        (Kind => U8, Where => Hardware, How => Lookup, Min => 0, Max => 0, Table => Table_Bus_Type, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 40),
       Mag_I2c_Device =>
-        (Kind => U8, Where => Hardware, How => Direct, Min => 0, Max => 3, Group => 40, others => <>),
+        (Kind => U8, Where => Hardware, How => Direct, Min => 0, Max => 3, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 40),
       Mag_I2c_Address =>
-        (Kind => U8, Where => Hardware, How => Direct, Min => 0, Max => 119, Group => 40, others => <>),
+        (Kind => U8, Where => Hardware, How => Direct, Min => 0, Max => 119, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 40),
       Mag_Spi_Device =>
-        (Kind => U8, Where => Hardware, How => Direct, Min => 0, Max => 3, Group => 40, others => <>),
+        (Kind => U8, Where => Hardware, How => Direct, Min => 0, Max => 3, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 40),
       Mag_Hardware =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Mag_Hardware, Group => 40, others => <>),
-      Mag_Calibration => (Kind => I16, Where => Master, How => List, Count => 3, Group => 40, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Mag_Hardware, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 40),
+      Mag_Calibration =>
+        (Kind => I16, Where => Master, How => List, Min => 0, Max => 0, Table => Table_Off_On, Count => 3, Min_Length
+         => 0, Write_Once => False, Group => 40),
       Baro_Bustype =>
-        (Kind => U8, Where => Hardware, How => Lookup, Table => Table_Bus_Type, Group => 38, others => <>),
+        (Kind => U8, Where => Hardware, How => Lookup, Min => 0, Max => 0, Table => Table_Bus_Type, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 38),
       Baro_Spi_Device =>
-        (Kind => U8, Where => Hardware, How => Direct, Min => 0, Max => 5, Group => 38, others => <>),
+        (Kind => U8, Where => Hardware, How => Direct, Min => 0, Max => 5, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 38),
       Baro_I2c_Device =>
-        (Kind => U8, Where => Hardware, How => Direct, Min => 0, Max => 5, Group => 38, others => <>),
+        (Kind => U8, Where => Hardware, How => Direct, Min => 0, Max => 5, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 38),
       Baro_I2c_Address =>
-        (Kind => U8, Where => Hardware, How => Direct, Min => 0, Max => 119, Group => 38, others => <>),
+        (Kind => U8, Where => Hardware, How => Direct, Min => 0, Max => 119, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 38),
       Baro_Hardware =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Baro_Hardware, Group => 38, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Baro_Hardware, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 38),
       Baro_Drift =>
-        (Kind => I16, Where => Master, How => Direct, Min => -500, Max => 500, Group => 38, others => <>),
+        (Kind => I16, Where => Master, How => Direct, Min => -500, Max => 500, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 38),
       Pitot_Bustype =>
-        (Kind => U8, Where => Hardware, How => Lookup, Table => Table_Bus_Type, Group => 569, others => <>),
+        (Kind => U8, Where => Hardware, How => Lookup, Min => 0, Max => 0, Table => Table_Bus_Type, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 569),
       Pitot_I2c_Device =>
-        (Kind => U8, Where => Hardware, How => Direct, Min => 0, Max => 5, Group => 569, others => <>),
+        (Kind => U8, Where => Hardware, How => Direct, Min => 0, Max => 5, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 569),
       Pitot_I2c_Address =>
-        (Kind => U8, Where => Hardware, How => Direct, Min => 0, Max => 119, Group => 569, others => <>),
+        (Kind => U8, Where => Hardware, How => Direct, Min => 0, Max => 119, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 569),
       Pitot_Hardware =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Pitot_Hardware, Group => 569, others => <>),
-      Mid_Rc => (Kind => U16, Where => Master, How => Direct, Min => 1200, Max => 1700, Group => 24, others => <>),
-      Min_Check => (Kind => U16, Where => Master, How => Direct, Min => 750, Max => 2250, Group => 24, others => <>),
-      Max_Check => (Kind => U16, Where => Master, How => Direct, Min => 750, Max => 2250, Group => 24, others => <>),
-      Rssi_Channel => (Kind => I8, Where => Master, How => Direct, Min => 0, Max => 18, Group => 24, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Pitot_Hardware, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 569),
+      Mid_Rc =>
+        (Kind => U16, Where => Master, How => Direct, Min => 1200, Max => 1700, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 24),
+      Min_Check =>
+        (Kind => U16, Where => Master, How => Direct, Min => 750, Max => 2250, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 24),
+      Max_Check =>
+        (Kind => U16, Where => Master, How => Direct, Min => 750, Max => 2250, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 24),
+      Rssi_Channel =>
+        (Kind => I8, Where => Master, How => Direct, Min => 0, Max => 18, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 24),
       Rssi_Src_Frame_Errors =>
-        (Kind => I8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 24, others => <>),
-      Rssi_Scale => (Kind => U8, Where => Master, How => Direct, Min => 1, Max => 255, Group => 24, others => <>),
+        (Kind => I8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 24),
+      Rssi_Scale =>
+        (Kind => U8, Where => Master, How => Direct, Min => 1, Max => 255, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 24),
       Rssi_Offset =>
-        (Kind => I8, Where => Master, How => Direct, Min => -100, Max => 100, Group => 24, others => <>),
-      Rssi_Invert => (Kind => I8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 24, others => <>),
+        (Kind => I8, Where => Master, How => Direct, Min => -100, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 24),
+      Rssi_Invert =>
+        (Kind => I8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 24),
       Rssi_Src_Frame_Lpf_Period =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 255, Group => 24, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 255, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 24),
       Rssi_Smoothing =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 255, Group => 24, others => <>),
-      Rc_Smoothing => (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 24, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 255, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 24),
+      Rc_Smoothing =>
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 24),
       Rc_Smoothing_Auto_Factor =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 250, Group => 24, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 250, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 24),
       Rc_Smoothing_Auto_Factor_Throttle =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 250, Group => 24, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 250, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 24),
       Rc_Smoothing_Setpoint_Cutoff =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 255, Group => 24, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 255, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 24),
       Rc_Smoothing_Throttle_Cutoff =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 255, Group => 24, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 255, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 24),
       Rc_Smoothing_Debug_Axis =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Rc_Smoothing_Debug, Group => 24, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Rc_Smoothing_Debug, Count =>
+         0, Min_Length => 0, Write_Once => False, Group => 24),
       Fpv_Mix_Degrees =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 90, Group => 24, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 90, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 24),
       Max_Aux_Channels =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 14, Group => 24, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 14, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 24),
       Serialrx_Provider =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Serial_Rx, Group => 24, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Serial_Rx, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 24),
       Serialrx_Inverted =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 24, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 24),
       Spektrum_Sat_Bind =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 10, Group => 24, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 10, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 24),
       Spektrum_Sat_Bind_Autoreset =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 24, others => <>),
-      Srxl2_Unit_Id => (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 15, Group => 24, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 24),
+      Srxl2_Unit_Id =>
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 15, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 24),
       Srxl2_Baud_Fast =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 24, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 24),
       Sbus_Baud_Fast =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 24, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 24),
       Crsf_Use_Negotiated_Baud =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 24, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 24),
       Airmode_Start_Throttle_Percent =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 100, Group => 24, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 24),
       Rx_Min_Usec =>
-        (Kind => U16, Where => Master, How => Direct, Min => 750, Max => 2250, Group => 24, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 750, Max => 2250, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 24),
       Rx_Max_Usec =>
-        (Kind => U16, Where => Master, How => Direct, Min => 750, Max => 2250, Group => 24, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 750, Max => 2250, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 24),
       Serialrx_Halfduplex =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 24, others => <>),
-      Rx_Uart => (Kind => I8, Where => Master, How => Identifier, Count => 0, Group => 24, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 24),
+      Rx_Uart =>
+        (Kind => I8, Where => Master, How => Identifier, Min => 0, Max => 0, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 24),
       Msp_Override_Channels_Mask =>
-        (Kind => U32, Where => Master, How => Direct, Min => 0, Max => 262143, Group => 24, others => <>),
+        (Kind => U32, Where => Master, How => Direct, Min => 0, Max => 262143, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 24),
       Msp_Override_Failsafe =>
-        (Kind => U8, Where => Hardware, How => Lookup, Table => Table_Off_On, Group => 24, others => <>),
+        (Kind => U8, Where => Hardware, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 24),
       Rx_Spi_Protocol =>
-        (Kind => U8, Where => Hardware, How => Lookup, Table => Table_Rx_Spi, Group => 537, others => <>),
-      Rx_Spi_Bus => (Kind => U8, Where => Hardware, How => Direct, Min => 0, Max => 3, Group => 537, others => <>),
+        (Kind => U8, Where => Hardware, How => Lookup, Min => 0, Max => 0, Table => Table_Rx_Spi, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 537),
+      Rx_Spi_Bus =>
+        (Kind => U8, Where => Hardware, How => Direct, Min => 0, Max => 3, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 537),
       Rx_Spi_Led_Inversion =>
-        (Kind => U8, Where => Hardware, How => Lookup, Table => Table_Off_On, Group => 537, others => <>),
-      Adc_Device => (Kind => I8, Where => Hardware, How => Direct, Min => 0, Max => 1, Group => 510, others => <>),
+        (Kind => U8, Where => Hardware, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 537),
+      Adc_Device =>
+        (Kind => I8, Where => Hardware, How => Direct, Min => 0, Max => 1, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 510),
       Adc_Vrefint_Calibration =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 2000, Group => 510, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 2000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 510),
       Adc_Tempsensor_Calibration30 =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 2000, Group => 510, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 2000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 510),
       Adc_Tempsensor_Calibration110 =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 2000, Group => 510, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 2000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 510),
       Input_Filtering_Mode =>
-        (Kind => I8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 508, others => <>),
+        (Kind => I8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 508),
       Blackbox_Sample_Rate =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Blackbox_Sample_Rate, Group => 5, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Blackbox_Sample_Rate, Count =>
+         0, Min_Length => 0, Write_Once => False, Group => 5),
       Blackbox_Device =>
-        (Kind => U8, Where => Hardware, How => Lookup, Table => Table_Blackbox_Device, Group => 5, others => <>),
-      Blackbox_Disable_Pids => (Kind => U32, Where => Master, How => Bitset, Count => 0, Group => 5, others => <>),
-      Blackbox_Disable_Rc => (Kind => U32, Where => Master, How => Bitset, Count => 1, Group => 5, others => <>),
+        (Kind => U8, Where => Hardware, How => Lookup, Min => 0, Max => 0, Table => Table_Blackbox_Device, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 5),
+      Blackbox_Disable_Pids =>
+        (Kind => U32, Where => Master, How => Bitset, Min => 0, Max => 0, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 5),
+      Blackbox_Disable_Rc =>
+        (Kind => U32, Where => Master, How => Bitset, Min => 0, Max => 0, Table => Table_Off_On, Count => 1,
+         Min_Length => 0, Write_Once => False, Group => 5),
       Blackbox_Disable_Setpoint =>
-        (Kind => U32, Where => Master, How => Bitset, Count => 2, Group => 5, others => <>),
-      Blackbox_Disable_Bat => (Kind => U32, Where => Master, How => Bitset, Count => 3, Group => 5, others => <>),
-      Blackbox_Disable_Mag => (Kind => U32, Where => Master, How => Bitset, Count => 4, Group => 5, others => <>),
-      Blackbox_Disable_Alt => (Kind => U32, Where => Master, How => Bitset, Count => 5, Group => 5, others => <>),
-      Blackbox_Disable_Rssi => (Kind => U32, Where => Master, How => Bitset, Count => 6, Group => 5, others => <>),
-      Blackbox_Disable_Gyro => (Kind => U32, Where => Master, How => Bitset, Count => 7, Group => 5, others => <>),
+        (Kind => U32, Where => Master, How => Bitset, Min => 0, Max => 0, Table => Table_Off_On, Count => 2,
+         Min_Length => 0, Write_Once => False, Group => 5),
+      Blackbox_Disable_Bat =>
+        (Kind => U32, Where => Master, How => Bitset, Min => 0, Max => 0, Table => Table_Off_On, Count => 3,
+         Min_Length => 0, Write_Once => False, Group => 5),
+      Blackbox_Disable_Mag =>
+        (Kind => U32, Where => Master, How => Bitset, Min => 0, Max => 0, Table => Table_Off_On, Count => 4,
+         Min_Length => 0, Write_Once => False, Group => 5),
+      Blackbox_Disable_Alt =>
+        (Kind => U32, Where => Master, How => Bitset, Min => 0, Max => 0, Table => Table_Off_On, Count => 5,
+         Min_Length => 0, Write_Once => False, Group => 5),
+      Blackbox_Disable_Rssi =>
+        (Kind => U32, Where => Master, How => Bitset, Min => 0, Max => 0, Table => Table_Off_On, Count => 6,
+         Min_Length => 0, Write_Once => False, Group => 5),
+      Blackbox_Disable_Gyro =>
+        (Kind => U32, Where => Master, How => Bitset, Min => 0, Max => 0, Table => Table_Off_On, Count => 7,
+         Min_Length => 0, Write_Once => False, Group => 5),
       Blackbox_Disable_Gyrounfilt =>
-        (Kind => U32, Where => Master, How => Bitset, Count => 14, Group => 5, others => <>),
-      Blackbox_Disable_Acc => (Kind => U32, Where => Master, How => Bitset, Count => 9, Group => 5, others => <>),
+        (Kind => U32, Where => Master, How => Bitset, Min => 0, Max => 0, Table => Table_Off_On, Count => 14,
+         Min_Length => 0, Write_Once => False, Group => 5),
+      Blackbox_Disable_Acc =>
+        (Kind => U32, Where => Master, How => Bitset, Min => 0, Max => 0, Table => Table_Off_On, Count => 9,
+         Min_Length => 0, Write_Once => False, Group => 5),
       Blackbox_Disable_Attitude =>
-        (Kind => U32, Where => Master, How => Bitset, Count => 8, Group => 5, others => <>),
-      Blackbox_Disable_Debug => (Kind => U32, Where => Master, How => Bitset, Count => 10, Group => 5, others => <>),
+        (Kind => U32, Where => Master, How => Bitset, Min => 0, Max => 0, Table => Table_Off_On, Count => 8,
+         Min_Length => 0, Write_Once => False, Group => 5),
+      Blackbox_Disable_Debug =>
+        (Kind => U32, Where => Master, How => Bitset, Min => 0, Max => 0, Table => Table_Off_On, Count => 10,
+         Min_Length => 0, Write_Once => False, Group => 5),
       Blackbox_Disable_Motors =>
-        (Kind => U32, Where => Master, How => Bitset, Count => 11, Group => 5, others => <>),
+        (Kind => U32, Where => Master, How => Bitset, Min => 0, Max => 0, Table => Table_Off_On, Count => 11,
+         Min_Length => 0, Write_Once => False, Group => 5),
       Blackbox_Disable_Servos =>
-        (Kind => U32, Where => Master, How => Bitset, Count => 15, Group => 5, others => <>),
-      Blackbox_Disable_Rpm => (Kind => U32, Where => Master, How => Bitset, Count => 13, Group => 5, others => <>),
-      Blackbox_Disable_Gps => (Kind => U32, Where => Master, How => Bitset, Count => 12, Group => 5, others => <>),
-      Blackbox_Disable_Pitot => (Kind => U32, Where => Master, How => Bitset, Count => 16, Group => 5, others => <>),
+        (Kind => U32, Where => Master, How => Bitset, Min => 0, Max => 0, Table => Table_Off_On, Count => 15,
+         Min_Length => 0, Write_Once => False, Group => 5),
+      Blackbox_Disable_Rpm =>
+        (Kind => U32, Where => Master, How => Bitset, Min => 0, Max => 0, Table => Table_Off_On, Count => 13,
+         Min_Length => 0, Write_Once => False, Group => 5),
+      Blackbox_Disable_Gps =>
+        (Kind => U32, Where => Master, How => Bitset, Min => 0, Max => 0, Table => Table_Off_On, Count => 12,
+         Min_Length => 0, Write_Once => False, Group => 5),
+      Blackbox_Disable_Pitot =>
+        (Kind => U32, Where => Master, How => Bitset, Min => 0, Max => 0, Table => Table_Off_On, Count => 16,
+         Min_Length => 0, Write_Once => False, Group => 5),
       Blackbox_Mode =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Blackbox_Mode, Group => 5, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Blackbox_Mode, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 5),
       Blackbox_High_Resolution =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 5, others => <>),
-      Blackbox_Uart => (Kind => I8, Where => Master, How => Identifier, Count => 0, Group => 5, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 5),
+      Blackbox_Uart =>
+        (Kind => I8, Where => Master, How => Identifier, Min => 0, Max => 0, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 5),
       Blackbox_Baud =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Baud_Rate, Group => 5, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Baud_Rate, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 5),
       Max_Throttle =>
-        (Kind => U16, Where => Master, How => Direct, Min => 750, Max => 2250, Group => 6, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 750, Max => 2250, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 6),
       Min_Command =>
-        (Kind => U16, Where => Master, How => Direct, Min => 750, Max => 2250, Group => 6, others => <>),
-      Motor_Kv => (Kind => U16, Where => Hardware, How => Direct, Min => 1, Max => 40000, Group => 6, others => <>),
-      Motor_Idle => (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 2000, Group => 6, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 750, Max => 2250, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 6),
+      Motor_Kv =>
+        (Kind => U16, Where => Hardware, How => Direct, Min => 1, Max => 40000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 6),
+      Motor_Idle =>
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 2000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 6),
       Dshot_Burst =>
-        (Kind => U8, Where => Hardware, How => Lookup, Table => Table_Off_On_Auto, Group => 6, others => <>),
-      Dshot_Bidir => (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 6, others => <>),
-      Dshot_Edt => (Kind => U8, Where => Master, How => Lookup, Table => Table_Dshot_Edt, Group => 6, others => <>),
+        (Kind => U8, Where => Hardware, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On_Auto, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 6),
+      Dshot_Bidir =>
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 6),
+      Dshot_Edt =>
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Dshot_Edt, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 6),
       Dshot_Bitbang =>
-        (Kind => U8, Where => Hardware, How => Lookup, Table => Table_Off_On_Auto, Group => 6, others => <>),
+        (Kind => U8, Where => Hardware, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On_Auto, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 6),
       Dshot_Bitbang_Timer =>
-        (Kind => U8, Where => Hardware, How => Lookup, Table => Table_Dshot_Bitbanged_Timer, Group => 6, others => <>),
+        (Kind => U8, Where => Hardware, How => Lookup, Min => 0, Max => 0, Table => Table_Dshot_Bitbanged_Timer, Count
+         => 0, Min_Length => 0, Write_Once => False, Group => 6),
       Use_Unsynced_Pwm =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 6, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 6),
       Motor_Pwm_Protocol =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Motor_Pwm_Protocol, Group => 6, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Motor_Pwm_Protocol, Count =>
+         0, Min_Length => 0, Write_Once => False, Group => 6),
       Motor_Pwm_Rate =>
-        (Kind => U16, Where => Master, How => Direct, Min => 200, Max => 32000, Group => 6, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 200, Max => 32000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 6),
       Motor_Pwm_Inversion =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 6, others => <>),
-      Motor_Poles => (Kind => U8, Where => Master, How => Direct, Min => 4, Max => 255, Group => 6, others => <>),
-      Motor_Output_Reordering => (Kind => U8, Where => Master, How => List, Count => 8, Group => 6, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 6),
+      Motor_Poles =>
+        (Kind => U8, Where => Master, How => Direct, Min => 4, Max => 255, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 6),
+      Motor_Output_Reordering =>
+        (Kind => U8, Where => Master, How => List, Min => 0, Max => 0, Table => Table_Off_On, Count => 8, Min_Length
+         => 0, Write_Once => False, Group => 6),
       Thr_Corr_Value =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 150, Group => 39, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 150, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 39),
       Thr_Corr_Angle =>
-        (Kind => U16, Where => Master, How => Direct, Min => 1, Max => 900, Group => 39, others => <>),
-      Failsafe_Delay => (Kind => U8, Where => Master, How => Direct, Min => 1, Max => 200, Group => 1, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 1, Max => 900, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 39),
+      Failsafe_Delay =>
+        (Kind => U8, Where => Master, How => Direct, Min => 1, Max => 200, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 1),
       Failsafe_Landing_Time =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 250, Group => 1, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 250, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 1),
       Failsafe_Throttle =>
-        (Kind => U16, Where => Master, How => Direct, Min => 750, Max => 2250, Group => 1, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 750, Max => 2250, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 1),
       Failsafe_Switch_Mode =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Failsafe_Switch_Mode, Group => 1, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Failsafe_Switch_Mode, Count =>
+         0, Min_Length => 0, Write_Once => False, Group => 1),
       Failsafe_Throttle_Low_Delay =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 300, Group => 1, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 300, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 1),
       Failsafe_Procedure =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Failsafe, Group => 1, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Failsafe, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 1),
       Failsafe_Recovery_Delay =>
-        (Kind => U16, Where => Master, How => Direct, Min => 1, Max => 200, Group => 1, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 1, Max => 200, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 1),
       Failsafe_Stick_Threshold =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 50, Group => 1, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 50, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 1),
       Align_Board_Roll =>
-        (Kind => I16, Where => Master, How => Direct, Min => -180, Max => 360, Group => 2, others => <>),
+        (Kind => I16, Where => Master, How => Direct, Min => -180, Max => 360, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2),
       Align_Board_Pitch =>
-        (Kind => I16, Where => Master, How => Direct, Min => -180, Max => 360, Group => 2, others => <>),
+        (Kind => I16, Where => Master, How => Direct, Min => -180, Max => 360, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2),
       Align_Board_Yaw =>
-        (Kind => I16, Where => Master, How => Direct, Min => -180, Max => 360, Group => 2, others => <>),
+        (Kind => I16, Where => Master, How => Direct, Min => -180, Max => 360, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2),
       Gimbal_Mode =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Gimbal_Mode, Group => 3, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Gimbal_Mode, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 3),
       Battery_Profile_Name =>
-        (Kind => U8, Where => Battery_Profile, How => Text, Min_Length => 1, Count => 8, Write_Once => False, Group =>
-         561, others => <>),
+        (Kind => U8, Where => Battery_Profile, How => Text, Min => 0, Max => 0, Table => Table_Off_On, Count => 8,
+         Min_Length => 1, Write_Once => False, Group => 561),
       Bat_Capacity =>
-        (Kind => U16, Where => Battery_Profile, How => Direct, Min => 0, Max => 20000, Group => 561, others => <>),
+        (Kind => U16, Where => Battery_Profile, How => Direct, Min => 0, Max => 20000, Table => Table_Off_On, Count =>
+         0, Min_Length => 0, Write_Once => False, Group => 561),
       Vbat_Max_Cell_Voltage =>
-        (Kind => U16, Where => Battery_Profile, How => Direct, Min => 100, Max => 500, Group => 561, others => <>),
+        (Kind => U16, Where => Battery_Profile, How => Direct, Min => 100, Max => 500, Table => Table_Off_On, Count =>
+         0, Min_Length => 0, Write_Once => False, Group => 561),
       Vbat_Full_Cell_Voltage =>
-        (Kind => U16, Where => Battery_Profile, How => Direct, Min => 100, Max => 500, Group => 561, others => <>),
+        (Kind => U16, Where => Battery_Profile, How => Direct, Min => 100, Max => 500, Table => Table_Off_On, Count =>
+         0, Min_Length => 0, Write_Once => False, Group => 561),
       Vbat_Min_Cell_Voltage =>
-        (Kind => U16, Where => Battery_Profile, How => Direct, Min => 100, Max => 500, Group => 561, others => <>),
+        (Kind => U16, Where => Battery_Profile, How => Direct, Min => 100, Max => 500, Table => Table_Off_On, Count =>
+         0, Min_Length => 0, Write_Once => False, Group => 561),
       Vbat_Warning_Cell_Voltage =>
-        (Kind => U16, Where => Battery_Profile, How => Direct, Min => 100, Max => 500, Group => 561, others => <>),
+        (Kind => U16, Where => Battery_Profile, How => Direct, Min => 100, Max => 500, Table => Table_Off_On, Count =>
+         0, Min_Length => 0, Write_Once => False, Group => 561),
       Cbat_Alert_Percent =>
-        (Kind => U8, Where => Battery_Profile, How => Direct, Min => 0, Max => 100, Group => 561, others => <>),
+        (Kind => U8, Where => Battery_Profile, How => Direct, Min => 0, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 561),
       Force_Battery_Cell_Count =>
-        (Kind => U8, Where => Battery_Profile, How => Direct, Min => 0, Max => 24, Group => 561, others => <>),
+        (Kind => U8, Where => Battery_Profile, How => Direct, Min => 0, Max => 24, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 561),
       Vbat_Hysteresis =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 250, Group => 11, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 250, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 11),
       Current_Meter =>
-        (Kind => U8, Where => Hardware, How => Lookup, Table => Table_Current_Meter, Group => 11, others => <>),
+        (Kind => U8, Where => Hardware, How => Lookup, Min => 0, Max => 0, Table => Table_Current_Meter, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 11),
       Battery_Meter =>
-        (Kind => U8, Where => Hardware, How => Lookup, Table => Table_Voltage_Meter, Group => 11, others => <>),
+        (Kind => U8, Where => Hardware, How => Lookup, Min => 0, Max => 0, Table => Table_Voltage_Meter, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 11),
       Vbat_Detect_Cell_Voltage =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 2000, Group => 11, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 2000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 11),
       Use_Vbat_Alerts =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 11, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 11),
       Use_Cbat_Alerts =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 11, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 11),
       Vbat_Cutoff_Percent =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 100, Group => 11, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 11),
       Vbat_Display_Lpf_Period =>
-        (Kind => U8, Where => Master, How => Direct, Min => 1, Max => 255, Group => 11, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 1, Max => 255, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 11),
       Vbat_Sag_Lpf_Period =>
-        (Kind => U8, Where => Master, How => Direct, Min => 1, Max => 255, Group => 11, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 1, Max => 255, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 11),
       Ibat_Lpf_Period =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 255, Group => 11, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 255, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 11),
       Vbat_Duration_For_Warning =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 150, Group => 11, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 150, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 11),
       Vbat_Duration_For_Critical =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 150, Group => 11, others => <>),
-      Vbat_Scale => (Kind => U8, Where => Hardware, How => Direct, Min => 0, Max => 255, Group => 258, others => <>),
-      Vbat_Divider => (Kind => U8, Where => Master, How => Direct, Min => 1, Max => 255, Group => 258, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 150, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 11),
+      Vbat_Scale =>
+        (Kind => U8, Where => Hardware, How => Direct, Min => 0, Max => 255, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 258),
+      Vbat_Divider =>
+        (Kind => U8, Where => Master, How => Direct, Min => 1, Max => 255, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 258),
       Vbat_Multiplier =>
-        (Kind => U8, Where => Master, How => Direct, Min => 1, Max => 255, Group => 258, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 1, Max => 255, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 258),
       Ibata_Scale =>
-        (Kind => I16, Where => Hardware, How => Direct, Min => -16000, Max => 16000, Group => 256, others => <>),
+        (Kind => I16, Where => Hardware, How => Direct, Min => -16000, Max => 16000, Table => Table_Off_On, Count =>
+         0, Min_Length => 0, Write_Once => False, Group => 256),
       Ibata_Offset =>
-        (Kind => I16, Where => Master, How => Direct, Min => -32000, Max => 32000, Group => 256, others => <>),
+        (Kind => I16, Where => Master, How => Direct, Min => -32000, Max => 32000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 256),
       Ibatv_Scale =>
-        (Kind => I16, Where => Master, How => Direct, Min => -16000, Max => 16000, Group => 257, others => <>),
+        (Kind => I16, Where => Master, How => Direct, Min => -16000, Max => 16000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 257),
       Ibatv_Offset =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 16000, Group => 257, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 16000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 257),
       Battery_Continue =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 11, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 11),
       Beeper_Inversion =>
-        (Kind => U8, Where => Hardware, How => Lookup, Table => Table_Off_On, Group => 503, others => <>),
-      Beeper_Od => (Kind => U8, Where => Hardware, How => Lookup, Table => Table_Off_On, Group => 503, others => <>),
+        (Kind => U8, Where => Hardware, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 503),
+      Beeper_Od =>
+        (Kind => U8, Where => Hardware, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 503),
       Beeper_Frequency =>
-        (Kind => I16, Where => Hardware, How => Direct, Min => 0, Max => 16000, Group => 503, others => <>),
+        (Kind => I16, Where => Hardware, How => Direct, Min => 0, Max => 16000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 503),
       Beeper_Dshot_Beacon_Tone =>
-        (Kind => U8, Where => Master, How => Direct, Min => 1, Max => 5, Group => 502, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 1, Max => 5, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 502),
       Yaw_Motors_Reversed =>
-        (Kind => I8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 20, others => <>),
+        (Kind => I8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 20),
       Mixer_Type =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Mixer_Type, Group => 20, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Mixer_Type, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 20),
       Crashflip_Motor_Percent =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 100, Group => 20, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 20),
       Crashflip_Rate =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 250, Group => 20, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 250, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 20),
       Crashflip_Auto_Rearm =>
-        (Kind => I8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 20, others => <>),
-      Rpm_Limit => (Kind => I8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 20, others => <>),
-      Rpm_Limit_P => (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 100, Group => 20, others => <>),
-      Rpm_Limit_I => (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 1000, Group => 20, others => <>),
-      Rpm_Limit_D => (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 100, Group => 20, others => <>),
+        (Kind => I8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 20),
+      Rpm_Limit =>
+        (Kind => I8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 20),
+      Rpm_Limit_P =>
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 20),
+      Rpm_Limit_I =>
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 1000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 20),
+      Rpm_Limit_D =>
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 20),
       Rpm_Limit_Value =>
-        (Kind => U16, Where => Master, How => Direct, Min => 1, Max => 65535, Group => 20, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 1, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 20),
       Three_D_Deadband_Low =>
-        (Kind => U16, Where => Master, How => Direct, Min => 750, Max => 1500, Group => 26, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 750, Max => 1500, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 26),
       Three_D_Deadband_High =>
-        (Kind => U16, Where => Master, How => Direct, Min => 1500, Max => 2250, Group => 26, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 1500, Max => 2250, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 26),
       Three_D_Neutral =>
-        (Kind => U16, Where => Master, How => Direct, Min => 750, Max => 2250, Group => 26, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 750, Max => 2250, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 26),
       Three_D_Deadband_Throttle =>
-        (Kind => U16, Where => Master, How => Direct, Min => 1, Max => 100, Group => 26, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 1, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 26),
       Three_D_Limit_Low =>
-        (Kind => U16, Where => Master, How => Direct, Min => 750, Max => 1500, Group => 26, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 750, Max => 1500, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 26),
       Three_D_Limit_High =>
-        (Kind => U16, Where => Master, How => Direct, Min => 1500, Max => 2250, Group => 26, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 1500, Max => 2250, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 26),
       Three_D_Switched_Mode =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 26, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 26),
       Servo_Center_Pulse =>
-        (Kind => U16, Where => Master, How => Direct, Min => 750, Max => 2250, Group => 52, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 750, Max => 2250, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 52),
       Servo_Pwm_Rate =>
-        (Kind => U16, Where => Master, How => Direct, Min => 50, Max => 498, Group => 52, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 50, Max => 498, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 52),
       Servo_Lowpass_Hz =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 400, Group => 52, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 400, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 52),
       Tri_Unarmed_Servo =>
-        (Kind => I8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 52, others => <>),
+        (Kind => I8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 52),
       Channel_Forwarding_Start =>
-        (Kind => U8, Where => Master, How => Direct, Min => 4, Max => 18, Group => 52, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 4, Max => 18, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 52),
       Rateprofile_Name =>
-        (Kind => U8, Where => Rate_Profile, How => Text, Min_Length => 1, Count => 8, Write_Once => False, Group =>
-         12, others => <>),
-      Thr_Mid => (Kind => U8, Where => Rate_Profile, How => Direct, Min => 0, Max => 100, Group => 12, others => <>),
+        (Kind => U8, Where => Rate_Profile, How => Text, Min => 0, Max => 0, Table => Table_Off_On, Count => 8,
+         Min_Length => 1, Write_Once => False, Group => 12),
+      Thr_Mid =>
+        (Kind => U8, Where => Rate_Profile, How => Direct, Min => 0, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 12),
       Thr_Expo =>
-        (Kind => U8, Where => Rate_Profile, How => Direct, Min => 0, Max => 100, Group => 12, others => <>),
+        (Kind => U8, Where => Rate_Profile, How => Direct, Min => 0, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 12),
       Thr_Hover =>
-        (Kind => U8, Where => Rate_Profile, How => Direct, Min => 0, Max => 100, Group => 12, others => <>),
+        (Kind => U8, Where => Rate_Profile, How => Direct, Min => 0, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 12),
       Rates_Type =>
-        (Kind => U8, Where => Rate_Profile, How => Lookup, Table => Table_Rates_Type, Group => 12, others => <>),
+        (Kind => U8, Where => Rate_Profile, How => Lookup, Min => 0, Max => 0, Table => Table_Rates_Type, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 12),
       Quickrates_Rc_Expo =>
-        (Kind => U8, Where => Rate_Profile, How => Lookup, Table => Table_Off_On, Group => 12, others => <>),
+        (Kind => U8, Where => Rate_Profile, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 12),
       Roll_Rc_Rate =>
-        (Kind => U8, Where => Rate_Profile, How => Direct, Min => 1, Max => 255, Group => 12, others => <>),
+        (Kind => U8, Where => Rate_Profile, How => Direct, Min => 1, Max => 255, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 12),
       Pitch_Rc_Rate =>
-        (Kind => U8, Where => Rate_Profile, How => Direct, Min => 1, Max => 255, Group => 12, others => <>),
+        (Kind => U8, Where => Rate_Profile, How => Direct, Min => 1, Max => 255, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 12),
       Yaw_Rc_Rate =>
-        (Kind => U8, Where => Rate_Profile, How => Direct, Min => 1, Max => 255, Group => 12, others => <>),
+        (Kind => U8, Where => Rate_Profile, How => Direct, Min => 1, Max => 255, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 12),
       Roll_Expo =>
-        (Kind => U8, Where => Rate_Profile, How => Direct, Min => 0, Max => 100, Group => 12, others => <>),
+        (Kind => U8, Where => Rate_Profile, How => Direct, Min => 0, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 12),
       Pitch_Expo =>
-        (Kind => U8, Where => Rate_Profile, How => Direct, Min => 0, Max => 100, Group => 12, others => <>),
+        (Kind => U8, Where => Rate_Profile, How => Direct, Min => 0, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 12),
       Yaw_Expo =>
-        (Kind => U8, Where => Rate_Profile, How => Direct, Min => 0, Max => 100, Group => 12, others => <>),
+        (Kind => U8, Where => Rate_Profile, How => Direct, Min => 0, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 12),
       Roll_Srate =>
-        (Kind => U8, Where => Rate_Profile, How => Direct, Min => 0, Max => 255, Group => 12, others => <>),
+        (Kind => U8, Where => Rate_Profile, How => Direct, Min => 0, Max => 255, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 12),
       Pitch_Srate =>
-        (Kind => U8, Where => Rate_Profile, How => Direct, Min => 0, Max => 255, Group => 12, others => <>),
+        (Kind => U8, Where => Rate_Profile, How => Direct, Min => 0, Max => 255, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 12),
       Yaw_Srate =>
-        (Kind => U8, Where => Rate_Profile, How => Direct, Min => 0, Max => 255, Group => 12, others => <>),
+        (Kind => U8, Where => Rate_Profile, How => Direct, Min => 0, Max => 255, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 12),
       Throttle_Limit_Type =>
-        (Kind => U8, Where => Rate_Profile, How => Lookup, Table => Table_Throttle_Limit_Type, Group => 12, others =>
-         <>),
+        (Kind => U8, Where => Rate_Profile, How => Lookup, Min => 0, Max => 0, Table => Table_Throttle_Limit_Type,
+         Count => 0, Min_Length => 0, Write_Once => False, Group => 12),
       Throttle_Limit_Percent =>
-        (Kind => U8, Where => Rate_Profile, How => Direct, Min => 25, Max => 100, Group => 12, others => <>),
+        (Kind => U8, Where => Rate_Profile, How => Direct, Min => 25, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 12),
       Roll_Rate_Limit =>
-        (Kind => U16, Where => Rate_Profile, How => Direct, Min => 200, Max => 1998, Group => 12, others => <>),
+        (Kind => U16, Where => Rate_Profile, How => Direct, Min => 200, Max => 1998, Table => Table_Off_On, Count =>
+         0, Min_Length => 0, Write_Once => False, Group => 12),
       Pitch_Rate_Limit =>
-        (Kind => U16, Where => Rate_Profile, How => Direct, Min => 200, Max => 1998, Group => 12, others => <>),
+        (Kind => U16, Where => Rate_Profile, How => Direct, Min => 200, Max => 1998, Table => Table_Off_On, Count =>
+         0, Min_Length => 0, Write_Once => False, Group => 12),
       Yaw_Rate_Limit =>
-        (Kind => U16, Where => Rate_Profile, How => Direct, Min => 200, Max => 1998, Group => 12, others => <>),
+        (Kind => U16, Where => Rate_Profile, How => Direct, Min => 200, Max => 1998, Table => Table_Off_On, Count =>
+         0, Min_Length => 0, Write_Once => False, Group => 12),
       Reboot_Character =>
-        (Kind => U8, Where => Master, How => Direct, Min => 48, Max => 126, Group => 13, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 48, Max => 126, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 13),
       Serial_Update_Rate_Hz =>
-        (Kind => U16, Where => Master, How => Direct, Min => 100, Max => 2000, Group => 13, others => <>),
-      Imu_Dcm_Kp => (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 32000, Group => 22, others => <>),
-      Imu_Dcm_Ki => (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 32000, Group => 22, others => <>),
-      Small_Angle => (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 180, Group => 22, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 100, Max => 2000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 13),
+      Imu_Dcm_Kp =>
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 32000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 22),
+      Imu_Dcm_Ki =>
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 32000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 22),
+      Small_Angle =>
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 180, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 22),
       Imu_Process_Denom =>
-        (Kind => U8, Where => Master, How => Direct, Min => 1, Max => 4, Group => 22, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 1, Max => 4, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 22),
       Mag_Declination =>
-        (Kind => I16, Where => Master, How => Direct, Min => -300, Max => 300, Group => 22, others => <>),
+        (Kind => I16, Where => Master, How => Direct, Min => -300, Max => 300, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 22),
       Auto_Disarm_Delay =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 60, Group => 16, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 60, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 16),
       Gyro_Cal_On_First_Arm =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 16, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 16),
       Prearm_Allow_Rearm =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 16, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 16),
       Gps_Provider =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Gps_Provider, Group => 30, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Gps_Provider, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 30),
       Gps_Sbas_Mode =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Gps_Sbas_Mode, Group => 30, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Gps_Sbas_Mode, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 30),
       Gps_Auto_Config =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 30, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 30),
       Gps_Auto_Baud =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 30, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 30),
       Gps_Ublox_Acquire_Model =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Gps_Ublox_Models, Group => 30, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Gps_Ublox_Models, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 30),
       Gps_Ublox_Flight_Model =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Gps_Ublox_Models, Group => 30, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Gps_Ublox_Models, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 30),
       Gps_Update_Rate_Hz =>
-        (Kind => U8, Where => Master, How => Direct, Min => 1, Max => 20, Group => 30, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 1, Max => 20, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 30),
       Gps_Ublox_Utc_Standard =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Gps_Ublox_Utc_Standard, Group => 30, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Gps_Ublox_Utc_Standard, Count
+         => 0, Min_Length => 0, Write_Once => False, Group => 30),
       Gps_Ublox_Use_Galileo =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 30, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 30),
       Gps_Ublox_Enable_Ana =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 30, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 30),
       Gps_Set_Home_Point_Once =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 30, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 30),
       Gps_Use_3d_Speed =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 30, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 30),
       Gps_Sbas_Integrity =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 30, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 30),
       Gps_Nmea_Custom_Commands =>
-        (Kind => U8, Where => Master, How => Text, Min_Length => 1, Count => 64, Write_Once => False, Group => 30,
-         others => <>),
-      Gps_Uart => (Kind => I8, Where => Master, How => Identifier, Count => 0, Group => 30, others => <>),
-      Gps_Baud => (Kind => U8, Where => Master, How => Lookup, Table => Table_Baud_Rate, Group => 30, others => <>),
+        (Kind => U8, Where => Master, How => Text, Min => 0, Max => 0, Table => Table_Off_On, Count => 64, Min_Length
+         => 1, Write_Once => False, Group => 30),
+      Gps_Uart =>
+        (Kind => I8, Where => Master, How => Identifier, Min => 0, Max => 0, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 30),
+      Gps_Baud =>
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Baud_Rate, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 30),
       Gps_Rescue_Min_Start_Dist =>
-        (Kind => U16, Where => Master, How => Direct, Min => 5, Max => 30, Group => 55, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 5, Max => 30, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 55),
       Gps_Rescue_Alt_Mode =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Gps_Rescue_Alt_Mode, Group => 55, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Gps_Rescue_Alt_Mode, Count =>
+         0, Min_Length => 0, Write_Once => False, Group => 55),
       Gps_Rescue_Initial_Climb =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 100, Group => 55, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 55),
       Gps_Rescue_Ascend_Rate =>
-        (Kind => U16, Where => Master, How => Direct, Min => 50, Max => 2500, Group => 55, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 50, Max => 2500, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 55),
       Gps_Rescue_Return_Alt =>
-        (Kind => U16, Where => Master, How => Direct, Min => 5, Max => 1000, Group => 55, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 5, Max => 1000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 55),
       Gps_Rescue_Ground_Speed =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 3000, Group => 55, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 3000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 55),
       Gps_Rescue_Descent_Dist =>
-        (Kind => U16, Where => Master, How => Direct, Min => 5, Max => 500, Group => 55, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 5, Max => 500, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 55),
       Gps_Rescue_Descend_Rate =>
-        (Kind => U16, Where => Master, How => Direct, Min => 25, Max => 500, Group => 55, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 25, Max => 500, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 55),
       Gps_Rescue_Sanity_Checks =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Gps_Rescue_Sanity_Check, Group => 55, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Gps_Rescue_Sanity_Check, Count
+         => 0, Min_Length => 0, Write_Once => False, Group => 55),
       Gps_Rescue_Min_Sats =>
-        (Kind => U8, Where => Master, How => Direct, Min => 5, Max => 50, Group => 55, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 5, Max => 50, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 55),
       Gps_Rescue_Allow_Arming_Without_Fix =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 55, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 55),
       Gps_Rescue_Yaw_P =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 200, Group => 55, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 200, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 55),
       Gps_Lap_Timer_Gate_Lat =>
-        (Kind => I32, Where => Master, How => Direct, Min => -900000000, Max => 900000000, Group => 58, others => <>),
+        (Kind => I32, Where => Master, How => Direct, Min => -900000000, Max => 900000000, Table => Table_Off_On,
+         Count => 0, Min_Length => 0, Write_Once => False, Group => 58),
       Gps_Lap_Timer_Gate_Lon =>
-        (Kind => I32, Where => Master, How => Direct, Min => -1800000000, Max => 1800000000, Group => 58, others => <>),
+        (Kind => I32, Where => Master, How => Direct, Min => -1800000000, Max => 1800000000, Table => Table_Off_On,
+         Count => 0, Min_Length => 0, Write_Once => False, Group => 58),
       Gps_Lap_Timer_Min_Lap_Time_S =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 3000, Group => 58, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 3000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 58),
       Gps_Lap_Timer_Gate_Tolerance_M =>
-        (Kind => U8, Where => Master, How => Direct, Min => 1, Max => 100, Group => 58, others => <>),
-      Deadband => (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 32, Group => 25, others => <>),
-      Yaw_Deadband => (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 100, Group => 25, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 1, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 58),
+      Deadband =>
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 32, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 25),
+      Yaw_Deadband =>
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 25),
       Yaw_Control_Reversed =>
-        (Kind => I8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 25, others => <>),
+        (Kind => I8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 25),
       Alt_Hold_Climb_Rate =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 200, Group => 59, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 200, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 59),
       Alt_Hold_Deadband =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 70, Group => 59, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 70, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 59),
       Pos_Hold_Deadband =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 50, Group => 61, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 50, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 61),
       Poshold_Position_Source =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Poshold_Source, Group => 61, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Poshold_Source, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 61),
       Poshold_Opticalflow_Quality_Min =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 100, Group => 61, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 61),
       Poshold_Opticalflow_Max_Range =>
-        (Kind => U16, Where => Master, How => Direct, Min => 50, Max => 1000, Group => 61, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 50, Max => 1000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 61),
       Pid_Process_Denom =>
-        (Kind => U8, Where => Master, How => Direct, Min => 1, Max => 16, Group => 504, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 1, Max => 16, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 504),
       Runaway_Takeoff_Prevention =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 504, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 504),
       Runaway_Takeoff_Deactivate_Delay =>
-        (Kind => U16, Where => Master, How => Direct, Min => 100, Max => 1000, Group => 504, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 100, Max => 1000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 504),
       Runaway_Takeoff_Deactivate_Throttle_Percent =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 100, Group => 504, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 504),
       Profile_Name =>
-        (Kind => U8, Where => PID_Profile, How => Text, Min_Length => 1, Count => 8, Write_Once => False, Group => 14,
-         others => <>),
+        (Kind => U8, Where => PID_Profile, How => Text, Min => 0, Max => 0, Table => Table_Off_On, Count => 8,
+         Min_Length => 1, Write_Once => False, Group => 14),
       Dterm_Lpf1_Dyn_Min_Hz =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Min => 0, Max => 1000, Group => 14, others => <>),
+        (Kind => U16, Where => PID_Profile, How => Direct, Min => 0, Max => 1000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Dterm_Lpf1_Dyn_Max_Hz =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Min => 0, Max => 1000, Group => 14, others => <>),
+        (Kind => U16, Where => PID_Profile, How => Direct, Min => 0, Max => 1000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Dterm_Lpf1_Dyn_Expo =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 10, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 10, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Dterm_Lpf1_Type =>
-        (Kind => U8, Where => PID_Profile, How => Lookup, Table => Table_Dterm_Lpf_Type, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Lookup, Min => 0, Max => 0, Table => Table_Dterm_Lpf_Type, Count =>
+         0, Min_Length => 0, Write_Once => False, Group => 14),
       Dterm_Lpf1_Static_Hz =>
-        (Kind => I16, Where => PID_Profile, How => Direct, Min => 0, Max => 1000, Group => 14, others => <>),
+        (Kind => I16, Where => PID_Profile, How => Direct, Min => 0, Max => 1000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Dterm_Lpf2_Type =>
-        (Kind => U8, Where => PID_Profile, How => Lookup, Table => Table_Dterm_Lpf_Type, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Lookup, Min => 0, Max => 0, Table => Table_Dterm_Lpf_Type, Count =>
+         0, Min_Length => 0, Write_Once => False, Group => 14),
       Dterm_Lpf2_Static_Hz =>
-        (Kind => I16, Where => PID_Profile, How => Direct, Min => 0, Max => 1000, Group => 14, others => <>),
+        (Kind => I16, Where => PID_Profile, How => Direct, Min => 0, Max => 1000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Dterm_Notch_Hz =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Min => 0, Max => 1000, Group => 14, others => <>),
+        (Kind => U16, Where => PID_Profile, How => Direct, Min => 0, Max => 1000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Dterm_Notch_Cutoff =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Min => 0, Max => 1000, Group => 14, others => <>),
+        (Kind => U16, Where => PID_Profile, How => Direct, Min => 0, Max => 1000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Vbat_Sag_Compensation =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 150, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 150, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Pid_At_Min_Throttle =>
-        (Kind => U8, Where => PID_Profile, How => Lookup, Table => Table_Off_On, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Anti_Gravity_Gain =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 250, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 250, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Anti_Gravity_Cutoff_Hz =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 2, Max => 50, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 2, Max => 50, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Anti_Gravity_P_Gain =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 250, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 250, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Acc_Limit_Yaw =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Min => 0, Max => 500, Group => 14, others => <>),
+        (Kind => U16, Where => PID_Profile, How => Direct, Min => 0, Max => 500, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Acc_Limit =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Min => 0, Max => 500, Group => 14, others => <>),
+        (Kind => U16, Where => PID_Profile, How => Direct, Min => 0, Max => 500, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Crash_Dthreshold =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Min => 10, Max => 2000, Group => 14, others => <>),
+        (Kind => U16, Where => PID_Profile, How => Direct, Min => 10, Max => 2000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Crash_Gthreshold =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Min => 100, Max => 2000, Group => 14, others => <>),
+        (Kind => U16, Where => PID_Profile, How => Direct, Min => 100, Max => 2000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Crash_Setpoint_Threshold =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Min => 50, Max => 2000, Group => 14, others => <>),
+        (Kind => U16, Where => PID_Profile, How => Direct, Min => 50, Max => 2000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Crash_Time =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Min => 100, Max => 5000, Group => 14, others => <>),
+        (Kind => U16, Where => PID_Profile, How => Direct, Min => 100, Max => 5000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Crash_Delay =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Min => 0, Max => 500, Group => 14, others => <>),
+        (Kind => U16, Where => PID_Profile, How => Direct, Min => 0, Max => 500, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Crash_Recovery_Angle =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 5, Max => 30, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 5, Max => 30, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Crash_Recovery_Rate =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 50, Max => 255, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 50, Max => 255, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Crash_Limit_Yaw =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Min => 0, Max => 1000, Group => 14, others => <>),
+        (Kind => U16, Where => PID_Profile, How => Direct, Min => 0, Max => 1000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Crash_Recovery =>
-        (Kind => U8, Where => PID_Profile, How => Lookup, Table => Table_Crash_Recovery, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Lookup, Min => 0, Max => 0, Table => Table_Crash_Recovery, Count =>
+         0, Min_Length => 0, Write_Once => False, Group => 14),
       Iterm_Rotation =>
-        (Kind => U8, Where => PID_Profile, How => Lookup, Table => Table_Off_On, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Iterm_Relax =>
-        (Kind => U8, Where => PID_Profile, How => Lookup, Table => Table_Iterm_Relax, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Lookup, Min => 0, Max => 0, Table => Table_Iterm_Relax, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Iterm_Relax_Type =>
-        (Kind => U8, Where => PID_Profile, How => Lookup, Table => Table_Iterm_Relax_Type, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Lookup, Min => 0, Max => 0, Table => Table_Iterm_Relax_Type, Count
+         => 0, Min_Length => 0, Write_Once => False, Group => 14),
       Iterm_Relax_Cutoff =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 1, Max => 50, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 1, Max => 50, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Iterm_Windup =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 20, Max => 100, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 20, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Pidsum_Limit =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Min => 100, Max => 1000, Group => 14, others => <>),
+        (Kind => U16, Where => PID_Profile, How => Direct, Min => 100, Max => 1000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Pidsum_Limit_Yaw =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Min => 100, Max => 1000, Group => 14, others => <>),
+        (Kind => U16, Where => PID_Profile, How => Direct, Min => 100, Max => 1000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Yaw_Lowpass_Hz =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Min => 0, Max => 500, Group => 14, others => <>),
+        (Kind => U16, Where => PID_Profile, How => Direct, Min => 0, Max => 500, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Throttle_Boost =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 100, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Throttle_Boost_Cutoff =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 5, Max => 50, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 5, Max => 50, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Acro_Trainer_Angle_Limit =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 10, Max => 80, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 10, Max => 80, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Acro_Trainer_Lookahead_Ms =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Min => 10, Max => 200, Group => 14, others => <>),
+        (Kind => U16, Where => PID_Profile, How => Direct, Min => 10, Max => 200, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Acro_Trainer_Debug_Axis =>
-        (Kind => U8, Where => PID_Profile, How => Lookup, Table => Table_Acro_Trainer_Debug, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Lookup, Min => 0, Max => 0, Table => Table_Acro_Trainer_Debug, Count
+         => 0, Min_Length => 0, Write_Once => False, Group => 14),
       Acro_Trainer_Gain =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 25, Max => 255, Group => 14, others => <>),
-      P_Pitch => (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 250, Group => 14, others => <>),
-      I_Pitch => (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 250, Group => 14, others => <>),
-      D_Pitch => (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 250, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 25, Max => 255, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
+      P_Pitch =>
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 250, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
+      I_Pitch =>
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 250, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
+      D_Pitch =>
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 250, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       F_Pitch =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Min => 0, Max => 1000, Group => 14, others => <>),
-      P_Roll => (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 250, Group => 14, others => <>),
-      I_Roll => (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 250, Group => 14, others => <>),
-      D_Roll => (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 250, Group => 14, others => <>),
-      F_Roll => (Kind => U16, Where => PID_Profile, How => Direct, Min => 0, Max => 1000, Group => 14, others => <>),
-      P_Yaw => (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 250, Group => 14, others => <>),
-      I_Yaw => (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 250, Group => 14, others => <>),
-      D_Yaw => (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 250, Group => 14, others => <>),
-      F_Yaw => (Kind => U16, Where => PID_Profile, How => Direct, Min => 0, Max => 1000, Group => 14, others => <>),
+        (Kind => U16, Where => PID_Profile, How => Direct, Min => 0, Max => 1000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
+      P_Roll =>
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 250, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
+      I_Roll =>
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 250, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
+      D_Roll =>
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 250, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
+      F_Roll =>
+        (Kind => U16, Where => PID_Profile, How => Direct, Min => 0, Max => 1000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
+      P_Yaw =>
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 250, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
+      I_Yaw =>
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 250, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
+      D_Yaw =>
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 250, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
+      F_Yaw =>
+        (Kind => U16, Where => PID_Profile, How => Direct, Min => 0, Max => 1000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Angle_P_Gain =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 200, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 200, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Angle_Feedforward =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 200, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 200, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Angle_Feedforward_Smoothing_Ms =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 10, Max => 250, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 10, Max => 250, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Angle_Limit =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 10, Max => 80, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 10, Max => 80, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Angle_Earth_Ref =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 100, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Horizon_Level_Strength =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 100, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Horizon_Limit_Sticks =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 10, Max => 200, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 10, Max => 200, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Horizon_Limit_Degrees =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 10, Max => 250, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 10, Max => 250, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Horizon_Ignore_Sticks =>
-        (Kind => U8, Where => PID_Profile, How => Lookup, Table => Table_Off_On, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Horizon_Delay_Ms =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Min => 10, Max => 5000, Group => 14, others => <>),
+        (Kind => U16, Where => PID_Profile, How => Direct, Min => 10, Max => 5000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Chirp_Lag_Freq_Hz =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 255, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 255, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Chirp_Lead_Freq_Hz =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 255, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 255, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Chirp_Amplitude_Roll =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Min => 0, Max => 500, Group => 14, others => <>),
+        (Kind => U16, Where => PID_Profile, How => Direct, Min => 0, Max => 500, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Chirp_Amplitude_Pitch =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Min => 0, Max => 500, Group => 14, others => <>),
+        (Kind => U16, Where => PID_Profile, How => Direct, Min => 0, Max => 500, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Chirp_Amplitude_Yaw =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Min => 0, Max => 500, Group => 14, others => <>),
+        (Kind => U16, Where => PID_Profile, How => Direct, Min => 0, Max => 500, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Chirp_Frequency_Start_Deci_Hz =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Min => 1, Max => 1000, Group => 14, others => <>),
+        (Kind => U16, Where => PID_Profile, How => Direct, Min => 1, Max => 1000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Chirp_Frequency_End_Deci_Hz =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Min => 1, Max => 10000, Group => 14, others => <>),
+        (Kind => U16, Where => PID_Profile, How => Direct, Min => 1, Max => 10000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Chirp_Time_Seconds =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 1, Max => 255, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 1, Max => 255, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Chirp_Repeat =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 1, Max => 9, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 1, Max => 9, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       D_Max_Roll =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 250, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 250, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       D_Max_Pitch =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 250, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 250, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       D_Max_Yaw =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 250, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 250, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       D_Max_Gain =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 100, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       D_Max_Advance =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 200, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 200, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Motor_Output_Limit =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 1, Max => 100, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 1, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Auto_Profile_Cell_Count =>
-        (Kind => I8, Where => PID_Profile, How => Direct, Min => -1, Max => 8, Group => 14, others => <>),
+        (Kind => I8, Where => PID_Profile, How => Direct, Min => -1, Max => 8, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Launch_Control_Mode =>
-        (Kind => U8, Where => PID_Profile, How => Lookup, Table => Table_Launch_Control_Mode, Group => 14, others =>
-         <>),
+        (Kind => U8, Where => PID_Profile, How => Lookup, Min => 0, Max => 0, Table => Table_Launch_Control_Mode,
+         Count => 0, Min_Length => 0, Write_Once => False, Group => 14),
       Launch_Trigger_Allow_Reset =>
-        (Kind => U8, Where => PID_Profile, How => Lookup, Table => Table_Off_On, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Launch_Trigger_Throttle_Percent =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 90, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 90, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Launch_Angle_Limit =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 80, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 80, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Launch_Control_Gain =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 200, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 200, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Thrust_Linear =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 150, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 150, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Feedforward_Transition =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 100, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Feedforward_Averaging =>
-        (Kind => U8, Where => PID_Profile, How => Lookup, Table => Table_Feedforward_Averaging, Group => 14, others =>
-         <>),
+        (Kind => U8, Where => PID_Profile, How => Lookup, Min => 0, Max => 0, Table => Table_Feedforward_Averaging,
+         Count => 0, Min_Length => 0, Write_Once => False, Group => 14),
       Feedforward_Smooth_Factor =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 95, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 95, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Feedforward_Jitter_Factor =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 20, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 20, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Feedforward_Boost =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 50, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 50, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Feedforward_Max_Rate_Limit =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 200, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 200, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Feedforward_Yaw_Hold_Gain =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 100, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Feedforward_Yaw_Hold_Time =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 10, Max => 250, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 10, Max => 250, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Dyn_Idle_Min_Rpm =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 200, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 200, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Dyn_Idle_P_Gain =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 1, Max => 250, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 1, Max => 250, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Dyn_Idle_I_Gain =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 1, Max => 250, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 1, Max => 250, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Dyn_Idle_D_Gain =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 250, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 250, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Dyn_Idle_Max_Increase =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 10, Max => 255, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 10, Max => 255, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Level_Race_Mode =>
-        (Kind => U8, Where => PID_Profile, How => Lookup, Table => Table_Off_On, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Simplified_Pids_Mode =>
-        (Kind => U8, Where => PID_Profile, How => Lookup, Table => Table_Simplified_Tuning_Pids_Mode, Group => 14,
-         others => <>),
+        (Kind => U8, Where => PID_Profile, How => Lookup, Min => 0, Max => 0, Table =>
+         Table_Simplified_Tuning_Pids_Mode, Count => 0, Min_Length => 0, Write_Once => False, Group => 14),
       Simplified_Master_Multiplier =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 200, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 200, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Simplified_I_Gain =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 200, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 200, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Simplified_D_Gain =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 200, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 200, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Simplified_Pi_Gain =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 200, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 200, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Simplified_D_Max_Gain =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 200, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 200, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Simplified_Feedforward_Gain =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 200, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 200, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Simplified_Pitch_D_Gain =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 200, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 200, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Simplified_Pitch_Pi_Gain =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 200, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 200, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Simplified_Dterm_Filter =>
-        (Kind => U8, Where => PID_Profile, How => Lookup, Table => Table_Off_On, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Simplified_Dterm_Filter_Multiplier =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 10, Max => 200, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 10, Max => 200, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Simplified_Gyro_Filter =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 10, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 10),
       Simplified_Gyro_Filter_Multiplier =>
-        (Kind => U8, Where => Master, How => Direct, Min => 10, Max => 200, Group => 10, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 10, Max => 200, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 10),
       Tpa_Mode =>
-        (Kind => U8, Where => PID_Profile, How => Lookup, Table => Table_Tpa_Mode, Group => 14, others => <>),
-      Tpa_Rate => (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 100, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Lookup, Min => 0, Max => 0, Table => Table_Tpa_Mode, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
+      Tpa_Rate =>
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Tpa_Breakpoint =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Min => 1000, Max => 2000, Group => 14, others => <>),
+        (Kind => U16, Where => PID_Profile, How => Direct, Min => 1000, Max => 2000, Table => Table_Off_On, Count =>
+         0, Min_Length => 0, Write_Once => False, Group => 14),
       Tpa_Low_Rate =>
-        (Kind => I8, Where => PID_Profile, How => Direct, Min => 0, Max => 100, Group => 14, others => <>),
+        (Kind => I8, Where => PID_Profile, How => Direct, Min => 0, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Tpa_Low_Breakpoint =>
-        (Kind => U16, Where => PID_Profile, How => Direct, Min => 1000, Max => 2000, Group => 14, others => <>),
+        (Kind => U16, Where => PID_Profile, How => Direct, Min => 1000, Max => 2000, Table => Table_Off_On, Count =>
+         0, Min_Length => 0, Write_Once => False, Group => 14),
       Tpa_Low_Always =>
-        (Kind => U8, Where => PID_Profile, How => Lookup, Table => Table_Off_On, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Ez_Landing_Threshold =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 200, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 200, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Ez_Landing_Limit =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 75, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 75, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Ez_Landing_Speed =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 250, Group => 14, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 250, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
       Landing_Disarm_Threshold =>
-        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 250, Group => 14, others => <>),
-      Tlm_Inverted => (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 31, others => <>),
+        (Kind => U8, Where => PID_Profile, How => Direct, Min => 0, Max => 250, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 14),
+      Tlm_Inverted =>
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 31),
       Tlm_Halfduplex =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 31, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 31),
       Telemetry_1_Protocol =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Telemetry_Protocol, Group => 31, others => <>),
-      Telemetry_1_Uart => (Kind => I8, Where => Master, How => Identifier, Count => 0, Group => 31, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Telemetry_Protocol, Count =>
+         0, Min_Length => 0, Write_Once => False, Group => 31),
+      Telemetry_1_Uart =>
+        (Kind => I8, Where => Master, How => Identifier, Min => 0, Max => 0, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 31),
       Telemetry_1_Baud =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Baud_Rate, Group => 31, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Baud_Rate, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 31),
       Telemetry_2_Protocol =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Telemetry_Protocol, Group => 31, others => <>),
-      Telemetry_2_Uart => (Kind => I8, Where => Master, How => Identifier, Count => 0, Group => 31, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Telemetry_Protocol, Count =>
+         0, Min_Length => 0, Write_Once => False, Group => 31),
+      Telemetry_2_Uart =>
+        (Kind => I8, Where => Master, How => Identifier, Min => 0, Max => 0, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 31),
       Telemetry_2_Baud =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Baud_Rate, Group => 31, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Baud_Rate, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 31),
       Telemetry_3_Protocol =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Telemetry_Protocol, Group => 31, others => <>),
-      Telemetry_3_Uart => (Kind => I8, Where => Master, How => Identifier, Count => 0, Group => 31, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Telemetry_Protocol, Count =>
+         0, Min_Length => 0, Write_Once => False, Group => 31),
+      Telemetry_3_Uart =>
+        (Kind => I8, Where => Master, How => Identifier, Min => 0, Max => 0, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 31),
       Telemetry_3_Baud =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Baud_Rate, Group => 31, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Baud_Rate, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 31),
       Crsf_Tlm_Accgyro =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 31, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 31),
       Frsky_Default_Lat =>
-        (Kind => I16, Where => Master, How => Direct, Min => -9000, Max => 9000, Group => 31, others => <>),
+        (Kind => I16, Where => Master, How => Direct, Min => -9000, Max => 9000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 31),
       Frsky_Default_Long =>
-        (Kind => I16, Where => Master, How => Direct, Min => -18000, Max => 18000, Group => 31, others => <>),
+        (Kind => I16, Where => Master, How => Direct, Min => -18000, Max => 18000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 31),
       Frsky_Gps_Format =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 1, Group => 31, others => <>),
-      Frsky_Unit => (Kind => U8, Where => Master, How => Lookup, Table => Table_Unit, Group => 31, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 1, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 31),
+      Frsky_Unit =>
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Unit, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 31),
       Frsky_Vfas_Precision =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 1, Group => 31, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 1, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 31),
       Hott_Alarm_Int =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 120, Group => 31, others => <>),
-      Pid_In_Tlm => (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 31, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 120, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 31),
+      Pid_In_Tlm =>
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 31),
       Report_Cell_Voltage =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 31, others => <>),
-      Ibus_Sensor => (Kind => U8, Where => Master, How => List, Count => 15, Group => 31, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 31),
+      Ibus_Sensor =>
+        (Kind => U8, Where => Master, How => List, Min => 0, Max => 0, Table => Table_Off_On, Count => 15, Min_Length
+         => 0, Write_Once => False, Group => 31),
       Mavlink_Mah_As_Heading_Divisor =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 30000, Group => 31, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 30000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 31),
       Mavlink_Min_Txbuff =>
-        (Kind => U8, Where => Master, How => Direct, Min => 1, Max => 100, Group => 31, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 1, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 31),
       Mavlink_Ext_Status_Rate =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 50, Group => 31, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 50, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 31),
       Mavlink_Rc_Chan_Rate =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 50, Group => 31, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 50, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 31),
       Mavlink_Pos_Rate =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 50, Group => 31, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 50, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 31),
       Mavlink_Extra1_Rate =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 50, Group => 31, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 50, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 31),
       Mavlink_Extra2_Rate =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 50, Group => 31, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 50, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 31),
       Mavlink_Extra3_Rate =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 50, Group => 31, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 50, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 31),
       Telemetry_Disabled_Voltage =>
-        (Kind => U32, Where => Master, How => Bitset, Count => 0, Group => 31, others => <>),
+        (Kind => U32, Where => Master, How => Bitset, Min => 0, Max => 0, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 31),
       Telemetry_Disabled_Current =>
-        (Kind => U32, Where => Master, How => Bitset, Count => 1, Group => 31, others => <>),
+        (Kind => U32, Where => Master, How => Bitset, Min => 0, Max => 0, Table => Table_Off_On, Count => 1,
+         Min_Length => 0, Write_Once => False, Group => 31),
       Telemetry_Disabled_Fuel =>
-        (Kind => U32, Where => Master, How => Bitset, Count => 2, Group => 31, others => <>),
+        (Kind => U32, Where => Master, How => Bitset, Min => 0, Max => 0, Table => Table_Off_On, Count => 2,
+         Min_Length => 0, Write_Once => False, Group => 31),
       Telemetry_Disabled_Mode =>
-        (Kind => U32, Where => Master, How => Bitset, Count => 3, Group => 31, others => <>),
+        (Kind => U32, Where => Master, How => Bitset, Min => 0, Max => 0, Table => Table_Off_On, Count => 3,
+         Min_Length => 0, Write_Once => False, Group => 31),
       Telemetry_Disabled_Acc_X =>
-        (Kind => U32, Where => Master, How => Bitset, Count => 4, Group => 31, others => <>),
+        (Kind => U32, Where => Master, How => Bitset, Min => 0, Max => 0, Table => Table_Off_On, Count => 4,
+         Min_Length => 0, Write_Once => False, Group => 31),
       Telemetry_Disabled_Acc_Y =>
-        (Kind => U32, Where => Master, How => Bitset, Count => 5, Group => 31, others => <>),
+        (Kind => U32, Where => Master, How => Bitset, Min => 0, Max => 0, Table => Table_Off_On, Count => 5,
+         Min_Length => 0, Write_Once => False, Group => 31),
       Telemetry_Disabled_Acc_Z =>
-        (Kind => U32, Where => Master, How => Bitset, Count => 6, Group => 31, others => <>),
+        (Kind => U32, Where => Master, How => Bitset, Min => 0, Max => 0, Table => Table_Off_On, Count => 6,
+         Min_Length => 0, Write_Once => False, Group => 31),
       Telemetry_Disabled_Pitch =>
-        (Kind => U32, Where => Master, How => Bitset, Count => 7, Group => 31, others => <>),
+        (Kind => U32, Where => Master, How => Bitset, Min => 0, Max => 0, Table => Table_Off_On, Count => 7,
+         Min_Length => 0, Write_Once => False, Group => 31),
       Telemetry_Disabled_Roll =>
-        (Kind => U32, Where => Master, How => Bitset, Count => 8, Group => 31, others => <>),
+        (Kind => U32, Where => Master, How => Bitset, Min => 0, Max => 0, Table => Table_Off_On, Count => 8,
+         Min_Length => 0, Write_Once => False, Group => 31),
       Telemetry_Disabled_Heading =>
-        (Kind => U32, Where => Master, How => Bitset, Count => 9, Group => 31, others => <>),
+        (Kind => U32, Where => Master, How => Bitset, Min => 0, Max => 0, Table => Table_Off_On, Count => 9,
+         Min_Length => 0, Write_Once => False, Group => 31),
       Telemetry_Disabled_Altitude =>
-        (Kind => U32, Where => Master, How => Bitset, Count => 10, Group => 31, others => <>),
+        (Kind => U32, Where => Master, How => Bitset, Min => 0, Max => 0, Table => Table_Off_On, Count => 10,
+         Min_Length => 0, Write_Once => False, Group => 31),
       Telemetry_Disabled_Vario =>
-        (Kind => U32, Where => Master, How => Bitset, Count => 11, Group => 31, others => <>),
+        (Kind => U32, Where => Master, How => Bitset, Min => 0, Max => 0, Table => Table_Off_On, Count => 11,
+         Min_Length => 0, Write_Once => False, Group => 31),
       Telemetry_Disabled_Lat_Long =>
-        (Kind => U32, Where => Master, How => Bitset, Count => 12, Group => 31, others => <>),
+        (Kind => U32, Where => Master, How => Bitset, Min => 0, Max => 0, Table => Table_Off_On, Count => 12,
+         Min_Length => 0, Write_Once => False, Group => 31),
       Telemetry_Disabled_Ground_Speed =>
-        (Kind => U32, Where => Master, How => Bitset, Count => 13, Group => 31, others => <>),
+        (Kind => U32, Where => Master, How => Bitset, Min => 0, Max => 0, Table => Table_Off_On, Count => 13,
+         Min_Length => 0, Write_Once => False, Group => 31),
       Telemetry_Disabled_Distance =>
-        (Kind => U32, Where => Master, How => Bitset, Count => 14, Group => 31, others => <>),
+        (Kind => U32, Where => Master, How => Bitset, Min => 0, Max => 0, Table => Table_Off_On, Count => 14,
+         Min_Length => 0, Write_Once => False, Group => 31),
       Telemetry_Disabled_Esc_Current =>
-        (Kind => U32, Where => Master, How => Bitset, Count => 15, Group => 31, others => <>),
+        (Kind => U32, Where => Master, How => Bitset, Min => 0, Max => 0, Table => Table_Off_On, Count => 15,
+         Min_Length => 0, Write_Once => False, Group => 31),
       Telemetry_Disabled_Esc_Voltage =>
-        (Kind => U32, Where => Master, How => Bitset, Count => 16, Group => 31, others => <>),
+        (Kind => U32, Where => Master, How => Bitset, Min => 0, Max => 0, Table => Table_Off_On, Count => 16,
+         Min_Length => 0, Write_Once => False, Group => 31),
       Telemetry_Disabled_Esc_Rpm =>
-        (Kind => U32, Where => Master, How => Bitset, Count => 17, Group => 31, others => <>),
+        (Kind => U32, Where => Master, How => Bitset, Min => 0, Max => 0, Table => Table_Off_On, Count => 17,
+         Min_Length => 0, Write_Once => False, Group => 31),
       Telemetry_Disabled_Esc_Temperature =>
-        (Kind => U32, Where => Master, How => Bitset, Count => 18, Group => 31, others => <>),
+        (Kind => U32, Where => Master, How => Bitset, Min => 0, Max => 0, Table => Table_Off_On, Count => 18,
+         Min_Length => 0, Write_Once => False, Group => 31),
       Telemetry_Disabled_Temperature =>
-        (Kind => U32, Where => Master, How => Bitset, Count => 19, Group => 31, others => <>),
+        (Kind => U32, Where => Master, How => Bitset, Min => 0, Max => 0, Table => Table_Off_On, Count => 19,
+         Min_Length => 0, Write_Once => False, Group => 31),
       Telemetry_Disabled_Cap_Used =>
-        (Kind => U32, Where => Master, How => Bitset, Count => 20, Group => 31, others => <>),
+        (Kind => U32, Where => Master, How => Bitset, Min => 0, Max => 0, Table => Table_Off_On, Count => 20,
+         Min_Length => 0, Write_Once => False, Group => 31),
       Ledstrip_Visual_Beeper =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 27, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 27),
       Ledstrip_Visual_Beeper_Color =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Ledstrip_Color, Group => 27, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Ledstrip_Color, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 27),
       Ledstrip_Grb_Rgb =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Rgb_Grb, Group => 27, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Rgb_Grb, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 27),
       Ledstrip_Profile =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Led_Profile, Group => 27, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Led_Profile, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 27),
       Ledstrip_Race_Color =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Ledstrip_Color, Group => 27, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Ledstrip_Color, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 27),
       Ledstrip_Beacon_Color =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Ledstrip_Color, Group => 27, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Ledstrip_Color, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 27),
       Ledstrip_Beacon_Period_Ms =>
-        (Kind => U16, Where => Master, How => Direct, Min => 50, Max => 10000, Group => 27, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 50, Max => 10000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 27),
       Ledstrip_Beacon_Percent =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 100, Group => 27, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 27),
       Ledstrip_Beacon_Armed_Only =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 27, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 27),
       Ledstrip_Brightness =>
-        (Kind => U8, Where => Master, How => Direct, Min => 5, Max => 100, Group => 27, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 5, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 27),
       Ledstrip_Rainbow_Delta =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 359, Group => 27, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 359, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 27),
       Ledstrip_Rainbow_Freq =>
-        (Kind => U16, Where => Master, How => Direct, Min => 1, Max => 2000, Group => 27, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 1, Max => 2000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 27),
       Transponder_Provider =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Transponder_Provider, Group => 17, others => <>),
-      Transponder_Data => (Kind => U8, Where => Master, How => List, Count => 9, Group => 17, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Transponder_Provider, Count =>
+         0, Min_Length => 0, Write_Once => False, Group => 17),
+      Transponder_Data =>
+        (Kind => U8, Where => Master, How => List, Min => 0, Max => 0, Table => Table_Off_On, Count => 9, Min_Length
+         => 0, Write_Once => False, Group => 17),
       Sdcard_Detect_Inverted =>
-        (Kind => U8, Where => Hardware, How => Lookup, Table => Table_Off_On, Group => 511, others => <>),
+        (Kind => U8, Where => Hardware, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 511),
       Sdcard_Mode =>
-        (Kind => U8, Where => Hardware, How => Lookup, Table => Table_Sdcard_Mode, Group => 511, others => <>),
-      Osd_Units => (Kind => U8, Where => Master, How => Lookup, Table => Table_Unit, Group => 501, others => <>),
+        (Kind => U8, Where => Hardware, How => Lookup, Min => 0, Max => 0, Table => Table_Sdcard_Mode, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 511),
+      Osd_Units =>
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Unit, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 501),
       Osd_Warn_Bitmask =>
-        (Kind => U32, Where => Master, How => Direct, Min => 0, Max => 4294967295, Group => 501, others => <>),
+        (Kind => U32, Where => Master, How => Direct, Min => 0, Max => 4294967295, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 501),
       Osd_Rssi_Alarm =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 100, Group => 501, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 501),
       Osd_Link_Quality_Alarm =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 100, Group => 501, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 501),
       Osd_Rssi_Dbm_Alarm =>
-        (Kind => I16, Where => Master, How => Direct, Min => -130, Max => 0, Group => 501, others => <>),
+        (Kind => I16, Where => Master, How => Direct, Min => -130, Max => 0, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 501),
       Osd_Rsnr_Alarm =>
-        (Kind => I16, Where => Master, How => Direct, Min => -30, Max => 20, Group => 501, others => <>),
+        (Kind => I16, Where => Master, How => Direct, Min => -30, Max => 20, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 501),
       Osd_Cap_Alarm =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 20000, Group => 501, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 20000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 501),
       Osd_Alt_Alarm =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 10000, Group => 501, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 10000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 501),
       Osd_Distance_Alarm =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 501, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 501),
       Osd_Esc_Temp_Alarm =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 255, Group => 501, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 255, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 501),
       Osd_Esc_Rpm_Alarm =>
-        (Kind => I16, Where => Master, How => Direct, Min => -1, Max => 32767, Group => 501, others => <>),
+        (Kind => I16, Where => Master, How => Direct, Min => -1, Max => 32767, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 501),
       Osd_Esc_Current_Alarm =>
-        (Kind => I16, Where => Master, How => Direct, Min => -1, Max => 32767, Group => 501, others => <>),
+        (Kind => I16, Where => Master, How => Direct, Min => -1, Max => 32767, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 501),
       Osd_Core_Temp_Alarm =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 255, Group => 501, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 255, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 501),
       Osd_Ah_Max_Pit =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 90, Group => 501, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 90, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 501),
       Osd_Ah_Max_Rol =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 90, Group => 501, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 90, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 501),
       Osd_Ah_Invert =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 501, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 501),
       Osd_Logo_On_Arming =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Osd_Logo_On_Arming, Group => 501, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Osd_Logo_On_Arming, Count =>
+         0, Min_Length => 0, Write_Once => False, Group => 501),
       Osd_Logo_On_Arming_Duration =>
-        (Kind => U8, Where => Master, How => Direct, Min => 5, Max => 50, Group => 501, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 5, Max => 50, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 501),
       Osd_Arming_Logo =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 3, Group => 501, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 3, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 501),
       Osd_Use_Quick_Menu =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 501, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 501),
       Osd_Show_Spec_Prearm =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 501, others => <>),
-      Osd_Tim1 => (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 32767, Group => 501, others => <>),
-      Osd_Tim2 => (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 32767, Group => 501, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 501),
+      Osd_Tim1 =>
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 32767, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 501),
+      Osd_Tim2 =>
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 32767, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 501),
       Osd_Vbat_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Rssi_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Link_Quality_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Link_Tx_Power_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Rssi_Dbm_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Rsnr_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Tim_1_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Tim_2_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Remaining_Time_Estimate_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Flymode_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Anti_Gravity_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_G_Force_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Throttle_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Vtx_Channel_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Crosshairs_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Ah_Sbar_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Ah_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Current_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Mah_Drawn_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Wh_Drawn_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Motor_Diag_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Craft_Name_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Pilot_Name_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Gps_Speed_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Gps_Lon_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Gps_Lat_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Gps_Lap_Curr_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Gps_Lap_Prev_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Gps_Lap_Best3_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Gps_Sats_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Home_Dir_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Home_Dist_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Flight_Dist_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Compass_Bar_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Altitude_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Pid_Roll_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Pid_Pitch_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Pid_Yaw_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Debug_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Debug2_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Power_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Pidrate_Profile_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Warnings_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Avg_Cell_Voltage_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Pit_Ang_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Rol_Ang_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Battery_Usage_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Disarmed_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Nheading_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Up_Down_Reference_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Ready_Mode_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Pos_Hold_Ready_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Nvario_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Esc_Tmp_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Esc_Rpm_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Esc_Rpm_Freq_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Rtc_Date_Time_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Adjustment_Range_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Flip_Arrow_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Core_Temp_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Log_Status_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Stick_Overlay_Left_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Stick_Overlay_Right_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Stick_Overlay_Radio_Mode =>
-        (Kind => U8, Where => Master, How => Direct, Min => 1, Max => 4, Group => 501, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 1, Max => 4, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 501),
       Osd_Rate_Profile_Name_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Pid_Profile_Name_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Battery_Profile_Name_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Profile_Name_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Rcchannels_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Camera_Frame_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Efficiency_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Total_Flights_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Aux_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Sys_Goggle_Voltage_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Sys_Vtx_Voltage_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Sys_Bitrate_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Sys_Delay_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Sys_Distance_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Sys_Lq_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Sys_Goggle_Dvr_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Sys_Vtx_Dvr_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Sys_Warnings_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Sys_Vtx_Temp_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Sys_Fan_Speed_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Stat_Bitmask =>
-        (Kind => U32, Where => Master, How => Direct, Min => 0, Max => 4294967295, Group => 501, others => <>),
-      Osd_Profile => (Kind => U8, Where => Master, How => Direct, Min => 1, Max => 3, Group => 501, others => <>),
+        (Kind => U32, Where => Master, How => Direct, Min => 0, Max => 4294967295, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 501),
+      Osd_Profile =>
+        (Kind => U8, Where => Master, How => Direct, Min => 1, Max => 3, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 501),
       Osd_Profile_1_Name =>
-        (Kind => U8, Where => Master, How => Text, Min_Length => 1, Count => 16, Write_Once => False, Group => 501,
-         others => <>),
+        (Kind => U8, Where => Master, How => Text, Min => 0, Max => 0, Table => Table_Off_On, Count => 16, Min_Length
+         => 1, Write_Once => False, Group => 501),
       Osd_Profile_2_Name =>
-        (Kind => U8, Where => Master, How => Text, Min_Length => 1, Count => 16, Write_Once => False, Group => 501,
-         others => <>),
+        (Kind => U8, Where => Master, How => Text, Min => 0, Max => 0, Table => Table_Off_On, Count => 16, Min_Length
+         => 1, Write_Once => False, Group => 501),
       Osd_Profile_3_Name =>
-        (Kind => U8, Where => Master, How => Text, Min_Length => 1, Count => 16, Write_Once => False, Group => 501,
-         others => <>),
+        (Kind => U8, Where => Master, How => Text, Min => 0, Max => 0, Table => Table_Off_On, Count => 16, Min_Length
+         => 1, Write_Once => False, Group => 501),
       Osd_Gps_Sats_Show_Pdop =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 501, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 501),
       Osd_Displayport_Device =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Osd_Displayport_Device, Group => 501, others => <>),
-      Osd_Uart => (Kind => I8, Where => Master, How => Identifier, Count => 0, Group => 501, others => <>),
-      Osd_Rcchannels => (Kind => I8, Where => Master, How => List, Count => 4, Group => 501, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Osd_Displayport_Device, Count
+         => 0, Min_Length => 0, Write_Once => False, Group => 501),
+      Osd_Uart =>
+        (Kind => I8, Where => Master, How => Identifier, Min => 0, Max => 0, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 501),
+      Osd_Rcchannels =>
+        (Kind => I8, Where => Master, How => List, Min => 0, Max => 0, Table => Table_Off_On, Count => 4, Min_Length
+         => 0, Write_Once => False, Group => 501),
       Osd_Camera_Frame_Width =>
-        (Kind => U8, Where => Master, How => Direct, Min => 2, Max => 30, Group => 501, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 2, Max => 30, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 501),
       Osd_Camera_Frame_Height =>
-        (Kind => U8, Where => Master, How => Direct, Min => 2, Max => 16, Group => 501, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 2, Max => 16, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 501),
       Osd_Stat_Avg_Cell_Value =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 501, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 501),
       Osd_Framerate_Hz =>
-        (Kind => U16, Where => Master, How => Direct, Min => 1, Max => 60, Group => 501, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 1, Max => 60, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 501),
       Osd_Menu_Background =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Cms_Background, Group => 501, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Cms_Background, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 501),
       Osd_Aux_Channel =>
-        (Kind => U8, Where => Master, How => Direct, Min => 1, Max => 18, Group => 501, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 1, Max => 18, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 501),
       Osd_Aux_Scale =>
-        (Kind => U16, Where => Master, How => Direct, Min => 1, Max => 1000, Group => 501, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 1, Max => 1000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 501),
       Osd_Aux_Symbol =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 255, Group => 501, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 255, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 501),
       Osd_Craftname_Msgs =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 501, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 501),
       Osd_Lidar_Dist_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Custom_Serial_Text_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Custom_Serial_Text_Terminator =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Osd_Custom_Text_Terminator, Group => 2044, others
-         => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Osd_Custom_Text_Terminator,
+         Count => 0, Min_Length => 0, Write_Once => False, Group => 2044),
       Osd_Custom_Text_Uart =>
-        (Kind => I8, Where => Master, How => Identifier, Count => 0, Group => 501, others => <>),
+        (Kind => I8, Where => Master, How => Identifier, Min => 0, Max => 0, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 501),
       Osd_Custom_Text_Baud =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Baud_Rate, Group => 501, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Baud_Rate, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 501),
       Osd_Wp_Number_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Wp_Current_Lat_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Wp_Current_Lon_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Wp_Current_Alt_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Wp_Distance_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Wp_Direction_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Wp_Next_Number_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Wp_Eta_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Nav_Map_Pos =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       Osd_Nav_Map_Mode =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 1, Group => 568, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 1, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 568),
       Osd_Nav_Map_Centre =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 1, Group => 568, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 1, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 568),
       Osd_Nav_Map_Min_Scale_M =>
-        (Kind => U16, Where => Master, How => Direct, Min => 20, Max => 5000, Group => 568, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 20, Max => 5000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 568),
       Osd_Airspeed =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 2045, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 2045),
       System_Hse_Mhz =>
-        (Kind => U8, Where => Hardware, How => Direct, Min => 0, Max => 30, Group => 18, others => <>),
+        (Kind => U8, Where => Hardware, How => Direct, Min => 0, Max => 30, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 18),
       Task_Statistics =>
-        (Kind => I8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 18, others => <>),
-      Debug_Mode => (Kind => U8, Where => Master, How => Lookup, Table => Table_Debug, Group => 18, others => <>),
+        (Kind => I8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 18),
+      Debug_Mode =>
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Debug, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 18),
       Rate_6pos_Switch =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 18, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 18),
       Cpu_Overclock =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Overclock, Group => 18, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Overclock, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 18),
       Pwr_On_Arm_Grace =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 30, Group => 18, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 30, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 18),
       Enable_Stick_Arming =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 18, others => <>),
-      Vtx_Band => (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 8, Group => 259, others => <>),
-      Vtx_Channel => (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 8, Group => 259, others => <>),
-      Vtx_Power => (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 7, Group => 259, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 18),
+      Vtx_Band =>
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 8, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 259),
+      Vtx_Channel =>
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 8, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 259),
+      Vtx_Power =>
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 7, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 259),
       Vtx_Low_Power_Disarm =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Vtx_Low_Power_Disarm, Group => 259, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Vtx_Low_Power_Disarm, Count =>
+         0, Min_Length => 0, Write_Once => False, Group => 259),
       Vtx_Softserial_Alt =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 259, others => <>),
-      Vtx_Type => (Kind => U8, Where => Master, How => Lookup, Table => Table_Vtx_Type, Group => 259, others => <>),
-      Vtx_Uart => (Kind => I8, Where => Master, How => Identifier, Count => 0, Group => 259, others => <>),
-      Vtx_Freq => (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 5999, Group => 259, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 259),
+      Vtx_Type =>
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Vtx_Type, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 259),
+      Vtx_Uart =>
+        (Kind => I8, Where => Master, How => Identifier, Min => 0, Max => 0, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 259),
+      Vtx_Freq =>
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 5999, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 259),
       Vtx_Pit_Mode_Freq =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 5999, Group => 259, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 5999, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 259),
       Vtx_Halfduplex =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 515, others => <>),
-      Vtx_Spi_Bus => (Kind => U8, Where => Hardware, How => Direct, Min => 0, Max => 3, Group => 57, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 515),
+      Vtx_Spi_Bus =>
+        (Kind => U8, Where => Hardware, How => Direct, Min => 0, Max => 3, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 57),
       Vcd_Video_System =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Video_System, Group => 514, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Video_System, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 514),
       Vcd_H_Offset =>
-        (Kind => I8, Where => Master, How => Direct, Min => -32, Max => 31, Group => 514, others => <>),
+        (Kind => I8, Where => Master, How => Direct, Min => -32, Max => 31, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 514),
       Vcd_V_Offset =>
-        (Kind => I8, Where => Master, How => Direct, Min => -15, Max => 16, Group => 514, others => <>),
+        (Kind => I8, Where => Master, How => Direct, Min => -15, Max => 16, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 514),
       Max7456_Clock =>
-        (Kind => U8, Where => Hardware, How => Lookup, Table => Table_Max7456_Clock, Group => 524, others => <>),
+        (Kind => U8, Where => Hardware, How => Lookup, Min => 0, Max => 0, Table => Table_Max7456_Clock, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 524),
       Max7456_Spi_Bus =>
-        (Kind => U8, Where => Hardware, How => Direct, Min => 0, Max => 3, Group => 524, others => <>),
+        (Kind => U8, Where => Hardware, How => Direct, Min => 0, Max => 3, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 524),
       Max7456_Preinit_Opu =>
-        (Kind => U8, Where => Hardware, How => Lookup, Table => Table_Off_On, Group => 524, others => <>),
+        (Kind => U8, Where => Hardware, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 524),
       Displayport_Msp_Col_Adjust =>
-        (Kind => I8, Where => Master, How => Direct, Min => -6, Max => 0, Group => 512, others => <>),
+        (Kind => I8, Where => Master, How => Direct, Min => -6, Max => 0, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 512),
       Displayport_Msp_Row_Adjust =>
-        (Kind => I8, Where => Master, How => Direct, Min => -3, Max => 0, Group => 512, others => <>),
-      Displayport_Msp_Fonts => (Kind => U8, Where => Master, How => List, Count => 4, Group => 512, others => <>),
+        (Kind => I8, Where => Master, How => Direct, Min => -3, Max => 0, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 512),
+      Displayport_Msp_Fonts =>
+        (Kind => U8, Where => Master, How => List, Min => 0, Max => 0, Table => Table_Off_On, Count => 4, Min_Length
+         => 0, Write_Once => False, Group => 512),
       Displayport_Msp_Use_Device_Blink =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 512, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 512),
       Displayport_Max7456_Col_Adjust =>
-        (Kind => I8, Where => Master, How => Direct, Min => -6, Max => 0, Group => 513, others => <>),
+        (Kind => I8, Where => Master, How => Direct, Min => -6, Max => 0, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 513),
       Displayport_Max7456_Row_Adjust =>
-        (Kind => I8, Where => Master, How => Direct, Min => -3, Max => 0, Group => 513, others => <>),
+        (Kind => I8, Where => Master, How => Direct, Min => -3, Max => 0, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 513),
       Displayport_Max7456_Inv =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 513, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 513),
       Displayport_Max7456_Blk =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 3, Group => 513, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 3, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 513),
       Displayport_Max7456_Wht =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 3, Group => 513, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 3, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 513),
       Esc_Sensor_Halfduplex =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 517, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 517),
       Esc_Sensor_Current_Offset =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 16000, Group => 517, others => <>),
-      Esc_Sensor_Uart => (Kind => I8, Where => Master, How => Identifier, Count => 0, Group => 517, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 16000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 517),
+      Esc_Sensor_Uart =>
+        (Kind => I8, Where => Master, How => Identifier, Min => 0, Max => 0, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 517),
       Frsky_Spi_Autobind =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 523, others => <>),
-      Frsky_Spi_Tx_Id => (Kind => U8, Where => Master, How => List, Count => 3, Group => 523, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 523),
+      Frsky_Spi_Tx_Id =>
+        (Kind => U8, Where => Master, How => List, Min => 0, Max => 0, Table => Table_Off_On, Count => 3, Min_Length
+         => 0, Write_Once => False, Group => 523),
       Frsky_Spi_Offset =>
-        (Kind => I8, Where => Master, How => Direct, Min => -127, Max => 127, Group => 523, others => <>),
-      Frsky_Spi_Bind_Hop_Data => (Kind => U8, Where => Master, How => List, Count => 50, Group => 523, others => <>),
+        (Kind => I8, Where => Master, How => Direct, Min => -127, Max => 127, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 523),
+      Frsky_Spi_Bind_Hop_Data =>
+        (Kind => U8, Where => Master, How => List, Min => 0, Max => 0, Table => Table_Off_On, Count => 50, Min_Length
+         => 0, Write_Once => False, Group => 523),
       Frsky_X_Rx_Num =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 255, Group => 523, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 255, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 523),
       Frsky_Spi_A1_Source =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Rx_Frsky_Spi_A1_Source, Group => 523, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Rx_Frsky_Spi_A1_Source, Count
+         => 0, Min_Length => 0, Write_Once => False, Group => 523),
       Cc2500_Spi_Chip_Detect =>
-        (Kind => U8, Where => Hardware, How => Lookup, Table => Table_Off_On, Group => 523, others => <>),
+        (Kind => U8, Where => Hardware, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 523),
       Led_Inversion =>
-        (Kind => U8, Where => Hardware, How => Direct, Min => 0, Max => 7, Group => 505, others => <>),
+        (Kind => U8, Where => Hardware, How => Direct, Min => 0, Max => 7, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 505),
       Dashboard_I2c_Bus =>
-        (Kind => U8, Where => Hardware, How => Direct, Min => 0, Max => 3, Group => 519, others => <>),
+        (Kind => U8, Where => Hardware, How => Direct, Min => 0, Max => 3, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 519),
       Dashboard_I2c_Addr =>
-        (Kind => U8, Where => Hardware, How => Direct, Min => 8, Max => 119, Group => 519, others => <>),
+        (Kind => U8, Where => Hardware, How => Direct, Min => 8, Max => 119, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 519),
       Rangefinder_Hardware =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Rangefinder_Hardware, Group => 527, others => <>),
-      Rangefinder_Uart => (Kind => I8, Where => Master, How => Identifier, Count => 0, Group => 527, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Rangefinder_Hardware, Count =>
+         0, Min_Length => 0, Write_Once => False, Group => 527),
+      Rangefinder_Uart =>
+        (Kind => I8, Where => Master, How => Identifier, Min => 0, Max => 0, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 527),
       Opticalflow_Hardware =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Opticalflow_Hardware, Group => 560, others => <>),
-      Opticalflow_Uart => (Kind => I8, Where => Master, How => Identifier, Count => 0, Group => 560, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Opticalflow_Hardware, Count =>
+         0, Min_Length => 0, Write_Once => False, Group => 560),
+      Opticalflow_Uart =>
+        (Kind => I8, Where => Master, How => Identifier, Min => 0, Max => 0, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 560),
       Opticalflow_Rotation =>
-        (Kind => I16, Where => Master, How => Direct, Min => 0, Max => 359, Group => 560, others => <>),
+        (Kind => I16, Where => Master, How => Direct, Min => 0, Max => 359, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 560),
       Opticalflow_Flip_X =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 560, others => <>),
-      Pinio_Config => (Kind => U8, Where => Hardware, How => List, Count => 4, Group => 529, others => <>),
-      Pinio_Box => (Kind => U8, Where => Hardware, How => List, Count => 4, Group => 530, others => <>),
-      Usb_Hid_Cdc => (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 531, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 560),
+      Pinio_Config =>
+        (Kind => U8, Where => Hardware, How => List, Min => 0, Max => 0, Table => Table_Off_On, Count => 4, Min_Length
+         => 0, Write_Once => False, Group => 529),
+      Pinio_Box =>
+        (Kind => U8, Where => Hardware, How => List, Min => 0, Max => 0, Table => Table_Off_On, Count => 4, Min_Length
+         => 0, Write_Once => False, Group => 530),
+      Usb_Hid_Cdc =>
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 531),
       Usb_Msc_Pin_Pullup =>
-        (Kind => U8, Where => Hardware, How => Lookup, Table => Table_Off_On, Group => 531, others => <>),
+        (Kind => U8, Where => Hardware, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 531),
       Flash_Spi_Bus =>
-        (Kind => U8, Where => Hardware, How => Direct, Min => 0, Max => 3, Group => 506, others => <>),
+        (Kind => U8, Where => Hardware, How => Direct, Min => 0, Max => 3, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 506),
       Rcdevice_Init_Dev_Attempts =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 10, Group => 539, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 10, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 539),
       Rcdevice_Init_Dev_Attempt_Interval =>
-        (Kind => U32, Where => Master, How => Direct, Min => 0, Max => 5000, Group => 539, others => <>),
+        (Kind => U32, Where => Master, How => Direct, Min => 0, Max => 5000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 539),
       Rcdevice_Protocol_Version =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 1, Group => 539, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 1, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 539),
       Rcdevice_Feature =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Group => 539, others => <>),
-      Rcdevice_Uart => (Kind => I8, Where => Master, How => Identifier, Count => 0, Group => 539, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 65535, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 539),
+      Rcdevice_Uart =>
+        (Kind => I8, Where => Master, How => Identifier, Min => 0, Max => 0, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 539),
       Gyro_1_Bustype =>
-        (Kind => U8, Where => Hardware, How => Lookup, Table => Table_Bus_Type, Group => 540, others => <>),
+        (Kind => U8, Where => Hardware, How => Lookup, Min => 0, Max => 0, Table => Table_Bus_Type, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 540),
       Gyro_1_Spibus =>
-        (Kind => U8, Where => Hardware, How => Direct, Min => 0, Max => 3, Group => 540, others => <>),
+        (Kind => U8, Where => Hardware, How => Direct, Min => 0, Max => 3, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 540),
       Gyro_1_I2c_Bus =>
-        (Kind => U8, Where => Hardware, How => Direct, Min => 0, Max => 3, Group => 540, others => <>),
+        (Kind => U8, Where => Hardware, How => Direct, Min => 0, Max => 3, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 540),
       Gyro_1_I2c_Address =>
-        (Kind => U8, Where => Hardware, How => Direct, Min => 0, Max => 119, Group => 540, others => <>),
+        (Kind => U8, Where => Hardware, How => Direct, Min => 0, Max => 119, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 540),
       I2c1_Pullup =>
-        (Kind => U8, Where => Hardware, How => Lookup, Table => Table_Off_On, Group => 518, others => <>),
+        (Kind => U8, Where => Hardware, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 518),
       I2c1_Clockspeed_Khz =>
-        (Kind => U16, Where => Hardware, How => Direct, Min => 100, Max => 1300, Group => 518, others => <>),
+        (Kind => U16, Where => Hardware, How => Direct, Min => 100, Max => 1300, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 518),
       I2c2_Pullup =>
-        (Kind => U8, Where => Hardware, How => Lookup, Table => Table_Off_On, Group => 518, others => <>),
+        (Kind => U8, Where => Hardware, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 518),
       I2c2_Clockspeed_Khz =>
-        (Kind => U16, Where => Hardware, How => Direct, Min => 100, Max => 1300, Group => 518, others => <>),
+        (Kind => U16, Where => Hardware, How => Direct, Min => 100, Max => 1300, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 518),
       I2c3_Pullup =>
-        (Kind => U8, Where => Hardware, How => Lookup, Table => Table_Off_On, Group => 518, others => <>),
+        (Kind => U8, Where => Hardware, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 518),
       I2c3_Clockspeed_Khz =>
-        (Kind => U16, Where => Hardware, How => Direct, Min => 100, Max => 1300, Group => 518, others => <>),
+        (Kind => U16, Where => Hardware, How => Direct, Min => 100, Max => 1300, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 518),
       Mco2_On_Pc9 =>
-        (Kind => U8, Where => Hardware, How => Lookup, Table => Table_Off_On, Group => 541, others => <>),
+        (Kind => U8, Where => Hardware, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 541),
       Spektrum_Spi_Protocol =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 255, Group => 542, others => <>),
-      Spektrum_Spi_Mfg_Id => (Kind => U8, Where => Master, How => List, Count => 4, Group => 542, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 255, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 542),
+      Spektrum_Spi_Mfg_Id =>
+        (Kind => U8, Where => Master, How => List, Min => 0, Max => 0, Table => Table_Off_On, Count => 4, Min_Length
+         => 0, Write_Once => False, Group => 542),
       Spektrum_Spi_Num_Channels =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 12, Group => 542, others => <>),
-      Expresslrs_Uid => (Kind => U8, Where => Master, How => List, Count => 6, Group => 555, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 12, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 542),
+      Expresslrs_Uid =>
+        (Kind => U8, Where => Master, How => List, Min => 0, Max => 0, Table => Table_Off_On, Count => 6, Min_Length
+         => 0, Write_Once => False, Group => 555),
       Expresslrs_Domain =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Freq_Domain, Group => 555, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Freq_Domain, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 555),
       Expresslrs_Model_Id =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 255, Group => 555, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 255, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 555),
       Scheduler_Relax_Rx =>
-        (Kind => U16, Where => Hardware, How => Direct, Min => 0, Max => 500, Group => 556, others => <>),
+        (Kind => U16, Where => Hardware, How => Direct, Min => 0, Max => 500, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 556),
       Scheduler_Relax_Osd =>
-        (Kind => U16, Where => Hardware, How => Direct, Min => 0, Max => 500, Group => 556, others => <>),
+        (Kind => U16, Where => Hardware, How => Direct, Min => 0, Max => 500, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 556),
       Scheduler_Debug_Task =>
-        (Kind => U16, Where => Hardware, How => Direct, Min => 0, Max => 40, Group => 556, others => <>),
+        (Kind => U16, Where => Hardware, How => Direct, Min => 0, Max => 40, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 556),
       Cpu_Late_Limit_Permille =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 100, Group => 556, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 556),
       Serialmsp_Halfduplex =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 557, others => <>),
-      Msp_1_Uart => (Kind => I8, Where => Master, How => Identifier, Count => 0, Group => 557, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 557),
+      Msp_1_Uart =>
+        (Kind => I8, Where => Master, How => Identifier, Min => 0, Max => 0, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 557),
       Msp_1_Baud =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Baud_Rate, Group => 557, others => <>),
-      Msp_2_Uart => (Kind => I8, Where => Master, How => Identifier, Count => 0, Group => 557, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Baud_Rate, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 557),
+      Msp_2_Uart =>
+        (Kind => I8, Where => Master, How => Identifier, Min => 0, Max => 0, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 557),
       Msp_2_Baud =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Baud_Rate, Group => 557, others => <>),
-      Msp_3_Uart => (Kind => I8, Where => Master, How => Identifier, Count => 0, Group => 557, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Baud_Rate, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 557),
+      Msp_3_Uart =>
+        (Kind => I8, Where => Master, How => Identifier, Min => 0, Max => 0, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 557),
       Msp_3_Baud =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Baud_Rate, Group => 557, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Baud_Rate, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 557),
       Timezone_Offset_Minutes =>
-        (Kind => I16, Where => Master, How => Direct, Min => -780, Max => 780, Group => 526, others => <>),
+        (Kind => I16, Where => Master, How => Direct, Min => -780, Max => 780, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 526),
       Rpm_Filter_Harmonics =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 3, Group => 544, others => <>),
-      Rpm_Filter_Weights => (Kind => U8, Where => Master, How => List, Count => 3, Group => 544, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 3, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 544),
+      Rpm_Filter_Weights =>
+        (Kind => U8, Where => Master, How => List, Min => 0, Max => 0, Table => Table_Off_On, Count => 3, Min_Length
+         => 0, Write_Once => False, Group => 544),
       Rpm_Filter_Q =>
-        (Kind => U16, Where => Master, How => Direct, Min => 250, Max => 3000, Group => 544, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 250, Max => 3000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 544),
       Rpm_Filter_Min_Hz =>
-        (Kind => U8, Where => Master, How => Direct, Min => 30, Max => 200, Group => 544, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 30, Max => 200, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 544),
       Rpm_Filter_Fade_Range_Hz =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 1000, Group => 544, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 1000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 544),
       Rpm_Filter_Lpf_Hz =>
-        (Kind => U16, Where => Master, How => Direct, Min => 100, Max => 500, Group => 544, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 100, Max => 500, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 544),
       Flysky_Spi_Tx_Id =>
-        (Kind => U32, Where => Master, How => Direct, Min => 0, Max => 4294967295, Group => 525, others => <>),
-      Flysky_Spi_Rf_Channels => (Kind => U8, Where => Master, How => List, Count => 16, Group => 525, others => <>),
+        (Kind => U32, Where => Master, How => Direct, Min => 0, Max => 4294967295, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 525),
+      Flysky_Spi_Rf_Channels =>
+        (Kind => U8, Where => Master, How => List, Min => 0, Max => 0, Table => Table_Off_On, Count => 16, Min_Length
+         => 0, Write_Once => False, Group => 525),
       Stats_Min_Armed_Time_S =>
-        (Kind => I8, Where => Master, How => Direct, Min => -1, Max => 127, Group => 547, others => <>),
+        (Kind => I8, Where => Master, How => Direct, Min => -1, Max => 127, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 547),
       Stats_Total_Flights =>
-        (Kind => U32, Where => Master, How => Direct, Min => 0, Max => 4294967295, Group => 547, others => <>),
+        (Kind => U32, Where => Master, How => Direct, Min => 0, Max => 4294967295, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 547),
       Stats_Total_Time_S =>
-        (Kind => U32, Where => Master, How => Direct, Min => 0, Max => 4294967295, Group => 547, others => <>),
+        (Kind => U32, Where => Master, How => Direct, Min => 0, Max => 4294967295, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 547),
       Stats_Total_Dist_M =>
-        (Kind => U32, Where => Master, How => Direct, Min => 0, Max => 4294967295, Group => 547, others => <>),
+        (Kind => U32, Where => Master, How => Direct, Min => 0, Max => 4294967295, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 547),
       Stats_Save_Move_Limit =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 255, Group => 547, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 255, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 547),
       Stats_Mah_Used =>
-        (Kind => U32, Where => Master, How => Direct, Min => 0, Max => 4294967295, Group => 547, others => <>),
+        (Kind => U32, Where => Master, How => Direct, Min => 0, Max => 4294967295, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 547),
       Craft_Name =>
-        (Kind => U8, Where => Master, How => Text, Min_Length => 1, Count => 16, Write_Once => False, Group => 47,
-         others => <>),
+        (Kind => U8, Where => Master, How => Text, Min => 0, Max => 0, Table => Table_Off_On, Count => 16, Min_Length
+         => 1, Write_Once => False, Group => 47),
       Pilot_Name =>
-        (Kind => U8, Where => Master, How => Text, Min_Length => 1, Count => 16, Write_Once => False, Group => 47,
-         others => <>),
+        (Kind => U8, Where => Master, How => Text, Min => 0, Max => 0, Table => Table_Off_On, Count => 16, Min_Length
+         => 1, Write_Once => False, Group => 47),
       Altitude_Source =>
-        (Kind => I8, Where => Master, How => Lookup, Table => Table_Position_Alt_Source, Group => 56, others => <>),
+        (Kind => I8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Position_Alt_Source, Count =>
+         0, Min_Length => 0, Write_Once => False, Group => 56),
       Altitude_Prefer_Baro =>
-        (Kind => I8, Where => Master, How => Direct, Min => 0, Max => 100, Group => 56, others => <>),
+        (Kind => I8, Where => Master, How => Direct, Min => 0, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 56),
       Altitude_Lpf =>
-        (Kind => U16, Where => Master, How => Direct, Min => 10, Max => 5000, Group => 56, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 10, Max => 5000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 56),
       Rangefinder_Max_Range_Cm =>
-        (Kind => U16, Where => Master, How => Direct, Min => 50, Max => 1000, Group => 56, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 50, Max => 1000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 56),
       Altitude_D_Lpf =>
-        (Kind => U16, Where => Master, How => Direct, Min => 10, Max => 5000, Group => 56, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 10, Max => 5000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 56),
       Ap_Landing_Altitude_M =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 200, Group => 60, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 200, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 60),
       Ap_Hover_Throttle =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 1700, Group => 60, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 1700, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 60),
       Ap_Throttle_Min =>
-        (Kind => U16, Where => Master, How => Direct, Min => 1050, Max => 1400, Group => 60, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 1050, Max => 1400, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 60),
       Ap_Throttle_Max =>
-        (Kind => U16, Where => Master, How => Direct, Min => 1400, Max => 2000, Group => 60, others => <>),
-      Ap_Altitude_P => (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 200, Group => 60, others => <>),
-      Ap_Altitude_I => (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 200, Group => 60, others => <>),
-      Ap_Altitude_D => (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 200, Group => 60, others => <>),
-      Ap_Altitude_A => (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 200, Group => 60, others => <>),
-      Ap_Altitude_F => (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 200, Group => 60, others => <>),
-      Ap_Position_P => (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 200, Group => 60, others => <>),
-      Ap_Position_I => (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 200, Group => 60, others => <>),
-      Ap_Position_D => (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 200, Group => 60, others => <>),
-      Ap_Position_A => (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 200, Group => 60, others => <>),
-      Ap_Position_F => (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 200, Group => 60, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 1400, Max => 2000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 60),
+      Ap_Altitude_P =>
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 200, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 60),
+      Ap_Altitude_I =>
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 200, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 60),
+      Ap_Altitude_D =>
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 200, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 60),
+      Ap_Altitude_A =>
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 200, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 60),
+      Ap_Altitude_F =>
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 200, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 60),
+      Ap_Position_P =>
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 200, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 60),
+      Ap_Position_I =>
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 200, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 60),
+      Ap_Position_D =>
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 200, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 60),
+      Ap_Position_A =>
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 200, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 60),
+      Ap_Position_F =>
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 200, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 60),
       Ap_Position_Cutoff =>
-        (Kind => U8, Where => Master, How => Direct, Min => 10, Max => 50, Group => 60, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 10, Max => 50, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 60),
       Ap_Stop_Threshold =>
-        (Kind => U8, Where => Master, How => Direct, Min => 5, Max => 50, Group => 60, others => <>),
-      Ap_Max_Angle => (Kind => U8, Where => Master, How => Direct, Min => 10, Max => 70, Group => 60, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 5, Max => 50, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 60),
+      Ap_Max_Angle =>
+        (Kind => U8, Where => Master, How => Direct, Min => 10, Max => 70, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 60),
       Ap_Max_Yaw_Rate =>
-        (Kind => U8, Where => Master, How => Direct, Min => 10, Max => 250, Group => 60, others => <>),
-      Ap_Yaw_P => (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 200, Group => 60, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 10, Max => 250, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 60),
+      Ap_Yaw_P =>
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 200, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 60),
       Ap_Velocity_Drag_Coeff =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 100, Group => 60, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 60),
       Ap_Max_Velocity =>
-        (Kind => U16, Where => Master, How => Direct, Min => 100, Max => 5000, Group => 60, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 100, Max => 5000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 60),
       Ap_Waypoint_Arrival_Radius =>
-        (Kind => U16, Where => Master, How => Direct, Min => 100, Max => 5000, Group => 60, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 100, Max => 5000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 60),
       Ap_Waypoint_Hold_Radius =>
-        (Kind => U16, Where => Master, How => Direct, Min => 50, Max => 1000, Group => 60, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 50, Max => 1000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 60),
       Ap_Stick_Deadband =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 500, Group => 60, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 500, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 60),
       Ap_Throttle_Deadband =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 500, Group => 60, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 500, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 60),
       Ap_Yaw_Mode =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Ap_Yaw_Mode, Group => 60, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Ap_Yaw_Mode, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 60),
       Ap_Min_Forward_Velocity =>
-        (Kind => U16, Where => Master, How => Direct, Min => 10, Max => 500, Group => 60, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 10, Max => 500, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 60),
       Ap_Nav_Corner_Speed =>
-        (Kind => U16, Where => Master, How => Direct, Min => 50, Max => 2000, Group => 60, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 50, Max => 2000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 60),
       Ap_Nav_Corner_Delta_V =>
-        (Kind => U16, Where => Master, How => Direct, Min => 100, Max => 4000, Group => 60, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 100, Max => 4000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 60),
       Ap_Nav_Decel =>
-        (Kind => U16, Where => Master, How => Direct, Min => 20, Max => 1000, Group => 60, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 20, Max => 1000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 60),
       Ap_Nav_Accel =>
-        (Kind => U16, Where => Master, How => Direct, Min => 20, Max => 1000, Group => 60, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 20, Max => 1000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 60),
       Ap_Nav_Carrot_Lead_Time =>
-        (Kind => U8, Where => Master, How => Direct, Min => 2, Max => 40, Group => 60, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 2, Max => 40, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 60),
       Ap_Nav_Carrot_Lead_Max =>
-        (Kind => U16, Where => Master, How => Direct, Min => 600, Max => 6000, Group => 60, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 600, Max => 6000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 60),
       Ap_Nav_Preturn_Dist =>
-        (Kind => U16, Where => Master, How => Direct, Min => 500, Max => 5000, Group => 60, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 500, Max => 5000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 60),
       Ap_Velocity_Buildup_Max_Pitch =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 20, Group => 60, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 20, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 60),
       Ap_Max_Turn_Rate =>
-        (Kind => U8, Where => Master, How => Direct, Min => 1, Max => 90, Group => 60, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 1, Max => 90, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 60),
       Ap_Hold_Orbit_Radius =>
-        (Kind => U16, Where => Master, How => Direct, Min => 300, Max => 5000, Group => 60, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 300, Max => 5000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 60),
       Ap_Hold_Figure8_Width =>
-        (Kind => U16, Where => Master, How => Direct, Min => 500, Max => 10000, Group => 60, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 500, Max => 10000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 60),
       Ap_Landing_Descent_Rate =>
-        (Kind => U8, Where => Master, How => Direct, Min => 10, Max => 200, Group => 60, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 10, Max => 200, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 60),
       Ap_Landing_Detection_Time =>
-        (Kind => U8, Where => Master, How => Direct, Min => 5, Max => 50, Group => 60, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 5, Max => 50, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 60),
       Ap_Landing_Spiral_Enable =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 60, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 60),
       Ap_Landing_Spiral_Radius =>
-        (Kind => U16, Where => Master, How => Direct, Min => 50, Max => 2000, Group => 60, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 50, Max => 2000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 60),
       Ap_Landing_Spiral_Rate =>
-        (Kind => U8, Where => Master, How => Direct, Min => 1, Max => 45, Group => 60, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 1, Max => 45, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 60),
       Ap_Landing_Velocity_Threshold =>
-        (Kind => U8, Where => Master, How => Direct, Min => 10, Max => 200, Group => 60, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 10, Max => 200, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 60),
       Ap_Landing_Throttle_Threshold =>
-        (Kind => U16, Where => Master, How => Direct, Min => 10, Max => 500, Group => 60, others => <>),
-      Ap_L1_Enable => (Kind => U8, Where => Master, How => Lookup, Table => Table_Off_On, Group => 60, others => <>),
-      Ap_L1_Period => (Kind => U16, Where => Master, How => Direct, Min => 5, Max => 100, Group => 60, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 10, Max => 500, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 60),
+      Ap_L1_Enable =>
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 60),
+      Ap_L1_Period =>
+        (Kind => U16, Where => Master, How => Direct, Min => 5, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 60),
       Ap_L1_Min_Lookahead =>
-        (Kind => U16, Where => Master, How => Direct, Min => 100, Max => 5000, Group => 60, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 100, Max => 5000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 60),
       Ap_L1_Max_Lookahead =>
-        (Kind => U16, Where => Master, How => Direct, Min => 1000, Max => 50000, Group => 60, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 1000, Max => 50000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 60),
       Ap_L1_Max_Cross_Track_Error =>
-        (Kind => U16, Where => Master, How => Direct, Min => 1000, Max => 50000, Group => 60, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 1000, Max => 50000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 60),
       Ap_L1_Turn_Rate =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 90, Group => 60, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 90, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 60),
       Ap_Min_Nav_Altitude_M =>
-        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 50, Group => 60, others => <>),
+        (Kind => U8, Where => Master, How => Direct, Min => 0, Max => 50, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 60),
       Ap_Rx_Loss_Policy =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Ap_Rx_Loss_Policy, Group => 60, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Ap_Rx_Loss_Policy, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 60),
       Ap_Max_Distance_From_Home =>
-        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 10000, Group => 60, others => <>),
+        (Kind => U16, Where => Master, How => Direct, Min => 0, Max => 10000, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 60),
       Ap_Geofence_Action =>
-        (Kind => U8, Where => Master, How => Lookup, Table => Table_Ap_Geofence_Action, Group => 60, others => <>),
+        (Kind => U8, Where => Master, How => Lookup, Min => 0, Max => 0, Table => Table_Ap_Geofence_Action, Count =>
+         0, Min_Length => 0, Write_Once => False, Group => 60),
       Box_User_1_Name =>
-        (Kind => U8, Where => Hardware, How => Text, Min_Length => 1, Count => 16, Write_Once => False, Group => 553,
-         others => <>),
+        (Kind => U8, Where => Hardware, How => Text, Min => 0, Max => 0, Table => Table_Off_On, Count => 16,
+         Min_Length => 1, Write_Once => False, Group => 553),
       Box_User_2_Name =>
-        (Kind => U8, Where => Hardware, How => Text, Min_Length => 1, Count => 16, Write_Once => False, Group => 553,
-         others => <>),
+        (Kind => U8, Where => Hardware, How => Text, Min => 0, Max => 0, Table => Table_Off_On, Count => 16,
+         Min_Length => 1, Write_Once => False, Group => 553),
       Box_User_3_Name =>
-        (Kind => U8, Where => Hardware, How => Text, Min_Length => 1, Count => 16, Write_Once => False, Group => 553,
-         others => <>),
+        (Kind => U8, Where => Hardware, How => Text, Min => 0, Max => 0, Table => Table_Off_On, Count => 16,
+         Min_Length => 1, Write_Once => False, Group => 553),
       Box_User_4_Name =>
-        (Kind => U8, Where => Hardware, How => Text, Min_Length => 1, Count => 16, Write_Once => False, Group => 553,
-         others => <>),
+        (Kind => U8, Where => Hardware, How => Text, Min => 0, Max => 0, Table => Table_Off_On, Count => 16,
+         Min_Length => 1, Write_Once => False, Group => 553),
       Gimbal_Roll_Rc_Gain =>
-        (Kind => I8, Where => Master, How => Direct, Min => -100, Max => 100, Group => 559, others => <>),
+        (Kind => I8, Where => Master, How => Direct, Min => -100, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 559),
       Gimbal_Pitch_Rc_Thr_Gain =>
-        (Kind => I8, Where => Master, How => Direct, Min => -100, Max => 100, Group => 559, others => <>),
+        (Kind => I8, Where => Master, How => Direct, Min => -100, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 559),
       Gimbal_Pitch_Rc_Low_Gain =>
-        (Kind => I8, Where => Master, How => Direct, Min => -100, Max => 100, Group => 559, others => <>),
+        (Kind => I8, Where => Master, How => Direct, Min => -100, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 559),
       Gimbal_Pitch_Rc_High_Gain =>
-        (Kind => I8, Where => Master, How => Direct, Min => -100, Max => 100, Group => 559, others => <>),
+        (Kind => I8, Where => Master, How => Direct, Min => -100, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 559),
       Gimbal_Yaw_Rc_Gain =>
-        (Kind => I8, Where => Master, How => Direct, Min => -100, Max => 100, Group => 559, others => <>),
+        (Kind => I8, Where => Master, How => Direct, Min => -100, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 559),
       Gimbal_Roll_Gain =>
-        (Kind => I8, Where => Master, How => Direct, Min => -100, Max => 100, Group => 559, others => <>),
+        (Kind => I8, Where => Master, How => Direct, Min => -100, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 559),
       Gimbal_Roll_Offset =>
-        (Kind => I8, Where => Master, How => Direct, Min => -100, Max => 100, Group => 559, others => <>),
+        (Kind => I8, Where => Master, How => Direct, Min => -100, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 559),
       Gimbal_Roll_Limit =>
-        (Kind => I8, Where => Master, How => Direct, Min => -100, Max => 100, Group => 559, others => <>),
+        (Kind => I8, Where => Master, How => Direct, Min => -100, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 559),
       Gimbal_Pitch_Gain =>
-        (Kind => I8, Where => Master, How => Direct, Min => -100, Max => 100, Group => 559, others => <>),
+        (Kind => I8, Where => Master, How => Direct, Min => -100, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 559),
       Gimbal_Pitch_Offset =>
-        (Kind => I8, Where => Master, How => Direct, Min => -100, Max => 100, Group => 559, others => <>),
+        (Kind => I8, Where => Master, How => Direct, Min => -100, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 559),
       Gimbal_Pitch_Low_Limit =>
-        (Kind => I8, Where => Master, How => Direct, Min => -100, Max => 100, Group => 559, others => <>),
+        (Kind => I8, Where => Master, How => Direct, Min => -100, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 559),
       Gimbal_Pitch_High_Limit =>
-        (Kind => I8, Where => Master, How => Direct, Min => -100, Max => 100, Group => 559, others => <>),
+        (Kind => I8, Where => Master, How => Direct, Min => -100, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 559),
       Gimbal_Yaw_Gain =>
-        (Kind => I8, Where => Master, How => Direct, Min => -100, Max => 100, Group => 559, others => <>),
+        (Kind => I8, Where => Master, How => Direct, Min => -100, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 559),
       Gimbal_Yaw_Offset =>
-        (Kind => I8, Where => Master, How => Direct, Min => -100, Max => 100, Group => 559, others => <>),
+        (Kind => I8, Where => Master, How => Direct, Min => -100, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 559),
       Gimbal_Yaw_Limit =>
-        (Kind => I8, Where => Master, How => Direct, Min => -100, Max => 100, Group => 559, others => <>),
+        (Kind => I8, Where => Master, How => Direct, Min => -100, Max => 100, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 559),
       Gimbal_Stabilisation =>
-        (Kind => I8, Where => Master, How => Direct, Min => 0, Max => 7, Group => 559, others => <>),
+        (Kind => I8, Where => Master, How => Direct, Min => 0, Max => 7, Table => Table_Off_On, Count => 0, Min_Length
+         => 0, Write_Once => False, Group => 559),
       Gimbal_Sensitivity =>
-        (Kind => I8, Where => Master, How => Direct, Min => -16, Max => 15, Group => 559, others => <>),
-      Gimbal_Uart => (Kind => I8, Where => Master, How => Identifier, Count => 0, Group => 559, others => <>));
+        (Kind => I8, Where => Master, How => Direct, Min => -16, Max => 15, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 559),
+      Gimbal_Uart =>
+        (Kind => I8, Where => Master, How => Identifier, Min => 0, Max => 0, Table => Table_Off_On, Count => 0,
+         Min_Length => 0, Write_Once => False, Group => 559));
 
    function Describe (S : Setting) return Info is (Infos (S));
 
