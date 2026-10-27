@@ -65,6 +65,10 @@ package body Adaflight.STM32.Radio is
    GHST_Reply   : Adaflight.GHST_Telemetry.Frame := (others => 0);
    GHST_Length  : Natural range 0 .. Adaflight.GHST_Telemetry.Frame_Size := 0;
    Jeti_State  : Adaflight.Jeti_Ex_Bus.State;
+   --  The EX Bus telemetry: its sensors and whether it runs.
+   Jeti_Tlm     : Adaflight.Jeti_Telemetry.State;
+   Jeti_Tlm_Set : Adaflight.Jeti_Telemetry.Settings;
+   Jeti_Tlm_On  : Boolean := False;
    Link        : USART.Number := USART.UART3;
    --  The link's line: inverted, and on its transmit pin alone.
    Inverted    : Boolean := False;
@@ -421,6 +425,34 @@ package body Adaflight.STM32.Radio is
          Adaflight.GHST.Queue_Telemetry (GHST_State, O.Count);
       end if;
    end GHST_Telemetry_Step;
+
+   procedure Init_Jeti_Telemetry (Settings : Adaflight.Jeti_Telemetry.Settings; Feature_On : Boolean) is
+   begin
+      Jeti_Tlm_Set := Settings;
+      Jeti_Tlm_On := Feature_On and then Open and then Kind = Jeti;
+      Adaflight.Jeti_Telemetry.Init (Jeti_Tlm, Jeti_Tlm_Set);
+   end Init_Jeti_Telemetry;
+
+   procedure Jeti_Telemetry_Step (Inp : Adaflight.Jeti_Telemetry.Inputs; Now_Us : Time_Us) is
+      O : Adaflight.Jeti_Telemetry.Output;
+   begin
+      if not Jeti_Tlm_On then
+         return;
+      end if;
+      --  The bus hands its bytes to the protocol as they arrive, so none
+      --  wait on the port.
+      Adaflight.Jeti_Telemetry.Handle (Jeti_Tlm, Jeti_State, Jeti_Tlm_Set, Inp, Now_Us, Waiting => 0, O => O);
+      if O.Length > 0 then
+         declare
+            Data : Adaflight.Bytes.Byte_Array (0 .. O.Length - 1);
+         begin
+            for K in Data'Range loop
+               Data (K) := Adaflight.Bytes.Byte (O.Data (K + 1));
+            end loop;
+            USART.Put (Port, Data);
+         end;
+      end if;
+   end Jeti_Telemetry_Step;
 
    function Linked return Boolean is (Open);
 

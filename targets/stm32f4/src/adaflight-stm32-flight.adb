@@ -41,6 +41,7 @@ with Adaflight.Failsafe;
 with Adaflight.FrSky_Hub_Telemetry;
 with Adaflight.GHST_Telemetry;
 with Adaflight.IBus_Telemetry;
+with Adaflight.Jeti_Telemetry;
 with Adaflight.FAT;
 with Adaflight.Flash_Device;
 with Adaflight.Flight_Stats;
@@ -2855,6 +2856,53 @@ package body Adaflight.STM32.Flight is
          Yaw                 => Integer_16 (Att_State.Euler.Yaw));
    end FrSky_Hub_Inputs;
 
+   --  What the EX Bus telemetry reads: the battery, the altitude estimate
+   --  and its climb rate, the attitude, the GPS with its home, the
+   --  accelerometer, and the ESC sensor's readings of the mixer's motors.
+   --  The board keeps no debug values, so the debug sensors read zero.
+   function Jeti_Inputs return Adaflight.Jeti_Telemetry.Inputs is
+      package JT renames Adaflight.Jeti_Telemetry;
+      G      : constant Adaflight.STM32.GPS.Readings := Adaflight.STM32.GPS.Current;
+      Volts  : constant Natural := Natural'Min (65_535, Bat.Voltage.Display_Filtered);
+      Motors : constant Natural := Natural'Min (JT.Max_Motors, Adaflight.STM32.Control.Motor_Count);
+      Inp    : JT.Inputs;
+      function Held (V : Float) return JT.Acc_Reading is (Float'Max (-1.0e6, Float'Min (1.0e6, V)));
+      function Wide (V : Long_Integer) return Integer_32 is
+        (Integer_32 (Long_Integer'Max (-2 ** 31, Long_Integer'Min (2 ** 31 - 1, V))));
+   begin
+      Inp.Legacy_Voltage := Unsigned_16 ((Volts + 5) / 10);
+      Inp.Pack_Voltage := Unsigned_16 (Volts);
+      Inp.Amperage := Wide (Long_Integer (Bat.Current.Amperage));
+      Inp.Altitude_Cm := Estimated_Altitude_Cm;
+      Inp.MAh_Drawn := Wide (Long_Integer (Bat.Current.mAh_Drawn));
+      Inp.Vario := Estimated_Vario;
+      Inp.Roll := Integer_16 (Att_State.Euler.Roll);
+      Inp.Pitch := Integer_16 (Att_State.Euler.Pitch);
+      Inp.Yaw := Integer_16 (Att_State.Euler.Yaw);
+      Inp.Satellites := G.Satellites;
+      Inp.Longitude := G.Longitude;
+      Inp.Latitude := G.Latitude;
+      Inp.Ground_Speed := G.Ground_Speed;
+      Inp.Home_Distance := G.Distance_To_Home_M;
+      Inp.Home_Direction := G.Direction_To_Home;
+      Inp.Ground_Course := G.Ground_Course;
+      Inp.GPS_Altitude_Cm := G.Altitude_Cm;
+      Inp.GPS_Sensor := G.Present;
+      Inp.Acc_ADC := (Held (Acc_State.Acc.X), Held (Acc_State.Acc.Y), Held (Acc_State.Acc.Z));
+      Inp.One_G := Positive'Max (1, Natural'Min (65_535, Adaflight.STM32.Gyro.Acc_One_G));
+      Inp.Motor_Count := Motors;
+      for M in 0 .. Motors - 1 loop
+         declare
+            R : constant Adaflight.ESC_Sensor.Reading := Adaflight.STM32.ESC_Sensor.Motor_Reading (M);
+         begin
+            Inp.Rpm (M) := Natural'Max (0, Integer (R.Rpm));
+            Inp.Data_Age (M) := R.Data_Age;
+         end;
+      end loop;
+      Inp.Erpm_To_Hz := Float'Max (0.0, Float'Min (100.0, Adaflight.STM32.ESC_Sensor.Erpm_Factor));
+      return Inp;
+   end Jeti_Inputs;
+
    --  What the Ghost telemetry reads: the battery, the arming, the GPS with
    --  its home, the altitude estimate and the attitude's heading.
    function GHST_Inputs return Adaflight.GHST_Telemetry.Inputs is
@@ -3243,6 +3291,7 @@ package body Adaflight.STM32.Flight is
                Adaflight.STM32.FrSky_Hub.Run (FrSky_Hub_Inputs);
                Adaflight.STM32.SmartPort.Run (SmartPort_Inputs);
                Adaflight.STM32.LTM.Run (Adaflight.STM32.Time.Millis, LTM_Inputs);
+               Adaflight.STM32.Radio.Jeti_Telemetry_Step (Jeti_Inputs, Adaflight.STM32.Time.Micros);
                declare
                   Requests : Adaflight.MAVLink_Commands.Requests;
                begin
@@ -3407,6 +3456,11 @@ package body Adaflight.STM32.Flight is
             Acc_1G_Rec       => Float'Max (0.0, Float'Min (1.0, Acc_State.One_G_Reciprocal))));
       Adaflight.STM32.SmartPort.Init (Config, Runtime_Features, SmartPort_Build);
       Adaflight.STM32.LTM.Init (Config, Runtime_Features);
+      Adaflight.STM32.Radio.Init_Jeti_Telemetry
+        (Adaflight.Config_Runtime.Jeti_Settings_Of
+           (Config.Battery_Config, Config.System_Config, Runtime_Features,
+            (Gyro => Selection.Found, Acc => Gyro_Report.Acc_Found, Baro => False, Mag => False)),
+         Feature_On => (Runtime_Features and Adaflight.Config_Fix.Feature_Telemetry) /= 0);
       Adaflight.STM32.MAVLink.Init (Config, Runtime_Features, (UID (1), UID (2), UID (3)));
       Adaflight.STM32.Radio.Init_GHST_Telemetry
         (Adaflight.Config_Runtime.GHST_Settings_Of

@@ -234,12 +234,39 @@ def jeti_frame(channels_us):
     little-endian, so the CRC over the whole frame reads zero."""
     data = b"".join((v * 8).to_bytes(2, "little") for v in channels_us[:16])
     body = bytes([0x3E, 0x03, 6 + len(data) + 2, 0x01, 0x31, len(data)]) + data
+    return body + jeti_crc16(body).to_bytes(2, "little")
+
+
+def jeti_crc16(data):
+    """The EX Bus CRC16 from zero over the reflected CCITT polynomial."""
     crc = 0
-    for b in body:
+    for b in data:
         d = b ^ (crc & 0xFF)
         d ^= (d << 4) & 0xFF
         crc = (((d << 8) | ((crc & 0xFF00) >> 8)) ^ (d >> 4) ^ (d << 3)) & 0xFFFF
-    return body + crc.to_bytes(2, "little")
+    return crc
+
+
+def jeti_request(packet):
+    """An EX Bus telemetry request that lets the flight controller answer: the request header, the frame
+    length, the packet id, the telemetry request id with no data, and the CRC16 little-endian."""
+    body = bytes([0x3D, 0x01, 8, packet, 0x3A, 0])
+    return body + jeti_crc16(body).to_bytes(2, "little")
+
+
+def jeti_answers(data):
+    """The EX Bus telemetry answers in the bytes from the flight controller: the answer header and length, with
+    the CRC16 over the whole frame reading zero."""
+    frames = []
+    i = 0
+    while i + 8 <= len(data):
+        n = data[i + 2]
+        if data[i] == 0x3B and data[i + 1] == 0x01 and 8 <= n <= len(data) - i and jeti_crc16(data[i:i + n]) == 0:
+            frames.append(data[i:i + n])
+            i += n
+        else:
+            i += 1
+    return frames
 
 
 def crc16_xmodem(data):
@@ -1499,6 +1526,37 @@ def main():
         finally:
             receiver.stop.set()
             camera.stop.set()
+            stop(proc)
+            sock.close()
+        store = os.path.join(work, "jetitlm.bin")
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "set serialrx_provider = JETIEXBUS")
+            check("receiver protocol set to EX Bus for its telemetry", "serialrx_provider set to JETIEXBUS" in text,
+                  text[-120:])
+            text = cli(sock, "set rx_uart = UART3")
+            check("EX Bus telemetry port assigned", "rx_uart set to UART3" in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store)
+        sender = SerialReceiver([jeti_frame(us), jeti_request(7)])
+        sender.start()
+        try:
+            time.sleep(4.0)
+            answers = jeti_answers(sender.received)
+            check("EX Bus telemetry answers the receiver's requests with checked frames", len(answers) >= 10,
+                  repr(sender.received[:40]))
+            check("EX Bus telemetry answers echo the packet id and carry the EX telemetry header",
+                  bool(answers) and all(a[3] == 7 and a[4] == 0x3A and a[6] == 0x9F and a[8:10] == bytes([0x1E, 0xA4])
+                                        for a in answers), repr(answers[:2]))
+        finally:
+            sender.stop.set()
             stop(proc)
             sock.close()
         store = os.path.join(work, "ghsttlm.bin")

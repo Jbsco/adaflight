@@ -10729,3 +10729,21 @@ decidegrees on its requests.
 The host smoke check runs a camera on UART4 that answers the device information request with protocol 1.0
 and its three buttons. It finds the request at the start and one WiFi button press after the camera control 1
 box on AUX1 switches on.
+
+## D456. STM32F4 Jeti EX Bus telemetry (2026-10-27)
+
+The board answers an EX Bus receiver's telemetry requests when the telemetry feature is on and an EX Bus link
+is open at boot. The telemetry task runs the core's EX Bus telemetry after the LTM telemetry and before
+MAVLink, over the receiver's request frame. A request older than 3 ms is dropped, one that is not a telemetry
+request or fails its CRC is dropped, and a fresh one gets its answer on the bus, which ends the receiver's
+permission to transmit. The receiver port hands its bytes to the protocol as they arrive, so the check for
+bytes waiting on the port always finds none. The first 255 answers describe the sensors, and the answers after
+them carry the values of the enabled sensors.
+
+The sensors read the battery, the altitude estimate and its climb rate, the attitude, the GPS with its home,
+the accelerometer and the ESC sensor's motor readings. The board keeps no debug values, so with a debug mode
+set the debug sensors read zero.
+
+The host smoke check sends EX Bus channel frames and telemetry requests in turn on UART3. It finds at least ten
+answers with a CRC16 that checks, each with the request's packet id and the EX telemetry header. One 4 s run
+on the host answered 28 of about 140 requests.
