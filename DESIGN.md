@@ -10458,3 +10458,20 @@ metre per second turns the attitude's heading to the course.
 The host smoke check's GPS reports 22.4 knots on an 84.4 degree course, and the MSP attitude reply's heading
 reads 84 degrees once the fix arrives. The host's accelerometer reads level, so the course's weight stays at
 zero and no smoke check reaches a usable GPS heading.
+
+## D438. STM32F4 GPS rescue (2026-10-27)
+
+The board runs the core's GPS rescue in its own 100 Hz task while the rescue is configured, as the failsafe
+procedure or by its mode box. Each run takes the rescue mode, the arming, the GPS stamp, health, fix, home
+fix and satellites, the heading's validity, the altitude estimate's control and smoothed values with its
+validity, vertical speed and acceleration, the horizontal estimate the position hold reads, the attitude's
+heading and tilt, the crash recovery, and the receiver link. The rescue drives the autopilot's altitude
+controller, which the altitude hold owns, and the position controller, which the position hold owns and
+which flies the rescue's angles and yaw. Under the rescue mode the controller takes the autopilot's angles
+within its angle limit and the mixer takes the altitude controller's throttle. A disarm the rescue asks for
+is a failsafe disarm, with the arm switch's disable reason set when the rescue asks for it. The OSD's
+warnings read the rescue mode and the rescue's health, availability and heading.
+
+The host cannot arm, so no smoke check flies a rescue. With the rescue as the failsafe procedure, the host
+smoke check finds the rescue task at 80 to 120 Hz, which shows the task runs but not the rescue's update,
+since a disarmed rescue has nothing the replies show.
