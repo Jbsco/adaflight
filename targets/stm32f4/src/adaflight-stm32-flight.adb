@@ -1075,13 +1075,31 @@ package body Adaflight.STM32.Flight is
    function Beep_Settings return Adaflight.Beeper.Settings is
      (Adaflight.Config_Runtime.Beeper_Settings_Of (Config.Beeper_Config));
 
-   --  What the beeper reads: the battery's presence, no USB or configurator
-   --  link on this image, the beeper boxes, no GPS, the motors running while
+   --  The USB cable's detect pin, an input pulled down where the board has
+   --  one.
+   USB_Detect : constant Boolean := Adaflight.Board.USB_Detect_Tag /= 0;
+   USB_Detect_Pin : constant Adaflight.Pins.Pin :=
+     (Port   => Adaflight.Pins.Port_Name'Val (Natural'Max (1, Adaflight.Board.USB_Detect_Tag / 16) - 1),
+      Number => Adaflight.Pins.Pin_Number (Adaflight.Board.USB_Detect_Tag mod 16));
+
+   --  Whether the USB cable is active: its detect pin high, or a host that
+   --  configured the port.
+   function USB_Active return Boolean is
+     ((USB_Detect and then Adaflight.STM32.GPIO.Is_High (USB_Detect_Pin)) or else Adaflight.STM32.USB.Configured);
+
+   --  Whether a configurator talks MSP: a byte on the USB port's or UART1's
+   --  MSP within the activity timeout.
+   function Configurator_Active return Boolean is
+     (for some L in MSP_Line =>
+        Adaflight.MSP_Port.Configurator_Active (Lines (L).Port, Adaflight.STM32.Time.Millis, Peripheral => False));
+
+   --  What the beeper reads: the battery's presence, the USB cable, a
+   --  configurator on MSP, the beeper boxes, the GPS, the motors running while
    --  armed, the failsafe's link, the last disarm and a waiting arming.
    function Beep_Conditions return Adaflight.Beeper.Conditions is
      (Battery_Present     => Adaflight.Battery."/=" (Bat.Overall, Adaflight.Battery.Not_Present),
-      USB_Active          => False,
-      Configurator_Active => False,
+      USB_Active          => USB_Active,
+      Configurator_Active => Configurator_Active,
       Mute_Switch         => Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Beeper_Mute),
       Beep_Switch         => Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Beeper_On),
       Satellite_Switch    => Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Beep_GPS_Count),
@@ -2918,6 +2936,10 @@ package body Adaflight.STM32.Flight is
       Adaflight.STM32.Radio.Init (Config, Runtime_Features, Adaflight.STM32.Time.Millis, Telemetry_Config);
       Adaflight.STM32.GPS.Init (Config, Runtime_Features, Adaflight.STM32.Time.Millis);
       Adaflight.STM32.ESC_Sensor.Init (Config, Runtime_Features);
+      if USB_Detect then
+         Adaflight.STM32.GPIO.Enable_Port (USB_Detect_Pin.Port);
+         Adaflight.STM32.GPIO.Set_Input (USB_Detect_Pin, Adaflight.STM32.GPIO.Down);
+      end if;
       declare
          Save : Boolean;
       begin
@@ -2968,10 +2990,11 @@ package body Adaflight.STM32.Flight is
    end Init;
 
    --  The failsafe's check every ten milliseconds of the realtime block over
-   --  the arming, the failsafe box, the throttle status and the controller's
-   --  crash recovery, with no autopilot on this image: its lost link tones,
-   --  its landed stage's disarm, and its flight mode with the confirmation
-   --  beep of a change.
+   --  the arming, the failsafe box, the throttle status, a configurator on
+   --  MSP that silences the lost link tones, and the controller's crash
+   --  recovery, with no autopilot on this image: its lost link tones, its
+   --  landed stage's disarm, and its flight mode with the confirmation beep
+   --  of a change.
    procedure Check_Failsafe is
       Beep     : Adaflight.Failsafe.Beep;
       Disarm   : Boolean;
@@ -2981,7 +3004,7 @@ package body Adaflight.STM32.Flight is
         (Armed               => Adaflight.STM32.Pilot.Armed,
          Switch_On           => Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Failsafe),
          Throttle_Low        => Adaflight.STM32.Pilot.Throttle_Low (Flight_Channels),
-         Configurator_Active => False,
+         Configurator_Active => Configurator_Active,
          Crash_Recovery      => Adaflight.STM32.Control.Crash_Recovery_Active,
          others              => False);
    begin

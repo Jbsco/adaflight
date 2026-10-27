@@ -10486,3 +10486,14 @@ offset comes from the arming or the headfree adjust box as before. D436 gave the
 
 The host reports no RC command that the turn changes, so no smoke check covers it. The core's turn has
 its own recorded vectors.
+
+## D440. STM32F4 configurator activity (2026-10-27)
+
+The board tells the beeper and the failsafe when a configurator is active: a byte on the USB port's or
+UART1's MSP within the five-second activity timeout. The failsafe's lost link tones stay silent while one is
+active, and the beeper's on-USB flag silences the beeper on the bench, with no battery, while a configurator
+is active or the USB cable is: its detect pin reads high, or a host has configured the port. The board pulls
+the detect pin down as an input at boot, after the ESC sensor, where its configuration names one, and the
+board generator gives its tag. The board had passed no USB link and no configurator.
+
+The host reports no beeper state, so no smoke check covers it.
