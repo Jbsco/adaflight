@@ -96,13 +96,32 @@ def sbus_frame(channels):
     return bytes([0x0F]) + bits.to_bytes(22, "little") + bytes([0x00, 0x00])
 
 
-class SBUS(threading.Thread):
-    """Sends SBUS frames on UART3's port about every 14 ms: roll and yaw at mid, pitch at 1150 counts,
-    throttle low."""
+def ibus_frame(channels_us):
+    """An IBUS frame of the IA6B: length and command, fourteen channels in microseconds little-endian, and the
+    checksum from 0xFFFF down."""
+    body = bytes([0x20, 0x40]) + b"".join(v.to_bytes(2, "little") for v in channels_us[:14])
+    return body + ((0xFFFF - sum(body)) & 0xFFFF).to_bytes(2, "little")
 
-    def __init__(self):
+
+def sumd_frame(channels_us):
+    """A SUMD frame: the sync byte, the valid state, the channel count, the channels in eighths of a
+    microsecond big-endian, and the CRC16 of the XMODEM polynomial over all of it."""
+    body = bytes([0xA8, 0x01, len(channels_us)]) + b"".join((v * 8).to_bytes(2, "big") for v in channels_us)
+    crc = 0
+    for b in body:
+        crc ^= b << 8
+        for _ in range(8):
+            crc = ((crc << 1) ^ 0x1021) & 0xFFFF if crc & 0x8000 else (crc << 1) & 0xFFFF
+    return body + crc.to_bytes(2, "big")
+
+
+class SerialReceiver(threading.Thread):
+    """Sends a receiver protocol's frames on UART3's port about every 14 ms: roll and yaw at mid, pitch at
+    1599 us, throttle low, in the protocol's frame."""
+
+    def __init__(self, frame):
         super().__init__(daemon=True)
-        self.channels = [992, 1150, 172, 992] + [992] * 12
+        self.frame = frame
         self.stop = threading.Event()
 
     def run(self):
@@ -115,7 +134,7 @@ class SBUS(threading.Thread):
                 time.sleep(0.1)
         while sock is not None and not self.stop.is_set():
             try:
-                sock.sendall(sbus_frame(self.channels))
+                sock.sendall(self.frame)
             except OSError:
                 break
             time.sleep(0.014)
@@ -1041,41 +1060,44 @@ def main():
         finally:
             stop(proc)
             sock.close()
-        store = os.path.join(work, "sbus.bin")
-        proc, sock = start(image, store)
-        try:
-            time.sleep(2.5)
-            sock.sendall(b"#")
-            read_all(sock, 0.8)
-            text = cli(sock, "set serialrx_provider = SBUS")
-            check("receiver protocol set to SBUS", "serialrx_provider set to SBUS" in text, text[-120:])
-            text = cli(sock, "set rx_uart = UART3")
-            check("SBUS port assigned", "rx_uart set to UART3" in text, text[-120:])
-            cli(sock, "save", wait=2.0)
-            proc.wait(timeout=10)
-        finally:
-            stop(proc)
-            sock.close()
-        proc, sock = start(image, store)
-        sbus = SBUS()
-        sbus.start()
-        try:
-            time.sleep(2.5)
-            rc = msp(sock, 105)
-            values = [rc[i] | rc[i + 1] << 8 for i in range(0, 8, 2)] if rc and len(rc) >= 8 else []
-            check("SBUS channels reach the MSP RC reply",
-                  len(values) == 4 and abs(values[0] - 1500) <= 2 and abs(values[1] - 1599) <= 2
-                  and abs(values[2] - 1500) <= 2 and values[3] <= 1000, repr(values))
-            sock.sendall(b"#")
-            read_all(sock, 0.8)
-            text = cli(sock, "status")
-            flags = text.split("Arming disable flags:")[-1]
-            check("SBUS link clears the signal loss", "Arming disable flags:" in text and "RXLOSS" not in flags,
-                  flags.strip()[:80])
-        finally:
-            sbus.stop.set()
-            stop(proc)
-            sock.close()
+        us = [1500, 1599, 988, 1500] + [1500] * 10
+        for name, frame in (("SBUS", sbus_frame([992, 1150, 172, 992] + [992] * 12)),
+                            ("IBUS", ibus_frame(us)), ("SUMD", sumd_frame(us))):
+            store = os.path.join(work, name.lower() + ".bin")
+            proc, sock = start(image, store)
+            try:
+                time.sleep(2.5)
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                text = cli(sock, f"set serialrx_provider = {name}")
+                check(f"receiver protocol set to {name}", f"serialrx_provider set to {name}" in text, text[-120:])
+                text = cli(sock, "set rx_uart = UART3")
+                check(f"{name} port assigned", "rx_uart set to UART3" in text, text[-120:])
+                cli(sock, "save", wait=2.0)
+                proc.wait(timeout=10)
+            finally:
+                stop(proc)
+                sock.close()
+            proc, sock = start(image, store)
+            sender = SerialReceiver(frame)
+            sender.start()
+            try:
+                time.sleep(2.5)
+                rc = msp(sock, 105)
+                values = [rc[i] | rc[i + 1] << 8 for i in range(0, 8, 2)] if rc and len(rc) >= 8 else []
+                check(f"{name} channels reach the MSP RC reply",
+                      len(values) == 4 and abs(values[0] - 1500) <= 2 and abs(values[1] - 1599) <= 2
+                      and abs(values[2] - 1500) <= 2 and values[3] <= 1000, repr(values))
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                text = cli(sock, "status")
+                flags = text.split("Arming disable flags:")[-1]
+                check(f"{name} link clears the signal loss",
+                      "Arming disable flags:" in text and "RXLOSS" not in flags, flags.strip()[:80])
+            finally:
+                sender.stop.set()
+                stop(proc)
+                sock.close()
     print(f"host smoke: {'all checks passed' if not failures else str(len(failures)) + ' failed'}")
     sys.exit(1 if failures else 0)
 

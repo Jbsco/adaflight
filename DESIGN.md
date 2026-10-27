@@ -10514,3 +10514,15 @@ stays as the UART reads it, so an inverted SBUS line needs UART1 on this board. 
 
 The host smoke check sets SBUS on UART3 with a fresh store, sends SBUS frames about every 14 ms, reads the
 roll, pitch, yaw and throttle channels back over MSP, and finds the signal loss cleared.
+
+## D442. STM32F4 IBUS and SUMD receivers (2026-10-27)
+
+The board reads an IBUS or a SUMD receiver on the serial receiver UART at 115,200 baud, eight data bits
+without parity, inverted only when the setting asks. The bytes go through the core's IBUS or SUMD frame
+assembly at their arrival times and the frame status after the realtime tasks, eighteen channels each,
+with the frame time to the RC smoothing. The IBUS frame status's telemetry request goes unanswered until
+the board sends IBUS telemetry, which needs a half-duplex port. A CRSF port now opens inverted when the
+setting asks, through the board's inverter, where it had stayed closed.
+
+The host smoke check runs its receiver phase for SBUS, IBUS and SUMD, each with a fresh store and its own
+frames carrying the same channels, and reads the channels back over MSP.

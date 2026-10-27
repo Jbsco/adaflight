@@ -3,7 +3,9 @@ with Adaflight.Config_Fix;
 with Adaflight.Config_Runtime;
 with Adaflight.CRSF;
 with Adaflight.CRSF_Display_Port;
+with Adaflight.IBUS;
 with Adaflight.SBUS;
+with Adaflight.SUMD;
 with Adaflight.Stream_Buffers;
 with Adaflight.Modes;
 with Adaflight.Serial_Feature_Map;
@@ -14,21 +16,26 @@ package body Adaflight.STM32.Radio is
    use type Interfaces.Unsigned_32;
    use type Adaflight.Modes.Box;
 
-   --  The serial receiver provider settings for SBUS and CRSF, the SBUS rates,
-   --  and the serial receiver feature's bit.
+   --  The serial receiver provider settings the board reads, the SBUS rates,
+   --  the IBUS and SUMD rate, and the serial receiver feature's bit.
    SBUS_Provider     : constant Interfaces.Unsigned_8 := 2;
+   SUMD_Provider     : constant Interfaces.Unsigned_8 := 3;
+   IBUS_Provider     : constant Interfaces.Unsigned_8 := 7;
    CRSF_Provider     : constant Interfaces.Unsigned_8 := 9;
    SBUS_Baud         : constant := 100_000;
    SBUS_Fast_Baud    : constant := 200_000;
+   IBUS_SUMD_Baud    : constant := 115_200;
    Feature_RX_Serial : constant Interfaces.Unsigned_32 := 8;
    --  The serial port identifiers of the board's UARTs.
    Port_Ids : constant array (USART.Number) of SFM.Port_Id :=
      (USART.UART1 => 51, USART.UART3 => 53, USART.UART4 => 54, USART.UART6 => 56);
 
-   type Provider is (CRSF, SBUS);
+   type Provider is (CRSF, SBUS, IBUS, SUMD);
    Open        : Boolean := False;
    Kind        : Provider := CRSF;
    SBUS_State  : Adaflight.SBUS.State;
+   IBUS_State  : Adaflight.IBUS.State;
+   SUMD_State  : Adaflight.SUMD.State;
    Link        : USART.Number := USART.UART3;
    Rx          : Adaflight.Receiver.State;
    Rx_Settings : Adaflight.Receiver.Settings;
@@ -59,18 +66,23 @@ package body Adaflight.STM32.Radio is
       R : Adaflight.Config_Groups.Rx_Config_Record renames Config.Rx_Config;
    begin
       Open := False;
-      Kind := (if R.Serialrx_Provider = SBUS_Provider then SBUS else CRSF);
+      Kind := (case R.Serialrx_Provider is
+                  when SBUS_Provider => SBUS,
+                  when IBUS_Provider => IBUS,
+                  when SUMD_Provider => SUMD,
+                  when others        => CRSF);
       Rx_Settings := Adaflight.Config_Runtime.Receiver_Settings_Of
         (Config.Rx_Config, Config.Rx_Channel_Range_Configs, Config.Rx_Failsafe_Channel_Configs,
          Config.Flight3_D_Config, Config.Failsafe_Config, Runtime_Features,
          Reported_Channels => (case Kind is
                                   when CRSF => Adaflight.CRSF.Channel_Count,
-                                  when SBUS => Adaflight.SBUS.Channel_Count));
+                                  when SBUS => Adaflight.SBUS.Channel_Count,
+                                  when IBUS => Adaflight.IBUS.Channel_Count,
+                                  when SUMD => Adaflight.Receiver.Channel_Count));
       FS_Settings := Adaflight.Config_Runtime.Failsafe_Settings_Of (Config.Failsafe_Config, Config.Autopilot_Config);
       Adaflight.Failsafe.Init (FS, FS_Settings);
       if (Runtime_Features and Feature_RX_Serial) /= 0 and then R.Half_Duplex = 0
-        and then ((R.Serialrx_Provider = CRSF_Provider and then R.Serialrx_Inverted = 0)
-                  or else R.Serialrx_Provider = SBUS_Provider)
+        and then R.Serialrx_Provider in SBUS_Provider | SUMD_Provider | IBUS_Provider | CRSF_Provider
       then
          declare
             Assigned : constant SFM.Assignments := Adaflight.Config_Fix.Serial_Assignments (Config);
@@ -103,7 +115,13 @@ package body Adaflight.STM32.Radio is
          case Kind is
             when CRSF =>
                Adaflight.CRSF.Init (Proto, Rx_Settings.Mid_RC);
-               USART.Init (Link, Adaflight.CRSF.Baudrate);
+               USART.Init (Link, Adaflight.CRSF.Baudrate, Inverted => R.Serialrx_Inverted /= 0);
+            when IBUS =>
+               Adaflight.IBUS.Init (IBUS_State);
+               USART.Init (Link, IBUS_SUMD_Baud, Inverted => R.Serialrx_Inverted /= 0);
+            when SUMD =>
+               Adaflight.SUMD.Init (SUMD_State);
+               USART.Init (Link, IBUS_SUMD_Baud, Inverted => R.Serialrx_Inverted /= 0);
             when SBUS =>
                --  Inverted unless the setting says the receiver's line is not.
                Adaflight.SBUS.Init (SBUS_State, Rx_Settings.Mid_RC);
@@ -204,6 +222,24 @@ package body Adaflight.STM32.Radio is
                if not Task_In_Progress then
                   Adaflight.SBUS.Frame_Status (SBUS_State, Status);
                end if;
+            when IBUS =>
+               for I in 0 .. Count - 1 loop
+                  Adaflight.IBUS.Receive_Byte (IBUS_State, Natural (Input (I)), Times (I));
+               end loop;
+               if not Task_In_Progress then
+                  declare
+                     Telemetry_Request : Boolean;
+                  begin
+                     Adaflight.IBUS.Frame_Status (IBUS_State, Status, Telemetry_Request);
+                  end;
+               end if;
+            when SUMD =>
+               for I in 0 .. Count - 1 loop
+                  Adaflight.SUMD.Receive_Byte (SUMD_State, Natural (Input (I)), Times (I));
+               end loop;
+               if not Task_In_Progress then
+                  Adaflight.SUMD.Frame_Status (SUMD_State, Status);
+               end if;
          end case;
       end if;
       Adaflight.Receiver.Frame_Check (Rx, Rx_Settings, Now_Us, Delta_Us, Task_In_Progress, Status, Override);
@@ -227,6 +263,14 @@ package body Adaflight.STM32.Radio is
             when SBUS =>
                for Ch in Adaflight.SBUS.Channel loop
                   Raw (Ch) := Float'Max (0.0, Float'Min (65_535.0, Adaflight.SBUS.Read_Raw (SBUS_State, Ch)));
+               end loop;
+            when IBUS =>
+               for Ch in Adaflight.IBUS.Channel loop
+                  Raw (Ch) := Float'Max (0.0, Float'Min (65_535.0, Adaflight.IBUS.Read_Raw (IBUS_State, Ch)));
+               end loop;
+            when SUMD =>
+               for Ch in Adaflight.SUMD.Channel loop
+                  Raw (Ch) := Float'Max (0.0, Float'Min (65_535.0, Adaflight.SUMD.Read_Raw (SUMD_State, Ch)));
                end loop;
          end case;
       end if;
@@ -277,7 +321,9 @@ package body Adaflight.STM32.Radio is
    function Last_Frame_Us return Time_Us is
      (case Kind is
          when CRSF => Proto.Last_Frame_Us,
-         when SBUS => SBUS_State.Last_Frame_Time_Us);
+         when SBUS => SBUS_State.Last_Frame_Time_Us,
+         when IBUS => IBUS_State.Last_Frame_Time_Us,
+         when SUMD => SUMD_State.Last_Frame_Us);
 
    function RSSI_ADC return Boolean is (Rx_Settings.RSSI_ADC);
 
