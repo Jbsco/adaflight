@@ -9749,3 +9749,15 @@ into a local and take its fields, unchanged.
 On the STM32F4 image the change moves 37872 bytes from RAM to flash and takes 20932 bytes from the
 text: 969536 bytes of text, 5172 of data and 85584 of zeroed data, 974708 of the 1015808 bytes of
 the code region. The settings vectors and every command line family replay unchanged.
+
+## D401. STM32F4 OSD link readings (2026-10-26)
+
+The OSD on the STM32F4 image reads the receiver link (D387, D399): the RSSI as the receiver's
+percentage, the RSSI in dBm, the signal to noise ratio, the link quality raw and as a percentage
+with its source, the RF mode and the uplink power, from the receiver state the CRSF link statistics
+fill. The page's link quality source, the statistics, the alarms, the elements and the warnings take
+them. Before this the link elements showed their defaults and the link quality alarm compared zero
+against its threshold.
+
+The image is 970560 bytes of text, 5172 of data and 85584 of zeroed data. The bench check is the
+link quality and RSSI dBm elements following the transmitter's distance.

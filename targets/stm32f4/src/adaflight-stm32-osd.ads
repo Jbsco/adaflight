@@ -12,6 +12,7 @@ with Adaflight.OSD_Render;
 with Adaflight.OSD_Task;
 with Adaflight.Scheduler;
 package Adaflight.STM32.OSD is
+   use type Interfaces.Integer_16;
    use type Interfaces.Integer_32;
    --  The select pin as the stored configuration names it, before the SPI
    --  buses start: driven high when the configuration asks for it, else an
@@ -40,7 +41,7 @@ package Adaflight.STM32.OSD is
    --  What the OSD reads from the flight at a frame: the arming and its
    --  reasons, the failsafe, the boxes and flight modes, the attitude in
    --  decidegrees, the acceleration in g, the throttle and the sticks, the
-   --  RSSI, the battery in centivolts, centiamps and milliamp hours, the
+   --  RSSI and the link's quality, the battery in centivolts, centiamps and milliamp hours, the
    --  motors with their outputs and range, and the profiles.
    type Facts is record
       Armed             : Boolean := False;
@@ -66,6 +67,13 @@ package Adaflight.STM32.OSD is
       Pitch_High        : Boolean := False;
       Aux_Rc            : Float range 0.0 .. 5_000.0 := 1_500.0;
       RSSI_Percent      : Interfaces.Unsigned_8 range 0 .. 100 := 0;
+      RSSI_Dbm          : Interfaces.Integer_16 := -130;
+      RSNR              : Interfaces.Integer_16 := -30;
+      Link_Quality      : Interfaces.Unsigned_16 range 0 .. 1_023 := 0;
+      Link_Percent      : Interfaces.Unsigned_16 range 0 .. 300 := 0;
+      Link_Source       : Adaflight.OSD_Render.Link_Quality_Source := Adaflight.OSD_Render.None;
+      RF_Mode           : Interfaces.Unsigned_8 := 0;
+      Uplink_mW         : Interfaces.Unsigned_16 := 0;
       Battery           : Adaflight.Battery.Battery_State := Adaflight.Battery.OK;
       Pack_Voltage      : Interfaces.Unsigned_16 range 0 .. 20_000 := 0;
       Cell_Voltage      : Interfaces.Unsigned_16 := 0;

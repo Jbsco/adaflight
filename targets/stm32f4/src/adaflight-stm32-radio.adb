@@ -159,6 +159,24 @@ package body Adaflight.STM32.Radio is
 
    function RSSI return Interfaces.Unsigned_16 is (Interfaces.Unsigned_16 (Adaflight.Receiver.RSSI (Rx, Rx_Settings)));
 
+   function RSSI_Percent return Interfaces.Unsigned_8 is
+     (Interfaces.Unsigned_8 (Adaflight.Receiver.RSSI_Percent (Rx, Rx_Settings)));
+
+   function RSSI_Dbm return Interfaces.Integer_16 is (Interfaces.Integer_16 (Rx.RSSI_Dbm));
+
+   function RSNR return Interfaces.Integer_16 is (Interfaces.Integer_16 (Rx.RSNR));
+
+   function Link_Quality return Interfaces.Unsigned_16 is (Interfaces.Unsigned_16 (Rx.Link_Quality));
+
+   function Link_Quality_Percent return Interfaces.Unsigned_16 is
+     (Interfaces.Unsigned_16 (Adaflight.Receiver.Link_Quality_Percent (Rx)));
+
+   function Link_Source return Adaflight.Receiver.Link_Quality_Source is (Rx.Quality_From);
+
+   function RF_Mode return Natural is (Rx.RF_Mode);
+
+   function Uplink_Power_mW return Interfaces.Unsigned_16 is (Interfaces.Unsigned_16 (Rx.Uplink_Power_mW));
+
    function Channel_Count return Natural is (Rx.Channels);
 
    function Channel (I : Adaflight.Receiver.Channel) return Float is (Rx.Data (I));
