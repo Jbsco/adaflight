@@ -232,6 +232,9 @@ package body Adaflight.STM32.Flight is
    --  The running feature mask, from the stored features at the load, and
    --  the hash of each group's stored bytes.
    Runtime_Features : Unsigned_32 := 0;
+   --  The mode boxes the image offers, set at each load of the
+   --  configuration and once the sensors and the mixer are known.
+   Offered          : Adaflight.Modes.Mask := (others => False);
    RX_State         : Adaflight.RX_Task.State;
    Bat              : Adaflight.Battery.State;
    Beep             : Adaflight.Beeper.State;
@@ -539,9 +542,98 @@ package body Adaflight.STM32.Flight is
       Reset;
    end Write_Configuration;
 
+   --  The mode boxes the image offers: those always offered, those of the
+   --  features running, of the accelerometer, of the GPS feature, of the
+   --  mixer and of a DShot motor protocol, the user boxes a PINIO output
+   --  watches, and the MSP override when it names channels. The build holds
+   --  the acro trainer, the flight plan, the camera control, the video
+   --  transmitter control, PID audio, launch control, the lap timer and the
+   --  chirp, and no magnetometer.
+   function Available_Boxes return Adaflight.Modes.Mask is
+      use type Adaflight.Mixer_Init.Mixer_Mode;
+      Servo_Tilt : constant Unsigned_32 := 16#0000_0020#;
+      No_Box     : constant Unsigned_8 := 255;
+      M          : Adaflight.Modes.Mask := (others => False);
+      Mixer      : Adaflight.Mixer_Init.Mixer_Mode := Adaflight.Mixer_Init.Quad_X;
+      Found      : Boolean;
+      Watched    : Adaflight.Modes.Box;
+      function On (Feature : Unsigned_32) return Boolean is ((Runtime_Features and Feature) /= 0);
+   begin
+      if Config.Mixer_Config.Mixer_Mode in
+           1 .. Adaflight.Mixer_Init.Mixer_Mode'Pos (Adaflight.Mixer_Init.Mixer_Mode'Last) + 1
+      then
+         Mixer := Adaflight.Mixer_Init.Mixer_Mode'Val (Config.Mixer_Config.Mixer_Mode - 1);
+      end if;
+      M (Adaflight.Modes.Arm) := True;
+      M (Adaflight.Modes.Prearm) := True;
+      M (Adaflight.Modes.Airmode) := not On (Adaflight.Config_Fix.Feature_Airmode);
+      M (Adaflight.Modes.Anti_Gravity) :=
+        (for some P of Config.Pid_Profiles => P.Anti_Gravity_Gain /= 0)
+        and then not On (Adaflight.Config_Fix.Feature_Anti_Gravity);
+      if Gyro_Report.Acc_Found then
+         M (Adaflight.Modes.Angle) := True;
+         M (Adaflight.Modes.Horizon) := True;
+         M (Adaflight.Modes.Alt_Hold) := True;
+         M (Adaflight.Modes.Pos_Hold) := True;
+         M (Adaflight.Modes.Headfree) := True;
+         M (Adaflight.Modes.Head_Adj) := True;
+         M (Adaflight.Modes.FPV_Angle_Mix) := True;
+         M (Adaflight.Modes.Calib) := On (Adaflight.Config_Fix.Feature_Inflight_Acc_Cal);
+         M (Adaflight.Modes.Acro_Trainer) := True;
+      end if;
+      if On (Adaflight.Config_Fix.Feature_GPS) then
+         M (Adaflight.Modes.GPS_Rescue) :=
+           not On (Adaflight.Config_Fix.Feature_3D)
+           and then not Adaflight.Mixer_Init.Is_Fixed_Wing (Adaflight.STM32.Pilot.Mixer_Mode);
+         M (Adaflight.Modes.Beep_GPS_Count) := True;
+      end if;
+      M (Adaflight.Modes.Autopilot) := True;
+      M (Adaflight.Modes.WP_Capture) := True;
+      M (Adaflight.Modes.Failsafe) := True;
+      M (Adaflight.Modes.Passthru) := Adaflight.Mixer_Init.Is_Fixed_Wing (Mixer);
+      M (Adaflight.Modes.Beeper_On) := True;
+      M (Adaflight.Modes.Beeper_Mute) := True;
+      M (Adaflight.Modes.LED_Low) := On (Adaflight.Config_Fix.Feature_LED_Strip);
+      M (Adaflight.Modes.Blackbox) := True;
+      M (Adaflight.Modes.Blackbox_Erase) := True;
+      M (Adaflight.Modes.Three_D) := On (Adaflight.Config_Fix.Feature_3D);
+      M (Adaflight.Modes.Crash_Flip) := Config.Motor_Config.Dev.Motor_Protocol in 5 .. 8;
+      M (Adaflight.Modes.Cam_Stab) := On (Servo_Tilt);
+      M (Adaflight.Modes.OSD) := True;
+      M (Adaflight.Modes.Telemetry) := On (Adaflight.Config_Fix.Feature_Telemetry);
+      if Mixer = Adaflight.Mixer_Init.Custom_Airplane then
+         M (Adaflight.Modes.Servo_1) := True;
+         M (Adaflight.Modes.Servo_2) := True;
+         M (Adaflight.Modes.Servo_3) := True;
+      end if;
+      M (Adaflight.Modes.Camera_1) := True;
+      M (Adaflight.Modes.Camera_2) := True;
+      M (Adaflight.Modes.Camera_3) := True;
+      M (Adaflight.Modes.VTX_Pit_Mode) := True;
+      M (Adaflight.Modes.VTX_Control_Disable) := True;
+      M (Adaflight.Modes.Paralyze) := True;
+      for Id of Config.Pinio_Box_Config.Permanent_Id loop
+         if Id /= No_Box then
+            Adaflight.MSP_Box.Find_By_Permanent_Id (Id, Found, Watched);
+            if Found and then Watched in Adaflight.Modes.User_1 .. Adaflight.Modes.User_4 then
+               M (Watched) := True;
+            end if;
+         end if;
+      end loop;
+      M (Adaflight.Modes.PID_Audio) := True;
+      M (Adaflight.Modes.Launch_Control) := True;
+      M (Adaflight.Modes.MSP_Override) := Config.Rx_Config.Msp_Override_Channels_Mask /= 0;
+      M (Adaflight.Modes.Stick_Command_Disable) := True;
+      M (Adaflight.Modes.Ready) := True;
+      M (Adaflight.Modes.Lap_Timer_Reset) := True;
+      M (Adaflight.Modes.Chirp) := True;
+      return M;
+   end Available_Boxes;
+
    --  The stored configuration loaded: every group from its defaults and
-   --  its stored bytes, the running features, the checks, and the board's
-   --  information taken in; Success says the image held every group.
+   --  its stored bytes, the running features, the checks, the board's
+   --  information taken in, and the mode boxes offered; Success says the
+   --  image held every group.
    procedure Load_Configuration (Success : out Boolean) is
       Defaults : Adaflight.Config_Codec.Data;
       Data     : Adaflight.Config_Codec.Data;
@@ -553,6 +645,7 @@ package body Adaflight.STM32.Flight is
       Runtime_Features := Config.Feature_Config.Enabled_Features;
       Fix_Configuration;
       Adaflight.Board_Info.Init (Board, Config);
+      Offered := Available_Boxes;
    end Load_Configuration;
 
    --  The configuration reset to its defaults, written and read back.
@@ -1739,10 +1832,10 @@ package body Adaflight.STM32.Flight is
       Status.Arming_Disabled := Adaflight.STM32.Pilot.Disabled;
       Env.Status.Arming_Disabled := Adaflight.STM32.Pilot.Disabled;
       Adaflight.MSP_Box.Pack_Flight_Mode_Flags
-        (Active => Adaflight.STM32.Pilot.Active_Boxes, Armed => Adaflight.STM32.Pilot.Armed,
-         Flight => Adaflight.STM32.Pilot.Flight_Modes, Switches => Adaflight.STM32.Pilot.Active_Boxes,
-         Wing => False, Packed => Status.Mode_Flags, Count => Status.Mode_Flag_Count);
-      Ctx.Out_Views.Active := Adaflight.STM32.Pilot.Active_Boxes;
+        (Active => Offered, Armed => Adaflight.STM32.Pilot.Armed, Flight => Adaflight.STM32.Pilot.Flight_Modes,
+         Switches => Adaflight.STM32.Pilot.Active_Boxes, Wing => False, Packed => Status.Mode_Flags,
+         Count => Status.Mode_Flag_Count);
+      Ctx.Out_Views.Active := Offered;
       Ctx.Control.Armed := Adaflight.STM32.Pilot.Armed;
    end Report_Pilot;
 
@@ -3282,6 +3375,7 @@ package body Adaflight.STM32.Flight is
          Adaflight.Config_Runtime.IBus_Settings_Of
            (Config.Telemetry_Config, Float'Max (0.0, Float'Min (1.0, Acc_State.One_G_Reciprocal))));
       Check_Telemetry;
+      Offered := Available_Boxes;
       Adaflight.STM32.DShot_Output.Enable;
       Blink := Ada.Real_Time.Clock;
    end Init;

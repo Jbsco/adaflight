@@ -10672,3 +10672,26 @@ reply passes whole. The error byte still needs one byte of room.
 The host smoke check sends an API version request and an adjustment ranges request as CRSF MSP frames from
 the transmitter's address. It finds the API version answered to that address, and the 300-byte adjustment
 ranges in six chunks under the jumbo size with their sequence numbers in order, equal to the serial MSP reply.
+
+## D453. STM32F4 available mode boxes (2026-10-27)
+
+The board computes the mode boxes it offers, which the MSP box names and box ids replies list thirty-two to a
+page and the status reply's flight mode flags count. The board had handed the switched-on boxes in their
+place, so both replies came back empty with no switch on and the mode flags sat at the wrong positions.
+
+The arm, prearm, failsafe, beeper, beeper mute, OSD, paralyze, stick commands disable, ready, blackbox,
+blackbox erase, camera control, video transmitter, autopilot, waypoint capture, PID audio, launch control,
+lap timer reset and chirp boxes are always offered. The air mode box joins without the air mode feature, anti
+gravity when a PID profile has an anti gravity gain and the feature is off, and the telemetry, LED low, 3D and
+camera stabilization boxes with their features. An accelerometer adds angle, horizon, altitude hold, position
+hold, headfree, heading adjust, FPV angle mix, acro trainer and, with its feature, in-flight calibration. The
+GPS feature adds the satellite count beep and, without 3D and a fixed-wing mixer, the GPS rescue. A wing
+mixer adds passthrough, a custom airplane the three servo boxes, a DShot motor protocol the crash flip, a
+PINIO output the user box it watches, and the MSP override its box when it names channels. The board has no
+magnetometer. The set follows the build's options: acro trainer, flight plan, camera control, video
+transmitter control, PID audio, launch control, lap timer and chirp are in, and the wing build is out. The
+board sets it at each configuration load and again once the sensors and the mixer are known.
+
+The host smoke check reads the box names from ARM, ANGLE, HORIZON, ALTHOLD and HEADFREE on, without AIR MODE
+under the air mode feature, thirty-two ids on the first page and the lap timer reset and waypoint capture ids
+on the second.

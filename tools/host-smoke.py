@@ -765,6 +765,14 @@ def main():
             vcp.close()
             check("MSP status with the gyro", status is not None and len(status) > 5
                   and (status[4] | status[5] << 8) & 0x20 != 0)
+            names = msp(sock, 116)
+            ids = msp(sock, 119)
+            more = msp(sock, 119, bytes([1]))
+            check("MSP box names and ids list the boxes the image offers, thirty-two to a page",
+                  names is not None and bytes(names).startswith(b"ARM;ANGLE;HORIZON;ALTHOLD;HEADFREE;")
+                  and b"AIR MODE" not in names and ids is not None and len(ids) == 32
+                  and list(ids[:4]) == [0, 1, 2, 3] and more is not None and list(more) == [54, 57],
+                  repr((names, ids, more)))
             motors = msp(sock, 131)
             check("MSP motor configuration counts the mixer's four motors", motors is not None and len(motors) >= 7
                   and motors[6] == 4, repr(motors))
