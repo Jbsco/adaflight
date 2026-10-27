@@ -74,6 +74,10 @@ package Adaflight.STM32.GPS is
    end record;
 
    function Current return Readings;
+   --  The home position from the current fix with enough satellites, unless
+   --  it is kept once set, with a u-blox module's satellite reports turned
+   --  off.
+   procedure Reset_Home;
    function Link_State return Adaflight.GPS_Link.Link_State;
    function Platform return Adaflight.GPS_Frames.Platform;
    --  The port's rate as the status command's index.
