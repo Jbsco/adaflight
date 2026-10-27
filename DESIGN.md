@@ -10145,3 +10145,30 @@ passed the arming alone before.
 
 The smoke check writes 1100, 1200, 1300 and 1400 to the four motors over MSP, reads them back from the
 motor reply while disarmed, and writes the stop again.
+
+## D420. DShot command queue (2026-10-27)
+
+`Adaflight.DShot_Command` keeps the DShot commands for the ESCs in a ring of four entries, which holds
+three commands at most. Each entry has its state, the motor output cycles it still waits, the delay
+after it, its repeats and a command for each motor. An inline command enters the queue while the motors
+stream. It waits for every motor to idle, waits 10 ms, goes out in place of the motor values once for
+each repeat with 1 ms between them, and waits 1 ms before the next command goes out. The commands that
+change an ESC setting go out ten times, the others once. The first streaming command waits until 3 s
+after the motors enable, for the protocol detection of the ESCs. The waits are counted in motor output
+cycles of the PID loop time, rounded up, and the loop time's subtype starts at 1 microsecond, so the
+division is proved defined where the reference divides without a check.
+
+A blocking command runs while the motors are disabled, from the command line. It stands in the queue's
+current entry, so the timer layer's write sends it, and `Adaflight.DShot_Command.Blocking_Run` sends it
+through the caller's motor table: a 9 ms wait, then for each repeat a 1 ms wait, the telemetry decode, a
+telemetry request and a write for each motor, and the end of the update, then the wait after the
+command, 100 ms after a beacon and 1 ms after the others, and the entry back to the stop. The generic is
+proved through a motor table of steps that do nothing. The board's motor writes take the queue in the
+next step.
+
+The oracle compiles the reference queue with the motor layer stubbed and draws the protocol, the motor
+enables and their time, the clock, the motor count, the PID loop time, inline and blocking writes, motor
+updates through a model of the timer layer's write, and queries. Every third sequence is a bench session
+with the motors mostly disabled and the writes mostly blocking, and the clock lands next to the end of the
+protocol detection delay. The vectors replay every write and query, each entry's state after each step,
+and the motor table's calls in order.
