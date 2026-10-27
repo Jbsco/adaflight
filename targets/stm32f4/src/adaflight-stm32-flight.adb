@@ -96,6 +96,7 @@ with Adaflight.STM32.Gyro;
 with Adaflight.STM32.Pilot;
 with Adaflight.STM32.PINIO;
 with Adaflight.STM32.Radio;
+with Adaflight.STM32.Rangefinder;
 with Adaflight.STM32.RunCam;
 with Adaflight.STM32.RTC;
 with Adaflight.STM32.SD;
@@ -828,8 +829,10 @@ package body Adaflight.STM32.Flight is
       Options : constant Adaflight.Task_Init.Options :=
         (Accel => True, Beeper => True, Sag_Compensation => True, OSD => True, CMS => True, GPS => True,
          GPS_Rescue => True, Alt_Hold => True, Pos_Hold => True, Telemetry => True, VTX_Control => True,
-         VTX_Driver => True, PINIO_Box => True, ESC_Sensor => True, RC_Device => True, others => False);
+         VTX_Driver => True, PINIO_Box => True, ESC_Sensor => True, RC_Device => True, Rangefinder => True,
+         others => False);
       Inputs  : Adaflight.Task_Init.Inputs;
+      Feature_Rangefinder : constant Unsigned_32 := 16#0000_0200#;
    begin
       Sched_Settings := Adaflight.Config_Runtime.Scheduler_Settings_Of
         (Config.Scheduler_Config, Cycles_Per_Us => Adaflight.STM32.Time.Cycles_Per_Us,
@@ -855,10 +858,17 @@ package body Adaflight.STM32.Flight is
       Inputs.Feature_Telemetry := (Runtime_Features and Adaflight.Config_Fix.Feature_Telemetry) /= 0;
       Inputs.PINIO_Box_Enabled := Adaflight.STM32.PINIO.Task_Enabled;
       Inputs.RC_Device_Enabled := Adaflight.STM32.RunCam.Enabled;
+      Inputs.Rangefinder_Detected := Adaflight.STM32.Rangefinder.Detected;
+      Inputs.Feature_Rangefinder := (Runtime_Features and Feature_Rangefinder) /= 0;
       Inputs.OSD_Framerate_Hz :=
         Adaflight.Task_Init.Rate_Hz (Natural'Max (1, Natural (Config.Osd_Config.Framerate_Hz)));
       Inputs.OSD_Display_Port := Adaflight.STM32.OSD.Port_Present;
       Adaflight.Task_Init.Init (Sched, Sched_Settings, Adaflight.STM32.Time.Cycle_Count, Options, Inputs);
+      if Adaflight.STM32.Rangefinder.Detected then
+         Scheduler.Reschedule
+           (Sched, Sched_Settings, Scheduler.Rangefinder,
+            Scheduler.Time_Delta (1_000 * Natural'Min (1_000, Adaflight.STM32.Rangefinder.Period_Ms)));
+      end if;
    end Init_Scheduler;
 
    --  The command line takes the port: an interactive session from the hash
@@ -1116,7 +1126,8 @@ package body Adaflight.STM32.Flight is
       Env.ESC_Sensor := Adaflight.STM32.ESC_Sensor.Feature_On;
       Ctx.Out_Views.State.ESC := Adaflight.STM32.ESC_Sensor.Values (Adaflight.STM32.Control.Motor_Count);
       Ctx.Out_Views.State.Altitude :=
-        (Estimate_Cm => Estimated_Altitude_Cm, Vario => Estimated_Vario, Rangefinder_Cm => 0);
+        (Estimate_Cm    => Estimated_Altitude_Cm, Vario => Estimated_Vario,
+         Rangefinder_Cm => Adaflight.STM32.Rangefinder.Altitude_Cm);
       declare
          Count          : Natural;
          Levels, Powers : Adaflight.SmartAudio.Level_Values;
@@ -1205,7 +1216,8 @@ package body Adaflight.STM32.Flight is
       else
          for L in MSP_Line loop
             if L /= Line_UART1
-              or else not (Adaflight.STM32.Radio.Holds (Adaflight.STM32.USART.UART1)
+              or else not (Adaflight.STM32.Rangefinder.Holds (Adaflight.STM32.USART.UART1)
+                           or else Adaflight.STM32.Radio.Holds (Adaflight.STM32.USART.UART1)
                            or else Adaflight.STM32.GPS.Holds (Adaflight.STM32.USART.UART1)
                            or else Adaflight.STM32.ESC_Sensor.Holds (Adaflight.STM32.USART.UART1)
                            or else Adaflight.STM32.VTX.Holds (Adaflight.STM32.USART.UART1)
@@ -1498,7 +1510,6 @@ package body Adaflight.STM32.Flight is
 
    procedure No_Step is null;
    procedure No_Step_At (Now_Us : Scheduler.Time_Us) is null;
-   procedure No_Step_Tilt (Now_Us : Scheduler.Time_Us; Cos_Tilt : Float) is null;
    procedure No_Step_Period (Now_Us : Scheduler.Time_Us; Next_Period_Us : out Scheduler.Time_Delta) is
       pragma Unreferenced (Now_Us);
    begin
@@ -1518,8 +1529,8 @@ package body Adaflight.STM32.Flight is
       Pitot_Update           => No_Step_Period,
       Compass_Update         => No_Step_Period,
       Position_Update        => No_Step,
-      Rangefinder_Update     => No_Step,
-      Rangefinder_Process    => No_Step_Tilt,
+      Rangefinder_Update     => Adaflight.STM32.Rangefinder.Update,
+      Rangefinder_Process    => Adaflight.STM32.Rangefinder.Process,
       Optical_Flow_Update    => No_Step,
       Optical_Flow_Process   => No_Step,
       Telemetry_Poll_Sensors => No_Step_At,
@@ -3246,8 +3257,10 @@ package body Adaflight.STM32.Flight is
         (Armed             => Adaflight.STM32.Pilot.Armed,
          CLI_Open          => Session.Open,
          Feature_Telemetry => (Runtime_Features and Adaflight.Config_Fix.Feature_Telemetry) /= 0,
-         Rescue_Configured => Rescue_Configured,
-         others            => <>);
+         Rescue_Configured    => Rescue_Configured,
+         Rangefinder_Detected => Adaflight.STM32.Rangefinder.Detected,
+         Cos_Tilt             => Adaflight.Attitude.Cos_Tilt (Att_State),
+         others               => <>);
    begin
       case Id is
          when Scheduler.System =>
@@ -3293,6 +3306,8 @@ package body Adaflight.STM32.Flight is
             Tasks.GPS_Rescue (Inputs);
          when Scheduler.RC_Device =>
             Run_RunCam;
+         when Scheduler.Rangefinder =>
+            Tasks.Rangefinder (Inputs, Before);
          when Scheduler.ESC_Sensor =>
             Adaflight.STM32.ESC_Sensor.Run (Before, Adaflight.STM32.Control.Motor_Count);
          when Scheduler.Telemetry =>
@@ -3404,6 +3419,7 @@ package body Adaflight.STM32.Flight is
       Start_Buses;
       Start_Gyro;
       Init_Loop_Units;
+      Adaflight.STM32.Rangefinder.Init (Config);
       Boot_Beeps;
       Adaflight.STM32.Radio.Init (Config, Runtime_Features, Adaflight.STM32.Time.Millis, Telemetry_Config);
       Adaflight.STM32.GPS.Init (Config, Runtime_Features, Adaflight.STM32.Time.Millis);
@@ -3422,6 +3438,7 @@ package body Adaflight.STM32.Flight is
       end;
       Adaflight.STM32.RunCam.Init (Config, Adaflight.STM32.Time.Millis);
       Ctx.Out_Views.State.Status.Sensors (Adaflight.MSP_Out.GPS) := Adaflight.STM32.GPS.Enabled;
+      Ctx.Out_Views.State.Status.Sensors (Adaflight.MSP_Out.Rangefinder) := Adaflight.STM32.Rangefinder.Detected;
       Pilot_Facts := (Sensors        => (Gyro => Selection.Found, Acc => Gyro_Report.Acc_Found, others => False),
                       Sample_Time_Us => Natural (Sample_Us),
                       Loop_Ratio     => Positive (Loop_Ratio),

@@ -10783,3 +10783,20 @@ stops MSP on the USB port. The MSP framing also acts on the reboot character whi
 which resets it. The CLRacing F4S boards carry their receiver inverter on UART1, so SBUS takes that port.
 
 The host smoke check puts a CRSF receiver on UART1 and finds its channels in the MSP reply over the USB port.
+
+## D459. STM32F4 TF lidar rangefinder (2026-10-27)
+
+The board reads a Benewake TFmini, TF02 or TFnova lidar on the UART the rangefinder setting names. The start
+runs after the gyro, as the sensors start before the receiver: the hardware setting picks the core's TF
+driver, which opens the port at 115,200 baud, sends the 100 Hz command to a TFmini or TF02, and reports a
+10 ms period, the range and the cone. The rangefinder filter starts on that range and cone, and the
+rangefinder task, enabled with the rangefinder feature, runs at the period the driver asked for. Each run
+hands the driver every byte received through its frame parser, then filters the last reading through the
+median and the signal ratio and corrects it by the cosine of the craft's tilt into an altitude.
+
+The MSP status reply sets the rangefinder sensor bit, and the sonar altitude reply carries the last altitude.
+The lidar's UART counts among the devices that keep UART1 from MSP. The OSD's distance element, the FrSky hub
+telemetry and the flight log field do not read the rangefinder yet.
+
+The host smoke check streams TFmini frames of 150 cm on UART4 and finds the sensor bit and a 150 cm sonar
+altitude.
