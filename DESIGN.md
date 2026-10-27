@@ -10695,3 +10695,21 @@ board sets it at each configuration load and again once the sensors and the mixe
 The host smoke check reads the box names from ARM, ANGLE, HORIZON, ALTHOLD and HEADFREE on, without AIR MODE
 under the air mode feature, thirty-two ids on the first page and the lap timer reset and waypoint capture ids
 on the second.
+
+## D454. STM32F4 MSP over Ghost (2026-10-27)
+
+The board answers MSP requests over the Ghost link. The receiver task's Ghost processing hands an MSP request
+or write frame's payload, past its address, length and type, to the MSP tunnel the CRSF link uses, and a
+completed request goes through the board's MSP processor at once. The receiver step becomes a generic over the
+processor, as the telemetry step is. Any request the tunnel answers makes a reply due. The next Ghost
+telemetry run restarts its cycle and, while no frame waits for the quiet window, queues the reply's next chunk
+in place of the scheduled frames: six bytes of the tunnel behind the response type, zero-filled to the
+frame's ten-byte payload, with its CRC8. The board processes the requests with the telemetry feature off as
+well, but their replies need the feature and an RF protocol with telemetry.
+
+A reply that fills its chunk exactly ends with an empty chunk holding only its status byte, so the API
+version takes two frames.
+
+The host smoke check sends an API version request and an adjustment ranges request as Ghost MSP frames in
+place of channel frames. It finds the version in two chunks and the 300-byte ranges in sixty-one, equal to the
+serial MSP reply.

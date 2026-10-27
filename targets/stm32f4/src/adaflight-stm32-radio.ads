@@ -4,9 +4,9 @@
 --  processing, the failsafe's link state, and the CRSF telemetry sent back
 --  on the port with its speed negotiation and the MSP requests answered, on
 --  its two pins or, apart from CRSF, on its transmit pin alone, which Ghost
---  and EX Bus always take, and the Ghost telemetry answered in the
---  receiver's quiet window. The other serial receiver protocols and the
---  FPORT and EX Bus telemetry wait for their drivers.
+--  and EX Bus always take, and the Ghost telemetry with its MSP requests
+--  answered in the receiver's quiet window. The other serial receiver
+--  protocols and the FPORT and EX Bus telemetry wait for their drivers.
 with Interfaces;
 with Adaflight.Bytes;
 with Adaflight.Config_Groups;
@@ -21,17 +21,18 @@ package Adaflight.STM32.Radio is
    procedure Init (Config : Adaflight.Config_Groups.Configuration; Runtime_Features : Interfaces.Unsigned_32;
                    Now_Ms : Time_Ms; Telemetry : Adaflight.CRSF_Telemetry.Config);
    --  One run of the telemetry task: the negotiation, then the next chunk of
-   --  a reply to the link's MSP requests, whose commands go through Process,
-   --  or else the frames due from the sources, sent on the port. Process
+   --  a reply to the link's MSP requests, whose commands go through Answer,
+   --  or else the frames due from the sources, sent on the port. Answer
    --  returns the reply's payload in Reply up to Length, and Failed for an
    --  error verdict.
    generic
-      with procedure Process (Command : Interfaces.Unsigned_16; Request : Adaflight.Bytes.Byte_Array;
-                              Reply : out Adaflight.Bytes.Byte_Array; Length : out Natural; Failed : out Boolean);
+      with procedure Answer (Command : Interfaces.Unsigned_16; Request : Adaflight.Bytes.Byte_Array;
+                             Reply : out Adaflight.Bytes.Byte_Array; Length : out Natural; Failed : out Boolean);
    procedure Telemetry_Step (Now_Us : Time_Us; Src : Adaflight.CRSF_Telemetry.Sources);
    --  The Ghost telemetry's schedule, with the telemetry feature on and a
    --  Ghost link open, and one run of it in the telemetry task: the next
-   --  frame due, held until the receiver's quiet window.
+   --  chunk of an MSP reply while no frame waits, or else the next frame
+   --  due, held until the receiver's quiet window.
    procedure Init_GHST_Telemetry (Settings : Adaflight.GHST_Telemetry.Settings; Feature_On : Boolean);
    procedure GHST_Telemetry_Step (Inp : Adaflight.GHST_Telemetry.Inputs);
    --  Whether a serial receiver port is open, and whether it speaks CRSF.
@@ -46,9 +47,13 @@ package Adaflight.STM32.Radio is
    procedure Frame_Check (Now_Us : Time_Us; Delta_Us : Interfaces.Integer_32; Task_In_Progress : Boolean);
    --  The receiver task's check function.
    function Update_Check (Task_In_Progress : Boolean) return Boolean;
-   --  The receiver task's check step: the channels calculated with the
+   --  The receiver task's check step: a Ghost frame's processing with its
+   --  MSP request through Answer, then the channels calculated with the
    --  failsafe told what they were worth, then the RSSI; Processed says the
    --  task moves on.
+   generic
+      with procedure Answer (Command : Interfaces.Unsigned_16; Request : Adaflight.Bytes.Byte_Array;
+                             Reply : out Adaflight.Bytes.Byte_Array; Length : out Natural; Failed : out Boolean);
    procedure Process (Now_Us : Time_Us; Now_Ms : Time_Ms; ADC_Sample : Natural; Processed : out Boolean)
      with Pre => ADC_Sample <= 4_095;
    --  Whether the RSSI comes from the analog input, and the RSSI.

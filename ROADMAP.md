@@ -30,18 +30,18 @@ Silver with no assume, and pass the gates on `main`.
   family from the pinned board configuration repository, and its image blinks the LED, serves MSP and
   the command line on its USB port and UART1, runs the scheduler with the gyro, filter, accelerometer,
   attitude and receiver tasks over SPI1 and a CRSF or Ghost receiver with its telemetry and MSP over
-  CRSF, or an SBUS, IBUS, SUMD, Spektrum, XBUS, FPORT or Jeti EX Bus receiver on a UART, the arming
-  logic and the modes, runs the rate controller and the mixer with the motors in DShot from the timers
-  and their DShot commands, measures the battery, drives the beeper, draws the OSD and runs the menu
-  system on the MAX7456 chip on SPI3, reads a GPS module and the ESC sensor on UARTs, estimates its
-  altitude and position from the accelerometer and the GPS with its heading from the GPS course, holds
-  them in the altitude and position hold modes, flies the GPS rescue home, writes its flight log to
-  the SD card, the flash chip or a serial port, controls a SmartAudio or Tramp video transmitter on a
-  UART, sends FrSky hub, SmartPort, LTM, MAVLink and iBus telemetry on a UART, drives its PINIO output
-  from a mode box, keeps the clock the configurator or the GPS sets, and keeps its configuration in
-  flash. `targets/host` runs the same flight software on the host with its UARTs and USB port on TCP
-  ports. Then F7 and H7, then the other families Betaflight runs on, and a physics simulator link for
-  the host target. Drivers for SPI, I2C, DMA, timers, USB, flash, SD card, DShot.
+  the link, or an SBUS, IBUS, SUMD, Spektrum, XBUS, FPORT or Jeti EX Bus receiver on a UART, the
+  arming logic and the modes, runs the rate controller and the mixer with the motors in DShot from the
+  timers and their DShot commands, measures the battery, drives the beeper, draws the OSD and runs the
+  menu system on the MAX7456 chip on SPI3, reads a GPS module and the ESC sensor on UARTs, estimates
+  its altitude and position from the accelerometer and the GPS with its heading from the GPS course,
+  holds them in the altitude and position hold modes, flies the GPS rescue home, writes its flight log
+  to the SD card, the flash chip or a serial port, controls a SmartAudio or Tramp video transmitter on
+  a UART, sends FrSky hub, SmartPort, LTM, MAVLink and iBus telemetry on a UART, drives its PINIO
+  output from a mode box, keeps the clock the configurator or the GPS sets, and keeps its
+  configuration in flash. `targets/host` runs the same flight software on the host with its UARTs and
+  USB port on TCP ports. Then F7 and H7, then the other families Betaflight runs on, and a physics
+  simulator link for the host target. Drivers for SPI, I2C, DMA, timers, USB, flash, SD card, DShot.
 - Phase 8, open. Tooling. The configurator as the adaflight-configurator repository, the upstream
   configurator with adaflight's changes, starting with the firmware variant. A native Linux flashing
   tool over DFU with the features of the Betaflight flasher and faster transfers, then the
