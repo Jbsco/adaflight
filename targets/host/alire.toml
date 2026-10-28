@@ -21,7 +21,8 @@ adaflight_core = { path = "../../core" }
 adaflight_core = "validation"
 
 # The board package is generated before every build from the pinned board configuration
-# repository; BOARD names the board, CLRACINGF4 when unset.
+# repository; BOARD names the board, CLRACINGF4 when unset. The host names UART1 as its MSP UART,
+# so a fresh configuration serves MSP there beside the USB port.
 [[actions]]
 type = "pre-build"
-command = ["sh", "-c", "python3 ../../tools/boardgen.py ../../third_party/board-configs/configs \"${BOARD:-CLRACINGF4}\" gen/adaflight-board.ads"]
+command = ["sh", "-c", "python3 ../../tools/boardgen.py ../../third_party/board-configs/configs \"${BOARD:-CLRACINGF4}\" gen/adaflight-board.ads MSP_UART=SERIAL_PORT_USART1"]

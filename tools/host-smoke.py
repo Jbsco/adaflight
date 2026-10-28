@@ -894,14 +894,14 @@ def stop(proc):
     proc.wait(timeout=10)
 
 
-def start(image, store, extra=None):
+def start(image, store, extra=None, port=PORT):
     env = dict(os.environ, ADAFLIGHT_EEPROM=store, ADAFLIGHT_OSD_SCREEN=store + ".osd.txt",
                ADAFLIGHT_DSHOT_LOG=store + ".dshot.txt", **(extra or {}))
     proc = subprocess.Popen([image], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     deadline = time.time() + 15
     while time.time() < deadline:
         try:
-            sock = socket.create_connection(("127.0.0.1", PORT), timeout=1)
+            sock = socket.create_connection(("127.0.0.1", port), timeout=1)
             sock.settimeout(0.3)
             return proc, sock
         except OSError:
@@ -909,7 +909,7 @@ def start(image, store, extra=None):
                 break
             time.sleep(0.1)
     proc.kill()
-    raise SystemExit("host: the image did not open its UART1 port")
+    raise SystemExit(f"host: the image did not open its port {port}")
 
 
 def read_all(sock, wait):
@@ -1776,12 +1776,50 @@ def main():
         finally:
             stop(proc)
             sock.close()
+        store = os.path.join(work, "mspdp4.bin")
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            for line in ("osd_displayport_device = MSP", "osd_uart = UART4", "osd_craft_name_pos = 2122"):
+                text = cli(sock, "set " + line)
+                check(f"display port on UART4 {line}", line.replace(" = ", " set to ") in text, text[-120:])
+            cli(sock, "set craft_name = ADAHOST")
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store)
+        uart4 = None
+        try:
+            uart4 = socket.create_connection(("127.0.0.1", GPS_PORT), timeout=1)
+            uart4.settimeout(0.3)
+            data = read_all(uart4, 7.0)
+            pushes = msp_pushes(data, 182)
+            subs = sorted({p[0] for p in pushes if p})
+            check("MSP display port on UART4 pushes the heartbeat, clear, string and draw subcommands",
+                  {0, 2, 3, 4} <= set(subs), repr(subs))
+            check("MSP display port on UART4 writes the craft name",
+                  any(p[0] == 3 and b"ADAHOST" in p[4:] for p in pushes), repr(pushes[-6:]))
+            uart4.sendall(b"$M<" + bytes([0, 1, 1]))
+            api = msp_pushes(read_all(uart4, 0.5), 1)
+            check("UART4 answers MSP on the port the display port implies", len(api) == 1 and len(api[0]) == 3,
+                  repr(api))
+        finally:
+            stop(proc)
+            sock.close()
+            if uart4 is not None:
+                uart4.close()
         store = os.path.join(work, "uart1rx.bin")
         proc, sock = start(image, store)
         try:
             time.sleep(2.5)
             sock.sendall(b"#")
             read_all(sock, 0.8)
+            text = cli(sock, "set msp_2_uart = NONE")
+            check("MSP slot taken off UART1 for the receiver", "msp_2_uart set to NONE" in text, text[-120:])
             text = cli(sock, "set rx_uart = UART1")
             check("CRSF receiver on UART1", "rx_uart set to UART1" in text, text[-120:])
             cli(sock, "save", wait=2.0)
@@ -2011,8 +2049,9 @@ def main():
                 time.sleep(2.5)
                 sock.sendall(b"#")
                 read_all(sock, 0.8)
-                for line in ("osd_custom_text_uart = " + port, "osd_displayport_device = MAX7456",
-                             "vcd_video_system = PAL", "osd_custom_serial_text_pos = 2177"):
+                for line in (("msp_2_uart = NONE",) if port == "UART1" else ()) + (
+                        "osd_custom_text_uart = " + port, "osd_displayport_device = MAX7456",
+                        "vcd_video_system = PAL", "osd_custom_serial_text_pos = 2177"):
                     text = cli(sock, "set " + line)
                     check(f"custom text {line}", line.replace(" = ", " set to ") in text, text[-120:])
                 cli(sock, "save", wait=2.0)
@@ -2497,6 +2536,47 @@ def main():
             gps.stop.set()
             stop(proc)
             sock.close()
+        store = os.path.join(work, "mspslots.bin")
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "get msp_")
+            check("fresh configuration names the USB port and the host's MSP UART in the MSP slots",
+                  "msp_1_uart = VCP" in text and "msp_2_uart = UART1" in text and "msp_3_uart = NONE" in text,
+                  text[-240:])
+            for line in ("msp_2_uart = NONE", "msp_3_uart = UART4"):
+                text = cli(sock, "set " + line)
+                check(f"MSP slot {line}", line.replace(" = ", " set to ") in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        proc, vcp = start(image, store, port=VCP_PORT)
+        uart4 = sock = None
+        try:
+            time.sleep(2.5)
+            try:
+                sock = socket.create_connection(("127.0.0.1", PORT), timeout=1)
+                sock.settimeout(0.3)
+                api = msp(sock, 1)
+            except OSError:
+                api = None
+            check("UART1 serves no MSP with no slot naming it", api is None, repr(api))
+            uart4 = socket.create_connection(("127.0.0.1", GPS_PORT), timeout=1)
+            uart4.settimeout(0.3)
+            api = msp(uart4, 1)
+            check("UART4 answers MSP from the third slot", api is not None and len(api) == 3 and api[1] == 1, repr(api))
+            api = msp(vcp, 1)
+            check("USB port answers MSP from the first slot", api is not None and len(api) == 3, repr(api))
+        finally:
+            stop(proc)
+            vcp.close()
+            for extra in (uart4, sock):
+                if extra is not None:
+                    extra.close()
     print(f"host smoke: {'all checks passed' if not failures else str(len(failures)) + ' failed'}")
     sys.exit(1 if failures else 0)
 

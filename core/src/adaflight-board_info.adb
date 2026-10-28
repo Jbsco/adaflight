@@ -1,3 +1,6 @@
+with Adaflight.MSP_Allocation;
+with Adaflight.Serial_Feature_Map;
+
 package body Adaflight.Board_Info with SPARK_Mode is
    use type Interfaces.Integer_8;
    use type Interfaces.Unsigned_8;
@@ -108,6 +111,14 @@ package body Adaflight.Board_Info with SPARK_Mode is
       for I in Motor_Bytes'Range loop
          C.Motor_Config.Dev.Io_Tags (I) := H.Motor_Tags (I);
       end loop;
+      declare
+         Slots : constant Serial_Feature_Map.MSP_Ports :=
+           MSP_Allocation.Default_Slots (H.MSP_First_Port, H.MSP_UART, H.MSP_Other_UART, H.MSP_Display_Port_UART);
+      begin
+         for S in Slots'Range loop
+            C.Msp_Config.Msp_Uart (Natural (S) - 1) := Interfaces.Integer_8 (Slots (S));
+         end loop;
+      end;
    end Reset_Config;
 
    procedure Persist_Information (C : in out Configuration; Board : in out State) is
