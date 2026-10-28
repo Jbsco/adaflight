@@ -1,3 +1,4 @@
+with Adaflight.Build_Features;
 with Adaflight.Clock;
 with Adaflight.Config_Fix;
 with Adaflight.Config_Runtime;
@@ -161,6 +162,8 @@ package body Adaflight.STM32.Radio is
         and then R.Serialrx_Provider in Spektrum_2048_Provider | SBUS_Provider | SUMD_Provider | XBUS_B_Provider
                                       | XBUS_RJ01_Provider | IBUS_Provider | CRSF_Provider | FPort_Provider
                                       | GHST_Provider | Jeti_Provider | Spektrum_1024_Provider
+        and then (R.Serialrx_Provider /= SUMD_Provider or else Adaflight.Build_Features.SUMD)
+        and then (R.Serialrx_Provider /= Jeti_Provider or else Adaflight.Build_Features.Jeti_EX_Bus)
       then
          declare
             Assigned : constant SFM.Assignments := Adaflight.Config_Fix.Serial_Assignments (Config);
@@ -216,8 +219,10 @@ package body Adaflight.STM32.Radio is
                Adaflight.IBUS.Init (IBUS_State);
                USART.Init (Link, IBUS_SUMD_Baud, Line => Line, Inverted => Inverted);
             when SUMD =>
-               Adaflight.SUMD.Init (SUMD_State);
-               USART.Init (Link, IBUS_SUMD_Baud, Line => Line, Inverted => Inverted);
+               if Adaflight.Build_Features.SUMD then
+                  Adaflight.SUMD.Init (SUMD_State);
+                  USART.Init (Link, IBUS_SUMD_Baud, Line => Line, Inverted => Inverted);
+               end if;
             when Spektrum =>
                Adaflight.Spektrum.Init
                  (Spek_State,
@@ -242,8 +247,10 @@ package body Adaflight.STM32.Radio is
                Adaflight.GHST.Init (GHST_State);
                USART.Init (Link, GHST_Baud, Line => Line, Inverted => Inverted);
             when Jeti =>
-               Adaflight.Jeti_Ex_Bus.Init (Jeti_State);
-               USART.Init (Link, Jeti_Baud, Line => Line, Inverted => Inverted);
+               if Adaflight.Build_Features.Jeti_EX_Bus then
+                  Adaflight.Jeti_Ex_Bus.Init (Jeti_State);
+                  USART.Init (Link, Jeti_Baud, Line => Line, Inverted => Inverted);
+               end if;
             when SBUS =>
                Adaflight.SBUS.Init (SBUS_State, Rx_Settings.Mid_RC);
                USART.Init
@@ -575,11 +582,13 @@ package body Adaflight.STM32.Radio is
                   end;
                end if;
             when SUMD =>
-               for I in 0 .. Count - 1 loop
-                  Adaflight.SUMD.Receive_Byte (SUMD_State, Natural (Input (I)), Times (I));
-               end loop;
-               if not Task_In_Progress then
-                  Adaflight.SUMD.Frame_Status (SUMD_State, Status);
+               if Adaflight.Build_Features.SUMD then
+                  for I in 0 .. Count - 1 loop
+                     Adaflight.SUMD.Receive_Byte (SUMD_State, Natural (Input (I)), Times (I));
+                  end loop;
+                  if not Task_In_Progress then
+                     Adaflight.SUMD.Frame_Status (SUMD_State, Status);
+                  end if;
                end if;
             when Spektrum =>
                for I in 0 .. Count - 1 loop
@@ -614,11 +623,13 @@ package body Adaflight.STM32.Radio is
                   Adaflight.GHST.Frame_Status (GHST_State, Now_Us, Status);
                end if;
             when Jeti =>
-               for I in 0 .. Count - 1 loop
-                  Adaflight.Jeti_Ex_Bus.Receive_Byte (Jeti_State, Natural (Input (I)), Times (I));
-               end loop;
-               if not Task_In_Progress then
-                  Adaflight.Jeti_Ex_Bus.Frame_Status (Jeti_State, Status);
+               if Adaflight.Build_Features.Jeti_EX_Bus then
+                  for I in 0 .. Count - 1 loop
+                     Adaflight.Jeti_Ex_Bus.Receive_Byte (Jeti_State, Natural (Input (I)), Times (I));
+                  end loop;
+                  if not Task_In_Progress then
+                     Adaflight.Jeti_Ex_Bus.Frame_Status (Jeti_State, Status);
+                  end if;
                end if;
          end case;
       end if;
@@ -725,9 +736,11 @@ package body Adaflight.STM32.Radio is
                   Raw (Ch) := Float'Max (0.0, Float'Min (65_535.0, Adaflight.IBUS.Read_Raw (IBUS_State, Ch)));
                end loop;
             when SUMD =>
-               for Ch in Adaflight.SUMD.Channel loop
-                  Raw (Ch) := Float'Max (0.0, Float'Min (65_535.0, Adaflight.SUMD.Read_Raw (SUMD_State, Ch)));
-               end loop;
+               if Adaflight.Build_Features.SUMD then
+                  for Ch in Adaflight.SUMD.Channel loop
+                     Raw (Ch) := Float'Max (0.0, Float'Min (65_535.0, Adaflight.SUMD.Read_Raw (SUMD_State, Ch)));
+                  end loop;
+               end if;
             when Spektrum =>
                for Ch in Adaflight.Spektrum.Channel loop
                   Raw (Ch) := Float'Max (0.0, Float'Min (65_535.0, Adaflight.Spektrum.Read_Raw (Spek_State, Ch)));
@@ -745,10 +758,12 @@ package body Adaflight.STM32.Radio is
                   Raw (Ch) := Float'Max (0.0, Float'Min (65_535.0, Adaflight.GHST.Read_Raw (GHST_State, Ch)));
                end loop;
             when Jeti =>
-               for Ch in Adaflight.Jeti_Ex_Bus.Channel loop
-                  Raw (Ch) :=
-                    Float'Max (0.0, Float'Min (65_535.0, Adaflight.Jeti_Ex_Bus.Read_Raw (Jeti_State, Ch)));
-               end loop;
+               if Adaflight.Build_Features.Jeti_EX_Bus then
+                  for Ch in Adaflight.Jeti_Ex_Bus.Channel loop
+                     Raw (Ch) :=
+                       Float'Max (0.0, Float'Min (65_535.0, Adaflight.Jeti_Ex_Bus.Read_Raw (Jeti_State, Ch)));
+                  end loop;
+               end if;
          end case;
       end if;
       Adaflight.Receiver.Calculate_Channels

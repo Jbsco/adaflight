@@ -11385,3 +11385,27 @@ moves MSP from UART1 to UART4 through the slots and draws the display port on UA
 The altitude element's sea level variants drew zero on the board, which never set the renderer's sea level altitude.
 The board now passes the GPS solution's altitude, which is what the reference draws there, bounded to the renderer's
 altitude range. A new host smoke check draws the variant at the simulated GPS module's 545.4 m.
+
+## D503. Build features (2026-10-28)
+
+A 512 KB board has room for fewer features than the CLRacing F4S image contains, so a build now selects its features.
+`tools/featuregen.py` writes `Adaflight.Build_Features` before each build of both targets, one Boolean constant per
+selectable feature, on when the board MCU's flash size reaches the feature's size. At 1024 KB and up every feature is
+on, and the CLRacing F4S image keeps its 617388 bytes of code. At 512 KB the gimbal control, the rangefinders, the
+iBus, LTM and MAVLink telemetry and the Jeti EX Bus and SUMD receivers are off. The reference's local builds leave the
+same features out at that size, and the gimbal control at every size. The menu system is on at every size, as the
+reference builds it with every OSD, and it is selectable on its own, since it is the largest feature a 512 KB board can
+drop and keep its OSD. `FEATURES` adds or removes features by name over those defaults, and `FLASH_KB` replaces the
+MCU's flash size.
+
+The flight file tests a feature's constant where it calls into the feature's package, and the radio tests a
+receiver's constant in its protocol cases, so the compiler drops those statements and the linker drops the code only
+they reached. The rangefinder's task steps are generic actuals of the task functions, so its package tests the
+constant at its own entry points. The scheduler takes its menu, rangefinder and gimbal task options from the constants.
+
+Code size of the CLRacing F4S image in bytes: every feature 617388, without the menu system 563072, the 512 KB set
+590064, the 512 KB set without the menu system 535608. The target workflow builds the 512 KB set after the image, so
+the left-out paths keep compiling. The host smoke reads the feature package beside the image and skips the checks of
+features the build leaves out, so `FLASH_KB=512 bash host.do` checks the rest of the 512 KB set. A build without a feature still contains its settings, serial functions and MSP
+commands, and the build information still lists no options. A list has to name every option the image supports,
+since a configurator hides the tabs of options a nonempty list leaves out.
