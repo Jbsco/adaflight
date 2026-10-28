@@ -11170,3 +11170,22 @@ loop. The argument lists keep their line breaks and tabs as characters of the te
 
 On the STM32F4 image the change removes 3872 bytes of text, from 707024 to 703152. The help vectors replay
 unchanged.
+
+## D483. Setting values through the codec (2026-10-28)
+
+`Get` and `Set` (D164, D165) read and wrote each setting through its own alternative of a case over every setting,
+20096 bytes of code in the board image. A setting's value now lives in the bytes of its group in the codec's layout
+(D166). `Get` encodes the setting's group, or its profile's element, into a buffer and reads the setting's bytes at
+its offset. `Set` writes the bytes there and decodes the group back. The generator gives each setting its offset in
+that layout and a format: one, two or four bytes, signed or not, a bit of such a word, or a text the numbers leave
+to `Get_Text` and `Set_Text`. The format takes the field as the reference's command line reads it through the
+setting's type: the low bytes of a wider field, a Boolean's byte, and the field's own sign where the setting's type
+is as wide or wider. A write stores the bytes the read takes, which truncates the value as the reference's
+assignment through the setting's type does.
+
+The codec's encoder and decoder walk the registry and each profile group's profiles through one dispatcher per
+direction, which the setting accessors share, and a profile group's array has no codec of its own. The storage image
+keeps its layout.
+
+On the STM32F4 image the change removes 12028 bytes of text, from 703152 to 691124. The setting, write and storage
+vectors replay unchanged.
