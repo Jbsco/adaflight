@@ -1,8 +1,9 @@
 --  The OSD display of the board: the MAX7456 chip's select pin held from the
 --  start, the chip and its display port started over the chip's SPI bus when
---  the OSD feature is on and the display device setting allows it, the
---  stored canvas fitted to the display, the readiness the OSD replies report
---  and the font characters a configurator writes.
+--  the OSD feature is on and the display device setting allows it, or the
+--  MSP display port that draws on a goggle system over the MSP UART the OSD
+--  setting names, the stored canvas fitted to the display, the readiness
+--  the OSD replies report and the font characters a configurator writes.
 with Interfaces;
 with Adaflight.Arming;
 with Adaflight.Battery;
@@ -13,6 +14,7 @@ with Adaflight.OSD_Render;
 with Adaflight.OSD_Task;
 with Adaflight.Scheduler;
 with Adaflight.STM32.GPS;
+with Adaflight.STM32.USART;
 package Adaflight.STM32.OSD is
    use type Interfaces.Integer_16;
    use type Interfaces.Integer_32;
@@ -48,7 +50,15 @@ package Adaflight.STM32.OSD is
    procedure Menu_Background (Kind : Natural);
    procedure Menu_Redraw (Armed : Boolean);
    procedure Menu_Heartbeat;
-   procedure Menu_Write (X, Y : Interfaces.Unsigned_8; Text : String);
+   procedure Menu_Write (X, Y : Interfaces.Unsigned_8; Text : String; Cost : out Interfaces.Unsigned_32);
+   --  The bytes the menu may write in one pass: the MSP UARTs' free transmit
+   --  room for the MSP display port, no limit for the chip.
+   function Menu_Room return Interfaces.Unsigned_32;
+
+   --  Whether a UART carries a device's MSP stream rather than a
+   --  configurator: the MSP display port's UART, or one with an MSP video
+   --  transmitter or a lidar.
+   function Peripheral (N : Adaflight.STM32.USART.Number) return Boolean;
 
    --  Whether a font character write goes to the chip, which needs it found.
    function Font_Write_Taken return Boolean;

@@ -16,7 +16,8 @@ package body Adaflight.STM32.Menu is
    Reset_Asked : Boolean := False;
    Armed_Now   : Boolean := False;
 
-   --  The MAX7456 display takes every write at no cost against the room.
+   --  A write costs the bytes it queues on the MSP display port and nothing on
+   --  the MAX7456.
    procedure Act (On : Adaflight.Menu.Display_Index; A : Adaflight.Menu.Action; Arg : Integer) is
       pragma Unreferenced (On);
    begin
@@ -58,8 +59,7 @@ package body Adaflight.STM32.Menu is
    is
       pragma Unreferenced (On, Attr);
    begin
-      Adaflight.STM32.OSD.Menu_Write (Unsigned_8 (X), Unsigned_8 (Y), Text);
-      Cost := 0;
+      Adaflight.STM32.OSD.Menu_Write (Unsigned_8 (X), Unsigned_8 (Y), Text, Cost);
    end Write;
 
    procedure Write_Char
@@ -67,8 +67,9 @@ package body Adaflight.STM32.Menu is
       Attr : Interfaces.Unsigned_8; C : Character)
    is
       pragma Unreferenced (On, Attr);
+      Unused_Cost : Unsigned_32;
    begin
-      Adaflight.STM32.OSD.Menu_Write (Unsigned_8 (X), Unsigned_8 (Y), (1 => C));
+      Adaflight.STM32.OSD.Menu_Write (Unsigned_8 (X), Unsigned_8 (Y), (1 => C), Unused_Cost);
    end Write_Char;
 
    package Nav is new Adaflight.Menu_Nav
@@ -177,7 +178,7 @@ package body Adaflight.STM32.Menu is
                  Stick_Commands_Disabled => F.Stick_Commands_Disabled,
                  Device_In_Menu          => False,
                  Joystick_Active         => False);
-      Nav.Update (State, T, Keys, Sliders (C), Sticks, Reboot_Flag, Now_Us, Now_Ms, Unsigned_32'Last);
+      Nav.Update (State, T, Keys, Sliders (C), Sticks, Reboot_Flag, Now_Us, Now_Ms, Adaflight.STM32.OSD.Menu_Room);
       if Was_Open or else State.In_Menu then
          C := T.Config;
       end if;
