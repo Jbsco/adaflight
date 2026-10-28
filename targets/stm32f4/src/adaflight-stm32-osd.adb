@@ -762,6 +762,7 @@ package body Adaflight.STM32.OSD is
       D.Amperage := F.Amperage;
       D.G_Force := F.G_Force;
       D.MAh_Drawn := F.MAh_Drawn;
+      D.Wh_Drawn := Float'Max (0.0, Float'Min (Adaflight.OSD_Render.Wh_Bound, F.Wh_Drawn));
       D.Profile_Capacity := F.Battery_Capacity;
       D.Battery_Percent := F.Battery_Percent;
       D.Pack_Voltage := F.Pack_Voltage;
@@ -879,6 +880,7 @@ package body Adaflight.STM32.OSD is
       Context.Page.Pack_Voltage := F.Pack_Voltage;
       Context.Page.Cell_Voltage := F.Cell_Voltage;
       Context.Page.MAh_Drawn := F.MAh_Drawn;
+      Context.Page.Wh_Drawn := Float'Max (0.0, Float'Min (Adaflight.OSD_Stats.Watt_Hours'Last, F.Wh_Drawn));
    end Refresh;
 
    function Bytes_Of (T : Adaflight.OSD_Format.Text) return Byte_Array is

@@ -10966,3 +10966,14 @@ element showed zeros and a named profile showed its number.
 The host smoke check sets distinctive roll gains and both profile names, places the three elements, and finds
 `ROL  47  83  31  42 125`, `SNAPPY` and `FREESTYL` on the screen. The previous image shows zeros, `PID_1` and
 `RATE_1`.
+
+## D470. STM32F4 OSD watt hours drawn (2026-10-27)
+
+The OSD's watt hours element and the statistics page's used watt hours read the battery's energy drawn, which the
+battery adds up from each change of the drawn charge times the battery voltage. The board had left both inputs at
+zero. The element's range starts at zero, so an energy below zero, from a current sensor reading below zero,
+shows as zero.
+
+The host smoke check takes the battery's voltage and current from the ESC sensor, whose emulator reports 16.1 V
+and 77 mAh drawn per ESC, and finds a nonzero energy on the element. The previous image shows 0 mWh. The value
+depends on the filtered voltage when the ESCs' charge first arrives, so the check asks for a nonzero energy only.

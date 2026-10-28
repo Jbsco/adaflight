@@ -68,7 +68,7 @@ package Adaflight.STM32.OSD is
    --  What the OSD reads from the flight at a frame: the arming and its
    --  reasons, the failsafe, the boxes and flight modes, the attitude in
    --  decidegrees, the acceleration in g, the throttle and the sticks, the
-   --  RSSI and the link's quality, the battery in centivolts, centiamps and milliamp hours, the
+   --  RSSI and the link's quality, the battery in centivolts, centiamps, milliamp hours and watt hours, the
    --  motors with their outputs and range, which of them run above the disarm output, the ESC
    --  sensor's readings over every motor and for each one, the profiles with
    --  their names and the PID profile's gains, the
@@ -114,6 +114,7 @@ package Adaflight.STM32.OSD is
       Full_Cell_Voltage : Interfaces.Unsigned_16 := 410;
       Amperage          : Interfaces.Integer_32 range -100_000 .. 100_000 := 0;
       MAh_Drawn         : Interfaces.Integer_32 range 0 .. 2 ** 24 := 0;
+      Wh_Drawn          : Float := 0.0;
       Battery_Percent   : Interfaces.Unsigned_8 := 0;
       Battery_Capacity  : Interfaces.Unsigned_16 := 0;
       Motors            : Adaflight.OSD_Render.Motor_Count := 4;

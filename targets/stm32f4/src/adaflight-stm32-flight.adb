@@ -2378,6 +2378,7 @@ package body Adaflight.STM32.Flight is
       F.Full_Cell_Voltage := Unsigned_16 (Bat_Settings.Full_Cell_Voltage);
       F.Amperage := Integer_32'Max (-100_000, Integer_32'Min (100_000, Integer_32 (Bat.Current.Amperage)));
       F.MAh_Drawn := Integer_32'Max (0, Integer_32'Min (2 ** 24, Integer_32 (Bat.Current.mAh_Drawn)));
+      F.Wh_Drawn := Bat.Watt_Hours;
       F.Battery_Percent := Unsigned_8 (Adaflight.Battery.Percentage_Remaining (Bat, Bat_Settings));
       F.Battery_Capacity := Profile.Battery_Capacity;
       F.Motors := Motors;
