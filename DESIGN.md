@@ -11083,3 +11083,30 @@ equal readings as the processor's division gives (F303), and held to the interna
 The host model reads 1489 and 973 once the first conversion starts, with calibration words of 1489, 940 and 1200,
 a supply of 3300 mV and 40 degrees. The host smoke check finds Vref=3.30V and Core temp=40degC in the status
 line, 40 in the MSP status reply, and Cz 40 on the OSD's core temperature element.
+
+## D478. Servo mixer (2026-10-28)
+
+The servo mixer unit contains the servo setup, the mixing and the order of the servo writes without the
+outputs. The setup marks the mixer as driving servos when its mode does, with the servo tilt or channel
+forwarding feature on, or when any servo forwards a channel. It loads the mode's rules, or in the custom
+airplane and custom tricopter modes the custom rules up to the first with a zero rate, and starts each servo's
+lowpass filter at the PID loop's period when a cutoff is set.
+
+Each update mixes every rule without a box or with its servo box on. The rule's output follows its input at the
+rule's speed when one is set, scales by the rule's rate, holds to the rule's share of the servo's span and adds
+to the servo, reversed where the servo reverses that input. Each servo then takes its rate and adds its middle,
+or its forwarded channel scaled to its span. With the servo tilt feature the gimbal pair take their middles or
+channels and, while the camera stabilization box is on, the attitude, mixed in the mixed tilt mode. The servos
+hold to their limits, pass the lowpass filter rounded to even when a cutoff is set, and hold to their limits
+again. The writes follow in order: the mode's servos, the gimbal pair with the tilt feature or in the gimbal
+mode, each forwarding servo not yet written, then the aux channels from the first forwarded channel. The
+bicopter, dualcopter, helicopter and singlecopter writes come only in builds with the uncommon mixers.
+
+The reference's 16-bit stores wrap, and the unit wraps them the same way. A rule naming a servo past the eight or
+an input past the fourteen, which the configuration's checks never let in, is skipped where the reference would
+index past its arrays. A forwarded channel scaled past the 16-bit range, or a filter output past 2 to the 24th,
+holds at the bound where the reference's conversion is undefined. No recorded vector reaches these guards.
+
+The harness replays 60 sequences of 200 updates recorded from the reference across fifteen mixer modes, with
+drawn features, servo parameters, custom rules, filter cutoffs, gimbal modes and receiver settings. Every setup
+result, servo value, write index and write value replays bit for bit.

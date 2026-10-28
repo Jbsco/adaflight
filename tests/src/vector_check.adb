@@ -172,6 +172,7 @@ with Adaflight.MSP_Serial_Out;
 with Adaflight.MSP_VTX_Status_Out;
 with Adaflight.Config_Store;
 with Adaflight.Mixer_Init;
+with Adaflight.Servo_Mixer;
 with Adaflight.Main_Loop;
 with Adaflight.Core_Loop;
 with Adaflight.PWM_Output;
@@ -36993,6 +36994,105 @@ procedure Vector_Check is
       end if;
    end Check_Menu_Select_Line;
 
+   Servo_Seq      : Integer_64 := -1;
+   Servo_Settings : Adaflight.Servo_Mixer.Settings;
+   Servo_State    : Adaflight.Servo_Mixer.State;
+
+   --  The servo mixer: the configuration, the setup's results, then each
+   --  update's servo values and writes against the reference's.
+   procedure Check_Servo_Line is
+      package SM renames Adaflight.Servo_Mixer;
+      Name : constant String := Str (1);
+   begin
+      if Name = "servocfg" then
+         Servo_Seq := Int (2);
+         declare
+            Features : constant Interfaces.Unsigned_32 := Interfaces.Unsigned_32 (Int (4));
+            C        : SM.Settings renames Servo_Settings;
+         begin
+            C.Mode := Adaflight.Mixer_Init.Mixer_Mode'Val (Int (3) - 1);
+            C.Options := (others => <>);
+            C.Servo_Tilt := (Features and 2 ** 5) /= 0;
+            C.Three_D := (Features and 2 ** 12) /= 0;
+            C.Channel_Forwarding := (Features and 2 ** 20) /= 0;
+            C.Lowpass_Hz := Interfaces.Unsigned_16 (Int (5));
+            C.Tri_Unarmed := Int (6) /= 0;
+            C.Forward_Start := Natural (Int (7));
+            C.Mixed_Tilt := Int (8) = 1;
+            C.Mid_RC := Interfaces.Unsigned_16 (Int (9));
+            C.Max_Aux_Channel := Natural (Int (10));
+            C.Channel_Count := Natural (Int (11));
+            for N in 0 .. 7 loop
+               C.Params (N) :=
+                 (Reversed_Sources     => Interfaces.Unsigned_32 (Int (13 + 6 * N)),
+                  Min                  => Interfaces.Integer_16 (Int (14 + 6 * N)),
+                  Max                  => Interfaces.Integer_16 (Int (15 + 6 * N)),
+                  Middle               => Interfaces.Integer_16 (Int (16 + 6 * N)),
+                  Rate                 => Interfaces.Integer_8 (Int (17 + 6 * N)),
+                  Forward_From_Channel => Interfaces.Integer_8 (Int (18 + 6 * N)));
+            end loop;
+            for R in 0 .. 15 loop
+               C.Custom_Rules (R) :=
+                 (Target_Channel => Interfaces.Unsigned_8 (Int (61 + 7 * R)),
+                  Input_Source   => Interfaces.Unsigned_8 (Int (62 + 7 * R)),
+                  Rate           => Interfaces.Integer_8 (Int (63 + 7 * R)),
+                  Speed          => Interfaces.Unsigned_8 (Int (64 + 7 * R)),
+                  Min            => Interfaces.Integer_8 (Int (65 + 7 * R)),
+                  Max            => Interfaces.Integer_8 (Int (66 + 7 * R)),
+                  Box            => Interfaces.Unsigned_8 (Int (67 + 7 * R)));
+            end loop;
+            SM.Init (Servo_State, C, Float (Int (12)) * 1.0E-6);
+         end;
+      elsif Int (2) /= Servo_Seq then
+         Put_Line ("servo line without its configuration");
+         Failures := Failures + 1;
+      elsif Name = "servoinit" then
+         Record_Int ("servoinit.uses", Int (3), Boolean'Pos (Servo_State.Uses_Servos));
+         Record_Int ("servoinit.rules", Int (4), Integer_64 (Servo_State.Rule_Count));
+         for N in 0 .. 7 loop
+            Record_Int ("servoinit.servo", Int (5 + N), Integer_64 (Servo_State.Servo (N)));
+         end loop;
+      elsif Name = "servostep" then
+         declare
+            I     : SM.Inputs;
+            W     : SM.Servo_Writes;
+            Count : SM.Write_Count;
+            Boxes : constant Interfaces.Unsigned_32 := Interfaces.Unsigned_32 (Int (6));
+         begin
+            I.Armed := Int (4) /= 0;
+            I.Passthru := Int (5) /= 0;
+            for B in 1 .. 3 loop
+               I.Servo_Box (B) := (Boxes and 2 ** (B - 1)) /= 0;
+            end loop;
+            I.Camera_Box := (Boxes and 8) /= 0;
+            for A in 0 .. 2 loop
+               I.RC_Command (A) := Flt (7 + A);
+               I.PID_Sum (A) := Flt (10 + A);
+            end loop;
+            I.Roll := Interfaces.Integer_16 (Int (13));
+            I.Pitch := Interfaces.Integer_16 (Int (14));
+            I.Motor_Device := Int (15) /= 0;
+            I.External_Motor := Interfaces.Unsigned_16 (Int (16));
+            I.Motor := Flt (17);
+            for Ch in 0 .. 17 loop
+               I.RC_Data (Ch) := Flt (18 + Ch);
+            end loop;
+            SM.Write_Servos (Servo_State, Servo_Settings, I, W, Count);
+            for N in 0 .. 7 loop
+               Record_Int ("servostep.servo", Int (36 + N), Integer_64 (Servo_State.Servo (N)));
+            end loop;
+            Record_Int ("servostep.writes", Int (44), Integer_64 (Count));
+            for K in 1 .. Natural'Min (Count, Natural (Int (44))) loop
+               Record_Int ("servostep.index", Int (45 + 2 * (K - 1)), Integer_64 (W (K).Index));
+               Record_Result ("servostep.value", Bits (46 + 2 * (K - 1)), To_Bits (W (K).Value));
+            end loop;
+         end;
+      else
+         Put_Line ("unknown servo case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_Servo_Line;
+
    --  The menu contents: the reference's menus over the configuration on one
    --  display, with the readings the setup popup takes, the keys pressed and
    --  the draws after them, the requests to the runtime and the
@@ -38954,6 +39054,8 @@ procedure Vector_Check is
                   Check_Menu_Line;
                elsif Kind = "menusel" then
                   Check_Menu_Select_Line;
+               elsif Kind = "servo" then
+                  Check_Servo_Line;
                else
                   Check_PID_Line;
                end if;
@@ -39303,6 +39405,7 @@ begin
    Run (Dir & "/menu.csv", "menu");
    Run (Dir & "/menucontent.csv", "menucontent");
    Run (Dir & "/menusel.csv", "menusel");
+   Run (Dir & "/servo.csv", "servo");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
