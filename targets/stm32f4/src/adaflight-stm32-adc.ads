@@ -11,4 +11,20 @@ package Adaflight.STM32.ADC is
      with Pre => Has_Channel (P);
    function Read (P : Pin) return Sample
      with Pre => Has_Channel (P);
+
+   --  The internal channels as an injected sequence of two after 480 sample
+   --  cycles each: the band gap reference on channel 17, then the
+   --  temperature sensor on channel 16.
+   procedure Init_Internal;
+   procedure Start_Internal;
+   --  Whether a started conversion of the internal channels still runs.
+   procedure Check_Internal (Busy : out Boolean);
+   function Reference_Sample return Sample;
+   function Temperature_Sample return Sample;
+
+   --  The chip's calibration words: the reference reading at 3.3 V, and the
+   --  sensor readings at 30 and 110 degrees.
+   function Reference_Calibration return Interfaces.Unsigned_16;
+   function Sensor_Calibration_30 return Interfaces.Unsigned_16;
+   function Sensor_Calibration_110 return Interfaces.Unsigned_16;
 end Adaflight.STM32.ADC;
