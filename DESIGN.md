@@ -10617,3 +10617,39 @@ frame's time for the RC smoothing. The EX Bus telemetry waits, so the request fr
 
 The host smoke check's receiver phase adds EX Bus channel frames, each with its reflected CRC16, with the
 same channels.
+
+## D450. STM32F4 iBus telemetry (2026-10-27)
+
+The board answers a FlySky receiver's iBus sensor polls on the telemetry port of the first provider with the
+iBus protocol, at 115,200 baud whatever rate the provider names, always on the transmit pin alone, and
+inverted when the telemetry's inversion setting asks. Each telemetry task run hands every byte received to
+the core's iBus sensors, which find a request through a four-byte window, skip the echo of each answer by
+its length, and answer from the sensor table the configuration names, with the first address polled as its
+base. The values come from the battery, the arming, the throttle and the modes, the accelerometer, the
+attitude, the climb rate and the GPS, with no barometer and no gyro temperature on the board. iBus runs last
+in the port checks and the telemetry task, after the CRSF telemetry. The telemetry port generic gains the
+single-wire choice for a protocol that always takes one wire.
+
+The host smoke check sets iBus telemetry on UART3 with a fresh store, sends a discovery, a sensor type and a
+measurement request for address 1, echoing each answer back as the single wire would. It finds the discovery
+answered and the type and value replies.
+
+## D451. STM32F4 Ghost telemetry (2026-10-27)
+
+The board sends Ghost telemetry on the Ghost receiver's wire when the telemetry feature is on and a Ghost
+link is open at boot. The schedule comes from the configuration: the battery pack frame when a configured
+voltage or current meter has its telemetry sensor enabled, and the two GPS frames when the GPS feature is
+on with their sensors enabled. The board has no barometer and no magnetometer, so the frame with the heading
+and the barometric altitude never enters the schedule.
+
+The receiver's link statistics turn the telemetry on when they name the normal, race, long range or race 250
+RF protocol. From then on the telemetry task builds the next frame in the schedule once 100 ms divided by
+the schedule's length has passed since the last one, after the CRSF telemetry and before iBus. The frame
+waits in the radio until the Ghost processing finds the receiver's quiet window, between 1 and 2 ms after
+the end of a received frame, and the radio writes it on the same wire. A newer frame replaces one still
+waiting. The values come from the battery, the arming, the GPS with its home, the altitude estimate and the
+attitude's heading. MSP over the Ghost link is not on the board, so the receiver's MSP frames go unanswered.
+
+The host smoke check turns the telemetry feature on with the Ghost receiver on UART3 and a fresh store,
+sends the two Ghost frames in turn, and finds at least ten 14-byte frames addressed to the receiver with a
+CRC8 that checks, all of them the battery pack frame.

@@ -13,6 +13,7 @@ Usage: host-smoke.py <host image>
 import calendar
 import os
 import re
+import select
 import socket
 import struct
 import subprocess
@@ -127,6 +128,13 @@ def hub_frames(data):
     return frames
 
 
+def ibus_request(command, address):
+    """An iBus telemetry request: the length four, the command over the sensor address, and the checksum
+    from 0xFFFF down."""
+    body = bytes([0x04, command | address])
+    return body + ((0xFFFF - sum(body)) & 0xFFFF).to_bytes(2, "little")
+
+
 def sport_frames(data):
     """The SmartPort data frames in the bytes the board sent, unescaped: the value id and the value of each
     frame of the data frame id whose FrSky checksum agrees."""
@@ -177,6 +185,20 @@ def ghst_frames(channels_us):
         body = bytes([kind]) + bits.to_bytes(6, "little") + bytes(tail)
         return bytes([0x82, 12]) + body + bytes([crc8_dvb_s2(body)])
     return [frame(0x33, [100, 60, 0x05, 20]), frame(0x30, [128, 128, 128, 128])]
+
+
+def ghst_replies(data):
+    """The Ghost telemetry frames in the bytes from the flight controller: the receiver's address, the length
+    twelve, the type, ten payload bytes and the CRC8 of the type and payload, which must check."""
+    frames = []
+    i = 0
+    while i + 14 <= len(data):
+        if data[i] == 0x89 and data[i + 1] == 12 and crc8_dvb_s2(data[i + 2:i + 13]) == data[i + 13]:
+            frames.append((data[i + 2], data[i + 3:i + 13]))
+            i += 14
+        else:
+            i += 1
+    return frames
 
 
 def jeti_frame(channels_us):
@@ -232,6 +254,7 @@ class SerialReceiver(threading.Thread):
         super().__init__(daemon=True)
         self.frames = frame if isinstance(frame, list) else [frame]
         self.stop = threading.Event()
+        self.received = b""
 
     def run(self):
         sock = None
@@ -249,6 +272,11 @@ class SerialReceiver(threading.Thread):
                 break
             turn += 1
             time.sleep(0.014)
+            if select.select([sock], [], [], 0)[0]:
+                try:
+                    self.received += sock.recv(4096)
+                except OSError:
+                    break
         if sock is not None:
             sock.close()
 
@@ -1200,6 +1228,42 @@ def main():
         finally:
             stop(proc)
             sock.close()
+        store = os.path.join(work, "ibustlm.bin")
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "feature TELEMETRY")
+            check("telemetry feature on for iBus", "Enabled" in text, text[-120:])
+            text = cli(sock, "set telemetry_1_protocol = IBUS")
+            check("telemetry provider set to iBus", "telemetry_1_protocol set to IBUS" in text, text[-120:])
+            text = cli(sock, "set telemetry_1_uart = UART3")
+            check("iBus telemetry port assigned", "telemetry_1_uart set to UART3" in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            line = socket.create_connection(("127.0.0.1", RX_PORT), timeout=1)
+            line.settimeout(0.3)
+            replies = []
+            for command in (0x80, 0x90, 0xA0):
+                line.sendall(ibus_request(command, 1))
+                replies.append(read_all(line, 0.3))
+                line.sendall(replies[-1])
+                time.sleep(0.05)
+            line.close()
+            check("iBus telemetry answers the discovery", replies[0] == ibus_request(0x80, 1), repr(replies[0]))
+            check("iBus telemetry gives the sensor type and value",
+                  len(replies[1]) == 6 and replies[1][:2] == bytes([0x06, 0x91])
+                  and len(replies[2]) == 6 and replies[2][:2] == bytes([0x06, 0xA1]), repr(replies[1:]))
+        finally:
+            stop(proc)
+            sock.close()
         store = os.path.join(work, "smartport.bin")
         proc, sock = start(image, store)
         try:
@@ -1283,6 +1347,38 @@ def main():
                 sender.stop.set()
                 stop(proc)
                 sock.close()
+        store = os.path.join(work, "ghsttlm.bin")
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "feature TELEMETRY")
+            check("telemetry feature on for Ghost", "Enabled" in text, text[-120:])
+            text = cli(sock, "set serialrx_provider = GHST")
+            check("receiver protocol set to GHST for its telemetry", "serialrx_provider set to GHST" in text,
+                  text[-120:])
+            text = cli(sock, "set rx_uart = UART3")
+            check("Ghost telemetry port assigned", "rx_uart set to UART3" in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store)
+        sender = SerialReceiver(ghst_frames(us))
+        sender.start()
+        try:
+            time.sleep(4.0)
+            frames = ghst_replies(sender.received)
+            kinds = sorted({k for k, _ in frames})
+            check("Ghost telemetry answers in the receiver's quiet window with checked frames", len(frames) >= 10,
+                  repr(sender.received[:60]))
+            check("Ghost telemetry sends the battery pack frame", kinds == [0x23], repr(kinds))
+        finally:
+            sender.stop.set()
+            stop(proc)
+            sock.close()
     print(f"host smoke: {'all checks passed' if not failures else str(len(failures)) + ' failed'}")
     sys.exit(1 if failures else 0)
 

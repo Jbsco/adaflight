@@ -35,7 +35,7 @@ package body Adaflight.STM32.Telemetry_Port is
       --  One wire is push-pull with a pull-down when inverted, open drain
       --  with a pull-up otherwise.
       Wire :=
-        (if Half_Duplex_Use and then Config.Telemetry_Config.Half_Duplex /= 0
+        (if Single_Wire or else (Half_Duplex_Use and then Config.Telemetry_Config.Half_Duplex /= 0)
          then (On => True, Push_Pull => Inverted, Resistor => (if Inverted then GPIO.Down else GPIO.Up))
          else USART.Full_Duplex);
       if (Runtime_Features and Adaflight.Config_Fix.Feature_Telemetry) = 0 then
