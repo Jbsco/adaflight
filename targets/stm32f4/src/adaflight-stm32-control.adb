@@ -2,6 +2,7 @@ with Adaflight.Config_Runtime;
 with Adaflight.Main_Loop;
 with Adaflight.Mixer_Init;
 with Adaflight.STM32.Blackbox;
+with Adaflight.STM32.Motors;
 with Adaflight.STM32.Pilot;
 package body Adaflight.STM32.Control is
    Ctl          : Adaflight.PID_Controller.State;
@@ -135,13 +136,21 @@ package body Adaflight.STM32.Control is
       Inp.Battery_Voltage := Current.Battery_Voltage;
       Inp.Sag_Cell_Voltage := Current.Sag_Cell_Voltage;
       Inp.Battery_Voltage_Latest := Current.Battery_Latest;
-      Inp.Motors_Enabled := False;
-      Inp.Motor_Enabled := (others => False);
+      Inp.Motors_Enabled := Adaflight.STM32.Motors.Enabled;
+      for M in Inp.Motor_Enabled'Range loop
+         Inp.Motor_Enabled (M) := Adaflight.STM32.Motors.Motor_Enabled (M);
+      end loop;
       Adaflight.Mixer.Update
         (Mix, Mix_Config, Ctl, Adaflight.STM32.Pilot.Loop_Runtime, Adaflight.STM32.Pilot.Profile, Inp);
       Step_Changed := Mix.Dyn_LPF_Previous_Step /= Last_Step;
       Last_Step := Mix.Dyn_LPF_Previous_Step;
    end Run_Mixer;
+
+   --  The mix's outputs to the motors.
+   procedure Write_Motors is
+   begin
+      Adaflight.STM32.Motors.Write_All (Mix.Motors);
+   end Write_Motors;
 
    package Loop_Pass is new Adaflight.Main_Loop
      (Reset_Yaw       => Adaflight.STM32.Pilot.Reset_Yaw,
@@ -152,7 +161,7 @@ package body Adaflight.STM32.Control is
       PID_Audio       => Nothing,
       Mix_Table       => Run_Mixer,
       Write_Servos    => Nothing,
-      Write_Motors    => Nothing,
+      Write_Motors    => Write_Motors,
       Blackbox_Update => Adaflight.STM32.Blackbox.Update);
 
    procedure Pass
