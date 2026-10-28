@@ -11210,3 +11210,14 @@ the proofs of the menu loaders.
 
 On the STM32F4 image the change removes 4524 bytes of text, from 675608 to 671084. The menu vectors replay
 unchanged.
+
+## D486. Settings info in six bytes (2026-10-28)
+
+The settings table kept each setting's info as a packed record of 15 bytes, two thirds of it the minimum and maximum
+of 34 bits each and the group number. The generator now gives the distinct pairs of limits and the distinct group
+numbers a table each, 155 pairs and 81 groups for the oracle's build, and each setting's packed record keeps an index
+into each, six bytes in all. `Describe` builds the full record from the three tables, so its callers read the same
+info.
+
+On the STM32F4 image the change removes 4872 bytes of text, from 671084 to 666212. The settings vectors replay
+unchanged.
