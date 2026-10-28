@@ -2175,6 +2175,38 @@ def main():
         finally:
             stop(proc)
             sock.close()
+        store = os.path.join(work, "watthours.bin")
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "feature ESC_SENSOR")
+            check("watt hours from the ESC sensor feature", "Enabled" in text, text[-120:])
+            for line in ("esc_sensor_uart = UART6", "battery_meter = ESC", "current_meter = ESC",
+                         "osd_displayport_device = MAX7456", "vcd_video_system = PAL", "osd_wh_drawn_pos = 2177"):
+                text = cli(sock, "set " + line)
+                check(f"watt hours {line}", line.replace(" = ", " set to ") in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        esc = ESC()
+        proc, sock = start(image, store)
+        esc.start()
+        try:
+            time.sleep(8.0)
+            row = screen_row(store, 4)
+            whole = re.search(r"(\d+)\.(\d\d)WH", row)
+            milli = re.search(r"(\d+)MWH", row)
+            drawn = (int(whole.group(1)) * 1000 + int(whole.group(2)) * 10 if whole
+                     else int(milli.group(1)) if milli else 0)
+            check("OSD watt hours element shows the energy of the charge the ESCs report", drawn > 0, repr(row))
+        finally:
+            esc.stop.set()
+            stop(proc)
+            sock.close()
         store = os.path.join(work, "laps.bin")
         proc, sock = start(image, store)
         try:
