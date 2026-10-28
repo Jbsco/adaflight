@@ -24,6 +24,8 @@ package Adaflight.STM32.DShot_Output is
       Motors  : Natural;
       Command : Interfaces.Unsigned_8;
       Kind    : Adaflight.DShot_Command.Command_Type);
+   --  A telemetry request in the motor's next frame.
+   procedure Request_Telemetry (Index : Natural);
    --  The command line's command, sent at once.
    procedure Write_Blocking (Index : Natural; Motors : Natural; Command : Interfaces.Unsigned_8);
    --  The mix's values to the motors while they are enabled.

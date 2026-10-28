@@ -1,5 +1,6 @@
 with Adaflight.Bytes; use Adaflight.Bytes;
 with Adaflight.Config_Runtime;
+with Adaflight.STM32.ESC_Sensor;
 with Adaflight.STM32.GPIO;
 with Adaflight.STM32.GPS;
 with Adaflight.STM32.Pilot;
@@ -68,7 +69,9 @@ package body Adaflight.STM32.VTX is
       if Kind /= Core.No_Device then
          for N in USART.Number loop
             if Port_Ids (N) = C.Vtx_Settings_Config.Vtx_Uart then
-               if not Adaflight.STM32.Radio.Holds (N) and then not Adaflight.STM32.GPS.Holds (N) then
+               if not Adaflight.STM32.Radio.Holds (N) and then not Adaflight.STM32.GPS.Holds (N)
+                 and then not Adaflight.STM32.ESC_Sensor.Holds (N)
+               then
                   Which := N;
                   Open := True;
                end if;

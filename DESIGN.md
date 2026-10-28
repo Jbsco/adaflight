@@ -10196,3 +10196,48 @@ The host target writes each command frame its transfers send to the file the env
 ADAFLIGHT_DSHOT_LOG names. The smoke check queues a beacon over MSP and finds it once on each motor with
 a telemetry request, then runs dshotprog 0 7 and finds the spin direction command ten times on motor 0
 alone.
+
+## D422. STM32F4 ESC sensor (2026-10-27)
+
+`Adaflight.STM32.ESC_Sensor` reads the ESC telemetry of D60 on a UART. With the ESC sensor feature on, the
+port that esc_sensor_uart names opens at 115200 baud, over its transmit pin alone when
+esc_sensor_halfduplex is on, unless the receiver or the GPS holds it, and the readings start as not yet
+received. The video transmitter, the flight log's serial port and MSP on UART1 leave a port the ESC sensor
+holds. The UART's transmitter is on as well and sends nothing, where the reference opens the port to
+receive only.
+
+The ESC sensor task runs at 100 Hz: it takes the bytes received since its last run into the frame in
+flight, then polls the motors, and a poll's request goes out as the telemetry request in the motor's next
+DShot frame. The battery's ESC meters read the reading over every motor, the MSP ESC sensor and motor
+telemetry replies read each motor's reading, and the command line knows the feature is on. The rate in
+revolutions per minute uses the pole count as the DShot telemetry does, and a negative rate, which no
+motor reaches, reports none. The ESC information read of dshotprog is D423 and the OSD's ESC elements are
+D424.
+
+The host smoke check enables the feature on UART6, sends a frame every 30 ms as the ESCs, and reads the
+temperature, rate, voltage, current and consumption back from the MSP replies.
+
+## D423. STM32F4 ESC information read (2026-10-27)
+
+`Adaflight.STM32.ESC_Sensor` serves the read behind dshotprog's ESC information command. The read's start
+passes the bytes received so far to the telemetry frame in flight, as the receive interrupt would have, and
+the bytes that arrive during the blocking command and the 10 ms wait after it fill a 64-byte information
+frame. The read's end takes the bytes received since, gives the frame and its count to the command line,
+and later bytes go back to the telemetry frame. The reference leaves its receive buffer on the command
+line's stack after the read, a declared divergence with an upstream write-up.
+
+The host smoke check plays an ESC that watches the image's DShot frame log for the information command to
+motor 0 and answers with a KISS version 2 frame, then reads the type, serial number, firmware and 3D state
+from dshotprog's output.
+
+## D424. STM32F4 ESC sensor on the OSD (2026-10-27)
+
+The board's OSD reads the ESC sensor of D422 at each frame while the ESC sensor feature is on. The reading
+over every motor gives the ESC temperature element, the temperature alarm, and the statistics' highest
+temperature and rate. Each motor's reading gives the ESC rate elements and the ESC warning, which flags a
+motor's rate only while its output is above the mixer's disarm output. The rate factor comes from the pole
+count, and a negative rate counts as none. With the feature on, the active element list takes the ESC
+elements in.
+
+The host smoke check places the ESC temperature element and finds the ESC frames' 42 degrees on the
+host's OSD screen.

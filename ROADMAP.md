@@ -32,7 +32,7 @@ Silver with no assume, and pass the gates on `main`.
   accelerometer, attitude and receiver tasks over SPI1 and a CRSF receiver on a UART with its
   telemetry, the arming logic and the modes, runs the rate controller and the mixer with the motors
   in DShot from the timers and their DShot commands, measures the battery, drives the beeper, draws the OSD and runs the menu
-  system on the MAX7456 chip on SPI3, reads a GPS module on a UART, writes its flight log to the SD
+  system on the MAX7456 chip on SPI3, reads a GPS module and the ESC sensor on UARTs, writes its flight log to the SD
   card, the flash chip or a serial port, controls a SmartAudio or Tramp video transmitter on a UART,
   drives its PINIO output from a mode box, keeps the clock the configurator or the GPS sets, and
   keeps its configuration in flash. `targets/host` runs the same flight software on the host with
