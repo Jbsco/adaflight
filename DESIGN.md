@@ -11307,3 +11307,12 @@ now takes the text once into a constant, empty for an unknown command, and every
 
 On the STM32F4 image the change removes 516 bytes of text, from 620900 to 620384. The command line vectors replay
 unchanged.
+
+## D495. Name and value lines put from their values (2026-10-28)
+
+The environment and status listings passed 34 values to `Put_Name_Value` as texts from `Decimal`, `Text_Of` and
+`Signed_Text`, each a copy on the secondary stack at the call. `Put_Name_Decimal`, `Put_Name_Text_Of` and
+`Put_Name_Signed_Text` take the value itself and make that text once inside, out of line.
+
+On the STM32F4 image the change removes 1024 bytes of text, from 620384 to 619360. The command line vectors replay
+unchanged.
