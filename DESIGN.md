@@ -11047,3 +11047,39 @@ The host smoke check places the custom message, craft name and pilot name elemen
 both names over MSP while the image runs, and finds them on the screen. It then turns the craft name messages on
 and finds the link quality text in the MSP name reply and in the craft name element. The previous image keeps the
 placeholders after the writes and replies with the stored craft name.
+
+## D476. Battery meters at the measured supply (2026-10-27)
+
+The battery's analog voltage and current meters scale their counts by the analog supply in millivolts,
+given with the other meter inputs. The core had used a fixed 3300 mV. On the STM32F4 the reference measures
+the supply through the internal reference channel (D477) and scales both meters by the measured value.
+The supply input ranges from 0 to 16000 mV, which keeps the current within its centiampere range at every
+current scale. The voltage product wraps in 32 bits as the reference's does.
+
+The battery generator draws the supply each step from its own random stream, so the other draws stay as they
+were: 3300 mV in every fifth sequence, else a level from 2900 to 3600 mV with a 15 mV jitter, and in one
+sequence kind a reading anywhere up to 16000 mV one step in 40. The sequences at 3300 mV replay the earlier
+vectors line for line with the supply column added. Every voltage, current, state, energy and percentage of
+the regenerated battery, sag and event vectors replays bit for bit.
+
+## D477. STM32F4 core temperature and measured supply (2026-10-28)
+
+The board converts two internal channels of ADC1 as an injected sequence of 480 sample cycles each: the band gap
+reference on channel 17, then the temperature sensor on channel 16. Scan mode and the sensors are on. The
+calibration comes from the stored overrides, or from the chip's words where an override is zero. Nine passes of
+the internal ADC task at startup fill the averages, the first of them on the empty result registers. The task then
+runs at 1 Hz: once the started conversion ends, it hands both readings to the internal ADC unit (D75) and starts
+the next conversion.
+
+The measured supply scales the battery's analog meters (D476), held to 16000 mV. The core temperature reaches the
+MSP status reply, the command line's status line and system values, the OSD's core temperature element and
+warning, and SmartPort's T11 sensor. A conversion of an analog pin now clears only its own end of conversion flag,
+so it leaves the flag that ends the internal sequence alone.
+
+The slope is eighty degrees in thousandths over the difference of the two sensor calibration readings, zero for
+equal readings as the processor's division gives (F303), and held to the internal ADC unit's bound of ten thousand
+(F96). Only overrides fewer than eight counts apart reach the bound.
+
+The host model reads 1489 and 973 once the first conversion starts, with calibration words of 1489, 940 and 1200,
+a supply of 3300 mV and 40 degrees. The host smoke check finds Vref=3.30V and Core temp=40degC in the status
+line, 40 in the MSP status reply, and Cz 40 on the OSD's core temperature element.

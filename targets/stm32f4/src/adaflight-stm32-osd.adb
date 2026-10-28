@@ -833,6 +833,7 @@ package body Adaflight.STM32.OSD is
       D.Antenna := F.Antenna;
       D.Earth_Up := F.Earth_Up;
       D.Total_Flights := F.Total_Flights;
+      D.Core_Temperature := F.Core_Temperature;
       D.VTX_Present := F.VTX_Present;
       D.VTX_Status_OK := F.VTX_Status_OK;
       D.VTX_Status := F.VTX_Status;
@@ -846,6 +847,7 @@ package body Adaflight.STM32.OSD is
       D.Screen_Cols := Port.Cols;
 
       W.Now_Us := Now_Us;
+      W.Core_Temperature := F.Core_Temperature;
       W.Battery := F.Battery;
       W.Armed := F.Armed;
       W.Was_Ever_Armed := F.Was_Ever_Armed;
