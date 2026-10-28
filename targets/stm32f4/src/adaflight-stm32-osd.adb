@@ -836,6 +836,13 @@ package body Adaflight.STM32.OSD is
       D.Antenna := F.Antenna;
       D.Earth_Up := F.Earth_Up;
       D.Total_Flights := F.Total_Flights;
+      D.VTX_Present := F.VTX_Present;
+      D.VTX_Status_OK := F.VTX_Status_OK;
+      D.VTX_Status := F.VTX_Status;
+      D.VTX_Power_OK := F.VTX_Power_OK;
+      D.VTX_Power_Index := F.VTX_Power_Index;
+      D.VTX_Control_Disable_Box := F.VTX_Disable_Box;
+      D.VTX := F.VTX_Table;
       D.Rescue_Configured := F.Rescue_Configured;
       D.GPS_Healthy := F.GPS.Healthy;
       D.Screen_Rows := Port.Rows;

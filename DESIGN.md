@@ -11019,3 +11019,14 @@ which the arming checks and the flight log read as well.
 The host smoke check puts the two boxes on AUX1 and stores seven flights, and finds READY, #7 and ATRN on the
 screen. The previous image shows no READY, #0 and AIR. The crash flip arrow, the up and down reference and the
 antenna need a tilted craft or a CRSF link's statistics, which the host check does not provide.
+
+## D474. STM32F4 OSD video transmitter element (2026-10-27)
+
+The OSD's transmitter channel element reads the transmitter through the board now: whether a device is present,
+its status word when the device answers, its power index when the device knows it, the VTX table and the
+transmitter control disable box. The status word holds the pit mode in bit 0 and, for Tramp, the race lock in
+bit 1. It comes from the common status query, apart from Tramp, whose race lock only its driver reports. The
+board had left these inputs at their defaults, so the element showed question marks with any device.
+
+The host smoke check stores a one-band VTX table with band 1, channel 1 and the first power level, runs the
+SmartAudio emulator, and finds A:1:25 on the screen. The previous image shows ?:?:?.

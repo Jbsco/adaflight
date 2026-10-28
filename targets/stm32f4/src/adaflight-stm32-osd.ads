@@ -16,6 +16,7 @@ with Adaflight.OSD_Task;
 with Adaflight.Scheduler;
 with Adaflight.STM32.GPS;
 with Adaflight.STM32.USART;
+with Adaflight.VTX_Table;
 package Adaflight.STM32.OSD is
    use type Interfaces.Integer_16;
    use type Interfaces.Integer_32;
@@ -72,7 +73,8 @@ package Adaflight.STM32.OSD is
    --  the motors with their outputs and range, which of them run above the disarm output, the ESC sensor's
    --  readings over every motor and for each one, the profiles with their names and the PID profile's gains,
    --  the estimated altitude and climb rate, the rangefinder's altitude, the custom text, the lap timer with
-   --  its clock, the adjustment shown with its value, the flight log's box and device, and the flight totals.
+   --  its clock, the adjustment shown with its value, the flight log's box and device, the video transmitter's
+   --  presence, status, power index and table with its control disable box, and the flight totals.
    type Motor_Flags is array (Adaflight.OSD_Render.Motor_Index) of Boolean;
    type Facts is record
       Armed             : Boolean := False;
@@ -93,6 +95,13 @@ package Adaflight.STM32.OSD is
       Acro_Trainer_Box  : Boolean := False;
       Antenna           : Interfaces.Integer_8 := 0;
       Earth_Up          : Adaflight.OSD_Render.Axis_Vector := (others => 0.0);
+      VTX_Present       : Boolean := False;
+      VTX_Status_OK     : Boolean := False;
+      VTX_Status        : Interfaces.Unsigned_8 := 0;
+      VTX_Power_OK      : Boolean := False;
+      VTX_Power_Index   : Interfaces.Unsigned_8 := 0;
+      VTX_Disable_Box   : Boolean := False;
+      VTX_Table         : Adaflight.VTX_Table.Table;
       Launch_Control    : Boolean := False;
       Acc_Present       : Boolean := False;
       G_Force           : Float range 0.0 .. 100.0 := 0.0;

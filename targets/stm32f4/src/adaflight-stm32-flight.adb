@@ -2355,6 +2355,10 @@ package body Adaflight.STM32.Flight is
       F.Ready_Box := Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Ready);
       F.Acro_Trainer_Box := Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Acro_Trainer);
       F.Antenna := Adaflight.STM32.Radio.Active_Antenna;
+      Adaflight.STM32.VTX.OSD_Readings
+        (F.VTX_Present, F.VTX_Status_OK, F.VTX_Status, F.VTX_Power_OK, F.VTX_Power_Index);
+      F.VTX_Disable_Box := Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.VTX_Control_Disable);
+      F.VTX_Table := Adaflight.STM32.VTX.Table;
       for C in Adaflight.Vectors.Coordinate loop
          F.Earth_Up (Adaflight.Vectors.Coordinate'Pos (C)) :=
            Float'Max (-1.0, Float'Min (1.0, Att_State.Rotation (Adaflight.Vectors.Z, C)));
