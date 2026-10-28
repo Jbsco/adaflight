@@ -11233,3 +11233,12 @@ the proof: the decoder needs no fact about them, and a proof that took in all 75
 
 On the STM32F4 image the change removes 5612 bytes of text, from 666212 to 660600. The settings and command line
 vectors replay unchanged.
+
+## D488. Flight log labels from setting names (2026-10-28)
+
+170 of the flight log header's 229 labels are a setting's name. Those labels now come from the settings table's
+names (D487) through a table of each label's setting, and the header's own text keeps the 59 other labels in 824
+characters, where it held all of them in 3777.
+
+On the STM32F4 image the change removes 2428 bytes of text, from 660600 to 658172. The flight log header vectors
+replay unchanged.
