@@ -11379,3 +11379,9 @@ names.
 
 A CLRacing F4 serves MSP on its USB port alone until a slot names a UART, as the reference does. The host smoke check
 moves MSP from UART1 to UART4 through the slots and draws the display port on UART4 through its implied port.
+
+## D502. Sea level altitude on the OSD (2026-10-28)
+
+The altitude element's sea level variants drew zero on the board, which never set the renderer's sea level altitude.
+The board now passes the GPS solution's altitude, which is what the reference draws there, bounded to the renderer's
+altitude range. A new host smoke check draws the variant at the simulated GPS module's 545.4 m.
