@@ -10876,3 +10876,20 @@ core change and no vectors.
 The host smoke check sends messages on UART4 and finds on the OSD screen the text without its carriage return,
 a message sent in two parts joined, and the dashes after an empty message. A second boot with the text on UART1
 finds the text on the screen, no MSP reply on UART1 and MSP replies on the USB port.
+
+## D466. STM32F4 gimbal control (2026-10-27)
+
+A gimbal on the UART the gimbal port setting names gets its command frames from the gimbal task at 100 Hz. The
+port opens at 115200 baud after the video transmitter, when the rangefinder, the receiver, the GPS, the custom
+text, the ESC sensor and the video transmitter leave that UART free. A head tracker on the same UART sends its
+frames to the board. Each frame whose CRC checks goes on to the gimbal at once, with its angles scaled to the
+gimbal's range, mixed with the sticks, offset and limited by the gimbal settings. Other bytes pass through
+unchanged, a lone first opcode byte as itself (D128). With no head tracker bytes for 250 ms, each run sends a
+frame from the sticks alone. Without a port the task stops on its first run. With the gimbal on UART1, MSP
+leaves UART1 to it.
+
+The core gimbal unit already replays its vectors, so this increment adds no core change and no vectors.
+
+The host smoke check puts the gimbal on UART4 and reads checked frames about every 10 ms with no roll or yaw,
+mode 0 and sensitivity 15. A head tracker frame with a roll of 900 comes back at once with the gimbal's roll of
+500, and the bytes `AB`, 16#A5# and 16#41# come back unchanged.
