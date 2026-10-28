@@ -113,6 +113,7 @@ with Adaflight.OSD_Task;
 with Adaflight.OSD_Render;
 with Adaflight.STM32.Menu;
 with Adaflight.STM32.OSD;
+with Adaflight.STM32.OSD_Custom_Text;
 with Adaflight.STM32.Time;
 with Adaflight.STM32.USART;
 with Adaflight.Stream_Buffers;
@@ -830,7 +831,7 @@ package body Adaflight.STM32.Flight is
         (Accel => True, Beeper => True, Sag_Compensation => True, OSD => True, CMS => True, GPS => True,
          GPS_Rescue => True, Alt_Hold => True, Pos_Hold => True, Telemetry => True, VTX_Control => True,
          VTX_Driver => True, PINIO_Box => True, ESC_Sensor => True, RC_Device => True, Rangefinder => True,
-         others => False);
+         OSD_Custom_Text => True, others => False);
       Inputs  : Adaflight.Task_Init.Inputs;
       Feature_Rangefinder : constant Unsigned_32 := 16#0000_0200#;
    begin
@@ -1223,6 +1224,7 @@ package body Adaflight.STM32.Flight is
                            or else Adaflight.STM32.ESC_Sensor.Holds (Adaflight.STM32.USART.UART1)
                            or else Adaflight.STM32.VTX.Holds (Adaflight.STM32.USART.UART1)
                            or else Adaflight.STM32.RunCam.Holds (Adaflight.STM32.USART.UART1)
+                           or else Adaflight.STM32.OSD_Custom_Text.Holds (Adaflight.STM32.USART.UART1)
                            or else Adaflight.STM32.Blackbox.Holds (Adaflight.STM32.USART.UART1)
                            or else Telemetry_Holds (Adaflight.STM32.USART.UART1))
             then
@@ -2341,6 +2343,7 @@ package body Adaflight.STM32.Flight is
       F.Motors := Motors;
       F.Altitude_Cm := Integer_32'Max (-40_000_000, Integer_32'Min (40_000_000, Estimated_Altitude_Cm));
       F.Rangefinder_Cm := Adaflight.STM32.Rangefinder.Altitude_Cm;
+      F.Custom_Text := Adaflight.STM32.OSD_Custom_Text.Text;
       F.Vario := Estimated_Vario;
       F.Pos_Hold_Ready := Pos_Hold_Ready;
       F.Pos_Hold_Failure := Pos_Hold_Failure;
@@ -3310,6 +3313,8 @@ package body Adaflight.STM32.Flight is
             Tasks.GPS_Rescue (Inputs);
          when Scheduler.RC_Device =>
             Run_RunCam;
+         when Scheduler.OSD_Custom_Text =>
+            Adaflight.STM32.OSD_Custom_Text.Update (Config.Osd_Custom_Text_Config.Terminator);
          when Scheduler.Rangefinder =>
             Tasks.Rangefinder (Inputs, Before);
          when Scheduler.ESC_Sensor =>
@@ -3428,6 +3433,7 @@ package body Adaflight.STM32.Flight is
       Adaflight.STM32.Radio.Init (Config, Runtime_Features, Adaflight.STM32.Time.Millis, Telemetry_Config);
       Adaflight.STM32.Radio.Init_FPort_Telemetry (SmartPort_Build);
       Adaflight.STM32.GPS.Init (Config, Runtime_Features, Adaflight.STM32.Time.Millis);
+      Adaflight.STM32.OSD_Custom_Text.Init (Config);
       Adaflight.STM32.ESC_Sensor.Init (Config, Runtime_Features);
       if USB_Detect then
          Adaflight.STM32.GPIO.Enable_Port (USB_Detect_Pin.Port);
