@@ -2130,42 +2130,52 @@ package body Adaflight.STM32.Flight is
    end Sync_Reasons;
 
    --  The names the OSD shows for each adjustment.
+   --  The adjustment labels in one text, each at its start for its length. The text ends with room for a
+   --  longest one, so every slice stays within it by its types.
+   Adjustment_Label_Pool_Length : constant := 282;
+   Adjustment_Label_Text : constant String (1 .. Adjustment_Label_Pool_Length + 24) :=
+     "RC RATERC EXPOTHROTTLE EXPOROLL RATEYAW RATEPITCH/ROLL PPITCH/ROLL IPITCH/ROLL DYAW PYAW IYAW DRATE PROF"
+     & "ILEPITCH RATEPITCH PPITCH IPITCH DRC RATE YAWPITCH/ROLL FFF TRANSITIONHORIZON STRENGTHPID AUDIOPITCH FYA"
+     & "W FOSD PROFILELED PROFILELED DIMMERSLIDER MASTER MULTIPLIERBATTERY PROFILE                        ";
+   type Adjustment_Label_Start is range 0 .. Adjustment_Label_Pool_Length;
+   type Adjustment_Label_Length is range 0 .. 24;
+   Adjustment_Label_Starts : constant array (Adaflight.Adjustments.Function_Kind) of Adjustment_Label_Start :=
+     (Adaflight.Adjustments.None => 0, Adaflight.Adjustments.RC_Rate => 0, Adaflight.Adjustments.RC_Expo => 7,
+      Adaflight.Adjustments.Throttle_Expo => 14, Adaflight.Adjustments.Pitch_Roll_Rate => 27,
+      Adaflight.Adjustments.Yaw_Rate => 36, Adaflight.Adjustments.Pitch_Roll_P => 44,
+      Adaflight.Adjustments.Pitch_Roll_I => 56, Adaflight.Adjustments.Pitch_Roll_D => 68,
+      Adaflight.Adjustments.Yaw_P => 80, Adaflight.Adjustments.Yaw_I => 85, Adaflight.Adjustments.Yaw_D => 90,
+      Adaflight.Adjustments.Rate_Profile => 95, Adaflight.Adjustments.Pitch_Rate => 107,
+      Adaflight.Adjustments.Roll_Rate => 27, Adaflight.Adjustments.Pitch_P => 117,
+      Adaflight.Adjustments.Pitch_I => 124, Adaflight.Adjustments.Pitch_D => 131,
+      Adaflight.Adjustments.Roll_P => 50, Adaflight.Adjustments.Roll_I => 62, Adaflight.Adjustments.Roll_D => 74,
+      Adaflight.Adjustments.RC_Rate_Yaw => 138, Adaflight.Adjustments.Pitch_Roll_F => 149,
+      Adaflight.Adjustments.Feedforward_Transition => 161, Adaflight.Adjustments.Horizon_Strength => 174,
+      Adaflight.Adjustments.PID_Audio => 190, Adaflight.Adjustments.Pitch_F => 199,
+      Adaflight.Adjustments.Roll_F => 155, Adaflight.Adjustments.Yaw_F => 206,
+      Adaflight.Adjustments.OSD_Profile => 211, Adaflight.Adjustments.LED_Profile => 222,
+      Adaflight.Adjustments.LED_Dimmer => 233, Adaflight.Adjustments.Master_Multiplier => 243,
+      Adaflight.Adjustments.Battery_Profile => 267);
+   Adjustment_Label_Lengths : constant array (Adaflight.Adjustments.Function_Kind) of Adjustment_Label_Length :=
+     (Adaflight.Adjustments.None => 0, Adaflight.Adjustments.RC_Rate => 7, Adaflight.Adjustments.RC_Expo => 7,
+      Adaflight.Adjustments.Throttle_Expo => 13, Adaflight.Adjustments.Pitch_Roll_Rate => 9,
+      Adaflight.Adjustments.Yaw_Rate => 8, Adaflight.Adjustments.Pitch_Roll_P => 12,
+      Adaflight.Adjustments.Pitch_Roll_I => 12, Adaflight.Adjustments.Pitch_Roll_D => 12,
+      Adaflight.Adjustments.Yaw_P => 5, Adaflight.Adjustments.Yaw_I => 5, Adaflight.Adjustments.Yaw_D => 5,
+      Adaflight.Adjustments.Rate_Profile => 12, Adaflight.Adjustments.Pitch_Rate => 10,
+      Adaflight.Adjustments.Roll_Rate => 9, Adaflight.Adjustments.Pitch_P => 7, Adaflight.Adjustments.Pitch_I => 7,
+      Adaflight.Adjustments.Pitch_D => 7, Adaflight.Adjustments.Roll_P => 6, Adaflight.Adjustments.Roll_I => 6,
+      Adaflight.Adjustments.Roll_D => 6, Adaflight.Adjustments.RC_Rate_Yaw => 11,
+      Adaflight.Adjustments.Pitch_Roll_F => 12, Adaflight.Adjustments.Feedforward_Transition => 13,
+      Adaflight.Adjustments.Horizon_Strength => 16, Adaflight.Adjustments.PID_Audio => 9,
+      Adaflight.Adjustments.Pitch_F => 7, Adaflight.Adjustments.Roll_F => 6, Adaflight.Adjustments.Yaw_F => 5,
+      Adaflight.Adjustments.OSD_Profile => 11, Adaflight.Adjustments.LED_Profile => 11,
+      Adaflight.Adjustments.LED_Dimmer => 10, Adaflight.Adjustments.Master_Multiplier => 24,
+      Adaflight.Adjustments.Battery_Profile => 15);
+
    function Adjustment_Label (K : Adaflight.Adjustments.Function_Kind) return String is
-     (case K is
-         when Adaflight.Adjustments.None                   => "",
-         when Adaflight.Adjustments.RC_Rate                => "RC RATE",
-         when Adaflight.Adjustments.RC_Expo                => "RC EXPO",
-         when Adaflight.Adjustments.Throttle_Expo          => "THROTTLE EXPO",
-         when Adaflight.Adjustments.Pitch_Roll_Rate        => "ROLL RATE",
-         when Adaflight.Adjustments.Yaw_Rate               => "YAW RATE",
-         when Adaflight.Adjustments.Pitch_Roll_P           => "PITCH/ROLL P",
-         when Adaflight.Adjustments.Pitch_Roll_I           => "PITCH/ROLL I",
-         when Adaflight.Adjustments.Pitch_Roll_D           => "PITCH/ROLL D",
-         when Adaflight.Adjustments.Yaw_P                  => "YAW P",
-         when Adaflight.Adjustments.Yaw_I                  => "YAW I",
-         when Adaflight.Adjustments.Yaw_D                  => "YAW D",
-         when Adaflight.Adjustments.Rate_Profile           => "RATE PROFILE",
-         when Adaflight.Adjustments.Pitch_Rate             => "PITCH RATE",
-         when Adaflight.Adjustments.Roll_Rate              => "ROLL RATE",
-         when Adaflight.Adjustments.Pitch_P                => "PITCH P",
-         when Adaflight.Adjustments.Pitch_I                => "PITCH I",
-         when Adaflight.Adjustments.Pitch_D                => "PITCH D",
-         when Adaflight.Adjustments.Roll_P                 => "ROLL P",
-         when Adaflight.Adjustments.Roll_I                 => "ROLL I",
-         when Adaflight.Adjustments.Roll_D                 => "ROLL D",
-         when Adaflight.Adjustments.RC_Rate_Yaw            => "RC RATE YAW",
-         when Adaflight.Adjustments.Pitch_Roll_F           => "PITCH/ROLL F",
-         when Adaflight.Adjustments.Feedforward_Transition => "FF TRANSITION",
-         when Adaflight.Adjustments.Horizon_Strength       => "HORIZON STRENGTH",
-         when Adaflight.Adjustments.PID_Audio              => "PID AUDIO",
-         when Adaflight.Adjustments.Pitch_F                => "PITCH F",
-         when Adaflight.Adjustments.Roll_F                 => "ROLL F",
-         when Adaflight.Adjustments.Yaw_F                  => "YAW F",
-         when Adaflight.Adjustments.OSD_Profile            => "OSD PROFILE",
-         when Adaflight.Adjustments.LED_Profile            => "LED PROFILE",
-         when Adaflight.Adjustments.LED_Dimmer             => "LED DIMMER",
-         when Adaflight.Adjustments.Master_Multiplier      => "SLIDER MASTER MULTIPLIER",
-         when Adaflight.Adjustments.Battery_Profile        => "BATTERY PROFILE");
+     (Adjustment_Label_Text (Natural (Adjustment_Label_Starts (K)) + 1
+                             .. Natural (Adjustment_Label_Starts (K)) + Natural (Adjustment_Label_Lengths (K))));
 
    --  The adjustment fields of a rate profile and a PID profile written back
    --  to the stored ones where the pass changed them, so the stored values the

@@ -647,33 +647,27 @@ package body Adaflight.Command_Line with SPARK_Mode is
 
    subtype Feature_Bit is Natural range 0 .. 28;
 
+   --  The feature names in one text, each at its start for its length. The text ends with room for a
+   --  longest one, so every slice stays within it by its types.
+   Feature_Name_Pool_Length : constant := 215;
+   Feature_Name_Text : constant String (1 .. Feature_Name_Pool_Length + 18) :=
+     "RX_PPMRX_UDPINFLIGHT_ACC_CALRX_SERIALMOTOR_STOPSERVO_TILTSOFTSERIALGPSOPTICALFLOWRANGEFINDERTELEMETRY3DR"
+     & "X_PARALLEL_PWMRX_MSPRSSI_ADCLED_STRIPDISPLAYOSDCHANNEL_FORWARDINGTRANSPONDERAIRMODERX_SPIESC_SENSORANTI_"
+     & "GRAVITY                  ";
+   type Feature_Name_Start is range 0 .. Feature_Name_Pool_Length;
+   type Feature_Name_Length is range 0 .. 18;
+   Feature_Name_Starts : constant array (Feature_Bit) of Feature_Name_Start :=
+     (0 => 0, 1 => 6, 2 => 12, 3 => 28, 4 => 37, 5 => 47, 6 => 57, 7 => 67, 8 => 70, 9 => 81, 10 => 92, 12 => 101,
+      13 => 103, 14 => 118, 15 => 124, 16 => 132, 17 => 141, 18 => 148, 20 => 151, 21 => 169, 22 => 180, 25 => 187,
+      27 => 193, 28 => 203, 11 | 19 | 23 | 24 | 26 => 0);
+   Feature_Name_Lengths : constant array (Feature_Bit) of Feature_Name_Length :=
+     (0 => 6, 1 => 6, 2 => 16, 3 => 9, 4 => 10, 5 => 10, 6 => 10, 7 => 3, 8 => 11, 9 => 11, 10 => 9, 12 => 2,
+      13 => 15, 14 => 6, 15 => 8, 16 => 9, 17 => 7, 18 => 3, 20 => 18, 21 => 11, 22 => 7, 25 => 6, 27 => 10,
+      28 => 12, 11 | 19 | 23 | 24 | 26 => 0);
+
    function Feature_Name (Bit : Feature_Bit) return String is
-     (case Bit is
-         when 0 => "RX_PPM",
-         when 1 => "RX_UDP",
-         when 2 => "INFLIGHT_ACC_CAL",
-         when 3 => "RX_SERIAL",
-         when 4 => "MOTOR_STOP",
-         when 5 => "SERVO_TILT",
-         when 6 => "SOFTSERIAL",
-         when 7 => "GPS",
-         when 8 => "OPTICALFLOW",
-         when 9 => "RANGEFINDER",
-         when 10 => "TELEMETRY",
-         when 12 => "3D",
-         when 13 => "RX_PARALLEL_PWM",
-         when 14 => "RX_MSP",
-         when 15 => "RSSI_ADC",
-         when 16 => "LED_STRIP",
-         when 17 => "DISPLAY",
-         when 18 => "OSD",
-         when 20 => "CHANNEL_FORWARDING",
-         when 21 => "TRANSPONDER",
-         when 22 => "AIRMODE",
-         when 25 => "RX_SPI",
-         when 27 => "ESC_SENSOR",
-         when 28 => "ANTI_GRAVITY",
-         when 11 | 19 | 23 | 24 | 26 => "")
+     (Feature_Name_Text (Natural (Feature_Name_Starts (Bit)) + 1
+                         .. Natural (Feature_Name_Starts (Bit)) + Natural (Feature_Name_Lengths (Bit))))
      with Post => Feature_Name'Result'Length <= 18;
 
    --  A header, then the names of a mask's features, each after a space but
@@ -802,32 +796,27 @@ package body Adaflight.Command_Line with SPARK_Mode is
    subtype Beeper_Index is Natural range 0 .. 23;
    All_Beepers : constant Beeper_Index := 23;
 
+   --  The beeper names in one text, each at its start for its length. The text ends with room for a
+   --  longest one, so every slice stays within it by its types.
+   Beeper_Name_Pool_Length : constant := 268;
+   Beeper_Name_Text : constant String (1 .. Beeper_Name_Pool_Length + 20) :=
+     "GYRO_CALIBRATEDRX_LOSTRX_LOST_LANDINGDISARMINGARMING_GPS_FIXARMING_GPS_NO_FIXBAT_CRIT_LOWBAT_LOWGPS_STAT"
+     & "USRX_SETACC_CALIBRATIONACC_CALIBRATION_FAILREADY_BEEPMULTI_BEEPSDISARM_REPEATARMEDSYSTEM_INITON_USBBLACK"
+     & "BOX_ERASECRASHFLIPCAM_CONNECTION_OPENCAM_CONNECTION_CLOSEALL                    ";
+   type Beeper_Name_Start is range 0 .. Beeper_Name_Pool_Length;
+   type Beeper_Name_Length is range 3 .. 20;
+   Beeper_Name_Starts : constant array (Beeper_Index) of Beeper_Name_Start :=
+     (0 => 0, 1 => 15, 2 => 22, 3 => 37, 4 => 40, 5 => 46, 6 => 60, 7 => 77, 8 => 89, 9 => 96, 10 => 106, 11 => 112,
+      12 => 127, 13 => 147, 14 => 157, 15 => 168, 16 => 181, 17 => 186, 18 => 197, 19 => 203, 20 => 217, 21 => 226,
+      22 => 245, 23 => 265);
+   Beeper_Name_Lengths : constant array (Beeper_Index) of Beeper_Name_Length :=
+     (0 => 15, 1 => 7, 2 => 15, 3 => 9, 4 => 6, 5 => 14, 6 => 17, 7 => 12, 8 => 7, 9 => 10, 10 => 6, 11 => 15,
+      12 => 20, 13 => 10, 14 => 11, 15 => 13, 16 => 5, 17 => 11, 18 => 6, 19 => 14, 20 => 9, 21 => 19, 22 => 20,
+      23 => 3);
+
    function Beeper_Name (I : Beeper_Index) return String is
-     (case I is
-         when 0 => "GYRO_CALIBRATED",
-         when 1 => "RX_LOST",
-         when 2 => "RX_LOST_LANDING",
-         when 3 => "DISARMING",
-         when 4 => "ARMING",
-         when 5 => "ARMING_GPS_FIX",
-         when 6 => "ARMING_GPS_NO_FIX",
-         when 7 => "BAT_CRIT_LOW",
-         when 8 => "BAT_LOW",
-         when 9 => "GPS_STATUS",
-         when 10 => "RX_SET",
-         when 11 => "ACC_CALIBRATION",
-         when 12 => "ACC_CALIBRATION_FAIL",
-         when 13 => "READY_BEEP",
-         when 14 => "MULTI_BEEPS",
-         when 15 => "DISARM_REPEAT",
-         when 16 => "ARMED",
-         when 17 => "SYSTEM_INIT",
-         when 18 => "ON_USB",
-         when 19 => "BLACKBOX_ERASE",
-         when 20 => "CRASHFLIP",
-         when 21 => "CAM_CONNECTION_OPEN",
-         when 22 => "CAM_CONNECTION_CLOSE",
-         when 23 => "ALL")
+     (Beeper_Name_Text (Natural (Beeper_Name_Starts (I)) + 1
+                        .. Natural (Beeper_Name_Starts (I)) + Natural (Beeper_Name_Lengths (I))))
      with Post => Beeper_Name'Result'Length in 1 .. 20;
 
    --  The flag of a beeper table entry's mode.
@@ -1431,35 +1420,37 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end;
    end Serial_Command;
 
+   --  The mixer names in one text, each at its start for its length. The text ends with room for a
+   --  longest one, so every slice stays within it by its types.
+   Mixer_Name_Pool_Length : constant := 197;
+   Mixer_Name_Text : constant String (1 .. Mixer_Name_Pool_Length + 14) :=
+     "TRIQUADPQUADXBIGIMBALY6HEX6FLYING_WINGY4HEX6XOCTOX8OCTOFLATPOCTOFLATXAIRPLANEHELI_120_CCPMHELI_90_DEGVTA"
+     & "IL4HEX6HPPM_TO_SERVODUALCOPTERSINGLECOPTERATAIL4CUSTOMCUSTOMAIRPLANECUSTOMTRIQUADX1234OCTOX8P           "
+     & "   ";
+   type Mixer_Name_Start is range 0 .. Mixer_Name_Pool_Length;
+   type Mixer_Name_Length is range 2 .. 14;
+   Mixer_Name_Starts : constant array (Mixer_Init.Mixer_Mode) of Mixer_Name_Start :=
+     (Mixer_Init.Tri => 0, Mixer_Init.Quad_P => 3, Mixer_Init.Quad_X => 8, Mixer_Init.Bicopter => 13,
+      Mixer_Init.Gimbal => 15, Mixer_Init.Y6 => 21, Mixer_Init.Hex6 => 23, Mixer_Init.Flying_Wing => 27,
+      Mixer_Init.Y4 => 38, Mixer_Init.Hex6X => 40, Mixer_Init.Octo_X8 => 45, Mixer_Init.Octo_Flat_P => 51,
+      Mixer_Init.Octo_Flat_X => 60, Mixer_Init.Airplane => 69, Mixer_Init.Heli_120_CCPM => 77,
+      Mixer_Init.Heli_90_Deg => 90, Mixer_Init.Vtail4 => 101, Mixer_Init.Hex6H => 107,
+      Mixer_Init.PPM_To_Servo => 112, Mixer_Init.Dualcopter => 124, Mixer_Init.Singlecopter => 134,
+      Mixer_Init.Atail4 => 146, Mixer_Init.Custom => 152, Mixer_Init.Custom_Airplane => 158,
+      Mixer_Init.Custom_Tri => 172, Mixer_Init.Quad_X_1234 => 181, Mixer_Init.Octo_X8P => 190);
+   Mixer_Name_Lengths : constant array (Mixer_Init.Mixer_Mode) of Mixer_Name_Length :=
+     (Mixer_Init.Tri => 3, Mixer_Init.Quad_P => 5, Mixer_Init.Quad_X => 5, Mixer_Init.Bicopter => 2,
+      Mixer_Init.Gimbal => 6, Mixer_Init.Y6 => 2, Mixer_Init.Hex6 => 4, Mixer_Init.Flying_Wing => 11,
+      Mixer_Init.Y4 => 2, Mixer_Init.Hex6X => 5, Mixer_Init.Octo_X8 => 6, Mixer_Init.Octo_Flat_P => 9,
+      Mixer_Init.Octo_Flat_X => 9, Mixer_Init.Airplane => 8, Mixer_Init.Heli_120_CCPM => 13,
+      Mixer_Init.Heli_90_Deg => 11, Mixer_Init.Vtail4 => 6, Mixer_Init.Hex6H => 5, Mixer_Init.PPM_To_Servo => 12,
+      Mixer_Init.Dualcopter => 10, Mixer_Init.Singlecopter => 12, Mixer_Init.Atail4 => 6, Mixer_Init.Custom => 6,
+      Mixer_Init.Custom_Airplane => 14, Mixer_Init.Custom_Tri => 9, Mixer_Init.Quad_X_1234 => 9,
+      Mixer_Init.Octo_X8P => 7);
+
    function Mixer_Name (M : Mixer_Init.Mixer_Mode) return String is
-     (case M is
-         when Mixer_Init.Tri => "TRI",
-         when Mixer_Init.Quad_P => "QUADP",
-         when Mixer_Init.Quad_X => "QUADX",
-         when Mixer_Init.Bicopter => "BI",
-         when Mixer_Init.Gimbal => "GIMBAL",
-         when Mixer_Init.Y6 => "Y6",
-         when Mixer_Init.Hex6 => "HEX6",
-         when Mixer_Init.Flying_Wing => "FLYING_WING",
-         when Mixer_Init.Y4 => "Y4",
-         when Mixer_Init.Hex6X => "HEX6X",
-         when Mixer_Init.Octo_X8 => "OCTOX8",
-         when Mixer_Init.Octo_Flat_P => "OCTOFLATP",
-         when Mixer_Init.Octo_Flat_X => "OCTOFLATX",
-         when Mixer_Init.Airplane => "AIRPLANE",
-         when Mixer_Init.Heli_120_CCPM => "HELI_120_CCPM",
-         when Mixer_Init.Heli_90_Deg => "HELI_90_DEG",
-         when Mixer_Init.Vtail4 => "VTAIL4",
-         when Mixer_Init.Hex6H => "HEX6H",
-         when Mixer_Init.PPM_To_Servo => "PPM_TO_SERVO",
-         when Mixer_Init.Dualcopter => "DUALCOPTER",
-         when Mixer_Init.Singlecopter => "SINGLECOPTER",
-         when Mixer_Init.Atail4 => "ATAIL4",
-         when Mixer_Init.Custom => "CUSTOM",
-         when Mixer_Init.Custom_Airplane => "CUSTOMAIRPLANE",
-         when Mixer_Init.Custom_Tri => "CUSTOMTRI",
-         when Mixer_Init.Quad_X_1234 => "QUADX1234",
-         when Mixer_Init.Octo_X8P => "OCTOX8P")
+     (Mixer_Name_Text (Natural (Mixer_Name_Starts (M)) + 1
+                       .. Natural (Mixer_Name_Starts (M)) + Natural (Mixer_Name_Lengths (M))))
      with Post => Mixer_Name'Result'Length in 2 .. 14;
 
    --  The first mode whose name a text starts, without regard to case.
@@ -3629,142 +3620,88 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Version_Command_Word, Vtx_Command_Word, Vtx_Info_Command_Word, Vtx_Table_Command_Word, Waypoint_Command_Word);
    subtype Known_Command is Command_Kind range Adjustment_Range_Command_Word .. Waypoint_Command_Word;
 
+   --  The command words in one text, each at its start for its length. The text ends with room for a
+   --  longest one, so every slice stays within it by its types.
+   Command_Word_Pool_Length : constant := 485;
+   Command_Word_Text : constant String (1 .. Command_Word_Pool_Length + 20) :=
+     "adjrangeauxbatchbattery_profilebeaconblexitsavebeeperbind_rxboard_namemanufacturer_idsignaturedefaultsdi"
+     & "ffdmadshot_telemetry_infodshotprogdumpenvescprogfeatureflash_eraseflash_infoflash_readflash_scanflash_wr"
+     & "itegetgpspassthroughgyroregistershelpcolorledmode_colormapmcu_idmotormscplay_soundsd_infosensor_hardware"
+     & "mixermmixoptionsperipheralsstatusrateprofilerc_smoothing_inforesourcerxfailrxrangeserialservosmixsetsimp"
+     & "lified_tuningtasksversionvtxvtx_infovtxtablewaypointserialpassthrough                    ";
+   type Command_Word_Start is range 0 .. Command_Word_Pool_Length;
+   type Command_Word_Length is range 2 .. 20;
+   Command_Word_Starts : constant array (Known_Command) of Command_Word_Start :=
+     (Adjustment_Range_Command_Word => 0, Aux_Command_Word => 8, Batch_Command_Word => 11,
+      Battery_Profile_Command => 16, Beacon_Command => 31, Bootloader_Command_Word => 37, Exit_Command_Word => 39,
+      Save_Command_Word => 43, Beeper_Command_Word => 47, Bind_Rx_Command_Word => 53, Board_Name_Command_Word => 60,
+      Manufacturer_Id_Command_Word => 70, Signature_Command_Word => 85, Defaults_Command_Word => 94,
+      Diff_Command => 102, Dma_Command_Word => 106, Dshot_Telemetry_Info_Command_Word => 109,
+      Dshotprog_Command_Word => 129, Dump_Command => 138, Env_Command_Word => 142, Escprog_Command_Word => 145,
+      Feature_Command_Word => 152, Flash_Erase_Command_Word => 159, Flash_Info_Command_Word => 170,
+      Flash_Read_Command_Word => 180, Flash_Scan_Command_Word => 190, Flash_Write_Command_Word => 200,
+      Get_Command => 211, Gpspassthrough_Command_Word => 214, Gyroregisters_Command_Word => 228,
+      Help_Command_Word => 241, Color_Command_Word => 245, Led_Command_Word => 250, Mode_Color_Command_Word => 253,
+      Map_Command_Word => 263, MCU_Id_Command_Word => 266, Motor_Command_Word => 272, MSC_Command_Word => 277,
+      Play_Sound_Command_Word => 280, Sd_Info_Command_Word => 290, Sensor_Hardware_Command_Word => 297,
+      Mixer_Command_Word => 312, Motor_Mix_Command_Word => 317, Options_Command_Word => 321,
+      Peripherals_Command_Word => 328, Status_Command_Word => 339, Profile_Command => 24,
+      Rate_Profile_Command => 345, Rc_Smoothing_Info_Command_Word => 356, Resource_Command_Word => 373,
+      Rx_Failsafe_Command => 381, Rx_Range_Command => 387, Serial_Command_Word => 394, Servo_Command_Word => 400,
+      Servo_Mix_Command_Word => 405, Set_Command => 409, Simplified_Tuning_Command_Word => 412,
+      Tasks_Command_Word => 429, Version_Command_Word => 434, Vtx_Command_Word => 441, Vtx_Info_Command_Word => 444,
+      Vtx_Table_Command_Word => 452, Waypoint_Command_Word => 460);
+   Command_Word_Lengths : constant array (Known_Command) of Command_Word_Length :=
+     (Adjustment_Range_Command_Word => 8, Aux_Command_Word => 3, Batch_Command_Word => 5,
+      Battery_Profile_Command => 15, Beacon_Command => 6, Bootloader_Command_Word => 2, Exit_Command_Word => 4,
+      Save_Command_Word => 4, Beeper_Command_Word => 6, Bind_Rx_Command_Word => 7, Board_Name_Command_Word => 10,
+      Manufacturer_Id_Command_Word => 15, Signature_Command_Word => 9, Defaults_Command_Word => 8,
+      Diff_Command => 4, Dma_Command_Word => 3, Dshot_Telemetry_Info_Command_Word => 20,
+      Dshotprog_Command_Word => 9, Dump_Command => 4, Env_Command_Word => 3, Escprog_Command_Word => 7,
+      Feature_Command_Word => 7, Flash_Erase_Command_Word => 11, Flash_Info_Command_Word => 10,
+      Flash_Read_Command_Word => 10, Flash_Scan_Command_Word => 10, Flash_Write_Command_Word => 11,
+      Get_Command => 3, Gpspassthrough_Command_Word => 14, Gyroregisters_Command_Word => 13, Help_Command_Word => 4,
+      Color_Command_Word => 5, Led_Command_Word => 3, Mode_Color_Command_Word => 10, Map_Command_Word => 3,
+      MCU_Id_Command_Word => 6, Motor_Command_Word => 5, MSC_Command_Word => 3, Play_Sound_Command_Word => 10,
+      Sd_Info_Command_Word => 7, Sensor_Hardware_Command_Word => 15, Mixer_Command_Word => 5,
+      Motor_Mix_Command_Word => 4, Options_Command_Word => 7, Peripherals_Command_Word => 11,
+      Status_Command_Word => 6, Profile_Command => 7, Rate_Profile_Command => 11,
+      Rc_Smoothing_Info_Command_Word => 17, Resource_Command_Word => 8, Rx_Failsafe_Command => 6,
+      Rx_Range_Command => 7, Serial_Command_Word => 6, Servo_Command_Word => 5, Servo_Mix_Command_Word => 4,
+      Set_Command => 3, Simplified_Tuning_Command_Word => 17, Tasks_Command_Word => 5, Version_Command_Word => 7,
+      Vtx_Command_Word => 3, Vtx_Info_Command_Word => 8, Vtx_Table_Command_Word => 8, Waypoint_Command_Word => 8);
+
    function Command_Word (K : Known_Command) return String is
-     (case K is
-         when Adjustment_Range_Command_Word => "adjrange",
-         when Aux_Command_Word => "aux",
-         when Batch_Command_Word => "batch",
-         when Battery_Profile_Command => "battery_profile",
-         when Beacon_Command => "beacon",
-         when Bootloader_Command_Word => "bl",
-         when Exit_Command_Word => "exit",
-         when Save_Command_Word => "save",
-         when Beeper_Command_Word => "beeper",
-         when Bind_Rx_Command_Word => "bind_rx",
-         when Board_Name_Command_Word => "board_name",
-         when Manufacturer_Id_Command_Word => "manufacturer_id",
-         when Signature_Command_Word => "signature",
-         when Defaults_Command_Word => "defaults",
-         when Diff_Command => "diff",
-         when Dma_Command_Word => "dma",
-         when Dshot_Telemetry_Info_Command_Word => "dshot_telemetry_info",
-         when Dshotprog_Command_Word => "dshotprog",
-         when Dump_Command => "dump",
-         when Env_Command_Word => "env",
-         when Escprog_Command_Word => "escprog",
-         when Feature_Command_Word => "feature",
-         when Flash_Erase_Command_Word => "flash_erase",
-         when Flash_Info_Command_Word => "flash_info",
-         when Flash_Read_Command_Word => "flash_read",
-         when Flash_Scan_Command_Word => "flash_scan",
-         when Flash_Write_Command_Word => "flash_write",
-         when Get_Command => "get",
-         when Gpspassthrough_Command_Word => "gpspassthrough",
-         when Gyroregisters_Command_Word => "gyroregisters",
-         when Help_Command_Word => "help",
-         when Color_Command_Word => "color",
-         when Led_Command_Word => "led",
-         when Mode_Color_Command_Word => "mode_color",
-         when Map_Command_Word => "map",
-         when MCU_Id_Command_Word => "mcu_id",
-         when Motor_Command_Word => "motor",
-         when MSC_Command_Word => "msc",
-         when Play_Sound_Command_Word => "play_sound",
-         when Sd_Info_Command_Word => "sd_info",
-         when Sensor_Hardware_Command_Word => "sensor_hardware",
-         when Mixer_Command_Word => "mixer",
-         when Motor_Mix_Command_Word => "mmix",
-         when Options_Command_Word => "options",
-         when Peripherals_Command_Word => "peripherals",
-         when Status_Command_Word => "status",
-         when Profile_Command => "profile",
-         when Rate_Profile_Command => "rateprofile",
-         when Rc_Smoothing_Info_Command_Word => "rc_smoothing_info",
-         when Resource_Command_Word => "resource",
-         when Rx_Failsafe_Command => "rxfail",
-         when Rx_Range_Command => "rxrange",
-         when Serial_Command_Word => "serial",
-         when Servo_Command_Word => "servo",
-         when Servo_Mix_Command_Word => "smix",
-         when Set_Command => "set",
-         when Simplified_Tuning_Command_Word => "simplified_tuning",
-         when Tasks_Command_Word => "tasks",
-         when Version_Command_Word => "version",
-         when Vtx_Command_Word => "vtx",
-         when Vtx_Info_Command_Word => "vtx_info",
-         when Vtx_Table_Command_Word => "vtxtable",
-         when Waypoint_Command_Word => "waypoint")
+     (Command_Word_Text (Natural (Command_Word_Starts (K)) + 1
+                         .. Natural (Command_Word_Starts (K)) + Natural (Command_Word_Lengths (K))))
      with Post => Command_Word'Result'Length in 1 .. 20;
 
    function Command_Count return Positive is (64);
 
+   subtype Command_Position is Positive range 1 .. 64;
+
+   --  The command names, each at its start in the command word text for its length.
+   type Command_Name_Start is range 0 .. Command_Word_Pool_Length;
+   type Command_Name_Length is range 2 .. 20;
+   Command_Name_Starts : constant array (Command_Position) of Command_Name_Start :=
+     (1 => 0, 2 => 8, 3 => 11, 4 => 31, 5 => 47, 6 => 53, 7 => 37, 8 => 60, 9 => 245, 10 => 94, 11 => 102,
+      12 => 106, 13 => 109, 14 => 129, 15 => 138, 16 => 142, 17 => 145, 18 => 39, 19 => 152, 20 => 159, 21 => 170,
+      22 => 180, 23 => 190, 24 => 200, 25 => 211, 26 => 214, 27 => 228, 28 => 241, 29 => 250, 30 => 70, 31 => 263,
+      32 => 266, 33 => 312, 34 => 317, 35 => 253, 36 => 272, 37 => 277, 38 => 321, 39 => 328, 40 => 280, 41 => 16,
+      42 => 24, 43 => 345, 44 => 356, 45 => 373, 46 => 381, 47 => 387, 48 => 43, 49 => 290, 50 => 297, 51 => 394,
+      52 => 468, 53 => 400, 54 => 409, 55 => 85, 56 => 412, 57 => 405, 58 => 339, 59 => 429, 60 => 434, 61 => 441,
+      62 => 444, 63 => 452, 64 => 460);
+   Command_Name_Lengths : constant array (Command_Position) of Command_Name_Length :=
+     (1 => 8, 2 => 3, 3 => 5, 4 => 6, 5 => 6, 6 => 7, 7 => 2, 8 => 10, 9 => 5, 10 => 8, 11 => 4, 12 => 3, 13 => 20,
+      14 => 9, 15 => 4, 16 => 3, 17 => 7, 18 => 4, 19 => 7, 20 => 11, 21 => 10, 22 => 10, 23 => 10, 24 => 11,
+      25 => 3, 26 => 14, 27 => 13, 28 => 4, 29 => 3, 30 => 15, 31 => 3, 32 => 6, 33 => 5, 34 => 4, 35 => 10,
+      36 => 5, 37 => 3, 38 => 7, 39 => 11, 40 => 10, 41 => 15, 42 => 7, 43 => 11, 44 => 17, 45 => 8, 46 => 6,
+      47 => 7, 48 => 4, 49 => 7, 50 => 15, 51 => 6, 52 => 17, 53 => 5, 54 => 3, 55 => 9, 56 => 17, 57 => 4, 58 => 6,
+      59 => 5, 60 => 7, 61 => 3, 62 => 8, 63 => 8, 64 => 8);
+
    function Command_Name (Position : Positive) return String is
-     (case Position is
-         when 1 => "adjrange",
-         when 2 => "aux",
-         when 3 => "batch",
-         when 4 => "beacon",
-         when 5 => "beeper",
-         when 6 => "bind_rx",
-         when 7 => "bl",
-         when 8 => "board_name",
-         when 9 => "color",
-         when 10 => "defaults",
-         when 11 => "diff",
-         when 12 => "dma",
-         when 13 => "dshot_telemetry_info",
-         when 14 => "dshotprog",
-         when 15 => "dump",
-         when 16 => "env",
-         when 17 => "escprog",
-         when 18 => "exit",
-         when 19 => "feature",
-         when 20 => "flash_erase",
-         when 21 => "flash_info",
-         when 22 => "flash_read",
-         when 23 => "flash_scan",
-         when 24 => "flash_write",
-         when 25 => "get",
-         when 26 => "gpspassthrough",
-         when 27 => "gyroregisters",
-         when 28 => "help",
-         when 29 => "led",
-         when 30 => "manufacturer_id",
-         when 31 => "map",
-         when 32 => "mcu_id",
-         when 33 => "mixer",
-         when 34 => "mmix",
-         when 35 => "mode_color",
-         when 36 => "motor",
-         when 37 => "msc",
-         when 38 => "options",
-         when 39 => "peripherals",
-         when 40 => "play_sound",
-         when 41 => "battery_profile",
-         when 42 => "profile",
-         when 43 => "rateprofile",
-         when 44 => "rc_smoothing_info",
-         when 45 => "resource",
-         when 46 => "rxfail",
-         when 47 => "rxrange",
-         when 48 => "save",
-         when 49 => "sd_info",
-         when 50 => "sensor_hardware",
-         when 51 => "serial",
-         when 52 => "serialpassthrough",
-         when 53 => "servo",
-         when 54 => "set",
-         when 55 => "signature",
-         when 56 => "simplified_tuning",
-         when 57 => "smix",
-         when 58 => "status",
-         when 59 => "tasks",
-         when 60 => "version",
-         when 61 => "vtx",
-         when 62 => "vtx_info",
-         when 63 => "vtxtable",
-         when 64 => "waypoint",
-         when others => "");
+     (Command_Word_Text (Natural (Command_Name_Starts (Position)) + 1
+                         .. Natural (Command_Name_Starts (Position)) + Natural (Command_Name_Lengths (Position))));
 
    --  The line's command and the position of its arguments.
    procedure Find_Command (Buffer : Line_Buffer; Kind : out Command_Kind; Arguments : out Natural)
@@ -4648,6 +4585,78 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end if;
    end Help_Entry;
 
+   --  The help descriptions and argument lists in one text, each at its start for its length. The text
+   --  ends with room for a longest one, so every slice stays within it by its types.
+   Help_Pool_Length : constant := 2784;
+   Help_Text : constant String (1 .. Help_Pool_Length + 216) :=
+     "configure adjustment rangesconfigure modesstart or end a batch of commandsenable/disable Dshot beaco"
+     & "n for a conditionenable/disable beeper for a conditioninitiate binding for RX SPI, SRXL2 or CRSFrebo"
+     & "ot into bootloaderget / set the name of the board modelconfigure colorsreset to defaults and rebootl"
+     & "ist configuration changes from defaultshow DMA assignmentsdisplay dshot telemetry info and statsprog"
+     & "ram DShot ESC(s)dump configurationshow environment (version + status as NAME=VALUE)passthrough esc t"
+     & "o serialexit command line interface and reboot (default)configure featureserase flash chipshow flash"
+     & " chip infoscan flash device for errorsget variable valuepassthrough gps to serialdump gyro config re"
+     & "gisters contentsdisplay command helpconfigure ledsget / set the id of the board manufacturerconfigur"
+     & "e rc channel orderid of the microcontrollerconfigure mixercustom motor mixerconfigure mode and speci"
+     & "al colorsget/set motorswitch into msc modeshow build optionsshow attached peripheralschange battery "
+     & "profilechange profilechange rate profileshow rc_smoothing operational settingsshow/set resourcesshow"
+     & "/set rx failsafe settingsconfigure rx channel rangessave and reboot (default)sdcard infolist support"
+     & "ed sensor hardwareshow port assignments as set commandspassthrough serial data data from port 1 to V"
+     & "CP / port 2configure servoschange settingget / set the board type signatureapplies or disables simpl"
+     & "ified tuningservo mixershow statusshow task statsshow versionvtx channels on switchvtx power config "
+     & "dumpvtx frequency tableconfigure waypoints<index> <unused> <range channel> <start> <end> <function> "
+     & "<select channel> [<center> <scale>]<index> <mode> <aux> <start> <end> <logic>start | endlist" & ASCII.CR
+     & ASCII.LF & ASCII.HT
+     & "<->[name][rom][board name]{nosave}[master|profile|rates|hardware|all] {defaults|bare}<index> <comman"
+     & "d>+[prefix]<mode [sk/bl/ki/cc]> <index>[noreboot]<address> <length><address> <message>[search string"
+     & "][manufacturer id][<map>]list" & ASCII.CR & ASCII.LF & ASCII.HT
+     & "<name><index> [<value>][<timezone offset minutes>][<index>]<> | <resource name> <index> [<pin>|none]"
+     & " | show [all][gyro|acc|baro|mag|rangefinder|opticalflow|pitot][<identifier> <function mask> <msp bau"
+     & "d> <gps baud> <telemetry baud> <blackbox baud> (deprecated)]<id1> [<baud1>] [<mode1>] [none|<dtr pin"
+     & "io>|reset] [<id2>] [<baud2>] [<mode2>][<name>=<value>][signature]apply | disable<rule> <servo> <sour"
+     & "ce> <rate> <speed> <min> <max> <box>" & ASCII.CR & ASCII.LF & ASCII.HT & "reset" & ASCII.CR & ASCII.LF
+     & ASCII.HT & "load <mixer>" & ASCII.CR & ASCII.LF & ASCII.HT
+     & "reverse <servo> <source> r|n<index> <aux_channel> <vtx_band> <vtx_channel> <vtx_power> <start_range>"
+     & " <end_range><band> <bandname> <bandletter> [FACTORY|CUSTOM] <freq> ... <freq>" & ASCII.CR & ASCII.LF
+     & "list | status | insert <idx> <lat.ddddddd> <lon.ddddddd> <alt> <spd> <type> <dur> <pat> [<vrate> <ya"
+     & "w>] | update <idx> <lat.ddddddd> <lon.ddddddd> <alt> <spd> <type> <dur> <pat> [<vrate> <yaw>] | remo"
+     & "ve <idx> | clear                                                                                    "
+     & "                                                                                                    "
+     & "                                ";
+   type Help_Start is range 0 .. Help_Pool_Length;
+   type Description_Length is range 0 .. 56;
+   type Arguments_Length is range 0 .. 216;
+   Description_Starts : constant array (Command_Position) of Help_Start :=
+     (1 => 0, 2 => 27, 3 => 42, 4 => 74, 5 => 117, 6 => 154, 7 => 196, 8 => 218, 9 => 255, 10 => 271, 11 => 299,
+      12 => 338, 13 => 358, 14 => 396, 15 => 416, 16 => 434, 17 => 483, 18 => 508, 19 => 556, 20 => 574, 21 => 590,
+      22 => 0, 23 => 610, 24 => 0, 25 => 638, 26 => 656, 27 => 681, 28 => 716, 29 => 736, 30 => 750, 31 => 792,
+      32 => 818, 33 => 843, 34 => 858, 35 => 876, 36 => 909, 37 => 922, 38 => 942, 39 => 960, 40 => 0, 41 => 985,
+      42 => 1007, 43 => 1021, 44 => 1040, 45 => 1078, 46 => 1096, 47 => 1125, 48 => 1152, 49 => 1177, 50 => 1188,
+      51 => 1218, 52 => 1255, 53 => 1311, 54 => 1327, 55 => 1341, 56 => 1375, 57 => 1412, 58 => 1423, 59 => 1434,
+      60 => 1449, 61 => 1461, 62 => 1483, 63 => 1504, 64 => 1523);
+   Description_Lengths : constant array (Command_Position) of Description_Length :=
+     (1 => 27, 2 => 15, 3 => 32, 4 => 43, 5 => 37, 6 => 42, 7 => 22, 8 => 37, 9 => 16, 10 => 28, 11 => 39, 12 => 20,
+      13 => 38, 14 => 20, 15 => 18, 16 => 49, 17 => 25, 18 => 48, 19 => 18, 20 => 16, 21 => 20, 22 => 0, 23 => 28,
+      24 => 0, 25 => 18, 26 => 25, 27 => 35, 28 => 20, 29 => 14, 30 => 42, 31 => 26, 32 => 25, 33 => 15, 34 => 18,
+      35 => 33, 36 => 13, 37 => 20, 38 => 18, 39 => 25, 40 => 0, 41 => 22, 42 => 14, 43 => 19, 44 => 38, 45 => 18,
+      46 => 29, 47 => 27, 48 => 25, 49 => 11, 50 => 30, 51 => 37, 52 => 56, 53 => 16, 54 => 14, 55 => 34, 56 => 37,
+      57 => 11, 58 => 11, 59 => 15, 60 => 12, 61 => 22, 62 => 21, 63 => 19, 64 => 19);
+   Arguments_Starts : constant array (Command_Position) of Help_Start :=
+     (1 => 1542, 2 => 1635, 3 => 1677, 4 => 1688, 5 => 1688, 6 => 0, 7 => 1704, 8 => 1709, 9 => 0, 10 => 1721,
+      11 => 1729, 12 => 338, 13 => 0, 14 => 1780, 15 => 1729, 16 => 1798, 17 => 1806, 18 => 1834, 19 => 1688,
+      20 => 0, 21 => 0, 22 => 1844, 23 => 0, 24 => 1862, 25 => 1698, 26 => 0, 27 => 0, 28 => 1881, 29 => 0,
+      30 => 1896, 31 => 1913, 32 => 0, 33 => 1920, 34 => 0, 35 => 0, 36 => 1933, 37 => 1950, 38 => 0, 39 => 0,
+      40 => 1977, 41 => 1977, 42 => 1977, 43 => 1977, 44 => 0, 45 => 1986, 46 => 0, 47 => 0, 48 => 1834, 49 => 0,
+      50 => 2040, 51 => 2089, 52 => 2187, 53 => 0, 54 => 2265, 55 => 2281, 56 => 2292, 57 => 2307, 58 => 0, 59 => 0,
+      60 => 0, 61 => 2417, 62 => 0, 63 => 2501, 64 => 2568);
+   Arguments_Lengths : constant array (Command_Position) of Arguments_Length :=
+     (1 => 93, 2 => 42, 3 => 11, 4 => 16, 5 => 16, 6 => 0, 7 => 5, 8 => 12, 9 => 0, 10 => 8, 11 => 51, 12 => 4,
+      13 => 0, 14 => 18, 15 => 51, 16 => 8, 17 => 28, 18 => 10, 19 => 16, 20 => 0, 21 => 0, 22 => 18, 23 => 0,
+      24 => 19, 25 => 6, 26 => 0, 27 => 0, 28 => 15, 29 => 0, 30 => 17, 31 => 7, 32 => 0, 33 => 13, 34 => 0,
+      35 => 0, 36 => 17, 37 => 27, 38 => 0, 39 => 0, 40 => 9, 41 => 9, 42 => 9, 43 => 9, 44 => 0, 45 => 54, 46 => 0,
+      47 => 0, 48 => 10, 49 => 0, 50 => 49, 51 => 98, 52 => 78, 53 => 0, 54 => 16, 55 => 11, 56 => 15, 57 => 110,
+      58 => 0, 59 => 0, 60 => 0, 61 => 84, 62 => 0, 63 => 67, 64 => 216);
+
    --  help: the entry of every command the build has, or of those whose
    --  name or description holds the search, else the no-match error.
    procedure Help_Command (Into : in out Output; Search : String)
@@ -4656,101 +4665,15 @@ package body Adaflight.Command_Line with SPARK_Mode is
    is
       Any : Boolean := False;
    begin
-      Help_Entry
-        (Into, Search, "adjrange", "configure adjustment ranges",
-         "<index> <unused> <range channel> <start> <end> <function> <select channel> " & "[<center> <scale>]", Any);
-      Help_Entry (Into, Search, "aux", "configure modes", "<index> <mode> <aux> <start> <end> <logic>", Any);
-      Help_Entry (Into, Search, "batch", "start or end a batch of commands", "start | end", Any);
-      Help_Entry
-        (Into, Search, "beacon", "enable/disable Dshot beacon for a condition",
-         "list" & CRLF & ASCII.HT & "<->[name]", Any);
-      Help_Entry
-        (Into, Search, "beeper", "enable/disable beeper for a condition",
-         "list" & CRLF & ASCII.HT & "<->[name]", Any);
-      Help_Entry (Into, Search, "bind_rx", "initiate binding for RX SPI, SRXL2 or CRSF", "", Any);
-      Help_Entry (Into, Search, "bl", "reboot into bootloader", "[rom]", Any);
-      Help_Entry (Into, Search, "board_name", "get / set the name of the board model", "[board name]", Any);
-      Help_Entry (Into, Search, "color", "configure colors", "", Any);
-      Help_Entry (Into, Search, "defaults", "reset to defaults and reboot", "{nosave}", Any);
-      Help_Entry
-        (Into, Search, "diff", "list configuration changes from default",
-         "[master|profile|rates|hardware|all] {defaults|bare}", Any);
-      Help_Entry (Into, Search, "dma", "show DMA assignments", "show", Any);
-      Help_Entry (Into, Search, "dshot_telemetry_info", "display dshot telemetry info and stats", "", Any);
-      Help_Entry (Into, Search, "dshotprog", "program DShot ESC(s)", "<index> <command>+", Any);
-      Help_Entry
-        (Into, Search, "dump", "dump configuration",
-         "[master|profile|rates|hardware|all] {defaults|bare}", Any);
-      Help_Entry (Into, Search, "env", "show environment (version + status as NAME=VALUE)", "[prefix]", Any);
-      Help_Entry (Into, Search, "escprog", "passthrough esc to serial", "<mode [sk/bl/ki/cc]> <index>", Any);
-      Help_Entry (Into, Search, "exit", "exit command line interface and reboot (default)", "[noreboot]", Any);
-      Help_Entry (Into, Search, "feature", "configure features", "list" & CRLF & ASCII.HT & "<->[name]", Any);
-      Help_Entry (Into, Search, "flash_erase", "erase flash chip", "", Any);
-      Help_Entry (Into, Search, "flash_info", "show flash chip info", "", Any);
-      Help_Entry (Into, Search, "flash_read", "", "<address> <length>", Any);
-      Help_Entry (Into, Search, "flash_scan", "scan flash device for errors", "", Any);
-      Help_Entry (Into, Search, "flash_write", "", "<address> <message>", Any);
-      Help_Entry (Into, Search, "get", "get variable value", "[name]", Any);
-      Help_Entry (Into, Search, "gpspassthrough", "passthrough gps to serial", "", Any);
-      Help_Entry (Into, Search, "gyroregisters", "dump gyro config registers contents", "", Any);
-      Help_Entry (Into, Search, "help", "display command help", "[search string]", Any);
-      Help_Entry (Into, Search, "led", "configure leds", "", Any);
-      Help_Entry
-        (Into, Search, "manufacturer_id", "get / set the id of the board manufacturer",
-         "[manufacturer id]", Any);
-      Help_Entry (Into, Search, "map", "configure rc channel order", "[<map>]", Any);
-      Help_Entry (Into, Search, "mcu_id", "id of the microcontroller", "", Any);
-      Help_Entry (Into, Search, "mixer", "configure mixer", "list" & CRLF & ASCII.HT & "<name>", Any);
-      Help_Entry (Into, Search, "mmix", "custom motor mixer", "", Any);
-      Help_Entry (Into, Search, "mode_color", "configure mode and special colors", "", Any);
-      Help_Entry (Into, Search, "motor", "get/set motor", "<index> [<value>]", Any);
-      Help_Entry (Into, Search, "msc", "switch into msc mode", "[<timezone offset minutes>]", Any);
-      Help_Entry (Into, Search, "options", "show build options", "", Any);
-      Help_Entry (Into, Search, "peripherals", "show attached peripherals", "", Any);
-      Help_Entry (Into, Search, "play_sound", "", "[<index>]", Any);
-      Help_Entry (Into, Search, "battery_profile", "change battery profile", "[<index>]", Any);
-      Help_Entry (Into, Search, "profile", "change profile", "[<index>]", Any);
-      Help_Entry (Into, Search, "rateprofile", "change rate profile", "[<index>]", Any);
-      Help_Entry (Into, Search, "rc_smoothing_info", "show rc_smoothing operational settings", "", Any);
-      Help_Entry
-        (Into, Search, "resource", "show/set resources", "<> | <resource name> <index> [<pin>|none] | show [all]", Any);
-      Help_Entry (Into, Search, "rxfail", "show/set rx failsafe settings", "", Any);
-      Help_Entry (Into, Search, "rxrange", "configure rx channel ranges", "", Any);
-      Help_Entry (Into, Search, "save", "save and reboot (default)", "[noreboot]", Any);
-      Help_Entry (Into, Search, "sd_info", "sdcard info", "", Any);
-      Help_Entry
-        (Into, Search, "sensor_hardware", "list supported sensor hardware",
-         "[gyro|acc|baro|mag|rangefinder|opticalflow|pitot]", Any);
-      Help_Entry
-        (Into, Search, "serial", "show port assignments as set commands",
-         "[<identifier> <function mask> <msp baud> <gps baud> <telemetry baud> <blackbox "
-         & "baud> (deprecated)]", Any);
-      Help_Entry
-        (Into, Search, "serialpassthrough", "passthrough serial data data from port 1 to VCP / port 2",
-         "<id1> [<baud1>] [<mode1>] [none|<dtr pinio>|reset] [<id2>] [<baud2>] [<mode2>]", Any);
-      Help_Entry (Into, Search, "servo", "configure servos", "", Any);
-      Help_Entry (Into, Search, "set", "change setting", "[<name>=<value>]", Any);
-      Help_Entry (Into, Search, "signature", "get / set the board type signature", "[signature]", Any);
-      Help_Entry (Into, Search, "simplified_tuning", "applies or disables simplified tuning", "apply | disable", Any);
-      Help_Entry
-        (Into, Search, "smix", "servo mixer",
-         "<rule> <servo> <source> <rate> <speed> <min> <max> <box>" & CRLF & ASCII.HT & "reset" & CRLF
-         & ASCII.HT & "load <mixer>" & CRLF & ASCII.HT & "reverse <servo> <source> r|n", Any);
-      Help_Entry (Into, Search, "status", "show status", "", Any);
-      Help_Entry (Into, Search, "tasks", "show task stats", "", Any);
-      Help_Entry (Into, Search, "version", "show version", "", Any);
-      Help_Entry
-        (Into, Search, "vtx", "vtx channels on switch",
-         "<index> <aux_channel> <vtx_band> <vtx_channel> <vtx_power> <start_range> " & "<end_range>", Any);
-      Help_Entry (Into, Search, "vtx_info", "vtx power config dump", "", Any);
-      Help_Entry
-        (Into, Search, "vtxtable", "vtx frequency table",
-         "<band> <bandname> <bandletter> [FACTORY|CUSTOM] <freq> ... <freq>" & CRLF, Any);
-      Help_Entry
-        (Into, Search, "waypoint", "configure waypoints",
-         "list | status | insert <idx> <lat.ddddddd> <lon.ddddddd> <alt> <spd> <type> "
-         & "<dur> <pat> [<vrate> <yaw>] | update <idx> <lat.ddddddd> <lon.ddddddd> <alt> "
-         & "<spd> <type> <dur> <pat> [<vrate> <yaw>] | remove <idx> | clear", Any);
+      for P in Command_Position loop
+         Help_Entry
+           (Into, Search, Command_Name (P),
+            Help_Text (Natural (Description_Starts (P)) + 1
+                       .. Natural (Description_Starts (P)) + Natural (Description_Lengths (P))),
+            Help_Text (Natural (Arguments_Starts (P)) + 1
+                       .. Natural (Arguments_Starts (P)) + Natural (Arguments_Lengths (P))),
+            Any);
+      end loop;
       if Search'Length > 0 and then not Any then
          Put_Error (Into, "help: NO MATCHES FOR '" & Search & "'###" & CRLF);
       end if;
@@ -5002,15 +4925,27 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  The hardware a gyro can be, in the order of the gyro hardware codes.
    subtype Gyro_Hardware_Index is Natural range 0 .. Gyro_Hardware_Count - 1;
 
+   --  The gyro names in one text, each at its start for its length. The text ends with room for a
+   --  longest one, so every slice stays within it by its types.
+   Gyro_Name_Pool_Length : constant := 230;
+   Gyro_Name_Text : constant String (1 .. Gyro_Name_Pool_Length + 11) :=
+     "NONEAUTOMPU6050L3GD20MPU6000MPU6500MPU9250ICM20601ICM20602ICM20608GICM20649ICM20689ICM42605ICM42688PBMI1"
+     & "60BMI270LSM6DSOLSM6DSV16XIIM42653ICM45605ICM45686ICM40609DIIM42652LSM6DSK320XICM42622PICM42686PICM56686B"
+     & "MI423VIRTUALLSM6DSV32X           ";
+   type Gyro_Name_Start is range 0 .. Gyro_Name_Pool_Length;
+   type Gyro_Name_Length is range 4 .. 11;
+   Gyro_Name_Starts : constant array (Gyro_Hardware_Index) of Gyro_Name_Start :=
+     (0 => 0, 1 => 4, 2 => 8, 3 => 15, 4 => 21, 5 => 28, 6 => 35, 7 => 42, 8 => 50, 9 => 58, 10 => 67, 11 => 75,
+      12 => 83, 13 => 91, 14 => 100, 15 => 106, 16 => 112, 17 => 119, 18 => 129, 19 => 137, 20 => 145, 21 => 153,
+      22 => 162, 23 => 170, 24 => 181, 25 => 190, 26 => 199, 27 => 207, 28 => 213, 29 => 220);
+   Gyro_Name_Lengths : constant array (Gyro_Hardware_Index) of Gyro_Name_Length :=
+     (0 => 4, 1 => 4, 2 => 7, 3 => 6, 4 => 7, 5 => 7, 6 => 7, 7 => 8, 8 => 8, 9 => 9, 10 => 8, 11 => 8, 12 => 8,
+      13 => 9, 14 => 6, 15 => 6, 16 => 7, 17 => 10, 18 => 8, 19 => 8, 20 => 8, 21 => 9, 22 => 8, 23 => 11, 24 => 9,
+      25 => 9, 26 => 8, 27 => 6, 28 => 7, 29 => 10);
+
    function Gyro_Hardware_Name (I : Gyro_Hardware_Index) return String is
-     (case I is
-         when 0 => "NONE", when 1 => "AUTO", when 2 => "MPU6050", when 3 => "L3GD20", when 4 => "MPU6000",
-         when 5 => "MPU6500", when 6 => "MPU9250", when 7 => "ICM20601", when 8 => "ICM20602", when 9 => "ICM20608G",
-         when 10 => "ICM20649", when 11 => "ICM20689", when 12 => "ICM42605", when 13 => "ICM42688P",
-         when 14 => "BMI160", when 15 => "BMI270", when 16 => "LSM6DSO", when 17 => "LSM6DSV16X",
-         when 18 => "IIM42653", when 19 => "ICM45605", when 20 => "ICM45686", when 21 => "ICM40609D",
-         when 22 => "IIM42652", when 23 => "LSM6DSK320X", when 24 => "ICM42622P", when 25 => "ICM42686P",
-         when 26 => "ICM56686", when 27 => "BMI423", when 28 => "VIRTUAL", when 29 => "LSM6DSV32X");
+     (Gyro_Name_Text (Natural (Gyro_Name_Starts (I)) + 1
+                      .. Natural (Gyro_Name_Starts (I)) + Natural (Gyro_Name_Lengths (I))));
 
    --  The sensor types sensor_hardware lists, with their names and the
    --  hardware each knows: the gyro's from its own list, the others' from

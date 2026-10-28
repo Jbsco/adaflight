@@ -29,24 +29,8 @@ package Adaflight.Arming with SPARK_Mode is
    type Disable_Set is array (Disable_Reason) of Boolean;
 
    --  The reference's name of a reason, as its arming report prints it.
-   function Disable_Name (R : Disable_Reason) return String is
-     (case R is
-        when No_Gyro => "NOGYRO", when Failsafe_Active => "FAILSAFE",
-        when Rx_Loss => "RXLOSS", when Not_Disarmed => "NOT_DISARMED",
-        when Box_Failsafe => "BOXFAILSAFE", when Runaway_Disarm => "RUNAWAY",
-        when Crash_Disarm => "CRASH", when Throttle => "THROTTLE",
-        when Angle => "ANGLE", when Boot_Grace => "BOOTGRACE",
-        when No_Prearm => "NOPREARM", when CPU_Load => "LOAD",
-        when Calibrating => "CALIB", when CLI_Open => "CLI",
-        when CMS_Open => "CMS", when BST_Open => "BST",
-        when MSP_Open => "MSP", when Paralyzed => "PARALYZE",
-        when No_GPS_Fix => "GPS", when Rescue_Switch => "RESCUE_SW",
-        when DShot_Telemetry => "DSHOT_TELEM",
-        when Reboot_Required => "REBOOT_REQD",
-        when DShot_Bitbang => "DSHOT_BBANG", when Acc_Uncalibrated => "NO_ACC_CAL",
-        when Motor_Protocol => "MOTOR_PROTO", when Crash_Flip_Block => "FLIP_SWITCH",
-        when Alt_Hold_Switch => "ALT_HOLD_SW", when Pos_Hold_Switch => "POS_HOLD_SW",
-        when Autopilot_Switch => "AUTOPILOT_SW", when Arm_Switch => "ARM_SWITCH");
+   function Disable_Name (R : Disable_Reason) return String
+     with Post => Disable_Name'Result'Length in 3 .. 12;
 
    --  In the reference's bit order.
    type Flight_Mode is
