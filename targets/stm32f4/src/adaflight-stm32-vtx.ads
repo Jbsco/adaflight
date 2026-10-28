@@ -45,4 +45,11 @@ package Adaflight.STM32.VTX is
    --  without levels.
    procedure Power_Levels
      (Count : out Natural; Levels, Powers : out Adaflight.SmartAudio.Level_Values);
+   --  What the OSD's channel element reads: whether a transmitter is
+   --  present, its status word with the pit mode in bit 0 and a Tramp race
+   --  lock in bit 1 when the device answers, and its power index when the
+   --  device knows it.
+   procedure OSD_Readings
+     (Present, Status_Known : out Boolean; Status : out Interfaces.Unsigned_8; Power_Known : out Boolean;
+      Power_Index : out Interfaces.Unsigned_8);
 end Adaflight.STM32.VTX;

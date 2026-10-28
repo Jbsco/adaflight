@@ -2308,6 +2308,37 @@ def main():
         finally:
             stop(proc)
             sock.close()
+        store = os.path.join(work, "vtxelement.bin")
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            for line in ("vtx_uart = UART6", "vtx_type = SMARTAUDIO", "vtx_band = 1", "vtx_channel = 1", "vtx_power = 1",
+                         "osd_displayport_device = MAX7456", "vcd_video_system = PAL", "osd_vtx_channel_pos = 2177"):
+                text = cli(sock, "set " + line)
+                check(f"transmitter element {line}", line.replace(" = ", " set to ") in text, text[-120:])
+            for line in ("vtxtable bands 1", "vtxtable channels 8",
+                         "vtxtable band 1 BOSCAM_A A FACTORY 5865 5845 5825 5805 5785 5765 5745 5725",
+                         "vtxtable powerlevels 2", "vtxtable powervalues 0 1", "vtxtable powerlabels 25 200"):
+                cli(sock, line)
+            text = cli(sock, "vtxtable")
+            check("transmitter element's table stored", "vtxtable band 1 BOSCAM_A A FACTORY 5865" in text, text[-200:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        vtx = SmartAudio()
+        proc, sock = start(image, store)
+        vtx.start()
+        try:
+            check("OSD transmitter element shows the SmartAudio device's band, channel and power label",
+                  screen_wait(store, "A:1:25 "), repr(screen_row(store, 4)))
+        finally:
+            vtx.stop.set()
+            stop(proc)
+            sock.close()
         store = os.path.join(work, "laps.bin")
         proc, sock = start(image, store)
         try:
