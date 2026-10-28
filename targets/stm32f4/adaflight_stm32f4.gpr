@@ -11,6 +11,7 @@ project Adaflight_Stm32f4 is
    for Main use ("adaflight_stm32f4.adb");
 
    package Compiler is
+      for Local_Configuration_Pragmas use "gen/adaflight-checks.adc";
       case Adaflight_Stm32f4_Config.Build_Profile is
          when "release" =>
             for Default_Switches ("Ada") use Adaflight_Stm32f4_Config.Ada_Compiler_Switches & ("-gnatyM120");
