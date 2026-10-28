@@ -10713,3 +10713,19 @@ version takes two frames.
 The host smoke check sends an API version request and an adjustment ranges request as Ghost MSP frames in
 place of channel frames. It finds the version in two chunks and the 300-byte ranges in sixty-one, equal to the
 serial MSP reply.
+
+## D455. STM32F4 RunCam device (2026-10-27)
+
+The board controls a RunCam camera on the UART the camera setting names, at 115,200 baud, when the receiver,
+the GPS, the ESC sensor and the video transmitter leave that UART free. The start asks the camera for its
+device information. The camera task at 20 Hz hands the core's RunCam unit every byte received, keeps the bytes
+the unit does not take for the next run unless a request flushed them, and sends what the unit writes. The
+camera boxes press the camera's WiFi, power and mode buttons once per activation, the WiFi and mode buttons
+only while disarmed and while no runaway or crash disarm holds the arming. The sticks drive the five key cable
+under the same arming conditions, with the menu closed and the stick commands enabled, and the cable's
+connection beeps when it opens and closes. A camera that offers the attitude feature gets the attitude in
+decidegrees on its requests.
+
+The host smoke check runs a camera on UART4 that answers the device information request with protocol 1.0
+and its three buttons. It finds the request at the start and one WiFi button press after the camera control 1
+box on AUX1 switches on.
