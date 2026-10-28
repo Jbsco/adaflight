@@ -127,4 +127,17 @@ package Adaflight.Config_Codec with SPARK_Mode is
    --  The groups of the configuration from the data.
    procedure Decode (D : Data; C : in out Configuration);
 
+   --  Room for the bytes of the largest group, or of a profile group's element, and for every
+   --  setting's value inside them.
+   Group_Data_Size : constant := 631;
+   subtype Group_Data is Adaflight.Bytes.Byte_Array (0 .. Group_Data_Size - 1);
+
+   --  A group's bytes from the start of the data, a profile group's at the profile's element.
+   procedure Encode_Group (C : Configuration; Number : Natural; Profile : Natural; D : out Group_Data)
+     with Global => null, Always_Terminates;
+
+   --  A group, or a profile group's element, from the start of the data.
+   procedure Decode_Group (D : Group_Data; Number : Natural; Profile : Natural; C : in out Configuration)
+     with Global => null, Always_Terminates;
+
 end Adaflight.Config_Codec;
