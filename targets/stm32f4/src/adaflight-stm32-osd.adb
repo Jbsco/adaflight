@@ -615,6 +615,7 @@ package body Adaflight.STM32.OSD is
       D.Adjustment_Value := F.Adjustment_Value;
       D.Vario_Cm_S := F.Vario;
       D.Pos_Hold_Ready := F.Pos_Hold_Ready;
+      D.Rescue_Configured := F.Rescue_Configured;
       D.GPS_Healthy := F.GPS.Healthy;
       D.Screen_Rows := Port.Rows;
       D.Screen_Cols := Port.Cols;
@@ -656,6 +657,11 @@ package body Adaflight.STM32.OSD is
       W.Average_Cell_Voltage := Natural (F.Cell_Voltage);
       W.Full_Cell_Voltage := Natural (F.Full_Cell_Voltage);
       W.Pos_Hold_Failure := F.Pos_Hold_Failure;
+      W.GPS_Rescue_Mode := F.Modes (Adaflight.Arming.GPS_Rescue_Mode);
+      W.GPS_Rescue_OK := F.Rescue_OK;
+      W.Rescue_Configured := F.Rescue_Configured;
+      W.Rescue_Available := F.Rescue_Available;
+      W.Rescue_Heading_OK := F.Rescue_Heading_OK;
 
       Context.Spec_Inputs.Pack_Voltage := F.Pack_Voltage;
       Context.Spec_Inputs.Cell_Voltage := F.Cell_Voltage;

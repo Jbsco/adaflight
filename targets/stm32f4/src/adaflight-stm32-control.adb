@@ -100,6 +100,7 @@ package body Adaflight.STM32.Control is
       Inp.Passthru_Mode := Modes (Adaflight.Arming.Passthru_Mode);
       Inp.Alt_Hold_Mode := Modes (Adaflight.Arming.Alt_Hold_Mode);
       Inp.Pos_Hold_Mode := Modes (Adaflight.Arming.Pos_Hold_Mode);
+      Inp.GPS_Rescue_Mode := Modes (Adaflight.Arming.GPS_Rescue_Mode);
       Inp.Autopilot_Angle := Current.Autopilot_Angles;
       Inp.Autopilot_Max_Angle := Current.Autopilot_Max_Angle;
       Inp.Autopilot_In_Control := Current.Autopilot_Control;
@@ -115,8 +116,8 @@ package body Adaflight.STM32.Control is
 
    --  The mixer's loop over the throttle, the arming and the modes, the
    --  stick deflections, the rates, the tilt and the attitude, with the
-   --  autopilot's throttle under altitude hold; the throttle step noted for
-   --  the gyro's dynamic lowpass.
+   --  autopilot's throttle under altitude hold or the GPS rescue; the
+   --  throttle step noted for the gyro's dynamic lowpass.
    procedure Run_Mixer is
       Inp   : Adaflight.Mixer.Inputs;
       Modes : constant Adaflight.Arming.Mode_Set := Adaflight.STM32.Pilot.Flight_Modes;
@@ -136,6 +137,7 @@ package body Adaflight.STM32.Control is
       Inp.Crash_Flip_Active := Adaflight.STM32.Pilot.Crash_Flip_Active;
       Inp.Alt_Hold_Mode := Modes (Adaflight.Arming.Alt_Hold_Mode);
       Inp.Pos_Hold_Mode := Modes (Adaflight.Arming.Pos_Hold_Mode);
+      Inp.GPS_Rescue_Mode := Modes (Adaflight.Arming.GPS_Rescue_Mode);
       Inp.Autopilot_Throttle_Valid := True;
       Inp.Autopilot_Throttle := Current.Autopilot_Throttle;
       for A in Adaflight.Axes.Axis loop

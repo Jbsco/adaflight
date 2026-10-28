@@ -10435,3 +10435,65 @@ The oracle's attitude generator flies a GPS module in its own family, with the m
 or not, the satellite count, a ground speed, a course near the estimate's heading in three steps of four,
 and the latest yaw rate. Every other sequence flies steadily forward so the confidence can build, and seven
 of the forty sequences reach a usable GPS heading.
+
+## D436. STM32F4 attitude on the arming state (2026-10-27)
+
+The board's attitude task passes the pilot's arming state, the angle or horizon mode, and the headfree mode
+to the estimator. Since the scheduler increment the task had passed a disarmed craft and no modes, before
+the board had its arming logic. In flight the estimator would have kept the disarmed gain schedule, ten times
+the configured gain or the reconvergence after a disarm, and the throttle angle correction would never have
+applied. The headfree mode now reaches the attitude's headfree frame. The sticks do not turn in headfree mode
+on the board yet.
+
+The host cannot arm, so no smoke check covers the change.
+
+## D437. STM32F4 GPS course in the attitude (2026-10-27)
+
+The board's attitude task passes the GPS course to the estimator: usable while a present module has a fix
+with more than four satellites, the ground speed and the course, the filtered yaw rate, and whether the mixer
+is a fixed wing's. The board has no compass, so the attitude's heading is good to fly by once the GPS course
+has matched it long enough, and the position hold takes that heading. The first usable fix faster than one
+metre per second turns the attitude's heading to the course.
+
+The host smoke check's GPS reports 22.4 knots on an 84.4 degree course, and the MSP attitude reply's heading
+reads 84 degrees once the fix arrives. The host's accelerometer reads level, so the course's weight stays at
+zero and no smoke check reaches a usable GPS heading.
+
+## D438. STM32F4 GPS rescue (2026-10-27)
+
+The board runs the core's GPS rescue in its own 100 Hz task while the rescue is configured, as the failsafe
+procedure or by its mode box. Each run takes the rescue mode, the arming, the GPS stamp, health, fix, home
+fix and satellites, the heading's validity, the altitude estimate's control and smoothed values with its
+validity, vertical speed and acceleration, the horizontal estimate the position hold reads, the attitude's
+heading and tilt, the crash recovery, and the receiver link. The rescue drives the autopilot's altitude
+controller, which the altitude hold owns, and the position controller, which the position hold owns and
+which flies the rescue's angles and yaw. Under the rescue mode the controller takes the autopilot's angles
+within its angle limit and the mixer takes the altitude controller's throttle. A disarm the rescue asks for
+is a failsafe disarm, with the arm switch's disable reason set when the rescue asks for it. The OSD's
+warnings read the rescue mode and the rescue's health, availability and heading.
+
+The host cannot arm, so no smoke check flies a rescue. With the rescue as the failsafe procedure, the host
+smoke check finds the rescue task at 80 to 120 Hz, which shows the task runs but not the rescue's update,
+since a disarmed rescue has nothing the replies show.
+
+## D439. STM32F4 headfree sticks (2026-10-27)
+
+In headfree mode the board turns the RC commands into the attitude's headfree frame between the command
+update and the arming status update, the receiver task's update step. The roll and pitch commands turn,
+and the yaw command turns too unless an angle, horizon, altitude hold, position hold or rescue mode is on.
+The core's turn scales the commands back together where a deflection would pass one (D6), and the headfree
+offset comes from the arming or the headfree adjust box as before. D436 gave the attitude the headfree mode.
+
+The host reports no RC command that the turn changes, so no smoke check covers it. The core's turn has
+its own recorded vectors.
+
+## D440. STM32F4 configurator activity (2026-10-27)
+
+The board tells the beeper and the failsafe when a configurator is active: a byte on the USB port's or
+UART1's MSP within the five-second activity timeout. The failsafe's lost link tones stay silent while one is
+active, and the beeper's on-USB flag silences the beeper on the bench, with no battery, while a configurator
+is active or the USB cable is: its detect pin reads high, or a host has configured the port. The board pulls
+the detect pin down as an input at boot, after the ESC sensor, where its configuration names one, and the
+board generator gives its tag. The board had passed no USB link and no configurator.
+
+The host reports no beeper state, so no smoke check covers it.
