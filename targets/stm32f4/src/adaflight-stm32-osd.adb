@@ -805,6 +805,8 @@ package body Adaflight.STM32.OSD is
       D.Use_3D_Speed := F.GPS.Use_3D_Speed;
       D.Altitude_Cm := F.Altitude_Cm;
       D.Rangefinder_Cm := F.Rangefinder_Cm;
+      D.Custom_Text_Present := True;
+      D.Custom := F.Custom_Text;
       D.Adjustment_Present := F.Adjustment_Present;
       D.Adjustment_Name := F.Adjustment_Name;
       D.Adjustment_Value := F.Adjustment_Value;

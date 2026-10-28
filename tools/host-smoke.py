@@ -1901,6 +1901,82 @@ def main():
             sender.stop.set()
             stop(proc)
             sock.close()
+
+        def screen_row(store, row):
+            try:
+                with open(store + ".osd.txt") as f:
+                    rows = f.read().splitlines()
+            except OSError:
+                rows = []
+            return rows[row] if len(rows) > row else repr(rows)
+
+        def screen_wait(store, text):
+            deadline = time.time() + 15
+            while time.time() < deadline:
+                if screen_row(store, 4)[1:1 + len(text)] == text:
+                    return True
+                time.sleep(0.1)
+            return False
+
+        for name, port in (("customtext.bin", "UART4"), ("customtext1.bin", "UART1")):
+            store = os.path.join(work, name)
+            proc, sock = start(image, store)
+            try:
+                time.sleep(2.5)
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                for line in ("osd_custom_text_uart = " + port, "osd_displayport_device = MAX7456",
+                             "vcd_video_system = PAL", "osd_custom_serial_text_pos = 2177"):
+                    text = cli(sock, "set " + line)
+                    check(f"custom text {line}", line.replace(" = ", " set to ") in text, text[-120:])
+                cli(sock, "save", wait=2.0)
+                proc.wait(timeout=10)
+            finally:
+                stop(proc)
+                sock.close()
+            proc, sock = start(image, store)
+            line = sock
+            vcp = None
+            try:
+                if port == "UART4":
+                    deadline = time.time() + 5
+                    while line is sock and time.time() < deadline:
+                        try:
+                            line = socket.create_connection(("127.0.0.1", GPS_PORT), timeout=1)
+                        except OSError:
+                            time.sleep(0.05)
+                check("custom text element shows dashes before a message", screen_wait(store, "---"),
+                      repr(screen_row(store, 4)))
+                if port == "UART4":
+                    line.sendall(b"HELLO ADA\r\n")
+                    check("custom text element shows the message without its carriage return",
+                          screen_wait(store, "HELLO ADA   "), repr(screen_row(store, 4)))
+                    line.sendall(b"SPLIT ")
+                    time.sleep(0.3)
+                    line.sendall(b"MESSAGE\n")
+                    check("custom text element joins a message sent in two parts",
+                          screen_wait(store, "SPLIT MESSAGE   "), repr(screen_row(store, 4)))
+                    line.sendall(b"\n")
+                    check("an empty custom text message clears the text", screen_wait(store, "---       "),
+                          repr(screen_row(store, 4)))
+                else:
+                    line.sendall(b"ON UART1\n")
+                    check("custom text on UART1 reaches the OSD", screen_wait(store, "ON UART1   "),
+                          repr(screen_row(store, 4)))
+                    check("custom text on UART1 keeps MSP off UART1", msp(sock, 1) is None)
+                    vcp = socket.create_connection(("127.0.0.1", VCP_PORT), timeout=1)
+                    vcp.settimeout(0.3)
+                    time.sleep(0.5)
+                    api = msp(vcp, 1)
+                    check("MSP answers on the USB port beside the custom text", api is not None and len(api) == 3,
+                          repr(api))
+            finally:
+                stop(proc)
+                sock.close()
+                if line is not sock:
+                    line.close()
+                if vcp is not None:
+                    vcp.close()
     print(f"host smoke: {'all checks passed' if not failures else str(len(failures)) + ' failed'}")
     sys.exit(1 if failures else 0)
 
