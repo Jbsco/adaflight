@@ -1,3 +1,4 @@
+with Adaflight.Settings_Table;
 with Adaflight.Text;
 
 package body Adaflight.Blackbox_Header with SPARK_Mode is
@@ -227,22 +228,7 @@ package body Adaflight.Blackbox_Header with SPARK_Mode is
    -- The fields --
    ----------------
 
-   function Delta_Field (Name : Field_Name; Index : Name_Index; Signed : Boolean; I_Predict : Predictor;
-                         I_Encode : Encoding; P_Predict : Predictor; P_Encode : Encoding; Cond : Condition)
-                         return Field_Definition is
-     (Name, Index, Signed, I_Predict, I_Encode, P_Predict, P_Encode, Cond);
-
-   function Simple_Field (Name : Field_Name; Index : Name_Index; Signed : Boolean; Predict : Predictor;
-                          Encode : Encoding; Cond : Condition := Always) return Field_Definition is
-     (Name, Index, Signed, Predict, Encode, Predict_Zero, Encode_Unsigned_VB, Cond);
-
    type Field_Table is array (Field_Position range <>) of Field_Definition;
-
-   function DF (Name : Field_Name; Index : Name_Index; Signed : Boolean; I_Predict : Predictor; I_Encode : Encoding;
-                P_Predict : Predictor; P_Encode : Encoding; Cond : Condition)
-                return Field_Definition renames Delta_Field;
-   function SF (Name : Field_Name; Index : Name_Index; Signed : Boolean; Predict : Predictor; Encode : Encoding;
-                Cond : Condition := Always) return Field_Definition renames Simple_Field;
 
    Z     : constant Predictor := Predict_Zero;
    Prev  : constant Predictor := Predict_Previous;
@@ -264,115 +250,82 @@ package body Adaflight.Blackbox_Header with SPARK_Mode is
    Nul   : constant Encoding := Encode_Null;
 
    Main_Head : constant Field_Table :=
-     (DF (Loop_Iteration, -1, False, Z, UVB, Inc, Nul, Always),
-      DF (Time, -1, False, Z, UVB, SLine, SVB, Always),
-      DF (Axis_P, 0, True, Z, SVB, Prev, SVB, PID),
-      DF (Axis_P, 1, True, Z, SVB, Prev, SVB, PID),
-      DF (Axis_P, 2, True, Z, SVB, Prev, SVB, PID),
-      DF (Axis_I, 0, True, Z, SVB, Prev, T2, PID),
-      DF (Axis_I, 1, True, Z, SVB, Prev, T2, PID),
-      DF (Axis_I, 2, True, Z, SVB, Prev, T2, PID),
-      DF (Axis_D, 0, True, Z, SVB, Prev, SVB, Nonzero_PID_D_0),
-      DF (Axis_D, 1, True, Z, SVB, Prev, SVB, Nonzero_PID_D_1),
-      DF (Axis_D, 2, True, Z, SVB, Prev, SVB, Nonzero_PID_D_2),
-      DF (Axis_F, 0, True, Z, SVB, Prev, SVB, PID),
-      DF (Axis_F, 1, True, Z, SVB, Prev, SVB, PID),
-      DF (Axis_F, 2, True, Z, SVB, Prev, SVB, PID));
+     ((Loop_Iteration, -1, False, Z, UVB, Inc, Nul, Always), (Time, -1, False, Z, UVB, SLine, SVB, Always),
+      (Axis_P, 0, True, Z, SVB, Prev, SVB, PID), (Axis_P, 1, True, Z, SVB, Prev, SVB, PID),
+      (Axis_P, 2, True, Z, SVB, Prev, SVB, PID), (Axis_I, 0, True, Z, SVB, Prev, T2, PID),
+      (Axis_I, 1, True, Z, SVB, Prev, T2, PID), (Axis_I, 2, True, Z, SVB, Prev, T2, PID),
+      (Axis_D, 0, True, Z, SVB, Prev, SVB, Nonzero_PID_D_0), (Axis_D, 1, True, Z, SVB, Prev, SVB, Nonzero_PID_D_1),
+      (Axis_D, 2, True, Z, SVB, Prev, SVB, Nonzero_PID_D_2), (Axis_F, 0, True, Z, SVB, Prev, SVB, PID),
+      (Axis_F, 1, True, Z, SVB, Prev, SVB, PID), (Axis_F, 2, True, Z, SVB, Prev, SVB, PID));
 
    Main_Wing : constant Field_Table :=
-     (DF (Axis_S, 0, True, Z, SVB, Prev, SVB, Nonzero_Wing_S_0),
-      DF (Axis_S, 1, True, Z, SVB, Prev, SVB, Nonzero_Wing_S_1),
-      DF (Axis_S, 2, True, Z, SVB, Prev, SVB, Nonzero_Wing_S_2));
+     ((Axis_S, 0, True, Z, SVB, Prev, SVB, Nonzero_Wing_S_0), (Axis_S, 1, True, Z, SVB, Prev, SVB, Nonzero_Wing_S_1),
+      (Axis_S, 2, True, Z, SVB, Prev, SVB, Nonzero_Wing_S_2));
 
    Main_Tail : constant Field_Table :=
-     (DF (RC_Command, 0, True, Z, SVB, Prev, T4, RC_Commands),
-      DF (RC_Command, 1, True, Z, SVB, Prev, T4, RC_Commands),
-      DF (RC_Command, 2, True, Z, SVB, Prev, T4, RC_Commands),
-      DF (RC_Command, 3, False, Z, UVB, Prev, T4, RC_Commands),
-      DF (Setpoint_Field, 0, True, Z, SVB, Prev, T4, Setpoint),
-      DF (Setpoint_Field, 1, True, Z, SVB, Prev, T4, Setpoint),
-      DF (Setpoint_Field, 2, True, Z, SVB, Prev, T4, Setpoint),
-      DF (Setpoint_Field, 3, True, Z, SVB, Prev, T4, Setpoint),
-      DF (VBat_Latest, -1, False, VRef, N14, Prev, T8, VBat),
-      DF (Amperage_Latest, -1, True, Z, SVB, Prev, T8, Amperage_ADC),
-      DF (Mag_ADC, 0, True, Z, SVB, Prev, T8, Mag),
-      DF (Mag_ADC, 1, True, Z, SVB, Prev, T8, Mag),
-      DF (Mag_ADC, 2, True, Z, SVB, Prev, T8, Mag),
-      DF (Baro_Alt, -1, True, Z, SVB, Prev, T8, Baro),
-      DF (Surface_Raw, -1, True, Z, SVB, Prev, T8, Rangefinder),
-      DF (RSSI_Field, -1, False, Z, UVB, Prev, T8, RSSI),
-      DF (Pitot_Field, 0, True, Z, SVB, Prev, SVB, Pitot),
-      DF (Pitot_Field, 1, True, Z, SVB, Prev, SVB, Pitot),
-      DF (Gyro_ADC, 0, True, Z, SVB, Avg2, SVB, Gyro),
-      DF (Gyro_ADC, 1, True, Z, SVB, Avg2, SVB, Gyro),
-      DF (Gyro_ADC, 2, True, Z, SVB, Avg2, SVB, Gyro),
-      DF (Gyro_Unfilt_Field, 0, True, Z, SVB, Avg2, SVB, Gyro_Unfilt),
-      DF (Gyro_Unfilt_Field, 1, True, Z, SVB, Avg2, SVB, Gyro_Unfilt),
-      DF (Gyro_Unfilt_Field, 2, True, Z, SVB, Avg2, SVB, Gyro_Unfilt),
-      DF (Acc_Smooth, 0, True, Z, SVB, Avg2, SVB, Acc),
-      DF (Acc_Smooth, 1, True, Z, SVB, Avg2, SVB, Acc),
-      DF (Acc_Smooth, 2, True, Z, SVB, Avg2, SVB, Acc),
-      DF (IMU_Quaternion, 0, True, Z, SVB, Avg2, SVB, Attitude),
-      DF (IMU_Quaternion, 1, True, Z, SVB, Avg2, SVB, Attitude),
-      DF (IMU_Quaternion, 2, True, Z, SVB, Avg2, SVB, Attitude),
-      DF (Debug_Field, 0, True, Z, SVB, Avg2, SVB, Debug_Log),
-      DF (Debug_Field, 1, True, Z, SVB, Avg2, SVB, Debug_Log),
-      DF (Debug_Field, 2, True, Z, SVB, Avg2, SVB, Debug_Log),
-      DF (Debug_Field, 3, True, Z, SVB, Avg2, SVB, Debug_Log),
-      DF (Debug_Field, 4, True, Z, SVB, Avg2, SVB, Debug_Log),
-      DF (Debug_Field, 5, True, Z, SVB, Avg2, SVB, Debug_Log),
-      DF (Debug_Field, 6, True, Z, SVB, Avg2, SVB, Debug_Log),
-      DF (Debug_Field, 7, True, Z, SVB, Avg2, SVB, Debug_Log),
-      DF (Motor, 0, False, MinM, UVB, Avg2, SVB, At_Least_Motors_1),
-      DF (Motor, 1, False, M0, SVB, Avg2, SVB, At_Least_Motors_2),
-      DF (Motor, 2, False, M0, SVB, Avg2, SVB, At_Least_Motors_3),
-      DF (Motor, 3, False, M0, SVB, Avg2, SVB, At_Least_Motors_4),
-      DF (Motor, 4, False, M0, SVB, Avg2, SVB, At_Least_Motors_5),
-      DF (Motor, 5, False, M0, SVB, Avg2, SVB, At_Least_Motors_6),
-      DF (Motor, 6, False, M0, SVB, Avg2, SVB, At_Least_Motors_7),
-      DF (Motor, 7, False, M0, SVB, Avg2, SVB, At_Least_Motors_8),
-      DF (Servo, 0, False, P1500, T8, Prev, T8, Servos),
-      DF (Servo, 1, False, P1500, T8, Prev, T8, Servos),
-      DF (Servo, 2, False, P1500, T8, Prev, T8, Servos),
-      DF (Servo, 3, False, P1500, T8, Prev, T8, Servos),
-      DF (Servo, 4, False, P1500, T8, Prev, T8, Servos),
-      DF (Servo, 5, False, P1500, T8, Prev, T8, Servos),
-      DF (Servo, 6, False, P1500, T8, Prev, T8, Servos),
-      DF (Servo, 7, False, P1500, T8, Prev, T8, Servos),
-      DF (ERPM, 0, False, Z, UVB, Prev, SVB, Motor_1_Has_RPM),
-      DF (ERPM, 1, False, Z, UVB, Prev, SVB, Motor_2_Has_RPM),
-      DF (ERPM, 2, False, Z, UVB, Prev, SVB, Motor_3_Has_RPM),
-      DF (ERPM, 3, False, Z, UVB, Prev, SVB, Motor_4_Has_RPM),
-      DF (ERPM, 4, False, Z, UVB, Prev, SVB, Motor_5_Has_RPM),
-      DF (ERPM, 5, False, Z, UVB, Prev, SVB, Motor_6_Has_RPM),
-      DF (ERPM, 6, False, Z, UVB, Prev, SVB, Motor_7_Has_RPM),
-      DF (ERPM, 7, False, Z, UVB, Prev, SVB, Motor_8_Has_RPM));
+     ((RC_Command, 0, True, Z, SVB, Prev, T4, RC_Commands), (RC_Command, 1, True, Z, SVB, Prev, T4, RC_Commands),
+      (RC_Command, 2, True, Z, SVB, Prev, T4, RC_Commands), (RC_Command, 3, False, Z, UVB, Prev, T4, RC_Commands),
+      (Setpoint_Field, 0, True, Z, SVB, Prev, T4, Setpoint), (Setpoint_Field, 1, True, Z, SVB, Prev, T4, Setpoint),
+      (Setpoint_Field, 2, True, Z, SVB, Prev, T4, Setpoint), (Setpoint_Field, 3, True, Z, SVB, Prev, T4, Setpoint),
+      (VBat_Latest, -1, False, VRef, N14, Prev, T8, VBat),
+      (Amperage_Latest, -1, True, Z, SVB, Prev, T8, Amperage_ADC), (Mag_ADC, 0, True, Z, SVB, Prev, T8, Mag),
+      (Mag_ADC, 1, True, Z, SVB, Prev, T8, Mag), (Mag_ADC, 2, True, Z, SVB, Prev, T8, Mag),
+      (Baro_Alt, -1, True, Z, SVB, Prev, T8, Baro), (Surface_Raw, -1, True, Z, SVB, Prev, T8, Rangefinder),
+      (RSSI_Field, -1, False, Z, UVB, Prev, T8, RSSI), (Pitot_Field, 0, True, Z, SVB, Prev, SVB, Pitot),
+      (Pitot_Field, 1, True, Z, SVB, Prev, SVB, Pitot), (Gyro_ADC, 0, True, Z, SVB, Avg2, SVB, Gyro),
+      (Gyro_ADC, 1, True, Z, SVB, Avg2, SVB, Gyro), (Gyro_ADC, 2, True, Z, SVB, Avg2, SVB, Gyro),
+      (Gyro_Unfilt_Field, 0, True, Z, SVB, Avg2, SVB, Gyro_Unfilt),
+      (Gyro_Unfilt_Field, 1, True, Z, SVB, Avg2, SVB, Gyro_Unfilt),
+      (Gyro_Unfilt_Field, 2, True, Z, SVB, Avg2, SVB, Gyro_Unfilt), (Acc_Smooth, 0, True, Z, SVB, Avg2, SVB, Acc),
+      (Acc_Smooth, 1, True, Z, SVB, Avg2, SVB, Acc), (Acc_Smooth, 2, True, Z, SVB, Avg2, SVB, Acc),
+      (IMU_Quaternion, 0, True, Z, SVB, Avg2, SVB, Attitude), (IMU_Quaternion, 1, True, Z, SVB, Avg2, SVB, Attitude),
+      (IMU_Quaternion, 2, True, Z, SVB, Avg2, SVB, Attitude), (Debug_Field, 0, True, Z, SVB, Avg2, SVB, Debug_Log),
+      (Debug_Field, 1, True, Z, SVB, Avg2, SVB, Debug_Log), (Debug_Field, 2, True, Z, SVB, Avg2, SVB, Debug_Log),
+      (Debug_Field, 3, True, Z, SVB, Avg2, SVB, Debug_Log), (Debug_Field, 4, True, Z, SVB, Avg2, SVB, Debug_Log),
+      (Debug_Field, 5, True, Z, SVB, Avg2, SVB, Debug_Log), (Debug_Field, 6, True, Z, SVB, Avg2, SVB, Debug_Log),
+      (Debug_Field, 7, True, Z, SVB, Avg2, SVB, Debug_Log),
+      (Motor, 0, False, MinM, UVB, Avg2, SVB, At_Least_Motors_1),
+      (Motor, 1, False, M0, SVB, Avg2, SVB, At_Least_Motors_2),
+      (Motor, 2, False, M0, SVB, Avg2, SVB, At_Least_Motors_3),
+      (Motor, 3, False, M0, SVB, Avg2, SVB, At_Least_Motors_4),
+      (Motor, 4, False, M0, SVB, Avg2, SVB, At_Least_Motors_5),
+      (Motor, 5, False, M0, SVB, Avg2, SVB, At_Least_Motors_6),
+      (Motor, 6, False, M0, SVB, Avg2, SVB, At_Least_Motors_7),
+      (Motor, 7, False, M0, SVB, Avg2, SVB, At_Least_Motors_8), (Servo, 0, False, P1500, T8, Prev, T8, Servos),
+      (Servo, 1, False, P1500, T8, Prev, T8, Servos), (Servo, 2, False, P1500, T8, Prev, T8, Servos),
+      (Servo, 3, False, P1500, T8, Prev, T8, Servos), (Servo, 4, False, P1500, T8, Prev, T8, Servos),
+      (Servo, 5, False, P1500, T8, Prev, T8, Servos), (Servo, 6, False, P1500, T8, Prev, T8, Servos),
+      (Servo, 7, False, P1500, T8, Prev, T8, Servos), (ERPM, 0, False, Z, UVB, Prev, SVB, Motor_1_Has_RPM),
+      (ERPM, 1, False, Z, UVB, Prev, SVB, Motor_2_Has_RPM), (ERPM, 2, False, Z, UVB, Prev, SVB, Motor_3_Has_RPM),
+      (ERPM, 3, False, Z, UVB, Prev, SVB, Motor_4_Has_RPM), (ERPM, 4, False, Z, UVB, Prev, SVB, Motor_5_Has_RPM),
+      (ERPM, 5, False, Z, UVB, Prev, SVB, Motor_6_Has_RPM), (ERPM, 6, False, Z, UVB, Prev, SVB, Motor_7_Has_RPM),
+      (ERPM, 7, False, Z, UVB, Prev, SVB, Motor_8_Has_RPM));
 
    GPS_Home_Table : constant Field_Table :=
-     (SF (GPS_Home, 0, True, Z, SVB),
-      SF (GPS_Home, 1, True, Z, SVB),
-      SF (GPS_Home, 2, True, Z, SVB),
-      SF (GPS_Home_Epoch, -1, False, Z, UVB));
+     ((GPS_Home, 0, True, Z, SVB, Predict_Zero, Encode_Unsigned_VB, Always),
+      (GPS_Home, 1, True, Z, SVB, Predict_Zero, Encode_Unsigned_VB, Always),
+      (GPS_Home, 2, True, Z, SVB, Predict_Zero, Encode_Unsigned_VB, Always),
+      (GPS_Home_Epoch, -1, False, Z, UVB, Predict_Zero, Encode_Unsigned_VB, Always));
 
    GPS_Table : constant Field_Table :=
-     (SF (Time, -1, False, LastT, UVB, Not_Logging_Every_Frame),
-      SF (GPS_Num_Sat, -1, False, Z, UVB),
-      SF (GPS_Coord, 0, True, Home, SVB),
-      SF (GPS_Coord, 1, True, Home, SVB),
-      SF (GPS_Altitude, -1, True, Z, SVB),
-      SF (GPS_Speed, -1, False, Z, UVB),
-      SF (GPS_Ground_Course, -1, False, Z, UVB),
-      SF (GPS_Vel_NED, 0, True, Z, SVB),
-      SF (GPS_Vel_NED, 1, True, Z, SVB),
-      SF (GPS_Vel_NED, 2, True, Z, SVB),
-      SF (GPS_Time, -1, False, Z, UVB));
+     ((Time, -1, False, LastT, UVB, Predict_Zero, Encode_Unsigned_VB, Not_Logging_Every_Frame),
+      (GPS_Num_Sat, -1, False, Z, UVB, Predict_Zero, Encode_Unsigned_VB, Always),
+      (GPS_Coord, 0, True, Home, SVB, Predict_Zero, Encode_Unsigned_VB, Always),
+      (GPS_Coord, 1, True, Home, SVB, Predict_Zero, Encode_Unsigned_VB, Always),
+      (GPS_Altitude, -1, True, Z, SVB, Predict_Zero, Encode_Unsigned_VB, Always),
+      (GPS_Speed, -1, False, Z, UVB, Predict_Zero, Encode_Unsigned_VB, Always),
+      (GPS_Ground_Course, -1, False, Z, UVB, Predict_Zero, Encode_Unsigned_VB, Always),
+      (GPS_Vel_NED, 0, True, Z, SVB, Predict_Zero, Encode_Unsigned_VB, Always),
+      (GPS_Vel_NED, 1, True, Z, SVB, Predict_Zero, Encode_Unsigned_VB, Always),
+      (GPS_Vel_NED, 2, True, Z, SVB, Predict_Zero, Encode_Unsigned_VB, Always),
+      (GPS_Time, -1, False, Z, UVB, Predict_Zero, Encode_Unsigned_VB, Always));
 
    Slow_Table : constant Field_Table :=
-     (SF (Flight_Mode_Flags, -1, False, Z, UVB),
-      SF (State_Flags, -1, False, Z, UVB),
-      SF (Failsafe_Phase, -1, False, Z, T2),
-      SF (RX_Signal_Received, -1, False, Z, T2),
-      SF (RX_Flight_Channels_Valid, -1, False, Z, T2));
+     ((Flight_Mode_Flags, -1, False, Z, UVB, Predict_Zero, Encode_Unsigned_VB, Always),
+      (State_Flags, -1, False, Z, UVB, Predict_Zero, Encode_Unsigned_VB, Always),
+      (Failsafe_Phase, -1, False, Z, T2, Predict_Zero, Encode_Unsigned_VB, Always),
+      (RX_Signal_Received, -1, False, Z, T2, Predict_Zero, Encode_Unsigned_VB, Always),
+      (RX_Flight_Channels_Valid, -1, False, Z, T2, Predict_Zero, Encode_Unsigned_VB, Always));
 
    function Wing_Rows (Wing : Boolean) return Natural is (if Wing then Main_Wing'Length else 0);
 
@@ -413,261 +366,343 @@ package body Adaflight.Blackbox_Header with SPARK_Mode is
    -- The sysinfo --
    -------------------
 
-   --  The labels in one text, each at its start for its length. The text ends with room for a
-   --  longest one, so every slice stays within it by its types.
-   Label_Pool_Length : constant := 3777;
+   --  The labels that are no setting's name in one text, each at its start for its length. The text ends
+   --  with room for a longest one, so every slice stays within it by its types.
+   Label_Pool_Length : constant := 824;
    Label_Text : constant String (1 .. Label_Pool_Length + 37) :=
-     "I intervalP intervalmaxthrottlemotorOutputmotor_kvacc_1Gvbat_scalevbatcellvoltagevbatrefcurrentSensorloo"
-     & "ptimepid_process_denomthr_midthr_expothr_hovertpa_modetpa_ratetpa_breakpointtpa_low_ratetpa_low_breakpoi"
-     & "nttpa_low_alwaysmixer_typeez_landing_thresholdez_landing_limitez_landing_speedlanding_disarm_thresholdsp"
-     & "a_roll_centerspa_roll_widthspa_roll_modespa_pitch_centerspa_pitch_widthspa_pitch_modespa_yaw_centerspa_y"
-     & "aw_widthspa_yaw_modetpa_curve_typetpa_curve_stall_throttletpa_curve_pid_thr0tpa_curve_pid_thr100tpa_curv"
-     & "e_exporc_ratesrc_exporate_limitsrollPIDpitchPIDyawPIDlevelPIDd_maxd_max_gaind_max_advancedterm_lpf1_type"
-     & "dterm_lpf1_static_hzdterm_lpf1_dyn_hzdterm_lpf1_dyn_expodterm_lpf2_typedterm_lpf2_static_hzyaw_lowpass_h"
-     & "zdterm_notch_hzdterm_notch_cutoffiterm_windupiterm_relaxiterm_relax_typeiterm_relax_cutoffpid_at_min_thr"
-     & "ottleanti_gravity_gainanti_gravity_cutoff_hzanti_gravity_p_gainff_weightfeedforward_transitionfeedforwar"
-     & "d_averagingfeedforward_smooth_factorfeedforward_jitter_factorfeedforward_boostfeedforward_max_rate_limit"
-     & "angle_feedforwardangle_feedforward_smoothing_msfeedforward_yaw_hold_gainfeedforward_yaw_hold_timeangle_l"
-     & "imitangle_earth_refhorizon_limit_degreeshorizon_delay_msacc_limit_yawpidsum_limitpidsum_limit_yaws_rolls"
-     & "_pitchs_yawchirp_lag_freq_hzchirp_lead_freq_hzchirp_amplitude_rollchirp_amplitude_pitchchirp_amplitude_y"
-     & "awchirp_frequency_start_deci_hzchirp_frequency_end_deci_hzchirp_time_secondsdeadbandyaw_deadbandgyro_har"
-     & "dware_lpfgyro_lpf1_typegyro_lpf1_static_hzgyro_lpf1_dyn_hzgyro_lpf1_dyn_expogyro_lpf2_typegyro_lpf2_stat"
-     & "ic_hzgyro_notch_hzgyro_notch_cutoffgyro_enabled_bitmaskgyro_debug_axisdyn_notch_max_hzdyn_notch_countdyn"
-     & "_notch_qdyn_notch_min_hzdshot_bidirmotor_polesrpm_filter_harmonicsrpm_filter_weightsrpm_filter_qrpm_filt"
-     & "er_min_hzrpm_filter_fade_range_hzrpm_filter_lpf_hzacc_lpf_hzacc_hardwarebaro_hardwarebaro_driftaltitude_"
-     & "sourcealtitude_prefer_baroaltitude_lpfaltitude_d_lpfap_landing_altitude_map_hover_throttleap_throttle_mi"
-     & "nap_throttle_maxap_altitude_pap_altitude_iap_altitude_dap_altitude_aap_altitude_fap_position_pap_positio"
-     & "n_iap_position_dap_position_aap_position_fap_position_cutoffap_stop_thresholdap_max_angleap_max_yaw_rate"
-     & "ap_yaw_pmag_hardwareopticalflow_hardwareopticalflow_rotationopticalflow_flip_xgyro_cal_on_first_armairmo"
-     & "de_activate_throttleserialrx_provideruse_unsynced_pwmmotor_pwm_protocolmotor_pwm_ratemotor_idledebug_mod"
-     & "efeaturesrc_smoothingrc_smoothing_auto_factorrc_smoothing_auto_factor_throttlerc_smoothing_setpoint_cuto"
-     & "ffrc_smoothing_throttle_cutoffrc_smoothing_debug_axisrc_smoothing_active_cutoffs_ff_sp_thrrc_smoothing_r"
-     & "x_smoothedrates_typefields_disabled_maskblackbox_high_resolutionvbat_sag_compensationdyn_idle_min_rpmdyn"
-     & "_idle_p_gaindyn_idle_i_gaindyn_idle_d_gaindyn_idle_max_increasesimplified_pids_modesimplified_master_mul"
-     & "tipliersimplified_i_gainsimplified_d_gainsimplified_pi_gainsimplified_d_max_gainsimplified_feedforward_g"
-     & "ainsimplified_pitch_d_gainsimplified_pitch_pi_gainsimplified_dterm_filtersimplified_dterm_filter_multipl"
-     & "iersimplified_gyro_filtersimplified_gyro_filter_multipliermotor_output_limitthrottle_limit_typethrottle_"
-     & "limit_percentthrottle_boostthrottle_boost_cutoffthrust_lineargps_providergps_set_home_point_oncegps_use_"
-     & "3d_speedgps_rescue_min_start_distgps_rescue_alt_modegps_rescue_initial_climbgps_rescue_ascend_rategps_re"
-     & "scue_return_altgps_rescue_ground_speedgps_rescue_descent_distgps_rescue_descend_rategps_rescue_sanity_ch"
-     & "ecksgps_rescue_min_satsgps_rescue_allow_arming_without_fixgps_rescue_yaw_palt_hold_climb_ratealt_hold_de"
-     & "adbandpos_hold_deadbandtpa_speed_typetpa_speed_basic_delaytpa_speed_basic_gravitytpa_speed_adv_prop_pitc"
-     & "htpa_speed_adv_masstpa_speed_adv_drag_ktpa_speed_adv_thrusttpa_speed_max_voltagetpa_speed_pitch_offsetya"
-     & "w_typeangle_pitch_offsetDeviceUID                                     ";
+     "I intervalP intervalmaxthrottlemotorOutputacc_1GvbatcellvoltagevbatrefcurrentSensorlooptimespa_roll_cent"
+     & "erspa_roll_widthspa_roll_modespa_pitch_centerspa_pitch_widthspa_pitch_modespa_yaw_centerspa_yaw_widthspa"
+     & "_yaw_modetpa_curve_typetpa_curve_stall_throttletpa_curve_pid_thr0tpa_curve_pid_thr100tpa_curve_exporc_ra"
+     & "tesrc_exporate_limitsrollPIDpitchPIDyawPIDlevelPIDd_maxdterm_lpf1_dyn_hzff_weights_rolls_pitchs_yawgyro_"
+     & "lpf1_dyn_hzgyro_notch_hzgyro_notch_cutoffgyro_enabled_bitmaskgyro_debug_axisairmode_activate_throttlefea"
+     & "turesrc_smoothing_active_cutoffs_ff_sp_thrrc_smoothing_rx_smoothedfields_disabled_masktpa_speed_typetpa_"
+     & "speed_basic_delaytpa_speed_basic_gravitytpa_speed_adv_prop_pitchtpa_speed_adv_masstpa_speed_adv_drag_ktp"
+     & "a_speed_adv_thrusttpa_speed_max_voltagetpa_speed_pitch_offsetyaw_typeangle_pitch_offsetDeviceUID        "
+     & "                             ";
    type Label_Start is range 0 .. Label_Pool_Length;
    type Label_Length is range 0 .. 37;
    Label_Starts : constant array (Value_Name) of Label_Start :=
-     (I_Interval => 0, P_Interval => 10, Max_Throttle => 20, Motor_Output_Low => 31, Motor_KV => 42, Acc_1G => 50,
-      VBat_Scale => 56, VBat_Min_Cell => 66, VBat_Reference => 81, Current_Offset => 88, Loop_Time => 101,
-      PID_Process_Denom => 109, Thr_Mid => 126, Thr_Expo => 133, Thr_Hover => 141, TPA_Mode => 150, TPA_Rate => 158,
-      TPA_Breakpoint => 166, TPA_Low_Rate => 180, TPA_Low_Breakpoint => 192, TPA_Low_Always => 210,
-      Mixer_Type => 224, EZ_Landing_Threshold => 234, EZ_Landing_Limit => 254, EZ_Landing_Speed => 270,
-      Landing_Disarm_Threshold => 286, SPA_Roll_Center => 310, SPA_Roll_Width => 325, SPA_Roll_Mode => 339,
-      SPA_Pitch_Center => 352, SPA_Pitch_Width => 368, SPA_Pitch_Mode => 383, SPA_Yaw_Center => 397,
-      SPA_Yaw_Width => 411, SPA_Yaw_Mode => 424, TPA_Curve_Type => 436, TPA_Curve_Stall_Throttle => 450,
-      TPA_Curve_PID_Thr0 => 474, TPA_Curve_PID_Thr100 => 492, TPA_Curve_Expo => 512, RC_Rate_Roll => 526,
-      RC_Expo_Roll => 534, Rate_Roll => 529, Rate_Limit_Roll => 541, Roll_P => 552, Pitch_P => 559, Yaw_P => 567,
-      Level_P => 573, D_Max_Roll => 581, D_Max_Gain => 586, D_Max_Advance => 596, DTerm_LPF1_Type => 609,
-      DTerm_LPF1_Static_Hz => 624, DTerm_LPF1_Dyn_Min_Hz => 644, DTerm_LPF1_Dyn_Expo => 661, DTerm_LPF2_Type => 680,
-      DTerm_LPF2_Static_Hz => 695, Yaw_Lowpass_Hz => 715, DTerm_Notch_Hz => 729, DTerm_Notch_Cutoff => 743,
-      ITerm_Windup => 761, ITerm_Relax => 773, ITerm_Relax_Type => 784, ITerm_Relax_Cutoff => 800,
-      PID_At_Min_Throttle => 818, Anti_Gravity_Gain => 837, Anti_Gravity_Cutoff_Hz => 854,
-      Anti_Gravity_P_Gain => 876, FF_Weight_Roll => 895, Feedforward_Transition => 904,
-      Feedforward_Averaging => 926, Feedforward_Smooth_Factor => 947, Feedforward_Jitter_Factor => 972,
-      Feedforward_Boost => 997, Feedforward_Max_Rate_Limit => 1014, Angle_Feedforward => 1040,
-      Angle_FF_Smoothing_Ms => 1057, Feedforward_Yaw_Hold_Gain => 1087, Feedforward_Yaw_Hold_Time => 1112,
-      Angle_Limit => 1137, Angle_Earth_Ref => 1148, Horizon_Limit_Degrees => 1163, Horizon_Delay_Ms => 1184,
-      Acc_Limit_Yaw => 1200, Acc_Limit => 1200, PID_Sum_Limit => 1213, PID_Sum_Limit_Yaw => 1225, S_Roll => 1241,
-      S_Pitch => 1247, S_Yaw => 1254, Chirp_Lag_Freq_Hz => 1259, Chirp_Lead_Freq_Hz => 1276,
-      Chirp_Amplitude_Roll => 1294, Chirp_Amplitude_Pitch => 1314, Chirp_Amplitude_Yaw => 1335,
-      Chirp_Frequency_Start_Deci_Hz => 1354, Chirp_Frequency_End_Deci_Hz => 1383, Chirp_Time_Seconds => 1410,
-      Deadband => 1428, Yaw_Deadband => 1436, Gyro_Hardware_LPF => 1448, Gyro_LPF1_Type => 1465,
-      Gyro_LPF1_Static_Hz => 1479, Gyro_LPF1_Dyn_Min_Hz => 1498, Gyro_LPF1_Dyn_Expo => 1514, Gyro_LPF2_Type => 1532,
-      Gyro_LPF2_Static_Hz => 1546, Gyro_Notch_Hz_1 => 1565, Gyro_Notch_Cutoff_1 => 1578,
-      Gyro_Enabled_Bitmask => 1595, Gyro_Debug_Axis => 1615, Dyn_Notch_Max_Hz => 1630, Dyn_Notch_Count => 1646,
-      Dyn_Notch_Q => 1661, Dyn_Notch_Min_Hz => 1672, DShot_Bidir => 1688, Motor_Poles => 1699,
-      RPM_Filter_Harmonics => 1710, RPM_Filter_Weight_1 => 1730, RPM_Filter_Q => 1748, RPM_Filter_Min_Hz => 1760,
-      RPM_Filter_Fade_Range_Hz => 1777, RPM_Filter_LPF_Hz => 1801, Acc_LPF_Hz_Hundredths => 1818,
-      Acc_Hardware => 1828, Baro_Hardware => 1840, Baro_Drift => 1853, Altitude_Source => 1863,
-      Altitude_Prefer_Baro => 1878, Altitude_LPF => 1898, Altitude_D_LPF => 1910, AP_Landing_Altitude_M => 1924,
-      AP_Hover_Throttle => 1945, AP_Throttle_Min => 1962, AP_Throttle_Max => 1977, AP_Altitude_P => 1992,
-      AP_Altitude_I => 2005, AP_Altitude_D => 2018, AP_Altitude_A => 2031, AP_Altitude_F => 2044,
-      AP_Position_P => 2057, AP_Position_I => 2070, AP_Position_D => 2083, AP_Position_A => 2096,
-      AP_Position_F => 2109, AP_Position_Cutoff => 2122, AP_Stop_Threshold => 2140, AP_Max_Angle => 2157,
-      AP_Max_Yaw_Rate => 2169, AP_Yaw_P => 2184, Mag_Hardware => 2192, Opticalflow_Hardware => 2204,
-      Opticalflow_Rotation => 2224, Opticalflow_Flip_X => 2244, Gyro_Cal_On_First_Arm => 2262,
-      Airmode_Activate_Throttle => 2283, Serial_RX_Provider => 2308, Use_Unsynced_PWM => 2325,
-      Motor_PWM_Protocol => 2341, Motor_PWM_Rate => 2359, Motor_Idle => 2373, Debug_Mode => 2383, Features => 2393,
-      RC_Smoothing => 2401, RC_Smoothing_Auto_Factor => 2413, RC_Smoothing_Auto_Factor_Throttle => 2437,
-      RC_Smoothing_Setpoint_Cutoff => 2470, RC_Smoothing_Throttle_Cutoff => 2498, RC_Smoothing_Debug_Axis => 2526,
-      RC_Smoothing_Setpoint_Cutoff_Frequency => 2549, RC_Smoothing_RX_Rate => 2586, Rates_Type => 2610,
-      Fields_Disabled_Mask => 2620, High_Resolution => 2640, VBat_Sag_Compensation => 2664,
-      Dyn_Idle_Min_RPM => 2685, Dyn_Idle_P_Gain => 2701, Dyn_Idle_I_Gain => 2716, Dyn_Idle_D_Gain => 2731,
-      Dyn_Idle_Max_Increase => 2746, Simplified_PIDs_Mode => 2767, Simplified_Master_Multiplier => 2787,
-      Simplified_I_Gain => 2815, Simplified_D_Gain => 2832, Simplified_PI_Gain => 2849,
-      Simplified_D_Max_Gain => 2867, Simplified_Feedforward_Gain => 2888, Simplified_Pitch_D_Gain => 2915,
-      Simplified_Pitch_PI_Gain => 2938, Simplified_DTerm_Filter => 2962, Simplified_DTerm_Filter_Multiplier => 2985,
-      Simplified_Gyro_Filter => 3019, Simplified_Gyro_Filter_Multiplier => 3041, Motor_Output_Limit => 3074,
-      Throttle_Limit_Type => 3092, Throttle_Limit_Percent => 3111, Throttle_Boost => 3133,
-      Throttle_Boost_Cutoff => 3147, Thrust_Linearization => 3168, GPS_Provider => 3181,
-      GPS_Set_Home_Point_Once => 3193, GPS_Use_3D_Speed => 3216, GPS_Rescue_Min_Start_Dist => 3232,
-      GPS_Rescue_Alt_Mode => 3257, GPS_Rescue_Initial_Climb => 3276, GPS_Rescue_Ascend_Rate => 3300,
-      GPS_Rescue_Return_Alt => 3322, GPS_Rescue_Ground_Speed => 3343, GPS_Rescue_Descent_Dist => 3366,
-      GPS_Rescue_Descend_Rate => 3389, GPS_Rescue_Sanity_Checks => 3412, GPS_Rescue_Min_Sats => 3436,
-      GPS_Rescue_Allow_Arming_Without_Fix => 3455, GPS_Rescue_Yaw_P => 3490, Alt_Hold_Climb_Rate => 3506,
-      Alt_Hold_Deadband => 3525, Pos_Hold_Deadband => 3542, TPA_Speed_Type => 3559, TPA_Speed_Basic_Delay => 3573,
-      TPA_Speed_Basic_Gravity => 3594, TPA_Speed_Adv_Prop_Pitch => 3617, TPA_Speed_Adv_Mass => 3641,
-      TPA_Speed_Adv_Drag_K => 3659, TPA_Speed_Adv_Thrust => 3679, TPA_Speed_Max_Voltage => 3699,
-      TPA_Speed_Pitch_Offset => 3720, Yaw_Type => 3742, Angle_Pitch_Offset => 3750, Device_UID_0 => 3768,
-      others => 0);
+     (I_Interval => 0, P_Interval => 10, Max_Throttle => 20, Motor_Output_Low => 31, Acc_1G => 42,
+      VBat_Min_Cell => 48, VBat_Reference => 63, Current_Offset => 70, Loop_Time => 83, SPA_Roll_Center => 91,
+      SPA_Roll_Width => 106, SPA_Roll_Mode => 120, SPA_Pitch_Center => 133, SPA_Pitch_Width => 149,
+      SPA_Pitch_Mode => 164, SPA_Yaw_Center => 178, SPA_Yaw_Width => 192, SPA_Yaw_Mode => 205,
+      TPA_Curve_Type => 217, TPA_Curve_Stall_Throttle => 231, TPA_Curve_PID_Thr0 => 255,
+      TPA_Curve_PID_Thr100 => 273, TPA_Curve_Expo => 293, RC_Rate_Roll => 307, RC_Expo_Roll => 315,
+      Rate_Roll => 310, Rate_Limit_Roll => 322, Roll_P => 333, Pitch_P => 340, Yaw_P => 348, Level_P => 354,
+      D_Max_Roll => 362, DTerm_LPF1_Dyn_Min_Hz => 367, FF_Weight_Roll => 384, S_Roll => 393, S_Pitch => 399,
+      S_Yaw => 406, Gyro_LPF1_Dyn_Min_Hz => 411, Gyro_Notch_Hz_1 => 427, Gyro_Notch_Cutoff_1 => 440,
+      Gyro_Enabled_Bitmask => 457, Gyro_Debug_Axis => 477, Airmode_Activate_Throttle => 492, Features => 517,
+      RC_Smoothing_Setpoint_Cutoff_Frequency => 525, RC_Smoothing_RX_Rate => 562, Fields_Disabled_Mask => 586,
+      TPA_Speed_Type => 606, TPA_Speed_Basic_Delay => 620, TPA_Speed_Basic_Gravity => 641,
+      TPA_Speed_Adv_Prop_Pitch => 664, TPA_Speed_Adv_Mass => 688, TPA_Speed_Adv_Drag_K => 706,
+      TPA_Speed_Adv_Thrust => 726, TPA_Speed_Max_Voltage => 746, TPA_Speed_Pitch_Offset => 767, Yaw_Type => 789,
+      Angle_Pitch_Offset => 797, Device_UID_0 => 815, others => 0);
    Label_Lengths : constant array (Value_Name) of Label_Length :=
-     (I_Interval => 10, P_Interval => 10, Max_Throttle => 11, Motor_Output_Low => 11, Motor_KV => 8, Acc_1G => 6,
-      VBat_Scale => 10, VBat_Min_Cell => 15, VBat_Reference => 7, Current_Offset => 13, Loop_Time => 8,
-      PID_Process_Denom => 17, Thr_Mid => 7, Thr_Expo => 8, Thr_Hover => 9, TPA_Mode => 8, TPA_Rate => 8,
-      TPA_Breakpoint => 14, TPA_Low_Rate => 12, TPA_Low_Breakpoint => 18, TPA_Low_Always => 14, Mixer_Type => 10,
-      EZ_Landing_Threshold => 20, EZ_Landing_Limit => 16, EZ_Landing_Speed => 16, Landing_Disarm_Threshold => 24,
-      SPA_Roll_Center => 15, SPA_Roll_Width => 14, SPA_Roll_Mode => 13, SPA_Pitch_Center => 16,
-      SPA_Pitch_Width => 15, SPA_Pitch_Mode => 14, SPA_Yaw_Center => 14, SPA_Yaw_Width => 13, SPA_Yaw_Mode => 12,
-      TPA_Curve_Type => 14, TPA_Curve_Stall_Throttle => 24, TPA_Curve_PID_Thr0 => 18, TPA_Curve_PID_Thr100 => 20,
+     (I_Interval => 10, P_Interval => 10, Max_Throttle => 11, Motor_Output_Low => 11, Acc_1G => 6,
+      VBat_Min_Cell => 15, VBat_Reference => 7, Current_Offset => 13, Loop_Time => 8, SPA_Roll_Center => 15,
+      SPA_Roll_Width => 14, SPA_Roll_Mode => 13, SPA_Pitch_Center => 16, SPA_Pitch_Width => 15,
+      SPA_Pitch_Mode => 14, SPA_Yaw_Center => 14, SPA_Yaw_Width => 13, SPA_Yaw_Mode => 12, TPA_Curve_Type => 14,
+      TPA_Curve_Stall_Throttle => 24, TPA_Curve_PID_Thr0 => 18, TPA_Curve_PID_Thr100 => 20,
       TPA_Curve_Expo => 14, RC_Rate_Roll => 8, RC_Expo_Roll => 7, Rate_Roll => 5, Rate_Limit_Roll => 11,
-      Roll_P => 7, Pitch_P => 8, Yaw_P => 6, Level_P => 8, D_Max_Roll => 5, D_Max_Gain => 10, D_Max_Advance => 13,
-      DTerm_LPF1_Type => 15, DTerm_LPF1_Static_Hz => 20, DTerm_LPF1_Dyn_Min_Hz => 17, DTerm_LPF1_Dyn_Expo => 19,
-      DTerm_LPF2_Type => 15, DTerm_LPF2_Static_Hz => 20, Yaw_Lowpass_Hz => 14, DTerm_Notch_Hz => 14,
-      DTerm_Notch_Cutoff => 18, ITerm_Windup => 12, ITerm_Relax => 11, ITerm_Relax_Type => 16,
-      ITerm_Relax_Cutoff => 18, PID_At_Min_Throttle => 19, Anti_Gravity_Gain => 17, Anti_Gravity_Cutoff_Hz => 22,
-      Anti_Gravity_P_Gain => 19, FF_Weight_Roll => 9, Feedforward_Transition => 22, Feedforward_Averaging => 21,
-      Feedforward_Smooth_Factor => 25, Feedforward_Jitter_Factor => 25, Feedforward_Boost => 17,
-      Feedforward_Max_Rate_Limit => 26, Angle_Feedforward => 17, Angle_FF_Smoothing_Ms => 30,
-      Feedforward_Yaw_Hold_Gain => 25, Feedforward_Yaw_Hold_Time => 25, Angle_Limit => 11, Angle_Earth_Ref => 15,
-      Horizon_Limit_Degrees => 21, Horizon_Delay_Ms => 16, Acc_Limit_Yaw => 13, Acc_Limit => 9, PID_Sum_Limit => 12,
-      PID_Sum_Limit_Yaw => 16, S_Roll => 6, S_Pitch => 7, S_Yaw => 5, Chirp_Lag_Freq_Hz => 17,
-      Chirp_Lead_Freq_Hz => 18, Chirp_Amplitude_Roll => 20, Chirp_Amplitude_Pitch => 21, Chirp_Amplitude_Yaw => 19,
-      Chirp_Frequency_Start_Deci_Hz => 29, Chirp_Frequency_End_Deci_Hz => 27, Chirp_Time_Seconds => 18,
-      Deadband => 8, Yaw_Deadband => 12, Gyro_Hardware_LPF => 17, Gyro_LPF1_Type => 14, Gyro_LPF1_Static_Hz => 19,
-      Gyro_LPF1_Dyn_Min_Hz => 16, Gyro_LPF1_Dyn_Expo => 18, Gyro_LPF2_Type => 14, Gyro_LPF2_Static_Hz => 19,
+      Roll_P => 7, Pitch_P => 8, Yaw_P => 6, Level_P => 8, D_Max_Roll => 5, DTerm_LPF1_Dyn_Min_Hz => 17,
+      FF_Weight_Roll => 9, S_Roll => 6, S_Pitch => 7, S_Yaw => 5, Gyro_LPF1_Dyn_Min_Hz => 16,
       Gyro_Notch_Hz_1 => 13, Gyro_Notch_Cutoff_1 => 17, Gyro_Enabled_Bitmask => 20, Gyro_Debug_Axis => 15,
-      Dyn_Notch_Max_Hz => 16, Dyn_Notch_Count => 15, Dyn_Notch_Q => 11, Dyn_Notch_Min_Hz => 16, DShot_Bidir => 11,
-      Motor_Poles => 11, RPM_Filter_Harmonics => 20, RPM_Filter_Weight_1 => 18, RPM_Filter_Q => 12,
-      RPM_Filter_Min_Hz => 17, RPM_Filter_Fade_Range_Hz => 24, RPM_Filter_LPF_Hz => 17, Acc_LPF_Hz_Hundredths => 10,
-      Acc_Hardware => 12, Baro_Hardware => 13, Baro_Drift => 10, Altitude_Source => 15, Altitude_Prefer_Baro => 20,
-      Altitude_LPF => 12, Altitude_D_LPF => 14, AP_Landing_Altitude_M => 21, AP_Hover_Throttle => 17,
-      AP_Throttle_Min => 15, AP_Throttle_Max => 15, AP_Altitude_P => 13, AP_Altitude_I => 13, AP_Altitude_D => 13,
-      AP_Altitude_A => 13, AP_Altitude_F => 13, AP_Position_P => 13, AP_Position_I => 13, AP_Position_D => 13,
-      AP_Position_A => 13, AP_Position_F => 13, AP_Position_Cutoff => 18, AP_Stop_Threshold => 17,
-      AP_Max_Angle => 12, AP_Max_Yaw_Rate => 15, AP_Yaw_P => 8, Mag_Hardware => 12, Opticalflow_Hardware => 20,
-      Opticalflow_Rotation => 20, Opticalflow_Flip_X => 18, Gyro_Cal_On_First_Arm => 21,
-      Airmode_Activate_Throttle => 25, Serial_RX_Provider => 17, Use_Unsynced_PWM => 16, Motor_PWM_Protocol => 18,
-      Motor_PWM_Rate => 14, Motor_Idle => 10, Debug_Mode => 10, Features => 8, RC_Smoothing => 12,
-      RC_Smoothing_Auto_Factor => 24, RC_Smoothing_Auto_Factor_Throttle => 33, RC_Smoothing_Setpoint_Cutoff => 28,
-      RC_Smoothing_Throttle_Cutoff => 28, RC_Smoothing_Debug_Axis => 23,
-      RC_Smoothing_Setpoint_Cutoff_Frequency => 37, RC_Smoothing_RX_Rate => 24, Rates_Type => 10,
-      Fields_Disabled_Mask => 20, High_Resolution => 24, VBat_Sag_Compensation => 21, Dyn_Idle_Min_RPM => 16,
-      Dyn_Idle_P_Gain => 15, Dyn_Idle_I_Gain => 15, Dyn_Idle_D_Gain => 15, Dyn_Idle_Max_Increase => 21,
-      Simplified_PIDs_Mode => 20, Simplified_Master_Multiplier => 28, Simplified_I_Gain => 17,
-      Simplified_D_Gain => 17, Simplified_PI_Gain => 18, Simplified_D_Max_Gain => 21,
-      Simplified_Feedforward_Gain => 27, Simplified_Pitch_D_Gain => 23, Simplified_Pitch_PI_Gain => 24,
-      Simplified_DTerm_Filter => 23, Simplified_DTerm_Filter_Multiplier => 34, Simplified_Gyro_Filter => 22,
-      Simplified_Gyro_Filter_Multiplier => 33, Motor_Output_Limit => 18, Throttle_Limit_Type => 19,
-      Throttle_Limit_Percent => 22, Throttle_Boost => 14, Throttle_Boost_Cutoff => 21, Thrust_Linearization => 13,
-      GPS_Provider => 12, GPS_Set_Home_Point_Once => 23, GPS_Use_3D_Speed => 16, GPS_Rescue_Min_Start_Dist => 25,
-      GPS_Rescue_Alt_Mode => 19, GPS_Rescue_Initial_Climb => 24, GPS_Rescue_Ascend_Rate => 22,
-      GPS_Rescue_Return_Alt => 21, GPS_Rescue_Ground_Speed => 23, GPS_Rescue_Descent_Dist => 23,
-      GPS_Rescue_Descend_Rate => 23, GPS_Rescue_Sanity_Checks => 24, GPS_Rescue_Min_Sats => 19,
-      GPS_Rescue_Allow_Arming_Without_Fix => 35, GPS_Rescue_Yaw_P => 16, Alt_Hold_Climb_Rate => 19,
-      Alt_Hold_Deadband => 17, Pos_Hold_Deadband => 17, TPA_Speed_Type => 14, TPA_Speed_Basic_Delay => 21,
+      Airmode_Activate_Throttle => 25, Features => 8, RC_Smoothing_Setpoint_Cutoff_Frequency => 37,
+      RC_Smoothing_RX_Rate => 24, Fields_Disabled_Mask => 20, TPA_Speed_Type => 14, TPA_Speed_Basic_Delay => 21,
       TPA_Speed_Basic_Gravity => 23, TPA_Speed_Adv_Prop_Pitch => 24, TPA_Speed_Adv_Mass => 18,
       TPA_Speed_Adv_Drag_K => 20, TPA_Speed_Adv_Thrust => 20, TPA_Speed_Max_Voltage => 21,
       TPA_Speed_Pitch_Offset => 22, Yaw_Type => 8, Angle_Pitch_Offset => 18, Device_UID_0 => 9, others => 0);
 
-   function Label (V : Value_Name) return String is
-     (Label_Text (Natural (Label_Starts (V)) + 1 .. Natural (Label_Starts (V)) + Natural (Label_Lengths (V))));
+   --  The labels that are a setting's name, by the setting plus one, zero for the others.
+   type Setting_Ref is range 0 .. Settings_Table.Setting'Pos (Settings_Table.Setting'Last) + 1;
+   Label_Settings : constant array (Value_Name) of Setting_Ref :=
+     (Motor_KV => Settings_Table.Setting'Pos (Settings_Table.Motor_Kv) + 1,
+      VBat_Scale => Settings_Table.Setting'Pos (Settings_Table.Vbat_Scale) + 1,
+      PID_Process_Denom => Settings_Table.Setting'Pos (Settings_Table.Pid_Process_Denom) + 1,
+      Thr_Mid => Settings_Table.Setting'Pos (Settings_Table.Thr_Mid) + 1,
+      Thr_Expo => Settings_Table.Setting'Pos (Settings_Table.Thr_Expo) + 1,
+      Thr_Hover => Settings_Table.Setting'Pos (Settings_Table.Thr_Hover) + 1,
+      TPA_Mode => Settings_Table.Setting'Pos (Settings_Table.Tpa_Mode) + 1,
+      TPA_Rate => Settings_Table.Setting'Pos (Settings_Table.Tpa_Rate) + 1,
+      TPA_Breakpoint => Settings_Table.Setting'Pos (Settings_Table.Tpa_Breakpoint) + 1,
+      TPA_Low_Rate => Settings_Table.Setting'Pos (Settings_Table.Tpa_Low_Rate) + 1,
+      TPA_Low_Breakpoint => Settings_Table.Setting'Pos (Settings_Table.Tpa_Low_Breakpoint) + 1,
+      TPA_Low_Always => Settings_Table.Setting'Pos (Settings_Table.Tpa_Low_Always) + 1,
+      Mixer_Type => Settings_Table.Setting'Pos (Settings_Table.Mixer_Type) + 1,
+      EZ_Landing_Threshold => Settings_Table.Setting'Pos (Settings_Table.Ez_Landing_Threshold) + 1,
+      EZ_Landing_Limit => Settings_Table.Setting'Pos (Settings_Table.Ez_Landing_Limit) + 1,
+      EZ_Landing_Speed => Settings_Table.Setting'Pos (Settings_Table.Ez_Landing_Speed) + 1,
+      Landing_Disarm_Threshold => Settings_Table.Setting'Pos (Settings_Table.Landing_Disarm_Threshold) + 1,
+      D_Max_Gain => Settings_Table.Setting'Pos (Settings_Table.D_Max_Gain) + 1,
+      D_Max_Advance => Settings_Table.Setting'Pos (Settings_Table.D_Max_Advance) + 1,
+      DTerm_LPF1_Type => Settings_Table.Setting'Pos (Settings_Table.Dterm_Lpf1_Type) + 1,
+      DTerm_LPF1_Static_Hz => Settings_Table.Setting'Pos (Settings_Table.Dterm_Lpf1_Static_Hz) + 1,
+      DTerm_LPF1_Dyn_Expo => Settings_Table.Setting'Pos (Settings_Table.Dterm_Lpf1_Dyn_Expo) + 1,
+      DTerm_LPF2_Type => Settings_Table.Setting'Pos (Settings_Table.Dterm_Lpf2_Type) + 1,
+      DTerm_LPF2_Static_Hz => Settings_Table.Setting'Pos (Settings_Table.Dterm_Lpf2_Static_Hz) + 1,
+      Yaw_Lowpass_Hz => Settings_Table.Setting'Pos (Settings_Table.Yaw_Lowpass_Hz) + 1,
+      DTerm_Notch_Hz => Settings_Table.Setting'Pos (Settings_Table.Dterm_Notch_Hz) + 1,
+      DTerm_Notch_Cutoff => Settings_Table.Setting'Pos (Settings_Table.Dterm_Notch_Cutoff) + 1,
+      ITerm_Windup => Settings_Table.Setting'Pos (Settings_Table.Iterm_Windup) + 1,
+      ITerm_Relax => Settings_Table.Setting'Pos (Settings_Table.Iterm_Relax) + 1,
+      ITerm_Relax_Type => Settings_Table.Setting'Pos (Settings_Table.Iterm_Relax_Type) + 1,
+      ITerm_Relax_Cutoff => Settings_Table.Setting'Pos (Settings_Table.Iterm_Relax_Cutoff) + 1,
+      PID_At_Min_Throttle => Settings_Table.Setting'Pos (Settings_Table.Pid_At_Min_Throttle) + 1,
+      Anti_Gravity_Gain => Settings_Table.Setting'Pos (Settings_Table.Anti_Gravity_Gain) + 1,
+      Anti_Gravity_Cutoff_Hz => Settings_Table.Setting'Pos (Settings_Table.Anti_Gravity_Cutoff_Hz) + 1,
+      Anti_Gravity_P_Gain => Settings_Table.Setting'Pos (Settings_Table.Anti_Gravity_P_Gain) + 1,
+      Feedforward_Transition => Settings_Table.Setting'Pos (Settings_Table.Feedforward_Transition) + 1,
+      Feedforward_Averaging => Settings_Table.Setting'Pos (Settings_Table.Feedforward_Averaging) + 1,
+      Feedforward_Smooth_Factor => Settings_Table.Setting'Pos (Settings_Table.Feedforward_Smooth_Factor) + 1,
+      Feedforward_Jitter_Factor => Settings_Table.Setting'Pos (Settings_Table.Feedforward_Jitter_Factor) + 1,
+      Feedforward_Boost => Settings_Table.Setting'Pos (Settings_Table.Feedforward_Boost) + 1,
+      Feedforward_Max_Rate_Limit => Settings_Table.Setting'Pos (Settings_Table.Feedforward_Max_Rate_Limit) + 1,
+      Angle_Feedforward => Settings_Table.Setting'Pos (Settings_Table.Angle_Feedforward) + 1,
+      Angle_FF_Smoothing_Ms => Settings_Table.Setting'Pos (Settings_Table.Angle_Feedforward_Smoothing_Ms) + 1,
+      Feedforward_Yaw_Hold_Gain => Settings_Table.Setting'Pos (Settings_Table.Feedforward_Yaw_Hold_Gain) + 1,
+      Feedforward_Yaw_Hold_Time => Settings_Table.Setting'Pos (Settings_Table.Feedforward_Yaw_Hold_Time) + 1,
+      Angle_Limit => Settings_Table.Setting'Pos (Settings_Table.Angle_Limit) + 1,
+      Angle_Earth_Ref => Settings_Table.Setting'Pos (Settings_Table.Angle_Earth_Ref) + 1,
+      Horizon_Limit_Degrees => Settings_Table.Setting'Pos (Settings_Table.Horizon_Limit_Degrees) + 1,
+      Horizon_Delay_Ms => Settings_Table.Setting'Pos (Settings_Table.Horizon_Delay_Ms) + 1,
+      Acc_Limit_Yaw => Settings_Table.Setting'Pos (Settings_Table.Acc_Limit_Yaw) + 1,
+      Acc_Limit => Settings_Table.Setting'Pos (Settings_Table.Acc_Limit) + 1,
+      PID_Sum_Limit => Settings_Table.Setting'Pos (Settings_Table.Pidsum_Limit) + 1,
+      PID_Sum_Limit_Yaw => Settings_Table.Setting'Pos (Settings_Table.Pidsum_Limit_Yaw) + 1,
+      Chirp_Lag_Freq_Hz => Settings_Table.Setting'Pos (Settings_Table.Chirp_Lag_Freq_Hz) + 1,
+      Chirp_Lead_Freq_Hz => Settings_Table.Setting'Pos (Settings_Table.Chirp_Lead_Freq_Hz) + 1,
+      Chirp_Amplitude_Roll => Settings_Table.Setting'Pos (Settings_Table.Chirp_Amplitude_Roll) + 1,
+      Chirp_Amplitude_Pitch => Settings_Table.Setting'Pos (Settings_Table.Chirp_Amplitude_Pitch) + 1,
+      Chirp_Amplitude_Yaw => Settings_Table.Setting'Pos (Settings_Table.Chirp_Amplitude_Yaw) + 1,
+      Chirp_Frequency_Start_Deci_Hz => Settings_Table.Setting'Pos (Settings_Table.Chirp_Frequency_Start_Deci_Hz) + 1,
+      Chirp_Frequency_End_Deci_Hz => Settings_Table.Setting'Pos (Settings_Table.Chirp_Frequency_End_Deci_Hz) + 1,
+      Chirp_Time_Seconds => Settings_Table.Setting'Pos (Settings_Table.Chirp_Time_Seconds) + 1,
+      Deadband => Settings_Table.Setting'Pos (Settings_Table.Deadband) + 1,
+      Yaw_Deadband => Settings_Table.Setting'Pos (Settings_Table.Yaw_Deadband) + 1,
+      Gyro_Hardware_LPF => Settings_Table.Setting'Pos (Settings_Table.Gyro_Hardware_Lpf) + 1,
+      Gyro_LPF1_Type => Settings_Table.Setting'Pos (Settings_Table.Gyro_Lpf1_Type) + 1,
+      Gyro_LPF1_Static_Hz => Settings_Table.Setting'Pos (Settings_Table.Gyro_Lpf1_Static_Hz) + 1,
+      Gyro_LPF1_Dyn_Expo => Settings_Table.Setting'Pos (Settings_Table.Gyro_Lpf1_Dyn_Expo) + 1,
+      Gyro_LPF2_Type => Settings_Table.Setting'Pos (Settings_Table.Gyro_Lpf2_Type) + 1,
+      Gyro_LPF2_Static_Hz => Settings_Table.Setting'Pos (Settings_Table.Gyro_Lpf2_Static_Hz) + 1,
+      Dyn_Notch_Max_Hz => Settings_Table.Setting'Pos (Settings_Table.Dyn_Notch_Max_Hz) + 1,
+      Dyn_Notch_Count => Settings_Table.Setting'Pos (Settings_Table.Dyn_Notch_Count) + 1,
+      Dyn_Notch_Q => Settings_Table.Setting'Pos (Settings_Table.Dyn_Notch_Q) + 1,
+      Dyn_Notch_Min_Hz => Settings_Table.Setting'Pos (Settings_Table.Dyn_Notch_Min_Hz) + 1,
+      DShot_Bidir => Settings_Table.Setting'Pos (Settings_Table.Dshot_Bidir) + 1,
+      Motor_Poles => Settings_Table.Setting'Pos (Settings_Table.Motor_Poles) + 1,
+      RPM_Filter_Harmonics => Settings_Table.Setting'Pos (Settings_Table.Rpm_Filter_Harmonics) + 1,
+      RPM_Filter_Weight_1 => Settings_Table.Setting'Pos (Settings_Table.Rpm_Filter_Weights) + 1,
+      RPM_Filter_Q => Settings_Table.Setting'Pos (Settings_Table.Rpm_Filter_Q) + 1,
+      RPM_Filter_Min_Hz => Settings_Table.Setting'Pos (Settings_Table.Rpm_Filter_Min_Hz) + 1,
+      RPM_Filter_Fade_Range_Hz => Settings_Table.Setting'Pos (Settings_Table.Rpm_Filter_Fade_Range_Hz) + 1,
+      RPM_Filter_LPF_Hz => Settings_Table.Setting'Pos (Settings_Table.Rpm_Filter_Lpf_Hz) + 1,
+      Acc_LPF_Hz_Hundredths => Settings_Table.Setting'Pos (Settings_Table.Acc_Lpf_Hz) + 1,
+      Acc_Hardware => Settings_Table.Setting'Pos (Settings_Table.Acc_Hardware) + 1,
+      Baro_Hardware => Settings_Table.Setting'Pos (Settings_Table.Baro_Hardware) + 1,
+      Baro_Drift => Settings_Table.Setting'Pos (Settings_Table.Baro_Drift) + 1,
+      Altitude_Source => Settings_Table.Setting'Pos (Settings_Table.Altitude_Source) + 1,
+      Altitude_Prefer_Baro => Settings_Table.Setting'Pos (Settings_Table.Altitude_Prefer_Baro) + 1,
+      Altitude_LPF => Settings_Table.Setting'Pos (Settings_Table.Altitude_Lpf) + 1,
+      Altitude_D_LPF => Settings_Table.Setting'Pos (Settings_Table.Altitude_D_Lpf) + 1,
+      AP_Landing_Altitude_M => Settings_Table.Setting'Pos (Settings_Table.Ap_Landing_Altitude_M) + 1,
+      AP_Hover_Throttle => Settings_Table.Setting'Pos (Settings_Table.Ap_Hover_Throttle) + 1,
+      AP_Throttle_Min => Settings_Table.Setting'Pos (Settings_Table.Ap_Throttle_Min) + 1,
+      AP_Throttle_Max => Settings_Table.Setting'Pos (Settings_Table.Ap_Throttle_Max) + 1,
+      AP_Altitude_P => Settings_Table.Setting'Pos (Settings_Table.Ap_Altitude_P) + 1,
+      AP_Altitude_I => Settings_Table.Setting'Pos (Settings_Table.Ap_Altitude_I) + 1,
+      AP_Altitude_D => Settings_Table.Setting'Pos (Settings_Table.Ap_Altitude_D) + 1,
+      AP_Altitude_A => Settings_Table.Setting'Pos (Settings_Table.Ap_Altitude_A) + 1,
+      AP_Altitude_F => Settings_Table.Setting'Pos (Settings_Table.Ap_Altitude_F) + 1,
+      AP_Position_P => Settings_Table.Setting'Pos (Settings_Table.Ap_Position_P) + 1,
+      AP_Position_I => Settings_Table.Setting'Pos (Settings_Table.Ap_Position_I) + 1,
+      AP_Position_D => Settings_Table.Setting'Pos (Settings_Table.Ap_Position_D) + 1,
+      AP_Position_A => Settings_Table.Setting'Pos (Settings_Table.Ap_Position_A) + 1,
+      AP_Position_F => Settings_Table.Setting'Pos (Settings_Table.Ap_Position_F) + 1,
+      AP_Position_Cutoff => Settings_Table.Setting'Pos (Settings_Table.Ap_Position_Cutoff) + 1,
+      AP_Stop_Threshold => Settings_Table.Setting'Pos (Settings_Table.Ap_Stop_Threshold) + 1,
+      AP_Max_Angle => Settings_Table.Setting'Pos (Settings_Table.Ap_Max_Angle) + 1,
+      AP_Max_Yaw_Rate => Settings_Table.Setting'Pos (Settings_Table.Ap_Max_Yaw_Rate) + 1,
+      AP_Yaw_P => Settings_Table.Setting'Pos (Settings_Table.Ap_Yaw_P) + 1,
+      Mag_Hardware => Settings_Table.Setting'Pos (Settings_Table.Mag_Hardware) + 1,
+      Opticalflow_Hardware => Settings_Table.Setting'Pos (Settings_Table.Opticalflow_Hardware) + 1,
+      Opticalflow_Rotation => Settings_Table.Setting'Pos (Settings_Table.Opticalflow_Rotation) + 1,
+      Opticalflow_Flip_X => Settings_Table.Setting'Pos (Settings_Table.Opticalflow_Flip_X) + 1,
+      Gyro_Cal_On_First_Arm => Settings_Table.Setting'Pos (Settings_Table.Gyro_Cal_On_First_Arm) + 1,
+      Serial_RX_Provider => Settings_Table.Setting'Pos (Settings_Table.Serialrx_Provider) + 1,
+      Use_Unsynced_PWM => Settings_Table.Setting'Pos (Settings_Table.Use_Unsynced_Pwm) + 1,
+      Motor_PWM_Protocol => Settings_Table.Setting'Pos (Settings_Table.Motor_Pwm_Protocol) + 1,
+      Motor_PWM_Rate => Settings_Table.Setting'Pos (Settings_Table.Motor_Pwm_Rate) + 1,
+      Motor_Idle => Settings_Table.Setting'Pos (Settings_Table.Motor_Idle) + 1,
+      Debug_Mode => Settings_Table.Setting'Pos (Settings_Table.Debug_Mode) + 1,
+      RC_Smoothing => Settings_Table.Setting'Pos (Settings_Table.Rc_Smoothing) + 1,
+      RC_Smoothing_Auto_Factor => Settings_Table.Setting'Pos (Settings_Table.Rc_Smoothing_Auto_Factor) + 1,
+      RC_Smoothing_Auto_Factor_Throttle =>
+        Settings_Table.Setting'Pos (Settings_Table.Rc_Smoothing_Auto_Factor_Throttle) + 1,
+      RC_Smoothing_Setpoint_Cutoff => Settings_Table.Setting'Pos (Settings_Table.Rc_Smoothing_Setpoint_Cutoff) + 1,
+      RC_Smoothing_Throttle_Cutoff => Settings_Table.Setting'Pos (Settings_Table.Rc_Smoothing_Throttle_Cutoff) + 1,
+      RC_Smoothing_Debug_Axis => Settings_Table.Setting'Pos (Settings_Table.Rc_Smoothing_Debug_Axis) + 1,
+      Rates_Type => Settings_Table.Setting'Pos (Settings_Table.Rates_Type) + 1,
+      High_Resolution => Settings_Table.Setting'Pos (Settings_Table.Blackbox_High_Resolution) + 1,
+      VBat_Sag_Compensation => Settings_Table.Setting'Pos (Settings_Table.Vbat_Sag_Compensation) + 1,
+      Dyn_Idle_Min_RPM => Settings_Table.Setting'Pos (Settings_Table.Dyn_Idle_Min_Rpm) + 1,
+      Dyn_Idle_P_Gain => Settings_Table.Setting'Pos (Settings_Table.Dyn_Idle_P_Gain) + 1,
+      Dyn_Idle_I_Gain => Settings_Table.Setting'Pos (Settings_Table.Dyn_Idle_I_Gain) + 1,
+      Dyn_Idle_D_Gain => Settings_Table.Setting'Pos (Settings_Table.Dyn_Idle_D_Gain) + 1,
+      Dyn_Idle_Max_Increase => Settings_Table.Setting'Pos (Settings_Table.Dyn_Idle_Max_Increase) + 1,
+      Simplified_PIDs_Mode => Settings_Table.Setting'Pos (Settings_Table.Simplified_Pids_Mode) + 1,
+      Simplified_Master_Multiplier => Settings_Table.Setting'Pos (Settings_Table.Simplified_Master_Multiplier) + 1,
+      Simplified_I_Gain => Settings_Table.Setting'Pos (Settings_Table.Simplified_I_Gain) + 1,
+      Simplified_D_Gain => Settings_Table.Setting'Pos (Settings_Table.Simplified_D_Gain) + 1,
+      Simplified_PI_Gain => Settings_Table.Setting'Pos (Settings_Table.Simplified_Pi_Gain) + 1,
+      Simplified_D_Max_Gain => Settings_Table.Setting'Pos (Settings_Table.Simplified_D_Max_Gain) + 1,
+      Simplified_Feedforward_Gain => Settings_Table.Setting'Pos (Settings_Table.Simplified_Feedforward_Gain) + 1,
+      Simplified_Pitch_D_Gain => Settings_Table.Setting'Pos (Settings_Table.Simplified_Pitch_D_Gain) + 1,
+      Simplified_Pitch_PI_Gain => Settings_Table.Setting'Pos (Settings_Table.Simplified_Pitch_Pi_Gain) + 1,
+      Simplified_DTerm_Filter => Settings_Table.Setting'Pos (Settings_Table.Simplified_Dterm_Filter) + 1,
+      Simplified_DTerm_Filter_Multiplier =>
+        Settings_Table.Setting'Pos (Settings_Table.Simplified_Dterm_Filter_Multiplier) + 1,
+      Simplified_Gyro_Filter => Settings_Table.Setting'Pos (Settings_Table.Simplified_Gyro_Filter) + 1,
+      Simplified_Gyro_Filter_Multiplier =>
+        Settings_Table.Setting'Pos (Settings_Table.Simplified_Gyro_Filter_Multiplier) + 1,
+      Motor_Output_Limit => Settings_Table.Setting'Pos (Settings_Table.Motor_Output_Limit) + 1,
+      Throttle_Limit_Type => Settings_Table.Setting'Pos (Settings_Table.Throttle_Limit_Type) + 1,
+      Throttle_Limit_Percent => Settings_Table.Setting'Pos (Settings_Table.Throttle_Limit_Percent) + 1,
+      Throttle_Boost => Settings_Table.Setting'Pos (Settings_Table.Throttle_Boost) + 1,
+      Throttle_Boost_Cutoff => Settings_Table.Setting'Pos (Settings_Table.Throttle_Boost_Cutoff) + 1,
+      Thrust_Linearization => Settings_Table.Setting'Pos (Settings_Table.Thrust_Linear) + 1,
+      GPS_Provider => Settings_Table.Setting'Pos (Settings_Table.Gps_Provider) + 1,
+      GPS_Set_Home_Point_Once => Settings_Table.Setting'Pos (Settings_Table.Gps_Set_Home_Point_Once) + 1,
+      GPS_Use_3D_Speed => Settings_Table.Setting'Pos (Settings_Table.Gps_Use_3d_Speed) + 1,
+      GPS_Rescue_Min_Start_Dist => Settings_Table.Setting'Pos (Settings_Table.Gps_Rescue_Min_Start_Dist) + 1,
+      GPS_Rescue_Alt_Mode => Settings_Table.Setting'Pos (Settings_Table.Gps_Rescue_Alt_Mode) + 1,
+      GPS_Rescue_Initial_Climb => Settings_Table.Setting'Pos (Settings_Table.Gps_Rescue_Initial_Climb) + 1,
+      GPS_Rescue_Ascend_Rate => Settings_Table.Setting'Pos (Settings_Table.Gps_Rescue_Ascend_Rate) + 1,
+      GPS_Rescue_Return_Alt => Settings_Table.Setting'Pos (Settings_Table.Gps_Rescue_Return_Alt) + 1,
+      GPS_Rescue_Ground_Speed => Settings_Table.Setting'Pos (Settings_Table.Gps_Rescue_Ground_Speed) + 1,
+      GPS_Rescue_Descent_Dist => Settings_Table.Setting'Pos (Settings_Table.Gps_Rescue_Descent_Dist) + 1,
+      GPS_Rescue_Descend_Rate => Settings_Table.Setting'Pos (Settings_Table.Gps_Rescue_Descend_Rate) + 1,
+      GPS_Rescue_Sanity_Checks => Settings_Table.Setting'Pos (Settings_Table.Gps_Rescue_Sanity_Checks) + 1,
+      GPS_Rescue_Min_Sats => Settings_Table.Setting'Pos (Settings_Table.Gps_Rescue_Min_Sats) + 1,
+      GPS_Rescue_Allow_Arming_Without_Fix =>
+        Settings_Table.Setting'Pos (Settings_Table.Gps_Rescue_Allow_Arming_Without_Fix) + 1,
+      GPS_Rescue_Yaw_P => Settings_Table.Setting'Pos (Settings_Table.Gps_Rescue_Yaw_P) + 1,
+      Alt_Hold_Climb_Rate => Settings_Table.Setting'Pos (Settings_Table.Alt_Hold_Climb_Rate) + 1,
+      Alt_Hold_Deadband => Settings_Table.Setting'Pos (Settings_Table.Alt_Hold_Deadband) + 1,
+      Pos_Hold_Deadband => Settings_Table.Setting'Pos (Settings_Table.Pos_Hold_Deadband) + 1, others => 0);
 
-   function D (V : Value_Name) return Line is (One_Decimal, V);
-   function U (V : Value_Name) return Line is (One_Unsigned, V);
-   function D2 (V : Value_Name) return Line is (Two_Decimal, V);
-   function D3 (V : Value_Name) return Line is (Three_Decimal, V);
-   function L (F : Line_Format) return Line is (F, I_Interval);
+   function Label (V : Value_Name) return String is
+     (if Label_Settings (V) = 0
+      then Label_Text (Natural (Label_Starts (V)) + 1 .. Natural (Label_Starts (V)) + Natural (Label_Lengths (V)))
+      else Settings_Table.Name (Settings_Table.Setting'Val (Label_Settings (V) - 1)));
 
    type Line_List is array (Line_Position range <>) of Line;
 
    --  The lines every craft lists first.
    Common_Lines : constant Line_List :=
-     (L (Firmware_Type_Line), L (Firmware_Revision_Line), L (Firmware_Date_Line), L (Build_Key_Line),
-      L (Release_Name_Line), L (Device_UID_Line), L (Board_Information_Line), L (Start_Date_Time_Line),
-      L (Craft_Name_Line), D (I_Interval), D (P_Interval), L (P_Ratio_Line), D (Max_Throttle),
-      L (Gyro_Scale_Line), D2 (Motor_Output_Low), D (Motor_KV), U (Acc_1G), L (VBat_Scale_Line),
-      (Three_Unsigned, VBat_Min_Cell), U (VBat_Reference), L (Current_Sensor_Line), D (Loop_Time),
-      L (Gyro_Sync_Denom_Line), D (PID_Process_Denom), D (Thr_Mid), D (Thr_Expo), D (Thr_Hover), D (TPA_Mode),
-      D (TPA_Rate), D (TPA_Breakpoint), D (TPA_Low_Rate), D (TPA_Low_Breakpoint), D (TPA_Low_Always),
-      L (Mixer_Type_Line), D (EZ_Landing_Threshold), D (EZ_Landing_Limit), D (EZ_Landing_Speed),
-      D (Landing_Disarm_Threshold));
+     ((Firmware_Type_Line, I_Interval), (Firmware_Revision_Line, I_Interval), (Firmware_Date_Line, I_Interval),
+      (Build_Key_Line, I_Interval), (Release_Name_Line, I_Interval), (Device_UID_Line, I_Interval),
+      (Board_Information_Line, I_Interval), (Start_Date_Time_Line, I_Interval), (Craft_Name_Line, I_Interval),
+      (One_Decimal, I_Interval), (One_Decimal, P_Interval), (P_Ratio_Line, I_Interval), (One_Decimal, Max_Throttle),
+      (Gyro_Scale_Line, I_Interval), (Two_Decimal, Motor_Output_Low), (One_Decimal, Motor_KV), (One_Unsigned, Acc_1G),
+      (VBat_Scale_Line, I_Interval), (Three_Unsigned, VBat_Min_Cell), (One_Unsigned, VBat_Reference),
+      (Current_Sensor_Line, I_Interval), (One_Decimal, Loop_Time), (Gyro_Sync_Denom_Line, I_Interval),
+      (One_Decimal, PID_Process_Denom), (One_Decimal, Thr_Mid), (One_Decimal, Thr_Expo), (One_Decimal, Thr_Hover),
+      (One_Decimal, TPA_Mode), (One_Decimal, TPA_Rate), (One_Decimal, TPA_Breakpoint), (One_Decimal, TPA_Low_Rate),
+      (One_Decimal, TPA_Low_Breakpoint), (One_Decimal, TPA_Low_Always), (Mixer_Type_Line, I_Interval),
+      (One_Decimal, EZ_Landing_Threshold), (One_Decimal, EZ_Landing_Limit), (One_Decimal, EZ_Landing_Speed),
+      (One_Decimal, Landing_Disarm_Threshold));
 
    Wing_SPA_Lines : constant Line_List :=
-     (D (SPA_Roll_Center), D (SPA_Roll_Width), D (SPA_Roll_Mode), D (SPA_Pitch_Center), D (SPA_Pitch_Width),
-      D (SPA_Pitch_Mode), D (SPA_Yaw_Center), D (SPA_Yaw_Width), D (SPA_Yaw_Mode));
+     ((One_Decimal, SPA_Roll_Center), (One_Decimal, SPA_Roll_Width), (One_Decimal, SPA_Roll_Mode),
+      (One_Decimal, SPA_Pitch_Center), (One_Decimal, SPA_Pitch_Width), (One_Decimal, SPA_Pitch_Mode),
+      (One_Decimal, SPA_Yaw_Center), (One_Decimal, SPA_Yaw_Width), (One_Decimal, SPA_Yaw_Mode));
 
    Tuning_Lines : constant Line_List :=
-     (D (TPA_Curve_Type), D (TPA_Curve_Stall_Throttle), D (TPA_Curve_PID_Thr0), D (TPA_Curve_PID_Thr100),
-      D (TPA_Curve_Expo), D3 (RC_Rate_Roll), D3 (RC_Expo_Roll), D3 (Rate_Roll), D3 (Rate_Limit_Roll),
-      D3 (Roll_P), D3 (Pitch_P), D3 (Yaw_P), D3 (Level_P), D3 (D_Max_Roll), D (D_Max_Gain), D (D_Max_Advance),
-      D (DTerm_LPF1_Type), D (DTerm_LPF1_Static_Hz), D2 (DTerm_LPF1_Dyn_Min_Hz), D (DTerm_LPF1_Dyn_Expo),
-      D (DTerm_LPF2_Type), D (DTerm_LPF2_Static_Hz), D (Yaw_Lowpass_Hz), D (DTerm_Notch_Hz),
-      D (DTerm_Notch_Cutoff), D (ITerm_Windup), D (ITerm_Relax), D (ITerm_Relax_Type), D (ITerm_Relax_Cutoff),
-      D (PID_At_Min_Throttle), D (Anti_Gravity_Gain), D (Anti_Gravity_Cutoff_Hz), D (Anti_Gravity_P_Gain),
-      D3 (FF_Weight_Roll), D (Feedforward_Transition), D (Feedforward_Averaging), D (Feedforward_Smooth_Factor),
-      D (Feedforward_Jitter_Factor), D (Feedforward_Boost), D (Feedforward_Max_Rate_Limit),
-      D (Angle_Feedforward), D (Angle_FF_Smoothing_Ms), D (Feedforward_Yaw_Hold_Gain),
-      D (Feedforward_Yaw_Hold_Time), D (Angle_Limit), D (Angle_Earth_Ref), D (Horizon_Limit_Degrees),
-      D (Horizon_Delay_Ms), D (Acc_Limit_Yaw), D (Acc_Limit), D (PID_Sum_Limit), D (PID_Sum_Limit_Yaw));
+     ((One_Decimal, TPA_Curve_Type), (One_Decimal, TPA_Curve_Stall_Throttle), (One_Decimal, TPA_Curve_PID_Thr0),
+      (One_Decimal, TPA_Curve_PID_Thr100), (One_Decimal, TPA_Curve_Expo), (Three_Decimal, RC_Rate_Roll),
+      (Three_Decimal, RC_Expo_Roll), (Three_Decimal, Rate_Roll), (Three_Decimal, Rate_Limit_Roll),
+      (Three_Decimal, Roll_P), (Three_Decimal, Pitch_P), (Three_Decimal, Yaw_P), (Three_Decimal, Level_P),
+      (Three_Decimal, D_Max_Roll), (One_Decimal, D_Max_Gain), (One_Decimal, D_Max_Advance),
+      (One_Decimal, DTerm_LPF1_Type), (One_Decimal, DTerm_LPF1_Static_Hz), (Two_Decimal, DTerm_LPF1_Dyn_Min_Hz),
+      (One_Decimal, DTerm_LPF1_Dyn_Expo), (One_Decimal, DTerm_LPF2_Type), (One_Decimal, DTerm_LPF2_Static_Hz),
+      (One_Decimal, Yaw_Lowpass_Hz), (One_Decimal, DTerm_Notch_Hz), (One_Decimal, DTerm_Notch_Cutoff),
+      (One_Decimal, ITerm_Windup), (One_Decimal, ITerm_Relax), (One_Decimal, ITerm_Relax_Type),
+      (One_Decimal, ITerm_Relax_Cutoff), (One_Decimal, PID_At_Min_Throttle), (One_Decimal, Anti_Gravity_Gain),
+      (One_Decimal, Anti_Gravity_Cutoff_Hz), (One_Decimal, Anti_Gravity_P_Gain), (Three_Decimal, FF_Weight_Roll),
+      (One_Decimal, Feedforward_Transition), (One_Decimal, Feedforward_Averaging),
+      (One_Decimal, Feedforward_Smooth_Factor), (One_Decimal, Feedforward_Jitter_Factor),
+      (One_Decimal, Feedforward_Boost), (One_Decimal, Feedforward_Max_Rate_Limit), (One_Decimal, Angle_Feedforward),
+      (One_Decimal, Angle_FF_Smoothing_Ms), (One_Decimal, Feedforward_Yaw_Hold_Gain),
+      (One_Decimal, Feedforward_Yaw_Hold_Time), (One_Decimal, Angle_Limit), (One_Decimal, Angle_Earth_Ref),
+      (One_Decimal, Horizon_Limit_Degrees), (One_Decimal, Horizon_Delay_Ms), (One_Decimal, Acc_Limit_Yaw),
+      (One_Decimal, Acc_Limit), (One_Decimal, PID_Sum_Limit), (One_Decimal, PID_Sum_Limit_Yaw));
 
-   Wing_S_Lines : constant Line_List := (D (S_Roll), D (S_Pitch), D (S_Yaw));
+   Wing_S_Lines : constant Line_List := ((One_Decimal, S_Roll), (One_Decimal, S_Pitch), (One_Decimal, S_Yaw));
 
    Sensor_Lines : constant Line_List :=
-     (D (Chirp_Lag_Freq_Hz), D (Chirp_Lead_Freq_Hz), D (Chirp_Amplitude_Roll), D (Chirp_Amplitude_Pitch),
-      D (Chirp_Amplitude_Yaw), D (Chirp_Frequency_Start_Deci_Hz), D (Chirp_Frequency_End_Deci_Hz),
-      D (Chirp_Time_Seconds), D (Deadband), D (Yaw_Deadband), D (Gyro_Hardware_LPF), D (Gyro_LPF1_Type),
-      D (Gyro_LPF1_Static_Hz), D2 (Gyro_LPF1_Dyn_Min_Hz), D (Gyro_LPF1_Dyn_Expo), D (Gyro_LPF2_Type),
-      D (Gyro_LPF2_Static_Hz), D2 (Gyro_Notch_Hz_1), D2 (Gyro_Notch_Cutoff_1), D (Gyro_Enabled_Bitmask),
-      D (Gyro_Debug_Axis), D (Dyn_Notch_Max_Hz), D (Dyn_Notch_Count), D (Dyn_Notch_Q), D (Dyn_Notch_Min_Hz),
-      D (DShot_Bidir), D (Motor_Poles), D (RPM_Filter_Harmonics), D3 (RPM_Filter_Weight_1), D (RPM_Filter_Q),
-      D (RPM_Filter_Min_Hz), D (RPM_Filter_Fade_Range_Hz), D (RPM_Filter_LPF_Hz), D (Acc_LPF_Hz_Hundredths),
-      D (Acc_Hardware), D (Baro_Hardware), D (Baro_Drift), D (Altitude_Source), D (Altitude_Prefer_Baro),
-      D (Altitude_LPF), D (Altitude_D_LPF));
+     ((One_Decimal, Chirp_Lag_Freq_Hz), (One_Decimal, Chirp_Lead_Freq_Hz), (One_Decimal, Chirp_Amplitude_Roll),
+      (One_Decimal, Chirp_Amplitude_Pitch), (One_Decimal, Chirp_Amplitude_Yaw),
+      (One_Decimal, Chirp_Frequency_Start_Deci_Hz), (One_Decimal, Chirp_Frequency_End_Deci_Hz),
+      (One_Decimal, Chirp_Time_Seconds), (One_Decimal, Deadband), (One_Decimal, Yaw_Deadband),
+      (One_Decimal, Gyro_Hardware_LPF), (One_Decimal, Gyro_LPF1_Type), (One_Decimal, Gyro_LPF1_Static_Hz),
+      (Two_Decimal, Gyro_LPF1_Dyn_Min_Hz), (One_Decimal, Gyro_LPF1_Dyn_Expo), (One_Decimal, Gyro_LPF2_Type),
+      (One_Decimal, Gyro_LPF2_Static_Hz), (Two_Decimal, Gyro_Notch_Hz_1), (Two_Decimal, Gyro_Notch_Cutoff_1),
+      (One_Decimal, Gyro_Enabled_Bitmask), (One_Decimal, Gyro_Debug_Axis), (One_Decimal, Dyn_Notch_Max_Hz),
+      (One_Decimal, Dyn_Notch_Count), (One_Decimal, Dyn_Notch_Q), (One_Decimal, Dyn_Notch_Min_Hz),
+      (One_Decimal, DShot_Bidir), (One_Decimal, Motor_Poles), (One_Decimal, RPM_Filter_Harmonics),
+      (Three_Decimal, RPM_Filter_Weight_1), (One_Decimal, RPM_Filter_Q), (One_Decimal, RPM_Filter_Min_Hz),
+      (One_Decimal, RPM_Filter_Fade_Range_Hz), (One_Decimal, RPM_Filter_LPF_Hz), (One_Decimal, Acc_LPF_Hz_Hundredths),
+      (One_Decimal, Acc_Hardware), (One_Decimal, Baro_Hardware), (One_Decimal, Baro_Drift),
+      (One_Decimal, Altitude_Source), (One_Decimal, Altitude_Prefer_Baro), (One_Decimal, Altitude_LPF),
+      (One_Decimal, Altitude_D_LPF));
 
    Autopilot_Lines : constant Line_List :=
-     (D (AP_Landing_Altitude_M), D (AP_Hover_Throttle), D (AP_Throttle_Min), D (AP_Throttle_Max),
-      D (AP_Altitude_P), D (AP_Altitude_I), D (AP_Altitude_D), D (AP_Altitude_A), D (AP_Altitude_F),
-      D (AP_Position_P), D (AP_Position_I), D (AP_Position_D), D (AP_Position_A), D (AP_Position_F),
-      D (AP_Position_Cutoff), D (AP_Stop_Threshold), D (AP_Max_Angle), D (AP_Max_Yaw_Rate), D (AP_Yaw_P));
+     ((One_Decimal, AP_Landing_Altitude_M), (One_Decimal, AP_Hover_Throttle), (One_Decimal, AP_Throttle_Min),
+      (One_Decimal, AP_Throttle_Max), (One_Decimal, AP_Altitude_P), (One_Decimal, AP_Altitude_I),
+      (One_Decimal, AP_Altitude_D), (One_Decimal, AP_Altitude_A), (One_Decimal, AP_Altitude_F),
+      (One_Decimal, AP_Position_P), (One_Decimal, AP_Position_I), (One_Decimal, AP_Position_D),
+      (One_Decimal, AP_Position_A), (One_Decimal, AP_Position_F), (One_Decimal, AP_Position_Cutoff),
+      (One_Decimal, AP_Stop_Threshold), (One_Decimal, AP_Max_Angle), (One_Decimal, AP_Max_Yaw_Rate),
+      (One_Decimal, AP_Yaw_P));
 
    System_Lines : constant Line_List :=
-     (D (Mag_Hardware), D (Opticalflow_Hardware), D (Opticalflow_Rotation), D (Opticalflow_Flip_X),
-      D (Gyro_Cal_On_First_Arm), D (Airmode_Activate_Throttle), D (Serial_RX_Provider), D (Use_Unsynced_PWM),
-      D (Motor_PWM_Protocol), D (Motor_PWM_Rate), D (Motor_Idle), D (Debug_Mode), L (Debug_Mode_Name_Line),
-      D (Features), D (RC_Smoothing), D (RC_Smoothing_Auto_Factor), D (RC_Smoothing_Auto_Factor_Throttle),
-      D (RC_Smoothing_Setpoint_Cutoff), D (RC_Smoothing_Throttle_Cutoff), D (RC_Smoothing_Debug_Axis),
-      D2 (RC_Smoothing_Setpoint_Cutoff_Frequency), D (RC_Smoothing_RX_Rate), D (Rates_Type),
-      D (Fields_Disabled_Mask), D (High_Resolution), D (VBat_Sag_Compensation), D (Dyn_Idle_Min_RPM),
-      D (Dyn_Idle_P_Gain), D (Dyn_Idle_I_Gain), D (Dyn_Idle_D_Gain), D (Dyn_Idle_Max_Increase),
-      D (Simplified_PIDs_Mode), D (Simplified_Master_Multiplier), D (Simplified_I_Gain), D (Simplified_D_Gain),
-      D (Simplified_PI_Gain), D (Simplified_D_Max_Gain), D (Simplified_Feedforward_Gain),
-      D (Simplified_Pitch_D_Gain), D (Simplified_Pitch_PI_Gain), D (Simplified_DTerm_Filter),
-      D (Simplified_DTerm_Filter_Multiplier), D (Simplified_Gyro_Filter), D (Simplified_Gyro_Filter_Multiplier),
-      D (Motor_Output_Limit), D (Throttle_Limit_Type), D (Throttle_Limit_Percent), D (Throttle_Boost),
-      D (Throttle_Boost_Cutoff), D (Thrust_Linearization), D (GPS_Provider), D (GPS_Set_Home_Point_Once),
-      D (GPS_Use_3D_Speed));
+     ((One_Decimal, Mag_Hardware), (One_Decimal, Opticalflow_Hardware), (One_Decimal, Opticalflow_Rotation),
+      (One_Decimal, Opticalflow_Flip_X), (One_Decimal, Gyro_Cal_On_First_Arm),
+      (One_Decimal, Airmode_Activate_Throttle), (One_Decimal, Serial_RX_Provider), (One_Decimal, Use_Unsynced_PWM),
+      (One_Decimal, Motor_PWM_Protocol), (One_Decimal, Motor_PWM_Rate), (One_Decimal, Motor_Idle),
+      (One_Decimal, Debug_Mode), (Debug_Mode_Name_Line, I_Interval), (One_Decimal, Features),
+      (One_Decimal, RC_Smoothing), (One_Decimal, RC_Smoothing_Auto_Factor),
+      (One_Decimal, RC_Smoothing_Auto_Factor_Throttle), (One_Decimal, RC_Smoothing_Setpoint_Cutoff),
+      (One_Decimal, RC_Smoothing_Throttle_Cutoff), (One_Decimal, RC_Smoothing_Debug_Axis),
+      (Two_Decimal, RC_Smoothing_Setpoint_Cutoff_Frequency), (One_Decimal, RC_Smoothing_RX_Rate),
+      (One_Decimal, Rates_Type), (One_Decimal, Fields_Disabled_Mask), (One_Decimal, High_Resolution),
+      (One_Decimal, VBat_Sag_Compensation), (One_Decimal, Dyn_Idle_Min_RPM), (One_Decimal, Dyn_Idle_P_Gain),
+      (One_Decimal, Dyn_Idle_I_Gain), (One_Decimal, Dyn_Idle_D_Gain), (One_Decimal, Dyn_Idle_Max_Increase),
+      (One_Decimal, Simplified_PIDs_Mode), (One_Decimal, Simplified_Master_Multiplier),
+      (One_Decimal, Simplified_I_Gain), (One_Decimal, Simplified_D_Gain), (One_Decimal, Simplified_PI_Gain),
+      (One_Decimal, Simplified_D_Max_Gain), (One_Decimal, Simplified_Feedforward_Gain),
+      (One_Decimal, Simplified_Pitch_D_Gain), (One_Decimal, Simplified_Pitch_PI_Gain),
+      (One_Decimal, Simplified_DTerm_Filter), (One_Decimal, Simplified_DTerm_Filter_Multiplier),
+      (One_Decimal, Simplified_Gyro_Filter), (One_Decimal, Simplified_Gyro_Filter_Multiplier),
+      (One_Decimal, Motor_Output_Limit), (One_Decimal, Throttle_Limit_Type), (One_Decimal, Throttle_Limit_Percent),
+      (One_Decimal, Throttle_Boost), (One_Decimal, Throttle_Boost_Cutoff), (One_Decimal, Thrust_Linearization),
+      (One_Decimal, GPS_Provider), (One_Decimal, GPS_Set_Home_Point_Once), (One_Decimal, GPS_Use_3D_Speed));
 
    Rescue_Lines : constant Line_List :=
-     (D (GPS_Rescue_Min_Start_Dist), D (GPS_Rescue_Alt_Mode), D (GPS_Rescue_Initial_Climb),
-      D (GPS_Rescue_Ascend_Rate), D (GPS_Rescue_Return_Alt), D (GPS_Rescue_Ground_Speed),
-      D (GPS_Rescue_Descent_Dist), D (GPS_Rescue_Descend_Rate), D (GPS_Rescue_Sanity_Checks),
-      D (GPS_Rescue_Min_Sats), D (GPS_Rescue_Allow_Arming_Without_Fix), D (GPS_Rescue_Yaw_P),
-      D (Alt_Hold_Climb_Rate), D (Alt_Hold_Deadband), D (Pos_Hold_Deadband));
+     ((One_Decimal, GPS_Rescue_Min_Start_Dist), (One_Decimal, GPS_Rescue_Alt_Mode),
+      (One_Decimal, GPS_Rescue_Initial_Climb), (One_Decimal, GPS_Rescue_Ascend_Rate),
+      (One_Decimal, GPS_Rescue_Return_Alt), (One_Decimal, GPS_Rescue_Ground_Speed),
+      (One_Decimal, GPS_Rescue_Descent_Dist), (One_Decimal, GPS_Rescue_Descend_Rate),
+      (One_Decimal, GPS_Rescue_Sanity_Checks), (One_Decimal, GPS_Rescue_Min_Sats),
+      (One_Decimal, GPS_Rescue_Allow_Arming_Without_Fix), (One_Decimal, GPS_Rescue_Yaw_P),
+      (One_Decimal, Alt_Hold_Climb_Rate), (One_Decimal, Alt_Hold_Deadband), (One_Decimal, Pos_Hold_Deadband));
 
    Wing_Speed_Lines : constant Line_List :=
-     (D (TPA_Speed_Type), D (TPA_Speed_Basic_Delay), D (TPA_Speed_Basic_Gravity), D (TPA_Speed_Adv_Prop_Pitch),
-      D (TPA_Speed_Adv_Mass), D (TPA_Speed_Adv_Drag_K), D (TPA_Speed_Adv_Thrust), D (TPA_Speed_Max_Voltage),
-      D (TPA_Speed_Pitch_Offset), D (Yaw_Type), D (Angle_Pitch_Offset));
+     ((One_Decimal, TPA_Speed_Type), (One_Decimal, TPA_Speed_Basic_Delay), (One_Decimal, TPA_Speed_Basic_Gravity),
+      (One_Decimal, TPA_Speed_Adv_Prop_Pitch), (One_Decimal, TPA_Speed_Adv_Mass), (One_Decimal, TPA_Speed_Adv_Drag_K),
+      (One_Decimal, TPA_Speed_Adv_Thrust), (One_Decimal, TPA_Speed_Max_Voltage),
+      (One_Decimal, TPA_Speed_Pitch_Offset), (One_Decimal, Yaw_Type), (One_Decimal, Angle_Pitch_Offset));
 
    Multirotor_Lines : constant Line_List :=
      Common_Lines & Tuning_Lines & Sensor_Lines & Autopilot_Lines & System_Lines & Rescue_Lines;

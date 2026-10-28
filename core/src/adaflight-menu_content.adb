@@ -30,6 +30,8 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       return T;
    end Label;
 
+   No_Text : constant Adaflight.Menu.Label_Text := (Data => (others => ' '), Length => 0);
+
    function Code (E : Adaflight.Menu.Element) return Interfaces.Unsigned_16 is
      (Interfaces.Unsigned_16 (Adaflight.Menu.Element'Pos (E)));
 
@@ -42,12 +44,26 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       Has_Data : Boolean := False;
       Value    : Interfaces.Integer_32 := 0;
       Flags    : Interfaces.Unsigned_16 := 0;
-      Shown    : Adaflight.Menu.Label_Text := Label ("")) return Line
-   is
-     ((Text => Label (Text), Flags => Code (E) or Flags, Has_Data => Has_Data, Has_Func => Has_Func, Value => Value,
-       Value_Text => Shown, others => <>))
+      Shown    : Adaflight.Menu.Label_Text := No_Text) return Line
      with Pre  => Text'Length <= Adaflight.Menu.Max_Text and then E /= Adaflight.Menu.Fixed
-                  and then (Flags and Adaflight.Menu.Element_Mask) = 0;
+                  and then (Flags and Adaflight.Menu.Element_Mask) = 0,
+          Post => Make'Result = (Text => Label (Text), Flags => Code (E) or Flags, Has_Data => Has_Data,
+                                 Has_Func => Has_Func, Value => Value, Value_Text => Shown, others => <>);
+   pragma No_Inline (Make);
+
+   function Make
+     (Text     : String;
+      E        : Adaflight.Menu.Element;
+      Has_Func : Boolean := False;
+      Has_Data : Boolean := False;
+      Value    : Interfaces.Integer_32 := 0;
+      Flags    : Interfaces.Unsigned_16 := 0;
+      Shown    : Adaflight.Menu.Label_Text := No_Text) return Line
+   is
+   begin
+      return (Text => Label (Text), Flags => Code (E) or Flags, Has_Data => Has_Data, Has_Func => Has_Func,
+              Value => Value, Value_Text => Shown, others => <>);
+   end Make;
 
    Reboot : constant Interfaces.Unsigned_16 := Adaflight.Menu.Reboot_Required;
 
@@ -156,11 +172,35 @@ package body Adaflight.Menu_Content with SPARK_Mode is
    function Decimal (V : Interfaces.Unsigned_16; Width : Positive) return String
      renames Adaflight.Number_Text.Decimal;
 
-   Pit_Mode_Names : constant array (0 .. 2) of Adaflight.Menu.Label_Text :=
-     (Label ("---"), Label ("OFF"), Label ("ON "));
+   --  The menus' fixed value and element names in one text, each at its start for its length. The text
+   --  ends with room for a longest one, so every slice stays within it by its types.
+   Name_Pool_Length : constant := 1092;
+   Name_Text : constant String (1 .. Name_Pool_Length + 23) :=
+     "---OFFON ----FREERACECHANUSERPIRPOROFFLONL V1ONL V2ONLV21SCALECLIPNONEADCESCVIRTUALMSPAUTO-LANDDROPGPS-R"
+     & "ESCUEBEACONSTATUSBLACKWHITEREDORANGEYELLOWLIME_GREENMINT_GREENCYANLIGHT_BLUEDARK_VIOLETMAGENTADEEP_PINKF"
+     & "LASHSDCARDSERIAL1/11/21/41/81/16ON TIME  TOTAL ARMLAST ARM ON/ARM   LAUNCH TIMESCNDHDTH3RSSIRSSI DBMRSNR"
+     & "BATTERY VOLTAGEBATTERY USAGEAVG CELL VOLTAGEBATTERY EFFICIENCYCROSSHAIRSHORIZONHORIZON SIDEBARSUP/DOWN R"
+     & "EFERENCETIMER 1TIMER 2REMAINING TIME ESTIMATERTC DATETIMEADJUSTMENT RANGECORE TEMPERATUREANTI GRAVITYFLY"
+     & " MODECRAFT NAMETHROTTLEVTX CHANCURRENT (A)USED MAHGPS SPEEDGPS SATSGPS LATGPS LONHOME DIRHOME DISTFLIGHT"
+     & " DISTWP NUMBERWP LATWP LONWP ALTWP DISTWP DIRWP NEXTWP ETACOMPASS BARESC TEMPERATUREESC RPMALTITUDEPOWER"
+     & "ROLL PIDPITCH PIDYAW PIDPROFILESPID PROFILE NAMERATE PROFILE NAMEOSD PROFILE NAMEDEBUGDEBUG2WARNINGSDISA"
+     & "RMEDPIT ANGROL ANGHEADINGPOS HOLD READYVARIOG-FORCEMOTOR DIAGNOSTICLOG STATUSFLIP ARROWLINK QUALITYSTICK"
+     & " OVERLAY LEFTSTICK OVERLAY RIGHTLAP TIME CURRENTLAP TIME PREVIOUSLAP TIME BEST 3PILOT NAMERC CHANNELSCAM"
+     & "ERA FRAMETOTAL FLIGHTSAUX VALUELIDAR DISTSERIAL TEXT                       ";
+   type Name_Start is range 0 .. Name_Pool_Length;
+   type Name_Length is range 0 .. 23;
+   type Name_Ref is record
+      Start  : Name_Start;
+      Length : Name_Length;
+   end record;
+
+   function Pooled (R : Name_Ref) return Adaflight.Menu.Label_Text is
+     (Label (Name_Text (Natural (R.Start) + 1 .. Natural (R.Start) + Natural (R.Length))));
+
+   Pit_Mode_Names : constant array (0 .. 2) of Name_Ref := ((0, 3), (3, 3), (6, 3));
 
    function Pit_Mode_Name (Index : Natural) return Adaflight.Menu.Label_Text is
-     (if Index <= 2 then Pit_Mode_Names (Index) else Label (""));
+     (if Index <= 2 then Pooled (Pit_Mode_Names (Index)) else No_Text);
 
    --  The VTX device menus' names of the running table's bands, channels and
    --  power levels by index, the first for none.
@@ -169,126 +209,104 @@ package body Adaflight.Menu_Content with SPARK_Mode is
    function Band_Name (Run : Adaflight.VTX_Table.Table; Index : Natural) return Adaflight.Menu.Label_Text is
      (if Index = 0 then Label ("--------")
       elsif Index <= Natural (Run.Bands) then C_Text (Run.Names (Index))
-      else Label (""));
+      else No_Text);
    function Channel_Name (Run : Adaflight.VTX_Table.Table; Index : Natural) return Adaflight.Menu.Label_Text is
      (if Index = 0 then Label ("-")
       elsif Index <= Natural (Run.Channels) then C_Text ((1 => Run.Channel_Name (Index)))
-      else Label (""));
+      else No_Text);
    function Power_Name (Run : Adaflight.VTX_Table.Table; Index : Natural) return Adaflight.Menu.Label_Text is
      (if Index = 0 then Label ("---")
       elsif Index <= Natural (Run.Power_Levels) then C_Text (Run.Label (Index))
-      else Label (""));
+      else No_Text);
 
-   SA_Opmodel_Names    : constant array (0 .. 2) of Adaflight.Menu.Label_Text :=
-     (Label ("----"), Label ("FREE"), Label ("RACE"));
-   SA_Fsel_Names       : constant array (0 .. 1) of Adaflight.Menu.Label_Text := (Label ("CHAN"), Label ("USER"));
-   SA_Pit_F_Mode_Names : constant array (0 .. 2) of Adaflight.Menu.Label_Text :=
-     (Label ("---"), Label ("PIR"), Label ("POR"));
-   SA_Status_Names     : constant array (0 .. 3) of Adaflight.Menu.Label_Text :=
-     (Label ("OFFL"), Label ("ONL V1"), Label ("ONL V2"), Label ("ONLV21"));
+   SA_Opmodel_Names    : constant array (0 .. 2) of Name_Ref := ((9, 4), (13, 4), (17, 4));
+   SA_Fsel_Names       : constant array (0 .. 1) of Name_Ref := ((21, 4), (25, 4));
+   SA_Pit_F_Mode_Names : constant array (0 .. 2) of Name_Ref := ((0, 3), (29, 3), (32, 3));
+   SA_Status_Names     : constant array (0 .. 3) of Name_Ref := ((35, 4), (39, 6), (45, 6), (51, 6));
 
    function SA_Opmodel_Name (Index : Natural) return Adaflight.Menu.Label_Text is
-     (if Index <= 2 then SA_Opmodel_Names (Index) else Label (""));
+     (if Index <= 2 then Pooled (SA_Opmodel_Names (Index)) else No_Text);
    function SA_Fsel_Name (Index : Natural) return Adaflight.Menu.Label_Text is
-     (if Index <= 1 then SA_Fsel_Names (Index) else Label (""));
+     (if Index <= 1 then Pooled (SA_Fsel_Names (Index)) else No_Text);
    function SA_Pit_F_Mode_Name (Index : Natural) return Adaflight.Menu.Label_Text is
-     (if Index <= 2 then SA_Pit_F_Mode_Names (Index) else Label (""));
+     (if Index <= 2 then Pooled (SA_Pit_F_Mode_Names (Index)) else No_Text);
    function SA_Status_Name (Index : Natural) return Adaflight.Menu.Label_Text is
-     (if Index <= 3 then SA_Status_Names (Index) else Label (""));
+     (if Index <= 3 then Pooled (SA_Status_Names (Index)) else No_Text);
 
-   Throttle_Limit_Names : constant array (0 .. 2) of Adaflight.Menu.Label_Text :=
-     (Label ("OFF"), Label ("SCALE"), Label ("CLIP"));
+   Throttle_Limit_Names : constant array (0 .. 2) of Name_Ref := ((3, 3), (57, 5), (62, 4));
 
    function Throttle_Limit_Name (Index : Natural) return Adaflight.Menu.Label_Text is
-     (if Index <= 2 then Throttle_Limit_Names (Index) else Label (""));
+     (if Index <= 2 then Pooled (Throttle_Limit_Names (Index)) else No_Text);
 
-   Voltage_Meter_Names : constant array (0 .. 2) of Adaflight.Menu.Label_Text :=
-     (Label ("NONE"), Label ("ADC"), Label ("ESC"));
-   Current_Meter_Names : constant array (0 .. 4) of Adaflight.Menu.Label_Text :=
-     (Label ("NONE"), Label ("ADC"), Label ("VIRTUAL"), Label ("ESC"), Label ("MSP"));
-   Procedure_Names     : constant array (0 .. 2) of Adaflight.Menu.Label_Text :=
-     (Label ("AUTO-LAND"), Label ("DROP"), Label ("GPS-RESCUE"));
+   Voltage_Meter_Names : constant array (0 .. 2) of Name_Ref := ((66, 4), (70, 3), (73, 3));
+   Current_Meter_Names : constant array (0 .. 4) of Name_Ref := ((66, 4), (70, 3), (76, 7), (73, 3), (83, 3));
+   Procedure_Names     : constant array (0 .. 2) of Name_Ref := ((86, 9), (95, 4), (99, 10));
 
    function Voltage_Meter_Name (Index : Natural) return Adaflight.Menu.Label_Text is
-     (if Index <= 2 then Voltage_Meter_Names (Index) else Label (""));
+     (if Index <= 2 then Pooled (Voltage_Meter_Names (Index)) else No_Text);
    function Current_Meter_Name (Index : Natural) return Adaflight.Menu.Label_Text is
-     (if Index <= 4 then Current_Meter_Names (Index) else Label (""));
+     (if Index <= 4 then Pooled (Current_Meter_Names (Index)) else No_Text);
    function Procedure_Name (Index : Natural) return Adaflight.Menu.Label_Text is
-     (if Index <= 2 then Procedure_Names (Index) else Label (""));
+     (if Index <= 2 then Pooled (Procedure_Names (Index)) else No_Text);
 
-   LED_Profile_Names : constant array (0 .. LED_Profile_Count - 1) of Adaflight.Menu.Label_Text :=
-     (Label ("RACE"), Label ("BEACON"), Label ("STATUS"));
-   LED_Color_Names   : constant array (0 .. LED_Color_Count - 1) of Adaflight.Menu.Label_Text :=
-     (Label ("BLACK"), Label ("WHITE"), Label ("RED"), Label ("ORANGE"), Label ("YELLOW"), Label ("LIME_GREEN"),
-      Label ("GREEN"), Label ("MINT_GREEN"), Label ("CYAN"), Label ("LIGHT_BLUE"), Label ("BLUE"),
-      Label ("DARK_VIOLET"), Label ("MAGENTA"), Label ("DEEP_PINK"));
+   LED_Profile_Names : constant array (0 .. LED_Profile_Count - 1) of Name_Ref := ((17, 4), (109, 6), (115, 6));
+   LED_Color_Names   : constant array (0 .. LED_Color_Count - 1) of Name_Ref :=
+     ((121, 5), (126, 5), (131, 3), (134, 6), (140, 6), (146, 10), (151, 5), (156, 10), (166, 4), (170, 10), (176, 4),
+      (180, 11), (191, 7), (198, 9));
 
    function LED_Profile_Name (Index : Natural) return Adaflight.Menu.Label_Text is
-     (if Index < LED_Profile_Count then LED_Profile_Names (Index) else Label (""));
+     (if Index < LED_Profile_Count then Pooled (LED_Profile_Names (Index)) else No_Text);
    function LED_Color_Name (Index : Natural) return Adaflight.Menu.Label_Text is
-     (if Index < LED_Color_Count then LED_Color_Names (Index) else Label (""));
+     (if Index < LED_Color_Count then Pooled (LED_Color_Names (Index)) else No_Text);
 
-   Blackbox_Device_Names : constant array (0 .. 3) of Adaflight.Menu.Label_Text :=
-     (Label ("NONE"), Label ("FLASH"), Label ("SDCARD"), Label ("SERIAL"));
-   Blackbox_Rate_Names   : constant array (0 .. 4) of Adaflight.Menu.Label_Text :=
-     (Label ("1/1"), Label ("1/2"), Label ("1/4"), Label ("1/8"), Label ("1/16"));
+   Blackbox_Device_Names : constant array (0 .. 3) of Name_Ref := ((66, 4), (207, 5), (212, 6), (218, 6));
+   Blackbox_Rate_Names   : constant array (0 .. 4) of Name_Ref := ((224, 3), (227, 3), (230, 3), (233, 3), (236, 4));
 
    function Blackbox_Device_Name (Index : Natural) return Adaflight.Menu.Label_Text is
-     (if Index <= 3 then Blackbox_Device_Names (Index) else Label (""));
+     (if Index <= 3 then Pooled (Blackbox_Device_Names (Index)) else No_Text);
    function Blackbox_Rate_Name (Index : Natural) return Adaflight.Menu.Label_Text is
-     (if Index <= 4 then Blackbox_Rate_Names (Index) else Label (""));
+     (if Index <= 4 then Pooled (Blackbox_Rate_Names (Index)) else No_Text);
 
    use all type Adaflight.OSD_Elements.Item;
 
    --  The active elements menu's lines: an element's name and the element.
    type Element_Line is record
-      Name : Adaflight.Menu.Label_Text;
-      Item : Adaflight.OSD_Elements.Item;
+      Start  : Name_Start;
+      Length : Name_Length;
+      Item   : Adaflight.OSD_Elements.Item;
    end record;
-
-   function E (Name : String; Item : Adaflight.OSD_Elements.Item) return Element_Line is ((Label (Name), Item))
-     with Pre => Name'Length <= Adaflight.Menu.Max_Text;
 
    Active_Count : constant := 77;
 
    Active_Lines : constant array (1 .. Active_Count) of Element_Line :=
-     (E ("RSSI", RSSI_Value), E ("RSSI DBM", RSSI_Dbm_Value), E ("RSNR", RSNR_Value),
-      E ("BATTERY VOLTAGE", Main_Battery_Voltage), E ("BATTERY USAGE", Main_Battery_Usage),
-      E ("AVG CELL VOLTAGE", Average_Cell_Voltage), E ("BATTERY EFFICIENCY", Efficiency),
-      E ("CROSSHAIRS", Crosshairs), E ("HORIZON", Artificial_Horizon), E ("HORIZON SIDEBARS", Horizon_Sidebars),
-      E ("UP/DOWN REFERENCE", Up_Down_Reference), E ("TIMER 1", Timer_1), E ("TIMER 2", Timer_2),
-      E ("REMAINING TIME ESTIMATE", Remaining_Time_Estimate), E ("RTC DATETIME", RTC_Date_Time),
-      E ("ADJUSTMENT RANGE", Adjustment_Range), E ("CORE TEMPERATURE", Core_Temperature),
-      E ("ANTI GRAVITY", Anti_Gravity), E ("FLY MODE", Fly_Mode), E ("CRAFT NAME", Craft_Name),
-      E ("THROTTLE", Throttle_Position), E ("VTX CHAN", VTX_Channel), E ("CURRENT (A)", Current_Draw),
-      E ("USED MAH", MAh_Drawn), E ("GPS SPEED", GPS_Speed), E ("GPS SATS", GPS_Sats), E ("GPS LAT", GPS_Latitude),
-      E ("GPS LON", GPS_Longitude), E ("HOME DIR", Home_Direction), E ("HOME DIST", Home_Distance),
-      E ("FLIGHT DIST", Flight_Distance), E ("WP NUMBER", WP_Number), E ("WP LAT", WP_Current_Lat),
-      E ("WP LON", WP_Current_Lon), E ("WP ALT", WP_Current_Alt), E ("WP DIST", WP_Distance),
-      E ("WP DIR", WP_Direction), E ("WP NEXT", WP_Next_Number), E ("WP ETA", WP_ETA), E ("COMPASS BAR", Compass_Bar),
-      E ("ESC TEMPERATURE", ESC_Temperature), E ("ESC RPM", ESC_RPM), E ("ALTITUDE", Altitude), E ("POWER", Power),
-      E ("ROLL PID", Roll_PIDs), E ("PITCH PID", Pitch_PIDs), E ("YAW PID", Yaw_PIDs),
-      E ("PROFILES", PID_Rate_Profile), E ("PID PROFILE NAME", PID_Profile_Name),
-      E ("RATE PROFILE NAME", Rate_Profile_Name), E ("OSD PROFILE NAME", Profile_Name), E ("DEBUG", Debug),
-      E ("DEBUG2", Debug2), E ("WARNINGS", Warnings), E ("DISARMED", Disarmed), E ("PIT ANG", Pitch_Angle),
-      E ("ROL ANG", Roll_Angle), E ("HEADING", Numerical_Heading), E ("POS HOLD READY", Position_Hold_Ready),
-      E ("VARIO", Numerical_Vario), E ("G-FORCE", G_Force), E ("MOTOR DIAGNOSTIC", Motor_Diagnostics),
-      E ("LOG STATUS", Log_Status), E ("FLIP ARROW", Flip_Arrow), E ("LINK QUALITY", Link_Quality),
-      E ("STICK OVERLAY LEFT", Stick_Overlay_Left), E ("STICK OVERLAY RIGHT", Stick_Overlay_Right),
-      E ("LAP TIME CURRENT", GPS_Lap_Time_Current), E ("LAP TIME PREVIOUS", GPS_Lap_Time_Previous),
-      E ("LAP TIME BEST 3", GPS_Lap_Time_Best3), E ("PILOT NAME", Pilot_Name),
-      E ("RC CHANNELS", Adaflight.OSD_Elements.RC_Channels),
-      E ("CAMERA FRAME", Camera_Frame), E ("TOTAL FLIGHTS", Total_Flights), E ("AUX VALUE", Aux_Value),
-      E ("LIDAR DIST", Lidar_Distance), E ("SERIAL TEXT", Custom_Serial_Text));
+     ((296, 4, RSSI_Value), (300, 8, RSSI_Dbm_Value), (308, 4, RSNR_Value), (312, 15, Main_Battery_Voltage),
+      (327, 13, Main_Battery_Usage), (340, 16, Average_Cell_Voltage), (356, 18, Efficiency), (374, 10, Crosshairs),
+      (384, 7, Artificial_Horizon), (391, 16, Horizon_Sidebars), (407, 17, Up_Down_Reference), (424, 7, Timer_1),
+      (431, 7, Timer_2), (438, 23, Remaining_Time_Estimate), (461, 12, RTC_Date_Time), (473, 16, Adjustment_Range),
+      (489, 16, Core_Temperature), (505, 12, Anti_Gravity), (517, 8, Fly_Mode), (525, 10, Craft_Name),
+      (535, 8, Throttle_Position), (543, 8, VTX_Channel), (551, 11, Current_Draw), (562, 8, MAh_Drawn),
+      (570, 9, GPS_Speed), (579, 8, GPS_Sats), (587, 7, GPS_Latitude), (594, 7, GPS_Longitude),
+      (601, 8, Home_Direction), (609, 9, Home_Distance), (618, 11, Flight_Distance), (629, 9, WP_Number),
+      (638, 6, WP_Current_Lat), (644, 6, WP_Current_Lon), (650, 6, WP_Current_Alt), (656, 7, WP_Distance),
+      (663, 6, WP_Direction), (669, 7, WP_Next_Number), (676, 6, WP_ETA), (682, 11, Compass_Bar),
+      (693, 15, ESC_Temperature), (708, 7, ESC_RPM), (715, 8, Altitude), (723, 5, Power), (728, 8, Roll_PIDs),
+      (736, 9, Pitch_PIDs), (745, 7, Yaw_PIDs), (752, 8, PID_Rate_Profile), (760, 16, PID_Profile_Name),
+      (776, 17, Rate_Profile_Name), (793, 16, Profile_Name), (809, 5, Debug), (814, 6, Debug2), (820, 8, Warnings),
+      (828, 8, Disarmed), (836, 7, Pitch_Angle), (843, 7, Roll_Angle), (850, 7, Numerical_Heading),
+      (857, 14, Position_Hold_Ready), (871, 5, Numerical_Vario), (876, 7, G_Force), (883, 16, Motor_Diagnostics),
+      (899, 10, Log_Status), (909, 10, Flip_Arrow), (919, 12, Link_Quality), (931, 18, Stick_Overlay_Left),
+      (949, 19, Stick_Overlay_Right), (968, 16, GPS_Lap_Time_Current), (984, 17, GPS_Lap_Time_Previous),
+      (1001, 15, GPS_Lap_Time_Best3), (1016, 10, Pilot_Name), (1026, 11, Adaflight.OSD_Elements.RC_Channels),
+      (1037, 12, Camera_Frame), (1049, 13, Total_Flights), (1062, 9, Aux_Value), (1071, 10, Lidar_Distance),
+      (1081, 11, Custom_Serial_Text));
 
-   Timer_Source_Names    : constant array (0 .. 4) of Adaflight.Menu.Label_Text :=
-     (Label ("ON TIME  "), Label ("TOTAL ARM"), Label ("LAST ARM "), Label ("ON/ARM   "), Label ("LAUNCH TIME"));
-   Timer_Precision_Names : constant array (0 .. 1) of Adaflight.Menu.Label_Text := (Label ("SCND"), Label ("HDTH"));
+   Timer_Source_Names    : constant array (0 .. 4) of Name_Ref := ((240, 9), (249, 9), (258, 9), (267, 9), (276, 11));
+   Timer_Precision_Names : constant array (0 .. 1) of Name_Ref := ((287, 4), (291, 4));
 
    function Timer_Source_Name (Index : Natural) return Adaflight.Menu.Label_Text is
-     (if Index <= 4 then Timer_Source_Names (Index) else Label (""));
+     (if Index <= 4 then Pooled (Timer_Source_Names (Index)) else No_Text);
    function Timer_Precision_Name (Index : Natural) return Adaflight.Menu.Label_Text is
-     (if Index <= 1 then Timer_Precision_Names (Index) else Label (""));
+     (if Index <= 1 then Pooled (Timer_Precision_Names (Index)) else No_Text);
 
    --  A value's name from one of the command line's tables, empty past the
    --  table.
@@ -297,7 +315,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
    is
    begin
       if Index >= Adaflight.Settings_Table.Value_Count (Table) then
-         return Label ("");
+         return No_Text;
       end if;
       declare
          Name : constant String := Adaflight.Settings_Table.Value_Name (Table, Index);
@@ -341,7 +359,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
    end Profile_Text;
 
    function Profile_Name (Names : Profile_Texts; Index : Natural) return Adaflight.Menu.Label_Text is
-     (if Index <= 3 then Names (Index) else Label (""));
+     (if Index <= 3 then Names (Index) else No_Text);
 
    Debug_Count : constant Natural := Adaflight.Settings_Table.Value_Count (Adaflight.Settings_Table.Table_Debug);
 
@@ -1262,7 +1280,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       for K in Active_Lines'Range loop
          pragma Loop_Invariant (N = K and then Fixed_Below (M, N));
          Add (M, N,
-              (Text     => Active_Lines (K).Name,
+              (Text     => Pooled ((Active_Lines (K).Start, Active_Lines (K).Length)),
                Flags    => Code (Visible) or Dynamic,
                Has_Data => True,
                Value    =>
@@ -1522,11 +1540,10 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       M.Count := N;
    end Load_Launch_Control_Menu;
 
-   Profile_Target_Names : constant array (0 .. 3) of Adaflight.Menu.Label_Text :=
-     (Label ("-"), Label ("1"), Label ("2"), Label ("3"));
+   Profile_Target_Names : constant array (0 .. 3) of Name_Ref := ((0, 1), (44, 1), (50, 1), (295, 1));
 
    function Profile_Target_Name (Index : Natural) return Adaflight.Menu.Label_Text is
-     (if Index <= 3 then Profile_Target_Names (Index) else Label (""));
+     (if Index <= 3 then Pooled (Profile_Target_Names (Index)) else No_Text);
 
    procedure Load_Filter_Profile_Menu (T : Target; M : out Table)
      with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
@@ -2357,9 +2374,9 @@ package body Adaflight.Menu_Content with SPARK_Mode is
             if not T.Live.VTX_Present then
                T.VTX_Status := (Label ("VTX NOT RESPONDING"), Label ("OR NOT CONFIGURED"));
             elsif T.Live.VTX_Type = 0 then
-               T.VTX_Status := (Label ("UNSUPPORTED VTX TYPE"), Label (""));
+               T.VTX_Status := (Label ("UNSUPPORTED VTX TYPE"), No_Text);
             else
-               T.VTX_Status := (Label ("UNKNOWN VTX TYPE"), Label (""));
+               T.VTX_Status := (Label ("UNKNOWN VTX TYPE"), No_Text);
             end if;
          when OSD_Menu =>
             T.OSD.Profile := T.Config.Osd_Config.Osd_Profile_Index;
@@ -3570,13 +3587,13 @@ package body Adaflight.Menu_Content with SPARK_Mode is
                when 3 => Channel_Name (T.VTX_Table, Index),
                when 5 => Power_Name (T.VTX_Table, Index),
                when 6 => Pit_Mode_Name (Index),
-               when others => Label ("")),
+               when others => No_Text),
          when Frequency_Lines =>
            (case Line is
                when 3 => Power_Name (T.VTX_Table, Index),
                when 4 => Pit_Mode_Name (Index),
-               when others => Label ("")),
-         when Offline_Lines => Label (""));
+               when others => No_Text),
+         when Offline_Lines => No_Text);
 
    function Lookup (T : Target; Id : Menu_Id; Line : Natural; Index : Natural) return Adaflight.Menu.Label_Text is
    begin
@@ -3627,7 +3644,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
               elsif Id = VTX_Tramp_Menu and then Line = 3 then Band_Name (T.VTX_Table, Index)
               elsif Id = VTX_Tramp_Menu and then Line = 4 then Channel_Name (T.VTX_Table, Index)
               elsif Id = VTX_Tramp_Menu and then Line = 6 then Power_Name (T.VTX_Table, Index)
-              else Label (""));
+              else No_Text);
    end Lookup;
 
 end Adaflight.Menu_Content;
