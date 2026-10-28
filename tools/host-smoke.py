@@ -597,6 +597,8 @@ def main():
             check("flight log port assigned", "blackbox_uart set to UART6" in text, text[-120:])
             text = cli(sock, "set blackbox_mode = ALWAYS")
             check("flight log always on", "blackbox_mode set to ALWAYS" in text, text[-120:])
+            text = cli(sock, "adjrange 0 0 0 900 2100 1 0 0 0")
+            check("RC rate adjustment on AUX1 set", "adjrange 0 0 0 900 2100 1 0 0 0" in text, text[-120:])
             cli(sock, "set craft_name = ADAHOST")
             text = cli(sock, "set osd_craft_name_pos = 2122")
             check("craft name element placed", "osd_craft_name_pos set to 2122" in text, text[-120:])
@@ -649,6 +651,16 @@ def main():
             check("position estimate follows a 10 m GPS climb in the MSP altitude reply",
                   estimate is not None and 700 <= estimate <= 1300, repr(alt))
             gps.altitude = 545.4
+            tuning = msp(sock, 111)
+            before = tuning[0] if tuning else None
+            receiver.channels[4] = 1811
+            time.sleep(2.5)
+            receiver.channels[4] = 992
+            time.sleep(0.5)
+            tuning = msp(sock, 111)
+            after = tuning[0] if tuning else None
+            check("AUX1 high steps the RC rate up by the adjustment", before is not None and after is not None
+                  and 3 <= after - before <= 7, f"{before} {after}")
             data = read_all(log, 4.0) if log is not None else b""
             head = data.split(b"\n")
             check("flight log header starts the log", data.startswith(b"H Product:Blackbox flight data recorder by Nicholas Sherlock\nH Data version:2\n"),
