@@ -2577,6 +2577,36 @@ def main():
             for extra in (uart4, sock):
                 if extra is not None:
                     extra.close()
+        store = os.path.join(work, "altasl.bin")
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            for line in ("gps_provider = NMEA", "gps_uart = UART4", "osd_displayport_device = MAX7456",
+                         "vcd_video_system = PAL", "osd_altitude_pos = 34945"):
+                text = cli(sock, "set " + line)
+                check(f"sea level altitude {line}", line.replace(" = ", " set to ") in text, text[-120:])
+            text = cli(sock, "feature GPS")
+            check("sea level altitude GPS feature on", "Enabled GPS" in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store)
+        gps = GPS()
+        gps.start()
+        try:
+            deadline = time.time() + 15
+            while time.time() < deadline and "545.4" not in screen_row(store, 4):
+                time.sleep(0.2)
+            check("OSD altitude element's sea level variant shows the GPS altitude", "545.4" in screen_row(store, 4),
+                  repr(screen_row(store, 4)))
+        finally:
+            gps.stop.set()
+            stop(proc)
+            sock.close()
     print(f"host smoke: {'all checks passed' if not failures else str(len(failures)) + ' failed'}")
     sys.exit(1 if failures else 0)
 
