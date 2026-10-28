@@ -4,15 +4,17 @@
 --  processing, the failsafe's link state, and the CRSF telemetry sent back
 --  on the port with its speed negotiation and the MSP requests answered, on
 --  its two pins or, apart from CRSF, on its transmit pin alone, which Ghost
---  and EX Bus always take, and the Ghost telemetry with its MSP requests
---  answered in the receiver's quiet window. The other serial receiver
---  protocols and the FPORT and EX Bus telemetry wait for their drivers.
+--  and EX Bus always take, the Ghost telemetry with its MSP requests
+--  answered in the receiver's quiet window, and the EX Bus telemetry
+--  answering the receiver's requests. The other serial receiver protocols
+--  and the FPORT telemetry wait for their drivers.
 with Interfaces;
 with Adaflight.Bytes;
 with Adaflight.Config_Groups;
 with Adaflight.CRSF_Telemetry;
 with Adaflight.Failsafe;
 with Adaflight.GHST_Telemetry;
+with Adaflight.Jeti_Telemetry;
 with Adaflight.Receiver;
 with Adaflight.STM32.USART;
 package Adaflight.STM32.Radio is
@@ -35,6 +37,11 @@ package Adaflight.STM32.Radio is
    --  due, held until the receiver's quiet window.
    procedure Init_GHST_Telemetry (Settings : Adaflight.GHST_Telemetry.Settings; Feature_On : Boolean);
    procedure GHST_Telemetry_Step (Inp : Adaflight.GHST_Telemetry.Inputs);
+   --  The EX Bus telemetry's sensors, with the telemetry feature on and an
+   --  EX Bus link open, and one run of it in the telemetry task: the answer
+   --  to a fresh telemetry request, sent on the bus.
+   procedure Init_Jeti_Telemetry (Settings : Adaflight.Jeti_Telemetry.Settings; Feature_On : Boolean);
+   procedure Jeti_Telemetry_Step (Inp : Adaflight.Jeti_Telemetry.Inputs; Now_Us : Time_Us);
    --  Whether a serial receiver port is open, and whether it speaks CRSF.
    function Linked return Boolean;
    function Is_CRSF return Boolean;
