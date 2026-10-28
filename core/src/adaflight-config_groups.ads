@@ -1237,7 +1237,8 @@ package Adaflight.Config_Groups with SPARK_Mode is
         when others => 1);
 
    --  The values an array setting holds: one for the others.
-   function Element_Count (S : Setting) return Positive is
+   subtype Element_Count_Value is Positive range 1 .. 50;
+   function Element_Count (S : Setting) return Element_Count_Value is
      (case S is
         when Acc_Calibration => 4,
         when Mag_Calibration => 3,

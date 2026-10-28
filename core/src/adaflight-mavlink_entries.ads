@@ -10,7 +10,7 @@ package Adaflight.MAVLink_Entries with SPARK_Mode, Pure is
       CRC_Extra : Byte;
       Min_Len   : Byte;
       Max_Len   : Byte;
-   end record;
+   end record with Pack;
 
    Count : constant := 229;
    subtype Entry_Index is Natural range 0 .. Count - 1;

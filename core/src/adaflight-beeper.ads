@@ -56,7 +56,7 @@ package Adaflight.Beeper with SPARK_Mode is
    Max_Multi : constant := 32;
    Max_Steps : constant := 2 * Max_Multi + 1;
    subtype Step_Index is Natural range 0 .. Max_Steps - 1;
-   type Sequence is array (Step_Index) of Step;
+   type Sequence is array (Step_Index) of Step with Component_Size => 8;
 
    --  The sounds in priority order, the first the highest.
    Table_Size : constant := 24;

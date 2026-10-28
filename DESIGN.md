@@ -11170,3 +11170,120 @@ loop. The argument lists keep their line breaks and tabs as characters of the te
 
 On the STM32F4 image the change removes 3872 bytes of text, from 707024 to 703152. The help vectors replay
 unchanged.
+
+## D483. Setting values through the codec (2026-10-28)
+
+`Get` and `Set` (D164, D165) read and wrote each setting through its own alternative of a case over every setting,
+20096 bytes of code in the board image. A setting's value now lives in the bytes of its group in the codec's layout
+(D166). `Get` encodes the setting's group, or its profile's element, into a buffer and reads the setting's bytes at
+its offset. `Set` writes the bytes there and decodes the group back. The generator gives each setting its offset in
+that layout and a format: one, two or four bytes, signed or not, a bit of such a word, or a text the numbers leave
+to `Get_Text` and `Set_Text`. The format takes the field as the reference's command line reads it through the
+setting's type: the low bytes of a wider field, a Boolean's byte, and the field's own sign where the setting's type
+is as wide or wider. A write stores the bytes the read takes, which truncates the value as the reference's
+assignment through the setting's type does.
+
+The codec's encoder and decoder walk the registry and each profile group's profiles through one dispatcher per
+direction, which the setting accessors share, and a profile group's array has no codec of its own. The storage image
+keeps its layout.
+
+On the STM32F4 image the change removes 12028 bytes of text, from 703152 to 691124. The setting, write and storage
+vectors replay unchanged.
+
+## D484. Command line output in pieces (2026-10-28)
+
+The command line wrote 190 of its lines as one concatenation: the literals, the numbers from `Decimal` and the names
+joined on the secondary stack, then one `Put`. GNAT builds each concatenation with its lengths, an allocation and a
+copy per operand, about 80 bytes of code a line in the board image. These lines now put each run of literals and
+each other operand in turn, and an error line starts with `Put_Error` on its first part. The setting lines of a dump
+were already written this way, and every line's text is the same.
+
+On the STM32F4 image the change removes 15516 bytes of text, from 691124 to 675608. The command line vectors replay
+unchanged.
+
+## D485. Menu line builders (2026-10-28)
+
+Twenty-eight places in the menu content built an empty text with `Label ("")`, the line builder's default for its
+shown text among them, and each of the line builder's 131 calls inlined its expression body. The empty text is now a
+constant, and the line builder is a function called out of line whose postcondition states the line it builds, for
+the proofs of the menu loaders.
+
+On the STM32F4 image the change removes 4524 bytes of text, from 675608 to 671084. The menu vectors replay
+unchanged.
+
+## D486. Settings info in six bytes (2026-10-28)
+
+The settings table kept each setting's info as a packed record of 15 bytes, two thirds of it the minimum and maximum
+of 34 bits each and the group number. The generator now gives the distinct pairs of limits and the distinct group
+numbers a table each, 155 pairs and 81 groups for the oracle's build, and each setting's packed record keeps an index
+into each, six bytes in all. `Describe` builds the full record from the three tables, so its callers read the same
+info.
+
+On the STM32F4 image the change removes 4872 bytes of text, from 671084 to 666212. The settings vectors replay
+unchanged.
+
+## D487. Setting names in pair codes (2026-10-28)
+
+The 789 setting names took 13947 characters of flash. The generator now merges the most frequent pair of codes into
+a new code, 128 times, as byte pair encoding does, so a name is a run of codes: one below 128 is its character, a
+higher one stands for the token text of its merge. The names take 7566 codes and the tokens 367 characters. `Name`
+decodes a name's codes up to its length into a new string, and the codes and the tokens end with room for a longest
+name and token, so every read stays within them by the types alone. The codes sit in a function whose body is outside
+the proof: the decoder needs no fact about them, and a proof that took in all 7566 values ran out of memory.
+
+On the STM32F4 image the change removes 5612 bytes of text, from 666212 to 660600. The settings and command line
+vectors replay unchanged.
+
+## D488. Flight log labels from setting names (2026-10-28)
+
+170 of the flight log header's 229 labels are a setting's name. Those labels now come from the settings table's
+names (D487) through a table of each label's setting, and the header's own text keeps the 59 other labels in 824
+characters, where it held all of them in 3777.
+
+On the STM32F4 image the change removes 2428 bytes of text, from 660600 to 658172. The flight log header vectors
+replay unchanged.
+
+## D489. Static flight log header tables (2026-10-28)
+
+The flight log header's field tables and line lists were aggregates of calls to small constructor functions, so
+GNAT built them in RAM at elaboration with 3928 bytes of code. They are now plain record aggregates of static
+components, which GNAT places in flash, and the constructors are gone.
+
+On the STM32F4 image the change removes 1124 bytes of text and 2536 bytes of zeroed data, from 658172 to 657048 and
+from 154592 to 152056. The flight log vectors replay unchanged.
+
+## D490. Codec by runs of bytes (2026-10-28)
+
+The codec (D166, D483) wrote and read every field of every record through its own procedure call, 16 KB of code in
+the board image. The generator now lays out each group's record as GNAT does, every component at the next offset its
+alignment allows, and merges the fields that lie next to each other into runs, 241 for the oracle's build. Each run
+is an offset, a byte count and whether its bytes are Booleans. The codec copies a run's bytes between the
+configuration record and the data through an overlay at the record's address, and a Boolean byte read from the data
+becomes false for zero and true for any other value. Both targets are little-endian, and the data's layout keeps its
+order and widths.
+
+The board's debug information gives the same offset for each of the 4591 bytes as the runs, in all 101 groups. On
+the STM32F4 image the change removes 22328 bytes of text, from 657048 to 634720. The codec, storage and setting
+vectors replay unchanged.
+
+## D491. Table elements at their width (2026-10-28)
+
+A beeper sequence kept each of its 65 steps, from 0 to 255, as a 32-bit integer, and each MAVLink message entry its id
+and three bytes as four 32-bit integers. The sequences now take 8 bits per step, and the entry record is packed into
+24 bits of id and 8 bits for each byte, 6 bytes where it took 16.
+
+On the STM32F4 image the change removes 5788 bytes of text, from 634720 to 628932. The beeper and MAVLink vectors
+replay unchanged.
+
+## D492. Menu value names in a pool (2026-10-28)
+
+Sixteen menu name tables and the active elements table held their names as labels that calls built at elaboration:
+66 value names and 77 element names, each label 36 bytes of RAM, set by 2660 bytes of elaboration code. The names now
+sit in one text of 1092 characters. Each table holds a start and a length for each of its names, and `Pooled` builds
+the label when a menu line asks for it. The active elements table keeps each element beside its name's start and
+length, in flash.
+
+On the STM32F4 image the change removes 2384 bytes of text, from 628932 to 626548, and 5448 bytes of RAM. The menu
+runs recorded before replay unchanged. A new oracle run pages down through the active elements menu twice and turns
+every fifth element over, so the vectors now draw 137 of the 138 names. SmartAudio's offline status name is the one
+left out.
