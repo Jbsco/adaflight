@@ -11366,3 +11366,16 @@ into the board package with the reference's port names mapped to identifiers, an
 set a define over the file's. A CLRacing F4 names none, so its fresh configuration keeps the USB port alone in the
 slots. The host target names UART1 as its MSP UART, so its fresh configuration names UART1 in the second slot, and the
 host smoke checks that put another function on UART1 clear that slot first, as a user of the reference would.
+
+## D501. MSP ports from the MSP slots on the board (2026-10-28)
+
+The board served MSP on its USB port and UART1 at all times and stepped off UART1 while another function held it. It
+now opens its MSP ports as the reference does, after the serial functions the reference opens first: the allocation of
+D499 over the board's ports, with a port busy while one of those functions holds its UART. Each port runs at its rate,
+half duplex when the MSP configuration asks for it. The rules that were UART1's follow each line's UART: a line pauses
+while a function or a telemetry stream holds its UART, a device streaming MSP on it makes it a peripheral line, and a
+telemetry stream that lets go of it opens it again for MSP. The MSP display port draws on whichever board UART it
+names.
+
+A CLRacing F4 serves MSP on its USB port alone until a slot names a UART, as the reference does. The host smoke check
+moves MSP from UART1 to UART4 through the slots and draws the display port on UART4 through its implied port.
