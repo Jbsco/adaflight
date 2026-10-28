@@ -30,6 +30,8 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       return T;
    end Label;
 
+   No_Text : constant Adaflight.Menu.Label_Text := (Data => (others => ' '), Length => 0);
+
    function Code (E : Adaflight.Menu.Element) return Interfaces.Unsigned_16 is
      (Interfaces.Unsigned_16 (Adaflight.Menu.Element'Pos (E)));
 
@@ -42,12 +44,26 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       Has_Data : Boolean := False;
       Value    : Interfaces.Integer_32 := 0;
       Flags    : Interfaces.Unsigned_16 := 0;
-      Shown    : Adaflight.Menu.Label_Text := Label ("")) return Line
-   is
-     ((Text => Label (Text), Flags => Code (E) or Flags, Has_Data => Has_Data, Has_Func => Has_Func, Value => Value,
-       Value_Text => Shown, others => <>))
+      Shown    : Adaflight.Menu.Label_Text := No_Text) return Line
      with Pre  => Text'Length <= Adaflight.Menu.Max_Text and then E /= Adaflight.Menu.Fixed
-                  and then (Flags and Adaflight.Menu.Element_Mask) = 0;
+                  and then (Flags and Adaflight.Menu.Element_Mask) = 0,
+          Post => Make'Result = (Text => Label (Text), Flags => Code (E) or Flags, Has_Data => Has_Data,
+                                 Has_Func => Has_Func, Value => Value, Value_Text => Shown, others => <>);
+   pragma No_Inline (Make);
+
+   function Make
+     (Text     : String;
+      E        : Adaflight.Menu.Element;
+      Has_Func : Boolean := False;
+      Has_Data : Boolean := False;
+      Value    : Interfaces.Integer_32 := 0;
+      Flags    : Interfaces.Unsigned_16 := 0;
+      Shown    : Adaflight.Menu.Label_Text := No_Text) return Line
+   is
+   begin
+      return (Text => Label (Text), Flags => Code (E) or Flags, Has_Data => Has_Data, Has_Func => Has_Func,
+              Value => Value, Value_Text => Shown, others => <>);
+   end Make;
 
    Reboot : constant Interfaces.Unsigned_16 := Adaflight.Menu.Reboot_Required;
 
@@ -160,7 +176,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
      (Label ("---"), Label ("OFF"), Label ("ON "));
 
    function Pit_Mode_Name (Index : Natural) return Adaflight.Menu.Label_Text is
-     (if Index <= 2 then Pit_Mode_Names (Index) else Label (""));
+     (if Index <= 2 then Pit_Mode_Names (Index) else No_Text);
 
    --  The VTX device menus' names of the running table's bands, channels and
    --  power levels by index, the first for none.
@@ -169,15 +185,15 @@ package body Adaflight.Menu_Content with SPARK_Mode is
    function Band_Name (Run : Adaflight.VTX_Table.Table; Index : Natural) return Adaflight.Menu.Label_Text is
      (if Index = 0 then Label ("--------")
       elsif Index <= Natural (Run.Bands) then C_Text (Run.Names (Index))
-      else Label (""));
+      else No_Text);
    function Channel_Name (Run : Adaflight.VTX_Table.Table; Index : Natural) return Adaflight.Menu.Label_Text is
      (if Index = 0 then Label ("-")
       elsif Index <= Natural (Run.Channels) then C_Text ((1 => Run.Channel_Name (Index)))
-      else Label (""));
+      else No_Text);
    function Power_Name (Run : Adaflight.VTX_Table.Table; Index : Natural) return Adaflight.Menu.Label_Text is
      (if Index = 0 then Label ("---")
       elsif Index <= Natural (Run.Power_Levels) then C_Text (Run.Label (Index))
-      else Label (""));
+      else No_Text);
 
    SA_Opmodel_Names    : constant array (0 .. 2) of Adaflight.Menu.Label_Text :=
      (Label ("----"), Label ("FREE"), Label ("RACE"));
@@ -188,19 +204,19 @@ package body Adaflight.Menu_Content with SPARK_Mode is
      (Label ("OFFL"), Label ("ONL V1"), Label ("ONL V2"), Label ("ONLV21"));
 
    function SA_Opmodel_Name (Index : Natural) return Adaflight.Menu.Label_Text is
-     (if Index <= 2 then SA_Opmodel_Names (Index) else Label (""));
+     (if Index <= 2 then SA_Opmodel_Names (Index) else No_Text);
    function SA_Fsel_Name (Index : Natural) return Adaflight.Menu.Label_Text is
-     (if Index <= 1 then SA_Fsel_Names (Index) else Label (""));
+     (if Index <= 1 then SA_Fsel_Names (Index) else No_Text);
    function SA_Pit_F_Mode_Name (Index : Natural) return Adaflight.Menu.Label_Text is
-     (if Index <= 2 then SA_Pit_F_Mode_Names (Index) else Label (""));
+     (if Index <= 2 then SA_Pit_F_Mode_Names (Index) else No_Text);
    function SA_Status_Name (Index : Natural) return Adaflight.Menu.Label_Text is
-     (if Index <= 3 then SA_Status_Names (Index) else Label (""));
+     (if Index <= 3 then SA_Status_Names (Index) else No_Text);
 
    Throttle_Limit_Names : constant array (0 .. 2) of Adaflight.Menu.Label_Text :=
      (Label ("OFF"), Label ("SCALE"), Label ("CLIP"));
 
    function Throttle_Limit_Name (Index : Natural) return Adaflight.Menu.Label_Text is
-     (if Index <= 2 then Throttle_Limit_Names (Index) else Label (""));
+     (if Index <= 2 then Throttle_Limit_Names (Index) else No_Text);
 
    Voltage_Meter_Names : constant array (0 .. 2) of Adaflight.Menu.Label_Text :=
      (Label ("NONE"), Label ("ADC"), Label ("ESC"));
@@ -210,11 +226,11 @@ package body Adaflight.Menu_Content with SPARK_Mode is
      (Label ("AUTO-LAND"), Label ("DROP"), Label ("GPS-RESCUE"));
 
    function Voltage_Meter_Name (Index : Natural) return Adaflight.Menu.Label_Text is
-     (if Index <= 2 then Voltage_Meter_Names (Index) else Label (""));
+     (if Index <= 2 then Voltage_Meter_Names (Index) else No_Text);
    function Current_Meter_Name (Index : Natural) return Adaflight.Menu.Label_Text is
-     (if Index <= 4 then Current_Meter_Names (Index) else Label (""));
+     (if Index <= 4 then Current_Meter_Names (Index) else No_Text);
    function Procedure_Name (Index : Natural) return Adaflight.Menu.Label_Text is
-     (if Index <= 2 then Procedure_Names (Index) else Label (""));
+     (if Index <= 2 then Procedure_Names (Index) else No_Text);
 
    LED_Profile_Names : constant array (0 .. LED_Profile_Count - 1) of Adaflight.Menu.Label_Text :=
      (Label ("RACE"), Label ("BEACON"), Label ("STATUS"));
@@ -224,9 +240,9 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       Label ("DARK_VIOLET"), Label ("MAGENTA"), Label ("DEEP_PINK"));
 
    function LED_Profile_Name (Index : Natural) return Adaflight.Menu.Label_Text is
-     (if Index < LED_Profile_Count then LED_Profile_Names (Index) else Label (""));
+     (if Index < LED_Profile_Count then LED_Profile_Names (Index) else No_Text);
    function LED_Color_Name (Index : Natural) return Adaflight.Menu.Label_Text is
-     (if Index < LED_Color_Count then LED_Color_Names (Index) else Label (""));
+     (if Index < LED_Color_Count then LED_Color_Names (Index) else No_Text);
 
    Blackbox_Device_Names : constant array (0 .. 3) of Adaflight.Menu.Label_Text :=
      (Label ("NONE"), Label ("FLASH"), Label ("SDCARD"), Label ("SERIAL"));
@@ -234,9 +250,9 @@ package body Adaflight.Menu_Content with SPARK_Mode is
      (Label ("1/1"), Label ("1/2"), Label ("1/4"), Label ("1/8"), Label ("1/16"));
 
    function Blackbox_Device_Name (Index : Natural) return Adaflight.Menu.Label_Text is
-     (if Index <= 3 then Blackbox_Device_Names (Index) else Label (""));
+     (if Index <= 3 then Blackbox_Device_Names (Index) else No_Text);
    function Blackbox_Rate_Name (Index : Natural) return Adaflight.Menu.Label_Text is
-     (if Index <= 4 then Blackbox_Rate_Names (Index) else Label (""));
+     (if Index <= 4 then Blackbox_Rate_Names (Index) else No_Text);
 
    use all type Adaflight.OSD_Elements.Item;
 
@@ -286,9 +302,9 @@ package body Adaflight.Menu_Content with SPARK_Mode is
    Timer_Precision_Names : constant array (0 .. 1) of Adaflight.Menu.Label_Text := (Label ("SCND"), Label ("HDTH"));
 
    function Timer_Source_Name (Index : Natural) return Adaflight.Menu.Label_Text is
-     (if Index <= 4 then Timer_Source_Names (Index) else Label (""));
+     (if Index <= 4 then Timer_Source_Names (Index) else No_Text);
    function Timer_Precision_Name (Index : Natural) return Adaflight.Menu.Label_Text is
-     (if Index <= 1 then Timer_Precision_Names (Index) else Label (""));
+     (if Index <= 1 then Timer_Precision_Names (Index) else No_Text);
 
    --  A value's name from one of the command line's tables, empty past the
    --  table.
@@ -297,7 +313,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
    is
    begin
       if Index >= Adaflight.Settings_Table.Value_Count (Table) then
-         return Label ("");
+         return No_Text;
       end if;
       declare
          Name : constant String := Adaflight.Settings_Table.Value_Name (Table, Index);
@@ -341,7 +357,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
    end Profile_Text;
 
    function Profile_Name (Names : Profile_Texts; Index : Natural) return Adaflight.Menu.Label_Text is
-     (if Index <= 3 then Names (Index) else Label (""));
+     (if Index <= 3 then Names (Index) else No_Text);
 
    Debug_Count : constant Natural := Adaflight.Settings_Table.Value_Count (Adaflight.Settings_Table.Table_Debug);
 
@@ -1526,7 +1542,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
      (Label ("-"), Label ("1"), Label ("2"), Label ("3"));
 
    function Profile_Target_Name (Index : Natural) return Adaflight.Menu.Label_Text is
-     (if Index <= 3 then Profile_Target_Names (Index) else Label (""));
+     (if Index <= 3 then Profile_Target_Names (Index) else No_Text);
 
    procedure Load_Filter_Profile_Menu (T : Target; M : out Table)
      with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
@@ -2357,9 +2373,9 @@ package body Adaflight.Menu_Content with SPARK_Mode is
             if not T.Live.VTX_Present then
                T.VTX_Status := (Label ("VTX NOT RESPONDING"), Label ("OR NOT CONFIGURED"));
             elsif T.Live.VTX_Type = 0 then
-               T.VTX_Status := (Label ("UNSUPPORTED VTX TYPE"), Label (""));
+               T.VTX_Status := (Label ("UNSUPPORTED VTX TYPE"), No_Text);
             else
-               T.VTX_Status := (Label ("UNKNOWN VTX TYPE"), Label (""));
+               T.VTX_Status := (Label ("UNKNOWN VTX TYPE"), No_Text);
             end if;
          when OSD_Menu =>
             T.OSD.Profile := T.Config.Osd_Config.Osd_Profile_Index;
@@ -3570,13 +3586,13 @@ package body Adaflight.Menu_Content with SPARK_Mode is
                when 3 => Channel_Name (T.VTX_Table, Index),
                when 5 => Power_Name (T.VTX_Table, Index),
                when 6 => Pit_Mode_Name (Index),
-               when others => Label ("")),
+               when others => No_Text),
          when Frequency_Lines =>
            (case Line is
                when 3 => Power_Name (T.VTX_Table, Index),
                when 4 => Pit_Mode_Name (Index),
-               when others => Label ("")),
-         when Offline_Lines => Label (""));
+               when others => No_Text),
+         when Offline_Lines => No_Text);
 
    function Lookup (T : Target; Id : Menu_Id; Line : Natural; Index : Natural) return Adaflight.Menu.Label_Text is
    begin
@@ -3627,7 +3643,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
               elsif Id = VTX_Tramp_Menu and then Line = 3 then Band_Name (T.VTX_Table, Index)
               elsif Id = VTX_Tramp_Menu and then Line = 4 then Channel_Name (T.VTX_Table, Index)
               elsif Id = VTX_Tramp_Menu and then Line = 6 then Power_Name (T.VTX_Table, Index)
-              else Label (""));
+              else No_Text);
    end Lookup;
 
 end Adaflight.Menu_Content;

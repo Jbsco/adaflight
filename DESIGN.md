@@ -11200,3 +11200,13 @@ were already written this way, and every line's text is the same.
 
 On the STM32F4 image the change removes 15516 bytes of text, from 691124 to 675608. The command line vectors replay
 unchanged.
+
+## D485. Menu line builders (2026-10-28)
+
+Twenty-eight places in the menu content built an empty text with `Label ("")`, the line builder's default for its
+shown text among them, and each of the line builder's 131 calls inlined its expression body. The empty text is now a
+constant, and the line builder is a function called out of line whose postcondition states the line it builds, for
+the proofs of the menu loaders.
+
+On the STM32F4 image the change removes 4524 bytes of text, from 675608 to 671084. The menu vectors replay
+unchanged.
