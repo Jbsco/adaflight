@@ -4585,6 +4585,78 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end if;
    end Help_Entry;
 
+   --  The help descriptions and argument lists in one text, each at its start for its length. The text
+   --  ends with room for a longest one, so every slice stays within it by its types.
+   Help_Pool_Length : constant := 2784;
+   Help_Text : constant String (1 .. Help_Pool_Length + 216) :=
+     "configure adjustment rangesconfigure modesstart or end a batch of commandsenable/disable Dshot beaco"
+     & "n for a conditionenable/disable beeper for a conditioninitiate binding for RX SPI, SRXL2 or CRSFrebo"
+     & "ot into bootloaderget / set the name of the board modelconfigure colorsreset to defaults and rebootl"
+     & "ist configuration changes from defaultshow DMA assignmentsdisplay dshot telemetry info and statsprog"
+     & "ram DShot ESC(s)dump configurationshow environment (version + status as NAME=VALUE)passthrough esc t"
+     & "o serialexit command line interface and reboot (default)configure featureserase flash chipshow flash"
+     & " chip infoscan flash device for errorsget variable valuepassthrough gps to serialdump gyro config re"
+     & "gisters contentsdisplay command helpconfigure ledsget / set the id of the board manufacturerconfigur"
+     & "e rc channel orderid of the microcontrollerconfigure mixercustom motor mixerconfigure mode and speci"
+     & "al colorsget/set motorswitch into msc modeshow build optionsshow attached peripheralschange battery "
+     & "profilechange profilechange rate profileshow rc_smoothing operational settingsshow/set resourcesshow"
+     & "/set rx failsafe settingsconfigure rx channel rangessave and reboot (default)sdcard infolist support"
+     & "ed sensor hardwareshow port assignments as set commandspassthrough serial data data from port 1 to V"
+     & "CP / port 2configure servoschange settingget / set the board type signatureapplies or disables simpl"
+     & "ified tuningservo mixershow statusshow task statsshow versionvtx channels on switchvtx power config "
+     & "dumpvtx frequency tableconfigure waypoints<index> <unused> <range channel> <start> <end> <function> "
+     & "<select channel> [<center> <scale>]<index> <mode> <aux> <start> <end> <logic>start | endlist" & ASCII.CR
+     & ASCII.LF & ASCII.HT
+     & "<->[name][rom][board name]{nosave}[master|profile|rates|hardware|all] {defaults|bare}<index> <comman"
+     & "d>+[prefix]<mode [sk/bl/ki/cc]> <index>[noreboot]<address> <length><address> <message>[search string"
+     & "][manufacturer id][<map>]list" & ASCII.CR & ASCII.LF & ASCII.HT
+     & "<name><index> [<value>][<timezone offset minutes>][<index>]<> | <resource name> <index> [<pin>|none]"
+     & " | show [all][gyro|acc|baro|mag|rangefinder|opticalflow|pitot][<identifier> <function mask> <msp bau"
+     & "d> <gps baud> <telemetry baud> <blackbox baud> (deprecated)]<id1> [<baud1>] [<mode1>] [none|<dtr pin"
+     & "io>|reset] [<id2>] [<baud2>] [<mode2>][<name>=<value>][signature]apply | disable<rule> <servo> <sour"
+     & "ce> <rate> <speed> <min> <max> <box>" & ASCII.CR & ASCII.LF & ASCII.HT & "reset" & ASCII.CR & ASCII.LF
+     & ASCII.HT & "load <mixer>" & ASCII.CR & ASCII.LF & ASCII.HT
+     & "reverse <servo> <source> r|n<index> <aux_channel> <vtx_band> <vtx_channel> <vtx_power> <start_range>"
+     & " <end_range><band> <bandname> <bandletter> [FACTORY|CUSTOM] <freq> ... <freq>" & ASCII.CR & ASCII.LF
+     & "list | status | insert <idx> <lat.ddddddd> <lon.ddddddd> <alt> <spd> <type> <dur> <pat> [<vrate> <ya"
+     & "w>] | update <idx> <lat.ddddddd> <lon.ddddddd> <alt> <spd> <type> <dur> <pat> [<vrate> <yaw>] | remo"
+     & "ve <idx> | clear                                                                                    "
+     & "                                                                                                    "
+     & "                                ";
+   type Help_Start is range 0 .. Help_Pool_Length;
+   type Description_Length is range 0 .. 56;
+   type Arguments_Length is range 0 .. 216;
+   Description_Starts : constant array (Command_Position) of Help_Start :=
+     (1 => 0, 2 => 27, 3 => 42, 4 => 74, 5 => 117, 6 => 154, 7 => 196, 8 => 218, 9 => 255, 10 => 271, 11 => 299,
+      12 => 338, 13 => 358, 14 => 396, 15 => 416, 16 => 434, 17 => 483, 18 => 508, 19 => 556, 20 => 574, 21 => 590,
+      22 => 0, 23 => 610, 24 => 0, 25 => 638, 26 => 656, 27 => 681, 28 => 716, 29 => 736, 30 => 750, 31 => 792,
+      32 => 818, 33 => 843, 34 => 858, 35 => 876, 36 => 909, 37 => 922, 38 => 942, 39 => 960, 40 => 0, 41 => 985,
+      42 => 1007, 43 => 1021, 44 => 1040, 45 => 1078, 46 => 1096, 47 => 1125, 48 => 1152, 49 => 1177, 50 => 1188,
+      51 => 1218, 52 => 1255, 53 => 1311, 54 => 1327, 55 => 1341, 56 => 1375, 57 => 1412, 58 => 1423, 59 => 1434,
+      60 => 1449, 61 => 1461, 62 => 1483, 63 => 1504, 64 => 1523);
+   Description_Lengths : constant array (Command_Position) of Description_Length :=
+     (1 => 27, 2 => 15, 3 => 32, 4 => 43, 5 => 37, 6 => 42, 7 => 22, 8 => 37, 9 => 16, 10 => 28, 11 => 39, 12 => 20,
+      13 => 38, 14 => 20, 15 => 18, 16 => 49, 17 => 25, 18 => 48, 19 => 18, 20 => 16, 21 => 20, 22 => 0, 23 => 28,
+      24 => 0, 25 => 18, 26 => 25, 27 => 35, 28 => 20, 29 => 14, 30 => 42, 31 => 26, 32 => 25, 33 => 15, 34 => 18,
+      35 => 33, 36 => 13, 37 => 20, 38 => 18, 39 => 25, 40 => 0, 41 => 22, 42 => 14, 43 => 19, 44 => 38, 45 => 18,
+      46 => 29, 47 => 27, 48 => 25, 49 => 11, 50 => 30, 51 => 37, 52 => 56, 53 => 16, 54 => 14, 55 => 34, 56 => 37,
+      57 => 11, 58 => 11, 59 => 15, 60 => 12, 61 => 22, 62 => 21, 63 => 19, 64 => 19);
+   Arguments_Starts : constant array (Command_Position) of Help_Start :=
+     (1 => 1542, 2 => 1635, 3 => 1677, 4 => 1688, 5 => 1688, 6 => 0, 7 => 1704, 8 => 1709, 9 => 0, 10 => 1721,
+      11 => 1729, 12 => 338, 13 => 0, 14 => 1780, 15 => 1729, 16 => 1798, 17 => 1806, 18 => 1834, 19 => 1688,
+      20 => 0, 21 => 0, 22 => 1844, 23 => 0, 24 => 1862, 25 => 1698, 26 => 0, 27 => 0, 28 => 1881, 29 => 0,
+      30 => 1896, 31 => 1913, 32 => 0, 33 => 1920, 34 => 0, 35 => 0, 36 => 1933, 37 => 1950, 38 => 0, 39 => 0,
+      40 => 1977, 41 => 1977, 42 => 1977, 43 => 1977, 44 => 0, 45 => 1986, 46 => 0, 47 => 0, 48 => 1834, 49 => 0,
+      50 => 2040, 51 => 2089, 52 => 2187, 53 => 0, 54 => 2265, 55 => 2281, 56 => 2292, 57 => 2307, 58 => 0, 59 => 0,
+      60 => 0, 61 => 2417, 62 => 0, 63 => 2501, 64 => 2568);
+   Arguments_Lengths : constant array (Command_Position) of Arguments_Length :=
+     (1 => 93, 2 => 42, 3 => 11, 4 => 16, 5 => 16, 6 => 0, 7 => 5, 8 => 12, 9 => 0, 10 => 8, 11 => 51, 12 => 4,
+      13 => 0, 14 => 18, 15 => 51, 16 => 8, 17 => 28, 18 => 10, 19 => 16, 20 => 0, 21 => 0, 22 => 18, 23 => 0,
+      24 => 19, 25 => 6, 26 => 0, 27 => 0, 28 => 15, 29 => 0, 30 => 17, 31 => 7, 32 => 0, 33 => 13, 34 => 0,
+      35 => 0, 36 => 17, 37 => 27, 38 => 0, 39 => 0, 40 => 9, 41 => 9, 42 => 9, 43 => 9, 44 => 0, 45 => 54, 46 => 0,
+      47 => 0, 48 => 10, 49 => 0, 50 => 49, 51 => 98, 52 => 78, 53 => 0, 54 => 16, 55 => 11, 56 => 15, 57 => 110,
+      58 => 0, 59 => 0, 60 => 0, 61 => 84, 62 => 0, 63 => 67, 64 => 216);
+
    --  help: the entry of every command the build has, or of those whose
    --  name or description holds the search, else the no-match error.
    procedure Help_Command (Into : in out Output; Search : String)
@@ -4593,101 +4665,15 @@ package body Adaflight.Command_Line with SPARK_Mode is
    is
       Any : Boolean := False;
    begin
-      Help_Entry
-        (Into, Search, "adjrange", "configure adjustment ranges",
-         "<index> <unused> <range channel> <start> <end> <function> <select channel> " & "[<center> <scale>]", Any);
-      Help_Entry (Into, Search, "aux", "configure modes", "<index> <mode> <aux> <start> <end> <logic>", Any);
-      Help_Entry (Into, Search, "batch", "start or end a batch of commands", "start | end", Any);
-      Help_Entry
-        (Into, Search, "beacon", "enable/disable Dshot beacon for a condition",
-         "list" & CRLF & ASCII.HT & "<->[name]", Any);
-      Help_Entry
-        (Into, Search, "beeper", "enable/disable beeper for a condition",
-         "list" & CRLF & ASCII.HT & "<->[name]", Any);
-      Help_Entry (Into, Search, "bind_rx", "initiate binding for RX SPI, SRXL2 or CRSF", "", Any);
-      Help_Entry (Into, Search, "bl", "reboot into bootloader", "[rom]", Any);
-      Help_Entry (Into, Search, "board_name", "get / set the name of the board model", "[board name]", Any);
-      Help_Entry (Into, Search, "color", "configure colors", "", Any);
-      Help_Entry (Into, Search, "defaults", "reset to defaults and reboot", "{nosave}", Any);
-      Help_Entry
-        (Into, Search, "diff", "list configuration changes from default",
-         "[master|profile|rates|hardware|all] {defaults|bare}", Any);
-      Help_Entry (Into, Search, "dma", "show DMA assignments", "show", Any);
-      Help_Entry (Into, Search, "dshot_telemetry_info", "display dshot telemetry info and stats", "", Any);
-      Help_Entry (Into, Search, "dshotprog", "program DShot ESC(s)", "<index> <command>+", Any);
-      Help_Entry
-        (Into, Search, "dump", "dump configuration",
-         "[master|profile|rates|hardware|all] {defaults|bare}", Any);
-      Help_Entry (Into, Search, "env", "show environment (version + status as NAME=VALUE)", "[prefix]", Any);
-      Help_Entry (Into, Search, "escprog", "passthrough esc to serial", "<mode [sk/bl/ki/cc]> <index>", Any);
-      Help_Entry (Into, Search, "exit", "exit command line interface and reboot (default)", "[noreboot]", Any);
-      Help_Entry (Into, Search, "feature", "configure features", "list" & CRLF & ASCII.HT & "<->[name]", Any);
-      Help_Entry (Into, Search, "flash_erase", "erase flash chip", "", Any);
-      Help_Entry (Into, Search, "flash_info", "show flash chip info", "", Any);
-      Help_Entry (Into, Search, "flash_read", "", "<address> <length>", Any);
-      Help_Entry (Into, Search, "flash_scan", "scan flash device for errors", "", Any);
-      Help_Entry (Into, Search, "flash_write", "", "<address> <message>", Any);
-      Help_Entry (Into, Search, "get", "get variable value", "[name]", Any);
-      Help_Entry (Into, Search, "gpspassthrough", "passthrough gps to serial", "", Any);
-      Help_Entry (Into, Search, "gyroregisters", "dump gyro config registers contents", "", Any);
-      Help_Entry (Into, Search, "help", "display command help", "[search string]", Any);
-      Help_Entry (Into, Search, "led", "configure leds", "", Any);
-      Help_Entry
-        (Into, Search, "manufacturer_id", "get / set the id of the board manufacturer",
-         "[manufacturer id]", Any);
-      Help_Entry (Into, Search, "map", "configure rc channel order", "[<map>]", Any);
-      Help_Entry (Into, Search, "mcu_id", "id of the microcontroller", "", Any);
-      Help_Entry (Into, Search, "mixer", "configure mixer", "list" & CRLF & ASCII.HT & "<name>", Any);
-      Help_Entry (Into, Search, "mmix", "custom motor mixer", "", Any);
-      Help_Entry (Into, Search, "mode_color", "configure mode and special colors", "", Any);
-      Help_Entry (Into, Search, "motor", "get/set motor", "<index> [<value>]", Any);
-      Help_Entry (Into, Search, "msc", "switch into msc mode", "[<timezone offset minutes>]", Any);
-      Help_Entry (Into, Search, "options", "show build options", "", Any);
-      Help_Entry (Into, Search, "peripherals", "show attached peripherals", "", Any);
-      Help_Entry (Into, Search, "play_sound", "", "[<index>]", Any);
-      Help_Entry (Into, Search, "battery_profile", "change battery profile", "[<index>]", Any);
-      Help_Entry (Into, Search, "profile", "change profile", "[<index>]", Any);
-      Help_Entry (Into, Search, "rateprofile", "change rate profile", "[<index>]", Any);
-      Help_Entry (Into, Search, "rc_smoothing_info", "show rc_smoothing operational settings", "", Any);
-      Help_Entry
-        (Into, Search, "resource", "show/set resources", "<> | <resource name> <index> [<pin>|none] | show [all]", Any);
-      Help_Entry (Into, Search, "rxfail", "show/set rx failsafe settings", "", Any);
-      Help_Entry (Into, Search, "rxrange", "configure rx channel ranges", "", Any);
-      Help_Entry (Into, Search, "save", "save and reboot (default)", "[noreboot]", Any);
-      Help_Entry (Into, Search, "sd_info", "sdcard info", "", Any);
-      Help_Entry
-        (Into, Search, "sensor_hardware", "list supported sensor hardware",
-         "[gyro|acc|baro|mag|rangefinder|opticalflow|pitot]", Any);
-      Help_Entry
-        (Into, Search, "serial", "show port assignments as set commands",
-         "[<identifier> <function mask> <msp baud> <gps baud> <telemetry baud> <blackbox "
-         & "baud> (deprecated)]", Any);
-      Help_Entry
-        (Into, Search, "serialpassthrough", "passthrough serial data data from port 1 to VCP / port 2",
-         "<id1> [<baud1>] [<mode1>] [none|<dtr pinio>|reset] [<id2>] [<baud2>] [<mode2>]", Any);
-      Help_Entry (Into, Search, "servo", "configure servos", "", Any);
-      Help_Entry (Into, Search, "set", "change setting", "[<name>=<value>]", Any);
-      Help_Entry (Into, Search, "signature", "get / set the board type signature", "[signature]", Any);
-      Help_Entry (Into, Search, "simplified_tuning", "applies or disables simplified tuning", "apply | disable", Any);
-      Help_Entry
-        (Into, Search, "smix", "servo mixer",
-         "<rule> <servo> <source> <rate> <speed> <min> <max> <box>" & CRLF & ASCII.HT & "reset" & CRLF
-         & ASCII.HT & "load <mixer>" & CRLF & ASCII.HT & "reverse <servo> <source> r|n", Any);
-      Help_Entry (Into, Search, "status", "show status", "", Any);
-      Help_Entry (Into, Search, "tasks", "show task stats", "", Any);
-      Help_Entry (Into, Search, "version", "show version", "", Any);
-      Help_Entry
-        (Into, Search, "vtx", "vtx channels on switch",
-         "<index> <aux_channel> <vtx_band> <vtx_channel> <vtx_power> <start_range> " & "<end_range>", Any);
-      Help_Entry (Into, Search, "vtx_info", "vtx power config dump", "", Any);
-      Help_Entry
-        (Into, Search, "vtxtable", "vtx frequency table",
-         "<band> <bandname> <bandletter> [FACTORY|CUSTOM] <freq> ... <freq>" & CRLF, Any);
-      Help_Entry
-        (Into, Search, "waypoint", "configure waypoints",
-         "list | status | insert <idx> <lat.ddddddd> <lon.ddddddd> <alt> <spd> <type> "
-         & "<dur> <pat> [<vrate> <yaw>] | update <idx> <lat.ddddddd> <lon.ddddddd> <alt> "
-         & "<spd> <type> <dur> <pat> [<vrate> <yaw>] | remove <idx> | clear", Any);
+      for P in Command_Position loop
+         Help_Entry
+           (Into, Search, Command_Name (P),
+            Help_Text (Natural (Description_Starts (P)) + 1
+                       .. Natural (Description_Starts (P)) + Natural (Description_Lengths (P))),
+            Help_Text (Natural (Arguments_Starts (P)) + 1
+                       .. Natural (Arguments_Starts (P)) + Natural (Arguments_Lengths (P))),
+            Any);
+      end loop;
       if Search'Length > 0 and then not Any then
          Put_Error (Into, "help: NO MATCHES FOR '" & Search & "'###" & CRLF);
       end if;

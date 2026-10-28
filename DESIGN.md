@@ -11160,3 +11160,13 @@ The resource owner names keep their first index of one.
 
 On the STM32F4 image the change removes 23944 bytes of text, from 730968 to 707024, 10072 of them for the header's
 labels. The vectors and the host smoke check replay unchanged.
+
+## D482. Help texts in a pool (2026-10-28)
+
+The help command called its entry printer once per command with the command's name, description and argument list
+as literals, 4260 bytes of code in the board image. The descriptions and argument lists now sit in one text with a
+start and a length for each, the names come from the command name table, and the command walks the commands in a
+loop. The argument lists keep their line breaks and tabs as characters of the text.
+
+On the STM32F4 image the change removes 3872 bytes of text, from 707024 to 703152. The help vectors replay
+unchanged.
