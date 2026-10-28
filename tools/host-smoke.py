@@ -2404,6 +2404,34 @@ def main():
         finally:
             stop(proc)
             sock.close()
+        store = os.path.join(work, "coretemp.bin")
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            status = msp(sock, 101)
+            check("MSP status reply contains the core temperature",
+                  status is not None and len(status) >= 5 and int.from_bytes(status[-5:-3], "little", signed=True) == 40,
+                  repr(status))
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "status")
+            check("status line shows the measured supply and the core temperature",
+                  "Vref=3.30V, Core temp=40degC" in text, text[-240:])
+            for line in ("osd_displayport_device = MAX7456", "vcd_video_system = PAL", "osd_core_temp_pos = 2177"):
+                text = cli(sock, "set " + line)
+                check(f"core temperature element {line}", line.replace(" = ", " set to ") in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store)
+        try:
+            check("OSD core temperature element shows the internal sensor's 40 degrees", screen_wait(store, "Cz 40."),
+                  repr(screen_row(store, 4)))
+        finally:
+            stop(proc)
+            sock.close()
         store = os.path.join(work, "laps.bin")
         proc, sock = start(image, store)
         try:

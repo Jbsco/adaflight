@@ -162,6 +162,7 @@ package Adaflight.STM32.OSD is
       Adjustment_Name    : Adaflight.OSD_Render.Name;
       Adjustment_Value   : Interfaces.Integer_32 := 0;
       Total_Flights      : Interfaces.Unsigned_32 := 0;
+      Core_Temperature   : Interfaces.Integer_16 := 0;
       Total_Time_S       : Interfaces.Unsigned_32 := 0;
       Total_Dist_M       : Interfaces.Unsigned_32 := 0;
       Vario             : Interfaces.Integer_16 := 0;

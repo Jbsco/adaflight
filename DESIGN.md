@@ -11061,3 +11061,25 @@ were: 3300 mV in every fifth sequence, else a level from 2900 to 3600 mV with a 
 sequence kind a reading anywhere up to 16000 mV one step in 40. The sequences at 3300 mV replay the earlier
 vectors line for line with the supply column added. Every voltage, current, state, energy and percentage of
 the regenerated battery, sag and event vectors replays bit for bit.
+
+## D477. STM32F4 core temperature and measured supply (2026-10-28)
+
+The board converts two internal channels of ADC1 as an injected sequence of 480 sample cycles each: the band gap
+reference on channel 17, then the temperature sensor on channel 16. Scan mode and the sensors are on. The
+calibration comes from the stored overrides, or from the chip's words where an override is zero. Nine passes of
+the internal ADC task at startup fill the averages, the first of them on the empty result registers. The task then
+runs at 1 Hz: once the started conversion ends, it hands both readings to the internal ADC unit (D75) and starts
+the next conversion.
+
+The measured supply scales the battery's analog meters (D476), held to 16000 mV. The core temperature reaches the
+MSP status reply, the command line's status line and system values, the OSD's core temperature element and
+warning, and SmartPort's T11 sensor. A conversion of an analog pin now clears only its own end of conversion flag,
+so it leaves the flag that ends the internal sequence alone.
+
+The slope is eighty degrees in thousandths over the difference of the two sensor calibration readings, zero for
+equal readings as the processor's division gives (F303), and held to the internal ADC unit's bound of ten thousand
+(F96). Only overrides fewer than eight counts apart reach the bound.
+
+The host model reads 1489 and 973 once the first conversion starts, with calibration words of 1489, 940 and 1200,
+a supply of 3300 mV and 40 degrees. The host smoke check finds Vref=3.30V and Core temp=40degC in the status
+line, 40 in the MSP status reply, and Cz 40 on the OSD's core temperature element.
