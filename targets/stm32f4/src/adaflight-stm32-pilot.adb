@@ -12,6 +12,11 @@ package body Adaflight.STM32.Pilot is
    Runtime      : Adaflight.PID_Config.Runtime;
    PID          : Adaflight.PID_Profile.Profile;
    Mode         : Adaflight.Mixer_Init.Mixer_Mode := Adaflight.Mixer_Init.Quad_X;
+   --  The position controller's yaw from its last run, and the stick
+   --  deadband that hands the yaw back to the pilot.
+   AP_Yaw_Held  : Boolean := False;
+   AP_Yaw_Rate  : Float range -1_000.0 .. 1_000.0 := 0.0;
+   AP_Deadband  : Natural range 0 .. 500 := 50;
 
    --  The selected PID and rate profiles, within their four.
    function Profile_Index (Setting : Interfaces.Unsigned_8) return Natural is
@@ -35,6 +40,7 @@ package body Adaflight.STM32.Pilot is
         (Config.Rx_Config, Config.Rc_Controls_Config, Config.Control_Rate_Profiles (R), Config.Pid_Config, Sample,
          Config.Flight3_D_Config, Runtime_Features);
       PID := Adaflight.Config_Runtime.PID_Profile_Of (Config.Pid_Profiles (P));
+      AP_Deadband := Natural'Min (500, Natural (Config.Autopilot_Config.Stick_Deadband));
       Adaflight.PID_Config.Configure (Runtime, PID, Loop_Time, Has_Acc => F.Sensors.Acc, Serial_Rx_Is_CRSF => F.CRSF);
       Adaflight.STM32.DShot_Output.Set_Loop_Time (Adaflight.DShot_Command.Loop_Time_Us (Loop_Time));
       if Config.Mixer_Config.Mixer_Mode in
@@ -100,10 +106,24 @@ package body Adaflight.STM32.Pilot is
       Arm.Flight_Modes (Adaflight.Arming.Failsafe_Mode) := On;
    end Set_Failsafe_Mode;
 
+   --  The RC processing with the autopilot's yaw while the controller holds
+   --  it in a mode it serves, the modes read now, not at the controller's run.
    procedure Process_Commands is
+      use Adaflight.Arming;
+      Served : constant Boolean :=
+        Arm.Flight_Modes (Autopilot_Mode) or else Arm.Flight_Modes (Pos_Hold_Mode)
+        or else Arm.Flight_Modes (Mag_Mode) or else Arm.Flight_Modes (GPS_Rescue_Mode);
    begin
-      Adaflight.RC_Command.Process (RC, RC_Config, Runtime);
+      Adaflight.RC_Command.Process
+        (RC, RC_Config, Runtime,
+         (Active => AP_Yaw_Held and then Served, Rate_Dps => AP_Yaw_Rate, Deadband => AP_Deadband));
    end Process_Commands;
+
+   procedure Set_Autopilot_Yaw (Held : Boolean; Rate_Dps : Float) is
+   begin
+      AP_Yaw_Held := Held;
+      AP_Yaw_Rate := Float'Max (-1_000.0, Float'Min (1_000.0, Rate_Dps));
+   end Set_Autopilot_Yaw;
 
    procedure Reset_Yaw is
    begin
