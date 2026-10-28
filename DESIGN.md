@@ -11287,3 +11287,41 @@ On the STM32F4 image the change removes 2384 bytes of text, from 628932 to 62654
 runs recorded before replay unchanged. A new oracle run pages down through the active elements menu twice and turns
 every fifth element over, so the vectors now draw 137 of the 138 names. SmartAudio's offline status name is the one
 left out.
+
+## D493. Command line numbers and names put directly (2026-10-28)
+
+The command line passed 226 decimal numbers to `Put` as the result of `Decimal`, and 51 more texts from seven other
+functions the same way. GNAT returns such a result on the secondary stack, so each of the 277 call sites marked the
+stack and released it, about 20 bytes of code per site. Each of the eight functions now has a `Put_` procedure that
+calls `Put` with its result, and the call sites call that procedure. The procedures stay out of line, so the stack
+handling sits in eight places.
+
+On the STM32F4 image the change removes 5648 bytes of text, from 626548 to 620900. The command line vectors replay
+unchanged.
+
+## D494. Command line argument text taken once (2026-10-28)
+
+The command dispatcher passed each command its argument text as `Text_At (Buffer, Arguments)`, in 44 branches of its
+case statement, each a copy on the secondary stack with its own mark and release. A block around the case statement
+now takes the text once into a constant, empty for an unknown command, and every branch passes that constant.
+
+On the STM32F4 image the change removes 516 bytes of text, from 620900 to 620384. The command line vectors replay
+unchanged.
+
+## D495. Name and value lines put from their values (2026-10-28)
+
+The environment and status listings passed 34 values to `Put_Name_Value` as texts from `Decimal`, `Text_Of` and
+`Signed_Text`, each a copy on the secondary stack at the call. `Put_Name_Decimal`, `Put_Name_Text_Of` and
+`Put_Name_Signed_Text` take the value itself and make that text once inside, out of line.
+
+On the STM32F4 image the change removes 1024 bytes of text, from 620384 to 619360. The command line vectors replay
+unchanged.
+
+## D496. Fields and padded numbers put directly (2026-10-28)
+
+The task list and the DShot telemetry listing each declared a local `Field` that right-justified `Decimal (V)`, and 29
+calls put its result, each two copies on the secondary stack. The gyro register listing put `Zero_Padded` 13 times
+the same way. `Put_Field` and `Put_Zero_Padded` now do it once out of line, and the local `Field` functions are gone.
+
+On the STM32F4 image the change removes 1040 bytes of text, from 619360 to 618320. The command line vectors replay
+unchanged.
