@@ -6226,6 +6226,33 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end if;
    end Put_Name_Value;
 
+   procedure Put_Name_Signed_Text
+     (Into : in out Output; Filter : String; Name : String; V : Unsigned_32; Tail : String := "")
+     with Global => null
+   is
+   begin
+      Put_Name_Value (Into, Filter, Name, Signed_Text (V), Tail);
+   end Put_Name_Signed_Text;
+   pragma No_Inline (Put_Name_Signed_Text);
+
+   procedure Put_Name_Text_Of
+     (Into : in out Output; Filter : String; Name : String; T : Identity_Text; Tail : String := "")
+     with Global => null
+   is
+   begin
+      Put_Name_Value (Into, Filter, Name, Text_Of (T), Tail);
+   end Put_Name_Text_Of;
+   pragma No_Inline (Put_Name_Text_Of);
+
+   procedure Put_Name_Decimal
+     (Into : in out Output; Filter : String; Name : String; V : Integer_64; Tail : String := "")
+     with Global => null
+   is
+   begin
+      Put_Name_Value (Into, Filter, Name, Decimal (V), Tail);
+   end Put_Name_Decimal;
+   pragma No_Inline (Put_Name_Decimal);
+
    --  The board identifier's characters up to its first zero byte.
    function Identifier_Text (B : Config_Groups.Bytes_6) return String
      with Global => null,
@@ -6250,26 +6277,26 @@ package body Adaflight.Command_Line with SPARK_Mode is
      with Global => null
    is
    begin
-      Put_Name_Value (Into, Filter, "FIRMWARE_NAME", Text_Of (Env.Firmware));
-      Put_Name_Value (Into, Filter, "FIRMWARE_VERSION", Text_Of (Env.Version));
-      Put_Name_Value (Into, Filter, "TARGET", Text_Of (Env.Target));
+      Put_Name_Text_Of (Into, Filter, "FIRMWARE_NAME", Env.Firmware);
+      Put_Name_Text_Of (Into, Filter, "FIRMWARE_VERSION", Env.Version);
+      Put_Name_Text_Of (Into, Filter, "TARGET", Env.Target);
       Put_Name_Value (Into, Filter, "BOARD_IDENTIFIER", Identifier_Text (C.System_Config.Board_Identifier));
-      Put_Name_Value (Into, Filter, "BUILD_DATE", Text_Of (Env.Build_Date));
-      Put_Name_Value (Into, Filter, "BUILD_TIME", Text_Of (Env.Build_Time));
-      Put_Name_Value (Into, Filter, "GIT_REVISION", Text_Of (Env.Revision));
-      Put_Name_Value (Into, Filter, "MSP_API_VERSION", Decimal (MSP_Common_Out.API_Version_Major),
-                      "." & Decimal (MSP_Common_Out.API_Version_Minor));
+      Put_Name_Text_Of (Into, Filter, "BUILD_DATE", Env.Build_Date);
+      Put_Name_Text_Of (Into, Filter, "BUILD_TIME", Env.Build_Time);
+      Put_Name_Text_Of (Into, Filter, "GIT_REVISION", Env.Revision);
+      Put_Name_Decimal (Into, Filter, "MSP_API_VERSION", MSP_Common_Out.API_Version_Major,
+                        "." & Decimal (MSP_Common_Out.API_Version_Minor));
       if Board.Manufacturer.Length > 0 then
-         Put_Name_Value (Into, Filter, "MANUFACTURER_ID", Text_Of (Board.Manufacturer));
+         Put_Name_Text_Of (Into, Filter, "MANUFACTURER_ID", Board.Manufacturer);
       end if;
       if Board.Name.Length > 0 then
-         Put_Name_Value (Into, Filter, "BOARD_NAME", Text_Of (Board.Name));
+         Put_Name_Text_Of (Into, Filter, "BOARD_NAME", Board.Name);
       end if;
       if Env.Status.Has_Build_Key then
-         Put_Name_Value (Into, Filter, "BUILD_KEY", Text_Of (Env.Status.Build_Key));
+         Put_Name_Text_Of (Into, Filter, "BUILD_KEY", Env.Status.Build_Key);
       end if;
       if Env.Status.Has_Release_Name then
-         Put_Name_Value (Into, Filter, "RELEASE_NAME", Text_Of (Env.Status.Release_Name));
+         Put_Name_Text_Of (Into, Filter, "RELEASE_NAME", Env.Status.Release_Name);
       end if;
    end Put_Env_Version;
 
@@ -6279,28 +6306,28 @@ package body Adaflight.Command_Line with SPARK_Mode is
      with Global => null
    is
    begin
-      Put_Name_Value (Into, Filter, "MCU", Text_Of (S.MCU_Name));
-      Put_Name_Value (Into, Filter, "CLK_MHZ", Decimal (Integer_64 (S.Core_Clock_Hz / 1_000_000)));
+      Put_Name_Text_Of (Into, Filter, "MCU", S.MCU_Name);
+      Put_Name_Decimal (Into, Filter, "CLK_MHZ", Integer_64 (S.Core_Clock_Hz / 1_000_000));
       if S.Clock_Sources then
          Put_Name_Value (Into, Filter, "SYSCLK_SOURCE", Clock_Source_Name (S.System_Source),
                          (if S.System_Source < 2 then "" elsif S.PLL_Source = 0 then "-HSI" else "-HSE"));
       end if;
       if S.Internal_ADC then
-         Put_Name_Value (Into, Filter, "VREF_MV", Decimal (Integer_64 (S.Vref_Mv)));
-         Put_Name_Value (Into, Filter, "CORE_TEMP_C", Decimal (Integer_64 (S.Core_Temp_C)));
+         Put_Name_Decimal (Into, Filter, "VREF_MV", Integer_64 (S.Vref_Mv));
+         Put_Name_Decimal (Into, Filter, "CORE_TEMP_C", Integer_64 (S.Core_Temp_C));
       end if;
-      Put_Name_Value (Into, Filter, "STACK_SIZE", Signed_Text (S.Stack_Total));
+      Put_Name_Signed_Text (Into, Filter, "STACK_SIZE", S.Stack_Total);
       Put_Name_Value (Into, Filter, "STACK_HIGH", "0x" & Hex_Minimal (S.Stack_High));
       if S.Stack_Check then
-         Put_Name_Value (Into, Filter, "STACK_USED", Signed_Text (S.Stack_Used));
+         Put_Name_Signed_Text (Into, Filter, "STACK_USED", S.Stack_Used);
       end if;
       Put_Name_Value (Into, Filter, "CONFIG_STATE",
                       (if C.System_Config.Configuration_State = 0 then "UNCONFIGURED" else "CONFIGURED"));
-      Put_Name_Value (Into, Filter, "CONFIG_SIZE", Decimal (Integer_64 (S.Config_Size)));
-      Put_Name_Value (Into, Filter, "CONFIG_MAX_SIZE", Signed_Text (S.Storage_Size));
-      Put_Name_Value (Into, Filter, "SPI_COUNT", Decimal (Integer_64 (S.SPI_Devices)));
-      Put_Name_Value (Into, Filter, "I2C_COUNT", Decimal (Integer_64 (S.I2C_Devices)));
-      Put_Name_Value (Into, Filter, "I2C_ERRORS", Decimal (Integer_64 (S.I2C_Errors)));
+      Put_Name_Decimal (Into, Filter, "CONFIG_SIZE", Integer_64 (S.Config_Size));
+      Put_Name_Signed_Text (Into, Filter, "CONFIG_MAX_SIZE", S.Storage_Size);
+      Put_Name_Decimal (Into, Filter, "SPI_COUNT", Integer_64 (S.SPI_Devices));
+      Put_Name_Decimal (Into, Filter, "I2C_COUNT", Integer_64 (S.I2C_Devices));
+      Put_Name_Decimal (Into, Filter, "I2C_ERRORS", Integer_64 (S.I2C_Errors));
    end Put_Env_Board;
 
    function Env_Sensor_Name (S : Detected_Sensor) return String is
@@ -6325,7 +6352,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
                             Gyro_Hardware_Name (Env.Gyros (Position).Hardware));
          end if;
       end loop;
-      Put_Name_Value (Into, Filter, "GYRO_COUNT", Decimal (Integer_64 (Count)));
+      Put_Name_Decimal (Into, Filter, "GYRO_COUNT", Integer_64 (Count));
       for S in Detected_Sensor loop
          pragma Loop_Invariant (S in Acc_Sensor .. Pitot_Sensor);
          declare
@@ -6360,14 +6387,14 @@ package body Adaflight.Command_Line with SPARK_Mode is
                       (if S.OSD_Device < Value_Count (Table_Osd_Displayport_Device)
                        then Value_Name (Table_Osd_Displayport_Device, S.OSD_Device) else ""));
       if S.OSD_Port then
-         Put_Name_Value (Into, Filter, "OSD_COLS", Decimal (Integer_64 (S.OSD_Columns)));
-         Put_Name_Value (Into, Filter, "OSD_ROWS", Decimal (Integer_64 (S.OSD_Rows)));
+         Put_Name_Decimal (Into, Filter, "OSD_COLS", Integer_64 (S.OSD_Columns));
+         Put_Name_Decimal (Into, Filter, "OSD_ROWS", Integer_64 (S.OSD_Rows));
       end if;
       if Env.Flash.JEDEC_Id /= 0 then
          Put_Name_Value (Into, Filter, "FLASH_JEDEC_ID", "0x" & Hex_Text (Env.Flash.JEDEC_Id, 8));
-         Put_Name_Value (Into, Filter, "FLASH_SIZE_MB", Decimal (Integer_64 (Shift_Right (Env.Flash.Total_Size, 20))));
+         Put_Name_Decimal (Into, Filter, "FLASH_SIZE_MB", Integer_64 (Shift_Right (Env.Flash.Total_Size, 20)));
       end if;
-      Put_Name_Value (Into, Filter, "UPTIME_S", Decimal (Integer_64 (S.Uptime_Ms / 1000)));
+      Put_Name_Decimal (Into, Filter, "UPTIME_S", Integer_64 (S.Uptime_Ms / 1000));
       if RTC.Has_Time (S.Clock) then
          declare
             Zone   : constant Integer_16 := C.Time_Config.Tz_Offset_Minutes;
@@ -6383,17 +6410,16 @@ package body Adaflight.Command_Line with SPARK_Mode is
             Put_Name_Value (Into, Filter, "CURRENT_TIME", Text (1 .. Length));
          end;
       end if;
-      Put_Name_Value
-        (Into, Filter, "CPU_LOAD_PCT", Decimal (Integer_64'Min (Integer_64 (Sched.Average_Load_Percent), 100)));
-      Put_Name_Value (Into, Filter, "CYCLE_TIME_US", Signed_Text ((Gyro.Average_Delta_10th + 5) / 10));
-      Put_Name_Value (Into, Filter, "GYRO_RATE_HZ", Decimal (Task_Rate (Gyro)));
-      Put_Name_Value (Into, Filter, "RX_RATE_HZ",
-                      Decimal (if Env.Smoothing.Rate_Valid
-                               then Integer_64 (Maths.Round_Half_Even (Env.Smoothing.Rate_Hz)) else 0));
-      Put_Name_Value (Into, Filter, "SYSTEM_RATE_HZ", Decimal (Task_Rate (System)));
-      Put_Name_Value (Into, Filter, "VOLTAGE_V", Decimal (Integer_64 (S.Battery_Voltage / 100)),
-                      "." & Zero_Padded (Natural (S.Battery_Voltage mod 100), 2));
-      Put_Name_Value (Into, Filter, "BATTERY_CELLS", Decimal (Integer_64 (S.Battery_Cells)));
+      Put_Name_Decimal (Into, Filter, "CPU_LOAD_PCT", Integer_64'Min (Integer_64 (Sched.Average_Load_Percent), 100));
+      Put_Name_Signed_Text (Into, Filter, "CYCLE_TIME_US", (Gyro.Average_Delta_10th + 5) / 10);
+      Put_Name_Decimal (Into, Filter, "GYRO_RATE_HZ", Task_Rate (Gyro));
+      Put_Name_Decimal (Into, Filter, "RX_RATE_HZ",
+                        (if Env.Smoothing.Rate_Valid
+                         then Integer_64 (Maths.Round_Half_Even (Env.Smoothing.Rate_Hz)) else 0));
+      Put_Name_Decimal (Into, Filter, "SYSTEM_RATE_HZ", Task_Rate (System));
+      Put_Name_Decimal (Into, Filter, "VOLTAGE_V", Integer_64 (S.Battery_Voltage / 100),
+                        "." & Zero_Padded (Natural (S.Battery_Voltage mod 100), 2));
+      Put_Name_Decimal (Into, Filter, "BATTERY_CELLS", Integer_64 (S.Battery_Cells));
       Put_Name_Value (Into, Filter, "BATTERY_STATE", Battery_State_Name (S.Battery_State));
       if Name_Matches ("ARMING_DISABLE_FLAGS", Filter) then
          Put (Into, "ARMING_DISABLE_FLAGS=");
