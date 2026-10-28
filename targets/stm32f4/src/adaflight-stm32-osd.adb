@@ -828,6 +828,14 @@ package body Adaflight.STM32.OSD is
       D.Adjustment_Value := F.Adjustment_Value;
       D.Vario_Cm_S := F.Vario;
       D.Pos_Hold_Ready := F.Pos_Hold_Ready;
+      D.Crash_Flip := F.Crash_Flip_Active;
+      D.Upright := F.Upright;
+      D.Small_Angle := F.Small_Angle;
+      D.Ready_Box := F.Ready_Box;
+      D.Acro_Trainer_Box := F.Acro_Trainer_Box;
+      D.Antenna := F.Antenna;
+      D.Earth_Up := F.Earth_Up;
+      D.Total_Flights := F.Total_Flights;
       D.Rescue_Configured := F.Rescue_Configured;
       D.GPS_Healthy := F.GPS.Healthy;
       D.Screen_Rows := Port.Rows;

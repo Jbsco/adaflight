@@ -294,6 +294,11 @@ package body Adaflight.STM32.Flight is
    Acc_Cal        : Adaflight.Acc_Inflight.State;
    Att_Config     : Adaflight.Attitude.Config;
    Att_State      : Adaflight.Attitude.State;
+   --  Whether the craft is upright: no accelerometer, or an established
+   --  attitude tilted less than the small angle.
+   function Upright return Boolean is
+     (not Gyro_Report.Acc_Found
+      or else (Att_State.Established and then Adaflight.Attitude.Cos_Tilt (Att_State) > Att_Config.Small_Angle_Cos));
    Pos_Settings   : Adaflight.Position_Estimator.Settings;
    Pos_State      : Adaflight.Position_Estimator.State;
 
@@ -1667,9 +1672,7 @@ package body Adaflight.STM32.Flight is
       Sensed.Failsafe_Receiving := Adaflight.STM32.Radio.Failsafe_Receiving;
       Sensed.Failsafe_Active := Adaflight.STM32.Radio.Failsafe_Active;
       Sensed.Failsafe_Monitoring := Adaflight.STM32.Radio.Failsafe_Monitoring;
-      Sensed.Upright := not Gyro_Report.Acc_Found
-        or else (Att_State.Established
-                 and then Adaflight.Attitude.Cos_Tilt (Att_State) > Att_Config.Small_Angle_Cos);
+      Sensed.Upright := Upright;
       Sensed.Gyro_Calibrated := Adaflight.Gyro_Filters.Calibration_Complete (Gyro_State);
       Sensed.GPS_Fix := Adaflight.STM32.GPS.Current.Fix;
       Sensed.GPS_Sats := Natural (Adaflight.STM32.GPS.Current.Satellites);
@@ -1933,10 +1936,7 @@ package body Adaflight.STM32.Flight is
       F : Adaflight.STM32.Blackbox.Facts;
       G : constant Adaflight.STM32.GPS.Readings := Adaflight.STM32.GPS.Current;
       Profile : constant Adaflight.PID_Profile.Profile := Adaflight.STM32.Pilot.Profile;
-      Small_Angle : constant Boolean :=
-        not Gyro_Report.Acc_Found
-        or else (Att_State.Established
-                 and then Adaflight.Attitude.Cos_Tilt (Att_State) > Att_Config.Small_Angle_Cos);
+      Small_Angle : constant Boolean := Upright;
    begin
       F.Now_Ms := Adaflight.STM32.Time.Millis;
       F.Arming_Beep_Us := Adaflight.Beeper.Arming_Beep_Time (Beep);
@@ -2350,6 +2350,15 @@ package body Adaflight.STM32.Flight is
       F.Airmode := Adaflight.STM32.Pilot.Airmode_Enabled;
       F.Crash_Flip_Box := Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Crash_Flip);
       F.Crash_Flip_Active := Adaflight.STM32.Pilot.Crash_Flip_Active;
+      F.Upright := Upright;
+      F.Small_Angle := Config.Imu_Config.Small_Angle;
+      F.Ready_Box := Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Ready);
+      F.Acro_Trainer_Box := Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Acro_Trainer);
+      F.Antenna := Adaflight.STM32.Radio.Active_Antenna;
+      for C in Adaflight.Vectors.Coordinate loop
+         F.Earth_Up (Adaflight.Vectors.Coordinate'Pos (C)) :=
+           Float'Max (-1.0, Float'Min (1.0, Att_State.Rotation (Adaflight.Vectors.Z, C)));
+      end loop;
       F.Launch_Control := Adaflight.STM32.Pilot.Launch_Control_Active;
       F.Acc_Present := Gyro_Report.Acc_Found;
       F.G_Force := Float'Max (0.0, Float'Min (100.0, Acc_State.Magnitude));

@@ -2279,6 +2279,35 @@ def main():
             receiver.stop.set()
             stop(proc)
             sock.close()
+        store = os.path.join(work, "flightstate.bin")
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            for line in ("stats_total_flights = 7", "osd_displayport_device = MAX7456", "vcd_video_system = PAL",
+                         "osd_ready_mode_pos = 2177", "osd_total_flights_pos = 2209", "osd_flymode_pos = 2241"):
+                text = cli(sock, "set " + line)
+                check(f"flight state elements {line}", line.replace(" = ", " set to ") in text, text[-120:])
+            for line in ("aux 0 47 0 900 2100 0 0", "aux 1 53 0 900 2100 0 0"):
+                text = cli(sock, line)
+                check(f"flight state box range {line}", line in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store)
+        try:
+            check("OSD ready mode element shows READY with its box active and the craft disarmed",
+                  screen_wait(store, "READY "), repr(screen_row(store, 4)))
+            check("OSD total flights element shows the stored count", screen_row(store, 5)[1:4] == "#7 ",
+                  repr(screen_row(store, 5)))
+            check("OSD flight mode element shows ATRN with the acro trainer box active",
+                  screen_row(store, 6)[1:6] == "ATRN ", repr(screen_row(store, 6)))
+        finally:
+            stop(proc)
+            sock.close()
         store = os.path.join(work, "laps.bin")
         proc, sock = start(image, store)
         try:
