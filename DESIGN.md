@@ -11136,3 +11136,12 @@ in any case and past the table, ordinals inside, at and past each owner's count,
 malformed pins, none, conflicts, the show and DMA commands and dumps and diffs between them. The help, completion,
 dump, diff and every-profile families gain the two commands and the resources section, replayed from their
 recorded inputs through the new oracle. Every reply replays byte for byte.
+
+## D480. Menu tables cleared line by line (2026-10-28)
+
+A menu cleared its table with a copy of `Empty_Table`, a constant of 192 label lines in flash (D404). `Clear` now
+sets each of the table's lines to one constant label line and the count to one, and the table constant is gone. The
+postcondition of `Clear` states each line's value, for the proofs of the menu loaders.
+
+On the STM32F4 image the change removes 18852 bytes of text, from 749820 to 730968. The menu vectors replay
+unchanged.

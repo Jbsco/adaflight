@@ -13,6 +13,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
    use type Interfaces.Integer_64;
    use type Adaflight.Menu.Element;
    use type Adaflight.SmartAudio.Version;
+   use type Adaflight.Menu.Line;
 
    subtype Line is Adaflight.Menu.Line;
    subtype Table is Adaflight.Menu.Table;
@@ -501,24 +502,28 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       N := N + 1;
    end Add;
 
-   --  The empty table's aggregate gives every component and the pragma asks
-   --  for its elaboration at compile time, so the table is read-only data.
-   pragma Warnings (GNATprove, Off, "pragma ""Static_Elaboration_Desired"" ignored*",
-                    Reason => "The pragma directs the compiler's elaboration only.");
-   pragma Static_Elaboration_Desired;
-   pragma Warnings (GNATprove, On, "pragma ""Static_Elaboration_Desired"" ignored*");
-   Empty_Table : constant Table :=
-     (Lines => (others => (Text       => (Data => (others => ' '), Length => 0),
-                           Flags      => Interfaces.Unsigned_16 (Adaflight.Menu.Element'Pos (Adaflight.Menu.Label)),
-                           Has_Data   => False,
-                           Has_Func   => False,
-                           Value      => 0,
-                           Min        => 0,
-                           Max        => 0,
-                           Step       => 0,
-                           Multiplier => 1,
-                           Value_Text => (Data => (others => ' '), Length => 0))),
-      Count => 1);
+   --  An unused line: a label without text.
+   Empty_Line : constant Line :=
+     (Text       => (Data => (others => ' '), Length => 0),
+      Flags      => Interfaces.Unsigned_16 (Adaflight.Menu.Element'Pos (Adaflight.Menu.Label)),
+      Has_Data   => False,
+      Has_Func   => False,
+      Value      => 0,
+      Min        => 0,
+      Max        => 0,
+      Step       => 0,
+      Multiplier => 1,
+      Value_Text => (Data => (others => ' '), Length => 0));
+
+   --  A table of unused lines, the first one counted.
+   procedure Clear (M : out Table)
+     with Global => null,
+          Post   => M.Count = 1 and then (for all I in Adaflight.Menu.Line_Index => M.Lines (I) = Empty_Line)
+   is
+   begin
+      M.Lines := (others => Empty_Line);
+      M.Count := 1;
+   end Clear;
 
    procedure Load_Quick_Menu (T : Target; M : out Table)
      with Post => M.Count >= 1 and then Adaflight.Menu.Fixed_In_Range (M)
@@ -526,7 +531,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       use Adaflight.Menu;
       N : Line_Count := 0;
    begin
-      M := Empty_Table;
+      Clear (M);
       Add (M, N, Make ("-- QUICK --", Label));
       Add (M, N, Sub ("RPM LIM", RPM_Limit_Menu));
       declare
@@ -553,7 +558,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       use Adaflight.Menu;
       N : Line_Count := 0;
    begin
-      M := Empty_Table;
+      Clear (M);
       Add (M, N, Make ("-- MAIN --", Label));
       Add (M, N, Sub ("PROFILE", Profile_Menu));
       Add (M, N, Sub ("FEATURES", Features));
@@ -570,7 +575,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       use Adaflight.Menu;
       N : Line_Count := 0;
    begin
-      M := Empty_Table;
+      Clear (M);
       Add (M, N, Make ("--- FEATURES ---", Label));
       Add (M, N, Sub ("BLACKBOX", Blackbox_Menu));
       Add (M, N, Make ("VTX", Funcall, Has_Func => True));
@@ -588,7 +593,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       use Adaflight.Menu;
       N : Line_Count := 0;
    begin
-      M := Empty_Table;
+      Clear (M);
       Add (M, N, Make ("-- SETUP MENU --", Label));
       if T.Popup.Acc_Line then
          Add (M, N, Text_Line ("CALIBRATE ACC", Funcall, T.Popup.Acc_Status, Has_Func => True, Flags => Dynamic));
@@ -611,7 +616,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       use Adaflight.Menu;
       N : Line_Count := 0;
    begin
-      M := Empty_Table;
+      Clear (M);
       Add (M, N, Make ("-- SAVE/EXIT --", Label));
       Add (M, N, Make ("EXIT", OSD_Exit, Has_Func => True, Value => 0));
       Add (M, N, Make ("SAVE&EXIT", OSD_Exit, Has_Func => True, Has_Data => True, Value => 3));
@@ -626,7 +631,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       use Adaflight.Menu;
       N : Line_Count := 0;
    begin
-      M := Empty_Table;
+      Clear (M);
       Add (M, N, Make ("-- SAVE/EXIT (REBOOT REQD)", Label));
       Add (M, N, Make ("EXIT&REBOOT", OSD_Exit, Has_Func => True, Has_Data => True, Value => 5));
       Add (M, N, Make ("SAVE&REBOOT", OSD_Exit, Has_Func => True, Has_Data => True, Value => 4));
@@ -640,7 +645,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       use Adaflight.Menu;
       N : Line_Count := 0;
    begin
-      M := Empty_Table;
+      Clear (M);
       Add (M, N, Text_Line ("", Label, T.VTX_Status.Line_1, Flags => Dynamic));
       Add (M, N, Text_Line ("", Label, T.VTX_Status.Line_2, Flags => Dynamic));
       Add (M, N, Make ("", Label));
@@ -685,7 +690,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       use Adaflight.Menu;
       N : Line_Count := 0;
    begin
-      M := Empty_Table;
+      Clear (M);
       Add_VTX_Lines (M, N, "- MSP -", T.MSP_Status, T.MSP, T.VTX_Table);
       Add (M, N, Sub ("SAVE", VTX_MSP_Confirm));
       Add (M, N, Make ("BACK", Back));
@@ -700,7 +705,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       use Adaflight.Menu;
       N : Line_Count := 0;
    begin
-      M := Empty_Table;
+      Clear (M);
       Add (M, N, Make ("--- VTX ---", Label));
       Add (M, N, Choice ("BAND", Interfaces.Integer_32 (T.RTC.Band), Interfaces.Integer_32 (T.VTX_Table.Bands),
                          Band_Name (T.VTX_Table, Natural (T.RTC.Band)), Has_Func => True));
@@ -720,7 +725,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       use Adaflight.Menu;
       N : Line_Count := 0;
    begin
-      M := Empty_Table;
+      Clear (M);
       Add_VTX_Lines (M, N, "- TRAMP -", T.Tramp_Status, T.Tramp, T.VTX_Table);
       Add (M, N, Number ("T(C)", Interfaces.Integer_32 (T.Tramp_Temp), -100, 300, Int16, Step => 0, Flags => Dynamic));
       Add (M, N, Sub ("SAVE&EXIT", VTX_Tramp_Confirm));
@@ -740,7 +745,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       V : Adaflight.SmartAudio.Menu_View renames T.VTX.SA_Menu;
       function U8 (X : Interfaces.Unsigned_8) return Interfaces.Integer_32 is (Interfaces.Integer_32 (X));
    begin
-      M := Empty_Table;
+      Clear (M);
       Add (M, N, Make ((if T.SA_Top = Offline_Lines then "- VTX SMARTAUDIO -" else "- SMARTAUDIO -"), Label));
       Add (M, N, Text_Line ("", Label, C_Text (V.Status), Flags => Dynamic));
       case T.SA_Top is
@@ -778,7 +783,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       V : Adaflight.SmartAudio.Menu_View renames T.VTX.SA_Menu;
       function U8 (X : Interfaces.Unsigned_8) return Interfaces.Integer_32 is (Interfaces.Integer_32 (X));
    begin
-      M := Empty_Table;
+      Clear (M);
       Add (M, N, Make ("- SA CONFIG -", Label));
       Add (M, N, Choice ("OP MODEL", U8 (V.Opmodel), 2, SA_Opmodel_Name (Natural (V.Opmodel)), Flags => Dynamic,
                          Has_Func => True));
@@ -804,7 +809,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
         (Number (Text, Interfaces.Integer_32 (X), 0, 0, UInt16, Step => 0, Flags => Dynamic))
         with Pre => Text'Length <= Adaflight.Menu.Max_Text;
    begin
-      M := Empty_Table;
+      Clear (M);
       Add (M, N, Make ("- SA STATS -", Label));
       Add (M, N, Choice ("STATUS", Interfaces.Integer_32 (T.VTX.SA_Menu.Device_Status), 3,
                          SA_Status_Name (Natural (T.VTX.SA_Menu.Device_Status)), Flags => Dynamic));
@@ -828,7 +833,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       use Adaflight.Menu;
       N : Line_Count := 0;
    begin
-      M := Empty_Table;
+      Clear (M);
       Add (M, N, Make (Title, Label));
       Add (M, N, Number ("CUR FREQ", Interfaces.Integer_32 (Current), 5000, 5999, UInt16, Step => 0, Flags => Dynamic));
       Add (M, N, Number ("NEW FREQ", Interfaces.Integer_32 (New_Value), 5000, 5999, UInt16));
@@ -843,7 +848,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       use Adaflight.Menu;
       N : Line_Count := 0;
    begin
-      M := Empty_Table;
+      Clear (M);
       Add (M, N, Make ("CONFIRM", Label));
       Add (M, N, Make ("YES", OSD_Exit, Has_Func => True, Has_Data => True, Value => 0));
       Add (M, N, Make ("NO", Back));
@@ -856,7 +861,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       use Adaflight.Menu;
       N : Line_Count := 0;
    begin
-      M := Empty_Table;
+      Clear (M);
       Add (M, N, Make ("CONFIRM", Label));
       Add (M, N, Make ("YES", OSD_Exit, Has_Func => True, Has_Data => True, Value => 0));
       Add (M, N, Make ("NO", Back));
@@ -869,7 +874,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       use Adaflight.Menu;
       N : Line_Count := 0;
    begin
-      M := Empty_Table;
+      Clear (M);
       Add (M, N, Make ("CONFIRM", Label));
       Add (M, N, Make ("YES", Funcall, Has_Func => True));
       Add (M, N, Make ("NO", Back));
@@ -882,7 +887,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       use Adaflight.Menu;
       N : Line_Count := 0;
    begin
-      M := Empty_Table;
+      Clear (M);
       declare
          P : Power_Copies renames T.Power;
       begin
@@ -911,7 +916,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       use Adaflight.Menu;
       N : Line_Count := 0;
    begin
-      M := Empty_Table;
+      Clear (M);
       Add (M, N, Make ("-- FAILSAFE --", Label));
       Add (M, N, Choice ("PROCEDURE", Interfaces.Integer_32 (T.Failsafe.Procedure_Kind), 2,
                    Procedure_Name (Natural (T.Failsafe.Procedure_Kind)), Reboot));
@@ -934,7 +939,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       function U16 (V : Interfaces.Unsigned_16) return Interfaces.Integer_32 is (Interfaces.Integer_32 (V));
       function U8 (V : Interfaces.Unsigned_8) return Interfaces.Integer_32 is (Interfaces.Integer_32 (V));
    begin
-      M := Empty_Table;
+      Clear (M);
       Add (M, N, Make ("--- GPS RESCUE ---", Label));
       Add (M, N, Number ("MIN START DIST  M", U16 (R.Min_Start_Dist_M), 5, 30, UInt16, Flags => Reboot));
       Add (M, N, Choice ("ALTITUDE MODE", U8 (R.Altitude_Mode), 2,
@@ -967,7 +972,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       P : Rescue_PID_Copies renames T.Rescue_PID;
       function U8 (V : Interfaces.Unsigned_8) return Interfaces.Integer_32 is (Interfaces.Integer_32 (V));
    begin
-      M := Empty_Table;
+      Clear (M);
       Add (M, N, Make ("--- GPS RESCUE PID---", Label));
       Add (M, N, Number ("ALTITUDE P", U8 (P.Altitude_P), 0, 200, Flags => Reboot));
       Add (M, N, Number ("ALTITUDE I", U8 (P.Altitude_I), 0, 200, Flags => Reboot));
@@ -989,7 +994,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       use Adaflight.Menu;
       N : Line_Count := 0;
    begin
-      M := Empty_Table;
+      Clear (M);
       Add (M, N, Make ("-- RPM LIMIT --", Label));
       Add (M, N,
            Make ("ACTIVE", Bool, Has_Data => True, Value => Boolean'Pos (T.RPM_Limit.Active), Flags => Reboot));
@@ -1006,7 +1011,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       use Adaflight.Menu;
       N : Line_Count := 0;
    begin
-      M := Empty_Table;
+      Clear (M);
       Add (M, N, Make ("-- MISC --", Label));
       Add (M, N, Number ("IDLE OFFSET", Interfaces.Integer_32 (T.Misc.Idle_Offset), 0, 200, Flags => Reboot));
       Add (M, N, Number ("FPV CAM ANGLE", Interfaces.Integer_32 (T.Misc.FPV_Cam_Angle), 0, 90));
@@ -1024,7 +1029,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       use Adaflight.Menu;
       N : Line_Count := 0;
    begin
-      M := Empty_Table;
+      Clear (M);
       Add (M, N, Make ("-- RC PREV --", Label));
       for C in RC_Values'Range loop
          pragma Loop_Invariant
@@ -1044,7 +1049,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       use Adaflight.Menu;
       N : Line_Count := 0;
    begin
-      M := Empty_Table;
+      Clear (M);
       Add (M, N, Make ("-- PERSISTENT STATS --", Label));
       Add (M, N, Number ("FLIGHTS", Signed_Word (T.Stats.Total_Flights), 0, -1, UInt32));
       Add (M, N, Number ("TIME(sec)", Signed_Word (T.Stats.Total_Time_S), 0, -1, UInt32));
@@ -1062,7 +1067,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       use Adaflight.Menu;
       N : Line_Count := 0;
    begin
-      M := Empty_Table;
+      Clear (M);
       Add (M, N, Make ("--- GPS LAP TIMER ---", Label));
       Add (M, N, Sub ("SET POSITION", Set_Gate_Menu));
       Add (M, N, Number ("GATE RADIUS(M)", Interfaces.Integer_32 (T.Lap.Gate_Tolerance), 1, 100));
@@ -1077,7 +1082,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       use Adaflight.Menu;
       N : Line_Count := 0;
    begin
-      M := Empty_Table;
+      Clear (M);
       Add (M, N, Make ("SETTING POSITION", Label));
       Add (M, N,
            Number ("READINGS", Interfaces.Integer_32 (T.Live.Gate_Set_Readings), 0, 2000, UInt16, 0, Dynamic));
@@ -1092,7 +1097,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       use Adaflight.Menu;
       N : Line_Count := 0;
    begin
-      M := Empty_Table;
+      Clear (M);
       declare
          B : Blackbox_Copies renames T.Blackbox;
       begin
@@ -1123,7 +1128,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       use Adaflight.Menu;
       N : Line_Count := 0;
    begin
-      M := Empty_Table;
+      Clear (M);
       Add (M, N, Make ("CONFIRM ERASE", Label));
       Add (M, N, Make ("NO", Back));
       Add (M, N, Make ("YES", Funcall, Has_Func => True));
@@ -1136,7 +1141,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       use Adaflight.Menu;
       N : Line_Count := 0;
    begin
-      M := Empty_Table;
+      Clear (M);
       Add (M, N, Make ("CONFIRM USB MASS STORAGE", Label));
       Add (M, N, Make ("NO", Back));
       Add (M, N, Make ("YES", Funcall, Has_Func => True));
@@ -1149,7 +1154,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       use Adaflight.Menu;
       N : Line_Count := 0;
    begin
-      M := Empty_Table;
+      Clear (M);
       declare
          L : LED_Copies renames T.LED;
       begin
@@ -1180,7 +1185,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       use Adaflight.Menu;
       N : Line_Count := 0;
    begin
-      M := Empty_Table;
+      Clear (M);
       Add (M, N, Make ("--- INFO ---", Label));
       Add (M, N, Text_Line ("FWID", Str, T.Identity.Identifier));
       Add (M, N, Text_Line ("FWVER", Str, T.Identity.Version));
@@ -1200,7 +1205,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       use Adaflight.Menu;
       N : Line_Count := 0;
    begin
-      M := Empty_Table;
+      Clear (M);
       Add (M, N, Make ("--- CALIBRATE ---", Label));
       Add (M, N, Text_Line ("GYRO", Funcall, T.Calibration.Gyro, Has_Func => True, Flags => Dynamic));
       Add (M, N, Text_Line ("ACC", Funcall, T.Calibration.Acc, Has_Func => True, Flags => Dynamic));
@@ -1215,7 +1220,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       use Adaflight.Menu;
       N : Line_Count := 0;
    begin
-      M := Empty_Table;
+      Clear (M);
       Add (M, N, Make ("--- CALIBRATE ACC ---", Label));
       Add (M, N, Make ("PLACE ON A LEVEL SURFACE", Label));
       Add (M, N, Make ("MAKE SURE CRAFT IS STILL", Label));
@@ -1231,7 +1236,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       use Adaflight.Menu;
       N : Line_Count := 0;
    begin
-      M := Empty_Table;
+      Clear (M);
       Add (M, N, Make ("---OSD---", Label));
       Add (M, N, Number ("OSD PROFILE", Interfaces.Integer_32 (T.OSD.Profile), 1, 3));
       Add (M, N, Sub ("ACTIVE ELEM", Active_Elements_Menu));
@@ -1252,7 +1257,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       use Adaflight.Menu;
       N : Line_Count := 0;
    begin
-      M := Empty_Table;
+      Clear (M);
       Add (M, N, Make ("--- ACTIV ELEM ---", Label));
       for K in Active_Lines'Range loop
          pragma Loop_Invariant (N = K and then Fixed_Below (M, N));
@@ -1274,7 +1279,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       use Adaflight.Menu;
       N : Line_Count := 0;
    begin
-      M := Empty_Table;
+      Clear (M);
       Add (M, N, Make ("--- TIMERS ---", Label));
       for I in Timer_Fields'Range loop
          pragma Loop_Invariant (N = 1 + 3 * I and then Fixed_Below (M, N));
@@ -1296,7 +1301,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       use Adaflight.Menu;
       N : Line_Count := 0;
    begin
-      M := Empty_Table;
+      Clear (M);
       declare
          A : Alarm_Copies renames T.Alarms;
       begin
@@ -1321,7 +1326,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       use Adaflight.Menu;
       N : Line_Count := 0;
    begin
-      M := Empty_Table;
+      Clear (M);
       Add (M, N, Make ("-- PROFILE --", Label));
       Add (M, N, Choice ("PID PROF", Interfaces.Integer_32 (T.Profile.PID_Line), PID_Profile_Count - 1,
                          Profile_Name (T.Profile.PID_Names, Natural (T.Profile.PID_Line)), Has_Func => True));
@@ -1345,7 +1350,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       use Adaflight.Menu;
       N : Line_Count := 0;
    begin
-      M := Empty_Table;
+      Clear (M);
       declare
          G : Gain_Table renames T.PID.Gains;
          F : Feedforward_Table renames T.PID.Feedforward;
@@ -1374,7 +1379,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       use Adaflight.Menu;
       N : Line_Count := 0;
    begin
-      M := Empty_Table;
+      Clear (M);
       declare
          R : Adaflight.Config_Groups.Control_Rate_Config_Record renames T.Rate.Profile;
       begin
@@ -1405,7 +1410,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       use Adaflight.Menu;
       N : Line_Count := 0;
    begin
-      M := Empty_Table;
+      Clear (M);
       declare
          S : Simplified_Copies renames T.Simplified;
       begin
@@ -1445,7 +1450,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       use Adaflight.Menu;
       N : Line_Count := 0;
    begin
-      M := Empty_Table;
+      Clear (M);
       declare
          O : Other_Copies renames T.Other;
       begin
@@ -1501,7 +1506,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       use Adaflight.Menu;
       N : Line_Count := 0;
    begin
-      M := Empty_Table;
+      Clear (M);
       declare
          L : Launch_Copies renames T.Launch;
       begin
@@ -1530,7 +1535,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       N : Line_Count := 0;
       F : Filter_Profile_Copies renames T.Profile_Flt;
    begin
-      M := Empty_Table;
+      Clear (M);
       Add (M, N, Make ("-- FILTER PP  --", Label));
       Add (M, N, Number ("DTERM LPF1", Interfaces.Integer_32 (F.DTerm_LPF1), 0, 1000, UInt16, Flags => Slider_DTerm));
       Add (M, N, Number ("DTERM LPF2", Interfaces.Integer_32 (F.DTerm_LPF2), 0, 1000, UInt16, Flags => Slider_DTerm));
@@ -1548,7 +1553,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       N : Line_Count := 0;
       G : Filter_Global_Copies renames T.Global_Filt;
    begin
-      M := Empty_Table;
+      Clear (M);
       Add (M, N, Make ("-- FILTER GLB  --", Label));
       Add (M, N, Number ("GYRO LPF1", Interfaces.Integer_32 (G.Gyro_LPF1), 0, 1000, UInt16, Flags => Slider_Gyro));
       Add (M, N, Number ("GYRO LPF2", Interfaces.Integer_32 (G.Gyro_LPF2), 0, 1000, UInt16, Flags => Slider_Gyro));
@@ -1567,7 +1572,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       N : Line_Count := 0;
       D : Dynamic_Filter_Copies renames T.Dynamic;
    begin
-      M := Empty_Table;
+      Clear (M);
       Add (M, N, Make ("-- DYN FILT --", Label));
       Add (M, N, Number ("NOTCH COUNT", Interfaces.Integer_32 (D.Notch_Count), 0, 7));
       Add (M, N, Number ("NOTCH Q", Interfaces.Integer_32 (D.Notch_Q), 1, 1000, UInt16));
@@ -1591,7 +1596,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
       use Adaflight.Menu;
       N : Line_Count := 0;
    begin
-      M := Empty_Table;
+      Clear (M);
       Add (M, N, Make ("-- COPY PROFILE --", Label));
       Add (M, N, Choice ("CPY PID PROF TO", Interfaces.Integer_32 (T.Copy.PID_Target), 3,
                          Profile_Target_Name (Natural (T.Copy.PID_Target))));
@@ -1705,7 +1710,7 @@ package body Adaflight.Menu_Content with SPARK_Mode is
          when VTX_RTC6705_Menu =>
             Load_VTX_RTC6705_Menu (T, M);
          when others =>
-            M := Empty_Table;
+            Clear (M);
       end case;
    end Load;
 
