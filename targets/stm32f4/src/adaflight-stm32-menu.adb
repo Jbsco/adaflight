@@ -161,6 +161,8 @@ package body Adaflight.STM32.Menu is
       T.Live.Reboot_Required := Reboot_Flag;
       T.Live.Runtime_Features := F.Runtime_Features;
       T.Live.PID_Frequency := F.PID_Frequency;
+      T.Live.Gate_Set_Readings := F.Gate_Set_Readings;
+      T.Live.Gate_Distance_Cm := F.Gate_Distance_Cm;
       for I in 0 .. 3 loop
          T.Live.RC_Data (I) := F.Channels (I);
          T.Live.RC_Data (I + 4) := F.Aux (I);
@@ -185,6 +187,8 @@ package body Adaflight.STM32.Menu is
       Asked := T.Asked;
       R.Acc_Calibration := Asked.Acc_Calibrations /= Before.Acc_Calibrations;
       R.Gyro_Calibration := Asked.Gyro_Calibrations /= Before.Gyro_Calibrations;
+      R.Gate_Start := Asked.Gate_Starts /= Before.Gate_Starts;
+      R.Gate_End := Asked.Gate_Ends /= Before.Gate_Ends;
       R.Elements := Asked.Element_Analyses /= Before.Element_Analyses;
       R.OSD_Profile := Asked.Profile_Changes /= Before.Profile_Changes;
       R.OSD_Profile_Idx := Asked.Profile_Asked;
@@ -198,4 +202,10 @@ package body Adaflight.STM32.Menu is
       Save_Asked := False;
       Reset_Asked := False;
    end Run;
+
+   procedure Set_Gate (Lat, Lon : Interfaces.Integer_32) is
+   begin
+      T.Config.Gps_Lap_Timer_Config.Gate_Lat := Lat;
+      T.Config.Gps_Lap_Timer_Config.Gate_Lon := Lon;
+   end Set_Gate;
 end Adaflight.STM32.Menu;
