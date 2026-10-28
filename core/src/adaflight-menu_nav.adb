@@ -20,6 +20,16 @@ package body Adaflight.Menu_Nav with SPARK_Mode is
       end if;
    end Register_Display;
 
+   procedure Select_Display (S : in out State; D : Adaflight.Menu.Display_Index; Found : out Boolean) is
+   begin
+      Found := D < S.Port_Count;
+      if Found then
+         S.Port := D;
+      elsif S.Port = -1 and then S.Port_Count > 0 then
+         S.Port := S.Port_Count - 1;
+      end if;
+   end Select_Display;
+
    --  The display layer's clear with a wait, and its grab, which clears.
    procedure Clear (S : in out State; On : Adaflight.Menu.Display_Index) is
    begin
