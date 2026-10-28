@@ -2422,6 +2422,18 @@ package body Adaflight.STM32.Flight is
       F.Total_Dist_M := Config.Stats_Config.Stats_Total_Dist_M;
       F.PID_Index := Config.System_Config.Pid_Profile_Index;
       F.Rate_Index := Config.System_Config.Active_Rate_Profile;
+      declare
+         P : Adaflight.Config_Groups.Pid_Profile_Record renames
+           Config.Pid_Profiles (Natural'Min (3, Natural (Config.System_Config.Pid_Profile_Index)));
+      begin
+         for A in Adaflight.OSD_Render.Axis_Index loop
+            F.PIDs (A) := (P => P.Pid (A).P, I => P.Pid (A).I, D => P.Pid (A).D, D_Max => P.D_Max (A),
+                           F => P.Pid (A).F);
+         end loop;
+         F.PID_Profile_Name := P.Profile_Name;
+      end;
+      F.Rate_Profile_Name :=
+        Config.Control_Rate_Profiles (Natural'Min (3, Natural (Config.System_Config.Active_Rate_Profile))).Profile_Name;
       Adaflight.STM32.OSD.Run (F, Before, Sched);
    end Run_OSD;
 

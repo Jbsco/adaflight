@@ -592,7 +592,7 @@ package body Adaflight.STM32.OSD is
    State_Us   : array (Adaflight.OSD_Task.Task_State) of Unsigned_32 := (others => 0);
    Element_Us : Unsigned_32 := 0;
 
-   function Name_Of (B : Adaflight.Config_Groups.Bytes_17) return Adaflight.OSD_Render.Name is
+   function Name_Of (B : Adaflight.Config_Groups.Bytes) return Adaflight.OSD_Render.Name is
       N : Adaflight.OSD_Render.Name;
    begin
       for I in B'Range loop
@@ -767,6 +767,9 @@ package body Adaflight.STM32.OSD is
       D.Pack_Voltage := F.Pack_Voltage;
       D.PID_Index := F.PID_Index;
       D.Rate_Index := F.Rate_Index;
+      D.PIDs := F.PIDs;
+      D.PID_Profile_Name := Name_Of (F.PID_Profile_Name);
+      D.Rate_Profile_Name := Name_Of (F.Rate_Profile_Name);
       D.RSSI_Percent := F.RSSI_Percent;
       D.RSSI_Dbm := F.RSSI_Dbm;
       D.RSNR := F.RSNR;

@@ -2148,6 +2148,33 @@ def main():
             receiver.stop.set()
             stop(proc)
             sock.close()
+        store = os.path.join(work, "tuning.bin")
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            for line in ("p_roll = 47", "i_roll = 83", "d_roll = 31", "d_max_roll = 42", "f_roll = 125",
+                         "profile_name = SNAPPY", "rateprofile_name = FREESTYL", "osd_displayport_device = MAX7456",
+                         "vcd_video_system = PAL", "osd_pid_roll_pos = 2177", "osd_pid_profile_name_pos = 2209",
+                         "osd_rate_profile_name_pos = 2241"):
+                text = cli(sock, "set " + line)
+                check(f"tuning elements {line}", line.replace(" = ", " set to ") in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store)
+        try:
+            check("OSD roll PID element shows the profile's gains", screen_wait(store, "ROL  47  83  31  42 125"),
+                  repr(screen_row(store, 4)))
+            check("OSD profile name elements show the PID and rate profile names",
+                  screen_row(store, 5)[1:7] == "SNAPPY" and screen_row(store, 6)[1:9] == "FREESTYL",
+                  repr((screen_row(store, 5), screen_row(store, 6))))
+        finally:
+            stop(proc)
+            sock.close()
         store = os.path.join(work, "laps.bin")
         proc, sock = start(image, store)
         try:

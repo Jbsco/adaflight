@@ -10954,3 +10954,15 @@ default, from the display port frames. A close brings the screen's clear frame. 
 command and a close then show the menu on the OSD and the OSD drawing its elements again. With the transmitter's
 display registered, a menu stick command held past its 500 ms pause moves the menu on to the next display, so the
 smoke check's stick commands hold for 0.3 s.
+
+## D469. STM32F4 OSD PID and profile name elements (2026-10-27)
+
+The OSD's roll, pitch and yaw PID elements and its PID and rate profile name elements read the current profiles.
+Each OSD frame takes the current PID profile's P, I, D, D max and feedforward gains for the three axes and the
+names of the current PID and rate profiles from the live configuration, so an adjustment, an MSP write or a
+profile change shows at the next frame. The board had left these inputs at their defaults, so a placed PID
+element showed zeros and a named profile showed its number.
+
+The host smoke check sets distinctive roll gains and both profile names, places the three elements, and finds
+`ROL  47  83  31  42 125`, `SNAPPY` and `FREESTYL` on the screen. The previous image shows zeros, `PID_1` and
+`RATE_1`.
