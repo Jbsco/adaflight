@@ -65,15 +65,14 @@ package Adaflight.STM32.OSD is
    function Font_Write_Taken return Boolean;
    procedure Write_Font (Address : Interfaces.Unsigned_16; Data : Adaflight.MSP_Font_In.Character_Data);
 
-   --  What the OSD reads from the flight at a frame: the arming and its
-   --  reasons, the failsafe, the boxes and flight modes, the attitude in
-   --  decidegrees, the acceleration in g, the throttle and the sticks, the
-   --  RSSI and the link's quality, the battery in centivolts, centiamps, milliamp hours and watt hours, the
-   --  motors with their outputs and range, which of them run above the disarm output, the ESC
-   --  sensor's readings over every motor and for each one, the profiles with
-   --  their names and the PID profile's gains, the
-   --  estimated altitude and climb rate, the rangefinder's altitude, the custom text, the lap timer with its clock, the
-   --  adjustment shown with its value, the flight log's box and device, and the flight totals.
+   --  What the OSD reads from the flight at a frame: the arming and its reasons, the failsafe, the boxes and
+   --  flight modes, the attitude in decidegrees with whether the craft is upright, the small angle and the
+   --  earth's up in the body frame, the acceleration in g, the throttle and the sticks, the RSSI, the link's
+   --  quality and the active antenna, the battery in centivolts, centiamps, milliamp hours and watt hours,
+   --  the motors with their outputs and range, which of them run above the disarm output, the ESC sensor's
+   --  readings over every motor and for each one, the profiles with their names and the PID profile's gains,
+   --  the estimated altitude and climb rate, the rangefinder's altitude, the custom text, the lap timer with
+   --  its clock, the adjustment shown with its value, the flight log's box and device, and the flight totals.
    type Motor_Flags is array (Adaflight.OSD_Render.Motor_Index) of Boolean;
    type Facts is record
       Armed             : Boolean := False;
@@ -88,6 +87,12 @@ package Adaflight.STM32.OSD is
       Anti_Gravity      : Boolean := False;
       Crash_Flip_Box    : Boolean := False;
       Crash_Flip_Active : Boolean := False;
+      Upright           : Boolean := True;
+      Small_Angle       : Interfaces.Unsigned_8 := 25;
+      Ready_Box         : Boolean := False;
+      Acro_Trainer_Box  : Boolean := False;
+      Antenna           : Interfaces.Integer_8 := 0;
+      Earth_Up          : Adaflight.OSD_Render.Axis_Vector := (others => 0.0);
       Launch_Control    : Boolean := False;
       Acc_Present       : Boolean := False;
       G_Force           : Float range 0.0 .. 100.0 := 0.0;

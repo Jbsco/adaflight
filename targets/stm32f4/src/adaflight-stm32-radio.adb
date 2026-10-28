@@ -827,6 +827,8 @@ package body Adaflight.STM32.Radio is
 
    function RF_Mode return Natural is (Rx.RF_Mode);
 
+   function Active_Antenna return Interfaces.Integer_8 is (Interfaces.Integer_8 (Rx.Active_Antenna));
+
    function Uplink_Power_mW return Interfaces.Unsigned_16 is (Interfaces.Unsigned_16 (Rx.Uplink_Power_mW));
 
    function Channel_Count return Natural is (Rx.Channels);

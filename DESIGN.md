@@ -11006,3 +11006,16 @@ The OSD task oracle now draws the aux value element with a random symbol and aux
 the start of each sequence, and the regenerated osdtask vectors check it. Without the draw context's aux value,
 98 of their draw checks fail. The OSD task unit proved with 89 checks and no assumption. The host smoke check
 holds AUX1 at full deflection from a CRSF receiver emulator and finds `A200` on the MAX7456 screen.
+
+## D473. STM32F4 OSD flight state elements (2026-10-27)
+
+The OSD's flight state inputs that the board had left at their defaults now come from the flight. The READY
+element reads the ready box, and the flight mode element's ATRN reads the acro trainer box. The flights element
+reads the stored total flights. The crash flip arrow reads the crash flip state, whether the craft is upright and
+the small angle. The up and down reference reads the earth's up in the body frame, the attitude rotation's up
+row. The RSSI dBm element reads the CRSF link's active antenna. Whether the craft is upright is one function now,
+which the arming checks and the flight log read as well.
+
+The host smoke check puts the two boxes on AUX1 and stores seven flights, and finds READY, #7 and ATRN on the
+screen. The previous image shows no READY, #0 and AIR. The crash flip arrow, the up and down reference and the
+antenna need a tilted craft or a CRSF link's statistics, which the host check does not provide.
