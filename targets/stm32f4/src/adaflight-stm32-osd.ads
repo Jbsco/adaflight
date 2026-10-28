@@ -9,6 +9,7 @@ with Adaflight.Arming;
 with Adaflight.Battery;
 with Adaflight.Config_Groups;
 with Adaflight.ESC_Sensor;
+with Adaflight.GPS_Lap_Timer;
 with Adaflight.MSP_Font_In;
 with Adaflight.OSD_Render;
 with Adaflight.OSD_Task;
@@ -70,7 +71,7 @@ package Adaflight.STM32.OSD is
    --  RSSI and the link's quality, the battery in centivolts, centiamps and milliamp hours, the
    --  motors with their outputs and range, which of them run above the disarm output, the ESC
    --  sensor's readings over every motor and for each one, the profiles, the
-   --  estimated altitude and climb rate, the rangefinder's altitude, the custom text, the
+   --  estimated altitude and climb rate, the rangefinder's altitude, the custom text, the lap timer with its clock, the
    --  adjustment shown with its value, and the flight totals.
    type Motor_Flags is array (Adaflight.OSD_Render.Motor_Index) of Boolean;
    type Facts is record
@@ -129,6 +130,8 @@ package Adaflight.STM32.OSD is
       Altitude_Cm       : Interfaces.Integer_32 range -40_000_000 .. 40_000_000 := 0;
       Rangefinder_Cm    : Interfaces.Integer_32 := 0;
       Custom_Text       : Adaflight.OSD_Render.Custom_Text;
+      Lap               : Adaflight.GPS_Lap_Timer.Timer;
+      Lap_Clock_Ms      : Interfaces.Unsigned_32 := 0;
       Adjustment_Present : Boolean := False;
       Adjustment_Name    : Adaflight.OSD_Render.Name;
       Adjustment_Value   : Interfaces.Integer_32 := 0;
