@@ -115,6 +115,45 @@ def fport_frame(sbus_channels, rssi=100):
     return bytes([0x7E]) + stuffed + bytes([0x7E])
 
 
+def hub_frames(data):
+    """The FrSky hub frames in the bytes the board sent: the id and the unstuffed sixteen-bit value of each
+    three-byte run between the header and tail bytes."""
+    frames = []
+    for part in data.split(bytes([0x5E])):
+        raw = part.replace(bytes([0x5D, 0x3E]), bytes([0x5E])).replace(bytes([0x5D, 0x3D]), bytes([0x5D]))
+        if len(raw) == 3:
+            frames.append((raw[0], raw[1] | raw[2] << 8))
+    return frames
+
+
+def sport_frames(data):
+    """The SmartPort data frames in the bytes the board sent, unescaped: the value id and the value of each
+    frame of the data frame id whose FrSky checksum agrees."""
+    raw = bytearray()
+    escaped = False
+    for b in data:
+        if escaped:
+            raw.append(b ^ 0x20)
+            escaped = False
+        elif b == 0x7D:
+            escaped = True
+        else:
+            raw.append(b)
+    frames = []
+    i = 0
+    while i + 8 <= len(raw):
+        frame = raw[i:i + 8]
+        total = sum(frame[:7])
+        while total > 0xFF:
+            total = (total & 0xFF) + (total >> 8)
+        if frame[0] == 0x10 and frame[7] == 0xFF - total:
+            frames.append((frame[1] | frame[2] << 8, int.from_bytes(frame[3:7], "little")))
+            i += 8
+        else:
+            i += 1
+    return frames
+
+
 def crc16_xmodem(data):
     """The CRC16 of polynomial 0x1021 from zero, most significant bit first."""
     crc = 0
@@ -1088,6 +1127,74 @@ def main():
             except subprocess.TimeoutExpired:
                 code = None
             check("MSP reboot restarts into the bootloader", code == 2, repr(code))
+        finally:
+            stop(proc)
+            sock.close()
+        store = os.path.join(work, "frskyhub.bin")
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "feature TELEMETRY")
+            check("telemetry feature on for the FrSky hub", "Enabled" in text, text[-120:])
+            text = cli(sock, "set telemetry_1_protocol = FRSKY_HUB")
+            check("telemetry provider set to the FrSky hub", "telemetry_1_protocol set to FRSKY_HUB" in text,
+                  text[-120:])
+            text = cli(sock, "set telemetry_1_uart = UART3")
+            check("FrSky hub port assigned", "telemetry_1_uart set to UART3" in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            hub = socket.create_connection(("127.0.0.1", RX_PORT), timeout=1)
+            hub.settimeout(0.3)
+            frames = hub_frames(read_all(hub, 1.3))
+            hub.close()
+            ids = [i for i, _ in frames]
+            check("FrSky hub sends the acceleration frames every 125 ms", 6 <= ids.count(0x24) <= 14, repr(ids[:40]))
+        finally:
+            stop(proc)
+            sock.close()
+        store = os.path.join(work, "smartport.bin")
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "feature TELEMETRY")
+            check("telemetry feature on for SmartPort", "Enabled" in text, text[-120:])
+            text = cli(sock, "set telemetry_1_protocol = SMARTPORT")
+            check("telemetry provider set to SmartPort", "telemetry_1_protocol set to SMARTPORT" in text, text[-120:])
+            text = cli(sock, "set telemetry_1_uart = UART3")
+            check("SmartPort port assigned", "telemetry_1_uart set to UART3" in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            line = socket.create_connection(("127.0.0.1", RX_PORT), timeout=1)
+            line.settimeout(0.01)
+            data = b""
+            for _ in range(80):
+                line.sendall(bytes([0x7E, 0x1B]))
+                time.sleep(0.012)
+                try:
+                    data += line.recv(4096)
+                except socket.timeout:
+                    pass
+            line.close()
+            frames = sport_frames(data)
+            ids = sorted({i for i, _ in frames})
+            check("SmartPort answers the polls with checked data frames", len(frames) >= 20, repr(ids))
+            check("SmartPort sends the battery voltage", 0x0210 in ids, repr(ids))
         finally:
             stop(proc)
             sock.close()

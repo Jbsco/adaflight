@@ -10560,3 +10560,34 @@ stays unused until the board sends SmartPort telemetry over FPORT.
 
 The host smoke check's receiver phase adds FPORT control frames, stuffed and checksummed, with the same
 channels.
+
+## D446. STM32F4 SmartPort telemetry (2026-10-27)
+
+The board answers a FrSky receiver's SmartPort polls on the telemetry port of the first provider with the
+SmartPort protocol, at 57,600 baud whatever rate the provider names, inverted unless the telemetry's
+inversion setting says otherwise, and on one wire when the telemetry's half-duplex setting asks. The core's
+SmartPort stream builds its value tables at boot from the sensors the configuration leaves enabled, the
+battery meters configured, the accelerometer and the GPS feature. Each telemetry task run takes the bytes
+received up to a complete poll, keeps the rest for the next run, and sends the next value when the poll
+names this sensor, within one pass over the tables. The values come from the battery, the altitude and
+climb rate, the attitude, the accelerometer, the arming and the modes, the GPS, the ESC sensor, and the
+current profiles' gains and rates. SmartPort runs before LTM and MAVLink in the port checks and the task.
+
+The telemetry port generic gains a fixed rate, the inversion default and the half-duplex setting for a
+protocol that takes it. LTM and MAVLink now follow the telemetry's inversion setting.
+
+The host smoke check sets SmartPort on UART3 with a fresh store, polls the sensor every 12 ms, and finds
+checked data frames with the battery voltage among them.
+
+## D447. STM32F4 FrSky hub telemetry (2026-10-27)
+
+The board sends the FrSky hub telemetry stream on the telemetry port of the first provider with the FrSky
+hub protocol, at 9,600 baud whatever rate the provider names and inverted unless the telemetry's inversion
+setting says otherwise. The core's hub stream sends its burst of frames every 125 ms from the clocks, the
+accelerometer, the combined ESC reading, the GPS, the battery, the altitude estimate with its climb rate,
+and the heading. Its settings come from the telemetry and motor groups with the accelerometer's scale and
+no barometer, and the GPS counts as present with the GPS feature on, where the reference asks whether the
+GPS sensor reports at each cycle. The hub stream runs first in the port checks and the telemetry task.
+
+The host smoke check sets the hub protocol on UART3 with a fresh store and counts six to fourteen
+acceleration frames in 1.3 s.
