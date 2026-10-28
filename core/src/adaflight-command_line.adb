@@ -1,5 +1,6 @@
 with Interfaces; use Interfaces;
 with Adaflight.Adjustments;
+with Adaflight.CLI_Resources;
 with Adaflight.Config_Codec;
 with Adaflight.Config_Fix;
 with Adaflight.Config_Reset;
@@ -3609,7 +3610,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
      (No_Command, Adjustment_Range_Command_Word, Aux_Command_Word, Batch_Command_Word, Battery_Profile_Command,
       Beacon_Command, Bootloader_Command_Word, Exit_Command_Word, Save_Command_Word,
       Beeper_Command_Word, Bind_Rx_Command_Word, Board_Name_Command_Word, Defaults_Command_Word,
-      Manufacturer_Id_Command_Word, Signature_Command_Word, Color_Command_Word, Diff_Command,
+      Manufacturer_Id_Command_Word, Signature_Command_Word, Color_Command_Word, Diff_Command, Dma_Command_Word,
       Dshot_Telemetry_Info_Command_Word, Dshotprog_Command_Word, Dump_Command, Env_Command_Word, Escprog_Command_Word,
       Feature_Command_Word, Flash_Erase_Command_Word, Flash_Info_Command_Word, Flash_Read_Command_Word,
       Flash_Scan_Command_Word, Flash_Write_Command_Word, Get_Command, Gpspassthrough_Command_Word,
@@ -3618,7 +3619,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Mode_Color_Command_Word,
       Mixer_Command_Word, Motor_Mix_Command_Word, Options_Command_Word, Peripherals_Command_Word,
       Profile_Command, Rate_Profile_Command,
-      Rc_Smoothing_Info_Command_Word, Rx_Failsafe_Command, MCU_Id_Command_Word, Motor_Command_Word,
+      Rc_Smoothing_Info_Command_Word, Resource_Command_Word, Rx_Failsafe_Command, MCU_Id_Command_Word,
+      Motor_Command_Word,
       MSC_Command_Word,
       Play_Sound_Command_Word, Rx_Range_Command, Sd_Info_Command_Word, Sensor_Hardware_Command_Word,
       Serial_Command_Word,
@@ -3644,6 +3646,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when Signature_Command_Word => "signature",
          when Defaults_Command_Word => "defaults",
          when Diff_Command => "diff",
+         when Dma_Command_Word => "dma",
          when Dshot_Telemetry_Info_Command_Word => "dshot_telemetry_info",
          when Dshotprog_Command_Word => "dshotprog",
          when Dump_Command => "dump",
@@ -3677,6 +3680,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when Profile_Command => "profile",
          when Rate_Profile_Command => "rateprofile",
          when Rc_Smoothing_Info_Command_Word => "rc_smoothing_info",
+         when Resource_Command_Word => "resource",
          when Rx_Failsafe_Command => "rxfail",
          when Rx_Range_Command => "rxrange",
          when Serial_Command_Word => "serial",
@@ -3692,7 +3696,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when Waypoint_Command_Word => "waypoint")
      with Post => Command_Word'Result'Length in 1 .. 20;
 
-   function Command_Count return Positive is (62);
+   function Command_Count return Positive is (64);
 
    function Command_Name (Position : Positive) return String is
      (case Position is
@@ -3707,57 +3711,59 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when 9 => "color",
          when 10 => "defaults",
          when 11 => "diff",
-         when 12 => "dshot_telemetry_info",
-         when 13 => "dshotprog",
-         when 14 => "dump",
-         when 15 => "env",
-         when 16 => "escprog",
-         when 17 => "exit",
-         when 18 => "feature",
-         when 19 => "flash_erase",
-         when 20 => "flash_info",
-         when 21 => "flash_read",
-         when 22 => "flash_scan",
-         when 23 => "flash_write",
-         when 24 => "get",
-         when 25 => "gpspassthrough",
-         when 26 => "gyroregisters",
-         when 27 => "help",
-         when 28 => "led",
-         when 29 => "manufacturer_id",
-         when 30 => "map",
-         when 31 => "mcu_id",
-         when 32 => "mixer",
-         when 33 => "mmix",
-         when 34 => "mode_color",
-         when 35 => "motor",
-         when 36 => "msc",
-         when 37 => "options",
-         when 38 => "peripherals",
-         when 39 => "play_sound",
-         when 40 => "battery_profile",
-         when 41 => "profile",
-         when 42 => "rateprofile",
-         when 43 => "rc_smoothing_info",
-         when 44 => "rxfail",
-         when 45 => "rxrange",
-         when 46 => "save",
-         when 47 => "sd_info",
-         when 48 => "sensor_hardware",
-         when 49 => "serial",
-         when 50 => "serialpassthrough",
-         when 51 => "servo",
-         when 52 => "set",
-         when 53 => "signature",
-         when 54 => "simplified_tuning",
-         when 55 => "smix",
-         when 56 => "status",
-         when 57 => "tasks",
-         when 58 => "version",
-         when 59 => "vtx",
-         when 60 => "vtx_info",
-         when 61 => "vtxtable",
-         when 62 => "waypoint",
+         when 12 => "dma",
+         when 13 => "dshot_telemetry_info",
+         when 14 => "dshotprog",
+         when 15 => "dump",
+         when 16 => "env",
+         when 17 => "escprog",
+         when 18 => "exit",
+         when 19 => "feature",
+         when 20 => "flash_erase",
+         when 21 => "flash_info",
+         when 22 => "flash_read",
+         when 23 => "flash_scan",
+         when 24 => "flash_write",
+         when 25 => "get",
+         when 26 => "gpspassthrough",
+         when 27 => "gyroregisters",
+         when 28 => "help",
+         when 29 => "led",
+         when 30 => "manufacturer_id",
+         when 31 => "map",
+         when 32 => "mcu_id",
+         when 33 => "mixer",
+         when 34 => "mmix",
+         when 35 => "mode_color",
+         when 36 => "motor",
+         when 37 => "msc",
+         when 38 => "options",
+         when 39 => "peripherals",
+         when 40 => "play_sound",
+         when 41 => "battery_profile",
+         when 42 => "profile",
+         when 43 => "rateprofile",
+         when 44 => "rc_smoothing_info",
+         when 45 => "resource",
+         when 46 => "rxfail",
+         when 47 => "rxrange",
+         when 48 => "save",
+         when 49 => "sd_info",
+         when 50 => "sensor_hardware",
+         when 51 => "serial",
+         when 52 => "serialpassthrough",
+         when 53 => "servo",
+         when 54 => "set",
+         when 55 => "signature",
+         when 56 => "simplified_tuning",
+         when 57 => "smix",
+         when 58 => "status",
+         when 59 => "tasks",
+         when 60 => "version",
+         when 61 => "vtx",
+         when 62 => "vtx_info",
+         when 63 => "vtxtable",
+         when 64 => "waypoint",
          when others => "");
 
    --  The line's command and the position of its arguments.
@@ -4669,6 +4675,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Help_Entry
         (Into, Search, "diff", "list configuration changes from default",
          "[master|profile|rates|hardware|all] {defaults|bare}", Any);
+      Help_Entry (Into, Search, "dma", "show DMA assignments", "show", Any);
       Help_Entry (Into, Search, "dshot_telemetry_info", "display dshot telemetry info and stats", "", Any);
       Help_Entry (Into, Search, "dshotprog", "program DShot ESC(s)", "<index> <command>+", Any);
       Help_Entry
@@ -4705,6 +4712,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Help_Entry (Into, Search, "profile", "change profile", "[<index>]", Any);
       Help_Entry (Into, Search, "rateprofile", "change rate profile", "[<index>]", Any);
       Help_Entry (Into, Search, "rc_smoothing_info", "show rc_smoothing operational settings", "", Any);
+      Help_Entry
+        (Into, Search, "resource", "show/set resources", "<> | <resource name> <index> [<pin>|none] | show [all]", Any);
       Help_Entry (Into, Search, "rxfail", "show/set rx failsafe settings", "", Any);
       Help_Entry (Into, Search, "rxrange", "configure rx channel ranges", "", Any);
       Help_Entry (Into, Search, "save", "save and reboot (default)", "[noreboot]", Any);
@@ -6080,16 +6089,245 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end if;
    end Dump_Every_Profile;
 
+   --  The DMA streams, each with the motor it drives or free.
+   procedure Put_DMA (Into : in out Output; Env : Environment)
+     with Global => null
+   is
+   begin
+      Put (Into, CRLF & "Currently active DMA:" & CRLF & "--------------------" & CRLF);
+      for K in Env.DMA_Motors'Range loop
+         pragma Loop_Invariant (True);
+         Put (Into, "DMA" & Decimal (Integer_64 ((K - 1) / 8 + 1)) & " Stream " & Decimal (Integer_64 ((K - 1) mod 8))
+                    & ":");
+         if Env.DMA_Motors (K) > 0 then
+            Put (Into, " MOTOR " & Decimal (Integer_64 (Env.DMA_Motors (K))) & CRLF);
+         else
+            Put (Into, " FREE" & CRLF);
+         end if;
+      end loop;
+   end Put_DMA;
+
+   --  A pin as its port's letter and its number in two digits.
+   function Pin_Text (T : Unsigned_8) return String is
+     ((Character'Val (Character'Pos ('A') + Natural (T / 16) - 1),
+       Character'Val (Character'Pos ('0') + Natural (T mod 16 / 10)),
+       Character'Val (Character'Pos ('0') + Natural (T mod 16 mod 10))))
+     with Post => Pin_Text'Result'First = 1 and then Pin_Text'Result'Length = 3;
+
+   --  The resources, each pin a line: for a dump against the default
+   --  configuration under the section's heading, with a changed pin's default
+   --  first after a number sign, and for the resource command only the pins
+   --  set.
+   procedure Put_Resources (Into : in out Output; C : Configuration; Mode : Dump_Mode; Dump : Boolean)
+     with Global => null
+   is
+      package R renames CLI_Resources;
+      Pending : Boolean := Dump;
+   begin
+      if Dump then
+         Put_Heading (Into, Mode, False, "resources", Pending);
+      end if;
+      for O in R.Owner loop
+         pragma Loop_Invariant (True);
+         for I in 0 .. R.Count (O) - 1 loop
+            pragma Loop_Invariant (True);
+            declare
+               Tag     : constant Unsigned_8 := R.Tag (C, O, I);
+               Default : constant Unsigned_8 := (if Dump then R.Tag (Defaults, O, I) else 0);
+               Equal   : constant Boolean := Tag = Default;
+               Start   : constant String := "resource " & R.Name (O) & " " & Decimal (Integer_64 (I + 1)) & " ";
+            begin
+               if Dump then
+                  Put_Heading (Into, Mode, not Equal, "resources", Pending);
+                  if Shows_Default (Mode, Equal) then
+                     Put (Into, "#" & Start & (if Default /= 0 then Pin_Text (Default) else "NONE") & CRLF);
+                  end if;
+               end if;
+               if (Tag /= 0 or else Dump) and then Shows_Line (Mode, Equal) then
+                  Put (Into, Start & (if Tag /= 0 then Pin_Text (Tag) else "NONE") & CRLF);
+               end if;
+            end;
+         end loop;
+      end loop;
+   end Put_Resources;
+
+   --  An owner's name, with its ordinal where it has more than one pin.
+   function Owner_Text (O : CLI_Resources.Owner; I : Natural) return String is
+     (CLI_Resources.Name (O) & (if CLI_Resources.Max_Index (O) > 0 then " " & Decimal (Integer_64 (I + 1)) else ""))
+     with Pre  => I < CLI_Resources.Count (O),
+          Post => Owner_Text'Result'First = 1 and then Owner_Text'Result'Length <= 45;
+
+   --  Each other pin the new tag is set to noted, and cleared when it belongs
+   --  to the same owner.
+   procedure Resource_Check
+     (Into : in out Output; C : in out Configuration; Set_Owner : CLI_Resources.Owner; Set_Index : Natural;
+      New_Tag : Unsigned_8)
+     with Global => null
+   is
+      package R renames CLI_Resources;
+      use type R.Owner;
+   begin
+      for O in R.Owner loop
+         pragma Loop_Invariant (True);
+         for I in 0 .. R.Count (O) - 1 loop
+            pragma Loop_Invariant (True);
+            if R.Tag (C, O, I) = New_Tag and then not (O = Set_Owner and then I = Set_Index) then
+               Put (Into, CRLF & "NOTE: " & Pin_Text (New_Tag) & " already assigned to " & Owner_Text (O, I));
+               if O = Set_Owner then
+                  R.Set_Tag (C, O, I, 0);
+                  Put (Into, ". " & Owner_Text (O, I) & " disabled");
+               end if;
+               Put (Into, "." & CRLF);
+            end if;
+         end loop;
+      end loop;
+   end Resource_Check;
+
+   --  resource: the pins set without arguments; the active assignments for
+   --  show, no pin known, with the DMA streams after all; an owner's pin by
+   --  name and ordinal, the ordinal left out for a single pin, as a port
+   --  letter and number, or none to free it; the owner's pin without one.
+   procedure Resource_Command (Into : in out Output; C : in out Configuration; Env : Environment; Arguments : String)
+     with Pre => Arguments'First >= 1 and then Arguments'Last <= Line_Size
+                 and then Arguments'First <= Arguments'Last + 1
+   is
+      package R renames CLI_Resources;
+      Owner : R.Owner := R.Owner'First;
+      Found : Boolean := False;
+      Index : Natural := 0;
+
+      --  The first position from From past the spaces.
+      function Skip_Spaces (From : Positive) return Positive
+        with Pre  => Arguments'First >= 1 and then Arguments'Last <= Line_Size
+                     and then From in Arguments'First .. Arguments'Last + 1,
+             Post => Skip_Spaces'Result in From .. Arguments'Last + 1
+      is
+         P : Positive := From;
+      begin
+         while P <= Arguments'Last and then Arguments (P) = ' ' loop
+            pragma Loop_Invariant (P in From .. Arguments'Last);
+            pragma Loop_Variant (Increases => P);
+            P := P + 1;
+         end loop;
+         return P;
+      end Skip_Spaces;
+
+      --  The first position from From that is a space or past the end.
+      function Word_End (From : Positive) return Positive
+        with Pre  => Arguments'First >= 1 and then Arguments'Last <= Line_Size
+                     and then From in Arguments'First .. Arguments'Last + 1,
+             Post => Word_End'Result in From .. Arguments'Last + 1
+      is
+         P : Positive := From;
+      begin
+         while P <= Arguments'Last and then Arguments (P) /= ' ' loop
+            pragma Loop_Invariant (P in From .. Arguments'Last);
+            pragma Loop_Variant (Increases => P);
+            P := P + 1;
+         end loop;
+         return P;
+      end Word_End;
+
+      First : Positive := Skip_Spaces (Arguments'First);
+      Last  : Natural := Word_End (First) - 1;
+   begin
+      if Last < First then
+         Put_Resources (Into, C, Listing, Dump => False);
+         return;
+      end if;
+      if CLI_Text.Same_Ignoring_Case (Arguments (First .. Last), "show") then
+         Put (Into, "Currently active IO resource assignments:" & CRLF & "(reboot to update)" & CRLF);
+         Put (Into, "--------------------" & CRLF);
+         First := Skip_Spaces (Last + 1);
+         Last := Word_End (First) - 1;
+         if CLI_Text.Same_Ignoring_Case (Arguments (First .. Last), "all") then
+            Put_DMA (Into, Env);
+         end if;
+         return;
+      end if;
+      for O in R.Owner loop
+         if CLI_Text.Same_Ignoring_Case (Arguments (First .. Last), R.Name (O)) then
+            Owner := O;
+            Found := True;
+            exit;
+         end if;
+      end loop;
+      if not Found then
+         Put_Error (Into, "resource: INVALID RESOURCE NAME: '" & Arguments (First .. Last) & "'###" & CRLF);
+         return;
+      end if;
+      First := Skip_Spaces (Last + 1);
+      Last := Word_End (First) - 1;
+      declare
+         Have_Index : constant Boolean := Last >= First and then Arguments (First) in '0' .. '9';
+      begin
+         if R.Max_Index (Owner) > 0 or else Have_Index then
+            declare
+               Candidate : constant Integer_64 :=
+                 (if Have_Index then Integer_64 (CLI_Text.To_Integer (Arguments (First .. Last))) - 1 else -1);
+            begin
+               if not Have_Index or else Candidate < 0 or else Candidate >= Integer_64 (R.Count (Owner)) then
+                  Put_Error (Into, "resource: INDEX NOT BETWEEN 1 AND " & Decimal (Integer_64 (R.Count (Owner)))
+                             & "###" & CRLF);
+                  return;
+               end if;
+               Index := Natural (Candidate);
+            end;
+            First := Skip_Spaces (Last + 1);
+            Last := Word_End (First) - 1;
+         end if;
+      end;
+      if Last < First then
+         declare
+            Tag : constant Unsigned_8 := R.Tag (C, Owner, Index);
+         begin
+            Put (Into, "# resource " & R.Name (Owner) & " " & Decimal (Integer_64 (Index + 1)) & " "
+                       & (if Tag /= 0 then Pin_Text (Tag) else "NONE") & CRLF);
+         end;
+         return;
+      end if;
+      if CLI_Text.Same_Ignoring_Case (Arguments (First .. Last), "NONE") then
+         R.Set_Tag (C, Owner, Index, 0);
+         Put (Into, "Resource is freed" & CRLF);
+         return;
+      end if;
+      declare
+         Letter : constant Character := Arguments (First);
+         Port   : constant Integer :=
+           (if Letter >= 'a' then Character'Pos (Letter) - Character'Pos ('a')
+            else Character'Pos (Letter) - Character'Pos ('A'));
+         Pin    : Integer_32 := 0;
+         Next   : Positive := First + 1;
+      begin
+         if Port in 0 .. 8 then
+            CLI_Text.Parse_Signed (Arguments (First + 1 .. Last), Pin, Next);
+         end if;
+         if Port not in 0 .. 8 or else Next = First + 1 or else Pin not in 0 .. 15 then
+            Put_Error (Into, "resource: Failed to parse '" & Arguments (First .. Last) & "' as pin###" & CRLF);
+         elsif Port > 5 then
+            Put_Error (Into, "resource: PARSING FAILED###" & CRLF);
+         else
+            declare
+               Tag : constant Unsigned_8 := Unsigned_8 ((Port + 1) * 16) + Unsigned_8 (Pin);
+            begin
+               R.Set_Tag (C, Owner, Index, Tag);
+               Resource_Check (Into, C, Owner, Index, Tag);
+               Put (Into, CRLF & "Resource is set to " & Pin_Text (Tag) & CRLF);
+            end;
+         end if;
+      end;
+   end Resource_Command;
+
    --  The master dump: the version line with the default board identifier,
    --  the command batch's start, the board's name and manufacturer, the craft
-   --  name, the features, the sections from the mixer on, and the master
-   --  settings, then the selected profiles and the batch's end. A bare dump
-   --  leaves out the batch; a diff leaves out an empty board name,
+   --  name, the resources, the features, the sections from the mixer on, and
+   --  the master settings, then the selected profiles and the batch's end. A
+   --  bare dump leaves out the batch; a diff leaves out an empty board name,
    --  manufacturer and craft name. The hardware dump keeps the board's lines,
-   --  the features and the hardware settings. The dump of every profile adds
-   --  the MCU's id and the board's signature unless bare, and ends with
-   --  every profile, for a diff after a reset to the defaults at the batch's
-   --  start.
+   --  the resources, the features and the hardware settings. The dump of every
+   --  profile adds the MCU's id and the board's signature unless bare, and
+   --  ends with every profile, for a diff after a reset to the defaults at the
+   --  batch's start.
    procedure Dump_Master
      (Into : in out Output; C : Configuration; Env : Environment; Board : Board_State; Command : String;
       Mode : Dump_Mode; Bare : Boolean; Hardware_Only : Boolean; Every_Profile : Boolean; Ports : Port_List)
@@ -6127,6 +6365,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          Put (Into, (if Craft'Length = 0 then "-" else Craft));
          Put (Into, CRLF);
       end if;
+      Put_Resources (Into, C, Mode, Dump => True);
       Put_Feature_Dump (Into, C.Feature_Config.Enabled_Features, Mode => Mode, Heading => "feature");
       if Hardware_Only then
          Dump_Values (Into, C, Hardware, Current (C), "master", Command, Mode, Ports);
@@ -6377,6 +6616,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
             Defaults_Command (Into, C, Board, Text_At (Buffer, Arguments), Changes);
          when Diff_Command =>
             Print_Config (Into, C, Env, Board, Buffer, Arguments, "diff", True, Ports);
+         when Dma_Command_Word =>
+            Put_DMA (Into, Env);
          when Exit_Command_Word =>
             Exit_Command (Into, Text_At (Buffer, Arguments), Changes);
          when Dump_Command =>
@@ -6413,6 +6654,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
             Profile_Command (Into, C, Rate, Text_At (Buffer, Arguments), Changes);
          when Rc_Smoothing_Info_Command_Word =>
             Rc_Smoothing_Info_Command (Into, C.Rx_Config.Rc_Smoothing /= 0, Env.Smoothing);
+         when Resource_Command_Word =>
+            Resource_Command (Into, C, Env, Text_At (Buffer, Arguments));
          when Dshot_Telemetry_Info_Command_Word =>
             Dshot_Telemetry_Info_Command (Into, Env.Motors, Env.DShot_Telemetry);
          when Dshotprog_Command_Word =>

@@ -470,6 +470,7 @@ package body Adaflight.STM32.Flight is
       Mag             => <>,
       Raw_Gyro_ICM456 => False,
       Interactive     => True,
+      DMA_Motors      => <>,
       Rangefinder     => <>,
       Optical_Flow    => <>,
       Pitot           => <>,
@@ -3656,6 +3657,11 @@ package body Adaflight.STM32.Flight is
       Adaflight.STM32.Control.Init (Config, Runtime_Features);
       Adaflight.STM32.Control.Reset_Disarmed;
       Adaflight.STM32.Motors.Init (Config, Adaflight.STM32.Control.Motor_Count);
+      for M in 0 .. Natural'Min (8, Adaflight.STM32.Motors.Count) - 1 loop
+         if Adaflight.STM32.Motors.Stream_Of (M) > 0 then
+            Env.DMA_Motors (Adaflight.STM32.Motors.Stream_Of (M)) := M + 1;
+         end if;
+      end loop;
       Adaflight.STM32.DShot_Output.Init (Config);
       Bat_Settings := Battery_Settings;
       Adaflight.Battery.Init (Bat, Bat_Settings);
