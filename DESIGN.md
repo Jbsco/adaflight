@@ -10859,3 +10859,20 @@ two, and the serial framing in place of the FPORT one) all fail the vectors.
 
 The host smoke check sends FPORT control frames and telemetry requests in turn on UART3 and finds SmartPort
 replies with checksums that check, among them the battery voltage.
+
+## D465. STM32F4 OSD custom text (2026-10-27)
+
+A UART named by the custom text port setting sends the messages the OSD's custom serial text element shows. The
+port opens after the GPS at the custom text rate, or at 115200 baud when that setting is automatic or past the
+rate table, and stays closed when the rangefinder, the receiver or the GPS already holds that UART. The custom
+text task runs at 100 Hz over every byte received since its last run, with a null or a line feed ending each
+message as the terminator setting names. The element draws the first 31 characters of the last message, or
+three dashes before the first message and after an empty one. With the custom text on UART1, MSP leaves UART1
+to it, the same as for the other devices on that UART.
+
+The core custom text unit and the element's rendering already replay their vectors, so this increment adds no
+core change and no vectors.
+
+The host smoke check sends messages on UART4 and finds on the OSD screen the text without its carriage return,
+a message sent in two parts joined, and the dashes after an empty message. A second boot with the text on UART1
+finds the text on the screen, no MSP reply on UART1 and MSP replies on the USB port.
