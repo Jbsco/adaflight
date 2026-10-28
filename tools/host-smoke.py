@@ -1032,6 +1032,9 @@ def main():
             text = cli(sock, "status")
             check("status names the gyro", "GYRO:" in text)
             check("status holds arming in the command line", "CLI" in text.split("Arming disable flags:")[-1])
+            check("status keeps the motor protocol reason off with the DShot outputs driven",
+                  "Arming disable flags:" in text and "MOTOR_PROTO" not in text.split("Arming disable flags:")[-1],
+                  text.split("Arming disable flags:")[-1].strip()[:80])
             text = cli(sock, "tasks")
             check("tasks run the gyro and the PID loop", "GYRO" in text and "PID" in text)
             text = cli(sock, "dshotprog 0 7")
