@@ -73,7 +73,7 @@ package Adaflight.STM32.OSD is
    --  sensor's readings over every motor and for each one, the profiles with
    --  their names and the PID profile's gains, the
    --  estimated altitude and climb rate, the rangefinder's altitude, the custom text, the lap timer with its clock, the
-   --  adjustment shown with its value, and the flight totals.
+   --  adjustment shown with its value, the flight log's box and device, and the flight totals.
    type Motor_Flags is array (Adaflight.OSD_Render.Motor_Index) of Boolean;
    type Facts is record
       Armed             : Boolean := False;
@@ -115,6 +115,10 @@ package Adaflight.STM32.OSD is
       Amperage          : Interfaces.Integer_32 range -100_000 .. 100_000 := 0;
       MAh_Drawn         : Interfaces.Integer_32 range 0 .. 2 ** 24 := 0;
       Wh_Drawn          : Float := 0.0;
+      Blackbox_Box      : Boolean := False;
+      Blackbox_Working  : Boolean := False;
+      Blackbox_Full     : Boolean := False;
+      Log_Number        : Interfaces.Integer_32 := -1;
       Battery_Percent   : Interfaces.Unsigned_8 := 0;
       Battery_Capacity  : Interfaces.Unsigned_16 := 0;
       Motors            : Adaflight.OSD_Render.Motor_Count := 4;

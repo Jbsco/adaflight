@@ -2207,6 +2207,35 @@ def main():
             esc.stop.set()
             stop(proc)
             sock.close()
+        card = os.path.join(work, "logstatus.img")
+        fat16_image(card, 40960)
+        store = os.path.join(work, "logstatus.bin")
+        proc, sock = start(image, store, {"ADAFLIGHT_SD_IMAGE": card})
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            for line in ("blackbox_device = SDCARD", "blackbox_mode = ALWAYS", "osd_displayport_device = MAX7456",
+                         "vcd_video_system = PAL", "osd_log_status_pos = 2177"):
+                text = cli(sock, "set " + line)
+                check(f"log status {line}", line.replace(" = ", " set to ") in text, text[-120:])
+            text = cli(sock, "aux 0 26 0 900 2100 0 0")
+            check("flight log box on AUX1", "aux 0 26 0 900 2100 0 0" in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store, {"ADAFLIGHT_SD_IMAGE": card})
+        try:
+            deadline = time.time() + 15
+            while time.time() < deadline and screen_row(store, 4)[2:4] != "1 ":
+                time.sleep(0.2)
+            check("OSD log status element shows the SD card's log number", screen_row(store, 4)[2:4] == "1 ",
+                  repr(screen_row(store, 4)))
+        finally:
+            stop(proc)
+            sock.close()
         store = os.path.join(work, "laps.bin")
         proc, sock = start(image, store)
         try:
