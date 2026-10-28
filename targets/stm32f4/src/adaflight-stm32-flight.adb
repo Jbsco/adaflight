@@ -39,6 +39,8 @@ with Adaflight.Core_Loop;
 with Adaflight.CRSF_Telemetry;
 with Adaflight.Failsafe;
 with Adaflight.FrSky_Hub_Telemetry;
+with Adaflight.GHST_Telemetry;
+with Adaflight.IBus_Telemetry;
 with Adaflight.FAT;
 with Adaflight.Flash_Device;
 with Adaflight.Flight_Stats;
@@ -78,6 +80,7 @@ with Adaflight.STM32.Flash;
 with Adaflight.STM32.Flash_Chip;
 with Adaflight.STM32.GPIO;
 with Adaflight.STM32.FrSky_Hub;
+with Adaflight.STM32.IBus;
 with Adaflight.STM32.LTM;
 with Adaflight.STM32.SmartPort;
 with Adaflight.STM32.MAVLink;
@@ -308,7 +311,8 @@ package body Adaflight.STM32.Flight is
    --  Whether a telemetry stream holds a UART.
    function Telemetry_Holds (N : Adaflight.STM32.USART.Number) return Boolean is
      (Adaflight.STM32.FrSky_Hub.Holds (N) or else Adaflight.STM32.SmartPort.Holds (N)
-      or else Adaflight.STM32.LTM.Holds (N) or else Adaflight.STM32.MAVLink.Holds (N));
+      or else Adaflight.STM32.LTM.Holds (N) or else Adaflight.STM32.MAVLink.Holds (N)
+      or else Adaflight.STM32.IBus.Holds (N));
 
    function Text (S : String) return Common.Text is
       T : Common.Text;
@@ -1583,6 +1587,7 @@ package body Adaflight.STM32.Flight is
       Adaflight.STM32.SmartPort.Check_State (Armed, Box_Present, Box_Active);
       Adaflight.STM32.LTM.Check_State (Armed, Box_Present, Box_Active);
       Adaflight.STM32.MAVLink.Check_State (Armed, Box_Present, Box_Active, Adaflight.STM32.Time.Millis);
+      Adaflight.STM32.IBus.Check_State (Armed, Box_Present, Box_Active);
       if Was and then not Telemetry_Holds (Adaflight.STM32.USART.UART1) then
          Adaflight.STM32.USART.Init (Adaflight.STM32.USART.UART1, Baud);
          Adaflight.MSP_Port.Init (Lines (Line_UART1).Port);
@@ -2716,6 +2721,84 @@ package body Adaflight.STM32.Flight is
          Yaw                 => Integer_16 (Att_State.Euler.Yaw));
    end FrSky_Hub_Inputs;
 
+   --  What the Ghost telemetry reads: the battery, the arming, the GPS with
+   --  its home, the altitude estimate and the attitude's heading.
+   function GHST_Inputs return Adaflight.GHST_Telemetry.Inputs is
+      G     : constant Adaflight.STM32.GPS.Readings := Adaflight.STM32.GPS.Current;
+      Volts : constant Natural := Natural'Min (65_535, Bat.Voltage.Display_Filtered);
+      function Wide (V : Long_Integer) return Integer_32 is
+        (Integer_32 (Long_Integer'Max (-2 ** 31, Long_Integer'Min (2 ** 31 - 1, V))));
+   begin
+      return
+        (Now_Us         => Adaflight.STM32.Time.Micros,
+         Voltage_Cv     => Unsigned_16 (Volts),
+         Cell_Cv        => (if Bat.Cells > 0 then Unsigned_16 (Volts / Bat.Cells) else 0),
+         Amperage_Ca    => Wide (Long_Integer (Bat.Current.Amperage)),
+         Mah_Drawn      => Wide (Long_Integer (Bat.Current.mAh_Drawn)),
+         Armed          => Adaflight.STM32.Pilot.Armed,
+         Lat            => G.Latitude,
+         Lon            => G.Longitude,
+         Alt_Cm         => G.Altitude_Cm,
+         Fix            => G.Fix,
+         Fix_Home       => G.Fix_Home,
+         Ground_Speed   => G.Ground_Speed,
+         Ground_Course  => G.Ground_Course,
+         Num_Sat        => G.Satellites,
+         Distance_Home  => G.Distance_To_Home_M,
+         Direction_Home => G.Direction_To_Home,
+         Altitude_Cm    => Estimated_Altitude_Cm,
+         Yaw            => Integer_16 (Att_State.Euler.Yaw));
+   end GHST_Inputs;
+
+   --  What the iBus telemetry reads: the battery, the arming, the throttle
+   --  and the modes, the accelerometer, the attitude, the climb rate and the
+   --  GPS, with no barometer and no gyro temperature on the board.
+   function IBus_Inputs return Adaflight.IBus_Telemetry.Inputs is
+      package IB renames Adaflight.IBus_Telemetry;
+      M     : constant Adaflight.Arming.Mode_Set := Adaflight.STM32.Pilot.Flight_Modes;
+      G     : constant Adaflight.STM32.GPS.Readings := Adaflight.STM32.GPS.Current;
+      Volts : constant Natural := Natural'Min (65_535, Bat.Voltage.Display_Filtered);
+      function Held (V : Float) return IB.Acceleration is (Float'Max (-1.0e6, Float'Min (1.0e6, V)));
+      function Wide (V : Long_Integer) return Integer_32 is
+        (Integer_32 (Long_Integer'Max (-2 ** 31, Long_Integer'Min (2 ** 31 - 1, V))));
+   begin
+      return
+        (Voltage_Cv       => Unsigned_16 (Volts),
+         Cell_Cv          => (if Bat.Cells > 0 then Unsigned_16 (Volts / Bat.Cells) else 0),
+         Amperage_Ca      => Wide (Long_Integer (Bat.Current.Amperage)),
+         Capacity         => Unsigned_16 (Natural'Min (65_535, Bat_Settings.Capacity_mAh)),
+         Percent          => Unsigned_8 (Adaflight.Battery.Percentage_Remaining (Bat, Bat_Settings)),
+         Mah_Drawn        => Wide (Long_Integer (Bat.Current.mAh_Drawn)),
+         Armed            => Adaflight.STM32.Pilot.Armed,
+         Throttle_Low     => Adaflight.STM32.Pilot.Throttle_Low (Flight_Channels),
+         Motor_Stop       => (Runtime_Features and Adaflight.Config_Fix.Feature_Motor_Stop) /= 0,
+         Throttle         => Float'Max (0.0, Float'Min (32_767.0, Adaflight.STM32.Pilot.Throttle_Command)),
+         Angle_Like       =>
+           M (Adaflight.Arming.Angle_Mode) or else M (Adaflight.Arming.Alt_Hold_Mode)
+           or else M (Adaflight.Arming.Pos_Hold_Mode),
+         Passthru         => M (Adaflight.Arming.Passthru_Mode),
+         Headfree_Or_Mag  => M (Adaflight.Arming.Mag_Mode) or else M (Adaflight.Arming.Headfree_Mode),
+         Horizon          => M (Adaflight.Arming.Horizon_Mode),
+         Failsafe         => M (Adaflight.Arming.Failsafe_Mode),
+         Acc_X            => Held (Acc_State.Acc.X),
+         Acc_Y            => Held (Acc_State.Acc.Y),
+         Acc_Z            => Held (Acc_State.Acc.Z),
+         Roll             => Integer_16 (Att_State.Euler.Roll),
+         Pitch            => Integer_16 (Att_State.Euler.Pitch),
+         Yaw              => Integer_16 (Att_State.Euler.Yaw),
+         Vario_Cms        => Estimated_Vario,
+         GPS_Present      => G.Present,
+         Fix              => G.Fix,
+         Num_Sat          => G.Satellites,
+         Ground_Speed     => G.Ground_Speed,
+         Ground_Course    => G.Ground_Course,
+         Lat              => G.Latitude,
+         Lon              => G.Longitude,
+         Alt_Cm           => G.Altitude_Cm,
+         Distance_Home    => G.Distance_To_Home_M,
+         others           => <>);
+   end IBus_Inputs;
+
    --  The SmartPort value tables: the sensors the configuration leaves
    --  enabled, the battery meters configured, the accelerometer and the GPS
    --  feature, with no barometer on the board.
@@ -3000,6 +3083,10 @@ package body Adaflight.STM32.Flight is
                end;
             end if;
             Tasks.Telemetry (Inputs, Before);
+            if not Session.Open and then (Runtime_Features and Adaflight.Config_Fix.Feature_Telemetry) /= 0 then
+               Adaflight.STM32.Radio.GHST_Telemetry_Step (GHST_Inputs);
+               Adaflight.STM32.IBus.Run (IBus_Inputs);
+            end if;
          when Scheduler.PINIO_Box =>
             Adaflight.STM32.PINIO.Update;
          when Scheduler.VTX_Control =>
@@ -3148,6 +3235,15 @@ package body Adaflight.STM32.Flight is
       Adaflight.STM32.SmartPort.Init (Config, Runtime_Features, SmartPort_Build);
       Adaflight.STM32.LTM.Init (Config, Runtime_Features);
       Adaflight.STM32.MAVLink.Init (Config, Runtime_Features, (UID (1), UID (2), UID (3)));
+      Adaflight.STM32.Radio.Init_GHST_Telemetry
+        (Adaflight.Config_Runtime.GHST_Settings_Of
+           (Config.Telemetry_Config, Config.Battery_Config, Runtime_Features,
+            (Gyro => Selection.Found, Acc => Gyro_Report.Acc_Found, Baro => False, Mag => False)),
+         Feature_On => (Runtime_Features and Adaflight.Config_Fix.Feature_Telemetry) /= 0);
+      Adaflight.STM32.IBus.Init
+        (Config, Runtime_Features,
+         Adaflight.Config_Runtime.IBus_Settings_Of
+           (Config.Telemetry_Config, Float'Max (0.0, Float'Min (1.0, Acc_State.One_G_Reciprocal))));
       Check_Telemetry;
       Adaflight.STM32.DShot_Output.Enable;
       Blink := Ada.Real_Time.Clock;

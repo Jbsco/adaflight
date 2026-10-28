@@ -57,6 +57,13 @@ package body Adaflight.STM32.Radio is
    XBUS_State  : Adaflight.XBUS.State;
    FPort_State : Adaflight.FPort.State;
    GHST_State  : Adaflight.GHST.State;
+   --  The Ghost telemetry: its schedule, whether it runs, and the frame that
+   --  waits for the receiver's quiet window.
+   GHST_Tlm     : Adaflight.GHST_Telemetry.Link;
+   GHST_Tlm_Set : Adaflight.GHST_Telemetry.Settings;
+   GHST_Tlm_On  : Boolean := False;
+   GHST_Reply   : Adaflight.GHST_Telemetry.Frame := (others => 0);
+   GHST_Length  : Natural range 0 .. Adaflight.GHST_Telemetry.Frame_Size := 0;
    Jeti_State  : Adaflight.Jeti_Ex_Bus.State;
    Link        : USART.Number := USART.UART3;
    --  The link's line: inverted, and on its transmit pin alone.
@@ -271,6 +278,28 @@ package body Adaflight.STM32.Radio is
       end if;
    end Telemetry_Step;
 
+   procedure Init_GHST_Telemetry (Settings : Adaflight.GHST_Telemetry.Settings; Feature_On : Boolean) is
+   begin
+      GHST_Tlm_Set := Settings;
+      GHST_Tlm_On := Feature_On and then Open and then Kind = GHST;
+      GHST_Length := 0;
+      Adaflight.GHST_Telemetry.Init (GHST_Tlm, GHST_Tlm_Set);
+   end Init_GHST_Telemetry;
+
+   procedure GHST_Telemetry_Step (Inp : Adaflight.GHST_Telemetry.Inputs) is
+      O : Adaflight.GHST_Telemetry.Output;
+   begin
+      if not GHST_Tlm_On or else not GHST_State.Telemetry_Enabled then
+         return;
+      end if;
+      Adaflight.GHST_Telemetry.Update (GHST_Tlm, GHST_Tlm_Set, Inp, O);
+      if O.Count > 0 then
+         GHST_Reply := O.Tx;
+         GHST_Length := O.Count;
+         Adaflight.GHST.Queue_Telemetry (GHST_State, O.Count);
+      end if;
+   end GHST_Telemetry_Step;
+
    function Linked return Boolean is (Open);
 
    function Is_CRSF return Boolean is (Open and then Kind = CRSF);
@@ -382,6 +411,10 @@ package body Adaflight.STM32.Radio is
             Result : Adaflight.GHST.Process_Outputs;
          begin
             Adaflight.GHST.Process_Frame (GHST_State, Rx, Now_Us, Result);
+            if Result.Telemetry_Sent and then GHST_Length > 0 then
+               USART.Put (Port, GHST_Reply (0 .. GHST_Length - 1));
+               GHST_Length := 0;
+            end if;
          end;
       end if;
       if Open then

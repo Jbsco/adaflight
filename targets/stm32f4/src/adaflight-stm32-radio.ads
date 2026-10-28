@@ -3,13 +3,15 @@
 --  FPORT, Ghost or Jeti EX Bus protocol over it, the receiver's channel
 --  processing, the failsafe's link state, and the CRSF telemetry sent back
 --  on the port with its speed negotiation, on its two pins or, apart from
---  CRSF, on its transmit pin alone, which Ghost and EX Bus always take. The
---  other serial receiver protocols and the FPORT, Ghost and EX Bus telemetry
---  wait for their drivers.
+--  CRSF, on its transmit pin alone, which Ghost and EX Bus always take, and
+--  the Ghost telemetry answered in the receiver's quiet window. The other
+--  serial receiver protocols and the FPORT and EX Bus telemetry wait for
+--  their drivers.
 with Interfaces;
 with Adaflight.Config_Groups;
 with Adaflight.CRSF_Telemetry;
 with Adaflight.Failsafe;
+with Adaflight.GHST_Telemetry;
 with Adaflight.Receiver;
 with Adaflight.STM32.USART;
 package Adaflight.STM32.Radio is
@@ -20,6 +22,11 @@ package Adaflight.STM32.Radio is
    --  One run of the telemetry task: the negotiation, then the frames due
    --  from the sources, sent on the port.
    procedure Telemetry_Step (Now_Us : Time_Us; Src : Adaflight.CRSF_Telemetry.Sources);
+   --  The Ghost telemetry's schedule, with the telemetry feature on and a
+   --  Ghost link open, and one run of it in the telemetry task: the next
+   --  frame due, held until the receiver's quiet window.
+   procedure Init_GHST_Telemetry (Settings : Adaflight.GHST_Telemetry.Settings; Feature_On : Boolean);
+   procedure GHST_Telemetry_Step (Inp : Adaflight.GHST_Telemetry.Inputs);
    --  Whether a serial receiver port is open, and whether it speaks CRSF.
    function Linked return Boolean;
    function Is_CRSF return Boolean;
