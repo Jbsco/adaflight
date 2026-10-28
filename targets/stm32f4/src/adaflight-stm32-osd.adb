@@ -553,6 +553,9 @@ package body Adaflight.STM32.OSD is
       Context.Draw.Inputs.Date := Context.Date;
       Context.Draw.Inputs.Zone := Context.Zone;
       Context.Page.GPS_Feature := F.GPS_Feature;
+      Context.Page.Total_Flights := F.Total_Flights;
+      Context.Page.Total_Time_S := F.Total_Time_S;
+      Context.Page.Total_Dist_M := F.Total_Dist_M;
 
       D.Roll := F.Roll;
       D.Pitch := F.Pitch;
@@ -607,6 +610,9 @@ package body Adaflight.STM32.OSD is
       D.Flown_Cm := F.GPS.Distance_Flown_Cm;
       D.Use_3D_Speed := F.GPS.Use_3D_Speed;
       D.Altitude_Cm := F.Altitude_Cm;
+      D.Adjustment_Present := F.Adjustment_Present;
+      D.Adjustment_Name := F.Adjustment_Name;
+      D.Adjustment_Value := F.Adjustment_Value;
       D.Vario_Cm_S := F.Vario;
       D.GPS_Healthy := F.GPS.Healthy;
       D.Screen_Rows := Port.Rows;
