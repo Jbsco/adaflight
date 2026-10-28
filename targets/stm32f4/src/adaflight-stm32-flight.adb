@@ -19,6 +19,7 @@ with Adaflight.Bytes;
 with Adaflight.Clock;
 with Adaflight.Config_Codec;
 with Adaflight.Config_Fix;
+with Adaflight.MSP_Allocation;
 with Adaflight.DShot;
 with Adaflight.DShot_Command;
 with Adaflight.LTM_Telemetry;
@@ -199,7 +200,11 @@ package body Adaflight.STM32.Flight is
                            Adaflight.Board.PINIO4_Box),
       Motor_Tags       => (Adaflight.Board.MOTOR1_Tag, Adaflight.Board.MOTOR2_Tag, Adaflight.Board.MOTOR3_Tag,
                            Adaflight.Board.MOTOR4_Tag, Adaflight.Board.MOTOR5_Tag, Adaflight.Board.MOTOR6_Tag,
-                           Adaflight.Board.MOTOR7_Tag, Adaflight.Board.MOTOR8_Tag));
+                           Adaflight.Board.MOTOR7_Tag, Adaflight.Board.MOTOR8_Tag),
+      MSP_First_Port        => Adaflight.MSP_Allocation.USB_VCP_Port,
+      MSP_UART              => Adaflight.Board.MSP_UART,
+      MSP_Other_UART        => Adaflight.Board.Use_MSP_UART,
+      MSP_Display_Port_UART => Adaflight.Board.MSP_Display_Port_UART);
 
    Board    : CLI.Board_State := (Hardware => Board_Hardware, others => <>);
    Config   : Adaflight.Config_Groups.Configuration := Adaflight.Config_Reset.Reset (Board);
