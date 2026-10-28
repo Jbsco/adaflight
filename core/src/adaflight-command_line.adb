@@ -7114,149 +7114,153 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end if;
       Buffer (Length + 1) := ASCII.NUL;
       Find_Command (Buffer, Kind, Arguments);
-      case Kind is
-         when No_Command =>
-            if Env.Interactive then
-               Put_Error (Into, "input: UNKNOWN COMMAND, TRY 'HELP'###");
-            else
-               Put (Into, "ERR_CMD_NA: ");
-               Put (Into, Buffer (1 .. Length));
-               Put (Into, CRLF);
-            end if;
-         when Adjustment_Range_Command_Word =>
-            Adjustment_Range_Command (Into, C, Text_At (Buffer, Arguments), Changes);
-         when Aux_Command_Word =>
-            Aux_Command (Into, C, Text_At (Buffer, Arguments), Changes);
-         when Batch_Command_Word =>
-            Batch_Command (Into, Text_At (Buffer, Arguments));
-         when Battery_Profile_Command =>
-            Profile_Command (Into, C, Battery, Text_At (Buffer, Arguments), Changes);
-         when Beacon_Command =>
-            Beeper_Command
-              (Into, "beacon", C.Beeper_Config.Dshot_Beacon_Off_Flags, Beacon_Allowed, Text_At (Buffer, Arguments));
-         when Board_Name_Command_Word =>
-            Board_Text_Command
-              (Into, "board_name", "BOARD_NAME", Board.Name, Board_Info.Board_Name_Length, Board.Information_Set,
-               Board.Information_Updated, Text_At (Buffer, Arguments));
-         when Manufacturer_Id_Command_Word =>
-            Board_Text_Command
-              (Into, "manufacturer_id", "MANUFACTURER_ID", Board.Manufacturer, Board_Info.Manufacturer_Length,
-               Board.Information_Set, Board.Information_Updated, Text_At (Buffer, Arguments));
-         when Signature_Command_Word =>
-            Signature_Command (Into, Board, Text_At (Buffer, Arguments));
-         when Bind_Rx_Command_Word =>
-            Bind_Rx_Command (Into, C, Env, Changes);
-         when Beeper_Command_Word =>
-            Beeper_Command
-              (Into, "beeper", C.Beeper_Config.Beeper_Off_Flags, Beeper_Allowed, Text_At (Buffer, Arguments));
-         when Defaults_Command_Word =>
-            Defaults_Command (Into, C, Board, Text_At (Buffer, Arguments), Changes);
-         when Diff_Command =>
-            Print_Config (Into, C, Env, Board, Buffer, Arguments, "diff", True, Ports);
-         when Dma_Command_Word =>
-            Put_DMA (Into, Env);
-         when Exit_Command_Word =>
-            Exit_Command (Into, Text_At (Buffer, Arguments), Changes);
-         when Dump_Command =>
-            Print_Config (Into, C, Env, Board, Buffer, Arguments, "dump", False, Ports);
-         when Feature_Command_Word =>
-            Feature_Command (Into, C, Text_At (Buffer, Arguments));
-         when Get_Command =>
-            Get (Into, C, "get", Text_At (Buffer, Arguments), Ports);
-         when Help_Command_Word =>
-            Help_Command (Into, Text_At (Buffer, Arguments));
-         when Color_Command_Word =>
-            Color_Command (Into, C.Led_Strip_Status_Mode_Config.Colors, Text_At (Buffer, Arguments));
-         when Led_Command_Word =>
-            Led_Command (Into, C.Led_Strip_Status_Mode_Config.Led_Configs, Text_At (Buffer, Arguments), Changes);
-         when Mode_Color_Command_Word =>
-            Mode_Color_Command (Into, C.Led_Strip_Status_Mode_Config, Text_At (Buffer, Arguments));
-         when Map_Command_Word =>
-            Map_Command (Into, C, Text_At (Buffer, Arguments));
-         when MCU_Id_Command_Word =>
-            Put_MCU_Id (Into, Env.MCU_Id);
-         when Motor_Command_Word =>
-            Motor_Command (Into, Env, Text_At (Buffer, Arguments), Changes);
-         when Play_Sound_Command_Word =>
-            Play_Sound_Command (Into, Text_At (Buffer, Arguments), Changes);
-         when Sensor_Hardware_Command_Word =>
-            Sensor_Hardware_Command (Into, Text_At (Buffer, Arguments));
-         when Mixer_Command_Word =>
-            Mixer_Command (Into, C.Mixer_Config.Mixer_Mode, Text_At (Buffer, Arguments));
-         when Motor_Mix_Command_Word =>
-            Motor_Mix_Command (Into, C.Custom_Motor_Mixer, Text_At (Buffer, Arguments));
-         when Profile_Command =>
-            Profile_Command (Into, C, PID, Text_At (Buffer, Arguments), Changes);
-         when Rate_Profile_Command =>
-            Profile_Command (Into, C, Rate, Text_At (Buffer, Arguments), Changes);
-         when Rc_Smoothing_Info_Command_Word =>
-            Rc_Smoothing_Info_Command (Into, C.Rx_Config.Rc_Smoothing /= 0, Env.Smoothing);
-         when Resource_Command_Word =>
-            Resource_Command (Into, C, Env, Text_At (Buffer, Arguments));
-         when Dshot_Telemetry_Info_Command_Word =>
-            Dshot_Telemetry_Info_Command (Into, Env.Motors, Env.DShot_Telemetry);
-         when Dshotprog_Command_Word =>
-            Dshotprog_Command (Into, Env, Text_At (Buffer, Arguments));
-         when Escprog_Command_Word =>
-            Escprog_Command (Into, Env, Text_At (Buffer, Arguments));
-         when Gpspassthrough_Command_Word =>
-            Gpspassthrough_Command (Into);
-         when Gyroregisters_Command_Word =>
-            Gyroregisters_Command (Into, C, Env);
-         when Options_Command_Word =>
-            Options_Command (Into, Env);
-         when Peripherals_Command_Word =>
-            Peripherals_Command (Into, C, Ports, Env);
-         when Status_Command_Word =>
-            Status_Command (Into, C, Ports, Env, Sched);
-         when Env_Command_Word =>
-            Env_Command (Into, C, Board, Env, Sched, Text_At (Buffer, Arguments));
-         when Sd_Info_Command_Word =>
-            SD_Info_Command (Into, C.Sdcard_Config.Mode, Env.SD_Card);
-         when Bootloader_Command_Word =>
-            Bootloader_Command (Into, Text_At (Buffer, Arguments), Changes);
-         when MSC_Command_Word =>
-            MSC_Command (Into, Env.MSC_Ready, C.Time_Config.Tz_Offset_Minutes, Text_At (Buffer, Arguments), Changes);
-         when Flash_Info_Command_Word =>
-            Flash_Info_Command (Into, Env.Flash);
-         when Flash_Erase_Command_Word =>
-            Flash_Erase_Command (Into, Changes);
-         when Flash_Scan_Command_Word =>
-            Flash_Scan_Command (Into);
-         when Flash_Write_Command_Word =>
-            Flash_Write_Command (Into, Text_At (Buffer, Arguments));
-         when Flash_Read_Command_Word =>
-            Flash_Read_Command (Into, Text_At (Buffer, Arguments));
-         when Rx_Failsafe_Command =>
-            Failsafe_Command (Into, C, Text_At (Buffer, Arguments));
-         when Rx_Range_Command =>
-            Range_Command (Into, C, Text_At (Buffer, Arguments));
-         when Servo_Command_Word =>
-            Servo_Command (Into, C.Servo_Params, Text_At (Buffer, Arguments));
-         when Servo_Mix_Command_Word =>
-            Servo_Mix_Command (Into, C.Custom_Servo_Mixers, C.Servo_Params, Text_At (Buffer, Arguments));
-         when Save_Command_Word =>
-            Save_Command (Into, C, Board, Text_At (Buffer, Arguments), Changes);
-         when Serial_Command_Word =>
-            Serial_Command (Into, C, Text_At (Buffer, Arguments), Ports);
-         when Set_Command =>
-            Set (Into, C, Text_At (Buffer, Arguments), Ports);
-         when Simplified_Tuning_Command_Word =>
-            Simplified_Tuning_Command (Into, C, Text_At (Buffer, Arguments));
-         when Tasks_Command_Word =>
-            Tasks_Command (Into, C.System_Config, Env, Sched);
-         when Version_Command_Word =>
-            Version_Command (Into, C, Env, Board);
-         when Vtx_Command_Word =>
-            Vtx_Command
-              (Into, C.Vtx_Config.Vtx_Channel_Activation_Conditions, C.Vtx_Table_Config, Text_At (Buffer, Arguments));
-         when Vtx_Info_Command_Word =>
-            Vtx_Info_Command (Into, Env.VTX_Present, Env.VTX_Power);
-         when Vtx_Table_Command_Word =>
-            Vtx_Table_Command (Into, C.Vtx_Table_Config, Text_At (Buffer, Arguments));
-         when Waypoint_Command_Word =>
-            Waypoint_Command (Into, C.Flight_Plan_Config, Env.Navigation, Text_At (Buffer, Arguments));
-      end case;
+      declare
+         Args : constant String := (if Kind = No_Command then "" else Text_At (Buffer, Arguments));
+      begin
+         case Kind is
+            when No_Command =>
+               if Env.Interactive then
+                  Put_Error (Into, "input: UNKNOWN COMMAND, TRY 'HELP'###");
+               else
+                  Put (Into, "ERR_CMD_NA: ");
+                  Put (Into, Buffer (1 .. Length));
+                  Put (Into, CRLF);
+               end if;
+            when Adjustment_Range_Command_Word =>
+               Adjustment_Range_Command (Into, C, Args, Changes);
+            when Aux_Command_Word =>
+               Aux_Command (Into, C, Args, Changes);
+            when Batch_Command_Word =>
+               Batch_Command (Into, Args);
+            when Battery_Profile_Command =>
+               Profile_Command (Into, C, Battery, Args, Changes);
+            when Beacon_Command =>
+               Beeper_Command
+                 (Into, "beacon", C.Beeper_Config.Dshot_Beacon_Off_Flags, Beacon_Allowed, Args);
+            when Board_Name_Command_Word =>
+               Board_Text_Command
+                 (Into, "board_name", "BOARD_NAME", Board.Name, Board_Info.Board_Name_Length, Board.Information_Set,
+                  Board.Information_Updated, Args);
+            when Manufacturer_Id_Command_Word =>
+               Board_Text_Command
+                 (Into, "manufacturer_id", "MANUFACTURER_ID", Board.Manufacturer, Board_Info.Manufacturer_Length,
+                  Board.Information_Set, Board.Information_Updated, Args);
+            when Signature_Command_Word =>
+               Signature_Command (Into, Board, Args);
+            when Bind_Rx_Command_Word =>
+               Bind_Rx_Command (Into, C, Env, Changes);
+            when Beeper_Command_Word =>
+               Beeper_Command
+                 (Into, "beeper", C.Beeper_Config.Beeper_Off_Flags, Beeper_Allowed, Args);
+            when Defaults_Command_Word =>
+               Defaults_Command (Into, C, Board, Args, Changes);
+            when Diff_Command =>
+               Print_Config (Into, C, Env, Board, Buffer, Arguments, "diff", True, Ports);
+            when Dma_Command_Word =>
+               Put_DMA (Into, Env);
+            when Exit_Command_Word =>
+               Exit_Command (Into, Args, Changes);
+            when Dump_Command =>
+               Print_Config (Into, C, Env, Board, Buffer, Arguments, "dump", False, Ports);
+            when Feature_Command_Word =>
+               Feature_Command (Into, C, Args);
+            when Get_Command =>
+               Get (Into, C, "get", Args, Ports);
+            when Help_Command_Word =>
+               Help_Command (Into, Args);
+            when Color_Command_Word =>
+               Color_Command (Into, C.Led_Strip_Status_Mode_Config.Colors, Args);
+            when Led_Command_Word =>
+               Led_Command (Into, C.Led_Strip_Status_Mode_Config.Led_Configs, Args, Changes);
+            when Mode_Color_Command_Word =>
+               Mode_Color_Command (Into, C.Led_Strip_Status_Mode_Config, Args);
+            when Map_Command_Word =>
+               Map_Command (Into, C, Args);
+            when MCU_Id_Command_Word =>
+               Put_MCU_Id (Into, Env.MCU_Id);
+            when Motor_Command_Word =>
+               Motor_Command (Into, Env, Args, Changes);
+            when Play_Sound_Command_Word =>
+               Play_Sound_Command (Into, Args, Changes);
+            when Sensor_Hardware_Command_Word =>
+               Sensor_Hardware_Command (Into, Args);
+            when Mixer_Command_Word =>
+               Mixer_Command (Into, C.Mixer_Config.Mixer_Mode, Args);
+            when Motor_Mix_Command_Word =>
+               Motor_Mix_Command (Into, C.Custom_Motor_Mixer, Args);
+            when Profile_Command =>
+               Profile_Command (Into, C, PID, Args, Changes);
+            when Rate_Profile_Command =>
+               Profile_Command (Into, C, Rate, Args, Changes);
+            when Rc_Smoothing_Info_Command_Word =>
+               Rc_Smoothing_Info_Command (Into, C.Rx_Config.Rc_Smoothing /= 0, Env.Smoothing);
+            when Resource_Command_Word =>
+               Resource_Command (Into, C, Env, Args);
+            when Dshot_Telemetry_Info_Command_Word =>
+               Dshot_Telemetry_Info_Command (Into, Env.Motors, Env.DShot_Telemetry);
+            when Dshotprog_Command_Word =>
+               Dshotprog_Command (Into, Env, Args);
+            when Escprog_Command_Word =>
+               Escprog_Command (Into, Env, Args);
+            when Gpspassthrough_Command_Word =>
+               Gpspassthrough_Command (Into);
+            when Gyroregisters_Command_Word =>
+               Gyroregisters_Command (Into, C, Env);
+            when Options_Command_Word =>
+               Options_Command (Into, Env);
+            when Peripherals_Command_Word =>
+               Peripherals_Command (Into, C, Ports, Env);
+            when Status_Command_Word =>
+               Status_Command (Into, C, Ports, Env, Sched);
+            when Env_Command_Word =>
+               Env_Command (Into, C, Board, Env, Sched, Args);
+            when Sd_Info_Command_Word =>
+               SD_Info_Command (Into, C.Sdcard_Config.Mode, Env.SD_Card);
+            when Bootloader_Command_Word =>
+               Bootloader_Command (Into, Args, Changes);
+            when MSC_Command_Word =>
+               MSC_Command (Into, Env.MSC_Ready, C.Time_Config.Tz_Offset_Minutes, Args, Changes);
+            when Flash_Info_Command_Word =>
+               Flash_Info_Command (Into, Env.Flash);
+            when Flash_Erase_Command_Word =>
+               Flash_Erase_Command (Into, Changes);
+            when Flash_Scan_Command_Word =>
+               Flash_Scan_Command (Into);
+            when Flash_Write_Command_Word =>
+               Flash_Write_Command (Into, Args);
+            when Flash_Read_Command_Word =>
+               Flash_Read_Command (Into, Args);
+            when Rx_Failsafe_Command =>
+               Failsafe_Command (Into, C, Args);
+            when Rx_Range_Command =>
+               Range_Command (Into, C, Args);
+            when Servo_Command_Word =>
+               Servo_Command (Into, C.Servo_Params, Args);
+            when Servo_Mix_Command_Word =>
+               Servo_Mix_Command (Into, C.Custom_Servo_Mixers, C.Servo_Params, Args);
+            when Save_Command_Word =>
+               Save_Command (Into, C, Board, Args, Changes);
+            when Serial_Command_Word =>
+               Serial_Command (Into, C, Args, Ports);
+            when Set_Command =>
+               Set (Into, C, Args, Ports);
+            when Simplified_Tuning_Command_Word =>
+               Simplified_Tuning_Command (Into, C, Args);
+            when Tasks_Command_Word =>
+               Tasks_Command (Into, C.System_Config, Env, Sched);
+            when Version_Command_Word =>
+               Version_Command (Into, C, Env, Board);
+            when Vtx_Command_Word =>
+               Vtx_Command
+                 (Into, C.Vtx_Config.Vtx_Channel_Activation_Conditions, C.Vtx_Table_Config, Args);
+            when Vtx_Info_Command_Word =>
+               Vtx_Info_Command (Into, Env.VTX_Present, Env.VTX_Power);
+            when Vtx_Table_Command_Word =>
+               Vtx_Table_Command (Into, C.Vtx_Table_Config, Args);
+            when Waypoint_Command_Word =>
+               Waypoint_Command (Into, C.Flight_Plan_Config, Env.Navigation, Args);
+         end case;
+      end;
    end Process_Line;
 
 end Adaflight.Command_Line;

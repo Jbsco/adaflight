@@ -11298,3 +11298,12 @@ handling sits in eight places.
 
 On the STM32F4 image the change removes 5648 bytes of text, from 626548 to 620900. The command line vectors replay
 unchanged.
+
+## D494. Command line argument text taken once (2026-10-28)
+
+The command dispatcher passed each command its argument text as `Text_At (Buffer, Arguments)`, in 44 branches of its
+case statement, each a copy on the secondary stack with its own mark and release. A block around the case statement
+now takes the text once into a constant, empty for an unknown command, and every branch passes that constant.
+
+On the STM32F4 image the change removes 516 bytes of text, from 620900 to 620384. The command line vectors replay
+unchanged.
