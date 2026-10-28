@@ -11345,3 +11345,15 @@ arrived. The input now reports the protocol enabled when the board drives motor 
 DShot300 and DShot600, so arming follows the reference's other reasons. The reference enables every protocol it
 knows. A board set to PWM, OneShot, MultiShot, Brushed or ProShot1000 keeps the reason here and stays disarmed until
 those outputs are ported.
+
+## D499. MSP port allocation (2026-10-28)
+
+`MSP_Allocation.Allocate` opens MSP the reference's way: the three MSP slots in order, each at its baud rate with the
+automatic rate at 115200, then each port a feature that talks MSP implies, at 115200, unless MSP is open there
+already. A port opens only when the board offers it and no function opened it earlier, and a soft serial port only up
+to 19200 baud. Each opened port keeps the rate and options asked of its driver, bidirectional in half duplex and the
+transmit check on a UART otherwise, and whether its functions share it with telemetry. `Default_Slots` is the fresh
+configuration's claim: the board's first port, then the target's MSP UARTs, each once and at most three.
+
+A new oracle run draws the slots, the implied features, the board's ports and the ports other functions hold, and
+records the reference's allocation over stub port drivers with its reset claims. The vectors compare 1600 cases.
