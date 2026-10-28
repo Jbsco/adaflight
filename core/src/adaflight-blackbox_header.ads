@@ -155,22 +155,8 @@ package Adaflight.Blackbox_Header with SPARK_Mode is
       GPS_Home_Epoch, Flight_Mode_Flags, State_Flags, Failsafe_Phase, RX_Signal_Received,
       RX_Flight_Channels_Valid);
 
-   function Name_Text (N : Field_Name) return String is
-     (case N is
-        when Loop_Iteration => "loopIteration", when Time => "time", when Axis_P => "axisP",
-        when Axis_I => "axisI", when Axis_D => "axisD", when Axis_F => "axisF", when Axis_S => "axisS",
-        when RC_Command => "rcCommand", when Setpoint_Field => "setpoint", when VBat_Latest => "vbatLatest",
-        when Amperage_Latest => "amperageLatest", when Mag_ADC => "magADC", when Baro_Alt => "baroAlt",
-        when Surface_Raw => "surfaceRaw", when RSSI_Field => "rssi", when Pitot_Field => "pitot",
-        when Gyro_ADC => "gyroADC", when Gyro_Unfilt_Field => "gyroUnfilt", when Acc_Smooth => "accSmooth",
-        when IMU_Quaternion => "imuQuaternion", when Debug_Field => "debug", when Motor => "motor",
-        when Servo => "servo", when ERPM => "eRPM", when GPS_Num_Sat => "GPS_numSat",
-        when GPS_Coord => "GPS_coord", when GPS_Altitude => "GPS_altitude", when GPS_Speed => "GPS_speed",
-        when GPS_Ground_Course => "GPS_ground_course", when GPS_Vel_NED => "GPS_velned",
-        when GPS_Time => "GPS_time", when GPS_Home => "GPS_home", when GPS_Home_Epoch => "GPS_home_epoch",
-        when Flight_Mode_Flags => "flightModeFlags", when State_Flags => "stateFlags",
-        when Failsafe_Phase => "failsafePhase", when RX_Signal_Received => "rxSignalReceived",
-        when RX_Flight_Channels_Valid => "rxFlightChannelsValid");
+   function Name_Text (N : Field_Name) return String
+     with Post => Name_Text'Result'Length in 4 .. 21;
 
    subtype Name_Index is Integer range -1 .. 7;
 

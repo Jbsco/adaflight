@@ -11136,3 +11136,37 @@ in any case and past the table, ordinals inside, at and past each owner's count,
 malformed pins, none, conflicts, the show and DMA commands and dumps and diffs between them. The help, completion,
 dump, diff and every-profile families gain the two commands and the resources section, replayed from their
 recorded inputs through the new oracle. Every reply replays byte for byte.
+
+## D480. Menu tables cleared line by line (2026-10-28)
+
+A menu cleared its table with a copy of `Empty_Table`, a constant of 192 label lines in flash (D404). `Clear` now
+sets each of the table's lines to one constant label line and the count to one, and the table constant is gone. The
+postcondition of `Clear` states each line's value, for the proofs of the menu loaders.
+
+On the STM32F4 image the change removes 18852 bytes of text, from 749820 to 730968. The menu vectors replay
+unchanged.
+
+## D481. Name texts in pools (2026-10-28)
+
+Fourteen functions returned a name from a case expression over string literals: the flight log header's labels and
+field names, the command line's command words and names, its feature, beeper, mixer, gyro and resource owner names,
+the MSP box names, the scheduler's task names, the serial claim names, the arming reasons and the board's adjustment
+labels. GNAT compiles each alternative of such a function to a secondary stack allocation and a copy of its literal,
+about 22 bytes of code per alternative, and each literal keeps its own bounds. Each function now slices one text of
+its names by a start and a length from two tables, the layout D410 gave the settings table. A name already in the
+text takes the start of that copy, and the command names take theirs in the command word text. The arming reasons
+and the header's field names moved from the specifications to the bodies, each with a postcondition on its length.
+The resource owner names keep their first index of one.
+
+On the STM32F4 image the change removes 23944 bytes of text, from 730968 to 707024, 10072 of them for the header's
+labels. The vectors and the host smoke check replay unchanged.
+
+## D482. Help texts in a pool (2026-10-28)
+
+The help command called its entry printer once per command with the command's name, description and argument list
+as literals, 4260 bytes of code in the board image. The descriptions and argument lists now sit in one text with a
+start and a length for each, the names come from the command name table, and the command walks the commands in a
+loop. The argument lists keep their line breaks and tabs as characters of the text.
+
+On the STM32F4 image the change removes 3872 bytes of text, from 707024 to 703152. The help vectors replay
+unchanged.
