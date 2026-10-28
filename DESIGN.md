@@ -10409,3 +10409,29 @@ valid. With the GPS as the estimate's source the hold needs a heading, so on thi
 with level angles and reports a failure until the attitude takes the GPS course.
 
 The host smoke check finds the position hold task at 80 to 120 Hz with the GPS feature on.
+
+## D435. GPS course in the attitude estimate (2026-10-27)
+
+The attitude estimate takes the GPS course over ground as a second heading reference, which D31 left for
+the GPS port. Each update reads whether a present module has a fix with more than four satellites, its
+ground speed and course, the latest filtered yaw rate, and whether the craft is a fixed wing. The first
+usable update faster than one metre per second sets the attitude from the last roll and pitch with the
+course as the heading, unless a calibrated compass holds the heading. Later updates weigh the course error
+by the ground speed. The yaw rate suppresses the weight and recovers over about a second, roll beyond ten
+degrees suppresses it, or beyond twenty-five on a fixed wing, a flat or backward pitch suppresses it on a
+multirotor, and a calibrated compass cuts it to a tenth. The course error is the sine of the angle between
+the nose and the course within a quarter turn, and one toward the shorter turn beyond it. The weighted
+error joins the compass's error in the Mahony update. Until the GPS heading is good to fly by, a confidence
+follows the weight while the nose lines up with the course within about fifteen degrees, with a two-second
+time constant, and the GPS heading becomes good to fly by once the confidence passes one and a half. It
+stays so until a restart. The heading is valid with a calibrated compass or a GPS heading good to fly by.
+
+The yaw rate suppression's last value is held at or above minus 2 to the 14, the course's error share
+within 2 to the 14, and the confidence within 2 to the 60. These are declared deviations: the suppression
+and the confidence extrapolate with the update interval, and only an interval of many seconds reaches the
+bounds. The error ranges in the Mahony update widened for the course's share.
+
+The oracle's attitude generator flies a GPS module in its own family, with the module present or not, a fix
+or not, the satellite count, a ground speed, a course near the estimate's heading in three steps of four,
+and the latest yaw rate. Every other sequence flies steadily forward so the confidence can build, and seven
+of the forty sequences reach a usable GPS heading.
