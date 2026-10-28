@@ -300,7 +300,8 @@ def stop(proc):
 
 
 def start(image, store, extra=None):
-    env = dict(os.environ, ADAFLIGHT_EEPROM=store, ADAFLIGHT_OSD_SCREEN=store + ".osd.txt", **(extra or {}))
+    env = dict(os.environ, ADAFLIGHT_EEPROM=store, ADAFLIGHT_OSD_SCREEN=store + ".osd.txt",
+               ADAFLIGHT_DSHOT_LOG=store + ".dshot.txt", **(extra or {}))
     proc = subprocess.Popen([image], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     deadline = time.time() + 15
     while time.time() < deadline:
@@ -345,6 +346,33 @@ def msp(sock, cmd, payload=b""):
     return data[5:5 + data[3]]
 
 
+def msp2(sock, cmd, payload=b""):
+    body = bytes([0]) + cmd.to_bytes(2, "little") + len(payload).to_bytes(2, "little") + payload
+    sock.sendall(b"$X<" + body + bytes([crc8(body)]))
+    data = read_all(sock, 0.5)
+    if len(data) < 9 or data[:3] != b"$X>":
+        return None
+    return data[8:8 + (data[6] | data[7] << 8)]
+
+
+def dshot_frames(store, wait):
+    """The DShot command frames the image logged, as (motor, value, request) lines, once they stop
+    changing or the wait runs out."""
+    lines = []
+    deadline = time.time() + wait
+    while time.time() < deadline:
+        time.sleep(0.3)
+        try:
+            with open(store + ".dshot.txt") as log:
+                now = [tuple(int(f) for f in line.split(",")) for line in log.read().split()]
+        except OSError:
+            now = []
+        if now and now == lines:
+            break
+        lines = now
+    return lines
+
+
 def cli(sock, line, wait=0.8):
     sock.sendall(line.encode() + b"\r\n")
     return read_all(sock, wait).decode(errors="replace")
@@ -380,6 +408,21 @@ def main():
             check("MSP motor reply holds the DShot stop while disarmed",
                   outputs is not None and len(outputs) == 16 and outputs == (1000).to_bytes(2, "little") * 4 + bytes(8),
                   repr(outputs))
+            ack = msp(sock, 214, b"".join(v.to_bytes(2, "little") for v in [1100, 1200, 1300, 1400] + [1000] * 4))
+            check("MSP motor test write accepted", ack == b"", repr(ack))
+            time.sleep(0.3)
+            outputs = msp(sock, 104)
+            values = [int.from_bytes(outputs[i:i + 2], "little") for i in range(0, 8, 2)] if outputs else []
+            check("motor test values reach the motors while disarmed",
+                  len(values) == 4 and all(abs(v - w) <= 1 for v, w in zip(values, [1100, 1200, 1300, 1400])),
+                  repr(values))
+            ack = msp(sock, 214, (1000).to_bytes(2, "little") * 8)
+            check("motor test stopped", ack == b"", repr(ack))
+            ack = msp2(sock, 0x3003, bytes([0, 255, 1, 1]))
+            check("MSP DShot beacon queued", ack == b"", repr(ack))
+            frames = dshot_frames(store, 5.0)
+            check("beacon goes out once to each motor with a telemetry request",
+                  sorted(frames) == [(m, 1, 1) for m in range(4)], repr(frames))
             sock.sendall(b"#")
             banner = read_all(sock, 0.8).decode(errors="replace")
             check("command line entered", "Entering CLI Mode" in banner, banner[:80])
@@ -388,6 +431,10 @@ def main():
             check("status holds arming in the command line", "CLI" in text.split("Arming disable flags:")[-1])
             text = cli(sock, "tasks")
             check("tasks run the gyro and the PID loop", "GYRO" in text and "PID" in text)
+            text = cli(sock, "dshotprog 0 7")
+            check("dshotprog sends its command", "Using output 0." in text and "Command Sent: 7" in text, text[-120:])
+            frames = dshot_frames(store, 3.0)
+            check("spin direction goes ten times to motor 0 alone", frames[4:] == [(0, 7, 1)] * 10, repr(frames[4:]))
             text = cli(sock, "set gyro_lpf1_static_hz = 321")
             check("set accepted", "gyro_lpf1_static_hz set to 321" in text, text[-120:])
             text = cli(sock, "feature OSD")

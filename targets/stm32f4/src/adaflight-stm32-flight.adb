@@ -19,6 +19,7 @@ with Adaflight.Clock;
 with Adaflight.Config_Codec;
 with Adaflight.Config_Fix;
 with Adaflight.DShot;
+with Adaflight.DShot_Command;
 with Adaflight.Config_Groups;
 with Adaflight.Config_Reset;
 with Adaflight.Config_Runtime;
@@ -56,6 +57,7 @@ with Adaflight.STM32.ADC;
 with Adaflight.STM32.Blackbox;
 with Adaflight.STM32.Console;
 with Adaflight.STM32.Control;
+with Adaflight.STM32.DShot_Output;
 with Adaflight.STM32.Flash;
 with Adaflight.STM32.Flash_Chip;
 with Adaflight.STM32.GPIO;
@@ -697,6 +699,26 @@ package body Adaflight.STM32.Flight is
       Terminal.Enter (Session, Into, Interactive, Now_Ms);
    end Enter_Command_Line;
 
+   --  An MSP message's DShot commands to a motor or to all of them, each
+   --  queued or sent at once by its type, with the motors disabled around
+   --  blocking ones; another type sends nothing.
+   procedure Send_DShot_Commands (E : Adaflight.MSP_Control_In.Effects) is
+   begin
+      if E.Motors_Off then
+         Adaflight.STM32.DShot_Output.Disable;
+      end if;
+      for I in 0 .. E.DShot_Commands - 1 loop
+         if E.DShot_Type <= 1 then
+            Adaflight.STM32.DShot_Output.Write_Command
+              (E.DShot_Motor, Adaflight.STM32.Control.Motor_Count, E.DShot_Values (I),
+               (if E.DShot_Type = 1 then Adaflight.DShot_Command.Blocking else Adaflight.DShot_Command.Inline));
+         end if;
+      end loop;
+      if E.Motors_Off then
+         Adaflight.STM32.DShot_Output.Enable;
+      end if;
+   end Send_DShot_Commands;
+
    --  One command frame through the processor, a requested write of the
    --  configuration with its read back, then its reply framed and sent back
    --  through the port it came in on.
@@ -745,6 +767,12 @@ package body Adaflight.STM32.Flight is
       end if;
       if Effects.Control.Acc_Calibration then
          Adaflight.Accelerometer.Start_Calibration (Acc_State);
+      end if;
+      if Effects.Motor.Set then
+         Adaflight.STM32.Control.Set_Disarmed (Effects.Motor.Values);
+      end if;
+      if Effects.Control.DShot then
+         Send_DShot_Commands (Effects.Control);
       end if;
       if Effects.Control.Disarm then
          Adaflight.STM32.Pilot.Disarm (Adaflight.Arming.Serial_Command, Adaflight.STM32.Time.Micros, Asked);
@@ -884,6 +912,7 @@ package body Adaflight.STM32.Flight is
       Env.VTX_Present := Adaflight.STM32.VTX.Device.Present;
       Env.Motors := Adaflight.STM32.Control.Motor_Count;
       Env.Motor_Device := Adaflight.STM32.Motors.Device;
+      Env.DShot_Protocol := Adaflight.STM32.DShot_Output.Protocol_Is_DShot;
       declare
          Count          : Natural;
          Levels, Powers : Adaflight.SmartAudio.Level_Values;
@@ -921,6 +950,16 @@ package body Adaflight.STM32.Flight is
                if Changes.PID_Profile or else Changes.Rate_Profile then
                   Adaflight.STM32.Pilot.Configure (Config, Runtime_Features, Pilot_Facts);
                   Adaflight.STM32.Control.Init (Config, Runtime_Features);
+               end if;
+               if Changes.Motor then
+                  if Changes.Every_Motor then
+                     Adaflight.STM32.Control.Set_Disarmed_All (Changes.Motor_Value);
+                  else
+                     Adaflight.STM32.Control.Set_Disarmed_Motor (Changes.Motor_Index, Changes.Motor_Value);
+                  end if;
+               end if;
+               if not Session.Open then
+                  Adaflight.STM32.Control.Reset_Disarmed;
                end if;
                if Changes.Save then
                   Write_Configuration;
@@ -964,7 +1003,7 @@ package body Adaflight.STM32.Flight is
       GPS_Feature         => Adaflight.STM32.GPS.Enabled,
       GPS_Fix             => Adaflight.STM32.GPS.Current.Fix,
       Satellites          => 0,
-      Motors_Running      => Adaflight.STM32.Pilot.Armed,
+      Motors_Running      => Adaflight.STM32.Control.Motors_Running,
       Failsafe_Monitoring => Adaflight.STM32.Radio.Failsafe_Monitoring,
       Failsafe_Receiving  => Adaflight.STM32.Radio.Failsafe_Receiving,
       Last_Disarm_Us      => Adaflight.STM32.Pilot.Last_Disarm_Us,
@@ -986,12 +1025,18 @@ package body Adaflight.STM32.Flight is
       Adaflight.STM32.Sound.Set (False);
    end Silence_Beeper;
 
-   --  The beeper task: the update, the output following it, and the
-   --  scheduler told when the update was short.
+   --  The beeper task: the update with its DShot beacon queued, the output
+   --  following it, and the scheduler told when the update was short.
    procedure Run_Beeper (Before : Unsigned_32) is
       Result : Adaflight.Beeper.Update_Outputs;
    begin
       Adaflight.Beeper.Update (Beep, Beep_Settings, Beep_Conditions, Before, Result);
+      if Result.Beacon_Command then
+         Adaflight.STM32.DShot_Output.Write_Command
+           (Adaflight.DShot_Command.All_Motors, Adaflight.STM32.Control.Motor_Count,
+            Unsigned_8 (Beep_Settings.Beacon_Tone),
+            Adaflight.DShot_Command.Inline);
+      end if;
       Adaflight.STM32.Sound.Set (Adaflight.Beeper.Is_On (Beep));
       if Result.Ignore_Exec_Time then
          Scheduler.Ignore_Task_Exec_Time (Sched);
@@ -1281,8 +1326,9 @@ package body Adaflight.STM32.Flight is
    --  What the arming logic senses on the board: the link and the failsafe,
    --  the attitude within the small angle once established or no
    --  accelerometer, the calibrations, no motor protocol yet, the scheduler's
-   --  late share, the filtered rates and the stick deflections, and the
-   --  command line.
+   --  late share, the filtered rates and the stick deflections, the command
+   --  line, and the DShot streaming commands, asked only where the boot grace
+   --  check asks for them.
    function Sense return Adaflight.Arming.Inputs is
       Sensed : Adaflight.Arming.Inputs;
    begin
@@ -1307,14 +1353,21 @@ package body Adaflight.STM32.Flight is
       end loop;
       Sensed.Deflection_Abs := Adaflight.STM32.Pilot.Deflections;
       Sensed.CLI_Mode := Session.Open;
+      if Adaflight.STM32.Pilot.Disabled (Adaflight.Arming.Boot_Grace)
+        and then Adaflight.STM32.Time.Millis >= Unsigned_32 (Config.System_Config.Power_On_Arming_Grace_Time) * 1_000
+        and then Adaflight.STM32.DShot_Output.Protocol_Is_DShot
+      then
+         Adaflight.STM32.DShot_Output.Streaming_Enabled (Sensed.DShot_Streaming);
+      end if;
       return Sensed;
    end Sense;
 
    --  What the arming logic asked of the board after a step: the stick
-   --  commands the board can serve, the saves, the trims, the first arming
-   --  calibration, the headfree offset, the failsafe's monitoring and the
-   --  attitude task's rate. The adjustments, the beeper, the DShot commands,
-   --  the statistics and the ports wait for their units on the board.
+   --  commands the board can serve, the saves, the trims, the beeper, the
+   --  first arming calibration, the headfree offset, the failsafe's
+   --  monitoring, the attitude task's rate and the DShot commands queued for
+   --  the motors. The adjustments, the statistics and the ports wait for
+   --  their units on the board.
    procedure Apply (Step : Adaflight.Arming.Outputs) is
       Trims : Adaflight.Config_Groups.Integer_16_List_2 renames Config.Accelerometer_Config.Accelerometer_Trims;
       Set   : Boolean;
@@ -1389,6 +1442,11 @@ package body Adaflight.STM32.Flight is
       else
          Scheduler.Reschedule (Sched, Sched_Settings, Scheduler.Attitude, Attitude_Period_Slow_Us);
       end if;
+      for I in 1 .. Natural'Min (Step.DShot_Commands.Count, Adaflight.Arming.Command_Slot'Last) loop
+         Adaflight.STM32.DShot_Output.Write_Command
+           (Adaflight.DShot_Command.All_Motors, Adaflight.STM32.Control.Motor_Count,
+            Unsigned_8 (Adaflight.Arming.Command_Code (Step.DShot_Commands.Items (I))), Adaflight.DShot_Command.Inline);
+      end loop;
    end Apply;
 
    --  The arming and mode state into the replies: the disable reasons, the
@@ -1709,7 +1767,7 @@ package body Adaflight.STM32.Flight is
       for I in 0 .. Motors - 1 loop
          F.Motor_Output (I) := Float'Min (3_000.0, Outputs (I));
       end loop;
-      F.Motors_Running := Adaflight.STM32.Pilot.Armed;
+      F.Motors_Running := Adaflight.STM32.Control.Motors_Running;
       F.PID_Index := Config.System_Config.Pid_Profile_Index;
       F.Rate_Index := Config.System_Config.Active_Rate_Profile;
       Adaflight.STM32.OSD.Run (F, Before, Sched);
@@ -2106,7 +2164,9 @@ package body Adaflight.STM32.Flight is
       Adaflight.STM32.PINIO.Init_Boxes (Config);
       Adaflight.STM32.Pilot.Set_Reason (Adaflight.Arming.No_Gyro, not Selection.Found);
       Adaflight.STM32.Control.Init (Config, Runtime_Features);
+      Adaflight.STM32.Control.Reset_Disarmed;
       Adaflight.STM32.Motors.Init (Config, Adaflight.STM32.Control.Motor_Count);
+      Adaflight.STM32.DShot_Output.Init (Config);
       Bat_Settings := Battery_Settings;
       Adaflight.Battery.Init (Bat, Bat_Settings);
       Start_OSD;
@@ -2115,7 +2175,7 @@ package body Adaflight.STM32.Flight is
       end if;
       Init_Scheduler;
       Adaflight.STM32.Blackbox.Init (Config, Loop_Time_Us);
-      Adaflight.STM32.Motors.Enable;
+      Adaflight.STM32.DShot_Output.Enable;
       Blink := Ada.Real_Time.Clock;
    end Init;
 

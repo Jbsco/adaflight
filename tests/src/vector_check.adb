@@ -99,6 +99,8 @@ with Adaflight.ExpressLRS_Telemetry;
 with Adaflight.Blackbox_Encoding;
 with Adaflight.Text;
 with Adaflight.DShot;
+with Adaflight.DShot_Command;
+with Adaflight.DShot_Command.Blocking_Run;
 with Adaflight.CRSF_Telemetry;
 with Adaflight.CRSF_Display_Port;
 with Adaflight.ESC_Info;
@@ -38259,6 +38261,178 @@ procedure Vector_Check is
       end if;
    end Check_Apnav_Line;
 
+   --  The DShot command queue over a model of the timer layer's motor table:
+   --  each write takes the queue's current command while one is processing,
+   --  with a telemetry request for a nonzero one, keeps the value as the
+   --  motor's idle state, and clears the request once the packet goes out.
+   --  The calls are logged in the oracle's notation for the comparison.
+   DC_Q       : Adaflight.DShot_Command.Queue;
+   DC_Facts   : Adaflight.DShot_Command.Motor_Facts;
+   DC_Value   : array (Adaflight.DShot_Command.Motor_Index) of Interfaces.Unsigned_16 := (others => 0);
+   DC_Request : array (Adaflight.DShot_Command.Motor_Index) of Boolean := (others => False);
+
+   type DC_Table is null record;
+   DC_Motors : DC_Table;
+
+   procedure DC_Idle is
+      use type Interfaces.Unsigned_16;
+   begin
+      for I in Adaflight.DShot_Command.Motor_Index loop
+         DC_Facts.Idle (I) := I < DC_Facts.Count and then DC_Value (I) = 0;
+      end loop;
+   end DC_Idle;
+
+   procedure DC_Delay (T : in out DC_Table; Us : Interfaces.Unsigned_32) is
+      pragma Unreferenced (T);
+   begin
+      MX_Op ("delay," & BMP_Num (Integer_64 (Us)));
+   end DC_Delay;
+
+   procedure DC_Decode (T : in out DC_Table) is
+      pragma Unreferenced (T);
+   begin
+      MX_Op ("decode");
+   end DC_Decode;
+
+   procedure DC_Request_Telemetry (T : in out DC_Table; Index : Adaflight.DShot_Command.Motor_Index) is
+      pragma Unreferenced (T);
+   begin
+      if Index < DC_Facts.Count then
+         DC_Request (Index) := True;
+      end if;
+      MX_Op ("req," & BMP_Num (Integer_64 (Index)));
+   end DC_Request_Telemetry;
+
+   procedure DC_Write
+     (T : in out DC_Table; Q : Adaflight.DShot_Command.Queue; Index : Adaflight.DShot_Command.Motor_Index;
+      Value : Interfaces.Unsigned_16)
+   is
+      pragma Unreferenced (T);
+      V : Interfaces.Unsigned_16 := Value;
+   begin
+      if Index >= DC_Facts.Count then
+         MX_Op ("skip," & BMP_Num (Integer_64 (Index)));
+         return;
+      end if;
+      Adaflight.DShot_Command.Command_Value (Q, Index, V, DC_Request (Index));
+      DC_Value (Index) := V;
+      MX_Op ("write," & BMP_Num (Integer_64 (Index)) & "," & BMP_Num (Integer_64 (V)) & ","
+             & BMP_Num (Boolean'Pos (DC_Request (Index))));
+      DC_Request (Index) := False;
+   end DC_Write;
+
+   procedure DC_Complete (T : in out DC_Table; Q : in out Adaflight.DShot_Command.Queue) is
+      pragma Unreferenced (T, Q);
+   begin
+      MX_Op ("complete");
+   end DC_Complete;
+
+   package DC_Blocking is new Adaflight.DShot_Command.Blocking_Run
+     (Motor_Table       => DC_Table,
+      Delay_Us          => DC_Delay,
+      Decode_Telemetry  => DC_Decode,
+      Request_Telemetry => DC_Request_Telemetry,
+      Write_Int         => DC_Write,
+      Update_Complete   => DC_Complete);
+
+   procedure Check_DShot_Command_Line is
+      use Adaflight.DShot_Command;
+      Name : constant String := Str (1);
+   begin
+      if Name = "dcfacts" then
+         if Int (3) = -1 then
+            DC_Q := (others => <>);
+            DC_Value := (others => 0);
+            DC_Request := (others => False);
+            MX_Op_Head := 1;
+            MX_Op_Count := 0;
+         end if;
+         DC_Facts.DShot := Int (4) /= 0;
+         DC_Facts.Enabled := Int (5) /= 0;
+         DC_Facts.Enable_Time_Ms := Interfaces.Unsigned_32 (Int (6));
+         DC_Facts.Now_Ms := Interfaces.Unsigned_32 (Int (7));
+         DC_Facts.Count := Motor_Count (Int (8));
+      elsif Name = "dcpid" then
+         Set_Loop_Time (DC_Q, Adaflight.DShot_Command.Loop_Time_Us (Int (4)));
+      elsif Name = "dcwrite" then
+         declare
+            Plan : Blocking_Plan;
+         begin
+            DC_Facts.Now_Ms := Interfaces.Unsigned_32 (Int (8));
+            DC_Idle;
+            Write (DC_Q, DC_Facts, Interfaces.Unsigned_8 (Int (4)), Motor_Count (Int (5)),
+                   Interfaces.Unsigned_8 (Int (6)), (if Int (7) = 1 then Blocking else Inline), Plan);
+            DC_Blocking.Run (DC_Q, DC_Motors, Plan);
+         end;
+      elsif Name = "dcupdate" then
+         declare
+            Enabled : Boolean := True;
+         begin
+            for M in 0 .. DC_Facts.Count - 1 loop
+               DC_Write (DC_Motors, DC_Q, M, Interfaces.Unsigned_16 (Int (4 + M)));
+            end loop;
+            if not Queue_Empty (DC_Q) then
+               DC_Idle;
+               Output_Is_Enabled (DC_Q, DC_Facts, Enabled);
+               MX_Op ("gate," & BMP_Num (Boolean'Pos (Enabled)));
+            end if;
+            if Enabled then
+               DC_Complete (DC_Motors, DC_Q);
+            end if;
+         end;
+      elsif Name = "dcop" then
+         declare
+            Expected : Ada.Strings.Unbounded.Unbounded_String := Ada.Strings.Unbounded.To_Unbounded_String (Str (2));
+         begin
+            for I in 3 .. NF loop
+               Ada.Strings.Unbounded.Append (Expected, "," & Str (I));
+            end loop;
+            if MX_Op_Head <= MX_Op_Count then
+               Record_Text ("dshotcmd.op", Ada.Strings.Unbounded.To_String (Expected),
+                            Ada.Strings.Unbounded.To_String (MX_Ops (MX_Op_Head)));
+               MX_Op_Head := MX_Op_Head + 1;
+            else
+               Record_Text ("dshotcmd.op", Ada.Strings.Unbounded.To_String (Expected), "none");
+            end if;
+         end;
+      elsif Name = "dcquery" then
+         declare
+            Streaming : Boolean;
+         begin
+            DC_Facts.Now_Ms := Interfaces.Unsigned_32 (Int (4));
+            DC_Idle;
+            Streaming_Enabled (DC_Q, DC_Facts, Streaming);
+            Record_Int ("dshotcmd.empty", Int (5), Boolean'Pos (Queue_Empty (DC_Q)));
+            Record_Int ("dshotcmd.processing", Int (6), Boolean'Pos (Is_Processing (DC_Q)));
+            Record_Int ("dshotcmd.streaming", Int (7), Boolean'Pos (Streaming));
+            for M in Motor_Index loop
+               Record_Int ("dshotcmd.current", Int (8 + M), Integer_64 (Get_Current (DC_Q, M)));
+            end loop;
+         end;
+      elsif Name = "dcstate" then
+         MX_Expect_No_Ops ("a DShot command state");
+         Record_Int ("dshotcmd.head", Int (4), Integer_64 (DC_Q.Head));
+         Record_Int ("dshotcmd.tail", Int (5), Integer_64 (DC_Q.Tail));
+         for E in Slot loop
+            declare
+               C    : Control renames DC_Q.Items (E);
+               Base : constant Positive := 6 + 12 * E;
+            begin
+               Record_Int ("dshotcmd.state", Int (Base), State_Kind'Pos (C.State));
+               Record_Int ("dshotcmd.delay", Int (Base + 1), Integer_64 (C.Cycle_Delay));
+               Record_Int ("dshotcmd.after", Int (Base + 2), Integer_64 (C.Delay_After_Us));
+               Record_Int ("dshotcmd.repeats", Int (Base + 3), Integer_64 (C.Repeats));
+               for M in Motor_Index loop
+                  Record_Int ("dshotcmd.command", Int (Base + 4 + M), Integer_64 (C.Command (M)));
+               end loop;
+            end;
+         end loop;
+         for M in Motor_Index loop
+            Record_Int ("dshotcmd.value", Int (54 + M), Integer_64 (DC_Value (M)));
+         end loop;
+      end if;
+   end Check_DShot_Command_Line;
+
    procedure Run (Path : String; Kind : String) is
       File : File_Type;
       Lines : Natural := 0;
@@ -38369,6 +38543,8 @@ procedure Vector_Check is
                   Check_Text_Line;
                elsif Kind = "dshot" then
                   Check_DShot_Line;
+               elsif Kind = "dshotcmd" then
+                  Check_DShot_Command_Line;
                elsif Kind = "crsftlm" then
                   Check_CRSF_Telemetry_Line;
                elsif Kind = "escsensor" then
@@ -38816,6 +38992,7 @@ begin
    Run (Dir & "/bbenc.csv", "bbenc");
    Run (Dir & "/text.csv", "text");
    Run (Dir & "/dshot.csv", "dshot");
+   Run (Dir & "/dshotcmd.csv", "dshotcmd");
    Run (Dir & "/crsftlm.csv", "crsftlm");
    Run (Dir & "/escsensor.csv", "escsensor");
    Run (Dir & "/sport.csv", "sport");

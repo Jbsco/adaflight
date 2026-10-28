@@ -10127,8 +10127,72 @@ runs every 125 or 250 microseconds.
 
 The mixer gets the motors' enables, the MSP motor configuration reply counts the mixer's motors, and
 the MSP motor reply gives each enabled motor's value in the external range, the stop at 1000 while
-disarmed. The configurator's motor test does not spin the motors yet, since the mixer sends the disarm
-output to every motor while disarmed. DShot commands, the bidirectional telemetry and the analog
-protocols are later steps. The host target keeps the motor path without timers, and the smoke check
+disarmed. The configurator's motor test is D419 and the DShot commands are D421. The bidirectional
+telemetry and the analog protocols are later steps. The host target keeps the motor path without timers, and the smoke check
 reads the motor count and the stop values over MSP. The branch waits for a bench check with the
 propellers off before it lands.
+
+## D419. STM32F4 motor test (2026-10-27)
+
+The board's control unit keeps the values the motors take while disarmed, which start at the mixer's
+disarm output. While disarmed, each pass of the mixer ends with every motor of the mix set to its
+disarmed value. The MSP motor
+write sets each motor of the mix from its request, converted from the external range as the core's MSP
+unit converts it, and the command line's motor command sets one motor or every motor. The values return
+to the disarm output when the command line closes. The motors run while armed or while a disarmed value
+differs from the disarm output, which the flight log, the OSD and the beeper read, where the board
+passed the arming alone before.
+
+The smoke check writes 1100, 1200, 1300 and 1400 to the four motors over MSP, reads them back from the
+motor reply while disarmed, and writes the stop again.
+
+## D420. DShot command queue (2026-10-27)
+
+`Adaflight.DShot_Command` keeps the DShot commands for the ESCs in a ring of four entries, which holds
+three commands at most. Each entry has its state, the motor output cycles it still waits, the delay
+after it, its repeats and a command for each motor. An inline command enters the queue while the motors
+stream. It waits for every motor to idle, waits 10 ms, goes out in place of the motor values once for
+each repeat with 1 ms between them, and waits 1 ms before the next command goes out. The commands that
+change an ESC setting go out ten times, the others once. The first streaming command waits until 3 s
+after the motors enable, for the protocol detection of the ESCs. The waits are counted in motor output
+cycles of the PID loop time, rounded up, and the loop time's subtype starts at 1 microsecond, so the
+division is proved defined where the reference divides without a check.
+
+A blocking command runs while the motors are disabled, from the command line. It stands in the queue's
+current entry, so the timer layer's write sends it, and `Adaflight.DShot_Command.Blocking_Run` sends it
+through the caller's motor table: a 9 ms wait, then for each repeat a 1 ms wait, the telemetry decode, a
+telemetry request and a write for each motor, and the end of the update, then the wait after the
+command, 100 ms after a beacon and 1 ms after the others, and the entry back to the stop. The generic is
+proved through a motor table of steps that do nothing. The board's motor writes take the queue in the
+next step.
+
+The oracle compiles the reference queue with the motor layer stubbed and draws the protocol, the motor
+enables and their time, the clock, the motor count, the PID loop time, inline and blocking writes, motor
+updates through a model of the timer layer's write, and queries. Every third sequence is a bench session
+with the motors mostly disabled and the writes mostly blocking, and the clock lands next to the end of the
+protocol detection delay. The vectors replay every write and query, each entry's state after each step,
+and the motor table's calls in order.
+
+## D421. STM32F4 DShot commands (2026-10-27)
+
+`Adaflight.STM32.DShot_Output` drives the motors' DShot output through the command queue of D420, and
+`Adaflight.STM32.Motors` keeps the frame load and the transfer start. Each motor's write sends the
+queue's current command in place of the mix's value while one is processing, with a telemetry request
+when it is not the stop. The value stays as the motor's idle state for the queue's idle wait, and the
+frame takes the request. The update starts the transfers only when the queue is empty or its output
+gate opens. The queue counts its waits in cycles of the PID loop time, set each time the PID settings
+are configured, and the motors' enable time starts the first streaming command's detection delay.
+
+The command line's dshotprog and the MSP DShot command message send blocking commands with the motors
+disabled around them, through a motor table of the board's busy waits, telemetry requests, writes and
+update ends. Telemetry decoding is a later step, so the decode before each repeat returns at once. The
+arming logic's spin direction and extended telemetry commands and the beeper's beacon enter the queue
+as inline commands. The arming logic's boot grace check reads whether streaming commands are enabled,
+and the board asks the queue only while the boot grace flag is set past the grace time with a DShot
+protocol, where the check reads it, since the first answer past the detection delay ends the delay for
+good. The command line's environment reports the DShot protocol, which dshotprog needs.
+
+The host target writes each command frame its transfers send to the file the environment variable
+ADAFLIGHT_DSHOT_LOG names. The smoke check queues a beacon over MSP and finds it once on each motor with
+a telemetry request, then runs dshotprog 0 7 and finds the spin direction command ten times on motor 0
+alone.

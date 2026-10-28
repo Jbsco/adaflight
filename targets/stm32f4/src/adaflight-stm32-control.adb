@@ -2,12 +2,14 @@ with Adaflight.Config_Runtime;
 with Adaflight.Main_Loop;
 with Adaflight.Mixer_Init;
 with Adaflight.STM32.Blackbox;
+with Adaflight.STM32.DShot_Output;
 with Adaflight.STM32.Motors;
 with Adaflight.STM32.Pilot;
 package body Adaflight.STM32.Control is
    Ctl          : Adaflight.PID_Controller.State;
    Mix          : Adaflight.Mixer.State;
    Mix_Config   : Adaflight.Mixer.Config;
+   Disarmed     : Adaflight.Mixer.Motor_Outputs := (others => 0.0);
    Stabilised   : Boolean := False;
    Iterm_Reset  : Boolean := True;
    Anti_Gravity : Boolean := False;
@@ -142,6 +144,11 @@ package body Adaflight.STM32.Control is
       end loop;
       Adaflight.Mixer.Update
         (Mix, Mix_Config, Ctl, Adaflight.STM32.Pilot.Loop_Runtime, Adaflight.STM32.Pilot.Profile, Inp);
+      if not Inp.Armed then
+         for M in 0 .. Mix_Config.Count - 1 loop
+            Mix.Motors (M) := Disarmed (M);
+         end loop;
+      end if;
       Step_Changed := Mix.Dyn_LPF_Previous_Step /= Last_Step;
       Last_Step := Mix.Dyn_LPF_Previous_Step;
    end Run_Mixer;
@@ -149,7 +156,7 @@ package body Adaflight.STM32.Control is
    --  The mix's outputs to the motors.
    procedure Write_Motors is
    begin
-      Adaflight.STM32.Motors.Write_All (Mix.Motors);
+      Adaflight.STM32.DShot_Output.Write_All (Mix.Motors);
    end Write_Motors;
 
    package Loop_Pass is new Adaflight.Main_Loop
@@ -179,6 +186,39 @@ package body Adaflight.STM32.Control is
           PID_Audio => PID_Audio));
       Asked := Step;
    end Pass;
+
+   function Held (Value : Float) return Adaflight.Mixer.Motor_Value is
+     (Float'Max (0.0, Float'Min (2_048.0, Value)));
+
+   procedure Reset_Disarmed is
+   begin
+      Disarmed := (others => Mix_Config.Disarm_Output);
+   end Reset_Disarmed;
+
+   procedure Set_Disarmed (Values : Adaflight.MSP_Motor_In.Motor_Values) is
+   begin
+      for M in 0 .. Natural'Min (Mix_Config.Count, Values'Length) - 1 loop
+         Disarmed (M) := Held (Values (Values'First + M));
+      end loop;
+   end Set_Disarmed;
+
+   procedure Set_Disarmed_Motor (Index : Natural; Value : Float) is
+   begin
+      if Index in Disarmed'Range then
+         Disarmed (Index) := Held (Value);
+      end if;
+   end Set_Disarmed_Motor;
+
+   procedure Set_Disarmed_All (Value : Float) is
+   begin
+      for M in 0 .. Mix_Config.Count - 1 loop
+         Disarmed (M) := Held (Value);
+      end loop;
+   end Set_Disarmed_All;
+
+   function Motors_Running return Boolean is
+     (Adaflight.STM32.Pilot.Armed
+      or else (for some M in 0 .. Mix_Config.Count - 1 => Disarmed (M) /= Mix_Config.Disarm_Output));
 
    procedure Reset_RPM_Limiter (Battery_Voltage : Interfaces.Unsigned_16) is
    begin

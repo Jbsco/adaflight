@@ -6,6 +6,7 @@ with Adaflight.Arming;
 with Adaflight.Axes;
 with Adaflight.Config_Groups;
 with Adaflight.Mixer;
+with Adaflight.MSP_Motor_In;
 with Adaflight.PID_Controller;
 with Adaflight.RC_Command;
 package Adaflight.STM32.Control is
@@ -40,6 +41,15 @@ package Adaflight.STM32.Control is
    --  profiles; the states start over.
    procedure Init (Config : Adaflight.Config_Groups.Configuration; Runtime_Features : Interfaces.Unsigned_32;
                    Battery_Voltage : Interfaces.Unsigned_16 := 0);
+   --  The values the motors take while disarmed, which the motor test of the
+   --  MSP and the command line sets: all of them back to the disarm output,
+   --  each motor of the mix from a request, one motor or every motor of the
+   --  mix, and whether the motors run, armed or under the test.
+   procedure Reset_Disarmed;
+   procedure Set_Disarmed (Values : Adaflight.MSP_Motor_In.Motor_Values);
+   procedure Set_Disarmed_Motor (Index : Natural; Value : Float);
+   procedure Set_Disarmed_All (Value : Float);
+   function Motors_Running return Boolean;
    --  The RPM limiter's reset when a battery connects.
    procedure Reset_RPM_Limiter (Battery_Voltage : Interfaces.Unsigned_16);
    --  The mixer's throttle, which the virtual current meter reads.
