@@ -3,7 +3,6 @@ with Adaflight.Clock;
 
 package body Adaflight.Battery with SPARK_Mode is
 
-   Reference_Millivolts     : constant := 3_300;
    Full_Scale               : constant := 4_095;
    Voltage_Task_Hz          : constant Float := 50.0;
    Fast_Voltage_Task_Hz     : constant Float := 200.0;
@@ -46,21 +45,23 @@ package body Adaflight.Battery with SPARK_Mode is
    function To_Count (Filtered : Signal) return ADC_Count is
      (Natural (Float'Truncation (Float'Max (0.0, Float'Min (Float (Full_Scale), Filtered)))));
 
-   --  A count through the divider to hundredths of a volt, in the reference's
-   --  32-bit unsigned arithmetic, kept to the 16-bit field it stores into.
-   function Count_To_Centivolts (Count : ADC_Count; C : Settings) return Centivolts is
+   --  A count at the supply through the divider to hundredths of a volt, in
+   --  the reference's 32-bit unsigned arithmetic, kept to the 16-bit field
+   --  it stores into.
+   function Count_To_Centivolts (Count : ADC_Count; C : Settings; Supply_Mv : Supply_Millivolts) return Centivolts is
       Scaled : constant Unsigned_32 :=
-        Unsigned_32 (Count) * Unsigned_32 (C.Voltage_Scale) * Reference_Millivolts / 10 + Full_Scale * 5;
+        Unsigned_32 (Count) * Unsigned_32 (C.Voltage_Scale) * Unsigned_32 (Supply_Mv) / 10 + Full_Scale * 5;
       Divided : constant Unsigned_32 :=
         Scaled / (Full_Scale * Unsigned_32 (C.Voltage_Divider)) / Unsigned_32 (C.Voltage_Multiplier);
    begin
       return Centivolts (Divided mod 65_536);
    end Count_To_Centivolts;
 
-   --  A count through the current sensor's scale and offset to hundredths of
-   --  an ampere, in the reference's 32-bit arithmetic.
-   function Count_To_Centiamps (Count : ADC_Count; C : Settings) return Centiamps is
-      Millivolts : constant Integer_32 := Integer_32 (Count) * Reference_Millivolts / 4_096;
+   --  A count at the supply through the current sensor's scale and offset to
+   --  hundredths of an ampere, in the reference's 32-bit arithmetic.
+   function Count_To_Centiamps (Count : ADC_Count; C : Settings; Supply_Mv : Supply_Millivolts) return Centiamps is
+      Millivolts : constant Integer_32 range 0 .. 4_095 * 16_000 / 4_096 :=
+        Integer_32 (Unsigned_32 (Count) * Unsigned_32 (Supply_Mv) / 4_096);
    begin
       if C.Current_Scale = 0 then
          return 0;
@@ -125,11 +126,11 @@ package body Adaflight.Battery with SPARK_Mode is
                Sag      : Signal;
             begin
                Filters.PT1_Apply (S.Display_Filter, Float (Raw), Filtered);
-               S.Voltage.Display_Filtered := Count_To_Centivolts (To_Count (Filtered), C);
-               S.Voltage.Unfiltered := Count_To_Centivolts (Raw, C);
+               S.Voltage.Display_Filtered := Count_To_Centivolts (To_Count (Filtered), C, Meters.Supply_Mv);
+               S.Voltage.Unfiltered := Count_To_Centivolts (Raw, C, Meters.Supply_Mv);
                if C.Sag_Compensation then
                   Filters.PT1_Apply (S.Sag_Filter, Float (Raw), Sag);
-                  S.Voltage.Sag_Filtered := Count_To_Centivolts (To_Count (Sag), C);
+                  S.Voltage.Sag_Filtered := Count_To_Centivolts (To_Count (Sag), C, Meters.Supply_Mv);
                end if;
             end;
          when ESC =>
@@ -192,11 +193,11 @@ package body Adaflight.Battery with SPARK_Mode is
             when Analog =>
                declare
                   Filtered : Signal;
-                  Latest   : constant Centiamps := Count_To_Centiamps (Raw, C);
+                  Latest   : constant Centiamps := Count_To_Centiamps (Raw, C, Meters.Supply_Mv);
                begin
                   Filters.PT1_Apply (S.Current_Filter, Float (Raw), Filtered);
                   S.Current.Amperage_Latest := Latest;
-                  S.Current.Amperage := Count_To_Centiamps (To_Count (Filtered), C);
+                  S.Current.Amperage := Count_To_Centiamps (To_Count (Filtered), C, Meters.Supply_Mv);
                   Accumulate (Latest, Since_Last);
                end;
             when Virtual =>

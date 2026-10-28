@@ -49,6 +49,7 @@ with Adaflight.Flight_Stats;
 with Adaflight.Gimbal_Control;
 with Adaflight.Gyro_Filters;
 with Adaflight.Gyro_Selection;
+with Adaflight.Internal_ADC;
 with Adaflight.Mixer;
 with Adaflight.Mixer_Init;
 with Adaflight.MSP_Common_Out;
@@ -248,6 +249,8 @@ package body Adaflight.STM32.Flight is
    Bat              : Adaflight.Battery.State;
    Beep             : Adaflight.Beeper.State;
    Bat_Settings     : Adaflight.Battery.Settings;
+   Internal         : Adaflight.Internal_ADC.Sampler;
+   Internal_Cal     : Adaflight.Internal_ADC.Calibration;
    Pilot_Facts      : Adaflight.STM32.Pilot.Facts;
    Adj_State        : Adaflight.Adjustments.State;
    Stats_Tracker    : Adaflight.Flight_Stats.Tracker;
@@ -478,7 +481,7 @@ package body Adaflight.STM32.Flight is
                           Clock_Sources => True,
                           System_Source => 2,
                           PLL_Source    => 1,
-                          Internal_ADC  => False,
+                          Internal_ADC  => True,
                           Vref_Mv       => 3300,
                           Core_Temp_C   => 0,
                           Stack_Total   => Stack_Size,
@@ -848,7 +851,7 @@ package body Adaflight.STM32.Flight is
         (Accel => True, Beeper => True, Sag_Compensation => True, OSD => True, CMS => True, GPS => True,
          GPS_Rescue => True, Alt_Hold => True, Pos_Hold => True, Telemetry => True, VTX_Control => True,
          VTX_Driver => True, PINIO_Box => True, ESC_Sensor => True, RC_Device => True, Rangefinder => True,
-         OSD_Custom_Text => True, Gimbal => True, others => False);
+         OSD_Custom_Text => True, Gimbal => True, ADC_Internal => True, others => False);
       Inputs  : Adaflight.Task_Init.Inputs;
       Feature_Rangefinder : constant Unsigned_32 := 16#0000_0200#;
    begin
@@ -1414,9 +1417,56 @@ package body Adaflight.STM32.Flight is
    function Analog (Channel : Adaflight.Config_Groups.Adc_Channel_Config_T_Record) return Natural is
      (if Analog_Input (Channel) then Natural (Adaflight.STM32.ADC.Read (Pin_Of (Channel.Io_Tag))) else 0);
 
+   --  The internal ADC task: once the started conversion ends, both readings
+   --  into the averages, the supply and core temperature to the status
+   --  replies, then the next conversion.
+   procedure Run_ADC_Internal is
+      Busy : Boolean;
+   begin
+      Adaflight.STM32.ADC.Check_Internal (Busy);
+      if Busy then
+         return;
+      end if;
+      Adaflight.Internal_ADC.Process
+        (Internal, Internal_Cal, Adaflight.STM32.ADC.Reference_Sample, Adaflight.STM32.ADC.Temperature_Sample);
+      Env.Status.Vref_Mv := Internal.Vref_Mv;
+      Env.Status.Core_Temp_C := Internal.Core_Temperature;
+      Ctx.Out_Views.State.Status.Core_Temperature := Internal.Core_Temperature;
+      Adaflight.STM32.ADC.Start_Internal;
+   end Run_ADC_Internal;
+
+   --  The internal channels with the stored calibration overrides or the
+   --  chip's words, then nine passes of the task to fill the averages. The
+   --  slope takes the processor's zero quotient for equal sensor readings
+   --  and holds to the internal ADC unit's bound.
+   procedure Init_Internal_ADC is
+      A    : Adaflight.Config_Groups.Adc_Config_Record renames Config.Adc_Config;
+      function Word (Stored, Chip : Unsigned_16) return Integer_32 is
+        (Integer_32 (if Stored /= 0 then Stored else Chip));
+      Cal1  : constant Integer_32 := Word (A.Temp_Sensor_Calibration1, Adaflight.STM32.ADC.Sensor_Calibration_30);
+      Cal2  : constant Integer_32 := Word (A.Temp_Sensor_Calibration2, Adaflight.STM32.ADC.Sensor_Calibration_110);
+      Slope : constant Integer_32 := (if Cal2 = Cal1 then 0 else (110 - 30) * 1_000 / (Cal2 - Cal1));
+      Busy  : Boolean;
+   begin
+      Adaflight.STM32.ADC.Init_Internal;
+      Internal_Cal :=
+        (Vrefint_Cal => Word (A.Vref_Int_Calibration, Adaflight.STM32.ADC.Reference_Calibration),
+         Ts_Cal1     => Integer_32'Min (4_095, Cal1),
+         Ts_Slope_K  => Integer_32'Max (-10_000, Integer_32'Min (10_000, Slope)));
+      Adaflight.Internal_ADC.Init (Internal);
+      for Pass in 1 .. 9 loop
+         loop
+            Adaflight.STM32.ADC.Check_Internal (Busy);
+            exit when not Busy;
+         end loop;
+         Run_ADC_Internal;
+      end loop;
+   end Init_Internal_ADC;
+
    --  What the battery's other meters read: the ESC sensor's reading over
    --  every motor, the arming, the throttle status with the motor stop
-   --  feature and the mixer's throttle for the virtual meter.
+   --  feature and the mixer's throttle for the virtual meter, and the
+   --  measured supply for the analog meters.
    function Meters return Adaflight.Battery.Meter_Inputs is
       M : Adaflight.Battery.Meter_Inputs :=
         (ESC_Sensor   => Adaflight.STM32.ESC_Sensor.Feature_On,
@@ -1425,7 +1475,8 @@ package body Adaflight.STM32.Flight is
          Throttle_Low => Adaflight.STM32.Pilot.Throttle_Low (Flight_Channels),
          Motor_Stop   => (Runtime_Features and Adaflight.Config_Fix.Feature_Motor_Stop) /= 0,
          Throttle     => Float'Max (0.0, Float'Min (1.0, Adaflight.STM32.Control.Throttle)),
-         Now_Ms       => Adaflight.STM32.Time.Millis);
+         Now_Ms       => Adaflight.STM32.Time.Millis,
+         Supply_Mv    => Unsigned_16'Min (16_000, Internal.Vref_Mv));
    begin
       if M.ESC_Sensor then
          declare
@@ -2445,6 +2496,7 @@ package body Adaflight.STM32.Flight is
          end;
       end if;
       F.Total_Flights := Config.Stats_Config.Stats_Total_Flights;
+      F.Core_Temperature := Internal.Core_Temperature;
       F.Total_Time_S := Config.Stats_Config.Stats_Total_Time_S;
       F.Total_Dist_M := Config.Stats_Config.Stats_Total_Dist_M;
       F.PID_Index := Config.System_Config.Pid_Profile_Index;
@@ -3200,6 +3252,7 @@ package body Adaflight.STM32.Flight is
       Inp.Lon := G.Longitude;
       Inp.Home_Distance_M := G.Distance_To_Home_M;
       Inp.GPS_Altitude_Cm := G.Altitude_Cm;
+      Inp.Core_Temperature := Internal.Core_Temperature;
       for K in 0 .. Motors - 1 loop
          declare
             R : constant Adaflight.ESC_Sensor.Reading := Adaflight.STM32.ESC_Sensor.Motor_Reading (K);
@@ -3454,6 +3507,8 @@ package body Adaflight.STM32.Flight is
             Tasks.Rangefinder (Inputs, Before);
          when Scheduler.ESC_Sensor =>
             Adaflight.STM32.ESC_Sensor.Run (Before, Adaflight.STM32.Control.Motor_Count);
+         when Scheduler.ADC_Internal =>
+            Run_ADC_Internal;
          when Scheduler.Telemetry =>
             if not Session.Open and then (Runtime_Features and Adaflight.Config_Fix.Feature_Telemetry) /= 0 then
                Adaflight.STM32.FrSky_Hub.Run (FrSky_Hub_Inputs);
@@ -3564,6 +3619,7 @@ package body Adaflight.STM32.Flight is
       Start_Gyro;
       Init_Loop_Units;
       Adaflight.STM32.Rangefinder.Init (Config);
+      Init_Internal_ADC;
       Boot_Beeps;
       Adaflight.STM32.Radio.Init (Config, Runtime_Features, Adaflight.STM32.Time.Millis, Telemetry_Config);
       Adaflight.STM32.Radio.Init_FPort_Telemetry (SmartPort_Build);

@@ -4334,6 +4334,7 @@ procedure Vector_Check is
          declare
             Now_Us : constant Interfaces.Unsigned_32 := Interfaces.Unsigned_32 (Int (4));
             Now_Ms : constant Interfaces.Unsigned_32 := Now_Us / 1_000;
+            Meters : constant Meter_Inputs := (Supply_Mv => Supply_Millivolts (Int (30)), others => <>);
             K      : Positive := 10;
             A      : Alert := Silence;
             procedure Expect_Int (N : String; Actual : Integer_64) is
@@ -4342,8 +4343,8 @@ procedure Vector_Check is
                K := K + 1;
             end Expect_Int;
          begin
-            Update_Voltage (Battery_State_V, Battery_Settings, Integer (Int (5)), Now_Ms);
-            Update_Current (Battery_State_V, Battery_Settings, Integer (Int (6)), Now_Us);
+            Update_Voltage (Battery_State_V, Battery_Settings, Integer (Int (5)), Now_Ms, Meters);
+            Update_Current (Battery_State_V, Battery_Settings, Integer (Int (6)), Now_Us, Meters);
             if Int (8) /= 0 then
                if Int (9) /= 0 then
                   Update_Presence (Battery_State_V, Battery_Settings, Battery_Events);
@@ -4372,8 +4373,8 @@ procedure Vector_Check is
             K := K + 1;
             Expect_Int ("percent", Integer_64 (Percentage_Remaining (Battery_State_V, Battery_Settings)));
             Expect_Int ("beeper", (case A is when Silence => -1, when Low => 8, when Critical_Low => 7));
-            if K /= NF + 1 then
-               Put_Line ("batstep: consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
+            if K /= NF then
+               Put_Line ("batstep: consumed" & Integer'Image (K) & " of" & Integer'Image (NF) & " fields");
                Failures := Failures + 1;
             end if;
          end;
