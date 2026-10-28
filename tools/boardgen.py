@@ -110,8 +110,8 @@ def generate(config: Path) -> str:
     out.append(f"   Beeper_PWM_Hz   : constant := {int(defines.get('BEEPER_PWM_HZ', '0'))};")
     out.append("")
     out.append("   --  The pin tags of the inputs, the beeper, the OSD chip's select, the SD")
-    out.append("   --  card's select and detect, the flash chip's select and the USB cable")
-    out.append("   --  detect, zero for none,")
+    out.append("   --  card's select and detect, the flash chip's select, the USB cable")
+    out.append("   --  detect and the UARTs' inverters, zero for none,")
     out.append("   --  their SPI buses from 1, zero for none, whether the detect pin reads low")
     out.append("   --  for a card, the flight log device, the meter defaults, the PINIO")
     out.append("   --  outputs' pins, configurations and boxes by permanent id, and the")
@@ -121,6 +121,7 @@ def generate(config: Path) -> str:
             ("MAX7456_CS_Tag", "MAX7456_SPI_CS_PIN"), ("SDCARD_CS_Tag", "SDCARD_SPI_CS_PIN"),
             ("SDCARD_Detect_Tag", "SDCARD_DETECT_PIN"), ("FLASH_CS_Tag", "FLASH_CS_PIN"),
             ("USB_Detect_Tag", "USB_DETECT_PIN")] \
+        + [(f"Inverter_UART{i}_Tag", f"INVERTER_PIN_UART{i}") for i in range(1, 7)] \
         + [(f"PINIO{i}_Tag", f"PINIO{i}_PIN") for i in range(1, 5)] \
         + [(f"MOTOR{i}_Tag", f"MOTOR{i}_PIN") for i in range(1, 9)]
     defaults = [("Default_Voltage_Meter_Source", VOLTAGE_SOURCES[defines.get("DEFAULT_VOLTAGE_METER_SOURCE",

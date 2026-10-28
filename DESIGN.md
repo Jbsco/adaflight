@@ -10497,3 +10497,66 @@ the detect pin down as an input at boot, after the ESC sensor, where its configu
 board generator gives its tag. The board had passed no USB link and no configurator.
 
 The host reports no beeper state, so no smoke check covers it.
+
+## D441. STM32F4 SBUS receiver (2026-10-27)
+
+The board reads an SBUS receiver on the UART the configuration assigns to the serial receiver: 100,000 baud,
+or 200,000 with the fast SBUS setting, eight data bits with even parity and two stop bits, and an inverted
+line unless the setting says the receiver's line is not inverted. The bytes go through the core's SBUS
+frame assembly at their arrival times, the frame status after the realtime tasks, the eighteen channels to
+the receiver's processing, and the frame time to the RC smoothing. The RSSI comes from the frame errors
+when that source is set. The CRSF telemetry and the PID settings' CRSF case stay with a CRSF receiver.
+
+The UART driver gains even parity, a ninth word bit with parity control, and the board's inverters: the
+board generator gives each UART's inverter tag, the boot drives every inverter low after the beeper, and a
+port opened inverted drives its UART's inverter high where the board has one. Without an inverter the line
+stays as the UART reads it, so an inverted SBUS line needs UART1 on this board. Half-duplex SBUS waits.
+
+The host smoke check sets SBUS on UART3 with a fresh store, sends SBUS frames about every 14 ms, reads the
+roll, pitch, yaw and throttle channels back over MSP, and finds the signal loss cleared.
+
+## D442. STM32F4 IBUS and SUMD receivers (2026-10-27)
+
+The board reads an IBUS or a SUMD receiver on the serial receiver UART at 115,200 baud, eight data bits
+without parity, inverted only when the setting asks. The bytes go through the core's IBUS or SUMD frame
+assembly at their arrival times and the frame status after the realtime tasks, eighteen channels each,
+with the frame time to the RC smoothing. The IBUS frame status's telemetry request goes unanswered until
+the board sends IBUS telemetry, which needs a half-duplex port. A CRSF port now opens inverted when the
+setting asks, through the board's inverter, where it had stayed closed.
+
+The host smoke check runs its receiver phase for SBUS, IBUS and SUMD, each with a fresh store and its own
+frames carrying the same channels, and reads the channels back over MSP.
+
+## D443. STM32F4 Spektrum and XBUS receivers (2026-10-27)
+
+The board reads a Spektrum satellite at 1024 or 2048 resolution, seven or twelve channels, or an XBUS
+receiver in mode B, at 115,200 baud, or mode B RJ01 at 250,000, twelve channels, all eight data bits
+without parity and inverted only when the setting asks. The Spektrum frame status takes the RSSI channel
+setting, and its frame time goes to the RC smoothing. The XBUS frame status gives no frame time, so the
+smoothing measures the frames' arrivals. A VTX control word in a Spektrum frame goes unused until the
+board's VTX control takes one, and SRXL waits for its half-duplex telemetry.
+
+The host smoke check's receiver phase adds Spektrum 2048 and XBUS mode B frames with the same channels.
+
+## D444. STM32F4 half-duplex receiver ports (2026-10-27)
+
+The board opens the serial receiver on its UART's transmit pin alone when the half-duplex setting asks,
+for every protocol it reads but CRSF, which takes both pins whatever the setting. The single wire is
+push-pull with a pull-down when the line is inverted, and open drain with a pull-up otherwise. The link
+keeps its inversion and its line, so a CRSF baud change reopens the port as it was opened, where it had
+dropped the inversion.
+
+The host smoke check's IBUS phase sets the half-duplex setting, and the channels still arrive.
+
+## D445. STM32F4 FPORT receiver (2026-10-27)
+
+The board reads an FPORT receiver's control frames on the serial receiver UART at 115,200 baud, eight data
+bits without parity, inverted only when the setting asks and on one wire when the half-duplex setting asks.
+The bytes go through the core's FPORT unstuffing into its ring of frames, and the frame status after the
+realtime tasks checks each frame's length and FrSky checksum, decodes the SBUS channel block and the RSSI,
+and keeps the frame time for the RC smoothing. The RSSI comes from the protocol unless another source is
+set. The core runs without its telemetry layer, so telemetry requests go unanswered and the reply window
+stays unused until the board sends SmartPort telemetry over FPORT.
+
+The host smoke check's receiver phase adds FPORT control frames, stuffed and checksummed, with the same
+channels.
