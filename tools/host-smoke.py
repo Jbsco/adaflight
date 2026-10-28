@@ -155,6 +155,35 @@ def fport_frame(sbus_channels, rssi=100):
     return bytes([0x7E]) + stuffed + bytes([0x7E])
 
 
+def fport_telemetry_request(frame_id=0x10):
+    """An FPORT telemetry request between the markers: the length, the request type, the frame id, a zero
+    value id and data, and the FrSky checksum, stuffed like a control frame."""
+    body = bytes([0x08, 0x01, frame_id]) + bytes(6)
+    total = sum(body)
+    while total > 0xFF:
+        total = (total & 0xFF) + (total >> 8)
+    body += bytes([0xFF - total])
+    stuffed = b"".join(bytes([0x7D, b ^ 0x20]) if b in (0x7D, 0x7E) else bytes([b]) for b in body)
+    return bytes([0x7E]) + stuffed + bytes([0x7E])
+
+
+def fport_replies(data):
+    """The FPORT telemetry replies in the bytes the board sent: the length eight and the reply type, then
+    the frame id, the value id and the value unstuffed, with the FrSky checksum over all of it reading full."""
+    raw = data.replace(bytes([0x7D, 0x5E]), bytes([0x7E])).replace(bytes([0x7D, 0x5D]), bytes([0x7D]))
+    replies = []
+    i = raw.find(bytes([0x08, 0x81]))
+    while i != -1 and i + 10 <= len(raw):
+        frame = raw[i:i + 10]
+        total = sum(frame)
+        while total > 0xFF:
+            total = (total & 0xFF) + (total >> 8)
+        if total == 0xFF:
+            replies.append((frame[2], frame[3] | frame[4] << 8, int.from_bytes(frame[5:9], "little")))
+        i = raw.find(bytes([0x08, 0x81]), i + 1)
+    return replies
+
+
 def hub_frames(data):
     """The FrSky hub frames in the bytes the board sent: the id and the unstuffed sixteen-bit value of each
     three-byte run between the header and tail bytes."""
@@ -1790,6 +1819,37 @@ def main():
                   repr(altitude))
         finally:
             tof.stop.set()
+            stop(proc)
+            sock.close()
+        store = os.path.join(work, "fporttlm.bin")
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "set serialrx_provider = FPORT")
+            check("receiver protocol set to FPORT for its telemetry", "serialrx_provider set to FPORT" in text,
+                  text[-120:])
+            text = cli(sock, "set rx_uart = UART3")
+            check("FPORT telemetry port assigned", "rx_uart set to UART3" in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store)
+        sender = SerialReceiver([fport_frame([992, 1150, 172, 992] + [992] * 12), fport_telemetry_request()])
+        sender.start()
+        try:
+            time.sleep(4.0)
+            replies = fport_replies(sender.received)
+            data = [r for r in replies if r[0] == 0x10]
+            check("FPORT telemetry answers the requests with checked SmartPort replies", len(data) >= 10,
+                  repr(sender.received[:40]))
+            check("FPORT telemetry replies carry the battery voltage among their values",
+                  any(r[1] == 0x0210 for r in data), repr(sorted({r[1] for r in data})))
+        finally:
+            sender.stop.set()
             stop(proc)
             sock.close()
         store = os.path.join(work, "ghsttlm.bin")

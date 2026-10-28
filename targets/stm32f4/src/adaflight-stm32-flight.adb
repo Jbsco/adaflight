@@ -1166,7 +1166,8 @@ package body Adaflight.STM32.Flight is
    end Telemetry_Request;
 
    procedure Telemetry_Step is new Adaflight.STM32.Radio.Telemetry_Step (Telemetry_Request);
-   procedure Receiver_Step is new Adaflight.STM32.Radio.Process (Telemetry_Request);
+   function SmartPort_Inputs return Adaflight.SmartPort_Telemetry.Inputs;
+   procedure Receiver_Step is new Adaflight.STM32.Radio.Process (Telemetry_Request, SmartPort_Inputs);
 
    --  The serial task: while the command line is open its port's bytes go to
    --  it, otherwise each port's bytes go to its MSP framing, UART1's while no
@@ -3425,6 +3426,7 @@ package body Adaflight.STM32.Flight is
       Adaflight.STM32.Rangefinder.Init (Config);
       Boot_Beeps;
       Adaflight.STM32.Radio.Init (Config, Runtime_Features, Adaflight.STM32.Time.Millis, Telemetry_Config);
+      Adaflight.STM32.Radio.Init_FPort_Telemetry (SmartPort_Build);
       Adaflight.STM32.GPS.Init (Config, Runtime_Features, Adaflight.STM32.Time.Millis);
       Adaflight.STM32.ESC_Sensor.Init (Config, Runtime_Features);
       if USB_Detect then
@@ -3483,7 +3485,9 @@ package body Adaflight.STM32.Flight is
             Altitude_Present => Adaflight.STM32.Rangefinder.Detected,
             GPS_Present      => (Runtime_Features and Adaflight.Config_Fix.Feature_GPS) /= 0,
             Acc_1G_Rec       => Float'Max (0.0, Float'Min (1.0, Acc_State.One_G_Reciprocal))));
-      Adaflight.STM32.SmartPort.Init (Config, Runtime_Features, SmartPort_Build);
+      if not Adaflight.STM32.Radio.Is_FPort then
+         Adaflight.STM32.SmartPort.Init (Config, Runtime_Features, SmartPort_Build);
+      end if;
       Adaflight.STM32.LTM.Init (Config, Runtime_Features);
       Adaflight.STM32.Radio.Init_Jeti_Telemetry
         (Adaflight.Config_Runtime.Jeti_Settings_Of

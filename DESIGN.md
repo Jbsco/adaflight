@@ -10839,3 +10839,23 @@ frames the filter gets no new data and keeps its last altitude. After 200 ms wit
 reports a hardware failure. The HC-SR04, the MicoAir MTF and the UP-T1 wait for their drivers.
 
 The host smoke check streams TOFSense F2 frames of 1234 mm on UART4 and finds a 123 cm sonar altitude.
+
+## D464. STM32F4 SmartPort telemetry over FPORT (2026-10-27)
+
+An FPORT receiver's telemetry requests get SmartPort values back in the FPORT reply window. The receiver opens
+with its telemetry on whatever the telemetry feature says, and the SmartPort tables are built from the
+configuration and the sensors right after it opens. The serial SmartPort telemetry then stays off, since the
+FPORT receiver holds the SmartPort telemetry. When the receiver task processes a frame with a request waiting
+and the window open, between 0.5 and 2 ms after the request, one pass of the SmartPort telemetry takes the
+next value and writes it as the reply, with the reply's length and type in front and both counted in the
+checksum. A pass that finds nothing to send leaves the window to the empty reply. MSP over FPORT waits.
+
+The core's SmartPort writer gains the FPORT framing and a public frame writer for the empty reply, and its
+transmit buffer grows to the 18 bytes an FPORT reply takes at most. The SmartPort oracle runs in an FPORT mode
+with the FPORT receiver's reply writer copied from the reference source, and the sportfp vectors check 12,000
+reply windows over ten configurations and the empty reply. The SmartPort unit proved with 172 checks and no
+assumption. Five tampers of the framing (the length, the type, the checksum over the length, the order of the
+two, and the serial framing in place of the FPORT one) all fail the vectors.
+
+The host smoke check sends FPORT control frames and telemetry requests in turn on UART3 and finds SmartPort
+replies with checksums that check, among them the battery voltage.

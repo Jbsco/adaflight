@@ -5,9 +5,9 @@
 --  on the port with its speed negotiation and the MSP requests answered, on
 --  its two pins or, apart from CRSF, on its transmit pin alone, which Ghost
 --  and EX Bus always take, the Ghost telemetry with its MSP requests
---  answered in the receiver's quiet window, and the EX Bus telemetry
---  answering the receiver's requests. The other serial receiver protocols
---  and the FPORT telemetry wait for their drivers.
+--  answered in the receiver's quiet window, the EX Bus telemetry answering
+--  the receiver's requests, and the SmartPort telemetry in the FPORT reply
+--  window. The other serial receiver protocols wait for their drivers.
 with Interfaces;
 with Adaflight.Bytes;
 with Adaflight.Config_Groups;
@@ -16,6 +16,7 @@ with Adaflight.Failsafe;
 with Adaflight.GHST_Telemetry;
 with Adaflight.Jeti_Telemetry;
 with Adaflight.Receiver;
+with Adaflight.SmartPort_Telemetry;
 with Adaflight.STM32.USART;
 package Adaflight.STM32.Radio is
    subtype Time_Us is Interfaces.Unsigned_32;
@@ -45,6 +46,11 @@ package Adaflight.STM32.Radio is
    --  Whether a serial receiver port is open, and whether it speaks CRSF.
    function Linked return Boolean;
    function Is_CRSF return Boolean;
+   --  The SmartPort tables an FPORT receiver's telemetry answers from, built
+   --  when the receiver opened, and whether an FPORT receiver is open, which
+   --  keeps the SmartPort telemetry off its own port.
+   procedure Init_FPort_Telemetry (Sensors : Adaflight.SmartPort_Telemetry.Build_Inputs);
+   function Is_FPort return Boolean;
    --  Whether the receiver link holds a UART.
    function Holds (N : Adaflight.STM32.USART.Number) return Boolean;
    --  After the realtime tasks: the bytes received through the protocol at
@@ -55,12 +61,13 @@ package Adaflight.STM32.Radio is
    --  The receiver task's check function.
    function Update_Check (Task_In_Progress : Boolean) return Boolean;
    --  The receiver task's check step: a Ghost frame's processing with its
-   --  MSP request through Answer, then the channels calculated with the
-   --  failsafe told what they were worth, then the RSSI; Processed says the
-   --  task moves on.
+   --  MSP request through Answer, an FPORT reply window with the SmartPort
+   --  values, then the channels calculated with the failsafe told what they
+   --  were worth, then the RSSI; Processed says the task moves on.
    generic
       with procedure Answer (Command : Interfaces.Unsigned_16; Request : Adaflight.Bytes.Byte_Array;
                              Reply : out Adaflight.Bytes.Byte_Array; Length : out Natural; Failed : out Boolean);
+      with function SmartPort_Values return Adaflight.SmartPort_Telemetry.Inputs;
    procedure Process (Now_Us : Time_Us; Now_Ms : Time_Ms; ADC_Sample : Natural; Processed : out Boolean)
      with Pre => ADC_Sample <= 4_095;
    --  Whether the RSSI comes from the analog input, and the RSSI.

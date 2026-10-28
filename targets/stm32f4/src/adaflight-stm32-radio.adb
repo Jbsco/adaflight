@@ -1,3 +1,4 @@
+with Adaflight.Clock;
 with Adaflight.Config_Fix;
 with Adaflight.Config_Runtime;
 with Adaflight.CRSF;
@@ -56,6 +57,8 @@ package body Adaflight.STM32.Radio is
    Spek_State  : Adaflight.Spektrum.State;
    XBUS_State  : Adaflight.XBUS.State;
    FPort_State : Adaflight.FPort.State;
+   --  The SmartPort telemetry an FPORT receiver answers with.
+   FP_Stream   : Adaflight.SmartPort_Telemetry.Stream;
    GHST_State  : Adaflight.GHST.State;
    --  The Ghost telemetry: its schedule, whether it runs, and the frame that
    --  waits for the receiver's quiet window.
@@ -228,7 +231,7 @@ package body Adaflight.STM32.Radio is
                  (Link, (if R.Serialrx_Provider = XBUS_RJ01_Provider then XBUS_RJ01_Baud else IBUS_SUMD_Baud),
                   Line => Line, Inverted => Inverted);
             when FPort =>
-               Adaflight.FPort.Init (FPort_State, Rx_Settings.Mid_RC, Telemetry => False);
+               Adaflight.FPort.Init (FPort_State, Rx_Settings.Mid_RC, Telemetry => True);
                USART.Init (Link, IBUS_SUMD_Baud, Line => Line, Inverted => Inverted);
             when GHST =>
                Adaflight.GHST.Init (GHST_State);
@@ -458,6 +461,16 @@ package body Adaflight.STM32.Radio is
 
    function Is_CRSF return Boolean is (Open and then Kind = CRSF);
 
+   procedure Init_FPort_Telemetry (Sensors : Adaflight.SmartPort_Telemetry.Build_Inputs) is
+   begin
+      FP_Stream := (others => <>);
+      if Open and then Kind = FPort then
+         Adaflight.SmartPort_Telemetry.Build (FP_Stream, Sensors);
+      end if;
+   end Init_FPort_Telemetry;
+
+   function Is_FPort return Boolean is (Open and then Kind = FPort);
+
    function Holds (N : USART.Number) return Boolean is (Open and then N = Link);
 
    procedure Frame_Check (Now_Us : Time_Us; Delta_Us : Interfaces.Integer_32; Task_In_Progress : Boolean) is
@@ -585,6 +598,35 @@ package body Adaflight.STM32.Radio is
             GHST_MSP_Pending := True;
          end if;
       end Answer_GHST_MSP;
+
+      --  The FPORT reply window: while it is open the SmartPort telemetry
+      --  writes its next value as the reply, and the receiver's processing
+      --  sends the empty reply when the window went unused.
+      procedure Answer_FPort is
+         use type Interfaces.Integer_32;
+         Open_Window : constant Boolean :=
+           FPort_State.Clear_To_Send
+           and then Adaflight.Clock.Elapsed (Now_Us, FPort_State.Last_Telemetry_At_Us)
+                    <= Adaflight.FPort.Max_Reply_Delay_Us;
+         O       : Adaflight.SmartPort_Telemetry.Output;
+         Empty   : Adaflight.SmartPort_Telemetry.Output;
+         Handled : Boolean := False;
+         Result  : Adaflight.FPort.Process_Outputs;
+      begin
+         if Open_Window then
+            Adaflight.SmartPort_Telemetry.Process (FP_Stream, SmartPort_Values, 1, True, O, FPort => True);
+            if O.Count > 0 then
+               Adaflight.FPort.Begin_Reply (FPort_State);
+               USART.Put (Port, O.Tx (0 .. O.Count - 1));
+               Handled := True;
+            end if;
+         end if;
+         Adaflight.FPort.Process_Frame (FPort_State, Now_Us, Handled, Result);
+         if Result.Sent_Empty_Reply then
+            Adaflight.SmartPort_Telemetry.Write_Frame (Empty, 0, 0, 0, FPort => True);
+            USART.Put (Port, Empty.Tx (0 .. Empty.Count - 1));
+         end if;
+      end Answer_FPort;
    begin
       --  The processing a frame status asked for runs before the channels
       --  are read: Ghost decodes its channels and link statistics there.
@@ -601,6 +643,9 @@ package body Adaflight.STM32.Radio is
                Answer_GHST_MSP (Result.MSP_Length);
             end if;
          end;
+      end if;
+      if Open and then Kind = FPort and then Rx.Aux_Required then
+         Answer_FPort;
       end if;
       if Open then
          case Kind is
