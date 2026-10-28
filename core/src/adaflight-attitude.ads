@@ -3,7 +3,9 @@
 --  accelerometer's gravity direction with proportional and integral
 --  feedback, the rotation matrix and Euler angles derived from it, the gain
 --  schedule that reconverges after a disarm, the throttle correction for the
---  tilt angle, and the headfree frame turned from the heading at its offset.
+--  tilt angle, the headfree frame turned from the heading at its offset, and
+--  the heading taken from the GPS course with the confidence that makes it
+--  good to fly by.
 with Interfaces;
 with Adaflight.Maths; use Adaflight.Maths;
 with Adaflight.Vectors;
@@ -70,6 +72,13 @@ package Adaflight.Attitude with SPARK_Mode is
 
    type Phase is (Armed, Restart, Quiet, Reset, Disarmed);
 
+   --  The yaw rate suppression and the GPS heading confidence are held at
+   --  bounds no update interval within a second reaches (DESIGN.md D435).
+   Suppression_Bound : constant := 2.0 ** 14;
+   subtype Suppression is Float range -Suppression_Bound .. 1.0;
+   Confidence_Bound : constant := 2.0 ** 60;
+   subtype Confidence is Float range -Confidence_Bound .. Confidence_Bound;
+
    subtype Correction is Integer range -150 .. 150;
 
    --  Rotation rows are the earth axes north, west, and up as X, Y, and Z;
@@ -90,6 +99,13 @@ package Adaflight.Attitude with SPARK_Mode is
       Headfree_Offset     : Quaternion := Identity;
       Headfree            : Quaternion := Identity;
       Reported            : Quaternion := Identity;
+      --  The GPS course: whether a fix past the course speed set the heading,
+      --  the yaw rate suppression's last value, the heading confidence, and
+      --  whether the GPS heading is good to fly by.
+      Course_Set          : Boolean := False;
+      Yaw_Suppression     : Suppression := 0.0;
+      Heading_Confidence  : Confidence := 0.0;
+      GPS_Heading         : Boolean := False;
    end record
      with Dynamic_Predicate =>
        Vectors.Bounded (State.Rotation, Matrix_Bound)
@@ -100,6 +116,19 @@ package Adaflight.Attitude with SPARK_Mode is
    Rate_Bound : constant := 2.0 ** 13;
    Acc_Bound  : constant := 2.0 ** 16;
    Mag_Bound  : constant := 2.0 ** 22;
+
+   --  The GPS as the attitude reads it: a fix from a present module with
+   --  more than the minimum satellites, its ground speed in centimetres per
+   --  second and its course in decidegrees, the latest filtered yaw rate in
+   --  degrees per second, and whether the craft is a fixed wing.
+   Min_Satellites : constant := 4;
+   type Course_Inputs is record
+      Usable       : Boolean := False;
+      Ground_Speed : Natural range 0 .. 65_535 := 0;
+      Course       : Natural range 0 .. 3_599 := 0;
+      Yaw_Rate     : Float range -Rate_Bound .. Rate_Bound := 0.0;
+      Fixed_Wing   : Boolean := False;
+   end record;
 
    procedure Init (S : out State);
 
@@ -114,7 +143,8 @@ package Adaflight.Attitude with SPARK_Mode is
       Use_Mag       : Boolean;
       Armed         : Boolean;
       Angle_Mode    : Boolean;
-      Headfree_Mode : Boolean
+      Headfree_Mode : Boolean;
+      Course        : Course_Inputs := (others => <>)
    ) with Pre => Vectors.Bounded (Gyro, Rate_Bound)
                  and then Vectors.Bounded (Acc, Acc_Bound)
                  and then Acc_Magnitude in 0.0 .. 1.0e3
@@ -130,6 +160,11 @@ package Adaflight.Attitude with SPARK_Mode is
    procedure Headfree_To_Body (S : in out State; V : in out Vectors.Vector3)
      with Pre  => Vectors.Bounded (V, Headfree_Bound),
           Post => Vectors.Bounded (V, 48.0 * Headfree_Bound);
+
+   --  The heading is good to fly by with a calibrated compass, or once the
+   --  GPS course has matched it long enough.
+   function Heading_Valid (S : State; Compass_Calibrated : Boolean) return Boolean is
+     (Compass_Calibrated or else S.GPS_Heading);
 
    function Cos_Tilt (S : State) return Float is
      (S.Rotation (Vectors.Z, Vectors.Z));

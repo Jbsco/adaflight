@@ -3857,6 +3857,8 @@ procedure Vector_Check is
 
    IMU_State  : Adaflight.Attitude.State;
    IMU_Config : Adaflight.Attitude.Config;
+   --  The GPS sequences' course inputs for the next step.
+   IMU_Course : Adaflight.Attitude.Course_Inputs;
 
    procedure Check_IMU_Line is
       use Adaflight.Attitude;
@@ -3870,6 +3872,15 @@ procedure Vector_Check is
                                    Throttle_Correction_Value => Integer (Int (7)),
                                    Mag_Declination           => Integer (Int (8))));
          Init (IMU_State);
+         IMU_Course := (others => <>);
+      elsif Name = "imugps" then
+         IMU_Course := (Usable       => Int (4) /= 0 and then Int (5) /= 0 and then Int (6) > Min_Satellites,
+                        Ground_Speed => Integer (Int (7)),
+                        Course       => Integer (Int (8)),
+                        Yaw_Rate     => Flt (9),
+                        Fixed_Wing   => Int (10) /= 0);
+      elsif Name = "imugpsout" then
+         Record_Int ("imugpsout.heading", Int (4), Boolean'Pos (IMU_State.GPS_Heading));
       elsif Name = "imustep" then
          declare
             K : Positive := 18;
@@ -3896,7 +3907,8 @@ procedure Vector_Check is
                     Use_Mag       => Int (17) /= 0,
                     Armed         => Int (5) /= 0,
                     Angle_Mode    => Int (6) mod 4 /= 0,
-                    Headfree_Mode => Int (6) / 64 mod 2 = 1);
+                    Headfree_Mode => Int (6) / 64 mod 2 = 1,
+                    Course        => IMU_Course);
             Expect_Int ("roll", Integer_64 (IMU_State.Euler.Roll));
             Expect_Int ("pitch", Integer_64 (IMU_State.Euler.Pitch));
             Expect_Int ("yaw", Integer_64 (IMU_State.Euler.Yaw));
@@ -38952,6 +38964,7 @@ begin
    Run (Dir & "/rxpwm.csv", "pulse");
    Run (Dir & "/imu.csv", "imu");
    Run (Dir & "/imuhf.csv", "imu");
+   Run (Dir & "/imugps.csv", "imu");
    Run (Dir & "/failsafe.csv", "failsafe");
    Run (Dir & "/modes.csv", "modes");
    Run (Dir & "/acc.csv", "acc");
