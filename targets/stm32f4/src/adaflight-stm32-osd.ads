@@ -70,7 +70,8 @@ package Adaflight.STM32.OSD is
    --  decidegrees, the acceleration in g, the throttle and the sticks, the
    --  RSSI and the link's quality, the battery in centivolts, centiamps and milliamp hours, the
    --  motors with their outputs and range, which of them run above the disarm output, the ESC
-   --  sensor's readings over every motor and for each one, the profiles, the
+   --  sensor's readings over every motor and for each one, the profiles with
+   --  their names and the PID profile's gains, the
    --  estimated altitude and climb rate, the rangefinder's altitude, the custom text, the lap timer with its clock, the
    --  adjustment shown with its value, and the flight totals.
    type Motor_Flags is array (Adaflight.OSD_Render.Motor_Index) of Boolean;
@@ -127,6 +128,9 @@ package Adaflight.STM32.OSD is
       ESC_Motors        : Adaflight.ESC_Sensor.Readings;
       PID_Index         : Interfaces.Unsigned_8 := 0;
       Rate_Index        : Interfaces.Unsigned_8 := 0;
+      PIDs              : Adaflight.OSD_Render.PID_Axes;
+      PID_Profile_Name  : Adaflight.Config_Groups.Bytes_9 := (others => 0);
+      Rate_Profile_Name : Adaflight.Config_Groups.Bytes_9 := (others => 0);
       Altitude_Cm       : Interfaces.Integer_32 range -40_000_000 .. 40_000_000 := 0;
       Rangefinder_Cm    : Interfaces.Integer_32 := 0;
       Custom_Text       : Adaflight.OSD_Render.Custom_Text;
