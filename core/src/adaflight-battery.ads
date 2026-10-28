@@ -87,10 +87,14 @@ package Adaflight.Battery with SPARK_Mode is
       Consumption : Integer_32 range -2 ** 23 .. 2 ** 23 := 0;
    end record;
 
+   --  The analog supply in millivolts that scales the analog meters' counts.
+   subtype Supply_Millivolts is Unsigned_16 range 0 .. 16_000;
+
    --  What the other meters read: the ESC sensor while its feature is on,
    --  and for the virtual meter the arming flag, the low throttle status,
    --  the motor stop feature and the mixer throttle. Now_Ms is the
-   --  millisecond clock the ESC meter reads.
+   --  millisecond clock the ESC meter reads, and Supply_Mv the measured
+   --  analog supply the analog meters scale by.
    type Meter_Inputs is record
       ESC_Sensor   : Boolean := False;
       ESC          : ESC_Reading;
@@ -99,6 +103,7 @@ package Adaflight.Battery with SPARK_Mode is
       Motor_Stop   : Boolean := False;
       Throttle     : Float range 0.0 .. 1.0 := 0.0;
       Now_Ms       : Time_Ms := 0;
+      Supply_Mv    : Supply_Millivolts := 3_300;
    end record;
 
    No_Meters : constant Meter_Inputs := (others => <>);
