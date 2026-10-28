@@ -1,4 +1,3 @@
-with Ada.Characters.Handling;
 with Ada.Real_Time; use Ada.Real_Time;
 with GNAT.Source_Info;
 with Interfaces; use Interfaces;
@@ -525,14 +524,18 @@ package body Adaflight.STM32.Flight is
       Adaflight.Config_Fix.Fix (Config, Hardware, Ports, Runtime_Features, Results);
    end Fix_Configuration;
 
-   --  Whether the stored configuration names this board.
+   --  Whether the stored configuration names this board, its ASCII letters
+   --  compared in upper case.
    function Board_Matches return Boolean is
       Stored : String (1 .. Board_Identifier'Length);
    begin
       for I in Stored'Range loop
          Stored (I) := Character'Val (Config.System_Config.Board_Identifier (I - 1));
+         if Stored (I) in 'a' .. 'z' then
+            Stored (I) := Character'Val (Character'Pos (Stored (I)) - 32);
+         end if;
       end loop;
-      return Ada.Characters.Handling.To_Upper (Stored) = Board_Identifier;
+      return Stored = Board_Identifier;
    end Board_Matches;
 
    --  The configuration written to the store after its checks: the region
