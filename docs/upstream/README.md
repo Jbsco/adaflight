@@ -97,3 +97,4 @@ Each document describes a Betaflight bug that adaflight fixes: the Betaflight ve
 - [CRSF GPS telemetry stays silent with an NMEA module](crsf-gps-telemetry-nmea-time.md)
 - [ESC information read leaves the ESC sensor writing into a dead stack frame](esc-info-read-buffer.md)
 - [The flight log's surfaceRaw field holds the tilt-corrected altitude](blackbox-surface-raw-tilt.md)
+- [The GPS lap timer never times a lap with an NMEA module](gps-lap-timer-nmea-time.md)

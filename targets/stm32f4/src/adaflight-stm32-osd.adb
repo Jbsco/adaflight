@@ -750,6 +750,8 @@ package body Adaflight.STM32.OSD is
       Context.Page.Total_Flights := F.Total_Flights;
       Context.Page.Total_Time_S := F.Total_Time_S;
       Context.Page.Total_Dist_M := F.Total_Dist_M;
+      Context.Page.Best_Lap_Ms := F.Lap.Best_Lap_Time;
+      Context.Page.Best_3_Consec_Ms := F.Lap.Best_Three;
 
       D.Roll := F.Roll;
       D.Pitch := F.Pitch;
@@ -797,7 +799,7 @@ package body Adaflight.STM32.OSD is
       D.PDOP := F.GPS.PDOP;
       D.Speed_3D := F.GPS.Speed_3D;
       D.Ground_Speed := F.GPS.Ground_Speed;
-      D.GPS_Time_Ms := F.GPS.Time_Ms;
+      D.GPS_Time_Ms := F.Lap_Clock_Ms;
       D.Home_Distance_M := F.GPS.Distance_To_Home_M;
       D.Home_Direction :=
         Adaflight.OSD_Render.Yaw_Decidegrees ((Integer (F.GPS.Direction_To_Home) mod 3_600 + 3_600) mod 3_600);
@@ -807,6 +809,12 @@ package body Adaflight.STM32.OSD is
       D.Rangefinder_Cm := F.Rangefinder_Cm;
       D.Custom_Text_Present := True;
       D.Custom := F.Custom_Text;
+      D.Lap_Running := F.Lap.Timer_Running;
+      D.Lap_Last_Ms := F.Lap.Time_Of_Last_Lap;
+      D.Lap_Previous_Ms := F.Lap.Previous (0);
+      D.Lap_Best3_Ms := F.Lap.Best_Three;
+      D.Lap_Direction_Cdeg := F.Lap.Direction_To_Gate mod 36_000;
+      D.Lap_Distance_Cm := Interfaces.Unsigned_32'Min (100_000_000, F.Lap.Distance_To_Gate_Cm);
       D.Adjustment_Present := F.Adjustment_Present;
       D.Adjustment_Name := F.Adjustment_Name;
       D.Adjustment_Value := F.Adjustment_Value;

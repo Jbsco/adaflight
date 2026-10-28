@@ -90,6 +90,7 @@ with Adaflight.STM32.MAVLink;
 with Adaflight.STM32.Gimbal;
 with Adaflight.STM32.GPS;
 with Adaflight.GPS_Frames;
+with Adaflight.GPS_Lap_Timer;
 with Adaflight.GPS_Link;
 with Adaflight.GPS_Rescue;
 with Adaflight.STM32.MCU;
@@ -303,6 +304,14 @@ package body Adaflight.STM32.Flight is
    Navigator         : Adaflight.Position_Nav.Navigator;
    Rescue_Settings   : Adaflight.GPS_Rescue.Settings;
    Rescue_State      : Adaflight.GPS_Rescue.State;
+   --  The GPS lap timer, the stamp of the last solution it took, and the
+   --  solution time it measures laps on: the module's own, or the clock at
+   --  the solution for an NMEA module, whose solutions carry no time.
+   Lap               : Adaflight.GPS_Lap_Timer.Timer;
+   Lap_Stamp         : Unsigned_16 := 0;
+   function Lap_Clock_Ms (G : Adaflight.STM32.GPS.Readings) return Unsigned_32 is
+     (if Config.Gps_Config.Provider = Adaflight.GPS_Link.Provider'Pos (Adaflight.GPS_Link.NMEA) then G.Solution_Ms
+      else G.Time_Ms);
 
    --  The displayed altitude to the nearest centimetre, and the climb rate
    --  in centimetres per second with its 10 cm/s deadband.
@@ -2347,6 +2356,8 @@ package body Adaflight.STM32.Flight is
       F.Altitude_Cm := Integer_32'Max (-40_000_000, Integer_32'Min (40_000_000, Estimated_Altitude_Cm));
       F.Rangefinder_Cm := Adaflight.STM32.Rangefinder.Altitude_Cm;
       F.Custom_Text := Adaflight.STM32.OSD_Custom_Text.Text;
+      F.Lap := Lap;
+      F.Lap_Clock_Ms := Lap_Clock_Ms (F.GPS);
       F.Vario := Estimated_Vario;
       F.Pos_Hold_Ready := Pos_Hold_Ready;
       F.Pos_Hold_Failure := Pos_Hold_Failure;
@@ -2408,12 +2419,28 @@ package body Adaflight.STM32.Flight is
       F.Gyro_Calibration_Complete := Adaflight.Gyro_Filters.Calibration_Complete (Gyro_State);
       F.PID_Frequency := Float'Min (65_535.0, 1.0e6 / Float (Natural'Max (1, Natural (Sample_Us))));
       F.Runtime_Features := Runtime_Features;
+      F.Gate_Set_Readings := Lap.Set_Readings;
+      F.Gate_Distance_Cm := Lap.Distance_To_Gate_Cm;
       Adaflight.STM32.Menu.Run (Config, F, Before, Adaflight.STM32.Time.Millis, R);
       if R.Acc_Calibration then
          Adaflight.Accelerometer.Start_Calibration (Acc_State);
       end if;
       if R.Gyro_Calibration then
          Adaflight.Gyro_Filters.Start_Calibration (Gyro_State, Gyro_Settings, First_Arm => False);
+      end if;
+      if R.Gate_Start then
+         Adaflight.GPS_Lap_Timer.Start_Set_Gate (Lap);
+      end if;
+      if R.Gate_End then
+         declare
+            Lap_Settings : Adaflight.GPS_Lap_Timer.Settings :=
+              Adaflight.Config_Runtime.Lap_Timer_Settings_Of (Config.Gps_Lap_Timer_Config);
+         begin
+            Adaflight.GPS_Lap_Timer.End_Set_Gate (Lap, Lap_Settings);
+            Config.Gps_Lap_Timer_Config.Gate_Lat := Lap_Settings.Gate_Lat;
+            Config.Gps_Lap_Timer_Config.Gate_Lon := Lap_Settings.Gate_Lon;
+            Adaflight.STM32.Menu.Set_Gate (Lap_Settings.Gate_Lat, Lap_Settings.Gate_Lon);
+         end;
       end if;
       if R.PID_Profile then
          Config.System_Config.Pid_Profile_Index := Unsigned_8'Min (3, R.PID_Profile_Idx);
@@ -2499,6 +2526,17 @@ package body Adaflight.STM32.Flight is
       R : Adaflight.STM32.GPS.Report;
    begin
       Adaflight.STM32.GPS.Run (Adaflight.STM32.Time.Millis, Before, Adaflight.STM32.Pilot.Armed, R);
+      declare
+         G : constant Adaflight.STM32.GPS.Readings := Adaflight.STM32.GPS.Current;
+      begin
+         if G.Stamp /= Lap_Stamp then
+            Lap_Stamp := G.Stamp;
+            Adaflight.GPS_Lap_Timer.New_GPS_Data
+              (Lap, Adaflight.Config_Runtime.Lap_Timer_Settings_Of (Config.Gps_Lap_Timer_Config),
+               (Lat => G.Latitude, Lon => G.Longitude, Alt_Cm => G.Altitude_Cm), Lap_Clock_Ms (G), G.Cos_Lat,
+               Reset_Mode => Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Lap_Timer_Reset));
+         end if;
+      end;
       if R.Ready_Beep then
          Request_Beep (Adaflight.Beeper.Ready);
       end if;
@@ -3456,6 +3494,10 @@ package body Adaflight.STM32.Flight is
       Adaflight.STM32.Radio.Init (Config, Runtime_Features, Adaflight.STM32.Time.Millis, Telemetry_Config);
       Adaflight.STM32.Radio.Init_FPort_Telemetry (SmartPort_Build);
       Adaflight.STM32.GPS.Init (Config, Runtime_Features, Adaflight.STM32.Time.Millis);
+      if (Runtime_Features and Adaflight.Config_Fix.Feature_GPS) /= 0 then
+         Adaflight.GPS_Lap_Timer.Init
+           (Lap, Adaflight.Config_Runtime.Lap_Timer_Settings_Of (Config.Gps_Lap_Timer_Config));
+      end if;
       Adaflight.STM32.OSD_Custom_Text.Init (Config);
       Adaflight.STM32.ESC_Sensor.Init (Config, Runtime_Features);
       if USB_Detect then

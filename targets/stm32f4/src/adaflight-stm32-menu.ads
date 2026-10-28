@@ -8,7 +8,8 @@ with Adaflight.RC_Command;
 package Adaflight.STM32.Menu is
    --  What the menu reads from the flight at a pass: the sticks, the arming
    --  and the modes that hold the menu off, the sensors with their
-   --  calibrations, the loop rate and the running features.
+   --  calibrations, the loop rate, the running features, and the lap timer's
+   --  gate readings and distance to the gate.
    type Facts is record
       Channels                  : Adaflight.RC_Command.Channel_Values := (others => 1_500.0);
       Aux                       : Adaflight.RC_Command.Channel_Values := (others => 1_500.0);
@@ -22,15 +23,20 @@ package Adaflight.STM32.Menu is
       Gyro_Calibration_Complete : Boolean := False;
       PID_Frequency             : Float range 0.0 .. 65_535.0 := 0.0;
       Runtime_Features          : Interfaces.Unsigned_32 := 0;
+      Gate_Set_Readings         : Interfaces.Unsigned_16 := 0;
+      Gate_Distance_Cm          : Interfaces.Unsigned_32 := 0;
    end record;
 
-   --  The requests a pass made: the calibrations, the OSD's elements
-   --  analyzed again, the OSD, PID and rate profiles changed to the ones
-   --  asked for, the PID configuration set up again, the configuration
-   --  saved and the board reset.
+   --  The requests a pass made: the calibrations, the lap timer's gate
+   --  setting started and ended, the OSD's elements analyzed again, the OSD,
+   --  PID and rate profiles changed to the ones asked for, the PID
+   --  configuration set up again, the configuration saved and the board
+   --  reset.
    type Requests is record
       Acc_Calibration  : Boolean := False;
       Gyro_Calibration : Boolean := False;
+      Gate_Start       : Boolean := False;
+      Gate_End         : Boolean := False;
       Elements         : Boolean := False;
       OSD_Profile      : Boolean := False;
       OSD_Profile_Idx  : Interfaces.Unsigned_8 := 0;
@@ -60,4 +66,7 @@ package Adaflight.STM32.Menu is
    procedure Run
      (C : in out Adaflight.Config_Groups.Configuration; F : Facts; Now_Us, Now_Ms : Interfaces.Unsigned_32;
       R : out Requests);
+
+   --  The lap timer's gate the flight set, into the menu's configuration.
+   procedure Set_Gate (Lat, Lon : Interfaces.Integer_32);
 end Adaflight.STM32.Menu;
