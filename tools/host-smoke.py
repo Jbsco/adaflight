@@ -318,6 +318,26 @@ def ghst_replies(data):
     return frames
 
 
+def ghst_msp_exchange(sender, payload, count, wait):
+    """The six-byte chunks of the Ghost MSP reply to a request, read until count of them are in or the wait
+    runs out. The request goes out again, and the count starts over, when no chunk comes within a second,
+    since the receiver keeps only the later of two frames that reach the image together."""
+    deadline = time.time() + wait
+    while True:
+        mark = len(sender.received)
+        sender.outbox.append(ghst_msp_request(payload))
+        resend = time.time() + 1.0
+        while True:
+            chunks = [p[:6] for k, p in ghst_replies(sender.received[mark:]) if k == 0x28]
+            if len(chunks) >= count or time.time() >= deadline or (not chunks and time.time() >= resend):
+                break
+            time.sleep(0.05)
+        if chunks or time.time() >= deadline:
+            break
+    time.sleep(0.3)
+    return [p[:6] for k, p in ghst_replies(sender.received[mark:]) if k == 0x28]
+
+
 def jeti_frame(channels_us):
     """A Jeti EX Bus channel frame: the channel header with the frame length, a packet id, the channel data
     id and the data length, the channels in eighths of a microsecond little-endian, and the reflected CRC16
@@ -948,6 +968,23 @@ def msp2(sock, cmd, payload=b""):
     if len(data) < 9 or data[:3] != b"$X>":
         return None
     return data[8:8 + (data[6] | data[7] << 8)]
+
+
+def until(probe, ok, wait=10.0):
+    """Reads the probe until ok accepts its value or the wait runs out, and returns the verdict with the last
+    value, so a check keeps reading while a loaded host slows the image down."""
+    deadline = time.time() + wait
+    value = probe()
+    while not ok(value) and time.time() < deadline:
+        time.sleep(0.25)
+        value = probe()
+    return ok(value), value
+
+
+def rc_values(sock):
+    """The first four channels of the MSP RC reply, none without a reply."""
+    rc = msp(sock, 105)
+    return [rc[i] | rc[i + 1] << 8 for i in range(0, 8, 2)] if rc and len(rc) >= 8 else []
 
 
 def dshot_frames(store, wait):
@@ -1619,11 +1656,10 @@ def main():
             sender.start()
             try:
                 time.sleep(2.5)
-                rc = msp(sock, 105)
-                values = [rc[i] | rc[i + 1] << 8 for i in range(0, 8, 2)] if rc and len(rc) >= 8 else []
-                check(f"{name} channels reach the MSP RC reply",
-                      len(values) == 4 and abs(values[0] - 1500) <= 2 and abs(values[1] - 1599) <= 2
-                      and abs(values[2] - 1500) <= 2 and values[3] <= 1000, repr(values))
+                passed, values = until(lambda: rc_values(sock),
+                                       lambda v: len(v) == 4 and abs(v[0] - 1500) <= 2 and abs(v[1] - 1599) <= 2
+                                       and abs(v[2] - 1500) <= 2 and v[3] <= 1000)
+                check(f"{name} channels reach the MSP RC reply", passed, repr(values))
                 sock.sendall(b"#")
                 read_all(sock, 0.8)
                 text = cli(sock, "status")
@@ -1652,7 +1688,9 @@ def main():
         receiver.start()
         try:
             time.sleep(3.0)
+            until(lambda: len(receiver.frames), lambda n: n > 0)
             receiver.outbox.append(crsf_msp_request(bytes([0x30, 0, 1])))
+            until(lambda: len(receiver.msp_replies), lambda n: n >= 1, wait=5.0)
             time.sleep(0.5)
             replies = list(receiver.msp_replies)
             reply = msp_tunnel_reply([f[5:-1] for f in replies])
@@ -1661,7 +1699,8 @@ def main():
                   and reply[0] == 1 and reply[1] == 3 and reply[2][:2] == bytes([0, 1]) and reply[3], repr(replies))
             receiver.msp_replies.clear()
             receiver.outbox.append(crsf_msp_request(bytes([0x31, 0, 52])))
-            time.sleep(0.8)
+            until(lambda: len(receiver.msp_replies), lambda n: n >= 6, wait=5.0)
+            time.sleep(0.5)
             replies = list(receiver.msp_replies)
             reply = msp_tunnel_reply([f[5:-1] for f in replies])
             serial = msp(sock, 52)
@@ -1731,8 +1770,8 @@ def main():
         sender.start()
         try:
             time.sleep(4.0)
-            answers = jeti_answers(sender.received)
-            check("EX Bus telemetry answers the receiver's requests with checked frames", len(answers) >= 10,
+            passed, answers = until(lambda: jeti_answers(sender.received), lambda a: len(a) >= 10)
+            check("EX Bus telemetry answers the receiver's requests with checked frames", passed,
                   repr(sender.received[:40]))
             check("EX Bus telemetry answers echo the packet id and carry the EX telemetry header",
                   bool(answers) and all(a[3] == 7 and a[4] == 0x3A and a[6] == 0x9F and a[8:10] == bytes([0x1E, 0xA4])
@@ -1845,10 +1884,9 @@ def main():
             vcp = socket.create_connection(("127.0.0.1", VCP_PORT), timeout=1)
             vcp.settimeout(0.3)
             time.sleep(0.5)
-            rc = msp(vcp, 105)
-            values = [rc[i] | rc[i + 1] << 8 for i in range(0, 8, 2)] if rc and len(rc) >= 8 else []
-            check("receiver on UART1 keeps its bytes from the MSP framing",
-                  len(values) == 4 and abs(values[0] - 1500) <= 2 and abs(values[1] - 1599) <= 2, repr(values))
+            passed, values = until(lambda: rc_values(vcp),
+                                   lambda v: len(v) == 4 and abs(v[0] - 1500) <= 2 and abs(v[1] - 1599) <= 2)
+            check("receiver on UART1 keeps its bytes from the MSP framing", passed, repr(values))
         finally:
             stop_feed.set()
             stop(proc)
@@ -2004,18 +2042,12 @@ def main():
             check("Ghost telemetry answers in the receiver's quiet window with checked frames", len(frames) >= 10,
                   repr(sender.received[:60]))
             check("Ghost telemetry sends the battery pack frame", kinds == [0x23], repr(kinds))
-            mark = len(sender.received)
-            sender.outbox.append(ghst_msp_request(bytes([0x30, 0, 1])))
-            time.sleep(0.5)
-            chunks = [p[:6] for k, p in ghst_replies(sender.received[mark:]) if k == 0x28]
+            chunks = ghst_msp_exchange(sender, bytes([0x30, 0, 1]), 2, 5.0)
             reply = msp_tunnel_reply(chunks)
             check("MSP over Ghost answers the API version in a full chunk and an empty last one",
                   len(chunks) == 2 and chunks[1][1:] == bytes(5) and reply is not None and reply[0] == 1
                   and reply[1] == 3 and reply[2][:2] == bytes([0, 1]) and reply[3], repr(chunks))
-            mark = len(sender.received)
-            sender.outbox.append(ghst_msp_request(bytes([0x31, 0, 52])))
-            time.sleep(2.0)
-            chunks = [p[:6] for k, p in ghst_replies(sender.received[mark:]) if k == 0x28]
+            chunks = ghst_msp_exchange(sender, bytes([0x31, 0, 52]), 61, 8.0)
             reply = msp_tunnel_reply(chunks)
             serial = msp(sock, 52)
             check("MSP over Ghost sends the 300-byte adjustment ranges in six-byte chunks as serial MSP does",
@@ -2258,9 +2290,8 @@ def main():
             while first == 0 and time.time() < deadline:
                 time.sleep(0.5)
                 first = milliwatt_hours()
-            time.sleep(2.0)
-            second = milliwatt_hours()
-            check("OSD watt hours element counts the energy of the charge the ESCs report", 0 < first < second,
+            grew, second = until(milliwatt_hours, lambda w: w > first, wait=10.0)
+            check("OSD watt hours element counts the energy of the charge the ESCs report", 0 < first and grew,
                   repr((first, second, screen_row(store, 4))))
         finally:
             esc.stop.set()
@@ -2287,11 +2318,8 @@ def main():
             sock.close()
         proc, sock = start(image, store, {"ADAFLIGHT_SD_IMAGE": card})
         try:
-            deadline = time.time() + 15
-            while time.time() < deadline and screen_row(store, 4)[2:4] != "1 ":
-                time.sleep(0.2)
-            check("OSD log status element shows the SD card's log number", screen_row(store, 4)[2:4] == "1 ",
-                  repr(screen_row(store, 4)))
+            passed, row = until(lambda: screen_row(store, 4), lambda r: r[2:4] == "1 ", wait=30.0)
+            check("OSD log status element shows the SD card's log number", passed, repr(row))
         finally:
             stop(proc)
             sock.close()
