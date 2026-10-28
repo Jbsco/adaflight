@@ -354,6 +354,43 @@ class SerialReceiver(threading.Thread):
             sock.close()
 
 
+def tofsense_frame(distance_mm):
+    """A Nooploop TOFSense frame: the two sync bytes, the id, the system time, the distance in millimetres in
+    three bytes, a valid status, the signal strength, a reserved byte and the sum of the first fifteen bytes."""
+    body = (bytes([0x57, 0x00, 0xFF, 0x00]) + (1000).to_bytes(4, "little") + distance_mm.to_bytes(3, "little")
+            + bytes([0x00]) + (300).to_bytes(2, "little") + bytes([0x00]))
+    return body + bytes([sum(body) & 0xFF])
+
+
+class Lidar(threading.Thread):
+    """A rangefinder on UART4's port sending a frame every 10 ms: by default a TFmini's two sync bytes, 150 cm,
+    a strength of 500, the short integral time, a reserved byte and the checksum of the first eight bytes."""
+
+    def __init__(self, frame=None):
+        super().__init__(daemon=True)
+        self.stop = threading.Event()
+        self.frame = frame
+
+    def run(self):
+        sock = None
+        deadline = time.time() + 10
+        while sock is None and time.time() < deadline and not self.stop.is_set():
+            try:
+                sock = socket.create_connection(("127.0.0.1", GPS_PORT), timeout=1)
+            except OSError:
+                time.sleep(0.1)
+        body = bytes([0x59, 0x59]) + (150).to_bytes(2, "little") + (500).to_bytes(2, "little") + bytes([0x02, 0x00])
+        frame = self.frame if self.frame is not None else body + bytes([sum(body) & 0xFF])
+        while sock is not None and not self.stop.is_set():
+            try:
+                sock.sendall(frame)
+            except OSError:
+                break
+            time.sleep(0.01)
+        if sock is not None:
+            sock.close()
+
+
 class Camera(threading.Thread):
     """A RunCam camera on UART4's port: answers each device information request with protocol 1.0 and the
     power, WiFi and mode buttons, and keeps every packet the flight controller sends."""
@@ -1336,11 +1373,18 @@ def main():
                   text[-120:])
             text = cli(sock, "set telemetry_1_uart = UART3")
             check("FrSky hub port assigned", "telemetry_1_uart set to UART3" in text, text[-120:])
+            for line in ("rangefinder_hardware = TFMINI", "rangefinder_uart = UART4"):
+                text = cli(sock, "set " + line)
+                check(f"FrSky hub rangefinder {line}", line.replace(" = ", " set to ") in text, text[-120:])
+            text = cli(sock, "feature RANGEFINDER")
+            check("rangefinder feature on for the FrSky hub", "Enabled" in text, text[-120:])
             cli(sock, "save", wait=2.0)
             proc.wait(timeout=10)
         finally:
             stop(proc)
             sock.close()
+        lidar = Lidar()
+        lidar.start()
         proc, sock = start(image, store)
         try:
             time.sleep(2.5)
@@ -1350,7 +1394,10 @@ def main():
             hub.close()
             ids = [i for i, _ in frames]
             check("FrSky hub sends the acceleration frames every 125 ms", 6 <= ids.count(0x24) <= 14, repr(ids[:40]))
+            check("FrSky hub sends the vario and altitude frames with a rangefinder",
+                  0x30 in ids and 0x10 in ids and 0x21 in ids, repr(sorted(set(ids))))
         finally:
+            lidar.stop.set()
             stop(proc)
             sock.close()
         store = os.path.join(work, "ibustlm.bin")
@@ -1655,6 +1702,96 @@ def main():
             sock.close()
             if vcp is not None:
                 vcp.close()
+        store = os.path.join(work, "lidar.bin")
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "set rangefinder_hardware = TFMINI")
+            check("rangefinder set to a TFmini", "rangefinder_hardware set to TFMINI" in text, text[-120:])
+            text = cli(sock, "set rangefinder_uart = UART4")
+            check("rangefinder port assigned", "rangefinder_uart set to UART4" in text, text[-120:])
+            text = cli(sock, "feature RANGEFINDER")
+            check("rangefinder feature on", "Enabled" in text, text[-120:])
+            for line in ("blackbox_device = SERIAL", "blackbox_uart = UART6", "blackbox_mode = ALWAYS"):
+                text = cli(sock, "set " + line)
+                check(f"rangefinder flight log {line}", line.replace(" = ", " set to ") in text, text[-120:])
+            for line in ("osd_displayport_device = MAX7456", "vcd_video_system = PAL", "osd_lidar_dist_pos = 2177"):
+                text = cli(sock, "set " + line)
+                check(f"rangefinder OSD {line}", line.replace(" = ", " set to ") in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        lidar = Lidar()
+        lidar.start()
+        proc, sock = start(image, store)
+        log = None
+        deadline = time.time() + 5
+        while log is None and time.time() < deadline:
+            try:
+                log = socket.create_connection(("127.0.0.1", LOG_PORT), timeout=1)
+                log.settimeout(0.3)
+            except OSError:
+                time.sleep(0.01)
+        try:
+            data = read_all(log, 3.0) if log is not None else b""
+            fields = next((line for line in data.split(b"\n") if line.startswith(b"H Field I name:")), b"")
+            check("flight log lists the rangefinder's surfaceRaw field", b",surfaceRaw," in fields + b",",
+                  repr(fields[-80:]))
+            status = msp(sock, 101)
+            check("MSP status names the rangefinder", status is not None and len(status) > 5
+                  and (status[4] | status[5] << 8) & 0x10 != 0, repr(status))
+            sonar = msp(sock, 58)
+            altitude = int.from_bytes(sonar[:4], "little", signed=True) if sonar and len(sonar) >= 4 else None
+            check("MSP sonar altitude reads the lidar's 150 cm", altitude is not None and abs(altitude - 150) <= 2,
+                  repr(altitude))
+            time.sleep(4.5)
+            try:
+                with open(store + ".osd.txt") as f:
+                    rows = f.read().splitlines()
+            except OSError:
+                rows = []
+            check("OSD lidar element draws the 150 cm", len(rows) > 4 and "RF:150" in rows[4],
+                  repr(rows[4] if len(rows) > 4 else rows))
+        finally:
+            lidar.stop.set()
+            stop(proc)
+            sock.close()
+            if log is not None:
+                log.close()
+        store = os.path.join(work, "tofsense.bin")
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "set rangefinder_hardware = NOOPLOOP_F2")
+            check("rangefinder set to a TOFSense F2", "rangefinder_hardware set to NOOPLOOP_F2" in text, text[-120:])
+            text = cli(sock, "set rangefinder_uart = UART4")
+            check("TOFSense port assigned", "rangefinder_uart set to UART4" in text, text[-120:])
+            text = cli(sock, "feature RANGEFINDER")
+            check("rangefinder feature on for the TOFSense", "Enabled" in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        tof = Lidar(tofsense_frame(1234))
+        tof.start()
+        proc, sock = start(image, store)
+        try:
+            time.sleep(3.0)
+            sonar = msp(sock, 58)
+            altitude = int.from_bytes(sonar[:4], "little", signed=True) if sonar and len(sonar) >= 4 else None
+            check("MSP sonar altitude reads the TOFSense's 123 cm", altitude is not None and abs(altitude - 123) <= 1,
+                  repr(altitude))
+        finally:
+            tof.stop.set()
+            stop(proc)
+            sock.close()
         store = os.path.join(work, "ghsttlm.bin")
         proc, sock = start(image, store)
         try:
