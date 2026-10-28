@@ -11251,3 +11251,17 @@ components, which GNAT places in flash, and the constructors are gone.
 
 On the STM32F4 image the change removes 1124 bytes of text and 2536 bytes of zeroed data, from 658172 to 657048 and
 from 154592 to 152056. The flight log vectors replay unchanged.
+
+## D490. Codec by runs of bytes (2026-10-28)
+
+The codec (D166, D483) wrote and read every field of every record through its own procedure call, 16 KB of code in
+the board image. The generator now lays out each group's record as GNAT does, every component at the next offset its
+alignment allows, and merges the fields that lie next to each other into runs, 241 for the oracle's build. Each run
+is an offset, a byte count and whether its bytes are Booleans. The codec copies a run's bytes between the
+configuration record and the data through an overlay at the record's address, and a Boolean byte read from the data
+becomes false for zero and true for any other value. Both targets are little-endian, and the data's layout keeps its
+order and widths.
+
+The board's debug information gives the same offset for each of the 4591 bytes as the runs, in all 101 groups. On
+the STM32F4 image the change removes 22328 bytes of text, from 657048 to 634720. The codec, storage and setting
+vectors replay unchanged.
