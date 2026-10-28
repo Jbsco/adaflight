@@ -54,4 +54,9 @@ package Adaflight.STM32.Blackbox is
    procedure Disarmed (Reason : Adaflight.Arming.Disarm_Reason; Now_Us, Now_Ms : Interfaces.Unsigned_32);
    --  The recorder, which the MSP replies read.
    function Recorder return Adaflight.Blackbox.Recorder;
+   --  The log device's state the OSD's log element shows: whether it works,
+   --  a serial port while the log holds it open, an SD card inserted and
+   --  working with its file system ready, a flash chip ready; whether it is
+   --  full; and the largest log file number on an SD card, -1 on the others.
+   procedure Device_State (Working, Full : out Boolean; Log_Number : out Interfaces.Integer_32);
 end Adaflight.STM32.Blackbox;

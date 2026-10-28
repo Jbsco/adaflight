@@ -2148,6 +2148,94 @@ def main():
             receiver.stop.set()
             stop(proc)
             sock.close()
+        store = os.path.join(work, "tuning.bin")
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            for line in ("p_roll = 47", "i_roll = 83", "d_roll = 31", "d_max_roll = 42", "f_roll = 125",
+                         "profile_name = SNAPPY", "rateprofile_name = FREESTYL", "osd_displayport_device = MAX7456",
+                         "vcd_video_system = PAL", "osd_pid_roll_pos = 2177", "osd_pid_profile_name_pos = 2209",
+                         "osd_rate_profile_name_pos = 2241"):
+                text = cli(sock, "set " + line)
+                check(f"tuning elements {line}", line.replace(" = ", " set to ") in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store)
+        try:
+            check("OSD roll PID element shows the profile's gains", screen_wait(store, "ROL  47  83  31  42 125"),
+                  repr(screen_row(store, 4)))
+            check("OSD profile name elements show the PID and rate profile names",
+                  screen_row(store, 5)[1:7] == "SNAPPY" and screen_row(store, 6)[1:9] == "FREESTYL",
+                  repr((screen_row(store, 5), screen_row(store, 6))))
+        finally:
+            stop(proc)
+            sock.close()
+        store = os.path.join(work, "watthours.bin")
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "feature ESC_SENSOR")
+            check("watt hours from the ESC sensor feature", "Enabled" in text, text[-120:])
+            for line in ("esc_sensor_uart = UART6", "battery_meter = ESC", "current_meter = ESC",
+                         "osd_displayport_device = MAX7456", "vcd_video_system = PAL", "osd_wh_drawn_pos = 2177"):
+                text = cli(sock, "set " + line)
+                check(f"watt hours {line}", line.replace(" = ", " set to ") in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        esc = ESC()
+        proc, sock = start(image, store)
+        esc.start()
+        try:
+            time.sleep(8.0)
+            row = screen_row(store, 4)
+            whole = re.search(r"(\d+)\.(\d\d)WH", row)
+            milli = re.search(r"(\d+)MWH", row)
+            drawn = (int(whole.group(1)) * 1000 + int(whole.group(2)) * 10 if whole
+                     else int(milli.group(1)) if milli else 0)
+            check("OSD watt hours element shows the energy of the charge the ESCs report", drawn > 0, repr(row))
+        finally:
+            esc.stop.set()
+            stop(proc)
+            sock.close()
+        card = os.path.join(work, "logstatus.img")
+        fat16_image(card, 40960)
+        store = os.path.join(work, "logstatus.bin")
+        proc, sock = start(image, store, {"ADAFLIGHT_SD_IMAGE": card})
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            for line in ("blackbox_device = SDCARD", "blackbox_mode = ALWAYS", "osd_displayport_device = MAX7456",
+                         "vcd_video_system = PAL", "osd_log_status_pos = 2177"):
+                text = cli(sock, "set " + line)
+                check(f"log status {line}", line.replace(" = ", " set to ") in text, text[-120:])
+            text = cli(sock, "aux 0 26 0 900 2100 0 0")
+            check("flight log box on AUX1", "aux 0 26 0 900 2100 0 0" in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store, {"ADAFLIGHT_SD_IMAGE": card})
+        try:
+            deadline = time.time() + 15
+            while time.time() < deadline and screen_row(store, 4)[2:4] != "1 ":
+                time.sleep(0.2)
+            check("OSD log status element shows the SD card's log number", screen_row(store, 4)[2:4] == "1 ",
+                  repr(screen_row(store, 4)))
+        finally:
+            stop(proc)
+            sock.close()
         store = os.path.join(work, "laps.bin")
         proc, sock = start(image, store)
         try:
