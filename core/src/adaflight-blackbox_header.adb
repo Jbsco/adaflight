@@ -228,22 +228,7 @@ package body Adaflight.Blackbox_Header with SPARK_Mode is
    -- The fields --
    ----------------
 
-   function Delta_Field (Name : Field_Name; Index : Name_Index; Signed : Boolean; I_Predict : Predictor;
-                         I_Encode : Encoding; P_Predict : Predictor; P_Encode : Encoding; Cond : Condition)
-                         return Field_Definition is
-     (Name, Index, Signed, I_Predict, I_Encode, P_Predict, P_Encode, Cond);
-
-   function Simple_Field (Name : Field_Name; Index : Name_Index; Signed : Boolean; Predict : Predictor;
-                          Encode : Encoding; Cond : Condition := Always) return Field_Definition is
-     (Name, Index, Signed, Predict, Encode, Predict_Zero, Encode_Unsigned_VB, Cond);
-
    type Field_Table is array (Field_Position range <>) of Field_Definition;
-
-   function DF (Name : Field_Name; Index : Name_Index; Signed : Boolean; I_Predict : Predictor; I_Encode : Encoding;
-                P_Predict : Predictor; P_Encode : Encoding; Cond : Condition)
-                return Field_Definition renames Delta_Field;
-   function SF (Name : Field_Name; Index : Name_Index; Signed : Boolean; Predict : Predictor; Encode : Encoding;
-                Cond : Condition := Always) return Field_Definition renames Simple_Field;
 
    Z     : constant Predictor := Predict_Zero;
    Prev  : constant Predictor := Predict_Previous;
@@ -265,115 +250,82 @@ package body Adaflight.Blackbox_Header with SPARK_Mode is
    Nul   : constant Encoding := Encode_Null;
 
    Main_Head : constant Field_Table :=
-     (DF (Loop_Iteration, -1, False, Z, UVB, Inc, Nul, Always),
-      DF (Time, -1, False, Z, UVB, SLine, SVB, Always),
-      DF (Axis_P, 0, True, Z, SVB, Prev, SVB, PID),
-      DF (Axis_P, 1, True, Z, SVB, Prev, SVB, PID),
-      DF (Axis_P, 2, True, Z, SVB, Prev, SVB, PID),
-      DF (Axis_I, 0, True, Z, SVB, Prev, T2, PID),
-      DF (Axis_I, 1, True, Z, SVB, Prev, T2, PID),
-      DF (Axis_I, 2, True, Z, SVB, Prev, T2, PID),
-      DF (Axis_D, 0, True, Z, SVB, Prev, SVB, Nonzero_PID_D_0),
-      DF (Axis_D, 1, True, Z, SVB, Prev, SVB, Nonzero_PID_D_1),
-      DF (Axis_D, 2, True, Z, SVB, Prev, SVB, Nonzero_PID_D_2),
-      DF (Axis_F, 0, True, Z, SVB, Prev, SVB, PID),
-      DF (Axis_F, 1, True, Z, SVB, Prev, SVB, PID),
-      DF (Axis_F, 2, True, Z, SVB, Prev, SVB, PID));
+     ((Loop_Iteration, -1, False, Z, UVB, Inc, Nul, Always), (Time, -1, False, Z, UVB, SLine, SVB, Always),
+      (Axis_P, 0, True, Z, SVB, Prev, SVB, PID), (Axis_P, 1, True, Z, SVB, Prev, SVB, PID),
+      (Axis_P, 2, True, Z, SVB, Prev, SVB, PID), (Axis_I, 0, True, Z, SVB, Prev, T2, PID),
+      (Axis_I, 1, True, Z, SVB, Prev, T2, PID), (Axis_I, 2, True, Z, SVB, Prev, T2, PID),
+      (Axis_D, 0, True, Z, SVB, Prev, SVB, Nonzero_PID_D_0), (Axis_D, 1, True, Z, SVB, Prev, SVB, Nonzero_PID_D_1),
+      (Axis_D, 2, True, Z, SVB, Prev, SVB, Nonzero_PID_D_2), (Axis_F, 0, True, Z, SVB, Prev, SVB, PID),
+      (Axis_F, 1, True, Z, SVB, Prev, SVB, PID), (Axis_F, 2, True, Z, SVB, Prev, SVB, PID));
 
    Main_Wing : constant Field_Table :=
-     (DF (Axis_S, 0, True, Z, SVB, Prev, SVB, Nonzero_Wing_S_0),
-      DF (Axis_S, 1, True, Z, SVB, Prev, SVB, Nonzero_Wing_S_1),
-      DF (Axis_S, 2, True, Z, SVB, Prev, SVB, Nonzero_Wing_S_2));
+     ((Axis_S, 0, True, Z, SVB, Prev, SVB, Nonzero_Wing_S_0), (Axis_S, 1, True, Z, SVB, Prev, SVB, Nonzero_Wing_S_1),
+      (Axis_S, 2, True, Z, SVB, Prev, SVB, Nonzero_Wing_S_2));
 
    Main_Tail : constant Field_Table :=
-     (DF (RC_Command, 0, True, Z, SVB, Prev, T4, RC_Commands),
-      DF (RC_Command, 1, True, Z, SVB, Prev, T4, RC_Commands),
-      DF (RC_Command, 2, True, Z, SVB, Prev, T4, RC_Commands),
-      DF (RC_Command, 3, False, Z, UVB, Prev, T4, RC_Commands),
-      DF (Setpoint_Field, 0, True, Z, SVB, Prev, T4, Setpoint),
-      DF (Setpoint_Field, 1, True, Z, SVB, Prev, T4, Setpoint),
-      DF (Setpoint_Field, 2, True, Z, SVB, Prev, T4, Setpoint),
-      DF (Setpoint_Field, 3, True, Z, SVB, Prev, T4, Setpoint),
-      DF (VBat_Latest, -1, False, VRef, N14, Prev, T8, VBat),
-      DF (Amperage_Latest, -1, True, Z, SVB, Prev, T8, Amperage_ADC),
-      DF (Mag_ADC, 0, True, Z, SVB, Prev, T8, Mag),
-      DF (Mag_ADC, 1, True, Z, SVB, Prev, T8, Mag),
-      DF (Mag_ADC, 2, True, Z, SVB, Prev, T8, Mag),
-      DF (Baro_Alt, -1, True, Z, SVB, Prev, T8, Baro),
-      DF (Surface_Raw, -1, True, Z, SVB, Prev, T8, Rangefinder),
-      DF (RSSI_Field, -1, False, Z, UVB, Prev, T8, RSSI),
-      DF (Pitot_Field, 0, True, Z, SVB, Prev, SVB, Pitot),
-      DF (Pitot_Field, 1, True, Z, SVB, Prev, SVB, Pitot),
-      DF (Gyro_ADC, 0, True, Z, SVB, Avg2, SVB, Gyro),
-      DF (Gyro_ADC, 1, True, Z, SVB, Avg2, SVB, Gyro),
-      DF (Gyro_ADC, 2, True, Z, SVB, Avg2, SVB, Gyro),
-      DF (Gyro_Unfilt_Field, 0, True, Z, SVB, Avg2, SVB, Gyro_Unfilt),
-      DF (Gyro_Unfilt_Field, 1, True, Z, SVB, Avg2, SVB, Gyro_Unfilt),
-      DF (Gyro_Unfilt_Field, 2, True, Z, SVB, Avg2, SVB, Gyro_Unfilt),
-      DF (Acc_Smooth, 0, True, Z, SVB, Avg2, SVB, Acc),
-      DF (Acc_Smooth, 1, True, Z, SVB, Avg2, SVB, Acc),
-      DF (Acc_Smooth, 2, True, Z, SVB, Avg2, SVB, Acc),
-      DF (IMU_Quaternion, 0, True, Z, SVB, Avg2, SVB, Attitude),
-      DF (IMU_Quaternion, 1, True, Z, SVB, Avg2, SVB, Attitude),
-      DF (IMU_Quaternion, 2, True, Z, SVB, Avg2, SVB, Attitude),
-      DF (Debug_Field, 0, True, Z, SVB, Avg2, SVB, Debug_Log),
-      DF (Debug_Field, 1, True, Z, SVB, Avg2, SVB, Debug_Log),
-      DF (Debug_Field, 2, True, Z, SVB, Avg2, SVB, Debug_Log),
-      DF (Debug_Field, 3, True, Z, SVB, Avg2, SVB, Debug_Log),
-      DF (Debug_Field, 4, True, Z, SVB, Avg2, SVB, Debug_Log),
-      DF (Debug_Field, 5, True, Z, SVB, Avg2, SVB, Debug_Log),
-      DF (Debug_Field, 6, True, Z, SVB, Avg2, SVB, Debug_Log),
-      DF (Debug_Field, 7, True, Z, SVB, Avg2, SVB, Debug_Log),
-      DF (Motor, 0, False, MinM, UVB, Avg2, SVB, At_Least_Motors_1),
-      DF (Motor, 1, False, M0, SVB, Avg2, SVB, At_Least_Motors_2),
-      DF (Motor, 2, False, M0, SVB, Avg2, SVB, At_Least_Motors_3),
-      DF (Motor, 3, False, M0, SVB, Avg2, SVB, At_Least_Motors_4),
-      DF (Motor, 4, False, M0, SVB, Avg2, SVB, At_Least_Motors_5),
-      DF (Motor, 5, False, M0, SVB, Avg2, SVB, At_Least_Motors_6),
-      DF (Motor, 6, False, M0, SVB, Avg2, SVB, At_Least_Motors_7),
-      DF (Motor, 7, False, M0, SVB, Avg2, SVB, At_Least_Motors_8),
-      DF (Servo, 0, False, P1500, T8, Prev, T8, Servos),
-      DF (Servo, 1, False, P1500, T8, Prev, T8, Servos),
-      DF (Servo, 2, False, P1500, T8, Prev, T8, Servos),
-      DF (Servo, 3, False, P1500, T8, Prev, T8, Servos),
-      DF (Servo, 4, False, P1500, T8, Prev, T8, Servos),
-      DF (Servo, 5, False, P1500, T8, Prev, T8, Servos),
-      DF (Servo, 6, False, P1500, T8, Prev, T8, Servos),
-      DF (Servo, 7, False, P1500, T8, Prev, T8, Servos),
-      DF (ERPM, 0, False, Z, UVB, Prev, SVB, Motor_1_Has_RPM),
-      DF (ERPM, 1, False, Z, UVB, Prev, SVB, Motor_2_Has_RPM),
-      DF (ERPM, 2, False, Z, UVB, Prev, SVB, Motor_3_Has_RPM),
-      DF (ERPM, 3, False, Z, UVB, Prev, SVB, Motor_4_Has_RPM),
-      DF (ERPM, 4, False, Z, UVB, Prev, SVB, Motor_5_Has_RPM),
-      DF (ERPM, 5, False, Z, UVB, Prev, SVB, Motor_6_Has_RPM),
-      DF (ERPM, 6, False, Z, UVB, Prev, SVB, Motor_7_Has_RPM),
-      DF (ERPM, 7, False, Z, UVB, Prev, SVB, Motor_8_Has_RPM));
+     ((RC_Command, 0, True, Z, SVB, Prev, T4, RC_Commands), (RC_Command, 1, True, Z, SVB, Prev, T4, RC_Commands),
+      (RC_Command, 2, True, Z, SVB, Prev, T4, RC_Commands), (RC_Command, 3, False, Z, UVB, Prev, T4, RC_Commands),
+      (Setpoint_Field, 0, True, Z, SVB, Prev, T4, Setpoint), (Setpoint_Field, 1, True, Z, SVB, Prev, T4, Setpoint),
+      (Setpoint_Field, 2, True, Z, SVB, Prev, T4, Setpoint), (Setpoint_Field, 3, True, Z, SVB, Prev, T4, Setpoint),
+      (VBat_Latest, -1, False, VRef, N14, Prev, T8, VBat),
+      (Amperage_Latest, -1, True, Z, SVB, Prev, T8, Amperage_ADC), (Mag_ADC, 0, True, Z, SVB, Prev, T8, Mag),
+      (Mag_ADC, 1, True, Z, SVB, Prev, T8, Mag), (Mag_ADC, 2, True, Z, SVB, Prev, T8, Mag),
+      (Baro_Alt, -1, True, Z, SVB, Prev, T8, Baro), (Surface_Raw, -1, True, Z, SVB, Prev, T8, Rangefinder),
+      (RSSI_Field, -1, False, Z, UVB, Prev, T8, RSSI), (Pitot_Field, 0, True, Z, SVB, Prev, SVB, Pitot),
+      (Pitot_Field, 1, True, Z, SVB, Prev, SVB, Pitot), (Gyro_ADC, 0, True, Z, SVB, Avg2, SVB, Gyro),
+      (Gyro_ADC, 1, True, Z, SVB, Avg2, SVB, Gyro), (Gyro_ADC, 2, True, Z, SVB, Avg2, SVB, Gyro),
+      (Gyro_Unfilt_Field, 0, True, Z, SVB, Avg2, SVB, Gyro_Unfilt),
+      (Gyro_Unfilt_Field, 1, True, Z, SVB, Avg2, SVB, Gyro_Unfilt),
+      (Gyro_Unfilt_Field, 2, True, Z, SVB, Avg2, SVB, Gyro_Unfilt), (Acc_Smooth, 0, True, Z, SVB, Avg2, SVB, Acc),
+      (Acc_Smooth, 1, True, Z, SVB, Avg2, SVB, Acc), (Acc_Smooth, 2, True, Z, SVB, Avg2, SVB, Acc),
+      (IMU_Quaternion, 0, True, Z, SVB, Avg2, SVB, Attitude), (IMU_Quaternion, 1, True, Z, SVB, Avg2, SVB, Attitude),
+      (IMU_Quaternion, 2, True, Z, SVB, Avg2, SVB, Attitude), (Debug_Field, 0, True, Z, SVB, Avg2, SVB, Debug_Log),
+      (Debug_Field, 1, True, Z, SVB, Avg2, SVB, Debug_Log), (Debug_Field, 2, True, Z, SVB, Avg2, SVB, Debug_Log),
+      (Debug_Field, 3, True, Z, SVB, Avg2, SVB, Debug_Log), (Debug_Field, 4, True, Z, SVB, Avg2, SVB, Debug_Log),
+      (Debug_Field, 5, True, Z, SVB, Avg2, SVB, Debug_Log), (Debug_Field, 6, True, Z, SVB, Avg2, SVB, Debug_Log),
+      (Debug_Field, 7, True, Z, SVB, Avg2, SVB, Debug_Log),
+      (Motor, 0, False, MinM, UVB, Avg2, SVB, At_Least_Motors_1),
+      (Motor, 1, False, M0, SVB, Avg2, SVB, At_Least_Motors_2),
+      (Motor, 2, False, M0, SVB, Avg2, SVB, At_Least_Motors_3),
+      (Motor, 3, False, M0, SVB, Avg2, SVB, At_Least_Motors_4),
+      (Motor, 4, False, M0, SVB, Avg2, SVB, At_Least_Motors_5),
+      (Motor, 5, False, M0, SVB, Avg2, SVB, At_Least_Motors_6),
+      (Motor, 6, False, M0, SVB, Avg2, SVB, At_Least_Motors_7),
+      (Motor, 7, False, M0, SVB, Avg2, SVB, At_Least_Motors_8), (Servo, 0, False, P1500, T8, Prev, T8, Servos),
+      (Servo, 1, False, P1500, T8, Prev, T8, Servos), (Servo, 2, False, P1500, T8, Prev, T8, Servos),
+      (Servo, 3, False, P1500, T8, Prev, T8, Servos), (Servo, 4, False, P1500, T8, Prev, T8, Servos),
+      (Servo, 5, False, P1500, T8, Prev, T8, Servos), (Servo, 6, False, P1500, T8, Prev, T8, Servos),
+      (Servo, 7, False, P1500, T8, Prev, T8, Servos), (ERPM, 0, False, Z, UVB, Prev, SVB, Motor_1_Has_RPM),
+      (ERPM, 1, False, Z, UVB, Prev, SVB, Motor_2_Has_RPM), (ERPM, 2, False, Z, UVB, Prev, SVB, Motor_3_Has_RPM),
+      (ERPM, 3, False, Z, UVB, Prev, SVB, Motor_4_Has_RPM), (ERPM, 4, False, Z, UVB, Prev, SVB, Motor_5_Has_RPM),
+      (ERPM, 5, False, Z, UVB, Prev, SVB, Motor_6_Has_RPM), (ERPM, 6, False, Z, UVB, Prev, SVB, Motor_7_Has_RPM),
+      (ERPM, 7, False, Z, UVB, Prev, SVB, Motor_8_Has_RPM));
 
    GPS_Home_Table : constant Field_Table :=
-     (SF (GPS_Home, 0, True, Z, SVB),
-      SF (GPS_Home, 1, True, Z, SVB),
-      SF (GPS_Home, 2, True, Z, SVB),
-      SF (GPS_Home_Epoch, -1, False, Z, UVB));
+     ((GPS_Home, 0, True, Z, SVB, Predict_Zero, Encode_Unsigned_VB, Always),
+      (GPS_Home, 1, True, Z, SVB, Predict_Zero, Encode_Unsigned_VB, Always),
+      (GPS_Home, 2, True, Z, SVB, Predict_Zero, Encode_Unsigned_VB, Always),
+      (GPS_Home_Epoch, -1, False, Z, UVB, Predict_Zero, Encode_Unsigned_VB, Always));
 
    GPS_Table : constant Field_Table :=
-     (SF (Time, -1, False, LastT, UVB, Not_Logging_Every_Frame),
-      SF (GPS_Num_Sat, -1, False, Z, UVB),
-      SF (GPS_Coord, 0, True, Home, SVB),
-      SF (GPS_Coord, 1, True, Home, SVB),
-      SF (GPS_Altitude, -1, True, Z, SVB),
-      SF (GPS_Speed, -1, False, Z, UVB),
-      SF (GPS_Ground_Course, -1, False, Z, UVB),
-      SF (GPS_Vel_NED, 0, True, Z, SVB),
-      SF (GPS_Vel_NED, 1, True, Z, SVB),
-      SF (GPS_Vel_NED, 2, True, Z, SVB),
-      SF (GPS_Time, -1, False, Z, UVB));
+     ((Time, -1, False, LastT, UVB, Predict_Zero, Encode_Unsigned_VB, Not_Logging_Every_Frame),
+      (GPS_Num_Sat, -1, False, Z, UVB, Predict_Zero, Encode_Unsigned_VB, Always),
+      (GPS_Coord, 0, True, Home, SVB, Predict_Zero, Encode_Unsigned_VB, Always),
+      (GPS_Coord, 1, True, Home, SVB, Predict_Zero, Encode_Unsigned_VB, Always),
+      (GPS_Altitude, -1, True, Z, SVB, Predict_Zero, Encode_Unsigned_VB, Always),
+      (GPS_Speed, -1, False, Z, UVB, Predict_Zero, Encode_Unsigned_VB, Always),
+      (GPS_Ground_Course, -1, False, Z, UVB, Predict_Zero, Encode_Unsigned_VB, Always),
+      (GPS_Vel_NED, 0, True, Z, SVB, Predict_Zero, Encode_Unsigned_VB, Always),
+      (GPS_Vel_NED, 1, True, Z, SVB, Predict_Zero, Encode_Unsigned_VB, Always),
+      (GPS_Vel_NED, 2, True, Z, SVB, Predict_Zero, Encode_Unsigned_VB, Always),
+      (GPS_Time, -1, False, Z, UVB, Predict_Zero, Encode_Unsigned_VB, Always));
 
    Slow_Table : constant Field_Table :=
-     (SF (Flight_Mode_Flags, -1, False, Z, UVB),
-      SF (State_Flags, -1, False, Z, UVB),
-      SF (Failsafe_Phase, -1, False, Z, T2),
-      SF (RX_Signal_Received, -1, False, Z, T2),
-      SF (RX_Flight_Channels_Valid, -1, False, Z, T2));
+     ((Flight_Mode_Flags, -1, False, Z, UVB, Predict_Zero, Encode_Unsigned_VB, Always),
+      (State_Flags, -1, False, Z, UVB, Predict_Zero, Encode_Unsigned_VB, Always),
+      (Failsafe_Phase, -1, False, Z, T2, Predict_Zero, Encode_Unsigned_VB, Always),
+      (RX_Signal_Received, -1, False, Z, T2, Predict_Zero, Encode_Unsigned_VB, Always),
+      (RX_Flight_Channels_Valid, -1, False, Z, T2, Predict_Zero, Encode_Unsigned_VB, Always));
 
    function Wing_Rows (Wing : Boolean) return Natural is (if Wing then Main_Wing'Length else 0);
 
@@ -644,92 +596,113 @@ package body Adaflight.Blackbox_Header with SPARK_Mode is
       then Label_Text (Natural (Label_Starts (V)) + 1 .. Natural (Label_Starts (V)) + Natural (Label_Lengths (V)))
       else Settings_Table.Name (Settings_Table.Setting'Val (Label_Settings (V) - 1)));
 
-   function D (V : Value_Name) return Line is (One_Decimal, V);
-   function U (V : Value_Name) return Line is (One_Unsigned, V);
-   function D2 (V : Value_Name) return Line is (Two_Decimal, V);
-   function D3 (V : Value_Name) return Line is (Three_Decimal, V);
-   function L (F : Line_Format) return Line is (F, I_Interval);
-
    type Line_List is array (Line_Position range <>) of Line;
 
    --  The lines every craft lists first.
    Common_Lines : constant Line_List :=
-     (L (Firmware_Type_Line), L (Firmware_Revision_Line), L (Firmware_Date_Line), L (Build_Key_Line),
-      L (Release_Name_Line), L (Device_UID_Line), L (Board_Information_Line), L (Start_Date_Time_Line),
-      L (Craft_Name_Line), D (I_Interval), D (P_Interval), L (P_Ratio_Line), D (Max_Throttle),
-      L (Gyro_Scale_Line), D2 (Motor_Output_Low), D (Motor_KV), U (Acc_1G), L (VBat_Scale_Line),
-      (Three_Unsigned, VBat_Min_Cell), U (VBat_Reference), L (Current_Sensor_Line), D (Loop_Time),
-      L (Gyro_Sync_Denom_Line), D (PID_Process_Denom), D (Thr_Mid), D (Thr_Expo), D (Thr_Hover), D (TPA_Mode),
-      D (TPA_Rate), D (TPA_Breakpoint), D (TPA_Low_Rate), D (TPA_Low_Breakpoint), D (TPA_Low_Always),
-      L (Mixer_Type_Line), D (EZ_Landing_Threshold), D (EZ_Landing_Limit), D (EZ_Landing_Speed),
-      D (Landing_Disarm_Threshold));
+     ((Firmware_Type_Line, I_Interval), (Firmware_Revision_Line, I_Interval), (Firmware_Date_Line, I_Interval),
+      (Build_Key_Line, I_Interval), (Release_Name_Line, I_Interval), (Device_UID_Line, I_Interval),
+      (Board_Information_Line, I_Interval), (Start_Date_Time_Line, I_Interval), (Craft_Name_Line, I_Interval),
+      (One_Decimal, I_Interval), (One_Decimal, P_Interval), (P_Ratio_Line, I_Interval), (One_Decimal, Max_Throttle),
+      (Gyro_Scale_Line, I_Interval), (Two_Decimal, Motor_Output_Low), (One_Decimal, Motor_KV), (One_Unsigned, Acc_1G),
+      (VBat_Scale_Line, I_Interval), (Three_Unsigned, VBat_Min_Cell), (One_Unsigned, VBat_Reference),
+      (Current_Sensor_Line, I_Interval), (One_Decimal, Loop_Time), (Gyro_Sync_Denom_Line, I_Interval),
+      (One_Decimal, PID_Process_Denom), (One_Decimal, Thr_Mid), (One_Decimal, Thr_Expo), (One_Decimal, Thr_Hover),
+      (One_Decimal, TPA_Mode), (One_Decimal, TPA_Rate), (One_Decimal, TPA_Breakpoint), (One_Decimal, TPA_Low_Rate),
+      (One_Decimal, TPA_Low_Breakpoint), (One_Decimal, TPA_Low_Always), (Mixer_Type_Line, I_Interval),
+      (One_Decimal, EZ_Landing_Threshold), (One_Decimal, EZ_Landing_Limit), (One_Decimal, EZ_Landing_Speed),
+      (One_Decimal, Landing_Disarm_Threshold));
 
    Wing_SPA_Lines : constant Line_List :=
-     (D (SPA_Roll_Center), D (SPA_Roll_Width), D (SPA_Roll_Mode), D (SPA_Pitch_Center), D (SPA_Pitch_Width),
-      D (SPA_Pitch_Mode), D (SPA_Yaw_Center), D (SPA_Yaw_Width), D (SPA_Yaw_Mode));
+     ((One_Decimal, SPA_Roll_Center), (One_Decimal, SPA_Roll_Width), (One_Decimal, SPA_Roll_Mode),
+      (One_Decimal, SPA_Pitch_Center), (One_Decimal, SPA_Pitch_Width), (One_Decimal, SPA_Pitch_Mode),
+      (One_Decimal, SPA_Yaw_Center), (One_Decimal, SPA_Yaw_Width), (One_Decimal, SPA_Yaw_Mode));
 
    Tuning_Lines : constant Line_List :=
-     (D (TPA_Curve_Type), D (TPA_Curve_Stall_Throttle), D (TPA_Curve_PID_Thr0), D (TPA_Curve_PID_Thr100),
-      D (TPA_Curve_Expo), D3 (RC_Rate_Roll), D3 (RC_Expo_Roll), D3 (Rate_Roll), D3 (Rate_Limit_Roll),
-      D3 (Roll_P), D3 (Pitch_P), D3 (Yaw_P), D3 (Level_P), D3 (D_Max_Roll), D (D_Max_Gain), D (D_Max_Advance),
-      D (DTerm_LPF1_Type), D (DTerm_LPF1_Static_Hz), D2 (DTerm_LPF1_Dyn_Min_Hz), D (DTerm_LPF1_Dyn_Expo),
-      D (DTerm_LPF2_Type), D (DTerm_LPF2_Static_Hz), D (Yaw_Lowpass_Hz), D (DTerm_Notch_Hz),
-      D (DTerm_Notch_Cutoff), D (ITerm_Windup), D (ITerm_Relax), D (ITerm_Relax_Type), D (ITerm_Relax_Cutoff),
-      D (PID_At_Min_Throttle), D (Anti_Gravity_Gain), D (Anti_Gravity_Cutoff_Hz), D (Anti_Gravity_P_Gain),
-      D3 (FF_Weight_Roll), D (Feedforward_Transition), D (Feedforward_Averaging), D (Feedforward_Smooth_Factor),
-      D (Feedforward_Jitter_Factor), D (Feedforward_Boost), D (Feedforward_Max_Rate_Limit),
-      D (Angle_Feedforward), D (Angle_FF_Smoothing_Ms), D (Feedforward_Yaw_Hold_Gain),
-      D (Feedforward_Yaw_Hold_Time), D (Angle_Limit), D (Angle_Earth_Ref), D (Horizon_Limit_Degrees),
-      D (Horizon_Delay_Ms), D (Acc_Limit_Yaw), D (Acc_Limit), D (PID_Sum_Limit), D (PID_Sum_Limit_Yaw));
+     ((One_Decimal, TPA_Curve_Type), (One_Decimal, TPA_Curve_Stall_Throttle), (One_Decimal, TPA_Curve_PID_Thr0),
+      (One_Decimal, TPA_Curve_PID_Thr100), (One_Decimal, TPA_Curve_Expo), (Three_Decimal, RC_Rate_Roll),
+      (Three_Decimal, RC_Expo_Roll), (Three_Decimal, Rate_Roll), (Three_Decimal, Rate_Limit_Roll),
+      (Three_Decimal, Roll_P), (Three_Decimal, Pitch_P), (Three_Decimal, Yaw_P), (Three_Decimal, Level_P),
+      (Three_Decimal, D_Max_Roll), (One_Decimal, D_Max_Gain), (One_Decimal, D_Max_Advance),
+      (One_Decimal, DTerm_LPF1_Type), (One_Decimal, DTerm_LPF1_Static_Hz), (Two_Decimal, DTerm_LPF1_Dyn_Min_Hz),
+      (One_Decimal, DTerm_LPF1_Dyn_Expo), (One_Decimal, DTerm_LPF2_Type), (One_Decimal, DTerm_LPF2_Static_Hz),
+      (One_Decimal, Yaw_Lowpass_Hz), (One_Decimal, DTerm_Notch_Hz), (One_Decimal, DTerm_Notch_Cutoff),
+      (One_Decimal, ITerm_Windup), (One_Decimal, ITerm_Relax), (One_Decimal, ITerm_Relax_Type),
+      (One_Decimal, ITerm_Relax_Cutoff), (One_Decimal, PID_At_Min_Throttle), (One_Decimal, Anti_Gravity_Gain),
+      (One_Decimal, Anti_Gravity_Cutoff_Hz), (One_Decimal, Anti_Gravity_P_Gain), (Three_Decimal, FF_Weight_Roll),
+      (One_Decimal, Feedforward_Transition), (One_Decimal, Feedforward_Averaging),
+      (One_Decimal, Feedforward_Smooth_Factor), (One_Decimal, Feedforward_Jitter_Factor),
+      (One_Decimal, Feedforward_Boost), (One_Decimal, Feedforward_Max_Rate_Limit), (One_Decimal, Angle_Feedforward),
+      (One_Decimal, Angle_FF_Smoothing_Ms), (One_Decimal, Feedforward_Yaw_Hold_Gain),
+      (One_Decimal, Feedforward_Yaw_Hold_Time), (One_Decimal, Angle_Limit), (One_Decimal, Angle_Earth_Ref),
+      (One_Decimal, Horizon_Limit_Degrees), (One_Decimal, Horizon_Delay_Ms), (One_Decimal, Acc_Limit_Yaw),
+      (One_Decimal, Acc_Limit), (One_Decimal, PID_Sum_Limit), (One_Decimal, PID_Sum_Limit_Yaw));
 
-   Wing_S_Lines : constant Line_List := (D (S_Roll), D (S_Pitch), D (S_Yaw));
+   Wing_S_Lines : constant Line_List := ((One_Decimal, S_Roll), (One_Decimal, S_Pitch), (One_Decimal, S_Yaw));
 
    Sensor_Lines : constant Line_List :=
-     (D (Chirp_Lag_Freq_Hz), D (Chirp_Lead_Freq_Hz), D (Chirp_Amplitude_Roll), D (Chirp_Amplitude_Pitch),
-      D (Chirp_Amplitude_Yaw), D (Chirp_Frequency_Start_Deci_Hz), D (Chirp_Frequency_End_Deci_Hz),
-      D (Chirp_Time_Seconds), D (Deadband), D (Yaw_Deadband), D (Gyro_Hardware_LPF), D (Gyro_LPF1_Type),
-      D (Gyro_LPF1_Static_Hz), D2 (Gyro_LPF1_Dyn_Min_Hz), D (Gyro_LPF1_Dyn_Expo), D (Gyro_LPF2_Type),
-      D (Gyro_LPF2_Static_Hz), D2 (Gyro_Notch_Hz_1), D2 (Gyro_Notch_Cutoff_1), D (Gyro_Enabled_Bitmask),
-      D (Gyro_Debug_Axis), D (Dyn_Notch_Max_Hz), D (Dyn_Notch_Count), D (Dyn_Notch_Q), D (Dyn_Notch_Min_Hz),
-      D (DShot_Bidir), D (Motor_Poles), D (RPM_Filter_Harmonics), D3 (RPM_Filter_Weight_1), D (RPM_Filter_Q),
-      D (RPM_Filter_Min_Hz), D (RPM_Filter_Fade_Range_Hz), D (RPM_Filter_LPF_Hz), D (Acc_LPF_Hz_Hundredths),
-      D (Acc_Hardware), D (Baro_Hardware), D (Baro_Drift), D (Altitude_Source), D (Altitude_Prefer_Baro),
-      D (Altitude_LPF), D (Altitude_D_LPF));
+     ((One_Decimal, Chirp_Lag_Freq_Hz), (One_Decimal, Chirp_Lead_Freq_Hz), (One_Decimal, Chirp_Amplitude_Roll),
+      (One_Decimal, Chirp_Amplitude_Pitch), (One_Decimal, Chirp_Amplitude_Yaw),
+      (One_Decimal, Chirp_Frequency_Start_Deci_Hz), (One_Decimal, Chirp_Frequency_End_Deci_Hz),
+      (One_Decimal, Chirp_Time_Seconds), (One_Decimal, Deadband), (One_Decimal, Yaw_Deadband),
+      (One_Decimal, Gyro_Hardware_LPF), (One_Decimal, Gyro_LPF1_Type), (One_Decimal, Gyro_LPF1_Static_Hz),
+      (Two_Decimal, Gyro_LPF1_Dyn_Min_Hz), (One_Decimal, Gyro_LPF1_Dyn_Expo), (One_Decimal, Gyro_LPF2_Type),
+      (One_Decimal, Gyro_LPF2_Static_Hz), (Two_Decimal, Gyro_Notch_Hz_1), (Two_Decimal, Gyro_Notch_Cutoff_1),
+      (One_Decimal, Gyro_Enabled_Bitmask), (One_Decimal, Gyro_Debug_Axis), (One_Decimal, Dyn_Notch_Max_Hz),
+      (One_Decimal, Dyn_Notch_Count), (One_Decimal, Dyn_Notch_Q), (One_Decimal, Dyn_Notch_Min_Hz),
+      (One_Decimal, DShot_Bidir), (One_Decimal, Motor_Poles), (One_Decimal, RPM_Filter_Harmonics),
+      (Three_Decimal, RPM_Filter_Weight_1), (One_Decimal, RPM_Filter_Q), (One_Decimal, RPM_Filter_Min_Hz),
+      (One_Decimal, RPM_Filter_Fade_Range_Hz), (One_Decimal, RPM_Filter_LPF_Hz), (One_Decimal, Acc_LPF_Hz_Hundredths),
+      (One_Decimal, Acc_Hardware), (One_Decimal, Baro_Hardware), (One_Decimal, Baro_Drift),
+      (One_Decimal, Altitude_Source), (One_Decimal, Altitude_Prefer_Baro), (One_Decimal, Altitude_LPF),
+      (One_Decimal, Altitude_D_LPF));
 
    Autopilot_Lines : constant Line_List :=
-     (D (AP_Landing_Altitude_M), D (AP_Hover_Throttle), D (AP_Throttle_Min), D (AP_Throttle_Max),
-      D (AP_Altitude_P), D (AP_Altitude_I), D (AP_Altitude_D), D (AP_Altitude_A), D (AP_Altitude_F),
-      D (AP_Position_P), D (AP_Position_I), D (AP_Position_D), D (AP_Position_A), D (AP_Position_F),
-      D (AP_Position_Cutoff), D (AP_Stop_Threshold), D (AP_Max_Angle), D (AP_Max_Yaw_Rate), D (AP_Yaw_P));
+     ((One_Decimal, AP_Landing_Altitude_M), (One_Decimal, AP_Hover_Throttle), (One_Decimal, AP_Throttle_Min),
+      (One_Decimal, AP_Throttle_Max), (One_Decimal, AP_Altitude_P), (One_Decimal, AP_Altitude_I),
+      (One_Decimal, AP_Altitude_D), (One_Decimal, AP_Altitude_A), (One_Decimal, AP_Altitude_F),
+      (One_Decimal, AP_Position_P), (One_Decimal, AP_Position_I), (One_Decimal, AP_Position_D),
+      (One_Decimal, AP_Position_A), (One_Decimal, AP_Position_F), (One_Decimal, AP_Position_Cutoff),
+      (One_Decimal, AP_Stop_Threshold), (One_Decimal, AP_Max_Angle), (One_Decimal, AP_Max_Yaw_Rate),
+      (One_Decimal, AP_Yaw_P));
 
    System_Lines : constant Line_List :=
-     (D (Mag_Hardware), D (Opticalflow_Hardware), D (Opticalflow_Rotation), D (Opticalflow_Flip_X),
-      D (Gyro_Cal_On_First_Arm), D (Airmode_Activate_Throttle), D (Serial_RX_Provider), D (Use_Unsynced_PWM),
-      D (Motor_PWM_Protocol), D (Motor_PWM_Rate), D (Motor_Idle), D (Debug_Mode), L (Debug_Mode_Name_Line),
-      D (Features), D (RC_Smoothing), D (RC_Smoothing_Auto_Factor), D (RC_Smoothing_Auto_Factor_Throttle),
-      D (RC_Smoothing_Setpoint_Cutoff), D (RC_Smoothing_Throttle_Cutoff), D (RC_Smoothing_Debug_Axis),
-      D2 (RC_Smoothing_Setpoint_Cutoff_Frequency), D (RC_Smoothing_RX_Rate), D (Rates_Type),
-      D (Fields_Disabled_Mask), D (High_Resolution), D (VBat_Sag_Compensation), D (Dyn_Idle_Min_RPM),
-      D (Dyn_Idle_P_Gain), D (Dyn_Idle_I_Gain), D (Dyn_Idle_D_Gain), D (Dyn_Idle_Max_Increase),
-      D (Simplified_PIDs_Mode), D (Simplified_Master_Multiplier), D (Simplified_I_Gain), D (Simplified_D_Gain),
-      D (Simplified_PI_Gain), D (Simplified_D_Max_Gain), D (Simplified_Feedforward_Gain),
-      D (Simplified_Pitch_D_Gain), D (Simplified_Pitch_PI_Gain), D (Simplified_DTerm_Filter),
-      D (Simplified_DTerm_Filter_Multiplier), D (Simplified_Gyro_Filter), D (Simplified_Gyro_Filter_Multiplier),
-      D (Motor_Output_Limit), D (Throttle_Limit_Type), D (Throttle_Limit_Percent), D (Throttle_Boost),
-      D (Throttle_Boost_Cutoff), D (Thrust_Linearization), D (GPS_Provider), D (GPS_Set_Home_Point_Once),
-      D (GPS_Use_3D_Speed));
+     ((One_Decimal, Mag_Hardware), (One_Decimal, Opticalflow_Hardware), (One_Decimal, Opticalflow_Rotation),
+      (One_Decimal, Opticalflow_Flip_X), (One_Decimal, Gyro_Cal_On_First_Arm),
+      (One_Decimal, Airmode_Activate_Throttle), (One_Decimal, Serial_RX_Provider), (One_Decimal, Use_Unsynced_PWM),
+      (One_Decimal, Motor_PWM_Protocol), (One_Decimal, Motor_PWM_Rate), (One_Decimal, Motor_Idle),
+      (One_Decimal, Debug_Mode), (Debug_Mode_Name_Line, I_Interval), (One_Decimal, Features),
+      (One_Decimal, RC_Smoothing), (One_Decimal, RC_Smoothing_Auto_Factor),
+      (One_Decimal, RC_Smoothing_Auto_Factor_Throttle), (One_Decimal, RC_Smoothing_Setpoint_Cutoff),
+      (One_Decimal, RC_Smoothing_Throttle_Cutoff), (One_Decimal, RC_Smoothing_Debug_Axis),
+      (Two_Decimal, RC_Smoothing_Setpoint_Cutoff_Frequency), (One_Decimal, RC_Smoothing_RX_Rate),
+      (One_Decimal, Rates_Type), (One_Decimal, Fields_Disabled_Mask), (One_Decimal, High_Resolution),
+      (One_Decimal, VBat_Sag_Compensation), (One_Decimal, Dyn_Idle_Min_RPM), (One_Decimal, Dyn_Idle_P_Gain),
+      (One_Decimal, Dyn_Idle_I_Gain), (One_Decimal, Dyn_Idle_D_Gain), (One_Decimal, Dyn_Idle_Max_Increase),
+      (One_Decimal, Simplified_PIDs_Mode), (One_Decimal, Simplified_Master_Multiplier),
+      (One_Decimal, Simplified_I_Gain), (One_Decimal, Simplified_D_Gain), (One_Decimal, Simplified_PI_Gain),
+      (One_Decimal, Simplified_D_Max_Gain), (One_Decimal, Simplified_Feedforward_Gain),
+      (One_Decimal, Simplified_Pitch_D_Gain), (One_Decimal, Simplified_Pitch_PI_Gain),
+      (One_Decimal, Simplified_DTerm_Filter), (One_Decimal, Simplified_DTerm_Filter_Multiplier),
+      (One_Decimal, Simplified_Gyro_Filter), (One_Decimal, Simplified_Gyro_Filter_Multiplier),
+      (One_Decimal, Motor_Output_Limit), (One_Decimal, Throttle_Limit_Type), (One_Decimal, Throttle_Limit_Percent),
+      (One_Decimal, Throttle_Boost), (One_Decimal, Throttle_Boost_Cutoff), (One_Decimal, Thrust_Linearization),
+      (One_Decimal, GPS_Provider), (One_Decimal, GPS_Set_Home_Point_Once), (One_Decimal, GPS_Use_3D_Speed));
 
    Rescue_Lines : constant Line_List :=
-     (D (GPS_Rescue_Min_Start_Dist), D (GPS_Rescue_Alt_Mode), D (GPS_Rescue_Initial_Climb),
-      D (GPS_Rescue_Ascend_Rate), D (GPS_Rescue_Return_Alt), D (GPS_Rescue_Ground_Speed),
-      D (GPS_Rescue_Descent_Dist), D (GPS_Rescue_Descend_Rate), D (GPS_Rescue_Sanity_Checks),
-      D (GPS_Rescue_Min_Sats), D (GPS_Rescue_Allow_Arming_Without_Fix), D (GPS_Rescue_Yaw_P),
-      D (Alt_Hold_Climb_Rate), D (Alt_Hold_Deadband), D (Pos_Hold_Deadband));
+     ((One_Decimal, GPS_Rescue_Min_Start_Dist), (One_Decimal, GPS_Rescue_Alt_Mode),
+      (One_Decimal, GPS_Rescue_Initial_Climb), (One_Decimal, GPS_Rescue_Ascend_Rate),
+      (One_Decimal, GPS_Rescue_Return_Alt), (One_Decimal, GPS_Rescue_Ground_Speed),
+      (One_Decimal, GPS_Rescue_Descent_Dist), (One_Decimal, GPS_Rescue_Descend_Rate),
+      (One_Decimal, GPS_Rescue_Sanity_Checks), (One_Decimal, GPS_Rescue_Min_Sats),
+      (One_Decimal, GPS_Rescue_Allow_Arming_Without_Fix), (One_Decimal, GPS_Rescue_Yaw_P),
+      (One_Decimal, Alt_Hold_Climb_Rate), (One_Decimal, Alt_Hold_Deadband), (One_Decimal, Pos_Hold_Deadband));
 
    Wing_Speed_Lines : constant Line_List :=
-     (D (TPA_Speed_Type), D (TPA_Speed_Basic_Delay), D (TPA_Speed_Basic_Gravity), D (TPA_Speed_Adv_Prop_Pitch),
-      D (TPA_Speed_Adv_Mass), D (TPA_Speed_Adv_Drag_K), D (TPA_Speed_Adv_Thrust), D (TPA_Speed_Max_Voltage),
-      D (TPA_Speed_Pitch_Offset), D (Yaw_Type), D (Angle_Pitch_Offset));
+     ((One_Decimal, TPA_Speed_Type), (One_Decimal, TPA_Speed_Basic_Delay), (One_Decimal, TPA_Speed_Basic_Gravity),
+      (One_Decimal, TPA_Speed_Adv_Prop_Pitch), (One_Decimal, TPA_Speed_Adv_Mass), (One_Decimal, TPA_Speed_Adv_Drag_K),
+      (One_Decimal, TPA_Speed_Adv_Thrust), (One_Decimal, TPA_Speed_Max_Voltage),
+      (One_Decimal, TPA_Speed_Pitch_Offset), (One_Decimal, Yaw_Type), (One_Decimal, Angle_Pitch_Offset));
 
    Multirotor_Lines : constant Line_List :=
      Common_Lines & Tuning_Lines & Sensor_Lines & Autopilot_Lines & System_Lines & Rescue_Lines;

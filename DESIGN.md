@@ -11242,3 +11242,12 @@ characters, where it held all of them in 3777.
 
 On the STM32F4 image the change removes 2428 bytes of text, from 660600 to 658172. The flight log header vectors
 replay unchanged.
+
+## D489. Static flight log header tables (2026-10-28)
+
+The flight log header's field tables and line lists were aggregates of calls to small constructor functions, so
+GNAT built them in RAM at elaboration with 3928 bytes of code. They are now plain record aggregates of static
+components, which GNAT places in flash, and the constructors are gone.
+
+On the STM32F4 image the change removes 1124 bytes of text and 2536 bytes of zeroed data, from 658172 to 657048 and
+from 154592 to 152056. The flight log vectors replay unchanged.
