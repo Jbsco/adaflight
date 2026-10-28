@@ -11030,3 +11030,20 @@ board had left these inputs at their defaults, so the element showed question ma
 
 The host smoke check stores a one-band VTX table with band 1, channel 1 and the first power level, runs the
 SmartAudio emulator, and finds A:1:25 on the screen. The previous image shows ?:?:?.
+
+## D475. STM32F4 OSD names and custom messages (2026-10-27)
+
+The OSD reads the pilot name and the four custom messages from the stored configuration at each frame, and its
+craft name buffer starts each task state from the stored craft name. The board had set the names only when it
+configured the OSD: at boot, after a menu change and after an MSP write of an element or a profile. A name written
+over MSP showed only after the next of these, and the custom message elements never got their text.
+
+With the craft name messages on, the warnings element writes its text into the craft name buffer, and the craft
+name element draws from that buffer. The flight now writes the buffer back into the stored craft name after each
+state, so the MSP name reply, the command line and the flight log header show the warnings text too, and a save
+stores it.
+
+The host smoke check places the custom message, craft name and pilot name elements over MSP, writes a message and
+both names over MSP while the image runs, and finds them on the screen. It then turns the craft name messages on
+and finds the link quality text in the MSP name reply and in the craft name element. The previous image keeps the
+placeholders after the writes and replies with the stored craft name.

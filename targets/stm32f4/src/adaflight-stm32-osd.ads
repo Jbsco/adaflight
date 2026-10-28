@@ -150,6 +150,9 @@ package Adaflight.STM32.OSD is
       PIDs              : Adaflight.OSD_Render.PID_Axes;
       PID_Profile_Name  : Adaflight.Config_Groups.Bytes_9 := (others => 0);
       Rate_Profile_Name : Adaflight.Config_Groups.Bytes_9 := (others => 0);
+      Craft_Name        : Adaflight.Config_Groups.Bytes_17 := (others => 0);
+      Pilot_Name        : Adaflight.Config_Groups.Bytes_17 := (others => 0);
+      Messages          : Adaflight.Config_Groups.Bytes_17_List_4 := (others => (others => 0));
       Altitude_Cm       : Interfaces.Integer_32 range -40_000_000 .. 40_000_000 := 0;
       Rangefinder_Cm    : Interfaces.Integer_32 := 0;
       Custom_Text       : Adaflight.OSD_Render.Custom_Text;
@@ -184,4 +187,8 @@ package Adaflight.STM32.OSD is
    --  One state of the OSD task: the display's answers for the state taken
    --  first, then the state, then its operations done on the display.
    procedure Run (F : Facts; Now_Us : Interfaces.Unsigned_32; Sched : in out Adaflight.Scheduler.State);
+
+   --  The craft name as the last state left it, written by the warnings
+   --  element with the craft name messages on.
+   function Craft_Name return Adaflight.Config_Groups.Bytes_17;
 end Adaflight.STM32.OSD;

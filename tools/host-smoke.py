@@ -2339,6 +2339,71 @@ def main():
             vtx.stop.set()
             stop(proc)
             sock.close()
+        def row_wait(store, row, text, wait=10):
+            deadline = time.time() + wait
+            while time.time() < deadline:
+                if screen_row(store, row)[1:1 + len(text)] == text:
+                    return True
+                time.sleep(0.1)
+            return False
+
+        store = os.path.join(work, "names.bin")
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            for line in ("osd_displayport_device = MAX7456", "vcd_video_system = PAL"):
+                text = cli(sock, "set " + line)
+                check(f"names and messages {line}", line.replace(" = ", " set to ") in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            for item, pos in ((81, 2177), (8, 2209), (50, 2241)):
+                check(f"OSD element {item} placed over MSP", msp(sock, 85, bytes([item]) + pos.to_bytes(2, "little")) == b"")
+            check("OSD custom message element shows its placeholder while the message is empty",
+                  row_wait(store, 4, "CUSTOM_MSG1 "), repr(screen_row(store, 4)))
+            check("OSD craft name element shows its placeholder while the name is empty",
+                  row_wait(store, 5, "CRAFT_NAME "), repr(screen_row(store, 5)))
+            for kind, text in ((7, b"Hello pilot"), (2, b"quad one"), (1, b"jb")):
+                check(f"text {kind} written over MSP", msp2(sock, 0x3007, bytes([kind, len(text)]) + text) == b"")
+            check("OSD custom message element shows a message written while running",
+                  row_wait(store, 4, "Hello pilot "), repr(screen_row(store, 4)))
+            check("OSD craft name element shows a name written while running, in capitals",
+                  row_wait(store, 5, "QUAD ONE "), repr(screen_row(store, 5)))
+            check("OSD pilot name element shows a name written while running, in capitals",
+                  row_wait(store, 6, "JB "), repr(screen_row(store, 6)))
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "set osd_craftname_msgs = ON")
+            check("craft name messages on", "osd_craftname_msgs set to ON" in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            names = set()
+            deadline = time.time() + 10
+            while time.time() < deadline and not any(n.startswith("LQ ") for n in names):
+                reply = msp(sock, 10)
+                if reply is not None:
+                    names.add(reply.decode(errors="replace"))
+                time.sleep(0.1)
+            check("MSP name reply contains the warnings element's link quality with the craft name messages on",
+                  any(n.startswith("LQ ") for n in names), repr(sorted(names)[:6]))
+            check("OSD craft name element shows the warnings element's text with the craft name messages on",
+                  row_wait(store, 5, "LQ "), repr(screen_row(store, 5)))
+        finally:
+            stop(proc)
+            sock.close()
         store = os.path.join(work, "laps.bin")
         proc, sock = start(image, store)
         try:

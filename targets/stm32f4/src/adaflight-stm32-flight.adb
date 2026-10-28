@@ -2461,7 +2461,13 @@ package body Adaflight.STM32.Flight is
       end;
       F.Rate_Profile_Name :=
         Config.Control_Rate_Profiles (Natural'Min (3, Natural (Config.System_Config.Active_Rate_Profile))).Profile_Name;
+      F.Craft_Name := Config.Pilot_Config.Craft_Name;
+      F.Pilot_Name := Config.Pilot_Config.Pilot_Name;
+      F.Messages := Config.Pilot_Config.Message;
       Adaflight.STM32.OSD.Run (F, Before, Sched);
+      if Config.Osd_Config.Osd_Craftname_Msgs /= 0 then
+         Config.Pilot_Config.Craft_Name := Adaflight.STM32.OSD.Craft_Name;
+      end if;
    end Run_OSD;
 
    --  The menu task: the flight's readings for the pass, one pass of the
