@@ -10919,3 +10919,38 @@ increment adds no core change and no vectors.
 The host smoke check sets the gate at the GPS phase's fix with a one-second minimum lap and sends NMEA fixes at
 the gate for 0.6 s and 185 m north of it for 1.4 s in turn. The OSD shows a previous lap of about two seconds.
 With the module's time in place of the clock, the same check shows 0.00, the reference's result.
+
+## D468. STM32F4 menu on a CRSF transmitter's screen (2026-10-27)
+
+The menu system runs on a Crossfire transmitter's screen through the CRSF display port. With the telemetry
+feature on and a CRSF receiver open, the board registers the transmitter's display with the menu after the
+OSD's, at the largest screen of 9 rows by 32 columns. A display port command from the transmitter opens the menu
+on its display at the rows and columns the command names, closes it, or polls it. The open selects the
+transmitter's display and opens the start menu over the live configuration, and the transfer then waits 400 ms.
+The menu's draws on that display go into the CRSF screen, and the CRSF telemetry sends the screen's changes as
+run-length encoded chunks while the menu shows there and the transfer delay has passed. The CRSF display has no
+layers, background or heartbeat, and its writes cost nothing against the draw budget. The menu stick command
+moves an open menu between the OSD and the transmitter.
+
+The board runs a command after the receiver step that took it, in the receiver task, where the reference runs it
+in the CRSF byte handler. The core's display model keeps at least 8 rows, so a transmitter screen of fewer rows
+gets the menu laid out on 8 rows and loses the rows past its own. A size from an open command that arrives while
+the menu is open waits for the menu to close.
+
+The transmitter's close leaves the menu on the display it shows on (F301, DIVERGENCES.md). The reference exits
+with the transmitter's display, so a menu moved to the OSD and then closed from the transmitter leaves the OSD
+held and frozen on the last menu frame.
+
+The core's menu navigation gains the display select. A registered display becomes current, and an unregistered
+one leaves the current display after a full turn, the last display when none was current. The select requires a
+closed menu, as both reference callers have it. The unit proved through the menu navigation's shape (304 checks,
+no assumption). The menu oracle runs the select alone in a select mode with none to four displays and 40 selects
+per sequence, and the menusel vectors check 12,000 selects for the answer and the current display. Three tampers
+(the last display's fallback set to the first, the fallback dropped, and the registered test off by one) all fail
+the vectors.
+
+The host smoke check opens the menu from a CRSF receiver emulator and decodes the quick menu, the start menu by
+default, from the display port frames. A close brings the screen's clear frame. A second open, the menu stick
+command and a close then show the menu on the OSD and the OSD drawing its elements again. With the transmitter's
+display registered, a menu stick command held past its 500 ms pause moves the menu on to the next display, so the
+smoke check's stick commands hold for 0.3 s.
