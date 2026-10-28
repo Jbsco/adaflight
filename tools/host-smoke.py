@@ -1226,7 +1226,12 @@ def main():
             read_all(sock, 0.8)
             text = cli(sock, "sd_info")
             check("sd_info names the card", "20480kB" in text and "'ADAFL FS: Ready" in text, text[-160:])
-            time.sleep(2.0)
+            deadline = time.time() + 15
+            while time.time() < deadline:
+                data, why = fat16_log(card)
+                if data is not None and data.startswith(b"H Product:"):
+                    break
+                time.sleep(0.5)
         finally:
             stop(proc)
             sock.close()
