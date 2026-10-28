@@ -168,6 +168,7 @@ with Adaflight.MSP_Text_Out;
 with Adaflight.MSP_Simplified_Tuning;
 with Adaflight.MSP_OSD_Out;
 with Adaflight.Serial_Feature_Map;
+with Adaflight.MSP_Allocation;
 with Adaflight.MSP_Serial_Out;
 with Adaflight.MSP_VTX_Status_Out;
 with Adaflight.Config_Store;
@@ -35977,6 +35978,102 @@ procedure Vector_Check is
       end if;
    end Check_Serial_Map_Line;
 
+   MA_Options    : Adaflight.Serial_Feature_Map.Options;
+   MA_Ports      : Adaflight.Serial_Feature_Map.Port_List (1 .. Adaflight.Serial_Feature_Map.Max_Ports) :=
+     (others => -1);
+   MA_Port_Count : Natural := 0;
+   MA_Assigned   : Adaflight.Serial_Feature_Map.Assignments;
+   MA_Half       : Boolean := False;
+   MA_Present    : Adaflight.MSP_Allocation.Port_Flags := (others => False);
+   MA_Busy       : Adaflight.MSP_Allocation.Port_Flags := (others => False);
+
+   --  MSP port allocation: the build's line, then per case its draws, the
+   --  ports opened in order and the reset's slot claims.
+   procedure Check_MSP_Allocation_Line is
+      package SFM renames Adaflight.Serial_Feature_Map;
+      package MA renames Adaflight.MSP_Allocation;
+      use type MA.Port_Kind;
+      Name : constant String := Str (1);
+      K    : Positive := 4;
+      function Next return Integer_64 is
+      begin
+         K := K + 1;
+         return Int (K - 1);
+      end Next;
+   begin
+      if Name = "mabuild" then
+         K := 3;
+         Read_Serial_Options (Name, K, MA_Options, MA_Ports, MA_Port_Count);
+         Record_Int (Name & ".msp_ports", Next, Integer_64 (3 + MA.Implied_Limit (MA_Options)));
+      elsif Name = "mainit" then
+         MA_Half := Next /= 0;
+         declare
+            Soft_On   : constant Boolean := Next /= 0;
+            Available : array (1 .. MA_Port_Count) of Boolean;
+         begin
+            for I in Available'Range loop
+               Available (I) := Next /= 0;
+            end loop;
+            MA_Present := (others => False);
+            MA_Busy := (others => False);
+            for I in Available'Range loop
+               declare
+                  P      : constant SFM.Port_Id := MA_Ports (I);
+                  Before : constant Boolean := Next /= 0;
+               begin
+                  if Available (I) and then (MA.Kind_Of (P) /= MA.Soft_Serial or else Soft_On) then
+                     MA_Present (P) := True;
+                     MA_Busy (P) := Before;
+                  end if;
+               end;
+            end loop;
+         end;
+         Read_Serial_Assignments (K, MA_Assigned);
+      elsif Name = "maopen" then
+         declare
+            Opened : MA.Opened_Ports;
+            Count  : MA.Port_Count;
+         begin
+            MA.Allocate (MA_Options, MA_Assigned, MA_Half, MA_Present, MA_Busy, Opened, Count);
+            Record_Int (Name & ".count", Next, Integer_64 (Count));
+            if Int (4) /= Integer_64 (Count) then
+               return;
+            end if;
+            for I in 1 .. Count loop
+               Record_Int (Name & ".port", Next, Integer_64 (Opened (I).Port));
+               Record_Int (Name & ".baud", Next, Integer_64 (Opened (I).Rate));
+               Record_Int (Name & ".options", Next,
+                           (if Opened (I).Bidirectional then 8 else 0) + (if Opened (I).Check_TX then 128 else 0));
+               Record_Int (Name & ".shared", Next, Boolean'Pos (Opened (I).Shared));
+            end loop;
+         end;
+      elsif Name = "maclaim" then
+         declare
+            First   : constant SFM.Port_Id := Integer (Next);
+            UART    : constant SFM.Port_Id := Integer (Next);
+            Other   : constant SFM.Port_Id := Integer (Next);
+            Display : constant SFM.Port_Id := Integer (Next);
+            Slots   : constant SFM.MSP_Ports := MA.Default_Slots (First, UART, Other, Display);
+         begin
+            for S in SFM.MSP_Slot loop
+               Record_Int (Name & ".slot", Next, Integer_64 (Slots (S)));
+            end loop;
+            for S in SFM.MSP_Slot loop
+               Record_Int (Name & ".baud", Next, Integer_64 (SFM.Baud_115200));
+            end loop;
+            Record_Int (Name & ".half_duplex", Next, 0);
+         end;
+      else
+         Put_Line ("unknown MSP allocation case " & Name);
+         Failures := Failures + 1;
+         return;
+      end if;
+      if K - 1 /= NF then
+         Put_Line (Name & ": consumed" & Integer'Image (K - 1) & " of" & Integer'Image (NF) & " fields");
+         Failures := Failures + 1;
+      end if;
+   end Check_MSP_Allocation_Line;
+
    MS_Options    : Adaflight.Serial_Feature_Map.Options;
    MS_Ports      : Adaflight.Serial_Feature_Map.Port_List (1 .. Adaflight.Serial_Feature_Map.Max_Ports) :=
      (others => -1);
@@ -39041,6 +39138,8 @@ procedure Vector_Check is
                   Check_MSP_OSD_Line;
                elsif Kind = "serialmap" then
                   Check_Serial_Map_Line;
+               elsif Kind = "mspalloc" then
+                  Check_MSP_Allocation_Line;
                elsif Kind = "mspsercfg" then
                   Check_MSP_Serial_Config_Line;
                elsif Kind = "vtxstatus" then
@@ -39399,6 +39498,7 @@ begin
    Run (Dir & "/msposd.csv", "msposd");
    Run (Dir & "/serialmap.csv", "serialmap");
    Run (Dir & "/telshare.csv", "serialmap");
+   Run (Dir & "/mspalloc.csv", "mspalloc");
    Run (Dir & "/mspsercfg.csv", "mspsercfg");
    Run (Dir & "/vtxstatus.csv", "vtxstatus");
    Run (Dir & "/cfgstore.csv", "cfgstore");
