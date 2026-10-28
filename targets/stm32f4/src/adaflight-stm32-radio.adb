@@ -4,7 +4,9 @@ with Adaflight.Config_Runtime;
 with Adaflight.CRSF;
 with Adaflight.CRSF_Display_Port;
 with Adaflight.FPort;
+with Adaflight.GHST;
 with Adaflight.IBUS;
+with Adaflight.Jeti_Ex_Bus;
 with Adaflight.SBUS;
 with Adaflight.Spektrum;
 with Adaflight.SUMD;
@@ -29,19 +31,23 @@ package body Adaflight.STM32.Radio is
    XBUS_B_Provider        : constant Interfaces.Unsigned_8 := 5;
    XBUS_RJ01_Provider     : constant Interfaces.Unsigned_8 := 6;
    IBUS_Provider          : constant Interfaces.Unsigned_8 := 7;
+   Jeti_Provider          : constant Interfaces.Unsigned_8 := 8;
    CRSF_Provider          : constant Interfaces.Unsigned_8 := 9;
    FPort_Provider         : constant Interfaces.Unsigned_8 := 12;
+   GHST_Provider          : constant Interfaces.Unsigned_8 := 14;
    Spektrum_1024_Provider : constant Interfaces.Unsigned_8 := 15;
    SBUS_Baud              : constant := 100_000;
    SBUS_Fast_Baud         : constant := 200_000;
    IBUS_SUMD_Baud         : constant := 115_200;
    XBUS_RJ01_Baud         : constant := 250_000;
+   GHST_Baud              : constant := 420_000;
+   Jeti_Baud              : constant := 125_000;
    Feature_RX_Serial : constant Interfaces.Unsigned_32 := 8;
    --  The serial port identifiers of the board's UARTs.
    Port_Ids : constant array (USART.Number) of SFM.Port_Id :=
      (USART.UART1 => 51, USART.UART3 => 53, USART.UART4 => 54, USART.UART6 => 56);
 
-   type Provider is (CRSF, SBUS, IBUS, SUMD, Spektrum, XBUS, FPort);
+   type Provider is (CRSF, SBUS, IBUS, SUMD, Spektrum, XBUS, FPort, GHST, Jeti);
    Open        : Boolean := False;
    Kind        : Provider := CRSF;
    SBUS_State  : Adaflight.SBUS.State;
@@ -50,6 +56,8 @@ package body Adaflight.STM32.Radio is
    Spek_State  : Adaflight.Spektrum.State;
    XBUS_State  : Adaflight.XBUS.State;
    FPort_State : Adaflight.FPort.State;
+   GHST_State  : Adaflight.GHST.State;
+   Jeti_State  : Adaflight.Jeti_Ex_Bus.State;
    Link        : USART.Number := USART.UART3;
    --  The link's line: inverted, and on its transmit pin alone.
    Inverted    : Boolean := False;
@@ -90,6 +98,8 @@ package body Adaflight.STM32.Radio is
                   when Spektrum_2048_Provider | Spektrum_1024_Provider => Spektrum,
                   when XBUS_B_Provider | XBUS_RJ01_Provider => XBUS,
                   when FPort_Provider => FPort,
+                  when GHST_Provider => GHST,
+                  when Jeti_Provider => Jeti,
                   when others        => CRSF);
       Rx_Settings := Adaflight.Config_Runtime.Receiver_Settings_Of
         (Config.Rx_Config, Config.Rx_Channel_Range_Configs, Config.Rx_Failsafe_Channel_Configs,
@@ -103,13 +113,15 @@ package body Adaflight.STM32.Radio is
                                     (if R.Serialrx_Provider = Spektrum_1024_Provider then 7
                                      else Adaflight.Spektrum.Channel_Count_Max),
                                   when XBUS => Adaflight.XBUS.Channel_Count,
-                                  when FPort => Adaflight.SBUS.Channel_Count));
+                                  when FPort => Adaflight.SBUS.Channel_Count,
+                                  when GHST => Adaflight.GHST.Channel_Count,
+                                  when Jeti => Adaflight.Jeti_Ex_Bus.Channel_Count));
       FS_Settings := Adaflight.Config_Runtime.Failsafe_Settings_Of (Config.Failsafe_Config, Config.Autopilot_Config);
       Adaflight.Failsafe.Init (FS, FS_Settings);
       if (Runtime_Features and Feature_RX_Serial) /= 0
         and then R.Serialrx_Provider in Spektrum_2048_Provider | SBUS_Provider | SUMD_Provider | XBUS_B_Provider
                                       | XBUS_RJ01_Provider | IBUS_Provider | CRSF_Provider | FPort_Provider
-                                      | Spektrum_1024_Provider
+                                      | GHST_Provider | Jeti_Provider | Spektrum_1024_Provider
       then
          declare
             Assigned : constant SFM.Assignments := Adaflight.Config_Fix.Serial_Assignments (Config);
@@ -130,10 +142,14 @@ package body Adaflight.STM32.Radio is
          Protocol_RSSI    =>
            (if not Open then Adaflight.Receiver.None
             elsif Kind = CRSF then Adaflight.Receiver.Protocol_CRSF
-            elsif Kind = FPort then Adaflight.Receiver.Rx_Protocol
+            elsif Kind in FPort | GHST then Adaflight.Receiver.Rx_Protocol
             elsif R.Rssi_Src_Frame_Errors /= 0 then Adaflight.Receiver.Frame_Errors
             else Adaflight.Receiver.None),
-         Protocol_Quality => (if Open and then Kind = CRSF then Adaflight.Receiver.CRSF else Adaflight.Receiver.None));
+         Protocol_Quality =>
+           (if not Open then Adaflight.Receiver.None
+            elsif Kind = CRSF then Adaflight.Receiver.CRSF
+            elsif Kind = GHST then Adaflight.Receiver.GHST
+            else Adaflight.Receiver.None));
       for C of Conditions loop
          if C.Mode = Adaflight.Modes.Arm and then Adaflight.Modes.Usable (C.Span) then
             Adaflight.Receiver.Init_Arm_Switch (Rx, C.Aux, C.Span);
@@ -145,7 +161,10 @@ package body Adaflight.STM32.Radio is
       --  drain with a pull-up otherwise.
       Inverted := (if Kind = SBUS then R.Serialrx_Inverted = 0 else R.Serialrx_Inverted /= 0);
       Line :=
-        (if Kind /= CRSF and then R.Half_Duplex /= 0
+        (if Kind = GHST
+         then (On => True, Push_Pull => True,
+               Resistor => (if Inverted then Adaflight.STM32.GPIO.Down else Adaflight.STM32.GPIO.Up))
+         elsif Kind = Jeti or else (Kind /= CRSF and then R.Half_Duplex /= 0)
          then (On => True, Push_Pull => Inverted,
                Resistor => (if Inverted then Adaflight.STM32.GPIO.Down else Adaflight.STM32.GPIO.Up))
          else USART.Full_Duplex);
@@ -180,6 +199,12 @@ package body Adaflight.STM32.Radio is
             when FPort =>
                Adaflight.FPort.Init (FPort_State, Rx_Settings.Mid_RC, Telemetry => False);
                USART.Init (Link, IBUS_SUMD_Baud, Line => Line, Inverted => Inverted);
+            when GHST =>
+               Adaflight.GHST.Init (GHST_State);
+               USART.Init (Link, GHST_Baud, Line => Line, Inverted => Inverted);
+            when Jeti =>
+               Adaflight.Jeti_Ex_Bus.Init (Jeti_State);
+               USART.Init (Link, Jeti_Baud, Line => Line, Inverted => Inverted);
             when SBUS =>
                Adaflight.SBUS.Init (SBUS_State, Rx_Settings.Mid_RC);
                USART.Init
@@ -322,6 +347,20 @@ package body Adaflight.STM32.Radio is
                if not Task_In_Progress then
                   Adaflight.FPort.Frame_Status (FPort_State, Rx, Now_Us, Status);
                end if;
+            when GHST =>
+               for I in 0 .. Count - 1 loop
+                  Adaflight.GHST.Receive_Byte (GHST_State, Natural (Input (I)), Times (I));
+               end loop;
+               if not Task_In_Progress then
+                  Adaflight.GHST.Frame_Status (GHST_State, Now_Us, Status);
+               end if;
+            when Jeti =>
+               for I in 0 .. Count - 1 loop
+                  Adaflight.Jeti_Ex_Bus.Receive_Byte (Jeti_State, Natural (Input (I)), Times (I));
+               end loop;
+               if not Task_In_Progress then
+                  Adaflight.Jeti_Ex_Bus.Frame_Status (Jeti_State, Status);
+               end if;
          end case;
       end if;
       Adaflight.Receiver.Frame_Check (Rx, Rx_Settings, Now_Us, Delta_Us, Task_In_Progress, Status, Override);
@@ -336,6 +375,15 @@ package body Adaflight.STM32.Radio is
       Frame_Processed : Boolean;
       Valid           : Adaflight.Receiver.Validity;
    begin
+      --  The processing a frame status asked for runs before the channels
+      --  are read: Ghost decodes its channels and link statistics there.
+      if Open and then Kind = GHST and then Rx.Aux_Required then
+         declare
+            Result : Adaflight.GHST.Process_Outputs;
+         begin
+            Adaflight.GHST.Process_Frame (GHST_State, Rx, Now_Us, Result);
+         end;
+      end if;
       if Open then
          case Kind is
             when CRSF =>
@@ -365,6 +413,15 @@ package body Adaflight.STM32.Radio is
             when FPort =>
                for Ch in Adaflight.FPort.Channel loop
                   Raw (Ch) := Float'Max (0.0, Float'Min (65_535.0, Adaflight.FPort.Read_Raw (FPort_State, Ch)));
+               end loop;
+            when GHST =>
+               for Ch in Adaflight.GHST.Channel loop
+                  Raw (Ch) := Float'Max (0.0, Float'Min (65_535.0, Adaflight.GHST.Read_Raw (GHST_State, Ch)));
+               end loop;
+            when Jeti =>
+               for Ch in Adaflight.Jeti_Ex_Bus.Channel loop
+                  Raw (Ch) :=
+                    Float'Max (0.0, Float'Min (65_535.0, Adaflight.Jeti_Ex_Bus.Read_Raw (Jeti_State, Ch)));
                end loop;
          end case;
       end if;
@@ -420,7 +477,9 @@ package body Adaflight.STM32.Radio is
          when SUMD => SUMD_State.Last_Frame_Us,
          when Spektrum => Spek_State.Last_Frame_Time_Us,
          when XBUS => 0,
-         when FPort => FPort_State.Last_Frame_Time_Us);
+         when FPort => FPort_State.Last_Frame_Time_Us,
+         when GHST => GHST_State.Last_Frame_Time_Us,
+         when Jeti => Jeti_State.Last_Frame_Time_Us);
 
    function RSSI_ADC return Boolean is (Rx_Settings.RSSI_ADC);
 

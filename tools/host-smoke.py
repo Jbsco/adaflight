@@ -10,6 +10,7 @@ the screen with its arming hold.
 
 Usage: host-smoke.py <host image>
 """
+import calendar
 import os
 import re
 import socket
@@ -154,6 +155,44 @@ def sport_frames(data):
     return frames
 
 
+def crc8_dvb_s2(data):
+    """The CRC8 of polynomial 0xD5 from zero."""
+    crc = 0
+    for b in data:
+        crc ^= b
+        for _ in range(8):
+            crc = ((crc << 1) ^ 0xD5) & 0xFF if crc & 0x80 else (crc << 1) & 0xFF
+    return crc
+
+
+def ghst_frames(channels_us):
+    """Two Ghost frames for the flight controller, each the address, the length, the type, the four
+    twelve-bit primary channels in quarter microseconds from 988 us, four more bytes and the CRC8 of the type
+    and payload: one with the link quality, the RSSI and the normal RF protocol, one with aux channels 5 to 8."""
+    bits = 0
+    for i, v in enumerate(channels_us[:4]):
+        bits |= ((v - 988) * 4 & 0xFFF) << (12 * i)
+
+    def frame(kind, tail):
+        body = bytes([kind]) + bits.to_bytes(6, "little") + bytes(tail)
+        return bytes([0x82, 12]) + body + bytes([crc8_dvb_s2(body)])
+    return [frame(0x33, [100, 60, 0x05, 20]), frame(0x30, [128, 128, 128, 128])]
+
+
+def jeti_frame(channels_us):
+    """A Jeti EX Bus channel frame: the channel header with the frame length, a packet id, the channel data
+    id and the data length, the channels in eighths of a microsecond little-endian, and the reflected CRC16
+    little-endian, so the CRC over the whole frame reads zero."""
+    data = b"".join((v * 8).to_bytes(2, "little") for v in channels_us[:16])
+    body = bytes([0x3E, 0x03, 6 + len(data) + 2, 0x01, 0x31, len(data)]) + data
+    crc = 0
+    for b in body:
+        d = b ^ (crc & 0xFF)
+        d ^= (d << 4) & 0xFF
+        crc = (((d << 8) | ((crc & 0xFF00) >> 8)) ^ (d >> 4) ^ (d << 3)) & 0xFFFF
+    return body + crc.to_bytes(2, "little")
+
+
 def crc16_xmodem(data):
     """The CRC16 of polynomial 0x1021 from zero, most significant bit first."""
     crc = 0
@@ -191,7 +230,7 @@ class SerialReceiver(threading.Thread):
 
     def __init__(self, frame):
         super().__init__(daemon=True)
-        self.frame = frame
+        self.frames = frame if isinstance(frame, list) else [frame]
         self.stop = threading.Event()
 
     def run(self):
@@ -202,11 +241,13 @@ class SerialReceiver(threading.Thread):
                 sock = socket.create_connection(("127.0.0.1", RX_PORT), timeout=1)
             except OSError:
                 time.sleep(0.1)
+        turn = 0
         while sock is not None and not self.stop.is_set():
             try:
-                sock.sendall(self.frame)
+                sock.sendall(self.frames[turn % len(self.frames)])
             except OSError:
                 break
+            turn += 1
             time.sleep(0.014)
         if sock is not None:
             sock.close()
@@ -805,11 +846,10 @@ def main():
             ack = msp(sock, 246, now.to_bytes(4, "little") + (500).to_bytes(2, "little"))
             check("MSP sets the clock", ack == b"", repr(ack))
             clock = msp(sock, 247)
+            read = (calendar.timegm((clock[0] | clock[1] << 8, clock[2], clock[3], clock[4], clock[5], clock[6]))
+                    if clock is not None and len(clock) == 9 else None)
+            check("MSP clock reply holds the date", read is not None and now <= read <= now + 2, repr(clock))
             stamp = time.gmtime(now)
-            check("MSP clock reply holds the date",
-                  clock is not None and len(clock) == 9 and (clock[0] | clock[1] << 8) == stamp.tm_year
-                  and clock[2] == stamp.tm_mon and clock[3] == stamp.tm_mday and clock[4] == stamp.tm_hour
-                  and clock[5] == stamp.tm_min and stamp.tm_sec <= clock[6] <= stamp.tm_sec + 2, repr(clock))
             vcp = socket.create_connection(("127.0.0.1", VCP_PORT), timeout=1)
             vcp.settimeout(0.3)
             time.sleep(0.2)
@@ -1203,7 +1243,8 @@ def main():
                                    ("IBUS", ibus_frame(us), ["serialrx_halfduplex = ON"]),
                                    ("SUMD", sumd_frame(us), []), ("SPEK2048", spektrum_frame(us), []),
                                    ("XB-B", xbus_frame(us), []),
-                                   ("FPORT", fport_frame([992, 1150, 172, 992] + [992] * 12), [])):
+                                   ("FPORT", fport_frame([992, 1150, 172, 992] + [992] * 12), []),
+                                   ("GHST", ghst_frames(us), []), ("JETIEXBUS", jeti_frame(us), [])):
             store = os.path.join(work, name.lower() + ".bin")
             proc, sock = start(image, store)
             try:
