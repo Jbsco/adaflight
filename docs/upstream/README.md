@@ -98,3 +98,4 @@ Each document describes a Betaflight bug that adaflight fixes: the Betaflight ve
 - [ESC information read leaves the ESC sensor writing into a dead stack frame](esc-info-read-buffer.md)
 - [The flight log's surfaceRaw field holds the tilt-corrected altitude](blackbox-surface-raw-tilt.md)
 - [The GPS lap timer never times a lap with an NMEA module](gps-lap-timer-nmea-time.md)
+- [A transmitter's menu close leaves the OSD held when the menu moved there](crsf-menu-close-display.md)

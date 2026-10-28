@@ -72,6 +72,38 @@ def crsf_msp_request(payload):
     return bytes([0xC8, len(body) + 1]) + body + bytes([crc8(body)])
 
 
+def crsf_display_command(subcommand, rows=0, cols=0):
+    """A display port command frame from the radio: the address, the length, the type, the flight controller as
+    the destination and the radio as the origin, the subcommand with the screen's rows and columns for an open,
+    and the CRC8."""
+    body = bytes([0x7D, 0xC8, 0xEA, subcommand]) + (bytes([rows, cols]) if subcommand == 3 else b"")
+    return bytes([0xC8, len(body) + 1]) + body + bytes([crc8(body)])
+
+
+def crsf_display_screens(frames):
+    """The screens that the display port update frames draw, in order: the chunks of one batch from the one with
+    the first flag to the one with the last flag, run-length decoded with a count of zero standing for 256."""
+    screens, chunks = [], []
+    for frame in frames:
+        body = frame[2:-1]
+        if len(body) < 6 or body[3] != 0x01:
+            continue
+        if body[4] & 0x80:
+            chunks = []
+        chunks.append(body[6:])
+        if body[4] & 0x40:
+            stream, text, k = b"".join(chunks), b"", 0
+            while k < len(stream):
+                if stream[k] & 0x80 and k + 1 < len(stream):
+                    text += bytes([stream[k] & 0x7F]) * (stream[k + 1] or 256)
+                    k += 2
+                else:
+                    text += stream[k:k + 1]
+                    k += 1
+            screens.append(text.decode("ascii", "replace"))
+    return screens
+
+
 def msp_tunnel_reply(chunks):
     """The MSP reply in a run of MSP tunnel chunks: the command, the declared size, a jumbo size included, the
     data and whether the chunks' sequence numbers follow on from the first, which has the start flag."""
@@ -506,6 +538,7 @@ class Receiver(threading.Thread):
         self.pending = b""
         self.outbox = []
         self.msp_replies = []
+        self.display_frames = []
 
     def count_frames(self, data):
         """Counts the telemetry frames by type in the bytes read back from the port."""
@@ -523,6 +556,8 @@ class Receiver(threading.Thread):
                 self.frames[frame[2]] = self.frames.get(frame[2], 0) + 1
                 if frame[2] == 0x7B:
                     self.msp_replies.append(frame)
+                if frame[2] == 0x7D:
+                    self.display_frames.append(frame)
 
     def set(self, roll, pitch, throttle, yaw):
         self.channels = [roll, pitch, throttle, yaw] + [992] * 12
@@ -1140,7 +1175,7 @@ def main():
             check("OSD draws the craft name", "ADAHOST" in screen, repr(screen[:200]))
             check("OSD draws the date", time.strftime("%Y-%m-%d", stamp) in screen, repr(screen[:200]))
             receiver.set(992, 1811, 992, 172)
-            time.sleep(1.0)
+            time.sleep(0.3)
             receiver.set(992, 992, 172, 992)
             time.sleep(1.5)
             try:
@@ -2060,6 +2095,59 @@ def main():
             sock.close()
             if line is not None:
                 line.close()
+        store = os.path.join(work, "crsfmenu.bin")
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "set rx_uart = UART3")
+            check("CRSF receiver port assigned for the menu", "rx_uart set to UART3" in text, text[-120:])
+            text = cli(sock, "feature TELEMETRY")
+            check("telemetry feature on for the CRSF menu", "Enabled" in text, text[-120:])
+            for line in ("osd_displayport_device = MAX7456", "vcd_video_system = PAL"):
+                text = cli(sock, "set " + line)
+                check(f"CRSF menu beside the OSD {line}", line.replace(" = ", " set to ") in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store)
+        receiver = Receiver()
+        receiver.start()
+        try:
+            time.sleep(3.0)
+            receiver.outbox.append(crsf_display_command(3, rows=9, cols=32))
+            time.sleep(2.0)
+            screens = crsf_display_screens(list(receiver.display_frames))
+            rows = [screens[-1][r:r + 32] for r in range(0, len(screens[-1]), 32)] if screens else []
+            check("a CRSF display open draws the start menu, the quick menu, on the transmitter's screen",
+                  any("-- QUICK --" in r for r in rows) and any("VTX" in r for r in rows), repr(rows[:4]))
+            mark = len(receiver.display_frames)
+            receiver.outbox.append(crsf_display_command(4))
+            time.sleep(1.0)
+            kinds = [f[5] for f in receiver.display_frames[mark:]]
+            check("a CRSF display close leaves the menu and clears the transmitter's screen", 0x02 in kinds,
+                  repr(kinds[:10]))
+            receiver.outbox.append(crsf_display_command(3, rows=9, cols=32))
+            time.sleep(1.0)
+            receiver.set(992, 1811, 992, 172)
+            time.sleep(0.3)
+            receiver.set(992, 992, 172, 992)
+            time.sleep(1.5)
+            screen = "".join(screen_row(store, r) for r in range(16))
+            check("the stick gesture moves the open menu from the transmitter to the OSD", "-- QUICK --" in screen,
+                  repr(screen[:120]))
+            receiver.outbox.append(crsf_display_command(4))
+            time.sleep(1.5)
+            screen = "".join(screen_row(store, r) for r in range(16))
+            check("a CRSF display close after the menu moved to the OSD frees the OSD", "-- QUICK --" not in screen,
+                  repr(screen_row(store, 1)))
+        finally:
+            receiver.stop.set()
+            stop(proc)
+            sock.close()
         store = os.path.join(work, "laps.bin")
         proc, sock = start(image, store)
         try:
