@@ -11405,6 +11405,7 @@ constant at its own entry points. The scheduler takes its menu, rangefinder and 
 
 Code size of the CLRacing F4S image in bytes: every feature 617388, without the menu system 563072, the 512 KB set
 590064, the 512 KB set without the menu system 535608. The target workflow builds the 512 KB set after the image, so
-the left-out paths keep compiling. A build without a feature still contains its settings, serial functions and MSP
+the left-out paths keep compiling. The host smoke reads the feature package beside the image and skips the checks of
+features the build leaves out, so `FLASH_KB=512 bash host.do` checks the rest of the 512 KB set. A build without a feature still contains its settings, serial functions and MSP
 commands, and the build information still lists no options. A list has to name every option the image supports,
 since a configurator hides the tabs of options a nonempty list leaves out.
