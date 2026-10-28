@@ -36,6 +36,7 @@ with Adaflight.Config_Reset;
 with Adaflight.Config_Runtime;
 with Adaflight.Config_Store;
 with Adaflight.Core_Loop;
+with Adaflight.CRSF_Display_Port;
 with Adaflight.CRSF_Telemetry;
 with Adaflight.Failsafe;
 with Adaflight.FrSky_Hub_Telemetry;
@@ -2237,6 +2238,32 @@ package body Adaflight.STM32.Flight is
       end if;
    end Run_Adjustments;
 
+   --  The display port command the receiver took: the menu opened on the
+   --  CRSF display at the size the command set, or left; then the menu's
+   --  state the display's transfer waits on.
+   procedure Run_Display_Command is
+      Request : Adaflight.CRSF_Display_Port.Menu_Request;
+      Opened  : Boolean;
+   begin
+      Adaflight.STM32.Radio.Display_Command
+        (Adaflight.STM32.Time.Millis, Adaflight.STM32.Pilot.Armed, Adaflight.STM32.Menu.Open,
+         Adaflight.STM32.Menu.CRSF_Registered, Request);
+      case Request is
+         when Adaflight.CRSF_Display_Port.Open =>
+            Adaflight.STM32.Menu.Resize_CRSF
+              (Adaflight.STM32.Radio.Display_Columns, Adaflight.STM32.Radio.Display_Rows);
+            Adaflight.STM32.Menu.Open_On_CRSF (Config, Opened);
+            if Opened then
+               Adaflight.STM32.Radio.Display_Opened (Adaflight.STM32.Time.Millis);
+            end if;
+         when Adaflight.CRSF_Display_Port.Leave =>
+            Adaflight.STM32.Menu.Leave;
+         when Adaflight.CRSF_Display_Port.None =>
+            null;
+      end case;
+      Adaflight.STM32.Radio.Set_Menu_State (Adaflight.STM32.Menu.Open, Adaflight.STM32.Menu.On_CRSF);
+   end Run_Display_Command;
+
    procedure Run_Receiver (Before : Unsigned_32) is
       Step        : constant Adaflight.RX_Task.Step := Adaflight.RX_Task.Current_Step (RX_State);
       Ready       : Boolean := True;
@@ -2262,6 +2289,7 @@ package body Adaflight.STM32.Flight is
                (if Adaflight.STM32.Radio.RSSI_ADC
                 then Analog (Config.Adc_Config.Rssi) else 0),
                Ready);
+            Run_Display_Command;
             if Ready then
                Adaflight.STM32.Pilot.Update_Refresh_Rate
                  (Before, Adaflight.STM32.Radio.Receiving, Adaflight.STM32.Radio.Last_Frame_Us);
@@ -2422,6 +2450,7 @@ package body Adaflight.STM32.Flight is
       F.Gate_Set_Readings := Lap.Set_Readings;
       F.Gate_Distance_Cm := Lap.Distance_To_Gate_Cm;
       Adaflight.STM32.Menu.Run (Config, F, Before, Adaflight.STM32.Time.Millis, R);
+      Adaflight.STM32.Radio.Set_Menu_State (Adaflight.STM32.Menu.Open, Adaflight.STM32.Menu.On_CRSF);
       if R.Acc_Calibration then
          Adaflight.Accelerometer.Start_Calibration (Acc_State);
       end if;
@@ -3576,6 +3605,9 @@ package body Adaflight.STM32.Flight is
         (Config, Runtime_Features,
          Adaflight.Config_Runtime.IBus_Settings_Of
            (Config.Telemetry_Config, Float'Max (0.0, Float'Min (1.0, Acc_State.One_G_Reciprocal))));
+      if (Runtime_Features and Adaflight.Config_Fix.Feature_Telemetry) /= 0 and then Adaflight.STM32.Radio.Is_CRSF then
+         Adaflight.STM32.Menu.Register_CRSF (Adaflight.STM32.Radio.Display_Columns, Adaflight.STM32.Radio.Display_Rows);
+      end if;
       Check_Telemetry;
       Offered := Available_Boxes;
       Adaflight.STM32.DShot_Output.Enable;

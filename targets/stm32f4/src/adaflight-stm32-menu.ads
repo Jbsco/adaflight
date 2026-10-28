@@ -69,4 +69,18 @@ package Adaflight.STM32.Menu is
 
    --  The lap timer's gate the flight set, into the menu's configuration.
    procedure Set_Gate (Lat, Lon : Interfaces.Integer_32);
+
+   --  The CRSF transmitter's display, registered after the OSD's when the
+   --  CRSF telemetry runs, at the screen's size, which an open command sets
+   --  again while the menu is closed; whether it is registered, and whether
+   --  the menu shows on it.
+   procedure Register_CRSF (Columns, Rows : Interfaces.Unsigned_8);
+   procedure Resize_CRSF (Columns, Rows : Interfaces.Unsigned_8);
+   function CRSF_Registered return Boolean;
+   function On_CRSF return Boolean;
+   --  The menu opened on the CRSF display from the start menu over the live
+   --  configuration, when the display is registered and the menu closed, and
+   --  the menu left without saving on the display it shows on.
+   procedure Open_On_CRSF (C : Adaflight.Config_Groups.Configuration; Opened : out Boolean);
+   procedure Leave;
 end Adaflight.STM32.Menu;
