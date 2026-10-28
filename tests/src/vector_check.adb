@@ -7474,7 +7474,7 @@ procedure Vector_Check is
       use Adaflight.SmartPort_Telemetry;
       Name : constant String := Str (1);
    begin
-      if Name = "sportinit" then
+      if Name = "sportinit" or else Name = "sportfpinit" then
          declare
             Disabled : constant Integer_64 := Int (3);
             B        : Build_Inputs;
@@ -7517,7 +7517,14 @@ procedure Vector_Check is
                Record_Int (Name & ".escid", Int (37 + I), Integer_64 (SP_Stream.ESC_Table (I)));
             end loop;
          end;
-      elsif Name = "sportstep" then
+      elsif Name = "sportfpempty" then
+         declare
+            O : Output;
+         begin
+            Write_Frame (O, 0, 0, 0, FPort => True);
+            Record_Bytes (Name & ".tx", Hex_Bytes (4), O.Tx (0 .. O.Count - 1));
+         end;
+      elsif Name = "sportstep" or else Name = "sportfpstep" then
          if Int (2) /= SP_Seq then
             Put_Line ("smartport step without its start");
             Failures := Failures + 1;
@@ -7575,13 +7582,18 @@ procedure Vector_Check is
                                  Current     => I32 (65),
                                  Temperature => Interfaces.Unsigned_8 (Int (66)),
                                  Rpm         => Interfaces.Integer_16 (Int (67)));
-            Update (SP_Stream, Inp, Rx, 9, O, Consumed);
-            Record_Int (Name & ".consumed", Int (70), Integer_64 (Consumed));
+            if Name = "sportfpstep" then
+               Process (SP_Stream, Inp, 1, True, O, FPort => True);
+               Record_Int (Name & ".clear", Int (75), (if O.Count = 0 then 1 else 0));
+            else
+               Update (SP_Stream, Inp, Rx, 9, O, Consumed);
+               Record_Int (Name & ".consumed", Int (70), Integer_64 (Consumed));
+               SP_Count := Rx'Length - Consumed;
+               SP_Pending (0 .. SP_Count - 1) := Rx (Rx'First + Consumed .. Rx'Last);
+            end if;
             Record_Int (Name & ".index", Int (71), Integer_64 (SP_Stream.Index));
             Record_Int (Name & ".escindex", Int (72), Integer_64 (SP_Stream.ESC_Index));
             Record_Bytes (Name & ".tx", Hex_Bytes (74), O.Tx (0 .. O.Count - 1));
-            SP_Count := Rx'Length - Consumed;
-            SP_Pending (0 .. SP_Count - 1) := Rx (Rx'First + Consumed .. Rx'Last);
          end;
       else
          Put_Line ("unknown smartport case " & Name);
@@ -38567,7 +38579,7 @@ procedure Vector_Check is
                   Check_CRSF_Telemetry_Line;
                elsif Kind = "escsensor" then
                   Check_ESC_Line;
-               elsif Kind = "sport" then
+               elsif Kind = "sport" or else Kind = "sportfp" then
                   Check_SmartPort_Line;
                elsif Kind = "rcdevice" then
                   Check_RunCam_Line;
@@ -39016,6 +39028,7 @@ begin
    Run (Dir & "/crsftlm.csv", "crsftlm");
    Run (Dir & "/escsensor.csv", "escsensor");
    Run (Dir & "/sport.csv", "sport");
+   Run (Dir & "/sportfp.csv", "sportfp");
    Run (Dir & "/rcdevice.csv", "rcdevice");
    Run (Dir & "/frskyhub.csv", "frskyhub");
    Run (Dir & "/ibustlm.csv", "ibustlm");

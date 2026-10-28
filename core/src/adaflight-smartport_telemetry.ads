@@ -6,7 +6,9 @@
 --  sensors present, and every seventh value is taken from the ESC table
 --  instead, over each motor and the combined reading in turn. The frames
 --  received are reassembled through the start byte, the sensor id and the
---  escaped payload with its checksum.
+--  escaped payload with its checksum. Over an FPORT receiver the frame goes
+--  back as its telemetry reply instead, behind the reply's length and type,
+--  which the checksum counts.
 with Interfaces;
 with Adaflight.Bytes; use Adaflight.Bytes;
 
@@ -29,6 +31,9 @@ package Adaflight.SmartPort_Telemetry with SPARK_Mode is
    Data_Frame  : constant Unsigned_8 := 16#10#;
    Sensor_Id_1 : constant Byte := 16#1B#;
    Sensor_Id_2 : constant Byte := 16#0D#;
+   --  The FPORT reply's length, the type byte and the payload, and its type.
+   FPort_Reply_Length : constant Byte := 8;
+   FPort_Reply_Type   : constant Byte := 16#81#;
 
    --  The sensors a configuration may disable.
    type Sensor is (Voltage, Current, Fuel, Mode, Acc_X, Acc_Y, Acc_Z, Pitch, Roll, Heading, Altitude, Vario,
@@ -157,8 +162,9 @@ package Adaflight.SmartPort_Telemetry with SPARK_Mode is
       Receiver    : Receive_State;
    end record;
 
-   --  A data frame is nine bytes at most once escaped.
-   Max_Tx : constant := 16;
+   --  A data frame is sixteen bytes at most once escaped, and an FPORT reply
+   --  eighteen with its length and type.
+   Max_Tx : constant := 18;
    subtype Tx_Count is Natural range 0 .. Max_Tx;
    subtype Tx_Bytes is Byte_Array (0 .. Max_Tx - 1);
 
@@ -171,15 +177,22 @@ package Adaflight.SmartPort_Telemetry with SPARK_Mode is
 
    --  The tables from the configuration and the sensors present.
    procedure Build (S : in out Stream; B : Build_Inputs);
+   --  A frame of the frame id, the value id and the value with its checksum,
+   --  behind the FPORT reply's length and type when FPort asks for them.
+   procedure Write_Frame (O : in out Output; Frame_Id : Unsigned_8; Value_Id : Unsigned_16; Value : Unsigned_32;
+                          FPort : Boolean)
+     with Pre  => O.Count = 0,
+          Post => O.Count <= Max_Tx;
 
    --  One byte of the line; Last marks the last byte waiting, when a poll
    --  of this sensor clears it to send.
    procedure Receive (S : in out Stream; C : Byte; Last : Boolean; Clear_To_Send : in out Boolean;
                       Received : out Payload);
 
-   --  The next value within the attempts allowed, once cleared to send.
+   --  The next value within the attempts allowed, once cleared to send, in
+   --  the FPORT reply when FPort asks for it.
    procedure Process (S : in out Stream; Inp : Inputs; Attempts : Positive; Clear_To_Send : Boolean;
-                      O : in out Output);
+                      O : in out Output; FPort : Boolean := False);
 
    --  One task call: the bytes received are read up to the first complete
    --  payload, Consumed says how many were taken, then the reply goes out.

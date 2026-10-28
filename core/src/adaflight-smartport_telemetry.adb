@@ -207,6 +207,7 @@ package body Adaflight.SmartPort_Telemetry with SPARK_Mode is
    procedure Send_Raw (O : in out Output; C : Byte)
      with Pre  => O.Count <= Max_Tx - 2,
           Post => O.Count <= O.Count'Old + 2
+                  and then (if C /= Escape and then C /= Start_Stop then O.Count = O.Count'Old + 1)
    is
    begin
       if C = Escape or else C = Start_Stop then
@@ -223,26 +224,38 @@ package body Adaflight.SmartPort_Telemetry with SPARK_Mode is
    procedure Send_Byte (O : in out Output; C : Byte; Checksum : in out Unsigned_16)
      with Pre  => O.Count <= Max_Tx - 2,
           Post => O.Count <= O.Count'Old + 2
+                  and then (if C /= Escape and then C /= Start_Stop then O.Count = O.Count'Old + 1)
    is
    begin
       Send_Raw (O, C);
       Checksum := Checksum + Unsigned_16 (C);
    end Send_Byte;
 
-   --  A data frame: the frame id, the value id, the value and the checksum
-   --  folded to a byte and inverted.
-   procedure Send_Value (O : in out Output; Id : Unsigned_16; Value : Unsigned_32)
-     with Pre => O.Count = 0
+   -----------------
+   -- Write_Frame --
+   -----------------
+
+   --  The FPORT reply's length and type first when asked for, then the
+   --  frame id, the value id and the value, and the checksum folded to a byte
+   --  and inverted.
+   procedure Write_Frame (O : in out Output; Frame_Id : Unsigned_8; Value_Id : Unsigned_16; Value : Unsigned_32;
+                          FPort : Boolean)
    is
       Checksum : Unsigned_16 := 0;
       Bytes    : constant Byte_Array (0 .. 6) :=
-        (Data_Frame,
-         Byte (Id and 16#FF#), Byte (Interfaces.Shift_Right (Id, 8)),
+        (Frame_Id,
+         Byte (Value_Id and 16#FF#), Byte (Interfaces.Shift_Right (Value_Id, 8)),
          Byte (Value and 16#FF#), Byte (Interfaces.Shift_Right (Value, 8) and 16#FF#),
          Byte (Interfaces.Shift_Right (Value, 16) and 16#FF#), Byte (Interfaces.Shift_Right (Value, 24)));
+      Start    : constant Natural := (if FPort then 2 else 0);
    begin
+      if FPort then
+         Send_Byte (O, FPort_Reply_Length, Checksum);
+         Send_Byte (O, FPort_Reply_Type, Checksum);
+      end if;
+      pragma Assert (O.Count = Start);
       for I in Bytes'Range loop
-         pragma Loop_Invariant (O.Count <= 2 * I);
+         pragma Loop_Invariant (O.Count <= Start + 2 * I);
          Send_Byte (O, Bytes (I), Checksum);
       end loop;
       while Checksum > 16#FF# loop
@@ -250,7 +263,7 @@ package body Adaflight.SmartPort_Telemetry with SPARK_Mode is
       end loop;
       Checksum := 16#FF# - Checksum;
       Send_Raw (O, Byte (Checksum));
-   end Send_Value;
+   end Write_Frame;
 
    --  The ESC reading of a motor number, the combined one past them.
    function ESC_Of (Inp : Inputs; Number : Natural) return ESC_Reading is
@@ -334,14 +347,14 @@ package body Adaflight.SmartPort_Telemetry with SPARK_Mode is
    -------------
 
    procedure Process (S : in out Stream; Inp : Inputs; Attempts : Positive; Clear_To_Send : Boolean;
-                      O : in out Output) is
+                      O : in out Output; FPort : Boolean := False) is
       Clear : Boolean := Clear_To_Send;
       Id    : Unsigned_16;
       Sent  : Boolean;
 
       procedure Send (Id : Unsigned_16; Value : Unsigned_32) with Pre => O.Count = 0 is
       begin
-         Send_Value (O, Id, Value);
+         Write_Frame (O, Data_Frame, Id, Value, FPort);
          Sent := True;
       end Send;
 
