@@ -470,6 +470,7 @@ package body Adaflight.STM32.Flight is
       Mag             => <>,
       Raw_Gyro_ICM456 => False,
       Interactive     => True,
+      DMA_Motors      => <>,
       Rangefinder     => <>,
       Optical_Flow    => <>,
       Pitot           => <>,

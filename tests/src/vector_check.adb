@@ -29786,6 +29786,7 @@ procedure Vector_Check is
       Mag             => <>,
       Raw_Gyro_ICM456 => False,
       Interactive     => False,
+      DMA_Motors      => <>,
       Rangefinder     => <>,
       Optical_Flow    => <>,
       Pitot           => <>,
@@ -39314,6 +39315,7 @@ begin
    Run (Dir & "/clivtx.csv", "cliset");
    Run (Dir & "/cliwp.csv", "cliset");
    Run (Dir & "/clidump.csv", "cliset");
+   Run (Dir & "/clires.csv", "cliset");
    Run (Dir & "/clidiff.csv", "cliset");
    Run (Dir & "/cliall.csv", "cliset");
    Run (Dir & "/clibrd.csv", "cliset");

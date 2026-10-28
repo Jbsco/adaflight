@@ -295,6 +295,10 @@ package Adaflight.Command_Line with SPARK_Mode is
    end record;
    type Serial_Port_Statuses is array (1 .. Serial_Feature_Map.Max_Ports) of Serial_Port_Status;
 
+   --  The motor's ordinal each DMA stream drives, zero for a free stream, from
+   --  the first controller's stream 0 to the second's stream 7.
+   type DMA_Motor_List is array (1 .. 16) of Natural range 0 .. 8;
+
    --  A gyro's interrupt mode as its SPI driver sets it.
    type Gyro_Mode is (Interrupt_Init, Interrupt_DMA, Interrupt, No_Interrupt);
 
@@ -455,6 +459,7 @@ package Adaflight.Command_Line with SPARK_Mode is
       Status          : System_Status;
       Raw_Gyro_ICM456 : Boolean := False;
       Interactive     : Boolean := False;
+      DMA_Motors      : DMA_Motor_List := (others => 0);
    end record;
 
    --  The board's information as the commands see it: its name and
