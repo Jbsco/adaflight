@@ -76,7 +76,8 @@ package Adaflight.MSP_Telemetry with SPARK_Mode is
    --  The processor's reply to the request ready: its verdict and its payload,
    --  with an error byte appended when the verdict is an error.
    procedure Prepare_Reply (T : in out Tunnel; Result : Result_Code; Payload : Byte_Array)
-     with Pre => Payload'Length < Response_Buffer_Size;
+     with Pre => Payload'Length <= Response_Buffer_Size
+                 and then (if Result = Result_Error then Payload'Length < Response_Buffer_Size);
 
    --  The next chunk of the reply, Chunk_Max bytes while more follow and the
    --  remainder in the last; the header chunk first after a reply is prepared.
