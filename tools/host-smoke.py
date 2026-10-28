@@ -591,6 +591,8 @@ def main():
             check("GPS port assigned", "gps_uart set to UART4" in text, text[-120:])
             text = cli(sock, "feature GPS")
             check("GPS feature on", "Enabled GPS" in text, text[-120:])
+            text = cli(sock, "set failsafe_procedure = GPS-RESCUE")
+            check("GPS rescue as the failsafe procedure", "failsafe_procedure set to GPS-RESCUE" in text, text[-120:])
             text = cli(sock, "set blackbox_device = SERIAL")
             check("flight log device set", "blackbox_device set to SERIAL" in text, text[-120:])
             text = cli(sock, "set blackbox_uart = UART6")
@@ -644,6 +646,10 @@ def main():
             check("GPS fix reaches the raw GPS reply",
                   raw is not None and len(raw) >= 10 and raw[0] != 0 and raw[1] == 10 and lat == 481173000
                   and abs(lon - 115166667) <= 10, repr(raw[:10] if raw else raw))
+            att = msp(sock, 108)
+            yaw = int.from_bytes(att[4:6], "little", signed=True) if att and len(att) >= 6 else None
+            check("first GPS fix past 1 m/s turns the heading to the 84.4 degree course",
+                  yaw is not None and 83 <= yaw <= 85, repr(att))
             gps.altitude = 555.4
             time.sleep(6.0)
             alt = msp(sock, 109)
@@ -695,11 +701,13 @@ def main():
             check("receiver link clears the signal loss", "RXLOSS" not in flags and "CLI" in flags, flags.strip()[:80])
             check("status shows the GPS connected", "GPS: connected" in text, text[text.find("GPS:"):][:60])
             text = cli(vcp, "tasks", 1.5)
-            for task, name in (("ALTHOLD", "altitude hold"), ("POSHOLD", "position hold")):
+            for task, name in (("ALTHOLD", "altitude hold task runs on the position estimate's updates"),
+                               ("POSHOLD", "position hold task runs on the position estimate's updates"),
+                               ("GPS_RESCUE", "GPS rescue task runs with the rescue as the failsafe procedure")):
                 line = next((l for l in text.splitlines() if task in l), "")
                 fields = line.split(")")[-1].split()
                 rate = int(fields[0]) if fields and fields[0].isdigit() else 0
-                check(f"{name} task runs on the position estimate's updates", 80 <= rate <= 120, line.strip()[:100])
+                check(name, 80 <= rate <= 120, line.strip()[:100])
             time.sleep(5.0)
             try:
                 with open(store + ".osd.txt") as f:

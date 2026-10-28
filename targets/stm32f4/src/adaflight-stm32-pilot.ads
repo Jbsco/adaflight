@@ -3,6 +3,7 @@
 --  steps run them, with their settings from the stored configuration.
 with Interfaces;
 with Adaflight.Arming;
+with Adaflight.Attitude;
 with Adaflight.Axes;
 with Adaflight.Config_Groups;
 with Adaflight.Mixer_Init;
@@ -39,9 +40,12 @@ package Adaflight.STM32.Pilot is
      (Sensed : Adaflight.Arming.Inputs; Channels : Adaflight.RC_Command.Channel_Values;
       Aux : Adaflight.Modes.Aux_Values; Now_Us : Time_Us; Delta_Us : Natural;
       Step : in out Adaflight.Arming.Outputs);
+   --  The update step: the RC commands, turned into the headfree frame of the
+   --  attitude in headfree mode, then the arming status.
    procedure Update_Pass
      (Sensed : Adaflight.Arming.Inputs; Channels : Adaflight.RC_Command.Channel_Values;
-      Inp : Adaflight.RC_Command.Command_Inputs; Now_Us : Time_Us; Step : in out Adaflight.Arming.Outputs);
+      Inp : Adaflight.RC_Command.Command_Inputs; Att : in out Adaflight.Attitude.State; Now_Us : Time_Us;
+      Step : in out Adaflight.Arming.Outputs);
    --  The receiver's frame rate tracked for the RC command smoothing.
    procedure Update_Refresh_Rate (Now_Us : Time_Us; Receiving : Boolean; Frame_Time_Us : Time_Us);
    --  A disarm a message or the failsafe asks for.

@@ -81,6 +81,7 @@ with Adaflight.STM32.MAVLink;
 with Adaflight.STM32.GPS;
 with Adaflight.GPS_Frames;
 with Adaflight.GPS_Link;
+with Adaflight.GPS_Rescue;
 with Adaflight.STM32.MCU;
 with Adaflight.STM32.Motors;
 with Adaflight.STM32.Gyro;
@@ -244,6 +245,13 @@ package body Adaflight.STM32.Flight is
    function Flight_Channels return Adaflight.RC_Command.Channel_Values;
    function Pos_Hold_Failure return Boolean;
    function Pos_Hold_Ready return Boolean;
+   procedure Run_Rescue;
+   --  The GPS rescue runs when its failsafe procedure or its mode box is
+   --  configured.
+   function Rescue_Configured return Boolean is
+     (Adaflight.STM32.Pilot.Box_Configured (Adaflight.Modes.GPS_Rescue)
+      or else Natural (Config.Failsafe_Config.Failsafe_Procedure)
+              = Adaflight.Failsafe.Procedure_Kind'Pos (Adaflight.Failsafe.GPS_Rescue));
    Hashes           : Adaflight.Config_Store.Hash_List (1 .. Adaflight.Config_Codec.Group_Count) := (others => 0);
    --  The divisor of the accelerometer counts in the raw readings reply, by
    --  the count for one g.
@@ -276,6 +284,8 @@ package body Adaflight.STM32.Flight is
    Pos_Hold_Settings : Adaflight.Position_Hold.Settings;
    Pos_Hold_State    : Adaflight.Position_Hold.State;
    Navigator         : Adaflight.Position_Nav.Navigator;
+   Rescue_Settings   : Adaflight.GPS_Rescue.Settings;
+   Rescue_State      : Adaflight.GPS_Rescue.State;
 
    --  The displayed altitude to the nearest centimetre, and the climb rate
    --  in centimetres per second with its 10 cm/s deadband.
@@ -712,8 +722,8 @@ package body Adaflight.STM32.Flight is
    procedure Init_Scheduler is
       Options : constant Adaflight.Task_Init.Options :=
         (Accel => True, Beeper => True, Sag_Compensation => True, OSD => True, CMS => True, GPS => True,
-         Alt_Hold => True, Pos_Hold => True, Telemetry => True, VTX_Control => True, VTX_Driver => True,
-         PINIO_Box => True, ESC_Sensor => True, others => False);
+         GPS_Rescue => True, Alt_Hold => True, Pos_Hold => True, Telemetry => True, VTX_Control => True,
+         VTX_Driver => True, PINIO_Box => True, ESC_Sensor => True, others => False);
       Inputs  : Adaflight.Task_Init.Inputs;
    begin
       Sched_Settings := Adaflight.Config_Runtime.Scheduler_Settings_Of
@@ -1065,13 +1075,31 @@ package body Adaflight.STM32.Flight is
    function Beep_Settings return Adaflight.Beeper.Settings is
      (Adaflight.Config_Runtime.Beeper_Settings_Of (Config.Beeper_Config));
 
-   --  What the beeper reads: the battery's presence, no USB or configurator
-   --  link on this image, the beeper boxes, no GPS, the motors running while
+   --  The USB cable's detect pin, an input pulled down where the board has
+   --  one.
+   USB_Detect : constant Boolean := Adaflight.Board.USB_Detect_Tag /= 0;
+   USB_Detect_Pin : constant Adaflight.Pins.Pin :=
+     (Port   => Adaflight.Pins.Port_Name'Val (Natural'Max (1, Adaflight.Board.USB_Detect_Tag / 16) - 1),
+      Number => Adaflight.Pins.Pin_Number (Adaflight.Board.USB_Detect_Tag mod 16));
+
+   --  Whether the USB cable is active: its detect pin high, or a host that
+   --  configured the port.
+   function USB_Active return Boolean is
+     ((USB_Detect and then Adaflight.STM32.GPIO.Is_High (USB_Detect_Pin)) or else Adaflight.STM32.USB.Configured);
+
+   --  Whether a configurator talks MSP: a byte on the USB port's or UART1's
+   --  MSP within the activity timeout.
+   function Configurator_Active return Boolean is
+     (for some L in MSP_Line =>
+        Adaflight.MSP_Port.Configurator_Active (Lines (L).Port, Adaflight.STM32.Time.Millis, Peripheral => False));
+
+   --  What the beeper reads: the battery's presence, the USB cable, a
+   --  configurator on MSP, the beeper boxes, the GPS, the motors running while
    --  armed, the failsafe's link, the last disarm and a waiting arming.
    function Beep_Conditions return Adaflight.Beeper.Conditions is
      (Battery_Present     => Adaflight.Battery."/=" (Bat.Overall, Adaflight.Battery.Not_Present),
-      USB_Active          => False,
-      Configurator_Active => False,
+      USB_Active          => USB_Active,
+      Configurator_Active => Configurator_Active,
       Mute_Switch         => Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Beeper_Mute),
       Beep_Switch         => Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Beeper_On),
       Satellite_Switch    => Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Beep_GPS_Count),
@@ -1332,7 +1360,7 @@ package body Adaflight.STM32.Flight is
       Battery_States         => Battery_States,
       Battery_Alarms         => Battery_Alarms,
       Acc_Update             => Acc_Update,
-      GPS_Rescue_Update      => No_Step,
+      GPS_Rescue_Update      => Run_Rescue,
       Baro_Update            => No_Step_Period,
       Pitot_Update           => No_Step_Period,
       Compass_Update         => No_Step_Period,
@@ -1385,9 +1413,10 @@ package body Adaflight.STM32.Flight is
    end Run_Filter;
 
    --  The attitude task: the estimate from the attitude lowpass of the gyro
-   --  and the accelerometer, without a compass, disarmed and without the
-   --  angle or headfree modes, then the angles and the quaternion into the
-   --  attitude replies.
+   --  and the accelerometer, without a compass, over the arming, the angle
+   --  or horizon mode that turns the throttle correction on, the headfree
+   --  mode, and the GPS course with the filtered yaw rate, then the angles
+   --  and the quaternion into the attitude replies.
    procedure Run_Attitude (Now_Us : Scheduler.Time_Us) is
       Rates : constant Adaflight.Vectors.Vector3 :=
         (X => Gyro_State.Downsampled (Adaflight.Axes.Roll),
@@ -1395,10 +1424,24 @@ package body Adaflight.STM32.Flight is
          Z => Gyro_State.Downsampled (Adaflight.Axes.Yaw));
       No_Mag : constant Adaflight.Vectors.Vector3 := (0.0, 0.0, 0.0);
       Magnitude : constant Float := Float'Max (0.0, Float'Min (1.0e3, Acc_State.Magnitude));
+      M : constant Adaflight.Arming.Mode_Set := Adaflight.STM32.Pilot.Flight_Modes;
+      G : constant Adaflight.STM32.GPS.Readings := Adaflight.STM32.GPS.Current;
+      Rate_Bound : constant := Adaflight.Attitude.Rate_Bound;
    begin
       Adaflight.Attitude.Update
         (Att_State, Att_Config, Now_Us, Rates, Acc_State.Acc, Magnitude, No_Mag,
-         Use_Mag => False, Armed => False, Angle_Mode => False, Headfree_Mode => False);
+         Use_Mag       => False,
+         Armed         => Adaflight.STM32.Pilot.Armed,
+         Angle_Mode    => M (Adaflight.Arming.Angle_Mode) or else M (Adaflight.Arming.Horizon_Mode),
+         Headfree_Mode => M (Adaflight.Arming.Headfree_Mode),
+         Course        =>
+           (Usable       =>
+              G.Present and then G.Fix and then Natural (G.Satellites) > Adaflight.Attitude.Min_Satellites,
+            Ground_Speed => Natural (G.Ground_Speed),
+            Course       => Natural'Min (3_599, Natural (G.Ground_Course)),
+            Yaw_Rate     =>
+              Float'Max (-Rate_Bound, Float'Min (Rate_Bound, Gyro_State.Filtered (Adaflight.Axes.Yaw))),
+            Fixed_Wing   => Adaflight.Mixer_Init.Is_Fixed_Wing (Adaflight.STM32.Pilot.Mixer_Mode)));
       Ctx.Out_Views.State.Attitude :=
         (Roll  => Integer_16 (Att_State.Euler.Roll),
          Pitch => Integer_16 (Att_State.Euler.Pitch),
@@ -2054,7 +2097,7 @@ package body Adaflight.STM32.Flight is
                (Box_3D => Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Three_D),
                 LVC_Enabled => Bat.LVC_Enabled, LVC_Percentage => Bat.LVC_Percentage,
                 Failsafe_Active => Adaflight.STM32.Radio.Failsafe_Active),
-               Before, Asked);
+               Att_State, Before, Asked);
       end case;
       Apply (Asked);
       Report_Pilot;
@@ -2130,6 +2173,10 @@ package body Adaflight.STM32.Flight is
       F.Vario := Estimated_Vario;
       F.Pos_Hold_Ready := Pos_Hold_Ready;
       F.Pos_Hold_Failure := Pos_Hold_Failure;
+      F.Rescue_Configured := Rescue_Configured;
+      F.Rescue_Available := Rescue_State.Is_Available;
+      F.Rescue_OK := Rescue_State.Is_OK;
+      F.Rescue_Heading_OK := Rescue_State.Sense.Heading_OK;
       for I in 0 .. Motors - 1 loop
          F.Motor_Output (I) := Float'Min (3_000.0, Outputs (I));
          F.Motor_Active (I) := Outputs (I) > Adaflight.STM32.Control.Disarm_Output;
@@ -2381,8 +2428,8 @@ package body Adaflight.STM32.Flight is
    end Run_Altitude_Hold;
 
    --  Whether the attitude's heading is good to fly by: the board has no
-   --  compass, and the attitude estimate takes no GPS course yet.
-   function Heading_Valid return Boolean is (False);
+   --  compass, so only a GPS course the attitude has matched long enough.
+   function Heading_Valid return Boolean is (Adaflight.Attitude.Heading_Valid (Att_State, Compass_Calibrated => False));
 
    --  What the position hold reads: the arming, the failsafe and the modes,
    --  the interval the scheduler measured since its last run, the estimate's
@@ -2447,6 +2494,54 @@ package body Adaflight.STM32.Flight is
    function Pos_Hold_Failure return Boolean is
      (Adaflight.STM32.Pilot.Flight_Modes (Adaflight.Arming.Pos_Hold_Mode)
       and then (not Pos_Hold_State.Control_Ok or else not Pos_Hold_State.Sensors_Ok));
+
+   --  The GPS rescue task over the autopilot's altitude and position
+   --  controllers the holds share: a disarm it asks for is a failsafe
+   --  disarm, with the arm switch's disable reason set when it asks for that.
+   procedure Run_Rescue is
+      M     : constant Adaflight.Arming.Mode_Set := Adaflight.STM32.Pilot.Flight_Modes;
+      G     : constant Adaflight.STM32.GPS.Readings := Adaflight.STM32.GPS.Current;
+      P_Inp : constant Adaflight.Position_Control.Inputs := Hold_Inputs;
+      Bound : constant := Adaflight.GPS_Rescue.Estimate_Bound;
+      function Held (V : Float) return Float is (Float'Max (-Bound, Float'Min (Bound, V)));
+      Inp   : constant Adaflight.GPS_Rescue.Inputs :=
+        (Now_Us                => Adaflight.STM32.Time.Micros,
+         Rescue_Mode           => M (Adaflight.Arming.GPS_Rescue_Mode),
+         Armed                 => Adaflight.STM32.Pilot.Armed,
+         GPS_Stamp             => G.Stamp,
+         Heading_Valid         => Heading_Valid,
+         GPS_Healthy           => G.Healthy,
+         Altitude_Control_Cm   => Pos_State.Control_Altitude_Cm,
+         Altitude_Filtered_Cm  => Held (Pos_State.Filtered_Altitude_Cm),
+         Altitude_Available    => Pos_State.Valid_Z,
+         Valid_XY              => P_Inp.Valid_XY,
+         Position              => P_Inp.Position,
+         Velocity              => P_Inp.Velocity,
+         Yaw                   => Att_State.Euler.Yaw,
+         GPS_Fix               => G.Fix,
+         GPS_Fix_Home          => G.Fix_Home,
+         Num_Sat               => G.Satellites,
+         Crash_Recovery_Active => Adaflight.STM32.Control.Crash_Recovery_Active,
+         Rx_Receiving          => Adaflight.STM32.Radio.Receiving,
+         Vertical_Velocity     => Pos_State.Control_Derivative,
+         Vertical_Acceleration => Pos_State.Control_Acceleration,
+         Cos_Tilt              => Float'Max (-1.0, Float'Min (1.0, Adaflight.Attitude.Cos_Tilt (Att_State))));
+      Disarm          : Boolean;
+      Arming_Disabled : Boolean;
+      Asked           : Adaflight.Arming.Outputs;
+   begin
+      Adaflight.GPS_Rescue.Update
+        (Rescue_State, Rescue_Settings, Inp,
+         Adaflight.Altitude_Hold.Control_Settings (Alt_Hold_Settings), Alt_Hold_State.Control,
+         Control_Settings, P_Inp, Pos_Hold_State.Control, Disarm, Arming_Disabled);
+      if Arming_Disabled then
+         Adaflight.STM32.Pilot.Set_Reason (Adaflight.Arming.Arm_Switch, True);
+      end if;
+      if Disarm then
+         Adaflight.STM32.Pilot.Disarm (Adaflight.Arming.Failsafe, Adaflight.STM32.Time.Micros, Asked);
+         Apply (Asked);
+      end if;
+   end Run_Rescue;
 
    function Pos_Hold_Ready return Boolean is
      (Pos_State.Valid_XY
@@ -2689,6 +2784,7 @@ package body Adaflight.STM32.Flight is
         (Armed             => Adaflight.STM32.Pilot.Armed,
          CLI_Open          => Session.Open,
          Feature_Telemetry => (Runtime_Features and Adaflight.Config_Fix.Feature_Telemetry) /= 0,
+         Rescue_Configured => Rescue_Configured,
          others            => <>);
    begin
       case Id is
@@ -2731,6 +2827,8 @@ package body Adaflight.STM32.Flight is
             Run_Altitude_Hold;
          when Scheduler.Pos_Hold =>
             Run_Position_Hold;
+         when Scheduler.GPS_Rescue =>
+            Tasks.GPS_Rescue (Inputs);
          when Scheduler.ESC_Sensor =>
             Adaflight.STM32.ESC_Sensor.Run (Before, Adaflight.STM32.Control.Motor_Count);
          when Scheduler.Telemetry =>
@@ -2838,6 +2936,10 @@ package body Adaflight.STM32.Flight is
       Adaflight.STM32.Radio.Init (Config, Runtime_Features, Adaflight.STM32.Time.Millis, Telemetry_Config);
       Adaflight.STM32.GPS.Init (Config, Runtime_Features, Adaflight.STM32.Time.Millis);
       Adaflight.STM32.ESC_Sensor.Init (Config, Runtime_Features);
+      if USB_Detect then
+         Adaflight.STM32.GPIO.Enable_Port (USB_Detect_Pin.Port);
+         Adaflight.STM32.GPIO.Set_Input (USB_Detect_Pin, Adaflight.STM32.GPIO.Down);
+      end if;
       declare
          Save : Boolean;
       begin
@@ -2877,6 +2979,9 @@ package body Adaflight.STM32.Flight is
       Pos_Hold_Settings := Adaflight.Config_Runtime.Position_Hold_Settings_Of (Config.Pos_Hold_Config);
       Adaflight.Position_Hold.Init (Pos_Hold_State, Pos_Hold_Settings, Control_Settings);
       Adaflight.Position_Nav.Init (Navigator);
+      Rescue_Settings := Adaflight.Config_Runtime.GPS_Rescue_Settings_Of
+        (Config.Gps_Rescue_Config, Config.Autopilot_Config, Config.Gps_Config);
+      Adaflight.GPS_Rescue.Init (Rescue_State, Rescue_Settings);
       Adaflight.STM32.LTM.Init (Config, Runtime_Features);
       Adaflight.STM32.MAVLink.Init (Config, Runtime_Features, (UID (1), UID (2), UID (3)));
       Check_Telemetry;
@@ -2885,10 +2990,11 @@ package body Adaflight.STM32.Flight is
    end Init;
 
    --  The failsafe's check every ten milliseconds of the realtime block over
-   --  the arming, the failsafe box, the throttle status and the controller's
-   --  crash recovery, with no autopilot on this image: its lost link tones,
-   --  its landed stage's disarm, and its flight mode with the confirmation
-   --  beep of a change.
+   --  the arming, the failsafe box, the throttle status, a configurator on
+   --  MSP that silences the lost link tones, and the controller's crash
+   --  recovery, with no autopilot on this image: its lost link tones, its
+   --  landed stage's disarm, and its flight mode with the confirmation beep
+   --  of a change.
    procedure Check_Failsafe is
       Beep     : Adaflight.Failsafe.Beep;
       Disarm   : Boolean;
@@ -2898,7 +3004,7 @@ package body Adaflight.STM32.Flight is
         (Armed               => Adaflight.STM32.Pilot.Armed,
          Switch_On           => Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Failsafe),
          Throttle_Low        => Adaflight.STM32.Pilot.Throttle_Low (Flight_Channels),
-         Configurator_Active => False,
+         Configurator_Active => Configurator_Active,
          Crash_Recovery      => Adaflight.STM32.Control.Crash_Recovery_Active,
          others              => False);
    begin
