@@ -763,6 +763,10 @@ package body Adaflight.STM32.OSD is
       D.G_Force := F.G_Force;
       D.MAh_Drawn := F.MAh_Drawn;
       D.Wh_Drawn := Float'Max (0.0, Float'Min (Adaflight.OSD_Render.Wh_Bound, F.Wh_Drawn));
+      D.Blackbox_Box := F.Blackbox_Box;
+      D.Blackbox_Working := F.Blackbox_Working;
+      D.Blackbox_Full := F.Blackbox_Full;
+      D.Log_Number := F.Log_Number;
       D.Profile_Capacity := F.Battery_Capacity;
       D.Battery_Percent := F.Battery_Percent;
       D.Pack_Voltage := F.Pack_Voltage;

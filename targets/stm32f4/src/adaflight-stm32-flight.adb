@@ -2379,6 +2379,10 @@ package body Adaflight.STM32.Flight is
       F.Amperage := Integer_32'Max (-100_000, Integer_32'Min (100_000, Integer_32 (Bat.Current.Amperage)));
       F.MAh_Drawn := Integer_32'Max (0, Integer_32'Min (2 ** 24, Integer_32 (Bat.Current.mAh_Drawn)));
       F.Wh_Drawn := Bat.Watt_Hours;
+      F.Blackbox_Box := Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Blackbox);
+      if F.Blackbox_Box then
+         Adaflight.STM32.Blackbox.Device_State (F.Blackbox_Working, F.Blackbox_Full, F.Log_Number);
+      end if;
       F.Battery_Percent := Unsigned_8 (Adaflight.Battery.Percentage_Remaining (Bat, Bat_Settings));
       F.Battery_Capacity := Profile.Battery_Capacity;
       F.Motors := Motors;

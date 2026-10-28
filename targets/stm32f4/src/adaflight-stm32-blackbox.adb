@@ -2,6 +2,7 @@ with Adaflight.Axes;
 with Adaflight.Bytes; use Adaflight.Bytes;
 with Adaflight.Config_Fix;
 with Adaflight.Config_Runtime;
+with Adaflight.MSP_Hardware_Out;
 with Adaflight.PID_Controller;
 with Adaflight.Modes;
 with Adaflight.Serial_Feature_Map;
@@ -300,6 +301,32 @@ package body Adaflight.STM32.Blackbox is
    end Disarmed;
 
    function Recorder return Adaflight.Blackbox.Recorder is (L);
+
+   procedure Device_State (Working, Full : out Boolean; Log_Number : out Interfaces.Integer_32) is
+      use type Interfaces.Integer_32;
+   begin
+      Working := False;
+      Full := False;
+      Log_Number := -1;
+      case C.Device is
+         when Header.Serial =>
+            Working := Open_Port and then L.Opens /= L.Closes;
+         when Header.SD_Card =>
+            declare
+               Card : constant Adaflight.MSP_Hardware_Out.SD_Card_Values := Adaflight.STM32.SD.Summary;
+            begin
+               Working := Card.Inserted and then Card.Functional
+                 and then Adaflight.MSP_Hardware_Out."=" (Card.State, Adaflight.MSP_Hardware_Out.Ready);
+            end;
+            Full := Adaflight.STM32.SD.Log_Full;
+            Log_Number := Adaflight.STM32.SD.Log_Number;
+         when Header.Flash =>
+            Adaflight.STM32.Flash_Chip.Is_Ready (Working);
+            Full := Adaflight.STM32.Flash_Chip.Full;
+         when Header.No_Device =>
+            null;
+      end case;
+   end Device_State;
 begin
    Adaflight.Stream_Buffers.Init (Stream, 0, Buffer'Length);
 end Adaflight.STM32.Blackbox;

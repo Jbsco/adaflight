@@ -10977,3 +10977,15 @@ shows as zero.
 The host smoke check takes the battery's voltage and current from the ESC sensor, whose emulator reports 16.1 V
 and 77 mAh drawn per ESC, and finds a nonzero energy on the element. The previous image shows 0 mWh. The value
 depends on the filtered voltage when the ESCs' charge first arrives, so the check asks for a nonzero energy only.
+
+## D471. STM32F4 OSD flight log status (2026-10-27)
+
+The OSD's log status element shows while the flight log box is active, and the board now gives it the box and
+the log device's state. The device works as a serial port while the log holds it open, as an SD card that is
+inserted and working with its file system ready, and as a flash chip that is ready. The element shows an
+exclamation mark for a device that does not work, a greater-than sign for a full one, and else the largest log
+file number on an SD card. The device's state is read only while the box is active, so the flash chip's ready
+check runs only then. The board had left these inputs unset, so the element never showed.
+
+The host smoke check logs to an SD card image with the box on AUX1 over its whole range, and finds log number 1
+beside the log symbol once the card's log opens. The previous image leaves the row blank.
