@@ -96,3 +96,4 @@ Each document describes a Betaflight bug that adaflight fixes: the Betaflight ve
 - [The USB device address is ORed into its register](usb-device-address.md)
 - [CRSF GPS telemetry stays silent with an NMEA module](crsf-gps-telemetry-nmea-time.md)
 - [ESC information read leaves the ESC sensor writing into a dead stack frame](esc-info-read-buffer.md)
+- [The flight log's surfaceRaw field holds the tilt-corrected altitude](blackbox-surface-raw-tilt.md)

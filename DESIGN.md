@@ -10783,3 +10783,59 @@ stops MSP on the USB port. The MSP framing also acts on the reboot character whi
 which resets it. The CLRacing F4S boards carry their receiver inverter on UART1, so SBUS takes that port.
 
 The host smoke check puts a CRSF receiver on UART1 and finds its channels in the MSP reply over the USB port.
+
+## D459. STM32F4 TF lidar rangefinder (2026-10-27)
+
+The board reads a Benewake TFmini, TF02 or TFnova lidar on the UART the rangefinder setting names. The start
+runs after the gyro, as the sensors start before the receiver: the hardware setting picks the core's TF
+driver, which opens the port at 115,200 baud, sends the 100 Hz command to a TFmini or TF02, and reports a
+10 ms period, the range and the cone. The rangefinder filter starts on that range and cone, and the
+rangefinder task, enabled with the rangefinder feature, runs at the period the driver asked for. Each run
+hands the driver every byte received through its frame parser, then filters the last reading through the
+median and the signal ratio and corrects it by the cosine of the craft's tilt into an altitude.
+
+The MSP status reply sets the rangefinder sensor bit, and the sonar altitude reply carries the last altitude.
+The lidar's UART counts among the devices that keep UART1 from MSP. The OSD's distance element, the FrSky hub
+telemetry and the flight log field do not read the rangefinder yet.
+
+The host smoke check streams TFmini frames of 150 cm on UART4 and finds the sensor bit and a 150 cm sonar
+altitude.
+
+## D460. STM32F4 rangefinder in the flight log (2026-10-27)
+
+The flight log takes the rangefinder: the header lists the `surfaceRaw` field when a rangefinder was found,
+and each frame logs the rangefinder's distance after the median filter and before the tilt correction. The
+reference logs the corrected altitude there, under a comment that says it stores the raw value (finding F299),
+so the board follows the comment and the field's name. The MSP sonar altitude stays the corrected one.
+
+The host smoke check's lidar phase sends the flight log to UART6 and finds `surfaceRaw` among the frame fields.
+
+## D461. STM32F4 OSD lidar distance (2026-10-27)
+
+The OSD's lidar distance element draws the rangefinder's altitude, the tilt-corrected one the MSP sonar reply
+carries, in centimetres behind its label, or dashes while the rangefinder reads none. The board had left the
+renderer's rangefinder input at zero, so a placed element showed dashes with a rangefinder working.
+
+The host smoke check's lidar phase places the element on the MAX7456 with the PAL video system and finds
+`RF:150` once the boot logo clears.
+
+## D462. STM32F4 FrSky hub altitude from the rangefinder (2026-10-27)
+
+The FrSky hub telemetry sends its vario and altitude frames when a barometer, a rangefinder or a GPS is
+present. The board has no barometer and had passed no altitude sensor at all, so with the GPS feature off the
+hub never sent them. A rangefinder found at the start now counts. The frames carry the estimated altitude
+and climb rate, as with the other sensors.
+
+The host smoke check's FrSky hub phase adds a TFmini on UART4 and finds the vario frame and both altitude
+frames beside the acceleration frames.
+
+## D463. STM32F4 Nooploop TOFSense rangefinder (2026-10-27)
+
+The board's rangefinder also takes the six Nooploop TOFSense models on the rangefinder UART. The hardware
+setting picks the driver: the TF lidars or the TOFSense through the core's Nooploop driver, which opens the
+port at 115,200 baud, reports a 10 ms period, the model's range and a 90 degree cone, and parses the 16-byte
+frames behind the 0x57 and 0x00 sync bytes. The TOFSense hands a new reading to the filter once, and between
+frames the filter gets no new data and keeps its last altitude. After 200 ms without a frame the driver
+reports a hardware failure. The HC-SR04, the MicoAir MTF and the UP-T1 wait for their drivers.
+
+The host smoke check streams TOFSense F2 frames of 1234 mm on UART4 and finds a 123 cm sonar altitude.
