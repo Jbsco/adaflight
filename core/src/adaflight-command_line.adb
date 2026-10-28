@@ -54,6 +54,15 @@ package body Adaflight.Command_Line with SPARK_Mode is
    end Put_Decimal;
    pragma No_Inline (Put_Decimal);
 
+   procedure Put_Field (Into : in out Output; V : Integer_64; Width : Natural)
+     with Global => null,
+          Pre    => Width <= 64
+   is
+   begin
+      Put (Into, CLI_Text.Right_Justified (Decimal (V), Width));
+   end Put_Field;
+   pragma No_Inline (Put_Field);
+
    --  An error's text after "###ERROR IN ", noted for an open batch.
    procedure Put_Error (Into : in out Output; Text : String)
      with Global => null
@@ -5121,10 +5130,6 @@ package body Adaflight.Command_Line with SPARK_Mode is
    procedure Dshot_Telemetry_Info_Command (Into : in out Output; Count : MSP_Motor_In.Motor_Count; S : DShot_Status)
      with Global => null
    is
-      function Field (V : Integer_64; Width : Natural) return String is
-        (CLI_Text.Right_Justified (Decimal (V), Width))
-        with Pre => Width <= 64;
-
       function Two_Digits (N : Integer_64) return String is
         (String'(Character'Val (Character'Pos ('0') + Natural (N / 10)),
                  Character'Val (Character'Pos ('0') + Natural (N mod 10))))
@@ -5163,7 +5168,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
             Rpm   : constant Integer_64 := Whole (S.Telemetry.Rpm (M)) mod 2 ** 16;
             Volts : constant Integer_64 := Integer_64 (T.Values (DShot.Voltage));
          begin
-            Put (Into, Field (Integer_64 (M) + 1, 5));
+            Put_Field (Into, Integer_64 (M) + 1, 5);
             Put (Into, "   ");
             Put (Into, "" & Kind (T.Received, 0, 'R'));
             Put (Into, "" & Kind (T.Received, 1, 'T'));
@@ -5171,17 +5176,17 @@ package body Adaflight.Command_Line with SPARK_Mode is
             Put (Into, "" & Kind (T.Received, 3, 'C'));
             Put (Into, "" & Kind (T.Received, 7, 'S'));
             Put (Into, " ");
-            Put (Into, Field (Integer_64 (T.Values (DShot.Erpm)) * 100, 6));
+            Put_Field (Into, Integer_64 (T.Values (DShot.Erpm)) * 100, 6);
             Put (Into, " ");
-            Put (Into, Field (Rpm, 6));
+            Put_Field (Into, Rpm, 6);
             Put (Into, " ");
-            Put (Into, Field (Rpm / 60, 6));
+            Put_Field (Into, Rpm / 60, 6);
             if (T.Received and 1) /= 0 then
                declare
                   Share : constant Integer_64 := Integer_64 (DShot.Invalid_Percent (S.Quality (M), True));
                begin
                   Put (Into, " ");
-                  Put (Into, Field (Share / 100, 3));
+                  Put_Field (Into, Share / 100, 3);
                   Put (Into, ".");
                   Put (Into, Two_Digits (Share mod 100));
                   Put (Into, "%");
@@ -5190,32 +5195,32 @@ package body Adaflight.Command_Line with SPARK_Mode is
                Put (Into, " NO DATA");
             end if;
             Put (Into, " ");
-            Put (Into, Field (Integer_64 (T.Values (DShot.Temperature)), 6));
+            Put_Field (Into, Integer_64 (T.Values (DShot.Temperature)), 6);
             Put (Into, " ");
-            Put (Into, Field (Volts / 4, 3));
+            Put_Field (Into, Volts / 4, 3);
             Put (Into, ".");
             Put (Into, Two_Digits (25 * (Volts mod 4)));
             Put (Into, " ");
-            Put (Into, Field (Integer_64 (T.Values (DShot.Current)), 6));
+            Put_Field (Into, Integer_64 (T.Values (DShot.Current)), 6);
             Put (Into, " ");
-            Put (Into, Field (Integer_64 (T.Values (DShot.State_Events)), 6));
+            Put_Field (Into, Integer_64 (T.Values (DShot.State_Events)), 6);
             Put (Into, " ");
-            Put (Into, Field (Integer_64 (T.Values (DShot.Debug_1)), 6));
+            Put_Field (Into, Integer_64 (T.Values (DShot.Debug_1)), 6);
             Put (Into, " ");
-            Put (Into, Field (Integer_64 (T.Values (DShot.Debug_2)), 6));
+            Put_Field (Into, Integer_64 (T.Values (DShot.Debug_2)), 6);
             Put (Into, " ");
-            Put (Into, Field (Integer_64 (T.Values (DShot.Debug_3)), 6));
+            Put_Field (Into, Integer_64 (T.Values (DShot.Debug_3)), 6);
             Put (Into, CRLF);
          end;
       end loop;
       Put (Into, CRLF);
       for E of S.Edges loop
-         Put (Into, Field (Integer_64 (E), 0));
+         Put_Field (Into, Integer_64 (E), 0);
          Put (Into, " ");
       end loop;
       Put (Into, CRLF);
       for K in 2 .. Max_GCR_Edges loop
-         Put (Into, Field (Integer_64 (S.Edges (K) - S.Edges (K - 1)), 0));
+         Put_Field (Into, Integer_64 (S.Edges (K) - S.Edges (K - 1)), 0);
          Put (Into, " ");
       end loop;
       Put (Into, CRLF);
@@ -5796,6 +5801,15 @@ package body Adaflight.Command_Line with SPARK_Mode is
       return (1 .. Width - Text'Length => '0') & Text;
    end Zero_Padded;
 
+   procedure Put_Zero_Padded (Into : in out Output; V : Natural; Width : Positive)
+     with Global => null,
+          Pre    => Width <= 7
+   is
+   begin
+      Put (Into, Zero_Padded (V, Width));
+   end Put_Zero_Padded;
+   pragma No_Inline (Put_Zero_Padded);
+
    --  A word in lower case hexadecimal digits without leading zeros, as %x
    --  prints it.
    function Hex_Minimal (V : Unsigned_32) return String
@@ -5850,7 +5864,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
          Put (Into, ", Vref=");
          Put_Decimal (Into, Integer_64 (S.Vref_Mv / 1000));
          Put (Into, ".");
-         Put (Into, Zero_Padded (Natural ((S.Vref_Mv mod 1000) / 10), 2));
+         Put_Zero_Padded (Into, Natural ((S.Vref_Mv mod 1000) / 10), 2);
          Put (Into, "V, Core temp=");
          Put_Decimal (Into, Integer_64 (S.Core_Temp_C));
          Put (Into, "degC");
@@ -6035,13 +6049,13 @@ package body Adaflight.Command_Line with SPARK_Mode is
             Put (Into, ", hdop: ");
             Put_Decimal (Into, Integer_64 (G.HDOP / 100));
             Put (Into, ".");
-            Put (Into, Zero_Padded (Natural (G.HDOP mod 100), 2));
+            Put_Zero_Padded (Into, Natural (G.HDOP mod 100), 2);
          end if;
          if G.VDOP > 0 then
             Put (Into, ", vdop: ");
             Put_Decimal (Into, Integer_64 (G.VDOP / 100));
             Put (Into, ".");
-            Put (Into, Zero_Padded (Natural (G.VDOP mod 100), 2));
+            Put_Zero_Padded (Into, Natural (G.VDOP mod 100), 2);
          end if;
          if G.Fix then
             declare
@@ -6053,17 +6067,17 @@ package body Adaflight.Command_Line with SPARK_Mode is
                Put (Into, (if Lat < 0 then "-" else ""));
                Put_Decimal (Into, abs Lat / 10_000_000);
                Put (Into, ".");
-               Put (Into, Zero_Padded (Natural (abs Lat mod 10_000_000), 7));
+               Put_Zero_Padded (Into, Natural (abs Lat mod 10_000_000), 7);
                Put (Into, " ");
                Put (Into, (if Lon < 0 then "-" else ""));
                Put_Decimal (Into, abs Lon / 10_000_000);
                Put (Into, ".");
-               Put (Into, Zero_Padded (Natural (abs Lon mod 10_000_000), 7));
+               Put_Zero_Padded (Into, Natural (abs Lon mod 10_000_000), 7);
                Put (Into, ", alt: ");
                Put (Into, (if Alt < 0 then "-" else ""));
                Put_Decimal (Into, abs Alt / 100);
                Put (Into, ".");
-               Put (Into, Zero_Padded (Natural (abs Alt mod 100), 2));
+               Put_Zero_Padded (Into, Natural (abs Alt mod 100), 2);
                Put (Into, "m");
             end;
          else
@@ -6071,17 +6085,17 @@ package body Adaflight.Command_Line with SPARK_Mode is
          end if;
          if G.Time_Valid then
             Put (Into, ", ");
-            Put (Into, Zero_Padded (Natural (G.Year), 4));
+            Put_Zero_Padded (Into, Natural (G.Year), 4);
             Put (Into, "-");
-            Put (Into, Zero_Padded (Natural (G.Month), 2));
+            Put_Zero_Padded (Into, Natural (G.Month), 2);
             Put (Into, "-");
-            Put (Into, Zero_Padded (Natural (G.Day), 2));
+            Put_Zero_Padded (Into, Natural (G.Day), 2);
             Put (Into, "T");
-            Put (Into, Zero_Padded (Natural (G.Hour), 2));
+            Put_Zero_Padded (Into, Natural (G.Hour), 2);
             Put (Into, ":");
-            Put (Into, Zero_Padded (Natural (G.Minute), 2));
+            Put_Zero_Padded (Into, Natural (G.Minute), 2);
             Put (Into, ":");
-            Put (Into, Zero_Padded (Natural (G.Second), 2));
+            Put_Zero_Padded (Into, Natural (G.Second), 2);
             Put (Into, "Z");
          end if;
       end if;
@@ -6173,7 +6187,7 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Put (Into, "Voltage: ");
       Put_Decimal (Into, Integer_64 (S.Battery_Voltage / 100));
       Put (Into, ".");
-      Put (Into, Zero_Padded (Natural (S.Battery_Voltage mod 100), 2));
+      Put_Zero_Padded (Into, Natural (S.Battery_Voltage mod 100), 2);
       Put (Into, "V (");
       Put_Decimal (Into, Integer_64 (S.Battery_Cells));
       Put (Into, "S battery - ");
@@ -6995,10 +7009,6 @@ package body Adaflight.Command_Line with SPARK_Mode is
         with Pre  => N < 100,
              Post => Two_Digits'Result'First = 1 and then Two_Digits'Result'Length = 2;
 
-      function Field (V : Integer_64; Width : Natural) return String is
-        (CLI_Text.Right_Justified (Decimal (V), Width))
-        with Pre => Width <= 64;
-
       Statistics : constant Boolean := Sys.Task_Statistics /= 0;
       Time_Since : constant Integer_64 := As_Signed (Env.Now_Us - Into.Last_Tasks_Us);
       Load_Sum   : Integer_64 := 0;
@@ -7030,30 +7040,30 @@ package body Adaflight.Command_Line with SPARK_Mode is
                   Put (Into, CLI_Text.Right_Justified (Scheduler.Name (Id), 15));
                   Put (Into, ") ");
                   if Statistics then
-                     Put (Into, Field (Frequency, 6));
+                     Put_Field (Into, Frequency, 6);
                      Put (Into, " ");
-                     Put (Into, Field (As_Signed (T.Max_Exec_Us), 7));
+                     Put_Field (Into, As_Signed (T.Max_Exec_Us), 7);
                      Put (Into, " ");
-                     Put (Into, Field (Integer_64 (T.Average_Exec_10th / 10), 7));
+                     Put_Field (Into, Integer_64 (T.Average_Exec_10th / 10), 7);
                      Put (Into, " ");
-                     Put (Into, Field (Max_Load / 10, 4));
+                     Put_Field (Into, Max_Load / 10, 4);
                      Put (Into, ".");
                      Put_Decimal (Into, Max_Load rem 10);
                      Put (Into, "% ");
-                     Put (Into, Field (Average_Load / 10, 4));
+                     Put_Field (Into, Average_Load / 10, 4);
                      Put (Into, ".");
                      Put_Decimal (Into, Average_Load rem 10);
                      Put (Into, "% ");
-                     Put (Into, Field (Integer_64 (T.Total_Exec_Us / 1000), 9));
+                     Put_Field (Into, Integer_64 (T.Total_Exec_Us / 1000), 9);
                      Put (Into, " ");
-                     Put (Into, Field (As_Signed (T.Late_Count), 6));
+                     Put_Field (Into, As_Signed (T.Late_Count), 6);
                      Put (Into, " ");
-                     Put (Into, Field (As_Signed (T.Run_Count), 6));
+                     Put_Field (Into, As_Signed (T.Run_Count), 6);
                      Put (Into, " ");
-                     Put (Into, Field (As_Signed (T.Exec_Time_Us), 7));
+                     Put_Field (Into, As_Signed (T.Exec_Time_Us), 7);
                      Put (Into, CRLF);
                   else
-                     Put (Into, Field (Frequency, 6));
+                     Put_Field (Into, Frequency, 6);
                      Put (Into, CRLF);
                   end if;
                end;
@@ -7070,18 +7080,18 @@ package body Adaflight.Command_Line with SPARK_Mode is
          begin
             Into.Last_Check_Total_Us := Checks.Total_Exec_Us;
             Put (Into, "Check Functions (RX, ...) ");
-            Put (Into, Field (As_Signed (Checks.Max_Exec_Us), 11));
+            Put_Field (Into, As_Signed (Checks.Max_Exec_Us), 11);
             Put (Into, " ");
-            Put (Into, Field (Integer_64 (Checks.Average_Exec_Us), 7));
+            Put_Field (Into, Integer_64 (Checks.Average_Exec_Us), 7);
             Put (Into, " ");
-            Put (Into, Field (Integer_64 (Load / 10), 12));
+            Put_Field (Into, Integer_64 (Load / 10), 12);
             Put (Into, ".");
             Put_Decimal (Into, Integer_64 (Load mod 10));
             Put (Into, "% ");
-            Put (Into, Field (Integer_64 (Checks.Total_Exec_Us / 1000), 9));
+            Put_Field (Into, Integer_64 (Checks.Total_Exec_Us / 1000), 9);
             Put (Into, CRLF);
             Put (Into, "Total ");
-            Put (Into, Field (Total / 10, 52));
+            Put_Field (Into, Total / 10, 52);
             Put (Into, ".");
             Put_Decimal (Into, Total rem 10);
             Put (Into, "%" & CRLF);

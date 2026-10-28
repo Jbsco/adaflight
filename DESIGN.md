@@ -11316,3 +11316,12 @@ The environment and status listings passed 34 values to `Put_Name_Value` as text
 
 On the STM32F4 image the change removes 1024 bytes of text, from 620384 to 619360. The command line vectors replay
 unchanged.
+
+## D496. Fields and padded numbers put directly (2026-10-28)
+
+The task list and the DShot telemetry listing each declared a local `Field` that right-justified `Decimal (V)`, and 29
+calls put its result, each two copies on the secondary stack. The gyro register listing put `Zero_Padded` 13 times
+the same way. `Put_Field` and `Put_Zero_Padded` now do it once out of line, and the local `Field` functions are gone.
+
+On the STM32F4 image the change removes 1040 bytes of text, from 619360 to 618320. The command line vectors replay
+unchanged.
