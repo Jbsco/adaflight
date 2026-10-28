@@ -11287,3 +11287,14 @@ On the STM32F4 image the change removes 2384 bytes of text, from 628932 to 62654
 runs recorded before replay unchanged. A new oracle run pages down through the active elements menu twice and turns
 every fifth element over, so the vectors now draw 137 of the 138 names. SmartAudio's offline status name is the one
 left out.
+
+## D493. Command line numbers and names put directly (2026-10-28)
+
+The command line passed 226 decimal numbers to `Put` as the result of `Decimal`, and 51 more texts from seven other
+functions the same way. GNAT returns such a result on the secondary stack, so each of the 277 call sites marked the
+stack and released it, about 20 bytes of code per site. Each of the eight functions now has a `Put_` procedure that
+calls `Put` with its result, and the call sites call that procedure. The procedures stay out of line, so the stack
+handling sits in eight places.
+
+On the STM32F4 image the change removes 5648 bytes of text, from 626548 to 620900. The command line vectors replay
+unchanged.
