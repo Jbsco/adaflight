@@ -101,3 +101,4 @@ Each document describes a Betaflight bug that adaflight fixes: the Betaflight ve
 - [A transmitter's menu close leaves the OSD held when the menu moved there](crsf-menu-close-display.md)
 - [The OSD's aux value reads past the RC channels for aux channels 15 to 18](osd-aux-channel-range.md)
 - [Core temperature calibration overrides a few counts apart](core-temperature-calibration.md)
+- [resource show without a second word compares a null pointer](cli-resource-show.md)

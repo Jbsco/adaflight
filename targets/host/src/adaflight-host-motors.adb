@@ -31,6 +31,13 @@ package body Adaflight.STM32.Motors is
 
    function Motor_Enabled (Index : Natural) return Boolean is (Index < Driven);
 
+   --  The host's motors use no DMA streams.
+   function Stream_Of (Index : Natural) return Natural is
+      pragma Unreferenced (Index);
+   begin
+      return 0;
+   end Stream_Of;
+
    function Count return Natural is (Driven);
 
    function Device return Adaflight.MSP_Motor_In.Device_Kind is (Kind);

@@ -19,6 +19,11 @@ package Adaflight.STM32.Motors is
    procedure Disable;
    function Enabled return Boolean;
    function Motor_Enabled (Index : Natural) return Boolean;
+   --  The DMA stream a motor's frames go out on, numbered from 1 for the
+   --  first controller's stream 0 to 16 for the second's stream 7, or 0 for
+   --  a motor without an output.
+   function Stream_Of (Index : Natural) return Natural
+     with Post => Stream_Of'Result <= 16;
    --  The motor count and the output device the MSP replies report.
    function Count return Natural;
    function Device return Adaflight.MSP_Motor_In.Device_Kind;

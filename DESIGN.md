@@ -11110,3 +11110,29 @@ holds at the bound where the reference's conversion is undefined. No recorded ve
 The harness replays 60 sequences of 200 updates recorded from the reference across fifteen mixer modes, with
 drawn features, servo parameters, custom rules, filter cutoffs, gimbal modes and receiver settings. Every setup
 result, servo value, write index and write value replays bit for bit.
+
+## D479. Resource and DMA commands (2026-10-28)
+
+The command line contains the resource command and the DMA command. The resource table lists each pin owner the
+build names, how many pins it has and the configuration field that keeps each one, in the order the reference's
+table lists them. Without arguments the command prints the pins set. With an owner's name, matched without case,
+and an ordinal it prints, sets or frees that pin, and a single pin takes its ordinal or none. A pin is a port
+letter from A to I and a number from 0 to 15, read as the C library reads it, and pins exist on the F405's ports A
+to F. Setting a pin notes each other owner holding it and clears it where the same owner holds it at another
+ordinal. The dump prints the resources after the craft name, each pin against its default, with a changed pin's
+default first after a number sign.
+
+The DMA command lists the sixteen DMA streams of the STM32F4 with the motor each drives, or free. The board fills
+each DShot motor's stream. Its other peripherals run without DMA and hold no stream.
+
+The resource table has no ESC serial entry: that pin belongs to the ESC serial driver, which adaflight does not
+port, and the configuration has no ESC serial group. resource show lists no pins, since the board does not track
+each pin's owner yet. resource show without a second word reads no word as not all, where the reference compares a
+null pointer (F304).
+
+The command line oracle builds with resource management on, an F405 pin model for the pins the resource command
+accepts, and the F4's DMA display functions with every stream free. The resource family holds 1200 commands: names
+in any case and past the table, ordinals inside, at and past each owner's count, pins on and off the F405,
+malformed pins, none, conflicts, the show and DMA commands and dumps and diffs between them. The help, completion,
+dump, diff and every-profile families gain the two commands and the resources section, replayed from their
+recorded inputs through the new oracle. Every reply replays byte for byte.
