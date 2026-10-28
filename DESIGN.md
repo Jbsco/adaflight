@@ -11336,3 +11336,12 @@ and matches no character of the identifier either way.
 
 On the STM32F4 image the change removes 2552 bytes of text, from 618320 to 615768, and 384 bytes of RAM. The host
 smoke check's restarts keep their stored configuration through the new comparison.
+
+## D498. Motor protocol reason follows the motor outputs (2026-10-28)
+
+The board's arming inputs reported the motor protocol as not enabled at every pass, a placeholder from when the arming
+logic reached the board before the motor outputs did (D388). The reason kept arming off after the DShot outputs
+arrived. The input now reports the protocol enabled when the board drives motor outputs, which it does for DShot150,
+DShot300 and DShot600, so arming follows the reference's other reasons. The reference enables every protocol it
+knows. A board set to PWM, OneShot, MultiShot, Brushed or ProShot1000 keeps the reason here and stays disarmed until
+those outputs are ported.

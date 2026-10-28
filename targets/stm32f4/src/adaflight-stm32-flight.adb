@@ -1735,7 +1735,7 @@ package body Adaflight.STM32.Flight is
       Sensed.Acc_Calibrated := Adaflight.Accelerometer.Calibration_Complete (Acc_State);
       Sensed.Acc_Has_Calibration := Config.Accelerometer_Config.Acc_Zero (3) /= 0;
       Sensed.First_Arm_Gyro_Cal_Running := Adaflight.Gyro_Filters.First_Arm_Calibration_Running (Gyro_State);
-      Sensed.Motor_Protocol_Enabled := False;
+      Sensed.Motor_Protocol_Enabled := Adaflight.STM32.Motors.Count > 0;
       Sensed.Late_Permille := Scheduler.CPU_Percentage_Late (Sched);
       Sensed.PID_Sums := Adaflight.STM32.Control.PID_Sums;
       for A in Adaflight.Axes.Axis loop
