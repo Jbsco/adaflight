@@ -105,6 +105,9 @@ package body Adaflight.Board_Info with SPARK_Mode is
          C.Pinio_Config.Config (I) := H.PINIO_Configs (I);
          C.Pinio_Box_Config.Permanent_Id (I) := H.PINIO_Boxes (I);
       end loop;
+      for I in Motor_Bytes'Range loop
+         C.Motor_Config.Dev.Io_Tags (I) := H.Motor_Tags (I);
+      end loop;
    end Reset_Config;
 
    procedure Persist_Information (C : in out Configuration; Board : in out State) is

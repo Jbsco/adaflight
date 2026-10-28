@@ -1,7 +1,6 @@
 --  The control loop on the board: the rate controller and the mixer with
 --  their settings from the stored configuration, run as the PID loop pass
---  over the units in the task's order. The motors have no driver yet, so
---  the outputs stop at the mixer and the replies.
+--  over the units in the task's order, with the mix written to the motors.
 with Interfaces;
 with Adaflight.Arming;
 with Adaflight.Axes;

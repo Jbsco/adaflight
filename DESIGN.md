@@ -10101,3 +10101,34 @@ when the box is on, and a pin changes only when its level does.
 
 The host's pins keep their levels, so the image runs the same code. The smoke check sets a USER1 range
 with the command line and finds the PINIO box task in the task list after the restart.
+
+## D418. STM32F4 DShot motors (2026-10-27)
+
+`Adaflight.STM32.Motors` drives the mixer's motors in DShot 150, 300 or 600 from the timers, with the
+frames of D58. Each motor's pin is the stored one at its place in the output order, and the board
+generator emits the board's motor pins, which the hardware defaults of D392 apply at a reset. The pin's
+timer channel is the occurrence the board's timer map names among the processor's timer outputs, in the
+order of the processor's timer table, and its DMA stream is the option the map names among the
+channel's streams. On the CLRacing F4 boards the four motors are TIM1 channel 2N on PB0, TIM8 channel
+3N on PB1, and TIM2 channels 4 and 3 on PA3 and PA2, on DMA2 streams 6 and 2 and DMA1 streams 6 and 1.
+A missing pin, map entry or stream leaves every motor undriven.
+
+The start configures each motor: the pin on the timer's alternate function at
+the 50 MHz speed with a pull-up, or a pull-down when inverted, the timer counting at the protocol's bit
+clock with twenty counts a bit when it is the timer just added, the channel in PWM mode 1 with its
+compare preload, the complementary output on for an N channel with the main output stage on, and the
+stream from memory to the channel's compare register with its FIFO. The writes start at the end of the
+flight software's start. A write converts each motor's value to its frame, loads the sixteen bits as
+seven or fourteen counts high, then two zero slots, and arms the motor's stream, then each timer
+restarts with its period reloaded and asks for the transfers. The reference ends each stream and the
+timer's request in the transfer complete interrupt. Here the next write ends them before it arms the
+stream, which leaves the pin's waveform the same, since a frame takes 30 microseconds and the loop
+runs every 125 or 250 microseconds.
+
+The mixer gets the motors' enables, the MSP motor configuration reply counts the mixer's motors, and
+the MSP motor reply gives each enabled motor's value in the external range, the stop at 1000 while
+disarmed. The configurator's motor test does not spin the motors yet, since the mixer sends the disarm
+output to every motor while disarmed. DShot commands, the bidirectional telemetry and the analog
+protocols are later steps. The host target keeps the motor path without timers, and the smoke check
+reads the motor count and the stop values over MSP. The branch waits for a bench check with the
+propellers off before it lands.

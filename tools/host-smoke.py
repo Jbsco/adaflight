@@ -373,6 +373,13 @@ def main():
             vcp.close()
             check("MSP status with the gyro", status is not None and len(status) > 5
                   and (status[4] | status[5] << 8) & 0x20 != 0)
+            motors = msp(sock, 131)
+            check("MSP motor configuration counts the mixer's four motors", motors is not None and len(motors) >= 7
+                  and motors[6] == 4, repr(motors))
+            outputs = msp(sock, 104)
+            check("MSP motor reply holds the DShot stop while disarmed",
+                  outputs is not None and len(outputs) == 16 and outputs == (1000).to_bytes(2, "little") * 4 + bytes(8),
+                  repr(outputs))
             sock.sendall(b"#")
             banner = read_all(sock, 0.8).decode(errors="replace")
             check("command line entered", "Entering CLI Mode" in banner, banner[:80])
