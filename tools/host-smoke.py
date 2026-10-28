@@ -679,14 +679,16 @@ def kiss_crc(data):
 
 class ESC(threading.Thread):
     """The ESCs' telemetry line on UART6's port: a ten byte frame every 30 ms with 42 degrees, 16.10 V,
-    2.50 A, 77 mAh and 345 hundred electrical revolutions per minute."""
+    2.50 A, 77 mAh and 345 hundred electrical revolutions per minute, the charge growing by one mAh every
+    tenth frame when growing is set."""
 
     FRAME = bytes([42]) + (1610).to_bytes(2, "big") + (250).to_bytes(2, "big") + (77).to_bytes(2, "big") \
         + (345).to_bytes(2, "big")
 
-    def __init__(self):
+    def __init__(self, growing=False):
         super().__init__(daemon=True)
         self.stop = threading.Event()
+        self.growing = growing
 
     def run(self):
         sock = None
@@ -698,12 +700,14 @@ class ESC(threading.Thread):
                 time.sleep(0.1)
         if sock is None:
             return
-        frame = self.FRAME + bytes([kiss_crc(self.FRAME)])
+        sent = 0
         while not self.stop.is_set():
+            body = self.FRAME[:5] + (77 + sent // 10).to_bytes(2, "big") + self.FRAME[7:] if self.growing else self.FRAME
             try:
-                sock.sendall(frame)
+                sock.sendall(body + bytes([kiss_crc(body)]))
             except OSError:
                 break
+            sent += 1
             time.sleep(0.03)
         sock.close()
 
@@ -2197,17 +2201,25 @@ def main():
         finally:
             stop(proc)
             sock.close()
-        esc = ESC()
+        esc = ESC(growing=True)
         proc, sock = start(image, store)
         esc.start()
         try:
-            time.sleep(8.0)
-            row = screen_row(store, 4)
-            whole = re.search(r"(\d+)\.(\d\d)WH", row)
-            milli = re.search(r"(\d+)MWH", row)
-            drawn = (int(whole.group(1)) * 1000 + int(whole.group(2)) * 10 if whole
-                     else int(milli.group(1)) if milli else 0)
-            check("OSD watt hours element shows the energy of the charge the ESCs report", drawn > 0, repr(row))
+            def milliwatt_hours():
+                row = screen_row(store, 4)
+                whole = re.search(r"(\d+)\.(\d\d)WH", row)
+                milli = re.search(r"(\d+)MWH", row)
+                return (int(whole.group(1)) * 1000 + int(whole.group(2)) * 10 if whole
+                        else int(milli.group(1)) if milli else 0)
+            deadline = time.time() + 20
+            first = 0
+            while first == 0 and time.time() < deadline:
+                time.sleep(0.5)
+                first = milliwatt_hours()
+            time.sleep(2.0)
+            second = milliwatt_hours()
+            check("OSD watt hours element counts the energy of the charge the ESCs report", 0 < first < second,
+                  repr((first, second, screen_row(store, 4))))
         finally:
             esc.stop.set()
             stop(proc)
@@ -2265,6 +2277,131 @@ def main():
                   repr(screen_row(store, 4)))
         finally:
             receiver.stop.set()
+            stop(proc)
+            sock.close()
+        store = os.path.join(work, "flightstate.bin")
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            for line in ("stats_total_flights = 7", "osd_displayport_device = MAX7456", "vcd_video_system = PAL",
+                         "osd_ready_mode_pos = 2177", "osd_total_flights_pos = 2209", "osd_flymode_pos = 2241"):
+                text = cli(sock, "set " + line)
+                check(f"flight state elements {line}", line.replace(" = ", " set to ") in text, text[-120:])
+            for line in ("aux 0 47 0 900 2100 0 0", "aux 1 53 0 900 2100 0 0"):
+                text = cli(sock, line)
+                check(f"flight state box range {line}", line in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store)
+        try:
+            check("OSD ready mode element shows READY with its box active and the craft disarmed",
+                  screen_wait(store, "READY "), repr(screen_row(store, 4)))
+            check("OSD total flights element shows the stored count", screen_row(store, 5)[1:4] == "#7 ",
+                  repr(screen_row(store, 5)))
+            check("OSD flight mode element shows ATRN with the acro trainer box active",
+                  screen_row(store, 6)[1:6] == "ATRN ", repr(screen_row(store, 6)))
+        finally:
+            stop(proc)
+            sock.close()
+        store = os.path.join(work, "vtxelement.bin")
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            for line in ("vtx_uart = UART6", "vtx_type = SMARTAUDIO", "vtx_band = 1", "vtx_channel = 1", "vtx_power = 1",
+                         "osd_displayport_device = MAX7456", "vcd_video_system = PAL", "osd_vtx_channel_pos = 2177"):
+                text = cli(sock, "set " + line)
+                check(f"transmitter element {line}", line.replace(" = ", " set to ") in text, text[-120:])
+            for line in ("vtxtable bands 1", "vtxtable channels 8",
+                         "vtxtable band 1 BOSCAM_A A FACTORY 5865 5845 5825 5805 5785 5765 5745 5725",
+                         "vtxtable powerlevels 2", "vtxtable powervalues 0 1", "vtxtable powerlabels 25 200"):
+                cli(sock, line)
+            text = cli(sock, "vtxtable")
+            check("transmitter element's table stored", "vtxtable band 1 BOSCAM_A A FACTORY 5865" in text, text[-200:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        vtx = SmartAudio()
+        proc, sock = start(image, store)
+        vtx.start()
+        try:
+            check("OSD transmitter element shows the SmartAudio device's band, channel and power label",
+                  screen_wait(store, "A:1:25 "), repr(screen_row(store, 4)))
+        finally:
+            vtx.stop.set()
+            stop(proc)
+            sock.close()
+        def row_wait(store, row, text, wait=10):
+            deadline = time.time() + wait
+            while time.time() < deadline:
+                if screen_row(store, row)[1:1 + len(text)] == text:
+                    return True
+                time.sleep(0.1)
+            return False
+
+        store = os.path.join(work, "names.bin")
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            for line in ("osd_displayport_device = MAX7456", "vcd_video_system = PAL"):
+                text = cli(sock, "set " + line)
+                check(f"names and messages {line}", line.replace(" = ", " set to ") in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            for item, pos in ((81, 2177), (8, 2209), (50, 2241)):
+                check(f"OSD element {item} placed over MSP", msp(sock, 85, bytes([item]) + pos.to_bytes(2, "little")) == b"")
+            check("OSD custom message element shows its placeholder while the message is empty",
+                  row_wait(store, 4, "CUSTOM_MSG1 "), repr(screen_row(store, 4)))
+            check("OSD craft name element shows its placeholder while the name is empty",
+                  row_wait(store, 5, "CRAFT_NAME "), repr(screen_row(store, 5)))
+            for kind, text in ((7, b"Hello pilot"), (2, b"quad one"), (1, b"jb")):
+                check(f"text {kind} written over MSP", msp2(sock, 0x3007, bytes([kind, len(text)]) + text) == b"")
+            check("OSD custom message element shows a message written while running",
+                  row_wait(store, 4, "Hello pilot "), repr(screen_row(store, 4)))
+            check("OSD craft name element shows a name written while running, in capitals",
+                  row_wait(store, 5, "QUAD ONE "), repr(screen_row(store, 5)))
+            check("OSD pilot name element shows a name written while running, in capitals",
+                  row_wait(store, 6, "JB "), repr(screen_row(store, 6)))
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "set osd_craftname_msgs = ON")
+            check("craft name messages on", "osd_craftname_msgs set to ON" in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            names = set()
+            deadline = time.time() + 10
+            while time.time() < deadline and not any(n.startswith("LQ ") for n in names):
+                reply = msp(sock, 10)
+                if reply is not None:
+                    names.add(reply.decode(errors="replace"))
+                time.sleep(0.1)
+            check("MSP name reply contains the warnings element's link quality with the craft name messages on",
+                  any(n.startswith("LQ ") for n in names), repr(sorted(names)[:6]))
+            check("OSD craft name element shows the warnings element's text with the craft name messages on",
+                  row_wait(store, 5, "LQ "), repr(screen_row(store, 5)))
+        finally:
             stop(proc)
             sock.close()
         store = os.path.join(work, "laps.bin")

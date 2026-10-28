@@ -630,9 +630,7 @@ package body Adaflight.STM32.OSD is
       Context.Draw.Craft_Name_Messages := O.Osd_Craftname_Msgs /= 0;
       Context.Draw.Inputs.Min_Cell := Min_Cell;
       Context.Draw.Inputs.Max_Cell := (if Max_Cell = Min_Cell then Min_Cell + 1 else Max_Cell);
-      Context.Draw.Inputs.Craft_Name := Name_Of (C.Pilot_Config.Craft_Name);
       Context.Draw.Inputs.Rescue_Min_Sats := C.Gps_Rescue_Config.Min_Sats;
-      Context.Draw.Inputs.Pilot_Name := Name_Of (C.Pilot_Config.Pilot_Name);
       Context.Spec_Settings := Adaflight.Config_Runtime.OSD_Spec_Settings_Of
         (C.Mixer_Config, C.Motor_Config, C.Control_Rate_Profiles (Rate), C.Pid_Profiles (PID),
          C.Battery_Profiles (Bat));
@@ -646,11 +644,6 @@ package body Adaflight.STM32.OSD is
       Context.Page.Timer_2 := O.Timers (1);
       Context.Page.Show_Cell_Value := O.Stat_Show_Cell_Value /= 0;
       Context.RTC_Variant := Adaflight.OSD_Elements.Variant (Context.Positions (Adaflight.OSD_Elements.RTC_Date_Time));
-      Task_Data.Craft := (others => Character'Val (0));
-      for K in 1 .. Adaflight.OSD_Render.Max_Name loop
-         exit when C.Pilot_Config.Craft_Name (C.Pilot_Config.Craft_Name'First + K - 1) = 0;
-         Task_Data.Craft (K) := Character'Val (C.Pilot_Config.Craft_Name (C.Pilot_Config.Craft_Name'First + K - 1));
-      end loop;
    end Configure;
 
    procedure Analyze_Again is
@@ -775,6 +768,10 @@ package body Adaflight.STM32.OSD is
       D.PIDs := F.PIDs;
       D.PID_Profile_Name := Name_Of (F.PID_Profile_Name);
       D.Rate_Profile_Name := Name_Of (F.Rate_Profile_Name);
+      D.Pilot_Name := Name_Of (F.Pilot_Name);
+      for M in D.Messages'Range loop
+         D.Messages (M) := Name_Of (F.Messages (M));
+      end loop;
       D.RSSI_Percent := F.RSSI_Percent;
       D.RSSI_Dbm := F.RSSI_Dbm;
       D.RSNR := F.RSNR;
@@ -828,6 +825,21 @@ package body Adaflight.STM32.OSD is
       D.Adjustment_Value := F.Adjustment_Value;
       D.Vario_Cm_S := F.Vario;
       D.Pos_Hold_Ready := F.Pos_Hold_Ready;
+      D.Crash_Flip := F.Crash_Flip_Active;
+      D.Upright := F.Upright;
+      D.Small_Angle := F.Small_Angle;
+      D.Ready_Box := F.Ready_Box;
+      D.Acro_Trainer_Box := F.Acro_Trainer_Box;
+      D.Antenna := F.Antenna;
+      D.Earth_Up := F.Earth_Up;
+      D.Total_Flights := F.Total_Flights;
+      D.VTX_Present := F.VTX_Present;
+      D.VTX_Status_OK := F.VTX_Status_OK;
+      D.VTX_Status := F.VTX_Status;
+      D.VTX_Power_OK := F.VTX_Power_OK;
+      D.VTX_Power_Index := F.VTX_Power_Index;
+      D.VTX_Control_Disable_Box := F.VTX_Disable_Box;
+      D.VTX := F.VTX_Table;
       D.Rescue_Configured := F.Rescue_Configured;
       D.GPS_Healthy := F.GPS.Healthy;
       D.Screen_Rows := Port.Rows;
@@ -977,6 +989,9 @@ package body Adaflight.STM32.OSD is
       Clock_Us : Unsigned_32;
       Draw_End : Unsigned_32;
    begin
+      for K in Task_Data.Craft'Range loop
+         Task_Data.Craft (K) := Character'Val (F.Craft_Name (F.Craft_Name'First + K - Task_Data.Craft'First));
+      end loop;
       Refresh (F, Now_Us);
       Answers.Grabbed := Grabbed;
       --  The MSP display port is always ready, never mid-transfer, and its
@@ -1014,4 +1029,13 @@ package body Adaflight.STM32.OSD is
          State_Us (State) := Time.Micros - Start;
       end if;
    end Run;
+
+   function Craft_Name return Adaflight.Config_Groups.Bytes_17 is
+      B : Adaflight.Config_Groups.Bytes_17;
+   begin
+      for K in B'Range loop
+         B (K) := Character'Pos (Task_Data.Craft (Task_Data.Craft'First + K - B'First));
+      end loop;
+      return B;
+   end Craft_Name;
 end Adaflight.STM32.OSD;

@@ -95,7 +95,8 @@ package Adaflight.STM32.Radio is
    function RSSI return Interfaces.Unsigned_16;
    --  The link's quality readings: the RSSI as a percentage, the RSSI in
    --  dBm, the signal to noise ratio, the link quality raw and as a
-   --  percentage, its source, the RF mode and the uplink power.
+   --  percentage, its source, the RF mode, the uplink power and the active
+   --  antenna.
    function RSSI_Percent return Interfaces.Unsigned_8;
    function RSSI_Dbm return Interfaces.Integer_16;
    function RSNR return Interfaces.Integer_16;
@@ -104,6 +105,7 @@ package Adaflight.STM32.Radio is
    function Link_Source return Adaflight.Receiver.Link_Quality_Source;
    function RF_Mode return Natural;
    function Uplink_Power_mW return Interfaces.Unsigned_16;
+   function Active_Antenna return Interfaces.Integer_8;
    --  The failsafe's check every ten milliseconds of the realtime block.
    --  The failsafe's check over what it reads in flight; Disarm says its
    --  landed stage asks for a disarm.

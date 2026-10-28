@@ -197,6 +197,31 @@ package body Adaflight.STM32.VTX is
 
    function Table return Adaflight.VTX_Table.Table is (T);
 
+   procedure OSD_Readings
+     (Present, Status_Known : out Boolean; Status : out Interfaces.Unsigned_8; Power_Known : out Boolean;
+      Power_Index : out Interfaces.Unsigned_8)
+   is
+      Pit    : Boolean := False;
+      Locked : Boolean := False;
+   begin
+      Present := V.Device_Present;
+      Status_Known := False;
+      Status := 0;
+      Power_Known := False;
+      Power_Index := 0;
+      if Present then
+         if V.Kind = Core.Tramp_Device then
+            Adaflight.Tramp.Get_Status (V.TR, Pit, Locked, Status_Known);
+         else
+            Core.Common_Get_Status (V, Pit, Status_Known);
+         end if;
+         if Status_Known then
+            Status := (if Pit then 1 else 0) + (if Locked then 2 else 0);
+         end if;
+         Core.Common_Get_Power_Index (V, T, Power_Index, Power_Known);
+      end if;
+   end OSD_Readings;
+
    function Status return Adaflight.MSP_VTX_Status_Out.Snapshot is
      (VTX_Common => True,
       Kind       =>
