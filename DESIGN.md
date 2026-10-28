@@ -11274,3 +11274,16 @@ and three bytes as four 32-bit integers. The sequences now take 8 bits per step,
 
 On the STM32F4 image the change removes 5788 bytes of text, from 634720 to 628932. The beeper and MAVLink vectors
 replay unchanged.
+
+## D492. Menu value names in a pool (2026-10-28)
+
+Sixteen menu name tables and the active elements table held their names as labels that calls built at elaboration:
+66 value names and 77 element names, each label 36 bytes of RAM, set by 2660 bytes of elaboration code. The names now
+sit in one text of 1092 characters. Each table holds a start and a length for each of its names, and `Pooled` builds
+the label when a menu line asks for it. The active elements table keeps each element beside its name's start and
+length, in flash.
+
+On the STM32F4 image the change removes 2384 bytes of text, from 628932 to 626548, and 5448 bytes of RAM. The menu
+runs recorded before replay unchanged. A new oracle run pages down through the active elements menu twice and turns
+every fifth element over, so the vectors now draw 137 of the 138 names. SmartAudio's offline status name is the one
+left out.
