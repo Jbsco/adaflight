@@ -67,6 +67,7 @@ with Adaflight.PID_Controller;
 with Adaflight.RC_Command;
 with Adaflight.Receiver;
 with Adaflight.RPM_Filter;
+with Adaflight.RunCam_Device;
 with Adaflight.RX_Task;
 with Adaflight.Scheduler;
 with Adaflight.Serial_Feature_Map;
@@ -94,6 +95,7 @@ with Adaflight.STM32.Gyro;
 with Adaflight.STM32.Pilot;
 with Adaflight.STM32.PINIO;
 with Adaflight.STM32.Radio;
+with Adaflight.STM32.RunCam;
 with Adaflight.STM32.RTC;
 with Adaflight.STM32.SD;
 with Adaflight.SD_Card_Types;
@@ -825,7 +827,7 @@ package body Adaflight.STM32.Flight is
       Options : constant Adaflight.Task_Init.Options :=
         (Accel => True, Beeper => True, Sag_Compensation => True, OSD => True, CMS => True, GPS => True,
          GPS_Rescue => True, Alt_Hold => True, Pos_Hold => True, Telemetry => True, VTX_Control => True,
-         VTX_Driver => True, PINIO_Box => True, ESC_Sensor => True, others => False);
+         VTX_Driver => True, PINIO_Box => True, ESC_Sensor => True, RC_Device => True, others => False);
       Inputs  : Adaflight.Task_Init.Inputs;
    begin
       Sched_Settings := Adaflight.Config_Runtime.Scheduler_Settings_Of
@@ -851,6 +853,7 @@ package body Adaflight.STM32.Flight is
       Inputs.Feature_ESC_Sensor := (Runtime_Features and Adaflight.Config_Fix.Feature_ESC_Sensor) /= 0;
       Inputs.Feature_Telemetry := (Runtime_Features and Adaflight.Config_Fix.Feature_Telemetry) /= 0;
       Inputs.PINIO_Box_Enabled := Adaflight.STM32.PINIO.Task_Enabled;
+      Inputs.RC_Device_Enabled := Adaflight.STM32.RunCam.Enabled;
       Inputs.OSD_Framerate_Hz :=
         Adaflight.Task_Init.Rate_Hz (Natural'Max (1, Natural (Config.Osd_Config.Framerate_Hz)));
       Inputs.OSD_Display_Port := Adaflight.STM32.OSD.Port_Present;
@@ -3137,6 +3140,42 @@ package body Adaflight.STM32.Flight is
       return Src;
    end Telemetry_Sources;
 
+   --  The camera task over the sticks, the camera boxes, the arming, the
+   --  menu and the attitude, with the beep a five key connection asks for.
+   procedure Run_RunCam is
+      Sticks   : constant Adaflight.RC_Command.Channel_Values := Flight_Channels;
+      Disabled : constant Adaflight.Arming.Disable_Set := Adaflight.STM32.Pilot.Disabled;
+      Sound    : Adaflight.RunCam_Device.Beep;
+   begin
+      Adaflight.STM32.RunCam.Run
+        ((Now_Ms          => Adaflight.STM32.Time.Millis,
+          Armed           => Adaflight.STM32.Pilot.Armed,
+          Blocked         =>
+            Disabled (Adaflight.Arming.Runaway_Disarm) or else Disabled (Adaflight.Arming.Crash_Disarm),
+          Menu_Open       => Adaflight.STM32.Menu.Open,
+          Sticks_Disabled => Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Stick_Command_Disable),
+          Camera          =>
+            (Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Camera_1),
+             Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Camera_2),
+             Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Camera_3)),
+          Throttle        => Sticks (Adaflight.RC_Command.Throttle_Channel),
+          Roll            => Sticks (0),
+          Pitch           => Sticks (1),
+          Yaw             => Sticks (2),
+          Att_Roll        => Integer_16 (Att_State.Euler.Roll),
+          Att_Pitch       => Integer_16 (Att_State.Euler.Pitch),
+          Att_Yaw         => Integer_16 (Att_State.Euler.Yaw)),
+         Sound);
+      case Sound is
+         when Adaflight.RunCam_Device.Connection_Open =>
+            Request_Beep (Adaflight.Beeper.Camera_Open);
+         when Adaflight.RunCam_Device.Connection_Close =>
+            Request_Beep (Adaflight.Beeper.Camera_Close);
+         when Adaflight.RunCam_Device.No_Beep =>
+            null;
+      end case;
+   end Run_RunCam;
+
    procedure Run_Telemetry (Now_Us : Scheduler.Time_Us) is
    begin
       Telemetry_Step (Now_Us, Telemetry_Sources);
@@ -3195,6 +3234,8 @@ package body Adaflight.STM32.Flight is
             Run_Position_Hold;
          when Scheduler.GPS_Rescue =>
             Tasks.GPS_Rescue (Inputs);
+         when Scheduler.RC_Device =>
+            Run_RunCam;
          when Scheduler.ESC_Sensor =>
             Adaflight.STM32.ESC_Sensor.Run (Before, Adaflight.STM32.Control.Motor_Count);
          when Scheduler.Telemetry =>
@@ -3321,6 +3362,7 @@ package body Adaflight.STM32.Flight is
             Write_Configuration;
          end if;
       end;
+      Adaflight.STM32.RunCam.Init (Config, Adaflight.STM32.Time.Millis);
       Ctx.Out_Views.State.Status.Sensors (Adaflight.MSP_Out.GPS) := Adaflight.STM32.GPS.Enabled;
       Pilot_Facts := (Sensors        => (Gyro => Selection.Found, Acc => Gyro_Report.Acc_Found, others => False),
                       Sample_Time_Us => Natural (Sample_Us),

@@ -36,11 +36,11 @@ Silver with no assume, and pass the gates on `main`.
   menu system on the MAX7456 chip on SPI3, reads a GPS module and the ESC sensor on UARTs, estimates
   its altitude and position from the accelerometer and the GPS with its heading from the GPS course,
   holds them in the altitude and position hold modes, flies the GPS rescue home, writes its flight log
-  to the SD card, the flash chip or a serial port, controls a SmartAudio or Tramp video transmitter on
-  a UART, sends FrSky hub, SmartPort, LTM, MAVLink and iBus telemetry on a UART, drives its PINIO
-  output from a mode box, keeps the clock the configurator or the GPS sets, and keeps its
-  configuration in flash. `targets/host` runs the same flight software on the host with its UARTs and
-  USB port on TCP ports. Then F7 and H7, then the other families Betaflight runs on, and a physics
+  to the SD card, the flash chip or a serial port, controls a SmartAudio or Tramp video transmitter
+  and a RunCam camera on UARTs, sends FrSky hub, SmartPort, LTM, MAVLink and iBus telemetry on a UART,
+  drives its PINIO output from a mode box, keeps the clock the configurator or the GPS sets, and keeps
+  its configuration in flash. `targets/host` runs the same flight software on the host with its UARTs
+  and USB port on TCP ports. Then F7 and H7, then the other families Betaflight runs on, and a physics
   simulator link for the host target. Drivers for SPI, I2C, DMA, timers, USB, flash, SD card, DShot.
 - Phase 8, open. Tooling. The configurator as the adaflight-configurator repository, the upstream
   configurator with adaflight's changes, starting with the firmware variant. A native Linux flashing

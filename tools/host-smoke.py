@@ -309,6 +309,42 @@ class SerialReceiver(threading.Thread):
             sock.close()
 
 
+class Camera(threading.Thread):
+    """A RunCam camera on UART4's port: answers each device information request with protocol 1.0 and the
+    power, WiFi and mode buttons, and keeps every packet the flight controller sends."""
+
+    def __init__(self):
+        super().__init__(daemon=True)
+        self.stop = threading.Event()
+        self.received = b""
+
+    def run(self):
+        sock = None
+        deadline = time.time() + 10
+        while sock is None and time.time() < deadline and not self.stop.is_set():
+            try:
+                sock = socket.create_connection(("127.0.0.1", GPS_PORT), timeout=1)
+            except OSError:
+                time.sleep(0.1)
+        if sock is not None:
+            sock.settimeout(0.02)
+        info = bytes([0xCC, 0x00, crc8_dvb_s2(bytes([0xCC, 0x00]))])
+        answered = 0
+        while sock is not None and not self.stop.is_set():
+            try:
+                self.received += sock.recv(4096)
+            except socket.timeout:
+                pass
+            except OSError:
+                break
+            if self.received.count(info) > answered:
+                answered += 1
+                reply = bytes([0xCC, 0x01, 0x07, 0x00])
+                sock.sendall(reply + bytes([crc8_dvb_s2(reply)]))
+        if sock is not None:
+            sock.close()
+
+
 class Receiver(threading.Thread):
     """Sends CRSF frames on UART3's port at 50 Hz: roll, pitch and yaw at mid, throttle low."""
 
@@ -1425,6 +1461,44 @@ def main():
                   and reply[2] == serial and reply[3], repr(replies[:2]))
         finally:
             receiver.stop.set()
+            stop(proc)
+            sock.close()
+        store = os.path.join(work, "runcam.bin")
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "set rcdevice_uart = UART4")
+            check("RunCam port assigned", "rcdevice_uart set to UART4" in text, text[-120:])
+            text = cli(sock, "set rx_uart = UART3")
+            check("receiver port assigned for the camera switch", "rx_uart set to UART3" in text, text[-120:])
+            cli(sock, "aux 0 32 0 1700 2100 0 0")
+            text = cli(sock, "aux")
+            check("camera control 1 on AUX1", "aux 0 32 0 1700 2100 0 0" in text, text[-200:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        camera = Camera()
+        camera.start()
+        proc, sock = start(image, store)
+        receiver = Receiver()
+        receiver.start()
+        try:
+            time.sleep(3.0)
+            info = bytes([0xCC, 0x00, crc8_dvb_s2(bytes([0xCC, 0x00]))])
+            check("RunCam device asks the camera for its device information", camera.received.startswith(info),
+                  repr(camera.received[:20]))
+            receiver.channels[4] = 1811
+            time.sleep(0.6)
+            press = bytes([0xCC, 0x01, 0x00])
+            check("camera control 1 presses the camera's WiFi button once",
+                  camera.received.count(press + bytes([crc8_dvb_s2(press)])) == 1, repr(camera.received[:40]))
+        finally:
+            receiver.stop.set()
+            camera.stop.set()
             stop(proc)
             sock.close()
         store = os.path.join(work, "ghsttlm.bin")
