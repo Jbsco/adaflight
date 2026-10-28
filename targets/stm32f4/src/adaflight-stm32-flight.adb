@@ -1425,7 +1425,8 @@ package body Adaflight.STM32.Flight is
          Throttle_Low => Adaflight.STM32.Pilot.Throttle_Low (Flight_Channels),
          Motor_Stop   => (Runtime_Features and Adaflight.Config_Fix.Feature_Motor_Stop) /= 0,
          Throttle     => Float'Max (0.0, Float'Min (1.0, Adaflight.STM32.Control.Throttle)),
-         Now_Ms       => Adaflight.STM32.Time.Millis);
+         Now_Ms       => Adaflight.STM32.Time.Millis,
+         Supply_Mv    => 3_300);
    begin
       if M.ESC_Sensor then
          declare

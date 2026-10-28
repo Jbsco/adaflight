@@ -11047,3 +11047,17 @@ The host smoke check places the custom message, craft name and pilot name elemen
 both names over MSP while the image runs, and finds them on the screen. It then turns the craft name messages on
 and finds the link quality text in the MSP name reply and in the craft name element. The previous image keeps the
 placeholders after the writes and replies with the stored craft name.
+
+## D476. Battery meters at the measured supply (2026-10-27)
+
+The battery's analog voltage and current meters scale their counts by the analog supply in millivolts,
+given with the other meter inputs. The core had used a fixed 3300 mV. On the STM32F4 the reference measures
+the supply through the internal reference channel (D477) and scales both meters by the measured value.
+The supply input ranges from 0 to 16000 mV, which keeps the current within its centiampere range at every
+current scale. The voltage product wraps in 32 bits as the reference's does.
+
+The battery generator draws the supply each step from its own random stream, so the other draws stay as they
+were: 3300 mV in every fifth sequence, else a level from 2900 to 3600 mV with a 15 mV jitter, and in one
+sequence kind a reading anywhere up to 16000 mV one step in 40. The sequences at 3300 mV replay the earlier
+vectors line for line with the supply column added. Every voltage, current, state, energy and percentage of
+the regenerated battery, sag and event vectors replays bit for bit.
