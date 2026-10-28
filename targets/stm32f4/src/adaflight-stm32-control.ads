@@ -78,6 +78,7 @@ package Adaflight.STM32.Control is
    function Terms (A : Adaflight.Axes.Axis) return Adaflight.PID_Controller.Terms;
    function Previous_Setpoint (A : Adaflight.Axes.Axis) return Float;
    function Output_Low return Float;
+   function Disarm_Output return Float;
    function Output_High return Float;
    --  Whether the controller's crash recovery runs, which the failsafe reads.
    function Crash_Recovery_Active return Boolean;

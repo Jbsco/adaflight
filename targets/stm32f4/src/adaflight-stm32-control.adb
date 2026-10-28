@@ -242,6 +242,8 @@ package body Adaflight.STM32.Control is
 
    function Output_Low return Float is (Mix_Config.Output_Low);
 
+   function Disarm_Output return Float is (Mix_Config.Disarm_Output);
+
    function Output_High return Float is (Mix_Config.Output_High);
 
    function Crash_Recovery_Active return Boolean is (Adaflight.PID_Controller.Crash_Recovery_Active (Ctl));

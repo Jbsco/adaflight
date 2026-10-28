@@ -20,6 +20,7 @@ with Adaflight.Config_Codec;
 with Adaflight.Config_Fix;
 with Adaflight.DShot;
 with Adaflight.DShot_Command;
+with Adaflight.ESC_Sensor;
 with Adaflight.Config_Groups;
 with Adaflight.Config_Reset;
 with Adaflight.Config_Runtime;
@@ -58,6 +59,7 @@ with Adaflight.STM32.Blackbox;
 with Adaflight.STM32.Console;
 with Adaflight.STM32.Control;
 with Adaflight.STM32.DShot_Output;
+with Adaflight.STM32.ESC_Sensor;
 with Adaflight.STM32.Flash;
 with Adaflight.STM32.Flash_Chip;
 with Adaflight.STM32.GPIO;
@@ -660,7 +662,8 @@ package body Adaflight.STM32.Flight is
    procedure Init_Scheduler is
       Options : constant Adaflight.Task_Init.Options :=
         (Accel => True, Beeper => True, Sag_Compensation => True, OSD => True, CMS => True, GPS => True,
-         Telemetry => True, VTX_Control => True, VTX_Driver => True, PINIO_Box => True, others => False);
+         Telemetry => True, VTX_Control => True, VTX_Driver => True, PINIO_Box => True, ESC_Sensor => True,
+         others => False);
       Inputs  : Adaflight.Task_Init.Inputs;
    begin
       Sched_Settings := Adaflight.Config_Runtime.Scheduler_Settings_Of
@@ -683,6 +686,7 @@ package body Adaflight.STM32.Flight is
       Inputs.Acc_Sample_Rate_Hz := Gyro_Report.Acc_Sample_Rate_Hz;
       Inputs.Feature_OSD := (Runtime_Features and Adaflight.Config_Fix.Feature_OSD) /= 0;
       Inputs.Feature_GPS := (Runtime_Features and Adaflight.Config_Fix.Feature_GPS) /= 0;
+      Inputs.Feature_ESC_Sensor := (Runtime_Features and Adaflight.Config_Fix.Feature_ESC_Sensor) /= 0;
       Inputs.Feature_Telemetry := (Runtime_Features and Adaflight.Config_Fix.Feature_Telemetry) /= 0;
       Inputs.PINIO_Box_Enabled := Adaflight.STM32.PINIO.Task_Enabled;
       Inputs.OSD_Framerate_Hz :=
@@ -913,6 +917,8 @@ package body Adaflight.STM32.Flight is
       Env.Motors := Adaflight.STM32.Control.Motor_Count;
       Env.Motor_Device := Adaflight.STM32.Motors.Device;
       Env.DShot_Protocol := Adaflight.STM32.DShot_Output.Protocol_Is_DShot;
+      Env.ESC_Sensor := Adaflight.STM32.ESC_Sensor.Feature_On;
+      Ctx.Out_Views.State.ESC := Adaflight.STM32.ESC_Sensor.Values (Adaflight.STM32.Control.Motor_Count);
       declare
          Count          : Natural;
          Levels, Powers : Adaflight.SmartAudio.Level_Values;
@@ -974,7 +980,8 @@ package body Adaflight.STM32.Flight is
          for L in MSP_Line loop
             if L /= Line_UART1
               or else not (Adaflight.STM32.Blackbox.Holds (Adaflight.STM32.USART.UART1)
-                           or else Adaflight.STM32.VTX.Holds (Adaflight.STM32.USART.UART1))
+                           or else Adaflight.STM32.VTX.Holds (Adaflight.STM32.USART.UART1)
+                           or else Adaflight.STM32.ESC_Sensor.Holds (Adaflight.STM32.USART.UART1))
             then
                Take_Line (L);
                Serve_MSP (L, Evaluate_Other_Data);
@@ -1125,17 +1132,34 @@ package body Adaflight.STM32.Flight is
    function Analog (Channel : Adaflight.Config_Groups.Adc_Channel_Config_T_Record) return Natural is
      (if Analog_Input (Channel) then Natural (Adaflight.STM32.ADC.Read (Pin_Of (Channel.Io_Tag))) else 0);
 
-   --  What the battery's other meters read: the arming, the throttle status
-   --  with the motor stop feature and the mixer's throttle for the virtual
-   --  meter.
+   --  What the battery's other meters read: the ESC sensor's reading over
+   --  every motor, the arming, the throttle status with the motor stop
+   --  feature and the mixer's throttle for the virtual meter.
    function Meters return Adaflight.Battery.Meter_Inputs is
-     (ESC_Sensor   => False,
-      ESC          => <>,
-      Armed        => Adaflight.STM32.Pilot.Armed,
-      Throttle_Low => Adaflight.STM32.Pilot.Throttle_Low (Flight_Channels),
-      Motor_Stop   => (Runtime_Features and Adaflight.Config_Fix.Feature_Motor_Stop) /= 0,
-      Throttle     => Float'Max (0.0, Float'Min (1.0, Adaflight.STM32.Control.Throttle)),
-      Now_Ms       => Adaflight.STM32.Time.Millis);
+      M : Adaflight.Battery.Meter_Inputs :=
+        (ESC_Sensor   => Adaflight.STM32.ESC_Sensor.Feature_On,
+         ESC          => <>,
+         Armed        => Adaflight.STM32.Pilot.Armed,
+         Throttle_Low => Adaflight.STM32.Pilot.Throttle_Low (Flight_Channels),
+         Motor_Stop   => (Runtime_Features and Adaflight.Config_Fix.Feature_Motor_Stop) /= 0,
+         Throttle     => Float'Max (0.0, Float'Min (1.0, Adaflight.STM32.Control.Throttle)),
+         Now_Ms       => Adaflight.STM32.Time.Millis);
+   begin
+      if M.ESC_Sensor then
+         declare
+            C     : Adaflight.ESC_Sensor.Reading;
+            Bound : constant := 2 ** 23;
+         begin
+            Adaflight.STM32.ESC_Sensor.Combined (Adaflight.STM32.Control.Motor_Count, C);
+            M.ESC :=
+              (Data_Age    => Natural (C.Data_Age),
+               Voltage     => Natural (C.Voltage),
+               Current     => Integer_32'Max (-Bound, Integer_32'Min (Bound, C.Current)),
+               Consumption => Integer_32'Max (-Bound, Integer_32'Min (Bound, C.Consumption)));
+         end;
+      end if;
+      return M;
+   end Meters;
 
    procedure Run_Battery_Voltage is
    begin
@@ -1766,8 +1790,17 @@ package body Adaflight.STM32.Flight is
       F.Motors := Motors;
       for I in 0 .. Motors - 1 loop
          F.Motor_Output (I) := Float'Min (3_000.0, Outputs (I));
+         F.Motor_Active (I) := Outputs (I) > Adaflight.STM32.Control.Disarm_Output;
       end loop;
       F.Motors_Running := Adaflight.STM32.Control.Motors_Running;
+      F.ESC_Feature := Adaflight.STM32.ESC_Sensor.Feature_On;
+      if F.ESC_Feature then
+         F.ESC_Erpm_To_Hz := Float'Min (1.0, Adaflight.STM32.ESC_Sensor.Erpm_Factor);
+         Adaflight.STM32.ESC_Sensor.Combined (Adaflight.STM32.Control.Motor_Count, F.ESC_Combined);
+         for M in F.ESC_Motors'Range loop
+            F.ESC_Motors (M) := Adaflight.STM32.ESC_Sensor.Motor_Reading (M);
+         end loop;
+      end if;
       F.PID_Index := Config.System_Config.Pid_Profile_Index;
       F.Rate_Index := Config.System_Config.Active_Rate_Profile;
       Adaflight.STM32.OSD.Run (F, Before, Sched);
@@ -2058,6 +2091,8 @@ package body Adaflight.STM32.Flight is
             Run_Menu (Before);
          when Scheduler.GPS =>
             Run_GPS (Before);
+         when Scheduler.ESC_Sensor =>
+            Adaflight.STM32.ESC_Sensor.Run (Before, Adaflight.STM32.Control.Motor_Count);
          when Scheduler.Telemetry =>
             Tasks.Telemetry (Inputs, Before);
          when Scheduler.PINIO_Box =>
@@ -2147,6 +2182,7 @@ package body Adaflight.STM32.Flight is
       Boot_Beeps;
       Adaflight.STM32.Radio.Init (Config, Runtime_Features, Adaflight.STM32.Time.Millis, Telemetry_Config);
       Adaflight.STM32.GPS.Init (Config, Runtime_Features, Adaflight.STM32.Time.Millis);
+      Adaflight.STM32.ESC_Sensor.Init (Config, Runtime_Features);
       declare
          Save : Boolean;
       begin

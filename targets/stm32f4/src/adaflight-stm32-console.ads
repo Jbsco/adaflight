@@ -1,10 +1,11 @@
 --  The command line over the board's serial ports and its terminal, with the
---  DShot commands through the motors' DShot output, the flash tools on the
---  flash chip and the waits on the board's clock. The board's ESC information
---  reads, passthrough starts and gyro register reads are the core's units
---  that do nothing until their drivers land.
+--  DShot commands through the motors' DShot output, the ESC information
+--  reads on the ESC sensor, the flash tools on the flash chip and the waits
+--  on the board's clock. The board's passthrough starts and gyro register
+--  reads are the core's units that do nothing until their drivers land.
 with Adaflight.CLI_Board_Steps;
 with Adaflight.STM32.DShot_Output;
+with Adaflight.STM32.ESC_Sensor;
 with Adaflight.STM32.Flash_Chip;
 with Adaflight.Command_Line;
 with Adaflight.Command_Line.Terminal;
@@ -19,8 +20,8 @@ package Adaflight.STM32.Console is
       DShot_Write            => Adaflight.STM32.DShot_Output.Write_Blocking,
       Motors_Disable         => Adaflight.STM32.DShot_Output.Disable,
       Motors_Enable          => Adaflight.STM32.DShot_Output.Enable,
-      ESC_Read_Start         => Adaflight.CLI_Board_Steps.ESC_Read_Start,
-      ESC_Read_Bytes         => Adaflight.CLI_Board_Steps.ESC_Read_Bytes,
+      ESC_Read_Start         => Adaflight.STM32.ESC_Sensor.Info_Read_Start,
+      ESC_Read_Bytes         => Adaflight.STM32.ESC_Sensor.Info_Read_Bytes,
       Delay_Ms               => Adaflight.STM32.Time.Delay_Ms,
       ESC_Passthrough        => Adaflight.CLI_Board_Steps.ESC_Passthrough,
       GPS_Passthrough        => Adaflight.CLI_Board_Steps.GPS_Passthrough,

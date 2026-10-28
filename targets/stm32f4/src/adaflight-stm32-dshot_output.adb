@@ -146,6 +146,13 @@ package body Adaflight.STM32.DShot_Output is
       Blocking_Commands.Run (Queue, T, Plan);
    end Write_Command;
 
+   procedure Request_Telemetry (Index : Natural) is
+   begin
+      if Index <= Motor_Index'Last then
+         Requests (Index) := True;
+      end if;
+   end Request_Telemetry;
+
    procedure Write_Blocking (Index : Natural; Motors : Natural; Command : Interfaces.Unsigned_8) is
    begin
       Write_Command (Interfaces.Unsigned_8 (Natural'Min (Index, 255)), Motors, Command, Blocking);
