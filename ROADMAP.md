@@ -31,7 +31,7 @@ Silver with no assume, and pass the gates on `main`.
   and the command line on its USB port and UART1, runs the scheduler with the gyro, filter,
   accelerometer, attitude and receiver tasks over SPI1 and a CRSF receiver on a UART with its
   telemetry, the arming logic and the modes, runs the rate controller and the mixer with the motors
-  in DShot from the timers, measures the battery, drives the beeper, draws the OSD and runs the menu
+  in DShot from the timers and their DShot commands, measures the battery, drives the beeper, draws the OSD and runs the menu
   system on the MAX7456 chip on SPI3, reads a GPS module on a UART, writes its flight log to the SD
   card, the flash chip or a serial port, controls a SmartAudio or Tramp video transmitter on a UART,
   drives its PINIO output from a mode box, keeps the clock the configurator or the GPS sets, and
@@ -65,5 +65,5 @@ Each Betaflight source area at commit af0638839, the commit the vectors were rec
 - **rx**: ported, apart from the KN receiver, which no build compiles
 - **pg, config, cli, msp**: ported, apart from the parameter groups and the remaining commands
 - **blackbox, osd, cms, telemetry, io**: ported, with the remaining parts in Phase 6
-- **drivers, target, build, msc**: sensor, radio, OSD chip, display, flash and SD card drivers and the DShot protocol ported, with the bus, timer, DMA, UART and USB drivers in Phase 7
+- **drivers, target, build, msc**: sensor, radio, OSD chip, display, flash and SD card drivers and the DShot protocol and its command queue ported, with the bus, timer, DMA, UART and USB drivers in Phase 7
 - **platform** (STM32, AT32, APM32, PICO, ESP32, SITL): Phase 7
