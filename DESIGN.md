@@ -11006,3 +11006,44 @@ The OSD task oracle now draws the aux value element with a random symbol and aux
 the start of each sequence, and the regenerated osdtask vectors check it. Without the draw context's aux value,
 98 of their draw checks fail. The OSD task unit proved with 89 checks and no assumption. The host smoke check
 holds AUX1 at full deflection from a CRSF receiver emulator and finds `A200` on the MAX7456 screen.
+
+## D473. STM32F4 OSD flight state elements (2026-10-27)
+
+The OSD's flight state inputs that the board had left at their defaults now come from the flight. The READY
+element reads the ready box, and the flight mode element's ATRN reads the acro trainer box. The flights element
+reads the stored total flights. The crash flip arrow reads the crash flip state, whether the craft is upright and
+the small angle. The up and down reference reads the earth's up in the body frame, the attitude rotation's up
+row. The RSSI dBm element reads the CRSF link's active antenna. Whether the craft is upright is one function now,
+which the arming checks and the flight log read as well.
+
+The host smoke check puts the two boxes on AUX1 and stores seven flights, and finds READY, #7 and ATRN on the
+screen. The previous image shows no READY, #0 and AIR. The crash flip arrow, the up and down reference and the
+antenna need a tilted craft or a CRSF link's statistics, which the host check does not provide.
+
+## D474. STM32F4 OSD video transmitter element (2026-10-27)
+
+The OSD's transmitter channel element reads the transmitter through the board now: whether a device is present,
+its status word when the device answers, its power index when the device knows it, the VTX table and the
+transmitter control disable box. The status word holds the pit mode in bit 0 and, for Tramp, the race lock in
+bit 1. It comes from the common status query, apart from Tramp, whose race lock only its driver reports. The
+board had left these inputs at their defaults, so the element showed question marks with any device.
+
+The host smoke check stores a one-band VTX table with band 1, channel 1 and the first power level, runs the
+SmartAudio emulator, and finds A:1:25 on the screen. The previous image shows ?:?:?.
+
+## D475. STM32F4 OSD names and custom messages (2026-10-27)
+
+The OSD reads the pilot name and the four custom messages from the stored configuration at each frame, and its
+craft name buffer starts each task state from the stored craft name. The board had set the names only when it
+configured the OSD: at boot, after a menu change and after an MSP write of an element or a profile. A name written
+over MSP showed only after the next of these, and the custom message elements never got their text.
+
+With the craft name messages on, the warnings element writes its text into the craft name buffer, and the craft
+name element draws from that buffer. The flight now writes the buffer back into the stored craft name after each
+state, so the MSP name reply, the command line and the flight log header show the warnings text too, and a save
+stores it.
+
+The host smoke check places the custom message, craft name and pilot name elements over MSP, writes a message and
+both names over MSP while the image runs, and finds them on the screen. It then turns the craft name messages on
+and finds the link quality text in the MSP name reply and in the craft name element. The previous image keeps the
+placeholders after the writes and replies with the stored craft name.

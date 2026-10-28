@@ -16,6 +16,7 @@ with Adaflight.OSD_Task;
 with Adaflight.Scheduler;
 with Adaflight.STM32.GPS;
 with Adaflight.STM32.USART;
+with Adaflight.VTX_Table;
 package Adaflight.STM32.OSD is
    use type Interfaces.Integer_16;
    use type Interfaces.Integer_32;
@@ -65,15 +66,15 @@ package Adaflight.STM32.OSD is
    function Font_Write_Taken return Boolean;
    procedure Write_Font (Address : Interfaces.Unsigned_16; Data : Adaflight.MSP_Font_In.Character_Data);
 
-   --  What the OSD reads from the flight at a frame: the arming and its
-   --  reasons, the failsafe, the boxes and flight modes, the attitude in
-   --  decidegrees, the acceleration in g, the throttle and the sticks, the
-   --  RSSI and the link's quality, the battery in centivolts, centiamps, milliamp hours and watt hours, the
-   --  motors with their outputs and range, which of them run above the disarm output, the ESC
-   --  sensor's readings over every motor and for each one, the profiles with
-   --  their names and the PID profile's gains, the
-   --  estimated altitude and climb rate, the rangefinder's altitude, the custom text, the lap timer with its clock, the
-   --  adjustment shown with its value, the flight log's box and device, and the flight totals.
+   --  What the OSD reads from the flight at a frame: the arming and its reasons, the failsafe, the boxes and
+   --  flight modes, the attitude in decidegrees with whether the craft is upright, the small angle and the
+   --  earth's up in the body frame, the acceleration in g, the throttle and the sticks, the RSSI, the link's
+   --  quality and the active antenna, the battery in centivolts, centiamps, milliamp hours and watt hours,
+   --  the motors with their outputs and range, which of them run above the disarm output, the ESC sensor's
+   --  readings over every motor and for each one, the profiles with their names and the PID profile's gains,
+   --  the estimated altitude and climb rate, the rangefinder's altitude, the custom text, the lap timer with
+   --  its clock, the adjustment shown with its value, the flight log's box and device, the video transmitter's
+   --  presence, status, power index and table with its control disable box, and the flight totals.
    type Motor_Flags is array (Adaflight.OSD_Render.Motor_Index) of Boolean;
    type Facts is record
       Armed             : Boolean := False;
@@ -88,6 +89,19 @@ package Adaflight.STM32.OSD is
       Anti_Gravity      : Boolean := False;
       Crash_Flip_Box    : Boolean := False;
       Crash_Flip_Active : Boolean := False;
+      Upright           : Boolean := True;
+      Small_Angle       : Interfaces.Unsigned_8 := 25;
+      Ready_Box         : Boolean := False;
+      Acro_Trainer_Box  : Boolean := False;
+      Antenna           : Interfaces.Integer_8 := 0;
+      Earth_Up          : Adaflight.OSD_Render.Axis_Vector := (others => 0.0);
+      VTX_Present       : Boolean := False;
+      VTX_Status_OK     : Boolean := False;
+      VTX_Status        : Interfaces.Unsigned_8 := 0;
+      VTX_Power_OK      : Boolean := False;
+      VTX_Power_Index   : Interfaces.Unsigned_8 := 0;
+      VTX_Disable_Box   : Boolean := False;
+      VTX_Table         : Adaflight.VTX_Table.Table;
       Launch_Control    : Boolean := False;
       Acc_Present       : Boolean := False;
       G_Force           : Float range 0.0 .. 100.0 := 0.0;
@@ -136,6 +150,9 @@ package Adaflight.STM32.OSD is
       PIDs              : Adaflight.OSD_Render.PID_Axes;
       PID_Profile_Name  : Adaflight.Config_Groups.Bytes_9 := (others => 0);
       Rate_Profile_Name : Adaflight.Config_Groups.Bytes_9 := (others => 0);
+      Craft_Name        : Adaflight.Config_Groups.Bytes_17 := (others => 0);
+      Pilot_Name        : Adaflight.Config_Groups.Bytes_17 := (others => 0);
+      Messages          : Adaflight.Config_Groups.Bytes_17_List_4 := (others => (others => 0));
       Altitude_Cm       : Interfaces.Integer_32 range -40_000_000 .. 40_000_000 := 0;
       Rangefinder_Cm    : Interfaces.Integer_32 := 0;
       Custom_Text       : Adaflight.OSD_Render.Custom_Text;
@@ -170,4 +187,8 @@ package Adaflight.STM32.OSD is
    --  One state of the OSD task: the display's answers for the state taken
    --  first, then the state, then its operations done on the display.
    procedure Run (F : Facts; Now_Us : Interfaces.Unsigned_32; Sched : in out Adaflight.Scheduler.State);
+
+   --  The craft name as the last state left it, written by the warnings
+   --  element with the craft name messages on.
+   function Craft_Name return Adaflight.Config_Groups.Bytes_17;
 end Adaflight.STM32.OSD;
