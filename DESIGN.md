@@ -10954,3 +10954,38 @@ default, from the display port frames. A close brings the screen's clear frame. 
 command and a close then show the menu on the OSD and the OSD drawing its elements again. With the transmitter's
 display registered, a menu stick command held past its 500 ms pause moves the menu on to the next display, so the
 smoke check's stick commands hold for 0.3 s.
+
+## D469. STM32F4 OSD PID and profile name elements (2026-10-27)
+
+The OSD's roll, pitch and yaw PID elements and its PID and rate profile name elements read the current profiles.
+Each OSD frame takes the current PID profile's P, I, D, D max and feedforward gains for the three axes and the
+names of the current PID and rate profiles from the live configuration, so an adjustment, an MSP write or a
+profile change shows at the next frame. The board had left these inputs at their defaults, so a placed PID
+element showed zeros and a named profile showed its number.
+
+The host smoke check sets distinctive roll gains and both profile names, places the three elements, and finds
+`ROL  47  83  31  42 125`, `SNAPPY` and `FREESTYL` on the screen. The previous image shows zeros, `PID_1` and
+`RATE_1`.
+
+## D470. STM32F4 OSD watt hours drawn (2026-10-27)
+
+The OSD's watt hours element and the statistics page's used watt hours read the battery's energy drawn, which the
+battery adds up from each change of the drawn charge times the battery voltage. The board had left both inputs at
+zero. The element's range starts at zero, so an energy below zero, from a current sensor reading below zero,
+shows as zero.
+
+The host smoke check takes the battery's voltage and current from the ESC sensor, whose emulator reports 16.1 V
+and 77 mAh drawn per ESC, and finds a nonzero energy on the element. The previous image shows 0 mWh. The value
+depends on the filtered voltage when the ESCs' charge first arrives, so the check asks for a nonzero energy only.
+
+## D471. STM32F4 OSD flight log status (2026-10-27)
+
+The OSD's log status element shows while the flight log box is active, and the board now gives it the box and
+the log device's state. The device works as a serial port while the log holds it open, as an SD card that is
+inserted and working with its file system ready, and as a flash chip that is ready. The element shows an
+exclamation mark for a device that does not work, a greater-than sign for a full one, and else the largest log
+file number on an SD card. The device's state is read only while the box is active, so the flash chip's ready
+check runs only then. The board had left these inputs unset, so the element never showed.
+
+The host smoke check logs to an SD card image with the box on AUX1 over its whole range, and finds log number 1
+beside the log symbol once the card's log opens. The previous image leaves the row blank.

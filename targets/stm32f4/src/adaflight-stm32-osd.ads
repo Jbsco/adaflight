@@ -68,11 +68,12 @@ package Adaflight.STM32.OSD is
    --  What the OSD reads from the flight at a frame: the arming and its
    --  reasons, the failsafe, the boxes and flight modes, the attitude in
    --  decidegrees, the acceleration in g, the throttle and the sticks, the
-   --  RSSI and the link's quality, the battery in centivolts, centiamps and milliamp hours, the
+   --  RSSI and the link's quality, the battery in centivolts, centiamps, milliamp hours and watt hours, the
    --  motors with their outputs and range, which of them run above the disarm output, the ESC
-   --  sensor's readings over every motor and for each one, the profiles, the
+   --  sensor's readings over every motor and for each one, the profiles with
+   --  their names and the PID profile's gains, the
    --  estimated altitude and climb rate, the rangefinder's altitude, the custom text, the lap timer with its clock, the
-   --  adjustment shown with its value, and the flight totals.
+   --  adjustment shown with its value, the flight log's box and device, and the flight totals.
    type Motor_Flags is array (Adaflight.OSD_Render.Motor_Index) of Boolean;
    type Facts is record
       Armed             : Boolean := False;
@@ -113,6 +114,11 @@ package Adaflight.STM32.OSD is
       Full_Cell_Voltage : Interfaces.Unsigned_16 := 410;
       Amperage          : Interfaces.Integer_32 range -100_000 .. 100_000 := 0;
       MAh_Drawn         : Interfaces.Integer_32 range 0 .. 2 ** 24 := 0;
+      Wh_Drawn          : Float := 0.0;
+      Blackbox_Box      : Boolean := False;
+      Blackbox_Working  : Boolean := False;
+      Blackbox_Full     : Boolean := False;
+      Log_Number        : Interfaces.Integer_32 := -1;
       Battery_Percent   : Interfaces.Unsigned_8 := 0;
       Battery_Capacity  : Interfaces.Unsigned_16 := 0;
       Motors            : Adaflight.OSD_Render.Motor_Count := 4;
@@ -127,6 +133,9 @@ package Adaflight.STM32.OSD is
       ESC_Motors        : Adaflight.ESC_Sensor.Readings;
       PID_Index         : Interfaces.Unsigned_8 := 0;
       Rate_Index        : Interfaces.Unsigned_8 := 0;
+      PIDs              : Adaflight.OSD_Render.PID_Axes;
+      PID_Profile_Name  : Adaflight.Config_Groups.Bytes_9 := (others => 0);
+      Rate_Profile_Name : Adaflight.Config_Groups.Bytes_9 := (others => 0);
       Altitude_Cm       : Interfaces.Integer_32 range -40_000_000 .. 40_000_000 := 0;
       Rangefinder_Cm    : Interfaces.Integer_32 := 0;
       Custom_Text       : Adaflight.OSD_Render.Custom_Text;

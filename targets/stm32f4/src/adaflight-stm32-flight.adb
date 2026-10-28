@@ -2378,6 +2378,11 @@ package body Adaflight.STM32.Flight is
       F.Full_Cell_Voltage := Unsigned_16 (Bat_Settings.Full_Cell_Voltage);
       F.Amperage := Integer_32'Max (-100_000, Integer_32'Min (100_000, Integer_32 (Bat.Current.Amperage)));
       F.MAh_Drawn := Integer_32'Max (0, Integer_32'Min (2 ** 24, Integer_32 (Bat.Current.mAh_Drawn)));
+      F.Wh_Drawn := Bat.Watt_Hours;
+      F.Blackbox_Box := Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Blackbox);
+      if F.Blackbox_Box then
+         Adaflight.STM32.Blackbox.Device_State (F.Blackbox_Working, F.Blackbox_Full, F.Log_Number);
+      end if;
       F.Battery_Percent := Unsigned_8 (Adaflight.Battery.Percentage_Remaining (Bat, Bat_Settings));
       F.Battery_Capacity := Profile.Battery_Capacity;
       F.Motors := Motors;
@@ -2422,6 +2427,18 @@ package body Adaflight.STM32.Flight is
       F.Total_Dist_M := Config.Stats_Config.Stats_Total_Dist_M;
       F.PID_Index := Config.System_Config.Pid_Profile_Index;
       F.Rate_Index := Config.System_Config.Active_Rate_Profile;
+      declare
+         P : Adaflight.Config_Groups.Pid_Profile_Record renames
+           Config.Pid_Profiles (Natural'Min (3, Natural (Config.System_Config.Pid_Profile_Index)));
+      begin
+         for A in Adaflight.OSD_Render.Axis_Index loop
+            F.PIDs (A) := (P => P.Pid (A).P, I => P.Pid (A).I, D => P.Pid (A).D, D_Max => P.D_Max (A),
+                           F => P.Pid (A).F);
+         end loop;
+         F.PID_Profile_Name := P.Profile_Name;
+      end;
+      F.Rate_Profile_Name :=
+        Config.Control_Rate_Profiles (Natural'Min (3, Natural (Config.System_Config.Active_Rate_Profile))).Profile_Name;
       Adaflight.STM32.OSD.Run (F, Before, Sched);
    end Run_OSD;
 

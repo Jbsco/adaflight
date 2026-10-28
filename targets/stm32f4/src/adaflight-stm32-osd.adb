@@ -592,7 +592,7 @@ package body Adaflight.STM32.OSD is
    State_Us   : array (Adaflight.OSD_Task.Task_State) of Unsigned_32 := (others => 0);
    Element_Us : Unsigned_32 := 0;
 
-   function Name_Of (B : Adaflight.Config_Groups.Bytes_17) return Adaflight.OSD_Render.Name is
+   function Name_Of (B : Adaflight.Config_Groups.Bytes) return Adaflight.OSD_Render.Name is
       N : Adaflight.OSD_Render.Name;
    begin
       for I in B'Range loop
@@ -762,11 +762,19 @@ package body Adaflight.STM32.OSD is
       D.Amperage := F.Amperage;
       D.G_Force := F.G_Force;
       D.MAh_Drawn := F.MAh_Drawn;
+      D.Wh_Drawn := Float'Max (0.0, Float'Min (Adaflight.OSD_Render.Wh_Bound, F.Wh_Drawn));
+      D.Blackbox_Box := F.Blackbox_Box;
+      D.Blackbox_Working := F.Blackbox_Working;
+      D.Blackbox_Full := F.Blackbox_Full;
+      D.Log_Number := F.Log_Number;
       D.Profile_Capacity := F.Battery_Capacity;
       D.Battery_Percent := F.Battery_Percent;
       D.Pack_Voltage := F.Pack_Voltage;
       D.PID_Index := F.PID_Index;
       D.Rate_Index := F.Rate_Index;
+      D.PIDs := F.PIDs;
+      D.PID_Profile_Name := Name_Of (F.PID_Profile_Name);
+      D.Rate_Profile_Name := Name_Of (F.Rate_Profile_Name);
       D.RSSI_Percent := F.RSSI_Percent;
       D.RSSI_Dbm := F.RSSI_Dbm;
       D.RSNR := F.RSNR;
@@ -876,6 +884,7 @@ package body Adaflight.STM32.OSD is
       Context.Page.Pack_Voltage := F.Pack_Voltage;
       Context.Page.Cell_Voltage := F.Cell_Voltage;
       Context.Page.MAh_Drawn := F.MAh_Drawn;
+      Context.Page.Wh_Drawn := Float'Max (0.0, Float'Min (Adaflight.OSD_Stats.Watt_Hours'Last, F.Wh_Drawn));
    end Refresh;
 
    function Bytes_Of (T : Adaflight.OSD_Format.Text) return Byte_Array is
