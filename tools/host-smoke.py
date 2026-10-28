@@ -679,14 +679,16 @@ def kiss_crc(data):
 
 class ESC(threading.Thread):
     """The ESCs' telemetry line on UART6's port: a ten byte frame every 30 ms with 42 degrees, 16.10 V,
-    2.50 A, 77 mAh and 345 hundred electrical revolutions per minute."""
+    2.50 A, 77 mAh and 345 hundred electrical revolutions per minute, the charge growing by one mAh every
+    tenth frame when growing is set."""
 
     FRAME = bytes([42]) + (1610).to_bytes(2, "big") + (250).to_bytes(2, "big") + (77).to_bytes(2, "big") \
         + (345).to_bytes(2, "big")
 
-    def __init__(self):
+    def __init__(self, growing=False):
         super().__init__(daemon=True)
         self.stop = threading.Event()
+        self.growing = growing
 
     def run(self):
         sock = None
@@ -698,12 +700,14 @@ class ESC(threading.Thread):
                 time.sleep(0.1)
         if sock is None:
             return
-        frame = self.FRAME + bytes([kiss_crc(self.FRAME)])
+        sent = 0
         while not self.stop.is_set():
+            body = self.FRAME[:5] + (77 + sent // 10).to_bytes(2, "big") + self.FRAME[7:] if self.growing else self.FRAME
             try:
-                sock.sendall(frame)
+                sock.sendall(body + bytes([kiss_crc(body)]))
             except OSError:
                 break
+            sent += 1
             time.sleep(0.03)
         sock.close()
 
@@ -2197,17 +2201,25 @@ def main():
         finally:
             stop(proc)
             sock.close()
-        esc = ESC()
+        esc = ESC(growing=True)
         proc, sock = start(image, store)
         esc.start()
         try:
-            time.sleep(8.0)
-            row = screen_row(store, 4)
-            whole = re.search(r"(\d+)\.(\d\d)WH", row)
-            milli = re.search(r"(\d+)MWH", row)
-            drawn = (int(whole.group(1)) * 1000 + int(whole.group(2)) * 10 if whole
-                     else int(milli.group(1)) if milli else 0)
-            check("OSD watt hours element shows the energy of the charge the ESCs report", drawn > 0, repr(row))
+            def milliwatt_hours():
+                row = screen_row(store, 4)
+                whole = re.search(r"(\d+)\.(\d\d)WH", row)
+                milli = re.search(r"(\d+)MWH", row)
+                return (int(whole.group(1)) * 1000 + int(whole.group(2)) * 10 if whole
+                        else int(milli.group(1)) if milli else 0)
+            deadline = time.time() + 20
+            first = 0
+            while first == 0 and time.time() < deadline:
+                time.sleep(0.5)
+                first = milliwatt_hours()
+            time.sleep(2.0)
+            second = milliwatt_hours()
+            check("OSD watt hours element counts the energy of the charge the ESCs report", 0 < first < second,
+                  repr((first, second, screen_row(store, 4))))
         finally:
             esc.stop.set()
             stop(proc)
