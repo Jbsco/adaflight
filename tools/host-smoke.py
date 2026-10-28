@@ -680,6 +680,29 @@ class SmartAudio(threading.Thread):
 
 
 failures = []
+features = None
+
+
+def build_features(image):
+    """The features the image's build contains, from the feature package generated beside its bin directory,
+    or None for a build without one, which counts as every feature."""
+    path = os.path.join(os.path.dirname(os.path.dirname(image)), "gen", "adaflight-build_features.ads")
+    try:
+        with open(path) as f:
+            text = f.read()
+    except OSError:
+        return None
+    return {m.group(1): m.group(2) == "True"
+            for m in re.finditer(r"^\s*(\w+)\s*: constant Boolean := (\w+);", text, re.M)}
+
+
+def built(feature):
+    """Whether the image contains the feature, with a SKIP line for the checks that need a feature it leaves
+    out."""
+    if features is None or features.get(feature, True):
+        return True
+    print(f"SKIP the checks that need {feature}: the build leaves it out")
+    return False
 
 
 def check(name, ok, detail=""):
@@ -1014,6 +1037,8 @@ def main():
     if len(sys.argv) != 2:
         raise SystemExit(__doc__)
     image = os.path.abspath(sys.argv[1])
+    global features
+    features = build_features(image)
     with tempfile.TemporaryDirectory() as work:
         store = os.path.join(work, "eeprom.bin")
         proc, sock = start(image, store)
@@ -1218,19 +1243,21 @@ def main():
                 screen = ""
             check("OSD draws the craft name", "ADAHOST" in screen, repr(screen[:200]))
             check("OSD draws the date", time.strftime("%Y-%m-%d", stamp) in screen, repr(screen[:200]))
-            receiver.set(992, 1811, 992, 172)
-            time.sleep(0.3)
-            receiver.set(992, 992, 172, 992)
-            time.sleep(1.5)
-            try:
-                with open(store + ".osd.txt") as f:
-                    screen = f.read()
-            except OSError:
-                screen = ""
-            check("stick gesture opens the menu", "-- QUICK --" in screen or "-- MAIN --" in screen, repr(screen[:300]))
-            text = cli(vcp, "status")
-            flags = text.split("Arming disable flags:")[-1]
-            check("open menu holds arming", "CMS" in flags, flags.strip()[:80])
+            if built("Menus"):
+                receiver.set(992, 1811, 992, 172)
+                time.sleep(0.3)
+                receiver.set(992, 992, 172, 992)
+                time.sleep(1.5)
+                try:
+                    with open(store + ".osd.txt") as f:
+                        screen = f.read()
+                except OSError:
+                    screen = ""
+                check("stick gesture opens the menu", "-- QUICK --" in screen or "-- MAIN --" in screen,
+                      repr(screen[:300]))
+                text = cli(vcp, "status")
+                flags = text.split("Arming disable flags:")[-1]
+                check("open menu holds arming", "CMS" in flags, flags.strip()[:80])
             frames = dict(receiver.frames)
             check("telemetry frames reach the receiver port",
                   frames.get(0x1E, 0) > 5 and frames.get(0x08, 0) > 5 and frames.get(0x21, 0) > 5
@@ -1429,89 +1456,91 @@ def main():
                 info.stop.set()
             stop(proc)
             sock.close()
-        store = os.path.join(work, "ltm.bin")
-        proc, sock = start(image, store)
-        try:
-            time.sleep(2.5)
-            sock.sendall(b"#")
-            read_all(sock, 0.8)
-            text = cli(sock, "feature TELEMETRY")
-            check("telemetry feature on", "Enabled" in text, text[-120:])
-            text = cli(sock, "set telemetry_1_protocol = LTM")
-            check("telemetry provider set to LTM", "telemetry_1_protocol set to LTM" in text, text[-120:])
-            text = cli(sock, "set telemetry_1_uart = UART3")
-            check("LTM port assigned", "telemetry_1_uart set to UART3" in text, text[-120:])
-            cli(sock, "save", wait=2.0)
-            proc.wait(timeout=10)
-        finally:
-            stop(proc)
-            sock.close()
-        proc, sock = start(image, store)
-        try:
-            time.sleep(2.5)
-            ltm = socket.create_connection(("127.0.0.1", RX_PORT), timeout=1)
-            ltm.settimeout(0.3)
-            frames = ltm_frames(read_all(ltm, 1.5))
-            ltm.close()
-            letters = "".join(f for f, _ in frames)
-            check("LTM sends attitude frames ten times a second", 10 <= letters.count("A") <= 20, letters)
-            status = [p for f, p in frames if f == "S"]
-            check("LTM status frames report disarmed in rate mode", bool(status) and status[-1][6] == 1 << 2,
-                  repr(status[-1:]))
-            check("LTM sends an origin frame every tenth cycle", 1 <= letters.count("O") <= 3, letters)
-            sock.sendall(b"#")
-            read_all(sock, 0.8)
-            sock.sendall(b"bl\r\n")
-            read_all(sock, 0.8)
+        if built("LTM_Telemetry"):
+            store = os.path.join(work, "ltm.bin")
+            proc, sock = start(image, store)
             try:
-                code = proc.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                code = None
-            check("bl restarts into the bootloader", code == 2, repr(code))
-        finally:
-            stop(proc)
-            sock.close()
-        store = os.path.join(work, "mavlink.bin")
-        proc, sock = start(image, store)
-        try:
-            time.sleep(2.5)
-            sock.sendall(b"#")
-            read_all(sock, 0.8)
-            text = cli(sock, "feature TELEMETRY")
-            check("telemetry feature on for MAVLink", "Enabled" in text, text[-120:])
-            text = cli(sock, "set telemetry_1_protocol = MAVLINK")
-            check("telemetry provider set to MAVLink", "telemetry_1_protocol set to MAVLINK" in text, text[-120:])
-            text = cli(sock, "set telemetry_1_uart = UART3")
-            check("MAVLink port assigned", "telemetry_1_uart set to UART3" in text, text[-120:])
-            cli(sock, "save", wait=2.0)
-            proc.wait(timeout=10)
-        finally:
-            stop(proc)
-            sock.close()
-        proc, sock = start(image, store)
-        try:
-            time.sleep(2.5)
-            mav = socket.create_connection(("127.0.0.1", RX_PORT), timeout=1)
-            mav.settimeout(0.3)
-            frames = mavlink_frames(read_all(mav, 3.0))
-            ids = [m for m, _ in frames]
-            check("MAVLink sends heartbeats", ids.count(0) >= 2, repr(ids[:40]))
-            check("MAVLink sends attitude messages", ids.count(30) >= 4, repr(ids[:40]))
-            mav.sendall(mavlink_command_long(512, 148.0))
-            replies = mavlink_frames(read_all(mav, 1.5))
-            ids = [m for m, _ in replies]
-            check("MAVLink answers an autopilot version request", 148 in ids and 77 in ids, repr(ids[:40]))
-            mav.close()
-            ack = msp(sock, 68, bytes([1]))
-            check("MSP reboot into the bootloader accepted", ack == bytes([1]), repr(ack))
+                time.sleep(2.5)
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                text = cli(sock, "feature TELEMETRY")
+                check("telemetry feature on", "Enabled" in text, text[-120:])
+                text = cli(sock, "set telemetry_1_protocol = LTM")
+                check("telemetry provider set to LTM", "telemetry_1_protocol set to LTM" in text, text[-120:])
+                text = cli(sock, "set telemetry_1_uart = UART3")
+                check("LTM port assigned", "telemetry_1_uart set to UART3" in text, text[-120:])
+                cli(sock, "save", wait=2.0)
+                proc.wait(timeout=10)
+            finally:
+                stop(proc)
+                sock.close()
+            proc, sock = start(image, store)
             try:
-                code = proc.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                code = None
-            check("MSP reboot restarts into the bootloader", code == 2, repr(code))
-        finally:
-            stop(proc)
-            sock.close()
+                time.sleep(2.5)
+                ltm = socket.create_connection(("127.0.0.1", RX_PORT), timeout=1)
+                ltm.settimeout(0.3)
+                frames = ltm_frames(read_all(ltm, 1.5))
+                ltm.close()
+                letters = "".join(f for f, _ in frames)
+                check("LTM sends attitude frames ten times a second", 10 <= letters.count("A") <= 20, letters)
+                status = [p for f, p in frames if f == "S"]
+                check("LTM status frames report disarmed in rate mode", bool(status) and status[-1][6] == 1 << 2,
+                      repr(status[-1:]))
+                check("LTM sends an origin frame every tenth cycle", 1 <= letters.count("O") <= 3, letters)
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                sock.sendall(b"bl\r\n")
+                read_all(sock, 0.8)
+                try:
+                    code = proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    code = None
+                check("bl restarts into the bootloader", code == 2, repr(code))
+            finally:
+                stop(proc)
+                sock.close()
+        if built("MAVLink_Telemetry"):
+            store = os.path.join(work, "mavlink.bin")
+            proc, sock = start(image, store)
+            try:
+                time.sleep(2.5)
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                text = cli(sock, "feature TELEMETRY")
+                check("telemetry feature on for MAVLink", "Enabled" in text, text[-120:])
+                text = cli(sock, "set telemetry_1_protocol = MAVLINK")
+                check("telemetry provider set to MAVLink", "telemetry_1_protocol set to MAVLINK" in text, text[-120:])
+                text = cli(sock, "set telemetry_1_uart = UART3")
+                check("MAVLink port assigned", "telemetry_1_uart set to UART3" in text, text[-120:])
+                cli(sock, "save", wait=2.0)
+                proc.wait(timeout=10)
+            finally:
+                stop(proc)
+                sock.close()
+            proc, sock = start(image, store)
+            try:
+                time.sleep(2.5)
+                mav = socket.create_connection(("127.0.0.1", RX_PORT), timeout=1)
+                mav.settimeout(0.3)
+                frames = mavlink_frames(read_all(mav, 3.0))
+                ids = [m for m, _ in frames]
+                check("MAVLink sends heartbeats", ids.count(0) >= 2, repr(ids[:40]))
+                check("MAVLink sends attitude messages", ids.count(30) >= 4, repr(ids[:40]))
+                mav.sendall(mavlink_command_long(512, 148.0))
+                replies = mavlink_frames(read_all(mav, 1.5))
+                ids = [m for m, _ in replies]
+                check("MAVLink answers an autopilot version request", 148 in ids and 77 in ids, repr(ids[:40]))
+                mav.close()
+                ack = msp(sock, 68, bytes([1]))
+                check("MSP reboot into the bootloader accepted", ack == bytes([1]), repr(ack))
+                try:
+                    code = proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    code = None
+                check("MSP reboot restarts into the bootloader", code == 2, repr(code))
+            finally:
+                stop(proc)
+                sock.close()
         store = os.path.join(work, "frskyhub.bin")
         proc, sock = start(image, store)
         try:
@@ -1546,48 +1575,50 @@ def main():
             hub.close()
             ids = [i for i, _ in frames]
             check("FrSky hub sends the acceleration frames every 125 ms", 6 <= ids.count(0x24) <= 14, repr(ids[:40]))
-            check("FrSky hub sends the vario and altitude frames with a rangefinder",
-                  0x30 in ids and 0x10 in ids and 0x21 in ids, repr(sorted(set(ids))))
+            if built("Rangefinder"):
+                check("FrSky hub sends the vario and altitude frames with a rangefinder",
+                      0x30 in ids and 0x10 in ids and 0x21 in ids, repr(sorted(set(ids))))
         finally:
             lidar.stop.set()
             stop(proc)
             sock.close()
-        store = os.path.join(work, "ibustlm.bin")
-        proc, sock = start(image, store)
-        try:
-            time.sleep(2.5)
-            sock.sendall(b"#")
-            read_all(sock, 0.8)
-            text = cli(sock, "feature TELEMETRY")
-            check("telemetry feature on for iBus", "Enabled" in text, text[-120:])
-            text = cli(sock, "set telemetry_1_protocol = IBUS")
-            check("telemetry provider set to iBus", "telemetry_1_protocol set to IBUS" in text, text[-120:])
-            text = cli(sock, "set telemetry_1_uart = UART3")
-            check("iBus telemetry port assigned", "telemetry_1_uart set to UART3" in text, text[-120:])
-            cli(sock, "save", wait=2.0)
-            proc.wait(timeout=10)
-        finally:
-            stop(proc)
-            sock.close()
-        proc, sock = start(image, store)
-        try:
-            time.sleep(2.5)
-            line = socket.create_connection(("127.0.0.1", RX_PORT), timeout=1)
-            line.settimeout(0.3)
-            replies = []
-            for command in (0x80, 0x90, 0xA0):
-                line.sendall(ibus_request(command, 1))
-                replies.append(read_all(line, 0.3))
-                line.sendall(replies[-1])
-                time.sleep(0.05)
-            line.close()
-            check("iBus telemetry answers the discovery", replies[0] == ibus_request(0x80, 1), repr(replies[0]))
-            check("iBus telemetry gives the sensor type and value",
-                  len(replies[1]) == 6 and replies[1][:2] == bytes([0x06, 0x91])
-                  and len(replies[2]) == 6 and replies[2][:2] == bytes([0x06, 0xA1]), repr(replies[1:]))
-        finally:
-            stop(proc)
-            sock.close()
+        if built("IBus_Telemetry"):
+            store = os.path.join(work, "ibustlm.bin")
+            proc, sock = start(image, store)
+            try:
+                time.sleep(2.5)
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                text = cli(sock, "feature TELEMETRY")
+                check("telemetry feature on for iBus", "Enabled" in text, text[-120:])
+                text = cli(sock, "set telemetry_1_protocol = IBUS")
+                check("telemetry provider set to iBus", "telemetry_1_protocol set to IBUS" in text, text[-120:])
+                text = cli(sock, "set telemetry_1_uart = UART3")
+                check("iBus telemetry port assigned", "telemetry_1_uart set to UART3" in text, text[-120:])
+                cli(sock, "save", wait=2.0)
+                proc.wait(timeout=10)
+            finally:
+                stop(proc)
+                sock.close()
+            proc, sock = start(image, store)
+            try:
+                time.sleep(2.5)
+                line = socket.create_connection(("127.0.0.1", RX_PORT), timeout=1)
+                line.settimeout(0.3)
+                replies = []
+                for command in (0x80, 0x90, 0xA0):
+                    line.sendall(ibus_request(command, 1))
+                    replies.append(read_all(line, 0.3))
+                    line.sendall(replies[-1])
+                    time.sleep(0.05)
+                line.close()
+                check("iBus telemetry answers the discovery", replies[0] == ibus_request(0x80, 1), repr(replies[0]))
+                check("iBus telemetry gives the sensor type and value",
+                      len(replies[1]) == 6 and replies[1][:2] == bytes([0x06, 0x91])
+                      and len(replies[2]) == 6 and replies[2][:2] == bytes([0x06, 0xA1]), repr(replies[1:]))
+            finally:
+                stop(proc)
+                sock.close()
         store = os.path.join(work, "smartport.bin")
         proc, sock = start(image, store)
         try:
@@ -1627,12 +1658,15 @@ def main():
             stop(proc)
             sock.close()
         us = [1500, 1599, 988, 1500] + [1500] * 10
+        receiver_features = {"SUMD": "SUMD", "JETIEXBUS": "Jeti_EX_Bus"}
         for name, frame, extra in (("SBUS", sbus_frame([992, 1150, 172, 992] + [992] * 12), []),
                                    ("IBUS", ibus_frame(us), ["serialrx_halfduplex = ON"]),
                                    ("SUMD", sumd_frame(us), []), ("SPEK2048", spektrum_frame(us), []),
                                    ("XB-B", xbus_frame(us), []),
                                    ("FPORT", fport_frame([992, 1150, 172, 992] + [992] * 12), []),
                                    ("GHST", ghst_frames(us), []), ("JETIEXBUS", jeti_frame(us), [])):
+            if name in receiver_features and not built(receiver_features[name]):
+                continue
             store = os.path.join(work, name.lower() + ".bin")
             proc, sock = start(image, store)
             try:
@@ -1749,37 +1783,38 @@ def main():
             camera.stop.set()
             stop(proc)
             sock.close()
-        store = os.path.join(work, "jetitlm.bin")
-        proc, sock = start(image, store)
-        try:
-            time.sleep(2.5)
-            sock.sendall(b"#")
-            read_all(sock, 0.8)
-            text = cli(sock, "set serialrx_provider = JETIEXBUS")
-            check("receiver protocol set to EX Bus for its telemetry", "serialrx_provider set to JETIEXBUS" in text,
-                  text[-120:])
-            text = cli(sock, "set rx_uart = UART3")
-            check("EX Bus telemetry port assigned", "rx_uart set to UART3" in text, text[-120:])
-            cli(sock, "save", wait=2.0)
-            proc.wait(timeout=10)
-        finally:
-            stop(proc)
-            sock.close()
-        proc, sock = start(image, store)
-        sender = SerialReceiver([jeti_frame(us), jeti_request(7)])
-        sender.start()
-        try:
-            time.sleep(4.0)
-            passed, answers = until(lambda: jeti_answers(sender.received), lambda a: len(a) >= 10)
-            check("EX Bus telemetry answers the receiver's requests with checked frames", passed,
-                  repr(sender.received[:40]))
-            check("EX Bus telemetry answers echo the packet id and carry the EX telemetry header",
-                  bool(answers) and all(a[3] == 7 and a[4] == 0x3A and a[6] == 0x9F and a[8:10] == bytes([0x1E, 0xA4])
-                                        for a in answers), repr(answers[:2]))
-        finally:
-            sender.stop.set()
-            stop(proc)
-            sock.close()
+        if built("Jeti_EX_Bus"):
+            store = os.path.join(work, "jetitlm.bin")
+            proc, sock = start(image, store)
+            try:
+                time.sleep(2.5)
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                text = cli(sock, "set serialrx_provider = JETIEXBUS")
+                check("receiver protocol set to EX Bus for its telemetry", "serialrx_provider set to JETIEXBUS" in text,
+                      text[-120:])
+                text = cli(sock, "set rx_uart = UART3")
+                check("EX Bus telemetry port assigned", "rx_uart set to UART3" in text, text[-120:])
+                cli(sock, "save", wait=2.0)
+                proc.wait(timeout=10)
+            finally:
+                stop(proc)
+                sock.close()
+            proc, sock = start(image, store)
+            sender = SerialReceiver([jeti_frame(us), jeti_request(7)])
+            sender.start()
+            try:
+                time.sleep(4.0)
+                passed, answers = until(lambda: jeti_answers(sender.received), lambda a: len(a) >= 10)
+                check("EX Bus telemetry answers the receiver's requests with checked frames", passed,
+                      repr(sender.received[:40]))
+                check("EX Bus telemetry answers echo the packet id and carry the EX telemetry header",
+                      bool(answers) and all(a[3] == 7 and a[4] == 0x3A and a[6] == 0x9F
+                                            and a[8:10] == bytes([0x1E, 0xA4]) for a in answers), repr(answers[:2]))
+            finally:
+                sender.stop.set()
+                stop(proc)
+                sock.close()
         store = os.path.join(work, "mspdp.bin")
         proc, sock = start(image, store)
         try:
@@ -1893,96 +1928,98 @@ def main():
             sock.close()
             if vcp is not None:
                 vcp.close()
-        store = os.path.join(work, "lidar.bin")
-        proc, sock = start(image, store)
-        try:
-            time.sleep(2.5)
-            sock.sendall(b"#")
-            read_all(sock, 0.8)
-            text = cli(sock, "set rangefinder_hardware = TFMINI")
-            check("rangefinder set to a TFmini", "rangefinder_hardware set to TFMINI" in text, text[-120:])
-            text = cli(sock, "set rangefinder_uart = UART4")
-            check("rangefinder port assigned", "rangefinder_uart set to UART4" in text, text[-120:])
-            text = cli(sock, "feature RANGEFINDER")
-            check("rangefinder feature on", "Enabled" in text, text[-120:])
-            for line in ("blackbox_device = SERIAL", "blackbox_uart = UART6", "blackbox_mode = ALWAYS"):
-                text = cli(sock, "set " + line)
-                check(f"rangefinder flight log {line}", line.replace(" = ", " set to ") in text, text[-120:])
-            for line in ("osd_displayport_device = MAX7456", "vcd_video_system = PAL", "osd_lidar_dist_pos = 2177"):
-                text = cli(sock, "set " + line)
-                check(f"rangefinder OSD {line}", line.replace(" = ", " set to ") in text, text[-120:])
-            cli(sock, "save", wait=2.0)
-            proc.wait(timeout=10)
-        finally:
-            stop(proc)
-            sock.close()
-        lidar = Lidar()
-        lidar.start()
-        proc, sock = start(image, store)
-        log = None
-        deadline = time.time() + 5
-        while log is None and time.time() < deadline:
+        if built("Rangefinder"):
+            store = os.path.join(work, "lidar.bin")
+            proc, sock = start(image, store)
             try:
-                log = socket.create_connection(("127.0.0.1", LOG_PORT), timeout=1)
-                log.settimeout(0.3)
-            except OSError:
-                time.sleep(0.01)
-        try:
-            data = read_all(log, 3.0) if log is not None else b""
-            fields = next((line for line in data.split(b"\n") if line.startswith(b"H Field I name:")), b"")
-            check("flight log lists the rangefinder's surfaceRaw field", b",surfaceRaw," in fields + b",",
-                  repr(fields[-80:]))
-            status = msp(sock, 101)
-            check("MSP status names the rangefinder", status is not None and len(status) > 5
-                  and (status[4] | status[5] << 8) & 0x10 != 0, repr(status))
-            sonar = msp(sock, 58)
-            altitude = int.from_bytes(sonar[:4], "little", signed=True) if sonar and len(sonar) >= 4 else None
-            check("MSP sonar altitude reads the lidar's 150 cm", altitude is not None and abs(altitude - 150) <= 2,
-                  repr(altitude))
-            time.sleep(4.5)
+                time.sleep(2.5)
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                text = cli(sock, "set rangefinder_hardware = TFMINI")
+                check("rangefinder set to a TFmini", "rangefinder_hardware set to TFMINI" in text, text[-120:])
+                text = cli(sock, "set rangefinder_uart = UART4")
+                check("rangefinder port assigned", "rangefinder_uart set to UART4" in text, text[-120:])
+                text = cli(sock, "feature RANGEFINDER")
+                check("rangefinder feature on", "Enabled" in text, text[-120:])
+                for line in ("blackbox_device = SERIAL", "blackbox_uart = UART6", "blackbox_mode = ALWAYS"):
+                    text = cli(sock, "set " + line)
+                    check(f"rangefinder flight log {line}", line.replace(" = ", " set to ") in text, text[-120:])
+                for line in ("osd_displayport_device = MAX7456", "vcd_video_system = PAL", "osd_lidar_dist_pos = 2177"):
+                    text = cli(sock, "set " + line)
+                    check(f"rangefinder OSD {line}", line.replace(" = ", " set to ") in text, text[-120:])
+                cli(sock, "save", wait=2.0)
+                proc.wait(timeout=10)
+            finally:
+                stop(proc)
+                sock.close()
+            lidar = Lidar()
+            lidar.start()
+            proc, sock = start(image, store)
+            log = None
+            deadline = time.time() + 5
+            while log is None and time.time() < deadline:
+                try:
+                    log = socket.create_connection(("127.0.0.1", LOG_PORT), timeout=1)
+                    log.settimeout(0.3)
+                except OSError:
+                    time.sleep(0.01)
             try:
-                with open(store + ".osd.txt") as f:
-                    rows = f.read().splitlines()
-            except OSError:
-                rows = []
-            check("OSD lidar element draws the 150 cm", len(rows) > 4 and "RF:150" in rows[4],
-                  repr(rows[4] if len(rows) > 4 else rows))
-        finally:
-            lidar.stop.set()
-            stop(proc)
-            sock.close()
-            if log is not None:
-                log.close()
-        store = os.path.join(work, "tofsense.bin")
-        proc, sock = start(image, store)
-        try:
-            time.sleep(2.5)
-            sock.sendall(b"#")
-            read_all(sock, 0.8)
-            text = cli(sock, "set rangefinder_hardware = NOOPLOOP_F2")
-            check("rangefinder set to a TOFSense F2", "rangefinder_hardware set to NOOPLOOP_F2" in text, text[-120:])
-            text = cli(sock, "set rangefinder_uart = UART4")
-            check("TOFSense port assigned", "rangefinder_uart set to UART4" in text, text[-120:])
-            text = cli(sock, "feature RANGEFINDER")
-            check("rangefinder feature on for the TOFSense", "Enabled" in text, text[-120:])
-            cli(sock, "save", wait=2.0)
-            proc.wait(timeout=10)
-        finally:
-            stop(proc)
-            sock.close()
-        tof = Lidar(tofsense_frame(1234))
-        tof.start()
-        proc, sock = start(image, store)
-        try:
-            time.sleep(3.0)
-            sonar = msp(sock, 58)
-            altitude = int.from_bytes(sonar[:4], "little", signed=True) if sonar and len(sonar) >= 4 else None
-            check("MSP sonar altitude reads the TOFSense's 123 cm", altitude is not None and abs(altitude - 123) <= 1,
-                  repr(altitude))
-        finally:
-            tof.stop.set()
-            stop(proc)
-            sock.close()
+                data = read_all(log, 3.0) if log is not None else b""
+                fields = next((line for line in data.split(b"\n") if line.startswith(b"H Field I name:")), b"")
+                check("flight log lists the rangefinder's surfaceRaw field", b",surfaceRaw," in fields + b",",
+                      repr(fields[-80:]))
+                status = msp(sock, 101)
+                check("MSP status names the rangefinder", status is not None and len(status) > 5
+                      and (status[4] | status[5] << 8) & 0x10 != 0, repr(status))
+                sonar = msp(sock, 58)
+                altitude = int.from_bytes(sonar[:4], "little", signed=True) if sonar and len(sonar) >= 4 else None
+                check("MSP sonar altitude reads the lidar's 150 cm", altitude is not None and abs(altitude - 150) <= 2,
+                      repr(altitude))
+                time.sleep(4.5)
+                try:
+                    with open(store + ".osd.txt") as f:
+                        rows = f.read().splitlines()
+                except OSError:
+                    rows = []
+                check("OSD lidar element draws the 150 cm", len(rows) > 4 and "RF:150" in rows[4],
+                      repr(rows[4] if len(rows) > 4 else rows))
+            finally:
+                lidar.stop.set()
+                stop(proc)
+                sock.close()
+                if log is not None:
+                    log.close()
+            store = os.path.join(work, "tofsense.bin")
+            proc, sock = start(image, store)
+            try:
+                time.sleep(2.5)
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                text = cli(sock, "set rangefinder_hardware = NOOPLOOP_F2")
+                check("rangefinder set to a TOFSense F2", "rangefinder_hardware set to NOOPLOOP_F2" in text,
+                      text[-120:])
+                text = cli(sock, "set rangefinder_uart = UART4")
+                check("TOFSense port assigned", "rangefinder_uart set to UART4" in text, text[-120:])
+                text = cli(sock, "feature RANGEFINDER")
+                check("rangefinder feature on for the TOFSense", "Enabled" in text, text[-120:])
+                cli(sock, "save", wait=2.0)
+                proc.wait(timeout=10)
+            finally:
+                stop(proc)
+                sock.close()
+            tof = Lidar(tofsense_frame(1234))
+            tof.start()
+            proc, sock = start(image, store)
+            try:
+                time.sleep(3.0)
+                sonar = msp(sock, 58)
+                altitude = int.from_bytes(sonar[:4], "little", signed=True) if sonar and len(sonar) >= 4 else None
+                check("MSP sonar altitude reads the TOFSense's 123 cm",
+                      altitude is not None and abs(altitude - 123) <= 1, repr(altitude))
+            finally:
+                tof.stop.set()
+                stop(proc)
+                sock.close()
         store = os.path.join(work, "fporttlm.bin")
         proc, sock = start(image, store)
         try:
@@ -2134,103 +2171,105 @@ def main():
                     line.close()
                 if vcp is not None:
                     vcp.close()
-        store = os.path.join(work, "gimbal.bin")
-        proc, sock = start(image, store)
-        try:
-            time.sleep(2.5)
-            sock.sendall(b"#")
-            read_all(sock, 0.8)
-            text = cli(sock, "set gimbal_uart = UART4")
-            check("gimbal port assigned", "gimbal_uart set to UART4" in text, text[-120:])
-            cli(sock, "save", wait=2.0)
-            proc.wait(timeout=10)
-        finally:
-            stop(proc)
-            sock.close()
-        proc, sock = start(image, store)
-        line = None
-        try:
-            deadline = time.time() + 5
-            while line is None and time.time() < deadline:
-                try:
-                    line = socket.create_connection(("127.0.0.1", GPS_PORT), timeout=1)
-                    line.settimeout(0.02)
-                except OSError:
-                    time.sleep(0.05)
-            time.sleep(3.0)
-            read_all(line, 0.2)
-            frames = gimbal_frames(read_all(line, 1.0))
-            check("gimbal gets a checked command frame about every 10 ms without a head tracker",
-                  80 <= len(frames) <= 120, repr(len(frames)))
-            check("gimbal frames without a head tracker hold no roll or yaw, mode 0 and sensitivity 15",
-                  len(frames) > 0 and all(f[0] == 0 and f[1] == 15 and f[2] == 0 and f[4] == 0 for f in frames),
-                  repr(frames[:2]))
-            line.sendall(gimbal_frame(900, 0, 0))
-            reply = gimbal_frames(read_all(line, 0.1))
-            check("a head tracker frame goes on to the gimbal at once with its roll of 900 scaled to 500",
-                  len(reply) == 1 and reply[0][2] == 500 and reply[0][4] == 0, repr(reply))
-            line.sendall(b"AB" + bytes([0xA5, 0x41]))
-            echo = read_all(line, 0.1)
-            check("bytes outside a frame pass through to the gimbal, a lone opcode byte as itself",
-                  echo == b"AB" + bytes([0xA5, 0x41]), repr(echo[:12]))
-        finally:
-            stop(proc)
-            sock.close()
-            if line is not None:
-                line.close()
-        store = os.path.join(work, "crsfmenu.bin")
-        proc, sock = start(image, store)
-        try:
-            time.sleep(2.5)
-            sock.sendall(b"#")
-            read_all(sock, 0.8)
-            text = cli(sock, "set rx_uart = UART3")
-            check("CRSF receiver port assigned for the menu", "rx_uart set to UART3" in text, text[-120:])
-            text = cli(sock, "feature TELEMETRY")
-            check("telemetry feature on for the CRSF menu", "Enabled" in text, text[-120:])
-            for line in ("osd_displayport_device = MAX7456", "vcd_video_system = PAL"):
-                text = cli(sock, "set " + line)
-                check(f"CRSF menu beside the OSD {line}", line.replace(" = ", " set to ") in text, text[-120:])
-            cli(sock, "save", wait=2.0)
-            proc.wait(timeout=10)
-        finally:
-            stop(proc)
-            sock.close()
-        proc, sock = start(image, store)
-        receiver = Receiver()
-        receiver.start()
-        try:
-            time.sleep(3.0)
-            receiver.outbox.append(crsf_display_command(3, rows=9, cols=32))
-            time.sleep(2.0)
-            screens = crsf_display_screens(list(receiver.display_frames))
-            rows = [screens[-1][r:r + 32] for r in range(0, len(screens[-1]), 32)] if screens else []
-            check("a CRSF display open draws the start menu, the quick menu, on the transmitter's screen",
-                  any("-- QUICK --" in r for r in rows) and any("VTX" in r for r in rows), repr(rows[:4]))
-            mark = len(receiver.display_frames)
-            receiver.outbox.append(crsf_display_command(4))
-            time.sleep(1.0)
-            kinds = [f[5] for f in receiver.display_frames[mark:]]
-            check("a CRSF display close leaves the menu and clears the transmitter's screen", 0x02 in kinds,
-                  repr(kinds[:10]))
-            receiver.outbox.append(crsf_display_command(3, rows=9, cols=32))
-            time.sleep(1.0)
-            receiver.set(992, 1811, 992, 172)
-            time.sleep(0.3)
-            receiver.set(992, 992, 172, 992)
-            time.sleep(1.5)
-            screen = "".join(screen_row(store, r) for r in range(16))
-            check("the stick gesture moves the open menu from the transmitter to the OSD", "-- QUICK --" in screen,
-                  repr(screen[:120]))
-            receiver.outbox.append(crsf_display_command(4))
-            time.sleep(1.5)
-            screen = "".join(screen_row(store, r) for r in range(16))
-            check("a CRSF display close after the menu moved to the OSD frees the OSD", "-- QUICK --" not in screen,
-                  repr(screen_row(store, 1)))
-        finally:
-            receiver.stop.set()
-            stop(proc)
-            sock.close()
+        if built("Gimbal"):
+            store = os.path.join(work, "gimbal.bin")
+            proc, sock = start(image, store)
+            try:
+                time.sleep(2.5)
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                text = cli(sock, "set gimbal_uart = UART4")
+                check("gimbal port assigned", "gimbal_uart set to UART4" in text, text[-120:])
+                cli(sock, "save", wait=2.0)
+                proc.wait(timeout=10)
+            finally:
+                stop(proc)
+                sock.close()
+            proc, sock = start(image, store)
+            line = None
+            try:
+                deadline = time.time() + 5
+                while line is None and time.time() < deadline:
+                    try:
+                        line = socket.create_connection(("127.0.0.1", GPS_PORT), timeout=1)
+                        line.settimeout(0.02)
+                    except OSError:
+                        time.sleep(0.05)
+                time.sleep(3.0)
+                read_all(line, 0.2)
+                frames = gimbal_frames(read_all(line, 1.0))
+                check("gimbal gets a checked command frame about every 10 ms without a head tracker",
+                      80 <= len(frames) <= 120, repr(len(frames)))
+                check("gimbal frames without a head tracker hold no roll or yaw, mode 0 and sensitivity 15",
+                      len(frames) > 0 and all(f[0] == 0 and f[1] == 15 and f[2] == 0 and f[4] == 0 for f in frames),
+                      repr(frames[:2]))
+                line.sendall(gimbal_frame(900, 0, 0))
+                reply = gimbal_frames(read_all(line, 0.1))
+                check("a head tracker frame goes on to the gimbal at once with its roll of 900 scaled to 500",
+                      len(reply) == 1 and reply[0][2] == 500 and reply[0][4] == 0, repr(reply))
+                line.sendall(b"AB" + bytes([0xA5, 0x41]))
+                echo = read_all(line, 0.1)
+                check("bytes outside a frame pass through to the gimbal, a lone opcode byte as itself",
+                      echo == b"AB" + bytes([0xA5, 0x41]), repr(echo[:12]))
+            finally:
+                stop(proc)
+                sock.close()
+                if line is not None:
+                    line.close()
+        if built("Menus"):
+            store = os.path.join(work, "crsfmenu.bin")
+            proc, sock = start(image, store)
+            try:
+                time.sleep(2.5)
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                text = cli(sock, "set rx_uart = UART3")
+                check("CRSF receiver port assigned for the menu", "rx_uart set to UART3" in text, text[-120:])
+                text = cli(sock, "feature TELEMETRY")
+                check("telemetry feature on for the CRSF menu", "Enabled" in text, text[-120:])
+                for line in ("osd_displayport_device = MAX7456", "vcd_video_system = PAL"):
+                    text = cli(sock, "set " + line)
+                    check(f"CRSF menu beside the OSD {line}", line.replace(" = ", " set to ") in text, text[-120:])
+                cli(sock, "save", wait=2.0)
+                proc.wait(timeout=10)
+            finally:
+                stop(proc)
+                sock.close()
+            proc, sock = start(image, store)
+            receiver = Receiver()
+            receiver.start()
+            try:
+                time.sleep(3.0)
+                receiver.outbox.append(crsf_display_command(3, rows=9, cols=32))
+                time.sleep(2.0)
+                screens = crsf_display_screens(list(receiver.display_frames))
+                rows = [screens[-1][r:r + 32] for r in range(0, len(screens[-1]), 32)] if screens else []
+                check("a CRSF display open draws the start menu, the quick menu, on the transmitter's screen",
+                      any("-- QUICK --" in r for r in rows) and any("VTX" in r for r in rows), repr(rows[:4]))
+                mark = len(receiver.display_frames)
+                receiver.outbox.append(crsf_display_command(4))
+                time.sleep(1.0)
+                kinds = [f[5] for f in receiver.display_frames[mark:]]
+                check("a CRSF display close leaves the menu and clears the transmitter's screen", 0x02 in kinds,
+                      repr(kinds[:10]))
+                receiver.outbox.append(crsf_display_command(3, rows=9, cols=32))
+                time.sleep(1.0)
+                receiver.set(992, 1811, 992, 172)
+                time.sleep(0.3)
+                receiver.set(992, 992, 172, 992)
+                time.sleep(1.5)
+                screen = "".join(screen_row(store, r) for r in range(16))
+                check("the stick gesture moves the open menu from the transmitter to the OSD", "-- QUICK --" in screen,
+                      repr(screen[:120]))
+                receiver.outbox.append(crsf_display_command(4))
+                time.sleep(1.5)
+                screen = "".join(screen_row(store, r) for r in range(16))
+                check("a CRSF display close after the menu moved to the OSD frees the OSD", "-- QUICK --" not in screen,
+                      repr(screen_row(store, 1)))
+            finally:
+                receiver.stop.set()
+                stop(proc)
+                sock.close()
         store = os.path.join(work, "tuning.bin")
         proc, sock = start(image, store)
         try:

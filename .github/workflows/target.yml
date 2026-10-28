@@ -50,3 +50,6 @@ jobs:
             targets/stm32f4/bin/adaflight_stm32f4
             targets/stm32f4/obj/adaflight_stm32f4.map
           retention-days: 14
+
+      - name: Build the 512 KB feature set
+        run: FLASH_KB=512 bash target.do

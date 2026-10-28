@@ -55,6 +55,12 @@ adaflight keeps the operation order of Betaflight's code, so a host build of eac
 
 A change is finished when `verify.do` passes.
 
+The board's MCU sets the image's features through its flash size. A board with 1024 KB or more builds every feature. A 512 KB board leaves out gimbal control, rangefinders, iBus, LTM and MAVLink telemetry, and Jeti EX Bus and SUMD receivers. `FEATURES` adds or removes features by name, `FLASH_KB` sets the flash size instead, and `tools/featuregen.py` lists the features:
+
+    FEATURES="-Menus" bash target.do          # every feature but the menu system
+    FLASH_KB=512 bash target.do               # the features of a 512 KB board
+    FLASH_KB=512 bash host.do                 # the host smoke on those features
+
 The STM32F4 image is flashed through the STM32 bootloader over USB with the board in DFU mode, as two files, the code from sector 2 and then the vector table at the flash's start, so the configuration stored in sector 1 stays in place. The bootloader leaves through the address of the last write, so the vector table goes last:
 
     cd targets/stm32f4

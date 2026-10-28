@@ -1,3 +1,4 @@
+with Adaflight.Build_Features;
 with Adaflight.Bytes; use Adaflight.Bytes;
 with Adaflight.Lidar_TF;
 with Adaflight.Nooploop;
@@ -109,6 +110,9 @@ package body Adaflight.STM32.Rangefinder is
       Cone     : Natural := 0;
    begin
       Found := False;
+      if not Adaflight.Build_Features.Rangefinder then
+         return;
+      end if;
       if Adaflight.Rangefinder_Detect.Has_Driver (Hardware) then
          Driver := Adaflight.Rangefinder_Detect.Driver_Of (Hardware);
          case Driver is
@@ -154,15 +158,16 @@ package body Adaflight.STM32.Rangefinder is
       end if;
    end Init;
 
-   function Detected return Boolean is (Found);
+   function Detected return Boolean is (Adaflight.Build_Features.Rangefinder and then Found);
 
    function Period_Ms return Natural is (Period);
 
-   function Holds (N : USART.Number) return Boolean is (Found and then Port.Open and then N = Port.Which);
+   function Holds (N : USART.Number) return Boolean is
+     (Adaflight.Build_Features.Rangefinder and then Found and then Port.Open and then N = Port.Which);
 
    procedure Update is
    begin
-      if Found then
+      if Adaflight.Build_Features.Rangefinder and then Found then
          case Driver is
             when Adaflight.Rangefinder_Detect.TF =>
                Lidar.Update (Port, State);
@@ -180,6 +185,9 @@ package body Adaflight.STM32.Rangefinder is
       Unused_Processed : Boolean;
       Distance         : Interfaces.Integer_32 := Core.No_New_Data;
    begin
+      if not Adaflight.Build_Features.Rangefinder then
+         return;
+      end if;
       if not Found then
          return;
       end if;

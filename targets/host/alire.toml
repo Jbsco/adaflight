@@ -26,3 +26,9 @@ adaflight_core = "validation"
 [[actions]]
 type = "pre-build"
 command = ["sh", "-c", "python3 ../../tools/boardgen.py ../../third_party/board-configs/configs \"${BOARD:-CLRACINGF4}\" gen/adaflight-board.ads MSP_UART=SERIAL_PORT_USART1"]
+
+# The build's features follow the board's flash size, or FLASH_KB when set, with the FEATURES list
+# adding or removing features by name (tools/featuregen.py).
+[[actions]]
+type = "pre-build"
+command = ["sh", "-c", "python3 ../../tools/featuregen.py ../../third_party/board-configs/configs \"${BOARD:-CLRACINGF4}\" gen/adaflight-build_features.ads \"${FEATURES:-}\""]

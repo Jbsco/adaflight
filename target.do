@@ -1,7 +1,8 @@
 #!/bin/bash
 # Gate: the STM32F4 image builds. The board package is generated from the pinned board
-# configuration repository (BOARD, CLRACINGF4 when unset), the crate builds in its release profile
-# with the Alire ARM toolchain and the runtime it names, and the image's section sizes are shown.
+# configuration repository (BOARD, CLRACINGF4 when unset), the build's features from the board's
+# flash size, FLASH_KB and FEATURES, the crate builds in its release profile with the Alire ARM
+# toolchain and the runtime it names, and the image's section sizes and features are shown.
 set -e
 cd "$(dirname "$0")/targets/stm32f4"
 if [ ! -f ../../third_party/board-configs/configs/CLRA/CLRACINGF4/config.h ]; then
@@ -10,4 +11,6 @@ if [ ! -f ../../third_party/board-configs/configs/CLRA/CLRACINGF4/config.h ]; th
 fi
 alr -n build --release
 alr -n exec -- arm-eabi-size bin/adaflight_stm32f4
+echo "target: features $(sed -n 's/^ *\([A-Za-z_]*\) *: constant Boolean := \([A-Za-z]*\);/\1=\2/p' \
+    gen/adaflight-build_features.ads | tr '\n' ' ')"
 echo "target: ok"
