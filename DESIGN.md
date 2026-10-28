@@ -11325,3 +11325,14 @@ the same way. `Put_Field` and `Put_Zero_Padded` now do it once out of line, and 
 
 On the STM32F4 image the change removes 1040 bytes of text, from 619360 to 618320. The command line vectors replay
 unchanged.
+
+## D497. Board identifier compared without the character maps (2026-10-28)
+
+The board compared the stored board identifier with `Ada.Characters.Handling.To_Upper`, the image's only use of that
+package. The package brings the runtime's character maps and sets, which the runtime builds at startup with 2136
+bytes of elaboration code. The comparison now raises ASCII letters to upper case in its own loop. The board identifier
+is ASCII, so every stored value compares the same: a Latin-1 letter that `To_Upper` would raise stays outside ASCII
+and matches no character of the identifier either way.
+
+On the STM32F4 image the change removes 2552 bytes of text, from 618320 to 615768, and 384 bytes of RAM. The host
+smoke check's restarts keep their stored configuration through the new comparison.
