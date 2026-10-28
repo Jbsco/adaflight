@@ -391,6 +391,34 @@ def tofsense_frame(distance_mm):
     return body + bytes([sum(body) & 0xFF])
 
 
+def gimbal_frame(roll, pitch, yaw, mode=0, sens=15):
+    """A head tracker command frame: the opcode 0x5AA5, the mode and sensitivity, four padding bits, the
+    12-bit roll, pitch and yaw, and the CRC16 of the first eight bytes, high byte first."""
+    bits = (roll & 0xFFF) << 4 | (pitch & 0xFFF) << 16 | (yaw & 0xFFF) << 28
+    body = bytes([0xA5, 0x5A, (mode & 7) | (sens & 0x1F) << 3]) + bits.to_bytes(5, "little")
+    crc = crc16_xmodem(body)
+    return body + bytes([crc >> 8, crc & 0xFF])
+
+
+def gimbal_frames(data):
+    """The command frames in data whose CRC checks, as mode, sensitivity, roll, pitch and yaw."""
+    def signed(value, width):
+        return value - (1 << width) if value >> (width - 1) & 1 else value
+    frames = []
+    i = 0
+    while i + 10 <= len(data):
+        f = data[i:i + 10]
+        crc = crc16_xmodem(f[:8])
+        if f[:2] == b"\xa5\x5a" and f[8] == crc >> 8 and f[9] == crc & 0xFF:
+            bits = int.from_bytes(f[3:8], "little")
+            frames.append((f[2] & 7, signed(f[2] >> 3, 5), signed(bits >> 4 & 0xFFF, 12),
+                           signed(bits >> 16 & 0xFFF, 12), signed(bits >> 28 & 0xFFF, 12)))
+            i += 10
+        else:
+            i += 1
+    return frames
+
+
 class Lidar(threading.Thread):
     """A rangefinder on UART4's port sending a frame every 10 ms: by default a TFmini's two sync bytes, 150 cm,
     a strength of 500, the short integral time, a reserved byte and the checksum of the first eight bytes."""
@@ -1977,6 +2005,50 @@ def main():
                     line.close()
                 if vcp is not None:
                     vcp.close()
+        store = os.path.join(work, "gimbal.bin")
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "set gimbal_uart = UART4")
+            check("gimbal port assigned", "gimbal_uart set to UART4" in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store)
+        line = None
+        try:
+            deadline = time.time() + 5
+            while line is None and time.time() < deadline:
+                try:
+                    line = socket.create_connection(("127.0.0.1", GPS_PORT), timeout=1)
+                    line.settimeout(0.02)
+                except OSError:
+                    time.sleep(0.05)
+            time.sleep(3.0)
+            read_all(line, 0.2)
+            frames = gimbal_frames(read_all(line, 1.0))
+            check("gimbal gets a checked command frame about every 10 ms without a head tracker",
+                  80 <= len(frames) <= 120, repr(len(frames)))
+            check("gimbal frames without a head tracker hold no roll or yaw, mode 0 and sensitivity 15",
+                  len(frames) > 0 and all(f[0] == 0 and f[1] == 15 and f[2] == 0 and f[4] == 0 for f in frames),
+                  repr(frames[:2]))
+            line.sendall(gimbal_frame(900, 0, 0))
+            reply = gimbal_frames(read_all(line, 0.1))
+            check("a head tracker frame goes on to the gimbal at once with its roll of 900 scaled to 500",
+                  len(reply) == 1 and reply[0][2] == 500 and reply[0][4] == 0, repr(reply))
+            line.sendall(b"AB" + bytes([0xA5, 0x41]))
+            echo = read_all(line, 0.1)
+            check("bytes outside a frame pass through to the gimbal, a lone opcode byte as itself",
+                  echo == b"AB" + bytes([0xA5, 0x41]), repr(echo[:12]))
+        finally:
+            stop(proc)
+            sock.close()
+            if line is not None:
+                line.close()
     print(f"host smoke: {'all checks passed' if not failures else str(len(failures)) + ' failed'}")
     sys.exit(1 if failures else 0)
 

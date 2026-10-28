@@ -45,6 +45,7 @@ with Adaflight.Jeti_Telemetry;
 with Adaflight.FAT;
 with Adaflight.Flash_Device;
 with Adaflight.Flight_Stats;
+with Adaflight.Gimbal_Control;
 with Adaflight.Gyro_Filters;
 with Adaflight.Gyro_Selection;
 with Adaflight.Mixer;
@@ -86,6 +87,7 @@ with Adaflight.STM32.IBus;
 with Adaflight.STM32.LTM;
 with Adaflight.STM32.SmartPort;
 with Adaflight.STM32.MAVLink;
+with Adaflight.STM32.Gimbal;
 with Adaflight.STM32.GPS;
 with Adaflight.GPS_Frames;
 with Adaflight.GPS_Link;
@@ -831,7 +833,7 @@ package body Adaflight.STM32.Flight is
         (Accel => True, Beeper => True, Sag_Compensation => True, OSD => True, CMS => True, GPS => True,
          GPS_Rescue => True, Alt_Hold => True, Pos_Hold => True, Telemetry => True, VTX_Control => True,
          VTX_Driver => True, PINIO_Box => True, ESC_Sensor => True, RC_Device => True, Rangefinder => True,
-         OSD_Custom_Text => True, others => False);
+         OSD_Custom_Text => True, Gimbal => True, others => False);
       Inputs  : Adaflight.Task_Init.Inputs;
       Feature_Rangefinder : constant Unsigned_32 := 16#0000_0200#;
    begin
@@ -1225,6 +1227,7 @@ package body Adaflight.STM32.Flight is
                            or else Adaflight.STM32.VTX.Holds (Adaflight.STM32.USART.UART1)
                            or else Adaflight.STM32.RunCam.Holds (Adaflight.STM32.USART.UART1)
                            or else Adaflight.STM32.OSD_Custom_Text.Holds (Adaflight.STM32.USART.UART1)
+                           or else Adaflight.STM32.Gimbal.Holds (Adaflight.STM32.USART.UART1)
                            or else Adaflight.STM32.Blackbox.Holds (Adaflight.STM32.USART.UART1)
                            or else Telemetry_Holds (Adaflight.STM32.USART.UART1))
             then
@@ -3215,6 +3218,24 @@ package body Adaflight.STM32.Flight is
       return Src;
    end Telemetry_Sources;
 
+   --  The roll, pitch, yaw and throttle channels the gimbal mixes in.
+   function Gimbal_Sticks return Adaflight.Gimbal_Control.Sticks is
+      Channels : constant Adaflight.RC_Command.Channel_Values := Flight_Channels;
+   begin
+      return (Roll => Channels (0), Pitch => Channels (1), Yaw => Channels (2),
+              Throttle => Channels (Adaflight.RC_Command.Throttle_Channel));
+   end Gimbal_Sticks;
+
+   --  The gimbal task, stopped for good when the gimbal has no port.
+   procedure Run_Gimbal (Now_Us : Unsigned_32) is
+      Stop : Boolean;
+   begin
+      Adaflight.STM32.Gimbal.Update (Config, Gimbal_Sticks, Now_Us, Stop);
+      if Stop then
+         Scheduler.Set_Task_Enabled (Sched, Scheduler.Gimbal, False);
+      end if;
+   end Run_Gimbal;
+
    --  The camera task over the sticks, the camera boxes, the arming, the
    --  menu and the attitude, with the beep a five key connection asks for.
    procedure Run_RunCam is
@@ -3313,6 +3334,8 @@ package body Adaflight.STM32.Flight is
             Tasks.GPS_Rescue (Inputs);
          when Scheduler.RC_Device =>
             Run_RunCam;
+         when Scheduler.Gimbal =>
+            Run_Gimbal (Before);
          when Scheduler.OSD_Custom_Text =>
             Adaflight.STM32.OSD_Custom_Text.Update (Config.Osd_Custom_Text_Config.Terminator);
          when Scheduler.Rangefinder =>
@@ -3447,6 +3470,7 @@ package body Adaflight.STM32.Flight is
             Write_Configuration;
          end if;
       end;
+      Adaflight.STM32.Gimbal.Init (Config, Gimbal_Sticks);
       Adaflight.STM32.RunCam.Init (Config, Adaflight.STM32.Time.Millis);
       Ctx.Out_Views.State.Status.Sensors (Adaflight.MSP_Out.GPS) := Adaflight.STM32.GPS.Enabled;
       Ctx.Out_Views.State.Status.Sensors (Adaflight.MSP_Out.Rangefinder) := Adaflight.STM32.Rangefinder.Detected;
