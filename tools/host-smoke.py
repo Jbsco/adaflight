@@ -2432,6 +2432,36 @@ def main():
         finally:
             stop(proc)
             sock.close()
+        store = os.path.join(work, "resources.bin")
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "resource MOTOR 1")
+            check("resource names the board's first motor pin", "# resource MOTOR 1 B00" in text, text[-120:])
+            text = cli(sock, "resource SERVO 1 B00")
+            check("resource notes a pin another owner holds",
+                  "NOTE: B00 already assigned to MOTOR 1." in text and "Resource is set to B00" in text, text[-160:])
+            text = cli(sock, "dma")
+            check("dma lists the streams", "Currently active DMA:" in text and "DMA2 Stream 7: FREE" in text, text[-160:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "resource SERVO 1")
+            check("resource keeps a stored servo pin across a restart", "# resource SERVO 1 B00" in text, text[-120:])
+            text = cli(sock, "diff")
+            check("diff lists the changed resource", "resource SERVO 1 B00" in text, text[-200:])
+        finally:
+            stop(proc)
+            sock.close()
         store = os.path.join(work, "laps.bin")
         proc, sock = start(image, store)
         try:

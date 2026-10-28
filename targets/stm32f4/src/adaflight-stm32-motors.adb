@@ -452,6 +452,11 @@ package body Adaflight.STM32.Motors is
    function Motor_Enabled (Index : Natural) return Boolean is
      (Index < Driven and then Outputs (Index).Configured);
 
+   function Stream_Of (Index : Natural) return Natural is
+     (if Index < Driven and then Outputs (Index).Configured
+      then (Outputs (Index).Stream.Controller - 1) * 8 + Outputs (Index).Stream.Stream + 1
+      else 0);
+
    function Count return Natural is (Driven);
 
    function Device return Adaflight.MSP_Motor_In.Device_Kind is (Kind);
