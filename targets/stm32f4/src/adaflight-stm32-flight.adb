@@ -750,9 +750,14 @@ package body Adaflight.STM32.Flight is
       end if;
    end Send_DShot_Commands;
 
+   --  The MSP reboot modes the board serves: the firmware and the ROM
+   --  bootloader; the others leave the board running.
+   Firmware_Reboot       : constant := 0;
+   ROM_Bootloader_Reboot : constant := 1;
+
    --  One command frame through the processor, a requested write of the
    --  configuration with its read back, then its reply framed and sent back
-   --  through the port it came in on.
+   --  through the port it came in on, and a reboot in its mode.
    procedure Answer (L : MSP_Line) is
       Port           : Adaflight.MSP_Port.Port renames Lines (L).Port;
       Unused_Success : Boolean;
@@ -823,7 +828,14 @@ package body Adaflight.STM32.Flight is
                                  Reply (0 .. Stream.Next - 1), Frame, Frame_Length);
       Adaflight.STM32.Serial.Put (Replies (L), Frame (0 .. Frame_Length - 1));
       if Effects.Reboot then
-         Reset;
+         case Effects.Control.Reboot_Mode is
+            when Firmware_Reboot =>
+               Reset;
+            when ROM_Bootloader_Reboot =>
+               Adaflight.STM32.MCU.Reset_To_Bootloader;
+            when others =>
+               null;
+         end case;
       end if;
    end Answer;
 
@@ -1001,6 +1013,9 @@ package body Adaflight.STM32.Flight is
                end if;
                if Changes.Reboot then
                   Reset;
+               end if;
+               if CLI."=" (Changes.Restart, CLI.ROM_Bootloader) then
+                  Adaflight.STM32.MCU.Reset_To_Bootloader;
                end if;
                Changes := (others => <>);
             end if;
@@ -2166,6 +2181,9 @@ package body Adaflight.STM32.Flight is
       end loop;
       if Adaflight.MAVLink_Commands."/=" (R.Reboot, Adaflight.MAVLink_Commands.None) then
          Adaflight.STM32.MAVLink.Finish_Transmit;
+         if Adaflight.MAVLink_Commands."=" (R.Reboot, Adaflight.MAVLink_Commands.Bootloader) then
+            Adaflight.STM32.MCU.Reset_To_Bootloader;
+         end if;
          Reset;
       end if;
    end Serve_MAVLink_Requests;
@@ -2387,6 +2405,8 @@ package body Adaflight.STM32.Flight is
 
    procedure Init is
    begin
+      Adaflight.STM32.MCU.Init_Persistent;
+      Adaflight.STM32.MCU.Check_Bootloader_Request;
       Adaflight.STM32.Time.Init;
       Adaflight.STM32.GPIO.Enable_Port (Adaflight.Board.LED0_Pin.Port);
       Adaflight.STM32.GPIO.Set_Output (Adaflight.Board.LED0_Pin);
