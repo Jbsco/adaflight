@@ -14,6 +14,7 @@ with Adaflight.Blackbox;
 with Adaflight.Blackbox_Header;
 with Adaflight.Blackbox_Info;
 with Adaflight.Board;
+with Adaflight.Build_Features;
 with Adaflight.Board_Info;
 with Adaflight.Bytes;
 with Adaflight.Clock;
@@ -373,8 +374,9 @@ package body Adaflight.STM32.Flight is
    --  Whether a telemetry stream holds a UART.
    function Telemetry_Holds (N : Adaflight.STM32.USART.Number) return Boolean is
      (Adaflight.STM32.FrSky_Hub.Holds (N) or else Adaflight.STM32.SmartPort.Holds (N)
-      or else Adaflight.STM32.LTM.Holds (N) or else Adaflight.STM32.MAVLink.Holds (N)
-      or else Adaflight.STM32.IBus.Holds (N));
+      or else (Adaflight.Build_Features.LTM_Telemetry and then Adaflight.STM32.LTM.Holds (N))
+      or else (Adaflight.Build_Features.MAVLink_Telemetry and then Adaflight.STM32.MAVLink.Holds (N))
+      or else (Adaflight.Build_Features.IBus_Telemetry and then Adaflight.STM32.IBus.Holds (N)));
 
    --  Whether one of the functions that open their ports before the MSP holds
    --  a UART.
@@ -382,7 +384,8 @@ package body Adaflight.STM32.Flight is
      (Adaflight.STM32.Rangefinder.Holds (N) or else Adaflight.STM32.Radio.Holds (N)
       or else Adaflight.STM32.GPS.Holds (N) or else Adaflight.STM32.OSD_Custom_Text.Holds (N)
       or else Adaflight.STM32.ESC_Sensor.Holds (N) or else Adaflight.STM32.Blackbox.Holds (N)
-      or else Adaflight.STM32.VTX.Holds (N) or else Adaflight.STM32.Gimbal.Holds (N)
+      or else Adaflight.STM32.VTX.Holds (N)
+      or else (Adaflight.Build_Features.Gimbal and then Adaflight.STM32.Gimbal.Holds (N))
       or else Adaflight.STM32.RunCam.Holds (N));
 
    function Text (S : String) return Common.Text is
@@ -790,14 +793,16 @@ package body Adaflight.STM32.Flight is
          Runtime_Features := Runtime_Features and not Adaflight.Config_Fix.Feature_OSD;
       end if;
       Adaflight.STM32.OSD.Configure (Config, Version_Text);
-      declare
-         Columns, Rows : Unsigned_8;
-      begin
-         Adaflight.STM32.OSD.Dimensions (Columns, Rows);
-         Adaflight.STM32.Menu.Init
-           (Version_Text, Adaflight.Board.MCU_Name, Adaflight.Board.Board_Name, Adaflight.Board.Manufacturer_ID,
-            Adaflight.STM32.OSD.Port_Present, Columns, Rows);
-      end;
+      if Adaflight.Build_Features.Menus then
+         declare
+            Columns, Rows : Unsigned_8;
+         begin
+            Adaflight.STM32.OSD.Dimensions (Columns, Rows);
+            Adaflight.STM32.Menu.Init
+              (Version_Text, Adaflight.Board.MCU_Name, Adaflight.Board.Board_Name, Adaflight.Board.Manufacturer_ID,
+               Adaflight.STM32.OSD.Port_Present, Columns, Rows);
+         end;
+      end if;
    end Start_OSD;
 
    procedure Start_Gyro is
@@ -896,10 +901,11 @@ package body Adaflight.STM32.Flight is
    --  finds no frames yet.
    procedure Init_Scheduler is
       Options : constant Adaflight.Task_Init.Options :=
-        (Accel => True, Beeper => True, Sag_Compensation => True, OSD => True, CMS => True, GPS => True,
-         GPS_Rescue => True, Alt_Hold => True, Pos_Hold => True, Telemetry => True, VTX_Control => True,
-         VTX_Driver => True, PINIO_Box => True, ESC_Sensor => True, RC_Device => True, Rangefinder => True,
-         OSD_Custom_Text => True, Gimbal => True, ADC_Internal => True, others => False);
+        (Accel => True, Beeper => True, Sag_Compensation => True, OSD => True, CMS => Adaflight.Build_Features.Menus,
+         GPS => True, GPS_Rescue => True, Alt_Hold => True, Pos_Hold => True, Telemetry => True,
+         VTX_Control => True, VTX_Driver => True, PINIO_Box => True, ESC_Sensor => True, RC_Device => True,
+         Rangefinder => Adaflight.Build_Features.Rangefinder, OSD_Custom_Text => True,
+         Gimbal => Adaflight.Build_Features.Gimbal, ADC_Internal => True, others => False);
       Inputs  : Adaflight.Task_Init.Inputs;
       Feature_Rangefinder : constant Unsigned_32 := 16#0000_0200#;
    begin
@@ -1869,9 +1875,15 @@ package body Adaflight.STM32.Flight is
       end loop;
       Adaflight.STM32.FrSky_Hub.Check_State (Armed, Box_Present, Box_Active);
       Adaflight.STM32.SmartPort.Check_State (Armed, Box_Present, Box_Active);
-      Adaflight.STM32.LTM.Check_State (Armed, Box_Present, Box_Active);
-      Adaflight.STM32.MAVLink.Check_State (Armed, Box_Present, Box_Active, Adaflight.STM32.Time.Millis);
-      Adaflight.STM32.IBus.Check_State (Armed, Box_Present, Box_Active);
+      if Adaflight.Build_Features.LTM_Telemetry then
+         Adaflight.STM32.LTM.Check_State (Armed, Box_Present, Box_Active);
+      end if;
+      if Adaflight.Build_Features.MAVLink_Telemetry then
+         Adaflight.STM32.MAVLink.Check_State (Armed, Box_Present, Box_Active, Adaflight.STM32.Time.Millis);
+      end if;
+      if Adaflight.Build_Features.IBus_Telemetry then
+         Adaflight.STM32.IBus.Check_State (Armed, Box_Present, Box_Active);
+      end if;
       for L in 1 .. Line_Count loop
          if Was (L) and then not Telemetry_Holds (UART_Of (Line_Serial (L))) then
             Open_Line (L);
@@ -2184,8 +2196,11 @@ package body Adaflight.STM32.Flight is
       Adaflight.STM32.Pilot.Set_Reason
         (Adaflight.Arming.Failsafe_Active, Adaflight.STM32.Radio.Failsafe_Blocks_Arming);
       Adaflight.STM32.Pilot.Set_Reason (Adaflight.Arming.CLI_Open, Session.Arming_Held);
-      Adaflight.STM32.Pilot.Set_Reason (Adaflight.Arming.CMS_Open, Adaflight.STM32.Menu.Arming_Held);
-      Adaflight.STM32.Pilot.Set_Reason (Adaflight.Arming.Reboot_Required, Adaflight.STM32.Menu.Reboot_Required);
+      Adaflight.STM32.Pilot.Set_Reason
+        (Adaflight.Arming.CMS_Open, Adaflight.Build_Features.Menus and then Adaflight.STM32.Menu.Arming_Held);
+      Adaflight.STM32.Pilot.Set_Reason
+        (Adaflight.Arming.Reboot_Required,
+         Adaflight.Build_Features.Menus and then Adaflight.STM32.Menu.Reboot_Required);
    end Sync_Reasons;
 
    --  The names the OSD shows for each adjustment.
@@ -2410,7 +2425,9 @@ package body Adaflight.STM32.Flight is
                (if Adaflight.STM32.Radio.RSSI_ADC
                 then Analog (Config.Adc_Config.Rssi) else 0),
                Ready);
-            Run_Display_Command;
+            if Adaflight.Build_Features.Menus then
+               Run_Display_Command;
+            end if;
             if Ready then
                Adaflight.STM32.Pilot.Update_Refresh_Rate
                  (Before, Adaflight.STM32.Radio.Receiving, Adaflight.STM32.Radio.Last_Frame_Us);
@@ -3483,7 +3500,7 @@ package body Adaflight.STM32.Flight is
           Armed           => Adaflight.STM32.Pilot.Armed,
           Blocked         =>
             Disabled (Adaflight.Arming.Runaway_Disarm) or else Disabled (Adaflight.Arming.Crash_Disarm),
-          Menu_Open       => Adaflight.STM32.Menu.Open,
+          Menu_Open       => Adaflight.Build_Features.Menus and then Adaflight.STM32.Menu.Open,
           Sticks_Disabled => Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Stick_Command_Disable),
           Camera          =>
             (Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Camera_1),
@@ -3556,7 +3573,9 @@ package body Adaflight.STM32.Flight is
          when Scheduler.OSD =>
             Run_OSD (Before);
          when Scheduler.CMS =>
-            Run_Menu (Before);
+            if Adaflight.Build_Features.Menus then
+               Run_Menu (Before);
+            end if;
          when Scheduler.GPS =>
             Run_GPS (Before);
          when Scheduler.Position =>
@@ -3570,7 +3589,9 @@ package body Adaflight.STM32.Flight is
          when Scheduler.RC_Device =>
             Run_RunCam;
          when Scheduler.Gimbal =>
-            Run_Gimbal (Before);
+            if Adaflight.Build_Features.Gimbal then
+               Run_Gimbal (Before);
+            end if;
          when Scheduler.OSD_Custom_Text =>
             Adaflight.STM32.OSD_Custom_Text.Update (Config.Osd_Custom_Text_Config.Terminator);
          when Scheduler.Rangefinder =>
@@ -3583,23 +3604,31 @@ package body Adaflight.STM32.Flight is
             if not Session.Open and then (Runtime_Features and Adaflight.Config_Fix.Feature_Telemetry) /= 0 then
                Adaflight.STM32.FrSky_Hub.Run (FrSky_Hub_Inputs);
                Adaflight.STM32.SmartPort.Run (SmartPort_Inputs);
-               Adaflight.STM32.LTM.Run (Adaflight.STM32.Time.Millis, LTM_Inputs);
-               Adaflight.STM32.Radio.Jeti_Telemetry_Step (Jeti_Inputs, Adaflight.STM32.Time.Micros);
-               declare
-                  Requests : Adaflight.MAVLink_Commands.Requests;
-               begin
-                  Adaflight.STM32.MAVLink.Run
-                    (Adaflight.STM32.Time.Micros, Adaflight.STM32.Time.Millis, MAVLink_Inputs,
-                     (Armed  => Adaflight.STM32.Pilot.Armed, GPS_Fix => Adaflight.STM32.GPS.Current.Fix,
-                      Now_Us => Adaflight.STM32.Time.Micros, Now_Ms => Adaflight.STM32.Time.Millis),
-                     Requests);
-                  Serve_MAVLink_Requests (Requests);
-               end;
+               if Adaflight.Build_Features.LTM_Telemetry then
+                  Adaflight.STM32.LTM.Run (Adaflight.STM32.Time.Millis, LTM_Inputs);
+               end if;
+               if Adaflight.Build_Features.Jeti_EX_Bus then
+                  Adaflight.STM32.Radio.Jeti_Telemetry_Step (Jeti_Inputs, Adaflight.STM32.Time.Micros);
+               end if;
+               if Adaflight.Build_Features.MAVLink_Telemetry then
+                  declare
+                     Requests : Adaflight.MAVLink_Commands.Requests;
+                  begin
+                     Adaflight.STM32.MAVLink.Run
+                       (Adaflight.STM32.Time.Micros, Adaflight.STM32.Time.Millis, MAVLink_Inputs,
+                        (Armed  => Adaflight.STM32.Pilot.Armed, GPS_Fix => Adaflight.STM32.GPS.Current.Fix,
+                         Now_Us => Adaflight.STM32.Time.Micros, Now_Ms => Adaflight.STM32.Time.Millis),
+                        Requests);
+                     Serve_MAVLink_Requests (Requests);
+                  end;
+               end if;
             end if;
             Tasks.Telemetry (Inputs, Before);
             if not Session.Open and then (Runtime_Features and Adaflight.Config_Fix.Feature_Telemetry) /= 0 then
                Adaflight.STM32.Radio.GHST_Telemetry_Step (GHST_Inputs);
-               Adaflight.STM32.IBus.Run (IBus_Inputs);
+               if Adaflight.Build_Features.IBus_Telemetry then
+                  Adaflight.STM32.IBus.Run (IBus_Inputs);
+               end if;
             end if;
          when Scheduler.PINIO_Box =>
             Adaflight.STM32.PINIO.Update;
@@ -3732,7 +3761,9 @@ package body Adaflight.STM32.Flight is
             Write_Configuration;
          end if;
       end;
-      Adaflight.STM32.Gimbal.Init (Config, Gimbal_Sticks);
+      if Adaflight.Build_Features.Gimbal then
+         Adaflight.STM32.Gimbal.Init (Config, Gimbal_Sticks);
+      end if;
       Adaflight.STM32.RunCam.Init (Config, Adaflight.STM32.Time.Millis);
       Ctx.Out_Views.State.Status.Sensors (Adaflight.MSP_Out.GPS) := Adaflight.STM32.GPS.Enabled;
       Ctx.Out_Views.State.Status.Sensors (Adaflight.MSP_Out.Rangefinder) := Adaflight.STM32.Rangefinder.Detected;
@@ -3786,23 +3817,33 @@ package body Adaflight.STM32.Flight is
       if not Adaflight.STM32.Radio.Is_FPort then
          Adaflight.STM32.SmartPort.Init (Config, Runtime_Features, SmartPort_Build);
       end if;
-      Adaflight.STM32.LTM.Init (Config, Runtime_Features);
-      Adaflight.STM32.Radio.Init_Jeti_Telemetry
-        (Adaflight.Config_Runtime.Jeti_Settings_Of
-           (Config.Battery_Config, Config.System_Config, Runtime_Features,
-            (Gyro => Selection.Found, Acc => Gyro_Report.Acc_Found, Baro => False, Mag => False)),
-         Feature_On => (Runtime_Features and Adaflight.Config_Fix.Feature_Telemetry) /= 0);
-      Adaflight.STM32.MAVLink.Init (Config, Runtime_Features, (UID (1), UID (2), UID (3)));
+      if Adaflight.Build_Features.LTM_Telemetry then
+         Adaflight.STM32.LTM.Init (Config, Runtime_Features);
+      end if;
+      if Adaflight.Build_Features.Jeti_EX_Bus then
+         Adaflight.STM32.Radio.Init_Jeti_Telemetry
+           (Adaflight.Config_Runtime.Jeti_Settings_Of
+              (Config.Battery_Config, Config.System_Config, Runtime_Features,
+               (Gyro => Selection.Found, Acc => Gyro_Report.Acc_Found, Baro => False, Mag => False)),
+            Feature_On => (Runtime_Features and Adaflight.Config_Fix.Feature_Telemetry) /= 0);
+      end if;
+      if Adaflight.Build_Features.MAVLink_Telemetry then
+         Adaflight.STM32.MAVLink.Init (Config, Runtime_Features, (UID (1), UID (2), UID (3)));
+      end if;
       Adaflight.STM32.Radio.Init_GHST_Telemetry
         (Adaflight.Config_Runtime.GHST_Settings_Of
            (Config.Telemetry_Config, Config.Battery_Config, Runtime_Features,
             (Gyro => Selection.Found, Acc => Gyro_Report.Acc_Found, Baro => False, Mag => False)),
          Feature_On => (Runtime_Features and Adaflight.Config_Fix.Feature_Telemetry) /= 0);
-      Adaflight.STM32.IBus.Init
-        (Config, Runtime_Features,
-         Adaflight.Config_Runtime.IBus_Settings_Of
-           (Config.Telemetry_Config, Float'Max (0.0, Float'Min (1.0, Acc_State.One_G_Reciprocal))));
-      if (Runtime_Features and Adaflight.Config_Fix.Feature_Telemetry) /= 0 and then Adaflight.STM32.Radio.Is_CRSF then
+      if Adaflight.Build_Features.IBus_Telemetry then
+         Adaflight.STM32.IBus.Init
+           (Config, Runtime_Features,
+            Adaflight.Config_Runtime.IBus_Settings_Of
+              (Config.Telemetry_Config, Float'Max (0.0, Float'Min (1.0, Acc_State.One_G_Reciprocal))));
+      end if;
+      if Adaflight.Build_Features.Menus and then (Runtime_Features and Adaflight.Config_Fix.Feature_Telemetry) /= 0
+        and then Adaflight.STM32.Radio.Is_CRSF
+      then
          Adaflight.STM32.Menu.Register_CRSF (Adaflight.STM32.Radio.Display_Columns, Adaflight.STM32.Radio.Display_Rows);
       end if;
       Check_Telemetry;

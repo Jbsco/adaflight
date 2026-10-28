@@ -155,3 +155,6 @@ adaflight keeps the operation order of Betaflight's code, so a host build of eac
 - **Resource table without ESC serial**: The resource command has no ESCSERIAL entry (D479). adaflight does not port the ESC serial driver, whose pin the entry names, and the configuration has no ESC serial group.
 - **Resource show**: resource show lists no pins (D479). The board does not track each pin's owner, where the reference lists every pin of the processor with its owner.
 - **[Resource show without a second word](docs/upstream/cli-resource-show.md)**: resource show alone reads no word as not all (D479). The reference compares a null pointer there, which an STM32 reads at its boot alias and a host faults on (F304).
+- **Menu system apart from the OSD**: A build can leave out the menu system and keep the OSD (D503). The reference builds its menu system with every OSD build.
+- **Gimbal control at 1024 KB**: A board with 1024 KB of flash or more builds the gimbal control (D503). The reference's local builds leave it out at every flash size.
+- **Settings of left-out features**: A build that leaves out a feature keeps the feature's settings, serial functions and MSP commands (D503). The reference's build drops them with the feature.
