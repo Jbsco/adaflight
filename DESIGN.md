@@ -11189,3 +11189,14 @@ keeps its layout.
 
 On the STM32F4 image the change removes 12028 bytes of text, from 703152 to 691124. The setting, write and storage
 vectors replay unchanged.
+
+## D484. Command line output in pieces (2026-10-28)
+
+The command line wrote 190 of its lines as one concatenation: the literals, the numbers from `Decimal` and the names
+joined on the secondary stack, then one `Put`. GNAT builds each concatenation with its lengths, an allocation and a
+copy per operand, about 80 bytes of code a line in the board image. These lines now put each run of literals and
+each other operand in turn, and an error line starts with `Put_Error` on its first part. The setting lines of a dump
+were already written this way, and every line's text is the same.
+
+On the STM32F4 image the change removes 15516 bytes of text, from 691124 to 675608. The command line vectors replay
+unchanged.

@@ -115,17 +115,22 @@ package body Adaflight.Command_Line with SPARK_Mode is
                when U32 =>
                   Corrupted := V > I.Max;
                   if Full and then not Corrupted then
-                     Put (Into, " 0 " & Decimal (I.Max));
+                     Put (Into, " 0 ");
+                     Put (Into, Decimal (I.Max));
                   end if;
                when I32 =>
                   Corrupted := V > I.Max or else V < -I.Max;
                   if Full and then not Corrupted then
-                     Put (Into, " 0 " & Decimal (I.Max));
+                     Put (Into, " 0 ");
+                     Put (Into, Decimal (I.Max));
                   end if;
                when U8 | I8 | U16 | I16 =>
                   Corrupted := V < I.Min or else V > I.Max;
                   if Full and then not Corrupted then
-                     Put (Into, " " & Decimal (I.Min) & " " & Decimal (I.Max));
+                     Put (Into, " ");
+                     Put (Into, Decimal (I.Min));
+                     Put (Into, " ");
+                     Put (Into, Decimal (I.Max));
                   end if;
             end case;
          when Lookup =>
@@ -162,7 +167,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
          Put_Error (Into, Command);
          Put (Into, ": CORRUPTED CONFIG: ");
          Put (Into, Name (S));
-         Put (Into, " = " & Decimal (if I.Kind = U32 and then V > 2 ** 31 - 1 then V - 2 ** 32 else V) & "###");
+         Put (Into, " = ");
+         Put (Into, Decimal (if I.Kind = U32 and then V > 2 ** 31 - 1 then V - 2 ** 32 else V));
+         Put (Into, "###");
       end if;
    end Put_Value;
 
@@ -175,11 +182,21 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when Direct =>
             case I.Kind is
                when U32 =>
-                  Put (Into, "Allowed range: 0 - " & Decimal (I.Max) & CRLF);
+                  Put (Into, "Allowed range: 0 - ");
+                  Put (Into, Decimal (I.Max));
+                  Put (Into, CRLF);
                when I32 =>
-                  Put (Into, "Allowed range: " & Decimal (-I.Max) & " - " & Decimal (I.Max) & CRLF);
+                  Put (Into, "Allowed range: ");
+                  Put (Into, Decimal (-I.Max));
+                  Put (Into, " - ");
+                  Put (Into, Decimal (I.Max));
+                  Put (Into, CRLF);
                when U8 | I8 | U16 | I16 =>
-                  Put (Into, "Allowed range: " & Decimal (I.Min) & " - " & Decimal (I.Max) & CRLF);
+                  Put (Into, "Allowed range: ");
+                  Put (Into, Decimal (I.Min));
+                  Put (Into, " - ");
+                  Put (Into, Decimal (I.Max));
+                  Put (Into, CRLF);
             end case;
          when Lookup =>
             Put (Into, "Allowed values: ");
@@ -194,10 +211,15 @@ package body Adaflight.Command_Line with SPARK_Mode is
             end loop;
             Put (Into, CRLF);
          when List =>
-            Put (Into, "Array length: " & Decimal (Integer_64 (I.Count)) & CRLF);
+            Put (Into, "Array length: ");
+            Put (Into, Decimal (Integer_64 (I.Count)));
+            Put (Into, CRLF);
          when Text =>
-            Put (Into, "String length: " & Decimal (Integer_64 (I.Min_Length)) & " - " & Decimal (Integer_64 (I.Count))
-                 & CRLF);
+            Put (Into, "String length: ");
+            Put (Into, Decimal (Integer_64 (I.Min_Length)));
+            Put (Into, " - ");
+            Put (Into, Decimal (Integer_64 (I.Count)));
+            Put (Into, CRLF);
          when Bitset =>
             Put (Into, "Allowed values: OFF, ON" & CRLF);
          when Identifier =>
@@ -251,11 +273,17 @@ package body Adaflight.Command_Line with SPARK_Mode is
             Put (Into, CRLF);
             case Describe (S).Where is
                when PID_Profile =>
-                  Put (Into, "profile " & Decimal (Integer_64 (P.PID)) & CRLF);
+                  Put (Into, "profile ");
+                  Put (Into, Decimal (Integer_64 (P.PID)));
+                  Put (Into, CRLF);
                when Rate_Profile =>
-                  Put (Into, "rateprofile " & Decimal (Integer_64 (P.Rate)) & CRLF);
+                  Put (Into, "rateprofile ");
+                  Put (Into, Decimal (Integer_64 (P.Rate)));
+                  Put (Into, CRLF);
                when Battery_Profile =>
-                  Put (Into, "battery_profile " & Decimal (Integer_64 (P.Battery)) & CRLF);
+                  Put (Into, "battery_profile ");
+                  Put (Into, Decimal (Integer_64 (P.Battery)));
+                  Put (Into, CRLF);
                when Master | Hardware =>
                   null;
             end case;
@@ -512,8 +540,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
                            Profile);
                         Changed := True;
                      else
-                        Put_Error (Into, "set: STRING MUST BE 1-" & Decimal (Integer_64 (I.Count))
-                             & " CHARACTERS OR '-' FOR EMPTY###" & CRLF);
+                        Put_Error (Into, "set: STRING MUST BE 1-");
+                        Put (Into, Decimal (Integer_64 (I.Count)));
+                        Put (Into, " CHARACTERS OR '-' FOR EMPTY###" & CRLF);
                      end if;
                   end;
             end case;
@@ -551,12 +580,13 @@ package body Adaflight.Command_Line with SPARK_Mode is
       if Arguments'Length > 0 then
          Index := CLI_Text.To_Integer (Arguments);
          if Index not in 0 .. Count - 1 then
-            Put_Error (Into, Profile_Word (Kind) & ": "
-                 & (case Kind is
-                       when PID => "PROFILE",
-                       when Rate => "RATE PROFILE",
-                       when Battery => "BATTERY PROFILE")
-                 & " OUTSIDE OF [0.." & Decimal (Integer_64 (Count - 1)) & "]###" & CRLF);
+            Put_Error (Into, Profile_Word (Kind));
+            Put (Into, ": ");
+            Put (Into, (case Kind is when PID => "PROFILE", when Rate => "RATE PROFILE",
+                        when Battery => "BATTERY PROFILE"));
+            Put (Into, " OUTSIDE OF [0..");
+            Put (Into, Decimal (Integer_64 (Count - 1)));
+            Put (Into, "]###" & CRLF);
             return;
          end if;
          case Kind is
@@ -571,12 +601,12 @@ package body Adaflight.Command_Line with SPARK_Mode is
                Changes.Battery_Profile := True;
          end case;
       end if;
-      Put (Into, Profile_Word (Kind) & " "
-           & Decimal (Integer_64 (case Kind is
-                                     when PID => C.System_Config.Pid_Profile_Index,
-                                     when Rate => C.System_Config.Active_Rate_Profile,
-                                     when Battery => C.System_Config.Active_Battery_Profile))
-           & CRLF);
+      Put (Into, Profile_Word (Kind));
+      Put (Into, " ");
+      Put (Into, Decimal (Integer_64 (case Kind is when PID => C.System_Config.Pid_Profile_Index,
+                                      when Rate => C.System_Config.Active_Rate_Profile,
+                                      when Battery => C.System_Config.Active_Battery_Profile)));
+      Put (Into, CRLF);
    end Profile_Command;
 
    --  A scope's settings in the given profiles as set lines under a heading,
@@ -627,7 +657,11 @@ package body Adaflight.Command_Line with SPARK_Mode is
       if Index >= (if Kind = Battery then 3 else 4) then
          return;
       end if;
-      Put (Into, CRLF & Profile_Word (Kind) & " " & Decimal (Integer_64 (Index)) & CRLF);
+      Put (Into, CRLF);
+      Put (Into, Profile_Word (Kind));
+      Put (Into, " ");
+      Put (Into, Decimal (Integer_64 (Index)));
+      Put (Into, CRLF);
       Dump_Values
         (Into, C,
          (case Kind is
@@ -730,7 +764,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
                   C.Feature_Config.Enabled_Features := C.Feature_Config.Enabled_Features or Feature;
                   Put (Into, (if (Mask and Feature) /= 0 then "AlreadyEnabled" else "Enabled"));
                end if;
-               Put (Into, " " & Feature_Name (Match) & CRLF);
+               Put (Into, " ");
+               Put (Into, Feature_Name (Match));
+               Put (Into, CRLF);
             end;
          elsif Found > 1 then
             Put_Error (Into, "feature: Multiple features match ");
@@ -765,10 +801,14 @@ package body Adaflight.Command_Line with SPARK_Mode is
             begin
                Put_Heading (Into, Mode, ((Mask xor Default) and B) /= 0, Heading, Pending);
                if Shows_Default (Mode, ((Default or not Mask) and B) /= 0) then
-                  Put (Into, "#feature -" & Feature_Name (Bit) & CRLF);
+                  Put (Into, "#feature -");
+                  Put (Into, Feature_Name (Bit));
+                  Put (Into, CRLF);
                end if;
                if Shows_Line (Mode, Equal) then
-                  Put (Into, "feature -" & Feature_Name (Bit) & CRLF);
+                  Put (Into, "feature -");
+                  Put (Into, Feature_Name (Bit));
+                  Put (Into, CRLF);
                end if;
             end;
          end if;
@@ -780,12 +820,16 @@ package body Adaflight.Command_Line with SPARK_Mode is
             begin
                Put_Heading (Into, Mode, ((Mask xor Default) and B) /= 0, Heading, Pending);
                if (Default and B) /= 0 and then Shows_Default (Mode, (((not Default) or Mask) and B) /= 0) then
-                  Put (Into, "#feature " & Feature_Name (Bit) & CRLF);
+                  Put (Into, "#feature ");
+                  Put (Into, Feature_Name (Bit));
+                  Put (Into, CRLF);
                end if;
                if (Mask and B) /= 0 then
                   Put_Heading (Into, Mode, ((Default or not Mask) and B) = 0, Heading, Pending);
                   if Shows_Line (Mode, ((Default or not Mask) and B) /= 0) then
-                     Put (Into, "feature " & Feature_Name (Bit) & CRLF);
+                     Put (Into, "feature ");
+                     Put (Into, Feature_Name (Bit));
+                     Put (Into, CRLF);
                   end if;
                end if;
             end;
@@ -847,7 +891,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
          Put (Into, "Disabled:");
          for I in 0 .. All_Beepers - 1 loop
             if (Beeper_Mask (I) and Flags) /= 0 then
-               Put (Into, "  " & Beeper_Name (I));
+               Put (Into, "  ");
+               Put (Into, Beeper_Name (I));
             end if;
          end loop;
          if Flags = 0 then
@@ -860,7 +905,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
          Put (Into, "Available:");
          for I in Beeper_Index loop
             if (Beeper_Mask (I) and Allowed) /= 0 then
-               Put (Into, " " & Beeper_Name (I));
+               Put (Into, " ");
+               Put (Into, Beeper_Name (I));
             end if;
          end loop;
          Put (Into, CRLF);
@@ -881,7 +927,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
                   Flags := (if I = All_Beepers then 0 else Flags and not Beeper_Mask (I));
                   Put (Into, "Enabled");
                end if;
-               Put (Into, " " & Beeper_Name (I) & CRLF);
+               Put (Into, " ");
+               Put (Into, Beeper_Name (I));
+               Put (Into, CRLF);
                return;
             end if;
          end loop;
@@ -917,11 +965,15 @@ package body Adaflight.Command_Line with SPARK_Mode is
                if Shows_Default (Mode, Equal) then
                   Put (Into, "#");
                   Put (Into, Command);
-                  Put (Into, (if Off then " " else " -") & Beeper_Name (I) & CRLF);
+                  Put (Into, (if Off then " " else " -"));
+                  Put (Into, Beeper_Name (I));
+                  Put (Into, CRLF);
                end if;
                if Shows_Line (Mode, Equal) then
                   Put (Into, Command);
-                  Put (Into, (if Off then " -" else " ") & Beeper_Name (I) & CRLF);
+                  Put (Into, (if Off then " -" else " "));
+                  Put (Into, Beeper_Name (I));
+                  Put (Into, CRLF);
                end if;
             end;
          end if;
@@ -938,11 +990,21 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  range ends as channel values, logic, and the linked mode's permanent id.
    procedure Put_Condition (Into : in out Output; Index : Natural; M : Mode_Activation_Condition_Record) is
    begin
-      Put (Into, "aux " & Decimal (Integer_64 (Index)) & " " & Decimal (Integer_64 (Permanent_Of (M.Mode_Id))) & " "
-           & Decimal (Integer_64 (M.Aux_Channel_Index)) & " "
-           & Decimal (900 + 25 * Integer_64 (M.Range_Value.Start_Step)) & " "
-           & Decimal (900 + 25 * Integer_64 (M.Range_Value.End_Step)) & " "
-           & Decimal (Integer_64 (M.Mode_Logic)) & " " & Decimal (Integer_64 (Permanent_Of (M.Linked_To))) & CRLF);
+      Put (Into, "aux ");
+      Put (Into, Decimal (Integer_64 (Index)));
+      Put (Into, " ");
+      Put (Into, Decimal (Integer_64 (Permanent_Of (M.Mode_Id))));
+      Put (Into, " ");
+      Put (Into, Decimal (Integer_64 (M.Aux_Channel_Index)));
+      Put (Into, " ");
+      Put (Into, Decimal (900 + 25 * Integer_64 (M.Range_Value.Start_Step)));
+      Put (Into, " ");
+      Put (Into, Decimal (900 + 25 * Integer_64 (M.Range_Value.End_Step)));
+      Put (Into, " ");
+      Put (Into, Decimal (Integer_64 (M.Mode_Logic)));
+      Put (Into, " ");
+      Put (Into, Decimal (Integer_64 (Permanent_Of (M.Linked_To))));
+      Put (Into, CRLF);
    end Put_Condition;
 
    --  The position of the next argument: past the first space at or after a
@@ -1024,7 +1086,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end if;
       Index := CLI_Text.To_Integer (Arguments);
       if Index not in 0 .. Condition_Count - 1 then
-         Put_Error (Into, "aux: INDEX NOT BETWEEN 0 AND " & Decimal (Condition_Count - 1) & "###" & CRLF);
+         Put_Error (Into, "aux: INDEX NOT BETWEEN 0 AND ");
+         Put (Into, Decimal (Condition_Count - 1));
+         Put (Into, "###" & CRLF);
          return;
       end if;
       declare
@@ -1098,13 +1162,23 @@ package body Adaflight.Command_Line with SPARK_Mode is
      with Pre => Index <= 29
    is
    begin
-      Put (Into, "adjrange " & Decimal (Integer_64 (Index)) & " 0 "
-           & Decimal (Integer_64 (A.Aux_Channel_Index)) & " "
-           & Decimal (900 + 25 * Integer_64 (A.Range_Value.Start_Step)) & " "
-           & Decimal (900 + 25 * Integer_64 (A.Range_Value.End_Step)) & " "
-           & Decimal (Integer_64 (A.Adjustment_Config)) & " " & Decimal (Integer_64 (A.Aux_Switch_Channel_Index))
-           & " " & Decimal (Integer_64 (A.Adjustment_Center)) & " " & Decimal (Integer_64 (A.Adjustment_Scale))
-           & CRLF);
+      Put (Into, "adjrange ");
+      Put (Into, Decimal (Integer_64 (Index)));
+      Put (Into, " 0 ");
+      Put (Into, Decimal (Integer_64 (A.Aux_Channel_Index)));
+      Put (Into, " ");
+      Put (Into, Decimal (900 + 25 * Integer_64 (A.Range_Value.Start_Step)));
+      Put (Into, " ");
+      Put (Into, Decimal (900 + 25 * Integer_64 (A.Range_Value.End_Step)));
+      Put (Into, " ");
+      Put (Into, Decimal (Integer_64 (A.Adjustment_Config)));
+      Put (Into, " ");
+      Put (Into, Decimal (Integer_64 (A.Aux_Switch_Channel_Index)));
+      Put (Into, " ");
+      Put (Into, Decimal (Integer_64 (A.Adjustment_Center)));
+      Put (Into, " ");
+      Put (Into, Decimal (Integer_64 (A.Adjustment_Scale)));
+      Put (Into, CRLF);
    end Put_Adjustment_Range;
 
    --  Every adjustment range's line, a changed one's default first for
@@ -1158,7 +1232,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end if;
       Index := CLI_Text.To_Integer (Arguments);
       if Index not in 0 .. Range_Count - 1 then
-         Put_Error (Into, "adjrange: INDEX NOT BETWEEN 0 AND " & Decimal (Range_Count - 1) & "###" & CRLF);
+         Put_Error (Into, "adjrange: INDEX NOT BETWEEN 0 AND ");
+         Put (Into, Decimal (Range_Count - 1));
+         Put (Into, "###" & CRLF);
          return;
       end if;
       declare
@@ -1503,7 +1579,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  One motor's mix line.
    procedure Put_Motor (Into : in out Output; Index : Natural; M : Motor_Mixer_Record) is
    begin
-      Put (Into, "mmix " & Decimal (Integer_64 (Index)) & " ");
+      Put (Into, "mmix ");
+      Put (Into, Decimal (Integer_64 (Index)));
+      Put (Into, " ");
       Put (Into, CLI_Text.Float_Text (M.Throttle));
       Put (Into, " ");
       Put (Into, CLI_Text.Float_Text (M.Roll));
@@ -1638,9 +1716,19 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  One servo's parameter line.
    procedure Put_Servo (Into : in out Output; Index : Natural; P : Servo_Param_Record) is
    begin
-      Put (Into, "servo " & Decimal (Integer_64 (Index)) & " " & Decimal (Integer_64 (P.Min)) & " "
-           & Decimal (Integer_64 (P.Max)) & " " & Decimal (Integer_64 (P.Middle)) & " "
-           & Decimal (Integer_64 (P.Rate)) & " " & Decimal (Integer_64 (P.Forward_From_Channel)) & CRLF);
+      Put (Into, "servo ");
+      Put (Into, Decimal (Integer_64 (Index)));
+      Put (Into, " ");
+      Put (Into, Decimal (Integer_64 (P.Min)));
+      Put (Into, " ");
+      Put (Into, Decimal (Integer_64 (P.Max)));
+      Put (Into, " ");
+      Put (Into, Decimal (Integer_64 (P.Middle)));
+      Put (Into, " ");
+      Put (Into, Decimal (Integer_64 (P.Rate)));
+      Put (Into, " ");
+      Put (Into, Decimal (Integer_64 (P.Forward_From_Channel)));
+      Put (Into, CRLF);
    end Put_Servo;
 
    --  Each servo's line, then a reverse line for each input source it
@@ -1683,7 +1771,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
                  "smix reverse " & Decimal (Integer_64 (I)) & " " & Decimal (Integer_64 (Input)) & " r" & CRLF;
             begin
                if (Default (I).Reversed_Sources and Bit) /= 0 and then Shows_Default (Mode, Equal) then
-                  Put (Into, "#" & Line);
+                  Put (Into, "#");
+                  Put (Into, Line);
                end if;
                if (Params (I).Reversed_Sources and Bit) /= 0 and then Shows_Line (Mode, Equal) then
                   Put (Into, Line);
@@ -1756,19 +1845,42 @@ package body Adaflight.Command_Line with SPARK_Mode is
          S.Middle := Values (3);
          S.Rate := Integer_8 (Values (4));
          S.Forward_From_Channel := Integer_8 ((Integer_32 (Values (5)) + 128) mod 256 - 128);
-         Put (Into, "servo " & Decimal (Integer_64 (Index)) & " " & Decimal (Integer_64 (S.Min)) & " "
-              & Decimal (Integer_64 (S.Max)) & " " & Decimal (Integer_64 (S.Middle)) & " "
-              & Decimal (Integer_64 (S.Rate)) & " " & Decimal (Integer_64 (S.Forward_From_Channel)) & CRLF);
+         Put (Into, "servo ");
+         Put (Into, Decimal (Integer_64 (Index)));
+         Put (Into, " ");
+         Put (Into, Decimal (Integer_64 (S.Min)));
+         Put (Into, " ");
+         Put (Into, Decimal (Integer_64 (S.Max)));
+         Put (Into, " ");
+         Put (Into, Decimal (Integer_64 (S.Middle)));
+         Put (Into, " ");
+         Put (Into, Decimal (Integer_64 (S.Rate)));
+         Put (Into, " ");
+         Put (Into, Decimal (Integer_64 (S.Forward_From_Channel)));
+         Put (Into, CRLF);
       end;
    end Servo_Command;
 
    --  One servo rule's line.
    procedure Put_Rule (Into : in out Output; Index : Natural; R : Servo_Mixer_Record) is
    begin
-      Put (Into, "smix " & Decimal (Integer_64 (Index)) & " " & Decimal (Integer_64 (R.Target_Channel)) & " "
-           & Decimal (Integer_64 (R.Input_Source)) & " " & Decimal (Integer_64 (R.Rate)) & " "
-           & Decimal (Integer_64 (R.Speed)) & " " & Decimal (Integer_64 (R.Min)) & " "
-           & Decimal (Integer_64 (R.Max)) & " " & Decimal (Integer_64 (R.Box)) & CRLF);
+      Put (Into, "smix ");
+      Put (Into, Decimal (Integer_64 (Index)));
+      Put (Into, " ");
+      Put (Into, Decimal (Integer_64 (R.Target_Channel)));
+      Put (Into, " ");
+      Put (Into, Decimal (Integer_64 (R.Input_Source)));
+      Put (Into, " ");
+      Put (Into, Decimal (Integer_64 (R.Rate)));
+      Put (Into, " ");
+      Put (Into, Decimal (Integer_64 (R.Speed)));
+      Put (Into, " ");
+      Put (Into, Decimal (Integer_64 (R.Min)));
+      Put (Into, " ");
+      Put (Into, Decimal (Integer_64 (R.Max)));
+      Put (Into, " ");
+      Put (Into, Decimal (Integer_64 (R.Box)));
+      Put (Into, CRLF);
    end Put_Rule;
 
    --  The servo rules up to the first without a rate, a changed one's default
@@ -1806,7 +1918,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Put (Into, "s");
       for Input in 0 .. Input_Source_Count - 1 loop
          pragma Loop_Invariant (Input in 0 .. Input_Source_Count - 1);
-         Put (Into, ASCII.HT & "i" & Decimal (Integer_64 (Input)));
+         Put (Into, ASCII.HT & "i");
+         Put (Into, Decimal (Integer_64 (Input)));
       end loop;
       Put (Into, CRLF);
       for I in Params'Range loop
@@ -1814,9 +1927,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
          Put (Into, Decimal (Integer_64 (I)));
          for Input in 0 .. Input_Source_Count - 1 loop
             pragma Loop_Invariant (Input in 0 .. Input_Source_Count - 1);
-            Put (Into, ASCII.HT
-                 & (if (Params (I).Reversed_Sources and Shift_Left (1, Input)) /= 0 then 'r' else 'n')
-                 & "  ");
+            Put (Into, "" & ASCII.HT);
+            Put (Into, "" & (if (Params (I).Reversed_Sources and Shift_Left (1, Input)) /= 0 then 'r' else 'n'));
+            Put (Into, "  ");
          end loop;
          Put (Into, CRLF);
       end loop;
@@ -2024,7 +2137,11 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Put (Into, Decimal (Integer_64 (Shift_Right (Config, 4) and 16#F#)));
       Put (Into, ",");
       Put (Into, Decimal (Integer_64 (Config and 16#F#)));
-      Put (Into, ":" & Dir_Text (1 .. Dir_Last) & ":" & Fn_Text (1 .. Fn_Last) & ":");
+      Put (Into, ":");
+      Put (Into, Dir_Text (1 .. Dir_Last));
+      Put (Into, ":");
+      Put (Into, Fn_Text (1 .. Fn_Last));
+      Put (Into, ":");
       Put (Into, Decimal (Integer_64 (Shift_Right (Config, 22) and 16#F#)));
    end Put_Led_Text;
 
@@ -2043,12 +2160,16 @@ package body Adaflight.Command_Line with SPARK_Mode is
          pragma Loop_Invariant (I in Configs'Range);
          Put_Heading (Into, Mode, Configs (I) /= Default (I), Heading, Pending);
          if Shows_Default (Mode, Configs (I) = Default (I)) then
-            Put (Into, "#led " & Decimal (Integer_64 (I)) & " ");
+            Put (Into, "#led ");
+            Put (Into, Decimal (Integer_64 (I)));
+            Put (Into, " ");
             Put_Led_Text (Into, Default (I));
             Put (Into, CRLF);
          end if;
          if Shows_Line (Mode, Configs (I) = Default (I)) then
-            Put (Into, "led " & Decimal (Integer_64 (I)) & " ");
+            Put (Into, "led ");
+            Put (Into, Decimal (Integer_64 (I)));
+            Put (Into, " ");
             Put_Led_Text (Into, Configs (I));
             Put (Into, CRLF);
          end if;
@@ -2097,7 +2218,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
          end if;
          Configs (Natural (Index)) := Config;
          Changes.LEDs := True;
-         Put (Into, "led " & Decimal (Integer_64 (Index)) & " ");
+         Put (Into, "led ");
+         Put (Into, Decimal (Integer_64 (Index)));
+         Put (Into, " ");
          Put_Led_Text (Into, Config);
          Put (Into, CRLF);
       end;
@@ -2106,8 +2229,15 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  One color's line.
    procedure Put_Color (Into : in out Output; Index : Natural; Color : Hsv_Color_Record) is
    begin
-      Put (Into, "color " & Decimal (Integer_64 (Index)) & " " & Decimal (Integer_64 (Color.H)) & ","
-           & Decimal (Integer_64 (Color.S)) & "," & Decimal (Integer_64 (Color.V)) & CRLF);
+      Put (Into, "color ");
+      Put (Into, Decimal (Integer_64 (Index)));
+      Put (Into, " ");
+      Put (Into, Decimal (Integer_64 (Color.H)));
+      Put (Into, ",");
+      Put (Into, Decimal (Integer_64 (Color.S)));
+      Put (Into, ",");
+      Put (Into, Decimal (Integer_64 (Color.V)));
+      Put (Into, CRLF);
    end Put_Color;
 
    --  Every color's line, a changed one's default first for Show_Defaults.
@@ -2206,10 +2336,15 @@ package body Adaflight.Command_Line with SPARK_Mode is
             Put_Error (Into, "color: PARSING FAILED###" & CRLF);
             return;
          end if;
-         Put (Into, "color " & Decimal (Integer_64 (Slot)) & " "
-              & Decimal (Integer_64 (Colors (Slot).H)) & ","
-              & Decimal (Integer_64 (Colors (Slot).S)) & ","
-              & Decimal (Integer_64 (Colors (Slot).V)) & CRLF);
+         Put (Into, "color ");
+         Put (Into, Decimal (Integer_64 (Slot)));
+         Put (Into, " ");
+         Put (Into, Decimal (Integer_64 (Colors (Slot).H)));
+         Put (Into, ",");
+         Put (Into, Decimal (Integer_64 (Colors (Slot).S)));
+         Put (Into, ",");
+         Put (Into, Decimal (Integer_64 (Colors (Slot).V)));
+         Put (Into, CRLF);
       end;
    end Color_Command;
 
@@ -2223,10 +2358,15 @@ package body Adaflight.Command_Line with SPARK_Mode is
    begin
       Put_Heading (Into, Mode, Color /= Default, Heading, Pending);
       if Shows_Default (Mode, Color = Default) then
-         Put (Into, "#" & Text & Decimal (Integer_64 (Default)) & CRLF);
+         Put (Into, "#");
+         Put (Into, Text);
+         Put (Into, Decimal (Integer_64 (Default)));
+         Put (Into, CRLF);
       end if;
       if Shows_Line (Mode, Color = Default) then
-         Put (Into, Text & Decimal (Integer_64 (Color)) & CRLF);
+         Put (Into, Text);
+         Put (Into, Decimal (Integer_64 (Color)));
+         Put (Into, CRLF);
       end if;
    end Put_Mode_Color;
 
@@ -2257,10 +2397,14 @@ package body Adaflight.Command_Line with SPARK_Mode is
          Put_Hash_Line (Into, Heading);
       end if;
       if Shows_Default (Mode, L.Ledstrip_Aux_Channel = Default.Ledstrip_Aux_Channel) then
-         Put (Into, "#mode_color 7 0 " & Decimal (Integer_64 (Default.Ledstrip_Aux_Channel)) & CRLF);
+         Put (Into, "#mode_color 7 0 ");
+         Put (Into, Decimal (Integer_64 (Default.Ledstrip_Aux_Channel)));
+         Put (Into, CRLF);
       end if;
       if Shows_Line (Mode, L.Ledstrip_Aux_Channel = Default.Ledstrip_Aux_Channel) then
-         Put (Into, "mode_color 7 0 " & Decimal (Integer_64 (L.Ledstrip_Aux_Channel)) & CRLF);
+         Put (Into, "mode_color 7 0 ");
+         Put (Into, Decimal (Integer_64 (L.Ledstrip_Aux_Channel)));
+         Put (Into, CRLF);
       end if;
    end Put_Mode_Colors;
 
@@ -2316,8 +2460,13 @@ package body Adaflight.Command_Line with SPARK_Mode is
          Put_Error (Into, "mode_color: PARSING FAILED###" & CRLF);
          return;
       end if;
-      Put (Into, "mode_color " & Decimal (Integer_64 (Values (0))) & " " & Decimal (Integer_64 (Values (1))) & " "
-           & Decimal (Integer_64 (Values (2))) & CRLF);
+      Put (Into, "mode_color ");
+      Put (Into, Decimal (Integer_64 (Values (0))));
+      Put (Into, " ");
+      Put (Into, Decimal (Integer_64 (Values (1))));
+      Put (Into, " ");
+      Put (Into, Decimal (Integer_64 (Values (2))));
+      Put (Into, CRLF);
    end Mode_Color_Command;
 
    --  One VTX channel condition's line.
@@ -2325,10 +2474,21 @@ package body Adaflight.Command_Line with SPARK_Mode is
      with Pre => Index <= 9
    is
    begin
-      Put (Into, "vtx " & Decimal (Integer_64 (Index)) & " " & Decimal (Integer_64 (V.Aux_Channel_Index)) & " "
-           & Decimal (Integer_64 (V.Band)) & " " & Decimal (Integer_64 (V.Channel)) & " "
-           & Decimal (Integer_64 (V.Power)) & " " & Decimal (900 + 25 * Integer_64 (V.Range_Value.Start_Step))
-           & " " & Decimal (900 + 25 * Integer_64 (V.Range_Value.End_Step)) & CRLF);
+      Put (Into, "vtx ");
+      Put (Into, Decimal (Integer_64 (Index)));
+      Put (Into, " ");
+      Put (Into, Decimal (Integer_64 (V.Aux_Channel_Index)));
+      Put (Into, " ");
+      Put (Into, Decimal (Integer_64 (V.Band)));
+      Put (Into, " ");
+      Put (Into, Decimal (Integer_64 (V.Channel)));
+      Put (Into, " ");
+      Put (Into, Decimal (Integer_64 (V.Power)));
+      Put (Into, " ");
+      Put (Into, Decimal (900 + 25 * Integer_64 (V.Range_Value.Start_Step)));
+      Put (Into, " ");
+      Put (Into, Decimal (900 + 25 * Integer_64 (V.Range_Value.End_Step)));
+      Put (Into, CRLF);
    end Put_Vtx_Condition;
 
    --  Every VTX channel condition's line, a changed one's default first for
@@ -2488,10 +2648,13 @@ package body Adaflight.Command_Line with SPARK_Mode is
      with Pre => Band < Table_Bands
    is
    begin
-      Put (Into, "vtxtable band " & Decimal (Integer_64 (Band + 1)) & " ");
+      Put (Into, "vtxtable band ");
+      Put (Into, Decimal (Integer_64 (Band + 1)));
+      Put (Into, " ");
       Put (Into, Stored_Text (T.Band_Names (Band)));
-      Put (Into, " " & Character'Val (T.Band_Letters (Band))
-           & (if T.Is_Factory_Band (Band) then " FACTORY" else " CUSTOM "));
+      Put (Into, " ");
+      Put (Into, "" & Character'Val (T.Band_Letters (Band)));
+      Put (Into, (if T.Is_Factory_Band (Band) then " FACTORY" else " CUSTOM "));
       for C in 0 .. Natural'Min (Natural (Channels), Table_Channels) - 1 loop
          pragma Loop_Invariant (C < Table_Channels);
          declare
@@ -2513,7 +2676,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Put (Into, "vtxtable powervalues");
       for L in 0 .. Natural'Min (Levels, Table_Powers) - 1 loop
          pragma Loop_Invariant (L < Table_Powers);
-         Put (Into, " " & Decimal (Integer_64 (T.Power_Values (L))));
+         Put (Into, " ");
+         Put (Into, Decimal (Integer_64 (T.Power_Values (L))));
       end loop;
       Put (Into, CRLF);
    end Put_Power_Values;
@@ -2557,17 +2721,25 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Put_Heading (Into, Mode, False, Heading, Pending);
       Put_Heading (Into, Mode, T.Bands /= Default.Bands, Heading, Pending);
       if Shows_Default (Mode, T.Bands = Default.Bands) then
-         Put (Into, "#vtxtable bands " & Decimal (Integer_64 (Default.Bands)) & CRLF);
+         Put (Into, "#vtxtable bands ");
+         Put (Into, Decimal (Integer_64 (Default.Bands)));
+         Put (Into, CRLF);
       end if;
       if Shows_Line (Mode, T.Bands = Default.Bands) then
-         Put (Into, "vtxtable bands " & Decimal (Integer_64 (T.Bands)) & CRLF);
+         Put (Into, "vtxtable bands ");
+         Put (Into, Decimal (Integer_64 (T.Bands)));
+         Put (Into, CRLF);
       end if;
       Put_Heading (Into, Mode, T.Channels /= Default.Channels, Heading, Pending);
       if Shows_Default (Mode, T.Channels = Default.Channels) then
-         Put (Into, "#vtxtable channels " & Decimal (Integer_64 (Default.Channels)) & CRLF);
+         Put (Into, "#vtxtable channels ");
+         Put (Into, Decimal (Integer_64 (Default.Channels)));
+         Put (Into, CRLF);
       end if;
       if Shows_Line (Mode, T.Channels = Default.Channels) then
-         Put (Into, "vtxtable channels " & Decimal (Integer_64 (T.Channels)) & CRLF);
+         Put (Into, "vtxtable channels ");
+         Put (Into, Decimal (Integer_64 (T.Channels)));
+         Put (Into, CRLF);
       end if;
       for Band in 0 .. Natural'Min (Natural (T.Bands), Table_Bands) - 1 loop
          pragma Loop_Invariant (Band < Table_Bands);
@@ -2590,10 +2762,14 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end loop;
       Put_Heading (Into, Mode, T.Power_Levels /= Default.Power_Levels, Heading, Pending);
       if Shows_Default (Mode, T.Power_Levels = Default.Power_Levels) then
-         Put (Into, "#vtxtable powerlevels " & Decimal (Integer_64 (Default.Power_Levels)) & CRLF);
+         Put (Into, "#vtxtable powerlevels ");
+         Put (Into, Decimal (Integer_64 (Default.Power_Levels)));
+         Put (Into, CRLF);
       end if;
       if Shows_Line (Mode, T.Power_Levels = Default.Power_Levels) then
-         Put (Into, "vtxtable powerlevels " & Decimal (Integer_64 (T.Power_Levels)) & CRLF);
+         Put (Into, "vtxtable powerlevels ");
+         Put (Into, Decimal (Integer_64 (T.Power_Levels)));
+         Put (Into, CRLF);
       end if;
       Put_Heading (Into, Mode, T.Power_Values /= Default.Power_Values, Heading, Pending);
       if Shows_Default (Mode, T.Power_Values = Default.Power_Values) then
@@ -2720,11 +2896,13 @@ package body Adaflight.Command_Line with SPARK_Mode is
                   Count := Count + 1;
                end loop;
                if Count < Natural (T.Power_Levels) then
-                  Put_Error (Into, "vtxtable: NOT ENOUGH VALUES (EXPECTED "
-                       & Decimal (Integer_64 (T.Power_Levels)) & ")###" & CRLF);
+                  Put_Error (Into, "vtxtable: NOT ENOUGH VALUES (EXPECTED ");
+                  Put (Into, Decimal (Integer_64 (T.Power_Levels)));
+                  Put (Into, ")###" & CRLF);
                elsif Has_Word (From) then
-                  Put_Error (Into, "vtxtable: TOO MANY VALUES (EXPECTED "
-                       & Decimal (Integer_64 (T.Power_Levels)) & ")###" & CRLF);
+                  Put_Error (Into, "vtxtable: TOO MANY VALUES (EXPECTED ");
+                  Put (Into, Decimal (Integer_64 (T.Power_Levels)));
+                  Put (Into, ")###" & CRLF);
                else
                   T.Power_Values := Power;
                end if;
@@ -2749,11 +2927,13 @@ package body Adaflight.Command_Line with SPARK_Mode is
                   Count := Count + 1;
                end loop;
                if Count < Natural (T.Power_Levels) then
-                  Put_Error (Into, "vtxtable: NOT ENOUGH LABELS (EXPECTED "
-                       & Decimal (Integer_64 (T.Power_Levels)) & ")###" & CRLF);
+                  Put_Error (Into, "vtxtable: NOT ENOUGH LABELS (EXPECTED ");
+                  Put (Into, Decimal (Integer_64 (T.Power_Levels)));
+                  Put (Into, ")###" & CRLF);
                elsif Has_Word (From) then
-                  Put_Error (Into, "vtxtable: TOO MANY LABELS (EXPECTED "
-                       & Decimal (Integer_64 (T.Power_Levels)) & ")###" & CRLF);
+                  Put_Error (Into, "vtxtable: TOO MANY LABELS (EXPECTED ");
+                  Put (Into, Decimal (Integer_64 (T.Power_Levels)));
+                  Put (Into, ")###" & CRLF);
                else
                   for L in 0 .. Count - 1 loop
                      Store_Padded (T.Power_Labels (L), Labels (L) (1 .. Sizes (L)), Label_Length);
@@ -2777,8 +2957,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
                end if;
                Band := Integer_64 (CLI_Text.To_Integer (Arguments (First .. Last))) - 1;
                if Band < 0 or else Band >= Integer_64 (T.Bands) or else Band >= Table_Bands then
-                  Put_Error (Into, "vtxtable: BAND NUMBER NOT BETWEEN 1 AND " & Decimal (Integer_64 (T.Bands))
-                       & "###" & CRLF);
+                  Put_Error (Into, "vtxtable: BAND NUMBER NOT BETWEEN 1 AND ");
+                  Put (Into, Decimal (Integer_64 (T.Bands)));
+                  Put (Into, "###" & CRLF);
                   return;
                end if;
                Next_Word (Arguments, Last + 1, First, Last);
@@ -2825,11 +3006,13 @@ package body Adaflight.Command_Line with SPARK_Mode is
                   end if;
                end loop;
                if Channel < Natural (T.Channels) then
-                  Put_Error (Into, "vtxtable: NOT ENOUGH FREQUENCIES (EXPECTED "
-                       & Decimal (Integer_64 (T.Channels)) & ")###" & CRLF);
+                  Put_Error (Into, "vtxtable: NOT ENOUGH FREQUENCIES (EXPECTED ");
+                  Put (Into, Decimal (Integer_64 (T.Channels)));
+                  Put (Into, ")###" & CRLF);
                elsif Has_Word (From) then
-                  Put_Error (Into, "vtxtable: TOO MANY FREQUENCIES (EXPECTED "
-                       & Decimal (Integer_64 (T.Channels)) & ")###" & CRLF);
+                  Put_Error (Into, "vtxtable: TOO MANY FREQUENCIES (EXPECTED ");
+                  Put (Into, Decimal (Integer_64 (T.Channels)));
+                  Put (Into, ")###" & CRLF);
                else
                   Store_Padded (T.Band_Names (Natural (Band)), Name (1 .. Name_Size), Band_Name_Length);
                   T.Band_Letters (Natural (Band)) := Character'Pos (Letter);
@@ -2882,7 +3065,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
          Put (Into, "-");
       end if;
       Put (Into, Decimal (Magnitude / 100));
-      Put (Into, "." & Hundredths & "m");
+      Put (Into, ".");
+      Put (Into, Hundredths);
+      Put (Into, "m");
    end Put_Meters;
 
    --  A distance in meters as whole centimeters, rounded as the target's C
@@ -2910,12 +3095,27 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  One waypoint's insert line.
    procedure Put_Waypoint (Into : in out Output; Index : Natural; W : Waypoint) is
    begin
-      Put (Into, "waypoint insert " & Decimal (Integer_64 (Index)) & " " & CLI_Text.Coordinate_Text (W.Latitude) & " "
-           & CLI_Text.Coordinate_Text (W.Longitude) & " " & Decimal (Integer_64 (W.Altitude)) & " "
-           & Decimal (Integer_64 (W.Speed)) & " ");
-      Put (Into, Type_Name (W.Type_Value) & " " & Decimal (Integer_64 (W.Duration)) & " "
-           & Pattern_Name (W.Pattern) & " " & Decimal (Integer_64 (W.Vert_Rate)) & " "
-           & Yaw_Name (W.Yaw_Behaviour) & CRLF);
+      Put (Into, "waypoint insert ");
+      Put (Into, Decimal (Integer_64 (Index)));
+      Put (Into, " ");
+      Put (Into, CLI_Text.Coordinate_Text (W.Latitude));
+      Put (Into, " ");
+      Put (Into, CLI_Text.Coordinate_Text (W.Longitude));
+      Put (Into, " ");
+      Put (Into, Decimal (Integer_64 (W.Altitude)));
+      Put (Into, " ");
+      Put (Into, Decimal (Integer_64 (W.Speed)));
+      Put (Into, " ");
+      Put (Into, Type_Name (W.Type_Value));
+      Put (Into, " ");
+      Put (Into, Decimal (Integer_64 (W.Duration)));
+      Put (Into, " ");
+      Put (Into, Pattern_Name (W.Pattern));
+      Put (Into, " ");
+      Put (Into, Decimal (Integer_64 (W.Vert_Rate)));
+      Put (Into, " ");
+      Put (Into, Yaw_Name (W.Yaw_Behaviour));
+      Put (Into, CRLF);
    end Put_Waypoint;
 
    --  The plan as a clear line and an insert line for each waypoint. A diff
@@ -3045,7 +3245,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
             Error ("INVALID ARGUMENT COUNT");
             return;
          end if;
-         Put (Into, "Waypoint count: " & Decimal (Integer_64 (Plan.Waypoint_Count)) & CRLF);
+         Put (Into, "Waypoint count: ");
+         Put (Into, Decimal (Integer_64 (Plan.Waypoint_Count)));
+         Put (Into, CRLF);
          if Plan.Waypoint_Count > 0 then
             Put (Into, ASCII.LF & "Configured waypoints:" & CRLF);
             for I in 0 .. Natural (Plan.Waypoint_Count) - 1 loop
@@ -3053,10 +3255,17 @@ package body Adaflight.Command_Line with SPARK_Mode is
                declare
                   W : constant Waypoint := Plan.Waypoints (I);
                begin
-                  Put (Into, "  [" & Decimal (Integer_64 (I)) & "] " & CLI_Text.Coordinate_Text (W.Latitude) & " "
-                       & CLI_Text.Coordinate_Text (W.Longitude) & " ");
+                  Put (Into, "  [");
+                  Put (Into, Decimal (Integer_64 (I)));
+                  Put (Into, "] ");
+                  Put (Into, CLI_Text.Coordinate_Text (W.Latitude));
+                  Put (Into, " ");
+                  Put (Into, CLI_Text.Coordinate_Text (W.Longitude));
+                  Put (Into, " ");
                   Put_Meters (Into, Integer_64 (W.Altitude));
-                  Put (Into, " " & Type_Name (W.Type_Value) & CRLF);
+                  Put (Into, " ");
+                  Put (Into, Type_Name (W.Type_Value));
+                  Put (Into, CRLF);
                end;
             end loop;
          end if;
@@ -3065,24 +3274,29 @@ package body Adaflight.Command_Line with SPARK_Mode is
             Put (Into, "  inactive" & CRLF);
             return;
          end if;
-         Put (Into, "  state: "
-              & (case Navigation.State is
-                    when 0 => "IDLE", when 1 => "TARGETING", when 2 => "HOLDING", when 3 => "COMPLETE",
-                    when 4 => "LANDING", when 5 => "ABORTED", when others => "UNKNOWN") & CRLF);
-         Put (Into, "  current waypoint: "
-              & Decimal (if Plan.Waypoint_Count = 0 then 0 else Integer_64 (Navigation.Current_Index + 1)) & "/"
-              & Decimal (Integer_64 (Plan.Waypoint_Count)) & CRLF);
+         Put (Into, "  state: ");
+         Put (Into, (case Navigation.State is when 0 => "IDLE", when 1 => "TARGETING", when 2 => "HOLDING",
+                     when 3 => "COMPLETE", when 4 => "LANDING", when 5 => "ABORTED", when others => "UNKNOWN"));
+         Put (Into, CRLF);
+         Put (Into, "  current waypoint: ");
+         Put (Into, Decimal (if Plan.Waypoint_Count = 0 then 0 else Integer_64 (Navigation.Current_Index + 1)));
+         Put (Into, "/");
+         Put (Into, Decimal (Integer_64 (Plan.Waypoint_Count)));
+         Put (Into, CRLF);
          if Navigation.Distance_M >= 0.0 then
             Put (Into, "  distance: ");
             Put_Meters (Into, Centimeters (Navigation.Distance_M));
-            Put (Into, "  bearing: " & Decimal (Integer_64 (Navigation.Bearing_Deci / 10)) & " deg  eta: "
-                 & Decimal (Integer_64 (Navigation.ETA_S)) & "s" & CRLF);
+            Put (Into, "  bearing: ");
+            Put (Into, Decimal (Integer_64 (Navigation.Bearing_Deci / 10)));
+            Put (Into, " deg  eta: ");
+            Put (Into, Decimal (Integer_64 (Navigation.ETA_S)));
+            Put (Into, "s" & CRLF);
          end if;
          if Navigation.State = 5 then
-            Put (Into, "  abort reason: "
-                 & (case Navigation.Abort_Reason is
-                       when 0 => "NONE", when 1 => "GPS LOST", when 2 => "STALLED", when 3 => "FLYAWAY",
-                       when 4 => "HEADING", when 5 => "MAG FAULT", when others => "UNKNOWN") & CRLF);
+            Put (Into, "  abort reason: ");
+            Put (Into, (case Navigation.Abort_Reason is when 0 => "NONE", when 1 => "GPS LOST", when 2 => "STALLED",
+                        when 3 => "FLYAWAY", when 4 => "HEADING", when 5 => "MAG FAULT", when others => "UNKNOWN"));
+            Put (Into, CRLF);
          end if;
       elsif Is_Op ("remove") then
          if Count /= 2 then
@@ -3110,8 +3324,11 @@ package body Adaflight.Command_Line with SPARK_Mode is
                Plan.Waypoints (I) := Plan.Waypoints (I + 1);
             end loop;
             Plan.Waypoint_Count := Plan.Waypoint_Count - 1;
-            Put (Into, "Waypoint " & Decimal (Index) & " removed, " & Decimal (Integer_64 (Plan.Waypoint_Count))
-                 & " waypoints remaining" & CRLF);
+            Put (Into, "Waypoint ");
+            Put (Into, Decimal (Index));
+            Put (Into, " removed, ");
+            Put (Into, Decimal (Integer_64 (Plan.Waypoint_Count)));
+            Put (Into, " waypoints remaining" & CRLF);
          end;
       elsif Is_Op ("insert") or else Is_Op ("update") then
          declare
@@ -3261,11 +3478,29 @@ package body Adaflight.Command_Line with SPARK_Mode is
               (Latitude => Latitude, Longitude => Longitude, Altitude => Integer_32 (Altitude),
                Speed => Unsigned_16 (Speed), Duration => Unsigned_16 (Duration), Vert_Rate => Unsigned_16 (Rate),
                Type_Value => Kind, Pattern => Pattern, Yaw_Behaviour => Yaw);
-            Put (Into, "waypoint " & (if Insert then "insert" else "update") & " " & Decimal (Index) & " "
-                 & CLI_Text.Coordinate_Text (Latitude) & " " & CLI_Text.Coordinate_Text (Longitude) & " ");
+            Put (Into, "waypoint ");
+            Put (Into, (if Insert then "insert" else "update"));
+            Put (Into, " ");
+            Put (Into, Decimal (Index));
+            Put (Into, " ");
+            Put (Into, CLI_Text.Coordinate_Text (Latitude));
+            Put (Into, " ");
+            Put (Into, CLI_Text.Coordinate_Text (Longitude));
+            Put (Into, " ");
             Put_Meters (Into, Altitude);
-            Put (Into, " " & Decimal (Speed) & " " & Type_Name (Kind) & " " & Decimal (Duration) & " "
-                 & Pattern_Name (Pattern) & " " & Decimal (Rate) & " " & Yaw_Name (Yaw) & CRLF);
+            Put (Into, " ");
+            Put (Into, Decimal (Speed));
+            Put (Into, " ");
+            Put (Into, Type_Name (Kind));
+            Put (Into, " ");
+            Put (Into, Decimal (Duration));
+            Put (Into, " ");
+            Put (Into, Pattern_Name (Pattern));
+            Put (Into, " ");
+            Put (Into, Decimal (Rate));
+            Put (Into, " ");
+            Put (Into, Yaw_Name (Yaw));
+            Put (Into, CRLF);
          end;
       else
          Error ("INVALID OPERATION. USE: list, status, insert, update, remove, clear");
@@ -3309,7 +3544,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
          Last := I;
          pragma Loop_Invariant (Last = I);
       end loop;
-      Put (Into, "map " & Buffer (1 .. Last) & CRLF);
+      Put (Into, "map ");
+      Put (Into, Buffer (1 .. Last));
+      Put (Into, CRLF);
    end Put_Map_Line;
 
    --  The map line from a cleared buffer, a changed map's default first for
@@ -3363,8 +3600,13 @@ package body Adaflight.Command_Line with SPARK_Mode is
    --  One stick's channel range line.
    procedure Put_Range_Line (Into : in out Output; Index : Natural; R : Rx_Channel_Range_Config_Record) is
    begin
-      Put (Into, "rxrange " & Decimal (Integer_64 (Index)) & " " & Decimal (Integer_64 (R.Min)) & " "
-           & Decimal (Integer_64 (R.Max)) & CRLF);
+      Put (Into, "rxrange ");
+      Put (Into, Decimal (Integer_64 (Index)));
+      Put (Into, " ");
+      Put (Into, Decimal (Integer_64 (R.Min)));
+      Put (Into, " ");
+      Put (Into, Decimal (Integer_64 (R.Max)));
+      Put (Into, CRLF);
    end Put_Range_Line;
 
    --  The four sticks' channel range lines, a changed one's default first for
@@ -3436,8 +3678,13 @@ package body Adaflight.Command_Line with SPARK_Mode is
          Put_Error (Into, "rxrange: range min/max NOT BETWEEN 750 AND 2250###" & CRLF);
       else
          C.Rx_Channel_Range_Configs (Natural (Index)) := (Min => Unsigned_16 (Low), Max => Unsigned_16 (High));
-         Put (Into, "rxrange " & Decimal (Integer_64 (Index)) & " " & Decimal (Integer_64 (Low)) & " "
-              & Decimal (Integer_64 (High)) & CRLF);
+         Put (Into, "rxrange ");
+         Put (Into, Decimal (Integer_64 (Index)));
+         Put (Into, " ");
+         Put (Into, Decimal (Integer_64 (Low)));
+         Put (Into, " ");
+         Put (Into, Decimal (Integer_64 (High)));
+         Put (Into, CRLF);
       end if;
    end Range_Command;
 
@@ -3449,10 +3696,13 @@ package body Adaflight.Command_Line with SPARK_Mode is
      (Into : in out Output; Channel : Natural; F : Rx_Failsafe_Channel_Config_Record; With_Value : Boolean)
    is
    begin
-      Put (Into, "rxfail " & Decimal (Integer_64 (Channel)) & " "
-           & (if F.Mode <= 2 then (1 => Failsafe_Characters (Natural (F.Mode) + 1)) else ""));
+      Put (Into, "rxfail ");
+      Put (Into, Decimal (Integer_64 (Channel)));
+      Put (Into, " ");
+      Put (Into, (if F.Mode <= 2 then (1 => Failsafe_Characters (Natural (F.Mode) + 1)) else ""));
       if With_Value then
-         Put (Into, " " & Decimal (750 + 25 * Integer_64 (F.Step)));
+         Put (Into, " ");
+         Put (Into, Decimal (750 + 25 * Integer_64 (F.Step)));
       end if;
       Put (Into, CRLF);
    end Put_Failsafe;
@@ -3779,8 +4029,11 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Put (Into, Text_Of (Env.Build_Time));
       Put (Into, " (");
       Put (Into, Text_Of (Env.Revision));
-      Put (Into, ") MSP API: " & Decimal (MSP_Common_Out.API_Version_Major) & "."
-           & Decimal (MSP_Common_Out.API_Version_Minor) & CRLF);
+      Put (Into, ") MSP API: ");
+      Put (Into, Decimal (MSP_Common_Out.API_Version_Major));
+      Put (Into, ".");
+      Put (Into, Decimal (MSP_Common_Out.API_Version_Minor));
+      Put (Into, CRLF);
    end Put_Version;
 
    --  version: the version line with the configuration's board identifier,
@@ -3814,8 +4067,10 @@ package body Adaflight.Command_Line with SPARK_Mode is
    is
    begin
       if Into.Batch_Active and then Into.Batch_Error then
-         Put_Error (Into, Command & ": ERRORS WERE DETECTED - PLEASE REVIEW BEFORE CONTINUING###" & CRLF);
-         Put_Error (Into, Command & ": PLEASE FIX ERRORS THEN 'SAVE'###" & CRLF);
+         Put_Error (Into, Command);
+         Put (Into, ": ERRORS WERE DETECTED - PLEASE REVIEW BEFORE CONTINUING###" & CRLF);
+         Put_Error (Into, Command);
+         Put (Into, ": PLEASE FIX ERRORS THEN 'SAVE'###" & CRLF);
          Into.Batch_Active := False;
          Into.Batch_Error := False;
          OK := False;
@@ -3921,7 +4176,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
          Put_Hash_Line (Into, "resetting to defaults");
          C := Config_Reset.Reset (Board);
       else
-         Put (Into, CRLF & "# resetting group " & Decimal (Integer_64 (Group)) & " to defaults" & CRLF);
+         Put (Into, CRLF & "# resetting group ");
+         Put (Into, Decimal (Integer_64 (Group)));
+         Put (Into, " to defaults" & CRLF);
          declare
             Reset : constant Configuration := Config_Reset.Reset (Board);
             Kept  : Config_Codec.Data;
@@ -4091,10 +4348,19 @@ package body Adaflight.Command_Line with SPARK_Mode is
          Put (Into, "Startup failed" & CRLF);
          return;
       end if;
-      Put (Into, "Manufacturer 0x" & Hex_Text (Maker, (if Maker < 16 then 1 else 2)) & ", "
-                 & Decimal (Integer_64 (S.Blocks / 2)) & "kB, " & Zero_Padded (Integer_64 (S.Month), 2) & "/"
-                 & Zero_Padded (Integer_64 (S.Year), 4) & ", v" & Decimal (Integer_64 (S.Major)) & "."
-                 & Decimal (Integer_64 (S.Minor)) & ", '");
+      Put (Into, "Manufacturer 0x");
+      Put (Into, Hex_Text (Maker, (if Maker < 16 then 1 else 2)));
+      Put (Into, ", ");
+      Put (Into, Decimal (Integer_64 (S.Blocks / 2)));
+      Put (Into, "kB, ");
+      Put (Into, Zero_Padded (Integer_64 (S.Month), 2));
+      Put (Into, "/");
+      Put (Into, Zero_Padded (Integer_64 (S.Year), 4));
+      Put (Into, ", v");
+      Put (Into, Decimal (Integer_64 (S.Major)));
+      Put (Into, ".");
+      Put (Into, Decimal (Integer_64 (S.Minor)));
+      Put (Into, ", '");
       Put (Into, S.Name);
       Put (Into, " FS: ");
       case S.State is
@@ -4126,20 +4392,34 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Names : constant Kind_Names := ("UNKNOWN  ", "PARTITION", "FLASHFS  ", "BBMGMT   ", "FIRMWARE ", "CONFIG   ");
       Size  : Unsigned_32 := 0;
    begin
-      Put (Into, "Flash sectors=" & Decimal (Integer_64 (F.Sectors)) & ", sectorSize="
-                 & Decimal (Integer_64 (F.Sector_Size)) & ", pagesPerSector="
-                 & Decimal (Integer_64 (F.Pages_Per_Sector)) & ", pageSize=" & Decimal (Integer_64 (F.Page_Size))
-                 & ", totalSize=" & Decimal (Integer_64 (F.Total_Size)) & " JEDEC ID=0x" & Hex_Text (F.JEDEC_Id, 8)
-                 & CRLF);
+      Put (Into, "Flash sectors=");
+      Put (Into, Decimal (Integer_64 (F.Sectors)));
+      Put (Into, ", sectorSize=");
+      Put (Into, Decimal (Integer_64 (F.Sector_Size)));
+      Put (Into, ", pagesPerSector=");
+      Put (Into, Decimal (Integer_64 (F.Pages_Per_Sector)));
+      Put (Into, ", pageSize=");
+      Put (Into, Decimal (Integer_64 (F.Page_Size)));
+      Put (Into, ", totalSize=");
+      Put (Into, Decimal (Integer_64 (F.Total_Size)));
+      Put (Into, " JEDEC ID=0x");
+      Put (Into, Hex_Text (F.JEDEC_Id, 8));
+      Put (Into, CRLF);
       for Index in 0 .. Max_Flash_Partitions - 1 loop
          pragma Loop_Invariant (Index in 0 .. Max_Flash_Partitions - 1);
          if Index = 0 then
             Put (Into, "Partitions:" & CRLF);
          end if;
          exit when Index >= F.Count;
-         Put (Into, "  " & Decimal (Integer_64 (Index)) & ": " & Names (F.Partitions (Index).Kind) & " "
-                    & Decimal (Integer_64 (F.Partitions (Index).First_Sector)) & " "
-                    & Decimal (Integer_64 (F.Partitions (Index).Last_Sector)) & CRLF);
+         Put (Into, "  ");
+         Put (Into, Decimal (Integer_64 (Index)));
+         Put (Into, ": ");
+         Put (Into, Names (F.Partitions (Index).Kind));
+         Put (Into, " ");
+         Put (Into, Decimal (Integer_64 (F.Partitions (Index).First_Sector)));
+         Put (Into, " ");
+         Put (Into, Decimal (Integer_64 (F.Partitions (Index).Last_Sector)));
+         Put (Into, CRLF);
       end loop;
       for P of F.Partitions loop
          if P.Kind = Flash_File_System then
@@ -4147,7 +4427,11 @@ package body Adaflight.Command_Line with SPARK_Mode is
             exit;
          end if;
       end loop;
-      Put (Into, "FlashFS size=" & Decimal (Integer_64 (Size)) & ", usedSize=" & Decimal (Integer_64 (F.Used)) & CRLF);
+      Put (Into, "FlashFS size=");
+      Put (Into, Decimal (Integer_64 (Size)));
+      Put (Into, ", usedSize=");
+      Put (Into, Decimal (Integer_64 (F.Used)));
+      Put (Into, CRLF);
    end Flash_Info_Command;
 
    --  The number at a text's start as C's atoi reads it: blanks, a sign and
@@ -4207,15 +4491,13 @@ package body Adaflight.Command_Line with SPARK_Mode is
             for I in Text'Range loop
                Text (I) := Character'Val (F (30 + I));
             end loop;
-            Put (Into, Text & CRLF);
+            Put (Into, Text);
+            Put (Into, CRLF);
          end;
       else
-         Put (Into, (case Number is
-                        when 1      => "KISS8A",
-                        when 2      => "KISS16A",
-                        when 3      => "KISS24A",
-                        when 5      => "KISS Ultralite",
-                        when others => "unknown") & CRLF);
+         Put (Into, (case Number is when 1 => "KISS8A", when 2 => "KISS16A", when 3 => "KISS24A",
+                     when 5 => "KISS Ultralite", when others => "unknown"));
+         Put (Into, CRLF);
       end if;
       Put (Into, "MCU Serial No: 0x");
       for I in 0 .. 11 loop
@@ -4227,16 +4509,28 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end loop;
       Put (Into, CRLF);
       if K = ESC_Info.BLHeli_32 then
-         Put (Into, "Firmware Version: " & Decimal (Integer_64 (Version)) & "." & Byte_Two_Digits (Sub) & CRLF);
+         Put (Into, "Firmware Version: ");
+         Put (Into, Decimal (Integer_64 (Version)));
+         Put (Into, ".");
+         Put (Into, Byte_Two_Digits (Sub));
+         Put (Into, CRLF);
       else
-         Put (Into, "Firmware Version: " & Decimal (Integer_64 (Version / 100)) & "."
-                    & Byte_Two_Digits (Version mod 100) & Character'Val (Sub) & CRLF);
+         Put (Into, "Firmware Version: ");
+         Put (Into, Decimal (Integer_64 (Version / 100)));
+         Put (Into, ".");
+         Put (Into, Byte_Two_Digits (Version mod 100));
+         Put (Into, "" & Character'Val (Sub));
+         Put (Into, CRLF);
       end if;
       if K = ESC_Info.KISS_V1 then
          return;
       end if;
-      Put (Into, "Rotation Direction: " & (if F (16) /= 0 then "reversed" else "normal") & CRLF);
-      Put (Into, "3D: " & (if F (17) /= 0 then "on" else "off") & CRLF);
+      Put (Into, "Rotation Direction: ");
+      Put (Into, (if F (16) /= 0 then "reversed" else "normal"));
+      Put (Into, CRLF);
+      Put (Into, "3D: ");
+      Put (Into, (if F (17) /= 0 then "on" else "off"));
+      Put (Into, CRLF);
       if K /= ESC_Info.BLHeli_32 then
          return;
       end if;
@@ -4248,7 +4542,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
             Put (Into, "unsupported" & CRLF);
          when others =>
             Put (Into, Decimal (Integer_64 (F (18) / 10)));
-            Put (Into, "." & Decimal (Integer_64 (F (18) mod 10)) & CRLF);
+            Put (Into, ".");
+            Put (Into, Decimal (Integer_64 (F (18) mod 10)));
+            Put (Into, CRLF);
       end case;
       Put (Into, "Current Limit: ");
       case F (19) is
@@ -4262,8 +4558,11 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end case;
       for I in 0 .. 3 loop
          pragma Loop_Invariant (I in 0 .. 3);
-         Put (Into, "LED " & Decimal (Integer_64 (I)) & ": "
-                    & (if F (20 + I) = 0 then "off" elsif F (20 + I) = 255 then "unsupported" else "on") & CRLF);
+         Put (Into, "LED ");
+         Put (Into, Decimal (Integer_64 (I)));
+         Put (Into, ": ");
+         Put (Into, (if F (20 + I) = 0 then "off" elsif F (20 + I) = 255 then "unsupported" else "on"));
+         Put (Into, CRLF);
       end loop;
    end Put_ESC_Details;
 
@@ -4276,7 +4575,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
       F     : ESC_Info.Frame;
       Count : Natural;
    begin
-      Put (Into, "Info for ESC " & Decimal (Integer_64 (Index)) & ":" & CRLF);
+      Put (Into, "Info for ESC ");
+      Put (Into, Decimal (Integer_64 (Index)));
+      Put (Into, ":" & CRLF);
       ESC_Read_Start;
       DShot_Write (Index, Motors, 6);
       Delay_Ms (10);
@@ -4336,12 +4637,15 @@ package body Adaflight.Command_Line with SPARK_Mode is
                if Position = 0 then
                   Index := Value;
                   if Index in 0 .. Integer_64 (Motors) - 1 then
-                     Put (Into, "Using output " & Decimal (Index) & "." & CRLF);
+                     Put (Into, "Using output ");
+                     Put (Into, Decimal (Index));
+                     Put (Into, "." & CRLF);
                   elsif Index = All_Motors then
                      Put (Into, "Using all outputs." & CRLF);
                   else
-                     Put_Error (Into, "dshotprog: INVALID OUTPUT NUMBER. RANGE: 0 - "
-                                      & Decimal (Integer_64 (Motors) - 1) & ".###" & CRLF);
+                     Put_Error (Into, "dshotprog: INVALID OUTPUT NUMBER. RANGE: 0 - ");
+                     Put (Into, Decimal (Integer_64 (Motors) - 1));
+                     Put (Into, ".###" & CRLF);
                      return;
                   end if;
                elsif Value in 0 .. 47 then
@@ -4363,7 +4667,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
                   else
                      Put (Into, "Not supported." & CRLF);
                   end if;
-                  Put (Into, "Command Sent: " & Decimal (Value) & CRLF);
+                  Put (Into, "Command Sent: ");
+                  Put (Into, Decimal (Value));
+                  Put (Into, CRLF);
                else
                   Put_Error (Into, "dshotprog: INVALID COMMAND. RANGE: 1 - 47.###" & CRLF);
                end if;
@@ -4442,13 +4748,16 @@ package body Adaflight.Command_Line with SPARK_Mode is
                begin
                   if Value in 0 .. Integer_64 (Motors) - 1 then
                      Index := Natural (Value);
-                     Put (Into, "Using output " & Decimal (Value) & "." & CRLF);
+                     Put (Into, "Using output ");
+                     Put (Into, Decimal (Value));
+                     Put (Into, "." & CRLF);
                   elsif Protocol = KISS and then Value = All_Motors then
                      Index := All_Motors;
                      Put (Into, "Using all outputs." & CRLF);
                   else
-                     Put_Error (Into, "escprog: INVALID OUTPUT NUMBER. RANGE: 0 - "
-                                      & Decimal (Integer_64 (Motors) - 1) & ".###" & CRLF);
+                     Put_Error (Into, "escprog: INVALID OUTPUT NUMBER. RANGE: 0 - ");
+                     Put (Into, Decimal (Integer_64 (Motors) - 1));
+                     Put (Into, ".###" & CRLF);
                      return;
                   end if;
                end;
@@ -4576,10 +4885,12 @@ package body Adaflight.Command_Line with SPARK_Mode is
          Any := True;
          Put (Into, Name);
          if Description'Length > 0 then
-            Put (Into, " - " & Description);
+            Put (Into, " - ");
+            Put (Into, Description);
          end if;
          if Arguments'Length > 0 then
-            Put (Into, CRLF & ASCII.HT & Arguments);
+            Put (Into, CRLF & ASCII.HT);
+            Put (Into, Arguments);
          end if;
          Put (Into, CRLF);
       end if;
@@ -4675,14 +4986,20 @@ package body Adaflight.Command_Line with SPARK_Mode is
             Any);
       end loop;
       if Search'Length > 0 and then not Any then
-         Put_Error (Into, "help: NO MATCHES FOR '" & Search & "'###" & CRLF);
+         Put_Error (Into, "help: NO MATCHES FOR '");
+         Put (Into, Search);
+         Put (Into, "'###" & CRLF);
       end if;
    end Help_Command;
 
    --  The MCU's unique id as 24 hexadecimal digits.
    procedure Put_MCU_Id (Into : in out Output; Id : MCU_Words) is
    begin
-      Put (Into, "mcu_id " & Hex_Text (Id (1), 8) & Hex_Text (Id (2), 8) & Hex_Text (Id (3), 8) & CRLF);
+      Put (Into, "mcu_id ");
+      Put (Into, Hex_Text (Id (1), 8));
+      Put (Into, Hex_Text (Id (2), 8));
+      Put (Into, Hex_Text (Id (3), 8));
+      Put (Into, CRLF);
    end Put_MCU_Id;
 
    --  vtx_info: each power level the transmitter reports with its power, or
@@ -4697,8 +5014,11 @@ package body Adaflight.Command_Line with SPARK_Mode is
          Put_Error (Into, "vtx_info: NO POWER VALUES DEFINED###" & CRLF);
       else
          for I in 1 .. Report.Count loop
-            Put (Into, "level " & Decimal (Integer_64 (Report.Levels (I))) & " dBm, power "
-                       & Decimal (Integer_64 (Report.Powers (I))) & " mW" & CRLF);
+            Put (Into, "level ");
+            Put (Into, Decimal (Integer_64 (Report.Levels (I))));
+            Put (Into, " dBm, power ");
+            Put (Into, Decimal (Integer_64 (Report.Powers (I))));
+            Put (Into, " mW" & CRLF);
          end loop;
       end if;
    end Vtx_Info_Command;
@@ -4712,17 +5032,26 @@ package body Adaflight.Command_Line with SPARK_Mode is
       function Origin (Manual : Boolean) return String is (if Manual then "(manual)" else "(auto)");
    begin
       if Status.Rate_Valid then
-         Put (Into, "# Detected Rx frequency: " & Decimal (Integer_64 (Maths.Round_Half_Even (Status.Rate_Hz))) & "Hz"
-                    & CRLF);
+         Put (Into, "# Detected Rx frequency: ");
+         Put (Into, Decimal (Integer_64 (Maths.Round_Half_Even (Status.Rate_Hz))));
+         Put (Into, "Hz" & CRLF);
       else
          Put (Into, "# Detected Rx frequency: NO SIGNAL" & CRLF);
       end if;
-      Put (Into, "# RC Smoothing: " & (if Smoothing_On then "ON" else "OFF") & CRLF);
+      Put (Into, "# RC Smoothing: ");
+      Put (Into, (if Smoothing_On then "ON" else "OFF"));
+      Put (Into, CRLF);
       if Smoothing_On then
-         Put (Into, "# Active setpoint and FF cutoff: " & Decimal (Integer_64 (Status.Setpoint_Cutoff_Hz)) & "Hz "
-                    & Origin (Status.Setpoint_Manual) & CRLF);
-         Put (Into, "# Active throttle cutoff: " & Decimal (Integer_64 (Status.Throttle_Cutoff_Hz)) & "Hz "
-                    & Origin (Status.Throttle_Manual) & CRLF);
+         Put (Into, "# Active setpoint and FF cutoff: ");
+         Put (Into, Decimal (Integer_64 (Status.Setpoint_Cutoff_Hz)));
+         Put (Into, "Hz ");
+         Put (Into, Origin (Status.Setpoint_Manual));
+         Put (Into, CRLF);
+         Put (Into, "# Active throttle cutoff: ");
+         Put (Into, Decimal (Integer_64 (Status.Throttle_Cutoff_Hz)));
+         Put (Into, "Hz ");
+         Put (Into, Origin (Status.Throttle_Manual));
+         Put (Into, CRLF);
       end if;
    end Rc_Smoothing_Info_Command;
 
@@ -4758,10 +5087,17 @@ package body Adaflight.Command_Line with SPARK_Mode is
          Put (Into, "Dshot telemetry not enabled" & CRLF);
          return;
       end if;
-      Put (Into, "Dshot reads: " & Decimal (Integer_64 (S.Reads)) & CRLF);
-      Put (Into, "Dshot invalid pkts: " & Decimal (Integer_64 (S.Invalid_Replies)) & CRLF);
-      Put (Into, "Dshot directionChange cycles: " & Decimal (Integer_64 (Cycles)) & ", micros: "
-                 & Decimal (Integer_64 (Cycles / S.Clock_Rate)) & CRLF & CRLF);
+      Put (Into, "Dshot reads: ");
+      Put (Into, Decimal (Integer_64 (S.Reads)));
+      Put (Into, CRLF);
+      Put (Into, "Dshot invalid pkts: ");
+      Put (Into, Decimal (Integer_64 (S.Invalid_Replies)));
+      Put (Into, CRLF);
+      Put (Into, "Dshot directionChange cycles: ");
+      Put (Into, Decimal (Integer_64 (Cycles)));
+      Put (Into, ", micros: ");
+      Put (Into, Decimal (Integer_64 (Cycles / S.Clock_Rate)));
+      Put (Into, CRLF & CRLF);
       Put (Into, "Motor    Type   eRPM    RPM     Hz Invalid   TEMP    VCC   CURR  ST/EV   DBG1   DBG2   DBG3" & CRLF);
       Put (Into, "=====  ====== ====== ====== ====== ======= ====== ====== ====== ====== ====== ====== ======" & CRLF);
       for M in 0 .. Count - 1 loop
@@ -4770,34 +5106,60 @@ package body Adaflight.Command_Line with SPARK_Mode is
             Rpm   : constant Integer_64 := Whole (S.Telemetry.Rpm (M)) mod 2 ** 16;
             Volts : constant Integer_64 := Integer_64 (T.Values (DShot.Voltage));
          begin
-            Put (Into, Field (Integer_64 (M) + 1, 5) & "   " & Kind (T.Received, 0, 'R') & Kind (T.Received, 1, 'T')
-                       & Kind (T.Received, 2, 'V') & Kind (T.Received, 3, 'C') & Kind (T.Received, 7, 'S') & " "
-                       & Field (Integer_64 (T.Values (DShot.Erpm)) * 100, 6) & " " & Field (Rpm, 6) & " "
-                       & Field (Rpm / 60, 6));
+            Put (Into, Field (Integer_64 (M) + 1, 5));
+            Put (Into, "   ");
+            Put (Into, "" & Kind (T.Received, 0, 'R'));
+            Put (Into, "" & Kind (T.Received, 1, 'T'));
+            Put (Into, "" & Kind (T.Received, 2, 'V'));
+            Put (Into, "" & Kind (T.Received, 3, 'C'));
+            Put (Into, "" & Kind (T.Received, 7, 'S'));
+            Put (Into, " ");
+            Put (Into, Field (Integer_64 (T.Values (DShot.Erpm)) * 100, 6));
+            Put (Into, " ");
+            Put (Into, Field (Rpm, 6));
+            Put (Into, " ");
+            Put (Into, Field (Rpm / 60, 6));
             if (T.Received and 1) /= 0 then
                declare
                   Share : constant Integer_64 := Integer_64 (DShot.Invalid_Percent (S.Quality (M), True));
                begin
-                  Put (Into, " " & Field (Share / 100, 3) & "." & Two_Digits (Share mod 100) & "%");
+                  Put (Into, " ");
+                  Put (Into, Field (Share / 100, 3));
+                  Put (Into, ".");
+                  Put (Into, Two_Digits (Share mod 100));
+                  Put (Into, "%");
                end;
             else
                Put (Into, " NO DATA");
             end if;
-            Put (Into, " " & Field (Integer_64 (T.Values (DShot.Temperature)), 6) & " " & Field (Volts / 4, 3) & "."
-                       & Two_Digits (25 * (Volts mod 4)) & " " & Field (Integer_64 (T.Values (DShot.Current)), 6)
-                       & " " & Field (Integer_64 (T.Values (DShot.State_Events)), 6) & " "
-                       & Field (Integer_64 (T.Values (DShot.Debug_1)), 6) & " "
-                       & Field (Integer_64 (T.Values (DShot.Debug_2)), 6) & " "
-                       & Field (Integer_64 (T.Values (DShot.Debug_3)), 6) & CRLF);
+            Put (Into, " ");
+            Put (Into, Field (Integer_64 (T.Values (DShot.Temperature)), 6));
+            Put (Into, " ");
+            Put (Into, Field (Volts / 4, 3));
+            Put (Into, ".");
+            Put (Into, Two_Digits (25 * (Volts mod 4)));
+            Put (Into, " ");
+            Put (Into, Field (Integer_64 (T.Values (DShot.Current)), 6));
+            Put (Into, " ");
+            Put (Into, Field (Integer_64 (T.Values (DShot.State_Events)), 6));
+            Put (Into, " ");
+            Put (Into, Field (Integer_64 (T.Values (DShot.Debug_1)), 6));
+            Put (Into, " ");
+            Put (Into, Field (Integer_64 (T.Values (DShot.Debug_2)), 6));
+            Put (Into, " ");
+            Put (Into, Field (Integer_64 (T.Values (DShot.Debug_3)), 6));
+            Put (Into, CRLF);
          end;
       end loop;
       Put (Into, CRLF);
       for E of S.Edges loop
-         Put (Into, Field (Integer_64 (E), 0) & " ");
+         Put (Into, Field (Integer_64 (E), 0));
+         Put (Into, " ");
       end loop;
       Put (Into, CRLF);
       for K in 2 .. Max_GCR_Edges loop
-         Put (Into, Field (Integer_64 (S.Edges (K) - S.Edges (K - 1)), 0) & " ");
+         Put (Into, Field (Integer_64 (S.Edges (K) - S.Edges (K - 1)), 0));
+         Put (Into, " ");
       end loop;
       Put (Into, CRLF);
    end Dshot_Telemetry_Info_Command;
@@ -4838,7 +5200,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
             if Words = 0 then
                Index := CLI_Text.To_Integer (Arguments (P .. Last));
                if Index >= 0 and then Index < Integer_32 (Env.Motors) then
-                  Put (Into, "Using output " & Decimal (Integer_64 (Index)) & "." & CRLF);
+                  Put (Into, "Using output ");
+                  Put (Into, Decimal (Integer_64 (Index)));
+                  Put (Into, "." & CRLF);
                elsif Index = All_Motors then
                   Put (Into, "Using all outputs." & CRLF);
                else
@@ -4871,9 +5235,15 @@ package body Adaflight.Command_Line with SPARK_Mode is
             Changes.Motor_Value := Float (Output_Value);
             if Index /= All_Motors then
                Changes.Motor_Index := Natural (Index);
-               Put (Into, "motor " & Decimal (Integer_64 (Index)) & ": " & Decimal (Integer_64 (Output_Value)) & CRLF);
+               Put (Into, "motor ");
+               Put (Into, Decimal (Integer_64 (Index)));
+               Put (Into, ": ");
+               Put (Into, Decimal (Integer_64 (Output_Value)));
+               Put (Into, CRLF);
             else
-               Put (Into, "all motors: " & Decimal (Integer_64 (Output_Value)) & CRLF);
+               Put (Into, "all motors: ");
+               Put (Into, Decimal (Integer_64 (Output_Value)));
+               Put (Into, CRLF);
             end if;
          end;
       end if;
@@ -4895,14 +5265,20 @@ package body Adaflight.Command_Line with SPARK_Mode is
       else
          I := CLI_Text.To_Integer (Arguments);
          if I not in 0 .. Integer_32 (Beeper_Index'Last) then
-            Put (Into, "No sound for index " & Decimal (Integer_64 (I)) & CRLF);
+            Put (Into, "No sound for index ");
+            Put (Into, Decimal (Integer_64 (I)));
+            Put (Into, CRLF);
             return;
          end if;
       end if;
       Into.Last_Sound := Integer (I);
       Changes.Sound := True;
       Changes.Sound_Mode := Beeper_Mode (Beeper_Index (I));
-      Put (Into, "Playing sound " & Decimal (Integer_64 (I)) & ": " & Beeper_Name (Beeper_Index (I)) & CRLF);
+      Put (Into, "Playing sound ");
+      Put (Into, Decimal (Integer_64 (I)));
+      Put (Into, ": ");
+      Put (Into, Beeper_Name (Beeper_Index (I)));
+      Put (Into, CRLF);
    end Play_Sound_Command;
 
    --  bind_rx: the receiver's bind started, or the error for a receiver
@@ -5031,7 +5407,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
             return;
          end if;
       end loop;
-      Put_Error (Into, "sensor_hardware: INVALID SENSOR TYPE: " & Arguments & "###" & CRLF);
+      Put_Error (Into, "sensor_hardware: INVALID SENSOR TYPE: ");
+      Put (Into, Arguments);
+      Put (Into, "###" & CRLF);
    end Sensor_Hardware_Command;
 
    Upper_Hex_Digits : constant String (1 .. 16) := "0123456789ABCDEF";
@@ -5046,11 +5424,14 @@ package body Adaflight.Command_Line with SPARK_Mode is
          when No_Bus =>
             null;
          when SPI_Bus =>
-            Put (Into, " on SPI" & Decimal (Integer_64 (Bus.Number)));
+            Put (Into, " on SPI");
+            Put (Into, Decimal (Integer_64 (Bus.Number)));
          when I2C_Bus =>
-            Put (Into, " on I2C" & Decimal (Integer_64 (Bus.Number)) & " @0x"
-                       & Upper_Hex_Digits (Natural (Bus.Address / 16) + 1)
-                       & Upper_Hex_Digits (Natural (Bus.Address mod 16) + 1));
+            Put (Into, " on I2C");
+            Put (Into, Decimal (Integer_64 (Bus.Number)));
+            Put (Into, " @0x");
+            Put (Into, "" & Upper_Hex_Digits (Natural (Bus.Address / 16) + 1));
+            Put (Into, "" & Upper_Hex_Digits (Natural (Bus.Address mod 16) + 1));
       end case;
    end Put_Device_Bus;
 
@@ -5143,7 +5524,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
       for Position in 0 .. Env.Gyro_Positions - 1 loop
          pragma Loop_Invariant (Position in 0 .. Max_Gyro_Positions - 1);
          if (C.Gyro_Config.Gyros_Detected and 2 ** Position) /= 0 then
-            Put (Into, "gyro " & Decimal (Integer_64 (Position + 1)) & ": ");
+            Put (Into, "gyro ");
+            Put (Into, Decimal (Integer_64 (Position + 1)));
+            Put (Into, ": ");
             Put (Into, Gyro_Hardware_Name (Env.Gyros (Position).Hardware));
             if (Env.Gyros_Enabled and 2 ** Position) /= 0 then
                Put (Into, "*");
@@ -5239,8 +5622,11 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Flash_Seek (Address);
       Flash_Write (Arguments (First .. Arguments'Last));
       Flash_Flush;
-      Put (Into, "Wrote " & Decimal (Integer_64 (Arguments'Last - First + 1)) & " bytes at "
-                 & Decimal (Integer_64 (Address)) & "." & CRLF);
+      Put (Into, "Wrote ");
+      Put (Into, Decimal (Integer_64 (Arguments'Last - First + 1)));
+      Put (Into, " bytes at ");
+      Put (Into, Decimal (Integer_64 (Address)));
+      Put (Into, "." & CRLF);
    end Flash_Write_Command;
 
    --  flash_read: the given count of bytes from the address, each number read
@@ -5261,8 +5647,11 @@ package body Adaflight.Command_Line with SPARK_Mode is
          return;
       end if;
       Length := Unsigned_32 (Leading_Whole (Arguments (Space .. Arguments'Last)) mod 2 ** 32);
-      Put (Into, "Reading " & Decimal (Integer_64 (Length)) & " bytes at " & Decimal (Integer_64 (Address)) & ":"
-                 & CRLF);
+      Put (Into, "Reading ");
+      Put (Into, Decimal (Integer_64 (Length)));
+      Put (Into, " bytes at ");
+      Put (Into, Decimal (Integer_64 (Address)));
+      Put (Into, ":" & CRLF);
       while Length > 0 loop
          pragma Loop_Invariant (Length > 0);
          Flash_Read (Address, Natural (Unsigned_32'Min (Length, 32)), Data, Count);
@@ -5298,7 +5687,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
       for Position in 0 .. Env.Gyro_Positions - 1 loop
          pragma Loop_Invariant (Position in 0 .. Max_Gyro_Positions - 1);
          if (C.Gyro_Config.Gyro_Enabled_Bitmask and 2 ** Position) /= 0 then
-            Put (Into, CRLF & "# Gyro " & Decimal (Integer_64 (Position + 1)) & CRLF);
+            Put (Into, CRLF & "# Gyro ");
+            Put (Into, Decimal (Integer_64 (Position + 1)));
+            Put (Into, CRLF);
             if Env.Raw_Gyro_ICM456 then
                Put_Register ("# WHO_AM_I      0x", Position, 16#72#, " (0x72)");
                Put_Register ("# PWR_MGMT0     0x", Position, 16#10#, " (0x10)");
@@ -5380,29 +5771,51 @@ package body Adaflight.Command_Line with SPARK_Mode is
    begin
       Put (Into, "MCU: ");
       Put (Into, Text_Of (S.MCU_Name));
-      Put (Into, " CLK=" & Decimal (Integer_64 (S.Core_Clock_Hz / 1_000_000)) & "MHz");
+      Put (Into, " CLK=");
+      Put (Into, Decimal (Integer_64 (S.Core_Clock_Hz / 1_000_000)));
+      Put (Into, "MHz");
       if S.Clock_Sources then
-         Put (Into, " (" & Clock_Source_Name (S.System_Source)
-                    & (if S.System_Source < 2 then "" elsif S.PLL_Source = 0 then "-HSI" else "-HSE") & ")");
+         Put (Into, " (");
+         Put (Into, Clock_Source_Name (S.System_Source));
+         Put (Into, (if S.System_Source < 2 then "" elsif S.PLL_Source = 0 then "-HSI" else "-HSE"));
+         Put (Into, ")");
       end if;
       if S.Internal_ADC then
-         Put (Into, ", Vref=" & Decimal (Integer_64 (S.Vref_Mv / 1000)) & "."
-                    & Zero_Padded (Natural ((S.Vref_Mv mod 1000) / 10), 2) & "V, Core temp="
-                    & Decimal (Integer_64 (S.Core_Temp_C)) & "degC");
+         Put (Into, ", Vref=");
+         Put (Into, Decimal (Integer_64 (S.Vref_Mv / 1000)));
+         Put (Into, ".");
+         Put (Into, Zero_Padded (Natural ((S.Vref_Mv mod 1000) / 10), 2));
+         Put (Into, "V, Core temp=");
+         Put (Into, Decimal (Integer_64 (S.Core_Temp_C)));
+         Put (Into, "degC");
       end if;
       Put (Into, CRLF);
-      Put (Into, "STACK: " & Signed_Text (S.Stack_Total) & "b (0x" & Hex_Minimal (S.Stack_High) & ")");
+      Put (Into, "STACK: ");
+      Put (Into, Signed_Text (S.Stack_Total));
+      Put (Into, "b (0x");
+      Put (Into, Hex_Minimal (S.Stack_High));
+      Put (Into, ")");
       if S.Stack_Check then
-         Put (Into, " / " & Signed_Text (S.Stack_Used) & "b");
+         Put (Into, " / ");
+         Put (Into, Signed_Text (S.Stack_Used));
+         Put (Into, "b");
       end if;
       Put (Into, CRLF);
-      Put (Into, "CONFIG: " & (if C.System_Config.Configuration_State = 0 then "UNCONFIGURED" else "CONFIGURED")
-                 & " (" & Decimal (Integer_64 (S.Config_Size)) & "b / " & Signed_Text (S.Storage_Size) & "b)"
-                 & CRLF);
+      Put (Into, "CONFIG: ");
+      Put (Into, (if C.System_Config.Configuration_State = 0 then "UNCONFIGURED" else "CONFIGURED"));
+      Put (Into, " (");
+      Put (Into, Decimal (Integer_64 (S.Config_Size)));
+      Put (Into, "b / ");
+      Put (Into, Signed_Text (S.Storage_Size));
+      Put (Into, "b)" & CRLF);
       Put (Into, CRLF);
-      Put (Into, "DEVICES DETECTED: SPI=" & Decimal (Integer_64 (S.SPI_Devices)) & ", I2C="
-                 & Decimal (Integer_64 (S.I2C_Devices)) & " (" & Decimal (Integer_64 (S.I2C_Errors)) & " errors)"
-                 & CRLF);
+      Put (Into, "DEVICES DETECTED: SPI=");
+      Put (Into, Decimal (Integer_64 (S.SPI_Devices)));
+      Put (Into, ", I2C=");
+      Put (Into, Decimal (Integer_64 (S.I2C_Devices)));
+      Put (Into, " (");
+      Put (Into, Decimal (Integer_64 (S.I2C_Errors)));
+      Put (Into, " errors)" & CRLF);
    end Put_Status_Board;
 
    subtype Detected_Sensor is Sensor_Type range Acc_Sensor .. Pitot_Sensor;
@@ -5436,7 +5849,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
                Put (Into, ", ");
             end if;
             Found := True;
-            Put (Into, "(" & Decimal (Integer_64 (Position + 1)) & ") ");
+            Put (Into, "(");
+            Put (Into, Decimal (Integer_64 (Position + 1)));
+            Put (Into, ") ");
             Put (Into, Gyro_Hardware_Name (Env.Gyros (Position).Hardware));
             if (Env.Gyros_Enabled and 2 ** Position) /= 0 then
                Put (Into, " enabled");
@@ -5466,7 +5881,8 @@ package body Adaflight.Command_Line with SPARK_Mode is
                Put (Into, ": ");
                Put (Into, Hardware_Name (S, Natural (D.Hardware)));
                if S = Acc_Sensor and then Env.Acc_Revision /= 0 then
-                  Put (Into, "." & Character'Val (Env.Acc_Revision));
+                  Put (Into, ".");
+                  Put (Into, "" & Character'Val (Env.Acc_Revision));
                end if;
                Put (Into, CRLF);
             end if;
@@ -5506,7 +5922,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
             else
                Put (Into, "INVALID");
             end if;
-            Put (Into, " " & Decimal (Integer_64 (Baud_Values (G.Port_Baud))) & " (set to ");
+            Put (Into, " ");
+            Put (Into, Decimal (Integer_64 (Baud_Values (G.Port_Baud))));
+            Put (Into, " (set to ");
             if C.Gps_Config.Auto_Baud /= 0 then
                Put (Into, "AUTO");
             elsif Natural (C.Gps_Config.Gps_Baud) <= Serial_Feature_Map.Baud_Index'Last then
@@ -5522,12 +5940,14 @@ package body Adaflight.Command_Line with SPARK_Mode is
             Put (Into, "configured");
          end if;
          if Provider = 1 then
-            Put (Into, ", version =  " & GPS_Platform_Name (G.Platform));
+            Put (Into, ", version =  ");
+            Put (Into, GPS_Platform_Name (G.Platform));
          end if;
       end if;
       if G.State = GPS_Link.Receiving_Data then
          Put (Into, CRLF);
-         Put (Into, "  sats: " & Decimal (Integer_64 (G.Satellites)));
+         Put (Into, "  sats: ");
+         Put (Into, Decimal (Integer_64 (G.Satellites)));
          declare
             Sum   : Natural := 0;
             Count : Natural := 0;
@@ -5540,16 +5960,22 @@ package body Adaflight.Command_Line with SPARK_Mode is
                end if;
             end loop;
             if Count > 0 then
-               Put (Into, ", signal: " & Decimal (Integer_64 (Sum / Count)) & " dBHz");
+               Put (Into, ", signal: ");
+               Put (Into, Decimal (Integer_64 (Sum / Count)));
+               Put (Into, " dBHz");
             end if;
          end;
          if G.HDOP > 0 then
-            Put (Into, ", hdop: " & Decimal (Integer_64 (G.HDOP / 100)) & "."
-                       & Zero_Padded (Natural (G.HDOP mod 100), 2));
+            Put (Into, ", hdop: ");
+            Put (Into, Decimal (Integer_64 (G.HDOP / 100)));
+            Put (Into, ".");
+            Put (Into, Zero_Padded (Natural (G.HDOP mod 100), 2));
          end if;
          if G.VDOP > 0 then
-            Put (Into, ", vdop: " & Decimal (Integer_64 (G.VDOP / 100)) & "."
-                       & Zero_Padded (Natural (G.VDOP mod 100), 2));
+            Put (Into, ", vdop: ");
+            Put (Into, Decimal (Integer_64 (G.VDOP / 100)));
+            Put (Into, ".");
+            Put (Into, Zero_Padded (Natural (G.VDOP mod 100), 2));
          end if;
          if G.Fix then
             declare
@@ -5557,20 +5983,40 @@ package body Adaflight.Command_Line with SPARK_Mode is
                Lon : constant Integer_64 := Integer_64 (G.Longitude);
                Alt : constant Integer_64 := Integer_64 (G.Altitude_Cm);
             begin
-               Put (Into, ", pos: " & (if Lat < 0 then "-" else "") & Decimal (abs Lat / 10_000_000) & "."
-                          & Zero_Padded (Natural (abs Lat mod 10_000_000), 7));
-               Put (Into, " " & (if Lon < 0 then "-" else "") & Decimal (abs Lon / 10_000_000) & "."
-                          & Zero_Padded (Natural (abs Lon mod 10_000_000), 7));
-               Put (Into, ", alt: " & (if Alt < 0 then "-" else "") & Decimal (abs Alt / 100) & "."
-                          & Zero_Padded (Natural (abs Alt mod 100), 2) & "m");
+               Put (Into, ", pos: ");
+               Put (Into, (if Lat < 0 then "-" else ""));
+               Put (Into, Decimal (abs Lat / 10_000_000));
+               Put (Into, ".");
+               Put (Into, Zero_Padded (Natural (abs Lat mod 10_000_000), 7));
+               Put (Into, " ");
+               Put (Into, (if Lon < 0 then "-" else ""));
+               Put (Into, Decimal (abs Lon / 10_000_000));
+               Put (Into, ".");
+               Put (Into, Zero_Padded (Natural (abs Lon mod 10_000_000), 7));
+               Put (Into, ", alt: ");
+               Put (Into, (if Alt < 0 then "-" else ""));
+               Put (Into, Decimal (abs Alt / 100));
+               Put (Into, ".");
+               Put (Into, Zero_Padded (Natural (abs Alt mod 100), 2));
+               Put (Into, "m");
             end;
          else
             Put (Into, ", pos: no fix");
          end if;
          if G.Time_Valid then
-            Put (Into, ", " & Zero_Padded (Natural (G.Year), 4) & "-" & Zero_Padded (Natural (G.Month), 2) & "-"
-                       & Zero_Padded (Natural (G.Day), 2) & "T" & Zero_Padded (Natural (G.Hour), 2) & ":"
-                       & Zero_Padded (Natural (G.Minute), 2) & ":" & Zero_Padded (Natural (G.Second), 2) & "Z");
+            Put (Into, ", ");
+            Put (Into, Zero_Padded (Natural (G.Year), 4));
+            Put (Into, "-");
+            Put (Into, Zero_Padded (Natural (G.Month), 2));
+            Put (Into, "-");
+            Put (Into, Zero_Padded (Natural (G.Day), 2));
+            Put (Into, "T");
+            Put (Into, Zero_Padded (Natural (G.Hour), 2));
+            Put (Into, ":");
+            Put (Into, Zero_Padded (Natural (G.Minute), 2));
+            Put (Into, ":");
+            Put (Into, Zero_Padded (Natural (G.Second), 2));
+            Put (Into, "Z");
          end if;
       end if;
       Put (Into, CRLF);
@@ -5599,13 +6045,20 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end if;
       Put (Into, " ");
       if S.OSD_Port then
-         Put (Into, "(" & Decimal (Integer_64 (S.OSD_Columns)) & " x " & Decimal (Integer_64 (S.OSD_Rows)) & ")");
+         Put (Into, "(");
+         Put (Into, Decimal (Integer_64 (S.OSD_Columns)));
+         Put (Into, " x ");
+         Put (Into, Decimal (Integer_64 (S.OSD_Rows)));
+         Put (Into, ")");
       end if;
       Put (Into, CRLF);
       SD_Info_Command (Into, C.Sdcard_Config.Mode, Env.SD_Card);
       if Env.Flash.JEDEC_Id /= 0 then
-         Put (Into, "FLASH: JEDEC ID=0x" & Hex_Text (Env.Flash.JEDEC_Id, 8) & " "
-                    & Decimal (Integer_64 (Shift_Right (Env.Flash.Total_Size, 20))) & "M" & CRLF);
+         Put (Into, "FLASH: JEDEC ID=0x");
+         Put (Into, Hex_Text (Env.Flash.JEDEC_Id, 8));
+         Put (Into, " ");
+         Put (Into, Decimal (Integer_64 (Shift_Right (Env.Flash.Total_Size, 20))));
+         Put (Into, "M" & CRLF);
       end if;
       if S.Has_Build_Key then
          Put (Into, CRLF);
@@ -5619,7 +6072,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
          Put (Into, CRLF);
       end if;
       Put (Into, CRLF);
-      Put (Into, "System Uptime: " & Decimal (Integer_64 (S.Uptime_Ms / 1000)) & " seconds");
+      Put (Into, "System Uptime: ");
+      Put (Into, Decimal (Integer_64 (S.Uptime_Ms / 1000)));
+      Put (Into, " seconds");
       if RTC.Has_Time (S.Clock) then
          declare
             Zone   : constant Integer_16 := C.Time_Config.Tz_Offset_Minutes;
@@ -5632,25 +6087,38 @@ package body Adaflight.Command_Line with SPARK_Mode is
                                                                               else 0)),
                Text, Length, Valid);
             pragma Unreferenced (Valid);
-            Put (Into, ", Current Time: " & Text (1 .. Length));
+            Put (Into, ", Current Time: ");
+            Put (Into, Text (1 .. Length));
          end;
       end if;
       Put (Into, CRLF);
-      Put (Into, "CPU:" & Decimal (Integer_64'Min (Integer_64 (Sched.Average_Load_Percent), 100)) & "%, cycle time: "
-                 & Signed_Text ((Gyro.Average_Delta_10th + 5) / 10) & ", GYRO rate: " & Decimal (Task_Rate (Gyro))
-                 & ", RX rate: "
-                 & Decimal (if Env.Smoothing.Rate_Valid
-                            then Integer_64 (Maths.Round_Half_Even (Env.Smoothing.Rate_Hz)) else 0)
-                 & ", System rate: " & Decimal (Task_Rate (System)) & CRLF);
-      Put (Into, "Voltage: " & Decimal (Integer_64 (S.Battery_Voltage / 100)) & "."
-                 & Zero_Padded (Natural (S.Battery_Voltage mod 100), 2) & "V ("
-                 & Decimal (Integer_64 (S.Battery_Cells)) & "S battery - " & Battery_State_Name (S.Battery_State)
-                 & ")" & CRLF);
+      Put (Into, "CPU:");
+      Put (Into, Decimal (Integer_64'Min (Integer_64 (Sched.Average_Load_Percent), 100)));
+      Put (Into, "%, cycle time: ");
+      Put (Into, Signed_Text ((Gyro.Average_Delta_10th + 5) / 10));
+      Put (Into, ", GYRO rate: ");
+      Put (Into, Decimal (Task_Rate (Gyro)));
+      Put (Into, ", RX rate: ");
+      Put (Into, Decimal (if Env.Smoothing.Rate_Valid then Integer_64 (Maths.Round_Half_Even (Env.Smoothing.Rate_Hz))
+                          else 0));
+      Put (Into, ", System rate: ");
+      Put (Into, Decimal (Task_Rate (System)));
+      Put (Into, CRLF);
+      Put (Into, "Voltage: ");
+      Put (Into, Decimal (Integer_64 (S.Battery_Voltage / 100)));
+      Put (Into, ".");
+      Put (Into, Zero_Padded (Natural (S.Battery_Voltage mod 100), 2));
+      Put (Into, "V (");
+      Put (Into, Decimal (Integer_64 (S.Battery_Cells)));
+      Put (Into, "S battery - ");
+      Put (Into, Battery_State_Name (S.Battery_State));
+      Put (Into, ")" & CRLF);
       Put (Into, "Arming disable flags:");
       for R in Arming.Disable_Reason loop
          pragma Loop_Invariant (R in Arming.No_Gyro .. Arming.Arm_Switch);
          if S.Arming_Disabled (R) then
-            Put (Into, " " & Arming.Disable_Name (R));
+            Put (Into, " ");
+            Put (Into, Arming.Disable_Name (R));
          end if;
       end loop;
       Put (Into, CRLF);
@@ -5958,8 +6426,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
    begin
       if Arguments'Length > 0 then
          if Arguments'Length /= 2 * Signature_Bytes'Length then
-            Put_Error (Into, "signature: INVALID LENGTH: " & Decimal (Integer_64 (Arguments'Length))
-                 & " (EXPECTED: 64)###" & CRLF);
+            Put_Error (Into, "signature: INVALID LENGTH: ");
+            Put (Into, Decimal (Integer_64 (Arguments'Length)));
+            Put (Into, " (EXPECTED: 64)###" & CRLF);
             return;
          end if;
          for I in New_Signature'Range loop
@@ -5972,7 +6441,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
             begin
                Read_Hex_Pair (Pair, Value, Stop);
                if Stop /= 3 then
-                  Put_Error (Into, "signature: INVALID CHARACTER FOUND: " & Pair (Stop) & "###" & CRLF);
+                  Put_Error (Into, "signature: INVALID CHARACTER FOUND: ");
+                  Put (Into, "" & Pair (Stop));
+                  Put (Into, "###" & CRLF);
                   return;
                end if;
                New_Signature (I) := Value;
@@ -6006,7 +6477,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end loop;
       if not Bare then
          Put_Hash_Line (Into, "restore original profile selection");
-         Put (Into, "profile " & Decimal (Integer_64 (C.System_Config.Pid_Profile_Index)) & CRLF);
+         Put (Into, "profile ");
+         Put (Into, Decimal (Integer_64 (C.System_Config.Pid_Profile_Index)));
+         Put (Into, CRLF);
       end if;
       for Index in 0 .. Control_Rate_Config_Record_List_4'Length - 1 loop
          Dump_Profile (Into, C, Rate, Index, Command, Mode, Ports);
@@ -6016,9 +6489,13 @@ package body Adaflight.Command_Line with SPARK_Mode is
       end loop;
       if not Bare then
          Put_Hash_Line (Into, "restore original rateprofile selection");
-         Put (Into, "rateprofile " & Decimal (Integer_64 (C.System_Config.Active_Rate_Profile)) & CRLF);
+         Put (Into, "rateprofile ");
+         Put (Into, Decimal (Integer_64 (C.System_Config.Active_Rate_Profile)));
+         Put (Into, CRLF);
          Put_Hash_Line (Into, "restore original battery_profile selection");
-         Put (Into, "battery_profile " & Decimal (Integer_64 (C.System_Config.Active_Battery_Profile)) & CRLF);
+         Put (Into, "battery_profile ");
+         Put (Into, Decimal (Integer_64 (C.System_Config.Active_Battery_Profile)));
+         Put (Into, CRLF);
          Put_Hash_Line (Into, "save configuration");
          Put (Into, "save");
       end if;
@@ -6032,10 +6509,15 @@ package body Adaflight.Command_Line with SPARK_Mode is
       Put (Into, CRLF & "Currently active DMA:" & CRLF & "--------------------" & CRLF);
       for K in Env.DMA_Motors'Range loop
          pragma Loop_Invariant (True);
-         Put (Into, "DMA" & Decimal (Integer_64 ((K - 1) / 8 + 1)) & " Stream " & Decimal (Integer_64 ((K - 1) mod 8))
-                    & ":");
+         Put (Into, "DMA");
+         Put (Into, Decimal (Integer_64 ((K - 1) / 8 + 1)));
+         Put (Into, " Stream ");
+         Put (Into, Decimal (Integer_64 ((K - 1) mod 8)));
+         Put (Into, ":");
          if Env.DMA_Motors (K) > 0 then
-            Put (Into, " MOTOR " & Decimal (Integer_64 (Env.DMA_Motors (K))) & CRLF);
+            Put (Into, " MOTOR ");
+            Put (Into, Decimal (Integer_64 (Env.DMA_Motors (K))));
+            Put (Into, CRLF);
          else
             Put (Into, " FREE" & CRLF);
          end if;
@@ -6075,11 +6557,16 @@ package body Adaflight.Command_Line with SPARK_Mode is
                if Dump then
                   Put_Heading (Into, Mode, not Equal, "resources", Pending);
                   if Shows_Default (Mode, Equal) then
-                     Put (Into, "#" & Start & (if Default /= 0 then Pin_Text (Default) else "NONE") & CRLF);
+                     Put (Into, "#");
+                     Put (Into, Start);
+                     Put (Into, (if Default /= 0 then Pin_Text (Default) else "NONE"));
+                     Put (Into, CRLF);
                   end if;
                end if;
                if (Tag /= 0 or else Dump) and then Shows_Line (Mode, Equal) then
-                  Put (Into, Start & (if Tag /= 0 then Pin_Text (Tag) else "NONE") & CRLF);
+                  Put (Into, Start);
+                  Put (Into, (if Tag /= 0 then Pin_Text (Tag) else "NONE"));
+                  Put (Into, CRLF);
                end if;
             end;
          end loop;
@@ -6107,10 +6594,15 @@ package body Adaflight.Command_Line with SPARK_Mode is
          for I in 0 .. R.Count (O) - 1 loop
             pragma Loop_Invariant (True);
             if R.Tag (C, O, I) = New_Tag and then not (O = Set_Owner and then I = Set_Index) then
-               Put (Into, CRLF & "NOTE: " & Pin_Text (New_Tag) & " already assigned to " & Owner_Text (O, I));
+               Put (Into, CRLF & "NOTE: ");
+               Put (Into, Pin_Text (New_Tag));
+               Put (Into, " already assigned to ");
+               Put (Into, Owner_Text (O, I));
                if O = Set_Owner then
                   R.Set_Tag (C, O, I, 0);
-                  Put (Into, ". " & Owner_Text (O, I) & " disabled");
+                  Put (Into, ". ");
+                  Put (Into, Owner_Text (O, I));
+                  Put (Into, " disabled");
                end if;
                Put (Into, "." & CRLF);
             end if;
@@ -6188,7 +6680,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
          end if;
       end loop;
       if not Found then
-         Put_Error (Into, "resource: INVALID RESOURCE NAME: '" & Arguments (First .. Last) & "'###" & CRLF);
+         Put_Error (Into, "resource: INVALID RESOURCE NAME: '");
+         Put (Into, Arguments (First .. Last));
+         Put (Into, "'###" & CRLF);
          return;
       end if;
       First := Skip_Spaces (Last + 1);
@@ -6202,8 +6696,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
                  (if Have_Index then Integer_64 (CLI_Text.To_Integer (Arguments (First .. Last))) - 1 else -1);
             begin
                if not Have_Index or else Candidate < 0 or else Candidate >= Integer_64 (R.Count (Owner)) then
-                  Put_Error (Into, "resource: INDEX NOT BETWEEN 1 AND " & Decimal (Integer_64 (R.Count (Owner)))
-                             & "###" & CRLF);
+                  Put_Error (Into, "resource: INDEX NOT BETWEEN 1 AND ");
+                  Put (Into, Decimal (Integer_64 (R.Count (Owner))));
+                  Put (Into, "###" & CRLF);
                   return;
                end if;
                Index := Natural (Candidate);
@@ -6216,8 +6711,13 @@ package body Adaflight.Command_Line with SPARK_Mode is
          declare
             Tag : constant Unsigned_8 := R.Tag (C, Owner, Index);
          begin
-            Put (Into, "# resource " & R.Name (Owner) & " " & Decimal (Integer_64 (Index + 1)) & " "
-                       & (if Tag /= 0 then Pin_Text (Tag) else "NONE") & CRLF);
+            Put (Into, "# resource ");
+            Put (Into, R.Name (Owner));
+            Put (Into, " ");
+            Put (Into, Decimal (Integer_64 (Index + 1)));
+            Put (Into, " ");
+            Put (Into, (if Tag /= 0 then Pin_Text (Tag) else "NONE"));
+            Put (Into, CRLF);
          end;
          return;
       end if;
@@ -6238,7 +6738,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
             CLI_Text.Parse_Signed (Arguments (First + 1 .. Last), Pin, Next);
          end if;
          if Port not in 0 .. 8 or else Next = First + 1 or else Pin not in 0 .. 15 then
-            Put_Error (Into, "resource: Failed to parse '" & Arguments (First .. Last) & "' as pin###" & CRLF);
+            Put_Error (Into, "resource: Failed to parse '");
+            Put (Into, Arguments (First .. Last));
+            Put (Into, "' as pin###" & CRLF);
          elsif Port > 5 then
             Put_Error (Into, "resource: PARSING FAILED###" & CRLF);
          else
@@ -6247,7 +6749,9 @@ package body Adaflight.Command_Line with SPARK_Mode is
             begin
                R.Set_Tag (C, Owner, Index, Tag);
                Resource_Check (Into, C, Owner, Index, Tag);
-               Put (Into, CRLF & "Resource is set to " & Pin_Text (Tag) & CRLF);
+               Put (Into, CRLF & "Resource is set to ");
+               Put (Into, Pin_Text (Tag));
+               Put (Into, CRLF);
             end;
          end if;
       end;
@@ -6429,18 +6933,36 @@ package body Adaflight.Command_Line with SPARK_Mode is
                      Frequency := Integer_64 (Maths.Round_Half_Even (1.0e7 / Float (T.Average_Delta_10th)));
                   end if;
                   Load_Sum := Load_Sum + Average_Load;
-                  Put (Into, Two_Digits (Scheduler.Task_Id'Pos (Id)) & " - ("
-                       & CLI_Text.Right_Justified (Scheduler.Name (Id), 15) & ") ");
+                  Put (Into, Two_Digits (Scheduler.Task_Id'Pos (Id)));
+                  Put (Into, " - (");
+                  Put (Into, CLI_Text.Right_Justified (Scheduler.Name (Id), 15));
+                  Put (Into, ") ");
                   if Statistics then
-                     Put (Into, Field (Frequency, 6) & " " & Field (As_Signed (T.Max_Exec_Us), 7) & " ");
-                     Put (Into, Field (Integer_64 (T.Average_Exec_10th / 10), 7) & " ");
-                     Put (Into, Field (Max_Load / 10, 4) & "." & Decimal (Max_Load rem 10) & "% ");
-                     Put (Into, Field (Average_Load / 10, 4) & "." & Decimal (Average_Load rem 10) & "% ");
-                     Put (Into, Field (Integer_64 (T.Total_Exec_Us / 1000), 9) & " ");
-                     Put (Into, Field (As_Signed (T.Late_Count), 6) & " " & Field (As_Signed (T.Run_Count), 6) & " ");
-                     Put (Into, Field (As_Signed (T.Exec_Time_Us), 7) & CRLF);
+                     Put (Into, Field (Frequency, 6));
+                     Put (Into, " ");
+                     Put (Into, Field (As_Signed (T.Max_Exec_Us), 7));
+                     Put (Into, " ");
+                     Put (Into, Field (Integer_64 (T.Average_Exec_10th / 10), 7));
+                     Put (Into, " ");
+                     Put (Into, Field (Max_Load / 10, 4));
+                     Put (Into, ".");
+                     Put (Into, Decimal (Max_Load rem 10));
+                     Put (Into, "% ");
+                     Put (Into, Field (Average_Load / 10, 4));
+                     Put (Into, ".");
+                     Put (Into, Decimal (Average_Load rem 10));
+                     Put (Into, "% ");
+                     Put (Into, Field (Integer_64 (T.Total_Exec_Us / 1000), 9));
+                     Put (Into, " ");
+                     Put (Into, Field (As_Signed (T.Late_Count), 6));
+                     Put (Into, " ");
+                     Put (Into, Field (As_Signed (T.Run_Count), 6));
+                     Put (Into, " ");
+                     Put (Into, Field (As_Signed (T.Exec_Time_Us), 7));
+                     Put (Into, CRLF);
                   else
-                     Put (Into, Field (Frequency, 6) & CRLF);
+                     Put (Into, Field (Frequency, 6));
+                     Put (Into, CRLF);
                   end if;
                end;
                Scheduler.Reset_Task_Max_Execution_Time (Sched, Id);
@@ -6455,14 +6977,28 @@ package body Adaflight.Command_Line with SPARK_Mode is
             Total       : constant Integer_64 := Wrapped (Load_Sum);
          begin
             Into.Last_Check_Total_Us := Checks.Total_Exec_Us;
-            Put (Into, "Check Functions (RX, ...) " & Field (As_Signed (Checks.Max_Exec_Us), 11) & " ");
-            Put (Into, Field (Integer_64 (Checks.Average_Exec_Us), 7) & " " & Field (Integer_64 (Load / 10), 12) & ".");
+            Put (Into, "Check Functions (RX, ...) ");
+            Put (Into, Field (As_Signed (Checks.Max_Exec_Us), 11));
+            Put (Into, " ");
+            Put (Into, Field (Integer_64 (Checks.Average_Exec_Us), 7));
+            Put (Into, " ");
+            Put (Into, Field (Integer_64 (Load / 10), 12));
+            Put (Into, ".");
             Put (Into, Decimal (Integer_64 (Load mod 10)));
-            Put (Into, "% " & Field (Integer_64 (Checks.Total_Exec_Us / 1000), 9) & CRLF);
-            Put (Into, "Total " & Field (Total / 10, 52) & "." & Decimal (Total rem 10) & "%" & CRLF);
+            Put (Into, "% ");
+            Put (Into, Field (Integer_64 (Checks.Total_Exec_Us / 1000), 9));
+            Put (Into, CRLF);
+            Put (Into, "Total ");
+            Put (Into, Field (Total / 10, 52));
+            Put (Into, ".");
+            Put (Into, Decimal (Total rem 10));
+            Put (Into, "%" & CRLF);
             if Env.Debug_Mode = Scheduler_Determinism then
-               Put (Into, "Scheduler start cycles " & Decimal (Integer_64 (Sched.Loop_Start_Cycles)) & " guard cycles "
-                    & Decimal (Integer_64 (Sched.Guard_Cycles)) & CRLF);
+               Put (Into, "Scheduler start cycles ");
+               Put (Into, Decimal (Integer_64 (Sched.Loop_Start_Cycles)));
+               Put (Into, " guard cycles ");
+               Put (Into, Decimal (Integer_64 (Sched.Guard_Cycles)));
+               Put (Into, CRLF);
             end if;
             Scheduler.Reset_Check_Max_Execution_Time (Sched);
          end;
