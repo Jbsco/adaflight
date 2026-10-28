@@ -2241,6 +2241,32 @@ def main():
         finally:
             stop(proc)
             sock.close()
+        store = os.path.join(work, "auxvalue.bin")
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            for line in ("rx_uart = UART3", "osd_displayport_device = MAX7456", "vcd_video_system = PAL",
+                         "osd_aux_pos = 2177"):
+                text = cli(sock, "set " + line)
+                check(f"aux value {line}", line.replace(" = ", " set to ") in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store)
+        receiver = Receiver()
+        receiver.channels[4] = 1811
+        receiver.start()
+        try:
+            check("OSD aux value element shows AUX1 at full deflection scaled to 200", screen_wait(store, "A200 "),
+                  repr(screen_row(store, 4)))
+        finally:
+            receiver.stop.set()
+            stop(proc)
+            sock.close()
         store = os.path.join(work, "laps.bin")
         proc, sock = start(image, store)
         try:

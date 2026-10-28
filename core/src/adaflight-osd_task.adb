@@ -89,6 +89,7 @@ package body Adaflight.OSD_Task with SPARK_Mode is
       X : Adaflight.OSD_Draw.Context := C.Draw;
    begin
       X.Inputs.Clocks := Clocks (O, C, Clock_Us);
+      X.Inputs.Aux_Value := O.Page.Aux_Value;
       return X;
    end Draw_Context;
 

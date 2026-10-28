@@ -13503,6 +13503,7 @@ procedure Vector_Check is
                C.Version (K - Version'First + 1) := Character'Val (Version (K));
             end loop;
          end;
+         C.Draw.Settings.Aux_Symbol := Interfaces.Unsigned_8 (Int (45 + Adaflight.OSD_Elements.Item_Count));
       elsif Int (2) /= OT_Seq then
          Put_Line ("OSD task line without its start");
          Failures := Failures + 1;

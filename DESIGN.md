@@ -10989,3 +10989,20 @@ check runs only then. The board had left these inputs unset, so the element neve
 
 The host smoke check logs to an SD card image with the box on AUX1 over its whole range, and finds log number 1
 beside the log symbol once the card's log opens. The previous image leaves the row blank.
+
+## D472. STM32F4 OSD aux value (2026-10-27)
+
+The OSD's aux value element shows the configured aux channel, scaled, with the configured symbol. Two links were
+missing. The core's OSD task gave the renderer the timer clocks and not the aux value its page refreshes once a
+second, so the element always showed 0. The task's draw context now takes the page's aux value too. The board
+never gave the page the aux channel's pulse, so the page kept its 1500 us default. The board now reads the
+channel the aux channel setting names, after the four flight channels.
+
+The aux channel setting takes 1 to 18 while there are 14 aux channels. The reference reads past the end of its RC
+data for the settings 15 to 18 (F302). The board reads such a setting as the lowest pulse, so the element shows 0
+(DIVERGENCES.md).
+
+The OSD task oracle now draws the aux value element with a random symbol and aux channel and writes the symbol at
+the start of each sequence, and the regenerated osdtask vectors check it. Without the draw context's aux value,
+98 of their draw checks fail. The OSD task unit proved with 89 checks and no assumption. The host smoke check
+holds AUX1 at full deflection from a CRSF receiver emulator and finds `A200` on the MAX7456 screen.
