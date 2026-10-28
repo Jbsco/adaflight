@@ -817,6 +817,10 @@ package body Adaflight.STM32.OSD is
       D.Flown_Cm := F.GPS.Distance_Flown_Cm;
       D.Use_3D_Speed := F.GPS.Use_3D_Speed;
       D.Altitude_Cm := F.Altitude_Cm;
+      D.Altitude_Asl_Cm :=
+        Float (Interfaces.Integer_32'Max (-Adaflight.OSD_Render.Altitude_Bound,
+                                          Interfaces.Integer_32'Min (Adaflight.OSD_Render.Altitude_Bound,
+                                                                     F.GPS.Altitude_Cm)));
       D.Rangefinder_Cm := F.Rangefinder_Cm;
       D.Custom_Text_Present := True;
       D.Custom := F.Custom_Text;
