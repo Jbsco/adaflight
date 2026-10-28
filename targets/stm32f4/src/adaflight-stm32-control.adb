@@ -98,6 +98,12 @@ package body Adaflight.STM32.Control is
       Inp.RC_Throttle := Mix.RC_Throttle;
       Inp.Jerk_Magnitude := Float'Max (0.0, Float'Min (1.0e30, Current.Jerk_Magnitude));
       Inp.Passthru_Mode := Modes (Adaflight.Arming.Passthru_Mode);
+      Inp.Alt_Hold_Mode := Modes (Adaflight.Arming.Alt_Hold_Mode);
+      Inp.Pos_Hold_Mode := Modes (Adaflight.Arming.Pos_Hold_Mode);
+      Inp.Autopilot_Angle := Current.Autopilot_Angles;
+      Inp.Autopilot_Max_Angle := Current.Autopilot_Max_Angle;
+      Inp.Autopilot_In_Control := Current.Autopilot_Control;
+      Inp.Below_Landing_Altitude := Current.Below_Landing;
       Adaflight.PID_Controller.Update (Ctl, Adaflight.STM32.Pilot.Loop_Runtime, Adaflight.STM32.Pilot.Profile, Inp);
    end Run_Controller;
 
@@ -108,10 +114,12 @@ package body Adaflight.STM32.Control is
    end Runaway_Check;
 
    --  The mixer's loop over the throttle, the arming and the modes, the
-   --  stick deflections, the rates, the tilt and the attitude; the throttle
-   --  step noted for the gyro's dynamic lowpass.
+   --  stick deflections, the rates, the tilt and the attitude, with the
+   --  autopilot's throttle under altitude hold; the throttle step noted for
+   --  the gyro's dynamic lowpass.
    procedure Run_Mixer is
-      Inp : Adaflight.Mixer.Inputs;
+      Inp   : Adaflight.Mixer.Inputs;
+      Modes : constant Adaflight.Arming.Mode_Set := Adaflight.STM32.Pilot.Flight_Modes;
    begin
       Inp.RC_Throttle := Float'Max (1_000.0, Float'Min (2_000.0, Adaflight.STM32.Pilot.Throttle_Command));
       Inp.RC_Data_Throttle := Float'Max (750.0, Float'Min (2_250.0, Current.RC_Data_Throttle));
@@ -126,6 +134,10 @@ package body Adaflight.STM32.Control is
       Inp.Launch_Control_Active := Adaflight.STM32.Pilot.Launch_Control_Active;
       Inp.Yaw_Spin_Detected := Current.Yaw_Spin;
       Inp.Crash_Flip_Active := Adaflight.STM32.Pilot.Crash_Flip_Active;
+      Inp.Alt_Hold_Mode := Modes (Adaflight.Arming.Alt_Hold_Mode);
+      Inp.Pos_Hold_Mode := Modes (Adaflight.Arming.Pos_Hold_Mode);
+      Inp.Autopilot_Throttle_Valid := True;
+      Inp.Autopilot_Throttle := Current.Autopilot_Throttle;
       for A in Adaflight.Axes.Axis loop
          Inp.Deflection (A) := Float'Max (-1.0, Float'Min (1.0, Adaflight.STM32.Pilot.Deflection (A)));
          Inp.Deflection_Abs (A) := Float'Max (0.0, Float'Min (1.0, Adaflight.STM32.Pilot.Deflection_Abs (A)));

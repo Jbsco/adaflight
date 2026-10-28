@@ -694,6 +694,12 @@ def main():
             flags = text.split("Arming disable flags:")[-1]
             check("receiver link clears the signal loss", "RXLOSS" not in flags and "CLI" in flags, flags.strip()[:80])
             check("status shows the GPS connected", "GPS: connected" in text, text[text.find("GPS:"):][:60])
+            text = cli(vcp, "tasks", 1.5)
+            for task, name in (("ALTHOLD", "altitude hold"), ("POSHOLD", "position hold")):
+                line = next((l for l in text.splitlines() if task in l), "")
+                fields = line.split(")")[-1].split()
+                rate = int(fields[0]) if fields and fields[0].isdigit() else 0
+                check(f"{name} task runs on the position estimate's updates", 80 <= rate <= 120, line.strip()[:100])
             time.sleep(5.0)
             try:
                 with open(store + ".osd.txt") as f:
