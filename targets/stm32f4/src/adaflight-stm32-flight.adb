@@ -19,6 +19,7 @@ with Adaflight.Bytes;
 with Adaflight.Clock;
 with Adaflight.Config_Codec;
 with Adaflight.Config_Fix;
+with Adaflight.MSP_Allocation;
 with Adaflight.DShot;
 with Adaflight.DShot_Command;
 with Adaflight.LTM_Telemetry;
@@ -199,7 +200,11 @@ package body Adaflight.STM32.Flight is
                            Adaflight.Board.PINIO4_Box),
       Motor_Tags       => (Adaflight.Board.MOTOR1_Tag, Adaflight.Board.MOTOR2_Tag, Adaflight.Board.MOTOR3_Tag,
                            Adaflight.Board.MOTOR4_Tag, Adaflight.Board.MOTOR5_Tag, Adaflight.Board.MOTOR6_Tag,
-                           Adaflight.Board.MOTOR7_Tag, Adaflight.Board.MOTOR8_Tag));
+                           Adaflight.Board.MOTOR7_Tag, Adaflight.Board.MOTOR8_Tag),
+      MSP_First_Port        => Adaflight.MSP_Allocation.USB_VCP_Port,
+      MSP_UART              => Adaflight.Board.MSP_UART,
+      MSP_Other_UART        => Adaflight.Board.Use_MSP_UART,
+      MSP_Display_Port_UART => Adaflight.Board.MSP_Display_Port_UART);
 
    Board    : CLI.Board_State := (Hardware => Board_Hardware, others => <>);
    Config   : Adaflight.Config_Groups.Configuration := Adaflight.Config_Reset.Reset (Board);
@@ -214,12 +219,15 @@ package body Adaflight.STM32.Flight is
    Count    : Natural;
    Now_Ms   : Unsigned_32;
    Links    : Adaflight.MSP_Control_In.Link_State;
-   --  The ports that serve the MSP and the command line, the USB virtual
-   --  serial port first, each with its MSP framing, its bytes waiting and its
-   --  reply port; the command line runs on the one it was entered from.
-   type MSP_Line is (Line_VCP, Line_UART1);
-   Line_Serial : constant array (MSP_Line) of Adaflight.STM32.Serial.Line :=
-     (Line_VCP => Adaflight.STM32.Serial.VCP, Line_UART1 => Adaflight.STM32.Serial.UART1);
+   --  The ports that serve the MSP and the command line, as the MSP
+   --  allocation opens them after the other serial functions, each with its
+   --  serial line, its rate and duplex, its MSP framing, its bytes waiting and
+   --  its reply port. The command line runs on the one it was entered from.
+   subtype MSP_Line is Positive range 1 .. Adaflight.MSP_Allocation.Max_Ports;
+   Line_Count  : Natural range 0 .. Adaflight.MSP_Allocation.Max_Ports := 0;
+   Line_Serial : array (MSP_Line) of Adaflight.STM32.Serial.Line := (others => Adaflight.STM32.Serial.VCP);
+   Line_Rate   : array (MSP_Line) of Positive := (others => Baud);
+   Line_Half   : array (MSP_Line) of Boolean := (others => False);
    type Line_State is record
       Port    : Adaflight.MSP_Port.Port;
       Pending : Adaflight.Bytes.Byte_Array (0 .. 255) := (others => 0);
@@ -227,7 +235,34 @@ package body Adaflight.STM32.Flight is
    end record;
    Lines    : array (MSP_Line) of Line_State;
    Replies  : array (MSP_Line) of Adaflight.STM32.Serial.Port;
-   CLI_Line : MSP_Line := Line_UART1;
+   CLI_Line : MSP_Line := 1;
+   use type Adaflight.STM32.Serial.Line;
+
+   --  A serial line's port identifier.
+   function Line_Id (S : Adaflight.STM32.Serial.Line) return Adaflight.Serial_Feature_Map.Port_Id is
+     (case S is
+         when Adaflight.STM32.Serial.VCP => VCP_Id,
+         when Adaflight.STM32.Serial.UART1 => UART1_Id,
+         when Adaflight.STM32.Serial.UART3 => 53,
+         when Adaflight.STM32.Serial.UART4 => 54,
+         when Adaflight.STM32.Serial.UART6 => 56);
+
+   --  The serial line of one of the board's port identifiers.
+   function Line_Of (Id : Adaflight.Serial_Feature_Map.Port_Id) return Adaflight.STM32.Serial.Line is
+     (case Id is
+         when 51 => Adaflight.STM32.Serial.UART1,
+         when 53 => Adaflight.STM32.Serial.UART3,
+         when 54 => Adaflight.STM32.Serial.UART4,
+         when 56 => Adaflight.STM32.Serial.UART6,
+         when others => Adaflight.STM32.Serial.VCP);
+
+   --  A serial line's UART, UART1 for the USB port, which has none.
+   function UART_Of (S : Adaflight.STM32.Serial.Line) return Adaflight.STM32.USART.Number is
+     (case S is
+         when Adaflight.STM32.Serial.UART3 => Adaflight.STM32.USART.UART3,
+         when Adaflight.STM32.Serial.UART4 => Adaflight.STM32.USART.UART4,
+         when Adaflight.STM32.Serial.UART6 => Adaflight.STM32.USART.UART6,
+         when Adaflight.STM32.Serial.VCP | Adaflight.STM32.Serial.UART1 => Adaflight.STM32.USART.UART1);
    Consumed : Natural;
    Event    : Adaflight.MSP_Port.Event;
    Reply    : Adaflight.Bytes.Byte_Array (0 .. MSP.Max_Reply_Length - 1) := (others => 0);
@@ -340,6 +375,15 @@ package body Adaflight.STM32.Flight is
      (Adaflight.STM32.FrSky_Hub.Holds (N) or else Adaflight.STM32.SmartPort.Holds (N)
       or else Adaflight.STM32.LTM.Holds (N) or else Adaflight.STM32.MAVLink.Holds (N)
       or else Adaflight.STM32.IBus.Holds (N));
+
+   --  Whether one of the functions that open their ports before the MSP holds
+   --  a UART.
+   function Held_Before_MSP (N : Adaflight.STM32.USART.Number) return Boolean is
+     (Adaflight.STM32.Rangefinder.Holds (N) or else Adaflight.STM32.Radio.Holds (N)
+      or else Adaflight.STM32.GPS.Holds (N) or else Adaflight.STM32.OSD_Custom_Text.Holds (N)
+      or else Adaflight.STM32.ESC_Sensor.Holds (N) or else Adaflight.STM32.Blackbox.Holds (N)
+      or else Adaflight.STM32.VTX.Holds (N) or else Adaflight.STM32.Gimbal.Holds (N)
+      or else Adaflight.STM32.RunCam.Holds (N));
 
    function Text (S : String) return Common.Text is
       T : Common.Text;
@@ -1025,6 +1069,20 @@ package body Adaflight.STM32.Flight is
       Reboot_If_Asked;
    end Answer;
 
+   --  A line's UART at its rate and duplex, with its MSP framing from the
+   --  start.
+   procedure Open_Line (L : MSP_Line) is
+      Half : constant Adaflight.STM32.USART.Half_Duplex := (On => True, others => <>);
+   begin
+      if Line_Serial (L) /= Adaflight.STM32.Serial.VCP then
+         Adaflight.STM32.USART.Init
+           (UART_Of (Line_Serial (L)), Line_Rate (L),
+            Line => (if Line_Half (L) then Half else Adaflight.STM32.USART.Full_Duplex));
+      end if;
+      Adaflight.MSP_Port.Init (Lines (L).Port);
+      Replies (L).Which := Line_Serial (L);
+   end Open_Line;
+
    --  A port's bytes received since the last take, after the bytes waiting.
    procedure Take_Line (L : MSP_Line) is
       S : Line_State renames Lines (L);
@@ -1041,10 +1099,11 @@ package body Adaflight.STM32.Flight is
       end if;
    end Take_Line;
 
-   --  Whether a device streams MSP on the line: UART1 when the OSD names it as
-   --  a device's UART.
+   --  Whether a device streams MSP on the line: a UART the OSD names as a
+   --  device's UART.
    function Peripheral_Line (L : MSP_Line) return Boolean is
-     (L = Line_UART1 and then Adaflight.STM32.OSD.Peripheral (Adaflight.STM32.USART.UART1));
+     (Line_Serial (L) /= Adaflight.STM32.Serial.VCP
+      and then Adaflight.STM32.OSD.Peripheral (UART_Of (Line_Serial (L))));
 
    --  A port's bytes through its MSP framing, which evaluates the other data
    --  while disarmed; the command line entered there takes the port.
@@ -1240,18 +1299,10 @@ package body Adaflight.STM32.Flight is
             end if;
          end;
       else
-         for L in MSP_Line loop
-            if L /= Line_UART1
-              or else not (Adaflight.STM32.Rangefinder.Holds (Adaflight.STM32.USART.UART1)
-                           or else Adaflight.STM32.Radio.Holds (Adaflight.STM32.USART.UART1)
-                           or else Adaflight.STM32.GPS.Holds (Adaflight.STM32.USART.UART1)
-                           or else Adaflight.STM32.ESC_Sensor.Holds (Adaflight.STM32.USART.UART1)
-                           or else Adaflight.STM32.VTX.Holds (Adaflight.STM32.USART.UART1)
-                           or else Adaflight.STM32.RunCam.Holds (Adaflight.STM32.USART.UART1)
-                           or else Adaflight.STM32.OSD_Custom_Text.Holds (Adaflight.STM32.USART.UART1)
-                           or else Adaflight.STM32.Gimbal.Holds (Adaflight.STM32.USART.UART1)
-                           or else Adaflight.STM32.Blackbox.Holds (Adaflight.STM32.USART.UART1)
-                           or else Telemetry_Holds (Adaflight.STM32.USART.UART1))
+         for L in 1 .. Line_Count loop
+            if Line_Serial (L) = Adaflight.STM32.Serial.VCP
+              or else not (Held_Before_MSP (UART_Of (Line_Serial (L)))
+                           or else Telemetry_Holds (UART_Of (Line_Serial (L))))
             then
                Take_Line (L);
                Serve_MSP (L, Evaluate_Other_Data);
@@ -1282,7 +1333,7 @@ package body Adaflight.STM32.Flight is
    --  Whether a configurator talks MSP: a byte on the USB port's or UART1's
    --  MSP within the activity timeout.
    function Configurator_Active return Boolean is
-     (for some L in MSP_Line =>
+     (for some L in 1 .. Line_Count =>
         Adaflight.MSP_Port.Configurator_Active
           (Lines (L).Port, Adaflight.STM32.Time.Millis, Peripheral => Peripheral_Line (L)));
 
@@ -1807,20 +1858,25 @@ package body Adaflight.STM32.Flight is
    --  The telemetry ports opened or released as their sharing asks, and UART1
    --  back at the MSP rate with a fresh MSP framing when a stream gives it up.
    procedure Check_Telemetry is
-      Was         : constant Boolean := Telemetry_Holds (Adaflight.STM32.USART.UART1);
+      Was         : array (MSP_Line) of Boolean := (others => False);
       Armed       : constant Boolean := Adaflight.STM32.Pilot.Armed;
       Box_Present : constant Boolean := Adaflight.STM32.Pilot.Box_Configured (Adaflight.Modes.Telemetry);
       Box_Active  : constant Boolean := Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Telemetry);
    begin
+      for L in 1 .. Line_Count loop
+         Was (L) := Line_Serial (L) /= Adaflight.STM32.Serial.VCP
+                    and then Telemetry_Holds (UART_Of (Line_Serial (L)));
+      end loop;
       Adaflight.STM32.FrSky_Hub.Check_State (Armed, Box_Present, Box_Active);
       Adaflight.STM32.SmartPort.Check_State (Armed, Box_Present, Box_Active);
       Adaflight.STM32.LTM.Check_State (Armed, Box_Present, Box_Active);
       Adaflight.STM32.MAVLink.Check_State (Armed, Box_Present, Box_Active, Adaflight.STM32.Time.Millis);
       Adaflight.STM32.IBus.Check_State (Armed, Box_Present, Box_Active);
-      if Was and then not Telemetry_Holds (Adaflight.STM32.USART.UART1) then
-         Adaflight.STM32.USART.Init (Adaflight.STM32.USART.UART1, Baud);
-         Adaflight.MSP_Port.Init (Lines (Line_UART1).Port);
-      end if;
+      for L in 1 .. Line_Count loop
+         if Was (L) and then not Telemetry_Holds (UART_Of (Line_Serial (L))) then
+            Open_Line (L);
+         end if;
+      end loop;
    end Check_Telemetry;
 
    --  What the arming logic asked of the board after a step: the GPS home
@@ -3586,6 +3642,31 @@ package body Adaflight.STM32.Flight is
       Adaflight.STM32.GPIO.Set_High (Adaflight.Board.LED0_Pin);
    end Boot_Beeps;
 
+   --  The MSP ports as the reference opens them after the other serial
+   --  functions: the MSP slots, then the ports the features that talk MSP
+   --  imply, each at its rate and duplex on a port no function holds.
+   procedure Open_MSP_Lines is
+      Present : Adaflight.MSP_Allocation.Port_Flags := (others => False);
+      Busy    : Adaflight.MSP_Allocation.Port_Flags := (others => False);
+      Plan    : Adaflight.MSP_Allocation.Opened_Ports;
+      Count   : Adaflight.MSP_Allocation.Port_Count;
+   begin
+      for S in Adaflight.STM32.Serial.Line loop
+         Present (Line_Id (S)) := True;
+         Busy (Line_Id (S)) := S /= Adaflight.STM32.Serial.VCP and then Held_Before_MSP (UART_Of (S));
+      end loop;
+      Adaflight.MSP_Allocation.Allocate
+        (Adaflight.Config_Fix.Serial_Options, Adaflight.Config_Fix.Serial_Assignments (Config),
+         Config.Msp_Config.Half_Duplex /= 0, Present, Busy, Plan, Count);
+      Line_Count := Count;
+      for L in 1 .. Count loop
+         Line_Serial (L) := Line_Of (Plan (L).Port);
+         Line_Rate (L) := Positive (Plan (L).Rate);
+         Line_Half (L) := Plan (L).Bidirectional;
+         Open_Line (L);
+      end loop;
+   end Open_MSP_Lines;
+
    procedure Init is
    begin
       Adaflight.STM32.MCU.Init_Persistent;
@@ -3596,11 +3677,6 @@ package body Adaflight.STM32.Flight is
       Adaflight.STM32.GPIO.Enable_Port (Adaflight.Board.Inverter_Pin_UART1.Port);
       Adaflight.STM32.GPIO.Set_Output (Adaflight.Board.Inverter_Pin_UART1);
       Adaflight.STM32.GPIO.Set_Low (Adaflight.Board.Inverter_Pin_UART1);
-      Adaflight.STM32.USART.Init (Adaflight.STM32.USART.UART1, Baud);
-      for L in MSP_Line loop
-         Adaflight.MSP_Port.Init (Lines (L).Port);
-         Replies (L).Which := Line_Serial (L);
-      end loop;
       Init_Configuration;
       Adaflight.STM32.PINIO.Init (Config);
       Adaflight.STM32.RTC.Set_Zone (Config.Time_Config.Tz_Offset_Minutes);
@@ -3684,6 +3760,7 @@ package body Adaflight.STM32.Flight is
       end if;
       Init_Scheduler;
       Adaflight.STM32.Blackbox.Init (Config, Loop_Time_Us);
+      Open_MSP_Lines;
       Pos_Settings :=
         Adaflight.Config_Runtime.Position_Estimator_Settings_Of (Config.Position_Config, Config.Pos_Hold_Config);
       Adaflight.Position_Estimator.Init (Pos_State, Pos_Settings, Armed => Adaflight.STM32.Pilot.Armed);

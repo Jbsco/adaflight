@@ -11345,3 +11345,37 @@ arrived. The input now reports the protocol enabled when the board drives motor 
 DShot300 and DShot600, so arming follows the reference's other reasons. The reference enables every protocol it
 knows. A board set to PWM, OneShot, MultiShot, Brushed or ProShot1000 keeps the reason here and stays disarmed until
 those outputs are ported.
+
+## D499. MSP port allocation (2026-10-28)
+
+`MSP_Allocation.Allocate` opens MSP the reference's way: the three MSP slots in order, each at its baud rate with the
+automatic rate at 115200, then each port a feature that talks MSP implies, at 115200, unless MSP is open there
+already. A port opens only when the board offers it and no function opened it earlier, and a soft serial port only up
+to 19200 baud. Each opened port keeps the rate and options asked of its driver, bidirectional in half duplex and the
+transmit check on a UART otherwise, and whether its functions share it with telemetry. `Default_Slots` is the fresh
+configuration's claim: the board's first port, then the target's MSP UARTs, each once and at most three.
+
+A new oracle run draws the slots, the implied features, the board's ports and the ports other functions hold, and
+records the reference's allocation over stub port drivers with its reset claims. The vectors compare 1600 cases.
+
+## D500. MSP UARTs named at reset (2026-10-28)
+
+A reset names the board's first port, the USB one, then the board configuration's MSP UART, its other MSP UART and its
+MSP display port UART in the MSP slots, through `Default_Slots` (D499). The board generator writes those three defines
+into the board package with the reference's port names mapped to identifiers, and it takes NAME=VALUE arguments that
+set a define over the file's. A CLRacing F4 names none, so its fresh configuration keeps the USB port alone in the
+slots. The host target names UART1 as its MSP UART, so its fresh configuration names UART1 in the second slot, and the
+host smoke checks that put another function on UART1 clear that slot first, as a user of the reference would.
+
+## D501. MSP ports from the MSP slots on the board (2026-10-28)
+
+The board served MSP on its USB port and UART1 at all times and stepped off UART1 while another function held it. It
+now opens its MSP ports as the reference does, after the serial functions the reference opens first: the allocation of
+D499 over the board's ports, with a port busy while one of those functions holds its UART. Each port runs at its rate,
+half duplex when the MSP configuration asks for it. The rules that were UART1's follow each line's UART: a line pauses
+while a function or a telemetry stream holds its UART, a device streaming MSP on it makes it a peripheral line, and a
+telemetry stream that lets go of it opens it again for MSP. The MSP display port draws on whichever board UART it
+names.
+
+A CLRacing F4 serves MSP on its USB port alone until a slot names a UART, as the reference does. The host smoke check
+moves MSP from UART1 to UART4 through the slots and draws the display port on UART4 through its implied port.

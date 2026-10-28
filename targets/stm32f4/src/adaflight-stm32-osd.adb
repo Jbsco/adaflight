@@ -237,15 +237,16 @@ package body Adaflight.STM32.OSD is
 
    --  The MSP display port: its canvas and grab count, the profile it was
    --  started with, and the serial port its frames go to as MSP replies,
-   --  which reach a goggle system on UART1, the board's MSP UART.
+   --  which reach a goggle system on that UART.
    MSP_Display    : DPM.Port;
    MSP_Profile    : DPM.Profile;
    Display_Serial : SFM.Port_Id := SFM.No_Port;
    --  The UARTs a device streams MSP on: the display's, or one with an MSP
    --  video transmitter or a lidar.
    Device_UARTs   : array (USART.Number) of Boolean := (others => False);
-   MSP_UART       : constant SFM.Port_Id := 51;
-   Display_UART   : USART.Port := (Which => USART.UART1);
+   --  The display's UART, when the display port names one of the board's.
+   Display_On_UART : Boolean := False;
+   Display_UART    : USART.Port := (Which => USART.UART1);
    Board_UARTs    : constant array (USART.Number) of SFM.Port_Id :=
      (USART.UART1 => 51, USART.UART3 => 53, USART.UART4 => 54, USART.UART6 => 56);
 
@@ -260,7 +261,7 @@ package body Adaflight.STM32.OSD is
       Frame_Length : Positive;
    begin
       Sent := 0;
-      if Display_Serial /= MSP_UART or else Length = 0 then
+      if not Display_On_UART or else Length = 0 then
          return;
       end if;
       Adaflight.MSP_Port.Encode
@@ -367,7 +368,12 @@ package body Adaflight.STM32.OSD is
          Assigned : constant SFM.Assignments := Adaflight.Config_Fix.Serial_Assignments (C);
       begin
          Display_Serial := Display_Serial_Of (C, Assigned);
+         Display_On_UART := False;
          for N in USART.Number loop
+            if Board_UARTs (N) = Display_Serial then
+               Display_On_UART := True;
+               Display_UART.Which := N;
+            end if;
             Device_UARTs (N) :=
               Board_UARTs (N) = Display_Serial
               or else (SFM.Function_Mask (Adaflight.Config_Fix.Serial_Options, Assigned, Board_UARTs (N))
@@ -562,7 +568,7 @@ package body Adaflight.STM32.OSD is
    end Menu_Write;
 
    function Menu_Room return Interfaces.Unsigned_32 is
-     (if On_MSP then Interfaces.Unsigned_32 (USART.Free (USART.UART1)) else Interfaces.Unsigned_32'Last);
+     (if On_MSP then Interfaces.Unsigned_32 (USART.Free (Display_UART.Which)) else Interfaces.Unsigned_32'Last);
 
    function Peripheral (N : USART.Number) return Boolean is (Device_UARTs (N));
 
