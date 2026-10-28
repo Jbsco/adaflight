@@ -182,6 +182,18 @@ package Adaflight.Menu_Nav with SPARK_Mode is
      with Pre  => Consistent (S) and then (not D.Full_Screen or else D.Columns <= Adaflight.Menu.Max_Text + 2),
           Post => Consistent (S);
 
+   --  A display made current while the menu is closed, by steps to the next
+   --  display: a registered one becomes current, and one not registered
+   --  leaves the current display after a full turn, the last display when
+   --  none was current.
+   procedure Select_Display (S : in out State; D : Adaflight.Menu.Display_Index; Found : out Boolean)
+     with Pre  => Consistent (S) and then not S.In_Menu,
+          Post => Consistent (S) and then not S.In_Menu
+                  and then Found = (D < S.Port_Count)
+                  and then S.Port = (if Found then D
+                                     elsif S.Port'Old = -1 and then S.Port_Count > 0 then S.Port_Count - 1
+                                     else S.Port'Old);
+
    --  The menu opened from the start menu on the current display, with the
    --  OSD's background type for the menu; while open, the next display
    --  takes the menu over with the cursor carried as an absolute row.

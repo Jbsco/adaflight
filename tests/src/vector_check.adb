@@ -36968,6 +36968,29 @@ procedure Vector_Check is
       end if;
    end Check_Menu_Line;
 
+   MSel_Seq   : Integer_64 := -1;
+   MSel_State : MN_Nav.State;
+
+   procedure Check_Menu_Select_Line is
+      Name  : constant String := Str (1);
+      Found : Boolean;
+   begin
+      if Name = "menuselinit" then
+         MSel_Seq := Int (2);
+         MSel_State := (others => <>);
+         for I in 1 .. Int (3) loop
+            MN_Nav.Register_Display (MSel_State, (others => <>));
+         end loop;
+      elsif Int (2) /= MSel_Seq then
+         Put_Line ("menu select line without its start");
+         Failures := Failures + 1;
+      elsif Name = "menusel" then
+         MN_Nav.Select_Display (MSel_State, Adaflight.Menu.Display_Index (Int (4)), Found);
+         Record_Int (Name & ".found", Int (5), Boolean'Pos (Found));
+         Record_Int (Name & ".current", Int (6), Integer_64 (MSel_State.Port));
+      end if;
+   end Check_Menu_Select_Line;
+
    --  The menu contents: the reference's menus over the configuration on one
    --  display, with the readings the setup popup takes, the keys pressed and
    --  the draws after them, the requests to the runtime and the
@@ -38927,6 +38950,8 @@ procedure Vector_Check is
                   Check_Task_Init_Line;
                elsif Kind = "menu" then
                   Check_Menu_Line;
+               elsif Kind = "menusel" then
+                  Check_Menu_Select_Line;
                else
                   Check_PID_Line;
                end if;
@@ -39275,6 +39300,7 @@ begin
    Run (Dir & "/taskinit.csv", "taskinit");
    Run (Dir & "/menu.csv", "menu");
    Run (Dir & "/menucontent.csv", "menucontent");
+   Run (Dir & "/menusel.csv", "menusel");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");

@@ -7,10 +7,12 @@
 --  and EX Bus always take, the Ghost telemetry with its MSP requests
 --  answered in the receiver's quiet window, the EX Bus telemetry answering
 --  the receiver's requests, and the SmartPort telemetry in the FPORT reply
---  window. The other serial receiver protocols wait for their drivers.
+--  window, and the CRSF display port the menu draws on for the transmitter.
+--  The other serial receiver protocols wait for their drivers.
 with Interfaces;
 with Adaflight.Bytes;
 with Adaflight.Config_Groups;
+with Adaflight.CRSF_Display_Port;
 with Adaflight.CRSF_Telemetry;
 with Adaflight.Failsafe;
 with Adaflight.GHST_Telemetry;
@@ -51,6 +53,24 @@ package Adaflight.STM32.Radio is
    --  keeps the SmartPort telemetry off its own port.
    procedure Init_FPort_Telemetry (Sensors : Adaflight.SmartPort_Telemetry.Build_Inputs);
    function Is_FPort return Boolean;
+   --  The CRSF display port's screen size and the draws the menu makes on it.
+   function Display_Columns return Interfaces.Unsigned_8;
+   function Display_Rows return Interfaces.Unsigned_8;
+   procedure Display_Grab;
+   procedure Display_Release (Now_Ms : Time_Ms);
+   procedure Display_Clear (Now_Ms : Time_Ms);
+   procedure Display_Write (Col, Row : Interfaces.Unsigned_8; Text : String);
+   procedure Display_Write_Char (Col, Row : Interfaces.Unsigned_8; C : Interfaces.Unsigned_8);
+   --  The display port command the last received frames left, run with the
+   --  arming, whether the menu is open and whether the display is
+   --  registered: what it asks of the menu system.
+   procedure Display_Command
+     (Now_Ms : Time_Ms; Armed, In_Menu, Registered : Boolean;
+      Request : out Adaflight.CRSF_Display_Port.Menu_Request);
+   --  The menu opened on the display, which holds the transfer back, and the
+   --  menu's state the transfer waits on: open, and on this display.
+   procedure Display_Opened (Now_Ms : Time_Ms);
+   procedure Set_Menu_State (In_Menu, Current : Boolean);
    --  Whether the receiver link holds a UART.
    function Holds (N : Adaflight.STM32.USART.Number) return Boolean;
    --  After the realtime tasks: the bytes received through the protocol at

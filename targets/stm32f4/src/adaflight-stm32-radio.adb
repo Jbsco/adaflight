@@ -2,7 +2,6 @@ with Adaflight.Clock;
 with Adaflight.Config_Fix;
 with Adaflight.Config_Runtime;
 with Adaflight.CRSF;
-with Adaflight.CRSF_Display_Port;
 with Adaflight.FPort;
 with Adaflight.GHST;
 with Adaflight.IBUS;
@@ -16,6 +15,7 @@ with Adaflight.Stream_Buffers;
 with Adaflight.Modes;
 with Adaflight.Serial_Feature_Map;
 with Adaflight.STM32.GPIO;
+with Adaflight.STM32.Time;
 package body Adaflight.STM32.Radio is
    use type Adaflight.STM32.USART.Number;
    package SFM renames Adaflight.Serial_Feature_Map;
@@ -83,10 +83,15 @@ package body Adaflight.STM32.Radio is
    FS_Settings : Adaflight.Failsafe.Settings;
    Input       : Adaflight.Bytes.Byte_Array (0 .. 63);
    Times       : USART.Time_Array (0 .. 63);
-   --  The telemetry with its display port screen, which no menu draws on
-   --  yet, and the frames of one run.
+   --  The telemetry with its display port screen, the display port command
+   --  a frame left with whether it waits, the menu's state the transfer
+   --  waits on, and the frames of one run.
    Tlm         : Adaflight.CRSF_Telemetry.Telemetry;
    Screen      : Adaflight.CRSF_Display_Port.Screen;
+   Display_Cmd : Adaflight.Bytes.Byte_Array (0 .. 2) := (others => 0);
+   Commanded   : Boolean := False;
+   Menu_Open   : Boolean := False;
+   Menu_Here   : Boolean := False;
    Out_Bytes   : Adaflight.Bytes.Byte_Array (0 .. 1_023);
    Out_Stream  : Adaflight.Stream_Buffers.Stream;
    Port        : USART.Port;
@@ -291,6 +296,10 @@ package body Adaflight.STM32.Radio is
          MSP_Pending := True;
          MSP_Origin := Adaflight.Bytes.Byte (Proto.Frame (4));
       end if;
+      if Outputs.Display_Port then
+         Display_Cmd := Payload (5, 7);
+         Commanded := True;
+      end if;
       if Outputs.Default_Speed then
          Set_Rate (Adaflight.CRSF.Baudrate);
       end if;
@@ -369,8 +378,11 @@ package body Adaflight.STM32.Radio is
          Tlm.Last_Cycle_Time := Now_Us;
          Tlm.Response_Pending := False;
       else
-         Adaflight.CRSF_Telemetry.Update (Tlm, Now_Us, Src, Screen, Display_Ready => False, B => Out_Bytes,
-                                          S => Out_Stream);
+         Adaflight.CRSF_Telemetry.Update
+           (Tlm, Now_Us, Src, Screen,
+            Display_Ready =>
+              Adaflight.CRSF_Display_Port.Ready (Screen, Adaflight.STM32.Time.Millis, Menu_Open, Menu_Here),
+            B => Out_Bytes, S => Out_Stream);
       end if;
       if Out_Stream.Next > 0 then
          USART.Put (Port, Out_Bytes (0 .. Out_Stream.Next - 1));
@@ -460,6 +472,57 @@ package body Adaflight.STM32.Radio is
    function Linked return Boolean is (Open);
 
    function Is_CRSF return Boolean is (Open and then Kind = CRSF);
+
+   function Display_Columns return Interfaces.Unsigned_8 is (Interfaces.Unsigned_8 (Screen.Cols));
+
+   function Display_Rows return Interfaces.Unsigned_8 is (Interfaces.Unsigned_8 (Screen.Rows));
+
+   procedure Display_Grab is
+   begin
+      Adaflight.CRSF_Display_Port.Grab (Screen);
+   end Display_Grab;
+
+   procedure Display_Release (Now_Ms : Time_Ms) is
+   begin
+      Adaflight.CRSF_Display_Port.Release (Screen, Now_Ms);
+   end Display_Release;
+
+   procedure Display_Clear (Now_Ms : Time_Ms) is
+   begin
+      Adaflight.CRSF_Display_Port.Clear (Screen, Now_Ms);
+   end Display_Clear;
+
+   procedure Display_Write (Col, Row : Interfaces.Unsigned_8; Text : String) is
+   begin
+      Adaflight.CRSF_Display_Port.Write_String (Screen, Col, Row, Text);
+   end Display_Write;
+
+   procedure Display_Write_Char (Col, Row : Interfaces.Unsigned_8; C : Interfaces.Unsigned_8) is
+   begin
+      Adaflight.CRSF_Display_Port.Write_Char (Screen, Col, Row, C);
+   end Display_Write_Char;
+
+   procedure Display_Command
+     (Now_Ms : Time_Ms; Armed, In_Menu, Registered : Boolean;
+      Request : out Adaflight.CRSF_Display_Port.Menu_Request) is
+   begin
+      Request := Adaflight.CRSF_Display_Port.None;
+      if Commanded then
+         Commanded := False;
+         Adaflight.CRSF_Display_Port.Command (Screen, Display_Cmd, Now_Ms, Armed, In_Menu, Registered, Request);
+      end if;
+   end Display_Command;
+
+   procedure Display_Opened (Now_Ms : Time_Ms) is
+   begin
+      Adaflight.CRSF_Display_Port.Opened (Screen, Now_Ms);
+   end Display_Opened;
+
+   procedure Set_Menu_State (In_Menu, Current : Boolean) is
+   begin
+      Menu_Open := In_Menu;
+      Menu_Here := Current;
+   end Set_Menu_State;
 
    procedure Init_FPort_Telemetry (Sensors : Adaflight.SmartPort_Telemetry.Build_Inputs) is
    begin
