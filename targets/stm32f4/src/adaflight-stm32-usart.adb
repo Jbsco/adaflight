@@ -51,6 +51,8 @@ package body Adaflight.STM32.USART is
    Transmit_Interrupt : constant Unsigned_32 := 2 ** 7;
    Enable            : constant Unsigned_32 := 2 ** 13;
    Stop_Bits_2       : constant Unsigned_32 := 2 ** 13;
+   Parity_Control    : constant Unsigned_32 := 2 ** 10;
+   Word_9_Bits       : constant Unsigned_32 := 2 ** 12;
    Half_Duplex_Select : constant Unsigned_32 := 2 ** 3;
 
    Ring_Size : constant := 256;
@@ -195,13 +197,45 @@ package body Adaflight.STM32.USART is
 
    --  A half duplex line configures the transmit pin alone at low speed, as
    --  the reference does on the F4, and sets the half duplex selection.
+   --  The inverter pins by UART, zero where the board has none.
+   Inverter_Tags : constant array (Number) of Natural :=
+     (UART1 => Adaflight.Board.Inverter_UART1_Tag, UART3 => Adaflight.Board.Inverter_UART3_Tag,
+      UART4 => Adaflight.Board.Inverter_UART4_Tag, UART6 => Adaflight.Board.Inverter_UART6_Tag);
+
+   procedure Set_Inverter (N : Number; On : Boolean) is
+      Tag : constant Natural := Inverter_Tags (N);
+   begin
+      if Tag /= 0 then
+         declare
+            P : constant Pin := (Port => Port_Name'Val (Tag / 16 - 1), Number => Pin_Number (Tag mod 16));
+         begin
+            GPIO.Enable_Port (P.Port);
+            GPIO.Set_Output (P);
+            if On then
+               GPIO.Set_High (P);
+            else
+               GPIO.Set_Low (P);
+            end if;
+         end;
+      end if;
+   end Set_Inverter;
+
+   procedure Init_Inverters is
+   begin
+      for N in Number loop
+         Set_Inverter (N, False);
+      end loop;
+   end Init_Inverters;
+
    procedure Init
-     (N : Number; Baud : Positive; Two_Stop_Bits : Boolean := False; Line : Half_Duplex := Full_Duplex)
+     (N : Number; Baud : Positive; Two_Stop_Bits : Boolean := False; Line : Half_Duplex := Full_Duplex;
+      Even_Parity : Boolean := False; Inverted : Boolean := False)
    is
       Regs : Registers with Import, Address => Base (N);
       --  Sixteen times the baud rate divider, rounded.
       Divider : constant Natural := (Bus_Hz (N) + Baud / 2) / Baud;
    begin
+      Set_Inverter (N, Inverted);
       GPIO.Enable_Port (TX (N).Port);
       if Line.On then
          GPIO.Set_Alternate (TX (N), Func (N), Line.Resistor, Rate => GPIO.Low);
@@ -223,7 +257,8 @@ package body Adaflight.STM32.USART is
       Regs.BRR := Unsigned_32 (Divider / 16) * 16 + Unsigned_32 (Divider mod 16);
       Regs.CR2 := (if Two_Stop_Bits then Stop_Bits_2 else 0);
       Regs.CR3 := (if Line.On then Half_Duplex_Select else 0);
-      Regs.CR1 := Enable or Transmitter or Receiver_Enable or Receive_Interrupt;
+      Regs.CR1 := (if Even_Parity then Word_9_Bits or Parity_Control else 0)
+        or Enable or Transmitter or Receiver_Enable or Receive_Interrupt;
    end Init;
 
    procedure Put (Into : in out Port; Text : String) is

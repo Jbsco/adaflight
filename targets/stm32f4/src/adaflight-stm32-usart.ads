@@ -1,7 +1,8 @@
 --  The UARTs of the STM32F405 the board family brings out, USART1 and USART6
 --  on the 84 MHz bus and USART3 and UART4 on the 42 MHz bus, each at eight
---  data bits, no parity and one or two stop bits over its two pins, or half
---  duplex over its transmit pin alone: a transmitter whose interrupt sends
+--  data bits, no parity or even parity and one or two stop bits over its two
+--  pins, or half duplex over its transmit pin alone, inverted through the
+--  board's inverter where it has one: a transmitter whose interrupt sends
 --  the bytes queued in a ring of 256, and a receiver whose interrupt keeps
 --  the bytes with their arrival times in a ring of 256 until a task takes
 --  them.
@@ -22,8 +23,14 @@ package Adaflight.STM32.USART is
       Resistor  : Adaflight.STM32.GPIO.Pull := Adaflight.STM32.GPIO.Up;
    end record;
    Full_Duplex : constant Half_Duplex := (others => <>);
+   --  The board's UART inverters, off.
+   procedure Init_Inverters;
+   --  The port at the rate, the stop bits and the line, with a parity bit on
+   --  each word when Even_Parity asks for one, and the board's inverter on
+   --  the port's lines set as Inverted asks where the board has one.
    procedure Init
-     (N : Number; Baud : Positive; Two_Stop_Bits : Boolean := False; Line : Half_Duplex := Full_Duplex);
+     (N : Number; Baud : Positive; Two_Stop_Bits : Boolean := False; Line : Half_Duplex := Full_Duplex;
+      Even_Parity : Boolean := False; Inverted : Boolean := False);
    --  Every character of Text, queued as the ring has room.
    procedure Put (Into : in out Port; Text : String);
    --  Every byte of Data, queued as the ring has room.

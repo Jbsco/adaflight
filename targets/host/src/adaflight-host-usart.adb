@@ -122,10 +122,13 @@ package body Adaflight.STM32.USART is
    Listeners : array (Number) of Listener;
    Started   : array (Number) of Boolean := (others => False);
 
+   procedure Init_Inverters is null;
+
    procedure Init
-     (N : Number; Baud : Positive; Two_Stop_Bits : Boolean := False; Line : Half_Duplex := Full_Duplex)
+     (N : Number; Baud : Positive; Two_Stop_Bits : Boolean := False; Line : Half_Duplex := Full_Duplex;
+      Even_Parity : Boolean := False; Inverted : Boolean := False)
    is
-      pragma Unreferenced (Baud, Two_Stop_Bits, Line);
+      pragma Unreferenced (Baud, Two_Stop_Bits, Line, Even_Parity, Inverted);
    begin
       if not Started (N) then
          Started (N) := True;
