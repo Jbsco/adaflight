@@ -15,6 +15,8 @@ package body Adaflight.STM32.RTC is
 
    function Has_Time return Boolean is (Core.Has_Time (C));
 
+   function Now_Ms return Interfaces.Integer_64 is (Core.Get (C, Adaflight.STM32.Time.Millis));
+
    procedure Set_Ms (T : Interfaces.Integer_64) is
    begin
       if T in Core.Time then

@@ -159,6 +159,16 @@ package body Adaflight.STM32.Pilot is
                               (Arm_Settings, Channels, Adaflight.Modes.Is_Active (M, Adaflight.Modes.Three_D)),
                             Adaflight.Arming.Throttle_Low));
 
+   procedure Set_Mode_Override (B : Adaflight.Modes.Box; Enabled : Boolean) is
+   begin
+      Adaflight.Arming.Set_Mode_Override (Arm, B, Enabled);
+   end Set_Mode_Override;
+
+   procedure Clear_Mode_Overrides is
+   begin
+      Adaflight.Arming.Clear_Mode_Overrides (Arm);
+   end Clear_Mode_Overrides;
+
    procedure Set_Reason (Reason : Adaflight.Arming.Disable_Reason; On : Boolean) is
    begin
       Arm.Disabled (Reason) := On;

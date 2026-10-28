@@ -10241,3 +10241,69 @@ elements in.
 
 The host smoke check places the ESC temperature element and finds the ESC frames' 42 degrees on the
 host's OSD screen.
+
+## D425. STM32F4 LTM telemetry (2026-10-27)
+
+`Adaflight.STM32.LTM` sends the LTM stream of the core's LTM telemetry unit on a UART. With the telemetry
+feature on, the first telemetry provider set to LTM with a port names the UART, at the provider's rate, or
+19200 baud for the automatic rate. The port's sharing comes from the serial functions the configuration
+assigns it. A port with no other function sends at once. A port shared with MSP sends while armed, or while
+the telemetry box is on when the box has a range, and MSP on UART1 stops while the stream holds the port.
+The arming logic's shared port transitions check the state again, and UART1 returns to the MSP rate with a
+fresh MSP framing when the stream gives it up. A port another board function holds stays closed to the
+stream.
+The port handling is the generic `Adaflight.STM32.Telemetry_Port`, instantiated per protocol with its
+provider number, serial function and default rate.
+
+The telemetry task runs the stream outside the command line. The inputs are the attitude, the flight modes
+in the stream's order of precedence, the arming, the failsafe, the battery, the RSSI and the GPS solution
+with its home. The GPS frame's altitude is the position estimate of D426.
+
+The host smoke check sets the first provider to LTM on UART3 and reads attitude frames ten times a second,
+status frames that report the craft disarmed in rate mode, and an origin frame every tenth cycle.
+
+## D426. STM32F4 position estimate (2026-10-27)
+
+The board runs the position task of `Adaflight.Position_Estimator` (D81) at 100 Hz, which the task setup
+enables with the GPS feature. The estimate reads the accelerometer's filtered values with their scale, the
+attitude's rotation, and the GPS as its link keeps it: the sensor and fix flags, the solutions' stamp and
+rate, the location, the north, east and down velocities, the horizontal, speed and vertical accuracies,
+and the cosine of the home latitude. The CLRacing F4 boards have no barometer, so the estimate runs on the
+accelerometer and the GPS. The position hold and rescue modes ask for the horizontal axes. The settings
+come from the position and position hold configuration, and the estimator starts after the flight log.
+
+The displayed altitude and the climb rate, rounded and with its 10 cm/s deadband, go to the MSP altitude
+reply, the CRSF vario frame, the LTM GPS frame, and the OSD's altitude and vario elements, statistics and
+altitude alarm. The OSD takes the altitude held to its 400 km bound. The rescue and the hold modes are
+later steps.
+
+The host smoke check climbs the NMEA fix by 10 m and reads the climb from the MSP altitude reply.
+
+## D427. STM32F4 GPS home on arming (2026-10-27)
+
+The board resets the GPS home position for each home reset the arming logic asks for when the craft arms
+with the GPS feature on: the home takes the current fix when it has the rescue's minimum satellites,
+unless the home is kept once set, its longitude scale follows, a u-blox module's satellite reports turn
+off, and the distance flown restarts. The board had dropped these resets, so the home position never
+formed. The GPS package's send of the link's bytes serves both the task and the reset.
+
+## D428. STM32F4 MAVLink telemetry (2026-10-27)
+
+`Adaflight.STM32.MAVLink` runs the core's MAVLink telemetry and command units on the telemetry port of the
+first provider with the MAVLink protocol, at its rate or 57600 baud, through the telemetry port generic of
+D425. When the port opens, the arming report starts over, the frame parser restarts, and the stream
+intervals start again from the settings. Each telemetry task takes the bytes received into a 512-byte
+buffer, gives the command unit up to 64 of them, sends its replies, keeps the rest for the next task, then
+sends the stream messages due. The board has no MAVLink receiver, so the streams go out 20 ms after the
+last pass. The telemetry task runs the LTM stream before the MAVLink one.
+
+The ground station's requests run after the drain in their order: a disarm by serial command, the mode
+overrides through the arming state, a home reset or a home position, and a reboot once the port's queued
+bytes have left or 100 ms have passed. A reboot to the bootloader resets the board as the MSP reboot does.
+The inputs take the battery and its meters, the RSSI and the first eight channels, the attitude, the GPS
+solution with its accuracies and home, the estimated altitude of D426, the mixer, the arming, the
+failsafe, the flight modes as the flight mode word the MAVLink unit decodes, the clock and the disable
+reasons.
+
+The host smoke check sets the first provider to MAVLink on UART3, checks the heartbeat and attitude
+messages' CRCs, and requests the autopilot version, which comes back with its acknowledgement.

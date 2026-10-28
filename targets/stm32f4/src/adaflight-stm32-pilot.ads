@@ -81,6 +81,9 @@ package Adaflight.STM32.Pilot is
    --  the missing gyro, the failsafe's two, the command line, the MSP and the
    --  reboot request.
    procedure Set_Reason (Reason : Adaflight.Arming.Disable_Reason; On : Boolean);
+   --  A box a ground station forces on over the switches, or releases.
+   procedure Set_Mode_Override (B : Adaflight.Modes.Box; Enabled : Boolean);
+   procedure Clear_Mode_Overrides;
    function Armed return Boolean;
    function Was_Ever_Armed return Boolean;
    --  The time of the last disarm and whether an arming waits, which the

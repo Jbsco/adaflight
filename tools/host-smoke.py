@@ -13,6 +13,7 @@ Usage: host-smoke.py <host image>
 import os
 import re
 import socket
+import struct
 import subprocess
 import sys
 import tempfile
@@ -52,16 +53,18 @@ def nmea(body):
 
 
 class GPS(threading.Thread):
-    """Sends a fix on UART4's port at 5 Hz: ten satellites at 48.1173 north, 11.5167 east, 545 m."""
+    """Sends a fix on UART4's port at 5 Hz: ten satellites at 48.1173 north, 11.5167 east, 545.4 m or the
+    altitude the check sets."""
 
     def __init__(self):
         super().__init__(daemon=True)
         self.stop = threading.Event()
+        self.altitude = 545.4
 
     def frames(self, tick):
         """The fix at a time that advances a fifth of a second per frame, so each solution is new."""
         clock = f"{12 + tick // 18000:02d}{(tick // 300) % 60:02d}{(tick // 5) % 60:02d}.{(tick % 5) * 20:02d}"
-        return nmea(f"GPGGA,{clock},4807.03800,N,01131.00000,E,1,10,0.9,545.4,M,46.9,M,,") + nmea(
+        return nmea(f"GPGGA,{clock},4807.03800,N,01131.00000,E,1,10,0.9,{self.altitude:.1f},M,46.9,M,,") + nmea(
             f"GPRMC,{clock},A,4807.03800,N,01131.00000,E,022.4,084.4,230394,003.1,W")
 
     def run(self):
@@ -299,6 +302,59 @@ class ESCInfo(threading.Thread):
                 self.answers += 1
             time.sleep(0.0005)
         sock.close()
+
+
+def ltm_frames(data):
+    """The LTM frames in a byte stream with good checksums, as (letter, payload) pairs."""
+    sizes = {ord("A"): 6, ord("S"): 7, ord("G"): 14, ord("O"): 14}
+    frames = []
+    i = data.find(b"$T")
+    while 0 <= i and i + 3 <= len(data):
+        size = sizes.get(data[i + 2])
+        if size is not None and i + 3 + size < len(data):
+            payload = data[i + 3:i + 3 + size]
+            check = 0
+            for b in payload:
+                check ^= b
+            if check == data[i + 3 + size]:
+                frames.append((chr(data[i + 2]), payload))
+        i = data.find(b"$T", i + 2)
+    return frames
+
+
+MAVLINK_CRC_EXTRA = {0: 50, 30: 39, 77: 143, 148: 178}
+
+
+def x25(data, crc=0xFFFF):
+    for byte in data:
+        tmp = (byte ^ crc) & 0xFF
+        tmp = (tmp ^ (tmp << 4)) & 0xFF
+        crc = ((crc >> 8) ^ (tmp << 8) ^ (tmp << 3) ^ (tmp >> 4)) & 0xFFFF
+    return crc
+
+
+def mavlink_frames(data):
+    """The MAVLink 2 frames in a byte stream with good checksums among the known messages, as (id, payload)."""
+    frames = []
+    i = data.find(b"\xfd")
+    while 0 <= i and i + 12 <= len(data):
+        length = data[i + 1]
+        end = i + 10 + length + 2 + (13 if data[i + 2] & 1 else 0)
+        msg = data[i + 7] | data[i + 8] << 8 | data[i + 9] << 16
+        if msg in MAVLINK_CRC_EXTRA and end <= len(data):
+            crc = x25(bytes(data[i + 1:i + 10 + length]) + bytes([MAVLINK_CRC_EXTRA[msg]]))
+            if crc == data[i + 10 + length] | data[i + 11 + length] << 8:
+                frames.append((msg, data[i + 10:i + 10 + length]))
+        i = data.find(b"\xfd", i + 1)
+    return frames
+
+
+def mavlink_command_long(command, param1):
+    """A COMMAND_LONG from a ground station (system 255) to system 1, component 1."""
+    payload = struct.pack("<7fHBBB", param1, 0, 0, 0, 0, 0, 0, command, 1, 1, 0)
+    header = bytes([len(payload), 0, 0, 0, 255, 190]) + (76).to_bytes(3, "little")
+    crc = x25(header + payload + bytes([152]))
+    return b"\xfd" + header + payload + crc.to_bytes(2, "little")
 
 
 def fat16_image(path, sectors):
@@ -586,6 +642,13 @@ def main():
             check("GPS fix reaches the raw GPS reply",
                   raw is not None and len(raw) >= 10 and raw[0] != 0 and raw[1] == 10 and lat == 481173000
                   and abs(lon - 115166667) <= 10, repr(raw[:10] if raw else raw))
+            gps.altitude = 555.4
+            time.sleep(6.0)
+            alt = msp(sock, 109)
+            estimate = int.from_bytes(alt[0:4], "little", signed=True) if alt and len(alt) >= 6 else None
+            check("position estimate follows a 10 m GPS climb in the MSP altitude reply",
+                  estimate is not None and 700 <= estimate <= 1300, repr(alt))
+            gps.altitude = 545.4
             data = read_all(log, 4.0) if log is not None else b""
             head = data.split(b"\n")
             check("flight log header starts the log", data.startswith(b"H Product:Blackbox flight data recorder by Nicholas Sherlock\nH Data version:2\n"),
@@ -831,6 +894,73 @@ def main():
             esc.stop.set()
             if "info" in locals():
                 info.stop.set()
+            stop(proc)
+            sock.close()
+        store = os.path.join(work, "ltm.bin")
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "feature TELEMETRY")
+            check("telemetry feature on", "Enabled" in text, text[-120:])
+            text = cli(sock, "set telemetry_1_protocol = LTM")
+            check("telemetry provider set to LTM", "telemetry_1_protocol set to LTM" in text, text[-120:])
+            text = cli(sock, "set telemetry_1_uart = UART3")
+            check("LTM port assigned", "telemetry_1_uart set to UART3" in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            ltm = socket.create_connection(("127.0.0.1", RX_PORT), timeout=1)
+            ltm.settimeout(0.3)
+            frames = ltm_frames(read_all(ltm, 1.5))
+            ltm.close()
+            letters = "".join(f for f, _ in frames)
+            check("LTM sends attitude frames ten times a second", 10 <= letters.count("A") <= 20, letters)
+            status = [p for f, p in frames if f == "S"]
+            check("LTM status frames report disarmed in rate mode", bool(status) and status[-1][6] == 1 << 2,
+                  repr(status[-1:]))
+            check("LTM sends an origin frame every tenth cycle", 1 <= letters.count("O") <= 3, letters)
+        finally:
+            stop(proc)
+            sock.close()
+        store = os.path.join(work, "mavlink.bin")
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "feature TELEMETRY")
+            check("telemetry feature on for MAVLink", "Enabled" in text, text[-120:])
+            text = cli(sock, "set telemetry_1_protocol = MAVLINK")
+            check("telemetry provider set to MAVLink", "telemetry_1_protocol set to MAVLINK" in text, text[-120:])
+            text = cli(sock, "set telemetry_1_uart = UART3")
+            check("MAVLink port assigned", "telemetry_1_uart set to UART3" in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            mav = socket.create_connection(("127.0.0.1", RX_PORT), timeout=1)
+            mav.settimeout(0.3)
+            frames = mavlink_frames(read_all(mav, 3.0))
+            ids = [m for m, _ in frames]
+            check("MAVLink sends heartbeats", ids.count(0) >= 2, repr(ids[:40]))
+            check("MAVLink sends attitude messages", ids.count(30) >= 4, repr(ids[:40]))
+            mav.sendall(mavlink_command_long(512, 148.0))
+            replies = mavlink_frames(read_all(mav, 1.5))
+            ids = [m for m, _ in replies]
+            check("MAVLink answers an autopilot version request", 148 in ids and 77 in ids, repr(ids[:40]))
+            mav.close()
+        finally:
             stop(proc)
             sock.close()
     print(f"host smoke: {'all checks passed' if not failures else str(len(failures)) + ' failed'}")

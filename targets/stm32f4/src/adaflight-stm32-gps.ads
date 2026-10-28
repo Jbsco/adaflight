@@ -35,7 +35,9 @@ package Adaflight.STM32.GPS is
    --  The readings: the module present with a fix, the home fix, a fix ever
    --  held and a healthy link, the satellites, the position, the speeds and
    --  the course, the dilutions, the home vector and the distance flown,
-   --  the time of week, the home position and the channels in view.
+   --  the time of week, the home position and the channels in view, and for
+   --  the position estimate the solutions' stamp, their rate, the cosine of
+   --  the home latitude and the solution's accuracies.
    type Readings is record
       Present             : Boolean := False;
       Fix                 : Boolean := False;
@@ -65,9 +67,19 @@ package Adaflight.STM32.GPS is
       Home                : Adaflight.GPS_Frames.Location;
       In_View             : Interfaces.Unsigned_8 := 0;
       Tick                : Boolean := False;
+      Stamp               : Interfaces.Unsigned_16 := 0;
+      Rate_Hz             : Float range 0.38 .. 25.0 := 10.0;
+      Cos_Lat             : Float range -1.0 .. 1.0 := 1.0;
+      Accuracy            : Adaflight.GPS_Frames.Accuracy;
    end record;
 
    function Current return Readings;
+   --  The home position from the current fix with enough satellites, unless
+   --  it is kept once set, with a u-blox module's satellite reports turned
+   --  off.
+   procedure Reset_Home;
+   --  A home position a ground station sets, with the home fix.
+   procedure Set_Home (Lat, Lon, Alt_Cm : Interfaces.Integer_32);
    function Link_State return Adaflight.GPS_Link.Link_State;
    function Platform return Adaflight.GPS_Frames.Platform;
    --  The port's rate as the status command's index.

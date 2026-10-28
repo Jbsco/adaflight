@@ -20,6 +20,11 @@ with Adaflight.Config_Codec;
 with Adaflight.Config_Fix;
 with Adaflight.DShot;
 with Adaflight.DShot_Command;
+with Adaflight.LTM_Telemetry;
+with Adaflight.MAVLink_Commands;
+with Adaflight.MAVLink_Telemetry;
+with Adaflight.Maths;
+with Adaflight.Position_Estimator;
 with Adaflight.ESC_Sensor;
 with Adaflight.Config_Groups;
 with Adaflight.Config_Reset;
@@ -63,6 +68,8 @@ with Adaflight.STM32.ESC_Sensor;
 with Adaflight.STM32.Flash;
 with Adaflight.STM32.Flash_Chip;
 with Adaflight.STM32.GPIO;
+with Adaflight.STM32.LTM;
+with Adaflight.STM32.MAVLink;
 with Adaflight.STM32.GPS;
 with Adaflight.GPS_Frames;
 with Adaflight.GPS_Link;
@@ -245,6 +252,26 @@ package body Adaflight.STM32.Flight is
    Acc_Cal        : Adaflight.Acc_Inflight.State;
    Att_Config     : Adaflight.Attitude.Config;
    Att_State      : Adaflight.Attitude.State;
+   Pos_Settings   : Adaflight.Position_Estimator.Settings;
+   Pos_State      : Adaflight.Position_Estimator.State;
+
+   --  The displayed altitude to the nearest centimetre, and the climb rate
+   --  in centimetres per second with its 10 cm/s deadband.
+   function Estimated_Altitude_Cm return Integer_32 is
+     (Integer_32 (Integer'Max (-600_000_000, Integer'Min
+        (600_000_000, Adaflight.Position_Estimator.Estimated_Altitude_Cm (Pos_State)))));
+
+   function Estimated_Vario return Integer_16 is
+      Rate : constant Float := Float'Max (-1.0e6, Float'Min (1.0e6, Pos_State.Filtered_Derivative));
+      V    : constant Integer_32 :=
+        Adaflight.Maths.Apply_Deadband (Integer_32 (Adaflight.Maths.Round_Half_Even (Rate)), 10);
+   begin
+      return Integer_16 (Integer_32'Max (-32_768, Integer_32'Min (32_767, V)));
+   end Estimated_Vario;
+
+   --  Whether a telemetry stream holds a UART.
+   function Telemetry_Holds (N : Adaflight.STM32.USART.Number) return Boolean is
+     (Adaflight.STM32.LTM.Holds (N) or else Adaflight.STM32.MAVLink.Holds (N));
 
    function Text (S : String) return Common.Text is
       T : Common.Text;
@@ -919,6 +946,8 @@ package body Adaflight.STM32.Flight is
       Env.DShot_Protocol := Adaflight.STM32.DShot_Output.Protocol_Is_DShot;
       Env.ESC_Sensor := Adaflight.STM32.ESC_Sensor.Feature_On;
       Ctx.Out_Views.State.ESC := Adaflight.STM32.ESC_Sensor.Values (Adaflight.STM32.Control.Motor_Count);
+      Ctx.Out_Views.State.Altitude :=
+        (Estimate_Cm => Estimated_Altitude_Cm, Vario => Estimated_Vario, Rangefinder_Cm => 0);
       declare
          Count          : Natural;
          Levels, Powers : Adaflight.SmartAudio.Level_Values;
@@ -981,7 +1010,8 @@ package body Adaflight.STM32.Flight is
             if L /= Line_UART1
               or else not (Adaflight.STM32.Blackbox.Holds (Adaflight.STM32.USART.UART1)
                            or else Adaflight.STM32.VTX.Holds (Adaflight.STM32.USART.UART1)
-                           or else Adaflight.STM32.ESC_Sensor.Holds (Adaflight.STM32.USART.UART1))
+                           or else Adaflight.STM32.ESC_Sensor.Holds (Adaflight.STM32.USART.UART1)
+                           or else Telemetry_Holds (Adaflight.STM32.USART.UART1))
             then
                Take_Line (L);
                Serve_MSP (L, Evaluate_Other_Data);
@@ -1386,17 +1416,36 @@ package body Adaflight.STM32.Flight is
       return Sensed;
    end Sense;
 
-   --  What the arming logic asked of the board after a step: the stick
-   --  commands the board can serve, the saves, the trims, the beeper, the
-   --  first arming calibration, the headfree offset, the failsafe's
-   --  monitoring, the attitude task's rate and the DShot commands queued for
-   --  the motors. The adjustments, the statistics and the ports wait for
-   --  their units on the board.
+   --  The telemetry ports opened or released as their sharing asks, and UART1
+   --  back at the MSP rate with a fresh MSP framing when a stream gives it up.
+   procedure Check_Telemetry is
+      Was         : constant Boolean := Telemetry_Holds (Adaflight.STM32.USART.UART1);
+      Armed       : constant Boolean := Adaflight.STM32.Pilot.Armed;
+      Box_Present : constant Boolean := Adaflight.STM32.Pilot.Box_Configured (Adaflight.Modes.Telemetry);
+      Box_Active  : constant Boolean := Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Telemetry);
+   begin
+      Adaflight.STM32.LTM.Check_State (Armed, Box_Present, Box_Active);
+      Adaflight.STM32.MAVLink.Check_State (Armed, Box_Present, Box_Active, Adaflight.STM32.Time.Millis);
+      if Was and then not Telemetry_Holds (Adaflight.STM32.USART.UART1) then
+         Adaflight.STM32.USART.Init (Adaflight.STM32.USART.UART1, Baud);
+         Adaflight.MSP_Port.Init (Lines (Line_UART1).Port);
+      end if;
+   end Check_Telemetry;
+
+   --  What the arming logic asked of the board after a step: the GPS home
+   --  resets, the stick commands the board can serve, the saves, the trims,
+   --  the beeper, the first arming calibration, the headfree offset, the
+   --  failsafe's monitoring, the attitude task's rate and the DShot commands
+   --  queued for the motors. The adjustments, the statistics and the ports
+   --  wait for their units on the board.
    procedure Apply (Step : Adaflight.Arming.Outputs) is
       Trims : Adaflight.Config_Groups.Integer_16_List_2 renames Config.Accelerometer_Config.Accelerometer_Trims;
       Set   : Boolean;
       Unused_Success : Boolean;
    begin
+      for I in 1 .. Step.GPS_Home_Resets loop
+         Adaflight.STM32.GPS.Reset_Home;
+      end loop;
       if Step.Commands (Adaflight.Arming.Gyro_Calibration) then
          Adaflight.Gyro_Filters.Start_Calibration (Gyro_State, Gyro_Settings, First_Arm => False);
       end if;
@@ -1465,6 +1514,9 @@ package body Adaflight.STM32.Flight is
          Scheduler.Reschedule (Sched, Sched_Settings, Scheduler.Attitude, Attitude_Period_Fast_Us);
       else
          Scheduler.Reschedule (Sched, Sched_Settings, Scheduler.Attitude, Attitude_Period_Slow_Us);
+      end if;
+      if Adaflight.Arming."/=" (Step.Telemetry_Ports, Adaflight.Arming.No_Port_Change) then
+         Check_Telemetry;
       end if;
       for I in 1 .. Natural'Min (Step.DShot_Commands.Count, Adaflight.Arming.Command_Slot'Last) loop
          Adaflight.STM32.DShot_Output.Write_Command
@@ -1788,6 +1840,8 @@ package body Adaflight.STM32.Flight is
       F.Battery_Percent := Unsigned_8 (Adaflight.Battery.Percentage_Remaining (Bat, Bat_Settings));
       F.Battery_Capacity := Profile.Battery_Capacity;
       F.Motors := Motors;
+      F.Altitude_Cm := Integer_32'Max (-40_000_000, Integer_32'Min (40_000_000, Estimated_Altitude_Cm));
+      F.Vario := Estimated_Vario;
       for I in 0 .. Motors - 1 loop
          F.Motor_Output (I) := Float'Min (3_000.0, Outputs (I));
          F.Motor_Active (I) := Outputs (I) > Adaflight.STM32.Control.Disarm_Output;
@@ -1972,6 +2026,185 @@ package body Adaflight.STM32.Flight is
         or (if M (Adaflight.Arming.GPS_Rescue_Mode) then Mode_GPS_Rescue else 0);
    end Telemetry_Mode_Flags;
 
+   --  What the position estimate reads: the accelerometer through the
+   --  attitude, no barometer, the GPS as its link reports it, and the modes
+   --  that ask for the horizontal estimate.
+   function Position_Inputs (Now_Us : Unsigned_32) return Adaflight.Position_Estimator.Inputs is
+      G     : constant Adaflight.STM32.GPS.Readings := Adaflight.STM32.GPS.Current;
+      M     : constant Adaflight.Arming.Mode_Set := Adaflight.STM32.Pilot.Flight_Modes;
+      Bound : constant := Adaflight.Position_Estimator.Acc_Bound;
+      function Held (V : Float) return Float is (Float'Max (-Bound, Float'Min (Bound, V)));
+   begin
+      return
+        (Now_Us             => Now_Us,
+         Armed              => Adaflight.STM32.Pilot.Armed,
+         Acc                => (Held (Acc_State.Acc.X), Held (Acc_State.Acc.Y), Held (Acc_State.Acc.Z)),
+         One_G_Reciprocal   => Float'Max (2.0 ** (-16), Float'Min (1.0, Acc_State.One_G_Reciprocal)),
+         Rotation           => Att_State.Rotation,
+         GPS_Present        => G.Present,
+         GPS_Fix            => G.Fix,
+         GPS_Stamp          => G.Stamp,
+         GPS_Rate_Hz        => G.Rate_Hz,
+         GPS_Location       => (Lat => G.Latitude, Lon => G.Longitude, Alt_Cm => G.Altitude_Cm),
+         GPS_Velocity_North => G.Velocity.North,
+         GPS_Velocity_East  => G.Velocity.East,
+         GPS_Velocity_Down  => G.Velocity.Down,
+         GPS_H_Acc          => G.Accuracy.Horizontal,
+         GPS_S_Acc          => G.Accuracy.Speed,
+         GPS_V_Acc          => G.Accuracy.Vertical,
+         Cos_Lat            => G.Cos_Lat,
+         Position_Hold_Mode => M (Adaflight.Arming.Pos_Hold_Mode),
+         Rescue_Mode        => M (Adaflight.Arming.GPS_Rescue_Mode),
+         others             => <>);
+   end Position_Inputs;
+
+   --  The flight modes as the reference's flight mode word: angle, horizon,
+   --  magnetometer and altitude hold in bits 0 to 3, then position hold,
+   --  headfree, chirp and passthru from bit 5, then failsafe, rescue,
+   --  autopilot and launch from bit 10.
+   function Mode_Word (M : Adaflight.Arming.Mode_Set) return Unsigned_16 is
+      use Adaflight.Arming;
+      Bits : constant array (Flight_Mode) of Unsigned_16 :=
+        (Angle_Mode => 2 ** 0, Horizon_Mode => 2 ** 1, Mag_Mode => 2 ** 2, Alt_Hold_Mode => 2 ** 3,
+         Pos_Hold_Mode => 2 ** 5, Headfree_Mode => 2 ** 6, Chirp_Mode => 2 ** 7, Passthru_Mode => 2 ** 8,
+         Failsafe_Mode => 2 ** 10, GPS_Rescue_Mode => 2 ** 11, Autopilot_Mode => 2 ** 12, Launch_Mode => 2 ** 13);
+      W : Unsigned_16 := 0;
+   begin
+      for F in Flight_Mode loop
+         if M (F) then
+            W := W or Bits (F);
+         end if;
+      end loop;
+      return W;
+   end Mode_Word;
+
+   --  What the MAVLink stream reads: the battery and its meters, the signal
+   --  and the first eight channels, the attitude, the sensors, the GPS
+   --  solution and home, the estimated altitude, the mixer, the arming, the
+   --  failsafe and the flight modes, the clock and the disable reasons.
+   function MAVLink_Inputs return Adaflight.MAVLink_Telemetry.Inputs is
+      Inp   : Adaflight.MAVLink_Telemetry.Inputs;
+      G     : constant Adaflight.STM32.GPS.Readings := Adaflight.STM32.GPS.Current;
+      Volts : constant Natural := Natural'Min (65_535, Bat.Voltage.Display_Filtered);
+      Alt   : constant Integer_32 := Adaflight.MAVLink_Telemetry.Altitude_Bound;
+      function Held (V : Integer_32) return Integer_32 is (Integer_32'Max (-Alt, Integer_32'Min (Alt, V)));
+   begin
+      Inp.Battery := Bat.Overall;
+      Inp.Voltage_Configured := Adaflight.Battery."/=" (Bat_Settings.Voltage_Meter, Adaflight.Battery.None);
+      Inp.Amperage_Configured := Adaflight.Battery."/=" (Bat_Settings.Current_Meter, Adaflight.Battery.None);
+      Inp.Pack_Voltage := Unsigned_16 (Volts);
+      Inp.Cell_Voltage := (if Bat.Cells > 0 then Unsigned_16 (Volts / Bat.Cells) else 0);
+      Inp.Amperage := Integer_32'Max (-2 ** 31, Integer_32'Min (2 ** 31 - 1, Integer_32 (Bat.Current.Amperage)));
+      Inp.MAh_Drawn := Integer_32'Max (-2 ** 31, Integer_32'Min (2 ** 31 - 1, Integer_32 (Bat.Current.mAh_Drawn)));
+      Inp.Battery_Percent := Unsigned_8 (Adaflight.Battery.Percentage_Remaining (Bat, Bat_Settings));
+      Inp.Cell_Count := Unsigned_8 (Natural'Min (255, Bat.Cells));
+      Inp.RSSI := Adaflight.STM32.Radio.RSSI;
+      Inp.Channel_Count := Natural'Min (18, Adaflight.STM32.Radio.Channel_Count);
+      for I in Inp.RC'Range loop
+         Inp.RC (I) := Float'Max (0.0, Float'Min (65_535.0, Adaflight.STM32.Radio.Channel (I)));
+      end loop;
+      Inp.Roll := Integer_16 (Att_State.Euler.Roll);
+      Inp.Pitch := Integer_16 (Att_State.Euler.Pitch);
+      Inp.Yaw := Integer_16 (Att_State.Euler.Yaw);
+      Inp.GPS_Present := G.Present;
+      Inp.GPS_Fix := G.Fix;
+      Inp.GPS_Fix_Home := G.Fix_Home;
+      Inp.Latitude := G.Latitude;
+      Inp.Longitude := G.Longitude;
+      Inp.Altitude_Cm := Held (G.Altitude_Cm);
+      Inp.HDOP := G.HDOP;
+      Inp.VDOP := G.VDOP;
+      Inp.Ground_Speed := G.Ground_Speed;
+      Inp.Ground_Course := G.Ground_Course;
+      Inp.Satellites := G.Satellites;
+      Inp.H_Acc := G.Accuracy.Horizontal;
+      Inp.V_Acc := G.Accuracy.Vertical;
+      Inp.S_Acc := G.Accuracy.Speed;
+      Inp.Vel_N := G.Velocity.North;
+      Inp.Vel_E := G.Velocity.East;
+      Inp.Vel_D := G.Velocity.Down;
+      Inp.Home_Latitude := G.Home.Lat;
+      Inp.Home_Longitude := G.Home.Lon;
+      Inp.Home_Altitude_Cm := Held (G.Home.Alt_Cm);
+      Inp.Estimated_Alt_Cm := Held (Estimated_Altitude_Cm);
+      Inp.Mixer_Mode := Config.Mixer_Config.Mixer_Mode;
+      Inp.Armed := Adaflight.STM32.Pilot.Armed;
+      Inp.Failsafe_Active := Adaflight.STM32.Radio.Failsafe_Active;
+      Inp.Modes := Mode_Word (Adaflight.STM32.Pilot.Flight_Modes);
+      Inp.Has_Time := Adaflight.STM32.RTC.Has_Time;
+      if Inp.Has_Time then
+         Inp.RTC_Ms := Integer_64'Max (0, Integer_64'Min (2 ** 53, Adaflight.STM32.RTC.Now_Ms));
+      end if;
+      Inp.Disable_Flags := Adaflight.STM32.Pilot.Disabled;
+      return Inp;
+   end MAVLink_Inputs;
+
+   --  The requests a ground station's messages made, in their order: a
+   --  disarm, the mode overrides, the home position, and a reboot once the
+   --  replies have left.
+   procedure Serve_MAVLink_Requests (R : Adaflight.MAVLink_Commands.Requests) is
+      Asked : Adaflight.Arming.Outputs;
+   begin
+      for I in 1 .. R.Count loop
+         declare
+            Q : Adaflight.MAVLink_Commands.Request renames R.List (I);
+         begin
+            case Q.Kind is
+               when Adaflight.MAVLink_Commands.Disarm =>
+                  Adaflight.STM32.Pilot.Disarm (Adaflight.Arming.Serial_Command, Adaflight.STM32.Time.Micros, Asked);
+                  Apply (Asked);
+               when Adaflight.MAVLink_Commands.Clear_Overrides =>
+                  Adaflight.STM32.Pilot.Clear_Mode_Overrides;
+               when Adaflight.MAVLink_Commands.Set_Override =>
+                  Adaflight.STM32.Pilot.Set_Mode_Override (Q.Box, True);
+               when Adaflight.MAVLink_Commands.Reset_Home =>
+                  Adaflight.STM32.GPS.Reset_Home;
+               when Adaflight.MAVLink_Commands.Set_Home =>
+                  Adaflight.STM32.GPS.Set_Home (Q.Latitude, Q.Longitude, Q.Altitude_Cm);
+            end case;
+         end;
+      end loop;
+      if Adaflight.MAVLink_Commands."/=" (R.Reboot, Adaflight.MAVLink_Commands.None) then
+         Adaflight.STM32.MAVLink.Finish_Transmit;
+         Reset;
+      end if;
+   end Serve_MAVLink_Requests;
+
+   --  What the LTM stream reads: the attitude, the flight modes, the arming
+   --  and the failsafe, the battery, the signal, the GPS solution with its
+   --  home, and the estimated altitude.
+   function LTM_Inputs return Adaflight.LTM_Telemetry.Inputs is
+      M : constant Adaflight.Arming.Mode_Set := Adaflight.STM32.Pilot.Flight_Modes;
+      G : constant Adaflight.STM32.GPS.Readings := Adaflight.STM32.GPS.Current;
+   begin
+      return
+        (Pitch         => Integer_16 (Att_State.Euler.Pitch),
+         Roll          => Integer_16 (Att_State.Euler.Roll),
+         Yaw           => Integer_16 (Att_State.Euler.Yaw),
+         Passthru      => M (Adaflight.Arming.Passthru_Mode),
+         Headfree      => M (Adaflight.Arming.Headfree_Mode),
+         Angle         => M (Adaflight.Arming.Angle_Mode),
+         Horizon       => M (Adaflight.Arming.Horizon_Mode),
+         Rescue        => M (Adaflight.Arming.GPS_Rescue_Mode),
+         Position_Hold => M (Adaflight.Arming.Pos_Hold_Mode),
+         Altitude_Hold => M (Adaflight.Arming.Alt_Hold_Mode),
+         Armed         => Adaflight.STM32.Pilot.Armed,
+         Failsafe      => Adaflight.STM32.Radio.Failsafe_Active,
+         Voltage_Cv    => Unsigned_16 (Natural'Min (65_535, Bat.Voltage.Display_Filtered)),
+         Mah_Drawn     => Integer_32'Max (-2 ** 31, Integer_32'Min (2 ** 31 - 1, Integer_32 (Bat.Current.mAh_Drawn))),
+         Rssi          => Adaflight.STM32.Radio.RSSI,
+         GPS_Present   => G.Present,
+         Fix           => G.Fix,
+         Num_Sat       => G.Satellites,
+         Lat           => G.Latitude,
+         Lon           => G.Longitude,
+         Ground_Speed  => G.Ground_Speed,
+         Altitude_Cm   => Estimated_Altitude_Cm,
+         Home_Lat      => G.Home.Lat,
+         Home_Lon      => G.Home.Lon,
+         Fix_Home      => G.Fix_Home);
+   end LTM_Inputs;
+
    --  What the telemetry reads: the GPS solution with its date, the battery,
    --  the attitude, the flight state, the inertial sample and the craft name.
    function Telemetry_Sources return Adaflight.CRSF_Telemetry.Sources is
@@ -2011,6 +2244,7 @@ package body Adaflight.STM32.Flight is
          Drawn_Mah           => Integer_32'Max (0, Integer_32'Min (2 ** 31 - 1, Integer_32 (Bat.Current.mAh_Drawn))),
          Remaining_Percent   => Unsigned_8 (Adaflight.Battery.Percentage_Remaining (Bat, Bat_Settings)),
          Report_Cell_Voltage => Config.Telemetry_Config.Report_Cell_Voltage /= 0);
+      Src.Vario := Estimated_Vario;
       Src.Attitude :=
         (Pitch => Integer_16 (Att_State.Euler.Pitch),
          Roll  => Integer_16 (Att_State.Euler.Roll),
@@ -2091,9 +2325,24 @@ package body Adaflight.STM32.Flight is
             Run_Menu (Before);
          when Scheduler.GPS =>
             Run_GPS (Before);
+         when Scheduler.Position =>
+            Adaflight.Position_Estimator.Update (Pos_State, Pos_Settings, Position_Inputs (Before));
          when Scheduler.ESC_Sensor =>
             Adaflight.STM32.ESC_Sensor.Run (Before, Adaflight.STM32.Control.Motor_Count);
          when Scheduler.Telemetry =>
+            if not Session.Open and then (Runtime_Features and Adaflight.Config_Fix.Feature_Telemetry) /= 0 then
+               Adaflight.STM32.LTM.Run (Adaflight.STM32.Time.Millis, LTM_Inputs);
+               declare
+                  Requests : Adaflight.MAVLink_Commands.Requests;
+               begin
+                  Adaflight.STM32.MAVLink.Run
+                    (Adaflight.STM32.Time.Micros, Adaflight.STM32.Time.Millis, MAVLink_Inputs,
+                     (Armed  => Adaflight.STM32.Pilot.Armed, GPS_Fix => Adaflight.STM32.GPS.Current.Fix,
+                      Now_Us => Adaflight.STM32.Time.Micros, Now_Ms => Adaflight.STM32.Time.Millis),
+                     Requests);
+                  Serve_MAVLink_Requests (Requests);
+               end;
+            end if;
             Tasks.Telemetry (Inputs, Before);
          when Scheduler.PINIO_Box =>
             Adaflight.STM32.PINIO.Update;
@@ -2211,6 +2460,12 @@ package body Adaflight.STM32.Flight is
       end if;
       Init_Scheduler;
       Adaflight.STM32.Blackbox.Init (Config, Loop_Time_Us);
+      Pos_Settings :=
+        Adaflight.Config_Runtime.Position_Estimator_Settings_Of (Config.Position_Config, Config.Pos_Hold_Config);
+      Adaflight.Position_Estimator.Init (Pos_State, Pos_Settings, Armed => Adaflight.STM32.Pilot.Armed);
+      Adaflight.STM32.LTM.Init (Config, Runtime_Features);
+      Adaflight.STM32.MAVLink.Init (Config, Runtime_Features, (UID (1), UID (2), UID (3)));
+      Check_Telemetry;
       Adaflight.STM32.DShot_Output.Enable;
       Blink := Ada.Real_Time.Clock;
    end Init;

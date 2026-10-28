@@ -60,6 +60,21 @@ package body Adaflight.STM32.GPS is
 
    function Holds (N : USART.Number) return Boolean is (Open and then N = Which);
 
+   --  The bytes a link call asks to send, to the module's port.
+   procedure Send (Tx : Adaflight.GPS_Link.Transmission) is
+   begin
+      if Open and then Tx.Length > 0 then
+         declare
+            Out_Bytes : Byte_Array (0 .. Tx.Length - 1);
+         begin
+            for I in Out_Bytes'Range loop
+               Out_Bytes (I) := Tx.Data (I);
+            end loop;
+            USART.Put (Port, Out_Bytes);
+         end;
+      end if;
+   end Send;
+
    procedure Run (Now_Ms, Now_Us : Interfaces.Unsigned_32; Armed : Boolean; R : out Report) is
       Count    : Natural := 0;
       E        : Adaflight.GPS_Link.Events;
@@ -79,16 +94,7 @@ package body Adaflight.STM32.GPS is
            ((Year => E.Clock.Year, Month => E.Clock.Month, Day => E.Clock.Day, Hours => E.Clock.Hours,
              Minutes => E.Clock.Minutes, Seconds => E.Clock.Seconds, Millis => E.Clock.Millis));
       end if;
-      if E.Tx.Length > 0 then
-         declare
-            Out_Bytes : Byte_Array (0 .. E.Tx.Length - 1);
-         begin
-            for I in Out_Bytes'Range loop
-               Out_Bytes (I) := E.Tx.Data (I);
-            end loop;
-            USART.Put (Port, Out_Bytes);
-         end;
-      end if;
+      Send (E.Tx);
       if E.Baud_Changed then
          USART.Init (Which, Positive (Adaflight.GPS_Link.Rate_Of (E.New_Baud)));
       end if;
@@ -97,6 +103,19 @@ package body Adaflight.STM32.GPS is
       end if;
       R := (Ready_Beep => E.Ready_Beep, Rate => E.Rate, Solutions => E.Solutions);
    end Run;
+
+   procedure Reset_Home is
+      Tx : Adaflight.GPS_Link.Transmission;
+   begin
+      Adaflight.GPS_Link.Reset_Home (Link, Rx, Settings, Tx);
+      Send (Tx);
+   end Reset_Home;
+
+   procedure Set_Home (Lat, Lon, Alt_Cm : Interfaces.Integer_32) is
+   begin
+      Link.Home := (Lat => Lat, Lon => Lon, Alt_Cm => Alt_Cm);
+      Link.Fix_Home := True;
+   end Set_Home;
 
    function Current return Readings is
      ((Present             => Link.Sensor_Present,
@@ -124,7 +143,11 @@ package body Adaflight.STM32.GPS is
        Use_3D_Speed        => Settings.Use_3D_Speed,
        Home                => Link.Home,
        In_View             => Rx.Num_Channels,
-       Tick                => Link.Tick));
+       Tick                => Link.Tick,
+       Stamp               => Link.Stamp,
+       Rate_Hz             => Link.Data_Frequency_Hz,
+       Cos_Lat             => Link.Cos_Lat,
+       Accuracy            => Rx.Sol.Acc));
 
    function Link_State return Adaflight.GPS_Link.Link_State is (Link.State);
 
