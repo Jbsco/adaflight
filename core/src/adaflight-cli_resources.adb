@@ -2,62 +2,48 @@ package body Adaflight.CLI_Resources with SPARK_Mode is
 
    Softserial_Offset : constant := 6;
 
-   function Name (O : Owner) return String is
-     (case O is
-         when Beeper                  => "BEEPER",
-         when Motor                   => "MOTOR",
-         when Servo                   => "SERVO",
-         when PPM                     => "PPM",
-         when PWM                     => "PWM",
-         when Sonar_Trigger           => "SONAR_TRIGGER",
-         when Sonar_Echo              => "SONAR_ECHO",
-         when LED_Strip               => "LED_STRIP",
-         when Serial_TX               => "SERIAL_TX",
-         when Serial_RX               => "SERIAL_RX",
-         when Inverter                => "INVERTER",
-         when Softserial_TX           => "SOFTSERIAL_TX",
-         when Softserial_RX           => "SOFTSERIAL_RX",
-         when I2C_SCL                 => "I2C_SCL",
-         when I2C_SDA                 => "I2C_SDA",
-         when LED                     => "LED",
-         when RX_Bind                 => "RX_BIND",
-         when RX_Bind_Plug            => "RX_BIND_PLUG",
-         when Transponder             => "TRANSPONDER",
-         when SPI_SCK                 => "SPI_SCK",
-         when SPI_SDI                 => "SPI_SDI",
-         when SPI_SDO                 => "SPI_SDO",
-         when ADC_Batt                => "ADC_BATT",
-         when ADC_RSSI                => "ADC_RSSI",
-         when ADC_Curr                => "ADC_CURR",
-         when ADC_Ext                 => "ADC_EXT",
-         when Baro_CS                 => "BARO_CS",
-         when Baro_EOC                => "BARO_EOC",
-         when Baro_XCLR               => "BARO_XCLR",
-         when Compass_CS              => "COMPASS_CS",
-         when Compass_EXTI            => "COMPASS_EXTI",
-         when SD_Card_Detect          => "SDCARD_DETECT",
-         when PINIO                   => "PINIO",
-         when USB_MSC_Pin             => "USB_MSC_PIN",
-         when Flash_CS                => "FLASH_CS",
-         when OSD_CS                  => "OSD_CS",
-         when RX_SPI_CS               => "RX_SPI_CS",
-         when RX_SPI_EXTI             => "RX_SPI_EXTI",
-         when RX_SPI_Bind             => "RX_SPI_BIND",
-         when RX_SPI_LED              => "RX_SPI_LED",
-         when RX_SPI_CC2500_TX_EN     => "RX_SPI_CC2500_TX_EN",
-         when RX_SPI_CC2500_LNA_EN    => "RX_SPI_CC2500_LNA_EN",
-         when RX_SPI_CC2500_Ant_Sel   => "RX_SPI_CC2500_ANT_SEL",
-         when RX_SPI_ExpressLRS_Reset => "RX_SPI_EXPRESSLRS_RESET",
-         when RX_SPI_ExpressLRS_Busy  => "RX_SPI_EXPRESSLRS_BUSY",
-         when Gyro_EXTI               => "GYRO_EXTI",
-         when Gyro_CS                 => "GYRO_CS",
-         when USB_Detect              => "USB_DETECT",
-         when VTX_Power               => "VTX_POWER",
-         when VTX_CS                  => "VTX_CS",
-         when VTX_Data                => "VTX_DATA",
-         when VTX_CLK                 => "VTX_CLK",
-         when Pullup                  => "PULLUP",
-         when Pulldown                => "PULLDOWN");
+   --  The owner names in one text, each at its start for its length. The text ends with room for a
+   --  longest one, so every slice stays within it by its types.
+   Owner_Name_Pool_Length : constant := 507;
+   Owner_Name_Text : constant String (1 .. Owner_Name_Pool_Length + 23) :=
+     "BEEPERMOTORSERVOPPMPWMSONAR_TRIGGERSONAR_ECHOLED_STRIPSERIAL_TXSERIAL_RXINVERTERSOFTSERIAL_TXSOFTSERIAL_"
+     & "RXI2C_SCLI2C_SDARX_BINDRX_BIND_PLUGTRANSPONDERSPI_SCKSPI_SDISPI_SDOADC_BATTADC_RSSIADC_CURRADC_EXTBARO_C"
+     & "SBARO_EOCBARO_XCLRCOMPASS_CSCOMPASS_EXTISDCARD_DETECTPINIOUSB_MSC_PINFLASH_CSOSD_CSRX_SPI_CSRX_SPI_EXTIR"
+     & "X_SPI_BINDRX_SPI_LEDRX_SPI_CC2500_TX_ENRX_SPI_CC2500_LNA_ENRX_SPI_CC2500_ANT_SELRX_SPI_EXPRESSLRS_RESETR"
+     & "X_SPI_EXPRESSLRS_BUSYGYRO_EXTIGYRO_CSUSB_DETECTVTX_POWERVTX_CSVTX_DATAVTX_CLKPULLUPPULLDOWN             "
+     & "          ";
+   type Owner_Name_Start is range 0 .. Owner_Name_Pool_Length;
+   type Owner_Name_Length is range 3 .. 23;
+   Owner_Name_Starts : constant array (Owner) of Owner_Name_Start :=
+     (Beeper => 0, Motor => 6, Servo => 11, PPM => 16, PWM => 19, Sonar_Trigger => 22, Sonar_Echo => 35,
+      LED_Strip => 45, Serial_TX => 54, Serial_RX => 63, Inverter => 72, Softserial_TX => 80, Softserial_RX => 93,
+      I2C_SCL => 106, I2C_SDA => 113, LED => 45, RX_Bind => 120, RX_Bind_Plug => 127, Transponder => 139,
+      SPI_SCK => 150, SPI_SDI => 157, SPI_SDO => 164, ADC_Batt => 171, ADC_RSSI => 179, ADC_Curr => 187,
+      ADC_Ext => 195, Baro_CS => 202, Baro_EOC => 209, Baro_XCLR => 217, Compass_CS => 226, Compass_EXTI => 236,
+      SD_Card_Detect => 248, PINIO => 261, USB_MSC_Pin => 266, Flash_CS => 277, OSD_CS => 285, RX_SPI_CS => 291,
+      RX_SPI_EXTI => 300, RX_SPI_Bind => 311, RX_SPI_LED => 322, RX_SPI_CC2500_TX_EN => 332,
+      RX_SPI_CC2500_LNA_EN => 351, RX_SPI_CC2500_Ant_Sel => 371, RX_SPI_ExpressLRS_Reset => 392,
+      RX_SPI_ExpressLRS_Busy => 415, Gyro_EXTI => 437, Gyro_CS => 446, USB_Detect => 453, VTX_Power => 463,
+      VTX_CS => 472, VTX_Data => 478, VTX_CLK => 486, Pullup => 493, Pulldown => 499);
+   Owner_Name_Lengths : constant array (Owner) of Owner_Name_Length :=
+     (Beeper => 6, Motor => 5, Servo => 5, PPM => 3, PWM => 3, Sonar_Trigger => 13, Sonar_Echo => 10,
+      LED_Strip => 9, Serial_TX => 9, Serial_RX => 9, Inverter => 8, Softserial_TX => 13, Softserial_RX => 13,
+      I2C_SCL => 7, I2C_SDA => 7, LED => 3, RX_Bind => 7, RX_Bind_Plug => 12, Transponder => 11, SPI_SCK => 7,
+      SPI_SDI => 7, SPI_SDO => 7, ADC_Batt => 8, ADC_RSSI => 8, ADC_Curr => 8, ADC_Ext => 7, Baro_CS => 7,
+      Baro_EOC => 8, Baro_XCLR => 9, Compass_CS => 10, Compass_EXTI => 12, SD_Card_Detect => 13, PINIO => 5,
+      USB_MSC_Pin => 11, Flash_CS => 8, OSD_CS => 6, RX_SPI_CS => 9, RX_SPI_EXTI => 11, RX_SPI_Bind => 11,
+      RX_SPI_LED => 10, RX_SPI_CC2500_TX_EN => 19, RX_SPI_CC2500_LNA_EN => 20, RX_SPI_CC2500_Ant_Sel => 21,
+      RX_SPI_ExpressLRS_Reset => 23, RX_SPI_ExpressLRS_Busy => 22, Gyro_EXTI => 9, Gyro_CS => 7, USB_Detect => 10,
+      VTX_Power => 9, VTX_CS => 6, VTX_Data => 8, VTX_CLK => 7, Pullup => 6, Pulldown => 8);
+
+   function Name (O : Owner) return String
+   is
+      Start : constant Natural := Natural (Owner_Name_Starts (O));
+      Text  : constant String (1 .. Natural (Owner_Name_Lengths (O))) :=
+        Owner_Name_Text (Start + 1 .. Start + Natural (Owner_Name_Lengths (O)));
+   begin
+      return Text;
+   end Name;
 
    function Tag (C : Configuration; O : Owner; I : Natural) return Unsigned_8 is
      (case O is

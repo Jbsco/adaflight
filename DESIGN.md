@@ -11145,3 +11145,18 @@ postcondition of `Clear` states each line's value, for the proofs of the menu lo
 
 On the STM32F4 image the change removes 18852 bytes of text, from 749820 to 730968. The menu vectors replay
 unchanged.
+
+## D481. Name texts in pools (2026-10-28)
+
+Fourteen functions returned a name from a case expression over string literals: the flight log header's labels and
+field names, the command line's command words and names, its feature, beeper, mixer, gyro and resource owner names,
+the MSP box names, the scheduler's task names, the serial claim names, the arming reasons and the board's adjustment
+labels. GNAT compiles each alternative of such a function to a secondary stack allocation and a copy of its literal,
+about 22 bytes of code per alternative, and each literal keeps its own bounds. Each function now slices one text of
+its names by a start and a length from two tables, the layout D410 gave the settings table. A name already in the
+text takes the start of that copy, and the command names take theirs in the command word text. The arming reasons
+and the header's field names moved from the specifications to the bodies, each with a postcondition on its length.
+The resource owner names keep their first index of one.
+
+On the STM32F4 image the change removes 23944 bytes of text, from 730968 to 707024, 10072 of them for the header's
+labels. The vectors and the host smoke check replay unchanged.

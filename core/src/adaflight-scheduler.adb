@@ -199,51 +199,37 @@ package body Adaflight.Scheduler with SPARK_Mode is
    -- Name --
    ----------
 
+   --  The task names in one text, each at its start for its length. The text ends with room for a
+   --  longest one, so every slice stays within it by its types.
+   Task_Name_Pool_Length : constant := 342;
+   Task_Name_Text : constant String (1 .. Task_Name_Pool_Length + 18) :=
+     "SYSTEMGYROFILTERPIDACCATTITUDERXSERIALDISPATCHBATTERY_VOLTAGEBATTERY_CURRENTBATTERY_ALERTSBEEPERGPSGPS_R"
+     & "ESCUEALTHOLDPOSHOLDMAGHOLDCOMPASSBARORANGEFINDEROPTICALFLOWPITOTPOSITIONDASHBOARDTELEMETRYLEDSTRIPTRANSP"
+     & "ONDERSTACKCHECKOSDBST_MASTER_PROCESSESC_SENSORCMSVTXCTRLCAMCTRLRCDEVICEADCINTERNALPINIOBOXSPEED_NEGOT'NR"
+     & "C_STATSGIMBALOSD_CTEXTDRONECAN                  ";
+   type Task_Name_Start is range 0 .. Task_Name_Pool_Length;
+   type Task_Name_Length is range 2 .. 18;
+   Task_Name_Starts : constant array (Task_Id) of Task_Name_Start :=
+     (System | Main => 0, Gyro => 6, Filter => 10, PID => 16, Accel => 19, Attitude => 22, Rx => 30, Serial => 32,
+      Dispatch => 38, Battery_Voltage => 46, Battery_Current => 61, Battery_Alerts => 76, Beeper => 90, GPS => 96,
+      GPS_Rescue => 99, Alt_Hold => 109, Pos_Hold => 116, Mag_Hold => 123, Compass => 130, Baro => 137,
+      Rangefinder => 141, Optical_Flow => 152, Pitot => 163, Position => 168, Dashboard => 176, Telemetry => 185,
+      LED_Strip => 194, Transponder => 202, Stack_Check => 213, OSD => 223, BST_Master => 226, ESC_Sensor => 244,
+      CMS => 254, VTX_Control => 257, Camera_Control => 264, RC_Device => 271, ADC_Internal => 279,
+      PINIO_Box => 290, Speed_Negotiation => 298, RC_Stats => 311, Gimbal => 319, OSD_Custom_Text => 325,
+      DroneCAN => 334);
+   Task_Name_Lengths : constant array (Task_Id) of Task_Name_Length :=
+     (System | Main => 6, Gyro => 4, Filter => 6, PID => 3, Accel => 3, Attitude => 8, Rx => 2, Serial => 6,
+      Dispatch => 8, Battery_Voltage => 15, Battery_Current => 15, Battery_Alerts => 14, Beeper => 6, GPS => 3,
+      GPS_Rescue => 10, Alt_Hold => 7, Pos_Hold => 7, Mag_Hold => 7, Compass => 7, Baro => 4, Rangefinder => 11,
+      Optical_Flow => 11, Pitot => 5, Position => 8, Dashboard => 9, Telemetry => 9, LED_Strip => 8,
+      Transponder => 11, Stack_Check => 10, OSD => 3, BST_Master => 18, ESC_Sensor => 10, CMS => 3,
+      VTX_Control => 7, Camera_Control => 7, RC_Device => 8, ADC_Internal => 11, PINIO_Box => 8,
+      Speed_Negotiation => 13, RC_Stats => 8, Gimbal => 6, OSD_Custom_Text => 9, DroneCAN => 8);
+
    function Name (Id : Task_Id) return String is
-     (case Id is
-         when System | Main => "SYSTEM",
-         when Gyro => "GYRO",
-         when Filter => "FILTER",
-         when PID => "PID",
-         when Accel => "ACC",
-         when Attitude => "ATTITUDE",
-         when Rx => "RX",
-         when Serial => "SERIAL",
-         when Dispatch => "DISPATCH",
-         when Battery_Voltage => "BATTERY_VOLTAGE",
-         when Battery_Current => "BATTERY_CURRENT",
-         when Battery_Alerts => "BATTERY_ALERTS",
-         when Beeper => "BEEPER",
-         when GPS => "GPS",
-         when GPS_Rescue => "GPS_RESCUE",
-         when Alt_Hold => "ALTHOLD",
-         when Pos_Hold => "POSHOLD",
-         when Mag_Hold => "MAGHOLD",
-         when Compass => "COMPASS",
-         when Baro => "BARO",
-         when Rangefinder => "RANGEFINDER",
-         when Optical_Flow => "OPTICALFLOW",
-         when Pitot => "PITOT",
-         when Position => "POSITION",
-         when Dashboard => "DASHBOARD",
-         when Telemetry => "TELEMETRY",
-         when LED_Strip => "LEDSTRIP",
-         when Transponder => "TRANSPONDER",
-         when Stack_Check => "STACKCHECK",
-         when OSD => "OSD",
-         when BST_Master => "BST_MASTER_PROCESS",
-         when ESC_Sensor => "ESC_SENSOR",
-         when CMS => "CMS",
-         when VTX_Control => "VTXCTRL",
-         when Camera_Control => "CAMCTRL",
-         when RC_Device => "RCDEVICE",
-         when ADC_Internal => "ADCINTERNAL",
-         when PINIO_Box => "PINIOBOX",
-         when Speed_Negotiation => "SPEED_NEGOT'N",
-         when RC_Stats => "RC_STATS",
-         when Gimbal => "GIMBAL",
-         when OSD_Custom_Text => "OSD_CTEXT",
-         when DroneCAN => "DRONECAN");
+     (Task_Name_Text (Natural (Task_Name_Starts (Id)) + 1
+                      .. Natural (Task_Name_Starts (Id)) + Natural (Task_Name_Lengths (Id))));
 
    ----------------
    -- Reschedule --

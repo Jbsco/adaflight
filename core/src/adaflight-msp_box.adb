@@ -2,27 +2,41 @@ package body Adaflight.MSP_Box with SPARK_Mode is
    use Adaflight.Modes;
    use type Interfaces.Unsigned_32;
 
+   --  The box names in one text, each at its start for its length. The text ends with room for a
+   --  longest one, so every slice stays within it by its types.
+   Box_Name_Pool_Length : constant := 483;
+   Box_Name_Text : constant String (1 .. Box_Name_Pool_Length + 24) :=
+     "ARMANGLEHORIZONMAGALTHOLDHEADFREECHIRPPASSTHRUFAILSAFEPOS HOLDGPS RESCUEAUTOPILOTANTI GRAVITYHEADADJCAMS"
+     & "TABBEEPERLEDLOWCALIBOSD DISABLETELEMETRYSERVO1SERVO2SERVO3BLACKBOXAIR MODE3D DISABLEFPV ANGLE MIXBLACKBO"
+     & "X ERASECAMERA CONTROL 1CAMERA CONTROL 2CAMERA CONTROL 3FLIP OVER AFTER CRASHPREARMGPS BEEP SATELLITE COU"
+     & "NTVTX PIT MODEPARALYZEUSER1USER2USER3USER4PID AUDIOACRO TRAINERVTX CONTROL DISABLELAUNCH CONTROLMSP OVER"
+     & "RIDESTICK COMMANDS DISABLEBEEPER MUTEREADYLAP TIMER RESETWP CAPTURE                        ";
+   type Box_Name_Start is range 0 .. Box_Name_Pool_Length;
+   type Box_Name_Length is range 3 .. 24;
+   Box_Name_Starts : constant array (Box) of Box_Name_Start :=
+     (Arm => 0, Angle => 3, Horizon => 8, Mag => 15, Alt_Hold => 18, Headfree => 25, Chirp => 33, Passthru => 38,
+      Failsafe => 46, Pos_Hold => 54, GPS_Rescue => 62, Autopilot => 72, Anti_Gravity => 81, Head_Adj => 93,
+      Cam_Stab => 100, Beeper_On => 107, LED_Low => 113, Calib => 119, OSD => 124, Telemetry => 135, Servo_1 => 144,
+      Servo_2 => 150, Servo_3 => 156, Blackbox => 162, Airmode => 170, Three_D => 178, FPV_Angle_Mix => 188,
+      Blackbox_Erase => 201, Camera_1 => 215, Camera_2 => 231, Camera_3 => 247, Crash_Flip => 263, Prearm => 284,
+      Beep_GPS_Count => 290, VTX_Pit_Mode => 314, Paralyze => 326, User_1 => 334, User_2 => 339, User_3 => 344,
+      User_4 => 349, PID_Audio => 354, Acro_Trainer => 363, VTX_Control_Disable => 375, Launch_Control => 394,
+      MSP_Override => 408, Stick_Command_Disable => 420, Beeper_Mute => 442, Ready => 453, Lap_Timer_Reset => 458,
+      WP_Capture => 473, Launch => 394);
+   Box_Name_Lengths : constant array (Box) of Box_Name_Length :=
+     (Arm => 3, Angle => 5, Horizon => 7, Mag => 3, Alt_Hold => 7, Headfree => 8, Chirp => 5, Passthru => 8,
+      Failsafe => 8, Pos_Hold => 8, GPS_Rescue => 10, Autopilot => 9, Anti_Gravity => 12, Head_Adj => 7,
+      Cam_Stab => 7, Beeper_On => 6, LED_Low => 6, Calib => 5, OSD => 11, Telemetry => 9, Servo_1 => 6,
+      Servo_2 => 6, Servo_3 => 6, Blackbox => 8, Airmode => 8, Three_D => 10, FPV_Angle_Mix => 13,
+      Blackbox_Erase => 14, Camera_1 => 16, Camera_2 => 16, Camera_3 => 16, Crash_Flip => 21, Prearm => 6,
+      Beep_GPS_Count => 24, VTX_Pit_Mode => 12, Paralyze => 8, User_1 => 5, User_2 => 5, User_3 => 5, User_4 => 5,
+      PID_Audio => 9, Acro_Trainer => 12, VTX_Control_Disable => 19, Launch_Control => 14, MSP_Override => 12,
+      Stick_Command_Disable => 22, Beeper_Mute => 11, Ready => 5, Lap_Timer_Reset => 15, WP_Capture => 10,
+      Launch => 6);
+
    function Box_Name (B : Box) return String is
-     (case B is
-         when Arm => "ARM", when Angle => "ANGLE", when Horizon => "HORIZON", when Mag => "MAG",
-         when Alt_Hold => "ALTHOLD", when Headfree => "HEADFREE", when Chirp => "CHIRP",
-         when Passthru => "PASSTHRU", when Failsafe => "FAILSAFE", when Pos_Hold => "POS HOLD",
-         when GPS_Rescue => "GPS RESCUE", when Autopilot => "AUTOPILOT", when Anti_Gravity => "ANTI GRAVITY",
-         when Head_Adj => "HEADADJ", when Cam_Stab => "CAMSTAB", when Beeper_On => "BEEPER",
-         when LED_Low => "LEDLOW", when Calib => "CALIB", when OSD => "OSD DISABLE",
-         when Telemetry => "TELEMETRY", when Servo_1 => "SERVO1", when Servo_2 => "SERVO2",
-         when Servo_3 => "SERVO3", when Blackbox => "BLACKBOX", when Airmode => "AIR MODE",
-         when Three_D => "3D DISABLE", when FPV_Angle_Mix => "FPV ANGLE MIX",
-         when Blackbox_Erase => "BLACKBOX ERASE", when Camera_1 => "CAMERA CONTROL 1",
-         when Camera_2 => "CAMERA CONTROL 2", when Camera_3 => "CAMERA CONTROL 3",
-         when Crash_Flip => "FLIP OVER AFTER CRASH", when Prearm => "PREARM",
-         when Beep_GPS_Count => "GPS BEEP SATELLITE COUNT", when VTX_Pit_Mode => "VTX PIT MODE",
-         when Paralyze => "PARALYZE", when User_1 => "USER1", when User_2 => "USER2", when User_3 => "USER3",
-         when User_4 => "USER4", when PID_Audio => "PID AUDIO", when Acro_Trainer => "ACRO TRAINER",
-         when VTX_Control_Disable => "VTX CONTROL DISABLE", when Launch_Control => "LAUNCH CONTROL",
-         when MSP_Override => "MSP OVERRIDE", when Stick_Command_Disable => "STICK COMMANDS DISABLE",
-         when Beeper_Mute => "BEEPER MUTE", when Ready => "READY", when Lap_Timer_Reset => "LAP TIMER RESET",
-         when WP_Capture => "WP CAPTURE", when Launch => "LAUNCH");
+     (Box_Name_Text (Natural (Box_Name_Starts (B)) + 1
+                     .. Natural (Box_Name_Starts (B)) + Natural (Box_Name_Lengths (B))));
 
    function Permanent_Id (B : Box) return Byte is
      (case B is
