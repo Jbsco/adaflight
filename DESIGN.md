@@ -11221,3 +11221,15 @@ info.
 
 On the STM32F4 image the change removes 4872 bytes of text, from 671084 to 666212. The settings vectors replay
 unchanged.
+
+## D487. Setting names in pair codes (2026-10-28)
+
+The 789 setting names took 13947 characters of flash. The generator now merges the most frequent pair of codes into
+a new code, 128 times, as byte pair encoding does, so a name is a run of codes: one below 128 is its character, a
+higher one stands for the token text of its merge. The names take 7566 codes and the tokens 367 characters. `Name`
+decodes a name's codes up to its length into a new string, and the codes and the tokens end with room for a longest
+name and token, so every read stays within them by the types alone. The codes sit in a function whose body is outside
+the proof: the decoder needs no fact about them, and a proof that took in all 7566 values ran out of memory.
+
+On the STM32F4 image the change removes 5612 bytes of text, from 666212 to 660600. The settings and command line
+vectors replay unchanged.
