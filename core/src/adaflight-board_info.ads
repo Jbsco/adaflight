@@ -46,6 +46,9 @@ package Adaflight.Board_Info with SPARK_Mode is
    type PINIO_Bytes is array (0 .. 3) of Interfaces.Unsigned_8;
    type Motor_Bytes is array (0 .. 7) of Interfaces.Unsigned_8;
 
+   --  A serial port identifier as the MSP slots take one, -1 for none.
+   subtype Serial_Port is Integer range -1 .. 79;
+
    type Hardware_Defaults is record
       Vbat             : Analog_Input;
       Current          : Analog_Input;
@@ -71,6 +74,12 @@ package Adaflight.Board_Info with SPARK_Mode is
       PINIO_Configs    : PINIO_Bytes := (others => 1);
       PINIO_Boxes      : PINIO_Bytes := (others => 255);
       Motor_Tags       : Motor_Bytes := (others => 0);
+      --  The ports a fresh configuration's MSP slots name: the board's
+      --  first port, the USB one, then the target's MSP UARTs.
+      MSP_First_Port        : Serial_Port := 20;
+      MSP_UART              : Serial_Port := -1;
+      MSP_Other_UART        : Serial_Port := -1;
+      MSP_Display_Port_UART : Serial_Port := -1;
    end record;
 
    type State is record

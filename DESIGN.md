@@ -11357,3 +11357,12 @@ configuration's claim: the board's first port, then the target's MSP UARTs, each
 
 A new oracle run draws the slots, the implied features, the board's ports and the ports other functions hold, and
 records the reference's allocation over stub port drivers with its reset claims. The vectors compare 1600 cases.
+
+## D500. MSP UARTs named at reset (2026-10-28)
+
+A reset names the board's first port, the USB one, then the board configuration's MSP UART, its other MSP UART and its
+MSP display port UART in the MSP slots, through `Default_Slots` (D499). The board generator writes those three defines
+into the board package with the reference's port names mapped to identifiers, and it takes NAME=VALUE arguments that
+set a define over the file's. A CLRacing F4 names none, so its fresh configuration keeps the USB port alone in the
+slots. The host target names UART1 as its MSP UART, so its fresh configuration names UART1 in the second slot, and the
+host smoke checks that put another function on UART1 clear that slot first, as a user of the reference would.

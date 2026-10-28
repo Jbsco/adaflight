@@ -1782,6 +1782,8 @@ def main():
             time.sleep(2.5)
             sock.sendall(b"#")
             read_all(sock, 0.8)
+            text = cli(sock, "set msp_2_uart = NONE")
+            check("MSP slot taken off UART1 for the receiver", "msp_2_uart set to NONE" in text, text[-120:])
             text = cli(sock, "set rx_uart = UART1")
             check("CRSF receiver on UART1", "rx_uart set to UART1" in text, text[-120:])
             cli(sock, "save", wait=2.0)
@@ -2011,8 +2013,9 @@ def main():
                 time.sleep(2.5)
                 sock.sendall(b"#")
                 read_all(sock, 0.8)
-                for line in ("osd_custom_text_uart = " + port, "osd_displayport_device = MAX7456",
-                             "vcd_video_system = PAL", "osd_custom_serial_text_pos = 2177"):
+                for line in (("msp_2_uart = NONE",) if port == "UART1" else ()) + (
+                        "osd_custom_text_uart = " + port, "osd_displayport_device = MAX7456",
+                        "vcd_video_system = PAL", "osd_custom_serial_text_pos = 2177"):
                     text = cli(sock, "set " + line)
                     check(f"custom text {line}", line.replace(" = ", " set to ") in text, text[-120:])
                 cli(sock, "save", wait=2.0)

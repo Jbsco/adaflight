@@ -15,9 +15,13 @@ is
    --  The serial hardware behind an identifier: the USB port, a soft serial
    --  port, a UART of either kind, or none.
    type Port_Kind is (No_Kind, USB_VCP, Soft_Serial, UART);
+
+   --  The USB virtual serial port's identifier.
+   USB_VCP_Port : constant := 20;
+
    function Kind_Of (Port : Port_Id) return Port_Kind is
      (case Port is
-         when 20 => USB_VCP,
+         when USB_VCP_Port => USB_VCP,
          when 30 .. 31 => Soft_Serial,
          when 40 .. 79 => UART,
          when others => No_Kind);

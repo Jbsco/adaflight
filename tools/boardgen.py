@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """Generate the Ada board package for one board from its configuration file.
 
-usage: boardgen.py <configs dir> <board name> <output .ads>
+usage: boardgen.py <configs dir> <board name> <output .ads> [NAME=VALUE ...]
 
 The configuration file is the board's config.h in the board configuration repository under
 third_party/board-configs: #define lines that name pins (NAME_PIN Pxy), the inverter pins
 (INVERTER_PIN_UARTn Pxy), the board, manufacturer and MCU names, the crystal frequency, the
 beeper polarity and frequency, and the timer pin map. Everything else is left out for now.
 The output is package Adaflight.Board over the types in Adaflight.Pins, deterministic for a
-given file so a build regenerates it without a diff.
+given file so a build regenerates it without a diff. A NAME=VALUE argument sets a define over the
+file's, as a target without a board of its own sets its MSP UART.
 """
 import re
 import sys
@@ -73,6 +74,27 @@ def spi_device(text: str) -> int:
     return int(match.group(1)) if match else 0
 
 
+def serial_port(text) -> int:
+    """A serial port name's identifier as the reference numbers them, -1 for none."""
+    text = re.sub(r"//.*|/\*.*?\*/", "", text or "").strip()
+    if not text:
+        return -1
+    m = re.fullmatch(r"SERIAL_PORT_(USB_VCP|SOFTSERIAL(\d+)|LPUART(\d+)|UART0|US?ART(\d+)|NONE)", text)
+    if not m:
+        raise SystemExit(f"boardgen: unknown serial port {text}")
+    if m.group(1) == "USB_VCP":
+        return 20
+    if m.group(2):
+        return 29 + int(m.group(2))
+    if m.group(3):
+        return 39 + int(m.group(3))
+    if m.group(1) == "UART0":
+        return 50
+    if m.group(4):
+        return 50 + int(m.group(4))
+    return -1
+
+
 def find_config(configs: Path, board: str) -> Path:
     hits = sorted(configs.glob(f"*/{board}/config.h"))
     if len(hits) != 1:
@@ -80,11 +102,12 @@ def find_config(configs: Path, board: str) -> Path:
     return hits[0]
 
 
-def generate(config: Path) -> str:
+def generate(config: Path, overrides: dict) -> str:
     text = config.read_text()
     defines = {}
     for m in re.finditer(r"^#define\s+(\w+)(?:[ \t]+([^\n\\]*?))?[ \t]*$", text, re.M):
         defines[m.group(1)] = (m.group(2) or "").strip()
+    defines.update(overrides)
     pins = sorted((ada_name(k), pin_literal(v)) for k, v in defines.items()
                   if k.endswith("_PIN") and re.fullmatch(r"P[A-K]\d{1,2}", v))
     pins += sorted((ada_name(k), pin_literal(v)) for k, v in defines.items()
@@ -137,7 +160,10 @@ def generate(config: Path) -> str:
                 ("Default_Blackbox_Device", BLACKBOX_DEVICES[defines.get("DEFAULT_BLACKBOX_DEVICE",
                                                                          "BLACKBOX_DEVICE_NONE")])] \
         + [(f"PINIO{i}_Config", pinio_config(defines.get(f"PINIO{i}_CONFIG"))) for i in range(1, 5)] \
-        + [(f"PINIO{i}_Box", number(defines.get(f"PINIO{i}_BOX"), 255)) for i in range(1, 5)]
+        + [(f"PINIO{i}_Box", number(defines.get(f"PINIO{i}_BOX"), 255)) for i in range(1, 5)] \
+        + [("MSP_UART", serial_port(defines.get("MSP_UART"))),
+           ("Use_MSP_UART", serial_port(defines.get("USE_MSP_UART"))),
+           ("MSP_Display_Port_UART", serial_port(defines.get("MSP_DISPLAYPORT_UART")))]
     column = max(len(n) for n, _ in tags + defaults)
     for name, define in tags:
         out.append(f"   {name.ljust(column)} : constant := {pin_tag(defines.get(define, ''))};")
@@ -163,10 +189,11 @@ def generate(config: Path) -> str:
 
 
 def main() -> None:
-    if len(sys.argv) != 4:
+    if len(sys.argv) < 4 or any("=" not in a for a in sys.argv[4:]):
         raise SystemExit(__doc__)
     configs, board, output = Path(sys.argv[1]), sys.argv[2], Path(sys.argv[3])
-    text = generate(find_config(configs, board))
+    overrides = dict(a.split("=", 1) for a in sys.argv[4:])
+    text = generate(find_config(configs, board), overrides)
     output.parent.mkdir(parents=True, exist_ok=True)
     if not output.exists() or output.read_text() != text:
         output.write_text(text)
