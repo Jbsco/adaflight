@@ -11265,3 +11265,12 @@ order and widths.
 The board's debug information gives the same offset for each of the 4591 bytes as the runs, in all 101 groups. On
 the STM32F4 image the change removes 22328 bytes of text, from 657048 to 634720. The codec, storage and setting
 vectors replay unchanged.
+
+## D491. Table elements at their width (2026-10-28)
+
+A beeper sequence kept each of its 65 steps, from 0 to 255, as a 32-bit integer, and each MAVLink message entry its id
+and three bytes as four 32-bit integers. The sequences now take 8 bits per step, and the entry record is packed into
+24 bits of id and 8 bits for each byte, 6 bytes where it took 16.
+
+On the STM32F4 image the change removes 5788 bytes of text, from 634720 to 628932. The beeper and MAVLink vectors
+replay unchanged.
