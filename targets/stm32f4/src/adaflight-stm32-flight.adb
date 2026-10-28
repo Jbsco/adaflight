@@ -2358,6 +2358,15 @@ package body Adaflight.STM32.Flight is
       F.Yaw :=
         Adaflight.OSD_Render.Yaw_Decidegrees (Integer'Max (0, Integer'Min (3_599, Integer (Att_State.Euler.Yaw))));
       F.Throttle_Percent := Integer'Max (0, Integer'Min (100, (Integer (Float'Rounding (Throttle)) - 1_000) / 10));
+      declare
+         Aux : constant Natural :=
+           Natural (Config.Osd_Config.Aux_Channel) + Adaflight.Receiver.Flight_Channel_Count - 1;
+      begin
+         F.Aux_Rc :=
+           (if Aux <= Adaflight.Receiver.Channel'Last
+            then Float'Max (0.0, Float'Min (5_000.0, Adaflight.STM32.Radio.Channel (Aux)))
+            else 1_000.0);
+      end;
       F.Throttle_High := Channels (Adaflight.RC_Command.Throttle_Channel) > 1_750.0;
       F.Pitch_High := Channels (1) > 1_750.0;
       F.RSSI_Percent := Unsigned_8'Min (100, Adaflight.STM32.Radio.RSSI_Percent);
