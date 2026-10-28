@@ -10893,3 +10893,29 @@ The core gimbal unit already replays its vectors, so this increment adds no core
 The host smoke check puts the gimbal on UART4 and reads checked frames about every 10 ms with no roll or yaw,
 mode 0 and sensitivity 15. A head tracker frame with a roll of 900 comes back at once with the gimbal's roll of
 500, and the bytes `AB`, 16#A5# and 16#41# come back unchanged.
+
+## D467. STM32F4 GPS lap timer (2026-10-27)
+
+The GPS lap timer runs on the board with the GPS feature. It starts at boot from the stored gate. Each new GPS
+solution with a fix goes to it in the GPS task, right after the home vector: the distance and bearing to the
+gate, then the gate average while the gate is being set, the reset while the lap timer reset box is active, or
+the lap detection. The board's GPS task reports a count of solutions, so it calls the lap timer once per new
+solution stamp, and two solutions completed in one task run reach it as the last one. At 10 Hz solutions this
+takes a GPS task held off for 100 ms. The OSD's current, previous and best three lap elements, the home arrow
+and distance turned to the gate while the timer runs, and the best lap and best three statistics read the
+timer. The GPS lap timer menu's set position entry starts the gate setting on entry and ends it on exit. The
+averaged gate then goes into the configuration and into the menu's copy of it, so a save from the menu stores
+it, and the entry shows the readings taken and the distance to the gate.
+
+The lap timer measures laps on the solution's time. The NMEA parser of the reference never sets that time
+(F297), so with an NMEA module the reference's lap timer reads zero at every fix: the first gate pass starts the
+timer and no lap is ever recorded (F300). The board gives the lap timer and the current lap element the clock at
+each solution as the time for an NMEA module, and the module's time of week otherwise (DIVERGENCES.md). The
+flight log keeps the module's own time, as D412 has it.
+
+The core lap timer, its OSD elements, its statistics and its menu already replay their vectors, so this
+increment adds no core change and no vectors.
+
+The host smoke check sets the gate at the GPS phase's fix with a one-second minimum lap and sends NMEA fixes at
+the gate for 0.6 s and 185 m north of it for 1.4 s in turn. The OSD shows a previous lap of about two seconds.
+With the module's time in place of the clock, the same check shows 0.00, the reference's result.

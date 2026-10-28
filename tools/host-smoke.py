@@ -127,6 +127,17 @@ class GPS(threading.Thread):
             sock.close()
 
 
+class LapGPS(GPS):
+    """The fix of GPS at the gate for three frames, then 185 m north of it for seven, in turn: a lap every two
+    seconds."""
+
+    def frames(self, tick):
+        clock = f"{12 + tick // 18000:02d}{(tick // 300) % 60:02d}{(tick // 5) % 60:02d}.{(tick % 5) * 20:02d}"
+        lat = "4807.03800" if tick % 10 < 3 else "4807.13800"
+        return nmea(f"GPGGA,{clock},{lat},N,01131.00000,E,1,10,0.9,{self.altitude:.1f},M,46.9,M,,") + nmea(
+            f"GPRMC,{clock},A,{lat},N,01131.00000,E,022.4,084.4,230394,003.1,W")
+
+
 def sbus_frame(channels):
     """An SBUS frame: the begin byte, sixteen eleven-bit channels packed from the low bit, no flags, the end
     byte."""
@@ -2049,6 +2060,38 @@ def main():
             sock.close()
             if line is not None:
                 line.close()
+        store = os.path.join(work, "laps.bin")
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            for line in ("gps_provider = NMEA", "gps_uart = UART4", "gps_lap_timer_gate_lat = 481173000",
+                         "gps_lap_timer_gate_lon = 115166667", "gps_lap_timer_min_lap_time_s = 1",
+                         "osd_displayport_device = MAX7456", "vcd_video_system = PAL", "osd_gps_lap_prev_pos = 2177"):
+                text = cli(sock, "set " + line)
+                check(f"lap timer {line}", line.replace(" = ", " set to ") in text, text[-120:])
+            text = cli(sock, "feature GPS")
+            check("lap timer GPS feature on", "Enabled GPS" in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        proc, sock = start(image, store)
+        gps = LapGPS()
+        gps.start()
+        try:
+            time.sleep(9.0)
+            row = screen_row(store, 4)
+            lap = re.search(r"(\d+)\.(\d\d)", row)
+            seconds = int(lap.group(1)) + int(lap.group(2)) / 100 if lap else None
+            check("previous lap element shows the two-second lap through the gate",
+                  seconds is not None and 1.8 <= seconds <= 2.2, repr(row))
+        finally:
+            gps.stop.set()
+            stop(proc)
+            sock.close()
     print(f"host smoke: {'all checks passed' if not failures else str(len(failures)) + ' failed'}")
     sys.exit(1 if failures else 0)
 
