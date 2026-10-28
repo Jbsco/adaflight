@@ -1,6 +1,34 @@
 package body Adaflight.Arming with SPARK_Mode is
    use type Interfaces.Integer_64;
 
+   --  The reason names in one text, each at its start for its length. The text ends with room for a
+   --  longest one, so every slice stays within it by its types.
+   Disable_Name_Pool_Length : constant := 235;
+   Disable_Name_Text : constant String (1 .. Disable_Name_Pool_Length + 12) :=
+     "NOGYROFAILSAFERXLOSSNOT_DISARMEDBOXFAILSAFERUNAWAYCRASHTHROTTLEANGLEBOOTGRACENOPREARMLOADCALIBCLICMSBSTM"
+     & "SPPARALYZEGPSRESCUE_SWDSHOT_TELEMREBOOT_REQDDSHOT_BBANGNO_ACC_CALMOTOR_PROTOFLIP_SWITCHALT_HOLD_SWPOS_HO"
+     & "LD_SWAUTOPILOT_SWARM_SWITCH            ";
+   type Disable_Name_Start is range 0 .. Disable_Name_Pool_Length;
+   type Disable_Name_Length is range 3 .. 12;
+   Disable_Name_Starts : constant array (Disable_Reason) of Disable_Name_Start :=
+     (No_Gyro => 0, Failsafe_Active => 6, Rx_Loss => 14, Not_Disarmed => 20, Box_Failsafe => 32,
+      Runaway_Disarm => 43, Crash_Disarm => 50, Throttle => 55, Angle => 63, Boot_Grace => 68, No_Prearm => 77,
+      CPU_Load => 85, Calibrating => 89, CLI_Open => 94, CMS_Open => 97, BST_Open => 100, MSP_Open => 103,
+      Paralyzed => 106, No_GPS_Fix => 114, Rescue_Switch => 117, DShot_Telemetry => 126, Reboot_Required => 137,
+      DShot_Bitbang => 148, Acc_Uncalibrated => 159, Motor_Protocol => 169, Crash_Flip_Block => 180,
+      Alt_Hold_Switch => 191, Pos_Hold_Switch => 202, Autopilot_Switch => 213, Arm_Switch => 225);
+   Disable_Name_Lengths : constant array (Disable_Reason) of Disable_Name_Length :=
+     (No_Gyro => 6, Failsafe_Active => 8, Rx_Loss => 6, Not_Disarmed => 12, Box_Failsafe => 11, Runaway_Disarm => 7,
+      Crash_Disarm => 5, Throttle => 8, Angle => 5, Boot_Grace => 9, No_Prearm => 8, CPU_Load => 4,
+      Calibrating => 5, CLI_Open => 3, CMS_Open => 3, BST_Open => 3, MSP_Open => 3, Paralyzed => 8, No_GPS_Fix => 3,
+      Rescue_Switch => 9, DShot_Telemetry => 11, Reboot_Required => 11, DShot_Bitbang => 11, Acc_Uncalibrated => 10,
+      Motor_Protocol => 11, Crash_Flip_Block => 11, Alt_Hold_Switch => 11, Pos_Hold_Switch => 11,
+      Autopilot_Switch => 12, Arm_Switch => 10);
+
+   function Disable_Name (R : Disable_Reason) return String is
+     (Disable_Name_Text (Natural (Disable_Name_Starts (R)) + 1
+                         .. Natural (Disable_Name_Starts (R)) + Natural (Disable_Name_Lengths (R))));
+
    Arm_Delay_Ms               : constant := 500;
    Stick_Delay_Ms             : constant := 50;
    Stick_Autorepeat_Ms        : constant := 250;

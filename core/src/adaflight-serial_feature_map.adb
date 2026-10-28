@@ -173,25 +173,28 @@ package body Adaflight.Serial_Feature_Map with SPARK_Mode is
       end loop;
    end Port_Claims;
 
+   --  The claim names in one text, each at its start for its length. The text ends with room for a
+   --  longest one, so every slice stays within it by its types.
+   Claim_Name_Pool_Length : constant := 128;
+   Claim_Name_Text : constant String (1 .. Claim_Name_Pool_Length + 15) :=
+     "msp_1msp_2msp_3gpsrxblackboxesc_sensorrcdevicegimbalvtxrangefinderopticalflowosdosd_custom_texttelemetry"
+     & "_1telemetry_2telemetry_3               ";
+   type Claim_Name_Start is range 0 .. Claim_Name_Pool_Length;
+   type Claim_Name_Length is range 2 .. 15;
+   Claim_Name_Starts : constant array (Claim_Kind) of Claim_Name_Start :=
+     (MSP_1 => 0, MSP_2 => 5, MSP_3 => 10, GPS_Claim => 15, RX_Claim => 18, Blackbox_Claim => 20,
+      ESC_Sensor_Claim => 28, RCDevice_Claim => 38, Gimbal_Claim => 46, VTX_Claim => 52, Rangefinder_Claim => 55,
+      Optical_Flow_Claim => 66, OSD_Claim => 77, Custom_Text_Claim => 80, Telemetry_1 => 95, Telemetry_2 => 106,
+      Telemetry_3 => 117);
+   Claim_Name_Lengths : constant array (Claim_Kind) of Claim_Name_Length :=
+     (MSP_1 => 5, MSP_2 => 5, MSP_3 => 5, GPS_Claim => 3, RX_Claim => 2, Blackbox_Claim => 8,
+      ESC_Sensor_Claim => 10, RCDevice_Claim => 8, Gimbal_Claim => 6, VTX_Claim => 3, Rangefinder_Claim => 11,
+      Optical_Flow_Claim => 11, OSD_Claim => 3, Custom_Text_Claim => 15, Telemetry_1 => 11, Telemetry_2 => 11,
+      Telemetry_3 => 11);
+
    function Claim_Name (K : Claim_Kind) return String is
-     (case K is
-         when MSP_1 => "msp_1",
-         when MSP_2 => "msp_2",
-         when MSP_3 => "msp_3",
-         when GPS_Claim => "gps",
-         when RX_Claim => "rx",
-         when Blackbox_Claim => "blackbox",
-         when ESC_Sensor_Claim => "esc_sensor",
-         when RCDevice_Claim => "rcdevice",
-         when Gimbal_Claim => "gimbal",
-         when VTX_Claim => "vtx",
-         when Rangefinder_Claim => "rangefinder",
-         when Optical_Flow_Claim => "opticalflow",
-         when OSD_Claim => "osd",
-         when Custom_Text_Claim => "osd_custom_text",
-         when Telemetry_1 => "telemetry_1",
-         when Telemetry_2 => "telemetry_2",
-         when Telemetry_3 => "telemetry_3");
+     (Claim_Name_Text (Natural (Claim_Name_Starts (K)) + 1
+                       .. Natural (Claim_Name_Starts (K)) + Natural (Claim_Name_Lengths (K))));
 
    function Claim_Setting (K : Claim_Kind) return String is (Claim_Name (K) & "_uart");
 
