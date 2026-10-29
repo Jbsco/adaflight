@@ -77,6 +77,10 @@ package Adaflight.STM32.Control is
    procedure Set_Disarmed_Motor (Index : Natural; Value : Float);
    procedure Set_Disarmed_All (Value : Float);
    function Motors_Running return Boolean;
+   --  Every motor of the mix at the disarm output, written to the motors,
+   --  then a 50 ms wait for the timers and ESCs, which a reboot from the
+   --  menus does first.
+   procedure Stop_Motors;
    --  The RPM limiter's reset when a battery connects.
    procedure Reset_RPM_Limiter (Battery_Voltage : Interfaces.Unsigned_16);
    --  The mixer's throttle, which the virtual current meter reads.
