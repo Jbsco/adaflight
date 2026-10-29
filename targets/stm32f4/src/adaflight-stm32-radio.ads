@@ -23,6 +23,11 @@ with Adaflight.STM32.USART;
 package Adaflight.STM32.Radio is
    subtype Time_Us is Interfaces.Unsigned_32;
    subtype Time_Ms is Interfaces.Unsigned_32;
+   --  The Spektrum satellite bind at power-up, before the ports and any
+   --  delay: the pulses on the receiver line or the override pin when the
+   --  start wants them, and Saved when the bind count returned to zero for
+   --  the configuration to be written.
+   procedure Bind_At_Power_Up (C : in out Adaflight.Config_Groups.Configuration; Saved : out Boolean);
    procedure Init (Config : Adaflight.Config_Groups.Configuration; Runtime_Features : Interfaces.Unsigned_32;
                    Now_Ms : Time_Ms; Telemetry : Adaflight.CRSF_Telemetry.Config);
    --  One run of the telemetry task: the negotiation, then the next chunk of

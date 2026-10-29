@@ -52,7 +52,7 @@ Each Betaflight source area at commit af0638839, the commit the vectors were rec
 - **flight** (pid, mixer, imu, failsafe, rescue, nav): ported
 - **fc** (core loop, rc, modes, adjustments, tasks): ported
 - **sensors**: ported
-- **scheduler**: ported, apart from the main loop and the initialization order
+- **scheduler**: ported
 - **rx**: ported, apart from the KN receiver, which no build compiles
 - **pg, config, cli, msp**: ported, apart from the parameter groups and the timer command
 - **blackbox, osd, cms, telemetry, io**: ported, with the remaining parts in Phase 6

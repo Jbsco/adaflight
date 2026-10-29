@@ -8,6 +8,7 @@
 --  them.
 with Interfaces;
 with Adaflight.Bytes; use Adaflight.Bytes;
+with Adaflight.Pins;
 with Adaflight.STM32.GPIO;
 package Adaflight.STM32.USART is
    type Number is (UART1, UART3, UART4, UART6);
@@ -25,6 +26,9 @@ package Adaflight.STM32.USART is
    Full_Duplex : constant Half_Duplex := (others => <>);
    --  The board's UART inverters, off.
    procedure Init_Inverters;
+   --  A port's transmit and receive pins on the board.
+   function TX_Pin (N : Number) return Adaflight.Pins.Pin;
+   function RX_Pin (N : Number) return Adaflight.Pins.Pin;
    --  The port at the rate, the stop bits and the line, with a parity bit on
    --  each word when Even_Parity asks for one, and the board's inverter on
    --  the port's lines set as Inverted asks where the board has one.
