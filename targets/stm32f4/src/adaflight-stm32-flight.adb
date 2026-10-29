@@ -584,8 +584,9 @@ package body Adaflight.STM32.Flight is
       Adaflight.Config_Fix.Fix (Config, Hardware, Ports, Runtime_Features, Results);
    end Fix_Configuration;
 
-   --  Whether the stored configuration names this board, its ASCII letters
-   --  compared in upper case.
+   --  Whether the stored configuration names this board: the identifier's
+   --  characters, ASCII letters compared in upper case, and the zero after
+   --  them.
    function Board_Matches return Boolean is
       Stored : String (1 .. Board_Identifier'Length);
    begin
@@ -595,7 +596,7 @@ package body Adaflight.STM32.Flight is
             Stored (I) := Character'Val (Character'Pos (Stored (I)) - 32);
          end if;
       end loop;
-      return Stored = Board_Identifier;
+      return Stored = Board_Identifier and then Config.System_Config.Board_Identifier (Board_Identifier'Length) = 0;
    end Board_Matches;
 
    --  The configuration written to the store after its checks: the region
