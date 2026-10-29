@@ -240,6 +240,16 @@ package Adaflight.STM32.Timers is
    procedure Allocate
      (Tag : Unsigned_8; Who : Owner; E : out Timer_Entry; Map_Index : out Natural; Found : out Boolean);
 
+   --  A timer's clock on.
+   procedure Enable_Clock (T : Timer_Name);
+   --  A timer counting up without clock division at a prescaler over an
+   --  auto-reload value, the repetition counter cleared and the update
+   --  generated.
+   procedure Set_Time_Base (T : Timer_Name; Reload : Unsigned_32; Prescale : Unsigned_32);
+   --  A channel in PWM mode 1 at Pulse with its preload and its output on,
+   --  high or, when Inverted, low.
+   procedure Set_Output_Compare (E : Timer_Entry; Pulse : Unsigned_16; Inverted : Boolean);
+
    --  A channel set up as a PWM output: the timer's clock on, the timer
    --  counting up at Hz over Period, the channel in PWM mode 1 at Pulse with
    --  its preload and its output on, high or, when Inverted, low, then the
