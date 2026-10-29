@@ -26,18 +26,23 @@ package body Adaflight.STM32.USART is
    end record;
    Base : constant array (Number) of System.Address :=
      (UART1 => System'To_Address (16#4001_1000#),
+      UART2 => System'To_Address (16#4000_4400#),
       UART3 => System'To_Address (16#4000_4800#),
       UART4 => System'To_Address (16#4000_4C00#),
+      UART5 => System'To_Address (16#4000_5000#),
       UART6 => System'To_Address (16#4001_1400#));
    Bus_Hz : constant array (Number) of Positive :=
-     (UART1 => 84_000_000, UART3 => 42_000_000, UART4 => 42_000_000, UART6 => 84_000_000);
-   Func : constant array (Number) of GPIO.Alternate_Function := (UART1 => 7, UART3 => 7, UART4 => 8, UART6 => 8);
+     (UART1 | UART6 => 84_000_000, UART2 | UART3 | UART4 | UART5 => 42_000_000);
+   Func : constant array (Number) of GPIO.Alternate_Function :=
+     (UART1 | UART2 | UART3 => 7, UART4 | UART5 | UART6 => 8);
    TX : constant array (Number) of Pin :=
-     (UART1 => Adaflight.Board.UART1_TX_Pin, UART3 => Adaflight.Board.UART3_TX_Pin,
-      UART4 => Adaflight.Board.UART4_TX_Pin, UART6 => Adaflight.Board.UART6_TX_Pin);
+     (UART1 => Adaflight.Board.UART1_TX_Pin, UART2 => Adaflight.Board.UART2_TX_Pin,
+      UART3 => Adaflight.Board.UART3_TX_Pin, UART4 => Adaflight.Board.UART4_TX_Pin,
+      UART5 => Adaflight.Board.UART5_TX_Pin, UART6 => Adaflight.Board.UART6_TX_Pin);
    RX : constant array (Number) of Pin :=
-     (UART1 => Adaflight.Board.UART1_RX_Pin, UART3 => Adaflight.Board.UART3_RX_Pin,
-      UART4 => Adaflight.Board.UART4_RX_Pin, UART6 => Adaflight.Board.UART6_RX_Pin);
+     (UART1 => Adaflight.Board.UART1_RX_Pin, UART2 => Adaflight.Board.UART2_RX_Pin,
+      UART3 => Adaflight.Board.UART3_RX_Pin, UART4 => Adaflight.Board.UART4_RX_Pin,
+      UART5 => Adaflight.Board.UART5_RX_Pin, UART6 => Adaflight.Board.UART6_RX_Pin);
 
    function TX_Pin (N : Number) return Pin is (TX (N));
    function RX_Pin (N : Number) return Pin is (RX (N));
@@ -87,8 +92,10 @@ package body Adaflight.STM32.USART is
       procedure Receive (N : Number);
       procedure Send (N : Number);
       procedure Handler_1 with Attach_Handler => Ada.Interrupts.Names.USART1_Interrupt;
+      procedure Handler_2 with Attach_Handler => Ada.Interrupts.Names.USART2_Interrupt;
       procedure Handler_3 with Attach_Handler => Ada.Interrupts.Names.USART3_Interrupt;
       procedure Handler_4 with Attach_Handler => Ada.Interrupts.Names.UART4_Interrupt;
+      procedure Handler_5 with Attach_Handler => Ada.Interrupts.Names.UART5_Interrupt;
       procedure Handler_6 with Attach_Handler => Ada.Interrupts.Names.USART6_Interrupt;
       Queues : Rings;
       Sends  : Send_Rings;
@@ -164,6 +171,11 @@ package body Adaflight.STM32.USART is
          Receive (UART1);
          Send (UART1);
       end Handler_1;
+      procedure Handler_2 is
+      begin
+         Receive (UART2);
+         Send (UART2);
+      end Handler_2;
 
       procedure Handler_3 is
       begin
@@ -177,6 +189,11 @@ package body Adaflight.STM32.USART is
          Send (UART4);
       end Handler_4;
 
+      procedure Handler_5 is
+      begin
+         Receive (UART5);
+         Send (UART5);
+      end Handler_5;
       procedure Handler_6 is
       begin
          Receive (UART6);
@@ -202,8 +219,9 @@ package body Adaflight.STM32.USART is
    --  the reference does on the F4, and sets the half duplex selection.
    --  The inverter pins by UART, zero where the board has none.
    Inverter_Tags : constant array (Number) of Natural :=
-     (UART1 => Adaflight.Board.Inverter_UART1_Tag, UART3 => Adaflight.Board.Inverter_UART3_Tag,
-      UART4 => Adaflight.Board.Inverter_UART4_Tag, UART6 => Adaflight.Board.Inverter_UART6_Tag);
+     (UART1 => Adaflight.Board.Inverter_UART1_Tag, UART2 => Adaflight.Board.Inverter_UART2_Tag,
+      UART3 => Adaflight.Board.Inverter_UART3_Tag, UART4 => Adaflight.Board.Inverter_UART4_Tag,
+      UART5 => Adaflight.Board.Inverter_UART5_Tag, UART6 => Adaflight.Board.Inverter_UART6_Tag);
 
    procedure Set_Inverter (N : Number; On : Boolean) is
       Tag : constant Natural := Inverter_Tags (N);
@@ -242,6 +260,9 @@ package body Adaflight.STM32.USART is
       --  Sixteen times the baud rate divider, rounded.
       Divider : constant Natural := (Bus_Hz (N) + Baud / 2) / Baud;
    begin
+      if not Present (N) then
+         return;
+      end if;
       Started_With (N) :=
         (Started => True, Baud => Baud, Two_Stop_Bits => Two_Stop_Bits, Line => Line, Even_Parity => Even_Parity,
          Inverted => Inverted);
@@ -260,8 +281,10 @@ package body Adaflight.STM32.USART is
       case N is
          when UART1 => RCC_APB2ENR := RCC_APB2ENR or 2 ** 4;
          when UART6 => RCC_APB2ENR := RCC_APB2ENR or 2 ** 5;
+         when UART2 => RCC_APB1ENR := RCC_APB1ENR or 2 ** 17;
          when UART3 => RCC_APB1ENR := RCC_APB1ENR or 2 ** 18;
          when UART4 => RCC_APB1ENR := RCC_APB1ENR or 2 ** 19;
+         when UART5 => RCC_APB1ENR := RCC_APB1ENR or 2 ** 20;
       end case;
       Regs.CR1 := 0;
       Regs.BRR := Unsigned_32 (Divider / 16) * 16 + Unsigned_32 (Divider mod 16);
@@ -310,4 +333,17 @@ package body Adaflight.STM32.USART is
    begin
       Receivers.Take (N, Into, Times, Count);
    end Take;
+
+   function Present_Set return Number_List is
+      Set   : Number_List (1 .. Number'Pos (Number'Last) + 1);
+      Count : Natural := 0;
+   begin
+      for N in Number loop
+         if Present (N) then
+            Count := Count + 1;
+            Set (Count) := N;
+         end if;
+      end loop;
+      return Set (1 .. Count);
+   end Present_Set;
 end Adaflight.STM32.USART;

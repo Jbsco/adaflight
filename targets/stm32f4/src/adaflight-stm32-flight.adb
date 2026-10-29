@@ -220,8 +220,17 @@ package body Adaflight.STM32.Flight is
    Into     : CLI.Output;
    Changes  : CLI.Effects;
    --  The board's serial ports by identifier: the USB virtual serial port,
-   --  UART1, UART3, UART4 and UART6.
-   Ports    : constant CLI.Port_List (1 .. 5) := (VCP_Id, UART1_Id, 53, 54, 56);
+   --  then the UARTs the board has in order.
+   function Board_Ports return CLI.Port_List is
+      Set   : constant Adaflight.STM32.USART.Number_List := Adaflight.STM32.USART.Present_Set;
+      Ports : CLI.Port_List (1 .. Set'Length + 1) := (others => VCP_Id);
+   begin
+      for I in Set'Range loop
+         Ports (I + 1) := Adaflight.STM32.USART.Identifier (Set (I));
+      end loop;
+      return Ports;
+   end Board_Ports;
+   Ports    : constant CLI.Port_List := Board_Ports;
    Input    : Adaflight.Bytes.Byte_Array (0 .. 63);
    Count    : Natural;
    Now_Ms   : Unsigned_32;
@@ -247,29 +256,16 @@ package body Adaflight.STM32.Flight is
 
    --  A serial line's port identifier.
    function Line_Id (S : Adaflight.STM32.Serial.Line) return Adaflight.Serial_Feature_Map.Port_Id is
-     (case S is
-         when Adaflight.STM32.Serial.VCP => VCP_Id,
-         when Adaflight.STM32.Serial.UART1 => UART1_Id,
-         when Adaflight.STM32.Serial.UART3 => 53,
-         when Adaflight.STM32.Serial.UART4 => 54,
-         when Adaflight.STM32.Serial.UART6 => 56);
+     (if S = Adaflight.STM32.Serial.VCP then VCP_Id else 50 + Adaflight.STM32.Serial.Line'Pos (S));
 
    --  The serial line of one of the board's port identifiers.
    function Line_Of (Id : Adaflight.Serial_Feature_Map.Port_Id) return Adaflight.STM32.Serial.Line is
-     (case Id is
-         when 51 => Adaflight.STM32.Serial.UART1,
-         when 53 => Adaflight.STM32.Serial.UART3,
-         when 54 => Adaflight.STM32.Serial.UART4,
-         when 56 => Adaflight.STM32.Serial.UART6,
-         when others => Adaflight.STM32.Serial.VCP);
+     (if Id in 51 .. 56 then Adaflight.STM32.Serial.Line'Val (Id - 50) else Adaflight.STM32.Serial.VCP);
 
    --  A serial line's UART, UART1 for the USB port, which has none.
    function UART_Of (S : Adaflight.STM32.Serial.Line) return Adaflight.STM32.USART.Number is
-     (case S is
-         when Adaflight.STM32.Serial.UART3 => Adaflight.STM32.USART.UART3,
-         when Adaflight.STM32.Serial.UART4 => Adaflight.STM32.USART.UART4,
-         when Adaflight.STM32.Serial.UART6 => Adaflight.STM32.USART.UART6,
-         when Adaflight.STM32.Serial.VCP | Adaflight.STM32.Serial.UART1 => Adaflight.STM32.USART.UART1);
+     (if S = Adaflight.STM32.Serial.VCP then Adaflight.STM32.USART.UART1
+      else Adaflight.STM32.USART.Number'Val (Adaflight.STM32.Serial.Line'Pos (S) - 1));
    Consumed : Natural;
    Event    : Adaflight.MSP_Port.Event;
    Reply    : Adaflight.Bytes.Byte_Array (0 .. MSP.Max_Reply_Length - 1) := (others => 0);
@@ -810,12 +806,18 @@ package body Adaflight.STM32.Flight is
       Adaflight.STM32.OSD.Preinit (Config);
       Adaflight.STM32.SD.Preinit (Config);
       Adaflight.STM32.Flash_Chip.Preinit (Config);
-      Adaflight.STM32.SPI.Init (Adaflight.STM32.SPI.SPI1, Adaflight.Board.SPI1_SCK_Pin, Adaflight.Board.SPI1_SDI_Pin,
-                                Adaflight.Board.SPI1_SDO_Pin);
-      Adaflight.STM32.SPI.Init (Adaflight.STM32.SPI.SPI2, Adaflight.Board.SPI2_SCK_Pin, Adaflight.Board.SPI2_SDI_Pin,
-                                Adaflight.Board.SPI2_SDO_Pin);
-      Adaflight.STM32.SPI.Init (Adaflight.STM32.SPI.SPI3, Adaflight.Board.SPI3_SCK_Pin, Adaflight.Board.SPI3_SDI_Pin,
-                                Adaflight.Board.SPI3_SDO_Pin);
+      if Adaflight.Board.Has_SPI1 then
+         Adaflight.STM32.SPI.Init (Adaflight.STM32.SPI.SPI1, Adaflight.Board.SPI1_SCK_Pin, Adaflight.Board.SPI1_SDI_Pin,
+                                   Adaflight.Board.SPI1_SDO_Pin);
+      end if;
+      if Adaflight.Board.Has_SPI2 then
+         Adaflight.STM32.SPI.Init (Adaflight.STM32.SPI.SPI2, Adaflight.Board.SPI2_SCK_Pin, Adaflight.Board.SPI2_SDI_Pin,
+                                   Adaflight.Board.SPI2_SDO_Pin);
+      end if;
+      if Adaflight.Board.Has_SPI3 then
+         Adaflight.STM32.SPI.Init (Adaflight.STM32.SPI.SPI3, Adaflight.Board.SPI3_SCK_Pin, Adaflight.Board.SPI3_SDI_Pin,
+                                   Adaflight.Board.SPI3_SDO_Pin);
+      end if;
       Adaflight.STM32.Flash_Chip.Init (Config);
       Adaflight.STM32.SD.Init (Config);
    end Start_Buses;
@@ -3834,9 +3836,7 @@ package body Adaflight.STM32.Flight is
       Adaflight.STM32.Time.Init;
       Adaflight.STM32.GPIO.Enable_Port (Adaflight.Board.LED0_Pin.Port);
       Adaflight.STM32.GPIO.Set_Output (Adaflight.Board.LED0_Pin);
-      Adaflight.STM32.GPIO.Enable_Port (Adaflight.Board.Inverter_Pin_UART1.Port);
-      Adaflight.STM32.GPIO.Set_Output (Adaflight.Board.Inverter_Pin_UART1);
-      Adaflight.STM32.GPIO.Set_Low (Adaflight.Board.Inverter_Pin_UART1);
+      Adaflight.STM32.USART.Init_Inverters;
       Init_Configuration;
       Adaflight.STM32.PINIO.Init (Config);
       declare
@@ -3862,7 +3862,6 @@ package body Adaflight.STM32.Flight is
             Inverted => Config.Beeper_Dev_Config.Is_Inverted /= 0,
             Open_Drain => Config.Beeper_Dev_Config.Is_Open_Drain /= 0);
       end if;
-      Adaflight.STM32.USART.Init_Inverters;
       Adaflight.STM32.ADC.Init;
       declare
          Inputs : constant array (1 .. 3) of Adaflight.Config_Groups.Adc_Channel_Config_T_Record :=

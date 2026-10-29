@@ -13,7 +13,7 @@ package body Adaflight.STM32.Telemetry_Port is
    package SFM renames Adaflight.Serial_Feature_Map;
 
    Port_Ids : constant array (USART.Number) of SFM.Port_Id :=
-     (USART.UART1 => 51, USART.UART3 => 53, USART.UART4 => 54, USART.UART6 => 56);
+     (USART.UART1 => 51, USART.UART2 => 52, USART.UART3 => 53, USART.UART4 => 54, USART.UART5 => 55, USART.UART6 => 56);
 
    type Sharing is (Unused, Not_Shared, Shared);
 
@@ -44,7 +44,7 @@ package body Adaflight.STM32.Telemetry_Port is
       Find_Provider :
       for P of Config.Telemetry_Config.Providers loop
          if P.Protocol = Protocol and then Integer (P.Uart) /= Integer (SFM.No_Port) then
-            for N in USART.Number loop
+            for N of USART.Present_Set loop
                if Integer (Port_Ids (N)) = Integer (P.Uart) then
                   Have_Port := True;
                   Which := N;
