@@ -705,6 +705,11 @@ def built(feature):
     return False
 
 
+def contains(feature):
+    """Whether the image contains the feature."""
+    return features is None or features.get(feature, True)
+
+
 def check(name, ok, detail=""):
     print(f"{'PASS' if ok else 'FAIL'} {name}{': ' + detail if detail and not ok else ''}")
     if not ok:
@@ -1091,6 +1096,9 @@ def main():
             check("MSP API version 1.x", api is not None and len(api) == 3 and api[1] == 1)
             variant = msp(sock, 2)
             check("MSP firmware variant ADFL", variant == b"ADFL", repr(variant))
+            info = msp(sock, 5)
+            options = [int.from_bytes(info[i:i + 2], "little") for i in range(26, len(info) - 1, 2)] if info else []
+            check("MSP build info lists the GPS and the DShot protocol", {16412, 8231} <= set(options), repr(options))
             status = msp(sock, 101)
             vcp = socket.create_connection(("127.0.0.1", VCP_PORT), timeout=1)
             vcp.settimeout(0.3)
@@ -1142,6 +1150,14 @@ def main():
                   text.split("Arming disable flags:")[-1].strip()[:80])
             text = cli(sock, "tasks")
             check("tasks run the gyro and the PID loop", "GYRO" in text and "PID" in text)
+            text = cli(sock, "options")
+            numbers = {int(w) for w in text.split() if w.isdigit()}
+            check("options list the GPS, the OSD chip, the servos and the motor protocols",
+                  {16412, 16416, 16420, 8230, 8231, 8232, 8233, 8235} <= numbers, text[-160:])
+            for feature, number in (("LTM_Telemetry", 12304), ("MAVLink_Telemetry", 12305), ("IBus_Telemetry", 12303),
+                                    ("Rangefinder", 16429), ("Jeti_EX_Bus", 4101), ("SUMD", 4106)):
+                check(f"options list {feature} as the build contains it", (number in numbers) == contains(feature),
+                      f"{number} {'in' if number in numbers else 'not in'} the list")
             text = cli(sock, "dshotprog 0 7")
             check("dshotprog sends its command", "Using output 0." in text and "Command Sent: 7" in text, text[-120:])
             frames = dshot_frames(store, 3.0)

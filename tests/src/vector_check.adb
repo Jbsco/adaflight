@@ -64,6 +64,7 @@ with Adaflight.Vectors;
 with Adaflight.PWL;
 with Adaflight.SDFT;
 with Adaflight.Bytes;
+with Adaflight.Build_Options;
 with Adaflight.Encoding;
 with Adaflight.Float_Bits;
 with Adaflight.Bit_Arrays;
@@ -29912,6 +29913,19 @@ procedure Vector_Check is
                           Vref_Mv      => 3300, Core_Temp_C => 40, Stack_Total => 2048, Stack_High => 16#2002_0000#,
                           others       => <>));
    CLI_Env      : CLI.Environment := CLI_Identity;
+   --  The build options of the command line oracle's build, for the list the
+   --  port derives from its option table.
+   package BO renames Adaflight.Build_Options;
+   Reference_Options : constant BO.Selection :=
+     (BO.Serial_RX_CRSF | BO.Serial_RX_FPORT | BO.Serial_RX_GHST | BO.Serial_RX_IBus | BO.Serial_RX_Jeti_EX_Bus
+      | BO.Serial_RX_MAVLink | BO.RX_PPM | BO.Serial_RX_SBUS | BO.Serial_RX_Spektrum | BO.Serial_RX_SRXL2
+      | BO.Serial_RX_SUMD | BO.Serial_RX_SUMH | BO.Serial_RX_XBus | BO.Telemetry_FrSky_Hub | BO.Telemetry_HoTT
+      | BO.Telemetry_IBus_Extended | BO.Telemetry_LTM | BO.Telemetry_MAVLink | BO.Telemetry_SmartPort
+      | BO.Telemetry_SRXL | BO.Acro_Trainer | BO.Altitude_Hold | BO.Battery_Continue | BO.Chirp | BO.Dashboard
+      | BO.ESC_Serial_SimonK | BO.Flight_Plan | BO.GPS | BO.LED_Strip | BO.Mag | BO.Optical_Flow | BO.OSD_SD
+      | BO.OSD_HD | BO.PINIO | BO.Position_Hold | BO.Rangefinder | BO.Soft_Serial | BO.Servos | BO.VTX | BO.DShot
+      | BO.PWM_Output => True,
+      others => False);
    --  The gyro's bus as the oracle keeps it: the bus kind of the last
    --  "!gyrodev" line, none for zero, and the device count of its bus.
    CLI_Gyro_Bus_Kind    : Natural := 0;
@@ -31000,6 +31014,14 @@ procedure Vector_Check is
          for I in 1 .. CLI_Env.Option_Count loop
             CLI_Env.Build_Options (I) := Interfaces.Unsigned_16 (Int (3 + I));
          end loop;
+         declare
+            L : constant BO.List := BO.In_Order (Reference_Options);
+         begin
+            Record_Int ("buildopts.count", Int (3), Integer_64 (L.Length));
+            for I in 1 .. Natural'Min (L.Length, CLI_Env.Option_Count) loop
+               Record_Int ("buildopts.number", Int (3 + I), Integer_64 (L.Numbers (I)));
+            end loop;
+         end;
       elsif Str (1) = "cldp" then
          Record_Int ("cli.dshot_calls", Int (3), Integer_64 (CLI_DShot_Calls));
          Record_Int ("cli.dshot_motors", Int (4), Integer_64 (CLI_DShot_Count));
