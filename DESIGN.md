@@ -11409,3 +11409,15 @@ the left-out paths keep compiling. The host smoke reads the feature package besi
 features the build leaves out, so `FLASH_KB=512 bash host.do` checks the rest of the 512 KB set. A build without a feature still contains its settings, serial functions and MSP
 commands, and the build information still lists no options. A list has to name every option the image supports,
 since a configurator hides the tabs of options a nonempty list leaves out.
+
+## D504. Board crate checks under 1024 KB (2026-10-28)
+
+The board crate keeps its run-time checks in the CLRacing F4S image, and a board with less than 1024 KB of flash now
+builds it without them, for the room the image needs there. The feature generator (D503) treats the checks as one more
+entry, `Board_Checks`, on at 1024 KB and up, and writes `gen/adaflight-checks.adc` beside the feature package:
+`pragma Suppress (All_Checks)` when the entry is off, a comment otherwise. The board's project file names it as the
+local configuration pragmas of the board crate, so the core keeps the release profile it already builds with, and the
+host image keeps its checks. The board crate catches no exception, so no path depends on a check firing. On the
+CLRacing F4S image the 512 KB set's code drops from 590064 to 571860 bytes, and without the menu system from 535608 to
+518096, 520944 with its initialized data. A 512 KB board has 480 KB after its vector and configuration sectors, and
+about 507 KB when the image also fills the vector sector past the vector table, as the reference's F722 layout does.
