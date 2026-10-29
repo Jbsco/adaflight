@@ -11537,3 +11537,27 @@ reboot from the menus first writes the disarm output to every motor and waits 50
 The host image claims the same channels and logs each analog motor's setup and pulse changes. The host smoke sets
 OneShot125 and PWM: the motors start at their timers' rates, idle at the minimum command's pulse, report microseconds
 over MSP and follow a motor test. The image grows from 627612 to 628808 bytes of code.
+
+## D511. Board LED strip (2026-10-28)
+
+The board drives a WS2811 LED strip. The strip's pin takes its timer channel through the pin map owners (D509) after
+the motors and servos, and its stream from the map's DMA option, refused when a motor's stream holds it. The board's
+strip pin is a new hardware default, which the board generator reads from the board's configuration. The timer's
+prescaler aims at 48 MHz rounded to the nearest, which gives 42 MHz on the F405's timers, and the period is the 800
+kHz carrier's in those counts, with a one at two thirds of it and a zero at one third. The stream writes one compare
+value per bit from a buffer of 32 bits for each of the 32 LEDs and a 42-slot low tail that latches the colors. Each
+LED's color is packed for the strip's format, GRB, RGB or GRBW with the white channel at the smallest of the three,
+most significant bit first. `Adaflight.WS2811` contains the timing and the packing, and is SPARK for its 16-bit
+narrowing.
+
+A new oracle family runs the reference's STM32 strip buffer over drawn colors, formats and LEDs, with the F4 timer
+helpers drawn over clocks around each rounding step. All 39716 lines match.
+
+The LED strip task runs at 60 Hz when the LED strip feature is on. Each call that finds the last transfer done takes
+the strip's settings from the configuration, runs the strip's update (D70) and sends the colors when they changed. A
+command or an MSP write that changes the LEDs evaluates the layout again. The stream's end of transfer is read from
+its enable bit, where the reference takes it from the transfer complete interrupt.
+
+The host image claims the same channel and logs each change of a LED's color. The host smoke turns the feature on with
+a red and a white LED and checks the strip's colors and the board's strip pin. The image grows from 628808 to 635608
+bytes of code, most of it the LED strip unit, which the board did not link before.

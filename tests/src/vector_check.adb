@@ -178,6 +178,7 @@ with Adaflight.Servo_Mixer;
 with Adaflight.Main_Loop;
 with Adaflight.Core_Loop;
 with Adaflight.PWM_Output;
+with Adaflight.WS2811;
 with Adaflight.Task_Functions;
 with Adaflight.Task_Init;
 with Adaflight.MSP_Out;
@@ -37416,6 +37417,39 @@ procedure Vector_Check is
       end if;
    end Check_PWM_Out_Line;
 
+   --  The WS2811 strip: the timer's prescaler, period and bit compares for
+   --  each clock, and each LED's bit count and packed color for its format
+   --  against the reference's buffer.
+   procedure Check_WS2811_Line is
+      package W renames Adaflight.WS2811;
+      Name : constant String := Str (1);
+   begin
+      if Name = "ws2811timing" then
+         declare
+            Clock    : constant Interfaces.Unsigned_32 := Interfaces.Unsigned_32 (Int (4));
+            Prescale : constant Interfaces.Unsigned_16 := W.Prescaler (Clock);
+            Period   : constant Interfaces.Unsigned_16 := W.Period (Clock, Prescale);
+         begin
+            Record_Int ("ws2811timing.prescaler", Int (5), Integer_64 (Prescale));
+            Record_Int ("ws2811timing.period", Int (6), Integer_64 (Period));
+            Record_Int ("ws2811timing.bit1", Int (7), Integer_64 (W.Bit_1 (Period)));
+            Record_Int ("ws2811timing.bit0", Int (8), Integer_64 (W.Bit_0 (Period)));
+         end;
+      elsif Name = "ws2811led" then
+         declare
+            F : constant W.Format := W.Format'Val (Int (4));
+         begin
+            Record_Int ("ws2811led.bits", Int (9), Integer_64 (W.Bits (F)));
+            Record_Result ("ws2811led.packed", Bits (10),
+                           W.Packed (F, Interfaces.Unsigned_8 (Int (6)), Interfaces.Unsigned_8 (Int (7)),
+                                     Interfaces.Unsigned_8 (Int (8))));
+         end;
+      else
+         Put_Line ("unknown WS2811 case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_WS2811_Line;
+
    --  The menu contents: the reference's menus over the configuration on one
    --  display, with the readings the setup popup takes, the keys pressed and
    --  the draws after them, the requests to the runtime and the
@@ -39385,6 +39419,8 @@ procedure Vector_Check is
                   Check_Servo_Line;
                elsif Kind = "pwmout" then
                   Check_PWM_Out_Line;
+               elsif Kind = "ws2811" then
+                  Check_WS2811_Line;
                else
                   Check_PID_Line;
                end if;
@@ -39740,6 +39776,7 @@ begin
    Run (Dir & "/menusel.csv", "menusel");
    Run (Dir & "/servo.csv", "servo");
    Run (Dir & "/pwmout.csv", "pwmout");
+   Run (Dir & "/ws2811.csv", "ws2811");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");

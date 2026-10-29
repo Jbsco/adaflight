@@ -23,6 +23,7 @@ with Adaflight.Config_Fix;
 with Adaflight.MSP_Allocation;
 with Adaflight.DShot;
 with Adaflight.DShot_Command;
+with Adaflight.LED_Strip;
 with Adaflight.LTM_Telemetry;
 with Adaflight.MAVLink_Commands;
 with Adaflight.MAVLink_Telemetry;
@@ -88,6 +89,7 @@ with Adaflight.STM32.Flash_Chip;
 with Adaflight.STM32.GPIO;
 with Adaflight.STM32.FrSky_Hub;
 with Adaflight.STM32.IBus;
+with Adaflight.STM32.LED_Strip;
 with Adaflight.STM32.LTM;
 with Adaflight.STM32.SmartPort;
 with Adaflight.STM32.MAVLink;
@@ -204,6 +206,7 @@ package body Adaflight.STM32.Flight is
       Motor_Tags       => (Adaflight.Board.MOTOR1_Tag, Adaflight.Board.MOTOR2_Tag, Adaflight.Board.MOTOR3_Tag,
                            Adaflight.Board.MOTOR4_Tag, Adaflight.Board.MOTOR5_Tag, Adaflight.Board.MOTOR6_Tag,
                            Adaflight.Board.MOTOR7_Tag, Adaflight.Board.MOTOR8_Tag),
+      LED_Strip_Tag    => Adaflight.Board.LED_Strip_Tag,
       MSP_First_Port        => Adaflight.MSP_Allocation.USB_VCP_Port,
       MSP_UART              => Adaflight.Board.MSP_UART,
       MSP_Other_UART        => Adaflight.Board.Use_MSP_UART,
@@ -355,6 +358,13 @@ package body Adaflight.STM32.Flight is
    --  the solution for an NMEA module, whose solutions carry no time.
    Lap               : Adaflight.GPS_Lap_Timer.Timer;
    Lap_Stamp         : Unsigned_16 := 0;
+   --  The LED strip and its layout, evaluated again when a command or a
+   --  message changes the LEDs; its settings come from the configuration on
+   --  each task call.
+   Strip             : Adaflight.LED_Strip.Strip;
+   Strip_Layout      : Adaflight.LED_Strip.Layout;
+   function Strip_Settings return Adaflight.LED_Strip.Settings is
+     (Adaflight.Config_Runtime.LED_Strip_Settings_Of (Config.Led_Strip_Config, Config.Led_Strip_Status_Mode_Config));
    function Lap_Clock_Ms (G : Adaflight.STM32.GPS.Readings) return Unsigned_32 is
      (if Config.Gps_Config.Provider = Adaflight.GPS_Link.Provider'Pos (Adaflight.GPS_Link.NMEA) then G.Solution_Ms
       else G.Time_Ms);
@@ -908,7 +918,7 @@ package body Adaflight.STM32.Flight is
          GPS => True, GPS_Rescue => True, Alt_Hold => True, Pos_Hold => True, Telemetry => True,
          VTX_Control => True, VTX_Driver => True, PINIO_Box => True, ESC_Sensor => True, RC_Device => True,
          Rangefinder => Adaflight.Build_Features.Rangefinder, OSD_Custom_Text => True,
-         Gimbal => Adaflight.Build_Features.Gimbal, ADC_Internal => True, others => False);
+         Gimbal => Adaflight.Build_Features.Gimbal, ADC_Internal => True, LED_Strip => True, others => False);
       Inputs  : Adaflight.Task_Init.Inputs;
       Feature_Rangefinder : constant Unsigned_32 := 16#0000_0200#;
    begin
@@ -938,6 +948,7 @@ package body Adaflight.STM32.Flight is
       Inputs.RC_Device_Enabled := Adaflight.STM32.RunCam.Enabled;
       Inputs.Rangefinder_Detected := Adaflight.STM32.Rangefinder.Detected;
       Inputs.Feature_Rangefinder := (Runtime_Features and Feature_Rangefinder) /= 0;
+      Inputs.Feature_LED_Strip := (Runtime_Features and Adaflight.Config_Fix.Feature_LED_Strip) /= 0;
       Inputs.OSD_Framerate_Hz :=
         Adaflight.Task_Init.Rate_Hz (Natural'Max (1, Natural (Config.Osd_Config.Framerate_Hz)));
       Inputs.OSD_Display_Port := Adaflight.STM32.OSD.Port_Present;
@@ -1034,6 +1045,9 @@ package body Adaflight.STM32.Flight is
       end if;
       if Effects.Servo.Mixer_Load then
          Adaflight.STM32.Control.Load_Servo_Rules (Config.Custom_Servo_Mixers);
+      end if;
+      if Effects.LED.Layout then
+         Strip_Layout := Adaflight.LED_Strip.Evaluate (Strip_Settings);
       end if;
       if Effects.Control.DShot then
          Send_DShot_Commands (Effects.Control);
@@ -1284,6 +1298,9 @@ package body Adaflight.STM32.Flight is
                Terminal.Process (Session, Into, S.Pending (0 .. S.Waiting - 1), Now_Ms, Config, Ports, Env, Board,
                                  Sched, Changes);
                S.Waiting := 0;
+               if Changes.LEDs then
+                  Strip_Layout := Adaflight.LED_Strip.Evaluate (Strip_Settings);
+               end if;
                if Changes.Modes then
                   Adaflight.STM32.Pilot.Reload_Modes (Config);
                   Scheduler.Set_Task_Enabled (Sched, Scheduler.PINIO_Box, Adaflight.STM32.PINIO.Task_Enabled);
@@ -3558,6 +3575,67 @@ package body Adaflight.STM32.Flight is
 
    --  A task's body between the scheduler's execution prologue and
    --  epilogue, at the clock around its run.
+   --  What the LED strip reads: the clock, the LED low and beeper switches,
+   --  the arming, the failsafe, the crash flip, the beeper, the flight modes,
+   --  the battery with its meter, the signal, the GPS with the rescue's
+   --  satellite minimum, the altitude, the roll and pitch commands, and the
+   --  receiver's aux and throttle channels.
+   function LED_Inputs return Adaflight.LED_Strip.Inputs is
+      use type Adaflight.Battery.Voltage_Source;
+      Modes : constant Adaflight.Arming.Mode_Set := Adaflight.STM32.Pilot.Flight_Modes;
+      G     : constant Adaflight.STM32.GPS.Readings := Adaflight.STM32.GPS.Current;
+      Aux   : constant Natural := Strip_Settings.Aux_Channel;
+      I     : Adaflight.LED_Strip.Inputs;
+   begin
+      I.Now_Us := Adaflight.STM32.Time.Micros;
+      I.Now_Ms := Adaflight.STM32.Time.Millis;
+      I.Led_Low := Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.LED_Low);
+      I.Beeper_Box := Adaflight.STM32.Pilot.Box_Active (Adaflight.Modes.Beeper_On);
+      I.Armed := Adaflight.STM32.Pilot.Armed;
+      I.Arming_Disabled := (for some Reason of Adaflight.STM32.Pilot.Disabled => Reason);
+      I.Failsafe := Adaflight.STM32.Radio.Failsafe_Active;
+      I.Crash_Flip := Adaflight.STM32.Pilot.Crash_Flip_Active;
+      I.Beeper_On := Adaflight.Beeper.Is_On (Beep);
+      I.Headfree := Modes (Adaflight.Arming.Headfree_Mode);
+      I.Mag := Modes (Adaflight.Arming.Mag_Mode);
+      I.Horizon := Modes (Adaflight.Arming.Horizon_Mode);
+      I.Angle := Modes (Adaflight.Arming.Angle_Mode);
+      I.Battery :=
+        (case Bat.Overall is
+            when Adaflight.Battery.OK          => Adaflight.LED_Strip.OK,
+            when Adaflight.Battery.Warning     => Adaflight.LED_Strip.Warning,
+            when Adaflight.Battery.Critical    => Adaflight.LED_Strip.Critical,
+            when Adaflight.Battery.Not_Present => Adaflight.LED_Strip.Not_Present,
+            when Adaflight.Battery.Init        => Adaflight.LED_Strip.Init_State);
+      I.Voltage_Meter := Bat_Settings.Voltage_Meter /= Adaflight.Battery.None;
+      I.Battery_Percent := Unsigned_8 (Adaflight.Battery.Percentage_Remaining (Bat, Bat_Settings));
+      I.Rssi_Percent := Adaflight.STM32.Radio.RSSI_Percent;
+      I.Rx_Signal := Adaflight.STM32.Radio.Receiving;
+      I.GPS_Present := Ctx.Out_Views.State.Status.Sensors (Adaflight.MSP_Out.GPS);
+      I.Fix := G.Fix;
+      I.Num_Sat := G.Satellites;
+      I.Min_Sats := Config.Gps_Rescue_Config.Min_Sats;
+      I.Altitude_Cm := Integer_32'Max (-10_000_000, Integer_32'Min (10_000_000, Estimated_Altitude_Cm));
+      I.Roll_Command := Float'Max (-2_000.0, Float'Min (2_000.0, Adaflight.STM32.Pilot.Command (0)));
+      I.Pitch_Command := Float'Max (-2_000.0, Float'Min (2_000.0, Adaflight.STM32.Pilot.Command (1)));
+      I.Aux := Float'Max (0.0, Float'Min (4_000.0, Adaflight.STM32.Radio.Channel (Aux)));
+      I.Throttle := Float'Max (0.0, Float'Min (4_000.0, Adaflight.STM32.Radio.Channel (3)));
+      return I;
+   end LED_Inputs;
+
+   --  The LED strip task: nothing while the strip sends, else the strip's
+   --  update with its colors sent when they changed.
+   procedure Run_LED_Strip is
+      Updated : Boolean;
+   begin
+      if Adaflight.STM32.LED_Strip.Ready then
+         Adaflight.LED_Strip.Update (Strip, Strip_Settings, Strip_Layout, LED_Inputs, Updated);
+         if Updated then
+            Adaflight.STM32.LED_Strip.Send (Strip.Output);
+         end if;
+      end if;
+   end Run_LED_Strip;
+
    procedure Run_Body (Id : Scheduler.Task_Id) is
       Before : constant Unsigned_32 := Adaflight.STM32.Time.Micros;
       Inputs : constant Tasks.Inputs :=
@@ -3657,6 +3735,8 @@ package body Adaflight.STM32.Flight is
                   Adaflight.STM32.IBus.Run (IBus_Inputs);
                end if;
             end if;
+         when Scheduler.LED_Strip =>
+            Run_LED_Strip;
          when Scheduler.PINIO_Box =>
             Adaflight.STM32.PINIO.Update;
          when Scheduler.VTX_Control =>
@@ -3814,6 +3894,12 @@ package body Adaflight.STM32.Flight is
       Adaflight.STM32.Control.Init_Servos
         (Config, Runtime_Features, Adaflight.STM32.Radio.Channel_Count, Natural (Sample_Us) * Positive (Loop_Ratio));
       Show_Servos;
+      Strip_Layout := Adaflight.LED_Strip.Evaluate (Strip_Settings);
+      if (Runtime_Features and Adaflight.Config_Fix.Feature_LED_Strip) /= 0 then
+         Adaflight.STM32.LED_Strip.Init (Config);
+         Adaflight.LED_Strip.Init (Strip, Strip_Settings, Strip_Layout);
+         Adaflight.STM32.LED_Strip.Send (Strip.Output);
+      end if;
       Bat_Settings := Battery_Settings;
       Adaflight.Battery.Init (Bat, Bat_Settings);
       Start_OSD;
