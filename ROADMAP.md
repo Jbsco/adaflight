@@ -46,7 +46,9 @@ Silver with no assume, and pass the gates on `main`.
   iBus telemetry on a UART, drives its PINIO output from a mode box, forwards a UART to the USB port
   or another UART for the serial and GPS passthrough, keeps the clock the configurator or the GPS
   sets, and keeps its configuration in flash. `targets/host` runs the same flight software on the
-  host with its UARTs and USB port on TCP ports. Then F7 and H7, then the other families Betaflight
+  host with its UARTs and USB port on TCP ports. `targets/stm32f7` builds the same software for the
+  Kakute F7 with a run-time library generated from the toolchain's, its drivers for the F7's register
+  sets still to come. Then H7, then the other families Betaflight
   runs on, and a physics simulator link for the host target. Drivers for SPI, I2C, DMA, timers, USB,
   flash, SD card, DShot.
 - Phase 8, open. Tooling. The configurator as the adaflight-configurator repository, the upstream
