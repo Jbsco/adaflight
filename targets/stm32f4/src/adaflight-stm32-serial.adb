@@ -9,11 +9,7 @@ package body Adaflight.STM32.Serial is
    Write_Timeout_Ms : constant := 50;
 
    function Number_Of (Which : Line) return USART.Number is
-     (case Which is
-         when UART3 => USART.UART3,
-         when UART4 => USART.UART4,
-         when UART6 => USART.UART6,
-         when others => USART.UART1)
+     (USART.Number'Val (Line'Pos (Which) - 1))
      with Pre => Which /= VCP;
 
    --  The bytes toward the host while it has the port configured, retried

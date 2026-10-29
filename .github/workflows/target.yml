@@ -53,3 +53,9 @@ jobs:
 
       - name: Build the 512 KB feature set
         run: FLASH_KB=512 bash target.do
+
+      - name: Build the LUXF4OSD image
+        run: BOARD=LUXF4OSD bash target.do
+
+      - name: Build the OMNIBUSF4 image
+        run: BOARD=OMNIBUSF4 bash target.do

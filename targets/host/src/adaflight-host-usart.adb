@@ -9,7 +9,7 @@ package body Adaflight.STM32.USART is
    --  Each UART is a TCP server on port 5760 plus its number, one client at
    --  a time.
    Port_Of : constant array (Number) of GNAT.Sockets.Port_Type :=
-     (UART1 => 5_761, UART3 => 5_763, UART4 => 5_764, UART6 => 5_766);
+     (UART1 => 5_761, UART2 => 5_762, UART3 => 5_763, UART4 => 5_764, UART5 => 5_765, UART6 => 5_766);
 
    Ring_Size : constant := 4_096;
    subtype Ring_Index is Natural range 0 .. Ring_Size - 1;
@@ -134,6 +134,9 @@ package body Adaflight.STM32.USART is
       Even_Parity : Boolean := False; Inverted : Boolean := False)
    is
    begin
+      if not Present (N) then
+         return;
+      end if;
       Started_With (N) :=
         (Started => True, Baud => Baud, Two_Stop_Bits => Two_Stop_Bits, Line => Line, Even_Parity => Even_Parity,
          Inverted => Inverted);
@@ -197,10 +200,25 @@ package body Adaflight.STM32.USART is
 
    function TX_Pin (N : Number) return Adaflight.Pins.Pin is
      (case N is
-         when UART1 => Adaflight.Board.UART1_TX_Pin, when UART3 => Adaflight.Board.UART3_TX_Pin,
-         when UART4 => Adaflight.Board.UART4_TX_Pin, when UART6 => Adaflight.Board.UART6_TX_Pin);
+         when UART1 => Adaflight.Board.UART1_TX_Pin, when UART2 => Adaflight.Board.UART2_TX_Pin,
+         when UART3 => Adaflight.Board.UART3_TX_Pin, when UART4 => Adaflight.Board.UART4_TX_Pin,
+         when UART5 => Adaflight.Board.UART5_TX_Pin, when UART6 => Adaflight.Board.UART6_TX_Pin);
    function RX_Pin (N : Number) return Adaflight.Pins.Pin is
      (case N is
-         when UART1 => Adaflight.Board.UART1_RX_Pin, when UART3 => Adaflight.Board.UART3_RX_Pin,
-         when UART4 => Adaflight.Board.UART4_RX_Pin, when UART6 => Adaflight.Board.UART6_RX_Pin);
+         when UART1 => Adaflight.Board.UART1_RX_Pin, when UART2 => Adaflight.Board.UART2_RX_Pin,
+         when UART3 => Adaflight.Board.UART3_RX_Pin, when UART4 => Adaflight.Board.UART4_RX_Pin,
+         when UART5 => Adaflight.Board.UART5_RX_Pin, when UART6 => Adaflight.Board.UART6_RX_Pin);
+
+   function Present_Set return Number_List is
+      Set   : Number_List (1 .. Number'Pos (Number'Last) + 1);
+      Count : Natural := 0;
+   begin
+      for N in Number loop
+         if Present (N) then
+            Count := Count + 1;
+            Set (Count) := N;
+         end if;
+      end loop;
+      return Set (1 .. Count);
+   end Present_Set;
 end Adaflight.STM32.USART;

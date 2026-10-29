@@ -11,7 +11,7 @@ package body Adaflight.STM32.RunCam is
    package Core renames Adaflight.RunCam_Device;
 
    Port_Ids : constant array (USART.Number) of Interfaces.Integer_8 :=
-     (USART.UART1 => 51, USART.UART3 => 53, USART.UART4 => 54, USART.UART6 => 56);
+     (USART.UART1 => 51, USART.UART2 => 52, USART.UART3 => 53, USART.UART4 => 54, USART.UART5 => 55, USART.UART6 => 56);
    No_Port : constant Interfaces.Integer_8 := -1;
    Baud    : constant := 115_200;
 
@@ -47,7 +47,7 @@ package body Adaflight.STM32.RunCam is
       Open := False;
       Waiting := 0;
       if R.Rcdevice_Uart /= No_Port then
-         for N in USART.Number loop
+         for N of USART.Present_Set loop
             if Port_Ids (N) = R.Rcdevice_Uart then
                if not Adaflight.STM32.Radio.Holds (N) and then not Adaflight.STM32.GPS.Holds (N)
                  and then not Adaflight.STM32.ESC_Sensor.Holds (N) and then not Adaflight.STM32.VTX.Holds (N)

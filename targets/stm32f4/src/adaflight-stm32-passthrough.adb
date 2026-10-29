@@ -37,44 +37,28 @@ package body Adaflight.STM32.Passthrough is
    procedure Line_Of (Id : Interfaces.Integer_32; Which : out Serial.Line; Found : out Boolean) is
    begin
       Found := True;
-      case Id is
-         when USB_VCP_Id =>
+      declare
+         I : constant Integer := Integer (Id);
+      begin
+         if I = Integer (USB_VCP_Id) then
             Which := Serial.VCP;
-         when 51 =>
-            Which := Serial.UART1;
-         when 53 =>
-            Which := Serial.UART3;
-         when 54 =>
-            Which := Serial.UART4;
-         when 56 =>
-            Which := Serial.UART6;
-         when others =>
+         elsif I in 51 .. 56 and then USART.Present (USART.Number'Val (I - 51)) then
+            Which := Serial.Line'Val (I - 50);
+         else
             Which := Serial.VCP;
             Found := False;
-      end case;
+         end if;
+      end;
    end Line_Of;
 
    function Id_Of (Which : Serial.Line) return Interfaces.Integer_32 is
-     (case Which is
-         when Serial.VCP   => USB_VCP_Id,
-         when Serial.UART1 => 51,
-         when Serial.UART3 => 53,
-         when Serial.UART4 => 54,
-         when Serial.UART6 => 56);
+     (if Which = Serial.VCP then USB_VCP_Id else Interfaces.Integer_32 (50 + Serial.Line'Pos (Which)));
 
    function UART_Of (Which : Serial.Line) return USART.Number is
-     (case Which is
-         when Serial.UART1 | Serial.VCP => USART.UART1,
-         when Serial.UART3              => USART.UART3,
-         when Serial.UART4              => USART.UART4,
-         when Serial.UART6              => USART.UART6);
+     (if Which = Serial.VCP then USART.UART1 else USART.Number'Val (Serial.Line'Pos (Which) - 1));
 
    function Line_Of_UART (N : USART.Number) return Serial.Line is
-     (case N is
-         when USART.UART1 => Serial.UART1,
-         when USART.UART3 => Serial.UART3,
-         when USART.UART4 => Serial.UART4,
-         when USART.UART6 => Serial.UART6);
+     (Serial.Line'Val (USART.Number'Pos (N) + 1));
 
    function Positive_Baud (Baud : Interfaces.Unsigned_32) return Boolean is
      (Baud in 1 .. Interfaces.Unsigned_32 (Positive'Last));
@@ -264,7 +248,7 @@ package body Adaflight.STM32.Passthrough is
 
    procedure GPS_Passthrough (Started : out Boolean) is
    begin
-      for N in USART.Number loop
+      for N of USART.Present_Set loop
          if Adaflight.STM32.GPS.Holds (N) then
             Forward (Line_Of_UART (N), Command_Line_Port);
          end if;

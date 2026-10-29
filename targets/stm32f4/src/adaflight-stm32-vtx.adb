@@ -20,7 +20,7 @@ package body Adaflight.STM32.VTX is
 
    --  The serial port identifiers of the board's UARTs.
    Port_Ids : constant array (USART.Number) of Interfaces.Integer_8 :=
-     (USART.UART1 => 51, USART.UART3 => 53, USART.UART4 => 54, USART.UART6 => 56);
+     (USART.UART1 => 51, USART.UART2 => 52, USART.UART3 => 53, USART.UART4 => 54, USART.UART5 => 55, USART.UART6 => 56);
 
    SmartAudio_Code : constant := 3;
    Tramp_Code      : constant := 4;
@@ -67,7 +67,7 @@ package body Adaflight.STM32.VTX is
             then Adaflight.VTX_Table_Store.Running (C.Vtx_Table_Config) else Adaflight.VTX_Table.Default);
       Open := False;
       if Kind /= Core.No_Device then
-         for N in USART.Number loop
+         for N of USART.Present_Set loop
             if Port_Ids (N) = C.Vtx_Settings_Config.Vtx_Uart then
                if not Adaflight.STM32.Radio.Holds (N) and then not Adaflight.STM32.GPS.Holds (N)
                  and then not Adaflight.STM32.ESC_Sensor.Holds (N)

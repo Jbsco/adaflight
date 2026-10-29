@@ -25,7 +25,7 @@ package body Adaflight.STM32.Blackbox is
    package USART renames Adaflight.STM32.USART;
 
    Port_Ids : constant array (USART.Number) of SFM.Port_Id :=
-     (USART.UART1 => 51, USART.UART3 => 53, USART.UART4 => 54, USART.UART6 => 56);
+     (USART.UART1 => 51, USART.UART2 => 52, USART.UART3 => 53, USART.UART4 => 54, USART.UART5 => 55, USART.UART6 => 56);
 
    --  The port's ring, which the header writer's budget reads as the device's
    --  buffer, and the bytes one iteration can add at most.
@@ -60,7 +60,7 @@ package body Adaflight.STM32.Blackbox is
       Open_Port := False;
       Shared := False;
       if C.Device = Header.Serial then
-         for N in USART.Number loop
+         for N of USART.Present_Set loop
             if Integer (Port_Ids (N)) = Integer (Config.Blackbox_Config.Blackbox_Uart) then
                Which := N;
                Open_Port := not Adaflight.STM32.VTX.Holds (N) and then not Adaflight.STM32.ESC_Sensor.Holds (N);
