@@ -37370,6 +37370,52 @@ procedure Vector_Check is
       end if;
    end Check_Servo_Line;
 
+   PWM_Timings : array (0 .. 7) of Adaflight.PWM_Output.Motor_Timing;
+
+   --  The PWM outputs: each motor's timing from its protocol, rate, update
+   --  mode, timer clock and idle pulse with the timer's period, auto-reload
+   --  and prescaler, each motor write's compare value, and the servos'
+   --  timer setup and compare values against the reference's.
+   procedure Check_PWM_Out_Line is
+      package PO renames Adaflight.PWM_Output;
+      Name : constant String := Str (1);
+   begin
+      if Name = "pwmsetup" then
+         declare
+            Clock : constant Interfaces.Unsigned_32 := Interfaces.Unsigned_32 (Int (8));
+            T     : constant PO.Motor_Timing :=
+              PO.Motor_Timing_Of (PO.Protocol (Int (5)), Interfaces.Unsigned_16 (Int (6)), Int (7) /= 0, Clock,
+                                  Interfaces.Unsigned_16 (Int (9)));
+         begin
+            PWM_Timings (Natural (Int (4))) := T;
+            Record_Int ("pwmsetup.hz", Int (10), Integer_64 (T.Hz));
+            Record_Int ("pwmsetup.period", Int (11), Integer_64 (PO.Period_Of (T)));
+            Record_Int ("pwmsetup.arr", Int (12), Integer_64 (PO.Auto_Reload (PO.Period_Of (T))));
+            Record_Int ("pwmsetup.psc", Int (13), Integer_64 (PO.Prescaler (Clock, T.Hz)));
+            Record_Int ("pwmsetup.pulse", Int (14), Integer_64 (T.Idle));
+            Record_Result ("pwmsetup.scale", Bits (15), To_Bits (T.Scale));
+            Record_Result ("pwmsetup.offset", Bits (16), To_Bits (T.Offset));
+         end;
+      elsif Name = "pwmwrite" then
+         Record_Int ("pwmwrite.ccr", Int (6), Integer_64 (PO.Motor_Pulse (PWM_Timings (Natural (Int (4))), Flt (5))));
+      elsif Name = "servosetup" then
+         declare
+            Clock : constant Interfaces.Unsigned_32 := Interfaces.Unsigned_32 (Int (7));
+         begin
+            Record_Int ("servosetup.hz", Int (8), 1_000_000);
+            Record_Int ("servosetup.arr", Int (9),
+                        Integer_64 (PO.Auto_Reload (PO.Servo_Period (Interfaces.Unsigned_16 (Int (5))))));
+            Record_Int ("servosetup.psc", Int (10), Integer_64 (PO.Prescaler (Clock, 1_000_000)));
+            Record_Int ("servosetup.pulse", Int (11), Int (6));
+         end;
+      elsif Name = "servowrite" then
+         Record_Int ("servowrite.ccr", Int (6), Integer_64 (PO.Servo_Pulse (Flt (5))));
+      else
+         Put_Line ("unknown PWM output case " & Name);
+         Failures := Failures + 1;
+      end if;
+   end Check_PWM_Out_Line;
+
    --  The menu contents: the reference's menus over the configuration on one
    --  display, with the readings the setup popup takes, the keys pressed and
    --  the draws after them, the requests to the runtime and the
@@ -39337,6 +39383,8 @@ procedure Vector_Check is
                   Check_Menu_Select_Line;
                elsif Kind = "servo" then
                   Check_Servo_Line;
+               elsif Kind = "pwmout" then
+                  Check_PWM_Out_Line;
                else
                   Check_PID_Line;
                end if;
@@ -39691,6 +39739,7 @@ begin
    Run (Dir & "/menucontent.csv", "menucontent");
    Run (Dir & "/menusel.csv", "menusel");
    Run (Dir & "/servo.csv", "servo");
+   Run (Dir & "/pwmout.csv", "pwmout");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
