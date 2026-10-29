@@ -2,6 +2,7 @@ with Adaflight.Board;
 with Adaflight.PWM_Output;
 package body Adaflight.STM32.Timers is
 
+   RCC_AHB1ENR : Unsigned_32 with Volatile, Import, Address => System'To_Address (16#4002_3830#);
    RCC_APB1ENR : Unsigned_32 with Volatile, Import, Address => System'To_Address (16#4002_3840#);
    RCC_APB2ENR : Unsigned_32 with Volatile, Import, Address => System'To_Address (16#4002_3844#);
 
@@ -64,6 +65,20 @@ package body Adaflight.STM32.Timers is
          end if;
       end loop;
    end Allocate;
+
+   --  The stream's interrupt flag clear register and its six-bit group in it.
+   procedure Clear_Flags (S : DMA_Stream) is
+      Shifts : constant array (0 .. 3) of Natural := (0, 6, 16, 22);
+      Clear  : Unsigned_32 with Volatile, Import,
+        Address => System'To_Address (DMA_Base (S.Controller) + (if S.Stream < 4 then 16#08# else 16#0C#));
+   begin
+      Clear := Shift_Left (16#3D#, Shifts (S.Stream mod 4));
+   end Clear_Flags;
+
+   procedure Enable_DMA (S : DMA_Stream) is
+   begin
+      RCC_AHB1ENR := RCC_AHB1ENR or Shift_Left (1, 20 + S.Controller);
+   end Enable_DMA;
 
    procedure Configure_PWM
      (E : Timer_Entry; Hz : Unsigned_32; Period : Unsigned_16; Pulse : Unsigned_16; Inverted : Boolean)

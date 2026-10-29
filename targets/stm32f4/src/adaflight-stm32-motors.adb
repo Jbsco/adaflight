@@ -12,93 +12,8 @@ package body Adaflight.STM32.Motors is
    use Interfaces;
    package GPIO renames Adaflight.STM32.GPIO;
 
-   RCC_AHB1ENR : Unsigned_32 with Volatile, Import, Address => System'To_Address (16#4002_3830#);
    RCC_APB1ENR : Unsigned_32 with Volatile, Import, Address => System'To_Address (16#4002_3840#);
    RCC_APB2ENR : Unsigned_32 with Volatile, Import, Address => System'To_Address (16#4002_3844#);
-
-   --  A DMA stream: its controller, its number and its channel.
-   type DMA_Stream is record
-      Controller : Positive range 1 .. 2 := 1;
-      Stream     : Natural range 0 .. 7 := 0;
-      Channel    : Natural range 0 .. 7 := 0;
-   end record;
-   type DMA_Options is array (Natural range <>) of DMA_Stream;
-
-   --  The streams a timer channel's request reaches, by option.
-   function Options_Of (T : Timer_Name; C : Channel_Number) return DMA_Options is
-     (case T is
-         when TIM1 =>
-           (case C is
-               when 1 => ((2, 6, 0), (2, 1, 6), (2, 3, 6)),
-               when 2 => ((2, 6, 0), (2, 2, 6)),
-               when 3 => ((2, 6, 0), (2, 6, 6)),
-               when 4 => (0 => (2, 4, 6))),
-         when TIM2 =>
-           (case C is
-               when 1 => (0 => (1, 5, 3)),
-               when 2 => (0 => (1, 6, 3)),
-               when 3 => (0 => (1, 1, 3)),
-               when 4 => ((1, 7, 3), (1, 6, 3))),
-         when TIM3 =>
-           (case C is
-               when 1 => (0 => (1, 4, 5)),
-               when 2 => (0 => (1, 5, 5)),
-               when 3 => (0 => (1, 7, 5)),
-               when 4 => (0 => (1, 2, 5))),
-         when TIM4 =>
-           (case C is
-               when 1 => (0 => (1, 0, 2)),
-               when 2 => (0 => (1, 3, 2)),
-               when 3 => (0 => (1, 7, 2)),
-               when 4 => (1 .. 0 => (1, 0, 0))),
-         when TIM5 =>
-           (case C is
-               when 1 => (0 => (1, 2, 6)),
-               when 2 => (0 => (1, 4, 6)),
-               when 3 => (0 => (1, 0, 6)),
-               when 4 => ((1, 1, 6), (1, 3, 6))),
-         when TIM8 =>
-           (case C is
-               when 1 => ((2, 2, 0), (2, 2, 7)),
-               when 2 => ((2, 2, 0), (2, 3, 7)),
-               when 3 => ((2, 2, 0), (2, 4, 7)),
-               when 4 => (0 => (2, 7, 7))),
-         when others => (1 .. 0 => (1, 0, 0)));
-
-   DMA_Base : constant array (1 .. 2) of Unsigned_32 := (16#4002_6000#, 16#4002_6400#);
-
-   type Stream_Registers is record
-      CR, NDTR, PAR, M0AR, M1AR, FCR : Unsigned_32;
-   end record with Volatile;
-   for Stream_Registers use record
-      CR   at 16#00# range 0 .. 31;
-      NDTR at 16#04# range 0 .. 31;
-      PAR  at 16#08# range 0 .. 31;
-      M0AR at 16#0C# range 0 .. 31;
-      M1AR at 16#10# range 0 .. 31;
-      FCR  at 16#14# range 0 .. 31;
-   end record;
-
-   function Stream_Address (S : DMA_Stream) return System.Address is
-     (System'To_Address (DMA_Base (S.Controller) + 16#10# + 16#18# * Unsigned_32 (S.Stream)));
-
-   --  The stream's flags cleared: its interrupt flag clear register and the
-   --  stream's six-bit group in it.
-   procedure Clear_Flags (S : DMA_Stream) is
-      Shifts : constant array (0 .. 3) of Natural := (0, 6, 16, 22);
-      Clear  : Unsigned_32 with Volatile, Import,
-        Address => System'To_Address (DMA_Base (S.Controller) + (if S.Stream < 4 then 16#08# else 16#0C#));
-   begin
-      Clear := Shift_Left (16#3D#, Shifts (S.Stream mod 4));
-   end Clear_Flags;
-
-   EN       : constant Unsigned_32 := 2 ** 0;
-   DIR_M2P  : constant Unsigned_32 := 2 ** 6;
-   MINC     : constant Unsigned_32 := 2 ** 10;
-   PSIZE_32 : constant Unsigned_32 := 2 ** 12;
-   MSIZE_32 : constant Unsigned_32 := 2 ** 14;
-   PL_High  : constant Unsigned_32 := 2 ** 17;
-   DMDIS    : constant Unsigned_32 := 2 ** 2;
 
    --  The DShot timings: the bit's twenty counts, and the counts a zero
    --  and a one stay high.
@@ -260,7 +175,7 @@ package body Adaflight.STM32.Motors is
       for Count in 1 .. 100_000 loop
          exit when (Stream.CR and EN) = 0;
       end loop;
-      RCC_AHB1ENR := RCC_AHB1ENR or Shift_Left (1, 20 + S.Controller);
+      Enable_DMA (S);
       Stream.CR := 0;
       Stream.NDTR := 0;
       Stream.PAR := 0;
