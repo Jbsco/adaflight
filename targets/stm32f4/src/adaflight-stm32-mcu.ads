@@ -13,6 +13,9 @@ package Adaflight.STM32.MCU is
    --  The persistent words in the backup registers: kept over a software
    --  reset with their magic word, cleared after any other reset.
    procedure Init_Persistent;
+   --  Whether this start follows a software reset, read at the persistent
+   --  words' start.
+   function Software_Reset return Boolean;
    --  A reset that the next start turns into the ROM bootloader.
    procedure Reset_To_Bootloader
      with No_Return;

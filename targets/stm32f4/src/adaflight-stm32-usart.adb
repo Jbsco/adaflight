@@ -38,6 +38,9 @@ package body Adaflight.STM32.USART is
    RX : constant array (Number) of Pin :=
      (UART1 => Adaflight.Board.UART1_RX_Pin, UART3 => Adaflight.Board.UART3_RX_Pin,
       UART4 => Adaflight.Board.UART4_RX_Pin, UART6 => Adaflight.Board.UART6_RX_Pin);
+
+   function TX_Pin (N : Number) return Pin is (TX (N));
+   function RX_Pin (N : Number) return Pin is (RX (N));
    RCC_APB1ENR : Unsigned_32
      with Volatile, Import, Address => System'To_Address (16#4002_3840#);
    RCC_APB2ENR : Unsigned_32

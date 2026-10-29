@@ -13,6 +13,8 @@ package body Adaflight.STM32.MCU is
    --  the process with status 2 so the caller can tell it from a reset.
    procedure Init_Persistent is null;
 
+   function Software_Reset return Boolean is (False);
+
    procedure Reset_To_Bootloader is
    begin
       GNAT.OS_Lib.OS_Exit (2);
