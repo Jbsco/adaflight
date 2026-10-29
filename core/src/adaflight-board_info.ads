@@ -88,6 +88,15 @@ package Adaflight.Board_Info with SPARK_Mode is
       Baro_EOC_Tag     : Interfaces.Unsigned_8 := 0;
       Baro_XCLR_Tag    : Interfaces.Unsigned_8 := 0;
       Baro_Hardware    : Interfaces.Unsigned_8 := 0;
+      --  The timer pin map, the camera control pin, the ADC devices' DMA
+      --  options and the ESC serial pin of the board; the reference build's
+      --  values when unset.
+      Timer_Map          : Adaflight.Config_Groups.Timer_Io_Config_Record_List_21 :=
+        Adaflight.Config_Groups.Defaults.Timer_Io_Config;
+      Camera_Control_Tag : Interfaces.Unsigned_8 := 41;
+      ADC_DMA_Options    : Adaflight.Config_Groups.Integer_8_List_3 :=
+        (1, Interfaces.Integer_8 (-1), Interfaces.Integer_8 (-1));
+      ESC_Serial_Tag     : Interfaces.Unsigned_8 := 0;
       --  The ports a fresh configuration's MSP slots name: the board's
       --  first port, the USB one, then the target's MSP UARTs.
       MSP_First_Port        : Serial_Port := 20;

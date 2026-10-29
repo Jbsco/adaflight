@@ -174,39 +174,39 @@ package body Adaflight.Config_Groups with SPARK_Mode is
       Ledstrip_Race_Color => 4, Ledstrip_Beacon_Color => 5, Ledstrip_Beacon_Period_Ms => 6,
       Ledstrip_Beacon_Percent => 8, Ledstrip_Beacon_Armed_Only => 9, Ledstrip_Brightness => 11,
       Ledstrip_Rainbow_Delta => 12, Ledstrip_Rainbow_Freq => 14, Transponder_Provider => 0,
-      Transponder_Data => 2, Sdcard_Detect_Inverted => 3, Sdcard_Mode => 4, Osd_Units => 5,
-      Osd_Warn_Bitmask => 10, Osd_Rssi_Alarm => 4, Osd_Link_Quality_Alarm => 80, Osd_Rssi_Dbm_Alarm => 82,
-      Osd_Rsnr_Alarm => 84, Osd_Cap_Alarm => 0, Osd_Alt_Alarm => 2, Osd_Distance_Alarm => 92,
-      Osd_Esc_Temp_Alarm => 20, Osd_Esc_Rpm_Alarm => 21, Osd_Esc_Current_Alarm => 23,
-      Osd_Core_Temp_Alarm => 25, Osd_Ah_Max_Pit => 14, Osd_Ah_Max_Rol => 15, Osd_Ah_Invert => 26,
-      Osd_Logo_On_Arming => 94, Osd_Logo_On_Arming_Duration => 95, Osd_Arming_Logo => 111,
-      Osd_Use_Quick_Menu => 109, Osd_Show_Spec_Prearm => 110, Osd_Tim1 => 6, Osd_Tim2 => 8, Osd_Vbat_Pos => 2,
-      Osd_Rssi_Pos => 0, Osd_Link_Quality_Pos => 92, Osd_Link_Tx_Power_Pos => 122, Osd_Rssi_Dbm_Pos => 110,
-      Osd_Rsnr_Pos => 130, Osd_Tim_1_Pos => 10, Osd_Tim_2_Pos => 12, Osd_Remaining_Time_Estimate_Pos => 74,
-      Osd_Flymode_Pos => 14, Osd_Anti_Gravity_Pos => 82, Osd_G_Force_Pos => 84, Osd_Throttle_Pos => 18,
-      Osd_Vtx_Channel_Pos => 20, Osd_Crosshairs_Pos => 4, Osd_Ah_Sbar_Pos => 8, Osd_Ah_Pos => 6,
-      Osd_Current_Pos => 22, Osd_Mah_Drawn_Pos => 24, Osd_Wh_Drawn_Pos => 124, Osd_Motor_Diag_Pos => 86,
-      Osd_Craft_Name_Pos => 16, Osd_Pilot_Name_Pos => 100, Osd_Gps_Speed_Pos => 26, Osd_Gps_Lon_Pos => 46,
-      Osd_Gps_Lat_Pos => 48, Osd_Gps_Lap_Curr_Pos => 154, Osd_Gps_Lap_Prev_Pos => 156,
-      Osd_Gps_Lap_Best3_Pos => 158, Osd_Gps_Sats_Pos => 28, Osd_Home_Dir_Pos => 60, Osd_Home_Dist_Pos => 62,
-      Osd_Flight_Dist_Pos => 94, Osd_Compass_Bar_Pos => 68, Osd_Altitude_Pos => 30, Osd_Pid_Roll_Pos => 32,
-      Osd_Pid_Pitch_Pos => 34, Osd_Pid_Yaw_Pos => 36, Osd_Debug_Pos => 50, Osd_Debug2_Pos => 160,
-      Osd_Power_Pos => 38, Osd_Pidrate_Profile_Pos => 40, Osd_Warnings_Pos => 42,
-      Osd_Avg_Cell_Voltage_Pos => 44, Osd_Pit_Ang_Pos => 52, Osd_Rol_Ang_Pos => 54,
-      Osd_Battery_Usage_Pos => 56, Osd_Disarmed_Pos => 58, Osd_Nheading_Pos => 64,
-      Osd_Up_Down_Reference_Pos => 120, Osd_Ready_Mode_Pos => 128, Osd_Pos_Hold_Ready_Pos => 194,
-      Osd_Nvario_Pos => 66, Osd_Esc_Tmp_Pos => 70, Osd_Esc_Rpm_Pos => 72, Osd_Esc_Rpm_Freq_Pos => 102,
-      Osd_Rtc_Date_Time_Pos => 76, Osd_Adjustment_Range_Pos => 78, Osd_Flip_Arrow_Pos => 90,
-      Osd_Core_Temp_Pos => 80, Osd_Log_Status_Pos => 88, Osd_Stick_Overlay_Left_Pos => 96,
-      Osd_Stick_Overlay_Right_Pos => 98, Osd_Stick_Overlay_Radio_Mode => 28, Osd_Rate_Profile_Name_Pos => 104,
-      Osd_Pid_Profile_Name_Pos => 106, Osd_Battery_Profile_Name_Pos => 174, Osd_Profile_Name_Pos => 108,
-      Osd_Rcchannels_Pos => 112, Osd_Camera_Frame_Pos => 114, Osd_Efficiency_Pos => 116,
-      Osd_Total_Flights_Pos => 118, Osd_Aux_Pos => 126, Osd_Sys_Goggle_Voltage_Pos => 132,
-      Osd_Sys_Vtx_Voltage_Pos => 134, Osd_Sys_Bitrate_Pos => 136, Osd_Sys_Delay_Pos => 138,
-      Osd_Sys_Distance_Pos => 140, Osd_Sys_Lq_Pos => 142, Osd_Sys_Goggle_Dvr_Pos => 144,
-      Osd_Sys_Vtx_Dvr_Pos => 146, Osd_Sys_Warnings_Pos => 148, Osd_Sys_Vtx_Temp_Pos => 150,
-      Osd_Sys_Fan_Speed_Pos => 152, Osd_Stat_Bitmask => 16, Osd_Profile => 27, Osd_Profile_1_Name => 0,
-      Osd_Profile_2_Name => 0, Osd_Profile_3_Name => 0, Osd_Gps_Sats_Show_Pdop => 86,
+      Transponder_Data => 2, Sdcard_Detect_Inverted => 3, Sdcard_Mode => 4, Sdcard_Spi_Bus => 0,
+      Osd_Units => 5, Osd_Warn_Bitmask => 10, Osd_Rssi_Alarm => 4, Osd_Link_Quality_Alarm => 80,
+      Osd_Rssi_Dbm_Alarm => 82, Osd_Rsnr_Alarm => 84, Osd_Cap_Alarm => 0, Osd_Alt_Alarm => 2,
+      Osd_Distance_Alarm => 92, Osd_Esc_Temp_Alarm => 20, Osd_Esc_Rpm_Alarm => 21,
+      Osd_Esc_Current_Alarm => 23, Osd_Core_Temp_Alarm => 25, Osd_Ah_Max_Pit => 14, Osd_Ah_Max_Rol => 15,
+      Osd_Ah_Invert => 26, Osd_Logo_On_Arming => 94, Osd_Logo_On_Arming_Duration => 95,
+      Osd_Arming_Logo => 111, Osd_Use_Quick_Menu => 109, Osd_Show_Spec_Prearm => 110, Osd_Tim1 => 6,
+      Osd_Tim2 => 8, Osd_Vbat_Pos => 2, Osd_Rssi_Pos => 0, Osd_Link_Quality_Pos => 92,
+      Osd_Link_Tx_Power_Pos => 122, Osd_Rssi_Dbm_Pos => 110, Osd_Rsnr_Pos => 130, Osd_Tim_1_Pos => 10,
+      Osd_Tim_2_Pos => 12, Osd_Remaining_Time_Estimate_Pos => 74, Osd_Flymode_Pos => 14,
+      Osd_Anti_Gravity_Pos => 82, Osd_G_Force_Pos => 84, Osd_Throttle_Pos => 18, Osd_Vtx_Channel_Pos => 20,
+      Osd_Crosshairs_Pos => 4, Osd_Ah_Sbar_Pos => 8, Osd_Ah_Pos => 6, Osd_Current_Pos => 22,
+      Osd_Mah_Drawn_Pos => 24, Osd_Wh_Drawn_Pos => 124, Osd_Motor_Diag_Pos => 86, Osd_Craft_Name_Pos => 16,
+      Osd_Pilot_Name_Pos => 100, Osd_Gps_Speed_Pos => 26, Osd_Gps_Lon_Pos => 46, Osd_Gps_Lat_Pos => 48,
+      Osd_Gps_Lap_Curr_Pos => 154, Osd_Gps_Lap_Prev_Pos => 156, Osd_Gps_Lap_Best3_Pos => 158,
+      Osd_Gps_Sats_Pos => 28, Osd_Home_Dir_Pos => 60, Osd_Home_Dist_Pos => 62, Osd_Flight_Dist_Pos => 94,
+      Osd_Compass_Bar_Pos => 68, Osd_Altitude_Pos => 30, Osd_Pid_Roll_Pos => 32, Osd_Pid_Pitch_Pos => 34,
+      Osd_Pid_Yaw_Pos => 36, Osd_Debug_Pos => 50, Osd_Debug2_Pos => 160, Osd_Power_Pos => 38,
+      Osd_Pidrate_Profile_Pos => 40, Osd_Warnings_Pos => 42, Osd_Avg_Cell_Voltage_Pos => 44,
+      Osd_Pit_Ang_Pos => 52, Osd_Rol_Ang_Pos => 54, Osd_Battery_Usage_Pos => 56, Osd_Disarmed_Pos => 58,
+      Osd_Nheading_Pos => 64, Osd_Up_Down_Reference_Pos => 120, Osd_Ready_Mode_Pos => 128,
+      Osd_Pos_Hold_Ready_Pos => 194, Osd_Nvario_Pos => 66, Osd_Esc_Tmp_Pos => 70, Osd_Esc_Rpm_Pos => 72,
+      Osd_Esc_Rpm_Freq_Pos => 102, Osd_Rtc_Date_Time_Pos => 76, Osd_Adjustment_Range_Pos => 78,
+      Osd_Flip_Arrow_Pos => 90, Osd_Core_Temp_Pos => 80, Osd_Log_Status_Pos => 88,
+      Osd_Stick_Overlay_Left_Pos => 96, Osd_Stick_Overlay_Right_Pos => 98, Osd_Stick_Overlay_Radio_Mode => 28,
+      Osd_Rate_Profile_Name_Pos => 104, Osd_Pid_Profile_Name_Pos => 106, Osd_Battery_Profile_Name_Pos => 174,
+      Osd_Profile_Name_Pos => 108, Osd_Rcchannels_Pos => 112, Osd_Camera_Frame_Pos => 114,
+      Osd_Efficiency_Pos => 116, Osd_Total_Flights_Pos => 118, Osd_Aux_Pos => 126,
+      Osd_Sys_Goggle_Voltage_Pos => 132, Osd_Sys_Vtx_Voltage_Pos => 134, Osd_Sys_Bitrate_Pos => 136,
+      Osd_Sys_Delay_Pos => 138, Osd_Sys_Distance_Pos => 140, Osd_Sys_Lq_Pos => 142,
+      Osd_Sys_Goggle_Dvr_Pos => 144, Osd_Sys_Vtx_Dvr_Pos => 146, Osd_Sys_Warnings_Pos => 148,
+      Osd_Sys_Vtx_Temp_Pos => 150, Osd_Sys_Fan_Speed_Pos => 152, Osd_Stat_Bitmask => 16, Osd_Profile => 27,
+      Osd_Profile_1_Name => 0, Osd_Profile_2_Name => 0, Osd_Profile_3_Name => 0, Osd_Gps_Sats_Show_Pdop => 86,
       Osd_Displayport_Device => 91, Osd_Uart => 112, Osd_Rcchannels => 87, Osd_Camera_Frame_Width => 96,
       Osd_Camera_Frame_Height => 97, Osd_Stat_Avg_Cell_Value => 101, Osd_Framerate_Hz => 98,
       Osd_Menu_Background => 100, Osd_Aux_Channel => 103, Osd_Aux_Scale => 104, Osd_Aux_Symbol => 106,
@@ -227,23 +227,25 @@ package body Adaflight.Config_Groups with SPARK_Mode is
       Esc_Sensor_Current_Offset => 1, Esc_Sensor_Uart => 3, Frsky_Spi_Autobind => 0, Frsky_Spi_Tx_Id => 1,
       Frsky_Spi_Offset => 4, Frsky_Spi_Bind_Hop_Data => 5, Frsky_X_Rx_Num => 55, Frsky_Spi_A1_Source => 56,
       Cc2500_Spi_Chip_Detect => 57, Led_Inversion => 3, Dashboard_I2c_Bus => 0, Dashboard_I2c_Addr => 4,
-      Rangefinder_Hardware => 0, Rangefinder_Uart => 1, Opticalflow_Hardware => 0, Opticalflow_Uart => 4,
-      Opticalflow_Rotation => 1, Opticalflow_Flip_X => 3, Pinio_Config => 4, Pinio_Box => 0, Usb_Hid_Cdc => 0,
-      Usb_Msc_Pin_Pullup => 2, Flash_Spi_Bus => 1, Rcdevice_Init_Dev_Attempts => 0,
-      Rcdevice_Init_Dev_Attempt_Interval => 1, Rcdevice_Protocol_Version => 9, Rcdevice_Feature => 5,
-      Rcdevice_Uart => 10, Gyro_1_Bustype => 1, Gyro_1_Spibus => 2, Gyro_1_I2c_Bus => 4,
-      Gyro_1_I2c_Address => 5, I2c1_Pullup => 2, I2c1_Clockspeed_Khz => 3, I2c2_Pullup => 7,
-      I2c2_Clockspeed_Khz => 8, I2c3_Pullup => 12, I2c3_Clockspeed_Khz => 13, Mco2_On_Pc9 => 3,
-      Spektrum_Spi_Protocol => 0, Spektrum_Spi_Mfg_Id => 1, Spektrum_Spi_Num_Channels => 5,
-      Expresslrs_Uid => 2, Expresslrs_Domain => 8, Expresslrs_Model_Id => 10, Scheduler_Relax_Rx => 0,
-      Scheduler_Relax_Osd => 2, Scheduler_Debug_Task => 6, Cpu_Late_Limit_Permille => 4,
-      Serialmsp_Halfduplex => 0, Msp_1_Uart => 1, Msp_1_Baud => 4, Msp_2_Uart => 2, Msp_2_Baud => 5,
-      Msp_3_Uart => 3, Msp_3_Baud => 6, Timezone_Offset_Minutes => 0, Rpm_Filter_Harmonics => 0,
-      Rpm_Filter_Weights => 1, Rpm_Filter_Q => 7, Rpm_Filter_Min_Hz => 4, Rpm_Filter_Fade_Range_Hz => 5,
-      Rpm_Filter_Lpf_Hz => 9, Flysky_Spi_Tx_Id => 0, Flysky_Spi_Rf_Channels => 4,
-      Stats_Min_Armed_Time_S => 12, Stats_Total_Flights => 0, Stats_Total_Time_S => 4,
-      Stats_Total_Dist_M => 8, Stats_Save_Move_Limit => 17, Stats_Mah_Used => 13, Craft_Name => 0,
-      Pilot_Name => 0, Altitude_Source => 0, Altitude_Prefer_Baro => 1, Altitude_Lpf => 2,
+      Camera_Control_Mode => 0, Camera_Control_Ref_Voltage => 1, Camera_Control_Key_Delay => 3,
+      Camera_Control_Internal_Resistance => 5, Camera_Control_Button_Resistance => 9,
+      Camera_Control_Inverted => 8, Rangefinder_Hardware => 0, Rangefinder_Uart => 1,
+      Opticalflow_Hardware => 0, Opticalflow_Uart => 4, Opticalflow_Rotation => 1, Opticalflow_Flip_X => 3,
+      Pinio_Config => 4, Pinio_Box => 0, Usb_Hid_Cdc => 0, Usb_Msc_Pin_Pullup => 2, Flash_Spi_Bus => 1,
+      Rcdevice_Init_Dev_Attempts => 0, Rcdevice_Init_Dev_Attempt_Interval => 1,
+      Rcdevice_Protocol_Version => 9, Rcdevice_Feature => 5, Rcdevice_Uart => 10, Gyro_1_Bustype => 1,
+      Gyro_1_Spibus => 2, Gyro_1_I2c_Bus => 4, Gyro_1_I2c_Address => 5, I2c1_Pullup => 2,
+      I2c1_Clockspeed_Khz => 3, I2c2_Pullup => 7, I2c2_Clockspeed_Khz => 8, I2c3_Pullup => 12,
+      I2c3_Clockspeed_Khz => 13, Mco2_On_Pc9 => 3, Spektrum_Spi_Protocol => 0, Spektrum_Spi_Mfg_Id => 1,
+      Spektrum_Spi_Num_Channels => 5, Expresslrs_Uid => 2, Expresslrs_Domain => 8, Expresslrs_Model_Id => 10,
+      Scheduler_Relax_Rx => 0, Scheduler_Relax_Osd => 2, Scheduler_Debug_Task => 6,
+      Cpu_Late_Limit_Permille => 4, Serialmsp_Halfduplex => 0, Msp_1_Uart => 1, Msp_1_Baud => 4,
+      Msp_2_Uart => 2, Msp_2_Baud => 5, Msp_3_Uart => 3, Msp_3_Baud => 6, Timezone_Offset_Minutes => 0,
+      Rpm_Filter_Harmonics => 0, Rpm_Filter_Weights => 1, Rpm_Filter_Q => 7, Rpm_Filter_Min_Hz => 4,
+      Rpm_Filter_Fade_Range_Hz => 5, Rpm_Filter_Lpf_Hz => 9, Flysky_Spi_Tx_Id => 0,
+      Flysky_Spi_Rf_Channels => 4, Stats_Min_Armed_Time_S => 12, Stats_Total_Flights => 0,
+      Stats_Total_Time_S => 4, Stats_Total_Dist_M => 8, Stats_Save_Move_Limit => 17, Stats_Mah_Used => 13,
+      Craft_Name => 0, Pilot_Name => 0, Altitude_Source => 0, Altitude_Prefer_Baro => 1, Altitude_Lpf => 2,
       Rangefinder_Max_Range_Cm => 6, Altitude_D_Lpf => 4, Ap_Landing_Altitude_M => 0, Ap_Hover_Throttle => 1,
       Ap_Throttle_Min => 3, Ap_Throttle_Max => 5, Ap_Altitude_P => 7, Ap_Altitude_I => 8, Ap_Altitude_D => 9,
       Ap_Altitude_A => 10, Ap_Altitude_F => 11, Ap_Position_P => 12, Ap_Position_I => 13, Ap_Position_D => 14,
@@ -400,9 +402,9 @@ package body Adaflight.Config_Groups with SPARK_Mode is
       Ledstrip_Beacon_Period_Ms => U16, Ledstrip_Beacon_Percent => U8, Ledstrip_Beacon_Armed_Only => U8,
       Ledstrip_Brightness => U8, Ledstrip_Rainbow_Delta => U16, Ledstrip_Rainbow_Freq => U16,
       Transponder_Provider => U8, Transponder_Data => U8, Sdcard_Detect_Inverted => U8, Sdcard_Mode => U8,
-      Osd_Units => U8, Osd_Warn_Bitmask => U32, Osd_Rssi_Alarm => U8, Osd_Link_Quality_Alarm => U16,
-      Osd_Rssi_Dbm_Alarm => I16, Osd_Rsnr_Alarm => I16, Osd_Cap_Alarm => U16, Osd_Alt_Alarm => U16,
-      Osd_Distance_Alarm => U16, Osd_Esc_Temp_Alarm => U8, Osd_Esc_Rpm_Alarm => I16,
+      Sdcard_Spi_Bus => U8, Osd_Units => U8, Osd_Warn_Bitmask => U32, Osd_Rssi_Alarm => U8,
+      Osd_Link_Quality_Alarm => U16, Osd_Rssi_Dbm_Alarm => I16, Osd_Rsnr_Alarm => I16, Osd_Cap_Alarm => U16,
+      Osd_Alt_Alarm => U16, Osd_Distance_Alarm => U16, Osd_Esc_Temp_Alarm => U8, Osd_Esc_Rpm_Alarm => I16,
       Osd_Esc_Current_Alarm => I16, Osd_Core_Temp_Alarm => U8, Osd_Ah_Max_Pit => U8, Osd_Ah_Max_Rol => U8,
       Osd_Ah_Invert => U8, Osd_Logo_On_Arming => U8, Osd_Logo_On_Arming_Duration => U8, Osd_Arming_Logo => U8,
       Osd_Use_Quick_Menu => U8, Osd_Show_Spec_Prearm => U8, Osd_Tim1 => U16, Osd_Tim2 => U16,
@@ -454,7 +456,10 @@ package body Adaflight.Config_Groups with SPARK_Mode is
       Esc_Sensor_Halfduplex => U8, Esc_Sensor_Current_Offset => U16, Esc_Sensor_Uart => I8,
       Frsky_Spi_Autobind => U8, Frsky_Spi_Tx_Id => U8, Frsky_Spi_Offset => I8, Frsky_Spi_Bind_Hop_Data => U8,
       Frsky_X_Rx_Num => U8, Frsky_Spi_A1_Source => U8, Cc2500_Spi_Chip_Detect => U8, Led_Inversion => U8,
-      Dashboard_I2c_Bus => U8, Dashboard_I2c_Addr => U8, Rangefinder_Hardware => U8, Rangefinder_Uart => I8,
+      Dashboard_I2c_Bus => U8, Dashboard_I2c_Addr => U8, Camera_Control_Mode => U8,
+      Camera_Control_Ref_Voltage => U16, Camera_Control_Key_Delay => U16,
+      Camera_Control_Internal_Resistance => U16, Camera_Control_Button_Resistance => U16,
+      Camera_Control_Inverted => U8, Rangefinder_Hardware => U8, Rangefinder_Uart => I8,
       Opticalflow_Hardware => U8, Opticalflow_Uart => I8, Opticalflow_Rotation => I16,
       Opticalflow_Flip_X => U8, Pinio_Config => U8, Pinio_Box => U8, Usb_Hid_Cdc => U8,
       Usb_Msc_Pin_Pullup => U8, Flash_Spi_Bus => U8, Rcdevice_Init_Dev_Attempts => U8,
@@ -634,9 +639,9 @@ package body Adaflight.Config_Groups with SPARK_Mode is
           Mavlink_Extra1_Rate | Mavlink_Extra2_Rate | Mavlink_Extra3_Rate | Ledstrip_Visual_Beeper |
           Ledstrip_Visual_Beeper_Color | Ledstrip_Grb_Rgb | Ledstrip_Profile | Ledstrip_Race_Color |
           Ledstrip_Beacon_Color | Ledstrip_Beacon_Percent | Ledstrip_Beacon_Armed_Only | Ledstrip_Brightness |
-          Transponder_Provider | Transponder_Data | Sdcard_Detect_Inverted | Sdcard_Mode | Osd_Units | Osd_Rssi_Alarm
-          | Osd_Esc_Temp_Alarm | Osd_Core_Temp_Alarm | Osd_Ah_Max_Pit | Osd_Ah_Max_Rol | Osd_Ah_Invert |
-          Osd_Logo_On_Arming | Osd_Logo_On_Arming_Duration | Osd_Arming_Logo | Osd_Use_Quick_Menu |
+          Transponder_Provider | Transponder_Data | Sdcard_Detect_Inverted | Sdcard_Mode | Sdcard_Spi_Bus | Osd_Units
+          | Osd_Rssi_Alarm | Osd_Esc_Temp_Alarm | Osd_Core_Temp_Alarm | Osd_Ah_Max_Pit | Osd_Ah_Max_Rol |
+          Osd_Ah_Invert | Osd_Logo_On_Arming | Osd_Logo_On_Arming_Duration | Osd_Arming_Logo | Osd_Use_Quick_Menu |
           Osd_Show_Spec_Prearm | Osd_Stick_Overlay_Radio_Mode | Osd_Profile | Osd_Gps_Sats_Show_Pdop |
           Osd_Displayport_Device | Osd_Camera_Frame_Width | Osd_Camera_Frame_Height | Osd_Stat_Avg_Cell_Value |
           Osd_Menu_Background | Osd_Aux_Channel | Osd_Aux_Symbol | Osd_Craftname_Msgs |
@@ -646,20 +651,20 @@ package body Adaflight.Config_Groups with SPARK_Mode is
           Vtx_Spi_Bus | Vcd_Video_System | Max7456_Clock | Max7456_Spi_Bus | Displayport_Msp_Fonts |
           Displayport_Msp_Use_Device_Blink | Displayport_Max7456_Blk | Displayport_Max7456_Wht | Esc_Sensor_Halfduplex
           | Frsky_Spi_Autobind | Frsky_Spi_Tx_Id | Frsky_Spi_Bind_Hop_Data | Frsky_X_Rx_Num | Frsky_Spi_A1_Source |
-          Cc2500_Spi_Chip_Detect | Led_Inversion | Dashboard_I2c_Bus | Dashboard_I2c_Addr | Rangefinder_Hardware |
-          Opticalflow_Hardware | Opticalflow_Flip_X | Pinio_Config | Pinio_Box | Usb_Hid_Cdc | Usb_Msc_Pin_Pullup |
-          Flash_Spi_Bus | Rcdevice_Init_Dev_Attempts | Rcdevice_Protocol_Version | Gyro_1_Bustype | Gyro_1_Spibus |
-          Gyro_1_I2c_Bus | Gyro_1_I2c_Address | Mco2_On_Pc9 | Spektrum_Spi_Protocol | Spektrum_Spi_Mfg_Id |
-          Spektrum_Spi_Num_Channels | Expresslrs_Uid | Expresslrs_Domain | Expresslrs_Model_Id |
-          Cpu_Late_Limit_Permille | Serialmsp_Halfduplex | Msp_1_Baud | Msp_2_Baud | Msp_3_Baud | Rpm_Filter_Harmonics
-          | Rpm_Filter_Weights | Rpm_Filter_Min_Hz | Flysky_Spi_Rf_Channels | Stats_Save_Move_Limit |
-          Ap_Landing_Altitude_M | Ap_Altitude_P | Ap_Altitude_I | Ap_Altitude_D | Ap_Altitude_A | Ap_Altitude_F |
-          Ap_Position_P | Ap_Position_I | Ap_Position_D | Ap_Position_A | Ap_Position_F | Ap_Position_Cutoff |
-          Ap_Stop_Threshold | Ap_Max_Angle | Ap_Max_Yaw_Rate | Ap_Yaw_P | Ap_Velocity_Drag_Coeff | Ap_Yaw_Mode |
-          Ap_Nav_Carrot_Lead_Time | Ap_Velocity_Buildup_Max_Pitch | Ap_Max_Turn_Rate | Ap_Landing_Descent_Rate |
-          Ap_Landing_Detection_Time | Ap_Landing_Spiral_Enable | Ap_Landing_Spiral_Rate |
-          Ap_Landing_Velocity_Threshold | Ap_L1_Enable | Ap_L1_Turn_Rate | Ap_Min_Nav_Altitude_M | Ap_Rx_Loss_Policy |
-          Ap_Geofence_Action => 0,
+          Cc2500_Spi_Chip_Detect | Led_Inversion | Dashboard_I2c_Bus | Dashboard_I2c_Addr | Camera_Control_Mode |
+          Camera_Control_Inverted | Rangefinder_Hardware | Opticalflow_Hardware | Opticalflow_Flip_X | Pinio_Config |
+          Pinio_Box | Usb_Hid_Cdc | Usb_Msc_Pin_Pullup | Flash_Spi_Bus | Rcdevice_Init_Dev_Attempts |
+          Rcdevice_Protocol_Version | Gyro_1_Bustype | Gyro_1_Spibus | Gyro_1_I2c_Bus | Gyro_1_I2c_Address |
+          Mco2_On_Pc9 | Spektrum_Spi_Protocol | Spektrum_Spi_Mfg_Id | Spektrum_Spi_Num_Channels | Expresslrs_Uid |
+          Expresslrs_Domain | Expresslrs_Model_Id | Cpu_Late_Limit_Permille | Serialmsp_Halfduplex | Msp_1_Baud |
+          Msp_2_Baud | Msp_3_Baud | Rpm_Filter_Harmonics | Rpm_Filter_Weights | Rpm_Filter_Min_Hz |
+          Flysky_Spi_Rf_Channels | Stats_Save_Move_Limit | Ap_Landing_Altitude_M | Ap_Altitude_P | Ap_Altitude_I |
+          Ap_Altitude_D | Ap_Altitude_A | Ap_Altitude_F | Ap_Position_P | Ap_Position_I | Ap_Position_D |
+          Ap_Position_A | Ap_Position_F | Ap_Position_Cutoff | Ap_Stop_Threshold | Ap_Max_Angle | Ap_Max_Yaw_Rate |
+          Ap_Yaw_P | Ap_Velocity_Drag_Coeff | Ap_Yaw_Mode | Ap_Nav_Carrot_Lead_Time | Ap_Velocity_Buildup_Max_Pitch |
+          Ap_Max_Turn_Rate | Ap_Landing_Descent_Rate | Ap_Landing_Detection_Time | Ap_Landing_Spiral_Enable |
+          Ap_Landing_Spiral_Rate | Ap_Landing_Velocity_Threshold | Ap_L1_Enable | Ap_L1_Turn_Rate |
+          Ap_Min_Nav_Altitude_M | Ap_Rx_Loss_Policy | Ap_Geofence_Action => 0,
         when Gyro_Lpf1_Static_Hz | Gyro_Lpf2_Static_Hz | Gyro_Notch1_Hz | Gyro_Notch1_Cutoff | Gyro_Notch2_Hz |
           Gyro_Notch2_Cutoff | Gyro_Calib_Duration | Yaw_Spin_Threshold | Dyn_Notch_Q | Dyn_Notch_Min_Hz |
           Dyn_Notch_Max_Hz | Gyro_Lpf1_Dyn_Min_Hz | Gyro_Lpf1_Dyn_Max_Hz | Acc_Lpf_Hz | Mid_Rc | Min_Check | Max_Check
@@ -702,14 +707,16 @@ package body Adaflight.Config_Groups with SPARK_Mode is
           Osd_Wp_Number_Pos | Osd_Wp_Current_Lat_Pos | Osd_Wp_Current_Lon_Pos | Osd_Wp_Current_Alt_Pos |
           Osd_Wp_Distance_Pos | Osd_Wp_Direction_Pos | Osd_Wp_Next_Number_Pos | Osd_Wp_Eta_Pos | Osd_Nav_Map_Pos |
           Osd_Nav_Map_Min_Scale_M | Osd_Airspeed | Vtx_Freq | Vtx_Pit_Mode_Freq | Esc_Sensor_Current_Offset |
-          Rcdevice_Feature | I2c1_Clockspeed_Khz | I2c2_Clockspeed_Khz | I2c3_Clockspeed_Khz | Scheduler_Relax_Rx |
-          Scheduler_Relax_Osd | Scheduler_Debug_Task | Rpm_Filter_Q | Rpm_Filter_Fade_Range_Hz | Rpm_Filter_Lpf_Hz |
-          Altitude_Lpf | Rangefinder_Max_Range_Cm | Altitude_D_Lpf | Ap_Hover_Throttle | Ap_Throttle_Min |
-          Ap_Throttle_Max | Ap_Max_Velocity | Ap_Waypoint_Arrival_Radius | Ap_Waypoint_Hold_Radius | Ap_Stick_Deadband
-          | Ap_Throttle_Deadband | Ap_Min_Forward_Velocity | Ap_Nav_Corner_Speed | Ap_Nav_Corner_Delta_V |
-          Ap_Nav_Decel | Ap_Nav_Accel | Ap_Nav_Carrot_Lead_Max | Ap_Nav_Preturn_Dist | Ap_Hold_Orbit_Radius |
-          Ap_Hold_Figure8_Width | Ap_Landing_Spiral_Radius | Ap_Landing_Throttle_Threshold | Ap_L1_Period |
-          Ap_L1_Min_Lookahead | Ap_L1_Max_Lookahead | Ap_L1_Max_Cross_Track_Error | Ap_Max_Distance_From_Home => 0,
+          Camera_Control_Ref_Voltage | Camera_Control_Key_Delay | Camera_Control_Internal_Resistance |
+          Camera_Control_Button_Resistance | Rcdevice_Feature | I2c1_Clockspeed_Khz | I2c2_Clockspeed_Khz |
+          I2c3_Clockspeed_Khz | Scheduler_Relax_Rx | Scheduler_Relax_Osd | Scheduler_Debug_Task | Rpm_Filter_Q |
+          Rpm_Filter_Fade_Range_Hz | Rpm_Filter_Lpf_Hz | Altitude_Lpf | Rangefinder_Max_Range_Cm | Altitude_D_Lpf |
+          Ap_Hover_Throttle | Ap_Throttle_Min | Ap_Throttle_Max | Ap_Max_Velocity | Ap_Waypoint_Arrival_Radius |
+          Ap_Waypoint_Hold_Radius | Ap_Stick_Deadband | Ap_Throttle_Deadband | Ap_Min_Forward_Velocity |
+          Ap_Nav_Corner_Speed | Ap_Nav_Corner_Delta_V | Ap_Nav_Decel | Ap_Nav_Accel | Ap_Nav_Carrot_Lead_Max |
+          Ap_Nav_Preturn_Dist | Ap_Hold_Orbit_Radius | Ap_Hold_Figure8_Width | Ap_Landing_Spiral_Radius |
+          Ap_Landing_Throttle_Threshold | Ap_L1_Period | Ap_L1_Min_Lookahead | Ap_L1_Max_Lookahead |
+          Ap_L1_Max_Cross_Track_Error | Ap_Max_Distance_From_Home => 0,
         when Msp_Override_Channels_Mask | Osd_Warn_Bitmask | Osd_Stat_Bitmask | Rcdevice_Init_Dev_Attempt_Interval |
           Flysky_Spi_Tx_Id | Stats_Total_Flights | Stats_Total_Time_S | Stats_Total_Dist_M | Stats_Mah_Used => 0,
         when others => 0);
@@ -800,9 +807,9 @@ package body Adaflight.Config_Groups with SPARK_Mode is
           Mavlink_Extra1_Rate | Mavlink_Extra2_Rate | Mavlink_Extra3_Rate | Ledstrip_Visual_Beeper |
           Ledstrip_Visual_Beeper_Color | Ledstrip_Grb_Rgb | Ledstrip_Profile | Ledstrip_Race_Color |
           Ledstrip_Beacon_Color | Ledstrip_Beacon_Percent | Ledstrip_Beacon_Armed_Only | Ledstrip_Brightness |
-          Transponder_Provider | Transponder_Data | Sdcard_Detect_Inverted | Sdcard_Mode | Osd_Units | Osd_Rssi_Alarm
-          | Osd_Esc_Temp_Alarm | Osd_Core_Temp_Alarm | Osd_Ah_Max_Pit | Osd_Ah_Max_Rol | Osd_Ah_Invert |
-          Osd_Logo_On_Arming | Osd_Logo_On_Arming_Duration | Osd_Arming_Logo | Osd_Use_Quick_Menu |
+          Transponder_Provider | Transponder_Data | Sdcard_Detect_Inverted | Sdcard_Mode | Sdcard_Spi_Bus | Osd_Units
+          | Osd_Rssi_Alarm | Osd_Esc_Temp_Alarm | Osd_Core_Temp_Alarm | Osd_Ah_Max_Pit | Osd_Ah_Max_Rol |
+          Osd_Ah_Invert | Osd_Logo_On_Arming | Osd_Logo_On_Arming_Duration | Osd_Arming_Logo | Osd_Use_Quick_Menu |
           Osd_Show_Spec_Prearm | Osd_Stick_Overlay_Radio_Mode | Osd_Profile | Osd_Gps_Sats_Show_Pdop |
           Osd_Displayport_Device | Osd_Camera_Frame_Width | Osd_Camera_Frame_Height | Osd_Stat_Avg_Cell_Value |
           Osd_Menu_Background | Osd_Aux_Channel | Osd_Aux_Symbol | Osd_Craftname_Msgs |
@@ -812,20 +819,20 @@ package body Adaflight.Config_Groups with SPARK_Mode is
           Vtx_Spi_Bus | Vcd_Video_System | Max7456_Clock | Max7456_Spi_Bus | Displayport_Msp_Fonts |
           Displayport_Msp_Use_Device_Blink | Displayport_Max7456_Blk | Displayport_Max7456_Wht | Esc_Sensor_Halfduplex
           | Frsky_Spi_Autobind | Frsky_Spi_Tx_Id | Frsky_Spi_Bind_Hop_Data | Frsky_X_Rx_Num | Frsky_Spi_A1_Source |
-          Cc2500_Spi_Chip_Detect | Led_Inversion | Dashboard_I2c_Bus | Dashboard_I2c_Addr | Rangefinder_Hardware |
-          Opticalflow_Hardware | Opticalflow_Flip_X | Pinio_Config | Pinio_Box | Usb_Hid_Cdc | Usb_Msc_Pin_Pullup |
-          Flash_Spi_Bus | Rcdevice_Init_Dev_Attempts | Rcdevice_Protocol_Version | Gyro_1_Bustype | Gyro_1_Spibus |
-          Gyro_1_I2c_Bus | Gyro_1_I2c_Address | Mco2_On_Pc9 | Spektrum_Spi_Protocol | Spektrum_Spi_Mfg_Id |
-          Spektrum_Spi_Num_Channels | Expresslrs_Uid | Expresslrs_Domain | Expresslrs_Model_Id |
-          Cpu_Late_Limit_Permille | Serialmsp_Halfduplex | Msp_1_Baud | Msp_2_Baud | Msp_3_Baud | Rpm_Filter_Harmonics
-          | Rpm_Filter_Weights | Rpm_Filter_Min_Hz | Flysky_Spi_Rf_Channels | Stats_Save_Move_Limit |
-          Ap_Landing_Altitude_M | Ap_Altitude_P | Ap_Altitude_I | Ap_Altitude_D | Ap_Altitude_A | Ap_Altitude_F |
-          Ap_Position_P | Ap_Position_I | Ap_Position_D | Ap_Position_A | Ap_Position_F | Ap_Position_Cutoff |
-          Ap_Stop_Threshold | Ap_Max_Angle | Ap_Max_Yaw_Rate | Ap_Yaw_P | Ap_Velocity_Drag_Coeff | Ap_Yaw_Mode |
-          Ap_Nav_Carrot_Lead_Time | Ap_Velocity_Buildup_Max_Pitch | Ap_Max_Turn_Rate | Ap_Landing_Descent_Rate |
-          Ap_Landing_Detection_Time | Ap_Landing_Spiral_Enable | Ap_Landing_Spiral_Rate |
-          Ap_Landing_Velocity_Threshold | Ap_L1_Enable | Ap_L1_Turn_Rate | Ap_Min_Nav_Altitude_M | Ap_Rx_Loss_Policy |
-          Ap_Geofence_Action => 255,
+          Cc2500_Spi_Chip_Detect | Led_Inversion | Dashboard_I2c_Bus | Dashboard_I2c_Addr | Camera_Control_Mode |
+          Camera_Control_Inverted | Rangefinder_Hardware | Opticalflow_Hardware | Opticalflow_Flip_X | Pinio_Config |
+          Pinio_Box | Usb_Hid_Cdc | Usb_Msc_Pin_Pullup | Flash_Spi_Bus | Rcdevice_Init_Dev_Attempts |
+          Rcdevice_Protocol_Version | Gyro_1_Bustype | Gyro_1_Spibus | Gyro_1_I2c_Bus | Gyro_1_I2c_Address |
+          Mco2_On_Pc9 | Spektrum_Spi_Protocol | Spektrum_Spi_Mfg_Id | Spektrum_Spi_Num_Channels | Expresslrs_Uid |
+          Expresslrs_Domain | Expresslrs_Model_Id | Cpu_Late_Limit_Permille | Serialmsp_Halfduplex | Msp_1_Baud |
+          Msp_2_Baud | Msp_3_Baud | Rpm_Filter_Harmonics | Rpm_Filter_Weights | Rpm_Filter_Min_Hz |
+          Flysky_Spi_Rf_Channels | Stats_Save_Move_Limit | Ap_Landing_Altitude_M | Ap_Altitude_P | Ap_Altitude_I |
+          Ap_Altitude_D | Ap_Altitude_A | Ap_Altitude_F | Ap_Position_P | Ap_Position_I | Ap_Position_D |
+          Ap_Position_A | Ap_Position_F | Ap_Position_Cutoff | Ap_Stop_Threshold | Ap_Max_Angle | Ap_Max_Yaw_Rate |
+          Ap_Yaw_P | Ap_Velocity_Drag_Coeff | Ap_Yaw_Mode | Ap_Nav_Carrot_Lead_Time | Ap_Velocity_Buildup_Max_Pitch |
+          Ap_Max_Turn_Rate | Ap_Landing_Descent_Rate | Ap_Landing_Detection_Time | Ap_Landing_Spiral_Enable |
+          Ap_Landing_Spiral_Rate | Ap_Landing_Velocity_Threshold | Ap_L1_Enable | Ap_L1_Turn_Rate |
+          Ap_Min_Nav_Altitude_M | Ap_Rx_Loss_Policy | Ap_Geofence_Action => 255,
         when Gyro_Lpf1_Static_Hz | Gyro_Lpf2_Static_Hz | Gyro_Notch1_Hz | Gyro_Notch1_Cutoff | Gyro_Notch2_Hz |
           Gyro_Notch2_Cutoff | Gyro_Calib_Duration | Yaw_Spin_Threshold | Dyn_Notch_Q | Dyn_Notch_Min_Hz |
           Dyn_Notch_Max_Hz | Gyro_Lpf1_Dyn_Min_Hz | Gyro_Lpf1_Dyn_Max_Hz | Acc_Lpf_Hz | Mid_Rc | Min_Check | Max_Check
@@ -868,14 +875,16 @@ package body Adaflight.Config_Groups with SPARK_Mode is
           Osd_Wp_Number_Pos | Osd_Wp_Current_Lat_Pos | Osd_Wp_Current_Lon_Pos | Osd_Wp_Current_Alt_Pos |
           Osd_Wp_Distance_Pos | Osd_Wp_Direction_Pos | Osd_Wp_Next_Number_Pos | Osd_Wp_Eta_Pos | Osd_Nav_Map_Pos |
           Osd_Nav_Map_Min_Scale_M | Osd_Airspeed | Vtx_Freq | Vtx_Pit_Mode_Freq | Esc_Sensor_Current_Offset |
-          Rcdevice_Feature | I2c1_Clockspeed_Khz | I2c2_Clockspeed_Khz | I2c3_Clockspeed_Khz | Scheduler_Relax_Rx |
-          Scheduler_Relax_Osd | Scheduler_Debug_Task | Rpm_Filter_Q | Rpm_Filter_Fade_Range_Hz | Rpm_Filter_Lpf_Hz |
-          Altitude_Lpf | Rangefinder_Max_Range_Cm | Altitude_D_Lpf | Ap_Hover_Throttle | Ap_Throttle_Min |
-          Ap_Throttle_Max | Ap_Max_Velocity | Ap_Waypoint_Arrival_Radius | Ap_Waypoint_Hold_Radius | Ap_Stick_Deadband
-          | Ap_Throttle_Deadband | Ap_Min_Forward_Velocity | Ap_Nav_Corner_Speed | Ap_Nav_Corner_Delta_V |
-          Ap_Nav_Decel | Ap_Nav_Accel | Ap_Nav_Carrot_Lead_Max | Ap_Nav_Preturn_Dist | Ap_Hold_Orbit_Radius |
-          Ap_Hold_Figure8_Width | Ap_Landing_Spiral_Radius | Ap_Landing_Throttle_Threshold | Ap_L1_Period |
-          Ap_L1_Min_Lookahead | Ap_L1_Max_Lookahead | Ap_L1_Max_Cross_Track_Error | Ap_Max_Distance_From_Home => 65535,
+          Camera_Control_Ref_Voltage | Camera_Control_Key_Delay | Camera_Control_Internal_Resistance |
+          Camera_Control_Button_Resistance | Rcdevice_Feature | I2c1_Clockspeed_Khz | I2c2_Clockspeed_Khz |
+          I2c3_Clockspeed_Khz | Scheduler_Relax_Rx | Scheduler_Relax_Osd | Scheduler_Debug_Task | Rpm_Filter_Q |
+          Rpm_Filter_Fade_Range_Hz | Rpm_Filter_Lpf_Hz | Altitude_Lpf | Rangefinder_Max_Range_Cm | Altitude_D_Lpf |
+          Ap_Hover_Throttle | Ap_Throttle_Min | Ap_Throttle_Max | Ap_Max_Velocity | Ap_Waypoint_Arrival_Radius |
+          Ap_Waypoint_Hold_Radius | Ap_Stick_Deadband | Ap_Throttle_Deadband | Ap_Min_Forward_Velocity |
+          Ap_Nav_Corner_Speed | Ap_Nav_Corner_Delta_V | Ap_Nav_Decel | Ap_Nav_Accel | Ap_Nav_Carrot_Lead_Max |
+          Ap_Nav_Preturn_Dist | Ap_Hold_Orbit_Radius | Ap_Hold_Figure8_Width | Ap_Landing_Spiral_Radius |
+          Ap_Landing_Throttle_Threshold | Ap_L1_Period | Ap_L1_Min_Lookahead | Ap_L1_Max_Lookahead |
+          Ap_L1_Max_Cross_Track_Error | Ap_Max_Distance_From_Home => 65535,
         when Msp_Override_Channels_Mask | Osd_Warn_Bitmask | Osd_Stat_Bitmask | Rcdevice_Init_Dev_Attempt_Interval |
           Flysky_Spi_Tx_Id | Stats_Total_Flights | Stats_Total_Time_S | Stats_Total_Dist_M | Stats_Mah_Used =>
           4294967295,
