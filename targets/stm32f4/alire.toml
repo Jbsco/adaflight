@@ -39,6 +39,10 @@ LOADER = "USER"
 type = "pre-build"
 command = ["sh", "-c", "python3 ../../tools/boardgen.py ../../third_party/board-configs/configs \"${BOARD:-CLRACINGF4}\" gen/adaflight-board.ads"]
 
+[[actions]]
+type = "pre-build"
+command = ["sh", "-c", "python3 ../../tools/memorygen.py ../../third_party/board-configs/configs \"${BOARD:-CLRACINGF4}\" gen/memory.ld"]
+
 # The build's features follow the board's flash size, or FLASH_KB when set, with the FEATURES list
 # adding or removing features by name (tools/featuregen.py).
 [[actions]]
