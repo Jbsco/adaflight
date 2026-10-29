@@ -1,19 +1,42 @@
---  The host's motor outputs: the DShot protocols drive every motor of the
---  mix, so the image runs the board's motor path, and a frame has no
---  hardware to reach. Each frame of a DShot command, a value from 1 to 47,
+--  The host's motor outputs: the DShot protocols drive the mix's motors
+--  when each motor's pin has a timer channel with a DMA option, which the
+--  motor holds against other outputs as on the board, so the image runs the
+--  board's motor path, and a frame has no hardware to reach. Each frame of a DShot command, a value from 1 to 47,
 --  that the transfers send adds a line of the motor, the value and the
 --  telemetry request to the file the environment variable
 --  ADAFLIGHT_DSHOT_LOG names.
 with Ada.Environment_Variables;
 with Ada.Text_IO;
+with Adaflight.Board;
+with Adaflight.STM32.Timers;
 package body Adaflight.STM32.Motors is
    Driven : Natural range 0 .. 8 := 0;
    Is_On  : Boolean := False;
    Kind   : Adaflight.MSP_Motor_In.Device_Kind := Adaflight.MSP_Motor_In.No_Device;
 
    procedure Init (C : Adaflight.Config_Groups.Configuration; Count : Natural) is
+      use Adaflight.STM32.Timers;
    begin
-      Driven := (if C.Motor_Config.Dev.Motor_Protocol in 5 .. 7 then Natural'Min (Count, 8) else 0);
+      Driven := 0;
+      Kind := Adaflight.MSP_Motor_In.No_Device;
+      if C.Motor_Config.Dev.Motor_Protocol not in 5 .. 7 then
+         return;
+      end if;
+      for M in 0 .. Natural'Min (Count, 8) - 1 loop
+         declare
+            Order : constant Natural := Natural (C.Motor_Config.Dev.Motor_Output_Reordering (M)) mod 8;
+            E     : Timer_Entry;
+            Index : Natural;
+            Found : Boolean;
+         begin
+            Allocate (C.Motor_Config.Dev.Io_Tags (Order), Motor, E, Index, Found);
+            if not Found or else Adaflight.Board.Timer_Map (Index).DMA_Option < 0 then
+               Driven := 0;
+               return;
+            end if;
+            Driven := M + 1;
+         end;
+      end loop;
       Kind := (if Driven > 0 then Adaflight.MSP_Motor_In.DShot else Adaflight.MSP_Motor_In.No_Device);
    end Init;
 

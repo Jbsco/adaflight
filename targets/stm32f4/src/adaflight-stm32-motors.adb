@@ -126,12 +126,6 @@ package body Adaflight.STM32.Motors is
    Is_On   : Boolean := False;
    Kind    : Adaflight.MSP_Motor_In.Device_Kind := Adaflight.MSP_Motor_In.No_Device;
 
-   function Tagged_Pin (Tag : Unsigned_8) return Boolean is (Tag / 16 in 1 .. Port_Name'Pos (Port_Name'Last) + 1);
-
-   function Pin_Of (Tag : Unsigned_8) return Pin is
-     ((Port => Port_Name'Val (Natural (Tag / 16) - 1), Number => Pin_Number (Tag mod 16)))
-     with Pre => Tagged_Pin (Tag);
-
    --  One motor's output as the reference configures it: the pin on the
    --  timer's alternate function, the timer at the protocol's bit clock when
    --  it is the timer just added, the channel in PWM mode 1 with its
@@ -246,37 +240,23 @@ package body Adaflight.STM32.Motors is
          declare
             Order    : constant Natural := Natural (C.Motor_Config.Dev.Motor_Output_Reordering (M)) mod 8;
             Tag      : constant Unsigned_8 := C.Motor_Config.Dev.Io_Tags (Order);
-            Found    : Boolean := False;
-            E        : Timer_Entry := Timer_Table (Timer_Table'First);
+            Found    : Boolean;
+            E        : Timer_Entry;
+            Index    : Natural;
             S        : DMA_Stream;
             Inverted : constant Boolean := C.Motor_Config.Dev.Motor_Inversion /= 0;
          begin
-            if Tagged_Pin (Tag) then
-               for Map of Adaflight.Board.Timer_Map loop
-                  if Map.P = Pin_Of (Tag) and then Map.Timer_Option >= 1 and then Map.DMA_Option >= 0 then
-                     declare
-                        Seen : Natural := 0;
-                     begin
-                        for T of Timer_Table loop
-                           if T.Where = Map.P then
-                              Seen := Seen + 1;
-                              if Seen = Map.Timer_Option then
-                                 E := T;
-                                 declare
-                                    O : constant DMA_Options := Options_Of (T.Timer, T.Channel);
-                                 begin
-                                    if Map.DMA_Option < O'Length then
-                                       S := O (O'First + Map.DMA_Option);
-                                       Found := True;
-                                    end if;
-                                 end;
-                              end if;
-                           end if;
-                        end loop;
-                     end;
-                     exit;
+            Allocate (Tag, Motor, E, Index, Found);
+            if Found then
+               declare
+                  O      : constant DMA_Options := Options_Of (E.Timer, E.Channel);
+                  Option : constant Integer := Adaflight.Board.Timer_Map (Index).DMA_Option;
+               begin
+                  Found := Option in 0 .. O'Length - 1;
+                  if Found then
+                     S := O (O'First + Option);
                   end if;
-               end loop;
+               end;
             end if;
             if not Found then
                Driven := 0;
