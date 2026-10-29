@@ -11450,3 +11450,14 @@ host. The port takes the same value at the same three places.
 The USB oracle sets a recording callback at each event, since the VCP's start clears it, and each line now ends with
 the last state and the count. A new set of sessions sends the request with a two-byte data stage and reads it back,
 and the earlier sessions' lines are unchanged before the two new fields.
+
+## D507. Passthrough escape (2026-10-28)
+
+The serial passthrough's forwarding ends with a reset when the host sends three plus signs, the first after a second
+without a host byte, unless the host is on the USB port, which resets through DTR instead (D506).
+`Adaflight.Passthrough_Escape` keeps the count and the time of the last host byte, the gap taken with the clock's
+wrap. It is SPARK as a state machine whose reset the forwarding acts on.
+
+A new oracle runs the reference's forwarding loop over a silent device port and a host port with drawn bytes and
+times, leaves it by longjmp at the reset or when the bytes run out, and records the byte that reset. All 4000 cases
+match, 959 of them with a reset.
