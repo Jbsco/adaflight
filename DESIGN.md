@@ -11704,3 +11704,33 @@ bus, and the power-on calibration starts with the flight log. The host image mod
 answering the datasheet's worked example, which the smoke reads through the status, the sensor flags and the altitude
 reply. The Kakute F7 image grows from 634216 to 637284 bytes of code for the I2C driver and the barometer, the
 CLRacing F4S image from 638992 to 639512 for the hardware defaults, its barometer code dropped by its constants.
+
+## D520. Configuration group set of a board build (2026-10-29)
+
+The configuration's group set, the groups' fields, the settings table and the defaults now match a board build of the
+reference with the port's feature set. We took the reference's own compile lines for the CLRacing F4 from a dry run of
+its make, compiled the parameter group sources with the GNAT ARM compiler at the debug level, read every group's type
+from the debug information, and compared them with the host settings oracle's. The oracle lacked three groups, the
+camera control, the ESC serial pin and the timer pin map, the ADC group's DMA options, seven settings (the camera
+control's six and the SD card's SPI bus), and the aux channel count default, 14 on a board with an FPU where the host
+build read 6. Every other difference is the compiler's: the ARM compiler stores an enumeration in one byte and a
+character unsigned, the host in four bytes and signed, so a host build with those two conventions gives the board
+build's layout for all 104 groups. The port keeps the four-byte enumerations in its records and its own stored image
+(D158), so a group on the board is narrower than the port's record of it.
+
+The host oracle's generic F405 target now defines the STM32 platform's timer management and DMA specification, the
+SD card's SPI bus, the CLRacing F4's timer pin map, camera control pin and ADC DMA option with its pins as raw tags,
+and the FPU flags the aux channel default reads; the ESC serial group comes through a shim, since its driver does not
+build on the host, and the settings table compiles with the same defines as the groups. A script rebuilds the oracle
+and its dump files (the settings, the defaults, the group variables in registry order, the lookup table names and the
+layout), the three generators write the port's groups, codec and settings table, and a second script reruns the
+recipes of the families that hash the configuration, replaying the recorded inputs where a recipe no longer draws
+them. The codec grows from 4591 to 4677 bytes; stored images keep loading, since the store keys groups by number.
+
+The board's hardware defaults gained the timer pin map, the camera control pin, the ADC devices' DMA options and the
+ESC serial pin, which the board generator reads from the configuration repository and the flight writes into the
+stored defaults, so a Kakute F7 stores its own map. The resource table gained the ESCSERIAL and CAMERA_CONTROL owners
+in the reference's order, and the build option list names camera control, as the reference does when the board has
+the pin. The timer and dma commands and the dump's timer and dma sections wait for the next increment: the command
+line oracle compiles with those conditionals turned off while the groups stay registered. The Kakute F7 image builds at
+638272 bytes of code and the CLRacing F4S one at 640496; the host smoke (400 checks), style and the vectors pass.

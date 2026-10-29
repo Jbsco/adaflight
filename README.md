@@ -32,7 +32,7 @@ Flight software is ported and runs on host, where each ported function replays i
 - **Rangefinders, optical flow and airspeed**: TF, Nooploop, HC-SR04 and MT rangefinders, MT and UP-T1 optical flow, pitot airspeed
 - **Receivers**: SBUS, CRSF, SUMD, SUMH, IBUS, Spektrum, XBUS, Jeti EX Bus, Ghost, SRXL2, FPORT, PPM, PWM, MSP and MAVLink, and SPI receivers for ExpressLRS, FrSky D8 and X, Redpine, S-FHSS, FlySky AFHDS and AFHDS 2A, Spektrum DSM2 and DSMX and NRF24L01 protocols
 - **Telemetry**: CRSF, SmartPort, FrSky hub, iBus, HoTT, Ghost, SRXL, LTM, MAVLink with the mission protocol, Jeti EX Bus, MSP over telemetry
-- **Configuration**: command line with Betaflight's setting names, dump and diff, MSP with the messages Betaflight Configurator uses, configuration storage image
+- **Configuration**: parameter groups and settings of a board build, command line with Betaflight's setting names, dump and diff, MSP with the messages Betaflight Configurator uses, configuration storage image
 - **OSD and menus**: MAX7456, MSP display port, FrSky OSD and OLED dashboard, OSD elements, warnings, statistics and navigation map, menus over the OSD and CRSF
 - **Flight log**: blackbox to SPI flash, to an SD card over SPI or SDIO with its FAT file system, or to a serial port
 - **Peripherals**: video transmitter control over SmartAudio, Tramp, MSP and RTC6705, LED strip, beeper and DShot beacon, ESC sensor, BLHeli passthrough, RunCam, gimbal, PINIO, race transponder, GPS lap timer, real-time clock, USB virtual serial port and joystick
