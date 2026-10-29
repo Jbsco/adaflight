@@ -5,7 +5,8 @@ package body Adaflight.STM32.USB is
 
    --  The virtual serial port is a TCP server on port 5780, the port's
    --  identifier 20 past 5760, one client at a time; a connected client is a
-   --  configured port.
+   --  configured port with DTR set, and each connect or disconnect counts as
+   --  a control line request.
    VCP_Port : constant GNAT.Sockets.Port_Type := 5_780;
 
    Ring_Size : constant := 4_096;
@@ -18,12 +19,14 @@ package body Adaflight.STM32.USB is
       procedure Disconnect;
       function Client return GNAT.Sockets.Socket_Type;
       function Connected return Boolean;
+      function Changes return Interfaces.Unsigned_32;
    private
       Bytes   : Byte_Array (Ring_Index) := (others => 0);
       Head    : Ring_Index := 0;
       Fill    : Natural range 0 .. Ring_Size := 0;
       Socket  : GNAT.Sockets.Socket_Type := GNAT.Sockets.No_Socket;
       Present : Boolean := False;
+      Changed : Interfaces.Unsigned_32 := 0;
    end Line;
 
    protected body Line is
@@ -51,17 +54,21 @@ package body Adaflight.STM32.USB is
       begin
          Socket := Client;
          Present := True;
+         Changed := Interfaces."+" (Changed, 1);
       end Connect;
 
       procedure Disconnect is
       begin
          Present := False;
          Socket := GNAT.Sockets.No_Socket;
+         Changed := Interfaces."+" (Changed, 1);
       end Disconnect;
 
       function Client return GNAT.Sockets.Socket_Type is (Socket);
 
       function Connected return Boolean is (Present);
+
+      function Changes return Interfaces.Unsigned_32 is (Changed);
    end Line;
 
    task Listener is
@@ -113,6 +120,14 @@ package body Adaflight.STM32.USB is
    end Init;
 
    function Configured return Boolean is (Line.Connected);
+
+   function Line_Rate return Interfaces.Unsigned_32 is (0);
+
+   procedure Control_Line (State : out Interfaces.Unsigned_16; Count : out Interfaces.Unsigned_32) is
+   begin
+      State := (if Line.Connected then 1 else 0);
+      Count := Line.Changes;
+   end Control_Line;
 
    procedure Send (Data : Byte_Array; Accepted : out Natural) is
       use Ada.Streams;

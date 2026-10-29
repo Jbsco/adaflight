@@ -22,6 +22,8 @@ package body Adaflight.STM32.Motors is
       Is_On := Driven > 0;
    end Enable;
 
+   procedure Hold_Idle is null;
+
    procedure Disable is
    begin
       Is_On := False;

@@ -161,6 +161,9 @@ package body Adaflight.STM32.USB is
       procedure Send (Data : Byte_Array; Accepted : out Natural);
       procedure Take (Into : out Byte_Array; Count : out Natural);
       function Configured return Boolean;
+      function Line_Rate return Interfaces.Unsigned_32;
+      function Control_State return Interfaces.Unsigned_16;
+      function Control_Count return Interfaces.Unsigned_32;
    private
       procedure Handler with Attach_Handler => Ada.Interrupts.Names.OTG_FS_Interrupt;
       D          : U.Device;
@@ -502,6 +505,9 @@ package body Adaflight.STM32.USB is
       end Take;
 
       function Configured return Boolean is (U.Configured (D));
+      function Line_Rate return Interfaces.Unsigned_32 is (D.Line.Bit_Rate);
+      function Control_State return Interfaces.Unsigned_16 is (D.Control_Line);
+      function Control_Count return Interfaces.Unsigned_32 is (D.Control_Count);
    end Controller;
 
    --  The disconnect pulse of the reference's port open, D+ held low for 200
@@ -575,4 +581,12 @@ package body Adaflight.STM32.USB is
    begin
       Controller.Take (Into, Count);
    end Take;
+
+   function Line_Rate return Interfaces.Unsigned_32 is (Controller.Line_Rate);
+
+   procedure Control_Line (State : out Interfaces.Unsigned_16; Count : out Interfaces.Unsigned_32) is
+   begin
+      State := Controller.Control_State;
+      Count := Controller.Control_Count;
+   end Control_Line;
 end Adaflight.STM32.USB;

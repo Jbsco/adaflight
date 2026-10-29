@@ -11461,3 +11461,23 @@ wrap. It is SPARK as a state machine whose reset the forwarding acts on.
 A new oracle runs the reference's forwarding loop over a silent device port and a host port with drawn bytes and
 times, leaves it by longjmp at the reset or when the bytes run out, and records the byte that reset. All 4000 cases
 match, 959 of them with a reset.
+
+## D508. Board serial passthrough (2026-10-28)
+
+The board fills the passthrough's port formals (D505). A port's state comes from the UART driver, which now keeps each
+port's settings at its last start, with the receiver's and the ESC sensor's ports counted as ports whose bytes a
+function takes as they arrive. The USB port is always open. A port opens with its options as UART settings: inversion,
+two stop bits, even parity and a half duplex line, push-pull when asked. A mode change or a callback removal leaves
+the port as it is, since the board's UARTs run both ways and the forwarding is the only reader once it starts.
+
+The forwarding moves each port's bytes to the other, runs the host's bytes through the escape (D507), follows the
+host's line coding when the command gave no baud rate, and acts on each control line request (D506): a reset when DTR
+is down, or the PINIO set at DTR's opposite. An ESC sensor passthrough drives the motor pins high as plain outputs. A
+pass that moves no byte waits 100 microseconds, which the 256-byte receive rings cover at any baud rate, so the host
+image's listener tasks get the locks the loop takes. gpspassthrough forwards between the GPS port and the command
+line's port through the same loop, where the board answered that the forwarding failed. The image grows from 619244 to
+622752 bytes of code.
+
+The host image counts each connect and disconnect of its USB port's TCP client as a control line request, with DTR set
+while a client is connected. The host smoke checks the forwarding both ways between UART4 and the USB port, and the
+reset when the client disconnects from a passthrough started with a reset on DTR.
