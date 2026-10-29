@@ -1,8 +1,10 @@
---  The motors' DShot output with its command queue: each motor update sends
---  the mix's values, a queued command going out in their place, and starts
---  the transfers once the queue's output gate opens. Commands come from the
---  command line and MSP, blocking while the motors are disabled, and from
---  the arming logic and the beeper, queued while the motors stream.
+--  The motors' output: DShot with its command queue, or the analog
+--  protocols' pulses. A DShot motor update sends the mix's values, a queued
+--  command going out in their place, and starts the transfers once the
+--  queue's output gate opens. Commands come from the command line and MSP,
+--  blocking while the motors are disabled, and from the arming logic and the
+--  beeper, queued while the motors stream. An analog update writes each
+--  value's pulse, then completes the update.
 with Interfaces;
 with Adaflight.Config_Groups;
 with Adaflight.DShot_Command;

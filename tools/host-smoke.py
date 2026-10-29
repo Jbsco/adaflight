@@ -939,7 +939,8 @@ def stop(proc):
 
 def start(image, store, extra=None, port=PORT):
     env = dict(os.environ, ADAFLIGHT_EEPROM=store, ADAFLIGHT_OSD_SCREEN=store + ".osd.txt",
-               ADAFLIGHT_DSHOT_LOG=store + ".dshot.txt", ADAFLIGHT_SERVO_LOG=store + ".servo.txt", **(extra or {}))
+               ADAFLIGHT_DSHOT_LOG=store + ".dshot.txt", ADAFLIGHT_SERVO_LOG=store + ".servo.txt",
+               ADAFLIGHT_PWM_LOG=store + ".pwm.txt", **(extra or {}))
     proc = subprocess.Popen([image], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     deadline = time.time() + 15
     while time.time() < deadline:
@@ -1041,6 +1042,15 @@ def servo_lines(store):
     """The setup and pulse lines of the image's servo log, as lists of their fields."""
     try:
         with open(store + ".servo.txt") as log:
+            return [line.split(",") for line in log.read().split()]
+    except OSError:
+        return []
+
+
+def pwm_lines(store):
+    """The setup and pulse lines of the image's analog motor log, as lists of their fields."""
+    try:
+        with open(store + ".pwm.txt") as log:
             return [line.split(",") for line in log.read().split()]
     except OSError:
         return []
@@ -2663,6 +2673,45 @@ def main():
         finally:
             stop(proc)
             sock.close()
+        store = os.path.join(work, "oneshot.bin")
+        for protocol in ("ONESHOT125", "PWM"):
+            proc, sock = start(image, store)
+            try:
+                time.sleep(2.5)
+                sock.sendall(b"#")
+                read_all(sock, 0.8)
+                text = cli(sock, "set motor_pwm_protocol = " + protocol)
+                check(f"{protocol} motor protocol set", "motor_pwm_protocol set to " + protocol in text, text[-120:])
+                cli(sock, "save", wait=2.0)
+                proc.wait(timeout=10)
+            finally:
+                stop(proc)
+                sock.close()
+            proc, sock = start(image, store)
+            try:
+                time.sleep(3.0)
+                setups = [line for line in pwm_lines(store) if line[0] == "setup"]
+                if protocol == "ONESHOT125":
+                    check("OneShot125 motors start at their timers' rates with the minimum command",
+                          setups == [["setup", "0", "56000000", "65535", "1000"],
+                                     ["setup", "1", "56000000", "65535", "1000"],
+                                     ["setup", "2", "42000000", "65535", "1000"],
+                                     ["setup", "3", "42000000", "65535", "1000"]], repr(setups))
+                    ok, pulses = until(lambda: pwm_lines(store),
+                                       lambda p: ["pulse", "0", "7000"] in p and ["pulse", "2", "5250"] in p, wait=5.0)
+                    check("OneShot125 motors idle at the minimum command's pulse", ok, repr(pulses[-6:]))
+                    motors = msp(sock, 104)
+                    check("the MSP motor reply gives OneShot125 values in microseconds",
+                          motors is not None and motors[:8] == struct.pack("<4H", 1000, 1000, 1000, 1000), repr(motors))
+                    msp(sock, 214, struct.pack("<8H", 1100, 1000, 1000, 1000, 1000, 1000, 1000, 1000))
+                    ok, pulses = until(lambda: pwm_lines(store), lambda p: ["pulse", "0", "7700"] in p, wait=5.0)
+                    check("a motor test value sets the OneShot125 pulse", ok, repr(pulses[-6:]))
+                else:
+                    check("PWM motors start at 480 Hz without an idle pulse",
+                          setups[-4:] == [["setup", str(m), "28000000", "58333", "0"] for m in range(4)], repr(setups))
+            finally:
+                stop(proc)
+                sock.close()
         store = os.path.join(work, "laps.bin")
         proc, sock = start(image, store)
         try:

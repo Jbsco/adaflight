@@ -1,4 +1,5 @@
 with Adaflight.DShot_Command.Blocking_Run;
+with Adaflight.MSP_Motor_In;
 with Adaflight.STM32.Motors;
 with Adaflight.STM32.Time;
 package body Adaflight.STM32.DShot_Output is
@@ -161,6 +162,13 @@ package body Adaflight.STM32.DShot_Output is
    procedure Write_All (Values : Adaflight.Mixer.Motor_Outputs) is
    begin
       if not Adaflight.STM32.Motors.Enabled then
+         return;
+      end if;
+      if Adaflight.MSP_Motor_In."=" (Adaflight.STM32.Motors.Device, Adaflight.MSP_Motor_In.PWM) then
+         for M in 0 .. Driven - 1 loop
+            Adaflight.STM32.Motors.Write_Pulse (M, Float (Values (M)));
+         end loop;
+         Adaflight.STM32.Motors.Complete_Pulses;
          return;
       end if;
       for M in 0 .. Driven - 1 loop
