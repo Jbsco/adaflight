@@ -226,7 +226,7 @@ package body Adaflight.Config_Groups with SPARK_Mode is
       Displayport_Max7456_Blk => 3, Displayport_Max7456_Wht => 4, Esc_Sensor_Halfduplex => 0,
       Esc_Sensor_Current_Offset => 1, Esc_Sensor_Uart => 3, Frsky_Spi_Autobind => 0, Frsky_Spi_Tx_Id => 1,
       Frsky_Spi_Offset => 4, Frsky_Spi_Bind_Hop_Data => 5, Frsky_X_Rx_Num => 55, Frsky_Spi_A1_Source => 56,
-      Cc2500_Spi_Chip_Detect => 57, Led_Inversion => 3, Dashboard_I2c_Bus => 0, Dashboard_I2c_Addr => 4,
+      Cc2500_Spi_Chip_Detect => 57, Led_Inversion => 3, Dashboard_I2c_Bus => 0, Dashboard_I2c_Addr => 1,
       Camera_Control_Mode => 0, Camera_Control_Ref_Voltage => 1, Camera_Control_Key_Delay => 3,
       Camera_Control_Internal_Resistance => 5, Camera_Control_Button_Resistance => 9,
       Camera_Control_Inverted => 8, Rangefinder_Hardware => 0, Rangefinder_Uart => 1,
