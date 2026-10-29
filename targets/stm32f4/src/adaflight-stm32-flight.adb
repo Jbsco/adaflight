@@ -818,6 +818,18 @@ package body Adaflight.STM32.Flight is
          Adaflight.STM32.SPI.Init (Adaflight.STM32.SPI.SPI3, Adaflight.Board.SPI3_SCK_Pin, Adaflight.Board.SPI3_SDI_Pin,
                                    Adaflight.Board.SPI3_SDO_Pin);
       end if;
+      if Adaflight.Board.Has_SPI4 then
+         Adaflight.STM32.SPI.Init (Adaflight.STM32.SPI.SPI4, Adaflight.Board.SPI4_SCK_Pin, Adaflight.Board.SPI4_SDI_Pin,
+                                   Adaflight.Board.SPI4_SDO_Pin);
+      end if;
+      if Adaflight.Board.Has_SPI5 then
+         Adaflight.STM32.SPI.Init (Adaflight.STM32.SPI.SPI5, Adaflight.Board.SPI5_SCK_Pin, Adaflight.Board.SPI5_SDI_Pin,
+                                   Adaflight.Board.SPI5_SDO_Pin);
+      end if;
+      if Adaflight.Board.Has_SPI6 then
+         Adaflight.STM32.SPI.Init (Adaflight.STM32.SPI.SPI6, Adaflight.Board.SPI6_SCK_Pin, Adaflight.Board.SPI6_SDI_Pin,
+                                   Adaflight.Board.SPI6_SDO_Pin);
+      end if;
       Adaflight.STM32.Flash_Chip.Init (Config);
       Adaflight.STM32.SD.Init (Config);
    end Start_Buses;
