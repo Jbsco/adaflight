@@ -63,7 +63,7 @@ default,rc_smoothing_setpoint_cutoff,0
 default,rc_smoothing_throttle_cutoff,0
 default,rc_smoothing_debug_axis,0
 default,fpv_mix_degrees,0
-default,max_aux_channels,6
+default,max_aux_channels,14
 default,serialrx_provider,9
 default,serialrx_inverted,0
 default,spektrum_sat_bind,0
@@ -455,6 +455,7 @@ default,transponder_provider,1
 default,transponder_data,18:52:86:120:154:188:0:0:0
 default,sdcard_detect_inverted,0
 default,sdcard_mode,0
+default,sdcard_spi_bus,0
 default,osd_units,1
 default,osd_warn_bitmask,921599
 default,osd_rssi_alarm,20
@@ -644,6 +645,12 @@ default,cc2500_spi_chip_detect,1
 default,led_inversion,0
 default,dashboard_i2c_bus,0
 default,dashboard_i2c_addr,60
+default,camera_control_mode,0
+default,camera_control_ref_voltage,330
+default,camera_control_key_delay,180
+default,camera_control_internal_resistance,470
+default,camera_control_button_resistance,450:270:150:68:0
+default,camera_control_inverted,0
 default,rangefinder_hardware,0
 default,rangefinder_uart,-1
 default,opticalflow_hardware,0

@@ -4,37 +4,38 @@ package body Adaflight.CLI_Resources with SPARK_Mode is
 
    --  The owner names in one text, each at its start for its length. The text ends with room for a
    --  longest one, so every slice stays within it by its types.
-   Owner_Name_Pool_Length : constant := 507;
+   Owner_Name_Pool_Length : constant := 539;
    Owner_Name_Text : constant String (1 .. Owner_Name_Pool_Length + 23) :=
-     "BEEPERMOTORSERVOPPMPWMSONAR_TRIGGERSONAR_ECHOLED_STRIPSERIAL_TXSERIAL_RXINVERTERSOFTSERIAL_TXSOFTSERIAL_"
-     & "RXI2C_SCLI2C_SDARX_BINDRX_BIND_PLUGTRANSPONDERSPI_SCKSPI_SDISPI_SDOADC_BATTADC_RSSIADC_CURRADC_EXTBARO_C"
-     & "SBARO_EOCBARO_XCLRCOMPASS_CSCOMPASS_EXTISDCARD_DETECTPINIOUSB_MSC_PINFLASH_CSOSD_CSRX_SPI_CSRX_SPI_EXTIR"
-     & "X_SPI_BINDRX_SPI_LEDRX_SPI_CC2500_TX_ENRX_SPI_CC2500_LNA_ENRX_SPI_CC2500_ANT_SELRX_SPI_EXPRESSLRS_RESETR"
-     & "X_SPI_EXPRESSLRS_BUSYGYRO_EXTIGYRO_CSUSB_DETECTVTX_POWERVTX_CSVTX_DATAVTX_CLKPULLUPPULLDOWN             "
-     & "          ";
+     "BEEPERMOTORSERVOPPMPWMSONAR_TRIGGERSONAR_ECHOLED_STRIPSERIAL_TXSERIAL_RXINVERTERSOFTSERIAL_TXSOFTSER"
+     & "IAL_RXI2C_SCLI2C_SDARX_BINDRX_BIND_PLUGTRANSPONDERSPI_SCKSPI_SDISPI_SDOESCSERIALCAMERA_CONTROLADC_BA"
+     & "TTADC_RSSIADC_CURRADC_EXTBARO_CSBARO_EOCBARO_XCLRCOMPASS_CSCOMPASS_EXTISDCARD_CSSDCARD_DETECTPINIOUS"
+     & "B_MSC_PINFLASH_CSOSD_CSRX_SPI_CSRX_SPI_EXTIRX_SPI_BINDRX_SPI_LEDRX_SPI_CC2500_TX_ENRX_SPI_CC2500_LNA"
+     & "_ENRX_SPI_CC2500_ANT_SELRX_SPI_EXPRESSLRS_RESETRX_SPI_EXPRESSLRS_BUSYGYRO_EXTIGYRO_CSUSB_DETECTVTX_P"
+     & "OWERVTX_CSVTX_DATAVTX_CLKPULLUPPULLDOWN                       ";
    type Owner_Name_Start is range 0 .. Owner_Name_Pool_Length;
    type Owner_Name_Length is range 3 .. 23;
    Owner_Name_Starts : constant array (Owner) of Owner_Name_Start :=
-     (Beeper => 0, Motor => 6, Servo => 11, PPM => 16, PWM => 19, Sonar_Trigger => 22, Sonar_Echo => 35,
-      LED_Strip => 45, Serial_TX => 54, Serial_RX => 63, Inverter => 72, Softserial_TX => 80, Softserial_RX => 93,
-      I2C_SCL => 106, I2C_SDA => 113, LED => 45, RX_Bind => 120, RX_Bind_Plug => 127, Transponder => 139,
-      SPI_SCK => 150, SPI_SDI => 157, SPI_SDO => 164, ADC_Batt => 171, ADC_RSSI => 179, ADC_Curr => 187,
-      ADC_Ext => 195, Baro_CS => 202, Baro_EOC => 209, Baro_XCLR => 217, Compass_CS => 226, Compass_EXTI => 236,
-      SD_Card_Detect => 248, PINIO => 261, USB_MSC_Pin => 266, Flash_CS => 277, OSD_CS => 285, RX_SPI_CS => 291,
-      RX_SPI_EXTI => 300, RX_SPI_Bind => 311, RX_SPI_LED => 322, RX_SPI_CC2500_TX_EN => 332,
-      RX_SPI_CC2500_LNA_EN => 351, RX_SPI_CC2500_Ant_Sel => 371, RX_SPI_ExpressLRS_Reset => 392,
-      RX_SPI_ExpressLRS_Busy => 415, Gyro_EXTI => 437, Gyro_CS => 446, USB_Detect => 453, VTX_Power => 463,
-      VTX_CS => 472, VTX_Data => 478, VTX_CLK => 486, Pullup => 493, Pulldown => 499);
+     (Beeper => 0, Motor => 6, Servo => 11, PPM => 16, PWM => 19, Sonar_Trigger => 22, Sonar_Echo => 35, LED_Strip
+      => 45, Serial_TX => 54, Serial_RX => 63, Inverter => 72, Softserial_TX => 80, Softserial_RX => 93, I2C_SCL =>
+      106, I2C_SDA => 113, LED => 45, RX_Bind => 120, RX_Bind_Plug => 127, Transponder => 139, SPI_SCK => 150,
+      SPI_SDI => 157, SPI_SDO => 164, ESC_Serial => 171, Camera_Control => 180, ADC_Batt => 194, ADC_RSSI => 202,
+      ADC_Curr => 210, ADC_Ext => 218, Baro_CS => 225, Baro_EOC => 232, Baro_XCLR => 240, Compass_CS => 249,
+      Compass_EXTI => 259, SD_Card_CS => 271, SD_Card_Detect => 280, PINIO => 293, USB_MSC_Pin => 298, Flash_CS =>
+      309, OSD_CS => 317, RX_SPI_CS => 323, RX_SPI_EXTI => 332, RX_SPI_Bind => 343, RX_SPI_LED => 354,
+      RX_SPI_CC2500_TX_EN => 364, RX_SPI_CC2500_LNA_EN => 383, RX_SPI_CC2500_Ant_Sel => 403, RX_SPI_ExpressLRS_Reset
+      => 424, RX_SPI_ExpressLRS_Busy => 447, Gyro_EXTI => 469, Gyro_CS => 478, USB_Detect => 485, VTX_Power => 495,
+      VTX_CS => 504, VTX_Data => 510, VTX_CLK => 518, Pullup => 525, Pulldown => 531);
    Owner_Name_Lengths : constant array (Owner) of Owner_Name_Length :=
-     (Beeper => 6, Motor => 5, Servo => 5, PPM => 3, PWM => 3, Sonar_Trigger => 13, Sonar_Echo => 10,
-      LED_Strip => 9, Serial_TX => 9, Serial_RX => 9, Inverter => 8, Softserial_TX => 13, Softserial_RX => 13,
-      I2C_SCL => 7, I2C_SDA => 7, LED => 3, RX_Bind => 7, RX_Bind_Plug => 12, Transponder => 11, SPI_SCK => 7,
-      SPI_SDI => 7, SPI_SDO => 7, ADC_Batt => 8, ADC_RSSI => 8, ADC_Curr => 8, ADC_Ext => 7, Baro_CS => 7,
-      Baro_EOC => 8, Baro_XCLR => 9, Compass_CS => 10, Compass_EXTI => 12, SD_Card_Detect => 13, PINIO => 5,
-      USB_MSC_Pin => 11, Flash_CS => 8, OSD_CS => 6, RX_SPI_CS => 9, RX_SPI_EXTI => 11, RX_SPI_Bind => 11,
-      RX_SPI_LED => 10, RX_SPI_CC2500_TX_EN => 19, RX_SPI_CC2500_LNA_EN => 20, RX_SPI_CC2500_Ant_Sel => 21,
-      RX_SPI_ExpressLRS_Reset => 23, RX_SPI_ExpressLRS_Busy => 22, Gyro_EXTI => 9, Gyro_CS => 7, USB_Detect => 10,
-      VTX_Power => 9, VTX_CS => 6, VTX_Data => 8, VTX_CLK => 7, Pullup => 6, Pulldown => 8);
+     (Beeper => 6, Motor => 5, Servo => 5, PPM => 3, PWM => 3, Sonar_Trigger => 13, Sonar_Echo => 10, LED_Strip =>
+      9, Serial_TX => 9, Serial_RX => 9, Inverter => 8, Softserial_TX => 13, Softserial_RX => 13, I2C_SCL => 7,
+      I2C_SDA => 7, LED => 3, RX_Bind => 7, RX_Bind_Plug => 12, Transponder => 11, SPI_SCK => 7, SPI_SDI => 7,
+      SPI_SDO => 7, ESC_Serial => 9, Camera_Control => 14, ADC_Batt => 8, ADC_RSSI => 8, ADC_Curr => 8, ADC_Ext =>
+      7, Baro_CS => 7, Baro_EOC => 8, Baro_XCLR => 9, Compass_CS => 10, Compass_EXTI => 12, SD_Card_CS => 9,
+      SD_Card_Detect => 13, PINIO => 5, USB_MSC_Pin => 11, Flash_CS => 8, OSD_CS => 6, RX_SPI_CS => 9, RX_SPI_EXTI
+      => 11, RX_SPI_Bind => 11, RX_SPI_LED => 10, RX_SPI_CC2500_TX_EN => 19, RX_SPI_CC2500_LNA_EN => 20,
+      RX_SPI_CC2500_Ant_Sel => 21, RX_SPI_ExpressLRS_Reset => 23, RX_SPI_ExpressLRS_Busy => 22, Gyro_EXTI => 9,
+      Gyro_CS => 7, USB_Detect => 10, VTX_Power => 9, VTX_CS => 6, VTX_Data => 8, VTX_CLK => 7, Pullup => 6,
+      Pulldown => 8);
 
    function Name (O : Owner) return String
    is
@@ -69,6 +70,8 @@ package body Adaflight.CLI_Resources with SPARK_Mode is
          when SPI_SCK                 => C.Spi_Pin_Config (I).Io_Tag_Sck,
          when SPI_SDI                 => C.Spi_Pin_Config (I).Io_Tag_Miso,
          when SPI_SDO                 => C.Spi_Pin_Config (I).Io_Tag_Mosi,
+         when ESC_Serial              => C.Esc_Serial_Config.Io_Tag,
+         when Camera_Control          => C.Camera_Control_Config.Io_Tag,
          when ADC_Batt                => C.Adc_Config.Vbat.Io_Tag,
          when ADC_RSSI                => C.Adc_Config.Rssi.Io_Tag,
          when ADC_Curr                => C.Adc_Config.Current.Io_Tag,
@@ -78,6 +81,7 @@ package body Adaflight.CLI_Resources with SPARK_Mode is
          when Baro_XCLR               => C.Barometer_Config.Baro_Xclr_Tag,
          when Compass_CS              => C.Compass_Config.Mag_Spi_Csn,
          when Compass_EXTI            => C.Compass_Config.Interrupt_Tag,
+         when SD_Card_CS              => C.Sdcard_Config.Chip_Select_Tag,
          when SD_Card_Detect          => C.Sdcard_Config.Card_Detect_Tag,
          when PINIO                   => C.Pinio_Config.Io_Tag (I),
          when USB_MSC_Pin             => C.Usb_Dev_Config.Msc_Button_Pin,
@@ -127,6 +131,8 @@ package body Adaflight.CLI_Resources with SPARK_Mode is
          when SPI_SCK                 => C.Spi_Pin_Config (I).Io_Tag_Sck := T;
          when SPI_SDI                 => C.Spi_Pin_Config (I).Io_Tag_Miso := T;
          when SPI_SDO                 => C.Spi_Pin_Config (I).Io_Tag_Mosi := T;
+         when ESC_Serial              => C.Esc_Serial_Config.Io_Tag := T;
+         when Camera_Control          => C.Camera_Control_Config.Io_Tag := T;
          when ADC_Batt                => C.Adc_Config.Vbat.Io_Tag := T;
          when ADC_RSSI                => C.Adc_Config.Rssi.Io_Tag := T;
          when ADC_Curr                => C.Adc_Config.Current.Io_Tag := T;
@@ -136,6 +142,7 @@ package body Adaflight.CLI_Resources with SPARK_Mode is
          when Baro_XCLR               => C.Barometer_Config.Baro_Xclr_Tag := T;
          when Compass_CS              => C.Compass_Config.Mag_Spi_Csn := T;
          when Compass_EXTI            => C.Compass_Config.Interrupt_Tag := T;
+         when SD_Card_CS              => C.Sdcard_Config.Chip_Select_Tag := T;
          when SD_Card_Detect          => C.Sdcard_Config.Card_Detect_Tag := T;
          when PINIO                   => C.Pinio_Config.Io_Tag (I) := T;
          when USB_MSC_Pin             => C.Usb_Dev_Config.Msc_Button_Pin := T;

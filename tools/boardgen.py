@@ -161,7 +161,8 @@ def generate(config: Path, overrides: dict) -> str:
     out.append("   --  the gyro's and their SPI buses from 1, the barometer's I2C or SPI bus and chip, whether the detect pin reads low")
     out.append("   --  for a card, the flight log device, the meter defaults, the PINIO")
     out.append("   --  outputs' pins, configurations and boxes by permanent id, and the")
-    out.append("   --  motors' and the LED strip's pins, the host defaults where the board")
+    out.append("   --  motors', the LED strip's, the camera control and the ESC serial pins,")
+    out.append("   --  and the ADC devices' DMA options, the host defaults where the board")
     out.append("   --  names none.")
     tags = [("Beeper_Tag", "BEEPER_PIN"), ("ADC_VBAT_Tag", "ADC_VBAT_PIN"), ("ADC_CURR_Tag", "ADC_CURR_PIN"),
             ("ADC_RSSI_Tag", "ADC_RSSI_PIN"), ("ADC_External1_Tag", "ADC_EXTERNAL1_PIN"),
@@ -172,7 +173,8 @@ def generate(config: Path, overrides: dict) -> str:
         + [(f"Inverter_UART{i}_Tag", f"INVERTER_PIN_UART{i}") for i in range(1, 7)] \
         + [(f"PINIO{i}_Tag", f"PINIO{i}_PIN") for i in range(1, 5)] \
         + [(f"MOTOR{i}_Tag", f"MOTOR{i}_PIN") for i in range(1, 9)] \
-        + [("LED_Strip_Tag", "LED_STRIP_PIN")]
+        + [("LED_Strip_Tag", "LED_STRIP_PIN"), ("Camera_Control_Tag", "CAMERA_CONTROL_PIN"),
+           ("ESC_Serial_Tag", "ESCSERIAL_PIN")]
     defaults = [("Default_Voltage_Meter_Source", VOLTAGE_SOURCES[defines.get("DEFAULT_VOLTAGE_METER_SOURCE",
                                                                              "VOLTAGE_METER_NONE")]),
                 ("Default_Current_Meter_Source", CURRENT_SOURCES[defines.get("DEFAULT_CURRENT_METER_SOURCE",
@@ -193,7 +195,8 @@ def generate(config: Path, overrides: dict) -> str:
         + [(f"PINIO{i}_Box", number(defines.get(f"PINIO{i}_BOX"), 255)) for i in range(1, 5)] \
         + [("MSP_UART", serial_port(defines.get("MSP_UART"))),
            ("Use_MSP_UART", serial_port(defines.get("USE_MSP_UART"))),
-           ("MSP_Display_Port_UART", serial_port(defines.get("MSP_DISPLAYPORT_UART")))]
+           ("MSP_Display_Port_UART", serial_port(defines.get("MSP_DISPLAYPORT_UART")))] \
+        + [(f"ADC{i}_DMA_Option", number(defines.get(f"ADC{i}_DMA_OPT"), -1)) for i in range(1, 4)]
     column = max(len(n) for n, _ in tags + defaults)
     for name, define in tags:
         out.append(f"   {name.ljust(column)} : constant := {pin_tag(defines.get(define, ''))};")

@@ -44,6 +44,16 @@ package Adaflight.Config_Groups with SPARK_Mode is
    type Feature_Config_Record is record
       Enabled_Features : Unsigned_32;
    end record;
+   subtype Unsigned_16_List_5 is Unsigned_16_List (0 .. 4);
+   type Camera_Control_Config_Record is record
+      Mode                     : Unsigned_8;
+      Ref_Voltage              : Unsigned_16;
+      Key_Delay_Ms             : Unsigned_16;
+      Internal_Resistance      : Unsigned_16;
+      Io_Tag                   : Unsigned_8;
+      Inverted                 : Unsigned_8;
+      Button_Resistance_Values : Unsigned_16_List_5;
+   end record;
    subtype Bytes_3 is Bytes (0 .. 2);
    type Status_Led_Config_Record is record
       Io_Tags   : Bytes_3;
@@ -54,6 +64,9 @@ package Adaflight.Config_Groups with SPARK_Mode is
       Io_Tag_Tx       : Bytes_8;
       Io_Tag_Rx       : Bytes_8;
       Io_Tag_Inverter : Bytes_6;
+   end record;
+   type Esc_Serial_Config_Record is record
+      Io_Tag : Unsigned_8;
    end record;
    subtype Unsigned_16_List_3 is Unsigned_16_List (0 .. 2);
    subtype Bytes_9 is Bytes (0 .. 8);
@@ -471,6 +484,7 @@ package Adaflight.Config_Groups with SPARK_Mode is
       Io_Tag  : Unsigned_8;
       Device  : Integer_8;
    end record;
+   subtype Integer_8_List_3 is Integer_8_List (0 .. 2);
    type Adc_Config_Record is record
       Vbat                     : Adc_Channel_Config_T_Record;
       Rssi                     : Adc_Channel_Config_T_Record;
@@ -480,6 +494,7 @@ package Adaflight.Config_Groups with SPARK_Mode is
       Vref_Int_Calibration     : Unsigned_16;
       Temp_Sensor_Calibration1 : Unsigned_16;
       Temp_Sensor_Calibration2 : Unsigned_16;
+      Dmaopt                   : Integer_8_List_3;
    end record;
    type Alt_Hold_Config_Record is record
       Climb_Rate : Unsigned_8;
@@ -728,7 +743,6 @@ package Adaflight.Config_Groups with SPARK_Mode is
       Kv               : Unsigned_16;
       Motor_Pole_Count : Unsigned_8;
    end record;
-   subtype Integer_8_List_3 is Integer_8_List (0 .. 2);
    type Msp_Config_Record is record
       Half_Duplex : Unsigned_8;
       Msp_Uart    : Integer_8_List_3;
@@ -880,6 +894,12 @@ package Adaflight.Config_Groups with SPARK_Mode is
       Stats_Mah_Used         : Unsigned_32;
       Stats_Save_Move_Limit  : Unsigned_8;
    end record;
+   type Timer_Io_Config_Record is record
+      Io_Tag : Unsigned_8;
+      Index  : Unsigned_8;
+      Dmaopt : Integer_8;
+   end record;
+   type Timer_Io_Config_Record_List_21 is array (0 .. 20) of Timer_Io_Config_Record;
    type Usb_Dev_Record is record
       Type_Value            : Unsigned_8;
       Msc_Button_Pin        : Unsigned_8;
@@ -1101,8 +1121,10 @@ package Adaflight.Config_Groups with SPARK_Mode is
       Time_Config                   : Time_Config_Record;
       System_Config                 : System_Config_Record;
       Feature_Config                : Feature_Config_Record;
+      Camera_Control_Config         : Camera_Control_Config_Record;
       Status_Led_Config             : Status_Led_Config_Record;
       Serial_Pin_Config             : Serial_Pin_Config_Record;
+      Esc_Serial_Config             : Esc_Serial_Config_Record;
       Control_Rate_Profiles         : Control_Rate_Config_Record_List_4;
       Throttle_Correction_Config    : Throttle_Correction_Config_Record;
       Adjustment_Ranges             : Adjustment_Range_Record_List_30;
@@ -1174,6 +1196,7 @@ package Adaflight.Config_Groups with SPARK_Mode is
       Sdcard_Config                 : Sdcard_Config_Record;
       Serial_Uart_Config            : Serial_Uart_Config_Record_List_6;
       Stats_Config                  : Stats_Config_Record;
+      Timer_Io_Config               : Timer_Io_Config_Record_List_21;
       Usb_Dev_Config                : Usb_Dev_Record;
       Vcd_Profile                   : Vcd_Profile_Record;
       Vtx_Io_Config                 : Vtx_Io_Config_Record;
@@ -1249,6 +1272,7 @@ package Adaflight.Config_Groups with SPARK_Mode is
         when Displayport_Msp_Fonts => 4,
         when Frsky_Spi_Tx_Id => 3,
         when Frsky_Spi_Bind_Hop_Data => 50,
+        when Camera_Control_Button_Resistance => 5,
         when Pinio_Config => 4,
         when Pinio_Box => 4,
         when Spektrum_Spi_Mfg_Id => 4,
@@ -1292,23 +1316,25 @@ private
      (Pid_Profile_Index => 0, Active_Rate_Profile => 0, Debug_Mode => 0, Task_Statistics => 1,
      Rate_Profile6_Pos_Switch => 0, Cpu_Overclock => 0, Power_On_Arming_Grace_Time => 5, Board_Identifier => (70, 52,
      48, 53, 0, 0), Hse_Mhz => 0, Configuration_State => 0, Enable_Stick_Arming => 0, Active_Battery_Profile => 0),
-     Feature_Config => (Enabled_Features => 272629768),  Status_Led_Config => (Io_Tags => (others => 0), Inversion =>
-     0),  Serial_Pin_Config => (Io_Tag_Tx => (others => 0), Io_Tag_Rx => (others => 0), Io_Tag_Inverter => (others =>
-     0)),  Control_Rate_Profiles => (others => (Thr_Mid8 => 50, Thr_Expo8 => 0, Rates_Type => 3, Rc_Rates => (others
-     => 7), Rc_Expo => (others => 0), Rates => (others => 67), Throttle_Limit_Type => 0, Throttle_Limit_Percent =>
-     100, Rate_Limit => (others => 1998), Profile_Name => (others => 0), Quick_Rates_Rc_Expo => 0, Thr_Hover8 =>
-     50)),  Throttle_Correction_Config => (Throttle_Correction_Angle => 800, Throttle_Correction_Value => 0),
-     Adjustment_Ranges => (others => (Aux_Channel_Index => 0, Range_Value => (Start_Step => 0, End_Step => 0),
-     Adjustment_Config => 0, Aux_Switch_Channel_Index => 0, Adjustment_Center => 0, Adjustment_Scale => 0)),
-     Rc_Controls_Config => (Deadband => 0, Yaw_Deadband => 0, Yaw_Control_Reversed => False),  Arming_Config =>
-     (Gyro_Cal_On_First_Arm => 0, Auto_Disarm_Delay => 5, Prearm_Allow_Rearm => 0),  Flight3_D_Config =>
-     (Deadband3d_Low => 1406, Deadband3d_High => 1514, Neutral3d => 1460, Deadband3d_Throttle => 50, Limit3d_Low =>
-     1000, Limit3d_High => 2000, Switched_Mode3d => 0),  Mode_Activation_Conditions => (others => (Mode_Id => 0,
-     Aux_Channel_Index => 0, Range_Value => (Start_Step => 0, End_Step => 0), Mode_Logic => 0, Linked_To => 0)),
-     Mode_Activation_Config => (Box_User_Names => (others => (others => 0))),  Failsafe_Config => (Failsafe_Throttle
-     => 1000, Failsafe_Throttle_Low_Delay => 100, Failsafe_Delay => 15, Failsafe_Landing_Time => 60,
-     Failsafe_Switch_Mode => 0, Failsafe_Procedure => 1, Failsafe_Recovery_Delay => 5, Failsafe_Stick_Threshold =>
-     30),  Imu_Config => (Imu_Dcm_Kp => 2500, Imu_Dcm_Ki => 0, Small_Angle => 25, Imu_Process_Denom => 2,
+     Feature_Config => (Enabled_Features => 272629768),  Camera_Control_Config => (Mode => 0, Ref_Voltage => 330,
+     Key_Delay_Ms => 180, Internal_Resistance => 470, Io_Tag => 41, Inverted => 0, Button_Resistance_Values => (450,
+     270, 150, 68, 0)),  Status_Led_Config => (Io_Tags => (others => 0), Inversion => 0),  Serial_Pin_Config =>
+     (Io_Tag_Tx => (others => 0), Io_Tag_Rx => (others => 0), Io_Tag_Inverter => (others => 0)),  Esc_Serial_Config
+     => (Io_Tag => 0),  Control_Rate_Profiles => (others => (Thr_Mid8 => 50, Thr_Expo8 => 0, Rates_Type => 3,
+     Rc_Rates => (others => 7), Rc_Expo => (others => 0), Rates => (others => 67), Throttle_Limit_Type => 0,
+     Throttle_Limit_Percent => 100, Rate_Limit => (others => 1998), Profile_Name => (others => 0),
+     Quick_Rates_Rc_Expo => 0, Thr_Hover8 => 50)),  Throttle_Correction_Config => (Throttle_Correction_Angle => 800,
+     Throttle_Correction_Value => 0),  Adjustment_Ranges => (others => (Aux_Channel_Index => 0, Range_Value =>
+     (Start_Step => 0, End_Step => 0), Adjustment_Config => 0, Aux_Switch_Channel_Index => 0, Adjustment_Center => 0,
+     Adjustment_Scale => 0)),  Rc_Controls_Config => (Deadband => 0, Yaw_Deadband => 0, Yaw_Control_Reversed =>
+     False),  Arming_Config => (Gyro_Cal_On_First_Arm => 0, Auto_Disarm_Delay => 5, Prearm_Allow_Rearm => 0),
+     Flight3_D_Config => (Deadband3d_Low => 1406, Deadband3d_High => 1514, Neutral3d => 1460, Deadband3d_Throttle =>
+     50, Limit3d_Low => 1000, Limit3d_High => 2000, Switched_Mode3d => 0),  Mode_Activation_Conditions => (others =>
+     (Mode_Id => 0, Aux_Channel_Index => 0, Range_Value => (Start_Step => 0, End_Step => 0), Mode_Logic => 0,
+     Linked_To => 0)),  Mode_Activation_Config => (Box_User_Names => (others => (others => 0))),  Failsafe_Config =>
+     (Failsafe_Throttle => 1000, Failsafe_Throttle_Low_Delay => 100, Failsafe_Delay => 15, Failsafe_Landing_Time =>
+     60, Failsafe_Switch_Mode => 0, Failsafe_Procedure => 1, Failsafe_Recovery_Delay => 5, Failsafe_Stick_Threshold
+     => 30),  Imu_Config => (Imu_Dcm_Kp => 2500, Imu_Dcm_Ki => 0, Small_Angle => 25, Imu_Process_Denom => 2,
      Mag_Declination => 0),  Mixer_Config => (Mixer_Mode => 3, Yaw_Motors_Reversed => False, Crashflip_Motor_Percent
      => 0, Crashflip_Rate => 0, Crashflip_Auto_Rearm => False, Mixer_Type => 0, Rpm_Limit => False, Rpm_Limit_P =>
      25, Rpm_Limit_I => 10, Rpm_Limit_D => 8, Rpm_Limit_Value => 18000),  Custom_Motor_Mixer => (others => (Throttle
@@ -1387,12 +1413,12 @@ private
      341, 341, 341, 341, 341, 341, 341, 341, 341, 341, 341, 341, 341, 341, 341, 341, 33, 341, 341)),  Adc_Config =>
      (Vbat => (Enabled => False, Io_Tag => 0, Device => 1), Rssi => (Enabled => False, Io_Tag => 0, Device => 1),
      Current => (Enabled => False, Io_Tag => 0, Device => 1), External1 => (Enabled => False, Io_Tag => 0, Device =>
-     1), Device => 1, Vref_Int_Calibration => 0, Temp_Sensor_Calibration1 => 0, Temp_Sensor_Calibration2 => 0),
-     Alt_Hold_Config => (Climb_Rate => 50, Deadband => 20),  Autopilot_Config => (Landing_Altitude_M => 4,
-     Hover_Throttle => 1275, Throttle_Min => 1100, Throttle_Max => 1900, Altitude_P => 30, Altitude_I => 30,
-     Altitude_D => 30, Altitude_A => 30, Altitude_F => 30, Position_P => 30, Position_I => 30, Position_D => 30,
-     Position_A => 30, Position_F => 30, Position_Cutoff => 30, Stop_Threshold => 10, Max_Angle => 50,
-     Velocity_Drag_Coeff => 50, Max_Velocity => 500, Waypoint_Arrival_Radius => 500, Waypoint_Hold_Radius => 200,
+     1), Device => 1, Vref_Int_Calibration => 0, Temp_Sensor_Calibration1 => 0, Temp_Sensor_Calibration2 => 0, Dmaopt
+     => (1, -1, -1)),  Alt_Hold_Config => (Climb_Rate => 50, Deadband => 20),  Autopilot_Config =>
+     (Landing_Altitude_M => 4, Hover_Throttle => 1275, Throttle_Min => 1100, Throttle_Max => 1900, Altitude_P => 30,
+     Altitude_I => 30, Altitude_D => 30, Altitude_A => 30, Altitude_F => 30, Position_P => 30, Position_I => 30,
+     Position_D => 30, Position_A => 30, Position_F => 30, Position_Cutoff => 30, Stop_Threshold => 10, Max_Angle =>
+     50, Velocity_Drag_Coeff => 50, Max_Velocity => 500, Waypoint_Arrival_Radius => 500, Waypoint_Hold_Radius => 200,
      Stick_Deadband => 50, Throttle_Deadband => 50, Nav_Corner_Speed => 220, Nav_Corner_Delta_V => 440, Nav_Decel =>
      250, Nav_Accel => 250, Nav_Carrot_Lead_Time => 12, Nav_Carrot_Lead_Max => 2500, Nav_Preturn_Dist => 1500,
      Yaw_Mode => 0, Yaw_P => 30, Max_Yaw_Rate => 150, Min_Forward_Velocity => 300, Velocity_Buildup_Max_Pitch => 8,
@@ -1447,8 +1473,8 @@ private
      Spektrum_Bind_Pin_Override_Io_Tag => 0, Spektrum_Bind_Plug_Io_Tag => 0, Spektrum_Sat_Bind => 0,
      Spektrum_Sat_Bind_Autoreset => 1, Rssi_Channel => 0, Rssi_Scale => 100, Rssi_Invert => 0, Midrc => 1500,
      Mincheck => 1050, Maxcheck => 1900, Fpv_Cam_Angle_Degrees => 0, Air_Mode_Activate_Threshold => 25, Rx_Min_Usec
-     => 885, Rx_Max_Usec => 2115, Max_Aux_Channel => 6, Rssi_Src_Frame_Errors => 0, Rssi_Offset => 0, Rc_Smoothing =>
-     1, Rc_Smoothing_Setpoint_Cutoff => 0, Rc_Smoothing_Throttle_Cutoff => 0, Rc_Smoothing_Debug_Axis => 0,
+     => 885, Rx_Max_Usec => 2115, Max_Aux_Channel => 14, Rssi_Src_Frame_Errors => 0, Rssi_Offset => 0, Rc_Smoothing
+     => 1, Rc_Smoothing_Setpoint_Cutoff => 0, Rc_Smoothing_Throttle_Cutoff => 0, Rc_Smoothing_Debug_Axis => 0,
      Rc_Smoothing_Auto_Factor_Rpy => 30, Rc_Smoothing_Auto_Factor_Throttle => 30, Rssi_Src_Frame_Lpf_Period => 30,
      Rssi_Smoothing => 125, Srxl2_Unit_Id => 1, Srxl2_Baud_Fast => 1, Sbus_Baud_Fast => 0, Msp_Override_Channels_Mask
      => 0, Msp_Override_Failsafe => 0, Crsf_Use_Negotiated_Baud => 0, Rx_Uart => -1),  Pwm_Config => (Io_Tags =>
@@ -1462,25 +1488,33 @@ private
      Debug_Task => 0),  Sdcard_Config => (Device => 0, Card_Detect_Tag => 0, Chip_Select_Tag => 0,
      Card_Detect_Inverted => 0, Mode => 0),  Serial_Uart_Config => (others => (Tx_Dmaopt => -1, Rx_Dmaopt => -1)),
      Stats_Config => (Stats_Total_Flights => 0, Stats_Total_Time_S => 0, Stats_Total_Dist_M => 0,
-     Stats_Min_Armed_Time_S => -1, Stats_Mah_Used => 0, Stats_Save_Move_Limit => 20),  Usb_Dev_Config => (Type_Value
-     => 0, Msc_Button_Pin => 0, Msc_Button_Use_Pullup => 1, Detect_Pin => 0),  Vcd_Profile => (Video_System => 3,
-     H_Offset => 0, V_Offset => 0),  Vtx_Io_Config => (Cs_Tag => 0, Power_Tag => 0, Data_Tag => 0, Clock_Tag => 0,
-     Spi_Device => 0),  Vtx_Table_Config => (Bands => 0, Channels => 0, Frequency => (others => (others => 0)),
-     Band_Names => ((66, 65, 78, 68, 49, 32, 32, 32, 0), (66, 65, 78, 68, 50, 32, 32, 32, 0), (66, 65, 78, 68, 51,
-     32, 32, 32, 0), (66, 65, 78, 68, 52, 32, 32, 32, 0), (66, 65, 78, 68, 53, 32, 32, 32, 0), (66, 65, 78, 68, 54,
-     32, 32, 32, 0), (66, 65, 78, 68, 55, 32, 32, 32, 0), (66, 65, 78, 68, 56, 32, 32, 32, 0)), Band_Letters => (49,
-     50, 51, 52, 53, 54, 55, 56), Channel_Names => ((49, 0), (50, 0), (51, 0), (52, 0), (53, 0), (54, 0), (55, 0),
-     (56, 0)), Is_Factory_Band => (others => False), Power_Levels => 0, Power_Values => (others => 0), Power_Labels
-     => ((76, 86, 48, 0), (76, 86, 49, 0), (76, 86, 50, 0), (76, 86, 51, 0), (76, 86, 52, 0), (76, 86, 53, 0), (76,
-     86, 54, 0), (76, 86, 55, 0))),  Fly_Sky_Config => (Tx_Id => 0, Rf_Channel_Map => (others => 0)),
-     Spektrum_Config => (Protocol => 0, Mfg_Id => (others => 0), Num_Channels => 0),  Rx_Channel_Range_Configs =>
-     (others => (Min => 1000, Max => 2000)),  Rx_Failsafe_Channel_Configs => ((Mode => 0, Step => 30), (Mode => 0,
-     Step => 30), (Mode => 0, Step => 30), (Mode => 0, Step => 5), (Mode => 1, Step => 30), (Mode => 1, Step => 30),
-     (Mode => 1, Step => 30), (Mode => 1, Step => 30), (Mode => 1, Step => 30), (Mode => 1, Step => 30), (Mode => 1,
-     Step => 30), (Mode => 1, Step => 30), (Mode => 1, Step => 30), (Mode => 1, Step => 30), (Mode => 1, Step => 30),
-     (Mode => 1, Step => 30), (Mode => 1, Step => 30), (Mode => 1, Step => 30)),  Accelerometer_Config => (Acc_Lpf_Hz
-     => 25, Acc_Hardware => 0, Acc_High_Fsr => False, Acc_Zero => (others => 0), Accelerometer_Trims => (others =>
-     0)),  Barometer_Config => (Baro_Bus_Type => 2, Baro_Spi_Device => 0, Baro_Spi_Csn => 0, Baro_I2c_Device => 0,
+     Stats_Min_Armed_Time_S => -1, Stats_Mah_Used => 0, Stats_Save_Move_Limit => 20),  Timer_Io_Config => ((Io_Tag =>
+     41, Index => 2, Dmaopt => -1), (Io_Tag => 32, Index => 1, Dmaopt => 0), (Io_Tag => 33, Index => 3, Dmaopt => 0),
+     (Io_Tag => 19, Index => 1, Dmaopt => 1), (Io_Tag => 18, Index => 1, Dmaopt => 0), (Io_Tag => 36, Index => 1,
+     Dmaopt => 0), (Io_Tag => 40, Index => 1, Dmaopt => 0), (Io_Tag => 0, Index => 0, Dmaopt => 0), (Io_Tag => 0,
+     Index => 0, Dmaopt => 0), (Io_Tag => 0, Index => 0, Dmaopt => 0), (Io_Tag => 0, Index => 0, Dmaopt => 0),
+     (Io_Tag => 0, Index => 0, Dmaopt => 0), (Io_Tag => 0, Index => 0, Dmaopt => 0), (Io_Tag => 0, Index => 0, Dmaopt
+     => 0), (Io_Tag => 0, Index => 0, Dmaopt => 0), (Io_Tag => 0, Index => 0, Dmaopt => 0), (Io_Tag => 0, Index => 0,
+     Dmaopt => 0), (Io_Tag => 0, Index => 0, Dmaopt => 0), (Io_Tag => 0, Index => 0, Dmaopt => 0), (Io_Tag => 0,
+     Index => 0, Dmaopt => 0), (Io_Tag => 0, Index => 0, Dmaopt => 0)),  Usb_Dev_Config => (Type_Value => 0,
+     Msc_Button_Pin => 0, Msc_Button_Use_Pullup => 1, Detect_Pin => 0),  Vcd_Profile => (Video_System => 3, H_Offset
+     => 0, V_Offset => 0),  Vtx_Io_Config => (Cs_Tag => 0, Power_Tag => 0, Data_Tag => 0, Clock_Tag => 0, Spi_Device
+     => 0),  Vtx_Table_Config => (Bands => 0, Channels => 0, Frequency => (others => (others => 0)), Band_Names =>
+     ((66, 65, 78, 68, 49, 32, 32, 32, 0), (66, 65, 78, 68, 50, 32, 32, 32, 0), (66, 65, 78, 68, 51, 32, 32, 32, 0),
+     (66, 65, 78, 68, 52, 32, 32, 32, 0), (66, 65, 78, 68, 53, 32, 32, 32, 0), (66, 65, 78, 68, 54, 32, 32, 32, 0),
+     (66, 65, 78, 68, 55, 32, 32, 32, 0), (66, 65, 78, 68, 56, 32, 32, 32, 0)), Band_Letters => (49, 50, 51, 52, 53,
+     54, 55, 56), Channel_Names => ((49, 0), (50, 0), (51, 0), (52, 0), (53, 0), (54, 0), (55, 0), (56, 0)),
+     Is_Factory_Band => (others => False), Power_Levels => 0, Power_Values => (others => 0), Power_Labels => ((76,
+     86, 48, 0), (76, 86, 49, 0), (76, 86, 50, 0), (76, 86, 51, 0), (76, 86, 52, 0), (76, 86, 53, 0), (76, 86, 54,
+     0), (76, 86, 55, 0))),  Fly_Sky_Config => (Tx_Id => 0, Rf_Channel_Map => (others => 0)),  Spektrum_Config =>
+     (Protocol => 0, Mfg_Id => (others => 0), Num_Channels => 0),  Rx_Channel_Range_Configs => (others => (Min =>
+     1000, Max => 2000)),  Rx_Failsafe_Channel_Configs => ((Mode => 0, Step => 30), (Mode => 0, Step => 30), (Mode =>
+     0, Step => 30), (Mode => 0, Step => 5), (Mode => 1, Step => 30), (Mode => 1, Step => 30), (Mode => 1, Step =>
+     30), (Mode => 1, Step => 30), (Mode => 1, Step => 30), (Mode => 1, Step => 30), (Mode => 1, Step => 30), (Mode
+     => 1, Step => 30), (Mode => 1, Step => 30), (Mode => 1, Step => 30), (Mode => 1, Step => 30), (Mode => 1, Step
+     => 30), (Mode => 1, Step => 30), (Mode => 1, Step => 30)),  Accelerometer_Config => (Acc_Lpf_Hz => 25,
+     Acc_Hardware => 0, Acc_High_Fsr => False, Acc_Zero => (others => 0), Accelerometer_Trims => (others => 0)),
+     Barometer_Config => (Baro_Bus_Type => 2, Baro_Spi_Device => 0, Baro_Spi_Csn => 0, Baro_I2c_Device => 0,
      Baro_I2c_Address => 0, Baro_Hardware => 0, Baro_Eoc_Tag => 0, Baro_Xclr_Tag => 0, Baro_Temp_Drift_Cm_Per10_C =>
      0),  Battery_Profiles => (others => (Vbatmaxcellvoltage => 430, Vbatmincellvoltage => 330,
      Vbatwarningcellvoltage => 350, Vbatfullcellvoltage => 410, Battery_Capacity => 0, Force_Battery_Cell_Count => 0,
