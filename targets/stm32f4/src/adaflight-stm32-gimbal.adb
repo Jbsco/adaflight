@@ -13,7 +13,7 @@ package body Adaflight.STM32.Gimbal is
    package Core renames Adaflight.Gimbal_Control;
 
    Port_Ids : constant array (USART.Number) of Interfaces.Integer_8 :=
-     (USART.UART1 => 51, USART.UART3 => 53, USART.UART4 => 54, USART.UART6 => 56);
+     (USART.UART1 => 51, USART.UART2 => 52, USART.UART3 => 53, USART.UART4 => 54, USART.UART5 => 55, USART.UART6 => 56);
    Baud     : constant := 115_200;
 
    Open  : Boolean := False;
@@ -27,7 +27,7 @@ package body Adaflight.STM32.Gimbal is
    procedure Init (Config : Adaflight.Config_Groups.Configuration; Sticks : Core.Sticks) is
    begin
       Open := False;
-      for N in USART.Number loop
+      for N of USART.Present_Set loop
          if Port_Ids (N) = Config.Gimbal_Track_Config.Gimbal_Uart then
             if not Adaflight.STM32.Rangefinder.Holds (N) and then not Adaflight.STM32.Radio.Holds (N)
               and then not Adaflight.STM32.GPS.Holds (N) and then not Adaflight.STM32.OSD_Custom_Text.Holds (N)

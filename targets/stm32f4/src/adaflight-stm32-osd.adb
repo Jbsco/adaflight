@@ -248,7 +248,7 @@ package body Adaflight.STM32.OSD is
    Display_On_UART : Boolean := False;
    Display_UART    : USART.Port := (Which => USART.UART1);
    Board_UARTs    : constant array (USART.Number) of SFM.Port_Id :=
-     (USART.UART1 => 51, USART.UART3 => 53, USART.UART4 => 54, USART.UART6 => 56);
+     (USART.UART1 => 51, USART.UART2 => 52, USART.UART3 => 53, USART.UART4 => 54, USART.UART5 => 55, USART.UART6 => 56);
 
    function Device_Pos (D : Adaflight.OSD_Task.Device_Kind) return Byte is
      (Byte (Adaflight.OSD_Task.Device_Kind'Pos (D)));
@@ -324,7 +324,7 @@ package body Adaflight.STM32.OSD is
       then
          return SFM.Port_Id (C.Osd_Config.Osd_Uart);
       end if;
-      for N in USART.Number loop
+      for N of USART.Present_Set loop
          if (SFM.Function_Mask (Adaflight.Config_Fix.Serial_Options, Assigned, Board_UARTs (N))
              and SFM.Function_VTX_MSP) /= 0
          then
@@ -369,7 +369,7 @@ package body Adaflight.STM32.OSD is
       begin
          Display_Serial := Display_Serial_Of (C, Assigned);
          Display_On_UART := False;
-         for N in USART.Number loop
+         for N of USART.Present_Set loop
             if Board_UARTs (N) = Display_Serial then
                Display_On_UART := True;
                Display_UART.Which := N;

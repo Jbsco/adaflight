@@ -51,7 +51,7 @@ package body Adaflight.STM32.Radio is
    Feature_RX_Serial : constant Interfaces.Unsigned_32 := 8;
    --  The serial port identifiers of the board's UARTs.
    Port_Ids : constant array (USART.Number) of SFM.Port_Id :=
-     (USART.UART1 => 51, USART.UART3 => 53, USART.UART4 => 54, USART.UART6 => 56);
+     (USART.UART1 => 51, USART.UART2 => 52, USART.UART3 => 53, USART.UART4 => 54, USART.UART5 => 55, USART.UART6 => 56);
 
    type Provider is (CRSF, SBUS, IBUS, SUMD, Spektrum, XBUS, FPort, GHST, Jeti);
    Open        : Boolean := False;
@@ -158,7 +158,7 @@ package body Adaflight.STM32.Radio is
       if not SB.Wanted (Plug_Present, Plug_High, Soft, C.Rx_Config.Spektrum_Sat_Bind) then
          return;
       end if;
-      for U in USART.Number loop
+      for U of USART.Present_Set loop
          if Port_Ids (U) = Integer (C.Rx_Config.Rx_Uart) then
             N := U;
             Port_Known := True;
@@ -247,7 +247,7 @@ package body Adaflight.STM32.Radio is
          declare
             Assigned : constant SFM.Assignments := Adaflight.Config_Fix.Serial_Assignments (Config);
          begin
-            for N in USART.Number loop
+            for N of USART.Present_Set loop
                if (SFM.Function_Mask (Adaflight.Config_Fix.Serial_Options, Assigned, Port_Ids (N))
                    and SFM.Function_RX_Serial) /= 0
                then
