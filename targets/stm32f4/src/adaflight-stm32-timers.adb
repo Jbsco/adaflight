@@ -2,6 +2,7 @@ with Adaflight.Board;
 with Adaflight.PWM_Output;
 package body Adaflight.STM32.Timers is
 
+   RCC_AHB1ENR : Unsigned_32 with Volatile, Import, Address => System'To_Address (16#4002_3830#);
    RCC_APB1ENR : Unsigned_32 with Volatile, Import, Address => System'To_Address (16#4002_3840#);
    RCC_APB2ENR : Unsigned_32 with Volatile, Import, Address => System'To_Address (16#4002_3844#);
 
@@ -65,9 +66,45 @@ package body Adaflight.STM32.Timers is
       end loop;
    end Allocate;
 
-   procedure Configure_PWM
-     (E : Timer_Entry; Hz : Unsigned_32; Period : Unsigned_16; Pulse : Unsigned_16; Inverted : Boolean)
-   is
+   --  The stream's interrupt flag clear register and its six-bit group in it.
+   procedure Clear_Flags (S : DMA_Stream) is
+      Shifts : constant array (0 .. 3) of Natural := (0, 6, 16, 22);
+      Clear  : Unsigned_32 with Volatile, Import,
+        Address => System'To_Address (DMA_Base (S.Controller) + (if S.Stream < 4 then 16#08# else 16#0C#));
+   begin
+      Clear := Shift_Left (16#3D#, Shifts (S.Stream mod 4));
+   end Clear_Flags;
+
+   procedure Enable_DMA (S : DMA_Stream) is
+   begin
+      RCC_AHB1ENR := RCC_AHB1ENR or Shift_Left (1, 20 + S.Controller);
+   end Enable_DMA;
+
+   procedure Enable_Clock (T : Timer_Name) is
+   begin
+      if On_APB2 (T) then
+         RCC_APB2ENR := RCC_APB2ENR or Shift_Left (1, Enable_Bit (T));
+      else
+         RCC_APB1ENR := RCC_APB1ENR or Shift_Left (1, Enable_Bit (T));
+      end if;
+   end Enable_Clock;
+
+   procedure Set_Time_Base (T : Timer_Name; Reload : Unsigned_32; Prescale : Unsigned_32) is
+      Regs : Timer_Registers with Import, Address => Timer_Base (T);
+   begin
+      if T in TIM1 | TIM2 | TIM3 | TIM4 | TIM5 | TIM8 then
+         Regs.CR1 := Regs.CR1 and not 2#111_0000#;
+      end if;
+      Regs.CR1 := Regs.CR1 and not (2 ** 8 or 2 ** 9);
+      Regs.ARR := Reload;
+      Regs.PSC := Prescale;
+      if Advanced (T) then
+         Regs.RCR := 0;
+      end if;
+      Regs.EGR := UG;
+   end Set_Time_Base;
+
+   procedure Set_Output_Compare (E : Timer_Entry; Pulse : Unsigned_16; Inverted : Boolean) is
       Regs    : Timer_Registers with Import, Address => Timer_Base (E.Timer);
       CCR     : Unsigned_32 with Volatile, Import, Address => System'To_Address (CCR_Value (E.Timer, E.Channel));
       Byte    : constant Natural := (if E.Channel mod 2 = 1 then 0 else 8);
@@ -77,21 +114,6 @@ package body Adaflight.STM32.Timers is
       Enables : Unsigned_32;
       Control : Unsigned_32;
    begin
-      if On_APB2 (E.Timer) then
-         RCC_APB2ENR := RCC_APB2ENR or Shift_Left (1, Enable_Bit (E.Timer));
-      else
-         RCC_APB1ENR := RCC_APB1ENR or Shift_Left (1, Enable_Bit (E.Timer));
-      end if;
-      if E.Timer in TIM1 | TIM2 | TIM3 | TIM4 | TIM5 | TIM8 then
-         Regs.CR1 := Regs.CR1 and not 2#111_0000#;
-      end if;
-      Regs.CR1 := Regs.CR1 and not (2 ** 8 or 2 ** 9);
-      Regs.ARR := Adaflight.PWM_Output.Auto_Reload (Period);
-      Regs.PSC := Adaflight.PWM_Output.Prescaler (Timer_Clock_Hz (E.Timer), Hz);
-      if Advanced (E.Timer) then
-         Regs.RCR := 0;
-      end if;
-      Regs.EGR := UG;
       Regs.CCER := Regs.CCER and not Shift_Left (2#0001#, Base);
       Enables := Regs.CCER and not Shift_Left (2#0010#, Base);
       Control := Regs.CR2;
@@ -127,6 +149,19 @@ package body Adaflight.STM32.Timers is
       else
          Regs.CCMR2 := Regs.CCMR2 or Shift_Left (16#08#, Byte);
       end if;
+   end Set_Output_Compare;
+
+   procedure Configure_PWM
+     (E : Timer_Entry; Hz : Unsigned_32; Period : Unsigned_16; Pulse : Unsigned_16; Inverted : Boolean)
+   is
+      Regs : Timer_Registers with Import, Address => Timer_Base (E.Timer);
+      CCR  : Unsigned_32 with Volatile, Import, Address => System'To_Address (CCR_Value (E.Timer, E.Channel));
+   begin
+      Enable_Clock (E.Timer);
+      Set_Time_Base
+        (E.Timer, Adaflight.PWM_Output.Auto_Reload (Period),
+         Adaflight.PWM_Output.Prescaler (Timer_Clock_Hz (E.Timer), Hz));
+      Set_Output_Compare (E, Pulse, Inverted);
       if Advanced (E.Timer) then
          Regs.BDTR := Regs.BDTR or MOE;
       end if;
