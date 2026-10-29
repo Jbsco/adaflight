@@ -1060,8 +1060,10 @@ package body Adaflight.STM32.Flight is
       if Effects.Reboot then
          case Effects.Control.Reboot_Mode is
             when Firmware_Reboot =>
+               Adaflight.STM32.Motors.Shutdown;
                Reset;
             when ROM_Bootloader_Reboot =>
+               Adaflight.STM32.Motors.Shutdown;
                Adaflight.STM32.MCU.Reset_To_Bootloader;
             when others =>
                null;
@@ -1304,9 +1306,11 @@ package body Adaflight.STM32.Flight is
                   Write_Configuration;
                end if;
                if Changes.Reboot then
+                  Adaflight.STM32.Motors.Shutdown;
                   Reset;
                end if;
                if CLI."=" (Changes.Restart, CLI.ROM_Bootloader) then
+                  Adaflight.STM32.Motors.Shutdown;
                   Adaflight.STM32.MCU.Reset_To_Bootloader;
                end if;
                Changes := (others => <>);
@@ -3107,6 +3111,7 @@ package body Adaflight.STM32.Flight is
       end loop;
       if Adaflight.MAVLink_Commands."/=" (R.Reboot, Adaflight.MAVLink_Commands.None) then
          Adaflight.STM32.MAVLink.Finish_Transmit;
+         Adaflight.STM32.Motors.Shutdown;
          if Adaflight.MAVLink_Commands."=" (R.Reboot, Adaflight.MAVLink_Commands.Bootloader) then
             Adaflight.STM32.MCU.Reset_To_Bootloader;
          end if;

@@ -23,6 +23,10 @@ package Adaflight.STM32.Motors is
    --  stop clears the analog pulses.
    procedure Enable;
    procedure Disable;
+   --  The outputs stopped before a reboot: the analog pulses cleared, the
+   --  writes stopped, and a wait of 1.5 ms, half a second more for PWM,
+   --  OneShot and MultiShot so their ESCs disarm.
+   procedure Shutdown;
    --  The configured outputs' pins driven high as plain outputs, the level an
    --  ESC's serial link idles at.
    procedure Hold_Idle;

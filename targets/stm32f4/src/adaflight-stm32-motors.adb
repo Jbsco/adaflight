@@ -6,6 +6,7 @@ with Adaflight.DShot;
 with Adaflight.Pins; use Adaflight.Pins;
 with Adaflight.PWM_Output;
 with Adaflight.STM32.GPIO;
+with Adaflight.STM32.Time;
 with Adaflight.STM32.Timers; use Adaflight.STM32.Timers;
 package body Adaflight.STM32.Motors is
    use Interfaces;
@@ -354,6 +355,15 @@ package body Adaflight.STM32.Motors is
       Clear_Pulses;
       Is_On := False;
    end Disable;
+
+   procedure Shutdown is
+   begin
+      Clear_Pulses;
+      Is_On := False;
+      Adaflight.STM32.Time.Delay_Us
+        (1_500 + (if Configured_Protocol in Adaflight.PWM_Output.Protocol_PWM .. Adaflight.PWM_Output.Protocol_MultiShot
+                  then 500_000 else 0));
+   end Shutdown;
 
    procedure Write_Pulse (Index : Natural; Value : Float) is
    begin

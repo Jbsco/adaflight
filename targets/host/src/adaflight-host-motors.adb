@@ -84,6 +84,11 @@ package body Adaflight.STM32.Motors is
          else Adaflight.MSP_Motor_In.DShot);
    end Init;
 
+   procedure Shutdown is
+   begin
+      Is_On := False;
+   end Shutdown;
+
    procedure Write_Pulse (Index : Natural; Value : Float) is
       use type Interfaces.Unsigned_32;
    begin

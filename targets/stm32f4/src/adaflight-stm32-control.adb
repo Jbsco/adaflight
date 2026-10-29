@@ -10,6 +10,7 @@ with Adaflight.STM32.Motors;
 with Adaflight.STM32.Pilot;
 with Adaflight.STM32.Radio;
 with Adaflight.STM32.Servos;
+with Adaflight.STM32.Time;
 package body Adaflight.STM32.Control is
    Ctl          : Adaflight.PID_Controller.State;
    Mix          : Adaflight.Mixer.State;
@@ -323,6 +324,15 @@ package body Adaflight.STM32.Control is
    function Motors_Running return Boolean is
      (Adaflight.STM32.Pilot.Armed
       or else (for some M in 0 .. Mix_Config.Count - 1 => Disarmed (M) /= Mix_Config.Disarm_Output));
+
+   procedure Stop_Motors is
+   begin
+      for M in 0 .. Mix_Config.Count - 1 loop
+         Mix.Motors (M) := Held (Mix_Config.Disarm_Output);
+      end loop;
+      Adaflight.STM32.DShot_Output.Write_All (Mix.Motors);
+      Adaflight.STM32.Time.Delay_Ms (50);
+   end Stop_Motors;
 
    procedure Reset_RPM_Limiter (Battery_Voltage : Interfaces.Unsigned_16) is
    begin

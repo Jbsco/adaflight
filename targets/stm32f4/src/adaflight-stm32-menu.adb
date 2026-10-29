@@ -2,6 +2,8 @@ with Adaflight.Menu;
 with Adaflight.Menu_Content;
 with Adaflight.Menu_Nav;
 with Adaflight.PID_Profile;
+with Adaflight.STM32.Control;
+with Adaflight.STM32.Motors;
 with Adaflight.STM32.OSD;
 with Adaflight.STM32.Radio;
 with Adaflight.STM32.Time;
@@ -60,8 +62,10 @@ package body Adaflight.STM32.Menu is
             Save_Asked := True;
          when Adaflight.Menu.Arming_Disabled =>
             Held := Arg /= 0;
-         when Adaflight.Menu.Stop_Motors | Adaflight.Menu.Motor_Shutdown =>
-            null;
+         when Adaflight.Menu.Stop_Motors =>
+            Adaflight.STM32.Control.Stop_Motors;
+         when Adaflight.Menu.Motor_Shutdown =>
+            Adaflight.STM32.Motors.Shutdown;
          when Adaflight.Menu.Delay_Ms =>
             Adaflight.STM32.Time.Delay_Ms (Natural'Max (0, Natural'Min (10_000, Arg)));
          when Adaflight.Menu.System_Reset =>
