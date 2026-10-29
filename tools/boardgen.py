@@ -109,7 +109,7 @@ def generate(config: Path, overrides: dict) -> str:
         defines[m.group(1)] = (m.group(2) or "").strip()
     defines.update(overrides)
     fixed = [f"UART{n}_{d}_PIN" for n in range(1, 7) for d in ("TX", "RX")] \
-        + [f"SPI{n}_{d}_PIN" for n in range(1, 4) for d in ("SCK", "SDI", "SDO")] \
+        + [f"SPI{n}_{d}_PIN" for n in range(1, 7) for d in ("SCK", "SDI", "SDO")] \
         + ["LED0_PIN", "GYRO_1_CS_PIN", "GYRO_1_EXTI_PIN", "FLASH_CS_PIN", "SDCARD_SPI_CS_PIN", "SDCARD_DETECT_PIN"]
     pins = sorted((ada_name(k), pin_literal(v)) for k, v in defines.items()
                   if k.endswith("_PIN") and k not in fixed and re.fullmatch(r"P[A-K]\d{1,2}", v))
@@ -121,7 +121,7 @@ def generate(config: Path, overrides: dict) -> str:
     presence = [(f"Has_UART{n}", all(re.fullmatch(r"P[A-K]\d{1,2}", defines.get(f"UART{n}_{d}_PIN", "")) for d in ("TX", "RX")))
                 for n in range(1, 7)] \
         + [(f"Has_SPI{n}", all(re.fullmatch(r"P[A-K]\d{1,2}", defines.get(f"SPI{n}_{d}_PIN", "")) for d in ("SCK", "SDI", "SDO")))
-           for n in range(1, 4)]
+           for n in range(1, 7)]
     pins += sorted((ada_name(k), pin_literal(v)) for k, v in defines.items()
                    if k.startswith("INVERTER_PIN_") and re.fullmatch(r"P[A-K]\d{1,2}", v))
     timer_map = []
@@ -149,7 +149,7 @@ def generate(config: Path, overrides: dict) -> str:
     out.append("   --  The pin tags of the inputs, the beeper, the OSD chip's select, the SD")
     out.append("   --  card's select and detect, the flash chip's select, the USB cable")
     out.append("   --  detect and the UARTs' inverters, zero for none,")
-    out.append("   --  their SPI buses from 1, zero for none, whether the detect pin reads low")
+    out.append("   --  the gyro's and their SPI buses from 1, zero for none, whether the detect pin reads low")
     out.append("   --  for a card, the flight log device, the meter defaults, the PINIO")
     out.append("   --  outputs' pins, configurations and boxes by permanent id, and the")
     out.append("   --  motors' and the LED strip's pins, the host defaults where the board")
@@ -169,6 +169,7 @@ def generate(config: Path, overrides: dict) -> str:
                                                                              "CURRENT_METER_VIRTUAL")]),
                 ("Default_Voltage_Meter_Scale", number(defines.get("DEFAULT_VOLTAGE_METER_SCALE"), 110)),
                 ("Default_Current_Meter_Scale", number(defines.get("DEFAULT_CURRENT_METER_SCALE"), 400)),
+                ("Gyro_1_SPI_Device", spi_device(defines.get("GYRO_1_SPI_INSTANCE", ""))),
                 ("MAX7456_SPI_Device", spi_device(defines.get("MAX7456_SPI_INSTANCE", ""))),
                 ("SDCARD_SPI_Device", spi_device(defines.get("SDCARD_SPI_INSTANCE", ""))),
                 ("FLASH_SPI_Device", spi_device(defines.get("FLASH_SPI_INSTANCE", ""))),

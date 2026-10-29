@@ -70,7 +70,7 @@ package body Adaflight.STM32.SD is
 
    procedure Attach_Bus (D : in out Card_Bus; Instance : Byte) is
    begin
-      if Instance in 1 .. 3 then
+      if Instance in 1 .. 6 then
          D.Bus := SPI.Bus'Val (Instance - 1);
       end if;
    end Attach_Bus;

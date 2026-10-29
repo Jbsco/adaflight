@@ -32,7 +32,10 @@ package body Adaflight.STM32.SPI is
    Base : constant array (Bus) of System.Address :=
      (SPI1 => System'To_Address (16#4001_3000#),
       SPI2 => System'To_Address (16#4000_3800#),
-      SPI3 => System'To_Address (16#4000_3C00#));
+      SPI3 => System'To_Address (16#4000_3C00#),
+      SPI4 => System'To_Address (16#4001_3400#),
+      SPI5 => System'To_Address (16#4001_5000#),
+      SPI6 => System'To_Address (16#4001_5400#));
    function Regs (B : Bus) return Conversions.Object_Pointer is (Conversions.To_Pointer (Base (B)));
 
    RCC_APB1RSTR : Unsigned_32
@@ -43,7 +46,8 @@ package body Adaflight.STM32.SPI is
      with Volatile, Import, Address => System'To_Address (16#4002_3840#);
    RCC_APB2ENR : Unsigned_32
      with Volatile, Import, Address => System'To_Address (16#4002_3844#);
-   Clock_Bit : constant array (Bus) of Unsigned_32 := (SPI1 => 2 ** 12, SPI2 => 2 ** 14, SPI3 => 2 ** 15);
+   Clock_Bit : constant array (Bus) of Unsigned_32 :=
+     (SPI1 => 2 ** 12, SPI2 => 2 ** 14, SPI3 => 2 ** 15, SPI4 => 2 ** 13, SPI5 => 2 ** 20, SPI6 => 2 ** 21);
 
    Clock_Phase_Second : constant Unsigned_32 := 2 ** 0;
    Clock_Idle_High    : constant Unsigned_32 := 2 ** 1;
@@ -57,14 +61,15 @@ package body Adaflight.STM32.SPI is
    Transmit_Empty     : constant Unsigned_32 := 2 ** 1;
    Busy               : constant Unsigned_32 := 2 ** 7;
 
-   Function_Of : constant array (Bus) of GPIO.Alternate_Function := (SPI1 | SPI2 => 5, SPI3 => 6);
+   Function_Of : constant array (Bus) of GPIO.Alternate_Function :=
+     (SPI1 | SPI2 | SPI4 | SPI5 | SPI6 => 5, SPI3 => 6);
 
    Running : array (Bus) of Boolean := (others => False);
 
    procedure Init (B : Bus; SCK, SDI, SDO : Pin) is
    begin
       case B is
-         when SPI1 =>
+         when SPI1 | SPI4 | SPI5 | SPI6 =>
             RCC_APB2ENR := RCC_APB2ENR or Clock_Bit (B);
             RCC_APB2RSTR := RCC_APB2RSTR or Clock_Bit (B);
             RCC_APB2RSTR := RCC_APB2RSTR and not Clock_Bit (B);
@@ -103,7 +108,7 @@ package body Adaflight.STM32.SPI is
      (Bus_Clock_Hz / Unsigned_32 (Unsigned_16'Max (1, Divisor)));
 
    procedure Set_Divisor (B : Bus; Divisor : Unsigned_16) is
-      Halved  : constant Unsigned_16 := (if B = SPI1 then Divisor else Divisor / 2);
+      Halved  : constant Unsigned_16 := (if B in SPI2 | SPI3 then Divisor / 2 else Divisor);
       Bounded : constant Unsigned_16 := Unsigned_16'Max (2, Unsigned_16'Min (256, Halved));
       Bits    : Unsigned_32 := 0;
       Rest    : Unsigned_16 := Bounded / 4;
