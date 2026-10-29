@@ -4,6 +4,7 @@ with System.Storage_Elements;
 with Adaflight.Board;
 with Adaflight.DShot;
 with Adaflight.Pins; use Adaflight.Pins;
+with Adaflight.PWM_Output;
 with Adaflight.STM32.GPIO;
 with Adaflight.STM32.Timers; use Adaflight.STM32.Timers;
 package body Adaflight.STM32.Motors is
@@ -126,6 +127,69 @@ package body Adaflight.STM32.Motors is
    Is_On   : Boolean := False;
    Kind    : Adaflight.MSP_Motor_In.Device_Kind := Adaflight.MSP_Motor_In.No_Device;
 
+   --  The analog protocols' outputs: the configured protocol, whether the
+   --  outputs update without forced overflows, each motor's timing and
+   --  compare register, and whether it forces its timer's overflow.
+   Configured_Protocol : Unsigned_8 := 0;
+   Continuous          : Boolean := True;
+   Timings             : array (Motor_Slot) of Adaflight.PWM_Output.Motor_Timing;
+   CCR_Of              : array (Motor_Slot) of Unsigned_32 := (others => 0);
+   Forced              : array (Motor_Slot) of Boolean := (others => False);
+
+   --  The analog protocols' outputs as the reference sets them up: each motor
+   --  of the mix in output order on the channel its pin holds, the pin on the
+   --  timer's alternate function, the timer and channel at the protocol's
+   --  timing with the idle pulse and the configured inversion, and the first
+   --  motor of each timer forcing its overflow; a motor without a channel
+   --  leaves no motor driven.
+   procedure Init_Analog (C : Adaflight.Config_Groups.Configuration; Count : Natural; Three_D : Boolean) is
+      Dev  : Adaflight.Config_Groups.Motor_Dev_Config_Record renames C.Motor_Config.Dev;
+      Idle : constant Unsigned_16 := (if Three_D then C.Flight3_D_Config.Neutral3d else C.Motor_Config.Mincommand);
+   begin
+      for M in 0 .. Natural'Min (Count, 8) - 1 loop
+         declare
+            Order : constant Natural := Natural (Dev.Motor_Output_Reordering (M)) mod 8;
+            E     : Timer_Entry;
+            Index : Natural;
+            Found : Boolean;
+         begin
+            Allocate (Dev.Io_Tags (Order), Motor, E, Index, Found);
+            if not Found then
+               Driven := 0;
+               Outputs := (others => (others => <>));
+               CCR_Of := (others => 0);
+               return;
+            end if;
+            GPIO.Enable_Port (E.Where.Port);
+            GPIO.Set_Alternate (E.Where, Alternate (E.Timer), GPIO.No_Pull, Rate => GPIO.Low);
+            Timings (M) := Adaflight.PWM_Output.Motor_Timing_Of
+              (Dev.Motor_Protocol, Dev.Motor_Pwm_Rate, Dev.Use_Continuous_Update /= 0, Timer_Clock_Hz (E.Timer), Idle);
+            Continuous := Timings (M).Continuous;
+            Configure_PWM (E, Timings (M).Hz, Adaflight.PWM_Output.Period_Of (Timings (M)), Timings (M).Idle,
+                           Inverted => Dev.Motor_Inversion /= 0);
+            CCR_Of (M) := CCR_Value (E.Timer, E.Channel);
+            Forced (M) := (for all K in 0 .. M - 1 => Outputs (K).Timer /= E.Timer);
+            Outputs (M) := (Configured => True, Where => E.Where, Timer => E.Timer, Channel => E.Channel, others => <>);
+            Driven := M + 1;
+         end;
+      end loop;
+      Kind := (if Driven > 0 then Adaflight.MSP_Motor_In.PWM else Adaflight.MSP_Motor_In.No_Device);
+   end Init_Analog;
+
+   --  Each analog output's compare register cleared, which stops its pulses.
+   procedure Clear_Pulses is
+   begin
+      for M in 0 .. Driven - 1 loop
+         if CCR_Of (M) /= 0 then
+            declare
+               CCR : Unsigned_32 with Volatile, Import, Address => System'To_Address (CCR_Of (M));
+            begin
+               CCR := 0;
+            end;
+         end if;
+      end loop;
+   end Clear_Pulses;
+
    --  One motor's output as the reference configures it: the pin on the
    --  timer's alternate function, the timer at the protocol's bit clock when
    --  it is the timer just added, the channel in PWM mode 1 with its
@@ -225,7 +289,7 @@ package body Adaflight.STM32.Motors is
          when 7 => 12_000_000,
          when others => 0);
 
-   procedure Init (C : Adaflight.Config_Groups.Configuration; Count : Natural) is
+   procedure Init (C : Adaflight.Config_Groups.Configuration; Count : Natural; Three_D : Boolean) is
       Hz    : constant Unsigned_32 := Protocol_Hz (C.Motor_Config.Dev.Motor_Protocol);
       Total : constant Natural := Natural'Min (Count, 8);
       Last  : Timer_Name := TIM1;
@@ -233,6 +297,11 @@ package body Adaflight.STM32.Motors is
    begin
       Driven := 0;
       Kind := Adaflight.MSP_Motor_In.No_Device;
+      Configured_Protocol := C.Motor_Config.Dev.Motor_Protocol;
+      if Configured_Protocol in Adaflight.PWM_Output.Protocol then
+         Init_Analog (C, Count, Three_D);
+         return;
+      end if;
       if Hz = 0 then
          return;
       end if;
@@ -282,8 +351,40 @@ package body Adaflight.STM32.Motors is
 
    procedure Disable is
    begin
+      Clear_Pulses;
       Is_On := False;
    end Disable;
+
+   procedure Write_Pulse (Index : Natural; Value : Float) is
+   begin
+      if Index < Driven and then CCR_Of (Index) /= 0 then
+         declare
+            CCR : Unsigned_32 with Volatile, Import, Address => System'To_Address (CCR_Of (Index));
+         begin
+            CCR := Adaflight.PWM_Output.Motor_Pulse
+              (Timings (Index), Float'Max (Adaflight.PWM_Output.Write_Value'First,
+                                           Float'Min (Adaflight.PWM_Output.Write_Value'Last, Value)));
+         end;
+      end if;
+   end Write_Pulse;
+
+   procedure Complete_Pulses is
+   begin
+      if Continuous or else Adaflight.MSP_Motor_In."/=" (Kind, Adaflight.MSP_Motor_In.PWM) then
+         return;
+      end if;
+      for M in 0 .. Driven - 1 loop
+         declare
+            Regs : Timer_Registers with Import, Address => Timer_Base (Outputs (M).Timer);
+            CCR  : Unsigned_32 with Volatile, Import, Address => System'To_Address (CCR_Of (M));
+         begin
+            if Forced (M) then
+               Regs.EGR := Regs.EGR or UG;
+            end if;
+            CCR := 0;
+         end;
+      end loop;
+   end Complete_Pulses;
 
    function Enabled return Boolean is (Is_On);
 
@@ -301,7 +402,7 @@ package body Adaflight.STM32.Motors is
      (Index < Driven and then Outputs (Index).Configured);
 
    function Stream_Of (Index : Natural) return Natural is
-     (if Index < Driven and then Outputs (Index).Configured
+     (if Index < Driven and then Outputs (Index).Configured and then CCR_Of (Index) = 0
       then (Outputs (Index).Stream.Controller - 1) * 8 + Outputs (Index).Stream.Stream + 1
       else 0);
 

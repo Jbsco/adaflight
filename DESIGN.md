@@ -11507,3 +11507,29 @@ up a flying wing with two servo pins: the outputs start at 50 Hz, the flaperons 
 moves them apart in the MSP reply and on the outputs, a configurator servo write lowers a flaperon's limit at once,
 and a servo on the motor's pin is refused with the rest of the setup. The image grows from 622752 to 627612 bytes of
 code, most of it the servo mixer, which the board did not link before.
+
+## D510. Board analog motor outputs (2026-10-28)
+
+The board drives PWM, OneShot125, OneShot42, MultiShot and brushed motors from the timers. `Adaflight.PWM_Output`
+gains their timing: the configured update rate with continuous updates, which PWM and brushed motors always take, or
+else the protocol's rate with a margin of four pulses, 1000, 2977 or 10000 Hz, then the smallest prescaler that keeps
+the period within 16 bits, the counting rate and the period, and the scale and offset that turn a motor value into a
+pulse. A write rounds the pulse to the nearest count with ties to even, and the servos take the same rounding with
+their 1 MHz period. A division by zero, which needs a zero rate that the configuration's limits never let in, gives
+zero as the processor's divider does. The unit is SPARK for its bounded float arithmetic and its narrowing
+conversions.
+
+A new oracle family runs the reference's STM32 PWM output file over a recording timer library: drawn motor and servo
+setups at the board's clocks and at clocks around each prescaler step, then drawn writes. All 77092 lines match. A
+one-shot rate off by one and a servo period off by one count each fail hundreds of lines.
+
+On the board the motors claim their channels through the pin map owners (D509) in output order, and a motor without a
+channel leaves none driven. Each channel starts as a PWM output at the motor's timing and idle pulse, inverted when
+the configuration asks, and the servos now take the same channel setup. A motor update writes each pulse, and without
+continuous updates each timer's first motor forces an overflow that starts the pulses before every compare register
+clears. Disabling the motors clears the pulses. The MSP motor reply truncates an analog motor value as the reference's
+conversion does.
+
+The host image claims the same channels and logs each analog motor's setup and pulse changes. The host smoke sets
+OneShot125 and PWM: the motors start at their timers' rates, idle at the minimum command's pulse, report microseconds
+over MSP and follow a motor test. The image grows from 627612 to 628808 bytes of code.

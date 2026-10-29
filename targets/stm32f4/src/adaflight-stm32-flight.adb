@@ -2198,7 +2198,8 @@ package body Adaflight.STM32.Flight is
             then Unsigned_16 (Adaflight.DShot.To_External
                                 (Adaflight.STM32.Control.Motors (M),
                                  (Runtime_Features and Adaflight.Config_Fix.Feature_3D) /= 0))
-            else Unsigned_16 (Float'Max (0.0, Float'Min (65_535.0, Adaflight.STM32.Control.Motors (M)))));
+            else Unsigned_16
+                   (Float'Truncation (Float'Max (0.0, Float'Min (65_535.0, Adaflight.STM32.Control.Motors (M))))));
       end loop;
    end Run_Control;
 
@@ -3797,7 +3798,8 @@ package body Adaflight.STM32.Flight is
       Adaflight.STM32.Pilot.Set_Reason (Adaflight.Arming.No_Gyro, not Selection.Found);
       Adaflight.STM32.Control.Init (Config, Runtime_Features);
       Adaflight.STM32.Control.Reset_Disarmed;
-      Adaflight.STM32.Motors.Init (Config, Adaflight.STM32.Control.Motor_Count);
+      Adaflight.STM32.Motors.Init
+        (Config, Adaflight.STM32.Control.Motor_Count, (Runtime_Features and Adaflight.Config_Fix.Feature_3D) /= 0);
       for M in 0 .. Natural'Min (8, Adaflight.STM32.Motors.Count) - 1 loop
          if Adaflight.STM32.Motors.Stream_Of (M) > 0 then
             Env.DMA_Motors (Adaflight.STM32.Motors.Stream_Of (M)) := M + 1;
