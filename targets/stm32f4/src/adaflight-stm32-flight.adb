@@ -15,6 +15,7 @@ with Adaflight.Blackbox_Header;
 with Adaflight.Blackbox_Info;
 with Adaflight.Board;
 with Adaflight.Build_Features;
+with Adaflight.Build_Options;
 with Adaflight.Board_Info;
 with Adaflight.Bytes;
 with Adaflight.Clock;
@@ -408,6 +409,26 @@ package body Adaflight.STM32.Flight is
       return T;
    end Text;
 
+   package Build renames Adaflight.Build_Options;
+
+   --  The build options the image reports: the receivers, the telemetry,
+   --  the features and the motor protocols the board drives, those of the
+   --  features the build leaves out off.
+   Image_Options : constant Build.List := Build.In_Order
+     ((Build.Serial_RX_CRSF | Build.Serial_RX_FPORT | Build.Serial_RX_GHST | Build.Serial_RX_IBus
+       | Build.Serial_RX_SBUS | Build.Serial_RX_Spektrum | Build.Serial_RX_XBus => True,
+       Build.Serial_RX_Jeti_EX_Bus => Adaflight.Build_Features.Jeti_EX_Bus,
+       Build.Serial_RX_SUMD => Adaflight.Build_Features.SUMD,
+       Build.Telemetry_FrSky_Hub | Build.Telemetry_SmartPort => True,
+       Build.Telemetry_IBus_Extended => Adaflight.Build_Features.IBus_Telemetry,
+       Build.Telemetry_LTM => Adaflight.Build_Features.LTM_Telemetry,
+       Build.Telemetry_MAVLink => Adaflight.Build_Features.MAVLink_Telemetry,
+       Build.Altitude_Hold | Build.Chirp | Build.GPS | Build.LED_Strip | Build.OSD_SD | Build.OSD_HD | Build.PINIO
+       | Build.Position_Hold | Build.Servos | Build.VTX => True,
+       Build.Rangefinder => Adaflight.Build_Features.Rangefinder,
+       Build.Brushed | Build.DShot | Build.MultiShot | Build.OneShot | Build.PWM_Output => True,
+       others => False));
+
    --  What the common replies read beside the configuration: the firmware
    --  identity, the board, no meter readings yet, the beeper and the OSD chip
    --  built in.
@@ -424,6 +445,8 @@ package body Adaflight.STM32.Flight is
       V.Firmware.Build_Time := GNAT.Source_Info.Compilation_Time;
       V.Firmware.Revision := "0000000";
       V.Firmware.UID := (UID (1), UID (2), UID (3));
+      V.Firmware.Options := Common.Build_Options (Image_Options.Numbers);
+      V.Firmware.Option_Count := Image_Options.Length;
       for K in V.Board.Identifier'Range loop
          V.Board.Identifier (K) := Character'Val (Config.System_Config.Board_Identifier (K - 1));
       end loop;
@@ -516,8 +539,8 @@ package body Adaflight.STM32.Flight is
       MSC_Ready       => False,
       DShot_Protocol  => False,
       ESC_Sensor      => False,
-      Build_Options   => <>,
-      Option_Count    => 0,
+      Build_Options   => CLI.Build_Option_List (Image_Options.Numbers),
+      Option_Count    => Image_Options.Length,
       Soft_Serial     => False,
       Serial_Ports    => <>,
       CLI_Port        => 20,
