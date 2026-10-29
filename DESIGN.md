@@ -11421,3 +11421,20 @@ host image keeps its checks. The board crate catches no exception, so no path de
 CLRacing F4S image the 512 KB set's code drops from 590064 to 571860 bytes, and without the menu system from 535608 to
 518096, 520944 with its initialized data. A 512 KB board has 480 KB after its vector and configuration sectors, and
 about 507 KB when the image also fills the vector sector past the vector table, as the reference's F722 layout does.
+
+## D505. Serial passthrough command (2026-10-28)
+
+The command line gains serialpassthrough, one of the two commands the reference's F405 build contains and the port
+lacked. The timer command, the other, waits for the timer tables. The passthrough reads up to seven words: the first
+port by a word holding esc_sensor, by cli, by a port name or by a number, its baud rate as atoi reads it on a 32-bit
+target, its mode with options and the DTR action, then the second port with its baud rate and mode, the command line's
+own port when there is none. Each port is checked against the board's ports, then opened at its baud rate, 57600 when
+none is given, or taken as it is open with a new baud rate or mode and its receive callback removed. The USB port's
+line coding then sets the first port's baud rate when the command gave none, its DTR resets the board or switches a
+PINIO, an ESC sensor passthrough disables the motors and holds their outputs idle, and the forwarding starts.
+
+The board's ports come through new generic formals and the environment gains the command line's own port. The board
+fills the formals with steps that do nothing for now, so it answers that the first port could not be opened. The
+forwarding follows in a board change. A new oracle family, cliserpass, records the replies and the port calls over
+scripted port states through wrapped port functions. The oracle runs on a 64-bit host, where strtol and atoi past the
+32-bit range differ from the board's, so its words stay inside that range.

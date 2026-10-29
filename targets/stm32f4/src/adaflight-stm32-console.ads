@@ -34,7 +34,17 @@ package Adaflight.STM32.Console is
       Flash_Seek             => Adaflight.STM32.Flash_Chip.Seek,
       Flash_Write            => Adaflight.STM32.Flash_Chip.Write_Text,
       Flash_Flush            => Adaflight.STM32.Flash_Chip.Flush_Sync,
-      Flash_Read             => Adaflight.STM32.Flash_Chip.Read_Text);
+      Flash_Read             => Adaflight.STM32.Flash_Chip.Read_Text,
+      Port_State             => Adaflight.CLI_Board_Steps.Port_State,
+      Port_Open              => Adaflight.CLI_Board_Steps.Port_Open,
+      Port_Set_Baud          => Adaflight.CLI_Board_Steps.Port_Set_Baud,
+      Port_Set_Mode          => Adaflight.CLI_Board_Steps.Port_Set_Mode,
+      Port_Remove_Callback   => Adaflight.CLI_Board_Steps.Port_Remove_Callback,
+      Port_Baud_From_USB     => Adaflight.CLI_Board_Steps.Port_Baud_From_USB,
+      Port_DTR_Reset         => Adaflight.CLI_Board_Steps.Port_DTR_Reset,
+      Port_DTR_PINIO         => Adaflight.CLI_Board_Steps.Port_DTR_PINIO,
+      ESC_Sensor_Pins_Idle   => Adaflight.CLI_Board_Steps.ESC_Sensor_Pins_Idle,
+      Port_Forward           => Adaflight.CLI_Board_Steps.Port_Forward);
 
    package Terminal is new CLI.Terminal;
 
