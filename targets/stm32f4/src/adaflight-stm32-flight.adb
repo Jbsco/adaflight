@@ -179,6 +179,20 @@ package body Adaflight.STM32.Flight is
    Blink    : Ada.Real_Time.Time := Ada.Real_Time.Clock;
    --  The defaults of the board's hardware, which every reset of the
    --  configuration takes.
+   --  The board's timer pin map as the configuration's timer entries: the
+   --  pin's tag, its timer occurrence and its DMA option at the map's index.
+   function Timer_Defaults return Adaflight.Config_Groups.Timer_Io_Config_Record_List_21 is
+      List : Adaflight.Config_Groups.Timer_Io_Config_Record_List_21 := (others => (0, 0, 0));
+   begin
+      for E of Adaflight.Board.Timer_Map loop
+         if E.Index in List'Range then
+            List (E.Index) := (Io_Tag => Unsigned_8 (Adaflight.Pins.Tag_Of (E.P)), Index => Unsigned_8 (E.Timer_Option),
+                               Dmaopt => Integer_8 (E.DMA_Option));
+         end if;
+      end loop;
+      return List;
+   end Timer_Defaults;
+
    Board_Hardware : constant Adaflight.Board_Info.Hardware_Defaults :=
      (Vbat             => (Adaflight.Board.ADC_VBAT_Tag /= 0, Adaflight.Board.ADC_VBAT_Tag),
       Current          => (Adaflight.Board.ADC_CURR_Tag /= 0, Adaflight.Board.ADC_CURR_Tag),
@@ -223,7 +237,12 @@ package body Adaflight.STM32.Flight is
       MSP_First_Port        => Adaflight.MSP_Allocation.USB_VCP_Port,
       MSP_UART              => Adaflight.Board.MSP_UART,
       MSP_Other_UART        => Adaflight.Board.Use_MSP_UART,
-      MSP_Display_Port_UART => Adaflight.Board.MSP_Display_Port_UART);
+      MSP_Display_Port_UART => Adaflight.Board.MSP_Display_Port_UART,
+      Timer_Map             => Timer_Defaults,
+      Camera_Control_Tag    => Adaflight.Board.Camera_Control_Tag,
+      ADC_DMA_Options       => (Adaflight.Board.ADC1_DMA_Option, Adaflight.Board.ADC2_DMA_Option,
+                                Adaflight.Board.ADC3_DMA_Option),
+      ESC_Serial_Tag        => Adaflight.Board.ESC_Serial_Tag);
 
    Board    : CLI.Board_State := (Hardware => Board_Hardware, others => <>);
    Config   : Adaflight.Config_Groups.Configuration := Adaflight.Config_Reset.Reset (Board);

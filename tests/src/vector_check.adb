@@ -29919,14 +29919,14 @@ procedure Vector_Check is
    --  port derives from its option table.
    package BO renames Adaflight.Build_Options;
    Reference_Options : constant BO.Selection :=
-     (BO.Serial_RX_CRSF | BO.Serial_RX_FPORT | BO.Serial_RX_GHST | BO.Serial_RX_IBus | BO.Serial_RX_Jeti_EX_Bus
-      | BO.Serial_RX_MAVLink | BO.RX_PPM | BO.Serial_RX_SBUS | BO.Serial_RX_Spektrum | BO.Serial_RX_SRXL2
-      | BO.Serial_RX_SUMD | BO.Serial_RX_SUMH | BO.Serial_RX_XBus | BO.Telemetry_FrSky_Hub | BO.Telemetry_HoTT
-      | BO.Telemetry_IBus_Extended | BO.Telemetry_LTM | BO.Telemetry_MAVLink | BO.Telemetry_SmartPort
-      | BO.Telemetry_SRXL | BO.Acro_Trainer | BO.Altitude_Hold | BO.Battery_Continue | BO.Chirp | BO.Dashboard
-      | BO.ESC_Serial_SimonK | BO.Flight_Plan | BO.GPS | BO.LED_Strip | BO.Mag | BO.Optical_Flow | BO.OSD_SD
-      | BO.OSD_HD | BO.PINIO | BO.Position_Hold | BO.Rangefinder | BO.Soft_Serial | BO.Servos | BO.VTX | BO.DShot
-      | BO.PWM_Output => True,
+     (BO.Serial_RX_CRSF | BO.Serial_RX_FPORT | BO.Serial_RX_GHST | BO.Serial_RX_IBus | BO.Serial_RX_Jeti_EX_Bus |
+      BO.Serial_RX_MAVLink | BO.RX_PPM | BO.Serial_RX_SBUS | BO.Serial_RX_Spektrum | BO.Serial_RX_SRXL2 |
+      BO.Serial_RX_SUMD | BO.Serial_RX_SUMH | BO.Serial_RX_XBus | BO.Telemetry_FrSky_Hub | BO.Telemetry_HoTT |
+      BO.Telemetry_IBus_Extended | BO.Telemetry_LTM | BO.Telemetry_MAVLink | BO.Telemetry_SmartPort |
+      BO.Telemetry_SRXL | BO.Acro_Trainer | BO.Altitude_Hold | BO.Battery_Continue | BO.Camera_Control | BO.Chirp |
+      BO.Dashboard | BO.ESC_Serial_SimonK | BO.Flight_Plan | BO.GPS | BO.LED_Strip | BO.Mag | BO.Optical_Flow |
+      BO.OSD_SD | BO.OSD_HD | BO.PINIO | BO.Position_Hold | BO.Rangefinder | BO.Soft_Serial | BO.Servos | BO.VTX |
+      BO.DShot | BO.PWM_Output => True,
       others => False);
    --  The gyro's bus as the oracle keeps it: the bus kind of the last
    --  "!gyrodev" line, none for zero, and the device count of its bus.

@@ -75,7 +75,7 @@ Each Betaflight source area at commit af0638839, the commit the vectors were rec
 - **sensors**: ported
 - **scheduler**: ported
 - **rx**: ported, apart from the KN receiver, which no build compiles
-- **pg, config, cli, msp**: ported, apart from the parameter groups and the timer command
+- **pg, config, cli, msp**: ported, apart from the timer and dma commands
 - **blackbox, osd, cms, telemetry, io**: ported, with the remaining parts in Phase 6
 - **drivers, target, build, msc**: sensor, radio, OSD chip, display, flash and SD card drivers and the DShot protocol and its command queue ported, with the bus, timer, DMA, UART and USB drivers in Phase 7
 - **platform** (STM32, AT32, APM32, PICO, ESP32, SITL): Phase 7
