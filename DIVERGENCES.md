@@ -158,3 +158,4 @@ adaflight keeps the operation order of Betaflight's code, so a host build of eac
 - **Menu system apart from the OSD**: A build can leave out the menu system and keep the OSD (D503). The reference builds its menu system with every OSD build.
 - **Gimbal control at 1024 KB**: A board with 1024 KB of flash or more builds the gimbal control (D503). The reference's local builds leave it out at every flash size.
 - **Settings of left-out features**: A build that leaves out a feature keeps the feature's settings, serial functions and MSP commands (D503). The reference's build drops them with the feature.
+- **Motor protocol options in the build information**: The build information lists the brushed, OneShot, MultiShot and PWM protocols with DShot, since the image drives them (D513). The reference's builds from its sources list DShot and PWM output alone, the other protocols' options coming from the defines of its cloud builds.
