@@ -41,8 +41,9 @@ Silver with no assume, and pass the gates on `main`.
   home, times laps through a GPS gate, writes its flight log to the SD card, the flash chip or a
   serial port, controls a SmartAudio or Tramp video transmitter, a RunCam camera and a gimbal on
   UARTs, sends FrSky hub, SmartPort, LTM, MAVLink and iBus telemetry on a UART, drives its PINIO
-  output from a mode box, keeps the clock the configurator or the GPS sets, and keeps its
-  configuration in flash. `targets/host` runs the same flight software on the host with its UARTs
+  output from a mode box, forwards a UART to the USB port or another UART for the serial and GPS
+  passthrough, keeps the clock the configurator or the GPS sets, and keeps its configuration in
+  flash. `targets/host` runs the same flight software on the host with its UARTs
   and USB port on TCP ports. Then F7 and H7, then the other families Betaflight runs on, and a
   physics simulator link for the host target. Drivers for SPI, I2C, DMA, timers, USB, flash, SD
   card, DShot.
