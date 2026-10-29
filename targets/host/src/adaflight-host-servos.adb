@@ -6,8 +6,10 @@
 --  servo and the compare register's value for a change.
 with Ada.Environment_Variables;
 with Ada.Text_IO;
+with Interfaces;
 with Adaflight.STM32.Timers;
 package body Adaflight.STM32.Servos is
+   use Interfaces;
    Configured : array (0 .. Max_Servos - 1) of Boolean := (others => False);
    Pulses     : array (0 .. Max_Servos - 1) of Unsigned_32 := (others => 0);
 
@@ -43,8 +45,9 @@ package body Adaflight.STM32.Servos is
                exit when not Found;
                Configured (N) := True;
                Pulses (N) := 0;
-               Log ("setup," & Image (Unsigned_32 (N)) & "," & Image (Unsigned_32 (Period_Of (Dev.Servo_Pwm_Rate)))
-                    & "," & Image (Unsigned_32 (Dev.Servo_Center_Pulse)));
+               Log ("setup," & Image (Unsigned_32 (N)) & ","
+                    & Image (Unsigned_32 (Adaflight.PWM_Output.Servo_Period (Dev.Servo_Pwm_Rate))) & ","
+                    & Image (Unsigned_32 (Dev.Servo_Center_Pulse)));
             end;
          end if;
       end loop;
@@ -52,8 +55,11 @@ package body Adaflight.STM32.Servos is
 
    procedure Write (Index : Natural; Value : Float) is
    begin
-      if Index < Max_Servos and then Configured (Index) and then Pulse_Of (Value) /= Pulses (Index) then
-         Pulses (Index) := Pulse_Of (Value);
+      if Index < Max_Servos
+        and then Configured (Index)
+        and then Adaflight.PWM_Output.Servo_Pulse (Held (Value)) /= Pulses (Index)
+      then
+         Pulses (Index) := Adaflight.PWM_Output.Servo_Pulse (Held (Value));
          Log ("pulse," & Image (Unsigned_32 (Index)) & "," & Image (Pulses (Index)));
       end if;
    end Write;

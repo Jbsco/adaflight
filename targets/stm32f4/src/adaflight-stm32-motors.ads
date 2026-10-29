@@ -1,22 +1,32 @@
---  The board's motor outputs in DShot from the timers. Each motor's pin
---  comes from the stored configuration through its output order, its timer
---  channel from the board's timer map and the processor's timer table, and
---  its DMA stream from the map's option. The timer counts at the protocol's
---  bit clock, twenty counts a bit, and the stream writes the frame's sixteen
---  bits and two zero slots into the channel's compare register at each
---  compare event. A frame loads into its motor's buffer and arms its stream,
---  then each timer restarts and asks for the transfers.
+--  The board's motor outputs in DShot or the analog protocols from the
+--  timers. Each motor's pin comes from the stored configuration through its
+--  output order, and its timer channel from the board's timer map and the
+--  processor's timer table. In DShot the stream of the map's DMA option
+--  writes a frame's sixteen bits and two zero slots into the channel's
+--  compare register at each compare event, twenty counts a bit at the
+--  protocol's bit clock: a frame loads into its motor's buffer and arms its
+--  stream, then each timer restarts and asks for the transfers. In PWM,
+--  OneShot, MultiShot and brushed a write sets the compare register to the
+--  motor value's pulse, and without continuous updates each timer's first
+--  motor forces an overflow that starts the pulses before the registers
+--  clear.
 with Interfaces;
 with Adaflight.Config_Groups;
 with Adaflight.MSP_Motor_In;
 package Adaflight.STM32.Motors is
    --  The outputs of the mixer's motors from the configuration; every motor
-   --  needs its timer channel and stream, or none is driven.
-   procedure Init (C : Adaflight.Config_Groups.Configuration; Count : Natural);
+   --  needs its timer channel, and its stream in DShot, or none is driven.
+   --  The analog protocols' idle pulse is the 3D neutral pulse when 3D runs.
+   procedure Init (C : Adaflight.Config_Groups.Configuration; Count : Natural; Three_D : Boolean);
    --  The writes start once the start of the flight software is done, and
-   --  stop while the command line or MSP sends blocking DShot commands.
+   --  stop while the command line or MSP sends blocking DShot commands; the
+   --  stop clears the analog pulses.
    procedure Enable;
    procedure Disable;
+   --  The outputs stopped before a reboot: the analog pulses cleared, the
+   --  writes stopped, and a wait of 1.5 ms, half a second more for PWM,
+   --  OneShot and MultiShot so their ESCs disarm.
+   procedure Shutdown;
    --  The configured outputs' pins driven high as plain outputs, the level an
    --  ESC's serial link idles at.
    procedure Hold_Idle;
@@ -34,4 +44,9 @@ package Adaflight.STM32.Motors is
    procedure Send_Frame (Index : Natural; Value : Interfaces.Unsigned_16; Request : Boolean);
    --  Each timer used restarts and asks for the transfers its motors armed.
    procedure Start_Transfers;
+   --  An analog motor's value as its pulse, and the end of an update: without
+   --  continuous updates each timer's first motor forces its overflow and
+   --  every compare register clears.
+   procedure Write_Pulse (Index : Natural; Value : Float);
+   procedure Complete_Pulses;
 end Adaflight.STM32.Motors;

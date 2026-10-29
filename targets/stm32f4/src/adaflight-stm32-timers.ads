@@ -1,6 +1,6 @@
 --  The STM32F405's timers: the timer table, each timer's registers, clock,
---  alternate function and enable bit, and the owners of the board's timer
---  pin map entries.
+--  alternate function and enable bit, the owners of the board's timer pin
+--  map entries, and a channel's setup as a PWM output.
 with Interfaces;
 with System;
 with Adaflight.Pins; use Adaflight.Pins;
@@ -161,5 +161,12 @@ package Adaflight.STM32.Timers is
    --  the pin's entries, or a channel another owner holds gives none.
    procedure Allocate
      (Tag : Unsigned_8; Who : Owner; E : out Timer_Entry; Map_Index : out Natural; Found : out Boolean);
+
+   --  A channel set up as a PWM output: the timer's clock on, the timer
+   --  counting up at Hz over Period, the channel in PWM mode 1 at Pulse with
+   --  its preload and its output on, high or, when Inverted, low, then the
+   --  outputs and the timer on and the compare register cleared.
+   procedure Configure_PWM
+     (E : Timer_Entry; Hz : Unsigned_32; Period : Unsigned_16; Pulse : Unsigned_16; Inverted : Boolean);
 
 end Adaflight.STM32.Timers;
