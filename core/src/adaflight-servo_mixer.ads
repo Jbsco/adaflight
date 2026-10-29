@@ -98,6 +98,10 @@ package Adaflight.Servo_Mixer with SPARK_Mode is
    --  The servo setup and the filter setup at the PID loop's period.
    procedure Init (S : out State; C : Settings; Dt : Filters.Period);
 
+   --  The custom rules up to the first without a rate as the mixer's rules,
+   --  in any mode, which an MSP servo rule write asks for.
+   procedure Load_Custom_Rules (S : in out State; Rules : Config_Groups.Servo_Mixer_Record_List_16);
+
    --  One servo update: the servo table, the filter, then the writes.
    procedure Write_Servos (S : in out State; C : Settings; I : Inputs; W : out Servo_Writes; Count : out Write_Count);
 

@@ -76,6 +76,7 @@ with Adaflight.RunCam_Device;
 with Adaflight.RX_Task;
 with Adaflight.Scheduler;
 with Adaflight.Serial_Feature_Map;
+with Adaflight.Servo_Mixer;
 with Adaflight.STM32.ADC;
 with Adaflight.STM32.Blackbox;
 with Adaflight.STM32.Console;
@@ -1030,6 +1031,9 @@ package body Adaflight.STM32.Flight is
       end if;
       if Effects.Motor.Set then
          Adaflight.STM32.Control.Set_Disarmed (Effects.Motor.Values);
+      end if;
+      if Effects.Servo.Mixer_Load then
+         Adaflight.STM32.Control.Load_Servo_Rules (Config.Custom_Servo_Mixers);
       end if;
       if Effects.Control.DShot then
          Send_DShot_Commands (Effects.Control);
@@ -2103,7 +2107,7 @@ package body Adaflight.STM32.Flight is
          Epoch         => GPS_Epoch,
          Use_3D_Speed  => G.Use_3D_Speed);
       F.GPS_Feature := Adaflight.STM32.GPS.Enabled;
-      F.Conditions.Has_Servos := Adaflight.Mixer_Init.Uses_Servos (Adaflight.STM32.Pilot.Mixer_Mode);
+      F.Conditions.Has_Servos := Adaflight.STM32.Control.Uses_Servos;
       F.Conditions.DShot_Telemetry := False;
       F.Conditions.Acc_Present := Gyro_Report.Acc_Found;
       F.Conditions.Rangefinder_Present := Adaflight.STM32.Rangefinder.Detected;
@@ -2117,6 +2121,14 @@ package body Adaflight.STM32.Flight is
       end loop;
       return F;
    end Log_Inputs;
+
+   --  The servo mixer's values in the MSP servo reply.
+   procedure Show_Servos is
+   begin
+      for N in Adaflight.Servo_Mixer.Servo_Index loop
+         Ctx.Out_Views.Peripheral.Outputs (N + 1) := Adaflight.STM32.Control.Servo (N);
+      end loop;
+   end Show_Servos;
 
    procedure Run_Control (Before : Unsigned_32) is
       Channels : constant Adaflight.RC_Command.Channel_Values := Flight_Channels;
@@ -2158,17 +2170,22 @@ package body Adaflight.STM32.Flight is
       I.Battery_Voltage := Unsigned_16 (Bat.Voltage.Display_Filtered);
       I.Sag_Cell_Voltage := Adaflight.Battery.Sag_Cell_Voltage (Bat);
       I.Battery_Latest := Bat.Voltage.Unfiltered;
+      if Adaflight.STM32.Control.Uses_Servos then
+         Adaflight.STM32.Control.Set_Servo_Config (Config);
+      end if;
       Adaflight.STM32.Control.Pass
         (I, Sense, Channels,
          Resets_Yaw  => Adaflight.Core_Loop.Resets_Yaw
                           (Adaflight.STM32.Pilot.Sticks_Arm, Channels (Adaflight.RC_Command.Throttle_Channel),
                            Natural (Config.Rx_Config.Mincheck), Mode, Config.Servo_Config.Tri_Unarmed_Servo /= 0),
-         Uses_Servos => Adaflight.Mixer_Init.Uses_Servos (Mode),
          Log_Device  => Adaflight.STM32.Blackbox.Device_Set,
          CLI_Open    => Session.Open,
          PID_Audio   => Adaflight.STM32.Pilot.PID_Audio_Present,
          Asked       => Asked);
       Apply (Asked);
+      if Adaflight.STM32.Control.Uses_Servos then
+         Show_Servos;
+      end if;
       if Adaflight.STM32.Control.Throttle_Step_Changed then
          Adaflight.Gyro_Filters.Update_Dynamic_Lowpass
            (Gyro_State, Gyro_Settings, Adaflight.STM32.Control.Throttle_Step);
@@ -3787,6 +3804,9 @@ package body Adaflight.STM32.Flight is
          end if;
       end loop;
       Adaflight.STM32.DShot_Output.Init (Config);
+      Adaflight.STM32.Control.Init_Servos
+        (Config, Runtime_Features, Adaflight.STM32.Radio.Channel_Count, Natural (Sample_Us) * Positive (Loop_Ratio));
+      Show_Servos;
       Bat_Settings := Battery_Settings;
       Adaflight.Battery.Init (Bat, Bat_Settings);
       Start_OSD;

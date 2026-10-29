@@ -253,6 +253,9 @@ package body Adaflight.STM32.Blackbox is
          In_Flight.Main.Motor (M) := Logged (Adaflight.STM32.Control.Motors (M));
       end loop;
       In_Flight.Main.Motor_Output_Low := Logged (Adaflight.STM32.Control.Output_Low);
+      for X in Core.Servo_Index loop
+         In_Flight.Main.Servo (X) := Adaflight.STM32.Control.Servo (X);
+      end loop;
       In_Flight.Conditions.Motors := Header.Motor_Count'Min (Header.Motor_Count'Last, Motors);
       Core.Update (L, C, In_Flight, Buffer, Stream);
       Flush;
