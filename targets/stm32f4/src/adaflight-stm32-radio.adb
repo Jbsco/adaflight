@@ -15,7 +15,11 @@ with Adaflight.XBUS;
 with Adaflight.Stream_Buffers;
 with Adaflight.Modes;
 with Adaflight.Serial_Feature_Map;
+with Adaflight.Board;
+with Adaflight.Pins; use Adaflight.Pins;
+with Adaflight.Spektrum_Bind;
 with Adaflight.STM32.GPIO;
+with Adaflight.STM32.MCU;
 with Adaflight.STM32.Time;
 package body Adaflight.STM32.Radio is
    use type Adaflight.STM32.USART.Number;
@@ -123,6 +127,81 @@ package body Adaflight.STM32.Radio is
       USART.Init (Link, Positive (Interfaces.Unsigned_32'Max (1, Rate)), Line => Line, Inverted => Inverted);
       Adaflight.CRSF.Update_Baudrate (Proto, Rate);
    end Set_Rate;
+
+   --  The bind plug read through a pull-up after 10 us, the line or the
+   --  override pin high for the power-up window, each pulse 120 us low then
+   --  120 us high with the LED off and on, and the override pin held 50 ms
+   --  then left floating. The board drives no SRXL telemetry, so an SRXL
+   --  receiver's line is left alone as the reference leaves it when the
+   --  telemetry shares the port.
+   procedure Bind_At_Power_Up (C : in out Adaflight.Config_Groups.Configuration; Saved : out Boolean) is
+      package SB renames Adaflight.Spektrum_Bind;
+      Plug_Tag     : constant Natural := Natural (C.Rx_Config.Spektrum_Bind_Plug_Io_Tag);
+      Plug_Present : constant Boolean := Plug_Tag /= 0;
+      Plug_High    : Boolean := False;
+      Soft         : constant Boolean := Adaflight.STM32.MCU.Software_Reset;
+      Port_Known   : Boolean := False;
+      N            : USART.Number := USART.UART1;
+      Tag          : Interfaces.Unsigned_8;
+   begin
+      Saved := False;
+      if Plug_Present then
+         declare
+            P : constant Pin := Pin_Of (Plug_Tag);
+         begin
+            Adaflight.STM32.GPIO.Enable_Port (P.Port);
+            Adaflight.STM32.GPIO.Set_Input (P, Adaflight.STM32.GPIO.Up);
+            Adaflight.STM32.Time.Delay_Us (10);
+            Plug_High := Adaflight.STM32.GPIO.Is_High (P);
+         end;
+      end if;
+      if not SB.Wanted (Plug_Present, Plug_High, Soft, C.Rx_Config.Spektrum_Sat_Bind) then
+         return;
+      end if;
+      for U in USART.Number loop
+         if Port_Ids (U) = Integer (C.Rx_Config.Rx_Uart) then
+            N := U;
+            Port_Known := True;
+         end if;
+      end loop;
+      Tag := SB.Pin
+        (Override    => C.Rx_Config.Spektrum_Bind_Pin_Override_Io_Tag,
+         Rx_Tag      => (if Port_Known then Interfaces.Unsigned_8 (Tag_Of (USART.RX_Pin (N))) else 0),
+         Tx_Tag      => (if Port_Known then Interfaces.Unsigned_8 (Tag_Of (USART.TX_Pin (N))) else 0),
+         Port_Known  => Port_Known,
+         Provider    => C.Rx_Config.Serialrx_Provider,
+         Telemetry   => False,
+         Shared      => True,
+         Half_Duplex => C.Rx_Config.Half_Duplex /= 0);
+      if Tag = 0 then
+         return;
+      end if;
+      declare
+         P : constant Pin := Pin_Of (Natural (Tag));
+      begin
+         Adaflight.STM32.GPIO.Enable_Port (P.Port);
+         Adaflight.STM32.GPIO.Set_Output (P);
+         Adaflight.STM32.GPIO.Set_High (P);
+         Adaflight.STM32.GPIO.Set_High (Adaflight.Board.LED0_Pin);
+         Adaflight.STM32.Time.Delay_Ms (SB.Window_Ms);
+         for I in 1 .. C.Rx_Config.Spektrum_Sat_Bind loop
+            Adaflight.STM32.GPIO.Set_Low (Adaflight.Board.LED0_Pin);
+            Adaflight.STM32.GPIO.Set_Low (P);
+            Adaflight.STM32.Time.Delay_Us (SB.Pulse_Us);
+            Adaflight.STM32.GPIO.Set_High (Adaflight.Board.LED0_Pin);
+            Adaflight.STM32.GPIO.Set_High (P);
+            Adaflight.STM32.Time.Delay_Us (SB.Pulse_Us);
+         end loop;
+         if C.Rx_Config.Spektrum_Bind_Pin_Override_Io_Tag /= 0 then
+            Adaflight.STM32.Time.Delay_Ms (SB.Release_Ms);
+            Adaflight.STM32.GPIO.Set_Input (P);
+         end if;
+      end;
+      if SB.Autoreset (Plug_Present, C.Rx_Config.Spektrum_Sat_Bind_Autoreset, Soft) then
+         C.Rx_Config.Spektrum_Sat_Bind := 0;
+         Saved := True;
+      end if;
+   end Bind_At_Power_Up;
 
    procedure Init (Config : Adaflight.Config_Groups.Configuration; Runtime_Features : Interfaces.Unsigned_32;
                    Now_Ms : Time_Ms; Telemetry : Adaflight.CRSF_Telemetry.Config) is

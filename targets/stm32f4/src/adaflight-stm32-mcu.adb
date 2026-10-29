@@ -63,9 +63,14 @@ package body Adaflight.STM32.MCU is
       end loop;
    end Reset;
 
+   Soft_Start : Boolean := False;
+
+   function Software_Reset return Boolean is (Soft_Start);
+
    procedure Init_Persistent is
       Software_Reset : constant Boolean := (RCC_CSR and SFTRSTF) /= 0;
    begin
+      Soft_Start := Software_Reset;
       RCC_APB1ENR := RCC_APB1ENR or PWREN;
       PWR_CR := PWR_CR or DBP;
       if not Software_Reset or else Backup (Object_Magic) /= Magic then

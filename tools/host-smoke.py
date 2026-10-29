@@ -2929,6 +2929,35 @@ def main():
                 vcp.close()
             stop(proc)
             sock.close()
+        store = os.path.join(work, "spekbind.bin")
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            for line in ("serialrx_provider = SPEK2048", "rx_uart = UART3", "spektrum_sat_bind = 3",
+                         "spektrum_sat_bind_autoreset = ON"):
+                text = cli(sock, f"set {line}")
+                check(f"bind setting {line}", line.replace(" = ", " set to ") in text, text[-120:])
+            cli(sock, "save", wait=2.0)
+            proc.wait(timeout=10)
+        finally:
+            stop(proc)
+            sock.close()
+        with open(store, "rb") as f:
+            stored_before_bind = f.read()
+        proc, sock = start(image, store)
+        try:
+            time.sleep(2.5)
+            sock.sendall(b"#")
+            read_all(sock, 0.8)
+            text = cli(sock, "get spektrum_sat_bind")
+            check("the power-up bind returns its count to zero", "spektrum_sat_bind = 0" in text, text[-120:])
+        finally:
+            stop(proc)
+            sock.close()
+        with open(store, "rb") as f:
+            check("the power-up bind writes the configuration", f.read() != stored_before_bind)
     print(f"host smoke: {'all checks passed' if not failures else str(len(failures)) + ' failed'}")
     sys.exit(1 if failures else 0)
 

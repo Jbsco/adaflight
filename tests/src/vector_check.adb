@@ -65,6 +65,7 @@ with Adaflight.PWL;
 with Adaflight.SDFT;
 with Adaflight.Bytes;
 with Adaflight.Build_Options;
+with Adaflight.Spektrum_Bind;
 with Adaflight.Encoding;
 with Adaflight.Float_Bits;
 with Adaflight.Bit_Arrays;
@@ -37442,6 +37443,40 @@ procedure Vector_Check is
    --  The WS2811 strip: the timer's prescaler, period and bit compares for
    --  each clock, and each LED's bit count and packed color for its format
    --  against the reference's buffer.
+   --  The power-up bind: whether it ran, on which pin, with how many pulses,
+   --  whether the override pin was released and whether the count was saved
+   --  back to zero, from the drawn plug, reset, count, pins and port.
+   procedure Check_Spektrum_Bind_Line is
+      package SB renames Adaflight.Spektrum_Bind;
+      use type Interfaces.Unsigned_8;
+      Plug_Present : constant Boolean := Int (4) /= 0;
+      Plug_High    : constant Boolean := Int (5) /= 0;
+      Soft         : constant Boolean := Int (6) /= 0;
+      Count        : constant Interfaces.Unsigned_8 := Interfaces.Unsigned_8 (Int (7));
+      Override     : constant Interfaces.Unsigned_8 := Interfaces.Unsigned_8 (Int (8));
+      Port_Known   : constant Boolean := Int (9) >= 0;
+      Provider     : constant Interfaces.Unsigned_8 := Interfaces.Unsigned_8 (Int (10));
+      Telemetry    : constant Boolean := Int (11) /= 0;
+      Shared       : constant Boolean := Int (12) /= 0;
+      Half_Duplex  : constant Boolean := Int (13) /= 0;
+      Autoreset    : constant Interfaces.Unsigned_8 := Interfaces.Unsigned_8 (Int (14));
+      Rx_Tag       : constant Interfaces.Unsigned_8 := Interfaces.Unsigned_8 (Int (15));
+      Tx_Tag       : constant Interfaces.Unsigned_8 := Interfaces.Unsigned_8 (Int (16));
+      Wanted       : constant Boolean := SB.Wanted (Plug_Present, Plug_High, Soft, Count);
+      Pin          : constant Interfaces.Unsigned_8 :=
+        SB.Pin (Override, Rx_Tag, Tx_Tag, Port_Known, Provider, Telemetry, Shared, Half_Duplex);
+      Bound        : constant Boolean := Wanted and then Pin /= 0;
+   begin
+      Record_Int ("spekbind.window", Int (17), Boolean'Pos (Bound));
+      Record_Int ("spekbind.pin", Int (18), (if Bound then Integer_64 (Pin) else 0));
+      Record_Int ("spekbind.pulses", Int (19), (if Bound then Integer_64 (Count) else 0));
+      Record_Int ("spekbind.release", Int (20), Boolean'Pos (Bound and then Override /= 0));
+      Record_Int ("spekbind.saved", Int (21),
+                  Boolean'Pos (Bound and then SB.Autoreset (Plug_Present, Autoreset, Soft)));
+      Record_Int ("spekbind.after", Int (22),
+                  (if Bound and then SB.Autoreset (Plug_Present, Autoreset, Soft) then 0 else Integer_64 (Count)));
+   end Check_Spektrum_Bind_Line;
+
    procedure Check_WS2811_Line is
       package W renames Adaflight.WS2811;
       Name : constant String := Str (1);
@@ -39441,6 +39476,8 @@ procedure Vector_Check is
                   Check_Servo_Line;
                elsif Kind = "pwmout" then
                   Check_PWM_Out_Line;
+               elsif Kind = "spekbind" then
+                  Check_Spektrum_Bind_Line;
                elsif Kind = "ws2811" then
                   Check_WS2811_Line;
                else
@@ -39799,6 +39836,7 @@ begin
    Run (Dir & "/servo.csv", "servo");
    Run (Dir & "/pwmout.csv", "pwmout");
    Run (Dir & "/ws2811.csv", "ws2811");
+   Run (Dir & "/spekbind.csv", "spekbind");
    Check_Twiddles;
    New_Line;
    Put_Line ("case                      cases    exact  max_ulp  tol");
