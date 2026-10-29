@@ -18,7 +18,7 @@ adaflight is flight control firmware for multirotors and fixed-wing aircraft, wr
 
 ## Status
 
-Flight software is ported and runs on host, where each ported function replays inputs recorded from Betaflight's host build and must reproduce its results bit for bit. Phase 7 of `ROADMAP.md` is in progress: `targets/stm32f4` builds STM32F405 images.
+Flight software is ported and runs on host, where each ported function replays inputs recorded from Betaflight's host build and must reproduce its results bit for bit. Phase 7 of `ROADMAP.md` is in progress: `targets/stm32f4` and `targets/stm32f7` build STM32F405 and STM32F7 images.
 
 ## Features
 
@@ -49,6 +49,7 @@ adaflight keeps the operation order of Betaflight's code, so a host build of eac
     cd core && alr build                      # build the core
     cd tests && alr build && ./bin/vector_check vectors
     bash target.do                            # STM32F4 image, BOARD names the board (CLRACINGF4 when unset)
+    CRATE=stm32f7 bash target.do              # STM32F7 image, KAKUTEF7 when BOARD is unset
     bash host.do                              # host image, checked over its UART1 TCP port
     bash prove.do                             # SPARK proof of the core
     bash verify.do                            # every gate, cheapest first

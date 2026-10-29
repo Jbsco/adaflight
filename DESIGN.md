@@ -11638,3 +11638,19 @@ none. The command line's port list, the MSP port list and the serial lines follo
 from the board's tags in one place, and the buses start where the board has them. The target workflow builds the
 Lumenier LUX F4 and the Omnibus F4 images beside the CLRacing F4S one. The CLRacing F4S image grows from 636776 to
 638960 bytes of code for the two added ports, the LUX F4 image is 639052 and the Omnibus F4 image 639036.
+
+## D516. STM32F7 crate (2026-10-29)
+
+`targets/stm32f7` builds the flight software for the F7 boards of the configuration repository, the Kakute F7 first.
+The crate reuses the F4 crate's sources with its own main, and generates three things before each build: its run-time
+library, its board package and its memory layout. The run-time library comes from the toolchain's STM32F746 Discovery
+runtime, copied beside the crate with its board parameters set to the board's crystal, a system clock of 216 MHz, the
+flash latency of that speed and the PLL divisor that gives the USB its 48 MHz, then built with the runtime's own
+script; a copy whose stamp names the same source and parameters is kept. The memory layout follows the MCU: the vector
+table alone in flash sector 0, sector 1 for the configuration store, the code from sector 2, the main RAM at its F7
+address and the data tightly coupled memory in the place of the F4's core coupled memory. The board generator now
+writes the pins the crate reads by name with a placeholder where a board lacks them, as it does for the ports.
+
+This slice builds the image; the F7's UART, SPI, flash and USB register sets differ from the F4's, so the drivers of
+those come next, with the caches the F7 start enables. The target workflow builds the Kakute F7 image after the F4
+boards. The Kakute F7 image is 634140 bytes of code with 3836 of initialized data.

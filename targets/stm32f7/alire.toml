@@ -1,0 +1,57 @@
+name = "adaflight_stm32f7"
+description = "STM32F7 target: the core on the Kakute F7 and its F7 board family"
+version = "0.1.0-dev"
+
+authors = ["Jacob Seman"]
+maintainers = ["Jacob Seman <90524106+Jbsco@users.noreply.github.com>"]
+maintainers-logins = ["Jbsco"]
+licenses = "GPL-3.0-or-later"
+tags = ["spark", "flight-control", "embedded", "stm32"]
+
+executables = ["adaflight_stm32f7"]
+
+[[depends-on]]
+gnat_arm_elf = "^16.1.0"
+adaflight_core = "*"
+
+[[pins]]
+adaflight_core = { path = "../../core" }
+
+# The image is built for size with link-time optimization. The proved core builds in the release
+# profile without run-time checks, assertions or debug information; the target sources keep the
+# default checks.
+[build-profiles]
+adaflight_core = "release"
+
+[build-switches]
+"*".optimization = ["-Os", "-gnatn", "-ffunction-sections", "-fdata-sections", "-flto", "-ffat-lto-objects"]
+"*".debug_info = "no"
+release.contracts = "no"
+
+# The runtime leaves the linker script to the crate, whose flash layout keeps sector 1 for the
+# configuration store.
+[gpr-set-externals]
+LOADER = "USER"
+
+# The run-time library is generated beside the crate from the toolchain's STM32F746 Discovery
+# runtime with the board's crystal and 216 MHz (tools/runtimegen.py); BOARD names the board,
+# KAKUTEF7 when unset.
+[[actions]]
+type = "pre-build"
+command = ["sh", "-c", "python3 ../../tools/runtimegen.py ../../third_party/board-configs/configs \"${BOARD:-KAKUTEF7}\" runtime"]
+
+# The board package and the image's memory layout are generated before every build from the pinned
+# board configuration repository.
+[[actions]]
+type = "pre-build"
+command = ["sh", "-c", "python3 ../../tools/boardgen.py ../../third_party/board-configs/configs \"${BOARD:-KAKUTEF7}\" gen/adaflight-board.ads"]
+
+[[actions]]
+type = "pre-build"
+command = ["sh", "-c", "python3 ../../tools/memorygen.py ../../third_party/board-configs/configs \"${BOARD:-KAKUTEF7}\" gen/memory.ld"]
+
+# The build's features follow the board's flash size, or FLASH_KB when set, with the FEATURES list
+# adding or removing features by name (tools/featuregen.py).
+[[actions]]
+type = "pre-build"
+command = ["sh", "-c", "python3 ../../tools/featuregen.py ../../third_party/board-configs/configs \"${BOARD:-KAKUTEF7}\" gen/adaflight-build_features.ads \"${FEATURES:-}\""]
