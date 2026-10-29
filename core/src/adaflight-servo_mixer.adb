@@ -68,6 +68,22 @@ package body Adaflight.Servo_Mixer with SPARK_Mode is
                     Float (C.Params (N).Min), Float (C.Params (N).Max)))
       else C.Params (N).Middle);
 
+   -----------------------
+   -- Load_Custom_Rules --
+   -----------------------
+
+   procedure Load_Custom_Rules (S : in out State; Rules : Config_Groups.Servo_Mixer_Record_List_16) is
+   begin
+      S.Rule_Count := 0;
+      S.Rules := (others => No_Rule);
+      for R in Rule_Index loop
+         pragma Loop_Invariant (S.Rule_Count = R);
+         exit when Rules (R).Rate = 0;
+         S.Rules (R) := Rules (R);
+         S.Rule_Count := S.Rule_Count + 1;
+      end loop;
+   end Load_Custom_Rules;
+
    ----------
    -- Init --
    ----------
@@ -101,14 +117,7 @@ package body Adaflight.Servo_Mixer with SPARK_Mode is
          end loop;
       end if;
       if C.Mode in Mixer_Init.Custom_Airplane | Mixer_Init.Custom_Tri then
-         S.Rule_Count := 0;
-         S.Rules := (others => No_Rule);
-         for R in Rule_Index loop
-            pragma Loop_Invariant (S.Rule_Count = R);
-            exit when C.Custom_Rules (R).Rate = 0;
-            S.Rules (R) := C.Custom_Rules (R);
-            S.Rule_Count := S.Rule_Count + 1;
-         end loop;
+         Load_Custom_Rules (S, C.Custom_Rules);
       end if;
       if C.Lowpass_Hz /= 0 then
          for N in Servo_Index loop
