@@ -11714,10 +11714,10 @@ from the debug information, and compared them with the host settings oracle's. T
 camera control, the ESC serial pin and the timer pin map, the ADC group's DMA options, seven settings (the camera
 control's six and the SD card's SPI bus), and the aux channel count default, 14 on a board with an FPU where the host
 build read 6. Every other difference is the compiler's: the ARM compiler stores an enumeration in one byte and a
-character unsigned, the host in four bytes and signed. The port's records had the board's widths already, since the
-generator sizes an enumeration by its values and a character as a byte, and the settings oracle now compiles the
-groups with the board compiler's two conventions, so its layouts equal a board build's byte for byte and the port's
-codec, stored image (D158) and vectors did not change.
+character unsigned, the host in four bytes and signed. The port's records had the board's widths already but for one
+enumeration (D521), since the generator sized an enumeration by its values and a character as a byte, and the settings
+oracle now compiles the groups with the board compiler's two conventions, so its layouts equal a board build's byte for
+byte and the port's codec, stored image (D158) and vectors did not change.
 
 The host oracle's generic F405 target now defines the STM32 platform's timer management and DMA specification, the
 SD card's SPI bus, the CLRacing F4's timer pin map, camera control pin and ADC DMA option with its pins as raw tags,
@@ -11735,3 +11735,47 @@ in the reference's order, and the build option list names camera control, as the
 the pin. The timer and dma commands and the dump's timer and dma sections wait for the next increment: the command
 line oracle compiles with those conditionals turned off while the groups stay registered. The Kakute F7 image builds at
 638272 bytes of code and the CLRacing F4S one at 640496; the host smoke (400 checks), style and the vectors pass.
+
+## D521. Timer and dma commands (2026-10-29)
+
+The command line contains the timer command, the dma command's full form, and the dump's timer and dma sections after
+the resources. `Adaflight.Timer_Tables` contains the STM32F405's data for them, generated from the reference's tables:
+the full timer table of 70 channels in its order, which a pin's occurrence numbers count along, each timer channel's DMA
+stream options and each peripheral's, and the fourteen timers in their listing order. The oracle gets the same tables as
+a host shim from the same generator, with the timers and the DMA streams as stand-in addresses.
+
+The timer command without arguments lists the map's entries, each with its channel's detail; a word starting list is not
+implemented and one starting show lists the timers with the channels the board's map entries hold, whose owners and
+ordinals the environment reports; else a pin on the board takes its own map entry or the first free slot, and prints its
+line alone, its channel options for list, or sets its channel by alternate function with af, or none, the entry's DMA
+option cleared, with the change noted. The dma command with a word starting show lists the streams as before; alone it
+lists the options set, list is not implemented, and a device by name and ordinal, or a pin on the board, prints its
+option alone, its stream options for list, or sets an option by number or none with the change noted, an option the
+device or the pin's channel lacks refused. The devices are the SPI buses' output and input under two names each, the
+ADCs and the UARTs' transmit and receive sides, in the reference's order, with no SDIO device (F305). A pin without a
+map entry lists no option and every option is refused for it (F306). The dump's timer section prints each map entry
+against the default entry of its pin and the default entries the map dropped; the dma section prints every device's
+option against its default, then each map entry's, equal only with the same channel or no option, then the default
+entries with an option whose slot has no pin. The board's timer map entries report their owners through the environment,
+the motors, servos and LED strip with their ordinals; the host checker holds every timer free.
+
+The command line oracle builds with timer management and the DMA specification on, the reference's timer helpers, the
+generated tables, F305 to F309 fixed, and timer owners free. The timer family holds 1200 commands: the listings, pins on
+and off the board, channel options, alternate functions present, absent and malformed, devices and ordinals inside and
+past their counts, stream options present and absent, none, and dumps, diffs and the active resources between them. The
+command line families were regenerated through the new oracle, the recorded ones by replay. The Kakute F7 image builds
+at 649800 bytes of code and the CLRacing F4S one at 652528; the host smoke (402 checks, the dma show, dma and timer
+listings among them), style and the vectors pass.
+
+The regenerated families' configuration hashes exposed the one record field wider than the board's: the dashboard's I2C
+device, an enumeration with a negative member, which the group generator typed in four bytes by its values while the
+board compiler stores it in one. The generator now sizes an enumeration by the layout's width and signedness, the field
+is a signed byte, the codec's image holds 4674 bytes, three fewer (D158), and the configuration and command line
+families were regenerated with the one-byte layout's hashes. The command line oracle prints its configuration image on a
+probe line, which located the field.
+
+Three more reference behaviours stay out as divergences, found by the regenerated families: the dma option number and
+the passthrough port number read as signed bytes, so 256 passed as option 0 and 2147483647 failed its parse as port -1
+(F307, F308), and the OSD group reset that writes the live warnings when the serial command or the setting information
+reply resets a copy for a default comparison (F309). The port checks both numbers at their full width and its printing
+changes nothing. The oracle fixes the three.

@@ -594,7 +594,7 @@ package Adaflight.Config_Groups with SPARK_Mode is
    end record;
    type Spi_Pin_Config_Record_List_3 is array (0 .. 2) of Spi_Pin_Config_Record;
    type Dashboard_Config_Record is record
-      Device  : Integer_32;
+      Device  : Integer_8;
       Address : Unsigned_8;
    end record;
    subtype Bytes_4 is Bytes (0 .. 3);
