@@ -11561,3 +11561,9 @@ its enable bit, where the reference takes it from the transfer complete interrup
 The host image claims the same channel and logs each change of a LED's color. The host smoke turns the feature on with
 a red and a white LED and checks the strip's colors and the board's strip pin. The image grows from 628808 to 635608
 bytes of code, most of it the LED strip unit, which the board did not link before.
+
+## D512. Board identifier terminator (2026-10-28)
+
+The board keeps a stored configuration only when the stored identifier matches the board's over the name and the zero
+after it, ASCII letters compared in upper case. A stored identifier with a character after the name, such as F4051,
+now resets the configuration. The board compared the name alone before and kept it.
