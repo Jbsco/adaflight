@@ -26,8 +26,9 @@ Silver with no assume, and pass the gates on `main`.
 - Phase 6, open. Flight features. Blackbox, OSD, menu system, telemetry protocols, LED
   strip, beeper, VTX control, GPS with rescue and position modes, servos and wing
   support.
-- Phase 7, in progress. Targets. STM32F4 first: `targets/stm32f4` builds for the CLRacing F4S board
-  family from the pinned board configuration repository, and its image blinks the LED, serves MSP
+- Phase 7, in progress. Targets. STM32F4 first: `targets/stm32f4` builds for any F405 board of the
+  pinned board configuration repository, the CLRacing F4S family, the Lumenier LUX F4 and the Omnibus
+  F4 among them, and its image blinks the LED, serves MSP
   and the command line on its USB port and the UARTs its MSP slots name, runs the scheduler with the
   gyro, filter, accelerometer, attitude and receiver tasks over SPI1 and a CRSF or Ghost receiver
   with its telemetry and MSP over the link, a Jeti EX Bus or FPORT receiver with its telemetry, or

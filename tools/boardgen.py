@@ -108,8 +108,18 @@ def generate(config: Path, overrides: dict) -> str:
     for m in re.finditer(r"^#define\s+(\w+)(?:[ \t]+([^\n\\]*?))?[ \t]*$", text, re.M):
         defines[m.group(1)] = (m.group(2) or "").strip()
     defines.update(overrides)
+    fixed = [f"UART{n}_{d}_PIN" for n in range(1, 7) for d in ("TX", "RX")] \
+        + [f"SPI{n}_{d}_PIN" for n in range(1, 4) for d in ("SCK", "SDI", "SDO")]
     pins = sorted((ada_name(k), pin_literal(v)) for k, v in defines.items()
-                  if k.endswith("_PIN") and re.fullmatch(r"P[A-K]\d{1,2}", v))
+                  if k.endswith("_PIN") and k not in fixed and re.fullmatch(r"P[A-K]\d{1,2}", v))
+    # Every UART's and SPI bus's pins, a placeholder where the board lacks the port, with its presence.
+    for k in fixed:
+        v = defines.get(k, "")
+        pins.append((ada_name(k), pin_literal(v) if re.fullmatch(r"P[A-K]\d{1,2}", v) else "(Port_A, 0)"))
+    presence = [(f"Has_UART{n}", all(re.fullmatch(r"P[A-K]\d{1,2}", defines.get(f"UART{n}_{d}_PIN", "")) for d in ("TX", "RX")))
+                for n in range(1, 7)] \
+        + [(f"Has_SPI{n}", all(re.fullmatch(r"P[A-K]\d{1,2}", defines.get(f"SPI{n}_{d}_PIN", "")) for d in ("SCK", "SDI", "SDO")))
+           for n in range(1, 4)]
     pins += sorted((ada_name(k), pin_literal(v)) for k, v in defines.items()
                    if k.startswith("INVERTER_PIN_") and re.fullmatch(r"P[A-K]\d{1,2}", v))
     timer_map = []
@@ -175,6 +185,10 @@ def generate(config: Path, overrides: dict) -> str:
     out.append("")
     for name, lit in pins:
         out.append(f"   {name.ljust(width)} : constant Pin := {lit};")
+    out.append("")
+    out.append("   --  The UARTs and the SPI buses the board has.")
+    for name, has in presence:
+        out.append(f"   {name.ljust(width)} : constant Boolean := {'True' if has else 'False'};")
     out.append("")
     if timer_map:
         out.append("   Timer_Map : constant Timer_Pin_Map :=")

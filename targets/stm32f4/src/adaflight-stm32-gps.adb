@@ -9,7 +9,7 @@ package body Adaflight.STM32.GPS is
    package USART renames Adaflight.STM32.USART;
 
    Port_Ids : constant array (USART.Number) of SFM.Port_Id :=
-     (USART.UART1 => 51, USART.UART3 => 53, USART.UART4 => 54, USART.UART6 => 56);
+     (USART.UART1 => 51, USART.UART2 => 52, USART.UART3 => 53, USART.UART4 => 54, USART.UART5 => 55, USART.UART6 => 56);
 
    Open     : Boolean := False;
    Which    : USART.Number := USART.UART4;
@@ -37,7 +37,7 @@ package body Adaflight.STM32.GPS is
    begin
       Open := False;
       if (Runtime_Features and Adaflight.Config_Fix.Feature_GPS) /= 0 then
-         for N in USART.Number loop
+         for N of USART.Present_Set loop
             if (SFM.Function_Mask (Adaflight.Config_Fix.Serial_Options, Assigned, Port_Ids (N))
                 and SFM.Function_GPS) /= 0
             then

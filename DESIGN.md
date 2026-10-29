@@ -11626,3 +11626,15 @@ A new oracle family runs the reference's bind over drawn plugs, resets, counts, 
 bind and SRXL telemetry defines restored after the platform drops them, as every STM32 build keeps them. All 8000 lines match. The host smoke sets a bind count
 with the autoreset, saves, and reads the count back as zero after the restart. The image grows from 635760 to
 636776 bytes of code.
+
+## D515. Boards of the configuration repository (2026-10-29)
+
+The board crate builds for any F405 board of the pinned configuration repository, not the CLRacing F4S family
+alone. The board generator writes every UART's and SPI bus's pins, a placeholder where the board lacks the port, with
+a presence constant for each, and the UART driver covers the six ports of the F405 with their bases, bus clocks,
+alternate functions, clock bits and interrupts. A port the board lacks does not start, and the modules that look
+for a port by its identifier loop over the ports the board has, so a configuration that names an absent port finds
+none. The command line's port list, the MSP port list and the serial lines follow the board's set, the inverters start
+from the board's tags in one place, and the buses start where the board has them. The target workflow builds the
+Lumenier LUX F4 and the Omnibus F4 images beside the CLRacing F4S one. The CLRacing F4S image grows from 636776 to
+638960 bytes of code for the two added ports, the LUX F4 image is 639052 and the Omnibus F4 image 639036.

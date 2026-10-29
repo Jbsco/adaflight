@@ -13,7 +13,7 @@ package body Adaflight.STM32.OSD_Custom_Text is
    package SFM renames Adaflight.Serial_Feature_Map;
 
    Port_Ids : constant array (USART.Number) of Interfaces.Integer_8 :=
-     (USART.UART1 => 51, USART.UART3 => 53, USART.UART4 => 54, USART.UART6 => 56);
+     (USART.UART1 => 51, USART.UART2 => 52, USART.UART3 => 53, USART.UART4 => 54, USART.UART5 => 55, USART.UART6 => 56);
 
    Open  : Boolean := False;
    Which : USART.Number := USART.UART1;
@@ -23,7 +23,7 @@ package body Adaflight.STM32.OSD_Custom_Text is
       Rate : constant Natural := Natural (Config.Osd_Config.Osd_Custom_Text_Baud);
    begin
       Open := False;
-      for N in USART.Number loop
+      for N of USART.Present_Set loop
          if Port_Ids (N) = Config.Osd_Config.Osd_Custom_Text_Uart then
             if not Adaflight.STM32.Rangefinder.Holds (N) and then not Adaflight.STM32.Radio.Holds (N)
               and then not Adaflight.STM32.GPS.Holds (N)

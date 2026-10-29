@@ -3,7 +3,7 @@
 --  port its request came in on.
 with Adaflight.Bytes; use Adaflight.Bytes;
 package Adaflight.STM32.Serial is
-   type Line is (VCP, UART1, UART3, UART4, UART6);
+   type Line is (VCP, UART1, UART2, UART3, UART4, UART5, UART6);
    type Port is limited record
       Which : Line := UART1;
    end record;

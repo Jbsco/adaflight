@@ -7,11 +7,12 @@
 --  the bytes with their arrival times in a ring of 256 until a task takes
 --  them.
 with Interfaces;
+with Adaflight.Board;
 with Adaflight.Bytes; use Adaflight.Bytes;
 with Adaflight.Pins;
 with Adaflight.STM32.GPIO;
 package Adaflight.STM32.USART is
-   type Number is (UART1, UART3, UART4, UART6);
+   type Number is (UART1, UART2, UART3, UART4, UART5, UART6);
    type Port is limited record
       Which : Number := UART1;
    end record;
@@ -29,6 +30,17 @@ package Adaflight.STM32.USART is
    --  A port's transmit and receive pins on the board.
    function TX_Pin (N : Number) return Adaflight.Pins.Pin;
    function RX_Pin (N : Number) return Adaflight.Pins.Pin;
+   --  Whether the board has the port, its identifier as the configuration
+   --  names the ports, and the ports the board has in order. A port the
+   --  board lacks does not start.
+   function Present (N : Number) return Boolean is
+     (case N is
+         when UART1 => Adaflight.Board.Has_UART1, when UART2 => Adaflight.Board.Has_UART2,
+         when UART3 => Adaflight.Board.Has_UART3, when UART4 => Adaflight.Board.Has_UART4,
+         when UART5 => Adaflight.Board.Has_UART5, when UART6 => Adaflight.Board.Has_UART6);
+   function Identifier (N : Number) return Integer is (51 + Number'Pos (N));
+   type Number_List is array (Positive range <>) of Number;
+   function Present_Set return Number_List;
    --  The port at the rate, the stop bits and the line, with a parity bit on
    --  each word when Even_Parity asks for one, and the board's inverter on
    --  the port's lines set as Inverted asks where the board has one.
