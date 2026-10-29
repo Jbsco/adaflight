@@ -11672,3 +11672,11 @@ reaches and the data cache the F7 start enables does not cover. The configuratio
 unique identifier addresses come from the memory package the layout generator writes beside the memory layout, so
 the flash and MCU bodies serve both families. The Kakute F7 image is 634172 bytes of code; the F4 images are
 unchanged at 638960.
+
+## D518. Gyro bus from the board (2026-10-29)
+
+The gyro's SPI bus comes from the board's configuration, SPI1 when it names none, and the SPI driver covers the six
+buses of the F4 and F7 families with their bases, clock bits and alternate functions, the two on the slower bus
+halving their divisor as before. The board generator writes the six buses' pins with their presence and the gyro's
+bus number beside the OSD chip's, the SD card's and the flash chip's, the devices accept a bus up to the sixth, and
+the flight starts every bus the board has. The Kakute F7's gyro is on SPI4.

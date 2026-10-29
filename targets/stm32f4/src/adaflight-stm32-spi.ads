@@ -8,7 +8,7 @@ with Adaflight.Bytes; use Adaflight.Bytes;
 with Adaflight.Pins; use Adaflight.Pins;
 with Adaflight.STM32.Platform;
 package Adaflight.STM32.SPI is
-   type Bus is (SPI1, SPI2, SPI3);
+   type Bus is (SPI1, SPI2, SPI3, SPI4, SPI5, SPI6);
    Bus_Clock_Hz : constant := Adaflight.STM32.Platform.APB2_Hz;
    procedure Init (B : Bus; SCK, SDI, SDO : Pin);
    --  Whether the bus was started.
