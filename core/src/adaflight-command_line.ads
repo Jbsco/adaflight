@@ -77,6 +77,28 @@ generic
    with procedure Flash_Flush;
    with procedure Flash_Read
      (Address : Interfaces.Unsigned_32; Length : Natural; Data : out String; Count : out Natural);
+   --  The board's serial ports for the passthrough, by identifier: whether a
+   --  port is open, with its baud rate, mode, options and whether a receive
+   --  callback is set; a port opened at a baud rate, mode and options, with
+   --  whether it opened; a baud rate or a mode set on an open port and its
+   --  callback removed; the USB port's line coding setting another port's
+   --  baud rate; the USB port's DTR resetting the board or switching a PINIO;
+   --  the motor outputs held idle for an ESC sensor passthrough; and the
+   --  forwarding between two ports.
+   with procedure Port_State
+     (Id : Interfaces.Integer_32; Open : out Boolean; Baud : out Interfaces.Unsigned_32;
+      Mode : out Interfaces.Unsigned_8; Options : out Interfaces.Unsigned_32; Callback : out Boolean);
+   with procedure Port_Open
+     (Id : Interfaces.Integer_32; Baud : Interfaces.Unsigned_32; Mode : Interfaces.Unsigned_8;
+      Options : Interfaces.Unsigned_32; Opened : out Boolean);
+   with procedure Port_Set_Baud (Id : Interfaces.Integer_32; Baud : Interfaces.Unsigned_32);
+   with procedure Port_Set_Mode (Id : Interfaces.Integer_32; Mode : Interfaces.Unsigned_8);
+   with procedure Port_Remove_Callback (Id : Interfaces.Integer_32);
+   with procedure Port_Baud_From_USB (USB : Interfaces.Integer_32; Target : Interfaces.Integer_32);
+   with procedure Port_DTR_Reset (USB : Interfaces.Integer_32);
+   with procedure Port_DTR_PINIO (USB : Interfaces.Integer_32; PINIO : Natural);
+   with procedure ESC_Sensor_Pins_Idle;
+   with procedure Port_Forward (Left : Interfaces.Integer_32; Right : Interfaces.Integer_32);
 package Adaflight.Command_Line with SPARK_Mode is
 
    subtype Port_List is CLI_Text.Port_List;
@@ -402,19 +424,19 @@ package Adaflight.Command_Line with SPARK_Mode is
    --  whether a video transmitter is present with the power levels it
    --  reports, the running RC smoothing, the mixer's motors with their output
    --  and whether the 3D feature runs, the receiver and serial protocol the
-   --  board took at its start, the motors' DShot telemetry, the SD card,
-   --  the flash chip, whether the mass storage is ready, whether the motors
-   --  run DShot, whether the ESC sensor feature runs, the build's option
-   --  numbers, whether the soft serial feature runs, the serial ports in the
-   --  order of the target's list, the build's gyro positions with the gyros
-   --  enabled and the hardware and bus of each, and the accelerometer, the
-   --  barometer and the compass as the board detected them, the rangefinder,
-   --  the optical flow sensor and the pitot with the accelerometer's
-   --  revision, whether the GPS feature runs with the receiver's state, the
-   --  board's status, whether the raw gyro's detected sensor is an
-   --  ICM-45605 or an ICM-45686, whose registers sit elsewhere, and whether a
-   --  terminal drives the session, where an unknown command gets the
-   --  interactive error line.
+   --  board took at its start, the motors' DShot telemetry, the SD card, the
+   --  flash chip, whether the mass storage is ready, whether the motors run
+   --  DShot, whether the ESC sensor feature runs, the build's option numbers,
+   --  whether the soft serial feature runs, the serial ports in the order of
+   --  the target's list, the command line's own port, the build's gyro
+   --  positions with the gyros enabled and the hardware and bus of each, and
+   --  the accelerometer, the barometer and the compass as the board detected
+   --  them, the rangefinder, the optical flow sensor and the pitot with the
+   --  accelerometer's revision, whether the GPS feature runs with the
+   --  receiver's state, the board's status, whether the raw gyro's detected
+   --  sensor is an ICM-45605 or an ICM-45686, whose registers sit elsewhere,
+   --  and whether a terminal drives the session, where an unknown command
+   --  gets the interactive error line.
    type Environment is record
       Navigation      : Navigation_Status;
       Firmware        : Identity_Text;
@@ -444,6 +466,7 @@ package Adaflight.Command_Line with SPARK_Mode is
       Option_Count    : Natural range 0 .. Max_Build_Options := 0;
       Soft_Serial     : Boolean := False;
       Serial_Ports    : Serial_Port_Statuses;
+      CLI_Port        : Interfaces.Integer_32 := 20;
       Gyro_Positions  : Positive range 1 .. Max_Gyro_Positions := 1;
       Gyros_Enabled   : Interfaces.Unsigned_8 := 0;
       Gyros           : Gyro_Devices;

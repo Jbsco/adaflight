@@ -95,4 +95,26 @@ package body Adaflight.CLI_Board_Steps with SPARK_Mode is
       Count := 0;
    end Flash_Read;
 
+   procedure Port_State
+     (Id : Interfaces.Integer_32; Open : out Boolean; Baud : out Interfaces.Unsigned_32;
+      Mode : out Interfaces.Unsigned_8; Options : out Interfaces.Unsigned_32; Callback : out Boolean)
+   is
+      pragma Unreferenced (Id);
+   begin
+      Open := False;
+      Baud := 0;
+      Mode := 0;
+      Options := 0;
+      Callback := False;
+   end Port_State;
+
+   procedure Port_Open
+     (Id : Interfaces.Integer_32; Baud : Interfaces.Unsigned_32; Mode : Interfaces.Unsigned_8;
+      Options : Interfaces.Unsigned_32; Opened : out Boolean)
+   is
+      pragma Unreferenced (Id, Baud, Mode, Options);
+   begin
+      Opened := False;
+   end Port_Open;
+
 end Adaflight.CLI_Board_Steps;
