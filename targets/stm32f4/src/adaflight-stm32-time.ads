@@ -3,9 +3,10 @@
 --  scheduler and the microsecond intervals, and the two delays the drivers
 --  take.
 with Interfaces;
+with Adaflight.STM32.Platform;
 package Adaflight.STM32.Time is
    use type Interfaces.Unsigned_32;
-   Core_Clock_Hz : constant := 168_000_000;
+   Core_Clock_Hz : constant := Adaflight.STM32.Platform.Core_Hz;
    Cycles_Per_Us : constant := Core_Clock_Hz / 1_000_000;
    --  Starts the cycle counter.
    procedure Init;

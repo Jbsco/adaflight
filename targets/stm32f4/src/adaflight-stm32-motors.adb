@@ -8,6 +8,7 @@ with Adaflight.PWM_Output;
 with Adaflight.STM32.GPIO;
 with Adaflight.STM32.Time;
 with Adaflight.STM32.Timers; use Adaflight.STM32.Timers;
+with Adaflight.STM32.Platform;
 package body Adaflight.STM32.Motors is
    use Interfaces;
    package GPIO renames Adaflight.STM32.GPIO;
@@ -25,7 +26,8 @@ package body Adaflight.STM32.Motors is
    subtype Motor_Slot is Natural range 0 .. 7;
    type Frame_Buffer is array (0 .. Buffer_Size - 1) of Unsigned_32;
    pragma Volatile_Components (Frame_Buffer);
-   Buffers : array (Motor_Slot) of aliased Frame_Buffer := (others => (others => 0));
+   Buffers : array (Motor_Slot) of aliased Frame_Buffer := (others => (others => 0))
+     with Linker_Section => Adaflight.STM32.Platform.DMA_Section;
 
    type Output is record
       Configured : Boolean := False;

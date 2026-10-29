@@ -4,6 +4,7 @@ with Adaflight.Board;
 with Adaflight.Pins; use Adaflight.Pins;
 with Adaflight.STM32.GPIO;
 with Adaflight.STM32.Time;
+with Adaflight.STM32.Platform;
 package body Adaflight.STM32.USART is
    use type Interfaces.Unsigned_32;
    type Registers is record
@@ -32,7 +33,7 @@ package body Adaflight.STM32.USART is
       UART5 => System'To_Address (16#4000_5000#),
       UART6 => System'To_Address (16#4001_1400#));
    Bus_Hz : constant array (Number) of Positive :=
-     (UART1 | UART6 => 84_000_000, UART2 | UART3 | UART4 | UART5 => 42_000_000);
+     (UART1 | UART6 => Adaflight.STM32.Platform.APB2_Hz, UART2 | UART3 | UART4 | UART5 => Adaflight.STM32.Platform.APB1_Hz);
    Func : constant array (Number) of GPIO.Alternate_Function :=
      (UART1 | UART2 | UART3 => 7, UART4 | UART5 | UART6 => 8);
    TX : constant array (Number) of Pin :=

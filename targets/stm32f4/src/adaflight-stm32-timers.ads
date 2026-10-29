@@ -5,6 +5,7 @@ with Interfaces;
 with System;
 with Adaflight.Pins; use Adaflight.Pins;
 with Adaflight.STM32.GPIO;
+with Adaflight.STM32.Platform;
 package Adaflight.STM32.Timers is
    use Interfaces;
 
@@ -103,7 +104,8 @@ package Adaflight.STM32.Timers is
 
    --  The timers on the APB2 bus count at 168 MHz, the others at 84 MHz.
    Timer_Clock_Hz : constant array (Timer_Name) of Unsigned_32 :=
-     (TIM1 | TIM8 | TIM9 | TIM10 | TIM11 => 168_000_000, others => 84_000_000);
+     (TIM1 | TIM8 | TIM9 | TIM10 | TIM11 => Adaflight.STM32.Platform.APB2_Timer_Hz,
+      others => Adaflight.STM32.Platform.APB1_Timer_Hz);
 
    Alternate : constant array (Timer_Name) of Adaflight.STM32.GPIO.Alternate_Function :=
      (TIM1 | TIM2 => 1, TIM3 | TIM4 | TIM5 => 2, TIM8 | TIM9 | TIM10 | TIM11 => 3, TIM12 | TIM13 | TIM14 => 9);
