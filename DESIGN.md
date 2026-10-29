@@ -11714,9 +11714,10 @@ from the debug information, and compared them with the host settings oracle's. T
 camera control, the ESC serial pin and the timer pin map, the ADC group's DMA options, seven settings (the camera
 control's six and the SD card's SPI bus), and the aux channel count default, 14 on a board with an FPU where the host
 build read 6. Every other difference is the compiler's: the ARM compiler stores an enumeration in one byte and a
-character unsigned, the host in four bytes and signed, so a host build with those two conventions gives the board
-build's layout for all 104 groups. The port keeps the four-byte enumerations in its records and its own stored image
-(D158), so a group on the board is narrower than the port's record of it.
+character unsigned, the host in four bytes and signed. The port's records had the board's widths already, since the
+generator sizes an enumeration by its values and a character as a byte, and the settings oracle now compiles the
+groups with the board compiler's two conventions, so its layouts equal a board build's byte for byte and the port's
+codec, stored image (D158) and vectors did not change.
 
 The host oracle's generic F405 target now defines the STM32 platform's timer management and DMA specification, the
 SD card's SPI bus, the CLRacing F4's timer pin map, camera control pin and ADC DMA option with its pins as raw tags,
