@@ -1,6 +1,7 @@
---  The control loop on the board: the rate controller and the mixer with
---  their settings from the stored configuration, run as the PID loop pass
---  over the units in the task's order, with the mix written to the motors.
+--  The control loop on the board: the rate controller, the mixer and the
+--  servo mixer with their settings from the stored configuration, run as the
+--  PID loop pass over the units in the task's order, with the mix written to
+--  the motors and the servos.
 with Interfaces;
 with Adaflight.Arming;
 with Adaflight.Axes;
@@ -9,6 +10,7 @@ with Adaflight.Mixer;
 with Adaflight.MSP_Motor_In;
 with Adaflight.PID_Controller;
 with Adaflight.RC_Command;
+with Adaflight.Servo_Mixer;
 package Adaflight.STM32.Control is
    subtype Time_Us is Interfaces.Unsigned_32;
    --  What the pass reads from the board: the time, the arming, the
@@ -48,6 +50,24 @@ package Adaflight.STM32.Control is
    --  profiles; the states start over.
    procedure Init (Config : Adaflight.Config_Groups.Configuration; Runtime_Features : Interfaces.Unsigned_32;
                    Battery_Voltage : Interfaces.Unsigned_16 := 0);
+   --  The servo mixer's setup over the configuration and the build's
+   --  features with the receiver's channel count at the PID loop's period in
+   --  microseconds, then the servo outputs when the mixer drives servos.
+   procedure Init_Servos
+     (Config : Adaflight.Config_Groups.Configuration; Runtime_Features : Interfaces.Unsigned_32;
+      Channel_Count : Natural; Loop_Time_Us : Positive);
+   --  The servo mixer's settings the configuration changes while it runs:
+   --  the servo parameters, the tricopter's unarmed servo, the first channel
+   --  forwarded, the lowpass cutoff, the mixed tilt and the receiver's middle
+   --  and aux channel count.
+   procedure Set_Servo_Config (Config : Adaflight.Config_Groups.Configuration);
+   --  The custom servo rules as the servo mixer's rules, which an MSP servo
+   --  rule write asks for.
+   procedure Load_Servo_Rules (Rules : Adaflight.Config_Groups.Servo_Mixer_Record_List_16);
+   --  Whether the mixer drives servos, and a servo's value, which the MSP
+   --  servo reply and the flight log read.
+   function Uses_Servos return Boolean;
+   function Servo (Index : Adaflight.Servo_Mixer.Servo_Index) return Interfaces.Integer_16;
    --  The values the motors take while disarmed, which the motor test of the
    --  MSP and the command line sets: all of them back to the disarm output,
    --  each motor of the mix from a request, one motor or every motor of the
@@ -68,12 +88,13 @@ package Adaflight.STM32.Control is
    --  What the arming's modes pass asked: the anti-gravity state.
    procedure Set_Anti_Gravity (Enabled : Boolean);
    --  One PID loop pass: the yaw reset when the sticks ask for it, the RC
-   --  command, the controller with the runaway check, and the mix, with the
-   --  servos, the flight log and the PID audio as the pass's conditions
-   --  name them; Asked is what the runaway check asked.
+   --  command, the controller with the runaway check, the mix, and the
+   --  servos when the mixer drives them, with the flight log and the PID
+   --  audio as the pass's conditions name them; Asked is what the runaway
+   --  check asked.
    procedure Pass
      (I : Inputs; Sensed : Adaflight.Arming.Inputs; Channels : Adaflight.RC_Command.Channel_Values;
-      Resets_Yaw, Uses_Servos, Log_Device, CLI_Open, PID_Audio : Boolean; Asked : out Adaflight.Arming.Outputs);
+      Resets_Yaw, Log_Device, CLI_Open, PID_Audio : Boolean; Asked : out Adaflight.Arming.Outputs);
    --  Whether the mixer's throttle step changed on the last pass, which
    --  moves the gyro's dynamic lowpass, and the throttle it moved to.
    function Throttle_Step_Changed return Boolean;
