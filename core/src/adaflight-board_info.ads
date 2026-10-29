@@ -76,6 +76,18 @@ package Adaflight.Board_Info with SPARK_Mode is
       PINIO_Boxes      : PINIO_Bytes := (others => 255);
       Motor_Tags       : Motor_Bytes := (others => 0);
       LED_Strip_Tag    : Interfaces.Unsigned_8 := 0;
+      --  The barometer's bus: SPI when the board names one, else I2C when
+      --  it names one, else none with the hardware set to none, with the
+      --  bus's device, the chip select or the address, and the conversion
+      --  end and reset pins; the reference build's values when unset.
+      Baro_Bus_Type    : Interfaces.Unsigned_8 := 2;
+      Baro_I2C_Device  : Interfaces.Unsigned_8 := 0;
+      Baro_I2C_Address : Interfaces.Unsigned_8 := 0;
+      Baro_SPI_Device  : Interfaces.Unsigned_8 := 0;
+      Baro_CS_Tag      : Interfaces.Unsigned_8 := 0;
+      Baro_EOC_Tag     : Interfaces.Unsigned_8 := 0;
+      Baro_XCLR_Tag    : Interfaces.Unsigned_8 := 0;
+      Baro_Hardware    : Interfaces.Unsigned_8 := 0;
       --  The ports a fresh configuration's MSP slots name: the board's
       --  first port, the USB one, then the target's MSP UARTs.
       MSP_First_Port        : Serial_Port := 20;

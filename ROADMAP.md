@@ -39,7 +39,7 @@ Silver with no assume, and pass the gates on `main`.
   with the custom text a UART sends and runs the menu system on the MAX7456 chip on SPI3, over the
   MSP display port on a UART or on a CRSF transmitter's screen, reads a GPS module, the ESC sensor
   and a TF lidar or TOFSense rangefinder on UARTs, estimates its altitude and position from the
-  accelerometer and the GPS with its heading from the GPS course, holds them in the altitude and
+  accelerometer, a barometer on an I2C or SPI bus and the GPS with its heading from the GPS course, holds them in the altitude and
   position hold modes, flies the GPS rescue home, times laps through a GPS gate, writes its flight
   log to the SD card, the flash chip or a serial port, controls a SmartAudio or Tramp video
   transmitter, a RunCam camera and a gimbal on UARTs, sends FrSky hub, SmartPort, LTM, MAVLink and
