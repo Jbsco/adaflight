@@ -37,6 +37,7 @@ package body Adaflight.USB_VCP with SPARK_Mode is
 
    Set_Line_Coding_Code : constant Unsigned_32 := 16#20#;
    Get_Line_Coding_Code : constant Unsigned_32 := 16#21#;
+   Set_Control_Line_State_Code : constant Unsigned_32 := 16#22#;
    No_Command           : constant Unsigned_32 := 16#FF#;
 
    type Request is record
@@ -199,11 +200,19 @@ package body Adaflight.USB_VCP with SPARK_Mode is
       Arm (A);
    end Control_Error;
 
+   --  The command buffer's first two bytes as a little-endian value.
+   function Command_Value (D : Device) return Unsigned_16 is
+     (Unsigned_16 (D.Command (0)) + Unsigned_16 (D.Command (1)) * 2 ** 8);
+
    --  The port's control: the line coding set from the command's seven bytes,
-   --  or read into them.
-   procedure Line_Control (D : in out Device; Code : Unsigned_32; Length : Unsigned_32) is
+   --  or read into them, and the control line state from the two-byte value
+   --  that comes with the request, with the count of such requests.
+   procedure Line_Control (D : in out Device; Code : Unsigned_32; Length : Unsigned_32; Value : Unsigned_16) is
    begin
-      if Code = Set_Line_Coding_Code and then Length = 7 then
+      if Code = Set_Control_Line_State_Code and then Length = 2 then
+         D.Control_Line := Value;
+         D.Control_Count := D.Control_Count + 1;
+      elsif Code = Set_Line_Coding_Code and then Length = 7 then
          D.Line :=
            (Bit_Rate  => Unsigned_32 (D.Command (0)) + Unsigned_32 (D.Command (1)) * 2 ** 8
                          + Unsigned_32 (D.Command (2)) * 2 ** 16 + Unsigned_32 (D.Command (3)) * 2 ** 24,
@@ -255,7 +264,7 @@ package body Adaflight.USB_VCP with SPARK_Mode is
                   L : constant Natural := Natural'Min (Natural (R.Length), Command_Size);
                begin
                   if (R.Request_Type and 16#80#) /= 0 then
-                     Line_Control (D, Unsigned_32 (R.Code), Unsigned_32 (L));
+                     Line_Control (D, Unsigned_32 (R.Code), Unsigned_32 (L), Command_Value (D));
                      declare
                         Copy : constant Byte_Array (0 .. L - 1) := D.Command (0 .. L - 1);
                      begin
@@ -268,7 +277,7 @@ package body Adaflight.USB_VCP with SPARK_Mode is
                   end if;
                end;
             else
-               Line_Control (D, Unsigned_32 (R.Code), 2);
+               Line_Control (D, Unsigned_32 (R.Code), 2, R.Value);
             end if;
          when 16#00# =>
             case R.Code is
@@ -294,7 +303,7 @@ package body Adaflight.USB_VCP with SPARK_Mode is
    procedure Class_Rx_Ready (D : in out Device) is
    begin
       if D.Command_Code /= No_Command then
-         Line_Control (D, D.Command_Code, D.Command_Length);
+         Line_Control (D, D.Command_Code, D.Command_Length, Command_Value (D));
          D.Command_Code := No_Command;
       end if;
    end Class_Rx_Ready;

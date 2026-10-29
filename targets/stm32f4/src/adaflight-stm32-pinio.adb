@@ -107,4 +107,20 @@ package body Adaflight.STM32.PINIO is
       end loop;
    end Update;
 
+   procedure Set (Index : Natural; On : Boolean) is
+   begin
+      if Index not in Outputs'Range then
+         return;
+      end if;
+      declare
+         O     : Output renames Outputs (Index);
+         Level : constant Boolean := On xor O.Inverted;
+      begin
+         if O.Present and then Level /= O.Level then
+            Write (O.Where, Level);
+            O.Level := Level;
+         end if;
+      end;
+   end Set;
+
 end Adaflight.STM32.PINIO;

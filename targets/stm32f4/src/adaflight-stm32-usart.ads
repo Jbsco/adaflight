@@ -31,6 +31,16 @@ package Adaflight.STM32.USART is
    procedure Init
      (N : Number; Baud : Positive; Two_Stop_Bits : Boolean := False; Line : Half_Duplex := Full_Duplex;
       Even_Parity : Boolean := False; Inverted : Boolean := False);
+   --  A port's settings at its last start, and whether it started.
+   type Settings is record
+      Started       : Boolean := False;
+      Baud          : Natural := 0;
+      Two_Stop_Bits : Boolean := False;
+      Line          : Half_Duplex := Full_Duplex;
+      Even_Parity   : Boolean := False;
+      Inverted      : Boolean := False;
+   end record;
+   function Current (N : Number) return Settings;
    --  Every character of Text, queued as the ring has room.
    procedure Put (Into : in out Port; Text : String);
    --  Every byte of Data, queued as the ring has room.

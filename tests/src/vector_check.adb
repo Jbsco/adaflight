@@ -169,6 +169,7 @@ with Adaflight.MSP_Simplified_Tuning;
 with Adaflight.MSP_OSD_Out;
 with Adaflight.Serial_Feature_Map;
 with Adaflight.MSP_Allocation;
+with Adaflight.Passthrough_Escape;
 with Adaflight.MSP_Serial_Out;
 with Adaflight.MSP_VTX_Status_Out;
 with Adaflight.Config_Store;
@@ -4496,7 +4497,7 @@ procedure Vector_Check is
          end if;
          P := P + 6;
       end loop;
-      Record_Int ("usb.fields", Integer_64 (NF), Integer_64 (P + 31));
+      Record_Int ("usb.fields", Integer_64 (NF), Integer_64 (P + 33));
       Record_Int ("usb.status", Int (P), U.Device_Status'Pos (USB_Dev.Status) + 1);
       Record_Int ("usb.stage", Int (P + 1), U.Control_Stage'Pos (USB_Dev.Stage));
       Record_Int ("usb.device_address", Int (P + 2), Integer_64 (USB_Dev.Address));
@@ -4525,6 +4526,8 @@ procedure Vector_Check is
       Record_Int ("usb.out_remaining", Int (P + 29), Integer_64 (USB_Dev.Out_EP (0).Remaining));
       Record_Int ("usb.test_pending", Int (P + 30), Boolean'Pos (USB_Dev.Test_Pending));
       Record_Int ("usb.command_code", Int (P + 31), Integer_64 (USB_Dev.Command_Code));
+      Record_Int ("usb.control_line", Int (P + 32), Integer_64 (USB_Dev.Control_Line));
+      Record_Int ("usb.control_count", Int (P + 33), Integer_64 (USB_Dev.Control_Count));
    end Check_USB_VCP_Line;
 
    procedure Check_Blackbox_Info_Line is
@@ -36132,6 +36135,39 @@ procedure Vector_Check is
 
    --  MSP port allocation: the build's line, then per case its draws, the
    --  ports opened in order and the reset's slot claims.
+   --  A passthrough escape case: the host's bytes at their times from the
+   --  forwarding's start on the host's port, and the index of the byte that
+   --  reset, -1 for none.
+   procedure Check_Passthrough_Escape_Line is
+      package PE renames Adaflight.Passthrough_Escape;
+      Count    : constant Natural := Natural (Int (5));
+      Hex      : constant String := Str (6);
+      Times    : constant String := Str (7);
+      S        : PE.State := PE.Start (Integer (Int (3)), Interfaces.Unsigned_32 (Int (4)));
+      Reset    : Boolean;
+      At_Reset : Integer_64 := -1;
+      T_From   : Positive := Times'First;
+   begin
+      for I in 0 .. Count - 1 loop
+         declare
+            C    : constant Interfaces.Unsigned_8 :=
+              Interfaces.Unsigned_8'Value ("16#" & Hex (Hex'First + 2 * I .. Hex'First + 2 * I + 1) & "#");
+            T_To : Natural := T_From;
+         begin
+            while T_To <= Times'Last and then Times (T_To) /= ':' loop
+               T_To := T_To + 1;
+            end loop;
+            PE.Host_Byte (S, C, Interfaces.Unsigned_32'Value (Times (T_From .. T_To - 1)), Reset);
+            T_From := T_To + 1;
+            if Reset then
+               At_Reset := Integer_64 (I);
+               exit;
+            end if;
+         end;
+      end loop;
+      Record_Int ("ptesc.reset", Int (8), At_Reset);
+   end Check_Passthrough_Escape_Line;
+
    procedure Check_MSP_Allocation_Line is
       package SFM renames Adaflight.Serial_Feature_Map;
       package MA renames Adaflight.MSP_Allocation;
@@ -39283,6 +39319,8 @@ procedure Vector_Check is
                   Check_Serial_Map_Line;
                elsif Kind = "mspalloc" then
                   Check_MSP_Allocation_Line;
+               elsif Kind = "ptesc" then
+                  Check_Passthrough_Escape_Line;
                elsif Kind = "mspsercfg" then
                   Check_MSP_Serial_Config_Line;
                elsif Kind = "vtxstatus" then
@@ -39643,6 +39681,7 @@ begin
    Run (Dir & "/serialmap.csv", "serialmap");
    Run (Dir & "/telshare.csv", "serialmap");
    Run (Dir & "/mspalloc.csv", "mspalloc");
+   Run (Dir & "/ptescape.csv", "ptesc");
    Run (Dir & "/mspsercfg.csv", "mspsercfg");
    Run (Dir & "/vtxstatus.csv", "vtxstatus");
    Run (Dir & "/cfgstore.csv", "cfgstore");
