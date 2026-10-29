@@ -1,3 +1,4 @@
+with Adaflight.Board;
 with Ada.Streams;
 with GNAT.Sockets;
 with Adaflight.STM32.Time;
@@ -193,4 +194,13 @@ package body Adaflight.STM32.USART is
    begin
       Lines (N).Take (Into, Times, Count);
    end Take;
+
+   function TX_Pin (N : Number) return Adaflight.Pins.Pin is
+     (case N is
+         when UART1 => Adaflight.Board.UART1_TX_Pin, when UART3 => Adaflight.Board.UART3_TX_Pin,
+         when UART4 => Adaflight.Board.UART4_TX_Pin, when UART6 => Adaflight.Board.UART6_TX_Pin);
+   function RX_Pin (N : Number) return Adaflight.Pins.Pin is
+     (case N is
+         when UART1 => Adaflight.Board.UART1_RX_Pin, when UART3 => Adaflight.Board.UART3_RX_Pin,
+         when UART4 => Adaflight.Board.UART4_RX_Pin, when UART6 => Adaflight.Board.UART6_RX_Pin);
 end Adaflight.STM32.USART;

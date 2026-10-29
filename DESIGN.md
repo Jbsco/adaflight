@@ -11589,3 +11589,40 @@ features and the wing feature set, each until a board drives it.
 The checker derives the command line oracle's list from the table and the oracle build's selection, and every number
 and its position replays against the recorded options lines. The host smoke reads the options command and the build
 information reply for the numbers the image's features imply.
+
+## D514. Initialization order (2026-10-29)
+
+The board's start follows the reference's three phases step for step, with the differences below kept. First the
+persistent words and a pending bootloader request, the clock, the LED, the inverters, then the configuration with its
+structure check and the board identifier (D512), PINIO, and now the Spektrum satellite bind at power-up, before any
+delay, since the satellite's bind window closes 140 ms after power. Then the USB port, the ports, the beeper, the
+inverters off, the ADC, the buses with the flash chip and the SD card, the gyro with its selection and the fix of its
+configuration, the filters, the accelerometer, the attitude and the gyro calibration start, the rangefinder, the
+internal ADC, the boot flashes with the beeper, the receiver with the failsafe before it, the GPS, the custom text, the
+ESC sensor, the USB detect, the gimbal and the camera, the pilot with the arming reasons, the boxes, the control with
+the motors, the servos, the LED strip, the battery, the OSD, the scheduler, the flight log, the MSP lines, the position
+estimator, the holds, the navigator, the rescue, the telemetry, and the motors enabled last.
+
+Kept differences: the LED and the inverter pins come from the board, where the reference reads a status LED
+configuration; the USB port starts before the ports, where the reference starts it after its second phase; the flash
+chip and the SD card start before the gyro, where the reference starts them after the sensors; the gyro calibration is
+started with the filters, where the reference starts it after the flight log, which changes nothing since the
+calibration counts samples the gyro task takes once the scheduler runs; the OSD starts before the MSP lines, where the
+reference starts it after; the unused pins are left as the reset leaves them, where the reference sets them on its
+PICO and ESP32 platforms alone.
+
+`Adaflight.Spektrum_Bind` contains the bind's decisions, SPARK for their place in the start: a start binds when its
+bind plug, where the board has one, reads low, the start is not a software reset and the bind count is one to ten;
+the pulses go out on the override pin when one is set, else on the receiver port's line, the transmit pin on a
+half-duplex line, or for the SRXL receiver only when the telemetry is on and does not share the port, and the receive
+pin otherwise; the count returns to zero, to be saved, when no bind plug exists, the autoreset setting is on and the
+start is not a software reset. The board reads the plug through a pull-up after 10 us, holds the line high for the 60
+ms window, sends the count's pulses of 120 us low and 120 us high with the LED off and on, holds the override pin 50
+ms more and leaves it floating, and writes the configuration with a confirmation beep when the count returned to
+zero. The software reset is the reset register's flag, kept at the persistent words' start. The board drives no SRXL
+telemetry, so an SRXL receiver's line is left alone, as the reference leaves it when the telemetry shares the port.
+
+A new oracle family runs the reference's bind over drawn plugs, resets, counts, pins, ports and providers, with the
+bind and SRXL telemetry defines restored after the platform drops them, as every STM32 build keeps them. All 8000 lines match. The host smoke sets a bind count
+with the autoreset, saves, and reads the count back as zero after the restart. The image grows from 635760 to
+636776 bytes of code.

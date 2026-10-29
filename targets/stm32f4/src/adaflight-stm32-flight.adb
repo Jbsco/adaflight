@@ -3839,6 +3839,15 @@ package body Adaflight.STM32.Flight is
       Adaflight.STM32.GPIO.Set_Low (Adaflight.Board.Inverter_Pin_UART1);
       Init_Configuration;
       Adaflight.STM32.PINIO.Init (Config);
+      declare
+         Bind_Saved : Boolean;
+      begin
+         Adaflight.STM32.Radio.Bind_At_Power_Up (Config, Bind_Saved);
+         if Bind_Saved then
+            Write_Configuration;
+            Confirmation_Beeps (1);
+         end if;
+      end;
       Adaflight.STM32.RTC.Set_Zone (Config.Time_Config.Tz_Offset_Minutes);
       Adaflight.STM32.USB.Init ("Adaflight (" & Adaflight.Board.Board_Name & ")");
       Ctx.Out_Views.Common := Common_Snapshot;
